@@ -8,10 +8,29 @@ import { fileURLToPath } from 'node:url'
 
 const WRAPPER_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 
-/** Copies the installed get-pnpm and its dependencies into `wrapperDir`'s `dist/node_modules`. */
+/** Copies get-pnpm's published files and its dependencies into `wrapperDir`'s `dist/node_modules`. */
 export function bundleDownloader (wrapperDir) {
   for (const [name, packageDir] of downloaderPackages()) {
-    fs.cpSync(packageDir, path.join(wrapperDir, 'dist/node_modules', name), { dereference: true, recursive: true })
+    const dest = path.join(wrapperDir, 'dist/node_modules', name)
+    if (name === 'get-pnpm') {
+      copyPublishedFiles(packageDir, dest)
+    } else {
+      fs.cpSync(packageDir, dest, { dereference: true, recursive: true })
+    }
+  }
+}
+
+/**
+ * The workspace package's own `files`, which is what the release's
+ * `pnpm deploy` injects: its build output, not its sources or dev dependencies.
+ */
+function copyPublishedFiles (packageDir, dest) {
+  if (!fs.existsSync(path.join(packageDir, 'lib', 'index.js'))) {
+    throw new Error(`get-pnpm is not built in ${packageDir}. Run \`pnpm --filter=get-pnpm run build\`.`)
+  }
+  const { files } = JSON.parse(fs.readFileSync(path.join(packageDir, 'package.json'), 'utf8'))
+  for (const entry of ['package.json', ...files.filter((pattern) => !pattern.startsWith('!'))]) {
+    fs.cpSync(path.join(packageDir, entry), path.join(dest, entry), { recursive: true })
   }
 }
 

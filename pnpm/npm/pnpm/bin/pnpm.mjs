@@ -15,7 +15,7 @@
 // payload it ships node-gyp in. The placeholder's installs usually do carry
 // that package, and the binary is taken from there.
 //
-// The download itself is `get-pnpm`, the package behind https://get.pnpm.io,
+// The download itself is `get-pnpm`, the installer in ../../get-pnpm,
 // which already knows how to verify one; it travels in that same `dist/`
 // payload, and reads the registry, credentials, and signing keys from pnpm's
 // and Corepack's config.

@@ -1,8 +1,8 @@
 name: Release
 
 # The unified release workflow for every product in this repository: the
-# TypeScript pnpm CLI (v11), the Rust pnpm CLI + NAPI addon (v12), and the
-# pnpr registry server. Versions are committed (bumped by `pnpm bump` via the
+# TypeScript pnpm CLI (v11), the Rust pnpm CLI + NAPI addon (v12), the
+# pnpr registry server, and the get-pnpm installer package. Versions are committed (bumped by `pnpm bump` via the
 # release PR that create-release-pr.yml opens); pushing a version tag runs the
 # `plan` job, which releases exactly the product whose committed version the
 # tag names, so tags pushed together release their products in parallel runs.
@@ -18,6 +18,8 @@ on:
       # v0.x/v1.x that pnpr's low version numbers would otherwise collide with.
       - "v*.*.*"
       - "pnpr@*.*.*"
+      # get-pnpm is versioned apart from pnpm, from 0.0.x.
+      - "get-pnpm@*.*.*"
   # Manual trigger for rerunning a tag release or verifying TypeScript release
   # artifacts from a branch without publishing.
   workflow_dispatch:
@@ -51,11 +53,12 @@ jobs:
           case "${GITHUB_REF}" in
             refs/tags/v*.*.*) ;;
             refs/tags/pnpr@*.*.*) ;;
+            refs/tags/get-pnpm@*.*.*) ;;
             *)
               if [ "${{ inputs.verify_ts_release }}" = "true" ]; then
                 exit 0
               fi
-              echo "::error::The release workflow must run from a version tag like v11.9.0 or pnpr@0.2.0. Current ref: ${GITHUB_REF}"
+              echo "::error::The release workflow must run from a version tag like v11.9.0, pnpr@0.2.0, or get-pnpm@0.1.0. Current ref: ${GITHUB_REF}"
               exit 1
               ;;
           esac
@@ -67,7 +70,7 @@ jobs:
   # This guards against an unsigned tag, not against an actor who can push an
   # arbitrary one. A tag push runs the workflow file and checks out the tree from
   # the pushed tag, so a tag supplies both this job and the keys it trusts.
-  # Restricting who may create `v*` and `pnpr@*` tags is a repository ruleset
+  # Restricting who may create `v*`, `pnpr@*`, and `get-pnpm@*` tags is a repository ruleset
   # concern that no workflow can enforce for itself.
   verify-release-tag:
     name: Verify the release tag is maintainer-signed
@@ -146,6 +149,8 @@ jobs:
       pnpr: ${{ steps.decide.outputs.pnpr }}
       pnpr_version: ${{ steps.decide.outputs.pnpr_version }}
       pnpr_tag: ${{ steps.decide.outputs.pnpr_tag }}
+      get_pnpm: ${{ steps.decide.outputs.get_pnpm }}
+      get_pnpm_version: ${{ steps.decide.outputs.get_pnpm_version }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -161,7 +166,7 @@ jobs:
         # treats only E404 as "not published"; any other npm failure aborts
         # the plan so a registry outage can't be misread as a pending release.
         # The gate packages are the ones each publish job publishes last
-        # (`pnpm` for both CLIs, `@pnpm/pnpr` for pnpr), so a rerun after a
+        # (`pnpm` for both CLIs, `@pnpm/pnpr` for pnpr, `get-pnpm` for itself), so a rerun after a
         # partial failure resumes instead of skipping.
         run: |
           set -eu
@@ -179,6 +184,7 @@ jobs:
           RUST_VERSION=$(jq -r .version pnpm/npm/pnpm/package.json)
           NAPI_VERSION=$(jq -r .version pnpm/npm/napi/package.json)
           PNPR_VERSION=$(jq -r .version pnpr/npm/pnpr/package.json)
+          GET_PNPM_VERSION=$(jq -r .version pnpm/npm/get-pnpm/package.json)
 
           # pacquet and @pnpm/napi are a versioning.fixed group; a drift means
           # the versions were edited by hand inconsistently.
@@ -206,6 +212,7 @@ jobs:
           TS_NEEDS=false
           RUST_NEEDS=false
           PNPR_NEEDS=false
+          GET_PNPM_NEEDS=false
           case "$GITHUB_REF" in
             refs/tags/pnpr@*)
               TAG_VERSION="${GITHUB_REF#refs/tags/pnpr@}"
@@ -214,6 +221,14 @@ jobs:
                 exit 1
               fi
               PNPR_NEEDS=$(needs_release "@pnpm/pnpr@$PNPR_VERSION")
+              ;;
+            refs/tags/get-pnpm@*)
+              TAG_VERSION="${GITHUB_REF#refs/tags/get-pnpm@}"
+              if [ "$TAG_VERSION" != "$GET_PNPM_VERSION" ]; then
+                echo "::error::Tag get-pnpm@${TAG_VERSION} matches no product: the committed get-pnpm version is ${GET_PNPM_VERSION}"
+                exit 1
+              fi
+              GET_PNPM_NEEDS=$(needs_release "get-pnpm@$GET_PNPM_VERSION")
               ;;
             refs/tags/v*)
               TAG_VERSION="${GITHUB_REF#refs/tags/v}"
@@ -242,6 +257,8 @@ jobs:
             echo "pnpr=$PNPR_NEEDS"
             echo "pnpr_version=$PNPR_VERSION"
             echo "pnpr_tag=$PNPR_TAG"
+            echo "get_pnpm=$GET_PNPM_NEEDS"
+            echo "get_pnpm_version=$GET_PNPM_VERSION"
           } | tee -a "$GITHUB_OUTPUT"
 
   verify-ts-release:
@@ -1852,3 +1869,100 @@ jobs:
             pnpr-*.tar.gz
             pnpr-*.zip
             pnpr-*.sha256
+
+  # Built apart from the publish job, so the dependency install and its
+  # lifecycle scripts never run with the OIDC token that publishes.
+  build-get-pnpm:
+    name: Build get-pnpm
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    needs: plan
+    if: needs.plan.outputs.get_pnpm == 'true'
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Initialize Rust before dependency installation
+        uses: $/.github/actions/rustup
+        with:
+          restore-cache: false
+
+      - name: Install pnpm and Node
+        uses: pnpm/setup@fa36a5ef7dcdefc3a7cb25655c122e00cf6e636e # v3.1.2
+        with:
+          runtime: node@22
+          install: false
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --filter get-pnpm
+
+      - name: Test
+        run: pnpm --filter=get-pnpm test
+
+      # The package is private in the workspace so the TypeScript release's
+      # recursive publish skips it. The packed manifest drops the flag.
+      - name: Pack
+        working-directory: pnpm/npm/get-pnpm
+        env:
+          VERSION: ${{ needs.plan.outputs.get_pnpm_version }}
+        run: |
+          set -euo pipefail
+          jq 'del(.private)' package.json > package.json.tmp
+          mv package.json.tmp package.json
+          pnpm pack --out "$RUNNER_TEMP/get-pnpm-$VERSION.tgz"
+
+      - name: Upload the tarball
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          if-no-files-found: error
+          name: get-pnpm
+          path: ${{ runner.temp }}/get-pnpm-${{ needs.plan.outputs.get_pnpm_version }}.tgz
+
+  publish-get-pnpm:
+    name: Publish get-pnpm to npm
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      contents: read
+      # Required for npm trusted publishing and provenance attestations via OIDC.
+      id-token: write
+    needs:
+      - plan
+      - build-get-pnpm
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install pnpm and Node
+        uses: pnpm/setup@fa36a5ef7dcdefc3a7cb25655c122e00cf6e636e # v3.1.2
+        with:
+          runtime: node@22
+          install: false
+
+      - name: Download the tarball
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: get-pnpm
+
+      - name: Publish
+        # Auth and provenance as in publish-pnpr.
+        env:
+          VERSION: ${{ needs.plan.outputs.get_pnpm_version }}
+        run: |
+          set -euo pipefail
+          state=$(.github/scripts/npm-package-publication-state.sh "get-pnpm@$VERSION")
+          case "$state" in
+            published)
+              echo "get-pnpm@$VERSION is already published; skipping"
+              ;;
+            missing)
+              pnpm publish "get-pnpm-$VERSION.tgz" --access public --provenance --no-git-checks
+              ;;
+            *)
+              echo "::error::Unexpected npm publication state for get-pnpm@$VERSION"
+              exit 1
+              ;;
+          esac
