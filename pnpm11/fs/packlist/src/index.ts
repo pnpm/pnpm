@@ -6,6 +6,8 @@ import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-re
 import { isSubdir } from 'is-subdir'
 import npmPacklist from 'npm-packlist'
 
+import { isSafeBundleName, type ResolvedDependency, resolveDependency } from './bundleDependencyResolver.js'
+
 interface Edge {
   to: TreeNode
   peer: boolean
@@ -101,7 +103,7 @@ interface PlacedPackage {
 interface BundleWalk {
   pkgDir: string
   realPkgDir: string
-  boundary: string
+  boundaries: string[]
   rootDependencyNames: Set<string>
   slots: Map<string, string>
   nodes: Map<string, TreeNode>
@@ -141,15 +143,14 @@ export async function packlistWithSources (pkgDir: string, opts?: PacklistOption
   const pkg = opts?.manifest ?? await safeReadProjectManifestOnly(resolvedPkgDir) as Record<string, unknown> | null ?? {}
   const hasWorkspaceContext = workspaceDir != null && workspaceDir !== resolvedPkgDir && isSubdir(workspaceDir, resolvedPkgDir)
   const boundary = hasWorkspaceContext ? workspaceDir : path.resolve(opts?.bundledDependenciesDir ?? resolvedPkgDir)
-  const realBoundary = realpathOrUndefined(boundary) ?? boundary
-  const realPkgDir = realpathOrUndefined(resolvedPkgDir) ?? resolvedPkgDir
-  const { tree, packedDirs } = buildRootTree(resolvedPkgDir, pkg, realBoundary)
+  const boundaries = getBoundaries(boundary, resolvedPkgDir)
+  const { tree, packedDirs } = buildRootTree(resolvedPkgDir, pkg, boundaries)
   const packlistOpts = hasWorkspaceContext && !await hasNpmIgnoreFile(resolvedPkgDir)
     ? { prefix: workspaceDir, workspaces: [resolvedPkgDir] }
     : undefined
   const files = (await walkPackage(tree, packlistOpts))
     .map((file) => file.replace(/^\.[/\\]/, ''))
-    .filter((file) => isInternalFileOrSymlink(resolvedPkgDir, file, realBoundary, realPkgDir))
+    .filter((file) => isInternalFileOrSymlink(resolvedPkgDir, file, boundaries))
   return mapToPackedPaths(resolvedPkgDir, files, packedDirs)
 }
 
@@ -175,16 +176,16 @@ function isEscapingRelativePath (rel: string): boolean {
   return rel === '..' || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)
 }
 
-function isInternalFileOrSymlink (pkgDir: string, relFile: string, boundary: string, realPkgDir: string): boolean {
+function isInternalFileOrSymlink (pkgDir: string, relFile: string, boundaries: string[]): boolean {
   const absPath = path.join(pkgDir, relFile)
   const lstat = lstatIfExists(absPath, ['ENOENT'])
   if (lstat == null) {
     return false
   }
   if (!lstat.isSymbolicLink()) {
-    return !realTargetEscapes(boundary, realPkgDir, absPath, false)
+    return !realTargetEscapes(boundaries, absPath, false)
   }
-  return isInternalSymlink(pkgDir, relFile, absPath, boundary, realPkgDir)
+  return isInternalSymlink(pkgDir, relFile, absPath, boundaries)
 }
 
 function lstatIfExists (filePath: string, missingCodes: string[]): fs.Stats | undefined {
@@ -196,7 +197,7 @@ function lstatIfExists (filePath: string, missingCodes: string[]): fs.Stats | un
   }
 }
 
-function isInternalSymlink (pkgDir: string, relFile: string, absPath: string, boundary: string, realPkgDir: string): boolean {
+function isInternalSymlink (pkgDir: string, relFile: string, absPath: string, boundaries: string[]): boolean {
   let linkTarget = fs.readlinkSync(absPath)
   if (path.isAbsolute(linkTarget)) {
     linkTarget = path.relative(path.dirname(absPath), linkTarget)
@@ -209,7 +210,7 @@ function isInternalSymlink (pkgDir: string, relFile: string, absPath: string, bo
   if (isEscapingRelativePath(relToPkg)) {
     return false
   }
-  return !realTargetEscapes(boundary, realPkgDir, absPath, true)
+  return !realTargetEscapes(boundaries, absPath, true)
 }
 
 function archivedLinkEscapes (relFile: string, linkTarget: string): boolean {
@@ -222,10 +223,10 @@ function archivedLinkEscapes (relFile: string, linkTarget: string): boolean {
   return normalizedArchive === '..' || normalizedArchive.startsWith('../')
 }
 
-function realTargetEscapes (boundary: string, packageBoundary: string, absPath: string, isSymlink = true): boolean {
+function realTargetEscapes (boundaries: string[], absPath: string, isSymlink = true): boolean {
   try {
     const realTarget = fs.realpathSync(absPath)
-    return isEscapingRelativePath(path.relative(boundary, realTarget)) && isEscapingRelativePath(path.relative(packageBoundary, realTarget))
+    return boundaries.every((boundary) => isEscapingRelativePath(path.relative(boundary, realTarget)))
   } catch (err: unknown) {
     if (!isError(err) || !('code' in err) || err.code !== 'ENOENT') {
       throw err
@@ -262,7 +263,7 @@ function mapToPackedPaths (pkgDir: string, files: string[], packedDirs: Map<Tree
  * real directory rather than under the link, so the packed location is chosen
  * separately by packedLocation().
  */
-function buildRootTree (pkgDir: string, pkg: Record<string, unknown>, boundary: string): { tree: TreeNode, packedDirs: Map<TreeNode, string[]> } {
+function buildRootTree (pkgDir: string, pkg: Record<string, unknown>, boundaries: string[]): { tree: TreeNode, packedDirs: Map<TreeNode, string[]> } {
   const bundledDeps = getRootBundledDeps(pkg).filter(isSafeBundleName)
   // npm-packlist's gatherBundles() iterates package.bundleDependencies directly,
   // so the field must be an array. Normalize true/undefined to an explicit list.
@@ -273,7 +274,7 @@ function buildRootTree (pkgDir: string, pkg: Record<string, unknown>, boundary: 
   const walk: BundleWalk = {
     pkgDir,
     realPkgDir: fs.realpathSync(pkgDir),
-    boundary: realpathOrUndefined(boundary) ?? boundary,
+    boundaries,
     rootDependencyNames: new Set(getNestedBundledDeps(pkg)),
     slots: new Map(),
     nodes: new Map(),
@@ -299,7 +300,7 @@ interface BundleTask {
 }
 
 function placeBundledDependency (walk: BundleWalk, task: BundleTask): PlacedPackage | undefined {
-  const resolved = resolveDependency(task.name, task.parent.realDir, walk.boundary)
+  const resolved = resolveDependency(task.name, task.parent.realDir, walk.boundaries)
   if (resolved == null) return undefined
   const packed = packedLocation(walk, task.name, task.parent.packed, resolved.realDir)
   if (packed == null) return undefined
@@ -399,55 +400,6 @@ function getNestedBundledDeps (pkg: Record<string, unknown>): string[] {
   return [...Object.keys(dependencies), ...Object.keys(optionalDependencies)].filter(isSafeBundleName)
 }
 
-interface ResolvedDependency {
-  dir: string
-  realDir: string
-}
-
-function resolveDependency (depName: string, fromDir: string, boundary: string): ResolvedDependency | undefined {
-  if (!isSafeBundleName(depName)) return undefined
-  let currentDir = fromDir
-  while (true) {
-    const found = findInNodeModulesOf(currentDir, depName)
-    if (found != null) return keepWithinBoundary(found, boundary)
-    if (currentDir === boundary) return undefined
-    const parent = path.dirname(currentDir)
-    if (parent === currentDir) return undefined
-    currentDir = parent
-  }
-}
-
-function keepWithinBoundary (resolved: ResolvedDependency, boundary: string): ResolvedDependency | undefined {
-  return resolved.realDir === boundary || isSubdir(boundary, resolved.realDir) ? resolved : undefined
-}
-
-function findInNodeModulesOf (dir: string, depName: string): ResolvedDependency | undefined {
-  if (path.basename(dir) === 'node_modules') return undefined
-  const candidate = path.join(dir, 'node_modules', depName)
-  const realDir = realpathOfPackageDir(candidate)
-  return realDir == null ? undefined : { dir: candidate, realDir }
-}
-
-function realpathOfPackageDir (dir: string): string | undefined {
-  try {
-    if (!fs.statSync(path.join(dir, 'package.json')).isFile()) return undefined
-    return fs.realpathSync(dir)
-  } catch (err: unknown) {
-    if (!isError(err) || !('code' in err) || err.code !== 'ENOENT') {
-      throw err
-    }
-    return undefined
-  }
-}
-
-// Bundle names come from package.json, so reject paths before joining them under node_modules.
-function isSafeBundleName (name: unknown): name is string {
-  if (typeof name !== 'string' || name.includes('\\')) return false
-  const parts = name.split('/')
-  if (parts.length > 2 || (parts.length === 2 && !parts[0].startsWith('@'))) return false
-  return parts.every((part) => part !== '' && part !== '.' && part !== '..')
-}
-
 function realpathOrUndefined (dir: string): string | undefined {
   try {
     return fs.realpathSync(dir)
@@ -455,6 +407,10 @@ function realpathOrUndefined (dir: string): string | undefined {
     if (isError(err) && 'code' in err && err.code === 'ENOENT') return undefined
     throw err
   }
+}
+
+function getBoundaries (projectDir: string, pkgDir: string): string[] {
+  return Array.from(new Set([projectDir, pkgDir].map((dir) => realpathOrUndefined(dir) ?? path.resolve(dir))))
 }
 
 function readPackageJson (dir: string): Record<string, unknown> {

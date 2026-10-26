@@ -52,15 +52,28 @@ test('pack: includes files in a publish directory reached through a symlink', as
   prepare({
     name: 'symlinked-publish-directory',
     version: '1.0.0',
+    bundledDependencies: ['dep', 'root-dep'],
     publishConfig: { directory: 'build/dist' },
   })
 
   fs.mkdirSync('../output/dist', { recursive: true })
-  fs.writeFileSync('../output/dist/package.json', JSON.stringify({ name: 'symlinked-publish-directory', version: '1.0.0' }))
+  fs.writeFileSync('../output/dist/package.json', JSON.stringify({
+    name: 'symlinked-publish-directory',
+    version: '1.0.0',
+    bundledDependencies: ['dep', 'root-dep'],
+  }))
   fs.writeFileSync('../output/dist/index.js', 'module.exports = 1')
-  fs.writeFileSync('../outside.js', 'module.exports = 2')
+  fs.mkdirSync('../output/dist/node_modules/dep', { recursive: true })
+  fs.writeFileSync('../output/dist/node_modules/dep/package.json', JSON.stringify({ name: 'dep', version: '1.0.0' }))
+  fs.writeFileSync('../output/dist/node_modules/dep/index.js', 'module.exports = 42')
+  fs.mkdirSync('node_modules/root-dep', { recursive: true })
+  fs.writeFileSync('node_modules/root-dep/package.json', JSON.stringify({ name: 'root-dep', version: '1.0.0' }))
+  fs.writeFileSync('node_modules/root-dep/index.js', 'module.exports = 84')
+  fs.mkdirSync('../external')
+  fs.writeFileSync('../external/outside.js', 'module.exports = 2')
   fs.symlinkSync('../output', 'build', 'junction')
-  fs.symlinkSync('../../../outside.js', '../output/dist/leak.js', 'file')
+  fs.symlinkSync('../../external', '../output/dist/sub', 'junction')
+  fs.symlinkSync('sub/outside.js', '../output/dist/leak.js', 'file')
 
   await pack.handler({
     ...DEFAULT_OPTS,
@@ -77,6 +90,8 @@ test('pack: includes files in a publish directory reached through a symlink', as
 
   expect(entries).toContain('package/index.js')
   expect(entries).not.toContain('package/leak.js')
+  expect(entries).toContain('package/node_modules/dep/index.js')
+  expect(entries).toContain('package/node_modules/root-dep/index.js')
 })
 
 test('pack: package with package.yaml respects files field', async () => {
