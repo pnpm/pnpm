@@ -211,16 +211,12 @@ pub(super) fn wanted_lockfile_contains_satisfying_entry(
     let Ok(pkg_name) = PkgName::parse(pkg_name) else {
         return false;
     };
-    packages
-        .keys()
-        .any(|key| {
-            crate::lockfile_reuse::locked_child_admits(
-                &pkg_name,
-                key,
-                range,
-                &ctx.workspace.cache.registry_context,
-            ) == Some(true)
-        })
+    crate::lockfile_reuse::any_locked_key_admits(
+        &pkg_name,
+        packages.keys(),
+        range,
+        &ctx.workspace.cache.registry_context,
+    )
 }
 
 /// Normalize an `npm:` alias specifier into the real package name and
