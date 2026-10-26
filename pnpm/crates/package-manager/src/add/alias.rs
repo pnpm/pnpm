@@ -1,8 +1,10 @@
 use super::{
     AddError, AddResolveInputs,
+    registry::package_registry,
     specifier::{ProtocolSelector, SaveSpecifier, explicit_registry_save_specifier},
 };
 use pnpm_package_manifest::PackageManifest;
+use pnpm_resolving_npm_resolver::{RegistryPackageSpecType, parse_bare_specifier};
 
 pub(super) async fn resolve_npm_alias_save_specifier(
     name: &str,
@@ -29,8 +31,17 @@ pub(super) async fn resolve_npm_alias_save_specifier(
         inputs,
     )
     .await?;
-    saved.specifier = format!("npm:{name}@{}", saved.specifier);
+    let saved_target = target_specifier
+        .filter(|specifier| !is_registry_tag(name, specifier, inputs))
+        .unwrap_or(&saved.specifier);
+    saved.specifier = format!("npm:{name}@{saved_target}");
     Ok(saved)
+}
+
+fn is_registry_tag(name: &str, specifier: &str, inputs: &AddResolveInputs<'_, '_>) -> bool {
+    let registry = package_registry(inputs.add.config, name);
+    parse_bare_specifier(specifier, Some(name), "latest", &registry)
+        .is_some_and(|parsed| parsed.spec_type == RegistryPackageSpecType::Tag)
 }
 
 pub(super) fn npm_alias_target(

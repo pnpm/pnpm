@@ -85,6 +85,10 @@ async fn add_saves_an_npm_alias_with_the_resolved_target_range() {
     assert_eq!(add_npm_selector("v2@npm:foo").await, Some("npm:foo@^1.0.0".to_string()));
 }
 #[tokio::test]
+async fn add_preserves_an_explicit_npm_alias_range() {
+    assert_eq!(add_npm_selector("v2@npm:foo@~1.0.0").await, Some("npm:foo@~1.0.0".to_string()));
+}
+#[tokio::test]
 async fn add_reuses_shared_packument_state_for_every_selector_path() {
     #[derive(Default)]
     struct PackumentRequestState {
