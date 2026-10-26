@@ -6083,6 +6083,24 @@ test('package manager downloads use the legacy proxy when https-proxy is false',
   expect(config.packageManagerNetworkConfig?.httpsProxy).toBe('http://legacy-proxy.example.com:8080')
 })
 
+test('package manager downloads use the legacy proxy when https-proxy is empty', async () => {
+  prepareEmpty()
+
+  fs.writeFileSync('user.npmrc', 'https-proxy=\nproxy=http://legacy-proxy.example.com:8080', 'utf8')
+
+  const { config } = await getConfig({
+    cliOptions: { userconfig: path.resolve('user.npmrc') },
+    env: {},
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.packageManagerNetworkConfig?.httpsProxy).toBe('http://legacy-proxy.example.com:8080')
+})
+
 test('package manager downloads use the https proxy when http-proxy is false', async () => {
   prepareEmpty()
 

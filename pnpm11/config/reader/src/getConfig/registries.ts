@@ -190,15 +190,11 @@ function createPackageManagerNetworkConfig (
   // command line's `.npmrc`-spelled tokens sit inside `trustedConfig` too.
   const cliNetworkSettings = configFromCliOpts as BootstrapNetworkSettings
   const httpsProxy = getProxyValue(
-    trustedConfig['https-proxy'] === false
-      ? trustedConfig.proxy
-      : trustedConfig['https-proxy'] ?? trustedConfig.proxy,
+    getProxyUrl(trustedConfig['https-proxy']) ?? trustedConfig.proxy,
     getEnvValue(env, 'https_proxy')
   )
   const httpProxy = getProxyValue(
-    trustedConfig['http-proxy'] === false || trustedConfig['http-proxy'] === null
-      ? undefined
-      : trustedConfig['http-proxy'],
+    getProxyUrl(trustedConfig['http-proxy']),
     httpsProxy ?? getEnvValue(env, 'http_proxy') ?? getEnvValue(env, 'proxy')
   )
   return {
@@ -216,6 +212,15 @@ function createPackageManagerNetworkConfig (
 
 function getEnvValue (env: Record<string, string | undefined>, key: string): string | undefined {
   return env[key] ?? env[key.toUpperCase()] ?? env[key.toLowerCase()]
+}
+
+/**
+ * `https-proxy` and `http-proxy` set to `false`, `null`, or an empty string
+ * read as unset, so the legacy `proxy` and the environment still apply, as
+ * they do for installs. Only `proxy=false` turns the proxy off.
+ */
+function getProxyUrl (value: unknown): string | undefined {
+  return typeof value === 'string' && value.length > 0 ? value : undefined
 }
 
 function getProxyValue (value: unknown, fallback: string | undefined): string | undefined {
