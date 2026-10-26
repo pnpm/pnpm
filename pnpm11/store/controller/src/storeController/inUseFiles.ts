@@ -1,5 +1,6 @@
 import path from 'node:path'
 
+import { type Config, createProjectModulesDirResolver } from '@pnpm/config.reader'
 import { LOCKFILE_VERSION, WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
 import { isError, PnpmError } from '@pnpm/error'
 import { type Modules, readModulesManifest } from '@pnpm/installing.modules-yaml'
@@ -10,6 +11,7 @@ import { globalWarn } from '@pnpm/logger'
 import { getFilePathByModeInCafs, type PackageFileInfo, type PackageFilesIndex } from '@pnpm/store.cafs'
 import { gitHostedStoreIndexKey, pickStoreIndexKey, type StoreIndex, storeIndexKey } from '@pnpm/store.index'
 import type { DepPath } from '@pnpm/types'
+import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
 import { readWorkspaceManifestKeys } from '@pnpm/workspace.workspace-manifest-reader'
 import * as find from 'empathic/find'
 
@@ -116,9 +118,11 @@ async function readInstalledLockfiles (projectDir: string): Promise<LockfileObje
 }
 
 /**
- * The `modulesDir` that the nearest `pnpm-workspace.yaml` at or above the
- * project sets, or `node_modules`. A `modulesDir` set only on the command
- * line, in the environment, in the global config, or in `packageConfigs`
+ * The `modulesDir` that an install of the project uses as configured in the
+ * nearest `pnpm-workspace.yaml` at or above the project, or `node_modules`.
+ * A `packageConfigs` entry naming the project applies when the workspace
+ * gives each project its own lockfile, as it does on install. A `modulesDir`
+ * set only on the command line, in the environment, or in the global config
  * is not seen.
  */
 async function readConfiguredModulesDir (projectDir: string): Promise<string> {
@@ -129,16 +133,21 @@ async function readConfiguredModulesDir (projectDir: string): Promise<string> {
     const workspaceManifest = find.file(WORKSPACE_MANIFEST_FILENAME, { cwd: projectDir })
     if (workspaceManifest == null) return 'node_modules'
     const workspaceDir = path.dirname(workspaceManifest)
-    // `PnpmSettings` does not declare `modulesDir`.
-    const manifest = await readWorkspaceManifestKeys(workspaceDir, MODULES_DIR_SETTING) as Record<string, unknown> | undefined
-    const modulesDir = manifest?.modulesDir
-    return typeof modulesDir === 'string' ? modulesDir : 'node_modules'
+    // `PnpmSettings` does not declare these settings.
+    const settings = await readWorkspaceManifestKeys(workspaceDir, MODULES_DIR_SETTINGS) as Partial<Pick<Config, 'lockfileDir' | 'modulesDir' | 'packageConfigs' | 'sharedWorkspaceLockfile'>> | undefined
+    const resolveModulesDir = createProjectModulesDirResolver({
+      lockfileDir: settings?.sharedWorkspaceLockfile === false ? settings.lockfileDir : workspaceDir,
+      modulesDir: typeof settings?.modulesDir === 'string' ? settings.modulesDir : undefined,
+      packageConfigs: settings?.packageConfigs,
+    })
+    const projectName = settings?.packageConfigs == null ? undefined : (await safeReadProjectManifestOnly(projectDir))?.name
+    return resolveModulesDir(projectName) ?? 'node_modules'
   } catch (err: unknown) {
     throw inUseFilesError(projectDir, err)
   }
 }
 
-const MODULES_DIR_SETTING: ReadonlySet<string> = new Set(['modulesDir'])
+const MODULES_DIR_SETTINGS: ReadonlySet<string> = new Set(['lockfileDir', 'modulesDir', 'packageConfigs', 'sharedWorkspaceLockfile'])
 
 async function readModulesManifestOfProject (modulesDir: string): Promise<Modules | null> {
   try {

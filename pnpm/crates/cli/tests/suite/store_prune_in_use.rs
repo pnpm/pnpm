@@ -207,6 +207,46 @@ fn store_prune_keeps_every_package_installed_by_copy_in_a_custom_modules_dir() {
     );
 }
 
+#[test]
+fn store_prune_keeps_every_package_of_a_project_with_its_own_lockfile_in_a_workspace_level_modules_dir()
+ {
+    assert_prune_keeps_every_package_installed_by_copy(
+        |workspace| move_dependencies_to_a_project_with_its_own_lockfile(workspace, ""),
+        "project/pnpm_modules/.pnpm/lock.yaml",
+    );
+}
+
+#[test]
+fn store_prune_keeps_every_package_of_a_project_with_its_own_lockfile_in_a_package_configs_modules_dir()
+ {
+    assert_prune_keeps_every_package_installed_by_copy(
+        |workspace| {
+            move_dependencies_to_a_project_with_its_own_lockfile(
+                workspace,
+                "packageConfigs:\n  project:\n    modulesDir: project_modules\n",
+            );
+        },
+        "project/project_modules/.pnpm/lock.yaml",
+    );
+}
+
+fn move_dependencies_to_a_project_with_its_own_lockfile(workspace: &Path, workspace_yaml: &str) {
+    let manifest = fs::read_to_string(workspace.join("package.json")).expect("read package.json");
+    fs::create_dir(workspace.join("project")).expect("create the project directory");
+    fs::write(
+        workspace.join("project/package.json"),
+        manifest.replacen('{', r#"{"name":"project","#, 1),
+    )
+    .expect("write project/package.json");
+    fs::write(workspace.join("package.json"), r#"{"name":"root"}"#).expect("write package.json");
+    append_workspace_yaml(
+        workspace,
+        &format!(
+            "packages: [project]\nsharedWorkspaceLockfile: false\nmodulesDir: pnpm_modules\n{workspace_yaml}"
+        ),
+    );
+}
+
 /// The project records the shared store as its `virtualStoreDir`, and the
 /// install keeps the lockfile in `node_modules/.pnpm`.
 #[test]

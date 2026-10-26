@@ -10173,6 +10173,9 @@ importers:
 
   pnpm11/store/controller:
     dependencies:
+      '@pnpm/config.reader':
+        specifier: workspace:*
+        version: link:../../config/reader
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../core/constants
@@ -10224,6 +10227,9 @@ importers:
       '@pnpm/worker':
         specifier: workspace:^
         version: link:../../worker
+      '@pnpm/workspace.project-manifest-reader':
+        specifier: workspace:*
+        version: link:../../workspace/project-manifest-reader
       '@pnpm/workspace.workspace-manifest-reader':
         specifier: workspace:*
         version: link:../../workspace/workspace-manifest-reader

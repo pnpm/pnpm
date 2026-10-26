@@ -3,11 +3,12 @@
 //! A package imported by copy or clone, such as a patched or built one, has
 //! no hard link to the store, so `store prune` needs this list to keep it.
 
-use pnpm_config::workspace_root_or;
+use pnpm_config::{PackageConfigsSetting, workspace_root_or};
 use pnpm_deps_restorer::{binary_store_index_key, store_index_key_for_resolution};
 use pnpm_fs::lexical_normalize;
 use pnpm_lockfile::{Lockfile, LockfileResolution, PackageKey};
 use pnpm_modules_yaml::{Host, read_modules_layout};
+use pnpm_package_manifest::safe_read_project_manifest_from_dir;
 use pnpm_store_dir::{
     CafsFileInfo, PackageFilesIndex, PruneError, StoreDir, StoreIndex, StoreIndexError,
     decode_package_files_index, get_registered_projects,
@@ -86,26 +87,58 @@ fn load_installed_lockfiles(project: &Path) -> io::Result<Vec<Lockfile>> {
     Ok(lockfiles)
 }
 
-/// The `modulesDir` that the nearest `pnpm-workspace.yaml` at or above the
-/// project sets, or `node_modules`. A `modulesDir` set only on the command
-/// line, in the environment, in the global config, or in `packageConfigs`
-/// is not seen.
+/// The `modulesDir` that an install of the project uses as configured in
+/// the nearest `pnpm-workspace.yaml` at or above the project, or
+/// `node_modules`. A `packageConfigs` entry naming the project applies when
+/// the workspace gives each project its own lockfile, as it does on
+/// install. A `modulesDir` set only on the command line, in the
+/// environment, or in the global config is not seen.
 fn configured_modules_dir(project: &Path) -> io::Result<String> {
     #[derive(Deserialize)]
     #[serde(rename_all = "camelCase")]
-    struct ModulesDirSetting {
+    struct ModulesDirSettings {
+        lockfile_dir: Option<String>,
         modules_dir: Option<String>,
+        package_configs: Option<PackageConfigsSetting>,
+        shared_workspace_lockfile: Option<bool>,
     }
     let Some(document) =
         read_workspace_manifest_document(&workspace_root_or(project)).map_err(io::Error::other)?
     else {
         return Ok("node_modules".to_string());
     };
-    let setting: Option<ModulesDirSetting> = serde_saphyr::from_str(&document.text)
-        .map_err(|error| io::Error::other(format!("{}: {error}", document.path.display())))?;
-    Ok(setting
-        .and_then(|setting| setting.modules_dir)
-        .unwrap_or_else(|| "node_modules".to_string()))
+    let Some(settings) = serde_saphyr::from_str::<Option<ModulesDirSettings>>(&document.text)
+        .map_err(|error| io::Error::other(format!("{}: {error}", document.path.display())))?
+    else {
+        return Ok("node_modules".to_string());
+    };
+    let shares_one_lockfile = settings.shared_workspace_lockfile != Some(false)
+        || settings.lockfile_dir.is_some();
+    let project_modules_dir = match settings.package_configs {
+        Some(package_configs) if !shares_one_lockfile => {
+            project_config_modules_dir(project, package_configs)?
+        }
+        _ => None,
+    };
+    Ok(project_modules_dir.or(settings.modules_dir).unwrap_or_else(|| "node_modules".to_string()))
+}
+
+/// The `modulesDir` of the `packageConfigs` entry naming the project.
+fn project_config_modules_dir(
+    project: &Path,
+    package_configs: PackageConfigsSetting,
+) -> io::Result<Option<String>> {
+    let manifest = safe_read_project_manifest_from_dir(project).map_err(io::Error::other)?;
+    let Some(name) = manifest
+        .as_ref()
+        .and_then(|manifest| manifest.get("name")?.as_str())
+    else {
+        return Ok(None);
+    };
+    Ok(package_configs
+        .into_record()
+        .shift_remove(name)
+        .and_then(|config| config.modules_dir))
 }
 
 /// A lockfile of a version this pnpm cannot read adds nothing, like a
