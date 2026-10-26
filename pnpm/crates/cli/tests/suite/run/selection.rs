@@ -214,11 +214,9 @@ pub(super) fn regexp_selected_scripts_cancel_siblings_after_failure() {
     )
     .expect("write package.json");
 
-    // The run ending is the proof: `dev:slow` holds for longer than
-    // `wait_for_child`'s deadline and pnpm waits for the scripts it
-    // started, so the run reaches the failing script's exit code only once
-    // `dev:slow` is gone. A cancellation that never arrives fails on that
-    // deadline, which says so.
+    // pnpm waits for the scripts it started, so a run that ends at all is
+    // a run that cancelled `dev:slow`. `hold_until_cancelled_script` has
+    // the hold that makes it so.
     let stderr_path = workspace.join("run.stderr");
     let mut run = pacquet
         .with_args(["--workspace-concurrency=2", "run", "/^dev:/"])
@@ -232,8 +230,6 @@ pub(super) fn regexp_selected_scripts_cancel_siblings_after_failure() {
     assert_eq!(status.code(), Some(17), "the run must end with the failing script's code");
     let started = workspace.join("slow-started");
     assert!(started.exists(), "the slow script must have started beside the failing one");
-    // The run ending says the cancellation was not waited out. Only the
-    // pid says the script went with it rather than being orphaned.
     #[cfg(unix)]
     assert!(
         !is_running(read_pid(&started)),

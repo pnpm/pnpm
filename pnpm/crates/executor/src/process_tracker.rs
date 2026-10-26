@@ -255,9 +255,7 @@ impl SpawnedChild<'_> {
 ///
 /// Every process in the group was sent the signal pnpm relayed, so one
 /// still running at the end of this has declined to stop, and waiting on
-/// it is waiting on something that has already refused. A container
-/// runtime gives a process it stops the same order of grace, which is
-/// enough for a dev server to close its connections.
+/// it is waiting on something that has already refused.
 #[cfg(unix)]
 const PROCESS_GROUP_SHUTDOWN_GRACE: Duration = Duration::from_secs(30);
 
@@ -396,11 +394,9 @@ fn descendant_processes(roots: &[u32]) -> Vec<i32> {
 ///
 /// The listing is the only way cancellation reaches a descendant of a
 /// child that shares pnpm's process group, so giving up on it leaves that
-/// descendant running. The deadline is here to turn a `ps` that hangs
-/// into a reported miss rather than a hang of pnpm's own, which is why it
-/// is far longer than any listing takes: a loaded machine must not reach
-/// it. Until it passes, cancellation waits, because a kill that misses
-/// the scripts is worse than one that is late.
+/// descendant running. The deadline turns a `ps` that hangs into a
+/// reported miss rather than a hang of pnpm's own, and is far longer than
+/// any listing takes so a loaded machine never reaches it.
 #[cfg(unix)]
 const PROCESS_LISTING_DEADLINE: Duration = Duration::from_secs(10);
 

@@ -151,11 +151,9 @@ fn bail_cancels_the_sibling_script_of_the_same_package() {
         )],
     );
 
-    // The run ending is the proof: `dev:slow` holds for longer than
-    // `wait_for_child`'s deadline and pnpm waits for the scripts it
-    // started, so the run reaches its verdict only once `dev:slow` is
-    // gone. A cancellation that never arrives fails on that deadline,
-    // which says so.
+    // pnpm waits for the scripts it started, so a run that ends at all is
+    // a run that cancelled `dev:slow`. `hold_until_cancelled_script` has
+    // the hold that makes it so.
     let stderr_path = workspace.join("run.stderr");
     let mut run = pacquet
         .with_args(["--workspace-concurrency=2", "-r", "run", "/^dev:/"])
@@ -175,8 +173,6 @@ fn bail_cancels_the_sibling_script_of_the_same_package() {
     let started = workspace.join("project-1").join("slow-started");
     eprintln!("slow-started exists: {}", started.exists());
     assert!(started.exists(), "the slow script must have started beside the failing one");
-    // The run ending says the cancellation was not waited out. Only the
-    // pid says the script went with it rather than being orphaned.
     #[cfg(unix)]
     assert!(
         !is_running(read_pid(&started)),

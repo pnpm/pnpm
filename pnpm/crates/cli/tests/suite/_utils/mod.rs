@@ -599,26 +599,15 @@ pub fn write_marker_script(relative_path: &str) -> String {
 }
 
 /// A package script that writes its pid to `started_marker` and then
-/// holds.
+/// holds past [`CHILD_DEADLINE`], so a cancellation that never arrives
+/// fails on that deadline rather than on the script's own exit.
 ///
-/// The hold outlasts [`CHILD_DEADLINE`], the deadline a test gives the run
-/// itself, so a cancellation that never arrives fails on that deadline. A
-/// script that could end on its own inside the deadline would let a run
-/// that cancelled nothing pass, and would report a missed cancellation as
-/// whatever the script did on its way out. The hold is not endless: a run
-/// the test gave up on leaves the script behind, and nothing else stops
-/// it.
-///
-/// The marker carries the pid because a run that ends is not on its own
-/// proof that the script is gone: pnpm could have killed the shell that
-/// started it and left the script orphaned, which [`is_running`] tells
-/// apart and the run's own exit code cannot. It is renamed into place, so
-/// a sibling script waiting for the marker to appear never reads it half
-/// written.
-///
-/// The script takes its marker and its hold on the command line, so the
-/// fixture below is the same text for every caller and the package script
-/// that runs it carries no JavaScript.
+/// - A run the test gave up on leaves the script behind.
+/// - The pid is what [`is_running`] needs to tell a script pnpm killed
+///   from one pnpm orphaned by killing the shell above it. The run's own
+///   exit code cannot.
+/// - The marker is renamed into place, so a sibling waiting for it never
+///   reads it half written.
 #[must_use]
 pub fn hold_until_cancelled_script(project: &Path, started_marker: &str) -> String {
     let hold = (CHILD_DEADLINE * 2).as_millis();
@@ -663,9 +652,9 @@ fn write_node_fixture(project: &Path, name: &str, source: &str) -> String {
     name.to_string()
 }
 
-/// The process id a fixture script wrote to `path`. A fixture writes it
-/// to a temporary file and renames that into place, so a file that exists
-/// already holds the whole id.
+/// The process id a fixture script wrote to `path`. A marker that exists
+/// holds the whole id, since [`hold_until_cancelled_script`] renames it
+/// into place.
 #[cfg(unix)]
 pub fn read_pid(path: &Path) -> libc::pid_t {
     fs::read_to_string(path)
