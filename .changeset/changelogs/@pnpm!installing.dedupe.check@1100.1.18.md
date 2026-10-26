@@ -1,0 +1,7 @@
+## 1100.1.18
+
+### Patch Changes
+
+- Updated dependencies:
+  - @pnpm/lockfile.types@1100.1.6
+  - @pnpm/types@1102.1.3
