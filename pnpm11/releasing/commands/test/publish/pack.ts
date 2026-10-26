@@ -72,7 +72,7 @@ test('pack: includes files in a publish directory reached through a symlink', as
   fs.mkdirSync('../external')
   fs.writeFileSync('../external/outside.js', 'module.exports = 2')
   fs.symlinkSync('../output', 'build', 'junction')
-  fs.symlinkSync('../../external', '../output/dist/sub', 'junction')
+  fs.symlinkSync(path.resolve('../external'), '../output/dist/sub', 'junction')
   fs.symlinkSync('sub/outside.js', '../output/dist/leak.js', 'file')
 
   await pack.handler({
