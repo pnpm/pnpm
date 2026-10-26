@@ -309,6 +309,8 @@ pub(crate) struct RecordValidation<'a> {
     pub(crate) workspace_root: &'a Path,
     pub(crate) config: &'a Config,
     pub(crate) project_manifests: &'a [(PathBuf, &'a PackageManifest)],
+    /// See [`crate::RepeatInstallManifests::workspace_projects`].
+    pub(crate) workspace_projects: Option<&'a [(PathBuf, &'a PackageManifest)]>,
     pub(crate) vouched: &'a Vouched<'a>,
 }
 
@@ -397,7 +399,10 @@ fn record_projects(
     carried: Option<&Validation>,
     lockfile: Option<&str>,
 ) -> usize {
-    let bins = workspace_bins_digest(inputs.workspace_root, inputs.project_manifests);
+    let bins = workspace_bins_digest(
+        inputs.workspace_root,
+        inputs.workspace_projects.unwrap_or(inputs.project_manifests),
+    );
     let records = inputs.project_manifests
         .iter()
         .filter_map(|(root_dir, manifest)| {

@@ -4,7 +4,7 @@ pub(super) use projects::{
     build_selected_project_manifests_list, mutated_project_dirs, projects_running_own_scripts,
     selected_manifest_freshness_inputs,
 };
-pub(crate) use write::{CarriedSettings, StateWrite, recorded_workspace_state};
+pub(crate) use write::{CarriedSettings, StateProjects, StateWrite, recorded_workspace_state};
 
 mod projects;
 

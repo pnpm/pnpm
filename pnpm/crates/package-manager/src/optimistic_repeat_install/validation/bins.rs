@@ -78,7 +78,7 @@ pub(crate) fn held_workspace_bins_match(
     if held.is_empty() || state.validation.is_none() {
         return true;
     }
-    let bins = workspace_bins_digest(check.workspace_root, check.project_manifests);
+    let bins = workspace_bins_digest(check.workspace_root, check.bin_projects());
     held.iter()
         .all(|stat| {
             let id = importer_id_from_root_dir(check.workspace_root, stat.root_dir);

@@ -261,6 +261,7 @@ fn record_installed(
             workspace_root,
             config,
             project_manifests,
+            workspace_projects: None,
             vouched: &super::validation::Vouched::All,
         },
     );
@@ -292,6 +293,7 @@ fn record_validation_on_disk(workspace_root: &std::path::Path, state: &mut Works
             workspace_root,
             config: &config,
             project_manifests: &project_manifests,
+            workspace_projects: None,
             vouched: &super::validation::Vouched::All,
         },
     );
@@ -402,7 +404,10 @@ fn record_test_workspace_state(
             supported_architectures: None,
         },
         catalogs: &BTreeMap::default(),
-        project_manifests,
+        projects: crate::install::StateProjects {
+            manifests: project_manifests,
+            workspace_projects: None,
+        },
         filesystem_now_ms: Some(backdate_validated_files(workspace_root)),
         carried: crate::install::CarriedSettings {
             established_auto_dedupe: config.auto_dedupe.then_some(true),

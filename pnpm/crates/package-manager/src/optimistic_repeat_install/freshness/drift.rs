@@ -193,10 +193,8 @@ fn project_stats<'a>(
     recorded: Option<&Validation>,
     lockfile_digest: Option<&str>,
 ) -> Vec<ManifestStat<'a>> {
-    let bins = super::super::validation::workspace_bins_digest(
-        check.workspace_root,
-        check.project_manifests,
-    );
+    let bins =
+        super::super::validation::workspace_bins_digest(check.workspace_root, check.bin_projects());
     let mut stats = super::super::manifest_agreement::manifest_stats(
         check.project_manifests,
         |root_dir, manifest, digest| {

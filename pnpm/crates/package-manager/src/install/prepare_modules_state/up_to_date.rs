@@ -99,7 +99,7 @@ pub(super) fn frozen_tree_up_to_date<'a>(
 
 fn workspace_bins_unchanged(context: &FrozenTreeUpToDate<'_>) -> bool {
     let Some(state) = context.recorded.state else { return false };
-    let bins = workspace_bins_digest(context.tree.workspace_root, context.recorded.projects);
+    let bins = workspace_bins_digest(context.tree.workspace_root, context.recorded.bin_projects);
     context.recorded.projects
         .iter()
         .all(|(dir, manifest)| {
@@ -283,7 +283,10 @@ pub(super) fn refresh_up_to_date_workspace<Reporter: self::Reporter>(
             supported_architectures: context.supported_architectures,
         },
         catalogs: context.projects.catalogs,
-        project_manifests: context.projects.manifests,
+        projects: crate::install::StateProjects {
+            manifests: context.projects.manifests,
+            workspace_projects: context.projects.workspace_projects,
+        },
         filesystem_now_ms: filesystem_now_ms_in_modules(
             &context.tree.config.workspace_state_modules_dir(context.tree.workspace_root),
         ),
