@@ -64,6 +64,12 @@ pub enum InstallWithFreshLockfileError {
     #[diagnostic(transparent)]
     LinkHoistedModules(#[error(source)] crate::LinkHoistedModulesError),
 
+    #[diagnostic(transparent)]
+    ReadModules(#[error(source)] pnpm_modules_yaml::ReadModulesError),
+
+    #[diagnostic(transparent)]
+    WriteModules(#[error(source)] pnpm_modules_yaml::WriteModulesError),
+
     #[display("failed to write package map: {_0}")]
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_WRITE_PACKAGE_MAP))]
     WritePackageMap(#[error(source)] crate::WritePackageMapError),
@@ -249,6 +255,12 @@ impl From<crate::install_frozen_lockfile::HoistedLinkerError> for InstallWithFre
             }
             HoistedLinkerError::SymlinkDirectDependencies(error) => {
                 InstallWithFreshLockfileError::SymlinkDirectDependencies(error)
+            }
+            HoistedLinkerError::ReadModules(error) => {
+                InstallWithFreshLockfileError::ReadModules(error)
+            }
+            HoistedLinkerError::WriteModules(error) => {
+                InstallWithFreshLockfileError::WriteModules(error)
             }
             HoistedLinkerError::WritePackageMap(error) => {
                 InstallWithFreshLockfileError::WritePackageMap(error)

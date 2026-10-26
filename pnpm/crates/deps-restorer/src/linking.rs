@@ -53,6 +53,10 @@ pub enum LinkPhaseError {
     HoistedDepGraph(#[error(source)] crate::HoistedDepGraphError),
     #[diagnostic(transparent)]
     LinkHoistedModules(#[error(source)] crate::LinkHoistedModulesError),
+    #[diagnostic(transparent)]
+    ReadModules(#[error(source)] pnpm_modules_yaml::ReadModulesError),
+    #[diagnostic(transparent)]
+    WriteModules(#[error(source)] pnpm_modules_yaml::WriteModulesError),
     #[display("failed to write package map: {_0}")]
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_WRITE_PACKAGE_MAP))]
     WritePackageMap(#[error(source)] crate::WritePackageMapError),
@@ -74,6 +78,8 @@ impl From<HoistedLinkerError> for LinkPhaseError {
             HoistedLinkerError::SymlinkDirectDependencies(error) => {
                 LinkPhaseError::SymlinkDirectDependencies(error)
             }
+            HoistedLinkerError::ReadModules(error) => LinkPhaseError::ReadModules(error),
+            HoistedLinkerError::WriteModules(error) => LinkPhaseError::WriteModules(error),
             HoistedLinkerError::WritePackageMap(error) => LinkPhaseError::WritePackageMap(error),
             HoistedLinkerError::PruneStaleLinks(error) => LinkPhaseError::PruneStaleModules(error),
             HoistedLinkerError::HoistSymlink(error) => LinkPhaseError::HoistSymlink(error),
