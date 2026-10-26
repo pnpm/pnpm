@@ -38,6 +38,7 @@ interface ValidateModulesOptions {
   lockfileDir: string
   modulesDir: string
   nodeLinker: 'hoisted' | 'isolated' | 'pnp'
+  mutatesEveryProject: boolean
   registriesByScope: RegistriesByScope
   storeDir: string
   virtualStoreDir: string
@@ -62,9 +63,14 @@ export async function validateModules (
   opts: ValidateModulesOptions
 ): Promise<{ purged: boolean }> {
   const rootProject = projects.find(({ id }) => id === '.')
-  const layoutMismatch = findLayoutSettingMismatch(modules, opts)
+  const nodeLinkerMismatch = findNodeLinkerMismatch(modules, opts)
+  const layoutMismatch = findLayoutSettingMismatch(modules, opts) ?? nodeLinkerMismatch
   if (layoutMismatch != null) {
-    if (opts.forceNewModules && (rootProject != null)) {
+    // A project the install skips is not relinked, and under the hoisted
+    // linker its dependencies live in the root modules directory.
+    const canPurge = opts.forceNewModules && rootProject != null &&
+      (nodeLinkerMismatch == null || opts.mutatesEveryProject)
+    if (canPurge) {
       return { purged: await purgeModulesDirsOfImporter(opts, rootProject) }
     }
     throw layoutMismatch
@@ -108,14 +114,16 @@ function findLayoutSettingMismatch (modules: Modules, opts: ValidateModulesOptio
       ' Run "pnpm install" to recreate the modules directory.'
     )
   }
-  if ((modules.nodeLinker ?? 'isolated') !== opts.nodeLinker) {
-    return new PnpmError(
-      'NODE_LINKER_DIFF',
-      'This modules directory was created using a different node-linker value.' +
-      ' Run "pnpm install" to recreate the modules directory.'
-    )
-  }
   return undefined
+}
+
+function findNodeLinkerMismatch (modules: Modules, opts: ValidateModulesOptions): PnpmError | undefined {
+  if ((modules.nodeLinker ?? 'isolated') === opts.nodeLinker) return undefined
+  return new PnpmError(
+    'NODE_LINKER_DIFF',
+    'This modules directory was created using a different node-linker value.' +
+    ' Run "pnpm install" to recreate the modules directory.'
+  )
 }
 
 /**
