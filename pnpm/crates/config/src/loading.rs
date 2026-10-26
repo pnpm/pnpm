@@ -250,6 +250,7 @@ impl Config {
                 &mut bootstrap.proxy,
                 &mut bootstrap.proxy_keys,
             );
+            global_settings.settings.apply_tls_to(&mut bootstrap.tls);
         }
         Ok(())
     }
@@ -320,6 +321,7 @@ impl Config {
         let configured_state_dir = env_settings.machine.state_dir.take();
         let bootstrap = &mut self.package_manager_bootstrap;
         env_settings.settings.apply_proxy_to(&mut bootstrap.proxy, &mut bootstrap.proxy_keys);
+        env_settings.settings.apply_tls_to(&mut bootstrap.tls);
         let saved_workspace_dir = self.workspace_dir.clone();
         env_settings.expand_home_prefixes::<Sys>();
         env_settings.apply_to(self, start_dir);
@@ -361,6 +363,7 @@ impl Config {
         }
         let bootstrap = &mut self.package_manager_bootstrap;
         settings.settings.apply_proxy_to(&mut bootstrap.proxy, &mut bootstrap.proxy_keys);
+        settings.settings.apply_tls_to(&mut bootstrap.tls);
         let saved_workspace_dir = self.workspace_dir.clone();
         settings.apply_to(self, start_dir);
         self.workspace_dir = saved_workspace_dir;

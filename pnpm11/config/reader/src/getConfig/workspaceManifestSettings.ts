@@ -6,7 +6,7 @@ import type { ProjectManifest, RemoteSideEffectsCacheSettings } from '@pnpm/type
 import type { WorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 
 import type { Config, ConfigContext, VerifyDepsBeforeRun } from '../Config.js'
-import { getOptionsFromPnpmSettings } from '../getOptionsFromRootManifest.js'
+import { getOptionsFromPnpmSettings, type OptionsFromRootManifest } from '../getOptionsFromRootManifest.js'
 import { CONFIG_CONTEXT_KEY_SET } from './configContext.js'
 import { applySideEffectsCacheDeclaration, withCanonicalOrg } from './sideEffectsCache.js'
 import type { SkippableKey } from './skippedKeys.js'
@@ -23,6 +23,7 @@ export interface WorkspaceManifestSettingsOptions {
   workspaceManifest: WorkspaceManifest
 }
 
+/** Returns the settings the manifest contributed, before the command line was laid over them. */
 export function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & ConfigContext, {
   trustedSource,
   configFromCliOpts,
@@ -31,12 +32,12 @@ export function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & C
   skipSettings,
   workspaceManifest,
   workspaceDir,
-}: WorkspaceManifestSettingsOptions): void {
+}: WorkspaceManifestSettingsOptions): OptionsFromRootManifest {
   const skipped: ReadonlySet<string> | undefined = skipSettings
   const settingsFromManifest = getOptionsFromPnpmSettings(workspaceDir, workspaceManifest, { manifest: projectManifest, expandRequestDestinationEnv, trustedSource })
   resolveLockfileDir(settingsFromManifest as { lockfileDir?: unknown }, workspaceDir)
   const sideEffectsCacheFromManifest = settingsFromManifest.sideEffectsCache
-  const newSettings = Object.assign(settingsFromManifest, configFromCliOpts)
+  const newSettings = { ...settingsFromManifest, ...configFromCliOpts }
   for (const [key, value] of Object.entries(newSettings)) {
     if (!isCamelCase(key)) continue
     if (CONFIG_CONTEXT_KEY_SET.has(key)) continue
@@ -53,6 +54,7 @@ export function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & C
     pnpmConfig.verifyDepsBeforeRun = process.env.pnpm_config_verify_deps_before_run as VerifyDepsBeforeRun
   }
   pnpmConfig.catalogs = getCatalogsFromWorkspaceManifest(workspaceManifest)
+  return settingsFromManifest
 }
 
 interface WorkspaceSetting {

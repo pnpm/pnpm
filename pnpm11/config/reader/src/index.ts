@@ -132,8 +132,8 @@ export async function getConfig (opts: GetConfigOptions): Promise<GetConfigResul
   const { pnpmConfig } = state
   const cwd = applyRunContext(state, { packageManager, workspaceDir: opts.workspaceDir })
 
-  const globalYamlRegistries = applyGlobalYamlConfig(state, { configDir, globalYamlConfig })
-  const initialRegistries = resolveInitialRegistries(state)
+  const globalYaml = applyGlobalYamlConfig(state, { configDir, globalYamlConfig })
+  const initialRegistries = resolveInitialRegistries(state, globalYaml.bootstrapNetworkSettings)
   assertTokenHelperComesFromTrustedConfig(pnpmConfig.authConfig, state.npmrcResult.trustedConfig)
   resolveGlobalDirs(state)
   pnpmConfig.dir = cwd
@@ -146,7 +146,7 @@ export async function getConfig (opts: GetConfigOptions): Promise<GetConfigResul
   const workspaceManifestRegistries = opts.ignoreLocalSettings
     ? undefined
     : await applyLocalSettings(state, { forSelfUpdate: opts.forSelfUpdate, skipUnreadableSettings: opts.skipUnreadableSettings })
-  resolveRegistriesByScope(state, { ...initialRegistries, globalYamlRegistries, workspaceManifestRegistries })
+  resolveRegistriesByScope(state, { ...initialRegistries, globalYamlRegistries: globalYaml.registries, workspaceManifestRegistries })
 
   const maxSocketsFromEnv = applyEnvVarSettings(state)
   await applyInstallSettingsFromAllSources(state, { maxSocketsFromEnv, globalDepsBuildConfig })

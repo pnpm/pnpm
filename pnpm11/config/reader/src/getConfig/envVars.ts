@@ -136,6 +136,14 @@ function applyEnvSetting ({ explicitlySetKeys, pnpmConfig }: ConfigBuildState, k
   pnpmConfig[key] = value
   explicitlySetKeys.add(key)
 
+  // The environment is not repository-controlled, so it reaches the
+  // package-manager bootstrap as `registry` does below.
+  if (key === 'strictSsl') {
+    pnpmConfig.packageManagerNetworkConfig!.strictSsl = value as boolean
+  }
+  if (key === 'localAddress') {
+    pnpmConfig.packageManagerNetworkConfig!.localAddress = value as string
+  }
   if (key === 'registry') {
     if (typeof value !== 'string') {
       throw new TypeError(`Unexpected type of registry, expecting a string but received ${JSON.stringify(value)}`)
