@@ -35,7 +35,7 @@ fn open_concurrently(store: &Path) {
             index
                 .get(&format!("fixture-{worker}"))
                 .unwrap(),
-            Some(sample_index())
+            Some(sample_index()),
         );
     }
 }
