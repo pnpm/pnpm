@@ -496,6 +496,18 @@ extern "C" fn relay_signal(signal: libc::c_int) {
     }
 }
 
+/// Count and relay `signal` as the installed handler does.
+///
+/// A test that raised the signal for real would have the kernel deliver
+/// it process-wide: to the test runner's own process, and through
+/// [`visit_targets`] to the children of every test sharing that process.
+/// The kernel's part is to call this function, so a test calls it and
+/// leaves both alone.
+#[cfg(all(test, unix))]
+pub(crate) fn take_signal(signal: libc::c_int) {
+    relay_signal(signal);
+}
+
 /// Relay `signal`, or the escalation the child holding `entry` has
 /// reached, and report whether pnpm keeps waiting for that child.
 ///
