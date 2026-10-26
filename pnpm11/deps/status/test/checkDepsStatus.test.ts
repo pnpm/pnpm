@@ -428,7 +428,6 @@ describe('checkDepsStatus - settings change detection', () => {
     ['trustLockfile', false],
     ['virtualStoreDirMaxLength', process.platform === 'win32' ? 60 : 120],
   ] as const)('stays up to date when an unrecorded %s meets its default', async (setting, current) => {
-    // A state written before the setting was recorded has no key for it.
     const lastValidatedTimestamp = Date.now() - 10_000
     const mockWorkspaceState: WorkspaceState = {
       lastValidatedTimestamp,

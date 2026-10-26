@@ -133,11 +133,11 @@ export const WORKSPACE_STATE_SETTING_KEYS = [
   'workspacePackagePatterns',
 ] as const satisfies ReadonlyArray<keyof Config>
 
-/** Settings a state written before they were recorded leaves out. Unset reads as the default. */
-type LaterRecordedSettingKey = 'dangerouslyAllowAllBuilds' | 'virtualStoreDirMaxLength'
+/** Settings a state may leave out. Unset reads as the default. */
+type OptionalSettingKey = 'dangerouslyAllowAllBuilds' | 'virtualStoreDirMaxLength'
 
-export type WorkspaceStateSettings = Pick<Config, Exclude<typeof WORKSPACE_STATE_SETTING_KEYS[number], LaterRecordedSettingKey>> &
-Partial<Pick<Config, LaterRecordedSettingKey>> & {
+export type WorkspaceStateSettings = Pick<Config, Exclude<typeof WORKSPACE_STATE_SETTING_KEYS[number], OptionalSettingKey>> &
+Partial<Pick<Config, OptionalSettingKey>> & {
   /**
    * Recorded by pnpm v12; v11 carries it forward when rewriting the
    * workspace state so a v11 write does not make the next v12 command see
