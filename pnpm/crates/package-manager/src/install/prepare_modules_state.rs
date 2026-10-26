@@ -65,11 +65,8 @@ pub(super) async fn prepare_modules_state<'install, Reporter: self::Reporter + '
         inputs.repeat.filtered,
         inputs.tree.config,
     )?;
-    let is_inconsistent = prepare_modules_layout(
-        &inputs,
-        modules_manifest,
-        modules_layout_drifted(modules_manifest, &inputs),
-    )?;
+    let drifted = modules_layout_drifted(modules_manifest, &inputs);
+    let is_inconsistent = prepare_modules_layout(&inputs, modules_manifest, drifted)?;
 
     let recorded_state = load_recorded_workspace_state(&inputs);
     let recorded = recorded_workspace(
