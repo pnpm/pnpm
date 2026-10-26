@@ -486,7 +486,7 @@ fn filtered_install_refuses_a_shared_layout_drift() {
     let output = fixture.command_at(&fixture.workspace, ["--filter", "selected", "install"]);
     assert!(
         !output.status.success(),
-        "the filtered install recreated the shared modules directory"
+        "the filtered install recreated the shared modules directory",
     );
     let report = format!(
         "{}{}",
