@@ -154,7 +154,10 @@ async fn add_npm_selector_with_ranges(
     .await
     .unwrap_or_else(|error| panic!("add {selector} should succeed: {error}"));
 
-    saved_dependency_specifier(&manifest, "foo")
+    let dependency_name = selector
+        .split_once("@npm:")
+        .map_or_else(|| selector.strip_prefix("npm:").unwrap_or(selector), |(alias, _)| alias);
+    saved_dependency_specifier(&manifest, dependency_name)
 }
 
 /// Run `pacquet add <selector>` against a mocked `@jsr` registry and report
