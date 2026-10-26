@@ -2266,6 +2266,106 @@ test('the command line sets strictSsl and localAddress for the package manager b
   })
 })
 
+test('the global config.yaml sets the proxy for the package manager bootstrap, pnpm-workspace.yaml does not', async () => {
+  prepareEmpty()
+
+  fs.writeFileSync('user.npmrc', [
+    'https-proxy=http://npmrc-https.example.com:8080/',
+    'http-proxy=http://npmrc-http.example.com:8080/',
+    'no-proxy=npmrc.example.com',
+    '',
+  ].join('\n'), 'utf8')
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    httpProxy: 'http://project-http.example.com:8080/',
+    httpsProxy: 'http://project-https.example.com:8080/',
+    noProxy: 'project.example.com',
+  })
+
+  const { config } = await getConfigWithGlobalYaml(
+    {
+      httpProxy: 'http://global-http.example.com:8080/',
+      httpsProxy: 'http://global-https.example.com:8080/',
+      noProxy: 'global.example.com',
+    },
+    { cliOptions: { userconfig: path.resolve('user.npmrc') }, workspaceDir: process.cwd() }
+  )
+
+  expect(config.httpsProxy).toBe('http://project-https.example.com:8080/')
+  expect(config.packageManagerNetworkConfig).toMatchObject({
+    httpProxy: 'http://global-http.example.com:8080/',
+    httpsProxy: 'http://global-https.example.com:8080/',
+    noProxy: 'global.example.com',
+  })
+})
+
+test('an https proxy from the global config.yaml is the http proxy of the package manager bootstrap too', async () => {
+  prepareEmpty()
+
+  const { config } = await getConfigWithGlobalYaml(
+    { httpsProxy: 'http://global-https.example.com:8080/' },
+    { env: { HTTP_PROXY: 'http://env-http.example.com:8080/' }, workspaceDir: process.cwd() }
+  )
+
+  expect(config.packageManagerNetworkConfig).toMatchObject({
+    httpProxy: 'http://global-https.example.com:8080/',
+    httpsProxy: 'http://global-https.example.com:8080/',
+  })
+})
+
+test('PNPM_CONFIG_HTTPS_PROXY, PNPM_CONFIG_HTTP_PROXY, and PNPM_CONFIG_NO_PROXY set the package manager bootstrap over the global config.yaml', async () => {
+  prepareEmpty()
+
+  const { config } = await getConfigWithGlobalYaml(
+    {
+      httpProxy: 'http://global-http.example.com:8080/',
+      httpsProxy: 'http://global-https.example.com:8080/',
+      noProxy: 'global.example.com',
+    },
+    {
+      env: {
+        PNPM_CONFIG_HTTP_PROXY: 'http://env-http.example.com:8080/',
+        PNPM_CONFIG_HTTPS_PROXY: 'http://env-https.example.com:8080/',
+        PNPM_CONFIG_NO_PROXY: 'env.example.com',
+      },
+      workspaceDir: process.cwd(),
+    }
+  )
+
+  expect(config.httpsProxy).toBe('http://env-https.example.com:8080/')
+  expect(config.packageManagerNetworkConfig).toMatchObject({
+    httpProxy: 'http://env-http.example.com:8080/',
+    httpsProxy: 'http://env-https.example.com:8080/',
+    noProxy: 'env.example.com',
+  })
+})
+
+test('the command line sets the proxy for the package manager bootstrap over the global config.yaml and the environment, in either spelling', async () => {
+  prepareEmpty()
+
+  const { config } = await getConfigWithGlobalYaml(
+    {
+      httpProxy: 'http://global-http.example.com:8080/',
+      noProxy: 'global.example.com',
+    },
+    {
+      cliOptions: {
+        'http-proxy': 'http://cli-http.example.com:8080/',
+        httpsProxy: 'http://cli-https.example.com:8080/',
+        noProxy: 'cli.example.com',
+      },
+      env: { PNPM_CONFIG_HTTPS_PROXY: 'http://env-https.example.com:8080/' },
+      workspaceDir: process.cwd(),
+    }
+  )
+
+  expect(config.httpsProxy).toBe('http://cli-https.example.com:8080/')
+  expect(config.packageManagerNetworkConfig).toMatchObject({
+    httpProxy: 'http://cli-http.example.com:8080/',
+    httpsProxy: 'http://cli-https.example.com:8080/',
+    noProxy: 'cli.example.com',
+  })
+})
+
 test('CLI --registry overrides pnpm-workspace.yaml registries.default (#10099)', async () => {
   prepareEmpty()
 

@@ -3,6 +3,7 @@ import kebabCase from 'lodash.kebabcase'
 import normalizeRegistryUrl from 'normalize-registry-url'
 import { omit } from 'ramda'
 
+import type { Config } from '../Config.js'
 import { parseEnvVars, type Schema } from '../env.js'
 import { types } from '../types.js'
 import type { ConfigBuildState } from './configBuildState.js'
@@ -89,6 +90,24 @@ const ENV_PNPM_TYPES = {
   // match no schema and be dropped. Env-only: the CLI flag and
   // `pnpm config` keys keep npm's spelling.
   'max-sockets': Number,
+}
+
+const PROXY_ENV_KEYS = new Set(['http-proxy', 'https-proxy', 'no-proxy'])
+
+/**
+ * The proxy settings `PNPM_CONFIG_*` carries. The environment is not
+ * repository-controlled, so the package-manager bootstrap reads them too.
+ */
+export function readEnvProxySettings (env: NodeJS.ProcessEnv): Pick<Config, 'httpProxy' | 'httpsProxy' | 'noProxy'> {
+  const settings: Record<string, unknown> = {}
+  for (const { key, value } of parseEnvVars(getProxyEnvSchema, env)) {
+    if (value !== undefined) settings[key] = value
+  }
+  return settings
+}
+
+function getProxyEnvSchema (schemaKey: string): Schema | undefined {
+  return PROXY_ENV_KEYS.has(schemaKey) ? ENV_PNPM_TYPES[schemaKey as keyof typeof ENV_PNPM_TYPES] : undefined
 }
 
 function isSetOnCommandLine (cliOptions: Record<string, unknown>, key: string): boolean {
