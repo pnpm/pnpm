@@ -59,7 +59,7 @@ pub struct AddIncludeArgs {
     /// Leave devDependencies out of `node_modules`.
     #[clap(long, visible_alias = "production")]
     pub prod: bool,
-    /// Leave dependencies and optionalDependencies out of `node_modules`.
+    /// Leave dependencies out of `node_modules`.
     #[clap(long)]
     pub dev: bool,
 }

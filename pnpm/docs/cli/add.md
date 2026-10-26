@@ -234,7 +234,7 @@ Leave `devDependencies` out of `node_modules`.
 
 ### --dev
 
-Leave `dependencies` and `optionalDependencies` out of `node_modules`.
+Leave `dependencies` out of `node_modules`.
 
 ### --[no-]optional
 
