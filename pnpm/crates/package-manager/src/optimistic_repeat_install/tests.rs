@@ -30,6 +30,8 @@ mod injected;
 
 mod validation;
 
+mod settings_classification;
+
 use super::{
     Decision, OptimisticRepeatInstallCheck, check_optimistic_repeat_install,
     deps_status::{RunDepsStatus, check_deps_status_before_run},

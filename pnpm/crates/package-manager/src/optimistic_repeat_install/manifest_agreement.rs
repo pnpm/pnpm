@@ -48,7 +48,6 @@ pub(crate) fn held_projects_match_lockfile(
     state: &WorkspaceState,
     held: &[&ManifestStat<'_>],
     current: &CurrentLockfile<'_>,
-    dedupe_peers: bool,
 ) -> Result<(), Stale> {
     let lockfile = check.lockfile
         .get()
@@ -85,7 +84,7 @@ pub(crate) fn held_projects_match_lockfile(
             current
         }
     };
-    check_projects_content(check, wanted, held, dedupe_peers).map_err(Stale::Content)
+    check_projects_content(check, wanted, held).map_err(Stale::Content)
 }
 
 /// The current lockfile records what `wanted` materializes for each `held`
@@ -157,11 +156,10 @@ pub(super) fn check_projects_content(
     check: &OptimisticRepeatInstallCheck<'_>,
     wanted: &Lockfile,
     to_check: &[&ManifestStat<'_>],
-    dedupe_peers: bool,
 ) -> Result<(), &'static str> {
     let parsed_overrides = crate::install::parse_config_overrides(check.config, check.catalogs)
         .map_err(|_| "pnpm.overrides cannot be parsed")?;
-    check_settings_match_lockfile(check, wanted, parsed_overrides.as_deref(), dedupe_peers)?;
+    check_settings_match_lockfile(check, wanted, parsed_overrides.as_deref())?;
 
     let linked_ctx = LinkedPackagesContext::new(check.config, check.project_manifests);
     let workspace_packages = crate::install::workspace_packages_for_freshness(

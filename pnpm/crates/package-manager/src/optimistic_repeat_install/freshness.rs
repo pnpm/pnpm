@@ -41,8 +41,6 @@ pub(super) struct GatePolicy<'a> {
     pub(super) check_dangling_direct_links: bool,
     pub(super) missing_wanted_lockfile: MissingWantedLockfile,
     pub(super) newer_patch: NewerPatch,
-    /// Whether the content check applies `dedupePeers`.
-    pub(super) dedupe_peers: bool,
     pub(super) recorded_groups: RecordedGroups,
 }
 
@@ -183,7 +181,7 @@ pub(super) fn check_freshness(
         check_newer_patches(check, policy, &drift.current)?;
     }
     if !held.is_empty() {
-        held_projects_match_lockfile(check, state, &held, &drift.current, policy.dedupe_peers)?;
+        held_projects_match_lockfile(check, state, &held, &drift.current)?;
     }
     settle_missing_wanted_lockfile(check, policy, &drift.current)?;
     if drift.lockfile_unchanged() {

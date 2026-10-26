@@ -82,7 +82,6 @@ pub fn check_deps_status_before_run(
         check_dangling_direct_links: false,
         missing_wanted_lockfile: MissingWantedLockfile::RequireStandIn,
         newer_patch: NewerPatch::CompareHash,
-        dedupe_peers: config.dedupe_peers,
         recorded_groups: RecordedGroups::Kept,
     };
     match check_freshness(check, state, moved, &policy, scope) {
