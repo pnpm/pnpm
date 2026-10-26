@@ -83,6 +83,8 @@ export const WORKSPACE_STATE_SETTING_KEYS = [
   'allowBuilds',
   'autoInstallPeers',
   'catalogs',
+  // Turned on, it allows builds the last install ignored.
+  'dangerouslyAllowAllBuilds',
   'dedupeDirectDeps',
   'dedupeInjectedDeps',
   'dedupePeerDependents',
@@ -120,14 +122,22 @@ export const WORKSPACE_STATE_SETTING_KEYS = [
   // optional dependencies are installed without touching the lockfile,
   // so it must invalidate the up-to-date fast path.
   'supportedArchitectures',
+  // Turned off, the lockfile that no install verified has to be verified.
+  'trustLockfile',
   'trustPolicy',
   'trustPolicyExclude',
   'trustPolicyIgnoreAfter',
   'virtualStoreDir',
+  // The virtual store's slot names are cut to it.
+  'virtualStoreDirMaxLength',
   'workspacePackagePatterns',
 ] as const satisfies ReadonlyArray<keyof Config>
 
-export type WorkspaceStateSettings = Pick<Config, typeof WORKSPACE_STATE_SETTING_KEYS[number]> & {
+/** Settings a state may leave out. Unset reads as the default. */
+type OptionalSettingKey = 'dangerouslyAllowAllBuilds' | 'virtualStoreDirMaxLength'
+
+export type WorkspaceStateSettings = Pick<Config, Exclude<typeof WORKSPACE_STATE_SETTING_KEYS[number], OptionalSettingKey>> &
+Partial<Pick<Config, OptionalSettingKey>> & {
   /**
    * Recorded by pnpm v12; v11 carries it forward when rewriting the
    * workspace state so a v11 write does not make the next v12 command see

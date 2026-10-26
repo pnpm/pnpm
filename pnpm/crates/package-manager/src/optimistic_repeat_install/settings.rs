@@ -7,12 +7,14 @@ pub(crate) use registry_prefixes::{
 
 mod agent_skills;
 mod equivalence;
+mod install_policy;
 mod registry_prefixes;
 mod store_location;
 use agent_skills::agent_skills_settings;
 use equivalence::{
     allow_builds_match, enable_global_virtual_store_match, package_extensions_match,
 };
+use install_policy::install_policy_settings;
 
 use super::{
     Catalogs, Config, IncludedDependencies, LinkWorkspacePackages, NodeLinker,
@@ -109,6 +111,7 @@ impl SettingsComparison<'_> {
             .or_else(|| self.workspace_policy_drift())
             .or_else(|| self.agent_skills_drift())
             .or_else(|| self.store_location_drift())
+            .or_else(|| self.install_policy_drift())
     }
     fn installation_drift(&self) -> Option<&'static str> {
         let recorded = self.recorded;
@@ -394,7 +397,10 @@ fn current_policy_settings(config: &Config) -> WorkspaceStateSettings {
         trust_policy_exclude: config.trust_policy_exclude.clone(),
         trust_policy_ignore_after: config.trust_policy_ignore_after,
         workspace_package_patterns: config.workspace_package_patterns.clone(),
-        ..store_location::store_location_settings(config, agent_skills_settings(config))
+        ..store_location::store_location_settings(
+            config,
+            install_policy_settings(config, agent_skills_settings(config)),
+        )
     }
 }
 
