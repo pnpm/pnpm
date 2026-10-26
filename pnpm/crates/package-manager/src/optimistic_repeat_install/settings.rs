@@ -1,7 +1,8 @@
 //! Comparing the settings a previous install recorded against the current ones.
 
 pub(crate) use registry_prefixes::{
-    recorded_registry_prefixes, recorded_registry_routes, recorded_registry_routes_after_install,
+    ResolvedImporters, recorded_registry_prefixes, recorded_registry_routes,
+    recorded_registry_routes_after_install,
 };
 
 mod agent_skills;
