@@ -73,7 +73,7 @@ test('refreshing a winning alias preserves discovery order when package names an
   expect(runCommand(path.join(bins, 'tool'))).toBe('first-alias\n')
 })
 
-test('pruneStaleBins removes unclaimed shims while keeping claimed commands', async () => {
+test('pruneStaleBins removes unclaimed shims while keeping claimed commands and user files', async () => {
   const modules = path.join(temporaryDirectory(), 'node_modules')
   const bins = path.join(modules, '.bin')
   await pruneStaleBins(bins, new Set())
@@ -84,9 +84,27 @@ test('pruneStaleBins removes unclaimed shims while keeping claimed commands', as
     fs.writeFileSync(path.join(pkgRoot, 'cli.js'), '#!/usr/bin/env node\nconsole.log("ok")\n', { mode: 0o755 })
   }
   await linkBins(modules, bins, { warn: () => {} })
+  fs.writeFileSync(path.join(bins, 'user-script'), '#!/usr/bin/env bash\necho user\n')
+  fs.mkdirSync(path.join(bins, 'user-dir'))
   await pruneStaleBins(bins, new Set(['keep']))
   expect(fs.existsSync(path.join(bins, process.platform === 'win32' ? 'keep.cmd' : 'keep'))).toBe(true)
   expect(fs.existsSync(path.join(bins, process.platform === 'win32' ? 'stale.cmd' : 'stale'))).toBe(false)
+  expect(fs.existsSync(path.join(bins, 'user-script'))).toBe(true)
+  expect(fs.existsSync(path.join(bins, 'user-dir'))).toBe(true)
+})
+
+test('pruneStaleBins does not traverse a symlinked .bin directory', async () => {
+  const root = temporaryDirectory()
+  const outside = path.join(root, 'outside')
+  const modules = path.join(root, 'node_modules')
+  fs.mkdirSync(outside, { recursive: true })
+  fs.mkdirSync(modules, { recursive: true })
+  const targetShim = path.join(outside, 'stale')
+  fs.writeFileSync(targetShim, '#!/bin/sh\n# Resolve $0 through symlinks\n')
+  const bins = path.join(modules, '.bin')
+  fs.symlinkSync(outside, bins, 'junction')
+  await pruneStaleBins(bins, new Set())
+  expect(fs.existsSync(targetShim)).toBe(true)
 })
 
 function runCommand (bin: string): string {

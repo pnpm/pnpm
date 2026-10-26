@@ -16,7 +16,7 @@ mod workspace_links;
 use direct_links::link_selected_hoisted_direct_dependencies;
 use replaced_locations::forget_replaced_hoisted_locations;
 use stale_links::{unlink_prior_workspace_hoists, unlink_stale_direct_links};
-use workspace_links::link_hoisted_workspace_dependencies;
+use workspace_links::{link_hoisted_workspace_dependencies, prune_importer_hoisted_bins};
 
 use super::{
     AtomicU8, BTreeMap, BTreeSet, Config, DependencyGroup, Diagnostic, Display, Error, HashMap,
@@ -352,10 +352,7 @@ fn link_post_hierarchy<Reporter: self::Reporter>(
     )? {
         bins.sources.remove(&directory);
     }
-    for (modules_dir, claimed) in &bins.claimed_commands {
-        pnpm_cmd_shim::prune_stale_bins(&modules_dir.join(".bin"), claimed)
-            .map_err(HoistedLinkerError::HoistLinkBins)?;
-    }
+    prune_importer_hoisted_bins(inputs, &bins.claimed_commands)?;
     // The pass above links `link:` siblings only, so it reports only
     // those. The rest are real directories this linker wrote.
     crate::report_direct_dependency_changes::report_direct_dependency_changes::<Reporter>(

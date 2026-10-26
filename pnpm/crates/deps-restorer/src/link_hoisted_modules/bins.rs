@@ -49,11 +49,7 @@ pub(super) fn link_hierarchy_bins(
         .filter_map(|node| node.alias.clone())
         .collect();
     if dep_names.is_empty() {
-        let mut output = HoistedBinLinkOutput::default();
-        output.claimed_commands
-            .entry(pnpm_fs::lexical_normalize(&modules_dir))
-            .or_default();
-        return Ok(output);
+        return Ok(HoistedBinLinkOutput::default());
     }
     let deps = dep_names
         .iter()

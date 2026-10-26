@@ -1,4 +1,4 @@
-import { promises as fs } from 'node:fs'
+import { type Dirent, promises as fs } from 'node:fs'
 import { createRequire } from 'node:module'
 import path from 'node:path'
 
@@ -376,6 +376,7 @@ export async function pruneStaleBins (
   binsDir: string,
   claimedCommandNames: ReadonlySet<string>
 ): Promise<void> {
+  if (!await isRealBinsDir(binsDir)) return
   const entries = await readBinsDirEntries(binsDir)
   if (entries.length === 0) return
   const claimed = IS_WINDOWS
@@ -383,14 +384,19 @@ export async function pruneStaleBins (
     : claimedCommandNames
   await Promise.all(
     entries
-      .filter((entry) => !isBinEntryClaimed(entry, claimed))
-      .map(async (entry) => rimraf(path.join(binsDir, entry)))
+      .filter((entry) => !isBinEntryClaimed(entry.name, claimed))
+      .map(async (entry) => removeUnclaimedBinEntry(binsDir, entry))
   )
 }
 
-async function readBinsDirEntries (binsDir: string): Promise<string[]> {
+async function isRealBinsDir (binsDir: string): Promise<boolean> {
+  const stats = await fs.lstat(binsDir).catch(() => undefined)
+  return stats?.isDirectory() === true
+}
+
+async function readBinsDirEntries (binsDir: string): Promise<Dirent[]> {
   try {
-    return await fs.readdir(binsDir)
+    return await fs.readdir(binsDir, { withFileTypes: true })
   } catch (err: unknown) {
     if ((err as NodeJS.ErrnoException).code === 'ENOENT') return []
     throw err
@@ -403,6 +409,29 @@ function isBinEntryClaimed (entry: string, claimed: ReadonlySet<string>): boolea
   if (!IS_WINDOWS) return false
   const windowsExts = ['.cmd', '.ps1', getExeExtension().toLowerCase()]
   return windowsExts.some((ext) => normalized.endsWith(ext) && claimed.has(normalized.slice(0, -ext.length)))
+}
+
+async function removeUnclaimedBinEntry (binsDir: string, entry: Dirent): Promise<void> {
+  const entryPath = path.join(binsDir, entry.name)
+  if (!await isPnpmBinEntry(entryPath, entry) || !await isRealBinsDir(binsDir)) return
+  try {
+    await fs.unlink(entryPath)
+  } catch (err: unknown) {
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err
+  }
+}
+
+async function isPnpmBinEntry (entryPath: string, entry: Dirent): Promise<boolean> {
+  if (entry.isSymbolicLink()) return true
+  if (!entry.isFile()) return false
+  if (IS_WINDOWS && entry.name.toLowerCase() === 'node.exe') return true
+  const content = await fs.readFile(entryPath, 'utf8').catch(() => '')
+  const normalized = content.startsWith('\uFEFF') ? content.slice(1) : content
+  return normalized.startsWith('#!/bin/sh\n# Resolve $0 through symlinks') ||
+    normalized.startsWith('#!/bin/sh\nbasedir=') ||
+    normalized.startsWith('@SETLOCAL\r\n') ||
+    normalized.startsWith('@IF EXIST') ||
+    normalized.startsWith('#!/usr/bin/env pwsh\n$basedir=')
 }
 
 function isOwnBinsDir (pkgDir: string, binsDir: string): boolean {

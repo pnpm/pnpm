@@ -62,6 +62,31 @@ pub(super) fn link_hoisted_workspace_dependencies<Reporter: self::Reporter>(
     Ok(changed_dirs)
 }
 
+pub(super) fn prune_importer_hoisted_bins(
+    inputs: &HoistedLinkerInputs<'_>,
+    claimed_commands: &HashMap<PathBuf, HashSet<String>>,
+) -> Result<(), HoistedLinkerError> {
+    let root_modules_dir = pnpm_fs::lexical_normalize(&inputs.config.modules_dir);
+    let modules_dir_name = inputs.config.modules_dir_name();
+    let lockfile_dir = pnpm_fs::lexical_normalize(inputs.projects.walker_lockfile_dir);
+    let mut dirs = HashSet::from([root_modules_dir.clone()]);
+    for (project_dir, _) in inputs.projects.manifests {
+        let dir = if pnpm_fs::lexical_normalize(project_dir) == lockfile_dir {
+            root_modules_dir.clone()
+        } else {
+            pnpm_fs::lexical_normalize(&project_dir.join(modules_dir_name))
+        };
+        dirs.insert(dir);
+    }
+    let empty = HashSet::new();
+    for modules_dir in dirs {
+        let claimed = claimed_commands.get(&modules_dir).unwrap_or(&empty);
+        pnpm_cmd_shim::prune_stale_bins(&modules_dir.join(".bin"), claimed)
+            .map_err(HoistedLinkerError::HoistLinkBins)?;
+    }
+    Ok(())
+}
+
 /// Importer ids backed by the install's own declared projects, relative to
 /// `walker_lockfile_dir`.
 fn trusted_importer_ids(inputs: &HoistedLinkerInputs<'_>) -> HashSet<String> {
