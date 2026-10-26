@@ -62,8 +62,7 @@ impl<'a> InstallFrozenLockfile<'a> {
                 policy: install.build_policy(ctx.allow_build_policy),
                 extra_env: &build_extra_env,
                 skipped: phase.skipped,
-                held_back_bins_dirs: &phase.linked.held_back_bins_dirs,
-                hoisted_bin_sources: Some(&phase.linked.hoisted_bin_sources),
+                pending_bins: Some(&phase.linked.pending_bins),
             })
             .map_err(InstallFrozenLockfileError::BuildPhase)
         }

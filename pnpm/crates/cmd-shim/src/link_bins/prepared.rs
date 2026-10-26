@@ -45,7 +45,7 @@ pub fn link_bins_of_packages_precomputed<Sys>(
     prepared: &HashMap<PathBuf, PreparedPackageBins>,
     bins_dir: &Path,
     options: &LinkBinsOptions,
-) -> Result<(), LinkBinsError>
+) -> Result<HashSet<String>, LinkBinsError>
 where
     Sys: FsReadToString
         + FsReadHead
@@ -65,5 +65,10 @@ where
             .map(|cached| cached.commands.to_vec())
             .unwrap_or_else(|| package.resolve_commands::<Sys>())
     });
-    link_chosen_bins::<Sys>(chosen, bins_dir, options, &ShimTargetCache::default()).map(|_| ())
+    let linked_commands = chosen
+        .iter()
+        .map(|(command, _)| command.name.clone())
+        .collect();
+    link_chosen_bins::<Sys>(chosen, bins_dir, options, &ShimTargetCache::default())?;
+    Ok(linked_commands)
 }

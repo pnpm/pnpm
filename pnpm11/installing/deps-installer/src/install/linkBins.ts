@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import { getProjectNodePath, linkBins, linkBinsOfPackages } from '@pnpm/bins.linker'
+import { getProjectNodePath, linkBins, linkBinsOfPackages, pruneStaleBins } from '@pnpm/bins.linker'
 import { linkBinsOfDependencies, linkBinsOfRuntimeDependencies } from '@pnpm/building.during-install'
 import type { DependenciesGraph, DependenciesGraphNode } from '@pnpm/installing.deps-resolver'
 import { logger } from '@pnpm/logger'
@@ -77,30 +77,38 @@ async function linkAllBins (
 async function linkBinsOfProject (step: LinkContext, project: ImporterToUpdate): Promise<void> {
   const { ctx, opts } = step
   const projectModulesDir = await getProjectNodePath(project, { extendNodePath: opts.extendNodePath })
+  const protectedBins = new Set<string>()
   const linkedPackages = ctx.publicHoistPattern?.length && path.relative(project.rootDir, opts.lockfileDir) === ''
     ? await linkBins(project.modulesDir, project.binsDir, {
       allowExoticManifests: true,
+      linkedCommandNames: protectedBins,
       preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
       projectManifest: project.manifest,
       extraNodePaths: ctx.extraNodePaths,
       projectModulesDir,
       warn: warnAboutBins.bind(null, project.rootDir),
     })
-    : await linkBinsOfDirectDependencies(step, { project, projectModulesDir })
-  if (opts.global && project.mutation.includes('install')) {
-    for (const pkg of project.wantedDependencies) {
-      // This warning is never printed currently during "pnpm link --global"
-      // due to the following issue: https://github.com/pnpm/pnpm/issues/4761
-      if (pkg.alias && !linkedPackages?.includes(pkg.alias)) {
-        logger.warn({ message: `${pkg.alias} has no binaries`, prefix: opts.lockfileDir })
-      }
+    : await linkBinsOfDirectDependencies(step, { linkedCommandNames: protectedBins, project, projectModulesDir })
+  if (!opts.global && path.resolve(project.binsDir) === path.resolve(project.modulesDir, '.bin')) {
+    await pruneStaleBins(project.binsDir, protectedBins)
+  }
+  warnMissingGlobalBins(opts, project, linkedPackages)
+}
+
+function warnMissingGlobalBins (opts: LinkContext['opts'], project: ImporterToUpdate, linkedPackages: string[] | undefined): void {
+  if (!opts.global || !project.mutation.includes('install')) return
+  for (const pkg of project.wantedDependencies) {
+    // This warning is never printed currently during "pnpm link --global"
+    // due to the following issue: https://github.com/pnpm/pnpm/issues/4761
+    if (pkg.alias && !linkedPackages?.includes(pkg.alias)) {
+      logger.warn({ message: `${pkg.alias} has no binaries`, prefix: opts.lockfileDir })
     }
   }
 }
 
 async function linkBinsOfDirectDependencies (
   { ctx, opts, resolution }: LinkContext,
-  { project, projectModulesDir }: { project: ImporterToUpdate, projectModulesDir: string | undefined }
+  { linkedCommandNames, project, projectModulesDir }: { linkedCommandNames: Set<string>, project: ImporterToUpdate, projectModulesDir: string | undefined }
 ): Promise<string[]> {
   const directPkgs = [
     ...props<DepPath, DependenciesGraphNode>(
@@ -128,6 +136,7 @@ async function linkBinsOfDirectDependencies (
     project.binsDir,
     {
       extraNodePaths: ctx.extraNodePaths,
+      linkedCommandNames,
       preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
       projectModulesDir,
     }

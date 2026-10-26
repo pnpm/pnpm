@@ -1,3 +1,5 @@
+pub use removal::{prune_stale_bins, prune_stale_bins_with};
+
 use super::{
     Command, FsCreateDirAll, FsEnsureExecutableBits, FsReadDir, FsReadFile, FsReadHead,
     FsReadToString, FsSetExecutable, FsWalkFiles, FsWrite, LinkBinsError, LinkBinsOptions,

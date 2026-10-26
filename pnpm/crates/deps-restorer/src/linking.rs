@@ -12,7 +12,7 @@ use crate::{
     install_frozen_lockfile::{
         HoistPlan, HoistedLinkerError, HoistedLinkerInputs, run_hoisted_linker,
     },
-    link_direct_dep_bins_resolved, link_root_component_members,
+    link_direct_dep_bins_resolved_excluding, link_root_component_members,
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -114,6 +114,19 @@ impl LinkPhaseInputs<'_> {
     }
 }
 
+/// Bin state handed from [`run_link_phase`] to [`crate::run_build_phase`] so
+/// held-back hoisted bins, cached hoisted bin manifests, and isolated importer
+/// `.bin` pruning settle after dependency builds complete.
+#[derive(Default)]
+pub struct PendingBinLinks {
+    /// See [`crate::HoistedLinkerOutput::held_back_bins_dirs`].
+    pub held_back_bins_dirs: Vec<crate::HeldBackBinsDir>,
+    pub hoisted_bin_sources: crate::HoistedBinSources,
+    /// Command names linked into each isolated importer's `<modules_dir>/.bin`
+    /// during the link phase, keyed by [`pnpm_fs::lexical_normalize`].
+    pub claimed_importer_bins: HashMap<PathBuf, HashSet<String>>,
+}
+
 /// What the link phase hands to the build phase and the caller's
 /// `.modules.yaml` writer.
 pub struct LinkPhaseOutput {
@@ -134,9 +147,7 @@ pub struct LinkPhaseOutput {
     ///
     /// [`BinOrigin`]: pnpm_cmd_shim::BinOrigin
     pub publicly_hoisted_for_post_build: Vec<String>,
-    /// See [`crate::HoistedLinkerOutput::held_back_bins_dirs`].
-    pub held_back_bins_dirs: Vec<crate::HeldBackBinsDir>,
-    pub hoisted_bin_sources: crate::HoistedBinSources,
+    pub pending_bins: PendingBinLinks,
 }
 
 impl LinkPhaseOutput {
@@ -156,8 +167,7 @@ impl LinkPhaseOutput {
             hoisted_build_snapshots: None,
             build_scope: None,
             publicly_hoisted_for_post_build: Vec::new(),
-            held_back_bins_dirs: Vec::new(),
-            hoisted_bin_sources: crate::HoistedBinSources::default(),
+            pending_bins: PendingBinLinks::default(),
         }
     }
 }
@@ -189,9 +199,11 @@ pub fn run_link_phase<Reporter: self::Reporter>(
     // `nodeLinker: hoisted` writes no virtual store — `CreateVirtualStore`
     // skipped the slots — so there is nothing to link into or out of.
     let has_virtual_store = !inputs.ctx.is_hoisted();
-    if has_virtual_store && !inputs.ctx.config.virtual_store_only {
-        relink_importer_tree::<Reporter>(&inputs, skipped, &hoist)?;
-    }
+    let claimed_importer_bins = if has_virtual_store && !inputs.ctx.config.virtual_store_only {
+        relink_importer_tree::<Reporter>(&inputs, skipped, &hoist)?
+    } else {
+        HashMap::new()
+    };
     if has_virtual_store {
         link_virtual_store_bins(&inputs, skipped)?;
     }
@@ -201,7 +213,7 @@ pub fn run_link_phase<Reporter: self::Reporter>(
     if inputs.ctx.config.virtual_store_only {
         return Ok(LinkPhaseOutput::empty());
     }
-    write_project_links::<Reporter>(inputs, skipped, hoist.plan)
+    write_project_links::<Reporter>(inputs, skipped, hoist.plan, claimed_importer_bins)
 }
 
 /// Reconcile first, so stale direct-dep and orphaned hoist links vacate
@@ -213,13 +225,13 @@ fn relink_importer_tree<Reporter: self::Reporter>(
     inputs: &LinkPhaseInputs<'_>,
     skipped: &SkippedSnapshots,
     hoist: &PlannedHoist,
-) -> Result<(), LinkPhaseError> {
+) -> Result<HashMap<PathBuf, HashSet<String>>, LinkPhaseError> {
     let config = inputs.ctx.config;
     prune_importer_tree::<Reporter>(inputs, hoist)?;
 
     let scheduled_builds = inputs.scheduled_builds();
     let phase_start = std::time::Instant::now();
-    SymlinkDirectDependencies {
+    let claimed_bins = SymlinkDirectDependencies {
         context: crate::ImporterLinkContext {
             config,
             layout: inputs.ctx.linker.layout,
@@ -244,7 +256,7 @@ fn relink_importer_tree<Reporter: self::Reporter>(
         requires_build_by_snapshot: inputs.packages.requires_build_by_snapshot,
         scheduled_builds: scheduled_builds.as_ref(),
     }
-    .run::<Reporter>()
+    .run_claiming_bins::<Reporter>()
     .map_err(LinkPhaseError::SymlinkDirectDependencies)?;
     tracing::info!(target: "pacquet::install::phase", phase = "link.symlink_direct_deps", elapsed_ms = phase_start.elapsed().as_millis() as u64, "phase complete");
 
@@ -258,7 +270,8 @@ fn relink_importer_tree<Reporter: self::Reporter>(
         inputs.projects.dependency_groups,
         skipped,
     )
-    .map_err(LinkPhaseError::LinkRootComponentMembers)
+    .map_err(LinkPhaseError::LinkRootComponentMembers)?;
+    Ok(claimed_bins)
 }
 
 fn prune_importer_tree<Reporter: self::Reporter>(
@@ -334,6 +347,7 @@ fn write_project_links<Reporter: self::Reporter>(
     mut inputs: LinkPhaseInputs<'_>,
     skipped: &mut SkippedSnapshots,
     pre_hoist: Option<HoistPlan>,
+    mut claimed_importer_bins: HashMap<PathBuf, HashSet<String>>,
 ) -> Result<LinkPhaseOutput, LinkPhaseError> {
     let config = inputs.ctx.config;
     let build_scope = crate::build_scope::isolated_build_scope(&inputs);
@@ -350,14 +364,7 @@ fn write_project_links<Reporter: self::Reporter>(
     tracing::info!(target: "pacquet::install::phase", phase = "link.write_hoist_links", elapsed_ms = phase_start.elapsed().as_millis() as u64, "phase complete");
 
     write_project_sidecars(&inputs)?;
-    if !bin_deps.is_empty() {
-        link_direct_dep_bins_resolved(
-            &config.modules_dir,
-            &bin_deps,
-            inputs.ctx.linker.bin_options,
-        )
-        .map_err(LinkPhaseError::LinkBins)?;
-    }
+    finish_project_bins(&inputs, &bin_deps, &mut claimed_importer_bins)?;
 
     let mut hoisted_dependencies = links.hoisted_dependencies;
     hoisted_dependencies.extend(hoisted.hoisted_dependencies);
@@ -368,9 +375,36 @@ fn write_project_links<Reporter: self::Reporter>(
         hoisted_build_snapshots: hoisted.hoisted_build_snapshots,
         build_scope,
         publicly_hoisted_for_post_build: links.publicly_hoisted_with_bins,
-        held_back_bins_dirs: hoisted.held_back_bins_dirs,
-        hoisted_bin_sources: hoisted.hoisted_bin_sources,
+        pending_bins: PendingBinLinks {
+            held_back_bins_dirs: hoisted.held_back_bins_dirs,
+            hoisted_bin_sources: hoisted.hoisted_bin_sources,
+            claimed_importer_bins,
+        },
     })
+}
+
+fn finish_project_bins(
+    inputs: &LinkPhaseInputs<'_>,
+    bin_deps: &[(String, PathBuf)],
+    claimed_importer_bins: &mut HashMap<PathBuf, HashSet<String>>,
+) -> Result<(), LinkPhaseError> {
+    let config = inputs.ctx.config;
+    if !bin_deps.is_empty() {
+        let root_modules = pnpm_fs::lexical_normalize(&config.modules_dir);
+        let empty = HashSet::new();
+        let excluded = claimed_importer_bins.get(&root_modules).unwrap_or(&empty);
+        let workspace_hoist_bins = link_direct_dep_bins_resolved_excluding(
+            &config.modules_dir,
+            bin_deps,
+            excluded,
+            inputs.ctx.linker.bin_options,
+        )
+        .map_err(LinkPhaseError::LinkBins)?;
+        if let Some(root_claimed) = claimed_importer_bins.get_mut(&root_modules) {
+            root_claimed.extend(workspace_hoist_bins);
+        }
+    }
+    Ok(())
 }
 
 fn write_project_sidecars(inputs: &LinkPhaseInputs<'_>) -> Result<(), LinkPhaseError> {
