@@ -9,7 +9,7 @@ use pnpm_config::Config;
 use pnpm_lockfile::Lockfile;
 use pnpm_package_manifest::PackageManifest;
 use pnpm_testing_utils::fs::set_mtime_ms;
-use pnpm_workspace_state::{ProjectEntry, WorkspaceState};
+use pnpm_workspace_state::{ProjectEntry, WorkspaceState, WorkspaceStateSettings};
 use std::{collections::BTreeMap, fs};
 use tempfile::tempdir;
 
@@ -199,6 +199,31 @@ fn a_patch_file_recorded_by_its_absolute_path_matches_its_configured_path() {
     assert_eq!(drift(&config), None);
     assert_eq!(drift(&configured("./shared/../patches/foo.patch".to_string())), None);
     assert_eq!(drift(&configured("patches/bar.patch".to_string())), Some("patchedDependencies"));
+
+    let empty = WorkspaceState {
+        settings: WorkspaceStateSettings {
+            patched_dependencies: Some(indexmap::IndexMap::new()),
+            ..current_settings(
+                &Config::new(),
+                pnpm_config::NodeLinker::Isolated,
+                isolated_included(),
+                None,
+            )
+        },
+        ..Default::default()
+    };
+    assert_eq!(
+        first_setting_drift(
+            &empty,
+            &Config::new(),
+            pnpm_config::NodeLinker::Isolated,
+            isolated_included(),
+            None,
+            &[]
+        ),
+        None,
+        "an empty record names no patch, as an unset config does",
+    );
 }
 
 /// A newer patch mtime is resolved by comparing its content with the lockfile.

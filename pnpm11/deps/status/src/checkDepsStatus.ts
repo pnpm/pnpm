@@ -191,11 +191,10 @@ function settingValues (settingKey: keyof WorkspaceStateSettings, { opts, stored
 /**
  * pnpm v12 records each patch file as configured, and this CLI records it
  * resolved against the workspace directory. Resolving both forms there
- * compares the files they name.
+ * compares the files they name. An unset map names none, as an empty one does.
  */
-function resolvePatchFiles (patchedDependencies: Record<string, string> | undefined, workspaceDir: string): Record<string, string> | undefined {
-  if (patchedDependencies == null) return undefined
-  return Object.fromEntries(Object.entries(patchedDependencies).map(([selector, patchFile]) => [selector, path.resolve(workspaceDir, patchFile)]))
+function resolvePatchFiles (patchedDependencies: Record<string, string> | undefined, workspaceDir: string): Record<string, string> {
+  return Object.fromEntries(Object.entries(patchedDependencies ?? {}).map(([selector, patchFile]) => [selector, path.resolve(workspaceDir, patchFile)]))
 }
 
 function workspaceStateDir (opts: CheckDepsStatusOptions): string {

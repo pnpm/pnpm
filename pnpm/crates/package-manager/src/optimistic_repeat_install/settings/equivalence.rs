@@ -1,5 +1,6 @@
 //! Recorded and current values that differ in form but mean the same setting.
 
+use indexmap::IndexMap;
 use pnpm_fs::lexical_normalize;
 use pnpm_workspace_state::WorkspaceStateSettings;
 use std::path::Path;
@@ -59,7 +60,8 @@ pub(super) fn package_extensions_match(
 /// pnpm v11 records each patch file resolved against the workspace
 /// directory, `..` segments collapsed; pacquet records it as configured. A
 /// relative path is read from `workspace_dir`, so resolving both forms there
-/// compares the files they name.
+/// compares the files they name. An absent map names none, as an empty one
+/// does.
 pub(super) fn patched_dependencies_match(
     recorded: &WorkspaceStateSettings,
     live: &WorkspaceStateSettings,
@@ -78,6 +80,10 @@ pub(super) fn patched_dependencies_match(
                             })
                     })
         }
-        (recorded, live, _) => recorded == live,
+        (recorded, live, _) => non_empty(recorded.as_ref()) == non_empty(live.as_ref()),
     }
+}
+
+fn non_empty(map: Option<&IndexMap<String, String>>) -> Option<&IndexMap<String, String>> {
+    map.filter(|map| !map.is_empty())
 }

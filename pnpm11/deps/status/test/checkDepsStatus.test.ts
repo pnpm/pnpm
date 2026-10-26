@@ -472,12 +472,13 @@ describe('checkDepsStatus - settings change detection', () => {
     expect(result.upToDate).toBe(true)
   })
 
+  const workspaceDir = path.resolve('/project')
   it.each([
-    ['stays up to date when the recorded patch file is the configured one', 'patches/foo.patch', undefined],
-    ['returns upToDate: false when the recorded patch file is another one', 'patches/bar.patch', 'The value of the patchedDependencies setting has changed'],
-  ])('%s, recorded relative to the workspace', async (_label, recordedPatchFile, issue) => {
+    ['stays up to date when the patch file recorded relative to the workspace is the configured one', { 'foo@1.0.0': 'patches/foo.patch' }, { 'foo@1.0.0': path.join(workspaceDir, 'patches/foo.patch') }, undefined],
+    ['returns upToDate: false when the patch file recorded relative to the workspace is another one', { 'foo@1.0.0': 'patches/bar.patch' }, { 'foo@1.0.0': path.join(workspaceDir, 'patches/foo.patch') }, 'The value of the patchedDependencies setting has changed'],
+    ['stays up to date when an empty patchedDependencies was recorded and none is configured', {}, undefined, undefined],
+  ])('%s', async (_label, recordedPatchedDependencies, patchedDependencies, issue) => {
     // pnpm v12 records each patch file as configured.
-    const workspaceDir = path.resolve('/project')
     const lastValidatedTimestamp = Date.now() - 10_000
     const mockWorkspaceState: WorkspaceState = {
       lastValidatedTimestamp,
@@ -487,7 +488,7 @@ describe('checkDepsStatus - settings change detection', () => {
         linkWorkspacePackages: true,
         preferWorkspacePackages: true,
         peersSuffixMaxLength: 1000,
-        patchedDependencies: { 'foo@1.0.0': recordedPatchFile },
+        patchedDependencies: recordedPatchedDependencies,
       },
       projects: {},
       filteredInstall: false,
@@ -515,7 +516,7 @@ describe('checkDepsStatus - settings change detection', () => {
       rootProjectManifestDir: workspaceDir,
       pnpmfile: [],
       ...mockWorkspaceState.settings,
-      patchedDependencies: { 'foo@1.0.0': path.join(workspaceDir, 'patches/foo.patch') },
+      patchedDependencies,
     })
 
     expect(result.issue).toBe(issue)
