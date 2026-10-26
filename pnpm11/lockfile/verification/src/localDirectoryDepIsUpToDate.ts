@@ -102,11 +102,12 @@ export function createLocalDirectoryDepUpToDateChecker (
   ctx: LocalDirectoryDepContext
 ): (pkgSnapshot: PackageSnapshot, parentPkgAliases: Record<string, unknown>) => Promise<boolean> {
   const visited = new Map<PackageSnapshot, Set<string>>()
-  const recordedPeers = recordedPeersOf(ctx.lockfilePackages)
+  // Collected on the first check, since most projects have no local directory dependency to check.
+  let recordedPeers: string[] | undefined
   return async (pkgSnapshot, parentPkgAliases) => localDirectoryDepIsUpToDateRec(ctx, pkgSnapshot, {
     parentPkgAliases,
     visited,
-    recordedPeers,
+    recordedPeers: recordedPeers ??= recordedPeersOf(ctx.lockfilePackages),
   })
 }
 
