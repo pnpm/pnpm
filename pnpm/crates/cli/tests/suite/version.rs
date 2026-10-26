@@ -359,6 +359,47 @@ fn version_flag_reuses_the_pinned_engine_when_node_version_names_another_major()
 }
 
 #[test]
+fn version_flag_reuses_the_pinned_engine_with_project_install_settings() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(
+        workspace.join("package.json"),
+        r#"{"devEngines":{"packageManager":{"name":"pnpm","version":"9.3.0","onFail":"download"}}}"#,
+    )
+    .expect("write package.json");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "engineStrict: true\nsupportedArchitectures:\n  os: [this-os-does-not-exist]\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+
+    let output = test_command(pacquet_in(&workspace), root.path())
+        .env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .args(["--version"])
+        .output()
+        .expect("run pacquet --version");
+    dbg!(&output);
+    assert!(output.status.success(), "the first pacquet --version should install the engine");
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "9.3.0\n");
+
+    let output = test_command(pacquet_in(&workspace), root.path())
+        .env("PNPM_CONFIG_REGISTRY", "http://127.0.0.1:9/")
+        .env("PNPM_CONFIG_FETCH_RETRIES", "0")
+        .args(["--version"])
+        .output()
+        .expect("run pacquet --version against an unreachable registry");
+    dbg!(&output);
+    assert!(
+        output.status.success(),
+        "the second pacquet --version should reuse the installed engine",
+    );
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "9.3.0\n");
+
+    drop((root, mock_instance));
+}
+
+#[test]
 fn child_pnpm_selects_the_version_for_its_own_directory() {
     let CommandTempCwd { pacquet, root, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();

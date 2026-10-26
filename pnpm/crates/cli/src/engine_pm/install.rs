@@ -29,6 +29,7 @@ use crate::{
     },
     slot_lock,
 };
+use engine_config::package_manager_engine_config;
 use miette::{Context, IntoDiagnostic};
 use pnpm_cmd_shim::{
     Host as CmdShimHost, LinkBinsOptions, PackageBinSource, link_bins_of_packages,
@@ -329,21 +330,6 @@ fn acquire_install_lock<Reporter: self::Reporter>(path: &Path, subject: &str) ->
     None
 }
 
-/// The project's config, retargeted at the shared engine store.
-///
-/// The project's `nodeVersion` is dropped: it names the Node.js the
-/// project's dependencies run on, while the engine runs on the host's, and
-/// [`compute_engine_slot`] keys the slot on the host. Keeping it would
-/// install the engine into a slot no later lookup finds.
-fn package_manager_engine_config(config: &Config) -> miette::Result<Config> {
-    let global_pkg_dir = config.global_pkg_dir.as_ref().ok_or(EngineError::NoGlobalDir)?;
-    let mut config = config.clone();
-    config.store_dir = StoreDir::new(package_manager_engine_store_root(global_pkg_dir));
-    config.global_virtual_store_dir = config.store_dir.links();
-    config.node_version = None;
-    Ok(config)
-}
-
 fn package_manager_engine_store_root(global_pkg_dir: &Path) -> PathBuf {
     package_manager_home(global_pkg_dir).join("package-manager-store")
 }
@@ -510,6 +496,7 @@ fn remove_dir_if_not_symlink(path: &Path) -> std::io::Result<()> {
     }
 }
 
+mod engine_config;
 mod linked_bins;
 use linked_bins::{linked_engine_bins, populated_engine_slot};
 

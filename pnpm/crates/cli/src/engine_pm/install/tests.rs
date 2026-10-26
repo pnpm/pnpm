@@ -3,6 +3,7 @@ use super::{
 };
 use pnpm_config::Config;
 use pnpm_graph_hasher::{host_arch, host_libc, host_platform};
+use pnpm_package_is_installable::SupportedArchitectures;
 use pnpm_store_dir::StoreDir;
 use std::{fs, path::Path};
 
@@ -83,6 +84,11 @@ fn package_manager_engine_config_uses_global_store() {
     let config = Config {
         global_pkg_dir: Some(global_pkg_dir),
         store_dir: StoreDir::new(&project_store_root),
+        registry: "https://project.invalid/".to_string(),
+        supported_architectures: Some(SupportedArchitectures::default()),
+        engine_strict: true,
+        node_version: Some("20.0.0".to_string()),
+        offline: true,
         ..Config::default()
     };
 
@@ -99,6 +105,12 @@ fn package_manager_engine_config_uses_global_store() {
         "engine store must not use project store at {}",
         project_store_root.display(),
     );
+    assert_eq!(engine_config.registry, config.package_manager_bootstrap.registry);
+    assert_eq!(engine_config.supported_architectures, None);
+    assert!(engine_config.engine_strict);
+    assert_eq!(engine_config.node_version, None);
+    assert!(engine_config.offline);
+    assert_eq!(engine_config.fetch_retries, config.fetch_retries);
 }
 
 #[cfg(unix)]
