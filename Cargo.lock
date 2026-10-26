@@ -3434,7 +3434,7 @@ dependencies = [
 [[package]]
 name = "libsql"
 version = "0.9.30"
-source = "git+https://github.com/pnpm/libsql?rev=4943f79046d6d6ff7617d6a573f1d51e8709e2b2#4943f79046d6d6ff7617d6a573f1d51e8709e2b2"
+source = "git+https://github.com/pnpm/libsql?rev=e2c44e616a1f8e1ec7ceeb61138a3c2c391c35a9#e2c44e616a1f8e1ec7ceeb61138a3c2c391c35a9"
 dependencies = [
  "anyhow",
  "async-stream",
@@ -3472,7 +3472,7 @@ dependencies = [
 [[package]]
 name = "libsql-ffi"
 version = "0.9.30"
-source = "git+https://github.com/pnpm/libsql?rev=4943f79046d6d6ff7617d6a573f1d51e8709e2b2#4943f79046d6d6ff7617d6a573f1d51e8709e2b2"
+source = "git+https://github.com/pnpm/libsql?rev=e2c44e616a1f8e1ec7ceeb61138a3c2c391c35a9#e2c44e616a1f8e1ec7ceeb61138a3c2c391c35a9"
 dependencies = [
  "bindgen",
  "cc",
@@ -3483,7 +3483,7 @@ dependencies = [
 [[package]]
 name = "libsql-hrana"
 version = "0.9.30"
-source = "git+https://github.com/pnpm/libsql?rev=4943f79046d6d6ff7617d6a573f1d51e8709e2b2#4943f79046d6d6ff7617d6a573f1d51e8709e2b2"
+source = "git+https://github.com/pnpm/libsql?rev=e2c44e616a1f8e1ec7ceeb61138a3c2c391c35a9#e2c44e616a1f8e1ec7ceeb61138a3c2c391c35a9"
 dependencies = [
  "base64 0.21.7",
  "bytes",
@@ -3494,7 +3494,7 @@ dependencies = [
 [[package]]
 name = "libsql-rusqlite"
 version = "0.9.30"
-source = "git+https://github.com/pnpm/libsql?rev=4943f79046d6d6ff7617d6a573f1d51e8709e2b2#4943f79046d6d6ff7617d6a573f1d51e8709e2b2"
+source = "git+https://github.com/pnpm/libsql?rev=e2c44e616a1f8e1ec7ceeb61138a3c2c391c35a9#e2c44e616a1f8e1ec7ceeb61138a3c2c391c35a9"
 dependencies = [
  "bitflags 2.11.1",
  "fallible-iterator 0.2.0",
@@ -3507,7 +3507,7 @@ dependencies = [
 [[package]]
 name = "libsql-sqlite3-parser"
 version = "0.13.0"
-source = "git+https://github.com/pnpm/libsql?rev=4943f79046d6d6ff7617d6a573f1d51e8709e2b2#4943f79046d6d6ff7617d6a573f1d51e8709e2b2"
+source = "git+https://github.com/pnpm/libsql?rev=e2c44e616a1f8e1ec7ceeb61138a3c2c391c35a9#e2c44e616a1f8e1ec7ceeb61138a3c2c391c35a9"
 dependencies = [
  "bitflags 2.11.1",
  "cc",
@@ -3524,7 +3524,7 @@ dependencies = [
 [[package]]
 name = "libsql-sys"
 version = "0.9.30"
-source = "git+https://github.com/pnpm/libsql?rev=4943f79046d6d6ff7617d6a573f1d51e8709e2b2#4943f79046d6d6ff7617d6a573f1d51e8709e2b2"
+source = "git+https://github.com/pnpm/libsql?rev=e2c44e616a1f8e1ec7ceeb61138a3c2c391c35a9#e2c44e616a1f8e1ec7ceeb61138a3c2c391c35a9"
 dependencies = [
  "bytes",
  "libsql-ffi",
@@ -3537,7 +3537,7 @@ dependencies = [
 [[package]]
 name = "libsql_replication"
 version = "0.9.30"
-source = "git+https://github.com/pnpm/libsql?rev=4943f79046d6d6ff7617d6a573f1d51e8709e2b2#4943f79046d6d6ff7617d6a573f1d51e8709e2b2"
+source = "git+https://github.com/pnpm/libsql?rev=e2c44e616a1f8e1ec7ceeb61138a3c2c391c35a9#e2c44e616a1f8e1ec7ceeb61138a3c2c391c35a9"
 dependencies = [
  "aes",
  "async-stream",
