@@ -451,18 +451,18 @@ fn filtered_prod_install_preserves_shallow_workspace_link_targets() {
 }
 
 #[test]
-fn filtered_install_keeps_full_cleanup_for_shared_layout_drift() {
+fn filtered_install_refuses_a_shared_layout_drift() {
     let fixture = WorkspaceFixture::new();
     // The drift lives in `.modules.yaml`, which the repeat-install fast
-    // path never reads; this test is about what the pipeline cleans up
-    // once it runs, so keep the pipeline in play.
+    // path never reads; this test is about what the pipeline does once
+    // it runs, so keep the pipeline in play.
     fixture.append_workspace_yaml("optimisticRepeatInstall: false\n");
     let selected = fixture.project(
         "selected",
         "selected",
         ManifestDeps { prod: &[(HELLO, "1.0.0")], ..Default::default() },
     );
-    let _unselected = fixture.project(
+    let unselected = fixture.project(
         "unselected",
         "unselected",
         ManifestDeps { prod: &[(PARENT, "100.0.0")], ..Default::default() },
@@ -483,24 +483,26 @@ fn filtered_install_keeps_full_cleanup_for_shared_layout_drift() {
     )
     .expect("write incompatible .modules.yaml");
 
-    fixture.run(["--filter", "selected", "install"]);
+    let output = fixture.command_at(&fixture.workspace, ["--filter", "selected", "install"]);
+    assert!(
+        !output.status.success(),
+        "the filtered install recreated the shared modules directory"
+    );
+    let report = format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr),
+    );
+    assert!(report.contains("MODULES_BREAKING_CHANGE"), "{report}");
+    assert!(root_sentinel.exists());
+    assert!(slot_sentinel.exists());
+    assert!(has_link(&unselected, PARENT));
+
+    fixture.run(["install"]);
     assert!(!root_sentinel.exists());
     assert!(!slot_sentinel.exists());
     assert!(has_link(&selected, HELLO));
-    let current = fixture.current();
-    assert_eq!(importer_ids(&current), BTreeSet::from(["packages/selected".to_string()]));
-    assert!(!has_snapshot(&current, PARENT, "100.0.0"));
-    let modules = fixture.modules();
-    assert!(
-        !modules.pending_builds
-            .iter()
-            .any(|entry| entry.contains(PARENT)),
-    );
-    assert!(
-        !modules.hoisted_dependencies
-            .keys()
-            .any(|entry| entry.contains(PARENT)),
-    );
+    assert!(has_link(&unselected, PARENT));
 }
 
 #[test]
