@@ -6123,6 +6123,26 @@ test('package manager downloads ignore the environment proxy when proxy is false
   expect(config.packageManagerNetworkConfig?.httpProxy).toBeUndefined()
 })
 
+test('package manager downloads use the environment proxy when proxy is null', async () => {
+  prepareEmpty()
+
+  fs.writeFileSync('user.npmrc', 'proxy=null', 'utf8')
+
+  const { config } = await getConfig({
+    cliOptions: { userconfig: path.resolve('user.npmrc') },
+    env: {
+      HTTPS_PROXY: 'http://env-proxy.example.com:8080',
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.packageManagerNetworkConfig?.httpsProxy).toBe('http://env-proxy.example.com:8080')
+})
+
 test('package manager downloads use the https proxy when http-proxy is false', async () => {
   prepareEmpty()
 
