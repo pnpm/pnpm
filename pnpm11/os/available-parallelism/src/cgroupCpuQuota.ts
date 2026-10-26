@@ -134,13 +134,18 @@ function minQuotaInHierarchy (
 
 /**
  * The process's cgroup relative to the cgroup the mount shows, or `undefined`
- * when the process is not under it. A root with `..` segments is a mount made
- * before the cgroup namespace (see cgroup_namespaces(7)); it shows an ancestor
- * at an unknown depth, so only the mount root is read. Its quota bounds every
- * descendant, the process's cgroup included.
+ * when the process is not under it. A root of only `..` segments, such as
+ * `/..`, is a mount made before the cgroup namespace (see
+ * cgroup_namespaces(7)); it shows an ancestor at an unknown depth, so only the
+ * mount root is read. Its quota bounds every descendant, the process's cgroup
+ * included. A root that descends again after `..`, such as `/../sibling`, shows
+ * a cgroup the process is not under.
  */
 function relativeCgroupPath (mountRoot: string, cgroupPath: string): string | undefined {
-  if (mountRoot.split('/').includes('..')) return ''
+  const rootSegments = mountRoot.split('/').filter((segment) => segment !== '')
+  if (rootSegments.includes('..')) {
+    return rootSegments.every((segment) => segment === '..') ? '' : undefined
+  }
   const relativePath = path.posix.relative(mountRoot, '/' + cgroupPath)
   return relativePath.split('/')[0] === '..' ? undefined : relativePath
 }

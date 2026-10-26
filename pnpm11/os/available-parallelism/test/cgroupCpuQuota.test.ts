@@ -181,6 +181,15 @@ test('a mount made before the cgroup namespace reads only the ancestor it shows'
   expect(readCgroupCpuQuota(root)).toBe(8)
 })
 
+test('a mount of a sibling cgroup, reached through the namespace root, is not an ancestor', () => {
+  const root = fixtureRoot({
+    'proc/self/cgroup': '0::/\n',
+    'proc/self/mountinfo': '31 22 0:26 /../sibling /sys/fs/cgroup rw - cgroup2 cgroup rw\n',
+    'sys/fs/cgroup/cpu.max': '100000 100000\n',
+  })
+  expect(readCgroupCpuQuota(root)).toBeUndefined()
+})
+
 test('findCgroupMounts falls back to the standard mount points', () => {
   expect(findCgroupMounts(undefined, { version: 2, cgroupPath: 'a' })).toEqual([{ mountpoint: '/sys/fs/cgroup', root: '/' }])
   expect(findCgroupMounts('garbage\n', { version: 1, cgroupPath: 'a' })).toEqual([
