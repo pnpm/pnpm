@@ -171,6 +171,16 @@ test('a process cgroup outside the mount root has no known quota', () => {
   }))).toBeUndefined()
 })
 
+test('a mount made before the cgroup namespace reads only the ancestor it shows', () => {
+  const root = fixtureRoot({
+    'proc/self/cgroup': '0::/container1\n',
+    'proc/self/mountinfo': '31 22 0:26 /.. /sys/fs/cgroup rw - cgroup2 cgroup rw\n',
+    'sys/fs/cgroup/cpu.max': '800000 100000\n',
+    'sys/fs/cgroup/container1/cpu.max': '200000 100000\n',
+  })
+  expect(readCgroupCpuQuota(root)).toBe(8)
+})
+
 test('findCgroupMounts falls back to the standard mount points', () => {
   expect(findCgroupMounts(undefined, { version: 2, cgroupPath: 'a' })).toEqual([{ mountpoint: '/sys/fs/cgroup', root: '/' }])
   expect(findCgroupMounts('garbage\n', { version: 1, cgroupPath: 'a' })).toEqual([

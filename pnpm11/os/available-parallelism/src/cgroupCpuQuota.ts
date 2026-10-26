@@ -122,14 +122,27 @@ function minQuotaInHierarchy (
   cgroupPath: string,
   readQuota: (dir: string) => number | undefined
 ): number | undefined {
-  const relativePath = path.posix.relative(mount.root, '/' + cgroupPath)
-  if (relativePath.split('/')[0] === '..') return undefined
+  const relativePath = relativeCgroupPath(mount.root, cgroupPath)
+  if (relativePath == null) return undefined
   const mountDir = path.join(rootDir, mount.mountpoint)
   const quotas: Array<number | undefined> = []
   for (let dir = path.join(mountDir, relativePath); isWithin(mountDir, dir); dir = path.dirname(dir)) {
     quotas.push(readQuota(dir))
   }
   return minimum(quotas)
+}
+
+/**
+ * The process's cgroup relative to the cgroup the mount shows, or `undefined`
+ * when the process is not under it. A root with `..` segments is a mount made
+ * before the cgroup namespace (see cgroup_namespaces(7)); it shows an ancestor
+ * at an unknown depth, so only the mount root is read. Its quota bounds every
+ * descendant, the process's cgroup included.
+ */
+function relativeCgroupPath (mountRoot: string, cgroupPath: string): string | undefined {
+  if (mountRoot.split('/').includes('..')) return ''
+  const relativePath = path.posix.relative(mountRoot, '/' + cgroupPath)
+  return relativePath.split('/')[0] === '..' ? undefined : relativePath
 }
 
 function isWithin (mountDir: string, dir: string): boolean {
