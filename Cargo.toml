@@ -268,7 +268,7 @@ yamlpath = { version = "1.25.2" }
 wax = { version = "0.7.0" }
 which = { version = "8.0.2" }
 zip = { version = "8", default-features = false, features = ["deflate"] }
-zstd = { version = "0.13.3", default-features = false }
+zstd = { version = "0.14.3", default-features = false }
 zune-inflate = { version = "0.2.54" }
 
 # Dev dependencies
