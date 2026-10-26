@@ -1,5 +1,3 @@
-mod schema;
-
 pub use error::StoreIndexError;
 pub use files::INDEX_DIR;
 pub use format::StoreIndexFormat;
@@ -506,6 +504,8 @@ mod tests;
 mod writer;
 
 mod queries;
+
+mod schema;
 
 mod aliases;
 
