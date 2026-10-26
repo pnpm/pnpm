@@ -150,38 +150,39 @@ impl SignalRelay {
     pub(crate) fn relayed(&self) -> bool {
         self.entry.is_some_and(|entry| entry.relays.load(Ordering::Relaxed) > 0)
     }
-
-    /// Pass on the signal pnpm took while the child was being spawned.
-    ///
-    /// Taking the first relay here is what keeps the handler from taking
-    /// it as well, so the child is never given one interrupt twice.
-    #[cfg(unix)]
-    fn relay_late(&self) {
-        let Some(entry) = self.entry else { return };
-        if entry.relays.compare_exchange(0, 1, Ordering::AcqRel, Ordering::Relaxed).is_err() {
-            return;
-        }
-        let signal = LAST_SIGNAL.load(Ordering::Relaxed);
-        let target = entry.target.load(Ordering::Acquire);
-        // A child in pnpm's own process group was given the terminal's
-        // interrupt by the kernel, which is how [`relay_to`] reads it too.
-        if target > 0 && signal == libc::SIGINT && holds_the_terminal() {
-            return;
-        }
-        // SAFETY: `target` is the child this relay holds, or that child's
-        // process group, and the relay holds the entry for as long as pnpm
-        // waits for the child. `ESRCH` from one that exited concurrently
-        // is harmless.
-        unsafe {
-            libc::kill(target, signal);
-        }
-    }
-
-    /// The console delivers its event to every process attached to it, so
-    /// a child that joined the relay late has the event already.
-    #[cfg(not(unix))]
-    fn relay_late(&self) {}
 }
+
+/// Pass on to `relay`'s child the signal pnpm took while it was being
+/// spawned.
+///
+/// Taking the first relay here is what keeps the handler from taking it as
+/// well, so the child is never given one interrupt twice.
+#[cfg(unix)]
+fn relay_late(relay: &SignalRelay) {
+    let Some(entry) = relay.entry else { return };
+    if entry.relays.compare_exchange(0, 1, Ordering::AcqRel, Ordering::Relaxed).is_err() {
+        return;
+    }
+    let signal = LAST_SIGNAL.load(Ordering::Relaxed);
+    let target = entry.target.load(Ordering::Acquire);
+    // A child in pnpm's own process group was given the terminal's
+    // interrupt by the kernel, which is how [`relay_to`] reads it too.
+    if target > 0 && signal == libc::SIGINT && holds_the_terminal() {
+        return;
+    }
+    // SAFETY: `target` is the child this relay holds, or that child's
+    // process group, and the relay holds the entry for as long as pnpm
+    // waits for the child. `ESRCH` from one that exited concurrently is
+    // harmless.
+    unsafe {
+        libc::kill(target, signal);
+    }
+}
+
+/// The console delivers its event to every process attached to it, so a
+/// child that joined the relay late has the event already.
+#[cfg(not(unix))]
+fn relay_late(_relay: &SignalRelay) {}
 
 /// A child pnpm has spawned that has not joined the relay yet.
 ///
@@ -210,7 +211,7 @@ impl SpawningChild {
     /// it was being spawned.
     pub(crate) fn joined(self, relay: &SignalRelay) {
         if INTERRUPTS.load(Ordering::Acquire) != self.interrupts {
-            relay.relay_late();
+            relay_late(relay);
         }
     }
 }
