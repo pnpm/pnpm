@@ -201,7 +201,7 @@ fn a_filtered_install_keeps_the_records_of_a_tree_linked_from_the_v3_store() {
     assert!(current.contains("project-2:"), "the current lockfile dropped project-2:\n{current}");
     let hoisted = read_json(&modules_path)["hoistedDependencies"].to_string();
     assert!(
-        hoisted.contains("\"@pnpm.e2e/dep-of-pkg-with-1-dep@"),
+        hoisted.contains(r#""@pnpm.e2e/dep-of-pkg-with-1-dep@"#),
         ".modules.yaml dropped project-2's hoisted dependency: {hoisted}",
     );
 
