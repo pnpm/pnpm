@@ -49,26 +49,21 @@ fn an_unrecognized_workspace_setting_fails_when_the_running_pnpm_is_the_pinned_v
 }
 
 #[test]
-fn scripts_prepend_node_path_is_ignored_under_a_satisfied_pin() {
-    for value in ["true", "false", "warn-only", "nonsense"] {
-        let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-        write_workspace_yaml(
-            &workspace,
-            &format!("scriptsPrependNodePath: {value}\npackages:\n  - .\n"),
-        );
-        write_package_manager_pin(&workspace);
+fn scripts_prepend_node_path_is_rejected_under_a_satisfied_pin() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace_yaml(&workspace, "scriptsPrependNodePath: true\npackages:\n  - .\n");
+    write_package_manager_pin(&workspace);
 
-        let output = run_with_switch_disabled(
-            pacquet,
-            root.path(),
-            &["install", "--lockfile-only", "--config.pm-on-fail=error"],
-        );
+    let output = run_with_switch_disabled(
+        pacquet,
+        root.path(),
+        &["install", "--lockfile-only", "--config.pm-on-fail=error"],
+    );
 
-        assert_success(&output);
-        let stderr = stderr(&output);
-        assert!(!stderr.contains("WARN"), "{value}: expected no warning; got:\n{stderr}");
-        assert!(!stderr.contains("ERR_PNPM"), "{value}: expected no error; got:\n{stderr}");
-    }
+    assert_failure(&output);
+    let stderr = stderr(&output);
+    assert_contains(&stderr, "ERR_PNPM_UNRECOGNIZED_WORKSPACE_SETTINGS");
+    assert_contains(&stderr, "scriptsPrependNodePath");
 }
 
 #[test]

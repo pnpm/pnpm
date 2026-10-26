@@ -234,7 +234,6 @@ const NPM_CONFIG_TYPES: &[(&str, bool)] = &[
     ("save-prod", false),
     ("scope", false),
     ("script-shell", false),
-    ("scripts-prepend-node-path", false),
     ("sign-git-tag", false),
     ("strict-ssl", false),
     ("tag", false),

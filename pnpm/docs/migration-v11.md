@@ -73,10 +73,6 @@ pnpm trusts the operating system's certificate store for registry connections. I
 - `${NAME:-word}` and `${NAME:+word}` read `NAME` from the environment the script starts with, not from an assignment earlier in the same script.
 - A script the shell cannot parse fails with `ERR_PNPM_EXECUTOR_SHELL_EMULATOR_PARSE`.
 
-### `scriptsPrependNodePath`
-
-pnpm ignores the `scriptsPrependNodePath` setting. Scripts run with the `node` found on `PATH`.
-
 ### `packageImportMethod: auto` on Linux
 
 On Linux, `auto` tries hard links before cloning. On a filesystem that supports cloning, such as btrfs, set [`packageImportMethod: clone`](./settings/node-modules.md#packageimportmethod) to keep copy-on-write files in `node_modules`.

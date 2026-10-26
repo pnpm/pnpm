@@ -66,9 +66,9 @@ const NON_LITERAL: &[&str] = &[
 
 /// pnpm settings pacquet has no `Config` field for. Porting one means
 /// moving its key from here into a `mapped` row.
-const NOT_PORTED: &[&str] = &[
-    "scripts-prepend-node-path", // ignored: no Node.js process runs pnpm
-];
+const NOT_PORTED: &[&str] = &[];
+
+const REJECTED: &[&str] = &["scripts-prepend-node-path"];
 
 /// Settings both stacks implement but deliberately default differently,
 /// with the reason each divergence is intended. Entries here are exempt
@@ -497,6 +497,10 @@ fn every_pnpm_default_is_classified() {
         .iter()
         .map(std::string::ToString::to_string)
         .collect();
+    let rejected: BTreeSet<String> = REJECTED
+        .iter()
+        .map(std::string::ToString::to_string)
+        .collect();
     let divergent: BTreeSet<String> = divergent_rows(&cfg)
         .into_iter()
         .map(|(key, _, _)| key.to_string())
@@ -507,16 +511,19 @@ fn every_pnpm_default_is_classified() {
     for (a, b, label) in [
         (&mapped, &non_literal, "mapped ∩ non-literal"),
         (&mapped, &not_ported, "mapped ∩ not-ported"),
+        (&mapped, &rejected, "mapped ∩ rejected"),
         (&mapped, &divergent, "mapped ∩ divergent"),
         (&non_literal, &not_ported, "non-literal ∩ not-ported"),
         (&non_literal, &divergent, "non-literal ∩ divergent"),
         (&not_ported, &divergent, "not-ported ∩ divergent"),
+        (&not_ported, &rejected, "not-ported ∩ rejected"),
+        (&rejected, &divergent, "rejected ∩ divergent"),
     ] {
         let overlap: Vec<_> = a.intersection(b).collect();
         assert!(overlap.is_empty(), "keys classified twice ({label}): {overlap:?}");
     }
 
-    let classified: BTreeSet<String> = [&mapped, &non_literal, &not_ported, &divergent]
+    let classified: BTreeSet<String> = [&mapped, &non_literal, &not_ported, &rejected, &divergent]
         .into_iter()
         .flatten()
         .cloned()
@@ -526,7 +533,7 @@ fn every_pnpm_default_is_classified() {
     assert!(
         unclassified.is_empty(),
         "pnpm added settings pacquet hasn't classified: {unclassified:?}. \
-         Port each (add a mapped row) or record it in NON_LITERAL / NOT_PORTED / \
+         Port each (add a mapped row) or record it in NON_LITERAL / NOT_PORTED / REJECTED / \
          `divergent_rows`.",
     );
 
