@@ -4,7 +4,7 @@ import path from 'node:path'
 
 import { afterEach, expect, test } from '@jest/globals'
 
-import { parseCgroupMembership, readCgroupCpuQuota } from '../lib/cgroupCpuQuota.js'
+import { findCgroupMounts, parseCgroupMembership, readCgroupCpuQuota } from '../lib/cgroupCpuQuota.js'
 
 const roots: string[] = []
 
@@ -118,6 +118,69 @@ test('hybrid hierarchy: the v1 cpu controller wins over the v2 line', () => {
     'sys/fs/cgroup/cpu,cpuacct/docker/abc/cpu.cfs_period_us': '100000\n',
   })
   expect(readCgroupCpuQuota(root)).toBe(2)
+})
+
+test('cgroup v2: mountinfo locates a mount rooted at an ancestor of the process cgroup', () => {
+  const root = fixtureRoot({
+    'proc/self/cgroup': '0::/kubepods/pod1/container1\n',
+    'proc/self/mountinfo': [
+      '22 1 0:21 / /sys rw - sysfs sysfs rw',
+      '31 22 0:26 /kubepods /sys/fs/cgroup rw - cgroup2 cgroup rw',
+      '',
+    ].join('\n'),
+    'sys/fs/cgroup/cpu.max': '1600000 100000\n',
+    'sys/fs/cgroup/pod1/cpu.max': 'max 100000\n',
+    'sys/fs/cgroup/pod1/container1/cpu.max': '200000 100000\n',
+  })
+  expect(readCgroupCpuQuota(root)).toBe(2)
+})
+
+test('cgroup v2: mountinfo locates a mount at a non-standard mount point', () => {
+  const root = fixtureRoot({
+    'proc/self/cgroup': '0::/\n',
+    'proc/self/mountinfo': '31 22 0:26 / /mnt/cgroup\\040two rw - cgroup2 cgroup rw\n',
+    'mnt/cgroup two/cpu.max': '300000 100000\n',
+  })
+  expect(readCgroupCpuQuota(root)).toBe(3)
+})
+
+test('cgroup v1: mountinfo locates the cpu controller mount rooted at the container cgroup', () => {
+  const root = fixtureRoot({
+    'proc/self/cgroup': '4:cpu,cpuacct:/docker/abc\n',
+    'proc/self/mountinfo': [
+      '30 25 0:27 /docker/abc /sys/fs/cgroup/memory ro - cgroup cgroup rw,memory',
+      '31 25 0:28 /docker/abc /sys/fs/cgroup/cpu,cpuacct ro - cgroup cgroup rw,cpu,cpuacct',
+    ].join('\n'),
+    'sys/fs/cgroup/memory/cpu.cfs_quota_us': '100000\n',
+    'sys/fs/cgroup/memory/cpu.cfs_period_us': '100000\n',
+    'sys/fs/cgroup/cpu,cpuacct/cpu.cfs_quota_us': '500000\n',
+    'sys/fs/cgroup/cpu,cpuacct/cpu.cfs_period_us': '100000\n',
+  })
+  expect(readCgroupCpuQuota(root)).toBe(5)
+})
+
+test('a process cgroup outside the mount root has no known quota', () => {
+  expect(readCgroupCpuQuota(fixtureRoot({
+    'proc/self/cgroup': '0::/../sibling\n',
+    'sys/fs/cgroup/cpu.max': '100000 100000\n',
+  }))).toBeUndefined()
+  expect(readCgroupCpuQuota(fixtureRoot({
+    'proc/self/cgroup': '0::/kubepods/pod2\n',
+    'proc/self/mountinfo': '31 22 0:26 /kubepods/pod1 /sys/fs/cgroup rw - cgroup2 cgroup rw\n',
+    'sys/fs/cgroup/cpu.max': '100000 100000\n',
+  }))).toBeUndefined()
+})
+
+test('findCgroupMounts falls back to the standard mount points', () => {
+  expect(findCgroupMounts(undefined, { version: 2, cgroupPath: 'a' })).toEqual([{ mountpoint: '/sys/fs/cgroup', root: '/' }])
+  expect(findCgroupMounts('garbage\n', { version: 1, cgroupPath: 'a' })).toEqual([
+    { mountpoint: '/sys/fs/cgroup/cpu', root: '/' },
+    { mountpoint: '/sys/fs/cgroup/cpu,cpuacct', root: '/' },
+  ])
+  expect(findCgroupMounts('31 22 0:26 / /sys/fs/cgroup rw - cgroup2 cgroup rw\n', { version: 1, cgroupPath: 'a' })).toEqual([
+    { mountpoint: '/sys/fs/cgroup/cpu', root: '/' },
+    { mountpoint: '/sys/fs/cgroup/cpu,cpuacct', root: '/' },
+  ])
 })
 
 test('malformed quota files are ignored', () => {

@@ -7,25 +7,39 @@ interface CgroupMembership {
   cgroupPath: string
 }
 
+/** A mount of the cgroup hierarchy the process's `cpu` controller lives in. */
+interface CgroupMount {
+  /** Where the hierarchy is mounted, as an absolute path. */
+  mountpoint: string
+  /** The cgroup of the hierarchy that is visible at `mountpoint`, as `/proc/self/cgroup` spells it. */
+  root: string
+}
+
 /**
- * The mount points of the cgroup v1 `cpu` controller that cgroups(7) lists.
- * The second is the usual one; the first is a symlink to it on most distributions.
+ * The mount points cgroups(7) lists, used when `/proc/self/mountinfo` names
+ * no cgroup mount. The v1 `cpu` entry is a symlink to `cpu,cpuacct` on most
+ * distributions.
  */
-const V1_CPU_CONTROLLER_MOUNTS = ['cpu', 'cpu,cpuacct']
+const DEFAULT_MOUNTS: Record<CgroupMembership['version'], string[]> = {
+  1: ['/sys/fs/cgroup/cpu', '/sys/fs/cgroup/cpu,cpuacct'],
+  2: ['/sys/fs/cgroup'],
+}
 
 /**
  * The number of CPUs the cgroup CPU quota allows this process, or `undefined`
  * when no quota applies or the cgroup files cannot be read.
  *
  * The quota is the smallest `limit / period` found walking from the process's
- * cgroup up to the hierarchy root, rounded down and floored at 1, as Rust's
+ * cgroup up to the mount root, rounded down and floored at 1, as Rust's
  * `std::thread::available_parallelism` computes it. Unlike the kernel-provided
  * CPU count, a container's quota is what the scheduler lets it use.
  *
- * Levels whose directory is missing are skipped rather than aborting the walk.
- * A container runtime that leaves the host's cgroup path in `/proc/self/cgroup`
- * but mounts only the container's own cgroup at `/sys/fs/cgroup` makes the
- * path unreachable, while the files at the mount root are the container's.
+ * The process's cgroup directory is found through `/proc/self/mountinfo`, which
+ * says which cgroup of the hierarchy each mount shows. A container runtime that
+ * leaves the host's cgroup path in `/proc/self/cgroup` but mounts only the
+ * container's own cgroup at `/sys/fs/cgroup` is read correctly that way.
+ * Without a usable mount entry, the standard mount points are tried with the
+ * path as is, skipping levels whose directory is missing.
  *
  * `rootDir` is the filesystem root the `/proc` and `/sys` trees are read from.
  * Tests pass a fixture tree.
@@ -34,13 +48,12 @@ export function readCgroupCpuQuota (rootDir: string = '/'): number | undefined {
   const membership = readTextFile(path.join(rootDir, 'proc/self/cgroup'))
   if (membership == null) return undefined
   const cgroup = parseCgroupMembership(membership)
-  if (cgroup == null) return undefined
-  const sysFsCgroup = path.join(rootDir, 'sys/fs/cgroup')
-  const quota = cgroup.version === 2
-    ? minQuotaInHierarchy(sysFsCgroup, cgroup.cgroupPath, readCpuMax)
-    : minimum(
-      V1_CPU_CONTROLLER_MOUNTS.map((mount) => minQuotaInHierarchy(path.join(sysFsCgroup, mount), cgroup.cgroupPath, readCfsQuota))
-    )
+  // A cgroup outside the namespace root shows as `/../<name>`. No mount shows
+  // it, so its quota is unknown rather than that of some other cgroup.
+  if (cgroup == null || cgroup.cgroupPath.split('/').includes('..')) return undefined
+  const mounts = findCgroupMounts(readTextFile(path.join(rootDir, 'proc/self/mountinfo')), cgroup)
+  const readQuota = cgroup.version === 2 ? readCpuMax : readCfsQuota
+  const quota = minimum(mounts.map((mount) => minQuotaInHierarchy(rootDir, mount, cgroup.cgroupPath, readQuota)))
   if (quota == null) return undefined
   return Math.max(1, Math.floor(quota))
 }
@@ -69,13 +82,51 @@ export function parseCgroupMembership (content: string): CgroupMembership | unde
   return membership
 }
 
+/**
+ * The mounts of the hierarchy that holds the process's `cpu` controller, from
+ * `/proc/self/mountinfo` (see proc_pid_mountinfo(5)). Falls back to
+ * `DEFAULT_MOUNTS` rooted at the hierarchy root when the file names none.
+ */
+export function findCgroupMounts (mountinfo: string | undefined, cgroup: CgroupMembership): CgroupMount[] {
+  const mounts = (mountinfo ?? '').split('\n').flatMap((line) => parseMountinfoLine(line, cgroup.version) ?? [])
+  if (mounts.length > 0) return mounts
+  return DEFAULT_MOUNTS[cgroup.version].map((mountpoint) => ({ mountpoint, root: '/' }))
+}
+
+/**
+ * A mountinfo line is `id parent major:minor root mountpoint options [tags...] - fstype source superopts`.
+ * Returns the mount when its filesystem is the cgroup hierarchy of `version`
+ * that carries the `cpu` controller.
+ */
+function parseMountinfoLine (line: string, version: CgroupMembership['version']): CgroupMount | undefined {
+  const separator = line.indexOf(' - ')
+  if (separator === -1) return undefined
+  const [, , , root, mountpoint] = line.slice(0, separator).split(' ')
+  const [fstype, , superopts = ''] = line.slice(separator + 3).split(' ')
+  if (root == null || mountpoint == null) return undefined
+  const matches = version === 2
+    ? fstype === 'cgroup2'
+    : fstype === 'cgroup' && superopts.split(',').includes('cpu')
+  if (!matches) return undefined
+  return { mountpoint: unescapeMountinfo(mountpoint), root: unescapeMountinfo(root) }
+}
+
+/** mountinfo spells space, tab, newline, and backslash in paths as octal escapes. */
+function unescapeMountinfo (field: string): string {
+  return field.replace(/\\([0-7]{3})/g, (_, octal: string) => String.fromCharCode(parseInt(octal, 8)))
+}
+
 function minQuotaInHierarchy (
-  mountDir: string,
+  rootDir: string,
+  mount: CgroupMount,
   cgroupPath: string,
   readQuota: (dir: string) => number | undefined
 ): number | undefined {
+  const relativePath = path.posix.relative(mount.root, '/' + cgroupPath)
+  if (relativePath.split('/')[0] === '..') return undefined
+  const mountDir = path.join(rootDir, mount.mountpoint)
   const quotas: Array<number | undefined> = []
-  for (let dir = path.join(mountDir, cgroupPath); isWithin(mountDir, dir); dir = path.dirname(dir)) {
+  for (let dir = path.join(mountDir, relativePath); isWithin(mountDir, dir); dir = path.dirname(dir)) {
     quotas.push(readQuota(dir))
   }
   return minimum(quotas)
