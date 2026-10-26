@@ -2,4 +2,4 @@
 "pacquet": patch
 ---
 
-Projects using `nodeLinker: hoisted` now receive package copies that match their peer dependencies when `autoInstallPeers` is disabled [#17395](https://github.com/pnpm/pnpm/issues/17395).
+With `nodeLinker: hoisted` and `autoInstallPeers: false`, a package that workspace projects use with different peer versions is now installed once per peer variant, so each project's copy resolves that project's peer [#17395](https://github.com/pnpm/pnpm/issues/17395).

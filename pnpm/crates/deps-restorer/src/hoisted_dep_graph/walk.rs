@@ -11,20 +11,29 @@ use pnpm_lockfile::{Lockfile, LockfileResolution, PackageKey, PkgIdWithPatchHash
 use pnpm_modules_yaml::DepPath;
 use pnpm_real_hoist::{HoisterResult, RcByPtr};
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, HashMap},
     path::{Path, PathBuf},
 };
 
+/// Every directory each package landed in, in visit order. The first
+/// entry wins for parent → child wiring.
+///
+/// A lookup tries the exact snapshot key, then falls back to
+/// [`pnpm_real_hoist::pkg_id`]. A peer variant the hoister collapsed
+/// reaches the walk under the first-seen variant's key, so an edge
+/// declared against any other variant finds that node through the
+/// package id. A variant the hoister kept distinct is found by its own
+/// key.
 #[derive(Default)]
 pub(super) struct PackageLocations {
     by_pkg_id: BTreeMap<String, Vec<PathBuf>>,
-    by_package_key: BTreeMap<String, Vec<PathBuf>>,
+    by_package_key: HashMap<PackageKey, Vec<PathBuf>>,
 }
 
 impl PackageLocations {
     fn first(&self, pkg_key: &PackageKey) -> Option<&PathBuf> {
         self.by_package_key
-            .get(&pkg_key.to_string())
+            .get(pkg_key)
             .and_then(|locations| locations.first())
             .or_else(|| {
                 self.by_pkg_id
@@ -39,7 +48,7 @@ impl PackageLocations {
             .or_default()
             .push(dir.to_path_buf());
         self.by_package_key
-            .entry(pkg_key.to_string())
+            .entry(pkg_key.clone())
             .or_default()
             .push(dir.to_path_buf());
     }
@@ -185,9 +194,6 @@ pub(super) struct WalkState<'a> {
     /// way as the one going there now. `None` on the fresh-lockfile
     /// path, which has no current lockfile to walk.
     pub(super) prev_graph: Option<&'a DependenciesGraph>,
-    /// Records every directory each package landed in, in visit
-    /// order. The first entry wins for parent → child wiring.
-    ///
     pub(super) package_locations: PackageLocations,
     /// Per-non-root-importer hierarchy emitted while walking
     /// `Workspace`-kind nodes. Outer key is the importer's root

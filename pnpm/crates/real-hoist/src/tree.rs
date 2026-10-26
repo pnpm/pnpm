@@ -62,6 +62,19 @@ pub(super) fn importer_node(
     })
 }
 
+/// Conversion-phase caches. `nodes` interns one [`HoisterTree`] per
+/// `(alias, snapshot key)` edge target. `dep_key_by_pkg_id` maps a
+/// package id (see [`pkg_id`]) to the first snapshot key seen for it.
+///
+/// A node without peer names gets that first key as its `reference`,
+/// so the hoister sees one locator per package version and dedups the
+/// peer variants instead of nesting a copy of each. Its children still
+/// come from its own snapshot. Ports `depPathByPkgId` from pnpm v11's
+/// `@pnpm/real-hoist` wrapper.
+///
+/// A node with peer names keeps its own snapshot key. The hoister then
+/// nests the variant wherever its peers resolve differently, and the
+/// walker knows which snapshot each copy holds.
 #[derive(Default)]
 pub(super) struct TreeCache {
     pub(super) nodes: HashMap<String, Rc<HoisterTree>>,
@@ -152,7 +165,8 @@ fn build_dep_node(
     // shared-by-identity invariant the hoister algorithm relies on
     // survives.
     let peer_names = peer_names_of(dep_key, snapshot, lockfile, opts);
-    let reference = if opts.auto_install_peers || peer_names.is_empty() {
+    // See [`TreeCache`] for when a variant keeps its own key.
+    let reference = if peer_names.is_empty() {
         cache.dep_key_by_pkg_id
             .entry(pkg_id(dep_key))
             .or_insert_with(|| dep_key.clone())
