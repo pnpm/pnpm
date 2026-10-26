@@ -72,6 +72,8 @@ pub struct AddSaveArgs {
     /// Do not add `@types` packages automatically.
     #[clap(long = "no-save-types", overrides_with = "types")]
     pub no_save_types: bool,
+    #[clap(short = 'T', hide = true)]
+    pub hidden_ambiguous_t: bool,
     /// Saved dependencies will be configured with an exact version rather than using
     /// the default semver range operator.
     #[clap(short = 'E', visible_short_alias = 'e', long = "save-exact")]

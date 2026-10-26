@@ -1,12 +1,14 @@
 use super::{AddArgs, AddDependencyOptions, AddError, apply_allow_build, workspace_selectors};
 use crate::{
+    boolean_negations::with_boolean_negations,
     cargo_manifest::CargoDependencyKind,
     cli_args::{CliArgs, cli_command::CliCommand},
 };
-use clap::Parser;
+use clap::{CommandFactory, Parser};
 use pnpm_config::Config;
 use pnpm_package_manifest::DependencyGroup;
 use pretty_assertions::assert_eq;
+use std::path::Path;
 
 #[test]
 fn allow_build_merges_into_config_and_persists_to_workspace_yaml() {
@@ -114,6 +116,76 @@ fn add_tilde_and_save_prefix_resolve_last_one_wins() {
     let args = add_args(&["pacquet", "add", "foo", "--tilde", "--save-prefix="]);
     assert!(!args.save.tilde, "--save-prefix should win when it is last");
     assert_eq!(args.save.prefix.as_deref(), Some(""));
+}
+
+#[test]
+fn add_short_t_is_rejected_after_parse() {
+    let parsed = CliArgs::try_parse_from(["pacquet", "add", "foo", "-T"])
+        .expect("the hidden short option parses before validation");
+    let err = parsed
+        .validate_command_scoped_global_options()
+        .expect_err("`add -T` should be rejected after parsing");
+    assert_eq!(err.kind(), clap::error::ErrorKind::UnknownArgument);
+    let message = err.to_string();
+    assert!(message.contains("-T"), "{message}");
+    assert!(message.contains("--save-types"), "{message}");
+    assert!(message.contains("--tilde"), "{message}");
+}
+
+#[test]
+fn add_short_t_is_rejected_inside_a_short_cluster() {
+    let parsed = CliArgs::try_parse_from(["pacquet", "add", "foo", "-DT"])
+        .expect("the hidden short option parses inside a cluster");
+    let CliCommand::Add(add) = &parsed.command else {
+        panic!("expected add");
+    };
+    assert_eq!(add.dependency_options.save_target(), Some(vec![DependencyGroup::Dev]));
+
+    let err = parsed
+        .validate_command_scoped_global_options()
+        .expect_err("`-T` inside a short cluster should still be rejected");
+    assert_eq!(err.kind(), clap::error::ErrorKind::UnknownArgument);
+}
+
+#[test]
+fn add_short_t_can_still_be_used_as_a_value_or_selector() {
+    let args = add_args(&["pacquet", "add", "foo", "--save-prefix=-T"]);
+    assert_eq!(args.save.prefix.as_deref(), Some("-T"));
+    assert!(!args.save.hidden_ambiguous_t);
+
+    let args = add_args(&["pacquet", "add", "foo", "--", "-T"]);
+    assert_eq!(
+        args.package_names
+            .iter()
+            .map(super::arguments::AddRequest::selector)
+            .collect::<Vec<_>>(),
+        ["foo", "-T"],
+    );
+    assert!(!args.save.hidden_ambiguous_t);
+}
+
+#[test]
+fn a_value_taking_short_keeps_a_trailing_t_in_its_value() {
+    let parsed = CliArgs::try_parse_from(["pacquet", "-CT", "add", "foo"])
+        .expect("the directory short should take the attached value");
+    assert_eq!(parsed.paths.dir, Path::new("T"));
+    parsed
+        .validate_command_scoped_global_options()
+        .expect("the attached value must not trigger the hidden `-T` check");
+}
+
+#[test]
+fn add_help_lists_only_the_long_options() {
+    let mut command = with_boolean_negations(CliArgs::command());
+    let add = command.find_subcommand_mut("add").expect("`add` subcommand exists");
+    let mut help = Vec::new();
+    add.write_long_help(&mut help).expect("render add help");
+    let help = String::from_utf8(help).expect("help is valid UTF-8");
+
+    assert!(help.contains("--save-types"), "{help}");
+    assert!(help.contains("--tilde"), "{help}");
+    assert!(!help.contains("-T, --save-types"), "{help}");
+    assert!(!help.contains("-T, --tilde"), "{help}");
 }
 
 #[test]
