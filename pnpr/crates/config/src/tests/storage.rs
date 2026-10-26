@@ -297,8 +297,8 @@ fn cache_settings_defaults_path_when_omitted_in_table() {
     let yaml = "\
 storage: /var/lib/pnpr
 cache:
-  max_size: 500MB
-  max_age: 12h
+  maxSize: 500MB
+  maxAge: 12h
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     assert_eq!(config.storage.cache_dir, PathBuf::from("/var/lib/pnpr/.pnpr-cache"));

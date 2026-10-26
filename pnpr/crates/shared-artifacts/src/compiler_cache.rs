@@ -137,7 +137,7 @@ impl SharedArtifactStore {
 }
 
 fn compiler_cache_path(owner: &str, key: &CompilerCacheKey) -> String {
-    format!("{owner}/compiler-cache/v1/{}", digest_segment(key.0.as_bytes()))
+    format!("{owner}/compiler-cache/{}", digest_segment(key.0.as_bytes()))
 }
 
 fn compiler_cache_digest(owner: &str, key: &CompilerCacheKey, bytes: &[u8]) -> [u8; DIGEST_SIZE] {

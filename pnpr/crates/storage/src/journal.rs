@@ -56,7 +56,6 @@ use tokio::{fs, io::AsyncWriteExt};
 /// keeps it out of the package-listing walk, and no valid package name
 /// can collide with it.
 pub(crate) const JOURNAL_DIR: &str = ".journal";
-const LEGACY_JOURNAL_DIR: &str = ".pnpr-journal";
 
 const COMMIT_MARKER: &str = "commit";
 const MANIFEST_FILE: &str = "manifest.json";
@@ -247,18 +246,7 @@ impl PublishJournal {
     /// are applied, unsealed ones rolled back. Must run before the server
     /// accepts requests — it takes no package locks.
     pub async fn recover(&self, storage: &Storage, documents: &dyn HostedDocuments) -> Result<()> {
-        let legacy_root = (self.root.file_name().and_then(|name| name.to_str())
-            == Some(JOURNAL_DIR))
-        .then(|| {
-            self.root
-                .parent()
-                .map(|parent| parent.join(LEGACY_JOURNAL_DIR))
-        })
-        .flatten();
         let mut txn_dirs = list_txn_dirs(&self.root).await?;
-        if let Some(legacy_root) = &legacy_root {
-            txn_dirs.extend(list_txn_dirs(legacy_root).await?);
-        }
         // Transaction ids start with a zero-padded millisecond
         // timestamp, so the lexical order of the entry name is the seal order.
         txn_dirs.sort_by(|a, b| {
@@ -280,9 +268,6 @@ impl PublishJournal {
                 roll_back(&dir).await;
                 tracing::info!(txn = %dir.display(), "rolled publish journal entry back");
             }
-        }
-        if let Some(legacy_root) = legacy_root {
-            let _ = fs::remove_dir(legacy_root).await;
         }
         Ok(())
     }

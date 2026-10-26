@@ -268,11 +268,8 @@ pub enum TarballFormat {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(default, rename_all = "camelCase", deny_unknown_fields)]
 pub struct OciConfig {
-    #[serde(default, rename = "bearerAuth", alias = "bearer_auth")]
     pub bearer_auth: bool,
-    #[serde(default, rename = "maxBlobBytes", alias = "max_blob_bytes")]
     pub max_blob_bytes: u64,
-    #[serde(default, rename = "maxManifestBytes", alias = "max_manifest_bytes")]
     pub max_manifest_bytes: usize,
 }
 

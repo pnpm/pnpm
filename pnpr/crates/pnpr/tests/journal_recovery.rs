@@ -83,10 +83,6 @@ fn packument(name: &str, version: &str, tarball: &[u8]) -> Value {
 /// `sealed`, the `commit` marker is present too. With `org`, the manifest
 /// records the hosted-org namespace the publish targeted, matching what
 /// an org-routed publish journals.
-///
-/// The manifest is written with the `packument_file` / `tarballs` keys an
-/// earlier pnpr wrote, so these tests also cover recovering a journal a
-/// running server sealed before the upgrade.
 fn fabricate_crashed_publish_in(
     storage: &Path,
     org: Option<&str>,
@@ -112,14 +108,14 @@ fn fabricate_crashed_publish_in(
     let txn_dir = storage.join(".journal").join("0000000000000001-999-0");
     std::fs::create_dir_all(&txn_dir).unwrap();
     std::fs::write(
-        txn_dir.join("packument-0.json"),
+        txn_dir.join("document-0.json"),
         serde_json::to_vec_pretty(&packument(name, version, tarball)).unwrap(),
     )
     .unwrap();
     let mut package = json!({
         "name": name,
-        "packument_file": "packument-0.json",
-        "tarballs": [{
+        "document_file": "document-0.json",
+        "blobs": [{
             "filename": format!("{name}-{version}.tgz"),
             "tmp_path": tmp_path,
         }],
@@ -311,33 +307,16 @@ async fn recovery_is_a_no_op_without_a_journal_directory() {
     recover_publish_journal(&static_config(tmp.path().to_path_buf())).await.unwrap();
 }
 
-#[tokio::test]
-async fn recovery_rolls_a_legacy_pnpr_journal_transaction_forward() {
-    let tmp = TempDir::new().unwrap();
-    let storage = tmp.path().to_path_buf();
-    let tarball = b"legacy-journal-bytes";
-    let tmp_path = fabricate_crashed_publish(&storage, "legacy-fwd", "1.0.0", tarball, true);
-    std::fs::rename(storage.join(".journal"), storage.join(".pnpr-journal")).unwrap();
-
-    recover_publish_journal(&static_config(storage.clone())).await.unwrap();
-
-    assert!(
-        local_document_path(&storage, "", pnpr_storage::Ecosystem::Npm, "legacy-fwd").is_file(),
-    );
-    assert!(!tmp_path.exists());
-    assert!(!storage.join(".pnpr-journal").exists());
-}
-
 #[cfg(unix)]
 #[tokio::test]
-async fn recovery_refuses_a_symlinked_legacy_journal_root() {
+async fn recovery_refuses_a_symlinked_journal_root() {
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().join("storage");
     std::fs::create_dir_all(&storage).unwrap();
     let outside = tmp.path().join("outside");
     let victim = outside.join("0000000000000001-999-0");
     std::fs::create_dir_all(&victim).unwrap();
-    std::os::unix::fs::symlink(&outside, storage.join(".pnpr-journal")).unwrap();
+    std::os::unix::fs::symlink(&outside, storage.join(".journal")).unwrap();
 
     let err = recover_publish_journal(&static_config(storage)).await.unwrap_err();
     assert!(err.to_string().contains("symlink"), "{err}");

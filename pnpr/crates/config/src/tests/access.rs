@@ -80,7 +80,7 @@ storage: ./s
 auth:
   htpasswd:
     file: ./htpasswd
-    max_users: -1
+    maxUsers: -1
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
     assert_eq!(config.identity.auth.htpasswd.max_users, super::super::MaxUsers::Disabled);
@@ -93,7 +93,7 @@ storage: ./s
 auth:
   htpasswd:
     file: ./htpasswd
-    max_users: 5
+    maxUsers: 5
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
     assert_eq!(config.identity.auth.htpasswd.max_users, super::super::MaxUsers::Limited(5));

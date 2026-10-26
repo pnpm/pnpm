@@ -222,7 +222,7 @@ async fn a_store_in_the_earlier_layout_is_refused() {
         .await
         .unwrap_err()
         .to_string();
-    assert!(error.contains("pnpr upgrade-storage"), "{error}");
+    assert!(error.contains("earlier layout"), "{error}");
     assert!(
         !tmp.path()
             .join("storage/layout.json")

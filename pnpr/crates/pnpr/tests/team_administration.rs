@@ -20,7 +20,7 @@ const CONFIG: &str = "\
 auth:
   admins: [root]
   htpasswd:
-    max_users: 100
+    maxUsers: 100
 registries:
   local:
     type: hosted

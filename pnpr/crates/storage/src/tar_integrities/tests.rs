@@ -33,10 +33,9 @@ fn a_read_that_started_before_a_record_keeps_the_recorded_table() {
 }
 
 #[test]
-fn deserializes_legacy_string_and_record_entries() {
+fn deserializes_record_entries() {
     let decoded: BTreeMap<String, DerivedTar> = serde_json::from_str(
         r#"{
-            "sha512-legacy": "sha512-tar-a",
             "sha512-new": {
                 "tarIntegrity": "sha512-tar-b",
                 "requiresBuild": true,
@@ -51,17 +50,6 @@ fn deserializes_legacy_string_and_record_entries() {
     )
     .unwrap();
     assert_eq!(
-        decoded.get("sha512-legacy"),
-        Some(&DerivedTar {
-            tar_integrity: "sha512-tar-a".to_string(),
-            requires_build: None,
-            file_count: None,
-            unpacked_size: None,
-            bins: None,
-            scanned: false,
-        }),
-    );
-    assert_eq!(
         decoded.get("sha512-new"),
         Some(&DerivedTar {
             tar_integrity: "sha512-tar-b".to_string(),
@@ -69,9 +57,9 @@ fn deserializes_legacy_string_and_record_entries() {
             file_count: Some(3),
             unpacked_size: Some(17),
             bins: None,
-            scanned: true,
         }),
     );
+    assert!(decoded["sha512-new"].is_scanned());
     assert_eq!(
         decoded.get("sha512-pre-stats"),
         Some(&DerivedTar {
@@ -80,7 +68,7 @@ fn deserializes_legacy_string_and_record_entries() {
             file_count: None,
             unpacked_size: None,
             bins: None,
-            scanned: false,
         }),
     );
+    assert!(!decoded["sha512-pre-stats"].is_scanned());
 }

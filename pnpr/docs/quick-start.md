@@ -18,7 +18,7 @@ auth:
   htpasswd:
     file: ./htpasswd
     # Allow one user to self-register, for the publish step below.
-    max_users: 1
+    maxUsers: 1
 
 registries:
   # Packages published to this server. The `packages:` map is this

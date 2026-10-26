@@ -15,7 +15,7 @@ pub struct OidcProvider {
 #[derive(Clone, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct OidcLogin {
-    #[serde(default, rename = "clientSecret", alias = "client_secret")]
+    #[serde(default)]
     pub client_secret: Option<String>,
     pub users: Vec<OidcBinding>,
     /// Team memberships a signed-in session gets from the groups its ID token

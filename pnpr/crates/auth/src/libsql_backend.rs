@@ -83,7 +83,7 @@ impl LibsqlAuth {
     ///
     /// With `replicaPath` set, the database is an embedded replica: an
     /// initial sync runs at build time and libsql keeps it current in
-    /// the background (every `syncIntervalSecs`), so reads hit the local
+    /// the background (every `syncInterval`), so reads hit the local
     /// file. libsql probes the primary for its newer sync protocol, the
     /// only one Turso Cloud serves, and falls back to the replication
     /// protocol of a self-hosted `sqld`. Opening a connection over the

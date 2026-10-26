@@ -474,7 +474,7 @@ backend:
     replicaPath: '{}'
 auth:
   htpasswd:
-    max_users: 3
+    maxUsers: 3
 registries:
   local:
     type: hosted

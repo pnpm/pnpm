@@ -43,7 +43,7 @@ fn config_with_packages(packages_block: &str, admins: &[&str]) -> (TempDir, Conf
     };
     let catch_all = if packages_block.contains("'**'") { "" } else { "      '**': {}\n" };
     let yaml = format!(
-        "storage: {}\nauth:\n  htpasswd:\n    max_users: 100\n{admin_line}registries:\n  \
+        "storage: {}\nauth:\n  htpasswd:\n    maxUsers: 100\n{admin_line}registries:\n  \
          local:\n    type: hosted\n    org: \"\"\n    access: $all\n    packages:\n{nested}\n{catch_all}  \
          main:\n    type: router\n    sources: [local]\n\
          defaultRegistry: main\n",
