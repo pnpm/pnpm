@@ -1,7 +1,6 @@
 //! Recorded and current values that differ in form but mean the same setting.
 
 use indexmap::IndexMap;
-use pnpm_fs::lexical_normalize;
 use pnpm_workspace_state::WorkspaceStateSettings;
 use std::path::Path;
 
@@ -58,10 +57,12 @@ pub(super) fn package_extensions_match(
 }
 
 /// pnpm v11 records each patch file resolved against the workspace
-/// directory, `..` segments collapsed; pacquet records it as configured. A
-/// relative path is read from `workspace_dir`, so resolving both forms there
-/// compares the files they name. An absent map names none, as an empty one
-/// does.
+/// directory, `..` segments collapsed; pacquet records it as configured. Two
+/// such paths match when they name the same file: the same path once joined
+/// to `workspace_dir`, or the same real path. A `..` after a symlink makes
+/// the lexical form name another file, so the forms are not compared
+/// lexically, and a path that does not resolve matches nothing. An absent map
+/// names no patch, as an empty one does.
 pub(super) fn patched_dependencies_match(
     recorded: &WorkspaceStateSettings,
     live: &WorkspaceStateSettings,
@@ -75,13 +76,23 @@ pub(super) fn patched_dependencies_match(
                     .all(|(selector, recorded_path)| {
                         live.get(selector)
                             .is_some_and(|live_path| {
-                                lexical_normalize(&workspace_dir.join(recorded_path))
-                                    == lexical_normalize(&workspace_dir.join(live_path))
+                                same_file(
+                                    &workspace_dir.join(recorded_path),
+                                    &workspace_dir.join(live_path),
+                                )
                             })
                     })
         }
         (recorded, live, _) => non_empty(recorded.as_ref()) == non_empty(live.as_ref()),
     }
+}
+
+fn same_file(left: &Path, right: &Path) -> bool {
+    left == right
+        || matches!(
+            (std::fs::canonicalize(left), std::fs::canonicalize(right)),
+            (Ok(left), Ok(right)) if left == right,
+        )
 }
 
 fn non_empty(map: Option<&IndexMap<String, String>>) -> Option<&IndexMap<String, String>> {

@@ -164,6 +164,9 @@ fn a_project_with_its_own_lockfile_sees_an_edited_workspace_patch() {
 #[test]
 fn a_patch_file_recorded_by_its_absolute_path_matches_its_configured_path() {
     let dir = tempdir().unwrap();
+    fs::create_dir_all(dir.path().join("patches")).unwrap();
+    fs::create_dir_all(dir.path().join("shared")).unwrap();
+    fs::write(dir.path().join("patches/foo.patch"), "").unwrap();
     let configured = |path: String| {
         let mut config = Config::new();
         config.workspace_dir = Some(dir.path().to_path_buf());
@@ -199,6 +202,19 @@ fn a_patch_file_recorded_by_its_absolute_path_matches_its_configured_path() {
     assert_eq!(drift(&config), None);
     assert_eq!(drift(&configured("./shared/../patches/foo.patch".to_string())), None);
     assert_eq!(drift(&configured("patches/bar.patch".to_string())), Some("patchedDependencies"));
+    #[cfg(unix)]
+    {
+        // `..` after a symlink leaves the link's target, not the link.
+        fs::create_dir_all(dir.path().join("elsewhere/inner")).unwrap();
+        fs::create_dir_all(dir.path().join("elsewhere/patches")).unwrap();
+        fs::write(dir.path().join("elsewhere/patches/foo.patch"), "").unwrap();
+        std::os::unix::fs::symlink(dir.path().join("elsewhere/inner"), dir.path().join("link"))
+            .unwrap();
+        assert_eq!(
+            drift(&configured("link/../patches/foo.patch".to_string())),
+            Some("patchedDependencies"),
+        );
+    }
 
     let empty = WorkspaceState {
         settings: WorkspaceStateSettings {
