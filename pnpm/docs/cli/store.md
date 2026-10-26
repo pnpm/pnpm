@@ -24,6 +24,21 @@ store directly without modifying any projects or files outside of the store.
 pnpm store add express@4
 ```
 
+It also takes package tarballs that were downloaded some other way. This
+prepares the store for an install without network access, such as a sandboxed
+build that downloads its sources ahead of time:
+
+```sh
+pnpm store add ./tarballs/*.tgz
+pnpm install --offline --frozen-lockfile
+```
+
+An install takes a registry package from such a tarball when its lockfile entry
+names the same package and version, and its `integrity` is the hash of that
+tarball. Lockfiles that pin sha512, sha1, or the tar hash set by
+[`lockfile.integrityTarget`](../settings/store.md#lockfileintegritytarget) are
+all supported.
+
 [`pnpm add`]: ./add.md
 
 ### prune
