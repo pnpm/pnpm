@@ -13,13 +13,17 @@ pub(super) fn materialization_lockfiles<'r, 'install>(
     loaded: &'r mut Loaded<'_>,
     lockfiles: &'r Lockfiles<'_>,
     dispatched: &mut Dispatched<'install>,
-    verification: Verification,
+    (verification, locked_registries): (
+        Verification,
+        Option<&'r std::collections::BTreeMap<String, String>>,
+    ),
 ) -> super::super::materialize::MaterializationLockfiles<'r, 'install> {
     super::super::materialize::MaterializationLockfiles {
         wanted: lockfiles.wanted.get(),
         wanted_shared: lockfiles.wanted.loader_handle(loaded.wanted.shared.take()),
         merge_wanted: loaded.wanted.merge,
         current: loaded.current.as_ref(),
+        locked_registries,
         verification,
         verification_override: dispatched.modules.lockfile_verification_override.take(),
     }

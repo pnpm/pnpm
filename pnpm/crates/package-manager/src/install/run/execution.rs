@@ -231,7 +231,12 @@ impl<'a> RunExecution<'a> {
     ) -> MaterializationInputs<'r, 'a> {
         let resolution = self.materialization_resolution(loaded);
         let early_host_detection = loaded.early_host_detection.take();
-        let lockfiles = materialization_lockfiles(loaded, lockfiles, dispatched, verification);
+        let lockfiles = materialization_lockfiles(
+            loaded,
+            lockfiles,
+            dispatched,
+            (verification, self.workspace.locked_registry_routes.as_ref()),
+        );
         MaterializationInputs {
             install: self.install,
             resolution,
@@ -293,6 +298,7 @@ impl<'a> RunExecution<'a> {
             config: self.install.context.config,
             save_workspace_state: self.options.save.workspace_state,
             can_prompt: self.mode.can_prompt,
+            locked_registry_routes: self.workspace.locked_registry_routes.take(),
         }
     }
 

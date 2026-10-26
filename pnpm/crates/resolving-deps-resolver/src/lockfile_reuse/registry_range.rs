@@ -7,8 +7,10 @@ use pnpm_lockfile::{PkgName, PkgNameVerPeer, Prefix, RegistryContext, VersionPar
 /// `bare_specifier`, from the registry the specifier resolves against. A
 /// plain range resolves against the registry `alias`'s scope routes, a
 /// `<prefix>:` specifier against the prefix's registry, and the key names
-/// its registry the same way, so a locked entry never satisfies a specifier
-/// aimed at another registry, however either is spelled.
+/// its registry the same way (a plain key the route it was locked under,
+/// see [`RegistryContext::registry_of_key`]), so a locked entry never
+/// satisfies a specifier aimed at another registry, however either is
+/// spelled.
 ///
 /// `None` when the reuse gate cannot judge the specifier: it is neither a
 /// semver range nor a named-registry specifier, and the resolver resolves it

@@ -361,6 +361,12 @@ fn write_applied_workspace_state<Reporter: self::Reporter>(
                 config,
                 inputs.materialized.fresh_lockfile.as_ref().or(inputs.resolution.loaded),
             ),
+            registry_routes: Some(crate::install::recorded_registry_routes_after_install(
+                config,
+                inputs.completion.locked_registry_routes.as_ref(),
+                inputs.materialized.fresh_lockfile.as_ref().or(inputs.resolution.loaded),
+                inputs.materialized.fresh_lockfile.is_some() && !inputs.projects.filtered_install,
+            )),
             kept_settings: None,
         },
         vouched: &vouched,

@@ -118,6 +118,14 @@ export interface RegistryContext {
   /** As the user wrote it; built-in aliases are merged in at lookup. */
   registriesByPrefix?: Record<string, string>
   registryOptionsByUrl?: Record<string, RegistryOptions>
+  /**
+   * The scope routes the lockfile's plain keys resolved through, as the
+   * workspace state recorded them (see `WorkspaceStateSettings.registryRoutes`,
+   * which says why the default registry is not among them). A plain key names
+   * no registry, so this is the only record of where its package came from;
+   * left out, every plain key reads as resolved through `registriesByScope`.
+   */
+  lockedRegistriesByScope?: Record<string, string>
 }
 
 /** Parsed value of `_auth` of each registry in the rc file. */

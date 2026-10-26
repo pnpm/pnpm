@@ -216,6 +216,9 @@ pub(super) struct UpToDateInstall<'a, 'install> {
 pub(super) struct CarriedWorkspaceState {
     /// The previous run's `autoDedupe`; only a resolving install sets it.
     pub(super) recorded_auto_dedupe: Option<bool>,
+    /// The previous run's `registryRoutes`, which an up-to-date tree, having
+    /// resolved nothing, keeps while a plain key sits under a moved route.
+    pub(super) recorded_registry_routes: Option<std::collections::BTreeMap<String, String>>,
 }
 /// Up-to-date installs still enforce dependency-name verification and recorded build policy.
 pub(super) async fn report_up_to_date<Reporter: self::Reporter + 'static>(
@@ -290,6 +293,12 @@ pub(super) fn refresh_up_to_date_workspace<Reporter: self::Reporter>(
                 context.tree.config,
                 Some(context.wanted_lockfile),
             ),
+            registry_routes: Some(crate::install::recorded_registry_routes_after_install(
+                context.tree.config,
+                context.carried_state.recorded_registry_routes.as_ref(),
+                Some(context.wanted_lockfile),
+                false,
+            )),
             kept_settings: None,
         },
         vouched: &crate::optimistic_repeat_install::validation::Vouched::All,

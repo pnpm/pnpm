@@ -121,6 +121,38 @@ pub fn remove_version_field(storage: &Path, package: &str, version: &str, field:
     });
 }
 
+/// Drop `version` from the registry metadata of `package` in a built storage
+/// tree, so the registry serves the package as one that never published it. A
+/// `dist-tags` entry naming it moves to the highest version left. The tarball
+/// stays, which no resolution reaches.
+///
+/// Only call this on a tree the test owns, as with [`set_dist_tag`].
+pub fn remove_version(storage: &Path, package: &str, version: &str) {
+    edit_packument(storage, package, |packument_object| {
+        let versions = packument_object
+            .get_mut("versions")
+            .and_then(Value::as_object_mut)
+            .unwrap_or_else(|| panic!("{package} has fixture versions"));
+        assert!(versions.remove(version).is_some(), "{package} has no fixture version {version}");
+        let highest = versions
+            .keys()
+            .filter_map(|left| left.parse::<Version>().ok())
+            .max()
+            .unwrap_or_else(|| panic!("{package} keeps a version after removing {version}"))
+            .to_string();
+        if let Some(tags) = packument_object.get_mut("dist-tags").and_then(Value::as_object_mut) {
+            for tag in tags.values_mut() {
+                if tag.as_str() == Some(version) {
+                    *tag = json!(highest);
+                }
+            }
+        }
+        if let Some(time) = packument_object.get_mut("time").and_then(Value::as_object_mut) {
+            time.remove(version);
+        }
+    });
+}
+
 fn edit_packument(storage: &Path, package: &str, edit: impl FnOnce(&mut Map<String, Value>)) {
     let path = local_document_path(storage, "", Ecosystem::Npm, package);
     let bytes = fs::read(&path)

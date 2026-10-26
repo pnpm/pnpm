@@ -32,6 +32,9 @@ pub(crate) struct CarriedSettings<'a> {
     /// then does the state record the prefixes (see
     /// [`WorkspaceStateSettings::registry_prefixes`](pnpm_workspace_state::WorkspaceStateSettings::registry_prefixes)).
     pub(crate) registry_keys_verified: bool,
+    /// The `registryRoutes` to record, per [`super::recorded_registry_routes_after_install`]
+    /// for an install and the recorded ones for a passing check.
+    pub(crate) registry_routes: Option<std::collections::BTreeMap<String, String>>,
     /// The recorded dependency groups and store location to keep instead of
     /// the run's, for a writer that ignored their drift.
     pub(crate) kept_settings: Option<&'a pnpm_workspace_state::WorkspaceStateSettings>,
@@ -56,6 +59,7 @@ pub(crate) fn recorded_workspace_state(write: &StateWrite<'_>) -> WorkspaceState
         state.settings.registry_prefixes =
             crate::optimistic_repeat_install::recorded_registry_prefixes(write.config);
     }
+    state.settings.registry_routes.clone_from(&write.carried.registry_routes);
     if let Some(kept) = write.carried.kept_settings {
         state.settings.dev = kept.dev;
         state.settings.optional = kept.optional;

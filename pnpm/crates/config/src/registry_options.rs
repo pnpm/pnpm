@@ -349,7 +349,10 @@ impl Config {
     }
 
     /// How a package's registry is decided and what it serves, for the
-    /// layers that read and write lockfile keys.
+    /// layers that read and write lockfile keys. Plain keys read as resolved
+    /// through the current routes; a layer that knows the routes the
+    /// lockfile was resolved under adds them with
+    /// [`RegistryContext::with_locked_registries`].
     #[must_use]
     pub fn registry_context(&self) -> RegistryContext {
         RegistryContext {
@@ -360,6 +363,7 @@ impl Config {
             registries_by_prefix: self.merged_registries_by_prefix(),
             declared_prefixes: self.declared_registry_prefixes(),
             registry_options_by_url: self.registry_options_by_url.clone(),
+            locked_registries: None,
         }
     }
 

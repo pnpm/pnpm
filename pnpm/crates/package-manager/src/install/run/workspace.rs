@@ -74,6 +74,11 @@ pub(super) struct InstallWorkspace<'a> {
     pub(super) workspace_packages:
         Option<std::sync::Arc<pnpm_resolving_resolver_base::WorkspacePackages>>,
     pub(super) dirs: WorkspaceDirs<'a>,
+    /// The routes the lockfile's plain keys resolved through, as the
+    /// previous install recorded them (see
+    /// [`WorkspaceStateSettings::registry_routes`](pnpm_workspace_state::WorkspaceStateSettings::registry_routes)).
+    /// `None` without a readable record.
+    pub(super) locked_registry_routes: Option<std::collections::BTreeMap<String, String>>,
 }
 /// The projects the run installs, and how a selection narrows them.
 pub(super) struct InstallScope<'w> {
@@ -123,6 +128,8 @@ impl<'a> InstallWorkspace<'a> {
         );
         let workspace_packages =
             workspace_packages_for_install(install, &loaded_workspace, options);
+        let locked_registry_routes =
+            locked_registry_routes(install.context.config, &dirs.workspace_root);
         Ok(Self {
             // Use `to_string_lossy` rather than `to_str().expect(...)` so a
             // valid filesystem path with non-UTF-8 bytes (possible on Unix)
@@ -138,6 +145,7 @@ impl<'a> InstallWorkspace<'a> {
             loaded_workspace,
             workspace_packages,
             dirs,
+            locked_registry_routes,
         })
     }
 }
@@ -438,4 +446,17 @@ pub(super) fn report_install_scope_cycles<Reporter: self::Reporter>(
     let cycles = crate::install_scope_cycles(config, projects, selected_dirs, Some(catalogs));
     crate::report_workspace_cycles::<Reporter>(config, workspace_dir, cycles.as_deref())
         .map_err(InstallError::CyclicWorkspaceDependencies)
+}
+
+/// See [`InstallWorkspace::locked_registry_routes`].
+fn locked_registry_routes(
+    config: &Config,
+    workspace_root: &Path,
+) -> Option<std::collections::BTreeMap<String, String>> {
+    pnpm_workspace_state::load_workspace_state_in_modules(&config.workspace_state_modules_dir(
+        workspace_root,
+    ))
+    .ok()
+    .flatten()
+    .and_then(|state| state.settings.registry_routes)
 }

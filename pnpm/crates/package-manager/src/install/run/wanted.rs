@@ -142,6 +142,7 @@ pub(super) fn freshness_inputs<'r>(
         config: install.context.config,
         catalogs: &workspace.catalogs,
         pnpmfile_hook: loaded.pnpmfile_hook.as_ref(),
+        locked_registries: workspace.locked_registry_routes.as_ref(),
         scope: FreshnessScope {
             ignore_manifest_check: install.lockfile_policy.ignore_manifest_check,
             prune_stale_importers: scope.prune_stale_importers,

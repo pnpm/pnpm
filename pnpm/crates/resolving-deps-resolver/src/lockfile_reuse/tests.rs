@@ -642,7 +642,35 @@ fn prefixed_registry_context() -> pnpm_lockfile::RegistryContext {
             ("zeta", registry),
         ]),
         registry_options_by_url: std::collections::BTreeMap::new(),
+        locked_registries: None,
     }
+}
+
+/// A plain key names no registry, so it is read as resolved from the one
+/// its scope was routed to when the lockfile was resolved. A scope routed
+/// elsewhere since leaves its locked packages on the old registry, which a
+/// range resolving against the new one is never satisfied by.
+#[test]
+fn locked_child_admits_a_plain_key_only_from_the_registry_its_scope_was_routed_to() {
+    let moved = prefixed_registry_context()
+        .with_locked_registries(Some(HashMap::from([
+            ("default".to_string(), "https://registry.example.test/".to_string()),
+            ("@work".to_string(), "https://old.example.test/".to_string()),
+        ])));
+    let alias: PkgName = "@work/foo".parse().unwrap();
+    let plain: PkgNameVerPeer = "@work/foo@1.2.0".parse().unwrap();
+    assert_eq!(super::locked_child_admits(&alias, &plain, "^1.0.0", &moved), Some(false));
+    assert_eq!(super::locked_child_admits(&alias, &plain, "work:^1.0.0", &moved), Some(false));
+    // A key of the moved scope that names its registry, and a plain key of
+    // an unmoved scope, still satisfy their ranges.
+    let qualified: PkgNameVerPeer = "@work/foo@work:1.2.0".parse().unwrap();
+    assert_eq!(super::locked_child_admits(&alias, &qualified, "^1.0.0", &moved), Some(true));
+    let unscoped: PkgName = "foo".parse().unwrap();
+    let unscoped_plain: PkgNameVerPeer = "foo@1.2.0".parse().unwrap();
+    assert_eq!(
+        super::locked_child_admits(&unscoped, &unscoped_plain, "^1.0.0", &moved),
+        Some(true)
+    );
 }
 
 #[test]

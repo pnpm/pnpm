@@ -7,9 +7,11 @@ export { packageIsIndependent } from './packageIsIndependent.js'
 export { pkgSnapshotToResolution, type PkgSnapshotToResolutionOptions } from './pkgSnapshotToResolution.js'
 export { refIsLocalDirectory, refIsLocalTarball } from './refIsLocalTarball.js'
 export {
+  findMovedRegistryKey,
   findOutdatedRegistryKey,
   keyPrefixForAlias,
   keyPrefixForRegistry,
+  type MovedRegistryKey,
   type OutdatedRegistryKey,
   registryOfDepPath,
   registryOfPackage,

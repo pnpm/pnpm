@@ -50,6 +50,7 @@ export function pickRegistryContext (source: RegistryContext): RegistryContext {
     registriesByScope: source.registriesByScope,
     registriesByPrefix: source.registriesByPrefix,
     registryOptionsByUrl: source.registryOptionsByUrl,
+    lockedRegistriesByScope: source.lockedRegistriesByScope,
   }
 }
 

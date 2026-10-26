@@ -464,9 +464,11 @@ pub(crate) fn build_workspace_state<Sys: Clock>(
         ),
     };
     // Frozen installs share this builder and cannot establish a deduplication
-    // baseline, nor vouch for the lockfile's registry keys.
+    // baseline, nor vouch for the lockfile's registry keys, nor say which
+    // routes its plain keys resolved through.
     state.settings.auto_dedupe = None;
     state.settings.registry_prefixes = None;
+    state.settings.registry_routes = None;
     if node_linker == NodeLinker::Hoisted {
         record_hoisted_modules_dirs(&mut state.projects, project_manifests);
     }
@@ -483,6 +485,39 @@ pub(crate) fn registry_keys_current(
     lockfile.is_some_and(|lockfile| {
         pnpm_lockfile::check_lockfile_registry_keys(lockfile, &config.registry_context()).is_ok()
     })
+}
+
+/// The `registryRoutes` an install records (see
+/// [`WorkspaceStateSettings::registry_routes`](pnpm_workspace_state::WorkspaceStateSettings::registry_routes)):
+/// the routes it ran under, unless it kept part of `lockfile` as recorded
+/// (`resolved_all` is false) while a plain key still sits under a route
+/// `previous` records elsewhere, when `previous` stands.
+pub(crate) fn recorded_registry_routes_after_install(
+    config: &Config,
+    previous: Option<&BTreeMap<String, String>>,
+    lockfile: Option<&pnpm_lockfile::Lockfile>,
+    resolved_all: bool,
+) -> BTreeMap<String, String> {
+    let current = crate::optimistic_repeat_install::recorded_registry_routes(config);
+    let Some(previous) = previous.filter(|previous| **previous != current && !resolved_all) else {
+        return current;
+    };
+    let registries = config
+        .registry_context()
+        .with_locked_registries(Some(
+            previous
+                .iter()
+                .map(|(route, url)| (route.clone(), url.clone()))
+                .collect(),
+        ));
+    match lockfile {
+        Some(lockfile)
+            if pnpm_lockfile::check_lockfile_registry_routes(lockfile, &registries).is_err() =>
+        {
+            previous.clone()
+        }
+        _ => current,
+    }
 }
 
 /// The `autoDedupe` an install records in the workspace state.

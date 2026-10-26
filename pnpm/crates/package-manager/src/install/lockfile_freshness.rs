@@ -121,6 +121,7 @@ async fn workspace_manifests_satisfy(
             config: check.config,
             catalogs: check.catalogs,
             pnpmfile_hook: None,
+            locked_registries: None,
             scope: FreshnessScope {
                 ignore_manifest_check: check.ignore_manifest_check,
                 allow_missing_dependency_free_importers: true,
@@ -172,7 +173,27 @@ pub(super) struct LockfileFreshnessInputs<'a, 'manifest> {
     pub(super) config: &'a Config,
     pub(super) catalogs: &'a Catalogs,
     pub(super) pnpmfile_hook: Option<&'a Arc<dyn pnpm_hooks::PnpmfileHooks>>,
+    /// See `InstallWorkspace::locked_registry_routes`.
+    pub(super) locked_registries: Option<&'a std::collections::BTreeMap<String, String>>,
     pub(super) scope: FreshnessScope,
+}
+
+impl LockfileFreshnessInputs<'_, '_> {
+    /// The registries the checks read lockfile keys through. A frozen
+    /// install keeps the lockfile as recorded, so its plain keys read as
+    /// resolved through the current routes; any other install reads them
+    /// through the routes they were locked under.
+    fn registry_context(&self) -> pnpm_lockfile::RegistryContext {
+        let locked = self.locked_registries
+            .filter(|_| !self.scope.frozen_lockfile)
+            .map(|routes| {
+                routes
+                    .iter()
+                    .map(|(route, url)| (route.clone(), url.clone()))
+                    .collect()
+            });
+        self.config.registry_context().with_locked_registries(locked)
+    }
 }
 
 pub(super) struct FastUpdateLockfileOptions<'a, 'manifest> {
@@ -339,9 +360,13 @@ pub(super) async fn check_lockfile_freshness(
 
     // A frozen install keeps the keys the lockfile records; a rebuild only
     // builds them. Any other install writes the current keys, so it resolves
-    // when the recorded ones are not those.
+    // when the recorded ones are not those, or came from a registry their
+    // scope no longer routes to.
     if !inputs.scope.frozen_lockfile && !inputs.scope.patches_only {
-        pnpm_lockfile::check_lockfile_registry_keys(lockfile, &inputs.config.registry_context())
+        let registries = inputs.registry_context();
+        pnpm_lockfile::check_lockfile_registry_keys(lockfile, &registries)
+            .map_err(FreshnessCheckError::Stale)?;
+        pnpm_lockfile::check_lockfile_registry_routes(lockfile, &registries)
             .map_err(FreshnessCheckError::Stale)?;
     }
 
@@ -384,7 +409,7 @@ fn check_importer_freshness(
             .iter()
             .map(|(dir, manifest)| (dir.clone(), manifest)),
     );
-    let registries = inputs.config.registry_context();
+    let registries = inputs.registry_context();
     let workspace = WorkspaceProjects {
         packages: inputs.workspace_packages,
         manifests_by_dir: &project_manifests,

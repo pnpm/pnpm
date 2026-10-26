@@ -149,6 +149,8 @@ pub(super) struct WorkspaceWalk {
     pub registries: HashMap<String, String>,
     pub registries_by_prefix: HashMap<String, String>,
     pub declared_prefixes: pnpm_lockfile::DeclaredRegistryPrefixes,
+    /// See [`pnpm_lockfile::RegistryContext::locked_registries`].
+    pub locked_registries: Option<HashMap<String, String>>,
 }
 
 /// What every importer's resolve reads, and the walk reads alongside.
@@ -241,6 +243,7 @@ impl WorkspaceWalk {
                 registries_by_prefix: self.registries_by_prefix,
                 declared_prefixes: self.declared_prefixes,
                 registry_options_by_url: config.registry_options_by_url.clone(),
+                locked_registries: self.locked_registries,
             },
             share_workspace_resolutions: self.share_workspace_resolutions,
             allowed_deprecated_versions: config.allowed_deprecated_versions.clone(),
