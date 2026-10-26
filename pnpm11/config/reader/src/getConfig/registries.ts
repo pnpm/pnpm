@@ -190,11 +190,15 @@ function createPackageManagerNetworkConfig (
   // command line's `.npmrc`-spelled tokens sit inside `trustedConfig` too.
   const cliNetworkSettings = configFromCliOpts as BootstrapNetworkSettings
   const httpsProxy = getProxyValue(
-    trustedConfig['https-proxy'] ?? trustedConfig.proxy,
+    trustedConfig['https-proxy'] === false
+      ? trustedConfig.proxy
+      : trustedConfig['https-proxy'] ?? trustedConfig.proxy,
     getEnvValue(env, 'https_proxy')
   )
   const httpProxy = getProxyValue(
-    trustedConfig['http-proxy'],
+    trustedConfig['http-proxy'] === false || trustedConfig['http-proxy'] === null
+      ? undefined
+      : trustedConfig['http-proxy'],
     httpsProxy ?? getEnvValue(env, 'http_proxy') ?? getEnvValue(env, 'proxy')
   )
   return {
