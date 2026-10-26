@@ -166,11 +166,13 @@ function commitOverflow (frame: LiveFrame, lines: string[]): string {
   }
   frame.renderedFrameRows = layout.frameRows
   frame.renderedFrameOutgrewTerminal = false
-  // Shrinking the frame to just the overflow leaves those lines untouched
-  // where they already are, erases the rest of the frame below them, and
-  // parks the cursor on the next line — where the fresh differ starts.
-  const handover = frame.differ.update(`${lines.slice(frame.committedLines, layout.firstVisible).join(EOL)}${EOL}`).toString()
+  // The previous frame is still on screen, so the differ can draw the whole
+  // uncommitted frame over it; the overflow scrolls away as the new lines are
+  // appended. The fresh differ then takes the lines that stayed on screen as
+  // already drawn, rather than drawing them again.
+  const handover = frame.differ.update(`${lines.slice(frame.committedLines).join(EOL)}${EOL}`).toString()
   resetDiffer(frame)
+  frame.differ.update(`${lines.slice(layout.firstVisible).join(EOL)}${EOL}`)
   frame.committedLines = layout.firstVisible
   return handover
 }
