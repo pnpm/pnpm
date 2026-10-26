@@ -55,11 +55,11 @@ test('a plain install recreates the modules directory after changing nodeLinker'
 })
 
 test.each([
-  ['nodeLinker', { nodeLinker: 'hoisted' }, { nodeLinker: 'isolated' }, 'ERR_PNPM_NODE_LINKER_DIFF'],
-  ['virtualStoreDirMaxLength', {}, { virtualStoreDirMaxLength: 60 }, 'ERR_PNPM_VIRTUAL_STORE_DIR_MAX_LENGTH_DIFF'],
-  ['publicHoistPattern', {}, { publicHoistPattern: ['is-*'] }, 'ERR_PNPM_PUBLIC_HOIST_PATTERN_DIFF'],
-  ['hoistPattern', {}, { hoistPattern: ['is-*'] }, 'ERR_PNPM_HOIST_PATTERN_DIFF'],
-] as const)('fail when a root-only install follows a %s change in a workspace', async (_setting, before, after, code) => {
+  ['nodeLinker', { nodeLinker: 'hoisted' }, { nodeLinker: 'isolated' }, 'ERR_PNPM_NODE_LINKER_DIFF', 'node_modules/is-negative'],
+  ['virtualStoreDirMaxLength', {}, { virtualStoreDirMaxLength: 60 }, 'ERR_PNPM_VIRTUAL_STORE_DIR_MAX_LENGTH_DIFF', 'project-2/node_modules/is-negative/package.json'],
+  ['publicHoistPattern', {}, { publicHoistPattern: ['is-*'] }, 'ERR_PNPM_PUBLIC_HOIST_PATTERN_DIFF', 'project-2/node_modules/is-negative/package.json'],
+  ['hoistPattern', {}, { hoistPattern: ['is-*'] }, 'ERR_PNPM_HOIST_PATTERN_DIFF', 'project-2/node_modules/is-negative/package.json'],
+] as const)('fail when a root-only install follows a %s change in a workspace', async (_setting, before, after, code, project2Dep) => {
   preparePackages([
     {
       location: '.',
@@ -84,7 +84,6 @@ test.each([
   ]
   const mutations: MutatedProject[] = allProjects.map(({ rootDir }) => ({ mutation: 'install', rootDir }))
   await mutateModules(mutations, testDefaults({ allProjects, ...before }))
-  const project2Dep = before.nodeLinker === 'hoisted' ? 'node_modules/is-negative' : 'project-2/node_modules/is-negative/package.json'
   expect(fs.existsSync(project2Dep)).toBe(true)
 
   await expect(mutateModules(mutations.slice(0, 1), testDefaults({
