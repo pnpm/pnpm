@@ -9,7 +9,10 @@ use std::{
 #[cfg(unix)]
 use std::{
     path::Path,
-    time::Duration,
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 #[cfg(all(feature = "shell-emulator", not(target_family = "wasm")))]
@@ -303,9 +306,9 @@ impl SpawnedChild<'_> {
 
     /// Wait for the child, and after a relayed signal for its whole process
     /// group: a shell that died from the signal may have left the script it
-    /// started still shutting down. pnpm then stops watching the group, so
-    /// whatever the child left running in it is not ended by pnpm's own
-    /// exit.
+    /// started still shutting down. A group that drains is no longer
+    /// watched, so whatever the child left running in it is not ended by
+    /// pnpm's own exit; one that does not drain keeps its watch.
     pub fn wait(&mut self) -> io::Result<crate::process::ExitStatus> {
         let status = self.child.wait()?;
         tracing::debug!(
@@ -323,7 +326,9 @@ impl SpawnedChild<'_> {
             if let Some(registration) = &self.registration {
                 registration.keep_group_only();
             }
-            wait_for_process_group(self.child.id());
+            if !wait_for_process_group(self.child.id()) {
+                return Ok(status);
+            }
         }
         self.registration = None;
         #[cfg(unix)]
@@ -334,18 +339,40 @@ impl SpawnedChild<'_> {
     }
 }
 
-/// Block until no process of the group led by `leader` is still running.
+/// How long the process group of a signalled child is given to drain.
+///
+/// Every process in the group was sent the signal pnpm relayed, so one
+/// still running at the end of this has declined to stop, and waiting on
+/// it is waiting on something that has already refused. A container
+/// runtime gives a process it stops the same order of grace, which is
+/// enough for a dev server to close its connections.
 #[cfg(unix)]
-fn wait_for_process_group(leader: u32) {
-    let Ok(leader) = i32::try_from(leader) else { return };
+const PROCESS_GROUP_SHUTDOWN_GRACE: Duration = Duration::from_secs(30);
+
+/// Block until no process of the group led by `leader` is still running,
+/// and report whether the group drained within
+/// [`PROCESS_GROUP_SHUTDOWN_GRACE`].
+#[cfg(unix)]
+fn wait_for_process_group(leader: u32) -> bool {
+    let Ok(leader) = i32::try_from(leader) else { return true };
     let table = cfg!(target_os = "linux").then(|| Path::new("/proc"));
+    let deadline = Instant::now() + PROCESS_GROUP_SHUTDOWN_GRACE;
     while group_is_running(leader, table) {
+        if Instant::now() >= deadline {
+            tracing::warn!(
+                "a process the script started has not stopped, so pnpm's own exit ends it",
+            );
+            return false;
+        }
         std::thread::sleep(Duration::from_millis(20));
     }
+    true
 }
 
 #[cfg(not(unix))]
-fn wait_for_process_group(_: u32) {}
+fn wait_for_process_group(_: u32) -> bool {
+    true
+}
 
 /// Whether the group led by `leader` may still hold a process that has not
 /// exited, once the members that are pnpm's own children are reaped.
