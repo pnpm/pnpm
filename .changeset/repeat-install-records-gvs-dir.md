@@ -2,4 +2,4 @@
 "pacquet": patch
 ---
 
-A repeat `pnpm install` no longer reports "Already up to date" after `globalVirtualStoreDir` changes. It links the packages from the new directory.
+A repeat `pnpm install` now links the packages from the new directory after `globalVirtualStoreDir` changes. Before, it reported "Already up to date".

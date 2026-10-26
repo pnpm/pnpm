@@ -6,4 +6,4 @@
 "pnpm": patch
 ---
 
-A repeat `pnpm install` no longer reports "Already up to date" after `virtualStoreDirMaxLength` changes, `dangerouslyAllowAllBuilds` is turned on, or `trustLockfile` is turned off. It renames the virtual store directories, runs the builds it ignored before, or verifies the lockfile.
+A repeat `pnpm install` now renames the virtual store directories after `virtualStoreDirMaxLength` changes. It now runs the builds it skipped before after `dangerouslyAllowAllBuilds` is turned on. It now verifies the lockfile after `trustLockfile` is turned off. Before, it reported "Already up to date" in each of these cases.
