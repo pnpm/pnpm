@@ -5,7 +5,7 @@ import util from 'node:util'
 import { expect, test } from '@jest/globals'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import type { PnpmError } from '@pnpm/error'
-import { addDependenciesToPackage, install } from '@pnpm/installing.deps-installer'
+import { addDependenciesToPackage, install, type MutatedProject, mutateModules } from '@pnpm/installing.deps-installer'
 import type { Modules } from '@pnpm/installing.modules-yaml'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import type { ProjectRootDir } from '@pnpm/types'
@@ -27,6 +27,67 @@ test('fail on non-compatible node_modules', async () => {
   } catch (err: any) { // eslint-disable-line
     expect(err.code).toBe('ERR_PNPM_MODULES_BREAKING_CHANGE')
   }
+})
+
+test('fail when adding a dependency after changing nodeLinker', async () => {
+  prepareEmpty()
+  await install({}, testDefaults({ nodeLinker: 'hoisted' }))
+
+  await expect(addDependenciesToPackage({}, ['is-positive@1.0.0'], testDefaults({
+    confirmModulesPurge: false,
+    nodeLinker: 'isolated',
+  }))).rejects.toMatchObject({
+    code: 'ERR_PNPM_NODE_LINKER_DIFF',
+    message: 'This modules directory was created using a different node-linker value. Run "pnpm install" to recreate the modules directory.',
+  })
+})
+
+test('a plain install recreates the modules directory after changing nodeLinker', async () => {
+  prepareEmpty()
+  const manifest = { dependencies: { '@pnpm.e2e/pkg-with-1-dep': '100.0.0' } }
+  const hoistedDep = path.resolve('node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep')
+  await install(manifest, testDefaults({ nodeLinker: 'hoisted' }))
+  expect(fs.existsSync(hoistedDep)).toBe(true)
+
+  await install(manifest, testDefaults({ confirmModulesPurge: false, nodeLinker: 'isolated' }))
+
+  expect(fs.existsSync(hoistedDep)).toBe(false)
+})
+
+test('fail when a root-only install follows a nodeLinker change in a workspace', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: { name: 'root' },
+    },
+    {
+      location: 'project-2',
+      package: { name: 'project-2', dependencies: { 'is-negative': '1.0.0' } },
+    },
+  ])
+  const allProjects = [
+    {
+      buildIndex: 0,
+      manifest: { name: 'root' },
+      rootDir: process.cwd() as ProjectRootDir,
+    },
+    {
+      buildIndex: 0,
+      manifest: { name: 'project-2', dependencies: { 'is-negative': '1.0.0' } },
+      rootDir: path.resolve('project-2') as ProjectRootDir,
+    },
+  ]
+  const mutations: MutatedProject[] = allProjects.map(({ rootDir }) => ({ mutation: 'install', rootDir }))
+  await mutateModules(mutations, testDefaults({ allProjects, nodeLinker: 'hoisted' }))
+  expect(fs.existsSync('node_modules/is-negative')).toBe(true)
+
+  await expect(mutateModules(mutations.slice(0, 1), testDefaults({
+    allProjects,
+    confirmModulesPurge: false,
+    nodeLinker: 'isolated',
+  }))).rejects.toMatchObject({ code: 'ERR_PNPM_NODE_LINKER_DIFF' })
+
+  expect(fs.existsSync('node_modules/is-negative')).toBe(true)
 })
 
 test("don't fail on non-compatible node_modules when forced", async () => {
@@ -72,6 +133,8 @@ test('forced modules repair never follows a modules directory symlink', async ()
       forceNewModules: true,
       lockfileDir: projectRoot,
       modulesDir,
+      nodeLinker: opts.nodeLinker ?? 'isolated',
+      mutatesEveryProject: true,
       registriesByScope: opts.registriesByScope,
       storeDir: opts.storeDir,
       virtualStoreDir: path.join(modulesDir, '.pnpm'),

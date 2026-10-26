@@ -40,6 +40,12 @@ Run `pnpm install` without `--frozen-lockfile` and commit the updated lockfile.
 
 `pnpm rebuild` raises the same error when `patchedDependencies` differs from the installed lockfile. Run `pnpm install` first.
 
+## ERR_PNPM_NODE_LINKER_DIFF
+
+`pnpm add`, `pnpm remove`, `pnpm update`, or an install that selects only some workspace projects found a modules directory that was installed with a different `nodeLinker`.
+
+Run `pnpm install` to recreate the modules directory with the new `nodeLinker`.
+
 ## ERR_PNPM_NO_MATCHING_VERSION_INSIDE_WORKSPACE
 
 A project has a workspace dependency that does not exist in the workspace.
