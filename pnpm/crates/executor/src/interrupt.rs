@@ -226,10 +226,17 @@ pub(crate) struct SpawningChild {
 /// be left behind by the very spawn that created it.
 pub(crate) fn spawning_child() -> SpawningChild {
     install_handler();
+    // Counted before the claim, never after: a signal the claim keeps pnpm
+    // alive for has to be one [`SpawningChild::joined`] can still see. Taken
+    // the other way round, a signal landing between the two would raise the
+    // count the claim is about to read, leave the claim holding a snapshot
+    // that already includes it, and so be relayed to nobody, while the claim
+    // kept pnpm waiting for the child it went on to spawn. The `Acquire` load
+    // keeps the claim below it.
+    let taken = INTERRUPTS.load(Ordering::Acquire);
     if SPAWNING.fetch_add(1, Ordering::Release) == 0 {
         SPAWNING_INTERRUPTS.store(0, Ordering::Release);
     }
-    let taken = INTERRUPTS.load(Ordering::Acquire);
     SpawningChild { before_spawn: taken, once_spawned: taken }
 }
 
