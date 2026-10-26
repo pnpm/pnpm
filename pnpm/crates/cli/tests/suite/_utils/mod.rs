@@ -26,6 +26,7 @@ use std::{
     time::{Duration, Instant},
 };
 use tempfile::TempDir;
+use text_block_macros::text_block;
 
 /// Fresh `node <bundle>` invocation anchored in `workspace` with ambient pnpm
 /// config cleared.
@@ -614,12 +615,52 @@ pub fn write_marker_script(relative_path: &str) -> String {
 /// apart and the run's own exit code cannot. It is renamed into place, so
 /// a sibling script waiting for the marker to appear never reads it half
 /// written.
+///
+/// The script takes its marker and its hold on the command line, so the
+/// fixture below is the same text for every caller and the package script
+/// that runs it carries no JavaScript.
 #[must_use]
-pub fn hold_until_cancelled_script(started_marker: &str) -> String {
+pub fn hold_until_cancelled_script(project: &Path, started_marker: &str) -> String {
     let hold = (CHILD_DEADLINE * 2).as_millis();
-    format!(
-        r#"node -e "const fs = require('fs'); fs.writeFileSync('{started_marker}.tmp', String(process.pid)); fs.renameSync('{started_marker}.tmp', '{started_marker}'); setTimeout(() => {{}}, {hold})""#,
-    )
+    let fixture = write_node_fixture(project, "hold-until-cancelled.js", HOLD_UNTIL_CANCELLED);
+    format!("node {fixture} {started_marker} {hold}")
+}
+
+/// See [`hold_until_cancelled_script`].
+const HOLD_UNTIL_CANCELLED: &str = text_block! {
+    "const fs = require('node:fs')"
+    "const [marker, hold] = process.argv.slice(2)"
+    "fs.writeFileSync(`${marker}.tmp`, String(process.pid))"
+    "fs.renameSync(`${marker}.tmp`, marker)"
+    "setTimeout(() => {}, Number(hold))"
+};
+
+/// A package script that waits for `marker` to appear and then fails with
+/// `code`, so a sibling script's failure lands while that sibling is still
+/// running and the run has something in flight to cancel.
+#[must_use]
+pub fn exit_when_marked_script(project: &Path, marker: &str, code: i32) -> String {
+    let fixture = write_node_fixture(project, "exit-when-marked.js", EXIT_WHEN_MARKED);
+    format!("node {fixture} {marker} {code}")
+}
+
+/// See [`exit_when_marked_script`].
+const EXIT_WHEN_MARKED: &str = text_block! {
+    "const fs = require('node:fs')"
+    "const [marker, code] = process.argv.slice(2)"
+    "const wait = () => fs.existsSync(marker) ? process.exit(Number(code)) : setTimeout(wait, 10)"
+    "wait()"
+};
+
+/// Place `source` in `project` under `name` and return `name`, for a
+/// package script to run with `node`.
+///
+/// `project` is created first: a caller building a workspace manifest
+/// names its projects before `write_workspace` makes their directories.
+fn write_node_fixture(project: &Path, name: &str, source: &str) -> String {
+    fs::create_dir_all(project).expect("create the project directory");
+    fs::write(project.join(name), source).expect("write the node fixture");
+    name.to_string()
 }
 
 /// The process id a fixture script wrote to `path`. A fixture writes it
@@ -648,19 +689,26 @@ pub fn is_running(pid: libc::pid_t) -> bool {
             _ => panic!("probe process {pid}: {}", std::io::Error::last_os_error()),
         };
     }
-    !is_zombie(pid)
+    !has_exited(pid)
 }
 
-/// Whether `pid` has exited and waits for a parent to reap it. An orphan
-/// stays one until init takes it over, which the probe above cannot tell
-/// from a running process.
+/// Whether `pid` has exited, whether or not anything has reaped it yet.
+///
+/// An orphan stays a zombie until init takes it over, which the probe in
+/// [`is_running`] cannot tell from a running process. `ps` names that
+/// state, and names nothing at all once init has been: a process reaped
+/// between the probe and this call is gone rather than running, which is
+/// the likeliest order for the script a test has just had cancelled.
 #[cfg(unix)]
-fn is_zombie(pid: libc::pid_t) -> bool {
+fn has_exited(pid: libc::pid_t) -> bool {
     let state = std::process::Command::new("ps")
         .args(["-o", "stat=", "-p", &pid.to_string()])
         .output()
         .expect("run ps");
-    state.stdout.trim_ascii_start().first() == Some(&b'Z')
+    state.stdout
+        .trim_ascii_start()
+        .first()
+        .is_none_or(|&flag| flag == b'Z')
 }
 
 /// How long [`wait_for_marker_script`] gives another project's script to

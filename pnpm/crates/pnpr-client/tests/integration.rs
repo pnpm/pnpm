@@ -151,10 +151,14 @@ async fn wait_until_ready(addr: SocketAddr) {
     // against a server that accepted the connection and then went quiet
     // would never come back and the loop would never reach its panic.
     const ATTEMPT: Duration = Duration::from_millis(500);
+    // Bounds the wait as a whole: a count of attempts would not, since
+    // each one can spend `ATTEMPT` before the next begins.
+    const READY: Duration = Duration::from_secs(10);
 
     let handshake = format!("http://{addr}/-/pnpr");
     let client = reqwest::Client::new();
-    for _ in 0..200 {
+    let deadline = std::time::Instant::now() + READY;
+    loop {
         let answered = client
             .get(&handshake)
             .timeout(ATTEMPT)
@@ -164,9 +168,9 @@ async fn wait_until_ready(addr: SocketAddr) {
         if answered {
             return;
         }
+        assert!(std::time::Instant::now() < deadline, "pnpr server never became ready at {addr}");
         tokio::time::sleep(Duration::from_millis(20)).await;
     }
-    panic!("pnpr server never became ready at {addr}");
 }
 
 fn parse_content_length(headers: &str) -> usize {

@@ -418,11 +418,31 @@ fn watchdogs() -> Vec<i32> {
 /// for ends pnpm, which here would end the test.
 #[test]
 fn a_signal_taken_while_a_child_is_spawned_reaches_it_once_it_joins() {
+    a_signal_taken_while_a_child_is_spawned(Raise::OnceTheChildTraps);
+}
+
+/// A signal can also arrive before the child exists at all, which is most
+/// of the gap: the spawn itself, and the watchdog's first `sh` behind it.
+/// The claim covers that too, and the child it creates is still given the
+/// signal rather than being left running by the spawn that made it.
+#[test]
+fn a_signal_taken_before_a_child_exists_reaches_it_once_it_joins() {
+    a_signal_taken_while_a_child_is_spawned(Raise::BeforeTheSpawn);
+}
+
+/// When the test raises the signal, relative to the child's creation.
+#[derive(Clone, Copy)]
+enum Raise {
+    BeforeTheSpawn,
+    OnceTheChildTraps,
+}
+
+fn a_signal_taken_while_a_child_is_spawned(raise: Raise) {
     let directory = TempDir::new().expect("create a temporary directory");
     let trapped = directory.path().join("trapped");
-    // The relay's handler has to be in place before the child exists, as
-    // it is in `spawn_child`.
-    crate::interrupt::install_handler();
+    // Claimed before the spawn, as `spawn_child` claims it, which is also
+    // what arms the handler the signal below needs.
+    let mut spawning = crate::interrupt::spawning_child();
     let mut command = Command::new("sh");
     command
         .arg("-c")
@@ -434,16 +454,20 @@ fn a_signal_taken_while_a_child_is_spawned_reaches_it_once_it_joins() {
         // terminal's signals never reach, and the one a parallel run
         // spawns.
         .process_group(0);
+    if matches!(raise, Raise::BeforeTheSpawn) {
+        interrupt_this_process();
+    }
     let mut child = command.spawn().expect("spawn the child");
-    let spawning = crate::interrupt::spawning_child();
+    spawning.spawned();
     // The marker says the child traps the signal, so the child is ready
     // for it and only the relay is not.
     while !trapped.exists() {
         sleep(Duration::from_millis(5));
     }
 
-    // SAFETY: a signal to this process, whose handler is installed above.
-    assert_eq!(unsafe { libc::raise(libc::SIGINT) }, 0, "raise the signal");
+    if matches!(raise, Raise::OnceTheChildTraps) {
+        interrupt_this_process();
+    }
     let relay = crate::interrupt::relay_to_child(child.id(), true);
     spawning.joined(&relay);
 
@@ -454,6 +478,17 @@ fn a_signal_taken_while_a_child_is_spawned_reaches_it_once_it_joins() {
     let status = child.wait().expect("wait for the child");
     dbg!(status);
     assert_eq!(status.code(), Some(42), "the child must end through the signal it traps");
+}
+
+/// Raise `SIGINT` on this process, which the claim in the caller has
+/// armed a handler for.
+///
+/// It is this process's signal alone because nextest gives every test a
+/// process of its own; under a runner that shares one it would reach
+/// another test's children.
+fn interrupt_this_process() {
+    // SAFETY: a signal to this process, whose handler is installed.
+    assert_eq!(unsafe { libc::raise(libc::SIGINT) }, 0, "raise the signal");
 }
 
 fn exits_within(child: &mut Child, deadline: Duration) -> bool {

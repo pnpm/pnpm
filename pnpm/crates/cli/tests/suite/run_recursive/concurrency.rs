@@ -3,7 +3,7 @@
 //! pnpm 11 — <https://github.com/pnpm/pnpm/issues/14933>.
 
 use super::{CommandExtra, CommandTempCwd, Duration, Stdio, fs, json, write_workspace};
-use crate::_utils::{hold_until_cancelled_script, wait_for_child};
+use crate::_utils::{exit_when_marked_script, hold_until_cancelled_script, wait_for_child};
 #[cfg(unix)]
 use crate::_utils::{is_running, read_pid};
 use assert_cmd::assert::OutputAssertExt;
@@ -144,8 +144,8 @@ fn bail_cancels_the_sibling_script_of_the_same_package() {
                 "name": "project-1",
                 "version": "1.0.0",
                 "scripts": {
-                    "dev:slow": hold_until_cancelled_script("slow-started"),
-                    "dev:fail": r#"node -e "const fs = require('fs'); const wait = () => fs.existsSync('slow-started') ? process.exit(17) : setTimeout(wait, 10); wait()""#,
+                    "dev:slow": hold_until_cancelled_script(&workspace.join("project-1"), "slow-started"),
+                    "dev:fail": exit_when_marked_script(&workspace.join("project-1"), "slow-started", 17),
                 },
             }),
         )],
