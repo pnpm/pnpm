@@ -121,6 +121,36 @@ fn hoisted_workspace_package_prunes_removed_bins_from_root() {
 }
 
 #[test]
+fn symlinked_workspace_project_retains_and_prunes_bins_under_both_linkers() {
+    for linker in ["isolated", "hoisted"] {
+        let fixture = workspace(linker, "false");
+        let root = &fixture.workspace;
+        let external_dir = fixture.root
+            .path()
+            .join(format!("external-{linker}"));
+        fs::create_dir_all(&external_dir).unwrap();
+        let external_b = external_dir.join("b");
+        fs::rename(root.join("packages/b"), &external_b).unwrap();
+        pnpm_fs::symlink_dir(&root.join("packages/a"), &external_dir.join("a")).unwrap();
+        pnpm_fs::symlink_dir(&external_b, &root.join("packages/b")).unwrap();
+
+        write_bins(root, &json!({"a-one": "one.js", "a-two": "two.js"}));
+        pnpm(root)
+            .args(["install", "--offline", "--ignore-scripts"])
+            .assert()
+            .success();
+        assert_installed_bins(&external_b.join("node_modules/.bin"), &["a-one", "a-two"]);
+
+        write_bins(root, &json!({"a-renamed": "two.js"}));
+        pnpm(root)
+            .args(["install", "--frozen-lockfile", "--offline", "--ignore-scripts"])
+            .assert()
+            .success();
+        assert_installed_bins(&external_b.join("node_modules/.bin"), &["a-renamed"]);
+    }
+}
+
+#[test]
 fn filtered_installs_keep_unselected_workspace_bins_stale() {
     for linker in ["isolated", "hoisted"] {
         let fixture = workspace(linker, "true");

@@ -185,11 +185,35 @@ pub(super) fn finish_importer_top_level_bins(
             );
         }
     }
+    let selected_dirs = selected_importer_modules_dirs(inputs, modules_dir_name);
     for (modules_dir, claimed) in &claimed_importer_bins {
-        pnpm_cmd_shim::prune_stale_bins(&modules_dir.join(".bin"), claimed)
-            .map_err(BuildPhaseError::TopLevelBinLink)?;
+        if selected_dirs
+            .as_ref()
+            .is_none_or(|dirs| dirs.contains(modules_dir))
+        {
+            pnpm_cmd_shim::prune_stale_bins(&modules_dir.join(".bin"), claimed)
+                .map_err(BuildPhaseError::TopLevelBinLink)?;
+        }
     }
     Ok(())
+}
+
+fn selected_importer_modules_dirs(
+    inputs: &BuildPhaseInputs<'_>,
+    modules_dir_name: &std::ffi::OsStr,
+) -> Option<HashSet<PathBuf>> {
+    (!inputs.graph.trusted_importer_ids.is_empty()).then(|| {
+        let mut dirs = HashSet::new();
+        for importer_id in inputs.graph.trusted_importer_ids {
+            let project_dir =
+                super::importer_root_dir(inputs.directories.top_level_bin_root, importer_id);
+            dirs.insert(pnpm_fs::lexical_normalize(&project_dir.join(modules_dir_name)));
+            if let Ok(real_dir) = std::fs::canonicalize(&project_dir) {
+                dirs.insert(pnpm_fs::lexical_normalize(&real_dir.join(modules_dir_name)));
+            }
+        }
+        dirs
+    })
 }
 
 fn extend_claimed_importer_bins(
