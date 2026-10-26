@@ -1,10 +1,11 @@
 import os, { cpus } from 'node:os'
 
 import { afterEach, beforeEach, expect, jest, test } from '@jest/globals'
+import { getAvailableParallelism } from '@pnpm/os.available-parallelism'
 
 import { getDefaultWorkspaceConcurrency, getWorkspaceConcurrency, resetAvailableParallelismCache } from '../lib/concurrency.js'
 
-const hostCores = cpus().length
+const hostCores = getAvailableParallelism()
 
 beforeEach(() => {
   resetAvailableParallelismCache()
