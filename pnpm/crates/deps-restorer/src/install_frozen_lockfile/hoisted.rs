@@ -10,9 +10,11 @@ pub use hoist_plan::{
 mod direct_links;
 mod hoist_plan;
 mod package_root_links;
+mod replaced_locations;
 mod stale_links;
 mod workspace_links;
 
+use replaced_locations::forget_replaced_hoisted_locations;
 use stale_links::{unlink_prior_workspace_hoists, unlink_stale_direct_links};
 use workspace_links::link_hoisted_workspace_dependencies;
 
@@ -106,6 +108,10 @@ pub enum HoistedLinkerError {
     HoistSymlink(#[error(source)] SymlinkPackageError),
     #[diagnostic(transparent)]
     HoistLinkBins(#[error(source)] pnpm_cmd_shim::LinkBinsError),
+    #[diagnostic(transparent)]
+    ReadModules(#[error(source)] pnpm_modules_yaml::ReadModulesError),
+    #[diagnostic(transparent)]
+    WriteModules(#[error(source)] pnpm_modules_yaml::WriteModulesError),
     #[display("failed to write package map: {_0}")]
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_WRITE_PACKAGE_MAP))]
     WritePackageMap(#[error(source)] crate::WritePackageMapError),
@@ -131,6 +137,7 @@ pub fn run_hoisted_linker<Reporter: self::Reporter>(
     let build_present = inputs.prior.build_present_packages;
     let unbuilt = inputs.prior.unbuilt_builds;
     let walked = walk_hoisted_graph(inputs, lockfile, skipped)?;
+    forget_replaced_hoisted_locations(inputs, &walked)?;
     unlink_prior_workspace_hoists(inputs)?;
     unlink_stale_direct_links(inputs)?;
     let (mut bins, hoisted_dependencies) =

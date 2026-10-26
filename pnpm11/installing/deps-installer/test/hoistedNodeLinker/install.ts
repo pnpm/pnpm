@@ -401,3 +401,35 @@ test('installing with hoisted node-linker a package that is a peer dependency of
   const lockfile = project.readLockfile()
   expect(lockfile.packages['@pnpm.e2e/peer-of-itself@1.0.0'].peerDependencies).toBeFalsy()
 })
+
+const testOnPosix = process.platform === 'win32' ? test.skip : test
+
+// The next install trusts a recorded location, so an install that stops while
+// replacing one must not leave it recorded.
+testOnPosix('an interrupted install forgets the hoisted locations it replaces', async () => {
+  prepareEmpty()
+  const manifest = (version: string) => ({
+    dependencies: {
+      '@pnpm.e2e/dep-of-pkg-with-1-dep': version,
+      'is-positive': '1.0.0',
+    },
+  })
+  await install(manifest('100.0.0'), testDefaults({ nodeLinker: 'hoisted' }))
+  fs.writeFileSync('node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep/witness', '')
+
+  // A read-only scope directory stops the linker before it replaces the package.
+  fs.chmodSync('node_modules/@pnpm.e2e', 0o555)
+  try {
+    await expect(install(manifest('100.1.0'), testDefaults({ nodeLinker: 'hoisted' }))).rejects.toThrow()
+  } finally {
+    fs.chmodSync('node_modules/@pnpm.e2e', 0o755)
+  }
+
+  const { hoistedLocations } = loadJsonFileSync<{ hoistedLocations: Record<string, string[]> }>('node_modules/.modules.yaml')
+  expect(hoistedLocations['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0']).toBeUndefined()
+  expect(hoistedLocations['is-positive@1.0.0']).toStrictEqual([path.join('node_modules', 'is-positive')])
+
+  await install(manifest('100.0.0'), testDefaults({ nodeLinker: 'hoisted' }))
+  expect(fs.existsSync('node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep/witness')).toBe(false)
+  expect(loadJsonFileSync<{ version: string }>('node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep/package.json').version).toBe('100.0.0')
+})
