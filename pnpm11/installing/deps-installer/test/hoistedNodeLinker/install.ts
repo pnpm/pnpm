@@ -402,11 +402,11 @@ test('installing with hoisted node-linker a package that is a peer dependency of
   expect(lockfile.packages['@pnpm.e2e/peer-of-itself@1.0.0'].peerDependencies).toBeFalsy()
 })
 
-const testOnPosix = process.platform === 'win32' ? test.skip : test
+const testOnPosixAsNonRoot = process.platform === 'win32' || process.getuid?.() === 0 ? test.skip : test
 
 // The next install trusts a recorded location, so an install that stops while
 // replacing one must not leave it recorded.
-testOnPosix('an interrupted install forgets the hoisted locations it replaces', async () => {
+testOnPosixAsNonRoot('an interrupted install forgets the hoisted locations it replaces', async () => {
   prepareEmpty()
   const manifest = (version: string) => ({
     dependencies: {
