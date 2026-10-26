@@ -321,12 +321,6 @@ pub enum InstallError {
         error: std::io::Error,
     },
 
-    #[display(
-        "Cannot safely repair the filtered install because the modules directory at {modules_dir:?} is outside the workspace root at {workspace_root:?}"
-    )]
-    #[diagnostic(code(pnpm_package_manager::unsafe_filtered_modules_dir))]
-    UnsafeFilteredModulesDir { modules_dir: PathBuf, workspace_root: PathBuf },
-
     /// Surfaces a failure while removing the direct-dep links an
     /// `included` drift excluded — the non-destructive counterpart of
     /// the purge. See [`crate::prune_direct_deps_excluded_by_groups`].

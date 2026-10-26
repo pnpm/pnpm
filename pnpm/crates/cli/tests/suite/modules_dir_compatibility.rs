@@ -140,6 +140,61 @@ fn add_refuses_a_modules_dir_installed_with_another_node_linker() {
     drop((root, mock_instance));
 }
 
+/// A filtered install refuses a layout drift. Purging the shared modules
+/// directory would break the projects it skips, which it does not relink.
+#[test]
+fn a_filtered_install_refuses_a_layout_drift() {
+    for (key, value, code, relinked_dep) in [
+        ("nodeLinker", "hoisted", "ERR_PNPM_NODE_LINKER_DIFF", "node_modules"),
+        ("hoistPattern", "['is-*']", "ERR_PNPM_HOIST_PATTERN_DIFF", "project-2/node_modules"),
+        (
+            "publicHoistPattern",
+            "['is-*']",
+            "ERR_PNPM_PUBLIC_HOIST_PATTERN_DIFF",
+            "project-2/node_modules",
+        ),
+    ] {
+        let CommandTempCwd { root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+        let skipped_dep = install_two_project_workspace(&workspace);
+
+        append_workspace_yaml_key(&workspace, key, value);
+        assert_report_contains(&run_failing(&workspace, &["--filter", "root", "install"]), &[code]);
+        assert!(skipped_dep.exists(), "{key}: the filtered install broke the skipped project");
+
+        pacquet_in(&workspace)
+            .with_arg("install")
+            .assert()
+            .success();
+        let relinked_dep = workspace.join(relinked_dep).join("is-negative/package.json");
+        assert!(relinked_dep.exists(), "{key}: the full install did not relink the project");
+
+        drop((root, mock_instance));
+    }
+}
+
+/// Returns the manifest of the dependency the non-root project links.
+fn install_two_project_workspace(workspace: &Path) -> PathBuf {
+    let project = workspace.join("project-2");
+    fs::create_dir_all(&project).expect("create project-2");
+    fs::write(workspace.join("package.json"), r#"{"name":"root"}"#)
+        .expect("write root package.json");
+    fs::write(
+        project.join("package.json"),
+        r#"{"name":"project-2","dependencies":{"is-negative":"1.0.0"}}"#,
+    )
+    .expect("write project-2 package.json");
+    append_workspace_yaml_key(workspace, "packages", "[project-2]");
+    pacquet_in(workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    let dep = project.join("node_modules/is-negative/package.json");
+    assert!(dep.exists(), "the install did not link project-2");
+    dep
+}
+
 /// A script runs the same from whichever store `node_modules` was linked
 /// from, so `pnpm run` passes verification and keeps the recorded store for
 /// the install that recreates the tree.

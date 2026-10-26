@@ -63,20 +63,19 @@ export async function validateModules (
   opts: ValidateModulesOptions
 ): Promise<{ purged: boolean }> {
   const rootProject = projects.find(({ id }) => id === '.')
-  const nodeLinkerMismatch = findNodeLinkerMismatch(modules, opts)
-  const layoutMismatch = findLayoutSettingMismatch(modules, opts) ?? nodeLinkerMismatch
+  // A project the install skips is not relinked. Its dependencies live in
+  // the root modules directory or link into the virtual store, so only an
+  // install of every project may recreate them.
+  const canRecreateModulesDirs = opts.forceNewModules && opts.mutatesEveryProject
+  const layoutMismatch = findLayoutSettingMismatch(modules, opts)
   if (layoutMismatch != null) {
-    // A project the install skips is not relinked, and under the hoisted
-    // linker its dependencies live in the root modules directory.
-    const canPurge = opts.forceNewModules && rootProject != null &&
-      (nodeLinkerMismatch == null || opts.mutatesEveryProject)
-    if (canPurge) {
+    if (canRecreateModulesDirs && rootProject != null) {
       return { purged: await purgeModulesDirsOfImporter(opts, rootProject) }
     }
     throw layoutMismatch
   }
 
-  const importersToPurge = collectImportersToPurge(modules, projects, { rootProject, opts })
+  const importersToPurge = collectImportersToPurge(modules, projects, { rootProject, canRecreateModulesDirs, opts })
   if (importersToPurge.length > 0 && (rootProject == null)) {
     importersToPurge.push({
       modulesDir: pathAbsolute(opts.modulesDir, opts.lockfileDir),
@@ -114,59 +113,74 @@ function findLayoutSettingMismatch (modules: Modules, opts: ValidateModulesOptio
       ' Run "pnpm install" to recreate the modules directory.'
     )
   }
+  if ((modules.nodeLinker ?? 'isolated') !== opts.nodeLinker) {
+    return new PnpmError(
+      'NODE_LINKER_DIFF',
+      'This modules directory was created using a different node-linker value.' +
+      ' Run "pnpm install" to recreate the modules directory.'
+    )
+  }
   return undefined
-}
-
-function findNodeLinkerMismatch (modules: Modules, opts: ValidateModulesOptions): PnpmError | undefined {
-  if ((modules.nodeLinker ?? 'isolated') === opts.nodeLinker) return undefined
-  return new PnpmError(
-    'NODE_LINKER_DIFF',
-    'This modules directory was created using a different node-linker value.' +
-    ' Run "pnpm install" to recreate the modules directory.'
-  )
 }
 
 /**
  * The importers whose modules directories are incompatible with this install.
- * Throws the incompatibility instead unless `forceNewModules` is set.
+ * Throws the incompatibility instead unless the install may recreate them:
+ * `canRecreateModulesDirs` for a hoist pattern, layout, or store mismatch,
+ * `forceNewModules` for a project installed with other dependency groups.
  */
 function collectImportersToPurge (
   modules: Modules,
   projects: ProjectToValidate[],
-  { rootProject, opts }: { rootProject: ProjectToValidate | undefined, opts: ValidateModulesOptions }
+  { rootProject, canRecreateModulesDirs, opts }: {
+    rootProject: ProjectToValidate | undefined
+    canRecreateModulesDirs: boolean
+    opts: ValidateModulesOptions
+  }
 ): ImporterToPurge[] {
   const importersToPurge: ImporterToPurge[] = []
-  if (
-    !modules.virtualStoreOnly &&
-    rootProject != null &&
-    !equals(opts.currentHoistPattern ?? [], opts.hoistPattern ?? [])
-  ) {
-    if (!opts.forceNewModules) {
-      throw new PnpmError(
-        'HOIST_PATTERN_DIFF',
-        'This modules directory was created using a different hoist-pattern value.' +
-        ' Run "pnpm install" to recreate the modules directory.'
-      )
-    }
+  if (rootProject != null && needsPurge(() => checkHoistPattern(modules, opts), canRecreateModulesDirs)) {
     importersToPurge.push(rootProject)
   }
   for (const project of projects) {
-    try {
-      checkProjectModulesDir(modules, project, opts)
-    } catch (err: any) { // eslint-disable-line
-      if (!opts.forceNewModules) throw err
+    const compatibilityOpts = {
+      modulesDir: project.modulesDir,
+      storeDir: opts.storeDir,
+      virtualStoreDir: opts.virtualStoreDir,
+    }
+    if (
+      needsPurge(() => checkCompatibility(modules, compatibilityOpts), canRecreateModulesDirs) ||
+      needsPurge(() => checkIncludedDeps(modules, project, opts), opts.forceNewModules)
+    ) {
       importersToPurge.push(project)
     }
   }
   return importersToPurge
 }
 
-function checkProjectModulesDir (modules: Modules, project: ProjectToValidate, opts: ValidateModulesOptions): void {
-  checkCompatibility(modules, {
-    modulesDir: project.modulesDir,
-    storeDir: opts.storeDir,
-    virtualStoreDir: opts.virtualStoreDir,
-  })
+/**
+ * Whether `check` fails. The failure is thrown instead unless `canPurge`.
+ */
+function needsPurge (check: () => void, canPurge: boolean): boolean {
+  try {
+    check()
+    return false
+  } catch (err: unknown) {
+    if (!canPurge) throw err
+    return true
+  }
+}
+
+function checkHoistPattern (modules: Modules, opts: ValidateModulesOptions): void {
+  if (modules.virtualStoreOnly || equals(opts.currentHoistPattern ?? [], opts.hoistPattern ?? [])) return
+  throw new PnpmError(
+    'HOIST_PATTERN_DIFF',
+    'This modules directory was created using a different hoist-pattern value.' +
+    ' Run "pnpm install" to recreate the modules directory.'
+  )
+}
+
+function checkIncludedDeps (modules: Modules, project: ProjectToValidate, opts: ValidateModulesOptions): void {
   if (opts.lockfileDir === project.rootDir || (opts.include == null) || !modules.included) return
   const included = modules.included
   if (DEPENDENCIES_FIELDS.some((depsField) => opts.include![depsField] !== included[depsField])) {

@@ -18,9 +18,10 @@ pub(super) struct InconsistentModulesDir<'a> {
 pub(super) fn purge_inconsistent_modules_dir(
     context: &InconsistentModulesDir<'_>,
 ) -> Result<(), InstallError> {
-    // Upstream `validateModules` purges only for a plain install
-    // (`forceNewModules = installsOnly`).
-    if !context.installs_only {
+    // Only a plain install (upstream `forceNewModules = installsOnly`) of
+    // every project purges. A project the install skips is not relinked, and
+    // its dependencies live in the purged directory or link into it.
+    if !context.installs_only || context.filtered_install {
         return refuse_drifted_modules_dir(
             context.modules_manifest,
             context.config,
@@ -29,12 +30,6 @@ pub(super) fn purge_inconsistent_modules_dir(
     }
     let (is_safe, target_dir) = purge_target(context.config, context.workspace_root);
     if !is_safe {
-        if context.filtered_install {
-            return Err(InstallError::UnsafeFilteredModulesDir {
-                modules_dir: context.config.modules_dir.clone(),
-                workspace_root: context.workspace_root.to_path_buf(),
-            });
-        }
         tracing::warn!(
             ?context.config.modules_dir,
             "refusing to remove inconsistent modules directory outside the project root",
