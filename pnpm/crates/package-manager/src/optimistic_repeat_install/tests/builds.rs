@@ -77,6 +77,7 @@ fn returns_skipped_when_patch_file_modified_after_validation() {
 
     let mut config = Config::new();
     config.modules_dir = workspace_root.join("node_modules");
+    config.workspace_dir = Some(workspace_root.to_path_buf());
     fs::create_dir_all(&config.modules_dir).unwrap();
     let mut patched = indexmap::IndexMap::new();
     patched.insert("foo@1.0.0".to_string(), "patches/foo.patch".to_string());
@@ -106,6 +107,56 @@ fn returns_skipped_when_patch_file_modified_after_validation() {
     );
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("patch")));
 }
+/// With dedicated lockfiles a project's state lives in the project, and its
+/// patch files are read from the workspace directory, as the config hashes
+/// them.
+#[test]
+fn a_project_with_its_own_lockfile_sees_an_edited_workspace_patch() {
+    let dir = tempdir().unwrap();
+    let project_dir = dir.path().join("project");
+    fs::create_dir_all(&project_dir).unwrap();
+    let manifest_path = project_dir.join("package.json");
+    fs::write(&manifest_path, r#"{"name":"project","version":"1.0.0"}"#).unwrap();
+    let manifest = PackageManifest::from_path(manifest_path).unwrap();
+    write_empty_lockfile(&project_dir);
+    let patch_path = dir
+        .path()
+        .join("patches")
+        .join("foo.patch");
+    fs::create_dir_all(patch_path.parent().unwrap()).unwrap();
+    fs::write(&patch_path, "--- a\n+++ b\n").unwrap();
+
+    let mut config = Config::new();
+    config.modules_dir = project_dir.join("node_modules");
+    config.workspace_dir = Some(dir.path().to_path_buf());
+    fs::create_dir_all(&config.modules_dir).unwrap();
+    config.patched_dependencies = Some(indexmap::IndexMap::from([(
+        "foo@1.0.0".to_string(),
+        "patches/foo.patch".to_string(),
+    )]));
+    let config = config.leak();
+    let settings =
+        current_settings(config, pnpm_config::NodeLinker::Isolated, isolated_included(), None);
+    let projects = BTreeMap::from([(
+        project_dir.to_string_lossy().into_owned(),
+        ProjectEntry {
+            name: Some("project".into()),
+            version: Some("1.0.0".into()),
+            has_modules_dir: false,
+        },
+    )]);
+    write_state(&project_dir, backdate_validated_files(dir.path()), settings, projects);
+    fs::write(&patch_path, "--- a\n+++ b\n+edited\n").unwrap();
+
+    let decision = check(
+        &project_dir,
+        config,
+        pnpm_config::NodeLinker::Isolated,
+        &[(project_dir.clone(), &manifest)],
+    );
+    assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("patch")));
+}
+
 /// A newer patch mtime is resolved by comparing its content with the lockfile.
 #[test]
 fn workspace_compares_newer_patch_content_with_lockfile() {
