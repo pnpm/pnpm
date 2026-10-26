@@ -7,6 +7,8 @@ use install::{
 mod specifier;
 use specifier::{normalized_save_specifier, resolve_added_dependency};
 
+mod alias;
+
 mod workspace_specifier;
 use workspace_specifier::workspace_packages_for_add;
 

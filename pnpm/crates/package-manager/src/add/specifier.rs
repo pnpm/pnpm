@@ -1,8 +1,9 @@
 use super::{
     AddError, AddResolveInputs,
+    alias::{npm_alias_target, resolve_npm_alias_save_specifier},
     aliasless::{AliaslessDependency, resolve_aliasless_specifier},
     manifest::apply_catalog_decision,
-    registry::{pick_latest_range, resolve_explicit_registry_spec},
+    registry::{pick_latest_range, registry_specifier_to_save, resolve_explicit_registry_spec},
     workspace_specifier::workspace_save_specifier,
 };
 use crate::{
@@ -10,7 +11,7 @@ use crate::{
     runtime_specifier::{node_runtime_version_spec, runtime_save_specifier},
 };
 use pnpm_catalogs_types::Catalogs;
-use pnpm_config::{CatalogMode, Tool};
+use pnpm_config::Tool;
 use pnpm_engine_runtime_node_resolver::NodeResolver;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_package_name::is_valid_dependency_alias;
@@ -208,32 +209,8 @@ pub(super) async fn bare_save_specifier(
     let package_name = selector.package_name(package_selector);
     let explicit_spec = selector.explicit_spec(package_selector);
     if let Some(ProtocolSelector::Npm { name, spec }) = npm_alias_target(package_selector)? {
-        let previous_specifier = prev_specifier
-            .and_then(|previous| ProtocolSelector::parse(previous).ok().flatten())
-            .and_then(|previous| match previous {
-                ProtocolSelector::Npm { name: previous_name, spec } if previous_name == name => {
-                    spec
-                }
-                _ => None,
-            });
-        let target_specifier = spec
-            .as_deref()
-            .filter(|spec| !spec.is_empty());
-        if target_specifier.is_none()
-            && let Some(previous_specifier) = previous_specifier.as_deref()
-        {
-            return Ok(format!("npm:{name}@{previous_specifier}").into());
-        }
-        let mut saved = explicit_registry_save_specifier(
-            &name,
-            target_specifier.unwrap_or_else(|| inputs.add.config.default_tag()),
-            previous_specifier.as_deref(),
-            manifest,
-            inputs,
-        )
-        .await?;
-        saved.specifier = format!("npm:{name}@{}", saved.specifier);
-        return Ok(saved);
+        return resolve_npm_alias_save_specifier(&name, spec, prev_specifier, manifest, inputs)
+            .await;
     }
     if let Some(workspace_specifier) = workspace_save_specifier(
         package_name,
@@ -264,17 +241,6 @@ pub(super) async fn bare_save_specifier(
     registry_save_specifier(package_name, explicit_spec, prev_specifier, manifest, inputs).await
 }
 
-fn npm_alias_target(package_selector: &str) -> Result<Option<ProtocolSelector>, AddError> {
-    let parsed = pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency(package_selector);
-    if parsed.alias.is_none() {
-        return Ok(None);
-    }
-    let Some(specifier) = parsed.bare_specifier.filter(|specifier| specifier.starts_with("npm:"))
-    else {
-        return Ok(None);
-    };
-    ProtocolSelector::parse(&specifier)
-}
 /// [`bare_save_specifier`] for a plain registry selector.
 async fn registry_save_specifier(
     package_name: &str,
@@ -304,7 +270,7 @@ async fn registry_save_specifier(
     }
 }
 /// [`registry_save_specifier`] for a registry selector that names `spec`.
-async fn explicit_registry_save_specifier(
+pub(super) async fn explicit_registry_save_specifier(
     package_name: &str,
     spec: &str,
     prev_specifier: Option<&str>,
@@ -330,21 +296,10 @@ async fn explicit_registry_save_specifier(
     )
 }
 
-fn registry_specifier_to_save(
-    picked: &super::registry::PickedRange,
-    catalog_mode: CatalogMode,
-) -> String {
-    if catalog_mode == CatalogMode::Strict && picked.is_tag {
-        picked.version.clone()
-    } else {
-        picked.range.clone()
-    }
-}
-
 /// What [`bare_save_specifier`] records, and the version it resolved an
 /// explicit registry specifier to.
 pub(super) struct SaveSpecifier {
-    specifier: String,
+    pub(super) specifier: String,
     picked: Option<PickedPackage>,
 }
 impl From<String> for SaveSpecifier {
@@ -517,32 +472,5 @@ pub(super) fn normalized_save_specifier(spec: &str) -> String {
     match HostedGit::from_url(spec) {
         Some(hosted) if hosted.auth.is_none() => hosted.shortcut(HostedOpts::default()),
         _ => spec.to_string(),
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{CatalogMode, registry_specifier_to_save};
-    use crate::add::registry::PickedRange;
-
-    #[test]
-    fn strict_catalogs_pin_tag_selectors_to_the_picked_version() {
-        let picked = PickedRange {
-            range: "^2.7.16".to_string(),
-            version: "2.7.16".to_string(),
-            is_tag: true,
-        };
-        assert_eq!(registry_specifier_to_save(&picked, CatalogMode::Strict), "2.7.16");
-        assert_eq!(registry_specifier_to_save(&picked, CatalogMode::Prefer), "^2.7.16");
-    }
-
-    #[test]
-    fn strict_catalogs_keep_range_selectors() {
-        let picked = PickedRange {
-            range: "^2.7.16".to_string(),
-            version: "2.7.16".to_string(),
-            is_tag: false,
-        };
-        assert_eq!(registry_specifier_to_save(&picked, CatalogMode::Strict), "^2.7.16");
     }
 }

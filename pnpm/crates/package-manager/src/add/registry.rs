@@ -3,7 +3,7 @@ use crate::{
     resolution_policy::{PickPolicy, pick_package_context},
     resolve_latest::LatestPicker,
 };
-use pnpm_config::Config;
+use pnpm_config::{CatalogMode, Config};
 use pnpm_package_manifest::PackageManifest;
 use pnpm_registry::RangeSpecStyle;
 use pnpm_resolving_npm_resolver::{
@@ -57,6 +57,18 @@ pub(super) struct PickedRange {
     pub(super) version: String,
     pub(super) is_tag: bool,
 }
+
+pub(super) fn registry_specifier_to_save(
+    picked: &PickedRange,
+    catalog_mode: CatalogMode,
+) -> String {
+    if catalog_mode == CatalogMode::Strict && picked.is_tag {
+        picked.version.clone()
+    } else {
+        picked.range.clone()
+    }
+}
+
 /// Resolve an explicit `add <name>@<spec>` registry specifier to the
 /// manifest range pnpm would record: the spec resolved to a concrete
 /// version (through the *same* resolver path the follow-up install uses —
@@ -68,11 +80,9 @@ pub(super) struct PickedRange {
 /// saved as `^3.9.4` while `3.9.10` exists), so the install has to be seeded
 /// with [`PickedRange::version`] to lock it.
 ///
-/// Returns `Ok(None)` — write the specifier verbatim — for anything that is
-/// not a plain registry range/tag/version for `package_name` itself:
-/// non-registry protocols (`git:`/`file:`/`workspace:`/URLs, which
-/// [`parse_bare_specifier`] rejects), `npm:` aliases (resolving them risks
-/// dropping the aliased target), and specifiers that resolve to no version.
+/// Returns `Ok(None)` — write the specifier verbatim — for non-registry
+/// protocols (`git:`/`file:`/`workspace:`/URLs, which [`parse_bare_specifier`]
+/// rejects) and specifiers that resolve to no version.
 pub(super) async fn resolve_explicit_registry_spec(
     package_name: &str,
     spec: &str,
@@ -80,13 +90,10 @@ pub(super) async fn resolve_explicit_registry_spec(
     manifest: &PackageManifest,
     inputs: &AddResolveInputs<'_, '_>,
 ) -> Result<Option<PickedRange>, AddError> {
-    if spec.starts_with("npm:") {
-        return Ok(None);
-    }
     let add = inputs.add;
     let resolution = inputs.resolution;
-    let registry = package_registry(add.config, package_name);
-    let Some(spec_parsed) = parse_explicit_registry_spec(package_name, spec, &registry) else {
+    let Some((registry, spec_parsed)) = explicit_registry_spec(package_name, spec, add.config)
+    else {
         return Ok(None);
     };
 
@@ -126,6 +133,18 @@ pub(super) async fn resolve_explicit_registry_spec(
         version: picked.version.to_string(),
         is_tag: spec_parsed.spec_type == pnpm_resolving_npm_resolver::RegistryPackageSpecType::Tag,
     }))
+}
+
+fn explicit_registry_spec(
+    package_name: &str,
+    spec: &str,
+    config: &Config,
+) -> Option<(String, pnpm_resolving_npm_resolver::RegistryPackageSpec)> {
+    if spec.starts_with("npm:") {
+        return None;
+    }
+    let registry = package_registry(config, package_name);
+    parse_explicit_registry_spec(package_name, spec, &registry).map(|parsed| (registry, parsed))
 }
 pub(super) fn add_pick_policy(
     inputs: &AddResolveInputs<'_, '_>,
@@ -213,3 +232,6 @@ pub(super) fn is_registry_style_specifier(
     parse_bare_specifier(specifier, Some(package_name), "latest", registry)
         .is_some_and(|parsed| parsed.normalized_bare_specifier.is_none())
 }
+
+#[cfg(test)]
+mod tests;
