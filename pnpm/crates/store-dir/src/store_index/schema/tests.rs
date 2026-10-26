@@ -1,8 +1,8 @@
-use crate::StoreIndex;
+use crate::{StoreIndex, store_index::tests::sample_index};
 use std::{path::Path, sync::Barrier};
 
 #[test]
-fn concurrent_first_open_keeps_every_writer_available() {
+fn concurrent_first_open_persists_every_writer_row() {
     for _ in 0..16 {
         let store = tempfile::tempdir().unwrap();
         open_concurrently(store.path());
@@ -13,15 +13,29 @@ fn open_concurrently(store: &Path) {
     let start = Barrier::new(8);
     std::thread::scope(|scope| {
         let writers = (0..8)
-            .map(|_| {
-                scope.spawn(|| {
+            .map(|worker| {
+                let start = &start;
+                scope.spawn(move || {
                     start.wait();
-                    StoreIndex::open(store).expect("initialize a concurrent store writer")
+                    let index =
+                        StoreIndex::open(store).expect("initialize a concurrent store writer");
+                    index
+                        .set(&format!("fixture-{worker}"), &sample_index())
+                        .unwrap();
                 })
             })
             .collect::<Vec<_>>();
         for writer in writers {
-            drop(writer.join().unwrap());
+            writer.join().unwrap();
         }
     });
+    let index = StoreIndex::open_readonly(store).unwrap();
+    for worker in 0..8 {
+        assert_eq!(
+            index
+                .get(&format!("fixture-{worker}"))
+                .unwrap(),
+            Some(sample_index())
+        );
+    }
 }
