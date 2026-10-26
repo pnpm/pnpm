@@ -174,6 +174,35 @@ fn a_filtered_install_refuses_a_layout_drift() {
     }
 }
 
+/// A tree linked from the sibling `v3` store passes the refusal, so a filtered
+/// install keeps it and merges into its records.
+#[test]
+fn a_filtered_install_keeps_the_records_of_a_tree_linked_from_the_v3_store() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let skipped_dep = install_two_project_workspace(&workspace);
+    // The repeat-install fast path never reads `.modules.yaml`.
+    append_workspace_yaml_key(&workspace, "optimisticRepeatInstall", false);
+    let modules_path = workspace.join("node_modules/.modules.yaml");
+    let mut modules = read_json(&modules_path);
+    let v3_store = recorded_path(&modules, "storeDir").with_file_name("v3");
+    modules["storeDir"] = v3_store.display().to_string().into();
+    fs::write(&modules_path, modules.to_string()).expect("write .modules.yaml");
+
+    pacquet_in(&workspace)
+        .with_args(["--filter", "root", "install"])
+        .assert()
+        .success();
+
+    assert!(skipped_dep.exists(), "the filtered install broke the skipped project");
+    let current = fs::read_to_string(workspace.join("node_modules/.pnpm/lock.yaml"))
+        .expect("read the current lockfile");
+    assert!(current.contains("project-2:"), "the current lockfile dropped project-2:\n{current}");
+
+    drop((root, mock_instance));
+}
+
 /// Returns the manifest of the dependency the non-root project links.
 fn install_two_project_workspace(workspace: &Path) -> PathBuf {
     let project = workspace.join("project-2");
