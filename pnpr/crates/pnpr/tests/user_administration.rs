@@ -24,7 +24,7 @@ fn load_config(dir: &TempDir) -> Config {
     let storage = dir.path().join("storage");
     std::fs::create_dir_all(&storage).unwrap();
     let yaml = format!(
-        "storage: {}\nauth:\n  admins: [root]\n  htpasswd:\n    file: ./htpasswd\n    max_users: 1\n",
+        "storage: {}\nauth:\n  admins: [root]\n  htpasswd:\n    file: ./htpasswd\n    maxUsers: 1\n",
         storage.display(),
     );
     let path = dir.path().join("config.yaml");

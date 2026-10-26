@@ -17,7 +17,7 @@ use super::{AccessSpec, TeamDirectory};
 ///
 /// [`Self::headers`] is resolved once, at config load, from the YAML
 /// `auth:` block (an `Authorization` header derived from
-/// `type`/`token`/`token_env`) merged with the `headers:` map. The
+/// `type`/`token`/`tokenEnv`) merged with the `headers:` map. The
 /// parse-time shape lives in `UpstreamConfigFile`; `resolve_upstream_config` turns
 /// one into the other. Verdaccio fields pnpr doesn't model yet
 /// (agent options, `strict_ssl`, ...) are accepted and dropped.
@@ -27,10 +27,10 @@ pub struct UpstreamConfig {
     /// Auth + custom headers, fully resolved and ready to attach to
     /// every request pnpr makes to this upstream.
     pub headers: HeaderMap,
-    /// Per-upstream packument freshness window (verdaccio's `maxage`).
+    /// Per-upstream packument freshness window (`maxAge`).
     /// `None` when the YAML omits it — the proxy then falls back to the
     /// global [`super::HttpConfig::packument_ttl`], so the existing
-    /// `--packument-ttl-secs` flag still governs upstreams that don't set
+    /// `--packument-ttl` flag still governs upstreams that don't set
     /// their own.
     pub maxage: Option<Duration>,
     /// Whether tarballs fetched from this upstream are written to the local
@@ -138,8 +138,7 @@ impl fmt::Debug for RedactedHeaders<'_> {
 /// `headers:` map. Built from an `upstream:` registry entry
 /// ([`super::resolve_upstream_registry`](crate::registry_graph::resolve_upstream_registry)) and resolved into [`UpstreamConfig`] by
 /// [`resolve_upstream_config`].
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[derive(Debug)]
 #[cfg_attr(
     dylint_lib = "perfectionist",
     expect(
@@ -149,30 +148,21 @@ impl fmt::Debug for RedactedHeaders<'_> {
 )]
 pub(super) struct UpstreamConfigFile {
     pub(super) url: String,
-    #[serde(default)]
     pub(super) auth: Option<UpstreamAuthFile>,
-    #[serde(default)]
     pub(super) headers: IndexMap<String, String>,
     /// Interval strings (`"2m"`, `"30s"`, `"1h30m"`) or a bare
     /// number of seconds; parsed by [`parse_interval`] in
     /// [`resolve_upstream_config`]. Kept as raw strings here so an unparsable
     /// value surfaces as a config error rather than a serde failure.
-    #[serde(default, rename = "maxAge", alias = "maxage", alias = "max_age")]
     pub(super) maxage: Option<Interval>,
-    #[serde(default)]
     pub(super) timeout: Option<Interval>,
-    #[serde(default, rename = "maxFails", alias = "max_fails")]
     pub(super) max_fails: Option<u32>,
-    #[serde(default, rename = "failTimeout", alias = "fail_timeout")]
     pub(super) fail_timeout: Option<Interval>,
-    #[serde(default)]
     pub(super) cache: Option<bool>,
-    #[serde(default)]
     pub(super) search: bool,
     /// Which pnpr callers may select this upstream as a proxied private-route
     /// credential. Its presence is what promotes a plain proxy upstream into a
     /// resolver private-route credential exposed at `/~<name>/`.
-    #[serde(default)]
     pub(super) access: Option<AccessSpec>,
 }
 
@@ -213,7 +203,7 @@ impl<'de> Deserialize<'de> for Interval {
 }
 
 /// The YAML `auth:` block on an upstream. `token` takes priority over
-/// `token_env`; either resolves to the credential placed in the
+/// `tokenEnv`; either resolves to the credential placed in the
 /// `Authorization` header, encoded per [`UpstreamAuthType`].
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -221,7 +211,7 @@ pub(super) struct UpstreamAuthFile {
     pub(super) r#type: UpstreamAuthType,
     #[serde(default)]
     pub(super) token: Option<String>,
-    #[serde(default, rename = "tokenEnv", alias = "token_env")]
+    #[serde(default)]
     pub(super) token_env: Option<TokenEnv>,
 }
 
@@ -349,7 +339,7 @@ fn upstream_headers<Sys: EnvVar>(
             .ok_or_else(|| RegistryError::InvalidConfig {
                 reason: format!(
                     "upstream {name:?} has an auth block but no token could be resolved \
-                     (set auth.token or point auth.token_env at a set env var)",
+                     (set auth.token or point auth.tokenEnv at a set env var)",
                 ),
             })?;
         let value = match auth.r#type {

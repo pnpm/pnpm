@@ -25,18 +25,18 @@ pub struct S3Settings {
     /// Lets one bucket hold more than just the hosted store.
     #[serde(default)]
     pub prefix: Option<String>,
-    #[serde(default, rename = "accessKeyId", alias = "access_key_id")]
+    #[serde(default)]
     pub access_key_id: Option<String>,
-    #[serde(default, rename = "secretAccessKey", alias = "secret_access_key")]
+    #[serde(default)]
     pub secret_access_key: Option<String>,
     /// Force path-style addressing (`endpoint/bucket/key`) instead of
     /// virtual-hosted (`bucket.endpoint/key`). `MinIO` typically needs
     /// this; AWS and R2 work with the default.
-    #[serde(default, rename = "forcePathStyle", alias = "force_path_style")]
+    #[serde(default)]
     pub force_path_style: Option<bool>,
     /// Allow plain-HTTP endpoints — needed for a local `MinIO` over
     /// `http://`. Defaults to HTTPS-only.
-    #[serde(default, rename = "allowHttp", alias = "allow_http")]
+    #[serde(default)]
     pub allow_http: Option<bool>,
 }
 

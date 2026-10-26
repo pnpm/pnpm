@@ -313,7 +313,7 @@ async fn record_cached_tgz_tar_integrity(
             )
             .with_bins(inspection.bins),
         ),
-        (None, Some(existing)) if existing.scanned && existing.bins.is_none() => {
+        (None, Some(existing)) if existing.is_scanned() && existing.bins.is_none() => {
             Some(existing.with_bins(Some(std::collections::BTreeMap::new())))
         }
         (None, _) => None,

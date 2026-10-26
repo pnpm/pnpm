@@ -243,7 +243,7 @@ registries:
     url: https://npm.corp.example.com/
     auth:
       type: bearer
-      token_env: CORP_NPM_TOKEN
+      tokenEnv: CORP_NPM_TOKEN
     access: $authenticated
     packages:
       '@corp/*': {}
@@ -253,12 +253,12 @@ registries:
 | --- | --- |
 | `url` | Upstream registry URL. |
 | `public` | Marks an anonymous, world-readable origin (e.g. the public npm registry). A public upstream sends no credential and no custom headers; declaring `auth`, `access`, or `headers` alongside `public: true` is a config error. |
-| `auth` | Server-owned credential for a private origin. `type` is `bearer` or `basic`; provide `token`, or `token_env: true` to read `NPM_TOKEN`, or `token_env: NAME` to read a named environment variable. |
+| `auth` | Server-owned credential for a private origin. `type` is `bearer` or `basic`; provide `token`, or `tokenEnv: true` to read `NPM_TOKEN`, or `tokenEnv: NAME` to read a named environment variable. |
 | `headers` | Extra request headers to send upstream. If `headers.Authorization` is set, it overrides the `auth`-derived header. |
 | `access` | Which pnpr users may reach this registry at `/~<name>/` (and resolve through it). Required for a non-`public` upstream. |
 | `teams` | Named user sets for this registry, referenced from its access lists as `team:<name>`. See [Teams](#teams). |
 | `packages` | The names this upstream serves through pnpr. See [above](#the-packages-map). |
-| `maxAge` | Per-registry packument freshness window. Overrides [`packumentTtl`](#packumentttl) and `--packument-ttl` for this registry. Aliases: `maxage`, `max_age`. |
+| `maxAge` | Per-registry packument freshness window. Overrides [`packumentTtl`](#packumentttl) and `--packument-ttl` for this registry. |
 | `timeout` | Per-request upstream deadline. Defaults to `30s`. |
 | `maxFails` | Consecutive failures before the upstream circuit breaker opens. Defaults to `2`; `0` disables the breaker. |
 | `failTimeout` | Cooldown before an open circuit is probed again. Defaults to `5m`. |
@@ -382,7 +382,7 @@ registries:
     url: https://npm.corp.example.com/
     auth:
       type: bearer
-      token_env: CORP_NPM_TOKEN
+      tokenEnv: CORP_NPM_TOKEN
     teams:
       platform: [alice, bob]
       frontend: [carol, dave]
@@ -525,7 +525,6 @@ CIDR-restricted bearer tokens. When omitted or empty, forwarding headers are ign
 and the socket peer IP is used directly.
 
 Supports exact IPs, CIDR notation (IPv4 and IPv6), and the `"loopback"` keyword.
-Accepts `trustedProxies` (camelCase) or `trusted_proxies` (snake_case).
 
 ## `trustedProxyHeader`
 
@@ -553,7 +552,6 @@ Defaults to `60s`. Set to `0` to disable timeouts.
 
 This timeout bounds request processing, authentication, and response generation. Once response headers are sent and streaming of the response body begins (such as for package tarballs or artifact blobs), active body transfers proceed without being interrupted by the timeout.
 
-Accepts `requestTimeout` (camelCase) or `request_timeout` (snake_case).
 Can be specified as an integer number of seconds (e.g. `30`) or with a duration suffix (e.g. `30s`, `1m`).
 
 ```yaml title="pnpr.yaml"
@@ -566,7 +564,6 @@ How long cached upstream packuments remain fresh before pnpr revalidates them ag
 
 Defaults to `5m`. Can be overridden per-process with the `--packument-ttl` CLI flag.
 
-Accepts `packumentTtl` (camelCase) or `packument_ttl` (snake_case).
 Can be specified as an integer number of seconds (e.g. `10`) or with a duration suffix (e.g. `10s`, `1m`).
 
 ```yaml title="pnpr.yaml"
@@ -605,13 +602,13 @@ auth:
     file: ./htpasswd
     # Self-registration is disabled when omitted or set to -1.
     # Set a non-negative cap to allow new users.
-    max_users: -1
+    maxUsers: -1
   tokens:
     # Optional. Defaults to a tokens.db sibling of the htpasswd file.
     file: ./tokens.db
 ```
 
-Omitted `max_users` means registration disabled, not unlimited registration.
+Omitted `maxUsers` means registration disabled, not unlimited registration.
 Existing users can still log in. When `auth.tokens.file` is omitted and
 `auth.htpasswd.file` is set, the token database defaults to `tokens.db` next to
 the htpasswd file.

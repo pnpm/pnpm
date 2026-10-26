@@ -80,7 +80,7 @@ Everything pnpr reads is cached for every client that follows.
 | `--storage <path>` | Override the storage directory from the loaded config. |
 | `--cache <path>` | Override the disposable proxy-cache directory (the mirror of upstream registries plus the resolver cache). Defaults to a `.pnpr-cache` subdirectory of `--storage`. |
 | `--public-url <url>` | URL clients should use to reach the server, used when rewriting `dist.tarball` in served packuments. Defaults to `http://<listen>`. |
-| `--packument-ttl-secs <n>` | Seconds before a cached packument is considered stale and refetched. |
+| `--packument-ttl <interval>` | Duration before a cached packument is considered stale and refetched (e.g. `5m`, `300s`, or bare seconds). |
 | `--osv` | Enable local OSV npm vulnerability checks. Requires a local OSV npm database at `--osv-db` or `<cache>/osv/npm/all.zip`. |
 | `--osv-db <path>` | Path to the local OSV npm database zip or extracted JSON directory. |
 | `--disable-registry` | Disable the npm-registry surface (packument and tarball reads, publish, unpublish, dist-tag, search). |
@@ -90,7 +90,7 @@ Everything pnpr reads is cached for every client that follows.
 Every flag can also be set through an environment variable named after
 it: `PNPR_` followed by the flag name in upper case with dashes replaced
 by underscores. `--public-url` becomes `PNPR_PUBLIC_URL` and
-`--packument-ttl-secs` becomes `PNPR_PACKUMENT_TTL_SECS`. A flag given on
+`--packument-ttl` becomes `PNPR_PACKUMENT_TTL`. A flag given on
 the command line wins over its environment variable. Boolean flags such
 as `--disable-registry` accept `true`, `1`, `yes`, `on`, `false`, `0`,
 `no`, and `off`.
@@ -251,7 +251,7 @@ Database drivers are Cargo-feature gated:
 | Backend | Config key | Cargo feature |
 | --- | --- | --- |
 | libsql / Turso | `backend.libsql` | `backend-libsql` (enabled by default) |
-| PostgreSQL | `backend.postgres` or `backend.postgresql` | `backend-postgres` |
+| PostgreSQL | `backend.postgres` | `backend-postgres` |
 | MySQL-compatible | `backend.mysql` | `backend-mysql` |
 
 Token lookups happen on the request hot path, so the database should be
@@ -275,7 +275,7 @@ backend:
 | `url` | yes | Database URL — `libsql://<db>.turso.io` (Turso) or `http://<host>:<port>` (self-hosted `sqld`). |
 | `authToken` | no | Bearer token for the database. Omit for an unauthenticated local `sqld`. |
 | `replicaPath` | no | Path to a local **embedded replica**. When set, reads (token lookups) hit this local file instead of a network round-trip; writes still go to the primary. Absent ⇒ every read is a remote query. |
-| `syncIntervalSecs` | no | How often (seconds) the embedded replica pulls from the primary. Only meaningful with `replicaPath`; bounds how stale a read can be (token-revocation lag). `0` disables background sync. Defaults to `60`. |
+| `syncInterval` | no | How often the embedded replica pulls from the primary (e.g. `60s`, `1m`, or integer seconds). Only meaningful with `replicaPath`; bounds how stale a read can be (token-revocation lag). `0` disables background sync. Defaults to `60s`. |
 
 Token lookups happen on the request hot path, so for a remote primary
 (e.g. Turso) set `replicaPath` to serve reads from a local replica:
@@ -286,12 +286,12 @@ backend:
     url: ${PNPR_LIBSQL_URL}
     authToken: ${PNPR_LIBSQL_TOKEN}
     replicaPath: ./auth-replica.db
-    syncIntervalSecs: 60
+    syncInterval: 60s
 ```
 
 The trade-off is read freshness: an embedded replica reflects another
 replica's writes (a token issued or revoked elsewhere) only after the
-next background sync, so lower `syncIntervalSecs` means less
+next background sync, so lower `syncInterval` means less
 revocation lag. Omit `replicaPath` to always read the primary directly.
 
 PostgreSQL:
@@ -317,7 +317,7 @@ feature, for example `cargo build -p pnpr --features backend-postgres`.
 
 When the `backend:` block is absent, auth stays on local disk and the
 `auth.htpasswd` / `auth.tokens` settings apply as before. The
-`auth.htpasswd.max_users` registration cap is honored either way.
+`auth.htpasswd.maxUsers` registration cap is honored either way.
 
 ### Running several replicas
 

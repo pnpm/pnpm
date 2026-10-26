@@ -19,7 +19,7 @@ const CONFIG: &str = "\
 auth:
   admins: [root]
   htpasswd:
-    max_users: 100
+    maxUsers: 100
 registries:
   local:
     type: hosted
@@ -386,7 +386,7 @@ async fn moving_registry_into_ecosystem_group_preserves_rules() {
 auth:
   admins: [root]
   htpasswd:
-    max_users: 100
+    maxUsers: 100
 registries:
   npm:
     local:
@@ -432,7 +432,7 @@ async fn cargo_and_pypi_hosted_registries_reject_unpublish_rules() {
 auth:
   admins: [root]
   htpasswd:
-    max_users: 100
+    maxUsers: 100
 registries:
   cargo:
     crates:
@@ -507,7 +507,7 @@ async fn pre_upgrade_stored_unpublish_override_on_cargo_does_not_lock_out_regist
 auth:
   admins: [root]
   htpasswd:
-    max_users: 100
+    maxUsers: 100
 registries:
   cargo:
     crates:

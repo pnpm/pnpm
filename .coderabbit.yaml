@@ -17,7 +17,7 @@ reviews:
         pacquet is the Rust port of pnpm. For code style, comments, and conventions follow pnpm/AGENTS.md and pnpm/CODE_STYLE_GUIDE.md — the TypeScript conventions in the root AGENTS.md do not apply here. .agents/skills/review-code/references/REVIEW_GUIDE.md's security, performance, scope, and parity framework still applies.
     - path: "pnpr/**"
       instructions: |
-        pnpr is the pnpm registry server (Rust). For code style, comments, and conventions follow pnpr/AGENTS.md and pnpr/CONTRIBUTING.md — the TypeScript conventions in the root AGENTS.md do not apply here. .agents/skills/review-code/references/REVIEW_GUIDE.md's framework still applies.
+        pnpr is the pnpm registry server (Rust). For code style, comments, and conventions follow pnpr/AGENTS.md, pnpr/CONTRIBUTING.md, and PHILOSOPHY.md — the TypeScript conventions in the root AGENTS.md do not apply here. .agents/skills/review-code/references/REVIEW_GUIDE.md's framework still applies. Because pnpr is pre-1.0 on the alpha prerelease lane (experimental per PHILOSOPHY.md), storage layouts, internal record formats, configuration keys, and CLI flags are consolidated in place without backward-compatibility fallbacks, aliases, or migration shims between alpha builds.
   # Walkthrough poem adds no review value.
   poem: false
   # Required for CodeRabbit to submit approving reviews at all. With this off

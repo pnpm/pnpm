@@ -82,14 +82,12 @@ impl Storage {
     ///
     /// # Errors
     ///
-    /// A store written by a newer pnpr, or one in an earlier layout, which
-    /// `pnpr upgrade-storage` converts.
+    /// A store written by a newer pnpr, or one in an earlier layout.
     pub async fn check_hosted_layout(&self) -> Result<HostedLayout> {
         match self.hosted_layout().await? {
             HostedLayout::Unmarked { has_data: true } => Err(RegistryError::StorageUnavailable {
                 reason: format!(
-                    "the hosted store has no {LAYOUT_FILE} and holds data in the earlier layout. \
-                     Back it up and run `pnpr upgrade-storage` to convert it",
+                    "the hosted store has no {LAYOUT_FILE} and holds data in an earlier layout; this pnpr reads layout {LAYOUT_VERSION}",
                 ),
             }),
             HostedLayout::Other(layout) => Err(other_layout_error(layout)),
@@ -165,9 +163,7 @@ fn other_layout_error(layout: u32) -> RegistryError {
             "the hosted store uses layout {layout}, written by a newer pnpr; this one reads layout {LAYOUT_VERSION}",
         )
     } else {
-        format!(
-            "the hosted store uses layout {layout}. Back it up and run `pnpr upgrade-storage` to convert it",
-        )
+        format!("the hosted store uses layout {layout}; this pnpr reads layout {LAYOUT_VERSION}")
     };
     RegistryError::StorageUnavailable { reason }
 }

@@ -50,8 +50,7 @@ In every org, scope, name and file name, lowercase letters, digits, `.`,
 so `@Scope/App` is stored as `@!53cope/!41pp/`.
 
 pnpr refuses to start on a store written by a newer pnpr, or on one in the
-layout pnpr used before `layout.json` existed. Convert such a store with
-[`pnpr upgrade-storage`](cli.md#upgrade-storage). A cache in another layout is
+layout pnpr used before `layout.json` existed. A cache in another layout is
 emptied on startup and refilled on demand.
 
 ## Backends

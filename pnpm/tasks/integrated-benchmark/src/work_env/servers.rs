@@ -296,7 +296,7 @@ impl WorkEnv {
             // sends, caching packuments in its own store. A long TTL keeps
             // those cached packuments authoritative across the run, the
             // same value the registry-mock pins for the same reason.
-            .arg("--packument-ttl-secs")
+            .arg("--packument-ttl")
             .arg("31536000");
         self.apply_serve_timing(&mut command);
         command
