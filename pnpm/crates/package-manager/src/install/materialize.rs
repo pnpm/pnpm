@@ -103,7 +103,7 @@ pub(super) struct MaterializationLockfiles<'a, 'install> {
     pub(super) wanted_shared: Option<Arc<Lockfile>>,
     pub(super) merge_wanted: Option<&'a Lockfile>,
     pub(super) current: Option<&'a Lockfile>,
-    /// See `InstallWorkspace::locked_registry_routes`.
+    /// See `LoadedWorkspace::locked_registry_routes`.
     pub(super) locked_registries: Option<&'a std::collections::BTreeMap<String, String>>,
     pub(super) verification_override: Option<super::LockfileVerificationOverride<'install>>,
     pub(super) verification: super::run::Verification,

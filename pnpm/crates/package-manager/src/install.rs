@@ -20,8 +20,8 @@ pub(crate) use modules_state::{
 pub use run::{InstallExecution, InstallLockfilePolicy, ResolutionInputs};
 pub(crate) use workspace_state::{
     CarriedSettings, StateWrite, configured_or_discovered_workspace_dir, lockfile_root_dir,
-    recorded_registry_routes_after_install, recorded_workspace_state, registry_keys_current,
-    update_workspace_state_or_warn, workspace_packages_for_freshness,
+    recorded_workspace_state, registry_keys_current, update_workspace_state_or_warn,
+    workspace_packages_for_freshness,
 };
 pub use workspace_state::{
     UpToDateFastPathCheck, UpToDateWorkspace, build_workspace_packages_map,

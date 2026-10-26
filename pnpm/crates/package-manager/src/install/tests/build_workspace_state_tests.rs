@@ -222,12 +222,12 @@ fn corp_lockfile() -> pnpm_lockfile::Lockfile {
 /// leaves a plain key under a route that moved since.
 #[test]
 fn recorded_registry_routes_follow_the_install_that_resolved_the_plain_keys() {
-    use super::super::recorded_registry_routes_after_install;
+    use crate::optimistic_repeat_install::recorded_registry_routes_after_install;
     let old = "https://old.example.test/";
     let new = "https://new.example.test/";
     let mut config = Config::new();
     config.registries_by_scope.insert("@corp".to_string(), new.to_string());
-    let current = crate::optimistic_repeat_install::recorded_registry_routes(&config);
+    let current = crate::optimistic_repeat_install::settings::recorded_registry_routes(&config);
     let mut previous = current.clone();
     previous.insert("@corp".to_string(), old.to_string());
     let lockfile = corp_lockfile();
@@ -235,7 +235,7 @@ fn recorded_registry_routes_follow_the_install_that_resolved_the_plain_keys() {
     // No record, or the install resolved everything: the current routes.
     assert_eq!(
         recorded_registry_routes_after_install(&config, None, Some(&lockfile), false),
-        current
+        current,
     );
     assert_eq!(
         recorded_registry_routes_after_install(&config, Some(&previous), Some(&lockfile), true),
@@ -255,6 +255,6 @@ fn recorded_registry_routes_follow_the_install_that_resolved_the_plain_keys() {
     );
     assert_eq!(
         recorded_registry_routes_after_install(&config, Some(&previous), None, false),
-        current
+        current,
     );
 }

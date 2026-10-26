@@ -669,7 +669,7 @@ fn locked_child_admits_a_plain_key_only_from_the_registry_its_scope_was_routed_t
     let unscoped_plain: PkgNameVerPeer = "foo@1.2.0".parse().unwrap();
     assert_eq!(
         super::locked_child_admits(&unscoped, &unscoped_plain, "^1.0.0", &moved),
-        Some(true)
+        Some(true),
     );
 }
 

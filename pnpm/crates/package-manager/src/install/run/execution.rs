@@ -231,12 +231,10 @@ impl<'a> RunExecution<'a> {
     ) -> MaterializationInputs<'r, 'a> {
         let resolution = self.materialization_resolution(loaded);
         let early_host_detection = loaded.early_host_detection.take();
-        let lockfiles = materialization_lockfiles(
-            loaded,
-            lockfiles,
-            dispatched,
-            (verification, self.workspace.locked_registry_routes.as_ref()),
-        );
+        let mut lockfiles = materialization_lockfiles(loaded, lockfiles, dispatched, verification);
+        lockfiles.locked_registries = self.workspace.loaded_workspace
+            .locked_registry_routes
+            .as_ref();
         MaterializationInputs {
             install: self.install,
             resolution,
@@ -267,11 +265,15 @@ impl<'a> RunExecution<'a> {
                 early_host_detection,
                 &self.workspace.prefix,
             ),
-            downloads: crate::install::materialize::MaterializationDownloads {
-                prefetch_downloads: self.prefetch_downloads.clone(),
-                store_verification: self.store_verification.clone(),
-                ..(&self.owned).into()
-            },
+            downloads: self.materialization_downloads(),
+        }
+    }
+
+    fn materialization_downloads(&self) -> crate::install::materialize::MaterializationDownloads {
+        crate::install::materialize::MaterializationDownloads {
+            prefetch_downloads: self.prefetch_downloads.clone(),
+            store_verification: self.store_verification.clone(),
+            ..(&self.owned).into()
         }
     }
 
@@ -298,7 +300,6 @@ impl<'a> RunExecution<'a> {
             config: self.install.context.config,
             save_workspace_state: self.options.save.workspace_state,
             can_prompt: self.mode.can_prompt,
-            locked_registry_routes: self.workspace.locked_registry_routes.take(),
         }
     }
 
@@ -364,6 +365,9 @@ impl<'a> RunExecution<'a> {
                 existing_wanted: lockfiles.wanted.loaded,
                 loaded: lockfiles.wanted.get(),
                 frozen: dispatched.take_frozen_path,
+                locked_registry_routes: self.workspace.loaded_workspace
+                    .locked_registry_routes
+                    .take(),
             },
             scripts: self.take_project_scripts(dispatched.root_preinstall_ran),
             write: lockfiles.write_policy(self.options.save.lockfile),

@@ -405,9 +405,9 @@ fn record_test_workspace_state(
         carried: crate::install::CarriedSettings {
             established_auto_dedupe: config.auto_dedupe.then_some(true),
             registry_keys_verified: true,
-            registry_routes: Some(crate::optimistic_repeat_install::recorded_registry_routes(
-                config,
-            )),
+            registry_routes: Some(
+                crate::optimistic_repeat_install::settings::recorded_registry_routes(config),
+            ),
             kept_settings: None,
         },
         vouched: &super::validation::Vouched::All,

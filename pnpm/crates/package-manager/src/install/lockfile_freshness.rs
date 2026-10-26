@@ -121,13 +121,13 @@ async fn workspace_manifests_satisfy(
             config: check.config,
             catalogs: check.catalogs,
             pnpmfile_hook: None,
-            locked_registries: None,
             scope: FreshnessScope {
                 ignore_manifest_check: check.ignore_manifest_check,
                 allow_missing_dependency_free_importers: true,
                 frozen_lockfile: false,
                 prune_stale_importers: true,
                 patches_only: false,
+                locked_registries: None,
             },
         },
     )
@@ -173,9 +173,7 @@ pub(super) struct LockfileFreshnessInputs<'a, 'manifest> {
     pub(super) config: &'a Config,
     pub(super) catalogs: &'a Catalogs,
     pub(super) pnpmfile_hook: Option<&'a Arc<dyn pnpm_hooks::PnpmfileHooks>>,
-    /// See `InstallWorkspace::locked_registry_routes`.
-    pub(super) locked_registries: Option<&'a std::collections::BTreeMap<String, String>>,
-    pub(super) scope: FreshnessScope,
+    pub(super) scope: FreshnessScope<'a>,
 }
 
 impl LockfileFreshnessInputs<'_, '_> {
@@ -184,7 +182,7 @@ impl LockfileFreshnessInputs<'_, '_> {
     /// resolved through the current routes; any other install reads them
     /// through the routes they were locked under.
     fn registry_context(&self) -> pnpm_lockfile::RegistryContext {
-        let locked = self.locked_registries
+        let locked = self.scope.locked_registries
             .filter(|_| !self.scope.frozen_lockfile)
             .map(|routes| {
                 routes
@@ -251,7 +249,7 @@ pub(super) async fn try_fast_update_lockfile<Reporter: pnpm_reporter::Reporter>(
 /// Which importers a freshness check may reason about, and how
 /// strictly. See [`check_lockfile_freshness`] for what each one admits.
 #[derive(Clone, Copy)]
-pub(crate) struct FreshnessScope {
+pub(crate) struct FreshnessScope<'a> {
     /// Skip the per-importer specifier gate entirely.
     pub(crate) ignore_manifest_check: bool,
     /// Treat a project with no importer entry and no dependencies as
@@ -274,6 +272,9 @@ pub(crate) struct FreshnessScope {
     /// Check only the lockfile's patches of the settings it records. See
     /// [`pnpm_deps_restorer::RebuildOptions::check_lockfile_patches_only`].
     pub(crate) patches_only: bool,
+    /// See `LoadedWorkspace::locked_registry_routes`. Read by every check
+    /// but a frozen one (see [`LockfileFreshnessInputs::registry_context`]).
+    pub(crate) locked_registries: Option<&'a std::collections::BTreeMap<String, String>>,
 }
 
 /// The first importer the lockfile records that no project claims.

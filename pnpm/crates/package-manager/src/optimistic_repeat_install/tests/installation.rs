@@ -537,7 +537,7 @@ fn returns_skipped_when_a_scope_moves_to_another_registry() {
 
     assert_eq!(super::super::recorded_registry_prefixes(routed), recorded);
     assert_eq!(
-        super::super::recorded_registry_routes(routed).get("@corp"),
+        super::super::settings::recorded_registry_routes(routed).get("@corp"),
         Some(&work.to_string()),
     );
     assert!(matches!(

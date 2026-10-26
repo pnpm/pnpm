@@ -293,12 +293,14 @@ pub(super) fn refresh_up_to_date_workspace<Reporter: self::Reporter>(
                 context.tree.config,
                 Some(context.wanted_lockfile),
             ),
-            registry_routes: Some(crate::install::recorded_registry_routes_after_install(
-                context.tree.config,
-                context.carried_state.recorded_registry_routes.as_ref(),
-                Some(context.wanted_lockfile),
-                false,
-            )),
+            registry_routes: Some(
+                crate::optimistic_repeat_install::recorded_registry_routes_after_install(
+                    context.tree.config,
+                    context.carried_state.recorded_registry_routes.as_ref(),
+                    Some(context.wanted_lockfile),
+                    false,
+                ),
+            ),
             kept_settings: None,
         },
         vouched: &crate::optimistic_repeat_install::validation::Vouched::All,

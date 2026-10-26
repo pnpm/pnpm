@@ -32,7 +32,8 @@ pub(crate) struct CarriedSettings<'a> {
     /// then does the state record the prefixes (see
     /// [`WorkspaceStateSettings::registry_prefixes`](pnpm_workspace_state::WorkspaceStateSettings::registry_prefixes)).
     pub(crate) registry_keys_verified: bool,
-    /// The `registryRoutes` to record, per [`super::recorded_registry_routes_after_install`]
+    /// The `registryRoutes` to record, per
+    /// [`recorded_registry_routes_after_install`](crate::optimistic_repeat_install::recorded_registry_routes_after_install)
     /// for an install and the recorded ones for a passing check.
     pub(crate) registry_routes: Option<std::collections::BTreeMap<String, String>>,
     /// The recorded dependency groups and store location to keep instead of

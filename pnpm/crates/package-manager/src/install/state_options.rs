@@ -55,8 +55,6 @@ pub(crate) struct ApplyCompletionContext {
     /// Whether a person is at the terminal to answer for the run. See
     /// `RunMode::can_prompt`.
     pub(crate) can_prompt: bool,
-    /// See `InstallWorkspace::locked_registry_routes`.
-    pub(crate) locked_registry_routes: Option<std::collections::BTreeMap<String, String>>,
 }
 
 #[derive(Clone, Copy)]
@@ -70,6 +68,8 @@ pub(crate) struct ApplyResolutionState<'a> {
     pub(crate) existing_wanted: Option<&'a Lockfile>,
     pub(crate) loaded: Option<&'a Lockfile>,
     pub(crate) frozen: bool,
+    /// See `LoadedWorkspace::locked_registry_routes`.
+    pub(crate) locked_registry_routes: Option<std::collections::BTreeMap<String, String>>,
 }
 
 #[derive(Clone, Copy)]

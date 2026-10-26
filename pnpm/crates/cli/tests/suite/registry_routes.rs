@@ -134,7 +134,7 @@ fn a_frozen_install_keeps_the_moved_packages_and_the_recorded_routes() {
 
     assert_eq!(
         fs::read_to_string(workspace.join(Lockfile::FILE_NAME)).expect("read lockfile"),
-        written
+        written,
     );
     assert_eq!(
         recorded_registry_routes(&workspace)
