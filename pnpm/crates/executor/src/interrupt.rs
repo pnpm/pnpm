@@ -179,17 +179,33 @@ fn relay_late(relay: &SignalRelay, missed_the_child: bool) {
     }
     let signal = LAST_SIGNAL.load(Ordering::Relaxed);
     let target = entry.target.load(Ordering::Acquire);
-    // A child that was already in pnpm's own process group was given the
-    // terminal's interrupt by the kernel, which is how [`relay_to`] reads
-    // it too.
-    if !missed_the_child
-        && target > 0
-        && signal == libc::SIGINT
-        && pnpm_ffi_signal::holds_the_terminal()
-    {
+    if kernel_gave_it_to_the_child(
+        missed_the_child,
+        target,
+        signal,
+        pnpm_ffi_signal::holds_the_terminal(),
+    ) {
         return;
     }
     pnpm_ffi_signal::signal_target(aimed_at(target), signal);
+}
+
+/// Whether the kernel has given `signal` to the child `target` names
+/// without the relay, which it does for a child that was already in
+/// pnpm's own process group when the terminal signalled that group. This
+/// is how [`relay_to`] reads it too.
+///
+/// `missed_the_child` says pnpm took the signal before the child existed,
+/// so no group the child is in carried it. A negative `target` is a group
+/// of the child's own, which the terminal never reaches.
+#[cfg(unix)]
+fn kernel_gave_it_to_the_child(
+    missed_the_child: bool,
+    target: i32,
+    signal: libc::c_int,
+    pnpm_holds_the_terminal: bool,
+) -> bool {
+    !missed_the_child && target > 0 && signal == libc::SIGINT && pnpm_holds_the_terminal
 }
 
 /// The console delivers its event to every process attached to it, so a
