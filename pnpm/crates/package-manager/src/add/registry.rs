@@ -55,6 +55,7 @@ pub(super) async fn pick_latest_range(
 pub(super) struct PickedRange {
     pub(super) range: String,
     pub(super) version: String,
+    pub(super) is_tag: bool,
 }
 /// Resolve an explicit `add <name>@<spec>` registry specifier to the
 /// manifest range pnpm would record: the spec resolved to a concrete
@@ -120,7 +121,11 @@ pub(super) async fn resolve_explicit_registry_spec(
         spec,
         add.range_spec_style,
     );
-    Ok(Some(PickedRange { range, version: picked.version.to_string() }))
+    Ok(Some(PickedRange {
+        range,
+        version: picked.version.to_string(),
+        is_tag: spec_parsed.spec_type == pnpm_resolving_npm_resolver::RegistryPackageSpecType::Tag,
+    }))
 }
 pub(super) fn add_pick_policy(
     inputs: &AddResolveInputs<'_, '_>,
