@@ -38,9 +38,8 @@ const DOCUMENTED_UNKNOWN_FLAGS: &[&str] = &[];
 
 /// Commands with no page under `pnpm/docs/cli`.
 const COMMANDS_WITHOUT_A_PAGE: &[&str] = &[
-    // Not implemented: the command says to use npm.
-    "edit", "restart", "stop", // Not implemented: the command says to use npm.
-    "xmas",
+    "restart", "stop", // Not implemented: each says to use npm.
+    "edit", "xmas",
 ];
 
 /// Global flags with no heading anywhere under `pnpm/docs`.
@@ -292,9 +291,15 @@ fn global_flag_is_documented(flag: &str, documented: &BTreeSet<String>) -> bool 
             .any(|setting| documented.contains(setting))
 }
 
+/// Values a bare setting flag may take: a boolean, a number, free text, and
+/// one spelling of each keyword setting, so a setting of every arity is
+/// claimed when tried with each of them.
+const SETTING_VALUE_PROBES: &[&str] =
+    &["true", "1", "value", "error", "hoisted", "copy", "off", "no-downgrade"];
+
 /// Whether the config overrides claim `flag` on the command line of the
 /// command at `path` before clap sees it, as they do for a flag that spells
-/// a setting. A setting that takes a value is tried with one.
+/// a setting.
 fn is_bare_setting_flag(path: &[&str], flag: &str) -> bool {
     let argv = |tail: &[&str]| {
         std::iter::once("pnpm")
@@ -303,8 +308,12 @@ fn is_bare_setting_flag(path: &[&str], flag: &str) -> bool {
             .map(OsString::from)
             .collect::<Vec<_>>()
     };
-    [argv(&[flag]), argv(&[flag, "value"])]
-        .into_iter()
+    std::iter::once(argv(&[flag]))
+        .chain(
+            SETTING_VALUE_PROBES
+                .iter()
+                .map(|value| argv(&[flag, value])),
+        )
         .any(|argv| !ConfigOverrides::extract(argv).1.contains(&OsString::from(flag)))
 }
 

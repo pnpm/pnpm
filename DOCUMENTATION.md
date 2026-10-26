@@ -106,7 +106,7 @@ GitHub alerts render only on GitHub. Docusaurus admonitions render only on pnpm.
 
 ## Reference pages
 
-Three tests fail when the v12 reference drifts from the code. Each keeps a
+These tests fail when the v12 reference drifts from the code. Each keeps a
 list of today's gaps, and fixing a gap means deleting its entry:
 
 - `pnpm/crates/config/src/known_settings/tests/docs_reference.rs`: every
@@ -185,10 +185,11 @@ Rules the tests rely on:
 - A flag shared by several commands lives in a partial under `settings/`,
   such as `_cpuFlag.mdx`, and each page imports it. The partial's headings
   count as the page's own.
-- A command that accepts another command's flags says so in one sentence that
+- A command that accepts another command's flags says so on one line that
   says it accepts, takes, or applies the options or arguments of the other
   command, and links its page: "`pnpm ci` accepts the options of
-  [`pnpm install`](./install.md)." The page then documents those flags.
+  [`pnpm install`](./install.md)." The page then documents those flags, so
+  the sentence is for a command that takes the whole option set.
 - A command documented on another command's page, such as `pnpm rb` on
   `cli/rebuild.md`, is listed in the test's `PAGE_NAMES`.
 - A flag that spells a setting, such as `--shamefully-hoist`, is accepted by

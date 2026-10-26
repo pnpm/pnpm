@@ -3,7 +3,7 @@ id: errors
 title: Error Codes
 ---
 
-Every error pnpm reports carries a code that starts with `ERR_PNPM_`. The code is printed with the error message. A script that reacts to a failure should match on the code, because the message may change between releases and the code does not.
+An error pnpm raises carries a code that starts with `ERR_PNPM_`. The code is printed with the error message. A script that reacts to a failure should match on the code, because the message may change between releases and the code does not.
 
 The codes are listed in alphabetical order. A code that is not listed here is explained by its own message.
 
@@ -65,7 +65,7 @@ To fix this error, all dependencies that use the [workspace protocol] should be 
 
 ## ERR_PNPM_NO_OFFLINE_META
 
-pnpm runs with `--offline`, and the metadata cache has no entry for a package it has to resolve. The message names the package and the cache directory it looked in.
+pnpm runs with `--offline`, and the metadata cache has no entry for a package it has to resolve. The message names the package and the cache file it looked for.
 
 Run the command without `--offline` once, so pnpm downloads the metadata. [`--prefer-offline`](./cli/install.md#--prefer-offline) uses the cache when it can and downloads what is missing.
 
@@ -126,11 +126,11 @@ If you changed the store directory intentionally, run `pnpm install` and pnpm wi
 
 ## ERR_PNPM_UNSUPPORTED_ENGINE
 
-A package's `engines` field does not accept the current Node.js or pnpm version. The message names the package, the wanted ranges, and the current versions.
+A package's `engines.node` range does not accept the current Node.js version. The message names the package, the wanted range, and the current version.
 
-pnpm raises this error only with [`engineStrict`](./settings/cli.md#enginestrict) enabled. The check covers the project's own `engines` field and the `engines` field of every dependency. Without `engineStrict`, a dependency that does not accept the current versions produces a warning.
+pnpm raises this error only with [`engineStrict`](./settings/cli.md#enginestrict) enabled. The check covers the project's own `engines` field and the `engines` field of every dependency. Without `engineStrict`, a dependency that does not accept the current version produces a warning.
 
-To fix this error, switch to a Node.js or pnpm version the package accepts, or turn `engineStrict` off.
+To fix this error, switch to a Node.js version the package accepts, or turn `engineStrict` off.
 
 ## ERR_PNPM_VIRTUAL_STORE_DIR_MAX_LENGTH_DIFF
 

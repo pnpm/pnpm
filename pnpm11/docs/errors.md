@@ -3,7 +3,7 @@ id: errors
 title: Error Codes
 ---
 
-Every error pnpm reports carries a code that starts with `ERR_PNPM_`. The code is printed with the error message. A script that reacts to a failure should match on the code, because the message may change between releases and the code does not.
+An error pnpm raises carries a code that starts with `ERR_PNPM_`. The code is printed with the error message. A script that reacts to a failure should match on the code, because the message may change between releases and the code does not.
 
 The codes are listed in alphabetical order. A code that is not listed here is explained by its own message.
 
@@ -38,6 +38,8 @@ A frozen install found that a setting recorded in `pnpm-lock.yaml` differs from 
 
 Run `pnpm install` without `--frozen-lockfile` and commit the updated lockfile.
 
+`pnpm rebuild` raises the same error when `patchedDependencies` differs from the installed lockfile. Run `pnpm install` first.
+
 ## ERR_PNPM_NO_MATCHING_VERSION_INSIDE_WORKSPACE
 
 A project has a workspace dependency that does not exist in the workspace.
@@ -62,7 +64,7 @@ To fix this error, all dependencies that use the [workspace protocol] should be 
 
 ## ERR_PNPM_NO_OFFLINE_META
 
-pnpm runs with `--offline`, and the metadata cache has no entry for a package it has to resolve. The message names the package and the cache directory it looked in.
+pnpm runs with `--offline`, and the metadata cache has no entry for a package it has to resolve. The message names the package and the cache file it looked for.
 
 Run the command without `--offline` once, so pnpm downloads the metadata. [`--prefer-offline`](./cli/install.md#--prefer-offline) uses the cache when it can and downloads what is missing.
 
@@ -125,7 +127,7 @@ If you changed the store directory intentionally, run `pnpm install` and pnpm wi
 
 A package's `engines` field does not accept the current Node.js or pnpm version. The message names the package, the wanted ranges, and the current versions.
 
-pnpm raises this error only with [`engineStrict`](./settings/cli.md#enginestrict) enabled. The check covers the `engines` field of every dependency. Without `engineStrict`, a dependency that does not accept the current versions produces a warning.
+The project's own `engines.pnpm` range always raises this error. Its `engines.node` range, and the `engines` field of every dependency, raise it only with [`engineStrict`](./settings/cli.md#enginestrict) enabled. Without `engineStrict`, those produce a warning.
 
 To fix this error, switch to a Node.js or pnpm version the package accepts, or turn `engineStrict` off.
 
