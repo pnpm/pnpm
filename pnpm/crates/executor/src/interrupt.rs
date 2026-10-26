@@ -438,7 +438,18 @@ fn install_handler() {
 /// `die_from_signal`, which ends the process itself.
 #[cfg(unix)]
 fn relay_signal(interrupt: pnpm_ffi_signal::Interrupt, _replaced: pnpm_ffi_signal::Replaced<'_>) {
-    let signal = signal_number(interrupt);
+    take_signal(signal_number(interrupt));
+}
+
+/// Count and relay `signal` as the installed handler does.
+///
+/// A test that raised the signal for real would have the kernel deliver
+/// it process-wide: to the test runner's own process, and through
+/// [`visit_targets`] to the children of every test sharing that process.
+/// The kernel's part is to call the handler, so a test calls this and
+/// leaves both alone.
+#[cfg(unix)]
+pub(crate) fn take_signal(signal: libc::c_int) {
     LAST_SIGNAL.store(signal, Ordering::Relaxed);
     INTERRUPTS.fetch_add(1, Ordering::Release);
     let shared_with_group = signal == libc::SIGINT && pnpm_ffi_signal::holds_the_terminal();
