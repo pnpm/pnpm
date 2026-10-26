@@ -15,6 +15,7 @@ pub enum LoadWorkspaceYamlError {
         source: io::Error,
     },
     #[display("Failed to parse pnpm-workspace.yaml at {}: {source}", path.display())]
+    #[diagnostic(code(ERR_PNPM_INVALID_SETTING))]
     ParseYaml {
         path: PathBuf,
         #[error(source)]
