@@ -1325,22 +1325,20 @@ fn repeat_install_renames_slots_after_a_virtual_store_dir_max_length_change() {
         |_| {},
         |workspace| append_workspace_yaml_key(workspace, "virtualStoreDirMaxLength", 10),
     );
-    let slots: Vec<String> = fs::read_dir(harness.workspace.join("node_modules/.pnpm"))
-        .expect("read the virtual store")
-        .map(|entry| {
-            entry
-                .expect("read a virtual store entry")
-                .file_name()
-                .to_string_lossy()
-                .into_owned()
-        })
-        .collect();
-    assert!(
-        !slots
-            .iter()
-            .any(|slot| slot == "is-positive@1.0.0"),
-        "the slot must be renamed to fit the new length: {slots:?}",
-    );
+    let workspace = &harness.workspace;
+    assert_eq!(version_of(workspace, "node_modules/is-positive"), "1.0.0");
+    let target = workspace
+        .join("node_modules/is-positive")
+        .canonicalize()
+        .expect("resolve the direct dependency");
+    let slot = target
+        .ancestors()
+        .nth(2)
+        .and_then(Path::file_name)
+        .expect("the dependency sits in a virtual store slot")
+        .to_string_lossy()
+        .into_owned();
+    assert_ne!(slot, "is-positive@1.0.0", "the slot must be renamed to fit the new length");
     drop(harness);
 }
 
@@ -1376,5 +1374,41 @@ fn repeat_install_relinks_after_a_global_virtual_store_dir_change() {
         .canonicalize()
         .expect("the new global virtual store exists");
     assert!(target.starts_with(&moved), "{target:?} must be linked from {moved:?}");
+    drop(harness);
+}
+
+#[test]
+fn repeat_install_verifies_the_lockfile_after_trust_lockfile_is_turned_off() {
+    let harness = CommandTempCwd::init().add_mocked_registry();
+    let workspace = harness.workspace.clone();
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": { "is-positive": "1.0.0" } }).to_string(),
+    )
+    .expect("write package.json");
+    append_workspace_yaml_key(&workspace, "trustLockfile", true);
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let yaml_path = workspace.join("pnpm-workspace.yaml");
+    let yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
+    fs::write(&yaml_path, yaml.replace("trustLockfile: true", "trustLockfile: false"))
+        .expect("turn trustLockfile off");
+    let output = pacquet_in(&workspace)
+        .with_args(["install", "--reporter=ndjson"])
+        .output()
+        .expect("run the repeat install");
+    let logs = format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr),
+    );
+    assert!(output.status.success(), "{logs}");
+    assert!(
+        logs.contains(r#""name":"pnpm:lockfile-verification""#),
+        "the lockfile no install verified must be verified: {logs}",
+    );
     drop(harness);
 }
