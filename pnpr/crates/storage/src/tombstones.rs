@@ -5,7 +5,7 @@ use super::{
 use serde::{Deserialize, Serialize};
 
 /// Reserved namespace for package tombstones.
-pub const TOMBSTONES_NAMESPACE: &str = ".tombstones/v0";
+pub const TOMBSTONES_NAMESPACE: &str = ".tombstones";
 
 /// Record of an unpublished package, retaining its former maintainers and
 /// unpublished version numbers so deleted packages cannot be squatted and
@@ -23,7 +23,7 @@ pub struct PackageTombstone {
 }
 
 fn tombstone_key(name: &CanonicalPackageName) -> String {
-    format!("{}.json", crate::layout::encode_segment(name.as_str()))
+    format!("{}.json", crate::layout::package_segments(name.ecosystem(), name.as_str()).join("/"))
 }
 
 fn merge_tombstones(

@@ -1,6 +1,13 @@
-use super::{Step, plan};
+use super::{Step, plan_with_registries};
 use pnpr_package_name::Ecosystem;
 use std::collections::BTreeSet;
+
+fn plan(
+    paths: &[String],
+    orgs: &BTreeSet<(String, Ecosystem)>,
+) -> Result<Vec<(String, Step)>, String> {
+    plan_with_registries(paths, orgs, &BTreeSet::new())
+}
 
 fn steps(paths: &[&str], orgs: &[(&str, Ecosystem)]) -> Vec<(String, Step)> {
     let paths: Vec<String> = paths
@@ -104,7 +111,7 @@ fn an_org_directory_becomes_its_namespace() {
             ("npm~internal/.revisions/sha512/abc/index.json", Step::Remove,),
             (
                 "npm~internal/.tombstones/v0/@scope/gone.json",
-                moved("orgs/internal/npm/.tombstones/v0/!40scope!2fgone.json", false),
+                moved("orgs/internal/npm/.tombstones/@scope/gone.json", false),
             ),
             ("npm~internal/.package-index/tool/.present", Step::Remove),
             (
@@ -127,14 +134,80 @@ fn shared_records_and_root_files_stay() {
             &[
                 "htpasswd",
                 ".staged/abc.json",
-                ".team-rosters/v0/main.json",
-                ".pnpr-journal/0001/manifest.json",
+                ".team-rosters/npm/main.json",
                 ".pnpr-cache/~public/x/package.json",
             ],
             &[],
         ),
         [],
     );
+}
+
+#[test]
+fn legacy_root_records_move_to_current_namespaces() {
+    assert_eq!(
+        steps(
+            &[
+                ".team-rosters/v0/main.json",
+                ".team-rosters/v0/crates.json",
+                ".team-rosters/v0/pypi/main.json",
+                ".rule-overrides/v0/main.json",
+                ".rule-overrides/v0/crates.json",
+                ".scim-users/v0/directory.json",
+                ".pipeline-runs/v1/demo/100.json",
+                ".pnpr-artifacts/v0/sha256/ab/cd/ef",
+                "default/npm/.tombstones/v0/!40scope!2fgone.json",
+            ],
+            &[("crates", Ecosystem::Cargo)],
+        ),
+        [
+            (".team-rosters/v0/main.json", moved(".team-rosters/npm/main.json", false)),
+            (".team-rosters/v0/crates.json", moved(".team-rosters/cargo/crates.json", false)),
+            (".team-rosters/v0/pypi/main.json", moved(".team-rosters/pypi/main.json", false)),
+            (".rule-overrides/v0/main.json", moved(".rule-overrides/npm/main.json", false)),
+            (".rule-overrides/v0/crates.json", moved(".rule-overrides/cargo/crates.json", false)),
+            (".scim-users/v0/directory.json", moved(".scim-users/directory.json", false)),
+            (".pipeline-runs/v1/demo/100.json", moved(".pipeline-runs/demo/100.json", false)),
+            (".pnpr-artifacts/v0/sha256/ab/cd/ef", moved(".artifacts/sha256/ab/cd/ef", false)),
+            (
+                "default/npm/.tombstones/v0/!40scope!2fgone.json",
+                moved("default/npm/.tombstones/@scope/gone.json", false),
+            ),
+        ]
+        .map(|(from, step)| (from.to_string(), step)),
+    );
+}
+
+#[test]
+fn a_pending_publish_journal_is_refused() {
+    for journal in [".pnpr-journal/0001/manifest.json", ".journal/0001/manifest.json"] {
+        let error = plan(&[journal.to_string()], &BTreeSet::new()).unwrap_err();
+        assert!(error.contains("pending publish journal"), "{error}");
+    }
+}
+
+#[test]
+fn conflicting_or_ambiguous_legacy_record_moves_are_refused() {
+    let duplicate = vec![
+        ".team-rosters/v0/main.json".to_string(),
+        ".team-rosters/v0/npm/main.json".to_string(),
+    ];
+    let error = plan(&duplicate, &BTreeSet::new()).unwrap_err();
+    assert!(error.contains("multiple records map to"), "{error}");
+
+    let existing_tombstone = vec![
+        "default/npm/.tombstones/v0/!40scope!2fgone.json".to_string(),
+        "default/npm/.tombstones/@scope/gone.json".to_string(),
+    ];
+    let error = plan(&existing_tombstone, &BTreeSet::new()).unwrap_err();
+    assert!(error.contains("multiple records map to"), "{error}");
+
+    let ambiguous_orgs = BTreeSet::from([
+        ("shared".to_string(), Ecosystem::Npm),
+        ("shared".to_string(), Ecosystem::Pypi),
+    ]);
+    let error = plan(&[".team-rosters/v0/shared.json".to_string()], &ambiguous_orgs).unwrap_err();
+    assert!(error.contains("matches registries in more than one ecosystem"), "{error}");
 }
 
 #[test]
@@ -152,7 +225,7 @@ fn the_default_namespace_records_move_with_it() {
             (".revisions/sha512/abc/index.json", Step::Remove,),
             (
                 ".tombstones/v0/left-pad.json",
-                moved("default/npm/.tombstones/v0/left-pad.json", false)
+                moved("default/npm/.tombstones/@/left-pad.json", false)
             ),
             (".pnpr-uploads/x", Step::Remove),
         ]

@@ -8,7 +8,7 @@ use axum::{
 use pnpr::Config;
 use pnpr_storage::{
     TOMBSTONES_NAMESPACE,
-    layout::{encode_segment, namespace_segments},
+    layout::{namespace_segments, package_segments},
 };
 use serde_json::{Value, json};
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
@@ -723,7 +723,10 @@ async fn packument_rewrite_failure_during_tombstone_write_restores_prior_packume
     let mut tombstone_file = dir.path().join("storage");
     tombstone_file.extend(namespace_segments("", pnpr_storage::Ecosystem::Npm));
     tombstone_file.push(TOMBSTONES_NAMESPACE);
-    tombstone_file.push(format!("{}.json", encode_segment("fail-pkg")));
+    tombstone_file.push(format!(
+        "{}.json",
+        package_segments(pnpr_storage::Ecosystem::Npm, "fail-pkg").join("/"),
+    ));
     std::fs::create_dir_all(&tombstone_file).unwrap();
 
     // Alice attempts to rewrite the packument to remove 1.1.0

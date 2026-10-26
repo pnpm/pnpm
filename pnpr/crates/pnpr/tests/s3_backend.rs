@@ -246,7 +246,7 @@ async fn bucket_keys(store: &Arc<dyn ObjectStore>, name: &str) -> Vec<String> {
 /// subdirectory of the proxy-cache root, which `static_serve` nests
 /// under `storage`).
 fn staging_file_count(storage: &Path) -> usize {
-    let dir = storage.join(".pnpr-cache").join("pnpr-hosted-staging");
+    let dir = storage.join(".pnpr-cache").join(".staging");
     std::fs::read_dir(dir).map_or(0, std::iter::Iterator::count)
 }
 

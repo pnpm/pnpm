@@ -7,7 +7,7 @@
 //! no document mentions, or some packages of a batch published and others
 //! not. The journal closes that window: before anything is promoted, the full
 //! intent — the computed document bytes and locations
-//! of the staged tmp files — is persisted under `.pnpr-journal/<txn>/` and
+//! of the staged tmp files — is persisted under `.journal/<txn>/` and
 //! sealed with a single atomic rename of the `commit` marker.
 //! [`PublishJournal::commit`] then applies it, and [`recover_publish_journal`]
 //! runs at startup, before the server accepts requests: sealed transactions
@@ -55,7 +55,8 @@ use tokio::{fs, io::AsyncWriteExt};
 /// backend, the cache scratch on the S3 backend); the leading dot
 /// keeps it out of the package-listing walk, and no valid package name
 /// can collide with it.
-pub(crate) const JOURNAL_DIR: &str = ".pnpr-journal";
+pub(crate) const JOURNAL_DIR: &str = ".journal";
+const LEGACY_JOURNAL_DIR: &str = ".pnpr-journal";
 
 const COMMIT_MARKER: &str = "commit";
 const MANIFEST_FILE: &str = "manifest.json";
@@ -246,20 +247,25 @@ impl PublishJournal {
     /// are applied, unsealed ones rolled back. Must run before the server
     /// accepts requests — it takes no package locks.
     pub async fn recover(&self, storage: &Storage, documents: &dyn HostedDocuments) -> Result<()> {
-        let mut entries = match fs::read_dir(&self.root).await {
-            Ok(read_dir) => read_dir,
-            Err(err) if err.kind() == ErrorKind::NotFound => return Ok(()),
-            Err(err) => return Err(err.into()),
-        };
-        let mut txn_dirs = Vec::new();
-        while let Some(entry) = entries.next_entry().await? {
-            if entry.file_type().await?.is_dir() {
-                txn_dirs.push(entry.path());
-            }
+        let legacy_root = (self.root.file_name().and_then(|name| name.to_str())
+            == Some(JOURNAL_DIR))
+        .then(|| {
+            self.root
+                .parent()
+                .map(|parent| parent.join(LEGACY_JOURNAL_DIR))
+        })
+        .flatten();
+        let mut txn_dirs = list_txn_dirs(&self.root).await?;
+        if let Some(legacy_root) = &legacy_root {
+            txn_dirs.extend(list_txn_dirs(legacy_root).await?);
         }
         // Transaction ids start with a zero-padded millisecond
-        // timestamp, so the lexical order is the seal order.
-        txn_dirs.sort();
+        // timestamp, so the lexical order of the entry name is the seal order.
+        txn_dirs.sort_by(|a, b| {
+            a.file_name()
+                .cmp(&b.file_name())
+                .then_with(|| a.cmp(b))
+        });
         for dir in txn_dirs {
             // Never treat "can't tell" as unsealed: an I/O error probing
             // the marker must not send a possibly-sealed transaction to
@@ -275,8 +281,42 @@ impl PublishJournal {
                 tracing::info!(txn = %dir.display(), "rolled publish journal entry back");
             }
         }
+        if let Some(legacy_root) = legacy_root {
+            let _ = fs::remove_dir(legacy_root).await;
+        }
         Ok(())
     }
+}
+
+async fn list_txn_dirs(root: &Path) -> Result<Vec<PathBuf>> {
+    match fs::symlink_metadata(root).await {
+        Ok(meta) if meta.file_type().is_symlink() => {
+            return Err(std::io::Error::other(format!(
+                "refusing to recover publish journal through symlink {}",
+                root.display(),
+            ))
+            .into());
+        }
+        Ok(_) => {}
+        Err(err) if err.kind() == ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(err) => return Err(err.into()),
+    }
+    let mut entries = fs::read_dir(root).await?;
+    let mut txn_dirs = Vec::new();
+    while let Some(entry) = entries.next_entry().await? {
+        let file_type = entry.file_type().await?;
+        if file_type.is_symlink() {
+            return Err(std::io::Error::other(format!(
+                "refusing to recover publish journal entry symlink {}",
+                entry.path().display(),
+            ))
+            .into());
+        }
+        if file_type.is_dir() {
+            txn_dirs.push(entry.path());
+        }
+    }
+    Ok(txn_dirs)
 }
 
 impl SealedTxn {

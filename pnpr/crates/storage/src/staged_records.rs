@@ -141,9 +141,8 @@ impl Storage {
     }
 }
 
-/// Reserved namespace holding pipeline run records, versioned so a later
-/// record shape can live beside this one.
-const PIPELINE_RUNS_DIR: &str = ".pipeline-runs/v1";
+/// Reserved namespace holding pipeline run records.
+const PIPELINE_RUNS_DIR: &str = ".pipeline-runs";
 
 /// The identity of one pipeline run record.
 pub struct PipelineRunKey<'a> {

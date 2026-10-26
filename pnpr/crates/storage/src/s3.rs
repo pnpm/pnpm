@@ -81,7 +81,7 @@ pub(crate) struct S3DocumentForUpdate {
 /// Subdirectory of the proxy-cache root where hosted blobs are
 /// staged before upload. Its own directory keeps the decode/verify tmp
 /// files away from the cache's `<pkg>/` package directories.
-const STAGING_SUBDIR: &str = "pnpr-hosted-staging";
+const STAGING_SUBDIR: &str = ".staging";
 
 /// Send `tmp_path` as parts and complete the upload.
 pub(crate) async fn send_parts(tmp_path: &Path, upload: &mut dyn MultipartUpload) -> Result<()> {
@@ -410,9 +410,7 @@ impl S3Store {
     }
 
     fn package_prefix(&self, name: &CanonicalPackageName) -> String {
-        let ecosystem =
-            if self.ecosystem == Ecosystem::Npm { name.ecosystem() } else { self.ecosystem };
-        let segments = package_segments(ecosystem, name.as_str()).join("/");
+        let segments = package_segments(name.ecosystem(), name.as_str()).join("/");
         format!("{}{PACKAGES_DIR}/{segments}/", self.prefix)
     }
 
