@@ -114,7 +114,8 @@ export interface PacklistOptions {
   manifest?: Record<string, unknown>
   workspaceDir?: string
   // The project directory whose node_modules holds the bundled dependencies
-  // when pkgDir is a subdirectory of it, such as publishConfig.directory.
+  // when pkgDir is its publishConfig.directory, which may be a subdirectory
+  // or a symlink to a directory outside the project.
   bundledDependenciesDir?: string
 }
 
@@ -135,7 +136,8 @@ export async function packlist (pkgDir: string, opts?: PacklistOptions): Promise
  * Maps each packed path to the file it is read from. Bundled dependencies
  * resolve from pkgDir upward, and never above the workspace root when pkgDir
  * is a workspace package, or above bundledDependenciesDir (default pkgDir)
- * otherwise.
+ * otherwise. When pkgDir resolves to a directory outside that root, both
+ * real directories bound the packed files and the bundled dependencies.
  */
 export async function packlistWithSources (pkgDir: string, opts?: PacklistOptions): Promise<Map<string, string>> {
   const resolvedPkgDir = path.resolve(pkgDir)
@@ -409,8 +411,8 @@ function realpathOrUndefined (dir: string): string | undefined {
   }
 }
 
-function getBoundaries (projectDir: string, pkgDir: string): string[] {
-  return Array.from(new Set([projectDir, pkgDir].map((dir) => realpathOrUndefined(dir) ?? path.resolve(dir))))
+function getBoundaries (resolutionRoot: string, pkgDir: string): string[] {
+  return Array.from(new Set([resolutionRoot, pkgDir].map((dir) => realpathOrUndefined(dir) ?? dir)))
 }
 
 function readPackageJson (dir: string): Record<string, unknown> {

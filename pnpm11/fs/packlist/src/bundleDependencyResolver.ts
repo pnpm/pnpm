@@ -9,6 +9,12 @@ export interface ResolvedDependency {
   realDir: string
 }
 
+/**
+ * The node_modules directory that holds depName when resolved from fromDir:
+ * fromDir and its ancestors up to the boundary that contains it, then each
+ * boundary fromDir lies outside of. A dependency whose real directory lies
+ * outside every boundary is not bundled.
+ */
 export function resolveDependency (depName: string, fromDir: string, boundaries: string[]): ResolvedDependency | undefined {
   if (!isSafeBundleName(depName)) return undefined
   for (const dir of getDependencySearchDirs(fromDir, boundaries)) {
@@ -18,6 +24,7 @@ export function resolveDependency (depName: string, fromDir: string, boundaries:
   return undefined
 }
 
+// Bundle names come from package.json, so reject paths before joining them under node_modules.
 export function isSafeBundleName (name: unknown): name is string {
   if (typeof name !== 'string' || name.includes('\\')) return false
   const parts = name.split('/')

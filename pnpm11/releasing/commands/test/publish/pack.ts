@@ -89,6 +89,7 @@ test('pack: includes files in a publish directory reached through a symlink', as
   } })
 
   expect(entries).toContain('package/index.js')
+  expect(entries).not.toContain('package/sub')
   expect(entries).not.toContain('package/leak.js')
   expect(entries).toContain('package/node_modules/dep/index.js')
   expect(entries).toContain('package/node_modules/root-dep/index.js')
