@@ -3,4 +3,4 @@
 "@pnpm/napi": patch
 ---
 
-A dependency symlink that pnpm cannot point at the wanted target, because the filesystem still serves the old link after pnpm removed it, now fails the install with an error that names the link. pnpm used to remove the link again without end and crashed with a segmentation fault once the thread ran out of stack. This happened on a `node_modules` served by a virtual filesystem.
+A dependency symlink that pnpm cannot point at the wanted target now fails the install with an error that names the link. This happens when the filesystem still serves the old link after pnpm removed it, as a `node_modules` served by a virtual filesystem does. pnpm used to remove the link again without end and crashed with a segmentation fault once the thread ran out of stack.
