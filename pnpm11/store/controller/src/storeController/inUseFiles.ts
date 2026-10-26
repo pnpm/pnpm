@@ -106,7 +106,7 @@ function readIndexRow (storeIndex: StoreIndex, storeDir: string, key: string): P
  * applies, so the prune reads both.
  */
 async function readInstalledLockfiles (projectDir: string): Promise<LockfileObject[]> {
-  const modulesDir = path.join(projectDir, await readConfiguredModulesDir(projectDir))
+  const modulesDir = path.resolve(projectDir, await readConfiguredModulesDir(projectDir))
   const defaultDir = path.join(modulesDir, '.pnpm')
   const modules = await readModulesManifestOfProject(modulesDir)
   const installStateDirs = new Set([defaultDir, modules?.virtualStoreDir ?? defaultDir])

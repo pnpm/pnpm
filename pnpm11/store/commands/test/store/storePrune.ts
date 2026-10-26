@@ -920,6 +920,16 @@ describe('prune keeps the packages that a registered project still uses', () => 
     await expectPruneKeepsEveryRowAndBlob(storeDir)
   })
 
+  test('every package installed with packageImportMethod: copy and an absolute modulesDir', async () => {
+    prepareProject('packageImportMethod: copy\n')
+    const modulesDir = path.resolve('..', 'absolute_modules')
+    fs.appendFileSync('pnpm-workspace.yaml', `modulesDir: ${JSON.stringify(modulesDir)}\n`)
+    const storeDir = await install()
+    expect(fs.existsSync(path.join(modulesDir, '.pnpm', 'lock.yaml'))).toBe(true)
+
+    await expectPruneKeepsEveryRowAndBlob(storeDir)
+  })
+
   test('a runtime installed with packageImportMethod: copy', async () => {
     // A registry tarball stands in for the runtime archive, so the install
     // needs no network. The variant targets this host.
