@@ -425,13 +425,27 @@ async function isPnpmBinEntry (entryPath: string, entry: Dirent): Promise<boolea
   if (entry.isSymbolicLink()) return true
   if (!entry.isFile()) return false
   if (IS_WINDOWS && entry.name.toLowerCase() === 'node.exe') return true
-  const content = await fs.readFile(entryPath, 'utf8').catch(() => '')
+  const content = await readFilePrefix(entryPath, 128)
   const normalized = content.startsWith('\uFEFF') ? content.slice(1) : content
   return normalized.startsWith('#!/bin/sh\n# Resolve $0 through symlinks') ||
     normalized.startsWith('#!/bin/sh\nbasedir=') ||
     normalized.startsWith('@SETLOCAL\r\n') ||
     normalized.startsWith('@IF EXIST') ||
     normalized.startsWith('#!/usr/bin/env pwsh\n$basedir=')
+}
+
+async function readFilePrefix (filePath: string, length: number): Promise<string> {
+  let handle: fs.FileHandle | undefined
+  try {
+    handle = await fs.open(filePath, 'r')
+    const buffer = Buffer.alloc(length)
+    const { bytesRead } = await handle.read(buffer, 0, length, 0)
+    return buffer.toString('utf8', 0, bytesRead)
+  } catch {
+    return ''
+  } finally {
+    await handle?.close().catch(() => {})
+  }
 }
 
 function isOwnBinsDir (pkgDir: string, binsDir: string): boolean {
