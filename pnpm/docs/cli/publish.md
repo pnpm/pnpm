@@ -220,6 +220,13 @@ gitChecks: false
 publishBranch: production
 ```
 
+### publishBranch
+
+* Default: **`main` or `master`**
+* Type: **String**
+
+Sets the branch allowed by the Git checks before publishing. The `--publish-branch` flag overrides this setting.
+
 ### publishWaitTimeout
 
 Added in: v12.7.0

@@ -1210,6 +1210,7 @@ pub struct Config {
     /// flag — skips those checks. Mirrors pnpm's `opts.gitChecks !== false` gate.
     #[default(true)]
     pub git_checks: bool,
+    pub publish_branch: Option<String>,
 
     /// `pnpm version` creates a git commit and tag for the bump. Setting it to
     /// `false` in `pnpm-workspace.yaml` or `PNPM_CONFIG_GIT_TAG_VERSION`, or
