@@ -91,7 +91,7 @@ fn spawn_shell(command: &str, current_dir: Option<&Path>) -> Result<ExitStatus, 
     if let Some(current_dir) = current_dir {
         cmd.current_dir(current_dir);
     }
-    let mut child = cmd.spawn().map_err(ExecutorError::SpawnCommand)?;
+    let mut child = process_tracker::spawn(&mut cmd).map_err(ExecutorError::SpawnCommand)?;
     child.wait().map_err(ExecutorError::WaitProcess)
 }
 
