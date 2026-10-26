@@ -23,11 +23,7 @@ import { getRegisteredProjects } from './projectRegistry.js'
  * nothing.
  */
 export async function getInUseFiles (storeDir: string, storeIndex: StoreIndex): Promise<Set<string>> {
-  const projects = await getRegisteredProjects(storeDir)
-  const lockfiles = (await Promise.all(projects.map(readInstalledLockfiles))).flat()
-  const indexKeys = lockfiles.flatMap(lockfileIndexKeys)
-  const keys = new Set(indexKeys.map(({ key }) => key))
-  const binaryKeys = new Set(indexKeys.filter(({ binary }) => binary).map(({ key }) => key))
+  const { keys, binaryKeys } = await registeredProjectsIndexKeys(storeDir)
   for (const key of manifestIndexKeys(storeIndex, storeDir, binaryKeys)) keys.add(key)
   const files = new Set<string>()
   for (const key of keys) {
@@ -43,6 +39,23 @@ export async function getInUseFiles (storeDir: string, storeIndex: StoreIndex): 
 interface IndexKey {
   key: string
   binary: boolean
+}
+
+async function registeredProjectsIndexKeys (storeDir: string): Promise<{ keys: Set<string>, binaryKeys: Set<string> }> {
+  const keys = new Set<string>()
+  const binaryKeys = new Set<string>()
+  for (const projectDir of await getRegisteredProjects(storeDir)) {
+    // eslint-disable-next-line no-await-in-loop -- hold one project's parsed lockfiles at a time
+    for (const { key, binary } of await projectIndexKeys(projectDir)) {
+      keys.add(key)
+      if (binary) binaryKeys.add(key)
+    }
+  }
+  return { keys, binaryKeys }
+}
+
+async function projectIndexKeys (projectDir: string): Promise<IndexKey[]> {
+  return (await readInstalledLockfiles(projectDir)).flatMap(lockfileIndexKeys)
 }
 
 function lockfileIndexKeys (lockfile: LockfileObject): IndexKey[] {
