@@ -1,10 +1,10 @@
 // cspell:ignore checkin
 import { execSync } from 'node:child_process'
-import os from 'node:os'
 import path from 'node:path'
 
 import { PnpmError, redactAndSanitize, redactUrlForDisplay } from '@pnpm/error'
 import { globalWarn } from '@pnpm/logger'
+import { getAvailableParallelism } from '@pnpm/os.available-parallelism'
 import type { VerifiedFileIntegrity } from '@pnpm/store.cafs'
 import type { FilesMap, PackageFilesResponse, SideEffectsDiff } from '@pnpm/store.cafs-types'
 import type { StoreIndex } from '@pnpm/store.index'
@@ -100,13 +100,9 @@ export function calcMaxWorkers (): number {
   }
   if (process.env.PNPM_WORKERS) {
     const idleCPUs = Math.abs(parseInt(process.env.PNPM_WORKERS))
-    return Math.max(2, availableParallelism() - idleCPUs) - 1
+    return Math.max(2, getAvailableParallelism() - idleCPUs) - 1
   }
-  return Math.max(1, availableParallelism() - 1)
-}
-
-function availableParallelism (): number {
-  return os.availableParallelism?.() ?? os.cpus().length
+  return Math.max(1, getAvailableParallelism() - 1)
 }
 
 interface AddFilesResult {

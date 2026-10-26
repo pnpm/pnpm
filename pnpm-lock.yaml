@@ -2762,6 +2762,9 @@ importers:
       '@pnpm/network.git-utils':
         specifier: workspace:*
         version: link:../../network/git-utils
+      '@pnpm/os.available-parallelism':
+        specifier: workspace:*
+        version: link:../../os/available-parallelism
       '@pnpm/pkg-manifest.utils':
         specifier: workspace:*
         version: link:../../pkg-manifest/utils
@@ -8191,6 +8194,18 @@ importers:
         specifier: workspace:*
         version: 'link:'
 
+  pnpm11/os/available-parallelism:
+    devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.4.1(supports-color@10.2.2)
+      '@pnpm/os.available-parallelism':
+        specifier: workspace:*
+        version: 'link:'
+      '@types/node':
+        specifier: 'catalog:'
+        version: 22.19.19
+
   pnpm11/os/env/path-extender:
     dependencies:
       '@pnpm/error':
@@ -10578,6 +10593,9 @@ importers:
       '@pnpm/fs.symlink-dependency':
         specifier: workspace:*
         version: link:../fs/symlink-dependency
+      '@pnpm/os.available-parallelism':
+        specifier: workspace:*
+        version: link:../os/available-parallelism
       '@pnpm/store.cafs':
         specifier: workspace:*
         version: link:../store/cafs

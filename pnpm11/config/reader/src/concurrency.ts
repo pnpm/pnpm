@@ -1,4 +1,4 @@
-import os from 'node:os'
+import { getAvailableParallelism as readAvailableParallelism } from '@pnpm/os.available-parallelism'
 
 const MaxDefaultWorkspaceConcurrency: number = 4
 
@@ -8,7 +8,7 @@ export function getAvailableParallelism (cache: boolean = true): number {
   if (cache && Number(cacheAvailableParallelism) > 0) {
     return cacheAvailableParallelism!
   }
-  cacheAvailableParallelism = Math.max(1, os.availableParallelism?.() ?? os.cpus().length)
+  cacheAvailableParallelism = readAvailableParallelism()
   return cacheAvailableParallelism
 }
 
