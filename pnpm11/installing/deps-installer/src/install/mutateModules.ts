@@ -278,6 +278,7 @@ async function validateModulesAndReopenContext (
     include: isPrune ? undefined : opts.include,
     lockfileDir: opts.lockfileDir,
     modulesDir: opts.modulesDir ?? 'node_modules',
+    nodeLinker: opts.nodeLinker,
     registriesByScope: opts.registriesByScope,
     storeDir: opts.storeDir,
     virtualStoreDir: ctx.virtualStoreDir,

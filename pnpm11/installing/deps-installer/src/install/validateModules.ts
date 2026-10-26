@@ -37,6 +37,7 @@ interface ValidateModulesOptions {
   include?: IncludedDependencies
   lockfileDir: string
   modulesDir: string
+  nodeLinker: 'hoisted' | 'isolated' | 'pnp'
   registriesByScope: RegistriesByScope
   storeDir: string
   virtualStoreDir: string
@@ -104,6 +105,13 @@ function findLayoutSettingMismatch (modules: Modules, opts: ValidateModulesOptio
     return new PnpmError(
       'PUBLIC_HOIST_PATTERN_DIFF',
       'This modules directory was created using a different public-hoist-pattern value.' +
+      ' Run "pnpm install" to recreate the modules directory.'
+    )
+  }
+  if ((modules.nodeLinker ?? 'isolated') !== opts.nodeLinker) {
+    return new PnpmError(
+      'NODE_LINKER_DIFF',
+      'This modules directory was created using a different node-linker value.' +
       ' Run "pnpm install" to recreate the modules directory.'
     )
   }

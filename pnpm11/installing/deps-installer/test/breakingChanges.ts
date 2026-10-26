@@ -29,6 +29,19 @@ test('fail on non-compatible node_modules', async () => {
   }
 })
 
+test('fail when adding a dependency after changing nodeLinker', async () => {
+  prepareEmpty()
+  await install({}, testDefaults({ nodeLinker: 'hoisted' }))
+
+  await expect(addDependenciesToPackage({}, ['is-positive@1.0.0'], testDefaults({
+    confirmModulesPurge: false,
+    nodeLinker: 'isolated',
+  }))).rejects.toMatchObject({
+    code: 'ERR_PNPM_NODE_LINKER_DIFF',
+    message: 'This modules directory was created using a different node-linker value. Run "pnpm install" to recreate the modules directory.',
+  })
+})
+
 test("don't fail on non-compatible node_modules when forced", async () => {
   prepareEmpty()
   const opts = testDefaults({ force: true })
@@ -72,6 +85,7 @@ test('forced modules repair never follows a modules directory symlink', async ()
       forceNewModules: true,
       lockfileDir: projectRoot,
       modulesDir,
+      nodeLinker: opts.nodeLinker ?? 'isolated',
       registriesByScope: opts.registriesByScope,
       storeDir: opts.storeDir,
       virtualStoreDir: path.join(modulesDir, '.pnpm'),
