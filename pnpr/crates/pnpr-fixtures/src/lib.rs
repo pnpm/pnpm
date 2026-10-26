@@ -147,6 +147,13 @@ pub fn remove_version(storage: &Path, package: &str, version: &str) {
     });
 }
 
+/// Where a built storage tree holds the tarball of `package@version`.
+#[must_use]
+pub fn tarball_path(storage: &Path, package: &str, version: &str) -> PathBuf {
+    let file = format!("{}-{version}.tgz", tarball_basename(package));
+    local_blob_path(storage, "", Ecosystem::Npm, package, &file)
+}
+
 /// Point every `dist-tags` entry naming `from` at `to`.
 fn move_dist_tags(packument_object: &mut Map<String, Value>, from: &str, to: &str) {
     let Some(tags) = packument_object.get_mut("dist-tags").and_then(Value::as_object_mut) else {

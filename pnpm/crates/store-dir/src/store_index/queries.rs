@@ -13,6 +13,17 @@ use rusqlite::Connection;
 /// need to think about the cap on the read path.
 pub(super) const GET_MANY_CHUNK: usize = 999;
 
+/// Whether `key` is a `package_index` key of `pkg_id`.
+pub(super) fn ends_with_pkg_id(key: &str, pkg_id: &str) -> bool {
+    key.strip_suffix(pkg_id)
+        .is_some_and(|rest| rest.ends_with('\t'))
+}
+
+/// A `LIKE` pattern matching the keys [`ends_with_pkg_id`] accepts.
+pub(super) fn pkg_id_suffix_pattern(pkg_id: &str) -> String {
+    format!("%\t{}", escape_like_pattern(pkg_id))
+}
+
 fn escape_like_pattern(value: &str) -> String {
     let mut escaped = String::with_capacity(value.len());
     for character in value.chars() {
@@ -68,19 +79,28 @@ impl StoreIndex {
     /// package id and must not resolve against a registry to recover the
     /// integrity half of the key. A per-file index has no key order to
     /// search, so every entry is read.
+    ///
+    /// A `pkg_id` that only an alias names reads the row it is an alias of.
     pub fn get_by_pkg_id(
         &self,
         pkg_id: &str,
     ) -> Result<Option<PackageFilesIndex>, StoreIndexError> {
-        let row = match &self.backend {
-            Backend::Sqlite { conn, .. } => sqlite_get_by_pkg_id(conn, pkg_id)?,
-            Backend::Files(files) => {
-                let suffix = format!("\t{pkg_id}");
-                files.first_matching(|key| key.ends_with(&suffix))?
-            }
+        let row = match self.get_raw_by_pkg_id(pkg_id)? {
+            Some(row) => Some(row),
+            None => match self.alias_target_by_pkg_id(pkg_id)? {
+                Some(target) => self.get_raw(&target)?,
+                None => None,
+            },
         };
         let Some(bytes) = row else { return Ok(None) };
         decode_index_value(&bytes).map(Some)
+    }
+
+    fn get_raw_by_pkg_id(&self, pkg_id: &str) -> Result<Option<Vec<u8>>, StoreIndexError> {
+        match &self.backend {
+            Backend::Sqlite { conn, .. } => sqlite_get_by_pkg_id(conn, pkg_id),
+            Backend::Files(files) => files.first_matching(|key| ends_with_pkg_id(key, pkg_id)),
+        }
     }
 
     /// Look up many keys in one trip across the `SQLite` mutex.
@@ -455,10 +475,9 @@ fn sqlite_get_by_pkg_id(
     conn: &Connection,
     pkg_id: &str,
 ) -> Result<Option<Vec<u8>>, StoreIndexError> {
-    let pattern = format!("%\t{}", escape_like_pattern(pkg_id));
     conn.query_row(
         r"SELECT data FROM package_index WHERE key LIKE ?1 ESCAPE '\' ORDER BY key LIMIT 1",
-        [pattern],
+        [pkg_id_suffix_pattern(pkg_id)],
         |row| row.get::<_, Vec<u8>>(0),
     )
     .map(Some)

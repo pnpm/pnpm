@@ -13,9 +13,11 @@ use pnpm_resolving_default_resolver::standalone::{StandaloneChainOptions, build_
 use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
 use pnpm_resolving_resolver_base::{ResolveOptions, ResolveResult, WantedDependency};
 use pnpm_store_dir::{SharedVerifiedFilesCache, StoreIndex, StoreIndexWriter};
-use pnpm_tarball::IngestTarballToStore;
+use pnpm_tarball::{IngestTarballToStore, local_file_tarball_path};
 use ssri::Integrity;
 use std::{path::Path, sync::Arc};
+
+mod downloaded_tarball;
 
 /// At least one specifier could not be added.
 ///
@@ -213,36 +215,20 @@ async fn add_one<Reporter: self::Reporter>(args: AddOne<'_>) -> miette::Result<S
         .into());
     };
 
-    IngestTarballToStore {
-        fetching: args.archive_options(),
-        package: pnpm_tarball::TarballPackage {
-            integrity_kind: pnpm_tarball::IntegrityKind::Resource,
-            integrity: integrity.as_ref(),
-            unpacked_size: manifest_unpacked_size(resolved.package.manifest.as_deref()),
-            file_count: manifest_file_count(resolved.package.manifest.as_deref()),
-            url: package_url,
-            id: &package_id,
-        },
-        store: pnpm_tarball::ArchiveStoreContext {
-            dir: &args.config.store_dir,
-            index: args.store.index,
-            index_writer: Some(Arc::clone(args.store.index_writer)),
-            verify_integrity: args.config.verify_store_integrity,
-            strict_pkg_content_check: args.config.strict_store_pkg_content_check,
-            verified_files_cache: args.store.verified_files_cache,
-            prefetched_cas_paths: None,
-        },
-
-        requester: args.requester,
-
-        ignore_file_pattern: None,
-
-        progress_reported: None,
-        store_projection: pnpm_tarball::ArchiveStoreProjection::Package { append_manifest: None },
+    let archive = ArchiveToAdd {
+        url: package_url,
+        id: &package_id,
+        manifest: resolved.package.manifest.as_deref(),
+    };
+    match local_file_tarball_path(package_url) {
+        Some(path) => args.add_downloaded_tarball::<Reporter>(&path, &archive).await?,
+        None => {
+            args.ingestion(&archive, integrity.as_ref())
+                .run_without_mem_cache::<Reporter>()
+                .await
+                .map_err(miette::Report::new)?;
+        }
     }
-    .run_without_mem_cache::<Reporter>()
-    .await
-    .map_err(miette::Report::new)?;
 
     Ok(package_id)
 }
@@ -273,7 +259,52 @@ fn store_resolver(
     .map_err(miette::Report::new)
 }
 
+/// The archive a specifier resolved to, as the store indexes it.
+struct ArchiveToAdd<'r> {
+    url: &'r str,
+    id: &'r str,
+    manifest: Option<&'r serde_json::Value>,
+}
+
 impl<'a> AddOne<'a> {
+    fn ingestion<'r>(
+        &'r self,
+        archive: &ArchiveToAdd<'r>,
+        integrity: Option<&'r Integrity>,
+    ) -> IngestTarballToStore<'r> {
+        IngestTarballToStore {
+            fetching: self.archive_options(),
+            package: pnpm_tarball::TarballPackage {
+                integrity_kind: pnpm_tarball::IntegrityKind::Resource,
+                integrity,
+                unpacked_size: manifest_unpacked_size(archive.manifest),
+                file_count: manifest_file_count(archive.manifest),
+                url: archive.url,
+                id: archive.id,
+            },
+            store: pnpm_tarball::ArchiveStoreContext {
+                dir: &self.config.store_dir,
+                index: self.store.index.clone(),
+                index_writer: Some(Arc::clone(self.store.index_writer)),
+                verify_integrity: self.config.verify_store_integrity,
+                strict_pkg_content_check: self.config.strict_store_pkg_content_check,
+                verified_files_cache: SharedVerifiedFilesCache::clone(
+                    &self.store.verified_files_cache,
+                ),
+                prefetched_cas_paths: None,
+            },
+
+            requester: self.requester,
+
+            ignore_file_pattern: None,
+
+            progress_reported: None,
+            store_projection: pnpm_tarball::ArchiveStoreProjection::Package {
+                append_manifest: None,
+            },
+        }
+    }
+
     fn archive_options(&self) -> pnpm_tarball::ArchiveFetchOptions<'a> {
         pnpm_tarball::ArchiveFetchOptions {
             http_client: self.http_client,

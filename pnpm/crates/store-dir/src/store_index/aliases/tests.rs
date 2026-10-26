@@ -70,3 +70,46 @@ fn a_read_only_index_created_before_aliases_reads_no_alias() {
     let index = StoreIndex::open_readonly(dir.path()).unwrap();
     assert_eq!(index.get(TAR_KEY).unwrap(), None);
 }
+
+fn assert_pkg_id_lookup_follows_an_alias(root: &Path) {
+    let mut index = StoreIndex::open(root).unwrap();
+    let file_key = "sha512-tgz\tfile:acme-1.0.0.tgz";
+    index
+        .set(file_key, &sample_index())
+        .unwrap();
+    assert_eq!(index.get_by_pkg_id("acme@1.0.0").unwrap(), None);
+
+    index
+        .set_aliases(&[(TGZ_KEY.to_string(), file_key.to_string())])
+        .unwrap();
+
+    assert_eq!(index.get_by_pkg_id("acme@1.0.0").unwrap(), Some(sample_index()));
+    assert_eq!(index.get_by_pkg_id("cme@1.0.0").unwrap(), None);
+}
+
+#[test]
+fn an_sqlite_pkg_id_lookup_follows_an_alias() {
+    let dir = tempdir().unwrap();
+    assert_pkg_id_lookup_follows_an_alias(dir.path());
+}
+
+#[test]
+fn a_files_pkg_id_lookup_follows_an_alias() {
+    let dir = tempdir().unwrap();
+    StoreIndex::apply_format(dir.path(), StoreIndexFormat::Files).unwrap();
+    assert_pkg_id_lookup_follows_an_alias(dir.path());
+}
+
+#[test]
+fn a_pkg_id_lookup_in_a_read_only_index_created_before_aliases_misses() {
+    let dir = tempdir().unwrap();
+    let index = StoreIndex::open(dir.path()).unwrap();
+    index
+        .sqlite_conn()
+        .execute_batch("DROP TABLE package_index_alias;")
+        .unwrap();
+    drop(index);
+
+    let index = StoreIndex::open_readonly(dir.path()).unwrap();
+    assert_eq!(index.get_by_pkg_id("acme@1.0.0").unwrap(), None);
+}
