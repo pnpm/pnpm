@@ -22,6 +22,7 @@ describe('corepackDownloadOptions', () => {
 
     assert.deepEqual(corepackDownloadOptions({ cwd, homeDir, env: {} }), {
       registry: 'https://registry.npmjs.org/',
+      proxy: {},
     })
   })
 
@@ -37,6 +38,7 @@ describe('corepackDownloadOptions', () => {
     assert.deepEqual(options, {
       registry: 'https://corepack.example.test/',
       headers: { authorization: 'Bearer corepack-token' },
+      proxy: {},
     })
   })
 
@@ -62,7 +64,18 @@ describe('corepackDownloadOptions', () => {
     assert.deepEqual(corepackDownloadOptions({ ...withToken, env }).headers, { authorization: 'Bearer user-token' })
 
     const elsewhere = layout({ user: ['registry=https://user.example.test/'] })
-    assert.deepEqual(corepackDownloadOptions({ ...elsewhere, env }), { registry: 'https://user.example.test/' })
+    assert.deepEqual(corepackDownloadOptions({ ...elsewhere, env }), { registry: 'https://user.example.test/', proxy: {} })
+  })
+
+  test("reads the proxy from pnpm's config, also for Corepack's registry", () => {
+    const { cwd, homeDir } = layout({ user: ['https-proxy=http://proxy.example.test:8080/'] })
+
+    for (const env of [{}, { COREPACK_NPM_REGISTRY: 'https://corepack.example.test/' }]) {
+      assert.deepEqual(corepackDownloadOptions({ cwd, homeDir, env }).proxy, {
+        HTTPS_PROXY: 'http://proxy.example.test:8080/',
+        HTTP_PROXY: 'http://proxy.example.test:8080/',
+      })
+    }
   })
 
   test('trusts the npm keys of COREPACK_INTEGRITY_KEYS', () => {
@@ -81,6 +94,7 @@ describe('corepackDownloadOptions', () => {
     for (const value of ['0', '']) {
       assert.deepEqual(corepackDownloadOptions({ cwd, homeDir, env: { COREPACK_INTEGRITY_KEYS: value } }), {
         registry: 'https://user.example.test/',
+        proxy: {},
         verifySignature: false,
       }, value)
     }

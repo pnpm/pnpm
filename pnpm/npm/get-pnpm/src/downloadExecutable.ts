@@ -4,7 +4,7 @@ import path from 'node:path'
 
 import { extractTarballMember } from './extractTarballMember.js'
 import { isMusl, platformPackageName } from './platformPackageName.js'
-import { downloadTarball, fetchSignatures, fetchVersionMeta, normalizeRegistry, type RequestHeaders, useCertificateAuthorities, useProxyFromEnv } from './registry.js'
+import { downloadTarball, fetchSignatures, fetchVersionMeta, normalizeRegistry, type ProxyEnv, type RequestHeaders, useCertificateAuthorities, useProxyFromEnv } from './registry.js'
 import { majorVersion } from './resolveVersion.js'
 import { sameFileContents } from './sameFileContents.js'
 import { type SigningKey, verifyRegistrySignature } from './verifySignature.js'
@@ -26,6 +26,8 @@ export interface DownloadExecutableOptions {
   headers?: RequestHeaders
   /** PEM certificates of CAs to trust besides Node.js's own; see {@link useCertificateAuthorities}. */
   ca?: readonly string[]
+  /** The proxy to download through; `process.env` names it when unset. See {@link useProxyFromEnv}. */
+  proxy?: ProxyEnv
   /** Overrides the pinned npm signing keys. */
   keys?: readonly SigningKey[]
   /**
@@ -65,7 +67,7 @@ export async function downloadPnpmExecutable (opts: DownloadExecutableOptions): 
     musl: isMusl(),
   })
 
-  const restoreProxy = useProxyFromEnv()
+  const restoreProxy = useProxyFromEnv(opts.proxy)
   try {
     const restoreCertificates = useCertificateAuthorities(opts.ca)
     try {
