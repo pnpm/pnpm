@@ -315,8 +315,7 @@ impl<'a> OnDiskInputs<'a> {
                 extra_env: &extra_env,
 
                 skipped,
-                held_back_bins_dirs: &linked.held_back_bins_dirs,
-                hoisted_bin_sources: Some(&linked.hoisted_bin_sources),
+                pending_bins: Some(&linked.pending_bins),
                 // The fresh-resolve path never serves an explicit
                 // `pacquet rebuild`; rebuilds always take the frozen path.
             },

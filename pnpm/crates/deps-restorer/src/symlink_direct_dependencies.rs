@@ -10,7 +10,7 @@ mod resolve;
 use resolve::{ResolvedEntry, collect_resolved_entries, collect_resolved_targets};
 
 mod task_groups;
-use task_groups::{importer_modules_parent, importer_task_groups};
+use task_groups::{importer_modules_parent, importer_task_groups, merge_claimed_bins};
 
 use crate::{SkippedSnapshots, SymlinkPackageError, VirtualStoreLayout, symlink_package};
 use derive_more::{Display, Error};
@@ -214,10 +214,7 @@ impl ImporterPass<'_> {
                     .collect::<Result<Vec<_>, _>>()
             })
             .collect::<Result<Vec<_>, _>>()?;
-        Ok(group_results
-            .into_iter()
-            .flatten()
-            .collect())
+        Ok(merge_claimed_bins(group_results))
     }
 
     /// `dedupeDirectDeps` short-circuits when there is no root importer

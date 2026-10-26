@@ -114,6 +114,19 @@ impl LinkPhaseInputs<'_> {
     }
 }
 
+/// Bin state handed from [`run_link_phase`] to [`crate::run_build_phase`] so
+/// held-back hoisted bins, cached hoisted bin manifests, and isolated importer
+/// `.bin` pruning settle after dependency builds complete.
+#[derive(Default)]
+pub struct PendingBinLinks {
+    /// See [`crate::HoistedLinkerOutput::held_back_bins_dirs`].
+    pub held_back_bins_dirs: Vec<crate::HeldBackBinsDir>,
+    pub hoisted_bin_sources: crate::HoistedBinSources,
+    /// Command names linked into each isolated importer's `<modules_dir>/.bin`
+    /// during the link phase, keyed by [`pnpm_fs::lexical_normalize`].
+    pub claimed_importer_bins: HashMap<PathBuf, HashSet<String>>,
+}
+
 /// What the link phase hands to the build phase and the caller's
 /// `.modules.yaml` writer.
 pub struct LinkPhaseOutput {
@@ -134,9 +147,7 @@ pub struct LinkPhaseOutput {
     ///
     /// [`BinOrigin`]: pnpm_cmd_shim::BinOrigin
     pub publicly_hoisted_for_post_build: Vec<String>,
-    /// See [`crate::HoistedLinkerOutput::held_back_bins_dirs`].
-    pub held_back_bins_dirs: Vec<crate::HeldBackBinsDir>,
-    pub hoisted_bin_sources: crate::HoistedBinSources,
+    pub pending_bins: PendingBinLinks,
 }
 
 impl LinkPhaseOutput {
@@ -156,8 +167,7 @@ impl LinkPhaseOutput {
             hoisted_build_snapshots: None,
             build_scope: None,
             publicly_hoisted_for_post_build: Vec::new(),
-            held_back_bins_dirs: Vec::new(),
-            hoisted_bin_sources: crate::HoistedBinSources::default(),
+            pending_bins: PendingBinLinks::default(),
         }
     }
 }
@@ -365,8 +375,11 @@ fn write_project_links<Reporter: self::Reporter>(
         hoisted_build_snapshots: hoisted.hoisted_build_snapshots,
         build_scope,
         publicly_hoisted_for_post_build: links.publicly_hoisted_with_bins,
-        held_back_bins_dirs: hoisted.held_back_bins_dirs,
-        hoisted_bin_sources: hoisted.hoisted_bin_sources,
+        pending_bins: PendingBinLinks {
+            held_back_bins_dirs: hoisted.held_back_bins_dirs,
+            hoisted_bin_sources: hoisted.hoisted_bin_sources,
+            claimed_importer_bins,
+        },
     })
 }
 
@@ -377,21 +390,19 @@ fn finish_project_bins(
 ) -> Result<(), LinkPhaseError> {
     let config = inputs.ctx.config;
     if !bin_deps.is_empty() {
-        let root_claimed = claimed_importer_bins
-            .entry(pnpm_fs::lexical_normalize(&config.modules_dir))
-            .or_default();
+        let root_modules = pnpm_fs::lexical_normalize(&config.modules_dir);
+        let empty = HashSet::new();
+        let excluded = claimed_importer_bins.get(&root_modules).unwrap_or(&empty);
         let workspace_hoist_bins = link_direct_dep_bins_resolved_excluding(
             &config.modules_dir,
             bin_deps,
-            root_claimed,
+            excluded,
             inputs.ctx.linker.bin_options,
         )
         .map_err(LinkPhaseError::LinkBins)?;
-        root_claimed.extend(workspace_hoist_bins);
-    }
-    for (modules_dir, claimed) in claimed_importer_bins.iter() {
-        pnpm_cmd_shim::prune_stale_bins(&modules_dir.join(".bin"), claimed)
-            .map_err(LinkPhaseError::LinkBins)?;
+        if let Some(root_claimed) = claimed_importer_bins.get_mut(&root_modules) {
+            root_claimed.extend(workspace_hoist_bins);
+        }
     }
     Ok(())
 }

@@ -74,7 +74,10 @@ async function linkBinsOfDirectDeps (
   const directPkgDirs = project.id === '.'
     ? Object.values(directDeps)
     : Object.entries(directDeps)
-      .filter(([alias, dir]) => rootProjectDeps[alias] !== dir)
+      .filter(([alias, dir]) =>
+        rootProjectDeps[alias] !== dir ||
+        (depGraph.graph[dir] != null && dp.isRuntimeDepPath(depGraph.graph[dir].depPath))
+      )
       .map(([, dir]) => dir)
   // Skip packages without bins to avoid unnecessary manifest reads.
   // Dirs not in graph (e.g. link: deps) are kept since they may expose bins.
