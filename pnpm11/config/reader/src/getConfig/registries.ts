@@ -22,9 +22,16 @@ export interface InitialRegistries {
  * package-manager bootstrap, over the trusted `.npmrc` files. The project's
  * own files do not reach it.
  */
-export type BootstrapNetworkSettings = Pick<Config, 'httpProxy' | 'httpsProxy' | 'localAddress' | 'noProxy' | 'strictSsl'>
+export type BootstrapNetworkSettings = Pick<Config, 'localAddress' | 'strictSsl'> & ProxySettings
 
-type ProxySettings = Pick<BootstrapNetworkSettings, 'httpProxy' | 'httpsProxy' | 'noProxy'>
+/** The proxy keys as one source spells them, `proxy` and `noproxy` included. */
+export interface ProxySettings {
+  httpProxy?: unknown
+  httpsProxy?: unknown
+  noProxy?: unknown
+  noproxy?: unknown
+  proxy?: unknown
+}
 
 export function resolveInitialRegistries (state: ConfigBuildState, globalYamlNetworkSettings: BootstrapNetworkSettings): InitialRegistries {
   const { pnpmConfig } = state
@@ -193,9 +200,10 @@ function createPackageManagerNetworkConfig (
   // do for the project's requests. The command line's `.npmrc`-spelled tokens
   // sit inside `trustedConfig` too.
   const cliNetworkSettings = configFromCliOpts as BootstrapNetworkSettings
-  const proxyOverlays: ProxySettings[] = [cliNetworkSettings, readEnvProxySettings(env), globalYamlNetworkSettings]
+  const proxyOverlays = [cliNetworkSettings, readEnvProxySettings(env), globalYamlNetworkSettings]
+  const legacyProxy = getOverlaidSetting(proxyOverlays, 'proxy', trustedConfig.proxy)
   const httpsProxySetting = getProxyUrl(getOverlaidSetting(proxyOverlays, 'httpsProxy', trustedConfig['https-proxy'])) ??
-    (trustedConfig.proxy === false ? false : getProxyUrl(trustedConfig.proxy))
+    (legacyProxy === false ? false : getProxyUrl(legacyProxy))
   const httpsProxy = getProxyValue(httpsProxySetting, getEnvValue(env, 'https_proxy'))
   const httpProxy = getProxyValue(
     getProxyUrl(getOverlaidSetting(proxyOverlays, 'httpProxy', trustedConfig['http-proxy'])),
@@ -204,7 +212,7 @@ function createPackageManagerNetworkConfig (
       : httpsProxy ?? getEnvValue(env, 'http_proxy') ?? getEnvValue(env, 'proxy')
   )
   const noProxy = getNoProxyValue(getOverlaidSetting(proxyOverlays, 'noProxy', trustedConfig['no-proxy'])) ??
-    getNoProxyValue(trustedConfig.noproxy) ??
+    getNoProxyValue(getOverlaidSetting(proxyOverlays, 'noproxy', trustedConfig.noproxy)) ??
     getEnvValue(env, 'no_proxy')
   return {
     ca: trustedConfig.ca as string | string[] | undefined,
