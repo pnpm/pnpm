@@ -6,6 +6,7 @@ use std::{
     fs,
     io::{BufRead, BufReader, Read},
     os::unix::{fs::symlink, process::CommandExt},
+    path::Path,
     process::{self, Child, Command, Stdio},
     ptr,
     sync::mpsc,
@@ -461,9 +462,7 @@ fn a_signal_taken_while_a_child_is_spawned(raise: Raise) {
     spawning.spawned();
     // The marker says the child traps the signal, so the child is ready
     // for it and only the relay is not.
-    while !trapped.exists() {
-        sleep(Duration::from_millis(5));
-    }
+    wait_for_marker(&mut child, &trapped);
 
     if matches!(raise, Raise::OnceTheChildTraps) {
         interrupt_this_process();
@@ -471,10 +470,10 @@ fn a_signal_taken_while_a_child_is_spawned(raise: Raise) {
     let relay = crate::interrupt::relay_to_child(child.id(), true);
     spawning.joined(&relay);
 
-    assert!(
-        exits_within(&mut child, Duration::from_secs(30)),
-        "the child must be given the signal once it joins the relay",
-    );
+    if !exits_within(&mut child, Duration::from_secs(30)) {
+        kill_group(&mut child);
+        panic!("the child must be given the signal once it joins the relay");
+    }
     let status = child.wait().expect("wait for the child");
     dbg!(status);
     assert_eq!(status.code(), Some(42), "the child must end through the signal it traps");
@@ -504,9 +503,7 @@ fn two_signals_taken_while_a_child_is_spawned_both_reach_it() {
     spawning.spawned();
     // Recording rather than exiting, so the second signal has something
     // to arrive at and neither races the child's exit.
-    while !ready.exists() {
-        sleep(Duration::from_millis(5));
-    }
+    wait_for_marker(&mut child, &ready);
 
     interrupt_this_process();
     interrupt_this_process();
@@ -526,11 +523,7 @@ fn two_signals_taken_while_a_child_is_spawned_both_reach_it() {
         }
         sleep(Duration::from_millis(20));
     }
-    // SAFETY: the child this test spawned, which records rather than exits.
-    unsafe {
-        libc::kill(-i32::try_from(child.id()).expect("pid fits i32"), libc::SIGKILL);
-    }
-    let _ = child.wait();
+    kill_group(&mut child);
     for signal in both {
         assert!(seen.contains(signal), "the child missed {signal}, having received {seen:?}");
     }
@@ -545,6 +538,38 @@ fn two_signals_taken_while_a_child_is_spawned_both_reach_it() {
 fn interrupt_this_process() {
     // SAFETY: a signal to this process, whose handler is installed.
     assert_eq!(unsafe { libc::raise(libc::SIGINT) }, 0, "raise the signal");
+}
+
+/// Block until the child creates `marker`, the file a fixture writes once
+/// it is ready for a signal.
+///
+/// A child that exits without writing it fails the test there, rather than
+/// leaving the test polling for a marker nothing will write.
+fn wait_for_marker(child: &mut Child, marker: &Path) {
+    while !marker.exists() {
+        if child
+            .try_wait()
+            .expect("poll the child")
+            .is_some()
+        {
+            // A child that wrote the marker and exited in the time since
+            // the loop last looked was ready, not broken.
+            assert!(marker.exists(), "the child exited before it was ready for a signal");
+            return;
+        }
+        sleep(Duration::from_millis(5));
+    }
+}
+
+/// Kill the group the child leads and reap it, so a failing test leaves no
+/// fixture looping behind it.
+fn kill_group(child: &mut Child) {
+    // SAFETY: the group of a child this test spawned, which leads a group
+    // of its own.
+    unsafe {
+        libc::kill(-i32::try_from(child.id()).expect("pid fits i32"), libc::SIGKILL);
+    }
+    let _ = child.wait();
 }
 
 fn exits_within(child: &mut Child, deadline: Duration) -> bool {
