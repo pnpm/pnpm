@@ -44,7 +44,7 @@ pub async fn verify_storage(
     let namespaces = crate::export::configured_hosted_namespaces(config);
 
     for org in namespaces {
-        let org_storage = if org.is_empty() { storage.clone() } else { storage.for_hosted(&org) };
+        let org_storage = storage.for_hosted(&org, pnpr_registry::Ecosystem::Npm);
         let mut referenced_blobs = HashSet::new();
         let mut verified_npm_packages = HashSet::new();
 

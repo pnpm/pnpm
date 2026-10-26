@@ -1,7 +1,7 @@
 use super::{
     Body, Duration, Request, ServiceExt, StatusCode, TempDir, Value, body_bytes, config_for,
-    foo_packument, json, mock_packument_for_tarball, public_cache_blobs, public_cache_pkg, router,
-    sha1_hex_of, sha512_integrity, tarball_cache_entries, to_bytes,
+    foo_packument, json, mock_packument_for_tarball, public_cache_blob, public_cache_blobs,
+    public_cache_pkg, router, sha1_hex_of, sha512_integrity, tarball_cache_entries, to_bytes,
 };
 
 #[tokio::test]
@@ -104,7 +104,7 @@ async fn tarball_route_preserves_basename_and_binds_to_declaring_version() {
     assert_eq!(body_bytes(first.into_body()).await, v1_bytes);
 
     let blobs_dir = public_cache_blobs(&storage, "foo");
-    assert_eq!(tarball_cache_entries(&blobs_dir), vec!["foo-2.0.0.tgz".to_string()]);
+    assert_eq!(tarball_cache_entries(&blobs_dir), vec!["2.0.0.tgz".to_string()]);
 
     // A fresh instance over the same storage and the same origin replays the
     // cached entry; the `expect(1)` mocks prove the upstream is never
@@ -168,7 +168,7 @@ async fn tampered_upstream_tarball_aborts_the_stream_and_is_never_cached() {
 
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
-    let cache_path = public_cache_blobs(&storage, "poisoned").join("poisoned-1.0.0.tgz");
+    let cache_path = public_cache_blob(&storage, "poisoned", "poisoned-1.0.0.tgz");
 
     let app = router(config_for(&upstream.url(), storage.clone()));
     let packument_response = app
@@ -278,7 +278,7 @@ async fn missing_integrity_is_computed_cached_and_returned_in_the_packument() {
     assert_eq!(body_bytes(response.into_body()).await, bytes);
     assert_eq!(
         tarball_cache_entries(&public_cache_blobs(&storage, "foo")),
-        vec!["foo-1.0.0.tgz".to_string()],
+        vec!["1.0.0.tgz".to_string()],
     );
     packument_mock.assert_async().await;
     tarball_mock.assert_async().await;
@@ -1113,9 +1113,9 @@ async fn tarball_verification_finalizes_cache_with_no_tmp_leftover() {
     // built, leaving only the canonical cache path.
     let blobs_dir = public_cache_blobs(&cache_dir, "big");
     let entries = tarball_cache_entries(&blobs_dir);
-    assert_eq!(entries, vec!["big-1.0.0.tgz".to_string()]);
+    assert_eq!(entries, vec!["1.0.0.tgz".to_string()]);
 
-    let cached = std::fs::read(blobs_dir.join("big-1.0.0.tgz")).unwrap();
+    let cached = std::fs::read(blobs_dir.join("1.0.0.tgz")).unwrap();
     assert_eq!(cached.len(), bytes.len());
     assert_eq!(cached, bytes);
 }

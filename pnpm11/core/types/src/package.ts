@@ -321,7 +321,9 @@ export interface PnpmSettings {
   nodeDownloadMirrors?: Record<string, string>
   httpProxy?: string
   httpsProxy?: string
+  localAddress?: string
   noProxy?: string | boolean
+  strictSsl?: boolean
   pnprServer?: string
   /**
    * Whether a package's build output is reused, and where from. A boolean

@@ -43,6 +43,7 @@
     "@pnpm/exec.esm-node-path-loader": "workspace:*",
     "@pnpm/hooks.pnpmfile": "workspace:*",
     "@pnpm/network.git-utils": "workspace:*",
+    "@pnpm/os.available-parallelism": "workspace:*",
     "@pnpm/pkg-manifest.utils": "workspace:*",
     "@pnpm/text.naming-cases": "workspace:*",
     "@pnpm/types": "workspace:*",

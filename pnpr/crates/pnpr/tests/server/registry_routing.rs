@@ -548,6 +548,10 @@ async fn a_scoped_address_whose_first_segment_is_not_a_scope_is_not_found() {
         ("GET", "/npm/~npmjs/notascope/widget/-/widget-1.0.0.tgz"),
         ("PUT", "/npm/notascope/widget"),
         ("PUT", "/npm/~npmjs/notascope/widget"),
+        ("DELETE", "/npm/notascope/widget"),
+        ("DELETE", "/npm/~npmjs/notascope/widget"),
+        ("DELETE", "/npm/notascope/widget/-/widget-1.0.0.tgz"),
+        ("DELETE", "/npm/~npmjs/notascope/widget/-/widget-1.0.0.tgz"),
         ("DELETE", "/npm/notascope/widget/-/widget-1.0.0.tgz/-rev/1"),
         ("DELETE", "/npm/~npmjs/notascope/widget/-/widget-1.0.0.tgz/-rev/1"),
     ] {
@@ -574,8 +578,8 @@ async fn a_method_the_address_does_not_serve_is_method_not_allowed() {
     let app = router(config);
 
     for (method, path) in [
-        // `/{name}` reads and publishes.
-        ("DELETE", "/npm/widget"),
+        // `/{name}` reads, publishes, and unpublishes.
+        ("POST", "/npm/widget"),
         // `/{name}/-rev/{rev}` updates and unpublishes.
         ("GET", "/npm/widget/-rev/1"),
         ("GET", "/npm/~npmjs/widget/-rev/1"),

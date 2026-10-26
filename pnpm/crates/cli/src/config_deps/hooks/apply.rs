@@ -1,5 +1,5 @@
 use super::{
-    BTreeMap, Config, HashMap, Host, IntoDiagnostic, Path, PathBuf, Result, Value,
+    BTreeMap, Config, HashMap, Host, IntoDiagnostic, Path, PathBuf, Result, TrustedSettings, Value,
     WorkspaceSettings, apply_store_dir_override, config_delta, default_state_dir,
     is_known_setting_key, resolve_configured_state_dir,
 };
@@ -82,7 +82,7 @@ pub(super) fn apply_hook_delta(
     let execution_changes = hook_execution_changes(&delta)?;
     apply_registry_routing_changes(config, &delta)?;
 
-    let delta_settings: WorkspaceSettings = serde_json::from_value(delta.clone())
+    let delta_settings = TrustedSettings::from_json(&delta)
         .into_diagnostic()
         .wrap_err("deserialize the updateConfig hook result")?;
     record_explicit_setting_changes(config, &delta, &delta_settings);
@@ -138,7 +138,7 @@ fn hook_registry_routes(delta: &Value, key: &str) -> Result<Option<BTreeMap<Stri
 fn record_explicit_setting_changes(
     config: &mut Config,
     delta: &Value,
-    delta_settings: &WorkspaceSettings,
+    delta_settings: &TrustedSettings,
 ) {
     config.record_explicit_settings(delta_settings);
     let Some(delta) = delta.as_object() else { return };

@@ -20,6 +20,7 @@ pub(super) fn materialization_lockfiles<'r, 'install>(
         wanted_shared: lockfiles.wanted.loader_handle(loaded.wanted.shared.take()),
         merge_wanted: loaded.wanted.merge,
         current: loaded.current.as_ref(),
+        locked_registries: None,
         verification,
         verification_override: dispatched.modules.lockfile_verification_override.take(),
     }

@@ -1,5 +1,6 @@
 import { expect, test } from '@jest/globals'
 import {
+  findMovedRegistryKey,
   findOutdatedRegistryKey,
   keyPrefixForAlias,
   type LockfileObject,
@@ -91,5 +92,46 @@ test('findOutdatedRegistryKey() reports the smallest outdated key', () => {
   expect(findOutdatedRegistryKey(lockfile(), context({ work: WORK_REGISTRY, alpha: WORK_REGISTRY }))).toStrictEqual({
     key: '@work/foo@1.0.0',
     current: '@work/foo@alpha:1.0.0',
+  })
+})
+
+/** `context()` after the `@work` scope moved from `OLD_REGISTRY`. */
+const OLD_REGISTRY = 'https://old.example.com/'
+
+function movedContext (): RegistryContext {
+  return {
+    ...context({}),
+    lockedRegistriesByScope: { '@work': OLD_REGISTRY },
+  }
+}
+
+test('registryOfDepPath() reads a plain key as resolved from the registry its scope was routed to', () => {
+  const registries = movedContext()
+  expect(registryOfDepPath(registries, '@work/foo@1.0.0')).toBe(OLD_REGISTRY)
+  // An unscoped package, and a scope the record has no route for, resolved
+  // from the default registry.
+  expect(registryOfDepPath(registries, 'bar@1.0.0')).toBe('https://registry.npmjs.org/')
+  expect(registryOfDepPath(registries, '@other/foo@1.0.0')).toBe('https://registry.npmjs.org/')
+  // A qualified key names its registry.
+  expect(registryOfDepPath({ ...registries, registriesByPrefix: { work: WORK_REGISTRY } }, '@work/foo@work:1.0.0')).toBe(WORK_REGISTRY)
+})
+
+test('findMovedRegistryKey() finds nothing without a record of the locked routes', () => {
+  expect(findMovedRegistryKey(lockfile(), context({}))).toBeUndefined()
+  expect(findMovedRegistryKey(lockfile(), { ...context({}), lockedRegistriesByScope: context({}).registriesByScope })).toBeUndefined()
+})
+
+test('findMovedRegistryKey() finds the smallest plain key of a scope routed elsewhere', () => {
+  expect(findMovedRegistryKey(lockfile(), movedContext())).toStrictEqual({
+    key: '@work/foo@1.0.0',
+    from: OLD_REGISTRY,
+    to: WORK_REGISTRY,
+  })
+  // The `@work` scope had no route of its own: its packages resolved from the
+  // default registry, which it no longer routes to.
+  expect(findMovedRegistryKey(lockfile(), { ...context({}), lockedRegistriesByScope: {} })).toStrictEqual({
+    key: '@work/foo@1.0.0',
+    from: 'https://registry.npmjs.org/',
+    to: WORK_REGISTRY,
   })
 })

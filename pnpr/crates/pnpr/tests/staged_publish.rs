@@ -118,7 +118,7 @@ async fn staged_publish_is_held_back_until_approved() {
         .unwrap();
     assert_eq!(read.status(), StatusCode::NOT_FOUND);
     assert!(
-        !local_package_dir(&storage, "", "staged-pkg").exists(),
+        !local_package_dir(&storage, "", pnpr_storage::Ecosystem::Npm, "staged-pkg").exists(),
         "no package dir before approval",
     );
 
@@ -183,9 +183,14 @@ async fn staged_publish_is_held_back_until_approved() {
     assert_eq!(read.status(), StatusCode::OK);
     let packument = body_json(read.into_body()).await;
     assert_eq!(packument["versions"]["1.0.0"]["version"], "1.0.0");
-    let on_disk =
-        std::fs::read(local_blob_path(&storage, "", "staged-pkg", "staged-pkg-1.0.0.tgz"))
-            .expect("tarball promoted on approval");
+    let on_disk = std::fs::read(local_blob_path(
+        &storage,
+        "",
+        pnpr_storage::Ecosystem::Npm,
+        "staged-pkg",
+        "staged-pkg-1.0.0.tgz",
+    ))
+    .expect("tarball promoted on approval");
     assert_eq!(on_disk, tarball);
 
     let list = app
@@ -236,7 +241,7 @@ async fn rejecting_a_staged_publish_deletes_it_without_publishing() {
         .unwrap();
     assert_eq!(read.status(), StatusCode::NOT_FOUND);
     assert!(
-        !local_package_dir(&storage, "", "rejected-pkg").exists(),
+        !local_package_dir(&storage, "", pnpr_storage::Ecosystem::Npm, "rejected-pkg").exists(),
         "a rejected stage publishes nothing",
     );
 }
@@ -277,8 +282,14 @@ async fn staging_supports_scoped_packages() {
         .await
         .unwrap();
     assert_eq!(approve.status(), StatusCode::CREATED);
-    let on_disk = std::fs::read(local_blob_path(&storage, "", "@scope/staged", "staged-2.0.0.tgz"))
-        .expect("scoped tarball promoted on approval");
+    let on_disk = std::fs::read(local_blob_path(
+        &storage,
+        "",
+        pnpr_storage::Ecosystem::Npm,
+        "@scope/staged",
+        "staged-2.0.0.tgz",
+    ))
+    .expect("scoped tarball promoted on approval");
     assert_eq!(on_disk, tarball);
 }
 
@@ -472,6 +483,7 @@ async fn an_approval_that_reports_a_conflict_still_consumes_the_stage() {
             &ObjectPath::from(object_key(&local_blob_path(
                 Path::new(""),
                 "",
+                pnpr_storage::Ecosystem::Npm,
                 "staged-pkg",
                 "staged-pkg-1.0.0.tgz",
             ))),

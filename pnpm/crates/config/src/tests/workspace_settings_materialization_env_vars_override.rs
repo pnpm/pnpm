@@ -1,7 +1,7 @@
 use super::{
     Config, EnvVar, EnvVarOs, GetCurrentDir, GetHomeDir, Host, HostNoHome, LinkProbe, NodeLinker,
-    NodePackageMapMode, NodePackageMapType, OsString, Path, PathBuf, TrustPolicy,
-    WorkspaceSettings, assert_eq, fs, io, safe_host_var, tempdir, write_file,
+    NodePackageMapMode, NodePackageMapType, OsString, Path, PathBuf, TrustPolicy, assert_eq, fs,
+    io, safe_host_var, tempdir, write_file,
 };
 
 #[test]
@@ -71,7 +71,7 @@ pub fn global_config_may_disable_time_machine_backups() {
         "macosBackup:\n  excludeModulesDir: true\n  excludeStoreDir: true\n",
     )
     .expect("write global config.yaml");
-    let settings = WorkspaceSettings::load_global(tmp.path())
+    let settings = crate::TrustedSettings::load_global(tmp.path())
         .expect("loads global config")
         .expect("global config exists");
     let mut config = Config::default();
@@ -491,10 +491,10 @@ pub fn runtime_env_var_overrides_workspace_yaml() {
 pub fn global_config_cannot_set_runtime() {
     let tmp = tempdir().unwrap();
     fs::write(tmp.path().join("config.yaml"), "runtime: false\n").expect("write config.yaml");
-    let settings = WorkspaceSettings::load_global(tmp.path())
+    let settings = crate::TrustedSettings::load_global(tmp.path())
         .expect("loads global config")
         .expect("config.yaml exists");
-    assert_eq!(settings.runtime, None);
+    assert_eq!(settings.settings.runtime, None);
 }
 
 /// `lockfileDir` moves the paths pnpm resolves against it: the root

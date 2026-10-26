@@ -7,6 +7,7 @@ use tempfile::TempDir;
 fn storage_in(tmp: &TempDir) -> Storage {
     Storage::new(&HostedStoreConfig::Fs, tmp.path().join("storage"), tmp.path().join("cache"))
         .unwrap()
+        .for_hosted("", Ecosystem::Oci)
 }
 
 fn image(name: &str) -> CanonicalPackageName {
@@ -350,7 +351,7 @@ fn two_orgs_of_one_bucket(tmp: &TempDir) -> (Storage, Storage) {
         prefix: String::new(),
     };
     let root = Storage::new(&hosted, tmp.path().join("storage"), tmp.path().join("cache")).unwrap();
-    (root.for_hosted("first"), root.for_hosted("second"))
+    (root.for_hosted("first", Ecosystem::Oci), root.for_hosted("second", Ecosystem::Oci))
 }
 
 #[tokio::test]
@@ -385,7 +386,7 @@ async fn an_upload_does_not_cross_between_organizations() {
 /// What is left in the default namespace's upload directory.
 fn uploads_left(tmp: &TempDir) -> Vec<std::ffi::OsString> {
     let mut dir = tmp.path().join("storage");
-    dir.extend(crate::layout::namespace_segments(""));
+    dir.extend(crate::layout::namespace_segments("", Ecosystem::Oci));
     std::fs::read_dir(dir.join(super::UPLOADS_DIR))
         .unwrap()
         .map(|entry| entry.unwrap().file_name())
@@ -407,7 +408,7 @@ fn replicas() -> (Storage, Storage, TempDir, TempDir) {
         Storage {
             tar_integrities: hosted.namespaced(crate::tar_integrities::NAMESPACE),
             tar_integrity_cache: std::sync::Arc::default(),
-            hosted: crate::namespace(&hosted, ""),
+            hosted: crate::namespace(&hosted, "", Ecosystem::Oci),
             root: hosted,
             cached: crate::Store::new(temp.path().join("cache")),
         }
@@ -503,7 +504,7 @@ async fn s3_sessions_are_repository_and_namespace_bound_and_expire() {
     );
     assert!(
         second
-            .for_hosted("other")
+            .for_hosted("other", Ecosystem::Oci)
             .open_blob_upload(&repository, upload.id())
             .await
             .unwrap()

@@ -12,7 +12,6 @@ pnpr config check
 pnpr verify [OPTIONS]
 pnpr export --out <dir> [OPTIONS]
 pnpr migrate-storage [OPTIONS]
-pnpr upgrade-storage [--dry-run]
 pnpr import-htpasswd --source <path> [OPTIONS]
 pnpr add-user <username>
 pnpr oci-gc --registry <name> [OPTIONS]
@@ -30,7 +29,7 @@ Server options apply to `pnpr serve` (and bare `pnpr`). Global path options (`-c
 | `--storage <path>` | Override the [storage](configuration.md) directory from the loaded config. This directory is the source of truth for hosted packages. |
 | `--cache <path>` | Override the disposable cache directory (the mirror of upstream registries, resolver cache, and local shared-artifact store). Defaults to a `.pnpr-cache` subdirectory of the storage path. |
 | `--public-url <url>` | URL clients should use to reach the server, used when rewriting `dist.tarball` URLs in served packuments. Defaults to `http://<listen>`. |
-| `--packument-ttl <interval>` | Duration before a cached packument is considered stale and refetched (e.g. `5m`, `300s`, or bare seconds). Defaults to [`packumentTtl`](configuration.md#packumentttl), which defaults to `5m`. Alias: `--packument-ttl-secs`. A registry's `maxAge` overrides it for that registry. |
+| `--packument-ttl <interval>` | Duration before a cached packument is considered stale and refetched (e.g. `5m`, `300s`, or bare seconds). Defaults to [`packumentTtl`](configuration.md#packumentttl), which defaults to `5m`. A registry's `maxAge` overrides it for that registry. |
 | `--osv [<bool>]` | Enable local [OSV](https://osv.dev/) npm vulnerability checks. Requires a local OSV npm database zip at `--osv-db` or `<cache>/osv/npm/all.zip`. `--osv false` turns off checks that the config enables. |
 | `--osv-db <path>` | Path to the local OSV npm database zip or extracted JSON directory. |
 | `--disable-registry` | Disable the npm registry surface (packument and tarball reads, publish, unpublish, dist-tags, and search) that is otherwise served whenever the config declares at least one registry. The health and login/token endpoints stay available. |
@@ -63,8 +62,6 @@ Validates the YAML configuration file and prints diagnostic details, including c
 
 ```sh
 pnpr config check
-# or using the hyphenated alias
-pnpr config-check
 ```
 
 ### verify
@@ -82,14 +79,14 @@ pnpr verify --skip-hashes
 pnpr verify --prune-orphans
 
 # Prune immediately without age guard
-pnpr verify --prune-orphans --min-age-secs 0
+pnpr verify --prune-orphans --min-age 0
 ```
 
 | Flag | Description |
 | --- | --- |
-| `--skip-hashes` | Skip recomputing and verifying tarball checksums (cryptographic hashes are verified by default). Alias: `--no-check-hashes`. |
+| `--skip-hashes` | Skip recomputing and verifying tarball checksums (cryptographic hashes are verified by default). |
 | `--prune-orphans` | Automatically delete orphaned blobs not referenced by any hosted package version. Recommended when registry writers are stopped. |
-| `--min-age <interval>` | Minimum age before an unreferenced blob is considered for pruning (e.g. `1d`, `86400s`, or bare seconds; defaults to `1d`). Alias: `--min-age-secs`. |
+| `--min-age <interval>` | Minimum age before an unreferenced blob is considered for pruning (e.g. `1d`, `86400s`, or bare seconds; defaults to `1d`). |
 
 ### export
 
@@ -136,27 +133,6 @@ To reach a plain-HTTP MinIO, configure the `s3:` block instead:
 ```sh
 pnpr -c ./pnpr-s3.yaml migrate-storage --from ./storage --verify
 ```
-
-### upgrade-storage
-
-Converts the hosted store to the current [storage layout](storage.md#layout).
-Back the store up and stop every pnpr process that uses it first. The org of
-each configured hosted registry decides which top-level directories are org
-namespaces, so run it with the configuration the store was written with.
-It refuses what the earlier layout cannot tell apart from the new one: an org
-named `default`, a top-level directory that is both an org and a package, and
-a repository whose name starts with `default/packages/` or `orgs/`.
-In-progress image uploads are discarded. Files that belong to no package are
-reported and left where they are. An interrupted conversion can be run again.
-
-```sh
-pnpr upgrade-storage --dry-run
-pnpr upgrade-storage
-```
-
-| Flag | Description |
-| --- | --- |
-| `--dry-run` | Report what would move without changing anything. |
 
 ### import-htpasswd
 
@@ -212,7 +188,7 @@ the whole run.
 | --- | --- |
 | `--registry <name>` | The concrete hosted OCI registry to collect, by its config name. Required. |
 | `--dry-run` | Report the candidates without deleting anything. |
-| `--min-age <interval>` | Keep blobs younger than this (e.g. `1d`, `86400s`, or bare seconds). Defaults to `1d`, so an interrupted push can still resume. `0` collects every unreferenced blob. Alias: `--min-age-secs`. |
+| `--min-age <interval>` | Keep blobs younger than this (e.g. `1d`, `86400s`, or bare seconds). Defaults to `1d`, so an interrupted push can still resume. `0` collects every unreferenced blob. |
 
 ### cache-gc
 
@@ -226,7 +202,7 @@ cache size and age limits.
 | --- | --- |
 | `--dry-run` | Report the candidates without deleting anything. |
 | `--max-size <size>` | Maximum total cache size to retain (e.g. `10GB`, `500MB`, or raw bytes). Evicts oldest files first (LRU). Overrides the config value. |
-| `--max-age <interval>` | Maximum file age (e.g. `30d`, `1h`, or bare seconds). Entries older than this are deleted. Overrides the config value. Alias: `--max-age-secs`. |
+| `--max-age <interval>` | Maximum file age (e.g. `30d`, `1h`, or bare seconds). Entries older than this are deleted. Overrides the config value. |
 | `--orphans-only` | Only prune orphaned upstream namespaces without evicting active cache entries. |
 
 ## Logging

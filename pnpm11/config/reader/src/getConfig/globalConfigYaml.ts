@@ -5,9 +5,11 @@ import kebabCase from 'lodash.kebabcase'
 
 import { isConfigFileKey } from '../configFileKey.js'
 import { getGlobalConfigPath } from '../dirs.js'
+import type { OptionsFromRootManifest } from '../getOptionsFromRootManifest.js'
 import { quoteAndJoin } from '../quoteAndJoin.js'
 import { isKnownSettingKey, quoteAndAnnotateUnknown } from '../unknownSettings.js'
 import type { ConfigBuildState } from './configBuildState.js'
+import type { BootstrapNetworkSettings, ProxySettings } from './registries.js'
 import {
   GLOBAL_CONFIG_SKIPPED_KEYS,
   isRefusedByAProjectManifest,
@@ -17,25 +19,29 @@ import {
 } from './skippedKeys.js'
 import { addSettingsFromWorkspaceManifestToConfig } from './workspaceManifestSettings.js'
 
+export interface AppliedGlobalYamlConfig {
+  /** The registries in effect right after the file was applied, or undefined when there is no global config.yaml. */
+  registries: Record<string, string> | undefined
+  /** The file's network settings, which the package-manager bootstrap reads too. */
+  bootstrapNetworkSettings: BootstrapNetworkSettings
+}
+
 /**
  * Applies the settings of the global config.yaml, dropping (and warning about)
  * the keys that file may not set.
- *
- * Returns the registries in effect right after that file was applied, or
- * undefined when there is no global config.yaml.
  */
 export function applyGlobalYamlConfig (
   state: ConfigBuildState,
   { configDir, globalYamlConfig }: { configDir: string, globalYamlConfig: WorkspaceManifest | undefined }
-): Record<string, string> | undefined {
-  if (!globalYamlConfig) return undefined
+): AppliedGlobalYamlConfig {
+  if (!globalYamlConfig) return { registries: undefined, bootstrapNetworkSettings: {} }
   // Consumed by loadNpmrcConfig above; drop so it isn't flagged as unknown.
   delete (globalYamlConfig as unknown as Record<string, unknown>)._auth
   const droppedKeys = removeKeysTheGlobalConfigFileCannotSet(globalYamlConfig)
   if (droppedKeys.ignoredKeys.length > 0 || droppedKeys.kebabKeys.length > 0) {
     warnAboutDroppedGlobalConfigKeys(state.warnings, { ...droppedKeys, globalYamlConfigPath: getGlobalConfigPath(configDir) })
   }
-  addSettingsFromWorkspaceManifestToConfig(state.pnpmConfig, {
+  const settings = addSettingsFromWorkspaceManifestToConfig(state.pnpmConfig, {
     configFromCliOpts: state.configFromCliOpts,
     expandRequestDestinationEnv: true,
     projectManifest: undefined,
@@ -44,7 +50,15 @@ export function applyGlobalYamlConfig (
     workspaceDir: undefined,
     workspaceManifest: globalYamlConfig,
   })
-  return state.pnpmConfig.registriesByScope as Record<string, string> | undefined
+  return {
+    registries: state.pnpmConfig.registriesByScope as Record<string, string> | undefined,
+    bootstrapNetworkSettings: pickBootstrapNetworkSettings(settings),
+  }
+}
+
+function pickBootstrapNetworkSettings (settings: OptionsFromRootManifest & ProxySettings): BootstrapNetworkSettings {
+  const { httpProxy, httpsProxy, localAddress, noProxy, noproxy, proxy, strictSsl } = settings
+  return { httpProxy, httpsProxy, localAddress, noProxy, noproxy, proxy, strictSsl }
 }
 
 interface DroppedGlobalConfigKeys {

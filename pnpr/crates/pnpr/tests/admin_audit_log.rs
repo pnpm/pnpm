@@ -27,7 +27,7 @@ auth:
   scim:
     token: scim-secret-0123456789abcdef0123456789
   htpasswd:
-    max_users: 100
+    maxUsers: 100
 registries:
   local:
     type: hosted

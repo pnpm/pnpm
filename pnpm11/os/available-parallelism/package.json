@@ -1,0 +1,47 @@
+{
+  "name": "@pnpm/os.available-parallelism",
+  "version": "1100.0.0",
+  "description": "The number of CPUs pnpm may use, capped by the cgroup CPU quota of its container",
+  "keywords": [
+    "pnpm",
+    "pnpm11",
+    "cgroup",
+    "cpu",
+    "os"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/pnpm11/os/available-parallelism",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/pnpm11/os/available-parallelism#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "scripts": {
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "test": "pn compile && pn .test",
+    "compile": "tsgo --build && pn lint --fix",
+    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest",
+    "prepublishOnly": "tsgo --build"
+  },
+  "devDependencies": {
+    "@jest/globals": "catalog:",
+    "@pnpm/os.available-parallelism": "workspace:*",
+    "@types/node": "catalog:"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
+  }
+}

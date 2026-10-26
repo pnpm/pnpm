@@ -50,6 +50,7 @@ export function pickRegistryContext (source: RegistryContext): RegistryContext {
     registriesByScope: source.registriesByScope,
     registriesByPrefix: source.registriesByPrefix,
     registryOptionsByUrl: source.registryOptionsByUrl,
+    lockedRegistriesByScope: source.lockedRegistriesByScope,
   }
 }
 
@@ -108,11 +109,6 @@ interface RegistryRoutes {
   registryOptionsByUrl?: Record<string, RegistryOptions>
 }
 
-/**
- * A registry's `prefix` field holds one name, so when several prefixes route
- * to the same URL the alphabetically first one is declared: the one the
- * registry's lockfile keys carry, which a pnpr server keys them by too.
- */
 function buildRegistryDeclarations (context: RegistryRoutes): Record<string, RegistryDeclaration> {
   const declarations: Record<string, RegistryDeclaration> = {}
   const declarationFor = (registry: string): RegistryDeclaration => (declarations[registry] ??= {})
@@ -140,7 +136,12 @@ function applyPrefixRoutes (
 ): void {
   const sortedPrefixEntries = Object.entries(registriesByPrefix ?? {}).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
   for (const [prefix, registry] of sortedPrefixEntries) {
-    declarationFor(registry).prefix ??= prefix
+    const declaration = declarationFor(registry)
+    if (declaration.prefix == null) {
+      declaration.prefix = prefix
+    } else {
+      (declaration.aliases ??= []).push(prefix)
+    }
   }
 }
 
@@ -157,12 +158,11 @@ function applyRegistryOptions (
 function sortRegistryDeclarations (declarations: Record<string, RegistryDeclaration>): Record<string, RegistryDeclaration> {
   const sorted: Record<string, RegistryDeclaration> = {}
   for (const registry of Object.keys(declarations).sort()) {
-    const { serverType, supportsTimeField, scopes, prefix } = declarations[registry]
+    const { serverType, supportsTimeField } = declarations[registry]
     sorted[registry] = {
       ...(serverType != null ? { serverType } : {}),
       ...(supportsTimeField != null ? { supportsTimeField } : {}),
-      ...(scopes != null ? { scopes: [...scopes].sort() } : {}),
-      ...(prefix != null ? { prefix } : {}),
+      ...sortRegistryRoutes(declarations[registry]),
     }
   }
   return sorted
@@ -196,4 +196,12 @@ export function registrySupportsTimeField (
   return registryContext.registryOptionsByUrl?.[normalizeRegistryUrl(registry)]?.supportsTimeField
     ?? registryContext.registrySupportsTimeField
     ?? false
+}
+
+function sortRegistryRoutes ({ scopes, prefix, aliases }: RegistryDeclaration): RegistryDeclaration {
+  return {
+    ...(scopes != null ? { scopes: [...scopes].sort() } : {}),
+    ...(prefix != null ? { prefix } : {}),
+    ...(aliases != null ? { aliases: [...aliases].sort() } : {}),
+  }
 }

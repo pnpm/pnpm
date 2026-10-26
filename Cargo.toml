@@ -268,7 +268,7 @@ yamlpath = { version = "1.25.2" }
 wax = { version = "0.7.0" }
 which = { version = "8.0.2" }
 zip = { version = "8", default-features = false, features = ["deflate"] }
-zstd = { version = "0.13.3", default-features = false }
+zstd = { version = "0.14.3", default-features = false }
 zune-inflate = { version = "0.2.54" }
 
 # Dev dependencies
@@ -291,8 +291,10 @@ mockito = { version = "1.7.2" }
 [patch.crates-io]
 tar = { path = "vendor/tar" }
 # Reuses HTTP connections after a cursor query. Drop once a release carries
-# <https://github.com/tursodatabase/libsql/pull/2301>.
-libsql = { git = "https://github.com/pnpm/libsql", rev = "4943f79046d6d6ff7617d6a573f1d51e8709e2b2" }
+# <https://github.com/tursodatabase/libsql/pull/2301>. Also carries
+# <https://github.com/tursodatabase/libsql/pull/2261>, released in 0.10.0,
+# which stops closing every dropped local connection twice.
+libsql = { git = "https://github.com/pnpm/libsql", rev = "e2c44e616a1f8e1ec7ceeb61138a3c2c391c35a9" }
 node-semver = { git = "https://github.com/pnpm/node-semver-rs", rev = "3d74d6b7f4de1de2006cf2f7663aac09de65b1f6" }
 # Adds the `nightly` feature. Drop once an upstream release carries it.
 # See <https://github.com/pnpm/pnpm/pull/16951>.

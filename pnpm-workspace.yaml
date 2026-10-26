@@ -29,6 +29,7 @@ packages:
   - pnpm11/network/*
   - pnpm11/modules-mounter/*
   - pnpm11/object/*
+  - pnpm11/os/*
   - pnpm11/os/env/*
   - pnpm11/core/*
   - pnpm11/bins/*

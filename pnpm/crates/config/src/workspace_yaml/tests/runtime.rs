@@ -14,7 +14,7 @@ fn global_shims_defaults_enable_the_managed_runtimes() {
 
 #[test]
 fn global_shims_record_merges_over_the_defaults() {
-    let settings: WorkspaceSettings =
+    let settings: crate::MachineSettings =
         serde_saphyr::from_str("globalShims: {bun: false, typescript: true}\n").unwrap();
     assert!(matches!(settings.global_shims, Some(GlobalShimsSetting::Entries(_))));
     let mut config = Config::default();
@@ -26,19 +26,19 @@ fn global_shims_record_merges_over_the_defaults() {
 
 #[test]
 fn global_shims_scalar_shorthands_reset_the_record() {
-    let settings: WorkspaceSettings = serde_saphyr::from_str("globalShims: false\n").unwrap();
+    let settings: crate::MachineSettings = serde_saphyr::from_str("globalShims: false\n").unwrap();
     let mut config = Config::default();
     settings.apply_to(&mut config, Path::new("/irrelevant"));
     assert!(config.global_shims.dispatches_nothing());
 
-    let settings: WorkspaceSettings = serde_saphyr::from_str("globalShims: true\n").unwrap();
+    let settings: crate::MachineSettings = serde_saphyr::from_str("globalShims: true\n").unwrap();
     settings.apply_to(&mut config, Path::new("/irrelevant"));
     assert_eq!(config.global_shims, GlobalShims::default());
 }
 
 #[test]
 fn global_shims_named_policies_parse() {
-    let settings: WorkspaceSettings =
+    let settings: crate::MachineSettings =
         serde_saphyr::from_str("globalShims: {node: prompt, deno: always, bun: auto}\n").unwrap();
     let mut config = Config::default();
     settings.apply_to(&mut config, Path::new("/irrelevant"));

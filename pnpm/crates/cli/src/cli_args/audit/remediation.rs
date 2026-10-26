@@ -188,4 +188,17 @@ impl AuditArgs {
             None => Ok(None),
         }
     }
+
+    /// Reject `--ignore` and `--ignore-unfixable` next to a fix flow.
+    pub(super) fn reject_ignore_flags(&self) -> Result<(), AuditError> {
+        let ignore_flag = if !self.advisories.ignore.is_empty() {
+            "--ignore"
+        } else if self.advisories.ignore_unfixable {
+            "--ignore-unfixable"
+        } else {
+            return Ok(());
+        };
+        let fix_flag = if self.fix.is_some() { "--fix" } else { "--interactive" };
+        Err(AuditError::FixWithIgnore { fix_flag, ignore_flag })
+    }
 }

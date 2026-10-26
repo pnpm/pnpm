@@ -22,7 +22,7 @@ pub enum Command {
         #[arg(long)]
         dry_run: bool,
         /// Minimum blob age to reclaim (e.g. "1d", "86400s", or bare seconds).
-        #[arg(long, default_value = "1d", alias = "min-age-secs", value_parser = parse_cli_interval)]
+        #[arg(long, default_value = "1d", value_parser = parse_cli_interval)]
         min_age: Duration,
     },
     /// Reclaim cached upstream tarballs and packuments.
@@ -34,15 +34,12 @@ pub enum Command {
         #[arg(long)]
         max_size: Option<String>,
         /// Maximum file age (e.g. "30d", "1h", or bare seconds). Entries older than this are deleted.
-        #[arg(long, alias = "max-age-secs", value_parser = parse_cli_interval)]
+        #[arg(long, value_parser = parse_cli_interval)]
         max_age: Option<Duration>,
         /// Only prune orphaned upstream namespaces without evicting active cache files.
         #[arg(long)]
         orphans_only: bool,
     },
-    /// Validate configuration and report diagnostics.
-    #[command(name = "config-check", alias = "check-config", alias = "check")]
-    ConfigCheck,
     /// Configuration management commands.
     Config {
         #[command(subcommand)]
@@ -51,13 +48,13 @@ pub enum Command {
     /// Verify every document against its blobs (tarballs, attestations).
     Verify {
         /// Skip cryptographic hash verification (SHA-512 / SHA-1) of stored blobs against packument integrity.
-        #[arg(long, alias = "no-check-hashes")]
+        #[arg(long)]
         skip_hashes: bool,
         /// Remove orphaned blobs from storage.
         #[arg(long)]
         prune_orphans: bool,
         /// Minimum age before an unreferenced blob is considered for pruning (e.g. "1d", "86400s", or bare seconds).
-        #[arg(long, default_value = "1d", alias = "min-age-secs", value_parser = parse_cli_interval)]
+        #[arg(long, default_value = "1d", value_parser = parse_cli_interval)]
         min_age: Duration,
     },
     /// Export hosted packages and blobs to a directory.
@@ -92,13 +89,6 @@ pub enum Command {
         /// Verify uploaded blobs in target store after writing.
         #[arg(long)]
         verify: bool,
-    },
-    /// Convert the hosted store to the current storage layout. Back the store
-    /// up and stop every pnpr process that uses it first.
-    UpgradeStorage {
-        /// Report what would change without changing anything.
-        #[arg(long)]
-        dry_run: bool,
     },
     /// Import users from an existing Verdaccio or Apache htpasswd file.
     ImportHtpasswd {
@@ -138,15 +128,10 @@ pub async fn run_command(config: &Config, command: Command) -> miette::Result<()
         )),
         Command::OciGc { .. } => run_oci_gc_command(config, command).await,
         Command::CacheGc { .. } => run_cache_gc_command(config, command).await,
-        Command::ConfigCheck | Command::Config { .. } => run_config_check(),
+        Command::Config { .. } => run_config_check(),
         Command::Verify { .. } => run_verify_command(config, command).await,
         Command::Export { .. } => run_export_command(config, command).await,
         Command::MigrateStorage { .. } => run_migrate_command(config, command).await,
-        Command::UpgradeStorage { dry_run } => {
-            let report = crate::upgrade_storage::upgrade_storage(config, dry_run).await?;
-            print!("{}", crate::upgrade_storage::format_upgrade_report(&report));
-            Ok(())
-        }
         Command::ImportHtpasswd { .. } => run_import_command(config, command),
         Command::AddUser { username, password } => {
             run_add_user_command(config, username, password).await

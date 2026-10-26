@@ -6,7 +6,20 @@ use std::{fmt, str::FromStr};
 use strum::{EnumIter, IntoEnumIterator as _};
 
 /// The protocol whose naming rules a registry surface follows.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, EnumIter)]
+#[derive(
+    Debug,
+    Default,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    EnumIter,
+)]
 #[serde(rename_all = "lowercase")]
 pub enum Ecosystem {
     #[default]
@@ -101,6 +114,7 @@ pub struct CanonicalPackageName {
     /// the last component, for `name` this is the whole thing. Used to
     /// validate tarball filenames, which are always `<basename>-<version>.tgz`.
     basename: String,
+    ecosystem: Ecosystem,
 }
 
 impl CanonicalPackageName {
@@ -108,12 +122,12 @@ impl CanonicalPackageName {
     /// re-parsing it against a specific ecosystem grammar. Used for offline
     /// store migration and maintenance.
     #[must_use]
-    pub fn from_stored(raw: &str) -> Self {
+    pub fn from_stored(raw: &str, ecosystem: Ecosystem) -> Self {
         let basename = raw
             .rsplit_once('/')
             .map_or(raw, |(_, last)| last)
             .to_string();
-        Self { raw: raw.to_string(), basename }
+        Self { raw: raw.to_string(), basename, ecosystem }
     }
 
     pub fn parse(raw: &str, ecosystem: Ecosystem) -> Result<Self, RegistryError> {
@@ -133,10 +147,10 @@ impl CanonicalPackageName {
                 let basename =
                     canonical.rsplit_once('/').map_or(canonical.as_str(), |(_, last)| last);
                 let basename = basename.to_string();
-                return Ok(Self { raw: canonical, basename });
+                return Ok(Self { raw: canonical, basename, ecosystem });
             }
         };
-        Self::parse_canonical(&canonical)
+        Self::parse_canonical(&canonical, ecosystem)
             .map_err(|error| match ecosystem {
                 Ecosystem::Npm => error,
                 Ecosystem::Cargo | Ecosystem::Pypi | Ecosystem::Oci => invalid_ecosystem_name(
@@ -147,7 +161,7 @@ impl CanonicalPackageName {
             })
     }
 
-    fn parse_canonical(raw: &str) -> Result<Self, RegistryError> {
+    fn parse_canonical(raw: &str, ecosystem: Ecosystem) -> Result<Self, RegistryError> {
         let invalid = || RegistryError::InvalidPackageName { name: raw.to_string() };
         if raw.is_empty() || raw.len() > 214 {
             return Err(invalid());
@@ -164,12 +178,17 @@ impl CanonicalPackageName {
             }
             raw.to_string()
         };
-        Ok(Self { raw: raw.to_string(), basename })
+        Ok(Self { raw: raw.to_string(), basename, ecosystem })
     }
 
     #[must_use]
     pub fn as_str(&self) -> &str {
         &self.raw
+    }
+
+    #[must_use]
+    pub fn ecosystem(&self) -> Ecosystem {
+        self.ecosystem
     }
 
     #[must_use]

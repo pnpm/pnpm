@@ -5,9 +5,9 @@ pub(super) use super::{
     get_org_teams, get_team_members,
     health::{serve_live, serve_ping, serve_ready},
     hosted_storage, not_found, oci, pnpr_protocols_disabled, private_no_cache, publish_package,
-    pypi, remove_dist_tag, resolve_write_target, serve_batch_publish, serve_metrics,
-    serve_org_packages, serve_package_tarball, serve_packument, serve_pnpr_handshake, serve_search,
-    serve_tarball, serve_version_manifest, set_dist_tag, split_package_identifier, staged,
+    pypi, remove_dist_tag, resolve_write_target, serve_metrics, serve_org_packages,
+    serve_package_tarball, serve_packument, serve_pnpr_handshake, serve_search, serve_tarball,
+    serve_version_manifest, set_dist_tag, split_package_identifier, staged,
     team_access::{grant_team_access, list_team_packages, revoke_team_access},
     team_mutations::{TeamScope, add_team_member, create_team, destroy_team, remove_team_member},
     update_packument,
@@ -24,7 +24,7 @@ use team_handlers::team_routes;
 
 mod npm_handlers;
 use npm_handlers::{
-    delete_package_dist_tag, get_package_dist_tags, get_packument,
+    delete_package_dist_tag, delete_scoped_package, get_package_dist_tags, get_packument,
     get_packument_or_version_manifest, get_scoped_tarball, get_scoped_version_manifest, get_search,
     get_tarball, put_package, put_package_dist_tag, put_packument_revision, put_scoped_package,
     put_scoped_packument_revision, unpublish_package, unpublish_scoped_package,
@@ -296,13 +296,14 @@ fn registry_routes(state: &AppState, router: Router<AppState>) -> Router<AppStat
 /// was reached through.
 fn npm_registry_routes() -> Router<AppState> {
     // Batch publish: one request carrying many packages' publish documents.
-    // Not part of the standard npm registry API — `pnpm publish --batch` opts
-    // into it explicitly, and only against the path-less base.
-    let mut router = Router::new().route("/-/pnpm/v1/publish", put(serve_batch_publish));
+    // Mounted at both the server root (`registry_routes`) and the path-less npm
+    // base (`/npm/-/pnpr/v0/publish`) so `pnpm publish --batch` can resolve it
+    // relative to the configured npm registry URL.
+    let mut router = Router::new().route("/-/pnpr/v0/publish", put(batch::serve_ecosystem_publish));
     for base in ["", "/~{registry}"] {
         let path = |tail: &str| format!("{base}{tail}");
         let with_teams = team_routes(staged_routes(ping_route(router, base), base), base);
-        router = super::security_audit::routes(with_teams, base)
+        let with_audit = super::security_audit::routes(with_teams, base)
             .route(&path("/-/v1/search"), get(get_search))
             .route(&path("/-/npm/v1/keys"), get(super::attestations::get_keys))
             .route(
@@ -313,35 +314,39 @@ fn npm_registry_routes() -> Router<AppState> {
             .route(
                 &path("/-/package/{name}/dist-tags/{tag}"),
                 put(put_package_dist_tag).delete(delete_package_dist_tag),
-            )
-            // Package addresses. npm spells a scoped name either as two
-            // literal segments (`/@scope/name`) or as one percent-encoded
-            // segment (`/@scope%2Fname`), so a path's segment count never says
-            // on its own which resource it names. The `-` and `-rev` markers
-            // do: whatever stands to their left is the package.
-            .route(&path("/{name}"), get(get_packument).put(put_package))
-            .route(
-                &path("/{first}/{second}"),
-                get(get_packument_or_version_manifest).put(put_scoped_package),
-            )
-            .route(&path("/{name}/-/{filename}"), get(get_tarball))
-            .route(
-                &path("/{name}/-rev/{rev}"),
-                put(put_packument_revision).delete(unpublish_package),
-            )
-            .route(
-                &path("/{scope}/{name}/-rev/{rev}"),
-                put(put_scoped_packument_revision).delete(unpublish_scoped_package),
-            )
-            .route(&path("/{scope}/{name}/{version}"), get(get_scoped_version_manifest))
-            .route(&path("/{scope}/{name}/-/{filename}"), get(get_scoped_tarball))
-            .route(&path("/{name}/-/{filename}/-rev/{rev}"), delete(unpublish_tarball))
-            .route(
-                &path("/{scope}/{name}/-/{filename}/-rev/{rev}"),
-                delete(unpublish_scoped_tarball),
             );
+        router = npm_package_routes(with_audit, base);
     }
     router
+}
+
+/// Package addresses. npm spells a scoped name either as two literal segments
+/// (`/@scope/name`) or as one percent-encoded segment (`/@scope%2Fname`), so a
+/// path's segment count never says on its own which resource it names. The `-`
+/// and `-rev` markers do: whatever stands to their left is the package.
+fn npm_package_routes(router: Router<AppState>, base: &str) -> Router<AppState> {
+    let path = |tail: &str| format!("{base}{tail}");
+    router
+        .route(&path("/{name}"), get(get_packument).put(put_package).delete(unpublish_package))
+        .route(
+            &path("/{first}/{second}"),
+            get(get_packument_or_version_manifest)
+                .put(put_scoped_package)
+                .delete(delete_scoped_package),
+        )
+        .route(&path("/{name}/-/{filename}"), get(get_tarball).delete(unpublish_tarball))
+        .route(&path("/{name}/-rev/{rev}"), put(put_packument_revision).delete(unpublish_package))
+        .route(
+            &path("/{scope}/{name}/-rev/{rev}"),
+            put(put_scoped_packument_revision).delete(unpublish_scoped_package),
+        )
+        .route(&path("/{scope}/{name}/{version}"), get(get_scoped_version_manifest))
+        .route(
+            &path("/{scope}/{name}/-/{filename}"),
+            get(get_scoped_tarball).delete(unpublish_scoped_tarball),
+        )
+        .route(&path("/{name}/-/{filename}/-rev/{rev}"), delete(unpublish_tarball))
+        .route(&path("/{scope}/{name}/-/{filename}/-rev/{rev}"), delete(unpublish_scoped_tarball))
 }
 
 /// `npm ping` asks the registry URL, not the server root.

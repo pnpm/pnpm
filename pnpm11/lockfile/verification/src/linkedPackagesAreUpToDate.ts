@@ -26,7 +26,7 @@ import {
   versionSatisfies,
 } from './dependencySpec.js'
 import {
-  localDirectoryDepIsUpToDate,
+  createLocalDirectoryDepUpToDateChecker,
   type LocalDirectoryResolution,
 } from './localDirectoryDepIsUpToDate.js'
 
@@ -68,6 +68,12 @@ interface DependencyToCheck {
   lockfileRef: string
 }
 
+interface DependencyCheckContext {
+  project: ProjectToCheck
+  dep: DependencyToCheck
+  localDirectoryDepIsUpToDate: ReturnType<typeof createLocalDirectoryDepUpToDateChecker>
+}
+
 const UP_TO_DATE: CheckLinkedPackagesResult = { upToDate: true }
 
 export async function linkedPackagesAreUpToDate (ctx: LinkedPackagesContext, project: ProjectToCheck): Promise<boolean> {
@@ -76,24 +82,28 @@ export async function linkedPackagesAreUpToDate (ctx: LinkedPackagesContext, pro
 }
 
 export async function checkLinkedPackagesAreUpToDate (ctx: LinkedPackagesContext, project: ProjectToCheck): Promise<CheckLinkedPackagesResult> {
+  const localDirectoryDepIsUpToDate = createLocalDirectoryDepUpToDateChecker(ctx)
   const results = await Promise.all(DEPENDENCIES_FIELDS.flatMap((depField) => {
     const lockfileDeps = project.snapshot[depField]
     const manifestDeps = project.manifest[depField]
     if ((lockfileDeps == null) || (manifestDeps == null)) return []
     return Object.entries(lockfileDeps)
       .filter(([depName]) => manifestDeps[depName])
-      .map(async ([depName, lockfileRef]) => checkDependency(ctx, project, { depName, currentSpec: manifestDeps[depName], lockfileRef }))
+      .map(async ([depName, lockfileRef]) => checkDependency(ctx, {
+        project,
+        dep: { depName, currentSpec: manifestDeps[depName], lockfileRef },
+        localDirectoryDepIsUpToDate,
+      }))
   }))
   return results.find((result) => !result.upToDate) ?? UP_TO_DATE
 }
 
 async function checkDependency (
   ctx: LinkedPackagesContext,
-  project: ProjectToCheck,
-  dep: DependencyToCheck
+  { project, dep, localDirectoryDepIsUpToDate }: DependencyCheckContext
 ): Promise<CheckLinkedPackagesResult> {
   if (refIsLocalDirectory(project.snapshot.specifiers[dep.depName]) || isLocalDirectoryRef(dep.lockfileRef)) {
-    return checkLocalDirectoryDependency(ctx, project, dep)
+    return checkLocalDirectoryDependency(ctx, { project, dep, localDirectoryDepIsUpToDate })
   }
   if (dep.lockfileRef.startsWith('link:')) {
     const specPath = getLinkSpecPath(dep.currentSpec)
@@ -106,8 +116,7 @@ async function checkDependency (
 
 async function checkLocalDirectoryDependency (
   ctx: LinkedPackagesContext,
-  project: ProjectToCheck,
-  { depName, currentSpec, lockfileRef }: DependencyToCheck
+  { project, dep: { depName, currentSpec, lockfileRef }, localDirectoryDepIsUpToDate }: DependencyCheckContext
 ): Promise<CheckLinkedPackagesResult> {
   // When a file: specifier resolves to link: in the lockfile
   // (e.g. injected self-references), it's a local link with no
@@ -125,7 +134,7 @@ async function checkLocalDirectoryDependency (
   if (
     !ctx.skipLocalDirectoryDependencies &&
     !isDeployDirectoryRef(lockfileRef, pkgSnapshot) &&
-    !await localDirectoryDepIsUpToDate(ctx, pkgSnapshot, dependencyAliases(project.manifest))
+    !await localDirectoryDepIsUpToDate(pkgSnapshot, dependencyAliases(project.manifest))
   ) {
     return outdated(`The dependencies of local directory dependency "${depName}" do not match the lockfile`)
   }

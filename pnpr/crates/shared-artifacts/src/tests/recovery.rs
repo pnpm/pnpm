@@ -8,7 +8,7 @@ use super::{
 async fn failed_reclamation_releases_its_gate_for_later_retries() {
     let inner = InMemory::new();
     let owner = owner_key("acme", &OwnerScope::organization("acme")).unwrap();
-    let orphan = ObjectPath::from(format!(".pnpr-artifacts/v0/{owner}/blobs/orphan"));
+    let orphan = ObjectPath::from(format!(".artifacts/{owner}/blobs/orphan"));
     inner
         .put(&orphan, PutPayload::from_static(b"orphan"))
         .await
@@ -40,7 +40,7 @@ async fn failed_reclamation_releases_its_gate_for_later_retries() {
 
     store.try_reclaim_unreferenced_blobs().await.unwrap_err();
 
-    let usage_path = ObjectPath::from(".pnpr-artifacts/v0/quota.json");
+    let usage_path = ObjectPath::from(".artifacts/quota.json");
     let usage: ArtifactUsage = serde_json::from_slice(
         &backend
             .get(&usage_path)

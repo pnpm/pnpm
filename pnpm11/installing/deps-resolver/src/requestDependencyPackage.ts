@@ -1,13 +1,16 @@
+import { pickRegistryContext } from '@pnpm/config.normalize-registries'
 import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
 import * as dp from '@pnpm/deps.path'
 import type { LockfileObject } from '@pnpm/lockfile.types'
 import { getPatchInfo } from '@pnpm/patching.config'
 import type { PkgResolutionId, PreferredVersions } from '@pnpm/resolving.resolver-base'
 import type { OnFetchError, PackageResponse, RequestPackageOptions } from '@pnpm/store.controller-types'
+import type { RegistryContext } from '@pnpm/types'
 import semver from 'semver'
 
 import { getExactSinglePreferredVersions } from './getExactSinglePreferredVersions.js'
 import { hasAlias, type WantedDependency } from './getWantedDependencies.js'
+import { getRangeOfLockedPackage, isNamedRegistrySpecifier } from './lockedRegistryKey.js'
 import { replaceVersionInBareSpecifier } from './replaceVersionInBareSpecifier.js'
 import type { ResolutionContext, ResolveDependencyOptions, ResolvedPkgsById } from './resolutionTypes.js'
 import { unwrapPackageName } from './unwrapPackageName.js'
@@ -154,7 +157,7 @@ function handlePackageRequestFailure ({ ctx, options, wantedDependency }: Depend
     version: wantedDependency.alias ? wantedDependency.bareSpecifier : undefined,
   }
   if (wantedDependency.optional && err.code !== 'ERR_PNPM_TRUST_DOWNGRADE') {
-    if (!wantedLockfileContainsSatisfyingEntry(ctx.wantedLockfile, wantedDependency)) {
+    if (!wantedLockfileContainsSatisfyingEntry(ctx.wantedLockfile, wantedDependency, pickRegistryContext(ctx))) {
       skippedOptionalDependencyLogger.debug({
         details: err.toString(),
         package: wantedDependencyDetails,
@@ -184,10 +187,12 @@ function handlePackageRequestFailure ({ ctx, options, wantedDependency }: Depend
  * identical inputs and leaving frozen installs on other hosts with nothing to
  * link (https://github.com/pnpm/pnpm/issues/12853).
  *
- * Only plain semver specifiers are checked; exotic specifiers (git, catalogs,
- * tags, URLs) keep the skip-on-failure behavior.
+ * Only semver ranges, plain or behind a named-registry prefix (`work:^1.0.0`),
+ * are checked; other specifiers (git, catalogs, tags, URLs) keep the
+ * skip-on-failure behavior. An entry satisfies only if it is locked from the
+ * registry the specifier resolves against (see {@link getRangeOfLockedPackage}).
  *
- * The check is deliberately by package name and range rather than by the
+ * The check is deliberately by package name, registry, and range rather than by the
  * current edge's locked dep path. `pnpm dedupe` — the flow where the erasure
  * bites — clears every per-snapshot dependency map before resolving
  * (`forgetResolutionsOfAllPrevWantedDeps`), so on this code path no edge-level
@@ -196,13 +201,20 @@ function handlePackageRequestFailure ({ ctx, options, wantedDependency }: Depend
  * package in-range before, so failing loudly instead of skipping is the right
  * outcome even when the failing edge itself was never locked.
  */
-function wantedLockfileContainsSatisfyingEntry (lockfile: LockfileObject, wantedDependency: WantedDependency): boolean {
+function wantedLockfileContainsSatisfyingEntry (
+  lockfile: LockfileObject,
+  wantedDependency: WantedDependency,
+  registries: RegistryContext
+): boolean {
   if (!wantedDependency.alias) return false
   const { pkgName, bareSpecifier } = unwrapPackageName(wantedDependency.alias, wantedDependency.bareSpecifier)
-  if (semver.validRange(bareSpecifier) == null) return false
+  const wantedDep = { alias: pkgName, bareSpecifier }
+  if (semver.validRange(bareSpecifier) == null && !isNamedRegistrySpecifier(wantedDep, registries)) return false
   return Object.keys(lockfile.packages ?? {}).some((depPath) => {
-    const parsed = dp.parse(depPath)
-    return parsed.name === pkgName && parsed.version != null && semver.satisfies(parsed.version, bareSpecifier)
+    const { name, version, registryName } = dp.parse(depPath)
+    if (name == null || version == null) return false
+    const range = getRangeOfLockedPackage(wantedDep, { name, registryName }, registries)
+    return range != null && semver.validRange(range) != null && semver.satisfies(version, range)
   })
 }
 

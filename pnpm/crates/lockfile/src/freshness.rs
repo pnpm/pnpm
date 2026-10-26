@@ -160,6 +160,13 @@ pub enum StalenessReason {
     #[display("the lockfile records `{key}`, which the registries setting now keys as `{current}`")]
     OutdatedRegistryKey { key: String, current: String },
 
+    /// A plain `packages:` key resolved from a registry its scope no longer
+    /// routes to. See [`RegistryContext::moved_registry`].
+    #[display(
+        "the lockfile records `{key}` from {from}, which the registries setting now routes to {to}"
+    )]
+    MovedRegistryRoute { key: String, from: String, to: String },
+
     /// The lockfile's `ignoredOptionalDependencies` (sorted) differs
     /// from the current install's `Config::ignored_optional_dependencies`
     /// (sorted). Both values are returned sorted so
@@ -360,6 +367,7 @@ impl StalenessReason {
             | StalenessReason::DepSpecifierMismatch { .. }
             | StalenessReason::ResolutionDoesNotSatisfy { .. }
             | StalenessReason::OutdatedRegistryKey { .. }
+            | StalenessReason::MovedRegistryRoute { .. }
             | StalenessReason::LocalDependencyOutdated { .. } => None,
         }
     }
@@ -424,6 +432,43 @@ pub fn check_lockfile_registry_keys(
         Some((key, current)) => {
             Err(StalenessReason::OutdatedRegistryKey { key, current: current.to_string() })
         }
+        None => Ok(()),
+    }
+}
+
+/// A plain `packages:` key names no registry, so the one its package
+/// resolved from is what the workspace state recorded
+/// ([`RegistryContext::locked_registries`]). When the key's scope routes
+/// elsewhere now, the recorded integrity and the recorded children belong to
+/// the old registry, so a resolving install resolves the package again from
+/// the new one. A frozen install does not run this: it installs what the
+/// lockfile records.
+///
+/// Reports the smallest moved key, so the reason is stable across runs.
+pub fn check_lockfile_registry_routes(
+    lockfile: &Lockfile,
+    registries: &RegistryContext,
+) -> Result<(), StalenessReason> {
+    if registries.locked_registries.is_none() {
+        return Ok(());
+    }
+    let Some(packages) = lockfile.packages.as_ref() else {
+        return Ok(());
+    };
+    let moved = packages
+        .keys()
+        .filter_map(|key| {
+            registries
+                .moved_registry(key)
+                .map(|(from, to)| (key.to_string(), from, to))
+        })
+        .min_by(|(left, _, _), (right, _, _)| left.cmp(right));
+    match moved {
+        Some((key, from, to)) => Err(StalenessReason::MovedRegistryRoute {
+            key,
+            from: from.to_string(),
+            to: to.to_string(),
+        }),
         None => Ok(()),
     }
 }

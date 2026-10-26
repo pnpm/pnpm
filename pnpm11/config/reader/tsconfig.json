@@ -40,6 +40,9 @@
       "path": "../../network/git-utils"
     },
     {
+      "path": "../../os/available-parallelism"
+    },
+    {
       "path": "../../pkg-manifest/utils"
     },
     {

@@ -22,7 +22,7 @@ use crate::{
     registry_config_keys::NormalizedRegistryUrl,
 };
 
-const BATCH_PUBLISH_ENDPOINT: &str = "-/pnpm/v1/publish";
+const BATCH_PUBLISH_ENDPOINT: &str = "-/pnpr/v0/publish";
 
 struct BatchGroup {
     registry: NormalizedRegistryUrl,
@@ -293,7 +293,7 @@ pub enum BatchPublishError {
     #[diagnostic(
         code(ERR_PNPM_BATCH_PUBLISH_UNSUPPORTED),
         help(
-            r#"Retry without the --batch flag, or publish to a registry that implements "PUT /-/pnpm/v1/publish" (for example, pnpr)."#
+            r#"Retry without the --batch flag, or publish to a registry that implements "PUT /-/pnpr/v0/publish" (for example, pnpr)."#
         )
     )]
     Unsupported {

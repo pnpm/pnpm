@@ -72,7 +72,7 @@ async fn read_rules(
 ) -> Result<(RuleTable, String), RegistryError> {
     let canonical = super::managed_state::canonical_registry_key(state, registry);
     let Some(bytes) =
-        state.inner.storage.read_registry_record(RegistryRecord::RuleOverrides, canonical).await?
+        state.inner.storage.read_registry_record(RegistryRecord::RuleOverrides, &canonical).await?
     else {
         return Ok((base.clone(), rules_version(None)));
     };
@@ -124,7 +124,7 @@ pub(super) async fn replace_rules(
     let _reload = managed.reload.lock().await;
     for _ in 0..WRITE_ATTEMPTS {
         let kind = RegistryRecord::RuleOverrides;
-        let stored = state.inner.storage.read_registry_record(kind, canonical).await?;
+        let stored = state.inner.storage.read_registry_record(kind, &canonical).await?;
         check_version(registry, stored.as_deref(), expected)?;
         if store_registry_record(state, kind, registry, stored.as_deref(), &bytes).await? {
             publish_rules(state, registry, table.clone());
@@ -155,7 +155,7 @@ where
     let _reload = managed.reload.lock().await;
     for _ in 0..WRITE_ATTEMPTS {
         let kind = RegistryRecord::RuleOverrides;
-        let stored = state.inner.storage.read_registry_record(kind, canonical).await?;
+        let stored = state.inner.storage.read_registry_record(kind, &canonical).await?;
         let mut changes = parse_changes(registry, stored.as_deref())?;
         let ecosystem =
             state.inner.config.routing.registries.ecosystem(registry).unwrap_or_default();

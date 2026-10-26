@@ -4,6 +4,7 @@ use super::{
     publish_request, router_with_auth, sha256_hex,
 };
 use crate::tokens::issue_token;
+use pnpr_storage::layout::blob_segment;
 
 #[tokio::test]
 async fn config_json_points_downloads_and_the_api_back_at_the_registry() {
@@ -309,7 +310,10 @@ async fn proxies_the_sparse_index_and_verified_downloads_through_an_upstream() {
     index_mock.assert_async().await;
     download_mock.assert_async().await;
     let cache = tmp.path().join(".pnpr-cache");
-    assert!(find_file(&cache, "serde-1.0.0.crate").is_some(), "download is cached");
+    assert!(
+        find_file(&cache, &blob_segment("serde", "serde-1.0.0.crate")).is_some(),
+        "download is cached",
+    );
 
     // An unknown crate is a definitive 404, and the cache holds nothing for it.
     let missing = upstream
@@ -374,7 +378,10 @@ async fn a_download_that_fails_the_index_checksum_is_never_cached() {
         .await
         .unwrap();
     assert!(axum::body::to_bytes(response.into_body(), usize::MAX).await.is_err());
-    assert!(find_file(&tmp.path().join(".pnpr-cache"), "serde-1.0.0.crate").is_none());
+    assert!(
+        find_file(&tmp.path().join(".pnpr-cache"), &blob_segment("serde", "serde-1.0.0.crate"))
+            .is_none(),
+    );
 }
 
 #[tokio::test]

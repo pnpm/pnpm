@@ -203,8 +203,8 @@ impl Resolver {
     }
 
     fn build(config: &RegistryConfig, osv_index: Option<Arc<OsvIndex>>) -> Resolver {
-        let store_dir = config.storage.cache_dir.join("pnpr-store");
-        let cache_dir = config.storage.cache_dir.join("pnpr-cache");
+        let store_dir = config.storage.cache_dir.join("resolver-store");
+        let cache_dir = config.storage.cache_dir.join("resolver-cache");
         // Best-effort: a real failure here (e.g. a permission problem)
         // resurfaces with a precise error on the first store/cache write
         // during resolution, so there's nothing actionable to report yet.

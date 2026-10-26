@@ -298,7 +298,7 @@ registries:
     access: [team]
     auth:
       type: bearer
-      token_env: PNPR_DEFINITELY_UNSET_TOKEN_VAR
+      tokenEnv: PNPR_DEFINITELY_UNSET_TOKEN_VAR
   main:
     type: router
     sources: [corp]

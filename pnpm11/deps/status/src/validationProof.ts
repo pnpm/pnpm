@@ -177,8 +177,10 @@ export async function recordValidatedWorkspaceState (
     settings: {
       ...opts,
       autoDedupe: opts.autoDedupe ?? workspaceState.settings.autoDedupe,
-      // The check passed, so the recorded verification of the lockfile keys still holds.
+      // The check passed, so the recorded verification of the lockfile keys
+      // still holds, and nothing resolved the lockfile's plain keys elsewhere.
       registryPrefixes: workspaceState.settings.registryPrefixes,
+      registryRoutes: workspaceState.settings.registryRoutes,
     },
     ignoredWorkspaceStateSettings: opts.ignoredWorkspaceStateSettings,
     filteredInstall: workspaceState.filteredInstall,

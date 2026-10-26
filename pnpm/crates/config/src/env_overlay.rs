@@ -1,5 +1,5 @@
 //! Read `PNPM_CONFIG_*` / `pnpm_config_*` environment variables into a
-//! [`WorkspaceSettings`] overlay.
+//! [`TrustedSettings`] overlay.
 //!
 //! Reads `pnpm_config_<key>` (or its `PNPM_CONFIG_<KEY>` uppercase form)
 //! for every key in the schema and applies it to the config *after*
@@ -18,7 +18,9 @@ use crate::{
     AuditLevel, CatalogMode, ColorMode, HoistingLimits, InitType, LogLevel, NodeLinkerSetting,
     NodePackageMapMode, NodePackageMapType, PackageImportMethod, PmOnFail, ReporterType,
     ResolutionMode, RuntimeOnFail, SaveWorkspaceProtocol, StoreIndexFormat, TrustPolicy,
-    VerifyDepsBeforeRun, VirtualStoreType, WorkspaceSettings, api::EnvVar,
+    VerifyDepsBeforeRun, VirtualStoreType, WorkspaceSettings,
+    api::EnvVar,
+    workspace_yaml::{MachineSettings, TrustedSettings},
 };
 use parse::{parse_json, parse_json_or_string, parse_tri_array};
 use std::collections::BTreeMap;
@@ -86,13 +88,13 @@ macro_rules! tri_string_field {
 // Declared after the field macros so the module can use them.
 mod resolution;
 
-impl WorkspaceSettings {
-    /// Build a [`WorkspaceSettings`] from `PNPM_CONFIG_*` env vars.
+impl TrustedSettings {
+    /// Build the settings `PNPM_CONFIG_*` env vars give.
     ///
     /// Env vars are read for the full schema, not just config-file
     /// keys — `PNPM_CONFIG_HOIST=false`, `PNPM_CONFIG_NODE_LINKER=hoisted`
-    /// etc. all work (no [`Self::clear_workspace_only_fields`] call).
-    /// Apply the returned settings via [`Self::apply_to`] *after*
+    /// etc. all work (no [`WorkspaceSettings::clear_workspace_only_fields`]
+    /// call). Apply the returned settings via [`Self::apply_to`] *after*
     /// `pnpm-workspace.yaml` so env vars win over yaml.
     #[must_use]
     pub fn from_pnpm_config_env<Sys: EnvVar>() -> Self {
@@ -117,6 +119,51 @@ impl WorkspaceSettings {
     }
 
     fn from_reader(reader: &StringReader<'_>) -> Self {
+        Self {
+            settings: WorkspaceSettings::from_reader(reader),
+            machine: MachineSettings::from_reader(reader),
+        }
+    }
+}
+
+impl MachineSettings {
+    fn from_reader(reader: &StringReader<'_>) -> Self {
+        let mut settings = MachineSettings::default();
+        json_field!(settings, reader, ci, "CI");
+        string_field!(settings, reader, state_dir, "STATE_DIR");
+        // Unlike its `string_field!` neighbors, `scope` keeps an empty value;
+        // see [`read_env_allow_empty`] for why.
+        string_field_allow_empty!(settings, reader, scope, "SCOPE");
+        string_field!(settings, reader, global_dir, "GLOBAL_DIR");
+        string_field!(settings, reader, global_bin_dir, "GLOBAL_BIN_DIR");
+        json_field!(settings, reader, global_shims, "GLOBAL_SHIMS");
+        json_field!(settings, reader, tools, "TOOLS");
+        json_field!(
+            settings,
+            reader,
+            symlinked_lockfile_target_dirs,
+            "SYMLINKED_LOCKFILE_TARGET_DIRS"
+        );
+        settings.read_macos_backup_env(reader);
+        settings
+    }
+
+    fn read_macos_backup_env(&mut self, reader: &StringReader<'_>) {
+        if let Some(value) =
+            reader.value("MACOS_BACKUP_EXCLUDE_MODULES_DIR").and_then(|value| parse_json(&value))
+        {
+            self.macos_backup.get_or_insert_default().exclude_modules_dir = Some(value);
+        }
+        if let Some(value) =
+            reader.value("MACOS_BACKUP_EXCLUDE_STORE_DIR").and_then(|value| parse_json(&value))
+        {
+            self.macos_backup.get_or_insert_default().exclude_store_dir = Some(value);
+        }
+    }
+}
+
+impl WorkspaceSettings {
+    fn from_reader(reader: &StringReader<'_>) -> Self {
         let mut settings = WorkspaceSettings::default();
 
         settings.read_general_env(reader);
@@ -138,7 +185,6 @@ impl WorkspaceSettings {
     fn read_general_env(&mut self, reader: &StringReader<'_>) {
         let settings = self;
         json_field!(settings, reader, bail, "BAIL");
-        json_field!(settings, reader, ci, "CI");
         json_field!(settings, reader, progress, "PROGRESS");
         json_field!(settings, reader, update_notifier, "UPDATE_NOTIFIER");
         enum_field!(settings, reader, color, "COLOR", ColorMode);
@@ -163,21 +209,7 @@ impl WorkspaceSettings {
         json_field!(settings, reader, use_beta_cli, "USE_BETA_CLI");
     }
 
-    fn read_macos_backup_env(&mut self, reader: &StringReader<'_>) {
-        if let Some(value) =
-            reader.value("MACOS_BACKUP_EXCLUDE_MODULES_DIR").and_then(|value| parse_json(&value))
-        {
-            self.macos_backup.get_or_insert_default().exclude_modules_dir = Some(value);
-        }
-        if let Some(value) =
-            reader.value("MACOS_BACKUP_EXCLUDE_STORE_DIR").and_then(|value| parse_json(&value))
-        {
-            self.macos_backup.get_or_insert_default().exclude_store_dir = Some(value);
-        }
-    }
-
     fn read_layout_env(&mut self, reader: &StringReader<'_>) {
-        self.read_macos_backup_env(reader);
         let settings = self;
         json_field!(settings, reader, hoist, "HOIST");
         tri_array_field!(settings, reader, hoist_pattern, "HOIST_PATTERN");
@@ -185,7 +217,6 @@ impl WorkspaceSettings {
         json_field!(settings, reader, shamefully_hoist, "SHAMEFULLY_HOIST");
         string_field!(settings, reader, store_dir, "STORE_DIR");
         enum_field!(settings, reader, store_index_format, "STORE_INDEX_FORMAT", StoreIndexFormat);
-        string_field!(settings, reader, state_dir, "STATE_DIR");
         string_field!(settings, reader, modules_dir, "MODULES_DIR");
         enum_field!(settings, reader, node_linker, "NODE_LINKER", NodeLinkerSetting);
         json_field!(settings, reader, symlink, "SYMLINK");
@@ -225,10 +256,7 @@ impl WorkspaceSettings {
         json_field!(settings, reader, enable_global_virtual_store, "ENABLE_GLOBAL_VIRTUAL_STORE");
         json_field!(settings, reader, virtual_store_only, "VIRTUAL_STORE_ONLY");
         json_field!(settings, reader, enable_modules_dir, "ENABLE_MODULES_DIR");
-        json_field!(settings, reader, global_shims, "GLOBAL_SHIMS");
         string_field!(settings, reader, global_virtual_store_dir, "GLOBAL_VIRTUAL_STORE_DIR");
-        string_field!(settings, reader, global_dir, "GLOBAL_DIR");
-        string_field!(settings, reader, global_bin_dir, "GLOBAL_BIN_DIR");
         enum_field!(
             settings,
             reader,
@@ -266,18 +294,7 @@ impl WorkspaceSettings {
         json_field!(settings, reader, offline, "OFFLINE");
         json_field!(settings, reader, prefer_offline, "PREFER_OFFLINE");
         json_field!(settings, reader, lockfile_include_tarball_url, "LOCKFILE_INCLUDE_TARBALL_URL");
-        json_field!(
-            settings,
-            reader,
-            symlinked_lockfile_target_dirs,
-            "SYMLINKED_LOCKFILE_TARGET_DIRS"
-        );
         string_field!(settings, reader, registry, "REGISTRY");
-        // Unlike its `string_field!` neighbors, `scope` keeps an empty value;
-        // see [`read_env_allow_empty`] for why.
-        if let Some(scope) = reader.value_allow_empty("SCOPE") {
-            settings.scope = Some(scope);
-        }
         string_field!(settings, reader, pnpr_server, "PNPR_SERVER");
         string_field!(settings, reader, https_proxy, "HTTPS_PROXY");
         string_field!(settings, reader, http_proxy, "HTTP_PROXY");
@@ -351,7 +368,6 @@ impl WorkspaceSettings {
         );
         json_field!(settings, reader, changed_files_ignore_pattern, "CHANGED_FILES_IGNORE_PATTERN");
         json_field!(settings, reader, supported_architectures, "SUPPORTED_ARCHITECTURES");
-        json_field!(settings, reader, tools, "TOOLS");
         json_field!(
             settings,
             reader,

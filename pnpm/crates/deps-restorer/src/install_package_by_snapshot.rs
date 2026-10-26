@@ -1,4 +1,4 @@
-pub use runtime::{host_platform_selector, runtime_platform_selector};
+pub use runtime::{binary_store_index_key, host_platform_selector, runtime_platform_selector};
 pub use tarball_resolution::{
     local_file_tarball_install_url, tarball_url_and_integrity, unverified_fetch_is_allowed,
 };

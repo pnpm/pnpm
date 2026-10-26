@@ -342,9 +342,9 @@ pub(super) async fn put_scoped_packument_revision(
     update_packument(&state, &identity, registry.as_deref(), &full, &body_bytes).await
 }
 
-/// `DELETE {base}/{pkg}/-rev/{rev}` — remove a whole package
-/// (`pnpm unpublish --force`), or remove one version's tarball when the segment
-/// is `{pkg}@{version}` (`DELETE {dist.tarball}/-rev/{rev}`).
+/// `DELETE {base}/{pkg}` and `DELETE {base}/{pkg}/-rev/{rev}` — remove a whole
+/// package (`pnpm unpublish --force`), or remove one version's tarball when the
+/// segment is `{pkg}@{version}`.
 pub(super) async fn unpublish_package(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
@@ -364,6 +364,17 @@ pub(super) async fn unpublish_package(
     delete_package(&state, &identity, registry.as_deref(), &path.name).await
 }
 
+/// `DELETE {base}/@{scope}/{pkg}` — remove a whole scoped package, or remove
+/// one scoped version's tarball when the second segment is `{pkg}@{version}`.
+pub(super) async fn delete_scoped_package(
+    State(state): State<AppState>,
+    AuthedCaller(identity): AuthedCaller,
+    TargetRegistry(registry): TargetRegistry,
+    Path(path): Path<TwoSegments>,
+) -> Response {
+    unpublish_scoped(&state, &identity, registry.as_deref(), &path.first, &path.second).await
+}
+
 /// `DELETE {base}/@{scope}/{pkg}/-rev/{rev}` — remove a whole scoped package,
 /// or remove one scoped version's tarball when the second segment is
 /// `{pkg}@{version}` (`DELETE {dist.tarball}/-rev/{rev}`).
@@ -373,17 +384,25 @@ pub(super) async fn unpublish_scoped_package(
     TargetRegistry(registry): TargetRegistry,
     Path(path): Path<ScopedRevPath>,
 ) -> Response {
-    let ScopedRevPath { scope, name, .. } = path;
-    if !scope.starts_with('@') {
+    unpublish_scoped(&state, &identity, registry.as_deref(), &path.scope, &path.name).await
+}
+
+async fn unpublish_scoped(
+    state: &AppState,
+    identity: &Identity,
+    registry: Option<&str>,
+    scope: &str,
+    name: &str,
+) -> Response {
+    if !scope.starts_with('@') || scope.contains('/') {
         return not_found();
     }
-    if let Some((bare_name, version)) = split_package_identifier(&name) {
+    if let Some((bare_name, version)) = split_package_identifier(name) {
         let full = format!("{scope}/{bare_name}");
-        return unpublish_version_tarball(&state, &identity, registry.as_deref(), &full, version)
-            .await;
+        return unpublish_version_tarball(state, identity, registry, &full, version).await;
     }
     let full = format!("{scope}/{name}");
-    delete_package(&state, &identity, registry.as_deref(), &full).await
+    delete_package(state, identity, registry, &full).await
 }
 
 async fn unpublish_version_tarball(

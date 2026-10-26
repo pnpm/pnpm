@@ -161,7 +161,7 @@ fn recursive_publish_batches_selected_packages() {
     );
     write_registry_npmrc(&workspace, &format!("{}/", server.url()));
     let batch = server
-        .mock("PUT", "/-/pnpm/v1/publish")
+        .mock("PUT", "/-/pnpr/v0/publish")
         .match_body(Matcher::PartialJson(serde_json::json!({
             "packages": [
                 { "name": "project-1" },
@@ -233,13 +233,13 @@ fn recursive_batch_publish_runs_completed_group_postpublish_scripts_before_a_lat
     .expect("enable workspace linking");
     write_registry_npmrc(&workspace, &format!("{}/", first_registry.url()));
     let first_batch = first_registry
-        .mock("PUT", "/-/pnpm/v1/publish")
+        .mock("PUT", "/-/pnpr/v0/publish")
         .with_status(201)
         .with_body(r#"{"ok":true}"#)
         .expect(1)
         .create();
     let second_batch = second_registry
-        .mock("PUT", "/-/pnpm/v1/publish")
+        .mock("PUT", "/-/pnpr/v0/publish")
         .with_status(500)
         .with_body(r#"{"error":"publish failed"}"#)
         .expect(1)
@@ -277,7 +277,7 @@ fn recursive_batch_publish_rejects_mixed_credentials_for_one_registry() {
     )
     .expect("write .npmrc");
     let batch = server
-        .mock("PUT", "/-/pnpm/v1/publish")
+        .mock("PUT", "/-/pnpr/v0/publish")
         .expect(0)
         .create();
 
@@ -311,7 +311,7 @@ fn recursive_batch_publish_accepts_one_scope_credential_for_every_package() {
     )
     .expect("write .npmrc");
     let batch = server
-        .mock("PUT", "/-/pnpm/v1/publish")
+        .mock("PUT", "/-/pnpr/v0/publish")
         .match_header("authorization", "Bearer scoped-token")
         .with_status(201)
         .with_body(r#"{"ok":true}"#)
@@ -334,7 +334,7 @@ fn recursive_batch_publish_reports_an_unsupported_registry() {
     write_workspace(&workspace, &[("project-1", public_pkg("project-1"))]);
     write_registry_npmrc(&workspace, &format!("{}/", server.url()));
     let batch = server
-        .mock("PUT", "/-/pnpm/v1/publish")
+        .mock("PUT", "/-/pnpr/v0/publish")
         .with_status(404)
         .expect(1)
         .create();

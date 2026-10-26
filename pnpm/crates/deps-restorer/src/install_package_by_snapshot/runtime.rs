@@ -367,6 +367,16 @@ impl BinaryArchiveFetch<'_> {
         .map_err(InstallPackageBySnapshotError::DownloadTarball)
     }
 }
+/// The store index key of the row that a runtime install writes for
+/// `binary`, which includes its synthesized manifest.
+pub fn binary_store_index_key(
+    package_key: &PackageKey,
+    binary: &BinaryResolution,
+) -> Result<String, InstallPackageBySnapshotError> {
+    let manifest = synthesize_runtime_manifest_bytes(package_key, binary)?;
+    Ok(pnpm_tarball::ArchiveStoreProjection::Package { append_manifest: Some(&manifest) }
+        .store_index_key(&binary.integrity.to_string(), &package_key.pkg_id()))
+}
 /// Serialize the synthesized runtime `package.json` to bytes.
 ///
 /// `serde_json::to_vec` writes a single-line UTF-8 blob. The bytes go

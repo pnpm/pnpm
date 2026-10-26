@@ -1,15 +1,20 @@
 //! Comparing the settings a previous install recorded against the current ones.
 
-pub(crate) use registry_prefixes::recorded_registry_prefixes;
+pub(crate) use registry_prefixes::{
+    ResolvedImporters, recorded_registry_prefixes, recorded_registry_routes,
+    recorded_registry_routes_after_install,
+};
 
 mod agent_skills;
 mod equivalence;
+mod install_policy;
 mod registry_prefixes;
 mod store_location;
 use agent_skills::agent_skills_settings;
 use equivalence::{
     allow_builds_match, enable_global_virtual_store_match, package_extensions_match,
 };
+use install_policy::install_policy_settings;
 
 use super::{
     Catalogs, Config, IncludedDependencies, LinkWorkspacePackages, NodeLinker,
@@ -106,6 +111,7 @@ impl SettingsComparison<'_> {
             .or_else(|| self.workspace_policy_drift())
             .or_else(|| self.agent_skills_drift())
             .or_else(|| self.store_location_drift())
+            .or_else(|| self.install_policy_drift())
     }
     fn installation_drift(&self) -> Option<&'static str> {
         let recorded = self.recorded;
@@ -163,6 +169,7 @@ impl SettingsComparison<'_> {
             "registryPrefixes",
             recorded.registry_prefixes != live.registry_prefixes,
         );
+        return_drift_if!(self, "registryRoutes", recorded.registry_routes != live.registry_routes);
         None
     }
     fn linking_drift(&self) -> Option<&'static str> {
@@ -378,6 +385,7 @@ fn current_policy_settings(config: &Config) -> WorkspaceStateSettings {
             config.resolved_minimum_release_age_strict().then_some(true)
         }),
         registry_prefixes: recorded_registry_prefixes(config),
+        registry_routes: Some(recorded_registry_routes(config)),
         side_effects_cache_exclude: config.side_effects_cache_exclude.clone(),
         // pnpm records the raw config value, which stays `undefined`
         // until the user configures the setting — `explicit_settings` is
@@ -389,7 +397,10 @@ fn current_policy_settings(config: &Config) -> WorkspaceStateSettings {
         trust_policy_exclude: config.trust_policy_exclude.clone(),
         trust_policy_ignore_after: config.trust_policy_ignore_after,
         workspace_package_patterns: config.workspace_package_patterns.clone(),
-        ..store_location::store_location_settings(config, agent_skills_settings(config))
+        ..store_location::store_location_settings(
+            config,
+            install_policy_settings(config, agent_skills_settings(config)),
+        )
     }
 }
 

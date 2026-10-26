@@ -19,3 +19,9 @@ An existing `pnpm-lock.yaml` is replaced. If the import fails, the previous file
 Without a supported lockfile, the command fails with `ERR_PNPM_LOCKFILE_NOT_FOUND`. A `yarn.lock` that cannot be parsed, including one with merge conflict markers, fails with `ERR_PNPM_YARN_LOCKFILE_PARSE_FAILED`.
 
 Declare workspaces in [pnpm-workspace.yaml](../workspaces.md) before running `pnpm import`.
+
+## Options
+
+### --pnpr-server &lt;url\>
+
+Accepted so that `pnpm import` takes the same options as the other installing commands. `pnpm import` always resolves locally, so the value has no effect.

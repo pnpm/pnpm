@@ -58,7 +58,7 @@ async fn concurrent_duplicate_publications_are_charged_once() {
     let (first, second) = tokio::join!(first_publish, second_publish);
 
     assert_ne!(first.unwrap(), second.unwrap());
-    let usage_path = object_store::path::Path::from(".pnpr-artifacts/v0/quota.json");
+    let usage_path = object_store::path::Path::from(".artifacts/quota.json");
     let usage: ArtifactUsage = serde_json::from_slice(
         &backend
             .get(&usage_path)
@@ -98,7 +98,7 @@ async fn committed_blob_writes_without_an_envelope_are_reclaimed() {
         publication_with_blob("dependency-side-effects:v1:deps=abc", "ci/ambiguous-commit");
     store.publish("acme", request).await.unwrap_err();
 
-    let usage_path = ObjectPath::from(".pnpr-artifacts/v0/quota.json");
+    let usage_path = ObjectPath::from(".artifacts/quota.json");
     let usage: ArtifactUsage = serde_json::from_slice(
         &backend
             .get(&usage_path)
@@ -142,7 +142,7 @@ async fn reclamation_waits_for_publications_on_other_replicas() {
     second.begin_publication(&second_publication).await.unwrap();
 
     let owner = owner_key("acme", &OwnerScope::organization("acme")).unwrap();
-    let orphan = ObjectPath::from(format!(".pnpr-artifacts/v0/{owner}/blobs/orphan"));
+    let orphan = ObjectPath::from(format!(".artifacts/{owner}/blobs/orphan"));
     backend
         .put(&orphan, PutPayload::from_static(b"orphan"))
         .await
@@ -156,7 +156,7 @@ async fn reclamation_waits_for_publications_on_other_replicas() {
     second.finish_publication(&second_publication, false).await.unwrap();
     second.try_reclaim_unreferenced_blobs().await.unwrap();
     assert!(matches!(backend.head(&orphan).await, Err(object_store::Error::NotFound { .. })));
-    let usage_path = ObjectPath::from(".pnpr-artifacts/v0/quota.json");
+    let usage_path = ObjectPath::from(".artifacts/quota.json");
     let usage: ArtifactUsage = serde_json::from_slice(
         &backend
             .get(&usage_path)
@@ -187,7 +187,7 @@ async fn reclamation_preserves_blobs_referenced_by_committed_envelopes() {
     let publication = artifact_operation_id().unwrap();
     store.begin_publication(&publication).await.unwrap();
     let owner = owner_key("acme", &OwnerScope::organization("acme")).unwrap();
-    let orphan = ObjectPath::from(format!(".pnpr-artifacts/v0/{owner}/blobs/orphan"));
+    let orphan = ObjectPath::from(format!(".artifacts/{owner}/blobs/orphan"));
     backend
         .put(&orphan, PutPayload::from_static(b"orphan"))
         .await
@@ -397,7 +397,7 @@ async fn a_publication_registered_without_a_time_is_stamped_rather_than_written_
 async fn a_publication_that_cannot_register_again_does_not_leave_its_artifact() {
     let request = publication("ci/unregistrable");
     let prepared = super::super::prepare_publication("acme", &request).unwrap();
-    let variant = format!(".pnpr-artifacts/v0/{}", prepared.variant_path);
+    let variant = format!(".artifacts/{}", prepared.variant_path);
     let backend: Arc<dyn ObjectStore> = Arc::new(FailArtifactWrites {
         inner: InMemory::new(),
         commit_before_error: false,

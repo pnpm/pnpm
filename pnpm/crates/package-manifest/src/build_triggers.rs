@@ -166,12 +166,33 @@ where
 /// script in its `package.json`.
 #[must_use]
 pub fn requires_build_from_cas_paths(cas_paths: &HashMap<String, PathBuf>) -> bool {
-    let mut triggers = files_build_triggers(cas_paths.keys());
-    if let Some(package_json) = cas_paths.get("package.json")
-        && let Ok(contents) = fs::read_to_string(package_json)
-        && let Ok(manifest) = parse_manifest(&contents)
-    {
-        triggers.read_manifest(&manifest);
+    requires_build_from_files(
+        read_package_json_from_cas_paths(cas_paths).as_ref(),
+        cas_paths.keys(),
+    )
+}
+
+/// The package's `package.json`, read from the store file `cas_paths` maps it
+/// to. `None` when the package has none, or it cannot be read or parsed.
+#[must_use]
+pub fn read_package_json_from_cas_paths(cas_paths: &HashMap<String, PathBuf>) -> Option<Value> {
+    let contents = fs::read_to_string(cas_paths.get("package.json")?).ok()?;
+    parse_manifest(&contents).ok()
+}
+
+/// Whether a package with this manifest and these files needs a build pass.
+#[must_use]
+pub fn requires_build_from_files<Filenames, Filename>(
+    manifest: Option<&Value>,
+    filenames: Filenames,
+) -> bool
+where
+    Filenames: IntoIterator<Item = Filename>,
+    Filename: AsRef<str>,
+{
+    let mut triggers = files_build_triggers(filenames);
+    if let Some(manifest) = manifest {
+        triggers.read_manifest(manifest);
     }
     triggers.requires_build()
 }

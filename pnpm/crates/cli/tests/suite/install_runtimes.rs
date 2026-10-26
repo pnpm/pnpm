@@ -13,7 +13,7 @@ use std::{
 };
 use tempfile::TempDir;
 
-struct RuntimeFixture {
+pub(crate) struct RuntimeFixture {
     name: &'static str,
     version: &'static str,
     archive_mock: mockito::Mock,
@@ -963,7 +963,7 @@ fn assert_runtime_bad_integrity(name: &'static str, version: &'static str) {
     assert!(stderr.contains("Integrity check failed"), "stderr was:\n{stderr}");
 }
 
-fn prepare_workspace(root: &TempDir, extra_yaml: &str) -> PathBuf {
+pub(crate) fn prepare_workspace(root: &TempDir, extra_yaml: &str) -> PathBuf {
     let workspace = root.path().join("workspace");
     fs::create_dir(&workspace).unwrap();
     fs::write(
@@ -976,7 +976,7 @@ fn prepare_workspace(root: &TempDir, extra_yaml: &str) -> PathBuf {
     workspace
 }
 
-fn runtime_fixture(
+pub(crate) fn runtime_fixture(
     server: &mut mockito::Server,
     name: &'static str,
     version: &'static str,
@@ -1027,7 +1027,7 @@ fn runtime_fixture(
     }
 }
 
-fn write_runtime_manifest(workspace: &Path, fixtures: &[RuntimeFixture]) {
+pub(crate) fn write_runtime_manifest(workspace: &Path, fixtures: &[RuntimeFixture]) {
     let dependencies = fixtures
         .iter()
         .map(|fixture| {
@@ -1038,7 +1038,7 @@ fn write_runtime_manifest(workspace: &Path, fixtures: &[RuntimeFixture]) {
         .unwrap();
 }
 
-fn write_runtime_lockfile(workspace: &Path, fixtures: &[RuntimeFixture]) {
+pub(crate) fn write_runtime_lockfile(workspace: &Path, fixtures: &[RuntimeFixture]) {
     write_runtime_lockfile_for_group(workspace, fixtures, "dependencies");
 }
 

@@ -511,10 +511,12 @@ fn run_gate_passes_on_unverified_registry_prefixes() {
         Decision::Skipped { reason } if reason.contains("settings"),
     ));
 }
-/// A scope routed to a registry that declares a prefix re-keys its packages,
-/// so the state recorded under the old routing proves nothing about the keys.
+/// A scope routed to another registry leaves the lockfile's plain keys from
+/// the old one, so the state recorded under the old routing calls for the
+/// install that resolves them again, whether or not the registry declares a
+/// prefix.
 #[test]
-fn returns_skipped_when_a_scope_moves_to_a_registry_declaring_a_prefix() {
+fn returns_skipped_when_a_scope_moves_to_another_registry() {
     let work = "https://npm.work.test/";
     let (dir, recorded_config, manifest) = setup_fresh_install_with_config(
         pnpm_config::NodeLinker::Isolated,
@@ -533,12 +535,10 @@ fn returns_skipped_when_a_scope_moves_to_a_registry_declaring_a_prefix() {
     routed.registries_by_scope.insert("@corp".to_string(), work.to_string());
     let routed = routed.leak();
 
+    assert_eq!(super::super::recorded_registry_prefixes(routed), recorded);
     assert_eq!(
-        super::super::recorded_registry_prefixes(routed),
-        Some(BTreeMap::from([
-            ("route:@corp".to_string(), "work".to_string()),
-            ("work".to_string(), work.to_string()),
-        ])),
+        super::super::settings::recorded_registry_routes(routed).get("@corp"),
+        Some(&work.to_string()),
     );
     assert!(matches!(
         check(dir.path(), routed, pnpm_config::NodeLinker::Isolated, &project_manifests),

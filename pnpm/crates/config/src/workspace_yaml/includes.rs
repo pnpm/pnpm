@@ -98,47 +98,19 @@ impl WorkspaceSettings {
         Ok(settings)
     }
 
-    /// Drop the settings only the machine's own configuration may set, which
-    /// a repository-controlled file must not carry.
-    pub(crate) fn clear_machine_only_settings(&mut self) {
-        // CI detection is process state. A repository-controlled
-        // manifest must not be able to turn it off; trusted global
-        // config and PNPM_CONFIG_CI are applied in their own layers.
-        self.ci = None;
-        self.state_dir = None;
-        self.scope = None;
-        self.global_dir = None;
-        self.global_bin_dir = None;
-        self.macos_backup = None;
-        // A mirror decides where the binary pnpm runs an ecosystem with is
-        // downloaded from, and a release's checksums come from the mirror
-        // that serves its files, so verifying the download says only that
-        // the mirror agrees with itself. A repository that named one would
-        // be choosing which program runs on the machine of everyone who
-        // clones it. `tools` therefore comes from the global `config.yaml`
-        // and `PNPM_CONFIG_TOOLS` only.
-        self.tools = None;
-        // A repository commits the lockfile, so it decides where a symlinked
-        // one points. Letting it also allow the write would let it overwrite
-        // any file the user can write, even with scripts disabled.
-        self.symlinked_lockfile_target_dirs = None;
-    }
-
     /// The settings of a config dependency's config entry at `path`, read and
     /// validated the way a project's `pnpm-workspace.yaml` is.
     pub fn read_config_dependency_entry<Sys: EnvVar>(
         text: &str,
         path: &Path,
     ) -> Result<Self, LoadWorkspaceYamlError> {
-        let mut settings = parse_settings::<Sys>(text)
+        let mut settings = parse_settings::<Sys, Self>(text)
             .map_err(|source| LoadWorkspaceYamlError::ParseYaml {
                 path: path.to_path_buf(),
                 source,
             })?;
         settings.validate_registries()?;
         settings.reject_repo_controlled_trust_material(path)?;
-        settings.clear_machine_only_settings();
-        settings.global_shims = None;
         settings.substitute_env_untrusted::<Sys>();
         Ok(settings)
     }

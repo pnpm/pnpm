@@ -98,6 +98,8 @@ export async function addUser (opts: AddUserOptions): Promise<AddUserResult> {
 // pnpr keeps proxied upstream packages in a cache mirror separate from hosted
 // (fixture) packages — a `.pnpr-cache` subdirectory of the storage root.
 const PROXY_CACHE_DIR = '.pnpr-cache'
+/** pnpr's hosted namespace for npm registries without an org. */
+const HOSTED_NPM_NAMESPACE = path.join('default', 'npm')
 
 type Packument = { versions: Record<string, { dist: { integrity: string } }> }
 
@@ -127,7 +129,7 @@ export function getIntegrity (pkgName: string, pkgVersion: string): string {
     // created lazily along with the first cached packument, so it may not
     // exist yet on the first attempt.
     const candidatePaths = [
-      documentPath(path.join(storage, 'default'), pkgName),
+      documentPath(path.join(storage, HOSTED_NPM_NAMESPACE), pkgName),
       ...listPublicProxyNamespaces(path.join(storage, PROXY_CACHE_DIR, '~public'))
         .map((namespace) => documentPath(namespace, pkgName)),
     ]
@@ -151,15 +153,35 @@ export function hostedBlobPath (pkgName: string, fileName: string): string {
   if (!storage) {
     throw new Error('PNPM_REGISTRY_MOCK_STORAGE is not set; run the test under the with-registry jest preset.')
   }
-  return path.join(packageDir(path.join(storage, 'default'), pkgName), 'blobs', encodeSegment(fileName))
+  return path.join(packageDir(path.join(storage, HOSTED_NPM_NAMESPACE), pkgName), 'blobs', blobSegment(pkgName, fileName))
 }
 
 function documentPath (namespace: string, pkgName: string): string {
   return path.join(packageDir(namespace, pkgName), 'document.json')
 }
 
+/**
+ * Mirrors pnpr's storage layout (`pnpr/crates/storage/src/layout.rs`): a
+ * package lives at `packages/@<scope>/<name>/`, or `packages/@/<name>/` when
+ * it has no scope.
+ */
 function packageDir (namespace: string, pkgName: string): string {
-  return path.join(namespace, 'packages', encodeSegment(pkgName))
+  const separator = pkgName.indexOf('/')
+  const segments = pkgName.startsWith('@') && separator > 1
+    ? [`@${encodeSegment(pkgName.slice(1, separator))}`, encodeSegment(pkgName.slice(separator + 1))]
+    : ['@', encodeSegment(pkgName)]
+  return path.join(namespace, 'packages', ...segments)
+}
+
+/**
+ * A tarball named `<basename>-<rest>` is stored as `<rest>`, and one not
+ * named after its package keeps its name behind `@`.
+ */
+function blobSegment (pkgName: string, fileName: string): string {
+  if (!fileName.endsWith('.tgz')) return encodeSegment(fileName)
+  const prefix = `${pkgName.slice(pkgName.lastIndexOf('/') + 1)}-`
+  const rest = fileName.startsWith(prefix) ? fileName.slice(prefix.length) : ''
+  return rest !== '' && !rest.startsWith('.') ? encodeSegment(rest) : `@${encodeSegment(fileName)}`
 }
 
 /**

@@ -119,12 +119,14 @@ pub(super) fn write_hoist_links(
         &skipped,
     )
     .map_err(LinkPhaseError::HoistSymlink)?;
-    link_direct_dep_bins_resolved(
+    let private_claimed = link_direct_dep_bins_resolved(
         &private_hoist_dir,
         &crate::resolve_hoisted_bin_deps(layout, &result.hoisted_aliases_with_bins),
         link_options,
     )
     .map_err(LinkPhaseError::HoistLinkBins)?;
+    pnpm_cmd_shim::prune_stale_bins(&private_hoist_dir.join(".bin"), &private_claimed)
+        .map_err(LinkPhaseError::HoistLinkBins)?;
     Ok(HoistLinks {
         hoisted_dependencies: result.hoisted_dependencies,
         publicly_hoisted_with_bins: result.publicly_hoisted_aliases_with_bins,

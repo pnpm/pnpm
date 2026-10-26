@@ -1,7 +1,7 @@
 use super::{
     Config, EnvVar, EnvVarOs, GetCurrentDir, GetHomeDir, Host, LinkProbe, LoadWorkspaceYamlError,
-    NpmrcAuth, Path, PathBuf, Pipe, WorkspaceSettings, api::FsReadFile, read_npm_env,
-    read_npmrc_file, read_pnpm_env,
+    NpmrcAuth, Path, PathBuf, Pipe, TrustedSettings, WorkspaceSettings, api::FsReadFile,
+    read_npm_env, read_npmrc_file, read_pnpm_env,
 };
 
 /// The merged `.npmrc` view, and the same merge restricted to sources
@@ -170,7 +170,7 @@ impl Config {
         &mut self,
         start_dir: &std::path::Path,
         workspace_yaml: Option<&(PathBuf, Option<WorkspaceSettings>)>,
-        global_settings: Option<&WorkspaceSettings>,
+        global_settings: Option<&TrustedSettings>,
         global_config_dir: Option<&Path>,
     ) -> Result<AuthSources, LoadWorkspaceYamlError>
     where
@@ -182,7 +182,7 @@ impl Config {
         self.collect_auth_sources::<Sys>(
             start_dir,
             workspace_yaml,
-            global_settings,
+            global_settings.map(|global| &global.settings),
             global_config_dir,
         )
     }

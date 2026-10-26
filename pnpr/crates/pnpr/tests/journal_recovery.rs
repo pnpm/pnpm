@@ -83,10 +83,6 @@ fn packument(name: &str, version: &str, tarball: &[u8]) -> Value {
 /// `sealed`, the `commit` marker is present too. With `org`, the manifest
 /// records the hosted-org namespace the publish targeted, matching what
 /// an org-routed publish journals.
-///
-/// The manifest is written with the `packument_file` / `tarballs` keys an
-/// earlier pnpr wrote, so these tests also cover recovering a journal a
-/// running server sealed before the upgrade.
 fn fabricate_crashed_publish_in(
     storage: &Path,
     org: Option<&str>,
@@ -96,24 +92,30 @@ fn fabricate_crashed_publish_in(
     sealed: bool,
 ) -> PathBuf {
     write_local_layout_marker(storage).unwrap();
-    let blob = local_blob_path(storage, org.unwrap_or(""), name, &format!("{name}-{version}.tgz"));
+    let blob = local_blob_path(
+        storage,
+        org.unwrap_or(""),
+        pnpr_storage::Ecosystem::Npm,
+        name,
+        &format!("{name}-{version}.tgz"),
+    );
     std::fs::create_dir_all(blob.parent().unwrap()).unwrap();
     let mut tmp_name = blob.file_name().unwrap().to_os_string();
     tmp_name.push(".tmp.999.0");
     let tmp_path = blob.with_file_name(tmp_name);
     std::fs::write(&tmp_path, tarball).unwrap();
 
-    let txn_dir = storage.join(".pnpr-journal").join("0000000000000001-999-0");
+    let txn_dir = storage.join(".journal").join("0000000000000001-999-0");
     std::fs::create_dir_all(&txn_dir).unwrap();
     std::fs::write(
-        txn_dir.join("packument-0.json"),
+        txn_dir.join("document-0.json"),
         serde_json::to_vec_pretty(&packument(name, version, tarball)).unwrap(),
     )
     .unwrap();
     let mut package = json!({
         "name": name,
-        "packument_file": "packument-0.json",
-        "tarballs": [{
+        "document_file": "document-0.json",
+        "blobs": [{
             "filename": format!("{name}-{version}.tgz"),
             "tmp_path": tmp_path,
         }],
@@ -152,18 +154,31 @@ async fn recovery_rolls_a_sealed_transaction_forward() {
     // The package became fully visible: packument and tarball in
     // place, staged tmp file promoted, journal entry consumed.
     let on_disk: Value = serde_json::from_slice(
-        &std::fs::read(local_document_path(&storage, "", "crash-fwd")).expect("packument written"),
+        &std::fs::read(local_document_path(
+            &storage,
+            "",
+            pnpr_storage::Ecosystem::Npm,
+            "crash-fwd",
+        ))
+        .expect("packument written"),
     )
     .unwrap();
     assert_eq!(on_disk["versions"]["1.0.0"]["version"], "1.0.0");
     assert_eq!(on_disk["dist-tags"]["latest"], "1.0.0");
     assert_eq!(
-        std::fs::read(local_blob_path(&storage, "", "crash-fwd", "crash-fwd-1.0.0.tgz")).unwrap(),
+        std::fs::read(local_blob_path(
+            &storage,
+            "",
+            pnpr_storage::Ecosystem::Npm,
+            "crash-fwd",
+            "crash-fwd-1.0.0.tgz"
+        ))
+        .unwrap(),
         tarball,
     );
     assert!(!tmp_path.exists(), "staged tmp file should be promoted away");
     assert!(
-        std::fs::read_dir(storage.join(".pnpr-journal"))
+        std::fs::read_dir(storage.join(".journal"))
             .unwrap()
             .next()
             .is_none(),
@@ -197,23 +212,34 @@ async fn recovery_rolls_a_sealed_org_transaction_forward_into_its_namespace() {
     recover_publish_journal(&static_config(storage.clone())).await.unwrap();
 
     let on_disk: Value = serde_json::from_slice(
-        &std::fs::read(local_document_path(&storage, "acme", "crash-org"))
-            .expect("packument written into the org namespace"),
+        &std::fs::read(local_document_path(
+            &storage,
+            "acme",
+            pnpr_storage::Ecosystem::Npm,
+            "crash-org",
+        ))
+        .expect("packument written into the org namespace"),
     )
     .unwrap();
     assert_eq!(on_disk["versions"]["1.0.0"]["version"], "1.0.0");
     assert_eq!(
-        std::fs::read(local_blob_path(&storage, "acme", "crash-org", "crash-org-1.0.0.tgz"))
-            .unwrap(),
+        std::fs::read(local_blob_path(
+            &storage,
+            "acme",
+            pnpr_storage::Ecosystem::Npm,
+            "crash-org",
+            "crash-org-1.0.0.tgz"
+        ))
+        .unwrap(),
         tarball,
     );
     assert!(!tmp_path.exists(), "staged tmp file should be promoted away");
     assert!(
-        !local_package_dir(&storage, "", "crash-org").exists(),
+        !local_package_dir(&storage, "", pnpr_storage::Ecosystem::Npm, "crash-org").exists(),
         "nothing must land in the default namespace for an org-journaled publish",
     );
     assert!(
-        std::fs::read_dir(storage.join(".pnpr-journal"))
+        std::fs::read_dir(storage.join(".journal"))
             .unwrap()
             .next()
             .is_none(),
@@ -230,11 +256,22 @@ async fn recovery_rolls_an_unsealed_transaction_back() {
     recover_publish_journal(&static_config(storage.clone())).await.unwrap();
 
     // Nothing of the aborted publish survives.
-    assert!(!local_document_path(&storage, "", "crash-back").exists());
-    assert!(!local_blob_path(&storage, "", "crash-back", "crash-back-1.0.0.tgz").exists());
+    assert!(
+        !local_document_path(&storage, "", pnpr_storage::Ecosystem::Npm, "crash-back").exists(),
+    );
+    assert!(
+        !local_blob_path(
+            &storage,
+            "",
+            pnpr_storage::Ecosystem::Npm,
+            "crash-back",
+            "crash-back-1.0.0.tgz"
+        )
+        .exists(),
+    );
     assert!(!tmp_path.exists(), "staged tmp file should be deleted");
     assert!(
-        std::fs::read_dir(storage.join(".pnpr-journal"))
+        std::fs::read_dir(storage.join(".journal"))
             .unwrap()
             .next()
             .is_none(),
@@ -250,7 +287,7 @@ async fn roll_forward_merges_with_versions_published_after_the_crash() {
     let storage = tmp.path().to_path_buf();
     fabricate_crashed_publish(&storage, "crash-merge", "1.0.0", b"old-bytes", true);
     // A newer version landed on disk before recovery ran.
-    let document = local_document_path(&storage, "", "crash-merge");
+    let document = local_document_path(&storage, "", pnpr_storage::Ecosystem::Npm, "crash-merge");
     std::fs::write(
         &document,
         serde_json::to_vec_pretty(&packument("crash-merge", "2.0.0", b"new-bytes")).unwrap(),
@@ -268,6 +305,22 @@ async fn roll_forward_merges_with_versions_published_after_the_crash() {
 async fn recovery_is_a_no_op_without_a_journal_directory() {
     let tmp = TempDir::new().unwrap();
     recover_publish_journal(&static_config(tmp.path().to_path_buf())).await.unwrap();
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn recovery_refuses_a_symlinked_journal_root() {
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().join("storage");
+    std::fs::create_dir_all(&storage).unwrap();
+    let outside = tmp.path().join("outside");
+    let victim = outside.join("0000000000000001-999-0");
+    std::fs::create_dir_all(&victim).unwrap();
+    std::os::unix::fs::symlink(&outside, storage.join(".journal")).unwrap();
+
+    let err = recover_publish_journal(&static_config(storage)).await.unwrap_err();
+    assert!(err.to_string().contains("symlink"), "{err}");
+    assert!(victim.is_dir(), "outside directory must not be rolled back");
 }
 
 #[tokio::test]
@@ -288,7 +341,7 @@ async fn successful_batch_publish_leaves_no_journal_residue() {
             "length": tarball.len(),
         },
     });
-    let request = Request::put("/npm/-/pnpm/v1/publish")
+    let request = Request::put("/npm/-/pnpr/v0/publish")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&json!({ "packages": [doc] })).unwrap()))
@@ -296,8 +349,10 @@ async fn successful_batch_publish_leaves_no_journal_residue() {
     let response = app.oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
 
-    assert!(local_document_path(&storage, "", "residue-pkg").exists());
-    let journal_root = storage.join(".pnpr-journal");
+    assert!(
+        local_document_path(&storage, "", pnpr_storage::Ecosystem::Npm, "residue-pkg").exists(),
+    );
+    let journal_root = storage.join(".journal");
     let leftover: Vec<_> = match std::fs::read_dir(&journal_root) {
         Ok(entries) => entries
             .map(|entry| entry.unwrap().path())

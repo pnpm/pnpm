@@ -283,14 +283,13 @@ async fn a_key_the_store_did_not_write_is_passed_over() {
         .publish(&run("demo", "100-default"))
         .await
         .unwrap();
-    std::fs::create_dir_all(root.path().join("storage/.pipeline-runs/v1/acme/demo/nested"))
-        .unwrap();
+    std::fs::create_dir_all(root.path().join("storage/.pipeline-runs/acme/demo/nested")).unwrap();
     std::fs::write(
-        root.path().join("storage/.pipeline-runs/v1/acme/demo/nested/deeper.json"),
+        root.path().join("storage/.pipeline-runs/acme/demo/nested/deeper.json"),
         b"invalid JSON",
     )
     .unwrap();
-    std::fs::write(root.path().join("storage/.pipeline-runs/v1/acme/demo/notes.txt"), b"notes")
+    std::fs::write(root.path().join("storage/.pipeline-runs/acme/demo/notes.txt"), b"notes")
         .unwrap();
 
     let listed = store

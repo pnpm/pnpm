@@ -122,11 +122,12 @@ sources resolve within their own group and cannot cross into another, and each
 ecosystem gets its own default. Access rules, teams, upstream credentials, and
 caches belong to the individual registry.
 
-A grouped hosted registry defaults to the storage namespace
-`<ecosystem>~<name>`. Set `org` explicitly to keep an existing namespace when
-moving a flat registry into a group, `org: ''` included for the default
-namespace. Two hosted registries still cannot share a namespace. The flat
-configuration format and its shared `defaultRegistry: main` remain supported.
+A grouped hosted registry defaults its `org` to its own `<name>`, and each
+ecosystem stores its packages under its own `<ecosystem>/` directory in that
+namespace. Set `org` explicitly to choose another namespace (`org: ''` for the
+default namespace). Two hosted registries of the same ecosystem cannot share an
+`org` namespace. The flat configuration format and its shared
+`defaultRegistry: main` remain supported.
 
 ## Cargo
 
@@ -198,10 +199,10 @@ index points downloads at.
 
 ## One publish for a workspace that spans ecosystems
 
-`PUT /-/pnpr/v0/publish` publishes packages of any ecosystem in a single
+`PUT /-/pnpr/v0/publish` (also mounted under `/npm/-/pnpr/v0/publish` for
+`pnpm publish --batch`) publishes packages of any ecosystem in a single
 transaction. Each entry names its `ecosystem`, and an entry without one is an
-npm publish document, so the body the npm batch endpoint already takes is a
-valid one.
+npm publish document, so an npm-only batch body is already a valid one.
 
 ```json
 {
@@ -237,7 +238,7 @@ conflicting version completes the release.
 
 An [image manifest](container-images.md) whose layers are already uploaded can
 ride along in the same batch. `GET /-/pnpr` advertises support as
-`publish: [0]`. The npm-only `PUT /-/pnpm/v1/publish` stays where it is.
+`publish: [0]`.
 
 ## JSR
 

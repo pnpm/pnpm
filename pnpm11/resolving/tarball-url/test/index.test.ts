@@ -123,6 +123,41 @@ describe('an Artifactory registry, which keeps the scope in the tarball filename
   })
 })
 
+describe('a pnpr registry, which serves a tarball at the package identifier', () => {
+  const registry = 'https://pnpr.example/npm/'
+  const serverType = 'pnpr'
+
+  test('builds the URL of an unscoped package', () => {
+    expect(getNpmTarballUrl('widget', '1.2.3', { registry: 'https://pnpr.example/npm', serverType }))
+      .toBe(`${registry}widget@1.2.3`)
+  })
+
+  test('builds the URL of a scoped package', () => {
+    expect(getNpmTarballUrl('@acme/widget', '1.2.3', { registry, serverType }))
+      .toBe(`${registry}@acme/widget@1.2.3`)
+  })
+
+  test('keeps the build metadata in the version', () => {
+    expect(getNpmTarballUrl('@acme/widget', '1.2.3+build.4', { registry, serverType }))
+      .toBe(`${registry}@acme/widget@1.2.3+build.4`)
+  })
+
+  test('recognizes its own URL as reconstructible', () => {
+    const tarball = `${registry}@acme/widget@1.2.3`
+    expect(isCanonicalRegistryTarballUrl(tarball, { name: '@acme/widget', version: '1.2.3' }, { registry, serverType })).toBe(true)
+  })
+
+  test('does not recognize the npm-layout URL', () => {
+    const tarball = getNpmTarballUrl('@acme/widget', '1.2.3', { registry })
+    expect(isCanonicalRegistryTarballUrl(tarball, { name: '@acme/widget', version: '1.2.3' }, { registry, serverType })).toBe(false)
+  })
+
+  test('is not recognized by a registry left undeclared', () => {
+    const tarball = `${registry}@acme/widget@1.2.3`
+    expect(isCanonicalRegistryTarballUrl(tarball, { name: '@acme/widget', version: '1.2.3' }, { registry })).toBe(false)
+  })
+})
+
 describe('a registry declared to behave like the npm registry', () => {
   const registry = 'https://npm.example.com/'
   const tarball = 'https://npm.example.com/@babel%2Fcore/-/core-7.0.0.tgz'

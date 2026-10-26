@@ -15,34 +15,32 @@ pub(super) struct InconsistentModulesDir<'a> {
     pub(super) installs_only: bool,
     pub(super) filtered_install: bool,
 }
+/// Returns whether the install still treats the tree as inconsistent.
+/// `false` when [`refuse_drifted_modules_dir`] accepts the drift, as upstream
+/// `checkCompatibility` accepts a sibling `v3` store: the tree is kept, so
+/// the install merges into its recorded state.
 pub(super) fn purge_inconsistent_modules_dir(
     context: &InconsistentModulesDir<'_>,
-) -> Result<(), InstallError> {
-    // Upstream `validateModules` purges only for a plain install
-    // (`forceNewModules = installsOnly`).
-    if !context.installs_only {
-        return refuse_drifted_modules_dir(
-            context.modules_manifest,
-            context.config,
-            context.node_linker,
-        );
+) -> Result<bool, InstallError> {
+    // Only a plain install (upstream `forceNewModules = installsOnly`) of
+    // every project purges. A project the install skips is not relinked, and
+    // its dependencies live in the purged directory or link into it.
+    if !context.installs_only || context.filtered_install {
+        refuse_drifted_modules_dir(context.modules_manifest, context.config, context.node_linker)?;
+        return Ok(false);
     }
     let (is_safe, target_dir) = purge_target(context.config, context.workspace_root);
     if !is_safe {
-        if context.filtered_install {
-            return Err(InstallError::UnsafeFilteredModulesDir {
-                modules_dir: context.config.modules_dir.clone(),
-                workspace_root: context.workspace_root.to_path_buf(),
-            });
-        }
         tracing::warn!(
             ?context.config.modules_dir,
             "refusing to remove inconsistent modules directory outside the project root",
         );
-        return Ok(());
+        return Ok(true);
     }
-    let Some(target) = target_dir else { return Ok(()) };
-    purge_modules_dir_entries(&target, context.config, context.modules_manifest)
+    if let Some(target) = target_dir {
+        purge_modules_dir_entries(&target, context.config, context.modules_manifest)?;
+    }
+    Ok(true)
 }
 /// The canonicalized directory the purge may sweep, and whether sweeping it is
 /// safe at all. Deleting from the validated path closes the

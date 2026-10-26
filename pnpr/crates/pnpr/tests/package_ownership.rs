@@ -8,7 +8,7 @@ use axum::{
 use pnpr::Config;
 use pnpr_storage::{
     TOMBSTONES_NAMESPACE,
-    layout::{encode_segment, namespace_segments},
+    layout::{namespace_segments, package_segments},
 };
 use serde_json::{Value, json};
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
@@ -43,7 +43,7 @@ fn config_with_packages(packages_block: &str, admins: &[&str]) -> (TempDir, Conf
     };
     let catch_all = if packages_block.contains("'**'") { "" } else { "      '**': {}\n" };
     let yaml = format!(
-        "storage: {}\nauth:\n  htpasswd:\n    max_users: 100\n{admin_line}registries:\n  \
+        "storage: {}\nauth:\n  htpasswd:\n    maxUsers: 100\n{admin_line}registries:\n  \
          local:\n    type: hosted\n    org: \"\"\n    access: $all\n    packages:\n{nested}\n{catch_all}  \
          main:\n    type: router\n    sources: [local]\n\
          defaultRegistry: main\n",
@@ -179,20 +179,22 @@ async fn get_couchdb_user_endpoint() {
     assert_eq!(doc["_id"], "org.couchdb.user:admin_alice");
     assert_eq!(doc["roles"], json!([]));
 
-    // Check normal user in htpasswd auth backend
-    let response = app
-        .clone()
-        .oneshot(
-            Request::get("/-/user/org.couchdb.user:normal_bob")
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(response.status(), StatusCode::OK);
-    let doc = body_json(response.into_body()).await;
-    assert_eq!(doc["name"], "normal_bob");
-    assert_eq!(doc["_id"], "org.couchdb.user:normal_bob");
+    // Check normal user in htpasswd auth backend (legacy and bare user paths)
+    for path in ["/-/user/org.couchdb.user:normal_bob", "/-/user/normal_bob"] {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::get(path)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK, "path {path}");
+        let doc = body_json(response.into_body()).await;
+        assert_eq!(doc["name"], "normal_bob");
+        assert_eq!(doc["_id"], "org.couchdb.user:normal_bob");
+    }
 
     // Check non-existent user
     let response = app
@@ -719,9 +721,12 @@ async fn packument_rewrite_failure_during_tombstone_write_restores_prior_packume
 
     // Block tombstone recording by creating a directory where the tombstone file belongs
     let mut tombstone_file = dir.path().join("storage");
-    tombstone_file.extend(namespace_segments(""));
+    tombstone_file.extend(namespace_segments("", pnpr_storage::Ecosystem::Npm));
     tombstone_file.push(TOMBSTONES_NAMESPACE);
-    tombstone_file.push(format!("{}.json", encode_segment("fail-pkg")));
+    tombstone_file.push(format!(
+        "{}.json",
+        package_segments(pnpr_storage::Ecosystem::Npm, "fail-pkg").join("/"),
+    ));
     std::fs::create_dir_all(&tombstone_file).unwrap();
 
     // Alice attempts to rewrite the packument to remove 1.1.0

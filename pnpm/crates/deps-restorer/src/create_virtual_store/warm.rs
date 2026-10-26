@@ -10,13 +10,12 @@ use super::{
 use crate::{CasPathsByPkgId, InstallPackageBySnapshotError};
 use pnpm_git_fetcher::{GitFetcherError, resolve_package_build_permission};
 use pnpm_lockfile::{LockfileResolution, PackageKey, PackageMetadata, PkgName};
-use pnpm_package_manifest::parse_manifest;
+use pnpm_package_manifest::read_package_json_from_cas_paths;
 use pnpm_reporter::Reporter;
 use pnpm_tarball::PrefetchResult;
 use std::{
     borrow::Cow,
     collections::{HashMap, HashSet},
-    fs,
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -102,9 +101,7 @@ pub(super) fn cached_git_manifest<'a>(
     if let Some(manifest) = prefetch.manifests.get(key) {
         return Some(Cow::Borrowed(manifest.as_ref()));
     }
-    let package_json = cas_paths.get("package.json")?;
-    let contents = fs::read_to_string(package_json).ok()?;
-    parse_manifest(&contents).ok().map(Cow::Owned)
+    read_package_json_from_cas_paths(cas_paths).map(Cow::Owned)
 }
 pub(super) fn is_git_hosted_resolution(resolution: &LockfileResolution) -> bool {
     match resolution {

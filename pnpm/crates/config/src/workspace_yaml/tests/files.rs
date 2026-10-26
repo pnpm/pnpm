@@ -1,5 +1,5 @@
 use super::{
-    ColorMode, Config, GlobalShimsSetting, NodeLinker, Path, SideEffectsCacheSetting, StoreDir,
+    ColorMode, Config, NodeLinker, Path, SideEffectsCacheSetting, StoreDir,
     WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings, assert_eq, fs,
 };
 use pnpm_testing_utils::env_guard::EnvGuard;
@@ -205,7 +205,6 @@ fn load_at_expands_env_placeholders_in_typed_fields() {
         dir.path().join(WORKSPACE_MANIFEST_FILENAME),
         concat!(
             "color: ${PNPM_TEST_14914_COLOR:-auto}\n",
-            "globalShims: ${PNPM_TEST_14914_GLOBAL_SHIMS:-false}\n",
             "nodeLinker: ${PNPM_TEST_14914_LINKER:-isolated}\n",
             "sideEffectsCache: ${PNPM_TEST_14914_SIDE_EFFECTS_CACHE:-false}\n",
         ),
@@ -217,7 +216,6 @@ fn load_at_expands_env_placeholders_in_typed_fields() {
         .expect("pnpm-workspace.yaml is present");
 
     assert_eq!(settings.color, Some(ColorMode::Auto));
-    assert_eq!(settings.global_shims, Some(GlobalShimsSetting::Toggle(false)));
     assert_eq!(settings.node_linker, Some(NodeLinker::Isolated.into()));
     assert_eq!(settings.side_effects_cache, Some(SideEffectsCacheSetting::Enabled(false)));
 }

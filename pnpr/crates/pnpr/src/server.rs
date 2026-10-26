@@ -152,7 +152,7 @@ use self::{
     },
     publishing::{
         PublishTarget, check_publish_tombstone, commit_publishes, publish_package,
-        resolve_publish_target_for, serve_batch_publish, stage_publish, validate_publish_doc,
+        resolve_publish_target_for, stage_publish, validate_publish_doc,
     },
     routing::{metrics_listener_router, router_with_auth_and_osv, state_and_router},
 };
@@ -437,13 +437,10 @@ fn private_no_cache(mut response: Response) -> Response {
     response
 }
 
-/// The hosted storage view a publish writes to: a hosted namespace, or
-/// the flat (path-less) store when `org` is `None`.
+/// The npm hosted storage view for `org`, or the default npm namespace when
+/// `org` is `None`.
 fn hosted_storage(state: &AppState, org: Option<&str>) -> Storage {
-    match org {
-        Some(org) => state.inner.storage.for_hosted(org),
-        None => state.inner.storage.clone(),
-    }
+    state.inner.storage.for_hosted(org.unwrap_or(""), pnpr_registry::Ecosystem::Npm)
 }
 
 // --------------------------------------------------------------------

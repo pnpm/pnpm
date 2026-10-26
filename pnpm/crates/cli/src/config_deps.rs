@@ -29,7 +29,7 @@ use network::EnvironmentNetwork;
 use miette::{IntoDiagnostic, Result, WrapErr};
 use pnpm_catalogs_config::get_catalogs_from_workspace_manifest;
 use pnpm_config::{
-    Config, Host, PNPM_VERSION, WorkspaceSettings, default_state_dir,
+    Config, Host, PNPM_VERSION, TrustedSettings, WorkspaceSettings, default_state_dir,
     known_settings::is_known_setting_key, resolve_configured_state_dir,
 };
 use pnpm_env_installer::{

@@ -74,26 +74,7 @@ impl StoreIndex {
         let conn = Connection::open(&db_path)
             .map_err(|source| StoreIndexError::Open { path: db_path.clone(), source })?;
 
-        // Busy-timeout FIRST so the internal busy handler is active during the
-        // rest of the setup — on Windows file locking is mandatory and
-        // concurrent pacquet / pnpm invocations can contend.
-        conn.execute_batch(
-            "
-            PRAGMA busy_timeout=5000;
-            PRAGMA journal_mode=WAL;
-            PRAGMA synchronous=NORMAL;
-            PRAGMA mmap_size=536870912;
-            PRAGMA cache_size=-32000;
-            PRAGMA temp_store=MEMORY;
-            PRAGMA wal_autocheckpoint=10000;
-            CREATE TABLE IF NOT EXISTS package_index (
-              key TEXT PRIMARY KEY,
-              data BLOB NOT NULL
-            ) WITHOUT ROWID;
-            ",
-        )
-        .and_then(|()| conn.execute_batch(aliases::CREATE_ALIAS_TABLE))
-        .map_err(|source| StoreIndexError::InitSchema { source })?;
+        schema::initialize(&conn).map_err(|source| StoreIndexError::InitSchema { source })?;
 
         Ok(StoreIndex::sqlite(
             conn,
@@ -523,6 +504,8 @@ mod tests;
 mod writer;
 
 mod queries;
+
+mod schema;
 
 mod aliases;
 

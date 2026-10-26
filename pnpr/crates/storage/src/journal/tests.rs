@@ -421,69 +421,6 @@ async fn commit_keeps_the_journal_entry_when_the_retry_fails_too() {
 }
 
 #[tokio::test]
-async fn recovery_applies_a_journal_with_the_alias_manifest_keys() {
-    let tmp = tempdir().unwrap();
-    let storage =
-        Storage::new(&HostedStoreConfig::Fs, tmp.path().join("hosted"), tmp.path().join("cache"))
-            .unwrap();
-    let name = CanonicalPackageName::parse("pkg", pnpr_package_name::Ecosystem::Npm).unwrap();
-    let slot = storage.reserve_hosted_blob(&name, "pkg-1.0.0.tgz").await.unwrap();
-    fs::write(&slot.tmp_path, b"tarball bytes").await.unwrap();
-
-    let txn_dir = tmp
-        .path()
-        .join("hosted")
-        .join(JOURNAL_DIR)
-        .join("0000000000000001-1-0");
-    fs::create_dir_all(&txn_dir).await.unwrap();
-    fs::write(
-        txn_dir.join("packument-0.json"),
-        serde_json::to_vec(&json!({
-            "name": "pkg",
-            "versions": { "1.0.0": { "version": "1.0.0" } },
-        }))
-        .unwrap(),
-    )
-    .await
-    .unwrap();
-    fs::write(
-        txn_dir.join(MANIFEST_FILE),
-        serde_json::to_vec(&json!({
-            "packages": [{
-                "name": "pkg",
-                "packument_file": "packument-0.json",
-                "tarballs": [{ "filename": "pkg-1.0.0.tgz", "tmp_path": slot.tmp_path }],
-            }],
-        }))
-        .unwrap(),
-    )
-    .await
-    .unwrap();
-    fs::write(txn_dir.join(super::COMMIT_MARKER), b"").await.unwrap();
-
-    storage
-        .publish_journal()
-        .recover(&storage, &NpmDocuments)
-        .await
-        .unwrap();
-
-    let hosted = storage
-        .read_hosted_document(&name)
-        .await
-        .unwrap()
-        .unwrap();
-    let hosted: serde_json::Value = serde_json::from_slice(&hosted).unwrap();
-    assert_eq!(hosted["versions"]["1.0.0"]["version"], "1.0.0");
-    assert!(
-        storage
-            .open_hosted_blob(&name, "pkg-1.0.0.tgz")
-            .await
-            .unwrap()
-            .is_some(),
-    );
-}
-
-#[tokio::test]
 async fn recovery_drops_version_when_tmp_blob_and_hosted_blob_are_missing() {
     let tmp = tempdir().unwrap();
     let storage =
@@ -501,7 +438,7 @@ async fn recovery_drops_version_when_tmp_blob_and_hosted_blob_are_missing() {
         .join("0000000000000002-1-0");
     fs::create_dir_all(&txn_dir).await.unwrap();
     fs::write(
-        txn_dir.join("packument-0.json"),
+        txn_dir.join("document-0.json"),
         serde_json::to_vec(&json!({
             "name": "pkg",
             "versions": { "1.0.0": { "version": "1.0.0" } },
@@ -515,8 +452,8 @@ async fn recovery_drops_version_when_tmp_blob_and_hosted_blob_are_missing() {
         serde_json::to_vec(&json!({
             "packages": [{
                 "name": "pkg",
-                "packument_file": "packument-0.json",
-                "tarballs": [{ "filename": "pkg-1.0.0.tgz", "tmp_path": slot.tmp_path }],
+                "document_file": "document-0.json",
+                "blobs": [{ "filename": "pkg-1.0.0.tgz", "tmp_path": slot.tmp_path }],
             }],
         }))
         .unwrap(),

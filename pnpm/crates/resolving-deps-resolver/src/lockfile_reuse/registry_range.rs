@@ -7,8 +7,10 @@ use pnpm_lockfile::{PkgName, PkgNameVerPeer, Prefix, RegistryContext, VersionPar
 /// `bare_specifier`, from the registry the specifier resolves against. A
 /// plain range resolves against the registry `alias`'s scope routes, a
 /// `<prefix>:` specifier against the prefix's registry, and the key names
-/// its registry the same way, so a locked entry never satisfies a specifier
-/// aimed at another registry, however either is spelled.
+/// its registry the same way (a plain key the route it was locked under,
+/// see [`RegistryContext::registry_of_key`]), so a locked entry never
+/// satisfies a specifier aimed at another registry, however either is
+/// spelled.
 ///
 /// `None` when the reuse gate cannot judge the specifier: it is neither a
 /// semver range nor a named-registry specifier, and the resolver resolves it
@@ -20,17 +22,23 @@ pub fn locked_child_admits(
     bare_specifier: &str,
     registries: &RegistryContext,
 ) -> Option<bool> {
-    let wanted = WantedRegistryRange::parse(alias, bare_specifier, registries)?;
-    let locked_version = match key.suffix.registry_qualified() {
-        Some((_, version)) => version,
-        None => key.suffix.version_semver()?,
+    WantedRegistryRange::parse(alias, bare_specifier, registries)?.admits(key, registries)
+}
+
+/// Whether any of `keys` passes [`locked_child_admits`]. `false` when the
+/// specifier cannot be judged, without visiting the keys.
+#[must_use]
+pub(crate) fn any_locked_key_admits<'key>(
+    alias: &PkgName,
+    keys: impl IntoIterator<Item = &'key PkgNameVerPeer>,
+    bare_specifier: &str,
+    registries: &RegistryContext,
+) -> bool {
+    let Some(wanted) = WantedRegistryRange::parse(alias, bare_specifier, registries) else {
+        return false;
     };
-    let locked_registry = registries.registry_of_key(key)?;
-    Some(
-        same_registry(locked_registry, wanted.registry)
-            && key.name == *wanted.name
-            && wanted.range.satisfies(locked_version),
-    )
+    keys.into_iter()
+        .any(|key| wanted.admits(key, registries) == Some(true))
 }
 
 /// Whether `key` is the key a fresh resolve of `bare_specifier` for `alias`
@@ -75,6 +83,19 @@ struct WantedRegistryRange<'a> {
 }
 
 impl<'a> WantedRegistryRange<'a> {
+    fn admits(&self, key: &PkgNameVerPeer, registries: &RegistryContext) -> Option<bool> {
+        let locked_version = match key.suffix.registry_qualified() {
+            Some((_, version)) => version,
+            None => key.suffix.version_semver()?,
+        };
+        let locked_registry = registries.registry_of_key(key)?;
+        Some(
+            same_registry(locked_registry, self.registry)
+                && key.name == *self.name
+                && self.range.satisfies(locked_version),
+        )
+    }
+
     /// `None` for a specifier that is neither a semver range nor a
     /// named-registry specifier (`<prefix>:[<name>@]<range>`) of a declared
     /// prefix.

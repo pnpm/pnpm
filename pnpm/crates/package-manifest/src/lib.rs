@@ -11,8 +11,10 @@ pub use bins::{
 pub use build_triggers::{
     BINDING_GYP, BuildTriggers, files_build_triggers, files_include_install_scripts,
     manifest_opts_out_of_gyp_build, manifest_requires_build, pkg_build_triggers,
-    pkg_requires_build, requires_build_from_cas_paths, stored_requires_build_needs_manifest_check,
+    pkg_requires_build, read_package_json_from_cas_paths, requires_build_from_cas_paths,
+    requires_build_from_files, stored_requires_build_needs_manifest_check,
 };
+pub use bundled_manifest::normalize_bundled_manifest;
 pub use error::PackageManifestError;
 pub use initialization::{InitAuthor, InitOptions};
 pub use metadata::{extract_author, extract_homepage, extract_license};
@@ -46,6 +48,7 @@ use tempfile::NamedTempFile;
 mod bins;
 mod blank_lines;
 mod build_triggers;
+mod bundled_manifest;
 mod error;
 mod initialization;
 mod json5;

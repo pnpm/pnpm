@@ -46,6 +46,7 @@ export const DEFAULT_OPTS = {
   proxy: undefined,
   registriesByScope: { default: REGISTRY_URL },
   registry: REGISTRY_URL,
+  registryOptionsByUrl: { [REGISTRY_URL]: { serverType: 'pnpr' as const } },
   rootProjectManifestDir: '',
   sort: true,
   storeDir: '../store',

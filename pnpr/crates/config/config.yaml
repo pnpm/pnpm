@@ -44,7 +44,7 @@ storage: ./storage
 #    url: ${PNPR_LIBSQL_URL}
 #    authToken: ${PNPR_LIBSQL_TOKEN}
 #    replicaPath: ./auth-replica.db
-#    syncIntervalSecs: 60
+#    syncInterval: 60s
 #  postgres:
 #    url: ${PNPR_POSTGRES_URL}
 #    maxConnections: 16
@@ -61,7 +61,7 @@ auth:
     file: ./htpasswd
     # Maximum amount of users allowed to register. The safe default is -1
     # (registration disabled); set a non-negative cap to allow registration.
-    max_users: -1
+    maxUsers: -1
 
 # Registries: upstream npm proxy and local hosted storage.
 registries:

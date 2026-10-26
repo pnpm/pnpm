@@ -41,9 +41,7 @@ dependencies.
 
 ## Options
 
-### --link-workspace-packages
-
-Overrides the [`linkWorkspacePackages`](../workspaces.md#linkworkspacepackages) setting for this install.
+To link workspace packages, set [`linkWorkspacePackages`](../workspaces.md#linkworkspacepackages) or pass `--link-workspace-packages` to the install.
 
 ### --workspace-concurrency
 
@@ -53,7 +51,11 @@ Overrides the [`linkWorkspacePackages`](../workspaces.md#linkworkspacepackages) 
 Set the maximum number of tasks to run simultaneously. For unlimited concurrency
 use `Infinity`.
 
-A value of `0` or less means the number of CPU cores minus its absolute value, and at least `1`. The matching setting is `workspaceConcurrency`.
+In a container with a CPU quota, such as a Kubernetes CPU limit, the quota is the
+number of available CPU cores when it is smaller than the number of CPUs the
+container may run on. A fractional quota is rounded down, to at least 1.
+
+A value of `0` or less means the number of available CPU cores minus its absolute value, and at least `1`. The matching setting is `workspaceConcurrency`.
 
 ### --[no-]bail
 
