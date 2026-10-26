@@ -72,6 +72,8 @@ pub struct AddSaveArgs {
     /// Do not add `@types` packages automatically.
     #[clap(long = "no-save-types", overrides_with = "types")]
     pub no_save_types: bool,
+    // `-T` could mean either `--save-types` or `--tilde`, so it parses only to be
+    // rejected by `validate_command_scoped_global_options` with both spellings.
     #[clap(short = 'T', hide = true)]
     pub hidden_ambiguous_t: bool,
     /// Saved dependencies will be configured with an exact version rather than using
