@@ -211,7 +211,12 @@ function addPrefixRoute (
     throw new PnpmError('INVALID_SETTING',
       `The prefix ${JSON.stringify(prefix)} is declared by two registries: ${quoteAndJoin([declaredBy, registry].map(redactAndSanitize))}.`)
   }
-  lookups.registriesByPrefix[prefix] = registry
+  Object.defineProperty(lookups.registriesByPrefix, prefix, {
+    value: registry,
+    writable: true,
+    enumerable: true,
+    configurable: true,
+  })
 }
 
 /**

@@ -168,7 +168,7 @@ fn a_url_a_layer_serves_to_pypi_loses_the_npm_routes_it_had() {
     let entry = declarations.get("https://one.example.com/").expect("the index is declared");
     assert_eq!(entry.ecosystem(), Ecosystem::Pypi);
     assert!(entry.scopes.is_none(), "{entry:?}");
-    assert!(entry.prefix.is_none(), "{entry:?}");
+    assert!(entry.prefixes.prefix.is_none(), "{entry:?}");
     assert!(entry.server_type.is_none(), "{entry:?}");
 }
 

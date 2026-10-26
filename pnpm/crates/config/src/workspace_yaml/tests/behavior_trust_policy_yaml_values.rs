@@ -3,6 +3,7 @@ use super::{
     RegistryDeclaration, RegistryEntry, RegistryOptions, RegistryServerType, ResolutionMode,
     TrustPolicy, WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings, assert_eq, fs,
 };
+use crate::RegistryPrefixes;
 
 /// `trustPolicy` accepts the two upstream string values; an absent
 /// key leaves the [`TrustPolicy::Off`] default in place.
@@ -330,7 +331,10 @@ fn rebuilds_the_declarations_from_the_lookups() {
         declarations.get("https://npm.corp.example/"),
         Some(&RegistryDeclaration {
             scopes: Some(vec!["@acme".to_owned(), "@acme-internal".to_owned()]),
-            prefix: Some("work".to_owned()),
+            prefixes: RegistryPrefixes {
+                prefix: Some("work".to_owned()),
+                ..RegistryPrefixes::default()
+            },
             server_type: Some(RegistryServerType::Artifactory),
             supports_time_field: None,
             ..RegistryDeclaration::default()
@@ -379,7 +383,10 @@ fn resolved_declarations_declare_every_route() {
     assert_eq!(
         declarations.get("https://github.corp.example/"),
         Some(&RegistryDeclaration {
-            prefix: Some("gh".to_owned()),
+            prefixes: RegistryPrefixes {
+                prefix: Some("gh".to_owned()),
+                ..RegistryPrefixes::default()
+            },
             ..RegistryDeclaration::default()
         }),
     );
@@ -387,7 +394,10 @@ fn resolved_declarations_declare_every_route() {
     assert_eq!(
         declarations.get("https://registry.npmjs.org/"),
         Some(&RegistryDeclaration {
-            prefix: Some("npmjs".to_owned()),
+            prefixes: RegistryPrefixes {
+                prefix: Some("npmjs".to_owned()),
+                ..RegistryPrefixes::default()
+            },
             ..RegistryDeclaration::default()
         }),
     );

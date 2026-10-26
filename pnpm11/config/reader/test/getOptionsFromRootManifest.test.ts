@@ -1023,3 +1023,33 @@ test('getOptionsFromPnpmSettings() accepts valid httpProxy and httpsProxy', () =
   expect(options.httpProxy).toBe('http://localhost:8080')
   expect(options.httpsProxy).toBe('https://localhost:8443')
 })
+
+test('getOptionsFromPnpmSettings() keeps a registry prefix named after an Object.prototype property', () => {
+  const options = getOptionsFromPnpmSettings(process.cwd(), {
+    registries: {
+      'https://npm.corp.example/': { prefix: '__proto__' },
+      'https://other.example/': { prefix: 'constructor' },
+    },
+  })
+  expect(Object.entries(options.registriesByPrefix!)).toStrictEqual([
+    ['__proto__', 'https://npm.corp.example/'],
+    ['constructor', 'https://other.example/'],
+  ])
+})
+
+test('getOptionsFromPnpmSettings() rejects a registry prefix declared twice as __proto__', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    registries: {
+      'https://npm.corp.example/': { prefix: '__proto__' },
+      'https://other.example/': { prefix: '__proto__' },
+    },
+  })).toThrow(/The prefix "__proto__" is declared by two registries/)
+})
+
+test('getOptionsFromPnpmSettings() refuses registry aliases, which only a pnpr request carries', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    registries: {
+      'https://npm.corp.example/': { prefix: 'work', aliases: ['zeta'] },
+    },
+  })).toThrow(/aliases" setting is not a known registry setting/)
+})
