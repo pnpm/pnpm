@@ -120,6 +120,7 @@ function minimum (values: Array<number | undefined>): number | undefined {
   return present.length > 0 ? Math.min(...present) : undefined
 }
 
+/** Any failure to read a cgroup file means no quota is known from it, so every error is swallowed. */
 function readTextFile (filePath: string): string | undefined {
   try {
     return fs.readFileSync(filePath, 'utf8')
