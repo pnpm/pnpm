@@ -145,6 +145,7 @@ export async function linkBinsOfPackages (
   pkgs: Array<{
     manifest: DependencyManifest
     location: string
+    warnOnMissingBin?: boolean
   }>,
   binsTarget: string,
   opts: LinkBinOptions & { excludeBins?: Set<string> } = {}
@@ -157,6 +158,7 @@ export async function getBinsToLink (
   pkgs: Array<{
     manifest: DependencyManifest
     location: string
+    warnOnMissingBin?: boolean
   }>,
   excludeBins: Set<string> = new Set()
 ): Promise<Command[]> {
@@ -168,13 +170,14 @@ async function getCommandsToLink (
   pkgs: Array<{
     manifest: DependencyManifest
     location: string
+    warnOnMissingBin?: boolean
   }>,
   excludeBins: Set<string> = new Set()
 ): Promise<CommandInfo[]> {
   const excluded = IS_WINDOWS ? new Set(Array.from(excludeBins, (name) => name.toLowerCase())) : excludeBins
   return unnest(
     (await Promise.all(
-      pkgs.map(async (pkg) => getPackageBinsFromManifest(pkg.manifest, pkg.location))
+      pkgs.map(async (pkg) => getPackageBinsFromManifest(pkg.manifest, pkg.location, pkg.warnOnMissingBin))
     ))
       .filter((cmds: Command[]) => cmds.length)
   ).filter((cmd) => !excluded.has(IS_WINDOWS ? cmd.name.toLowerCase() : cmd.name))
@@ -313,7 +316,7 @@ async function readLinkTarget (link: string): Promise<string> {
   return path.resolve(path.dirname(link), await fs.readlink(link))
 }
 
-async function getPackageBinsFromManifest (manifest: DependencyManifest, pkgDir: string): Promise<CommandInfo[]> {
+async function getPackageBinsFromManifest (manifest: DependencyManifest, pkgDir: string, warnOnMissingBin?: boolean): Promise<CommandInfo[]> {
   const cmds = await getBinsFromPackageManifest(manifest, pkgDir)
   let nodeExecPath: string | undefined
   if (manifest.engines?.runtime && runtimeHasNodeDownloaded(manifest.engines.runtime)) {
@@ -334,6 +337,7 @@ async function getPackageBinsFromManifest (manifest: DependencyManifest, pkgDir:
     pkgVersion: manifest.version,
     makePowerShellShim: manifest.name !== 'pnpm',
     nodeExecPath,
+    warnOnMissingBin,
   }))
 }
 

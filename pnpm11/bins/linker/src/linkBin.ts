@@ -30,6 +30,10 @@ export interface CommandInfo extends Command {
    */
   makePowerShellShim: boolean
   nodeExecPath?: string
+  /**
+   * When false, suppresses warnings emitted when a bin target does not exist.
+   */
+  warnOnMissingBin?: boolean
 }
 
 export interface LinkBinOptions {
@@ -62,6 +66,10 @@ export interface LinkBinOptions {
    * the directory again once the builds ran.
    */
   heldBackBinsDirs?: Set<string>
+  /**
+   * When false, suppresses warnings emitted when a bin target does not exist.
+   */
+  warnOnMissingBin?: boolean
 }
 
 interface BinLinkContext {
@@ -231,7 +239,9 @@ async function writeCmdShim ({ cmd, externalBinPath, shShimDir, opts }: BinLinkC
     })
   } catch (err: any) { // eslint-disable-line
     if (!isSkippableShimError(err)) throw err
-    globalWarn(`Failed to create bin at ${externalBinPath}. ${err.message as string}`)
+    if (cmd.warnOnMissingBin !== false && opts.warnOnMissingBin !== false) {
+      globalWarn(`Failed to create bin at ${externalBinPath}. ${err.message as string}`)
+    }
     return false
   }
   return true
