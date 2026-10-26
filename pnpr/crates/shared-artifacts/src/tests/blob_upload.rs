@@ -68,8 +68,10 @@ async fn a_blob_uploaded_alone_completes_a_publication_that_carries_none() {
     let again = store.store_blob("acme", &owner, &upload.integrity, size, body(&bytes));
     assert!(!again.await.unwrap(), "an upload of a stored blob stores nothing");
     assert_eq!(global_bytes(&store).await, size, "a stored blob is charged once");
+    let mut altered = bytes.clone();
+    altered[0] ^= 1;
     store
-        .store_blob("acme", &owner, &upload.integrity, size, body(b"altered addon"))
+        .store_blob("acme", &owner, &upload.integrity, size, body(&altered))
         .await
         .expect_err("a duplicate upload with mismatched bytes is still rejected");
 
@@ -172,6 +174,26 @@ async fn an_uploaded_blob_waits_for_its_publication_through_reclamation() {
     );
 
     let record = staged_record_path(&org_key("acme"), &blob_id(&declared).unwrap());
+    store.store
+        .delete(&store.object_path(&record))
+        .await
+        .unwrap();
+    assert!(
+        !store
+            .store_blob("acme", &acme(), &declared, 12, body(b"shared addon"))
+            .await
+            .unwrap(),
+    );
+    reclaim().await;
+    assert_eq!(
+        store
+            .blob_size("acme", &acme(), &declared)
+            .await
+            .unwrap(),
+        Some(12),
+        "a duplicate upload refreshes the staged record so reclamation keeps the blob",
+    );
+
     store.store
         .delete(&store.object_path(&record))
         .await

@@ -291,7 +291,7 @@ backend:
 
 The trade-off is read freshness: an embedded replica reflects another
 replica's writes (a token issued or revoked elsewhere) only after the
-next background sync, so lower `syncInterval` means less
+next background sync, so a lower positive `syncInterval` means less
 revocation lag. Omit `replicaPath` to always read the primary directly.
 
 PostgreSQL:
