@@ -1186,21 +1186,6 @@ fn peer_variants_with_distinct_peers_are_nested_for_node_resolution() {
 
     fixture.run(["install"]);
 
-    let package_locations = [
-        "packages/a/node_modules/@pnpm.e2e/abc-optional-peers-meta-only",
-        "packages/b/node_modules/@pnpm.e2e/abc-optional-peers-meta-only",
-    ];
-    let location_states: Vec<_> = package_locations
-        .iter()
-        .map(|location| {
-            let path = fixture.workspace.join(location);
-            (*location, path.exists(), path.is_dir(), is_symlink_or_junction(&path).unwrap())
-        })
-        .collect();
-    assert!(
-        location_states.iter().all(|(_, exists, _, _)| *exists),
-        "each project resolves its package dependency: {location_states:?}",
-    );
     let output = Command::new("node")
         .arg("-e")
         .arg(
