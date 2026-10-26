@@ -135,12 +135,15 @@ async function readConfiguredModulesDir (projectDir: string): Promise<string> {
     const workspaceDir = path.dirname(workspaceManifest)
     // `PnpmSettings` does not declare these settings.
     const settings = await readWorkspaceManifestKeys(workspaceDir, MODULES_DIR_SETTINGS) as Partial<Pick<Config, 'lockfileDir' | 'modulesDir' | 'packageConfigs' | 'sharedWorkspaceLockfile'>> | undefined
+    const lockfileDir = settings?.sharedWorkspaceLockfile === false ? settings.lockfileDir : workspaceDir
     const resolveModulesDir = createProjectModulesDirResolver({
-      lockfileDir: settings?.sharedWorkspaceLockfile === false ? settings.lockfileDir : workspaceDir,
+      lockfileDir,
       modulesDir: typeof settings?.modulesDir === 'string' ? settings.modulesDir : undefined,
       packageConfigs: settings?.packageConfigs,
     })
-    const projectName = settings?.packageConfigs == null ? undefined : (await safeReadProjectManifestOnly(projectDir))?.name
+    const projectName = lockfileDir != null || settings?.packageConfigs == null
+      ? undefined
+      : (await safeReadProjectManifestOnly(projectDir))?.name
     return resolveModulesDir(projectName) ?? 'node_modules'
   } catch (err: unknown) {
     throw inUseFilesError(projectDir, err)
