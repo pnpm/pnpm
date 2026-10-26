@@ -48,6 +48,37 @@ test('pack: package with package.yaml', async () => {
   expect(fs.existsSync('package.json')).toBeFalsy()
 })
 
+test('pack: includes files in a publish directory reached through a symlink', async () => {
+  prepare({
+    name: 'symlinked-publish-directory',
+    version: '1.0.0',
+    publishConfig: { directory: 'build/dist' },
+  })
+
+  fs.mkdirSync('../output/dist', { recursive: true })
+  fs.writeFileSync('../output/dist/package.json', JSON.stringify({ name: 'symlinked-publish-directory', version: '1.0.0' }))
+  fs.writeFileSync('../output/dist/index.js', 'module.exports = 1')
+  fs.writeFileSync('../outside.js', 'module.exports = 2')
+  fs.symlinkSync('../output', 'build', 'junction')
+  fs.symlinkSync('../../../outside.js', '../output/dist/leak.js', 'file')
+
+  await pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: process.cwd(),
+    extraBinPaths: [],
+    packDestination: process.cwd(),
+  })
+
+  const entries: string[] = []
+  await tar.t({ file: 'symlinked-publish-directory-1.0.0.tgz', onReadEntry: entry => {
+    entries.push(entry.path)
+  } })
+
+  expect(entries).toContain('package/index.js')
+  expect(entries).not.toContain('package/leak.js')
+})
+
 test('pack: package with package.yaml respects files field', async () => {
   prepare({
     name: 'test-publish-package-yaml-files',
