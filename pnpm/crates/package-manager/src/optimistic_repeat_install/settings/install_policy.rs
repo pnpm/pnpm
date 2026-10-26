@@ -1,7 +1,7 @@
 use super::{Config, SettingsComparison, WorkspaceStateSettings};
 
-/// The settings that decide which builds, runtimes and lockfile verification
-/// an install runs. An unrecorded value reads as the default.
+/// The settings that decide which builds and lockfile verification an install
+/// runs. An unrecorded value reads as the default.
 /// `dangerouslyAllowAllBuilds` is always recorded, as pnpm v11 records it.
 pub(super) fn install_policy_settings(
     config: &Config,
@@ -9,7 +9,6 @@ pub(super) fn install_policy_settings(
 ) -> WorkspaceStateSettings {
     WorkspaceStateSettings {
         dangerously_allow_all_builds: Some(config.dangerously_allow_all_builds),
-        skip_runtimes: config.skip_runtimes.then_some(true),
         trust_lockfile: config.trust_lockfile.then_some(true),
         ..rest
     }
@@ -26,7 +25,6 @@ impl SettingsComparison<'_> {
                 "dangerouslyAllowAllBuilds",
                 differs(recorded.dangerously_allow_all_builds, live.dangerously_allow_all_builds),
             ),
-            ("skipRuntimes", differs(recorded.skip_runtimes, live.skip_runtimes)),
             ("trustLockfile", differs(recorded.trust_lockfile, live.trust_lockfile)),
         ]
         .into_iter()
