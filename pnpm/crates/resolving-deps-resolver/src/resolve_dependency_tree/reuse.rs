@@ -179,8 +179,9 @@ pub(super) fn try_reuse_node(
 /// inputs and leaving frozen installs on other hosts with nothing to
 /// link (<https://github.com/pnpm/pnpm/issues/12853>).
 ///
-/// Only plain semver specifiers are checked; exotic specifiers (git,
-/// catalogs, tags, URLs) keep the skip-on-failure behavior.
+/// Only semver ranges, plain or behind a named-registry prefix
+/// (`work:^1.0.0`), are checked; other specifiers (git, catalogs, tags,
+/// URLs) keep the skip-on-failure behavior.
 ///
 /// The check is deliberately by package name, registry, and range (see
 /// [`crate::lockfile_reuse::locked_child_admits`]) rather than by the
@@ -207,9 +208,6 @@ pub(super) fn wanted_lockfile_contains_satisfying_entry(
     };
     let (pkg_name, range) =
         unwrap_package_name(alias, wanted.bare_specifier.as_deref().unwrap_or_default());
-    if range.parse::<node_semver::Range>().is_err() {
-        return false;
-    }
     let Ok(pkg_name) = PkgName::parse(pkg_name) else {
         return false;
     };

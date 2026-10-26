@@ -287,6 +287,39 @@ test('fail on an optional dependency that cannot be resolved when the lockfile h
   expect(project.readLockfile()).toStrictEqual(lockfileBefore)
 })
 
+test('fail on a named-registry optional dependency that cannot be resolved when the lockfile has a satisfying locked entry', async () => {
+  const project = prepareEmpty()
+  const manifest = {
+    optionalDependencies: {
+      '@pnpm.e2e/foo': 'work:1.0.0',
+    },
+  }
+  const registriesByPrefix = { work: `http://localhost:${REGISTRY_MOCK_PORT}/npm/` }
+  await install(manifest, testDefaults({ registriesByPrefix }, { registriesByPrefix }))
+
+  const lockfileBefore = project.readLockfile()
+  expect(Object.keys(lockfileBefore.packages)).toContain('@pnpm.e2e/foo@work:1.0.0')
+
+  const server = createVersionHidingRegistryProxy(['@pnpm.e2e/foo'], '1.0.0')
+  await new Promise<void>((resolve) => {
+    server.listen(0, resolve)
+  })
+  const proxiedRegistriesByPrefix = { work: `http://localhost:${(server.address() as AddressInfo).port}/npm/` }
+  try {
+    await expect(install(manifest, testDefaults({
+      dedupe: true,
+      registriesByPrefix: proxiedRegistriesByPrefix,
+    }, { registriesByPrefix: proxiedRegistriesByPrefix }))).rejects.toMatchObject({
+      code: expect.stringMatching(/^ERR_PNPM_NO_(MATCHING_VERSION|VERSIONS)$/),
+      hint: expect.stringContaining('the lockfile contains a resolution for it'),
+    })
+  } finally {
+    await closeServer(server)
+  }
+
+  expect(project.readLockfile()).toStrictEqual(lockfileBefore)
+})
+
 // Simulates a registry mirror whose packuments predate a release: the version
 // is missing from the version list even though other packages already
 // reference it. Everything else is forwarded to the registry mock.
