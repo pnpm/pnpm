@@ -217,13 +217,16 @@ pub(super) fn regexp_selected_scripts_cancel_siblings_after_failure() {
     // started, so the run reaches the failing script's exit code only once
     // `dev:slow` is gone. A cancellation that never arrives fails on that
     // deadline, which says so.
+    let stderr_path = workspace.join("run.stderr");
     let mut run = pacquet
         .with_args(["--workspace-concurrency=2", "run", "/^dev:/"])
         .stdout(Stdio::null())
-        .stderr(Stdio::null())
+        .stderr(fs::File::create(&stderr_path).expect("create the run output"))
         .spawn()
         .expect("spawn pacquet");
     let status = wait_for_child(&mut run);
+    let stderr = fs::read_to_string(&stderr_path).expect("read the run output");
+    eprintln!("STDERR:\n{stderr}\n");
     assert_eq!(status.code(), Some(17), "the run must end with the failing script's code");
     assert!(
         workspace.join("slow-started").exists(),
