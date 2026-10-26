@@ -600,46 +600,47 @@ pub fn write_marker_script(relative_path: &str) -> String {
 
 /// A package script that writes its pid to `started_marker` and then
 /// holds past [`CHILD_DEADLINE`], so a cancellation that never arrives
-/// fails on that deadline rather than on the script's own exit.
+/// fails on that deadline rather than on the script's own exit. Nothing
+/// ends the hold, so a run the test gave up on leaves the script behind.
 ///
-/// - A run the test gave up on leaves the script behind.
-/// - The pid is what [`is_running`] needs to tell a script pnpm killed
-///   from one pnpm orphaned by killing the shell above it. The run's own
-///   exit code cannot.
-/// - The marker is renamed into place, so a sibling waiting for it never
-///   reads it half written.
+/// The marker is renamed into place, so a sibling waiting for it never
+/// reads it half written. It carries the pid because a run's exit code
+/// does not say whether the script went with the run or was orphaned when
+/// pnpm killed the shell above it, and [`is_running`] does.
 #[must_use]
 pub fn hold_until_cancelled_script(project: &Path, started_marker: &str) -> String {
     let hold = (CHILD_DEADLINE * 2).as_millis();
-    let fixture = write_node_fixture(project, "hold-until-cancelled.js", HOLD_UNTIL_CANCELLED);
+    let fixture = write_node_fixture(
+        project,
+        "hold-until-cancelled.js",
+        text_block! {
+            "const fs = require('node:fs')"
+            "const [marker, hold] = process.argv.slice(2)"
+            "fs.writeFileSync(`${marker}.tmp`, String(process.pid))"
+            "fs.renameSync(`${marker}.tmp`, marker)"
+            "setTimeout(() => {}, Number(hold))"
+        },
+    );
     format!("node {fixture} {started_marker} {hold}")
 }
-
-/// See [`hold_until_cancelled_script`].
-const HOLD_UNTIL_CANCELLED: &str = text_block! {
-    "const fs = require('node:fs')"
-    "const [marker, hold] = process.argv.slice(2)"
-    "fs.writeFileSync(`${marker}.tmp`, String(process.pid))"
-    "fs.renameSync(`${marker}.tmp`, marker)"
-    "setTimeout(() => {}, Number(hold))"
-};
 
 /// A package script that waits for `marker` to appear and then fails with
 /// `code`, so a sibling script's failure lands while that sibling is still
 /// running and the run has something in flight to cancel.
 #[must_use]
 pub fn exit_when_marked_script(project: &Path, marker: &str, code: i32) -> String {
-    let fixture = write_node_fixture(project, "exit-when-marked.js", EXIT_WHEN_MARKED);
+    let fixture = write_node_fixture(
+        project,
+        "exit-when-marked.js",
+        text_block! {
+            "const fs = require('node:fs')"
+            "const [marker, code] = process.argv.slice(2)"
+            "const wait = () => fs.existsSync(marker) ? process.exit(Number(code)) : setTimeout(wait, 10)"
+            "wait()"
+        },
+    );
     format!("node {fixture} {marker} {code}")
 }
-
-/// See [`exit_when_marked_script`].
-const EXIT_WHEN_MARKED: &str = text_block! {
-    "const fs = require('node:fs')"
-    "const [marker, code] = process.argv.slice(2)"
-    "const wait = () => fs.existsSync(marker) ? process.exit(Number(code)) : setTimeout(wait, 10)"
-    "wait()"
-};
 
 /// Place `source` in `project` under `name` and return `name`, for a
 /// package script to run with `node`.
