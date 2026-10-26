@@ -228,7 +228,9 @@ pub(super) async fn serve_upload_artifact_blob(
 ) -> Response {
     let caller = match CallerOwners::new(&state, &identity, "shared artifact blob upload") {
         Ok(caller) => caller,
-        Err(err) => return private_no_cache(err.into_response()),
+        // Refused before a byte of the upload was read, which the
+        // connection cannot survive any more than the answers below.
+        Err(err) => return private_no_cache(last_on_its_connection(err.into_response())),
     };
     let result = async {
         let size = headers
