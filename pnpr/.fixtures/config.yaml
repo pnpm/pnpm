@@ -89,6 +89,10 @@ registries:
     type: upstream
     url: https://registry.npmjs.org/
     public: true
+    # The default breaker stays open for 5m after two failures, longer than
+    # pnpm's fetch retries, so one network blip fails every npm request
+    # until the cooldown ends.
+    maxFails: 0
 
   # Router combining local fixtures and upstream npm.
   main:

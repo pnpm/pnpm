@@ -129,7 +129,7 @@ function writeTestConfig (storage) {
 
 function writeCurrentVersionTestConfig (storage) {
   const target = path.join(storage, 'current-version-config.yaml')
-  writeFileSync(target, `storage: ${JSON.stringify(storage)}\nsecret: pnpm-registry-mock-secret-key-32\nregistries:\n  local:\n    type: hosted\n    access: $all\n    packages:\n      pnpm: {}\n      '@pnpm/exe': {}\n  npmjs:\n    type: upstream\n    url: https://registry.npmjs.org/\n    public: true\n  main:\n    type: router\n    sources: [local, npmjs]\ndefaultRegistry: main\n`)
+  writeFileSync(target, `storage: ${JSON.stringify(storage)}\nsecret: pnpm-registry-mock-secret-key-32\nregistries:\n  local:\n    type: hosted\n    access: $all\n    packages:\n      pnpm: {}\n      '@pnpm/exe': {}\n  npmjs:\n    type: upstream\n    url: https://registry.npmjs.org/\n    public: true\n    maxFails: 0\n  main:\n    type: router\n    sources: [local, npmjs]\ndefaultRegistry: main\n`)
   return target
 }
 
