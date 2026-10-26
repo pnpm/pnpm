@@ -72,7 +72,6 @@ minimumReleaseAgeExclude:
   - write-ini-file
   - write-json5-file
   - write-yaml-file
-  - http-proxy-middleware@3.0.7
 
 minimumReleaseAgeExcludePrune: true
 
