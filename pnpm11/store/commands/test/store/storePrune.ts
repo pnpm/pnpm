@@ -930,6 +930,22 @@ describe('prune keeps the packages that a registered project still uses', () => 
     await expectPruneKeepsEveryRowAndBlob(storeDir)
   })
 
+  // Each project of a workspace without a shared lockfile is registered on
+  // its own, and the workspace-level modulesDir applies to it.
+  test('every package of a workspace project with its own lockfile and a workspace-level modulesDir', async () => {
+    prepare({ name: 'root' })
+    fs.writeFileSync('pnpm-workspace.yaml', 'packages: [project]\nsharedWorkspaceLockfile: false\nmodulesDir: pnpm_modules\npackageImportMethod: copy\n')
+    fs.mkdirSync('project')
+    fs.writeFileSync('project/package.json', JSON.stringify({
+      name: 'project',
+      dependencies: { '@pnpm.e2e/pkg-with-1-dep': '100.0.0', 'is-positive': '1.0.0' },
+    }))
+    const storeDir = await install()
+    expect(fs.existsSync('project/pnpm_modules/.pnpm/lock.yaml')).toBe(true)
+
+    await expectPruneKeepsEveryRowAndBlob(storeDir)
+  })
+
   test('a runtime installed with packageImportMethod: copy', async () => {
     // A registry tarball stands in for the runtime archive, so the install
     // needs no network. The variant targets this host.

@@ -10230,6 +10230,9 @@ importers:
       '@zkochan/rimraf':
         specifier: 'catalog:'
         version: 4.0.0
+      empathic:
+        specifier: 'catalog:'
+        version: 2.1.0
       is-subdir:
         specifier: 'catalog:'
         version: 2.0.1

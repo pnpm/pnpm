@@ -62,6 +62,7 @@
     "@pnpm/types": "workspace:*",
     "@pnpm/workspace.workspace-manifest-reader": "workspace:*",
     "@zkochan/rimraf": "catalog:",
+    "empathic": "catalog:",
     "is-subdir": "catalog:",
     "pretty-bytes": "catalog:",
     "ramda": "catalog:",

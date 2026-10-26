@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import { LOCKFILE_VERSION } from '@pnpm/constants'
+import { LOCKFILE_VERSION, WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
 import { isError, PnpmError } from '@pnpm/error'
 import { type Modules, readModulesManifest } from '@pnpm/installing.modules-yaml'
 import { readCurrentLockfile } from '@pnpm/lockfile.fs'
@@ -11,6 +11,7 @@ import { getFilePathByModeInCafs, type PackageFileInfo, type PackageFilesIndex }
 import { gitHostedStoreIndexKey, pickStoreIndexKey, type StoreIndex, storeIndexKey } from '@pnpm/store.index'
 import type { DepPath } from '@pnpm/types'
 import { readWorkspaceManifestKeys } from '@pnpm/workspace.workspace-manifest-reader'
+import * as find from 'empathic/find'
 
 import { getRegisteredProjects } from './projectRegistry.js'
 
@@ -115,14 +116,21 @@ async function readInstalledLockfiles (projectDir: string): Promise<LockfileObje
 }
 
 /**
- * The `modulesDir` that the project's `pnpm-workspace.yaml` sets, or
- * `node_modules`. A `modulesDir` set only on the command line, in the
- * environment, or in the global config is not seen.
+ * The `modulesDir` that the nearest `pnpm-workspace.yaml` at or above the
+ * project sets, or `node_modules`. A `modulesDir` set only on the command
+ * line, in the environment, in the global config, or in `packageConfigs`
+ * is not seen.
  */
 async function readConfiguredModulesDir (projectDir: string): Promise<string> {
   try {
+    // `findWorkspaceDir` would also honor the workspace directory that the
+    // environment of the prune sets, which names no registered project's
+    // workspace.
+    const workspaceManifest = find.file(WORKSPACE_MANIFEST_FILENAME, { cwd: projectDir })
+    if (workspaceManifest == null) return 'node_modules'
+    const workspaceDir = path.dirname(workspaceManifest)
     // `PnpmSettings` does not declare `modulesDir`.
-    const manifest = await readWorkspaceManifestKeys(projectDir, MODULES_DIR_SETTING) as Record<string, unknown> | undefined
+    const manifest = await readWorkspaceManifestKeys(workspaceDir, MODULES_DIR_SETTING) as Record<string, unknown> | undefined
     const modulesDir = manifest?.modulesDir
     return typeof modulesDir === 'string' ? modulesDir : 'node_modules'
   } catch (err: unknown) {

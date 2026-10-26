@@ -3,6 +3,7 @@
 //! A package imported by copy or clone, such as a patched or built one, has
 //! no hard link to the store, so `store prune` needs this list to keep it.
 
+use pnpm_config::workspace_root_or;
 use pnpm_deps_restorer::{binary_store_index_key, store_index_key_for_resolution};
 use pnpm_fs::lexical_normalize;
 use pnpm_lockfile::{Lockfile, LockfileResolution, PackageKey};
@@ -85,16 +86,18 @@ fn load_installed_lockfiles(project: &Path) -> io::Result<Vec<Lockfile>> {
     Ok(lockfiles)
 }
 
-/// The `modulesDir` that the project's `pnpm-workspace.yaml` sets, or
-/// `node_modules`. A `modulesDir` set only on the command line, in the
-/// environment, or in the global config is not seen.
+/// The `modulesDir` that the nearest `pnpm-workspace.yaml` at or above the
+/// project sets, or `node_modules`. A `modulesDir` set only on the command
+/// line, in the environment, in the global config, or in `packageConfigs`
+/// is not seen.
 fn configured_modules_dir(project: &Path) -> io::Result<String> {
     #[derive(Deserialize)]
     #[serde(rename_all = "camelCase")]
     struct ModulesDirSetting {
         modules_dir: Option<String>,
     }
-    let Some(document) = read_workspace_manifest_document(project).map_err(io::Error::other)?
+    let Some(document) =
+        read_workspace_manifest_document(&workspace_root_or(project)).map_err(io::Error::other)?
     else {
         return Ok("node_modules".to_string());
     };
