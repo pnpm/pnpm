@@ -199,6 +199,11 @@ fn a_filtered_install_keeps_the_records_of_a_tree_linked_from_the_v3_store() {
     let current = fs::read_to_string(workspace.join("node_modules/.pnpm/lock.yaml"))
         .expect("read the current lockfile");
     assert!(current.contains("project-2:"), "the current lockfile dropped project-2:\n{current}");
+    let hoisted = read_json(&modules_path)["hoistedDependencies"].to_string();
+    assert!(
+        hoisted.contains("\"@pnpm.e2e/dep-of-pkg-with-1-dep@"),
+        ".modules.yaml dropped project-2's hoisted dependency: {hoisted}",
+    );
 
     drop((root, mock_instance));
 }
@@ -211,7 +216,7 @@ fn install_two_project_workspace(workspace: &Path) -> PathBuf {
         .expect("write root package.json");
     fs::write(
         project.join("package.json"),
-        r#"{"name":"project-2","dependencies":{"is-negative":"1.0.0"}}"#,
+        r#"{"name":"project-2","dependencies":{"is-negative":"1.0.0","@pnpm.e2e/pkg-with-1-dep":"100.0.0"}}"#,
     )
     .expect("write project-2 package.json");
     append_workspace_yaml_key(workspace, "packages", "[project-2]");

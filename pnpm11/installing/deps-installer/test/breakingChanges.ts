@@ -120,9 +120,11 @@ test('a whole-workspace install recreates the modules directory after a virtualS
   ]
   const mutations: MutatedProject[] = allProjects.map(({ rootDir }) => ({ mutation: 'install', rootDir }))
   await mutateModules(mutations, testDefaults({ allProjects }))
+  fs.writeFileSync('node_modules/sentinel', '')
 
   await mutateModules(mutations, testDefaults({ allProjects, confirmModulesPurge: false, virtualStoreDirMaxLength: 60 }))
 
+  expect(fs.existsSync('node_modules/sentinel')).toBe(false)
   expect(fs.existsSync('project-2/node_modules/is-negative/package.json')).toBe(true)
 })
 
