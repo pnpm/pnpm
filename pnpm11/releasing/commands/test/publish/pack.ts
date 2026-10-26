@@ -67,8 +67,11 @@ test('pack: includes files in a publish directory reached through a symlink', as
   fs.writeFileSync('../output/dist/node_modules/dep/package.json', JSON.stringify({ name: 'dep', version: '1.0.0' }))
   fs.writeFileSync('../output/dist/node_modules/dep/index.js', 'module.exports = 42')
   fs.mkdirSync('node_modules/root-dep', { recursive: true })
-  fs.writeFileSync('node_modules/root-dep/package.json', JSON.stringify({ name: 'root-dep', version: '1.0.0' }))
+  fs.writeFileSync('node_modules/root-dep/package.json', JSON.stringify({ name: 'root-dep', version: '1.0.0', dependencies: { 'dist-only': '1.0.0' } }))
   fs.writeFileSync('node_modules/root-dep/index.js', 'module.exports = 84')
+  fs.mkdirSync('../output/dist/node_modules/dist-only', { recursive: true })
+  fs.writeFileSync('../output/dist/node_modules/dist-only/package.json', JSON.stringify({ name: 'dist-only', version: '1.0.0' }))
+  fs.writeFileSync('../output/dist/node_modules/dist-only/index.js', 'module.exports = 0')
   fs.mkdirSync('../external')
   fs.writeFileSync('../external/outside.js', 'module.exports = 2')
   fs.symlinkSync('../output', 'build', 'junction')
@@ -93,6 +96,7 @@ test('pack: includes files in a publish directory reached through a symlink', as
   expect(entries).not.toContain('package/leak.js')
   expect(entries).toContain('package/node_modules/dep/index.js')
   expect(entries).toContain('package/node_modules/root-dep/index.js')
+  expect(entries.some((entry) => entry.includes('dist-only'))).toBe(false)
 })
 
 test('pack: package with package.yaml respects files field', async () => {

@@ -9,17 +9,27 @@ export interface ResolvedDependency {
   realDir: string
 }
 
+export interface PackBoundaries {
+  // The real directory whose node_modules also serves a packed directory that
+  // lies outside it: the workspace root, or the project directory of a
+  // publishConfig.directory.
+  root: string
+  // The real directories a packed file or a bundled dependency must lie
+  // within: root and the real packed directory.
+  dirs: string[]
+}
+
 /**
  * The node_modules directory that holds depName when resolved from fromDir:
- * fromDir and its ancestors up to the boundary that contains it, then each
- * boundary fromDir lies outside of. A dependency whose real directory lies
+ * fromDir and its ancestors up to the boundary that contains it, then root
+ * when fromDir lies outside it. A dependency whose real directory lies
  * outside every boundary is not bundled.
  */
-export function resolveDependency (depName: string, fromDir: string, boundaries: string[]): ResolvedDependency | undefined {
+export function resolveDependency (depName: string, fromDir: string, boundaries: PackBoundaries): ResolvedDependency | undefined {
   if (!isSafeBundleName(depName)) return undefined
   for (const dir of getDependencySearchDirs(fromDir, boundaries)) {
     const found = findInNodeModulesOf(dir, depName)
-    if (found != null) return keepWithinBoundaries(found, boundaries)
+    if (found != null) return keepWithinBoundaries(found, boundaries.dirs)
   }
   return undefined
 }
@@ -32,17 +42,15 @@ export function isSafeBundleName (name: unknown): name is string {
   return parts.every((part) => part !== '' && part !== '.' && part !== '..')
 }
 
-function *getDependencySearchDirs (fromDir: string, boundaries: string[]): Generator<string> {
+function *getDependencySearchDirs (fromDir: string, { root, dirs }: PackBoundaries): Generator<string> {
   let dir = fromDir
-  while (isWithinAnyBoundary(dir, boundaries)) {
+  while (isWithinAnyBoundary(dir, dirs)) {
     yield dir
     const parent = path.dirname(dir)
-    if (parent === dir || !isWithinAnyBoundary(parent, boundaries)) break
+    if (parent === dir || !isWithinAnyBoundary(parent, dirs)) break
     dir = parent
   }
-  for (const boundary of boundaries) {
-    if (!isWithinBoundary(fromDir, boundary)) yield boundary
-  }
+  if (!isWithinBoundary(fromDir, root)) yield root
 }
 
 function isWithinAnyBoundary (dir: string, boundaries: string[]): boolean {
