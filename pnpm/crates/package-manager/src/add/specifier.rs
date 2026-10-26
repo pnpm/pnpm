@@ -2,6 +2,7 @@ use super::{
     AddError, AddResolveInputs,
     aliasless::{AliaslessDependency, resolve_aliasless_specifier},
     manifest::apply_catalog_decision,
+    range_fallback::add_range_fallback,
     registry::{pick_latest_range, resolve_explicit_registry_spec},
     workspace_specifier::workspace_save_specifier,
 };
@@ -248,9 +249,16 @@ async fn registry_save_specifier(
             explicit_registry_save_specifier(package_name, spec, prev, manifest, inputs).await
         }
         (None, Some(prev)) => Ok(prev.to_string().into()),
-        (None, None) => match cataloged_specifier(package_name, inputs) {
-            Some(specifier) => Ok(specifier.into()),
-            None => match inputs.add.config.default_tag() {
+        (None, None) => {
+            if let Some(specifier) = cataloged_specifier(package_name, inputs) {
+                return Ok(specifier.into());
+            }
+            if let Some(specifier) =
+                fallback_registry_save_specifier(package_name, manifest, inputs).await?
+            {
+                return Ok(specifier);
+            }
+            match inputs.add.config.default_tag() {
                 // The default tag keeps the shared picker every plain add uses.
                 "latest" => {
                     pick_latest_range(package_name, manifest, inputs).await.map(SaveSpecifier::from)
@@ -259,9 +267,37 @@ async fn registry_save_specifier(
                     explicit_registry_save_specifier(package_name, tag, None, manifest, inputs)
                         .await
                 }
-            },
-        },
+            }
+        }
     }
+}
+async fn fallback_registry_save_specifier(
+    package_name: &str,
+    manifest: &PackageManifest,
+    inputs: &AddResolveInputs<'_, '_>,
+) -> Result<Option<SaveSpecifier>, AddError> {
+    let Some(specifier) = add_range_fallback(package_name, manifest, inputs)? else {
+        return Ok(None);
+    };
+    let mut resolved =
+        explicit_registry_save_specifier(package_name, &specifier, None, manifest, inputs).await?;
+    if let Some(picked) = &resolved.picked {
+        let version = picked.version.parse().expect("picked versions are valid");
+        let previous_specifier =
+            match pnpm_resolving_npm_resolver::infer_range_spec_style(&specifier) {
+                Some(
+                    pnpm_registry::RangeSpecStyle::Patch | pnpm_registry::RangeSpecStyle::Exact,
+                ) => None,
+                _ => Some(specifier.as_str()),
+            };
+        resolved.specifier = pnpm_resolving_npm_resolver::calc_version_range(
+            &version,
+            previous_specifier,
+            None,
+            inputs.add.range_spec_style,
+        );
+    }
+    Ok(Some(resolved))
 }
 /// [`registry_save_specifier`] for a registry selector that names `spec`.
 async fn explicit_registry_save_specifier(
