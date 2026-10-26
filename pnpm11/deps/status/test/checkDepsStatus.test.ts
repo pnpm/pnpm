@@ -391,6 +391,71 @@ describe('checkDepsStatus - settings change detection', () => {
   })
 
   it.each([
+    ['dangerouslyAllowAllBuilds', undefined, true],
+    ['trustLockfile', true, undefined],
+    ['virtualStoreDirMaxLength', 120, 10],
+  ] as const)('returns upToDate: false when %s has changed', async (setting, recorded, current) => {
+    const mockWorkspaceState: WorkspaceState = {
+      lastValidatedTimestamp: Date.now() - 10_000,
+      pnpmfiles: [],
+      settings: {
+        excludeLinksFromLockfile: false,
+        linkWorkspacePackages: true,
+        preferWorkspacePackages: true,
+        [setting]: recorded,
+      },
+      projects: {},
+      filteredInstall: false,
+    }
+
+    jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState)
+
+    const opts: CheckDepsStatusOptions = {
+      rootProjectManifest: {},
+      rootProjectManifestDir: '/project',
+      pnpmfile: [],
+      ...mockWorkspaceState.settings,
+      [setting]: current,
+    }
+    const result = await checkDepsStatus(opts)
+
+    expect(result.upToDate).toBe(false)
+    expect(result.issue).toBe(`The value of the ${setting} setting has changed`)
+  })
+
+  it.each([
+    ['dangerouslyAllowAllBuilds', false],
+    ['trustLockfile', false],
+    ['virtualStoreDirMaxLength', process.platform === 'win32' ? 60 : 120],
+  ] as const)('does not report a change when an unrecorded %s meets its default', async (setting, current) => {
+    // A state written before the setting was recorded has no key for it.
+    const mockWorkspaceState: WorkspaceState = {
+      lastValidatedTimestamp: Date.now() - 10_000,
+      pnpmfiles: [],
+      settings: {
+        excludeLinksFromLockfile: false,
+        linkWorkspacePackages: true,
+        preferWorkspacePackages: true,
+      },
+      projects: {},
+      filteredInstall: false,
+    }
+
+    jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState)
+
+    const opts: CheckDepsStatusOptions = {
+      rootProjectManifest: {},
+      rootProjectManifestDir: '/project',
+      pnpmfile: [],
+      ...mockWorkspaceState.settings,
+      [setting]: current,
+    }
+    const result = await checkDepsStatus(opts)
+
+    expect(result.issue).not.toBe(`The value of the ${setting} setting has changed`)
+  })
+
+  it.each([
     ['nothing was recorded and a prefix is declared now', undefined, { work: 'https://npm.example.test/' }],
     ['the recorded prefixes differ from the declared ones', { work: 'https://npm.example.test/' }, { zeta: 'https://npm.example.test/' }],
     ['prefixes were recorded and none is declared now', { work: 'https://npm.example.test/' }, undefined],

@@ -10,6 +10,22 @@ use super::{
     wanted_lockfile_file_has_content,
 };
 
+/// The workspace-state settings the run check does not compare. Scripts always
+/// run with the default dependency groups. A script runs the same from
+/// whichever store and virtual store `node_modules` was linked from, and
+/// whatever keys the lockfile records. Only an install has to act on a store
+/// location change or re-key the lockfile.
+const RUN_IGNORED_SETTINGS: &[&str] = &[
+    "dev",
+    "optional",
+    "production",
+    "registryPrefixes",
+    "storeDir",
+    "virtualStoreDir",
+    "virtualStoreDirMaxLength",
+    "globalVirtualStoreDir",
+];
+
 /// Outcome of [`check_deps_status_before_run`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RunDepsStatus {
@@ -67,11 +83,7 @@ pub fn check_deps_status_before_run(
     } else {
         Scope::Selected(selected_project_dirs)
     };
-    // A script runs the same from whichever store `node_modules` was linked
-    // from, and whatever keys the lockfile records; only an install has to
-    // act on a store location change or re-key the lockfile.
-    let mut ignored_settings =
-        vec!["dev", "optional", "production", "registryPrefixes", "storeDir", "virtualStoreDir"];
+    let mut ignored_settings = RUN_IGNORED_SETTINGS.to_vec();
     if install_would_run_frozen(check) {
         ignored_settings.push("autoDedupe");
     }

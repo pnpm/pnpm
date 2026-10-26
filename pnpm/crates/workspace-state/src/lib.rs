@@ -201,6 +201,11 @@ pub struct WorkspaceStateSettings {
     pub auto_install_peers: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub catalogs: Option<serde_json::Value>,
+    /// `dangerouslyAllowAllBuilds`. An unset value reads as `false`. Turned
+    /// on, it allows builds the last install ignored, so the next install has
+    /// to run them.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dangerously_allow_all_builds: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub dedupe_direct_deps: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -222,6 +227,11 @@ pub struct WorkspaceStateSettings {
     pub enable_global_virtual_store: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub exclude_links_from_lockfile: Option<bool>,
+    /// The directory a configured `globalVirtualStoreDir` resolves to,
+    /// recorded only when set, for the reason given on [`Self::store_dir`].
+    /// pnpm v11 has no such setting.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub global_virtual_store_dir: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hoist_pattern: Option<Vec<String>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -304,6 +314,11 @@ pub struct WorkspaceStateSettings {
     /// every unscoped package again on each switch.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub registry_routes: Option<BTreeMap<String, String>>,
+    /// `skipRuntimes`, recorded only while it is on. Turned off, the runtimes
+    /// the last install skipped have to be installed. pnpm v11 has no such
+    /// setting.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub skip_runtimes: Option<bool>,
     /// `skills.dirs`, recorded only when set. pnpm v11 has no such setting.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub skills_dirs: Option<Vec<String>>,
@@ -318,6 +333,10 @@ pub struct WorkspaceStateSettings {
     /// are re-evaluated.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub supported_architectures: Option<serde_json::Value>,
+    /// `trustLockfile`, recorded only while it is on. Turned off, the lockfile
+    /// that no install verified has to be verified.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub trust_lockfile: Option<bool>,
     /// The lockfile-verification cache is keyed by the trust-policy
     /// settings, like the `minimumReleaseAge*` family: a policy turned
     /// on or an exclude list shrunk must make the workspace state look
@@ -337,6 +356,10 @@ pub struct WorkspaceStateSettings {
     /// only when set, for the reason given on [`Self::store_dir`].
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub virtual_store_dir: Option<String>,
+    /// `virtualStoreDirMaxLength`. An unset value reads as the default. The
+    /// virtual store's slot names are cut to it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub virtual_store_dir_max_length: Option<u64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub workspace_package_patterns: Option<Vec<String>>,
 }

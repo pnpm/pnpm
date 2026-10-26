@@ -1286,3 +1286,95 @@ fn repeat_hoisted_install_reports_nothing_broken() {
 
     drop((root, mock_instance));
 }
+
+/// Install `dependencies`, change one setting in `pnpm-workspace.yaml`, and
+/// install again. The second install must act on the change instead of
+/// reporting the tree up to date
+/// ([pnpm/tasks#219](https://github.com/pnpm/tasks/issues/219)).
+fn install_then_change_setting(
+    dependencies: &serde_json::Value,
+    before: impl FnOnce(&Path),
+    change: impl FnOnce(&Path),
+) -> (CommandTempCwd<AddMockedRegistry>, String) {
+    let harness = CommandTempCwd::init().add_mocked_registry();
+    let workspace = harness.workspace.clone();
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": dependencies }).to_string(),
+    )
+    .expect("write package.json");
+    before(&workspace);
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    change(&workspace);
+    let output = pacquet_in(&workspace)
+        .with_arg("install")
+        .output()
+        .expect("run the repeat install");
+    let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
+    assert!(output.status.success(), "{stdout}");
+    (harness, stdout)
+}
+
+#[test]
+fn repeat_install_renames_slots_after_a_virtual_store_dir_max_length_change() {
+    let (harness, _) = install_then_change_setting(
+        &serde_json::json!({ "is-positive": "1.0.0" }),
+        |_| {},
+        |workspace| append_workspace_yaml_key(workspace, "virtualStoreDirMaxLength", 10),
+    );
+    let slots: Vec<String> = fs::read_dir(harness.workspace.join("node_modules/.pnpm"))
+        .expect("read the virtual store")
+        .map(|entry| {
+            entry
+                .expect("read a virtual store entry")
+                .file_name()
+                .to_string_lossy()
+                .into_owned()
+        })
+        .collect();
+    assert!(
+        !slots
+            .iter()
+            .any(|slot| slot == "is-positive@1.0.0"),
+        "the slot must be renamed to fit the new length: {slots:?}",
+    );
+    drop(harness);
+}
+
+#[test]
+fn repeat_install_runs_ignored_builds_after_dangerously_allow_all_builds_is_turned_on() {
+    const MARKER: &str = "node_modules/.pnpm/@pnpm.e2e+pre-and-postinstall-scripts-example@1.0.0\
+         /node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js";
+    let (harness, _) = install_then_change_setting(
+        &serde_json::json!({ "@pnpm.e2e/pre-and-postinstall-scripts-example": "1.0.0" }),
+        |workspace| {
+            append_workspace_yaml_key(workspace, "strictDepBuilds", false);
+            assert!(!workspace.join(MARKER).exists(), "the build must start ignored");
+        },
+        |workspace| append_workspace_yaml_key(workspace, "dangerouslyAllowAllBuilds", true),
+    );
+    assert!(harness.workspace.join(MARKER).exists(), "the newly allowed build must run");
+    drop(harness);
+}
+
+#[test]
+fn repeat_install_relinks_after_a_global_virtual_store_dir_change() {
+    let (harness, _) = install_then_change_setting(
+        &serde_json::json!({ "is-positive": "1.0.0" }),
+        |workspace| enable_gvs_in_workspace_yaml(workspace, ""),
+        |workspace| append_workspace_yaml_key(workspace, "globalVirtualStoreDir", "../moved-links"),
+    );
+    let target = harness.workspace
+        .join("node_modules/is-positive")
+        .canonicalize()
+        .expect("resolve the direct dependency");
+    let moved = harness.workspace
+        .join("../moved-links")
+        .canonicalize()
+        .expect("the new global virtual store exists");
+    assert!(target.starts_with(&moved), "{target:?} must be linked from {moved:?}");
+    drop(harness);
+}
