@@ -1471,40 +1471,42 @@ describe('transitive local directory dependency', () => {
   test('checkLinkedPackagesAreUpToDate(): checks a shared transitive directory once across direct dependencies', async () => {
     await mkdir('c')
     await writeFile('./c/package.json', JSON.stringify({ name: 'c', version: '1.0.0', dependencies: { b: 'file:../b' } }))
-    let bDependenciesReads = 0
-    const checkContext = {
-      ...ctx(),
-      hookedManifests: new Map(),
-      resolution: {
-        readPackageHook: async <Pkg extends BaseManifest>(manifest: Pkg) => {
-          if (manifest.name !== 'b') return manifest
-          return new Proxy(manifest, {
-            get (target, property, receiver) {
-              if (property === 'dependencies') bDependenciesReads++
-              return Reflect.get(target, property, receiver)
-            },
-          })
+    const checkCountingReadsOfB = async (directDeps: Record<string, string>): Promise<number> => {
+      let bDependenciesReads = 0
+      const checkContext = {
+        ...ctx(),
+        hookedManifests: new Map(),
+        resolution: {
+          readPackageHook: async <Pkg extends BaseManifest>(manifest: Pkg) => {
+            if (manifest.name !== 'b') return manifest
+            return new Proxy(manifest, {
+              get (target, property, receiver) {
+                if (property === 'dependencies') bDependenciesReads++
+                return Reflect.get(target, property, receiver)
+              },
+            })
+          },
         },
-      },
-      lockfilePackages: {
-        ...lockfilePackages,
-        'c@file:./c': {
-          resolution: { directory: './c', type: 'directory' },
-          version: '1.0.0',
-          dependencies: { b: 'file:./b' },
-        },
-      } as LockfileObject['packages'],
+        lockfilePackages: {
+          ...lockfilePackages,
+          'c@file:./c': {
+            resolution: { directory: './c', type: 'directory' },
+            version: '1.0.0',
+            dependencies: { b: 'file:./b' },
+          },
+        } as LockfileObject['packages'],
+      }
+      const projectWithDirectDeps = {
+        ...project,
+        manifest: { dependencies: directDeps },
+        snapshot: { dependencies: directDeps, specifiers: directDeps } as ProjectSnapshot,
+      }
+      expect((await checkLinkedPackagesAreUpToDate(checkContext, projectWithDirectDeps)).upToDate).toBe(true)
+      return bDependenciesReads
     }
-    const projectWithSharedDependency = {
-      ...project,
-      manifest: { dependencies: { a: 'file:./a', c: 'file:./c' } },
-      snapshot: {
-        dependencies: { a: 'file:./a', c: 'file:./c' },
-        specifiers: { a: 'file:./a', c: 'file:./c' },
-      } as ProjectSnapshot,
-    }
-    expect((await checkLinkedPackagesAreUpToDate(checkContext, projectWithSharedDependency)).upToDate).toBe(true)
-    expect(bDependenciesReads).toBe(3)
+    const readsThroughOneDirectDep = await checkCountingReadsOfB({ a: 'file:./a' })
+    expect(readsThroughOneDirectDep).toBeGreaterThan(0)
+    expect(await checkCountingReadsOfB({ a: 'file:./a', c: 'file:./c' })).toBe(readsThroughOneDirectDep)
   })
   test('checkLinkedPackagesAreUpToDate(): reports a transitive local directory dependency whose own dependencies changed (pnpm/pnpm#17128)', async () => {
     await writeFile('./b/package.json', JSON.stringify({ name: 'b', version: '1.0.0', dependencies: { leaf: 'file:../leaf2' } }))
