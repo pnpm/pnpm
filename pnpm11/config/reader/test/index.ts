@@ -6101,6 +6101,28 @@ test('package manager downloads use the legacy proxy when https-proxy is empty',
   expect(config.packageManagerNetworkConfig?.httpsProxy).toBe('http://legacy-proxy.example.com:8080')
 })
 
+test('package manager downloads ignore the environment proxy when proxy is false', async () => {
+  prepareEmpty()
+
+  fs.writeFileSync('user.npmrc', 'https-proxy=false\nproxy=false', 'utf8')
+
+  const { config } = await getConfig({
+    cliOptions: { userconfig: path.resolve('user.npmrc') },
+    env: {
+      HTTP_PROXY: 'http://env-proxy.example.com:8080',
+      HTTPS_PROXY: 'http://env-proxy.example.com:8080',
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.packageManagerNetworkConfig?.httpsProxy).toBeUndefined()
+  expect(config.packageManagerNetworkConfig?.httpProxy).toBeUndefined()
+})
+
 test('package manager downloads use the https proxy when http-proxy is false', async () => {
   prepareEmpty()
 
