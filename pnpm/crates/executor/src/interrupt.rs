@@ -68,7 +68,7 @@ static LAST_SIGNAL: AtomicI32 = AtomicI32::new(0);
 /// Children pnpm has spawned that have not joined the relay yet. The
 /// handler passes a signal on to the children that have, so these are
 /// children it cannot reach, and ending pnpm would leave them behind.
-static SPAWNING: AtomicUsize = AtomicUsize::new(0);
+static SPAWNING_CHILDREN: AtomicUsize = AtomicUsize::new(0);
 
 /// Signals pnpm took while it had a child being spawned, counted from the
 /// first such child. A spawn in flight absorbs no more of them than a
@@ -239,7 +239,7 @@ pub(crate) fn spawning_child() -> SpawningChild {
     // kept pnpm waiting for the child it went on to spawn. The `Acquire` load
     // keeps the claim below it.
     let taken = INTERRUPTS.load(Ordering::Acquire);
-    if SPAWNING.fetch_add(1, Ordering::Release) == 0 {
+    if SPAWNING_CHILDREN.fetch_add(1, Ordering::Release) == 0 {
         SPAWNING_INTERRUPTS.store(0, Ordering::Release);
     }
     SpawningChild { before_spawn: taken, once_spawned: taken }
@@ -265,7 +265,7 @@ impl SpawningChild {
 
 impl Drop for SpawningChild {
     fn drop(&mut self) {
-        SPAWNING.fetch_sub(1, Ordering::Release);
+        SPAWNING_CHILDREN.fetch_sub(1, Ordering::Release);
     }
 }
 
@@ -483,7 +483,7 @@ extern "C" fn relay_signal(signal: libc::c_int) {
     LAST_SIGNAL.store(signal, Ordering::Relaxed);
     INTERRUPTS.fetch_add(1, Ordering::Release);
     let shared_with_group = signal == libc::SIGINT && holds_the_terminal();
-    let spawning = SPAWNING.load(Ordering::Acquire) > 0
+    let spawning = SPAWNING_CHILDREN.load(Ordering::Acquire) > 0
         && SPAWNING_INTERRUPTS.fetch_add(1, Ordering::Relaxed) < RELAYED_INTERRUPTS;
     let mut still_listening = spawning;
     let registered = visit_targets(|entry, target| {
