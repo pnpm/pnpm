@@ -159,7 +159,7 @@ pub fn spawn_child<'tracker>(
     // by `SpawningChild::joined` rather than by the handler, which cannot
     // see a child that has not joined.
     let mut spawning = crate::interrupt::spawning_child();
-    let child = command.spawn()?;
+    let child = spawn(command)?;
     spawning.spawned();
     crate::job_control::assign_child(&child);
     // Only Unix gives a child a process group of its own, and only then
@@ -204,6 +204,14 @@ fn watch_process_group(mut child: Child, own_process_group: bool) -> io::Result<
             Err(error)
         }
     }
+}
+
+/// Spawn `command` so that it cannot race the start of the group watchdog.
+/// Every Unix spawn of this crate but the watchdog's goes through here.
+pub(crate) fn spawn(command: &mut Command) -> io::Result<Child> {
+    #[cfg(unix)]
+    let _spawning = group_watchdog::spawning();
+    command.spawn()
 }
 
 #[cfg(unix)]
@@ -413,7 +421,7 @@ fn process_listing() -> Option<String> {
     command
         .args(["-A", "-o", "pid=", "-o", "ppid="])
         .stdout(Stdio::piped());
-    let mut child = command.spawn().ok()?;
+    let mut child = spawn(&mut command).ok()?;
     let mut stdout = child.stdout.take()?;
     let output = std::thread::spawn(move || {
         let mut listing = String::new();

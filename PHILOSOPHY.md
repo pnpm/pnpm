@@ -1,5 +1,8 @@
 # pnpm project philosophy
 
+This philosophy applies across the repository, including the `pnpm` CLI and the
+`pnpr` registry server.
+
 ## Core requirements
 
 Security, performance, efficient disk usage, and predictability are core
@@ -15,9 +18,10 @@ behavior predictable.
 
 ## Features and abstractions
 
-First assess whether existing pnpm capabilities, alone or in combination,
-solve the user's problem. Reuse them when they do. Extend the owning capability
-when it leaves a gap and the extension fits the overall architecture.
+First assess whether existing `pnpm` or `pnpr` capabilities, alone or in
+combination, solve the user's problem. Reuse them when they do. Extend the
+owning capability when it leaves a gap and the extension fits the overall
+architecture.
 
 A feature expected to be widely used can justify added complexity. Evaluate
 how that complexity changes the whole system: a broader abstraction can make
@@ -38,11 +42,14 @@ areas can change before the next major release. Apply this exception only when
 project documentation, release notes, or feature metadata explicitly identifies
 the affected feature as experimental. Treat areas without that designation as
 stable; novelty or implementation language alone does not make them experimental.
+`pnpr` is pre-1.0 on the `alpha` prerelease lane, so its storage layout,
+internal formats, configuration, and CLI or HTTP surfaces are experimental.
+Consolidate them in place before `1.0`.
 
-npm compatibility is useful evidence, not a requirement. pnpm can choose its
-own behavior for a clear reason. Agreement among several alternative package
-managers is a signal to consider following their approach, but cannot override
-pnpm's core requirements.
+npm compatibility is useful evidence, not a requirement. `pnpm` and `pnpr` can
+choose their own behavior for a clear reason. Agreement among several
+alternative package managers or registries is a signal to consider following
+their approach, but cannot override the core requirements.
 
 ## Concrete benefits
 

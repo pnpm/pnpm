@@ -127,6 +127,24 @@ fn add_accepts_dir_allow_build_and_registry_after_the_subcommand() {
     drop((root, mock_instance));
 }
 
+#[test]
+fn add_short_t_reports_the_long_spellings() {
+    let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
+
+    let output = pacquet
+        .with_args(["add", "foo", "-T"])
+        .output()
+        .expect("run `pacquet add foo -T`");
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(!output.status.success(), "`add -T` must fail, stderr:\n{stderr}");
+    assert!(stderr.contains("-T"), "{stderr}");
+    assert!(stderr.contains("--save-types"), "{stderr}");
+    assert!(stderr.contains("--tilde"), "{stderr}");
+
+    drop(root);
+}
+
 /// `--allow-build=!<pkg>` denies the package's build: `allowBuilds` records
 /// `<pkg>: false` and the install script does not run.
 #[test]

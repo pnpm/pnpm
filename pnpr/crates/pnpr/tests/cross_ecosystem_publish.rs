@@ -666,7 +666,7 @@ async fn a_repeated_package_is_refused_but_a_shared_name_across_ecosystems_is_no
 /// The transactions the publish journal still holds. A journal a publish
 /// never reached has no directory at all.
 fn journal_entries(storage: &std::path::Path) -> Vec<PathBuf> {
-    match std::fs::read_dir(storage.join(".pnpr-journal")) {
+    match std::fs::read_dir(storage.join(".journal")) {
         Ok(entries) => entries
             .map(|entry| entry.unwrap().path())
             .collect(),

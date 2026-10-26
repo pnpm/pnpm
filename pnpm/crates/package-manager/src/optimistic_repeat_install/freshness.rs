@@ -41,8 +41,6 @@ pub(super) struct GatePolicy<'a> {
     pub(super) check_dangling_direct_links: bool,
     pub(super) missing_wanted_lockfile: MissingWantedLockfile,
     pub(super) newer_patch: NewerPatch,
-    /// Whether the content check applies `dedupePeers`.
-    pub(super) dedupe_peers: bool,
     pub(super) recorded_groups: RecordedGroups,
 }
 
@@ -183,7 +181,7 @@ pub(super) fn check_freshness(
         check_newer_patches(check, policy, &drift.current)?;
     }
     if !held.is_empty() {
-        held_projects_match_lockfile(check, state, &held, &drift.current, policy.dedupe_peers)?;
+        held_projects_match_lockfile(check, state, &held, &drift.current)?;
     }
     settle_missing_wanted_lockfile(check, policy, &drift.current)?;
     if drift.lockfile_unchanged() {
@@ -503,6 +501,9 @@ fn refreshed_state(
             // verification of other prefixes, which proves nothing about these.
             registry_keys_verified: state.settings.registry_prefixes
                 == super::recorded_registry_prefixes(check.config),
+            // Nothing resolved, so the lockfile's plain keys still come from
+            // where the state says.
+            registry_routes: state.settings.registry_routes.clone(),
             kept_settings: matches!(policy.recorded_groups, RecordedGroups::Kept).then_some(
                 &state.settings,
             ),

@@ -1,11 +1,12 @@
-import { pnpmRegistryConfig } from './pnpmConfig.js'
-import { DEFAULT_REGISTRY, type RequestHeaders } from './registry.js'
+import { pnpmProxyConfig, pnpmRegistryConfig } from './pnpmConfig.js'
+import { DEFAULT_REGISTRY, type ProxyEnv, type RequestHeaders } from './registry.js'
 import type { SigningKey } from './verifySignature.js'
 
 export interface CorepackDownloadOptions {
   registry: string
   headers?: RequestHeaders
   ca?: string[]
+  proxy: ProxyEnv
   keys?: SigningKey[]
   verifySignature?: false
 }
@@ -25,6 +26,8 @@ export interface CorepackDownloadOptions {
  *   signatures already needs for Corepack to have installed pnpm from it.
  * - The project `.npmrc` is read only while the signature is checked; see
  *   `PnpmRegistryConfigOptions.readProjectNpmrc`.
+ * - `pnpmProxyConfig` reads the proxy from pnpm's config, whichever registry
+ *   is used.
  *
  * @throws if `COREPACK_ENABLE_NETWORK` is `0`, or `COREPACK_INTEGRITY_KEYS`
  * holds no `npm` key set.
@@ -37,7 +40,11 @@ export function corepackDownloadOptions (
     throw new Error('Network access is disabled by the environment, so the pnpm binary cannot be downloaded.')
   }
   const signature = signaturePolicy(env.COREPACK_INTEGRITY_KEYS)
-  return { ...registryAccess({ ...opts, env, readProjectNpmrc: signature.verifySignature !== false }), ...signature }
+  return {
+    ...registryAccess({ ...opts, env, readProjectNpmrc: signature.verifySignature !== false }),
+    proxy: pnpmProxyConfig({ env, homeDir: opts.homeDir }),
+    ...signature,
+  }
 }
 
 function registryAccess (

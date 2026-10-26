@@ -6,6 +6,7 @@ import { omit } from 'ramda'
 import { parseEnvVars, type Schema } from '../env.js'
 import { types } from '../types.js'
 import type { ConfigBuildState } from './configBuildState.js'
+import type { ProxySettings } from './registries.js'
 import { applySideEffectsCacheDeclaration } from './sideEffectsCache.js'
 
 export function getProcessEnv (env: string): string | undefined {
@@ -91,6 +92,24 @@ const ENV_PNPM_TYPES = {
   'max-sockets': Number,
 }
 
+const PROXY_ENV_KEYS = new Set(['http-proxy', 'https-proxy', 'no-proxy', 'noproxy', 'proxy'])
+
+/**
+ * The proxy settings `PNPM_CONFIG_*` carries. The environment is not
+ * repository-controlled, so the package-manager bootstrap reads them too.
+ */
+export function readEnvProxySettings (env: NodeJS.ProcessEnv): ProxySettings {
+  const settings: Record<string, unknown> = {}
+  for (const { key, value } of parseEnvVars(getProxyEnvSchema, env)) {
+    if (value !== undefined) settings[key] = value
+  }
+  return settings
+}
+
+function getProxyEnvSchema (schemaKey: string): Schema | undefined {
+  return PROXY_ENV_KEYS.has(schemaKey) ? ENV_PNPM_TYPES[schemaKey as keyof typeof ENV_PNPM_TYPES] : undefined
+}
+
 function isSetOnCommandLine (cliOptions: Record<string, unknown>, key: string): boolean {
   return Object.hasOwn(cliOptions, key) || Object.hasOwn(cliOptions, kebabCase(key))
 }
@@ -136,6 +155,14 @@ function applyEnvSetting ({ explicitlySetKeys, pnpmConfig }: ConfigBuildState, k
   pnpmConfig[key] = value
   explicitlySetKeys.add(key)
 
+  // The environment is not repository-controlled, so it reaches the
+  // package-manager bootstrap as `registry` does below.
+  if (key === 'strictSsl') {
+    pnpmConfig.packageManagerNetworkConfig!.strictSsl = value as boolean
+  }
+  if (key === 'localAddress') {
+    pnpmConfig.packageManagerNetworkConfig!.localAddress = value as string
+  }
   if (key === 'registry') {
     if (typeof value !== 'string') {
       throw new TypeError(`Unexpected type of registry, expecting a string but received ${JSON.stringify(value)}`)

@@ -58,6 +58,9 @@ impl CliArgs {
     }
 
     pub fn validate_command_scoped_global_options(&self) -> Result<(), clap::Error> {
+        if matches!(&self.command, CliCommand::Add(args) if args.save.hidden_ambiguous_t) {
+            return Err(Self::ambiguous_add_short_option_error());
+        }
         if self.workspace.ordering.resume_from.is_some() {
             self.validate_run_scoped_global_option("--resume-from")?;
         }
@@ -235,6 +238,14 @@ impl CliArgs {
     fn unexpected_argument_error(option: &str) -> clap::Error {
         Self::command()
             .error(ErrorKind::UnknownArgument, format!("unexpected argument '{option}' found"))
+    }
+
+    fn ambiguous_add_short_option_error() -> clap::Error {
+        Self::command()
+            .error(
+                ErrorKind::UnknownArgument,
+                "short option '-T' is ambiguous, use '--save-types' or '--tilde'",
+            )
     }
 
     fn validate_report_summary_global_option(&self) -> Result<(), clap::Error> {

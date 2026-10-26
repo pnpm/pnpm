@@ -49,7 +49,7 @@ export default async () => {
       // A one-year TTL so the fixture packuments (whose `time` values are
       // static) never look stale and never trigger a re-fetch to
       // npmjs.org that would 404.
-      '--packument-ttl-secs', '31536000',
+      '--packument-ttl', '31536000',
     ],
     { stdio: 'inherit' }
   )
@@ -61,7 +61,7 @@ export default async () => {
       '--listen', `127.0.0.1:${currentVersionPort}`,
       '--storage', storage,
       '--public-url', `http://localhost:${currentVersionPort}`,
-      '--packument-ttl-secs', '31536000',
+      '--packument-ttl', '31536000',
     ],
     { stdio: 'inherit' }
   )
@@ -118,7 +118,7 @@ export default async () => {
 function writeTestConfig (storage) {
   const source = path.join(REPO_ROOT, 'pnpr', '.fixtures', 'config.yaml')
   const bundled = readFileSync(source, 'utf8')
-  const configured = bundled.replace('max_users: -1', 'max_users: 100')
+  const configured = bundled.replace('maxUsers: -1', 'maxUsers: 100')
   if (configured === bundled) {
     throw new Error('pnpr test config could not enable test-only registration')
   }
@@ -129,7 +129,7 @@ function writeTestConfig (storage) {
 
 function writeCurrentVersionTestConfig (storage) {
   const target = path.join(storage, 'current-version-config.yaml')
-  writeFileSync(target, `storage: ${JSON.stringify(storage)}\nsecret: pnpm-registry-mock-secret-key-32\nregistries:\n  local:\n    type: hosted\n    access: $all\n    packages:\n      pnpm: {}\n      '@pnpm/exe': {}\n  npmjs:\n    type: upstream\n    url: https://registry.npmjs.org/\n    public: true\n  main:\n    type: router\n    sources: [local, npmjs]\ndefaultRegistry: main\n`)
+  writeFileSync(target, `storage: ${JSON.stringify(storage)}\nsecret: pnpm-registry-mock-secret-key-32\nregistries:\n  local:\n    type: hosted\n    access: $all\n    packages:\n      pnpm: {}\n      '@pnpm/exe': {}\n  npmjs:\n    type: upstream\n    url: https://registry.npmjs.org/\n    public: true\n    maxFails: 0\n  main:\n    type: router\n    sources: [local, npmjs]\ndefaultRegistry: main\n`)
   return target
 }
 

@@ -81,18 +81,15 @@ pub(super) struct DirectDepVersion {
 
 impl DirectDepVersion {
     /// The version `ver_peer` records for `name`, with the registry its key
-    /// names: the prefix's for a qualified key, the routed one for a plain
-    /// key. `None` for a key that is not a registry version, or whose prefix
+    /// names (see [`pnpm_lockfile::RegistryContext::registry_of_locked`]).
+    /// `None` for a key that is not a registry version, or whose prefix
     /// nothing declares.
     pub(super) fn of(
         name: &str,
         ver_peer: &pnpm_lockfile::PkgVerPeer,
         registries: &pnpm_lockfile::RegistryContext,
     ) -> Option<Self> {
-        let registry = match ver_peer.registry_qualified() {
-            Some((prefix, _)) => registries.registry_of_prefix(prefix)?,
-            None => registries.routed_registry(name),
-        };
+        let registry = registries.registry_of_locked(name, ver_peer.registry_qualified())?;
         Some(Self {
             registry: pnpm_lockfile::normalized_registry_key(registry)
                 .unwrap_or_else(|| registry.to_string()),

@@ -39,6 +39,9 @@ pub enum PruneError {
     #[display("Failed to read CAS loader references: {_0}")]
     #[diagnostic(code(ERR_PNPM_STORE_LOADER_REFERENCES))]
     LoaderReferences(#[error(source)] io::Error),
+    #[display("Failed to read the store files that registered projects use: {_0}")]
+    #[diagnostic(code(ERR_PNPM_STORE_DIR_PRUNE_IN_USE_FILES))]
+    InUseFiles(#[error(source)] io::Error),
     #[diagnostic(transparent)]
     StoreLock(#[error(source)] StoreLockError),
 
@@ -109,9 +112,23 @@ impl StoreDir {
     ///
     /// [#344]: https://github.com/pnpm/pacquet/issues/344
     pub fn prune(&self, cache_dir: &Path, protected_dirs: &[&Path]) -> Result<(), PruneError> {
+        self.prune_keeping(cache_dir, protected_dirs, || Ok(HashSet::new()))
+    }
+
+    /// [`Self::prune`], keeping every content-addressable file that
+    /// `in_use_files` returns whatever its hard-link count. `in_use_files`
+    /// runs while the prune holds the store lock, and its error stops the
+    /// prune before it removes anything.
+    pub fn prune_keeping(
+        &self,
+        cache_dir: &Path,
+        protected_dirs: &[&Path],
+        in_use_files: impl FnOnce() -> Result<HashSet<PathBuf>, PruneError>,
+    ) -> Result<(), PruneError> {
         let _store_lock = self.lock_for_prune().map_err(PruneError::StoreLock)?;
-        let references = crate::loader_references::loader_references(self)
+        let mut references = crate::loader_references::loader_references(self)
             .map_err(PruneError::LoaderReferences)?;
+        references.files.extend(in_use_files()?);
         self.prune_global_virtual_store(&references.package_roots)?;
         self.remove_cached_metadata(cache_dir, protected_dirs)?;
         let stats = crate::prune_cas::prune_cas_with_references(self, &references.files)

@@ -1,8 +1,9 @@
 pub use direct::{
-    PrefetchedBinLookup, PrefetchedDepBin, link_direct_dep_bins,
-    link_direct_dep_bins_before_builds, link_direct_dep_bins_from_locations,
-    link_direct_dep_bins_prefetched, link_direct_dep_bins_resolved, link_new_bins_from_locations,
-    link_project_bins, resolve_hoisted_bin_deps, shim_link_options,
+    PrefetchedBinLookup, PrefetchedDepBin, link_bins_from_locations_excluding,
+    link_direct_dep_bins, link_direct_dep_bins_before_builds, link_direct_dep_bins_from_locations,
+    link_direct_dep_bins_prefetched, link_direct_dep_bins_resolved,
+    link_direct_dep_bins_resolved_excluding, link_new_bins_from_locations, link_project_bins,
+    resolve_hoisted_bin_deps, shim_link_options,
 };
 
 pub(crate) use direct::link_named_dep_bins_with_sources;

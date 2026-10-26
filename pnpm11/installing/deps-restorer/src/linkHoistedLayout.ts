@@ -12,6 +12,7 @@ import type { DependencyManifest, DepPath, HoistedDependencies, ProjectId } from
 
 import type { HeadlessContext, HeadlessDepGraph, LinkedDependencies } from './context.js'
 import { getDirectDependencyAliases } from './directDependencyAliases.js'
+import { forgetReplacedHoistedLocations } from './forgetReplacedHoistedLocations.js'
 import { linkHoistedModules } from './linkHoistedModules.js'
 import { reportDirectDependencyChanges } from './reportDirectDependencyChanges.js'
 import { symlinkDirectDependencies } from './symlinkDirectDependencies.js'
@@ -28,6 +29,7 @@ export async function linkHoistedLayout (ctx: HeadlessContext, depGraph: Headles
   if (ctx.skipPostImportLinking) {
     return { heldBackBinsDirs: [], linkedToRoot: 0, newHoistedDependencies: opts.hoistedDependencies }
   }
+  await forgetReplacedHoistedLocations(ctx, depGraph.graph)
   const hoistsWorkspacePackages = opts.ignorePackageManifest !== true
   if (hoistsWorkspacePackages) {
     // Unlinked before the linker writes the tree: a package that takes over

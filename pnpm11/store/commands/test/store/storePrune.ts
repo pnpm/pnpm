@@ -6,8 +6,10 @@ import { assertStore } from '@pnpm/assert-store'
 import { STORE_VERSION } from '@pnpm/constants'
 import { dlx } from '@pnpm/exec.commands'
 import { prepare, prepareEmpty } from '@pnpm/prepare'
+import { getFilePathByModeInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
 import { store } from '@pnpm/store.commands'
-import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
+import { StoreIndex } from '@pnpm/store.index'
+import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import { rimrafSync } from '@zkochan/rimraf'
 import { safeExeca as execa } from 'execa'
 
@@ -786,4 +788,271 @@ test('prune keeps the lockfile verification log', async () => {
   }, ['prune'])
 
   expect(fs.existsSync(verificationLog)).toBeTruthy()
+})
+
+describe('prune keeps the packages that a registered project still uses', () => {
+  // The patch adds a file, so pnpm caches it as a side-effects entry of the row.
+  const MARKER_PATCH = [
+    'diff --git a/patched-marker.txt b/patched-marker.txt',
+    'new file mode 100644',
+    'index 0000000..3f2e1d4',
+    '--- /dev/null',
+    '+++ b/patched-marker.txt',
+    '@@ -0,0 +1 @@',
+    '+patched',
+    '',
+  ].join('\n')
+
+  function prepareProject (workspaceYaml: string): void {
+    prepare({
+      dependencies: {
+        '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+        'is-positive': '1.0.0',
+      },
+    })
+    fs.writeFileSync('pnpm-workspace.yaml', workspaceYaml)
+  }
+
+  // The store is outside the project, so the install registers the project.
+  async function install (): Promise<string> {
+    const storeDir = path.resolve('..', 'store')
+    await execa('node', [pnpmBin, 'install', `--store-dir=${storeDir}`, `--cache-dir=${path.resolve('..', 'cache')}`, `--registry=${REGISTRY}`])
+    return path.join(storeDir, STORE_VERSION)
+  }
+
+  async function prune (storeDir: string, reporter?: (logObj: unknown) => void): Promise<void> {
+    await store.handler({
+      cacheDir: path.resolve('..', 'cache'),
+      dir: process.cwd(),
+      pnpmHomeDir: '',
+      configByUri: {},
+      registriesByScope: { default: REGISTRY },
+      reporter,
+      storeDir,
+      dlxCacheMaxAge: Infinity,
+      virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
+    }, ['prune'])
+  }
+
+  function withStoreIndex<Result> (storeDir: string, read: (storeIndex: StoreIndex) => Result): Result {
+    const storeIndex = new StoreIndex(storeDir)
+    try {
+      return read(storeIndex)
+    } finally {
+      storeIndex.close()
+    }
+  }
+
+  function sortedIndexKeys (storeDir: string): string[] {
+    return withStoreIndex(storeDir, (storeIndex) => Array.from(storeIndex.keys()).sort())
+  }
+
+  // Every store file the rows under `keys` name, with their side effects.
+  function blobPathsOfRows (storeDir: string, keys: string[]): string[] {
+    return withStoreIndex(storeDir, (storeIndex) => keys.flatMap((key) => {
+      const row = storeIndex.get(key) as PackageFilesIndex
+      return [
+        ...row.files.values(),
+        ...Array.from(row.sideEffects?.values() ?? []).flatMap((diff) => Array.from(diff.added?.values() ?? [])),
+      ].map(({ digest, mode }) => getFilePathByModeInCafs(storeDir, digest, mode))
+    }))
+  }
+
+  async function expectPruneKeepsEveryRowAndBlob (storeDir: string): Promise<void> {
+    const keysBefore = sortedIndexKeys(storeDir)
+    expect(keysBefore.length).toBeGreaterThan(1)
+    const blobPaths = blobPathsOfRows(storeDir, keysBefore)
+
+    await prune(storeDir)
+
+    expect(sortedIndexKeys(storeDir)).toStrictEqual(keysBefore)
+    expect(blobPaths.filter((blobPath) => !fs.existsSync(blobPath))).toStrictEqual([])
+  }
+
+  test('a patched dependency installed with packageImportMethod: hardlink', async () => {
+    // A patched package gets its own copy of the files even under `hardlink`,
+    // so no store file of it has a hard link outside the store.
+    prepareProject('packageImportMethod: hardlink\npatchedDependencies:\n  is-positive@1.0.0: patches/is-positive@1.0.0.patch\n')
+    fs.mkdirSync('patches')
+    fs.writeFileSync('patches/is-positive@1.0.0.patch', MARKER_PATCH)
+    const storeDir = await install()
+    const row = withStoreIndex(storeDir, (storeIndex) => {
+      const key = Array.from(storeIndex.keys()).find((key) => key.endsWith('\tis-positive@1.0.0'))!
+      return storeIndex.get(key) as PackageFilesIndex
+    })
+    const sideEffects = Array.from(row.sideEffects?.entries() ?? [])
+    expect(sideEffects.filter(([key]) => key.includes(';patch='))).toHaveLength(1)
+    const blobPaths = [
+      ...row.files.values(),
+      ...sideEffects.flatMap(([, diff]) => Array.from(diff.added?.values() ?? [])),
+    ].map(({ digest, mode }) => getFilePathByModeInCafs(storeDir, digest, mode))
+    const keysBefore = sortedIndexKeys(storeDir)
+
+    await prune(storeDir)
+
+    expect(sortedIndexKeys(storeDir)).toStrictEqual(keysBefore)
+    expect(blobPaths.filter((blobPath) => !fs.existsSync(blobPath))).toStrictEqual([])
+  })
+
+  test('every package installed with packageImportMethod: copy', async () => {
+    // No store file has a hard link outside the store, so the hard-link
+    // count alone marks every package unused.
+    prepareProject('packageImportMethod: copy\n')
+    const storeDir = await install()
+
+    await expectPruneKeepsEveryRowAndBlob(storeDir)
+  })
+
+  // Without a wanted lockfile, the install writes the installed lockfile into
+  // the custom virtual store directory. Under a global virtual store, the
+  // project records the shared store as its virtualStoreDir and keeps the
+  // installed lockfile in node_modules/.pnpm.
+  test.each([
+    ['modulesDir: pnpm_modules\n', 'pnpm_modules/.pnpm/lock.yaml'],
+    ['virtualStoreDir: vs\n', 'node_modules/.pnpm/lock.yaml'],
+    ['virtualStoreDir: vs\nlockfile: false\n', 'vs/lock.yaml'],
+    ['enableGlobalVirtualStore: true\n', 'node_modules/.pnpm/lock.yaml'],
+  ])('every package installed with packageImportMethod: copy and %j', async (workspaceYaml, installedLockfile) => {
+    prepareProject(`packageImportMethod: copy\n${workspaceYaml}`)
+    const storeDir = await install()
+    expect(fs.existsSync(installedLockfile)).toBe(true)
+
+    await expectPruneKeepsEveryRowAndBlob(storeDir)
+  })
+
+  test('every package installed with packageImportMethod: copy and an absolute modulesDir', async () => {
+    prepareProject('packageImportMethod: copy\n')
+    const modulesDir = path.resolve('..', 'absolute_modules')
+    fs.appendFileSync('pnpm-workspace.yaml', `modulesDir: ${JSON.stringify(modulesDir)}\n`)
+    const storeDir = await install()
+    expect(fs.existsSync(path.join(modulesDir, '.pnpm', 'lock.yaml'))).toBe(true)
+
+    await expectPruneKeepsEveryRowAndBlob(storeDir)
+  })
+
+  // Each project of a workspace without a shared lockfile is registered on
+  // its own, and the workspace-level modulesDir applies to it.
+  test('every package of a workspace project with its own lockfile and a workspace-level modulesDir', async () => {
+    prepare({ name: 'root' })
+    fs.writeFileSync('pnpm-workspace.yaml', 'packages: [project]\nsharedWorkspaceLockfile: false\nmodulesDir: pnpm_modules\npackageImportMethod: copy\n')
+    fs.mkdirSync('project')
+    fs.writeFileSync('project/package.json', JSON.stringify({
+      name: 'project',
+      dependencies: { '@pnpm.e2e/pkg-with-1-dep': '100.0.0', 'is-positive': '1.0.0' },
+    }))
+    const storeDir = await install()
+    expect(fs.existsSync('project/pnpm_modules/.pnpm/lock.yaml')).toBe(true)
+
+    await expectPruneKeepsEveryRowAndBlob(storeDir)
+  })
+
+  test('every package of a workspace project with its own lockfile and a modulesDir in packageConfigs', async () => {
+    prepare({ name: 'root' })
+    fs.writeFileSync('pnpm-workspace.yaml', [
+      'packages: [project]',
+      'sharedWorkspaceLockfile: false',
+      'modulesDir: pnpm_modules',
+      'packageImportMethod: copy',
+      'packageConfigs:',
+      '  project:',
+      '    modulesDir: project_modules',
+      '',
+    ].join('\n'))
+    fs.mkdirSync('project')
+    fs.writeFileSync('project/package.json', JSON.stringify({
+      name: 'project',
+      dependencies: { '@pnpm.e2e/pkg-with-1-dep': '100.0.0', 'is-positive': '1.0.0' },
+    }))
+    const storeDir = await install()
+    expect(fs.existsSync('project/project_modules/.pnpm/lock.yaml')).toBe(true)
+
+    await expectPruneKeepsEveryRowAndBlob(storeDir)
+  })
+
+  // A workspace that shares one lockfile ignores packageConfigs, so the
+  // prune does not read the project's manifest.
+  test('every package of a workspace with a shared lockfile, packageConfigs, and a broken manifest', async () => {
+    prepareProject('packageImportMethod: copy\npackageConfigs:\n  project:\n    modulesDir: project_modules\n')
+    const storeDir = await install()
+    fs.writeFileSync('package.json', '{')
+
+    await expectPruneKeepsEveryRowAndBlob(storeDir)
+  })
+
+  test('a runtime installed with packageImportMethod: copy', async () => {
+    // A registry tarball stands in for the runtime archive, so the install
+    // needs no network. The variant targets this host.
+    prepare({ dependencies: { node: 'runtime:22.0.0' } })
+    fs.writeFileSync('pnpm-workspace.yaml', 'packageImportMethod: copy\n')
+    const target = { os: process.platform, cpu: process.arch }
+    fs.writeFileSync('pnpm-lock.yaml', JSON.stringify({
+      lockfileVersion: '9.0',
+      settings: { autoInstallPeers: true, excludeLinksFromLockfile: false },
+      importers: { '.': { dependencies: { node: { specifier: 'runtime:22.0.0', version: 'runtime:22.0.0' } } } },
+      packages: {
+        'node@runtime:22.0.0': {
+          hasBin: true,
+          resolution: {
+            type: 'variations',
+            variants: [{
+              targets: [target],
+              resolution: {
+                type: 'binary',
+                archive: 'tarball',
+                url: `${REGISTRY}is-positive/-/is-positive-1.0.0.tgz`,
+                integrity: getIntegrity('is-positive', '1.0.0'),
+                bin: { node: 'index.js' },
+              },
+            }],
+          },
+          version: '22.0.0',
+        },
+      },
+      snapshots: { 'node@runtime:22.0.0': {} },
+    }))
+    const storeDir = await install()
+    const keysBefore = sortedIndexKeys(storeDir)
+    const blobPaths = withStoreIndex(storeDir, (storeIndex) => keysBefore
+      .filter((key) => key.endsWith('\tnode@runtime:22.0.0'))
+      .flatMap((key) => Array.from((storeIndex.get(key) as PackageFilesIndex).files.values()))
+      .map(({ digest, mode }) => getFilePathByModeInCafs(storeDir, digest, mode)))
+    expect(blobPaths.length).toBeGreaterThan(0)
+
+    await prune(storeDir)
+
+    expect(sortedIndexKeys(storeDir)).toStrictEqual(keysBefore)
+    expect(blobPaths.filter((blobPath) => !fs.existsSync(blobPath))).toStrictEqual([])
+  })
+
+  test('a project installed with an unsupported lockfile version is skipped with a warning', async () => {
+    prepareProject('packageImportMethod: copy\n')
+    const storeDir = await install()
+    // A lockfile written by a pnpm that uses another lockfile format, such as pnpm 8.
+    fs.writeFileSync('node_modules/.pnpm/lock.yaml', [
+      "lockfileVersion: '6.0'",
+      '',
+      'dependencies:',
+      '  is-positive:',
+      '    specifier: 1.0.0',
+      '    version: 1.0.0',
+      '',
+      'packages:',
+      '',
+      '  /is-positive@1.0.0:',
+      `    resolution: {integrity: ${getIntegrity('is-positive', '1.0.0')}}`,
+      '    dev: false',
+      '',
+    ].join('\n'))
+    const reporter = jest.fn()
+
+    await prune(storeDir, reporter)
+
+    const warnings = reporter.mock.calls
+      .map(([logObj]) => logObj as { level?: string, message?: string })
+      .filter(({ level }) => level === 'warn')
+      .map(({ message }) => message)
+    expect(warnings).toStrictEqual([
+      `Skipped ${process.cwd()} because it was installed with lockfileVersion 6.0, which this version of pnpm does not support`,
+    ])
+  })
 })

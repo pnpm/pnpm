@@ -23,16 +23,16 @@ pnpm jest
 
 ## Options
 
-Any options for the `exec` command should be listed before the `exec` keyword.
-Options listed after the `exec` keyword are passed to the executed command.
+pnpm reads its own options up to the command name, before or after the `exec` keyword. Everything after the command name is passed to the executed command.
 
-Good. pnpm will run recursively:
+Both of these run `jest` in every project of the workspace:
 
 ```sh
 pnpm -r exec jest
+pnpm exec -r jest
 ```
 
-Bad, pnpm will not run recursively but `jest` will be executed with the `-r` option:
+This one runs `jest` in the current project only, with `-r` as an argument of `jest`:
 
 ```sh
 pnpm exec jest -r

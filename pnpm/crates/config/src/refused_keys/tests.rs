@@ -88,3 +88,21 @@ fn refusal_is_spelling_insensitive() {
     assert!(!is_refused_by_a_project_manifest("storeDir"));
     assert!(!is_refused_by_a_project_manifest("node-linker"));
 }
+
+/// Every machine setting is refused, so a new one cannot be forgotten.
+#[test]
+fn every_machine_setting_is_refused() {
+    for key in crate::MachineSettings::keys() {
+        assert!(is_refused_by_a_project_manifest(key), "{key}");
+    }
+}
+
+/// A machine setting `pnpm config set --global` cannot write is routed to the
+/// file and the environment variable that set it.
+#[test]
+fn a_machine_setting_without_a_config_set_route_names_the_global_config() {
+    assert_eq!(
+        where_refused_key_belongs("tools"),
+        "Set it in the global config.yaml or with PNPM_CONFIG_TOOLS instead",
+    );
+}

@@ -75,6 +75,11 @@ export function lockedKeyIsCurrent (wantedDep: WantedDep, depPath: string, regis
   return wanted.keyPrefix === registryName
 }
 
+/** Whether the specifier is `<prefix>:` of a declared prefix or a built-in alias. */
+export function isNamedRegistrySpecifier (wantedDep: WantedDep, registries: RegistryContext): boolean {
+  return parsePrefixedSpec(wantedDep, registries) != null
+}
+
 /**
  * `undefined` for a specifier that is neither a version selector (a range, a
  * version, or a tag), an `npm:` or `jsr:` alias, nor a `<prefix>:` specifier

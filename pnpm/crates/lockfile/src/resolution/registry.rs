@@ -137,9 +137,26 @@ pub struct RegistryContext {
     pub registries_by_prefix: HashMap<String, String>,
     pub declared_prefixes: DeclaredRegistryPrefixes,
     pub registry_options_by_url: BTreeMap<String, RegistryOptions>,
+    /// The scope routes the lockfile's plain keys resolved through, as the
+    /// workspace state recorded them (see
+    /// `WorkspaceStateSettings::registry_routes`, which says why the default
+    /// registry is not among them). A plain key names no registry, so this is
+    /// the only record of where its package came from; `None` reads every
+    /// plain key as resolved through [`Self::registries`].
+    pub locked_registries: Option<HashMap<String, String>>,
 }
 
 impl RegistryContext {
+    /// `self` reading plain keys as resolved through `locked_registries`.
+    #[must_use]
+    pub fn with_locked_registries(
+        mut self,
+        locked_registries: Option<HashMap<String, String>>,
+    ) -> Self {
+        self.locked_registries = locked_registries;
+        self
+    }
+
     /// The registry a `<prefix>:` specifier or a registry-qualified key
     /// names, or `None` when nothing declares `prefix`.
     #[must_use]
@@ -154,14 +171,57 @@ impl RegistryContext {
         registry_for_package(&self.registries, pkg_name, None)
     }
 
+    /// The registry a plain key for `pkg_name` resolved from: the one its
+    /// scope routed to when the lockfile was resolved
+    /// ([`Self::locked_registries`]), the default registry for a scope that
+    /// had no route then, or the one it routes to now without a record.
+    #[must_use]
+    pub fn locked_registry(&self, pkg_name: &str) -> &str {
+        let Some(locked) = self.locked_registries.as_ref() else {
+            return self.routed_registry(pkg_name);
+        };
+        scope_of(pkg_name)
+            .and_then(|scope| locked.get(scope))
+            .or_else(|| self.registries.get("default"))
+            .map_or("", String::as_str)
+    }
+
     /// The registry a lockfile key's package resolved from, or `None` when
     /// the key is qualified by a prefix nothing declares.
     #[must_use]
     pub fn registry_of_key(&self, key: &PkgNameVerPeer) -> Option<&str> {
-        match key.suffix.registry_qualified() {
+        self.registry_of_locked(&key.name.to_string(), key.suffix.registry_qualified())
+    }
+
+    /// [`Self::registry_of_key`] for the key of `pkg_name` with the
+    /// `(prefix, version)` its version part is qualified by, if any.
+    #[must_use]
+    pub fn registry_of_locked(
+        &self,
+        pkg_name: &str,
+        registry_qualified: Option<(&str, &node_semver::Version)>,
+    ) -> Option<&str> {
+        match registry_qualified {
             Some((prefix, _)) => self.registry_of_prefix(prefix),
-            None => Some(self.routed_registry(&key.name.to_string())),
+            None => Some(self.locked_registry(pkg_name)),
         }
+    }
+
+    /// The registries a plain key's package resolved from and would resolve
+    /// from now, when they differ: its scope was routed to another registry
+    /// since the lockfile was resolved. Only a plain semver key moves; a
+    /// registry-qualified key names its registry.
+    #[must_use]
+    pub fn moved_registry(&self, key: &PkgNameVerPeer) -> Option<(&str, &str)> {
+        if key.suffix.prefix() != Prefix::None
+            || !matches!(key.suffix.version(), VersionPart::Semver(_))
+        {
+            return None;
+        }
+        let name = key.name.to_string();
+        let from = self.locked_registry(&name);
+        let to = self.routed_registry(&name);
+        (!same_registry(from, to)).then_some((from, to))
     }
 
     /// The prefix a key for a package resolved from `registry` carries. See

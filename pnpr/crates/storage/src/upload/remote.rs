@@ -55,7 +55,7 @@ pub(super) struct RemoteChunk {
 
 impl RemoteUploadStore {
     pub(crate) fn new(store: Arc<dyn ObjectStore>, prefix: &str, scratch: PathBuf) -> Self {
-        Self { store, prefix: format!("{prefix}.pnpr-uploads/"), scratch }
+        Self { store, prefix: format!("{prefix}{}/", super::UPLOADS_DIR), scratch }
     }
 
     fn key(&self, id: &str, object: &str) -> Path {

@@ -34,8 +34,9 @@ pub use manifest_source::RepeatInstallManifests;
 pub(crate) use modules_dirs::{hoisted_project_modules_dir, project_id};
 pub(crate) use relocation::recorded_elsewhere;
 pub(crate) use settings::{
-    catalogs_cache_matches, current_settings_with_catalogs, first_setting_drift,
-    recorded_registry_prefixes, recorded_supported_architectures_match,
+    ResolvedImporters, catalogs_cache_matches, current_settings_with_catalogs, first_setting_drift,
+    recorded_registry_prefixes, recorded_registry_routes_after_install,
+    recorded_supported_architectures_match,
 };
 pub(crate) use timestamps::{
     file_mtime, file_mtime_from_metadata, filesystem_now_ms_in_modules,
@@ -190,7 +191,6 @@ pub(crate) fn check_optimistic_repeat_install_with_state(
         check_dangling_direct_links: true,
         missing_wanted_lockfile: MissingWantedLockfile::Restore,
         newer_patch: NewerPatch::Refuse,
-        dedupe_peers: check.config.dedupe_peers,
         recorded_groups: RecordedGroups::Current,
     };
     match check_freshness(check, &state, moved, &policy, scope) {

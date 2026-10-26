@@ -13,6 +13,12 @@
       "path": "../../__utils__/prepare"
     },
     {
+      "path": "../../config/reader"
+    },
+    {
+      "path": "../../core/constants"
+    },
+    {
       "path": "../../core/error"
     },
     {
@@ -34,13 +40,31 @@
       "path": "../../installing/client"
     },
     {
+      "path": "../../installing/modules-yaml"
+    },
+    {
       "path": "../../installing/package-requester"
+    },
+    {
+      "path": "../../lockfile/fs"
+    },
+    {
+      "path": "../../lockfile/types"
+    },
+    {
+      "path": "../../lockfile/utils"
     },
     {
       "path": "../../resolving/resolver-base"
     },
     {
       "path": "../../worker"
+    },
+    {
+      "path": "../../workspace/project-manifest-reader"
+    },
+    {
+      "path": "../../workspace/workspace-manifest-reader"
     },
     {
       "path": "../cafs"

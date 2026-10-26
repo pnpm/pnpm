@@ -122,9 +122,12 @@ async fn reload_managed_state(state: AppState, _reload: OwnedMutexGuard<()>) {
     managed.schedule(if all_read { STATE_TTL } else { STATE_RETRY });
 }
 
-/// Canonicalize a registry key with its full identity.
-pub(super) fn canonical_registry_key<'a>(_state: &AppState, registry: &'a str) -> &'a str {
-    registry
+/// Canonicalize a registry key as `<ecosystem>/<local_name>`, regardless of
+/// whether the registry is declared at top level or under an ecosystem group.
+pub(super) fn canonical_registry_key(state: &AppState, registry: &str) -> String {
+    let ecosystem = state.inner.config.routing.registries.ecosystem(registry).unwrap_or_default();
+    let local_name = pnpr_registry::Registries::local_name(registry);
+    format!("{ecosystem}/{local_name}")
 }
 
 /// Store `bytes` as the record of `kind` for `registry`: create it when
@@ -138,12 +141,18 @@ pub(super) async fn store_registry_record(
     bytes: &[u8],
 ) -> Result<bool, RegistryError> {
     let storage = &state.inner.storage;
-    let canonical = canonical_registry_key(state, registry);
+    let canonical = match kind {
+        RegistryRecord::ScimUsers => registry.to_string(),
+        RegistryRecord::TeamRoster | RegistryRecord::RuleOverrides => {
+            canonical_registry_key(state, registry)
+        }
+    };
     match expected {
-        None => storage.create_registry_record(kind, canonical, bytes).await,
+        None => storage.create_registry_record(kind, &canonical, bytes).await,
         Some(expected) => {
             let written =
-                storage.replace_registry_record_if_current(kind, canonical, expected, bytes).await?;
+                storage.replace_registry_record_if_current(kind, &canonical, expected, bytes)
+                    .await?;
             Ok(written == DocumentWrite::Written)
         }
     }

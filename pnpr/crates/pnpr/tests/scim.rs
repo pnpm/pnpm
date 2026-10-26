@@ -25,7 +25,7 @@ auth:
   scim:
     token: scim-secret-0123456789abcdef0123456789
   htpasswd:
-    max_users: 100
+    maxUsers: 100
 ";
 
 const USERS: &str = "/-/pnpr/v0/scim/v2/Users";
@@ -401,7 +401,7 @@ async fn a_registration_racing_a_provisioning_keeps_no_token_or_account() {
 #[tokio::test]
 async fn an_unreadable_directory_refuses_user_credentials_until_it_reads() {
     let dir = TempDir::new().unwrap();
-    let record = dir.path().join("storage/.scim-users/v0/directory.json");
+    let record = dir.path().join("storage/.scim-users/directory.json");
     std::fs::create_dir_all(record.parent().unwrap()).unwrap();
     std::fs::write(&record, "not a directory").unwrap();
     let auth = AuthState::in_memory();

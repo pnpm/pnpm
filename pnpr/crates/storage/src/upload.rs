@@ -25,7 +25,7 @@ use tokio::{
 
 /// Where in-progress uploads live under the backend's local scratch root.
 /// The dot prefix keeps it out of the hosted store's package walk.
-pub(crate) const UPLOADS_DIR: &str = ".pnpr-uploads";
+pub(crate) const UPLOADS_DIR: &str = ".uploads";
 
 /// Where an upload records the repository it was started for. The id alone
 /// would let a caller who learns one finish it into a different repository,

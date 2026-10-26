@@ -1,4 +1,4 @@
-use crate::{Config, NodeLinker, WorkspaceSettings, api::EnvVar};
+use crate::{Config, NodeLinker, TrustedSettings, WorkspaceSettings, api::EnvVar};
 use serde_json::json;
 use std::{collections::BTreeMap, path::Path};
 
@@ -70,10 +70,11 @@ fn higher_priority_linker_values_replace_the_type_and_exclusions_together() {
         ("hoisted", NodeLinker::Hoisted, vec![]),
         ("loaded", NodeLinker::Loaded, vec![]),
     ] {
-        WorkspaceSettings::from_string_values(&BTreeMap::from([(
+        TrustedSettings::from_string_values(&BTreeMap::from([(
             "node-linker".to_string(),
             value.to_string(),
         )]))
+        .settings
         .apply_to(&mut config, Path::new("."));
         assert_eq!(config.node_linker, expected);
         assert_eq!(config.node_linker_excluded, excluded);
@@ -92,7 +93,8 @@ fn environment_accepts_loaded_object_and_reset_clears_exclusions() {
     }
     let defaults = Config::default();
     let mut config = Config::default();
-    WorkspaceSettings::from_pnpm_config_env::<Environment>().apply_to(&mut config, Path::new("."));
+    TrustedSettings::from_pnpm_config_env::<Environment>().settings
+        .apply_to(&mut config, Path::new("."));
     assert_eq!(config.node_linker, NodeLinker::Loaded);
     assert_eq!(config.node_linker_excluded, ["vitest"]);
     assert!(WorkspaceSettings::reset_setting_to_default::<crate::Host>(

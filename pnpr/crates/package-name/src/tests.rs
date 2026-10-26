@@ -11,6 +11,9 @@ fn canonicalizes_each_ecosystem() {
         CanonicalPackageName::parse("Demo.Package_name", Ecosystem::Pypi).unwrap().as_str(),
         "demo-package-name",
     );
+    let stored = CanonicalPackageName::from_stored("acme/app", Ecosystem::Oci);
+    assert_eq!(stored.as_str(), "acme/app");
+    assert_eq!(stored.ecosystem(), Ecosystem::Oci);
 }
 
 #[test]

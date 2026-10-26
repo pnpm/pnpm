@@ -219,3 +219,41 @@ fn newly_created_manifest_adds_a_provider_then_deletion_restores_prior_winners()
     assert!(fs::read_to_string(bins.join("tool")).unwrap().contains("rival"));
     assert!(!bins.join("fresh").exists());
 }
+
+#[test]
+fn prune_stale_bins_removes_unclaimed_shims_and_keeps_claimed_commands() {
+    let temp = tempfile::tempdir().unwrap();
+    let modules = temp.path().join("node_modules");
+    let bins = modules.join(".bin");
+    super::prune_stale_bins(&bins, &HashSet::new()).unwrap();
+    package(&modules, "keep", "keep");
+    package(&modules, "stale", "stale");
+    let options = LinkBinsOptions { force: true, ..LinkBinsOptions::default() };
+    link_bins::<Host>(&modules, &bins, &options).unwrap();
+    fs::write(bins.join("user-script"), "#!/usr/bin/env bash\necho user\n").unwrap();
+    fs::create_dir(bins.join("user-dir")).unwrap();
+    super::prune_stale_bins(&bins, &HashSet::from(["keep".to_owned()])).unwrap();
+    assert!(bins.join("keep").exists());
+    assert!(!bins.join("stale").exists());
+    assert!(bins.join("user-script").exists());
+    assert!(bins.join("user-dir").exists());
+    if cfg!(windows) {
+        assert!(bins.join("keep.cmd").exists());
+        assert!(!bins.join("stale.cmd").exists());
+    }
+}
+
+#[test]
+fn prune_stale_bins_does_not_traverse_symlinked_bins_dir() {
+    let temp = tempfile::tempdir().unwrap();
+    let outside = temp.path().join("outside");
+    let modules = temp.path().join("node_modules");
+    fs::create_dir_all(&outside).unwrap();
+    fs::create_dir_all(&modules).unwrap();
+    let target_shim = outside.join("stale");
+    fs::write(&target_shim, "#!/bin/sh\n# Resolve $0 through symlinks\n").unwrap();
+    let bins = modules.join(".bin");
+    pnpm_fs::symlink_dir(&outside, &bins).unwrap();
+    super::prune_stale_bins(&bins, &HashSet::new()).unwrap();
+    assert!(target_shim.exists());
+}

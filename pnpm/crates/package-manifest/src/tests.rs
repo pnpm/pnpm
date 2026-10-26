@@ -98,3 +98,5 @@ mod lockfile;
 mod yaml;
 
 mod json5;
+
+mod bundled_manifest;

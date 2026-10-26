@@ -68,6 +68,8 @@ pub(crate) struct ApplyResolutionState<'a> {
     pub(crate) existing_wanted: Option<&'a Lockfile>,
     pub(crate) loaded: Option<&'a Lockfile>,
     pub(crate) frozen: bool,
+    /// See `LoadedWorkspace::locked_registry_routes`.
+    pub(crate) locked_registry_routes: Option<std::collections::BTreeMap<String, String>>,
 }
 
 #[derive(Clone, Copy)]

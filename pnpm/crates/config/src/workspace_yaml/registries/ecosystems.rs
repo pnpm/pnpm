@@ -116,7 +116,8 @@ impl DeclaredIndexes {
 fn npm_only_field(declaration: &RegistryDeclaration) -> Option<&'static str> {
     [
         ("scopes", declaration.scopes.is_some()),
-        ("prefix", declaration.prefix.is_some()),
+        ("prefix", declaration.prefixes.prefix.is_some()),
+        ("aliases", !declaration.prefixes.aliases.is_empty()),
         ("serverType", declaration.server_type.is_some()),
         ("supportsTimeField", declaration.supports_time_field.is_some()),
     ]

@@ -137,7 +137,7 @@ fn fabricate_crashed_crate_publish(storage: &Path, archive: &[u8]) -> PathBuf {
     let tmp_path = blob.with_file_name("demo-0.1.0.crate.tmp.999.0");
     std::fs::write(&tmp_path, archive).unwrap();
 
-    let txn_dir = storage.join(".pnpr-journal").join("0000000000000001-999-0");
+    let txn_dir = storage.join(".journal").join("0000000000000001-999-0");
     std::fs::create_dir_all(&txn_dir).unwrap();
     let document = json!({
         "name": "demo",

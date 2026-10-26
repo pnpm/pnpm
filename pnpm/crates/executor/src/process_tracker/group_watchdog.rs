@@ -21,7 +21,7 @@ use std::{
     io::{self, Write},
     os::unix::process::CommandExt,
     process::{Child, ChildStdin, Command, Stdio},
-    sync::{Mutex, MutexGuard},
+    sync::{Mutex, MutexGuard, RwLock, RwLockReadGuard},
 };
 
 /// What the watchdog runs. A line `+<pgid>` on standard input starts a
@@ -50,6 +50,22 @@ while read -r line; do
   esac
 done
 for group in $groups; do kill -9 -"$group"; done"#;
+
+/// Held shared by every child spawn and exclusively by the watchdog's.
+///
+/// Where `pipe2` is missing, as on macOS, Rust creates a pipe without
+/// `FD_CLOEXEC` and sets it afterwards. A child forked by another thread in
+/// between inherits the watchdog's lifeline and holds it open after pnpm
+/// dies, so the watchdog never sees end of input and no group is killed.
+/// The watchdog likewise could inherit a child's output pipe and keep pnpm
+/// from seeing that child's end of output.
+static SPAWNING: RwLock<()> = RwLock::new(());
+
+/// Keep the watchdog from starting while the caller spawns a child. See
+/// [`SPAWNING`].
+pub(super) fn spawning() -> RwLockReadGuard<'static, ()> {
+    SPAWNING.read().expect("spawn lock is not poisoned")
+}
 
 /// The watch pnpm keeps over the process groups it creates.
 static WATCH: Mutex<GroupWatch> = Mutex::new(GroupWatch::new());
@@ -162,7 +178,11 @@ impl GroupWatchdog {
             .stderr(Stdio::null())
             // A group of its own keeps it out of a kill aimed at pnpm's.
             .process_group(0);
-        let mut process = match command.spawn() {
+        let spawned = {
+            let _exclusive = SPAWNING.write().expect("spawn lock is not poisoned");
+            command.spawn()
+        };
+        let mut process = match spawned {
             Ok(process) => process,
             Err(error) if error.kind() == io::ErrorKind::NotFound => {
                 tracing::debug!(

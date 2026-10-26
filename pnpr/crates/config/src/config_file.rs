@@ -10,7 +10,7 @@ use super::{
 pub(super) struct RoutesFile {
     #[serde(default)]
     pub(super) public: Vec<PublicRouteFile>,
-    #[serde(default, alias = "allowed_private_networks")]
+    #[serde(default)]
     pub(super) allowed_private_networks: Vec<String>,
 }
 
@@ -61,11 +61,11 @@ pub(super) struct HostedFile {
     pub(super) teams: IndexMap<String, AccessSpec>,
     /// Whether `teams:` is the roster or only the seed of one the team API
     /// edits. Omitted ⇒ `config`.
-    #[serde(default, rename = "teamsManagedBy", alias = "teams_managed_by")]
+    #[serde(default)]
     pub(super) teams_managed_by: Management,
     /// Whether the `packages:` rules and `access:` are fixed, or a starting
     /// point the admin API may change. Omitted ⇒ `config`.
-    #[serde(default, rename = "rulesManagedBy", alias = "rules_managed_by")]
+    #[serde(default)]
     pub(super) rules_managed_by: Management,
     /// The names this registry serves and accepts publishes for — its
     /// namespace — with optional per-package `access`/`publish`/`unpublish`
@@ -108,13 +108,13 @@ pub(super) struct UpstreamFile {
     pub(super) auth: Option<UpstreamAuthFile>,
     #[serde(default)]
     pub(super) headers: IndexMap<String, String>,
-    #[serde(default, rename = "maxAge", alias = "maxage", alias = "max_age")]
+    #[serde(default, rename = "maxAge")]
     pub(super) maxage: Option<Interval>,
     #[serde(default)]
     pub(super) timeout: Option<Interval>,
-    #[serde(default, rename = "maxFails", alias = "max_fails")]
+    #[serde(default)]
     pub(super) max_fails: Option<u32>,
-    #[serde(default, rename = "failTimeout", alias = "fail_timeout")]
+    #[serde(default)]
     pub(super) fail_timeout: Option<Interval>,
     #[serde(default)]
     pub(super) cache: Option<bool>,
@@ -182,13 +182,13 @@ pub(super) enum CacheFile {
 }
 
 #[derive(Debug, Default, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(super) struct CacheSettingsFile {
     #[serde(default)]
     pub(super) path: Option<String>,
-    #[serde(default, rename = "maxSize", alias = "max_size")]
+    #[serde(default)]
     pub(super) max_size: Option<ByteSize>,
-    #[serde(default, rename = "maxAge", alias = "max_age")]
+    #[serde(default)]
     pub(super) max_age: Option<Interval>,
 }
 
@@ -209,22 +209,16 @@ pub(super) struct ConfigFile {
     #[serde(default)]
     pub(super) cache: Option<CacheFile>,
     /// Reverse-proxy addresses trusted to supply client IP headers.
-    #[serde(default, rename = "trustedProxies", alias = "trusted_proxies")]
+    #[serde(default)]
     pub(super) trusted_proxies: Vec<String>,
     /// Header name trusted to supply client IP addresses (`x-forwarded-for`, `forwarded`, `x-real-ip`).
-    #[serde(default, rename = "trustedProxyHeader", alias = "trusted_proxy_header")]
+    #[serde(default)]
     pub(super) trusted_proxy_header: Option<String>,
     /// Request processing timeout (e.g. `60s`, `1m`).
-    #[serde(default, rename = "requestTimeout", alias = "request_timeout")]
+    #[serde(default)]
     pub(super) request_timeout: Option<Interval>,
     /// Duration before a cached packument is considered stale and refetched.
-    #[serde(
-        default,
-        rename = "packumentTtl",
-        alias = "packument_ttl",
-        alias = "packument_ttl_secs",
-        alias = "packumentTtlSecs"
-    )]
+    #[serde(default)]
     pub(super) packument_ttl: Option<Interval>,
     /// pnpr-only browser access policy. Cross-origin access stays disabled
     /// when this block is absent or its allowlist is empty.
@@ -269,7 +263,7 @@ pub(super) struct ConfigFile {
     pub(super) registries: IndexMap<String, RegistryGroupFile>,
     /// The registry the path-less base URL aliases. Absent ⇒ the bare host has no
     /// registry and clients must address a `/~<name>/`.
-    #[serde(default, rename = "defaultRegistry", alias = "default_registry")]
+    #[serde(default)]
     pub(super) default_registry: Option<DefaultRegistryFile>,
     /// The removed top-level ACL block, kept only to *reject* it loudly.
     #[serde(default, deserialize_with = "detect_removed_block")]
@@ -317,7 +311,7 @@ pub(super) struct SecretsFile {
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(super) struct CorsFile {
-    #[serde(default, alias = "allowed_origins")]
+    #[serde(default)]
     pub(super) allowed_origins: Vec<String>,
 }
 
@@ -401,7 +395,7 @@ pub(super) struct AuthFile {
 pub(super) struct BackendFile {
     #[serde(default)]
     pub(super) libsql: Option<LibsqlFile>,
-    #[serde(default, alias = "postgresql")]
+    #[serde(default)]
     pub(super) postgres: Option<SqlBackendFile>,
     #[serde(default)]
     pub(super) mysql: Option<SqlBackendFile>,
@@ -411,19 +405,13 @@ pub(super) struct BackendFile {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(super) struct LibsqlFile {
     pub(super) url: String,
-    #[serde(default, rename = "authToken", alias = "auth_token")]
+    #[serde(default)]
     pub(super) auth_token: Option<String>,
-    #[serde(default, rename = "replicaPath", alias = "replica_path")]
+    #[serde(default)]
     pub(super) replica_path: Option<PathBuf>,
-    #[serde(
-        default,
-        rename = "syncInterval",
-        alias = "sync_interval",
-        alias = "syncIntervalSecs",
-        alias = "sync_interval_secs"
-    )]
+    #[serde(default)]
     pub(super) sync_interval: Option<Interval>,
-    #[serde(default, rename = "maxConnections", alias = "max_connections")]
+    #[serde(default)]
     pub(super) max_connections: Option<u32>,
 }
 
@@ -431,11 +419,11 @@ pub(super) struct LibsqlFile {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(super) struct SqlBackendFile {
     pub(super) url: String,
-    #[serde(default, rename = "maxConnections", alias = "max_connections")]
+    #[serde(default)]
     pub(super) max_connections: Option<u32>,
     #[serde(default)]
     pub(super) timeout: Option<Interval>,
-    #[serde(default, rename = "startupTimeout", alias = "startup_timeout")]
+    #[serde(default)]
     pub(super) startup_timeout: Option<Interval>,
 }
 
@@ -446,7 +434,7 @@ pub(super) struct HtpasswdFile {
     pub(super) file: Option<String>,
     /// `i64` so the sentinel `-1` (registration disabled)
     /// parses; anything `≥ 0` becomes a hard cap.
-    #[serde(default, rename = "maxUsers", alias = "max_users")]
+    #[serde(default)]
     pub(super) max_users: Option<i64>,
 }
 
@@ -500,9 +488,9 @@ pub(super) struct ArtifactsFeatureFile {
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(super) struct ArtifactQuotaFile {
-    #[serde(rename = "ownerGiB", alias = "owner_gib")]
+    #[serde(rename = "ownerGiB")]
     pub(super) owner_gib: Option<u64>,
-    #[serde(rename = "totalGiB", alias = "total_gib")]
+    #[serde(rename = "totalGiB")]
     pub(super) total_gib: Option<u64>,
 }
 

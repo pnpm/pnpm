@@ -53,7 +53,7 @@ export type OptionsFromRootManifest = {
   registriesByPrefix?: Record<string, string>
   registryOptionsByUrl?: Record<string, RegistryOptions>
   auditIgnorePrune?: boolean
-} & Pick<PnpmSettings, 'configDependencies' | 'auditConfig' | 'pnprServer' | 'remoteSideEffectsCache' | 'sideEffectsCache' | 'tasks' | 'updateConfig'>
+} & Pick<PnpmSettings, 'configDependencies' | 'auditConfig' | 'localAddress' | 'noProxy' | 'pnprServer' | 'remoteSideEffectsCache' | 'sideEffectsCache' | 'strictSsl' | 'tasks' | 'updateConfig'>
 
 interface GetOptionsFromPnpmSettingsOptions {
   /**

@@ -866,3 +866,5 @@ fn update_and_why_accept_depth_infinity() {
 }
 
 mod global_options;
+
+mod docs_command_pages;

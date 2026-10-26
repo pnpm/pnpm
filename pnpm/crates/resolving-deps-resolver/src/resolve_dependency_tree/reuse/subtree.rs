@@ -142,9 +142,16 @@ impl SubtreeWalk<'_> {
     }
 
     /// Whether `key` itself is reusable, then its snapshot children.
+    ///
+    /// A package whose scope was routed to another registry since the
+    /// lockfile was resolved is not: its children were pinned from the old
+    /// registry, and only its parent's manifest, which a reused parent
+    /// does not read, carries the ranges they re-resolve from. See
+    /// [`pnpm_lockfile::RegistryContext::moved_registry`].
     fn visit_node(&mut self, key: &PkgNameVerPeer, depth: i32) -> Visit {
         let name = key.name.to_string();
         if self.ctx.workspace.reuse.dedupe.covers(&name, key.suffix.version_semver())
+            || self.ctx.workspace.cache.registry_context.moved_registry(key).is_some()
             || synthesize_reused_result(self.lockfile, key, &name).is_none()
         {
             return Visit::DECIDED_FALSE;

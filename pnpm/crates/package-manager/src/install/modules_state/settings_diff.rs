@@ -4,12 +4,12 @@ use super::{
 };
 use pnpm_modules_yaml::NodeLinker as ModulesNodeLinker;
 
-/// Refuses a mutation other than a plain install on a drifted modules
-/// directory that only a plain install may recreate: the drift
+/// Refuses a mutation other than a plain install of every project on a
+/// drifted modules directory that only such an install may recreate: the drift
 /// [`check_modules_settings_diff`] reports, a `nodeLinker` change, and a
 /// `.modules.yaml` that exists but does not parse. Purging for any of them
-/// could delete links that a filtered mutation does not recreate, or files
-/// pnpm does not own.
+/// could delete links that a mutation or a filtered install does not
+/// recreate, or files pnpm does not own.
 pub(in super::super) fn refuse_drifted_modules_dir(
     modules: Option<&pnpm_modules_yaml::ModulesLayout>,
     config: &Config,
@@ -31,11 +31,10 @@ pub(in super::super) fn refuse_drifted_modules_dir(
 }
 
 /// The `validateModules` half pacquet enforces: when the mutation is
-/// not a plain install (upstream `installsOnly === false`), a modules
-/// directory whose recorded layout disagrees with the current config fails
-/// instead of being recreated. Check order matches upstream
-/// `validateModules`, then its `checkCompatibility`. Upstream checks no
-/// `nodeLinker` drift.
+/// not a plain install of every project, a modules directory whose recorded
+/// layout disagrees with the current config fails instead of being
+/// recreated. Check order matches upstream `validateModules`, then its
+/// `checkCompatibility`.
 fn check_modules_settings_diff(
     modules: &pnpm_modules_yaml::ModulesLayout,
     config: &Config,

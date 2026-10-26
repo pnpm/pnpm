@@ -982,3 +982,66 @@ fn removing_a_linked_dependency_does_not_unlink_through_a_symlinked_scope() {
 
     drop((root, mock_instance));
 }
+
+/// An install that stops while the linker replaces a recorded location must
+/// not leave that location recorded, or the next install would trust whatever
+/// the interrupted import left there.
+#[cfg(unix)]
+#[test]
+fn an_interrupted_hoisted_install_forgets_the_locations_it_replaces() {
+    use std::os::unix::fs::PermissionsExt;
+    const REPLACED: &str = "@pnpm.e2e/dep-of-pkg-with-1-dep";
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_manifest(&workspace, serde_json::json!({ REPLACED: "100.0.0", "is-positive": "1.0.0" }));
+    write_workspace_yaml(&workspace, "nodeLinker: hoisted\noptimisticRepeatInstall: false\n");
+    pacquet
+        .with_args(["install"])
+        .assert()
+        .success();
+    let replaced = DirWitness::take(&workspace.join("node_modules").join(REPLACED));
+
+    // A read-only scope directory stops the linker before it replaces the package.
+    let scope_dir = workspace.join("node_modules/@pnpm.e2e");
+    let set_mode = |mode: u32| {
+        fs::set_permissions(&scope_dir, fs::Permissions::from_mode(mode))
+            .expect("set the scope dir mode");
+    };
+    write_manifest(&workspace, serde_json::json!({ REPLACED: "100.1.0", "is-positive": "1.0.0" }));
+    set_mode(0o555);
+    let output = pacquet_at(&workspace)
+        .with_args(["install"])
+        .output()
+        .expect("run pnpm install");
+    set_mode(0o755);
+    assert!(!output.status.success(), "the install was expected to fail: {output:?}");
+
+    let hoisted_locations = read_modules_manifest::<ModulesHost>(&workspace.join("node_modules"))
+        .expect("read .modules.yaml")
+        .expect(".modules.yaml exists")
+        .hoisted_locations
+        .unwrap_or_default();
+    dbg!(&hoisted_locations);
+    assert!(!hoisted_locations.contains_key(&format!("{REPLACED}@100.0.0")));
+    assert_eq!(
+        hoisted_locations.get("is-positive@1.0.0"),
+        Some(&vec!["node_modules/is-positive".to_string()]),
+    );
+
+    write_manifest(&workspace, serde_json::json!({ REPLACED: "100.0.0", "is-positive": "1.0.0" }));
+    pacquet_at(&workspace)
+        .with_args(["install"])
+        .assert()
+        .success();
+    assert!(!replaced.is_intact(), "the forgotten location was imported again");
+    assert_eq!(read_pkg_version(&workspace, &format!("node_modules/{REPLACED}")), "100.0.0");
+
+    drop((root, mock_instance));
+}

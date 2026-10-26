@@ -90,11 +90,16 @@ export interface RegistryDeclaration extends RegistryOptions {
   scopes?: string[]
   /**
    * The bare-specifier prefix this registry answers to, as in
-   * `"foo": "work:^1.0.0"`. Singular because the prefix is the registry's
-   * identity in a lockfile dep path (`foo@work:1.0.0`): a second spelling
-   * would key the same package from the same registry twice.
+   * `"foo": "work:^1.0.0"`. The prefix is the registry's identity in a
+   * lockfile dep path (`foo@work:1.0.0`).
    */
   prefix?: string
+  /**
+   * The other prefixes routed to this registry. A pnpr request carries them,
+   * the `registries` setting refuses them: `prefix` keeps the smallest, the
+   * one lockfile keys carry.
+   */
+  aliases?: string[]
 }
 
 /**
@@ -113,6 +118,14 @@ export interface RegistryContext {
   /** As the user wrote it; built-in aliases are merged in at lookup. */
   registriesByPrefix?: Record<string, string>
   registryOptionsByUrl?: Record<string, RegistryOptions>
+  /**
+   * The scope routes the lockfile's plain keys resolved through, as the
+   * workspace state recorded them (see `WorkspaceStateSettings.registryRoutes`,
+   * which says why the default registry is not among them). A plain key names
+   * no registry, so this is the only record of where its package came from;
+   * left out, every plain key reads as resolved through `registriesByScope`.
+   */
+  lockedRegistriesByScope?: Record<string, string>
 }
 
 /** Parsed value of `_auth` of each registry in the rc file. */

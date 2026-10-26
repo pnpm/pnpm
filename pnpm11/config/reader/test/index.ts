@@ -2201,6 +2201,216 @@ test('package manager bootstrap registries ignore project workspace registries',
   expect(config.packageManagerNetworkConfig?.configByUri['//project.example.com/']).toBeUndefined()
 })
 
+test('the global config.yaml sets strictSsl and localAddress for the package manager bootstrap, pnpm-workspace.yaml does not', async () => {
+  prepareEmpty()
+
+  fs.writeFileSync('user.npmrc', [
+    'strict-ssl=true',
+    'local-address=10.0.0.1',
+    '',
+  ].join('\n'), 'utf8')
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    localAddress: '10.0.0.3',
+    strictSsl: true,
+  })
+
+  const { config } = await getConfigWithGlobalYaml(
+    { localAddress: '10.0.0.2', strictSsl: false },
+    { cliOptions: { userconfig: path.resolve('user.npmrc') }, workspaceDir: process.cwd() }
+  )
+
+  expect(config.strictSsl).toBe(true)
+  expect(config.localAddress).toBe('10.0.0.3')
+  expect(config.packageManagerNetworkConfig).toMatchObject({
+    localAddress: '10.0.0.2',
+    strictSsl: false,
+  })
+})
+
+test('PNPM_CONFIG_STRICT_SSL and PNPM_CONFIG_LOCAL_ADDRESS set the package manager bootstrap over the global config.yaml', async () => {
+  prepareEmpty()
+
+  const { config } = await getConfigWithGlobalYaml(
+    { localAddress: '10.0.0.2', strictSsl: true },
+    {
+      env: { PNPM_CONFIG_LOCAL_ADDRESS: '10.0.0.5', PNPM_CONFIG_STRICT_SSL: 'false' },
+      workspaceDir: process.cwd(),
+    }
+  )
+
+  expect(config.strictSsl).toBe(false)
+  expect(config.localAddress).toBe('10.0.0.5')
+  expect(config.packageManagerNetworkConfig).toMatchObject({
+    localAddress: '10.0.0.5',
+    strictSsl: false,
+  })
+})
+
+test('the command line sets strictSsl and localAddress for the package manager bootstrap over the global config.yaml and the environment, in either spelling', async () => {
+  prepareEmpty()
+
+  const { config } = await getConfigWithGlobalYaml(
+    { strictSsl: true },
+    {
+      cliOptions: { localAddress: '10.0.0.6', 'strict-ssl': false },
+      env: { PNPM_CONFIG_LOCAL_ADDRESS: '10.0.0.5' },
+      workspaceDir: process.cwd(),
+    }
+  )
+
+  expect(config.strictSsl).toBe(false)
+  expect(config.localAddress).toBe('10.0.0.6')
+  expect(config.packageManagerNetworkConfig).toMatchObject({
+    localAddress: '10.0.0.6',
+    strictSsl: false,
+  })
+})
+
+test('the global config.yaml sets the proxy for the package manager bootstrap, pnpm-workspace.yaml does not', async () => {
+  prepareEmpty()
+
+  fs.writeFileSync('user.npmrc', [
+    'https-proxy=http://npmrc-https.example.com:8080/',
+    'http-proxy=http://npmrc-http.example.com:8080/',
+    'no-proxy=npmrc.example.com',
+    '',
+  ].join('\n'), 'utf8')
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    httpProxy: 'http://project-http.example.com:8080/',
+    httpsProxy: 'http://project-https.example.com:8080/',
+    noProxy: 'project.example.com',
+  })
+
+  const { config } = await getConfigWithGlobalYaml(
+    {
+      httpProxy: 'http://global-http.example.com:8080/',
+      httpsProxy: 'http://global-https.example.com:8080/',
+      noProxy: 'global.example.com',
+    },
+    { cliOptions: { userconfig: path.resolve('user.npmrc') }, workspaceDir: process.cwd() }
+  )
+
+  expect(config.httpsProxy).toBe('http://project-https.example.com:8080/')
+  expect(config.packageManagerNetworkConfig).toMatchObject({
+    httpProxy: 'http://global-http.example.com:8080/',
+    httpsProxy: 'http://global-https.example.com:8080/',
+    noProxy: 'global.example.com',
+  })
+})
+
+test('an https proxy from the global config.yaml is the http proxy of the package manager bootstrap too', async () => {
+  prepareEmpty()
+
+  const { config } = await getConfigWithGlobalYaml(
+    { httpsProxy: 'http://global-https.example.com:8080/' },
+    { env: { HTTP_PROXY: 'http://env-http.example.com:8080/' }, workspaceDir: process.cwd() }
+  )
+
+  expect(config.packageManagerNetworkConfig).toMatchObject({
+    httpProxy: 'http://global-https.example.com:8080/',
+    httpsProxy: 'http://global-https.example.com:8080/',
+  })
+})
+
+test('PNPM_CONFIG_HTTPS_PROXY, PNPM_CONFIG_HTTP_PROXY, and PNPM_CONFIG_NO_PROXY set the package manager bootstrap over the global config.yaml', async () => {
+  prepareEmpty()
+
+  const { config } = await getConfigWithGlobalYaml(
+    {
+      httpProxy: 'http://global-http.example.com:8080/',
+      httpsProxy: 'http://global-https.example.com:8080/',
+      noProxy: 'global.example.com',
+    },
+    {
+      env: {
+        PNPM_CONFIG_HTTP_PROXY: 'http://env-http.example.com:8080/',
+        PNPM_CONFIG_HTTPS_PROXY: 'http://env-https.example.com:8080/',
+        PNPM_CONFIG_NO_PROXY: 'env.example.com',
+      },
+      workspaceDir: process.cwd(),
+    }
+  )
+
+  expect(config.httpsProxy).toBe('http://env-https.example.com:8080/')
+  expect(config.packageManagerNetworkConfig).toMatchObject({
+    httpProxy: 'http://env-http.example.com:8080/',
+    httpsProxy: 'http://env-https.example.com:8080/',
+    noProxy: 'env.example.com',
+  })
+})
+
+test('the command line sets the proxy for the package manager bootstrap over the global config.yaml and the environment, in either spelling', async () => {
+  prepareEmpty()
+
+  const { config } = await getConfigWithGlobalYaml(
+    {
+      httpProxy: 'http://global-http.example.com:8080/',
+      noProxy: 'global.example.com',
+    },
+    {
+      cliOptions: {
+        'http-proxy': 'http://cli-http.example.com:8080/',
+        httpsProxy: 'http://cli-https.example.com:8080/',
+        noProxy: 'cli.example.com',
+      },
+      env: { PNPM_CONFIG_HTTPS_PROXY: 'http://env-https.example.com:8080/' },
+      workspaceDir: process.cwd(),
+    }
+  )
+
+  expect(config.httpsProxy).toBe('http://cli-https.example.com:8080/')
+  expect(config.packageManagerNetworkConfig).toMatchObject({
+    httpProxy: 'http://cli-http.example.com:8080/',
+    httpsProxy: 'http://cli-https.example.com:8080/',
+    noProxy: 'cli.example.com',
+  })
+})
+
+test.each([
+  ['an empty noProxy in the global config.yaml', { noProxy: '' }, {}],
+  ['noProxy: false in the global config.yaml', { noProxy: false }, {}],
+  ['an array in PNPM_CONFIG_NO_PROXY', {}, { PNPM_CONFIG_NO_PROXY: '["array.example.com"]' }],
+])('%s leaves NO_PROXY in effect for the package manager bootstrap', async (_name, globalConfigYaml, pnpmConfigEnv) => {
+  prepareEmpty()
+
+  fs.writeFileSync('user.npmrc', 'no-proxy=npmrc.example.com\n', 'utf8')
+  const { config } = await getConfigWithGlobalYaml(globalConfigYaml, {
+    cliOptions: { userconfig: path.resolve('user.npmrc') },
+    env: { ...pnpmConfigEnv, NO_PROXY: 'env.example.com' },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.packageManagerNetworkConfig?.noProxy).toBe('env.example.com')
+})
+
+test('the legacy proxy and noproxy of the global config.yaml and PNPM_CONFIG_* reach the package manager bootstrap', async () => {
+  prepareEmpty()
+
+  fs.writeFileSync('user.npmrc', [
+    'proxy=http://npmrc-legacy.example.com:8080/',
+    'noproxy=npmrc.example.com',
+    '',
+  ].join('\n'), 'utf8')
+  const cliOptions = { userconfig: path.resolve('user.npmrc') }
+
+  const fromYaml = await getConfigWithGlobalYaml(
+    { proxy: 'http://global-legacy.example.com:8080/', noproxy: 'global.example.com' },
+    { cliOptions, workspaceDir: process.cwd() }
+  )
+  expect(fromYaml.config.packageManagerNetworkConfig).toMatchObject({
+    httpProxy: 'http://global-legacy.example.com:8080/',
+    httpsProxy: 'http://global-legacy.example.com:8080/',
+    noProxy: 'global.example.com',
+  })
+
+  const disabledByEnv = await getConfigWithGlobalYaml(
+    { proxy: 'http://global-legacy.example.com:8080/' },
+    { cliOptions, env: { PNPM_CONFIG_PROXY: 'false', HTTPS_PROXY: 'http://env.example.com:8080/' }, workspaceDir: process.cwd() }
+  )
+  expect(disabledByEnv.config.packageManagerNetworkConfig?.httpsProxy).toBeUndefined()
+  expect(disabledByEnv.config.packageManagerNetworkConfig?.httpProxy).toBeUndefined()
+})
+
 test('CLI --registry overrides pnpm-workspace.yaml registries.default (#10099)', async () => {
   prepareEmpty()
 
@@ -5998,6 +6208,102 @@ test('proxy settings are still read from .npmrc', async () => {
   expect(config.httpsProxy).toBe('http://npmrc-proxy.example.com:8080')
   expect(config.httpProxy).toBe('http://npmrc-proxy.example.com:8080')
   expect(config.noProxy).toBe('internal.example.com')
+})
+
+test('package manager downloads use the legacy proxy when https-proxy is false', async () => {
+  prepareEmpty()
+
+  fs.writeFileSync('user.npmrc', 'https-proxy=false\nproxy=http://legacy-proxy.example.com:8080', 'utf8')
+
+  const { config } = await getConfig({
+    cliOptions: { userconfig: path.resolve('user.npmrc') },
+    env: {},
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.packageManagerNetworkConfig?.httpsProxy).toBe('http://legacy-proxy.example.com:8080')
+})
+
+test('package manager downloads use the legacy proxy when https-proxy is empty', async () => {
+  prepareEmpty()
+
+  fs.writeFileSync('user.npmrc', 'https-proxy=\nproxy=http://legacy-proxy.example.com:8080', 'utf8')
+
+  const { config } = await getConfig({
+    cliOptions: { userconfig: path.resolve('user.npmrc') },
+    env: {},
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.packageManagerNetworkConfig?.httpsProxy).toBe('http://legacy-proxy.example.com:8080')
+})
+
+test('package manager downloads ignore the environment proxy when proxy is false', async () => {
+  prepareEmpty()
+
+  fs.writeFileSync('user.npmrc', 'https-proxy=false\nproxy=false', 'utf8')
+
+  const { config } = await getConfig({
+    cliOptions: { userconfig: path.resolve('user.npmrc') },
+    env: {
+      HTTP_PROXY: 'http://env-proxy.example.com:8080',
+      HTTPS_PROXY: 'http://env-proxy.example.com:8080',
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.packageManagerNetworkConfig?.httpsProxy).toBeUndefined()
+  expect(config.packageManagerNetworkConfig?.httpProxy).toBeUndefined()
+})
+
+test('package manager downloads use the environment proxy when proxy is null', async () => {
+  prepareEmpty()
+
+  fs.writeFileSync('user.npmrc', 'proxy=null', 'utf8')
+
+  const { config } = await getConfig({
+    cliOptions: { userconfig: path.resolve('user.npmrc') },
+    env: {
+      HTTPS_PROXY: 'http://env-proxy.example.com:8080',
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.packageManagerNetworkConfig?.httpsProxy).toBe('http://env-proxy.example.com:8080')
+})
+
+test('package manager downloads use the https proxy when http-proxy is false', async () => {
+  prepareEmpty()
+
+  fs.writeFileSync('user.npmrc', 'https-proxy=http://https-proxy.example.com:8080\nhttp-proxy=false', 'utf8')
+
+  const { config } = await getConfig({
+    cliOptions: { userconfig: path.resolve('user.npmrc') },
+    env: {},
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.packageManagerNetworkConfig?.httpProxy).toBe('http://https-proxy.example.com:8080')
 })
 
 test('an empty legacy proxy setting in .npmrc falls through to the environment', async () => {

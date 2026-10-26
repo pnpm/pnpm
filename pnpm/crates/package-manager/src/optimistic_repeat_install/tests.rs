@@ -30,6 +30,8 @@ mod injected;
 
 mod validation;
 
+mod settings_classification;
+
 use super::{
     Decision, OptimisticRepeatInstallCheck, check_optimistic_repeat_install,
     deps_status::{RunDepsStatus, check_deps_status_before_run},
@@ -405,6 +407,9 @@ fn record_test_workspace_state(
         carried: crate::install::CarriedSettings {
             established_auto_dedupe: config.auto_dedupe.then_some(true),
             registry_keys_verified: true,
+            registry_routes: Some(
+                crate::optimistic_repeat_install::settings::recorded_registry_routes(config),
+            ),
             kept_settings: None,
         },
         vouched: &super::validation::Vouched::All,

@@ -1,4 +1,4 @@
-use super::{Deserialize, Deserializer, IgnoredAny, IndexMap, WorkspaceSettings};
+use super::{Deserialize, Deserializer, IgnoredAny, IndexMap};
 use crate::{PIN_DECISION_SETTINGS, SettingsRead};
 use serde::de::{MapAccess, Visitor};
 use serde_saphyr::Spanned;
@@ -43,10 +43,10 @@ pub(crate) fn select_settings(text: &str, settings_read: SettingsRead) -> Cow<'_
 /// Fails with `read`'s error for the complete document when it is not a
 /// block mapping with one key per line, when no setting is rejected on its
 /// own, or when the settings left are still rejected together.
-pub(crate) fn read_readable_settings<Error>(
+pub(crate) fn read_readable_settings<Settings, Error>(
     text: &str,
-    read: impl Fn(&str) -> Result<WorkspaceSettings, Error>,
-) -> Result<WorkspaceSettings, Error> {
+    read: impl Fn(&str) -> Result<Settings, Error>,
+) -> Result<Settings, Error> {
     let error = match read(text) {
         Ok(settings) => return Ok(settings),
         Err(error) => error,

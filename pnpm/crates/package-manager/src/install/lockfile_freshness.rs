@@ -127,6 +127,7 @@ async fn workspace_manifests_satisfy(
                 frozen_lockfile: false,
                 prune_stale_importers: true,
                 patches_only: false,
+                locked_registries: None,
             },
         },
     )
@@ -172,7 +173,25 @@ pub(super) struct LockfileFreshnessInputs<'a, 'manifest> {
     pub(super) config: &'a Config,
     pub(super) catalogs: &'a Catalogs,
     pub(super) pnpmfile_hook: Option<&'a Arc<dyn pnpm_hooks::PnpmfileHooks>>,
-    pub(super) scope: FreshnessScope,
+    pub(super) scope: FreshnessScope<'a>,
+}
+
+impl LockfileFreshnessInputs<'_, '_> {
+    /// The registries the checks read lockfile keys through. A frozen
+    /// install keeps the lockfile as recorded, so its plain keys read as
+    /// resolved through the current routes; any other install reads them
+    /// through the routes they were locked under.
+    fn registry_context(&self) -> pnpm_lockfile::RegistryContext {
+        let locked = self.scope.locked_registries
+            .filter(|_| !self.scope.frozen_lockfile)
+            .map(|routes| {
+                routes
+                    .iter()
+                    .map(|(route, url)| (route.clone(), url.clone()))
+                    .collect()
+            });
+        self.config.registry_context().with_locked_registries(locked)
+    }
 }
 
 pub(super) struct FastUpdateLockfileOptions<'a, 'manifest> {
@@ -230,7 +249,7 @@ pub(super) async fn try_fast_update_lockfile<Reporter: pnpm_reporter::Reporter>(
 /// Which importers a freshness check may reason about, and how
 /// strictly. See [`check_lockfile_freshness`] for what each one admits.
 #[derive(Clone, Copy)]
-pub(crate) struct FreshnessScope {
+pub(crate) struct FreshnessScope<'a> {
     /// Skip the per-importer specifier gate entirely.
     pub(crate) ignore_manifest_check: bool,
     /// Treat a project with no importer entry and no dependencies as
@@ -253,6 +272,9 @@ pub(crate) struct FreshnessScope {
     /// Check only the lockfile's patches of the settings it records. See
     /// [`pnpm_deps_restorer::RebuildOptions::check_lockfile_patches_only`].
     pub(crate) patches_only: bool,
+    /// See `LoadedWorkspace::locked_registry_routes`. Read by every check
+    /// but a frozen one (see [`LockfileFreshnessInputs::registry_context`]).
+    pub(crate) locked_registries: Option<&'a std::collections::BTreeMap<String, String>>,
 }
 
 /// The first importer the lockfile records that no project claims.
@@ -339,9 +361,13 @@ pub(super) async fn check_lockfile_freshness(
 
     // A frozen install keeps the keys the lockfile records; a rebuild only
     // builds them. Any other install writes the current keys, so it resolves
-    // when the recorded ones are not those.
+    // when the recorded ones are not those, or came from a registry their
+    // scope no longer routes to.
     if !inputs.scope.frozen_lockfile && !inputs.scope.patches_only {
-        pnpm_lockfile::check_lockfile_registry_keys(lockfile, &inputs.config.registry_context())
+        let registries = inputs.registry_context();
+        pnpm_lockfile::check_lockfile_registry_keys(lockfile, &registries)
+            .map_err(FreshnessCheckError::Stale)?;
+        pnpm_lockfile::check_lockfile_registry_routes(lockfile, &registries)
             .map_err(FreshnessCheckError::Stale)?;
     }
 
@@ -384,7 +410,7 @@ fn check_importer_freshness(
             .iter()
             .map(|(dir, manifest)| (dir.clone(), manifest)),
     );
-    let registries = inputs.config.registry_context();
+    let registries = inputs.registry_context();
     let workspace = WorkspaceProjects {
         packages: inputs.workspace_packages,
         manifests_by_dir: &project_manifests,

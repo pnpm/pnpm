@@ -1,7 +1,9 @@
 use super::{
     Arc, Config, EnvVar, EnvVarOs, ExplicitPaths, GetCurrentDir, GetHomeDir, LinkProbe,
-    LoadWorkspaceYamlError, Path, PathBuf, WorkspaceSettings, collect_explicit_settings,
-    default_pnpm_home_dir, note_declared_registries, resolve_configured_state_dir,
+    LoadWorkspaceYamlError, MachineSettings, Path, PathBuf, TrustedSettings, WorkspaceSettings,
+    collect_explicit_settings, collect_explicit_trusted_settings, default_pnpm_home_dir,
+    naming_cases::to_camel_case,
+    note_declared_registries, resolve_configured_state_dir,
     workspace_yaml::{parse_settings, read_workspace_document},
 };
 
@@ -79,8 +81,7 @@ impl Config {
         Ok(())
     }
 
-    /// The workspace manifest's own settings, minus the ones a
-    /// repository-controlled file must not carry.
+    /// The workspace manifest's own settings.
     pub(super) fn apply_workspace_settings<Sys>(
         &mut self,
         mut settings: WorkspaceSettings,
@@ -92,18 +93,6 @@ impl Config {
     where
         Sys: EnvVar + EnvVarOs + GetCurrentDir + GetHomeDir + LinkProbe,
     {
-        settings.clear_machine_only_settings();
-        // A shim decides which program a global command runs, so a
-        // repository that named one would be choosing which binary runs in
-        // place of the user's globally installed one. `globalShims`
-        // therefore comes from the global `config.yaml`, a
-        // `pnpm-workspace.yaml` in the pnpm home itself, and
-        // `PNPM_CONFIG_GLOBAL_SHIMS` only. A global command anchors its
-        // config at the pnpm home, so that manifest is trusted here and
-        // only a project's own is dropped.
-        if default_pnpm_home_dir::<Sys>().as_deref() != Some(base_dir) {
-            settings.global_shims = None;
-        }
         // Noted rather than assigned, so an `enableGlobalVirtualStore` /
         // `virtualStoreDir` set in the global `config.yaml` still counts as
         // "explicitly set" when the workspace yaml leaves it unset.
@@ -118,6 +107,9 @@ impl Config {
         collect_explicit_settings(&mut self.explicit_settings, &settings);
         settings.resolve_script_shell(base_dir);
         settings.apply_to(self, base_dir);
+        if default_pnpm_home_dir::<Sys>().as_deref() == Some(base_dir) {
+            self.apply_pnpm_home_global_shims::<Sys>(base_dir)?;
+        }
         // `overrides` reaches `Config` only from the workspace yaml (the
         // global config.yaml is stripped of the key, and no `PNPM_CONFIG_*`
         // var carries a map), so the `$dep-name` values it may hold are
@@ -128,13 +120,28 @@ impl Config {
         Ok(())
     }
 
+    /// A global command anchors its config at the pnpm home, whose
+    /// `pnpm-workspace.yaml` the user owns, so `globalShims` is read from it.
+    fn apply_pnpm_home_global_shims<Sys: EnvVar>(
+        &mut self,
+        pnpm_home: &Path,
+    ) -> Result<(), LoadWorkspaceYamlError> {
+        self.workspace_key_issues.refused.retain(|key| to_camel_case(key) != "globalShims");
+        if let Some(global_shims) =
+            MachineSettings::load_pnpm_home_global_shims::<Sys>(pnpm_home, self.settings_read)?
+        {
+            self.global_shims.apply(&global_shims);
+        }
+        Ok(())
+    }
+
     /// Apply the global layer without changing the discovered workspace directory.
     /// Relative paths use `start_dir`, except `stateDir`: its global-shim trust
     /// records must resolve outside the project being considered for execution.
-    /// Workspace-only keys are rejected by [`WorkspaceSettings::load_global`].
+    /// Workspace-only keys are rejected by [`TrustedSettings::load_global`].
     pub(super) fn apply_global_settings<Sys>(
         &mut self,
-        global_settings: Option<WorkspaceSettings>,
+        global_settings: Option<TrustedSettings>,
         explicit: &mut ExplicitPaths,
         declared_registries: &mut crate::npmrc_auth::DeclaredRegistries,
         default_state_dir: &std::path::Path,
@@ -149,10 +156,10 @@ impl Config {
         // resolution must fire only when the user has *not* pinned a
         // path. See [`crate::store_path::resolve_store_dir`].
         if let Some(mut global_settings) = global_settings {
-            note_declared_registries(declared_registries, &global_settings);
-            explicit.note(&global_settings);
-            collect_explicit_settings(&mut self.explicit_settings, &global_settings);
-            let configured_state_dir = global_settings.state_dir.take();
+            note_declared_registries(declared_registries, &global_settings.settings);
+            explicit.note(&global_settings.settings);
+            collect_explicit_trusted_settings(&mut self.explicit_settings, &global_settings);
+            let configured_state_dir = global_settings.machine.state_dir.take();
             let saved_workspace_dir = self.workspace_dir.take();
             global_settings.expand_home_prefixes::<Sys>();
             global_settings.apply_to(self, start_dir);
@@ -233,7 +240,7 @@ fn read_env_workspace_yaml<Sys: EnvVar>(
         return Ok((env_dir, None));
     };
     let settings = WorkspaceSettings::read_document(document, settings_read, |text, path| {
-        parse_settings::<Sys>(text)
+        parse_settings::<Sys, WorkspaceSettings>(text)
             .map_err(|source| LoadWorkspaceYamlError::ParseYaml {
                 path: path.to_path_buf(),
                 source,

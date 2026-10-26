@@ -132,7 +132,7 @@ pub(super) fn cold_revision_mock_command(
         .arg(format!("127.0.0.1:{mock_port}"))
         .arg("--public-url")
         .arg(public_url)
-        .arg("--packument-ttl-secs")
+        .arg("--packument-ttl")
         .arg("31536000");
     command
 }
@@ -218,6 +218,7 @@ pub(super) struct PnprBenchmarkAuth {
     htpasswd: PnprBenchmarkHtpasswd,
 }
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 pub(super) struct PnprBenchmarkHtpasswd {
     file: String,
     max_users: i64,

@@ -20,7 +20,7 @@ const CONFIG: &str = "\
 auth:
   admins: [root]
   htpasswd:
-    max_users: 100
+    maxUsers: 100
 registries:
   local:
     type: hosted
@@ -221,7 +221,7 @@ async fn team_edits_refuse_oversized_bodies() {
 #[tokio::test]
 async fn an_unreadable_roster_denies_team_grants_and_nothing_else() {
     let dir = TempDir::new().unwrap();
-    let roster = dir.path().join("storage/.team-rosters/v0/local.json");
+    let roster = dir.path().join("storage/.team-rosters/npm/local.json");
     std::fs::create_dir_all(roster.parent().unwrap()).unwrap();
     std::fs::write(&roster, "not a roster").unwrap();
     let config = CONFIG.replace("readers: []", "readers: [bob]");

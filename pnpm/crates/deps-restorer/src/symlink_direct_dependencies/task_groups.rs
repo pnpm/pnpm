@@ -1,8 +1,21 @@
 use super::importer_root_dir;
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, HashMap, HashSet},
     path::{Path, PathBuf},
 };
+
+pub(super) fn merge_claimed_bins(
+    group_results: Vec<Vec<(PathBuf, HashSet<String>)>>,
+) -> HashMap<PathBuf, HashSet<String>> {
+    let mut claimed_by_dir = HashMap::new();
+    for (dir, claimed) in group_results.into_iter().flatten() {
+        claimed_by_dir
+            .entry(dir)
+            .or_insert_with(HashSet::new)
+            .extend(claimed);
+    }
+    claimed_by_dir
+}
 
 /// Partition validated importer keys into the concurrency-safe task
 /// groups the parallel link pass runs.
