@@ -59,6 +59,22 @@ const RELAYED_INTERRUPTS: usize = 2;
 /// [`interrupt_count`].
 static INTERRUPTS: AtomicUsize = AtomicUsize::new(0);
 
+/// The signal the handler took last, published before it counts it in
+/// [`INTERRUPTS`], so a thread that sees the count change sees the signal
+/// behind it.
+#[cfg(unix)]
+static LAST_SIGNAL: AtomicI32 = AtomicI32::new(0);
+
+/// Children pnpm has spawned that have not joined the relay yet. The
+/// handler passes a signal on to the children that have, so these are
+/// children it cannot reach, and ending pnpm would leave them behind.
+static SPAWNING: AtomicUsize = AtomicUsize::new(0);
+
+/// Signals pnpm took while it had a child being spawned, counted from the
+/// first such child. A spawn in flight absorbs no more of them than a
+/// child in the relay does, so spawning cannot hold the terminal.
+static SPAWNING_INTERRUPTS: AtomicUsize = AtomicUsize::new(0);
+
 /// How many interrupts and terminations have reached pnpm so far: signals
 /// pnpm handles, or console control events on Windows. `pnpm run` reads
 /// it before and after a script, so it can tell a script the user ended
@@ -133,6 +149,75 @@ impl SignalRelay {
     /// Whether pnpm has relayed a signal to this child.
     pub(crate) fn relayed(&self) -> bool {
         self.entry.is_some_and(|entry| entry.relays.load(Ordering::Relaxed) > 0)
+    }
+
+    /// Pass on the signal pnpm took while the child was being spawned.
+    ///
+    /// Taking the first relay here is what keeps the handler from taking
+    /// it as well, so the child is never given one interrupt twice.
+    #[cfg(unix)]
+    fn relay_late(&self) {
+        let Some(entry) = self.entry else { return };
+        if entry.relays.compare_exchange(0, 1, Ordering::AcqRel, Ordering::Relaxed).is_err() {
+            return;
+        }
+        let signal = LAST_SIGNAL.load(Ordering::Relaxed);
+        let target = entry.target.load(Ordering::Acquire);
+        // A child in pnpm's own process group was given the terminal's
+        // interrupt by the kernel, which is how [`relay_to`] reads it too.
+        if target > 0 && signal == libc::SIGINT && holds_the_terminal() {
+            return;
+        }
+        // SAFETY: `target` is the child this relay holds, or that child's
+        // process group, and the relay holds the entry for as long as pnpm
+        // waits for the child. `ESRCH` from one that exited concurrently
+        // is harmless.
+        unsafe {
+            libc::kill(target, signal);
+        }
+    }
+
+    /// The console delivers its event to every process attached to it, so
+    /// a child that joined the relay late has the event already.
+    #[cfg(not(unix))]
+    fn relay_late(&self) {}
+}
+
+/// A child pnpm has spawned that has not joined the relay yet.
+///
+/// pnpm waits for every child it spawns, so a signal that arrives before
+/// the child joins must still reach it: nothing else would end that child,
+/// and pnpm would wait for it for as long as it ran. The handler therefore
+/// counts a child being spawned as one more to wait for, and
+/// [`Self::joined`] passes on what the handler could not.
+pub(crate) struct SpawningChild {
+    /// [`INTERRUPTS`] as it stood once the child existed.
+    interrupts: usize,
+}
+
+/// Account for a child that has been spawned and has not joined the relay
+/// yet. Call it once the child exists, so every signal counted from here
+/// on is one the child may not have been given.
+pub(crate) fn spawning_child() -> SpawningChild {
+    if SPAWNING.fetch_add(1, Ordering::Release) == 0 {
+        SPAWNING_INTERRUPTS.store(0, Ordering::Release);
+    }
+    SpawningChild { interrupts: INTERRUPTS.load(Ordering::Acquire) }
+}
+
+impl SpawningChild {
+    /// Hand the child over to `relay`, passing on whatever pnpm took while
+    /// it was being spawned.
+    pub(crate) fn joined(self, relay: &SignalRelay) {
+        if INTERRUPTS.load(Ordering::Acquire) != self.interrupts {
+            relay.relay_late();
+        }
+    }
+}
+
+impl Drop for SpawningChild {
+    fn drop(&mut self) {
+        SPAWNING.fetch_sub(1, Ordering::Release);
     }
 }
 
@@ -305,7 +390,7 @@ pub fn exit_like(exit: ScriptExit) -> ! {
 }
 
 #[cfg(unix)]
-fn install_handler() {
+pub(crate) fn install_handler() {
     pnpm_fs::install_temp_file_cleanup();
     static INSTALLED: Once = Once::new();
     INSTALLED.call_once(|| {
@@ -347,15 +432,18 @@ fn install_handler_for(signal: libc::c_int) {
 /// `kill`, `signal`, `raise`, and `_exit`.
 #[cfg(unix)]
 extern "C" fn relay_signal(signal: libc::c_int) {
-    INTERRUPTS.fetch_add(1, Ordering::Relaxed);
+    LAST_SIGNAL.store(signal, Ordering::Relaxed);
+    INTERRUPTS.fetch_add(1, Ordering::Release);
     let shared_with_group = signal == libc::SIGINT && holds_the_terminal();
-    let mut still_listening = false;
-    let reached = visit_targets(|entry, target| {
+    let spawning = SPAWNING.load(Ordering::Acquire) > 0
+        && SPAWNING_INTERRUPTS.fetch_add(1, Ordering::Relaxed) < RELAYED_INTERRUPTS;
+    let mut still_listening = spawning;
+    let registered = visit_targets(|entry, target| {
         still_listening |= relay_to(entry, target, signal, shared_with_group);
     });
     // Nothing left to wait for, or every child has had its interrupt and
     // its `SIGTERM` and sat through both.
-    if !reached || !still_listening {
+    if !(registered || spawning) || !still_listening {
         pnpm_fs::die_from_signal(signal);
     }
 }
@@ -464,12 +552,12 @@ fn close_retired_handle(handle: *mut std::ffi::c_void) {
 #[cfg(windows)]
 mod windows;
 #[cfg(windows)]
-use windows::install_handler;
+pub(crate) use windows::install_handler;
 
 #[cfg(target_family = "wasm")]
 mod wasm;
 #[cfg(target_family = "wasm")]
-use wasm::install_handler;
+pub(crate) use wasm::install_handler;
 
 #[cfg(not(any(unix, windows, target_family = "wasm")))]
-fn install_handler() {}
+pub(crate) fn install_handler() {}

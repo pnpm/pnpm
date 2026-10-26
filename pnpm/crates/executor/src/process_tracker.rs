@@ -149,7 +149,15 @@ pub fn spawn_child<'tracker>(
     if separate_process_group {
         prepare_command(command);
     }
+    // The relay's handler has to be in place before the child exists: a
+    // signal pnpm takes with its default disposition ends pnpm at once,
+    // leaving the child it has just spawned behind.
+    crate::interrupt::install_handler();
     let child = command.spawn()?;
+    // The child exists and the relay does not know it yet, a window the
+    // watchdog's first `sh` widens, so what reaches pnpm from here on is
+    // relayed by `SpawningChild::joined` rather than by the handler.
+    let spawning = crate::interrupt::spawning_child();
     crate::job_control::assign_child(&child);
     // Only Unix gives a child a process group of its own, and only then
     // must a relayed signal address that group rather than the child.
@@ -157,6 +165,7 @@ pub fn spawn_child<'tracker>(
     #[cfg(unix)]
     let (child, watched) = watch_process_group(child, own_process_group)?;
     let relay = crate::interrupt::relay_to_child(child.id(), own_process_group);
+    spawning.joined(&relay);
     let registration = process_tracker.map(|tracker| {
         tracker.register(RunningExecution::Process {
             pid: child.id(),

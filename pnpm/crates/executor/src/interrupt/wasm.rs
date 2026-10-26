@@ -6,7 +6,7 @@ use std::{
     thread,
 };
 
-pub(super) fn install_handler() {
+pub(crate) fn install_handler() {
     static INSTALLED: Once = Once::new();
     INSTALLED.call_once(|| {
         thread::spawn(listen);
