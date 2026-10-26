@@ -485,6 +485,61 @@ fn watchdogs() -> Vec<i32> {
         .collect()
 }
 
+/// A signal pnpm takes while a child is being spawned reaches no child:
+/// the handler passes it on to the children that have joined the relay,
+/// and this one has not. Nothing else would end that child, so pnpm would
+/// wait for it for as long as it ran. pnpm outliving the signal is the
+/// other half of the same contract: a handler that finds nothing to wait
+/// for ends pnpm, which here would end the test.
+#[test]
+fn a_signal_taken_while_a_child_is_spawned_reaches_it_once_it_joins() {
+    let directory = TempDir::new().expect("create a temporary directory");
+    let trapped = directory.path().join("trapped");
+    // The relay's handler has to be in place before the child exists, as
+    // it is in `spawn_child`.
+    crate::interrupt::install_handler();
+    let mut command = Command::new("sh");
+    command
+        .arg("-c")
+        .arg(format!(
+            "trap 'exit 42' INT; : > '{trapped}.tmp'; mv '{trapped}.tmp' '{trapped}'; while :; do sleep 0.05; done",
+            trapped = trapped.display(),
+        ))
+        // A child that leads a process group of its own is the one a
+        // terminal's signals never reach, and the one a parallel run
+        // spawns.
+        .process_group(0);
+    let mut child = command.spawn().expect("spawn the child");
+    let spawning = crate::interrupt::spawning_child();
+    // The marker says the child traps the signal, so the child is ready
+    // for it and only the relay is not.
+    while !trapped.exists() {
+        sleep(Duration::from_millis(5));
+    }
+
+    raise_interrupt();
+    let relay = crate::interrupt::relay_to_child(child.id(), true);
+    spawning.joined(&relay);
+
+    assert!(
+        exits_within(&mut child, Duration::from_secs(30)),
+        "the child must be given the signal once it joins the relay",
+    );
+    let status = child.wait().expect("wait for the child");
+    dbg!(status);
+    assert_eq!(status.code(), Some(42), "the child must end through the signal it traps");
+}
+
+/// Send `SIGINT` to this process, whose handler is installed, and wait
+/// until the handler has taken it.
+fn raise_interrupt() {
+    let before = crate::interrupt::interrupt_count();
+    pnpm_ffi_signal::signal_target(pnpm_ffi_signal::Target::Process(process::id()), libc::SIGINT);
+    while crate::interrupt::interrupt_count() == before {
+        sleep(Duration::from_millis(1));
+    }
+}
+
 fn exits_within(child: &mut Child, deadline: Duration) -> bool {
     let deadline = Instant::now() + deadline;
     while Instant::now() < deadline {

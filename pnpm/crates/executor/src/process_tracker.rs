@@ -236,6 +236,10 @@ pub fn spawn_child<'tracker>(
     // Only Unix gives a child a process group of its own, and only then
     // must a relayed signal address that group rather than the child.
     let own_process_group = cfg!(unix) && separate_process_group;
+    // The relay's handler has to be in place before the child exists: a
+    // signal pnpm takes with its default disposition ends pnpm at once,
+    // leaving the child it has just spawned behind.
+    crate::interrupt::install_handler();
     #[cfg(unix)]
     let group_watchdog::ChildWatch { child, watched } = if own_process_group {
         group_watchdog::spawn(command)?
@@ -244,12 +248,17 @@ pub fn spawn_child<'tracker>(
     };
     #[cfg(not(unix))]
     let child = command.spawn()?;
+    // The child exists and the relay does not know it yet, so what reaches
+    // pnpm from here on is relayed by `SpawningChild::joined` rather than
+    // by the handler.
+    let spawning = crate::interrupt::spawning_child();
     crate::job_control::assign_child(&child);
     // A task a bail may cancel gets a job of its own, so the cancellation
     // reaches everything the task started.
     #[cfg(windows)]
     let job = process_tracker.and_then(|_| crate::job_control::TaskJob::contain(&child));
     let relay = crate::interrupt::relay_to_child(child.id(), own_process_group);
+    spawning.joined(&relay);
     let registration = process_tracker.map(|tracker| {
         tracker.register(RunningExecution::Process {
             pid: child.id(),
