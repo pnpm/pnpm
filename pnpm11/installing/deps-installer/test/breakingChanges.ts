@@ -54,7 +54,12 @@ test('a plain install recreates the modules directory after changing nodeLinker'
   expect(fs.existsSync(hoistedDep)).toBe(false)
 })
 
-test('fail when a root-only install follows a nodeLinker change in a workspace', async () => {
+test.each([
+  ['nodeLinker', { nodeLinker: 'hoisted' }, { nodeLinker: 'isolated' }, 'ERR_PNPM_NODE_LINKER_DIFF', 'node_modules/is-negative'],
+  ['virtualStoreDirMaxLength', {}, { virtualStoreDirMaxLength: 60 }, 'ERR_PNPM_VIRTUAL_STORE_DIR_MAX_LENGTH_DIFF', 'project-2/node_modules/is-negative/package.json'],
+  ['publicHoistPattern', {}, { publicHoistPattern: ['is-*'] }, 'ERR_PNPM_PUBLIC_HOIST_PATTERN_DIFF', 'project-2/node_modules/is-negative/package.json'],
+  ['hoistPattern', {}, { hoistPattern: ['is-*'] }, 'ERR_PNPM_HOIST_PATTERN_DIFF', 'project-2/node_modules/is-negative/package.json'],
+] as const)('fail when a root-only install follows a %s change in a workspace', async (_setting, before, after, code, project2Dep) => {
   preparePackages([
     {
       location: '.',
@@ -78,16 +83,49 @@ test('fail when a root-only install follows a nodeLinker change in a workspace',
     },
   ]
   const mutations: MutatedProject[] = allProjects.map(({ rootDir }) => ({ mutation: 'install', rootDir }))
-  await mutateModules(mutations, testDefaults({ allProjects, nodeLinker: 'hoisted' }))
-  expect(fs.existsSync('node_modules/is-negative')).toBe(true)
+  await mutateModules(mutations, testDefaults({ allProjects, ...before }))
+  expect(fs.existsSync(project2Dep)).toBe(true)
 
   await expect(mutateModules(mutations.slice(0, 1), testDefaults({
     allProjects,
     confirmModulesPurge: false,
-    nodeLinker: 'isolated',
-  }))).rejects.toMatchObject({ code: 'ERR_PNPM_NODE_LINKER_DIFF' })
+    ...after,
+  }))).rejects.toMatchObject({ code })
 
-  expect(fs.existsSync('node_modules/is-negative')).toBe(true)
+  expect(fs.existsSync(project2Dep)).toBe(true)
+})
+
+test('a whole-workspace install recreates the modules directory after a virtualStoreDirMaxLength change', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: { name: 'root' },
+    },
+    {
+      location: 'project-2',
+      package: { name: 'project-2', dependencies: { 'is-negative': '1.0.0' } },
+    },
+  ])
+  const allProjects = [
+    {
+      buildIndex: 0,
+      manifest: { name: 'root' },
+      rootDir: process.cwd() as ProjectRootDir,
+    },
+    {
+      buildIndex: 0,
+      manifest: { name: 'project-2', dependencies: { 'is-negative': '1.0.0' } },
+      rootDir: path.resolve('project-2') as ProjectRootDir,
+    },
+  ]
+  const mutations: MutatedProject[] = allProjects.map(({ rootDir }) => ({ mutation: 'install', rootDir }))
+  await mutateModules(mutations, testDefaults({ allProjects }))
+  fs.writeFileSync('node_modules/sentinel', '')
+
+  await mutateModules(mutations, testDefaults({ allProjects, confirmModulesPurge: false, virtualStoreDirMaxLength: 60 }))
+
+  expect(fs.existsSync('node_modules/sentinel')).toBe(false)
+  expect(fs.existsSync('project-2/node_modules/is-negative/package.json')).toBe(true)
 })
 
 test("don't fail on non-compatible node_modules when forced", async () => {

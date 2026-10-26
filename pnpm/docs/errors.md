@@ -15,7 +15,7 @@ Run `pnpm install` without `--frozen-lockfile` and commit the updated lockfile.
 
 ## ERR_PNPM_HOIST_PATTERN_DIFF
 
-`pnpm add`, `pnpm remove`, or `pnpm update` found a modules directory that was installed with a different [`hoistPattern`](./settings/node-modules.md#hoistpattern).
+`pnpm add`, `pnpm remove`, `pnpm update`, or an install that selects only some workspace projects found a modules directory that was installed with a different [`hoistPattern`](./settings/node-modules.md#hoistpattern).
 
 Run `pnpm install` to recreate the modules directory with the new `hoistPattern`.
 
@@ -37,7 +37,7 @@ Run `pnpm install` without `--frozen-lockfile` and commit the updated lockfile.
 
 ## ERR_PNPM_NODE_LINKER_DIFF
 
-`pnpm add`, `pnpm remove`, or `pnpm update` found a modules directory that was installed with a different [`nodeLinker`](./settings/node-modules.md#nodelinker).
+`pnpm add`, `pnpm remove`, `pnpm update`, or an install that selects only some workspace projects found a modules directory that was installed with a different [`nodeLinker`](./settings/node-modules.md#nodelinker).
 
 Run `pnpm install` to recreate the modules directory with the new `nodeLinker`.
 
@@ -86,7 +86,7 @@ You may also selectively ignore these errors using the [peerDependencyRules.igno
 
 ## ERR_PNPM_PUBLIC_HOIST_PATTERN_DIFF
 
-`pnpm add`, `pnpm remove`, or `pnpm update` found a modules directory that was installed with a different [`publicHoistPattern`](./settings/node-modules.md#publichoistpattern).
+`pnpm add`, `pnpm remove`, `pnpm update`, or an install that selects only some workspace projects found a modules directory that was installed with a different [`publicHoistPattern`](./settings/node-modules.md#publichoistpattern).
 
 Run `pnpm install` to recreate the modules directory with the new `publicHoistPattern`.
 
@@ -134,7 +134,7 @@ To fix this error, switch to a Node.js version the package accepts, or turn `eng
 
 ## ERR_PNPM_VIRTUAL_STORE_DIR_MAX_LENGTH_DIFF
 
-`pnpm add`, `pnpm remove`, or `pnpm update` found a modules directory that was installed with a different [`virtualStoreDirMaxLength`](./settings/node-modules.md#virtualstoredirmaxlength).
+`pnpm add`, `pnpm remove`, `pnpm update`, or an install that selects only some workspace projects found a modules directory that was installed with a different [`virtualStoreDirMaxLength`](./settings/node-modules.md#virtualstoredirmaxlength).
 
 Run `pnpm install` to recreate the modules directory with the new `virtualStoreDirMaxLength`.
 

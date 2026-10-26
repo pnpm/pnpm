@@ -65,9 +65,8 @@ pub(super) async fn prepare_modules_state<'install, Reporter: self::Reporter + '
         inputs.repeat.filtered,
         inputs.tree.config,
     )?;
-    let is_inconsistent = modules_layout_drifted(modules_manifest, &inputs);
-
-    prepare_modules_layout(&inputs, modules_manifest, is_inconsistent)?;
+    let drifted = modules_layout_drifted(modules_manifest, &inputs);
+    let is_inconsistent = prepare_modules_layout(&inputs, modules_manifest, drifted)?;
 
     let recorded_state = load_recorded_workspace_state(&inputs);
     let recorded = recorded_workspace(
@@ -120,12 +119,13 @@ fn recorded_workspace<'a>(
     }
 }
 
+/// Returns `is_inconsistent` as [`purge_inconsistent_modules_dir`] leaves it.
 fn prepare_modules_layout(
     inputs: &PrepareModulesStateInputs<'_, '_>,
     modules_manifest: Option<&pnpm_modules_yaml::ModulesLayout>,
     is_inconsistent: bool,
-) -> Result<(), InstallError> {
-    if !inputs.resolve_only && is_inconsistent {
+) -> Result<bool, InstallError> {
+    let is_inconsistent = if !inputs.resolve_only && is_inconsistent {
         purge_inconsistent_modules_dir(&InconsistentModulesDir {
             config: inputs.tree.config,
             workspace_root: inputs.tree.workspace_root,
@@ -133,8 +133,10 @@ fn prepare_modules_layout(
             node_linker: inputs.tree.node_linker,
             installs_only: inputs.installs_only,
             filtered_install: inputs.repeat.filtered,
-        })?;
-    }
+        })?
+    } else {
+        is_inconsistent
+    };
 
     prune_excluded_direct_deps(&ExcludedGroupPrune {
         eligibility: crate::install::state_options::PruneEligibility {
@@ -155,7 +157,7 @@ fn prepare_modules_layout(
         },
     })?;
 
-    Ok(())
+    Ok(is_inconsistent)
 }
 
 /// An up-to-date tree skips the materialization that links agent skills,
