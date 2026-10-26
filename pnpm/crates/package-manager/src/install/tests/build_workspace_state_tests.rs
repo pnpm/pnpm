@@ -222,7 +222,9 @@ fn corp_lockfile() -> pnpm_lockfile::Lockfile {
 /// leaves a plain key under a route that moved since.
 #[test]
 fn recorded_registry_routes_follow_the_install_that_resolved_the_plain_keys() {
-    use crate::optimistic_repeat_install::recorded_registry_routes_after_install;
+    use crate::optimistic_repeat_install::{
+        ResolvedImporters, recorded_registry_routes_after_install,
+    };
     let old = "https://old.example.test/";
     let new = "https://new.example.test/";
     let mut config = Config::new();
@@ -234,27 +236,61 @@ fn recorded_registry_routes_follow_the_install_that_resolved_the_plain_keys() {
 
     // No record, or the install resolved everything: the current routes.
     assert_eq!(
-        recorded_registry_routes_after_install(&config, None, Some(&lockfile), false),
+        recorded_registry_routes_after_install(
+            &config,
+            None,
+            Some(&lockfile),
+            ResolvedImporters::None
+        ),
         current,
     );
     assert_eq!(
-        recorded_registry_routes_after_install(&config, Some(&previous), Some(&lockfile), true),
+        recorded_registry_routes_after_install(
+            &config,
+            Some(&previous),
+            Some(&lockfile),
+            ResolvedImporters::All
+        ),
         current,
     );
-    // A frozen install left `@corp/foo@1.0.0` from the old registry.
+    // A frozen or a filtered install left `@corp/foo@1.0.0` from the old registry.
     assert_eq!(
-        recorded_registry_routes_after_install(&config, Some(&previous), Some(&lockfile), false),
+        recorded_registry_routes_after_install(
+            &config,
+            Some(&previous),
+            Some(&lockfile),
+            ResolvedImporters::None
+        ),
+        previous,
+    );
+    assert_eq!(
+        recorded_registry_routes_after_install(
+            &config,
+            Some(&previous),
+            Some(&lockfile),
+            ResolvedImporters::Selected
+        ),
         previous,
     );
     // A moved route no plain key sits under changes nothing about the lockfile.
     let mut other_scope = current.clone();
     other_scope.insert("@other".to_string(), old.to_string());
     assert_eq!(
-        recorded_registry_routes_after_install(&config, Some(&other_scope), Some(&lockfile), false),
+        recorded_registry_routes_after_install(
+            &config,
+            Some(&other_scope),
+            Some(&lockfile),
+            ResolvedImporters::None
+        ),
         current,
     );
     assert_eq!(
-        recorded_registry_routes_after_install(&config, Some(&previous), None, false),
+        recorded_registry_routes_after_install(
+            &config,
+            Some(&previous),
+            None,
+            ResolvedImporters::None
+        ),
         current,
     );
 }

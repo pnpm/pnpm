@@ -298,7 +298,7 @@ pub(super) fn refresh_up_to_date_workspace<Reporter: self::Reporter>(
                     context.tree.config,
                     context.carried_state.recorded_registry_routes.as_ref(),
                     Some(context.wanted_lockfile),
-                    false,
+                    crate::optimistic_repeat_install::ResolvedImporters::None,
                 ),
             ),
             kept_settings: None,
