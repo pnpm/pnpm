@@ -1,3 +1,5 @@
+import path from 'node:path'
+
 import { isError } from '@pnpm/error'
 import { getWantedLockfileName } from '@pnpm/lockfile.fs'
 import { globalWarn } from '@pnpm/logger'
@@ -159,12 +161,41 @@ function findChangedSetting (opts: CheckDepsStatusOptions, storedSettings: Works
   ignoredSettings.add('catalogs')
   for (const settingName of WORKSPACE_STATE_SETTING_KEYS) {
     if (ignoredSettings.has(settingName as keyof WorkspaceStateSettings)) continue
-    const settingKey = settingName as keyof WorkspaceStateSettings
-    const storedValue = normalizeUnsetSetting(settingKey, storedSettings[settingKey])
-    const currentValue = normalizeUnsetSetting(settingKey, settingKey in storeLocation ? storeLocation[settingKey] : opts[settingKey])
+    const [storedValue, currentValue] = settingValues(settingName as keyof WorkspaceStateSettings, { opts, storedSettings, storeLocation })
     if (!equals(storedValue, currentValue)) return settingName
   }
   return undefined
+}
+
+interface SettingSources {
+  opts: CheckDepsStatusOptions
+  storedSettings: WorkspaceState['settings']
+  storeLocation: Partial<WorkspaceStateSettings>
+}
+
+/**
+ * The recorded and the current value of `settingKey`, in the form they are
+ * compared in.
+ */
+function settingValues (settingKey: keyof WorkspaceStateSettings, { opts, storedSettings, storeLocation }: SettingSources): [unknown, unknown] {
+  if (settingKey === 'patchedDependencies') {
+    const workspaceDir = opts.workspaceDir ?? opts.rootProjectManifestDir
+    return [resolvePatchFiles(storedSettings.patchedDependencies, workspaceDir), resolvePatchFiles(opts.patchedDependencies, workspaceDir)]
+  }
+  return [
+    normalizeUnsetSetting(settingKey, storedSettings[settingKey]),
+    normalizeUnsetSetting(settingKey, settingKey in storeLocation ? storeLocation[settingKey] : opts[settingKey]),
+  ]
+}
+
+/**
+ * pnpm v12 records each patch file as configured, and this CLI records it
+ * resolved against the workspace directory. Resolving both forms there
+ * compares the files they name.
+ */
+function resolvePatchFiles (patchedDependencies: Record<string, string> | undefined, workspaceDir: string): Record<string, string> | undefined {
+  if (patchedDependencies == null) return undefined
+  return Object.fromEntries(Object.entries(patchedDependencies).map(([selector, patchFile]) => [selector, path.resolve(workspaceDir, patchFile)]))
 }
 
 function workspaceStateDir (opts: CheckDepsStatusOptions): string {

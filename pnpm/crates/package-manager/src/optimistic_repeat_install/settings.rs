@@ -13,11 +13,12 @@ mod store_location;
 use agent_skills::agent_skills_settings;
 use equivalence::{
     allow_builds_match, enable_global_virtual_store_match, package_extensions_match,
+    patched_dependencies_match,
 };
 use install_policy::install_policy_settings;
 
 use super::{
-    Catalogs, Config, IncludedDependencies, LinkWorkspacePackages, NodeLinker,
+    Catalogs, Config, IncludedDependencies, LinkWorkspacePackages, NodeLinker, Path,
     SupportedArchitectures, TrustPolicy, WorkspaceState, WorkspaceStateNodeLinker,
     WorkspaceStateSettings, WorkspaceStateTrustPolicy,
 };
@@ -84,6 +85,7 @@ pub(crate) fn first_setting_drift(
         recorded: &state.settings,
         live: &current,
         ignored: ignored_workspace_state_settings,
+        workspace_dir: config.workspace_dir.as_deref(),
     }
     .first_drift()
 }
@@ -100,6 +102,7 @@ struct SettingsComparison<'a> {
     recorded: &'a WorkspaceStateSettings,
     live: &'a WorkspaceStateSettings,
     ignored: &'a [&'a str],
+    workspace_dir: Option<&'a Path>,
 }
 
 impl SettingsComparison<'_> {
@@ -255,11 +258,9 @@ impl SettingsComparison<'_> {
     fn workspace_policy_drift(&self) -> Option<&'static str> {
         let recorded = self.recorded;
         let live = self.live;
-        return_drift_if!(
-            self,
-            "patchedDependencies",
-            recorded.patched_dependencies != live.patched_dependencies,
-        );
+        let patched_dependencies_drift =
+            !patched_dependencies_match(recorded, live, self.workspace_dir);
+        return_drift_if!(self, "patchedDependencies", patched_dependencies_drift);
         return_drift_if!(
             self,
             "peersSuffixMaxLength",

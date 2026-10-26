@@ -1,5 +1,7 @@
 use super::{
-    super::{Decision, deps_status::RunDepsStatus, settings::current_settings},
+    super::{
+        Decision, deps_status::RunDepsStatus, first_setting_drift, settings::current_settings,
+    },
     MTIME_STEP_MS, backdate_validated_files, check, isolated_included, recorded_timestamp,
     single_project_deps_status, workspace_deps_status, write_empty_lockfile, write_state,
 };
@@ -7,7 +9,7 @@ use pnpm_config::Config;
 use pnpm_lockfile::Lockfile;
 use pnpm_package_manifest::PackageManifest;
 use pnpm_testing_utils::fs::set_mtime_ms;
-use pnpm_workspace_state::ProjectEntry;
+use pnpm_workspace_state::{ProjectEntry, WorkspaceState};
 use std::{collections::BTreeMap, fs};
 use tempfile::tempdir;
 
@@ -155,6 +157,47 @@ fn a_project_with_its_own_lockfile_sees_an_edited_workspace_patch() {
         &[(project_dir.clone(), &manifest)],
     );
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("patch")));
+}
+
+/// pnpm v11 records each patch file resolved against the workspace
+/// directory.
+#[test]
+fn a_patch_file_recorded_by_its_absolute_path_matches_its_configured_path() {
+    let dir = tempdir().unwrap();
+    let configured = |path: String| {
+        let mut config = Config::new();
+        config.workspace_dir = Some(dir.path().to_path_buf());
+        config.patched_dependencies =
+            Some(indexmap::IndexMap::from([("foo@1.0.0".to_string(), path)]));
+        config
+    };
+    let config = configured("patches/foo.patch".to_string());
+    let absolute = dir
+        .path()
+        .join("patches/foo.patch")
+        .to_string_lossy()
+        .into_owned();
+    let state = WorkspaceState {
+        settings: current_settings(
+            &configured(absolute),
+            pnpm_config::NodeLinker::Isolated,
+            isolated_included(),
+            None,
+        ),
+        ..Default::default()
+    };
+    let drift = |config: &Config| {
+        first_setting_drift(
+            &state,
+            config,
+            pnpm_config::NodeLinker::Isolated,
+            isolated_included(),
+            None,
+            &[],
+        )
+    };
+    assert_eq!(drift(&config), None);
+    assert_eq!(drift(&configured("patches/bar.patch".to_string())), Some("patchedDependencies"));
 }
 
 /// A newer patch mtime is resolved by comparing its content with the lockfile.
