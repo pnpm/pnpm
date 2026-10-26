@@ -235,7 +235,6 @@ fn assert_prune_keeps_every_package_installed_by_copy(
 
     let store_dir = StoreDir::new(store_dir);
     let keys_before = sorted_index_keys(&store_dir);
-    dbg!(&keys_before);
     assert!(keys_before.len() > 1, "the install must index every package it fetched");
     let blob_paths = blob_paths_of_rows(&store_dir, &keys_before);
 
@@ -266,7 +265,6 @@ fn store_prune_keeps_a_runtime_installed_by_copy() {
 
     let store_dir = StoreDir::new(root.path().join("store"));
     let keys_before = sorted_index_keys(&store_dir);
-    dbg!(&keys_before);
     let runtime_keys: Vec<String> = keys_before
         .iter()
         .filter(|key| key.ends_with("\tnode@runtime:22.0.0"))
