@@ -8,6 +8,7 @@ use super::{
     json,
 };
 use crate::_utils::{
+    exit_when_marked_script,
     hold_until_cancelled_script,
     wait_for_child,
 };
@@ -218,8 +219,8 @@ pub(super) fn regexp_selected_scripts_cancel_siblings_after_failure() {
             "name": "test",
             "version": "0.0.0",
             "scripts": {
-                "dev:slow": hold_until_cancelled_script("slow-started"),
-                "dev:fail": r#"node -e "const fs = require('fs'); const wait = () => fs.existsSync('slow-started') ? process.exit(17) : setTimeout(wait, 10); wait()""#,
+                "dev:slow": hold_until_cancelled_script(&workspace, "slow-started"),
+                "dev:fail": exit_when_marked_script(&workspace, "slow-started", 17),
             },
         })
         .to_string(),

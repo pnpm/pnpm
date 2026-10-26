@@ -167,17 +167,26 @@ impl SignalRelay {
 ///
 /// Taking the first relay here is what keeps the handler from taking it as
 /// well, so the child is never given one interrupt twice.
+///
+/// `missed_the_child` says pnpm took the signal before the child existed,
+/// so no process group the child is in carried it and the relay owes it
+/// the signal whatever group that is.
 #[cfg(unix)]
-fn relay_late(relay: &SignalRelay) {
+fn relay_late(relay: &SignalRelay, missed_the_child: bool) {
     let Some(entry) = relay.entry else { return };
     if entry.relays.compare_exchange(0, 1, Ordering::AcqRel, Ordering::Relaxed).is_err() {
         return;
     }
     let signal = LAST_SIGNAL.load(Ordering::Relaxed);
     let target = entry.target.load(Ordering::Acquire);
-    // A child in pnpm's own process group was given the terminal's
-    // interrupt by the kernel, which is how [`relay_to`] reads it too.
-    if target > 0 && signal == libc::SIGINT && pnpm_ffi_signal::holds_the_terminal() {
+    // A child that was already in pnpm's own process group was given the
+    // terminal's interrupt by the kernel, which is how [`relay_to`] reads
+    // it too.
+    if !missed_the_child
+        && target > 0
+        && signal == libc::SIGINT
+        && pnpm_ffi_signal::holds_the_terminal()
+    {
         return;
     }
     pnpm_ffi_signal::signal_target(aimed_at(target), signal);
@@ -186,7 +195,7 @@ fn relay_late(relay: &SignalRelay) {
 /// The console delivers its event to every process attached to it, so a
 /// child that joined the relay late has the event already.
 #[cfg(not(unix))]
-fn relay_late(_relay: &SignalRelay) {}
+fn relay_late(_relay: &SignalRelay, _missed_the_child: bool) {}
 
 /// A child pnpm has spawned that has not joined the relay yet.
 ///
@@ -196,27 +205,41 @@ fn relay_late(_relay: &SignalRelay) {}
 /// counts a child being spawned as one more to wait for, and
 /// [`Self::joined`] passes on what the handler could not.
 pub(crate) struct SpawningChild {
+    /// [`INTERRUPTS`] as it stood before the child was spawned.
+    before_spawn: usize,
     /// [`INTERRUPTS`] as it stood once the child existed.
-    interrupts: usize,
+    once_spawned: usize,
 }
 
-/// Account for a child that has been spawned and has not joined the relay
-/// yet. Call it once the child exists, so every signal counted from here
-/// on is one the child may not have been given.
+/// Account for a child pnpm is about to spawn, and take the signals that
+/// would otherwise end pnpm with their default disposition.
+///
+/// Call it before the spawn: a signal taken from here on is one the
+/// handler cannot pass on, and one pnpm must outlive, or the child would
+/// be left behind by the very spawn that created it.
 pub(crate) fn spawning_child() -> SpawningChild {
+    install_handler();
     if SPAWNING.fetch_add(1, Ordering::Release) == 0 {
         SPAWNING_INTERRUPTS.store(0, Ordering::Release);
     }
-    SpawningChild { interrupts: INTERRUPTS.load(Ordering::Acquire) }
+    let taken = INTERRUPTS.load(Ordering::Acquire);
+    SpawningChild { before_spawn: taken, once_spawned: taken }
 }
 
 impl SpawningChild {
+    /// Note that the child now exists, so a signal counted from here on
+    /// reached whatever process group the child is already in.
+    pub(crate) fn spawned(&mut self) {
+        self.once_spawned = INTERRUPTS.load(Ordering::Acquire);
+    }
+
     /// Hand the child over to `relay`, passing on whatever pnpm took while
     /// it was being spawned.
     pub(crate) fn joined(self, relay: &SignalRelay) {
-        if INTERRUPTS.load(Ordering::Acquire) != self.interrupts {
-            relay_late(relay);
+        if INTERRUPTS.load(Ordering::Acquire) == self.before_spawn {
+            return;
         }
+        relay_late(relay, self.once_spawned != self.before_spawn);
     }
 }
 
@@ -371,7 +394,7 @@ const HANDLED_INTERRUPTS: [pnpm_ffi_signal::Interrupt; 3] = [
 ];
 
 #[cfg(unix)]
-pub(crate) fn install_handler() {
+fn install_handler() {
     pnpm_fs::install_temp_file_cleanup();
     static INSTALLED: Once = Once::new();
     INSTALLED.call_once(|| {
@@ -466,7 +489,7 @@ pub(crate) fn has_controlling_terminal() -> bool {
 #[cfg(windows)]
 mod windows;
 #[cfg(windows)]
-pub(crate) use windows::install_handler;
+use windows::install_handler;
 
 #[cfg(target_family = "wasm")]
 mod wasm;
@@ -474,7 +497,7 @@ mod wasm;
 #[cfg(all(test, unix))]
 mod tests;
 #[cfg(target_family = "wasm")]
-pub(crate) use wasm::install_handler;
+use wasm::install_handler;
 
 #[cfg(not(any(unix, windows, target_family = "wasm")))]
-pub(crate) fn install_handler() {}
+fn install_handler() {}
