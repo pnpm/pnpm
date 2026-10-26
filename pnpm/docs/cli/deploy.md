@@ -58,6 +58,8 @@ A deployed symlink to a directory inside the project is kept even if the directo
 
 ## Options
 
+`pnpm deploy` accepts the options of [`pnpm install`](./install.md) for the install it runs into the target directory.
+
 ### --force
 
 Allow deployment to a non-empty target directory. Without this flag, pnpm fails

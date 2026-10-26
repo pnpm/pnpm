@@ -175,6 +175,34 @@ fn recursive_exec_runs_command_in_every_project() {
     drop(root);
 }
 
+/// pnpm's own options are parsed up to the command name, so `-r` after the
+/// `exec` keyword still selects every project rather than reaching the
+/// command.
+#[test]
+fn recursive_exec_accepts_its_options_after_the_exec_keyword() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(&workspace, &["project-1", "project-2"]);
+
+    pacquet
+        .with_arg("exec")
+        .with_arg("-r")
+        .with_args(marker_args("ran.txt"))
+        .assert()
+        .success();
+
+    for name in ["project-1", "project-2"] {
+        assert!(
+            workspace
+                .join(name)
+                .join("ran.txt")
+                .exists(),
+            "{name} should have run the command in its own directory",
+        );
+    }
+
+    drop(root);
+}
+
 /// No symlink involved: `PWD` still points at the project directory the
 /// command runs in, not at the workspace root pacquet was invoked from
 /// ([pnpm/pnpm#1550](https://github.com/pnpm/pnpm/issues/1550)).

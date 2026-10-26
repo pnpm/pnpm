@@ -41,9 +41,7 @@ dependencies.
 
 ## Options
 
-### --link-workspace-packages
-
-Overrides the [`linkWorkspacePackages`](../workspaces.md#linkworkspacepackages) setting for this install.
+To link workspace packages, set [`linkWorkspacePackages`](../workspaces.md#linkworkspacepackages) or pass `--link-workspace-packages` to the install.
 
 ### --workspace-concurrency
 
