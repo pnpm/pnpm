@@ -68,9 +68,9 @@ use `Infinity`.
 
 In a container with a CPU quota, such as a Kubernetes CPU limit, the quota is the
 number of available CPU cores when it is smaller than the number of CPUs the
-container may run on.
+container may run on. A fractional quota is rounded down, to at least 1.
 
-You can set the `workspace-concurrency` as `<= 0` and it will use amount of cores of the host as: `max(1, (number of cores) - abs(workspace-concurrency))`
+You can set the `workspace-concurrency` as `<= 0` and it will use the number of available CPU cores as: `max(1, (number of available CPU cores) - abs(workspace-concurrency))`
 
 ### --[no-]bail
 
