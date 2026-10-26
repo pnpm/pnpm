@@ -16,7 +16,14 @@ export interface InitialRegistries {
   cliScopedRegistries: Record<string, string>
 }
 
-export function resolveInitialRegistries (state: ConfigBuildState): InitialRegistries {
+/**
+ * The network settings the global config.yaml and the command line set for the
+ * package-manager bootstrap, over the trusted `.npmrc` files. The project's
+ * own files do not reach it.
+ */
+export type BootstrapNetworkSettings = Pick<Config, 'localAddress' | 'strictSsl'>
+
+export function resolveInitialRegistries (state: ConfigBuildState, globalYamlNetworkSettings: BootstrapNetworkSettings): InitialRegistries {
   const { pnpmConfig } = state
   const networkConfigs = getNetworkConfigs(pnpmConfig.authConfig)
   const registriesFromNpmrc = {
@@ -40,11 +47,10 @@ export function resolveInitialRegistries (state: ConfigBuildState): InitialRegis
     packageManagerRegistries.default = explicitDefaultRegistry
   }
   pnpmConfig.packageManagerRegistries = packageManagerRegistries
-  pnpmConfig.packageManagerNetworkConfig = createPackageManagerNetworkConfig(
-    state.npmrcResult.trustedConfig,
-    trustedNetworkConfigs.configByUri ?? {},
-    state.env
-  )
+  pnpmConfig.packageManagerNetworkConfig = createPackageManagerNetworkConfig(state, {
+    configByUri: trustedNetworkConfigs.configByUri ?? {},
+    globalYamlNetworkSettings,
+  })
   pnpmConfig.configByUri = { ...networkConfigs.configByUri }
   return { registriesFromNpmrc, cliScopedRegistries }
 }
@@ -173,10 +179,16 @@ function mergeRegistriesByScope (
 }
 
 function createPackageManagerNetworkConfig (
-  trustedConfig: Record<string, unknown>,
-  configByUri: PackageManagerNetworkConfig['configByUri'],
-  env: Record<string, string | undefined>
+  { configFromCliOpts, env, npmrcResult: { trustedConfig } }: ConfigBuildState,
+  { configByUri, globalYamlNetworkSettings }: {
+    configByUri: PackageManagerNetworkConfig['configByUri']
+    globalYamlNetworkSettings: BootstrapNetworkSettings
+  }
 ): PackageManagerNetworkConfig {
+  // The command line outranks the global config.yaml, and both outrank the
+  // trusted `.npmrc` files, as they do for the project's requests. The
+  // command line's `.npmrc`-spelled tokens sit inside `trustedConfig` too.
+  const cliNetworkSettings = configFromCliOpts as BootstrapNetworkSettings
   const httpsProxy = getProxyValue(
     trustedConfig['https-proxy'] ?? trustedConfig.proxy,
     getEnvValue(env, 'https_proxy')
@@ -192,9 +204,9 @@ function createPackageManagerNetworkConfig (
     httpProxy,
     httpsProxy,
     key: trustedConfig.key as string | undefined,
-    localAddress: trustedConfig['local-address'] as string | undefined,
+    localAddress: cliNetworkSettings.localAddress ?? globalYamlNetworkSettings.localAddress ?? trustedConfig['local-address'] as string | undefined,
     noProxy: (trustedConfig['no-proxy'] ?? trustedConfig.noproxy ?? getEnvValue(env, 'no_proxy')) as string | boolean | undefined,
-    strictSsl: trustedConfig['strict-ssl'] as boolean | undefined,
+    strictSsl: cliNetworkSettings.strictSsl ?? globalYamlNetworkSettings.strictSsl ?? trustedConfig['strict-ssl'] as boolean | undefined,
   }
 }
 

@@ -2201,6 +2201,71 @@ test('package manager bootstrap registries ignore project workspace registries',
   expect(config.packageManagerNetworkConfig?.configByUri['//project.example.com/']).toBeUndefined()
 })
 
+test('the global config.yaml sets strictSsl and localAddress for the package manager bootstrap, pnpm-workspace.yaml does not', async () => {
+  prepareEmpty()
+
+  fs.writeFileSync('user.npmrc', [
+    'strict-ssl=true',
+    'local-address=10.0.0.1',
+    '',
+  ].join('\n'), 'utf8')
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    localAddress: '10.0.0.3',
+    strictSsl: true,
+  })
+
+  const { config } = await getConfigWithGlobalYaml(
+    { localAddress: '10.0.0.2', strictSsl: false },
+    { cliOptions: { userconfig: path.resolve('user.npmrc') }, workspaceDir: process.cwd() }
+  )
+
+  expect(config.strictSsl).toBe(true)
+  expect(config.localAddress).toBe('10.0.0.3')
+  expect(config.packageManagerNetworkConfig).toMatchObject({
+    localAddress: '10.0.0.2',
+    strictSsl: false,
+  })
+})
+
+test('PNPM_CONFIG_STRICT_SSL and PNPM_CONFIG_LOCAL_ADDRESS set the package manager bootstrap over the global config.yaml', async () => {
+  prepareEmpty()
+
+  const { config } = await getConfigWithGlobalYaml(
+    { localAddress: '10.0.0.2', strictSsl: true },
+    {
+      env: { PNPM_CONFIG_LOCAL_ADDRESS: '10.0.0.5', PNPM_CONFIG_STRICT_SSL: 'false' },
+      workspaceDir: process.cwd(),
+    }
+  )
+
+  expect(config.strictSsl).toBe(false)
+  expect(config.localAddress).toBe('10.0.0.5')
+  expect(config.packageManagerNetworkConfig).toMatchObject({
+    localAddress: '10.0.0.5',
+    strictSsl: false,
+  })
+})
+
+test('the command line sets strictSsl and localAddress for the package manager bootstrap over the global config.yaml and the environment, in either spelling', async () => {
+  prepareEmpty()
+
+  const { config } = await getConfigWithGlobalYaml(
+    { strictSsl: true },
+    {
+      cliOptions: { localAddress: '10.0.0.6', 'strict-ssl': false },
+      env: { PNPM_CONFIG_LOCAL_ADDRESS: '10.0.0.5' },
+      workspaceDir: process.cwd(),
+    }
+  )
+
+  expect(config.strictSsl).toBe(false)
+  expect(config.localAddress).toBe('10.0.0.6')
+  expect(config.packageManagerNetworkConfig).toMatchObject({
+    localAddress: '10.0.0.6',
+    strictSsl: false,
+  })
+})
+
 test('CLI --registry overrides pnpm-workspace.yaml registries.default (#10099)', async () => {
   prepareEmpty()
 

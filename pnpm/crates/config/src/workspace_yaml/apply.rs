@@ -418,11 +418,12 @@ impl WorkspaceSettings {
         overlay_some(&mut config.audit_ignore_prune, audit.ignore_prune);
     }
 
-    /// An invalid `localAddress` clears the one a lower source set, as
-    /// it does between `.npmrc` layers.
-    fn apply_tls_to(&mut self, tls: &mut pnpm_network::TlsConfig) {
-        overlay_some(&mut tls.strict_ssl, self.strict_ssl.take());
-        if let Some(local_address) = self.local_address.take() {
+    /// Overlay `strictSsl` and `localAddress` onto `tls`, the project's or
+    /// the package-manager bootstrap's. An invalid `localAddress` clears the
+    /// one a lower source set, as it does between `.npmrc` layers.
+    pub(crate) fn apply_tls_to(&self, tls: &mut pnpm_network::TlsConfig) {
+        overlay_some(&mut tls.strict_ssl, self.strict_ssl);
+        if let Some(local_address) = self.local_address.as_deref() {
             tls.local_address = local_address.parse().ok();
         }
     }
