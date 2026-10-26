@@ -327,6 +327,10 @@ describe('pnpmProxyConfig', () => {
       () => pnpmProxyConfig({ homeDir: home, platform: 'win32', env: { LOCALAPPDATA: '%MISSING%/local' } }),
       /LOCALAPPDATA contains an unexpanded environment variable: %MISSING%/
     )
+    assert.throws(
+      () => pnpmProxyConfig({ homeDir: home, platform: 'win32', env: { X: '%X%%X%', LOCALAPPDATA: '%X%' } }),
+      /LOCALAPPDATA contains an unexpanded environment variable: %X%/
+    )
   })
 
   test('bypasses the proxy for every host when the global config.yaml sets noProxy: true', () => {

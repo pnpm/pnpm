@@ -199,6 +199,9 @@ function pnpmConfigDir (opts: PnpmProxyConfigOptions, env: NodeJS.ProcessEnv): s
   return path.join(homeDir, '.config/pnpm')
 }
 
+/** The longest value Windows allows in an environment variable. */
+const MAX_WINDOWS_ENV_LENGTH = 32_767
+
 /**
  * Expands the `%NAME%` references Windows leaves in a value it did not expand
  * itself, as pnpm does before using the value as a directory.
@@ -211,10 +214,10 @@ function expandWindowsEnv (name: string, value: string, env: NodeJS.ProcessEnv):
     return key == null ? undefined : env[key]
   }
   let current = value
-  // Bounded, because a variable can reference itself.
+  // Bounded, because a variable can reference itself, even twice over.
   for (let round = 0; round < 32 && current.includes('%'); round++) {
     const next = current.replace(/%([^%]+)%/g, (reference, varName: string) => lookup(varName) ?? reference)
-    if (next === current) break
+    if (next === current || next.length > MAX_WINDOWS_ENV_LENGTH) break
     current = next
   }
   const unexpanded = /%[^%]+%/.exec(current)
