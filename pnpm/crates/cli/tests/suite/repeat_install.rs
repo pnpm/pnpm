@@ -1348,11 +1348,11 @@ fn repeat_install_runs_ignored_builds_after_dangerously_allow_all_builds_is_turn
          /node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js";
     let (harness, _) = install_then_change_setting(
         &serde_json::json!({ "@pnpm.e2e/pre-and-postinstall-scripts-example": "1.0.0" }),
+        |workspace| append_workspace_yaml_key(workspace, "strictDepBuilds", false),
         |workspace| {
-            append_workspace_yaml_key(workspace, "strictDepBuilds", false);
-            assert!(!workspace.join(MARKER).exists(), "the build must start ignored");
+            assert!(!workspace.join(MARKER).exists(), "the first install must ignore the build");
+            append_workspace_yaml_key(workspace, "dangerouslyAllowAllBuilds", true);
         },
-        |workspace| append_workspace_yaml_key(workspace, "dangerouslyAllowAllBuilds", true),
     );
     assert!(harness.workspace.join(MARKER).exists(), "the newly allowed build must run");
     drop(harness);

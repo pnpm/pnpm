@@ -427,21 +427,38 @@ describe('checkDepsStatus - settings change detection', () => {
     ['dangerouslyAllowAllBuilds', false],
     ['trustLockfile', false],
     ['virtualStoreDirMaxLength', process.platform === 'win32' ? 60 : 120],
-  ] as const)('does not report a change when an unrecorded %s meets its default', async (setting, current) => {
+  ] as const)('stays up to date when an unrecorded %s meets its default', async (setting, current) => {
     // A state written before the setting was recorded has no key for it.
+    const lastValidatedTimestamp = Date.now() - 10_000
     const mockWorkspaceState: WorkspaceState = {
-      lastValidatedTimestamp: Date.now() - 10_000,
+      lastValidatedTimestamp,
       pnpmfiles: [],
       settings: {
         excludeLinksFromLockfile: false,
         linkWorkspacePackages: true,
         preferWorkspacePackages: true,
+        peersSuffixMaxLength: 1000,
       },
       projects: {},
       filteredInstall: false,
     }
-
     jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState)
+    const lockfileMtime = lastValidatedTimestamp - 10_000
+    jest.mocked(fsUtils.safeStat).mockImplementation(async () => ({
+      mtime: new Date(lockfileMtime),
+      mtimeMs: lockfileMtime,
+    } as Stats))
+    jest.mocked(fsUtils.safeStatSync).mockReturnValue(undefined)
+    jest.mocked(statManifestFileUtils.statManifestFile).mockImplementation(async () => ({
+      mtime: new Date(lastValidatedTimestamp),
+      mtimeMs: lastValidatedTimestamp,
+    } as Stats))
+    const lockfile = {
+      lockfileVersion: '9.0',
+      importers: { '.': { specifiers: {} } },
+    } as unknown as LockfileObject
+    jest.mocked(lockfileFs.readCurrentLockfile).mockImplementation(async () => lockfile)
+    jest.mocked(lockfileFs.readWantedLockfile).mockImplementation(async () => lockfile)
 
     const opts: CheckDepsStatusOptions = {
       rootProjectManifest: {},
@@ -452,7 +469,8 @@ describe('checkDepsStatus - settings change detection', () => {
     }
     const result = await checkDepsStatus(opts)
 
-    expect(result.issue).not.toBe(`The value of the ${setting} setting has changed`)
+    expect(result.issue).toBeUndefined()
+    expect(result.upToDate).toBe(true)
   })
 
   it.each([
