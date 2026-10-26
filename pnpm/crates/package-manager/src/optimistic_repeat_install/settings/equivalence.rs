@@ -58,11 +58,10 @@ pub(super) fn package_extensions_match(
 
 /// pnpm v11 records each patch file resolved against the workspace
 /// directory, `..` segments collapsed; pacquet records it as configured. Two
-/// such paths match when they name the same file: the same path once joined
-/// to `workspace_dir`, or the same real path. A `..` after a symlink makes
-/// the lexical form name another file, so the forms are not compared
-/// lexically, and a path that does not resolve matches nothing. An absent map
-/// names no patch, as an empty one does.
+/// such paths match when they are the same path once joined to
+/// `workspace_dir`, or when both resolve to the same real path. A `..` after a
+/// symlink makes the lexical form name another file, so differing paths are
+/// not compared lexically. An absent map names no patch, as an empty one does.
 pub(super) fn patched_dependencies_match(
     recorded: &WorkspaceStateSettings,
     live: &WorkspaceStateSettings,
