@@ -2,7 +2,7 @@ use super::{
     HoistedLinkerError, HoistedLinkerInputs, Lockfile, PathBuf, Reporter, SkippedSnapshots,
 };
 use crate::SymlinkDirectDependencies;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 const ALL_DEPENDENCY_GROUPS: [super::DependencyGroup; 3] =
     [super::DependencyGroup::Prod, super::DependencyGroup::Dev, super::DependencyGroup::Optional];
@@ -13,6 +13,7 @@ pub(super) fn link_hoisted_workspace_dependencies<Reporter: self::Reporter>(
     lockfile: &Lockfile,
     skipped: &SkippedSnapshots,
     link_options: &pnpm_cmd_shim::LinkBinsOptions,
+    claimed_commands: &mut HashMap<PathBuf, HashSet<String>>,
 ) -> Result<HashSet<PathBuf>, HoistedLinkerError> {
     let changed_dirs = workspace_linked_bin_dirs(inputs);
     // Workspace `link:` deps still need symlinks under each importer's
@@ -25,7 +26,7 @@ pub(super) fn link_hoisted_workspace_dependencies<Reporter: self::Reporter>(
     // symlinks for packages that the hoisted linker already wrote as
     // real dirs.
     let trusted = trusted_importer_ids(inputs);
-    SymlinkDirectDependencies {
+    let workspace_claimed = SymlinkDirectDependencies {
         context: crate::ImporterLinkContext {
             config: inputs.config,
             layout: inputs.graph.layout,
@@ -50,8 +51,14 @@ pub(super) fn link_hoisted_workspace_dependencies<Reporter: self::Reporter>(
         requires_build_by_snapshot: None,
         scheduled_builds: None,
     }
-    .run::<Reporter>()
+    .run_claiming_bins::<Reporter>()
     .map_err(HoistedLinkerError::SymlinkDirectDependencies)?;
+    for (modules_dir, commands) in workspace_claimed {
+        claimed_commands
+            .entry(modules_dir)
+            .or_default()
+            .extend(commands);
+    }
     Ok(changed_dirs)
 }
 

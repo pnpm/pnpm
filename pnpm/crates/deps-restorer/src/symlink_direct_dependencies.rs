@@ -128,6 +128,15 @@ where
 {
     /// Execute the subroutine.
     pub fn run<Reporter: self::Reporter>(self) -> Result<(), SymlinkDirectDependenciesError> {
+        self.run_claiming_bins::<Reporter>()
+            .map(|_| ())
+    }
+
+    /// Execute the subroutine and return the command names linked for each
+    /// importer's modules directory (keyed by [`pnpm_fs::lexical_normalize`]).
+    pub fn run_claiming_bins<Reporter: self::Reporter>(
+        self,
+    ) -> Result<HashMap<PathBuf, HashSet<String>>, SymlinkDirectDependenciesError> {
         // Collect once so the same group order can drive every importer.
         let dependency_groups: Vec<DependencyGroup> = self.dependency_groups.into_iter().collect();
         ImporterPass {
@@ -164,7 +173,9 @@ struct ImporterPass<'a> {
 }
 
 impl ImporterPass<'_> {
-    fn run<Reporter: self::Reporter>(&self) -> Result<(), SymlinkDirectDependenciesError> {
+    fn run<Reporter: self::Reporter>(
+        &self,
+    ) -> Result<HashMap<PathBuf, HashSet<String>>, SymlinkDirectDependenciesError> {
         let modules_dir_name: &OsStr = self.context.config.modules_dir_name();
 
         // Sorted so the fallible upfront validation below rejects a
@@ -187,12 +198,12 @@ impl ImporterPass<'_> {
         // a serial walk would insert a fork-join barrier per importer
         // between the filesystem batches.
         let task_groups = importer_task_groups(self.context.workspace_root, keys);
-        task_groups
+        let group_results: Vec<Vec<(PathBuf, HashSet<String>)>> = task_groups
             .par_iter()
-            .try_for_each(|group| {
+            .map(|group| {
                 group.importer_ids
                     .iter()
-                    .try_for_each(|importer_id| {
+                    .map(|importer_id| {
                         self.link_importer::<Reporter>(
                             importer_id,
                             group.real_dir.as_deref(),
@@ -200,7 +211,13 @@ impl ImporterPass<'_> {
                             root_targets.as_ref(),
                         )
                     })
+                    .collect::<Result<Vec<_>, _>>()
             })
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(group_results
+            .into_iter()
+            .flatten()
+            .collect())
     }
 
     /// `dedupeDirectDeps` short-circuits when there is no root importer
@@ -248,7 +265,7 @@ impl ImporterPass<'_> {
         real_dir: Option<&Path>,
         modules_dir_name: &OsStr,
         root_targets: Option<&BTreeMap<String, PathBuf>>,
-    ) -> Result<(), SymlinkDirectDependenciesError> {
+    ) -> Result<(PathBuf, HashSet<String>), SymlinkDirectDependenciesError> {
         // Safe: the task groups were built from `importers.keys()`.
         let project_snapshot = &self.graph.importers[importer_id];
         let project_dir = importer_root_dir(self.context.workspace_root, importer_id);
@@ -265,7 +282,7 @@ impl ImporterPass<'_> {
         // list is trimmed against what root links.
         let dedupe_against = root_targets.filter(|_| importer_id != ".");
 
-        link_one_importer::<Reporter>(
+        let claimed = link_one_importer::<Reporter>(
             importer_id,
             self.context.layout,
             project_snapshot,
@@ -279,7 +296,8 @@ impl ImporterPass<'_> {
             self.context.config.symlink,
             self.context.link_options,
             &self.bin_lookup,
-        )
+        )?;
+        Ok((pnpm_fs::lexical_normalize(&modules_dir), claimed))
     }
 }
 
@@ -504,7 +522,7 @@ fn link_one_importer<Reporter: self::Reporter>(
     symlink: bool,
     link_options: &LinkBinsOptions,
     bin_lookup: &crate::PrefetchedBinLookup<'_>,
-) -> Result<(), SymlinkDirectDependenciesError> {
+) -> Result<HashSet<String>, SymlinkDirectDependenciesError> {
     let entries = collect_resolved_entries(
         layout,
         project_snapshot,
@@ -543,24 +561,24 @@ fn link_one_importer<Reporter: self::Reporter>(
     // `<modules_dir>/.bin`. Each entry's `target` is the symlink's
     // destination, so the bin pass gets the resolved location for
     // free.
-    if symlink {
+    let claimed = if symlink {
         let deps = resolved_entry_bins(&entries);
         crate::link_direct_dep_bins_prefetched(modules_dir, &deps, bin_lookup, link_options)
-            .map_err(SymlinkDirectDependenciesError::LinkBins)?;
+            .map_err(SymlinkDirectDependenciesError::LinkBins)?
     } else {
         let locations: Vec<PathBuf> = entries
             .iter()
             .map(|entry| entry.target.clone())
             .collect();
         crate::link_direct_dep_bins_from_locations(modules_dir, &locations, link_options)
-            .map_err(SymlinkDirectDependenciesError::LinkBins)?;
-    }
+            .map_err(SymlinkDirectDependenciesError::LinkBins)?
+    };
 
     if symlink {
         remove_publish_modules_link(project_snapshot, project_dir, modules_dir)?;
     }
 
-    Ok(())
+    Ok(claimed)
 }
 
 fn resolved_entry_bins(entries: &[ResolvedEntry<'_>]) -> Vec<crate::PrefetchedDepBin> {

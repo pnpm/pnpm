@@ -219,3 +219,22 @@ fn newly_created_manifest_adds_a_provider_then_deletion_restores_prior_winners()
     assert!(fs::read_to_string(bins.join("tool")).unwrap().contains("rival"));
     assert!(!bins.join("fresh").exists());
 }
+
+#[test]
+fn prune_stale_bins_removes_unclaimed_shims_and_keeps_claimed_commands() {
+    let temp = tempfile::tempdir().unwrap();
+    let modules = temp.path().join("node_modules");
+    let bins = modules.join(".bin");
+    super::prune_stale_bins(&bins, &HashSet::new()).unwrap();
+    package(&modules, "keep", "keep");
+    package(&modules, "stale", "stale");
+    let options = LinkBinsOptions { force: true, ..LinkBinsOptions::default() };
+    link_bins::<Host>(&modules, &bins, &options).unwrap();
+    super::prune_stale_bins(&bins, &HashSet::from(["keep".to_owned()])).unwrap();
+    assert!(bins.join("keep").exists());
+    assert!(!bins.join("stale").exists());
+    if cfg!(windows) {
+        assert!(bins.join("keep.cmd").exists());
+        assert!(!bins.join("stale.cmd").exists());
+    }
+}

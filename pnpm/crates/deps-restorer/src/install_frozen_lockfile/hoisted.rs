@@ -1,6 +1,5 @@
 //! The hoisted node-linker: a flat `node_modules` instead of a virtual store.
 
-pub(crate) use direct_links::link_selected_hoisted_direct_dependencies;
 pub use hoist_plan::{
     HoistPlan, HoistedWorkspacePackages, collect_public_hoist_targets, compute_hoist_plan,
     find_own_runtime_node_major, find_runtime_node_major, parse_major_from_version,
@@ -14,6 +13,7 @@ mod replaced_locations;
 mod stale_links;
 mod workspace_links;
 
+use direct_links::link_selected_hoisted_direct_dependencies;
 use replaced_locations::forget_replaced_hoisted_locations;
 use stale_links::{unlink_prior_workspace_hoists, unlink_stale_direct_links};
 use workspace_links::link_hoisted_workspace_dependencies;
@@ -332,20 +332,29 @@ fn link_post_hierarchy<Reporter: self::Reporter>(
         inputs.projects.manifests,
         &walked.direct_dependencies_by_importer_id,
         &bins.sources,
+        &mut bins.claimed_commands,
     )?;
     for directory in changed_dirs {
         bins.sources.remove(&directory);
     }
     update_hoisted_package_map(inputs, lockfile, walked)?;
     let (hoisted_dependencies, workspace_hoists_added) =
-        link_hoisted_workspace_packages(inputs, walked, link_options)?;
+        link_hoisted_workspace_packages(inputs, walked, link_options, &mut bins.claimed_commands)?;
     if workspace_hoists_added {
         bins.sources.remove(&inputs.config.modules_dir);
     }
-    for directory in
-        link_hoisted_workspace_dependencies::<Reporter>(inputs, lockfile, skipped, link_options)?
-    {
+    for directory in link_hoisted_workspace_dependencies::<Reporter>(
+        inputs,
+        lockfile,
+        skipped,
+        link_options,
+        &mut bins.claimed_commands,
+    )? {
         bins.sources.remove(&directory);
+    }
+    for (modules_dir, claimed) in &bins.claimed_commands {
+        pnpm_cmd_shim::prune_stale_bins(&modules_dir.join(".bin"), claimed)
+            .map_err(HoistedLinkerError::HoistLinkBins)?;
     }
     // The pass above links `link:` siblings only, so it reports only
     // those. The rest are real directories this linker wrote.
@@ -362,6 +371,7 @@ fn link_hoisted_workspace_packages(
     inputs: &HoistedLinkerInputs<'_>,
     walked: &crate::hoisted_dep_graph::LockfileToDepGraphResult,
     link_options: &pnpm_cmd_shim::LinkBinsOptions,
+    claimed_commands: &mut HashMap<PathBuf, std::collections::HashSet<String>>,
 ) -> Result<(crate::HoistedDependencies, bool), HoistedLinkerError> {
     let config = inputs.config;
     if !config.hoist_workspace_packages {
@@ -391,7 +401,7 @@ fn link_hoisted_workspace_packages(
         ),
     );
     let linked_any = !hoists.aliases.is_empty();
-    link_workspace_hoists(inputs, hoists.aliases, link_options)?;
+    link_workspace_hoists(inputs, hoists.aliases, link_options, claimed_commands)?;
     Ok((hoists.hoisted_dependencies, linked_any))
 }
 
@@ -419,6 +429,7 @@ fn link_workspace_hoists(
     inputs: &HoistedLinkerInputs<'_>,
     aliases: Vec<(String, pnpm_modules_yaml::HoistKind, PathBuf)>,
     link_options: &pnpm_cmd_shim::LinkBinsOptions,
+    claimed_commands: &mut HashMap<PathBuf, std::collections::HashSet<String>>,
 ) -> Result<(), HoistedLinkerError> {
     let modules_dir = &inputs.config.modules_dir;
     crate::symlink_hoisted_dependencies(
@@ -435,8 +446,18 @@ fn link_workspace_hoists(
         .into_iter()
         .map(|(_, _, project_dir)| project_dir)
         .collect();
-    crate::link_new_bins_from_locations(modules_dir, &project_dirs, link_options)
-        .map_err(HoistedLinkerError::HoistLinkBins)
+    let root_claimed = claimed_commands
+        .entry(pnpm_fs::lexical_normalize(modules_dir))
+        .or_default();
+    let linked = crate::link_bins_from_locations_excluding(
+        modules_dir,
+        &project_dirs,
+        root_claimed,
+        link_options,
+    )
+    .map_err(HoistedLinkerError::HoistLinkBins)?;
+    root_claimed.extend(linked);
+    Ok(())
 }
 
 fn update_hoisted_package_map(

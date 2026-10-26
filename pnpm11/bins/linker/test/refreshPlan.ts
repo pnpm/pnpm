@@ -8,7 +8,7 @@ import { temporaryDirectory } from 'tempy'
 
 const readDirectory = jest.fn(readModulesDir)
 jest.unstable_mockModule('@pnpm/fs.read-modules-dir', () => ({ readModulesDir: readDirectory }))
-const { createBinRefreshPlan, linkBins } = await import('../src/index.js')
+const { createBinRefreshPlan, linkBins, pruneStaleBins } = await import('../src/index.js')
 
 test('refresh plans scan a nested directory once and refresh scoped commands on every platform', async () => {
   const modules = path.join(temporaryDirectory(), 'node_modules/parent/node_modules')
@@ -71,6 +71,22 @@ test('refreshing a winning alias preserves discovery order when package names an
   expect(runCommand(path.join(bins, 'tool'))).toBe('first-alias\n')
   await refresh(new Set([path.join(modules, 'second-alias')]))
   expect(runCommand(path.join(bins, 'tool'))).toBe('first-alias\n')
+})
+
+test('pruneStaleBins removes unclaimed shims while keeping claimed commands', async () => {
+  const modules = path.join(temporaryDirectory(), 'node_modules')
+  const bins = path.join(modules, '.bin')
+  await pruneStaleBins(bins, new Set())
+  for (const name of ['keep', 'stale']) {
+    const pkgRoot = path.join(modules, name)
+    fs.mkdirSync(pkgRoot, { recursive: true })
+    fs.writeFileSync(path.join(pkgRoot, 'package.json'), JSON.stringify({ name, version: '1.0.0', bin: { [name]: 'cli.js' } }))
+    fs.writeFileSync(path.join(pkgRoot, 'cli.js'), '#!/usr/bin/env node\nconsole.log("ok")\n', { mode: 0o755 })
+  }
+  await linkBins(modules, bins, { warn: () => {} })
+  await pruneStaleBins(bins, new Set(['keep']))
+  expect(fs.existsSync(path.join(bins, process.platform === 'win32' ? 'keep.cmd' : 'keep'))).toBe(true)
+  expect(fs.existsSync(path.join(bins, process.platform === 'win32' ? 'stale.cmd' : 'stale'))).toBe(false)
 })
 
 function runCommand (bin: string): string {

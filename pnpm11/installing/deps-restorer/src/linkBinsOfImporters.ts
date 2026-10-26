@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import { getProjectNodePath, type LinkBinOptions, linkBins, linkBinsOfPackages } from '@pnpm/bins.linker'
+import { getProjectNodePath, type LinkBinOptions, linkBins, linkBinsOfPackages, pruneStaleBins } from '@pnpm/bins.linker'
 import { linkBinsOfRuntimeDependencies } from '@pnpm/building.during-install'
 import type { DependenciesGraph, DirectDependenciesByImporterId } from '@pnpm/deps.graph-builder'
 import * as dp from '@pnpm/deps.path'
@@ -55,10 +55,14 @@ async function linkBinsOfProject (project: Project, { depGraph, opts, rootProjec
       await linkBinsOfPackages(await readBinPackageManifests(peerPkgDirs), project.binsDir, {
         excludeBins: protectedBins,
         extraNodePaths: opts.extraNodePaths,
+        linkedCommandNames: protectedBins,
         preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
         projectModulesDir,
       })
     }
+  }
+  if (path.resolve(project.binsDir) === path.resolve(project.modulesDir, '.bin')) {
+    await pruneStaleBins(project.binsDir, protectedBins)
   }
 }
 
@@ -74,7 +78,11 @@ async function linkBinsOfDirectDeps (
       .map(([, dir]) => dir)
   // Skip packages without bins to avoid unnecessary manifest reads.
   // Dirs not in graph (e.g. link: deps) are kept since they may expose bins.
-  const pkgDirsWithBins = directPkgDirs.filter((dir) => depGraph.graph[dir] == null || depGraph.graph[dir].hasBin)
+  const pkgDirsWithBins = directPkgDirs.filter((dir) =>
+    depGraph.graph[dir] == null ||
+    depGraph.graph[dir].hasBin ||
+    dp.isRuntimeDepPath(depGraph.graph[dir].depPath)
+  )
   await linkBinsOfPackages(await readBinPackageManifests(pkgDirsWithBins), project.binsDir, linkBinOptions)
 }
 

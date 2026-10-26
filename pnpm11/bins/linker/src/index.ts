@@ -372,6 +372,39 @@ async function removeBin (binPath: string): Promise<void> {
   ])
 }
 
+export async function pruneStaleBins (
+  binsDir: string,
+  claimedCommandNames: ReadonlySet<string>
+): Promise<void> {
+  const entries = await readBinsDirEntries(binsDir)
+  if (entries.length === 0) return
+  const claimed = IS_WINDOWS
+    ? new Set(Array.from(claimedCommandNames, (name) => name.toLowerCase()))
+    : claimedCommandNames
+  await Promise.all(
+    entries
+      .filter((entry) => !isBinEntryClaimed(entry, claimed))
+      .map(async (entry) => rimraf(path.join(binsDir, entry)))
+  )
+}
+
+async function readBinsDirEntries (binsDir: string): Promise<string[]> {
+  try {
+    return await fs.readdir(binsDir)
+  } catch (err: unknown) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return []
+    throw err
+  }
+}
+
+function isBinEntryClaimed (entry: string, claimed: ReadonlySet<string>): boolean {
+  const normalized = IS_WINDOWS ? entry.toLowerCase() : entry
+  if (claimed.has(normalized)) return true
+  if (!IS_WINDOWS) return false
+  const windowsExts = ['.cmd', '.ps1', getExeExtension().toLowerCase()]
+  return windowsExts.some((ext) => normalized.endsWith(ext) && claimed.has(normalized.slice(0, -ext.length)))
+}
+
 function isOwnBinsDir (pkgDir: string, binsDir: string): boolean {
   return path.resolve(pkgDir, 'node_modules', '.bin') === path.resolve(binsDir)
 }
