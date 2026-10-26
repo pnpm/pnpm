@@ -62,16 +62,6 @@ pub(super) fn importer_node(
     })
 }
 
-/// Conversion-phase caches. `nodes` interns one [`HoisterTree`] per
-/// `(alias, snapshot key)` edge target. `dep_key_by_pkg_id` maps a
-/// package id (see [`pkg_id`]) to the first snapshot key seen for
-/// it: every peer-suffix variant of one package version
-/// gets that first key as its `reference`, so the hoister sees one
-/// locator per version and dedups the variants instead of
-/// conflict-nesting a copy of each. Ports `depPathByPkgId` from pnpm
-/// v11's `@pnpm/real-hoist` wrapper — without the collapse, a
-/// peer-variant-heavy lockfile turns the per-path hoist walk into a
-/// combinatorial explosion of nested conflict copies.
 #[derive(Default)]
 pub(super) struct TreeCache {
     pub(super) nodes: HashMap<String, Rc<HoisterTree>>,
@@ -161,22 +151,20 @@ fn build_dep_node(
     // outer call returns the cell holds the populated set, and the
     // shared-by-identity invariant the hoister algorithm relies on
     // survives.
-    // The reference is the *canonical* snapshot key for this package
-    // version — the first-seen peer-suffix variant — not necessarily
-    // `dep_key` itself (see [`TreeCache::dep_key_by_pkg_id`]). The
-    // node's own children still come from `dep_key`'s snapshot,
-    // matching the TS wrapper, which reads `pkgSnapshot` from the
-    // original depPath while stamping `depPathByPkgId.get(id)` as the
-    // reference.
-    let reference = cache.dep_key_by_pkg_id
-        .entry(pkg_id(dep_key))
-        .or_insert_with(|| dep_key.clone())
-        .to_string();
+    let peer_names = peer_names_of(dep_key, snapshot, lockfile, opts);
+    let reference = if opts.auto_install_peers || peer_names.is_empty() {
+        cache.dep_key_by_pkg_id
+            .entry(pkg_id(dep_key))
+            .or_insert_with(|| dep_key.clone())
+            .to_string()
+    } else {
+        dep_key.to_string()
+    };
     let node = Rc::new(HoisterTree {
         name: alias.to_string(),
         ident_name: dep_key.name.to_string(),
         reference,
-        peer_names: peer_names_of(dep_key, snapshot, lockfile, opts),
+        peer_names,
         dependency_kind: HoisterDependencyKind::Regular,
         hoist_priority: 0,
         dependencies: RefCell::new(IndexSet::new()),

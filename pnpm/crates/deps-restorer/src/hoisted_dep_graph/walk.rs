@@ -15,13 +15,43 @@ use std::{
     path::{Path, PathBuf},
 };
 
+#[derive(Default)]
+pub(super) struct PackageLocations {
+    by_pkg_id: BTreeMap<String, Vec<PathBuf>>,
+    by_package_key: BTreeMap<String, Vec<PathBuf>>,
+}
+
+impl PackageLocations {
+    fn first(&self, pkg_key: &PackageKey) -> Option<&PathBuf> {
+        self.by_package_key
+            .get(&pkg_key.to_string())
+            .and_then(|locations| locations.first())
+            .or_else(|| {
+                self.by_pkg_id
+                    .get(&pnpm_real_hoist::pkg_id(pkg_key))
+                    .and_then(|locations| locations.first())
+            })
+    }
+
+    fn record(&mut self, pkg_key: &PackageKey, dir: &Path) {
+        self.by_pkg_id
+            .entry(pnpm_real_hoist::pkg_id(pkg_key))
+            .or_default()
+            .push(dir.to_path_buf());
+        self.by_package_key
+            .entry(pkg_key.to_string())
+            .or_default()
+            .push(dir.to_path_buf());
+    }
+}
+
 impl WalkState<'_> {
     /// Pass 2 — fill in each node's `children` map from the
-    /// now-complete `pkg_locations_by_pkg_id`, then assemble the result.
+    /// now-complete package location index, then assemble the result.
     ///
     /// The walk intentionally leaves `children` empty: every sibling and
     /// descendant of a node must have its directory recorded in
-    /// `pkg_locations_by_pkg_id` before any node resolves its children,
+    /// package locations before any node resolves its children,
     /// so the location index is complete by the time children are
     /// computed. The simplest way to preserve that invariant is to
     /// insert everything first and resolve children second.
@@ -29,7 +59,7 @@ impl WalkState<'_> {
         mut self,
         root_hierarchy: DepHierarchy,
     ) -> Result<LockfileToDepGraphResult, HoistedDepGraphError> {
-        fill_children(&mut self.result.graph, &self.pkg_locations_by_pkg_id, self.lockfile)?;
+        fill_children(&mut self.result.graph, &self.package_locations, self.lockfile)?;
 
         // The hoister produced a children order; the directory keys in
         // `root_hierarchy` follow it, and
@@ -50,7 +80,7 @@ impl WalkState<'_> {
             let Some(importer) = self.lockfile.importers.get(importer_id) else { continue };
             direct_dependencies_by_importer_id.insert(
                 importer_id.clone(),
-                importer_direct_deps(importer, &self.pkg_locations_by_pkg_id),
+                importer_direct_deps(importer, &self.package_locations),
             );
         }
 
@@ -90,7 +120,7 @@ pub(super) fn root_direct_deps(
 /// recorded location of each resolved snapshot wins.
 pub(super) fn importer_direct_deps(
     importer: &pnpm_lockfile::ProjectSnapshot,
-    pkg_locations_by_pkg_id: &BTreeMap<String, Vec<PathBuf>>,
+    pkg_locations: &PackageLocations,
 ) -> BTreeMap<String, PathBuf> {
     let mut direct_deps = BTreeMap::new();
     for dep_map in [
@@ -105,10 +135,7 @@ pub(super) fn importer_direct_deps(
             // For an aliased dep the snapshot key uses the alias's own
             // (name, suffix); for a regular dep it's `(alias, version)`.
             let Some(dep_key) = spec.version.resolved_key(alias) else { continue };
-            if let Some(first) = pkg_locations_by_pkg_id
-                .get(&pnpm_real_hoist::pkg_id(&dep_key))
-                .and_then(|locations| locations.first())
-            {
+            if let Some(first) = pkg_locations.first(&dep_key) {
                 direct_deps.insert(alias.to_string(), first.clone());
             }
         }
@@ -120,7 +147,7 @@ pub(super) fn importer_direct_deps(
 /// dir` map by looking up the node's snapshot in the lockfile.
 pub(super) fn fill_children(
     graph: &mut DependenciesGraph,
-    pkg_locations: &BTreeMap<String, Vec<PathBuf>>,
+    pkg_locations: &PackageLocations,
     lockfile: &Lockfile,
 ) -> Result<(), HoistedDepGraphError> {
     let dirs: Vec<PathBuf> = graph.keys().cloned().collect();
@@ -161,13 +188,7 @@ pub(super) struct WalkState<'a> {
     /// Records every directory each package landed in, in visit
     /// order. The first entry wins for parent → child wiring.
     ///
-    /// Keyed by [`pnpm_real_hoist::pkg_id`], not the snapshot key:
-    /// the hoister collapses every peer variant of one package
-    /// version onto a single node, so only the first-seen variant's
-    /// key reaches this walk. Sharing the hoister's own identity
-    /// function is what lets an edge declared against any other
-    /// variant still find that node's directory.
-    pub(super) pkg_locations_by_pkg_id: BTreeMap<String, Vec<PathBuf>>,
+    pub(super) package_locations: PackageLocations,
     /// Per-non-root-importer hierarchy emitted while walking
     /// `Workspace`-kind nodes. Outer key is the importer's root
     /// directory (`<lockfile_dir>/<importer_id>`). Folded into
@@ -433,7 +454,7 @@ pub(super) fn graph_node(
 /// location.
 pub(super) fn compute_children(
     snapshot: Option<&pnpm_lockfile::SnapshotEntry>,
-    pkg_locations: &BTreeMap<String, Vec<PathBuf>>,
+    pkg_locations: &PackageLocations,
 ) -> BTreeMap<String, PathBuf> {
     let mut children: BTreeMap<String, PathBuf> = BTreeMap::new();
     let Some(snapshot) = snapshot else { return children };
@@ -448,9 +469,7 @@ pub(super) fn compute_children(
         let Some(child_key) = dep_ref.resolve(alias_name) else {
             continue;
         };
-        if let Some(locations) = pkg_locations.get(&pnpm_real_hoist::pkg_id(&child_key))
-            && let Some(first) = locations.first()
-        {
+        if let Some(first) = pkg_locations.first(&child_key) {
             children.insert(alias_name.to_string(), first.clone());
         }
     }
@@ -458,8 +477,5 @@ pub(super) fn compute_children(
 }
 
 fn record_package_location(state: &mut WalkState<'_>, pkg_key: &PackageKey, dir: &Path) {
-    state.pkg_locations_by_pkg_id
-        .entry(pnpm_real_hoist::pkg_id(pkg_key))
-        .or_default()
-        .push(dir.to_path_buf());
+    state.package_locations.record(pkg_key, dir);
 }
