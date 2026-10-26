@@ -597,7 +597,8 @@ pub fn write_marker_script(relative_path: &str) -> String {
     format!(r#"node -e "require('fs').writeFileSync('{relative_path}', '')""#)
 }
 
-/// A package script that writes `started_marker` and then holds.
+/// A package script that writes its pid to `started_marker` and then
+/// holds.
 ///
 /// The hold outlasts [`CHILD_DEADLINE`], the deadline a test gives the run
 /// itself, so a cancellation that never arrives fails on that deadline. A
@@ -606,12 +607,60 @@ pub fn write_marker_script(relative_path: &str) -> String {
 /// whatever the script did on its way out. The hold is not endless: a run
 /// the test gave up on leaves the script behind, and nothing else stops
 /// it.
+///
+/// The marker carries the pid because a run that ends is not on its own
+/// proof that the script is gone: pnpm could have killed the shell that
+/// started it and left the script orphaned, which [`is_running`] tells
+/// apart and the run's own exit code cannot. It is renamed into place, so
+/// a sibling script waiting for the marker to appear never reads it half
+/// written.
 #[must_use]
 pub fn hold_until_cancelled_script(started_marker: &str) -> String {
     let hold = (CHILD_DEADLINE * 2).as_millis();
     format!(
-        r#"node -e "require('fs').writeFileSync('{started_marker}', ''); setTimeout(() => {{}}, {hold})""#,
+        r#"node -e "const fs = require('fs'); fs.writeFileSync('{started_marker}.tmp', String(process.pid)); fs.renameSync('{started_marker}.tmp', '{started_marker}'); setTimeout(() => {{}}, {hold})""#,
     )
+}
+
+/// The process id a fixture script wrote to `path`. A fixture writes it
+/// to a temporary file and renames that into place, so a file that exists
+/// already holds the whole id.
+#[cfg(unix)]
+pub fn read_pid(path: &Path) -> libc::pid_t {
+    fs::read_to_string(path)
+        .expect("read the recorded pid")
+        .trim()
+        .parse()
+        .expect("the fixture recorded its pid")
+}
+
+/// Whether `pid` still names a live process. One the kernel no longer
+/// knows is gone, and so is one that has exited and only waits to be
+/// reaped; one that refuses the probe is still there.
+#[cfg(unix)]
+#[must_use]
+pub fn is_running(pid: libc::pid_t) -> bool {
+    // SAFETY: a signal of 0 only probes for the process.
+    if unsafe { libc::kill(pid, 0) } != 0 {
+        return match std::io::Error::last_os_error().raw_os_error() {
+            Some(libc::ESRCH) => false,
+            Some(libc::EPERM) => true,
+            _ => panic!("probe process {pid}: {}", std::io::Error::last_os_error()),
+        };
+    }
+    !is_zombie(pid)
+}
+
+/// Whether `pid` has exited and waits for a parent to reap it. An orphan
+/// stays one until init takes it over, which the probe above cannot tell
+/// from a running process.
+#[cfg(unix)]
+fn is_zombie(pid: libc::pid_t) -> bool {
+    let state = std::process::Command::new("ps")
+        .args(["-o", "stat=", "-p", &pid.to_string()])
+        .output()
+        .expect("run ps");
+    state.stdout.trim_ascii_start().first() == Some(&b'Z')
 }
 
 /// How long [`wait_for_marker_script`] gives another project's script to

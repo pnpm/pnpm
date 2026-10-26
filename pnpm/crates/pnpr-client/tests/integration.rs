@@ -147,9 +147,21 @@ fn registry_upstream(registry_url: &str, token: &str) -> (String, pnpr::Upstream
 /// the accept backlog before the service is driving the connection, so a
 /// request sent on it can outrun the router.
 async fn wait_until_ready(addr: SocketAddr) {
+    // reqwest has no total request timeout of its own, so an attempt
+    // against a server that accepted the connection and then went quiet
+    // would never come back and the loop would never reach its panic.
+    const ATTEMPT: Duration = Duration::from_millis(500);
+
     let handshake = format!("http://{addr}/-/pnpr");
+    let client = reqwest::Client::new();
     for _ in 0..200 {
-        if reqwest::get(&handshake).await.is_ok_and(|response| response.status().is_success()) {
+        let answered = client
+            .get(&handshake)
+            .timeout(ATTEMPT)
+            .send()
+            .await
+            .is_ok_and(|response| response.status().is_success());
+        if answered {
             return;
         }
         tokio::time::sleep(Duration::from_millis(20)).await;

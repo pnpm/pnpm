@@ -4,6 +4,8 @@
 
 use super::{CommandExtra, CommandTempCwd, Duration, Stdio, fs, json, write_workspace};
 use crate::_utils::{hold_until_cancelled_script, wait_for_child};
+#[cfg(unix)]
+use crate::_utils::{is_running, read_pid};
 use assert_cmd::assert::OutputAssertExt;
 
 /// A pair of scripts that record whether they ever ran simultaneously:
@@ -170,12 +172,16 @@ fn bail_cancels_the_sibling_script_of_the_same_package() {
     eprintln!("STDERR:\n{stderr}\n");
     assert!(stderr.contains("ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL"), "stderr: {stderr}");
 
-    let slow_started = workspace
-        .join("project-1")
-        .join("slow-started")
-        .exists();
-    eprintln!("slow-started exists: {slow_started}");
-    assert!(slow_started, "the slow script must have started beside the failing one");
+    let started = workspace.join("project-1").join("slow-started");
+    eprintln!("slow-started exists: {}", started.exists());
+    assert!(started.exists(), "the slow script must have started beside the failing one");
+    // The run ending says the cancellation was not waited out. Only the
+    // pid says the script went with it rather than being orphaned.
+    #[cfg(unix)]
+    assert!(
+        !is_running(read_pid(&started)),
+        "the cancelled script must be gone, not left running without pnpm",
+    );
 
     drop(root);
 }

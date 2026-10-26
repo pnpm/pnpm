@@ -6,7 +6,10 @@
 //! instead, which `interrupt_windows` tests rather than porting these.
 #![cfg(unix)]
 
-use crate::_utils::terminal::{Terminal, spawn_without_terminal};
+use crate::_utils::{
+    is_running, read_pid,
+    terminal::{Terminal, spawn_without_terminal},
+};
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::CommandTempCwd;
 use serde_json::json;
@@ -876,43 +879,6 @@ fn signal_group(process: &Child, signal: libc::c_int) {
     // not waited for yet, so it is not a recycled process id.
     let signalled = unsafe { libc::kill(-pid, signal) };
     assert_eq!(signalled, 0, "the signal should reach pnpm's process group");
-}
-
-/// The process id a fixture script wrote to `path`. The fixtures write it
-/// to a temporary file and rename that into place, so a file that exists
-/// already holds the whole id.
-fn read_pid(path: &Path) -> libc::pid_t {
-    fs::read_to_string(path)
-        .expect("read the recorded pid")
-        .trim()
-        .parse()
-        .expect("the fixture recorded its pid")
-}
-
-/// Whether `pid` still names a live process. One the kernel no longer
-/// knows is gone, and so is one that has exited and only waits to be
-/// reaped; one that refuses the probe is still there.
-fn is_running(pid: libc::pid_t) -> bool {
-    // SAFETY: a signal of 0 only probes for the process.
-    if unsafe { libc::kill(pid, 0) } != 0 {
-        return match io::Error::last_os_error().raw_os_error() {
-            Some(libc::ESRCH) => false,
-            Some(libc::EPERM) => true,
-            _ => panic!("probe process {pid}: {}", io::Error::last_os_error()),
-        };
-    }
-    !is_zombie(pid)
-}
-
-/// Whether `pid` has exited and waits for a parent to reap it. An orphan
-/// stays one until init takes it over, which the probe above cannot tell
-/// from a running process.
-fn is_zombie(pid: libc::pid_t) -> bool {
-    let state = Command::new("ps")
-        .args(["-o", "stat=", "-p", &pid.to_string()])
-        .output()
-        .expect("run ps");
-    state.stdout.trim_ascii_start().first() == Some(&b'Z')
 }
 
 /// Whether `pid` is gone before `deadline` passes.

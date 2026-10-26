@@ -2,6 +2,8 @@ use super::{
     CommandExtra, CommandTempCwd, Duration, Stdio, assert_no_bail_lets_siblings_finish, fs, json,
 };
 use crate::_utils::{hold_until_cancelled_script, wait_for_child};
+#[cfg(unix)]
+use crate::_utils::{is_running, read_pid};
 use assert_cmd::assert::OutputAssertExt;
 
 /// Without `--if-present`, calling a script that does not exist fails
@@ -228,9 +230,14 @@ pub(super) fn regexp_selected_scripts_cancel_siblings_after_failure() {
     let stderr = fs::read_to_string(&stderr_path).expect("read the run output");
     eprintln!("STDERR:\n{stderr}\n");
     assert_eq!(status.code(), Some(17), "the run must end with the failing script's code");
+    let started = workspace.join("slow-started");
+    assert!(started.exists(), "the slow script must have started beside the failing one");
+    // The run ending says the cancellation was not waited out. Only the
+    // pid says the script went with it rather than being orphaned.
+    #[cfg(unix)]
     assert!(
-        workspace.join("slow-started").exists(),
-        "the slow script must have started beside the failing one",
+        !is_running(read_pid(&started)),
+        "the cancelled script must be gone, not left running without pnpm",
     );
 
     drop(root);
