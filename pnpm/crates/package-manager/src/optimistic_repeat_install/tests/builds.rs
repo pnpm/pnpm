@@ -160,7 +160,7 @@ fn a_project_with_its_own_lockfile_sees_an_edited_workspace_patch() {
 }
 
 /// pnpm v11 records each patch file resolved against the workspace
-/// directory.
+/// directory, `.` and `..` segments collapsed.
 #[test]
 fn a_patch_file_recorded_by_its_absolute_path_matches_its_configured_path() {
     let dir = tempdir().unwrap();
@@ -197,6 +197,7 @@ fn a_patch_file_recorded_by_its_absolute_path_matches_its_configured_path() {
         )
     };
     assert_eq!(drift(&config), None);
+    assert_eq!(drift(&configured("./shared/../patches/foo.patch".to_string())), None);
     assert_eq!(drift(&configured("patches/bar.patch".to_string())), Some("patchedDependencies"));
 }
 
