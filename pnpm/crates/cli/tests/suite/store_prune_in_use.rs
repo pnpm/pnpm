@@ -207,6 +207,78 @@ fn store_prune_keeps_every_package_installed_by_copy_in_a_custom_modules_dir() {
     );
 }
 
+#[test]
+fn store_prune_keeps_every_package_of_a_project_with_its_own_lockfile_in_a_workspace_level_modules_dir()
+ {
+    assert_prune_keeps_every_package_installed_by_copy(
+        |workspace| move_dependencies_to_a_project_with_its_own_lockfile(workspace, ""),
+        "project/pnpm_modules/.pnpm/lock.yaml",
+    );
+}
+
+#[test]
+fn store_prune_keeps_every_package_of_a_project_with_its_own_lockfile_in_a_package_configs_modules_dir()
+ {
+    assert_prune_keeps_every_package_installed_by_copy(
+        |workspace| {
+            move_dependencies_to_a_project_with_its_own_lockfile(
+                workspace,
+                "packageConfigs:\n  project:\n    modulesDir: project_modules\n",
+            );
+        },
+        "project/project_modules/.pnpm/lock.yaml",
+    );
+}
+
+/// A workspace that shares one lockfile ignores `packageConfigs`, so the
+/// prune does not read the project's manifest.
+#[test]
+fn store_prune_ignores_package_configs_and_the_manifest_in_a_workspace_with_a_shared_lockfile() {
+    let CommandTempCwd {
+        root: _root, workspace, npmrc_info, ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry {
+        mock_instance: _mock_instance,
+        store_dir,
+        ..
+    } = npmrc_info;
+    write_manifest(&workspace);
+    append_workspace_yaml(
+        &workspace,
+        "packageImportMethod: copy\npackageConfigs:\n  project:\n    modulesDir: project_modules\n",
+    );
+    pacquet_at(&workspace)
+        .with_args(["install", "--reporter=silent"])
+        .assert()
+        .success();
+    fs::write(workspace.join("package.json"), "{").expect("break package.json");
+
+    let store_dir = StoreDir::new(store_dir);
+    let keys_before = sorted_index_keys(&store_dir);
+    assert!(keys_before.len() > 1, "the install must index every package it fetched");
+
+    prune(&workspace);
+
+    assert_eq!(sorted_index_keys(&store_dir), keys_before);
+}
+
+fn move_dependencies_to_a_project_with_its_own_lockfile(workspace: &Path, workspace_yaml: &str) {
+    let manifest = fs::read_to_string(workspace.join("package.json")).expect("read package.json");
+    fs::create_dir(workspace.join("project")).expect("create the project directory");
+    fs::write(
+        workspace.join("project/package.json"),
+        manifest.replacen('{', r#"{"name":"project","#, 1),
+    )
+    .expect("write project/package.json");
+    fs::write(workspace.join("package.json"), r#"{"name":"root"}"#).expect("write package.json");
+    append_workspace_yaml(
+        workspace,
+        &format!(
+            "packages: [project]\nsharedWorkspaceLockfile: false\nmodulesDir: pnpm_modules\n{workspace_yaml}",
+        ),
+    );
+}
+
 /// The project records the shared store as its `virtualStoreDir`, and the
 /// install keeps the lockfile in `node_modules/.pnpm`.
 #[test]

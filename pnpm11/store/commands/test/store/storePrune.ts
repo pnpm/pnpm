@@ -946,6 +946,39 @@ describe('prune keeps the packages that a registered project still uses', () => 
     await expectPruneKeepsEveryRowAndBlob(storeDir)
   })
 
+  test('every package of a workspace project with its own lockfile and a modulesDir in packageConfigs', async () => {
+    prepare({ name: 'root' })
+    fs.writeFileSync('pnpm-workspace.yaml', [
+      'packages: [project]',
+      'sharedWorkspaceLockfile: false',
+      'modulesDir: pnpm_modules',
+      'packageImportMethod: copy',
+      'packageConfigs:',
+      '  project:',
+      '    modulesDir: project_modules',
+      '',
+    ].join('\n'))
+    fs.mkdirSync('project')
+    fs.writeFileSync('project/package.json', JSON.stringify({
+      name: 'project',
+      dependencies: { '@pnpm.e2e/pkg-with-1-dep': '100.0.0', 'is-positive': '1.0.0' },
+    }))
+    const storeDir = await install()
+    expect(fs.existsSync('project/project_modules/.pnpm/lock.yaml')).toBe(true)
+
+    await expectPruneKeepsEveryRowAndBlob(storeDir)
+  })
+
+  // A workspace that shares one lockfile ignores packageConfigs, so the
+  // prune does not read the project's manifest.
+  test('every package of a workspace with a shared lockfile, packageConfigs, and a broken manifest', async () => {
+    prepareProject('packageImportMethod: copy\npackageConfigs:\n  project:\n    modulesDir: project_modules\n')
+    const storeDir = await install()
+    fs.writeFileSync('package.json', '{')
+
+    await expectPruneKeepsEveryRowAndBlob(storeDir)
+  })
+
   test('a runtime installed with packageImportMethod: copy', async () => {
     // A registry tarball stands in for the runtime archive, so the install
     // needs no network. The variant targets this host.

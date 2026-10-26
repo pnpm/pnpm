@@ -13,6 +13,9 @@
       "path": "../../__utils__/prepare"
     },
     {
+      "path": "../../config/reader"
+    },
+    {
       "path": "../../core/constants"
     },
     {
@@ -56,6 +59,9 @@
     },
     {
       "path": "../../worker"
+    },
+    {
+      "path": "../../workspace/project-manifest-reader"
     },
     {
       "path": "../../workspace/workspace-manifest-reader"
