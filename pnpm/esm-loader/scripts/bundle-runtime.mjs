@@ -16,6 +16,12 @@ const result = await esbuild.build({
 })
 
 const output = result.outputFiles[0]
-const tempPath = `${output.path}.${process.pid}.tmp`
-fs.writeFileSync(tempPath, output.contents)
-fs.renameSync(tempPath, output.path)
+if (process.argv.includes('--check')) {
+  if (!fs.readFileSync(output.path).equals(output.contents)) {
+    throw new Error('The embedded loader is stale. Run pnpm --filter @pnpm/esm-loader build:runtime and commit the generated file.')
+  }
+} else {
+  const tempPath = `${output.path}.${process.pid}.tmp`
+  fs.writeFileSync(tempPath, output.contents)
+  fs.renameSync(tempPath, output.path)
+}
