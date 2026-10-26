@@ -147,12 +147,7 @@ pub(super) fn prove_move(
     // spent for nothing: it parses while this thread does the rest.
     check.lockfile.prefetch();
     let wanted = validated_moved_lockfile(check)?;
-    check_projects_content(
-        check,
-        wanted,
-        &drift.stats.iter().collect::<Vec<_>>(),
-        config.dedupe_peers,
-    )?;
+    check_projects_content(check, wanted, &drift.stats.iter().collect::<Vec<_>>())?;
     if !crate::install::moved_tree_is_reusable(config, node_linker, project_manifests, wanted) {
         return Err("a bin in the moved tree names a path outside it");
     }

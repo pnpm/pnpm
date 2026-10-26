@@ -191,7 +191,6 @@ pub(crate) fn check_optimistic_repeat_install_with_state(
         check_dangling_direct_links: true,
         missing_wanted_lockfile: MissingWantedLockfile::Restore,
         newer_patch: NewerPatch::Refuse,
-        dedupe_peers: check.config.dedupe_peers,
         recorded_groups: RecordedGroups::Current,
     };
     match check_freshness(check, &state, moved, &policy, scope) {
