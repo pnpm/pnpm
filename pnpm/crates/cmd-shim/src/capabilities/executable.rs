@@ -63,7 +63,7 @@ fn is_executable_by_everyone(mode: u32) -> bool {
 fn permission_bits(path: &Path) -> io::Result<u32> {
     // WASI metadata omits the bits, so only the host read reports them.
     #[cfg(not(target_os = "wasi"))]
-    return Ok(Permissions::of_metadata(&fs::metadata(path)?).mode());
+    return fs::metadata(path).map(|metadata| Permissions::of_metadata(&metadata).mode());
     #[cfg(target_os = "wasi")]
-    return Ok(pnpm_fs::copy_permissions(path)?.mode());
+    return pnpm_fs::copy_permissions(path).map(|permissions| permissions.mode());
 }
