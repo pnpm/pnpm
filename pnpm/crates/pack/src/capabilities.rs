@@ -140,8 +140,11 @@ impl FsAtomicWrite for Host {
         }
         #[cfg(target_os = "wasi")]
         {
+            use pipe_trait::Pipe as _;
             let mode = if std::fs::symlink_metadata(dest).is_ok_and(|metadata| metadata.is_file()) {
-                pnpm_fs::read_file_permissions(&pnpm_fs::open_file_without_following(dest)?)?.mode()
+                dest.pipe(pnpm_fs::open_file_without_following)?
+                    .pipe_ref(pnpm_fs::read_file_permissions)?
+                    .mode()
                     & 0o777
             } else {
                 0o644
