@@ -68,37 +68,27 @@ impl WorkspaceSettings {
         }
     }
 
-    /// Rewrite a leading `~/` in `storeDir`, `globalDir`, `globalBinDir`, and
-    /// each `symlinkedLockfileTargetDirs` entry into the home directory. A shell
-    /// expands the tilde before pnpm sees it, but a configuration file carries
-    /// it verbatim.
+    /// Rewrite a leading `~/` in `storeDir`, and in the directories of
+    /// [`MachineSettings::expand_home_prefixes`](super::MachineSettings::expand_home_prefixes),
+    /// into the home directory. A shell expands the tilde before pnpm sees it,
+    /// but a configuration file carries it verbatim.
     ///
     /// Call this before [`Self::apply_to`], which would otherwise take the
     /// tilde for an ordinary relative path segment.
     pub(crate) fn expand_home_prefixes<Sys: GetHomeDir>(&mut self) {
-        let single_dirs = [&mut self.store_dir, &mut self.global_dir, &mut self.global_bin_dir];
-        let listed_dirs = self.symlinked_lockfile_target_dirs.iter_mut().flatten();
-        for dir in single_dirs
-            .into_iter()
-            .flatten()
-            .chain(listed_dirs)
+        if let Some(dir) = self.store_dir.as_mut()
+            && let Some(expanded) = expand_home_prefix::<Sys>(dir)
         {
-            if let Some(expanded) = expand_home_prefix::<Sys>(dir) {
-                *dir = expanded;
-            }
+            *dir = expanded;
         }
     }
 
     pub(super) fn substitute_env_scalars<Sys: EnvVar>(&mut self) {
-        substitute_optional_string::<Sys>(&mut self.scope);
         substitute_optional_string::<Sys>(&mut self.tag);
         substitute_optional_string::<Sys>(&mut self.store_dir);
-        substitute_optional_string::<Sys>(&mut self.state_dir);
         substitute_optional_string::<Sys>(&mut self.modules_dir);
         substitute_optional_string::<Sys>(&mut self.virtual_store_dir);
         substitute_optional_string::<Sys>(&mut self.global_virtual_store_dir);
-        substitute_optional_string::<Sys>(&mut self.global_dir);
-        substitute_optional_string::<Sys>(&mut self.global_bin_dir);
         substitute_optional_string::<Sys>(&mut self.npmrc_auth_file);
         substitute_optional_string::<Sys>(&mut self.lockfile_dir);
         substitute_optional_string::<Sys>(&mut self.patches_dir);
@@ -129,7 +119,7 @@ impl WorkspaceSettings {
     }
 }
 
-fn expand_home_prefix<Sys: GetHomeDir>(dir: &str) -> Option<String> {
+pub(super) fn expand_home_prefix<Sys: GetHomeDir>(dir: &str) -> Option<String> {
     let relative = dir
         .strip_prefix("~/")
         .or_else(|| dir.strip_prefix(r"~\"))?;

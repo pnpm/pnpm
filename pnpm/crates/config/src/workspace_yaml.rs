@@ -2,6 +2,7 @@ pub mod package_configs;
 pub mod registries;
 pub use error::LoadWorkspaceYamlError;
 pub(crate) use includes::read_workspace_document;
+pub use machine::{MachineSettings, TrustedSettings};
 pub(crate) use parse_settings::parse_settings;
 pub use permissions::{
     PackagePermissions, PermissionCapability, SkillsSettings, decided_permissions,
@@ -42,7 +43,7 @@ use pnpm_workspace_state::ConfigDependency;
 use registries::RegistryEntry;
 use serde::{Deserialize, Deserializer, de::IgnoredAny};
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap},
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     fs,
     io::{self, ErrorKind},
     path::{Path, PathBuf},
@@ -215,7 +216,7 @@ impl DroppedKeys {
 macro_rules! identically_named_settings {
     ($mac:ident) => {
         $mac! {
-            bail, ci, progress, update_notifier, color, embed_readme, ignore_workspace_root_check,
+            bail, progress, update_notifier, color, embed_readme, ignore_workspace_root_check,
             optional, package_lock, pending, recursive_install, reverse,
             stream, aggregate_output, use_stderr, ignore_workspace, shell_emulator,
             skip_manifest_obfuscation, sort, use_beta_cli,
@@ -386,6 +387,18 @@ pub fn workspace_root_or(start: &Path) -> PathBuf {
         .unwrap_or_else(|| start.to_path_buf())
 }
 
+/// The camelCase field names of a settings struct, read off its serde
+/// serialization of `default`, which writes every unset field as null.
+pub(crate) fn serialized_field_keys(default: &impl serde::Serialize) -> HashSet<String> {
+    match serde_json::to_value(default) {
+        Ok(serde_json::Value::Object(fields)) => fields
+            .into_iter()
+            .map(|(key, _)| key)
+            .collect(),
+        _ => HashSet::new(),
+    }
+}
+
 fn path(path: &Path) -> String {
     path.to_string_lossy().into_owned()
 }
@@ -413,6 +426,7 @@ mod permissions;
 mod workspace_scope;
 
 mod env;
+use env::expand_home_prefix;
 
 mod environment_values;
 use environment_values::{
@@ -428,6 +442,8 @@ mod resolved;
 mod reset;
 
 mod settings;
+
+mod machine;
 
 mod parse_settings;
 

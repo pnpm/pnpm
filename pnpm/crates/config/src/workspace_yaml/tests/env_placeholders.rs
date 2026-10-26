@@ -1,5 +1,5 @@
 use super::{AuditLevel, ColorMode, EnvVar, NodeLinker, assert_eq};
-use crate::workspace_yaml::parse_settings;
+use crate::{WorkspaceSettings, workspace_yaml::parse_settings};
 use std::fmt::Write as _;
 
 struct Env;
@@ -19,22 +19,31 @@ impl EnvVar for Env {
 
 #[test]
 fn a_fallback_names_an_enum_variant() {
-    let settings = parse_settings::<Env>("nodeLinker: ${PNPM_TEST_UNSET:-isolated}\n").unwrap();
+    let settings =
+        parse_settings::<Env, WorkspaceSettings>("nodeLinker: ${PNPM_TEST_UNSET:-isolated}\n")
+            .unwrap();
 
     assert_eq!(settings.node_linker, Some(NodeLinker::Isolated.into()));
 }
 
 #[test]
 fn an_environment_value_wins_over_the_fallback() {
-    let settings = parse_settings::<Env>("nodeLinker: ${PNPM_TEST_LINKER:-isolated}\n").unwrap();
+    let settings =
+        parse_settings::<Env, WorkspaceSettings>("nodeLinker: ${PNPM_TEST_LINKER:-isolated}\n")
+            .unwrap();
 
     assert_eq!(settings.node_linker, Some(NodeLinker::Hoisted.into()));
 }
 
 #[test]
 fn a_placeholder_sets_a_boolean_setting() {
-    let set = parse_settings::<Env>("ignoreScripts: ${PNPM_TEST_IGNORE_SCRIPTS:-false}\n").unwrap();
-    let unset = parse_settings::<Env>("ignoreScripts: ${PNPM_TEST_UNSET:-false}\n").unwrap();
+    let set = parse_settings::<Env, WorkspaceSettings>(
+        "ignoreScripts: ${PNPM_TEST_IGNORE_SCRIPTS:-false}\n",
+    )
+    .unwrap();
+    let unset =
+        parse_settings::<Env, WorkspaceSettings>("ignoreScripts: ${PNPM_TEST_UNSET:-false}\n")
+            .unwrap();
 
     assert_eq!(set.ignore_scripts, Some(true));
     assert_eq!(unset.ignore_scripts, Some(false));
@@ -42,14 +51,17 @@ fn a_placeholder_sets_a_boolean_setting() {
 
 #[test]
 fn a_placeholder_sets_a_numeric_setting() {
-    let settings = parse_settings::<Env>("networkConcurrency: ${PNPM_TEST_UNSET:-4}\n").unwrap();
+    let settings =
+        parse_settings::<Env, WorkspaceSettings>("networkConcurrency: ${PNPM_TEST_UNSET:-4}\n")
+            .unwrap();
 
     assert_eq!(settings.network_concurrency, Some(4));
 }
 
 #[test]
 fn a_placeholder_sets_a_setting_that_also_accepts_a_boolean() {
-    let settings = parse_settings::<Env>("color: ${PNPM_TEST_UNSET:-never}\n").unwrap();
+    let settings =
+        parse_settings::<Env, WorkspaceSettings>("color: ${PNPM_TEST_UNSET:-never}\n").unwrap();
 
     assert_eq!(settings.color, Some(ColorMode::Never));
 }
@@ -57,7 +69,8 @@ fn a_placeholder_sets_a_setting_that_also_accepts_a_boolean() {
 #[test]
 fn a_placeholder_sets_a_setting_of_a_nested_section() {
     let settings =
-        parse_settings::<Env>("audit:\n  level: ${PNPM_TEST_UNSET:-critical}\n").unwrap();
+        parse_settings::<Env, WorkspaceSettings>("audit:\n  level: ${PNPM_TEST_UNSET:-critical}\n")
+            .unwrap();
 
     assert_eq!(settings.audit.and_then(|audit| audit.level), Some(AuditLevel::Critical));
 }
@@ -68,7 +81,7 @@ fn a_placeholder_sets_a_setting_of_a_nested_section() {
 /// token, which every setting outside these keys takes.
 #[test]
 fn a_request_destination_keeps_its_placeholder() {
-    let settings = parse_settings::<Env>(
+    let settings = parse_settings::<Env, WorkspaceSettings>(
         "nodeLinker: ${PNPM_TEST_UNSET:-isolated}
 registry: ${PNPM_TEST_HOST}
 httpsProxy: ${PNPM_TEST_HOST}
@@ -84,7 +97,7 @@ pnprServer: ${PNPM_TEST_HOST}
 
 #[test]
 fn a_value_that_expands_to_a_url_keeps_its_placeholder() {
-    let settings = parse_settings::<Env>(
+    let settings = parse_settings::<Env, WorkspaceSettings>(
         "nodeLinker: ${PNPM_TEST_UNSET:-isolated}\nstoreDir: ${PNPM_TEST_REGISTRY}\n",
     )
     .unwrap();
@@ -94,7 +107,8 @@ fn a_value_that_expands_to_a_url_keeps_its_placeholder() {
 
 #[test]
 fn a_placeholder_with_no_value_and_no_fallback_is_reported_as_written() {
-    let error = parse_settings::<Env>("nodeLinker: ${PNPM_TEST_UNSET}\n").unwrap_err();
+    let error =
+        parse_settings::<Env, WorkspaceSettings>("nodeLinker: ${PNPM_TEST_UNSET}\n").unwrap_err();
 
     assert!(error.to_string().contains("${PNPM_TEST_UNSET}"), "unexpected error: {error}");
 }
@@ -103,7 +117,8 @@ fn a_placeholder_with_no_value_and_no_fallback_is_reported_as_written() {
 /// name into the setting, and a build log must not be where it turns up.
 #[test]
 fn an_expansion_that_names_no_variant_stays_out_of_the_error() {
-    let error = parse_settings::<Env>("nodeLinker: ${PNPM_TEST_TOKEN}\n").unwrap_err();
+    let error =
+        parse_settings::<Env, WorkspaceSettings>("nodeLinker: ${PNPM_TEST_TOKEN}\n").unwrap_err();
 
     let message = error.to_string();
     assert!(message.contains("invalid environment-expanded value"), "unexpected: {message}");
@@ -112,7 +127,7 @@ fn an_expansion_that_names_no_variant_stays_out_of_the_error() {
 
 #[test]
 fn a_document_without_placeholders_keeps_the_error_of_the_text() {
-    let error = parse_settings::<Env>("nodeLinker: bogus\n").unwrap_err();
+    let error = parse_settings::<Env, WorkspaceSettings>("nodeLinker: bogus\n").unwrap_err();
 
     let message = error.to_string();
     assert!(message.contains("bogus"), "unexpected error: {message}");
@@ -123,9 +138,10 @@ fn a_document_without_placeholders_keeps_the_error_of_the_text() {
 /// other setting — which the first read already located.
 #[test]
 fn an_error_beside_a_resolved_placeholder_keeps_its_location() {
-    let error =
-        parse_settings::<Env>("hoist: notabool\nnodeLinker: ${PNPM_TEST_UNSET:-isolated}\n")
-            .unwrap_err();
+    let error = parse_settings::<Env, WorkspaceSettings>(
+        "hoist: notabool\nnodeLinker: ${PNPM_TEST_UNSET:-isolated}\n",
+    )
+    .unwrap_err();
 
     let message = error.to_string();
     assert!(message.contains("line 1"), "unexpected error: {message}");
@@ -137,7 +153,7 @@ fn an_error_beside_a_resolved_placeholder_keeps_its_location() {
 /// that knows which layer the file came from.
 #[test]
 fn a_placeholder_a_setting_can_hold_is_left_for_the_substitution() {
-    let mut settings = parse_settings::<Env>(
+    let mut settings = parse_settings::<Env, WorkspaceSettings>(
         "ignoreScripts: ${PNPM_TEST_UNSET:-false}
 cacheDir: ${PNPM_TEST_UNSET:-cache}
 userAgent: ${PNPM_TEST_HOST}
@@ -165,9 +181,10 @@ fn placeholders_the_document_reads_without_do_not_crowd_out_the_one_that_counts(
         padding
     });
 
-    let settings =
-        parse_settings::<Env>(&format!("nodeLinker: ${{PNPM_TEST_UNSET:-isolated}}\n{padding}"))
-            .unwrap();
+    let settings = parse_settings::<Env, WorkspaceSettings>(&format!(
+        "nodeLinker: ${{PNPM_TEST_UNSET:-isolated}}\n{padding}",
+    ))
+    .unwrap();
 
     assert_eq!(settings.node_linker, Some(NodeLinker::Isolated.into()));
 }
@@ -176,7 +193,7 @@ fn placeholders_the_document_reads_without_do_not_crowd_out_the_one_that_counts(
 /// which would let a file mean something it does not say.
 #[test]
 fn a_quoted_scalar_beside_a_resolved_placeholder_stays_quoted() {
-    parse_settings::<Env>(
+    parse_settings::<Env, WorkspaceSettings>(
         r#"ignoreScripts: ${PNPM_TEST_UNSET:-false}
 linkWorkspacePackages: "false"
 "#,
@@ -188,7 +205,7 @@ linkWorkspacePackages: "false"
 /// file spells it.
 #[test]
 fn a_scalar_beside_a_resolved_placeholder_keeps_its_text() {
-    let settings = parse_settings::<Env>(
+    let settings = parse_settings::<Env, WorkspaceSettings>(
         "nodeLinker: ${PNPM_TEST_UNSET:-isolated}
 nodeVersion: 20.10
 ",
@@ -202,7 +219,7 @@ nodeVersion: 20.10
 /// not swallow the next one along with it.
 #[test]
 fn an_unfinished_placeholder_does_not_hide_the_next_one() {
-    let settings = parse_settings::<Env>(
+    let settings = parse_settings::<Env, WorkspaceSettings>(
         "# example ${UNFINISHED
 ignoreScripts: ${PNPM_TEST_UNSET:-false}
 ",
@@ -216,9 +233,10 @@ ignoreScripts: ${PNPM_TEST_UNSET:-false}
 /// setting the file cannot mean is the one to name — wherever it sits.
 #[test]
 fn an_error_after_a_resolved_placeholder_names_the_setting_at_fault() {
-    let error =
-        parse_settings::<Env>("nodeLinker: ${PNPM_TEST_UNSET:-isolated}\nhoist: notabool\n")
-            .unwrap_err();
+    let error = parse_settings::<Env, WorkspaceSettings>(
+        "nodeLinker: ${PNPM_TEST_UNSET:-isolated}\nhoist: notabool\n",
+    )
+    .unwrap_err();
 
     let message = error.to_string();
     assert!(message.contains("notabool"), "unexpected error: {message}");
@@ -279,7 +297,7 @@ fn every_placeholder_of_a_document_driven_from_the_environment_resolves() {
             document
         });
 
-    let settings = parse_settings::<Env>(&document).unwrap();
+    let settings = parse_settings::<Env, WorkspaceSettings>(&document).unwrap();
 
     assert_eq!(settings.bail, Some(true));
     assert_eq!(settings.auto_install_peers, Some(true));

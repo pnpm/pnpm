@@ -1,4 +1,5 @@
 use super::{BTreeMap, Config, Path, WorkspaceSettings, assert_eq};
+use crate::TrustedSettings;
 
 #[test]
 fn tag_defaults_to_latest_and_applies_from_yaml() {
@@ -23,7 +24,8 @@ fn an_empty_tag_falls_back_to_latest() {
 fn tag_is_read_from_a_config_override() {
     let values = BTreeMap::from([("tag".to_string(), "beta".to_string())]);
     let mut config = Config::default();
-    WorkspaceSettings::from_string_values(&values).apply_to(&mut config, Path::new("/workspace"));
+    TrustedSettings::from_string_values(&values).settings
+        .apply_to(&mut config, Path::new("/workspace"));
     assert_eq!(config.default_tag(), "beta");
 }
 

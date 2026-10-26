@@ -1,9 +1,9 @@
 use super::{
     Candidate, Channel, Config, Display, GlobalShims, GlobalShimsSetting, Host,
-    LoadWorkspaceYamlError, PACKAGE_MANAGER_ENVS_DIR_NAME, PackageManager, Path, PathBuf,
-    ShimPolicy, Value, WorkspaceSettings, create_hex_hash, create_hex_hash_bytes,
-    default_config_dir, default_pnpm_home_dir, default_state_dir, local_bin_identity,
-    parse_node_specifier, resolve_configured_state_dir, trusted_runtime_config,
+    LoadWorkspaceYamlError, MachineSettings, PACKAGE_MANAGER_ENVS_DIR_NAME, PackageManager, Path,
+    PathBuf, SettingsRead, ShimPolicy, TrustedSettings, Value, create_hex_hash,
+    create_hex_hash_bytes, default_config_dir, default_pnpm_home_dir, default_state_dir,
+    local_bin_identity, parse_node_specifier, resolve_configured_state_dir, trusted_runtime_config,
     wanted_package_manager,
 };
 use node_semver::Range;
@@ -63,23 +63,23 @@ fn load_trusted_shim_settings() -> Result<TrustedShimSettings, LoadGlobalShimsSe
     let default_state_dir = default_state_dir::<Host>().unwrap_or_default();
     let mut state_dir = default_state_dir.clone();
     if let Some(config_dir) = default_config_dir::<Host>() {
-        let mut settings = WorkspaceSettings::load_global(&config_dir)
+        let mut settings = TrustedSettings::load_global(&config_dir)
             .map_err(LoadGlobalShimsSettingError::Workspace)?;
         if let Some(settings) = settings.as_mut() {
             settings.substitute_env_trusted::<Host>();
             apply_state_dir_setting(
                 &mut state_dir,
-                settings.state_dir.as_deref(),
+                settings.machine.state_dir.as_deref(),
                 &default_state_dir,
             );
-            if let Some(layer) = settings.global_shims.as_ref() {
+            if let Some(layer) = settings.machine.global_shims.as_ref() {
                 shims.apply(layer);
             }
         }
     }
     apply_settings_above_global_config(&mut shims)?;
-    let mut env_settings = WorkspaceSettings::from_pnpm_config_env::<Host>();
-    env_settings.substitute_env_trusted::<Host>();
+    let mut env_settings = TrustedSettings::from_pnpm_config_env::<Host>().machine;
+    env_settings.substitute_env::<Host>();
     apply_state_dir_setting(&mut state_dir, env_settings.state_dir.as_deref(), &default_state_dir);
     Ok(TrustedShimSettings { shims, state_dir })
 }
@@ -102,12 +102,12 @@ pub(super) fn apply_state_dir_setting(
 pub(crate) fn apply_settings_above_global_config(
     shims: &mut GlobalShims,
 ) -> Result<(), LoadGlobalShimsSettingError> {
-    if let Some(home) = default_pnpm_home_dir::<Host>() {
-        let settings =
-            WorkspaceSettings::load_at(&home).map_err(LoadGlobalShimsSettingError::Workspace)?;
-        if let Some(layer) = settings.and_then(|settings| settings.global_shims) {
-            shims.apply(&layer);
-        }
+    if let Some(home) = default_pnpm_home_dir::<Host>()
+        && let Some(layer) =
+            MachineSettings::load_pnpm_home_global_shims::<Host>(&home, SettingsRead::All)
+                .map_err(LoadGlobalShimsSettingError::Workspace)?
+    {
+        shims.apply(&layer);
     }
     for env_name in ["PNPM_CONFIG_GLOBAL_SHIMS", "pnpm_config_global_shims"] {
         if let Ok(value) = std::env::var(env_name)
