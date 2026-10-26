@@ -78,7 +78,7 @@ impl SharedArtifactStore {
         owner: &OwnerScope,
         integrity: &str,
         size: u64,
-        body: impl Stream<Item = std::result::Result<Bytes, StreamError>> + Unpin,
+        mut body: impl Stream<Item = std::result::Result<Bytes, StreamError>> + Unpin,
     ) -> Result<bool> {
         let request =
             ArtifactBlobRequest { owner: owner.clone(), integrity: integrity.to_string() };
@@ -97,6 +97,11 @@ impl SharedArtifactStore {
             .await?
             .is_some()
         {
+            let mut received = ReceivedBlob { integrity, size, hasher: Sha512::new(), bytes: 0 };
+            while let Some(chunk) = body.next().await {
+                received.accept(chunk)?;
+            }
+            received.finish()?;
             return Ok(false);
         }
         let publication = artifact_operation_id()?;

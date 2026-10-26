@@ -68,6 +68,10 @@ async fn a_blob_uploaded_alone_completes_a_publication_that_carries_none() {
     let again = store.store_blob("acme", &owner, &upload.integrity, size, body(&bytes));
     assert!(!again.await.unwrap(), "an upload of a stored blob stores nothing");
     assert_eq!(global_bytes(&store).await, size, "a stored blob is charged once");
+    store
+        .store_blob("acme", &owner, &upload.integrity, size, body(b"altered addon"))
+        .await
+        .expect_err("a duplicate upload with mismatched bytes is still rejected");
 
     assert!(store.publish("acme", request).await.unwrap());
     let response = store
