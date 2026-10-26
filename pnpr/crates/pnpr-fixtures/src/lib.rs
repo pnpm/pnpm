@@ -140,17 +140,23 @@ pub fn remove_version(storage: &Path, package: &str, version: &str) {
             .max()
             .unwrap_or_else(|| panic!("{package} keeps a version after removing {version}"))
             .to_string();
-        if let Some(tags) = packument_object.get_mut("dist-tags").and_then(Value::as_object_mut) {
-            for tag in tags.values_mut() {
-                if tag.as_str() == Some(version) {
-                    *tag = json!(highest);
-                }
-            }
-        }
+        move_dist_tags(packument_object, version, &highest);
         if let Some(time) = packument_object.get_mut("time").and_then(Value::as_object_mut) {
             time.remove(version);
         }
     });
+}
+
+/// Point every `dist-tags` entry naming `from` at `to`.
+fn move_dist_tags(packument_object: &mut Map<String, Value>, from: &str, to: &str) {
+    let Some(tags) = packument_object.get_mut("dist-tags").and_then(Value::as_object_mut) else {
+        return;
+    };
+    for tag in tags.values_mut() {
+        if tag.as_str() == Some(from) {
+            *tag = json!(to);
+        }
+    }
 }
 
 fn edit_packument(storage: &Path, package: &str, edit: impl FnOnce(&mut Map<String, Value>)) {
