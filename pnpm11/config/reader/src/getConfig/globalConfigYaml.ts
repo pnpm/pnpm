@@ -5,10 +5,11 @@ import kebabCase from 'lodash.kebabcase'
 
 import { isConfigFileKey } from '../configFileKey.js'
 import { getGlobalConfigPath } from '../dirs.js'
+import type { OptionsFromRootManifest } from '../getOptionsFromRootManifest.js'
 import { quoteAndJoin } from '../quoteAndJoin.js'
 import { isKnownSettingKey, quoteAndAnnotateUnknown } from '../unknownSettings.js'
 import type { ConfigBuildState } from './configBuildState.js'
-import type { BootstrapNetworkSettings } from './registries.js'
+import type { BootstrapNetworkSettings, ProxySettings } from './registries.js'
 import {
   GLOBAL_CONFIG_SKIPPED_KEYS,
   isRefusedByAProjectManifest,
@@ -40,7 +41,7 @@ export function applyGlobalYamlConfig (
   if (droppedKeys.ignoredKeys.length > 0 || droppedKeys.kebabKeys.length > 0) {
     warnAboutDroppedGlobalConfigKeys(state.warnings, { ...droppedKeys, globalYamlConfigPath: getGlobalConfigPath(configDir) })
   }
-  const { httpProxy, httpsProxy, localAddress, noProxy, strictSsl } = addSettingsFromWorkspaceManifestToConfig(state.pnpmConfig, {
+  const settings = addSettingsFromWorkspaceManifestToConfig(state.pnpmConfig, {
     configFromCliOpts: state.configFromCliOpts,
     expandRequestDestinationEnv: true,
     projectManifest: undefined,
@@ -51,8 +52,13 @@ export function applyGlobalYamlConfig (
   })
   return {
     registries: state.pnpmConfig.registriesByScope as Record<string, string> | undefined,
-    bootstrapNetworkSettings: { httpProxy, httpsProxy, localAddress, noProxy, strictSsl },
+    bootstrapNetworkSettings: pickBootstrapNetworkSettings(settings),
   }
+}
+
+function pickBootstrapNetworkSettings (settings: OptionsFromRootManifest & ProxySettings): BootstrapNetworkSettings {
+  const { httpProxy, httpsProxy, localAddress, noProxy, noproxy, proxy, strictSsl } = settings
+  return { httpProxy, httpsProxy, localAddress, noProxy, noproxy, proxy, strictSsl }
 }
 
 interface DroppedGlobalConfigKeys {

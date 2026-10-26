@@ -2383,6 +2383,34 @@ test.each([
   expect(config.packageManagerNetworkConfig?.noProxy).toBe('env.example.com')
 })
 
+test('the legacy proxy and noproxy of the global config.yaml and PNPM_CONFIG_* reach the package manager bootstrap', async () => {
+  prepareEmpty()
+
+  fs.writeFileSync('user.npmrc', [
+    'proxy=http://npmrc-legacy.example.com:8080/',
+    'noproxy=npmrc.example.com',
+    '',
+  ].join('\n'), 'utf8')
+  const cliOptions = { userconfig: path.resolve('user.npmrc') }
+
+  const fromYaml = await getConfigWithGlobalYaml(
+    { proxy: 'http://global-legacy.example.com:8080/', noproxy: 'global.example.com' },
+    { cliOptions, workspaceDir: process.cwd() }
+  )
+  expect(fromYaml.config.packageManagerNetworkConfig).toMatchObject({
+    httpProxy: 'http://global-legacy.example.com:8080/',
+    httpsProxy: 'http://global-legacy.example.com:8080/',
+    noProxy: 'global.example.com',
+  })
+
+  const disabledByEnv = await getConfigWithGlobalYaml(
+    { proxy: 'http://global-legacy.example.com:8080/' },
+    { cliOptions, env: { PNPM_CONFIG_PROXY: 'false', HTTPS_PROXY: 'http://env.example.com:8080/' }, workspaceDir: process.cwd() }
+  )
+  expect(disabledByEnv.config.packageManagerNetworkConfig?.httpsProxy).toBeUndefined()
+  expect(disabledByEnv.config.packageManagerNetworkConfig?.httpProxy).toBeUndefined()
+})
+
 test('CLI --registry overrides pnpm-workspace.yaml registries.default (#10099)', async () => {
   prepareEmpty()
 

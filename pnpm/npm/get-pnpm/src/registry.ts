@@ -57,7 +57,8 @@ type ProxyCapableHttp = typeof http & {
 /**
  * Routes every request made until the returned function is called through the
  * proxy `proxyEnv` names in `HTTPS_PROXY`/`HTTP_PROXY`, honouring `NO_PROXY`.
- * A no-op when it names none.
+ * A no-op when it names none, which leaves a proxy Node.js applied at startup
+ * in place.
  *
  * `fetch` reads those variables only when Node was started with
  * `NODE_USE_ENV_PROXY=1`, which nothing that embeds this package controls:

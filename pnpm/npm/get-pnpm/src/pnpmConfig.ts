@@ -70,27 +70,30 @@ export interface PnpmProxyConfigOptions {
   platform?: NodeJS.Platform
 }
 
-/** A proxy setting as one source spells it. */
+/** The proxy keys as one source spells them. */
 interface ProxySettings {
   httpsProxy?: unknown
   httpProxy?: unknown
   noProxy?: unknown
+  noproxy?: unknown
+  proxy?: unknown
 }
 
 /**
  * The proxy to download pnpm through, resolved the way pnpm resolves it for
  * `pnpm self-update` and the download of the version a project pins.
  *
- * - `httpsProxy`, `httpProxy`, and `noProxy` come from the first source that
- *   names them, highest first: `PNPM_CONFIG_HTTPS_PROXY`,
- *   `PNPM_CONFIG_HTTP_PROXY`, and `PNPM_CONFIG_NO_PROXY`, then the global
- *   `config.yaml`, then the user `.npmrc`. The project's `.npmrc` and
- *   `pnpm-workspace.yaml` do not count.
- * - An empty, `false`, or `null` value reads as unset. The `.npmrc`'s `proxy`
- *   then stands in for `https-proxy`, and `noproxy` for `no-proxy`, and after
- *   them `HTTPS_PROXY`, `HTTP_PROXY`, `PROXY`, and `NO_PROXY` apply.
- * - The HTTP proxy defaults to the HTTPS one. `proxy=false` turns both off,
- *   the environment included.
+ * - Each of `httpsProxy`, `httpProxy`, `noProxy`, `proxy`, and `noproxy`
+ *   comes from the first source that names it, highest first: the
+ *   `PNPM_CONFIG_*` variables, then the global `config.yaml`, then the user
+ *   `.npmrc`. The project's `.npmrc` and `pnpm-workspace.yaml` do not count.
+ * - An empty, `false`, or `null` value reads as unset. `proxy` then stands in
+ *   for `httpsProxy`, and `noproxy` for `noProxy`, and after them
+ *   `HTTPS_PROXY`, `HTTP_PROXY`, `PROXY`, and `NO_PROXY` apply.
+ * - The HTTP proxy defaults to the HTTPS one. `proxy` set to `false` turns
+ *   both off, the environment included.
+ *
+ * @throws if the global `config.yaml` cannot be read or parsed, as pnpm does.
  */
 export function pnpmProxyConfig (opts: PnpmProxyConfigOptions = {}): ProxyEnv {
   const env = opts.env ?? process.env
@@ -102,17 +105,25 @@ export function pnpmProxyConfig (opts: PnpmProxyConfigOptions = {}): ProxyEnv {
       httpsProxy: pnpmSettingFromEnv(env, 'https_proxy'),
       httpProxy: pnpmSettingFromEnv(env, 'http_proxy'),
       noProxy: pnpmSettingFromEnv(env, 'no_proxy'),
+      noproxy: pnpmSettingFromEnv(env, 'noproxy'),
+      proxy: pnpmSettingFromEnv(env, 'proxy'),
     },
     readGlobalConfigProxySettings(opts, env),
-    { httpsProxy: npmrc.get('https-proxy'), httpProxy: npmrc.get('http-proxy'), noProxy: npmrc.get('no-proxy') },
+    {
+      httpsProxy: npmrc.get('https-proxy'),
+      httpProxy: npmrc.get('http-proxy'),
+      noProxy: npmrc.get('no-proxy'),
+      noproxy: npmrc.get('noproxy'),
+      proxy: npmrc.get('proxy'),
+    },
   ]
-  const legacyProxy = npmrc.get('proxy')
+  const legacyProxy = overlaid(overlays, 'proxy')
   const httpsProxySetting = proxyUrl(overlaid(overlays, 'httpsProxy')) ??
-    (legacyProxy === 'false' ? false : proxyUrl(legacyProxy))
+    (legacyProxy === false || legacyProxy === 'false' ? false : proxyUrl(legacyProxy))
   const httpsProxy = httpsProxySetting === false ? undefined : httpsProxySetting ?? envValue(env, 'https_proxy')
   const httpProxy = proxyUrl(overlaid(overlays, 'httpProxy')) ??
     (httpsProxySetting === false ? undefined : httpsProxy ?? envValue(env, 'http_proxy') ?? envValue(env, 'proxy'))
-  const noProxy = noProxyValue(overlaid(overlays, 'noProxy')) ?? noProxyValue(npmrc.get('noproxy')) ?? envValue(env, 'no_proxy')
+  const noProxy = noProxyValue(overlaid(overlays, 'noProxy')) ?? noProxyValue(overlaid(overlays, 'noproxy')) ?? envValue(env, 'no_proxy')
   return {
     ...(httpsProxy == null ? {} : { HTTPS_PROXY: httpsProxy }),
     ...(httpProxy == null ? {} : { HTTP_PROXY: httpProxy }),
@@ -149,17 +160,20 @@ function readGlobalConfigProxySettings (opts: PnpmProxyConfigOptions, env: NodeJ
   try {
     settings = parseYAML(fs.readFileSync(file, 'utf8'))
   } catch (err) {
-    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
-      console.warn(`Could not read ${file}, so its proxy settings are not used: ${(err as Error).message}`)
-    }
-    return {}
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return {}
+    throw new Error(`Could not read ${file}: ${(err as Error).message}`, { cause: err })
   }
-  if (settings == null || typeof settings !== 'object') return {}
-  const { httpsProxy, httpProxy, noProxy } = settings as ProxySettings
+  if (settings == null) return {}
+  if (typeof settings !== 'object' || Array.isArray(settings)) {
+    throw new Error(`${file} does not hold a map of settings.`)
+  }
+  const { httpsProxy, httpProxy, noProxy, noproxy, proxy } = settings as ProxySettings
   return {
     httpsProxy: expandEnvIn(httpsProxy, env),
     httpProxy: expandEnvIn(httpProxy, env),
     noProxy: expandEnvIn(noProxy, env),
+    noproxy: expandEnvIn(noproxy, env),
+    proxy: expandEnvIn(proxy, env),
   }
 }
 
@@ -171,12 +185,46 @@ function expandEnvIn (value: unknown, env: NodeJS.ProcessEnv): unknown {
 
 /** The directory pnpm keeps the global `config.yaml` in. */
 function pnpmConfigDir (opts: PnpmProxyConfigOptions, env: NodeJS.ProcessEnv): string {
-  if (env.XDG_CONFIG_HOME) return path.join(env.XDG_CONFIG_HOME, 'pnpm')
-  const homeDir = opts.homeDir ?? os.homedir()
   const platform = opts.platform ?? process.platform
+  const dirFromEnv = (name: string): string | undefined => {
+    const value = env[name]
+    return value && platform === 'win32' ? expandWindowsEnv(name, value, env) : value || undefined
+  }
+  const xdgConfigHome = dirFromEnv('XDG_CONFIG_HOME')
+  if (xdgConfigHome) return path.join(xdgConfigHome, 'pnpm')
+  const homeDir = opts.homeDir ?? os.homedir()
   if (platform === 'darwin') return path.join(homeDir, 'Library/Preferences/pnpm')
-  if (platform === 'win32' && env.LOCALAPPDATA) return path.join(env.LOCALAPPDATA, 'pnpm/config')
+  const localAppData = platform === 'win32' ? dirFromEnv('LOCALAPPDATA') : undefined
+  if (localAppData) return path.join(localAppData, 'pnpm/config')
   return path.join(homeDir, '.config/pnpm')
+}
+
+/** The longest value Windows allows in an environment variable. */
+const MAX_WINDOWS_ENV_LENGTH = 32_767
+
+/**
+ * Expands the `%NAME%` references Windows leaves in a value it did not expand
+ * itself, as pnpm does before using the value as a directory.
+ *
+ * @throws if a reference names no variable, as pnpm does.
+ */
+function expandWindowsEnv (name: string, value: string, env: NodeJS.ProcessEnv): string {
+  const lookup = (varName: string): string | undefined => {
+    const key = Object.keys(env).find((candidate) => candidate.toUpperCase() === varName.toUpperCase())
+    return key == null ? undefined : env[key]
+  }
+  let current = value
+  // Bounded, because a variable can reference itself, even twice over.
+  for (let round = 0; round < 32 && current.includes('%'); round++) {
+    const next = current.replace(/%([^%]+)%/g, (reference, varName: string) => lookup(varName) ?? reference)
+    if (next === current || next.length > MAX_WINDOWS_ENV_LENGTH) break
+    current = next
+  }
+  const unexpanded = /%[^%]+%/.exec(current)
+  if (unexpanded != null) {
+    throw new Error(`${name} contains an unexpanded environment variable: ${unexpanded[0]}`)
+  }
+  return current
 }
 
 type ParseEntry = (key: string, value: string, file: string) => [string, string] | undefined
@@ -238,8 +286,20 @@ function topLevelSettings (text: string): Array<[string, string]> {
   return settings
 }
 
+/**
+ * Replaces `${NAME}` with the variable, or with nothing when it is unset.
+ * `${NAME-fallback}` falls back when the variable is unset, and
+ * `${NAME:-fallback}` also when it is empty, as in pnpm.
+ */
 function expandEnv (value: string, env: NodeJS.ProcessEnv): string {
-  return value.replace(/\$\{([^${}]+)\}/g, (_match, name: string) => env[name] ?? '')
+  return value.replace(/\$\{([^${}]+)\}/g, (_match, expression: string) => {
+    const dash = expression.indexOf('-')
+    if (dash === -1) return env[expression] ?? ''
+    const fallbackOnEmpty = expression[dash - 1] === ':'
+    const variable = env[expression.slice(0, fallbackOnEmpty ? dash - 1 : dash)]
+    const fallback = expression.slice(dash + 1)
+    return (fallbackOnEmpty ? variable || undefined : variable) ?? fallback
+  })
 }
 
 function npmrcHeaders (settings: Map<string, string>, registry: string): RequestHeaders | undefined {

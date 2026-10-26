@@ -3,10 +3,10 @@ import kebabCase from 'lodash.kebabcase'
 import normalizeRegistryUrl from 'normalize-registry-url'
 import { omit } from 'ramda'
 
-import type { Config } from '../Config.js'
 import { parseEnvVars, type Schema } from '../env.js'
 import { types } from '../types.js'
 import type { ConfigBuildState } from './configBuildState.js'
+import type { ProxySettings } from './registries.js'
 import { applySideEffectsCacheDeclaration } from './sideEffectsCache.js'
 
 export function getProcessEnv (env: string): string | undefined {
@@ -92,13 +92,13 @@ const ENV_PNPM_TYPES = {
   'max-sockets': Number,
 }
 
-const PROXY_ENV_KEYS = new Set(['http-proxy', 'https-proxy', 'no-proxy'])
+const PROXY_ENV_KEYS = new Set(['http-proxy', 'https-proxy', 'no-proxy', 'noproxy', 'proxy'])
 
 /**
  * The proxy settings `PNPM_CONFIG_*` carries. The environment is not
  * repository-controlled, so the package-manager bootstrap reads them too.
  */
-export function readEnvProxySettings (env: NodeJS.ProcessEnv): Pick<Config, 'httpProxy' | 'httpsProxy' | 'noProxy'> {
+export function readEnvProxySettings (env: NodeJS.ProcessEnv): ProxySettings {
   const settings: Record<string, unknown> = {}
   for (const { key, value } of parseEnvVars(getProxyEnvSchema, env)) {
     if (value !== undefined) settings[key] = value
