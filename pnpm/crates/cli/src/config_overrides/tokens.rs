@@ -226,13 +226,6 @@ fn is_node_linker(value: &str) -> bool {
         || parse_enum::<NodeLinkerSetting>(value).is_some()
 }
 
-/// The settings of [`BARE_SETTING_FLAGS`], as the kebab-case names their
-/// flags spell.
-#[cfg(test)]
-pub(crate) fn bare_setting_flag_names() -> impl Iterator<Item = &'static str> {
-    BARE_SETTING_FLAGS.into_iter().map(|(name, _)| name)
-}
-
 fn named_bare_setting_flag(key: &str) -> Option<(&'static str, SettingArity)> {
     BARE_SETTING_FLAGS
         .into_iter()

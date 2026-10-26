@@ -52,7 +52,7 @@ fn is_skipped_dir(entry: &DirEntry) -> bool {
     entry.file_type().is_dir()
         && matches!(
             entry.file_name().to_str(),
-            Some("docs" | "node_modules" | "target" | "test" | "tests")
+            Some("docs" | "node_modules" | "target" | "test" | "tests"),
         )
 }
 
@@ -117,13 +117,13 @@ fn error_page_headings() -> Vec<String> {
 #[test]
 fn a_markdown_escaped_code_reads_as_the_code_it_names() {
     let codes =
-        codes_in("fails with `ERR\\_PNPM\\_TARBALL\\_INTEGRITY` or ERR_PNPM_NO_OFFLINE_META.");
+        codes_in(r"fails with `ERR\_PNPM\_TARBALL\_INTEGRITY` or ERR_PNPM_NO_OFFLINE_META.");
     assert_eq!(
         codes,
         BTreeSet::from([
             "ERR_PNPM_TARBALL_INTEGRITY".to_owned(),
-            "ERR_PNPM_NO_OFFLINE_META".to_owned()
-        ])
+            "ERR_PNPM_NO_OFFLINE_META".to_owned(),
+        ]),
     );
     assert_eq!(codes_in("the ERR_PNPM_ prefix"), BTreeSet::new());
 }

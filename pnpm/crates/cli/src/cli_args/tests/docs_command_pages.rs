@@ -10,13 +10,16 @@
 //! it delegates to with a sentence such as "accepts the options of
 //! [`pnpm install`](./install.md)". A `--no-` flag and its positive form
 //! document each other. Global flags are documented with a flag heading or
-//! a heading naming their setting anywhere under `pnpm/docs`.
+//! a heading naming their setting anywhere under `pnpm/docs`. A flag that
+//! spells a setting is accepted by every command, since the config
+//! overrides claim it before clap parses the command line.
 
 use super::CliArgs;
-use crate::config_overrides::bare_setting_flag_names;
+use crate::config_overrides::ConfigOverrides;
 use clap::{Arg, Command, CommandFactory};
 use std::{
     collections::{BTreeMap, BTreeSet},
+    ffi::OsString,
     fmt::Write as _,
     path::{Path, PathBuf},
 };
@@ -35,8 +38,9 @@ const DOCUMENTED_UNKNOWN_FLAGS: &[&str] = &[];
 
 /// Commands with no page under `pnpm/docs/cli`.
 const COMMANDS_WITHOUT_A_PAGE: &[&str] = &[
-    "edit", // not implemented; the command says to use npm
-    "restart", "stop", "xmas", // not implemented; the command says to use npm
+    // Not implemented: the command says to use npm.
+    "edit", "restart", "stop", // Not implemented: the command says to use npm.
+    "xmas",
 ];
 
 /// Global flags with no heading anywhere under `pnpm/docs`.
@@ -209,20 +213,26 @@ fn own_flags(page: &str) -> BTreeSet<String> {
         .collect()
 }
 
+/// The flags documented on the pages that `page` delegates to, resolved
+/// against the directory of `page`.
+fn delegated_flags(page: &str, visited: &mut BTreeSet<String>) -> BTreeSet<String> {
+    let dir = page.rsplit_once('/').map_or("", |(dir, _)| dir);
+    prose_lines(&read_doc(&docs_dir().join(page)))
+        .flat_map(delegated_pages)
+        .map(|delegated| if dir.is_empty() { delegated } else { format!("{dir}/{delegated}") })
+        .collect::<Vec<_>>()
+        .into_iter()
+        .flat_map(|delegated| page_flags(&delegated, visited).all)
+        .collect()
+}
+
 /// The flags documented on `page` (relative to `pnpm/docs`), and on the
 /// pages it delegates to.
 fn page_flags(page: &str, visited: &mut BTreeSet<String>) -> PageFlags {
     let own = own_flags(page);
     let mut all = own.clone();
     if visited.insert(page.to_owned()) {
-        let dir = page.rsplit_once('/').map_or("", |(dir, _)| dir);
-        for line in prose_lines(&read_doc(&docs_dir().join(page))) {
-            for delegated in delegated_pages(line) {
-                let delegated =
-                    if dir.is_empty() { delegated } else { format!("{dir}/{delegated}") };
-                all.extend(page_flags(&delegated, visited).all);
-            }
-        }
+        all.extend(delegated_flags(page, visited));
     }
     PageFlags { own, all }
 }
@@ -282,12 +292,20 @@ fn global_flag_is_documented(flag: &str, documented: &BTreeSet<String>) -> bool 
             .any(|setting| documented.contains(setting))
 }
 
-/// The spellings every command accepts because they name a setting:
-/// `--<setting>` and `--no-<setting>`, claimed before clap parses argv.
-fn bare_setting_spellings() -> BTreeSet<String> {
-    bare_setting_flag_names()
-        .flat_map(|name| [format!("--{name}"), format!("--no-{name}")])
-        .collect()
+/// Whether the config overrides claim `flag` on the command line of the
+/// command at `path` before clap sees it, as they do for a flag that spells
+/// a setting. A setting that takes a value is tried with one.
+fn is_bare_setting_flag(path: &[&str], flag: &str) -> bool {
+    let argv = |tail: &[&str]| {
+        std::iter::once("pnpm")
+            .chain(path.iter().copied())
+            .chain(tail.iter().copied())
+            .map(OsString::from)
+            .collect::<Vec<_>>()
+    };
+    [argv(&[flag]), argv(&[flag, "value"])]
+        .into_iter()
+        .any(|argv| !ConfigOverrides::extract(argv).1.contains(&OsString::from(flag)))
 }
 
 fn long_spellings(arg: &Arg) -> Vec<String> {
@@ -375,24 +393,58 @@ fn visible_commands<'a>(
     }
 }
 
-/// The flags every command documented on a page accepts, keyed by page.
-fn accepted_per_page(
-    commands: &[(Vec<&str>, &Command)],
+/// The commands documented on each page, keyed by page, recording the
+/// commands that have none.
+fn commands_per_page<'a>(
+    commands: &[(Vec<&'a str>, &'a Command)],
     gaps: &mut Gaps,
-) -> BTreeMap<String, BTreeSet<String>> {
-    let mut accepted: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+) -> BTreeMap<String, Vec<(Vec<&'a str>, &'a Command)>> {
+    let mut pages: BTreeMap<String, Vec<(Vec<&str>, &Command)>> = BTreeMap::new();
     for (path, command) in commands {
         match page_for(path) {
-            Some(page) => accepted
+            Some(page) => pages
                 .entry(page)
                 .or_default()
-                .extend(command_flags(command).accepted),
+                .push((path.clone(), command)),
             None => {
                 gaps.commands_without_a_page.insert(path.join(" "));
             }
         }
     }
-    accepted
+    pages
+}
+
+/// The flags the commands on `page` have to document and do not.
+fn undocumented_flags(page: &PageFlags, commands: &[(Vec<&str>, &Command)]) -> Vec<String> {
+    commands
+        .iter()
+        .flat_map(|(path, command)| {
+            command_flags(command).required
+                .into_iter()
+                .filter(|flag| !documents(&page.all, flag))
+                .map(|flag| format!("{} {flag}", path.join(" ")))
+                .collect::<Vec<_>>()
+        })
+        .collect()
+}
+
+/// The flags `page` documents that none of its commands accepts.
+fn documented_unknown_flags(
+    page: &PageFlags,
+    commands: &[(Vec<&str>, &Command)],
+    global: &CommandFlags,
+) -> Vec<String> {
+    let accepted: BTreeSet<String> = commands
+        .iter()
+        .flat_map(|(_, command)| command_flags(command).accepted)
+        .collect();
+    page.own
+        .iter()
+        .filter(|flag| !accepted.contains(*flag) && !global.accepted.contains(*flag))
+        .filter(|flag| !SHORTHAND_FLAGS.contains(&flag.as_str()))
+        .filter(|flag| !commands.iter().any(|(path, _)| is_bare_setting_flag(path, flag)))
+        .cloned()
+        .collect()
 }
 
 fn find_gaps() -> Gaps {
@@ -405,34 +457,17 @@ fn find_gaps() -> Gaps {
         .filter(|flag| !global_flag_is_documented(flag, &documented))
         .cloned()
         .collect();
-    let bare_settings = bare_setting_spellings();
 
     let mut commands = Vec::new();
     visible_commands(&root, &[], &mut commands);
-    let accepted = accepted_per_page(&commands, &mut gaps);
-    let pages: BTreeMap<&String, PageFlags> = accepted
-        .keys()
-        .map(|page| (page, page_flags(page, &mut BTreeSet::new())))
-        .collect();
-    for (path, command) in &commands {
-        let Some(page) = page_for(path) else { continue };
-        let name = path.join(" ");
-        for flag in &command_flags(command).required {
-            if !documents(&pages[&page].all, flag) {
-                gaps.undocumented_flags.insert(format!("{name} {flag}"));
-            }
-        }
-    }
-    for (page, flags) in &pages {
-        for flag in &flags.own {
-            let known = accepted[*page].contains(flag)
-                || global.accepted.contains(flag)
-                || bare_settings.contains(flag)
-                || SHORTHAND_FLAGS.contains(&flag.as_str());
-            if !known {
-                gaps.documented_unknown_flags.insert(format!("{page} {flag}"));
-            }
-        }
+    for (page, commands) in commands_per_page(&commands, &mut gaps) {
+        let flags = page_flags(&page, &mut BTreeSet::new());
+        gaps.undocumented_flags.extend(undocumented_flags(&flags, &commands));
+        gaps.documented_unknown_flags.extend(
+            documented_unknown_flags(&flags, &commands, &global)
+                .into_iter()
+                .map(|flag| format!("{page} {flag}")),
+        );
     }
     gaps
 }
@@ -459,8 +494,8 @@ fn report_kind(report: &mut String, kind: &str, found: &BTreeSet<String>, allowe
 #[test]
 fn a_heading_documents_the_flags_it_starts_with() {
     assert_eq!(heading_flags("--save-dev, -D"), ["--save-dev", "-D"]);
-    assert_eq!(heading_flags("--registry &lt;url\\>"), ["--registry"]);
-    assert_eq!(heading_flags("--reporter=&lt;name\\>"), ["--reporter"]);
+    assert_eq!(heading_flags(r"--registry &lt;url\>"), ["--registry"]);
+    assert_eq!(heading_flags(r"--reporter=&lt;name\>"), ["--reporter"]);
     assert_eq!(heading_flags("`--filter <package_selector>`"), ["--filter"]);
     assert_eq!(heading_flags("--[no-]bail"), ["--bail", "--no-bail"]);
     assert_eq!(heading_flags("prune"), Vec::<String>::new());
@@ -479,28 +514,37 @@ fn a_negatable_flag_and_its_positive_form_document_each_other() {
 fn a_global_flag_is_documented_by_its_setting_name() {
     assert_eq!(setting_names("--store-dir"), ["storeDir"]);
     assert_eq!(setting_names("--no-proxy"), ["proxy", "noProxy"]);
-    let documented = BTreeSet::from(["[no-]color".trim_start_matches("[no-]").to_owned()]);
+    let documented = BTreeSet::from(["color".to_owned()]);
     assert!(global_flag_is_documented("--color", &documented));
     assert!(!global_flag_is_documented("--registry", &documented));
+}
+
+#[test]
+fn a_flag_that_spells_a_setting_is_accepted_by_every_command() {
+    assert!(is_bare_setting_flag(&["install"], "--shamefully-hoist"));
+    assert!(is_bare_setting_flag(&["install"], "--no-lockfile"));
+    assert!(is_bare_setting_flag(&["prune"], "--trust-lockfile"));
+    assert!(is_bare_setting_flag(&["store", "prune"], "--virtual-store-dir"));
+    assert!(!is_bare_setting_flag(&["install"], "--not-a-setting"));
 }
 
 #[test]
 fn a_sentence_about_options_delegates_to_the_pages_it_links() {
     assert_eq!(
         delegated_pages("`pnpm ci` accepts the options of [`pnpm install`](./install.md), such as"),
-        ["install.md"]
+        ["install.md"],
     );
     assert_eq!(
         delegated_pages(
             "The [recursive options](./recursive.md#options), such as `--sort`, apply."
         ),
-        ["recursive.md"]
+        ["recursive.md"],
     );
     assert_eq!(
         delegated_pages(
             "[Read about this option in the run command docs](./run.md#--report-summary)"
         ),
-        Vec::<String>::new()
+        Vec::<String>::new(),
     );
 }
 
