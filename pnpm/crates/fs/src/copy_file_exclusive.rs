@@ -75,8 +75,8 @@ impl CopyPermissions {
         }
     }
 
-    /// Apply these permissions to whatever `path` names, following a link
-    /// at `path` as [`fs::set_permissions`] does.
+    /// Apply these permissions to whatever `path` names, following a final
+    /// symlink as [`fs::set_permissions`] does. WASI refuses one instead.
     pub fn apply_to_path(&self, path: &Path) -> io::Result<()> {
         #[cfg(not(target_os = "wasi"))]
         {
