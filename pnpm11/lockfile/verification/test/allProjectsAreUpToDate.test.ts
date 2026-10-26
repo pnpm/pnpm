@@ -11,7 +11,7 @@ import type { LockfileObject, PackageSnapshot, ProjectSnapshot, TarballResolutio
 import { allProjectsAreUpToDate, checkLinkedPackagesAreUpToDate, findPackageTarballIntegrityMismatch, resolveLocalTarballPath } from '@pnpm/lockfile.verification'
 import { prepareEmpty } from '@pnpm/prepare'
 import type { WorkspacePackages } from '@pnpm/resolving.resolver-base'
-import type { DependencyManifest, DepPath, ProjectId, ProjectRootDir, ReadPackageHook } from '@pnpm/types'
+import type { BaseManifest, DependencyManifest, DepPath, ProjectId, ProjectRootDir, ReadPackageHook } from '@pnpm/types'
 import tar from 'tar-stream'
 
 const fooManifest = {
@@ -1467,6 +1467,44 @@ describe('transitive local directory dependency', () => {
   })
   test('checkLinkedPackagesAreUpToDate(): accepts an unchanged chain of local directory dependencies', async () => {
     expect((await checkLinkedPackagesAreUpToDate(ctx(), project)).upToDate).toBe(true)
+  })
+  test('checkLinkedPackagesAreUpToDate(): checks a shared transitive directory once across direct dependencies', async () => {
+    await mkdir('c')
+    await writeFile('./c/package.json', JSON.stringify({ name: 'c', version: '1.0.0', dependencies: { b: 'file:../b' } }))
+    let bDependenciesReads = 0
+    const checkContext = {
+      ...ctx(),
+      hookedManifests: new Map(),
+      resolution: {
+        readPackageHook: async <Pkg extends BaseManifest>(manifest: Pkg) => {
+          if (manifest.name !== 'b') return manifest
+          return new Proxy(manifest, {
+            get (target, property, receiver) {
+              if (property === 'dependencies') bDependenciesReads++
+              return Reflect.get(target, property, receiver)
+            },
+          })
+        },
+      },
+      lockfilePackages: {
+        ...lockfilePackages,
+        'c@file:./c': {
+          resolution: { directory: './c', type: 'directory' },
+          version: '1.0.0',
+          dependencies: { b: 'file:./b' },
+        },
+      } as LockfileObject['packages'],
+    }
+    const projectWithSharedDependency = {
+      ...project,
+      manifest: { dependencies: { a: 'file:./a', c: 'file:./c' } },
+      snapshot: {
+        dependencies: { a: 'file:./a', c: 'file:./c' },
+        specifiers: { a: 'file:./a', c: 'file:./c' },
+      } as ProjectSnapshot,
+    }
+    expect((await checkLinkedPackagesAreUpToDate(checkContext, projectWithSharedDependency)).upToDate).toBe(true)
+    expect(bDependenciesReads).toBe(3)
   })
   test('checkLinkedPackagesAreUpToDate(): reports a transitive local directory dependency whose own dependencies changed (pnpm/pnpm#17128)', async () => {
     await writeFile('./b/package.json', JSON.stringify({ name: 'b', version: '1.0.0', dependencies: { leaf: 'file:../leaf2' } }))

@@ -99,10 +99,18 @@ export async function localDirectoryDepIsUpToDate (
   pkgSnapshot: PackageSnapshot,
   parentPkgAliases: Record<string, unknown> = {}
 ): Promise<boolean> {
-  return localDirectoryDepIsUpToDateRec(ctx, pkgSnapshot, {
+  return createLocalDirectoryDepUpToDateChecker(ctx)(pkgSnapshot, parentPkgAliases)
+}
+
+export function createLocalDirectoryDepUpToDateChecker (
+  ctx: LocalDirectoryDepContext
+): (pkgSnapshot: PackageSnapshot, parentPkgAliases?: Record<string, unknown>) => Promise<boolean> {
+  const visited = new Map<PackageSnapshot, Set<string>>()
+  const recordedPeers = recordedPeersOf(ctx.lockfilePackages)
+  return (pkgSnapshot, parentPkgAliases = {}) => localDirectoryDepIsUpToDateRec(ctx, pkgSnapshot, {
     parentPkgAliases,
-    visited: new Map(),
-    recordedPeers: recordedPeersOf(ctx.lockfilePackages),
+    visited,
+    recordedPeers,
   })
 }
 
