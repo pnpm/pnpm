@@ -70,7 +70,7 @@ fn picks_included_fields_and_excludes_others() {
     assert_eq!(map.get("devDependencies"), Some(&json!({ "qux": "^3.0.0" })));
     assert_eq!(map.get("optionalDependencies"), Some(&json!({ "baz": "^2.0.0" })));
     assert_eq!(map.get("peerDependencies"), Some(&json!({ "react": "^18" })));
-    assert_eq!(map.get("peerDependenciesMeta"), Some(&json!({ "react": { "optional": true } })),);
+    assert_eq!(map.get("peerDependenciesMeta"), Some(&json!({ "react": { "optional": true } })));
     assert_eq!(map.get("bundledDependencies"), Some(&json!(["bar"])));
     assert_eq!(map.get("directories"), Some(&json!({ "bin": "./bin" })));
     // Excluded fields stay out.
