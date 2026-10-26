@@ -908,6 +908,7 @@ describe('prune keeps the packages that a registered project still uses', () => 
   // project records the shared store as its virtualStoreDir and keeps the
   // installed lockfile in node_modules/.pnpm.
   test.each([
+    ['modulesDir: pnpm_modules\n', 'pnpm_modules/.pnpm/lock.yaml'],
     ['virtualStoreDir: vs\n', 'node_modules/.pnpm/lock.yaml'],
     ['virtualStoreDir: vs\nlockfile: false\n', 'vs/lock.yaml'],
     ['enableGlobalVirtualStore: true\n', 'node_modules/.pnpm/lock.yaml'],

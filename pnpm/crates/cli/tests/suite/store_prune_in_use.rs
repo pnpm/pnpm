@@ -199,6 +199,14 @@ fn store_prune_keeps_every_package_installed_by_copy_in_a_custom_virtual_store_d
     );
 }
 
+#[test]
+fn store_prune_keeps_every_package_installed_by_copy_in_a_custom_modules_dir() {
+    assert_prune_keeps_every_package_installed_by_copy(
+        |workspace| append_workspace_yaml(workspace, "modulesDir: pnpm_modules\n"),
+        "pnpm_modules/.pnpm/lock.yaml",
+    );
+}
+
 /// The project records the shared store as its `virtualStoreDir`, and the
 /// install keeps the lockfile in `node_modules/.pnpm`.
 #[test]
@@ -375,4 +383,54 @@ fn assert_prune_fails_on_a_broken_file_and_removes_nothing(file: &str, content: 
     assert!(!output.status.success(), "store prune must fail: {stderr}");
     assert!(stderr.contains("ERR_PNPM_STORE_DIR_PRUNE_IN_USE_FILES"), "stderr={stderr}");
     assert_eq!(sorted_index_keys(&store_dir), keys_before);
+}
+
+#[test]
+fn store_prune_fails_on_an_undecodable_row_of_an_installed_package_and_removes_nothing() {
+    let CommandTempCwd {
+        root: _root, workspace, npmrc_info, ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry {
+        mock_instance: _mock_instance,
+        store_dir,
+        ..
+    } = npmrc_info;
+    write_manifest(&workspace);
+    append_workspace_yaml(&workspace, "packageImportMethod: copy\n");
+    pacquet_at(&workspace)
+        .with_args(["install", "--reporter=silent"])
+        .assert()
+        .success();
+    let store_dir = StoreDir::new(store_dir);
+    let keys_before = sorted_index_keys(&store_dir);
+    let blob_paths = blob_paths_of_rows(&store_dir, &keys_before);
+    Command::new("node")
+        .with_args([
+            "-e",
+            r"
+            const { DatabaseSync } = require('node:sqlite');
+            const db = new DatabaseSync(process.argv[1]);
+            db.prepare(`UPDATE package_index SET data = ? WHERE key LIKE '%' || char(9) || 'is-positive@1.0.0'`)
+              .run(Buffer.from([0xc1]));
+            db.close();
+            ",
+        ])
+        .with_arg(store_dir.root().join("index.db"))
+        .assert()
+        .success();
+
+    let output = pacquet_at(&workspace)
+        .with_args(["store", "prune"])
+        .output()
+        .expect("run store prune");
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(!output.status.success(), "store prune must fail: {stderr}");
+    assert!(stderr.contains("ERR_PNPM_STORE_DIR_PRUNE_IN_USE_FILES"), "stderr={stderr}");
+    assert_eq!(sorted_index_keys(&store_dir), keys_before);
+    let missing: Vec<_> = blob_paths
+        .iter()
+        .filter(|path| !path.exists())
+        .collect();
+    assert_eq!(missing, Vec::<&PathBuf>::new(), "store prune removed files the project uses");
 }

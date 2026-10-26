@@ -10224,6 +10224,9 @@ importers:
       '@pnpm/worker':
         specifier: workspace:^
         version: link:../../worker
+      '@pnpm/workspace.workspace-manifest-reader':
+        specifier: workspace:*
+        version: link:../../workspace/workspace-manifest-reader
       '@zkochan/rimraf':
         specifier: 'catalog:'
         version: 4.0.0

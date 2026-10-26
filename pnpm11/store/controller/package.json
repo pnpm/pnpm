@@ -60,6 +60,7 @@
     "@pnpm/store.create-cafs-store": "workspace:*",
     "@pnpm/store.index": "workspace:*",
     "@pnpm/types": "workspace:*",
+    "@pnpm/workspace.workspace-manifest-reader": "workspace:*",
     "@zkochan/rimraf": "catalog:",
     "is-subdir": "catalog:",
     "pretty-bytes": "catalog:",

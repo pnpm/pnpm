@@ -58,6 +58,9 @@
       "path": "../../worker"
     },
     {
+      "path": "../../workspace/workspace-manifest-reader"
+    },
+    {
       "path": "../cafs"
     },
     {

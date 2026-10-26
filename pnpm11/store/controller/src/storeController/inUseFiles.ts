@@ -10,6 +10,7 @@ import { globalWarn } from '@pnpm/logger'
 import { getFilePathByModeInCafs, type PackageFileInfo, type PackageFilesIndex } from '@pnpm/store.cafs'
 import { gitHostedStoreIndexKey, pickStoreIndexKey, type StoreIndex, storeIndexKey } from '@pnpm/store.index'
 import type { DepPath } from '@pnpm/types'
+import { readWorkspaceManifestKeys } from '@pnpm/workspace.workspace-manifest-reader'
 
 import { getRegisteredProjects } from './projectRegistry.js'
 
@@ -98,22 +99,38 @@ function readIndexRow (storeIndex: StoreIndex, storeDir: string, key: string): P
  * The lockfiles the last install wrote, which record what is installed in
  * the project.
  *
- * The install writes the lockfile to `node_modules/.pnpm`, or to the
- * `virtualStoreDir` that `node_modules/.modules.yaml` records when the
+ * The install writes the lockfile to `<modulesDir>/.pnpm`, or to the
+ * `virtualStoreDir` that `<modulesDir>/.modules.yaml` records when the
  * project has no wanted lockfile. Under a global virtual store, that
  * setting names the shared store. The manifest does not say which case
  * applies, so the prune reads both.
  */
 async function readInstalledLockfiles (projectDir: string): Promise<LockfileObject[]> {
-  // A project with a custom modules directory has no manifest or lockfile
-  // here, so only their hard links keep its packages.
-  const modulesDir = path.join(projectDir, 'node_modules')
+  const modulesDir = path.join(projectDir, await readConfiguredModulesDir(projectDir))
   const defaultDir = path.join(modulesDir, '.pnpm')
   const modules = await readModulesManifestOfProject(modulesDir)
   const installStateDirs = new Set([defaultDir, modules?.virtualStoreDir ?? defaultDir])
   const lockfiles = await Promise.all(Array.from(installStateDirs, async (installStateDir) => readInstalledLockfile(projectDir, installStateDir)))
   return lockfiles.filter((lockfile) => lockfile != null)
 }
+
+/**
+ * The `modulesDir` that the project's `pnpm-workspace.yaml` sets, or
+ * `node_modules`. A `modulesDir` set only on the command line, in the
+ * environment, or in the global config is not seen.
+ */
+async function readConfiguredModulesDir (projectDir: string): Promise<string> {
+  try {
+    // `PnpmSettings` does not declare `modulesDir`.
+    const manifest = await readWorkspaceManifestKeys(projectDir, MODULES_DIR_SETTING) as Record<string, unknown> | undefined
+    const modulesDir = manifest?.modulesDir
+    return typeof modulesDir === 'string' ? modulesDir : 'node_modules'
+  } catch (err: unknown) {
+    throw inUseFilesError(projectDir, err)
+  }
+}
+
+const MODULES_DIR_SETTING: ReadonlySet<string> = new Set(['modulesDir'])
 
 async function readModulesManifestOfProject (modulesDir: string): Promise<Modules | null> {
   try {

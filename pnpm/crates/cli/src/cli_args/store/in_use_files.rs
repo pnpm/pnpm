@@ -8,8 +8,11 @@ use pnpm_fs::lexical_normalize;
 use pnpm_lockfile::{Lockfile, LockfileResolution, PackageKey};
 use pnpm_modules_yaml::{Host, read_modules_layout};
 use pnpm_store_dir::{
-    CafsFileInfo, PackageFilesIndex, PruneError, StoreDir, StoreIndex, get_registered_projects,
+    CafsFileInfo, PackageFilesIndex, PruneError, StoreDir, StoreIndex, StoreIndexError,
+    decode_package_files_index, get_registered_projects,
 };
+use pnpm_workspace::read_workspace_manifest_document;
+use serde::Deserialize;
 use std::{
     collections::HashSet,
     io, iter,
@@ -38,28 +41,38 @@ pub(super) fn in_use_files(store_dir: &StoreDir) -> Result<HashSet<PathBuf>, Pru
         return Ok(HashSet::new());
     }
     let keys: Vec<String> = keys.into_iter().collect();
-    let rows = StoreIndex::open_readonly_in(store_dir)
-        .and_then(|index| index.get_many(&keys))
+    let rows = read_rows(store_dir, &keys)
         .map_err(|error| PruneError::InUseFiles(io::Error::other(error)))?;
     Ok(rows
-        .values()
+        .iter()
         .flat_map(row_files)
         .filter_map(|file| store_dir.cas_file_path_by_mode(&file.digest, file.mode))
         .collect())
 }
 
+/// Fails on an undecodable row, which [`StoreIndex::get_many`] skips,
+/// because skipping it would let the prune remove the row's files.
+fn read_rows(
+    store_dir: &StoreDir,
+    keys: &[String],
+) -> Result<Vec<PackageFilesIndex>, StoreIndexError> {
+    StoreIndex::open_readonly_in(store_dir)?
+        .get_many_raw(keys)?
+        .iter()
+        .map(|(_, bytes)| decode_package_files_index(bytes))
+        .collect()
+}
+
 /// The lockfiles the last install wrote, which record what is installed in
 /// the project.
 ///
-/// The install writes the lockfile to `node_modules/.pnpm`, or to the
-/// `virtualStoreDir` that `node_modules/.modules.yaml` records when the
+/// The install writes the lockfile to `<modulesDir>/.pnpm`, or to the
+/// `virtualStoreDir` that `<modulesDir>/.modules.yaml` records when the
 /// project sets one. Under a global virtual store, that setting names the
-/// shared store and the lockfile stays in `node_modules/.pnpm`. The
+/// shared store and the lockfile stays in `<modulesDir>/.pnpm`. The
 /// manifest does not say which case applies, so the prune reads both.
 fn load_installed_lockfiles(project: &Path) -> io::Result<Vec<Lockfile>> {
-    // A project with a custom modules directory has no manifest or lockfile
-    // here, so only their hard links keep its packages.
-    let modules_dir = project.join("node_modules");
+    let modules_dir = project.join(configured_modules_dir(project)?);
     let default_dir = modules_dir.join(".pnpm");
     let virtual_store_dir = read_modules_layout::<Host>(&modules_dir)
         .map_err(io::Error::other)?
@@ -70,6 +83,26 @@ fn load_installed_lockfiles(project: &Path) -> io::Result<Vec<Lockfile>> {
         lockfiles.extend(load_installed_lockfile(project, &install_state_dir)?);
     }
     Ok(lockfiles)
+}
+
+/// The `modulesDir` that the project's `pnpm-workspace.yaml` sets, or
+/// `node_modules`. A `modulesDir` set only on the command line, in the
+/// environment, or in the global config is not seen.
+fn configured_modules_dir(project: &Path) -> io::Result<String> {
+    #[derive(Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct ModulesDirSetting {
+        modules_dir: Option<String>,
+    }
+    let Some(document) = read_workspace_manifest_document(project).map_err(io::Error::other)?
+    else {
+        return Ok("node_modules".to_string());
+    };
+    let setting: Option<ModulesDirSetting> = serde_saphyr::from_str(&document.text)
+        .map_err(|error| io::Error::other(format!("{}: {error}", document.path.display())))?;
+    Ok(setting
+        .and_then(|setting| setting.modules_dir)
+        .unwrap_or_else(|| "node_modules".to_string()))
 }
 
 /// A lockfile of a version this pnpm cannot read adds nothing, like a
