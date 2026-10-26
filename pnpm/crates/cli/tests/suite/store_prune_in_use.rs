@@ -242,7 +242,7 @@ fn move_dependencies_to_a_project_with_its_own_lockfile(workspace: &Path, worksp
     append_workspace_yaml(
         workspace,
         &format!(
-            "packages: [project]\nsharedWorkspaceLockfile: false\nmodulesDir: pnpm_modules\n{workspace_yaml}"
+            "packages: [project]\nsharedWorkspaceLockfile: false\nmodulesDir: pnpm_modules\n{workspace_yaml}",
         ),
     );
 }
