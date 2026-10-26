@@ -51,6 +51,7 @@ const UNREPORTED_SETTINGS: &[&str] = &[
     "auditConfig",
     "cleanupUnusedCatalogs",
     "virtualStoreType",
+    "publishBranch",
     // Never read from a project file.
     "_auth",
 ];
