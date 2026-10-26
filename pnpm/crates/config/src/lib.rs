@@ -50,12 +50,13 @@ pub use shim_policy::{
 pub use workspace_yaml::{
     AllowBuild, AuditSettings, CargoSettings, DEFAULT_CARGO_INDEX_URL, DEFAULT_PYPI_INDEX_URL,
     DEFAULT_PYTHON_DOWNLOAD_URL, DEFAULT_RUST_DIST_SERVER, GLOBAL_CONFIG_YAML_FILENAME,
-    LoadWorkspaceYamlError, MacosBackupSettings, NAMED_UNRECOGNIZED_SETTINGS,
+    LoadWorkspaceYamlError, MachineSettings, MacosBackupSettings, NAMED_UNRECOGNIZED_SETTINGS,
     NodePackageMapSettings, PackageExtension, PackagePermissions, PeerDependencyMeta,
     PeerDependencyRules, PermissionCapability, PnpmfileSetting, PythonSettings,
     RemoteCacheSettings, RemoteSideEffectsCacheSettings, SkillsSettings, TaskSettings, Tool,
-    ToolSettings, UnrecognizedSettings, UpdateConfig, UpdateSettings, WORKSPACE_MANIFEST_FILENAME,
-    WorkspaceKeyIssues, WorkspaceSettings, decided_allow_builds, decided_permissions,
+    ToolSettings, TrustedSettings, UnrecognizedSettings, UpdateConfig, UpdateSettings,
+    WORKSPACE_MANIFEST_FILENAME, WorkspaceKeyIssues, WorkspaceSettings, decided_allow_builds,
+    decided_permissions,
     package_configs::{self, PackageConfigsSetting, ProjectConfig, ProjectConfigMultiMatch},
     registries::{
         self, Ecosystem, EcosystemIndex, PythonRegistryRoute, RegistryDeclaration, RegistryEntry,
@@ -192,9 +193,17 @@ fn mirror_node_package_map(
     }
 }
 
-fn collect_explicit_settings(
+fn collect_explicit_trusted_settings(
     target: &mut serde_json::Map<String, serde_json::Value>,
-    settings: &WorkspaceSettings,
+    settings: &TrustedSettings,
+) {
+    collect_explicit_settings(target, &settings.settings);
+    insert_set_fields(target, &settings.machine);
+}
+
+fn insert_set_fields(
+    target: &mut serde_json::Map<String, serde_json::Value>,
+    settings: &impl serde::Serialize,
 ) {
     let Ok(serde_json::Value::Object(map)) = serde_json::to_value(settings) else {
         return;
@@ -205,6 +214,13 @@ fn collect_explicit_settings(
         }
         target.insert(key, value);
     }
+}
+
+fn collect_explicit_settings(
+    target: &mut serde_json::Map<String, serde_json::Value>,
+    settings: &WorkspaceSettings,
+) {
+    insert_set_fields(target, settings);
     let virtual_store_type = settings.virtual_store_type.or_else(|| {
         settings.enable_global_virtual_store.map(VirtualStoreType::from_enable_global)
     });

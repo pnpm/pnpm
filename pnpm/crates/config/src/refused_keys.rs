@@ -4,8 +4,11 @@
 //! Mirrors `isRefusedByAProjectManifest` / `whereRefusedKeyBelongs` in
 //! pnpm's `config.reader`, so that the two stacks cannot disagree on what
 //! was dropped from a config file or on the route a warning offers for it.
+//! The keys of [`MachineSettings`] are refused too, since a project file
+//! parses into a type without them.
 
 use crate::{
+    MachineSettings,
     config_types::is_config_file_key,
     naming_cases::{to_camel_case, to_kebab_case},
 };
@@ -72,7 +75,8 @@ fn refused_keys() -> &'static HashSet<&'static str> {
 /// or as the reader's own bookkeeping.
 #[must_use]
 pub fn is_refused_by_a_project_manifest(key: &str) -> bool {
-    refused_keys().contains(to_camel_case(key).as_str())
+    let camel_key = to_camel_case(key);
+    refused_keys().contains(camel_key.as_str()) || MachineSettings::keys().contains(&camel_key)
 }
 
 /// The global config file key that sets a refused setting, where it is not
@@ -106,6 +110,9 @@ pub fn where_refused_key_belongs(camel_key: &str) -> String {
         global_equivalent_key(camel_key).map_or_else(|| to_kebab_case(camel_key), str::to_string);
     if is_config_file_key(&kebab_key) {
         format!("Set it for the machine instead: pnpm config set --global {kebab_key}")
+    } else if MachineSettings::keys().contains(camel_key) {
+        let env_name = kebab_key.replace('-', "_").to_uppercase();
+        format!("Set it in the global config.yaml or with PNPM_CONFIG_{env_name} instead")
     } else {
         "This is not a pnpm setting".to_string()
     }

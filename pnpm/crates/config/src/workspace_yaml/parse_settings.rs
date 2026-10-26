@@ -1,7 +1,7 @@
 use super::{
-    EnvVar, Placeholder, WorkspaceSettings, drop_placeholders, resolvable_placeholders,
-    resolve_placeholders,
+    EnvVar, Placeholder, drop_placeholders, resolvable_placeholders, resolve_placeholders,
 };
+use serde::de::DeserializeOwned;
 
 /// What a failed read reports in place of a value that came from the
 /// environment. `nodeLinker: ${NPM_TOKEN}` written by mistake must not put
@@ -32,13 +32,13 @@ const MAX_DOCUMENT_READS: u32 = 512;
 /// out of the environment. A document that reads as written resolves nothing
 /// at all and is returned exactly as it was read, so what a file means today
 /// it goes on meaning.
-pub(crate) fn parse_settings<Sys: EnvVar>(
+pub(crate) fn parse_settings<Sys: EnvVar, Settings: DeserializeOwned>(
     text: &str,
-) -> Result<WorkspaceSettings, Box<serde_saphyr::Error>> {
+) -> Result<Settings, Box<serde_saphyr::Error>> {
     // A placeholder reaches serde as its own text, which only a string-valued
     // setting can hold, so a document carrying one for any other setting has
     // to be read a second time with that placeholder already resolved.
-    let as_written = match serde_saphyr::from_str::<WorkspaceSettings>(text) {
+    let as_written = match serde_saphyr::from_str::<Settings>(text) {
         Ok(settings) => return Ok(settings),
         Err(error) => error,
     };
@@ -48,13 +48,15 @@ pub(crate) fn parse_settings<Sys: EnvVar>(
     }
     let mut resolved = vec![true; placeholders.len()];
     let mut reads = 1;
-    if read_text(&resolve_placeholders(text, &placeholders, |index| resolved[index])).is_none() {
-        return Err(Box::new(classify(text, &placeholders)));
+    if read_text::<Settings>(&resolve_placeholders(text, &placeholders, |index| resolved[index]))
+        .is_none()
+    {
+        return Err(Box::new(classify::<Settings>(text, &placeholders)));
     }
     // Resolving a placeholder the document reads without would take a setting
     // out of the hands of the substitution that knows which layer the file
     // came from, so each one that turns out not to be needed is put back.
-    if !decide(text, &placeholders, &mut resolved, 0..placeholders.len(), &mut reads) {
+    if !decide::<Settings>(text, &placeholders, &mut resolved, 0..placeholders.len(), &mut reads) {
         return Err(Box::new(as_written));
     }
     read_text(&resolve_placeholders(text, &placeholders, |index| resolved[index]))
@@ -69,7 +71,7 @@ pub(crate) fn parse_settings<Sys: EnvVar>(
 /// a group put back all at once answers for every placeholder in it: the
 /// document reads when none of them was needed, and otherwise the group is
 /// halved.
-fn decide(
+fn decide<Settings: DeserializeOwned>(
     text: &str,
     placeholders: &[Placeholder],
     resolved: &mut [bool],
@@ -81,7 +83,9 @@ fn decide(
     }
     *reads += 1;
     resolved[group.clone()].fill(false);
-    if read_text(&resolve_placeholders(text, placeholders, |index| resolved[index])).is_some() {
+    if read_text::<Settings>(&resolve_placeholders(text, placeholders, |index| resolved[index]))
+        .is_some()
+    {
         return true;
     }
     resolved[group.clone()].fill(true);
@@ -89,8 +93,8 @@ fn decide(
         return true;
     }
     let middle = group.start + group.len() / 2;
-    decide(text, placeholders, resolved, group.start..middle, reads)
-        && decide(text, placeholders, resolved, middle..group.end, reads)
+    decide::<Settings>(text, placeholders, resolved, group.start..middle, reads)
+        && decide::<Settings>(text, placeholders, resolved, middle..group.end, reads)
 }
 
 /// The error a document that will not read even with its placeholders
@@ -102,13 +106,16 @@ fn decide(
 /// mean on its own, and that read is the one that says what: the first read
 /// stops at the placeholder, which is not the problem and whose line would
 /// send a reader to the wrong setting.
-fn classify(text: &str, placeholders: &[Placeholder]) -> serde_saphyr::Error {
-    match serde_saphyr::from_str::<WorkspaceSettings>(&drop_placeholders(text, placeholders)) {
+fn classify<Settings: DeserializeOwned>(
+    text: &str,
+    placeholders: &[Placeholder],
+) -> serde_saphyr::Error {
+    match serde_saphyr::from_str::<Settings>(&drop_placeholders(text, placeholders)) {
         Ok(_) => serde::de::Error::custom(INVALID_EXPANSION),
         Err(dropped) => dropped,
     }
 }
 
-fn read_text(text: &str) -> Option<WorkspaceSettings> {
+fn read_text<Settings: DeserializeOwned>(text: &str) -> Option<Settings> {
     serde_saphyr::from_str(text).ok()
 }

@@ -47,9 +47,9 @@ use derive_more::Display;
 use identity::{local_bin_identity, provider_of_target};
 use native_shim::dispatch_legacy_shim;
 use pnpm_config::{
-    Config, GlobalShims, GlobalShimsSetting, Host, LoadWorkspaceYamlError, ShimPolicy,
-    WorkspaceSettings, default_config_dir, default_pnpm_home_dir, default_state_dir,
-    resolve_configured_state_dir,
+    Config, GlobalShims, GlobalShimsSetting, Host, LoadWorkspaceYamlError, MachineSettings,
+    SettingsRead, ShimPolicy, TrustedSettings, default_config_dir, default_pnpm_home_dir,
+    default_state_dir, resolve_configured_state_dir,
 };
 use pnpm_crypto_hash::{create_hex_hash, create_hex_hash_bytes};
 use pnpm_engine_runtime_node_resolver::parse_node_specifier;

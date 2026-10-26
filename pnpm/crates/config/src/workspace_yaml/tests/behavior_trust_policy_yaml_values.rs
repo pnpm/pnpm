@@ -3,7 +3,7 @@ use super::{
     RegistryDeclaration, RegistryEntry, RegistryOptions, RegistryServerType, ResolutionMode,
     TrustPolicy, WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings, assert_eq, fs,
 };
-use crate::RegistryPrefixes;
+use crate::{MachineSettings, RegistryPrefixes, TrustedSettings};
 
 /// `trustPolicy` accepts the two upstream string values; an absent
 /// key leaves the [`TrustPolicy::Off`] default in place.
@@ -669,22 +669,31 @@ fn expanding_a_home_prefix_joins_the_way_pnpm_does() {
         ("~/../bin", PathBuf::from("/home").join("bin")),
         ("~/nested/../bin", home.join("bin")),
     ] {
-        let mut settings = WorkspaceSettings {
-            store_dir: Some(configured.to_string()),
-            global_dir: Some(configured.to_string()),
-            global_bin_dir: Some(configured.to_string()),
-            ..WorkspaceSettings::default()
+        let mut settings = TrustedSettings {
+            settings: WorkspaceSettings {
+                store_dir: Some(configured.to_string()),
+                ..WorkspaceSettings::default()
+            },
+            machine: MachineSettings {
+                global_dir: Some(configured.to_string()),
+                global_bin_dir: Some(configured.to_string()),
+                ..MachineSettings::default()
+            },
         };
         settings.expand_home_prefixes::<FakeHome>();
         let expected = Some(expected.as_path());
-        assert_eq!(settings.store_dir.as_deref().map(Path::new), expected, "storeDir {configured}");
         assert_eq!(
-            settings.global_dir.as_deref().map(Path::new),
+            settings.settings.store_dir.as_deref().map(Path::new),
+            expected,
+            "storeDir {configured}",
+        );
+        assert_eq!(
+            settings.machine.global_dir.as_deref().map(Path::new),
             expected,
             "globalDir {configured}",
         );
         assert_eq!(
-            settings.global_bin_dir.as_deref().map(Path::new),
+            settings.machine.global_bin_dir.as_deref().map(Path::new),
             expected,
             "globalBinDir {configured}",
         );
@@ -702,16 +711,21 @@ fn a_tilde_without_a_separator_is_left_alone() {
         }
     }
 
-    let mut settings = WorkspaceSettings {
-        store_dir: Some("~backup/store".to_string()),
-        global_dir: Some("~backup/global".to_string()),
-        global_bin_dir: Some("bin/~/nested".to_string()),
-        ..WorkspaceSettings::default()
+    let mut settings = TrustedSettings {
+        settings: WorkspaceSettings {
+            store_dir: Some("~backup/store".to_string()),
+            ..WorkspaceSettings::default()
+        },
+        machine: MachineSettings {
+            global_dir: Some("~backup/global".to_string()),
+            global_bin_dir: Some("bin/~/nested".to_string()),
+            ..MachineSettings::default()
+        },
     };
     settings.expand_home_prefixes::<FakeHome>();
-    assert_eq!(settings.store_dir.as_deref(), Some("~backup/store"));
-    assert_eq!(settings.global_dir.as_deref(), Some("~backup/global"));
-    assert_eq!(settings.global_bin_dir.as_deref(), Some("bin/~/nested"));
+    assert_eq!(settings.settings.store_dir.as_deref(), Some("~backup/store"));
+    assert_eq!(settings.machine.global_dir.as_deref(), Some("~backup/global"));
+    assert_eq!(settings.machine.global_bin_dir.as_deref(), Some("bin/~/nested"));
 }
 
 /// The settings that report as the user set them are outside this property

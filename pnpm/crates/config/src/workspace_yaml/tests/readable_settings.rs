@@ -14,7 +14,7 @@ impl EnvVar for Env {
 }
 
 fn read<Sys: EnvVar>(text: &str) -> Result<WorkspaceSettings, Box<serde_saphyr::Error>> {
-    read_readable_settings(text, parse_settings::<Sys>)
+    read_readable_settings(text, parse_settings::<Sys, WorkspaceSettings>)
 }
 
 /// [`WorkspaceSettings::find_and_read`] over a file holding `text`, which

@@ -1,5 +1,5 @@
 use super::{Config, Path, SideEffectsCacheSetting, WorkspaceSettings, assert_eq};
-use crate::api::EnvVar;
+use crate::{TrustedSettings, api::EnvVar};
 
 fn exclude_of(setting: Option<&SideEffectsCacheSetting>) -> Option<&Vec<String>> {
     match setting {
@@ -38,6 +38,6 @@ fn side_effects_cache_exclude_reads_from_environment() {
             (name == "PNPM_CONFIG_SIDE_EFFECTS_CACHE").then(|| r#"{"exclude":["java"]}"#.to_owned())
         }
     }
-    let settings = WorkspaceSettings::from_pnpm_config_env::<Env>();
+    let settings = TrustedSettings::from_pnpm_config_env::<Env>().settings;
     assert_eq!(exclude_of(settings.side_effects_cache.as_ref()), Some(&vec!["java".to_string()]));
 }
