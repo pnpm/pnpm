@@ -191,11 +191,9 @@ pub(super) fn descendant_processes(roots: &[u32]) -> Vec<Descendant> {
 ///
 /// The listing is the only way cancellation reaches a descendant of a
 /// child that shares pnpm's process group, so giving up on it leaves that
-/// descendant running. The deadline is here to turn a `ps` that hangs
-/// into a reported miss rather than a hang of pnpm's own, which is why it
-/// is far longer than any listing takes: a loaded machine must not reach
-/// it. Until it passes, cancellation waits, because a kill that misses
-/// the scripts is worse than one that is late.
+/// descendant running. The deadline turns a `ps` that hangs into a
+/// reported miss rather than a hang of pnpm's own, and is far longer than
+/// any listing takes so a loaded machine never reaches it.
 const PROCESS_LISTING_DEADLINE: Duration = Duration::from_secs(10);
 
 /// Run `ps` and read its whole listing. A `ps` that does not answer

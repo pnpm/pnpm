@@ -341,9 +341,7 @@ impl SpawnedChild<'_> {
 ///
 /// Every process in the group was sent the signal pnpm relayed, so one
 /// still running at the end of this has declined to stop, and waiting on
-/// it is waiting on something that has already refused. A container
-/// runtime gives a process it stops the same order of grace, which is
-/// enough for a dev server to close its connections.
+/// it is waiting on something that has already refused.
 #[cfg(unix)]
 const PROCESS_GROUP_SHUTDOWN_GRACE: Duration = Duration::from_secs(30);
 

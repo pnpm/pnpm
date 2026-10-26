@@ -162,15 +162,11 @@ impl SignalRelay {
     }
 }
 
-/// Pass on to `relay`'s child the signal pnpm took while it was being
-/// spawned.
+/// Pass on to `relay`'s child the `missed` signals pnpm took while it was
+/// being spawned.
 ///
-/// Taking the first relay here is what keeps the handler from taking it as
-/// well, so the child is never given one interrupt twice.
-///
-/// `missed_the_child` says pnpm took the signal before the child existed,
-/// so no process group the child is in carried it and the relay owes it
-/// the signal whatever group that is.
+/// `missed_the_child` carries the meaning
+/// [`kernel_gave_it_to_the_child`] documents.
 #[cfg(unix)]
 fn relay_late(relay: &SignalRelay, missed_the_child: bool, missed: usize) {
     let Some(entry) = relay.entry else { return };
@@ -191,7 +187,7 @@ fn relay_late(relay: &SignalRelay, missed_the_child: bool, missed: usize) {
         pnpm_ffi_signal::signal_target(aimed_at(target), signal);
     }
     if steps > 1 {
-        // A second interrupt escalates, as [`relay_to`] escalates it.
+        // A second interrupt escalates, as `relay_to` escalates it.
         pnpm_ffi_signal::signal_target(aimed_at(target), libc::SIGTERM);
     }
 }
@@ -242,7 +238,7 @@ pub(crate) struct SpawningChild {
 pub(crate) fn spawning_child() -> SpawningChild {
     install_handler();
     // Counted before the claim, never after: a signal the claim keeps pnpm
-    // alive for has to be one [`SpawningChild::joined`] can still see. Taken
+    // alive for has to be one `SpawningChild::joined` can still see. Taken
     // the other way round, a signal landing between the two would raise the
     // count the claim is about to read, leave the claim holding a snapshot
     // that already includes it, and so be relayed to nobody, while the claim
