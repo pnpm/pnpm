@@ -104,6 +104,142 @@ Each file kind is rendered by a different tool. Use only what its renderer keeps
 
 GitHub alerts render only on GitHub. Docusaurus admonitions render only on pnpm.io.
 
+## Reference pages
+
+Three tests fail when the v12 reference drifts from the code. Each keeps a
+list of today's gaps, and fixing a gap means deleting its entry:
+
+- `pnpm/crates/config/src/known_settings/tests/docs_reference.rs`: every
+  setting pnpm reads has a section under `settings/` and an entry in the
+  `settings.md` index, and no section names a setting pnpm does not read.
+- `pnpm/crates/cli/src/cli_args/tests/docs_command_pages.rs`: every flag a
+  command accepts has a heading on its page under `cli/`, and no page
+  documents a flag the command rejects.
+- `pnpm/crates/cli/src/tests/docs_error_codes.rs`: every `ERR_PNPM_*` code the
+  docs name exists in the source, and `errors.md` lists its codes in
+  alphabetical order.
+
+The templates below are the shape those tests parse. A new page follows
+them. An existing page moves toward them when it is edited.
+
+### Command page (`cli/<command>.md`)
+
+The page of `pnpm <command>` is `cli/<command>.md`. A subcommand's page is
+`cli/<command>-<subcommand>.md`, or a `### <subcommand>` section of the
+command's page.
+
+````markdown
+---
+id: <command>
+title: pnpm <command>
+---
+
+<One sentence: what the command does to what. A second sentence for the one
+default or term the reader needs.>
+
+Aliases: `<alias>`
+
+## Synopsis
+
+```sh
+pnpm <command> [<arg>...] [--<flag>]
+```
+
+## Description
+
+<What the command reads, what it writes, and what it does not do. One bullet
+per argument shape when there are several. One sentence linking the page that
+owns the concept.>
+
+## Options
+
+### --long-name, -s
+
+<What the flag does, as one sentence. Its default, when it has one. Each
+interaction as its own sentence: "Cannot be combined with `--other`." The
+setting it mirrors: "Same as the [`settingName`](../settings/<group>.md#settingname) setting.">
+
+## Exit status
+
+- `0`: <success condition>.
+- non-zero: <failure condition>, reported as `ERR_PNPM_<CODE>`.
+
+## Examples
+
+To <reader's goal>:
+
+```sh
+pnpm <command> <args>
+```
+
+## See also
+
+[`pnpm <related>`](./<related>.md), [<guide>](../<guide>.md)
+````
+
+Rules the tests rely on:
+
+- A flag's heading starts with the flag: `### --save-dev, -D`. A value goes
+  after the flag: `### --registry &lt;url\>`. `### --[no-]bail` documents
+  both spellings, and so does a heading for either one of them.
+- A flag shared by several commands lives in a partial under `settings/`,
+  such as `_cpuFlag.mdx`, and each page imports it. The partial's headings
+  count as the page's own.
+- A command that accepts another command's flags says so in one sentence that
+  says it accepts, takes, or applies the options or arguments of the other
+  command, and links its page: "`pnpm ci` accepts the options of
+  [`pnpm install`](./install.md)." The page then documents those flags.
+- A command documented on another command's page, such as `pnpm rb` on
+  `cli/rebuild.md`, is listed in the test's `PAGE_NAMES`.
+- A flag that spells a setting, such as `--shamefully-hoist`, is accepted by
+  every command. Document it on the pages of the commands it changes.
+- Global flags are documented once, on `pnpm-cli.md`, `cli/recursive.md`,
+  `filtering.md`, or the section of the setting they mirror, not on each
+  command page.
+- The one-line description matches the first line of `pnpm <command> --help`.
+- A version marker ("Added in: v12.N.0") sits at the end of the entry it
+  qualifies. It is removed once the release is older than the previous minor
+  line.
+
+### Setting entry (`settings/<group>.md`)
+
+````markdown
+### settingName
+
+* Default: **<value>**
+* Type: **<type or the enumerated values>**
+* Environment variable: `PNPM_CONFIG_SETTING_NAME`
+* CLI: `--setting-name`
+* Set in: `pnpm-workspace.yaml`, global `config.yaml`
+
+<One sentence: what the setting controls.>
+
+* **a**: <what pnpm does>.
+* **b**: <what pnpm does>. Choose this when <condition>.
+
+<The cost of a non-default value, as its own sentence, with the symptom.>
+
+```yaml title="pnpm-workspace.yaml"
+settingName: b
+```
+
+Related: [`otherSetting`](#othersetting).
+````
+
+Rules the tests rely on:
+
+- The heading is the setting name as written in `pnpm-workspace.yaml`. A
+  nested setting keeps its dots: `### update.changeset`.
+- Every section is linked from the `## Settings` index in `settings.md`, in
+  its group.
+- An alias is named only in the section of the setting it aliases.
+
+### Error entry (`errors.md`)
+
+Each entry is `## ERR_PNPM_<CODE>`, in alphabetical order. It states what
+happened, then the fix, naming who acts. A page that states a rule names the
+code the rule raises, so a reader who searches for the code finds the rule.
+
 ## Initial rollout
 
 1. Land the pnpm/pnpm.io tooling, builder patch and generated copies first.

@@ -1,5 +1,7 @@
 pub(crate) use apply::{apply_state_dir_override, apply_store_dir_override};
 pub(crate) use global_conflicts::GlobalConflict;
+#[cfg(test)]
+pub(crate) use tokens::bare_setting_flag_names;
 pub(crate) use tokens::{bare_boolean_setting_claims, bare_setting_flag_width, parse_bool};
 
 use pnpm_network::normalize_registry_url;

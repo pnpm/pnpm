@@ -224,6 +224,34 @@ Update `package.json` and `pnpm-lock.yaml` without downloading dependencies or w
 
 Reinstall every package the lockfile names, relinking packages that an earlier install already linked.
 
+### --lockfile-dir &lt;dir\>
+
+The directory in which `pnpm-lock.yaml` is created. Same as the [`lockfileDir`](../settings/store.md#lockfiledir) setting.
+
+### --prod, --production
+
+Leave `devDependencies` out of `node_modules`.
+
+### --dev
+
+Leave `dependencies` and `optionalDependencies` out of `node_modules`.
+
+### --[no-]optional
+
+Include or exclude `optionalDependencies` from `node_modules`.
+
+### --[no-]auto-dedupe
+
+Enable or disable the [`autoDedupe`](../settings/dependency-resolution.md#autodedupe) setting for this install.
+
+### --ignore-scripts
+
+Do not run the lifecycle scripts of the project or its dependencies. Same as the [`ignoreScripts`](../settings/build.md#ignorescripts) setting.
+
+### --ignore-pnpmfile
+
+Disable the [pnpmfile](../pnpmfile.md) hooks, including the pnpmfiles of config dependencies.
+
 ### --registry
 
 Specify the registry to use for this installation:

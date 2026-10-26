@@ -41,9 +41,7 @@ dependencies.
 
 ## Options
 
-### --link-workspace-packages
-
-Overrides the [`linkWorkspacePackages`](../workspaces.md#linkworkspacepackages) setting for this install.
+The [`linkWorkspacePackages`](../workspaces.md#linkworkspacepackages) setting is an install setting, not a recursive option. Pass it as `--link-workspace-packages` on an install.
 
 ### --workspace-concurrency
 
