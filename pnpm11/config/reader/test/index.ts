@@ -2366,6 +2366,23 @@ test('the command line sets the proxy for the package manager bootstrap over the
   })
 })
 
+test.each([
+  ['an empty noProxy in the global config.yaml', { noProxy: '' }, {}],
+  ['noProxy: false in the global config.yaml', { noProxy: false }, {}],
+  ['an array in PNPM_CONFIG_NO_PROXY', {}, { PNPM_CONFIG_NO_PROXY: '["array.example.com"]' }],
+])('%s leaves NO_PROXY in effect for the package manager bootstrap', async (_name, globalConfigYaml, pnpmConfigEnv) => {
+  prepareEmpty()
+
+  fs.writeFileSync('user.npmrc', 'no-proxy=npmrc.example.com\n', 'utf8')
+  const { config } = await getConfigWithGlobalYaml(globalConfigYaml, {
+    cliOptions: { userconfig: path.resolve('user.npmrc') },
+    env: { ...pnpmConfigEnv, NO_PROXY: 'env.example.com' },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.packageManagerNetworkConfig?.noProxy).toBe('env.example.com')
+})
+
 test('CLI --registry overrides pnpm-workspace.yaml registries.default (#10099)', async () => {
   prepareEmpty()
 

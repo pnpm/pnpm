@@ -203,7 +203,8 @@ function createPackageManagerNetworkConfig (
       ? undefined
       : httpsProxy ?? getEnvValue(env, 'http_proxy') ?? getEnvValue(env, 'proxy')
   )
-  const noProxy = getOverlaidSetting(proxyOverlays, 'noProxy', trustedConfig['no-proxy'] ?? trustedConfig.noproxy) ??
+  const noProxy = getNoProxyValue(getOverlaidSetting(proxyOverlays, 'noProxy', trustedConfig['no-proxy'])) ??
+    getNoProxyValue(trustedConfig.noproxy) ??
     getEnvValue(env, 'no_proxy')
   return {
     ca: trustedConfig.ca as string | string[] | undefined,
@@ -213,7 +214,7 @@ function createPackageManagerNetworkConfig (
     httpsProxy,
     key: trustedConfig.key as string | undefined,
     localAddress: cliNetworkSettings.localAddress ?? globalYamlNetworkSettings.localAddress ?? trustedConfig['local-address'] as string | undefined,
-    noProxy: noProxy as string | boolean | undefined,
+    noProxy,
     strictSsl: cliNetworkSettings.strictSsl ?? globalYamlNetworkSettings.strictSsl ?? trustedConfig['strict-ssl'] as boolean | undefined,
   }
 }
@@ -242,6 +243,15 @@ function getEnvValue (env: Record<string, string | undefined>, key: string): str
  */
 function getProxyUrl (value: unknown): string | undefined {
   return typeof value === 'string' && value.length > 0 ? value : undefined
+}
+
+/**
+ * Only a host list or `true` configures `noProxy`. Any other value, such as
+ * `false`, an empty string, or an array, reads as unset, so the `noproxy`
+ * spelling and then `NO_PROXY` apply, as they do for installs.
+ */
+function getNoProxyValue (value: unknown): string | true | undefined {
+  return value === true || (typeof value === 'string' && value.length > 0) ? value : undefined
 }
 
 function getProxyValue (value: string | false | undefined, fallback: string | undefined): string | undefined {
