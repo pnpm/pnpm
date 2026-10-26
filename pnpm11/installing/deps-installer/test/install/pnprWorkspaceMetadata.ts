@@ -447,6 +447,6 @@ test('pnpr forwards every registry alias with a canonical key prefix', async () 
     },
   }))
   expect(resolveViaPnprServer).toHaveBeenCalledWith(expect.objectContaining({
-    registries: { 'https://npm.corp.example/': { prefix: 'work', aliases: ['zeta'] } },
+    registries: expect.objectContaining({ 'https://npm.corp.example/': { prefix: 'work', aliases: ['zeta'] } }),
   }))
 })

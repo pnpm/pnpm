@@ -88,7 +88,17 @@ export interface RegistryDeclaration extends RegistryOptions {
    * the same registry the `registry` setting names.
    */
   scopes?: string[]
+  /**
+   * The bare-specifier prefix this registry answers to, as in
+   * `"foo": "work:^1.0.0"`. The prefix is the registry's identity in a
+   * lockfile dep path (`foo@work:1.0.0`).
+   */
   prefix?: string
+  /**
+   * The other prefixes routed to this registry. A pnpr request carries them,
+   * the `registries` setting refuses them: `prefix` keeps the smallest, the
+   * one lockfile keys carry.
+   */
   aliases?: string[]
 }
 

@@ -26,7 +26,6 @@ An entry may carry:
 |-------------------------------------------|------------|----------------------------------------------------------------------|
 | [`scopes`](#scopes)                       | `string[]` | The package scopes routed to this registry.                          |
 | [`prefix`](#prefix)                       | `string`   | The bare-specifier prefix this registry answers to.                  |
-| [`aliases`](#prefix)                      | `string[]` | Additional bare-specifier prefixes for this registry.                |
 | [`serverType`](#servertype)               | `string`   | How the server lays out tarball URLs: `npm`, `artifactory`, or `pnpr`. |
 | [`supportsTimeField`](#supportstimefield) | `boolean`  | Whether the server's abbreviated metadata carries the `time` field.  |
 
@@ -62,14 +61,7 @@ registries:
 pnpm add work:@corp/lib@^2.0.0
 ```
 
-Additional prefixes for the same registry can be declared in `aliases`. The smallest declared prefix in alphabetical order determines the lockfile package key, such as `foo@work:1.0.0`. Every prefix remains available in dependency specifiers and during delegated installs. A prefix cannot be declared more than once.
-
-```yaml title="pnpm-workspace.yaml"
-registries:
-  https://npm.work.example.com/:
-    prefix: work
-    aliases: [zeta]
-```
+Each entry declares at most one prefix, and two entries cannot declare the same one: the prefix is the registry's identity in a lockfile package key (`foo@work:1.0.0`), so a second spelling would key the same package from the same registry twice.
 
 Prefixes declared here follow the same rules as the deprecated [`namedRegistries`](./settings/dependency-resolution.md#namedregistries) setting they replace: the built-in `gh:` and `npmjs:` aliases can be overridden by declaring their prefix on your own URL, [reserved names](./settings/dependency-resolution.md#reserved-alias-names) are rejected, and packages resolved from a registry that declares a prefix get [registry-qualified lockfile keys](./settings/dependency-resolution.md#named-registries-in-the-lockfile), whether a dependency names the prefix or a `scopes` entry routes it there.
 

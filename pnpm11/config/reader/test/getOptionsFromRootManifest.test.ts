@@ -1024,41 +1024,32 @@ test('getOptionsFromPnpmSettings() accepts valid httpProxy and httpsProxy', () =
   expect(options.httpsProxy).toBe('https://localhost:8443')
 })
 
-test('getOptionsFromPnpmSettings() preserves every declared registry alias', () => {
+test('getOptionsFromPnpmSettings() keeps a registry prefix named after an Object.prototype property', () => {
   const options = getOptionsFromPnpmSettings(process.cwd(), {
     registries: {
-      'https://npm.corp.example': { prefix: 'work', aliases: ['zeta', 'constructor', '__proto__'] },
+      'https://npm.corp.example/': { prefix: '__proto__' },
+      'https://other.example/': { prefix: 'constructor' },
     },
   })
-  expect(options.registriesByPrefix).toStrictEqual({
-    work: 'https://npm.corp.example',
-    zeta: 'https://npm.corp.example',
-    constructor: 'https://npm.corp.example',
-    ['__proto__']: 'https://npm.corp.example',
-  })
+  expect(Object.entries(options.registriesByPrefix!)).toStrictEqual([
+    ['__proto__', 'https://npm.corp.example/'],
+    ['constructor', 'https://other.example/'],
+  ])
 })
 
-test.each([
-  { prefix: 'work', aliases: ['work'] },
-  { aliases: ['zeta', 'zeta'] },
-  { aliases: ['__proto__', '__proto__'] },
-])('getOptionsFromPnpmSettings() rejects duplicate registry aliases %j', (declaration) => {
-  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
-    registries: { 'https://npm.corp.example/': declaration },
-  })).toThrow(/is declared by two registries/)
-})
-
-test('getOptionsFromPnpmSettings() rejects aliases routed to another registry', () => {
+test('getOptionsFromPnpmSettings() rejects a registry prefix declared twice as __proto__', () => {
   expect(() => getOptionsFromPnpmSettings(process.cwd(), {
     registries: {
-      'https://npm.corp.example/': { aliases: ['work'] },
-      'https://other.example/': { prefix: 'work' },
+      'https://npm.corp.example/': { prefix: '__proto__' },
+      'https://other.example/': { prefix: '__proto__' },
     },
-  })).toThrow(/The prefix "work" is declared by two registries/)
+  })).toThrow(/The prefix "__proto__" is declared by two registries/)
 })
 
-test.each(['zeta', [42], null])('getOptionsFromPnpmSettings() rejects malformed aliases %j', (aliases) => {
+test('getOptionsFromPnpmSettings() refuses registry aliases, which only a pnpr request carries', () => {
   expect(() => getOptionsFromPnpmSettings(process.cwd(), {
-    registries: { 'https://npm.corp.example/': { aliases } },
-  } as never)).toThrow(/aliases/)
+    registries: {
+      'https://npm.corp.example/': { prefix: 'work', aliases: ['zeta'] },
+    },
+  })).toThrow(/aliases" setting is not a known registry setting/)
 })

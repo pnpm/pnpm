@@ -94,10 +94,19 @@ pub struct RegistryDeclaration {
     pub unknown: BTreeMap<String, serde_json::Value>,
 }
 
+impl Eq for RegistryDeclaration {}
+
+/// The bare-specifier prefixes that address a registry.
 #[derive(Debug, Default, Clone, PartialEq, Eq, serde::Serialize, Deserialize)]
 pub struct RegistryPrefixes {
+    /// The bare-specifier prefix this registry answers to, as in
+    /// `"foo": "work:^1.0.0"`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub prefix: Option<String>,
+    /// The other prefixes routed to this registry. A pnpr request carries
+    /// them, `pnpm-workspace.yaml` refuses them: the request names every
+    /// prefix the client resolves, while `prefix` holds the smallest, the one
+    /// lockfile keys carry.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub aliases: Vec<String>,
 }
@@ -109,13 +118,7 @@ impl RegistryPrefixes {
             .into_iter()
             .chain(self.aliases.iter().map(String::as_str))
     }
-
-    fn into_prefixes(self) -> impl Iterator<Item = String> {
-        self.prefix.into_iter().chain(self.aliases)
-    }
 }
-
-impl Eq for RegistryDeclaration {}
 
 impl RegistryDeclaration {
     /// The ecosystem this entry serves, with the absent field read as
@@ -225,14 +228,22 @@ pub fn validate(entries: &IndexMap<String, RegistryEntry>) -> Result<(), LoadWor
         });
     }
 
-    validate_declarations(
-        entries
-            .iter()
-            .filter_map(|(registry, entry)| match entry {
-                RegistryEntry::Declaration(declaration) => Some((registry, declaration)),
-                RegistryEntry::ScopeRoute(_) => None,
-            }),
-    )
+    let declarations = entries
+        .iter()
+        .filter_map(|(registry, entry)| match entry {
+            RegistryEntry::Declaration(declaration) => Some((registry, declaration)),
+            RegistryEntry::ScopeRoute(_) => None,
+        });
+    if let Some((registry, _)) = declarations
+        .clone()
+        .find(|(_, declaration)| !declaration.prefixes.aliases.is_empty())
+    {
+        return Err(LoadWorkspaceYamlError::UnknownRegistryDeclarationField {
+            registry: redact_registry_url(registry),
+            field: "aliases".to_owned(),
+        });
+    }
+    validate_declarations(declarations)
 }
 
 /// The per-declaration half of [`validate`], over declarations alone.
@@ -394,7 +405,7 @@ fn extend_npm_routes(
             lookups.registries_by_scope.insert(scope, normalized.to_owned());
         }
     }
-    for prefix in declaration.prefixes.into_prefixes() {
+    for prefix in declaration.prefixes.prefix.into_iter().chain(declaration.prefixes.aliases) {
         lookups.registries_by_prefix.insert(prefix, registry.to_owned());
     }
 }
@@ -443,11 +454,13 @@ pub fn to_declarations(lookups: &RegistryLookups) -> IndexMap<String, RegistryDe
             .push(scope.clone());
     }
     for (prefix, registry) in &lookups.registries_by_prefix {
-        let declaration = declarations.entry(registry.clone()).or_default();
-        if declaration.prefixes.prefix.is_none() {
-            declaration.prefixes.prefix = Some(prefix.clone());
+        // The map yields the smallest prefix first: the one the registry's
+        // lockfile keys carry.
+        let prefixes = &mut declarations.entry(registry.clone()).or_default().prefixes;
+        if prefixes.prefix.is_none() {
+            prefixes.prefix = Some(prefix.clone());
         } else {
-            declaration.prefixes.aliases.push(prefix.clone());
+            prefixes.aliases.push(prefix.clone());
         }
     }
     for (registry, options) in &lookups.registry_options_by_url {
