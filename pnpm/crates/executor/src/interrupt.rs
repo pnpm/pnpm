@@ -219,7 +219,7 @@ pub(crate) fn spawning_child() -> SpawningChild {
 }
 
 impl SpawningChild {
-    /// Note that the child now exists, so a signal counted from here on
+    /// Record that the child now exists, so a signal counted from here on
     /// reached whatever process group the child is already in.
     pub(crate) fn spawned(&mut self) {
         self.once_spawned = INTERRUPTS.load(Ordering::Acquire);
