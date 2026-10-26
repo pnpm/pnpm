@@ -73,9 +73,7 @@ impl MachineSettings {
     /// Whether `text` may set one of these settings, answered without parsing
     /// it. Errs only towards `true`.
     pub(crate) fn may_be_named_in(text: &str) -> bool {
-        Self::keys()
-            .iter()
-            .any(|key| text.contains(key.as_str()))
+        Self::keys().iter().any(|key| may_name(text, key))
     }
 
     /// The `globalShims` of the `pnpm-workspace.yaml` in `pnpm_home`, the one
@@ -86,6 +84,9 @@ impl MachineSettings {
         settings_read: SettingsRead,
     ) -> Result<Option<GlobalShimsSetting>, LoadWorkspaceYamlError> {
         let Some(document) = read_workspace_document(pnpm_home)? else { return Ok(None) };
+        if !may_name(&document.text, "globalShims") {
+            return Ok(None);
+        }
         let read = parse_settings::<Sys, Self>;
         let settings = if settings_read.skips_unreadable() {
             read_readable_settings(&document.text, read)
@@ -205,6 +206,13 @@ impl TrustedSettings {
             machine: MachineSettings::deserialize(value)?,
         })
     }
+}
+
+/// Whether YAML `text` may hold `key`. A double-quoted key may spell any
+/// character as an escape sequence, so a text with a backslash may hold any
+/// key.
+fn may_name(text: &str, key: &str) -> bool {
+    text.contains(key) || text.contains('\\')
 }
 
 /// The absolute entries of `symlinkedLockfileTargetDirs`. A relative entry is

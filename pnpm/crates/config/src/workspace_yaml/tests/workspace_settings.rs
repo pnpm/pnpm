@@ -15,6 +15,17 @@ fn scope_survives_workspace_only_field_clearing() {
     assert_eq!(settings.machine.scope.as_deref(), Some("@from-global"));
 }
 
+/// A double-quoted key may spell a machine setting with escape sequences, so
+/// the global file is read for the machine settings whenever it could.
+#[test]
+fn an_escaped_machine_setting_key_is_read() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(dir.path().join(crate::GLOBAL_CONFIG_YAML_FILENAME), "\"\\u0063i\": true\n")
+        .unwrap();
+    let settings = crate::TrustedSettings::load_global(dir.path()).unwrap().unwrap();
+    assert_eq!(settings.machine.ci, Some(true));
+}
+
 /// The workspace-structural keys are parsed so `pnpm config get` / `list`
 /// can show them, but only from the workspace yaml: the global `config.yaml`
 /// refuses them.
