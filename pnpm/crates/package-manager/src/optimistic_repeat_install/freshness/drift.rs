@@ -165,9 +165,7 @@ fn patch_drift(
     digests: &FileDigests<'_>,
 ) -> PatchDrift {
     let mut drift = PatchDrift { modified: false, rehashed: false };
-    for patch in
-        super::super::validation::shared_input_paths(check.workspace_root, check.config, &[])
-    {
+    for patch in super::super::validation::shared_input_paths(check.config, &[]) {
         match (digests.of(&patch), recorded_signature(state.validation.as_ref(), &patch)) {
             (FileDigest::Present(now), Some(then)) => {
                 drift.modified |= now.digest != then.digest;

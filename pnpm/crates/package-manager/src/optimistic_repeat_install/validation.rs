@@ -335,7 +335,7 @@ pub(crate) fn record_validation(state: &mut WorkspaceState, inputs: &RecordValid
         state.filtered_install = true;
         return;
     };
-    let shared_inputs = shared_input_paths(inputs.workspace_root, inputs.config, &state.pnpmfiles);
+    let shared_inputs = shared_input_paths(inputs.config, &state.pnpmfiles);
     let carried = previous
         .filter(|previous| shared_inputs_match(previous, state, &shared_inputs, &files))
         .and_then(|previous| previous.validation.as_ref());
@@ -364,7 +364,7 @@ fn recorded_files(
 ) -> (Option<String>, BTreeMap<String, FileSignature>) {
     let digests = FileDigests::new(previous.and_then(|state| state.validation.as_ref()));
     let (lockfile_path, lockfile) = digests.lockfile(inputs.workspace_root, inputs.config);
-    let shared_inputs = shared_input_paths(inputs.workspace_root, inputs.config, &state.pnpmfiles);
+    let shared_inputs = shared_input_paths(inputs.config, &state.pnpmfiles);
     let files = std::iter::once((lockfile_path, lockfile.clone()))
         .chain(
             shared_inputs
@@ -431,17 +431,9 @@ fn record_projects(
 
 /// The input files every project shares besides the lockfile: the patch
 /// files and the pnpmfiles.
-pub(crate) fn shared_input_paths(
-    workspace_root: &Path,
-    config: &Config,
-    pnpmfiles: &[String],
-) -> Vec<PathBuf> {
-    let patches = config.patched_dependencies.iter().flat_map(|patches| patches.values());
-    patches
-        .map(|path| {
-            let path = Path::new(path);
-            if path.is_absolute() { path.to_path_buf() } else { workspace_root.join(path) }
-        })
+pub(crate) fn shared_input_paths(config: &Config, pnpmfiles: &[String]) -> Vec<PathBuf> {
+    config
+        .patch_file_paths()
         .chain(pnpmfiles.iter().map(PathBuf::from))
         .collect()
 }

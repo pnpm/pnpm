@@ -18,7 +18,7 @@ use pnpm_testing_utils::{
 };
 use std::{fs, path::Path};
 
-const IS_POSITIVE_PATCH: &str = include_str!(
+pub(crate) const IS_POSITIVE_PATCH: &str = include_str!(
     "../../../../../pnpm11/installing/deps-installer/test/fixtures/patch-pkg/is-positive@1.0.0.patch"
 );
 

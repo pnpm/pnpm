@@ -472,6 +472,57 @@ describe('checkDepsStatus - settings change detection', () => {
     expect(result.upToDate).toBe(true)
   })
 
+  const workspaceDir = path.resolve('/project')
+  it.each([
+    ['stays up to date when the patch file recorded relative to the workspace is the configured one', { 'foo@1.0.0': 'patches/foo.patch' }, { 'foo@1.0.0': path.join(workspaceDir, 'patches/foo.patch') }, undefined],
+    ['returns upToDate: false when the patch file recorded relative to the workspace is another one', { 'foo@1.0.0': 'patches/bar.patch' }, { 'foo@1.0.0': path.join(workspaceDir, 'patches/foo.patch') }, 'The value of the patchedDependencies setting has changed'],
+    ['stays up to date when an empty patchedDependencies was recorded and none is configured', {}, undefined, undefined],
+  ])('%s', async (_label, recordedPatchedDependencies, patchedDependencies, issue) => {
+    // pnpm v12 records each patch file as configured.
+    const lastValidatedTimestamp = Date.now() - 10_000
+    const mockWorkspaceState: WorkspaceState = {
+      lastValidatedTimestamp,
+      pnpmfiles: [],
+      settings: {
+        excludeLinksFromLockfile: false,
+        linkWorkspacePackages: true,
+        preferWorkspacePackages: true,
+        peersSuffixMaxLength: 1000,
+        patchedDependencies: recordedPatchedDependencies,
+      },
+      projects: {},
+      filteredInstall: false,
+    }
+    jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState)
+    const lockfileMtime = lastValidatedTimestamp - 10_000
+    jest.mocked(fsUtils.safeStat).mockImplementation(async () => ({
+      mtime: new Date(lockfileMtime),
+      mtimeMs: lockfileMtime,
+    } as Stats))
+    jest.mocked(fsUtils.safeStatSync).mockReturnValue(undefined)
+    jest.mocked(statManifestFileUtils.statManifestFile).mockImplementation(async () => ({
+      mtime: new Date(lockfileMtime),
+      mtimeMs: lockfileMtime,
+    } as Stats))
+    const lockfile = {
+      lockfileVersion: '9.0',
+      importers: { '.': { specifiers: {} } },
+    } as unknown as LockfileObject
+    jest.mocked(lockfileFs.readCurrentLockfile).mockImplementation(async () => lockfile)
+    jest.mocked(lockfileFs.readWantedLockfile).mockImplementation(async () => lockfile)
+
+    const result = await checkDepsStatus({
+      rootProjectManifest: {},
+      rootProjectManifestDir: workspaceDir,
+      pnpmfile: [],
+      ...mockWorkspaceState.settings,
+      patchedDependencies,
+    })
+
+    expect(result.issue).toBe(issue)
+    expect(result.upToDate).toBe(issue == null)
+  })
+
   it.each([
     ['nothing was recorded and a prefix is declared now', undefined, { work: 'https://npm.example.test/' }],
     ['the recorded prefixes differ from the declared ones', { work: 'https://npm.example.test/' }, { zeta: 'https://npm.example.test/' }],
