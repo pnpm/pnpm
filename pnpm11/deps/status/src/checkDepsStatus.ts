@@ -3,7 +3,7 @@ import { getWantedLockfileName } from '@pnpm/lockfile.fs'
 import { globalWarn } from '@pnpm/logger'
 import type { Project } from '@pnpm/types'
 import { findWorkspaceProjectsNoCheck } from '@pnpm/workspace.projects-reader'
-import { loadWorkspaceState, normalizeUnsetSetting, recordedRegistryPrefixes, resolveStoreLocationSettings, WORKSPACE_STATE_SETTING_KEYS, type WorkspaceState, type WorkspaceStateSettings } from '@pnpm/workspace.state'
+import { loadWorkspaceState, normalizeUnsetSetting, recordedRegistryPrefixes, recordedRegistryRoutes, resolveStoreLocationSettings, WORKSPACE_STATE_SETTING_KEYS, type WorkspaceState, type WorkspaceStateSettings } from '@pnpm/workspace.state'
 import { readWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 import { equals } from 'ramda'
 
@@ -140,7 +140,7 @@ function isUnfilteredWorkspaceInstall (opts: CheckDepsStatusOptions): boolean {
 
 function findSettingsIssue (opts: CheckDepsStatusOptions, workspaceState: WorkspaceState): string | undefined {
   if (workspaceState.settings) {
-    const changedSetting = findChangedSetting(opts, workspaceState.settings) ?? findChangedRegistryPrefixes(opts, workspaceState.settings)
+    const changedSetting = findChangedSetting(opts, workspaceState.settings) ?? findChangedRegistrySettings(opts, workspaceState.settings)
     if (changedSetting != null) return `The value of the ${changedSetting} setting has changed`
   }
   if ((opts.configDependencies != null || workspaceState.configDependencies != null) && !equals(opts.configDependencies ?? {}, workspaceState.configDependencies ?? {})) {
@@ -174,11 +174,15 @@ function workspaceStateDir (opts: CheckDepsStatusOptions): string {
 /**
  * A state records the declared prefixes only for a lockfile whose keys carry
  * them, so a missing or different record calls for the install that re-keys
- * the lockfile.
+ * the lockfile. It records the routes the lockfile's plain keys resolved
+ * through, so a different record calls for the install that resolves the
+ * moved keys again.
  */
-function findChangedRegistryPrefixes (opts: CheckDepsStatusOptions, storedSettings: WorkspaceState['settings']): string | undefined {
-  if (opts.ignoredWorkspaceStateSettings?.includes('registryPrefixes')) return undefined
-  return equals(storedSettings.registryPrefixes, recordedRegistryPrefixes(opts)) ? undefined : 'registryPrefixes'
+function findChangedRegistrySettings (opts: CheckDepsStatusOptions, storedSettings: WorkspaceState['settings']): string | undefined {
+  const ignored = new Set(opts.ignoredWorkspaceStateSettings)
+  if (!ignored.has('registryPrefixes') && !equals(storedSettings.registryPrefixes, recordedRegistryPrefixes(opts))) return 'registryPrefixes'
+  if (ignored.has('registryRoutes') || opts.registriesByScope == null) return undefined
+  return equals(storedSettings.registryRoutes, recordedRegistryRoutes(opts.registriesByScope)) ? undefined : 'registryRoutes'
 }
 
 /**

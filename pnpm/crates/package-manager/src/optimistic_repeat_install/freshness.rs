@@ -503,6 +503,9 @@ fn refreshed_state(
             // verification of other prefixes, which proves nothing about these.
             registry_keys_verified: state.settings.registry_prefixes
                 == super::recorded_registry_prefixes(check.config),
+            // Nothing resolved, so the lockfile's plain keys still come from
+            // where the state says.
+            registry_routes: state.settings.registry_routes.clone(),
             kept_settings: matches!(policy.recorded_groups, RecordedGroups::Kept).then_some(
                 &state.settings,
             ),

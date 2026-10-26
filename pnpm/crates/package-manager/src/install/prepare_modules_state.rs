@@ -79,15 +79,16 @@ pub(super) async fn prepare_modules_state<'install, Reporter: self::Reporter + '
     );
     let up_to_date = frozen_tree_inputs(&inputs, modules_manifest, recorded);
     if let Some((wanted_lockfile, modules)) = frozen_tree_up_to_date(&up_to_date) {
-        let recorded_auto_dedupe =
-            up_to_date.recorded.state.and_then(|state| state.settings.auto_dedupe);
-        report_prepared_up_to_date::<Reporter>(
-            inputs,
-            wanted_lockfile,
-            modules,
-            recorded_auto_dedupe,
-        )
-        .await?;
+        let carried_state = CarriedWorkspaceState {
+            recorded_auto_dedupe: up_to_date.recorded.state.and_then(|state| {
+                state.settings.auto_dedupe
+            }),
+            recorded_registry_routes: up_to_date.recorded.state.and_then(|state| {
+                state.settings.registry_routes.clone()
+            }),
+        };
+        report_prepared_up_to_date::<Reporter>(inputs, wanted_lockfile, modules, carried_state)
+            .await?;
         return Ok(None);
     }
 
@@ -186,7 +187,7 @@ async fn report_prepared_up_to_date<Reporter: self::Reporter + 'static>(
     inputs: PrepareModulesStateInputs<'_, '_>,
     wanted_lockfile: &Lockfile,
     modules: &pnpm_modules_yaml::ModulesLayout,
-    recorded_auto_dedupe: Option<bool>,
+    carried_state: CarriedWorkspaceState,
 ) -> Result<(), InstallError> {
     resync_agent_skills_when_up_to_date::<Reporter>(&inputs, modules)?;
     report_up_to_date::<Reporter>(UpToDateInstall {
@@ -217,7 +218,7 @@ async fn report_prepared_up_to_date<Reporter: self::Reporter + 'static>(
         modules,
         supported_architectures: inputs.repeat.supported_architectures,
 
-        carried_state: CarriedWorkspaceState { recorded_auto_dedupe },
+        carried_state,
     })
     .await
 }

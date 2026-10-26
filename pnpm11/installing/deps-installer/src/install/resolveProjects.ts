@@ -10,7 +10,7 @@ import { resolveDependencies } from '@pnpm/installing.deps-resolver'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
 import { getPreferredVersionsFromLockfileAndManifests } from '@pnpm/lockfile.preferred-versions'
 import { createOverridesMapFromParsed } from '@pnpm/lockfile.settings-checker'
-import { findOutdatedRegistryKey } from '@pnpm/lockfile.utils'
+import { findMovedRegistryKey, findOutdatedRegistryKey } from '@pnpm/lockfile.utils'
 import type { PreferredVersions } from '@pnpm/resolving.resolver-base'
 import type { ProjectId, ReadPackageHook } from '@pnpm/types'
 import { equals, isEmpty, map as mapValues, pipeWith } from 'ramda'
@@ -62,8 +62,10 @@ export async function resolveProjects (
     !opts.currentLockfileIsUpToDate ||
     opts.dedupePeerDependents ||
     // Every edge is walked, so that each package keyed by an outdated key is
-    // resolved again under its current one.
-    findOutdatedRegistryKey(ctx.wantedLockfile, pickRegistryContext(opts)) != null
+    // resolved again under its current one, and each package from a registry
+    // its scope no longer routes to is resolved again from the current one.
+    findOutdatedRegistryKey(ctx.wantedLockfile, pickRegistryContext(opts)) != null ||
+    findMovedRegistryKey(ctx.wantedLockfile, pickRegistryContext(opts)) != null
   setUntrackedPnpmfileReadPackageHook(ctx.wantedLockfile, untrackedPnpmfileReadPackageHook)
   forgetRegeneratedLockfileFields(ctx, opts)
 
@@ -215,6 +217,7 @@ function describeResolutionTarget (ctx: PnpmContext, opts: InstallInContextOptio
     preserveWorkspaceProtocol: opts.preserveWorkspaceProtocol,
     registriesByScope: ctx.registriesByScope,
     registriesByPrefix: opts.registriesByPrefix,
+    lockedRegistriesByScope: opts.lockedRegistriesByScope,
     registryOptionsByUrl: opts.registryOptionsByUrl,
     saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
     storeController: opts.storeController,

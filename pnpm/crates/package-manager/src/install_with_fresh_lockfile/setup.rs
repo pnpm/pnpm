@@ -129,7 +129,10 @@ pub(super) async fn set_up_resolvers<Reporter: self::Reporter + 'static>(
         init_store_dir_best_effort(store_dir).await;
     }
 
-    let registries = resolver_setup::resolve_registries(install.drivers.config)?;
+    let registries = resolver_setup::resolve_registries(
+        install.drivers.config,
+        install.lockfiles.locked_registries,
+    )?;
 
     // Shared with `pacquet add`'s explicit-spec pre-resolution via
     // [`PickPolicy`] so both pick the same version.

@@ -1,6 +1,8 @@
 //! Comparing the settings a previous install recorded against the current ones.
 
-pub(crate) use registry_prefixes::recorded_registry_prefixes;
+pub(crate) use registry_prefixes::{
+    recorded_registry_prefixes, recorded_registry_routes, recorded_registry_routes_after_install,
+};
 
 mod agent_skills;
 mod equivalence;
@@ -163,6 +165,7 @@ impl SettingsComparison<'_> {
             "registryPrefixes",
             recorded.registry_prefixes != live.registry_prefixes,
         );
+        return_drift_if!(self, "registryRoutes", recorded.registry_routes != live.registry_routes);
         None
     }
     fn linking_drift(&self) -> Option<&'static str> {
@@ -378,6 +381,7 @@ fn current_policy_settings(config: &Config) -> WorkspaceStateSettings {
             config.resolved_minimum_release_age_strict().then_some(true)
         }),
         registry_prefixes: recorded_registry_prefixes(config),
+        registry_routes: Some(recorded_registry_routes(config)),
         side_effects_cache_exclude: config.side_effects_cache_exclude.clone(),
         // pnpm records the raw config value, which stays `undefined`
         // until the user configures the setting — `explicit_settings` is

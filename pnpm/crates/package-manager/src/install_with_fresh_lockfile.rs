@@ -254,6 +254,10 @@ pub(crate) struct FreshLockfileSeeds<'a> {
     /// Intact prior lockfile used to restore unselected projects after a
     /// filtered repair resolves against a sanitized seed.
     pub(crate) merge_wanted: Option<&'a Lockfile>,
+    /// The routes [`Self::wanted`]'s plain keys resolved through, when the
+    /// workspace state recorded them. See
+    /// [`pnpm_lockfile::RegistryContext::locked_registries`].
+    pub(crate) locked_registries: Option<&'a BTreeMap<String, String>>,
 }
 
 impl FreshInputs<'_> {

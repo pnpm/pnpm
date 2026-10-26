@@ -53,6 +53,23 @@ test('lockedVersionSatisfies() admits a named-registry spec for its registry and
   expect(satisfies('@scope/old', 'work:^2.0.0', key)).toBe(false)
 })
 
+test('lockedVersionSatisfies() reads a plain key as resolved from the registry its scope was routed to', () => {
+  const moved: RegistryContext = {
+    registriesByScope: { default: 'https://registry.example.test/', '@scope': 'https://new.example.test/' },
+    lockedRegistriesByScope: { '@scope': 'https://old.example.test/' },
+  }
+  // The locked package came from the old registry, so it never satisfies a
+  // range that resolves against the new one.
+  expect(satisfies('@scope/old', '^1.0.0', '@scope/old@1.2.0', moved)).toBe(false)
+  // A package of an unmoved scope does, as does one locked under the same
+  // routes spelled differently.
+  expect(satisfies('foo', '^1.0.0', 'foo@1.2.0', moved)).toBe(true)
+  expect(satisfies('@scope/old', '^1.0.0', '@scope/old@1.2.0', {
+    ...moved,
+    lockedRegistriesByScope: { '@scope': 'https://NEW.example.test/' },
+  })).toBe(true)
+})
+
 test('lockedVersionSatisfies() admits a bare named-registry spec only for the alias package', () => {
   expect(satisfies('foo', 'work:^1.0.0', 'bar@work:1.2.0')).toBe(false)
   expect(satisfies('foo', 'work:bar@^1.0.0', 'bar@work:1.2.0')).toBe(true)

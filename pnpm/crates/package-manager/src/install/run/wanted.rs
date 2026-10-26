@@ -148,6 +148,7 @@ pub(super) fn freshness_inputs<'r>(
             allow_missing_dependency_free_importers: true,
             frozen_lockfile: false,
             patches_only: false,
+            locked_registries: workspace.loaded_workspace.locked_registry_routes.as_ref(),
         },
     }
 }

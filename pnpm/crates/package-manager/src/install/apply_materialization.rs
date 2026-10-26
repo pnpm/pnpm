@@ -327,6 +327,29 @@ fn finish_apply<Reporter: self::Reporter>(
     completion
 }
 
+/// The settings an install's state write takes from the run. See
+/// [`CarriedSettings`].
+fn applied_carried_settings<'a>(
+    inputs: &'a ApplyMaterializationInputs<'_, '_>,
+) -> CarriedSettings<'a> {
+    let config = inputs.completion.config;
+    let resolved = inputs.materialized.fresh_lockfile.as_ref();
+    let lockfile = resolved.or(inputs.resolution.loaded);
+    CarriedSettings {
+        established_auto_dedupe: (config.auto_dedupe && resolved.is_some()).then_some(true),
+        registry_keys_verified: crate::install::registry_keys_current(config, lockfile),
+        registry_routes: Some(
+            crate::optimistic_repeat_install::recorded_registry_routes_after_install(
+                config,
+                inputs.resolution.locked_registry_routes.as_ref(),
+                lockfile,
+                resolved.is_some() && !inputs.projects.filtered_install,
+            ),
+        ),
+        kept_settings: None,
+    }
+}
+
 // Publish workspace freshness only after modules.yaml and the current lockfile are committed.
 fn write_applied_workspace_state<Reporter: self::Reporter>(
     inputs: &ApplyMaterializationInputs<'_, '_>,
@@ -353,16 +376,7 @@ fn write_applied_workspace_state<Reporter: self::Reporter>(
         catalogs: &inputs.completion.catalogs,
         project_manifests: inputs.projects.importers.manifests,
         filesystem_now_ms: filesystem_now_ms_in_modules(&modules_dir),
-        carried: CarriedSettings {
-            established_auto_dedupe: (config.auto_dedupe
-                && inputs.materialized.fresh_lockfile.is_some())
-            .then_some(true),
-            registry_keys_verified: crate::install::registry_keys_current(
-                config,
-                inputs.materialized.fresh_lockfile.as_ref().or(inputs.resolution.loaded),
-            ),
-            kept_settings: None,
-        },
+        carried: applied_carried_settings(inputs),
         vouched: &vouched,
     });
     update_workspace_state_or_warn::<Reporter>(

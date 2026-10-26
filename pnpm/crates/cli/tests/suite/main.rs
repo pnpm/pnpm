@@ -161,6 +161,7 @@ mod python;
 mod rebuild_recursive;
 mod registry_metadata_mismatch;
 mod registry_prefix_keys;
+mod registry_routes;
 mod relocated_install;
 mod remove;
 mod removed_overrides;
