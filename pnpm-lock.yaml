@@ -654,6 +654,9 @@ catalogs:
     nm-prune:
       specifier: ^5.0.0
       version: 5.0.0
+    node-cpu-count:
+      specifier: 0.1.1
+      version: 0.1.1
     node-gyp:
       specifier: ^12.3.0
       version: 12.3.0
@@ -10590,6 +10593,9 @@ importers:
       is-windows:
         specifier: 'catalog:'
         version: 1.0.2
+      node-cpu-count:
+        specifier: 'catalog:'
+        version: 0.1.1
       p-limit:
         specifier: 'catalog:'
         version: 7.3.3
@@ -16455,6 +16461,9 @@ packages:
     resolution: {integrity: sha512-DjLCuKmAP5OEPOn7H/UyigDSj0DeUO6qcrrSo2Y5jPTYbdKXqNpLafEFGoNNhH9v+ChBLlmc5CRN1YVvZIQsOQ==}
     engines: {node: '>=10'}
     hasBin: true
+
+  node-cpu-count@0.1.1:
+    resolution: {integrity: sha512-YeKJLH1t8AXmBLqYv1HBqH8OF7VSLyxKxh97+RFHDAKW1c+E7fL5ElK+mHxl9dn/r+TsxExm8o5vruZ9f7s/QA==}
 
   node-gyp-build-optional-packages@5.2.2:
     resolution: {integrity: sha512-s+w+rBWnpTMwSFbaE0UXsRlg7hU4FjekKU4eyAih5T8nJuNZT1nNsskXpxmeqSK9UzkBl6UgRlnKc8hz8IEqOw==}
@@ -24519,6 +24528,8 @@ snapshots:
       meow: 9.0.0
       pretty-bytes: 4.0.2
       walk-filtered: 0.9.3
+
+  node-cpu-count@0.1.1: {}
 
   node-gyp-build-optional-packages@5.2.2:
     dependencies:

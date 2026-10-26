@@ -11,6 +11,7 @@ import type { StoreIndex } from '@pnpm/store.index'
 import type { BundledManifest } from '@pnpm/types'
 import { WorkerPool } from '@rushstack/worker-pool'
 import isWindows from 'is-windows'
+import { cpuCountSync } from 'node-cpu-count'
 import pLimit from 'p-limit'
 
 import type {
@@ -22,6 +23,7 @@ import type {
 } from './types.js'
 
 let workerPool: WorkerPool | undefined
+const MaxDefaultWorkers = 16
 
 const globalWithWorkers = globalThis as typeof globalThis & { finishWorkers?: () => Promise<void> }
 
@@ -94,19 +96,19 @@ function createTarballWorkerPool (): WorkerPool {
   return workerPool
 }
 
-export function calcMaxWorkers (): number {
+export function calcMaxWorkers (availableCpus: number = availableParallelism()): number {
   if (process.env.PNPM_MAX_WORKERS) {
     return parseInt(process.env.PNPM_MAX_WORKERS)
   }
   if (process.env.PNPM_WORKERS) {
     const idleCPUs = Math.abs(parseInt(process.env.PNPM_WORKERS))
-    return Math.max(2, availableParallelism() - idleCPUs) - 1
+    return Math.min(MaxDefaultWorkers, Math.max(2, availableCpus - idleCPUs) - 1)
   }
-  return Math.max(1, availableParallelism() - 1)
+  return Math.min(MaxDefaultWorkers, Math.max(1, availableCpus - 1))
 }
 
 function availableParallelism (): number {
-  return os.availableParallelism?.() ?? os.cpus().length
+  return cpuCountSync(1, os.availableParallelism?.() ?? os.cpus().length)
 }
 
 interface AddFilesResult {
