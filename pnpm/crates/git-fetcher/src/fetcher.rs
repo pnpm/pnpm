@@ -33,8 +33,8 @@ use crate::{
 use pnpm_fs_packlist::packlist;
 use pnpm_network::{redact_and_sanitize, redact_and_sanitize_multiline};
 use pnpm_package_manifest::{
-    requires_build_from_cas_paths, safe_read_package_json_from_dir,
-    safe_read_project_manifest_from_dir,
+    normalize_bundled_manifest, read_package_json_from_cas_paths, requires_build_from_files,
+    safe_read_package_json_from_dir, safe_read_project_manifest_from_dir,
 };
 use pnpm_reporter::Reporter;
 use pnpm_store_dir::{CafsFileInfo, PackageFilesIndex, StoreIndexWriter};
@@ -196,8 +196,9 @@ pub(crate) fn packlist_of(pkg_dir: &Path) -> Result<Vec<String>, GitFetcherError
 /// Queue a `PackageFilesIndex` row so a future install's warm prefetch
 /// finds the snapshot in `index.db` and skips the fetch and prepare re-run.
 ///
-/// `requiresBuild` is read off the stored files, as for any other package,
-/// since every virtual-store slot they are imported into runs that build.
+/// The row bundles the package's normalized manifest, and `requiresBuild` is
+/// read off it and the stored files, as for any other package, since every
+/// virtual-store slot they are imported into runs that build.
 /// `requires_prepare` is whether the package needs `prepare`.
 pub(crate) fn queue_files_index(
     writer: Option<&Arc<StoreIndexWriter>>,
@@ -207,11 +208,15 @@ pub(crate) fn queue_files_index(
     requires_prepare: bool,
 ) {
     if let Some(writer) = writer {
+        let manifest = read_package_json_from_cas_paths(cas_paths);
         writer.queue(
             files_index_file.to_string(),
             PackageFilesIndex {
-                manifest: None,
-                requires_build: Some(requires_build_from_cas_paths(cas_paths)),
+                requires_build: Some(requires_build_from_files(
+                    manifest.as_ref(),
+                    cas_paths.keys(),
+                )),
+                manifest: manifest.as_ref().and_then(normalize_bundled_manifest),
                 requires_prepare: Some(requires_prepare),
                 algo: "sha512".to_string(),
                 files,
