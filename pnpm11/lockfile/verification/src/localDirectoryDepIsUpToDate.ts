@@ -87,27 +87,23 @@ interface DependencyOfLocalDirectoryDep {
 }
 
 /**
- * Whether the dependencies of a local directory dependency still match its
- * lockfile snapshot. The package's children and the versions they accept are
- * the resolver's (see `getNonDevWantedDependencies` and
+ * Creates a check of whether the dependencies of a local directory dependency
+ * still match its lockfile snapshot. The package's children and the versions
+ * they accept are the resolver's (see `getNonDevWantedDependencies` and
  * `lockedVersionSatisfies`), read from its manifest after the read-package
  * hook. `parentPkgAliases` are the dependencies of the project that depends on
  * it, which supply its peers.
+ *
+ * The checks of one checker share the snapshots they visited, so a snapshot
+ * reached through several direct dependencies is walked once per peer scope.
+ * Create one checker per project.
  */
-export async function localDirectoryDepIsUpToDate (
-  ctx: LocalDirectoryDepContext,
-  pkgSnapshot: PackageSnapshot,
-  parentPkgAliases: Record<string, unknown> = {}
-): Promise<boolean> {
-  return createLocalDirectoryDepUpToDateChecker(ctx)(pkgSnapshot, parentPkgAliases)
-}
-
 export function createLocalDirectoryDepUpToDateChecker (
   ctx: LocalDirectoryDepContext
-): (pkgSnapshot: PackageSnapshot, parentPkgAliases?: Record<string, unknown>) => Promise<boolean> {
+): (pkgSnapshot: PackageSnapshot, parentPkgAliases: Record<string, unknown>) => Promise<boolean> {
   const visited = new Map<PackageSnapshot, Set<string>>()
   const recordedPeers = recordedPeersOf(ctx.lockfilePackages)
-  return (pkgSnapshot, parentPkgAliases = {}) => localDirectoryDepIsUpToDateRec(ctx, pkgSnapshot, {
+  return async (pkgSnapshot, parentPkgAliases) => localDirectoryDepIsUpToDateRec(ctx, pkgSnapshot, {
     parentPkgAliases,
     visited,
     recordedPeers,
