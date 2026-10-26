@@ -34,8 +34,8 @@ pub use manifest_source::RepeatInstallManifests;
 pub(crate) use modules_dirs::{hoisted_project_modules_dir, project_id};
 pub(crate) use relocation::recorded_elsewhere;
 pub(crate) use settings::{
-    catalogs_cache_matches, current_settings_with_catalogs, first_setting_drift,
-    recorded_registry_prefixes, recorded_registry_routes_after_install,
+    LockfileResolution, catalogs_cache_matches, current_settings_with_catalogs,
+    first_setting_drift, recorded_registry_prefixes, recorded_registry_routes_after_install,
     recorded_supported_architectures_match,
 };
 pub(crate) use timestamps::{
