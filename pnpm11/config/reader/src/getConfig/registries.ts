@@ -9,6 +9,7 @@ import { pickIniConfig } from '../localConfig.js'
 import { quoteAndJoin } from '../quoteAndJoin.js'
 import { resolveJsonAuthRegistries } from '../resolveJsonAuthRegistries.js'
 import type { ConfigBuildState } from './configBuildState.js'
+import { readEnvProxySettings } from './envVars.js'
 
 export interface InitialRegistries {
   /** The builtin default plus what the `.npmrc` files and the command line declared. */
@@ -21,7 +22,9 @@ export interface InitialRegistries {
  * package-manager bootstrap, over the trusted `.npmrc` files. The project's
  * own files do not reach it.
  */
-export type BootstrapNetworkSettings = Pick<Config, 'localAddress' | 'strictSsl'>
+export type BootstrapNetworkSettings = Pick<Config, 'httpProxy' | 'httpsProxy' | 'localAddress' | 'noProxy' | 'strictSsl'>
+
+type ProxySettings = Pick<BootstrapNetworkSettings, 'httpProxy' | 'httpsProxy' | 'noProxy'>
 
 export function resolveInitialRegistries (state: ConfigBuildState, globalYamlNetworkSettings: BootstrapNetworkSettings): InitialRegistries {
   const { pnpmConfig } = state
@@ -185,19 +188,24 @@ function createPackageManagerNetworkConfig (
     globalYamlNetworkSettings: BootstrapNetworkSettings
   }
 ): PackageManagerNetworkConfig {
-  // The command line outranks the global config.yaml, and both outrank the
-  // trusted `.npmrc` files, as they do for the project's requests. The
-  // command line's `.npmrc`-spelled tokens sit inside `trustedConfig` too.
+  // The command line outranks the environment, which outranks the global
+  // config.yaml, and all of them outrank the trusted `.npmrc` files, as they
+  // do for the project's requests. The command line's `.npmrc`-spelled tokens
+  // sit inside `trustedConfig` too.
   const cliNetworkSettings = configFromCliOpts as BootstrapNetworkSettings
-  const httpsProxySetting = getProxyUrl(trustedConfig['https-proxy']) ??
+  const proxyOverlays: ProxySettings[] = [cliNetworkSettings, readEnvProxySettings(env), globalYamlNetworkSettings]
+  const httpsProxySetting = getProxyUrl(getOverlaidSetting(proxyOverlays, 'httpsProxy', trustedConfig['https-proxy'])) ??
     (trustedConfig.proxy === false ? false : getProxyUrl(trustedConfig.proxy))
   const httpsProxy = getProxyValue(httpsProxySetting, getEnvValue(env, 'https_proxy'))
   const httpProxy = getProxyValue(
-    getProxyUrl(trustedConfig['http-proxy']),
+    getProxyUrl(getOverlaidSetting(proxyOverlays, 'httpProxy', trustedConfig['http-proxy'])),
     httpsProxySetting === false
       ? undefined
       : httpsProxy ?? getEnvValue(env, 'http_proxy') ?? getEnvValue(env, 'proxy')
   )
+  const noProxy = getNoProxyValue(getOverlaidSetting(proxyOverlays, 'noProxy', trustedConfig['no-proxy'])) ??
+    getNoProxyValue(trustedConfig.noproxy) ??
+    getEnvValue(env, 'no_proxy')
   return {
     ca: trustedConfig.ca as string | string[] | undefined,
     cert: trustedConfig.cert as string | string[] | undefined,
@@ -206,9 +214,21 @@ function createPackageManagerNetworkConfig (
     httpsProxy,
     key: trustedConfig.key as string | undefined,
     localAddress: cliNetworkSettings.localAddress ?? globalYamlNetworkSettings.localAddress ?? trustedConfig['local-address'] as string | undefined,
-    noProxy: (trustedConfig['no-proxy'] ?? trustedConfig.noproxy ?? getEnvValue(env, 'no_proxy')) as string | boolean | undefined,
+    noProxy,
     strictSsl: cliNetworkSettings.strictSsl ?? globalYamlNetworkSettings.strictSsl ?? trustedConfig['strict-ssl'] as boolean | undefined,
   }
+}
+
+/**
+ * The value of the first overlay that names {@link key}, or else the trusted
+ * `.npmrc` value. A key named with a value that reads as unset still masks
+ * the layers below it, so the cascade falls through to the environment.
+ */
+function getOverlaidSetting (overlays: ProxySettings[], key: keyof ProxySettings, trustedValue: unknown): unknown {
+  for (const overlay of overlays) {
+    if (overlay[key] !== undefined) return overlay[key]
+  }
+  return trustedValue
 }
 
 function getEnvValue (env: Record<string, string | undefined>, key: string): string | undefined {
@@ -223,6 +243,15 @@ function getEnvValue (env: Record<string, string | undefined>, key: string): str
  */
 function getProxyUrl (value: unknown): string | undefined {
   return typeof value === 'string' && value.length > 0 ? value : undefined
+}
+
+/**
+ * Only a host list or `true` configures `noProxy`. Any other value, such as
+ * `false`, an empty string, or an array, reads as unset, so the `noproxy`
+ * spelling and then `NO_PROXY` apply, as they do for installs.
+ */
+function getNoProxyValue (value: unknown): string | true | undefined {
+  return value === true || (typeof value === 'string' && value.length > 0) ? value : undefined
 }
 
 function getProxyValue (value: string | false | undefined, fallback: string | undefined): string | undefined {

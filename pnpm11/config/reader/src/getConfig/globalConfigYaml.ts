@@ -21,7 +21,7 @@ import { addSettingsFromWorkspaceManifestToConfig } from './workspaceManifestSet
 export interface AppliedGlobalYamlConfig {
   /** The registries in effect right after the file was applied, or undefined when there is no global config.yaml. */
   registries: Record<string, string> | undefined
-  /** The file's `strictSsl` and `localAddress`, which the package-manager bootstrap reads too. */
+  /** The file's network settings, which the package-manager bootstrap reads too. */
   bootstrapNetworkSettings: BootstrapNetworkSettings
 }
 
@@ -40,7 +40,7 @@ export function applyGlobalYamlConfig (
   if (droppedKeys.ignoredKeys.length > 0 || droppedKeys.kebabKeys.length > 0) {
     warnAboutDroppedGlobalConfigKeys(state.warnings, { ...droppedKeys, globalYamlConfigPath: getGlobalConfigPath(configDir) })
   }
-  const { localAddress, strictSsl } = addSettingsFromWorkspaceManifestToConfig(state.pnpmConfig, {
+  const { httpProxy, httpsProxy, localAddress, noProxy, strictSsl } = addSettingsFromWorkspaceManifestToConfig(state.pnpmConfig, {
     configFromCliOpts: state.configFromCliOpts,
     expandRequestDestinationEnv: true,
     projectManifest: undefined,
@@ -51,7 +51,7 @@ export function applyGlobalYamlConfig (
   })
   return {
     registries: state.pnpmConfig.registriesByScope as Record<string, string> | undefined,
-    bootstrapNetworkSettings: { localAddress, strictSsl },
+    bootstrapNetworkSettings: { httpProxy, httpsProxy, localAddress, noProxy, strictSsl },
   }
 }
 
