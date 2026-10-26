@@ -162,22 +162,31 @@ impl SignalRelay {
 /// so no process group the child is in carried it and the relay owes it
 /// the signal whatever group that is.
 #[cfg(unix)]
-fn relay_late(relay: &SignalRelay, missed_the_child: bool) {
+fn relay_late(relay: &SignalRelay, missed_the_child: bool, missed: usize) {
     let Some(entry) = relay.entry else { return };
-    if entry.relays.compare_exchange(0, 1, Ordering::AcqRel, Ordering::Relaxed).is_err() {
+    let steps = missed.min(RELAYED_INTERRUPTS);
+    // Taking every step the child missed is what keeps the handler from
+    // taking them as well, so no interrupt reaches the child twice.
+    if entry.relays.compare_exchange(0, steps, Ordering::AcqRel, Ordering::Relaxed).is_err() {
         return;
     }
     let signal = LAST_SIGNAL.load(Ordering::Relaxed);
     let target = entry.target.load(Ordering::Acquire);
-    if kernel_gave_it_to_the_child(missed_the_child, target, signal, holds_the_terminal()) {
-        return;
+    if !kernel_gave_it_to_the_child(missed_the_child, target, signal, holds_the_terminal()) {
+        // SAFETY: `target` is the child this relay holds, or that child's
+        // process group, and the relay holds the entry for as long as pnpm
+        // waits for the child. `ESRCH` from one that exited concurrently
+        // is harmless.
+        unsafe {
+            libc::kill(target, signal);
+        }
     }
-    // SAFETY: `target` is the child this relay holds, or that child's
-    // process group, and the relay holds the entry for as long as pnpm
-    // waits for the child. `ESRCH` from one that exited concurrently is
-    // harmless.
-    unsafe {
-        libc::kill(target, signal);
+    if steps > 1 {
+        // A second interrupt escalates, as [`relay_to`] escalates it.
+        // SAFETY: as above.
+        unsafe {
+            libc::kill(target, libc::SIGTERM);
+        }
     }
 }
 
@@ -202,7 +211,7 @@ fn kernel_gave_it_to_the_child(
 /// The console delivers its event to every process attached to it, so a
 /// child that joined the relay late has the event already.
 #[cfg(not(unix))]
-fn relay_late(_relay: &SignalRelay, _missed_the_child: bool) {}
+fn relay_late(_relay: &SignalRelay, _missed_the_child: bool, _missed: usize) {}
 
 /// A child pnpm has spawned that has not joined the relay yet.
 ///
@@ -250,10 +259,11 @@ impl SpawningChild {
     /// Hand the child over to `relay`, passing on whatever pnpm took while
     /// it was being spawned.
     pub(crate) fn joined(self, relay: &SignalRelay) {
-        if INTERRUPTS.load(Ordering::Acquire) == self.before_spawn {
+        let missed = INTERRUPTS.load(Ordering::Acquire).saturating_sub(self.before_spawn);
+        if missed == 0 {
             return;
         }
-        relay_late(relay, self.once_spawned != self.before_spawn);
+        relay_late(relay, self.once_spawned != self.before_spawn, missed);
     }
 }
 

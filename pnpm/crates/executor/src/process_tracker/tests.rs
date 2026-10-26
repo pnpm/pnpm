@@ -480,6 +480,62 @@ fn a_signal_taken_while_a_child_is_spawned(raise: Raise) {
     assert_eq!(status.code(), Some(42), "the child must end through the signal it traps");
 }
 
+/// A child that misses two interrupts owes the escalation as well as the
+/// interrupt: the handler gives a registered child `SIGTERM` on the
+/// second, and a child that joined late must not be gentler for having
+/// been spawned while they arrived. The gap spans the spawn and the
+/// watchdog behind it, so two presses of `Ctrl+C` fit inside it.
+#[test]
+fn two_signals_taken_while_a_child_is_spawned_both_reach_it() {
+    let directory = TempDir::new().expect("create a temporary directory");
+    let (ready, received) = (directory.path().join("ready"), directory.path().join("received"));
+    let mut spawning = crate::interrupt::spawning_child();
+    let mut command = Command::new("sh");
+    command
+        .arg("-c")
+        .arg(format!(
+            "trap 'echo INT >> {received}' INT; trap 'echo TERM >> {received}' TERM; \
+             : > {ready}; while :; do sleep 0.05; done",
+            received = received.display(),
+            ready = ready.display(),
+        ))
+        .process_group(0);
+    let mut child = command.spawn().expect("spawn the child");
+    spawning.spawned();
+    // Recording rather than exiting, so the second signal has something
+    // to arrive at and neither races the child's exit.
+    while !ready.exists() {
+        sleep(Duration::from_millis(5));
+    }
+
+    interrupt_this_process();
+    interrupt_this_process();
+    let relay = crate::interrupt::relay_to_child(child.id(), true);
+    spawning.joined(&relay);
+
+    let both = ["INT", "TERM"];
+    let deadline = Instant::now() + Duration::from_secs(30);
+    let mut seen = String::new();
+    while Instant::now() < deadline {
+        seen = std::fs::read_to_string(&received).unwrap_or_default();
+        if both
+            .iter()
+            .all(|signal| seen.contains(signal))
+        {
+            break;
+        }
+        sleep(Duration::from_millis(20));
+    }
+    // SAFETY: the child this test spawned, which records rather than exits.
+    unsafe {
+        libc::kill(-i32::try_from(child.id()).expect("pid fits i32"), libc::SIGKILL);
+    }
+    let _ = child.wait();
+    for signal in both {
+        assert!(seen.contains(signal), "the child missed {signal}, having received {seen:?}");
+    }
+}
+
 /// Raise `SIGINT` on this process, which the claim in the caller has
 /// armed a handler for.
 ///
