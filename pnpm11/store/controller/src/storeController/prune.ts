@@ -8,6 +8,7 @@ import type { StoreIndex } from '@pnpm/store.index'
 import { rimraf } from '@zkochan/rimraf'
 import prettyBytes from 'pretty-bytes'
 
+import { getInUseFiles } from './inUseFiles.js'
 import { pruneGlobalVirtualStore } from './pruneGlobalVirtualStore.js'
 
 const BIG_ONE = BigInt(1) as unknown
@@ -19,6 +20,10 @@ export interface PruneOptions {
 }
 
 export async function prune ({ cacheDir, storeDir, storeIndex }: PruneOptions, removeAlienFiles?: boolean): Promise<void> {
+  // 0. Collect the files that registered projects still use, before any
+  // removal, so an unreadable lockfile stops the prune untouched
+  const inUseFiles = await getInUseFiles(storeDir, storeIndex)
+
   // 1. First, prune the global virtual store
   // This must happen BEFORE pruning the CAS, because removing packages from
   // the virtual store will reduce hard link counts on files in the CAS
@@ -29,7 +34,7 @@ export async function prune ({ cacheDir, storeDir, storeIndex }: PruneOptions, r
   await removeStaleSpillDirectories(storeDir)
 
   // 3. Prune the content-addressable store (CAS)
-  const removedHashes = await pruneContentAddressableStore(storeDir, removeAlienFiles)
+  const removedHashes = await pruneContentAddressableStore(storeDir, removeAlienFiles, inUseFiles)
 
   // 4. Clean up orphaned package index entries
   removeOrphanedIndexEntries(storeIndex, removedHashes)
@@ -89,14 +94,16 @@ interface CafsPruneStats {
   fileCounter: number
   totalSize: number
   removedHashes: Set<string>
+  inUseFiles: Set<string>
 }
 
-async function pruneContentAddressableStore (storeDir: string, removeAlienFiles: boolean | undefined): Promise<Set<string>> {
+async function pruneContentAddressableStore (storeDir: string, removeAlienFiles: boolean | undefined, inUseFiles: Set<string>): Promise<Set<string>> {
   const cafsDir = path.join(storeDir, 'files')
   const stats: CafsPruneStats = {
     fileCounter: 0,
     totalSize: 0,
     removedHashes: new Set<string>(),
+    inUseFiles,
   }
   const dirs = await getSubdirsSafely(cafsDir)
   await Promise.all(dirs.map(async (dir) => {
@@ -130,7 +137,7 @@ async function pruneCafsEntry ({ dir, fileName, subdir, removeAlienFiles, stats 
     }
     return
   }
-  if (stat.nlink === 1 || stat.nlink === BIG_ONE) {
+  if ((stat.nlink === 1 || stat.nlink === BIG_ONE) && !stats.inUseFiles.has(filePath)) {
     stats.totalSize += stat.size
     await fs.unlink(filePath)
     stats.fileCounter++

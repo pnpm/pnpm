@@ -10173,6 +10173,9 @@ importers:
 
   pnpm11/store/controller:
     dependencies:
+      '@pnpm/constants':
+        specifier: workspace:*
+        version: link:../../core/constants
       '@pnpm/crypto.hash':
         specifier: workspace:*
         version: link:../../crypto/hash
@@ -10185,9 +10188,21 @@ importers:
       '@pnpm/hooks.types':
         specifier: workspace:*
         version: link:../../hooks/types
+      '@pnpm/installing.modules-yaml':
+        specifier: workspace:*
+        version: link:../../installing/modules-yaml
       '@pnpm/installing.package-requester':
         specifier: workspace:*
         version: link:../../installing/package-requester
+      '@pnpm/lockfile.fs':
+        specifier: workspace:*
+        version: link:../../lockfile/fs
+      '@pnpm/lockfile.types':
+        specifier: workspace:*
+        version: link:../../lockfile/types
+      '@pnpm/lockfile.utils':
+        specifier: workspace:*
+        version: link:../../lockfile/utils
       '@pnpm/resolving.resolver-base':
         specifier: workspace:*
         version: link:../../resolving/resolver-base
@@ -10209,9 +10224,15 @@ importers:
       '@pnpm/worker':
         specifier: workspace:^
         version: link:../../worker
+      '@pnpm/workspace.workspace-manifest-reader':
+        specifier: workspace:*
+        version: link:../../workspace/workspace-manifest-reader
       '@zkochan/rimraf':
         specifier: 'catalog:'
         version: 4.0.0
+      empathic:
+        specifier: 'catalog:'
+        version: 2.1.0
       is-subdir:
         specifier: 'catalog:'
         version: 2.0.1
