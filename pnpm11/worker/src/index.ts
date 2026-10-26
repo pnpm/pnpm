@@ -11,9 +11,9 @@ import type { StoreIndex } from '@pnpm/store.index'
 import type { BundledManifest } from '@pnpm/types'
 import { WorkerPool } from '@rushstack/worker-pool'
 import isWindows from 'is-windows'
-import { cpuCountSync } from 'node-cpu-count'
 import pLimit from 'p-limit'
 
+import { getAvailableParallelism } from './cpuCount.js'
 import type {
   AddDirToStoreMessage,
   HardLinkDirMessage,
@@ -108,7 +108,7 @@ export function calcMaxWorkers (availableCpus: number = availableParallelism()):
 }
 
 function availableParallelism (): number {
-  return cpuCountSync(1, os.availableParallelism?.() ?? os.cpus().length)
+  return getAvailableParallelism(os.availableParallelism?.() ?? os.cpus().length)
 }
 
 interface AddFilesResult {
