@@ -189,13 +189,14 @@ function createPackageManagerNetworkConfig (
   // trusted `.npmrc` files, as they do for the project's requests. The
   // command line's `.npmrc`-spelled tokens sit inside `trustedConfig` too.
   const cliNetworkSettings = configFromCliOpts as BootstrapNetworkSettings
-  const httpsProxy = getProxyValue(
-    trustedConfig['https-proxy'] ?? trustedConfig.proxy,
-    getEnvValue(env, 'https_proxy')
-  )
+  const httpsProxySetting = getProxyUrl(trustedConfig['https-proxy']) ??
+    (trustedConfig.proxy === false ? false : getProxyUrl(trustedConfig.proxy))
+  const httpsProxy = getProxyValue(httpsProxySetting, getEnvValue(env, 'https_proxy'))
   const httpProxy = getProxyValue(
-    trustedConfig['http-proxy'],
-    httpsProxy ?? getEnvValue(env, 'http_proxy') ?? getEnvValue(env, 'proxy')
+    getProxyUrl(trustedConfig['http-proxy']),
+    httpsProxySetting === false
+      ? undefined
+      : httpsProxy ?? getEnvValue(env, 'http_proxy') ?? getEnvValue(env, 'proxy')
   )
   return {
     ca: trustedConfig.ca as string | string[] | undefined,
@@ -214,10 +215,19 @@ function getEnvValue (env: Record<string, string | undefined>, key: string): str
   return env[key] ?? env[key.toUpperCase()] ?? env[key.toLowerCase()]
 }
 
-function getProxyValue (value: unknown, fallback: string | undefined): string | undefined {
-  if (value === false || value === null) return undefined
-  if (typeof value === 'string' && value.length > 0) return value
-  return fallback
+/**
+ * A proxy setting of `false`, `null`, or an empty string reads as unset, so
+ * the next setting and then the environment apply, as they do for installs.
+ * Only `proxy=false` turns the proxy off, including the environment fallback
+ * for `http-proxy`.
+ */
+function getProxyUrl (value: unknown): string | undefined {
+  return typeof value === 'string' && value.length > 0 ? value : undefined
+}
+
+function getProxyValue (value: string | false | undefined, fallback: string | undefined): string | undefined {
+  if (value === false) return undefined
+  return value ?? fallback
 }
 
 /**

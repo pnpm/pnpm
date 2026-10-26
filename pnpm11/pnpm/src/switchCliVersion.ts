@@ -346,21 +346,12 @@ function installPnpmToStoreOptions (
     envLockfile,
     storeController: store.ctrl,
     storeDir: store.dir,
-    registriesByScope: getPackageManagerBootstrapConfig(config).registriesByScope,
     virtualStoreDirMaxLength: config.virtualStoreDirMaxLength,
     packageManager: { name: packageManager.name, version: packageManager.version },
-    // Network settings so the engine identity check can reach the canonical
-    // npm registry through the user's proxy / TLS configuration.
-    ca: config.ca,
-    cert: config.cert,
-    key: config.key,
-    httpProxy: config.httpProxy,
-    httpsProxy: config.httpsProxy,
-    noProxy: config.noProxy,
-    strictSsl: config.strictSsl,
-    localAddress: config.localAddress,
+    // The engine identity check reaches the registry with the same trusted
+    // network settings as the store controller that downloads pnpm.
+    ...getPackageManagerBootstrapConfig(config),
     maxSockets: config.maxSockets,
-    configByUri: config.configByUri,
     timeout: config.fetchTimeout,
   }
 }
