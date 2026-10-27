@@ -49,6 +49,7 @@ pub struct CatalogModeDep<'a> {
     /// `catalog:` / `catalog:<name>` when the manifest already references a
     /// catalog and is staying that way.
     pub bare_specifier: &'a str,
+    pub(crate) requested_dist_tag: Option<&'a str>,
     /// The specifier already recorded in the manifest, consulted to
     /// preserve a named catalog group (`catalog:<name>`). `None` for a
     /// freshly-added dependency.
@@ -179,6 +180,16 @@ fn decide_catalog_entry(
             });
         }
     };
+
+    if dep.requested_dist_tag == Some(entry.as_str()) {
+        return Ok(CatalogDecisionOutcome {
+            decision: CatalogDecision::Catalog {
+                manifest_specifier: catalog_specifier,
+                updated_entry: None,
+            },
+            warning: None,
+        });
+    }
 
     if catalog_covers(&entry, dep.bare_specifier) {
         let updated_entry = moved_catalog_entry(&entry, dep.bare_specifier)

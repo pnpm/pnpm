@@ -65,7 +65,10 @@ pub(super) async fn resolve_added_dependency(
     )?;
     if let Some(picked) = picked
         .as_ref()
-        .filter(|_| selector.names_dist_tag(package_selector, inputs.add.config.default_tag()))
+        .filter(|_| {
+            super::registry::dist_tag(package_selector, Some(inputs.add.config.default_tag()))
+                .is_some()
+        })
     {
         pin_catalog_entry(&mut updated_catalogs, package_name, &picked.version);
     }
@@ -103,7 +106,12 @@ fn resolve_catalog_and_warnings(
         inputs.add.config.catalog_mode,
         inputs.owned.save_catalog_name.as_deref(),
         inputs.catalogs,
-        &CatalogModeDep { alias: package_name, bare_specifier: &bare_specifier, prev_specifier },
+        &CatalogModeDep {
+            alias: package_name,
+            bare_specifier: &bare_specifier,
+            requested_dist_tag: super::registry::dist_tag(package_selector, None),
+            prev_specifier,
+        },
         inputs.prefix,
     )
     .map_err(AddError::CatalogVersionMismatch)?;
@@ -163,16 +171,6 @@ impl AddSelector {
         }
     }
 
-    /// Whether the selector names a registry dist-tag other than `latest`,
-    /// such as `foo@legacy`, or names no version while `default_tag` is one.
-    fn names_dist_tag(&self, package_selector: &str, default_tag: &str) -> bool {
-        let spec = self.explicit_spec(package_selector).unwrap_or(default_tag);
-        self.protocol.is_none()
-            && self.aliasless.is_none()
-            && spec != "latest"
-            && !spec.contains(':')
-            && node_semver::Range::parse(spec).is_err()
-    }
     fn explicit_spec<'s>(&'s self, package_selector: &'s str) -> Option<&'s str> {
         match (self.aliasless.as_ref(), self.protocol.as_ref()) {
             (Some(dep), _) => Some(dep.manifest_specifier.as_str()),
