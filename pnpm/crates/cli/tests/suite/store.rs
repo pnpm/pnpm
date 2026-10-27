@@ -475,7 +475,13 @@ enum PinnedHash {
 }
 
 /// <https://github.com/pnpm/pnpm/issues/2978>
-fn assert_downloaded_tarballs_warm_the_store_for_an_offline_install(pinned: PinnedHash) {
+///
+/// `spec_prefix` is prepended to each dependency's version. A non-empty one
+/// is declared as a named registry, which qualifies the lockfile keys.
+fn assert_downloaded_tarballs_warm_the_store_for_an_offline_install(
+    pinned: PinnedHash,
+    spec_prefix: &str,
+) {
     let CommandTempCwd {
         pacquet,
         root,
@@ -483,12 +489,21 @@ fn assert_downloaded_tarballs_warm_the_store_for_an_offline_install(pinned: Pinn
         npmrc_info,
         ..
     } = CommandTempCwd::init().add_mocked_registry_with_own_storage();
+    if let Some(prefix) = spec_prefix.strip_suffix(':') {
+        let registry = npmrc_info.mock_instance.url();
+        _utils::append_workspace_yaml_key(
+            &workspace,
+            "namedRegistries",
+            format!("{{ {prefix}: '{registry}' }}"),
+        );
+    }
+    let version = format!("{spec_prefix}100.0.0");
     fs::write(
         workspace.join("package.json"),
         serde_json::json!({
             "dependencies": {
-                "@pnpm.e2e/foo": "100.0.0",
-                "@pnpm.e2e/bar": "100.0.0",
+                "@pnpm.e2e/foo": version,
+                "@pnpm.e2e/bar": version,
             },
         })
         .to_string(),
@@ -555,17 +570,22 @@ fn pin_lockfile_to_sha1(lockfile_path: &Path, tarballs: &[PathBuf]) {
 
 #[test]
 fn store_add_of_downloaded_tarballs_serves_lockfiles_that_pin_sha512() {
-    assert_downloaded_tarballs_warm_the_store_for_an_offline_install(PinnedHash::Sha512);
+    assert_downloaded_tarballs_warm_the_store_for_an_offline_install(PinnedHash::Sha512, "");
 }
 
 #[test]
 fn store_add_of_downloaded_tarballs_serves_lockfiles_that_pin_sha1() {
-    assert_downloaded_tarballs_warm_the_store_for_an_offline_install(PinnedHash::Sha1);
+    assert_downloaded_tarballs_warm_the_store_for_an_offline_install(PinnedHash::Sha1, "");
 }
 
 #[test]
 fn store_add_of_downloaded_tarballs_serves_lockfiles_that_pin_the_tar() {
-    assert_downloaded_tarballs_warm_the_store_for_an_offline_install(PinnedHash::Tar);
+    assert_downloaded_tarballs_warm_the_store_for_an_offline_install(PinnedHash::Tar, "");
+}
+
+#[test]
+fn store_add_of_downloaded_tarballs_serves_named_registry_lockfile_keys() {
+    assert_downloaded_tarballs_warm_the_store_for_an_offline_install(PinnedHash::Sha512, "work:");
 }
 
 #[test]

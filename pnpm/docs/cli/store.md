@@ -40,6 +40,9 @@ tar inside it, which
 [`lockfile.integrityTarget: tar`](../settings/store.md#lockfileintegritytarget)
 records.
 
+For a package from a [named registry](../package-sources.md#named-registries),
+run `pnpm store add` in the project that declares the registry.
+
 [`pnpm add`]: ./add.md
 
 ### prune
