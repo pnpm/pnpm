@@ -1,5 +1,7 @@
 //! Running one package's build scripts.
 
+pub(crate) use dependency_bins::refresh_privately_hoisted;
+
 mod dependency_bins;
 mod linked_copies;
 mod patched_engines;
@@ -44,14 +46,6 @@ impl<'a> BuildOneSnapshot<'a> {
 /// bounded-parallelism scheduler in
 /// [`crate::build_modules::BuildModules::run`].
 pub(crate) fn build_one_snapshot<Reporter: self::Reporter>(
-    snapshot_key: &PackageKey,
-    context: &BuildOneSnapshot<'_>,
-) -> Result<(), BuildModulesError> {
-    build_snapshot::<Reporter>(snapshot_key, context)?;
-    dependency_bins::refresh_privately_hoisted(context, snapshot_key)
-}
-
-fn build_snapshot<Reporter: self::Reporter>(
     snapshot_key: &PackageKey,
     context: &BuildOneSnapshot<'_>,
 ) -> Result<(), BuildModulesError> {

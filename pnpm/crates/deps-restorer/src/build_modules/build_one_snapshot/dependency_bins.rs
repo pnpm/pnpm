@@ -137,7 +137,7 @@ pub(super) fn record_mutation(
 
 /// Relink the private hoist directory's shims of a package whose build
 /// finished, so the scripts of its dependents run the built executables.
-pub(super) fn refresh_privately_hoisted(
+pub(crate) fn refresh_privately_hoisted(
     context: &BuildOneSnapshot<'_>,
     key: &PackageKey,
 ) -> Result<(), BuildModulesError> {

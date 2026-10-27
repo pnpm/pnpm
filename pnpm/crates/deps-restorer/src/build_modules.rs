@@ -591,7 +591,9 @@ fn schedule_builds<Reporter: self::Reporter>(
     let first_error: Mutex<Option<BuildModulesError>> = Mutex::new(None);
     let on_node_skipped: fn(&PackageKey) = |_| {};
     let run_node =
-        |snapshot_key: PackageKey| match build_one_snapshot::<Reporter>(&snapshot_key, context) {
+        |snapshot_key: PackageKey| match build_one_snapshot::<Reporter>(&snapshot_key, context)
+            .and_then(|()| build_one_snapshot::refresh_privately_hoisted(context, &snapshot_key))
+        {
             Ok(()) => TaskCompletion::Passed,
             Err(error) => {
                 first_error
