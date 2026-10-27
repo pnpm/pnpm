@@ -3,7 +3,7 @@ use super::{
     alias::{npm_alias_target, resolve_npm_alias_save_specifier},
     aliasless::{AliaslessDependency, resolve_aliasless_specifier},
     manifest::apply_catalog_decision,
-    registry::{pick_latest_range, registry_specifier_to_save, resolve_explicit_registry_spec},
+    registry::{pick_latest_range, resolve_explicit_registry_spec},
     workspace_specifier::workspace_save_specifier,
 };
 use crate::{
@@ -56,13 +56,19 @@ pub(super) async fn resolve_added_dependency(
     let types_selector =
         super::types::resolve_types_selector(package_name, &bare_specifier, manifest, inputs)
             .await?;
-    let (manifest_specifier, updated_catalogs, mut warnings) = resolve_catalog_and_warnings(
+    let (manifest_specifier, mut updated_catalogs, mut warnings) = resolve_catalog_and_warnings(
         inputs,
         package_name,
         bare_specifier,
         prev_specifier.as_deref(),
         package_selector,
     )?;
+    if let Some(picked) = picked
+        .as_ref()
+        .filter(|_| selector.names_dist_tag(package_selector))
+    {
+        pin_catalog_entry(&mut updated_catalogs, package_name, &picked.version);
+    }
     warnings.extend(selector.linked_peer_dependencies_warning(package_name, inputs.prefix));
     Ok(ResolvedAddedDependency {
         package_name: package_name.to_string(),
@@ -72,6 +78,17 @@ pub(super) async fn resolve_added_dependency(
         types_selector,
         picked,
     })
+}
+
+/// A catalog entry written for a dist-tag records the exact version the tag
+/// pointed to, so the catalog does not drift when the tag moves.
+fn pin_catalog_entry(updated_catalogs: &mut Catalogs, package_name: &str, version: &str) {
+    for entry in updated_catalogs
+        .values_mut()
+        .filter_map(|catalog| catalog.get_mut(package_name))
+    {
+        *entry = version.to_string();
+    }
 }
 
 fn resolve_catalog_and_warnings(
@@ -146,6 +163,19 @@ impl AddSelector {
         }
     }
 
+    /// Whether the selector names a registry dist-tag other than `latest`,
+    /// such as `foo@legacy`.
+    fn names_dist_tag(&self, package_selector: &str) -> bool {
+        self.protocol.is_none()
+            && self.aliasless.is_none()
+            && self
+                .explicit_spec(package_selector)
+                .is_some_and(|spec| {
+                    spec != "latest"
+                        && !spec.contains(':')
+                        && node_semver::Range::parse(spec).is_err()
+                })
+    }
     fn explicit_spec<'s>(&'s self, package_selector: &'s str) -> Option<&'s str> {
         match (self.aliasless.as_ref(), self.protocol.as_ref()) {
             (Some(dep), _) => Some(dep.manifest_specifier.as_str()),
@@ -179,8 +209,9 @@ pub(super) fn declared_specifier(manifest: &PackageManifest, package_name: &str)
 /// - an explicit `@<version>` is resolved to a concrete version and
 ///   recorded with the range operator it (or the existing entry)
 ///   pins — `pnpm add foo@^7` records `^7.8.4`, not
-///   `^7`. Specifiers that aren't a plain registry range/tag/version
-///   for this package (protocols, `npm:` aliases) stay verbatim;
+///   `^7`. An `npm:` alias records its target the same way —
+///   `pnpm add v2@npm:foo@1` records `npm:foo@^1.0.0`. Other protocols
+///   stay verbatim;
 /// - an explicit `node@runtime:<spec>` is likewise pinned to the
 ///   picked Node.js version, so the `devEngines.runtime` entry the
 ///   saved dependency folds into records e.g. `26.5.0`, not the
@@ -240,7 +271,6 @@ pub(super) async fn bare_save_specifier(
     }
     registry_save_specifier(package_name, explicit_spec, prev_specifier, manifest, inputs).await
 }
-
 /// [`bare_save_specifier`] for a plain registry selector.
 async fn registry_save_specifier(
     package_name: &str,
@@ -281,21 +311,17 @@ pub(super) async fn explicit_registry_save_specifier(
         match resolve_explicit_registry_spec(package_name, spec, prev_specifier, manifest, inputs)
             .await?
         {
-            Some(picked) => {
-                let specifier = registry_specifier_to_save(&picked, inputs.add.config.catalog_mode);
-                SaveSpecifier {
-                    specifier,
-                    picked: Some(PickedPackage {
-                        name: package_name.to_string(),
-                        version: picked.version,
-                    }),
-                }
-            }
+            Some(picked) => SaveSpecifier {
+                specifier: picked.range,
+                picked: Some(PickedPackage {
+                    name: package_name.to_string(),
+                    version: picked.version,
+                }),
+            },
             None => normalized_save_specifier(spec).into(),
         },
     )
 }
-
 /// What [`bare_save_specifier`] records, and the version it resolved an
 /// explicit registry specifier to.
 pub(super) struct SaveSpecifier {
