@@ -4,8 +4,29 @@
 use super::{AddOne, ArchiveToAdd, Reporter};
 use miette::{IntoDiagnostic, WrapErr};
 use pnpm_store_dir::store_index_key;
+use pnpm_tarball::local_file_tarball_path;
 use ssri::{Algorithm, Integrity, IntegrityOpts};
-use std::path::Path;
+use std::path::{Path, PathBuf};
+
+/// The `resolved_via` of a `file:` tarball the local resolver resolved.
+const LOCAL_FILESYSTEM: &str = "local-filesystem";
+
+/// The tarball on disk a resolution names, when the local resolver made it.
+///
+/// A registry resolution can carry a `file:` tarball URL too, but it pins its
+/// own integrity, which the registry ingestion path verifies. The local
+/// resolver reads a relative path from `lockfile_dir`, which `--dir` can set
+/// apart from the working directory, so the path is joined to it.
+pub(super) fn tarball_on_disk(
+    resolved_via: &str,
+    package_url: &str,
+    lockfile_dir: &Path,
+) -> Option<PathBuf> {
+    if resolved_via != LOCAL_FILESYSTEM {
+        return None;
+    }
+    local_file_tarball_path(package_url).map(|path| lockfile_dir.join(path))
+}
 
 impl AddOne<'_> {
     /// Ingest the tarball at `path`, then make its row reachable under every
@@ -13,9 +34,10 @@ impl AddOne<'_> {
     /// `<integrity>\t<name>@<version>` for the tarball's sha512 and sha1 and
     /// for the tar it holds. Which one a lockfile records depends on the
     /// package's age and on `lockfile.integrityTarget`. A package from a
-    /// registry with a declared prefix is keyed `<name>@<prefix>:<version>`,
-    /// and the tarball does not say which registry it came from, so every
-    /// declared prefix gets aliases.
+    /// registry reached through a prefix may be keyed
+    /// `<name>@<prefix>:<version>`, and the tarball does not say which
+    /// registry it came from, so every declared and built-in prefix gets
+    /// aliases.
     ///
     /// Each alias names a hash of the bytes that were ingested, so a lockfile
     /// entry reaches the row only when it pins exactly this tarball.
@@ -24,7 +46,16 @@ impl AddOne<'_> {
         path: &Path,
         archive: &ArchiveToAdd<'_>,
     ) -> miette::Result<()> {
-        let digests = FileDigests::read(path).await?;
+        let path = std::path::absolute(path)
+            .into_diagnostic()
+            .wrap_err_with(|| format!("resolve the tarball path {}", path.display()))?;
+        let digests = FileDigests::read(&path).await?;
+        // Ingestion reads the URL against the working directory, so it gets
+        // the path the digests were read from.
+        let url = url::Url::from_file_path(&path)
+            .map_err(|()| miette::miette!("{} is not a file URL path", path.display()))?
+            .to_string();
+        let archive = &ArchiveToAdd { url: &url, ..*archive };
         // Ingestion verifies the sha512, which ties the sha1 read alongside
         // it to the ingested bytes.
         let fetched = self
@@ -35,7 +66,8 @@ impl AddOne<'_> {
         let row_key = store_index_key(&fetched.integrity.to_string(), archive.id);
         let integrities =
             [Some(&digests.sha512), Some(&digests.sha1), fetched.tar_integrity.as_ref()];
-        let prefixes = self.config.registries_by_prefix.keys().map(String::as_str);
+        let prefixes = self.config.merged_registries_by_prefix();
+        let prefixes = prefixes.keys().map(String::as_str);
         for registry_id in registry_package_ids(fetched.manifest.as_ref(), prefixes) {
             integrities
                 .iter()
