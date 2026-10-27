@@ -129,6 +129,7 @@ pub(super) fn build_registries(
     let defaults = addressed_defaults(defaults, &registries);
     let registries = registries.with_defaults(defaults);
     registries.validate().map_err(|err| registry_err(&err))?;
+    check_hosted_tar_sources(&registries, &builder.hosted, &builder.tar_registries)?;
     Ok(ResolvedRegistryGraph {
         hosted: builder.hosted,
         registries,
@@ -209,6 +210,32 @@ impl RegistryGraphBuilder {
         }
         Ok(())
     }
+}
+
+/// A hosted registry that declares `tarballs: tar` stores its versions as
+/// tars, with no `.tgz`, so a router that serves `.tgz` files cannot list it.
+fn check_hosted_tar_sources(
+    registries: &Registries,
+    hosted: &IndexMap<String, HostedConfig>,
+    tar_registries: &BTreeSet<String>,
+) -> Result<(), RegistryError> {
+    let tgz_routers = registries
+        .names()
+        .filter(|name| registries.is_router(name) && !tar_registries.contains(*name));
+    for router in tgz_routers {
+        let tar_source = registries
+            .sources(router, Ecosystem::Npm)
+            .into_iter()
+            .find(|source| hosted.contains_key(*source) && tar_registries.contains(*source));
+        if let Some(source) = tar_source {
+            return Err(RegistryError::InvalidConfig {
+                reason: format!(
+                    "router {router:?} serves `.tgz` files but lists {source:?}, which declares `tarballs: tar` and stores no `.tgz`; declare `tarballs: tar` on {router:?} or remove {source:?} from its sources",
+                ),
+            });
+        }
+    }
+    Ok(())
 }
 
 /// Whether `file` declares `tarballs: tar`, which only an npm registry may.

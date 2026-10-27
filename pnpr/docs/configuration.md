@@ -358,7 +358,8 @@ npm, Yarn, and pnpm projects that do not opt in keep using `main`. A pnpm projec
 
 - Every registry serves a version's tarball at `<registry>/<name>@<version>`. A tar registry serves no `.tgz` path.
 - For an upstream package without fresh cached metadata, pnpr reads the version's metadata from `<upstream>/<name>/<version>`. If the upstream does not serve it, pnpr reads the package's full metadata.
-- pnpr keeps the published `.tgz` and derives the tar from it:
+- A hosted registry that declares `tarballs: tar` keeps no `.tgz`. At publish, pnpr compresses the tar at level 19 and stores only that. A `zstd` client gets the stored bytes, and any other client gets the tar decoded, compressed as the request accepts. pnpr refuses to start when a router without `tarballs: tar` lists such a registry as a source, because the router would have no `.tgz` to serve. npm signatures and provenance sign the `.tgz`, so these packages have neither.
+- For every other registry, pnpr keeps the published `.tgz` and derives the tar from it:
   - A `gzip` client gets the `.tgz` itself, which is the gzip encoding of its tar.
   - A `zstd` client gets a level-19 encoding once pnpr has stored one. Until then pnpr compresses the tar at level 3 as it streams, and a background worker stores the level-19 encoding. Tars larger than 256 MiB stay at level 3. The level-19 encodings live in the cache, so they can be evicted and are made again.
   - Any other client gets the tar uncompressed.

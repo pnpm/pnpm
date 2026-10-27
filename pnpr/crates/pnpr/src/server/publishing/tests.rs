@@ -1,5 +1,5 @@
 use super::{
-    attachments::{AttachmentKind, PreparedAttachment, write_attachment_slot},
+    attachments::{AttachmentKind, PreparedAttachment, TarballStorage, write_attachment_slot},
     manifest::record_publisher,
 };
 use base64::Engine;
@@ -47,7 +47,7 @@ async fn a_published_tarball_hashes_its_tar_under_a_decode_permit() {
         kind: AttachmentKind::Tarball,
     };
     let decodes = Arc::new(tokio::sync::Semaphore::new(0));
-    let write = write_attachment_slot(&storage, &name, prepared, &decodes);
+    let write = write_attachment_slot(&storage, &name, prepared, TarballStorage::Tgz, &decodes);
     tokio::pin!(write);
 
     let waited = tokio::time::timeout(Duration::from_millis(200), &mut write).await;

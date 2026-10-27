@@ -127,29 +127,37 @@ async fn verify_version_tarball(
         return Ok(());
     };
 
-    let blob_key = format!("{pkg_name}/{filename}");
-    ctx.referenced_blobs.insert(blob_key);
+    // A hosted tar registry stores the version's tar in place of its `.tgz`.
+    let tar = canonical.tar_name_for_version(ver);
+    ctx.referenced_blobs.insert(format!("{pkg_name}/{filename}"));
+    ctx.referenced_blobs.insert(format!("{pkg_name}/{tar}"));
 
-    let opened = ctx.storage
-        .open_hosted_blob(canonical, filename)
-        .await
-        .map_err(|err| miette::miette!("error opening blob for '{pkg_name}': {err}"))?;
-
-    match opened {
-        None => {
-            ctx.report.missing_blobs.push(format!("{pkg_name}@{ver}: {filename}"));
+    if let Some((body, _)) = open_blob(ctx.storage, canonical, filename).await? {
+        let bytes = to_bytes(body, usize::MAX).await.into_diagnostic()?;
+        ctx.report.blobs_checked += 1;
+        ctx.report.bytes_verified += bytes.len() as u64;
+        if ctx.options.check_hashes {
+            check_hash_mismatch(pkg_name, ver, filename, &bytes, dist, ctx.report);
         }
-        Some((body, _)) => {
-            let bytes = to_bytes(body, usize::MAX).await.into_diagnostic()?;
-            ctx.report.blobs_checked += 1;
-            ctx.report.bytes_verified += bytes.len() as u64;
-
-            if ctx.options.check_hashes {
-                check_hash_mismatch(pkg_name, ver, filename, &bytes, dist, ctx.report);
-            }
-        }
+    } else if let Some((_, len)) = open_blob(ctx.storage, canonical, &tar).await? {
+        // `dist.integrity` names the published `.tgz`, which was not kept.
+        ctx.report.blobs_checked += 1;
+        ctx.report.bytes_verified += len.unwrap_or_default();
+    } else {
+        ctx.report.missing_blobs.push(format!("{pkg_name}@{ver}: {filename}"));
     }
     Ok(())
+}
+
+async fn open_blob(
+    storage: &Storage,
+    canonical: &CanonicalPackageName,
+    filename: &str,
+) -> miette::Result<Option<(axum::body::Body, Option<u64>)>> {
+    storage
+        .open_hosted_blob(canonical, filename)
+        .await
+        .map_err(|err| miette::miette!("error opening blob for '{}': {err}", canonical.as_str()))
 }
 
 fn check_hash_mismatch(
