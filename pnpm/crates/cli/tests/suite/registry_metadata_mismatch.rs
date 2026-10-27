@@ -135,6 +135,8 @@ fn partial_locked_peer_declarations_are_recovered_from_registry() {
         .as_object_mut()
         .expect("peer declarations")
         .remove("@pnpm.e2e/peer-b");
+    lockfile["packages"][format!("{WITH_PEERS}@1.0.0")]["peerDependenciesMeta"] =
+        json!({ "@pnpm.e2e/peer-b": { "optional": true } });
     fs::write(path, serde_saphyr::to_string(&lockfile).expect("serialize lockfile"))
         .expect("write partial lockfile");
 

@@ -135,10 +135,14 @@ fn has_unrecorded_peers(manifest: &serde_json::Value, current_pkg: &CurrentPkg) 
                 .get("peerDependencies")
                 .and_then(|peers| peers.get(name))
                 .is_none()
-                && locked
-                    .get("peerDependenciesMeta")
+                && (manifest
+                    .get("peerDependencies")
                     .and_then(|peers| peers.get(name))
-                    .is_none()
+                    .is_some()
+                    || locked
+                        .get("peerDependenciesMeta")
+                        .and_then(|peers| peers.get(name))
+                        .is_none())
         })
 }
 
