@@ -58,7 +58,10 @@ async function handleWantedPackageManager (pm: EngineDependency, opts: PackageMa
     recordPinWithoutSwitch: opts.recordPinWithoutSwitch,
     warn: (message: string) => warnAboutProject(config, message),
   }
-  const lockedEnv = await readPinLockfile(pm, config, context, invocation)
+  const lockedEnv = await readPinLockfile(pm, config, context, invocation).catch((err: unknown) => {
+    if (!printingVersion) throw err
+    return undefined
+  })
   const decision = decide(
     {
       wanted: pm,

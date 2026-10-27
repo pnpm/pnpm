@@ -655,6 +655,20 @@ test('pin_recorded_only_from_full_config_at_lockfile_dir', async () => {
     )
     expect(await runCliFlow(root, ['--dir', root, '--reporter=silent', 'root'])).toEqual({ outcome: 'nothing' })
     expect(await runCliFlow(root, ['--dir', root, '--reporter=silent', '--global', 'root'])).toEqual({ outcome: 'nothing' })
+
+    // 6. Corrupted pnpm-lock.yaml is tolerated when printing the version
+    fs.writeFileSync(
+      path.join(root, 'package.json'),
+      JSON.stringify({
+        name: 'root',
+        devEngines: { packageManager: { name: 'pnpm', version: '9.1.0', onFail: 'download' } },
+      }),
+      'utf8'
+    )
+    expect(await runCliFlow(root, ['--dir', root, '--reporter=silent', '--version'])).toEqual({
+      outcome: 'switch',
+      version: '9.1.0',
+    })
   } finally {
     if (prevXdgConfigHome === undefined) {
       delete process.env.XDG_CONFIG_HOME

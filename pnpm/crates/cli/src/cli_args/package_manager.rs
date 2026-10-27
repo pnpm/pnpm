@@ -98,9 +98,10 @@ pub(crate) fn package_manager_to_sync_for_version(
             });
         }
     }
-    if let Some(version) =
-        exact_version(wanted_version).filter(|version| version_satisfies(version, wanted_version))
-    {
+    if !version_satisfies(running_version, wanted_version) {
+        return None;
+    }
+    if let Some(version) = exact_version(wanted_version) {
         return Some(PackageManagerToSync {
             specifier: wanted_version.to_string(),
             version,
@@ -109,12 +110,11 @@ pub(crate) fn package_manager_to_sync_for_version(
     }
     // A range pin names no exact version, so the running pnpm's version is
     // the one the project actually uses.
-    version_satisfies(running_version, wanted_version)
-        .then(|| PackageManagerToSync {
-            specifier: wanted_version.to_string(),
-            version: running_version.to_string(),
-            running_pnpm_for_range: running_version == PNPM_VERSION,
-        })
+    Some(PackageManagerToSync {
+        specifier: wanted_version.to_string(),
+        version: running_version.to_string(),
+        running_pnpm_for_range: running_version == PNPM_VERSION,
+    })
 }
 
 /// The root project's `package.json` as raw JSON, for the config-load

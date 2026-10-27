@@ -82,7 +82,7 @@ fn corrupted_lockfile_skipped_when_pin_does_not_consult_lockfile() {
         .expect("write malformed pnpm-lock.yaml");
     fs::write(
         root.join("package.json"),
-        r#"{"name":"root","devEngines":{"packageManager":{"name":"pnpm","version":"^9.1.0","onFail":"download"}}}"#,
+        r#"{"name":"root","devEngines":{"packageManager":{"name":"pnpm","version":"9.1.0","onFail":"download"}}}"#,
     )
     .expect("write package.json");
 
