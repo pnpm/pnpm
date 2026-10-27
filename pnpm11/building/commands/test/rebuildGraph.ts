@@ -96,6 +96,40 @@ testOnUnix('final relinking refreshes publicly hoisted built transitive commands
   expect(result.stdout).toBe('built binary\n')
 })
 
+testOnUnix('isolated builds refresh privately hoisted commands before dependent builds and during final relinking', async () => {
+  const { modules, executable, state } = fixture()
+  state.opts.sideEffectsCacheWrite = false
+  const hoistedModules = path.join(state.ctx.virtualStoreDir, 'node_modules')
+  const hoistedBins = path.join(hoistedModules, '.bin')
+  fs.mkdirSync(hoistedModules, { recursive: true })
+  fs.symlinkSync(path.dirname(executable), path.join(hoistedModules, 'tool'), 'dir')
+  fs.writeFileSync(path.join(path.dirname(executable), 'package.json'), JSON.stringify({
+    name: 'tool',
+    version: '1.0.0',
+    bin: { tool: 'tool' },
+    scripts: { postinstall: 'node build.cjs' },
+  }))
+  fs.writeFileSync(
+    path.join(path.dirname(executable), 'build.cjs'),
+    `require('fs').writeFileSync('tool', ${JSON.stringify('#!/bin/sh\nprintf "built binary\\n"\n')})`
+  )
+  state.pkgSnapshots[toolDepPath].resolution = { type: 'directory', directory: '../tool' }
+  state.gvsDirByDepPath.set(toolDepPath, path.dirname(modules))
+  state.ctx.extraBinPaths = [hoistedBins]
+  state.ctx.modulesFile = modulesManifest(modules)
+  state.ctx.modulesFile.hoistedDependencies[toolDepPath] = { tool: 'private' }
+  state.builtDepPaths.add(toolDepPath)
+  await relinkBins(state, () => modules)
+  state.builtDepPaths.clear()
+
+  await runBuild(toolDepPath, state)
+
+  const result = spawnSync(path.join(hoistedBins, 'tool'), { encoding: 'utf8' })
+  expect(result.stderr).toBe('')
+  expect(result.status).toBe(0)
+  expect(result.stdout).toBe('built binary\n')
+})
+
 testOnUnix('hoisted refresh plans keep duplicate placements in their own physical directories', async () => {
   const { modules, state } = fixture()
   const roots = [path.join(modules, 'tool'), path.join(modules, 'parent/node_modules/tool')]

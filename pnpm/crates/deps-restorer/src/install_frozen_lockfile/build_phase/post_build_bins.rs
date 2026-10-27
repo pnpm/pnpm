@@ -49,7 +49,8 @@ pub(super) fn relink_dependency_bins(
         link_options: &options,
     }
     .run()
-    .map_err(BuildPhaseError::DependencyBinLink)
+    .map_err(BuildPhaseError::DependencyBinLink)?;
+    plans.refresh_private_hoist(mutated, &options).map_err(BuildPhaseError::TopLevelBinLink)
 }
 
 fn relink_hoisted_bins(

@@ -118,6 +118,18 @@ pub fn link_direct_dep_bins_resolved(
 ) -> Result<HashSet<String>, LinkBinsError> {
     link_direct_dep_bins_resolved_excluding(modules_dir, deps, &HashSet::new(), link_options)
 }
+pub(crate) fn link_direct_dep_bins_resolved_with_sources(
+    modules_dir: &Path,
+    deps: &[(String, PathBuf)],
+    link_options: &LinkBinsOptions,
+) -> Result<(HashSet<String>, Vec<PackageBinSource>), LinkBinsError> {
+    let deps: Vec<(&str, Option<&Path>)> = deps
+        .iter()
+        .map(|(name, target)| (name.as_str(), Some(target.as_path())))
+        .collect();
+    link_named_dep_bins_excluding(modules_dir, &deps, &HashSet::new(), link_options, false)
+        .map(|(outcome, sources)| (outcome.linked_commands, sources))
+}
 /// [`link_direct_dep_bins_resolved`] skipping command names in `exclude_bins`.
 pub fn link_direct_dep_bins_resolved_excluding(
     modules_dir: &Path,

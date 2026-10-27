@@ -1,3 +1,5 @@
+import path from 'node:path'
+
 import { getWorkspaceConcurrency } from '@pnpm/config.reader'
 import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
 import type { DepsStateCache } from '@pnpm/deps.graph-hasher'
@@ -7,6 +9,7 @@ import type { StoreController } from '@pnpm/store.controller-types'
 import type {
   AllowBuild,
   DepPath,
+  HoistedDependencies,
   IgnoredBuilds,
   RegistryConfig,
   RemoteSideEffectsCacheSettings,
@@ -14,7 +17,7 @@ import type {
 } from '@pnpm/types'
 import { scheduleGraph, type TaskCompletion } from '@pnpm/workspace.task-scheduler'
 
-import { buildDependency, type BuildDependencyOptions, buildIsAllowed } from './buildDependency.js'
+import { buildDependency, type BuildDependencyOptions, buildIsAllowed, relinkBuiltHoistedBins } from './buildDependency.js'
 import { buildGraph, type DependenciesGraph, type DependenciesGraphNode } from './buildGraph.js'
 
 export { lockGlobalVirtualStoreSlot } from './globalVirtualStoreSlot.js'
@@ -51,6 +54,8 @@ export async function buildModules<NodeId extends string> (
     storeController: StoreController
     rootModulesDir: string
     hoistedLocations?: Record<string, string[]>
+    hoistedDependencies?: HoistedDependencies
+    hoistedModulesDir?: string
     enableGlobalVirtualStore?: boolean
     frozenStore?: boolean
     configByUri?: Record<string, RegistryConfig>
@@ -67,7 +72,7 @@ export async function buildModules<NodeId extends string> (
     linkedModulesDirs?: string[]
     skipped?: Set<DepPath>
   }
-): Promise<{ ignoredBuilds?: IgnoredBuilds }> {
+): Promise<{ ignoredBuilds?: IgnoredBuilds, builtDepPaths?: Set<DepPath>, builtPackageDirs?: Set<string> }> {
   if (!rootDepPaths.length) return {}
   const warn = (message: string) => {
     logger.warn({ message, prefix: opts.lockfileDir })
@@ -76,24 +81,49 @@ export async function buildModules<NodeId extends string> (
   const dependencyGraph = buildGraph<NodeId>(depGraph, rootDepPaths)
   if (dependencyGraph.size === 0) return {}
   const ignoredBuilds = new Set<DepPath>()
+  const builtDepPaths = new Set<DepPath>()
+  const builtPackageDirs = new Set<string>()
   const allowBuild = opts.allowBuild ?? (() => undefined)
   const shouldBuild = (depPath: NodeId): boolean => nodeNeedsBuild(depPath, depGraph, opts.depsToBuild)
   if (opts.frozenStore && opts.enableGlobalVirtualStore) {
     refuseBuildsIntoFrozenStore({ allowBuild, depGraph, depPaths: dependencyGraph.keys(), opts, shouldBuild })
   }
+  const buildDepOpts: BuildDependencyOptions = {
+    ...opts,
+    allowBuild,
+    builtDepPaths,
+    builtHoistedDeps: opts.hoistedLocations ? {} : undefined,
+    builtPackageDirs,
+    ignoredBuilds,
+    warn,
+  }
+  await recordCachedBuilds(dependencyGraph.keys(), depGraph, opts.depsToBuild, buildDepOpts)
   await buildNodesInOrder(dependencyGraph, {
-    buildDepOpts: {
-      ...opts,
-      allowBuild,
-      builtHoistedDeps: opts.hoistedLocations ? {} : undefined,
-      ignoredBuilds,
-      warn,
-    },
+    buildDepOpts,
     childConcurrency: opts.childConcurrency,
     depGraph,
     shouldBuild,
   })
-  return { ignoredBuilds }
+  return { ignoredBuilds, builtDepPaths, builtPackageDirs }
+}
+
+async function recordCachedBuilds<NodeId extends string> (
+  depPaths: Iterable<NodeId>,
+  depGraph: DependenciesGraph<NodeId>,
+  depsToBuild: Set<string> | undefined,
+  buildDepOpts: BuildDependencyOptions
+): Promise<void> {
+  const cachedNodes: Array<DependenciesGraphNode<NodeId>> = []
+  for (const depPath of depPaths) {
+    if (depsToBuild != null && !depsToBuild.has(depPath)) continue
+    const node = depGraph[depPath]
+    if ((node.requiresBuild || node.patch != null) && node.fetching != null && node.isBuilt) {
+      buildDepOpts.builtDepPaths?.add(node.depPath)
+      buildDepOpts.builtPackageDirs?.add(path.normalize(node.dir))
+      cachedNodes.push(node)
+    }
+  }
+  await Promise.all(cachedNodes.map(async (node) => relinkBuiltHoistedBins(node, buildDepOpts)))
 }
 
 function nodeNeedsBuild<NodeId extends string> (depPath: NodeId, depGraph: DependenciesGraph<NodeId>, depsToBuild: Set<string> | undefined): boolean {

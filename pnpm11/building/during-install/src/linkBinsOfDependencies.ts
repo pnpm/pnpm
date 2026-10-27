@@ -13,6 +13,7 @@ export async function linkBinsOfDependencies<NodeId extends string> (
   depNode: DependenciesGraphNode<NodeId>,
   depGraph: DependenciesGraph<NodeId>,
   opts: {
+    builtPackageDirs?: ReadonlySet<string>
     extraNodePaths?: string[]
     optional: boolean
     preferSymlinkedExecutables?: boolean
@@ -42,12 +43,15 @@ export async function linkBinsOfDependencies<NodeId extends string> (
   const pkgs = await Promise.all(pkgNodes
     .map(async (dep) => ({
       location: dep.dir,
-      manifest: ((await dep.fetching?.())?.bundledManifest ?? (await safeReadPackageJsonFromDir(dep.dir))) as DependencyManifest ?? {},
+      manifest: ((opts.builtPackageDirs?.has(path.normalize(dep.dir))
+        ? undefined
+        : (await dep.fetching?.())?.bundledManifest) ?? (await safeReadPackageJsonFromDir(dep.dir))) as DependencyManifest ?? {},
     }))
   )
 
   await linkBinsOfPackages(pkgs, binPath, {
     extraNodePaths: opts.extraNodePaths,
+    forceForPackages: opts.builtPackageDirs,
     preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
   })
 
@@ -56,6 +60,7 @@ export async function linkBinsOfDependencies<NodeId extends string> (
     const bundledModules = path.join(depNode.dir, 'node_modules')
     await linkBins(bundledModules, binPath, {
       extraNodePaths: opts.extraNodePaths,
+      forceForPackages: opts.builtPackageDirs,
       preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
       warn: opts.warn,
     })

@@ -10,6 +10,7 @@ import { logger } from '@pnpm/logger'
 import type {
   DependencyManifest,
   DepPath,
+  HoistedDependencies,
   ProjectId,
   ProjectManifest,
   ProjectRootDir,
@@ -20,49 +21,134 @@ import type { HeadlessContext, HeadlessDepGraph } from './context.js'
 import { limitLinking } from './limits.js'
 import type { HeadlessOptions, Project } from './types.js'
 
+export interface ImporterBuiltBinContext {
+  builtDepPaths?: ReadonlySet<DepPath>
+  builtPackageDirs?: ReadonlySet<string>
+  newHoistedDependencies?: HoistedDependencies
+}
+
 interface ProjectBinsContext {
+  built?: ImporterBuiltBinContext
   depGraph: HeadlessDepGraph
   opts: HeadlessOptions
   rootProjectDeps: Record<string, string>
 }
 
-export async function linkBinsOfImporters ({ opts, selectedProjects }: HeadlessContext, depGraph: HeadlessDepGraph): Promise<void> {
+export async function linkBinsOfImporters (
+  { opts, selectedProjects }: HeadlessContext,
+  depGraph: HeadlessDepGraph,
+  built?: ImporterBuiltBinContext
+): Promise<void> {
   const rootProjectDeps = !opts.dedupeDirectDeps ? {} : (depGraph.directDependenciesByImporterId['.'] ?? {})
-  await Promise.all(selectedProjects.map(async (project) => linkBinsOfProject(project, { depGraph, opts, rootProjectDeps })))
+  await Promise.all(selectedProjects.map(async (project) => linkBinsOfProject(project, { built, depGraph, opts, rootProjectDeps })))
 }
 
-async function linkBinsOfProject (project: Project, { depGraph, opts, rootProjectDeps }: ProjectBinsContext): Promise<void> {
+async function linkBinsOfProject (project: Project, ctx: ProjectBinsContext): Promise<void> {
+  const { built, depGraph, opts, rootProjectDeps } = ctx
   const projectModulesDir = await getProjectNodePath(project, opts)
   const protectedBins = new Set<string>()
-  const linkBinOptions = {
+  const linkBinOptions: LinkBinOptions = {
     extraNodePaths: opts.extraNodePaths,
     linkedCommandNames: protectedBins,
     preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
     projectModulesDir,
   }
   if (opts.nodeLinker === 'hoisted' || opts.publicHoistPattern?.length && path.relative(opts.lockfileDir, project.rootDir) === '') {
-    await linkBinsOfImporter(project, linkBinOptions)
+    await linkBinsOfImporter(project, {
+      ...linkBinOptions,
+      forceForPackages: getBuiltImporterBinDirs(project, ctx),
+    })
   } else {
-    await linkBinsOfDirectDeps(project, { depGraph, linkBinOptions, rootProjectDeps })
+    await linkBinsOfDirectDeps(project, {
+      depGraph,
+      linkBinOptions: { ...linkBinOptions, forceForPackages: built?.builtPackageDirs },
+      rootProjectDeps,
+    })
   }
   if (opts.autoInstallPeers !== false && opts.nodeLinker !== 'hoisted') {
-    const peerPkgDirs = autoInstalledPeerBinDirs(
-      depGraph.directDependenciesByImporterId[project.id],
-      project.id,
-      depGraph.filteredLockfile
-    )
-    if (peerPkgDirs.length > 0) {
-      await linkBinsOfPackages(await readBinPackageManifests(peerPkgDirs), project.binsDir, {
-        excludeBins: protectedBins,
-        extraNodePaths: opts.extraNodePaths,
-        linkedCommandNames: protectedBins,
-        preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
-        projectModulesDir,
-      })
-    }
+    await linkAutoInstalledPeerBins(project, { built, depGraph, linkBinOptions, protectedBins })
   }
   if (path.resolve(project.binsDir) === path.resolve(project.modulesDir, '.bin')) {
     await pruneStaleBins(project.binsDir, protectedBins)
+  }
+}
+
+async function linkAutoInstalledPeerBins (
+  project: Project,
+  {
+    built,
+    depGraph,
+    linkBinOptions,
+    protectedBins,
+  }: Pick<ProjectBinsContext, 'built' | 'depGraph'> & { linkBinOptions: LinkBinOptions, protectedBins: Set<string> }
+): Promise<void> {
+  const peerPkgDirs = autoInstalledPeerBinDirs(
+    depGraph.directDependenciesByImporterId[project.id],
+    project.id,
+    depGraph.filteredLockfile
+  )
+  if (peerPkgDirs.length === 0) return
+  await linkBinsOfPackages(await readBinPackageManifests(peerPkgDirs), project.binsDir, {
+    ...linkBinOptions,
+    excludeBins: protectedBins,
+    forceForPackages: built?.builtPackageDirs?.size ? new Set(peerPkgDirs.map((dir) => path.normalize(dir))) : undefined,
+  })
+}
+
+function getBuiltImporterBinDirs (
+  project: Project,
+  { built, depGraph, opts }: Pick<ProjectBinsContext, 'built' | 'depGraph' | 'opts'>
+): Set<string> | undefined {
+  if (!built?.builtDepPaths?.size && !built?.builtPackageDirs?.size) return undefined
+  const dirs = getBuiltDirectAliasDirs(project, depGraph.directDependenciesByImporterId[project.id], built.builtPackageDirs)
+  if (opts.nodeLinker === 'hoisted') {
+    addBuiltHoistedLocationDirs(dirs, built.builtDepPaths, depGraph.hoistedLocations, opts.lockfileDir)
+  } else {
+    addBuiltPublicHoistDirs(dirs, project.modulesDir, built.builtDepPaths, built.newHoistedDependencies ?? opts.hoistedDependencies)
+  }
+  return dirs
+}
+
+function getBuiltDirectAliasDirs (
+  project: Project,
+  directDeps: Record<string, string> | undefined,
+  builtPackageDirs: ReadonlySet<string> | undefined
+): Set<string> {
+  const dirs = new Set<string>()
+  if (!builtPackageDirs?.size || directDeps == null) return dirs
+  for (const [alias, dir] of Object.entries(directDeps)) {
+    if (builtPackageDirs.has(path.normalize(dir))) {
+      dirs.add(path.normalize(safeJoinModulesDir(project.modulesDir, alias)))
+    }
+  }
+  return dirs
+}
+
+function addBuiltHoistedLocationDirs (
+  dirs: Set<string>,
+  builtDepPaths: ReadonlySet<DepPath> | undefined,
+  hoistedLocations: Record<string, string[]> | undefined,
+  lockfileDir: string
+): void {
+  for (const depPath of builtDepPaths ?? []) {
+    for (const hoistedLocation of hoistedLocations?.[depPath] ?? []) {
+      dirs.add(path.normalize(path.join(lockfileDir, hoistedLocation)))
+    }
+  }
+}
+
+function addBuiltPublicHoistDirs (
+  dirs: Set<string>,
+  modulesDir: string,
+  builtDepPaths: ReadonlySet<DepPath> | undefined,
+  hoistedDependencies: HoistedDependencies
+): void {
+  for (const depPath of builtDepPaths ?? []) {
+    for (const [alias, visibility] of Object.entries(hoistedDependencies[depPath] ?? {})) {
+      if (visibility === 'public') {
+        dirs.add(path.normalize(safeJoinModulesDir(modulesDir, alias)))
+      }
+    }
   }
 }
 

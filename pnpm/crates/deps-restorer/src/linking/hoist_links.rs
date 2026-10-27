@@ -7,11 +7,13 @@ use crate::{
     install_frozen_lockfile::{
         HoistPlan, collect_public_hoist_targets, compute_hoist_plan, workspace_packages_for_hoist,
     },
-    link_direct_dep_bins_resolved, symlink_hoisted_dependencies,
+    link_bins::link_direct_dep_bins_resolved_with_sources,
+    symlink_hoisted_dependencies,
 };
-use pnpm_cmd_shim::LinkBinsOptions;
+use pnpm_cmd_shim::{LinkBinsOptions, PackageBinSource};
 use pnpm_config::Config;
-use std::{collections::BTreeMap, path::PathBuf};
+use pnpm_lockfile::PackageKey;
+use std::{collections::BTreeMap, path::PathBuf, sync::Arc};
 
 /// Planned before the links are written, not with them: an importer's
 /// dep that public-hoist lands at root has to be in
@@ -81,6 +83,8 @@ pub(super) struct HoistLinks {
     pub(super) hoisted_dependencies: crate::HoistedDependencies,
     /// See [`super::LinkPhaseOutput::publicly_hoisted_for_post_build`].
     pub(super) publicly_hoisted_with_bins: Vec<String>,
+    pub(super) privately_hoisted_with_bins: Vec<(String, PackageKey)>,
+    pub(super) private_bin_sources: Arc<[PackageBinSource]>,
 }
 
 impl HoistLinks {
@@ -89,6 +93,8 @@ impl HoistLinks {
         HoistLinks {
             hoisted_dependencies: crate::HoistedDependencies::new(),
             publicly_hoisted_with_bins: Vec::new(),
+            privately_hoisted_with_bins: Vec::new(),
+            private_bin_sources: Arc::default(),
         }
     }
 }
@@ -119,7 +125,7 @@ pub(super) fn write_hoist_links(
         &skipped,
     )
     .map_err(LinkPhaseError::HoistSymlink)?;
-    let private_claimed = link_direct_dep_bins_resolved(
+    let (private_claimed, private_bin_sources) = link_direct_dep_bins_resolved_with_sources(
         &private_hoist_dir,
         &crate::resolve_hoisted_bin_deps(layout, &result.hoisted_aliases_with_bins),
         link_options,
@@ -130,5 +136,7 @@ pub(super) fn write_hoist_links(
     Ok(HoistLinks {
         hoisted_dependencies: result.hoisted_dependencies,
         publicly_hoisted_with_bins: result.publicly_hoisted_aliases_with_bins,
+        privately_hoisted_with_bins: result.hoisted_aliases_with_bins,
+        private_bin_sources: private_bin_sources.into(),
     })
 }

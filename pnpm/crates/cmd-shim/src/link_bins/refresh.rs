@@ -120,11 +120,28 @@ impl DirectoryBinPlan {
             .collect()
     }
 
+    fn read_refreshed_package<Sys: FsReadFile>(
+        &self,
+        location: &Path,
+    ) -> Result<Option<PackageBinSource>, LinkBinsError> {
+        let existing_source = self.package_indices
+            .get(location)
+            .and_then(|index| self.packages[*index].source.as_ref());
+        Ok(read_package::<Sys>(location)?
+            .map(|mut package| {
+                if let Some(existing) = existing_source {
+                    package.resolved_location.clone_from(&existing.resolved_location);
+                    package.origin = existing.origin;
+                }
+                package
+            }))
+    }
+
     fn update_package<Sys: FsReadFile + FsWalkFiles>(
         &mut self,
         location: &Path,
     ) -> Result<(), LinkBinsError> {
-        let package = read_package::<Sys>(location)?;
+        let package = self.read_refreshed_package::<Sys>(location)?;
         let old_names = self.package_indices
             .get(location)
             .map(|index| {

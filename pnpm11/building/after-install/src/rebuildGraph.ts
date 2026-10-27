@@ -13,7 +13,7 @@ import { logger } from '@pnpm/logger'
 import type { DepPath } from '@pnpm/types'
 import pLimit from 'p-limit'
 
-import { builtBinPackages, builtProjectBinPackages } from './builtBinPackages.js'
+import { builtBinPackages, builtHoistedBinPackages, builtProjectBinPackages } from './builtBinPackages.js'
 import type { StrictBuildOptions } from './extendBuildOptions.js'
 import type { RebuildPackagesContext, RebuildState } from './rebuildTypes.js'
 
@@ -93,6 +93,9 @@ export async function relinkBins (state: RebuildState, getPkgModulesDir: (depPat
         return linkBins(modules, binPath, { warn, forceForPackages })
       }))
   )
+  if (state.opts.nodeLinker !== 'hoisted') {
+    await relinkPrivateHoistedBins(state)
+  }
   await Promise.all(Object.values(state.ctx.projects).map(async ({ id, rootDir }) => limitLinking(async () => {
     const modules = path.join(rootDir, 'node_modules')
     const binPath = path.join(modules, '.bin')
@@ -104,6 +107,19 @@ export async function relinkBins (state: RebuildState, getPkgModulesDir: (depPat
       warn,
     })
   })))
+}
+
+async function relinkPrivateHoistedBins (state: RebuildState): Promise<void> {
+  const hoistedModulesDir = path.join(state.ctx.virtualStoreDir, 'node_modules')
+  const forceForPackages = builtHoistedBinPackages(hoistedModulesDir, state)
+  if (forceForPackages.size === 0) return
+  await linkBins(hoistedModulesDir, path.join(hoistedModulesDir, '.bin'), {
+    allowExoticManifests: true,
+    extraNodePaths: state.ctx.extraNodePaths,
+    preferSymlinkedExecutables: state.opts.preferSymlinkedExecutables,
+    forceForPackages,
+    warn: state.warn,
+  })
 }
 
 export function binDirsInAllParentDirs (pkgRoot: string, lockfileDir: string): string[] {

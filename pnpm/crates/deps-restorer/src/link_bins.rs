@@ -6,7 +6,9 @@ pub use direct::{
     resolve_hoisted_bin_deps, shim_link_options,
 };
 
-pub(crate) use direct::link_named_dep_bins_with_sources;
+pub(crate) use direct::{
+    link_direct_dep_bins_resolved_with_sources, link_named_dep_bins_with_sources,
+};
 pub use top_level::link_top_level_bins;
 pub(crate) use top_level::link_top_level_bins_cached;
 

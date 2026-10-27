@@ -2,6 +2,7 @@ import assert from 'node:assert'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
+import { relinkModulesDirPackageBins } from '@pnpm/bins.linker'
 import { dirRequiresBuild } from '@pnpm/building.pkg-requires-build'
 import { packageIsInstallable } from '@pnpm/config.package-is-installable'
 import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
@@ -17,6 +18,7 @@ import type { StoreController, UploadPkgToStoreResult } from '@pnpm/store.contro
 import type {
   AllowBuild,
   DepPath,
+  HoistedDependencies,
   RegistryConfig,
   RemoteSideEffectsCacheSettings,
   SupportedArchitectures,
@@ -49,6 +51,10 @@ export interface BuildDependencyOptions {
   unsafePerm: boolean
   userAgent?: string
   hoistedLocations?: Record<string, string[]>
+  hoistedDependencies?: HoistedDependencies
+  hoistedModulesDir?: string
+  builtDepPaths?: Set<DepPath>
+  builtPackageDirs?: Set<string>
   builtHoistedDeps?: Record<string, DeferredPromise<void>>
   enableGlobalVirtualStore?: boolean
   frozenStore?: boolean
@@ -115,6 +121,7 @@ export async function buildDependency<NodeId extends string> (
     await state.slotLock?.release()
     if (state.succeeded) {
       await copyToOtherHoistedLocations(depNode, opts)
+      await relinkBuiltHoistedBins(depNode, opts)
     }
     if (opts.builtHoistedDeps) {
       opts.builtHoistedDeps[depNode.depPath].resolve()
@@ -138,6 +145,13 @@ async function buildInSlot<NodeId extends string> (
   const isPatched = patchOutcome === 'patched'
   const { requiresBuild, ignoreScripts } = await gateBuildScripts(depNode, isPatched, opts)
   const hasSideEffects = !ignoreScripts && await runBuildScripts(depPath, depNode, opts)
+  if (isPatched || hasSideEffects) {
+    opts.builtDepPaths?.add(depNode.depPath)
+    opts.builtPackageDirs?.add(path.normalize(depNode.dir))
+    if (depNode.hasBin) {
+      await linkBinsOfDependencies(depNode, depGraph, opts)
+    }
+  }
   // A package whose build was withheld - the allow-build policy said so, or
   // ignoreScripts did - must not be cached as if it were built. The entry
   // the patch alone produced would replay on the install that finally runs
@@ -378,4 +392,32 @@ async function copyToOtherHoistedLocations<NodeId extends string> (
   const nonBuiltHoistedDeps = hoistedLocationsOfDep.filter((hoistedLocation) => hoistedLocation !== currentHoistedLocation)
     .map((hoistedLocation) => path.join(opts.lockfileDir, hoistedLocation))
   await hardLinkDir(depNode.dir, nonBuiltHoistedDeps)
+}
+
+export async function relinkBuiltHoistedBins<NodeId extends string> (
+  depNode: Pick<DependenciesGraphNode<NodeId>, 'depPath'>,
+  opts: Pick<BuildDependencyOptions, 'builtDepPaths' | 'extraNodePaths' | 'hoistedDependencies' | 'hoistedLocations' | 'hoistedModulesDir' | 'lockfileDir' | 'preferSymlinkedExecutables' | 'warn'>
+): Promise<void> {
+  if (!opts.builtDepPaths?.has(depNode.depPath)) return
+  const hoistedRoots = getBuiltHoistedPkgRoots(depNode.depPath, opts)
+  if (hoistedRoots.length === 0) return
+  await relinkModulesDirPackageBins(hoistedRoots, opts.builtDepPaths, {
+    extraNodePaths: opts.extraNodePaths,
+    preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
+    warn: opts.warn,
+  })
+}
+
+function getBuiltHoistedPkgRoots (
+  depPath: DepPath,
+  opts: Pick<BuildDependencyOptions, 'hoistedDependencies' | 'hoistedLocations' | 'hoistedModulesDir' | 'lockfileDir'>
+): string[] {
+  if (opts.hoistedLocations != null) {
+    return (opts.hoistedLocations[depPath] ?? []).map((hoistedLocation) => path.join(opts.lockfileDir, hoistedLocation))
+  }
+  if (opts.hoistedModulesDir == null) return []
+  const aliases = opts.hoistedDependencies?.[depPath] ?? {}
+  return Object.entries(aliases)
+    .filter(([, visibility]) => visibility === 'private')
+    .map(([alias]) => path.join(opts.hoistedModulesDir!, alias))
 }
