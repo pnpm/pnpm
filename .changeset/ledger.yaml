@@ -6898,6 +6898,18 @@ pacquet@12.16.0:
     - warn-machine-settings-in-project
     - watchdog-pipe-leak-macos
     - workspace-bin-repeat-install
+pacquet@12.16.1:
+  dir: pnpm/npm/pnpm
+  intents:
+    - bare-cache-dir-flag
+    - cold-install-with-crates-hang
+    - dedicated-lockfiles-relink-workspace-bins
+    - files-field-exclusion-beats-later-glob
+    - injected-unselected-symlink-hardlink
+    - manifest-peer-reuse
+    - refresh-private-hoisted-bins
+    - unified-pin-decision
+    - unpublish-range-every-version
 pacquet@12.2.0:
   dir: pnpm/npm/pnpm
   intents:
