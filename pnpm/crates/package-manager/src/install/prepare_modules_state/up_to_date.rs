@@ -283,7 +283,7 @@ pub(super) fn refresh_up_to_date_workspace<Reporter: self::Reporter>(
             supported_architectures: context.supported_architectures,
         },
         catalogs: context.projects.catalogs,
-        project_manifests: context.projects.manifests,
+        project_manifests: context.projects.declared_manifests,
         filesystem_now_ms: filesystem_now_ms_in_modules(
             &context.tree.config.workspace_state_modules_dir(context.tree.workspace_root),
         ),

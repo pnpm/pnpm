@@ -381,7 +381,7 @@ fn write_applied_workspace_state<Reporter: self::Reporter>(
             supported_architectures: inputs.projects.supported_architectures.as_ref(),
         },
         catalogs: &inputs.completion.catalogs,
-        project_manifests: inputs.projects.importers.manifests,
+        project_manifests: inputs.projects.importers.declared_manifests,
         filesystem_now_ms: filesystem_now_ms_in_modules(&modules_dir),
         carried: applied_carried_settings(inputs),
         vouched: &vouched,

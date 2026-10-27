@@ -74,7 +74,7 @@ pub(super) async fn prepare_modules_state<'install, Reporter: self::Reporter + '
         modules_manifest.is_some() || inputs.lockfiles.current.is_some(),
         inputs.tree.config,
         inputs.tree.node_linker,
-        inputs.projects.manifests,
+        inputs.projects.declared_manifests,
     );
     let up_to_date = frozen_tree_inputs(&inputs, modules_manifest, recorded);
     if let Some((wanted_lockfile, modules)) = frozen_tree_up_to_date(&up_to_date) {
@@ -202,6 +202,7 @@ async fn report_prepared_up_to_date<Reporter: self::Reporter + 'static>(
         projects: crate::install::state_options::InstallProjectMetadata {
             catalogs: inputs.projects.catalogs,
             manifests: inputs.projects.manifests,
+            declared_manifests: inputs.projects.declared_manifests,
             prefix: inputs.projects.prefix,
             workspace_packages: inputs.projects.workspace_packages,
         },

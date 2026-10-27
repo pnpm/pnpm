@@ -157,9 +157,8 @@ pub(super) fn check_projects_content(
     wanted: &Lockfile,
     to_check: &[&ManifestStat<'_>],
 ) -> Result<(), &'static str> {
-    let parsed_overrides = crate::install::parse_config_overrides(check.config, check.catalogs)
-        .map_err(|_| "pnpm.overrides cannot be parsed")?;
-    check_settings_match_lockfile(check, wanted, parsed_overrides.as_deref())?;
+    let rewriters = ManifestRewriters::parse(check)?;
+    check_settings_match_lockfile(check, wanted, rewriters.parsed_overrides.as_deref())?;
 
     let linked_ctx = LinkedPackagesContext::new(check.config, check.project_manifests);
     let workspace_packages = crate::install::workspace_packages_for_freshness(
@@ -188,10 +187,7 @@ pub(super) fn check_projects_content(
             registries: &check.config.registry_context(),
         },
         ignored_optional_matcher: &ignored_optional_matcher,
-        parsed_overrides: parsed_overrides.as_deref(),
-        overrider: parsed_overrides
-            .as_deref()
-            .map(|parsed| crate::VersionsOverrider::new(parsed, check.workspace_root)),
+        rewriters: &rewriters,
     };
     // Collect before returning so errors remain ordered by project.
     let results: Vec<Result<(), &'static str>> = to_check
@@ -199,6 +195,55 @@ pub(super) fn check_projects_content(
         .map(|project| project_content_check(&content_check, project))
         .collect();
     results.into_iter().collect()
+}
+
+/// Config-driven manifest rewriters (`pnpm.overrides` and `pnpm.packageExtensions`)
+/// applied before comparing an on-disk manifest with its lockfile importer.
+struct ManifestRewriters {
+    parsed_overrides: Option<Vec<pnpm_config_parse_overrides::VersionOverride>>,
+    overrider: Option<crate::VersionsOverrider>,
+    package_extender: Option<crate::PackageExtender>,
+}
+
+impl ManifestRewriters {
+    fn parse(check: &OptimisticRepeatInstallCheck<'_>) -> Result<Self, &'static str> {
+        let parsed_overrides = crate::install::parse_config_overrides(check.config, check.catalogs)
+            .map_err(|_| "pnpm.overrides cannot be parsed")?;
+        let overrider = parsed_overrides
+            .as_deref()
+            .map(|parsed| crate::VersionsOverrider::new(parsed, check.workspace_root));
+        let package_extender = check.config.package_extensions
+            .as_ref()
+            .map(crate::PackageExtender::new)
+            .transpose()
+            .map_err(|_| "pnpm.packageExtensions has an invalid selector")?;
+        Ok(Self { parsed_overrides, overrider, package_extender })
+    }
+
+    fn extend<'a>(&self, manifest: &'a PackageManifest) -> std::borrow::Cow<'a, PackageManifest> {
+        let Some(extender) = self.package_extender
+            .as_ref()
+            .filter(|extender| extender.matches(manifest.value()))
+        else {
+            return std::borrow::Cow::Borrowed(manifest);
+        };
+        let mut cloned = manifest.clone();
+        extender.apply(cloned.value_mut());
+        std::borrow::Cow::Owned(cloned)
+    }
+
+    fn override_versions<'a>(
+        &self,
+        root_dir: &Path,
+        manifest: &'a PackageManifest,
+    ) -> std::borrow::Cow<'a, PackageManifest> {
+        let Some(overrider) = &self.overrider else {
+            return std::borrow::Cow::Borrowed(manifest);
+        };
+        let mut cloned = manifest.clone();
+        overrider.apply(&mut cloned, Some(root_dir));
+        std::borrow::Cow::Owned(cloned)
+    }
 }
 
 /// What one modified project is checked against.
@@ -209,8 +254,7 @@ struct ProjectContentCheck<'a> {
     linked_ctx: &'a LinkedPackagesContext<'a>,
     workspace: crate::install::WorkspaceProjects<'a>,
     ignored_optional_matcher: &'a pnpm_matcher::Matcher,
-    parsed_overrides: Option<&'a [pnpm_config_parse_overrides::VersionOverride]>,
-    overrider: Option<crate::VersionsOverrider>,
+    rewriters: &'a ManifestRewriters,
 }
 
 fn project_content_check(
@@ -220,11 +264,13 @@ fn project_content_check(
     let importer_id =
         pnpm_workspace::importer_id_from_root_dir(context.workspace_root, project.root_dir);
     let importer = context.wanted.importers.get(&importer_id);
+    let extended = context.rewriters.extend(project.manifest);
+    let manifest = extended.as_ref();
     if let Err(error) =
         crate::install::check_importer_satisfies(&crate::install::ImporterSatisfactionCheck {
             lockfile: context.wanted,
             lockfile_dir: context.workspace_root,
-            manifest: project.manifest,
+            manifest,
             importer_id: &importer_id,
             config: context.config,
             workspace: context.workspace,
@@ -232,10 +278,10 @@ fn project_content_check(
                 ignored: context.ignored_optional_matcher,
                 frozen_lockfile: false,
             },
-            parsed_overrides: context.parsed_overrides,
+            parsed_overrides: context.rewriters.parsed_overrides.as_deref(),
         })
     {
-        if is_outdated_linked_package(context, project, importer, &error) {
+        if is_outdated_linked_package(context, project.root_dir, manifest, importer, &error) {
             return Err("a linked package is out of date");
         }
         tracing::debug!(target: "pacquet::install", %error, importer_id, "repeat-install content check: manifest no longer satisfied");
@@ -244,7 +290,7 @@ fn project_content_check(
     let Some(importer) = importer else {
         return Err("a modified project has no importer entry in the lockfile");
     };
-    let manifest = overridden_manifest(context, project);
+    let manifest = context.rewriters.override_versions(project.root_dir, manifest);
     if !linked_packages_are_up_to_date(context.linked_ctx, project.root_dir, &manifest, importer) {
         return Err("a linked package is out of date");
     }
@@ -253,7 +299,8 @@ fn project_content_check(
 
 fn is_outdated_linked_package(
     context: &ProjectContentCheck<'_>,
-    project: &ManifestStat<'_>,
+    root_dir: &Path,
+    manifest: &PackageManifest,
     importer: Option<&ProjectSnapshot>,
     error: &crate::install::FreshnessCheckError,
 ) -> bool {
@@ -263,21 +310,9 @@ fn is_outdated_linked_package(
             pnpm_lockfile::StalenessReason::LocalDependencyOutdated { .. },
         ),
     ) && importer.is_some_and(|imp| {
-        let manifest = overridden_manifest(context, project);
-        !linked_packages_are_up_to_date(context.linked_ctx, project.root_dir, &manifest, imp)
+        let manifest = context.rewriters.override_versions(root_dir, manifest);
+        !linked_packages_are_up_to_date(context.linked_ctx, root_dir, &manifest, imp)
     })
-}
-
-fn overridden_manifest<'a>(
-    context: &ProjectContentCheck<'_>,
-    project: &ManifestStat<'a>,
-) -> std::borrow::Cow<'a, PackageManifest> {
-    let Some(overrider) = &context.overrider else {
-        return std::borrow::Cow::Borrowed(project.manifest);
-    };
-    let mut cloned = project.manifest.clone();
-    overrider.apply(&mut cloned, Some(project.root_dir));
-    std::borrow::Cow::Owned(cloned)
 }
 
 /// Shared lookups for [`linked_packages_are_up_to_date`], built once

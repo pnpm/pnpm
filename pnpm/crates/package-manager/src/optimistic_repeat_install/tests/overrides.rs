@@ -316,3 +316,77 @@ fn returns_up_to_date_when_a_linked_workspace_dependency_is_overridden_and_manif
     );
     assert_eq!(decision, Decision::UpToDate);
 }
+
+#[test]
+fn returns_up_to_date_when_a_package_extension_targets_a_workspace_project_and_manifest_is_edited()
+{
+    let dir = tempfile::tempdir().unwrap();
+    let workspace_root = dir.path();
+    std::fs::write(workspace_root.join("package.json"), r#"{"name":"root","version":"1.0.0"}"#)
+        .unwrap();
+    let extensions = IndexMap::from([(
+        "root@1.0.0".to_string(),
+        pnpm_config::PackageExtension {
+            dependencies: Some(BTreeMap::from([("foo".to_string(), "1.0.0".to_string())])),
+            ..Default::default()
+        },
+    )]);
+    let mut config = pnpm_config::Config::new();
+    config.modules_dir = workspace_root.join("node_modules");
+    config.install_state_dir = workspace_root.join("node_modules/.pnpm");
+    config.package_extensions = Some(extensions);
+    let checksum = crate::install_with_fresh_lockfile::compute_package_extensions_checksum(&config)
+        .expect("checksum");
+    std::fs::create_dir_all(&config.modules_dir).unwrap();
+    std::fs::write(
+        workspace_root.join(Lockfile::FILE_NAME),
+        format!(
+            "lockfileVersion: '9.0'\n\nsettings:\n  autoInstallPeers: true\n  excludeLinksFromLockfile: false\n\npackageExtensionsChecksum: {checksum}\n\nimporters:\n\n  .:\n    dependencies:\n      foo:\n        specifier: 1.0.0\n        version: 1.0.0\n\npackages:\n\n  foo@1.0.0:\n    resolution: {{integrity: sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==}}\n\nsnapshots:\n\n  foo@1.0.0: {{}}\n",
+        ),
+    )
+    .unwrap();
+    let config = config.leak();
+
+    let settings = super::super::settings::current_settings(
+        config,
+        pnpm_config::NodeLinker::Isolated,
+        isolated_included(),
+        None,
+    );
+    let projects = BTreeMap::from([(
+        workspace_root.to_string_lossy().into_owned(),
+        ProjectEntry {
+            name: Some("root".into()),
+            version: Some("1.0.0".into()),
+            has_modules_dir: false,
+        },
+    )]);
+    write_state(workspace_root, backdate_validated_files(workspace_root), settings, projects);
+
+    std::fs::write(
+        workspace_root.join("package.json"),
+        r#"{"name":"root","version":"1.0.0","description":"edited"}"#,
+    )
+    .unwrap();
+    let root_manifest_edited =
+        pnpm_package_manifest::PackageManifest::from_path(workspace_root.join("package.json"))
+            .unwrap();
+    let lockfile = Lockfile::load_wanted_from_dir(workspace_root).expect("parse pnpm-lock.yaml");
+    let decision = super::super::check_optimistic_repeat_install(
+        &super::super::OptimisticRepeatInstallCheck {
+            workspace_root,
+            config,
+            project_manifests: &[(workspace_root.to_path_buf(), &root_manifest_edited)],
+            is_workspace_install: true,
+            lockfile: pnpm_lockfile::MaybeLazyLockfile::Loaded(lockfile.as_ref()),
+            catalogs: &BTreeMap::default(),
+            layout: crate::RepeatInstallLayout {
+                node_linker: pnpm_config::NodeLinker::Isolated,
+                included: isolated_included(),
+                supported_architectures: None,
+            },
+            manifests: crate::RepeatInstallManifests::ON_DISK,
+        },
+    );
+    assert_eq!(decision, Decision::UpToDate);
+}

@@ -306,6 +306,79 @@ fn dedupe_peers_lockfile_rewrite_runs_the_script_without_an_install() {
     drop((root, mock_instance));
 }
 
+#[test]
+fn pnpmfile_read_package_mutation_with_dedupe_peers_keeps_workspace_state_fresh() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "dedupePeers: true\noptimisticRepeatInstall: false\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+    fs::write(
+        workspace.join(".pnpmfile.mjs"),
+        r#"export const hooks = {
+  readPackage(pkg) {
+    return { ...pkg, description: "set by readPackage" };
+  },
+};
+"#,
+    )
+    .expect("write .pnpmfile.mjs");
+    fs::write(
+        workspace.join("package.json"),
+        json!({
+            "name": "pnpm-dedupe-peers-bug-repro",
+            "private": true,
+            "scripts": {
+                "repro": r#"node -e "console.log('script ran')""#,
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let run_once = pacquet_in(&workspace)
+        .with_args(["run", "repro"])
+        .output()
+        .expect("run repro after first install");
+    let stdout = String::from_utf8_lossy(&run_once.stdout);
+    let stderr = String::from_utf8_lossy(&run_once.stderr);
+    assert!(run_once.status.success(), "pnpm run repro failed:\n{stdout}\n{stderr}");
+    assert!(stdout.contains("script ran"), "expected script output:\n{stdout}");
+    assert!(
+        !stderr.contains("left node_modules out of date"),
+        "unexpected stale node_modules warning:\n{stderr}",
+    );
+
+    // Repeat `pnpm install` with `optimisticRepeatInstall: false` takes the
+    // `prepare_modules_state` up-to-date refresh path; it must also record the
+    // on-disk manifest rather than the hooked one.
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let run_twice = pacquet_in(&workspace)
+        .with_args(["run", "repro"])
+        .output()
+        .expect("run repro after repeat install");
+    let stdout = String::from_utf8_lossy(&run_twice.stdout);
+    let stderr = String::from_utf8_lossy(&run_twice.stderr);
+    assert!(run_twice.status.success(), "pnpm run repro failed:\n{stdout}\n{stderr}");
+    assert!(stdout.contains("script ran"), "expected script output:\n{stdout}");
+    assert!(
+        !stderr.contains("left node_modules out of date"),
+        "unexpected stale node_modules warning after repeat install:\n{stderr}",
+    );
+
+    drop(root);
+}
+
 #[cfg(unix)]
 #[test]
 fn error_action_follows_the_dependency_state() {
