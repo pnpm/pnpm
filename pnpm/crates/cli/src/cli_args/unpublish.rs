@@ -185,9 +185,28 @@ impl UnpublishArgs {
             session: OtpSession::new(web_auth_fetch_options(config)),
         };
 
+        self.unpublish_range::<Sys, Reporter>(
+            &mut mutation,
+            &package_url,
+            &registry_url,
+            pkg,
+            version_range,
+        )
+        .await
+    }
+
+    /// Unpublish the versions `version_range` matches, or the whole package
+    /// when there is no range or it matches every version.
+    async fn unpublish_range<Sys: UnpublishHost, Reporter: self::Reporter>(
+        &self,
+        mutation: &mut MutationContext<'_>,
+        package_url: &str,
+        registry_url: &str,
+        pkg: Packument,
+        version_range: Option<String>,
+    ) -> miette::Result<String> {
         let Some(range) = version_range else {
-            return self.unpublish_all::<Sys, Reporter>(&mut mutation, &package_url, &pkg, None)
-                .await;
+            return self.unpublish_all::<Sys, Reporter>(mutation, package_url, &pkg, None).await;
         };
 
         let versions_to_unpublish = versions_matching_range(&pkg.versions, &range);
@@ -197,19 +216,14 @@ impl UnpublishArgs {
 
         // Removing every version is a full unpublish, protections included.
         if versions_to_unpublish.len() == pkg.versions.len() {
-            return self.unpublish_all::<Sys, Reporter>(
-                &mut mutation,
-                &package_url,
-                &pkg,
-                Some(range.as_str()),
-            )
-            .await;
+            return self.unpublish_all::<Sys, Reporter>(mutation, package_url, &pkg, Some(&range))
+                .await;
         }
 
         unpublish_versions::<Sys, Reporter>(
-            &mut mutation,
-            &package_url,
-            &registry_url,
+            mutation,
+            package_url,
+            registry_url,
             pkg,
             &versions_to_unpublish,
         )
