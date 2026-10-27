@@ -183,16 +183,11 @@ impl DirectoryWalk<'_, '_> {
         level: &[Visit],
         read: &mut HashMap<DirectoryDep, Option<(PackageManifest, bool)>>,
     ) -> Result<(), FreshnessCheckError> {
-        let mut unread: Vec<&Visit> = Vec::new();
-        for visit in level {
-            if !read.contains_key(&visit.dep)
-                && !unread
-                    .iter()
-                    .any(|seen| seen.dep == visit.dep)
-            {
-                unread.push(visit);
-            }
-        }
+        let mut queued: HashSet<&DirectoryDep> = HashSet::new();
+        let unread: Vec<&Visit> = level
+            .iter()
+            .filter(|visit| !read.contains_key(&visit.dep) && queued.insert(&visit.dep))
+            .collect();
         let manifests = futures_util::future::try_join_all(
             unread
                 .iter()
