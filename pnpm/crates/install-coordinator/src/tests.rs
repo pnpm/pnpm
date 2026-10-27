@@ -99,6 +99,31 @@ async fn polls_participants_concurrently() {
     assert_eq!(started.load(Ordering::Acquire), 0b111);
 }
 
+#[tokio::test(flavor = "multi_thread")]
+async fn a_participant_that_blocks_its_task_does_not_starve_the_others() {
+    let root = tempfile::tempdir().unwrap();
+    let (release, released) = tokio::sync::oneshot::channel::<()>();
+    let blocking = async move {
+        let runtime = tokio::runtime::Handle::current();
+        tokio::task::block_in_place(|| {
+            runtime.block_on(tokio::time::timeout(Duration::from_secs(5), released))
+        })
+        .into_diagnostic()?
+        .into_diagnostic()
+    };
+    let releasing = async move {
+        tokio::task::yield_now().await;
+        release.send(()).unwrap();
+        Ok(())
+    };
+    InstallPlan::new(root.path().to_path_buf())
+        .with_task(InstallTask::in_place(Vec::new(), blocking))
+        .with_task(InstallTask::in_place(Vec::new(), releasing))
+        .run()
+        .await
+        .unwrap();
+}
+
 #[tokio::test]
 async fn preparation_failure_settles_writers_before_restoring_metadata() {
     let root = tempfile::tempdir().unwrap();

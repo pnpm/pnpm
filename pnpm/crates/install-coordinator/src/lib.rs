@@ -3,7 +3,7 @@ mod metadata_file;
 mod mutation;
 
 use futures_util::future::{BoxFuture, join_all};
-use miette::Result;
+use miette::{IntoDiagnostic, Result, WrapErr};
 use mutation::MetadataMutation;
 use std::{future::Future, path::PathBuf};
 
@@ -92,13 +92,66 @@ impl<'a> InstallPlan<'a> {
             .unzip();
         let mutation =
             MetadataMutation::capture(self.transaction_root, metadata.into_iter().flatten()).await?;
-        let results = join_all(preparations).await;
+        let results = settle_all(preparations).await;
         let outcome = results
             .into_iter()
             .collect::<Result<Vec<_>>>()
             .and_then(|prepared| publish(prepared.into_iter().flatten().collect()));
         mutation.finish(outcome)
     }
+}
+
+/// Settle every preparation concurrently.
+///
+/// A participant may block its task: the cold download drain does, with
+/// `block_in_place`. Polled together by `join_all`, the other participants
+/// would then go unpolled while they hold a shared resource the blocked one
+/// waits for, such as the network budget. On the multi-thread runtime, each
+/// participant therefore runs on a thread of its own.
+async fn settle_all(preparations: Vec<BoxFuture<'_, Result<Prepared>>>) -> Vec<Result<Prepared>> {
+    let runtime = match tokio::runtime::Handle::try_current() {
+        Ok(runtime)
+            if preparations.len() > 1
+                && runtime.runtime_flavor() == tokio::runtime::RuntimeFlavor::MultiThread =>
+        {
+            runtime
+        }
+        _ => return join_all(preparations).await,
+    };
+    tokio::task::block_in_place(|| settle_on_threads(&runtime, preparations))
+}
+
+fn settle_on_threads(
+    runtime: &tokio::runtime::Handle,
+    preparations: Vec<BoxFuture<'_, Result<Prepared>>>,
+) -> Vec<Result<Prepared>> {
+    std::thread::scope(|scope| {
+        // Every participant starts before the first join.
+        let mut participants = Vec::with_capacity(preparations.len());
+        for preparation in preparations {
+            participants.push(
+                std::thread::Builder::new()
+                    .name("pnpm-install-participant".to_string())
+                    .spawn_scoped(scope, move || runtime.block_on(preparation)),
+            );
+        }
+        participants
+            .into_iter()
+            .map(join_participant)
+            .collect()
+    })
+}
+
+/// A participant whose thread could not start fails like any other, so the
+/// plan still restores its metadata.
+fn join_participant(
+    participant: std::io::Result<std::thread::ScopedJoinHandle<'_, Result<Prepared>>>,
+) -> Result<Prepared> {
+    participant
+        .into_diagnostic()
+        .wrap_err("start an install participant thread")?
+        .join()
+        .unwrap_or_else(|panic| std::panic::resume_unwind(panic))
 }
 
 fn publish(mut prepared: Prepared) -> Result<()> {
