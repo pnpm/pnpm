@@ -178,6 +178,8 @@ async fn verify_and_export_keep_the_stored_tar_of_a_hosted_tar_registry() {
     assert!(report.missing_blobs.is_empty(), "{:?}", report.missing_blobs);
     assert!(report.orphaned_blobs.is_empty(), "{:?}", report.orphaned_blobs);
     assert!(stored_tar.exists());
+    assert_eq!(report.corrupted_blobs.len(), 1, "{:?}", report.corrupted_blobs);
+    assert!(report.corrupted_blobs[0].contains("no recorded tar integrity"));
 
     let export_out = dir.path().join("exported");
     let exported = export_storage(&config, &export_out, true).await.unwrap();

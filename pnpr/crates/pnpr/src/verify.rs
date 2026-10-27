@@ -132,32 +132,80 @@ async fn verify_version_tarball(
     ctx.referenced_blobs.insert(format!("{pkg_name}/{filename}"));
     ctx.referenced_blobs.insert(format!("{pkg_name}/{tar}"));
 
-    if let Some((body, _)) = open_blob(ctx.storage, canonical, filename).await? {
-        let bytes = to_bytes(body, usize::MAX).await.into_diagnostic()?;
-        ctx.report.blobs_checked += 1;
-        ctx.report.bytes_verified += bytes.len() as u64;
+    if let Some(bytes) = read_blob(ctx, canonical, filename).await? {
         if ctx.options.check_hashes {
             check_hash_mismatch(pkg_name, ver, filename, &bytes, dist, ctx.report);
         }
-    } else if let Some((_, len)) = open_blob(ctx.storage, canonical, &tar).await? {
-        // `dist.integrity` names the published `.tgz`, which was not kept.
-        ctx.report.blobs_checked += 1;
-        ctx.report.bytes_verified += len.unwrap_or_default();
-    } else {
+    } else if !verify_stored_tar(ctx, canonical, ver, dist).await? {
         ctx.report.missing_blobs.push(format!("{pkg_name}@{ver}: {filename}"));
     }
     Ok(())
 }
 
-async fn open_blob(
+/// Check the tar a hosted tar registry stores for `ver` in place of its
+/// `.tgz`. `false` when there is none.
+async fn verify_stored_tar(
+    ctx: &mut VerifyContext<'_>,
+    canonical: &CanonicalPackageName,
+    ver: &str,
+    dist: &serde_json::Map<String, Value>,
+) -> miette::Result<bool> {
+    let tar = canonical.tar_name_for_version(ver);
+    let Some(bytes) = read_blob(ctx, canonical, &tar).await? else { return Ok(false) };
+    if ctx.options.check_hashes
+        && let Some(problem) = stored_tar_problem(ctx.storage, canonical, &bytes, dist).await?
+    {
+        let pkg_name = canonical.as_str();
+        ctx.report.corrupted_blobs.push(format!("{pkg_name}@{ver}: {tar} ({problem})"));
+    }
+    Ok(true)
+}
+
+/// What is wrong with a stored tar, checked against the tar integrity
+/// recorded at publish: `dist.integrity` names the `.tgz`, which was not kept.
+async fn stored_tar_problem(
     storage: &Storage,
     canonical: &CanonicalPackageName,
+    stored: &[u8],
+    dist: &serde_json::Map<String, Value>,
+) -> miette::Result<Option<String>> {
+    let table = storage
+        .read_tar_integrities(canonical)
+        .await
+        .map_err(|err| {
+            miette::miette!("failed to read tar integrities for '{}': {err}", canonical.as_str())
+        })?;
+    let expected = dist
+        .get("integrity")
+        .and_then(Value::as_str)
+        .and_then(|integrity| integrity.parse::<ssri::Integrity>().ok())
+        .and_then(|integrity| table.get(&integrity.to_string()));
+    let Some(expected) = expected else {
+        return Ok(Some("no recorded tar integrity".to_string()));
+    };
+    let Ok(tar) = zstd::decode_all(stored) else {
+        return Ok(Some("not a zstd stream".to_string()));
+    };
+    Ok((!verify_blob_integrity(&tar, &expected.tar_integrity)).then(|| {
+        format!("tar integrity mismatch: {}", expected.tar_integrity)
+    }))
+}
+
+/// The bytes of the hosted blob `filename`, counted as checked.
+async fn read_blob(
+    ctx: &mut VerifyContext<'_>,
+    canonical: &CanonicalPackageName,
     filename: &str,
-) -> miette::Result<Option<(axum::body::Body, Option<u64>)>> {
-    storage
+) -> miette::Result<Option<axum::body::Bytes>> {
+    let opened = ctx.storage
         .open_hosted_blob(canonical, filename)
         .await
-        .map_err(|err| miette::miette!("error opening blob for '{}': {err}", canonical.as_str()))
+        .map_err(|err| miette::miette!("error opening blob for '{}': {err}", canonical.as_str()))?;
+    let Some((body, _)) = opened else { return Ok(None) };
+    let bytes = to_bytes(body, usize::MAX).await.into_diagnostic()?;
+    ctx.report.blobs_checked += 1;
+    ctx.report.bytes_verified += bytes.len() as u64;
+    Ok(Some(bytes))
 }
 
 fn check_hash_mismatch(

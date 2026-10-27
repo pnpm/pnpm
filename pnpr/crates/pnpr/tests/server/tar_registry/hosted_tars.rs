@@ -27,6 +27,21 @@ fn tar_acme_config(storage: std::path::PathBuf) -> Config {
     config
 }
 
+/// The path of the file named `name` under `dir`.
+fn find_file(dir: &std::path::Path, name: &str) -> Option<std::path::PathBuf> {
+    for entry in std::fs::read_dir(dir).unwrap() {
+        let entry = entry.unwrap();
+        if entry.file_type().unwrap().is_dir() {
+            if let Some(found) = find_file(&entry.path(), name) {
+                return Some(found);
+            }
+        } else if entry.file_name() == name {
+            return Some(entry.path());
+        }
+    }
+    None
+}
+
 /// The names of every file under `dir`.
 fn file_names(dir: &std::path::Path) -> Vec<String> {
     let mut names = Vec::new();
@@ -166,4 +181,32 @@ async fn deleting_a_version_of_a_hosted_tar_registry_removes_its_tar() {
     assert!(!files.contains(&"widget-1.0.0.tar.zst".to_string()), "{files:?}");
     let served = get(&app, "/npm/@acme/widget@1.0.0", Some("zstd")).await;
     assert_eq!(served.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn verify_checks_a_stored_tar_against_its_tar_integrity() {
+    let tmp = TempDir::new().unwrap();
+    let auth = AuthState::in_memory();
+    let token = issue_token(&auth, "alice").await;
+    let app = router_with_auth(tar_acme_config(tmp.path().to_path_buf()), auth);
+    assert_eq!(publish(&app, &token, "1.0.0", &gzip(&widget_tar())).await, StatusCode::CREATED);
+
+    let config = tar_acme_config(tmp.path().to_path_buf());
+    pnpr_storage::layout::write_local_layout_marker(&config.storage.hosted_dir).unwrap();
+    let options =
+        pnpr::verify::VerifyOptions { check_hashes: true, prune_orphans: false, min_age_secs: 0 };
+    let report = pnpr::verify::verify_storage(&config, &options).await.unwrap();
+    assert_eq!(report.blobs_checked, 1);
+    assert!(report.corrupted_blobs.is_empty(), "{:?}", report.corrupted_blobs);
+    assert!(report.orphaned_blobs.is_empty(), "{:?}", report.orphaned_blobs);
+
+    let stored = find_file(tmp.path(), "widget-1.0.0.tar.zst").unwrap();
+    std::fs::write(&stored, zstd::encode_all(&b"another tar"[..], 3).unwrap()).unwrap();
+    let report = pnpr::verify::verify_storage(&config, &options).await.unwrap();
+    assert_eq!(report.corrupted_blobs.len(), 1, "{:?}", report.corrupted_blobs);
+    assert!(
+        report.corrupted_blobs[0].contains("tar integrity mismatch"),
+        "{:?}",
+        report.corrupted_blobs,
+    );
 }
