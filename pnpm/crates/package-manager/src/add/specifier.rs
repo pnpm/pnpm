@@ -110,6 +110,7 @@ fn resolve_catalog_and_warnings(
 pub(super) struct AddSelector {
     protocol: Option<ProtocolSelector>,
     aliasless: Option<AliaslessDependency>,
+    npm_alias_name: Option<String>,
 }
 impl AddSelector {
     async fn parse(
@@ -120,13 +121,24 @@ impl AddSelector {
         let parsed =
             pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency(package_selector);
         let protocol = ProtocolSelector::parse(package_selector)?;
+        let npm_alias_name = match (parsed.alias.as_deref(), parsed.bare_specifier.as_deref()) {
+            (Some(_), Some(specifier)) => match ProtocolSelector::parse(specifier)? {
+                Some(ProtocolSelector::Npm { name, spec })
+                    if spec.as_deref().is_none_or(str::is_empty) =>
+                {
+                    Some(name)
+                }
+                _ => None,
+            },
+            _ => None,
+        };
         let aliasless = match (parsed.alias.as_deref(), parsed.bare_specifier.as_deref()) {
             (None, Some(specifier)) if protocol.is_none() => {
                 resolve_aliasless_specifier(specifier, inputs, manifest).await?
             }
             _ => None,
         };
-        Ok(Self { protocol, aliasless })
+        Ok(Self { protocol, aliasless, npm_alias_name })
     }
 
     fn linked_peer_dependencies_warning(
@@ -147,6 +159,9 @@ impl AddSelector {
     }
 
     fn explicit_spec<'s>(&'s self, package_selector: &'s str) -> Option<&'s str> {
+        if self.npm_alias_name.is_some() {
+            return None;
+        }
         match (self.aliasless.as_ref(), self.protocol.as_ref()) {
             (Some(dep), _) => Some(dep.manifest_specifier.as_str()),
             (None, Some(protocol)) => protocol.explicit_spec(package_selector),
@@ -208,14 +223,16 @@ pub(super) async fn bare_save_specifier(
 ) -> Result<SaveSpecifier, AddError> {
     let package_name = selector.package_name(package_selector);
     let explicit_spec = selector.explicit_spec(package_selector);
-    if let Some(workspace_specifier) = workspace_save_specifier(
-        package_name,
-        explicit_spec,
-        prev_specifier,
-        inputs.add.config,
-        inputs.add.range_spec_style,
-        inputs.workspace_packages,
-    ) {
+    if selector.npm_alias_name.is_none()
+        && let Some(workspace_specifier) = workspace_save_specifier(
+            package_name,
+            explicit_spec,
+            prev_specifier,
+            inputs.add.config,
+            inputs.add.range_spec_style,
+            inputs.workspace_packages,
+        )
+    {
         return Ok(workspace_specifier.into());
     }
     if let Some(version_spec) =
@@ -234,7 +251,31 @@ pub(super) async fn bare_save_specifier(
         return Ok(resolve_jsr_save_specifier(jsr, manifest, inputs).await?
             .unwrap_or_else(|| package_selector.to_string().into()));
     }
+    if prev_specifier.is_none()
+        && let Some(alias_name) = selector.npm_alias_name.as_deref()
+    {
+        return aliased_npm_save_specifier(alias_name, manifest, inputs).await;
+    }
     registry_save_specifier(package_name, explicit_spec, prev_specifier, manifest, inputs).await
+}
+async fn aliased_npm_save_specifier(
+    package_name: &str,
+    manifest: &PackageManifest,
+    inputs: &AddResolveInputs<'_, '_>,
+) -> Result<SaveSpecifier, AddError> {
+    let specifier = match fallback_registry_save_specifier(package_name, manifest, inputs).await? {
+        Some(specifier) => specifier,
+        None => match inputs.add.config.default_tag() {
+            "latest" => pick_latest_range(package_name, manifest, inputs).await?.into(),
+            tag => {
+                explicit_registry_save_specifier(package_name, tag, None, manifest, inputs).await?
+            }
+        },
+    };
+    Ok(SaveSpecifier {
+        specifier: format!("npm:{package_name}@{}", specifier.specifier),
+        picked: specifier.picked,
+    })
 }
 /// [`bare_save_specifier`] for a plain registry selector.
 async fn registry_save_specifier(

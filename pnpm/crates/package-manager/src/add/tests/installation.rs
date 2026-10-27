@@ -83,28 +83,28 @@ async fn add_saves_an_npm_selector_without_a_version_at_the_default_pin() {
 #[tokio::test]
 async fn add_uses_a_workspace_declared_range_before_the_default_tag() {
     assert_eq!(
-        add_npm_selector_with_ranges("foo", Some("~1.0.0"), None).await,
+        add_npm_selector_with_ranges("foo", "foo", Some("~1.0.0"), None).await,
         Some("~1.0.0".to_string()),
     );
 }
 #[tokio::test]
 async fn add_uses_a_workspace_declared_range_for_an_npm_protocol_selector() {
     assert_eq!(
-        add_npm_selector_with_ranges("npm:foo", Some("~1.0.0"), None).await,
+        add_npm_selector_with_ranges("npm:foo", "foo", Some("~1.0.0"), None).await,
         Some("~1.0.0".to_string()),
     );
 }
 #[tokio::test]
 async fn add_uses_a_workspace_declared_range_for_an_npm_alias() {
     assert_eq!(
-        add_npm_selector_with_ranges("alias@npm:foo", Some("~1.0.0"), None).await,
-        Some("~1.0.0".to_string()),
+        add_npm_selector_with_ranges("alias@npm:foo", "alias", Some("~1.0.0"), None).await,
+        Some("npm:foo@~1.0.0".to_string()),
     );
 }
 #[tokio::test]
 async fn add_uses_a_matching_override_before_the_default_tag() {
     assert_eq!(
-        add_npm_selector_with_ranges("foo", None, Some("~1.0.0")).await,
+        add_npm_selector_with_ranges("foo", "foo", None, Some("~1.0.0")).await,
         Some("~1.0.0".to_string()),
     );
 }

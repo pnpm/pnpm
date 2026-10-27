@@ -57,11 +57,12 @@ fn test_add<'a>(
 }
 
 async fn add_npm_selector(selector: &str) -> Option<String> {
-    add_npm_selector_with_ranges(selector, None, None).await
+    add_npm_selector_with_ranges(selector, "foo", None, None).await
 }
 
 async fn add_npm_selector_with_ranges(
     selector: &str,
+    dependency_name: &str,
     workspace_range: Option<&str>,
     override_range: Option<&str>,
 ) -> Option<String> {
@@ -154,9 +155,6 @@ async fn add_npm_selector_with_ranges(
     .await
     .unwrap_or_else(|error| panic!("add {selector} should succeed: {error}"));
 
-    let dependency_name = selector
-        .split_once("@npm:")
-        .map_or_else(|| selector.strip_prefix("npm:").unwrap_or(selector), |(alias, _)| alias);
     saved_dependency_specifier(&manifest, dependency_name)
 }
 
