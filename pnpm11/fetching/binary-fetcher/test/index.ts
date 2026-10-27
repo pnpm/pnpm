@@ -578,6 +578,29 @@ describe('zip download retries', () => {
     expect(fs.readFileSync(path.join(targetDir, 'bin', 'node'), 'utf8')).toBe('binary')
   })
 
+  it('keeps the default retry count when the caller leaves it undefined', async () => {
+    const { zipBuffer, integrity } = createZip()
+    const { fetch, requests } = createDroppingFetch(zipBuffer, 1)
+
+    await downloadAndUnpackZip(
+      fetch,
+      { url: 'https://example.com/node.zip', integrity, basename: '', retry: { ...NO_RETRY_DELAY, factor: undefined, retries: undefined } },
+      temporaryDirectory()
+    )
+    expect(requests()).toBe(2)
+  })
+
+  it('hides URL secrets in a checksum error', async () => {
+    const { zipBuffer } = createZip()
+    const integrity = ssri.fromData(Buffer.from('something else')).toString()
+
+    await expect(downloadAndUnpackZip(
+      createMockFetch(zipBuffer),
+      { url: 'https://user:secret@example.com/node.zip?token=secret', integrity, basename: '', retry: { retries: 0 } },
+      temporaryDirectory()
+    )).rejects.toThrow(/^Got unexpected checksum for "https:\/\/example\.com\/node\.zip"\./)
+  })
+
   it('names the URL when every attempt drops the connection', async () => {
     const { zipBuffer, integrity } = createZip()
     const { fetch, requests } = createDroppingFetch(zipBuffer, 2)

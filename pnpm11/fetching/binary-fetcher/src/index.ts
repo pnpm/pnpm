@@ -220,7 +220,11 @@ function downloadWithRetries (
   assetInfo: AssetInfo,
   tmpPath: string
 ): Promise<void> {
-  const retryOpts = { ...DEFAULT_DOWNLOAD_RETRY, ...assetInfo.retry }
+  // Callers pass every field, unset ones as undefined, which would override the defaults.
+  const retryOpts = {
+    ...DEFAULT_DOWNLOAD_RETRY,
+    ...Object.fromEntries(Object.entries(assetInfo.retry ?? {}).filter(([, value]) => value != null)),
+  }
   const op = retry.operation(retryOpts)
   return new Promise<void>((resolve, reject) => {
     op.attempt(async (attempt) => {
@@ -273,8 +277,8 @@ function logRetryAttempt (opts: { attempt: number, error: DownloadError, maxRetr
   requestRetryLogger.debug({
     attempt: opts.attempt,
     error: {
+      // The message is left out because it can embed the unredacted URL.
       name: error.name,
-      message: error.message,
       code: error.code,
       errno: error.errno,
       status: error.response?.status,
@@ -314,7 +318,7 @@ async function downloadWithIntegrityCheck (
   )
   const found = ssri.fromHex(hash.digest('hex'), algorithm)
   if (!expected.match(found)) {
-    throw new PnpmError('TARBALL_INTEGRITY', `Got unexpected checksum for "${url}". Wanted "${expected.toString()}". Got "${found.toString()}".`)
+    throw new PnpmError('TARBALL_INTEGRITY', `Got unexpected checksum for "${redactUrlForDisplay(url)}". Wanted "${expected.toString()}". Got "${found.toString()}".`)
   }
 }
 
