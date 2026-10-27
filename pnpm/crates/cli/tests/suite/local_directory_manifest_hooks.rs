@@ -122,8 +122,8 @@ fn file_dependency_on_a_publish_directory_hooks_only_its_own_manifest() {
 }
 
 /// With its own lockfile, a project reaching one publish directory through
-/// both a workspace spec and a `file:` spec checks the workspace range
-/// against the publishing project's version.
+/// both a workspace spec and a `file:` spec checks a nested workspace range
+/// on it against the publishing project's version, not the directory's own.
 #[test]
 fn publish_directory_reached_both_ways_keeps_the_workspace_version() {
     let fixture = WorkspaceFixture::new();
@@ -140,11 +140,19 @@ fn publish_directory_reached_both_ways_keeps_the_workspace_version() {
         &json!({ "name": "lib", "version": "2.0.0" }),
     );
     write_package(
+        &fixture.workspace.join("ext"),
+        &json!({ "name": "ext", "version": "1.0.0", "dependencies": { "lib": "workspace:^1.0.0" } }),
+    );
+    write_package(
         &fixture.workspace.join("packages/app"),
         &json!({
             "name": "app",
             "version": "1.0.0",
-            "dependencies": { "lib": "workspace:^1.0.0", "lib-dist": "file:../lib/dist" },
+            "dependencies": {
+                "lib": "workspace:^1.0.0",
+                "lib-dist": "file:../lib/dist",
+                "ext": "file:../../ext",
+            },
         }),
     );
 
