@@ -370,7 +370,7 @@ fn version_flag_reuses_the_pinned_engine_with_project_install_settings() {
     .expect("write package.json");
     fs::write(
         workspace.join("pnpm-workspace.yaml"),
-        "engineStrict: true\nsupportedArchitectures:\n  os: [this-os-does-not-exist]\n",
+        "supportedArchitectures:\n  os: [this-os-does-not-exist]\n",
     )
     .expect("write pnpm-workspace.yaml");
 
