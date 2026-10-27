@@ -7,6 +7,12 @@ use install::{
 mod specifier;
 use specifier::{normalized_save_specifier, resolve_added_dependency};
 
+mod selector;
+
+mod protocol_selector;
+
+mod range_fallback;
+
 mod workspace_specifier;
 use workspace_specifier::workspace_packages_for_add;
 

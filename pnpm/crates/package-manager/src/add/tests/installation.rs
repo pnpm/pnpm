@@ -1,6 +1,6 @@
 use super::{
     super::{Add, AddError},
-    add_jsr_selector, add_npm_selector, package_body,
+    add_jsr_selector, add_npm_selector, add_npm_selector_with_ranges, package_body,
 };
 use crate::{ResolvedPackages, add::specifier::ProtocolSelector};
 use pnpm_config::Config;
@@ -79,6 +79,34 @@ async fn add_saves_a_jsr_selector_under_its_jsr_name_with_the_picked_version_pin
 #[tokio::test]
 async fn add_saves_an_npm_selector_without_a_version_at_the_default_pin() {
     assert_eq!(add_npm_selector("npm:foo").await, Some("^1.0.0".to_string()));
+}
+#[tokio::test]
+async fn add_uses_a_workspace_declared_range_before_the_default_tag() {
+    assert_eq!(
+        add_npm_selector_with_ranges("foo", "foo", Some("~1.0.0"), None).await,
+        Some("~1.0.0".to_string()),
+    );
+}
+#[tokio::test]
+async fn add_uses_a_workspace_declared_range_for_an_npm_protocol_selector() {
+    assert_eq!(
+        add_npm_selector_with_ranges("npm:foo", "foo", Some("~1.0.0"), None).await,
+        Some("~1.0.0".to_string()),
+    );
+}
+#[tokio::test]
+async fn add_uses_a_workspace_declared_range_for_an_npm_alias() {
+    assert_eq!(
+        add_npm_selector_with_ranges("alias@npm:foo", "alias", Some("~1.0.0"), None).await,
+        Some("npm:foo@~1.0.0".to_string()),
+    );
+}
+#[tokio::test]
+async fn add_uses_a_matching_override_before_the_default_tag() {
+    assert_eq!(
+        add_npm_selector_with_ranges("foo", "foo", None, Some("~1.0.0")).await,
+        Some("~1.0.0".to_string()),
+    );
 }
 #[tokio::test]
 async fn add_reuses_shared_packument_state_for_every_selector_path() {

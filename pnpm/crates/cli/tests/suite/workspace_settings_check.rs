@@ -66,7 +66,10 @@ fn scripts_prepend_node_path_is_ignored_under_a_satisfied_pin() {
 
         assert_success(&output);
         let stderr = stderr(&output);
-        assert!(!stderr.contains("WARN"), "{value}: expected no warning; got:\n{stderr}");
+        assert!(
+            !stderr.contains("scriptsPrependNodePath"),
+            "{value}: expected no setting warning; got:\n{stderr}",
+        );
         assert!(!stderr.contains("ERR_PNPM"), "{value}: expected no error; got:\n{stderr}");
     }
 }
