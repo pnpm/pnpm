@@ -4,6 +4,7 @@
 use super::{TarballLocation, failure, fetch_location};
 use crate::{InstallPackageBySnapshotError, install_package_by_snapshot::walk_directory};
 use miette::Diagnostic;
+use pnpm_directory_fetcher::CopyFiles;
 use pnpm_fs::lexical_normalize;
 use pnpm_hooks::{CustomFetcher, FetcherCallback, FetcherMethod};
 use pnpm_lockfile::{DirectoryResolution, LockfileResolution};
@@ -20,7 +21,7 @@ use std::{
 pub(super) struct NativeCallbacks<'a> {
     pub(super) download: &'a IngestTarballToStore<'a>,
     pub(super) lockfile_dir: &'a Path,
-    pub(super) include_only_package_files: bool,
+    pub(super) files: CopyFiles,
 }
 
 /// What the native callbacks of one fetch produced. A hook may only return
@@ -154,7 +155,7 @@ fn walk_callback_directory(
         ));
     };
     let directory = lexical_normalize(&callback_lockfile_dir(native, callback).join(relative));
-    let output = walk_directory(&directory, native.include_only_package_files)
+    let output = walk_directory(&directory, native.files)
         .map_err(|error| FetchErrorDetails {
             message: error.to_string(),
             code: error.code().map(|code| code.to_string()),
