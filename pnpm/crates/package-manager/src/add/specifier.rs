@@ -1,9 +1,11 @@
+pub(super) use super::protocol_selector::ProtocolSelector;
+use super::protocol_selector::resolve_jsr_save_specifier;
 use super::{
     AddError, AddResolveInputs,
-    aliasless::{AliaslessDependency, resolve_aliasless_specifier},
     manifest::apply_catalog_decision,
     range_fallback::add_range_fallback,
     registry::{pick_latest_range, resolve_explicit_registry_spec},
+    selector::AddSelector,
     workspace_specifier::workspace_save_specifier,
 };
 use crate::{
@@ -14,11 +16,8 @@ use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Tool;
 use pnpm_engine_runtime_node_resolver::NodeResolver;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
-use pnpm_package_name::is_valid_dependency_alias;
 use pnpm_reporter::LogEvent;
 use pnpm_resolving_git_resolver::{HostedGit, HostedOpts};
-use pnpm_resolving_jsr_specifier_parser::{JsrSpec, parse_jsr_specifier};
-use pnpm_workspace_spec::WorkspaceSpec;
 
 pub(super) struct ResolvedAddedDependency {
     pub(super) package_name: String,
@@ -104,72 +103,6 @@ fn resolve_catalog_and_warnings(
         inputs.prefix,
     );
     Ok((manifest_specifier, updated_catalogs, warnings))
-}
-/// A selector as parsed: its protocol, and the package an aliasless
-/// specifier names once resolved.
-pub(super) struct AddSelector {
-    protocol: Option<ProtocolSelector>,
-    aliasless: Option<AliaslessDependency>,
-    npm_alias_name: Option<String>,
-}
-impl AddSelector {
-    async fn parse(
-        package_selector: &str,
-        manifest: &PackageManifest,
-        inputs: &AddResolveInputs<'_, '_>,
-    ) -> Result<Self, AddError> {
-        let parsed =
-            pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency(package_selector);
-        let protocol = ProtocolSelector::parse(package_selector)?;
-        let npm_alias_name = match (parsed.alias.as_deref(), parsed.bare_specifier.as_deref()) {
-            (Some(_), Some(specifier)) => match ProtocolSelector::parse(specifier)? {
-                Some(ProtocolSelector::Npm { name, spec })
-                    if spec.as_deref().is_none_or(str::is_empty) =>
-                {
-                    Some(name)
-                }
-                _ => None,
-            },
-            _ => None,
-        };
-        let aliasless = match (parsed.alias.as_deref(), parsed.bare_specifier.as_deref()) {
-            (None, Some(specifier)) if protocol.is_none() => {
-                resolve_aliasless_specifier(specifier, inputs, manifest).await?
-            }
-            _ => None,
-        };
-        Ok(Self { protocol, aliasless, npm_alias_name })
-    }
-
-    fn linked_peer_dependencies_warning(
-        &self,
-        package_name: &str,
-        prefix: &str,
-    ) -> Option<LogEvent> {
-        let linked_manifest = self.aliasless.as_ref()?.linked_manifest.as_deref()?;
-        crate::linked_peer_dependencies_warning(package_name, linked_manifest, prefix)
-    }
-
-    fn package_name<'s>(&'s self, package_selector: &'s str) -> &'s str {
-        match (self.aliasless.as_ref(), self.protocol.as_ref()) {
-            (Some(dep), _) => dep.package_name.as_str(),
-            (None, Some(protocol)) => protocol.package_name(),
-            (None, None) => split_name_spec(package_selector).0,
-        }
-    }
-
-    fn explicit_spec<'s>(&'s self, package_selector: &'s str) -> Option<&'s str> {
-        if self.npm_alias_name.is_some() {
-            return None;
-        }
-        match (self.aliasless.as_ref(), self.protocol.as_ref()) {
-            (Some(dep), _) => Some(dep.manifest_specifier.as_str()),
-            (None, Some(protocol)) => protocol.explicit_spec(package_selector),
-            (None, None) => split_name_spec(package_selector).1,
-        }
-        // pnpm reads `foo@` as `foo`, which resolves the `tag` setting.
-        .filter(|spec| !spec.is_empty())
-    }
 }
 /// The dependency's current specifier, so a re-add keeps the
 /// existing range / `catalog:` reference rather than re-pinning to
@@ -366,8 +299,8 @@ async fn explicit_registry_save_specifier(
 /// What [`bare_save_specifier`] records, and the version it resolved an
 /// explicit registry specifier to.
 pub(super) struct SaveSpecifier {
-    specifier: String,
-    picked: Option<PickedPackage>,
+    pub(super) specifier: String,
+    pub(super) picked: Option<PickedPackage>,
 }
 impl From<String> for SaveSpecifier {
     fn from(specifier: String) -> Self {
@@ -405,108 +338,6 @@ pub(super) async fn resolve_node_runtime_specifier(
         .resolve_save_specifier(version_spec, prev_specifier)
         .await
         .map_err(AddError::ResolveRuntimeSpec)
-}
-/// A `pacquet add` argument that spells its package name *inside* a
-/// dependency protocol, so the manifest key cannot be read off the front of
-/// the argument: `pacquet add jsr:@scope/pkg` keys on `@scope/pkg`, not on
-/// `jsr:`.
-///
-/// `catalog:` has no variant. The text after it names a catalog, not a
-/// package, so `catalog:foo` carries no name to key an entry by.
-pub(super) enum ProtocolSelector {
-    /// `npm:<name>[@<spec>]`. Nothing here is aliased — the install name is
-    /// the real package name — so the entry is saved as the plain
-    /// `<name>[@<spec>]` request would be.
-    Npm { name: String, spec: Option<String> },
-    /// `jsr:@<scope>/<name>[@<selector>]`.
-    Jsr(JsrSpec),
-    /// The alias form `workspace:<name>@<range>`. A version-only
-    /// (`workspace:^1.2.3`) or path (`workspace:./pkg`, `workspace:C:\pkg`)
-    /// specifier names no package, and [`WorkspaceSpec`] already tells the
-    /// three apart.
-    Workspace { name: String },
-}
-impl ProtocolSelector {
-    /// Returns `Ok(None)` for an argument that carries no name-bearing
-    /// protocol, so the caller falls through to the alias-less resolvers
-    /// and then to [`split_name_spec`].
-    pub(super) fn parse(selector: &str) -> Result<Option<Self>, AddError> {
-        if let Some(rest) = selector.strip_prefix("npm:") {
-            let (name, spec) = split_name_spec(rest);
-            let name = protocol_package_name(name, selector)?;
-            return Ok(Some(Self::Npm { name, spec: spec.map(str::to_string) }));
-        }
-        if let Some(spec) =
-            parse_jsr_specifier(selector, None).map_err(AddError::ParseJsrSpecifier)?
-        {
-            return Ok(Some(Self::Jsr(spec)));
-        }
-        let Some(alias) = WorkspaceSpec::parse(selector).and_then(|spec| spec.alias) else {
-            return Ok(None);
-        };
-        let name = protocol_package_name(&alias, selector)?;
-        Ok(Some(Self::Workspace { name }))
-    }
-
-    pub(super) fn package_name(&self) -> &str {
-        match self {
-            Self::Npm { name, .. } | Self::Workspace { name } => name,
-            Self::Jsr(spec) => &spec.jsr_pkg_name,
-        }
-    }
-
-    /// The specifier half to reconcile against the manifest and the
-    /// catalogs. `jsr:` and `workspace:` keep the whole argument, since what
-    /// is saved for them is rendered back under the protocol; an `npm:`
-    /// request keeps only the registry range it wraps.
-    pub(super) fn explicit_spec<'a>(&'a self, selector: &'a str) -> Option<&'a str> {
-        match self {
-            Self::Npm { spec, .. } => spec.as_deref(),
-            Self::Jsr(_) | Self::Workspace { .. } => Some(selector),
-        }
-    }
-}
-pub(super) fn protocol_package_name(name: &str, selector: &str) -> Result<String, AddError> {
-    if !is_valid_dependency_alias(name) {
-        return Err(AddError::InvalidPackageName {
-            specifier: selector.to_string(),
-            name: name.to_string(),
-        });
-    }
-    Ok(name.to_string())
-}
-/// The `jsr:` specifier to save for `spec`, with the version the install
-/// will lock pinned into it: `pacquet add jsr:@scope/pkg` records
-/// `jsr:^1.2.3` and `jsr:@scope/pkg@0.1` records `jsr:~0.1.0`.
-///
-/// JSR ships every package on npm under the `@jsr` scope, so the version is
-/// picked through the same registry path a plain `@jsr/<scope>__<name>` add
-/// takes. `None` when that pick finds no version — the caller then keeps the
-/// argument verbatim, as it does for any other unresolvable specifier.
-pub(super) async fn resolve_jsr_save_specifier(
-    spec: &JsrSpec,
-    manifest: &PackageManifest,
-    inputs: &AddResolveInputs<'_, '_>,
-) -> Result<Option<SaveSpecifier>, AddError> {
-    let inputs =
-        AddResolveInputs { add: super::AddOptions { save_types: false, ..inputs.add }, ..*inputs };
-    let version_selector =
-        spec.version_selector.as_deref().unwrap_or_else(|| inputs.add.config.default_tag());
-    let range = resolve_explicit_registry_spec(
-        &spec.npm_pkg_name,
-        version_selector,
-        // The range operator is read off the selector the user typed, the
-        // way pnpm reads it for an alias-less request: there is no alias to
-        // find a manifest entry by.
-        None,
-        manifest,
-        &inputs,
-    )
-    .await?;
-    Ok(range.map(|picked| SaveSpecifier {
-        specifier: format!("jsr:{}", picked.range),
-        picked: Some(PickedPackage { name: spec.npm_pkg_name.clone(), version: picked.version }),
-    }))
 }
 /// Split a `pacquet add` argument into its package name and optional
 /// `@<version>` part. The version separator is the first `@` at or after
