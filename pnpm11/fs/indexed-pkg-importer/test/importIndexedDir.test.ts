@@ -428,7 +428,6 @@ test.each([
 })
 
 const testOnPosix = process.platform === 'win32' ? test.skip : test
-const testOnPosixAsNonRoot = process.platform === 'win32' || process.getuid?.() === 0 ? test.skip : test
 
 testOnPosix.each([
   ['a fresh directory', {}],
@@ -606,17 +605,15 @@ test('overwriteDirSync() falls back to removing newDir when renaming it aside th
   expect(fs.existsSync(path.join(newDir, 'stale.txt'))).toBe(false)
 })
 
-testOnPosixAsNonRoot('overwriteDirSync() restores the previous package when removing it after an EXDEV backup fails', () => {
+test('overwriteDirSync() restores the previous package when removing it after an EXDEV backup fails partway', () => {
   const tmp = tempDir()
   const stage = path.join(tmp, 'stage')
   const newDir = path.join(tmp, 'dest')
-  const lockedDir = path.join(newDir, 'locked')
   fs.mkdirSync(stage, { recursive: true })
   fs.writeFileSync(path.join(stage, 'package.json'), '{"name":"fresh"}')
-  fs.mkdirSync(lockedDir, { recursive: true })
+  fs.mkdirSync(path.join(newDir, 'lib'), { recursive: true })
   fs.writeFileSync(path.join(newDir, 'package.json'), '{"name":"old"}')
-  fs.writeFileSync(path.join(lockedDir, 'index.js'), 'old')
-  fs.chmodSync(lockedDir, 0o500)
+  fs.writeFileSync(path.join(newDir, 'lib/index.js'), 'old')
 
   const realRenameSync = fs.renameSync.bind(fs)
   const renameSpy = jest.spyOn(fs, 'renameSync').mockImplementation((oldPath, newPath) => {
@@ -625,15 +622,24 @@ testOnPosixAsNonRoot('overwriteDirSync() restores the previous package when remo
     }
     realRenameSync(oldPath, newPath)
   })
+  const realRmSync = fs.rmSync.bind(fs)
+  const rmSpy = jest.spyOn(fs, 'rmSync').mockImplementation((target, opts) => {
+    if (target === newDir) {
+      realRmSync(path.join(newDir, 'package.json'))
+      throw Object.assign(new Error('EACCES: permission denied, rmdir'), { code: 'EACCES' })
+    }
+    realRmSync(target, opts)
+  })
   try {
-    expect(() => overwriteDirSync(stage, newDir)).toThrow()
+    expect(() => overwriteDirSync(stage, newDir)).toThrow('EACCES')
   } finally {
     renameSpy.mockRestore()
-    fs.chmodSync(lockedDir, 0o700)
+    rmSpy.mockRestore()
   }
 
   expect(fs.readFileSync(path.join(newDir, 'package.json'), 'utf8')).toBe('{"name":"old"}')
-  expect(fs.readFileSync(path.join(lockedDir, 'index.js'), 'utf8')).toBe('old')
+  expect(fs.readFileSync(path.join(newDir, 'lib/index.js'), 'utf8')).toBe('old')
+  expect(fs.readdirSync(tmp).sort()).toEqual(['dest', 'stage'])
 })
 
 test('overwriteDirSync() restores the backed-up target when both moving newDir aside and renaming stage fail', () => {
