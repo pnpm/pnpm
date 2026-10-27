@@ -15,6 +15,17 @@ pub struct FilesMatcher {
     pub(super) named_files: BTreeSet<String>,
 }
 
+/// `files` entries that name an existing file or symlink. npm-packlist keeps
+/// them in its strict rules, which apply after the ordinary rules, so a
+/// later directory or glob entry cannot override one. Exclusions apply after
+/// inclusions here, so an exclusion naming a file wins over an entry naming
+/// it; npm-packlist lets the earliest of the two win.
+#[derive(Default)]
+struct StrictRules {
+    inclusions: Vec<IgnoreRule>,
+    exclusions: Vec<IgnoreRule>,
+}
+
 impl FilesMatcher {
     /// Whether an explicit pattern matches this package-relative path.
     #[must_use]
@@ -22,7 +33,13 @@ impl FilesMatcher {
         apply_rules(self.rules.iter(), true, path, false, None)
     }
 
-    fn add_entry(&mut self, pkg_dir: &Path, entry: &str, directories: &mut HashMap<PathBuf, bool>) {
+    fn add_entry(
+        &mut self,
+        pkg_dir: &Path,
+        entry: &str,
+        directories: &mut HashMap<PathBuf, bool>,
+        strict: &mut StrictRules,
+    ) {
         let mut entry = entry
             .strip_prefix("./")
             .map_or_else(|| entry.to_string(), |entry| format!("/{entry}"));
@@ -33,7 +50,12 @@ impl FilesMatcher {
         let metadata = entry_metadata(pkg_dir, &entry, directories);
         match metadata {
             Some(metadata) if metadata.is_file() || metadata.is_symlink() => {
-                self.add_named_file(&entry, IgnoreRule::parse(&inverse));
+                let rule = self.named_file_rule(&entry, &inverse);
+                if rule.negate {
+                    strict.inclusions.push(rule)
+                } else {
+                    strict.exclusions.push(rule)
+                }
             }
             Some(metadata) if metadata.is_dir() => {
                 self.rules.push(IgnoreRule::parse(&inverse));
@@ -45,12 +67,13 @@ impl FilesMatcher {
         }
     }
 
-    fn add_named_file(&mut self, entry: &str, rule: IgnoreRule) {
+    fn named_file_rule(&mut self, entry: &str, inverse: &str) -> IgnoreRule {
+        let rule = IgnoreRule::parse(inverse);
         let path = normalize_field_path(entry);
         if !entry.starts_with('!') && rule_matches(&rule, &path, false, None) {
             self.named_files.insert(path);
         }
-        self.rules.push(rule);
+        rule
     }
 
     // Named files override the initial `*`, so only manifest exclusions need checking.
@@ -96,15 +119,18 @@ pub fn build_files_matcher(entries: &[Value]) -> FilesMatcher {
 }
 
 /// Compile npm-packlist's manifest patterns without implicitly rooting them.
-/// Existing files and symlinks are strict requirements; directories and globs
+/// Existing files and symlinks are [`StrictRules`]; directories and globs
 /// supply ordinary rules.
 pub(super) fn compile_files_rules(pkg_dir: &Path, entries: &[Value]) -> FilesMatcher {
     let mut matcher =
         FilesMatcher { rules: vec![IgnoreRule::parse("*")], named_files: BTreeSet::new() };
     let mut directories = HashMap::new();
+    let mut strict = StrictRules::default();
     for entry in entries.iter().filter_map(Value::as_str) {
-        matcher.add_entry(pkg_dir, entry, &mut directories);
+        matcher.add_entry(pkg_dir, entry, &mut directories, &mut strict);
     }
+    matcher.rules.append(&mut strict.inclusions);
+    matcher.rules.append(&mut strict.exclusions);
     matcher.apply_named_file_exclusions();
     matcher
 }

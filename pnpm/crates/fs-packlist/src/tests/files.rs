@@ -672,6 +672,25 @@ fn files_field_named_file_survives_an_ancestor_exclusion() {
 }
 
 #[test]
+fn files_field_exclusion_naming_a_file_beats_a_later_glob() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    touch(root, "package.json");
+    touch(root, "dist/index.js");
+    touch(root, "dist/a.js");
+
+    let manifest = json!({
+        "name": "x",
+        "version": "0.0.0",
+        "files": ["**", "!dist/index.js", "dist/**"],
+    });
+    let mut out = packlist(root, &manifest).unwrap();
+    out.sort();
+
+    assert_eq!(out, vec!["dist/a.js".to_string(), "package.json".into()]);
+}
+
+#[test]
 fn files_field_named_file_follows_an_exclusion_that_names_it() {
     let dir = tempdir().unwrap();
     let root = dir.path();

@@ -53,6 +53,10 @@ pub enum DeliberateDivergence {
     /// `@pnpm/fs.packlist`, and `pnpm-fs-packlist` keep them unanchored so
     /// `"!*.map"` excludes nested `lib/*.map` files.
     UnanchoredFilesFieldNegation,
+    /// A `files` exclusion that names a file (`!lib/secret.js`) wins over an
+    /// entry naming the same file; `npm-packlist` and `@pnpm/fs.packlist`
+    /// let whichever of the two comes first in `files` win.
+    FilesFieldExclusionNamingFile,
 }
 
 pub const DELIBERATE_DIVERGENCES: &[DeliberateDivergence] = &[
@@ -63,6 +67,7 @@ pub const DELIBERATE_DIVERGENCES: &[DeliberateDivergence] = &[
     DeliberateDivergence::NamedFileDepthRule,
     DeliberateDivergence::ExactCaseEntryPoint,
     DeliberateDivergence::UnanchoredFilesFieldNegation,
+    DeliberateDivergence::FilesFieldExclusionNamingFile,
 ];
 
 #[derive(Debug, Deserialize)]
@@ -175,7 +180,29 @@ fn classify_oracle_only_path(manifest: &Value, path: &str) -> Option<DeliberateD
     if matches_unanchored_files_negation(manifest, path) {
         return Some(DeliberateDivergence::UnanchoredFilesFieldNegation);
     }
+    if files_field_excludes_by_name(manifest, path) {
+        return Some(DeliberateDivergence::FilesFieldExclusionNamingFile);
+    }
     None
+}
+
+/// Whether `files` has an exclusion naming `path` itself, such as `!lib/a.js`.
+fn files_field_excludes_by_name(manifest: &Value, path: &str) -> bool {
+    manifest
+        .get("files")
+        .and_then(Value::as_array)
+        .is_some_and(|files| {
+            files
+                .iter()
+                .filter_map(Value::as_str)
+                .any(|entry| {
+                    let negations = entry.len() - entry.trim_start_matches('!').len();
+                    negations % 2 == 1
+                        && crate::ignore_walk::files_field::normalize_field_path(
+                            &entry[negations..],
+                        ) == path
+                })
+        })
 }
 
 fn matches_unanchored_files_negation(manifest: &Value, path: &str) -> bool {
@@ -455,6 +482,29 @@ fn deliberate_divergences_have_witnesses() {
         observed.insert(
             classify_divergence(root, &manifest, "lib/index.js.map", false)
                 .expect("UnanchoredFilesFieldNegation witness"),
+        );
+    }
+
+    // 8. FilesFieldExclusionNamingFile
+    {
+        let dir = tempdir().unwrap();
+        let root = dir.path();
+        let manifest = json!({
+            "name": "pkg",
+            "version": "1.0.0",
+            "files": ["lib", "lib/secret.js", "!lib/secret.js"]
+        });
+        write(root, "package.json", &manifest.to_string());
+        touch(root, "lib/index.js");
+        touch(root, "lib/secret.js");
+        let actual = packlist(root, &manifest).unwrap();
+        let resp = with_oracle(|o| o.query(root, &manifest));
+        assert!(!actual.contains(&"lib/secret.js".to_string()));
+        assert!(resp.npm.contains(&"lib/secret.js".to_string()));
+        assert!(resp.pnpm.contains(&"lib/secret.js".to_string()));
+        observed.insert(
+            classify_divergence(root, &manifest, "lib/secret.js", false)
+                .expect("FilesFieldExclusionNamingFile witness"),
         );
     }
 
