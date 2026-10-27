@@ -12,7 +12,10 @@ impl AddOne<'_> {
     /// key an install of the registry package it holds may look up:
     /// `<integrity>\t<name>@<version>` for the tarball's sha512 and sha1 and
     /// for the tar it holds. Which one a lockfile records depends on the
-    /// package's age and on `lockfile.integrityTarget`.
+    /// package's age and on `lockfile.integrityTarget`. A package from a
+    /// registry with a declared prefix is keyed `<name>@<prefix>:<version>`,
+    /// and the tarball does not say which registry it came from, so every
+    /// declared prefix gets aliases.
     ///
     /// Each alias names a hash of the bytes that were ingested, so a lockfile
     /// entry reaches the row only when it pins exactly this tarball.
@@ -32,7 +35,8 @@ impl AddOne<'_> {
         let row_key = store_index_key(&fetched.integrity.to_string(), archive.id);
         let integrities =
             [Some(&digests.sha512), Some(&digests.sha1), fetched.tar_integrity.as_ref()];
-        for registry_id in registry_package_ids(fetched.manifest.as_ref()) {
+        let prefixes = self.config.registries_by_prefix.keys().map(String::as_str);
+        for registry_id in registry_package_ids(fetched.manifest.as_ref(), prefixes) {
             integrities
                 .iter()
                 .flatten()
@@ -67,19 +71,27 @@ impl FileDigests {
 /// The ids a registry resolution of the package this manifest names may
 /// carry: `<name>@<version>` with the version as the manifest spells it and,
 /// when that differs, as semver writes it (`v1.0.0` is `1.0.0`). The store's
-/// package content check accepts either spelling.
-fn registry_package_ids(manifest: Option<&serde_json::Value>) -> Vec<String> {
+/// package content check accepts either spelling. Each of `prefixes` adds
+/// `<name>@<prefix>:<version>`, with the version as semver writes it.
+fn registry_package_ids<'p>(
+    manifest: Option<&serde_json::Value>,
+    prefixes: impl IntoIterator<Item = &'p str>,
+) -> Vec<String> {
     let Some((name, version)) = manifest.and_then(|manifest| {
         Some((manifest.get("name")?.as_str()?, manifest.get("version")?.as_str()?))
     }) else {
         return Vec::new();
     };
     let mut ids = vec![format!("{name}@{version}")];
-    if let Ok(parsed) = node_semver::Version::parse(version)
-        && parsed.to_string() != version
-    {
+    let Ok(parsed) = node_semver::Version::parse(version) else { return ids };
+    if parsed.to_string() != version {
         ids.push(format!("{name}@{parsed}"));
     }
+    ids.extend(
+        prefixes
+            .into_iter()
+            .map(|prefix| format!("{name}@{prefix}:{parsed}")),
+    );
     ids
 }
 
