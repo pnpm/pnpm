@@ -118,26 +118,33 @@ async fn settle_all(preparations: Vec<BoxFuture<'_, Result<Prepared>>>) -> Vec<R
         }
         _ => return join_all(preparations).await,
     };
-    tokio::task::block_in_place(|| {
-        std::thread::scope(|scope| {
-            let participants: Vec<_> = preparations
-                .into_iter()
-                .map(|preparation| {
-                    let runtime = &runtime;
-                    std::thread::Builder::new()
-                        .name("pnpm-install-participant".to_string())
-                        .spawn_scoped(scope, move || runtime.block_on(preparation))
-                        .expect("spawn an install participant thread")
-                })
-                .collect();
-            participants
-                .into_iter()
-                .map(|participant| {
-                    participant.join().unwrap_or_else(|panic| std::panic::resume_unwind(panic))
-                })
-                .collect()
-        })
+    tokio::task::block_in_place(|| settle_on_threads(&runtime, preparations))
+}
+
+fn settle_on_threads(
+    runtime: &tokio::runtime::Handle,
+    preparations: Vec<BoxFuture<'_, Result<Prepared>>>,
+) -> Vec<Result<Prepared>> {
+    std::thread::scope(|scope| {
+        // Every participant starts before the first join.
+        let mut participants = Vec::with_capacity(preparations.len());
+        for preparation in preparations {
+            participants.push(
+                std::thread::Builder::new()
+                    .name("pnpm-install-participant".to_string())
+                    .spawn_scoped(scope, move || runtime.block_on(preparation))
+                    .expect("spawn an install participant thread"),
+            );
+        }
+        participants
+            .into_iter()
+            .map(join_participant)
+            .collect()
     })
+}
+
+fn join_participant<Output>(participant: std::thread::ScopedJoinHandle<'_, Output>) -> Output {
+    participant.join().unwrap_or_else(|panic| std::panic::resume_unwind(panic))
 }
 
 fn publish(mut prepared: Prepared) -> Result<()> {
