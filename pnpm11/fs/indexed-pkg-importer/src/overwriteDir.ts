@@ -90,12 +90,14 @@ function backupAndRemoveTargetAfterFailedDisplace (
   switch (err.code) {
     case 'ENOENT':
       return undefined
-    // Windows refuses to rename a directory a process runs from; copy a
+    // Windows refuses to rename a directory a process runs from, and an
+    // overlay filesystem refuses to rename one from a lower layer; copy a
     // backup to `aside` before removing `newDir` in place so a failed
     // stage rename can still restore the previous package.
     case 'EPERM':
     case 'EACCES':
     case 'EBUSY':
+    case 'EXDEV':
       try {
         fs.cpSync(newDir, aside, { recursive: true, verbatimSymlinks: true })
         rimrafSync(newDir)

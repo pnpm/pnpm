@@ -578,6 +578,33 @@ test('overwriteDirSync() falls back to removing newDir when renaming it aside th
   expect(fs.existsSync(path.join(newDir, 'stale.txt'))).toBe(false)
 })
 
+test('overwriteDirSync() falls back to removing newDir when renaming it aside throws EXDEV', () => {
+  const tmp = tempDir()
+  const stage = path.join(tmp, 'stage')
+  const newDir = path.join(tmp, 'dest')
+  fs.mkdirSync(stage, { recursive: true })
+  fs.writeFileSync(path.join(stage, 'package.json'), '{"name":"fresh"}')
+  fs.mkdirSync(newDir, { recursive: true })
+  fs.writeFileSync(path.join(newDir, 'stale.txt'), 'stale')
+
+  const realRenameSync = fs.renameSync.bind(fs)
+  const renameSpy = jest.spyOn(fs, 'renameSync').mockImplementation((oldPath, newPath) => {
+    if (oldPath === newDir) {
+      throw Object.assign(new Error('EXDEV: cross-device link not permitted, rename'), { code: 'EXDEV' })
+    }
+    realRenameSync(oldPath, newPath)
+  })
+  try {
+    overwriteDirSync(stage, newDir)
+  } finally {
+    renameSpy.mockRestore()
+  }
+
+  expect(fs.existsSync(stage)).toBe(false)
+  expect(fs.readFileSync(path.join(newDir, 'package.json'), 'utf8')).toBe('{"name":"fresh"}')
+  expect(fs.existsSync(path.join(newDir, 'stale.txt'))).toBe(false)
+})
+
 test('overwriteDirSync() restores the backed-up target when both moving newDir aside and renaming stage fail', () => {
   const tmp = tempDir()
   const stage = path.join(tmp, 'stage')
