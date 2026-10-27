@@ -13,7 +13,7 @@ use pnpm_resolving_default_resolver::standalone::{StandaloneChainOptions, build_
 use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
 use pnpm_resolving_resolver_base::{ResolveOptions, ResolveResult, WantedDependency};
 use pnpm_store_dir::{SharedVerifiedFilesCache, StoreIndex, StoreIndexWriter};
-use pnpm_tarball::{IngestTarballToStore, local_file_tarball_path};
+use pnpm_tarball::IngestTarballToStore;
 use ssri::Integrity;
 use std::{path::Path, sync::Arc};
 
@@ -220,7 +220,8 @@ async fn add_one<Reporter: self::Reporter>(args: AddOne<'_>) -> miette::Result<S
         id: &package_id,
         manifest: resolved.package.manifest.as_deref(),
     };
-    match local_file_tarball_path(package_url) {
+    let lockfile_dir = &args.resolve_options.project.lockfile_dir;
+    match downloaded_tarball::tarball_on_disk(&resolved.resolved_via, package_url, lockfile_dir) {
         Some(path) => args.add_downloaded_tarball::<Reporter>(&path, &archive).await?,
         None => {
             args.ingestion(&archive, integrity.as_ref())
@@ -260,6 +261,7 @@ fn store_resolver(
 }
 
 /// The archive a specifier resolved to, as the store indexes it.
+#[derive(Clone, Copy)]
 struct ArchiveToAdd<'r> {
     url: &'r str,
     id: &'r str,

@@ -583,6 +583,56 @@ fn store_add_of_downloaded_tarballs_serves_lockfiles_that_pin_the_tar() {
     assert_downloaded_tarballs_warm_the_store_for_an_offline_install(PinnedHash::Tar, "");
 }
 
+/// The local resolver reads a relative tarball path from `--dir`, so the
+/// tarball the store gets is that one, not a same-named file in the working
+/// directory.
+#[test]
+fn store_add_reads_a_relative_tarball_from_the_dir_option() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry_with_own_storage();
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": { "@pnpm.e2e/foo": "100.0.0" } }).to_string(),
+    )
+    .expect("write package.json");
+    pacquet
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+    if npmrc_info.store_dir.exists() {
+        fs::remove_dir_all(&npmrc_info.store_dir).expect("empty the store");
+    }
+
+    let storage = root.path().join("registry-storage");
+    for (dir, package) in
+        [(&workspace, "@pnpm.e2e/foo"), (&root.path().to_path_buf(), "@pnpm.e2e/bar")]
+    {
+        fs::create_dir_all(dir.join("vendor")).expect("create vendor");
+        fs::copy(
+            pnpr_fixtures::tarball_path(&storage, package, "100.0.0"),
+            dir.join("vendor/pkg.tgz"),
+        )
+        .expect("copy the tarball");
+    }
+    pacquet_at(root.path())
+        .with_args(["--dir"])
+        .with_arg(&workspace)
+        .with_args(["store", "add", "./vendor/pkg.tgz"])
+        .assert()
+        .success();
+
+    let output = pacquet_at(&workspace)
+        .with_args(["install", "--offline", "--frozen-lockfile"])
+        .output()
+        .expect("run the offline install");
+    assert!(output.status.success(), "{output:?}");
+}
+
 #[test]
 fn store_add_of_downloaded_tarballs_serves_named_registry_lockfile_keys() {
     assert_downloaded_tarballs_warm_the_store_for_an_offline_install(PinnedHash::Sha512, "work:");
