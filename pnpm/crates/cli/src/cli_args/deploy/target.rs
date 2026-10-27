@@ -1,6 +1,6 @@
 use super::{
-    AtomicU8, Context, DeployError, DeployFiles, DirectoryFetcher, ImportIndexedDirOpts,
-    IntoDiagnostic, Lockfile, PackageImportMethod, PackageManifest, Path, PathBuf, Reporter, Value,
+    AtomicU8, Context, CopyFiles, DeployError, DeployFiles, ImportIndexedDirOpts, IntoDiagnostic,
+    Lockfile, PackageImportMethod, PackageManifest, Path, PathBuf, Reporter, Value,
     WORKSPACE_MANIFEST_FILENAME, apply_deploy_manifest_hook, fs, import_indexed_dir, io,
     is_ancestor_path, is_child_path, lexical_normalize, path_compare::has_path_prefix,
     remove_dirent, same_path, warn,
@@ -233,21 +233,12 @@ fn is_unsafe_deploy_link(metadata: &fs::Metadata) -> bool {
     }
 }
 
-pub(super) fn copy_project(
-    src: &Path,
-    dest: &Path,
-    include_only_package_files: bool,
-) -> miette::Result<()> {
-    let output = DirectoryFetcher {
-        directory: src.to_path_buf(),
-        include_only_package_files,
-        resolve_symlinks: false,
-        preserve_symlinks: true,
-        allow_path_escape: false,
-    }
-    .run()
-    .map_err(miette::Report::new)
-    .wrap_err("fetch project files")?;
+pub(super) fn copy_project(src: &Path, dest: &Path, files: CopyFiles) -> miette::Result<()> {
+    let output = files
+        .fetcher(src)
+        .run()
+        .map_err(miette::Report::new)
+        .wrap_err("fetch project files")?;
     let logged_methods = AtomicU8::new(0);
     import_indexed_dir::<pnpm_reporter::SilentReporter>(
         &logged_methods,

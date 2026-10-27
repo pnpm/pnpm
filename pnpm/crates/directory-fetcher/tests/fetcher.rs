@@ -3,7 +3,7 @@
 //! exercises the full request/response shape upstream callers depend
 //! on (`manifest`, `requires_build`, `files_map` keys).
 
-use pnpm_directory_fetcher::DirectoryFetcher;
+use pnpm_directory_fetcher::{CopyFiles, DirectoryFetcher};
 use pretty_assertions::assert_eq;
 use std::{fs, path::Path};
 use tempfile::tempdir;
@@ -148,6 +148,30 @@ fn run_in_package_files_mode_honors_files_field() {
             "package.json".into(),
         ],
     );
+}
+
+#[test]
+fn copy_files_follows_deploy_all_files() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    touch(root, "package.json", r#"{ "name": "x", "version": "0.0.0", "files": ["index.js"] }"#);
+    touch(root, "index.js", "");
+    touch(root, "tsconfig.json", "");
+    let listed = |deploy_all_files| {
+        let mut rels: Vec<_> = CopyFiles::from_deploy_all_files(deploy_all_files)
+            .fetcher(root)
+            .run()
+            .unwrap()
+            .files_map
+            .into_keys()
+            .collect();
+        rels.sort();
+        rels
+    };
+
+    assert_eq!(listed(false), ["index.js", "package.json"]);
+    assert_eq!(listed(true), ["index.js", "package.json", "tsconfig.json"]);
+    assert_eq!(CopyFiles::default(), CopyFiles::from_deploy_all_files(false));
 }
 
 fn fetcher_for(directory: &Path) -> DirectoryFetcher {

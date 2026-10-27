@@ -1,7 +1,7 @@
 use super::{
-    BinLinkSettings, CacheDisposition, Config, ExecutionStatus, GraphPkg, HashMap, Instant,
-    IntoDiagnostic, LogEvent, LogLevel, Path, PathBuf, PipelineInvocation, PnpmLog, ProjectGraph,
-    RunContext, RunReport, ScriptOutput, Status, SyncInjectedDeps, TaskNode, Value,
+    BinLinkSettings, CacheDisposition, Config, CopyFiles, ExecutionStatus, GraphPkg, HashMap,
+    Instant, IntoDiagnostic, LogEvent, LogLevel, Path, PathBuf, PipelineInvocation, PnpmLog,
+    ProjectGraph, RunContext, RunReport, ScriptOutput, Status, SyncInjectedDeps, TaskNode, Value,
     cache_tiers::CacheTiers, capture, cargo_cache, env, make_node_package_map_option,
     make_node_require_option, package_map_path_for_execution, pnp_path_for_execution, run_stages,
     sync_injected_deps,
@@ -373,7 +373,7 @@ fn sync_injected_deps_if_configured(
         pkg_root_dir: &node.project,
         workspace_dir: config.workspace_dir.as_deref(),
         workspace_modules_dir: &config.modules_dir,
-        include_only_package_files: !config.deploy_all_files,
+        files: CopyFiles::from_deploy_all_files(config.deploy_all_files),
         manifest_before_scripts: Some(manifest),
         project_modules_dirs: &project_modules_dirs,
         bin_links: BinLinkSettings {

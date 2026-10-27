@@ -8,7 +8,7 @@ pub use inode_map::extend_files_map;
 use derive_more::{Display, Error};
 use inode_map::load_inode_map;
 use miette::Diagnostic;
-use pnpm_directory_fetcher::DirectoryFetcherError;
+use pnpm_directory_fetcher::{CopyFiles, DirectoryFetcherError};
 use pnpm_fs::{FsHardLink, Host, is_cross_device};
 use std::{
     collections::BTreeMap,
@@ -131,21 +131,21 @@ pub struct DirPatcher {
 
 impl DirPatcher {
     /// Diff `source_dir` against each of `target_dirs`, reading each
-    /// tree once. `include_only_package_files` reads the source the way
-    /// [`pnpm_directory_fetcher::DirectoryFetcher::include_only_package_files`] does.
+    /// tree once. `files` selects the source files, and each target is read
+    /// in full.
     pub fn from_multiple_targets(
         source_dir: &Path,
         target_dirs: &[PathBuf],
-        include_only_package_files: bool,
+        files: CopyFiles,
     ) -> Result<Vec<Self>, PatchError> {
-        let source_map = load_inode_map(source_dir, include_only_package_files)?;
+        let source_map = load_inode_map(source_dir, files)?;
         target_dirs
             .iter()
             .map(|target_dir| {
                 Ok(DirPatcher {
                     source_dir: source_dir.to_path_buf(),
                     target_dir: target_dir.clone(),
-                    patch: diff_dir(&load_inode_map(target_dir, false)?, &source_map),
+                    patch: diff_dir(&load_inode_map(target_dir, CopyFiles::AllFiles)?, &source_map),
                 })
             })
             .collect()
@@ -284,10 +284,8 @@ pub struct PublishSource<'a> {
 }
 
 impl<'a> PublishSource<'a> {
-    /// `include_only_package_files` reads `dir` the way
-    /// [`pnpm_directory_fetcher::DirectoryFetcher::include_only_package_files`] does.
-    pub fn load(dir: &'a Path, include_only_package_files: bool) -> Result<Self, PatchError> {
-        Ok(PublishSource { dir, map: load_inode_map(dir, include_only_package_files)? })
+    pub fn load(dir: &'a Path, files: CopyFiles) -> Result<Self, PatchError> {
+        Ok(PublishSource { dir, map: load_inode_map(dir, files)? })
     }
 }
 
@@ -306,7 +304,7 @@ pub fn publish_edits(
     edited_since: SystemTime,
 ) -> Result<(), PatchError> {
     let PublishSource { dir: source_dir, map: source_map } = source;
-    let target_map = load_inode_map(target_dir, false)?;
+    let target_map = load_inode_map(target_dir, CopyFiles::AllFiles)?;
     let patch = diff_dir(&target_map, source_map);
     for path in &patch.removed {
         remove_recursive(&target_dir.join(path))?;

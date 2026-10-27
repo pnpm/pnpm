@@ -1,7 +1,7 @@
 //! Read a directory tree into an [`InodeMap`].
 
 use super::{FileId, InodeMap, PatchError, Value};
-use pnpm_directory_fetcher::DirectoryFetcher;
+use pnpm_directory_fetcher::CopyFiles;
 use std::{
     collections::{HashMap, HashSet},
     fs,
@@ -11,11 +11,11 @@ use std::{
     time::SystemTime,
 };
 
-pub(super) fn load_inode_map(
-    dir: &Path,
-    include_only_package_files: bool,
-) -> Result<InodeMap, PatchError> {
-    let files_map = list_files(dir, include_only_package_files)?;
+pub(super) fn load_inode_map(dir: &Path, files: CopyFiles) -> Result<InodeMap, PatchError> {
+    let files_map = files
+        .fetcher(dir)
+        .list_files()
+        .map_err(|error| PatchError::ReadDir { dir: dir.to_path_buf(), error })?;
     let listed = listed_paths(files_map.keys());
     let mut inode_map = InodeMap::from([(".".to_string(), Value::Dir)]);
     for (relative_path, path) in &files_map {
@@ -32,21 +32,6 @@ pub(super) fn load_inode_map(
         }
     }
     Ok(inode_map)
-}
-
-fn list_files(
-    dir: &Path,
-    include_only_package_files: bool,
-) -> Result<HashMap<String, PathBuf>, PatchError> {
-    DirectoryFetcher {
-        directory: dir.to_path_buf(),
-        include_only_package_files,
-        resolve_symlinks: false,
-        preserve_symlinks: true,
-        allow_path_escape: false,
-    }
-    .list_files()
-    .map_err(|error| PatchError::ReadDir { dir: dir.to_path_buf(), error })
 }
 
 /// Every listed path and each directory above it, the root included as `""`.

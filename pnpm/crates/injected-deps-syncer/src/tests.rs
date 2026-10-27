@@ -1,5 +1,5 @@
 use crate::{
-    BinLinkSettings, ProjectModulesDir, SyncInjectedDeps, injected_edit_sources,
+    BinLinkSettings, CopyFiles, ProjectModulesDir, SyncInjectedDeps, injected_edit_sources,
     injected_source_dirs, sync_injected_deps, sync_injected_deps_of_modules_dir,
     watch_injected_edits,
 };
@@ -63,7 +63,7 @@ fn sync_leaves_an_injected_copy_alone_when_its_publish_directory_is_missing() {
         pkg_root_dir: Path::new("project-1"),
         workspace_dir: Some(workspace),
         workspace_modules_dir: &workspace.join("node_modules"),
-        include_only_package_files: false,
+        files: CopyFiles::AllFiles,
         manifest_before_scripts: Some(&manifest),
         project_modules_dirs: &[],
         bin_links: BinLinkSettings {
@@ -127,7 +127,7 @@ fn sync_of_modules_dir_leaves_an_injected_copy_alone_when_its_publish_directory_
         &project_2,
         &project_2.join("node_modules"),
         &source_dirs,
-        true,
+        CopyFiles::PackageFiles,
     )
     .expect("sync should not fail when the publish directory is missing");
 
@@ -191,7 +191,7 @@ fn sync_removes_a_stale_bin_shim_the_publish_directory_no_longer_declares() {
         pkg_root_dir: Path::new("project-1"),
         workspace_dir: Some(workspace),
         workspace_modules_dir: &workspace.join("node_modules"),
-        include_only_package_files: false,
+        files: CopyFiles::AllFiles,
         manifest_before_scripts: Some(&manifest),
         project_modules_dirs: &[],
         bin_links: BinLinkSettings {
@@ -259,7 +259,7 @@ fn watch_publishes_from_the_publish_directory_once_it_exists() {
         pkg_root_dir: Path::new("project-1"),
         workspace_dir: Some(workspace),
         workspace_modules_dir: &workspace.join("node_modules"),
-        include_only_package_files: false,
+        files: CopyFiles::AllFiles,
         manifest_before_scripts: Some(&manifest),
         project_modules_dirs: &[],
         bin_links: BinLinkSettings {
@@ -325,7 +325,7 @@ fn edit_sources_include_the_copies_a_project_with_its_own_lockfile_lists() {
             pkg_root_dir: Path::new("project-1"),
             workspace_dir: Some(workspace),
             workspace_modules_dir: &workspace.join("node_modules"),
-            include_only_package_files: true,
+            files: CopyFiles::PackageFiles,
             manifest_before_scripts: Some(&manifest),
             project_modules_dirs,
             bin_links: BinLinkSettings {
