@@ -54,7 +54,7 @@ pub(crate) fn build_one_snapshot<Reporter: self::Reporter>(
     let cache_key = side_effects_cache_key(context, snapshot_key, &candidate);
     if already_built::<Reporter>(context, snapshot_key, &candidate, cache_key.as_deref())? {
         skip_incompatible_optional::<Reporter>(context, snapshot_key, &candidate)?;
-        return Ok(());
+        return dependency_bins::refresh_private_hoisted_for(context, snapshot_key);
     }
 
     let optional = context.graph.snapshots.get(snapshot_key).is_some_and(|entry| entry.optional);
@@ -109,6 +109,10 @@ fn build_candidate<Reporter: self::Reporter>(
     else {
         return Ok(());
     };
+
+    if is_patched || candidate.should_run_scripts {
+        dependency_bins::refresh_private_hoisted_for(context, snapshot_key)?;
+    }
 
     clear_global_virtual_store_build_markers(
         context,

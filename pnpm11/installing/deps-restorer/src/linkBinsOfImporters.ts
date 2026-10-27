@@ -82,16 +82,17 @@ async function linkAutoInstalledPeerBins (
     protectedBins,
   }: Pick<ProjectBinsContext, 'built' | 'depGraph'> & { linkBinOptions: LinkBinOptions, protectedBins: Set<string> }
 ): Promise<void> {
-  const peerPkgDirs = autoInstalledPeerBinDirs(
+  const { peerPkgDirs, forceForPackages } = autoInstalledPeerBinDirs(
     depGraph.directDependenciesByImporterId[project.id],
     project.id,
-    depGraph.filteredLockfile
+    depGraph.filteredLockfile,
+    built
   )
   if (peerPkgDirs.length === 0) return
   await linkBinsOfPackages(await readBinPackageManifests(peerPkgDirs), project.binsDir, {
     ...linkBinOptions,
     excludeBins: protectedBins,
-    forceForPackages: built?.builtPackageDirs?.size ? new Set(peerPkgDirs.map((dir) => path.normalize(dir))) : undefined,
+    forceForPackages,
   })
 }
 
@@ -190,31 +191,65 @@ async function readBinPackageManifests (pkgDirs: string[]): Promise<Array<{ loca
 function autoInstalledPeerBinDirs (
   directPkgDirs: Record<string, string>,
   importerId: ProjectId,
-  lockfile: LockfileObject
-): string[] {
+  lockfile: LockfileObject,
+  built?: ImporterBuiltBinContext
+): { peerPkgDirs: string[], forceForPackages: Set<string> | undefined } {
   const peerDirs = new Set<string>()
+  const builtPeerDirs = new Set<string>()
   const importer = lockfile.importers[importerId]
   const directRefs = { ...importer.dependencies, ...importer.devDependencies, ...importer.optionalDependencies }
   for (const [alias, dir] of Object.entries(directPkgDirs)) {
-    const ref = directRefs[alias]
-    const depPath = ref ? dp.refToRelative(ref, alias) : null
+    const depPath = directRefs[alias] ? dp.refToRelative(directRefs[alias], alias) : null
     if (depPath == null) continue
-    const parent = path.dirname(dir)
-    const modulesDir = path.basename(parent).startsWith('@') ? path.dirname(parent) : parent
-    for (const peerName of listInstalledRequiredPeers(lockfile, depPath)) {
-      peerDirs.add(safeJoinModulesDir(modulesDir, peerName))
+    collectDirectDepPeerBins(dir, depPath, lockfile, built, peerDirs, builtPeerDirs)
+  }
+  return {
+    peerPkgDirs: Array.from(peerDirs).sort(),
+    forceForPackages: builtPeerDirs.size > 0 ? builtPeerDirs : undefined,
+  }
+}
+
+function collectDirectDepPeerBins (
+  dir: string,
+  depPath: DepPath,
+  lockfile: LockfileObject,
+  built: ImporterBuiltBinContext | undefined,
+  peerDirs: Set<string>,
+  builtPeerDirs: Set<string>
+): void {
+  const parent = path.dirname(dir)
+  const modulesDir = path.basename(parent).startsWith('@') ? path.dirname(parent) : parent
+  for (const [peerName, peerDepPath] of listInstalledRequiredPeers(lockfile, depPath)) {
+    const peerDir = safeJoinModulesDir(modulesDir, peerName)
+    peerDirs.add(peerDir)
+    const normalizedPeerDir = path.normalize(peerDir)
+    if (isBuiltPeerBinDir(normalizedPeerDir, peerDepPath, built)) {
+      builtPeerDirs.add(normalizedPeerDir)
     }
   }
-  return Array.from(peerDirs).sort()
+}
+
+function isBuiltPeerBinDir (
+  normalizedPeerDir: string,
+  peerDepPath: DepPath | null,
+  built?: ImporterBuiltBinContext
+): boolean {
+  if (built == null) return false
+  return Boolean(built.builtPackageDirs?.has(normalizedPeerDir) || (peerDepPath != null && built.builtDepPaths?.has(peerDepPath)))
 }
 
 /** The non-optional peers of a package that the lockfile installs next to it. */
-function listInstalledRequiredPeers (lockfile: LockfileObject, depPath: DepPath): string[] {
+function listInstalledRequiredPeers (lockfile: LockfileObject, depPath: DepPath): Array<[string, DepPath | null]> {
   const metadata = lockfile.packages?.[depPath]
-  return Object.keys(metadata?.peerDependencies ?? {}).filter((peerName) =>
-    !metadata?.peerDependenciesMeta?.[peerName]?.optional &&
-    (metadata?.dependencies?.[peerName] != null || metadata?.optionalDependencies?.[peerName] != null)
-  )
+  return Object.keys(metadata?.peerDependencies ?? {})
+    .filter((peerName) =>
+      !metadata?.peerDependenciesMeta?.[peerName]?.optional &&
+      (metadata?.dependencies?.[peerName] != null || metadata?.optionalDependencies?.[peerName] != null)
+    )
+    .map((peerName) => {
+      const peerRef = metadata?.dependencies?.[peerName] ?? metadata?.optionalDependencies?.[peerName]
+      return [peerName, peerRef ? dp.refToRelative(peerRef, peerName) : null]
+    })
 }
 
 async function linkBinsOfImporter (

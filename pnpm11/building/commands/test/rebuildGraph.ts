@@ -146,6 +146,29 @@ testOnUnix('hoisted refresh plans keep duplicate placements in their own physica
   }
 })
 
+test('concurrent hoisted refreshes in the same modules directory serialize and update both shims', async () => {
+  const { modules, executable, state } = fixture()
+  const rival = path.join(modules, 'rival')
+  const rivalExecutable = path.join(rival, 'rival')
+  fs.mkdirSync(rival, { recursive: true })
+  fs.writeFileSync(path.join(rival, 'package.json'), JSON.stringify({ name: 'rival', version: '1.0.0', bin: 'rival' }))
+  fs.writeFileSync(rivalExecutable, '#!/usr/bin/env node\nconsole.log("placeholder")\n', { mode: 0o755 })
+  const toolRoot = path.dirname(executable)
+  await relinkHoistedPackageBins([toolRoot, rival], state)
+  expect(fs.readFileSync(path.join(modules, '.bin/tool'), 'utf8')).toContain('node')
+  expect(fs.readFileSync(path.join(modules, '.bin/rival'), 'utf8')).toContain('node')
+
+  fs.writeFileSync(executable, '#!/bin/sh\nprintf "tool built\\n"\n', { mode: 0o755 })
+  fs.writeFileSync(rivalExecutable, '#!/bin/sh\nprintf "rival built\\n"\n', { mode: 0o755 })
+  await Promise.all([
+    relinkHoistedPackageBins([toolRoot], state),
+    relinkHoistedPackageBins([rival], state),
+  ])
+
+  expect(fs.readFileSync(path.join(modules, '.bin/tool'), 'utf8')).not.toContain('exec node')
+  expect(fs.readFileSync(path.join(modules, '.bin/rival'), 'utf8')).not.toContain('exec node')
+})
+
 function fixture () {
   const root = tempDir(false)
   const modules = path.join(root, 'node_modules')

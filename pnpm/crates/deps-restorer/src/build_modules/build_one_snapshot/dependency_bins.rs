@@ -13,9 +13,6 @@ pub(super) fn refresh(
     context: &BuildOneSnapshot<'_>,
     snapshot_key: &PackageKey,
 ) -> Result<(), BuildModulesError> {
-    if !context.directories.gather_ancestor_bin_paths {
-        refresh_private_hoisted(context)?;
-    }
     let changed = changed_dependencies(context, snapshot_key);
     if changed.is_empty() {
         return Ok(());
@@ -39,15 +36,24 @@ pub(super) fn refresh(
     .map_err(BuildModulesError::BinLink)
 }
 
-fn refresh_private_hoisted(context: &BuildOneSnapshot<'_>) -> Result<(), BuildModulesError> {
-    let mutations = context.progress.slot_mutations
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner)
-        .clone();
+pub(super) fn refresh_private_hoisted_for(
+    context: &BuildOneSnapshot<'_>,
+    key: &PackageKey,
+) -> Result<(), BuildModulesError> {
+    if context.directories.gather_ancestor_bin_paths || !was_mutated(context, key) {
+        return Ok(());
+    }
     context.progress.refreshed_hoisted_bins
-        .refresh_private_hoist(&mutations, context.directories.link_options)
+        .refresh_private_hoist_for(key, context.directories.link_options)
         .map_err(crate::LinkVirtualStoreBinsError::LinkBins)
         .map_err(BuildModulesError::BinLink)
+}
+
+fn was_mutated(context: &BuildOneSnapshot<'_>, key: &PackageKey) -> bool {
+    context.progress.slot_mutations
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .contains(key)
 }
 
 fn changed_dependencies(context: &BuildOneSnapshot<'_>, key: &PackageKey) -> Vec<PackageKey> {

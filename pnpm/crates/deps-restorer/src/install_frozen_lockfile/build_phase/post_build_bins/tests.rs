@@ -154,6 +154,7 @@ fn private_hoist_refresh_updates_symlinked_virtual_store_package_bins() {
     plans.initialize_private_hoist_for(&key).unwrap();
 
     fs::write(pkg_dir.join("tool"), "#!/bin/sh\nprintf 'private hoist refreshed\\n'\n").unwrap();
+    plans.refresh_private_hoist_for(&key, &options).unwrap();
     plans
         .refresh_private_hoist(&HashSet::from([key]), &options)
         .unwrap();

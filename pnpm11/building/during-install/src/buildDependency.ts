@@ -24,6 +24,7 @@ import type {
   SupportedArchitectures,
 } from '@pnpm/types'
 import { hardLinkDir } from '@pnpm/worker'
+import { isSubdir } from 'is-subdir'
 import pDefer, { type DeferredPromise } from 'p-defer'
 
 import type { DependenciesGraph, DependenciesGraphNode } from './buildGraph.js'
@@ -119,12 +120,13 @@ export async function buildDependency<NodeId extends string> (
     await skipFailedOptionalBuild(err, depNode, opts, state.slotLock)
   } finally {
     await state.slotLock?.release()
-    if (state.succeeded) {
-      await copyToOtherHoistedLocations(depNode, opts)
-      await relinkBuiltHoistedBins(depNode, opts)
-    }
-    if (opts.builtHoistedDeps) {
-      opts.builtHoistedDeps[depNode.depPath].resolve()
+    try {
+      if (state.succeeded) {
+        await copyToOtherHoistedLocations(depNode, opts)
+        await relinkBuiltHoistedBins(depNode, opts)
+      }
+    } finally {
+      opts.builtHoistedDeps?.[depNode.depPath].resolve()
     }
   }
 }
@@ -417,5 +419,22 @@ function getBuiltHoistedPkgRoots (
   const aliases = opts.hoistedDependencies?.[depPath] ?? {}
   return Object.entries(aliases)
     .filter(([, visibility]) => visibility === 'private')
-    .map(([alias]) => path.join(opts.hoistedModulesDir!, alias))
+    .map(([alias]) => safeJoinHoistedAlias(opts.hoistedModulesDir!, alias))
+}
+
+const RESERVED_HOIST_ALIASES = new Set(['.bin', '.pnpm', 'node_modules', 'favicon.ico'])
+
+function safeJoinHoistedAlias (modulesDir: string, alias: string): string {
+  const parts = alias.split('/')
+  const valid = (parts.length === 1 && isValidSegment(parts[0])) ||
+    (parts.length === 2 && parts[0].startsWith('@') && isValidSegment(parts[0].slice(1)) && isValidSegment(parts[1]))
+  const link = path.join(modulesDir, ...parts)
+  if (!valid || RESERVED_HOIST_ALIASES.has(alias.toLowerCase()) || !isSubdir(modulesDir, link)) {
+    throw new PnpmError('INVALID_DEPENDENCY_NAME', `Dependency name "${alias}" cannot be linked into ${modulesDir}`)
+  }
+  return link
+}
+
+function isValidSegment (segment: string): boolean {
+  return segment.length > 0 && !/^[._-]/.test(segment) && encodeURIComponent(segment) === segment
 }

@@ -14,7 +14,7 @@ pub(crate) struct HoistedBinPlans {
 
 struct PrivateHoistedBins {
     directory: PathBuf,
-    aliases: Vec<(String, PackageKey)>,
+    locations_by_key: HashMap<PackageKey, Vec<PathBuf>>,
 }
 
 struct MutatedPrivateHoist {
@@ -69,8 +69,15 @@ impl HoistedBinPlans {
         if aliases.is_empty() {
             return;
         }
+        let mut locations_by_key: HashMap<PackageKey, Vec<PathBuf>> = HashMap::new();
+        for (alias, key) in aliases {
+            locations_by_key
+                .entry(key.clone())
+                .or_default()
+                .push(pnpm_fs::join_slash_separated_path(&directory, alias));
+        }
         *self.private_hoist.lock().unwrap_or_else(std::sync::PoisonError::into_inner) =
-            Some(PrivateHoistedBins { directory, aliases: aliases.to_vec() });
+            Some(PrivateHoistedBins { directory, locations_by_key });
     }
 
     pub(crate) fn initialize_private_hoist_for(
@@ -81,10 +88,7 @@ impl HoistedBinPlans {
             let guard =
                 self.private_hoist.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
             let Some(private_hoist) = guard.as_ref() else { return Ok(()) };
-            if !private_hoist.aliases
-                .iter()
-                .any(|(_, hoisted_key)| hoisted_key == key)
-            {
+            if !private_hoist.locations_by_key.contains_key(key) {
                 return Ok(());
             }
             private_hoist.directory.clone()
@@ -92,6 +96,40 @@ impl HoistedBinPlans {
         let entry = self.directory(&directory);
         let mut entry = entry.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
         entry.initialize(&directory)
+    }
+
+    pub(crate) fn refresh_private_hoist_for(
+        &self,
+        key: &PackageKey,
+        base_options: &LinkBinsOptions,
+    ) -> Result<(), LinkBinsError> {
+        let (directory, locations) = {
+            let guard =
+                self.private_hoist.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+            let Some(private_hoist) = guard.as_ref() else { return Ok(()) };
+            let Some(locations) = private_hoist.locations_by_key.get(key) else {
+                return Ok(());
+            };
+            (
+                private_hoist.directory.clone(),
+                locations
+                    .iter()
+                    .cloned()
+                    .collect::<HashSet<PathBuf>>(),
+            )
+        };
+        let entry = self.directory(&directory);
+        let mut entry = entry.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        if entry.completed.contains(key) {
+            return Ok(());
+        }
+        entry.initialize(&directory)?;
+        let mut options = base_options.clone();
+        options.force = true;
+        let plan = entry.plan.as_mut().expect("private hoist bin plan initialized");
+        plan.refresh::<Host>(&locations, &directory.join(".bin"), &options)?;
+        entry.completed.insert(key.clone());
+        Ok(())
     }
 
     pub(crate) fn refresh_private_hoist(
@@ -142,13 +180,10 @@ impl HoistedBinPlans {
         let private_hoist = guard.as_ref()?;
         let mut completed = HashSet::new();
         let mut locations_by_key: HashMap<PackageKey, Vec<PathBuf>> = HashMap::new();
-        for (alias, key) in &private_hoist.aliases {
-            if mutated.contains(key) {
+        for key in mutated {
+            if let Some(locations) = private_hoist.locations_by_key.get(key) {
                 completed.insert(key.clone());
-                locations_by_key
-                    .entry(key.clone())
-                    .or_default()
-                    .push(private_hoist.directory.join(alias));
+                locations_by_key.insert(key.clone(), locations.clone());
             }
         }
         (!completed.is_empty()).then(|| MutatedPrivateHoist {
