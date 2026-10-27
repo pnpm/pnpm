@@ -56,9 +56,10 @@ pub(super) fn is_dotenv_file(path: &str) -> bool {
 
 /// Whether the `files` entries whose last segment starts with `.env`,
 /// negations included, match the packed path with the packlist's own
-/// `files` semantics. A directory entry such as `dist` that merely
-/// contains the file does not count, and neither does a dotenv glob
-/// rooted elsewhere.
+/// `files` semantics. An entry naming the path itself counts even after a
+/// glob exclusion, as it does for the packlist. A directory entry such as
+/// `dist` that merely contains the file does not count, and neither does a
+/// dotenv glob rooted elsewhere.
 pub(super) fn named_in_files(files_field: &[Value]) -> impl Fn(&str) -> bool {
     let dotenv_entries: Vec<Value> = files_field
         .iter()
@@ -72,8 +73,19 @@ pub(super) fn named_in_files(files_field: &[Value]) -> impl Fn(&str) -> bool {
         })
         .cloned()
         .collect();
+    let named: Vec<String> = dotenv_entries
+        .iter()
+        .filter_map(Value::as_str)
+        .filter(|entry| !entry.starts_with('!'))
+        .map(|entry| {
+            entry
+                .trim_start_matches("./")
+                .trim_start_matches('/')
+                .to_string()
+        })
+        .collect();
     let matcher = build_files_matcher(&dotenv_entries);
-    move |path| matcher.includes(path)
+    move |path| named.iter().any(|entry| entry == path) || matcher.includes(path)
 }
 
 fn basename(path: &str) -> &str {

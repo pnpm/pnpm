@@ -691,6 +691,25 @@ fn files_field_exclusion_naming_a_file_beats_a_later_glob() {
 }
 
 #[test]
+fn files_field_named_file_beats_a_later_glob_exclusion() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    touch(root, "package.json");
+    touch(root, "lib/secret.js");
+    touch(root, "lib/other.js");
+
+    let manifest = json!({
+        "name": "x",
+        "version": "0.0.0",
+        "files": ["lib/secret.js", "!lib/*.js"],
+    });
+    let mut out = packlist(root, &manifest).unwrap();
+    out.sort();
+
+    assert_eq!(out, vec!["lib/secret.js".to_string(), "package.json".into()]);
+}
+
+#[test]
 fn files_field_named_file_follows_an_exclusion_that_names_it() {
     let dir = tempdir().unwrap();
     let root = dir.path();

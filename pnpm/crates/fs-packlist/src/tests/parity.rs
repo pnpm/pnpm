@@ -186,23 +186,25 @@ fn classify_oracle_only_path(manifest: &Value, path: &str) -> Option<DeliberateD
     None
 }
 
-/// Whether `files` has an exclusion naming `path` itself, such as `!lib/a.js`.
+/// Whether `files` names `path` and later excludes it by name, as in
+/// `["lib/a.js", "!lib/a.js"]`: the order in which `npm-packlist` keeps it.
 fn files_field_excludes_by_name(manifest: &Value, path: &str) -> bool {
-    manifest
-        .get("files")
-        .and_then(Value::as_array)
-        .is_some_and(|files| {
-            files
-                .iter()
-                .filter_map(Value::as_str)
-                .any(|entry| {
-                    let negations = entry.len() - entry.trim_start_matches('!').len();
-                    negations % 2 == 1
-                        && crate::ignore_walk::files_field::normalize_field_path(
-                            &entry[negations..],
-                        ) == path
-                })
-        })
+    let Some(files) = manifest.get("files").and_then(Value::as_array) else {
+        return false;
+    };
+    let mut named = false;
+    for entry in files.iter().filter_map(Value::as_str) {
+        let negations = entry.len() - entry.trim_start_matches('!').len();
+        if crate::ignore_walk::files_field::normalize_field_path(&entry[negations..]) != path {
+            continue;
+        }
+        if negations % 2 == 0 {
+            named = true;
+        } else if named {
+            return true;
+        }
+    }
+    false
 }
 
 fn matches_unanchored_files_negation(manifest: &Value, path: &str) -> bool {
