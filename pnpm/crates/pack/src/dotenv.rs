@@ -73,30 +73,17 @@ pub(super) fn named_in_files(files_field: &[Value]) -> impl Fn(&str) -> bool {
         })
         .cloned()
         .collect();
-    // A trailing `/` survives: the packlist never reads such an entry as a file.
-    let literal = |entry: &str| {
-        let entry = entry.trim_start_matches("./");
-        let mut path = entry
-            .split('/')
-            .filter(|segment| !segment.is_empty())
-            .collect::<Vec<_>>()
-            .join("/");
-        if entry.ends_with('/') {
-            path.push('/');
-        }
-        path
-    };
     let excluded: Vec<String> = dotenv_entries
         .iter()
         .filter_map(Value::as_str)
         .filter_map(|entry| entry.strip_prefix('!'))
-        .map(literal)
+        .map(literal_path)
         .collect();
     let named: Vec<String> = dotenv_entries
         .iter()
         .filter_map(Value::as_str)
         .filter(|entry| !entry.starts_with('!'))
-        .map(literal)
+        .map(literal_path)
         .collect();
     let matcher = build_files_matcher(&dotenv_entries);
     move |path| {
@@ -105,6 +92,21 @@ pub(super) fn named_in_files(files_field: &[Value]) -> impl Fn(&str) -> bool {
             .any(|entry| entry == path)
             && (named.iter().any(|entry| entry == path) || matcher.includes(path))
     }
+}
+
+/// A `files` entry as the path it names, with repeated separators collapsed.
+/// A trailing `/` stays: the packlist never reads such an entry as a file.
+fn literal_path(entry: &str) -> String {
+    let entry = entry.trim_start_matches("./");
+    let mut path = entry
+        .split('/')
+        .filter(|segment| !segment.is_empty())
+        .collect::<Vec<_>>()
+        .join("/");
+    if entry.ends_with('/') {
+        path.push('/');
+    }
+    path
 }
 
 fn basename(path: &str) -> &str {
