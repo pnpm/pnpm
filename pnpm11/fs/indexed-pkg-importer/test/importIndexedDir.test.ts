@@ -605,6 +605,36 @@ test('overwriteDirSync() falls back to removing newDir when renaming it aside th
   expect(fs.existsSync(path.join(newDir, 'stale.txt'))).toBe(false)
 })
 
+testOnPosix('overwriteDirSync() restores the previous package when removing it after an EXDEV backup fails', () => {
+  const tmp = tempDir()
+  const stage = path.join(tmp, 'stage')
+  const newDir = path.join(tmp, 'dest')
+  const lockedDir = path.join(newDir, 'locked')
+  fs.mkdirSync(stage, { recursive: true })
+  fs.writeFileSync(path.join(stage, 'package.json'), '{"name":"fresh"}')
+  fs.mkdirSync(lockedDir, { recursive: true })
+  fs.writeFileSync(path.join(newDir, 'package.json'), '{"name":"old"}')
+  fs.writeFileSync(path.join(lockedDir, 'index.js'), 'old')
+  fs.chmodSync(lockedDir, 0o500)
+
+  const realRenameSync = fs.renameSync.bind(fs)
+  const renameSpy = jest.spyOn(fs, 'renameSync').mockImplementation((oldPath, newPath) => {
+    if (oldPath === newDir) {
+      throw Object.assign(new Error('EXDEV: cross-device link not permitted, rename'), { code: 'EXDEV' })
+    }
+    realRenameSync(oldPath, newPath)
+  })
+  try {
+    expect(() => overwriteDirSync(stage, newDir)).toThrow()
+  } finally {
+    renameSpy.mockRestore()
+    fs.chmodSync(lockedDir, 0o700)
+  }
+
+  expect(fs.readFileSync(path.join(newDir, 'package.json'), 'utf8')).toBe('{"name":"old"}')
+  expect(fs.readFileSync(path.join(lockedDir, 'index.js'), 'utf8')).toBe('old')
+})
+
 test('overwriteDirSync() restores the backed-up target when both moving newDir aside and renaming stage fail', () => {
   const tmp = tempDir()
   const stage = path.join(tmp, 'stage')
