@@ -1006,11 +1006,6 @@ fn dedupe_peers_toggled(layout: Layout) {
 
 /// A workspace project's command renamed, which its dependent `c` links.
 fn a_workspace_bin_renamed(layout: Layout) {
-    // TODO: pnpm/tasks#224, an install with dedicated lockfiles does not
-    // relink a renamed workspace command.
-    if !layout.shared_lockfile {
-        return;
-    }
     let mut scenario = Scenario::new(layout);
     fs::create_dir_all(scenario.workspace().join("packages/a")).expect("create project a");
     fs::write(scenario.workspace().join("packages/a/tool.js"), "#!/usr/bin/env node\n")

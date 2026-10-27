@@ -116,6 +116,7 @@ fn recorded_workspace<'a>(
         moved: tree_may_move(config, node_linker)
             && state.map_or(existing_tree, |state| recorded_elsewhere(state, projects)),
         projects,
+        bin_projects: projects,
     }
 }
 
@@ -202,6 +203,7 @@ async fn report_prepared_up_to_date<Reporter: self::Reporter + 'static>(
         projects: crate::install::state_options::InstallProjectMetadata {
             catalogs: inputs.projects.catalogs,
             manifests: inputs.projects.manifests,
+            workspace_projects: inputs.projects.workspace_projects,
             prefix: inputs.projects.prefix,
             workspace_packages: inputs.projects.workspace_packages,
         },
@@ -249,7 +251,10 @@ fn frozen_tree_inputs<'a>(
         lockfile: inputs.lockfiles.wanted,
         current_lockfile: inputs.lockfiles.current,
         modules_manifest,
-        recorded,
+        recorded: RecordedWorkspace {
+            bin_projects: inputs.projects.workspace_projects.unwrap_or(recorded.projects),
+            ..recorded
+        },
     }
 }
 

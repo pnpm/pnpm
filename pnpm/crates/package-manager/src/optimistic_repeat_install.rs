@@ -139,6 +139,14 @@ pub struct OptimisticRepeatInstallCheck<'a> {
     pub manifests: RepeatInstallManifests<'a>,
 }
 
+impl<'a> OptimisticRepeatInstallCheck<'a> {
+    /// The projects whose commands the importers link, per
+    /// [`RepeatInstallManifests::workspace_projects`].
+    pub(crate) fn bin_projects(&self) -> &'a [(PathBuf, &'a PackageManifest)] {
+        self.manifests.workspace_projects.unwrap_or(self.project_manifests)
+    }
+}
+
 #[derive(Clone, Copy)]
 pub struct RepeatInstallLayout<'a> {
     pub node_linker: NodeLinker,

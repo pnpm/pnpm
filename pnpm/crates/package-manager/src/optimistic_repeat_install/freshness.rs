@@ -493,7 +493,10 @@ fn refreshed_state(
         config: check.config,
         layout: check.layout,
         catalogs: check.catalogs,
-        project_manifests: check.project_manifests,
+        projects: crate::install::StateProjects {
+            manifests: check.project_manifests,
+            workspace_projects: check.manifests.workspace_projects,
+        },
         filesystem_now_ms: filesystem_now,
         carried: crate::install::CarriedSettings {
             established_auto_dedupe: state.settings.auto_dedupe,

@@ -69,6 +69,39 @@ fn assert_relinked_bins(linker: &str, optimistic: &str) {
     assert_installed_bins(&root.join("node_modules/.bin"), &[]);
 }
 
+/// Each project installs from its own lockfile, which records nothing about
+/// a sibling's commands, so a command the sibling renames is relinked from
+/// the sibling's manifest.
+#[test]
+fn dedicated_lockfiles_relink_a_renamed_workspace_bin() {
+    for linker in ["isolated", "hoisted"] {
+        for optimistic in ["true", "false"] {
+            assert_dedicated_lockfiles_relink(linker, optimistic);
+        }
+    }
+}
+
+fn assert_dedicated_lockfiles_relink(linker: &str, optimistic: &str) {
+    let fixture = workspace(linker, optimistic);
+    let root = &fixture.workspace;
+    fs::OpenOptions::new()
+        .append(true)
+        .open(root.join("pnpm-workspace.yaml"))
+        .and_then(|mut yaml| io::Write::write_all(&mut yaml, b"sharedWorkspaceLockfile: false\n"))
+        .unwrap();
+    for command in ["a-one", "a-renamed"] {
+        write_bins(root, &json!({ command: "one.js" }));
+        pnpm(root)
+            .args(["install", "--offline", "--ignore-scripts"])
+            .assert()
+            .success();
+        for pkg in ["packages/b", "packages/c"] {
+            assert_installed_bins(&root.join(pkg).join("node_modules/.bin"), &[command]);
+        }
+        assert_bin(root, "c", command, "one");
+    }
+}
+
 #[test]
 fn hoisted_workspace_package_prunes_removed_bins_from_root() {
     for linker in ["isolated", "hoisted"] {
