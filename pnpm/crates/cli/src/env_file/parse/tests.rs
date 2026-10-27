@@ -60,14 +60,14 @@ fn keeps_a_dollar_that_starts_no_name() {
 
 #[test]
 fn keeps_backslashes_that_are_not_escapes() {
-    assert_eq!(value_of("T_A=C:\\Users\\me\\data\n"), "C:\\Users\\me\\data");
-    assert_eq!(value_of("T_A=\"C:\\Users\\me\"\n"), "C:\\Users\\me");
+    assert_eq!(value_of("T_A=C:\\Users\\me\\data\n"), r"C:\Users\me\data");
+    assert_eq!(value_of("T_A=\"C:\\Users\\me\"\n"), r"C:\Users\me");
 }
 
 #[test]
 fn keeps_unquoted_values_as_written() {
     assert_eq!(value_of("T_A=hello world\n"), "hello world");
-    assert_eq!(value_of("T_A={\"k\":\"v\"}\n"), "{\"k\":\"v\"}");
+    assert_eq!(value_of("T_A={\"k\":\"v\"}\n"), r#"{"k":"v"}"#);
     assert_eq!(value_of("T_A=it's\n"), "it's");
     assert_eq!(value_of("T_A=  padded  \n"), "padded");
 }
@@ -87,7 +87,7 @@ fn reads_double_quoted_escapes() {
 
 #[test]
 fn keeps_single_quoted_values_literal() {
-    assert_eq!(value_of("T_A='$HOME \\n \"x\"'\n"), "$HOME \\n \"x\"");
+    assert_eq!(value_of("T_A='$HOME \\n \"x\"'\n"), r#"$HOME \n "x""#);
 }
 
 #[test]
@@ -104,10 +104,18 @@ fn skips_blank_lines_comments_and_export_prefixes() {
 }
 
 #[test]
+fn reads_export_as_a_key_when_an_equals_sign_follows() {
+    assert_eq!(
+        parse("export = 1\nexport\t=2\n", &[]),
+        Ok(pairs(&[("export", "1"), ("export", "2")])),
+    );
+}
+
+#[test]
 fn reads_empty_values() {
     assert_eq!(
         parse("T_A=\nT_B=''\nT_C=\"\"\n", &[]),
-        Ok(pairs(&[("T_A", ""), ("T_B", ""), ("T_C", "")]))
+        Ok(pairs(&[("T_A", ""), ("T_B", ""), ("T_C", "")])),
     );
 }
 

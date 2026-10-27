@@ -19,7 +19,7 @@ use derive_more::{Display, Error};
 
 /// A malformed entry. Only its line number is reported: env files hold
 /// secrets, so the line itself must not reach stderr or CI logs.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Display, Error)]
+#[derive(Debug, Display, Error, Clone, Copy, PartialEq, Eq)]
 #[display("invalid dotenv entry on line {line}")]
 pub struct ParseError {
     pub line: usize,
@@ -224,9 +224,14 @@ fn split_key(text: &str) -> Option<(&str, &str)> {
     Some(text.split_at(end))
 }
 
+/// Strip an `export ` prefix. In `export = value`, `export` is the key.
 fn strip_export(text: &str) -> &str {
     match text.strip_prefix("export") {
-        Some(rest) if rest.starts_with([' ', '\t']) => trim_start_inline(rest),
+        Some(rest)
+            if rest.starts_with([' ', '\t']) && !trim_start_inline(rest).starts_with('=') =>
+        {
+            trim_start_inline(rest)
+        }
         _ => text,
     }
 }
