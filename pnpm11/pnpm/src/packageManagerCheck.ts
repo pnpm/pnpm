@@ -1,15 +1,18 @@
 import { formatWarn } from '@pnpm/cli.default-reporter'
 import { isExecutedByCorepack, packageManager } from '@pnpm/cli.meta'
-import type { Config, ConfigContext } from '@pnpm/config.reader'
+import { type Config, type ConfigContext, shouldPersistLockfile } from '@pnpm/config.reader'
+import { decide, type PinEntryPoint } from '@pnpm/engine.pm.commands'
 import { getSystemRuntimeVersion } from '@pnpm/engine.runtime.system-version'
 import { PnpmError } from '@pnpm/error'
+import { isPackageManagerResolved } from '@pnpm/installing.env-installer'
+import { readEnvLockfile } from '@pnpm/lockfile.fs'
 import { type EngineDependency, isRuntimeAlias, type RuntimeName } from '@pnpm/types'
 import semver from 'semver'
 
 import { skipPackageManagerCheckForCommand } from './cmd/index.js'
 import { describeFailure } from './describeFailure.js'
-import { fetchLockedPackageManager, switchCliVersion } from './switchCliVersion.js'
-import { syncEnvLockfile } from './syncEnvLockfile.js'
+import { executeSwitchDecision, fetchLockedPackageManager } from './switchCliVersion.js'
+import { envLockfileDir, executeRecordDecision } from './syncEnvLockfile.js'
 
 export interface PackageManagerHandlingOptions {
   cmd: string | null
@@ -34,9 +37,7 @@ export async function handlePackageManagerAndRuntimes (opts: PackageManagerHandl
   const { cmd, cliOptions, config, context, rejectUnknownOptions } = opts
   const pm = context.wantedPackageManager
   if (pm != null) {
-    if (pm.onFail !== 'ignore') {
-      await handleWantedPackageManager(pm, opts)
-    }
+    await handleWantedPackageManager(pm, opts)
   } else if (cmd === 'fetch' && !isExecutedByCorepack() && !rejectUnknownOptions) {
     await fetchLockedPackageManager(config, context)
   }
@@ -50,33 +51,33 @@ export async function handlePackageManagerAndRuntimes (opts: PackageManagerHandl
 async function handleWantedPackageManager (pm: EngineDependency, opts: PackageManagerHandlingOptions): Promise<void> {
   const { cmd, cliOptions, config, context } = opts
   const printingVersion = cmd == null && cliOptions.version === true
-  if (cliOptions.global) {
-    // Global state belongs to the pnpm the user invoked, not to the
-    // project, so a global command never switches to the pinned pnpm.
-    if (!isRunningPnpmPinned(pm)) {
-      warnAboutProject(config, 'Using --global skips the package manager check for this project')
+  const entryPoint: PinEntryPoint = opts.rejectUnknownOptions ? 'unknown-flag' : printingVersion ? 'version' : 'command'
+  const lockedEnv = await readPinLockfile(pm, config, context, Boolean(cliOptions.global))
+  const decision = decide(
+    {
+      wanted: pm,
+      lockedEnv,
+      runningName: packageManager.name,
+      runningVersion: packageManager.version,
+      underCorepack: isExecutedByCorepack(),
+      isResolved: isPackageManagerResolved,
+    },
+    { ...config, ...context },
+    {
+      entryPoint,
+      global: Boolean(cliOptions.global),
+      recordPinWithoutSwitch: opts.recordPinWithoutSwitch,
+      warn: (message) => warnAboutProject(config, message),
     }
-    return
-  }
-  if (pm.name === 'pnpm' && pm.onFail === 'download' && !isExecutedByCorepack()) {
-    // Corepack owns version switching; pnpm only switches versions when
-    // the user is running pnpm directly.
+  )
+
+  if (decision.action === 'switch') {
     await tolerateWhenPrintingVersion(printingVersion, async () => {
-      await switchCliVersion(config, context, { recordPinWithoutSwitch: opts.recordPinWithoutSwitch })
+      await executeSwitchDecision(config, context, decision, lockedEnv)
     })
-    return
-  }
-  // checkPackageManager and syncEnvLockfile run regardless of how pnpm
-  // was invoked. Different developers on the same project may use
-  // corepack or invoke pnpm directly, and the lockfile's
-  // `packageManagerDependencies` entry must stay consistent across both
-  // workflows. syncEnvLockfile self-gates via shouldPersistLockfile so
-  // it only writes to the lockfile when the project opted in (via
-  // `devEngines.packageManager`, or a v12+ `packageManager` pin).
-  checkPackageManager(pm, { config, underCorepack: isExecutedByCorepack() })
-  if (!opts.rejectUnknownOptions && opts.recordPinWithoutSwitch) {
+  } else if (decision.action === 'record') {
     await tolerateWhenPrintingVersion(printingVersion, async () => {
-      await syncEnvLockfile(config, context)
+      await executeRecordDecision(config, context, decision, lockedEnv)
     })
   }
 }
@@ -102,13 +103,40 @@ export async function switchPastUnreadableConfig (
   } catch {
     return
   }
-  const pm = loaded.context.wantedPackageManager
-  if (pm?.name !== 'pnpm' || pm.onFail !== 'download') return
+  const { config, context } = loaded
+  const pm = context.wantedPackageManager
+  if (pm == null) return
+  const lockedEnv = await readPinLockfile(pm, config, context, false)
+  const decision = decide(
+    {
+      wanted: pm,
+      lockedEnv,
+      runningName: packageManager.name,
+      runningVersion: packageManager.version,
+      underCorepack: false,
+      isResolved: isPackageManagerResolved,
+    },
+    { ...config, ...context },
+    { entryPoint: 'unknown-flag', global: false, recordPinWithoutSwitch: false }
+  )
+  if (decision.action !== 'switch') return
   try {
-    await switchCliVersion(loaded.config, loaded.context, { recordPinWithoutSwitch: false })
+    await executeSwitchDecision(config, context, decision, lockedEnv)
   } catch {
     // The configuration's own failure is the one to report.
   }
+}
+
+async function readPinLockfile (pm: EngineDependency, config: Config, context: ConfigContext, global: boolean) {
+  const effectiveOnFail = config.pmOnFail ?? pm.onFail ?? 'download'
+  const persistLockfile = !global &&
+    pm.name === 'pnpm' &&
+    pm.version != null &&
+    effectiveOnFail !== 'ignore' &&
+    shouldPersistLockfile({ ...pm, onFail: effectiveOnFail }) &&
+    config.useLockfile !== false
+  if (!persistLockfile) return undefined
+  return (await readEnvLockfile(envLockfileDir(config, context)).catch(() => null)) ?? undefined
 }
 
 /**
@@ -143,60 +171,6 @@ async function tolerateWhenPrintingVersion (printingVersion: boolean, work: () =
     // so this warning goes straight to stderr.
     console.error(formatWarn(`Cannot use the pnpm version this project pins: ${describeFailure(err)}`))
   }
-}
-
-function isRunningPnpmPinned (pm: EngineDependency): boolean {
-  if (pm.name !== 'pnpm' || packageManager.name !== 'pnpm') return false
-  return !pm.version || semver.satisfies(packageManager.version, pm.version, { includePrerelease: true })
-}
-
-function checkPackageManager (pm: EngineDependency, opts: { config: Config, underCorepack: boolean }): void {
-  if (!pm.name) return
-  const shouldError = pm.onFail === 'error' || pm.onFail === 'download'
-  if (pm.name !== 'pnpm') {
-    const msg = `This project is configured to use ${pm.name}`
-    if (shouldError) {
-      throw new PnpmError('OTHER_PM_EXPECTED', msg)
-    }
-    warnAboutProject(opts.config, msg)
-    return
-  }
-  if (!pm.version) return
-  const currentPnpmVersion = packageManager.name === 'pnpm'
-    ? packageManager.version
-    : undefined
-  if (!currentPnpmVersion || semver.satisfies(currentPnpmVersion, pm.version, { includePrerelease: true })) return
-  reportPnpmVersionMismatch(opts.config, {
-    wantedVersion: pm.version,
-    currentPnpmVersion,
-    shouldError,
-    underCorepack: opts.underCorepack,
-  })
-}
-
-function reportPnpmVersionMismatch (config: Config, mismatch: {
-  wantedVersion: string
-  currentPnpmVersion: string
-  shouldError: boolean
-  underCorepack: boolean
-}): void {
-  let msg = `This project is configured to use ${mismatch.wantedVersion} of pnpm. Your current pnpm is v${mismatch.currentPnpmVersion}`
-  // When pnpm runs under corepack, corepack — not pnpm — selects the
-  // running version, so users see this mismatch even with onFail='download'
-  // (which would normally auto-switch). Spell out that pnpm cannot switch
-  // here and point at the two ways out.
-  if (mismatch.underCorepack) {
-    msg += '\nCorepack invoked pnpm with this version, and pnpm does not switch versions when running under corepack.'
-  }
-  if (!mismatch.shouldError) {
-    warnAboutProject(config, msg)
-    return
-  }
-  const baseHint = 'If you want to bypass this version check, you can set the "pmOnFail" configuration to "warn" or "ignore" (e.g. via --pm-on-fail=ignore). If using "devEngines.packageManager", you can set its "onFail" to "warn" or "ignore"'
-  const hint = mismatch.underCorepack
-    ? `Align the "packageManager" field in package.json with "devEngines.packageManager", or invoke pnpm directly (without corepack) so it can switch versions automatically.\n${baseHint}`
-    : baseHint
-  throw new PnpmError('BAD_PM_VERSION', msg, { hint })
 }
 
 const RUNTIME_DISPLAY_NAMES: Record<RuntimeName, string> = {

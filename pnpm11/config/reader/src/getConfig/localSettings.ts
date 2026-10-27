@@ -92,6 +92,19 @@ async function applyProjectWorkspaceManifestUnlessUnreadable (
       return await applyAllOrNothing(state, () => applyProjectWorkspaceManifest(state, { ...opts, keys }))
     } catch {}
   }
+  const readableKeys = new Set<string>()
+  for (const key of PIN_DECISION_SETTINGS) {
+    try {
+      // eslint-disable-next-line no-await-in-loop -- probing each key individually
+      await applyAllOrNothing(state, () => applyProjectWorkspaceManifest(state, { ...opts, keys: new Set([key]) }))
+      readableKeys.add(key)
+    } catch {}
+  }
+  if (readableKeys.size > 0) {
+    try {
+      return await applyAllOrNothing(state, () => applyProjectWorkspaceManifest(state, { ...opts, keys: readableKeys }))
+    } catch {}
+  }
   state.pnpmConfig.workspacePackagePatterns = ['.']
   return undefined
 }
@@ -105,12 +118,14 @@ const PIN_DECISION_SETTINGS_BUT_PACKAGES: ReadonlySet<string> = new Set([...PIN_
 async function applyAllOrNothing<Result> (state: ConfigBuildState, apply: () => Promise<Result>): Promise<Result> {
   const before = { ...state.pnpmConfig }
   const explicitlySetKeysBefore = [...state.explicitlySetKeys]
+  const warningsLengthBefore = state.warnings.length
   try {
     return await apply()
   } catch (err: unknown) {
     restoreConfig(state.pnpmConfig as unknown as Record<string, unknown>, before)
     state.explicitlySetKeys.clear()
     for (const key of explicitlySetKeysBefore) state.explicitlySetKeys.add(key)
+    state.warnings.length = warningsLengthBefore
     throw err
   }
 }

@@ -1,10 +1,10 @@
 use super::{
-    ArgTable, CliNetworkArgs, CliPathArgs, OsStr, OsString, PathBuf, PinFlags, PresentationArgs,
-    ReporterFlags, SwitchFlags, SwitchInput,
+    ArgTable, CliNetworkArgs, CliPathArgs, OsStr, OsString, PathBuf, PresentationArgs,
+    ReporterFlags,
 };
 use crate::{
     boolean_negations::with_boolean_negations,
-    cli_args::{install::InstallLockfileArgs, install_options::OfflineArgs},
+    cli_args::{grammar, install::InstallLockfileArgs, install_options::OfflineArgs},
 };
 use clap::{CommandFactory, FromArgMatches, parser::ValueSource};
 use std::sync::OnceLock;
@@ -19,15 +19,15 @@ use std::sync::OnceLock;
 #[clap(no_binary_name = true, args_override_self = true)]
 pub(in crate::cli_args::pre_command) struct BootstrapArgv {
     #[clap(flatten)]
-    paths: CliPathArgs,
+    pub(super) paths: CliPathArgs,
     #[clap(flatten)]
-    network: CliNetworkArgs,
+    pub(super) network: CliNetworkArgs,
     #[clap(flatten)]
-    presentation: PresentationArgs,
+    pub(super) presentation: PresentationArgs,
     #[clap(flatten)]
-    lockfile: InstallLockfileArgs,
+    pub(super) lockfile: InstallLockfileArgs,
     #[clap(flatten)]
-    network_cache: OfflineArgs,
+    pub(super) network_cache: OfflineArgs,
 }
 
 impl BootstrapArgv {
@@ -43,26 +43,6 @@ impl BootstrapArgv {
 
     pub(in crate::cli_args::pre_command) fn reporter_flags(&self) -> ReporterFlags {
         ReporterFlags { reporter: self.presentation.reporter, loglevel: self.presentation.loglevel }
-    }
-
-    /// The switch input these flags describe for `command`. `pnpm ci` is a
-    /// frozen install whether or not the flag was typed.
-    pub(in crate::cli_args::pre_command) fn into_switch_input(
-        self,
-        command: Option<String>,
-    ) -> SwitchInput {
-        let frozen_lockfile = match command.as_deref() {
-            Some("ci") => Some(true),
-            _ => self.lockfile.frozen_flag(),
-        };
-        SwitchInput::from_flags(SwitchFlags {
-            command,
-            pin_flags: PinFlags::of_install_flags(&self.lockfile, &self.network_cache),
-            paths: self.paths,
-            network: self.network,
-            presentation: &self.presentation,
-            frozen_lockfile,
-        })
     }
 }
 
@@ -189,4 +169,128 @@ fn local_prefix_or_cwd() -> PathBuf {
         .ok()
         .and_then(|cwd| crate::cli_args::prefix::find_local_prefix(&cwd).ok())
         .unwrap_or_else(|| PathBuf::from("."))
+}
+
+/// Every option of every command, with the `--no-` spellings, so a
+/// token's width is known wherever on the command line it was typed.
+pub(super) fn every_option(cli: &clap::Command) -> ArgTable {
+    let mut options = ArgTable::top_level(cli);
+    options.absorb_subcommands(cli);
+    options
+}
+
+/// The options `command` accepts. An option only another command
+/// declares is undeclared here, so its width stays unknown.
+pub(super) fn command_options(cli: &clap::Command, command: &str) -> ArgTable {
+    match cli.find_subcommand(command) {
+        Some(subcommand) => ArgTable::for_subcommand(cli, subcommand),
+        None => ArgTable::top_level(cli),
+    }
+}
+
+/// Whether `token` is an option no command declares that might take the
+/// next token as its value. `--option=value` carries its value already.
+pub(super) fn may_take_undeclared_value(token: &str, options: &ArgTable) -> bool {
+    let attached_long_value = token.starts_with("--") && token.contains('=');
+    token.starts_with('-')
+        && !attached_long_value
+        && declared_option_width(token, options).is_none()
+}
+
+/// How many argv tokens a declared option spans, or `None` for an option
+/// no command declares.
+pub(super) fn declared_option_width(token: &str, options: &ArgTable) -> Option<usize> {
+    match token.strip_prefix("--") {
+        Some(name) => declared_long_width(name, options),
+        None => declared_short_cluster_width(token.strip_prefix('-')?, options),
+    }
+}
+
+fn declared_long_width(name: &str, options: &ArgTable) -> Option<usize> {
+    let (name, value_attached) = name
+        .split_once('=')
+        .map_or((name, false), |(name, _)| (name, true));
+    let consumes_value = options.long_consumes_value(name)?;
+    Some(if consumes_value && !value_attached { 2 } else { 1 })
+}
+
+/// A cluster ends at its first value-taking short option, whose value is
+/// the rest of the token or, when nothing follows it, the next token.
+/// `None` when a letter before it is undeclared.
+fn declared_short_cluster_width(shorts: &str, options: &ArgTable) -> Option<usize> {
+    for (index, short) in shorts.char_indices() {
+        if options.short_consumes_value(short)? {
+            let value_attached = index + short.len_utf8() < shorts.len();
+            return Some(if value_attached { 1 } else { 2 });
+        }
+    }
+    Some(1)
+}
+
+/// The command's own name for `name`, which may be one of its aliases.
+pub(super) fn canonical_command_name(name: &str) -> String {
+    grammar()
+        .find_subcommand(name)
+        .map_or(name, clap::Command::get_name)
+        .to_string()
+}
+
+/// The letters of a short cluster that name options: up to and including
+/// the first one that takes a value, whose value is the rest of the token.
+pub(super) fn cluster_options<'a>(
+    shorts: &'a str,
+    options: &'a ArgTable,
+) -> impl Iterator<Item = char> + 'a {
+    let mut value_follows = false;
+    shorts
+        .chars()
+        .take_while(move |&short| {
+            let named = !value_follows;
+            value_follows = options.short_consumes_value(short) != Some(false);
+            named
+        })
+}
+
+/// A `--flag` / `--no-flag` pair as typed on the command line, or `None`
+/// when neither spelling was.
+pub(super) fn typed_flag(on: bool, off: bool) -> Option<bool> {
+    if on {
+        Some(true)
+    } else if off {
+        Some(false)
+    } else {
+        None
+    }
+}
+
+pub(super) fn long_value<'a>(
+    token: &'a str,
+    option: &str,
+    next: Option<&'a OsStr>,
+) -> Option<(&'a OsStr, usize)> {
+    let name = token.strip_prefix("--")?;
+    if name == option {
+        return next.map(|value| (value, 2));
+    }
+    name.strip_prefix(option)
+        .and_then(|rest| rest.strip_prefix('='))
+        .map(OsStr::new)
+        .map(|value| (value, 1))
+}
+
+pub(super) fn consumes_next_token(token: &str, global_options: &ArgTable) -> bool {
+    if let Some(name) = token.strip_prefix("--") {
+        return !name.contains('=') && global_options.long_consumes_value(name).unwrap_or(false);
+    }
+    let Some(rest) = token
+        .strip_prefix('-')
+        .filter(|rest| !rest.is_empty())
+    else {
+        return false;
+    };
+    let short = rest
+        .chars()
+        .next()
+        .expect("checked non-empty");
+    rest.chars().count() == 1 && global_options.short_consumes_value(short).unwrap_or(false)
 }

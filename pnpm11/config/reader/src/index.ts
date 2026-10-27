@@ -4,7 +4,7 @@ import path from 'node:path'
 
 import { GLOBAL_CONFIG_YAML_FILENAME, GLOBAL_LAYOUT_VERSION } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
-import { readWorkspaceManifest, type WorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
+import { readWorkspaceManifest, readWorkspaceManifestKeys, type WorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 import { betterPathResolve } from 'better-path-resolve'
 import camelcase from 'camelcase'
 import { realpathMissing } from 'realpath-missing'
@@ -30,6 +30,7 @@ import { applyGlobalInstallSettings } from './getConfig/globalInstall.js'
 import { applyLocalSettings } from './getConfig/localSettings.js'
 import { resolveInitialRegistries, resolveRegistriesByScope } from './getConfig/registries.js'
 import { applyRuntimeSettings } from './getConfig/runtimeSettings.js'
+import { isProjectManifestSkippedKey, PIN_DECISION_SETTINGS, whereRefusedKeyBelongs } from './getConfig/skippedKeys.js'
 import { assertTokenHelperComesFromTrustedConfig } from './getConfig/tokenHelper.js'
 import { loadNpmrcConfig } from './loadNpmrcFiles.js'
 import { inheritDlxConfig, pickIniConfig } from './localConfig.js'
@@ -67,8 +68,8 @@ export type { Config, ConfigContext, ProjectConfig, UniversalOptions, VerifyDeps
 export { type ConfigFileKey, isConfigFileKey } from './configFileKey.js'
 export type { CliOptions } from './getConfig/configBuildState.js'
 export { getIgnoredLockfilePnpmFieldKeys } from './getConfig/ignoredPnpmFieldKeys.js'
-export { type ParsedPackageManager, parsePackageManager, shouldPersistLockfile } from './getConfig/packageManager.js'
-export { isProjectManifestSkippedKey, whereRefusedKeyBelongs } from './getConfig/skippedKeys.js'
+export { getWantedPackageManager, type ParsedPackageManager, parsePackageManager, shouldPersistLockfile } from './getConfig/packageManager.js'
+export { isProjectManifestSkippedKey, PIN_DECISION_SETTINGS, whereRefusedKeyBelongs }
 export { isIniConfigKey, isNpmrcReadableKey } from './localConfig.js'
 
 interface GetConfigOptions {
@@ -132,11 +133,17 @@ export async function getConfig (opts: GetConfigOptions): Promise<GetConfigResul
   const { pnpmConfig } = state
   const cwd = applyRunContext(state, { packageManager, workspaceDir: opts.workspaceDir })
 
-  const globalYaml = applyGlobalYamlConfig(state, { configDir, globalYamlConfig })
+  const globalYaml = applyGlobalYamlConfig(state, { configDir, globalYamlConfig, skipUnreadableSettings: opts.skipUnreadableSettings })
   const initialRegistries = resolveInitialRegistries(state, globalYaml.bootstrapNetworkSettings)
   assertTokenHelperComesFromTrustedConfig(pnpmConfig.authConfig, state.npmrcResult.trustedConfig)
   resolveGlobalDirs(state)
   pnpmConfig.dir = cwd
+  if (typeof pnpmConfig.lockfileDir === 'string') {
+    pnpmConfig.lockfileDir = path.resolve(cwd, pnpmConfig.lockfileDir)
+    if (typeof state.configFromCliOpts.lockfileDir === 'string') {
+      state.configFromCliOpts.lockfileDir = pnpmConfig.lockfileDir
+    }
+  }
   if (cliOptions['global']) {
     await applyGlobalInstallSettings(state, opts)
   }
@@ -255,7 +262,11 @@ async function readGlobalYamlConfig (configDir: string, opts: GetConfigOptions):
     return await readWorkspaceManifest(configDir, GLOBAL_CONFIG_YAML_FILENAME)
   } catch (err: unknown) {
     if (!opts.skipUnreadableSettings) throw err
-    return undefined
+    try {
+      return await readWorkspaceManifestKeys(configDir, PIN_DECISION_SETTINGS, GLOBAL_CONFIG_YAML_FILENAME)
+    } catch {
+      return undefined
+    }
   }
 }
 

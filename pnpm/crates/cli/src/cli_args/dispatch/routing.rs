@@ -147,6 +147,22 @@ fn route_maintenance<'a>(
     }
 }
 
+/// A JSON-mode command reports its own failure on stdout and exits, so the
+/// human-readable miette report never renders.
+pub(super) fn exit_on_json_error(
+    result: miette::Result<()>,
+    print_json_errors: bool,
+) -> miette::Result<()> {
+    if let Err(error) = &result
+        && print_json_errors
+    {
+        print_json_error(error);
+        #[expect(clippy::exit, reason = "a JSON-mode command exits non-zero after its own report")]
+        std::process::exit(1);
+    }
+    result
+}
+
 pub(super) fn prints_json_errors(command: &CliCommand) -> bool {
     match command {
         CliCommand::Publish(args) => args.flags.output.json,

@@ -1,3 +1,4 @@
+export { decide, type PinDecision, type PinDecisionSettings, type PinEntryPoint, type PinInput, type PinInvocation } from './pinDecision.js'
 export { selfUpdate } from './self-updater/index.js'
 export { assertPnpmRuns, assertReleaseIsInstallable, exePlatformPkgDirName, exePlatformPkgDirNameNext, installPnpm, installPnpmToStore, isReleaseInstallable, linkExePlatformBinary, nativeTargetName, pnpmExeRunsOn, pnpmPackageNameToInstall } from './self-updater/installPnpm.js'
 export { maturePnpmVersionForRange, type PnpmVersionLookup, prepareResolvePnpmVersion, type ResolvedPnpmVersion, resolvePnpmVersion, type ResolvePnpmVersionOptions } from './self-updater/resolvePnpmVersion.js'

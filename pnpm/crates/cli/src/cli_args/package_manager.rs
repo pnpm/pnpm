@@ -72,10 +72,11 @@ pub(crate) struct PackageManagerToSync {
 /// in a way that persists (see [`should_persist_package_manager_lockfile`]).
 /// `on_fail` is the effective policy — the `pmOnFail` setting when it is set,
 /// which overrides the manifest's own `onFail`.
-pub(crate) fn package_manager_to_sync(
+pub(crate) fn package_manager_to_sync_for_version(
     manifest: &Value,
     root_dir: &Path,
     on_fail: Option<PmOnFail>,
+    running_version: &str,
 ) -> Option<PackageManagerToSync> {
     let mut pm = wanted_package_manager(manifest)?;
     if let Some(on_fail) = on_fail {
@@ -85,15 +86,17 @@ pub(crate) fn package_manager_to_sync(
     if pm.name != "pnpm" || !should_persist_package_manager_lockfile(&pm) {
         return None;
     }
-    let source_version = current_source_pnpm_version().or_else(|| pnpm_version_from(root_dir));
-    if let Some(version) =
-        source_version.filter(|version| version_satisfies(version, wanted_version))
-    {
-        return Some(PackageManagerToSync {
-            specifier: wanted_version.to_string(),
-            version,
-            running_pnpm_for_range: false,
-        });
+    if running_version == PNPM_VERSION {
+        let source_version = current_source_pnpm_version().or_else(|| pnpm_version_from(root_dir));
+        if let Some(version) =
+            source_version.filter(|version| version_satisfies(version, wanted_version))
+        {
+            return Some(PackageManagerToSync {
+                specifier: wanted_version.to_string(),
+                version,
+                running_pnpm_for_range: false,
+            });
+        }
     }
     if let Some(version) =
         exact_version(wanted_version).filter(|version| version_satisfies(version, wanted_version))
@@ -106,11 +109,11 @@ pub(crate) fn package_manager_to_sync(
     }
     // A range pin names no exact version, so the running pnpm's version is
     // the one the project actually uses.
-    version_satisfies(PNPM_VERSION, wanted_version)
+    version_satisfies(running_version, wanted_version)
         .then(|| PackageManagerToSync {
             specifier: wanted_version.to_string(),
-            version: PNPM_VERSION.to_string(),
-            running_pnpm_for_range: true,
+            version: running_version.to_string(),
+            running_pnpm_for_range: running_version == PNPM_VERSION,
         })
 }
 

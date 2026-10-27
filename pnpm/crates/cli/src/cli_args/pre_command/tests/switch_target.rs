@@ -1,7 +1,6 @@
 use super::{
-    Config, LOCKED_9_1_1, LOCKED_9_3_0_WITH_FILE_DEP_PATH, LOCKED_9_3_0_WITH_PEER_SUFFIX,
-    LOCKED_9_3_0_WITH_TARBALL_RESOLUTION, LOCKED_99_0_0, PmOnFail, SwitchSource, TempDir,
-    pin_roots, switch_target, write_dev_engine_manifest, write_lockfile, write_manifest,
+    Config, PmOnFail, SwitchSource, TempDir, pin_roots, switch_target, write_dev_engine_manifest,
+    write_lockfile, write_manifest,
 };
 
 #[test]
@@ -306,3 +305,180 @@ fn switch_target_does_not_switch_dev_engine_without_download() {
 
     assert!(target.is_none(), "unexpected switch target: {target:?}");
 }
+
+const LOCKED_9_3_0_WITH_PEER_SUFFIX: &str = r"---
+lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    configDependencies: {}
+    packageManagerDependencies:
+      '@pnpm/exe':
+        specifier: 9.3.0
+        version: 9.3.0
+      pnpm:
+        specifier: 9.3.0
+        version: 9.3.0
+
+packages:
+
+  '@pnpm/exe@9.3.0':
+    resolution: {integrity: sha512-di6YvqPO/2jvih6kCJ8r0ySzQNjQWrBXPEfqEHtrmwOamuNALnfASwhFBwEtMjWmaA8QG7TqAg2qEvAe+8cBkQ==}
+
+  '@pnpm/linux-x64@9.3.0':
+    resolution: {integrity: sha512-di6YvqPO/2jvih6kCJ8r0ySzQNjQWrBXPEfqEHtrmwOamuNALnfASwhFBwEtMjWmaA8QG7TqAg2qEvAe+8cBkQ==}
+
+  peer-provider@1.0.0:
+    resolution: {integrity: sha512-di6YvqPO/2jvih6kCJ8r0ySzQNjQWrBXPEfqEHtrmwOamuNALnfASwhFBwEtMjWmaA8QG7TqAg2qEvAe+8cBkQ==}
+
+  pnpm@9.3.0:
+    resolution: {integrity: sha512-QVocwll0cx51RVwUaDcb50xapft2IbUNQFbSIkUWCfEUEvI/1gLmFp8eBgRmZB95hZfhvpYaEGiINqZ7FlaUmQ==}
+
+snapshots:
+
+  '@pnpm/exe@9.3.0':
+    optionalDependencies:
+      '@pnpm/linux-x64': 9.3.0(peer-provider@1.0.0)
+
+  '@pnpm/linux-x64@9.3.0(peer-provider@1.0.0)':
+    dependencies:
+      peer-provider: 1.0.0
+    optional: true
+
+  peer-provider@1.0.0: {}
+
+  pnpm@9.3.0: {}
+---
+";
+
+const LOCKED_9_3_0_WITH_TARBALL_RESOLUTION: &str = r"---
+lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    configDependencies: {}
+    packageManagerDependencies:
+      '@pnpm/exe':
+        specifier: 9.3.0
+        version: 9.3.0
+      pnpm:
+        specifier: 9.3.0
+        version: 9.3.0
+
+packages:
+
+  '@pnpm/exe@9.3.0':
+    resolution: {integrity: sha512-di6YvqPO/2jvih6kCJ8r0ySzQNjQWrBXPEfqEHtrmwOamuNALnfASwhFBwEtMjWmaA8QG7TqAg2qEvAe+8cBkQ==}
+
+  '@pnpm/linux-x64@9.3.0':
+    resolution: {integrity: sha512-di6YvqPO/2jvih6kCJ8r0ySzQNjQWrBXPEfqEHtrmwOamuNALnfASwhFBwEtMjWmaA8QG7TqAg2qEvAe+8cBkQ==, tarball: https://evil.example.com/pnpm-linux-x64.tgz}
+
+  pnpm@9.3.0:
+    resolution: {integrity: sha512-QVocwll0cx51RVwUaDcb50xapft2IbUNQFbSIkUWCfEUEvI/1gLmFp8eBgRmZB95hZfhvpYaEGiINqZ7FlaUmQ==}
+
+snapshots:
+
+  '@pnpm/exe@9.3.0':
+    optionalDependencies:
+      '@pnpm/linux-x64': 9.3.0
+
+  '@pnpm/linux-x64@9.3.0':
+    optional: true
+
+  pnpm@9.3.0: {}
+---
+";
+
+const LOCKED_9_3_0_WITH_FILE_DEP_PATH: &str = r"---
+lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    configDependencies: {}
+    packageManagerDependencies:
+      '@pnpm/exe':
+        specifier: 9.3.0
+        version: 9.3.0
+      pnpm:
+        specifier: 9.3.0
+        version: 9.3.0
+
+packages:
+
+  '@pnpm/exe@9.3.0':
+    resolution: {integrity: sha512-di6YvqPO/2jvih6kCJ8r0ySzQNjQWrBXPEfqEHtrmwOamuNALnfASwhFBwEtMjWmaA8QG7TqAg2qEvAe+8cBkQ==}
+
+  payload@file:../payload.tgz:
+    resolution: {integrity: sha512-di6YvqPO/2jvih6kCJ8r0ySzQNjQWrBXPEfqEHtrmwOamuNALnfASwhFBwEtMjWmaA8QG7TqAg2qEvAe+8cBkQ==}
+
+  pnpm@9.3.0:
+    resolution: {integrity: sha512-QVocwll0cx51RVwUaDcb50xapft2IbUNQFbSIkUWCfEUEvI/1gLmFp8eBgRmZB95hZfhvpYaEGiINqZ7FlaUmQ==}
+
+snapshots:
+
+  '@pnpm/exe@9.3.0': {}
+
+  payload@file:../payload.tgz: {}
+
+  pnpm@9.3.0:
+    dependencies:
+      payload: file:../payload.tgz
+---
+";
+
+const LOCKED_9_1_1: &str = r"---
+lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    configDependencies: {}
+    packageManagerDependencies:
+      '@pnpm/exe':
+        specifier: '>=9.1.0 <9.1.2'
+        version: 9.1.1
+      pnpm:
+        specifier: '>=9.1.0 <9.1.2'
+        version: 9.1.1
+
+packages:
+
+  '@pnpm/exe@9.1.1':
+    resolution: {integrity: sha512-di6YvqPO/2jvih6kCJ8r0ySzQNjQWrBXPEfqEHtrmwOamuNALnfASwhFBwEtMjWmaA8QG7TqAg2qEvAe+8cBkQ==}
+
+  pnpm@9.1.1:
+    resolution: {integrity: sha512-QVocwll0cx51RVwUaDcb50xapft2IbUNQFbSIkUWCfEUEvI/1gLmFp8eBgRmZB95hZfhvpYaEGiINqZ7FlaUmQ==}
+
+snapshots:
+
+  '@pnpm/exe@9.1.1': {}
+
+  pnpm@9.1.1: {}
+---
+";
+
+const LOCKED_99_0_0: &str = r"---
+lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    configDependencies: {}
+    packageManagerDependencies:
+      pnpm:
+        specifier: 99.0.0
+        version: 99.0.0
+
+packages:
+
+  pnpm@99.0.0:
+    resolution: {integrity: sha512-QVocwll0cx51RVwUaDcb50xapft2IbUNQFbSIkUWCfEUEvI/1gLmFp8eBgRmZB95hZfhvpYaEGiINqZ7FlaUmQ==}
+
+snapshots:
+
+  pnpm@99.0.0: {}
+---
+";

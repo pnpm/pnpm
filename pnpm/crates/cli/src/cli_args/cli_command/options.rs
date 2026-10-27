@@ -290,20 +290,29 @@ impl super::CliNetworkArgs {
         );
         if let Some(https_proxy) = &self.https_proxy {
             config.cli_settings.insert("httpsProxy".to_string());
-            config.cli.npmrc_tokens.push(("https-proxy".to_string(), https_proxy.clone()));
+            push_cli_token(config, "https-proxy", https_proxy);
         }
         if let Some(http_proxy) = &self.http_proxy {
             config.cli_settings.insert("httpProxy".to_string());
-            config.cli.npmrc_tokens.push(("http-proxy".to_string(), http_proxy.clone()));
+            push_cli_token(config, "http-proxy", http_proxy);
         }
         if let Some(no_proxy) = &self.no_proxy {
             config.cli_settings.insert("noProxy".to_string());
             config.cli_settings.insert("noproxy".to_string());
-            config.cli.npmrc_tokens.push(("no-proxy".to_string(), no_proxy.clone()));
+            push_cli_token(config, "no-proxy", no_proxy);
         }
         if let Some(registry) = self.registry.as_deref() {
-            config.cli.npmrc_tokens.push(("registry".to_string(), registry.to_string()));
+            push_cli_token(config, "registry", registry);
         }
+    }
+}
+
+fn push_cli_token(config: &mut pnpm_config::Config, key: &str, value: &str) {
+    if !config.cli.npmrc_tokens
+        .iter()
+        .any(|(k, _)| k == key)
+    {
+        config.cli.npmrc_tokens.push((key.to_string(), value.to_string()));
     }
 }
 

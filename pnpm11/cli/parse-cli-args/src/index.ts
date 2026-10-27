@@ -63,7 +63,7 @@ export async function parseCliArgs (
   applyRenamedOptions(rawOptions, opts.renamedOptions)
   const workspaceDir = await getWorkspaceDir(rawOptions)
   if (SPECIALLY_ESCAPED_CMDS.has(resolution.cmd!) && rawOptions['help']) {
-    return buildHelpResult(exploratory, opts, workspaceDir)
+    return buildEarlyHelpResult(opts, exploratory, workspaceDir)
   }
 
   const { cmd, params } = adjustPostParseCommands(rawOptions, argv, resolution, opts)
@@ -79,14 +79,18 @@ export async function parseCliArgs (
 }
 
 function parseExploratory (opts: ParseCliArgsOptions, inputArgv: string[]): ReturnType<typeof nopt> {
+  const exploratoryTypes = {
+    filter: [String],
+    help: Boolean,
+    recursive: Boolean,
+    ...opts.universalOptionsTypes,
+    ...opts.getTypesByCommandName('add'),
+    ...opts.getTypesByCommandName('install'),
+  }
   return nopt(
     {
-      filter: [String],
-      help: Boolean,
-      recursive: Boolean,
-      ...opts.universalOptionsTypes,
-      ...opts.getTypesByCommandName('add'),
-      ...opts.getTypesByCommandName('install'),
+      ...exploratoryTypes,
+      ...configDotTypes(exploratoryTypes),
     },
     {
       r: '--recursive',
@@ -132,35 +136,49 @@ async function checkEarlyExit (
     return undefined
   }
   if (exploratory['help']) {
-    const workspaceDir = await getWorkspaceDir(exploratory, opts.renamedOptions)
-    return buildHelpResult(exploratory, opts, workspaceDir)
+    const { options, rawCliConfig } = pickEarlyExitOptions(opts, exploratory, false)
+    const workspaceDir = await getWorkspaceDir(options, opts.renamedOptions)
+    return buildHelpResult(exploratory, options, rawCliConfig, workspaceDir)
   }
   if (exploratory['version'] || exploratory['v']) {
+    const { options, rawCliConfig } = pickEarlyExitOptions(opts, exploratory, true)
     return {
       argv: exploratory.argv,
       cmd: null,
       options: {
-        ...pickUniversalOptions(opts, exploratory),
+        ...options,
         version: true,
       },
+      rawCliConfig,
       params: exploratory.argv.remain,
       unknownOptions: new Map(),
       fallbackCommandUsed: false,
-      workspaceDir: await getWorkspaceDir(exploratory, opts.renamedOptions),
+      workspaceDir: await getWorkspaceDir(options, opts.renamedOptions),
     }
   }
   return undefined
 }
 
+function buildEarlyHelpResult (
+  opts: ParseCliArgsOptions,
+  exploratory: ReturnType<typeof nopt>,
+  workspaceDir: string | undefined
+): ParsedCliArgs {
+  const { options, rawCliConfig } = pickEarlyExitOptions(opts, exploratory, false)
+  return buildHelpResult(exploratory, options, rawCliConfig, workspaceDir)
+}
+
 function buildHelpResult (
   exploratory: ReturnType<typeof nopt>,
-  opts: ParseCliArgsOptions,
+  options: Record<string, unknown>,
+  rawCliConfig: Record<string, unknown>,
   workspaceDir: string | undefined
 ): ParsedCliArgs {
   return {
     argv: exploratory.argv,
     cmd: 'help',
-    options: pickUniversalOptions(opts, exploratory),
+    options,
+    rawCliConfig,
     params: exploratory.argv.remain,
     unknownOptions: new Map(),
     fallbackCommandUsed: false,
@@ -168,17 +186,60 @@ function buildHelpResult (
   }
 }
 
-function pickUniversalOptions (
+const VERSION_BOOTSTRAP_KEYS = [
+  'frozen-lockfile',
+  'global',
+  'global-dir',
+  'lockfile',
+  'lockfile-dir',
+  'npmrc-auth-file',
+  'offline',
+  'prefer-offline',
+  'registry',
+  'state-dir',
+  'store-dir',
+]
+
+function pickEarlyExitOptions (
   opts: ParseCliArgsOptions,
-  exploratory: ReturnType<typeof nopt>
+  exploratory: ReturnType<typeof nopt>,
+  includeVersionBootstrapKeys: boolean
+): { options: Record<string, unknown>, rawCliConfig: Record<string, unknown> } {
+  const keys = includeVersionBootstrapKeys
+    ? [...Object.keys(opts.universalOptionsTypes), ...VERSION_BOOTSTRAP_KEYS]
+    : Object.keys(opts.universalOptionsTypes)
+  const options = pickKnownEarlyExitKeys(exploratory, keys, opts.renamedOptions)
+  const rawCliConfig = pickConfigDotOptions(exploratory, options, opts.renamedOptions)
+  return { options, rawCliConfig }
+}
+
+function pickKnownEarlyExitKeys (
+  exploratory: Record<string, unknown>,
+  keys: string[],
+  renamedOptions?: Record<string, string>
 ): Record<string, unknown> {
-  const result: Record<string, unknown> = {}
-  for (const key of Object.keys(opts.universalOptionsTypes)) {
-    if (!(key in exploratory)) continue
-    const renamed = opts.renamedOptions?.[key] ?? key
-    result[renamed] = (exploratory as Record<string, unknown>)[key]
+  const options: Record<string, unknown> = {}
+  for (const key of keys) {
+    if (key in exploratory) {
+      options[renamedOptions?.[key] ?? key] = exploratory[key]
+    }
   }
-  return result
+  return options
+}
+
+function pickConfigDotOptions (
+  exploratory: Record<string, unknown>,
+  options: Record<string, unknown>,
+  renamedOptions?: Record<string, string>
+): Record<string, unknown> {
+  const rawCliConfig: Record<string, unknown> = {}
+  for (const [optionName, optionValue] of Object.entries(exploratory)) {
+    if (!optionName.startsWith(CUSTOM_OPTION_PREFIX)) continue
+    const rawKey = optionName.substring(CUSTOM_OPTION_PREFIX.length)
+    options[renamedOptions?.[rawKey] ?? rawKey] = optionValue
+    rawCliConfig[rawKey] = optionValue
+  }
+  return rawCliConfig
 }
 
 function getEscapeArgs (

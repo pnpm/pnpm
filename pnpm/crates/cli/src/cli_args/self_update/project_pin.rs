@@ -2,7 +2,13 @@ use super::{
     Config, Context, EnvLockfile, PackageManifest, Path, Value, infer_range_spec_style,
     range_satisfies, version_lt,
 };
-use crate::config_deps;
+use crate::{
+    cli_args::{
+        package_manager::{PinRoots, WantedPackageManager, wanted_package_manager},
+        pre_command::{Invocation, PinDecision, PinInput, SwitchProcessState, decide},
+    },
+    config_deps,
+};
 
 /// The message refusing an implicit-`latest` update that would downgrade a
 /// project pinned to a newer pnpm than the registry's `latest`. `env_root`
@@ -119,15 +125,48 @@ fn lagging_latest_message(kind: NoUpgradeKind, current: &str, target: &str) -> S
 /// to `target_version`. Callers check [`project_pin_refusal`] first.
 pub(super) async fn update_project_pin(
     config: &'static Config,
-    env_root: &Path,
+    roots: &PinRoots,
     mut manifest: PackageManifest,
-    pm: &super::super::package_manager::WantedPackageManager,
+    pm: &WantedPackageManager,
     target_version: &str,
 ) -> miette::Result<String> {
     if pm.version.as_deref() == Some(target_version) {
         return Ok(format!("The current project is already set to use pnpm v{target_version}"));
     }
 
+    write_updated_manifest_pin(&mut manifest, target_version)?;
+
+    let wanted = wanted_package_manager(manifest.value());
+    let locked_env =
+        if config.lockfile { EnvLockfile::read(&roots.env).ok().flatten() } else { None };
+    let pin = PinInput {
+        roots,
+        manifest: Some(manifest.value()),
+        wanted: wanted.as_ref(),
+        locked_env,
+        running_version: target_version,
+        process_state: SwitchProcessState::current(),
+    };
+    let invocation = Invocation::for_self_update(roots.manifest.clone());
+    if let PinDecision::Record { at, package_manager } = decide(&pin, config, &invocation)? {
+        Box::pin(config_deps::sync_package_manager_dependencies(
+            config,
+            &at,
+            &package_manager.specifier,
+            &package_manager.version,
+            false,
+            false,
+        ))
+        .await?;
+    }
+
+    Ok(format!("The current project has been updated to use pnpm v{target_version}"))
+}
+
+fn write_updated_manifest_pin(
+    manifest: &mut PackageManifest,
+    target_version: &str,
+) -> miette::Result<()> {
     let has_dev_engines = manifest
         .value()
         .get("devEngines")
@@ -135,7 +174,7 @@ pub(super) async fn update_project_pin(
         .is_some();
 
     if has_dev_engines {
-        update_dev_engines_pin(config, env_root, pm, &mut manifest, target_version).await?;
+        write_dev_engines_pin(manifest, target_version)?;
     } else if let Some(object) = manifest.value_mut().as_object_mut() {
         object.insert(
             "packageManager".to_string(),
@@ -146,8 +185,7 @@ pub(super) async fn update_project_pin(
             .map_err(miette::Report::new)
             .wrap_err("write the project manifest")?;
     }
-
-    Ok(format!("The current project has been updated to use pnpm v{target_version}"))
+    Ok(())
 }
 
 /// The `pnpm` entry of `devEngines.packageManager` (which can be a single
@@ -215,24 +253,10 @@ fn dev_engines_pnpm_entry_mut(manifest: &mut Value) -> Option<&mut Value> {
     None
 }
 
-/// A [`super::super::package_manager::WantedPackageManager`] flagged as `fromDevEngines` so
-/// [`super::super::package_manager::should_persist_package_manager_lockfile`] decides persistence
-/// the way it does for a devEngines pin.
-fn pm_for_persist(
-    pm: &super::super::package_manager::WantedPackageManager,
-) -> super::super::package_manager::WantedPackageManager {
-    super::super::package_manager::WantedPackageManager {
-        name: pm.name.clone(),
-        version: pm.version.clone(),
-        from_dev_engines: true,
-        on_fail: pm.on_fail.clone(),
-    }
-}
-
 /// The specifier to record in `packageManagerDependencies` after
 /// `self-update` rewrites the `devEngines.packageManager` pin. It must equal
 /// the constraint a later install reads back from the manifest (see
-/// [`super::super::package_manager::package_manager_to_sync`]) — the updated
+/// [`super::super::package_manager::package_manager_to_sync_for_version`]) — the updated
 /// devEngines constraint, never the CLI dist-tag or range passed to
 /// `self-update` — so a subsequent `--frozen-lockfile` install does not
 /// reject the lockfile as outdated. A legacy `packageManager` pin is always
@@ -291,26 +315,4 @@ pub(super) fn read_project_pinned_pnpm_version(
         }
         (lockfile, spec) => lockfile.or(spec),
     }
-}
-
-async fn update_dev_engines_pin(
-    config: &'static Config,
-    env_root: &Path,
-    pm: &super::super::package_manager::WantedPackageManager,
-    manifest: &mut PackageManifest,
-    target_version: &str,
-) -> miette::Result<()> {
-    let pin_specifier = write_dev_engines_pin(manifest, target_version)?;
-    if super::super::package_manager::should_persist_package_manager_lockfile(&pm_for_persist(pm)) {
-        Box::pin(config_deps::sync_package_manager_dependencies(
-            config,
-            env_root,
-            &pin_specifier,
-            target_version,
-            false,
-            false,
-        ))
-        .await?;
-    }
-    Ok(())
 }
