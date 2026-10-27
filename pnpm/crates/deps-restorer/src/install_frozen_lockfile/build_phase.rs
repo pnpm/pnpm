@@ -246,9 +246,7 @@ fn build_or_defer<Reporter: self::Reporter>(
         && inputs.policy.rebuild.is_none()
         && patches.is_none_or(HashMap::is_empty)
         && (!config.side_effects_cache_read() || inputs.cache.maps_by_snapshot.is_empty());
-    if let Some(pending) = inputs.pending_bins {
-        bin_state.refreshed_hoisted_bins.seed(&pending.hoisted_bin_sources);
-    }
+    seed_hoisted_bins(inputs, bin_state);
     let build_output = if can_defer_without_build_modules {
         let newly_deferred = inputs.graph.materialized_snapshots
             .iter()
@@ -281,6 +279,18 @@ fn build_or_defer<Reporter: self::Reporter>(
     };
 
     Ok(build_output)
+}
+
+fn seed_hoisted_bins(
+    inputs: &BuildPhaseInputs<'_>,
+    bin_state: &crate::build_options::BuildBinState,
+) {
+    let Some(pending) = inputs.pending_bins else { return };
+    bin_state.refreshed_hoisted_bins.seed(&pending.hoisted_bin_sources);
+    bin_state.refreshed_hoisted_bins.seed_private_hoist(
+        inputs.policy.config.install_state_dir.join("node_modules"),
+        &pending.privately_hoisted_bins,
+    );
 }
 
 fn build_modules<'a>(

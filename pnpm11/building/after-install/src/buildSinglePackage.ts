@@ -20,7 +20,7 @@ import type { DepPath } from '@pnpm/types'
 import { hardLinkDir } from '@pnpm/worker'
 import { strict as isStrictSubdir } from 'is-subdir'
 
-import { builtBinPackages } from './builtBinPackages.js'
+import { builtBinPackages, privateHoistedPkgRoots } from './builtBinPackages.js'
 import { binDirsInAllParentDirs } from './rebuildGraph.js'
 import type { PackageToBuild, RebuildState } from './rebuildTypes.js'
 import { relinkHoistedPackageBins } from './relinkHoistedPackageBins.js'
@@ -74,8 +74,12 @@ async function propagateBuildOutputs (depPath: DepPath, pkgRoots: string[], stat
   if (pkgRoots.length > 1) {
     await hardLinkDir(pkgRoots[0], pkgRoots.slice(1))
   }
-  if (state.opts.nodeLinker === 'hoisted' && state.builtDepPaths.has(depPath)) {
-    await relinkHoistedPackageBins(pkgRoots, state)
+  if (!state.builtDepPaths.has(depPath)) return
+  const hoistedRoots = state.opts.nodeLinker === 'hoisted'
+    ? pkgRoots
+    : privateHoistedPkgRoots(depPath, state)
+  if (hoistedRoots.length > 0) {
+    await relinkHoistedPackageBins(hoistedRoots, state)
   }
 }
 

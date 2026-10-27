@@ -4,10 +4,12 @@ import { buildModules } from '@pnpm/building.during-install'
 import { isBuildExplicitlyDisallowed } from '@pnpm/building.policy'
 import { installabilityUnderForce } from '@pnpm/config.package-is-installable'
 import { makeNodeRequireOption } from '@pnpm/exec.lifecycle'
-import type { IgnoredBuilds } from '@pnpm/types'
+import { logger } from '@pnpm/logger'
+import type { DepPath, HoistedDependencies, IgnoredBuilds } from '@pnpm/types'
 import { union } from 'ramda'
 
 import type { HeadlessContext, HeadlessDepGraph } from './context.js'
+import { linkAllBins } from './linkAllBins.js'
 import { linkRuntimeBinsOfImporters } from './linkBinsOfImporters.js'
 import { addPackageMapOption } from './packageMap.js'
 import { mergeIntoCurrentLockfile } from './writeModulesDirState.js'
@@ -15,11 +17,21 @@ import { mergeIntoCurrentLockfile } from './writeModulesDirState.js'
 export async function buildDependencies (
   ctx: HeadlessContext,
   depGraph: HeadlessDepGraph,
-  shouldWritePackageMap: boolean
-): Promise<IgnoredBuilds | undefined> {
+  {
+    hoistedDependencies,
+    shouldWritePackageMap,
+  }: {
+    hoistedDependencies?: HoistedDependencies
+    shouldWritePackageMap: boolean
+  }
+): Promise<{
+  builtDepPaths?: Set<DepPath>
+  builtPackageDirs?: Set<string>
+  ignoredBuilds?: IgnoredBuilds
+}> {
   const { opts } = ctx
   const buildsOrPatchesApply = !opts.ignoreScripts || Object.keys(opts.patchedDependencies ?? {}).length > 0
-  if (!buildsOrPatchesApply || opts.enableModulesDir === false) return undefined
+  if (!buildsOrPatchesApply || opts.enableModulesDir === false) return {}
   const directNodes = collectDirectNodes(depGraph)
   const extraBinPaths = [...opts.extraBinPaths ?? []]
   if (opts.hoistPattern != null) {
@@ -37,8 +49,43 @@ export async function buildDependencies (
   }
   // Dependency lifecycle scripts must not run on an unverified lockfile.
   await opts.verifyLockfile?.()
-  const { ignoredBuilds } = await runBuildModules(ctx, depGraph, { directNodes, extraBinPaths, extraEnv })
-  return addPreviouslyIgnoredBuilds(ignoredBuilds, ctx, depGraph)
+  const { ignoredBuilds, builtDepPaths, builtPackageDirs } = await runBuildModules(ctx, depGraph, {
+    directNodes,
+    extraBinPaths,
+    extraEnv,
+    hoistedDependencies,
+  })
+  if (builtPackageDirs?.size && opts.nodeLinker !== 'hoisted' && !ctx.skipPostImportLinking) {
+    await relinkBuiltVirtualStoreBins(ctx, depGraph, builtPackageDirs)
+  }
+  return {
+    builtDepPaths,
+    builtPackageDirs,
+    ignoredBuilds: addPreviouslyIgnoredBuilds(ignoredBuilds, ctx, depGraph),
+  }
+}
+
+async function relinkBuiltVirtualStoreBins (
+  ctx: HeadlessContext,
+  depGraph: HeadlessDepGraph,
+  builtPackageDirs: ReadonlySet<string>
+): Promise<void> {
+  const { opts } = ctx
+  const affectedNodes = depGraph.depNodes.filter((depNode) =>
+    builtPackageDirs.has(path.normalize(depNode.dir)) ||
+    Object.values(depNode.children).some((childDir) => builtPackageDirs.has(path.normalize(childDir)))
+  )
+  if (affectedNodes.length === 0) return
+  await linkAllBins(depGraph.graph, {
+    depNodes: affectedNodes,
+    extraNodePaths: opts.extraNodePaths,
+    forceForPackages: builtPackageDirs,
+    optional: opts.include.optionalDependencies,
+    preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
+    warn: (message: string) => {
+      logger.info({ message, prefix: ctx.lockfileDir })
+    },
+  })
 }
 
 function collectDirectNodes ({ directDependenciesByImporterId, graph, importerIds }: HeadlessDepGraph): string[] {
@@ -74,7 +121,17 @@ function createBuildExtraEnv (ctx: HeadlessContext, shouldWritePackageMap: boole
 async function runBuildModules (
   ctx: HeadlessContext,
   depGraph: HeadlessDepGraph,
-  { directNodes, extraBinPaths, extraEnv }: { directNodes: string[], extraBinPaths: string[], extraEnv: Record<string, string> | undefined }
+  {
+    directNodes,
+    extraBinPaths,
+    extraEnv,
+    hoistedDependencies,
+  }: {
+    directNodes: string[]
+    extraBinPaths: string[]
+    extraEnv: Record<string, string> | undefined
+    hoistedDependencies?: HoistedDependencies
+  }
 ): ReturnType<typeof buildModules> {
   const { opts } = ctx
   return buildModules(depGraph.graph, directNodes, {
@@ -85,10 +142,13 @@ async function runBuildModules (
     allowBuild: depGraph.allowBuild,
     childConcurrency: opts.childConcurrency,
     extraBinPaths,
+    extraNodePaths: opts.extraNodePaths,
     extraEnv,
     depsStateCache: ctx.depsStateCache,
     ignoreScripts: opts.ignoreScripts,
+    hoistedDependencies: hoistedDependencies ?? opts.hoistedDependencies,
     hoistedLocations: depGraph.hoistedLocations,
+    hoistedModulesDir: ctx.hoistedModulesDir,
     lockfileDir: ctx.lockfileDir,
     nodeVersion: ctx.rootRuntimeNodeVersion,
     optional: opts.include.optionalDependencies,
