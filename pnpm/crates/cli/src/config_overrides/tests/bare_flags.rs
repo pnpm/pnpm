@@ -19,6 +19,22 @@ fn extract_accepts_the_on_fail_settings_as_bare_flags() {
 }
 
 #[test]
+fn extract_accepts_cache_dir_as_a_bare_flag() {
+    let (overrides, remaining) =
+        ConfigOverrides::extract(argv(["pacquet", "install", "--cache-dir", "/tmp/pnpm-cache"]));
+
+    assert_eq!(remaining, argv(["pacquet", "install"]));
+    assert_eq!(
+        overrides
+            .cli_layer(None)
+            .setting_values
+            .get("cache-dir")
+            .map(String::as_str),
+        Some("/tmp/pnpm-cache"),
+    );
+}
+
+#[test]
 fn extract_leaves_other_bare_flags_for_clap() {
     let (_, remaining) =
         ConfigOverrides::extract(argv(["pacquet", "install", "--node-linker=hoisted"]));
