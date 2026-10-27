@@ -75,10 +75,12 @@ pub(super) fn named_in_files(files_field: &[Value]) -> impl Fn(&str) -> bool {
         .cloned()
         .collect();
     let literal = |entry: &str| {
+        let entry = entry.trim_start_matches("./");
         entry
-            .trim_start_matches("./")
-            .trim_start_matches('/')
-            .to_string()
+            .split('/')
+            .filter(|segment| !segment.is_empty())
+            .collect::<Vec<_>>()
+            .join("/")
     };
     let excluded: Vec<String> = dotenv_entries
         .iter()
