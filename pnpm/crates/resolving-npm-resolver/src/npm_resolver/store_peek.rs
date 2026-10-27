@@ -4,8 +4,8 @@ use node_semver::Version;
 use pnpm_config::TrustPolicy;
 use pnpm_lockfile::{LockfileResolution, PkgName, PkgNameVer};
 use pnpm_resolving_resolver_base::{
-    CurrentPkg, ResolveError, ResolveOptions, ResolveResult, UpdateBehavior, WantedDependency,
-    WorkspacePackages,
+    CurrentPkg, LockedPackagePolicy, ResolveError, ResolveOptions, ResolveResult, UpdateBehavior,
+    WantedDependency, WorkspacePackages,
 };
 use pnpm_store_dir::{SharedReadonlyStoreIndex, StoreIndex, store_index_key};
 
@@ -119,6 +119,10 @@ pub(crate) async fn peek_manifest_from_store(
     build_peek_result(wanted_dependency, opts, spec, (current_pkg, key_prefix), manifest)
 }
 
+fn trusts_kept_package(opts: &ResolveOptions) -> bool {
+    opts.locked_package_policy == LockedPackagePolicy::Trust && !opts.refresh.repick_current_version
+}
+
 fn is_eligible_for_store_peek<'a>(
     opts: &'a ResolveOptions,
     spec: &RegistryPackageSpec,
@@ -133,10 +137,13 @@ fn is_eligible_for_store_peek<'a>(
     if spec.revision.is_some() {
         return None;
     }
-    if opts.policy.published_by.is_some() && current_pkg.published_at.is_none() {
+    if !trusts_kept_package(opts)
+        && opts.policy.published_by.is_some()
+        && current_pkg.published_at.is_none()
+    {
         return None;
     }
-    if opts.policy.trust_policy == Some(TrustPolicy::NoDowngrade) {
+    if !trusts_kept_package(opts) && opts.policy.trust_policy == Some(TrustPolicy::NoDowngrade) {
         return None;
     }
     if opts.policy.package_version_guard.is_some() {
@@ -171,7 +178,7 @@ fn build_peek_result(
     opts: &ResolveOptions,
     spec: &RegistryPackageSpec,
     (current_pkg, key_prefix): (&CurrentPkg, Option<&str>),
-    manifest: serde_json::Value,
+    mut manifest: serde_json::Value,
 ) -> Result<Option<ResolveResult>, ResolveError> {
     let (Some(name), Some(version)) = (
         manifest.get("name").and_then(serde_json::Value::as_str),
@@ -193,10 +200,11 @@ fn build_peek_result(
         version,
         current_pkg.published_at.as_deref(),
         &current_pkg.resolution,
-        opts.policy.published_by,
+        opts.policy.published_by.filter(|_| !trusts_kept_package(opts)),
         opts.policy.published_by_exclude.as_ref(),
     );
     let name_ver = PkgNameVer::new(pkg_name, semver_ver);
+    preserve_locked_peer_metadata(&mut manifest, current_pkg);
     Ok(Some(ResolveResult {
         id: resolution_id(key_prefix, &name_ver),
         policy_violation,
@@ -212,6 +220,21 @@ fn build_peek_result(
             non_deprecated_alternative: None,
         },
     }))
+}
+
+fn preserve_locked_peer_metadata(manifest: &mut serde_json::Value, current_pkg: &CurrentPkg) {
+    let (Some(manifest), Some(locked)) = (manifest.as_object_mut(), current_pkg.manifest.as_ref())
+    else {
+        return;
+    };
+    // Registry peer declarations recorded in the lockfile can differ from the tarball's.
+    for field in ["peerDependencies", "peerDependenciesMeta"] {
+        if let Some(value) = locked.get(field) {
+            manifest.insert(field.to_string(), value.clone());
+        } else {
+            manifest.remove(field);
+        }
+    }
 }
 
 fn matches_current_pkg(current_pkg: &CurrentPkg, name: &str, version: &str) -> bool {

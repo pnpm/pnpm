@@ -331,7 +331,6 @@ where
         && reuse.allows_reuse()
         && !node_depends_on_changed_direct_dep_with(ctx, prior_key.as_ref(), scope)
         && let Some(reused) = super::try_reuse_node(ctx, &wanted_dep, prior_key.as_ref(), 0)
-        && super::reuse_matches_peer_scope(ctx, &reused, parent_pkg_aliases)
     {
         return Ok(reused.result.package.name_ver
             .as_ref()

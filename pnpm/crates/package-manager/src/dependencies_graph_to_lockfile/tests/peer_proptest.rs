@@ -1,5 +1,5 @@
 //! Property tests over generated workspaces with peer dependencies
-//! (pnpm/tasks#143). Each case is a few importers over a handful of
+//! through the production lockfile writer. Each case is a few importers over a handful of
 //! packages published at two majors, whose manifests mix dependencies,
 //! required and optional peers, peers that are also dependencies, and
 //! peer cycles.
@@ -10,15 +10,14 @@ mod model;
 use std::{collections::BTreeMap, sync::Arc};
 
 use model::{
-    IMPORTER_IDS, Outcome, Settings, Workspace, importer_dependencies, lockfile_of,
-    move_dependency, outcome_of,
+    IMPORTER_IDS, Outcome, Settings, StubResolver, Workspace, importer_dependencies, lockfile_of,
+    lockfile_with_settings, move_dependency, outcome_of,
 };
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_resolving_resolver_base::{PreferredVersions, ResolveOptions};
 use proptest::{prelude::*, test_runner::RngSeed};
 
-use super::StubResolver;
-use crate::{
+use pnpm_resolving_deps_resolver::{
     ResolveImporterOptions, ResolveWorkspaceResult, WorkspaceImporter, WorkspaceResolveOptions,
     resolve_workspace,
 };
@@ -61,19 +60,19 @@ fn importer_opts(id: &str, settings: Settings) -> ResolveImporterOptions {
             ..ResolveOptions::default()
         },
         peers_suffix_max_length: settings.peers_suffix_max_length,
-        peers: crate::ImporterPeerOptions {
+        peers: pnpm_resolving_deps_resolver::ImporterPeerOptions {
             auto_install_peers: settings.auto_install_peers,
             auto_install_peers_from_highest_match: false,
             resolve_peers_from_workspace_root: false,
             dedupe_peers: false,
             dedupe_peer_dependents: true,
         },
-        links: crate::PeerLinkOptions {
+        links: pnpm_resolving_deps_resolver::PeerLinkOptions {
             exclude_links_from_lockfile: false,
             lockfile_dir: None,
             modules_dir: None,
         },
-        resolution: crate::ImporterResolutionInputs {
+        resolution: pnpm_resolving_deps_resolver::ImporterResolutionInputs {
             all_preferred_versions: Arc::new(PreferredVersions::new()),
             override_bare_specifier: None,
             patched_dependencies: None,
@@ -83,7 +82,7 @@ fn importer_opts(id: &str, settings: Settings) -> ResolveImporterOptions {
             catalogs_dir: None,
             catalog_server: false,
         },
-        hooks: crate::ManifestTransformHooks {
+        hooks: pnpm_resolving_deps_resolver::ManifestTransformHooks {
             manifest_hook: None,
             overrides_hook: None,
             pnpmfile_hook: None,
@@ -101,7 +100,7 @@ fn workspace_opts(settings: Settings, reuse: Reuse<'_>) -> WorkspaceResolveOptio
         registry_context: pnpm_lockfile::RegistryContext::default(),
         share_workspace_resolutions: true,
         allowed_deprecated_versions: BTreeMap::new(),
-        peers: crate::WorkspacePeerResolutionOptions {
+        peers: pnpm_resolving_deps_resolver::WorkspacePeerResolutionOptions {
             dedupe_peers: false,
             dedupe_injected_deps: false,
             dedupe_peer_dependents: true,
@@ -111,13 +110,13 @@ fn workspace_opts(settings: Settings, reuse: Reuse<'_>) -> WorkspaceResolveOptio
             peers_suffix_max_length: settings.peers_suffix_max_length,
             auto_install_peers: settings.auto_install_peers,
         },
-        hooks: crate::WorkspaceResolveHooks::default(),
-        reuse: crate::WorkspaceLockfileReuse {
+        hooks: pnpm_resolving_deps_resolver::WorkspaceResolveHooks::default(),
+        reuse: pnpm_resolving_deps_resolver::WorkspaceLockfileReuse {
             lockfile: lockfile.cloned().map(Arc::new),
             subtrees,
-            ..crate::WorkspaceLockfileReuse::default()
+            ..pnpm_resolving_deps_resolver::WorkspaceLockfileReuse::default()
         },
-        version: crate::WorkspaceVersionResolution::default(),
+        version: pnpm_resolving_deps_resolver::WorkspaceVersionResolution::default(),
     }
 }
 
@@ -189,16 +188,50 @@ proptest! {
 
     /// Installing over the lockfile a fresh resolution wrote changes nothing.
     #[test]
-    fn install_over_own_lockfile_matches_fresh(
+    fn install_over_own_lockfile_matches_fresh_via_real_writer(
         workspace in model::workspace(),
         settings in model::settings(),
     ) {
         let order = in_order(&workspace);
         let fresh = resolve_with(&workspace, &order, settings, Reuse::Fresh)
             .expect("generated workspaces resolve");
-        let lockfile = lockfile_of(&fresh, &workspace);
-        let reused = outcome_with(&workspace, &order, settings, Reuse::Install(&lockfile));
-        prop_assert_eq!(outcome_of(&fresh, &workspace), reused);
+        let lockfile = lockfile_with_settings(&fresh, &workspace, settings);
+        let reused = resolve_with(&workspace, &order, settings, Reuse::Install(&lockfile))
+            .expect("reuse generated lockfile");
+        prop_assert_eq!(outcome_of(&fresh, &workspace), outcome_of(&reused, &workspace));
+        prop_assert_eq!(lockfile, lockfile_with_settings(&reused, &workspace, settings));
+    }
+
+    #[test]
+    fn incremental_adds_with_fixed_providers_in_any_order_match_fresh(
+        workspace in model::fixed_provider_workspace(),
+        settings in model::settings(),
+        priorities in proptest::collection::vec(any::<u64>(), 9),
+    ) {
+        let order = in_order(&workspace);
+        let fresh = resolve_with(&workspace, &order, settings, Reuse::Fresh)
+            .expect("fresh workspace resolves");
+        let expected = lockfile_with_settings(&fresh, &workspace, settings);
+        let mut additions: Vec<_> = workspace.importers.iter().enumerate()
+            .flat_map(|(index, edges)| {
+                let unique: BTreeMap<_, _> = edges.iter()
+                    .map(|edge| (edge.target, edge.major)).collect();
+                unique.into_iter().map(move |(target, major)| (index, model::Edge { target, major }))
+            })
+            .zip(priorities)
+            .collect();
+        additions.sort_by_key(|(_, priority)| *priority);
+        let mut incremental = workspace;
+        incremental.importers.iter_mut().for_each(Vec::clear);
+        let mut previous = None;
+        for ((index, edge), _) in additions {
+            incremental.importers[index].push(edge);
+            let reuse = previous.as_ref().map_or(Reuse::Fresh, Reuse::Install);
+            let result = resolve_with(&incremental, &order, settings, reuse)
+                .expect("incremental workspace resolves");
+            previous = Some(lockfile_with_settings(&result, &incremental, settings));
+        }
+        prop_assert_eq!(Some(expected), previous);
     }
 
     /// The order the importers are listed in does not change the result.
@@ -229,14 +262,14 @@ proptest! {
             &workspace,
             &order,
             settings,
-            Reuse::Dedupe(&lockfile_of(&fresh, &workspace)),
+            Reuse::Dedupe(&lockfile_with_settings(&fresh, &workspace, settings)),
         )
         .expect("dedupe resolves");
         let second = outcome_with(
             &workspace,
             &order,
             settings,
-            Reuse::Dedupe(&lockfile_of(&first, &workspace)),
+            Reuse::Dedupe(&lockfile_with_settings(&first, &workspace, settings)),
         );
         prop_assert_eq!(outcome_of(&first, &workspace), second);
     }
@@ -245,8 +278,8 @@ proptest! {
     /// prior lockfile produces the same graph as resolving the mutated
     /// workspace fresh.
     #[test]
-    fn move_plus_dedupe_matches_fresh(
-        workspace in model::workspace(),
+    fn move_plus_dedupe_with_fixed_providers_matches_fresh(
+        workspace in model::fixed_provider_workspace(),
         settings in model::settings(),
         importer in 0usize..3,
         edge in 0usize..3,
@@ -255,7 +288,7 @@ proptest! {
         let order = in_order(&initial_ws);
         let initial = resolve_with(&initial_ws, &order, settings, Reuse::Fresh)
             .expect("initial workspace resolves");
-        let lockfile = lockfile_of(&initial, &initial_ws);
+        let lockfile = lockfile_with_settings(&initial, &initial_ws, settings);
         let fresh = outcome_with(&moved, &order, settings, Reuse::Fresh);
         let installed = outcome_with(&moved, &order, settings, Reuse::Install(&lockfile));
         prop_assert_eq!(&fresh, &installed);

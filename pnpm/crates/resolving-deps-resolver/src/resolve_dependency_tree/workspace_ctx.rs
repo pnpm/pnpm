@@ -264,11 +264,7 @@ pub(super) struct WorkspaceResolutionCache {
     pub(super) share_workspace_resolutions: bool,
     /// See [`SubtreeReuseCache`].
     pub(super) subtree: SubtreeReuseCache,
-    /// Memoises [`pnpm_lockfile::BoundProviders::of_snapshot`] for hashed
-    /// snapshot keys so repeated peer-scope and child-split checks on the
-    /// same snapshot key recover its bound providers at most once per
-    /// workspace pass.
-    pub(super) bound_providers: Mutex<HashMap<PkgNameVerPeer, pnpm_lockfile::BoundProviders>>,
+
     /// Resolved registry map (`"default"` + per-scope) used to
     /// materialize a prior `Registry` lockfile resolution back into its
     /// tarball URL for the `currentPkg` payload. Empty when the entry

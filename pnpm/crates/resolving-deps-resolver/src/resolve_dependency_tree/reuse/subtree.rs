@@ -16,7 +16,7 @@ use super::super::{lock_recoverable, tree_ctx::TreeCtx};
 
 /// `true` when `key` and its entire transitive subtree can be
 /// synthesized from `lockfile`: every node a plain-semver registry
-/// package present in `packages:`, every snapshot child non-`link:`, no
+/// package without declared peers present in `packages:`, every snapshot child non-`link:`, no
 /// node a dedupe target, and no `pacquet update` target at a depth the
 /// update reaches. Memoised on [`SubtreeReuseCache::reusable`] so each
 /// package is checked once.
@@ -150,6 +150,22 @@ impl SubtreeWalk<'_> {
     /// [`pnpm_lockfile::RegistryContext::moved_registry`].
     fn visit_node(&mut self, key: &PkgNameVerPeer, depth: i32) -> Visit {
         let name = key.name.to_string();
+        // Snapshot edges merge children and peer providers. Their manifest
+        // must be read before the current scope can split them again.
+        if self.lockfile.packages
+            .as_ref()
+            .and_then(|packages| packages.get(&key.without_peer()))
+            .is_some_and(|metadata| {
+                metadata.peer_dependencies
+                    .as_ref()
+                    .is_some_and(|peers| !peers.is_empty())
+                    || metadata.peer_dependencies_meta
+                        .as_ref()
+                        .is_some_and(|peers| !peers.is_empty())
+            })
+        {
+            return Visit::DECIDED_FALSE;
+        }
         if self.ctx.workspace.reuse.dedupe.covers(&name, key.suffix.version_semver())
             || self.ctx.workspace.cache.registry_context.moved_registry(key).is_some()
             || synthesize_reused_result(self.lockfile, key, &name).is_none()

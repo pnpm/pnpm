@@ -6,9 +6,7 @@ use pnpm_catalogs_resolver::{
     CatalogAnchor, CatalogResolutionResult, WantedDependency, resolve_from_catalog,
 };
 use pnpm_package_manifest::PackageManifest;
-use pnpm_resolving_deps_resolver::{
-    PeerSet, declared_peer_dependencies, own_dependency_names, peer_shadowed_dependency_names,
-};
+use pnpm_resolving_deps_resolver::{PeerSet, peer_shadowed_dependency_names};
 use std::collections::{HashMap, HashSet};
 
 /// How the resolver treats the names a package declares both as one of its
@@ -19,8 +17,6 @@ pub(super) struct PeerShadowing<'m> {
     /// snapshot records the peer's resolution for them. See
     /// [`peer_shadowed_dependency_names`].
     pub(super) shadowed: HashSet<&'m str>,
-    /// See [`own_dependency_names`].
-    own: HashSet<&'m str>,
 }
 
 impl<'m> PeerShadowing<'m> {
@@ -32,8 +28,7 @@ impl<'m> PeerShadowing<'m> {
         let shadowed: HashSet<&str> =
             peer_shadowed_dependency_names(Some(manifest.value()), in_scope, auto_install_peers)
                 .collect();
-        let own = own_dependency_names(manifest.value(), |name| shadowed.contains(name)).collect();
-        PeerShadowing { shadowed, own }
+        PeerShadowing { shadowed }
     }
 
     /// Compares only the declared peer ranges with the recorded ones. The
@@ -41,7 +36,7 @@ impl<'m> PeerShadowing<'m> {
     /// a `link:` to a workspace project or a version outside the range (an unmet
     /// peer only warns), so they say nothing about whether the lockfile is stale.
     ///
-    /// The lockfile records every [`declared_peer_dependencies`] entry, and one
+    /// The lockfile records every [`pnpm_resolving_deps_resolver::declared_peer_dependencies`] entry, and one
     /// written before it did records only the peers the package takes in its
     /// scope, so both are fresh.
     pub(super) fn check_local_peer_deps_freshness(
@@ -50,9 +45,8 @@ impl<'m> PeerShadowing<'m> {
         local_manifest: &PackageManifest,
         pkg_meta: &pnpm_lockfile::PackageMetadata,
     ) -> Result<(), FreshnessCheckError> {
-        let peer_set = PeerSet::new(declared_peer_dependencies(local_manifest.value()), |name| {
-            self.own.contains(name)
-        });
+        let peer_set =
+            PeerSet::from_manifest(local_manifest.value(), |name| self.shadowed.contains(name));
         let declared = peer_set.declared();
         let taken: HashSet<&str> = peer_set
             .taken()

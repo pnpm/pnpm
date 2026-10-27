@@ -66,6 +66,11 @@ impl SharedResolveOptions<'_> {
                 refresh_metadata: self.refresh_metadata,
                 ..Default::default()
             },
+            locked_package_policy: if self.config.trust_lockfile {
+                pnpm_resolving_resolver_base::LockedPackagePolicy::Trust
+            } else {
+                pnpm_resolving_resolver_base::LockedPackagePolicy::Verify
+            },
             policy: pnpm_resolving_resolver_base::ResolutionPolicyOptions {
                 fallback_published_by: None,
                 published_by: self.policy.published_by,

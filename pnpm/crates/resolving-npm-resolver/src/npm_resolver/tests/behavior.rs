@@ -474,7 +474,7 @@ async fn unparsable_shasum_fails_the_resolve() {
 
 #[tokio::test]
 async fn peek_manifest_from_store_bypasses_network_when_package_in_store() {
-    let server = mockito::Server::new_async().await;
+    let mut server = mockito::Server::new_async().await;
     let registry = format!("{}/", server.url());
     let (mut resolver, _tempdir) = build_resolver(&registry);
 
@@ -504,7 +504,7 @@ async fn peek_manifest_from_store_bypasses_network_when_package_in_store() {
         bare_specifier: Some("^1.0.0".to_string()),
         ..WantedDependency::default()
     };
-    let opts = ResolveOptions {
+    let mut opts = ResolveOptions {
         refresh: pnpm_resolving_resolver_base::ResolutionRefreshOptions {
             current_pkg: Some(CurrentPkg {
                 id: PkgResolutionId::from(pkg_id),
@@ -537,6 +537,35 @@ async fn peek_manifest_from_store_bypasses_network_when_package_in_store() {
     let manifest = result.package.manifest.expect("manifest should be present");
     assert_eq!(manifest["name"], "acme");
     assert_eq!(manifest["version"], "1.0.0");
+
+    opts.locked_package_policy = pnpm_resolving_resolver_base::LockedPackagePolicy::Trust;
+    opts.policy.published_by = Some(chrono::Utc::now());
+    opts.policy.trust_policy = Some(TrustPolicy::NoDowngrade);
+    let trusted = resolver
+        .resolve(&wanted, &opts)
+        .await
+        .unwrap()
+        .expect("trusted cached manifest");
+    assert_eq!(trusted.id.as_str(), "acme@1.0.0");
+    assert!(dbg!(&trusted.policy_violation).is_none());
+
+    opts.policy.published_by = Some(chrono::Utc::now() - chrono::Duration::days(1));
+    opts.refresh.current_pkg.as_mut().unwrap().published_at = Some(chrono::Utc::now().to_rfc3339());
+    let trusted = resolver
+        .resolve(&wanted, &opts)
+        .await
+        .unwrap()
+        .expect("trusted recent package");
+    assert!(dbg!(&trusted.policy_violation).is_none());
+
+    opts.refresh.repick_current_version = true;
+    let mock = server
+        .mock("GET", "/acme")
+        .with_status(400)
+        .create_async()
+        .await;
+    assert!(dbg!(resolver.resolve(&wanted, &opts).await).is_err());
+    mock.assert_async().await;
 }
 
 #[tokio::test]
