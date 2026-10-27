@@ -51,6 +51,37 @@ fn script_sees_env_file_variables() {
     drop(root);
 }
 
+/// Values reach scripts as written: backslashes, a `$` that starts no
+/// name, and quotes inside an unquoted value are kept, and `$NAME`
+/// expands names that contain `_`.
+#[test]
+fn script_sees_env_file_values_as_written() {
+    let CommandTempCwd { pacquet: _, root, workspace, .. } = CommandTempCwd::init();
+    write_manifest(&workspace);
+    fs::write(
+        workspace.join(".env"),
+        r#"PACQUET_ENV_FILE_BASE=C:\Users\me
+PACQUET_ENV_FILE_SCRIPT=$PACQUET_ENV_FILE_BASE\data
+PACQUET_ENV_FILE_EXPORTED="cost $5"
+PACQUET_ENV_FILE_QUOTED={"k":"v"}
+"#,
+    )
+    .expect("write .env");
+
+    let output = pacquet_in(&workspace)
+        .with_args(["--env-file", ".env", "print-env"])
+        .output()
+        .expect("run pacquet with --env-file");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(output.status.success(), "command must exit 0, got: {output:?}");
+    assert!(
+        stdout.contains(r#"C:\Users\me\data|cost $5|{"k":"v"}"#),
+        "script must see the values as written; stdout: {stdout:?}",
+    );
+
+    drop(root);
+}
+
 /// Repeatable: later files override variables defined in earlier files,
 /// matching `node --env-file`.
 #[test]

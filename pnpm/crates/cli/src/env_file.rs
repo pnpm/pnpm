@@ -27,12 +27,15 @@
 //! after a `run`/`exec` script name — are left alone (see
 //! `crate::parse_boundary`).
 
+mod parse;
+
 use crate::{
     flag_relocation::ArgTable,
     parse_boundary::{option_width, passthrough_from, union_arity},
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
+use parse::{ParseError, Parser};
 use std::{
     collections::HashSet,
     ffi::{OsStr, OsString},
@@ -55,20 +58,14 @@ pub enum EnvFileError {
 }
 
 impl EnvFileError {
-    fn load(path: &Path, error: &dotenvy::Error) -> Self {
-        let message = match error {
-            // dotenvy reports the offending line; only its position is
-            // repeated here, so a malformed line cannot leak a secret into
-            // stderr and CI logs.
-            dotenvy::Error::LineParse(_, index) => {
-                format!("invalid dotenv entry (error at index {index})")
-            }
-            // `from_read_iter` reads an in-memory slice, so the only other
-            // error `read_line` can raise is `InvalidData` on non-UTF-8
-            // bytes.
-            _ => "file contains invalid UTF-8".to_string(),
-        };
-        Self::Parse { path: path.to_owned(), message }
+    /// A malformed entry. [`ParseError`] carries only the line number, so a
+    /// malformed line cannot leak a secret into stderr and CI logs.
+    fn parse(path: &Path, error: ParseError) -> Self {
+        Self::Parse { path: path.to_owned(), message: error.to_string() }
+    }
+
+    fn invalid_utf8(path: &Path) -> Self {
+        Self::Parse { path: path.to_owned(), message: "file contains invalid UTF-8".to_string() }
     }
 
     /// A key or value with an embedded NUL byte, which `std::env::set_var`
@@ -109,17 +106,22 @@ pub fn strip_flags(argv: &[OsString]) -> Vec<OsString> {
 }
 
 /// The UTF-8 byte-order mark Windows editors routinely prepend to a `.env`
-/// file. `dotenvy::from_path_iter` never runs the BOM removal that
-/// `Iter::load` performs, so without this the first key would carry a
-/// leading U+FEFF and fail to parse (or misname the variable).
+/// file. Without stripping it, the first key would carry a leading U+FEFF
+/// and fail to parse.
 const UTF8_BOM: [u8; 3] = [0xEF, 0xBB, 0xBF];
 
 fn load_one(path: &Path, loaded_keys: &mut HashSet<String>) -> miette::Result<()> {
     let bytes =
         std::fs::read(path).map_err(|source| EnvFileError::Read { path: path.to_owned(), source })?;
     let stripped = bytes.strip_prefix(&UTF8_BOM).unwrap_or(&bytes);
-    for pair in dotenvy::from_read_iter(stripped) {
-        let (key, value) = pair.map_err(|error| EnvFileError::load(path, &error))?;
+    let content = std::str::from_utf8(stripped).map_err(|_| EnvFileError::invalid_utf8(path))?;
+    let mut parser = Parser::new(content);
+    // A value expands from the environment, which by then holds the entries
+    // set from earlier lines and files.
+    while let Some((key, value)) = parser
+        .next_entry(|name| std::env::var(name).ok())
+        .map_err(|error| EnvFileError::parse(path, error))?
+    {
         // `set_var` panics on a NUL byte in either half; `var_os` would
         // report a NUL key as merely absent, so the guard below cannot be
         // relied on to catch it.
@@ -141,7 +143,7 @@ fn load_one(path: &Path, loaded_keys: &mut HashSet<String>) -> miette::Result<()
 }
 
 /// Normalize a dotenv variable name for set membership. Windows environment
-/// variable names are case-insensitive and `dotenvy` keys are ASCII.
+/// variable names are case-insensitive and dotenv keys are ASCII.
 fn env_key_id(key: &str) -> String {
     if cfg!(windows) { key.to_ascii_uppercase() } else { key.to_owned() }
 }
