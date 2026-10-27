@@ -10,7 +10,7 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use mockito::Matcher;
-use pnpm_testing_utils::bin::CommandTempCwd;
+use pnpm_testing_utils::{bin::CommandTempCwd, diagnostics::assert_diagnostic_contains};
 use serde_json::json;
 use std::{
     fs,
@@ -195,6 +195,12 @@ fn a_range_matching_every_version_is_a_full_unpublish() {
     assert!(!output.status.success(), "removing every version needs --force too");
     let stderr = stderr_of(&output);
     assert!(stderr.contains("ERR_PNPM_UNPUBLISH_CONFIRM"), "{stderr}");
+    assert_diagnostic_contains(
+        &stderr,
+        "test-pkg@>=0.0.1 matches every published version of test-pkg (0.0.1, 0.0.2).",
+    );
+    assert_diagnostic_contains(&stderr, "Run pnpm unpublish test-pkg@>=0.0.1 --force");
+    assert!(!stderr.contains("@<version>"), "the range was a specific version request: {stderr}");
     drop((root, server));
 }
 

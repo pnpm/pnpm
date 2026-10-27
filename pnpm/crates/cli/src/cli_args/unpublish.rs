@@ -70,6 +70,19 @@ pub enum UnpublishError {
     },
 
     #[display(
+        "{package_name}@{version_range} matches every published version of {package_name} ({versions_list}).\nRun pnpm unpublish {package_name}@{version_range} --force to remove the whole package from the registry."
+    )]
+    #[diagnostic(code(ERR_PNPM_UNPUBLISH_CONFIRM))]
+    RangeMatchesEveryVersion {
+        #[error(not(source))]
+        package_name: String,
+        #[error(not(source))]
+        version_range: String,
+        #[error(not(source))]
+        versions_list: String,
+    },
+
+    #[display(
         "This package cannot be completely unpublished. Deprecate it instead or contact npm support."
     )]
     #[diagnostic(code(ERR_PNPM_UNPUBLISH_FORBIDDEN))]
@@ -173,7 +186,8 @@ impl UnpublishArgs {
         };
 
         let Some(range) = version_range else {
-            return self.unpublish_all::<Sys, Reporter>(&mut mutation, &package_url, &pkg).await;
+            return self.unpublish_all::<Sys, Reporter>(&mut mutation, &package_url, &pkg, None)
+                .await;
         };
 
         let versions_to_unpublish = versions_matching_range(&pkg.versions, &range);
@@ -183,7 +197,13 @@ impl UnpublishArgs {
 
         // Removing every version is a full unpublish, protections included.
         if versions_to_unpublish.len() == pkg.versions.len() {
-            return self.unpublish_all::<Sys, Reporter>(&mut mutation, &package_url, &pkg).await;
+            return self.unpublish_all::<Sys, Reporter>(
+                &mut mutation,
+                &package_url,
+                &pkg,
+                Some(range.as_str()),
+            )
+            .await;
         }
 
         unpublish_versions::<Sys, Reporter>(
@@ -204,15 +224,22 @@ impl UnpublishArgs {
         mutation: &mut MutationContext<'_>,
         package_url: &str,
         pkg: &Packument,
+        version_range: Option<&str>,
     ) -> miette::Result<String> {
         if !self.force {
-            return Err(UnpublishError::ConfirmRequired {
-                package_name: pkg.name.clone(),
-                versions_list: pkg.versions
-                    .keys()
-                    .cloned()
-                    .collect::<Vec<_>>()
-                    .join(", "),
+            let package_name = pkg.name.clone();
+            let versions_list = pkg.versions
+                .keys()
+                .cloned()
+                .collect::<Vec<_>>()
+                .join(", ");
+            return Err(match version_range {
+                None => UnpublishError::ConfirmRequired { package_name, versions_list },
+                Some(range) => UnpublishError::RangeMatchesEveryVersion {
+                    package_name,
+                    version_range: range.to_string(),
+                    versions_list,
+                },
             }
             .into());
         }

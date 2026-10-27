@@ -100,6 +100,21 @@ test('unpublish: should refuse to unpublish entire package without --force', asy
   }).rejects.toThrow('pnpm unpublish --force')
 })
 
+test('unpublish: should name the range when it matches every version', async () => {
+  const pkgName = 'test-unpublish-only-version'
+  await publishVersion(pkgName, '0.0.1')
+
+  const promise = unpublish.handler({
+    ...DEFAULT_OPTS,
+    cliOptions: {},
+    configByUri: CONFIG_BY_URI,
+  }, [`${pkgName}@0.0.1`])
+  await expect(promise).rejects.toThrow(`${pkgName}@0.0.1 matches every published version of ${pkgName} (0.0.1).
+Run pnpm unpublish ${pkgName}@0.0.1 --force to remove the whole package from the registry.`)
+
+  expect(await getVersions(pkgName)).toEqual(['0.0.1'])
+})
+
 test('unpublish: should throw error when package not found', async () => {
   await expect(async () => {
     await unpublish.handler({

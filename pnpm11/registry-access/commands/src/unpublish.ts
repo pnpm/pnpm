@@ -152,8 +152,9 @@ async function unpublishPackage (
     registryUrl,
   }
 
+  const force = opts.cliOptions?.force ?? false
   if (!versionRange) {
-    return unpublishAll(ctx, pkg, opts.cliOptions)
+    return unpublishAll(ctx, pkg, { force })
   }
 
   const versionsToUnpublish = getVersionsMatchingRange(allVersions, versionRange)
@@ -162,7 +163,7 @@ async function unpublishPackage (
   }
 
   if (versionsToUnpublish.length === Object.keys(allVersions).length) {
-    return unpublishAll(ctx, pkg, opts.cliOptions)
+    return unpublishAll(ctx, pkg, { force, versionRange })
   }
 
   return unpublishVersions(ctx, pkg, versionsToUnpublish)
@@ -268,14 +269,18 @@ async function deleteTarballs (ctx: RegistryMutationContext, tarballs: string[])
 async function unpublishAll (
   ctx: RegistryMutationContext,
   pkg: PackumentResponse,
-  cliOptions: UnpublishOptions['cliOptions']
+  opts: { force: boolean, versionRange?: string }
 ): Promise<string> {
   const packageName = pkg.name
   const versionCount = Object.keys(pkg.versions).length
-  const force = cliOptions?.force ?? false
 
-  if (!force) {
+  if (!opts.force) {
     const versionsList = Object.keys(pkg.versions).join(', ')
+    if (opts.versionRange) {
+      const spec = `${packageName}@${opts.versionRange}`
+      throw new PnpmError('UNPUBLISH_CONFIRM', `${spec} matches every published version of ${packageName} (${versionsList}).
+Run pnpm unpublish ${spec} --force to remove the whole package from the registry.`)
+    }
     throw new PnpmError('UNPUBLISH_CONFIRM', `Run pnpm unpublish --force to remove all published versions of ${packageName} (${versionsList}) from the registry.
 This is a protection mechanism to prevent accidental unpublish of packages with many versions.
 If you want to unpublish a specific version, run pnpm unpublish ${packageName}@<version>`)
