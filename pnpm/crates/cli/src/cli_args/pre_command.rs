@@ -183,17 +183,16 @@ fn execute_pin_decision(
                 preloaded_config: None,
             })
         }
-        PinDecision::Record { at: _, package_manager } => {
+        PinDecision::Record { at, package_manager } => {
             check_manifest_runtimes(invocation, config, manifest)?;
             let record_result = try_load_record_config(invocation, config_overrides, dir)?;
             match record_result {
                 Ok(record_config) if !invocation.warnings.fail(&record_config, dir) => {
-                    let env_root = record_config.root_project_manifest_dir(dir).to_path_buf();
                     Ok(PreCommandOutcome {
                         plan: Some(env_lockfile_sync_plan(
                             invocation,
                             record_config,
-                            env_root,
+                            at,
                             package_manager,
                         )),
                         preloaded_config: None,

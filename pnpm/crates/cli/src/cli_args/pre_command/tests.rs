@@ -498,17 +498,22 @@ fn pre_command_plan_records_a_pin_when_version_switching_is_turned_off() {
 /// so turning the switch off never cements one nobody runs.
 #[test]
 fn pre_command_plan_records_nothing_for_an_unsatisfiable_pin_when_switching_is_turned_off() {
-    let root = TempDir::new().expect("tmp dir");
-    write_dev_engine_manifest(root.path(), "^999.0.0");
+    for spec in ["^999.0.0", "^11.0.0"] {
+        let root = TempDir::new().expect("tmp dir");
+        write_dev_engine_manifest(root.path(), spec);
 
-    let plan = pre_command_plan_from_input(
-        &pre_command_input(root.path()),
-        &ConfigOverrides::default(),
-        SwitchProcessState { package_manager_switch_disabled: true, executed_by_corepack: false },
-    )
-    .expect("pre-command plan");
+        let plan = pre_command_plan_from_input(
+            &pre_command_input(root.path()),
+            &ConfigOverrides::default(),
+            SwitchProcessState {
+                package_manager_switch_disabled: true,
+                executed_by_corepack: false,
+            },
+        )
+        .expect("pre-command plan");
 
-    assert!(plan.is_none(), "unexpected pre-command plan: {plan:?}");
+        assert!(plan.is_none(), "unexpected pre-command plan for {spec}: {plan:?}");
+    }
 }
 
 #[test]

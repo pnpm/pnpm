@@ -168,15 +168,22 @@ async function resolveIntegrities (
   extraOptions: Pick<ResolveIntegritiesOptions, 'save' | 'frozenLockfile' | 'specifier'>
 ): Promise<EnvLockfile> {
   versionSwitch.store ??= await createPackageManagerStore(versionSwitch)
-  versionSwitch.envLockfile = await resolvePackageManagerIntegrities(version, {
-    envLockfile: versionSwitch.envLockfile,
-    registriesByScope: versionSwitch.packageManagerConfig.registriesByScope,
-    rootDir: versionSwitch.at,
-    storeController: versionSwitch.store.ctrl,
-    storeDir: versionSwitch.store.dir,
-    ...packageManagerTrustPolicy(versionSwitch.config),
-    ...extraOptions,
-  })
+  try {
+    versionSwitch.envLockfile = await resolvePackageManagerIntegrities(version, {
+      envLockfile: versionSwitch.envLockfile,
+      registriesByScope: versionSwitch.packageManagerConfig.registriesByScope,
+      rootDir: versionSwitch.at,
+      storeController: versionSwitch.store.ctrl,
+      storeDir: versionSwitch.store.dir,
+      ...packageManagerTrustPolicy(versionSwitch.config),
+      ...extraOptions,
+    })
+  } catch (err: unknown) {
+    const store = versionSwitch.store
+    versionSwitch.store = undefined
+    await store?.ctrl.close()
+    throw err
+  }
   return versionSwitch.envLockfile
 }
 

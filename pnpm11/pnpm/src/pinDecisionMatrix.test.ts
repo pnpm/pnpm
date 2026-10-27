@@ -644,7 +644,7 @@ test('pin_recorded_only_from_full_config_at_lockfile_dir', async () => {
     // 5. Corrupted pnpm-lock.yaml is skipped when the pin does not consult the lockfile
     fs.writeFileSync(path.join(globalConfigDir, 'config.yaml'), '', 'utf8')
     fs.writeFileSync(path.join(root, 'pnpm-workspace.yaml'), 'packages:\n  - .\n', 'utf8')
-    fs.writeFileSync(path.join(root, 'pnpm-lock.yaml'), ': : : not valid yaml [ [ [\n', 'utf8')
+    fs.writeFileSync(path.join(root, 'pnpm-lock.yaml'), '---\n: : : not valid yaml [ [ [\n---\n', 'utf8')
     fs.writeFileSync(
       path.join(root, 'package.json'),
       JSON.stringify({
@@ -656,7 +656,8 @@ test('pin_recorded_only_from_full_config_at_lockfile_dir', async () => {
     expect(await runCliFlow(root, ['--dir', root, '--reporter=silent', 'root'])).toEqual({ outcome: 'nothing' })
     expect(await runCliFlow(root, ['--dir', root, '--reporter=silent', '--global', 'root'])).toEqual({ outcome: 'nothing' })
 
-    // 6. Corrupted pnpm-lock.yaml is tolerated when printing the version
+    // 6. Corrupted pnpm-lock.yaml fails a switch command, is tolerated when printing the version,
+    // and a switch failure closes the store
     fs.writeFileSync(
       path.join(root, 'package.json'),
       JSON.stringify({
@@ -665,10 +666,14 @@ test('pin_recorded_only_from_full_config_at_lockfile_dir', async () => {
       }),
       'utf8'
     )
-    expect(await runCliFlow(root, ['--dir', root, '--reporter=silent', '--version'])).toEqual({
-      outcome: 'switch',
-      version: '9.1.0',
-    })
+    expect(await runCliFlow(root, ['--dir', root, '--reporter=silent', 'root'])).toEqual({ outcome: 'error' })
+    expect(await runCliFlow(root, ['--dir', root, '--reporter=silent', '--version'])).toEqual({ outcome: 'nothing' })
+
+    fs.unlinkSync(path.join(root, 'pnpm-lock.yaml'))
+    closeStore.mockClear()
+    resolvePackageManagerIntegrities.mockRejectedValueOnce(new Error('lockfile write failed'))
+    expect(await runCliFlow(root, ['--dir', root, '--reporter=silent', '--version'])).toEqual({ outcome: 'nothing' })
+    expect(closeStore).toHaveBeenCalledTimes(1)
   } finally {
     if (prevXdgConfigHome === undefined) {
       delete process.env.XDG_CONFIG_HOME

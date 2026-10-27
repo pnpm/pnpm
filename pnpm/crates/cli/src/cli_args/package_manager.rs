@@ -86,6 +86,9 @@ pub(crate) fn package_manager_to_sync_for_version(
     if pm.name != "pnpm" || !should_persist_package_manager_lockfile(&pm) {
         return None;
     }
+    if !version_satisfies(running_version, wanted_version) {
+        return None;
+    }
     if running_version == PNPM_VERSION {
         let source_version = current_source_pnpm_version().or_else(|| pnpm_version_from(root_dir));
         if let Some(version) =
@@ -97,9 +100,6 @@ pub(crate) fn package_manager_to_sync_for_version(
                 running_pnpm_for_range: false,
             });
         }
-    }
-    if !version_satisfies(running_version, wanted_version) {
-        return None;
     }
     if let Some(version) = exact_version(wanted_version) {
         return Some(PackageManagerToSync {
