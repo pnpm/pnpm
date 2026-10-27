@@ -1,5 +1,6 @@
 pub use errors::InstallWithFreshLockfileError;
 pub(crate) use lockfile_build::compute_package_extensions_checksum;
+pub(crate) use manifest_transforms::resolver_manifest_hooks;
 pub(crate) use seed_policy::prefer_requested_version;
 pub use seed_policy::{ImporterUpdateSeedPolicy, PreferredVersionsOverride, UpdateSeedPolicy};
 
@@ -63,7 +64,6 @@ use std::{
 use tokio::sync::watch;
 
 mod manifest_transforms;
-pub(crate) use manifest_transforms::resolver_manifest_hooks;
 mod resolve;
 mod resolver_setup;
 

@@ -114,7 +114,7 @@ importers:
             workspace: super::WorkspaceProjects {
                 packages: None,
                 manifests_by_dir: Box::leak(Box::default()),
-                directory_manifests: Box::leak(Box::default()),
+                directory_manifests: crate::install::DirectoryManifests::none(),
                 catalogs: Box::leak(Box::default()),
                 canonical_paths: Box::leak(Box::default()),
                 registries: Box::leak(Box::default()),

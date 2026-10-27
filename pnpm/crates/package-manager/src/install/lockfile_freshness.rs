@@ -5,6 +5,7 @@ pub(crate) use directory_deps::{
     ProjectManifestsByDir, dependency_manifests_by_dir, is_declared_local_directory,
     project_manifests_by_dir, spec_target_and_range,
 };
+pub(crate) use directory_manifests::DirectoryManifests;
 pub(crate) use error::FreshnessCheckError;
 pub(super) use manifest::manifest_has_effective_dependencies;
 pub(crate) use manifest::{
@@ -16,8 +17,6 @@ pub(crate) use settings::{
 };
 
 mod directory_manifests;
-
-pub(crate) use directory_manifests::DirectoryManifests;
 
 use rayon::prelude::*;
 
@@ -496,7 +495,7 @@ fn check_single_importer(
         .collect())
 }
 
-fn ignored_optional_matcher(config: &Config) -> pnpm_matcher::Matcher {
+pub(crate) fn ignored_optional_matcher(config: &Config) -> pnpm_matcher::Matcher {
     pnpm_matcher::create_matcher(
         config.ignored_optional_dependencies.as_deref().unwrap_or_default(),
     )

@@ -30,7 +30,7 @@ fn write_package(dir: &Path, manifest: &Value) {
 }
 
 fn install(fixture: &WorkspaceFixture, args: &[&str]) -> Vec<Value> {
-    let output = fixture.command_at(&fixture.workspace, ["install"].iter().chain(args));
+    let output = fixture.command_at(&fixture.workspace, std::iter::once(&"install").chain(args));
     assert_success(&output);
     ndjson_records(&output)
 }
