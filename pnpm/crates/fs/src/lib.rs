@@ -48,6 +48,7 @@ pub use secure_temp_lock::{
 };
 pub use symlink_dir::*;
 pub use sync_file::sync_file;
+pub use umask_named_tempfile::umask_named_tempfile_in;
 #[cfg(target_os = "wasi")]
 pub use wasi_fs::{
     check_file_owner, create_inheriting_mode as create_file_inheriting_mode,
@@ -85,6 +86,7 @@ mod retry;
 mod secure_temp_lock;
 mod symlink_dir;
 mod sync_file;
+mod umask_named_tempfile;
 #[cfg(target_os = "wasi")]
 mod wasi_fs;
 mod write_atomic;
