@@ -272,10 +272,20 @@ pub(in crate::install::lockfile_freshness) fn is_deploy_file_url_key(
     directory: &str,
 ) -> bool {
     matches!(dep_spec.version, pnpm_lockfile::ImporterDepVersion::Alias(_))
-        && matches!(
-            key.suffix.version(),
-            pnpm_lockfile::VersionPart::File(path)
-                if !pnpm_lockfile::is_local_tarball_path(path)
-                    && (path.starts_with("///") || (path.starts_with("//") && path != directory)),
-        )
+        && is_deploy_file_url_package_key(key, directory)
+}
+
+/// Whether `key`, a directory package recorded at `directory`, has the
+/// `file://...` shape of an entry synthesized by `pnpm deploy`. See
+/// [`is_deploy_file_url_key`].
+pub(in crate::install::lockfile_freshness) fn is_deploy_file_url_package_key(
+    key: &pnpm_lockfile::PackageKey,
+    directory: &str,
+) -> bool {
+    matches!(
+        key.suffix.version(),
+        pnpm_lockfile::VersionPart::File(path)
+            if !pnpm_lockfile::is_local_tarball_path(path)
+                && (path.starts_with("///") || (path.starts_with("//") && path != directory)),
+    )
 }

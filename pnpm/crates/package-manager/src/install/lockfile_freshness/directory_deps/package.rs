@@ -11,10 +11,15 @@ use super::{
 };
 use pnpm_package_manifest::PackageManifest;
 
+/// The manifest the resolver read for `dep`: the hooked one the check holds,
+/// else the unhooked one with the overrides applied.
 fn read_and_override_manifest(
     check: &ImporterSatisfactionCheck<'_>,
     dep: &LocalDepContext<'_>,
 ) -> Result<PackageManifest, FreshnessCheckError> {
+    if let Some(manifest) = check.workspace.directory_manifests.get(dep.dir, dep.declared_as_file) {
+        return Ok(manifest.clone());
+    }
     let mut local_manifest = unhooked_manifest(&InjectedDirectory {
         dir: dep.dir,
         declared_as_file: dep.declared_as_file,

@@ -38,40 +38,27 @@ pub(super) async fn apply_manifest_hooks(
         result.package.manifest = Some(link_file_deps_inside_package(manifest));
     }
 
-    if let Some(hook) = ctx.workspace.hooks.manifests.manifest_hook.as_ref()
-        && let Some(manifest) = result.package.manifest.take()
-    {
-        result.package.manifest = Some(hook(manifest));
-    }
-
-    if let Some(pnpmfile_hook) = ctx.workspace.hooks.manifests.pnpmfile_hook.as_ref()
-        && let Some(manifest) = result.package.manifest.take()
-    {
-        let log = ctx.workspace.hooks.read_package_log
+    let Some(manifest) = result.package.manifest.take() else {
+        return Ok(());
+    };
+    // Directory resolutions carry their directory so the hook can tell a
+    // workspace project's dependency instance apart from a registry
+    // manifest — see `HookContext::dir`.
+    let hook_ctx = || pnpm_hooks::HookContext {
+        log: ctx.workspace.hooks.read_package_log
             .clone()
-            .unwrap_or_else(|| Arc::new(|_| {}));
-        // Directory resolutions carry their directory so the hook can tell a
-        // workspace project's dependency instance apart from a registry
-        // manifest — see `HookContext::dir`.
-        let dir = match &result.resolution {
+            .unwrap_or_else(|| Arc::new(|_| {})),
+        dir: match &result.resolution {
             pnpm_lockfile::LockfileResolution::Directory(directory_resolution) => {
                 Some(directory_resolution.directory.clone())
             }
             _ => None,
-        };
-        let hook_ctx = pnpm_hooks::HookContext { log, dir };
-
-        let updated = pnpmfile_hook
-            .read_package((*manifest).clone(), hook_ctx)
-            .await
-            .map_err(ResolveDependencyTreeError::from)?;
-        result.package.manifest = Some(updated);
-    }
-
-    if let Some(hook) = ctx.workspace.hooks.manifests.overrides_hook.as_ref()
-        && let Some(manifest) = result.package.manifest.take()
-    {
-        result.package.manifest = Some(hook(manifest));
-    }
+        },
+    };
+    let hooked = ctx.workspace.hooks.manifests
+        .apply(manifest, hook_ctx)
+        .await
+        .map_err(ResolveDependencyTreeError::from)?;
+    result.package.manifest = Some(hooked);
     Ok(())
 }

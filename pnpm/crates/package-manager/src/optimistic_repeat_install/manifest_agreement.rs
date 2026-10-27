@@ -175,6 +175,8 @@ pub(super) fn check_projects_content(
         check.project_manifests.iter().map(|(_, manifest)| *manifest),
         check.manifests.dependency_manifests,
     );
+    // The pnpmfile drift check covers the hooks this check does not apply.
+    let directory_manifests = crate::install::DirectoryManifests::default();
     let content_check = ProjectContentCheck {
         workspace_root: check.workspace_root,
         config: check.config,
@@ -183,6 +185,7 @@ pub(super) fn check_projects_content(
         workspace: crate::install::WorkspaceProjects {
             packages: workspace_packages.as_ref(),
             manifests_by_dir: &project_manifests,
+            directory_manifests: &directory_manifests,
             catalogs: check.catalogs,
             canonical_paths: &pnpm_fs::CanonicalPaths::default(),
             registries: &check.config.registry_context(),

@@ -63,6 +63,7 @@ use std::{
 use tokio::sync::watch;
 
 mod manifest_transforms;
+pub(crate) use manifest_transforms::resolver_manifest_hooks;
 mod resolve;
 mod resolver_setup;
 
