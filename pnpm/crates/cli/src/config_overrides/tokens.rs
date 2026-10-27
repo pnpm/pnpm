@@ -154,9 +154,10 @@ pub(super) enum SettingArity {
 /// setting the invoked command declares as its own option is left for
 /// clap; a setting that collides with a *global* option would be claimed
 /// on every command line and so must not appear here at all.
-pub(super) const BARE_SETTING_FLAGS: [(&str, SettingArity); 46] = [
+pub(super) const BARE_SETTING_FLAGS: [(&str, SettingArity); 47] = [
     ("allow-unused-patches", SettingArity::Boolean),
     ("auto-dedupe", SettingArity::Boolean),
+    ("cache-dir", SettingArity::Text),
     ("child-concurrency", SettingArity::Parsed(is_i32)),
     ("dangerously-allow-all-builds", SettingArity::Boolean),
     ("engine-strict", SettingArity::Boolean),
