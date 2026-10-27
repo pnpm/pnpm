@@ -445,21 +445,13 @@ fn deliberate_divergences_have_witnesses() {
         touch(root, "lib/index.js");
         touch(root, "lib/index.js.map");
         let actual = packlist(root, &manifest).unwrap();
+        let resp = with_oracle(|o| o.query(root, &manifest));
         let npm_pack = run_npm_pack_dry_run(root, &[root]);
         assert!(actual.contains(&"lib/index.js".to_string()));
         assert!(!actual.contains(&"lib/index.js.map".to_string()));
+        assert!(!resp.npm.contains(&"lib/index.js.map".to_string()));
+        assert!(!resp.pnpm.contains(&"lib/index.js.map".to_string()));
         assert!(npm_pack["pkg"].contains(&"lib/index.js".to_string()));
-        if npm_major_version() >= 11 {
-            assert!(
-                npm_pack["pkg"].contains(&"lib/index.js.map".to_string()),
-                "npm v11+ must include lib/index.js.map when !*.map is anchored at root",
-            );
-        } else {
-            assert!(
-                !npm_pack["pkg"].contains(&"lib/index.js.map".to_string()),
-                "npm v10 must exclude lib/index.js.map when !*.map is unanchored",
-            );
-        }
         observed.insert(
             classify_divergence(root, &manifest, "lib/index.js.map", false)
                 .expect("UnanchoredFilesFieldNegation witness"),
@@ -471,22 +463,6 @@ fn deliberate_divergences_have_witnesses() {
         .copied()
         .collect();
     assert_eq!(observed, expected);
-}
-
-fn npm_major_version() -> u32 {
-    let npm_bin = if cfg!(windows) { "npm.cmd" } else { "npm" };
-    let output = Command::new(npm_bin)
-        .arg("--version")
-        .output()
-        .expect("spawn npm --version");
-    assert!(output.status.success(), "npm --version failed");
-    let version = String::from_utf8_lossy(&output.stdout);
-    version
-        .trim()
-        .split('.')
-        .next()
-        .and_then(|major| major.parse().ok())
-        .expect("parse npm major version")
 }
 
 #[derive(Debug, Clone, Serialize)]

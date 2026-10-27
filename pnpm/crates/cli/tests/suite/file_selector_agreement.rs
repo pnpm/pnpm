@@ -119,7 +119,7 @@ fn create_fixture_workspace() -> WorkspaceFixture {
     escaping.expect("create escaping symlink");
     // Unprivileged Windows runners without Developer Mode cannot create symlinks to missing targets.
     #[cfg(not(unix))]
-    escaping.ok();
+    let _ = escaping;
 
     fixture
 }
