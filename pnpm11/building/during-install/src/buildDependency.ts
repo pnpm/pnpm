@@ -2,7 +2,7 @@ import assert from 'node:assert'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
-import { linkBins } from '@pnpm/bins.linker'
+import { linkBinsOfPkgsByAliases } from '@pnpm/bins.linker'
 import { dirRequiresBuild } from '@pnpm/building.pkg-requires-build'
 import { packageIsInstallable } from '@pnpm/config.package-is-installable'
 import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
@@ -52,7 +52,7 @@ export interface BuildDependencyOptions {
   userAgent?: string
   hoistedLocations?: Record<string, string[]>
   builtHoistedDeps?: Record<string, DeferredPromise<void>>
-  /** The private hoisted links, so a build that changes a bin target relinks it. */
+  /** See [`buildModules`]. */
   privateHoisting?: { hoistedDependencies: HoistedDependencies, modulesDir: string }
   enableGlobalVirtualStore?: boolean
   frozenStore?: boolean
@@ -119,7 +119,7 @@ export async function buildDependency<NodeId extends string> (
     await state.slotLock?.release()
     if (state.succeeded) {
       await copyToOtherHoistedLocations(depNode, opts)
-      await relinkPrivatelyHoistedBins(depNode, opts)
+      await relinkPrivatelyHoistedBins(depNode, depGraph, opts)
     }
     if (opts.builtHoistedDeps) {
       opts.builtHoistedDeps[depNode.depPath].resolve()
@@ -367,25 +367,45 @@ async function skipFailedOptionalBuild<NodeId extends string> (
   })
 }
 
+const pendingPrivateBinLinks = new Map<string, Promise<void>>()
+
 async function relinkPrivatelyHoistedBins<NodeId extends string> (
   depNode: DependenciesGraphNode<NodeId>,
+  depGraph: DependenciesGraph<NodeId>,
   opts: BuildDependencyOptions
 ): Promise<void> {
   if (!opts.privateHoisting || !depNode.hasBin) return
   const { hoistedDependencies, modulesDir } = opts.privateHoisting
-  const aliases = Object.entries(hoistedDependencies[depNode.depPath as DepPath] ?? {})
+  const aliases = privateAliases(hoistedDependencies, depNode.depPath)
+  if (aliases.length === 0) return
+  const hoistedAliasesWithBins = (Object.values(depGraph) as Array<DependenciesGraphNode<NodeId>>)
+    .filter((node) => node.hasBin)
+    .flatMap((node) => privateAliases(hoistedDependencies, node.depPath))
+  const previous = pendingPrivateBinLinks.get(modulesDir) ?? Promise.resolve()
+  const current = previous.catch(() => {}).then(async () => {
+    await linkBinsOfPkgsByAliases(hoistedAliasesWithBins, path.join(modulesDir, '.bin'), {
+      allowExoticManifests: true,
+      extraNodePaths: opts.extraNodePaths,
+      forceForPackages: new Set(aliases.map((alias) => path.normalize(path.resolve(modulesDir, alias)))),
+      modulesDir,
+      preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
+      warn: (message, code) => {
+        if (code !== 'BINARIES_CONFLICT') opts.warn(message)
+      },
+    })
+  })
+  pendingPrivateBinLinks.set(modulesDir, current)
+  try {
+    await current
+  } finally {
+    if (pendingPrivateBinLinks.get(modulesDir) === current) pendingPrivateBinLinks.delete(modulesDir)
+  }
+}
+
+function privateAliases (hoistedDependencies: HoistedDependencies, depPath: string): string[] {
+  return Object.entries(hoistedDependencies[depPath as DepPath] ?? {})
     .filter(([, visibility]) => visibility === 'private')
     .map(([alias]) => alias)
-  if (aliases.length === 0) return
-  await linkBins(modulesDir, path.join(modulesDir, '.bin'), {
-    allowExoticManifests: true,
-    extraNodePaths: opts.extraNodePaths,
-    forceForPackages: new Set(aliases.map((alias) => path.normalize(path.resolve(modulesDir, alias)))),
-    preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
-    warn: (message, code) => {
-      if (code !== 'BINARIES_CONFLICT') opts.warn(message)
-    },
-  })
 }
 
 async function copyToOtherHoistedLocations<NodeId extends string> (

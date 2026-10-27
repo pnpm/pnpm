@@ -52,6 +52,7 @@ export async function buildModules<NodeId extends string> (
     storeController: StoreController
     rootModulesDir: string
     hoistedLocations?: Record<string, string[]>
+    /** The private hoisted links, so a build that changes a bin target relinks it. */
     privateHoisting?: { hoistedDependencies: HoistedDependencies, modulesDir: string }
     enableGlobalVirtualStore?: boolean
     frozenStore?: boolean

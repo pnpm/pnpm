@@ -7,6 +7,7 @@ import { parse } from '@pnpm/deps.path'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import type { PackageManifest, ProjectManifest } from '@pnpm/types'
 import { readWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
+import isWindows from 'is-windows'
 import { loadJsonFileSync } from 'load-json-file'
 import PATH from 'path-name'
 import { writeYamlFileSync } from 'write-yaml-file'
@@ -15,6 +16,7 @@ import { execPnpmSync, pnpmBinLocation } from '../utils/index.js'
 
 const pkgRoot = path.join(import.meta.dirname, '..', '..')
 const pnpmPkg = loadJsonFileSync<PackageManifest>(path.join(pkgRoot, 'package.json'))
+const testOnPosix = isWindows() ? test.skip : test
 
 test('installation fails if lifecycle script fails', () => {
   prepare({
@@ -28,10 +30,7 @@ test('installation fails if lifecycle script fails', () => {
   expect(result.status).toBe(1)
 })
 
-const testOnUnix = process.platform === 'win32' ? test.skip : test
-
-// pnpm/pnpm#17402
-testOnUnix('a privately hoisted bin is relinked after its build replaces it', () => {
+testOnPosix('a privately hoisted bin is relinked after its build replaces it (pnpm/pnpm#17402)', () => {
   prepare({ dependencies: { grandparent: 'file:./grandparent' } })
   fs.mkdirSync('package')
   fs.writeFileSync('package/tool', '#!/usr/bin/env node\nconsole.log("placeholder")\n', { mode: 0o755 })
