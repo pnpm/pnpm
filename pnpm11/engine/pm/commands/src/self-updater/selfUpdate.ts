@@ -10,6 +10,7 @@ import { isError, PnpmError } from '@pnpm/error'
 import { policyViolationToError, type ResolutionPolicyViolation } from '@pnpm/installing.client'
 import { resolvePackageManagerIntegrities } from '@pnpm/installing.env-installer'
 import { readEnvLockfile } from '@pnpm/lockfile.fs'
+import type { EnvLockfile } from '@pnpm/lockfile.types'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import { inferRangeSpecStyle, versionWithRangeSpecStyle } from '@pnpm/pkg-manifest.utils'
 import { MINIMUM_RELEASE_AGE_VIOLATION_CODE } from '@pnpm/resolving.npm-resolver'
@@ -21,7 +22,7 @@ import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 import semver from 'semver'
 
-import { decide } from '../pinDecision.js'
+import { decide, type PinDecision, shouldReadPinLockfile } from '../pinDecision.js'
 import { assertReleaseIsInstallable, findGlobalPnpmInstallDir, installPnpm, pnpmPackageNameToInstall, unlinkReplacedPnpmInstalls } from './installPnpm.js'
 import { resolvePnpmVersion } from './resolvePnpmVersion.js'
 import { linkReplacingRetiredExecutable, retireStandaloneExecutable } from './retireStandaloneExecutable.js'
@@ -279,12 +280,29 @@ async function updateProjectPin (opts: SelfUpdateCommandOptions, targetVersion: 
   if (opts.wantedPackageManager?.version === targetVersion) {
     return `The current project is already set to use pnpm v${targetVersion}`
   }
-  const manifest = await writeUpdatedManifestPin(opts, targetVersion)
-  await recordUpdatedManifestPin(opts, manifest, targetVersion, bootstrapConfig)
+  const pinUpdate = await updateManifestPinAndDecide(opts, targetVersion)
+  await recordUpdatedManifestPin(opts, pinUpdate, bootstrapConfig)
   return `The current project has been updated to use pnpm v${targetVersion}`
 }
 
-async function writeUpdatedManifestPin (opts: SelfUpdateCommandOptions, targetVersion: string): Promise<ProjectManifest> {
+export async function updateManifestPinAndDecide (
+  opts: Pick<SelfUpdateCommandOptions, 'dir' | 'lockfileDir' | 'pmOnFail' | 'rootProjectManifestDir' | 'useLockfile' | 'wantedPackageManager' | 'workspaceDir'>,
+  targetVersion: string
+): Promise<{ decision: PinDecision, lockedEnv: EnvLockfile | undefined }> {
+  const manifest = await writeUpdatedManifestPin(opts, targetVersion)
+  const manifestWanted = getWantedPackageManager(manifest).pm
+  const wanted = manifestWanted && { ...manifestWanted, onFail: opts.pmOnFail ?? manifestWanted.onFail ?? opts.wantedPackageManager?.onFail }
+  const lockedEnv = shouldReadPinLockfile(wanted, opts)
+    ? (await readEnvLockfile(opts.lockfileDir ?? opts.rootProjectManifestDir) ?? undefined)
+    : undefined
+  const decision = decide({ wanted, lockedEnv, runningVersion: targetVersion }, opts, { entryPoint: 'self-update', recordPinWithoutSwitch: true })
+  return { decision, lockedEnv }
+}
+
+async function writeUpdatedManifestPin (
+  opts: Pick<SelfUpdateCommandOptions, 'dir' | 'rootProjectManifestDir' | 'workspaceDir'>,
+  targetVersion: string
+): Promise<ProjectManifest> {
   const { manifest, writeProjectManifest } = await readProjectManifest(opts.workspaceDir ?? opts.dir ?? opts.rootProjectManifestDir)
   if (!manifest.devEngines?.packageManager) {
     manifest.packageManager = `pnpm@${targetVersion}`
@@ -297,22 +315,9 @@ async function writeUpdatedManifestPin (opts: SelfUpdateCommandOptions, targetVe
 
 async function recordUpdatedManifestPin (
   opts: SelfUpdateCommandOptions,
-  manifest: ProjectManifest,
-  targetVersion: string,
+  { decision, lockedEnv }: { decision: PinDecision, lockedEnv: EnvLockfile | undefined },
   bootstrapConfig: PackageManagerBootstrapConfig
 ): Promise<void> {
-  const manifestWanted = getWantedPackageManager(manifest).pm
-  const wanted = manifestWanted && {
-    ...manifestWanted,
-    onFail: opts.pmOnFail ?? manifestWanted.onFail ?? opts.wantedPackageManager?.onFail,
-  }
-  const lockedEnv = opts.useLockfile !== false
-    ? (await readEnvLockfile(opts.lockfileDir ?? opts.rootProjectManifestDir).catch(() => null) ?? undefined)
-    : undefined
-  const decision = decide({ wanted, lockedEnv, runningVersion: targetVersion }, opts, {
-    entryPoint: 'self-update',
-    recordPinWithoutSwitch: true,
-  })
   if (decision.action !== 'record') return
   const store = await createStoreController({ ...opts, ...bootstrapConfig })
   try {
@@ -320,6 +325,7 @@ async function recordUpdatedManifestPin (
       envLockfile: lockedEnv,
       registriesByScope: bootstrapConfig.registriesByScope,
       rootDir: decision.at,
+      specifier: decision.specifier,
       storeController: store.ctrl,
       storeDir: store.dir,
     })
@@ -344,16 +350,12 @@ function pinPnpmInDevEngines (
   devEnginesPm: EngineDependency | EngineDependency[],
   targetVersion: string
 ): boolean {
-  const legacyPm = manifest.packageManager != null
-    ? parsePackageManager(manifest.packageManager)
-    : undefined
+  const legacyPm = manifest.packageManager != null ? parsePackageManager(manifest.packageManager) : undefined
   const legacyPinsPnpm = legacyPm?.name === 'pnpm' && legacyPm.version != null
   const pnpmEntry = findPnpmEngine(devEnginesPm)
   let manifestChanged = false
   if (pnpmEntry) {
-    const updated = legacyPinsPnpm
-      ? targetVersion
-      : updateVersionConstraint(pnpmEntry.version, targetVersion)
+    const updated = legacyPinsPnpm ? targetVersion : updateVersionConstraint(pnpmEntry.version, targetVersion)
     if (updated !== pnpmEntry.version) {
       pnpmEntry.version = updated
       manifestChanged = true
@@ -372,14 +374,9 @@ function findPnpmEngine (devEnginesPm: EngineDependency | EngineDependency[]): E
   return devEnginesPm.name === 'pnpm' ? devEnginesPm : undefined
 }
 
-async function registryLatestIgnoringAge (
-  opts: SelfUpdateCommandOptions
-): Promise<string | undefined> {
+async function registryLatestIgnoringAge (opts: SelfUpdateCommandOptions): Promise<string | undefined> {
   if (!opts.minimumReleaseAge) return undefined
-  const resolved = await resolvePnpmVersion({
-    ...opts,
-    minimumReleaseAge: undefined,
-  }, 'latest')
+  const resolved = await resolvePnpmVersion({ ...opts, minimumReleaseAge: undefined }, 'latest')
   return resolved?.version
 }
 

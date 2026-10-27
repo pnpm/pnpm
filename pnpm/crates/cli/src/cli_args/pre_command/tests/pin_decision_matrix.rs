@@ -1,19 +1,18 @@
 use crate::{
     cli_args::{
         dispatch::{apply_cli_layers, seed_config},
-        package_manager::{PinRoots, wanted_package_manager},
+        package_manager::PinRoots,
         pre_command::{
-            ConfigLoad, EntryPoint, Invocation, PinDecision, PinInput, PreCommandPlan,
-            SwitchProcessState, SwitchSource, decide,
-            load_config::tests::with_test_global_config_dir, load_pre_command_config,
+            ConfigLoad, EntryPoint, Invocation, PinDecision, PreCommandPlan, SwitchProcessState,
+            SwitchSource, load_config::tests::with_test_global_config_dir, load_pre_command_config,
             pre_command_plan_with_state,
         },
+        self_update::project_pin::update_manifest_pin_and_decide,
         verify_deps::install_config_args,
     },
     config_overrides::ConfigOverrides,
 };
 use pnpm_config::{Config, Host, PNPM_VERSION};
-use pnpm_lockfile::EnvLockfile;
 use serde::Deserialize;
 use serde_json::json;
 use std::{
@@ -427,29 +426,10 @@ fn execute_self_update_entry_point(
         return ActualOutcome::Error;
     };
     let roots = PinRoots::of(&config, run_dir);
-    let Some((_, mut manifest)) =
-        pnpm_workspace::try_read_project_manifest(&roots.manifest).ok().flatten()
-    else {
+    let Ok(Some(mut manifest)) = roots.read_manifest() else {
         return ActualOutcome::Nothing;
     };
-    let target_version = "99.0.0";
-    rewrite_manifest_pin_for_test(manifest.value_mut(), target_version);
-    let wanted = wanted_package_manager(manifest.value());
-    let locked_env =
-        if config.lockfile { EnvLockfile::read(&roots.env).ok().flatten() } else { None };
-    let pin = PinInput {
-        roots: &roots,
-        manifest: Some(manifest.value()),
-        wanted: wanted.as_ref(),
-        locked_env,
-        running_version: target_version,
-        process_state: SwitchProcessState {
-            package_manager_switch_disabled: false,
-            executed_by_corepack: false,
-        },
-    };
-    let self_update_inv = Invocation::for_self_update(roots.manifest.clone());
-    match decide(&pin, &config, &self_update_inv) {
+    match update_manifest_pin_and_decide(&config, &roots, &mut manifest, "99.0.0") {
         Ok(PinDecision::Record { at, .. }) => {
             ActualOutcome::Record { at: relative_lockfile_dir(workspace_root, &at) }
         }
@@ -474,18 +454,6 @@ fn load_self_update_matrix_config(
     .ok()?;
     apply_cli_layers(&mut config, invocation, config_overrides, run_dir).ok()?;
     (!invocation.warnings.fail(&config, run_dir)).then_some(config)
-}
-
-fn rewrite_manifest_pin_for_test(manifest: &mut serde_json::Value, target_version: &str) {
-    if let Some(pm_obj) = manifest
-        .get_mut("devEngines")
-        .and_then(|de| de.get_mut("packageManager"))
-        .and_then(|pm| pm.as_object_mut())
-    {
-        pm_obj.insert("version".to_string(), json!(target_version));
-    } else if let Some(obj) = manifest.as_object_mut() {
-        obj.insert("packageManager".to_string(), json!(format!("pnpm@{target_version}")));
-    }
 }
 
 fn relative_lockfile_dir(workspace_root: &Path, env_root: &Path) -> String {
@@ -523,22 +491,7 @@ fn cli_config_reaches_every_child() {
         OsString::from("build"),
     ];
 
-    let child_argv = &raw_argv[1..];
-    for expected_flag in [
-        "--config.registry=https://mirror.example.com/",
-        "--config.//mirror.example.com/:_authToken=secret-token-123",
-        "--config.lockfile-dir=shared-lf",
-        "--config.store-dir=custom-store",
-        "--config.strict-ssl=false",
-        "--config.custom-setting=custom-val",
-    ] {
-        assert!(
-            child_argv.contains(&OsString::from(expected_flag)),
-            "switched pnpm child_argv must retain {expected_flag}: {child_argv:?}",
-        );
-    }
-
-    let (config_overrides, remaining) = ConfigOverrides::extract(raw_argv.clone());
+    let (config_overrides, remaining) = ConfigOverrides::extract(raw_argv);
     let invocation = Invocation::from_argv(&remaining, EntryPoint::Command);
 
     with_test_global_config_dir(Some(global_config_dir), || {

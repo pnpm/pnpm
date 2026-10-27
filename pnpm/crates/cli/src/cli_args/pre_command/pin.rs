@@ -28,6 +28,28 @@ pub(crate) struct PinInput<'a> {
     pub(crate) process_state: SwitchProcessState,
 }
 
+/// Whether `decide` may consult the project's `pnpm-lock.yaml` for `wanted`.
+pub(crate) fn should_read_pin_lockfile(
+    wanted: Option<&WantedPackageManager>,
+    config: &Config,
+    invocation: &Invocation,
+) -> bool {
+    if invocation.global || !config.lockfile {
+        return false;
+    }
+    let Some(pm) = wanted.filter(|pm| pm.name == "pnpm" && pm.version.is_some()) else {
+        return false;
+    };
+    let on_fail = effective_on_fail(config, pm);
+    on_fail != PmOnFail::Ignore
+        && should_persist_package_manager_lockfile(&WantedPackageManager {
+            name: pm.name.clone(),
+            version: pm.version.clone(),
+            from_dev_engines: pm.from_dev_engines,
+            on_fail: Some(on_fail.as_str().to_string()),
+        })
+}
+
 /// Pure decision over a pre-read [`PinInput`], [`Config`], and [`Invocation`].
 /// Performs no filesystem I/O.
 pub(crate) fn decide(

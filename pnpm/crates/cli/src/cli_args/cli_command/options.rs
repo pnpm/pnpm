@@ -307,13 +307,16 @@ impl super::CliNetworkArgs {
     }
 }
 
-fn push_cli_token(config: &mut pnpm_config::Config, key: &str, value: &str) {
-    if !config.cli.npmrc_tokens
-        .iter()
-        .any(|(k, _)| k == key)
-    {
-        config.cli.npmrc_tokens.push((key.to_string(), value.to_string()));
-    }
+pub(in crate::cli_args) fn push_cli_token(
+    config: &mut pnpm_config::Config,
+    key: &str,
+    value: &str,
+) {
+    config.cli.npmrc_tokens.retain(|(existing, _)| {
+        let normalized = pnpm_config::naming_cases::to_kebab_case(existing);
+        normalized != key && !(key == "no-proxy" && normalized == "noproxy")
+    });
+    config.cli.npmrc_tokens.push((key.to_string(), value.to_string()));
 }
 
 pub(crate) fn find_workspace_root_dir(dir: &Path) -> Result<PathBuf, WorkspaceRootError> {

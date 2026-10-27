@@ -42,7 +42,8 @@ export async function readWorkspaceManifest (dir: string, cfgFileName: ConfigFil
 
 /**
  * Reads only the listed top-level keys, so a key outside them that does not
- * validate cannot fail the read.
+ * validate cannot fail the read, and any listed key that fails validation on
+ * its own is omitted so the remaining keys still load.
  */
 export async function readWorkspaceManifestKeys (
   dir: string,

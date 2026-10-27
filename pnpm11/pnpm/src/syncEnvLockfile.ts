@@ -50,15 +50,20 @@ export async function syncEnvLockfile (config: Config, context: ConfigContext): 
     { entryPoint: 'command', recordPinWithoutSwitch: true }
   )
   if (decision.action !== 'record') return
-  await executeRecordDecision(config, context, decision, envLockfile)
+  await executeRecordDecision({ config, context, decision, envLockfile })
 }
 
-export async function executeRecordDecision (
-  config: Config,
-  context: ConfigContext,
-  decision: Extract<PinDecision, { action: 'record' }>,
+export async function executeRecordDecision ({
+  config,
+  context,
+  decision,
+  envLockfile,
+}: {
+  config: Config
+  context: ConfigContext
+  decision: Extract<PinDecision, { action: 'record' }>
   envLockfile?: EnvLockfile
-): Promise<void> {
+}): Promise<void> {
   const version = decision.checkMaturity
     ? await pnpmVersionToRecord(config, decision.specifier)
     : decision.version

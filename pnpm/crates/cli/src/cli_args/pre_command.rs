@@ -45,7 +45,7 @@ use lockfile::{
     locked_package_manager_version, locked_switch_source, read_env_lockfile, switch_env_root,
 };
 use miette::{Context, Diagnostic, IntoDiagnostic};
-use pin::package_manager_switch_disabled;
+use pin::{package_manager_switch_disabled, should_read_pin_lockfile};
 use pnpm_config::{ColorMode, Config, ConfigLoadFailure, Host, PNPM_VERSION, PmOnFail};
 use pnpm_default_reporter::MaxLogLevel;
 use pnpm_env_installer::is_package_manager_resolved;
@@ -101,6 +101,19 @@ pub(crate) fn switch_plan_for_unparsed_argv(
     Ok(pre_command_plan(&invocation, config_overrides)?.plan)
 }
 
+pub(crate) fn read_pin_lockfile(
+    wanted: Option<&WantedPackageManager>,
+    config: &Config,
+    invocation: &Invocation,
+    env_root: &Path,
+) -> miette::Result<Option<EnvLockfile>> {
+    if should_read_pin_lockfile(wanted, config, invocation) {
+        read_env_lockfile(env_root)
+    } else {
+        Ok(None)
+    }
+}
+
 /// The settings are read in tiers, each only when the one before it calls
 /// for it: none when the manifest pins nothing these checks act on, the
 /// [`PIN_DECISION_SETTINGS`](pnpm_config::PIN_DECISION_SETTINGS) to decide,
@@ -127,8 +140,7 @@ fn pre_command_plan_with_state(
     let roots = PinRoots::of(&config, &dir);
     let manifest = read_root_manifest(&roots.manifest);
     let wanted_pm = manifest.as_ref().and_then(wanted_package_manager);
-    let locked_env =
-        if wanted_pm.is_some() && config.lockfile { read_env_lockfile(&roots.env)? } else { None };
+    let locked_env = read_pin_lockfile(wanted_pm.as_ref(), &config, invocation, &roots.env)?;
     let pin_input = PinInput {
         roots: &roots,
         manifest: manifest.as_ref(),

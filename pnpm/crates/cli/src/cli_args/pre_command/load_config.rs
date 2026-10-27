@@ -3,7 +3,10 @@ pub(in crate::cli_args) mod tests;
 
 use super::{Config, ConfigOverrides, Context, Host, Invocation, Path};
 use crate::{
-    cli_args::{install::resolve_bool_override, reporter::configure_color},
+    cli_args::{
+        cli_command::options::push_cli_token, install::resolve_bool_override,
+        reporter::configure_color,
+    },
     config_overrides::{apply_state_dir_override, apply_store_dir_override},
 };
 use pnpm_config::{ColorMode, ConfigLoadFailure, SettingsRead};
@@ -60,12 +63,8 @@ pub(in crate::cli_args) fn apply_cli_layers(
         && let Some(lockfile_dir) = invocation.lockfile_dir.as_deref()
     {
         config.pin_lockfile_dir(&dir.join(lockfile_dir));
-        if !config.cli.npmrc_tokens
-            .iter()
-            .any(|(key, _)| matches!(key.as_str(), "lockfile-dir" | "lockfileDir"))
-            && let Some(raw) = lockfile_dir.to_str()
-        {
-            config.cli.npmrc_tokens.push(("lockfile-dir".to_string(), raw.to_string()));
+        if let Some(raw) = lockfile_dir.to_str() {
+            push_cli_token(config, "lockfile-dir", raw);
         }
     }
     config.offline = resolve_bool_override(
@@ -104,23 +103,15 @@ fn apply_location_overrides(
     if let Some(store_dir) = store_dir {
         apply_store_dir_override::<Host>(cfg, store_dir, anchor)?;
         cfg.cli_settings.insert("storeDir".to_string());
-        if !cfg.cli.npmrc_tokens
-            .iter()
-            .any(|(key, _)| matches!(key.as_str(), "store-dir" | "storeDir"))
-            && let Some(raw) = store_dir.to_str()
-        {
-            cfg.cli.npmrc_tokens.push(("store-dir".to_string(), raw.to_string()));
+        if let Some(raw) = store_dir.to_str() {
+            push_cli_token(cfg, "store-dir", raw);
         }
     }
     if let Some(state_dir) = state_dir {
         apply_state_dir_override::<Host>(cfg, state_dir, anchor);
         cfg.cli_settings.insert("stateDir".to_string());
-        if !cfg.cli.npmrc_tokens
-            .iter()
-            .any(|(key, _)| matches!(key.as_str(), "state-dir" | "stateDir"))
-            && let Some(raw) = state_dir.to_str()
-        {
-            cfg.cli.npmrc_tokens.push(("state-dir".to_string(), raw.to_string()));
+        if let Some(raw) = state_dir.to_str() {
+            push_cli_token(cfg, "state-dir", raw);
         }
     }
     Ok(())

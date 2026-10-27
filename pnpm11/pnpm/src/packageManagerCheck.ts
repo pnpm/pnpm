@@ -1,7 +1,7 @@
 import { formatWarn } from '@pnpm/cli.default-reporter'
 import { isExecutedByCorepack, packageManager } from '@pnpm/cli.meta'
-import { type Config, type ConfigContext, shouldPersistLockfile } from '@pnpm/config.reader'
-import { decide, type PinEntryPoint } from '@pnpm/engine.pm.commands'
+import type { Config, ConfigContext } from '@pnpm/config.reader'
+import { decide, type PinEntryPoint, shouldReadPinLockfile } from '@pnpm/engine.pm.commands'
 import { getSystemRuntimeVersion } from '@pnpm/engine.runtime.system-version'
 import { PnpmError } from '@pnpm/error'
 import { isPackageManagerResolved } from '@pnpm/installing.env-installer'
@@ -73,11 +73,11 @@ async function handleWantedPackageManager (pm: EngineDependency, opts: PackageMa
 
   if (decision.action === 'switch') {
     await tolerateWhenPrintingVersion(printingVersion, async () => {
-      await executeSwitchDecision(config, context, decision, lockedEnv)
+      await executeSwitchDecision({ config, context, decision, envLockfile: lockedEnv })
     })
   } else if (decision.action === 'record') {
     await tolerateWhenPrintingVersion(printingVersion, async () => {
-      await executeRecordDecision(config, context, decision, lockedEnv)
+      await executeRecordDecision({ config, context, decision, envLockfile: lockedEnv })
     })
   }
 }
@@ -106,7 +106,7 @@ export async function switchPastUnreadableConfig (
   const { config, context } = loaded
   const pm = context.wantedPackageManager
   if (pm == null) return
-  const lockedEnv = await readPinLockfile(pm, config, context, false)
+  const lockedEnv = await readPinLockfile(pm, config, context, false).catch(() => undefined)
   const decision = decide(
     {
       wanted: pm,
@@ -121,22 +121,15 @@ export async function switchPastUnreadableConfig (
   )
   if (decision.action !== 'switch') return
   try {
-    await executeSwitchDecision(config, context, decision, lockedEnv)
+    await executeSwitchDecision({ config, context, decision, envLockfile: lockedEnv })
   } catch {
     // The configuration's own failure is the one to report.
   }
 }
 
 async function readPinLockfile (pm: EngineDependency, config: Config, context: ConfigContext, global: boolean) {
-  const effectiveOnFail = config.pmOnFail ?? pm.onFail ?? 'download'
-  const persistLockfile = !global &&
-    pm.name === 'pnpm' &&
-    pm.version != null &&
-    effectiveOnFail !== 'ignore' &&
-    shouldPersistLockfile({ ...pm, onFail: effectiveOnFail }) &&
-    config.useLockfile !== false
-  if (!persistLockfile) return undefined
-  return (await readEnvLockfile(envLockfileDir(config, context)).catch(() => null)) ?? undefined
+  if (!shouldReadPinLockfile(pm, config, global)) return undefined
+  return (await readEnvLockfile(envLockfileDir(config, context))) ?? undefined
 }
 
 /**

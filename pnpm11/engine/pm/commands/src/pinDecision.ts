@@ -65,6 +65,18 @@ interface ResolvedDecisionContext {
   isResolved: (envLockfile: EnvLockfile | undefined, pnpmVersion: string, specifier?: string) => boolean
 }
 
+export function shouldReadPinLockfile (
+  pm: EngineDependency | undefined,
+  settings: Pick<PinDecisionSettings, 'pmOnFail' | 'useLockfile'>,
+  global = false
+): boolean {
+  if (global || settings.useLockfile === false || pm == null || pm.name !== 'pnpm' || pm.version == null) {
+    return false
+  }
+  const effectiveOnFail = settings.pmOnFail ?? pm.onFail ?? 'download'
+  return effectiveOnFail !== 'ignore' && shouldPersistLockfile({ ...pm, onFail: effectiveOnFail })
+}
+
 /**
  * Pure decision over a pre-read {@link PinInput}, {@link PinDecisionSettings},
  * and {@link PinInvocation}. Performs no filesystem I/O.

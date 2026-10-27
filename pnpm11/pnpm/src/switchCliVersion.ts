@@ -60,20 +60,25 @@ export async function switchCliVersion (
     { entryPoint: 'command', recordPinWithoutSwitch }
   )
   if (decision.action === 'record') {
-    await executeRecordDecision(config, context, decision, envLockfile)
+    await executeRecordDecision({ config, context, decision, envLockfile })
     return
   }
   if (decision.action === 'switch') {
-    await executeSwitchDecision(config, context, decision, envLockfile)
+    await executeSwitchDecision({ config, context, decision, envLockfile })
   }
 }
 
-export async function executeSwitchDecision (
-  config: Config,
-  context: ConfigContext,
-  decision: Extract<PinDecision, { action: 'switch' }>,
+export async function executeSwitchDecision ({
+  config,
+  context,
+  decision,
+  envLockfile,
+}: {
+  config: Config
+  context: ConfigContext
+  decision: Extract<PinDecision, { action: 'switch' }>
   envLockfile: EnvLockfile | undefined
-): Promise<void> {
+}): Promise<void> {
   const versionSwitch: VersionSwitch = {
     config,
     context,

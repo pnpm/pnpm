@@ -5,7 +5,9 @@ use super::{
 use crate::{
     cli_args::{
         package_manager::{PinRoots, WantedPackageManager, wanted_package_manager},
-        pre_command::{Invocation, PinDecision, PinInput, SwitchProcessState, decide},
+        pre_command::{
+            Invocation, PinDecision, PinInput, SwitchProcessState, decide, read_pin_lockfile,
+        },
     },
     config_deps,
 };
@@ -134,21 +136,9 @@ pub(super) async fn update_project_pin(
         return Ok(format!("The current project is already set to use pnpm v{target_version}"));
     }
 
-    write_updated_manifest_pin(&mut manifest, target_version)?;
-
-    let wanted = wanted_package_manager(manifest.value());
-    let locked_env =
-        if config.lockfile { EnvLockfile::read(&roots.env).ok().flatten() } else { None };
-    let pin = PinInput {
-        roots,
-        manifest: Some(manifest.value()),
-        wanted: wanted.as_ref(),
-        locked_env,
-        running_version: target_version,
-        process_state: SwitchProcessState::current(),
-    };
-    let invocation = Invocation::for_self_update(roots.manifest.clone());
-    if let PinDecision::Record { at, package_manager } = decide(&pin, config, &invocation)? {
+    if let PinDecision::Record { at, package_manager } =
+        update_manifest_pin_and_decide(config, roots, &mut manifest, target_version)?
+    {
         Box::pin(config_deps::sync_package_manager_dependencies(
             config,
             &at,
@@ -161,6 +151,27 @@ pub(super) async fn update_project_pin(
     }
 
     Ok(format!("The current project has been updated to use pnpm v{target_version}"))
+}
+
+pub(crate) fn update_manifest_pin_and_decide(
+    config: &Config,
+    roots: &PinRoots,
+    manifest: &mut PackageManifest,
+    target_version: &str,
+) -> miette::Result<PinDecision> {
+    write_updated_manifest_pin(manifest, target_version)?;
+    let wanted = wanted_package_manager(manifest.value());
+    let invocation = Invocation::for_self_update(roots.manifest.clone());
+    let locked_env = read_pin_lockfile(wanted.as_ref(), config, &invocation, &roots.env)?;
+    let pin = PinInput {
+        roots,
+        manifest: Some(manifest.value()),
+        wanted: wanted.as_ref(),
+        locked_env,
+        running_version: target_version,
+        process_state: SwitchProcessState::current(),
+    };
+    decide(&pin, config, &invocation)
 }
 
 fn write_updated_manifest_pin(

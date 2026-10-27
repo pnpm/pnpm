@@ -83,19 +83,14 @@ function parseExploratory (opts: ParseCliArgsOptions, inputArgv: string[]): Retu
     filter: [String],
     help: Boolean,
     recursive: Boolean,
+    ...VERSION_BOOTSTRAP_TYPES,
     ...opts.universalOptionsTypes,
     ...opts.getTypesByCommandName('add'),
     ...opts.getTypesByCommandName('install'),
   }
   return nopt(
-    {
-      ...exploratoryTypes,
-      ...configDotTypes(exploratoryTypes),
-    },
-    {
-      r: '--recursive',
-      ...opts.universalShorthands,
-    },
+    { ...exploratoryTypes, ...configDotTypes(exploratoryTypes) },
+    { r: '--recursive', ...opts.universalShorthands },
     inputArgv,
     0,
     { escapeArgs: opts.escapeArgs }
@@ -186,19 +181,21 @@ function buildHelpResult (
   }
 }
 
-const VERSION_BOOTSTRAP_KEYS = [
-  'frozen-lockfile',
-  'global',
-  'global-dir',
-  'lockfile',
-  'lockfile-dir',
-  'npmrc-auth-file',
-  'offline',
-  'prefer-offline',
-  'registry',
-  'state-dir',
-  'store-dir',
-]
+const VERSION_BOOTSTRAP_TYPES = {
+  'frozen-lockfile': Boolean,
+  global: Boolean,
+  'global-dir': String,
+  lockfile: Boolean,
+  'lockfile-dir': String,
+  'npmrc-auth-file': String,
+  offline: Boolean,
+  'prefer-offline': Boolean,
+  registry: String,
+  'state-dir': String,
+  'store-dir': String,
+}
+
+const VERSION_BOOTSTRAP_KEYS = Object.keys(VERSION_BOOTSTRAP_TYPES)
 
 function pickEarlyExitOptions (
   opts: ParseCliArgsOptions,

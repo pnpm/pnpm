@@ -5,13 +5,11 @@ import { beforeEach, expect, jest, test } from '@jest/globals'
 import { packageManager } from '@pnpm/cli.meta'
 import {
   getPackageManagerBootstrapConfig,
-  getWantedPackageManager,
   PIN_DECISION_SETTINGS,
 } from '@pnpm/config.reader'
 import { createCliConfigArgs } from '@pnpm/exec.commands'
 import type { EnvLockfile } from '@pnpm/lockfile.types'
 import { tempDir } from '@pnpm/prepare'
-import { readProjectManifest } from '@pnpm/workspace.project-manifest-reader'
 
 interface MatrixCase {
   id: string
@@ -124,7 +122,7 @@ jest.unstable_mockModule('@pnpm/engine.pm.commands', () => ({
   spawnPnpm,
 }))
 
-const { decide } = actualEnginePmCommands
+const { updateManifestPinAndDecide } = actualEnginePmCommands
 const { getConfig } = await import('./getConfig.js')
 const { handlePackageManagerAndRuntimes, switchPastUnreadableConfig } = await import('./packageManagerCheck.js')
 const { parseCliArgs } = await import('./parseCliArgs.js')
@@ -424,26 +422,7 @@ async function runSelfUpdateFlow (workspaceRoot: string, inputArgv: string[]): P
       forSelfUpdate: true,
       printWarnings: false,
     })
-    const manifestDir = config.workspaceDir ?? config.dir ?? context.rootProjectManifestDir
-    const { manifest } = await readProjectManifest(manifestDir)
-    const targetVersion = '99.0.0'
-    if (manifest.devEngines?.packageManager != null && !Array.isArray(manifest.devEngines.packageManager)) {
-      manifest.devEngines.packageManager.version = targetVersion
-    } else {
-      manifest.packageManager = `pnpm@${targetVersion}`
-    }
-    const { pm: wanted } = getWantedPackageManager(manifest)
-    const decision = decide(
-      {
-        wanted,
-        runningVersion: targetVersion,
-      },
-      { ...config, ...context },
-      {
-        entryPoint: 'self-update',
-        recordPinWithoutSwitch: true,
-      }
-    )
+    const { decision } = await updateManifestPinAndDecide({ ...config, ...context }, '99.0.0')
     if (decision.action === 'record') {
       return { outcome: 'record', at: relativeLockfileDir(workspaceRoot, decision.at) }
     }
