@@ -168,9 +168,7 @@ pub(super) fn check_projects_content(
         check.project_manifests,
         check.manifests.dependency_manifests,
     );
-    let ignored_optional_matcher = pnpm_matcher::create_matcher(
-        check.config.ignored_optional_dependencies.as_deref().unwrap_or_default(),
-    );
+    let ignored_optional_matcher = crate::install::ignored_optional_matcher(check.config);
     let project_manifests = crate::install::project_manifests_by_dir(
         check.project_manifests.iter().map(|(_, manifest)| *manifest),
         check.manifests.dependency_manifests,
@@ -183,6 +181,8 @@ pub(super) fn check_projects_content(
         workspace: crate::install::WorkspaceProjects {
             packages: workspace_packages.as_ref(),
             manifests_by_dir: &project_manifests,
+            // The pnpmfile drift check covers the hooks this check does not apply.
+            directory_manifests: crate::install::DirectoryManifests::none(),
             catalogs: check.catalogs,
             canonical_paths: &pnpm_fs::CanonicalPaths::default(),
             registries: &check.config.registry_context(),

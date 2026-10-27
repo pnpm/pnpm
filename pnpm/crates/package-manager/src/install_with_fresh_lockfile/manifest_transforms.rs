@@ -12,6 +12,7 @@ use super::{
 };
 use crate::{
     VersionsOverrider, apply_deploy_manifest_hook, install::apply_deploy_manifest_hook_to_arc,
+    package_extender::InvalidPackageExtensionSelector,
 };
 use indexmap::IndexMap;
 use pnpm_catalogs_types::Catalogs;
@@ -57,7 +58,8 @@ pub(super) fn build_manifest_transforms(
         .as_ref()
         .map(|parsed| Arc::new(VersionsOverrider::new(parsed, lockfile_dir)));
     let transforms =
-        ImporterTransforms::new(config, versions_overrider.clone(), deploy_manifest_hook)?;
+        ImporterTransforms::new(config, versions_overrider.clone(), deploy_manifest_hook)
+            .map_err(InstallWithFreshLockfileError::InvalidPackageExtensionSelector)?;
     let effective_importer_manifests = transforms.apply_to_all(importer_manifests);
     Ok(ManifestTransforms {
         resolved_overrides: parsed_overrides.as_deref().map(resolved_overrides_map),
@@ -91,13 +93,21 @@ pub(super) fn apply_overrides_to_specifier_manifests(
     Some(manifests)
 }
 
+/// The hooks [`build_manifest_transforms`] gives the resolver, for a lockfile
+/// check that reads a manifest the way the resolver does.
+pub(crate) fn resolver_manifest_hooks(
+    config: &Config,
+    versions_overrider: Option<Arc<VersionsOverrider>>,
+) -> Result<ManifestHooks, InvalidPackageExtensionSelector> {
+    Ok(ImporterTransforms::new(config, versions_overrider, false)?.into_hooks())
+}
+
 /// The user's `packageExtensions`, when they extend anything at all.
 fn configured_package_extender(
     config: &Config,
-) -> Result<Option<Arc<crate::PackageExtender>>, InstallWithFreshLockfileError> {
+) -> Result<Option<Arc<crate::PackageExtender>>, InvalidPackageExtensionSelector> {
     let Some(extensions) = config.package_extensions.as_ref() else { return Ok(None) };
-    let extender = crate::PackageExtender::new(extensions)
-        .map_err(InstallWithFreshLockfileError::InvalidPackageExtensionSelector)?;
+    let extender = crate::PackageExtender::new(extensions)?;
     Ok((!extender.is_empty()).then(|| Arc::new(extender)))
 }
 
@@ -115,10 +125,24 @@ struct ImporterTransforms {
 
 /// The read-package hooks the resolver runs on every manifest, and the
 /// bare-specifier override for dependencies a manifest does not declare.
-pub(super) struct ManifestHooks {
+pub(crate) struct ManifestHooks {
     pub manifest_hook: Option<ManifestHook>,
     pub overrides_hook: Option<ManifestHook>,
     pub override_bare_specifier: Option<Arc<DependencyOverrider>>,
+}
+
+impl ManifestHooks {
+    /// The resolver's hooks, with `pnpmfile_hook` run between these two.
+    pub(crate) fn with_pnpmfile(
+        &self,
+        pnpmfile_hook: Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>,
+    ) -> pnpm_resolving_deps_resolver::ManifestTransformHooks {
+        pnpm_resolving_deps_resolver::ManifestTransformHooks {
+            manifest_hook: self.manifest_hook.clone(),
+            overrides_hook: self.overrides_hook.clone(),
+            pnpmfile_hook,
+        }
+    }
 }
 
 impl ImporterTransforms {
@@ -126,7 +150,7 @@ impl ImporterTransforms {
         config: &Config,
         versions_overrider: Option<Arc<VersionsOverrider>>,
         deploy_manifest_hook: bool,
-    ) -> Result<Self, InstallWithFreshLockfileError> {
+    ) -> Result<Self, InvalidPackageExtensionSelector> {
         Ok(Self {
             compat_package_extender: (!config.ignore_compatibility_db).then(
                 crate::compat_package_extensions::compat_package_extender,

@@ -35,6 +35,9 @@ pub(crate) struct WorkspaceProjects<'a> {
     /// hold only in memory. An injected project is read from here before its
     /// directory on disk.
     pub(crate) manifests_by_dir: &'a super::ProjectManifestsByDir<'a>,
+    /// The directory packages no project describes, as the resolver read
+    /// them. A package missing here is read from its directory.
+    pub(crate) directory_manifests: &'a super::DirectoryManifests,
     pub(crate) catalogs: &'a pnpm_catalogs_types::Catalogs,
     /// Shared by every importer of one check, which link the same targets.
     pub(crate) canonical_paths: &'a pnpm_fs::CanonicalPaths,
