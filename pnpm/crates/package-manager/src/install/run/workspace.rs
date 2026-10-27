@@ -229,20 +229,18 @@ impl<'w> InstallScope<'w> {
             workspace_projects_are_overridden,
             config: install.context.config,
         });
+        let bin_projects = crate::optimistic_repeat_install::validation::dedicated_bin_projects(
+            install.context.config,
+            &project_manifests,
+            workspace_projects,
+        );
         Self {
             project_manifests,
             importers,
             prune_stale_importers,
             project_scripts_current: false,
             dependency_manifests: dependency_manifests_by_dir(workspace_projects),
-            workspace_projects: workspace_projects
-                .filter(|_| !install.context.config.shares_one_lockfile())
-                .map(|projects| {
-                    projects
-                        .iter()
-                        .map(|project| (project.root_dir.clone(), &project.manifest))
-                        .collect()
-                }),
+            workspace_projects: bin_projects,
         }
     }
 

@@ -9,7 +9,8 @@
 //! others survive it unchanged.
 
 pub(crate) use bins::{
-    held_workspace_bins_match, project_bins_digest, project_bins_match, workspace_bins_digest,
+    dedicated_bin_projects, held_workspace_bins_match, links_workspace_commands,
+    project_bins_digest, project_bins_match, workspace_bins_digest,
 };
 
 use super::{Config, Lockfile, PackageManifest, Path, PathBuf};

@@ -182,12 +182,8 @@ pub(super) fn check_discovered_deps(
     let Some(catalogs) = configured_catalogs(config, workspace_manifest) else {
         return cannot_check_deps();
     };
-    // The sibling projects only belong in the comparison when one
-    // lockfile and one state file cover them all; a dedicated-lockfile
-    // install records this project alone, with the commands of every
-    // workspace project.
     let Ok(workspace_projects) =
-        load_workspace_projects(workspace_root, workspace_manifest, &config.managed_directories())
+        load_gated_workspace(config, manifest, workspace_root, workspace_manifest)
     else {
         return cannot_check_deps();
     };
@@ -222,6 +218,23 @@ pub(super) fn check_discovered_deps(
         selected_project_dirs,
     ))
 }
+/// The workspace projects the gate reads: every one when one lockfile and one
+/// state file cover them all, and for a dedicated-lockfile install the ones
+/// whose commands the project links, when it links any.
+fn load_gated_workspace(
+    config: &Config,
+    manifest: &PackageManifest,
+    workspace_root: &Path,
+    workspace_manifest: Option<&pnpm_workspace::WorkspaceManifest>,
+) -> Result<Option<Vec<pnpm_workspace::Project>>, pnpm_workspace::FindWorkspaceProjectsError> {
+    let needed = config.shares_one_lockfile()
+        || crate::optimistic_repeat_install::validation::links_workspace_commands(manifest);
+    if !needed {
+        return Ok(None);
+    }
+    load_workspace_projects(workspace_root, workspace_manifest, &config.managed_directories())
+}
+
 /// The projects the gate compares, and the ones whose commands they link per
 /// [`crate::RepeatInstallManifests::workspace_projects`].
 #[expect(
@@ -233,16 +246,14 @@ fn gated_projects<'a>(
     manifest: &'a PackageManifest,
     workspace_projects: Option<&'a [pnpm_workspace::Project]>,
 ) -> (Vec<(PathBuf, &'a PackageManifest)>, Option<Vec<(PathBuf, &'a PackageManifest)>>) {
-    if config.shares_one_lockfile() {
-        return (build_project_manifests_list(manifest, workspace_projects), None);
-    }
-    let bin_projects = workspace_projects.map(|projects| {
-        projects
-            .iter()
-            .map(|project| (project.root_dir.clone(), &project.manifest))
-            .collect()
-    });
-    (build_project_manifests_list(manifest, None), bin_projects)
+    let shared = workspace_projects.filter(|_| config.shares_one_lockfile());
+    let project_manifests = build_project_manifests_list(manifest, shared);
+    let bin_projects = crate::optimistic_repeat_install::validation::dedicated_bin_projects(
+        config,
+        &project_manifests,
+        workspace_projects,
+    );
+    (project_manifests, bin_projects)
 }
 
 /// The manifest the verify-deps gate compares against.
