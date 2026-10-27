@@ -34,6 +34,11 @@ impl CustomFetcherSession {
                 CustomFetchOutcome::Fetched { resolution, tarball } => {
                     (resolution, None, Some(tarball))
                 }
+                CustomFetchOutcome::FetchedFiles { resolution, package } => {
+                    let resolution = recorded_resolution(original, resolution);
+                    self.cache_package(download.package.id, &resolution, &package);
+                    return Ok(unarchived(original, resolution, package.manifest));
+                }
                 CustomFetchOutcome::Declined(resolution) => (resolution, None, None),
                 CustomFetchOutcome::Delegate { resolution, delegate } => {
                     (resolution, Some(delegate), None)
@@ -100,7 +105,10 @@ impl CustomFetcherSession {
         self.completed
             .lock()
             .unwrap()
-            .insert((package_id.to_owned(), identity.to_owned()), tarball);
+            .insert(
+                (package_id.to_owned(), identity.to_owned()),
+                super::CompletedFetch::Tarball(tarball),
+            );
     }
 }
 
