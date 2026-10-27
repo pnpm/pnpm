@@ -171,6 +171,7 @@ function createFetchers (
       storeIndex: opts.storeIndex,
       archiveFilters: { node: NODE_EXTRAS_IGNORE_PATTERN },
       maxTarballUnpackedSize: opts.maxTarballUnpackedSize,
+      retry: opts.retry,
     }),
   }
 }

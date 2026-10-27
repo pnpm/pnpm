@@ -13,6 +13,7 @@ import { temporaryDirectory } from 'tempy'
 // Mock fetch function that returns a ZIP buffer and simulates FetchFromRegistry
 function createMockFetch (zipBuffer: Buffer): FetchFromRegistry {
   return (() => Promise.resolve({
+    status: 200,
     body: (async function * () {
       yield zipBuffer
     })(),
@@ -281,6 +282,7 @@ describe('extractZipToTarget security', () => {
       const fetch = (_url: string, opts?: { authHeaderValue?: string }) => {
         expect(opts?.authHeaderValue).toBe('Bearer mirror-token')
         return Promise.resolve({
+          status: 200,
           body: (async function * () {
             yield zipBuffer
           })(),
@@ -516,6 +518,8 @@ describe('zip extraction target', () => {
   })
 })
 
+const NO_RETRY_DELAY = { minTimeout: 0, maxTimeout: 0 }
+
 describe('zip download integrity', () => {
   it('rejects a download whose checksum does not match, leaving the target untouched', async () => {
     const zip = new AdmZip()
@@ -526,13 +530,106 @@ describe('zip download integrity', () => {
 
     await expect(downloadAndUnpackZip(
       createMockFetch(zipBuffer),
-      { url: 'https://example.com/node.zip', integrity, basename: '' },
+      { url: 'https://example.com/node.zip', integrity, basename: '', retry: { ...NO_RETRY_DELAY, retries: 1 } },
       targetDir
     )).rejects.toMatchObject({
       code: 'ERR_PNPM_TARBALL_INTEGRITY',
       message: `Got unexpected checksum for "https://example.com/node.zip". Wanted "${integrity}". Got "${ssri.fromData(zipBuffer).toString()}".`,
     })
     expect(fs.readdirSync(targetDir)).toStrictEqual([])
+  })
+})
+
+describe('zip download retries', () => {
+  function createZip (): { zipBuffer: Buffer, integrity: string } {
+    const zip = new AdmZip()
+    zip.addFile('bin/node', Buffer.from('binary'))
+    const zipBuffer = zip.toBuffer()
+    return { zipBuffer, integrity: ssri.fromData(zipBuffer).toString() }
+  }
+
+  function createDroppingFetch (zipBuffer: Buffer, drops: number): { fetch: FetchFromRegistry, requests: () => number } {
+    let requests = 0
+    const fetch = (() => {
+      const dropped = requests++ < drops
+      return Promise.resolve({
+        status: 200,
+        body: (async function * () {
+          yield zipBuffer.subarray(0, 10)
+          if (dropped) throw new TypeError('terminated', { cause: Object.assign(new Error('other side closed'), { code: 'UND_ERR_SOCKET' }) })
+          yield zipBuffer.subarray(10)
+        })(),
+      })
+    }) as unknown as FetchFromRegistry
+    return { fetch, requests: () => requests }
+  }
+
+  it('downloads again when the connection drops mid-body', async () => {
+    const { zipBuffer, integrity } = createZip()
+    const { fetch, requests } = createDroppingFetch(zipBuffer, 1)
+    const targetDir = temporaryDirectory()
+
+    await downloadAndUnpackZip(
+      fetch,
+      { url: 'https://example.com/node.zip', integrity, basename: '', retry: { ...NO_RETRY_DELAY, retries: 1 } },
+      targetDir
+    )
+    expect(requests()).toBe(2)
+    expect(fs.readFileSync(path.join(targetDir, 'bin', 'node'), 'utf8')).toBe('binary')
+  })
+
+  it('keeps the default retry count when the caller leaves it undefined', async () => {
+    const { zipBuffer, integrity } = createZip()
+    const { fetch, requests } = createDroppingFetch(zipBuffer, 1)
+
+    await downloadAndUnpackZip(
+      fetch,
+      { url: 'https://example.com/node.zip', integrity, basename: '', retry: { ...NO_RETRY_DELAY, factor: undefined, retries: undefined } },
+      temporaryDirectory()
+    )
+    expect(requests()).toBe(2)
+  })
+
+  it('hides URL secrets in a checksum error', async () => {
+    const { zipBuffer } = createZip()
+    const integrity = ssri.fromData(Buffer.from('something else')).toString()
+
+    await expect(downloadAndUnpackZip(
+      createMockFetch(zipBuffer),
+      { url: 'https://user:secret@example.com/node.zip?token=secret', integrity, basename: '', retry: { retries: 0 } },
+      temporaryDirectory()
+    )).rejects.toThrow(/^Got unexpected checksum for "https:\/\/example\.com\/node\.zip"\./)
+  })
+
+  it('names the URL when every attempt drops the connection', async () => {
+    const { zipBuffer, integrity } = createZip()
+    const { fetch, requests } = createDroppingFetch(zipBuffer, 2)
+
+    await expect(downloadAndUnpackZip(
+      fetch,
+      { url: 'https://user:secret@example.com/node.zip', integrity, basename: '', retry: { ...NO_RETRY_DELAY, retries: 1 } },
+      temporaryDirectory()
+    )).rejects.toMatchObject({
+      code: 'ERR_PNPM_BINARY_FETCH_FAIL',
+      message: 'GET https://example.com/node.zip: terminated',
+      attempts: 2,
+    })
+    expect(requests()).toBe(2)
+  })
+
+  it('does not retry a missing archive', async () => {
+    let requests = 0
+    const fetch = (() => {
+      requests++
+      return Promise.resolve({ status: 404, statusText: 'Not Found', body: null })
+    }) as unknown as FetchFromRegistry
+
+    await expect(downloadAndUnpackZip(
+      fetch,
+      { url: 'https://example.com/node.zip', integrity: createZip().integrity, basename: '', retry: { ...NO_RETRY_DELAY, retries: 1 } },
+      temporaryDirectory()
+    )).rejects.toMatchObject({ message: 'GET https://example.com/node.zip: Not Found - 404' })
+    expect(requests).toBe(1)
   })
 })
 
@@ -571,6 +668,7 @@ describe('createBinaryFetcher', () => {
       fetchFromRemoteTarball: fetch,
       getAuthHeader: () => 'Bearer mirror-token',
       storeIndex: {} as never,
+      retry: { retries: 0 },
     }).binary
 
     await expect(binaryFetcher({
