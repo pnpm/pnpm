@@ -12,6 +12,7 @@ use pnpm_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
     command_env::CommandTestExt,
 };
+use pnpm_workspace_state::WORKSPACE_STATE_FILENAME;
 use std::{
     fs,
     os::unix::{fs::PermissionsExt, process::CommandExt},
@@ -115,6 +116,16 @@ fn installs_materialize_files_at_the_current_umask_even_from_a_stale_store() {
         file_mode(&workspace.join(PLAIN_FILE_REL)),
         0o644,
         "the store link matches the umask that wrote the store",
+    );
+    assert_eq!(
+        file_mode(&workspace.join("node_modules").join(WORKSPACE_STATE_FILENAME)),
+        0o644,
+        "the workspace state file follows the install's umask",
+    );
+    assert_eq!(
+        file_mode(&other.join("node_modules").join(WORKSPACE_STATE_FILENAME)),
+        0o600,
+        "the workspace state file follows the install's umask",
     );
 
     use std::os::unix::fs::MetadataExt;
