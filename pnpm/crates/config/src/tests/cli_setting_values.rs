@@ -50,7 +50,7 @@ fn cache_dir_cli_setting_overrides_the_default() {
     assert_eq!(config.cache_dir, std::path::PathBuf::from("/tmp/pnpm-cache"));
     assert_eq!(
         config.explicit_settings.get("cacheDir"),
-        Some(&serde_json::Value::String("/tmp/pnpm-cache".to_string()))
+        Some(&serde_json::Value::String("/tmp/pnpm-cache".to_string())),
     );
 }
 
