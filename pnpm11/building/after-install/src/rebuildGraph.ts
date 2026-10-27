@@ -13,7 +13,7 @@ import { logger } from '@pnpm/logger'
 import type { DepPath } from '@pnpm/types'
 import pLimit from 'p-limit'
 
-import { builtBinPackages, builtHoistedBinPackages, builtProjectBinPackages } from './builtBinPackages.js'
+import { builtBinPackages, builtHoistedBinPackages, builtProjectBinPackages, getHoistedModulesDir } from './builtBinPackages.js'
 import type { StrictBuildOptions } from './extendBuildOptions.js'
 import type { RebuildPackagesContext, RebuildState } from './rebuildTypes.js'
 
@@ -110,8 +110,8 @@ export async function relinkBins (state: RebuildState, getPkgModulesDir: (depPat
 }
 
 async function relinkPrivateHoistedBins (state: RebuildState): Promise<void> {
-  const hoistedModulesDir = path.join(state.ctx.virtualStoreDir, 'node_modules')
-  const forceForPackages = builtHoistedBinPackages(hoistedModulesDir, state)
+  const hoistedModulesDir = getHoistedModulesDir(state)
+  const forceForPackages = builtHoistedBinPackages(state)
   if (forceForPackages.size === 0) return
   await linkBins(hoistedModulesDir, path.join(hoistedModulesDir, '.bin'), {
     allowExoticManifests: true,

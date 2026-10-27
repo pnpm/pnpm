@@ -14,7 +14,7 @@ export async function relinkModulesDirPackageBins (
   await Promise.all(Array.from(modulesDirs, async modulesDir => {
     const forceForPackages = new Set(pkgRoots.filter(pkgRoot => containingModulesDir(pkgRoot) === modulesDir).map(pkgRoot => path.normalize(pkgRoot)))
     const previous = pendingLinks.get(modulesDir) ?? Promise.resolve()
-    const current = previous.then(async () => {
+    const current = previous.catch(() => {}).then(async () => {
       const refresh = await getRefreshPlan(modulesDir, state, opts)
       await refresh(forceForPackages)
     })
@@ -44,7 +44,10 @@ function getRefreshPlan (
   }
   let plan = plans.get(modulesDir)
   if (plan == null) {
-    plan = createBinRefreshPlan(modulesDir, path.join(modulesDir, '.bin'), opts)
+    plan = createBinRefreshPlan(modulesDir, path.join(modulesDir, '.bin'), opts).catch((err: unknown) => {
+      plans?.delete(modulesDir)
+      throw err
+    })
     plans.set(modulesDir, plan)
   }
   return plan

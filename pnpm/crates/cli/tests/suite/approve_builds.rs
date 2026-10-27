@@ -62,6 +62,29 @@ fn install_and_rebuild_refresh_privately_hoisted_bins_for_transitive_dependents(
     .expect("write build policy");
 
     pacquet(&harness.workspace)
+        .args(["install", "--ignore-scripts"])
+        .assert()
+        .success();
+    Command::new(harness.workspace.join("node_modules/.pnpm/node_modules/.bin/tool"))
+        .assert()
+        .success()
+        .stdout("placeholder\n");
+
+    pacquet(&harness.workspace)
+        .arg("rebuild")
+        .assert()
+        .success();
+    Command::new(harness.workspace.join("node_modules/.pnpm/node_modules/.bin/tool"))
+        .assert()
+        .success()
+        .stdout("built binary\n");
+    assert_eq!(
+        fs::read_to_string(harness.workspace.join("node_modules/parent/parent-built")).unwrap(),
+        "built binary\n",
+    );
+
+    fs::remove_dir_all(harness.workspace.join("node_modules")).expect("remove node_modules");
+    pacquet(&harness.workspace)
         .arg("install")
         .assert()
         .success();

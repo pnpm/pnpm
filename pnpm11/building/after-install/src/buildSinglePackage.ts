@@ -77,7 +77,7 @@ async function propagateBuildOutputs (depPath: DepPath, pkgRoots: string[], stat
   if (!state.builtDepPaths.has(depPath)) return
   const hoistedRoots = state.opts.nodeLinker === 'hoisted'
     ? pkgRoots
-    : privateHoistedPkgRoots(depPath, path.join(state.ctx.virtualStoreDir, 'node_modules'), state)
+    : privateHoistedPkgRoots(depPath, state)
   if (hoistedRoots.length > 0) {
     await relinkHoistedPackageBins(hoistedRoots, state)
   }

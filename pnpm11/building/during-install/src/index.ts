@@ -117,7 +117,7 @@ async function recordCachedBuilds<NodeId extends string> (
   for (const depPath of depPaths) {
     if (depsToBuild != null && !depsToBuild.has(depPath)) continue
     const node = depGraph[depPath]
-    if ((node.requiresBuild || node.patch != null) && node.fetching != null && node.isBuilt) {
+    if ((node.patch != null || (Boolean(node.requiresBuild) && Boolean(node.hasBin))) && node.fetching != null && node.isBuilt) {
       buildDepOpts.builtDepPaths?.add(node.depPath)
       buildDepOpts.builtPackageDirs?.add(path.normalize(node.dir))
       cachedNodes.push(node)

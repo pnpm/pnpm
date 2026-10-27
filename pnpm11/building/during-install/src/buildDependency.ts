@@ -145,12 +145,10 @@ async function buildInSlot<NodeId extends string> (
   const isPatched = patchOutcome === 'patched'
   const { requiresBuild, ignoreScripts } = await gateBuildScripts(depNode, isPatched, opts)
   const hasSideEffects = !ignoreScripts && await runBuildScripts(depPath, depNode, opts)
-  if (isPatched || hasSideEffects) {
+  if (isPatched || (hasSideEffects && depNode.hasBin)) {
     opts.builtDepPaths?.add(depNode.depPath)
     opts.builtPackageDirs?.add(path.normalize(depNode.dir))
-    if (depNode.hasBin) {
-      await linkBinsOfDependencies(depNode, depGraph, opts)
-    }
+    await linkBinsOfDependencies(depNode, depGraph, opts)
   }
   // A package whose build was withheld - the allow-build policy said so, or
   // ignoreScripts did - must not be cached as if it were built. The entry
