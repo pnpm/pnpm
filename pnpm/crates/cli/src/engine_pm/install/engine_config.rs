@@ -27,6 +27,16 @@ pub(super) fn package_manager_engine_config(config: &Config) -> miette::Result<C
         tls: config.package_manager_bootstrap.tls.clone(),
         tls_by_uri: config.package_manager_bootstrap.tls_by_uri.clone(),
         auth_headers: Arc::clone(&config.package_manager_bootstrap.auth_headers),
+        ..network_and_release_policy_settings(config)
+    };
+    engine_config.disable_agent_skills();
+    Ok(engine_config)
+}
+
+/// The user's network, `engineStrict`, and release-policy settings, on an
+/// otherwise default config.
+fn network_and_release_policy_settings(config: &Config) -> Config {
+    Config {
         offline: config.offline,
         prefer_offline: config.prefer_offline,
         fetch_retries: config.fetch_retries,
@@ -48,7 +58,5 @@ pub(super) fn package_manager_engine_config(config: &Config) -> miette::Result<C
         trust_policy_exclude: config.trust_policy_exclude.clone(),
         trust_policy_ignore_after: config.trust_policy_ignore_after,
         ..Config::default()
-    };
-    engine_config.disable_agent_skills();
-    Ok(engine_config)
+    }
 }
