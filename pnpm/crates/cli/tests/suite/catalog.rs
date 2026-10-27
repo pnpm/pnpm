@@ -296,6 +296,8 @@ fn add_pins_the_configured_tag_in_a_new_catalog_entry() {
     run_ok(&workspace, &["add", "--lockfile-only", FOO]);
 
     assert_eq!(dep_spec(&workspace, FOO).as_deref(), Some("catalog:"));
+    let workspace_yaml = read(&workspace, "pnpm-workspace.yaml");
+    assert!(workspace_yaml.contains(&format!("'{FOO}': 100.0.0")), "{workspace_yaml}");
     assert_eq!(catalog_snapshot(&workspace, FOO), ("100.0.0".to_string(), "100.0.0".to_string()));
 
     drop((root, anchor));
