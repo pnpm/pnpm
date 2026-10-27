@@ -120,3 +120,34 @@ fn file_dependency_on_a_publish_directory_hooks_only_its_own_manifest() {
     install(&fixture, &[]);
     install(&fixture, &["--frozen-lockfile"]);
 }
+
+/// With its own lockfile, a project reaching one publish directory through
+/// both a workspace spec and a `file:` spec checks the workspace range
+/// against the publishing project's version.
+#[test]
+fn publish_directory_reached_both_ways_keeps_the_workspace_version() {
+    let fixture = WorkspaceFixture::new();
+    fixture.append_workspace_yaml(
+        "sharedWorkspaceLockfile: false\ninjectWorkspacePackages: true\n",
+    );
+    fixture.write_root_manifest("root", ManifestDeps::default());
+    write_package(
+        &fixture.workspace.join("packages/lib"),
+        &json!({ "name": "lib", "version": "1.0.0", "publishConfig": { "directory": "dist" } }),
+    );
+    write_package(
+        &fixture.workspace.join("packages/lib/dist"),
+        &json!({ "name": "lib", "version": "2.0.0" }),
+    );
+    write_package(
+        &fixture.workspace.join("packages/app"),
+        &json!({
+            "name": "app",
+            "version": "1.0.0",
+            "dependencies": { "lib": "workspace:^1.0.0", "lib-dist": "file:../lib/dist" },
+        }),
+    );
+
+    install(&fixture, &[]);
+    install(&fixture, &["--frozen-lockfile"]);
+}

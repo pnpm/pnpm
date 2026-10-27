@@ -63,26 +63,29 @@ pub(super) async fn hooked_directory_manifests(
         ),
         hooks: resolver_hooks(inputs, parsed_overrides)?,
     };
-    let mut seen: HashSet<DirectoryDep> = HashSet::new();
-    let mut manifests = HashMap::new();
+    // A directory is read once, but each snapshot of it is walked: peer
+    // variants of one package can record different children.
+    let mut walked: HashSet<(pnpm_lockfile::PackageKey, DirectoryDep)> = HashSet::new();
+    let mut read: HashMap<DirectoryDep, Option<(PackageManifest, bool)>> = HashMap::new();
     while !level.is_empty() {
-        level.retain(|visit| seen.insert(visit.dep.clone()));
-        let read = futures_util::future::try_join_all(
-            level
-                .iter()
-                .map(|visit| walk.read(visit)),
-        )
-        .await?;
-        let mut next = Vec::new();
-        for (visit, manifest) in level.into_iter().zip(read) {
-            let Some((manifest, hooked)) = manifest else { continue };
-            next.extend(walk.children(&visit, &manifest));
-            if hooked {
-                manifests.insert(visit.dep, manifest);
-            }
-        }
-        level = next;
+        level.retain(|visit| walked.insert((visit.key.clone(), visit.dep.clone())));
+        walk.read_level(&level, &mut read).await?;
+        level = level
+            .iter()
+            .filter_map(|visit| {
+                let (manifest, _) = read.get(&visit.dep)?.as_ref()?;
+                Some(walk.children(visit, manifest))
+            })
+            .flatten()
+            .collect();
     }
+    let manifests = read
+        .into_iter()
+        .filter_map(|(dep, manifest)| match manifest {
+            Some((manifest, true)) => Some((dep, manifest)),
+            _ => None,
+        })
+        .collect();
     Ok(DirectoryManifests(manifests))
 }
 
@@ -103,7 +106,8 @@ fn resolver_hooks(
 
 /// The manifests a project with its own lockfile injects: the workspace
 /// projects it does not hold among its own importers. Every other install
-/// holds them, already hooked.
+/// holds them, already hooked. Later entries replace earlier ones for the
+/// same directory.
 pub(super) fn injected_project_manifests<'a>(
     lockfile: &Lockfile,
     inputs: &LockfileFreshnessInputs<'_, '_>,
@@ -113,15 +117,24 @@ pub(super) fn injected_project_manifests<'a>(
         return Vec::new();
     }
     let groups = [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional];
-    inputs.manifests
+    let mut injected: Vec<(bool, PathBuf, &PackageManifest)> = inputs.manifests
         .iter()
         .flat_map(|(importer_id, _)| lockfile.injected_dependencies(importer_id, groups))
         .filter_map(|dependency| {
             let directory = &dependency.directory.directory;
             let declared_as_file = is_declared_local_directory(&dependency.spec.specifier);
             let manifest = directory_manifests.get(directory, declared_as_file)?;
-            Some((pnpm_fs::lexical_normalize(&inputs.lockfile_dir.join(directory)), manifest))
+            let dir = pnpm_fs::lexical_normalize(&inputs.lockfile_dir.join(directory));
+            Some((declared_as_file, dir, manifest))
         })
+        .collect();
+    // The map these extend is keyed by directory and serves workspace specs,
+    // so a directory reached both ways keeps the workspace declaration's
+    // manifest: it comes last.
+    injected.sort_by_key(|(declared_as_file, ..)| !declared_as_file);
+    injected
+        .into_iter()
+        .map(|(_, dir, manifest)| (dir, manifest))
         .collect()
 }
 
@@ -164,6 +177,37 @@ struct DirectoryWalk<'a, 'i> {
 }
 
 impl DirectoryWalk<'_, '_> {
+    /// [`Self::read`] each directory of `level` that `read` does not hold yet.
+    async fn read_level(
+        &self,
+        level: &[Visit],
+        read: &mut HashMap<DirectoryDep, Option<(PackageManifest, bool)>>,
+    ) -> Result<(), FreshnessCheckError> {
+        let mut unread: Vec<&Visit> = Vec::new();
+        for visit in level {
+            if !read.contains_key(&visit.dep)
+                && !unread
+                    .iter()
+                    .any(|seen| seen.dep == visit.dep)
+            {
+                unread.push(visit);
+            }
+        }
+        let manifests = futures_util::future::try_join_all(
+            unread
+                .iter()
+                .map(|visit| self.read(visit)),
+        )
+        .await?;
+        read.extend(
+            unread
+                .into_iter()
+                .map(|visit| visit.dep.clone())
+                .zip(manifests),
+        );
+        Ok(())
+    }
+
     /// The manifest the check reads for `visit`, and whether it was hooked
     /// here. A project's manifest comes in already hooked.
     async fn read(
