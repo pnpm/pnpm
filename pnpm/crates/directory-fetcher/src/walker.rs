@@ -200,8 +200,9 @@ fn resolve_confined_entry(
     let Some(real) = stat_or_skip(path, |path| fs::canonicalize(path))? else {
         return Ok(None);
     };
-    if !real.starts_with(root) || !matches!(pnpm_fs::admit_internal_symlink(root, path), Ok(Ok(_)))
-    {
+    let admitted = pnpm_fs::admit_internal_symlink(root, path)
+        .map_err(|source| DirectoryFetcherError::Io { dir: path.display().to_string(), source })?;
+    if !real.starts_with(root) || admitted.is_err() {
         return Err(DirectoryFetcherError::PathOutsideDirectory {
             path: path.to_path_buf(),
             directory: root.to_path_buf(),
@@ -313,7 +314,10 @@ fn resolve_entry_in_directory(
             directory: root.to_path_buf(),
         });
     }
-    Ok(resolved.is_file().then_some(resolved))
+    let Some(metadata) = stat_or_skip(&resolved, |path| fs::metadata(path))? else {
+        return Ok(None);
+    };
+    Ok(metadata.is_file().then_some(resolved))
 }
 
 fn canonicalize_path(path: &Path) -> Result<PathBuf, DirectoryFetcherError> {

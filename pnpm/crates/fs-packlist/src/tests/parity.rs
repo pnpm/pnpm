@@ -144,7 +144,7 @@ fn classify_rust_only_path(
     if crate::pnpm_config_path(manifest).as_deref() == Some(path) {
         return Some(DeliberateDivergence::PnpmConfigPath);
     }
-    if is_named_file_in_manifest(manifest, path) {
+    if path.split('/').count() >= 3 && is_named_file_in_manifest(manifest, path) {
         return Some(DeliberateDivergence::NamedFileDepthRule);
     }
     None
@@ -430,9 +430,15 @@ fn deliberate_divergences_have_witnesses() {
         let npm_pack = run_npm_pack_dry_run(root, &[root]);
         assert!(actual.contains(&"lib/index.js".to_string()));
         assert!(!actual.contains(&"lib/index.js.map".to_string()));
-        assert!(npm_pack["pkg"].contains(&"lib/index.js.map".to_string()));
+        assert!(npm_pack["pkg"].contains(&"lib/index.js".to_string()));
+        // npm v11 (npm-packlist v10) anchors `!*.map` at the package root and keeps
+        // `lib/index.js.map`; npm v10 (npm-packlist v8) keeps it unanchored like pnpm.
+        let witness_path = npm_pack["pkg"]
+            .iter()
+            .find(|path| path.as_str() == "lib/index.js.map")
+            .map_or("lib/index.js.map", String::as_str);
         observed.insert(
-            classify_divergence(root, &manifest, "lib/index.js.map", false)
+            classify_divergence(root, &manifest, witness_path, false)
                 .expect("UnanchoredFilesFieldNegation witness"),
         );
     }

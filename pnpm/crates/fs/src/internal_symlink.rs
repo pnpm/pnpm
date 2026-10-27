@@ -78,17 +78,7 @@ pub fn is_symlink(path: &Path) -> bool {
 /// on Windows, a directory junction.
 #[must_use]
 pub fn is_symlink_metadata(metadata: &fs::Metadata) -> bool {
-    #[cfg(windows)]
-    {
-        use std::os::windows::fs::MetadataExt as _;
-        const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x400;
-        metadata.file_type().is_symlink()
-            || metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0
-    }
-    #[cfg(not(windows))]
-    {
-        metadata.file_type().is_symlink()
-    }
+    metadata.file_type().is_symlink()
 }
 
 /// Every path in `paths` and each directory above it, the package root
