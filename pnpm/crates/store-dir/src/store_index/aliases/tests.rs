@@ -113,3 +113,65 @@ fn a_pkg_id_lookup_in_a_read_only_index_created_before_aliases_misses() {
     let index = StoreIndex::open_readonly(dir.path()).unwrap();
     assert_eq!(index.get_by_pkg_id("acme@1.0.0").unwrap(), None);
 }
+
+fn assert_pkg_id_lookup_skips_a_dangling_alias(root: &Path) {
+    let mut index = StoreIndex::open(root).unwrap();
+    let live_key = "sha512-tgz\tfile:acme-1.0.0.tgz";
+    index
+        .set(live_key, &sample_index())
+        .unwrap();
+    index
+        .set_aliases(&[
+            ("sha1-pruned\tacme@1.0.0".to_string(), "sha1-pruned\tfile:gone.tgz".to_string()),
+            ("sha512-tgz\tacme@1.0.0".to_string(), live_key.to_string()),
+        ])
+        .unwrap();
+
+    assert_eq!(index.get_by_pkg_id("acme@1.0.0").unwrap(), Some(sample_index()));
+}
+
+#[test]
+fn an_sqlite_pkg_id_lookup_skips_a_dangling_alias() {
+    let dir = tempdir().unwrap();
+    assert_pkg_id_lookup_skips_a_dangling_alias(dir.path());
+}
+
+#[test]
+fn a_files_pkg_id_lookup_skips_a_dangling_alias() {
+    let dir = tempdir().unwrap();
+    StoreIndex::apply_format(dir.path(), StoreIndexFormat::Files).unwrap();
+    assert_pkg_id_lookup_skips_a_dangling_alias(dir.path());
+}
+
+fn assert_pkg_id_lookup_matches_the_name_case(root: &Path) {
+    let mut index = StoreIndex::open(root).unwrap();
+    index
+        .set("sha512-row\tJSONStream@1.0.0", &sample_index())
+        .unwrap();
+    index
+        .set("sha512-tgz\tfile:JSONStream-2.0.0.tgz", &sample_index())
+        .unwrap();
+    index
+        .set_aliases(&[(
+            "sha512-tgz\tJSONStream@2.0.0".to_string(),
+            "sha512-tgz\tfile:JSONStream-2.0.0.tgz".to_string(),
+        )])
+        .unwrap();
+
+    assert_eq!(index.get_by_pkg_id("jsonstream@1.0.0").unwrap(), None);
+    assert_eq!(index.get_by_pkg_id("jsonstream@2.0.0").unwrap(), None);
+    assert_eq!(index.get_by_pkg_id("JSONStream@2.0.0").unwrap(), Some(sample_index()));
+}
+
+#[test]
+fn an_sqlite_pkg_id_lookup_matches_the_name_case() {
+    let dir = tempdir().unwrap();
+    assert_pkg_id_lookup_matches_the_name_case(dir.path());
+}
+
+#[test]
+fn a_files_pkg_id_lookup_matches_the_name_case() {
+    let dir = tempdir().unwrap();
+    StoreIndex::apply_format(dir.path(), StoreIndexFormat::Files).unwrap();
+    assert_pkg_id_lookup_matches_the_name_case(dir.path());
+}

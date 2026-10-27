@@ -8,7 +8,7 @@
 
 use super::{
     Backend, Connection, HashMap, StoreIndex, StoreIndexError,
-    queries::{GET_MANY_CHUNK, ends_with_pkg_id, pkg_id_suffix_pattern},
+    queries::{GET_MANY_CHUNK, ends_with_pkg_id, pkg_id_key_suffix},
 };
 
 pub(super) const CREATE_ALIAS_TABLE: &str = "
@@ -45,18 +45,20 @@ impl StoreIndex {
         }
     }
 
-    /// The target of the first alias whose key ends with `\t{pkg_id}`. See
-    /// [`StoreIndex::get_by_pkg_id`].
-    pub(super) fn alias_target_by_pkg_id(
+    /// The targets of the aliases whose keys end with `\t{pkg_id}`, in key
+    /// order. See [`StoreIndex::get_by_pkg_id`].
+    pub(super) fn alias_targets_by_pkg_id(
         &self,
         pkg_id: &str,
-    ) -> Result<Option<String>, StoreIndexError> {
+    ) -> Result<Vec<String>, StoreIndexError> {
         match &self.backend {
-            Backend::Sqlite { conn, .. } => sqlite_alias_target_by_pkg_id(conn, pkg_id),
+            Backend::Sqlite { conn, .. } => sqlite_alias_targets_by_pkg_id(conn, pkg_id),
             Backend::Files(files) => Ok(files
                 .aliases()
-                .first_matching(|key| ends_with_pkg_id(key, pkg_id))?
-                .and_then(|target| String::from_utf8(target).ok())),
+                .all_matching(|key| ends_with_pkg_id(key, pkg_id))?
+                .into_iter()
+                .filter_map(|(_, target)| String::from_utf8(target).ok())
+                .collect()),
         }
     }
 
@@ -122,22 +124,21 @@ fn sqlite_alias_targets(
     Ok(out)
 }
 
-fn sqlite_alias_target_by_pkg_id(
+fn sqlite_alias_targets_by_pkg_id(
     conn: &Connection,
     pkg_id: &str,
-) -> Result<Option<String>, StoreIndexError> {
-    let target = conn.query_row(
-        r"SELECT target FROM package_index_alias WHERE key LIKE ?1 ESCAPE '\' ORDER BY key LIMIT 1",
-        [pkg_id_suffix_pattern(pkg_id)],
-        |row| row.get::<_, String>(0),
-    );
-    match target {
-        Ok(target) => Ok(Some(target)),
-        Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+) -> Result<Vec<String>, StoreIndexError> {
+    let mut stmt = match conn.prepare_cached(
+        "SELECT target FROM package_index_alias WHERE substr(key, -length(?1)) = ?1 ORDER BY key",
+    ) {
+        Ok(stmt) => stmt,
         // A read-only index without the alias table holds no aliases.
-        Err(error) if is_missing_alias_table(&error) => Ok(None),
-        Err(source) => Err(StoreIndexError::Read { source }),
-    }
+        Err(error) if is_missing_alias_table(&error) => return Ok(Vec::new()),
+        Err(source) => return Err(StoreIndexError::Read { source }),
+    };
+    stmt.query_map([pkg_id_key_suffix(pkg_id)], |row| row.get::<_, String>(0))
+        .and_then(Iterator::collect)
+        .map_err(|source| StoreIndexError::Read { source })
 }
 
 fn is_missing_alias_table(error: &rusqlite::Error) -> bool {

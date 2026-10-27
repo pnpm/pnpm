@@ -29,16 +29,17 @@ impl AddOne<'_> {
             .fetch_and_extract::<Reporter>()
             .await
             .map_err(miette::Report::new)?;
-        let Some(registry_id) = registry_package_id(fetched.manifest.as_ref()) else {
-            return Ok(());
-        };
         let row_key = store_index_key(&fetched.integrity.to_string(), archive.id);
-        [Some(&digests.sha512), Some(&digests.sha1), fetched.tar_integrity.as_ref()]
-            .into_iter()
-            .flatten()
-            .map(|integrity| store_index_key(&integrity.to_string(), &registry_id))
-            .filter(|alias| *alias != row_key)
-            .for_each(|alias| self.store.index_writer.queue_alias(alias, row_key.clone()));
+        let integrities =
+            [Some(&digests.sha512), Some(&digests.sha1), fetched.tar_integrity.as_ref()];
+        for registry_id in registry_package_ids(fetched.manifest.as_ref()) {
+            integrities
+                .iter()
+                .flatten()
+                .map(|integrity| store_index_key(&integrity.to_string(), &registry_id))
+                .filter(|alias| *alias != row_key)
+                .for_each(|alias| self.store.index_writer.queue_alias(alias, row_key.clone()));
+        }
         Ok(())
     }
 }
@@ -63,10 +64,24 @@ impl FileDigests {
     }
 }
 
-/// The id a registry resolution of the package this manifest names carries.
-fn registry_package_id(manifest: Option<&serde_json::Value>) -> Option<String> {
-    let manifest = manifest?;
-    let name = manifest.get("name")?.as_str()?;
-    let version = manifest.get("version")?.as_str()?;
-    Some(format!("{name}@{version}"))
+/// The ids a registry resolution of the package this manifest names may
+/// carry: `<name>@<version>` with the version as the manifest spells it and,
+/// when that differs, as semver writes it (`v1.0.0` is `1.0.0`). The store's
+/// package content check accepts either spelling.
+fn registry_package_ids(manifest: Option<&serde_json::Value>) -> Vec<String> {
+    let Some((name, version)) = manifest.and_then(|manifest| {
+        Some((manifest.get("name")?.as_str()?, manifest.get("version")?.as_str()?))
+    }) else {
+        return Vec::new();
+    };
+    let mut ids = vec![format!("{name}@{version}")];
+    if let Ok(parsed) = node_semver::Version::parse(version)
+        && parsed.to_string() != version
+    {
+        ids.push(format!("{name}@{parsed}"));
+    }
+    ids
 }
+
+#[cfg(test)]
+mod tests;

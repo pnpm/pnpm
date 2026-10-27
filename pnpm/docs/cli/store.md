@@ -34,10 +34,11 @@ pnpm install --offline --frozen-lockfile
 ```
 
 An install takes a registry package from such a tarball when its lockfile entry
-names the same package and version, and its `integrity` is the hash of that
-tarball. Lockfiles that pin sha512, sha1, or the tar hash set by
-[`lockfile.integrityTarget`](../settings/store.md#lockfileintegritytarget) are
-all supported.
+names the same package and version and pins that tarball. The entry's
+`integrity` can be the tarball's sha512 or sha1, or the hash of the uncompressed
+tar inside it, which
+[`lockfile.integrityTarget: tar`](../settings/store.md#lockfileintegritytarget)
+records.
 
 [`pnpm add`]: ./add.md
 

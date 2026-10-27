@@ -19,20 +19,14 @@ pub(super) fn ends_with_pkg_id(key: &str, pkg_id: &str) -> bool {
         .is_some_and(|rest| rest.ends_with('\t'))
 }
 
-/// A `LIKE` pattern matching the keys [`ends_with_pkg_id`] accepts.
-pub(super) fn pkg_id_suffix_pattern(pkg_id: &str) -> String {
-    format!("%\t{}", escape_like_pattern(pkg_id))
-}
-
-fn escape_like_pattern(value: &str) -> String {
-    let mut escaped = String::with_capacity(value.len());
-    for character in value.chars() {
-        if matches!(character, '\\' | '%' | '_') {
-            escaped.push('\\');
-        }
-        escaped.push(character);
-    }
-    escaped
+/// The end of every `package_index` key of `pkg_id`, the one
+/// [`ends_with_pkg_id`] checks for.
+///
+/// SQL compares it as `substr(key, -length(?1)) = ?1`. `LIKE` would ignore
+/// the case of ASCII letters, and some package names differ only in case,
+/// like `JSONStream` and `jsonstream`.
+pub(super) fn pkg_id_key_suffix(pkg_id: &str) -> String {
+    format!("\t{pkg_id}")
 }
 
 impl StoreIndex {
@@ -87,13 +81,24 @@ impl StoreIndex {
     ) -> Result<Option<PackageFilesIndex>, StoreIndexError> {
         let row = match self.get_raw_by_pkg_id(pkg_id)? {
             Some(row) => Some(row),
-            None => match self.alias_target_by_pkg_id(pkg_id)? {
-                Some(target) => self.get_raw(&target)?,
-                None => None,
-            },
+            None => self.get_raw_through_pkg_id_alias(pkg_id)?,
         };
         let Some(bytes) = row else { return Ok(None) };
         decode_index_value(&bytes).map(Some)
+    }
+
+    /// The row of the first alias of `pkg_id`, in key order, whose row still
+    /// exists. Deleting a row leaves its aliases behind.
+    fn get_raw_through_pkg_id_alias(
+        &self,
+        pkg_id: &str,
+    ) -> Result<Option<Vec<u8>>, StoreIndexError> {
+        for target in self.alias_targets_by_pkg_id(pkg_id)? {
+            if let Some(row) = self.get_raw(&target)? {
+                return Ok(Some(row));
+            }
+        }
+        Ok(None)
     }
 
     fn get_raw_by_pkg_id(&self, pkg_id: &str) -> Result<Option<Vec<u8>>, StoreIndexError> {
@@ -476,8 +481,8 @@ fn sqlite_get_by_pkg_id(
     pkg_id: &str,
 ) -> Result<Option<Vec<u8>>, StoreIndexError> {
     conn.query_row(
-        r"SELECT data FROM package_index WHERE key LIKE ?1 ESCAPE '\' ORDER BY key LIMIT 1",
-        [pkg_id_suffix_pattern(pkg_id)],
+        "SELECT data FROM package_index WHERE substr(key, -length(?1)) = ?1 ORDER BY key LIMIT 1",
+        [pkg_id_key_suffix(pkg_id)],
         |row| row.get::<_, Vec<u8>>(0),
     )
     .map(Some)
