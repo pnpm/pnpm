@@ -1,85 +1,207 @@
 use super::{
-    Config, LogEvent, PNPM_VERSION, PackageManager, PackageManagerToSync, PinRoots, PmOnFail,
-    PreCommandError, PreCommandInput, ReadEnvLockfile, SwitchInput, SwitchProcessState,
-    SwitchSource, SwitchTarget, Value, WantedPackageManager, env_lockfile_sync, global_warn,
-    locked_package_manager_version, locked_switch_source, read_env_lockfile, read_root_manifest,
-    sanitize_inline, should_persist_package_manager_lockfile, switch_env_root, switch_or_sync,
-    version_satisfies, wanted_package_manager,
+    Config, EntryPoint, EnvLockfile, Invocation, LogEvent, PACKAGE_MANAGER_SWITCH_ENV_VARS,
+    PackageManager, PackageManagerToSync, PathBuf, PinRoots, PmOnFail, PreCommandError,
+    SwitchProcessState, SwitchSource, SwitchTarget, Value, WantedPackageManager,
+    env_lockfile_sync_from_loaded, global_warn, locked_package_manager_version,
+    locked_switch_source, sanitize_inline, should_persist_package_manager_lockfile,
+    switch_env_root, version_satisfies,
 };
 
-/// What the project's `packageManager` pin asks this invocation to do.
-pub(super) enum PinOutcome {
+/// What [`decide`] chooses for an invocation.
+#[derive(Debug)]
+pub(crate) enum PinDecision {
     /// Hand the command over to the pinned pnpm.
     Switch(SwitchTarget),
-    /// Keep running, recording the pin in the env lockfile.
-    Sync(Option<PackageManagerToSync>),
+    /// Keep running, recording the pin in the env lockfile at `at`.
+    Record { at: PathBuf, package_manager: PackageManagerToSync },
+    /// Neither switch nor record.
+    Nothing,
 }
 
-/// The inputs the pin resolution reads.
-pub(super) struct PinResolution<'a> {
-    pub(super) input: &'a PreCommandInput,
-    pub(super) config: &'a Config,
-    pub(super) roots: &'a PinRoots,
-    pub(super) process_state: SwitchProcessState,
-    pub(super) switch: &'a SwitchInput,
+/// Pre-read manifest and lockfile inputs for [`decide`].
+pub(crate) struct PinInput<'a> {
+    pub(crate) roots: &'a PinRoots,
+    pub(crate) manifest: Option<&'a Value>,
+    pub(crate) wanted: Option<&'a WantedPackageManager>,
+    pub(crate) locked_env: Option<EnvLockfile>,
+    pub(crate) running_version: &'a str,
+    pub(crate) process_state: SwitchProcessState,
 }
 
-fn resolve_package_manager_pin(
-    resolution: &PinResolution<'_>,
+/// Whether `decide` may consult the project's `pnpm-lock.yaml` for `wanted`.
+pub(crate) fn should_read_pin_lockfile(
+    wanted: Option<&WantedPackageManager>,
+    config: &Config,
+    invocation: &Invocation,
+    running_version: &str,
+    process_state: SwitchProcessState,
+) -> bool {
+    if invocation.global || !config.lockfile {
+        return false;
+    }
+    let Some(pm) = wanted.filter(|pm| pm.name == "pnpm") else {
+        return false;
+    };
+    let Some(spec) = pm.version.as_deref() else {
+        return false;
+    };
+    let on_fail = effective_on_fail(config, pm);
+    if on_fail == PmOnFail::Ignore
+        || !should_persist_package_manager_lockfile(&WantedPackageManager {
+            name: pm.name.clone(),
+            version: pm.version.clone(),
+            from_dev_engines: pm.from_dev_engines,
+            on_fail: Some(on_fail.as_str().to_string()),
+        })
+    {
+        return false;
+    }
+    let switch_wanted =
+        on_fail == PmOnFail::Download && !process_state.package_manager_switch_disabled;
+    if can_switch_for_entry_point(invocation.entry_point, switch_wanted, process_state) {
+        return true;
+    }
+    invocation.entry_point != EntryPoint::UnknownFlag && version_satisfies(running_version, spec)
+}
+
+/// Pure decision over a pre-read [`PinInput`], [`Config`], and [`Invocation`].
+/// Performs no filesystem I/O.
+pub(crate) fn decide(
+    pin: &PinInput<'_>,
+    settings: &Config,
+    invocation: &Invocation,
+) -> miette::Result<PinDecision> {
+    if invocation.skip_pm_handling {
+        return Ok(PinDecision::Nothing);
+    }
+    let (Some(root_manifest), Some(pm)) = (pin.manifest, pin.wanted) else {
+        return Ok(PinDecision::Nothing);
+    };
+    let on_fail = effective_on_fail(settings, pm);
+    if on_fail == PmOnFail::Ignore {
+        return Ok(PinDecision::Nothing);
+    }
+    decide_enforced_pin(pin, settings, invocation, root_manifest, pm, on_fail)
+}
+
+fn decide_enforced_pin(
+    pin: &PinInput<'_>,
+    settings: &Config,
+    invocation: &Invocation,
     root_manifest: &Value,
     pm: &WantedPackageManager,
-) -> miette::Result<PinOutcome> {
-    let PinResolution {
-        input, config, roots, process_state, ..
-    } = *resolution;
-    let on_fail = effective_on_fail(config, pm);
-    if on_fail == PmOnFail::Ignore {
-        return Ok(PinOutcome::Sync(None));
-    }
+    on_fail: PmOnFail,
+) -> miette::Result<PinDecision> {
     let switch_wanted = pm.name == "pnpm" && on_fail == PmOnFail::Download;
-    // Turning `manage-package-manager-versions` off is the user taking over
-    // version selection, so a pin that only asked pnpm to switch has nothing
-    // left to report. Corepack is the opposite case: it manages the version
-    // and picked the wrong one, so the mismatch is reported rather than
-    // switched.
-    if switch_wanted && process_state.package_manager_switch_disabled {
-        // Which pnpm runs is the user's choice here; which one the lockfile
-        // records is still the project's, and a frozen install has to find it
-        // there (pnpm/pnpm#14575).
-        if input.global {
-            return Ok(PinOutcome::Sync(None));
-        }
-        return Ok(PinOutcome::Sync(env_lockfile_sync(
-            config,
-            root_manifest,
-            roots,
-            on_fail,
-            ReadEnvLockfile::NotYet,
-        )?));
+    if switch_wanted && pin.process_state.package_manager_switch_disabled {
+        return decide_when_switch_disabled(pin, settings, invocation, root_manifest, on_fail);
     }
-    // Global state belongs to the pnpm the user invoked, not to the project,
-    // so a global command never switches to the pinned pnpm (pnpm/pnpm#14531).
-    if input.global {
-        warn_that_global_skips_the_check(pm, input.emit(config));
-        return Ok(PinOutcome::Sync(None));
+    if invocation.global {
+        return Ok(decide_global_pin(pin, settings, invocation, pm));
     }
-    if switch_wanted && !process_state.executed_by_corepack {
-        return switch_or_sync(resolution, root_manifest, on_fail);
+    if can_switch_for_entry_point(invocation.entry_point, switch_wanted, pin.process_state) {
+        return decide_switch_or_record(pin, settings, invocation, root_manifest, on_fail);
     }
-    check_package_manager(pm, on_fail, process_state, input.emit(config))?;
-    Ok(PinOutcome::Sync(env_lockfile_sync(
-        config,
-        root_manifest,
-        roots,
+    if invocation.entry_point == EntryPoint::UnknownFlag {
+        return Ok(PinDecision::Nothing);
+    }
+    check_package_manager(
+        pm,
         on_fail,
-        ReadEnvLockfile::NotYet,
-    )?))
+        pin.process_state,
+        pin.running_version,
+        invocation.emit(settings),
+    )?;
+    decide_record(pin, settings, invocation, root_manifest, on_fail)
+}
+
+fn decide_global_pin(
+    pin: &PinInput<'_>,
+    settings: &Config,
+    invocation: &Invocation,
+    pm: &WantedPackageManager,
+) -> PinDecision {
+    if invocation.entry_point != EntryPoint::UnknownFlag {
+        warn_that_global_skips_the_check(pm, pin.running_version, invocation.emit(settings));
+    }
+    PinDecision::Nothing
+}
+
+fn can_switch_for_entry_point(
+    entry_point: EntryPoint,
+    switch_wanted: bool,
+    process_state: SwitchProcessState,
+) -> bool {
+    entry_point != EntryPoint::SelfUpdate && switch_wanted && !process_state.executed_by_corepack
+}
+
+fn decide_when_switch_disabled(
+    pin: &PinInput<'_>,
+    settings: &Config,
+    invocation: &Invocation,
+    root_manifest: &Value,
+    on_fail: PmOnFail,
+) -> miette::Result<PinDecision> {
+    if invocation.global || invocation.entry_point == EntryPoint::UnknownFlag {
+        return Ok(PinDecision::Nothing);
+    }
+    decide_record(pin, settings, invocation, root_manifest, on_fail)
+}
+
+fn decide_switch_or_record(
+    pin: &PinInput<'_>,
+    settings: &Config,
+    invocation: &Invocation,
+    root_manifest: &Value,
+    on_fail: PmOnFail,
+) -> miette::Result<PinDecision> {
+    let frozen_lockfile = invocation.frozen_lockfile.or(settings.frozen_lockfile).unwrap_or(false);
+    let Some(target) = switch_target_from_pin(pin, settings, frozen_lockfile)? else {
+        return Ok(PinDecision::Nothing);
+    };
+    if target.switches_away_from(pin.running_version) {
+        return Ok(PinDecision::Switch(target));
+    }
+    if invocation.entry_point == EntryPoint::UnknownFlag {
+        return Ok(PinDecision::Nothing);
+    }
+    decide_record(pin, settings, invocation, root_manifest, on_fail)
+}
+
+fn decide_record(
+    pin: &PinInput<'_>,
+    settings: &Config,
+    invocation: &Invocation,
+    root_manifest: &Value,
+    on_fail: PmOnFail,
+) -> miette::Result<PinDecision> {
+    let keep_locked_range_version = invocation.entry_point != EntryPoint::SelfUpdate;
+    Ok(
+        match env_lockfile_sync_from_loaded(
+            settings,
+            root_manifest,
+            pin.roots,
+            on_fail,
+            pin.locked_env.as_ref(),
+            pin.running_version,
+            keep_locked_range_version,
+        )? {
+            Some(package_manager) => {
+                PinDecision::Record { at: pin.roots.env.clone(), package_manager }
+            }
+            None => PinDecision::Nothing,
+        },
+    )
 }
 
 /// A pin the running pnpm already satisfies has no check to skip.
-fn warn_that_global_skips_the_check(pm: &WantedPackageManager, emit: fn(&LogEvent)) {
+fn warn_that_global_skips_the_check(
+    pm: &WantedPackageManager,
+    running_version: &str,
+    emit: fn(&LogEvent),
+) {
     let running_pnpm_is_pinned = pm.name == "pnpm"
-        && pm.version.as_deref().is_none_or(|wanted| version_satisfies(PNPM_VERSION, wanted));
+        && pm.version.as_deref().is_none_or(|wanted| version_satisfies(running_version, wanted));
     if !running_pnpm_is_pinned {
         global_warn(emit, "Using --global skips the package manager check for this project");
     }
@@ -91,6 +213,7 @@ fn check_package_manager(
     pm: &WantedPackageManager,
     on_fail: PmOnFail,
     process_state: SwitchProcessState,
+    running_version: &str,
     emit: fn(&LogEvent),
 ) -> miette::Result<()> {
     // `download` reaches this function only when the switch it asks for
@@ -112,7 +235,7 @@ fn check_package_manager(
     let Some(wanted) = pm.version.as_deref() else {
         return Ok(());
     };
-    if version_satisfies(PNPM_VERSION, wanted) {
+    if version_satisfies(running_version, wanted) {
         return Ok(());
     }
     let (note, hint) = if process_state.executed_by_corepack {
@@ -131,19 +254,10 @@ fn check_package_manager(
 
 const PM_ON_FAIL_HINT: &str = r#"If you want to bypass this version check, you can set the "pmOnFail" configuration to "warn" or "ignore" (e.g. via --pm-on-fail=ignore). If using "devEngines.packageManager", you can set its "onFail" to "warn" or "ignore""#;
 
-/// Corepack, not pnpm, picks the running version, so the mismatch survives
-/// even the `download` policy that would otherwise switch versions. Both
-/// the message and the hint have to say so, or the user is left with a
-/// download-on-mismatch contract that silently did not download.
 const COREPACK_NOTE: &str = "\nCorepack invoked pnpm with this version, and pnpm does not switch versions when running under corepack.";
 
 const COREPACK_PM_HINT_PREFIX: &str = r#"Align the "packageManager" field in package.json with "devEngines.packageManager", or invoke pnpm directly (without corepack) so it can switch versions automatically."#;
 
-/// What to do about a project that another package manager installs.
-///
-/// pnpm does not become that package manager just because a project asks
-/// for one — typing `pnpm` would then silently run something else — but it
-/// can provide it, so the way out is worth naming.
 fn other_pm_hint(name: &str) -> String {
     if PackageManager::parse(name).is_none() {
         return format!("pnpm cannot provide {name}. Install it to work on this project.");
@@ -153,45 +267,40 @@ fn other_pm_hint(name: &str) -> String {
     )
 }
 
-pub(super) fn switch_target(
+pub(super) fn switch_target_from_pin(
+    pin: &PinInput<'_>,
     config: &Config,
-    roots: &PinRoots,
     frozen_lockfile: bool,
 ) -> miette::Result<Option<SwitchTarget>> {
-    let Some(manifest) = read_root_manifest(&roots.manifest) else {
+    let Some(pm) = pin.wanted.filter(|pm| pm.name == "pnpm") else {
         return Ok(None);
     };
-    let Some(mut pm) = wanted_package_manager(&manifest) else {
-        return Ok(None);
-    };
-    if pm.name != "pnpm" {
-        return Ok(None);
-    }
     let Some(spec) = pm.version.clone() else {
         return Ok(None);
     };
-    let on_fail = effective_on_fail(config, &pm);
+    let on_fail = effective_on_fail(config, pm);
     if on_fail != PmOnFail::Download {
         return Ok(None);
     }
-    pm.on_fail = Some(on_fail.as_str().to_string());
-
-    // `lockfile: false` opts the project out of `pnpm-lock.yaml`, so the pin
-    // has nowhere in the project to persist to. The switch still happens —
-    // through the global env below (pnpm/pnpm#14728).
-    let persist_lockfile = should_persist_package_manager_lockfile(&pm) && config.lockfile;
+    let pm_with_on_fail = WantedPackageManager {
+        name: pm.name.clone(),
+        version: pm.version.clone(),
+        from_dev_engines: pm.from_dev_engines,
+        on_fail: Some(on_fail.as_str().to_string()),
+    };
+    let persist_lockfile =
+        should_persist_package_manager_lockfile(&pm_with_on_fail) && config.lockfile;
     if persist_lockfile
-        && let Some(env) = read_env_lockfile(&roots.env)?
-        && let Some(version) = locked_package_manager_version(&env, &spec)?
+        && let Some(env) = pin.locked_env.as_ref()
+        && let Some(version) = locked_package_manager_version(env, &spec)?
     {
         return Ok(Some(SwitchTarget {
-            source: locked_switch_source(env, version, roots, frozen_lockfile),
+            source: locked_switch_source(env.clone(), version, pin.roots, frozen_lockfile),
             spec,
         }));
     }
-
     let (env_root, frozen_lockfile) =
-        switch_env_root(config, roots, frozen_lockfile, persist_lockfile)?;
+        switch_env_root(config, pin.roots, frozen_lockfile, persist_lockfile)?;
     Ok(Some(SwitchTarget {
         spec,
         source: SwitchSource::Resolve {
@@ -203,7 +312,7 @@ pub(super) fn switch_target(
     }))
 }
 
-fn effective_on_fail(config: &Config, pm: &WantedPackageManager) -> PmOnFail {
+pub(super) fn effective_on_fail(config: &Config, pm: &WantedPackageManager) -> PmOnFail {
     match (config.pm_on_fail, pm.on_fail.as_deref()) {
         (Some(on_fail), _) => on_fail,
         (None, Some("ignore")) => PmOnFail::Ignore,
@@ -213,23 +322,12 @@ fn effective_on_fail(config: &Config, pm: &WantedPackageManager) -> PmOnFail {
     }
 }
 
-pub(super) fn resolve_input_pin(
-    input: &PreCommandInput,
-    config: &Config,
-    roots: &PinRoots,
-    process_state: SwitchProcessState,
-    manifest: Option<&Value>,
-    wanted_pm: Option<WantedPackageManager>,
-) -> miette::Result<PinOutcome> {
-    if !input.skip_pm_handling
-        && let Some(root_manifest) = manifest
-        && let Some(pm) = wanted_pm
-    {
-        return resolve_package_manager_pin(
-            &PinResolution { input, config, roots, process_state, switch: &input.switch },
-            root_manifest,
-            &pm,
-        );
-    }
-    Ok(PinOutcome::Sync(None))
+pub(super) fn package_manager_switch_disabled() -> bool {
+    PACKAGE_MANAGER_SWITCH_ENV_VARS.into_iter().any(env_var_is_false)
+}
+
+fn env_var_is_false(name: &str) -> bool {
+    std::env::var_os(name)
+        .and_then(|value| value.into_string().ok())
+        .is_some_and(|value| matches!(value.to_ascii_lowercase().as_str(), "false" | "0"))
 }

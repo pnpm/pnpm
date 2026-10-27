@@ -526,6 +526,16 @@ test('workspaceDir resolves from --prefix on the --version short-circuit', async
   expect(workspaceDir && fs.realpathSync.native(workspaceDir)).toBe(fs.realpathSync.native(child))
 })
 
+test('version bootstrap options parse space-separated string values on the --version short-circuit', async () => {
+  const { cmd, options } = await parseCliArgs({
+    ...DEFAULT_OPTS,
+    universalOptionsTypes: { version: Boolean },
+  }, ['--npmrc-auth-file', '/tmp/auth.npmrc', '--state-dir', '/tmp/state', '--version'])
+  expect(cmd).toBeNull()
+  expect(options['npmrc-auth-file']).toBe('/tmp/auth.npmrc')
+  expect(options['state-dir']).toBe('/tmp/state')
+})
+
 // When both the alias and the canonical option are supplied, the canonical
 // value must win and the alias must be dropped — otherwise --prefix could
 // silently overwrite an explicit --dir.

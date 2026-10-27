@@ -1,8 +1,9 @@
 import { packageManager } from '@pnpm/cli.meta'
 import { type Config, type ConfigContext, getPackageManagerBootstrapConfig, shouldPersistLockfile } from '@pnpm/config.reader'
-import { maturePnpmVersionForRange } from '@pnpm/engine.pm.commands'
+import { decide, maturePnpmVersionForRange, type PinDecision } from '@pnpm/engine.pm.commands'
 import { isPackageManagerResolved, type PackageTrustPolicy, resolvePackageManagerIntegrities } from '@pnpm/installing.env-installer'
 import { readEnvLockfile } from '@pnpm/lockfile.fs'
+import type { EnvLockfile } from '@pnpm/lockfile.types'
 import { globalWarn } from '@pnpm/logger'
 import { createStoreController } from '@pnpm/store.connection-manager'
 import semver from 'semver'
@@ -36,14 +37,36 @@ export async function syncEnvLockfile (config: Config, context: ConfigContext): 
   if (!semver.satisfies(packageManager.version, pm.version, { includePrerelease: true })) return
 
   const envLockfile = await readEnvLockfile(envLockfileDir(config, context)) ?? undefined
-  const lockedVersion = envLockfile?.importers['.'].packageManagerDependencies?.['pnpm']?.version
-  if (
-    lockedVersion != null &&
-    semver.satisfies(lockedVersion, pm.version, { includePrerelease: true }) &&
-    isPackageManagerResolved(envLockfile, lockedVersion)
-  ) return
+  const decision = decide(
+    {
+      wanted: { ...pm, onFail: 'warn' },
+      lockedEnv: envLockfile,
+      runningName: packageManager.name,
+      runningVersion: packageManager.version,
+      underCorepack: true,
+      isResolved: isPackageManagerResolved,
+    },
+    { ...config, ...context, pmOnFail: 'warn' },
+    { entryPoint: 'command', recordPinWithoutSwitch: true }
+  )
+  if (decision.action !== 'record') return
+  await executeRecordDecision({ config, context, decision, envLockfile })
+}
 
-  const version = await pnpmVersionToRecord(config, pm.version)
+export async function executeRecordDecision ({
+  config,
+  context,
+  decision,
+  envLockfile,
+}: {
+  config: Config
+  context: ConfigContext
+  decision: Extract<PinDecision, { action: 'record' }>
+  envLockfile?: EnvLockfile
+}): Promise<void> {
+  const version = decision.checkMaturity
+    ? await pnpmVersionToRecord(config, decision.specifier)
+    : decision.version
   if (version == null) return
   const packageManagerConfig = getPackageManagerBootstrapConfig(config)
   const store = await createStoreController({ ...config, ...context, ...packageManagerConfig, skipBypassedHomeStoreWarning: true })
@@ -51,10 +74,11 @@ export async function syncEnvLockfile (config: Config, context: ConfigContext): 
     await resolvePackageManagerIntegrities(version, {
       envLockfile,
       registriesByScope: packageManagerConfig.registriesByScope,
-      rootDir: envLockfileDir(config, context),
+      rootDir: decision.at,
       storeController: store.ctrl,
       storeDir: store.dir,
       save: true,
+      specifier: decision.specifier,
       frozenLockfile: config.frozenLockfile,
       ...packageManagerTrustPolicy(config),
     })

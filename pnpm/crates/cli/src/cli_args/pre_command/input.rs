@@ -1,144 +1,368 @@
 pub(super) mod bootstrap_argv;
 
-pub(super) use argv_scan::{UnparsedArgv, VersionArgv};
-
-mod argv_scan;
-
 use super::{
-    ArgTable, CliArgs, CliCommand, CliNetworkArgs, ColorMode, Config, ConfigLocation, InstallArgs,
-    LockfileDirArg, LogEvent, OsStr, OsString, PACKAGE_MANAGER_SWITCH_ENV_VARS, Path, PathBuf,
-    ReporterFlags, pre_command_emit, resolve_bool_override,
+    ArgTable, CliCommand, CliNetworkArgs, ColorMode, Config, LogEvent, OsStr, OsString, PathBuf,
+    ReporterFlags, pre_command_emit,
 };
-use crate::cli_args::{
-    cli_command::{CliPathArgs, PresentationArgs},
-    config_warnings::ConfigWarnings,
-    install::InstallLockfileArgs,
-    install_options::OfflineArgs,
+use crate::{
+    boolean_negations::with_boolean_negations,
+    cli_args::{
+        CliArgs,
+        cli_command::{CliPathArgs, PresentationArgs, options::find_workspace_root_dir},
+        config_warnings::ConfigWarnings,
+    },
 };
+use bootstrap_argv::{
+    BootstrapTokens, canonical_command_name, cluster_options, command_options, consumes_next_token,
+    declared_option_width, every_option, long_value, may_take_undeclared_value, typed_flag,
+};
+use clap::CommandFactory;
 
-pub(super) struct PreCommandInput {
-    pub(super) switch: SwitchInput,
-    pub(super) global: bool,
-    pub(super) skip_pm_handling: bool,
-    pub(super) check_runtimes: bool,
-    pub(super) reporter: ReporterFlags,
-    /// How the command reports the warnings of its configuration, which
-    /// decides whether a configuration it fails on may record the pin.
-    pub(super) warnings: ConfigWarnings,
+/// Which CLI entry point built an [`Invocation`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum EntryPoint {
+    /// Normal command execution (`pnpm install`, `pnpm run`, etc.).
+    Command,
+    /// Top-level `pnpm --version` / `pnpm -v`.
+    Version,
+    /// An invocation clap rejected with `UnknownArgument`.
+    UnknownFlag,
+    /// `pnpm self-update` syncing the lockfile after updating the manifest pin.
+    SelfUpdate,
 }
 
-impl PreCommandInput {
+/// One parsed CLI invocation shared by every entry point: pre-command pin
+/// handling, `--version`, unknown-flag handoff, `self-update`, and full command
+/// config loading.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "Invocation is the single parsed CLI representation shared across every pre-command and dispatch entry point"
+    )
+)]
+pub(crate) struct Invocation {
+    pub(crate) entry_point: EntryPoint,
+    /// `--ignore-workspace` suppresses the workspace search for this pass
+    /// as it does for the install, so no `pnpm-workspace.yaml` is read at
+    /// all and the `packageManager` pin comes from the project's own
+    /// manifest.
+    pub(crate) paths: CliPathArgs,
+    pub(crate) command: Option<String>,
+    /// `--frozen-lockfile` / `--no-frozen-lockfile` as typed on the command
+    /// line. `None` leaves the `frozenLockfile` setting to answer.
+    pub(crate) frozen_lockfile: Option<bool>,
+    /// `--lockfile-dir`, which moves the lockfile the pin is recorded in.
+    pub(crate) lockfile_dir: Option<PathBuf>,
+    /// `--offline` / `--no-offline`, which decide whether the record may be
+    /// resolved over the network.
+    pub(crate) offline: Option<bool>,
+    /// `--prefer-offline` / `--no-prefer-offline`, which decide whether the
+    /// resolution reaches for the cache first.
+    pub(crate) prefer_offline: Option<bool>,
+    pub(crate) color: Option<ColorMode>,
+    pub(crate) no_color: bool,
+    /// The registry and proxy flags. The pinned pnpm is resolved and
+    /// downloaded through them, as every other package is.
+    pub(crate) network: CliNetworkArgs,
+    pub(crate) global: bool,
+    pub(crate) project_location: bool,
+    pub(crate) skip_pm_handling: bool,
+    pub(crate) check_runtimes: bool,
+    pub(crate) reporter: ReporterFlags,
+    /// How the command reports the warnings of its configuration, which
+    /// decides whether a configuration it fails on may record the pin.
+    pub(crate) warnings: ConfigWarnings,
+    /// True when an undeclared option before the command name or before a
+    /// scope flag left the command or scope ambiguous.
+    pub(crate) ambiguous: bool,
+}
+
+impl Invocation {
+    /// Parse `argv` once for `entry_point`.
+    pub(crate) fn from_argv(argv: &[OsString], entry_point: EntryPoint) -> Self {
+        InvocationScan::scan(argv, entry_point).into_invocation(entry_point)
+    }
+
+    /// Build the invocation representing `self-update`'s post-manifest-update
+    /// lockfile sync step.
+    pub(crate) fn for_self_update(dir: PathBuf) -> Self {
+        let mut inv = Self::from_argv(&[], EntryPoint::SelfUpdate);
+        inv.paths.dir = dir;
+        inv.paths.dir_from_command_line = true;
+        inv.command = Some("self-update".to_string());
+        inv.warnings = ConfigWarnings::for_unparsed_argv();
+        inv
+    }
+
     pub(super) fn emit(&self, config: &Config) -> fn(&LogEvent) {
         pre_command_emit(self.reporter.configure_with(config))
     }
 }
 
-/// `--frozen-lockfile` / `--no-frozen-lockfile` as typed on the command line.
-/// Only the install family carries the flags, and `pnpm ci` is a frozen
-/// install whether or not they were typed.
-pub(super) fn frozen_lockfile_flag(command: &CliCommand) -> Option<bool> {
-    match command {
-        CliCommand::Install(args) => args.frozen_lockfile_flag(),
-        CliCommand::InstallTest(args) => args.install_args.frozen_lockfile_flag(),
-        CliCommand::Ci(_) => Some(true),
-        _ => None,
-    }
+/// The state of [`Invocation::from_argv`] as it walks the command line.
+#[derive(Default)]
+struct InvocationScan {
+    command: Option<String>,
+    positionals: Vec<String>,
+    tokens: BootstrapTokens,
+    global: bool,
+    project_location: bool,
+    workspace_root: bool,
+    after_undeclared_option: bool,
+    ambiguous: bool,
 }
 
-/// The install-family options the pin record reads, as typed on the command
-/// line.
-///
-/// One list, because a command that grows one of these flags has to be added
-/// in one place — `pin_flags_cover_every_command_declaring_them` fails when
-/// it is not.
-#[derive(Debug, Default, PartialEq, Eq)]
-pub(super) struct PinFlags {
-    /// `--lockfile-dir`, which moves the lockfile the pin is recorded in.
-    pub(super) lockfile_dir: Option<PathBuf>,
-    /// `--offline` / `--no-offline`, which decide whether the record may be
-    /// resolved over the network.
-    pub(super) offline: Option<bool>,
-    /// `--prefer-offline` / `--no-prefer-offline`, which decide whether the
-    /// resolution reaches for the cache first.
-    pub(super) prefer_offline: Option<bool>,
-}
+impl InvocationScan {
+    fn scan(argv: &[OsString], entry_point: EntryPoint) -> Self {
+        let cli = with_boolean_negations(CliArgs::command());
+        let mut options = every_option(&cli);
+        let mut scan = Self::default();
+        let mut index = 1;
+        while index < argv.len() {
+            let Some(token) = argv[index].to_str() else {
+                scan.mark_non_utf8(entry_point);
+                break;
+            };
+            if token == "--" {
+                break;
+            }
+            let next = argv
+                .get(index + 1)
+                .map(OsString::as_os_str);
+            let named_command = scan.command.is_some();
+            let next_is_command = next
+                .and_then(OsStr::to_str)
+                .is_some_and(|next| cli.find_subcommand(next).is_some());
+            let Some(width) = scan.absorb(token, next, &options, next_is_command, entry_point)
+            else {
+                scan.ambiguous = true;
+                break;
+            };
+            index += width;
+            if scan.update_command_options(&cli, &mut options, named_command, entry_point) {
+                break;
+            }
+        }
+        scan
+    }
 
-impl PinFlags {
-    pub(super) fn of(command: &CliCommand) -> Self {
-        match command {
-            CliCommand::Add(args) => Self::of_lockfile_dir(&args.install.lockfile_dir),
-            CliCommand::Ci(args) => Self::of_install(&args.install_args),
-            CliCommand::Dedupe(args) => Self::of_offline_flags(&args.network_cache),
-            CliCommand::Deploy(args) => Self::of_install(&args.install_args),
-            CliCommand::Install(args) => Self::of_install(args),
-            CliCommand::InstallTest(args) => Self::of_install(&args.install_args),
-            CliCommand::Pipeline(args) => Self::of_install(&args.install_args),
-            CliCommand::Remove(args) => Self::of_lockfile_dir(&args.lockfile_dir),
-            CliCommand::Update(args) => Self::of_lockfile_dir(&args.install.lockfile_dir),
-            _ => Self::default(),
+    fn mark_non_utf8(&mut self, entry_point: EntryPoint) {
+        if entry_point == EntryPoint::UnknownFlag {
+            self.ambiguous = true;
+        } else if entry_point == EntryPoint::Version {
+            self.command.get_or_insert_with(String::new);
         }
     }
 
-    fn of_install(args: &InstallArgs) -> Self {
-        Self::of_install_flags(&args.lockfile, &args.network_cache)
-    }
-
-    pub(super) fn of_install_flags(
-        lockfile: &InstallLockfileArgs,
-        network_cache: &OfflineArgs,
-    ) -> Self {
-        Self {
-            lockfile_dir: lockfile.directory.lockfile_dir.clone(),
-            ..Self::of_offline_flags(network_cache)
+    fn update_command_options(
+        &self,
+        cli: &clap::Command,
+        options: &mut ArgTable,
+        named_command: bool,
+        entry_point: EntryPoint,
+    ) -> bool {
+        if let Some(command) = self.command.as_deref().filter(|_| !named_command) {
+            *options = command_options(cli, command);
+            if matches!(command, "test" | "start" | "stop")
+                || (entry_point != EntryPoint::UnknownFlag
+                    && cli.find_subcommand(command).is_none())
+            {
+                return true;
+            }
         }
+        matches!(self.command.as_deref(), Some("run" | "exec" | "dlx"))
+            && !self.positionals.is_empty()
     }
 
-    fn of_offline_flags(network_cache: &OfflineArgs) -> Self {
-        Self {
-            lockfile_dir: None,
-            offline: typed_flag(network_cache.offline, network_cache.no_offline),
-            prefer_offline: typed_flag(
-                network_cache.prefer_offline,
-                network_cache.no_prefer_offline,
-            ),
-        }
-    }
-
-    fn of_lockfile_dir(lockfile_dir: &LockfileDirArg) -> Self {
-        Self { lockfile_dir: lockfile_dir.lockfile_dir.clone(), ..Self::default() }
-    }
-
-    /// Layer the flags onto `config` with the precedence
-    /// [`resolve_bool_override`] gives a `--flag` / `--no-flag` pair, so
-    /// `--no-offline` clears a configured `offline` here exactly as it does
-    /// for an install.
-    pub(super) fn apply_to(&self, config: &mut Config, dir: &Path) {
-        if let Some(lockfile_dir) = self.lockfile_dir.as_deref() {
-            config.pin_lockfile_dir(&dir.join(lockfile_dir));
-        }
-        config.offline = resolve_bool_override(
-            self.offline == Some(true),
-            self.offline == Some(false),
-            config.offline,
+    fn into_invocation(self, entry_point: EntryPoint) -> Invocation {
+        let mut flags = self.tokens.parse();
+        let command = if self.ambiguous { None } else { self.command };
+        let link_without_args =
+            command.as_deref() == Some("link") && self.positionals.is_empty();
+        let global = (self.global || link_without_args) && !self.project_location;
+        let reads_global =
+            matches!(command.as_deref(), Some("config" | "get" | "set")) && !self.project_location;
+        finalize_scanned_paths(&mut flags.paths, self.workspace_root, global, reads_global);
+        let skip_pm = should_skip_invocation(
+            entry_point,
+            command.as_deref(),
+            &self.positionals,
+            self.ambiguous,
+            reads_global,
         );
-        config.prefer_offline = resolve_bool_override(
-            self.prefer_offline == Some(true),
-            self.prefer_offline == Some(false),
-            config.prefer_offline,
+        let warnings = ConfigWarnings::of_invocation(
+            entry_point,
+            command.as_deref(),
+            &self.positionals,
+            global,
+            skip_pm,
         );
+        build_invocation_from_flags(
+            flags,
+            entry_point,
+            command,
+            global,
+            self.project_location,
+            skip_pm,
+            warnings,
+            self.ambiguous,
+        )
+    }
+
+    fn absorb(
+        &mut self,
+        token: &str,
+        next: Option<&OsStr>,
+        options: &ArgTable,
+        next_is_command: bool,
+        entry_point: EntryPoint,
+    ) -> Option<usize> {
+        if self.absorb_scope_flag(token, next, options) && self.after_undeclared_option {
+            return None;
+        }
+        self.after_undeclared_option = may_take_undeclared_value(token, options);
+        self.absorb_token(token, next, options, next_is_command, entry_point)
+    }
+
+    /// Read `--global`, `-g` in a short cluster, `--workspace-root` / `-w`, or
+    /// `--location`, returning whether the token was a global/location scope flag.
+    fn absorb_scope_flag(&mut self, token: &str, next: Option<&OsStr>, options: &ArgTable) -> bool {
+        if let Some((value, _)) = long_value(token, "location", next) {
+            self.project_location = value == "project";
+            if self.project_location {
+                self.global = false;
+            }
+            return true;
+        }
+        let shorts = token
+            .strip_prefix('-')
+            .filter(|shorts| !shorts.starts_with('-'));
+        let global = token == "--global"
+            || shorts.is_some_and(|cluster| {
+                cluster_options(cluster, options).any(|short| short == 'g')
+            });
+        let workspace_root = token == "--workspace-root"
+            || shorts.is_some_and(|cluster| {
+                cluster_options(cluster, options).any(|short| short == 'w')
+            });
+        self.global |= global;
+        self.workspace_root |= workspace_root;
+        global
+    }
+
+    /// Read one token, returning how many argv tokens it consumed, or
+    /// `None` when it leaves the command name ambiguous.
+    fn absorb_token(
+        &mut self,
+        token: &str,
+        next: Option<&OsStr>,
+        options: &ArgTable,
+        next_is_command: bool,
+        entry_point: EntryPoint,
+    ) -> Option<usize> {
+        if !token.starts_with('-') {
+            if self.command.is_none() {
+                self.command = Some(canonical_command_name(token));
+            } else {
+                self.positionals.push(token.to_string());
+            }
+            return Some(1);
+        }
+        let width = self.tokens
+            .offer(token, next, options)
+            .unwrap_or_else(|| if consumes_next_token(token, options) { 2 } else { 1 });
+        if self.command.is_some() || entry_point == EntryPoint::Version {
+            return Some(width);
+        }
+        // An undeclared option right before a command name is read as a
+        // flag without a value, as pnpm v11 reads it.
+        declared_option_width(token, options).or_else(|| next_is_command.then_some(1))
     }
 }
 
-/// A `--flag` / `--no-flag` pair as typed on the command line, or `None`
-/// when neither spelling was.
-fn typed_flag(on: bool, off: bool) -> Option<bool> {
-    if on {
-        Some(true)
-    } else if off {
-        Some(false)
-    } else {
-        None
+fn finalize_scanned_paths(
+    paths: &mut CliPathArgs,
+    workspace_root: bool,
+    global: bool,
+    reads_global: bool,
+) {
+    if workspace_root
+        && !global
+        && !paths.dir_from_command_line
+        && let Ok(root) = find_workspace_root_dir(&paths.dir)
+    {
+        paths.dir = root;
+        paths.dir_from_command_line = true;
     }
+    if reads_global {
+        paths.ignore_workspace = true;
+    }
+}
+
+#[expect(
+    clippy::too_many_arguments,
+    reason = "constructs Invocation from scanned bootstrap flags and entry-point state"
+)]
+fn build_invocation_from_flags(
+    flags: bootstrap_argv::BootstrapArgv,
+    entry_point: EntryPoint,
+    command: Option<String>,
+    global: bool,
+    project_location: bool,
+    skip_pm_handling: bool,
+    warnings: ConfigWarnings,
+    ambiguous: bool,
+) -> Invocation {
+    let frozen_lockfile = match command.as_deref() {
+        Some("ci") => Some(true),
+        _ => flags.lockfile.frozen_flag(),
+    };
+    let color = flags.presentation.color.or_else(|| {
+        flags.presentation.no_color.then_some(ColorMode::Never)
+    });
+    let reporter = flags.reporter_flags();
+    Invocation {
+        entry_point,
+        paths: flags.paths,
+        command,
+        frozen_lockfile,
+        lockfile_dir: flags.lockfile.directory.lockfile_dir,
+        offline: typed_flag(flags.network_cache.offline, flags.network_cache.no_offline),
+        prefer_offline: typed_flag(
+            flags.network_cache.prefer_offline,
+            flags.network_cache.no_prefer_offline,
+        ),
+        color,
+        no_color: flags.presentation.no_color,
+        network: flags.network,
+        global,
+        project_location,
+        skip_pm_handling,
+        check_runtimes: entry_point == EntryPoint::Command,
+        reporter,
+        warnings,
+        ambiguous,
+    }
+}
+
+fn should_skip_invocation(
+    entry_point: EntryPoint,
+    command: Option<&str>,
+    positionals: &[String],
+    ambiguous: bool,
+    reads_global_config: bool,
+) -> bool {
+    let is_pm_only_add = command == Some("add")
+        && !positionals.is_empty()
+        && positionals
+            .iter()
+            .all(|spec| crate::engine_pm::pin::declared_package_manager(spec).is_some());
+    ambiguous
+        || (entry_point != EntryPoint::SelfUpdate && command.is_some_and(should_skip_command_name))
+        || is_pm_only_add
+        || reads_global_config
 }
 
 /// pnpm treats `--global` as an opt-out of the project's package manager
@@ -171,10 +395,6 @@ pub(crate) fn is_global(command: &CliCommand) -> bool {
 /// (`store`, `doctor`, and so on), or run something that is not the project
 /// (`dlx`).
 pub(crate) fn should_skip_command(command: &CliCommand) -> bool {
-    // Declaring which package manager a project uses is not that package
-    // manager's work, so a project pinned to another one can still be
-    // told to use a different one — or to use this one. Adding anything
-    // else stays its manager's job and still fails the check.
     if let CliCommand::Add(args) = command
         && !args.package_names.is_empty()
         && args.package_names
@@ -208,15 +428,6 @@ pub(crate) fn should_skip_command(command: &CliCommand) -> bool {
     )
 }
 
-pub(super) fn should_skip_pm_handling(command: &CliCommand) -> bool {
-    match command {
-        CliCommand::Config(args) => args.flags.location != Some(ConfigLocation::Project),
-        CliCommand::Get(args) => args.flags.location != Some(ConfigLocation::Project),
-        CliCommand::Set(args) => args.flags.location != Some(ConfigLocation::Project),
-        _ => false,
-    }
-}
-
 pub(super) fn should_skip_command_name(command: &str) -> bool {
     matches!(
         command,
@@ -240,117 +451,4 @@ pub(super) fn should_skip_command_name(command: &str) -> bool {
             | "with"
             | "xmas",
     )
-}
-
-pub(super) fn package_manager_switch_disabled() -> bool {
-    PACKAGE_MANAGER_SWITCH_ENV_VARS.into_iter().any(env_var_is_false)
-}
-
-fn env_var_is_false(name: &str) -> bool {
-    std::env::var_os(name)
-        .and_then(|value| value.into_string().ok())
-        .is_some_and(|value| matches!(value.to_ascii_lowercase().as_str(), "false" | "0"))
-}
-
-#[derive(Debug, PartialEq, Eq)]
-pub(super) struct SwitchInput {
-    /// `--ignore-workspace` suppresses the workspace search for this pass
-    /// as it does for the install, so no `pnpm-workspace.yaml` is read at
-    /// all and the `packageManager` pin comes from the project's own
-    /// manifest.
-    pub(super) paths: CliPathArgs,
-    pub(super) command: Option<String>,
-    /// `--frozen-lockfile` / `--no-frozen-lockfile` as typed on the command
-    /// line. `None` leaves the `frozenLockfile` setting to answer.
-    pub(super) frozen_lockfile: Option<bool>,
-    /// The install-family options the pin record reads.
-    pub(super) pin_flags: PinFlags,
-    pub(super) color: Option<ColorMode>,
-    /// The registry and proxy flags. The pinned pnpm is resolved and
-    /// downloaded through them, as every other package is.
-    pub(super) network: CliNetworkArgs,
-}
-
-impl SwitchInput {
-    pub(super) fn from_cli_args(args: &CliArgs) -> Self {
-        Self::from_flags(SwitchFlags {
-            command: Some(command_name(&args.command).to_string()),
-            paths: args.paths.clone(),
-            network: args.network.clone(),
-            presentation: &args.output.presentation,
-            frozen_lockfile: frozen_lockfile_flag(&args.command),
-            pin_flags: PinFlags::of(&args.command),
-        })
-    }
-
-    /// The one constructor every way of reading the command line ends in,
-    /// so each reads the same clap groups the same way.
-    fn from_flags(flags: SwitchFlags<'_>) -> Self {
-        let SwitchFlags {
-            command,
-            paths,
-            network,
-            presentation,
-            frozen_lockfile,
-            pin_flags,
-        } = flags;
-        Self {
-            paths,
-            command,
-            frozen_lockfile,
-            pin_flags,
-            color: presentation.color.or_else(|| presentation.no_color.then_some(ColorMode::Never)),
-            network,
-        }
-    }
-}
-
-/// What [`SwitchInput::from_flags`] reads.
-struct SwitchFlags<'a> {
-    command: Option<String>,
-    paths: CliPathArgs,
-    network: CliNetworkArgs,
-    presentation: &'a PresentationArgs,
-    frozen_lockfile: Option<bool>,
-    pin_flags: PinFlags,
-}
-
-fn command_name(command: &CliCommand) -> &'static str {
-    command.into()
-}
-
-fn long_value<'a>(
-    token: &'a str,
-    option: &str,
-    next: Option<&'a OsStr>,
-) -> Option<(&'a OsStr, usize)> {
-    let name = token.strip_prefix("--")?;
-    if name == option {
-        return next.map(|value| (value, 2));
-    }
-    name.strip_prefix(option)
-        .and_then(|rest| rest.strip_prefix('='))
-        .map(OsStr::new)
-        .map(|value| (value, 1))
-}
-
-/// Whether an option token takes the following argv token as its value, so
-/// the scan steps over it instead of mistaking it for the command name.
-/// Read from the clap grammar rather than a list of names, so an option (or
-/// alias) added to [`CliArgs`] is accounted for here without a second edit.
-fn consumes_next_token(token: &str, global_options: &ArgTable) -> bool {
-    if let Some(name) = token.strip_prefix("--") {
-        return !name.contains('=') && global_options.long_consumes_value(name).unwrap_or(false);
-    }
-    let Some(rest) = token
-        .strip_prefix('-')
-        .filter(|rest| !rest.is_empty())
-    else {
-        return false;
-    };
-    let short = rest
-        .chars()
-        .next()
-        .expect("checked non-empty");
-    rest.chars().count() == 1 && global_options.short_consumes_value(short).unwrap_or(false)
 }
