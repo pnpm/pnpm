@@ -145,12 +145,14 @@ fn describe_storage_backend(config: &Config) -> String {
         }
         HostedStoreConfig::S3(settings) => match settings.normalized_prefix().as_str() {
             "" => format!("S3 (bucket: {})", settings.bucket),
-            prefix => format!("S3 (bucket: {}, prefix: {prefix})", settings.bucket),
+            prefix => {
+                format!("S3 (bucket: {}, prefix: {})", settings.bucket, prefix.escape_debug())
+            }
         },
         HostedStoreConfig::ObjectStore { prefix, .. } => {
             match normalize_key_prefix(Some(prefix)).as_str() {
                 "" => "custom object store".to_string(),
-                prefix => format!("custom object store (prefix: {prefix})"),
+                prefix => format!("custom object store (prefix: {})", prefix.escape_debug()),
             }
         }
     }

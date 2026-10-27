@@ -546,6 +546,8 @@ registries:
     assert!(output.contains("Storage: S3 (bucket: packages, prefix: pnpr/)\n"), "{output}");
     let output = report("");
     assert!(output.contains("Storage: S3 (bucket: packages)\n"), "{output}");
+    let output = report(r#"  prefix: "pn\npr""#);
+    assert!(output.contains(r"Storage: S3 (bucket: packages, prefix: pn\npr/)"), "{output}");
 }
 
 #[test]
