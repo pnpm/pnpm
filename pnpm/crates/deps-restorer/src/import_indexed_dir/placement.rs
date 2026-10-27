@@ -16,7 +16,7 @@ use std::{
     sync::atomic::AtomicU8,
 };
 use symlinks::{
-    SymlinkRoots, imported_paths, is_symlink, place_symlink_entry, symlink_matches_store_entry,
+    SymlinkRoots, imported_paths, place_symlink_or_resolve_file, symlink_matches_store_entry,
 };
 
 /// Make the parent dir set, then import the entries of `cas_paths`, one
@@ -193,12 +193,11 @@ fn place_entry<Reporter: self::Reporter>(
     target: &Path,
     symlinks: Option<SymlinkRoots<'_>>,
 ) -> Result<(), ImportIndexedDirError> {
-    if let Some(roots) = symlinks
-        && is_symlink(store_path)
-        && place_symlink_entry(placement, store_path, target, roots)?
-    {
+    let Some(store_path) = place_symlink_or_resolve_file(placement, store_path, target, symlinks)?
+    else {
         return Ok(());
-    }
+    };
+    let store_path = store_path.as_ref();
     match placement {
         Placement::Fresh => {
             import_into_fresh_target::<Reporter>(logged_methods, import_method, store_path, target)
@@ -226,16 +225,14 @@ fn place_marker<Reporter: self::Reporter>(
     target: &Path,
     symlinks: Option<SymlinkRoots<'_>>,
 ) -> Result<(), ImportIndexedDirError> {
-    if let Some(roots) = symlinks
-        && is_symlink(store_path)
-        && place_symlink_entry(placement, store_path, target, roots)?
-    {
+    let Some(store_path) = place_symlink_or_resolve_file(placement, store_path, target, symlinks)?
+    else {
         return Ok(());
-    }
+    };
     if placement == Placement::Repair {
         clear_dir_blocking_file::<Host>(target)?;
     }
-    import_atomic::<Reporter>(logged_methods, import_method, store_path, target)
+    import_atomic::<Reporter>(logged_methods, import_method, store_path.as_ref(), target)
 }
 
 /// Remove a directory tree standing where a package file belongs, as

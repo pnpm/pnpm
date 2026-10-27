@@ -15,7 +15,12 @@ pub use ensure_file::*;
 pub use exchange_dirents::exchange_dirents;
 #[cfg(not(target_os = "wasi"))]
 pub use file_lock::{lock_file, try_lock_file};
-pub use internal_symlink::{relative_link_target, symlink_file_or_copy};
+pub use internal_symlink::{
+    AdmittedSymlink, SymlinkPlacement, SymlinkPlacementContext, SymlinkTargetKind, SymlinkTargets,
+    admit_internal_symlink, is_symlink, is_symlink_metadata, recreate_internal_symlink,
+    relative_link_target, resolve_symlink_placement, selected_paths_and_ancestors,
+    symlink_file_or_copy,
+};
 pub use is_not_found::is_not_found;
 pub use is_subdir::is_subdir;
 pub use lexical_normalize::{lexical_normalize, lexical_normalize_posix};

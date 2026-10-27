@@ -2,6 +2,7 @@
 
 use super::{FileId, InodeMap, PatchError, Value};
 use pnpm_directory_fetcher::CopyFiles;
+use pnpm_fs::{SymlinkPlacement, SymlinkPlacementContext, SymlinkTargets};
 use std::{
     collections::{HashMap, HashSet},
     fs,
@@ -16,13 +17,13 @@ pub(super) fn load_inode_map(dir: &Path, files: CopyFiles) -> Result<InodeMap, P
         .fetcher(dir)
         .list_files()
         .map_err(|error| PatchError::ReadDir { dir: dir.to_path_buf(), error })?;
-    let listed = listed_paths(files_map.keys());
+    let listed = pnpm_fs::selected_paths_and_ancestors(files_map.keys().map(String::as_str));
     let mut inode_map = InodeMap::from([(".".to_string(), Value::Dir)]);
     for (relative_path, path) in &files_map {
         let Some(metadata) = stat_skipping_missing(path, |path| fs::symlink_metadata(path))? else {
             continue;
         };
-        let value = if metadata.file_type().is_symlink() {
+        let value = if pnpm_fs::is_symlink_metadata(&metadata) {
             link_value(dir, path, &listed)?
         } else {
             value_of(path, &metadata)?
@@ -34,18 +35,6 @@ pub(super) fn load_inode_map(dir: &Path, files: CopyFiles) -> Result<InodeMap, P
     Ok(inode_map)
 }
 
-/// Every listed path and each directory above it, the root included as `""`.
-fn listed_paths<'a>(paths: impl Iterator<Item = &'a String>) -> HashSet<&'a str> {
-    let mut listed = HashSet::from([""]);
-    for entry in paths {
-        let mut path = entry.as_str();
-        while !path.is_empty() && listed.insert(path) {
-            path = path.rsplit_once('/').map_or("", |(parent, _)| parent);
-        }
-    }
-    listed
-}
-
 /// What the install writes for the link at `path`, as the importer decides
 /// it: the link itself when it points at a listed path, the file it points
 /// at when that file is not listed, and nothing for an unlisted directory.
@@ -54,36 +43,29 @@ fn link_value(
     path: &Path,
     listed: &HashSet<&str>,
 ) -> Result<Option<Value>, PatchError> {
-    let Some(destination) = link_destination(dir, path)? else {
-        return Ok(None);
+    let ctx = SymlinkPlacementContext {
+        dest_root: dir,
+        selected_paths: listed,
+        policy: SymlinkTargets::Imported,
     };
-    if listed.contains(destination.as_str()) {
-        let mut hasher = DefaultHasher::new();
-        destination.hash(&mut hasher);
-        return Ok(Some(Value::Symlink(hasher.finish())));
+    let decision = pnpm_fs::resolve_symlink_placement(path, path, ctx)
+        .map_err(|error| PatchError::Stat { path: path.to_path_buf(), error })?;
+    match decision {
+        Ok(SymlinkPlacement::Preserve { target_in_package, .. }) => {
+            let mut hasher = DefaultHasher::new();
+            target_in_package.hash(&mut hasher);
+            Ok(Some(Value::Symlink(hasher.finish())))
+        }
+        Ok(SymlinkPlacement::ImportFile) => {
+            match stat_skipping_missing(path, |path| fs::metadata(path))? {
+                Some(metadata) if metadata.is_file() => {
+                    Ok(Some(Value::File(file_id(path, &metadata)?)))
+                }
+                _ => Ok(None),
+            }
+        }
+        Ok(SymlinkPlacement::Omit) | Err(_) => Ok(None),
     }
-    match stat_skipping_missing(path, |path| fs::metadata(path))? {
-        Some(metadata) if metadata.is_file() => Ok(Some(Value::File(file_id(path, &metadata)?))),
-        _ => Ok(None),
-    }
-}
-
-/// Where the link at `path` points, as a `/`-separated path relative to
-/// `dir`, or `None` when it points outside `dir`.
-fn link_destination(dir: &Path, path: &Path) -> Result<Option<String>, PatchError> {
-    let stat_error = |error| PatchError::Stat { path: path.to_path_buf(), error };
-    let link = pnpm_fs::read_symlink_dir(path).map_err(stat_error)?;
-    let link = pnpm_fs::relative_link_target(path, link);
-    let root = fs::canonicalize(dir).map_err(stat_error)?;
-    let link_dir = path
-        .parent()
-        .map_or_else(|| Ok(root.clone()), fs::canonicalize)
-        .map_err(stat_error)?;
-    let destination = pnpm_fs::lexical_normalize(&link_dir.join(link));
-    Ok(destination
-        .strip_prefix(&root)
-        .ok()
-        .map(|relative| relative.to_string_lossy().replace('\\', "/")))
 }
 
 /// Expand a relative-path → real-path map into an [`InodeMap`] that

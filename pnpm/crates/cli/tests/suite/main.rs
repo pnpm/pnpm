@@ -66,6 +66,7 @@ mod exec;
 mod exec_recursive;
 mod fetch;
 mod file_dep_inside_package;
+mod file_selector_agreement;
 mod find_hash;
 mod forced_install;
 mod git_branch_lockfile;

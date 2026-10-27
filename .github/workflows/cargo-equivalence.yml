@@ -56,3 +56,44 @@ jobs:
           path: ${{ runner.temp }}/cargo-equivalence-work/**/Cargo.lock
           retention-days: 7
           if-no-files-found: ignore
+
+  packlist-equivalence:
+    if: github.repository == 'pnpm/pnpm' # Only run on the main repository, not forks
+    name: Packlist Equivalence
+    runs-on: blacksmith-8vcpu-ubuntu-2404
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Rust toolchain
+        uses: $/.github/actions/rustup
+
+      - name: Install pnpm
+        uses: pnpm/setup@fa36a5ef7dcdefc3a7cb25655c122e00cf6e636e # v3.1.2
+        with:
+          install: false
+
+      - name: Install Node.js via pnpm
+        run: pnpm runtime set node 22 --global
+
+      - name: Install just and cargo-nextest
+        uses: taiki-e/install-action@1e29709c0ec63babbe8f266397a465f29a825f91 # v2.87.31
+        with:
+          tool: just,cargo-nextest
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          unset PNPM_HOME
+          unset XDG_DATA_HOME
+          just install
+
+      - name: Compare pnpm-fs-packlist against npm-packlist, @pnpm/fs.packlist, and npm pack --dry-run --json
+        shell: bash
+        run: |
+          unset PNPM_HOME
+          unset XDG_DATA_HOME
+          PROPTEST_CASES=512 pnpm test:rust -p pnpm-fs-packlist --lib parity

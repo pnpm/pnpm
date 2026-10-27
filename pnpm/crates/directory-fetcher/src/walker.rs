@@ -6,8 +6,8 @@
 //! - [`walk_all_files`]: recursive walk, exclude `node_modules`, drop
 //!   broken symlinks, optionally resolve symlinks via a real-path stat.
 //! - [`walk_package_files`]: delegate to
-//!   [`pnpm_git_fetcher::packlist`] for the npm-packlist filtered
-//!   set.
+//!   [`pnpm_fs_packlist::select_package_files`] for the npm-packlist
+//!   filtered set.
 
 use crate::error::DirectoryFetcherError;
 use pnpm_package_manifest::safe_read_package_json_from_dir;
@@ -17,12 +17,6 @@ use std::{
     io,
     path::{Path, PathBuf},
 };
-
-#[cfg(windows)]
-use std::os::windows::fs::MetadataExt;
-
-#[cfg(windows)]
-const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x0000_0400;
 
 /// Output of [`walk_all_files`] / [`walk_package_files`]: the
 /// relative-path → absolute-source-path map a downstream CAS-write
@@ -86,15 +80,7 @@ pub(crate) fn walk_all_files_within(
 }
 
 fn is_linked_entry(metadata: &Metadata) -> bool {
-    #[cfg(windows)]
-    {
-        metadata.file_type().is_symlink()
-            || metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0
-    }
-    #[cfg(not(windows))]
-    {
-        metadata.file_type().is_symlink()
-    }
+    pnpm_fs::is_symlink_metadata(metadata)
 }
 
 fn walk_all_inner(
@@ -221,6 +207,17 @@ fn resolve_confined_entry(
         });
     }
     if symlinks == Symlinks::Preserve {
+        let admitted = pnpm_fs::admit_internal_symlink(root, path)
+            .map_err(|source| DirectoryFetcherError::Io {
+                dir: path.display().to_string(),
+                source,
+            })?;
+        if admitted.is_err() {
+            return Err(DirectoryFetcherError::PathOutsideDirectory {
+                path: path.to_path_buf(),
+                directory: root.to_path_buf(),
+            });
+        }
         return Ok(Some(ResolvedEntry { path: path.to_path_buf(), metadata: lstat }));
     }
     let Some(metadata) = stat_or_skip(&real, |path| fs::metadata(path))? else {
@@ -288,22 +285,48 @@ pub(crate) fn resolve_paths_in_directory(
     symlinks: Symlinks,
 ) -> Result<(), DirectoryFetcherError> {
     let root = canonicalize_path(directory)?;
-    for path in files_map.values_mut() {
-        let original = path.clone();
-        let is_symlink = symlinks == Symlinks::Preserve
-            && fs::symlink_metadata(&original).is_ok_and(|meta| meta.file_type().is_symlink());
-        let resolved = canonicalize_path(&original)?;
-        if !resolved.starts_with(&root) {
-            return Err(DirectoryFetcherError::PathOutsideDirectory {
-                path: original,
-                directory: root,
-            });
-        }
-        if !is_symlink {
-            *path = resolved;
+    let mut resolved_map = FilesMap::with_capacity(files_map.len());
+    for (rel, original) in files_map.drain() {
+        if let Some(resolved) = resolve_entry_in_directory(&root, original, symlinks)? {
+            resolved_map.insert(rel, resolved);
         }
     }
+    *files_map = resolved_map;
     Ok(())
+}
+
+fn resolve_entry_in_directory(
+    root: &Path,
+    original: PathBuf,
+    symlinks: Symlinks,
+) -> Result<Option<PathBuf>, DirectoryFetcherError> {
+    if symlinks == Symlinks::Preserve && pnpm_fs::is_symlink(&original) {
+        let admitted = pnpm_fs::admit_internal_symlink(root, &original)
+            .map_err(|source| DirectoryFetcherError::Io {
+                dir: original.display().to_string(),
+                source,
+            })?;
+        return match admitted {
+            Ok(_) => Ok(Some(original)),
+            Err(_) => Err(DirectoryFetcherError::PathOutsideDirectory {
+                path: original,
+                directory: root.to_path_buf(),
+            }),
+        };
+    }
+    let Some(resolved) = stat_or_skip(&original, |path| fs::canonicalize(path))? else {
+        return Ok(None);
+    };
+    if !resolved.starts_with(root) {
+        return Err(DirectoryFetcherError::PathOutsideDirectory {
+            path: original,
+            directory: root.to_path_buf(),
+        });
+    }
+    let Some(metadata) = stat_or_skip(&resolved, |path| fs::metadata(path))? else {
+        return Ok(None);
+    };
+    Ok(metadata.is_file().then_some(resolved))
 }
 
 fn canonicalize_path(path: &Path) -> Result<PathBuf, DirectoryFetcherError> {
@@ -311,9 +334,8 @@ fn canonicalize_path(path: &Path) -> Result<PathBuf, DirectoryFetcherError> {
         .map_err(|source| DirectoryFetcherError::Io { dir: path.display().to_string(), source })
 }
 
-/// Read the manifest for packlist filtering, run
-/// [`pnpm_git_fetcher::packlist`], and absolutise each entry against
-/// `dir`.
+/// Read the manifest for packlist filtering and run
+/// [`pnpm_fs_packlist::select_package_files`].
 pub(crate) fn walk_package_files(dir: &Path) -> Result<FilesMap, DirectoryFetcherError> {
     // packlist requires *some* manifest; pass the JSON just read from
     // disk. When the manifest is missing the
@@ -323,14 +345,13 @@ pub(crate) fn walk_package_files(dir: &Path) -> Result<FilesMap, DirectoryFetche
     let manifest = safe_read_package_json_from_dir(dir)
         .map_err(DirectoryFetcherError::ReadManifest)?
         .unwrap_or_else(|| serde_json::Value::Object(serde_json::Map::new()));
-    let files =
-        pnpm_git_fetcher::packlist(dir, &manifest).map_err(DirectoryFetcherError::Packlist)?;
-    let mut out = FilesMap::with_capacity(files.len());
-    for rel in files {
-        let abs = dir.join(&rel);
-        out.insert(rel, abs);
-    }
-    Ok(out)
+    let selected = pnpm_fs_packlist::select_package_files(
+        dir,
+        &manifest,
+        pnpm_fs_packlist::PacklistOptions::default(),
+    )
+    .map_err(DirectoryFetcherError::Packlist)?;
+    Ok(selected.files.into_iter().collect())
 }
 
 #[cfg(test)]
