@@ -109,8 +109,8 @@ test('unpublish: should name the range when it matches every version', async () 
     cliOptions: {},
     configByUri: CONFIG_BY_URI,
   }, [`${pkgName}@0.0.1`])
-  await expect(promise).rejects.toThrow(`${pkgName}@0.0.1 matches every published version of ${pkgName} (0.0.1).
-Run pnpm unpublish ${pkgName}@0.0.1 --force to remove the whole package from the registry.`)
+  await expect(promise).rejects.toThrow(`${pkgName}@0.0.1 matches every published version (0.0.1).
+Run pnpm unpublish "${pkgName}@0.0.1" --force to remove the whole package from the registry.`)
 
   expect(await getVersions(pkgName)).toEqual(['0.0.1'])
 })
