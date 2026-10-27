@@ -1,9 +1,8 @@
 pub(crate) use importer_deps::check_directory_dependencies_freshness;
 pub use injected_manifest::ProjectManifestsByDir;
-pub(super) use injected_manifest::{
-    InjectedDirectory, is_deploy_file_url_key, is_deploy_file_url_package_key, unhooked_manifest,
-};
+pub(super) use injected_manifest::{InjectedDirectory, is_deploy_file_url_key, unhooked_manifest};
 pub(crate) use injected_manifest::{dependency_manifests_by_dir, project_manifests_by_dir};
+pub(super) use package::overridden_unhooked_manifest;
 pub(crate) use spec::spec_target_and_range;
 
 mod children;

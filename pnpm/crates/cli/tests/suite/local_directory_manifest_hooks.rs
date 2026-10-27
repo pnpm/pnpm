@@ -88,3 +88,35 @@ fn ignored_optional_dependency_of_a_file_dependency_does_not_resolve_again() {
         assert!(!resolved_again, "shared_lockfile: {shared_lockfile}");
     }
 }
+
+/// A `file:` dependency on another package's `publishConfig.directory` reads
+/// the directory's own `package.json`. The publishing package's manifest is
+/// what a workspace spec would read, so the check does not hook it.
+#[test]
+fn file_dependency_on_a_publish_directory_hooks_only_its_own_manifest() {
+    let fixture = WorkspaceFixture::new();
+    fixture.write_root_manifest("root", ManifestDeps::default());
+    write_package(
+        &fixture.workspace.join("ext"),
+        &json!({ "name": "ext-src", "version": "1.0.0", "publishConfig": { "directory": "dist" } }),
+    );
+    write_package(
+        &fixture.workspace.join("ext/dist"),
+        &json!({ "name": "ext", "version": "1.0.0" }),
+    );
+    write_package(
+        &fixture.workspace.join("packages/app"),
+        &json!({ "name": "app", "version": "1.0.0", "dependencies": { "ext": "file:../../ext/dist" } }),
+    );
+    fs::write(
+        fixture.workspace.join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { readPackage(pkg) {\n\
+           if (pkg.name === 'ext-src') throw new Error('ext-src is not a dependency');\n\
+           return pkg;\n\
+         } } };\n",
+    )
+    .expect("write .pnpmfile.cjs");
+
+    install(&fixture, &[]);
+    install(&fixture, &["--frozen-lockfile"]);
+}
