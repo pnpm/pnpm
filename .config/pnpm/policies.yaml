@@ -35,6 +35,10 @@ auditConfig:
     # No patched release exists. It is reached only through argparse 1, which
     # formats its own help text with it, never attacker-controlled formats.
     - GHSA-hp3w-g68c-fv3c
+    # GHSA-gcqx-w48m-w2h4: deepmerge mergeObject() prototype poisoning of returned
+    # objects. No patched release exists. It is reached only through jest-config
+    # (devDependency), which merges Jest configuration from this repository.
+    - GHSA-gcqx-w48m-w2h4
 
 minimumReleaseAge: 1440 # At least a day
 
