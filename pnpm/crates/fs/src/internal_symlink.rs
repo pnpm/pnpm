@@ -74,6 +74,23 @@ pub fn is_symlink(path: &Path) -> bool {
     crate::is_symlink_or_junction(path).unwrap_or(false)
 }
 
+/// Whether `metadata` from [`fs::symlink_metadata`] describes a symlink or,
+/// on Windows, a directory junction.
+#[must_use]
+pub fn is_symlink_metadata(metadata: &fs::Metadata) -> bool {
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::MetadataExt as _;
+        const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x400;
+        metadata.file_type().is_symlink()
+            || metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0
+    }
+    #[cfg(not(windows))]
+    {
+        metadata.file_type().is_symlink()
+    }
+}
+
 /// Every path in `paths` and each directory above it, the package root
 /// included as `""`.
 #[must_use]
@@ -92,7 +109,9 @@ pub fn selected_paths_and_ancestors<'a>(
 /// `link`, a link target read from `link_path`, with an absolute one made
 /// relative to the link's directory. Both sides are canonicalized first:
 /// a directory walk lists links under the canonical package root, while the
-/// link text may reach the same place through another path.
+/// link text may reach the same place through another path. The leaf of
+/// `link` is not dereferenced so an absolute link pointing at another
+/// internal symlink preserves the link chain.
 #[must_use]
 pub fn relative_link_target(link_path: &Path, link: PathBuf) -> PathBuf {
     let (true, Some(parent)) = (link.is_absolute(), link_path.parent()) else {
@@ -101,8 +120,20 @@ pub fn relative_link_target(link_path: &Path, link: PathBuf) -> PathBuf {
     let parent = fs::canonicalize(parent)
         .or_else(|_| crate::realpath_missing(parent))
         .unwrap_or_else(|_| parent.to_path_buf());
-    let link = fs::canonicalize(&link).or_else(|_| crate::realpath_missing(&link)).unwrap_or(link);
+    let link = canonicalize_preserving_leaf(&link);
     pathdiff::diff_paths(&link, &parent).unwrap_or(link)
+}
+
+fn canonicalize_preserving_leaf(path: &Path) -> PathBuf {
+    if let (Some(parent), Some(name)) = (path.parent(), path.file_name())
+        && let Ok(canon_parent) =
+            fs::canonicalize(parent).or_else(|_| crate::realpath_missing(parent))
+    {
+        return crate::lexical_normalize(&canon_parent.join(name));
+    }
+    fs::canonicalize(path)
+        .or_else(|_| crate::realpath_missing(path))
+        .unwrap_or_else(|_| path.to_path_buf())
 }
 
 /// Admit `symlink` when its target stays inside `pkg_dir`, returning
@@ -148,7 +179,11 @@ pub fn resolve_symlink_placement(
             Ok(resolved) => resolved,
             Err(escaped) => return Ok(Err(escaped)),
         };
-    let target_meta = fs::metadata(source_link).ok();
+    let target_meta = match fs::metadata(source_link) {
+        Ok(meta) => Some(meta),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => None,
+        Err(error) => return Err(error),
+    };
     let is_dir = target_meta.as_ref().is_some_and(fs::Metadata::is_dir);
     let is_selected = ctx.selected_paths.contains(target_in_package.as_str())
         || (ctx.policy == SymlinkTargets::Internal && is_dir);

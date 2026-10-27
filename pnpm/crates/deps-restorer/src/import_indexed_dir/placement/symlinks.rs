@@ -51,12 +51,13 @@ pub(super) fn place_symlink_or_resolve_file<'a>(
     target: &Path,
     symlinks: Option<SymlinkRoots<'_>>,
 ) -> Result<Option<Cow<'a, Path>>, ImportIndexedDirError> {
+    let Some(roots) = symlinks else {
+        return Ok(Some(Cow::Borrowed(store_path)));
+    };
     if !is_symlink(store_path) {
         return Ok(Some(Cow::Borrowed(store_path)));
     }
-    if let Some(roots) = symlinks
-        && place_symlink_entry(placement, store_path, target, roots)?
-    {
+    if place_symlink_entry(placement, store_path, target, roots)? {
         return Ok(None);
     }
     let resolved =

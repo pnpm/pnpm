@@ -79,8 +79,8 @@ pub(crate) fn walk_all_files_within(
     Ok(out)
 }
 
-fn is_linked_entry(path: &Path, metadata: &Metadata) -> bool {
-    metadata.file_type().is_symlink() || pnpm_fs::is_symlink(path)
+fn is_linked_entry(metadata: &Metadata) -> bool {
+    pnpm_fs::is_symlink_metadata(metadata)
 }
 
 fn walk_all_inner(
@@ -194,7 +194,7 @@ fn resolve_confined_entry(
     let Some(lstat) = stat_or_skip(path, |path| fs::symlink_metadata(path))? else {
         return Ok(None);
     };
-    if !is_linked_entry(path, &lstat) {
+    if !is_linked_entry(&lstat) {
         return Ok(Some(ResolvedEntry { path: path.to_path_buf(), metadata: lstat }));
     }
     let Some(real) = stat_or_skip(path, |path| fs::canonicalize(path))? else {
@@ -227,7 +227,7 @@ fn resolve_followed_entry(path: &Path) -> Result<Option<ResolvedEntry>, Director
     let Some(lstat) = stat_or_skip(path, |path| fs::symlink_metadata(path))? else {
         return Ok(None);
     };
-    if !is_linked_entry(path, &lstat) {
+    if !is_linked_entry(&lstat) {
         return Ok(Some(ResolvedEntry { path: path.to_path_buf(), metadata: lstat }));
     }
     let real = match fs::canonicalize(path) {

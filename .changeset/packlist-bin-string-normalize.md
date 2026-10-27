@@ -3,4 +3,4 @@
 "pnpm": patch
 ---
 
-`@pnpm/fs.packlist` now normalizes a string `bin` field in an unnormalized manifest, so the binary file is always included even when excluded by `files` or `.npmignore`.
+`pnpm pack` and `pnpm publish` now always include the binary file declared by a string `bin` field in `package.json`, even when `files` or `.npmignore` would otherwise exclude it.

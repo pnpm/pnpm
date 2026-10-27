@@ -17,8 +17,9 @@ pub use exchange_dirents::exchange_dirents;
 pub use file_lock::{lock_file, try_lock_file};
 pub use internal_symlink::{
     AdmittedSymlink, SymlinkPlacement, SymlinkPlacementContext, SymlinkTargetKind, SymlinkTargets,
-    admit_internal_symlink, is_symlink, recreate_internal_symlink, relative_link_target,
-    resolve_symlink_placement, selected_paths_and_ancestors, symlink_file_or_copy,
+    admit_internal_symlink, is_symlink, is_symlink_metadata, recreate_internal_symlink,
+    relative_link_target, resolve_symlink_placement, selected_paths_and_ancestors,
+    symlink_file_or_copy,
 };
 pub use is_not_found::is_not_found;
 pub use is_subdir::is_subdir;

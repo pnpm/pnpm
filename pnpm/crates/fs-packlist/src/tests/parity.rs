@@ -66,9 +66,11 @@ pub const DELIBERATE_DIVERGENCES: &[DeliberateDivergence] = &[
 ];
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct OracleResponse {
     npm: Vec<String>,
     pnpm: Vec<String>,
+    pnpm_links: Vec<String>,
 }
 
 struct PersistentOracle {
@@ -167,13 +169,16 @@ fn classify_oracle_only_path(manifest: &Value, path: &str) -> Option<DeliberateD
             return Some(DeliberateDivergence::ExactCaseEntryPoint);
         }
     }
-    if has_unanchored_files_negation(manifest) {
+    if matches_unanchored_files_negation(manifest, path) {
         return Some(DeliberateDivergence::UnanchoredFilesFieldNegation);
     }
     None
 }
 
-fn has_unanchored_files_negation(manifest: &Value) -> bool {
+fn matches_unanchored_files_negation(manifest: &Value, path: &str) -> bool {
+    let Some((_, file_name)) = path.rsplit_once('/') else {
+        return false;
+    };
     manifest
         .get("files")
         .and_then(Value::as_array)
@@ -181,8 +186,17 @@ fn has_unanchored_files_negation(manifest: &Value) -> bool {
             files
                 .iter()
                 .filter_map(Value::as_str)
-                .any(|entry| entry.starts_with('!') && !entry[1..].contains('/'))
+                .filter(|entry| entry.starts_with('!') && !entry[1..].contains('/'))
+                .any(|entry| unanchored_pattern_matches(&entry[1..], file_name))
         })
+}
+
+fn unanchored_pattern_matches(pattern: &str, file_name: &str) -> bool {
+    if let Some(suffix) = pattern.strip_prefix('*') {
+        file_name.ends_with(suffix)
+    } else {
+        file_name == pattern
+    }
 }
 
 fn is_or_under_symlink(root: &Path, rel: &str) -> bool {
@@ -213,9 +227,18 @@ fn is_named_file_in_manifest(manifest: &Value, path: &str) -> bool {
 }
 
 fn assert_matches_oracles(root: &Path, manifest: &Value, context: &str) {
-    let mut actual = packlist(root, manifest).unwrap();
-    actual.sort();
-    let OracleResponse { npm, pnpm } = with_oracle(|oracle| oracle.query(root, manifest));
+    let selected =
+        crate::select_package_files(root, manifest, crate::PacklistOptions::default()).unwrap();
+    let actual: Vec<String> = selected.files.keys().cloned().collect();
+    let actual_links: Vec<String> = selected.links.keys().cloned().collect();
+    assert!(!selected.files.contains_key("escape-link.js"), "escape-link.js must be excluded");
+    assert!(!selected.links.contains_key("escape-link.js"), "escape-link.js must not be in links");
+    let OracleResponse { npm, pnpm, pnpm_links } =
+        with_oracle(|oracle| oracle.query(root, manifest));
+    assert_eq!(
+        actual_links, pnpm_links,
+        "admitted links in pnpm-fs-packlist vs @pnpm/fs.packlist\ncontext: {context}",
+    );
 
     let actual_set: BTreeSet<&str> = actual
         .iter()
@@ -400,6 +423,14 @@ fn deliberate_divergences_have_witnesses() {
             "version": "1.0.0",
             "files": ["lib", "!*.map"]
         });
+        write(root, "package.json", &manifest.to_string());
+        touch(root, "lib/index.js");
+        touch(root, "lib/index.js.map");
+        let actual = packlist(root, &manifest).unwrap();
+        let npm_pack = run_npm_pack_dry_run(root, &[root]);
+        assert!(actual.contains(&"lib/index.js".to_string()));
+        assert!(!actual.contains(&"lib/index.js.map".to_string()));
+        assert!(npm_pack["pkg"].contains(&"lib/index.js.map".to_string()));
         observed.insert(
             classify_divergence(root, &manifest, "lib/index.js.map", false)
                 .expect("UnanchoredFilesFieldNegation witness"),
@@ -792,21 +823,32 @@ fn pack_matches_npm_pack_dry_run() {
 
     // 2. A slice of real packages (from node_modules and workspace packages)
     let repo_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
+    let npm_packlist_dir =
+        fs::canonicalize(repo_root.join("pnpm11/fs/packlist/node_modules/npm-packlist"))
+            .expect("canonicalize npm-packlist");
+    let npm_packlist_nm = npm_packlist_dir.parent().expect("npm-packlist node_modules");
+    let ignore_walk_dir =
+        fs::canonicalize(npm_packlist_nm.join("ignore-walk")).expect("canonicalize ignore-walk");
+    let ignore_walk_nm = ignore_walk_dir.parent().expect("ignore-walk node_modules");
+    let proc_log_dir =
+        fs::canonicalize(npm_packlist_nm.join("proc-log")).expect("canonicalize proc-log");
+    let minimatch_dir =
+        fs::canonicalize(ignore_walk_nm.join("minimatch")).expect("canonicalize minimatch");
     let real_candidates = [
-        repo_root.join("pnpm11/fs/packlist/node_modules/npm-packlist"),
-        repo_root.join("pnpm11/fs/packlist/node_modules/ignore-walk"),
-        repo_root.join("pnpm11/fs/packlist/node_modules/npm-bundled"),
-        repo_root.join("pnpm11/fs/packlist/node_modules/minimatch"),
-        repo_root.join("pnpm11/fs/packlist/node_modules/glob"),
+        npm_packlist_dir,
+        ignore_walk_dir,
+        proc_log_dir,
+        minimatch_dir,
         repo_root.join("pnpm11/fs/packlist"),
         repo_root.join("pnpm11/crypto/hash"),
         repo_root.join("pnpm11/text/comments-parser"),
     ];
 
     for (idx, candidate) in real_candidates.iter().enumerate() {
-        let Ok(real_dir) = fs::canonicalize(candidate) else { continue };
-        let Ok(raw_manifest) = fs::read_to_string(real_dir.join("package.json")) else { continue };
-        let Ok(mut manifest) = serde_json::from_str::<Value>(&raw_manifest) else { continue };
+        let real_dir = fs::canonicalize(candidate)
+            .unwrap_or_else(|error| panic!("real package {candidate:?} unavailable: {error}"));
+        let raw_manifest = fs::read_to_string(real_dir.join("package.json")).unwrap();
+        let mut manifest = serde_json::from_str::<Value>(&raw_manifest).unwrap();
         let pkg_name = format!("real-pkg-{idx}");
         let pkg_dir = batch_tmp.path().join(&pkg_name);
         copy_tree_without_node_modules(&real_dir, &pkg_dir);

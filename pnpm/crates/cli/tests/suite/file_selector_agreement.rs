@@ -110,11 +110,16 @@ fn create_fixture_workspace() -> WorkspaceFixture {
     .expect("create symlink to unselected file");
     pnpm_fs::symlink_dir(&lib.join("unpacked-dir"), &links_dir.join("to-unselected-dir"))
         .expect("create symlink to unselected dir");
-    let _ = pnpm_fs::create_symlink(
+    let escaping = pnpm_fs::create_symlink(
         Path::new("../../../outside-secret.txt"),
         &links_dir.join("escaping.txt"),
         false,
     );
+    #[cfg(unix)]
+    escaping.expect("create escaping symlink");
+    // Unprivileged Windows runners without Developer Mode cannot create symlinks to missing targets.
+    #[cfg(not(unix))]
+    escaping.ok();
 
     fixture
 }

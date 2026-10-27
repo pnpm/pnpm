@@ -89,7 +89,15 @@ if (process.argv.includes('--stdio')) {
       npmPacklist(treeNode),
       packlist(root, { manifest }),
     ])
-    process.stdout.write(`${JSON.stringify({ npm: normalize(npm), pnpm: normalize(pnpm) })}\n`)
+    const pnpmNormalized = normalize(pnpm)
+    const pnpmLinks = pnpmNormalized.filter((rel) => {
+      try {
+        return fs.lstatSync(path.join(root, rel)).isSymbolicLink()
+      } catch {
+        return false
+      }
+    })
+    process.stdout.write(`${JSON.stringify({ npm: normalize(npm), pnpm: pnpmNormalized, pnpmLinks })}\n`)
   }
 } else {
   process.stdin.setEncoding('utf8')

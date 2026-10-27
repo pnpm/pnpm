@@ -23,7 +23,7 @@ pub(super) fn load_inode_map(dir: &Path, files: CopyFiles) -> Result<InodeMap, P
         let Some(metadata) = stat_skipping_missing(path, |path| fs::symlink_metadata(path))? else {
             continue;
         };
-        let value = if metadata.file_type().is_symlink() || pnpm_fs::is_symlink(path) {
+        let value = if pnpm_fs::is_symlink_metadata(&metadata) {
             link_value(dir, path, &listed)?
         } else {
             value_of(path, &metadata)?
