@@ -277,7 +277,7 @@ function logRetryAttempt (opts: { attempt: number, error: DownloadError, maxRetr
   requestRetryLogger.debug({
     attempt: opts.attempt,
     error: {
-      // The message is left out because it can embed the unredacted URL.
+      // The message is left out because it can embed the raw URL.
       name: error.name,
       code: error.code,
       errno: error.errno,
