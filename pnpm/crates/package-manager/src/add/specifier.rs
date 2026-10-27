@@ -65,7 +65,7 @@ pub(super) async fn resolve_added_dependency(
     )?;
     if let Some(picked) = picked
         .as_ref()
-        .filter(|_| selector.names_dist_tag(package_selector))
+        .filter(|_| selector.names_dist_tag(package_selector, inputs.add.config.default_tag()))
     {
         pin_catalog_entry(&mut updated_catalogs, package_name, &picked.version);
     }
@@ -164,17 +164,14 @@ impl AddSelector {
     }
 
     /// Whether the selector names a registry dist-tag other than `latest`,
-    /// such as `foo@legacy`.
-    fn names_dist_tag(&self, package_selector: &str) -> bool {
+    /// such as `foo@legacy`, or names no version while `default_tag` is one.
+    fn names_dist_tag(&self, package_selector: &str, default_tag: &str) -> bool {
+        let spec = self.explicit_spec(package_selector).unwrap_or(default_tag);
         self.protocol.is_none()
             && self.aliasless.is_none()
-            && self
-                .explicit_spec(package_selector)
-                .is_some_and(|spec| {
-                    spec != "latest"
-                        && !spec.contains(':')
-                        && node_semver::Range::parse(spec).is_err()
-                })
+            && spec != "latest"
+            && !spec.contains(':')
+            && node_semver::Range::parse(spec).is_err()
     }
     fn explicit_spec<'s>(&'s self, package_selector: &'s str) -> Option<&'s str> {
         match (self.aliasless.as_ref(), self.protocol.as_ref()) {

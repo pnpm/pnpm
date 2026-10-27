@@ -285,6 +285,23 @@ fn add_pins_a_dist_tag_in_a_new_catalog_entry() {
 }
 
 #[test]
+fn add_pins_the_configured_tag_in_a_new_catalog_entry() {
+    let CommandTempCwd {
+        root, workspace, npmrc_info: anchor, ..
+    } = CommandTempCwd::init().add_mocked_registry_with_own_storage();
+    anchor.set_dist_tag(FOO, "100.0.0", "legacy");
+    write_manifest(&workspace, "{}");
+    append_workspace_yaml(&workspace, "catalogMode: prefer\ntag: legacy\n");
+
+    run_ok(&workspace, &["add", "--lockfile-only", FOO]);
+
+    assert_eq!(dep_spec(&workspace, FOO).as_deref(), Some("catalog:"));
+    assert_eq!(catalog_snapshot(&workspace, FOO), ("100.0.0".to_string(), "100.0.0".to_string()));
+
+    drop((root, anchor));
+}
+
+#[test]
 fn add_keeps_a_dist_tag_range_outside_the_catalog() {
     let CommandTempCwd {
         root, workspace, npmrc_info: anchor, ..
