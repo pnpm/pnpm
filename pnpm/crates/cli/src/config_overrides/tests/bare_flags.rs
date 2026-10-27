@@ -24,9 +24,12 @@ fn extract_accepts_cache_dir_as_a_bare_flag() {
         ConfigOverrides::extract(argv(["pacquet", "install", "--cache-dir", "/tmp/pnpm-cache"]));
 
     assert_eq!(remaining, argv(["pacquet", "install"]));
+    let mut config = Config::default();
+    overrides.apply(&mut config, Path::new("/workspace"));
+    assert_eq!(config.cache_dir, Path::new("/tmp/pnpm-cache"));
     assert_eq!(
-        overrides.initial_setting_values().get("cache-dir"),
-        Some(&"/tmp/pnpm-cache".to_string())
+        config.explicit_settings.get("cacheDir"),
+        Some(&serde_json::json!("/tmp/pnpm-cache"))
     );
 }
 
