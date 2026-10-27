@@ -90,6 +90,45 @@ test('remove unreferenced packages', async () => {
   expect(cacheEntriesExceptVerificationLog).toStrictEqual([])
 })
 
+test('prune preserves stores and configured directories under cacheDir', async () => {
+  const cacheDir = path.resolve('cache')
+  const storeDir = path.join(cacheDir, 'v12', 'metadata-store')
+  const globalDir = path.join(cacheDir, 'metadata-global')
+  const globalPkgDir = path.join(globalDir, '5')
+  const stateDir = path.join(cacheDir, 'v11', 'metadata-state')
+  const pnpmHomeDir = path.join(cacheDir, 'metadata-home')
+  for (const directory of [storeDir, globalDir, globalPkgDir, stateDir, pnpmHomeDir]) {
+    fs.mkdirSync(path.join(directory, 'keep'), { recursive: true })
+    fs.writeFileSync(path.join(directory, 'keep', 'sentinel'), 'kept')
+  }
+  const otherStoreFiles = path.join(cacheDir, 'v10', 'files', '00')
+  fs.mkdirSync(otherStoreFiles, { recursive: true })
+  fs.writeFileSync(path.join(otherStoreFiles, 'sentinel'), 'kept')
+  fs.mkdirSync(path.join(cacheDir, 'v12', 'metadata-cache'), { recursive: true })
+  fs.mkdirSync(path.join(cacheDir, 'v11', 'metadata-cache'), { recursive: true })
+
+  await store.handler({
+    cacheDir,
+    dir: process.cwd(),
+    globalDir,
+    globalPkgDir,
+    pnpmHomeDir,
+    stateDir,
+    configByUri: {},
+    registriesByScope: { default: REGISTRY },
+    storeDir,
+    dlxCacheMaxAge: Infinity,
+    virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
+  }, ['prune'])
+
+  for (const directory of [storeDir, globalDir, globalPkgDir, stateDir, pnpmHomeDir]) {
+    expect(fs.readFileSync(path.join(directory, 'keep', 'sentinel'), 'utf8')).toBe('kept')
+  }
+  expect(fs.readFileSync(path.join(otherStoreFiles, 'sentinel'), 'utf8')).toBe('kept')
+  expect(fs.existsSync(path.join(cacheDir, 'v12', 'metadata-cache'))).toBe(false)
+  expect(fs.existsSync(path.join(cacheDir, 'v11', 'metadata-cache'))).toBe(false)
+})
+
 test('prune outputs total size of removed files', async () => {
   const project = prepare()
   const cacheDir = path.resolve('cache')

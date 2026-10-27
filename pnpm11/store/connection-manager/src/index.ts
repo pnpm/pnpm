@@ -17,6 +17,7 @@ export type CreateStoreControllerOptions = Omit<CreateNewStoreControllerOptions,
 | 'workspaceDir'
 > & {
   skipBypassedHomeStoreWarning?: boolean
+  pruneProtectedDirs?: string[]
 }
 
 export interface StoreControllerHandle {
