@@ -280,3 +280,41 @@ fn hashed_suffix_keeps_unshadowed_own_dependency_without_auto_install_peers() {
     assert_eq!(moved_fresh, moved_installed);
     assert_eq!(moved_fresh, moved_deduped);
 }
+
+#[test]
+fn incremental_install_preserves_a_valid_optional_peer_pin() {
+    let mut workspace = Workspace {
+        packages: vec![
+            vec![
+                depending_on(1, 2),
+                PackageVersion {
+                    dependencies: vec![],
+                    peers: vec![Peer {
+                        target: 1,
+                        range: PeerRange::Any,
+                        optional: true,
+                        also_dependency: false,
+                    }],
+                },
+            ],
+            vec![leaf(), leaf()],
+        ],
+        importers: vec![direct(1, 1), direct(0, 2)],
+    };
+    let settings = super::Settings { auto_install_peers: false, ..super::Settings::default() };
+    let order = in_order(&workspace);
+    let initial = super::resolve_with(&workspace, &order, settings, Reuse::Fresh).unwrap();
+    let lockfile = super::lockfile_with_settings(&initial, &workspace, settings);
+    workspace.importers[0].push(Edge { target: 0, major: 1 });
+    let installed =
+        super::resolve_with(&workspace, &order, settings, Reuse::Install(&lockfile)).unwrap();
+    let fresh = super::resolve_with(&workspace, &order, settings, Reuse::Fresh).unwrap();
+    assert_eq!(
+        installed.peers.direct_dependencies_by_importer["packages/a"]["p0"].as_str(),
+        "p0@2.0.0(p1@1.0.0)",
+    );
+    assert_eq!(
+        fresh.peers.direct_dependencies_by_importer["packages/a"]["p0"].as_str(),
+        "p0@2.0.0(p1@2.0.0)",
+    );
+}

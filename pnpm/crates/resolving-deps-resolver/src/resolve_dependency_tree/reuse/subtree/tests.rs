@@ -229,3 +229,21 @@ fn importers_updating_the_same_targets_share_their_target_distances() {
     }
     assert_eq!(lock_recoverable(&workspace.cache.subtree.target_distances).len(), 1);
 }
+
+#[test]
+fn peers_require_the_manifest_even_when_the_suffix_is_absent() {
+    for declaration in [
+        "peerDependencies: { provider: '*' }",
+        "peerDependenciesMeta: { provider: { optional: true } }",
+    ] {
+        let input = CYCLE.replace(
+            "resolution: {integrity: sha512-c}",
+            &format!("resolution: {{integrity: sha512-c}}\n    {declaration}"),
+        );
+        let (ctx, lockfile) = ctx_for(&input, &[]);
+        for name in ["a", "b", "c"] {
+            let key = format!("{name}@1.0.0").parse().unwrap();
+            assert!(!dbg!(subtree_fully_reusable(&ctx, &lockfile, &key, 0)));
+        }
+    }
+}

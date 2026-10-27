@@ -24,6 +24,7 @@ pub(super) use edge_resolution::{
 
 mod warm_children;
 
+mod manifest_hooks;
 mod workspace_resolution;
 use workspace_resolution::resolve_wanted_cached;
 
@@ -88,8 +89,8 @@ use super::{
     read_recoverable,
     reuse::{
         PendingReusedNode, ReuseSource, finish_reused_node, higher_direct_dep_version,
-        node_depends_on_changed_direct_dep, real_package_name_of, reuse_matches_peer_scope,
-        seed_reused_node, try_reuse_node, wanted_lockfile_contains_satisfying_entry,
+        node_depends_on_changed_direct_dep, real_package_name_of, seed_reused_node, try_reuse_node,
+        wanted_lockfile_contains_satisfying_entry,
     },
     tree_ctx::{
         TreeCtx, declaring_manifest_dir, opts_relative_to_declaring_manifest,

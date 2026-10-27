@@ -1,8 +1,5 @@
 use super::{
-    super::{
-        reuse::reuse_key_matches_peer_scope,
-        walk::{closes_cycle, node_id_for},
-    },
+    super::walk::{closes_cycle, node_id_for},
     AncestorPkgIds, Arc, BTreeMap, ChildrenOwner, HashMap, NodeId, ParentPkgAliases,
     PkgNameVerPeer, RecordedChildren, RecordedChildrenContext, TreeChildren, TreeCtx,
     children_ownership::{insert_tree_node, make_non_owner_nodes_lazy, record_first_importer},
@@ -389,12 +386,6 @@ fn candidate_changes_split(
             .get(pkg_id)
             .and_then(|pkg| pkg.result().package.manifest.clone())
     };
-    if let Some(recorded) = recorded
-        && recorded.context.reused
-        && let Some(prior_key) = recorded.context.prior_key.as_ref()
-    {
-        return !reuse_key_matches_peer_scope(ctx, manifest.as_deref(), prior_key, scope);
-    }
     let standing = lock_recoverable(&ctx.workspace.children.owner_by_id)
         .get(pkg_id)
         .map(|entry| Arc::clone(&entry.peer_shadowed))

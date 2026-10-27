@@ -1,3 +1,5 @@
+mod peer_proptest;
+
 mod runtimes;
 
 mod resolution;

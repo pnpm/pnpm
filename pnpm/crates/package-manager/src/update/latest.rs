@@ -264,6 +264,8 @@ impl LatestRewriteCtx<'_, '_> {
                 published_by_exclude: chain.published_by_exclude.clone(),
                 ..Default::default()
             },
+            locked_package_policy: pnpm_resolving_resolver_base::LockedPackagePolicy::Verify,
+            requires_original_manifest: false,
             specifier: pnpm_resolving_resolver_base::ResolverSpecifierOptions {
                 calc_specifier: true,
                 range_spec_style: Some(self.range_spec_style),

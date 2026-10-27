@@ -2,18 +2,44 @@
 //! it to [`StubResolver`] tables and manifests, and from a resolution
 //! back to a lockfile.
 
-use std::{collections::BTreeMap, str::FromStr};
+use std::collections::BTreeMap;
 
-use pnpm_lockfile::{
-    ComVer, ImporterDepVersion, Lockfile, LockfileResolution, LockfileVersion, PackageKey,
-    PackageMetadata, PkgName, PkgVerPeer, ProjectSnapshot, RegistryResolution,
-    ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry,
+use pnpm_lockfile::Lockfile;
+use pnpm_resolving_deps_resolver::ResolveWorkspaceResult;
+use pnpm_resolving_resolver_base::{
+    LatestQuery, ResolveFuture, ResolveLatestFuture, ResolveOptions, ResolveResult, Resolver,
+    WantedDependency,
 };
 use proptest::{collection::vec, prelude::*};
 use rustc_hash::FxHashMap as HashMap;
 
-use super::super::{StubResolver, fake_result};
-use crate::{DependenciesGraphNode, ResolveWorkspaceResult, lockfile_peer_blocks};
+use super::super::{make_resolve_result as fake_result, single_importer_opts};
+
+pub(super) struct StubResolver {
+    table: HashMap<(String, String), ResolveResult>,
+}
+
+impl Resolver for StubResolver {
+    fn resolve<'a>(
+        &'a self,
+        wanted: &'a WantedDependency,
+        _opts: &'a ResolveOptions,
+    ) -> ResolveFuture<'a> {
+        let key = (
+            wanted.alias.clone().unwrap_or_default(),
+            wanted.bare_specifier.clone().unwrap_or_default(),
+        );
+        Box::pin(async move { Ok(self.table.get(&key).cloned()) })
+    }
+
+    fn resolve_latest<'a>(
+        &'a self,
+        _query: &'a LatestQuery,
+        _opts: &'a ResolveOptions,
+    ) -> ResolveLatestFuture<'a> {
+        Box::pin(async { Ok(None) })
+    }
+}
 
 /// Every generated package is published at exactly these versions.
 pub(super) const MAJORS: [u8; 2] = [1, 2];
@@ -125,6 +151,26 @@ pub(super) fn workspace() -> impl Strategy<Value = Workspace> {
         (vec(versions, package_count), vec(vec(edge(package_count), 1..=3), 1..=IMPORTER_IDS.len()))
             .prop_map(|(packages, importers)| Workspace { packages, importers })
     })
+}
+
+/// Fix each provider to one version so lockfile pins cannot select a different valid provider.
+pub(super) fn fixed_provider_workspace() -> impl Strategy<Value = Workspace> {
+    workspace()
+        .prop_map(|mut workspace| {
+            for target in 0..workspace.packages.len() {
+                let major = MAJORS[target % MAJORS.len()];
+                set_target_major(&mut workspace, target, major);
+                for peer in workspace.packages
+                    .iter_mut()
+                    .flatten()
+                    .flat_map(|version| &mut version.peers)
+                    .filter(|peer| peer.target == target)
+                {
+                    peer.range = PeerRange::Major(major);
+                }
+            }
+            workspace
+        })
 }
 
 /// Pin the chosen dependency to one major in the initial workspace and flip it
@@ -243,7 +289,7 @@ pub(super) fn stub_resolver(workspace: &Workspace) -> StubResolver {
             }
         }
     }
-    StubResolver { table, calls: std::sync::Mutex::new(Vec::new()) }
+    StubResolver { table }
 }
 
 /// The `dependencies` of one importer, by alias.
@@ -284,110 +330,54 @@ pub(super) fn outcome_of(result: &ResolveWorkspaceResult, workspace: &Workspace)
     Outcome { direct, graph }
 }
 
-fn stringify_edges(edges: &BTreeMap<String, crate::DepPath>) -> BTreeMap<String, String> {
+fn stringify_edges(
+    edges: &BTreeMap<String, pnpm_resolving_deps_resolver::DepPath>,
+) -> BTreeMap<String, String> {
     edges
         .iter()
         .map(|(alias, dep_path)| (alias.clone(), dep_path.to_string()))
         .collect()
 }
 
-/// The version part of `name@version(peers)`. Generated names carry no
-/// scope, so the first `@` ends the name.
-fn version_of(dep_path: &str) -> PkgVerPeer {
-    let (_, version) = dep_path.split_once('@').expect("dep path has a version");
-    PkgVerPeer::from_str(version).expect("parse dep path version")
-}
-
-/// The `pnpm-lock.yaml` a later install would read back: the importers'
-/// manifest specifiers, and one `packages:`/`snapshots:` pair per graph
-/// node.
+/// Serialize the resolved graph through the production lockfile writer.
 pub(super) fn lockfile_of(result: &ResolveWorkspaceResult, workspace: &Workspace) -> Lockfile {
-    let mut importers = std::collections::HashMap::new();
-    for (id, edges) in IMPORTER_IDS.iter().zip(&workspace.importers) {
-        let resolved = &result.peers.direct_dependencies_by_importer[*id];
-        let dependencies = importer_dependencies(edges)
-            .into_iter()
-            .map(|(alias, specifier)| {
-                let version = ImporterDepVersion::Regular(version_of(resolved[&alias].as_str()));
-                (PkgName::parse(alias).unwrap(), ResolvedDependencySpec { specifier, version })
-            })
-            .collect();
-        importers.insert(
-            (*id).to_string(),
-            ProjectSnapshot { dependencies: Some(dependencies), ..ProjectSnapshot::default() },
-        );
-    }
-    let mut packages = std::collections::HashMap::new();
-    let mut snapshots = std::collections::HashMap::new();
-    for node in result.peers.graph.values() {
-        let key = PackageKey::from_str(node.dep_path.as_str()).expect("parse dep path");
-        packages.insert(key.without_peer(), package_metadata(node));
-        snapshots.insert(key, snapshot_entry(node));
-    }
-    Lockfile {
-        lockfile_version: LockfileVersion::<9>::try_from(ComVer::new(9, 0)).unwrap(),
-        settings: None,
-        catalogs: None,
-        overrides: None,
-        package_extensions_checksum: None,
-        pnpmfile_checksum: None,
-        ignored_optional_dependencies: None,
-        patched_dependencies: None,
-        importers,
-        packages: Some(packages),
-        snapshots: Some(snapshots),
-        time: None,
-        extra: pnpm_lockfile::LockfileExtra::default(),
-    }
+    lockfile_with_settings(result, workspace, Settings::default())
 }
 
-fn package_metadata(node: &DependenciesGraphNode) -> PackageMetadata {
-    let (peer_dependencies, peer_dependencies_meta) =
-        lockfile_peer_blocks(node.edges.peer_set.declared());
-    PackageMetadata {
-        resolution: LockfileResolution::Registry(RegistryResolution {
-            integrity: "sha512-gf6ZldcfCDyNXPRiW3lQjEP1Z9rrUM/4Cn7BZbv3SdTA82zxWRP8OmLwvGR974uuENhGCFgFdN11z3n1Ofpprg=="
-                .parse()
-                .unwrap(),
-            revision: None,
-        }),
-        version: None,
-        engines: None,
-        cpu: None,
-        os: None,
-        libc: None,
-        deprecated: None,
-        has_bin: None,
-        prepare: None,
-        bundled_dependencies: None,
-        peer_dependencies,
-        peer_dependencies_meta,
-    }
-}
-
-fn snapshot_entry(node: &DependenciesGraphNode) -> SnapshotEntry {
-    let mut dependencies = std::collections::HashMap::new();
-    let mut optional_dependencies = std::collections::HashMap::new();
-    for (alias, child) in &node.edges.children {
-        let target = if node.edges.optional_children.contains(alias) {
-            &mut optional_dependencies
-        } else {
-            &mut dependencies
-        };
-        target.insert(
-            PkgName::parse(alias.as_str()).unwrap(),
-            SnapshotDepRef::Plain(version_of(child.as_str())),
-        );
-    }
-    let mut transitive: Vec<String> = node.edges.transitive_peer_dependencies
+pub(super) fn lockfile_with_settings(
+    result: &ResolveWorkspaceResult,
+    workspace: &Workspace,
+    settings: Settings,
+) -> Lockfile {
+    let manifests = super::manifests(workspace);
+    let mut options = single_importer_opts(
+        &manifests[0].1,
+        &result.peers.graph,
+        BTreeMap::new(),
+        settings.auto_install_peers,
+        false,
+        None,
+        None,
+    );
+    options.settings.peers_suffix_max_length =
+        Some(settings.peers_suffix_max_length.try_into().unwrap());
+    options.importers = IMPORTER_IDS
         .iter()
-        .cloned()
+        .zip(&manifests)
+        .map(|(id, (_, manifest))| {
+            (
+                (*id).to_string(),
+                crate::ImporterLockfileInput {
+                    manifest,
+                    direct_dependencies_by_alias: result.peers.direct_dependencies_by_importer[*id]
+                        .clone(),
+                },
+            )
+        })
         .collect();
-    transitive.sort();
-    SnapshotEntry {
-        dependencies: (!dependencies.is_empty()).then_some(dependencies),
-        optional_dependencies: (!optional_dependencies.is_empty()).then_some(optional_dependencies),
-        transitive_peer_dependencies: (!transitive.is_empty()).then_some(transitive),
-        ..SnapshotEntry::default()
-    }
+    let lockfile = crate::dependencies_graph_to_lockfile(options).expect("write generated graph");
+    let yaml = lockfile.to_yaml_string().expect("serialize generated lockfile");
+    Lockfile::parse(&yaml, std::path::Path::new(Lockfile::FILE_NAME))
+        .expect("parse generated lockfile")
+        .expect("generated lockfile is not empty")
 }

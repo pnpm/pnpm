@@ -204,7 +204,19 @@ pub struct ResolveOptions {
     pub version: VersionSelectionOptions,
     pub refresh: ResolutionRefreshOptions,
     pub policy: ResolutionPolicyOptions,
+    pub locked_package_policy: LockedPackagePolicy,
+    /// Manifest transforms need metadata before any prior transforms were applied.
+    pub requires_original_manifest: bool,
     pub specifier: ResolverSpecifierOptions,
+}
+
+/// Whether a kept lockfile resolution needs registry release-age and trust evidence
+/// before its cached manifest is read.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub enum LockedPackagePolicy {
+    #[default]
+    Verify,
+    Trust,
 }
 
 #[derive(Debug, Default, Clone)]
