@@ -12,11 +12,6 @@ const requireFromPacklist = module.createRequire(path.join(packlistPkgDir, 'pack
 const npmPacklist = requireFromPacklist('npm-packlist')
 
 async function loadPnpmPacklist () {
-  const libEntry = path.join(packlistPkgDir, 'lib/index.js')
-  if (fs.existsSync(libEntry)) {
-    const mod = await import(pathToFileURL(libEntry).href)
-    return mod.packlist
-  }
   module.registerHooks({
     resolve (specifier, context, nextResolve) {
       if (specifier.startsWith('.') && specifier.endsWith('.js') && context.parentURL?.startsWith('file:')) {
@@ -26,11 +21,16 @@ async function loadPnpmPacklist () {
         }
       }
       if (specifier.startsWith('@pnpm/')) {
-        const rest = specifier.slice('@pnpm/'.length).replace('.', '/')
-        const candidate = path.join(repoRoot, 'pnpm11', rest, 'src/index.ts')
-        if (fs.existsSync(candidate)) {
-          return { url: pathToFileURL(candidate).href, shortCircuit: true }
-        }
+        const req = context.parentURL?.startsWith('file:')
+          ? module.createRequire(fileURLToPath(context.parentURL))
+          : requireFromPacklist
+        try {
+          const pkgJson = req.resolve(`${specifier}/package.json`)
+          const candidate = path.join(path.dirname(pkgJson), 'src/index.ts')
+          if (fs.existsSync(candidate)) {
+            return { url: pathToFileURL(candidate).href, shortCircuit: true }
+          }
+        } catch {}
       }
       return nextResolve(specifier, context)
     },
