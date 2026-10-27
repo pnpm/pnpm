@@ -428,6 +428,7 @@ test.each([
 })
 
 const testOnPosix = process.platform === 'win32' ? test.skip : test
+const testOnPosixAsNonRoot = process.platform === 'win32' || process.getuid?.() === 0 ? test.skip : test
 
 testOnPosix.each([
   ['a fresh directory', {}],
@@ -605,7 +606,7 @@ test('overwriteDirSync() falls back to removing newDir when renaming it aside th
   expect(fs.existsSync(path.join(newDir, 'stale.txt'))).toBe(false)
 })
 
-testOnPosix('overwriteDirSync() restores the previous package when removing it after an EXDEV backup fails', () => {
+testOnPosixAsNonRoot('overwriteDirSync() restores the previous package when removing it after an EXDEV backup fails', () => {
   const tmp = tempDir()
   const stage = path.join(tmp, 'stage')
   const newDir = path.join(tmp, 'dest')

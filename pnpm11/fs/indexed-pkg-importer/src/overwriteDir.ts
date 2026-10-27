@@ -107,10 +107,10 @@ function backupAndRemoveTargetAfterFailedDisplace (
       try {
         rimrafSync(newDir)
       } catch (removeErr: unknown) {
-        // `newDir` may be partly deleted; copy the backup back over it and
-        // keep `aside` on disk if even that fails.
+        // `newDir` may be partly deleted; copy the missing entries back from
+        // `aside`, and keep `aside` on disk if even that fails.
         try {
-          fs.cpSync(aside, newDir, { recursive: true, verbatimSymlinks: true, force: true })
+          fs.cpSync(aside, newDir, { recursive: true, verbatimSymlinks: true, force: false })
           removeQuietly(aside)
         } catch {}
         throw removeErr
