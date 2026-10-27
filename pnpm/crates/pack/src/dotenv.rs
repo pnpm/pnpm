@@ -87,14 +87,13 @@ pub(super) fn named_in_files(files_field: &[Value]) -> impl Fn(&str) -> bool {
         .collect();
     let matcher = build_files_matcher(&dotenv_entries);
     move |path| {
-        !excluded
-            .iter()
-            .any(|entry| entry == path)
-            && (named.iter().any(|entry| entry == path) || matcher.includes(path))
+        let lowercase = path.to_lowercase();
+        !excluded.contains(&lowercase) && (named.contains(&lowercase) || matcher.includes(path))
     }
 }
 
-/// A `files` entry as the path it names, with repeated separators collapsed.
+/// A `files` entry as the path it names, lowercased because the packlist
+/// matches without case sensitivity, with repeated separators collapsed.
 /// A trailing `/` stays: the packlist never reads such an entry as a file.
 fn literal_path(entry: &str) -> String {
     let entry = entry.trim_start_matches("./");
@@ -102,7 +101,8 @@ fn literal_path(entry: &str) -> String {
         .split('/')
         .filter(|segment| !segment.is_empty())
         .collect::<Vec<_>>()
-        .join("/");
+        .join("/")
+        .to_lowercase();
     if entry.ends_with('/') {
         path.push('/');
     }

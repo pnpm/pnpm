@@ -139,6 +139,11 @@ fn only_entries_that_name_the_dotenv_file_count_as_listing_it() {
         "node_modules/dep/.env",
         &["!node_modules/dep/.env", "node_modules/dep/.env"],
     ));
+    assert!(!is_named_in_files(
+        "node_modules/dep/.env",
+        &["node_modules/dep/.env", "!node_modules/DEP/.env"],
+    ));
+    assert!(is_named_in_files("config/.ENV", &["config/.env", "!**/.env"]));
     assert!(!is_named_in_files(".env", &["**", ".env/"]));
     assert!(is_named_in_files(".env", &[".env", "!.env/"]));
 }
