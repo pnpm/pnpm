@@ -3,7 +3,7 @@ mod metadata_file;
 mod mutation;
 
 use futures_util::future::{BoxFuture, join_all};
-use miette::Result;
+use miette::{IntoDiagnostic, Result, WrapErr};
 use mutation::MetadataMutation;
 use std::{future::Future, path::PathBuf};
 
@@ -132,8 +132,7 @@ fn settle_on_threads(
             participants.push(
                 std::thread::Builder::new()
                     .name("pnpm-install-participant".to_string())
-                    .spawn_scoped(scope, move || runtime.block_on(preparation))
-                    .expect("spawn an install participant thread"),
+                    .spawn_scoped(scope, move || runtime.block_on(preparation)),
             );
         }
         participants
@@ -143,8 +142,16 @@ fn settle_on_threads(
     })
 }
 
-fn join_participant<Output>(participant: std::thread::ScopedJoinHandle<'_, Output>) -> Output {
-    participant.join().unwrap_or_else(|panic| std::panic::resume_unwind(panic))
+/// A participant whose thread could not start fails like any other, so the
+/// plan still restores its metadata.
+fn join_participant(
+    participant: std::io::Result<std::thread::ScopedJoinHandle<'_, Result<Prepared>>>,
+) -> Result<Prepared> {
+    participant
+        .into_diagnostic()
+        .wrap_err("start an install participant thread")?
+        .join()
+        .unwrap_or_else(|panic| std::panic::resume_unwind(panic))
 }
 
 fn publish(mut prepared: Prepared) -> Result<()> {
