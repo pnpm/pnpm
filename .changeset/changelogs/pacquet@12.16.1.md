@@ -20,4 +20,4 @@ This release fixes `pnpm install` hanging on a cold store in workspaces that ins
 
 - pnpm now accepts the `--cache-dir <dir>` flag, as in `pnpm install --cache-dir /tmp/pnpm-cache` [#17422](https://github.com/pnpm/pnpm/issues/17422).
 
-- When the version or range given to `pnpm unpublish` matches every published version, the error now says so and shows the same command with `--force`. It suggested running `pnpm unpublish <pkg>@<version>`, the command that had just failed.
+- When the version or range given to `pnpm unpublish` matches every published version, the error now says so and shows the same command with `--force`. Before, the error suggested running `pnpm unpublish <pkg>@<version>`, the command that had just failed.
