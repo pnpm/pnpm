@@ -18,7 +18,10 @@
 
 use crate::{
     cli_args::self_update::{
-        install_pnpm::{link_exe_platform_binary, package_dir, pnpm_executable_path, run_install},
+        install_pnpm::{
+            build_engine_install_config, link_exe_platform_binary, package_dir,
+            pnpm_executable_path, run_install,
+        },
         verify_engine::{EngineToVerify, PlatformBinaries, verify_engine_identity},
     },
     config_deps,
@@ -395,14 +398,10 @@ fn compute_engine_slot(
         .find(|key| key.without_peer() == wanted)?
         .clone();
 
-    let mut cfg = config.clone();
-    cfg.enable_global_virtual_store = true;
-    cfg.global_virtual_store_dir = config.store_dir.links();
-    cfg.allow_builds.clear();
-    cfg.disable_agent_skills();
-    for name in packages.pinned {
-        cfg.allow_builds.insert((*name).to_string(), true);
-    }
+    // The layout reads no install-directory setting, so any directory
+    // yields the config the slot's install ran with.
+    let cfg =
+        build_engine_install_config(config, &config.store_dir.tmp(), None, Some(packages.pinned));
     let policy = AllowBuildPolicy::from_config(&cfg).ok()?;
     let engine = detect_node_major().map(|major| engine_name(major, None, None));
     let layout = VirtualStoreLayout::new(

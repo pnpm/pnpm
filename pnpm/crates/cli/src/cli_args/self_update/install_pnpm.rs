@@ -420,7 +420,7 @@ pub(crate) async fn run_install<Reporter: self::Reporter + 'static>(
 #[cfg(test)]
 mod tests;
 
-fn build_engine_install_config(
+pub(crate) fn build_engine_install_config(
     base_config: &Config,
     install_dir: &Path,
     supported_architectures: Option<SupportedArchitectures>,
