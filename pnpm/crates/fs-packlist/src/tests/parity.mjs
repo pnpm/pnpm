@@ -11,26 +11,35 @@ const packlistPkgDir = path.join(repoRoot, 'pnpm11/fs/packlist')
 const requireFromPacklist = module.createRequire(path.join(packlistPkgDir, 'package.json'))
 const npmPacklist = requireFromPacklist('npm-packlist')
 
+function findWorkspaceTsEntry (specifier, parentURL) {
+  let dir = parentURL?.startsWith('file:')
+    ? path.dirname(fileURLToPath(parentURL))
+    : packlistPkgDir
+  while (true) {
+    const candidate = path.join(dir, 'node_modules', specifier, 'src/index.ts')
+    if (fs.existsSync(candidate)) {
+      return fs.realpathSync(candidate)
+    }
+    const parent = path.dirname(dir)
+    if (parent === dir) return null
+    dir = parent
+  }
+}
+
 async function loadPnpmPacklist () {
   module.registerHooks({
     resolve (specifier, context, nextResolve) {
       if (specifier.startsWith('.') && specifier.endsWith('.js') && context.parentURL?.startsWith('file:')) {
         const candidate = path.resolve(path.dirname(fileURLToPath(context.parentURL)), specifier.slice(0, -3) + '.ts')
         if (fs.existsSync(candidate)) {
-          return { url: pathToFileURL(candidate).href, shortCircuit: true }
+          return { url: pathToFileURL(fs.realpathSync(candidate)).href, shortCircuit: true }
         }
       }
       if (specifier.startsWith('@pnpm/')) {
-        const req = context.parentURL?.startsWith('file:')
-          ? module.createRequire(fileURLToPath(context.parentURL))
-          : requireFromPacklist
-        try {
-          const pkgJson = req.resolve(`${specifier}/package.json`)
-          const candidate = path.join(path.dirname(pkgJson), 'src/index.ts')
-          if (fs.existsSync(candidate)) {
-            return { url: pathToFileURL(candidate).href, shortCircuit: true }
-          }
-        } catch {}
+        const candidate = findWorkspaceTsEntry(specifier, context.parentURL)
+        if (candidate != null) {
+          return { url: pathToFileURL(candidate).href, shortCircuit: true }
+        }
       }
       return nextResolve(specifier, context)
     },
