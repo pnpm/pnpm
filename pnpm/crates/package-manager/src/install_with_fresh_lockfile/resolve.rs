@@ -30,6 +30,7 @@ use std::{
 /// for the fast-override pre-pass. Only the consuming project's directory
 /// and its preferred-versions seed vary — see [`Self::build`].
 pub(super) struct SharedResolveOptions<'a> {
+    pub locked_package_policy: pnpm_resolving_resolver_base::LockedPackagePolicy,
     pub policy: pnpm_resolving_resolver_base::ResolutionPolicyOptions,
     pub config: &'a Config,
     pub lockfile_dir: &'a Path,
@@ -66,11 +67,7 @@ impl SharedResolveOptions<'_> {
                 refresh_metadata: self.refresh_metadata,
                 ..Default::default()
             },
-            locked_package_policy: if self.config.trust_lockfile {
-                pnpm_resolving_resolver_base::LockedPackagePolicy::Trust
-            } else {
-                pnpm_resolving_resolver_base::LockedPackagePolicy::Verify
-            },
+            locked_package_policy: self.locked_package_policy,
             policy: pnpm_resolving_resolver_base::ResolutionPolicyOptions {
                 fallback_published_by: None,
                 published_by: self.policy.published_by,

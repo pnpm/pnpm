@@ -159,6 +159,7 @@ pub(crate) struct FreshInstallProjects<'a> {
 
 #[derive(Clone, Copy)]
 pub(crate) struct FreshInstallExecution {
+    pub(crate) locked_package_policy: pnpm_resolving_resolver_base::LockedPackagePolicy,
     /// Resolved [`pnpm_config::Config::node_linker`]. Selects the
     /// materialization shape after the virtual store is populated:
     /// under [`NodeLinker::Hoisted`] the freshly-built lockfile is

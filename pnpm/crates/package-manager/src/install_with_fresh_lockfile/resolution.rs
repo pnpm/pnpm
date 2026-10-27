@@ -151,6 +151,7 @@ impl<'a, Reporter: self::Reporter + 'static> ResolutionContext<'a, Reporter> {
 
     fn shared_options(&self) -> resolve::SharedResolveOptions<'a> {
         resolve::SharedResolveOptions {
+            locked_package_policy: self.install.execution.locked_package_policy,
             policy: pnpm_resolving_resolver_base::ResolutionPolicyOptions {
                 published_by: self.setup.policy.published_by,
                 published_by_exclude: self.setup.policy.published_by_exclude.clone(),

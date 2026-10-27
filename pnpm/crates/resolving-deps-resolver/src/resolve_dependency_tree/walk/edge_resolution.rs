@@ -190,6 +190,8 @@ pub(super) fn edge_opts<'c>(
             let keeps_locked =
                 prior_key.is_some_and(|key| keeps_locked_version(ctx, wanted, key, edge.depth));
             Cow::Owned(ResolveOptions {
+                requires_original_manifest: opts.requires_original_manifest
+                    || ctx.workspace.hooks.manifests.pnpmfile_hook.is_some(),
                 refresh: pnpm_resolving_resolver_base::ResolutionRefreshOptions {
                     prefer_current_version: edge.depth == 0 && keeps_locked,
                     repick_current_version: !keeps_locked,

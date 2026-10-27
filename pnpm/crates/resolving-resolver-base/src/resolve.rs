@@ -205,6 +205,8 @@ pub struct ResolveOptions {
     pub refresh: ResolutionRefreshOptions,
     pub policy: ResolutionPolicyOptions,
     pub locked_package_policy: LockedPackagePolicy,
+    /// Manifest transforms need metadata before any prior transforms were applied.
+    pub requires_original_manifest: bool,
     pub specifier: ResolverSpecifierOptions,
 }
 
