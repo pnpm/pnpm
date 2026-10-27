@@ -440,7 +440,8 @@ function normalizePackage (pkg: Record<string, unknown>): Record<string, unknown
     normalized.browser = stripDotSlash(normalized.browser)
   }
   if (typeof normalized.bin === 'string') {
-    normalized.bin = stripDotSlash(normalized.bin)
+    const binName = typeof normalized.name === 'string' && normalized.name.length > 0 ? normalized.name : 'bin'
+    normalized.bin = { [binName]: stripDotSlash(normalized.bin) }
   } else if (normalized.bin != null && typeof normalized.bin === 'object') {
     const bin: Record<string, string> = {}
     for (const [key, value] of Object.entries(normalized.bin as Record<string, string>)) {

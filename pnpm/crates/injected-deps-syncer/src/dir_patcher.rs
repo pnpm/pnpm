@@ -256,24 +256,15 @@ fn linked_file(path: &Path) -> PathBuf {
 /// Recreate the link at `source_path` at `target_path`, the way the install
 /// recreates a package's link to its own content.
 fn place_link(source_path: &Path, target_path: &Path) -> Result<(), PatchError> {
-    let link_error = |error| PatchError::Link {
-        source: source_path.to_path_buf(),
-        target: target_path.to_path_buf(),
-        error,
-    };
-    let contents = pnpm_fs::read_symlink_dir(source_path)
-        .map(|link| pnpm_fs::relative_link_target(source_path, link))
-        .map_err(link_error)?;
     let link_dir = target_path.parent().unwrap_or_else(|| Path::new(""));
     fs::create_dir_all(link_dir)
         .map_err(|error| PatchError::CreateDir { path: link_dir.to_path_buf(), error })?;
-    if fs::metadata(source_path).is_ok_and(|metadata| metadata.is_dir()) {
-        let original = pnpm_fs::lexical_normalize(&link_dir.join(&contents));
-        pnpm_fs::symlink_dir_with_contents(&original, &contents, target_path)
-    } else {
-        pnpm_fs::symlink_file_or_copy(&contents, source_path, target_path)
-    }
-    .map_err(link_error)
+    pnpm_fs::recreate_internal_symlink(source_path, target_path)
+        .map_err(|error| PatchError::Link {
+            source: source_path.to_path_buf(),
+            target: target_path.to_path_buf(),
+            error,
+        })
 }
 
 /// A source directory's files, read once per poll and published to each of

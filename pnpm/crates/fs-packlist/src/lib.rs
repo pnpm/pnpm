@@ -10,6 +10,7 @@
 //! are appended at the root. Bundled dependencies use the same selection.
 
 pub use ignore_walk::files_field::{FilesMatcher, build_files_matcher};
+pub use pnpm_fs::{AdmittedSymlink, SymlinkTargetKind};
 
 use derive_more::{Display, Error};
 use ignore_walk::{PackageRules, walk_files};
@@ -17,7 +18,7 @@ use pnpm_diagnostics::miette::{self, Diagnostic};
 use pnpm_package_manifest::safe_read_package_json_from_dir;
 use serde_json::Value;
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque},
+    collections::{BTreeMap, HashMap, HashSet, VecDeque},
     ffi::OsStr,
     fs,
     path::{Component, Path, PathBuf},
@@ -49,11 +50,38 @@ pub enum PacklistError {
 /// not.
 const ALWAYS_EXCLUDED_DIR_SEGMENTS: &[&str] = &[".git", ".svn", ".hg", "CVS"];
 
+/// The files and internal symlinks selected from a package directory.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct SelectedPackageFiles {
+    /// Every selected entry (regular files and admitted internal symlinks),
+    /// keyed by its forward-slash package-relative path and mapped to its
+    /// source path on disk.
+    pub files: BTreeMap<String, PathBuf>,
+    /// The subset of `files` that are admitted internal symlinks, keyed by the
+    /// same forward-slash package-relative path.
+    pub links: BTreeMap<String, AdmittedSymlink>,
+}
+
 /// Walk `pkg_dir` and return forward-slash relative paths for every
 /// file the published tarball should contain. Paths are relative to
 /// `pkg_dir`, with no leading `./`.
 pub fn packlist(pkg_dir: &Path, manifest: &Value) -> Result<Vec<String>, PacklistError> {
     packlist_with_options(pkg_dir, manifest, PacklistOptions::default())
+}
+
+/// Read `pkg_dir/package.json` (defaulting to `{}` if absent) and return
+/// forward-slash relative paths for every selected file and internal symlink.
+pub fn packlist_dir(pkg_dir: &Path) -> Result<Vec<String>, PacklistError> {
+    Ok(select_dir_package_files(pkg_dir)?.files.into_keys().collect())
+}
+
+/// Read `pkg_dir/package.json` (defaulting to `{}` if absent) and select the
+/// package's files and admitted internal symlinks.
+pub fn select_dir_package_files(pkg_dir: &Path) -> Result<SelectedPackageFiles, PacklistError> {
+    let manifest = safe_read_package_json_from_dir(pkg_dir)
+        .map_err(|err| io_error(pkg_dir, std::io::Error::other(err.to_string())))?
+        .unwrap_or_else(|| Value::Object(serde_json::Map::new()));
+    select_package_files(pkg_dir, &manifest, PacklistOptions::default())
 }
 
 #[derive(Debug, Default, Clone, Copy)]
@@ -97,33 +125,41 @@ pub fn packlist_with_sources(
     manifest: &Value,
     options: PacklistOptions<'_>,
 ) -> Result<BTreeMap<String, PathBuf>, PacklistError> {
+    Ok(select_package_files(pkg_dir, manifest, options)?.files)
+}
+
+/// Select the package's files and admitted internal symlinks under `pkg_dir`,
+/// including any bundled dependencies.
+pub fn select_package_files(
+    pkg_dir: &Path,
+    manifest: &Value,
+    options: PacklistOptions<'_>,
+) -> Result<SelectedPackageFiles, PacklistError> {
     let workspace_dir =
         options.workspace_dir.filter(|workspace_dir| pkg_dir.starts_with(workspace_dir));
-    let own_files = collect_own_files(
+    let mut selected = collect_own_files(
         pkg_dir,
         PackageRules { workspace_dir, manifest, include_alternate_manifests: true },
     )?;
-    let mut out = own_files
-        .into_iter()
-        .map(|file| {
-            let source = pkg_dir.join(&file);
-            (file, source)
-        })
-        .collect();
     let boundary = workspace_dir.or(options.bundled_dependencies_dir).unwrap_or(pkg_dir);
-    collect_bundled_files(pkg_dir, manifest, boundary, &mut out)?;
-    Ok(out)
+    collect_bundled_files(pkg_dir, manifest, boundary, &mut selected)?;
+    Ok(selected)
 }
 
-/// Select one package's own files. [`collect_bundled_files`] adds dependencies.
+/// Select one package's own files and admitted internal symlinks.
+/// [`collect_bundled_files`] adds dependencies.
 fn collect_own_files(
     pkg_dir: &Path,
     options: PackageRules<'_>,
-) -> Result<BTreeSet<String>, PacklistError> {
-    let mut out = BTreeSet::new();
+) -> Result<SelectedPackageFiles, PacklistError> {
+    let mut out = SelectedPackageFiles::default();
     walk_files(pkg_dir, options, &mut |path, file_type| {
-        if is_packable(pkg_dir, path, file_type) {
-            out.insert(relative_forward_slash(pkg_dir, path));
+        if let Some(entry) = classify_entry(pkg_dir, path, file_type) {
+            let rel = relative_forward_slash(pkg_dir, path);
+            out.files.insert(rel.clone(), pkg_dir.join(&rel));
+            if let PackableEntry::Symlink(admitted) = entry {
+                out.links.insert(rel, admitted);
+            }
         }
     })
     .map_err(|source| io_error(pkg_dir, source))?;
@@ -209,4 +245,4 @@ mod ignore_walk;
 mod symlinks;
 use bundled::collect_bundled_files;
 use ignore_walk::files_field::normalize_field_path;
-use symlinks::is_packable;
+use symlinks::{PackableEntry, classify_entry};

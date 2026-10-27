@@ -10,8 +10,8 @@
 //! injected package sees each write.
 
 pub use dir_patcher::{
-    Change, DirDiff, DirPatcher, FileId, InodeMap, PatchError, Value, apply_patch, diff_dir,
-    extend_files_map,
+    Change, DirDiff, DirPatcher, FileId, InodeMap, PatchError, PublishSource, Value, apply_patch,
+    diff_dir, extend_files_map, publish_edits,
 };
 pub use injection_records::ProjectModulesDir;
 pub use pnpm_directory_fetcher::CopyFiles;
