@@ -3,6 +3,7 @@ import path from 'path'
 import {
   getFilePathByModeInCafs as _getFilePathByModeInCafs,
   getIndexFilePathInCafs as _getIndexFilePathInCafs,
+  optimisticRenameOverwrite,
   type PackageFilesIndex,
 } from '@pnpm/store.cafs'
 import { fetchingProgressLogger, progressLogger } from '@pnpm/core-loggers'
@@ -145,6 +146,7 @@ export function createPackageRequester (
     pnpmVersion: opts.pnpmVersion,
     force: opts.force,
     fetchPackageToStore,
+    getIndexFilePathInCafs,
     peekPackageFromStore,
     requestsQueue,
     resolve: opts.resolve,
@@ -170,7 +172,11 @@ async function resolveAndFetch (
     pnpmVersion?: string
     requestsQueue: { add: <T>(fn: () => Promise<T>, opts: { priority: number }) => Promise<T> }
     resolve: ResolveFunction
-    fetchPackageToStore: FetchPackageToStoreFunction
+    fetchPackageToStore: (opts: FetchPackageToStoreOptions & { populateMissingIntegrity?: boolean }) => {
+      filesIndexFile: string
+      fetching: () => Promise<PkgRequestFetchResult>
+    }
+    getIndexFilePathInCafs: (integrity: string, pkgId: string) => string
     peekPackageFromStore: (pkg: PkgNameVersion & {
       id: string
       resolution: Resolution
@@ -186,6 +192,7 @@ async function resolveAndFetch (
   let alias: string | undefined
   let resolution = options.currentPkg?.resolution as Resolution
   let pkgId = options.currentPkg?.id
+  const previousIntegrity = (options.currentPkg?.resolution as TarballResolution | undefined)?.integrity
   const skipResolution = resolution && !options.update && !options.updateChecksums
   let forceFetch = false
   let updated = false
@@ -249,6 +256,20 @@ async function resolveAndFetch (
     pkgId = resolveResult.id
     normalizedBareSpecifier = resolveResult.normalizedBareSpecifier
     alias = resolveResult.alias
+
+    // URL/tarball resolvers don't return an integrity, because it is only known
+    // after the tarball is downloaded. When a package is reused from the lockfile
+    // without being re-fetched, the freshly resolved resolution has no integrity,
+    // so carry it over from the current resolution instead of dropping it.
+    // https://github.com/pnpm/pnpm/issues/12001
+    if (
+      !updated &&
+      typeof previousIntegrity === 'string' &&
+      !resolution.type &&
+      !(resolution as TarballResolution).integrity
+    ) {
+      (resolution as TarballResolution).integrity = previousIntegrity
+    }
   }
 
   // When fetching is skipped, we still need the package's manifest for
@@ -314,9 +335,10 @@ async function resolveAndFetch (
           })
       )
   )
+  const populateMissingIntegrity = !resolution.type && !id.startsWith('file:') && !(resolution as TarballResolution).integrity
   // We can skip fetching the package only if the manifest
-  // is present after resolution
-  if ((options.skipFetch === true || isInstallable === false) && (manifest != null)) {
+  // is present after resolution and the resolution is not missing a required integrity
+  if ((options.skipFetch === true || isInstallable === false) && !populateMissingIntegrity && (manifest != null)) {
     return {
       body: {
         id,
@@ -339,6 +361,7 @@ async function resolveAndFetch (
     allowBuild: options.allowBuild,
     fetchRawManifest: true,
     force: forceFetch,
+    populateMissingIntegrity,
     ignoreScripts: options.ignoreScripts,
     lockfileDir: options.lockfileDir,
     pkg: {
@@ -353,12 +376,18 @@ async function resolveAndFetch (
     supportedArchitectures: options.supportedArchitectures,
   })
 
-  if (!manifest) {
+  let filesIndexFile = fetchResult.filesIndexFile
+  if (!manifest || populateMissingIntegrity) {
     const fetchedResult = await fetchResult.fetching()
-    manifest = fetchedResult.bundledManifest
+    if (!manifest) {
+      manifest = fetchedResult.bundledManifest
+    }
     // Add integrity to resolution if it was computed during fetching (only for TarballResolution)
     if (fetchedResult.integrity && !resolution.type && !(resolution as TarballResolution).integrity) {
       (resolution as TarballResolution).integrity = fetchedResult.integrity
+      if (!id.startsWith('file:') && (resolution as TarballResolution).gitHosted !== true) {
+        filesIndexFile = ctx.getIndexFilePathInCafs(fetchedResult.integrity, id)
+      }
     }
   }
   return {
@@ -376,7 +405,7 @@ async function resolveAndFetch (
       alias,
     },
     fetching: fetchResult.fetching,
-    filesIndexFile: fetchResult.filesIndexFile,
+    filesIndexFile,
   }
 }
 
@@ -476,7 +505,7 @@ function fetchToStore (
     virtualStoreDirMaxLength: number
     strictStorePkgContentCheck?: boolean
   },
-  opts: FetchPackageToStoreOptions
+  opts: FetchPackageToStoreOptions & { populateMissingIntegrity?: boolean }
 ): {
     filesIndexFile: string
     fetching: () => Promise<PkgRequestFetchResult>
@@ -543,22 +572,25 @@ function fetchToStore (
 
   if (opts.fetchRawManifest && !result.fetchRawManifest) {
     result.fetching = removeKeyOnFail(
-      result.fetching.then(async ({ files }) => {
+      result.fetching.then(async ({ files, integrity }) => {
         if (!files.filesIndex['package.json']) return {
           files,
           bundledManifest: undefined,
+          integrity,
         }
         if (files.unprocessed) {
-          const { integrity, mode } = files.filesIndex['package.json']
-          const manifestPath = ctx.getFilePathByModeInCafs(integrity, mode)
+          const { integrity: manifestIntegrity, mode } = files.filesIndex['package.json']
+          const manifestPath = ctx.getFilePathByModeInCafs(manifestIntegrity, mode)
           return {
             files,
             bundledManifest: await readBundledManifest(manifestPath),
+            integrity,
           }
         }
         return {
           files,
           bundledManifest: await readBundledManifest(files.filesIndex['package.json']),
+          integrity,
         }
       })
     )
@@ -594,6 +626,7 @@ function fetchToStore (
 
       if (
         !opts.force &&
+        !opts.populateMissingIntegrity &&
         (
           !isLocalTarballDep ||
           await tarballIsUpToDate(opts.pkg.resolution as any, target, opts.lockfileDir) // eslint-disable-line
@@ -612,6 +645,7 @@ function fetchToStore (
               requiresBuild,
             },
             bundledManifest: manifest == null ? manifest : normalizeBundledManifest(manifest),
+            integrity: (resolution as TarballResolution).integrity,
           })
           return
         }
@@ -662,10 +696,21 @@ function fetchToStore (
         }
       ), { priority })
 
-      const integrity = (opts.pkg.resolution as TarballResolution).integrity ?? fetchedPackage.integrity
+      const integrity = (resolution as TarballResolution).integrity ?? fetchedPackage.integrity
       if (isLocalTarballDep && integrity) {
         await fs.mkdir(target, { recursive: true })
         await gfs.writeFile(path.join(target, TARBALL_INTEGRITY_FILENAME), integrity, 'utf8')
+      }
+      if (
+        !isLocalTarballDep &&
+        !(resolution as TarballResolution).integrity &&
+        fetchedPackage.integrity &&
+        (resolution as TarballResolution).gitHosted !== true
+      ) {
+        const cafsIndexFile = ctx.getIndexFilePathInCafs(fetchedPackage.integrity, opts.pkg.id)
+        if (cafsIndexFile !== filesIndexFile) {
+          await writeCafsIndexCopy(filesIndexFile, cafsIndexFile)
+        }
       }
 
       fetching.resolve({
@@ -755,6 +800,15 @@ async function peekFromStore (
 
 async function readBundledManifest (pkgJsonPath: string): Promise<BundledManifest> {
   return pickBundledManifest(await readPackageJson(pkgJsonPath) as DependencyManifest)
+}
+
+let tempCounter = 0
+
+async function writeCafsIndexCopy (srcIndexFile: string, cafsIndexFile: string): Promise<void> {
+  await fs.mkdir(path.dirname(cafsIndexFile), { recursive: true })
+  const temp = `${cafsIndexFile.slice(0, -11)}${process.pid}-${++tempCounter}`
+  await fs.copyFile(srcIndexFile, temp)
+  optimisticRenameOverwrite(temp, cafsIndexFile)
 }
 
 function checkPackageMismatch (

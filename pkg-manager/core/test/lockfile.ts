@@ -1587,3 +1587,62 @@ test('setting a custom peersSuffixMaxLength', async () => {
   expect(lockfile.settings.peersSuffixMaxLength).toBe(10)
   expect(lockfile.importers['.']?.dependencies?.['@pnpm.e2e/abc']?.version?.length).toBe(39)
 })
+
+// https://github.com/pnpm/pnpm/issues/14351
+test('remote tarball dependency keeps its integrity in the lockfile on warm-store update and lockfile-only install', async () => {
+  nock('https://registry.npmjs.org', { allowUnmocked: true })
+    .head('/is-positive/download/is-positive-3.1.0.tgz')
+    .times(2)
+    .reply(200, '')
+  // Only two GETs should happen: one for the initial cold-store download and
+  // one for the final --frozen-lockfile install into a second cold store.
+  // The warm-store `update --lockfile-only` and `install --lockfile-only` runs
+  // must reuse the store without re-downloading.
+  nock('https://registry.npmjs.org', { allowUnmocked: true })
+    .get('/is-positive/download/is-positive-3.1.0.tgz')
+    .times(2)
+    .replyWithFile(200, tarballPath)
+
+  const project = prepareEmpty()
+  const tarballUrl = 'https://registry.npmjs.org/is-positive/download/is-positive-3.1.0.tgz'
+  const depPath = `is-positive@${tarballUrl}` as DepPath
+  const warmStoreOpts = testDefaults({ fastUnpack: false, lockfileOnly: true })
+
+  let manifest: ProjectManifest = {
+    name: 'repro-warm-store-tarball-integrity',
+    private: true,
+    dependencies: {
+      'is-negative': '^1.0.0',
+      'is-positive': tarballUrl,
+    },
+  }
+
+  manifest = (await install(manifest, warmStoreOpts)).updatedManifest
+  const initialLockfile = project.readLockfile()
+  const initialIntegrity = (initialLockfile.packages[depPath]?.resolution as TarballResolution | undefined)?.integrity
+  expect(initialIntegrity).toMatch(/^sha512-/)
+
+  // `pnpm update --lockfile-only` on the warm store must keep `integrity`
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd() as ProjectRootDir,
+    update: true,
+  }, warmStoreOpts)
+  expect(project.readLockfile().packages[depPath]?.resolution).toStrictEqual({
+    tarball: tarballUrl,
+    integrity: initialIntegrity,
+  })
+
+  // `pnpm install --lockfile-only` after changing another dependency on the warm store must keep `integrity`
+  manifest.dependencies!['is-negative'] = '^2.0.0'
+  await install(manifest, warmStoreOpts)
+  expect(project.readLockfile().packages[depPath]?.resolution).toStrictEqual({
+    tarball: tarballUrl,
+    integrity: initialIntegrity,
+  })
+
+  // Subsequent `--frozen-lockfile` install against a fresh store must succeed
+  await install(manifest, testDefaults({ fastUnpack: false, frozenLockfile: true }))
+  project.has('is-positive')
+})
