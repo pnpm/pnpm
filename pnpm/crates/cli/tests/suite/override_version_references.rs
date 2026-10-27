@@ -157,3 +157,74 @@ fn install_trims_whitespace_in_override_selector() {
 
     drop((root, mock_instance));
 }
+
+#[test]
+fn parent_scoped_override_on_peer_dependency_resolves_overridden_version() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "peer-override-repro",
+            "version": "1.0.0",
+            "dependencies": {
+                "@pnpm.e2e/peer-c": "2.0.0",
+                "@pnpm.e2e/wants-peer-c-1": "1.0.0",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let initial_lockfile =
+        fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read initial pnpm-lock.yaml");
+    assert!(
+        initial_lockfile.contains("@pnpm.e2e/wants-peer-c-1@1.0.0(@pnpm.e2e/peer-c@2.0.0)"),
+        "{initial_lockfile}",
+    );
+
+    add_overrides(
+        &workspace,
+        "overrides:\n  \"@pnpm.e2e/wants-peer-c-1>@pnpm.e2e/peer-c\": 1.0.0\n",
+    );
+
+    Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let text = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml");
+    let lockfile: Lockfile = serde_saphyr::from_str(&text).expect("parse pnpm-lock.yaml");
+    dbg!(&lockfile);
+
+    let wants_peer_key = "@pnpm.e2e/wants-peer-c-1@1.0.0".parse().expect("package key");
+    let peer_c_name = "@pnpm.e2e/peer-c".parse().expect("package name");
+    let packages = lockfile.packages.as_ref().expect("packages");
+    let snapshots = lockfile.snapshots.as_ref().expect("snapshots");
+    assert!(packages[&wants_peer_key].peer_dependencies.is_none());
+    assert_eq!(
+        snapshots[&wants_peer_key].dependencies
+            .as_ref()
+            .and_then(|deps| deps.get(&peer_c_name))
+            .map(ToString::to_string)
+            .as_deref(),
+        Some("1.0.0"),
+    );
+    assert!(!text.contains("@pnpm.e2e/wants-peer-c-1@1.0.0(@pnpm.e2e/peer-c@2.0.0)"), "{text}");
+
+    drop((root, mock_instance));
+}

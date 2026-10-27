@@ -158,3 +158,12 @@ test('a parent-scoped override prunes the version it leaves when nothing else ho
   expect(Object.keys(lockfile.packages ?? {}).filter((key) => key.startsWith('target@')))
     .toStrictEqual(['target@2.0.0'])
 })
+
+test('a replacing override bails when the target is a peer dependency in the lockfile', async () => {
+  const lockfile = makeSharedDependencyLockfile()
+  lockfile.packages!['parent@1.0.0' as DepPath].peerDependencies = { target: '^1.0.0' }
+  const requestPackage = jest.fn() as unknown as RequestPackageFunction
+
+  expect(await tryFastUpdateOverrides(lockfile, parentScopedOpts(requestPackage))).toBe(false)
+  expect(requestPackage).not.toHaveBeenCalled()
+})

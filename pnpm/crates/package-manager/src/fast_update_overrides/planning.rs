@@ -166,7 +166,6 @@ pub(crate) fn build_replacement_plan(
     let peer_names = get_peer_names(lockfile);
     if overrides
         .iter()
-        .filter(|entry| entry.new_version.is_none())
         .any(|entry| peer_names.contains(&entry.name))
     {
         return None;

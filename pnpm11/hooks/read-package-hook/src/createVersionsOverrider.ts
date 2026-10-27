@@ -273,7 +273,7 @@ function overrideDeps (
 }
 
 function applyVersionOverride (
-  versionOverride: ReturnType<typeof pickVersionOverride>,
+  versionOverride: VersionOverride,
   { deps, peerDeps, dir, peerDependenciesMeta }: {
     deps: Dependencies
     peerDeps: Dependencies | undefined
@@ -281,12 +281,10 @@ function applyVersionOverride (
     peerDependenciesMeta: PackageManifest['peerDependenciesMeta']
   }
 ): void {
-  if (!versionOverride) return
   const pkgName = versionOverride.targetPkg.name
   if (versionOverride.newBareSpecifier === '-') {
     if (peerDeps) {
-      delete peerDeps[pkgName]
-      delete peerDependenciesMeta?.[pkgName]
+      deletePeerDep(peerDeps, peerDependenciesMeta, pkgName)
     } else {
       delete deps[pkgName]
     }
@@ -294,11 +292,26 @@ function applyVersionOverride (
   }
 
   const newBareSpecifier = resolveOverriddenBareSpecifier(versionOverride, dir)
-  if (peerDeps == null || !isValidPeerRange(newBareSpecifier)) {
+  // A peer dependency resolves from the ancestors of `parentPkg` rather than as
+  // its own child, so a `parent>peer` override moves the entry into
+  // `dependencies` to give `parentPkg` the version it asked for.
+  if (peerDeps != null && versionOverride.parentPkg != null) {
+    deletePeerDep(peerDeps, peerDependenciesMeta, pkgName)
     deps[pkgName] = newBareSpecifier
-  } else if (isValidPeerRange(newBareSpecifier)) {
+  } else if (peerDeps == null || !isValidPeerRange(newBareSpecifier)) {
+    deps[pkgName] = newBareSpecifier
+  } else {
     peerDeps[pkgName] = newBareSpecifier
   }
+}
+
+function deletePeerDep (
+  peerDeps: Dependencies,
+  peerDependenciesMeta: PackageManifest['peerDependenciesMeta'],
+  pkgName: string
+): void {
+  delete peerDeps[pkgName]
+  delete peerDependenciesMeta?.[pkgName]
 }
 
 function convergeDep (

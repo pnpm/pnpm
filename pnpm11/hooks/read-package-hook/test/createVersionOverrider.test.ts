@@ -722,14 +722,20 @@ test('createVersionsOverrider() overrides peerDependencies of another dependency
       peerDependencies: {
         react: '18.2.0',
       },
+      peerDependenciesMeta: {
+        react: {
+          optional: true,
+        },
+      },
     })
   ).toStrictEqual({
     name: 'react-dom',
     version: '18.2.0',
-    dependencies: {},
-    peerDependencies: {
+    dependencies: {
       react: '18.1.0',
     },
+    peerDependencies: {},
+    peerDependenciesMeta: {},
   })
 })
 

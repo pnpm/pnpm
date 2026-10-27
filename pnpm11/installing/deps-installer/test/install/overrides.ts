@@ -919,3 +919,47 @@ test('overrides with leading or trailing whitespace on selectors are trimmed and
     '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.0.0',
   })
 })
+
+// Regression test for https://github.com/pnpm/pnpm/issues/5391#issuecomment-6447122500
+test('a parent-scoped override on a peer dependency resolves the overridden version instead of an ancestor peer', async () => {
+  const project = prepareEmpty()
+  const manifest: ProjectManifest = {
+    dependencies: {
+      '@pnpm.e2e/peer-c': '2.0.0',
+      '@pnpm.e2e/wants-peer-c-1': '1.0.0',
+    },
+  }
+  const options = testDefaults()
+
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, options)
+
+  expect(project.readLockfile().snapshots).toHaveProperty([
+    '@pnpm.e2e/wants-peer-c-1@1.0.0(@pnpm.e2e/peer-c@2.0.0)',
+  ])
+
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, {
+    ...options,
+    overrides: {
+      '@pnpm.e2e/wants-peer-c-1>@pnpm.e2e/peer-c': '1.0.0',
+    },
+  })
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.importers['.'].dependencies?.['@pnpm.e2e/peer-c']?.version).toBe('2.0.0')
+  expect(lockfile.importers['.'].dependencies?.['@pnpm.e2e/wants-peer-c-1']?.version).toBe('1.0.0')
+  expect(lockfile.packages['@pnpm.e2e/wants-peer-c-1@1.0.0']?.peerDependencies).toBeUndefined()
+  expect(lockfile.snapshots['@pnpm.e2e/wants-peer-c-1@1.0.0']?.dependencies).toStrictEqual({
+    '@pnpm.e2e/peer-c': '1.0.0',
+  })
+  expect(lockfile.snapshots).not.toHaveProperty([
+    '@pnpm.e2e/wants-peer-c-1@1.0.0(@pnpm.e2e/peer-c@2.0.0)',
+  ])
+})

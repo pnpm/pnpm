@@ -379,6 +379,15 @@ impl VersionsOverrider {
             return;
         }
         let new_spec = chosen.render(manifest_dir);
+        // A peer dependency resolves from the ancestors of `parent_pkg`
+        // rather than as its own child, so a `parent>peer` override moves
+        // the entry into `dependencies` to give `parent_pkg` the version it
+        // asked for.
+        if chosen.inner.parent_pkg.is_some() {
+            remove_peer_dependency(value, &name);
+            insert_regular_dependency(value, name, new_spec);
+            return;
+        }
         if is_valid_peer_range(&new_spec) {
             insert_peer_dependency(value, name, new_spec);
             return;
@@ -520,8 +529,8 @@ fn remove_peer_dependency(value: &mut Value, name: &str) {
     }
 }
 
-/// An override value that is not a valid peer range moves the edge into
-/// `dependencies`, creating that object when the manifest declares none.
+/// Insert an overridden peer into `dependencies`, creating that object when
+/// the manifest declares none.
 fn insert_regular_dependency(value: &mut Value, name: String, spec: String) {
     if !value.get("dependencies").is_some_and(Value::is_object)
         && let Some(root) = value.as_object_mut()

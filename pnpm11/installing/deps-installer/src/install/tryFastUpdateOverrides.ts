@@ -113,7 +113,7 @@ function createRewriteContext (lockfile: LockfileObject, fastOverrides: FastOver
   const removals = fastOverrides.filter(({ newVersion }) => newVersion == null)
   const moves = fastOverrides.filter(({ newVersion }) => newVersion != null)
   const peerNames = getPeerNames(lockfile)
-  if (removals.some(({ name }) => peerNames.has(name))) return null
+  if (fastOverrides.some(({ name }) => peerNames.has(name))) return null
 
   const replacements = collectReplacements(lockfile, fastOverrides)
   if (replacements == null) return null

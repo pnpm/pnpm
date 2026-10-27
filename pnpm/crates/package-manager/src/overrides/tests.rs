@@ -293,6 +293,25 @@ fn override_with_valid_peer_range_rewrites_peer_dependencies() {
 }
 
 #[test]
+fn parent_scoped_override_moves_peer_dependency_to_dependencies() {
+    let overrides = parsed(&[("react-dom>react", "18.1.0")]);
+    let overrider = VersionsOverrider::new(&overrides, Path::new("/workspace"));
+
+    let mut manifest = manifest_from_value(json!({
+        "name": "react-dom",
+        "version": "18.2.0",
+        "peerDependencies": { "react": "18.2.0" },
+        "peerDependenciesMeta": { "react": { "optional": true } },
+    }));
+    overrider.apply(&mut manifest, Some(Path::new("/workspace")));
+
+    dbg!(manifest.value());
+    assert_eq!(dep_spec(&manifest, "dependencies", "react"), Some("18.1.0"));
+    assert_eq!(dep_spec(&manifest, "peerDependencies", "react"), None);
+    assert_eq!(manifest.value()["peerDependenciesMeta"], json!({}));
+}
+
+#[test]
 fn override_with_non_peer_range_lands_in_dependencies_and_keeps_the_peer() {
     let overrides = parsed(&[("istanbul-reports", "npm:@zkochan/istanbul-reports")]);
     let overrider = VersionsOverrider::new(&overrides, Path::new("/workspace"));

@@ -384,6 +384,26 @@ async fn falls_back_when_the_removed_dependency_is_used_as_a_peer() {
 }
 
 #[tokio::test]
+async fn falls_back_when_the_replaced_dependency_is_used_as_a_peer() {
+    let mut lockfile = lockfile_with_two_dependents();
+    lockfile.packages
+        .as_mut()
+        .and_then(|packages| packages.get_mut(&"parent@1.0.0".parse().unwrap()))
+        .expect("parent metadata")
+        .peer_dependencies = Some(HashMap::from([("target".to_string(), "^1.0.0".to_string())]));
+    let overrides = IndexMap::from([("parent>target".to_string(), "2.0.0".to_string())]);
+    let resolver = StubResolver {
+        calls: AtomicUsize::new(0),
+        manifest: json!({ "name": "target", "version": "2.0.0" }),
+    };
+
+    let updated = try_update(&lockfile, &parent_scoped_override(), &overrides, &resolver).await;
+
+    assert_eq!(resolver.calls.load(Ordering::Relaxed), 0);
+    assert!(updated.is_none());
+}
+
+#[tokio::test]
 async fn removes_a_dependency_only_from_matching_parent_snapshots() {
     let mut lockfile = lockfile();
     lockfile.overrides = None;
