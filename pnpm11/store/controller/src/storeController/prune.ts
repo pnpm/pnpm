@@ -6,6 +6,7 @@ import { globalInfo, globalWarn } from '@pnpm/logger'
 import type { PackageFilesIndex } from '@pnpm/store.cafs'
 import type { StoreIndex } from '@pnpm/store.index'
 import { rimraf } from '@zkochan/rimraf'
+import { isSubdir } from 'is-subdir'
 import prettyBytes from 'pretty-bytes'
 
 import { getInUseFiles } from './inUseFiles.js'
@@ -46,8 +47,11 @@ async function removeCachedMetadata (cacheDir: string, storeDir: string, protect
   await removeMetadataDirs(cacheDir, protectedPaths)
   const layoutDirs = await getSubdirsSafely(cacheDir)
   await Promise.all(layoutDirs.filter(name => /^v\d+$/.test(name)).map(async (layoutDir) => {
-    await removeMetadataDirs(path.join(cacheDir, layoutDir), protectedPaths)
-    await removeEmptyDir(path.join(cacheDir, layoutDir))
+    const layoutPath = path.join(cacheDir, layoutDir)
+    await removeMetadataDirs(layoutPath, protectedPaths)
+    if (!await holdsProtectedPath(layoutPath, protectedPaths)) {
+      await removeEmptyDir(layoutPath)
+    }
   }))
   await rimraf(path.join(storeDir, 'tmp'))
   globalInfo('Removed all cached metadata files')
@@ -56,19 +60,15 @@ async function removeCachedMetadata (cacheDir: string, storeDir: string, protect
 async function removeMetadataDirs (directory: string, protectedPaths: string[]): Promise<void> {
   const metadataDirs = (await getSubdirsSafely(directory)).filter(name => name.startsWith('metadata'))
   await Promise.all(metadataDirs.map(async (metadataDir) => {
-    const metadataPath = await canonicalPath(path.join(directory, metadataDir))
-    if (protectedPaths.some(protectedPath => isWithin(metadataPath, protectedPath))) return
-    await rimrafIgnoringMissing(path.join(directory, metadataDir))
+    const metadataPath = path.join(directory, metadataDir)
+    if (await holdsProtectedPath(metadataPath, protectedPaths)) return
+    await rimrafIgnoringMissing(metadataPath)
   }))
 }
 
-async function canonicalPath (directory: string): Promise<string> {
-  try {
-    return await fs.realpath(directory)
-  } catch (err: unknown) {
-    if (isError(err) && 'code' in err && err.code === 'ENOENT') return path.resolve(directory)
-    throw err
-  }
+async function holdsProtectedPath (directory: string, protectedPaths: string[]): Promise<boolean> {
+  const canonicalDirectory = await canonicalPath(directory)
+  return protectedPaths.some(protectedPath => isSubdir(canonicalDirectory, protectedPath))
 }
 
 async function removeEmptyDir (directory: string): Promise<void> {
@@ -80,9 +80,13 @@ async function removeEmptyDir (directory: string): Promise<void> {
   }
 }
 
-function isWithin (directory: string, candidate: string): boolean {
-  const relative = path.relative(directory, candidate)
-  return relative === '' || (relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative))
+async function canonicalPath (directory: string): Promise<string> {
+  try {
+    return await fs.realpath(directory)
+  } catch (err: unknown) {
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') return path.resolve(directory)
+    throw err
+  }
 }
 
 async function removeStaleSpillDirectories (storeDir: string): Promise<void> {

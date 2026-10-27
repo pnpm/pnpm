@@ -75,14 +75,17 @@ test('prune keeps protected global, home, and state directories', async () => {
     path.join(options.cacheDir, 'v11', 'metadata-global'),
     path.join(options.cacheDir, 'metadata-state'),
   ]
+  const emptyProtectedDir = path.join(options.cacheDir, 'v13')
   await Promise.all(protectedDirs.map(directory => fs.mkdir(path.join(directory, 'keep'), { recursive: true })))
+  await fs.mkdir(emptyProtectedDir)
   await fs.mkdir(path.join(options.cacheDir, 'v11', 'metadata-cache'), { recursive: true })
 
-  await prune({ ...options, protectedDirs })
+  await prune({ ...options, protectedDirs: [...protectedDirs, emptyProtectedDir] })
 
   await Promise.all(protectedDirs.map(async directory => {
     expect(await fs.stat(path.join(directory, 'keep'))).toBeTruthy()
   }))
+  expect(await fs.stat(emptyProtectedDir)).toBeTruthy()
   await expect(fs.stat(path.join(options.cacheDir, 'v11', 'metadata-cache'))).rejects.toMatchObject({ code: 'ENOENT' })
 })
 
