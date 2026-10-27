@@ -1,8 +1,8 @@
 pub(super) use super::protocol_selector::ProtocolSelector;
-use super::protocol_selector::resolve_jsr_save_specifier;
 use super::{
     AddError, AddResolveInputs,
     manifest::apply_catalog_decision,
+    protocol_selector::resolve_jsr_save_specifier,
     range_fallback::add_range_fallback,
     registry::{pick_latest_range, resolve_explicit_registry_spec},
     selector::AddSelector,
