@@ -192,7 +192,11 @@ async function resolveAndFetch (
   let alias: string | undefined
   let resolution = options.currentPkg?.resolution as Resolution
   let pkgId = options.currentPkg?.id
-  const previousIntegrity = (options.currentPkg?.resolution as TarballResolution | undefined)?.integrity
+  const previousResolution = !options.currentPkg?.resolution?.type
+    ? options.currentPkg?.resolution as TarballResolution | undefined
+    : undefined
+  const previousIntegrity = previousResolution?.integrity
+  const previousTarball = previousResolution?.tarball
   const skipResolution = resolution && !options.update && !options.updateChecksums
   let forceFetch = false
   let updated = false
@@ -266,9 +270,10 @@ async function resolveAndFetch (
       !updated &&
       typeof previousIntegrity === 'string' &&
       !resolution.type &&
-      !(resolution as TarballResolution).integrity
+      !(resolution as TarballResolution).integrity &&
+      previousTarball === (resolution as TarballResolution).tarball
     ) {
-      (resolution as TarballResolution).integrity = previousIntegrity
+      resolution = { ...resolution, integrity: previousIntegrity }
     }
   }
 
@@ -806,7 +811,7 @@ let tempCounter = 0
 
 async function writeCafsIndexCopy (srcIndexFile: string, cafsIndexFile: string): Promise<void> {
   await fs.mkdir(path.dirname(cafsIndexFile), { recursive: true })
-  const temp = `${cafsIndexFile.slice(0, -11)}${process.pid}-${++tempCounter}`
+  const temp = `${cafsIndexFile.slice(0, -5)}.${process.pid}-${++tempCounter}.tmp`
   await fs.copyFile(srcIndexFile, temp)
   optimisticRenameOverwrite(temp, cafsIndexFile)
 }

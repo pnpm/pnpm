@@ -1327,6 +1327,41 @@ test('a tarball whose integrity was computed during fetch is found in the store 
     expect(response.body.manifest?.name).toBe('is-positive')
     expect(response.body.resolution).toStrictEqual({ tarball, integrity: computedIntegrity })
   }
+
+  // When the resolved tarball URL differs from `currentPkg.resolution.tarball`
+  // even with the same `id`, `previousIntegrity` must not be carried over.
+  {
+    const requestPackage = createPackageRequester({
+      resolve: async () => ({
+        id: tarball as PkgResolutionId,
+        normalizedBareSpecifier: tarball,
+        resolution: { tarball },
+        resolvedVia: 'url',
+      }),
+      fetchers,
+      cafs,
+      networkConcurrency: 1,
+      storeDir,
+      verifyStoreIntegrity: true,
+      virtualStoreDirMaxLength: 120,
+    })
+    const staleIntegrity = 'sha512-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000=='
+    const response = await requestPackage({ alias: 'is-positive', bareSpecifier: tarball }, {
+      ...requestPackageOpts,
+      currentPkg: {
+        id: tarball as PkgResolutionId,
+        name: 'is-positive',
+        version: '1.0.0',
+        resolution: {
+          tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/other.tgz`,
+          integrity: staleIntegrity,
+        },
+      },
+      skipFetch: true,
+      update: 'compatible',
+    })
+    expect(response.body.resolution).toStrictEqual({ tarball, integrity: computedIntegrity })
+  }
 })
 
 test('remote tarball without integrity gets integrity computed even when already in the local store', async () => {
