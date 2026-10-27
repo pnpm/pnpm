@@ -18,7 +18,7 @@ import { writeModulesManifest } from '@pnpm/installing.modules-yaml'
 import { writeCurrentLockfile } from '@pnpm/lockfile.fs'
 import { PACKAGE_MAP_FILENAME, removePackageMap, writePackageMap, writePnpFile } from '@pnpm/lockfile.to-pnp'
 import { findLockedRootNodeRuntime } from '@pnpm/lockfile.utils'
-import type { DepPath, IgnoredBuilds, PeerDependencyIssuesByProjects } from '@pnpm/types'
+import type { DepPath, HoistedDependencies, IgnoredBuilds, PeerDependencyIssuesByProjects } from '@pnpm/types'
 import { pathAbsolute } from 'path-absolute'
 
 import { linkPackages } from './link.js'
@@ -59,7 +59,11 @@ export async function linkResolvedProjects (
 
   let ignoredBuilds = collectPreviouslyIgnoredBuilds(step, result)
   if (result.newDepPaths?.length) {
-    ignoredBuilds = await buildNewDependencies(step, { ignoredBuilds, newDepPaths: result.newDepPaths })
+    ignoredBuilds = await buildNewDependencies(step, {
+      ignoredBuilds,
+      newDepPaths: result.newDepPaths,
+      newHoistedDependencies: result.newHoistedDependencies,
+    })
   }
 
   await linkBinsOfResolvedProjects(step, result.newDepPaths)
@@ -206,7 +210,7 @@ function collectPreviouslyIgnoredBuilds ({ ctx, opts }: LinkContext, result: Lin
 
 async function buildNewDependencies (
   step: LinkContext,
-  { ignoredBuilds, newDepPaths }: { ignoredBuilds: IgnoredBuilds | undefined, newDepPaths: DepPath[] }
+  { ignoredBuilds, newDepPaths, newHoistedDependencies }: { ignoredBuilds: IgnoredBuilds | undefined, newDepPaths: DepPath[], newHoistedDependencies: HoistedDependencies }
 ): Promise<IgnoredBuilds | undefined> {
   const { ctx, opts, resolution } = step
   if (opts.ignoreScripts) {
@@ -218,7 +222,7 @@ async function buildNewDependencies (
   }
   if (opts.ignoreScripts && Object.keys(opts.patchedDependencies ?? {}).length === 0) return ignoredBuilds
   // postinstall hooks
-  const ignoredBuildsFromBuild = await buildDependencies(step, newDepPaths)
+  const ignoredBuildsFromBuild = await buildDependencies(step, newDepPaths, newHoistedDependencies)
   if (!ignoredBuildsFromBuild?.size) return ignoredBuilds
   const allIgnoredBuilds = ignoredBuilds ?? new Set()
   for (const ignoredBuild of ignoredBuildsFromBuild.values()) {
@@ -227,7 +231,7 @@ async function buildNewDependencies (
   return allIgnoredBuilds
 }
 
-async function buildDependencies (step: LinkContext, newDepPaths: DepPath[]): Promise<IgnoredBuilds | undefined> {
+async function buildDependencies (step: LinkContext, newDepPaths: DepPath[], newHoistedDependencies: HoistedDependencies): Promise<IgnoredBuilds | undefined> {
   const { ctx, opts, projects, resolution } = step
   const { dependenciesGraph } = resolution
   const depPaths = Object.keys(dependenciesGraph) as DepPath[]
@@ -250,6 +254,9 @@ async function buildDependencies (step: LinkContext, newDepPaths: DepPath[]): Pr
   return (await buildModules(dependenciesGraph, rootNodes, {
     ...describeBuildEnvironment(step, extraEnv),
     depsToBuild: new Set(newDepPaths),
+    privateHoisting: ctx.hoistPattern == null
+      ? undefined
+      : { hoistedDependencies: newHoistedDependencies, modulesDir: ctx.hoistedModulesDir },
   })).ignoredBuilds
 }
 

@@ -11,6 +11,7 @@ use crate::{
 };
 use pnpm_cmd_shim::LinkBinsOptions;
 use pnpm_config::Config;
+use pnpm_lockfile::PackageKey;
 use std::{collections::BTreeMap, path::PathBuf};
 
 /// Planned before the links are written, not with them: an importer's
@@ -81,6 +82,8 @@ pub(super) struct HoistLinks {
     pub(super) hoisted_dependencies: crate::HoistedDependencies,
     /// See [`super::LinkPhaseOutput::publicly_hoisted_for_post_build`].
     pub(super) publicly_hoisted_with_bins: Vec<String>,
+    /// See [`super::PendingBinLinks::privately_hoisted_with_bins`].
+    pub(super) privately_hoisted_with_bins: Vec<(String, PackageKey)>,
 }
 
 impl HoistLinks {
@@ -89,6 +92,7 @@ impl HoistLinks {
         HoistLinks {
             hoisted_dependencies: crate::HoistedDependencies::new(),
             publicly_hoisted_with_bins: Vec::new(),
+            privately_hoisted_with_bins: Vec::new(),
         }
     }
 }
@@ -130,5 +134,6 @@ pub(super) fn write_hoist_links(
     Ok(HoistLinks {
         hoisted_dependencies: result.hoisted_dependencies,
         publicly_hoisted_with_bins: result.publicly_hoisted_aliases_with_bins,
+        privately_hoisted_with_bins: result.hoisted_aliases_with_bins,
     })
 }

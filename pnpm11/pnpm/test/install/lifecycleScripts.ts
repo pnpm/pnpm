@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 
@@ -25,6 +26,37 @@ test('installation fails if lifecycle script fails', () => {
   const result = execPnpmSync(['install'])
 
   expect(result.status).toBe(1)
+})
+
+const testOnUnix = process.platform === 'win32' ? test.skip : test
+
+// pnpm/pnpm#17402
+testOnUnix('a privately hoisted bin is relinked after its build replaces it', () => {
+  prepare({ dependencies: { grandparent: 'file:./grandparent' } })
+  fs.mkdirSync('package')
+  fs.writeFileSync('package/tool', '#!/usr/bin/env node\nconsole.log("placeholder")\n', { mode: 0o755 })
+  fs.writeFileSync('package/build.cjs', `require('fs').writeFileSync('tool', ${JSON.stringify('#!/bin/sh\nprintf "built binary\\n"\n')})`)
+  fs.writeFileSync('package/package.json', JSON.stringify({
+    name: 'replaced-bin', version: '1.0.0', bin: { tool: 'tool' }, scripts: { postinstall: 'node build.cjs' },
+  }))
+  fs.mkdirSync('parent')
+  fs.writeFileSync('parent/package.json', JSON.stringify({
+    name: 'parent', version: '1.0.0', dependencies: { 'replaced-bin': 'file:../package' },
+  }))
+  fs.mkdirSync('grandparent')
+  fs.writeFileSync('grandparent/package.json', JSON.stringify({
+    name: 'grandparent', version: '1.0.0', dependencies: { parent: 'file:../parent' }, scripts: { postinstall: 'tool > grandparent-built' },
+  }))
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    allowBuilds: { 'replaced-bin@file:package': true, 'grandparent@file:grandparent': true },
+    preferSymlinkedExecutables: false,
+  })
+
+  execPnpmSync(['install'], { expectSuccess: true })
+
+  expect(fs.readFileSync('node_modules/grandparent/grandparent-built', 'utf8')).toBe('built binary\n')
+  const result = spawnSync(path.resolve('node_modules/.pnpm/node_modules/.bin/tool'), { encoding: 'utf8' })
+  expect(result.stdout).toBe('built binary\n')
 })
 
 test('lifecycle script runs with the correct user agent', () => {

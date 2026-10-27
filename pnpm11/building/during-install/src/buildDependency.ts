@@ -2,6 +2,7 @@ import assert from 'node:assert'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
+import { linkBins } from '@pnpm/bins.linker'
 import { dirRequiresBuild } from '@pnpm/building.pkg-requires-build'
 import { packageIsInstallable } from '@pnpm/config.package-is-installable'
 import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
@@ -17,6 +18,7 @@ import type { StoreController, UploadPkgToStoreResult } from '@pnpm/store.contro
 import type {
   AllowBuild,
   DepPath,
+  HoistedDependencies,
   RegistryConfig,
   RemoteSideEffectsCacheSettings,
   SupportedArchitectures,
@@ -50,6 +52,8 @@ export interface BuildDependencyOptions {
   userAgent?: string
   hoistedLocations?: Record<string, string[]>
   builtHoistedDeps?: Record<string, DeferredPromise<void>>
+  /** The private hoisted links, so a build that changes a bin target relinks it. */
+  privateHoisting?: { hoistedDependencies: HoistedDependencies, modulesDir: string }
   enableGlobalVirtualStore?: boolean
   frozenStore?: boolean
   configByUri?: Record<string, RegistryConfig>
@@ -115,6 +119,7 @@ export async function buildDependency<NodeId extends string> (
     await state.slotLock?.release()
     if (state.succeeded) {
       await copyToOtherHoistedLocations(depNode, opts)
+      await relinkPrivatelyHoistedBins(depNode, opts)
     }
     if (opts.builtHoistedDeps) {
       opts.builtHoistedDeps[depNode.depPath].resolve()
@@ -359,6 +364,27 @@ async function skipFailedOptionalBuild<NodeId extends string> (
     },
     prefix: opts.lockfileDir,
     reason: 'build_failure',
+  })
+}
+
+async function relinkPrivatelyHoistedBins<NodeId extends string> (
+  depNode: DependenciesGraphNode<NodeId>,
+  opts: BuildDependencyOptions
+): Promise<void> {
+  if (!opts.privateHoisting || !depNode.hasBin) return
+  const { hoistedDependencies, modulesDir } = opts.privateHoisting
+  const aliases = Object.entries(hoistedDependencies[depNode.depPath as DepPath] ?? {})
+    .filter(([, visibility]) => visibility === 'private')
+    .map(([alias]) => alias)
+  if (aliases.length === 0) return
+  await linkBins(modulesDir, path.join(modulesDir, '.bin'), {
+    allowExoticManifests: true,
+    extraNodePaths: opts.extraNodePaths,
+    forceForPackages: new Set(aliases.map((alias) => path.normalize(path.resolve(modulesDir, alias)))),
+    preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
+    warn: (message, code) => {
+      if (code !== 'BINARIES_CONFLICT') opts.warn(message)
+    },
   })
 }
 

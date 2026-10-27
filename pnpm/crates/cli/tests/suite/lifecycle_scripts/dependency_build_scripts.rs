@@ -404,6 +404,73 @@ fn hoisting_tolerates_bins_created_by_a_later_lifecycle_stage() {
     drop((root, mock_instance));
 }
 
+/// A build that replaces its bin with a native executable must not leave
+/// the privately hoisted shim running it with `node`, because the build
+/// scripts of packages that only depend on it transitively reach it there
+/// (pnpm/pnpm#17402).
+#[cfg(unix)]
+#[test]
+fn privately_hoisted_bin_is_relinked_after_its_build_replaces_it() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let package = root.path().join("package");
+    fs::create_dir(&package).expect("create dependency");
+    fs::write(package.join("tool"), "#!/usr/bin/env node\nconsole.log('placeholder')\n")
+        .expect("write placeholder");
+    fs::write(
+        package.join("build.cjs"),
+        r#"require('fs').writeFileSync('tool', '#!/bin/sh\nprintf \"built binary\\n\"\n')"#,
+    )
+    .expect("write lifecycle script");
+    let manifest = serde_json::json!({
+        "name": "replaced-bin", "version": "1.0.0", "bin": { "tool": "tool" },
+        "scripts": { "postinstall": "node build.cjs" }
+    });
+    fs::write(package.join("package.json"), manifest.to_string())
+        .expect("write dependency manifest");
+    for (name, dependency, scripts) in [
+        ("parent", ("replaced-bin", "file:../package"), serde_json::json!({})),
+        (
+            "grandparent",
+            ("parent", "file:../parent"),
+            serde_json::json!({ "postinstall": "tool > grandparent-built" }),
+        ),
+    ] {
+        let dir = root.path().join(name);
+        fs::create_dir(&dir).expect("create dependency");
+        let manifest = serde_json::json!({
+            "name": name, "version": "1.0.0",
+            "dependencies": { dependency.0: dependency.1 }, "scripts": scripts
+        });
+        fs::write(dir.join("package.json"), manifest.to_string())
+            .expect("write dependency manifest");
+    }
+    fs::write(
+        workspace.join("package.json"),
+        r#"{"dependencies":{"grandparent":"file:../grandparent"}}"#,
+    )
+    .expect("write project manifest");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "enableGlobalVirtualStore: false\nextendNodePath: false\npreferSymlinkedExecutables: false\nallowBuilds:\n  'replaced-bin@file:../package': true\n  'grandparent@file:../grandparent': true\n",
+    )
+    .expect("write build policy");
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    assert_eq!(
+        fs::read_to_string(workspace.join("node_modules/grandparent/grandparent-built"))
+            .expect("read grandparent build output"),
+        "built binary\n",
+    );
+    Command::new(workspace.join("node_modules/.pnpm/node_modules/.bin/tool"))
+        .assert()
+        .success()
+        .stdout("built binary\n");
+}
+
 #[test]
 fn bins_linked_even_if_scripts_ignored() {
     let CommandTempCwd {

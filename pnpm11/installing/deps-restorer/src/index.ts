@@ -58,7 +58,7 @@ async function installFromLockfile (opts: HeadlessOptions): Promise<Installation
   const { heldBackBinsDirs, linkedToRoot, newHoistedDependencies } = await linkDependencies(ctx, depGraph)
   const shouldWritePackageMap = await updatePackageMap(ctx, depGraph)
   reconcilePendingBuilds(ctx, depGraph.depNodes)
-  const ignoredBuilds = await buildDependencies(ctx, depGraph, shouldWritePackageMap)
+  const ignoredBuilds = await buildDependencies(ctx, depGraph, { newHoistedDependencies, shouldWritePackageMap })
   await linkHeldBackBins(heldBackBinsDirs, opts.preferSymlinkedExecutables)
   const projectsToBeBuilt = extendProjectsWithTargetDirs(ctx.selectedProjects, depGraph.injectionTargetsByDepPath, opts.lockfileDir)
   await writeModulesDirState(ctx, depGraph, { ignoredBuilds, newHoistedDependencies })

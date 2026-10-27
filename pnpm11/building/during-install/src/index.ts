@@ -7,6 +7,7 @@ import type { StoreController } from '@pnpm/store.controller-types'
 import type {
   AllowBuild,
   DepPath,
+  HoistedDependencies,
   IgnoredBuilds,
   RegistryConfig,
   RemoteSideEffectsCacheSettings,
@@ -51,6 +52,7 @@ export async function buildModules<NodeId extends string> (
     storeController: StoreController
     rootModulesDir: string
     hoistedLocations?: Record<string, string[]>
+    privateHoisting?: { hoistedDependencies: HoistedDependencies, modulesDir: string }
     enableGlobalVirtualStore?: boolean
     frozenStore?: boolean
     configByUri?: Record<string, RegistryConfig>

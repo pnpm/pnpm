@@ -121,8 +121,60 @@ pub(super) fn record_mutation(
                 .map_err(BuildModulesError::BinLink)?;
         }
     }
+    if let Some(directory) = private_hoist_dir(context)
+        && !privately_hoisted_locations(context, &directory, key).is_empty()
+    {
+        let entry = context.progress.refreshed_hoisted_bins.directory(&directory);
+        let mut entry = entry.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        entry
+            .initialize(&directory)
+            .map_err(crate::LinkVirtualStoreBinsError::LinkBins)
+            .map_err(BuildModulesError::BinLink)?;
+    }
     context.progress.record_slot_mutation(key);
     Ok(())
+}
+
+/// Relink the private hoist directory's shims of a package whose build
+/// finished, so the scripts of its dependents run the built executables.
+pub(super) fn refresh_privately_hoisted(
+    context: &BuildOneSnapshot<'_>,
+    key: &PackageKey,
+) -> Result<(), BuildModulesError> {
+    let Some(directory) = private_hoist_dir(context) else { return Ok(()) };
+    let locations = privately_hoisted_locations(context, &directory, key);
+    if locations.is_empty() || !context.progress.was_mutated(key) {
+        return Ok(());
+    }
+    let Some(entry) = context.progress.refreshed_hoisted_bins.existing_directory(&directory) else {
+        return Ok(());
+    };
+    let mut entry = entry.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let Some(plan) = entry.plan.as_mut() else { return Ok(()) };
+    let mut options = context.directories.link_options.clone();
+    options.force = true;
+    plan.refresh::<Host>(&locations, &directory.join(".bin"), &options)
+        .map_err(crate::LinkVirtualStoreBinsError::LinkBins)
+        .map_err(BuildModulesError::BinLink)
+}
+
+fn private_hoist_dir(context: &BuildOneSnapshot<'_>) -> Option<PathBuf> {
+    if context.progress.privately_hoisted_with_bins.is_empty() {
+        return None;
+    }
+    context.scripts.patched_engines.install_state_dir.map(|dir| dir.join("node_modules"))
+}
+
+fn privately_hoisted_locations(
+    context: &BuildOneSnapshot<'_>,
+    directory: &Path,
+    key: &PackageKey,
+) -> HashSet<PathBuf> {
+    context.progress.privately_hoisted_with_bins
+        .iter()
+        .filter(|(_, hoisted)| hoisted == key)
+        .map(|(alias, _)| pnpm_fs::join_slash_separated_path(directory, alias))
+        .collect()
 }
 
 fn completed_locations(

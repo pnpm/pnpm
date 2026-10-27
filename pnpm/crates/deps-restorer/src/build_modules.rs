@@ -486,6 +486,7 @@ impl BuildModules<'_> {
                 ignored_builds,
                 slot_mutations: &bin_state.slot_mutations,
                 refreshed_hoisted_bins: &bin_state.refreshed_hoisted_bins,
+                privately_hoisted_with_bins: &bin_state.privately_hoisted_with_bins,
             },
             scripts: self.scripts,
             project_bin_dirs,

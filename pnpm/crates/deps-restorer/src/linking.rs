@@ -125,6 +125,9 @@ pub struct PendingBinLinks {
     /// Command names linked into each isolated importer's `<modules_dir>/.bin`
     /// during the link phase, keyed by [`pnpm_fs::lexical_normalize`].
     pub claimed_importer_bins: HashMap<PathBuf, HashSet<String>>,
+    /// Aliases shimmed into the private hoist directory's `.bin`, with the
+    /// snapshot each links to, so a build that changes a bin target relinks it.
+    pub privately_hoisted_with_bins: Vec<(String, PackageKey)>,
 }
 
 /// What the link phase hands to the build phase and the caller's
@@ -379,6 +382,7 @@ fn write_project_links<Reporter: self::Reporter>(
             held_back_bins_dirs: hoisted.held_back_bins_dirs,
             hoisted_bin_sources: hoisted.hoisted_bin_sources,
             claimed_importer_bins,
+            privately_hoisted_with_bins: links.privately_hoisted_with_bins,
         },
     })
 }

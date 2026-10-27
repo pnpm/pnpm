@@ -4,7 +4,7 @@ import { buildModules } from '@pnpm/building.during-install'
 import { isBuildExplicitlyDisallowed } from '@pnpm/building.policy'
 import { installabilityUnderForce } from '@pnpm/config.package-is-installable'
 import { makeNodeRequireOption } from '@pnpm/exec.lifecycle'
-import type { IgnoredBuilds } from '@pnpm/types'
+import type { HoistedDependencies, IgnoredBuilds } from '@pnpm/types'
 import { union } from 'ramda'
 
 import type { HeadlessContext, HeadlessDepGraph } from './context.js'
@@ -15,14 +15,17 @@ import { mergeIntoCurrentLockfile } from './writeModulesDirState.js'
 export async function buildDependencies (
   ctx: HeadlessContext,
   depGraph: HeadlessDepGraph,
-  shouldWritePackageMap: boolean
+  { newHoistedDependencies, shouldWritePackageMap }: { newHoistedDependencies?: HoistedDependencies, shouldWritePackageMap: boolean }
 ): Promise<IgnoredBuilds | undefined> {
   const { opts } = ctx
   const buildsOrPatchesApply = !opts.ignoreScripts || Object.keys(opts.patchedDependencies ?? {}).length > 0
   if (!buildsOrPatchesApply || opts.enableModulesDir === false) return undefined
   const directNodes = collectDirectNodes(depGraph)
   const extraBinPaths = [...opts.extraBinPaths ?? []]
-  if (opts.hoistPattern != null) {
+  const privateHoisting = opts.hoistPattern == null
+    ? undefined
+    : { hoistedDependencies: newHoistedDependencies ?? {}, modulesDir: ctx.hoistedModulesDir }
+  if (privateHoisting != null) {
     extraBinPaths.unshift(path.join(ctx.hoistedModulesDir, '.bin'))
   }
   const extraEnv = createBuildExtraEnv(ctx, shouldWritePackageMap)
@@ -37,7 +40,7 @@ export async function buildDependencies (
   }
   // Dependency lifecycle scripts must not run on an unverified lockfile.
   await opts.verifyLockfile?.()
-  const { ignoredBuilds } = await runBuildModules(ctx, depGraph, { directNodes, extraBinPaths, extraEnv })
+  const { ignoredBuilds } = await runBuildModules(ctx, depGraph, { directNodes, extraBinPaths, extraEnv, privateHoisting })
   return addPreviouslyIgnoredBuilds(ignoredBuilds, ctx, depGraph)
 }
 
@@ -74,7 +77,7 @@ function createBuildExtraEnv (ctx: HeadlessContext, shouldWritePackageMap: boole
 async function runBuildModules (
   ctx: HeadlessContext,
   depGraph: HeadlessDepGraph,
-  { directNodes, extraBinPaths, extraEnv }: { directNodes: string[], extraBinPaths: string[], extraEnv: Record<string, string> | undefined }
+  { directNodes, extraBinPaths, extraEnv, privateHoisting }: { directNodes: string[], extraBinPaths: string[], extraEnv: Record<string, string> | undefined, privateHoisting?: Parameters<typeof buildModules>[2]['privateHoisting'] }
 ): ReturnType<typeof buildModules> {
   const { opts } = ctx
   return buildModules(depGraph.graph, directNodes, {
@@ -89,6 +92,7 @@ async function runBuildModules (
     depsStateCache: ctx.depsStateCache,
     ignoreScripts: opts.ignoreScripts,
     hoistedLocations: depGraph.hoistedLocations,
+    privateHoisting,
     lockfileDir: ctx.lockfileDir,
     nodeVersion: ctx.rootRuntimeNodeVersion,
     optional: opts.include.optionalDependencies,

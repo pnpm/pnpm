@@ -137,7 +137,12 @@ pub fn run_build_phase<Reporter: self::Reporter>(
     let shared_side_effects_publisher =
         crate::shared_side_effects::shared_side_effects_publisher(config, inputs.graph.importers);
 
-    let bin_state = crate::build_options::BuildBinState::default();
+    let bin_state = crate::build_options::BuildBinState {
+        privately_hoisted_with_bins: inputs.pending_bins
+            .map(|pending| pending.privately_hoisted_with_bins.clone())
+            .unwrap_or_default(),
+        ..crate::build_options::BuildBinState::default()
+    };
     let build_output = build_or_defer::<Reporter>(
         inputs,
         patches.as_ref(),

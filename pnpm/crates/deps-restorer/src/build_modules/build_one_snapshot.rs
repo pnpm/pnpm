@@ -47,6 +47,14 @@ pub(crate) fn build_one_snapshot<Reporter: self::Reporter>(
     snapshot_key: &PackageKey,
     context: &BuildOneSnapshot<'_>,
 ) -> Result<(), BuildModulesError> {
+    build_snapshot::<Reporter>(snapshot_key, context)?;
+    dependency_bins::refresh_privately_hoisted(context, snapshot_key)
+}
+
+fn build_snapshot<Reporter: self::Reporter>(
+    snapshot_key: &PackageKey,
+    context: &BuildOneSnapshot<'_>,
+) -> Result<(), BuildModulesError> {
     // Ancestors of a build/patch candidate are included in the
     // sequence (so the topo order stays correct) but only run
     // scripts / apply patches when they themselves are candidates.

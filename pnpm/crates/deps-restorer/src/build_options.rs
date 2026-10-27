@@ -279,6 +279,7 @@ pub struct BuildSnapshotInputs<'a> {
 pub(crate) struct BuildBinState {
     pub(crate) slot_mutations: Mutex<HashSet<PackageKey>>,
     pub(crate) refreshed_hoisted_bins: HoistedBinPlans,
+    pub(crate) privately_hoisted_with_bins: Vec<(String, PackageKey)>,
 }
 
 #[derive(Clone, Copy)]
@@ -293,6 +294,8 @@ pub struct BuildProgress<'a> {
     /// [`crate::BuildModulesOutput::mutated_slots`].
     pub(crate) slot_mutations: &'a Mutex<HashSet<PackageKey>>,
     pub(crate) refreshed_hoisted_bins: &'a HoistedBinPlans,
+    /// See [`crate::linking::PendingBinLinks::privately_hoisted_with_bins`].
+    pub(crate) privately_hoisted_with_bins: &'a [(String, PackageKey)],
 }
 
 impl BuildProgress<'_> {
@@ -301,5 +304,12 @@ impl BuildProgress<'_> {
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .insert(key.clone());
+    }
+
+    pub(crate) fn was_mutated(&self, key: &PackageKey) -> bool {
+        self.slot_mutations
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .contains(key)
     }
 }
