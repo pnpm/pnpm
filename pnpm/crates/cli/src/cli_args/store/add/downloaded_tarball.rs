@@ -53,7 +53,10 @@ impl AddOne<'_> {
         // Ingestion reads the URL against the working directory, so it gets
         // the path the digests were read from.
         let url = url::Url::from_file_path(&path)
-            .map_err(|()| miette::miette!("{} is not a file URL path", path.display()))?
+            .map_err(|()| {
+                let path = path.display();
+                miette::miette!("{path} is not a file URL path")
+            })?
             .to_string();
         let archive = &ArchiveToAdd { url: &url, ..*archive };
         // Ingestion verifies the sha512, which ties the sha1 read alongside
