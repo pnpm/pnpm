@@ -1036,6 +1036,7 @@ fn a_workspace_bin_renamed(layout: Layout) {
     // the run gate for `a` refuses too.
     scenario.check_gates_allowing(AllowedRefusal::Run);
     assert!(links(&scenario, "a-cli"), "{layout:?}: c links the renamed command");
+    assert!(!links(&scenario, "a-tool"), "{layout:?}: c no longer links the old command");
 }
 
 /// The `@pnpm.e2e` scope routed to a registry that does not serve the
