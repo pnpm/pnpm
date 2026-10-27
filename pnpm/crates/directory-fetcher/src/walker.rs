@@ -200,15 +200,24 @@ fn resolve_confined_entry(
     let Some(real) = stat_or_skip(path, |path| fs::canonicalize(path))? else {
         return Ok(None);
     };
-    let admitted = pnpm_fs::admit_internal_symlink(root, path)
-        .map_err(|source| DirectoryFetcherError::Io { dir: path.display().to_string(), source })?;
-    if !real.starts_with(root) || admitted.is_err() {
+    if !real.starts_with(root) {
         return Err(DirectoryFetcherError::PathOutsideDirectory {
             path: path.to_path_buf(),
             directory: root.to_path_buf(),
         });
     }
     if symlinks == Symlinks::Preserve {
+        let admitted = pnpm_fs::admit_internal_symlink(root, path)
+            .map_err(|source| DirectoryFetcherError::Io {
+                dir: path.display().to_string(),
+                source,
+            })?;
+        if admitted.is_err() {
+            return Err(DirectoryFetcherError::PathOutsideDirectory {
+                path: path.to_path_buf(),
+                directory: root.to_path_buf(),
+            });
+        }
         return Ok(Some(ResolvedEntry { path: path.to_path_buf(), metadata: lstat }));
     }
     let Some(metadata) = stat_or_skip(&real, |path| fs::metadata(path))? else {

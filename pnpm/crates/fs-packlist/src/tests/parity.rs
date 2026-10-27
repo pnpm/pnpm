@@ -144,7 +144,10 @@ fn classify_rust_only_path(
     if crate::pnpm_config_path(manifest).as_deref() == Some(path) {
         return Some(DeliberateDivergence::PnpmConfigPath);
     }
-    if path.split('/').count() >= 3 && is_named_file_in_manifest(manifest, path) {
+    if path.split('/').count() >= 3
+        && has_nested_ignore_above(root, path)
+        && is_named_file_in_manifest(manifest, path)
+    {
         return Some(DeliberateDivergence::NamedFileDepthRule);
     }
     None
@@ -197,6 +200,21 @@ fn unanchored_pattern_matches(pattern: &str, file_name: &str) -> bool {
     } else {
         file_name == pattern
     }
+}
+
+fn has_nested_ignore_above(root: &Path, path: &str) -> bool {
+    let mut dir = root.to_path_buf();
+    let mut segments = path.split('/').peekable();
+    while let Some(seg) = segments.next() {
+        if segments.peek().is_none() {
+            break;
+        }
+        dir.push(seg);
+        if dir.join(".npmignore").is_file() || dir.join(".gitignore").is_file() {
+            return true;
+        }
+    }
+    false
 }
 
 fn is_or_under_symlink(root: &Path, rel: &str) -> bool {
@@ -431,14 +449,19 @@ fn deliberate_divergences_have_witnesses() {
         assert!(actual.contains(&"lib/index.js".to_string()));
         assert!(!actual.contains(&"lib/index.js.map".to_string()));
         assert!(npm_pack["pkg"].contains(&"lib/index.js".to_string()));
-        // npm v11 (npm-packlist v10) anchors `!*.map` at the package root and keeps
-        // `lib/index.js.map`; npm v10 (npm-packlist v8) keeps it unanchored like pnpm.
-        let witness_path = npm_pack["pkg"]
-            .iter()
-            .find(|path| path.as_str() == "lib/index.js.map")
-            .map_or("lib/index.js.map", String::as_str);
+        if npm_major_version() >= 11 {
+            assert!(
+                npm_pack["pkg"].contains(&"lib/index.js.map".to_string()),
+                "npm v11+ must include lib/index.js.map when !*.map is anchored at root",
+            );
+        } else {
+            assert!(
+                !npm_pack["pkg"].contains(&"lib/index.js.map".to_string()),
+                "npm v10 must exclude lib/index.js.map when !*.map is unanchored",
+            );
+        }
         observed.insert(
-            classify_divergence(root, &manifest, witness_path, false)
+            classify_divergence(root, &manifest, "lib/index.js.map", false)
                 .expect("UnanchoredFilesFieldNegation witness"),
         );
     }
@@ -448,6 +471,22 @@ fn deliberate_divergences_have_witnesses() {
         .copied()
         .collect();
     assert_eq!(observed, expected);
+}
+
+fn npm_major_version() -> u32 {
+    let npm_bin = if cfg!(windows) { "npm.cmd" } else { "npm" };
+    let output = Command::new(npm_bin)
+        .arg("--version")
+        .output()
+        .expect("spawn npm --version");
+    assert!(output.status.success(), "npm --version failed");
+    let version = String::from_utf8_lossy(&output.stdout);
+    version
+        .trim()
+        .split('.')
+        .next()
+        .and_then(|major| major.parse().ok())
+        .expect("parse npm major version")
 }
 
 #[derive(Debug, Clone, Serialize)]
