@@ -514,6 +514,41 @@ defaultRegistry:
 }
 
 #[test]
+fn test_config_check_reports_the_s3_key_prefix() {
+    let dir = TempDir::new().unwrap();
+    let report = |prefix: &str| {
+        let yaml = format!(
+            r"
+storage: '{}'
+cache: '{}'
+s3:
+  bucket: packages
+  region: auto
+  endpoint: https://storage.example.com
+{prefix}
+registries:
+  local:
+    type: hosted
+    packages:
+      '@acme/*':
+        publish: $authenticated
+",
+            dir.path().join("hosted").display(),
+            dir.path().join("cache").display(),
+        );
+        let config_file = dir.path().join("pnpr.yaml");
+        std::fs::write(&config_file, yaml).unwrap();
+        let report = pnpr::config_check::check_config(Some(&config_file)).unwrap();
+        pnpr::config_check::format_report(&report)
+    };
+
+    let output = report("  prefix: /pnpr");
+    assert!(output.contains("Storage: S3 (bucket: packages, prefix: pnpr/)\n"), "{output}");
+    let output = report("");
+    assert!(output.contains("Storage: S3 (bucket: packages)\n"), "{output}");
+}
+
+#[test]
 fn test_config_check_hides_an_unparsable_database_url() {
     let dir = TempDir::new().unwrap();
     let yaml = format!(
