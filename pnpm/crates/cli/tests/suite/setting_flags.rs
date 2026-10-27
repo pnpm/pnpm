@@ -12,7 +12,8 @@ use std::{fs, process::Command};
 
 /// Every setting flag, the value it is given, and what `pnpm config get`
 /// reports back for it.
-const SETTING_FLAGS: [(&[&str], &str, &str); 17] = [
+const SETTING_FLAGS: [(&[&str], &str, &str); 18] = [
+    (&["--cache-dir", "/custom/cache"], "cache-dir", "/custom/cache"),
     (&["--package-import-method", "hardlink"], "package-import-method", "hardlink"),
     (&["--hoist-pattern=eslint"], "hoist-pattern", "[\n  \"eslint\"\n]"),
     (&["--public-hoist-pattern=@types/*"], "public-hoist-pattern", "[\n  \"@types/*\"\n]"),
