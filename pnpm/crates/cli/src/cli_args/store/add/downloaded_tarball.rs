@@ -89,17 +89,42 @@ struct FileDigests {
 }
 
 impl FileDigests {
+    /// Hash the file in bounded chunks on a blocking thread, so a large
+    /// tarball is neither held in memory nor hashed on an async worker.
     async fn read(path: &Path) -> miette::Result<Self> {
-        let bytes = tokio::fs::read(path).await
+        let owned_path = path.to_path_buf();
+        tokio::task::spawn_blocking(move || FileDigests::read_blocking(&owned_path))
+            .await
+            .into_diagnostic()?
             .into_diagnostic()
-            .wrap_err_with(|| format!("read the tarball {}", path.display()))?;
-        let digest = |algorithm| {
-            IntegrityOpts::new()
-                .algorithm(algorithm)
-                .chain(&bytes)
-                .result()
+            .wrap_err_with(|| format!("read the tarball {}", path.display()))
+    }
+
+    fn read_blocking(path: &Path) -> std::io::Result<Self> {
+        let mut hashers = Hashers {
+            sha512: IntegrityOpts::new().algorithm(Algorithm::Sha512),
+            sha1: IntegrityOpts::new().algorithm(Algorithm::Sha1),
         };
-        Ok(FileDigests { sha512: digest(Algorithm::Sha512), sha1: digest(Algorithm::Sha1) })
+        std::io::copy(&mut std::fs::File::open(path)?, &mut hashers)?;
+        Ok(FileDigests { sha512: hashers.sha512.result(), sha1: hashers.sha1.result() })
+    }
+}
+
+/// Feeds every write to both hashers, so the file is read once.
+struct Hashers {
+    sha512: IntegrityOpts,
+    sha1: IntegrityOpts,
+}
+
+impl std::io::Write for Hashers {
+    fn write(&mut self, chunk: &[u8]) -> std::io::Result<usize> {
+        self.sha512.input(chunk);
+        self.sha1.input(chunk);
+        Ok(chunk.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
     }
 }
 
