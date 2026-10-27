@@ -81,6 +81,18 @@ async fn add_saves_an_npm_selector_without_a_version_at_the_default_pin() {
     assert_eq!(add_npm_selector("npm:foo").await, Some("^1.0.0".to_string()));
 }
 #[tokio::test]
+async fn add_saves_an_npm_alias_with_the_resolved_target_range() {
+    assert_eq!(add_npm_selector("v2@npm:foo").await, Some("npm:foo@^1.0.0".to_string()));
+}
+#[tokio::test]
+async fn add_keeps_the_range_operator_of_an_npm_alias() {
+    assert_eq!(add_npm_selector("v2@npm:foo@~1.0.0").await, Some("npm:foo@~1.0.0".to_string()));
+}
+#[tokio::test]
+async fn add_saves_an_npm_alias_partial_version_as_the_resolved_range() {
+    assert_eq!(add_npm_selector("v2@npm:foo@1").await, Some("npm:foo@^1.0.0".to_string()));
+}
+#[tokio::test]
 async fn add_reuses_shared_packument_state_for_every_selector_path() {
     #[derive(Default)]
     struct PackumentRequestState {
