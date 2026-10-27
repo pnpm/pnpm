@@ -79,6 +79,7 @@ registries:
       'test-unpublish-force': *default-rules
       'test-unpublish-no-force': *default-rules
       'test-unpublish-no-ver': *default-rules
+      'test-unpublish-only-version': *default-rules
       'test-unpublish-version': *default-rules
       'workspace-package-with-default-catalog': *default-rules
       'workspace-package-with-named-catalog': *default-rules
