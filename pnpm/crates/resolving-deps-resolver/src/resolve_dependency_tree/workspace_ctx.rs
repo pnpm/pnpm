@@ -237,6 +237,7 @@ pub(in crate::resolve_dependency_tree) fn cached_workspace_final(
 
 #[derive(Default)]
 pub(super) struct WorkspaceResolutionCache {
+    pub(super) has_read_package: tokio::sync::OnceCell<bool>,
     pub(super) resolved_by_wanted:
         Mutex<HashMap<WantedKey, Arc<pnpm_resolving_resolver_base::ResolveResult>>>,
     /// Resolver output for workspace directory resolutions before manifest

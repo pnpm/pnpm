@@ -20,6 +20,11 @@ fn check_catalog_range_update(configured_trust: bool, trust_flag: Option<&str>, 
     let CommandTempCwd { workspace, root, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, npmrc_path, .. } = npmrc_info;
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig: config => config } };",
+    )
+    .expect("write a pnpmfile without readPackage");
     let manifest_path = workspace.join("package.json");
     let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
     fs::write(

@@ -24,6 +24,7 @@ pub(super) use edge_resolution::{
 
 mod warm_children;
 
+mod manifest_hooks;
 mod workspace_resolution;
 use workspace_resolution::resolve_wanted_cached;
 
