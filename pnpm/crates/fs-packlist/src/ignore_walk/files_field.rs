@@ -52,9 +52,9 @@ impl FilesMatcher {
             Some(metadata) if metadata.is_file() || metadata.is_symlink() => {
                 let rule = self.named_file_rule(&entry, &inverse);
                 if rule.negate {
-                    strict.inclusions.push(rule)
+                    strict.inclusions.push(rule);
                 } else {
-                    strict.exclusions.push(rule)
+                    strict.exclusions.push(rule);
                 }
             }
             Some(metadata) if metadata.is_dir() => {
