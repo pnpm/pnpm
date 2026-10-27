@@ -68,13 +68,23 @@ interface ResolvedDecisionContext {
 export function shouldReadPinLockfile (
   pm: EngineDependency | undefined,
   settings: Pick<PinDecisionSettings, 'pmOnFail' | 'useLockfile'>,
-  global = false
+  invocation: Partial<Pick<PinInvocation, 'entryPoint' | 'global' | 'recordPinWithoutSwitch'>> = {},
+  runningVersion = packageManager.version,
+  underCorepack = isExecutedByCorepack()
 ): boolean {
-  if (global || settings.useLockfile === false || pm == null || pm.name !== 'pnpm' || pm.version == null) {
+  if (invocation.global || settings.useLockfile === false || pm == null || pm.name !== 'pnpm' || pm.version == null) {
     return false
   }
   const effectiveOnFail = settings.pmOnFail ?? pm.onFail ?? 'download'
-  return effectiveOnFail !== 'ignore' && shouldPersistLockfile({ ...pm, onFail: effectiveOnFail })
+  if (effectiveOnFail === 'ignore' || !shouldPersistLockfile({ ...pm, onFail: effectiveOnFail })) {
+    return false
+  }
+  if (invocation.entryPoint !== 'self-update' && effectiveOnFail === 'download' && !underCorepack) {
+    return true
+  }
+  return invocation.entryPoint !== 'unknown-flag' &&
+    invocation.recordPinWithoutSwitch !== false &&
+    satisfiesPin(runningVersion, pm.version)
 }
 
 /**

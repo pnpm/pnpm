@@ -162,14 +162,22 @@ pub(crate) fn update_manifest_pin_and_decide(
     write_updated_manifest_pin(manifest, target_version)?;
     let wanted = wanted_package_manager(manifest.value());
     let invocation = Invocation::for_self_update(roots.manifest.clone());
-    let locked_env = read_pin_lockfile(wanted.as_ref(), config, &invocation, &roots.env)?;
+    let process_state = SwitchProcessState::current();
+    let locked_env = read_pin_lockfile(
+        wanted.as_ref(),
+        config,
+        &invocation,
+        &roots.env,
+        target_version,
+        process_state,
+    )?;
     let pin = PinInput {
         roots,
         manifest: Some(manifest.value()),
         wanted: wanted.as_ref(),
         locked_env,
         running_version: target_version,
-        process_state: SwitchProcessState::current(),
+        process_state,
     };
     decide(&pin, config, &invocation)
 }

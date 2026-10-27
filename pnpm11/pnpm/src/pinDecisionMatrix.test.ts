@@ -640,6 +640,21 @@ test('pin_recorded_only_from_full_config_at_lockfile_dir', async () => {
     const unreadableGlobalVersion = await runCliFlow(root, ['--dir', root, '--reporter=silent', '--version'])
     expect(unreadableGlobalVersion).toEqual({ outcome: 'nothing' })
     expect(recordedAt).toBeUndefined()
+
+    // 5. Corrupted pnpm-lock.yaml is skipped when the pin does not consult the lockfile
+    fs.writeFileSync(path.join(globalConfigDir, 'config.yaml'), '', 'utf8')
+    fs.writeFileSync(path.join(root, 'pnpm-workspace.yaml'), 'packages:\n  - .\n', 'utf8')
+    fs.writeFileSync(path.join(root, 'pnpm-lock.yaml'), ': : : not valid yaml [ [ [\n', 'utf8')
+    fs.writeFileSync(
+      path.join(root, 'package.json'),
+      JSON.stringify({
+        name: 'root',
+        devEngines: { packageManager: { name: 'pnpm', version: '9.1.0', onFail: 'warn' } },
+      }),
+      'utf8'
+    )
+    expect(await runCliFlow(root, ['--dir', root, '--reporter=silent', 'root'])).toEqual({ outcome: 'nothing' })
+    expect(await runCliFlow(root, ['--dir', root, '--reporter=silent', '--global', 'root'])).toEqual({ outcome: 'nothing' })
   } finally {
     if (prevXdgConfigHome === undefined) {
       delete process.env.XDG_CONFIG_HOME

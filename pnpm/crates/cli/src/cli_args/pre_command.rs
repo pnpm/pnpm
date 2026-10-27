@@ -106,8 +106,10 @@ pub(crate) fn read_pin_lockfile(
     config: &Config,
     invocation: &Invocation,
     env_root: &Path,
+    running_version: &str,
+    process_state: SwitchProcessState,
 ) -> miette::Result<Option<EnvLockfile>> {
-    if should_read_pin_lockfile(wanted, config, invocation) {
+    if should_read_pin_lockfile(wanted, config, invocation, running_version, process_state) {
         read_env_lockfile(env_root)
     } else {
         Ok(None)
@@ -140,7 +142,14 @@ fn pre_command_plan_with_state(
     let roots = PinRoots::of(&config, &dir);
     let manifest = read_root_manifest(&roots.manifest);
     let wanted_pm = manifest.as_ref().and_then(wanted_package_manager);
-    let locked_env = read_pin_lockfile(wanted_pm.as_ref(), &config, invocation, &roots.env)?;
+    let locked_env = read_pin_lockfile(
+        wanted_pm.as_ref(),
+        &config,
+        invocation,
+        &roots.env,
+        PNPM_VERSION,
+        process_state,
+    )?;
     let pin_input = PinInput {
         roots: &roots,
         manifest: manifest.as_ref(),

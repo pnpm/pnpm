@@ -82,12 +82,12 @@ fn corrupted_lockfile_skipped_when_pin_does_not_consult_lockfile() {
         .expect("write malformed pnpm-lock.yaml");
     fs::write(
         root.join("package.json"),
-        r#"{"name":"root","devEngines":{"packageManager":{"name":"pnpm","version":"9.1.0","onFail":"download"}}}"#,
+        r#"{"name":"root","devEngines":{"packageManager":{"name":"pnpm","version":"^9.1.0","onFail":"download"}}}"#,
     )
     .expect("write package.json");
 
     with_test_global_config_dir(Some(global_config_dir), || {
-        for flag in ["--global", "--pm-on-fail=ignore"] {
+        for flag in ["--global", "--pm-on-fail=ignore", "--pm-on-fail=warn"] {
             let argv = vec![
                 OsString::from("pnpm"),
                 OsString::from("--dir"),
@@ -102,5 +102,18 @@ fn corrupted_lockfile_skipped_when_pin_does_not_consult_lockfile() {
                 .unwrap_or_else(|err| panic!("{flag} should not read malformed lockfile: {err}"));
             assert!(outcome.plan.is_none());
         }
+        let unknown_argv = vec![
+            OsString::from("pnpm"),
+            OsString::from("--dir"),
+            root.as_os_str().to_os_string(),
+            OsString::from("--pm-on-fail=warn"),
+            OsString::from("root"),
+            OsString::from("--unknown-flag"),
+        ];
+        let (overrides, remaining) = ConfigOverrides::extract(unknown_argv);
+        let invocation = Invocation::from_argv(&remaining, EntryPoint::UnknownFlag);
+        let outcome = pre_command_plan(&invocation, &overrides)
+            .expect("unknown-flag with non-switching pin should not read malformed lockfile");
+        assert!(outcome.plan.is_none());
     });
 }

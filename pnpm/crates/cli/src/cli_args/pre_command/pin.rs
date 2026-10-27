@@ -33,21 +33,38 @@ pub(crate) fn should_read_pin_lockfile(
     wanted: Option<&WantedPackageManager>,
     config: &Config,
     invocation: &Invocation,
+    running_version: &str,
+    process_state: SwitchProcessState,
 ) -> bool {
     if invocation.global || !config.lockfile {
         return false;
     }
-    let Some(pm) = wanted.filter(|pm| pm.name == "pnpm" && pm.version.is_some()) else {
+    let Some(pm) = wanted.filter(|pm| pm.name == "pnpm") else {
+        return false;
+    };
+    let Some(spec) = pm.version.as_deref() else {
         return false;
     };
     let on_fail = effective_on_fail(config, pm);
-    on_fail != PmOnFail::Ignore
-        && should_persist_package_manager_lockfile(&WantedPackageManager {
+    if on_fail == PmOnFail::Ignore
+        || !should_persist_package_manager_lockfile(&WantedPackageManager {
             name: pm.name.clone(),
             version: pm.version.clone(),
             from_dev_engines: pm.from_dev_engines,
             on_fail: Some(on_fail.as_str().to_string()),
         })
+    {
+        return false;
+    }
+    let switch_wanted =
+        on_fail == PmOnFail::Download && !process_state.package_manager_switch_disabled;
+    if can_switch_for_entry_point(invocation.entry_point, switch_wanted, process_state) {
+        return true;
+    }
+    invocation.entry_point != EntryPoint::UnknownFlag
+        && (version_satisfies(running_version, spec)
+            || crate::cli_args::package_manager::exact_version(spec)
+                .is_some_and(|version| version_satisfies(&version, spec)))
 }
 
 /// Pure decision over a pre-read [`PinInput`], [`Config`], and [`Invocation`].

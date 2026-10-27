@@ -279,18 +279,5 @@ pub(super) fn long_value<'a>(
 }
 
 pub(super) fn consumes_next_token(token: &str, global_options: &ArgTable) -> bool {
-    if let Some(name) = token.strip_prefix("--") {
-        return !name.contains('=') && global_options.long_consumes_value(name).unwrap_or(false);
-    }
-    let Some(rest) = token
-        .strip_prefix('-')
-        .filter(|rest| !rest.is_empty())
-    else {
-        return false;
-    };
-    let short = rest
-        .chars()
-        .next()
-        .expect("checked non-empty");
-    rest.chars().count() == 1 && global_options.short_consumes_value(short).unwrap_or(false)
+    declared_option_width(token, global_options) == Some(2)
 }

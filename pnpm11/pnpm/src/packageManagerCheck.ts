@@ -52,7 +52,13 @@ async function handleWantedPackageManager (pm: EngineDependency, opts: PackageMa
   const { cmd, cliOptions, config, context } = opts
   const printingVersion = cmd == null && cliOptions.version === true
   const entryPoint: PinEntryPoint = opts.rejectUnknownOptions ? 'unknown-flag' : printingVersion ? 'version' : 'command'
-  const lockedEnv = await readPinLockfile(pm, config, context, Boolean(cliOptions.global))
+  const invocation = {
+    entryPoint,
+    global: Boolean(cliOptions.global),
+    recordPinWithoutSwitch: opts.recordPinWithoutSwitch,
+    warn: (message: string) => warnAboutProject(config, message),
+  }
+  const lockedEnv = await readPinLockfile(pm, config, context, invocation)
   const decision = decide(
     {
       wanted: pm,
@@ -63,12 +69,7 @@ async function handleWantedPackageManager (pm: EngineDependency, opts: PackageMa
       isResolved: isPackageManagerResolved,
     },
     { ...config, ...context },
-    {
-      entryPoint,
-      global: Boolean(cliOptions.global),
-      recordPinWithoutSwitch: opts.recordPinWithoutSwitch,
-      warn: (message) => warnAboutProject(config, message),
-    }
+    invocation
   )
 
   if (decision.action === 'switch') {
@@ -106,7 +107,8 @@ export async function switchPastUnreadableConfig (
   const { config, context } = loaded
   const pm = context.wantedPackageManager
   if (pm == null) return
-  const lockedEnv = await readPinLockfile(pm, config, context, false).catch(() => undefined)
+  const invocation = { entryPoint: 'unknown-flag' as const, global: false, recordPinWithoutSwitch: false }
+  const lockedEnv = await readPinLockfile(pm, config, context, invocation).catch(() => undefined)
   const decision = decide(
     {
       wanted: pm,
@@ -117,7 +119,7 @@ export async function switchPastUnreadableConfig (
       isResolved: isPackageManagerResolved,
     },
     { ...config, ...context },
-    { entryPoint: 'unknown-flag', global: false, recordPinWithoutSwitch: false }
+    invocation
   )
   if (decision.action !== 'switch') return
   try {
@@ -127,8 +129,13 @@ export async function switchPastUnreadableConfig (
   }
 }
 
-async function readPinLockfile (pm: EngineDependency, config: Config, context: ConfigContext, global: boolean) {
-  if (!shouldReadPinLockfile(pm, config, global)) return undefined
+async function readPinLockfile (
+  pm: EngineDependency,
+  config: Config,
+  context: ConfigContext,
+  invocation: { entryPoint: PinEntryPoint, global: boolean, recordPinWithoutSwitch: boolean }
+) {
+  if (!shouldReadPinLockfile(pm, config, invocation)) return undefined
   return (await readEnvLockfile(envLockfileDir(config, context))) ?? undefined
 }
 

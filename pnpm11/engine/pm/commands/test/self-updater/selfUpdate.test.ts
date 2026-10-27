@@ -665,6 +665,70 @@ test('self-update rejects a trust-downgraded version under trustPolicy=no-downgr
   ).rejects.toThrow(/High-risk trust downgrade/)
 })
 
+test('self-update forwards trustPolicy when recording a project pin in pnpm-lock.yaml', async () => {
+  const opts = prepare({
+    devEngines: {
+      packageManager: { name: 'pnpm', version: '8.0.0' },
+    },
+  })
+  const registry = opts.registriesByScope.default
+  const now = Date.now()
+  seedGlobalPnpm(opts, '9.1.0')
+  mockPackageManager.version = '9.1.0'
+  getMockAgent().get(registry.replace(/\/$/, ''))
+    .intercept({ path: '/pnpm', method: 'GET' })
+    .reply(200, createMetadata('9.1.0', registry, [], {
+      '9.1.0': new Date(now - 8 * 60 * 60 * 1000).toISOString(),
+    })).persist()
+  getMockAgent().get(registry.replace(/\/$/, ''))
+    .intercept({ path: '/@pnpm%2Fexe', method: 'GET' }) // cspell:disable-line
+    .reply(200, {
+      name: '@pnpm/exe',
+      'dist-tags': { latest: '9.1.0' },
+      time: {
+        '9.0.5': new Date(now - 48 * 60 * 60 * 1000).toISOString(),
+        '9.1.0': new Date(now - 8 * 60 * 60 * 1000).toISOString(),
+      },
+      versions: {
+        '9.0.5': {
+          name: '@pnpm/exe',
+          version: '9.0.5',
+          _npmUser: {
+            name: 'pnpm-bot',
+            trustedPublisher: { id: 'github', oidcConfigId: 'release' },
+          },
+          dist: {
+            shasum: 'abcdef1234567890',
+            tarball: `${registry}@pnpm/exe/-/exe-9.0.5.tgz`,
+            integrity: 'sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==',
+            attestations: { provenance: { predicateType: 'https://slsa.dev/provenance/v1' } },
+          },
+        },
+        '9.1.0': {
+          name: '@pnpm/exe',
+          version: '9.1.0',
+          dist: {
+            shasum: 'abcdef1234567890',
+            tarball: `${registry}@pnpm/exe/-/exe-9.1.0.tgz`,
+            integrity: 'sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==',
+          },
+        },
+      },
+    }).persist()
+
+  await expect(
+    selfUpdate.handler({
+      ...opts,
+      trustPolicy: 'no-downgrade',
+      wantedPackageManager: {
+        name: 'pnpm',
+        version: '8.0.0',
+        fromDevEngines: true,
+      },
+    }, ['9.1.0'])
+  ).rejects.toThrow(/High-risk trust downgrade/)
+})
+
 test('self-update does not write packageManagerDependencies when package manager onFail is ignore', async () => {
   const opts = prepare({
     devEngines: {

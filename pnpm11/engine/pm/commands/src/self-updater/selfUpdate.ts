@@ -292,7 +292,7 @@ export async function updateManifestPinAndDecide (
   const manifest = await writeUpdatedManifestPin(opts, targetVersion)
   const manifestWanted = getWantedPackageManager(manifest).pm
   const wanted = manifestWanted && { ...manifestWanted, onFail: opts.pmOnFail ?? manifestWanted.onFail ?? opts.wantedPackageManager?.onFail }
-  const lockedEnv = shouldReadPinLockfile(wanted, opts)
+  const lockedEnv = shouldReadPinLockfile(wanted, opts, { entryPoint: 'self-update', recordPinWithoutSwitch: true }, targetVersion, false)
     ? (await readEnvLockfile(opts.lockfileDir ?? opts.rootProjectManifestDir) ?? undefined)
     : undefined
   const decision = decide({ wanted, lockedEnv, runningVersion: targetVersion }, opts, { entryPoint: 'self-update', recordPinWithoutSwitch: true })
@@ -328,6 +328,9 @@ async function recordUpdatedManifestPin (
       specifier: decision.specifier,
       storeController: store.ctrl,
       storeDir: store.dir,
+      trustPolicy: opts.trustPolicy,
+      trustPolicyExclude: opts.trustPolicyExclude,
+      trustPolicyIgnoreAfter: opts.trustPolicyIgnoreAfter,
     })
   } finally {
     await store.ctrl.close()

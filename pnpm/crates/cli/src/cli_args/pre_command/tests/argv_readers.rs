@@ -502,6 +502,10 @@ fn unparsed_argv_reads_global_in_a_short_cluster() {
 
     let argv = ["pnpm", "add", "pkg", "--undeclared", "-gE"].map(OsString::from);
     assert!(unparsed_switch_input(&argv).is_none());
+
+    let argv = ["pnpm", "install", "-rF", "-g", "--undeclared"].map(OsString::from);
+    let scan = unparsed_switch_input(&argv).expect("the command line is unambiguous");
+    assert!(!scan.global);
 }
 
 #[test]
