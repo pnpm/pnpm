@@ -6,6 +6,7 @@ use super::{
     github_actions, parse_catalog_protocol, parse_overrides_iter, project_dir,
     resolve_from_catalog,
 };
+use crate::cli_args::engine_deps::{DeclaredEngineDep, declared_engine_deps, min_version_of_spec};
 
 /// State shared by every importer inspected in one `outdated` (or
 /// `update --interactive`) run: one resolver and metadata cache, so a
@@ -229,11 +230,7 @@ pub(crate) async fn collect_outdated_for_importer_in_run(
     let current_versions =
         current_versions_from_importer(lockfile, importer_id, query.include_direct);
     let workspace = importer_workspace_label(manifest, importer_id);
-    let engine_deps = crate::cli_args::engine_deps::declared_engine_deps(
-        manifest,
-        &run.config,
-        query.include_direct,
-    );
+    let engine_deps = declared_engine_deps(manifest, &run.config, query.include_direct);
     let candidates = collect_importer_candidates(manifest, &current_versions, &engine_deps, query);
     let fetches = candidates
         .into_iter()
@@ -261,7 +258,7 @@ fn importer_workspace_label(manifest: &PackageManifest, importer_id: &str) -> St
 fn collect_importer_candidates<'a>(
     manifest: &'a PackageManifest,
     current_versions: &HashMap<String, Version>,
-    engine_deps: &'a [crate::cli_args::engine_deps::DeclaredEngineDep],
+    engine_deps: &'a [DeclaredEngineDep],
     query: &OutdatedQuery<'_>,
 ) -> Vec<OutdatedCandidate<'a>> {
     let mut candidates = Vec::new();
@@ -284,15 +281,12 @@ fn collect_importer_candidates<'a>(
 }
 
 fn engine_outdated_candidate<'a>(
-    dep: &'a crate::cli_args::engine_deps::DeclaredEngineDep,
+    dep: &'a DeclaredEngineDep,
     query: &OutdatedQuery<'_>,
-    seen_engines: &mut std::collections::HashSet<(&'a str, &'static str)>,
+    seen: &mut std::collections::HashSet<(&'a str, &'static str, &'a str)>,
 ) -> Option<OutdatedCandidate<'a>> {
-    let group_key: &'static str = dep.group.into();
-    if !query.matches_name(&dep.name) || !seen_engines.insert((dep.name.as_str(), group_key)) {
-        return None;
-    }
-    Some(OutdatedCandidate {
+    let key = (dep.name.as_str(), dep.group.into(), dep.raw_specifier.as_str());
+    (query.matches_name(&dep.name) && seen.insert(key)).then_some(OutdatedCandidate {
         alias: &dep.name,
         group: dep.group,
         bare_specifier: &dep.resolver_bare_specifier,
@@ -316,7 +310,7 @@ fn direct_outdated_candidate<'a>(
         .cloned()
         .or_else(|| {
             pnpm_tool_protocol::is_tool_specifier(bare_specifier)
-                .then(|| crate::cli_args::engine_deps::min_version_of_spec(alias, bare_specifier))
+                .then(|| min_version_of_spec(alias, bare_specifier))
                 .flatten()
         })?;
     Some(OutdatedCandidate { alias, group, bare_specifier, current, is_engine: false })
