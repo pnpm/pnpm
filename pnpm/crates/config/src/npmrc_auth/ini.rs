@@ -252,6 +252,10 @@ impl NpmrcAuth {
 
     /// Record one expanded `key=value` entry in the slot it belongs to.
     pub(super) fn apply_ini_entry(&mut self, key: &str, value: String, npmrc_dir: &Path) {
+        if key == "git-tag-version" || key == "gitTagVersion" {
+            self.git_tag_version = value.parse().ok();
+            return;
+        }
         if key == "registry" {
             self.routes.default = Some(value);
             return;

@@ -32,9 +32,10 @@ const UNDOCUMENTED_SETTINGS: &[&str] = &[
     "changedFilesIgnorePattern", // filtering.md
     "configDependencies",        // config-dependencies.md
     "gitChecks",                 // cli/publish.md
-    "registry",                  // registries.md
-    "tagVersionPrefix",          // cli/version.md
-    "testPattern",               // filtering.md
+    "gitTagVersion",
+    "registry",         // registries.md
+    "tagVersionPrefix", // cli/version.md
+    "testPattern",      // filtering.md
     // Aliases, mentioned only in the section of the setting they alias.
     "auditConfig",            // audit.ignore
     "auditLevel",             // audit.level

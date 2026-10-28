@@ -59,6 +59,7 @@ pub(crate) struct NpmrcAuth {
     /// is the source of [`crate::Config::raw_auth_config`]; it does not feed
     /// auth-header resolution, which reads the structured fields above.
     pub raw_ini_config: BTreeMap<String, String>,
+    pub git_tag_version: Option<bool>,
     pub proxy: NpmrcProxy,
     pub tls: NpmrcTls,
     pub routes: NpmrcRoutes,
@@ -232,6 +233,7 @@ impl NpmrcAuth {
     /// pinned to the right registry before they are combined.
     pub fn merge_under(&mut self, lower: NpmrcAuth) {
         self.routes.merge_under(lower.routes);
+        self.git_tag_version = self.git_tag_version.or(lower.git_tag_version);
         for (key, value) in lower.raw_ini_config {
             self.raw_ini_config.entry(key).or_insert(value);
         }

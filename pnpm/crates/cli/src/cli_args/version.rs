@@ -175,6 +175,11 @@ impl VersionArgs {
             return Err(VersionError::UncleanWorkingTree.into());
         }
 
+        let should_create_git_commit = !self.dry_run
+            && !recursive
+            && !self.git.no_git_tag_version
+            && is_git_repo::<Host>(&git_cwd)
+            && git::git_tag_version_enabled(config, dir)?;
         let changes = self.collect_version_changes::<Reporter>(&bump, config, dir, recursive)?;
         if changes.is_empty() {
             return Err(VersionError::NoPackagesToVersion.into());
@@ -183,11 +188,7 @@ impl VersionArgs {
         // In recursive mode, multiple packages can be bumped to different
         // versions in a single run, and there is no obvious single version to
         // tag the commit with. Skip the git commit and tag entirely then.
-        if !self.dry_run
-            && !recursive
-            && !self.git.no_git_tag_version
-            && is_git_repo::<Host>(&git_cwd)
-        {
+        if should_create_git_commit {
             self.commit_and_tag(&changes[0], &git_cwd, tag_version_prefix)?;
         }
 

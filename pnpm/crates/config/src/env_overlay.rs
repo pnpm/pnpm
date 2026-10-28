@@ -99,7 +99,14 @@ impl TrustedSettings {
     #[must_use]
     pub fn from_pnpm_config_env<Sys: EnvVar>() -> Self {
         Self::from_reader(&StringReader {
-            read: &|suffix| read_env::<Sys>(suffix),
+            read: &|suffix| {
+                read_env::<Sys>(suffix)
+                    .or_else(|| {
+                        (suffix == "GIT_TAG_VERSION")
+                            .then(|| crate::read_npm_env::<Sys>("git_tag_version", suffix))
+                            .flatten()
+                    })
+            },
             read_allow_empty: &|suffix| read_env_allow_empty::<Sys>(suffix),
         })
     }
@@ -337,6 +344,7 @@ impl WorkspaceSettings {
         json_field!(settings, reader, strict_dep_builds, "STRICT_DEP_BUILDS");
         json_field!(settings, reader, ignore_scripts, "IGNORE_SCRIPTS");
         json_field!(settings, reader, git_checks, "GIT_CHECKS");
+        json_field!(settings, reader, git_tag_version, "GIT_TAG_VERSION");
         json_field!(settings, reader, publish_wait_timeout, "PUBLISH_WAIT_TIMEOUT");
         json_field!(settings, reader, provenance, "PROVENANCE");
         string_field_allow_empty!(settings, reader, tag_version_prefix, "TAG_VERSION_PREFIX");

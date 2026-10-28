@@ -1,4 +1,34 @@
 use super::{Host, Path, RunCommand, Version, VersionArgs, VersionChange, VersionError};
+use pnpm_config::Config;
+use pnpm_package_manifest::PackageManifest;
+
+pub(super) fn git_tag_version_enabled(config: &Config, dir: &Path) -> miette::Result<bool> {
+    if config.explicit_settings.contains_key("gitTagVersion")
+        || config.cli_settings.contains("gitTagVersion")
+    {
+        return Ok(config.git_tag_version);
+    }
+    let manifest_path = config.workspace_dir
+        .as_deref()
+        .unwrap_or(dir)
+        .join("package.json");
+    let manifest = match PackageManifest::from_path(manifest_path) {
+        Ok(manifest) => manifest,
+        Err(pnpm_package_manifest::PackageManifestError::NoImporterManifestFound(_)) => {
+            return Ok(config.git_tag_version);
+        }
+        Err(error) => return Err(error.into()),
+    };
+    Ok(manifest
+        .value()
+        .get("pnpm")
+        .and_then(|pnpm| {
+            pnpm.get("git-tag-version")
+                .or_else(|| pnpm.get("gitTagVersion"))
+        })
+        .and_then(serde_json::Value::as_bool)
+        .unwrap_or(config.git_tag_version))
+}
 
 /// Build the canonical cross-stack error for an invalid version from Git.
 fn invalid_version_from_git(
