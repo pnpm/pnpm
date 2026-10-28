@@ -191,12 +191,18 @@ export async function installPnpm (
 }
 
 /**
+ * The versions whose `pm` prefix forces a built-in command. pnpm 12.0.0 was
+ * released without it.
+ */
+const PM_PREFIX_VERSIONS = '>=11.0.0-beta.6 <12.0.0-0 || >=12.1.0'
+
+/**
  * How to invoke the built-in `pnpm setup` of pnpm `version`. From pnpm 11, a
- * `setup` script in the project the installer runs from replaces the built-in
- * unless the `pm` prefix forces it.
+ * `setup` script in the project the installer runs from can replace the
+ * built-in unless the `pm` prefix forces it.
  */
 export function setupCommand (version: string): string[] {
-  return semver.gte(version, '11.0.0-beta.6') ? ['pm', 'setup'] : ['setup']
+  return semver.satisfies(version, PM_PREFIX_VERSIONS, { includePrerelease: true }) ? ['pm', 'setup'] : ['setup']
 }
 
 function assertSetupCanLeavePathAlone (version: string): void {
