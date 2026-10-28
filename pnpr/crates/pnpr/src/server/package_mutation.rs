@@ -267,7 +267,11 @@ async fn remove_unpublished_blobs(
     let blobs = removed_versions
         .iter()
         .flat_map(|version| {
-            [name.tarball_name_for_version(version), name.sigstore_name_for_version(version)]
+            [
+                name.tarball_name_for_version(version),
+                name.tar_name_for_version(version),
+                name.sigstore_name_for_version(version),
+            ]
         });
     futures_util::stream::iter(blobs)
         .for_each_concurrent(BLOB_REMOVALS_IN_FLIGHT, |blob| async move {

@@ -1,3 +1,5 @@
+#[path = "tar_registry/hosted_tars.rs"]
+mod hosted_tars;
 #[path = "tar_registry/mutations.rs"]
 mod mutations;
 
