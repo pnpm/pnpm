@@ -322,6 +322,9 @@ pub(super) async fn selector_seed_policy<Reporter: self::Reporter>(
         )
         .await?;
     }
+    if scope.version.latest && scope.selection.depth > 0 {
+        widen_drop_targets_by_matcher(scope.lockfile, plan, &matcher);
+    }
     Ok(Some(plan.drop_only(scope.max_depth())))
 }
 pub(super) fn widen_drop_targets_by_selectors(

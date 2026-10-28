@@ -1403,6 +1403,8 @@ mod workspace;
 
 mod selectors;
 
+mod latest_transitive;
+
 mod overrides;
 
 mod compatibility_db;
