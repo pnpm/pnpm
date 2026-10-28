@@ -64,9 +64,9 @@ and the command that removes it.
 
 To leave your shell configuration and the Windows registry alone, pass
 `--no-modify-path` (or set `PNPM_NO_MODIFY_PATH=1`). pnpm is still installed in
-`PNPM_HOME`, and `pnpm setup` prints the lines to add yourself. This needs a pnpm
-version whose `pnpm setup` has that option; with an older one, the installer stops
-before changing anything.
+`PNPM_HOME`, and `pnpm setup` prints the lines to add yourself. This needs pnpm
+12.16.0 or newer. With an older pnpm, the installer stops before changing
+anything.
 
 ```sh
 npx get-pnpm --no-modify-path

@@ -30,6 +30,7 @@ let registry: string
 let mode: Mode = 'ok'
 let setupLog: string
 let authorizations: Array<string | undefined> = []
+let servedVersion = VERSION
 
 // The fake executable the mock serves is a `#!/bin/sh` script, so the flow that
 // runs it is POSIX-only. The verification it exercises is platform-independent.
@@ -41,8 +42,7 @@ describe('installPnpm', { skip: process.platform === 'win32' }, () => {
       // The wrapper carries `dist/`; the platform package carries the executable.
       pnpm: packTarball('wrapper', { 'dist/worker.js': 'export {}\n' }),
       platform: packTarball('platform', {
-        // `pm setup --help` prints FAKE_SETUP_HELP, so a test can play an old or a new setup.
-        pnpm: `#!/bin/sh\nif [ "$3" = --help ]; then printf '%s\\n' "$FAKE_SETUP_HELP"; exit 0; fi\necho "$@" > "${setupLog}"\nls "$(dirname "$0")/dist" >> "${setupLog}"\n`,
+        pnpm: `#!/bin/sh\necho "$@" > "${setupLog}"\nls "$(dirname "$0")/dist" >> "${setupLog}"\n`,
       }),
     }
 
@@ -72,28 +72,23 @@ describe('installPnpm', { skip: process.platform === 'win32' }, () => {
     assert.equal(fs.readFileSync(setupLog, 'utf8'), 'pm setup --force\nworker.js\n')
   })
 
-  test('passes --no-modify-path to a setup that has it', async () => {
+  test('passes --no-modify-path to setup', async () => {
     mode = 'ok'
-    process.env.FAKE_SETUP_HELP = '      --no-modify-path\n          Install pnpm without adding it to PATH'
-    try {
-      assert.equal(await installPnpm({ versionSpec: 'latest', registry, keys: KEYS, modifyPath: false }), 0)
-    } finally {
-      delete process.env.FAKE_SETUP_HELP
-    }
+    assert.equal(await installPnpm({ versionSpec: 'latest', registry, keys: KEYS, modifyPath: false }), 0)
     assert.equal(fs.readFileSync(setupLog, 'utf8'), 'pm setup --force --no-modify-path\nworker.js\n')
   })
 
-  test('refuses --no-modify-path before running a setup that lacks it', async () => {
+  test('refuses --no-modify-path before running a setup older than 12.16.0', async () => {
     mode = 'ok'
+    servedVersion = '12.15.0'
     fs.rmSync(setupLog, { force: true })
-    process.env.FAKE_SETUP_HELP = '  -f, --force  Override the PNPM_HOME env variable in case it already exists'
     try {
       await assert.rejects(
         installPnpm({ versionSpec: 'latest', registry, keys: KEYS, modifyPath: false }),
-        (err: Error) => err.message.includes(`pnpm ${VERSION} cannot be installed without adding it to PATH`)
+        (err: Error) => err.message.includes('pnpm 12.15.0 cannot be installed without adding it to PATH')
       )
     } finally {
-      delete process.env.FAKE_SETUP_HELP
+      servedVersion = VERSION
     }
     assert.ok(!fs.existsSync(setupLog), 'setup is not run')
   })
@@ -192,8 +187,8 @@ function handleRequest (req: http.IncomingMessage, res: http.ServerResponse, tar
     res.end(JSON.stringify(body))
   }
 
-  if (url.endsWith(`/${VERSION}`)) {
-    const kind = url === `/pnpm/${VERSION}` ? 'pnpm' : 'platform'
+  if (url.endsWith(`/${servedVersion}`)) {
+    const kind = url === `/pnpm/${servedVersion}` ? 'pnpm' : 'platform'
     const name = url.slice(1, url.lastIndexOf('/'))
     json(versionMetaFor(name, kind, tarballs))
     return
@@ -215,9 +210,9 @@ function handleRequest (req: http.IncomingMessage, res: http.ServerResponse, tar
 function packumentFor (name: string, tarballs: Tarballs): unknown {
   const kind = name === 'pnpm' ? 'pnpm' : 'platform'
   return {
-    'dist-tags': { latest: VERSION },
+    'dist-tags': { latest: servedVersion },
     versions: {
-      [VERSION]: mode === 'root-signatures' ? { dist: { signatures: signaturesFor(name, kind, tarballs) } } : {},
+      [servedVersion]: mode === 'root-signatures' ? { dist: { signatures: signaturesFor(name, kind, tarballs) } } : {},
     },
   }
 }
@@ -246,7 +241,7 @@ function signaturesFor (name: string, kind: keyof Tarballs, tarballs: Tarballs):
   const signed = mode === 'bad-signature' ? `sha512-${'A'.repeat(86)}==` : integrityOf(kind, tarballs)
   return [{
     keyid: mode === 'wrong-keyid' ? 'SHA256:not-pinned' : KEYS[0]!.keyid,
-    sig: createSign('SHA256').update(`${name}@${VERSION}:${signed}`).sign(privateKey, 'base64'),
+    sig: createSign('SHA256').update(`${name}@${servedVersion}:${signed}`).sign(privateKey, 'base64'),
   }]
 }
 

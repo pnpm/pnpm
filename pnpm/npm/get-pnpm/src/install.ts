@@ -30,6 +30,9 @@ function wrapperPackageName (major: number): string {
   return major >= 12 ? CLI_PKG_NAME : '@pnpm/exe'
 }
 
+/** The first pnpm whose `pnpm setup` has `--no-modify-path`. */
+const NO_MODIFY_PATH_SINCE = '12.16.0'
+
 const USAGE = `Usage: npx get-pnpm [--no-modify-path] [version]
 
 Installs pnpm as a standalone executable and adds it to your PATH.
@@ -49,8 +52,8 @@ Arguments:
 Options:
   --no-modify-path   Install pnpm without adding it to PATH: leave the shell
                      config file and the Windows registry unchanged, and print
-                     the lines to add instead. Needs a pnpm version whose
-                     \`pnpm setup\` has this option.
+                     the lines to add instead. Needs pnpm ${NO_MODIFY_PATH_SINCE} or
+                     newer.
 
 Environment variables:
   PNPM_VERSION           Version to install when no argument is given.
@@ -169,7 +172,7 @@ export async function installPnpm (
     const modifyPath = opts.modifyPath ?? true
     const setupArgs = [...setupCommand(version), '--force']
     if (!modifyPath) {
-      assertSetupCanLeavePathAlone(binPath, version)
+      assertSetupCanLeavePathAlone(version)
       setupArgs.push('--no-modify-path')
     }
     const { error, status } = spawnSync(binPath, setupArgs, { stdio: 'inherit' })
@@ -196,14 +199,9 @@ export function setupCommand (version: string): string[] {
   return semver.gte(version, '11.0.0-beta.6') ? ['pm', 'setup'] : ['setup']
 }
 
-/**
- * Most pnpm releases predate `pnpm setup --no-modify-path`, so its help is
- * checked before setup gets the chance to change anything.
- */
-function assertSetupCanLeavePathAlone (binPath: string, version: string): void {
-  const { stdout } = spawnSync(binPath, [...setupCommand(version), '--help'], { encoding: 'utf8' })
-  if (!stdout?.includes('--no-modify-path')) {
-    throw new Error(`pnpm ${version} cannot be installed without adding it to PATH: its \`pnpm setup\` has no --no-modify-path option. Install a newer pnpm, or leave out --no-modify-path.`)
+function assertSetupCanLeavePathAlone (version: string): void {
+  if (semver.lt(version, NO_MODIFY_PATH_SINCE)) {
+    throw new Error(`pnpm ${version} cannot be installed without adding it to PATH: --no-modify-path needs pnpm ${NO_MODIFY_PATH_SINCE} or newer. Install a newer pnpm, or leave out --no-modify-path.`)
   }
 }
 
