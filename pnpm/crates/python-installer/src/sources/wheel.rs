@@ -74,15 +74,7 @@ impl Registry<'_> {
             hashes: BTreeMap::from([("sha256".to_string(), digest)]),
         };
         wheel.integrity()?;
-        tokio::fs::create_dir_all(cache.parent().expect("cache has parent"))
-            .await
-            .into_diagnostic()?;
-        // The cached wheel URL can carry credentials in its userinfo.
-        pnpm_fs::write_atomic_private_if_new(
-            &cache,
-            &serde_json::to_vec(&wheel).into_diagnostic()?,
-        )
-        .into_diagnostic()?;
+        cache_url_wheel(&cache, &wheel).await?;
         Ok((wheel, buffer))
     }
 
@@ -126,4 +118,11 @@ impl Registry<'_> {
         }
         Ok(response.body)
     }
+}
+
+async fn cache_url_wheel(cache: &std::path::Path, wheel: &LockedWheel) -> Result<()> {
+    tokio::fs::create_dir_all(cache.parent().expect("cache has parent")).await.into_diagnostic()?;
+    // The cached wheel URL can carry credentials in its userinfo.
+    pnpm_fs::write_atomic_private_if_new(cache, &serde_json::to_vec(wheel).into_diagnostic()?)
+        .into_diagnostic()
 }
