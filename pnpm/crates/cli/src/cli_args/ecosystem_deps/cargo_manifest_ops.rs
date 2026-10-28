@@ -91,8 +91,10 @@ pub(crate) fn declared_cargo_deps(
     if !manifest_path.is_file() {
         return Ok(Vec::new());
     }
+    let manifest_path = dunce::canonicalize(&manifest_path).unwrap_or(manifest_path);
     let cargo_root = find_cargo_workspace_root(project_dir, workspace_limit);
     let root_manifest_path = cargo_root.join("Cargo.toml");
+    let root_manifest_path = dunce::canonicalize(&root_manifest_path).unwrap_or(root_manifest_path);
     let workspace_specs = read_workspace_dependency_specs(&root_manifest_path)?;
     let contents = fs::read_to_string(&manifest_path)
         .into_diagnostic()
@@ -307,30 +309,17 @@ fn format_existing_cargo_spec(existing_raw: &str, resolved: &Version) -> String 
 }
 
 fn lower_bound_prefix(clause: &str) -> Option<&'static str> {
-    if clause.starts_with(">=") {
-        Some(">=")
-    } else if clause.starts_with('^') {
-        Some("^")
-    } else if clause.starts_with('~') {
-        Some("~")
-    } else {
-        None
-    }
+    [">=", "^", "~"]
+        .into_iter()
+        .find(|prefix| clause.starts_with(prefix))
 }
 
 fn existing_prefix(raw: &str) -> &'static str {
     let trimmed = raw.trim();
-    if trimmed.starts_with('^') {
-        "^"
-    } else if trimmed.starts_with('~') {
-        "~"
-    } else if trimmed.starts_with(">=") {
-        ">="
-    } else if trimmed.starts_with('=') {
-        "="
-    } else {
-        ""
-    }
+    ["^", "~", ">=", "="]
+        .into_iter()
+        .find(|prefix| trimmed.starts_with(prefix))
+        .unwrap_or("")
 }
 
 pub(crate) async fn resolve_cargo_workspace_scope(
@@ -340,38 +329,43 @@ pub(crate) async fn resolve_cargo_workspace_scope(
 ) -> Result<(PathBuf, Vec<DeclaredCargoDep>)> {
     let (_, metadata) = crate::cargo_deps::workspace_metadata(manifest_path, checkout).await?;
     let cargo_root = crate::cargo_deps::canonical_cargo_path(&metadata.workspace_root)?;
-    let mut all_declared = declared.to_vec();
+    let mut all_declared: Vec<DeclaredCargoDep> = declared
+        .iter()
+        .filter(|dep| dep.manifest_path.starts_with(&cargo_root))
+        .cloned()
+        .collect();
     for package in metadata.packages {
-        if let Some(member_dir) = package.manifest_path.parent() {
+        let canonical = crate::cargo_deps::canonical_cargo_path(&package.manifest_path)?;
+        if let Some(dir) = canonical
+            .parent()
+            .filter(|dir| dir.starts_with(&cargo_root))
+        {
             extend_unique_declared(
                 &mut all_declared,
-                declared_cargo_deps(member_dir, Some(&cargo_root))?,
+                declared_cargo_deps(dir, Some(&cargo_root))?,
+                &cargo_root,
             );
         }
     }
     Ok((cargo_root, all_declared))
 }
 
-fn extend_unique_declared(all_declared: &mut Vec<DeclaredCargoDep>, deps: Vec<DeclaredCargoDep>) {
+fn extend_unique_declared(
+    all_declared: &mut Vec<DeclaredCargoDep>,
+    deps: Vec<DeclaredCargoDep>,
+    cargo_root: &Path,
+) {
     for dep in deps {
-        if !all_declared.iter().any(|existing| same_declared_dep(existing, &dep)) {
+        if dep.manifest_path.starts_with(cargo_root)
+            && !all_declared.iter().any(|existing| same_declared_dep(existing, &dep))
+        {
             all_declared.push(dep);
         }
     }
 }
 
 pub(crate) fn same_declared_dep(lhs: &DeclaredCargoDep, rhs: &DeclaredCargoDep) -> bool {
-    lhs.alias == rhs.alias
-        && lhs.table == rhs.table
-        && same_manifest(&lhs.manifest_path, &rhs.manifest_path)
-}
-
-fn same_manifest(lhs: &Path, rhs: &Path) -> bool {
-    lhs == rhs
-        || match (dunce::canonicalize(lhs), dunce::canonicalize(rhs)) {
-            (Ok(ca), Ok(cb)) => ca == cb,
-            _ => false,
-        }
+    lhs.alias == rhs.alias && lhs.table == rhs.table && lhs.manifest_path == rhs.manifest_path
 }
 
 pub(crate) fn apply_manifest_edits(

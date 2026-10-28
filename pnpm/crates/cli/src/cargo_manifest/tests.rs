@@ -51,6 +51,14 @@ fn updates_strings_and_inline_tables_without_losing_formatting() {
         updated,
         "[dependencies]\nserde = \"2\" # keep\ntokio = { features = [\"version\"], version = \"~1.43\" }\n",
     );
+
+    let subtable_manifest = "[dependencies.reqwest]\nversion = \"0.11\"\nfeatures = [\"json\"]\n";
+    let updated_subtable =
+        upsert_dependency(subtable_manifest, "dependencies", "reqwest", "=0.12.0").unwrap();
+    assert_eq!(
+        updated_subtable,
+        "[dependencies.reqwest]\nversion = \"=0.12.0\"\nfeatures = [\"json\"]\n",
+    );
 }
 
 #[test]

@@ -45,6 +45,9 @@ pub(crate) fn upsert_dependency(
     name: &str,
     version_spec: &str,
 ) -> Result<String> {
+    if let Some(subtable) = find_dependency_subtable(contents, table, name) {
+        return upsert_dependency(contents, &subtable, "version", version_spec);
+    }
     let Some((section_start, section_end)) = find_table(contents, table) else {
         let separator = appended_table_separator(contents);
         return Ok(format!("{contents}{separator}[{table}]\n{name} = {}\n", quoted(version_spec)));
@@ -63,6 +66,12 @@ pub(crate) fn upsert_dependency(
     let prefix = &contents[..section_end];
     let newline = if !prefix.is_empty() && !prefix.ends_with('\n') { "\n" } else { "" };
     Ok(format!("{prefix}{newline}{name} = {}\n{}", quoted(version_spec), &contents[section_end..]))
+}
+
+fn find_dependency_subtable(contents: &str, table: &str, name: &str) -> Option<String> {
+    [format!("{table}.{name}"), format!("{table}.{}", quoted(name))]
+        .into_iter()
+        .find(|subtable| find_table(contents, subtable).is_some())
 }
 
 /// What has to come between the existing contents and a table appended
