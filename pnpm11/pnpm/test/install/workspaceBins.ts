@@ -22,9 +22,54 @@ test.each(['isolated', 'hoisted'])('repeat install relinks changed workspace bin
     const lockfile = fs.existsSync('pnpm-lock.yaml') ? fs.readFileSync('pnpm-lock.yaml', 'utf8') : undefined
     install(lockfile == null ? [] : ['--frozen-lockfile'])
     if (lockfile != null) expect(fs.readFileSync('pnpm-lock.yaml', 'utf8')).toBe(lockfile)
+    const expectedNames = Object.keys(expected)
+    assertInstalledBins('node_modules/.bin', expectedNames)
+    if (nodeLinker === 'isolated') {
+      assertInstalledBins('packages/b/node_modules/.bin', expectedNames)
+      assertInstalledBins('packages/c/node_modules/.bin', expectedNames)
+    }
     assertBins('root', expected)
   }
+  writeBins({ 'a-one': 'one.js', 'a-two': 'two.js' })
   install()
+  assertInstalledBins('node_modules/.bin', ['a-one', 'a-two'])
+
+  writeBins({ 'a-one': 'one.js' })
+  install()
+  assertInstalledBins('node_modules/.bin', ['a-one'])
+
+  writeBins(null)
+  install(['--force'])
+  assertInstalledBins('node_modules/.bin', [])
+})
+
+test.each(['isolated', 'hoisted'])('hoisted workspace package prunes removed bins from root with %s linker', (nodeLinker) => {
+  prepareEmpty()
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['packages/*'],
+    nodeLinker,
+    hoistWorkspacePackages: true,
+    publicHoistPattern: ['*'],
+    verifyDepsBeforeRun: false,
+  })
+  fs.writeFileSync('package.json', JSON.stringify({ name: 'root', private: true }))
+  fs.mkdirSync('packages/b', { recursive: true })
+  fs.writeFileSync('packages/b/package.json', JSON.stringify({ name: 'b', private: true, dependencies: { a: 'workspace:*' } }))
+  fs.mkdirSync('packages/a', { recursive: true })
+  fs.writeFileSync('packages/a/one.js', "#!/usr/bin/env node\nconsole.log('one')\n")
+  fs.writeFileSync('packages/a/two.js', "#!/usr/bin/env node\nconsole.log('two')\n")
+
+  writeBins({ 'a-one': 'one.js', 'a-two': 'two.js' })
+  install()
+  assertInstalledBins('node_modules/.bin', ['a-one', 'a-two'])
+
+  writeBins({ 'a-renamed': 'two.js' })
+  install(['--frozen-lockfile'])
+  assertInstalledBins('node_modules/.bin', ['a-renamed'])
+
+  writeBins(null)
+  install()
+  assertInstalledBins('node_modules/.bin', [])
 })
 
 test.each(['isolated', 'hoisted'])('filtered installs keep unselected workspace bins stale with %s linker', (nodeLinker) => {
@@ -73,4 +118,26 @@ function assertBins (consumer: string, expected: Record<string, string>): void {
     expect({ name, status: result.status, stderr: result.stderr.toString() }).toMatchObject({ status: 0 })
     expect(result.stdout.toString().trim()).toBe(output)
   }
+}
+
+function assertInstalledBins (binsDir: string, expected: string[]): void {
+  if (!fs.existsSync(binsDir)) {
+    expect(expected).toEqual([])
+    return
+  }
+  const isWindows = process.platform === 'win32'
+  const actual = Array.from(new Set(
+    fs.readdirSync(binsDir).map((entry) => {
+      if (!isWindows) return entry
+      const lower = entry.toLowerCase()
+      for (const suffix of ['.cmd', '.ps1', '.exe']) {
+        if (lower.endsWith(suffix)) return lower.slice(0, -suffix.length)
+      }
+      return lower
+    })
+  )).sort()
+  const normalizedExpected = expected
+    .map((name) => isWindows ? name.toLowerCase() : name)
+    .sort()
+  expect(actual).toEqual(normalizedExpected)
 }

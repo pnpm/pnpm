@@ -24,9 +24,7 @@ pub(super) struct ManifestPackage {
     pub(super) org: Option<String>,
     /// File inside the transaction directory holding the computed
     /// document bytes.
-    #[serde(alias = "packument_file")]
     pub(super) document_file: String,
-    #[serde(alias = "tarballs")]
     pub(super) blobs: Vec<ManifestBlob>,
 }
 

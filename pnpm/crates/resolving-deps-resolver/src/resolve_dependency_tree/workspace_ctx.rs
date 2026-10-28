@@ -81,18 +81,15 @@ pub(super) struct DirectDepVersion {
 
 impl DirectDepVersion {
     /// The version `ver_peer` records for `name`, with the registry its key
-    /// names: the prefix's for a qualified key, the routed one for a plain
-    /// key. `None` for a key that is not a registry version, or whose prefix
+    /// names (see [`pnpm_lockfile::RegistryContext::registry_of_locked`]).
+    /// `None` for a key that is not a registry version, or whose prefix
     /// nothing declares.
     pub(super) fn of(
         name: &str,
         ver_peer: &pnpm_lockfile::PkgVerPeer,
         registries: &pnpm_lockfile::RegistryContext,
     ) -> Option<Self> {
-        let registry = match ver_peer.registry_qualified() {
-            Some((prefix, _)) => registries.registry_of_prefix(prefix)?,
-            None => registries.routed_registry(name),
-        };
+        let registry = registries.registry_of_locked(name, ver_peer.registry_qualified())?;
         Some(Self {
             registry: pnpm_lockfile::normalized_registry_key(registry)
                 .unwrap_or_else(|| registry.to_string()),
@@ -240,6 +237,7 @@ pub(in crate::resolve_dependency_tree) fn cached_workspace_final(
 
 #[derive(Default)]
 pub(super) struct WorkspaceResolutionCache {
+    pub(super) has_read_package: tokio::sync::OnceCell<bool>,
     pub(super) resolved_by_wanted:
         Mutex<HashMap<WantedKey, Arc<pnpm_resolving_resolver_base::ResolveResult>>>,
     /// Resolver output for workspace directory resolutions before manifest
@@ -267,11 +265,7 @@ pub(super) struct WorkspaceResolutionCache {
     pub(super) share_workspace_resolutions: bool,
     /// See [`SubtreeReuseCache`].
     pub(super) subtree: SubtreeReuseCache,
-    /// Memoises [`pnpm_lockfile::BoundProviders::of_snapshot`] for hashed
-    /// snapshot keys so repeated peer-scope and child-split checks on the
-    /// same snapshot key recover its bound providers at most once per
-    /// workspace pass.
-    pub(super) bound_providers: Mutex<HashMap<PkgNameVerPeer, pnpm_lockfile::BoundProviders>>,
+
     /// Resolved registry map (`"default"` + per-scope) used to
     /// materialize a prior `Registry` lockfile resolution back into its
     /// tarball URL for the `currentPkg` payload. Empty when the entry

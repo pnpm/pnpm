@@ -135,7 +135,7 @@ async fn object_store_replicas_share_blobs_envelopes_and_quota() {
         .unwrap();
     assert_eq!(response.artifacts[0].variants.len(), 2);
     let usage_path = object_store::path::Path::from(format!(
-        "{}.pnpr-artifacts/v0/quota.json",
+        "{}.artifacts/quota.json",
         normalize_key_prefix(Some("packages")),
     ));
     let usage: ArtifactUsage = serde_json::from_slice(
@@ -171,7 +171,7 @@ async fn concurrent_replicas_update_quota_without_lost_writes() {
         assert!(publication.await.unwrap().unwrap());
     }
 
-    let usage_path = object_store::path::Path::from(".pnpr-artifacts/v0/quota.json");
+    let usage_path = object_store::path::Path::from(".artifacts/quota.json");
     let usage: ArtifactUsage = serde_json::from_slice(
         &backend
             .get(&usage_path)
@@ -210,7 +210,7 @@ async fn quota_is_reserved_before_objects_are_written() {
         .unwrap_err();
 
     assert!(error.to_string().contains("quota exceeded"), "{error}");
-    let entries = std::fs::read_dir(storage.path().join("shared-artifacts/v0"))
+    let entries = std::fs::read_dir(storage.path().join("shared-artifacts"))
         .unwrap()
         .filter_map(std::result::Result::ok)
         .filter(|entry| entry.file_name() != ".locks")
@@ -245,7 +245,7 @@ async fn failed_object_writes_reconcile_quota_to_physical_storage() {
         .await
         .unwrap_err();
 
-    let usage_path = ObjectPath::from(".pnpr-artifacts/v0/quota.json");
+    let usage_path = ObjectPath::from(".artifacts/quota.json");
     let usage: ArtifactUsage = serde_json::from_slice(
         &backend
             .get(&usage_path)
@@ -295,7 +295,7 @@ async fn publication_finish_retries_a_transient_quota_write_failure() {
 
     store.finish_publication(&publication, true).await.unwrap();
 
-    let usage_path = ObjectPath::from(".pnpr-artifacts/v0/quota.json");
+    let usage_path = ObjectPath::from(".artifacts/quota.json");
     let usage: ArtifactUsage = serde_json::from_slice(
         &backend
             .get(&usage_path)
@@ -332,7 +332,7 @@ async fn a_failed_reread_after_a_lost_race_still_releases_the_quota() {
         quota: super::QuotaFaults {
             fail_next_write: None,
             claim_slot_first: Some((
-                format!(".pnpr-artifacts/v0/{owner}/entries/{entry}/{slot}.json"),
+                format!(".artifacts/{owner}/entries/{entry}/{slot}.json"),
                 serde_json::to_vec(&winner.envelope).unwrap(),
             )),
             fail_slot_read_after_first: Some(Arc::new(AtomicUsize::new(0))),
@@ -350,7 +350,7 @@ async fn a_failed_reread_after_a_lost_race_still_releases_the_quota() {
         .await
         .unwrap_err();
 
-    let usage_path = ObjectPath::from(".pnpr-artifacts/v0/quota.json");
+    let usage_path = ObjectPath::from(".artifacts/quota.json");
     let usage: ArtifactUsage = serde_json::from_slice(
         &backend
             .get(&usage_path)

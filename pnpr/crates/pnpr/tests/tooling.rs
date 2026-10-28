@@ -9,7 +9,10 @@ use pnpr::{
     migrate_storage::{MigrateStorageOptions, format_migrate_report, migrate_local_to_s3},
     verify::{VerifyOptions, format_verify_report, verify_storage},
 };
-use pnpr_storage::layout::{local_blob_path, local_document_path, write_local_layout_marker};
+use pnpr_storage::{
+    Ecosystem,
+    layout::{local_blob_path, local_document_path, write_local_layout_marker},
+};
 
 /// Write `bytes` to `path` in a hosted store, creating its directories.
 fn seed_file(path: impl AsRef<Path>, bytes: impl AsRef<[u8]>) {
@@ -121,11 +124,11 @@ async fn test_export_storage() {
         }
     });
     seed_file(
-        local_document_path(&config.storage.hosted_dir, "", pkg),
+        local_document_path(&config.storage.hosted_dir, "", Ecosystem::Npm, pkg),
         serde_json::to_vec(&doc).unwrap(),
     );
     seed_file(
-        local_blob_path(&config.storage.hosted_dir, "", pkg, "demo-pkg-1.0.0.tgz"),
+        local_blob_path(&config.storage.hosted_dir, "", Ecosystem::Npm, pkg, "demo-pkg-1.0.0.tgz"),
         b"fake tarball bytes",
     );
 
@@ -138,6 +141,50 @@ async fn test_export_storage() {
     assert!(formatted.contains("Export completed successfully"));
     assert!(export_out.join("demo-pkg/package.json").exists());
     assert!(export_out.join("demo-pkg/demo-pkg-1.0.0.tgz").exists());
+}
+
+#[tokio::test]
+async fn verify_and_export_keep_the_stored_tar_of_a_hosted_tar_registry() {
+    let dir = TempDir::new().unwrap();
+    let (config, _cfg_file) = create_test_config(dir.path());
+    let pkg = "demo-pkg";
+    write_local_layout_marker(&config.storage.hosted_dir).unwrap();
+    let doc = serde_json::json!({
+        "name": "demo-pkg",
+        "versions": {
+            "1.0.0": {
+                "name": "demo-pkg",
+                "version": "1.0.0",
+                "dist": { "tarball": "http://localhost:7677/demo-pkg/-/demo-pkg-1.0.0.tgz" }
+            }
+        }
+    });
+    seed_file(
+        local_document_path(&config.storage.hosted_dir, "", Ecosystem::Npm, pkg),
+        serde_json::to_vec(&doc).unwrap(),
+    );
+    let stored_tar = local_blob_path(
+        &config.storage.hosted_dir,
+        "",
+        Ecosystem::Npm,
+        pkg,
+        "demo-pkg-1.0.0.tar.zst",
+    );
+    seed_file(stored_tar.clone(), b"zstd tar bytes");
+
+    let prune = VerifyOptions { check_hashes: true, prune_orphans: true, min_age_secs: 0 };
+    let report = verify_storage(&config, &prune).await.unwrap();
+    assert_eq!(report.blobs_checked, 1);
+    assert!(report.missing_blobs.is_empty(), "{:?}", report.missing_blobs);
+    assert!(report.orphaned_blobs.is_empty(), "{:?}", report.orphaned_blobs);
+    assert!(stored_tar.exists());
+    assert_eq!(report.corrupted_blobs.len(), 1, "{:?}", report.corrupted_blobs);
+    assert!(report.corrupted_blobs[0].contains("no recorded tar integrity"));
+
+    let export_out = dir.path().join("exported");
+    let exported = export_storage(&config, &export_out, true).await.unwrap();
+    assert_eq!(exported.blobs_exported, 1);
+    assert!(export_out.join("demo-pkg/demo-pkg-1.0.0.tar.zst").exists());
 }
 
 #[tokio::test]
@@ -164,16 +211,17 @@ async fn test_verify_storage_health_and_orphan_prune() {
         }
     });
     seed_file(
-        local_document_path(&config.storage.hosted_dir, "", pkg),
+        local_document_path(&config.storage.hosted_dir, "", Ecosystem::Npm, pkg),
         serde_json::to_vec(&doc).unwrap(),
     );
     seed_file(
-        local_blob_path(&config.storage.hosted_dir, "", pkg, "demo-pkg-1.0.0.tgz"),
+        local_blob_path(&config.storage.hosted_dir, "", Ecosystem::Npm, pkg, "demo-pkg-1.0.0.tgz"),
         tarball_bytes,
     );
 
     // Add an orphaned blob
-    let orphan_path = local_blob_path(&config.storage.hosted_dir, "", pkg, "orphaned-blob.tgz");
+    let orphan_path =
+        local_blob_path(&config.storage.hosted_dir, "", Ecosystem::Npm, pkg, "orphaned-blob.tgz");
     std::fs::write(&orphan_path, b"unreferenced").unwrap();
 
     // 1. Verify detecting the orphan even with min_age_secs: 86400 (audit reports all orphans)
@@ -201,8 +249,13 @@ async fn test_verify_storage_health_and_orphan_prune() {
     assert!(!orphan_path.exists());
 
     // 4. Verify an undeclared .sigstore file is pruned when dist.attestations is absent
-    let undeclared_sigstore =
-        local_blob_path(&config.storage.hosted_dir, "", pkg, "demo-pkg-1.0.0.sigstore");
+    let undeclared_sigstore = local_blob_path(
+        &config.storage.hosted_dir,
+        "",
+        Ecosystem::Npm,
+        pkg,
+        "demo-pkg-1.0.0.sigstore",
+    );
     std::fs::write(&undeclared_sigstore, b"abandoned sigstore").unwrap();
     let sigstore_report = verify_storage(&config, &prune_opts).await.unwrap();
     assert_eq!(sigstore_report.orphaned_blobs.len(), 1);
@@ -238,11 +291,11 @@ async fn test_verify_storage_corrupted_and_missing() {
         }
     });
     seed_file(
-        local_document_path(&config.storage.hosted_dir, "", pkg),
+        local_document_path(&config.storage.hosted_dir, "", Ecosystem::Npm, pkg),
         serde_json::to_vec(&doc).unwrap(),
     );
     seed_file(
-        local_blob_path(&config.storage.hosted_dir, "", pkg, "corrupt-1.0.0.tgz"),
+        local_blob_path(&config.storage.hosted_dir, "", Ecosystem::Npm, pkg, "corrupt-1.0.0.tgz"),
         b"some mismatched content",
     );
 
@@ -276,11 +329,11 @@ async fn test_migrate_storage_dry_run() {
         }
     });
     seed_file(
-        local_document_path(&config.storage.hosted_dir, "", pkg),
+        local_document_path(&config.storage.hosted_dir, "", Ecosystem::Npm, pkg),
         serde_json::to_vec(&doc).unwrap(),
     );
     seed_file(
-        local_blob_path(&config.storage.hosted_dir, "", pkg, "demo-pkg-1.0.0.tgz"),
+        local_blob_path(&config.storage.hosted_dir, "", Ecosystem::Npm, pkg, "demo-pkg-1.0.0.tgz"),
         b"fake tarball bytes",
     );
 
@@ -322,11 +375,17 @@ async fn test_migrate_storage_non_npm_package() {
         ]
     });
     seed_file(
-        local_document_path(&config.storage.hosted_dir, "", pkg),
+        local_document_path(&config.storage.hosted_dir, "", Ecosystem::Cargo, pkg),
         serde_json::to_vec(&doc).unwrap(),
     );
     seed_file(
-        local_blob_path(&config.storage.hosted_dir, "", pkg, "my-crate-0.1.0.crate"),
+        local_blob_path(
+            &config.storage.hosted_dir,
+            "",
+            Ecosystem::Cargo,
+            pkg,
+            "my-crate-0.1.0.crate",
+        ),
         b"fake crate bytes",
     );
 
@@ -373,15 +432,27 @@ async fn test_verify_and_export_attestations() {
         }
     });
     seed_file(
-        local_document_path(&config.storage.hosted_dir, "", pkg),
+        local_document_path(&config.storage.hosted_dir, "", Ecosystem::Npm, pkg),
         serde_json::to_vec(&doc).unwrap(),
     );
     seed_file(
-        local_blob_path(&config.storage.hosted_dir, "", pkg, "signed-pkg-1.0.0.tgz"),
+        local_blob_path(
+            &config.storage.hosted_dir,
+            "",
+            Ecosystem::Npm,
+            pkg,
+            "signed-pkg-1.0.0.tgz",
+        ),
         tarball_bytes,
     );
     seed_file(
-        local_blob_path(&config.storage.hosted_dir, "", pkg, "signed-pkg-1.0.0.sigstore"),
+        local_blob_path(
+            &config.storage.hosted_dir,
+            "",
+            Ecosystem::Npm,
+            pkg,
+            "signed-pkg-1.0.0.sigstore",
+        ),
         b"sigstore bundle bytes",
     );
 
@@ -447,7 +518,7 @@ backend:
     replicaPath: '{}'
 auth:
   htpasswd:
-    max_users: 3
+    maxUsers: 3
 registries:
   local:
     type: hosted
@@ -484,6 +555,43 @@ defaultRegistry:
     );
     assert!(!output.contains("secret-database-token"), "{output}");
     assert!(output.contains("Default registries: npm=local, cargo=crates"), "{output}");
+}
+
+#[test]
+fn test_config_check_reports_the_s3_key_prefix() {
+    let dir = TempDir::new().unwrap();
+    let report = |prefix: &str| {
+        let yaml = format!(
+            r"
+storage: '{}'
+cache: '{}'
+s3:
+  bucket: packages
+  region: auto
+  endpoint: https://storage.example.com
+{prefix}
+registries:
+  local:
+    type: hosted
+    packages:
+      '@acme/*':
+        publish: $authenticated
+",
+            dir.path().join("hosted").display(),
+            dir.path().join("cache").display(),
+        );
+        let config_file = dir.path().join("pnpr.yaml");
+        std::fs::write(&config_file, yaml).unwrap();
+        let report = pnpr::config_check::check_config(Some(&config_file)).unwrap();
+        pnpr::config_check::format_report(&report)
+    };
+
+    let output = report("  prefix: /pnpr");
+    assert!(output.contains("Storage: S3 (bucket: packages, prefix: pnpr/)\n"), "{output}");
+    let output = report("");
+    assert!(output.contains("Storage: S3 (bucket: packages)\n"), "{output}");
+    let output = report(r#"  prefix: "pn\npr""#);
+    assert!(output.contains(r"Storage: S3 (bucket: packages, prefix: pn\npr/)"), "{output}");
 }
 
 #[test]

@@ -8,7 +8,7 @@ pub use inode_map::extend_files_map;
 use derive_more::{Display, Error};
 use inode_map::load_inode_map;
 use miette::Diagnostic;
-use pnpm_directory_fetcher::DirectoryFetcherError;
+use pnpm_directory_fetcher::{CopyFiles, DirectoryFetcherError};
 use pnpm_fs::{FsHardLink, Host, is_cross_device};
 use std::{
     collections::BTreeMap,
@@ -131,21 +131,21 @@ pub struct DirPatcher {
 
 impl DirPatcher {
     /// Diff `source_dir` against each of `target_dirs`, reading each
-    /// tree once. `include_only_package_files` reads the source the way
-    /// [`pnpm_directory_fetcher::DirectoryFetcher::include_only_package_files`] does.
+    /// tree once. `files` selects the source files, and each target is read
+    /// in full.
     pub fn from_multiple_targets(
         source_dir: &Path,
         target_dirs: &[PathBuf],
-        include_only_package_files: bool,
+        files: CopyFiles,
     ) -> Result<Vec<Self>, PatchError> {
-        let source_map = load_inode_map(source_dir, include_only_package_files)?;
+        let source_map = load_inode_map(source_dir, files)?;
         target_dirs
             .iter()
             .map(|target_dir| {
                 Ok(DirPatcher {
                     source_dir: source_dir.to_path_buf(),
                     target_dir: target_dir.clone(),
-                    patch: diff_dir(&load_inode_map(target_dir, false)?, &source_map),
+                    patch: diff_dir(&load_inode_map(target_dir, CopyFiles::AllFiles)?, &source_map),
                 })
             })
             .collect()
@@ -256,24 +256,15 @@ fn linked_file(path: &Path) -> PathBuf {
 /// Recreate the link at `source_path` at `target_path`, the way the install
 /// recreates a package's link to its own content.
 fn place_link(source_path: &Path, target_path: &Path) -> Result<(), PatchError> {
-    let link_error = |error| PatchError::Link {
-        source: source_path.to_path_buf(),
-        target: target_path.to_path_buf(),
-        error,
-    };
-    let contents = pnpm_fs::read_symlink_dir(source_path)
-        .map(|link| pnpm_fs::relative_link_target(source_path, link))
-        .map_err(link_error)?;
     let link_dir = target_path.parent().unwrap_or_else(|| Path::new(""));
     fs::create_dir_all(link_dir)
         .map_err(|error| PatchError::CreateDir { path: link_dir.to_path_buf(), error })?;
-    if fs::metadata(source_path).is_ok_and(|metadata| metadata.is_dir()) {
-        let original = pnpm_fs::lexical_normalize(&link_dir.join(&contents));
-        pnpm_fs::symlink_dir_with_contents(&original, &contents, target_path)
-    } else {
-        pnpm_fs::symlink_file_or_copy(&contents, source_path, target_path)
-    }
-    .map_err(link_error)
+    pnpm_fs::recreate_internal_symlink(source_path, target_path)
+        .map_err(|error| PatchError::Link {
+            source: source_path.to_path_buf(),
+            target: target_path.to_path_buf(),
+            error,
+        })
 }
 
 /// A source directory's files, read once per poll and published to each of
@@ -284,10 +275,8 @@ pub struct PublishSource<'a> {
 }
 
 impl<'a> PublishSource<'a> {
-    /// `include_only_package_files` reads `dir` the way
-    /// [`pnpm_directory_fetcher::DirectoryFetcher::include_only_package_files`] does.
-    pub fn load(dir: &'a Path, include_only_package_files: bool) -> Result<Self, PatchError> {
-        Ok(PublishSource { dir, map: load_inode_map(dir, include_only_package_files)? })
+    pub fn load(dir: &'a Path, files: CopyFiles) -> Result<Self, PatchError> {
+        Ok(PublishSource { dir, map: load_inode_map(dir, files)? })
     }
 }
 
@@ -306,7 +295,7 @@ pub fn publish_edits(
     edited_since: SystemTime,
 ) -> Result<(), PatchError> {
     let PublishSource { dir: source_dir, map: source_map } = source;
-    let target_map = load_inode_map(target_dir, false)?;
+    let target_map = load_inode_map(target_dir, CopyFiles::AllFiles)?;
     let patch = diff_dir(&target_map, source_map);
     for path in &patch.removed {
         remove_recursive(&target_dir.join(path))?;

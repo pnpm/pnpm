@@ -493,13 +493,21 @@ impl Resolver for FailingAliasResolver {
 fn optional_failure_fixture(
     failure: FailureShape,
 ) -> (tempfile::TempDir, PackageManifest, FailingAliasResolver) {
+    optional_failure_fixture_with_specifier(failure, "^1.0.0")
+}
+
+/// [`optional_failure_fixture`] with `broken` declared as `specifier`.
+fn optional_failure_fixture_with_specifier(
+    failure: FailureShape,
+    specifier: &str,
+) -> (tempfile::TempDir, PackageManifest, FailingAliasResolver) {
     let tmp = tempfile::tempdir().expect("tempdir");
     let path = tmp.path().join("package.json");
     let json = serde_json::json!({
         "name": "root",
         "version": "0.0.0",
         "dependencies": { "kept": "^1.0.0" },
-        "optionalDependencies": { "broken": "^1.0.0" },
+        "optionalDependencies": { "broken": specifier },
     });
     std::fs::write(&path, serde_json::to_string(&json).unwrap()).expect("write package.json");
     let manifest = PackageManifest::from_path(path).expect("parse package.json");

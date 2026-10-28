@@ -2,13 +2,15 @@ pub(crate) use context::{
     CommandFuture, CommandLoaders, CommandLocations, RunCtx, WorkspaceInvocation,
 };
 
-pub(super) use configuration::{apply_update_config, seed_config};
+pub(super) use super::pre_command::{apply_cli_layers, seed_config};
+pub(super) use configuration::apply_update_config;
 
 use super::{
     cli_command::{CliArgs, CliCommand},
     config_warnings::{ConfigWarnings, warn_shared_workspace_lockfile_outside_workspace},
     dispatch_install, dispatch_query, dispatch_script,
     install::{InstallArgs, resolve_bool_override},
+    pre_command::Invocation,
     reporter::{
         DefaultReporterSetup, ReporterType, configure_color, configure_default_reporter,
         configure_max_log_level, reporter_emit,
@@ -17,24 +19,27 @@ use super::{
 use crate::{
     cli_args::reporter::{select_reporter, selected_reporter},
     config_deps::prepare_config,
-    config_overrides::{ConfigOverrides, apply_state_dir_override, apply_store_dir_override},
+    config_overrides::ConfigOverrides,
 };
 use configuration::{
-    ConfigTarget, ProjectSelectors, RunAnchors, RunSetup, StoreUse, apply_color_override,
-    apply_location_overrides, apply_project_selectors, apply_run_output_config,
-    warn_fast_path_config,
+    ConfigTarget, ProjectSelectors, RunAnchors, RunSetup, StoreUse, apply_project_selectors,
+    apply_run_output_config, warn_fast_path_config,
 };
+use context::take_preloaded_config;
 use miette::{Context, IntoDiagnostic};
-use pnpm_config::{ColorMode, Config, Host, default_pnpm_home_dir};
+use pnpm_config::{ColorMode, Config, ConfigLoadFailure, Host, default_pnpm_home_dir};
 use pnpm_default_reporter::SummaryScope;
 use pnpm_network_web_auth::OtpNonInteractiveError;
 use pnpm_reporter::{ExecutionTimeLog, LogEvent, LogLevel};
 use routing::{
-    emit_execution_time, now_millis, print_json_error, prints_json_errors, run_routed_command,
+    emit_execution_time, exit_on_json_error, now_millis, prints_json_errors, run_routed_command,
 };
 use std::{
     path::{Path, PathBuf},
-    sync::atomic::{AtomicBool, Ordering},
+    sync::{
+        Mutex,
+        atomic::{AtomicBool, Ordering},
+    },
 };
 
 impl CliArgs {
@@ -114,24 +119,12 @@ impl CliArgs {
         warnings.report(config, dir).ok()
     }
 
-    /// `--store-dir` and `--state-dir`. `None` when the store directory
-    /// cannot be applied.
-    fn apply_fast_path_dir_flags(&self, config: &mut Config, dir: &Path) -> Option<()> {
-        if let Some(store_dir) = self.paths.store_dir.as_deref() {
-            apply_store_dir_override::<Host>(config, store_dir, dir).ok()?;
-            config.cli_settings.insert("storeDir".to_string());
-        }
-        if let Some(state_dir) = self.paths.state_dir.as_deref() {
-            apply_state_dir_override::<Host>(config, state_dir, dir);
-            config.cli_settings.insert("stateDir".to_string());
-        }
-        Some(())
-    }
-
     fn prepare_fast_path_config(
         &self,
+        invocation: &Invocation,
         config_overrides: &ConfigOverrides,
         install_args: &InstallArgs,
+        preloaded_config: &mut Option<Result<Config, ConfigLoadFailure>>,
     ) -> Option<(PathBuf, Config)> {
         if !self.workspace.selection.filter.is_empty()
             || !self.workspace.selection.filter_prod.is_empty()
@@ -139,18 +132,14 @@ impl CliArgs {
             return None;
         }
         let dir = dunce::canonicalize(&self.paths.dir).ok()?;
-        let mut config = seed_config(
-            self.paths.npmrc_auth_file.as_deref(),
-            self.paths.ignore_workspace,
-            config_overrides,
-            self.network.registry.as_deref(),
-        )
-        .current::<Host>(&dir)
-        .ok()?;
-        self.report_fast_path_warnings(&config, &dir)?;
-        config_overrides.apply(&mut config, &dir);
-        self.network.apply(&mut config);
-        self.apply_fast_path_dir_flags(&mut config, &dir)?;
+        let mut config =
+            self.take_or_load_fast_path_config(&dir, config_overrides, preloaded_config)?;
+        if self.report_fast_path_warnings(&config, &dir).is_none()
+            || apply_cli_layers(&mut config, invocation, config_overrides, &dir).is_err()
+        {
+            *preloaded_config = Some(Ok(config));
+            return None;
+        }
         install_args.lockfile.directory.apply_to(&mut config, &dir);
         config.frozen_store = resolve_bool_override(
             install_args.materialization.frozen_store,
@@ -172,26 +161,25 @@ impl CliArgs {
     /// repeat-install fast path, before the caller builds the async
     /// runtime. `true` means the install completed (the "Already up to
     /// date" events were emitted); `false` means undecided — proceed
-    /// with [`Self::run`], which loads its own config and re-runs the
-    /// same check.
-    ///
-    /// Mirrors the install arm of [`Self::run`]'s dispatch: the same
-    /// canonicalized `--dir`, the same config seed (`--npmrc-auth-file`
-    /// and `--ignore-workspace`), the same `--config.<key>` overrides. A
-    /// config loaded any other way would answer for a different project.
-    ///
-    /// Filtered installs always take the full path; an unfiltered
-    /// recursive one does not — inside a workspace every install is
-    /// recursive, and the up-to-date check speaks for the whole
-    /// workspace.
-    pub fn finished_via_install_fast_path(&self, config_overrides: &ConfigOverrides) -> bool {
+    /// with [`Self::run`], reusing any already-loaded configuration.
+    pub(crate) fn finished_via_install_fast_path(
+        &self,
+        invocation: &Invocation,
+        config_overrides: &ConfigOverrides,
+        preloaded_config: &mut Option<Result<Config, ConfigLoadFailure>>,
+    ) -> bool {
         let started_at = now_millis();
         let CliCommand::Install(install_args) = &self.command else {
             return false;
         };
         let prepared = {
             let _span = tracing::debug_span!(target: "pacquet::install", "load_config").entered();
-            self.prepare_fast_path_config(config_overrides, install_args)
+            self.prepare_fast_path_config(
+                invocation,
+                config_overrides,
+                install_args,
+                preloaded_config,
+            )
         };
         let Some((dir, config)) = prepared else {
             return false;
@@ -202,6 +190,8 @@ impl CliArgs {
         if finished {
             warn_fast_path_config(config_overrides, &config);
             emit_execution_time(emit, started_at);
+        } else {
+            *preloaded_config = Some(Ok(config));
         }
         finished
     }
@@ -213,10 +203,12 @@ impl CliArgs {
     /// "CLI > yaml > .npmrc > defaults" precedence. `builtin_command_forced`
     /// carries the `pm` prefix stripped from argv by
     /// [`crate::pm_prefix::strip_prefix`].
-    pub async fn run(
+    pub(crate) async fn run(
         mut self,
+        invocation: &Invocation,
         config_overrides: &ConfigOverrides,
         builtin_command_forced: bool,
+        preloaded_config: Option<Result<Config, ConfigLoadFailure>>,
     ) -> miette::Result<()> {
         if self.run_completion_if_requested()? {
             return Ok(());
@@ -229,9 +221,16 @@ impl CliArgs {
         let setup = RunSetup::of(&self);
         let command = std::mem::replace(&mut self.command, CliCommand::Recursive);
 
-        let builtin_replaced_by_script =
-            self.run_command(command, config_overrides, builtin_command_forced, &setup, &anchors)
-                .await?;
+        let builtin_replaced_by_script = self.run_command(
+            command,
+            invocation,
+            config_overrides,
+            builtin_command_forced,
+            &setup,
+            &anchors,
+            preloaded_config,
+        )
+        .await?;
 
         // The `Done in ...` footer covers the whole command, mirroring pnpm's
         // `pnpm:execution-time` emit in `main.ts`. Only the install-family
@@ -242,40 +241,47 @@ impl CliArgs {
 
         Ok(())
     }
+
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "command execution threads parsed CLI state and preloaded config into loaders"
+    )]
     async fn run_command(
         &self,
         command: CliCommand,
+        invocation: &Invocation,
         config_overrides: &ConfigOverrides,
         builtin_command_forced: bool,
         setup: &RunSetup,
         anchors: &RunAnchors,
+        preloaded_config: Option<Result<Config, ConfigLoadFailure>>,
     ) -> miette::Result<bool> {
-        // Load config anchored at `anchor`, reading `.npmrc` /
-        // `pnpm-workspace.yaml` from there.
-        let (npm_command, store_use) = (command.npm_command_name(), StoreUse::of(&command));
-        let warnings = ConfigWarnings::of(&command);
+        let target_template =
+            (command.npm_command_name(), StoreUse::of(&command), ConfigWarnings::of(&command));
+        let preloaded_config = Mutex::new(preloaded_config);
         let load_config = |anchor: &Path, is_global: bool| {
-            let target = ConfigTarget { anchor, is_global, store_use, warnings };
-            self.load_and_finalize_config(&target, config_overrides, setup, anchors, npm_command)
+            let target = ConfigTarget {
+                anchor,
+                is_global,
+                store_use: target_template.1,
+                warnings: target_template.2,
+            };
+            self.load_and_finalize_config(
+                &target,
+                invocation,
+                config_overrides,
+                setup,
+                anchors,
+                target_template.0,
+                take_preloaded_config(&preloaded_config, anchor, is_global, &anchors.dir),
+            )
         };
         // Resolve `.npmrc` / `pnpm-workspace.yaml` from the canonicalized
         // `--dir` rather than the process cwd, matching pnpm 11 (which
         // builds its `localPrefix` from `cliOptions.dir`, not `cwd`).
         let config = || load_config(&anchors.dir, false);
-        let config_self_update = || -> miette::Result<&'static mut Config> {
-            seed_config(
-                self.paths.npmrc_auth_file.as_deref(),
-                self.paths.ignore_workspace,
-                config_overrides,
-                self.network.registry.as_deref(),
-            )
-            .current_for_self_update::<Host>(&anchors.dir)
-            .map_err(miette::Report::new)
-            .wrap_err("load configuration")
-            .and_then(|cfg| {
-                self.finalize_run_config(cfg, &anchors.dir, false, config_overrides, setup, anchors)
-            })
-        };
+        let config_self_update =
+            || self.load_self_update_config(invocation, config_overrides, setup, anchors);
         let builtin_replaced_by_script = AtomicBool::new(false);
         let ctx = RunCtx {
             reporter_flags: self.reporter_flags(),
@@ -293,13 +299,19 @@ impl CliArgs {
         Ok(builtin_replaced_by_script.load(Ordering::Relaxed))
     }
 
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "combines target options, invocation layers, and preloaded config into a static Config"
+    )]
     fn load_and_finalize_config(
         &self,
         target: &ConfigTarget<'_>,
+        invocation: &Invocation,
         config_overrides: &ConfigOverrides,
         setup: &RunSetup,
         anchors: &RunAnchors,
         npm_command: &'static str,
+        preloaded: Option<Result<Config, ConfigLoadFailure>>,
     ) -> miette::Result<&'static mut Config> {
         let ConfigTarget {
             anchor,
@@ -307,12 +319,26 @@ impl CliArgs {
             store_use,
             warnings,
         } = *target;
-        let cfg = store_use.load(|place_store| {
-            self.load_config_at(anchor, place_store, config_overrides, warnings)
-        })?;
+        let cfg = match preloaded {
+            Some(Ok(cfg)) if !cfg.skip_store_dir_resolution => cfg,
+            Some(Err(failure)) => {
+                warnings.report_failed_load(&failure.warnings);
+                return Err(miette::Report::new(failure.error)).wrap_err("load configuration");
+            }
+            Some(Ok(_)) | None => store_use.load(|place_store| {
+                self.load_config_at(anchor, place_store, config_overrides, warnings)
+            })?,
+        };
         warnings.report(&cfg, anchor)?;
-        let config =
-            self.finalize_run_config(cfg, anchor, is_global, config_overrides, setup, anchors)?;
+        let config = self.finalize_run_config(
+            cfg,
+            anchor,
+            is_global,
+            invocation,
+            config_overrides,
+            setup,
+            anchors,
+        )?;
         // npm names the running command for scripts in `npm_command`, and pnpm 11
         // sets the same variable, so scripts that branch on it behave alike
         // whichever CLI runs them. This map is what every script-spawning site
@@ -321,59 +347,27 @@ impl CliArgs {
         Ok(config)
     }
 
-    fn load_config_at(
-        &self,
-        anchor: &Path,
-        place_store: bool,
-        config_overrides: &ConfigOverrides,
-        warnings: ConfigWarnings,
-    ) -> miette::Result<Config> {
-        let mut seed = seed_config(
-            self.paths.npmrc_auth_file.as_deref(),
-            self.paths.ignore_workspace,
-            config_overrides,
-            self.network.registry.as_deref(),
-        );
-        seed.skip_store_dir_resolution = !place_store;
-        seed.current_keeping_warnings::<Host>(anchor)
-            .map_err(|failure| {
-                warnings.report_failed_load(&failure.warnings);
-                miette::Report::new(failure.error)
-            })
-            .wrap_err("load configuration")
-    }
-
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "layers CLI flags, project selectors, and reporter setup onto the loaded Config"
+    )]
     fn finalize_run_config(
         &self,
         mut cfg: Config,
         anchor: &Path,
         is_global: bool,
+        invocation: &Invocation,
         config_overrides: &ConfigOverrides,
         setup: &RunSetup,
         anchors: &RunAnchors,
     ) -> miette::Result<&'static mut Config> {
-        config_overrides.apply(&mut cfg, anchor);
+        apply_cli_layers(&mut cfg, invocation, config_overrides, anchor)?;
         if !is_global {
             warn_shared_workspace_lockfile_outside_workspace(
                 config_overrides.shared_workspace_lockfile(),
                 cfg.workspace_dir.as_deref(),
             );
         }
-        apply_color_override(
-            &mut cfg,
-            self.output.presentation.color,
-            self.output.presentation.no_color,
-        );
-        if cfg.ci {
-            pnpm_default_reporter::force_append_only();
-        }
-        self.network.apply(&mut cfg);
-        apply_location_overrides(
-            &mut cfg,
-            anchor,
-            self.paths.store_dir.as_deref(),
-            self.paths.state_dir.as_deref(),
-        )?;
         apply_project_selectors(
             &mut cfg,
             &ProjectSelectors {
@@ -391,48 +385,6 @@ impl CliArgs {
         self.configure_run_reporter(&cfg, reporter, setup, anchors);
         Ok(Config::leak(cfg))
     }
-
-    fn configure_run_reporter(
-        &self,
-        cfg: &Config,
-        reporter: ReporterType,
-        setup: &RunSetup,
-        anchors: &RunAnchors,
-    ) {
-        pnpm_default_reporter::set_progress(cfg.progress);
-        if self.output.presentation.loglevel.is_none()
-            && let Some(config_loglevel) = cfg.loglevel
-        {
-            configure_max_log_level(Some(config_loglevel.into()));
-        }
-        configure_default_reporter(&DefaultReporterSetup {
-            reporter,
-            dir: &anchors.dir,
-            summary_scope: setup.summary_scope,
-            reports_scope: setup.reports_scope,
-            hide_added_pkgs_progress: false,
-            is_recursive: self.workspace.recursive,
-            lifecycle: crate::cli_args::reporter::LifecycleReporterSetup {
-                use_stderr: cfg.use_stderr || setup.uses_stderr_reporter,
-                stream_output: cfg.stream,
-                aggregate_output: cfg.aggregate_output,
-                hide_prefix: cfg.reporter_hide_prefix.unwrap_or(false),
-            },
-        });
-    }
-}
-
-/// A JSON-mode command reports its own failure on stdout and exits, so the
-/// human-readable miette report never renders.
-fn exit_on_json_error(result: miette::Result<()>, print_json_errors: bool) -> miette::Result<()> {
-    if let Err(error) = &result
-        && print_json_errors
-    {
-        print_json_error(error);
-        #[expect(clippy::exit, reason = "a JSON-mode command exits non-zero after its own report")]
-        std::process::exit(1);
-    }
-    result
 }
 
 #[cfg(test)]

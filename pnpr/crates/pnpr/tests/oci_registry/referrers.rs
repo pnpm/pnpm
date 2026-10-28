@@ -21,7 +21,7 @@ async fn referrer_pages_bound_migration_and_keep_filter_and_registry() {
             config.storage.cache_dir.clone(),
         )
         .unwrap()
-        .for_hosted("images");
+        .for_hosted("images", Ecosystem::Oci);
         let app = router_with_auth(config, AuthState::in_memory());
         let auth = basic(&token(&app).await);
         let subject = digest_of(b"subject");
@@ -124,7 +124,7 @@ async fn large_referrer_annotations_stay_out_of_repository_documents() {
         config.storage.cache_dir.clone(),
     )
     .unwrap()
-    .for_hosted("images");
+    .for_hosted("images", Ecosystem::Oci);
     let app = router_with_auth(config, AuthState::in_memory());
     let auth = basic(&token(&app).await);
     let subject = digest_of(b"subject");

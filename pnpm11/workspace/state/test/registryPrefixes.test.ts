@@ -1,29 +1,21 @@
 import { expect, test } from '@jest/globals'
 
-import { recordedRegistryPrefixes } from '../src/registryPrefixes.js'
+import { recordedRegistryPrefixes, recordedRegistryRoutes } from '../src/registryPrefixes.js'
 
 const WORK = 'https://npm.work.test/'
 
 test('recordedRegistryPrefixes() records nothing when no prefix is declared', () => {
-  expect(recordedRegistryPrefixes({ registriesByScope: { default: WORK } })).toBeUndefined()
-  expect(recordedRegistryPrefixes({ registriesByPrefix: {}, registriesByScope: { default: WORK } })).toBeUndefined()
+  expect(recordedRegistryPrefixes({})).toBeUndefined()
+  expect(recordedRegistryPrefixes({ registriesByPrefix: {} })).toBeUndefined()
 })
 
-test('recordedRegistryPrefixes() records the routes that reach a registry declaring a prefix', () => {
-  expect(recordedRegistryPrefixes({
-    registriesByPrefix: { work: WORK },
-    registriesByScope: {
-      default: 'https://registry.npmjs.org/',
-      '@corp': 'https://npm.work.test',
-    },
-  })).toStrictEqual({
-    'route:@corp': 'work',
-    work: WORK,
-  })
+test('recordedRegistryPrefixes() records the declared prefixes in sorted order', () => {
+  expect(recordedRegistryPrefixes({ registriesByPrefix: { zeta: WORK, work: WORK } })).toStrictEqual({ work: WORK, zeta: WORK })
+  expect(Object.keys(recordedRegistryPrefixes({ registriesByPrefix: { zeta: WORK, work: WORK } })!)).toStrictEqual(['work', 'zeta'])
 })
 
-test('recordedRegistryPrefixes() changes when a scope moves to a registry declaring a prefix', () => {
-  const registriesByPrefix = { work: WORK }
-  expect(recordedRegistryPrefixes({ registriesByPrefix, registriesByScope: { default: 'https://registry.npmjs.org/' } }))
-    .not.toStrictEqual(recordedRegistryPrefixes({ registriesByPrefix, registriesByScope: { default: 'https://registry.npmjs.org/', '@corp': WORK } }))
+test('recordedRegistryRoutes() records the scope routes in sorted order, without the default registry', () => {
+  const routes = recordedRegistryRoutes({ default: 'https://registry.npmjs.org/', '@corp': WORK, '@aaa': WORK })
+  expect(Object.keys(routes)).toStrictEqual(['@aaa', '@corp'])
+  expect(routes).toStrictEqual({ '@aaa': WORK, '@corp': WORK })
 })

@@ -5,14 +5,15 @@ use super::{
     Config, HoistedLinkerError, NodeLinker, Path, PathBuf, SymlinkDirectDependenciesError,
     SymlinkPackageError,
 };
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
-pub(crate) fn link_selected_hoisted_direct_dependencies(
+pub(super) fn link_selected_hoisted_direct_dependencies(
     config: &Config,
     lockfile_dir: &Path,
     project_manifests: &[(PathBuf, &pnpm_package_manifest::PackageManifest)],
     direct_dependencies_by_importer_id: &crate::DirectDependenciesByImporterId,
     initial_sources: &crate::HoistedBinSources,
+    claimed_commands: &mut HashMap<PathBuf, HashSet<String>>,
 ) -> Result<HashSet<PathBuf>, HoistedLinkerError> {
     let modules_dir_name = config.modules_dir_name();
     let root_modules_dir = pnpm_fs::lexical_normalize(&config.modules_dir);
@@ -33,11 +34,18 @@ pub(crate) fn link_selected_hoisted_direct_dependencies(
             },
             is_workspace_root,
         };
-        if scope.link_direct_dependencies(
+        let (changed, linked_commands) = scope.link_direct_dependencies_claiming(
             direct_dependencies_by_importer_id,
             &link_options,
             initial_sources.get(&scope.modules_dir).map(AsRef::as_ref),
-        )? {
+        )?;
+        if let Some(commands) = linked_commands {
+            claimed_commands
+                .entry(pnpm_fs::lexical_normalize(&scope.modules_dir))
+                .or_default()
+                .extend(commands);
+        }
+        if changed {
             changed_dirs.insert(scope.modules_dir);
         }
     }
@@ -68,15 +76,30 @@ enum DirectLink {
 }
 
 impl HoistedLinkScope<'_> {
+    #[cfg(test)]
     fn link_direct_dependencies(
         &self,
         direct_dependencies_by_importer_id: &crate::DirectDependenciesByImporterId,
         link_options: &pnpm_cmd_shim::LinkBinsOptions,
         initial_sources: Option<&[pnpm_cmd_shim::PackageBinSource]>,
     ) -> Result<bool, HoistedLinkerError> {
+        self.link_direct_dependencies_claiming(
+            direct_dependencies_by_importer_id,
+            link_options,
+            initial_sources,
+        )
+        .map(|(changed, _)| changed)
+    }
+
+    fn link_direct_dependencies_claiming(
+        &self,
+        direct_dependencies_by_importer_id: &crate::DirectDependenciesByImporterId,
+        link_options: &pnpm_cmd_shim::LinkBinsOptions,
+        initial_sources: Option<&[pnpm_cmd_shim::PackageBinSource]>,
+    ) -> Result<(bool, Option<HashSet<String>>), HoistedLinkerError> {
         let Some(direct_dependencies) = direct_dependencies_by_importer_id.get(&self.importer_id)
         else {
-            return Ok(false);
+            return Ok((false, None));
         };
         let mut linked_names = Vec::new();
         let mut changed = false;
@@ -91,7 +114,7 @@ impl HoistedLinkScope<'_> {
             }
         }
         if !changed && self.already_linked(&linked_names, initial_sources) {
-            return Ok(false);
+            return Ok((false, None));
         }
         crate::link_direct_dep_bins_before_builds(&self.modules_dir, &linked_names, link_options)
             .map_err(|source| {
@@ -99,7 +122,7 @@ impl HoistedLinkScope<'_> {
                     SymlinkDirectDependenciesError::LinkBins(source),
                 )
             })
-            .map(|_| changed)
+            .map(|outcome| (changed, Some(outcome.linked_commands)))
     }
 
     // Both passes precede lifecycle execution and use identical hoisted shim options.

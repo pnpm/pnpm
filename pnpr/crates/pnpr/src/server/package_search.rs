@@ -1,8 +1,8 @@
 use super::{
     Action, AppState, Body, Ecosystem, FetchOutcome, HashSet, HostedGate, Identity, Registry,
     RegistryError, RegistrySource, Response, StatusCode, Storage, Upstream, Value, authorize,
-    default_registry_target, header, hosted_gate, hosted_storage, json, now_iso,
-    resolve_ecosystem_source, resolve_registry_source,
+    default_registry_target, header, hosted_gate, json, now_iso, resolve_ecosystem_source,
+    resolve_registry_source,
 };
 use axum::response::IntoResponse;
 
@@ -273,7 +273,7 @@ pub(super) async fn hosted_search_names(
     if !hosted.rules.any_access_admits(identity) {
         return Ok(None);
     }
-    let storage = hosted_storage(state, Some(&hosted.org));
+    let storage = state.inner.storage.for_hosted(&hosted.org, ecosystem);
     let keep = |name: &str| {
         matches!(
             resolve_ecosystem_source(state, registry, ecosystem, name),

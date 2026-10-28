@@ -401,7 +401,7 @@ pub(crate) fn with_dependencies(selector: &str) -> String {
 /// The command line's setting overrides, which the install inherits.
 /// They stay out of the prompt, which could otherwise print a credential
 /// such as `--config.//registry.example/:_authToken=...`.
-fn install_config_args(config: &Config) -> impl Iterator<Item = String> {
+pub(crate) fn install_config_args(config: &Config) -> impl Iterator<Item = String> {
     let raw = config.cli.npmrc_tokens
         .iter()
         .map(|(key, value)| {

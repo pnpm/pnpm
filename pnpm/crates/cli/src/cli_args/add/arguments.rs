@@ -59,7 +59,7 @@ pub struct AddIncludeArgs {
     /// Leave devDependencies out of `node_modules`.
     #[clap(long, visible_alias = "production")]
     pub prod: bool,
-    /// Leave dependencies and optionalDependencies out of `node_modules`.
+    /// Leave dependencies out of `node_modules`.
     #[clap(long)]
     pub dev: bool,
 }
@@ -72,6 +72,10 @@ pub struct AddSaveArgs {
     /// Do not add `@types` packages automatically.
     #[clap(long = "no-save-types", overrides_with = "types")]
     pub no_save_types: bool,
+    // `-T` could mean either `--save-types` or `--tilde`, so it parses only to be
+    // rejected by `validate_command_scoped_global_options` with both spellings.
+    #[clap(short = 'T', hide = true)]
+    pub hidden_ambiguous_t: bool,
     /// Saved dependencies will be configured with an exact version rather than using
     /// the default semver range operator.
     #[clap(short = 'E', visible_short_alias = 'e', long = "save-exact")]

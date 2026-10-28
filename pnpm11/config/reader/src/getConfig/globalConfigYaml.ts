@@ -5,37 +5,100 @@ import kebabCase from 'lodash.kebabcase'
 
 import { isConfigFileKey } from '../configFileKey.js'
 import { getGlobalConfigPath } from '../dirs.js'
+import type { OptionsFromRootManifest } from '../getOptionsFromRootManifest.js'
 import { quoteAndJoin } from '../quoteAndJoin.js'
 import { isKnownSettingKey, quoteAndAnnotateUnknown } from '../unknownSettings.js'
 import type { ConfigBuildState } from './configBuildState.js'
+import type { BootstrapNetworkSettings, ProxySettings } from './registries.js'
 import {
   GLOBAL_CONFIG_SKIPPED_KEYS,
   isRefusedByAProjectManifest,
+  PIN_DECISION_SETTINGS,
   quoteAndExplain,
   quoteAndSuggestCamelCase,
   SCHEMA_DIRECTIVE_KEY,
 } from './skippedKeys.js'
 import { addSettingsFromWorkspaceManifestToConfig } from './workspaceManifestSettings.js'
 
+export interface AppliedGlobalYamlConfig {
+  /** The registries in effect right after the file was applied, or undefined when there is no global config.yaml. */
+  registries: Record<string, string> | undefined
+  /** The file's network settings, which the package-manager bootstrap reads too. */
+  bootstrapNetworkSettings: BootstrapNetworkSettings
+}
+
 /**
  * Applies the settings of the global config.yaml, dropping (and warning about)
  * the keys that file may not set.
- *
- * Returns the registries in effect right after that file was applied, or
- * undefined when there is no global config.yaml.
  */
 export function applyGlobalYamlConfig (
   state: ConfigBuildState,
-  { configDir, globalYamlConfig }: { configDir: string, globalYamlConfig: WorkspaceManifest | undefined }
-): Record<string, string> | undefined {
-  if (!globalYamlConfig) return undefined
+  { configDir, globalYamlConfig, skipUnreadableSettings }: { configDir: string, globalYamlConfig: WorkspaceManifest | undefined, skipUnreadableSettings?: boolean }
+): AppliedGlobalYamlConfig {
+  if (!globalYamlConfig) return { registries: undefined, bootstrapNetworkSettings: {} }
+  if (!skipUnreadableSettings) {
+    return applyGlobalYamlManifest(state, { configDir, globalYamlConfig })
+  }
+  try {
+    return applyAllOrNothingSync(state, () => applyGlobalYamlManifest(state, { configDir, globalYamlConfig: { ...globalYamlConfig } }))
+  } catch {}
+  const pinDecisionSubset = pickKeys(globalYamlConfig, PIN_DECISION_SETTINGS)
+  try {
+    return applyAllOrNothingSync(state, () => applyGlobalYamlManifest(state, { configDir, globalYamlConfig: { ...pinDecisionSubset } }))
+  } catch {}
+  const readableSubset: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(pinDecisionSubset)) {
+    try {
+      applyAllOrNothingSync(state, () => applyGlobalYamlManifest(state, { configDir, globalYamlConfig: { [key]: value } as unknown as WorkspaceManifest }))
+      readableSubset[key] = value
+    } catch {}
+  }
+  try {
+    return applyAllOrNothingSync(state, () => applyGlobalYamlManifest(state, { configDir, globalYamlConfig: readableSubset as unknown as WorkspaceManifest }))
+  } catch {
+    return { registries: undefined, bootstrapNetworkSettings: {} }
+  }
+}
+
+function pickKeys (manifest: WorkspaceManifest, keys: ReadonlySet<string>): WorkspaceManifest {
+  const picked: Record<string, unknown> = {}
+  for (const key of keys) {
+    if (key in manifest) {
+      picked[key] = (manifest as unknown as Record<string, unknown>)[key]
+    }
+  }
+  return picked as unknown as WorkspaceManifest
+}
+
+function applyAllOrNothingSync<Result> (state: ConfigBuildState, apply: () => Result): Result {
+  const before = { ...state.pnpmConfig }
+  const explicitlySetKeysBefore = [...state.explicitlySetKeys]
+  const warningsLengthBefore = state.warnings.length
+  try {
+    return apply()
+  } catch (err: unknown) {
+    for (const key of Object.keys(state.pnpmConfig)) {
+      if (!(key in before)) delete (state.pnpmConfig as unknown as Record<string, unknown>)[key]
+    }
+    Object.assign(state.pnpmConfig, before)
+    state.explicitlySetKeys.clear()
+    for (const key of explicitlySetKeysBefore) state.explicitlySetKeys.add(key)
+    state.warnings.length = warningsLengthBefore
+    throw err
+  }
+}
+
+function applyGlobalYamlManifest (
+  state: ConfigBuildState,
+  { configDir, globalYamlConfig }: { configDir: string, globalYamlConfig: WorkspaceManifest }
+): AppliedGlobalYamlConfig {
   // Consumed by loadNpmrcConfig above; drop so it isn't flagged as unknown.
   delete (globalYamlConfig as unknown as Record<string, unknown>)._auth
   const droppedKeys = removeKeysTheGlobalConfigFileCannotSet(globalYamlConfig)
   if (droppedKeys.ignoredKeys.length > 0 || droppedKeys.kebabKeys.length > 0) {
     warnAboutDroppedGlobalConfigKeys(state.warnings, { ...droppedKeys, globalYamlConfigPath: getGlobalConfigPath(configDir) })
   }
-  addSettingsFromWorkspaceManifestToConfig(state.pnpmConfig, {
+  const settings = addSettingsFromWorkspaceManifestToConfig(state.pnpmConfig, {
     configFromCliOpts: state.configFromCliOpts,
     expandRequestDestinationEnv: true,
     projectManifest: undefined,
@@ -44,7 +107,15 @@ export function applyGlobalYamlConfig (
     workspaceDir: undefined,
     workspaceManifest: globalYamlConfig,
   })
-  return state.pnpmConfig.registriesByScope as Record<string, string> | undefined
+  return {
+    registries: state.pnpmConfig.registriesByScope as Record<string, string> | undefined,
+    bootstrapNetworkSettings: pickBootstrapNetworkSettings(settings),
+  }
+}
+
+function pickBootstrapNetworkSettings (settings: OptionsFromRootManifest & ProxySettings): BootstrapNetworkSettings {
+  const { httpProxy, httpsProxy, localAddress, noProxy, noproxy, proxy, strictSsl } = settings
+  return { httpProxy, httpsProxy, localAddress, noProxy, noproxy, proxy, strictSsl }
 }
 
 interface DroppedGlobalConfigKeys {

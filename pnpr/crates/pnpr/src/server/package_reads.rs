@@ -432,7 +432,11 @@ pub(super) async fn serve_hosted_packument(
     let max_age = state.inner.config.http.packument_ttl.as_secs();
     // A hosted org has no upstream fallback: a package it does not host is a
     // definitive not-found. Reads come from the org's own storage namespace.
-    match state.inner.storage.for_hosted(&org).read_hosted_document(name).await {
+    match state.inner.storage
+        .for_hosted(&org, pnpr_registry::Ecosystem::Npm)
+        .read_hosted_document(name)
+        .await
+    {
         Ok(Some(bytes)) => match packument_response(
             name,
             &bytes,
@@ -465,10 +469,25 @@ pub(super) async fn serve_hosted_tarball(
         Ok(parsed) => parsed,
         Err(err) => return err.into_response(),
     };
-    if let Err(err) = ensure_osv_allowed(state, name, &name_version) {
+    serve_hosted_version_blob(state, &org, name, &name_version, &filename).await
+}
+
+/// The blob `filename` of `version` in the hosted namespace `org`.
+pub(super) async fn serve_hosted_version_blob(
+    state: &AppState,
+    org: &str,
+    name: &CanonicalPackageName,
+    version: &str,
+    filename: &str,
+) -> Response {
+    if let Err(err) = ensure_osv_allowed(state, name, version) {
         return err.into_response();
     }
-    match state.inner.storage.for_hosted(&org).open_hosted_blob(name, &filename).await {
+    match state.inner.storage
+        .for_hosted(org, pnpr_registry::Ecosystem::Npm)
+        .open_hosted_blob(name, filename)
+        .await
+    {
         Ok(Some((body, len))) => tarball_response(body, len),
         Ok(None) => not_found(),
         Err(err) => {

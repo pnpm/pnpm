@@ -40,6 +40,16 @@ impl Diff {
         self.lines.clear();
     }
 
+    /// Take `frame` as already on screen, ending at the cursor, so the next
+    /// [`Self::update_into`] only draws what differs from it.
+    pub fn assume_drawn(&mut self, frame: &str) {
+        self.lines = Line::split(frame, self.width);
+        if let Some(last) = self.lines.last() {
+            self.col = last.remainder;
+            self.row = last.row + last.height;
+        }
+    }
+
     /// Appends to `out` the ANSI escape sequence that transforms the previous
     /// frame into `frame`. The caller wraps this with `\r` (column reset) and
     /// `\x1b[0J` (erase below frame), composing the whole redraw into one

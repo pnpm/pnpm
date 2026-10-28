@@ -30,6 +30,8 @@ mod injected;
 
 mod validation;
 
+mod settings_classification;
+
 use super::{
     Decision, OptimisticRepeatInstallCheck, check_optimistic_repeat_install,
     deps_status::{RunDepsStatus, check_deps_status_before_run},
@@ -259,6 +261,7 @@ fn record_installed(
             workspace_root,
             config,
             project_manifests,
+            workspace_projects: None,
             vouched: &super::validation::Vouched::All,
         },
     );
@@ -290,6 +293,7 @@ fn record_validation_on_disk(workspace_root: &std::path::Path, state: &mut Works
             workspace_root,
             config: &config,
             project_manifests: &project_manifests,
+            workspace_projects: None,
             vouched: &super::validation::Vouched::All,
         },
     );
@@ -400,11 +404,17 @@ fn record_test_workspace_state(
             supported_architectures: None,
         },
         catalogs: &BTreeMap::default(),
-        project_manifests,
+        projects: crate::install::StateProjects {
+            manifests: project_manifests,
+            workspace_projects: None,
+        },
         filesystem_now_ms: Some(backdate_validated_files(workspace_root)),
         carried: crate::install::CarriedSettings {
             established_auto_dedupe: config.auto_dedupe.then_some(true),
             registry_keys_verified: true,
+            registry_routes: Some(
+                crate::optimistic_repeat_install::settings::recorded_registry_routes(config),
+            ),
             kept_settings: None,
         },
         vouched: &super::validation::Vouched::All,

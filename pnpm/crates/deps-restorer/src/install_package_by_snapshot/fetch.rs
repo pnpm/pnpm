@@ -6,7 +6,7 @@ use super::{
 };
 use crate::{CreateVirtualDirBySnapshot, create_virtual_store::requires_build_from_cas_paths};
 use pnpm_config::NodeLinker;
-use pnpm_directory_fetcher::{DirectoryFetchOutput, DirectoryFetcherError};
+use pnpm_directory_fetcher::{CopyFiles, DirectoryFetchOutput, DirectoryFetcherError};
 use pnpm_fs::lexical_normalize;
 use pnpm_lockfile::{
     DirectoryResolution, LockfileResolution, PackageKey, PackageMetadata, SnapshotEntry,
@@ -125,29 +125,20 @@ pub(super) async fn download_tarball<Reporter: self::Reporter>(
 pub(super) fn fetch_directory_resolution(
     workspace_root: &Path,
     dir_resolution: &DirectoryResolution,
-    include_only_package_files: bool,
+    files: CopyFiles,
 ) -> Result<(HashMap<String, PathBuf>, bool), InstallPackageBySnapshotError> {
-    let output = walk_directory(
-        &lexical_normalize(&workspace_root.join(&dir_resolution.directory)),
-        include_only_package_files,
-    )
-    .map_err(InstallPackageBySnapshotError::DirectoryFetch)?;
+    let output =
+        walk_directory(&lexical_normalize(&workspace_root.join(&dir_resolution.directory)), files)
+            .map_err(InstallPackageBySnapshotError::DirectoryFetch)?;
     Ok((output.files_map, output.exists))
 }
 
 /// The directory fetch every directory resolution goes through.
 pub(crate) fn walk_directory(
     directory: &Path,
-    include_only_package_files: bool,
+    files: CopyFiles,
 ) -> Result<DirectoryFetchOutput, DirectoryFetcherError> {
-    pnpm_directory_fetcher::DirectoryFetcher {
-        directory: directory.to_path_buf(),
-        include_only_package_files,
-        resolve_symlinks: false,
-        preserve_symlinks: true,
-        allow_path_escape: false,
-    }
-    .run()
+    files.fetcher(directory).run()
 }
 /// `pnpm:progress` `resolved` for a frozen-lockfile snapshot the
 /// cold-batch path is about to fetch: one event per (resolved)
@@ -319,7 +310,7 @@ impl InstallPackageBySnapshot<'_> {
                 fetch_directory_resolution(
                     self.ctx.workspace_root,
                     dir_resolution,
-                    !config.deploy_all_files,
+                    CopyFiles::from_deploy_all_files(config.deploy_all_files),
                 )
                 .map(|(cas_paths, exists)| (cas_paths, ExtractedPackageMetadata::default(), exists))
             }

@@ -1,8 +1,8 @@
 use super::{
     Config, EnvVar, GetCurrentDir, GetHomeDir, GitHost, HashMap, HoistPatterns, LinkProbe,
-    Lockfile, NodeLinker, Path, StoreDir, StoreRelocation, SymlinkedLockfile,
-    WantedLockfileSelection, WorkspaceSettings, collect_explicit_settings, create_matcher,
-    default_store_dir, get_branches_containing_head, get_current_branch, store_path,
+    Lockfile, NodeLinker, Path, StoreDir, StoreRelocation, SymlinkedLockfile, TrustedSettings,
+    WantedLockfileSelection, collect_explicit_trusted_settings, create_matcher, default_store_dir,
+    get_branches_containing_head, get_current_branch, store_path,
 };
 
 impl Config {
@@ -447,8 +447,8 @@ impl Config {
     /// Record the settings `settings` sets in [`Self::explicit_settings`],
     /// as loading a settings file does, so the derivations that read whether
     /// a setting was set at all see them.
-    pub fn record_explicit_settings(&mut self, settings: &WorkspaceSettings) {
-        collect_explicit_settings(&mut self.explicit_settings, settings);
+    pub fn record_explicit_settings(&mut self, settings: &TrustedSettings) {
+        collect_explicit_trusted_settings(&mut self.explicit_settings, settings);
     }
 
     /// Apply the legacy `shamefullyHoist` setting to the public hoist pattern.

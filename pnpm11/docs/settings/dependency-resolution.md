@@ -582,6 +582,8 @@ There is no setting to keep the old behavior. The old shape is the vulnerability
 
 :::
 
+A plain key records no registry, so pnpm remembers in the workspace state (`node_modules/.pnpm-workspace-state-v1.json`) which registry each scope routed to when it last resolved the lockfile. When you route a scope to another registry, the next `pnpm install` resolves that scope's packages and their dependencies again from the new registry, at the locked versions it serves, and picks another version in range for a locked version it does not serve. A frozen install keeps installing the lockfile as recorded. Without that record, as in a fresh clone, pnpm reads the plain keys as resolved from the registries configured now. Only scope routes are tracked this way: changing the default registry, which is routinely a switch between mirrors, does not resolve anything again.
+
 Every non-built-in alias that the lockfile references must stay declared, through `prefix` in [`registries`](#registries) or through `namedRegistries`. Reading an entry whose alias is gone fails with `ERR_PNPM_MISSING_NAMED_REGISTRY` rather than falling back to the default registry, since that would fetch a different package. Renaming an alias re-resolves the packages that used it.
 
 Tarball URLs that follow the standard registry layout are no longer written to the lockfile for named-registry packages; they are recomputed from the alias's declared URL on demand.

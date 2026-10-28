@@ -68,6 +68,8 @@ pub(crate) struct ApplyResolutionState<'a> {
     pub(crate) existing_wanted: Option<&'a Lockfile>,
     pub(crate) loaded: Option<&'a Lockfile>,
     pub(crate) frozen: bool,
+    /// See `LoadedWorkspace::locked_registry_routes`.
+    pub(crate) locked_registry_routes: Option<std::collections::BTreeMap<String, String>>,
 }
 
 #[derive(Clone, Copy)]
@@ -145,6 +147,8 @@ pub(crate) struct SelectedImporters<'a> {
     pub(crate) manifests: &'a [(PathBuf, &'a PackageManifest)],
     /// [`Self::manifests`] before `packageExtensions` and `readPackage`.
     pub(crate) declared_manifests: &'a [(PathBuf, &'a PackageManifest)],
+    /// See [`crate::RepeatInstallManifests::workspace_projects`].
+    pub(crate) workspace_projects: Option<&'a [(PathBuf, &'a PackageManifest)]>,
     pub(crate) ignore_manifest_check: bool,
 }
 
@@ -158,6 +162,8 @@ pub(crate) struct LockfileVerificationInputs<'a, 'install> {
 pub(crate) struct InstallProjectMetadata<'a> {
     pub(crate) catalogs: &'a Catalogs,
     pub(crate) manifests: &'a [(PathBuf, &'a PackageManifest)],
+    /// See [`crate::RepeatInstallManifests::workspace_projects`].
+    pub(crate) workspace_projects: Option<&'a [(PathBuf, &'a PackageManifest)]>,
     pub(crate) prefix: &'a str,
     pub(crate) workspace_packages: Option<&'a pnpm_resolving_resolver_base::WorkspacePackages>,
 }
@@ -198,6 +204,9 @@ pub(crate) struct RecordedWorkspace<'a> {
     /// Its bins may still name where it was.
     pub(crate) moved: bool,
     pub(crate) projects: &'a [(PathBuf, &'a PackageManifest)],
+    /// The projects whose commands the importers link, per
+    /// [`crate::RepeatInstallManifests::workspace_projects`].
+    pub(crate) bin_projects: &'a [(PathBuf, &'a PackageManifest)],
 }
 
 /// Why a run materializes no `node_modules`.

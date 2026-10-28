@@ -1,8 +1,8 @@
 use super::{
-    BlobUpload, Body, CanonicalPackageName, Digest, ErrorCode, Method, RegistryError, Request,
-    Response, StatusCode, Storage, accepted, append_body, created, error, hash_upload, header,
-    hosted_read_namespace, method_not_allowed, no_content, parse_content_range, query_param,
-    range_not_satisfiable, registry_error, upload_lock_key,
+    BlobUpload, Body, CanonicalPackageName, Digest, ECOSYSTEM, ErrorCode, Method, RegistryError,
+    Request, Response, StatusCode, Storage, accepted, append_body, created, error, hash_upload,
+    header, hosted_read_namespace, method_not_allowed, no_content, parse_content_range,
+    query_param, range_not_satisfiable, registry_error, upload_lock_key,
 };
 
 impl Request {
@@ -32,7 +32,7 @@ impl Request {
             ) => return Ok(None),
             Err(err) => return Err(err),
         };
-        let source_storage = self.state.inner.storage.for_hosted(&source_org);
+        let source_storage = self.state.inner.storage.for_hosted(&source_org, ECOSYSTEM);
         let Some((body, _)) =
             source_storage.open_hosted_blob(&source_key, &digest.blob_filename()).await?
         else {
@@ -59,7 +59,7 @@ impl Request {
             Ok(target) => target,
             Err(refusal) => return refusal.respond(),
         };
-        let storage = self.state.inner.storage.for_hosted(&org);
+        let storage = self.state.inner.storage.for_hosted(&org, ECOSYSTEM);
         if let (Some(mount), Some(from)) =
             (query_param(Some(&self.query), "mount"), query_param(Some(&self.query), "from"))
         {
@@ -97,7 +97,7 @@ impl Request {
         // and the promotion, would store bytes that are not the digest they
         // are stored under.
         let _guard = self.state.inner.locks.packages.lock(&upload_lock_key(id)).await;
-        let storage = self.state.inner.storage.for_hosted(&org);
+        let storage = self.state.inner.storage.for_hosted(&org, ECOSYSTEM);
         let upload = match storage.open_blob_upload(&key, id).await {
             Ok(Some(upload)) => upload,
             Ok(None) => return error(ErrorCode::BlobUploadUnknown, "no such upload"),

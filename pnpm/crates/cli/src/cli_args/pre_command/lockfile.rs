@@ -1,62 +1,49 @@
 use super::{
-    Config, Context, EnvLockfile, EnvLockfileSync, HashSet, LockfileResolution, PNPM_VERSION,
-    PackageKey, PackageManagerToSync, PackageMetadata, Path, PathBuf, PinRoots, PmOnFail,
-    PreCommandInput, PreCommandPlan, SwitchProcessState, SwitchSource, Value, VersionPart,
-    is_package_manager_resolved, package_manager_to_sync, pnpm_package_to_install,
+    Config, Context, EnvLockfile, EnvLockfileSync, HashSet, Invocation, LockfileResolution,
+    PNPM_VERSION, PackageKey, PackageManagerToSync, PackageMetadata, Path, PathBuf, PinRoots,
+    PmOnFail, PreCommandPlan, SwitchProcessState, SwitchSource, Value, VersionPart,
+    is_package_manager_resolved, package_manager_to_sync_for_version, pnpm_package_to_install,
     version_satisfies,
 };
 use pnpm_lockfile::SnapshotEntry;
 
 pub(super) fn env_lockfile_sync_plan(
-    input: &PreCommandInput,
+    invocation: &Invocation,
     config: Config,
     env_root: PathBuf,
     package_manager: PackageManagerToSync,
 ) -> PreCommandPlan {
     PreCommandPlan::SyncEnvLockfile(EnvLockfileSync {
-        frozen_lockfile: input.switch.frozen_lockfile.or(config.frozen_lockfile).unwrap_or(false),
+        frozen_lockfile: invocation.frozen_lockfile.or(config.frozen_lockfile).unwrap_or(false),
         config,
         env_root,
         package_manager,
     })
 }
 
-/// pnpm's `syncEnvLockfile`: the pnpm version a project pins is recorded in
-/// the env lockfile's `packageManagerDependencies` here, for every command,
-/// so the entry is the same whichever command a contributor happens to run
-/// first.
-///
-/// A version the lockfile already records is kept while it satisfies the
-/// pin, so a contributor whose own pnpm the range also allows does not
-/// replace it.
-///
-/// `None` when the project doesn't pin a persisting pnpm version, when
-/// `lockfile` is turned off, or when the lockfile already records a version
-/// that satisfies the pin under the pin's specifier.
-pub(super) fn env_lockfile_sync(
+/// Pure calculation of the `packageManagerDependencies` entry to write, if any.
+pub(super) fn env_lockfile_sync_from_loaded(
     config: &Config,
     root_manifest: &Value,
     roots: &PinRoots,
     on_fail: PmOnFail,
-    read_lockfile: ReadEnvLockfile<'_>,
+    env_lockfile: Option<&EnvLockfile>,
+    running_version: &str,
+    keep_locked_range_version: bool,
 ) -> miette::Result<Option<PackageManagerToSync>> {
     if !config.lockfile {
         return Ok(None);
     }
-    let Some(mut package_manager) =
-        package_manager_to_sync(root_manifest, &roots.manifest, Some(on_fail))
-    else {
+    let Some(mut package_manager) = package_manager_to_sync_for_version(
+        root_manifest,
+        &roots.manifest,
+        Some(on_fail),
+        running_version,
+    ) else {
         return Ok(None);
     };
-    let read;
-    let env_lockfile = match read_lockfile {
-        ReadEnvLockfile::Already(env_lockfile) => Some(env_lockfile),
-        ReadEnvLockfile::NotYet => {
-            read = read_env_lockfile(&roots.env)?;
-            read.as_ref()
-        }
-    };
-    if let Some(env_lockfile) = env_lockfile
+    if keep_locked_range_version
+        && let Some(env_lockfile) = env_lockfile
         && let Some(version) =
             locked_package_manager_version(env_lockfile, &package_manager.specifier)?
     {
@@ -73,16 +60,6 @@ pub(super) fn env_lockfile_sync(
         return Ok(None);
     }
     Ok(Some(package_manager))
-}
-
-/// Whether the caller already holds the parsed env lockfile. The download
-/// path reads it to look for a version to switch to, so reading and parsing
-/// it a second time to answer the same question would repeat that work on
-/// every command in a pinned project.
-#[derive(Clone, Copy)]
-pub(super) enum ReadEnvLockfile<'a> {
-    Already(&'a EnvLockfile),
-    NotYet,
 }
 
 pub(super) fn read_env_lockfile(root_dir: &Path) -> miette::Result<Option<EnvLockfile>> {

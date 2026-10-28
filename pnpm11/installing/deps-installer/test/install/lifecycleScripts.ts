@@ -1219,3 +1219,88 @@ test('persist ignored builds for unselected workspace projects across a filtered
   projects['project-2'].has('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')
   expect(Array.from(rootProject.readModulesManifest()!.ignoredBuilds ?? [])).toStrictEqual([])
 })
+
+testOnNonWindows('install refreshes privately hoisted bin shims when postinstall replaces a node script with a non-node executable', async () => {
+  prepareEmpty()
+  const rootDir = process.cwd()
+  const packPkg = async (name: string, files: Record<string, { content: string, mode?: number }>) => {
+    const pkgDir = path.join(rootDir, `${name}-src`, 'package')
+    fs.mkdirSync(pkgDir, { recursive: true })
+    for (const [fileName, { content, mode }] of Object.entries(files)) {
+      fs.writeFileSync(path.join(pkgDir, fileName), content, mode != null ? { mode } : undefined)
+    }
+    const tgzPath = path.join(rootDir, `${name}.tgz`)
+    await execa('tar', ['-czf', tgzPath, '-C', path.dirname(pkgDir), 'package'])
+    return `file:${name}.tgz`
+  }
+  const replacedTgz = await packPkg('replaced-bin', {
+    tool: { content: '#!/usr/bin/env node\nconsole.log("placeholder")\n', mode: 0o755 },
+    'build.cjs': {
+      content: `require('fs').writeFileSync('tool', ${JSON.stringify('#!/bin/sh\nprintf "built binary\\n"\n')}, { mode: 0o755 })`,
+    },
+    'package.json': {
+      content: JSON.stringify({
+        name: 'replaced-bin',
+        version: '1.0.0',
+        bin: { tool: 'tool' },
+        scripts: { postinstall: 'node build.cjs' },
+      }),
+    },
+  })
+  const middleTgz = await packPkg('middle', {
+    'package.json': {
+      content: JSON.stringify({
+        name: 'middle',
+        version: '1.0.0',
+        dependencies: { 'replaced-bin': replacedTgz },
+      }),
+    },
+  })
+  const parentTgz = await packPkg('parent', {
+    'package.json': {
+      content: JSON.stringify({
+        name: 'parent',
+        version: '1.0.0',
+        dependencies: { middle: middleTgz },
+        scripts: { postinstall: 'tool > parent-built' },
+      }),
+    },
+  })
+
+  const manifest = {
+    name: 'root',
+    version: '1.0.0',
+    dependencies: {
+      parent: parentTgz,
+    },
+  }
+  const opts = testDefaults({
+    fastUnpack: false,
+    hoistPattern: ['*'],
+    allowBuilds: {
+      [`replaced-bin@${replacedTgz}`]: true,
+      [`parent@${parentTgz}`]: true,
+    },
+  })
+  await install(manifest, opts)
+
+  const hoistedBin = path.join(rootDir, 'node_modules/.pnpm/node_modules/.bin/tool')
+  const { stdout } = await execa(hoistedBin, [])
+  expect(stdout).toBe('built binary')
+  const parentBuilt = fs.readFileSync(
+    path.join(rootDir, 'node_modules/parent/parent-built'),
+    'utf8'
+  )
+  expect(parentBuilt).toBe('built binary\n')
+
+  rimrafSync('node_modules')
+  await install(manifest, { ...opts, frozenLockfile: true })
+
+  const { stdout: frozenStdout } = await execa(hoistedBin, [])
+  expect(frozenStdout).toBe('built binary')
+  const frozenParentBuilt = fs.readFileSync(
+    path.join(rootDir, 'node_modules/parent/parent-built'),
+    'utf8'
+  )
+  expect(frozenParentBuilt).toBe('built binary\n')
+})

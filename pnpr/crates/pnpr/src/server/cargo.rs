@@ -153,10 +153,6 @@ async fn collect_hosted_crates(
 }
 
 /// Add one hosted source's names to the page.
-///
-/// A hosted namespace shared with another ecosystem holds names that are not
-/// crate names. Dropping them before the position is claimed keeps them out of
-/// the page and out of the total, and costs no read.
 async fn add_crates_to_page(
     page: &mut SearchPage<SearchCrate>,
     storage: &pnpr_storage::Storage,

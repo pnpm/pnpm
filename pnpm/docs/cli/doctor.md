@@ -32,7 +32,7 @@ Reports the running pnpm and Node.js versions.
 
 ### Install method
 
-Reports how pnpm was installed (as the `pnpm` package or the `@pnpm/exe` standalone build) and warns when pnpm is being run by Corepack, which manages the pnpm version itself and makes `pnpm self-update` unavailable.
+Warns when pnpm is being run by Corepack, which manages the pnpm version itself and makes `pnpm self-update` unavailable.
 
 ### Global bin directory
 
@@ -44,7 +44,7 @@ Checks that the [cache directory](../settings/other.md#cachedir) is writable.
 
 ### Store directory
 
-Checks that the [store directory](../settings/store.md#storedir) is writable. Skipped when no store directory is configured.
+Checks that the [store directory](../settings/store.md#storedir) is writable. When no store directory is configured, the check runs against the default store.
 
 ### Filesystem
 

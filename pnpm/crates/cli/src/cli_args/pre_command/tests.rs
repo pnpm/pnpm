@@ -1,324 +1,49 @@
 use super::{
-    CliArgs, CliCommand, CliNetworkArgs, ConfigLoad, PackageManagerToSync, PinRoots,
-    PreCommandInput, PreCommandPlan, SwitchInput, SwitchProcessState, SwitchSource,
-    load_pre_command_config, locked_package_manager_to_fetch, pre_command_plan_from_input,
-    switch_target,
+    CliNetworkArgs, ConfigLoad, EntryPoint, Invocation, PackageManagerToSync, PinInput, PinRoots,
+    PreCommandPlan, SwitchProcessState, SwitchSource, SwitchTarget, apply_cli_layers,
+    load_pre_command_config, locked_package_manager_to_fetch, pin::switch_target_from_pin,
+    pre_command_plan_with_state, read_env_lockfile, read_root_manifest, wanted_package_manager,
 };
 use crate::{
-    boolean_negations::with_boolean_negations,
     cli_args::{
         cli_command::CliPathArgs,
         config_warnings::ConfigWarnings,
-        pre_command::input::{PinFlags, UnparsedArgv, VersionArgv, frozen_lockfile_flag},
         reporter::{ReporterFlags, ReporterType},
     },
     config_overrides::ConfigOverrides,
 };
-use clap::{CommandFactory, FromArgMatches};
 use pnpm_config::{Config, PNPM_VERSION, PmOnFail};
-use std::{
-    ffi::OsString,
-    fs,
-    path::{Path, PathBuf},
-};
+use std::{ffi::OsString, fs, path::Path};
 use tempfile::TempDir;
 
-#[test]
-fn version_argv_reads_dir_auth_file_and_command_forms() {
-    struct Case {
-        name: &'static str,
-        argv: &'static [&'static str],
-        /// The `--dir` the scan is expected to find. `None` asserts
-        /// nothing: the command line carries none, and the default it
-        /// falls back to is covered by the CLI tests that run in a real
-        /// project.
-        dir: Option<&'static str>,
-        npmrc_auth_file: Option<&'static str>,
-        command: Option<&'static str>,
-    }
-
-    let cases = [
-        Case {
-            name: "separate long dir and equals auth file",
-            argv: &["pnpm", "--dir", "/tmp/project", "--npmrc-auth-file=auth.ini", "--version"],
-            dir: Some("/tmp/project"),
-            npmrc_auth_file: Some("auth.ini"),
-            command: None,
-        },
-        Case {
-            name: "short dir",
-            argv: &["pnpm", "-C", "/tmp/short-dir", "--version"],
-            dir: Some("/tmp/short-dir"),
-            npmrc_auth_file: None,
-            command: None,
-        },
-        Case {
-            name: "equals dir and userconfig alias",
-            argv: &["pnpm", "--dir=/tmp/equals-dir", "--userconfig", "user.ini", "--version"],
-            dir: Some("/tmp/equals-dir"),
-            npmrc_auth_file: Some("user.ini"),
-            command: None,
-        },
-        Case {
-            name: "prefix alias of dir",
-            argv: &["pnpm", "--prefix", "/tmp/prefix-dir", "--version"],
-            dir: Some("/tmp/prefix-dir"),
-            npmrc_auth_file: None,
-            command: None,
-        },
-        Case {
-            name: "equals prefix alias of dir",
-            argv: &["pnpm", "--prefix=/tmp/equals-prefix", "--version"],
-            dir: Some("/tmp/equals-prefix"),
-            npmrc_auth_file: None,
-            command: None,
-        },
-        Case {
-            name: "separator stops command detection",
-            argv: &["pnpm", "--dir=/tmp/separator", "--", "run"],
-            dir: Some("/tmp/separator"),
-            npmrc_auth_file: None,
-            command: None,
-        },
-        Case {
-            name: "value-taking global option is skipped",
-            argv: &["pnpm", "--filter", "pkg", "--reporter", "append-only", "install"],
-            dir: None,
-            npmrc_auth_file: None,
-            command: Some("install"),
-        },
-        Case {
-            name: "store directory value is not mistaken for the command",
-            argv: &["pnpm", "--store", "/tmp/store", "--prefix", "/tmp/scanned", "--version"],
-            dir: Some("/tmp/scanned"),
-            npmrc_auth_file: None,
-            command: None,
-        },
-        Case {
-            name: "canonical store directory value is not mistaken for the command",
-            argv: &["pnpm", "--store-dir", "/tmp/store", "--dir", "/tmp/scanned", "--version"],
-            dir: Some("/tmp/scanned"),
-            npmrc_auth_file: None,
-            command: None,
-        },
-    ];
-
-    for case in cases {
-        let argv = case.argv
-            .iter()
-            .copied()
-            .map(OsString::from)
-            .collect::<Vec<_>>();
-        let input = version_switch_input(&argv);
-
-        if let Some(dir) = case.dir {
-            assert_eq!(input.paths.dir, PathBuf::from(dir), "case: {}", case.name);
-        }
-        assert_eq!(
-            input.paths.npmrc_auth_file,
-            case.npmrc_auth_file.map(PathBuf::from),
-            "case: {}",
-            case.name,
-        );
-        assert_eq!(input.command.as_deref(), case.command, "case: {}", case.name);
-    }
-
-    let input = version_switch_input(&[
-        OsString::from("pnpm"),
-        OsString::from("--state-dir"),
-        OsString::from("/tmp/state"),
-        OsString::from("--version"),
-    ]);
-    assert_eq!(input.paths.state_dir.as_deref(), Some(Path::new("/tmp/state")));
-
-    for spelling in ["--store-dir", "--store"] {
-        let input = version_switch_input(&[
-            OsString::from("pnpm"),
-            OsString::from(spelling),
-            OsString::from("/tmp/store"),
-            OsString::from("--version"),
-        ]);
-        assert_eq!(
-            input.paths.store_dir.as_deref(),
-            Some(Path::new("/tmp/store")),
-            "spelling: {spelling}",
-        );
-    }
+fn pre_command_plan_from_input(
+    invocation: &Invocation,
+    config_overrides: &ConfigOverrides,
+    process_state: SwitchProcessState,
+) -> miette::Result<Option<PreCommandPlan>> {
+    Ok(pre_command_plan_with_state(invocation, config_overrides, process_state)?.plan)
 }
 
-#[test]
-fn unparsed_argv_reads_flags_on_both_sides_of_the_command() {
-    let argv = [
-        "pnpm",
-        "--store-dir",
-        "/tmp/store",
-        "install",
-        "--auto-dedupe",
-        "--dir",
-        "/tmp/project",
-        "--frozen-lockfile",
-        "--lockfile-dir=/tmp/lockfile",
-        "--offline",
-        "--registry",
-        "https://mirror.example.com/",
-        "--no-proxy=internal.example.com",
-        "-g",
-    ]
-    .map(OsString::from);
-    let input = unparsed_switch_input(&argv).expect("the command name is unambiguous");
-    assert_eq!(input.command.as_deref(), Some("install"));
-    assert_eq!(input.paths.dir, PathBuf::from("/tmp/project"));
-    assert_eq!(input.paths.store_dir.as_deref(), Some(Path::new("/tmp/store")));
-    assert_eq!(input.frozen_lockfile, Some(true));
-    assert_eq!(
-        input.pin_flags,
-        PinFlags {
-            lockfile_dir: Some(PathBuf::from("/tmp/lockfile")),
-            offline: Some(true),
-            prefer_offline: None,
+fn switch_target(
+    config: &Config,
+    roots: &PinRoots,
+    frozen_lockfile: bool,
+) -> miette::Result<Option<SwitchTarget>> {
+    let manifest = read_root_manifest(&roots.manifest);
+    let wanted = manifest.as_ref().and_then(wanted_package_manager);
+    let locked_env = if config.lockfile { read_env_lockfile(&roots.env)? } else { None };
+    let pin = PinInput {
+        roots,
+        manifest: manifest.as_ref(),
+        wanted: wanted.as_ref(),
+        locked_env,
+        running_version: PNPM_VERSION,
+        process_state: SwitchProcessState {
+            package_manager_switch_disabled: false,
+            executed_by_corepack: false,
         },
-    );
-    assert_eq!(input.network.registry.as_deref(), Some("https://mirror.example.com/"));
-    assert_eq!(input.network.no_proxy.as_deref(), Some("internal.example.com"));
-    assert!(UnparsedArgv::scan(&argv).expect("the command name is unambiguous").global);
-
-    let version_input = version_switch_input(&argv);
-    assert_ne!(version_input.paths.dir, PathBuf::from("/tmp/project"));
-
-    let argv = ["pnpm", "exec", "--", "tool", "-g"].map(OsString::from);
-    assert!(!UnparsedArgv::scan(&argv).expect("the command name is unambiguous").global);
-}
-
-#[test]
-fn unparsed_argv_names_no_command_after_an_undeclared_option() {
-    for command in ["config", "get", "set", "install"] {
-        let argv =
-            ["pnpm", "--undeclared", "value", command, "--also-undeclared"].map(OsString::from);
-        assert!(unparsed_switch_input(&argv).is_none(), "{command}");
-    }
-
-    let argv = ["pnpm", "--no-color", "--filter", "pkg", "install", "--undeclared", "value"].map(
-        OsString::from,
-    );
-    let input = unparsed_switch_input(&argv).expect("every option before it is declared");
-    assert_eq!(input.command.as_deref(), Some("install"));
-}
-
-#[test]
-fn unparsed_argv_reads_an_undeclared_option_right_before_the_command_as_a_flag() {
-    let argv = ["pnpm", "--undeclared", "install", "--also-undeclared"].map(OsString::from);
-    let input = unparsed_switch_input(&argv).expect("the command follows the option");
-    assert_eq!(input.command.as_deref(), Some("install"));
-}
-
-#[test]
-fn unparsed_ci_is_a_frozen_install() {
-    for argv in [
-        &["pnpm", "ci", "--undeclared"][..],
-        &["pnpm", "ci", "--no-frozen-lockfile", "--undeclared"],
-    ] {
-        let argv = argv
-            .iter()
-            .copied()
-            .map(OsString::from)
-            .collect::<Vec<_>>();
-        let input = unparsed_switch_input(&argv).expect("the command name is unambiguous");
-        assert_eq!(input.frozen_lockfile, Some(true), "{argv:?}");
-    }
-}
-
-#[test]
-fn unparsed_argv_steps_over_short_option_values() {
-    for (argv, dir) in [
-        (&["pnpm", "-C/tmp/attached", "install", "--undeclared"][..], "/tmp/attached"),
-        (&["pnpm", "-C", "/tmp/separate", "install", "--undeclared"], "/tmp/separate"),
-        (&["pnpm", "-rC", "/tmp/clustered", "install", "--undeclared"], "/tmp/clustered"),
-        (&["pnpm", "-rC/tmp/attached-cluster", "install", "--undeclared"], "/tmp/attached-cluster"),
-        (&["pnpm", r"-rCC:\project", "install", "--undeclared"], r"C:\project"),
-    ] {
-        let argv = argv
-            .iter()
-            .copied()
-            .map(OsString::from)
-            .collect::<Vec<_>>();
-        let input = unparsed_switch_input(&argv).expect("the command name is unambiguous");
-        assert_eq!(input.command.as_deref(), Some("install"), "{argv:?}");
-        assert_eq!(input.paths.dir, PathBuf::from(dir), "{argv:?}");
-    }
-}
-
-#[test]
-fn the_version_scan_names_a_command_by_its_own_name() {
-    let input = version_switch_input(&["pnpm", "ic", "--version"].map(OsString::from));
-    assert_eq!(input.command.as_deref(), Some("ci"));
-    assert_eq!(input.frozen_lockfile, Some(true));
-}
-
-#[test]
-fn unparsed_argv_names_a_command_by_its_own_name() {
-    for (alias, command) in
-        [("c", "config"), ("ic", "ci"), ("clean-install", "ci"), ("rt", "runtime")]
-    {
-        let input = unparsed_switch_input(&["pnpm", alias, "--undeclared"].map(OsString::from))
-            .expect("the command name is unambiguous");
-        assert_eq!(input.command.as_deref(), Some(command), "{alias}");
-    }
-    let input =
-        unparsed_switch_input(&["pnpm", "install-clean", "--undeclared"].map(OsString::from))
-            .expect("the command name is unambiguous");
-    assert_eq!(input.frozen_lockfile, Some(true));
-}
-
-#[test]
-fn unparsed_argv_reads_global_in_a_short_cluster() {
-    for (argv, expected) in [
-        (&["pnpm", "add", "-gE", "pkg", "--undeclared"][..], true),
-        (&["pnpm", "add", "-Eg", "pkg", "--undeclared"], true),
-        (&["pnpm", "-Cg", "add", "pkg", "--undeclared"], false),
-        (&["pnpm", "add", "pkg", "--undeclared"], false),
-        (&["pnpm", "add", "--filter", "-g", "pkg", "--undeclared"], false),
-    ] {
-        let argv = argv
-            .iter()
-            .copied()
-            .map(OsString::from)
-            .collect::<Vec<_>>();
-        let scan = UnparsedArgv::scan(&argv).expect("the command line is unambiguous");
-        assert_eq!(scan.global, expected, "{argv:?}");
-    }
-
-    // `--init-type` takes a value for `init` only, so after `install` it is
-    // undeclared and `--global` may be its value.
-    let argv = ["pnpm", "install", "--init-type", "--global", "--undeclared"].map(OsString::from);
-    assert!(UnparsedArgv::scan(&argv).is_none());
-
-    // `-gE` may be the undeclared option's value.
-    let argv = ["pnpm", "add", "pkg", "--undeclared", "-gE"].map(OsString::from);
-    assert!(UnparsedArgv::scan(&argv).is_none());
-}
-
-#[test]
-fn unparsed_argv_reads_the_project_location() {
-    for (argv, expected) in [
-        (&["pnpm", "config", "set", "key", "value", "--location", "project"][..], true),
-        (&["pnpm", "config", "--location=project", "set", "key", "value"][..], true),
-        (&["pnpm", "config", "--location", "global", "set", "key", "value"][..], false),
-        (&["pnpm", "config", "set", "key", "value", "--", "--location=project"][..], false),
-        (&["pnpm", "config", "list", "--undeclared=value", "--location", "project"][..], true),
-    ] {
-        let argv = argv
-            .iter()
-            .copied()
-            .map(OsString::from)
-            .collect::<Vec<_>>();
-        let scan = UnparsedArgv::scan(&argv).expect("the command line is unambiguous");
-        assert_eq!(scan.project_location, expected, "{argv:?}");
-    }
-
-    // `--location` may be the value of an undeclared option without `=`.
-    let argv =
-        ["pnpm", "config", "list", "--undeclared", "--location", "project"].map(OsString::from);
-    assert!(UnparsedArgv::scan(&argv).is_none());
+    };
+    switch_target_from_pin(&pin, config, frozen_lockfile)
 }
 
 #[test]
@@ -349,14 +74,14 @@ fn the_reported_causes_redact_registry_credentials() {
 fn the_pre_command_config_resolves_the_store_dir_flag() {
     let root = TempDir::new().expect("tmp dir");
     let dir = dunce::canonicalize(root.path()).expect("canonicalize the project directory");
-    let mut switch = version_switch_input(&[
+    write_workspace_manifest(&dir, "");
+    let mut input = version_switch_input(&[
         OsString::from("pnpm"),
         OsString::from("--store-dir"),
         OsString::from("relative-store"),
         OsString::from("--version"),
     ]);
-    switch.paths.dir = dir.clone();
-    let input = PreCommandInput { switch, ..pre_command_input(&dir) };
+    input.paths.dir = dir.clone();
 
     let config =
         load_pre_command_config(&input, &ConfigOverrides::default(), &dir, ConfigLoad::SWITCH)
@@ -372,15 +97,14 @@ fn the_pre_command_config_resolves_the_store_dir_flag() {
 fn the_pre_command_config_resolves_the_pinned_pnpm_through_the_network_flags() {
     let root = TempDir::new().expect("tmp dir");
     let dir = dunce::canonicalize(root.path()).expect("canonicalize the project directory");
-    let mut switch = version_switch_input(&[
+    let mut input = version_switch_input(&[
         OsString::from("pnpm"),
         OsString::from("--registry=https://mirror.example.com/npm"),
         OsString::from("--https-proxy"),
         OsString::from("http://proxy.example.com:8080"),
         OsString::from("--version"),
     ]);
-    switch.paths.dir = dir.clone();
-    let input = PreCommandInput { switch, ..pre_command_input(&dir) };
+    input.paths.dir = dir.clone();
 
     let config =
         load_pre_command_config(&input, &ConfigOverrides::default(), &dir, ConfigLoad::SWITCH)
@@ -394,34 +118,6 @@ fn the_pre_command_config_resolves_the_pinned_pnpm_through_the_network_flags() {
     assert_eq!(
         config.package_manager_bootstrap.proxy.https_proxy.as_deref(),
         Some("http://proxy.example.com:8080"),
-    );
-}
-
-/// `pnpm --version` still reconciles the `packageManager` pin, so its argv
-/// scan has to see `--ignore-workspace` too — otherwise the pass reports
-/// the key issues of a `pnpm-workspace.yaml` the user asked it to ignore.
-/// [`resolve_boolean_values`](crate::boolean_values::resolve_boolean_values)
-/// has already folded a `=<bool>` spelling into one of the bare forms by the
-/// time the scan runs.
-#[test]
-fn the_version_scan_reads_ignore_workspace_from_the_command_line() {
-    let flag_of = |argv: &[&str]| {
-        version_switch_input(
-            &argv
-                .iter()
-                .copied()
-                .map(OsString::from)
-                .collect::<Vec<_>>(),
-        )
-        .paths
-        .ignore_workspace
-    };
-    assert!(flag_of(&["pnpm", "--ignore-workspace", "--version"]));
-    assert!(!flag_of(&["pnpm", "--no-ignore-workspace", "--version"]));
-    assert!(!flag_of(&["pnpm", "--version"]));
-    assert!(
-        flag_of(&["pnpm", "--dir", "/tmp/scanned", "--ignore-workspace", "--version"]),
-        "a preceding value-taking flag must not swallow it",
     );
 }
 
@@ -526,7 +222,7 @@ fn pre_command_plan_skips_the_runtime_check_for_global_commands() {
     );
 
     let plan = pre_command_plan_from_input(
-        &PreCommandInput { global: true, ..pre_command_input(root.path()) },
+        &Invocation { global: true, ..pre_command_input(root.path()) },
         &ConfigOverrides::default(),
         SwitchProcessState::current(),
     )
@@ -593,7 +289,7 @@ fn pre_command_plan_records_the_pin_for_the_install_family_too() {
 
     for command in ["install", "add", "ci", "update", "remove", "dedupe", "prune", "unlink"] {
         let mut input = pre_command_input(root.path());
-        input.switch.command = Some(command.to_string());
+        input.command = Some(command.to_string());
         let plan = pre_command_plan_from_input(
             &input,
             &ConfigOverrides::default(),
@@ -802,17 +498,22 @@ fn pre_command_plan_records_a_pin_when_version_switching_is_turned_off() {
 /// so turning the switch off never cements one nobody runs.
 #[test]
 fn pre_command_plan_records_nothing_for_an_unsatisfiable_pin_when_switching_is_turned_off() {
-    let root = TempDir::new().expect("tmp dir");
-    write_dev_engine_manifest(root.path(), "^999.0.0");
+    for spec in ["^999.0.0", "^11.0.0"] {
+        let root = TempDir::new().expect("tmp dir");
+        write_dev_engine_manifest(root.path(), spec);
 
-    let plan = pre_command_plan_from_input(
-        &pre_command_input(root.path()),
-        &ConfigOverrides::default(),
-        SwitchProcessState { package_manager_switch_disabled: true, executed_by_corepack: false },
-    )
-    .expect("pre-command plan");
+        let plan = pre_command_plan_from_input(
+            &pre_command_input(root.path()),
+            &ConfigOverrides::default(),
+            SwitchProcessState {
+                package_manager_switch_disabled: true,
+                executed_by_corepack: false,
+            },
+        )
+        .expect("pre-command plan");
 
-    assert!(plan.is_none(), "unexpected pre-command plan: {plan:?}");
+        assert!(plan.is_none(), "unexpected pre-command plan for {spec}: {plan:?}");
+    }
 }
 
 #[test]
@@ -821,7 +522,7 @@ fn pre_command_plan_records_nothing_for_a_global_command_when_switching_is_turne
     write_dev_engine_manifest(root.path(), PNPM_VERSION);
 
     let plan = pre_command_plan_from_input(
-        &PreCommandInput { global: true, ..pre_command_input(root.path()) },
+        &Invocation { global: true, ..pre_command_input(root.path()) },
         &ConfigOverrides::default(),
         SwitchProcessState { package_manager_switch_disabled: true, executed_by_corepack: false },
     )
@@ -836,7 +537,7 @@ fn pre_command_plan_does_not_switch_a_global_command_to_the_pinned_pnpm() {
     write_dev_engine_manifest(root.path(), "0.0.1");
 
     let plan = pre_command_plan_from_input(
-        &PreCommandInput { global: true, ..pre_command_input(root.path()) },
+        &Invocation { global: true, ..pre_command_input(root.path()) },
         &ConfigOverrides::default(),
         SwitchProcessState { package_manager_switch_disabled: false, executed_by_corepack: false },
     )
@@ -1115,139 +816,34 @@ fn config_overrides(argv: &[&str]) -> ConfigOverrides {
     ConfigOverrides::extract(argv.iter().copied().map(OsString::from)).0
 }
 
-fn pre_command_input(dir: &Path) -> PreCommandInput {
-    PreCommandInput {
-        switch: SwitchInput {
-            paths: CliPathArgs {
-                dir: dir.to_path_buf(),
-                dir_from_command_line: true,
-                store_dir: None,
-                state_dir: None,
-                npmrc_auth_file: None,
-                ignore_workspace: false,
-                workspace_packages: Vec::new(),
-            },
-            command: Some("run".to_string()),
-            frozen_lockfile: None,
-            pin_flags: PinFlags::default(),
-            color: None,
-            network: CliNetworkArgs::default(),
+fn pre_command_input(dir: &Path) -> Invocation {
+    Invocation {
+        entry_point: EntryPoint::Command,
+        paths: CliPathArgs {
+            dir: dir.to_path_buf(),
+            dir_from_command_line: true,
+            store_dir: None,
+            state_dir: None,
+            npmrc_auth_file: None,
+            ignore_workspace: false,
+            workspace_packages: Vec::new(),
         },
+        command: Some("run".to_string()),
+        frozen_lockfile: None,
+        lockfile_dir: None,
+        offline: None,
+        prefer_offline: None,
+        color: None,
+        no_color: false,
+        network: CliNetworkArgs::default(),
         global: false,
+        project_location: false,
         skip_pm_handling: false,
         check_runtimes: true,
         reporter: ReporterFlags { reporter: Some(ReporterType::Silent), loglevel: None },
         warnings: ConfigWarnings::for_version_flag(),
+        ambiguous: false,
     }
-}
-
-#[test]
-fn the_switch_reads_frozen_lockfile_from_the_command_line() {
-    let flag_of = |argv: &[&str]| frozen_lockfile_flag(&parse_command(argv));
-
-    assert_eq!(flag_of(&["pnpm", "install", "--frozen-lockfile"]), Some(true));
-    assert_eq!(flag_of(&["pnpm", "install", "--no-frozen-lockfile"]), Some(false));
-    assert_eq!(flag_of(&["pnpm", "install"]), None);
-    assert_eq!(flag_of(&["pnpm", "install-test", "--frozen-lockfile"]), Some(true));
-    assert_eq!(flag_of(&["pnpm", "ci"]), Some(true));
-    // Only the install family carries the flag; every other command leaves the
-    // `frozenLockfile` setting to answer on its own.
-    assert_eq!(flag_of(&["pnpm", "run", "build"]), None);
-}
-
-/// The pin record reads `--lockfile-dir` and `--offline` straight from the
-/// command line, so a command that grows either flag and is not added to
-/// [`PinFlags::of`] would silently record against the wrong directory or go
-/// to the network. Ask clap which commands declare them rather than trusting
-/// a second hand-written list.
-#[test]
-fn pin_flags_cover_every_command_declaring_them() {
-    for subcommand in super::super::grammar().get_subcommands() {
-        let name = subcommand.get_name();
-        // A command that skips the package-manager checks records no pin, so
-        // neither flag reaches a write for it.
-        if super::should_skip_command_name(name) {
-            continue;
-        }
-        let declares = |long: &str| {
-            subcommand
-                .get_arguments()
-                .any(|arg| arg.get_long() == Some(long))
-        };
-        if declares("lockfile-dir") {
-            let flags = PinFlags::of(&parse_with_positional(name, &["--lockfile-dir", "lf"]));
-            assert_eq!(
-                flags.lockfile_dir.as_deref(),
-                Some(Path::new("lf")),
-                "`pnpm {name}` accepts --lockfile-dir but PinFlags::of ignores it",
-            );
-        }
-        if declares("offline") {
-            let flags = PinFlags::of(&parse_with_positional(name, &["--offline"]));
-            assert_eq!(
-                flags.offline,
-                Some(true),
-                "`pnpm {name}` accepts --offline but PinFlags::of ignores it",
-            );
-        }
-        if declares("prefer-offline") {
-            let flags = PinFlags::of(&parse_with_positional(name, &["--prefer-offline"]));
-            assert_eq!(
-                flags.prefer_offline,
-                Some(true),
-                "`pnpm {name}` accepts --prefer-offline but PinFlags::of ignores it",
-            );
-        }
-    }
-}
-
-/// The pair overrides the configured value in both directions, the
-/// precedence `resolve_bool_override` gives every install-family boolean. An
-/// `offline` that only ever turned on would send `--no-offline` to the
-/// network's opposite.
-#[test]
-fn a_negated_flag_clears_a_configured_value() {
-    let cases = [
-        (PinFlags::default(), true, true),
-        (PinFlags::default(), false, false),
-        (PinFlags { offline: Some(false), ..PinFlags::default() }, true, false),
-        (PinFlags { offline: Some(true), ..PinFlags::default() }, false, true),
-    ];
-    for (flags, configured, expected) in cases {
-        let mut config = Config { offline: configured, ..Config::default() };
-        flags.apply_to(&mut config, Path::new("/tmp"));
-        assert_eq!(
-            config.offline, expected,
-            "offline {:?} over a configured {configured}",
-            flags.offline,
-        );
-    }
-}
-
-/// Parse `pnpm <name> <args>`, adding a placeholder positional for the
-/// commands that require one.
-fn parse_with_positional(name: &str, args: &[&str]) -> CliCommand {
-    let mut argv = vec!["pnpm", name];
-    argv.extend_from_slice(args);
-    let parse = |argv: &[&str]| {
-        with_boolean_negations(CliArgs::command())
-            .try_get_matches_from(argv)
-            .and_then(|matches| CliArgs::from_arg_matches(&matches))
-            .map(|args| args.command)
-    };
-    parse(&argv)
-        .unwrap_or_else(|_| {
-            argv.push("placeholder");
-            parse(&argv).unwrap_or_else(|error| panic!("parse `pnpm {name}`: {error}"))
-        })
-}
-
-fn parse_command(argv: &[&str]) -> CliCommand {
-    with_boolean_negations(CliArgs::command())
-        .try_get_matches_from(argv)
-        .and_then(|matches| CliArgs::from_arg_matches(&matches))
-        .expect("parse the command line")
-        .command
 }
 
 fn write_dev_engine_manifest(root: &Path, version: &str) {
@@ -1335,190 +931,15 @@ snapshots:
     )
 }
 
-const LOCKED_9_3_0_WITH_PEER_SUFFIX: &str = r"---
-lockfileVersion: '9.0'
-
-importers:
-
-  .:
-    configDependencies: {}
-    packageManagerDependencies:
-      '@pnpm/exe':
-        specifier: 9.3.0
-        version: 9.3.0
-      pnpm:
-        specifier: 9.3.0
-        version: 9.3.0
-
-packages:
-
-  '@pnpm/exe@9.3.0':
-    resolution: {integrity: sha512-di6YvqPO/2jvih6kCJ8r0ySzQNjQWrBXPEfqEHtrmwOamuNALnfASwhFBwEtMjWmaA8QG7TqAg2qEvAe+8cBkQ==}
-
-  '@pnpm/linux-x64@9.3.0':
-    resolution: {integrity: sha512-di6YvqPO/2jvih6kCJ8r0ySzQNjQWrBXPEfqEHtrmwOamuNALnfASwhFBwEtMjWmaA8QG7TqAg2qEvAe+8cBkQ==}
-
-  peer-provider@1.0.0:
-    resolution: {integrity: sha512-di6YvqPO/2jvih6kCJ8r0ySzQNjQWrBXPEfqEHtrmwOamuNALnfASwhFBwEtMjWmaA8QG7TqAg2qEvAe+8cBkQ==}
-
-  pnpm@9.3.0:
-    resolution: {integrity: sha512-QVocwll0cx51RVwUaDcb50xapft2IbUNQFbSIkUWCfEUEvI/1gLmFp8eBgRmZB95hZfhvpYaEGiINqZ7FlaUmQ==}
-
-snapshots:
-
-  '@pnpm/exe@9.3.0':
-    optionalDependencies:
-      '@pnpm/linux-x64': 9.3.0(peer-provider@1.0.0)
-
-  '@pnpm/linux-x64@9.3.0(peer-provider@1.0.0)':
-    dependencies:
-      peer-provider: 1.0.0
-    optional: true
-
-  peer-provider@1.0.0: {}
-
-  pnpm@9.3.0: {}
----
-";
-
-const LOCKED_9_3_0_WITH_TARBALL_RESOLUTION: &str = r"---
-lockfileVersion: '9.0'
-
-importers:
-
-  .:
-    configDependencies: {}
-    packageManagerDependencies:
-      '@pnpm/exe':
-        specifier: 9.3.0
-        version: 9.3.0
-      pnpm:
-        specifier: 9.3.0
-        version: 9.3.0
-
-packages:
-
-  '@pnpm/exe@9.3.0':
-    resolution: {integrity: sha512-di6YvqPO/2jvih6kCJ8r0ySzQNjQWrBXPEfqEHtrmwOamuNALnfASwhFBwEtMjWmaA8QG7TqAg2qEvAe+8cBkQ==}
-
-  '@pnpm/linux-x64@9.3.0':
-    resolution: {integrity: sha512-di6YvqPO/2jvih6kCJ8r0ySzQNjQWrBXPEfqEHtrmwOamuNALnfASwhFBwEtMjWmaA8QG7TqAg2qEvAe+8cBkQ==, tarball: https://evil.example.com/pnpm-linux-x64.tgz}
-
-  pnpm@9.3.0:
-    resolution: {integrity: sha512-QVocwll0cx51RVwUaDcb50xapft2IbUNQFbSIkUWCfEUEvI/1gLmFp8eBgRmZB95hZfhvpYaEGiINqZ7FlaUmQ==}
-
-snapshots:
-
-  '@pnpm/exe@9.3.0':
-    optionalDependencies:
-      '@pnpm/linux-x64': 9.3.0
-
-  '@pnpm/linux-x64@9.3.0':
-    optional: true
-
-  pnpm@9.3.0: {}
----
-";
-
-const LOCKED_9_3_0_WITH_FILE_DEP_PATH: &str = r"---
-lockfileVersion: '9.0'
-
-importers:
-
-  .:
-    configDependencies: {}
-    packageManagerDependencies:
-      '@pnpm/exe':
-        specifier: 9.3.0
-        version: 9.3.0
-      pnpm:
-        specifier: 9.3.0
-        version: 9.3.0
-
-packages:
-
-  '@pnpm/exe@9.3.0':
-    resolution: {integrity: sha512-di6YvqPO/2jvih6kCJ8r0ySzQNjQWrBXPEfqEHtrmwOamuNALnfASwhFBwEtMjWmaA8QG7TqAg2qEvAe+8cBkQ==}
-
-  payload@file:../payload.tgz:
-    resolution: {integrity: sha512-di6YvqPO/2jvih6kCJ8r0ySzQNjQWrBXPEfqEHtrmwOamuNALnfASwhFBwEtMjWmaA8QG7TqAg2qEvAe+8cBkQ==}
-
-  pnpm@9.3.0:
-    resolution: {integrity: sha512-QVocwll0cx51RVwUaDcb50xapft2IbUNQFbSIkUWCfEUEvI/1gLmFp8eBgRmZB95hZfhvpYaEGiINqZ7FlaUmQ==}
-
-snapshots:
-
-  '@pnpm/exe@9.3.0': {}
-
-  payload@file:../payload.tgz: {}
-
-  pnpm@9.3.0:
-    dependencies:
-      payload: file:../payload.tgz
----
-";
-
-const LOCKED_9_1_1: &str = r"---
-lockfileVersion: '9.0'
-
-importers:
-
-  .:
-    configDependencies: {}
-    packageManagerDependencies:
-      '@pnpm/exe':
-        specifier: '>=9.1.0 <9.1.2'
-        version: 9.1.1
-      pnpm:
-        specifier: '>=9.1.0 <9.1.2'
-        version: 9.1.1
-
-packages:
-
-  '@pnpm/exe@9.1.1':
-    resolution: {integrity: sha512-di6YvqPO/2jvih6kCJ8r0ySzQNjQWrBXPEfqEHtrmwOamuNALnfASwhFBwEtMjWmaA8QG7TqAg2qEvAe+8cBkQ==}
-
-  pnpm@9.1.1:
-    resolution: {integrity: sha512-QVocwll0cx51RVwUaDcb50xapft2IbUNQFbSIkUWCfEUEvI/1gLmFp8eBgRmZB95hZfhvpYaEGiINqZ7FlaUmQ==}
-
-snapshots:
-
-  '@pnpm/exe@9.1.1': {}
-
-  pnpm@9.1.1: {}
----
-";
-
-const LOCKED_99_0_0: &str = r"---
-lockfileVersion: '9.0'
-
-importers:
-
-  .:
-    configDependencies: {}
-    packageManagerDependencies:
-      pnpm:
-        specifier: 99.0.0
-        version: 99.0.0
-
-packages:
-
-  pnpm@99.0.0:
-    resolution: {integrity: sha512-QVocwll0cx51RVwUaDcb50xapft2IbUNQFbSIkUWCfEUEvI/1gLmFp8eBgRmZB95hZfhvpYaEGiINqZ7FlaUmQ==}
-
-snapshots:
-
-  pnpm@99.0.0: {}
----
-";
-
 mod argv_readers;
+mod pin_decision_matrix;
 mod switch_target;
 
-fn unparsed_switch_input(argv: &[OsString]) -> Option<SwitchInput> {
-    UnparsedArgv::scan(argv).map(|scan| scan.switch)
+fn unparsed_switch_input(argv: &[OsString]) -> Option<Invocation> {
+    let inv = Invocation::from_argv(argv, EntryPoint::UnknownFlag);
+    (!inv.ambiguous).then_some(inv)
 }
 
-fn version_switch_input(argv: &[OsString]) -> SwitchInput {
-    VersionArgv::scan(argv).switch
+fn version_switch_input(argv: &[OsString]) -> Invocation {
+    Invocation::from_argv(argv, EntryPoint::Version)
 }

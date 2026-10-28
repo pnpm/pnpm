@@ -94,18 +94,11 @@ fn append_tar_entry<Sys: FsReadFile + FsIsExecutable, Writer: Write>(
 }
 
 fn is_symlink(path: &Path) -> bool {
-    std::fs::symlink_metadata(path).is_ok_and(|meta| meta.file_type().is_symlink())
+    pnpm_fs::is_symlink(path)
 }
 
 fn read_symlink_target(path: &Path) -> io::Result<PathBuf> {
-    let target = std::fs::read_link(path)?;
-    if target.is_absolute()
-        && let Some(parent) = path.parent()
-        && let Some(rel) = pathdiff::diff_paths(&target, parent)
-    {
-        return Ok(rel);
-    }
-    Ok(target)
+    pnpm_fs::read_symlink_dir(path).map(|target| pnpm_fs::relative_link_target(path, target))
 }
 
 /// Every entry the archive will carry, in npm-packlist's compression

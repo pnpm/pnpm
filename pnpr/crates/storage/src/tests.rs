@@ -27,7 +27,12 @@ async fn hosted_blob_under_non_directory_package_path_is_an_error() {
     let tmp = TempDir::new().unwrap();
     let storage = storage_in(&tmp);
     let name = pkg("foo");
-    let package_dir = crate::layout::local_package_dir(&tmp.path().join("storage"), "", "foo");
+    let package_dir = crate::layout::local_package_dir(
+        &tmp.path().join("storage"),
+        "",
+        pnpr_package_name::Ecosystem::Npm,
+        "foo",
+    );
     fs::create_dir_all(package_dir.parent().unwrap()).await.unwrap();
     fs::write(&package_dir, b"not a directory").await.unwrap();
 
@@ -118,17 +123,34 @@ async fn failed_blob_finalize_removes_tmp_file() {
 #[tokio::test]
 async fn nested_names_are_stored_as_siblings() {
     let tmp = TempDir::new().unwrap();
-    let storage = storage_in(&tmp);
+    let storage = storage_in(&tmp).for_hosted("", pnpr_package_name::Ecosystem::Oci);
     let parent =
         CanonicalPackageName::parse("acme/app", pnpr_package_name::Ecosystem::Oci).unwrap();
     let child =
         CanonicalPackageName::parse("acme/app/tool", pnpr_package_name::Ecosystem::Oci).unwrap();
-    for name in [&parent, &child] {
+    let top = CanonicalPackageName::parse("acme", pnpr_package_name::Ecosystem::Oci).unwrap();
+    let blobs_repo =
+        CanonicalPackageName::parse("acme/blobs", pnpr_package_name::Ecosystem::Oci).unwrap();
+    for name in [&parent, &child, &top, &blobs_repo] {
         storage.write_hosted_document_if_current(name, b"{}", None).await.unwrap();
     }
-    assert_eq!(storage.hosted_package_names().await.unwrap(), ["acme/app", "acme/app/tool"]);
+    let slot = storage.reserve_hosted_blob(&top, "sha256-top").await.unwrap();
+    fs::write(&slot.tmp_path, b"top-layer").await.unwrap();
+    storage.finalize_blob_slot(slot).await.unwrap();
+    let slot = storage.reserve_hosted_blob(&blobs_repo, "sha256-repo").await.unwrap();
+    fs::write(&slot.tmp_path, b"repo-layer").await.unwrap();
+    storage.finalize_blob_slot(slot).await.unwrap();
+    assert_eq!(
+        storage.hosted_package_names().await.unwrap(),
+        ["acme", "acme/app", "acme/app/tool", "acme/blobs"],
+    );
+    assert_eq!(storage.hosted_package_blobs(&top).await.unwrap(), ["sha256-top"]);
+    assert_eq!(storage.hosted_package_blobs(&blobs_repo).await.unwrap(), ["sha256-repo"]);
     storage.remove_package(&parent).await.unwrap();
-    assert_eq!(storage.hosted_package_names().await.unwrap(), ["acme/app/tool"]);
+    assert_eq!(
+        storage.hosted_package_names().await.unwrap(),
+        ["acme", "acme/app/tool", "acme/blobs"],
+    );
 }
 
 #[tokio::test]
@@ -141,17 +163,17 @@ async fn packages_documents_and_blobs_have_one_path_each() {
     fs::write(&slot.tmp_path, b"tarball").await.unwrap();
     storage.finalize_blob_slot(slot).await.unwrap();
     storage
-        .for_hosted("npm~internal")
+        .for_hosted("npm~internal", pnpr_package_name::Ecosystem::Npm)
         .write_hosted_document_if_current(&name, b"{}", None)
         .await
         .unwrap();
 
-    let package = tmp.path().join("storage/default/packages/!40scope!2f!41pp");
+    let package = tmp.path().join("storage/default/npm/packages/@scope/!41pp");
     assert!(package.join("document.json").is_file());
-    assert!(package.join("blobs/!41pp-1.0.0.tgz").is_file());
+    assert!(package.join("blobs/1.0.0.tgz").is_file());
     assert!(
         tmp.path()
-            .join("storage/orgs/npm!7einternal/packages/!40scope!2f!41pp/document.json")
+            .join("storage/orgs/npm!7einternal/npm/packages/@scope/!41pp/document.json")
             .is_file(),
     );
 }
@@ -160,7 +182,7 @@ async fn packages_documents_and_blobs_have_one_path_each() {
 async fn an_org_named_like_a_package_is_its_own_namespace() {
     let tmp = TempDir::new().unwrap();
     let storage = storage_in(&tmp);
-    let org = storage.for_hosted("acme");
+    let org = storage.for_hosted("acme", pnpr_package_name::Ecosystem::Npm);
     storage
         .write_hosted_document_if_current(&pkg("acme"), b"{}", None)
         .await
@@ -200,7 +222,7 @@ async fn a_store_in_the_earlier_layout_is_refused() {
         .await
         .unwrap_err()
         .to_string();
-    assert!(error.contains("pnpr upgrade-storage"), "{error}");
+    assert!(error.contains("earlier layout"), "{error}");
     assert!(
         !tmp.path()
             .join("storage/layout.json")
@@ -234,10 +256,10 @@ async fn a_cache_from_another_layout_is_emptied_once() {
     let stale = cache.join("~public/abc/left-pad/package.json");
     fs::create_dir_all(stale.parent().unwrap()).await.unwrap();
     fs::write(&stale, b"{}").await.unwrap();
-    fs::create_dir_all(cache.join("pnpr-store")).await.unwrap();
+    fs::create_dir_all(cache.join("resolver-store")).await.unwrap();
     storage.reset_cache_from_other_layout().await.unwrap();
     assert!(!cache.join("~public").exists());
-    assert!(cache.join("pnpr-store").exists());
+    assert!(cache.join("resolver-store").exists());
 
     fs::create_dir_all(stale.parent().unwrap()).await.unwrap();
     storage.reset_cache_from_other_layout().await.unwrap();
@@ -451,7 +473,11 @@ async fn symlinks_in_the_packages_directory_are_not_followed() {
         .write_hosted_document_if_current(&pkg("real"), b"{}", None)
         .await
         .unwrap();
-    let packages = tmp.path().join("storage/default/packages");
+    let scopes = tmp.path().join("storage/default/npm/packages");
+    fs::create_dir_all(tmp.path().join("outside-scope/pkg")).await.unwrap();
+    fs::write(tmp.path().join("outside-scope/pkg/document.json"), b"{}").await.unwrap();
+    fs::symlink(tmp.path().join("outside-scope"), scopes.join("@linked")).await.unwrap();
+    let packages = scopes.join("@");
     fs::symlink(&outside, packages.join("linked")).await.unwrap();
     fs::create_dir_all(packages.join("real/blobs")).await.unwrap();
     fs::symlink(outside.join("blobs/sha256-aa"), packages.join("real/blobs/sha256-aa"))
@@ -529,112 +555,17 @@ async fn grouped_registries_with_same_local_name_keep_records_isolated() {
         storage.read_registry_record(RegistryRecord::TeamRoster, "pypi/shared").await.unwrap(),
         Some(pypi_record.to_vec()),
     );
-}
-
-#[tokio::test]
-async fn replace_registry_record_migrates_legacy_record_atomically() {
-    let tmp = TempDir::new().unwrap();
-    let storage = storage_in(&tmp);
-
     assert!(
-        storage
-            .create_registry_record(RegistryRecord::TeamRoster, "shared", b"legacy-val")
-            .await
-            .unwrap(),
-    );
-
-    let write_result = storage
-        .replace_registry_record_if_current(
-            RegistryRecord::TeamRoster,
-            "npm/shared",
-            b"legacy-val",
-            b"migrated-val",
-        )
-        .await
-        .unwrap();
-    assert_eq!(write_result, DocumentWrite::Written);
-
-    assert_eq!(
-        storage.read_registry_record(RegistryRecord::TeamRoster, "npm/shared").await.unwrap(),
-        Some(b"migrated-val".to_vec()),
-    );
-    assert_eq!(
-        storage.read_registry_record(RegistryRecord::TeamRoster, "shared").await.unwrap(),
-        Some(b"legacy-val".to_vec()),
-    );
-}
-
-#[tokio::test]
-async fn replace_registry_record_returns_conflict_if_namespaced_creation_conflicts() {
-    let tmp = TempDir::new().unwrap();
-    let storage = storage_in(&tmp);
-
-    assert!(
-        storage
-            .create_registry_record(RegistryRecord::TeamRoster, "npm/shared", b"namespaced-val")
-            .await
-            .unwrap(),
-    );
-    assert!(
-        storage.root.create_record(".team-rosters/v0", "shared.json", b"legacy-val").await.unwrap(),
-    );
-
-    let write_result = storage
-        .replace_registry_record_if_current(
-            RegistryRecord::TeamRoster,
-            "npm/shared",
-            b"legacy-val",
-            b"new-val",
-        )
-        .await
-        .unwrap();
-    assert_eq!(write_result, DocumentWrite::Conflict);
-
-    assert_eq!(
-        storage.read_registry_record(RegistryRecord::TeamRoster, "npm/shared").await.unwrap(),
-        Some(b"namespaced-val".to_vec()),
-    );
-    assert_eq!(
-        storage.read_registry_record(RegistryRecord::TeamRoster, "shared").await.unwrap(),
-        Some(b"legacy-val".to_vec()),
-    );
-}
-
-#[tokio::test]
-async fn replace_registry_record_returns_conflict_if_legacy_was_concurrently_modified() {
-    let tmp = TempDir::new().unwrap();
-    let storage = storage_in(&tmp);
-
-    assert!(
-        storage.root
-            .create_record(".team-rosters/v0", "shared.json", b"concurrent-legacy")
-            .await
-            .unwrap(),
-    );
-
-    let write_result = storage
-        .replace_registry_record_if_current(
-            RegistryRecord::TeamRoster,
-            "npm/shared",
-            b"stale-expected",
-            b"new-val",
-        )
-        .await
-        .unwrap();
-    assert_eq!(write_result, DocumentWrite::Conflict);
-
-    assert_eq!(
-        storage.read_registry_record(RegistryRecord::TeamRoster, "shared").await.unwrap(),
-        Some(b"concurrent-legacy".to_vec()),
+        storage.remove_registry_record(RegistryRecord::TeamRoster, "npm/shared").await.unwrap(),
     );
     assert_eq!(
         storage.read_registry_record(RegistryRecord::TeamRoster, "npm/shared").await.unwrap(),
-        Some(b"concurrent-legacy".to_vec()),
+        None,
     );
 }
 
 #[tokio::test]
-async fn replace_registry_record_returns_conflict_if_both_records_are_absent() {
+async fn replace_registry_record_returns_conflict_if_record_is_absent() {
     let tmp = TempDir::new().unwrap();
     let storage = storage_in(&tmp);
 
@@ -653,336 +584,54 @@ async fn replace_registry_record_returns_conflict_if_both_records_are_absent() {
         storage.read_registry_record(RegistryRecord::TeamRoster, "npm/shared").await.unwrap(),
         None,
     );
-    assert_eq!(
-        storage.read_registry_record(RegistryRecord::TeamRoster, "shared").await.unwrap(),
-        None,
-    );
-}
-
-#[tokio::test]
-async fn editing_one_grouped_registry_preserves_other_effective_rules() {
-    let tmp = TempDir::new().unwrap();
-    let storage = storage_in(&tmp);
-
-    assert!(
-        storage
-            .create_registry_record(
-                RegistryRecord::RuleOverrides,
-                "shared",
-                b"initial-shared-rules"
-            )
-            .await
-            .unwrap(),
-    );
-
-    assert_eq!(
-        storage.read_registry_record(RegistryRecord::RuleOverrides, "npm/shared").await.unwrap(),
-        Some(b"initial-shared-rules".to_vec()),
-    );
-    assert_eq!(
-        storage.read_registry_record(RegistryRecord::RuleOverrides, "pypi/shared").await.unwrap(),
-        Some(b"initial-shared-rules".to_vec()),
-    );
-
-    let write_result = storage
-        .replace_registry_record_if_current(
-            RegistryRecord::RuleOverrides,
-            "npm/shared",
-            b"initial-shared-rules",
-            b"updated-npm-rules",
-        )
-        .await
-        .unwrap();
-    assert_eq!(write_result, DocumentWrite::Written);
-
-    assert_eq!(
-        storage.read_registry_record(RegistryRecord::RuleOverrides, "npm/shared").await.unwrap(),
-        Some(b"updated-npm-rules".to_vec()),
-    );
-    assert_eq!(
-        storage.read_registry_record(RegistryRecord::RuleOverrides, "pypi/shared").await.unwrap(),
-        Some(b"initial-shared-rules".to_vec()),
-    );
-}
-
-struct HookedBackend {
-    inner: std::sync::Arc<dyn super::backend::HostedBackend>,
-    on_create_record: std::sync::Arc<dyn Fn() + Send + Sync>,
-}
-
-impl std::fmt::Debug for HookedBackend {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("HookedBackend")
-            .field("inner", &self.inner)
-            .finish_non_exhaustive()
-    }
-}
-
-#[async_trait::async_trait]
-impl super::backend::HostedBackend for HookedBackend {
-    async fn check_readiness(&self) -> pnpr_error::Result<()> {
-        self.inner.check_readiness().await
-    }
-    fn upload_store(&self) -> Option<crate::upload::RemoteUploadStore> {
-        self.inner.upload_store()
-    }
-    async fn read_document(
-        &self,
-        name: &CanonicalPackageName,
-    ) -> pnpr_error::Result<Option<Vec<u8>>> {
-        self.inner.read_document(name).await
-    }
-    async fn read_document_for_update(
-        &self,
-        name: &CanonicalPackageName,
-    ) -> pnpr_error::Result<Option<super::backend::HostedDocumentForUpdate>> {
-        self.inner.read_document_for_update(name).await
-    }
-    async fn write_document_if_current(
-        &self,
-        name: &CanonicalPackageName,
-        bytes: &[u8],
-        version: Option<&super::backend::HostedDocumentVersion>,
-    ) -> pnpr_error::Result<DocumentWrite> {
-        self.inner.write_document_if_current(name, bytes, version).await
-    }
-    async fn open_blob(
-        &self,
-        name: &CanonicalPackageName,
-        filename: &str,
-    ) -> pnpr_error::Result<Option<(axum::body::Body, Option<u64>)>> {
-        self.inner.open_blob(name, filename).await
-    }
-    async fn open_blob_range(
-        &self,
-        name: &CanonicalPackageName,
-        filename: &str,
-        range: &object_store::GetRange,
-    ) -> pnpr_error::Result<Option<super::RangedBlob>> {
-        self.inner.open_blob_range(name, filename, range).await
-    }
-    async fn reserve_blob_tmp(
-        &self,
-        name: &CanonicalPackageName,
-        filename: &str,
-    ) -> pnpr_error::Result<std::path::PathBuf> {
-        self.inner.reserve_blob_tmp(name, filename).await
-    }
-    async fn finalize_blob(
-        &self,
-        tmp_path: &std::path::Path,
-        name: &CanonicalPackageName,
-        filename: &str,
-    ) -> pnpr_error::Result<super::BlobFinalize> {
-        self.inner.finalize_blob(tmp_path, name, filename).await
-    }
-    async fn remove_blob(
-        &self,
-        name: &CanonicalPackageName,
-        filename: &str,
-    ) -> pnpr_error::Result<bool> {
-        self.inner.remove_blob(name, filename).await
-    }
-    async fn remove_package(&self, name: &CanonicalPackageName) -> pnpr_error::Result<bool> {
-        self.inner.remove_package(name).await
-    }
-    fn list_blob_files(
-        &self,
-    ) -> futures_util::stream::BoxStream<'_, pnpr_error::Result<super::HostedBlobFile>> {
-        self.inner.list_blob_files()
-    }
-    async fn list_package_names(&self) -> pnpr_error::Result<Vec<String>> {
-        self.inner.list_package_names().await
-    }
-    async fn list_package_blobs(
-        &self,
-        name: &CanonicalPackageName,
-    ) -> pnpr_error::Result<Vec<String>> {
-        self.inner.list_package_blobs(name).await
-    }
-    async fn list_top_level_dirs(&self) -> pnpr_error::Result<Vec<String>> {
-        self.inner.list_top_level_dirs().await
-    }
-    fn namespaced(&self, segment: &str) -> std::sync::Arc<dyn super::backend::HostedBackend> {
-        self.inner.namespaced(segment)
-    }
-    fn namespace(&self) -> String {
-        self.inner.namespace()
-    }
-    fn local_scratch_root(&self) -> &std::path::Path {
-        self.inner.local_scratch_root()
-    }
-    async fn read_record(&self, namespace: &str, key: &str) -> pnpr_error::Result<Option<Vec<u8>>> {
-        self.inner.read_record(namespace, key).await
-    }
-    async fn create_record(
-        &self,
-        namespace: &str,
-        key: &str,
-        bytes: &[u8],
-    ) -> pnpr_error::Result<bool> {
-        let res = self.inner.create_record(namespace, key, bytes).await;
-        (self.on_create_record)();
-        res
-    }
-    async fn replace_record_if_current(
-        &self,
-        namespace: &str,
-        key: &str,
-        expected: &[u8],
-        bytes: &[u8],
-    ) -> pnpr_error::Result<DocumentWrite> {
-        self.inner.replace_record_if_current(namespace, key, expected, bytes).await
-    }
-    async fn remove_record(&self, namespace: &str, key: &str) -> pnpr_error::Result<bool> {
-        self.inner.remove_record(namespace, key).await
-    }
-    async fn remove_record_if_current(
-        &self,
-        namespace: &str,
-        key: &str,
-        expected: &[u8],
-    ) -> pnpr_error::Result<bool> {
-        self.inner.remove_record_if_current(namespace, key, expected).await
-    }
-    async fn list_record_keys(&self, namespace: &str) -> pnpr_error::Result<Vec<String>> {
-        self.inner.list_record_keys(namespace).await
-    }
-}
-
-#[tokio::test]
-async fn replace_registry_record_returns_conflict_if_legacy_updated_between_verification_and_creation()
- {
-    let tmp = TempDir::new().unwrap();
-    let mut storage = storage_in(&tmp);
-
-    storage
-        .create_registry_record(RegistryRecord::TeamRoster, "shared", b"initial-legacy")
-        .await
-        .unwrap();
-
-    let legacy_file = tmp.path().join("storage/.team-rosters/v0/shared.json");
-    let hook_file = legacy_file.clone();
-    let hooked = std::sync::Arc::new(HookedBackend {
-        inner: std::sync::Arc::clone(&storage.root),
-        on_create_record: std::sync::Arc::new(move || {
-            std::fs::write(&hook_file, b"concurrent-modified-legacy").unwrap();
-        }),
-    });
-    storage.root = hooked;
-
-    let write_result = storage
-        .replace_registry_record_if_current(
-            RegistryRecord::TeamRoster,
-            "npm/shared",
-            b"initial-legacy",
-            b"migrated-val",
-        )
-        .await
-        .unwrap();
-
-    assert_eq!(write_result, DocumentWrite::Conflict);
-    assert_eq!(
-        storage.read_registry_record(RegistryRecord::TeamRoster, "npm/shared").await.unwrap(),
-        Some(b"concurrent-modified-legacy".to_vec()),
-    );
-    assert!(
-        !tmp.path()
-            .join("storage/.team-rosters/v0/npm/shared.json")
-            .exists(),
-    );
-}
-
-#[tokio::test]
-async fn concurrent_registry_record_migrations_race_safely() {
-    let tmp = TempDir::new().unwrap();
-    let storage = storage_in(&tmp);
-
-    storage
-        .create_registry_record(RegistryRecord::TeamRoster, "shared", b"initial-legacy")
-        .await
-        .unwrap();
-
-    let storage1 = storage.clone();
-    let storage2 = storage.clone();
-
-    let task1 = tokio::spawn(async move {
-        storage1
-            .replace_registry_record_if_current(
-                RegistryRecord::TeamRoster,
-                "npm/shared",
-                b"initial-legacy",
-                b"migrated-1",
-            )
-            .await
-            .unwrap()
-    });
-
-    let task2 = tokio::spawn(async move {
-        storage2
-            .replace_registry_record_if_current(
-                RegistryRecord::TeamRoster,
-                "npm/shared",
-                b"initial-legacy",
-                b"migrated-2",
-            )
-            .await
-            .unwrap()
-    });
-
-    let (res1, res2) = tokio::join!(task1, task2);
-    let r1 = res1.unwrap();
-    let r2 = res2.unwrap();
-
-    assert!(
-        (r1 == DocumentWrite::Written && r2 == DocumentWrite::Conflict)
-            || (r1 == DocumentWrite::Conflict && r2 == DocumentWrite::Written),
-        "exactly one write must win: r1={r1:?}, r2={r2:?}",
-    );
-}
-
-#[tokio::test]
-async fn replace_registry_record_rollback_preserves_concurrent_namespaced_update() {
-    let tmp = TempDir::new().unwrap();
-    let mut storage = storage_in(&tmp);
-
-    storage
-        .create_registry_record(RegistryRecord::TeamRoster, "shared", b"initial-legacy")
-        .await
-        .unwrap();
-
-    let legacy_file = tmp.path().join("storage/.team-rosters/v0/shared.json");
-    let namespaced_file = tmp.path().join("storage/.team-rosters/v0/npm/shared.json");
-    let hook_legacy = legacy_file.clone();
-    let hook_namespaced = namespaced_file.clone();
-    let hooked = std::sync::Arc::new(HookedBackend {
-        inner: std::sync::Arc::clone(&storage.root),
-        on_create_record: std::sync::Arc::new(move || {
-            std::fs::write(&hook_legacy, b"concurrent-modified-legacy").unwrap();
-            std::fs::write(&hook_namespaced, b"concurrent-namespaced-val").unwrap();
-        }),
-    });
-    storage.root = hooked;
-
-    let write_result = storage
-        .replace_registry_record_if_current(
-            RegistryRecord::TeamRoster,
-            "npm/shared",
-            b"initial-legacy",
-            b"migrated-val",
-        )
-        .await
-        .unwrap();
-
-    assert_eq!(write_result, DocumentWrite::Conflict);
-    assert_eq!(
-        storage.read_registry_record(RegistryRecord::TeamRoster, "npm/shared").await.unwrap(),
-        Some(b"concurrent-namespaced-val".to_vec()),
-    );
 }
 
 #[test]
 fn iso_from_unix_millis_formats_negative_millis_correctly() {
     assert_eq!(super::publish::iso_from_unix_millis(-1), "1969-12-31T23:59:59.999Z");
     assert_eq!(super::publish::iso_from_unix_millis(0), "1970-01-01T00:00:00.000Z");
+}
+
+#[tokio::test]
+async fn multi_component_and_max_length_oci_repositories_round_trip_on_local_storage() {
+    let tmp = TempDir::new().unwrap();
+    let storage = storage_in(&tmp).for_hosted("images", pnpr_package_name::Ecosystem::Oci);
+
+    let max_len_repo = ["a"; 128].join("/");
+    assert_eq!(max_len_repo.len(), 255);
+    let repos = ["acme", "acme/blobs", "acme/app", "acme/app/tool", max_len_repo.as_str()];
+
+    for repo in repos {
+        let name = CanonicalPackageName::parse(repo, pnpr_package_name::Ecosystem::Oci).unwrap();
+        let doc = format!(r#"{{"repository":"{repo}"}}"#);
+        assert_eq!(
+            storage.write_hosted_document_if_current(&name, doc.as_bytes(), None).await.unwrap(),
+            DocumentWrite::Written,
+        );
+        let slot = storage.reserve_hosted_blob(&name, "sha256-deadbeef").await.unwrap();
+        fs::write(&slot.tmp_path, repo.as_bytes()).await.unwrap();
+        storage.finalize_blob_slot(slot).await.unwrap();
+    }
+
+    for repo in repos {
+        let name = CanonicalPackageName::parse(repo, pnpr_package_name::Ecosystem::Oci).unwrap();
+        let expected_doc = format!(r#"{{"repository":"{repo}"}}"#);
+        assert_eq!(
+            storage
+                .read_hosted_document(&name)
+                .await
+                .unwrap()
+                .as_deref(),
+            Some(expected_doc.as_bytes()),
+        );
+    }
+
+    let mut listed = storage.hosted_package_names().await.unwrap();
+    listed.sort();
+    let mut expected: Vec<String> = repos
+        .iter()
+        .map(|s| (*s).to_string())
+        .collect();
+    expected.sort();
+    assert_eq!(listed, expected);
 }

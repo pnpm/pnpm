@@ -70,6 +70,17 @@ pub enum UnpublishError {
     },
 
     #[display(
+        "{spec} matches every published version ({versions_list}).\nRun pnpm unpublish \"{spec}\" --force to remove the whole package from the registry."
+    )]
+    #[diagnostic(code(ERR_PNPM_UNPUBLISH_CONFIRM))]
+    RangeMatchesEveryVersion {
+        #[error(not(source))]
+        spec: String,
+        #[error(not(source))]
+        versions_list: String,
+    },
+
+    #[display(
         "This package cannot be completely unpublished. Deprecate it instead or contact npm support."
     )]
     #[diagnostic(code(ERR_PNPM_UNPUBLISH_FORBIDDEN))]
@@ -149,20 +160,17 @@ impl UnpublishArgs {
         let context = DeprecateContext::new(config, self.registry.as_deref(), self.otp.clone())?;
 
         let spec = self.params.first().ok_or(UnpublishError::PackageRequired)?;
-        let PackageSpec {
-            name: package_name,
-            version: version_range,
-        } = parse_package_spec(spec)?;
+        let spec = parse_package_spec(spec)?;
+        let package_name = &spec.name;
 
-        let registry_url = registry_for_package(&context, &package_name);
-        let auth_header = auth_header_for_package(context.config, &registry_url, &package_name);
-        let package_url = package_url(&package_name, &registry_url)?;
+        let registry_url = registry_for_package(&context, package_name);
+        let auth_header = auth_header_for_package(context.config, &registry_url, package_name);
+        let package_url = package_url(package_name, &registry_url)?;
 
         let pkg: Packument =
-            fetch_package_meta(&context, &package_url, auth_header.as_deref(), &package_name)
-                .await?;
+            fetch_package_meta(&context, &package_url, auth_header.as_deref(), package_name).await?;
         if pkg.versions.is_empty() {
-            return Err(DeprecateError::NoVersions { package_name }.into());
+            return Err(DeprecateError::NoVersions { package_name: package_name.clone() }.into());
         }
 
         let mut mutation = MutationContext {
@@ -172,24 +180,48 @@ impl UnpublishArgs {
             session: OtpSession::new(web_auth_fetch_options(config)),
         };
 
-        let Some(range) = version_range else {
-            return self.unpublish_all::<Sys, Reporter>(&mut mutation, &package_url, &pkg).await;
+        self.unpublish_range::<Sys, Reporter>(
+            &mut mutation,
+            &package_url,
+            &registry_url,
+            pkg,
+            &spec,
+        )
+        .await
+    }
+
+    /// Unpublish the versions `spec` names, or the whole package when it
+    /// names no version or its range matches every version.
+    async fn unpublish_range<Sys: UnpublishHost, Reporter: self::Reporter>(
+        &self,
+        mutation: &mut MutationContext<'_>,
+        package_url: &str,
+        registry_url: &str,
+        pkg: Packument,
+        spec: &PackageSpec,
+    ) -> miette::Result<String> {
+        let Some(range) = spec.version.as_deref() else {
+            return self.unpublish_all::<Sys, Reporter>(mutation, package_url, &pkg, None).await;
         };
 
-        let versions_to_unpublish = versions_matching_range(&pkg.versions, &range);
+        let versions_to_unpublish = versions_matching_range(&pkg.versions, range);
         if versions_to_unpublish.is_empty() {
-            return Err(DeprecateError::NoMatchingVersions { version_range: range }.into());
+            return Err(
+                DeprecateError::NoMatchingVersions { version_range: range.to_string() }.into()
+            );
         }
 
         // Removing every version is a full unpublish, protections included.
         if versions_to_unpublish.len() == pkg.versions.len() {
-            return self.unpublish_all::<Sys, Reporter>(&mut mutation, &package_url, &pkg).await;
+            let spec = format!("{}@{range}", spec.name);
+            return self.unpublish_all::<Sys, Reporter>(mutation, package_url, &pkg, Some(&spec))
+                .await;
         }
 
         unpublish_versions::<Sys, Reporter>(
-            &mut mutation,
-            &package_url,
-            &registry_url,
+            mutation,
+            package_url,
+            registry_url,
             pkg,
             &versions_to_unpublish,
         )
@@ -198,21 +230,30 @@ impl UnpublishArgs {
 
     /// Delete the whole packument (`DELETE <package>/-rev/<rev>`). Refused
     /// without `--force`; a 405 from the registry means the package may only
-    /// be deprecated, not removed.
+    /// be deprecated, not removed. `full_range_spec` is the user's spec when
+    /// its range matches every version.
     async fn unpublish_all<Sys: UnpublishHost, Reporter: self::Reporter>(
         &self,
         mutation: &mut MutationContext<'_>,
         package_url: &str,
         pkg: &Packument,
+        full_range_spec: Option<&str>,
     ) -> miette::Result<String> {
         if !self.force {
-            return Err(UnpublishError::ConfirmRequired {
-                package_name: pkg.name.clone(),
-                versions_list: pkg.versions
-                    .keys()
-                    .cloned()
-                    .collect::<Vec<_>>()
-                    .join(", "),
+            let versions_list = pkg.versions
+                .keys()
+                .cloned()
+                .collect::<Vec<_>>()
+                .join(", ");
+            return Err(match full_range_spec {
+                None => UnpublishError::ConfirmRequired {
+                    package_name: pkg.name.clone(),
+                    versions_list,
+                },
+                Some(spec) => UnpublishError::RangeMatchesEveryVersion {
+                    spec: spec.to_string(),
+                    versions_list,
+                },
             }
             .into());
         }

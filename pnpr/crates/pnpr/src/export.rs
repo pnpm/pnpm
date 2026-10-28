@@ -29,7 +29,7 @@ pub async fn export_storage(
 
     let namespaces = configured_hosted_namespaces(config);
     for org in namespaces {
-        let org_storage = if org.is_empty() { storage.clone() } else { storage.for_hosted(&org) };
+        let org_storage = storage.for_hosted(&org, Ecosystem::Npm);
         let base_out = if org.is_empty() { out.to_path_buf() } else { out.join(&org) };
 
         let package_names = org_storage
@@ -131,6 +131,9 @@ async fn export_version_blobs(
     {
         export_single_blob(storage, canonical, filename, pkg_dir, report).await?;
     }
+    // A hosted tar registry stores the version's tar in place of its `.tgz`.
+    let tar = canonical.tar_name_for_version(ver);
+    export_single_blob(storage, canonical, &tar, pkg_dir, report).await?;
     if dist
         .get("attestations")
         .and_then(|a| a.get("url"))

@@ -21,24 +21,36 @@ The hosted store has the same layout on disk and in a bucket:
 ```text
 <storage>/
   layout.json                     marks the layout version
-  default/packages/<name>/        registries without an org
-  orgs/<org>/packages/<name>/     one namespace per org
-<namespace>/packages/<name>/document.json
-<namespace>/packages/<name>/blobs/<file>
+  default/<ecosystem>/            registries without an org
+  orgs/<org>/<ecosystem>/         one namespace per org and ecosystem
+<namespace>/packages/<scope>/<name>/document.json
+<namespace>/packages/<scope>/<name>/blobs/<file>
 ```
 
-A hosted registry declared under an
-[ecosystem group](ecosystems.md#reusing-a-name-across-ecosystems) without an
-`org` uses the org `<ecosystem>~<name>`, stored as `orgs/<ecosystem>!7e<name>/`,
-for example `orgs/npm!7einternal/`.
+`<ecosystem>` is `npm`, `cargo`, `pypi`, or `oci`. A hosted registry declared
+under an [ecosystem group](ecosystems.md#reusing-a-name-across-ecosystems)
+without an `org` uses its own registry name as its `org`, under
+`orgs/<name>/<ecosystem>/`, for example `orgs/internal/npm/`.
 
-Every package name, org and file name is one path segment. Lowercase
-letters, digits, `.`, `_` and `-` are kept, and every other byte is written
-as `!` and two hex digits, so `@scope/pkg` is stored as `!40scope!2fpkg`.
+pnpr stores an npm scoped package under `@<scope>/<name>/` and an unscoped
+package, Cargo crate, or Python project under `@/<name>/`, so `@scope/pkg` is
+in `packages/@scope/pkg/` and `left-pad` in `packages/@/left-pad/`. It stores a
+multi-component container image name `c_1/.../c_k` under
+`@<c_1>/.../@<c_{k-1}>/<c_k>/`, and a single-component one under `@/<name>/`,
+so `acme/app/tool` is in `packages/@acme/@app/tool/` and `ubuntu` in
+`packages/@/ubuntu/`. A `.tgz`, `.sigstore` or `.crate` file is
+stored without the package's unscoped name and the `-` after it, so
+`left-pad-1.0.0.tgz` is `blobs/1.0.0.tgz`. Such a file that does not start
+with the package's name keeps its whole name behind a leading `@`. Every
+other file, such as a container image layer or a Python wheel, keeps its
+name.
+
+In every org, scope, name and file name, lowercase letters, digits, `.`,
+`_` and `-` are kept. Every other byte is written as `!` and two hex digits,
+so `@Scope/App` is stored as `@!53cope/!41pp/`.
 
 pnpr refuses to start on a store written by a newer pnpr, or on one in the
-layout pnpr used before `layout.json` existed. Convert such a store with
-[`pnpr upgrade-storage`](cli.md#upgrade-storage). A cache in another layout is
+layout pnpr used before `layout.json` existed. A cache in another layout is
 emptied on startup and refilled on demand.
 
 ## Backends
@@ -48,9 +60,9 @@ By default both are local directories. Adding an `s3:` block moves the
 object store, so they can be shared by several stateless pnpr replicas. The
 ordinary upstream and resolver cache stays on local disk.
 
-Shared artifacts use a reserved `.pnpr-artifacts/v0/` namespace under the
+Shared artifacts use a reserved `.artifacts/` namespace under the
 configured prefix; hosted package objects keep their normal namespace. Without
-S3, artifacts live under `<cache>/shared-artifacts/v0`. They are rebuildable
+S3, artifacts live under `<cache>/shared-artifacts`. They are rebuildable
 cache data rather than authoritative packages, but publication slots are
 immutable while they exist.
 
@@ -186,8 +198,8 @@ s3:
 
 When publishing packages to an S3 backend, pnpr coordinates uploads through a local write-ahead commit journal:
 
-1. **Local staging**: Incoming blobs are staged under `<cache>/pnpr-hosted-staging/`.
-2. **Journal seal**: pnpr writes the transaction under `<cache>/.pnpr-journal/<txn>/` and seals it before applying object-store writes.
+1. **Local staging**: Incoming blobs are staged under `<cache>/.staging/`.
+2. **Journal seal**: pnpr writes the transaction under `<cache>/.journal/<txn>/` and seals it before applying object-store writes.
 3. **Apply**: pnpr uploads the blobs and conditionally updates the packument.
 4. **Journal cleanup**: The local journal entry is removed once the object store confirms the write.
 
@@ -195,7 +207,7 @@ When publishing packages to an S3 backend, pnpr coordinates uploads through a lo
 
 The write-ahead journal is kept on the local disk of the replica handling the publish request. Keep these operational details in mind:
 
-- **Startup recovery**: If a replica terminates unexpectedly mid-publish, it automatically recovers pending journal entries in its `<cache>/.pnpr-journal/` on next startup, applying sealed transactions and rolling back unsealed ones.
+- **Startup recovery**: If a replica terminates unexpectedly mid-publish, it automatically recovers pending journal entries in its `<cache>/.journal/` on next startup, applying sealed transactions and rolling back unsealed ones.
 - **Ephemeral disks**: In containerized multi-replica environments where instances use ephemeral local storage, destroying a failed instance before it restarts means its local journal cannot be replayed. Any partially uploaded blobs in S3 remain as unreferenced objects.
 - **Multipart uploads**: If a large upload is aborted or interrupted, S3 retains incomplete multipart upload parts until explicitly aborted or cleaned up by policy.
 

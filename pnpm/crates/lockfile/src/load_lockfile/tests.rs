@@ -628,3 +628,22 @@ fn parses_link_dep_in_injected_snapshot() {
     assert_eq!(c_ref, &SnapshotDepRef::Link("packages/c".to_string()));
     assert_eq!(c_ref.resolve(&c_name), None);
 }
+
+#[test]
+fn unsupported_version_at_names_only_a_rejected_version() {
+    let tmp = tempdir().expect("create tempdir");
+    let path = tmp.path().join(Lockfile::CURRENT_FILE_NAME);
+    let version_at = |content: Option<&str>| {
+        if let Some(content) = content {
+            std::fs::write(&path, content).expect("write lock.yaml");
+        }
+        Lockfile::unsupported_version_at(&path)
+            .expect("read lock.yaml")
+            .map(|version| version.to_string())
+    };
+
+    assert_eq!(version_at(None), None);
+    assert_eq!(version_at(Some("lockfileVersion: '6.0'\npackages: {}\n")), Some("6.0".to_string()));
+    assert_eq!(version_at(Some(MAIN_DOC)), None);
+    assert_eq!(version_at(Some("packages: [")), None);
+}

@@ -1,9 +1,49 @@
 use super::{
-    AllowBuild, Config, MacosBackupSettings, NodePackageMapSettings, PackageConfigsSetting,
-    PackagePermissions, PnpmfileSetting, SkillsSettings, WorkspaceSettings, as_set,
-    global_shims_setting, opt_path, path, side_effects_cache_setting,
+    AllowBuild, Config, MachineSettings, MacosBackupSettings, NodePackageMapSettings,
+    PackageConfigsSetting, PackagePermissions, PnpmfileSetting, SkillsSettings, TrustedSettings,
+    WorkspaceSettings, as_set, global_shims_setting, opt_path, path, side_effects_cache_setting,
 };
 use indexmap::IndexMap;
+
+impl TrustedSettings {
+    /// Every setting at the value `config` resolved it to. See
+    /// [`WorkspaceSettings::from_resolved`].
+    #[must_use]
+    pub fn from_resolved(config: &Config) -> Self {
+        Self {
+            settings: WorkspaceSettings::from_resolved(config),
+            machine: MachineSettings::from_resolved(config),
+        }
+    }
+}
+
+impl MachineSettings {
+    /// [`WorkspaceSettings::from_resolved`] for these settings.
+    #[must_use]
+    pub fn from_resolved(config: &Config) -> Self {
+        Self {
+            ci: Some(config.ci),
+            state_dir: Some(path(&config.state_dir)),
+            scope: config.scope.clone(),
+            // Reported as the user set them; see
+            // `WorkspaceSettings::with_resolved_paths`.
+            global_dir: as_set(config, "globalDir"),
+            global_bin_dir: as_set(config, "globalBinDir"),
+            macos_backup: Some(MacosBackupSettings {
+                exclude_modules_dir: Some(config.macos_backup.exclude_modules_dir),
+                exclude_store_dir: Some(config.macos_backup.exclude_store_dir),
+            }),
+            global_shims: Some(global_shims_setting(config)),
+            tools: Some(config.tools.clone()),
+            symlinked_lockfile_target_dirs: Some(
+                config.symlinked_lockfile_target_dirs
+                    .iter()
+                    .map(|dir| path(dir))
+                    .collect(),
+            ),
+        }
+    }
+}
 
 impl WorkspaceSettings {
     /// Every setting at the value `config` resolved it to, for a consumer
@@ -63,7 +103,6 @@ impl WorkspaceSettings {
         Self {
             hoist_pattern: Some(config.hoist_pattern.clone()),
             public_hoist_pattern: Some(config.public_hoist_pattern.clone()),
-            state_dir: Some(path(&config.state_dir)),
             lockfile_dir: opt_path(config.lockfile_dir.as_deref()),
             npmrc_auth_file: opt_path(config.npmrc_auth_file.as_deref()),
             global_pnpmfile: opt_path(config.global_pnpmfile.as_deref()),
@@ -81,14 +120,6 @@ impl WorkspaceSettings {
             modules_dir: as_set(config, "modulesDir"),
             virtual_store_dir: as_set(config, "virtualStoreDir"),
             global_virtual_store_dir: as_set(config, "globalVirtualStoreDir"),
-            global_dir: as_set(config, "globalDir"),
-            global_bin_dir: as_set(config, "globalBinDir"),
-            symlinked_lockfile_target_dirs: Some(
-                config.symlinked_lockfile_target_dirs
-                    .iter()
-                    .map(|dir| path(dir))
-                    .collect(),
-            ),
 
             // `cacheDir` is one of those settings when a source set it, and
             // the directory pnpm chose for the host when none did, which is
@@ -114,22 +145,13 @@ impl WorkspaceSettings {
             prefer_symlinked_executables: as_set(config, "preferSymlinkedExecutables"),
             runtime: as_set(config, "runtime"),
 
-            macos_backup: Some(MacosBackupSettings {
-                exclude_modules_dir: Some(config.macos_backup.exclude_modules_dir),
-                exclude_store_dir: Some(config.macos_backup.exclude_store_dir),
-            }),
-
-            global_shims: Some(global_shims_setting(config)),
-
             frozen_lockfile: config.frozen_lockfile,
             provenance: config.provenance,
             git_branch_lockfile: Some(config.use_git_branch_lockfile),
             registry: Some(config.registry.clone()),
-            scope: config.scope.clone(),
             pnpr_server: config.pnpr_server.clone(),
             cargo: Some(config.cargo.clone()),
             python: Some(config.python.clone()),
-            tools: Some(config.tools.clone()),
             remote_side_effects_cache: config.remote_side_effects_cache.clone(),
             remote_cache: config.remote_cache.as_deref().cloned(),
             reporter_hide_prefix: config.reporter_hide_prefix,

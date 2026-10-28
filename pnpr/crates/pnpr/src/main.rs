@@ -91,7 +91,7 @@ async fn run_maintenance(
     .map_err(|err| miette::miette!("{err}"))?;
     apply_storage_overrides(&mut config, &mut args.paths, &source);
 
-    if matches!(cmd, Command::ConfigCheck | Command::Config { action: ConfigSubcommand::Check }) {
+    if matches!(cmd, Command::Config { action: ConfigSubcommand::Check }) {
         let report = pnpr::config_check::check_resolved_config(&config, &source);
         println!("{}", pnpr::config_check::format_report(&report));
         return Ok(());
@@ -116,10 +116,6 @@ fn apply_storage_overrides(config: &mut Config, paths: &mut StorageArgs, source:
 fn apply_server_overrides(config: &mut Config, server: &ServerArgs) {
     if let Some(ttl) = server.packument_ttl {
         config.http.packument_ttl = ttl;
-    } else if let Ok(raw) = std::env::var("PNPR_PACKUMENT_TTL_SECS")
-        && let Some(d) = pnpr_config::parse_interval(&raw)
-    {
-        config.http.packument_ttl = d;
     }
     if let Some(osv) = server.osv_options.osv {
         config.osv.enabled = osv;

@@ -80,7 +80,56 @@ fn context() -> RegistryContext {
         ]),
         declared_prefixes: declared(&[("work", "https://npm.example.com"), ("zeta", registry)]),
         registry_options_by_url: BTreeMap::default(),
+        locked_registries: None,
     }
+}
+
+/// [`context`] after the `@work` scope moved from `OLD` to its current
+/// registry, and the default registry moved to `OLD`'s mirror.
+const OLD: &str = "https://old.example.com/";
+
+fn moved_context() -> RegistryContext {
+    context()
+        .with_locked_registries(Some(HashMap::from([
+            ("default".to_string(), "https://REGISTRY.npmjs.org".to_string()),
+            ("@work".to_string(), OLD.to_string()),
+        ])))
+}
+
+#[test]
+fn a_plain_key_resolved_from_the_registry_its_scope_was_routed_to() {
+    let moved = moved_context();
+    assert_eq!(moved.locked_registry("@work/foo"), OLD);
+    assert_eq!(moved.routed_registry("@work/foo"), "https://npm.example.com/");
+    assert_eq!(moved.registry_of_key(&key("@work/foo@1.0.0")), Some(OLD));
+    assert_eq!(
+        moved.registry_of_key(&key("@work/foo@zeta:1.0.0")),
+        Some("https://npm.example.com/"),
+        "a qualified key names its registry",
+    );
+    assert_eq!(
+        context().registry_of_key(&key("@work/foo@1.0.0")),
+        Some("https://npm.example.com/"),
+        "without a record, a plain key resolved from the current route",
+    );
+}
+
+#[test]
+fn a_plain_key_moves_with_its_scope_route() {
+    let moved = moved_context();
+    assert_eq!(
+        moved.moved_registry(&key("@work/foo@1.0.0")),
+        Some((OLD, "https://npm.example.com/")),
+    );
+    assert_eq!(
+        moved.moved_registry(&key("@work/foo@1.0.0(peer@2.0.0)")),
+        Some((OLD, "https://npm.example.com/")),
+    );
+    assert_eq!(moved.moved_registry(&key("foo@1.0.0")), None, "one registry, two spellings");
+    assert_eq!(moved.moved_registry(&key("@work/foo@zeta:1.0.0")), None);
+    assert_eq!(moved.moved_registry(&key("@work/foo@file:packages/foo")), None);
+    assert_eq!(moved.moved_registry(&key("@work/node@runtime:22.0.0")), None);
+    assert_eq!(context().moved_registry(&key("@work/foo@1.0.0")), None);
 }
 
 #[test]

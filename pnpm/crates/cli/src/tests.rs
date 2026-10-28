@@ -60,3 +60,5 @@ fn a_script_named_help_keeps_its_all_flags() {
     let (_, prepared) = prepare_cli_argv(argv(&["pnpm", "run", "help", "-a", "--all"]));
     assert_eq!(prepared, argv(&["pnpm", "run", "help", "-a", "--all"]));
 }
+
+mod docs_error_codes;

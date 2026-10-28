@@ -1,5 +1,6 @@
 use super::{
-    DirPatcher, InodeMap, PublishSource, Value, extend_files_map, inode_map::file_id, publish_edits,
+    CopyFiles, DirPatcher, InodeMap, PublishSource, Value, extend_files_map, inode_map::file_id,
+    publish_edits,
 };
 use pretty_assertions::assert_eq;
 #[cfg(unix)]
@@ -35,8 +36,9 @@ fn files_map(root: &std::path::Path, relative_paths: &[&str]) -> HashMap<String,
 }
 
 fn sync(source: &std::path::Path, target: &std::path::Path) {
-    let patchers = DirPatcher::from_multiple_targets(source, &[target.to_path_buf()], false)
-        .expect("diff source against target");
+    let patchers =
+        DirPatcher::from_multiple_targets(source, &[target.to_path_buf()], CopyFiles::AllFiles)
+            .expect("diff source against target");
     for patcher in patchers {
         patcher.apply().expect("apply patch");
     }
@@ -186,8 +188,8 @@ fn sync_with<Sys: pnpm_fs::FsHardLink>(
     target: &std::path::Path,
 ) -> Result<(), super::PatchError> {
     let patch = super::diff_dir(
-        &super::load_inode_map(target, false).expect("target inode map"),
-        &super::load_inode_map(source, false).expect("source inode map"),
+        &super::load_inode_map(target, CopyFiles::AllFiles).expect("target inode map"),
+        &super::load_inode_map(source, CopyFiles::AllFiles).expect("source inode map"),
     );
     super::apply_patch_with_link::<Sys>(&patch, source, target)
 }
@@ -252,7 +254,7 @@ fn publish_replaces_an_edited_hardlink_with_its_own_file() {
     fs::write(source.join("index.js"), "new").expect("rewrite the hardlink in place");
 
     publish_edits(
-        &PublishSource::load(&source, false).expect("load source"),
+        &PublishSource::load(&source, CopyFiles::AllFiles).expect("load source"),
         &target,
         SystemTime::UNIX_EPOCH,
     )
@@ -276,7 +278,7 @@ fn publish_of_package_files_leaves_out_the_files_the_manifest_does_not_list() {
     fs::create_dir_all(&target).expect("create target");
 
     publish_edits(
-        &PublishSource::load(&source, true).expect("load source"),
+        &PublishSource::load(&source, CopyFiles::PackageFiles).expect("load source"),
         &target,
         SystemTime::UNIX_EPOCH,
     )
@@ -298,7 +300,7 @@ fn publish_leaves_a_hardlink_that_was_not_edited_in_this_watch() {
         .expect("a deadline past every current mtime");
 
     publish_edits(
-        &PublishSource::load(&source, false).expect("load source"),
+        &PublishSource::load(&source, CopyFiles::AllFiles).expect("load source"),
         &target,
         edited_since,
     )
@@ -319,14 +321,14 @@ fn publish_does_not_recopy_a_file_whose_length_and_mtime_match() {
     fs::create_dir_all(&target).expect("create target");
 
     publish_edits(
-        &PublishSource::load(&source, false).expect("load source"),
+        &PublishSource::load(&source, CopyFiles::AllFiles).expect("load source"),
         &target,
         SystemTime::UNIX_EPOCH,
     )
     .expect("first publish");
     let published = device_and_inode(&target.join("index.js"));
     publish_edits(
-        &PublishSource::load(&source, false).expect("load source"),
+        &PublishSource::load(&source, CopyFiles::AllFiles).expect("load source"),
         &target,
         SystemTime::UNIX_EPOCH,
     )
@@ -343,8 +345,12 @@ fn sync_replaces_a_target_manifest_left_half_written() {
     create_file(&source.join("package.json"), r#"{"name":"pkg","version":"1.0.0"}"#);
     create_file(&target.join("package.json"), "");
 
-    let patchers = DirPatcher::from_multiple_targets(&source, std::slice::from_ref(&target), true)
-        .expect("a half-written target manifest is diffed, not parsed");
+    let patchers = DirPatcher::from_multiple_targets(
+        &source,
+        std::slice::from_ref(&target),
+        CopyFiles::PackageFiles,
+    )
+    .expect("a half-written target manifest is diffed, not parsed");
     for patcher in patchers {
         patcher.apply().expect("apply patch");
     }
@@ -359,7 +365,8 @@ fn sync_replaces_a_target_manifest_left_half_written() {
 fn sync_package_files(source: &std::path::Path, target: &std::path::Path) {
     fs::create_dir_all(target).expect("create target");
     let patchers =
-        DirPatcher::from_multiple_targets(source, &[target.to_path_buf()], true).expect("diff");
+        DirPatcher::from_multiple_targets(source, &[target.to_path_buf()], CopyFiles::PackageFiles)
+            .expect("diff");
     for patcher in patchers {
         patcher.apply().expect("apply patch");
     }

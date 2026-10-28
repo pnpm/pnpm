@@ -97,6 +97,8 @@ pub(super) struct Registries {
     pub named: HashMap<String, String>,
     /// See [`DeclaredRegistryPrefixes`].
     pub declared: DeclaredRegistryPrefixes,
+    /// See [`pnpm_lockfile::RegistryContext::locked_registries`].
+    pub locked: Option<HashMap<String, String>>,
 }
 
 /// Resolve the registries every registry-touching resolver consults.
@@ -106,6 +108,7 @@ pub(super) struct Registries {
 /// downstream 404.
 pub(super) fn resolve_registries(
     config: &Config,
+    locked: Option<&std::collections::BTreeMap<String, String>>,
 ) -> Result<Registries, InstallWithFreshLockfileError> {
     let user_registries_by_prefix: HashMap<String, String> = config
         .registries_by_prefix
@@ -120,6 +123,12 @@ pub(super) fn resolve_registries(
         named: merge_named_registries(&user_registries_by_prefix)
             .map_err(InstallWithFreshLockfileError::InvalidNamedRegistry)?,
         declared: config.declared_registry_prefixes(),
+        locked: locked.map(|routes| {
+            routes
+                .iter()
+                .map(|(route, url)| (route.clone(), url.clone()))
+                .collect()
+        }),
     })
 }
 

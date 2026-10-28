@@ -127,6 +127,24 @@ fn add_accepts_dir_allow_build_and_registry_after_the_subcommand() {
     drop((root, mock_instance));
 }
 
+#[test]
+fn add_short_t_reports_the_long_spellings() {
+    let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
+
+    let output = pacquet
+        .with_args(["add", "foo", "-T"])
+        .output()
+        .expect("run `pacquet add foo -T`");
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(!output.status.success(), "`add -T` must fail, stderr:\n{stderr}");
+    assert!(stderr.contains("-T"), "{stderr}");
+    assert!(stderr.contains("--save-types"), "{stderr}");
+    assert!(stderr.contains("--tilde"), "{stderr}");
+
+    drop(root);
+}
+
 /// `--allow-build=!<pkg>` denies the package's build: `allowBuilds` records
 /// `<pkg>: false` and the install script does not run.
 #[test]
@@ -535,7 +553,7 @@ fn add_aliasing_a_package_manager_name_installs_the_aliased_package() {
         "yarn@npm:@pnpm.e2e/dep-of-pkg-with-1-dep@^100.0.0",
         "--lockfile-only",
     ]);
-    assert_eq!(prod_spec(&dir, "yarn"), "npm:@pnpm.e2e/dep-of-pkg-with-1-dep@^100.0.0");
+    assert_eq!(prod_spec(&dir, "yarn"), "npm:@pnpm.e2e/dep-of-pkg-with-1-dep@^100.1.0");
     let manifest: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string(dir.join("package.json")).unwrap()).unwrap();
     assert_eq!(manifest.get("devEngines"), None, "{manifest}");

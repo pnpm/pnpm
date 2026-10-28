@@ -4,7 +4,7 @@
 //! See `pnpm/plans/LOCKFILE_RESOLUTION_REUSE.md`.
 
 pub use registry_range::locked_child_admits;
-pub(crate) use registry_range::locked_key_is_current;
+pub(crate) use registry_range::{any_locked_key_admits, locked_key_is_current};
 
 mod locked_version;
 mod registry_range;

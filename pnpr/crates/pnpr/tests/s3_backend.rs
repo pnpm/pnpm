@@ -60,7 +60,7 @@ async fn publishes_to_and_serves_from_the_object_store() {
     // The hosted store is the bucket, so nothing lands in the local
     // `storage` directory.
     assert!(
-        !local_package_dir(&storage, "", "mypkg").exists(),
+        !local_package_dir(&storage, "", pnpr_storage::Ecosystem::Npm, "mypkg").exists(),
         "hosted content must not touch local storage",
     );
 
@@ -109,6 +109,7 @@ async fn a_publish_that_loses_the_tarball_key_is_refused() {
             &ObjectPath::from(object_key(&local_blob_path(
                 Path::new(""),
                 "",
+                pnpr_storage::Ecosystem::Npm,
                 "mypkg",
                 "mypkg-1.0.0.tgz",
             ))),
@@ -145,6 +146,7 @@ async fn a_publish_that_loses_the_tarball_key_is_refused() {
         .get(&ObjectPath::from(object_key(&local_blob_path(
             Path::new(""),
             "",
+            pnpr_storage::Ecosystem::Npm,
             "mypkg",
             "mypkg-1.0.0.tgz",
         ))))
@@ -227,7 +229,12 @@ async fn unpublish_removes_the_package_from_the_bucket() {
 
 /// Every object key in the bucket under package `name`'s directory.
 async fn bucket_keys(store: &Arc<dyn ObjectStore>, name: &str) -> Vec<String> {
-    let scope = ObjectPath::from(object_key(&local_package_dir(Path::new(""), "", name)));
+    let scope = ObjectPath::from(object_key(&local_package_dir(
+        Path::new(""),
+        "",
+        pnpr_storage::Ecosystem::Npm,
+        name,
+    )));
     store
         .list(Some(&scope))
         .map(|meta| meta.expect("list entry").location.to_string())
@@ -239,7 +246,7 @@ async fn bucket_keys(store: &Arc<dyn ObjectStore>, name: &str) -> Vec<String> {
 /// subdirectory of the proxy-cache root, which `static_serve` nests
 /// under `storage`).
 fn staging_file_count(storage: &Path) -> usize {
-    let dir = storage.join(".pnpr-cache").join("pnpr-hosted-staging");
+    let dir = storage.join(".pnpr-cache").join(".staging");
     std::fs::read_dir(dir).map_or(0, std::iter::Iterator::count)
 }
 
@@ -324,7 +331,8 @@ async fn a_caller_supplied_prefix_is_normalized_before_it_reaches_the_keys() {
         .map(|entry| entry.unwrap().location.to_string())
         .collect()
         .await;
-    let package = object_key(&local_package_dir(Path::new(""), "", "mypkg"));
+    let package =
+        object_key(&local_package_dir(Path::new(""), "", pnpr_storage::Ecosystem::Npm, "mypkg"));
     assert!(
         keys.iter()
             .any(|key| key.starts_with(&format!("packages/{package}/"))),

@@ -1,5 +1,5 @@
 use super::{
-    BTreeMap, HashMap, HashSet, OsStr, PacklistError, Path, PathBuf, Value, VecDeque,
+    HashMap, HashSet, OsStr, PacklistError, Path, PathBuf, SelectedPackageFiles, Value, VecDeque,
     collect_own_files, fs, safe_read_package_json_from_dir,
 };
 
@@ -62,7 +62,7 @@ pub(super) fn collect_bundled_files(
     pkg_dir: &Path,
     root_manifest: &Value,
     boundary: &Path,
-    out: &mut BTreeMap<String, PathBuf>,
+    out: &mut SelectedPackageFiles,
 ) -> Result<(), PacklistError> {
     let Some(real_pkg_dir) = fs::canonicalize(pkg_dir).ok() else { return Ok(()) };
     let Some(boundary) = fs::canonicalize(boundary).ok() else { return Ok(()) };
@@ -103,7 +103,7 @@ impl BundleWalk<'_> {
         &mut self,
         packed: Vec<String>,
         dependency: AdmittedBundle,
-        out: &mut BTreeMap<String, PathBuf>,
+        out: &mut SelectedPackageFiles,
     ) -> Result<Value, PacklistError> {
         let AdmittedBundle { dir, real_dir } = dependency;
         let dir = dir
@@ -114,15 +114,19 @@ impl BundleWalk<'_> {
             .ok()
             .flatten()
             .unwrap_or_else(|| Value::Object(serde_json::Map::new()));
-        for rel in collect_own_files(
+        let own = collect_own_files(
             &dir,
             super::PackageRules {
                 workspace_dir: None,
                 manifest: &manifest,
                 include_alternate_manifests: false,
             },
-        )? {
-            out.insert(format!("{prefix}/{rel}"), dir.join(rel));
+        )?;
+        for (rel, source) in own.files {
+            out.files.insert(format!("{prefix}/{rel}"), source);
+        }
+        for (rel, link) in own.links {
+            out.links.insert(format!("{prefix}/{rel}"), link);
         }
         self.slots.insert(packed.clone(), real_dir.clone());
         self.placed.push(PlacedPackage { packed, real_dir });

@@ -53,7 +53,7 @@ fn pnpr_binary() -> PathBuf {
 /// and anything else (e.g. extra npm packages the benchmark lockfile
 /// pulls) is fetched from npmjs.org on demand.
 ///
-/// `--packument-ttl-secs 31536000` (one year) keeps the fixture
+/// `--packument-ttl 31536000` (one year) keeps the fixture
 /// packuments authoritative across a test run: their on-disk
 /// mtime is whenever the npm tarball was built, which is far older
 /// than any sane TTL, so a short TTL would mark them stale and try
@@ -115,7 +115,7 @@ pub fn pnpr_command_with_binary(bin: &Path, port: u16, public_url: Option<&str>)
         .arg(pnpr_fixtures::mock_config_path())
         .arg("--storage")
         .arg(runtime_storage())
-        .arg("--packument-ttl-secs")
+        .arg("--packument-ttl")
         .arg("31536000")
         .arg("--listen")
         .arg(format!("127.0.0.1:{port}"))

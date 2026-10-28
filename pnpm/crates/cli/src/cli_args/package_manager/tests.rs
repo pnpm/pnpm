@@ -1,6 +1,14 @@
-use super::{package_manager_to_sync, version_satisfies, wanted_package_manager};
-use pnpm_config::PNPM_VERSION;
+use super::{package_manager_to_sync_for_version, version_satisfies, wanted_package_manager};
+use pnpm_config::{PNPM_VERSION, PmOnFail};
 use std::path::Path;
+
+fn package_manager_to_sync(
+    manifest: &serde_json::Value,
+    root_dir: &Path,
+    on_fail: Option<PmOnFail>,
+) -> Option<super::PackageManagerToSync> {
+    package_manager_to_sync_for_version(manifest, root_dir, on_fail, PNPM_VERSION)
+}
 
 fn dev_engines_manifest(version: &str) -> serde_json::Value {
     serde_json::json!({

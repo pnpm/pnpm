@@ -3,7 +3,7 @@ use async_trait::async_trait;
 use axum::body::Body;
 use object_store::UpdateVersion;
 use pnpr_error::Result;
-use pnpr_package_name::CanonicalPackageName;
+use pnpr_package_name::{CanonicalPackageName, Ecosystem};
 use std::{
     fmt::Debug,
     path::{Path, PathBuf},
@@ -100,6 +100,10 @@ pub(crate) trait HostedBackend: Debug + Send + Sync {
     /// namespace so two orgs hosting the same `name@version` never collide.
     fn namespaced(&self, segment: &str) -> Arc<dyn HostedBackend>;
 
+    /// A view that decodes package directories and object keys with
+    /// `ecosystem`'s [`crate::layout::package_segments`] rules.
+    fn with_ecosystem(&self, ecosystem: Ecosystem) -> Arc<dyn HostedBackend>;
+
     /// What separates this backend's objects from another organization's.
     ///
     /// Two views with the same namespace address the same objects, and two
@@ -148,13 +152,6 @@ pub(crate) trait HostedBackend: Debug + Send + Sync {
     ) -> Result<DocumentWrite>;
 
     async fn remove_record(&self, namespace: &str, key: &str) -> Result<bool>;
-
-    async fn remove_record_if_current(
-        &self,
-        namespace: &str,
-        key: &str,
-        expected: &[u8],
-    ) -> Result<bool>;
 
     /// Every key stored in `namespace`, in unspecified order, relative to the
     /// namespace and `/`-separated whatever the backend stores them on.

@@ -32,6 +32,8 @@ pub use tombstones::{PackageTombstone, TOMBSTONES_NAMESPACE};
 
 pub use layout_state::HostedLayout;
 
+pub use pnpr_package_name::Ecosystem;
+
 pub use tar_integrities::DerivedTar;
 
 mod tar_integrities;
@@ -79,7 +81,10 @@ use tokio::{
     io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt},
 };
 
-use layout::{BLOBS_DIR, DOCUMENT_FILE, PACKAGES_DIR, decode_segment, encode_segment};
+use layout::{
+    BLOBS_DIR, DOCUMENT_FILE, PACKAGES_DIR, blob_segment, decode_blob_segment,
+    decode_package_segments, package_segments,
+};
 pub const DOCUMENT_WRITE_RETRIES: usize = 8;
 /// Retries the commit path allows the document write: higher than the
 /// request-path budget because a sealed transaction has to converge, and a
@@ -211,7 +216,7 @@ impl Storage {
             )),
         };
         let tar_integrities = root.namespaced(tar_integrities::NAMESPACE);
-        let hosted = namespace(&root, "");
+        let hosted = namespace(&root, "", Ecosystem::Npm);
         Ok(Self { root, hosted, cached, tar_integrities, tar_integrity_cache: Arc::default() })
     }
 

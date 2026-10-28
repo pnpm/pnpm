@@ -19,6 +19,8 @@ pub mod registry;
 pub mod signal_delivery;
 #[cfg(unix)]
 pub mod spawn;
+#[cfg(feature = "libsql")]
+pub mod sqlite_misuse;
 #[cfg(unix)]
 pub mod terminal;
 pub mod trusted_tls_server;

@@ -16,7 +16,6 @@ use tracing_subscriber::{Layer, layer::SubscriberExt};
 use super::{
     Config, EnvVar, EnvVarOs, GetCurrentDir, GetHomeDir, Host, LinkProbe, LoadWorkspaceYamlError,
     NodeLinker, NodePackageMapMode, NodePackageMapType, PackageImportMethod, TrustPolicy,
-    WorkspaceSettings,
 };
 use crate::defaults::{GLOBAL_LAYOUT_VERSION, default_state_dir, default_store_dir};
 

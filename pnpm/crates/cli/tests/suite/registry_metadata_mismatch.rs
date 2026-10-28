@@ -123,3 +123,49 @@ fn every_command_records_registry_metadata_for_an_exact_version() {
 fn every_command_records_registry_metadata_for_a_range() {
     assert_every_command_records_registry_metadata("^1.0.0");
 }
+
+#[test]
+fn partial_locked_peer_declarations_are_recovered_from_registry() {
+    let (_root, workspace, _npmrc_info) = setup("1.0.0");
+    run(&workspace, &["install"]);
+    let path = workspace.join("pnpm-lock.yaml");
+    let text = fs::read_to_string(&path).expect("read lockfile");
+    let mut lockfile: serde_json::Value = serde_saphyr::from_str(&text).expect("parse lockfile");
+    lockfile["packages"][format!("{WITH_PEERS}@1.0.0")]["peerDependencies"]
+        .as_object_mut()
+        .expect("peer declarations")
+        .remove("@pnpm.e2e/peer-b");
+    lockfile["packages"][format!("{WITH_PEERS}@1.0.0")]["peerDependenciesMeta"] =
+        json!({ "@pnpm.e2e/peer-b": { "optional": true } });
+    fs::write(path, serde_saphyr::to_string(&lockfile).expect("serialize lockfile"))
+        .expect("write partial lockfile");
+
+    run(&workspace, &["add", UNRELATED, NO_RELEASE_AGE]);
+    assert_records_registry_metadata(&workspace, "install over partial peer declarations");
+}
+
+#[test]
+fn manifest_hooks_receive_original_peer_ranges_on_repeated_resolution() {
+    let (_root, workspace, _npmrc_info) = setup("1.0.0");
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        r"module.exports = { hooks: { readPackage(pkg) {
+          if (pkg.name === '@pnpm.e2e/abc-optional-peers') {
+            const peers = pkg.peerDependencies;
+            peers['@pnpm.e2e/peer-a'] = peers['@pnpm.e2e/peer-a'] === '*' ? '^2.0.0' : '*';
+          }
+          return pkg;
+        } } };",
+    )
+    .expect("write pnpmfile");
+
+    for args in [&["install", NO_RELEASE_AGE][..], &["add", UNRELATED, NO_RELEASE_AGE]] {
+        run(&workspace, args);
+        let text = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read lockfile");
+        let lockfile: serde_json::Value = serde_saphyr::from_str(&text).expect("parse lockfile");
+        assert_eq!(
+            lockfile["packages"][format!("{WITH_PEERS}@1.0.0")]["peerDependencies"]["@pnpm.e2e/peer-a"],
+            "*",
+        );
+    }
+}

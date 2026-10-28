@@ -122,11 +122,12 @@ sources resolve within their own group and cannot cross into another, and each
 ecosystem gets its own default. Access rules, teams, upstream credentials, and
 caches belong to the individual registry.
 
-A grouped hosted registry defaults to the storage namespace
-`<ecosystem>~<name>`. Set `org` explicitly to keep an existing namespace when
-moving a flat registry into a group, `org: ''` included for the default
-namespace. Two hosted registries still cannot share a namespace. The flat
-configuration format and its shared `defaultRegistry: main` remain supported.
+A grouped hosted registry defaults its `org` to its own `<name>`, and each
+ecosystem stores its packages under its own `<ecosystem>/` directory in that
+namespace. Set `org` explicitly to choose another namespace (`org: ''` for the
+default namespace). Two hosted registries of the same ecosystem cannot share an
+`org` namespace. The flat configuration format and its shared
+`defaultRegistry: main` remain supported.
 
 ## Cargo
 

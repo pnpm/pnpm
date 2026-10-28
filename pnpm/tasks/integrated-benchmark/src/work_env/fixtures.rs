@@ -123,7 +123,12 @@ pub(super) fn write_peer_heavy_packument(
         "versions": versions,
         "time": time,
     });
-    let document = pnpr_storage::layout::local_document_path(storage_root, "", name);
+    let document = pnpr_storage::layout::local_document_path(
+        storage_root,
+        "",
+        pnpr_storage::Ecosystem::Npm,
+        name,
+    );
     fs::create_dir_all(document.parent().expect("a document has a package directory"))
         .expect("create peer-heavy registry package directory");
     fs::write(document, serde_json::to_vec(&packument).expect("serialize peer-heavy packument"))

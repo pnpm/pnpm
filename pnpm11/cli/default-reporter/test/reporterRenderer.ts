@@ -4,6 +4,7 @@ import { expect, test } from '@jest/globals'
 import { initDefaultReporter } from '@pnpm/cli.default-reporter'
 import type * as logs from '@pnpm/core-loggers'
 import {
+  lifecycleLogger,
   lockfileVerificationLogger,
   progressLogger,
   promptLogger,
@@ -270,6 +271,7 @@ test('never redraws above the top of the terminal', async () => {
     for (let group = 0; group < groupCount; group++) {
       stageLogger.debug({ prefix: groupDir(group), stage: 'resolution_started' })
       reportResolved(group, 'foo')
+      reportResolved(0, `foo-${group}`)
     }
     await waitFor(writes, written => written.some(chunk => stripAnsi(chunk).includes(`install-${groupCount - 1}`)))
 
@@ -282,6 +284,61 @@ test('never redraws above the top of the terminal', async () => {
     const ups = writes.flatMap(cursorUps)
     expect(ups.length).toBeGreaterThan(0)
     expect(Math.max(...ups)).toBeLessThan(rows)
+  } finally {
+    stop()
+  }
+})
+
+// Regression test for pnpm/pnpm#17387: `pnpm run --stream` adds a line to the
+// frame for every line a script prints. Once the frame fills the terminal, the
+// lines still on screen must not be written again with each new one.
+test('a frame growing past the terminal writes each line once', async () => {
+  const rows = 6
+  const writes: string[] = []
+  const mockProcess = {
+    stdout: {
+      columns: 120,
+      rows,
+      write: (chunk: string) => {
+        writes.push(chunk)
+        return true
+      },
+    },
+    stderr: { write: () => true },
+  }
+
+  const cwd = '/home/jane/project'
+  const streamParser = createStreamParser()
+  const stop = initDefaultReporter({
+    streamParser: streamParser as StreamParser<logs.Log>,
+    reportingOptions: { streamLifecycleOutput: true },
+    context: {
+      argv: ['run'],
+      config: { dir: cwd } as ReporterPnpmConfig,
+      process: mockProcess as unknown as NodeJS.Process,
+    },
+  })
+
+  try {
+    await yieldTick()
+
+    const lineCount = rows * 3
+    const lineText = (line: number): string => `A ${String(line).padStart(2, '0')}`
+    for (let line = 1; line <= lineCount; line++) {
+      lifecycleLogger.debug({
+        depPath: cwd,
+        line: lineText(line),
+        stage: 'start:a',
+        stdio: 'stdout',
+        wd: cwd,
+      })
+    }
+    await waitFor(writes, written => written.some(chunk => stripAnsi(chunk).includes(lineText(lineCount))))
+
+    const output = stripAnsi(writes.join(''))
+    for (let line = 1; line <= lineCount; line++) {
+      expect(output.split(lineText(line))).toHaveLength(2)
+    }
   } finally {
     stop()
   }

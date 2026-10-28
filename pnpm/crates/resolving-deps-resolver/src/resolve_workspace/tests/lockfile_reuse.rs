@@ -2,9 +2,10 @@ use super::{
     Arc, DependencyGroup, FailureShape, HashMap, Mutex, RecordingResolver, Utc,
     WarmupProbeResolver, WorkspaceImporter, assert_eq, caret_entry, deps, fake_manifest,
     fake_result, graph_versions_of, importer_opts, importer_scoped_update_lockfile,
-    lockfile_recording_time, lockfile_with_package, optional_failure_fixture, recorded_time,
-    resolve_pinned_versus_fresh, resolve_single_importer, resolve_workspace, reuse_graph_lockfile,
-    reuse_steal_lockfile, workspace_opts,
+    lockfile_recording_time, lockfile_with_package, optional_failure_fixture,
+    optional_failure_fixture_with_specifier, recorded_time, resolve_pinned_versus_fresh,
+    resolve_single_importer, resolve_workspace, reuse_graph_lockfile, reuse_steal_lockfile,
+    workspace_opts,
 };
 use chrono::TimeZone;
 
@@ -152,12 +153,47 @@ async fn skips_an_optional_dependency_locked_only_under_another_registry() {
         .expect("an entry from another registry keeps the skip behavior");
 }
 
+#[tokio::test]
+async fn fails_on_an_unresolvable_named_registry_optional_dependency_with_a_locked_entry() {
+    for specifier in ["work:^1.0.0", "work:broken@^1.0.0", "zeta:^1.0.0"] {
+        let err = resolve_optional_failure_with_locked_key(specifier, "broken@work:1.2.0")
+            .await
+            .expect_err(specifier);
+        assert!(
+            matches!(err, crate::ResolveDependencyTreeError::LockedOptionalResolutionFailure(_)),
+            "unexpected error for {specifier}: {err}",
+        );
+    }
+}
+
+#[tokio::test]
+async fn skips_a_named_registry_optional_dependency_locked_only_under_another_registry_or_range() {
+    for (specifier, key) in [
+        ("other:^1.0.0", "broken@work:1.2.0"),
+        ("work:^2.0.0", "broken@work:1.2.0"),
+        ("work:^1.0.0", "broken@other:1.2.0"),
+        ("gone:^1.0.0", "broken@work:1.2.0"),
+    ] {
+        resolve_optional_failure_with_locked_key(specifier, key).await
+            .unwrap_or_else(|err| panic!("{specifier} locked as {key}: {err}"));
+    }
+}
+
 /// Resolve the optional failure fixture against a lockfile holding `key`,
-/// with `work` declared for the default registry and `other` for another.
+/// with `work` and `zeta` declared for the default registry and `other` for
+/// another.
 async fn resolve_optional_failure_locked_as(
     key: &str,
 ) -> Result<(), crate::ResolveDependencyTreeError> {
-    let (_tmp, manifest, resolver) = optional_failure_fixture(FailureShape::Plain);
+    resolve_optional_failure_with_locked_key("^1.0.0", key).await
+}
+
+async fn resolve_optional_failure_with_locked_key(
+    specifier: &str,
+    key: &str,
+) -> Result<(), crate::ResolveDependencyTreeError> {
+    let (_tmp, manifest, resolver) =
+        optional_failure_fixture_with_specifier(FailureShape::Plain, specifier);
     let importers = [WorkspaceImporter { id: ".".to_string(), manifest: &manifest }];
     let mut opts = workspace_opts(false, false);
     opts.reuse.lockfile = Some(std::sync::Arc::new(lockfile_with_package(key)));
@@ -168,10 +204,12 @@ async fn resolve_optional_failure_locked_as(
         registries: std::collections::HashMap::from([("default".to_string(), default.to_string())]),
         registries_by_prefix: std::collections::HashMap::from([
             ("work".to_string(), default.to_string()),
+            ("zeta".to_string(), default.to_string()),
             ("other".to_string(), other.to_string()),
         ]),
         declared_prefixes: pnpm_lockfile::DeclaredRegistryPrefixes::new([
             ("work", default),
+            ("zeta", default),
             ("other", other),
         ]),
         ..Default::default()

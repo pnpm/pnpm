@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/deps.compliance.audit",
-  "version": "1101.0.43",
+  "version": "1101.0.44",
   "description": "Audit a lockfile",
   "keywords": [
     "pnpm",

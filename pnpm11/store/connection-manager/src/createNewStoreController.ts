@@ -69,6 +69,7 @@ export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Confi
   cafsLocker?: CafsLocker
   ignoreFile?: (filename: string) => boolean
   fetchFullMetadata?: boolean
+  pruneProtectedDirs?: string[]
 } & Partial<Pick<Config, 'deployAllFiles' | 'strictStorePkgContentCheck'>> & Pick<ClientOptions,
   | 'localDirPackageImportMethod'
   | 'resolveSymlinksInInjectedDirs'
@@ -186,6 +187,7 @@ function buildPackageStoreOptions (
     networkConcurrency: opts.networkConcurrency,
     packageImportMethod: opts.packageImportMethod,
     cacheDir: opts.cacheDir,
+    pruneProtectedDirs: opts.pruneProtectedDirs,
     storeDir: opts.storeDir,
     verifyStoreIntegrity: typeof opts.verifyStoreIntegrity === 'boolean'
       ? opts.verifyStoreIntegrity

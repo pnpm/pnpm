@@ -423,7 +423,11 @@ function insertProject (
  */
 const SETTING_UNSET_EQUIVALENTS: Partial<Record<keyof WorkspaceStateSettings, unknown>> = {
   allowBuilds: {},
+  dangerouslyAllowAllBuilds: false,
   enableGlobalVirtualStore: false,
+  trustLockfile: false,
+  // The default of `virtualStoreDirMaxLength`.
+  virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
 }
 
 export function normalizeUnsetSetting (settingName: keyof WorkspaceStateSettings, value: unknown): unknown {

@@ -50,14 +50,14 @@ fn load_at_buckets_the_problem_keys() {
         .expect("load pnpm-workspace.yaml")
         .expect("pnpm-workspace.yaml is present");
 
-    assert_eq!(settings.key_issues.refused, ["configDir"]);
+    assert_eq!(settings.key_issues.refused, ["configDir", "globalShims"]);
     assert_eq!(settings.key_issues.unrecognized, ["minimumReleaseAg"]);
     assert_eq!(settings.key_issues.non_camel_case, ["store-dir"]);
 }
 
 #[test]
 fn parses_and_applies_scope_from_yaml() {
-    let settings: WorkspaceSettings = serde_saphyr::from_str("scope: '@my-org'\n").unwrap();
+    let settings: crate::MachineSettings = serde_saphyr::from_str("scope: '@my-org'\n").unwrap();
     assert_eq!(settings.scope.as_deref(), Some("@my-org"));
 
     let mut config = Config::new();
@@ -68,7 +68,7 @@ fn parses_and_applies_scope_from_yaml() {
 
 #[test]
 fn apply_scope_overrides_an_earlier_layer() {
-    let settings: WorkspaceSettings =
+    let settings: crate::MachineSettings =
         serde_saphyr::from_str("scope: '@from-later-layer'\n").unwrap();
     let mut config = Config::new();
     config.scope = Some("@from-global-config".to_owned());

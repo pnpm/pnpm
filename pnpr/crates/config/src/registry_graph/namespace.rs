@@ -40,10 +40,10 @@ pub(in super::super) fn ecosystem_package_keys(
     Ok(normalized)
 }
 
-/// Two hosted registries sharing an `org` would read and write the same
-/// storage namespace, so a package published to one would surface through the
-/// other — breaking the declared-provenance isolation. Rejected at load,
-/// whether the config came from YAML or an embedder.
+/// Two hosted registries of the same ecosystem sharing an `org` would read and
+/// write the same storage namespace, so a package published to one would
+/// surface through the other — breaking the declared-provenance isolation.
+/// Rejected at load, whether the config came from YAML or an embedder.
 pub(in super::super) fn org_collision_error(name: &str, org: &str, other: &str) -> RegistryError {
     RegistryError::InvalidConfig {
         reason: format!(
@@ -82,7 +82,7 @@ pub(in super::super) fn validate_registry_name(name: &str) -> Result<(), Registr
 /// dot, or Windows drive prefix) — otherwise a crafted config could read or
 /// write outside the storage root. The leading-dot rule also keeps an org
 /// from aliasing the reserved dot-directories inside the storage root (the
-/// default `.pnpr-cache` wipeable cache and the `.pnpr-journal` commit
+/// default `.pnpr-cache` wipeable cache and the `.journal` commit
 /// journal), which would put authoritative packages under a path an operator
 /// is told is safe to delete.
 pub(in super::super) fn validate_org_namespace(name: &str, org: &str) -> Result<(), RegistryError> {

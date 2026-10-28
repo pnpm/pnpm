@@ -1,8 +1,17 @@
-use super::configuration::{RunAnchors, apply_update_config};
-use crate::{State, cli_args::reporter::ReporterFlags};
+use super::{
+    CliArgs, Invocation,
+    configuration::{RunAnchors, RunSetup, apply_update_config},
+    seed_config,
+};
+use crate::{State, cli_args::reporter::ReporterFlags, config_overrides::ConfigOverrides};
 use miette::Context;
-use pnpm_config::Config;
-use std::{future::Future, path::Path, pin::Pin, sync::atomic::AtomicBool};
+use pnpm_config::{Config, ConfigLoadFailure, Host};
+use std::{
+    future::Future,
+    path::Path,
+    pin::Pin,
+    sync::{Mutex, atomic::AtomicBool},
+};
 
 pub(crate) type CommandFuture<'a, Output = ()> =
     Pin<Box<dyn Future<Output = miette::Result<Output>> + Send + 'a>>;
@@ -132,5 +141,73 @@ impl<'a> From<&'a crate::cli_args::cli_command::CliWorkspaceArgs> for WorkspaceI
             if_present: args.execution.if_present,
             sequential: args.execution.sequential,
         }
+    }
+}
+
+pub(super) fn take_preloaded_config(
+    preloaded_config: &Mutex<Option<Result<Config, ConfigLoadFailure>>>,
+    anchor: &Path,
+    is_global: bool,
+    local_dir: &Path,
+) -> Option<Result<Config, ConfigLoadFailure>> {
+    (!is_global && anchor == local_dir)
+        .then(|| {
+            preloaded_config
+                .lock()
+                .expect("lock preloaded_config")
+                .take()
+        })
+        .flatten()
+}
+
+impl CliArgs {
+    pub(super) fn take_or_load_fast_path_config(
+        &self,
+        dir: &Path,
+        config_overrides: &ConfigOverrides,
+        preloaded_config: &mut Option<Result<Config, ConfigLoadFailure>>,
+    ) -> Option<Config> {
+        match preloaded_config.take() {
+            Some(Ok(config)) => Some(config),
+            Some(Err(failure)) => {
+                *preloaded_config = Some(Err(failure));
+                None
+            }
+            None => seed_config(
+                self.paths.npmrc_auth_file.as_deref(),
+                self.paths.ignore_workspace,
+                config_overrides,
+                self.network.registry.as_deref(),
+            )
+            .current_keeping_warnings::<Host>(dir)
+            .ok(),
+        }
+    }
+
+    pub(super) fn load_self_update_config(
+        &self,
+        invocation: &Invocation,
+        config_overrides: &ConfigOverrides,
+        setup: &RunSetup,
+        anchors: &RunAnchors,
+    ) -> miette::Result<&'static mut Config> {
+        let cfg = seed_config(
+            self.paths.npmrc_auth_file.as_deref(),
+            self.paths.ignore_workspace,
+            config_overrides,
+            self.network.registry.as_deref(),
+        )
+        .current_for_self_update::<Host>(&anchors.dir)
+        .map_err(miette::Report::new)
+        .wrap_err("load configuration")?;
+        self.finalize_run_config(
+            cfg,
+            &anchors.dir,
+            false,
+            invocation,
+            config_overrides,
+            setup,
+            anchors,
+        )
     }
 }

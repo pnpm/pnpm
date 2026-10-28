@@ -8,7 +8,7 @@ use super::{
 };
 
 use pnpm_executor::LifecycleScriptError;
-use pnpm_injected_deps_syncer::{BinLinkSettings, SyncInjectedDeps, sync_injected_deps};
+use pnpm_injected_deps_syncer::{BinLinkSettings, CopyFiles, SyncInjectedDeps, sync_injected_deps};
 use pnpm_package_manifest::project_manifest_path;
 use std::sync::Mutex;
 
@@ -109,7 +109,7 @@ impl ProjectScriptRunner<'_> {
             pkg_root_dir: project_dir,
             workspace_dir: Some(self.workspace_root),
             workspace_modules_dir: &self.config.modules_dir,
-            include_only_package_files: !self.config.deploy_all_files,
+            files: CopyFiles::from_deploy_all_files(self.config.deploy_all_files),
             manifest_before_scripts: Some(manifest.value()),
             // A project with its own lockfile has its copies synced by
             // `sync_injected_deps_of_modules_dir` once every project is installed.

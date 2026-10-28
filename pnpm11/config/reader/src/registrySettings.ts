@@ -13,7 +13,7 @@ import { quoteAndJoin } from './quoteAndJoin.js'
 import { redactRegistryUrl, registryUrlHasUserinfo } from './registryUrlUserinfo.js'
 import { assertBoolean, assertObjectSetting, assertString, assertStringArray } from './settingAssertions.js'
 
-const REGISTRY_SERVER_TYPES = new Set(['npm', 'artifactory'])
+const REGISTRY_SERVER_TYPES = new Set(['npm', 'artifactory', 'pnpr'])
 
 /**
  * Credentials and TLS material stay in `.npmrc`, which is not committed.
@@ -211,7 +211,12 @@ function addPrefixRoute (
     throw new PnpmError('INVALID_SETTING',
       `The prefix ${JSON.stringify(prefix)} is declared by two registries: ${quoteAndJoin([declaredBy, registry].map(redactAndSanitize))}.`)
   }
-  lookups.registriesByPrefix[prefix] = registry
+  Object.defineProperty(lookups.registriesByPrefix, prefix, {
+    value: registry,
+    writable: true,
+    enumerable: true,
+    configurable: true,
+  })
 }
 
 /**

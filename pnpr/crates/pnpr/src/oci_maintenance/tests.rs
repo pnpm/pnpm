@@ -14,7 +14,8 @@ fn setup() -> (TempDir, Storage) {
     let temp = TempDir::new().unwrap();
     let storage =
         Storage::new(&HostedStoreConfig::Fs, temp.path().join("store"), temp.path().join("cache"))
-            .unwrap();
+            .unwrap()
+            .for_hosted("", Ecosystem::Oci);
     (temp, storage)
 }
 
@@ -108,6 +109,7 @@ async fn corrupt_or_missing_manifests_prevent_deletion() {
     let path = local_blob_path(
         &temp.path().join("store"),
         "",
+        Ecosystem::Oci,
         repository.as_str(),
         &manifest.blob_filename(),
     );
@@ -162,7 +164,7 @@ async fn index_keeps_children_removed_from_the_document_and_their_layers() {
 #[tokio::test]
 async fn collection_reaches_only_its_own_namespace() {
     let (_temp, storage) = setup();
-    let org = storage.for_hosted("other");
+    let org = storage.for_hosted("other", Ecosystem::Oci);
     blob(&org, &name("app"), b"private").await;
     blob(&storage, &name("app"), b"orphan").await;
     assert_eq!(collect(&storage, Duration::ZERO, false, MANIFEST_LIMIT).await.unwrap(), (1, 6));
@@ -232,8 +234,9 @@ async fn collection_streams_an_object_store_inventory() {
         store: std::sync::Arc::new(object_store::memory::InMemory::new()),
         prefix: "images/".into(),
     };
-    let storage =
-        Storage::new(&config, temp.path().join("store"), temp.path().join("cache")).unwrap();
+    let storage = Storage::new(&config, temp.path().join("store"), temp.path().join("cache"))
+        .unwrap()
+        .for_hosted("", Ecosystem::Oci);
     let repository = name("acme/app");
     retained_image(&storage, &repository).await;
     blob(&storage, &name("acme/app/nested"), b"orphan").await;
@@ -245,7 +248,7 @@ async fn collection_streams_an_object_store_inventory() {
 #[tokio::test]
 async fn collection_does_not_remove_a_matching_blob_from_the_shared_cache() {
     let (temp, storage) = setup();
-    let hosted = storage.for_hosted("images");
+    let hosted = storage.for_hosted("images", Ecosystem::Oci);
     let repository = name("acme/app");
     let digest = blob(&hosted, &repository, b"orphan").await;
     let cache = temp

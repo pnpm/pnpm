@@ -174,6 +174,7 @@ pub(super) async fn prepare_dispatched_modules<'install, Reporter: self::Reporte
         projects: crate::install::state_options::InstallProjectMetadata {
             catalogs: &workspace.catalogs,
             manifests: project_manifests,
+            workspace_projects: scope.workspace_projects.as_deref(),
             prefix: &workspace.prefix,
             workspace_packages: workspace.workspace_packages.as_deref(),
         },

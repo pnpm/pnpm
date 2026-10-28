@@ -92,13 +92,6 @@ impl SharedArtifactStore {
             integrity,
             size,
         };
-        if self
-            .stored_size(&blob.path())
-            .await?
-            .is_some()
-        {
-            return Ok(false);
-        }
         let publication = artifact_operation_id()?;
         self.begin_publication(&publication).await?;
         let mut reclamation_needed = false;
@@ -121,7 +114,46 @@ impl SharedArtifactStore {
         reclamation_needed: &mut bool,
     ) -> Result<bool> {
         let started = Instant::now();
+        let created = self.store_or_verify_blob(blob, body, reclamation_needed).await?;
+        // Until now this registered upload keeps reclamation from running.
+        // From now on the record keeps it off the blob, for as long as a
+        // publication may take to arrive, so its age has to start here.
+        let record = self.object_path(&staged_record_path(&blob.owner, &blob.id));
+        if let Err(error) = self.store.put(&record, PutPayload::new()).await {
+            // Nothing will vouch for the stored blob, so the reclamation
+            // this asks for gives its charge back.
+            *reclamation_needed = true;
+            return Err(error.into());
+        }
+        *reclamation_needed = started.elapsed() >= ACTIVE_PUBLICATION_EXPIRY;
+        if *reclamation_needed {
+            self.begin_publication(publication).await?;
+        }
+        Ok(created)
+    }
+
+    /// Store `body` when the blob is missing, or verify `body` when the blob is
+    /// already stored.
+    async fn store_or_verify_blob<StreamError: Display>(
+        &self,
+        blob: &UploadedBlob<'_>,
+        mut body: impl Stream<Item = std::result::Result<Bytes, StreamError>> + Unpin,
+        reclamation_needed: &mut bool,
+    ) -> Result<bool> {
         let (owner, size) = (blob.owner.as_str(), blob.size);
+        if self
+            .stored_size(&blob.path())
+            .await?
+            .is_some()
+        {
+            let mut received =
+                ReceivedBlob { integrity: blob.integrity, size, hasher: Sha512::new(), bytes: 0 };
+            while let Some(chunk) = body.next().await {
+                received.accept(chunk)?;
+            }
+            received.finish()?;
+            return Ok(false);
+        }
         if let Err(error) = self.reserve_quota(owner, size).await {
             *reclamation_needed = matches!(&error, RegistryError::ObjectStore(_));
             return Err(error);
@@ -140,20 +172,6 @@ impl SharedArtifactStore {
             }
         };
         self.release_uncommitted(owner, size, if created { size } else { 0 }).await?;
-        // Until now this registered upload keeps reclamation from running.
-        // From now on the record keeps it off the blob, for as long as a
-        // publication may take to arrive, so its age has to start here.
-        let record = self.object_path(&staged_record_path(owner, &blob.id));
-        if let Err(error) = self.store.put(&record, PutPayload::new()).await {
-            // Nothing will vouch for the stored blob, so the reclamation
-            // this asks for gives its charge back.
-            *reclamation_needed = true;
-            return Err(error.into());
-        }
-        *reclamation_needed = started.elapsed() >= ACTIVE_PUBLICATION_EXPIRY;
-        if *reclamation_needed {
-            self.begin_publication(publication).await?;
-        }
         Ok(created)
     }
 

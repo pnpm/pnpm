@@ -122,6 +122,48 @@ fn final_importer_sources_clear_pending_without_changing_pre_consumer_candidates
     );
 }
 
+#[test]
+fn private_hoist_refresh_updates_symlinked_virtual_store_package_bins() {
+    let temp = tempfile::tempdir().unwrap();
+    let virtual_store = temp.path().join("node_modules/.pnpm");
+    let pkg_dir = virtual_store.join("tool@1.0.0/node_modules/tool");
+    let hoisted_modules = virtual_store.join("node_modules");
+    let symlink_location = hoisted_modules.join("tool");
+    fs::create_dir_all(&pkg_dir).unwrap();
+    fs::create_dir_all(&hoisted_modules).unwrap();
+    let manifest = serde_json::json!({"name": "tool", "version": "1.0.0", "bin": {"tool": "tool"}});
+    fs::write(pkg_dir.join("package.json"), manifest.to_string()).unwrap();
+    fs::write(pkg_dir.join("tool"), "#!/usr/bin/env node\nconsole.log('placeholder')\n").unwrap();
+    pnpm_fs::symlink_dir(&pkg_dir, &symlink_location).unwrap();
+
+    let source =
+        pnpm_cmd_shim::PackageBinSource::new(symlink_location, std::sync::Arc::new(manifest))
+            .with_resolved_location(pkg_dir.clone());
+    let options = LinkBinsOptions::default();
+    pnpm_cmd_shim::link_bins_of_packages::<Host>(
+        std::slice::from_ref(&source),
+        &hoisted_modules.join(".bin"),
+        &options,
+    )
+    .unwrap();
+
+    let key: PackageKey = "tool@1.0.0".parse().unwrap();
+    let plans = crate::build_options::HoistedBinPlans::default();
+    plans.seed(&HashMap::from([(hoisted_modules.clone(), vec![source].into())]));
+    plans.seed_private_hoist(hoisted_modules.clone(), &[("tool".to_string(), key.clone())]);
+    plans.initialize_private_hoist_for(&key).unwrap();
+
+    fs::write(pkg_dir.join("tool"), "#!/bin/sh\nprintf 'private hoist refreshed\\n'\n").unwrap();
+    plans.refresh_private_hoist_for(&key, &options).unwrap();
+    plans
+        .refresh_private_hoist(&HashSet::from([key]), &options)
+        .unwrap();
+
+    let output = run_bin(&hoisted_modules.join(".bin/tool"));
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    assert_eq!(output.stdout, b"private hoist refreshed\n");
+}
+
 fn run_bin(path: &std::path::Path) -> std::process::Output {
     let mut last_busy = None;
     for _ in 0..200 {

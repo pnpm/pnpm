@@ -374,7 +374,7 @@ async fn serve_hosted_revision_tarball(
     if revision.get() != 0 {
         return not_found();
     }
-    let storage = state.inner.storage.for_hosted(&org);
+    let storage = state.inner.storage.for_hosted(&org, pnpr_registry::Ecosystem::Npm);
     let original = match hosted_original(&storage, package, version).await {
         Ok(Some(original)) => original,
         Ok(None) => return not_found(),

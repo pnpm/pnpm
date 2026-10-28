@@ -50,7 +50,6 @@ pub(super) async fn check_settings(
                 inputs,
                 pnpmfile_checksum.as_deref(),
             ),
-            dedupe_peers: inputs.config.dedupe_peers,
         },
     )?;
     Ok(parsed_overrides)
@@ -105,7 +104,6 @@ fn parse_overrides(
 pub(crate) struct CheckLockfileSettingsDriftOptions<'a> {
     pub parsed_overrides: Option<&'a [VersionOverride]>,
     pub pnpmfile_checksum: PnpmfileChecksumCheck<'a>,
-    pub dedupe_peers: bool,
 }
 
 pub(crate) fn check_lockfile_settings_drift(
@@ -114,11 +112,7 @@ pub(crate) fn check_lockfile_settings_drift(
     catalogs: &Catalogs,
     opts: CheckLockfileSettingsDriftOptions<'_>,
 ) -> Result<(), FreshnessCheckError> {
-    let CheckLockfileSettingsDriftOptions {
-        parsed_overrides,
-        pnpmfile_checksum,
-        dedupe_peers,
-    } = opts;
+    let CheckLockfileSettingsDriftOptions { parsed_overrides, pnpmfile_checksum } = opts;
     let overrides_map: Option<std::collections::HashMap<String, String>> =
         parsed_overrides.map(pnpm_config_parse_overrides::create_overrides_map_from_parsed);
     let package_extensions_checksum =
@@ -143,7 +137,7 @@ pub(crate) fn check_lockfile_settings_drift(
             patched_dependencies: patched_dependency_hashes.as_ref(),
             resolution: pnpm_lockfile::ResolutionSettingsCheck {
                 auto_install_peers: config.auto_install_peers,
-                dedupe_peers,
+                dedupe_peers: config.dedupe_peers,
                 exclude_links_from_lockfile: config.exclude_links_from_lockfile,
                 add_missing_peer_types: config.add_missing_peer_types,
                 inject_workspace_packages: config.inject_workspace_packages,

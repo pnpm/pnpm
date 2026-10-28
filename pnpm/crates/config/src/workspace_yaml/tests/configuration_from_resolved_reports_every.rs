@@ -7,8 +7,9 @@ use super::{
 /// Every setting must report its resolved value, so that a hook reading the
 /// configuration sees what the install runs with. A key absent from the
 /// projection reads as `null`, which is indistinguishable from "explicitly
-/// unset" — so adding a setting to [`WorkspaceSettings`] without teaching
-/// [`WorkspaceSettings::from_resolved`] about it fails here.
+/// unset" — so adding a setting to [`WorkspaceSettings`] or
+/// [`MachineSettings`](crate::MachineSettings) without teaching its
+/// `from_resolved` about it fails here.
 ///
 /// Settings that are genuinely `Option` on [`Config`] are exempt: a `None`
 /// there is pnpm's own "unset", not a gap in the projection. The fixture
@@ -118,8 +119,8 @@ fn from_resolved_reports_every_setting() {
         ..Config::default()
     };
 
-    let projected = WorkspaceSettings::from_resolved(&config);
-    let Ok(serde_json::Value::Object(map)) = serde_json::to_value(&projected) else {
+    let projected = crate::TrustedSettings::from_resolved(&config);
+    let Ok(serde_json::Value::Object(map)) = projected.to_json() else {
         panic!("the projected settings serialize to a JSON object");
     };
 
@@ -147,7 +148,7 @@ fn from_resolved_reports_every_setting() {
 fn reset_setting_to_default_covers_every_setting() {
     let defaults = Config::default();
     let Ok(serde_json::Value::Object(map)) =
-        serde_json::to_value(WorkspaceSettings::from_resolved(&defaults))
+        crate::TrustedSettings::from_resolved(&defaults).to_json()
     else {
         panic!("the projected settings serialize to a JSON object");
     };

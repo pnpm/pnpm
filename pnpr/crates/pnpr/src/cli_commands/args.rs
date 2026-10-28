@@ -20,8 +20,8 @@ pub struct ServerArgs {
     pub public_url: Option<String>,
 
     /// Duration before a cached packument is considered stale and
-    /// refetched (e.g. "5m", "300s"). A registry's `maxage` overrides it.
-    #[arg(long, env = "PNPR_PACKUMENT_TTL", alias = "packument-ttl-secs", value_parser = parse_cli_interval)]
+    /// refetched (e.g. "5m", "300s"). A registry's `maxAge` overrides it.
+    #[arg(long, env = "PNPR_PACKUMENT_TTL", value_parser = parse_cli_interval)]
     pub packument_ttl: Option<Duration>,
 
     #[command(flatten)]

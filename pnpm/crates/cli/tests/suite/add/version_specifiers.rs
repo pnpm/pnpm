@@ -569,16 +569,16 @@ fn add_explicit_range_honors_requested_operator() {
     drop((root, npmrc_info)); // cleanup
 }
 
-/// An `npm:` alias specifier is written verbatim — never resolved (which
-/// would risk dropping the aliased target name).
+/// An `npm:` alias keeps its target name and records the resolved range,
+/// as a plain registry specifier does.
 #[test]
-fn add_npm_alias_spec_is_kept_verbatim() {
+fn add_npm_alias_spec_records_the_resolved_range() {
     let (root, dir, anchor) = exec_pacquet_in_temp_cwd([
         "add",
         "my-alias@npm:@pnpm.e2e/dep-of-pkg-with-1-dep@^100.0.0",
         "--lockfile-only",
     ]);
-    assert_eq!(prod_spec(&dir, "my-alias"), "npm:@pnpm.e2e/dep-of-pkg-with-1-dep@^100.0.0");
+    assert_eq!(prod_spec(&dir, "my-alias"), "npm:@pnpm.e2e/dep-of-pkg-with-1-dep@^100.1.0");
     drop((root, anchor)); // cleanup
 }
 

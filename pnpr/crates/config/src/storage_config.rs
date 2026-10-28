@@ -71,7 +71,7 @@ pub(crate) fn resolve_storage_paths(
                 .map(|ByteSize(raw)| {
                     parse_byte_size(raw)
                         .ok_or_else(|| RegistryError::InvalidConfig {
-                            reason: format!("cache.max_size: invalid byte size {raw:?}"),
+                            reason: format!("cache.maxSize: invalid byte size {raw:?}"),
                         })
                 })
                 .transpose()?;
@@ -80,7 +80,7 @@ pub(crate) fn resolve_storage_paths(
                 .map(|Interval(raw)| {
                     parse_interval(raw)
                         .ok_or_else(|| RegistryError::InvalidConfig {
-                            reason: format!("cache.max_age: invalid interval {raw:?}"),
+                            reason: format!("cache.maxAge: invalid interval {raw:?}"),
                         })
                 })
                 .transpose()?;

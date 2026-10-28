@@ -5,3 +5,4 @@ import * as restart from './restart.js'
 import * as run from './run.js'
 
 export { create, dlx, exec, restart, run }
+export { createCliConfigArgs } from './runDepsStatusCheck.js'

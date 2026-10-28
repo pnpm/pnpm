@@ -97,7 +97,7 @@ impl ProjectPin {
         else {
             return Ok(None);
         };
-        Box::pin(update_project_pin(config, &self.roots.env, manifest, &pm, target_version))
+        Box::pin(update_project_pin(config, &self.roots, manifest, &pm, target_version))
             .await
             .map(Some)
     }

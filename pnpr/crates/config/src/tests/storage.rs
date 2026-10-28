@@ -259,7 +259,7 @@ fn ecosystem_groups_scope_names_sources_defaults_and_hosted_storage() {
         let router = format!("{ecosystem}/main");
         assert_eq!(config.routing.registries.default_for(ecosystem), Some(router.as_str()));
         assert_eq!(config.routing.registries.sources("main", ecosystem), [key.as_str()]);
-        assert_eq!(config.routing.hosted[&key].org, format!("{ecosystem}~internal"));
+        assert_eq!(config.routing.hosted[&key].org, "internal");
         for resolution in [
             config.routing.registries.resolve("internal", ecosystem, "demo"),
             config.routing.registries.resolve("main", ecosystem, "demo"),
@@ -297,8 +297,8 @@ fn cache_settings_defaults_path_when_omitted_in_table() {
     let yaml = "\
 storage: /var/lib/pnpr
 cache:
-  max_size: 500MB
-  max_age: 12h
+  maxSize: 500MB
+  maxAge: 12h
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     assert_eq!(config.storage.cache_dir, PathBuf::from("/var/lib/pnpr/.pnpr-cache"));

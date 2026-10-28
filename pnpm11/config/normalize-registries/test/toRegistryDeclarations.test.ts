@@ -48,14 +48,14 @@ test('toRegistryDeclarations() keys a prefix by the URL as written', () => {
   })
 })
 
-test('toRegistryDeclarations() declares the smallest of the prefixes that share a URL', () => {
+test('toRegistryDeclarations() preserves aliases with the smallest prefix for a shared URL', () => {
   expect(toRegistryDeclarations({
     registriesByPrefix: {
       zeta: 'https://npm.corp.example/',
       work: 'https://npm.corp.example/',
     },
   })).toStrictEqual({
-    'https://npm.corp.example/': { prefix: 'work' },
+    'https://npm.corp.example/': { prefix: 'work', aliases: ['zeta'] },
   })
 })
 

@@ -90,45 +90,6 @@ impl S3Store {
         }
     }
 
-    pub async fn remove_record_if_current(
-        &self,
-        namespace: &str,
-        key: &str,
-        expected: &[u8],
-    ) -> Result<bool> {
-        let key = self.record_key(namespace, key);
-        let result = match self.store.get(&key).await {
-            Ok(result) => result,
-            Err(object_store::Error::NotFound { .. }) => return Ok(false),
-            Err(err) => return Err(err.into()),
-        };
-        let version = UpdateVersion {
-            e_tag: result.meta.e_tag.clone(),
-            version: result.meta.version.clone(),
-        };
-        if result.bytes().await?.as_ref() != expected {
-            return Ok(false);
-        }
-        match self.store.put_opts(
-            &key,
-            PutPayload::from(Vec::new()),
-            PutOptions { mode: PutMode::Update(version), ..PutOptions::default() },
-        )
-        .await
-        {
-            Ok(_) => match self.store.delete(&key).await {
-                Ok(()) | Err(object_store::Error::NotFound { .. }) => Ok(true),
-                Err(err) => Err(err.into()),
-            },
-            Err(
-                object_store::Error::AlreadyExists { .. }
-                | object_store::Error::NotFound { .. }
-                | object_store::Error::Precondition { .. },
-            ) => Ok(false),
-            Err(err) => Err(err.into()),
-        }
-    }
-
     pub async fn list_record_keys(&self, namespace: &str) -> Result<Vec<String>> {
         let scope = format!("{}{namespace}/", self.prefix);
         let mut listing = self.store.list(Some(&ObjectPath::from(scope.as_str())));

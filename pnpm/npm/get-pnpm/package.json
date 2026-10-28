@@ -1,6 +1,6 @@
 {
   "name": "get-pnpm",
-  "version": "0.0.9",
+  "version": "0.0.10",
   "private": true,
   "description": "Installs pnpm as a standalone executable",
   "keywords": [

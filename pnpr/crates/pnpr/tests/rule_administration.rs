@@ -19,7 +19,7 @@ const CONFIG: &str = "\
 auth:
   admins: [root]
   htpasswd:
-    max_users: 100
+    maxUsers: 100
 registries:
   local:
     type: hosted
@@ -195,7 +195,7 @@ async fn a_new_process_applies_the_stored_changes() {
 #[tokio::test]
 async fn unreadable_stored_changes_close_the_registry() {
     let dir = TempDir::new().unwrap();
-    let record = dir.path().join("storage/.rule-overrides/v0/local.json");
+    let record = dir.path().join("storage/.rule-overrides/npm/local.json");
     std::fs::create_dir_all(record.parent().unwrap()).unwrap();
     std::fs::write(&record, "not rules").unwrap();
     let app = app_router(load_config(dir.path())).await;
@@ -348,7 +348,7 @@ async fn a_read_on_another_replica_returns_the_stored_rules_with_their_version()
 #[tokio::test]
 async fn a_stored_rule_change_with_unknown_fields_does_not_fail_closed() {
     let dir = TempDir::new().unwrap();
-    let storage_dir = dir.path().join("storage/.rule-overrides/v0");
+    let storage_dir = dir.path().join("storage/.rule-overrides/npm");
     std::fs::create_dir_all(&storage_dir).unwrap();
     let change_with_unknown = json!({
         "access": ["$authenticated"],
@@ -386,7 +386,7 @@ async fn moving_registry_into_ecosystem_group_preserves_rules() {
 auth:
   admins: [root]
   htpasswd:
-    max_users: 100
+    maxUsers: 100
 registries:
   npm:
     local:
@@ -432,7 +432,7 @@ async fn cargo_and_pypi_hosted_registries_reject_unpublish_rules() {
 auth:
   admins: [root]
   htpasswd:
-    max_users: 100
+    maxUsers: 100
 registries:
   cargo:
     crates:
@@ -507,7 +507,7 @@ async fn pre_upgrade_stored_unpublish_override_on_cargo_does_not_lock_out_regist
 auth:
   admins: [root]
   htpasswd:
-    max_users: 100
+    maxUsers: 100
 registries:
   cargo:
     crates:
@@ -521,7 +521,7 @@ registries:
 defaultRegistry: main
 ";
     let storage = dir.path().join("storage");
-    let storage_dir = storage.join(".rule-overrides/v0");
+    let storage_dir = storage.join(".rule-overrides");
     std::fs::create_dir_all(&storage_dir).unwrap();
     let change_with_unpublish = json!({
         "packages": {

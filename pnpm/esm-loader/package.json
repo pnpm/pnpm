@@ -15,7 +15,8 @@
     "node": "^24.18.0 || >=26.2.0"
   },
   "scripts": {
-    "prepare": "node scripts/bundle-runtime.mjs",
+    "prepare": "node scripts/bundle-runtime.mjs --check",
+    "build:runtime": "node scripts/bundle-runtime.mjs",
     "test": "node --test test/*.test.mjs",
     ".test": "node --test test/*.test.mjs"
   },

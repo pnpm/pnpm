@@ -106,7 +106,7 @@ fn blob_tmp_entries(dir: &Path) -> Vec<String> {
                         .file_name()
                         .to_string_lossy()
                         .into_owned();
-                    name.starts_with("foo-1.0.0.tgz.tmp.").then_some(name)
+                    name.starts_with("1.0.0.tgz.tmp.").then_some(name)
                 })
                 .collect::<Vec<_>>()
         })
@@ -120,7 +120,10 @@ fn cached_blobs_dir(cache: &Path) -> std::path::PathBuf {
     cache
         .join("~public/test")
         .join(crate::layout::PACKAGES_DIR)
-        .join(crate::layout::encode_segment("foo"))
+        .join(std::path::PathBuf::from_iter(crate::layout::package_segments(
+            pnpr_package_name::Ecosystem::Npm,
+            "foo",
+        )))
         .join(crate::layout::BLOBS_DIR)
 }
 
@@ -170,7 +173,7 @@ async fn cancelling_in_flight_response_body_removes_tmp_file() {
     // `BlobWrite` is dropped and removes the tmp file.
     drop(chunks);
     assert!(blob_tmp_entries(&blobs_dir).is_empty());
-    assert!(!blobs_dir.join("foo-1.0.0.tgz").exists());
+    assert!(!blobs_dir.join("1.0.0.tgz").exists());
 
     release.notify_one();
     server.await.unwrap();
@@ -198,7 +201,7 @@ async fn oversized_response_is_rejected_and_tmp_is_removed() {
     // The temp file the rejected writer held is removed (its `Drop`).
     let blobs_dir = cached_blobs_dir(&cache);
     assert!(blob_tmp_entries(&blobs_dir).is_empty());
-    assert!(!blobs_dir.join("foo-1.0.0.tgz").exists());
+    assert!(!blobs_dir.join("1.0.0.tgz").exists());
 }
 
 #[tokio::test]
@@ -225,9 +228,7 @@ async fn download_returns_the_sha512_of_the_staged_bytes() {
 
         assert_eq!(computed.to_string(), sha512_integrity(bytes), "expected: {expected:?}");
         assert_eq!(
-            tokio::fs::read(cached_blobs_dir(&cache).join("foo-1.0.0.tgz"))
-                .await
-                .unwrap(),
+            tokio::fs::read(cached_blobs_dir(&cache).join("1.0.0.tgz")).await.unwrap(),
             bytes,
         );
     }
@@ -252,11 +253,11 @@ async fn a_sealed_download_is_not_in_the_cache_until_promoted() {
         .unwrap();
 
     let blobs_dir = cached_blobs_dir(&cache);
-    assert!(!blobs_dir.join("foo-1.0.0.tgz").exists());
+    assert!(!blobs_dir.join("1.0.0.tgz").exists());
     assert_eq!(blob_tmp_entries(&blobs_dir).len(), 1);
     drop(sealed);
     assert!(blob_tmp_entries(&blobs_dir).is_empty());
-    assert!(!blobs_dir.join("foo-1.0.0.tgz").exists());
+    assert!(!blobs_dir.join("1.0.0.tgz").exists());
 }
 
 #[tokio::test]
@@ -280,7 +281,7 @@ async fn download_stages_nothing_when_the_expected_integrity_mismatches() {
     assert!(matches!(err, BlobStreamError::Integrity(_)));
     let blobs_dir = cached_blobs_dir(&cache);
     assert!(blob_tmp_entries(&blobs_dir).is_empty());
-    assert!(!blobs_dir.join("foo-1.0.0.tgz").exists());
+    assert!(!blobs_dir.join("1.0.0.tgz").exists());
 }
 
 async fn throttled_response(url: String) -> pnpm_network::ThrottledResponse {

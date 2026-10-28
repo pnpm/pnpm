@@ -1,5 +1,8 @@
 use super::{Lockfile, StalenessReason, text_block};
-use crate::{DeclaredRegistryPrefixes, RegistryContext, check_lockfile_registry_keys};
+use crate::{
+    DeclaredRegistryPrefixes, RegistryContext, check_lockfile_registry_keys,
+    check_lockfile_registry_routes,
+};
 use pretty_assertions::assert_eq;
 use std::collections::{BTreeMap, HashMap};
 
@@ -46,7 +49,19 @@ fn context(declared: &[(&str, &str)]) -> RegistryContext {
             .collect(),
         declared_prefixes: DeclaredRegistryPrefixes::new(declared.iter().copied()),
         registry_options_by_url: BTreeMap::default(),
+        locked_registries: None,
     }
+}
+
+/// [`context`] with the routes the lockfile was resolved under.
+fn context_locked(locked: &[(&str, &str)]) -> RegistryContext {
+    context(&[])
+        .with_locked_registries(Some(
+            locked
+                .iter()
+                .map(|(route, registry)| ((*route).to_string(), (*registry).to_string()))
+                .collect(),
+        ))
 }
 
 #[test]
@@ -81,4 +96,45 @@ fn the_smallest_outdated_key_is_reported() {
             current: "@work/foo@alpha:1.0.0".to_string(),
         }),
     );
+}
+
+#[test]
+fn routes_are_current_without_a_record_of_the_locked_ones() {
+    assert_eq!(check_lockfile_registry_routes(&lockfile(), &context(&[])), Ok(()));
+}
+
+#[test]
+fn routes_are_current_when_the_locked_ones_name_the_same_registries() {
+    let context = context_locked(&[
+        ("default", "https://REGISTRY.npmjs.org"),
+        ("@work", "https://npm.example.com"),
+    ]);
+    assert_eq!(check_lockfile_registry_routes(&lockfile(), &context), Ok(()));
+}
+
+#[test]
+fn a_plain_key_of_a_scope_routed_elsewhere_is_moved() {
+    let context = context_locked(&[
+        ("default", "https://registry.npmjs.org/"),
+        ("@work", "https://old.example.com/"),
+    ]);
+    assert_eq!(
+        check_lockfile_registry_routes(&lockfile(), &context),
+        Err(StalenessReason::MovedRegistryRoute {
+            key: "@work/foo@1.0.0".to_string(),
+            from: "https://old.example.com/".to_string(),
+            to: "https://npm.example.com/".to_string(),
+        }),
+    );
+}
+
+/// `bar@work:1.0.0` names its registry, so moving the default registry
+/// moves no key of this lockfile.
+#[test]
+fn a_qualified_key_does_not_move_with_the_default_registry() {
+    let context = context_locked(&[
+        ("default", "https://old.example.com/"),
+        ("@work", "https://npm.example.com/"),
+    ]);
+    assert_eq!(check_lockfile_registry_routes(&lockfile(), &context), Ok(()));
 }

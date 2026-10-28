@@ -320,6 +320,33 @@ fn select_by_parent_dir() {
 }
 
 #[test]
+fn select_by_parent_dir_includes_the_project_at_that_dir() {
+    let graph = projects_graph();
+    let result = selected(
+        &graph,
+        &[ProjectSelector { parent_dir: Some(PathBuf::from("/project-5")), ..Default::default() }],
+    );
+    assert_eq!(result, ["/project-5", "/project-5/packages/project-6"]);
+}
+
+#[test]
+fn exclude_by_parent_dir_excludes_the_project_at_that_dir() {
+    let graph = projects_graph();
+    let result = selected(
+        &graph,
+        &[ProjectSelector {
+            parent_dir: Some(PathBuf::from("/project-5")),
+            exclude: true,
+            ..Default::default()
+        }],
+    );
+    assert_eq!(
+        result,
+        ["/packages/project-0", "/packages/project-1", "/project-2", "/project-3", "/project-4"],
+    );
+}
+
+#[test]
 fn select_by_parent_dir_using_glob() {
     let graph = projects_graph();
     let result = selected_with_glob(
@@ -560,7 +587,9 @@ fn is_subdir_contract() {
     use super::is_subdir;
     assert!(!is_subdir(Path::new("/abs/parent"), Path::new("relative/child")));
     assert!(is_subdir(Path::new("/abs"), Path::new("/abs/child")));
-    assert!(!is_subdir(Path::new("/abs"), Path::new("/abs")));
+    assert!(is_subdir(Path::new("/abs"), Path::new("/abs")));
+    assert!(!is_subdir(Path::new("/abs"), Path::new("/absolute")));
+    assert!(!is_subdir(Path::new("/abs/child"), Path::new("/abs")));
 }
 
 /// The `[<since>]` changed-packages selector tests, ported from

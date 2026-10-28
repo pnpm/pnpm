@@ -1,7 +1,8 @@
 use super::{
     super::{
         Catalogs, Config, IncludedDependencies, MaybeLazyLockfile, OptimisticRepeatInstallCheck,
-        PackageManifest, Path, get_catalogs_from_workspace_manifest, load_workspace_projects,
+        PackageManifest, Path, PathBuf, get_catalogs_from_workspace_manifest,
+        load_workspace_projects,
     },
     build_project_manifests_list, configured_or_discovered_workspace_dir, lazy_wanted_lockfile,
     lockfile_root_for,
@@ -181,19 +182,13 @@ pub(super) fn check_discovered_deps(
     let Some(catalogs) = configured_catalogs(config, workspace_manifest) else {
         return cannot_check_deps();
     };
-    // The sibling projects only belong in the comparison when one
-    // lockfile and one state file cover them all; a dedicated-lockfile
-    // install records this project alone.
-    let ignored_directories = config.managed_directories();
-    let Ok(workspace_projects) = config
-        .shares_one_lockfile()
-        .then(|| load_workspace_projects(workspace_root, workspace_manifest, &ignored_directories))
-        .transpose()
+    let Ok(workspace_projects) =
+        load_gated_workspace(config, manifest, workspace_root, workspace_manifest)
     else {
         return cannot_check_deps();
     };
-    let workspace_projects = workspace_projects.flatten();
-    let project_manifests = build_project_manifests_list(manifest, workspace_projects.as_deref());
+    let (project_manifests, bin_projects) =
+        gated_projects(config, manifest, workspace_projects.as_deref());
     Some(crate::check_deps_status_before_run(
         &OptimisticRepeatInstallCheck {
             workspace_root: lockfile_root,
@@ -214,12 +209,53 @@ pub(super) fn check_discovered_deps(
                     optional_dependencies: true,
                 },
             },
-            manifests: crate::RepeatInstallManifests::ON_DISK,
+            manifests: crate::RepeatInstallManifests {
+                workspace_projects: bin_projects.as_deref(),
+                ..crate::RepeatInstallManifests::ON_DISK
+            },
         },
         workspace_state,
         selected_project_dirs,
     ))
 }
+/// The workspace projects the gate reads: every one when one lockfile and one
+/// state file cover them all, and for a dedicated-lockfile install the ones
+/// whose commands the project links, when it links any.
+fn load_gated_workspace(
+    config: &Config,
+    manifest: &PackageManifest,
+    workspace_root: &Path,
+    workspace_manifest: Option<&pnpm_workspace::WorkspaceManifest>,
+) -> Result<Option<Vec<pnpm_workspace::Project>>, pnpm_workspace::FindWorkspaceProjectsError> {
+    let needed = config.shares_one_lockfile()
+        || crate::optimistic_repeat_install::validation::links_workspace_commands(manifest);
+    if !needed {
+        return Ok(None);
+    }
+    load_workspace_projects(workspace_root, workspace_manifest, &config.managed_directories())
+}
+
+/// The projects the gate compares, and the ones whose commands they link per
+/// [`crate::RepeatInstallManifests::workspace_projects`].
+#[expect(
+    clippy::type_complexity,
+    reason = "the two lists are the ones `OptimisticRepeatInstallCheck` takes"
+)]
+fn gated_projects<'a>(
+    config: &Config,
+    manifest: &'a PackageManifest,
+    workspace_projects: Option<&'a [pnpm_workspace::Project]>,
+) -> (Vec<(PathBuf, &'a PackageManifest)>, Option<Vec<(PathBuf, &'a PackageManifest)>>) {
+    let shared = workspace_projects.filter(|_| config.shares_one_lockfile());
+    let project_manifests = build_project_manifests_list(manifest, shared);
+    let bin_projects = crate::optimistic_repeat_install::validation::dedicated_bin_projects(
+        config,
+        &project_manifests,
+        workspace_projects,
+    );
+    (project_manifests, bin_projects)
+}
+
 /// The manifest the verify-deps gate compares against.
 pub(super) enum GateManifest {
     Found(Box<PackageManifest>),

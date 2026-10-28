@@ -35,6 +35,10 @@ auditConfig:
     # No patched release exists. It is reached only through argparse 1, which
     # formats its own help text with it, never attacker-controlled formats.
     - GHSA-hp3w-g68c-fv3c
+    # GHSA-gcqx-w48m-w2h4: deepmerge mergeObject() prototype poisoning of returned
+    # objects. No patched release exists upstream; patched locally via
+    # .config/pnpm/patches/deepmerge@4.3.1.patch.
+    - GHSA-gcqx-w48m-w2h4
 
 minimumReleaseAge: 1440 # At least a day
 
@@ -72,7 +76,6 @@ minimumReleaseAgeExclude:
   - write-ini-file
   - write-json5-file
   - write-yaml-file
-  - http-proxy-middleware@3.0.7
 
 minimumReleaseAgeExcludePrune: true
 

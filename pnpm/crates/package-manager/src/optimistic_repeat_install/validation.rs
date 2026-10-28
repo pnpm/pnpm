@@ -9,7 +9,8 @@
 //! others survive it unchanged.
 
 pub(crate) use bins::{
-    held_workspace_bins_match, project_bins_digest, project_bins_match, workspace_bins_digest,
+    dedicated_bin_projects, held_workspace_bins_match, links_workspace_commands,
+    project_bins_digest, project_bins_match, workspace_bins_digest,
 };
 
 use super::{Config, Lockfile, PackageManifest, Path, PathBuf};
@@ -286,6 +287,8 @@ pub(crate) struct RecordValidation<'a> {
     pub(crate) workspace_root: &'a Path,
     pub(crate) config: &'a Config,
     pub(crate) project_manifests: &'a [(PathBuf, &'a PackageManifest)],
+    /// See [`crate::RepeatInstallManifests::workspace_projects`].
+    pub(crate) workspace_projects: Option<&'a [(PathBuf, &'a PackageManifest)]>,
     pub(crate) vouched: &'a Vouched<'a>,
 }
 
@@ -312,7 +315,7 @@ pub(crate) fn record_validation(state: &mut WorkspaceState, inputs: &RecordValid
         state.filtered_install = true;
         return;
     };
-    let shared_inputs = shared_input_paths(inputs.workspace_root, inputs.config, &state.pnpmfiles);
+    let shared_inputs = shared_input_paths(inputs.config, &state.pnpmfiles);
     let carried = previous
         .filter(|previous| shared_inputs_match(previous, state, &shared_inputs, &files))
         .and_then(|previous| previous.validation.as_ref());
@@ -341,7 +344,7 @@ fn recorded_files(
 ) -> (Option<String>, BTreeMap<String, FileSignature>) {
     let digests = FileDigests::new(previous.and_then(|state| state.validation.as_ref()));
     let (lockfile_path, lockfile) = digests.lockfile(inputs.workspace_root, inputs.config);
-    let shared_inputs = shared_input_paths(inputs.workspace_root, inputs.config, &state.pnpmfiles);
+    let shared_inputs = shared_input_paths(inputs.config, &state.pnpmfiles);
     let files = std::iter::once((lockfile_path, lockfile.clone()))
         .chain(
             shared_inputs
@@ -374,7 +377,10 @@ fn record_projects(
     carried: Option<&Validation>,
     lockfile: Option<&str>,
 ) -> usize {
-    let bins = workspace_bins_digest(inputs.workspace_root, inputs.project_manifests);
+    let bins = workspace_bins_digest(
+        inputs.workspace_root,
+        inputs.workspace_projects.unwrap_or(inputs.project_manifests),
+    );
     let records = inputs.project_manifests
         .iter()
         .filter_map(|(root_dir, manifest)| {
@@ -408,17 +414,9 @@ fn record_projects(
 
 /// The input files every project shares besides the lockfile: the patch
 /// files and the pnpmfiles.
-pub(crate) fn shared_input_paths(
-    workspace_root: &Path,
-    config: &Config,
-    pnpmfiles: &[String],
-) -> Vec<PathBuf> {
-    let patches = config.patched_dependencies.iter().flat_map(|patches| patches.values());
-    patches
-        .map(|path| {
-            let path = Path::new(path);
-            if path.is_absolute() { path.to_path_buf() } else { workspace_root.join(path) }
-        })
+pub(crate) fn shared_input_paths(config: &Config, pnpmfiles: &[String]) -> Vec<PathBuf> {
+    config
+        .patch_file_paths()
         .chain(pnpmfiles.iter().map(PathBuf::from))
         .collect()
 }
@@ -441,13 +439,15 @@ fn shared_inputs_match(
             .get(&*path.to_string_lossy())
             .map(|signature| signature.digest.clone())
     };
-    // Only a resolving install records `autoDedupe`, and only a verifying one
-    // `registryPrefixes`; neither shapes a tree. Empty maps and
-    // `enableGlobalVirtualStore: false` match their omitted defaults.
+    // Only a resolving install records `autoDedupe` and `registryRoutes`,
+    // and only a verifying one `registryPrefixes`; none shapes a tree. Empty
+    // maps and `enableGlobalVirtualStore: false` match their omitted
+    // defaults.
     let settings = |state: &WorkspaceState| {
         let mut settings = state.settings.clone();
         settings.auto_dedupe = None;
         settings.registry_prefixes = None;
+        settings.registry_routes = None;
         if settings.allow_builds.as_ref().is_some_and(BTreeMap::is_empty) {
             settings.allow_builds = None;
         }

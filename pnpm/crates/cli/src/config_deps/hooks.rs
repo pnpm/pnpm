@@ -3,9 +3,10 @@ pub use self::package_settings::apply_config_dependency_settings;
 use self::apply::apply_hook_delta;
 use super::{
     Arc, BTreeMap, Config, HashMap, HookContext, HookLog, Host, IntoDiagnostic, LogEvent, LogFn,
-    LogLevel, Path, PathBuf, PnpmLog, PnpmfileHooks, Reporter, Result, Value, WorkspaceSettings,
-    apply_store_dir_override, default_state_dir, finder, get_catalogs_from_workspace_manifest,
-    install_config_deps, is_known_setting_key, resolve_configured_state_dir,
+    LogLevel, Path, PathBuf, PnpmLog, PnpmfileHooks, Reporter, Result, TrustedSettings, Value,
+    WorkspaceSettings, apply_store_dir_override, default_state_dir, finder,
+    get_catalogs_from_workspace_manifest, install_config_deps, is_known_setting_key,
+    resolve_configured_state_dir,
 };
 use miette::WrapErr;
 use pnpm_hooks::IgnoredHook;
@@ -89,11 +90,11 @@ pub async fn prepare_config<Reporter: self::Reporter>(
 /// changes a hook-selection setting such as `ignorePnpmfile`.
 ///
 /// A hook is handed the resolved configuration, by way of
-/// [`WorkspaceSettings::from_resolved`] plus the non-settings views in
+/// [`TrustedSettings::from_resolved`] plus the non-settings views in
 /// [`resolved_config_views`], so it reads what the install runs with rather
 /// than one file's contribution to it.
 ///
-/// Config round-trips through [`WorkspaceSettings`], so any settings key a
+/// Config round-trips through [`TrustedSettings`], so any settings key a
 /// hook changes is applied back the same way `pnpm-workspace.yaml` is. Only
 /// the keys a hook actually changed are applied, so values resolved from
 /// `.npmrc` or CLI flags that the hooks leave untouched are not clobbered.
@@ -116,7 +117,8 @@ pub async fn run_update_config_hooks<Reporter: self::Reporter>(
     }
 
     let base_dir = hook_base_dir(root_dir)?;
-    let mut input = serde_json::to_value(WorkspaceSettings::from_resolved(config))
+    let mut input = TrustedSettings::from_resolved(config)
+        .to_json()
         .into_diagnostic()
         .wrap_err("serialize the resolved settings for updateConfig hooks")?;
     seed_hook_input(&mut input, config, root_dir, &pnpmfiles, manifest_catalogs_value(root_dir)?)?;

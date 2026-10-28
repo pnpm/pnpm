@@ -69,7 +69,7 @@ use pnpr::{
     PackageRule, PackageRules, PublicRoute, Registries, Registry, router, router_with_auth,
 };
 use pnpr_fixtures::MockConfigPresets;
-use pnpr_storage::layout::{encode_segment, local_document_path};
+use pnpr_storage::layout::{blob_segment, local_document_path, package_segments};
 use serde_json::{Value, json};
 use ssri::{Algorithm, IntegrityOpts};
 use std::{
@@ -150,12 +150,17 @@ fn public_cache_pkg(cache_root: &Path, pkg: &str) -> PathBuf {
         .cloned()
         .unwrap_or_else(|| public.join("__none__"))
         .join("packages")
-        .join(encode_segment(pkg))
+        .join(PathBuf::from_iter(package_segments(pnpr_storage::Ecosystem::Npm, pkg)))
 }
 
 /// The directory [`public_cache_pkg`] keeps `pkg`'s cached tarballs in.
 fn public_cache_blobs(cache_root: &Path, pkg: &str) -> PathBuf {
     public_cache_pkg(cache_root, pkg).join("blobs")
+}
+
+/// Where [`public_cache_blobs`] keeps `pkg`'s cached `file`.
+fn public_cache_blob(cache_root: &Path, pkg: &str, file: &str) -> PathBuf {
+    public_cache_blobs(cache_root, pkg).join(blob_segment(pkg, file))
 }
 
 async fn body_bytes(body: Body) -> Vec<u8> {
@@ -613,14 +618,14 @@ fn seed_hosted(storage: &Path, org: &str, pkg: &str) {
             "shasum": "abc",
         } } },
     });
-    let document = local_document_path(storage, org, pkg);
+    let document = local_document_path(storage, org, pnpr_storage::Ecosystem::Npm, pkg);
     std::fs::create_dir_all(document.parent().unwrap()).unwrap();
     std::fs::write(document, packument.to_string()).unwrap();
 }
 
 fn seed_hosted_with_maintainer(storage: &Path, pkg: &str, maintainer: &str) {
     seed_hosted(storage, "", pkg);
-    let path = local_document_path(storage, "", pkg);
+    let path = local_document_path(storage, "", pnpr_storage::Ecosystem::Npm, pkg);
     let mut packument: Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
     packument["maintainers"] = json!([{ "username": maintainer }]);
     std::fs::write(path, serde_json::to_vec(&packument).unwrap()).unwrap();

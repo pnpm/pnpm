@@ -2,12 +2,11 @@ use futures_util::future;
 use pipe_trait::Pipe;
 
 use super::{
-    AncestorPkgIds, Arc, BTreeMap, BoundProviders, ChildEdge, ChildrenOwnerClaim,
-    ChildrenRecording, Cow, DirectDep, HashSet, NodeId, NodeSeed, ParentPkgAliases, PeerDep,
-    PeerSet, PkgName, PkgNameVerPeer, RecordedChildrenContext, ResolveDependencyTreeError,
-    Resolver, ReuseSource, ReusedNode, SnapshotDepRef, SnapshotEntry, TreeChildren, TreeCtx,
-    UpdateReuseScope, WantedDependency, declared_peer_dependencies, is_current_children_owner,
-    level_aliases, node_id_for, record_children, register_shadowable_dep_names, resolve_node_seed,
+    AncestorPkgIds, Arc, BTreeMap, ChildEdge, ChildrenOwnerClaim, ChildrenRecording, Cow,
+    DirectDep, NodeId, NodeSeed, ParentPkgAliases, PkgName, PkgNameVerPeer,
+    RecordedChildrenContext, ResolveDependencyTreeError, Resolver, ReuseSource, SnapshotDepRef,
+    SnapshotEntry, TreeChildren, TreeCtx, UpdateReuseScope, WantedDependency,
+    is_current_children_owner, level_aliases, node_id_for, record_children, resolve_node_seed,
     walk_from_seeds,
 };
 
@@ -18,8 +17,6 @@ pub(in super::super) struct PendingReusedNode {
     pub(in super::super) dep: DirectDep,
     pub(super) key: PkgNameVerPeer,
     pub(super) child_refs: Vec<(String, PkgNameVerPeer, bool)>,
-    pub(super) peer_set: PeerSet,
-    pub(super) peer_shadowed: HashSet<String>,
     pub(super) ancestry: ReusedNodeAncestry,
 }
 
@@ -204,189 +201,25 @@ pub(super) fn record_reused_children(
     (recording.children(realized), recording)
 }
 
-/// Whether the peer-provider split recorded on `reused.key` matches what a
-/// fresh resolve of `reused` under `scope` would produce.
-///
-/// A snapshot entry for a package that declares `peer` in both `dependencies`
-/// and `peerDependencies` has `peer` in `snapshot.dependencies` either way:
-/// when the peer was shadowed it holds the peer-resolved target (recorded in
-/// the key's peer suffix), and when it was kept as an own dependency it holds
-/// the own-dep child (absent from the peer suffix). If the current `scope`
-/// disagrees on whether `peer` is shadowed, reusing the snapshot would treat
-/// an own-dep child as a peer or vice versa.
-pub(in super::super) fn reuse_matches_peer_scope(
-    ctx: &TreeCtx,
-    reused: &ReusedNode,
-    scope: &ParentPkgAliases,
-) -> bool {
-    reuse_key_matches_peer_scope(ctx, reused.result.package.manifest.as_deref(), &reused.key, scope)
-}
-
-pub(in super::super) fn reuse_key_matches_peer_scope(
-    ctx: &TreeCtx,
-    manifest: Option<&serde_json::Value>,
-    key: &PkgNameVerPeer,
-    scope: &ParentPkgAliases,
-) -> bool {
-    let (Some(manifest), Some(lockfile)) = (manifest, ctx.workspace.reuse.lockfile.as_deref())
-    else {
-        return true;
-    };
-    let Some(snapshot) = lockfile.snapshots
-        .as_ref()
-        .and_then(|s| s.get(key))
-    else {
-        return true;
-    };
-    let auto_install_peers = ctx.workspace.policy.auto_install_peers;
-    let providers = cached_bound_providers(ctx, key);
-    declared_peer_dependencies(manifest)
-        .into_iter()
-        .all(|(name, peer)| {
-            let shadowed_in_scope = (auto_install_peers && !peer.optional) || scope.contains(&name);
-            let Some(dep_ref) = snapshot_dep_ref(snapshot, &name) else {
-                return true;
-            };
-            if providers.is_hashed() {
-                return auto_install_peers && !peer.optional;
-            }
-            let Ok(pkg_name) = name.parse::<PkgName>() else { return false };
-            let Some(target) = dep_ref.resolve(&pkg_name) else { return false };
-            providers.binds(&target) == shadowed_in_scope
-        })
-}
-
-pub(in super::super) fn cached_bound_providers(
-    ctx: &TreeCtx,
-    key: &PkgNameVerPeer,
-) -> BoundProviders {
-    let providers = BoundProviders::from_key(key);
-    if !providers.is_hashed() {
-        return providers;
-    }
-    if let Some(cached) = super::lock_recoverable(&ctx.workspace.cache.bound_providers).get(key) {
-        return cached.clone();
-    }
-    let recovered = ctx.workspace.reuse.lockfile
-        .as_deref()
-        .map(|lf| BoundProviders::of_snapshot(lf.into(), key))
-        .unwrap_or(providers);
-    super::lock_recoverable(&ctx.workspace.cache.bound_providers)
-        .insert(key.clone(), recovered.clone());
-    recovered
-}
-
 pub(super) struct ReusedIdentity {
-    pub(super) peer_set: PeerSet,
-    pub(super) peer_shadowed: HashSet<String>,
     pub(super) child_refs: Vec<(String, PkgNameVerPeer, bool)>,
     pub(super) is_leaf: bool,
     pub(super) node_id: NodeId,
 }
 
-pub(super) fn reused_identity(
-    ctx: &TreeCtx,
-    id: &str,
-    result: &pnpm_resolving_resolver_base::ResolveResult,
-    key: &PkgNameVerPeer,
-    scope: &ParentPkgAliases,
-) -> ReusedIdentity {
+pub(super) fn reused_identity(ctx: &TreeCtx, id: &str, key: &PkgNameVerPeer) -> ReusedIdentity {
     let snapshot = ctx.workspace.reuse.lockfile
         .as_ref()
         .and_then(|lf| lf.snapshots.as_ref()?.get(key));
-    let declared: BTreeMap<String, PeerDep> = result.package.manifest
-        .as_deref()
-        .map(declared_peer_dependencies)
-        .unwrap_or_default()
-        .into_iter()
-        .collect();
-    let (own_deps, peer_shadowed) = split_reused_peers(ctx, key, snapshot, &declared, scope);
-    let peer_set = PeerSet::new(declared, |name| own_deps.contains(name));
-    let child_refs = snapshot_child_refs(snapshot, peer_set.taken());
-    let is_leaf = child_refs.is_empty() && peer_set.declared().is_empty();
+    let child_refs = snapshot_child_refs(snapshot);
+    let is_leaf = child_refs.is_empty();
     let node_id = node_id_for(is_leaf, id);
-    ReusedIdentity { peer_set, peer_shadowed, child_refs, is_leaf, node_id }
+    ReusedIdentity { child_refs, is_leaf, node_id }
 }
 
-fn split_reused_peers(
-    ctx: &TreeCtx,
-    key: &PkgNameVerPeer,
-    snapshot: Option<&SnapshotEntry>,
-    declared: &BTreeMap<String, PeerDep>,
-    scope: &ParentPkgAliases,
-) -> (HashSet<String>, HashSet<String>) {
-    let Some(snapshot) = snapshot else {
-        return (HashSet::default(), HashSet::default());
-    };
-    let auto_install_peers = ctx.workspace.policy.auto_install_peers;
-    let providers = cached_bound_providers(ctx, key);
-    let mut own_deps = HashSet::default();
-    let mut peer_shadowed = HashSet::default();
-    let mut shadowable = Vec::new();
-    for (name, peer) in declared {
-        let Some(is_bound) =
-            classify_reused_peer(snapshot, &providers, name, peer, scope, auto_install_peers)
-        else {
-            continue;
-        };
-        if !auto_install_peers || peer.optional {
-            shadowable.push(name);
-        }
-        if is_bound {
-            peer_shadowed.insert(name.clone());
-        } else {
-            own_deps.insert(name.clone());
-        }
-    }
-    register_shadowable_dep_names(ctx, shadowable);
-    (own_deps, peer_shadowed)
-}
-
-fn classify_reused_peer(
-    snapshot: &SnapshotEntry,
-    providers: &BoundProviders,
-    name: &str,
-    peer: &PeerDep,
-    scope: &ParentPkgAliases,
-    auto_install_peers: bool,
-) -> Option<bool> {
-    let dep_ref = snapshot_dep_ref(snapshot, name)?;
-    if providers.is_hashed() {
-        return Some((auto_install_peers && !peer.optional) || scope.contains(name));
-    }
-    let pkg_name = name.parse::<PkgName>().ok()?;
-    let target = dep_ref.resolve(&pkg_name)?;
-    Some(providers.binds(&target))
-}
-
-fn snapshot_dep_ref<'a>(snapshot: &'a SnapshotEntry, name: &str) -> Option<&'a SnapshotDepRef> {
-    let pkg_name = name.parse::<PkgName>().ok()?;
-    snapshot.dependencies
-        .as_ref()
-        .and_then(|deps| deps.get(&pkg_name))
-        .or_else(|| {
-            snapshot.optional_dependencies
-                .as_ref()
-                .and_then(|deps| deps.get(&pkg_name))
-        })
-}
-
-/// `(install_alias, resolved_snapshot_key, optional)` for every non-`link:`
-/// child recorded on `snapshot`'s `dependencies` + `optionalDependencies`,
-/// excluding the node's own resolved peers (`peer_dependencies`). Sorted by
-/// alias so the per-occurrence walk order is deterministic.
-///
-/// A snapshot's `dependencies` map lists the package's real dependencies
-/// overlaid with its own resolved peers (`peer_dependencies`), each pinned to
-/// the version it matched in the recorded context. Those peer entries are not
-/// real children: a fresh resolve walks only the package's manifest
-/// `dependencies` and re-derives peers separately against the parent context.
-/// Reuse must walk the manifest's deps too — so own-peer entries are dropped
-/// here, and the snapshot's `dependencies` is used only as the locked-ref
-/// lookup, not as the child set.
+/// The non-link children of a snapshot admitted for peer-free reuse, sorted by alias.
 pub(super) fn snapshot_child_refs(
     snapshot: Option<&SnapshotEntry>,
-    peer_dependencies: &BTreeMap<String, PeerDep>,
 ) -> Vec<(String, PkgNameVerPeer, bool)> {
     let Some(snapshot) = snapshot else { return Vec::new() };
     let mut out: Vec<(String, PkgNameVerPeer, bool)> = Vec::new();
@@ -394,7 +227,7 @@ pub(super) fn snapshot_child_refs(
         [(snapshot.dependencies.as_ref(), false), (snapshot.optional_dependencies.as_ref(), true)]
     {
         if let Some(dep_map) = dep_map {
-            push_snapshot_child_refs(dep_map, peer_dependencies, optional, &mut out);
+            push_snapshot_child_refs(dep_map, optional, &mut out);
         }
     }
     out.sort_by(|a, b| a.0.cmp(&b.0));
@@ -403,7 +236,6 @@ pub(super) fn snapshot_child_refs(
 
 pub(super) fn push_snapshot_child_refs(
     dep_map: &std::collections::HashMap<PkgName, SnapshotDepRef>,
-    peer_dependencies: &BTreeMap<String, PeerDep>,
     optional: bool,
     out: &mut Vec<(String, PkgNameVerPeer, bool)>,
 ) {
@@ -412,9 +244,6 @@ pub(super) fn push_snapshot_child_refs(
             Some(scope) => Cow::Owned(format!("@{scope}/{}", alias.bare)),
             None => Cow::Borrowed(alias.bare.as_str()),
         };
-        if peer_dependencies.contains_key(alias_str.as_ref()) {
-            continue;
-        }
         if let Some(key) = dep_ref.resolve(alias) {
             out.push((alias_str.into_owned(), key, optional));
         }

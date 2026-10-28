@@ -10,6 +10,7 @@
 // `pub(crate)` so `pnpm with` can reuse the engine installer and the
 // engine-identity verifier; both commands install the same pnpm engine.
 pub(crate) mod install_pnpm;
+pub(super) mod project_pin;
 pub(crate) mod verify_engine;
 
 pub(crate) use externally_managed::{ExternalManager, find_external_manager};
@@ -468,5 +469,3 @@ async fn switch_global_pnpm<Reporter: self::Reporter + 'static>(
     }
     Ok(Some(format!("Successfully updated pnpm to v{target_version}")))
 }
-
-mod project_pin;

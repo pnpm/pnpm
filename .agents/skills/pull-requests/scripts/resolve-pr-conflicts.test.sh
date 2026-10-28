@@ -196,7 +196,7 @@ expect_status() {
 }
 
 expect_output() {
-  printf '%s' "$output" | grep -qF -- "$1" || fail "expected the output to contain: $1"
+  grep -qF -- "$1" <<< "$output" || fail "expected the output to contain: $1"
 }
 
 expect_call() {
@@ -210,7 +210,7 @@ expect_no_call() {
 }
 
 expect_no_output() {
-  if printf '%s' "$output" | grep -qF -- "$1"; then
+  if grep -qF -- "$1" <<< "$output"; then
     fail "expected the output not to contain: $1"
   fi
 }
@@ -374,7 +374,7 @@ on_pr_branch
 run_case 'full-no-push-escapes-branch' 4242 --no-push
 expect_status 0
 # The printed command is a string the operator copies, so it is escaped, not interpolated.
-printf '%s' "$output" | grep -qF 'HEAD:fix/with\;metachar --force-with-lease' ||
+grep -qF 'HEAD:fix/with\;metachar --force-with-lease' <<< "$output" ||
   fail 'the printed push command does not escape the branch name'
 export STUB_HEAD_BRANCH='fix/example'
 

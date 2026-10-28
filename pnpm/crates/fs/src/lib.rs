@@ -15,7 +15,12 @@ pub use ensure_file::*;
 pub use exchange_dirents::exchange_dirents;
 #[cfg(not(target_os = "wasi"))]
 pub use file_lock::{lock_file, try_lock_file};
-pub use internal_symlink::{relative_link_target, symlink_file_or_copy};
+pub use internal_symlink::{
+    AdmittedSymlink, SymlinkPlacement, SymlinkPlacementContext, SymlinkTargetKind, SymlinkTargets,
+    admit_internal_symlink, is_symlink, is_symlink_metadata, recreate_internal_symlink,
+    relative_link_target, resolve_symlink_placement, selected_paths_and_ancestors,
+    symlink_file_or_copy,
+};
 pub use is_not_found::is_not_found;
 pub use is_subdir::is_subdir;
 pub use lexical_normalize::{lexical_normalize, lexical_normalize_posix};
@@ -43,6 +48,7 @@ pub use secure_temp_lock::{
 };
 pub use symlink_dir::*;
 pub use sync_file::sync_file;
+pub use umask_named_tempfile::umask_named_tempfile_in;
 #[cfg(target_os = "wasi")]
 pub use wasi_fs::{
     check_file_owner, create_inheriting_mode as create_file_inheriting_mode,
@@ -80,6 +86,7 @@ mod retry;
 mod secure_temp_lock;
 mod symlink_dir;
 mod sync_file;
+mod umask_named_tempfile;
 #[cfg(target_os = "wasi")]
 mod wasi_fs;
 mod write_atomic;

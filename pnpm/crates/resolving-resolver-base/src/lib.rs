@@ -29,12 +29,13 @@ pub use preferred_versions::{
 pub use publish_time::parse_packument_timestamp;
 pub use resolve::{
     CurrentPkg, DependencyManifest, GuardExhaustionPolicy, LatestInfo, LatestQuery,
-    NonDeprecatedAlternative, PackageVersionGuard, PackageVersionGuardDecision,
-    PackageVersionGuardError, PackageVersionGuardFuture, PkgResolutionId, ResolutionPolicyOptions,
-    ResolutionRefreshOptions, ResolveError, ResolveFuture, ResolveLatestFuture, ResolveOptions,
-    ResolveResult, ResolvedPackageInfo, Resolver, ResolverProjectOptions, ResolverSpecifierOptions,
-    SharedDependencyManifest, UpdateBehavior, VersionSelectionOptions, WantedDependency,
-    WorkspacePackage, WorkspacePackages, WorkspacePackagesByVersion, resolve_package_version,
+    LockedPackagePolicy, NonDeprecatedAlternative, PackageVersionGuard,
+    PackageVersionGuardDecision, PackageVersionGuardError, PackageVersionGuardFuture,
+    PkgResolutionId, ResolutionPolicyOptions, ResolutionRefreshOptions, ResolveError,
+    ResolveFuture, ResolveLatestFuture, ResolveOptions, ResolveResult, ResolvedPackageInfo,
+    Resolver, ResolverProjectOptions, ResolverSpecifierOptions, SharedDependencyManifest,
+    UpdateBehavior, VersionSelectionOptions, WantedDependency, WorkspacePackage, WorkspacePackages,
+    WorkspacePackagesByVersion, resolve_package_version,
 };
 pub use semver_range::{ANY_VERSION_RANGE, is_any_version_range, is_valid_semver_range};
 pub use unsupported_protocol::UnsupportedProtocolError;

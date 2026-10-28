@@ -217,7 +217,16 @@ async fn unpublish_tarball_cleans_up_sigstore_blob() {
         .unwrap();
     assert_eq!(res.status(), StatusCode::CREATED);
 
-    assert!(local_blob_path(&storage, "", "del-pkg", "del-pkg-1.0.0.sigstore").exists());
+    assert!(
+        local_blob_path(
+            &storage,
+            "",
+            pnpr_storage::Ecosystem::Npm,
+            "del-pkg",
+            "del-pkg-1.0.0.sigstore"
+        )
+        .exists(),
+    );
 
     let del = Request::delete("/npm/del-pkg/-/del-pkg-1.0.0.tgz/-rev/anything")
         .header("Authorization", format!("Bearer {token}"))
@@ -232,7 +241,16 @@ async fn unpublish_tarball_cleans_up_sigstore_blob() {
         StatusCode::CREATED,
     );
 
-    assert!(!local_blob_path(&storage, "", "del-pkg", "del-pkg-1.0.0.sigstore").exists());
+    assert!(
+        !local_blob_path(
+            &storage,
+            "",
+            pnpr_storage::Ecosystem::Npm,
+            "del-pkg",
+            "del-pkg-1.0.0.sigstore"
+        )
+        .exists(),
+    );
 
     let get_attest = Request::get("/npm/-/npm/v1/attestations/del-pkg@1.0.0")
         .body(Body::empty())

@@ -1,7 +1,7 @@
 use super::read_location_bin_sources;
 use pnpm_cmd_shim::{
     BinOrigin, Host, LinkBinsError, LinkBinsOptions, PackageBinSource, PreparedPackageBins,
-    link_bins_of_packages, link_bins_of_packages_precomputed,
+    ShimTargetCache, link_bins_of_packages_outcome, link_bins_of_packages_precomputed,
 };
 use pnpm_package_manifest::parse_manifest_bytes;
 use rayon::prelude::*;
@@ -17,7 +17,7 @@ mod tests;
 
 /// Top-level bin link that links direct-dep candidates, publicly hoisted
 /// aliases, and auto-installed peer dependencies in a single
-/// [`link_bins_of_packages`] pass so direct dependencies take precedence
+/// [`pnpm_cmd_shim::link_bins_of_packages`] pass so direct dependencies take precedence
 /// over publicly hoisted packages, which take precedence over auto-installed peers.
 ///
 /// Direct deps come from the importer's dependency groups, hoisted
@@ -43,6 +43,7 @@ pub fn link_top_level_bins(
         link_options,
         None,
     )
+    .map(|_| ())
 }
 
 pub(crate) fn link_top_level_bins_cached(
@@ -52,7 +53,7 @@ pub(crate) fn link_top_level_bins_cached(
     peer_locations: &[PathBuf],
     link_options: &LinkBinsOptions,
     cached: Option<&HashMap<PathBuf, PreparedPackageBins>>,
-) -> Result<(), LinkBinsError> {
+) -> Result<HashSet<String>, LinkBinsError> {
     let mut bin_sources: Vec<PackageBinSource> = Vec::new();
     // Tag direct deps as `Direct` and hoisted as `Hoisted` so the
     // single downstream `pick_winner` call resolves conflicts via
@@ -82,7 +83,7 @@ pub(crate) fn link_top_level_bins_cached(
         bin_sources.push(source.with_origin(BinOrigin::Peer));
     }
     if bin_sources.is_empty() {
-        return Ok(());
+        return Ok(HashSet::new());
     }
     match cached {
         Some(cached) => link_bins_of_packages_precomputed::<Host>(
@@ -91,9 +92,14 @@ pub(crate) fn link_top_level_bins_cached(
             &modules_dir.join(".bin"),
             link_options,
         ),
-        None => {
-            link_bins_of_packages::<Host>(&bin_sources, &modules_dir.join(".bin"), link_options)
-        }
+        None => link_bins_of_packages_outcome::<Host>(
+            &bin_sources,
+            &modules_dir.join(".bin"),
+            &HashSet::new(),
+            link_options,
+            &ShimTargetCache::default(),
+        )
+        .map(|outcome| outcome.linked_commands),
     }
 }
 /// Read each `<modules_dir>/<name>/package.json` and assemble the

@@ -6,44 +6,87 @@ import { globalInfo, globalWarn } from '@pnpm/logger'
 import type { PackageFilesIndex } from '@pnpm/store.cafs'
 import type { StoreIndex } from '@pnpm/store.index'
 import { rimraf } from '@zkochan/rimraf'
+import { isSubdir } from 'is-subdir'
 import prettyBytes from 'pretty-bytes'
 
+import { getInUseFiles } from './inUseFiles.js'
 import { pruneGlobalVirtualStore } from './pruneGlobalVirtualStore.js'
 
 const BIG_ONE = BigInt(1) as unknown
 
 export interface PruneOptions {
   cacheDir: string
+  protectedDirs?: string[]
   storeDir: string
   storeIndex: StoreIndex
 }
 
-export async function prune ({ cacheDir, storeDir, storeIndex }: PruneOptions, removeAlienFiles?: boolean): Promise<void> {
+export async function prune ({ cacheDir, protectedDirs = [], storeDir, storeIndex }: PruneOptions, removeAlienFiles?: boolean): Promise<void> {
+  // 0. Collect the files that registered projects still use, before any
+  // removal, so an unreadable lockfile stops the prune untouched
+  const inUseFiles = await getInUseFiles(storeDir, storeIndex)
+
   // 1. First, prune the global virtual store
   // This must happen BEFORE pruning the CAS, because removing packages from
   // the virtual store will reduce hard link counts on files in the CAS
   await pruneGlobalVirtualStore(storeDir)
 
   // 2. Clean up metadata cache
-  await removeCachedMetadata(cacheDir, storeDir)
+  await removeCachedMetadata(cacheDir, storeDir, protectedDirs)
   await removeStaleSpillDirectories(storeDir)
 
   // 3. Prune the content-addressable store (CAS)
-  const removedHashes = await pruneContentAddressableStore(storeDir, removeAlienFiles)
+  const removedHashes = await pruneContentAddressableStore(storeDir, removeAlienFiles, inUseFiles)
 
   // 4. Clean up orphaned package index entries
   removeOrphanedIndexEntries(storeIndex, removedHashes)
 }
 
-async function removeCachedMetadata (cacheDir: string, storeDir: string): Promise<void> {
-  // Metadata dirs may be at top level (legacy metadata-*) or under a version prefix (vN/metadata*)
-  const metadataDirs = await getSubdirsSafely(cacheDir)
-  await Promise.all(metadataDirs.map(async (metadataDir) => {
-    if (!metadataDir.startsWith('metadata') && !/^v\d+$/.test(metadataDir)) return
-    await rimrafIgnoringMissing(path.join(cacheDir, metadataDir))
+async function removeCachedMetadata (cacheDir: string, storeDir: string, protectedDirs: string[]): Promise<void> {
+  const protectedPaths = await Promise.all([storeDir, ...protectedDirs].map(canonicalPath))
+  await removeMetadataDirs(cacheDir, protectedPaths)
+  const layoutDirs = await getSubdirsSafely(cacheDir)
+  await Promise.all(layoutDirs.filter(name => /^v\d+$/.test(name)).map(async (layoutDir) => {
+    const layoutPath = path.join(cacheDir, layoutDir)
+    await removeMetadataDirs(layoutPath, protectedPaths)
+    if (!await holdsProtectedPath(layoutPath, protectedPaths)) {
+      await removeEmptyDir(layoutPath)
+    }
   }))
   await rimraf(path.join(storeDir, 'tmp'))
   globalInfo('Removed all cached metadata files')
+}
+
+async function removeMetadataDirs (directory: string, protectedPaths: string[]): Promise<void> {
+  const metadataDirs = (await getSubdirsSafely(directory)).filter(name => name.startsWith('metadata'))
+  await Promise.all(metadataDirs.map(async (metadataDir) => {
+    const metadataPath = path.join(directory, metadataDir)
+    if (await holdsProtectedPath(metadataPath, protectedPaths)) return
+    await rimrafIgnoringMissing(metadataPath)
+  }))
+}
+
+async function holdsProtectedPath (directory: string, protectedPaths: string[]): Promise<boolean> {
+  const canonicalDirectory = await canonicalPath(directory)
+  return protectedPaths.some(protectedPath => isSubdir(canonicalDirectory, protectedPath))
+}
+
+async function removeEmptyDir (directory: string): Promise<void> {
+  try {
+    await fs.rmdir(directory)
+  } catch (err: unknown) {
+    if (isError(err) && 'code' in err && (err.code === 'ENOENT' || err.code === 'ENOTEMPTY')) return
+    throw err
+  }
+}
+
+async function canonicalPath (directory: string): Promise<string> {
+  try {
+    return await fs.realpath(directory)
+  } catch (err: unknown) {
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') return path.resolve(directory)
+    throw err
+  }
 }
 
 async function removeStaleSpillDirectories (storeDir: string): Promise<void> {
@@ -89,14 +132,16 @@ interface CafsPruneStats {
   fileCounter: number
   totalSize: number
   removedHashes: Set<string>
+  inUseFiles: Set<string>
 }
 
-async function pruneContentAddressableStore (storeDir: string, removeAlienFiles: boolean | undefined): Promise<Set<string>> {
+async function pruneContentAddressableStore (storeDir: string, removeAlienFiles: boolean | undefined, inUseFiles: Set<string>): Promise<Set<string>> {
   const cafsDir = path.join(storeDir, 'files')
   const stats: CafsPruneStats = {
     fileCounter: 0,
     totalSize: 0,
     removedHashes: new Set<string>(),
+    inUseFiles,
   }
   const dirs = await getSubdirsSafely(cafsDir)
   await Promise.all(dirs.map(async (dir) => {
@@ -130,7 +175,7 @@ async function pruneCafsEntry ({ dir, fileName, subdir, removeAlienFiles, stats 
     }
     return
   }
-  if (stat.nlink === 1 || stat.nlink === BIG_ONE) {
+  if ((stat.nlink === 1 || stat.nlink === BIG_ONE) && !stats.inUseFiles.has(filePath)) {
     stats.totalSize += stat.size
     await fs.unlink(filePath)
     stats.fileCounter++

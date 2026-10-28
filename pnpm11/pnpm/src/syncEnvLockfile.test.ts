@@ -30,6 +30,7 @@ const createStoreController = jest.fn<(opts: object) => Promise<{ ctrl: { close:
 // Imported before the module is mocked, so the real check runs: which packages
 // a pnpm version pins is exactly what these tests exercise.
 const { isPackageManagerResolved } = await import('@pnpm/installing.env-installer')
+const actualEnginePmCommands = await import('@pnpm/engine.pm.commands')
 
 jest.unstable_mockModule('@pnpm/installing.env-installer', () => ({
   isPackageManagerResolved,
@@ -42,6 +43,7 @@ jest.unstable_mockModule('@pnpm/store.connection-manager', () => ({
 
 const maturePnpmVersionForRange = jest.fn<(config: Config, range: string) => Promise<string>>(async () => packageManager.version)
 jest.unstable_mockModule('@pnpm/engine.pm.commands', () => ({
+  ...actualEnginePmCommands,
   maturePnpmVersionForRange,
 }))
 

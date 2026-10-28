@@ -113,10 +113,7 @@ pub struct BuildPhaseInputs<'a> {
     pub policy: crate::BuildPhasePolicy<'a>,
     pub extra_env: &'a HashMap<String, String>,
     pub skipped: &'a SkippedSnapshots,
-    /// Nested `.bin` directories the hoisted linker held bins back in. See
-    /// [`crate::link_hoisted_modules()`].
-    pub held_back_bins_dirs: &'a [crate::HeldBackBinsDir],
-    pub hoisted_bin_sources: Option<&'a crate::HoistedBinSources>,
+    pub pending_bins: Option<&'a crate::linking::PendingBinLinks>,
 }
 
 /// Run dependency lifecycle scripts, report ignored builds, and
@@ -186,24 +183,11 @@ fn finish_bin_links(
         return Ok(());
     }
     finish_dependency_bin_links(inputs, build_output, bin_state)?;
-
-    // Post-`BuildModules` per-importer top-level bin link
-    // (pnpm/pacquet#342). Resolves direct-over-hoisted precedence and
-    // shims lifecycle-script-created bins that didn't exist at extract
-    // time. Idempotent for unchanged shims. Runs after `buildModules`.
-    let modules_dir_name = config.modules_dir_name();
-    for (importer_id, importer_snapshot) in inputs.graph.importers {
-        link_importer_top_level_bins(
-            inputs,
-            build_output.mutated_slots,
-            modules_dir_name,
-            importer_id,
-            importer_snapshot,
-            &bin_state.refreshed_hoisted_bins,
-        )?;
-    }
-
-    Ok(())
+    post_build_bins::finish_importer_top_level_bins(
+        inputs,
+        build_output.mutated_slots,
+        &bin_state.refreshed_hoisted_bins,
+    )
 }
 
 fn finish_cas_bin_links(
@@ -262,9 +246,7 @@ fn build_or_defer<Reporter: self::Reporter>(
         && inputs.policy.rebuild.is_none()
         && patches.is_none_or(HashMap::is_empty)
         && (!config.side_effects_cache_read() || inputs.cache.maps_by_snapshot.is_empty());
-    if let Some(sources) = inputs.hoisted_bin_sources {
-        bin_state.refreshed_hoisted_bins.seed(sources);
-    }
+    seed_hoisted_bins(inputs, bin_state);
     let build_output = if can_defer_without_build_modules {
         let newly_deferred = inputs.graph.materialized_snapshots
             .iter()
@@ -297,6 +279,18 @@ fn build_or_defer<Reporter: self::Reporter>(
     };
 
     Ok(build_output)
+}
+
+fn seed_hoisted_bins(
+    inputs: &BuildPhaseInputs<'_>,
+    bin_state: &crate::build_options::BuildBinState,
+) {
+    let Some(pending) = inputs.pending_bins else { return };
+    bin_state.refreshed_hoisted_bins.seed(&pending.hoisted_bin_sources);
+    bin_state.refreshed_hoisted_bins.seed_private_hoist(
+        inputs.policy.config.install_state_dir.join("node_modules"),
+        &pending.privately_hoisted_bins,
+    );
 }
 
 fn build_modules<'a>(
@@ -354,7 +348,10 @@ fn build_modules<'a>(
 /// Link the bins the hoisted linker held back in nested `.bin` directories,
 /// now that the builds that may create their targets ran.
 fn link_held_back_bins(inputs: &BuildPhaseInputs<'_>) -> Result<(), BuildPhaseError> {
-    for held_back in inputs.held_back_bins_dirs {
+    let Some(pending) = inputs.pending_bins else {
+        return Ok(());
+    };
+    for held_back in &pending.held_back_bins_dirs {
         crate::link_direct_dep_bins(
             &held_back.modules_dir,
             &held_back.dep_names,
@@ -373,7 +370,10 @@ fn link_importer_top_level_bins(
     importer_id: &str,
     importer_snapshot: &pnpm_lockfile::ProjectSnapshot,
     plans: &crate::build_options::HoistedBinPlans,
-) -> Result<(), BuildPhaseError> {
+) -> Result<
+    Option<(std::path::PathBuf, std::path::PathBuf, std::collections::HashSet<String>)>,
+    BuildPhaseError,
+> {
     // Public-hoist promotes transitives into the workspace root's
     // `<root>/node_modules/<alias>`, so only the root importer's `.bin`
     // sees `BinOrigin::Hoisted` candidates.
@@ -396,7 +396,7 @@ fn link_importer_top_level_bins(
         };
     let relink_direct = inputs.directories.is_hoisted || mutated_slots || !hoisted_names.is_empty();
     if !relink_direct && peer_locations.is_empty() {
-        return Ok(());
+        return Ok(None);
     }
     let project_dir = importer_root_dir(inputs.directories.top_level_bin_root, importer_id);
     let modules_dir = project_dir.join(modules_dir_name);
@@ -411,7 +411,7 @@ fn link_importer_top_level_bins(
     );
     let cached =
         post_build_bins::importer_sources(plans, &modules_dir, &direct_names, hoisted_names);
-    crate::link_bins::link_top_level_bins_cached(
+    let linked = crate::link_bins::link_top_level_bins_cached(
         &modules_dir,
         &direct_names,
         hoisted_names,
@@ -419,7 +419,8 @@ fn link_importer_top_level_bins(
         &post_build_bins::link_options(inputs.directories.link_options, mutated_slots),
         cached.as_ref(),
     )
-    .map_err(BuildPhaseError::TopLevelBinLink)
+    .map_err(BuildPhaseError::TopLevelBinLink)?;
+    Ok(Some((project_dir, modules_dir, linked)))
 }
 
 /// In hoisted mode, each importer snapshot already carries its retained groups.

@@ -9,7 +9,7 @@ use axum::{
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use common::{HostedSource, PUBLIC_URL, body_bytes, find_file, mixed_router_config, sha256_hex};
 use pnpr::{AuthState, Config, Ecosystem, recover_publish_journal, router_with_auth};
-use pnpr_storage::layout::{local_blob_path, write_local_layout_marker};
+use pnpr_storage::layout::{blob_segment, local_blob_path, write_local_layout_marker};
 use serde_json::{Value, json};
 use std::path::{Path, PathBuf};
 use tempfile::TempDir;
@@ -109,9 +109,12 @@ async fn uploads_a_wheel_and_serves_the_simple_pages_and_the_file() {
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
-    assert!(local_blob_path(tmp.path(), "python", "demo-pkg", filename).is_file());
     assert!(
-        std::fs::read_dir(tmp.path().join(".pnpr-journal"))
+        local_blob_path(tmp.path(), "python", pnpr_storage::Ecosystem::Pypi, "demo-pkg", filename)
+            .is_file(),
+    );
+    assert!(
+        std::fs::read_dir(tmp.path().join(".journal"))
             .unwrap()
             .next()
             .is_none(),
@@ -434,7 +437,10 @@ async fn proxies_a_simple_page_and_verified_downloads_through_an_upstream() {
     }
     page_mock.assert_async().await;
     file_mock.assert_async().await;
-    assert!(find_file(&tmp.path().join(".pnpr-cache"), filename).is_some(), "file is cached");
+    assert!(
+        find_file(&tmp.path().join(".pnpr-cache"), &blob_segment("requests", filename)).is_some(),
+        "file is cached",
+    );
 
     // A file the page does not list is never fetched.
     let response = app
@@ -507,7 +513,7 @@ async fn an_upstream_without_the_json_api_is_a_gateway_error_and_a_bad_hash_is_n
         .await
         .unwrap();
     assert!(axum::body::to_bytes(response.into_body(), usize::MAX).await.is_err());
-    assert!(find_file(&tmp.path().join(".pnpr-cache"), filename).is_none());
+    assert!(find_file(&tmp.path().join(".pnpr-cache"), &blob_segment("lying", filename)).is_none());
 }
 
 #[tokio::test]
@@ -549,6 +555,7 @@ async fn conflicting_object_store_upload_does_not_publish_metadata_or_leave_stag
     let object = ObjectPath::from(object_key(&local_blob_path(
         Path::new(""),
         "python",
+        pnpr_storage::Ecosystem::Pypi,
         "demo-pkg",
         filename,
     )));
@@ -681,7 +688,8 @@ async fn hosted_downloads_reject_files_absent_from_publication_metadata() {
     let tmp = TempDir::new().unwrap();
     write_local_layout_marker(tmp.path()).unwrap();
     let orphan = "demo_pkg-1.0.0-py3-none-any.whl";
-    let orphan_blob = local_blob_path(tmp.path(), "python", "demo-pkg", orphan);
+    let orphan_blob =
+        local_blob_path(tmp.path(), "python", pnpr_storage::Ecosystem::Pypi, "demo-pkg", orphan);
     tokio::fs::create_dir_all(orphan_blob.parent().unwrap()).await.unwrap();
     tokio::fs::write(&orphan_blob, b"unpublished wheel").await.unwrap();
     let auth = AuthState::in_memory();
@@ -725,14 +733,15 @@ async fn hosted_downloads_reject_files_absent_from_publication_metadata() {
 /// sealed journal entry that says where it belongs.
 fn fabricate_crashed_upload(storage: &Path, filename: &str, wheel: &[u8]) -> PathBuf {
     write_local_layout_marker(storage).unwrap();
-    let blob = local_blob_path(storage, "python", "demo-pkg", filename);
+    let blob =
+        local_blob_path(storage, "python", pnpr_storage::Ecosystem::Pypi, "demo-pkg", filename);
     std::fs::create_dir_all(blob.parent().unwrap()).unwrap();
     let mut tmp_name = blob.file_name().unwrap().to_os_string();
     tmp_name.push(".tmp.999.0");
     let tmp_path = blob.with_file_name(tmp_name);
     std::fs::write(&tmp_path, wheel).unwrap();
 
-    let txn_dir = storage.join(".pnpr-journal").join("0000000000000001-999-0");
+    let txn_dir = storage.join(".journal").join("0000000000000001-999-0");
     std::fs::create_dir_all(&txn_dir).unwrap();
     let document = json!({
         "name": "demo-pkg",
@@ -774,7 +783,7 @@ async fn a_crashed_upload_is_completed_on_startup() {
 
     assert!(!tmp_path.exists(), "the staged file should be promoted away");
     assert!(
-        std::fs::read_dir(storage.join(".pnpr-journal"))
+        std::fs::read_dir(storage.join(".journal"))
             .unwrap()
             .next()
             .is_none(),

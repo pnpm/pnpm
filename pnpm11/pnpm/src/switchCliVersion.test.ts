@@ -698,6 +698,28 @@ test('ends with the exit status of the pnpm it switched to', async () => {
   }
 })
 
+test('switchCliVersion verifies the pinned pnpm through the trusted proxy settings', async () => {
+  const config = {
+    httpsProxy: 'http://project-proxy.example.com:8080',
+    packageManagerNetworkConfig: { configByUri: {} },
+    rawConfig: {},
+  } as unknown as Config
+  const context = {
+    rootProjectManifestDir: '/project',
+    wantedPackageManager: { name: 'pnpm', version: '11.13.1', fromDevEngines: true, onFail: 'download' },
+  } as unknown as ConfigContext
+  readEnvLockfile.mockResolvedValue(envLockfileFor('11.13.1'))
+
+  const exit = jest.spyOn(process, 'exit').mockImplementation((() => undefined) as never)
+  try {
+    await switchCliVersion(config, context)
+  } finally {
+    exit.mockRestore()
+  }
+
+  expect(installPnpmToStore).toHaveBeenCalledWith('11.13.1', expect.objectContaining({ httpsProxy: undefined }))
+})
+
 test('reports a pnpm that cannot be started as a failed version switch', async () => {
   const config = { rawConfig: {} } as unknown as Config
   const context = {

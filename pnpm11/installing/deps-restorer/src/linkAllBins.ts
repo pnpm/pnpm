@@ -9,7 +9,9 @@ import { pickBy, props } from 'ramda'
 import { limitLinking } from './limits.js'
 
 interface LinkAllBinsOptions {
+  depNodes?: DependenciesGraphNode[]
   extraNodePaths?: string[]
+  forceForPackages?: ReadonlySet<string>
   optional: boolean
   preferSymlinkedExecutables?: boolean
   warn: (message: string) => void
@@ -19,8 +21,9 @@ export async function linkAllBins (
   depGraph: DependenciesGraph,
   opts: LinkAllBinsOptions
 ): Promise<void> {
+  const depNodes = opts.depNodes ?? Object.values(depGraph)
   await Promise.all(
-    Object.values(depGraph)
+    depNodes
       .map(async (depNode) => limitLinking(async () => linkBinsOfDepNode(depNode, depGraph, opts)))
   )
 }
@@ -36,6 +39,7 @@ async function linkBinsOfDepNode (depNode: DependenciesGraphNode, depGraph: Depe
   if (pkgSnapshots.includes(undefined as any)) { // eslint-disable-line
     await linkBins(depNode.modules, binPath, {
       extraNodePaths: opts.extraNodePaths,
+      forceForPackages: opts.forceForPackages,
       preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
       warn: opts.warn,
     })
@@ -48,6 +52,7 @@ async function linkBinsOfDepNode (depNode: DependenciesGraphNode, depGraph: Depe
     const bundledModules = path.join(depNode.dir, 'node_modules')
     await linkBins(bundledModules, binPath, {
       extraNodePaths: opts.extraNodePaths,
+      forceForPackages: opts.forceForPackages,
       preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
       warn: opts.warn,
     })
@@ -66,6 +71,7 @@ async function linkBinsOfChildren (children: DependenciesGraphNode[], binPath: s
 
   await linkBinsOfPackages(pkgs, binPath, {
     extraNodePaths: opts.extraNodePaths,
+    forceForPackages: opts.forceForPackages,
     preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
   })
 }
