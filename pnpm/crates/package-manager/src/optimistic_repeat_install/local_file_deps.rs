@@ -292,7 +292,7 @@ fn local_tarball_candidate(
     if !is_local_file_spec(spec) {
         return LocalTarballCandidate::Skip;
     }
-    if is_dep_replaced_by_override(scan.overrides, alias, raw_spec) {
+    if is_dep_replaced_by_override(scan.overrides, scan.group, alias, raw_spec) {
         return LocalTarballCandidate::Skip;
     }
     let must_be_local = is_unambiguous_local_file_spec(spec);

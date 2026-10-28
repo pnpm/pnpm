@@ -57,10 +57,17 @@ pub(crate) fn parse_declared_range(spec: &str) -> Option<Range> {
     Range::parse(spec).ok()
 }
 
-/// A target matches when its name pattern matches `dep_name` and its range
+/// A target matches when its dependency-type filter (if any) matches
+/// `group`, its name pattern matches `dep_name`, and its range
 /// intersects `dep_spec`.
-pub(crate) fn matches_target(target: &PackageSelector, dep_name: &str, dep_spec: &str) -> bool {
-    WildcardMatcher::new(&target.name).matches(dep_name)
+pub(crate) fn matches_target(
+    target: &PackageSelector,
+    group: Option<DependencyGroup>,
+    dep_name: &str,
+    dep_spec: &str,
+) -> bool {
+    matches_dep_type(target.dep_type, group)
+        && WildcardMatcher::new(&target.name).matches(dep_name)
         && is_intersecting_range(target.bare_specifier.as_deref(), dep_spec)
 }
 
@@ -88,13 +95,22 @@ fn matches_dep_type(
     )
 }
 
-fn specificity_key(entry: &ResolvedOverride) -> (bool, bool, bool) {
-    let parent_wildcard = entry.inner.parent_pkg
+/// Field order is the sort priority: `false` sorts before `true`, so a
+/// more specific selector sorts ahead of a broader one.
+#[derive(PartialEq, Eq, PartialOrd, Ord)]
+struct Specificity {
+    has_wildcard_parent: bool,
+    has_wildcard_target: bool,
+    is_untyped_target: bool,
+}
+
+fn specificity_key(entry: &ResolvedOverride) -> Specificity {
+    let has_wildcard_parent = entry.inner.parent_pkg
         .as_ref()
         .is_some_and(|parent| parent.name.contains('*'));
-    let target_wildcard = entry.inner.target_pkg.name.contains('*');
-    let untyped = entry.inner.target_pkg.dep_type.is_none();
-    (parent_wildcard, target_wildcard, untyped)
+    let has_wildcard_target = entry.inner.target_pkg.name.contains('*');
+    let is_untyped_target = entry.inner.target_pkg.dep_type.is_none();
+    Specificity { has_wildcard_parent, has_wildcard_target, is_untyped_target }
 }
 
 fn compare_range_specificity(lhs: &ResolvedOverride, rhs: &ResolvedOverride) -> std::cmp::Ordering {

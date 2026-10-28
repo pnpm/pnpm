@@ -251,18 +251,11 @@ fn check_converge(
 }
 
 fn parse_parent_selector(selector: &str) -> Result<PackageSelector, ParseOverridesError> {
-    let trimmed_selector = selector.trim();
-    let wanted = parse_wanted_dependency(trimmed_selector);
-    let Some(name) = wanted.alias else {
-        return Err(ParseOverridesError::InvalidSelector { selector: selector.to_string() });
-    };
-    if wanted.bare_specifier
-        .as_deref()
-        .is_some_and(|spec| spec.contains(':'))
-    {
+    let parsed = parse_target_selector(selector)?;
+    if parsed.dep_type.is_some() {
         return Err(ParseOverridesError::InvalidSelector { selector: selector.to_string() });
     }
-    Ok(PackageSelector { name, bare_specifier: wanted.bare_specifier, dep_type: None })
+    Ok(parsed)
 }
 
 fn parse_target_selector(selector: &str) -> Result<PackageSelector, ParseOverridesError> {

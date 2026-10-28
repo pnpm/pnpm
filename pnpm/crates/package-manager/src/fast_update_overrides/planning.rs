@@ -100,8 +100,8 @@ pub(super) fn fast_override(
             .iter()
             .any(|candidate| {
                 candidate.selector != parsed.selector
-                    && (candidate.target_pkg.name == parsed.target_pkg.name
-                        || candidate.target_pkg.name.contains('*'))
+                    && pnpm_matcher::WildcardMatcher::new(&candidate.target_pkg.name)
+                        .matches(&parsed.target_pkg.name)
             })
     {
         return None;
