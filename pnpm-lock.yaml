@@ -1167,7 +1167,7 @@ importers:
   pnpm/npm/pnpm:
     dependencies:
       get-pnpm:
-        specifier: workspace:*
+        specifier: workspace:~
         version: link:../get-pnpm
       node-gyp:
         specifier: 'catalog:'
