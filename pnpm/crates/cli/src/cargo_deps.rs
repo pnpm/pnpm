@@ -290,8 +290,9 @@ fn write_sources_config(root_dir: &Path, index_url: &str, git_sources: &[GitSour
     let directory = ensure_workspace_directory(root_dir, &SOURCES_CONFIG_DIRECTORY)?;
     let path = directory.path.join(SOURCES_CONFIG);
     let config = sources_config(index_url, git_sources);
-    if read_existing_file(&directory, SOURCES_CONFIG)?.0 != config {
-        write_workspace_file(&directory, SOURCES_CONFIG, config.as_bytes(), None)
+    let (existing, mode) = read_existing_file(&directory, SOURCES_CONFIG)?;
+    if existing != config {
+        write_workspace_file(&directory, SOURCES_CONFIG, config.as_bytes(), mode)
             .into_diagnostic()
             .wrap_err_with(|| format!("write {}", path.display()))?;
     }

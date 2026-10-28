@@ -77,8 +77,12 @@ impl Registry<'_> {
         tokio::fs::create_dir_all(cache.parent().expect("cache has parent"))
             .await
             .into_diagnostic()?;
-        pnpm_fs::write_atomic(&cache, &serde_json::to_vec(&wheel).into_diagnostic()?)
-            .into_diagnostic()?;
+        // The cached wheel URL can carry credentials in its userinfo.
+        pnpm_fs::write_atomic_private_if_new(
+            &cache,
+            &serde_json::to_vec(&wheel).into_diagnostic()?,
+        )
+        .into_diagnostic()?;
         Ok((wheel, buffer))
     }
 
