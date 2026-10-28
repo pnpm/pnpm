@@ -1502,7 +1502,41 @@ fn update_bumps_package_manager_and_non_downloaded_runtime_in_dev_engines() {
         .create();
     let _exe_mock = server
         .mock("GET", "/npm/@pnpm%2Fexe")
-        .with_status(404)
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(
+            serde_json::json!({
+                "name": "@pnpm/exe",
+                "dist-tags": { "latest": "11.0.0" },
+                "versions": {
+                    "10.0.0": {
+                        "name": "@pnpm/exe",
+                        "version": "10.0.0",
+                        "dist": {
+                            "tarball": format!("{server_url}/npm/@pnpm/exe/-/exe-10.0.0.tgz"),
+                            "integrity": pnpm_integrity,
+                        },
+                    },
+                    "10.5.0": {
+                        "name": "@pnpm/exe",
+                        "version": "10.5.0",
+                        "dist": {
+                            "tarball": format!("{server_url}/npm/@pnpm/exe/-/exe-10.5.0.tgz"),
+                            "integrity": pnpm_integrity,
+                        },
+                    },
+                    "11.0.0": {
+                        "name": "@pnpm/exe",
+                        "version": "11.0.0",
+                        "dist": {
+                            "tarball": format!("{server_url}/npm/@pnpm/exe/-/exe-11.0.0.tgz"),
+                            "integrity": pnpm_integrity,
+                        },
+                    },
+                },
+            })
+            .to_string(),
+        )
         .create();
     let _node_mock = server
         .mock("GET", "/node/index.json")

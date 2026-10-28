@@ -291,14 +291,11 @@ impl OutdatedArgs {
         if !self.packages.is_empty() && package_patterns.is_empty() {
             return false;
         }
-        let matcher = (!package_patterns.is_empty()).then(|| create_matcher(package_patterns));
+        let query = filters.query(self.target_version());
         manifest
             .dependencies(filters.include.iter().copied())
             .any(|(name, spec)| {
-                !pnpm_tool_protocol::is_tool_specifier(spec)
-                    && matcher
-                        .as_ref()
-                        .is_none_or(|m| m.matches(name))
+                !pnpm_tool_protocol::is_tool_specifier(spec) && query.matches_name(name)
             })
     }
 

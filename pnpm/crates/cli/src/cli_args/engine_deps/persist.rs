@@ -4,7 +4,6 @@ use miette::Context;
 use node_semver::Version;
 use pnpm_config::Config;
 use pnpm_engine_runtime_node_resolver::normalize_node_runtime_version_specifier;
-use pnpm_env_installer::pnpm_engine_packages;
 use pnpm_lockfile::EnvLockfile;
 use pnpm_lockfile_preferred_versions::get_version_selector_type;
 use pnpm_package_manifest::PackageManifest;
@@ -235,34 +234,17 @@ pub(super) async fn sync_updated_pnpm_lockfile(
     else {
         return Ok(());
     };
-    let packages = pnpm_engine_packages(target_version);
-    let boot_config = config.for_boot();
-    let initial = Box::pin(config_deps::sync_engine_dependencies(
-        &boot_config,
+    Box::pin(config_deps::sync_package_manager_dependencies(
+        config,
         &env_root,
-        packages,
         wanted_specifier,
         target_version,
         false,
         false,
     ))
-    .await;
-    let result = match initial {
-        Ok(_) => Ok(()),
-        Err(_) if packages.len() > 1 => Box::pin(config_deps::sync_engine_dependencies(
-            &boot_config,
-            &env_root,
-            &["pnpm"],
-            wanted_specifier,
-            target_version,
-            false,
-            false,
-        ))
-        .await
-        .map(|_| ()),
-        Err(err) => Err(err),
-    };
-    result.map_err(|err| {
+    .await
+    .map(|_| ())
+    .map_err(|err| {
         let reason = pnpm_network::redact_url_credentials(&err.to_string());
         miette::miette!("{reason}").wrap_err("updating pnpm pin in pnpm-lock.yaml")
     })

@@ -179,8 +179,7 @@ async fn outdated_for_project(
     let has_non_tool_dep = project.manifest
         .dependencies(inputs.query.include_direct.iter().copied())
         .any(|(name, spec)| {
-            !pnpm_tool_protocol::is_tool_specifier(spec)
-                && inputs.query.match_names.is_none_or(|m| m.matches(name))
+            !pnpm_tool_protocol::is_tool_specifier(spec) && inputs.query.matches_name(name)
         });
     if lockfile.is_none() && has_non_tool_dep {
         let lockfile_dir = if shares_one_lockfile { inputs.lockfile_root } else { project_dir };

@@ -161,7 +161,7 @@ pub struct OutdatedQuery<'a> {
 }
 
 impl OutdatedQuery<'_> {
-    fn matches_name(&self, name: &str) -> bool {
+    pub(super) fn matches_name(&self, name: &str) -> bool {
         self.match_names.is_none_or(|matcher| matcher.matches(name))
             && !self.ignore_names.is_some_and(|matcher| matcher.matches(name))
     }
@@ -286,9 +286,10 @@ fn collect_importer_candidates<'a>(
 fn engine_outdated_candidate<'a>(
     dep: &'a crate::cli_args::engine_deps::DeclaredEngineDep,
     query: &OutdatedQuery<'_>,
-    seen_engines: &mut std::collections::HashSet<&'a str>,
+    seen_engines: &mut std::collections::HashSet<(&'a str, &'static str)>,
 ) -> Option<OutdatedCandidate<'a>> {
-    if !query.matches_name(&dep.name) || !seen_engines.insert(dep.name.as_str()) {
+    let group_key: &'static str = dep.group.into();
+    if !query.matches_name(&dep.name) || !seen_engines.insert((dep.name.as_str(), group_key)) {
         return None;
     }
     Some(OutdatedCandidate {
