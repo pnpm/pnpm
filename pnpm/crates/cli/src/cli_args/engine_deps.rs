@@ -1,4 +1,5 @@
 pub(super) mod persist;
+pub(super) mod selectors;
 pub(super) mod update;
 
 pub(crate) use update::{EngineUpdateOptions, EngineUpdateOutcome, update_engine_deps};
@@ -58,7 +59,10 @@ pub(crate) fn has_only_engine_selectors(packages: &[String]) -> bool {
 /// Whether `selector` targets a package manager or runtime engine.
 pub(crate) fn is_engine_selector(selector: &str) -> bool {
     let parsed = parse_update_param(selector);
-    let name = parsed.pattern.strip_prefix('!').unwrap_or(&parsed.pattern);
+    if parsed.pattern.starts_with('!') {
+        return false;
+    }
+    let name = parsed.pattern.as_str();
     if PackageManager::parse(name).is_none() && !is_runtime_alias(name) {
         return false;
     }
@@ -186,11 +190,15 @@ fn dev_engine_pm_dep(
         .and_then(Value::as_str)
         .map(str::trim)?;
     let pm = PackageManager::parse(raw_name)?;
-    if !seen_pms.insert(pm.name()) || is_ignored_on_fail(entry) || existing_deps.contains(pm.name())
-    {
+    if seen_pms.contains(pm.name()) || existing_deps.contains(pm.name()) {
+        return None;
+    }
+    if is_ignored_on_fail(entry) {
+        seen_pms.insert(pm.name());
         return None;
     }
     let raw_spec = non_empty_version_field(entry)?;
+    seen_pms.insert(pm.name());
     let in_pm_field = legacy_pm.is_some_and(|(legacy_name, ver)| {
         legacy_name.eq_ignore_ascii_case(pm.name()) && ver.is_some()
     });
@@ -330,13 +338,17 @@ fn runtime_dep_from_entry(
         .map(str::trim)?;
     let normalized_name = raw_name.to_ascii_lowercase();
     if !is_runtime_alias(&normalized_name)
-        || !seen_runtimes.insert(normalized_name.clone())
-        || is_ignored_or_downloaded_runtime(entry)
+        || seen_runtimes.contains(&normalized_name)
         || existing_deps.contains(&normalized_name)
     {
         return None;
     }
+    if is_ignored_or_downloaded_runtime(entry) {
+        seen_runtimes.insert(normalized_name);
+        return None;
+    }
     let raw_spec = non_empty_version_field(entry)?;
+    seen_runtimes.insert(normalized_name.clone());
     let current = min_version_of_spec(&normalized_name, raw_spec);
     Some(DeclaredEngineDep {
         name: normalized_name,

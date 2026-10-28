@@ -177,7 +177,7 @@ async fn outdated_for_project(
         (project_lockfile, Lockfile::ROOT_IMPORTER_KEY.to_string())
     };
     let has_non_tool_dep = project.manifest
-        .dependencies([DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional])
+        .dependencies(inputs.query.include_direct.iter().copied())
         .any(|(name, spec)| {
             !pnpm_tool_protocol::is_tool_specifier(spec)
                 && inputs.query.match_names.is_none_or(|m| m.matches(name))

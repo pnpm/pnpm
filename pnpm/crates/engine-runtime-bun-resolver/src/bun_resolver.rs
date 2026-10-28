@@ -92,10 +92,11 @@ impl BunResolver {
                 current.resolution.clone(),
                 version,
                 None,
+                None,
             )));
         }
 
-        let (version, normalized_spec) =
+        let (version, normalized_spec, policy_violation) =
             self.resolve_npm_version_and_spec(wanted_dependency, opts, version_spec).await?;
         let variants = if opts.specifier.calc_specifier {
             Vec::new()
@@ -110,6 +111,7 @@ impl BunResolver {
             LockfileResolution::Variations(VariationsResolution { variants }),
             &version,
             Some(format!("{RUNTIME_PROTOCOL}{normalized_spec}")),
+            policy_violation,
         )))
     }
 
@@ -118,7 +120,10 @@ impl BunResolver {
         wanted_dependency: &WantedDependency,
         opts: &ResolveOptions,
         version_spec: &str,
-    ) -> Result<(String, String), ResolveError> {
+    ) -> Result<
+        (String, String, Option<pnpm_resolving_resolver_base::ResolutionPolicyViolation>),
+        ResolveError,
+    > {
         let prev_specifier = wanted_dependency.prev_specifier
             .as_deref()
             .and_then(strip_tool_protocol)
@@ -149,7 +154,8 @@ impl BunResolver {
             .and_then(|res| res.normalized_bare_specifier.as_deref())
             .unwrap_or(version_spec)
             .to_string();
-        Ok((version, normalized_spec))
+        let policy_violation = npm_result.and_then(|res| res.policy_violation);
+        Ok((version, normalized_spec, policy_violation))
     }
 
     async fn resolve_latest_impl(
@@ -203,6 +209,7 @@ fn bun_resolve_result(
     resolution: LockfileResolution,
     version: &str,
     normalized_bare_specifier: Option<String>,
+    policy_violation: Option<pnpm_resolving_resolver_base::ResolutionPolicyViolation>,
 ) -> ResolveResult {
     let manifest = serde_json::json!({
         "name": "bun",
@@ -215,7 +222,7 @@ fn bun_resolve_result(
         resolved_via: RESOLVED_VIA.to_string(),
         normalized_bare_specifier,
         alias: wanted_dependency.alias.clone(),
-        policy_violation: None,
+        policy_violation,
         package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
             manifest: Some(std::sync::Arc::new(manifest)),
             ..Default::default()

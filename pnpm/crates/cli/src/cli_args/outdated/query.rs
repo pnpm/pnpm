@@ -274,22 +274,30 @@ fn collect_importer_candidates<'a>(
             }
         }
     }
+    let mut seen_engines = std::collections::HashSet::new();
     for dep in engine_deps {
-        if !query.matches_name(&dep.name) {
-            continue;
+        if let Some(candidate) = engine_outdated_candidate(dep, query, &mut seen_engines) {
+            candidates.push(candidate);
         }
-        let Some(current) = dep.current.clone() else {
-            continue;
-        };
-        candidates.push(OutdatedCandidate {
-            alias: &dep.name,
-            group: dep.group,
-            bare_specifier: &dep.resolver_bare_specifier,
-            current,
-            is_engine: true,
-        });
     }
     candidates
+}
+
+fn engine_outdated_candidate<'a>(
+    dep: &'a crate::cli_args::engine_deps::DeclaredEngineDep,
+    query: &OutdatedQuery<'_>,
+    seen_engines: &mut std::collections::HashSet<&'a str>,
+) -> Option<OutdatedCandidate<'a>> {
+    if !query.matches_name(&dep.name) || !seen_engines.insert(dep.name.as_str()) {
+        return None;
+    }
+    Some(OutdatedCandidate {
+        alias: &dep.name,
+        group: dep.group,
+        bare_specifier: &dep.resolver_bare_specifier,
+        current: dep.current.clone()?,
+        is_engine: true,
+    })
 }
 
 fn direct_outdated_candidate<'a>(

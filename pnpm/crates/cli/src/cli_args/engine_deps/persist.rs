@@ -237,7 +237,7 @@ pub(super) async fn sync_updated_pnpm_lockfile(
     };
     let packages = pnpm_engine_packages(target_version);
     let boot_config = config.for_boot();
-    match Box::pin(config_deps::sync_engine_dependencies(
+    let initial = Box::pin(config_deps::sync_engine_dependencies(
         &boot_config,
         &env_root,
         packages,
@@ -246,24 +246,26 @@ pub(super) async fn sync_updated_pnpm_lockfile(
         false,
         false,
     ))
-    .await
-    {
+    .await;
+    let result = match initial {
         Ok(_) => Ok(()),
-        Err(_) if packages.len() > 1 => {
-            let _ = Box::pin(config_deps::sync_engine_dependencies(
-                &boot_config,
-                &env_root,
-                &["pnpm"],
-                wanted_specifier,
-                target_version,
-                false,
-                false,
-            ))
-            .await;
-            Ok(())
-        }
-        Err(_) => Ok(()),
-    }
+        Err(_) if packages.len() > 1 => Box::pin(config_deps::sync_engine_dependencies(
+            &boot_config,
+            &env_root,
+            &["pnpm"],
+            wanted_specifier,
+            target_version,
+            false,
+            false,
+        ))
+        .await
+        .map(|_| ()),
+        Err(err) => Err(err),
+    };
+    result.map_err(|err| {
+        let reason = pnpm_network::redact_url_credentials(&err.to_string());
+        miette::miette!("{reason}").wrap_err("updating pnpm pin in pnpm-lock.yaml")
+    })
 }
 
 fn should_sync_pnpm_lockfile(

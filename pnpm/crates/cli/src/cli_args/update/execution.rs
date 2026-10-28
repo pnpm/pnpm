@@ -159,6 +159,13 @@ impl UpdateArgs {
         include_direct: &[DependencyGroup],
         packages: &[String],
     ) -> miette::Result<crate::cli_args::engine_deps::EngineUpdateOutcome> {
+        if self.selection.patches {
+            return Ok(crate::cli_args::engine_deps::EngineUpdateOutcome {
+                has_engine_deps: false,
+                remaining_packages: packages.to_vec(),
+                has_regular_deps: true,
+            });
+        }
         let engine_opts = crate::cli_args::engine_deps::EngineUpdateOptions {
             include_direct,
             packages,

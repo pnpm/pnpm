@@ -314,6 +314,9 @@ impl NodeResolver {
         let Some(manifest_spec) = bare_runtime_spec(&query.wanted_dependency, "node") else {
             return Ok(None);
         };
+        if self.offline {
+            return Err(Box::new(NodeResolverError::Offline));
+        }
         let mut parsed = parse_node_specifier(manifest_spec)
             .map_err(|err| {
                 Box::new(NodeResolverError::InvalidReleaseChannel(err)) as ResolveError

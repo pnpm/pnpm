@@ -188,7 +188,7 @@ impl OutdatedArgs {
         let filters =
             OutdatedFilters::validated(&self, config, &package_patterns, [manifest], false)?;
         let lockfile = loaded_lockfile(&state)?;
-        if self.requires_lockfile(manifest, &package_patterns) && lockfile.is_none() {
+        if self.requires_lockfile(manifest, &filters, &package_patterns) && lockfile.is_none() {
             return Err(no_lockfile_error(project_dir(manifest)));
         }
         let mut outdated =
@@ -274,7 +274,7 @@ impl OutdatedArgs {
         package_patterns: &[String],
     ) -> bool {
         let has_any_dependency = manifest
-            .dependencies([DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional])
+            .dependencies(include.iter().copied())
             .next()
             .is_some()
             || !crate::cli_args::engine_deps::declared_engine_deps(manifest, config, include)
@@ -282,13 +282,18 @@ impl OutdatedArgs {
         has_any_dependency && (self.packages.is_empty() || !package_patterns.is_empty())
     }
 
-    fn requires_lockfile(&self, manifest: &PackageManifest, package_patterns: &[String]) -> bool {
+    fn requires_lockfile(
+        &self,
+        manifest: &PackageManifest,
+        filters: &OutdatedFilters,
+        package_patterns: &[String],
+    ) -> bool {
         if !self.packages.is_empty() && package_patterns.is_empty() {
             return false;
         }
         let matcher = (!package_patterns.is_empty()).then(|| create_matcher(package_patterns));
         manifest
-            .dependencies([DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional])
+            .dependencies(filters.include.iter().copied())
             .any(|(name, spec)| {
                 !pnpm_tool_protocol::is_tool_specifier(spec)
                     && matcher

@@ -108,6 +108,12 @@ impl YarnResolver {
             .map_err(|error| Box::new(YarnResolverError::ReadReleases(error)) as ResolveError)?;
 
         let version = release.version.clone();
+        let normalized_spec = normalized_yarn_spec(
+            opts.refresh.update,
+            version_spec,
+            wanted_dependency.prev_specifier.as_deref(),
+            &version,
+        );
         let manifest = serde_json::json!({
             "name": "yarn",
             "version": version,
@@ -117,15 +123,12 @@ impl YarnResolver {
             id: format!("yarn@runtime:{version}").into(),
             resolution: LockfileResolution::Variations(VariationsResolution { variants }),
             resolved_via: RESOLVED_VIA.to_string(),
-            normalized_bare_specifier: Some(format!("{RUNTIME_PROTOCOL}{version_spec}")),
+            normalized_bare_specifier: Some(format!("{RUNTIME_PROTOCOL}{normalized_spec}")),
             alias: wanted_dependency.alias.clone(),
             policy_violation: None,
             package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
-                name_ver: None,
-                latest: None,
-                published_at: None,
                 manifest: Some(Arc::new(manifest)),
-                non_deprecated_alternative: None,
+                ..Default::default()
             },
         }))
     }
@@ -151,6 +154,28 @@ impl YarnResolver {
                 "version": release.version,
             }))),
         }))
+    }
+}
+
+fn normalized_yarn_spec(
+    update: UpdateBehavior,
+    version_spec: &str,
+    prev_specifier: Option<&str>,
+    resolved_version: &str,
+) -> String {
+    if update != UpdateBehavior::Latest {
+        return version_spec.to_string();
+    }
+    let source = prev_specifier
+        .and_then(pnpm_tool_protocol::strip_tool_protocol)
+        .unwrap_or(version_spec)
+        .trim();
+    if source.starts_with('~') {
+        format!("~{resolved_version}")
+    } else if source.starts_with('^') {
+        format!("^{resolved_version}")
+    } else {
+        resolved_version.to_string()
     }
 }
 
