@@ -31,6 +31,8 @@ use rewrite::{MatchedRewriteInputs, record_matched_direct_update};
 
 mod seed_policy;
 
+mod latest_subtree;
+
 mod selectors;
 use selectors::{parse_selectors, reject_versions_of_indirect_update_specs};
 

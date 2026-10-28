@@ -162,21 +162,37 @@ pub fn prune_unreachable_packages(lockfile: &mut Lockfile) {
 /// Every snapshot key an importer still reaches. `None` when the lockfile
 /// records no snapshots at all.
 fn reachable_keys(lockfile: &Lockfile) -> Option<HashSet<PkgNameVerPeer>> {
+    reachable_from(lockfile, |_| true, |_, _| true)
+}
+
+/// Every snapshot key reachable from the importer dependencies whose alias
+/// satisfies `is_root`, those dependencies included, through the snapshot
+/// edges `(parent, alias)` that satisfy `follows`. `None` when the lockfile
+/// records no snapshots at all.
+pub(crate) fn reachable_from(
+    lockfile: &Lockfile,
+    is_root: impl Fn(&PkgName) -> bool,
+    follows: impl Fn(&PkgNameVerPeer, &PkgName) -> bool,
+) -> Option<HashSet<PkgNameVerPeer>> {
     let snapshots = lockfile.snapshots.as_ref()?;
     let mut reachable = HashSet::new();
-    let mut queue = importer_root_keys(lockfile);
+    let mut queue = importer_root_keys(lockfile, is_root);
     while let Some(key) = queue.pop_front() {
         if !reachable.insert(key.clone()) {
             continue;
         }
         let Some(snapshot) = snapshots.get(&key) else { continue };
-        queue.extend(snapshot_child_keys(snapshot));
+        queue.extend(snapshot_child_keys(snapshot, |alias| follows(&key, alias)));
     }
     Some(reachable)
 }
 
-/// The snapshot keys every importer declares directly.
-fn importer_root_keys(lockfile: &Lockfile) -> VecDeque<PkgNameVerPeer> {
+/// The snapshot keys the importers declare directly under an alias that
+/// satisfies `is_root`.
+fn importer_root_keys(
+    lockfile: &Lockfile,
+    is_root: impl Fn(&PkgName) -> bool,
+) -> VecDeque<PkgNameVerPeer> {
     lockfile.importers
         .values()
         .flat_map(|importer| {
@@ -189,15 +205,20 @@ fn importer_root_keys(lockfile: &Lockfile) -> VecDeque<PkgNameVerPeer> {
             .flatten()
             .flatten()
         })
+        .filter(|(alias, _)| is_root(alias))
         .filter_map(|(alias, spec)| spec.version.resolved_key(alias))
         .collect()
 }
 
-fn snapshot_child_keys(snapshot: &SnapshotEntry) -> impl Iterator<Item = PkgNameVerPeer> + '_ {
+fn snapshot_child_keys<'a>(
+    snapshot: &'a SnapshotEntry,
+    follows: impl Fn(&PkgName) -> bool + 'a,
+) -> impl Iterator<Item = PkgNameVerPeer> + 'a {
     [snapshot.dependencies.as_ref(), snapshot.optional_dependencies.as_ref()]
         .into_iter()
         .flatten()
         .flatten()
+        .filter(move |(alias, _)| follows(alias))
         .filter_map(|(alias, dep_ref)| dep_ref.resolve(alias))
 }
 

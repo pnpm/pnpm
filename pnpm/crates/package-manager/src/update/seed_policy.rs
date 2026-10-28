@@ -1,6 +1,8 @@
 use super::{
     CatalogCtx, LatestResolverChain, LatestRewriteCtx, MatchedRewriteInputs, UpdateError,
-    WorkspaceLinkTarget, emit_latest_ignored, latest_specifier, record_matched_direct_update,
+    WorkspaceLinkTarget, emit_latest_ignored, latest_specifier,
+    latest_subtree::widen_drop_targets_to_subtrees,
+    record_matched_direct_update,
     selectors::{ParsedSelector, expand_update_selectors, insert_update_target},
     workspace_specifier,
 };
@@ -323,7 +325,7 @@ pub(super) async fn selector_seed_policy<Reporter: self::Reporter>(
         .await?;
     }
     if scope.version.latest && scope.selection.depth > 0 {
-        widen_drop_targets_by_matcher(scope.lockfile, plan, &matcher);
+        widen_drop_targets_to_subtrees(scope, plan, &matched_direct);
     }
     Ok(Some(plan.drop_only(scope.max_depth())))
 }

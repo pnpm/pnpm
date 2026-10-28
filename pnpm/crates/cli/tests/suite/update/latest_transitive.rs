@@ -6,8 +6,14 @@ use assert_cmd::assert::OutputAssertExt;
 use std::path::Path;
 
 #[test]
-fn latest_selectors_refresh_matching_transitive_dependencies() {
-    for selectors in [vec!["!@pnpm.e2e/foo"], vec!["*", "!@pnpm.e2e/foo"], vec![PARENT, DEP]] {
+fn latest_selectors_refresh_dependencies_of_selected_packages() {
+    for selectors in [
+        vec!["!@pnpm.e2e/foo"],
+        vec!["*", "!@pnpm.e2e/foo"],
+        vec![PARENT, DEP],
+        vec![PARENT],
+        vec!["*", "!@pnpm.e2e/dep-of-pkg-with-1-dep"],
+    ] {
         assert_transitive_update(&selectors, "100.1.0");
     }
 }
@@ -28,10 +34,8 @@ fn latest_exclusion_refreshes_transitive_dependencies_with_explicit_depth() {
 }
 
 #[test]
-fn latest_selectors_preserve_unmatched_transitive_dependencies() {
-    for selectors in [vec![PARENT], vec!["*", "!@pnpm.e2e/dep-of-pkg-with-1-dep"]] {
-        assert_transitive_update(&selectors, "100.0.0");
-    }
+fn latest_selectors_preserve_transitive_dependencies_of_excluded_packages() {
+    assert_transitive_update(&["!@pnpm.e2e/pkg-with-1-dep"], "100.0.0");
 }
 
 #[test]
