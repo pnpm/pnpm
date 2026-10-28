@@ -33,7 +33,7 @@ pub use pending_temp::{
 };
 pub use private_named_tempfile::private_named_tempfile_in;
 pub use read_modules_dir::read_modules_dir;
-pub use realpath_missing::realpath_missing;
+pub use realpath_missing::{realpath_missing, symlinked_dir_real_path};
 pub use relative_path::{join_slash_separated_path, push_slash_separated_path, relative_path};
 pub use remove_dirent::remove_dirent;
 pub use rename_even_across_devices::rename_even_across_devices;
