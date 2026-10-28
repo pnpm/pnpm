@@ -1,4 +1,5 @@
 use miette::{IntoDiagnostic, Result, WrapErr};
+use pnpm_matcher::WildcardMatcher;
 use std::{fs, ops::Range, path::Path};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -287,6 +288,75 @@ impl InlineScan<'_> {
 
 fn quoted(value: &str) -> String {
     serde_json::to_string(value).expect("serializing a Rust string cannot fail")
+}
+
+pub(crate) fn workspace_includes_member(workspace_dir: &Path, member_dir: &Path) -> bool {
+    let Ok(contents) = fs::read_to_string(workspace_dir.join("Cargo.toml")) else {
+        return false;
+    };
+    let Ok(doc) = toml::from_str::<toml::Table>(&contents) else {
+        return false;
+    };
+    let Some(ws) = doc.get("workspace").and_then(toml::Value::as_table) else {
+        return false;
+    };
+    let Ok(rel) = member_dir.strip_prefix(workspace_dir) else {
+        return false;
+    };
+    let rel_str = rel.to_string_lossy().replace('\\', "/");
+    let excluded = toml_string_array(ws, "exclude")
+        .iter()
+        .any(|pat| {
+            let clean = pat.trim_start_matches("./").trim_matches('/');
+            !clean.is_empty()
+                && (rel_str == clean
+                    || rel_str.starts_with(&format!("{clean}/"))
+                    || cargo_glob_matches(clean, &rel_str))
+        });
+    if excluded {
+        return false;
+    }
+    toml_string_array(ws, "members").iter().any(|pat| cargo_glob_matches(pat, &rel_str))
+}
+
+fn toml_string_array(table: &toml::Table, key: &str) -> Vec<String> {
+    table
+        .get(key)
+        .and_then(toml::Value::as_array)
+        .map(|arr| {
+            arr.iter()
+                .filter_map(toml::Value::as_str)
+                .map(str::to_string)
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn cargo_glob_matches(pattern: &str, path: &str) -> bool {
+    let pat_segs: Vec<&str> = pattern
+        .trim_start_matches("./")
+        .trim_matches('/')
+        .split('/')
+        .filter(|seg| !seg.is_empty() && *seg != ".")
+        .collect();
+    let path_segs: Vec<&str> = path
+        .split('/')
+        .filter(|seg| !seg.is_empty())
+        .collect();
+    match_segments(&pat_segs, &path_segs)
+}
+
+fn match_segments(pat: &[&str], path: &[&str]) -> bool {
+    match (pat.first(), path.first()) {
+        (None, None) => true,
+        (Some(&"**"), _) => {
+            match_segments(&pat[1..], path) || (!path.is_empty() && match_segments(pat, &path[1..]))
+        }
+        (Some(p), Some(s)) => {
+            WildcardMatcher::new(p).matches(s) && match_segments(&pat[1..], &path[1..])
+        }
+        _ => false,
+    }
 }
 
 #[cfg(test)]

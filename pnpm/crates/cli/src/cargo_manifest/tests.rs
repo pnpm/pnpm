@@ -1,4 +1,6 @@
-use super::{CargoDependencyKind, upsert_dependency};
+use super::{CargoDependencyKind, upsert_dependency, workspace_includes_member};
+use crate::cli_args::ecosystem_deps::cargo_manifest_ops::find_cargo_workspace_root;
+use std::fs;
 
 #[test]
 fn adds_a_dependency_without_reformatting_the_manifest() {
@@ -49,4 +51,34 @@ fn updates_strings_and_inline_tables_without_losing_formatting() {
         updated,
         "[dependencies]\nserde = \"2\" # keep\ntokio = { features = [\"version\"], version = \"~1.43\" }\n",
     );
+}
+
+#[test]
+fn workspace_membership_respects_single_segment_globs_and_literal_bang_paths() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path();
+    let member = root.join("crates/alpha");
+    let nested = root.join("crates/tools/nested");
+    let bang_member = root.join("!special");
+    let excluded = root.join("crates/excluded");
+    for path in [&member, &nested, &bang_member, &excluded] {
+        fs::create_dir_all(path).unwrap();
+        fs::write(path.join("Cargo.toml"), "[package]\nname = \"x\"\nversion = \"0.1.0\"\n")
+            .unwrap();
+    }
+    fs::write(
+        root.join("Cargo.toml"),
+        "[workspace]\nmembers = [\"crates/*\", \"!special\"]\nexclude = [\"crates/excluded\"]\n",
+    )
+    .unwrap();
+
+    assert!(workspace_includes_member(root, &member));
+    assert!(!workspace_includes_member(root, &nested));
+    assert!(workspace_includes_member(root, &bang_member));
+    assert!(!workspace_includes_member(root, &excluded));
+
+    assert_eq!(find_cargo_workspace_root(&member, Some(root)), root);
+    assert_eq!(find_cargo_workspace_root(&nested, Some(root)), nested);
+    assert_eq!(find_cargo_workspace_root(&bang_member, Some(root)), root);
+    assert_eq!(find_cargo_workspace_root(&excluded, Some(root)), excluded);
 }

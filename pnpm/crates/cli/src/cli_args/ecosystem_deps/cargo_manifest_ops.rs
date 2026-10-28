@@ -1,7 +1,9 @@
-use crate::{cargo_manifest::upsert_dependency, cli_args::outdated::OutdatedQuery};
+use crate::{
+    cargo_manifest::{upsert_dependency, workspace_includes_member},
+    cli_args::outdated::OutdatedQuery,
+};
 use cargo_lock::Lockfile as CargoLockfile;
 use miette::{IntoDiagnostic, Result, WrapErr, bail};
-use pnpm_matcher::create_matcher;
 use pnpm_package_manifest::DependencyGroup;
 use semver::{Version, VersionReq};
 use std::{
@@ -79,41 +81,6 @@ fn has_workspace_section(dir: &Path) -> bool {
     toml::from_str::<toml::Table>(&contents)
         .ok()
         .is_some_and(|table| table.contains_key("workspace"))
-}
-
-fn workspace_includes_member(workspace_dir: &Path, member_dir: &Path) -> bool {
-    let Ok(contents) = fs::read_to_string(workspace_dir.join("Cargo.toml")) else {
-        return false;
-    };
-    let Ok(doc) = toml::from_str::<toml::Table>(&contents) else {
-        return false;
-    };
-    let Some(ws) = doc.get("workspace").and_then(toml::Value::as_table) else {
-        return false;
-    };
-    let Ok(rel) = member_dir.strip_prefix(workspace_dir) else {
-        return false;
-    };
-    let rel_str = rel.to_string_lossy().replace('\\', "/");
-    let exclude = toml_string_array(ws, "exclude");
-    if !exclude.is_empty() && create_matcher(&exclude).matches(&rel_str) {
-        return false;
-    }
-    let members = toml_string_array(ws, "members");
-    !members.is_empty() && create_matcher(&members).matches(&rel_str)
-}
-
-fn toml_string_array(table: &toml::Table, key: &str) -> Vec<String> {
-    table
-        .get(key)
-        .and_then(toml::Value::as_array)
-        .map(|arr| {
-            arr.iter()
-                .filter_map(toml::Value::as_str)
-                .map(str::to_string)
-                .collect()
-        })
-        .unwrap_or_default()
 }
 
 pub(crate) fn declared_cargo_deps(
