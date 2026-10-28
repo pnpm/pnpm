@@ -30,6 +30,7 @@ let registry: string
 let mode: Mode = 'ok'
 let setupLog: string
 let authorizations: Array<string | undefined> = []
+let servedVersion = VERSION
 
 // The fake executable the mock serves is a `#!/bin/sh` script, so the flow that
 // runs it is POSIX-only. The verification it exercises is platform-independent.
@@ -68,7 +69,28 @@ describe('installPnpm', { skip: process.platform === 'win32' }, () => {
   test('runs setup on an executable placed next to the dist it ships with', async () => {
     mode = 'ok'
     assert.equal(await install(), 0)
-    assert.equal(fs.readFileSync(setupLog, 'utf8'), 'setup --force\nworker.js\n')
+    assert.equal(fs.readFileSync(setupLog, 'utf8'), 'pm setup --force\nworker.js\n')
+  })
+
+  test('passes --no-modify-path to setup', async () => {
+    mode = 'ok'
+    assert.equal(await installPnpm({ versionSpec: 'latest', registry, keys: KEYS, modifyPath: false }), 0)
+    assert.equal(fs.readFileSync(setupLog, 'utf8'), 'pm setup --force --no-modify-path\nworker.js\n')
+  })
+
+  test('refuses --no-modify-path before running a setup older than 12.16.0', async () => {
+    mode = 'ok'
+    servedVersion = '12.15.0'
+    fs.rmSync(setupLog, { force: true })
+    try {
+      await assert.rejects(
+        installPnpm({ versionSpec: 'latest', registry, keys: KEYS, modifyPath: false }),
+        (err: Error) => err.message.includes('pnpm 12.15.0 cannot be installed without adding it to PATH')
+      )
+    } finally {
+      servedVersion = VERSION
+    }
+    assert.ok(!fs.existsSync(setupLog), 'setup is not run')
   })
 
   test('downloadPnpm places the executable without running setup', async () => {
@@ -165,8 +187,8 @@ function handleRequest (req: http.IncomingMessage, res: http.ServerResponse, tar
     res.end(JSON.stringify(body))
   }
 
-  if (url.endsWith(`/${VERSION}`)) {
-    const kind = url === `/pnpm/${VERSION}` ? 'pnpm' : 'platform'
+  if (url.endsWith(`/${servedVersion}`)) {
+    const kind = url === `/pnpm/${servedVersion}` ? 'pnpm' : 'platform'
     const name = url.slice(1, url.lastIndexOf('/'))
     json(versionMetaFor(name, kind, tarballs))
     return
@@ -188,9 +210,9 @@ function handleRequest (req: http.IncomingMessage, res: http.ServerResponse, tar
 function packumentFor (name: string, tarballs: Tarballs): unknown {
   const kind = name === 'pnpm' ? 'pnpm' : 'platform'
   return {
-    'dist-tags': { latest: VERSION },
+    'dist-tags': { latest: servedVersion },
     versions: {
-      [VERSION]: mode === 'root-signatures' ? { dist: { signatures: signaturesFor(name, kind, tarballs) } } : {},
+      [servedVersion]: mode === 'root-signatures' ? { dist: { signatures: signaturesFor(name, kind, tarballs) } } : {},
     },
   }
 }
@@ -219,7 +241,7 @@ function signaturesFor (name: string, kind: keyof Tarballs, tarballs: Tarballs):
   const signed = mode === 'bad-signature' ? `sha512-${'A'.repeat(86)}==` : integrityOf(kind, tarballs)
   return [{
     keyid: mode === 'wrong-keyid' ? 'SHA256:not-pinned' : KEYS[0]!.keyid,
-    sig: createSign('SHA256').update(`${name}@${VERSION}:${signed}`).sign(privateKey, 'base64'),
+    sig: createSign('SHA256').update(`${name}@${servedVersion}:${signed}`).sign(privateKey, 'base64'),
   }]
 }
 

@@ -21,7 +21,7 @@ export interface ShadowingPnpm {
   /**
    * Whether `$PNPM_HOME/bin` is on PATH at all, behind `executable`. When it
    * is not, PATH has yet to be set up, and the shell will find the right pnpm
-   * once a new shell adds the directory ahead of `executable`.
+   * once the directory is added ahead of `executable`.
    */
   binOnPath: boolean
 }
@@ -88,9 +88,14 @@ export function findShadowingPnpm (
 
 /**
  * The warning to print once `pnpm setup` installed under `pnpmHome` and
- * `shadowing` still answers to `pnpm`.
+ * `shadowing` still answers to `pnpm`. Without `modifiedPath`, setup left the
+ * shell config alone, so no new shell adds `$PNPM_HOME/bin` by itself.
  */
-export function renderShadowingPnpmWarning (shadowing: ShadowingPnpm, pnpmHome: string): string {
+export function renderShadowingPnpmWarning (
+  shadowing: ShadowingPnpm,
+  pnpmHome: string,
+  { modifiedPath = true }: { modifiedPath?: boolean } = {}
+): string {
   const bin = path.join(pnpmHome, 'bin')
   const origin = ORIGIN_DESCRIPTIONS[shadowing.origin]
   const reorder = `move ${bin} ahead of ${path.dirname(shadowing.executable)} in PATH`
@@ -101,8 +106,9 @@ export function renderShadowingPnpmWarning (shadowing: ShadowingPnpm, pnpmHome: 
       `Your shell keeps running that pnpm, not the one pnpm installed to ${bin}.\n` +
       `To finish switching, ${fix}.`
   }
+  const when = modifiedPath ? 'Once a new shell adds it' : 'When you add it'
   return `Warning: "pnpm" on PATH is ${shadowing.executable} (${origin}), and ${bin} is not on PATH yet.\n` +
-    `Once a new shell adds it, it has to come first: ${fix}.`
+    `${when}, it has to come first: ${fix}.`
 }
 
 export function detectInstallOrigin (executable: string): InstallOrigin {
