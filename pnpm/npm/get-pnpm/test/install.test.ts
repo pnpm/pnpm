@@ -41,8 +41,8 @@ describe('installPnpm', { skip: process.platform === 'win32' }, () => {
       // The wrapper carries `dist/`; the platform package carries the executable.
       pnpm: packTarball('wrapper', { 'dist/worker.js': 'export {}\n' }),
       platform: packTarball('platform', {
-        // `setup --help` prints FAKE_SETUP_HELP, so a test can play an old or a new setup.
-        pnpm: `#!/bin/sh\nif [ "$2" = --help ]; then printf '%s\\n' "$FAKE_SETUP_HELP"; exit 0; fi\necho "$@" > "${setupLog}"\nls "$(dirname "$0")/dist" >> "${setupLog}"\n`,
+        // `pm setup --help` prints FAKE_SETUP_HELP, so a test can play an old or a new setup.
+        pnpm: `#!/bin/sh\nif [ "$3" = --help ]; then printf '%s\\n' "$FAKE_SETUP_HELP"; exit 0; fi\necho "$@" > "${setupLog}"\nls "$(dirname "$0")/dist" >> "${setupLog}"\n`,
       }),
     }
 
@@ -69,7 +69,7 @@ describe('installPnpm', { skip: process.platform === 'win32' }, () => {
   test('runs setup on an executable placed next to the dist it ships with', async () => {
     mode = 'ok'
     assert.equal(await install(), 0)
-    assert.equal(fs.readFileSync(setupLog, 'utf8'), 'setup --force\nworker.js\n')
+    assert.equal(fs.readFileSync(setupLog, 'utf8'), 'pm setup --force\nworker.js\n')
   })
 
   test('passes --no-modify-path to a setup that has it', async () => {
@@ -80,7 +80,7 @@ describe('installPnpm', { skip: process.platform === 'win32' }, () => {
     } finally {
       delete process.env.FAKE_SETUP_HELP
     }
-    assert.equal(fs.readFileSync(setupLog, 'utf8'), 'setup --force --no-modify-path\nworker.js\n')
+    assert.equal(fs.readFileSync(setupLog, 'utf8'), 'pm setup --force --no-modify-path\nworker.js\n')
   })
 
   test('refuses --no-modify-path before running a setup that lacks it', async () => {

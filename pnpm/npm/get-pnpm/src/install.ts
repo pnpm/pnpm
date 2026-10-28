@@ -3,6 +3,8 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
+import semver from 'semver'
+
 import { extractTarball } from './extractTarball.js'
 import { registryConfigFromEnv } from './npmConfig.js'
 import { isMusl, platformPackageName } from './platformPackageName.js'
@@ -165,7 +167,7 @@ export async function installPnpm (
   try {
     const { version, binPath } = await downloadPnpm({ ...opts, dest: tmpDir })
     const modifyPath = opts.modifyPath ?? true
-    const setupArgs = ['setup', '--force']
+    const setupArgs = [...setupCommand(version), '--force']
     if (!modifyPath) {
       assertSetupCanLeavePathAlone(binPath, version)
       setupArgs.push('--no-modify-path')
@@ -186,11 +188,20 @@ export async function installPnpm (
 }
 
 /**
+ * How to invoke the built-in `pnpm setup` of pnpm `version`. From pnpm 11, a
+ * `setup` script in the project the installer runs from replaces the built-in
+ * unless the `pm` prefix forces it.
+ */
+export function setupCommand (version: string): string[] {
+  return semver.gte(version, '11.0.0-beta.6') ? ['pm', 'setup'] : ['setup']
+}
+
+/**
  * Most pnpm releases predate `pnpm setup --no-modify-path`, so its help is
  * checked before setup gets the chance to change anything.
  */
 function assertSetupCanLeavePathAlone (binPath: string, version: string): void {
-  const { stdout } = spawnSync(binPath, ['setup', '--help'], { encoding: 'utf8' })
+  const { stdout } = spawnSync(binPath, [...setupCommand(version), '--help'], { encoding: 'utf8' })
   if (!stdout?.includes('--no-modify-path')) {
     throw new Error(`pnpm ${version} cannot be installed without adding it to PATH: its \`pnpm setup\` has no --no-modify-path option. Install a newer pnpm, or leave out --no-modify-path.`)
   }

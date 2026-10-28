@@ -5,7 +5,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { after, before, describe, test } from 'node:test'
 
-import { parseCliArgs } from '../lib/install.js'
+import { parseCliArgs, setupCommand } from '../lib/install.js'
 import { platformPackageName, type Target } from '../lib/platformPackageName.js'
 import { resolveVersion } from '../lib/resolveVersion.js'
 import { sameFileContents } from '../lib/sameFileContents.js'
@@ -278,5 +278,14 @@ describe('parseCliArgs', () => {
 
   test('stops at --help', () => {
     assert.equal(parseCliArgs(['--help', 'extra', 'args'], {}).help, true)
+  })
+})
+
+describe('setupCommand', () => {
+  test('forces the built-in setup on the versions that let a project script replace it', () => {
+    assert.deepEqual(setupCommand('10.33.0'), ['setup'])
+    assert.deepEqual(setupCommand('11.0.0-beta.5'), ['setup'])
+    assert.deepEqual(setupCommand('11.0.0-beta.6'), ['pm', 'setup'])
+    assert.deepEqual(setupCommand('12.7.0'), ['pm', 'setup'])
   })
 })
