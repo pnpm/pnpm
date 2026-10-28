@@ -110,3 +110,32 @@ fn workspace_membership_respects_single_segment_globs_and_literal_bang_paths() {
     .unwrap();
     assert!(!workspace_includes_member(&repeated_glob_root, &deep_non_member));
 }
+
+#[test]
+fn workspace_membership_discovers_implicit_path_dependency_members() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path();
+    let member = root.join("crates/alpha");
+    let implicit_lib = root.join("support/implicit-lib");
+    let excluded_lib = root.join("support/excluded-lib");
+    for path in [&member, &implicit_lib, &excluded_lib] {
+        fs::create_dir_all(path).unwrap();
+        fs::write(path.join("Cargo.toml"), "[package]\nname = \"x\"\nversion = \"0.1.0\"\n")
+            .unwrap();
+    }
+    fs::write(
+        member.join("Cargo.toml"),
+        "[package]\nname = \"alpha\"\nversion = \"0.1.0\"\n\n[dependencies]\nimplicit-lib = { path = \"../../support/implicit-lib\" }\nexcluded-lib = { path = \"../../support/excluded-lib\" }\n",
+    )
+    .unwrap();
+    fs::write(
+        root.join("Cargo.toml"),
+        "[workspace]\nmembers = [\"crates/*\"]\nexclude = [\"support/excluded-lib\"]\n",
+    )
+    .unwrap();
+
+    assert!(workspace_includes_member(root, &implicit_lib));
+    assert!(!workspace_includes_member(root, &excluded_lib));
+    assert_eq!(find_cargo_workspace_root(&implicit_lib, Some(root)), root);
+    assert_eq!(find_cargo_workspace_root(&excluded_lib, Some(root)), excluded_lib);
+}
