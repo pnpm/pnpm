@@ -4,7 +4,10 @@ use crate::_utils::{
 };
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+use pnpm_testing_utils::{
+    bin::{AddMockedRegistry, CommandTempCwd},
+    command_env::CommandTestExt,
+};
 use std::{
     ffi::OsStr,
     fs, io,
@@ -28,6 +31,7 @@ fn pacquet(workspace: &Path, args: impl IntoIterator<Item = impl AsRef<OsStr>>) 
     Command::cargo_bin("pnpm")
         .expect("find the pnpm binary")
         .with_current_dir(workspace)
+        .without_ambient_pnpm_config()
         .with_args(args)
 }
 
@@ -977,4 +981,131 @@ fn outdated_reports_package_manager_and_runtime_from_dev_engines() {
         serde_json::from_slice(&selector_output.stdout).expect("parse selector outdated JSON");
     assert_eq!(selector_report["pnpm"]["current"], "10.0.0");
     assert_eq!(selector_report["pnpm"]["latest"], "11.0.0");
+}
+
+#[test]
+fn outdated_reports_cargo_and_python_dependencies() {
+    let root = tempfile::tempdir().unwrap();
+    let workspace = root.path().join("workspace");
+    let cache_dir = root.path().join("cache");
+    fs::create_dir(&workspace).unwrap();
+
+    // Populate Cargo sparse-index cache for crate `foo` with 1.0.0, 1.2.0, and 2.0.0.
+    let cargo_index_dir = cache_dir.join("v11/cargo-index/crates-io/3/f");
+    fs::create_dir_all(&cargo_index_dir).unwrap();
+    let cargo_index_entry = ["1.0.0", "1.2.0", "2.0.0"]
+        .iter()
+        .map(|version| {
+            format!(
+                r#"{{"name":"foo","vers":"{version}","deps":[],"cksum":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","features":{{}},"yanked":false}}"#,
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    fs::write(cargo_index_dir.join("foo"), cargo_index_entry).unwrap();
+
+    // Serve Python Simple JSON index for `requests` with 1.0, 1.5, and 2.0.
+    let mut server = mockito::Server::new();
+    let _pypi_mock = server
+        .mock("GET", "/simple/requests/")
+        .match_header("accept", "application/vnd.pypi.simple.v1+json")
+        .with_status(200)
+        .with_header("content-type", "application/vnd.pypi.simple.v1+json")
+        .with_body(
+            serde_json::json!({
+                "meta": { "api-version": "1.0" },
+                "name": "requests",
+                "files": [
+                    { "filename": "requests-1.0-py3-none-any.whl", "url": "/files/requests-1.0-py3-none-any.whl", "hashes": { "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" } },
+                    { "filename": "requests-1.5-py3-none-any.whl", "url": "/files/requests-1.5-py3-none-any.whl", "hashes": { "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" } },
+                    { "filename": "requests-2.0-py3-none-any.whl", "url": "/files/requests-2.0-py3-none-any.whl", "hashes": { "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc" } },
+                ],
+            })
+            .to_string(),
+        )
+        .expect_at_least(1)
+        .create();
+
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        format!(
+            "cargo:\n  enabled: true\npython:\n  enabled: true\nregistries:\n  '{}/simple/':\n    ecosystem: pypi\nstoreDir: '{}'\ncacheDir: '{}'\n",
+            server.url(),
+            root.path().join("store").display(),
+            cache_dir.display(),
+        ),
+    )
+    .unwrap();
+    fs::write(
+        workspace.join("Cargo.toml"),
+        "[package]\nname = \"app\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[dependencies]\nfoo = \"^1.0.0\"\n",
+    )
+    .unwrap();
+    fs::write(
+        workspace.join("Cargo.lock"),
+        "version = 4\n\n[[package]]\nname = \"app\"\nversion = \"0.1.0\"\ndependencies = [\"foo\"]\n\n[[package]]\nname = \"foo\"\nversion = \"1.0.0\"\nsource = \"registry+https://github.com/rust-lang/crates.io-index\"\nchecksum = \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"\n",
+    )
+    .unwrap();
+    fs::write(
+        workspace.join("pyproject.toml"),
+        "[project]\nname = 'app'\nversion = '1.0'\nrequires-python = '>=3.10'\ndependencies = ['requests>=1.0,<2.0']\n",
+    )
+    .unwrap();
+    fs::write(
+        workspace.join("pylock.toml"),
+        "lock-version = '1.0'\nenvironments = []\ncreated-by = 'pnpm'\nrequires-python = '>=3.10'\n\n[[packages]]\nname = 'requests'\nversion = '1.0'\nwheels = [{ name = 'requests-1.0-py3-none-any.whl', url = 'https://example.test/requests-1.0-py3-none-any.whl', hashes = { sha256 = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' } }]\n",
+    )
+    .unwrap();
+
+    // Populate Python index cache so `--offline` works for both Cargo and Python, or test online for Python + cached Cargo:
+    let py_output = pacquet(&workspace, ["outdated", "pypi:requests", "--format", "json"])
+        .output()
+        .expect("run outdated pypi:requests --format json");
+    assert_eq!(
+        py_output.status.code(),
+        Some(1),
+        "stderr: {}",
+        String::from_utf8_lossy(&py_output.stderr),
+    );
+    let py_report: serde_json::Value = serde_json::from_slice(&py_output.stdout)
+        .unwrap_or_else(|err| {
+            panic!(
+                "parse python outdated JSON: {err}; stdout: {}; stderr: {}",
+                String::from_utf8_lossy(&py_output.stdout),
+                String::from_utf8_lossy(&py_output.stderr),
+            )
+        });
+    assert_eq!(py_report["requests"]["current"], "1.0");
+    assert_eq!(py_report["requests"]["latest"], "2.0");
+    assert_eq!(py_report["requests"]["wanted"], "1.5");
+    assert!(py_report.get("foo").is_none());
+
+    // Now both Python and Cargo index entries are cached; run `outdated --offline` and `--compatible`:
+    let all_output = pacquet(&workspace, ["outdated", "--offline", "--format", "json"])
+        .output()
+        .expect("run outdated --offline --format json");
+    assert_eq!(
+        all_output.status.code(),
+        Some(1),
+        "stderr: {}",
+        String::from_utf8_lossy(&all_output.stderr),
+    );
+    let all_report: serde_json::Value =
+        serde_json::from_slice(&all_output.stdout).expect("parse all outdated JSON");
+    assert_eq!(all_report["foo"]["current"], "1.0.0");
+    assert_eq!(all_report["foo"]["latest"], "2.0.0");
+    assert_eq!(all_report["foo"]["wanted"], "1.2.0");
+    assert_eq!(all_report["requests"]["current"], "1.0");
+    assert_eq!(all_report["requests"]["latest"], "2.0");
+    assert_eq!(all_report["requests"]["wanted"], "1.5");
+
+    let compat_output =
+        pacquet(&workspace, ["outdated", "--compatible", "--offline", "--format", "json"])
+            .output()
+            .expect("run outdated --compatible --offline --format json");
+    assert_eq!(compat_output.status.code(), Some(1));
+    let compat_report: serde_json::Value =
+        serde_json::from_slice(&compat_output.stdout).expect("parse compatible outdated JSON");
+    assert_eq!(compat_report["foo"]["latest"], "1.2.0");
+    assert_eq!(compat_report["requests"]["latest"], "1.5");
 }

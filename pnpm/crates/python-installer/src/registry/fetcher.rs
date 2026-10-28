@@ -16,9 +16,9 @@ const MAX_METADATA_BYTES: usize = 8 * 1024 * 1024;
 /// resolution records into, so reads run while the resolution goes on.
 #[derive(Clone, Copy)]
 pub(in super::super) struct Fetcher<'a> {
-    pub(super) config: &'static Config,
-    pub(super) client: &'a ThrottledClient,
-    pub(super) index: &'a Index,
+    pub(in super::super) config: &'a Config,
+    pub(in super::super) client: &'a ThrottledClient,
+    pub(in super::super) index: &'a Index,
 }
 
 impl Fetcher<'_> {

@@ -245,7 +245,7 @@ pub(super) async fn sync_updated_pnpm_lockfile(
     .await
     .map(|_| ())
     .map_err(|err| {
-        let reason = pnpm_network::redact_url_credentials(&err.to_string());
+        let reason = pnpm_network::redact_url_credentials(&format!("{err:#}"));
         miette::miette!("{reason}").wrap_err("updating pnpm pin in pnpm-lock.yaml")
     })
 }

@@ -38,7 +38,7 @@ pub(crate) fn add_dependencies(
     Ok(())
 }
 
-fn upsert_dependency(
+pub(crate) fn upsert_dependency(
     contents: &str,
     table: &str,
     name: &str,

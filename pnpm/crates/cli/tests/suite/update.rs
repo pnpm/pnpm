@@ -8,7 +8,10 @@ use _utils::{
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+use pnpm_testing_utils::{
+    bin::{AddMockedRegistry, CommandTempCwd},
+    command_env::CommandTestExt,
+};
 use pretty_assertions::assert_eq;
 use std::{ffi::OsStr, fmt::Write as _, fs, path::Path, process::Command};
 use tempfile::TempDir;
@@ -49,6 +52,7 @@ fn pacquet(workspace: &Path, args: impl IntoIterator<Item = impl AsRef<OsStr>>) 
     Command::cargo_bin("pnpm")
         .expect("find the pnpm binary")
         .with_current_dir(workspace)
+        .without_ambient_pnpm_config()
         .with_args(args)
 }
 
@@ -1551,7 +1555,7 @@ fn update_bumps_package_manager_and_non_downloaded_runtime_in_dev_engines() {
     fs::write(
         workspace.join("pnpm-workspace.yaml"),
         format!(
-            "storeDir: ../store\ncacheDir: ../cache\nnodeDownloadMirrors:\n  release: '{server_url}/node/'\n",
+            "storeDir: ../store\ncacheDir: ../cache\nfetchRetries: 0\nnodeDownloadMirrors:\n  release: '{server_url}/node/'\n",
         ),
     )
     .unwrap();
@@ -1580,9 +1584,10 @@ fn update_bumps_package_manager_and_non_downloaded_runtime_in_dev_engines() {
     .unwrap();
 
     let registry_flag = format!("--registry={server_url}/npm/");
+    let auth_file_flag = format!("--npmrc-auth-file={}", workspace.join(".npmrc").display());
 
     // In-range `pnpm update` bumps within `^10.0.0` and `^22.0.0`, and syncs `packageManager`.
-    pacquet(&workspace, ["update", &registry_flag]).assert().success();
+    pacquet(&workspace, ["update", &registry_flag, &auth_file_flag]).assert().success();
     let manifest: serde_json::Value =
         serde_json::from_str(&fs::read_to_string(workspace.join("package.json")).unwrap()).unwrap();
     assert_eq!(manifest["devEngines"]["packageManager"]["version"], "^10.5.0");
@@ -1595,7 +1600,7 @@ fn update_bumps_package_manager_and_non_downloaded_runtime_in_dev_engines() {
     );
 
     // `pnpm update --latest` bumps across majors to 11.0.0 and 24.0.0.
-    pacquet(&workspace, ["update", "--latest", &registry_flag]).assert().success();
+    pacquet(&workspace, ["update", "--latest", &registry_flag, &auth_file_flag]).assert().success();
     let manifest: serde_json::Value =
         serde_json::from_str(&fs::read_to_string(workspace.join("package.json")).unwrap()).unwrap();
     assert_eq!(manifest["devEngines"]["packageManager"]["version"], "^11.0.0");
@@ -1618,8 +1623,69 @@ fn update_bumps_package_manager_and_non_downloaded_runtime_in_dev_engines() {
         .to_string(),
     )
     .unwrap();
-    pacquet(&workspace, ["update", "--latest", "pnpm", &registry_flag]).assert().success();
+    pacquet(&workspace, ["update", "--latest", "pnpm", &registry_flag, &auth_file_flag])
+        .assert()
+        .success();
     let manifest: serde_json::Value =
         serde_json::from_str(&fs::read_to_string(workspace.join("package.json")).unwrap()).unwrap();
     assert_eq!(manifest["packageManager"], "pnpm@11.0.0");
+}
+
+#[test]
+fn update_bumps_cargo_dependencies() {
+    let root = tempfile::tempdir().unwrap();
+    let workspace = root.path().join("workspace");
+    let cache_dir = root.path().join("cache");
+    fs::create_dir_all(workspace.join("src")).unwrap();
+    fs::write(workspace.join("src/lib.rs"), "").unwrap();
+
+    let cargo_index_dir = cache_dir.join("v11/cargo-index/crates-io/3/f");
+    fs::create_dir_all(&cargo_index_dir).unwrap();
+    let cargo_index_entry = ["1.0.0", "1.2.0", "2.0.0"]
+        .iter()
+        .map(|version| {
+            format!(
+                r#"{{"name":"foo","vers":"{version}","deps":[],"cksum":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","features":{{}},"yanked":false}}"#,
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    fs::write(cargo_index_dir.join("foo"), cargo_index_entry).unwrap();
+
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        format!(
+            "cargo:\n  enabled: true\nstoreDir: '{}'\ncacheDir: '{}'\n",
+            root.path().join("store").display(),
+            cache_dir.display(),
+        ),
+    )
+    .unwrap();
+    fs::write(
+        workspace.join("Cargo.toml"),
+        "[package]\nname = \"app\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[dependencies]\nfoo = \"^1.0.0\"\n",
+    )
+    .unwrap();
+    fs::write(
+        workspace.join("Cargo.lock"),
+        "version = 4\n\n[[package]]\nname = \"app\"\nversion = \"0.1.0\"\ndependencies = [\"foo\"]\n\n[[package]]\nname = \"foo\"\nversion = \"1.0.0\"\nsource = \"registry+https://github.com/rust-lang/crates.io-index\"\nchecksum = \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"\n",
+    )
+    .unwrap();
+
+    // Default `pnpm update` updates within `^1.0.0` to `^1.2.0` and locks `1.2.0` without creating package.json.
+    pacquet(&workspace, ["update", "--offline", "--lockfile-only"]).assert().success();
+    let cargo_toml = fs::read_to_string(workspace.join("Cargo.toml")).unwrap();
+    assert!(cargo_toml.contains(r#"foo = "^1.2.0""#), "{cargo_toml}");
+    let cargo_lock = fs::read_to_string(workspace.join("Cargo.lock")).unwrap();
+    assert!(cargo_lock.contains("name = \"foo\"\nversion = \"1.2.0\""), "{cargo_lock}");
+    assert!(!workspace.join("package.json").exists());
+
+    // `pnpm update --latest crate:foo` updates across major to `^2.0.0` and locks `2.0.0`.
+    pacquet(&workspace, ["update", "--latest", "crate:foo", "--offline", "--lockfile-only"])
+        .assert()
+        .success();
+    let cargo_toml = fs::read_to_string(workspace.join("Cargo.toml")).unwrap();
+    assert!(cargo_toml.contains(r#"foo = "^2.0.0""#), "{cargo_toml}");
+    let cargo_lock = fs::read_to_string(workspace.join("Cargo.lock")).unwrap();
+    assert!(cargo_lock.contains("name = \"foo\"\nversion = \"2.0.0\""), "{cargo_lock}");
 }
