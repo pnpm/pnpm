@@ -54,12 +54,9 @@ pub(crate) async fn collect_cargo_outdated(
     }
     let workspace_limit = config.workspace_dir.as_deref();
     let declared = declared_cargo_deps(project_dir, workspace_limit)?;
-    if declared.is_empty() {
-        return Ok(Vec::new());
-    }
-    let cargo_root = find_cargo_workspace_root(project_dir, workspace_limit);
-    let cargo_lock_path = cargo_root.join("Cargo.lock");
-    if !cargo_lock_path.is_file() {
+    let cargo_lock_path =
+        find_cargo_workspace_root(project_dir, workspace_limit).join("Cargo.lock");
+    if declared.is_empty() || !cargo_lock_path.is_file() {
         return Ok(Vec::new());
     }
     let locked = read_locked_cargo_versions(&cargo_lock_path)?;
@@ -124,12 +121,11 @@ async fn resolve_outdated_cargo_dep(
     if target <= *current {
         return Ok(None);
     }
-    let index_url = config.cargo_index_url();
     Ok(Some(build_cargo_outdated_package(
         dep,
         (current, &target, &wanted),
         workspace_name,
-        index_url,
+        config.cargo_index_url(),
     )))
 }
 
@@ -235,10 +231,15 @@ fn select_cargo_deps_to_update<'a>(
     declared: &'a [DeclaredCargoDep],
     options: &'a CargoUpdateOptions<'a>,
 ) -> Vec<(&'a DeclaredCargoDep, Option<&'a str>)> {
-    declared
-        .iter()
-        .filter_map(|dep| match_cargo_dep(dep, options).map(|spec| (dep, spec)))
-        .collect()
+    let mut selected: Vec<(&'a DeclaredCargoDep, Option<&'a str>)> = Vec::new();
+    for dep in declared {
+        if let Some(spec) = match_cargo_dep(dep, options)
+            && !selected.iter().any(|(sel, _)| same_declared_dep(sel, dep))
+        {
+            selected.push((dep, spec));
+        }
+    }
+    selected
 }
 
 fn match_cargo_dep<'a>(

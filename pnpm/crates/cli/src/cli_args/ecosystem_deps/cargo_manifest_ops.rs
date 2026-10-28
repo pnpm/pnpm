@@ -354,7 +354,9 @@ fn extend_unique_declared(
 ) {
     for dep in deps {
         if dep.manifest_path.starts_with(cargo_root)
-            && !all_declared.iter().any(|existing| same_declared_dep(existing, &dep))
+            && !all_declared
+                .iter()
+                .any(|existing| existing.group == dep.group && same_declared_dep(existing, &dep))
         {
             all_declared.push(dep);
         }
@@ -362,10 +364,7 @@ fn extend_unique_declared(
 }
 
 pub(crate) fn same_declared_dep(lhs: &DeclaredCargoDep, rhs: &DeclaredCargoDep) -> bool {
-    lhs.alias == rhs.alias
-        && lhs.table == rhs.table
-        && lhs.group == rhs.group
-        && lhs.manifest_path == rhs.manifest_path
+    lhs.alias == rhs.alias && lhs.table == rhs.table && lhs.manifest_path == rhs.manifest_path
 }
 
 pub(crate) fn apply_manifest_edits(
