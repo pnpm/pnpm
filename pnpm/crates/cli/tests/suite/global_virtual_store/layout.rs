@@ -582,3 +582,54 @@ fn an_isolated_install_writes_a_write_only_package_map() {
 
     drop((root, mock_instance));
 }
+
+/// An install run from a project whose `node_modules` is a symlink to another
+/// project's `node_modules` writes links that resolve from the real
+/// directory. Regression test for <https://github.com/pnpm/pnpm/issues/17448>.
+#[test]
+fn install_through_a_symlinked_modules_dir_writes_links_that_resolve() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    set_gvs_workspace_yaml(&workspace, "publicHoistPattern:\n  - '*'\n");
+    write_manifest(&workspace, &serde_json::json!({ "@pnpm.e2e/pkg-with-1-dep": "100.0.0" }));
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let nested = root.path().join("secondary/nested");
+    fs::create_dir_all(&nested).expect("create the nested project");
+    for file in ["package.json", "pnpm-lock.yaml"] {
+        fs::copy(workspace.join(file), nested.join(file)).expect("copy the project files");
+    }
+    let workspace_yaml = fs::read_to_string(workspace.join("pnpm-workspace.yaml"))
+        .expect("read pnpm-workspace.yaml")
+        .replace("../pacquet-", "../../pacquet-");
+    fs::write(nested.join("pnpm-workspace.yaml"), workspace_yaml)
+        .expect("write the nested pnpm-workspace.yaml");
+    pnpm_fs::symlink_dir(&workspace.join("node_modules"), &nested.join("node_modules"))
+        .expect("symlink the nested project's node_modules");
+
+    let direct = workspace.join("node_modules/@pnpm.e2e/pkg-with-1-dep");
+    let hoisted = workspace.join("node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep");
+    for link in [&direct, &hoisted] {
+        pnpm_fs::remove_symlink_dir(link).expect("remove the link so the install recreates it");
+    }
+
+    pacquet(&nested)
+        .with_args(["install", "--frozen-lockfile", "--offline"])
+        .assert()
+        .success();
+
+    for link in [&direct, &hoisted] {
+        let contents = fs::read_link(link).expect("read the recreated link");
+        assert!(
+            link.join("package.json").exists(),
+            "{link:?} must resolve, but it points at {contents:?}",
+        );
+    }
+
+    drop((root, mock_instance));
+}
