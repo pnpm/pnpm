@@ -26,11 +26,29 @@ impl OutdatedFilters {
         manifests: impl IntoIterator<Item = &'a PackageManifest>,
         recursive: bool,
     ) -> miette::Result<Self> {
+        Self::validated_with_standalone(args, config, package_patterns, manifests, &[], recursive)
+    }
+
+    pub(super) fn validated_with_standalone<'a>(
+        args: &OutdatedArgs,
+        config: &Config,
+        package_patterns: &[String],
+        manifests: impl IntoIterator<Item = &'a PackageManifest>,
+        standalone_dirs: &[std::path::PathBuf],
+        recursive: bool,
+    ) -> miette::Result<Self> {
         validate_ecosystem_selectors(package_patterns, config)?;
         let include = args.dependency_options.include(config.optional);
         let mut manifests = manifests.into_iter().peekable();
-        if !recursive || manifests.peek().is_some() {
-            validate_package_patterns(manifests, config, package_patterns, &include, recursive)?;
+        if !recursive || manifests.peek().is_some() || !standalone_dirs.is_empty() {
+            validate_package_patterns(
+                manifests,
+                standalone_dirs,
+                config,
+                package_patterns,
+                &include,
+                recursive,
+            )?;
         }
         let normalized_patterns = normalize_filter_patterns(package_patterns)?;
         Ok(Self {
@@ -75,6 +93,7 @@ fn normalize_filter_patterns(package_patterns: &[String]) -> miette::Result<Vec<
 
 pub(super) fn validate_package_patterns<'a>(
     manifests: impl IntoIterator<Item = &'a PackageManifest>,
+    standalone_dirs: &[std::path::PathBuf],
     config: &Config,
     package_patterns: &[String],
     include: &[DependencyGroup],
@@ -87,7 +106,7 @@ pub(super) fn validate_package_patterns<'a>(
     if positive_patterns.is_empty() {
         return Ok(());
     }
-    let deps = collect_all_declared_names(manifests, config, include)?;
+    let deps = collect_all_declared_names(manifests, standalone_dirs, config, include)?;
     let unmatched = positive_patterns
         .iter()
         .any(|pattern| {
@@ -110,6 +129,7 @@ pub(super) fn validate_package_patterns<'a>(
 
 fn collect_all_declared_names<'a>(
     manifests: impl IntoIterator<Item = &'a PackageManifest>,
+    standalone_dirs: &[std::path::PathBuf],
     config: &Config,
     include: &[DependencyGroup],
 ) -> miette::Result<Vec<String>> {
@@ -124,6 +144,9 @@ fn collect_all_declared_names<'a>(
             declared_engine_deps(manifest, config, include).into_iter().map(|dep| dep.name),
         );
         deps.extend(declared_ecosystem_dep_names(project_dir(manifest), config, include)?);
+    }
+    for dir in standalone_dirs {
+        deps.extend(declared_ecosystem_dep_names(dir, config, include)?);
     }
     Ok(deps)
 }

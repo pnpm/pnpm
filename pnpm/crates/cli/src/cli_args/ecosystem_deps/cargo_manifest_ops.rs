@@ -310,17 +310,25 @@ fn format_existing_cargo_spec(existing_raw: &str, resolved: &Version) -> String 
 }
 
 fn lower_bound_prefix(clause: &str) -> Option<&'static str> {
-    [">=", ">", "^", "~"]
-        .into_iter()
-        .find(|prefix| clause.starts_with(prefix))
+    if clause.starts_with('>') {
+        Some(">=")
+    } else {
+        ["^", "~"]
+            .into_iter()
+            .find(|prefix| clause.starts_with(prefix))
+    }
 }
 
 fn existing_prefix(raw: &str) -> &'static str {
     let trimmed = raw.trim();
-    ["^", "~", ">=", ">", "="]
-        .into_iter()
-        .find(|prefix| trimmed.starts_with(prefix))
-        .unwrap_or("")
+    if trimmed.starts_with('>') {
+        ">="
+    } else {
+        ["^", "~", "="]
+            .into_iter()
+            .find(|prefix| trimmed.starts_with(prefix))
+            .unwrap_or("")
+    }
 }
 
 pub(crate) async fn resolve_cargo_workspace_scope(
