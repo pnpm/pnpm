@@ -329,11 +329,7 @@ pub(crate) async fn resolve_cargo_workspace_scope(
 ) -> Result<(PathBuf, Vec<DeclaredCargoDep>)> {
     let (_, metadata) = crate::cargo_deps::workspace_metadata(manifest_path, checkout).await?;
     let cargo_root = crate::cargo_deps::canonical_cargo_path(&metadata.workspace_root)?;
-    let mut all_declared: Vec<DeclaredCargoDep> = declared
-        .iter()
-        .filter(|dep| dep.manifest_path.starts_with(&cargo_root))
-        .cloned()
-        .collect();
+    let mut all_declared = declared.to_vec();
     for package in metadata.packages {
         let canonical = crate::cargo_deps::canonical_cargo_path(&package.manifest_path)?;
         if let Some(dir) = canonical

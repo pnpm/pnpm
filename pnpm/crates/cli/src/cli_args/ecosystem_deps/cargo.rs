@@ -287,7 +287,7 @@ async fn execute_cargo_update<Reporter: self::Reporter + 'static>(
     let locked = read_locked_cargo_versions(&cargo_root.join("Cargo.lock")).unwrap_or_default();
     let (staged_edits, final_edits) =
         build_cargo_update_edits(&all_declared, selected, &locked, &context, options).await?;
-    let originals = snapshot_cargo_manifests(&all_declared)?;
+    let originals = snapshot_cargo_manifests(&staged_edits)?;
     if let Err(err) = apply_manifest_edits(&staged_edits) {
         let _ = restore_cargo_manifests(&originals);
         return Err(err);
@@ -379,14 +379,14 @@ async fn resolve_selected_cargo_edit(
     Ok((staged, finalized))
 }
 
-fn snapshot_cargo_manifests(declared: &[DeclaredCargoDep]) -> Result<BTreeMap<PathBuf, String>> {
+fn snapshot_cargo_manifests(edits: &[ManifestEdit]) -> Result<BTreeMap<PathBuf, String>> {
     let mut originals = BTreeMap::new();
-    for dep in declared {
-        if !originals.contains_key(&dep.manifest_path) && dep.manifest_path.is_file() {
-            let contents = fs::read_to_string(&dep.manifest_path)
+    for (manifest_path, _, _, _) in edits {
+        if !originals.contains_key(manifest_path) && manifest_path.is_file() {
+            let contents = fs::read_to_string(manifest_path)
                 .into_diagnostic()
-                .wrap_err_with(|| format!("read {}", dep.manifest_path.display()))?;
-            originals.insert(dep.manifest_path.clone(), contents);
+                .wrap_err_with(|| format!("read {}", manifest_path.display()))?;
+            originals.insert(manifest_path.clone(), contents);
         }
     }
     Ok(originals)
