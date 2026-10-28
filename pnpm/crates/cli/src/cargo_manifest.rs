@@ -347,16 +347,26 @@ fn cargo_glob_matches(pattern: &str, path: &str) -> bool {
 }
 
 fn match_segments(pat: &[&str], path: &[&str]) -> bool {
-    match (pat.first(), path.first()) {
-        (None, None) => true,
-        (Some(&"**"), _) => {
-            match_segments(&pat[1..], path) || (!path.is_empty() && match_segments(pat, &path[1..]))
-        }
-        (Some(p), Some(s)) => {
-            WildcardMatcher::new(p).matches(s) && match_segments(&pat[1..], &path[1..])
-        }
-        _ => false,
+    let mut reachable = vec![false; path.len() + 1];
+    reachable[0] = true;
+    for &p in pat {
+        advance_segment(&mut reachable, p, path);
     }
+    reachable[path.len()]
+}
+
+fn advance_segment(reachable: &mut [bool], pat_seg: &str, path: &[&str]) {
+    if pat_seg == "**" {
+        for j in 1..=path.len() {
+            reachable[j] |= reachable[j - 1];
+        }
+        return;
+    }
+    let matcher = WildcardMatcher::new(pat_seg);
+    for j in (1..=path.len()).rev() {
+        reachable[j] = reachable[j - 1] && matcher.matches(path[j - 1]);
+    }
+    reachable[0] = false;
 }
 
 #[cfg(test)]

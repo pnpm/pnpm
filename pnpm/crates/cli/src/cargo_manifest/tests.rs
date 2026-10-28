@@ -81,4 +81,15 @@ fn workspace_membership_respects_single_segment_globs_and_literal_bang_paths() {
     assert_eq!(find_cargo_workspace_root(&nested, Some(root)), nested);
     assert_eq!(find_cargo_workspace_root(&bang_member, Some(root)), root);
     assert_eq!(find_cargo_workspace_root(&excluded, Some(root)), excluded);
+
+    let repeated_glob_root = root.join("repeated-glob-ws");
+    let deep_non_member =
+        repeated_glob_root.join("a/b/c/d/e/f/g/h/i/j/k/l/m/n/o/p/q/r/s/t/u/v/w/x/y/z");
+    fs::create_dir_all(&deep_non_member).unwrap();
+    fs::write(
+        repeated_glob_root.join("Cargo.toml"),
+        "[workspace]\nmembers = [\"**/**/**/**/**/**/**/**/**/never-matches\"]\n",
+    )
+    .unwrap();
+    assert!(!workspace_includes_member(&repeated_glob_root, &deep_non_member));
 }
