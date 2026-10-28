@@ -3,6 +3,7 @@ use super::{
     setup_with_own_registry, write_manifest,
 };
 use assert_cmd::assert::OutputAssertExt;
+use std::path::Path;
 
 #[test]
 fn latest_selectors_refresh_matching_transitive_dependencies() {
@@ -54,6 +55,11 @@ fn assert_transitive_update(selectors: &[&str], child_version: &str) {
         write_manifest(&app, &format!(r#"{{ "{PARENT}": "100.0.0", "{FOO}": "^1.0.0" }}"#));
         pacquet(&app, ["install", "--lockfile-only"]).assert().success();
         assert!(lockfile_package_keys(&workspace).contains(&format!("{DEP}@100.0.0")));
+        let lockfile_only = mode.contains(&"--lockfile-only");
+        if !lockfile_only {
+            pacquet(&app, ["install", "--frozen-lockfile"]).assert().success();
+            assert_installed_child(&app, "100.0.0");
+        }
 
         let mut args = vec!["update", "--latest"];
         args.extend_from_slice(selectors);
@@ -74,6 +80,22 @@ fn assert_transitive_update(selectors: &[&str], child_version: &str) {
             assert_eq!(dep_spec(&app, FOO).as_deref(), Some("^1.0.0"));
         }
 
+        if !lockfile_only {
+            assert_installed_child(&app, child_version);
+        }
+
         drop((root, anchor));
     }
+}
+
+fn assert_installed_child(app: &Path, version: &str) {
+    let script = format!(
+        "const parent = require.resolve('{PARENT}/package.json');
+         const child = require.resolve('{DEP}/package.json', {{ paths: [parent] }});
+         console.log(require(child).version);",
+    );
+    pacquet(app, ["exec", "node", "-e", &script])
+        .assert()
+        .success()
+        .stdout(format!("{version}\n"));
 }
