@@ -55,9 +55,13 @@ pub(crate) fn has_python_lockfile(project_dir: &Path, workspace_root: Option<&Pa
     lockfile_dir_for(workspace_root, project_dir).join("pylock.toml").is_file()
 }
 
-pub(crate) fn declared_python_dep_names(project_dir: &Path) -> Result<Vec<String>> {
+pub(crate) fn declared_python_dep_names(
+    project_dir: &Path,
+    include: &[DependencyGroup],
+) -> Result<Vec<String>> {
     Ok(declared_dependencies(&project_dir.join("pyproject.toml"))?
         .into_iter()
+        .filter(|dep| include.contains(&map_python_group(dep.group)))
         .map(|dep| dep.name.to_string())
         .collect())
 }
@@ -171,7 +175,17 @@ fn pep440_to_node_version(version: &Pep440Version) -> node_semver::Version {
     let major = release.first().copied().unwrap_or(0);
     let minor = release.get(1).copied().unwrap_or(0);
     let patch = release.get(2).copied().unwrap_or(0);
-    node_semver::Version { major, minor, patch, build: Vec::new(), pre_release: Vec::new() }
+    let has_suffix = version.any_prerelease()
+        || version.is_post()
+        || version.epoch() > 0
+        || release.len() > 3
+        || !version.local().is_empty();
+    let pre_release = if has_suffix {
+        vec![node_semver::Identifier::AlphaNumeric(version.to_string())]
+    } else {
+        Vec::new()
+    };
+    node_semver::Version { major, minor, patch, build: Vec::new(), pre_release }
 }
 
 pub(crate) async fn update_python_project<Reporter: self::Reporter + 'static>(

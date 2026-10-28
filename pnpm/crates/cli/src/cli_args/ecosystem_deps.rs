@@ -85,22 +85,22 @@ pub(crate) fn requires_ecosystem_lockfile(
 pub(crate) fn declared_ecosystem_dep_names(
     project_dir: &Path,
     config: &Config,
+    include: &[DependencyGroup],
 ) -> Result<Vec<String>> {
     let mut names = Vec::new();
     if config.cargo.enabled {
-        for dep in declared_cargo_deps(project_dir, config.workspace_dir.as_deref())? {
-            names.push(dep.alias.clone());
-            names.push(format!("crate:{}", dep.alias));
-            if dep.package_name != dep.alias {
-                names.push(dep.package_name.clone());
-                names.push(format!("crate:{}", dep.package_name));
-            }
+        let deps = declared_cargo_deps(project_dir, config.workspace_dir.as_deref())?;
+        for dep in deps
+            .into_iter()
+            .filter(|dep| include.contains(&dep.group))
+        {
+            names.extend([dep.alias.clone(), format!("crate:{}", dep.alias)]);
+            names.extend([dep.package_name.clone(), format!("crate:{}", dep.package_name)]);
         }
     }
     if config.python.enabled {
-        for name in declared_python_dep_names(project_dir)? {
-            names.push(format!("pypi:{name}"));
-            names.push(name);
+        for name in declared_python_dep_names(project_dir, include)? {
+            names.extend([format!("pypi:{name}"), name]);
         }
     }
     Ok(names)
@@ -250,7 +250,7 @@ async fn target_dirs_and_manifests<'a>(
             manifests.push(&project.manifest);
         }
     }
-    if state.config.filter.is_empty() && state.config.test_pattern.is_empty() {
+    if state.config.filter.is_empty() && state.config.filter_prod.is_empty() {
         let standalone = discover_standalone_ecosystem_dirs(
             &selection.workspace_root,
             &selection.selected_dirs,
@@ -356,9 +356,10 @@ fn filter_remaining_node_selectors(
     if node_selectors.is_empty() {
         return Ok(Vec::new());
     }
+    let all_groups = [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional];
     let mut eco_names = HashSet::new();
     for dir in target_dirs {
-        eco_names.extend(declared_ecosystem_dep_names(dir, config)?);
+        eco_names.extend(declared_ecosystem_dep_names(dir, config, &all_groups)?);
     }
     if eco_names.is_empty() {
         return Ok(node_selectors.to_vec());

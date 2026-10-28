@@ -104,7 +104,7 @@ pub(super) async fn recursive_workspace_outdated(
         &project_inputs,
     )
     .await?;
-    if config.filter.is_empty() && config.test_pattern.is_empty() {
+    if config.filter.is_empty() && config.filter_prod.is_empty() {
         let existing: HashSet<PathBuf> = selection.selected
             .keys()
             .cloned()
@@ -228,7 +228,7 @@ pub(super) fn recursive_project_inputs<'a>(
                 &all_groups,
             )
             .is_empty()
-            || !declared_ecosystem_dep_names(project_dir, config)?.is_empty();
+            || !declared_ecosystem_dep_names(project_dir, config, &all_groups)?.is_empty();
         if !has_any_dependency {
             continue;
         }

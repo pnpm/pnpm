@@ -111,6 +111,25 @@ fn is_table_header(line: &str) -> bool {
     line.starts_with('[') && line.ends_with(']')
 }
 
+fn unquote_key(key: &str) -> &str {
+    key.strip_prefix('"')
+        .and_then(|s| s.strip_suffix('"'))
+        .or_else(|| {
+            key.strip_prefix('\'')
+                .and_then(|s| s.strip_suffix('\''))
+        })
+        .unwrap_or(key)
+}
+
+fn matches_dependency_key(raw_key: &str, name: &str) -> bool {
+    unquote_key(raw_key) == name
+        || raw_key
+            .rsplit_once('.')
+            .is_some_and(|(prefix, suffix)| {
+                unquote_key(prefix.trim()) == name && unquote_key(suffix.trim()) == "version"
+            })
+}
+
 fn dependency_value_range(line: &str, name: &str) -> Option<Range<usize>> {
     let content_start = line.len() - line.trim_start().len();
     let content = &line[content_start..];
@@ -118,16 +137,7 @@ fn dependency_value_range(line: &str, name: &str) -> Option<Range<usize>> {
         return None;
     }
     let equals = content.find('=')?;
-    let key = content[..equals].trim();
-    let key = key
-        .strip_prefix('"')
-        .and_then(|key| key.strip_suffix('"'))
-        .or_else(|| {
-            key.strip_prefix('\'')
-                .and_then(|key| key.strip_suffix('\''))
-        })
-        .unwrap_or(key);
-    if key != name {
+    if !matches_dependency_key(content[..equals].trim(), name) {
         return None;
     }
     let after_equals = content_start + equals + 1;

@@ -271,7 +271,7 @@ impl OutdatedArgs {
             .is_some()
             || !crate::cli_args::engine_deps::declared_engine_deps(manifest, config, include)
                 .is_empty()
-            || !declared_ecosystem_dep_names(project_dir(manifest), config)?.is_empty();
+            || !declared_ecosystem_dep_names(project_dir(manifest), config, include)?.is_empty();
         Ok(has_any_dependency && (self.packages.is_empty() || !package_patterns.is_empty()))
     }
 

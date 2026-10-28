@@ -177,6 +177,7 @@ fn collect_table_deps(
                 existing.manifest_path == target_manifest
                     && existing.table == target_table
                     && existing.alias == *alias
+                    && existing.group == group
             })
         {
             continue;
@@ -309,14 +310,14 @@ fn format_existing_cargo_spec(existing_raw: &str, resolved: &Version) -> String 
 }
 
 fn lower_bound_prefix(clause: &str) -> Option<&'static str> {
-    [">=", "^", "~"]
+    [">=", ">", "^", "~"]
         .into_iter()
         .find(|prefix| clause.starts_with(prefix))
 }
 
 fn existing_prefix(raw: &str) -> &'static str {
     let trimmed = raw.trim();
-    ["^", "~", ">=", "="]
+    ["^", "~", ">=", ">", "="]
         .into_iter()
         .find(|prefix| trimmed.starts_with(prefix))
         .unwrap_or("")
@@ -361,7 +362,10 @@ fn extend_unique_declared(
 }
 
 pub(crate) fn same_declared_dep(lhs: &DeclaredCargoDep, rhs: &DeclaredCargoDep) -> bool {
-    lhs.alias == rhs.alias && lhs.table == rhs.table && lhs.manifest_path == rhs.manifest_path
+    lhs.alias == rhs.alias
+        && lhs.table == rhs.table
+        && lhs.group == rhs.group
+        && lhs.manifest_path == rhs.manifest_path
 }
 
 pub(crate) fn apply_manifest_edits(

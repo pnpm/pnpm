@@ -123,7 +123,7 @@ fn collect_all_declared_names<'a>(
         deps.extend(
             declared_engine_deps(manifest, config, include).into_iter().map(|dep| dep.name),
         );
-        deps.extend(declared_ecosystem_dep_names(project_dir(manifest), config)?);
+        deps.extend(declared_ecosystem_dep_names(project_dir(manifest), config, include)?);
     }
     Ok(deps)
 }

@@ -66,7 +66,9 @@ pub(crate) async fn collect_cargo_outdated(
     let auth_headers = cargo_auth_headers(config)?;
     let mut outdated = Vec::new();
     for dep in declared {
-        if !query.include_direct.contains(&dep.group) || !query.matches_name(&dep.alias) {
+        if !query.include_direct.contains(&dep.group)
+            || !(query.matches_name(&dep.alias) || query.matches_name(&dep.package_name))
+        {
             continue;
         }
         if let Some(pkg) = resolve_outdated_cargo_dep(
@@ -179,11 +181,8 @@ pub(crate) async fn update_cargo_project<Reporter: self::Reporter + 'static>(
     options: &CargoUpdateOptions<'_>,
 ) -> Result<bool> {
     let config = context.config;
-    if !config.cargo.enabled {
-        return Ok(false);
-    }
     let manifest_path = project_dir.join("Cargo.toml");
-    if !manifest_path.is_file() {
+    if !config.cargo.enabled || !manifest_path.is_file() {
         return Ok(false);
     }
     let declared = declared_cargo_deps(project_dir, config.workspace_dir.as_deref())?;

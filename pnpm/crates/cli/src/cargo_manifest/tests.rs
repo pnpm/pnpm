@@ -59,6 +59,15 @@ fn updates_strings_and_inline_tables_without_losing_formatting() {
         updated_subtable,
         "[dependencies.reqwest]\nversion = \"=0.12.0\"\nfeatures = [\"json\"]\n",
     );
+
+    let dotted_manifest =
+        "[dependencies]\nreqwest.features = [\"json\"]\nreqwest.version = \"0.11\"\n";
+    let updated_dotted =
+        upsert_dependency(dotted_manifest, "dependencies", "reqwest", "=0.12.0").unwrap();
+    assert_eq!(
+        updated_dotted,
+        "[dependencies]\nreqwest.features = [\"json\"]\nreqwest.version = \"=0.12.0\"\n",
+    );
 }
 
 #[test]

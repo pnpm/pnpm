@@ -46,11 +46,20 @@ pub(super) async fn commit_manifest_engine_updates(
     manifest_updates: &[(DeclaredEngineDep, Version, String)],
     pnpm_sync_target: Option<(String, String)>,
 ) -> miette::Result<()> {
+    let staged_manifest = (!manifest_updates.is_empty()).then(|| {
+        let mut staged = manifest.clone();
+        for (dep, resolved_version, new_spec) in manifest_updates {
+            apply_engine_dep_update_to_value(staged.value_mut(), dep, resolved_version, new_spec);
+        }
+        staged
+    });
+    if let Some((wanted_specifier, target_version)) = pnpm_sync_target {
+        let manifest_for_sync = staged_manifest.as_ref().unwrap_or(manifest);
+        sync_updated_pnpm_lockfile(config, manifest_for_sync, &wanted_specifier, &target_version)
+            .await?;
+    }
     if !manifest_updates.is_empty() {
         persist_manifest_engine_updates(manifest, manifest_updates)?;
-    }
-    if let Some((wanted_specifier, target_version)) = pnpm_sync_target {
-        sync_updated_pnpm_lockfile(config, manifest, &wanted_specifier, &target_version).await?;
     }
     Ok(())
 }
