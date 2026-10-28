@@ -1,10 +1,10 @@
 import path from 'node:path'
 
-import { getProjectNodePath, linkBins, linkBinsOfPackages } from '@pnpm/bins.linker'
+import { getProjectNodePath, linkBins, linkBinsOfPackages, pruneStaleBins } from '@pnpm/bins.linker'
 import { linkBinsOfDependencies, linkBinsOfRuntimeDependencies } from '@pnpm/building.during-install'
 import type { DependenciesGraph, DependenciesGraphNode } from '@pnpm/installing.deps-resolver'
 import { logger } from '@pnpm/logger'
-import type { DependencyManifest, DepPath } from '@pnpm/types'
+import type { DependencyManifest, DepPath, HoistedDependencies } from '@pnpm/types'
 import { safeReadPublishManifest } from '@pnpm/workspace.project-manifest-reader'
 import pLimit from 'p-limit'
 import { props } from 'ramda'
@@ -34,25 +34,60 @@ export async function linkRuntimeBinsOfImporters (opts: {
   )))
 }
 
+export interface BuiltBinContext {
+  builtDepPaths?: ReadonlySet<DepPath>
+  builtPackageDirs?: ReadonlySet<string>
+  hoistedDependencies: HoistedDependencies
+  newDepPaths: DepPath[] | undefined
+}
+
 /**
  * Links the bins of the newly added packages into their dependents, and the
  * bins of each project's direct dependencies into the project.
  */
-export async function linkBinsOfResolvedProjects (step: LinkContext, newDepPaths: DepPath[] | undefined): Promise<void> {
+export async function linkBinsOfResolvedProjects (step: LinkContext, built: BuiltBinContext): Promise<void> {
   const { ctx, opts, projects, resolution } = step
+  const { builtDepPaths, builtPackageDirs, newDepPaths } = built
   if (newDepPaths?.length && !opts.virtualStoreOnly) {
-    const newPkgs = props<DepPath, DependenciesGraphNode>(
-      newDepPaths.filter((depPath) => !ctx.skipped.has(depPath)),
-      resolution.dependenciesGraph
-    )
+    const newPkgs = selectPackagesToLink(resolution.dependenciesGraph, {
+      builtDepPaths,
+      newDepPaths,
+      skipped: ctx.skipped,
+    })
     await linkAllBins(newPkgs, resolution.dependenciesGraph, {
+      builtPackageDirs,
       extraNodePaths: ctx.extraNodePaths,
       optional: opts.include.optionalDependencies,
+      preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
       warn: warnAboutBins.bind(null, opts.lockfileDir),
     })
   }
 
-  if (!opts.virtualStoreOnly) await Promise.all(projects.map(async (project) => linkBinsOfProject(step, project)))
+  if (!opts.virtualStoreOnly) await Promise.all(projects.map(async (project) => linkBinsOfProject(step, project, built)))
+}
+
+function selectPackagesToLink (
+  depGraph: DependenciesGraph,
+  {
+    builtDepPaths,
+    newDepPaths,
+    skipped,
+  }: {
+    builtDepPaths: ReadonlySet<DepPath> | undefined
+    newDepPaths: DepPath[]
+    skipped: ReadonlySet<DepPath>
+  }
+): DependenciesGraphNode[] {
+  const selected = new Set(newDepPaths.filter((depPath) => !skipped.has(depPath)))
+  if (!builtDepPaths?.size) {
+    return props<DepPath, DependenciesGraphNode>(Array.from(selected), depGraph)
+  }
+  for (const [depPath, node] of Object.entries(depGraph) as Array<[DepPath, DependenciesGraphNode]>) {
+    if (!skipped.has(depPath) && Object.values(node.children).some((childDepPath) => builtDepPaths.has(childDepPath))) {
+      selected.add(depPath)
+    }
+  }
+  return props<DepPath, DependenciesGraphNode>(Array.from(selected), depGraph)
 }
 
 function warnAboutBins (prefix: string, message: string): void {
@@ -63,6 +98,7 @@ async function linkAllBins (
   depNodes: DependenciesGraphNode[],
   depGraph: DependenciesGraph,
   opts: {
+    builtPackageDirs?: ReadonlySet<string>
     extraNodePaths?: string[]
     preferSymlinkedExecutables?: boolean
     optional: boolean
@@ -74,33 +110,79 @@ async function linkAllBins (
   )
 }
 
-async function linkBinsOfProject (step: LinkContext, project: ImporterToUpdate): Promise<void> {
+async function linkBinsOfProject (step: LinkContext, project: ImporterToUpdate, built: BuiltBinContext): Promise<void> {
   const { ctx, opts } = step
   const projectModulesDir = await getProjectNodePath(project, { extendNodePath: opts.extendNodePath })
+  const protectedBins = new Set<string>()
   const linkedPackages = ctx.publicHoistPattern?.length && path.relative(project.rootDir, opts.lockfileDir) === ''
     ? await linkBins(project.modulesDir, project.binsDir, {
       allowExoticManifests: true,
+      forceForPackages: getBuiltPubliclyLinkedDirs(step, project, built),
+      linkedCommandNames: protectedBins,
       preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
       projectManifest: project.manifest,
       extraNodePaths: ctx.extraNodePaths,
       projectModulesDir,
       warn: warnAboutBins.bind(null, project.rootDir),
     })
-    : await linkBinsOfDirectDependencies(step, { project, projectModulesDir })
-  if (opts.global && project.mutation.includes('install')) {
-    for (const pkg of project.wantedDependencies) {
-      // This warning is never printed currently during "pnpm link --global"
-      // due to the following issue: https://github.com/pnpm/pnpm/issues/4761
-      if (pkg.alias && !linkedPackages?.includes(pkg.alias)) {
-        logger.warn({ message: `${pkg.alias} has no binaries`, prefix: opts.lockfileDir })
+    : await linkBinsOfDirectDependencies(step, {
+      builtPackageDirs: built.builtPackageDirs,
+      linkedCommandNames: protectedBins,
+      project,
+      projectModulesDir,
+    })
+  if (!opts.global && path.resolve(project.binsDir) === path.resolve(project.modulesDir, '.bin')) {
+    await pruneStaleBins(project.binsDir, protectedBins)
+  }
+  warnMissingGlobalBins(opts, project, linkedPackages)
+}
+
+function getBuiltPubliclyLinkedDirs (
+  { resolution }: LinkContext,
+  project: ImporterToUpdate,
+  { builtDepPaths, hoistedDependencies }: BuiltBinContext
+): Set<string> | undefined {
+  if (!builtDepPaths?.size) return undefined
+  const dirs = new Set<string>()
+  for (const [alias, depPath] of resolution.dependenciesByProjectId[project.id].entries()) {
+    if (builtDepPaths.has(depPath)) {
+      dirs.add(path.normalize(path.resolve(project.modulesDir, alias)))
+    }
+  }
+  for (const depPath of builtDepPaths) {
+    for (const [alias, visibility] of Object.entries(hoistedDependencies[depPath] ?? {})) {
+      if (visibility === 'public') {
+        dirs.add(path.normalize(path.resolve(project.modulesDir, alias)))
       }
+    }
+  }
+  return dirs
+}
+
+function warnMissingGlobalBins (opts: LinkContext['opts'], project: ImporterToUpdate, linkedPackages: string[] | undefined): void {
+  if (!opts.global || !project.mutation.includes('install')) return
+  for (const pkg of project.wantedDependencies) {
+    // This warning is never printed currently during "pnpm link --global"
+    // due to the following issue: https://github.com/pnpm/pnpm/issues/4761
+    if (pkg.alias && !linkedPackages?.includes(pkg.alias)) {
+      logger.warn({ message: `${pkg.alias} has no binaries`, prefix: opts.lockfileDir })
     }
   }
 }
 
 async function linkBinsOfDirectDependencies (
   { ctx, opts, resolution }: LinkContext,
-  { project, projectModulesDir }: { project: ImporterToUpdate, projectModulesDir: string | undefined }
+  {
+    builtPackageDirs,
+    linkedCommandNames,
+    project,
+    projectModulesDir,
+  }: {
+    builtPackageDirs?: ReadonlySet<string>
+    linkedCommandNames: Set<string>
+    project: ImporterToUpdate
+    projectModulesDir: string | undefined
+  }
 ): Promise<string[]> {
   const directPkgs = [
     ...props<DepPath, DependenciesGraphNode>(
@@ -116,7 +198,10 @@ async function linkBinsOfDirectDependencies (
     (
       await Promise.all(
         directPkgs.map(async (dep) => {
-          const manifest = (await dep.fetching?.())?.bundledManifest ?? await safeReadPublishManifest(dep.dir)
+          const bundledManifest = builtPackageDirs?.has(path.normalize(dep.dir))
+            ? undefined
+            : (await dep.fetching?.())?.bundledManifest
+          const manifest = bundledManifest ?? await safeReadPublishManifest(dep.dir)
           return {
             location: dep.dir,
             manifest,
@@ -128,6 +213,8 @@ async function linkBinsOfDirectDependencies (
     project.binsDir,
     {
       extraNodePaths: ctx.extraNodePaths,
+      forceForPackages: builtPackageDirs,
+      linkedCommandNames,
       preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
       projectModulesDir,
     }

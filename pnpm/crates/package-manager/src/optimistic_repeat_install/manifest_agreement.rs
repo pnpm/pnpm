@@ -48,7 +48,6 @@ pub(crate) fn held_projects_match_lockfile(
     state: &WorkspaceState,
     held: &[&ManifestStat<'_>],
     current: &CurrentLockfile<'_>,
-    dedupe_peers: bool,
 ) -> Result<(), Stale> {
     let lockfile = check.lockfile
         .get()
@@ -85,7 +84,7 @@ pub(crate) fn held_projects_match_lockfile(
             current
         }
     };
-    check_projects_content(check, wanted, held, dedupe_peers).map_err(Stale::Content)
+    check_projects_content(check, wanted, held).map_err(Stale::Content)
 }
 
 /// The current lockfile records what `wanted` materializes for each `held`
@@ -157,11 +156,10 @@ pub(super) fn check_projects_content(
     check: &OptimisticRepeatInstallCheck<'_>,
     wanted: &Lockfile,
     to_check: &[&ManifestStat<'_>],
-    dedupe_peers: bool,
 ) -> Result<(), &'static str> {
     let parsed_overrides = crate::install::parse_config_overrides(check.config, check.catalogs)
         .map_err(|_| "pnpm.overrides cannot be parsed")?;
-    check_settings_match_lockfile(check, wanted, parsed_overrides.as_deref(), dedupe_peers)?;
+    check_settings_match_lockfile(check, wanted, parsed_overrides.as_deref())?;
 
     let linked_ctx = LinkedPackagesContext::new(check.config, check.project_manifests);
     let workspace_packages = crate::install::workspace_packages_for_freshness(
@@ -170,9 +168,7 @@ pub(super) fn check_projects_content(
         check.project_manifests,
         check.manifests.dependency_manifests,
     );
-    let ignored_optional_matcher = pnpm_matcher::create_matcher(
-        check.config.ignored_optional_dependencies.as_deref().unwrap_or_default(),
-    );
+    let ignored_optional_matcher = crate::install::ignored_optional_matcher(check.config);
     let project_manifests = crate::install::project_manifests_by_dir(
         check.project_manifests.iter().map(|(_, manifest)| *manifest),
         check.manifests.dependency_manifests,
@@ -185,6 +181,8 @@ pub(super) fn check_projects_content(
         workspace: crate::install::WorkspaceProjects {
             packages: workspace_packages.as_ref(),
             manifests_by_dir: &project_manifests,
+            // The pnpmfile drift check covers the hooks this check does not apply.
+            directory_manifests: crate::install::DirectoryManifests::none(),
             catalogs: check.catalogs,
             canonical_paths: &pnpm_fs::CanonicalPaths::default(),
             registries: &check.config.registry_context(),

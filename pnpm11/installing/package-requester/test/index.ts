@@ -92,7 +92,7 @@ test('request package', async () => {
   expect(!pkgResponse.body.normalizedBareSpecifier).toBeTruthy()
   expect(pkgResponse.body.resolution).toStrictEqual({
     integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
-    tarball: `http://localhost:${REGISTRY_MOCK_PORT}/npm/is-positive/-/is-positive-1.0.0.tgz`,
+    tarball: `http://localhost:${REGISTRY_MOCK_PORT}/npm/is-positive@1.0.0`,
   })
 
   const { files } = await pkgResponse.fetching!()
@@ -171,7 +171,7 @@ test('request package but skip fetching', async () => {
   expect(!pkgResponse.body.normalizedBareSpecifier).toBeTruthy()
   expect(pkgResponse.body.resolution).toStrictEqual({
     integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
-    tarball: `http://localhost:${REGISTRY_MOCK_PORT}/npm/is-positive/-/is-positive-1.0.0.tgz`,
+    tarball: `http://localhost:${REGISTRY_MOCK_PORT}/npm/is-positive@1.0.0`,
   })
 
   expect(pkgResponse.fetching).toBeFalsy()

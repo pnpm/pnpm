@@ -182,7 +182,7 @@ fn oci_gc_requires_a_registry_and_parses_maintenance_options() {
         "--registry",
         "images",
         "--dry-run",
-        "--min-age-secs",
+        "--min-age",
         "0",
     ])
     .unwrap();
@@ -200,7 +200,7 @@ fn cache_gc_parses_maintenance_options() {
         "--dry-run",
         "--max-size",
         "10GB",
-        "--max-age-secs",
+        "--max-age",
         "3600",
         "--orphans-only",
     ])
@@ -247,7 +247,7 @@ fn interval_valued_flags_accept_units_and_bare_seconds() {
     let args = Args::try_parse_from(["pnpr", "--packument-ttl", "5m"]).unwrap();
     assert_eq!(args.server.packument_ttl, Some(Duration::from_mins(5)));
 
-    let args2 = Args::try_parse_from(["pnpr", "--packument-ttl-secs", "300"]).unwrap();
+    let args2 = Args::try_parse_from(["pnpr", "--packument-ttl", "300"]).unwrap();
     assert_eq!(args2.server.packument_ttl, Some(Duration::from_mins(5)));
 
     let gc_args =

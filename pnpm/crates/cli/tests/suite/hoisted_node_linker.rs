@@ -1173,6 +1173,34 @@ fn peer_variants_of_one_version_share_the_root_slot() {
     }
 }
 
+#[test]
+fn peer_variants_with_distinct_peers_are_nested_for_node_resolution() {
+    let fixture = WorkspaceFixture::new();
+    fixture.append_workspace_yaml("nodeLinker: hoisted\nautoInstallPeers: false\n");
+    let deps_with_peer_a_1_0_0 =
+        [("@pnpm.e2e/abc-optional-peers-meta-only", "1.0.0"), ("@pnpm.e2e/peer-a", "1.0.0")];
+    let deps_with_peer_a_1_0_1 =
+        [("@pnpm.e2e/abc-optional-peers-meta-only", "1.0.0"), ("@pnpm.e2e/peer-a", "1.0.1")];
+    fixture.project("a", "a", ManifestDeps { prod: &deps_with_peer_a_1_0_0, ..Default::default() });
+    fixture.project("b", "b", ManifestDeps { prod: &deps_with_peer_a_1_0_1, ..Default::default() });
+
+    fixture.run(["install"]);
+
+    let output = Command::new("node")
+        .arg("-e")
+        .arg(
+            r"const path = require('node:path'); const fs = require('node:fs'); for (const project of ['a', 'b']) { const projectDir = path.resolve('packages', project); const abcDir = path.dirname(require.resolve('@pnpm.e2e/abc-optional-peers-meta-only/package.json', { paths: [projectDir] })); const peerManifest = require.resolve('@pnpm.e2e/peer-a/package.json', { paths: [abcDir] }); process.stdout.write(`${project}:${JSON.parse(fs.readFileSync(peerManifest, 'utf8')).version}\n`); }",
+        )
+        .current_dir(&fixture.workspace)
+        .output()
+        .expect("run Node.js module resolution");
+    assert!(output.status.success(), "Node.js resolution failed: {output:?}");
+    assert_eq!(
+        String::from_utf8(output.stdout).expect("Node.js output is UTF-8"),
+        "a:1.0.0\nb:1.0.1\n",
+    );
+}
+
 #[cfg(unix)]
 mod local_symlinks;
 

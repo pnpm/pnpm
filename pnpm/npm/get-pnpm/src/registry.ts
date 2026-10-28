@@ -45,6 +45,9 @@ export function normalizeRegistry (registry: string): string {
 
 const PROXY_VARS = ['https_proxy', 'HTTPS_PROXY', 'http_proxy', 'HTTP_PROXY'] as const
 
+/** The variables Node.js reads a proxy from, in the case they are spelled in. */
+export type ProxyEnv = Partial<Record<typeof PROXY_VARS[number] | 'NO_PROXY' | 'no_proxy', string>>
+
 // `http.setGlobalProxyFromEnv` arrived in Node 24.14; the types this package
 // builds against predate it.
 type ProxyCapableHttp = typeof http & {
@@ -53,8 +56,9 @@ type ProxyCapableHttp = typeof http & {
 
 /**
  * Routes every request made until the returned function is called through the
- * proxy the environment names in `HTTPS_PROXY`/`HTTP_PROXY`, honouring
- * `NO_PROXY`. A no-op when the environment names none.
+ * proxy `proxyEnv` names in `HTTPS_PROXY`/`HTTP_PROXY`, honouring `NO_PROXY`.
+ * A no-op when it names none, which leaves a proxy Node.js applied at startup
+ * in place.
  *
  * `fetch` reads those variables only when Node was started with
  * `NODE_USE_ENV_PROXY=1`, which nothing that embeds this package controls:
@@ -68,15 +72,16 @@ type ProxyCapableHttp = typeof http & {
  *
  * The setting is process-global, so overlapping downloads share one
  * activation: the first call applies the proxy and the last of the returned
- * functions to run puts the agents back, never one in the middle.
+ * functions to run puts the agents back, never one in the middle. The proxy of
+ * that first call is the one they share.
  */
-export function useProxyFromEnv (): () => void {
-  if (!PROXY_VARS.some((name) => process.env[name])) return () => {}
+export function useProxyFromEnv (proxyEnv: ProxyEnv = process.env): () => void {
+  if (!PROXY_VARS.some((name) => proxyEnv[name])) return () => {}
   const { setGlobalProxyFromEnv } = http as ProxyCapableHttp
   if (setGlobalProxyFromEnv == null) return () => {}
   // Counted only once the activation took: a call that threw on a malformed
   // proxy URL holds nothing to release, and a retry after a fix has to activate.
-  if (proxyUsers === 0) restoreProxy = setGlobalProxyFromEnv(process.env)
+  if (proxyUsers === 0) restoreProxy = setGlobalProxyFromEnv(proxyEnv)
   proxyUsers++
   let released = false
   return () => {

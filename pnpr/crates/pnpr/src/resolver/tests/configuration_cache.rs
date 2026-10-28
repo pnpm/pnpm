@@ -714,8 +714,6 @@ fn intern_config_keys_add_missing_peer_types() {
     );
 }
 
-/// A request declares one prefix per registry URL, so it must be the one the
-/// client keys that registry's packages by.
 #[test]
 fn the_server_keys_a_registry_by_the_client_s_prefix() {
     use super::super::intern_config;
@@ -739,4 +737,5 @@ fn the_server_keys_a_registry_by_the_client_s_prefix() {
 
     assert_eq!(client.declared_registry_prefixes().prefix_for(REGISTRY), Some("work"));
     assert_eq!(server.declared_registry_prefixes().prefix_for(REGISTRY), Some("work"));
+    assert_eq!(server.registries_by_prefix, client.registries_by_prefix);
 }

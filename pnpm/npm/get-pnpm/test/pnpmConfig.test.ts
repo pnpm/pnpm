@@ -4,7 +4,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, mock, test } from 'node:test'
 
-import { pnpmRegistryConfig } from '../lib/pnpmConfig.js'
+import { pnpmProxyConfig, pnpmRegistryConfig } from '../lib/pnpmConfig.js'
 
 const CA = fs.readFileSync(path.join(import.meta.dirname, '../../../crates/testing-utils/src/fixtures/tls/ca.pem'), 'utf8').trim()
 
@@ -217,6 +217,135 @@ describe('pnpmRegistryConfig', () => {
  * A home directory and a project directory, with the current directory a
  * package inside the project.
  */
+describe('pnpmProxyConfig', () => {
+  test('falls back to the proxy variables of the environment', () => {
+    const { home } = layout()
+
+    assert.deepEqual(pnpmProxyConfig({ homeDir: home, env: { https_proxy: 'http://env-https.test/', NO_PROXY: 'env.test' } }), {
+      HTTPS_PROXY: 'http://env-https.test/',
+      HTTP_PROXY: 'http://env-https.test/',
+      NO_PROXY: 'env.test',
+    })
+    assert.deepEqual(pnpmProxyConfig({ homeDir: home, env: {} }), {})
+  })
+
+  test('takes PNPM_CONFIG_* over the global config.yaml, that over the user .npmrc, and leaves out the project .npmrc', () => {
+    const { cwd, home, project } = layout({
+      user: ['https-proxy=http://npmrc-https.test/', 'http-proxy=http://npmrc-http.test/', 'no-proxy=npmrc.test'],
+      project: ['https-proxy=http://project.test/', 'no-proxy=project.test'],
+    })
+    fs.writeFileSync(path.join(project, 'pnpm-workspace.yaml'), 'httpsProxy: http://project.test/\n')
+    const configHome = path.join(home, 'config')
+    fs.mkdirSync(path.join(configHome, 'pnpm'), { recursive: true })
+    fs.writeFileSync(path.join(configHome, 'pnpm', 'config.yaml'), 'httpsProxy: http://yaml-https.test/\nnoProxy: yaml.test\n')
+    const env = { XDG_CONFIG_HOME: configHome, HTTPS_PROXY: 'http://env.test/' }
+
+    mock.method(process, 'cwd', () => cwd)
+    assert.deepEqual(pnpmProxyConfig({ homeDir: home, env }), {
+      HTTPS_PROXY: 'http://yaml-https.test/',
+      HTTP_PROXY: 'http://npmrc-http.test/',
+      NO_PROXY: 'yaml.test',
+    })
+    assert.deepEqual(pnpmProxyConfig({ homeDir: home, env: { ...env, PNPM_CONFIG_HTTPS_PROXY: 'http://pnpm-env.test/', pnpm_config_no_proxy: 'pnpm-env.test' } }), {
+      HTTPS_PROXY: 'http://pnpm-env.test/',
+      HTTP_PROXY: 'http://npmrc-http.test/',
+      NO_PROXY: 'pnpm-env.test',
+    })
+  })
+
+  test('reads a value that is empty, false, or null as unset, falling through to the environment', () => {
+    const { home } = layout({ user: ['https-proxy=http://npmrc.test/', 'no-proxy=npmrc.test'] })
+    const configHome = path.join(home, 'config')
+    fs.mkdirSync(path.join(configHome, 'pnpm'), { recursive: true })
+    fs.writeFileSync(path.join(configHome, 'pnpm', 'config.yaml'), 'httpsProxy: ""\nnoProxy: false\n')
+
+    assert.deepEqual(pnpmProxyConfig({ homeDir: home, env: { XDG_CONFIG_HOME: configHome, HTTPS_PROXY: 'http://env.test/', NO_PROXY: 'env.test' } }), {
+      HTTPS_PROXY: 'http://env.test/',
+      HTTP_PROXY: 'http://env.test/',
+      NO_PROXY: 'env.test',
+    })
+  })
+
+  test('takes the legacy proxy of the .npmrc, and turns the proxy off with proxy=false', () => {
+    const legacy = layout({ user: ['proxy=http://legacy.test/'] })
+    assert.deepEqual(pnpmProxyConfig({ homeDir: legacy.home, env: { HTTPS_PROXY: 'http://env.test/' } }), {
+      HTTPS_PROXY: 'http://legacy.test/',
+      HTTP_PROXY: 'http://legacy.test/',
+    })
+
+    const disabled = layout({ user: ['proxy=false'] })
+    assert.deepEqual(pnpmProxyConfig({ homeDir: disabled.home, env: { HTTPS_PROXY: 'http://env.test/', HTTP_PROXY: 'http://env.test/' } }), {})
+  })
+
+  test('takes proxy and noproxy from the global config.yaml and PNPM_CONFIG_*, and turns the proxy off with proxy: false', () => {
+    const { home } = layout({ user: ['proxy=http://npmrc-legacy.test/', 'noproxy=npmrc.test'] })
+    const configHome = writeGlobalConfig(home, 'proxy: http://yaml-legacy.test/\nnoproxy: yaml.test\n')
+
+    assert.deepEqual(pnpmProxyConfig({ homeDir: home, env: { XDG_CONFIG_HOME: configHome } }), {
+      HTTPS_PROXY: 'http://yaml-legacy.test/',
+      HTTP_PROXY: 'http://yaml-legacy.test/',
+      NO_PROXY: 'yaml.test',
+    })
+    assert.deepEqual(pnpmProxyConfig({ homeDir: home, env: { XDG_CONFIG_HOME: configHome, PNPM_CONFIG_PROXY: 'false', HTTPS_PROXY: 'http://env.test/' } }), {
+      NO_PROXY: 'yaml.test',
+    })
+
+    writeGlobalConfig(home, 'proxy: false\n')
+    assert.deepEqual(pnpmProxyConfig({ homeDir: home, env: { XDG_CONFIG_HOME: configHome, HTTPS_PROXY: 'http://env.test/' } }), {
+      NO_PROXY: 'npmrc.test',
+    })
+  })
+
+  test('falls back to the default of a ${NAME-default} or ${NAME:-default} placeholder', () => {
+    const { home } = layout({ user: ['https-proxy=${UNSET_PROXY-http://npmrc-default.test/}'] })
+    const configHome = writeGlobalConfig(home, 'noProxy: "${EMPTY_NO_PROXY:-yaml-default.test}"\n')
+
+    assert.deepEqual(pnpmProxyConfig({ homeDir: home, env: { XDG_CONFIG_HOME: configHome, EMPTY_NO_PROXY: '' } }), {
+      HTTPS_PROXY: 'http://npmrc-default.test/',
+      HTTP_PROXY: 'http://npmrc-default.test/',
+      NO_PROXY: 'yaml-default.test',
+    })
+  })
+
+  test('throws when the global config.yaml cannot be parsed', () => {
+    const { home } = layout()
+    const configHome = writeGlobalConfig(home, 'httpsProxy: [\n')
+
+    assert.throws(() => pnpmProxyConfig({ homeDir: home, env: { XDG_CONFIG_HOME: configHome } }), /config\.yaml/)
+  })
+
+  test('expands the %NAME% references of LOCALAPPDATA on Windows, and throws on one that names nothing', () => {
+    const { home } = layout()
+    fs.mkdirSync(path.join(home, 'local', 'pnpm', 'config'), { recursive: true })
+    fs.writeFileSync(path.join(home, 'local', 'pnpm', 'config', 'config.yaml'), 'httpsProxy: http://windows.test/\n')
+
+    assert.deepEqual(pnpmProxyConfig({ homeDir: home, platform: 'win32', env: { BASE: home, LOCALAPPDATA: '%base%/local' } }), {
+      HTTPS_PROXY: 'http://windows.test/',
+      HTTP_PROXY: 'http://windows.test/',
+    })
+    assert.throws(
+      () => pnpmProxyConfig({ homeDir: home, platform: 'win32', env: { LOCALAPPDATA: '%MISSING%/local' } }),
+      /LOCALAPPDATA contains an unexpanded environment variable: %MISSING%/
+    )
+    assert.throws(
+      () => pnpmProxyConfig({ homeDir: home, platform: 'win32', env: { X: '%X%%X%', LOCALAPPDATA: '%X%' } }),
+      /LOCALAPPDATA contains an unexpanded environment variable: %X%/
+    )
+  })
+
+  test('bypasses the proxy for every host when the global config.yaml sets noProxy: true', () => {
+    const { home } = layout()
+    const configHome = path.join(home, 'config')
+    fs.mkdirSync(path.join(configHome, 'pnpm'), { recursive: true })
+    fs.writeFileSync(path.join(configHome, 'pnpm', 'config.yaml'), 'httpProxy: http://yaml.test/\nnoProxy: true\n')
+
+    assert.deepEqual(pnpmProxyConfig({ homeDir: home, env: { XDG_CONFIG_HOME: configHome } }), {
+      HTTP_PROXY: 'http://yaml.test/',
+      NO_PROXY: '*',
+    })
+  })
+})
+
 function layout (npmrcs: { user?: string[], project?: string[] } = {}): { root: string, home: string, project: string, cwd: string } {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'get-pnpm-pnpm-config-'))
   tmpDirs.push(root)
@@ -228,6 +357,14 @@ function layout (npmrcs: { user?: string[], project?: string[] } = {}): { root: 
   if (npmrcs.user != null) fs.writeFileSync(path.join(home, '.npmrc'), `${npmrcs.user.join('\n')}\n`)
   if (npmrcs.project != null) fs.writeFileSync(path.join(project, '.npmrc'), `${npmrcs.project.join('\n')}\n`)
   return { root, home, project, cwd }
+}
+
+/** Writes the global config.yaml under `home`, returning the XDG_CONFIG_HOME that finds it. */
+function writeGlobalConfig (home: string, content: string): string {
+  const configHome = path.join(home, 'config')
+  fs.mkdirSync(path.join(configHome, 'pnpm'), { recursive: true })
+  fs.writeFileSync(path.join(configHome, 'pnpm', 'config.yaml'), content)
+  return configHome
 }
 
 function escaped (pem: string): string {

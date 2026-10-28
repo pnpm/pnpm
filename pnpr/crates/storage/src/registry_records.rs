@@ -19,9 +19,9 @@ pub const SCIM_DIRECTORY: &str = "directory";
 impl RegistryRecord {
     const fn namespace(self) -> &'static str {
         match self {
-            RegistryRecord::TeamRoster => ".team-rosters/v0",
-            RegistryRecord::RuleOverrides => ".rule-overrides/v0",
-            RegistryRecord::ScimUsers => ".scim-users/v0",
+            RegistryRecord::TeamRoster => ".team-rosters",
+            RegistryRecord::RuleOverrides => ".rule-overrides",
+            RegistryRecord::ScimUsers => ".scim-users",
         }
     }
 }
@@ -32,16 +32,7 @@ impl Storage {
         kind: RegistryRecord,
         registry: &str,
     ) -> Result<Option<Vec<u8>>> {
-        let key = registry_record_key(registry)?;
-        if let Some(bytes) = self.root.read_record(kind.namespace(), &key).await? {
-            return Ok(Some(bytes));
-        }
-        let local_name = registry.split_once('/').map_or(registry, |(_, name)| name);
-        if local_name != registry {
-            let legacy_key = registry_record_key(local_name)?;
-            return self.root.read_record(kind.namespace(), &legacy_key).await;
-        }
-        Ok(None)
+        self.root.read_record(kind.namespace(), &registry_record_key(registry)?).await
     }
 
     /// Write the first record of `kind` for `registry`, reporting `false`
@@ -52,25 +43,7 @@ impl Storage {
         registry: &str,
         bytes: &[u8],
     ) -> Result<bool> {
-        let key = registry_record_key(registry)?;
-        let local_name = registry.split_once('/').map_or(registry, |(_, name)| name);
-        if local_name != registry {
-            let legacy_key = registry_record_key(local_name)?;
-            if self.root.read_record(kind.namespace(), &legacy_key).await?.is_some() {
-                return Ok(false);
-            }
-        }
-        if !self.root.create_record(kind.namespace(), &key, bytes).await? {
-            return Ok(false);
-        }
-        if local_name != registry {
-            let legacy_key = registry_record_key(local_name)?;
-            if self.root.read_record(kind.namespace(), &legacy_key).await?.is_some() {
-                self.root.remove_record_if_current(kind.namespace(), &key, bytes).await?;
-                return Ok(false);
-            }
-        }
-        Ok(true)
+        self.root.create_record(kind.namespace(), &registry_record_key(registry)?, bytes).await
     }
 
     /// Replace the record of `kind` for `registry` only while it still holds
@@ -82,31 +55,13 @@ impl Storage {
         expected: &[u8],
         bytes: &[u8],
     ) -> Result<DocumentWrite> {
-        let key = registry_record_key(registry)?;
-        if self.root.read_record(kind.namespace(), &key).await?.is_some() {
-            return self.root.replace_record_if_current(kind.namespace(), &key, expected, bytes)
-                .await;
-        }
-        let local_name = registry.split_once('/').map_or(registry, |(_, name)| name);
-        if local_name == registry {
-            return self.root.replace_record_if_current(kind.namespace(), &key, expected, bytes)
-                .await;
-        }
-        let legacy_key = registry_record_key(local_name)?;
-        if self.root.read_record(kind.namespace(), &legacy_key).await?.as_deref() != Some(expected)
-        {
-            return Ok(DocumentWrite::Conflict);
-        }
-        if !self.root.create_record(kind.namespace(), &key, bytes).await? {
-            return self.root.replace_record_if_current(kind.namespace(), &key, expected, bytes)
-                .await;
-        }
-        if self.root.read_record(kind.namespace(), &legacy_key).await?.as_deref() != Some(expected)
-        {
-            self.root.remove_record_if_current(kind.namespace(), &key, bytes).await?;
-            return Ok(DocumentWrite::Conflict);
-        }
-        Ok(DocumentWrite::Written)
+        self.root.replace_record_if_current(
+            kind.namespace(),
+            &registry_record_key(registry)?,
+            expected,
+            bytes,
+        )
+        .await
     }
 
     pub async fn remove_registry_record(
@@ -114,15 +69,7 @@ impl Storage {
         kind: RegistryRecord,
         registry: &str,
     ) -> Result<bool> {
-        let key = registry_record_key(registry)?;
-        let removed = self.root.remove_record(kind.namespace(), &key).await?;
-        let local_name = registry.split_once('/').map_or(registry, |(_, name)| name);
-        if local_name != registry {
-            let legacy_key = registry_record_key(local_name)?;
-            let legacy_removed = self.root.remove_record(kind.namespace(), &legacy_key).await?;
-            return Ok(removed || legacy_removed);
-        }
-        Ok(removed)
+        self.root.remove_record(kind.namespace(), &registry_record_key(registry)?).await
     }
 }
 

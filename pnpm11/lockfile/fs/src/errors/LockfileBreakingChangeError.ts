@@ -2,6 +2,7 @@ import { PnpmError } from '@pnpm/error'
 
 export class LockfileBreakingChangeError extends PnpmError {
   public filename: string
+  public lockfileVersion?: string
   constructor (
     filename: string,
     opts?: {
@@ -11,6 +12,7 @@ export class LockfileBreakingChangeError extends PnpmError {
   ) {
     super('LOCKFILE_BREAKING_CHANGE', formatMessage(filename, opts))
     this.filename = filename
+    this.lockfileVersion = opts?.lockfileVersion
   }
 }
 

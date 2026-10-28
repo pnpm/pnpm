@@ -32,7 +32,7 @@ storage: {}
 auth:
   admins: [admin_alice]
   htpasswd:
-    max_users: 100
+    maxUsers: 100
   oidc:
     - name: idp
       issuer: https://issuer.example.com
@@ -71,7 +71,7 @@ auth:
   admins: [admin_alice]
   htpasswd:
     file: ./htpasswd
-    max_users: 100
+    maxUsers: 100
 registries:
   local:
     type: hosted
@@ -242,7 +242,7 @@ storage: {}
 auth:
   htpasswd:
     file: ./htpasswd
-    max_users: 100
+    maxUsers: 100
 registries:
   local:
     type: hosted

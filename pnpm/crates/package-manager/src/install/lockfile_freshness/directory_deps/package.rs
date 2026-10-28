@@ -11,22 +11,39 @@ use super::{
 };
 use pnpm_package_manifest::PackageManifest;
 
+/// The manifest the resolver read for `dep`: the hooked one the check holds,
+/// else [`overridden_unhooked_manifest`].
 fn read_and_override_manifest(
     check: &ImporterSatisfactionCheck<'_>,
     dep: &LocalDepContext<'_>,
 ) -> Result<PackageManifest, FreshnessCheckError> {
-    let mut local_manifest = unhooked_manifest(&InjectedDirectory {
+    let hooked = check.workspace.directory_manifests.get(dep.rel_path, dep.declared_as_file);
+    if let Some(manifest) = hooked {
+        return Ok(manifest.clone());
+    }
+    let injected = InjectedDirectory {
         dir: dep.dir,
         declared_as_file: dep.declared_as_file,
         workspace_root: dep.dirs.workspace_root,
         manifests_by_dir: check.workspace.manifests_by_dir,
-    })
-    .ok_or_else(|| dep.outdated())?;
-    if let Some(parsed) = check.parsed_overrides {
-        crate::VersionsOverrider::new(parsed, check.lockfile_dir)
-            .apply(&mut local_manifest, Some(dep.dir));
+    };
+    overridden_unhooked_manifest(&injected, check.parsed_overrides, check.lockfile_dir)
+        .ok_or_else(|| dep.outdated())
+}
+
+/// [`unhooked_manifest`] with the overrides applied, as the check reads a
+/// directory package that no hooked manifest covers.
+pub(in crate::install::lockfile_freshness) fn overridden_unhooked_manifest(
+    injected: &InjectedDirectory<'_>,
+    parsed_overrides: Option<&[pnpm_config_parse_overrides::VersionOverride]>,
+    lockfile_dir: &std::path::Path,
+) -> Option<PackageManifest> {
+    let mut manifest = unhooked_manifest(injected)?;
+    if let Some(parsed) = parsed_overrides {
+        crate::VersionsOverrider::new(parsed, lockfile_dir)
+            .apply(&mut manifest, Some(injected.dir));
     }
-    Ok(local_manifest)
+    Some(manifest)
 }
 
 pub(super) fn check_single_directory_dep_freshness(

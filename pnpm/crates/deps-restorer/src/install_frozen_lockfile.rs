@@ -184,6 +184,12 @@ pub enum InstallFrozenLockfileError {
     #[diagnostic(transparent)]
     LinkHoistedModules(#[error(source)] LinkHoistedModulesError),
 
+    #[diagnostic(transparent)]
+    ReadModules(#[error(source)] pnpm_modules_yaml::ReadModulesError),
+
+    #[diagnostic(transparent)]
+    WriteModules(#[error(source)] pnpm_modules_yaml::WriteModulesError),
+
     #[display("failed to write package map: {_0}")]
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_WRITE_PACKAGE_MAP))]
     WritePackageMap(#[error(source)] crate::WritePackageMapError),
@@ -234,6 +240,12 @@ impl From<HoistedLinkerError> for InstallFrozenLockfileError {
             }
             HoistedLinkerError::SymlinkDirectDependencies(error) => {
                 InstallFrozenLockfileError::SymlinkDirectDependencies(error)
+            }
+            HoistedLinkerError::ReadModules(error) => {
+                InstallFrozenLockfileError::ReadModules(error)
+            }
+            HoistedLinkerError::WriteModules(error) => {
+                InstallFrozenLockfileError::WriteModules(error)
             }
             HoistedLinkerError::WritePackageMap(error) => {
                 InstallFrozenLockfileError::WritePackageMap(error)

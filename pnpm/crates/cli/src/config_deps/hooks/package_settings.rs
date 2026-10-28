@@ -1,5 +1,5 @@
 use super::{
-    Arc, Config, Host, IntoDiagnostic, Path, Result, Value, WorkspaceSettings,
+    Arc, Config, Host, IntoDiagnostic, Path, Result, TrustedSettings, Value, WorkspaceSettings,
     apply::apply_hook_delta,
 };
 use miette::WrapErr;
@@ -51,7 +51,8 @@ fn apply_entries(
     (loaded, installed): (&WorkspaceIncludes, &WorkspaceIncludes),
     base_dir: &Path,
 ) -> Result<()> {
-    let input = serde_json::to_value(WorkspaceSettings::from_resolved(config))
+    let input = TrustedSettings::from_resolved(config)
+        .to_json()
         .into_diagnostic()
         .wrap_err("serialize the resolved settings")?;
     let mut current = input.clone();
@@ -94,7 +95,7 @@ fn entry_settings(includes: &WorkspaceIncludes) -> Result<serde_json::Map<String
 /// not override.
 fn environment_setting_keys() -> Result<HashSet<String>> {
     let Value::Object(values) =
-        serde_json::to_value(WorkspaceSettings::from_pnpm_config_env::<Host>()).into_diagnostic()?
+        TrustedSettings::from_pnpm_config_env::<Host>().to_json().into_diagnostic()?
     else {
         return Ok(HashSet::new());
     };

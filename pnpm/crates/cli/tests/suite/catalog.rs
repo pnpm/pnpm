@@ -250,6 +250,75 @@ fn add_mismatched_version_strict_errors() {
     drop((root, anchor));
 }
 
+/// A catalog entry added for a dist-tag records the exact version the tag
+/// points to, in every catalog mode. The manifest of a project that is not
+/// cataloged keeps the range.
+#[test]
+fn add_pins_a_dist_tag_in_a_new_catalog_entry() {
+    for (catalog_mode, args) in
+        [("strict", &[][..]), ("prefer", &[][..]), ("manual", &["--save-catalog"][..])]
+    {
+        let CommandTempCwd {
+            root, workspace, npmrc_info: anchor, ..
+        } = CommandTempCwd::init().add_mocked_registry_with_own_storage();
+        anchor.set_dist_tag(FOO, "100.0.0", "legacy");
+        write_manifest(&workspace, "{}");
+        append_workspace_yaml(&workspace, &format!("catalogMode: {catalog_mode}\n"));
+
+        let selector = format!("{FOO}@legacy");
+        let mut add_args = vec!["add", "--lockfile-only"];
+        add_args.extend(args);
+        add_args.push(&selector);
+        run_ok(&workspace, &add_args);
+
+        assert_eq!(dep_spec(&workspace, FOO).as_deref(), Some("catalog:"), "{catalog_mode}");
+        let workspace_yaml = read(&workspace, "pnpm-workspace.yaml");
+        assert!(workspace_yaml.contains(&format!("'{FOO}': 100.0.0")), "{workspace_yaml}");
+        assert_eq!(
+            catalog_snapshot(&workspace, FOO),
+            ("100.0.0".to_string(), "100.0.0".to_string()),
+            "{catalog_mode}",
+        );
+
+        drop((root, anchor));
+    }
+}
+
+#[test]
+fn add_pins_the_configured_tag_in_a_new_catalog_entry() {
+    let CommandTempCwd {
+        root, workspace, npmrc_info: anchor, ..
+    } = CommandTempCwd::init().add_mocked_registry_with_own_storage();
+    anchor.set_dist_tag(FOO, "100.0.0", "legacy");
+    write_manifest(&workspace, "{}");
+    append_workspace_yaml(&workspace, "catalogMode: prefer\ntag: legacy\n");
+
+    run_ok(&workspace, &["add", "--lockfile-only", FOO]);
+
+    assert_eq!(dep_spec(&workspace, FOO).as_deref(), Some("catalog:"));
+    let workspace_yaml = read(&workspace, "pnpm-workspace.yaml");
+    assert!(workspace_yaml.contains(&format!("'{FOO}': 100.0.0")), "{workspace_yaml}");
+    assert_eq!(catalog_snapshot(&workspace, FOO), ("100.0.0".to_string(), "100.0.0".to_string()));
+
+    drop((root, anchor));
+}
+
+#[test]
+fn add_keeps_a_dist_tag_range_outside_the_catalog() {
+    let CommandTempCwd {
+        root, workspace, npmrc_info: anchor, ..
+    } = CommandTempCwd::init().add_mocked_registry_with_own_storage();
+    anchor.set_dist_tag(FOO, "100.0.0", "legacy");
+    write_manifest(&workspace, "{}");
+
+    run_ok(&workspace, &["add", "--lockfile-only", &format!("{FOO}@legacy")]);
+
+    assert_eq!(dep_spec(&workspace, FOO).as_deref(), Some("^100.0.0"));
+    assert!(!read(&workspace, "pnpm-workspace.yaml").contains("catalog:"));
+
+    drop((root, anchor));
+}
+
 #[test]
 fn save_catalog_flag_writes_the_default_catalog() {
     let (root, workspace, anchor) = setup();

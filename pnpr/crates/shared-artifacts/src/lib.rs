@@ -55,8 +55,8 @@ use pnpr_error::{RegistryError, Result};
 use sha2::Sha256;
 use tokio::time::{interval, sleep};
 
-const ARTIFACT_CACHE_DIR: &str = "shared-artifacts/v0";
-const ARTIFACT_OBJECT_PREFIX: &str = ".pnpr-artifacts/v0";
+const ARTIFACT_CACHE_DIR: &str = "shared-artifacts";
+const ARTIFACT_OBJECT_PREFIX: &str = ".artifacts";
 const ARTIFACT_LOCK_POLL_INTERVAL: Duration = Duration::from_millis(50);
 const ARTIFACT_USAGE_FILE: &str = ".locks/usage.json";
 const ARTIFACT_QUOTA_OBJECT: &str = "quota.json";
@@ -194,7 +194,7 @@ struct PreparedPublication {
 }
 
 /// Shared build-artifact storage. Local deployments use the
-/// `cache/shared-artifacts/v0` layout. Object-store deployments use the same
+/// `cache/shared-artifacts` layout. Object-store deployments use the same
 /// configured bucket as hosted packages under a reserved namespace, allowing
 /// every replica to observe the same immutable blobs and envelopes. The quota
 /// document also acts as a distributed reclamation gate: publications register

@@ -1,5 +1,6 @@
 pub use errors::InstallWithFreshLockfileError;
 pub(crate) use lockfile_build::compute_package_extensions_checksum;
+pub(crate) use manifest_transforms::resolver_manifest_hooks;
 pub(crate) use seed_policy::prefer_requested_version;
 pub use seed_policy::{ImporterUpdateSeedPolicy, PreferredVersionsOverride, UpdateSeedPolicy};
 
@@ -159,6 +160,7 @@ pub(crate) struct FreshInstallProjects<'a> {
 
 #[derive(Clone, Copy)]
 pub(crate) struct FreshInstallExecution {
+    pub(crate) locked_package_policy: pnpm_resolving_resolver_base::LockedPackagePolicy,
     /// Resolved [`pnpm_config::Config::node_linker`]. Selects the
     /// materialization shape after the virtual store is populated:
     /// under [`NodeLinker::Hoisted`] the freshly-built lockfile is
@@ -254,6 +256,10 @@ pub(crate) struct FreshLockfileSeeds<'a> {
     /// Intact prior lockfile used to restore unselected projects after a
     /// filtered repair resolves against a sanitized seed.
     pub(crate) merge_wanted: Option<&'a Lockfile>,
+    /// The routes [`Self::wanted`]'s plain keys resolved through, when the
+    /// workspace state recorded them. See
+    /// [`pnpm_lockfile::RegistryContext::locked_registries`].
+    pub(crate) locked_registries: Option<&'a BTreeMap<String, String>>,
 }
 
 impl FreshInputs<'_> {

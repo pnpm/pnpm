@@ -86,6 +86,8 @@ pub(super) struct InstallScope<'w> {
     /// See [`crate::install::dependency_manifests_by_dir`]. The freshness
     /// checks compare an injected project's lockfile snapshot with these.
     pub(super) dependency_manifests: Option<ProjectManifestsByDir<'w>>,
+    /// See [`crate::RepeatInstallManifests::workspace_projects`].
+    pub(super) workspace_projects: Option<Vec<(PathBuf, &'w PackageManifest)>>,
 }
 impl<'a> InstallWorkspace<'a> {
     /// Consumes the catalogs and workspace-projects overrides off `owned`.
@@ -227,12 +229,18 @@ impl<'w> InstallScope<'w> {
             workspace_projects_are_overridden,
             config: install.context.config,
         });
+        let bin_projects = crate::optimistic_repeat_install::validation::dedicated_bin_projects(
+            install.context.config,
+            &project_manifests,
+            workspace_projects,
+        );
         Self {
             project_manifests,
             importers,
             prune_stale_importers,
             project_scripts_current: false,
             dependency_manifests: dependency_manifests_by_dir(workspace_projects),
+            workspace_projects: bin_projects,
         }
     }
 
@@ -282,6 +290,7 @@ impl<'w> InstallScope<'w> {
                 },
                 manifests: crate::RepeatInstallManifests {
                     dependency_manifests: self.dependency_manifests.as_ref(),
+                    workspace_projects: self.workspace_projects.as_deref(),
                 },
             },
             mutation: install.execution.mutation,

@@ -13,6 +13,12 @@ pub(super) struct TriedOnce {
     /// See [`clear_symlink_occupant`] for what the second pass does instead.
     pub(super) rename: bool,
     pub(super) vanished: bool,
+    /// A stale link was unlinked and the create reissued. A link that reads
+    /// as stale again afterwards is one the filesystem does not let go of —
+    /// a virtual `node_modules` serves its entries from a lockfile, and
+    /// reports the unlink done without removing anything — so the create's
+    /// conflict is surfaced instead of unlinking it a third time.
+    pub(super) retargeted: bool,
 }
 
 /// Put the requested symlink at `link` when whatever stands there could not be

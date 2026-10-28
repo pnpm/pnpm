@@ -132,10 +132,14 @@ impl RoutingConfig {
                     ),
                 });
             }
+            let ecosystem = self.registries.ecosystem(name).unwrap_or_default();
             if let Some((other, _)) = self.hosted
                 .iter()
                 .take(index)
-                .find(|(_, existing)| existing.org == hosted.org)
+                .find(|(other_name, existing)| {
+                    existing.org == hosted.org
+                        && self.registries.ecosystem(other_name).unwrap_or_default() == ecosystem
+                })
             {
                 return Err(org_collision_error(name, &hosted.org, other));
             }

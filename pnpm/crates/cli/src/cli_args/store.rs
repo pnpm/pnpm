@@ -7,6 +7,7 @@
 //! any project.
 
 mod add;
+mod in_use_files;
 mod status;
 
 use crate::{
@@ -80,7 +81,11 @@ fn prune(config: &Config) -> miette::Result<()> {
     .into_iter()
     .flatten()
     .collect();
-    config.store_dir.prune(&config.cache_dir, &protected_dirs).wrap_err("pruning store")?;
+    config.store_dir
+        .prune_keeping(&config.cache_dir, &protected_dirs, || {
+            in_use_files::in_use_files(&config.store_dir)
+        })
+        .wrap_err("pruning store")?;
     remove_orphaned_private_engine_installs(config)?;
     Ok(())
 }

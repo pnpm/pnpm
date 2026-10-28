@@ -1,5 +1,5 @@
 use super::{
-    Arc, BlobFinalize, Body, CanonicalPackageName, DocumentWrite, HostedBackend,
+    Arc, BlobFinalize, Body, CanonicalPackageName, DocumentWrite, Ecosystem, HostedBackend,
     HostedDocumentForUpdate, HostedDocumentVersion, ObjectPath, ObjectStoreExt, Path, PathBuf,
     Result, S3Store, StreamExt, async_trait, fs,
 };
@@ -184,6 +184,10 @@ impl HostedBackend for S3Store {
         Arc::new(S3Store::namespaced(self, segment))
     }
 
+    fn with_ecosystem(&self, ecosystem: Ecosystem) -> Arc<dyn HostedBackend> {
+        Arc::new(S3Store::with_ecosystem(self, ecosystem))
+    }
+
     fn namespace(&self) -> String {
         self.prefix.clone()
     }
@@ -212,15 +216,6 @@ impl HostedBackend for S3Store {
 
     async fn remove_record(&self, namespace: &str, key: &str) -> Result<bool> {
         S3Store::remove_record(self, namespace, key).await
-    }
-
-    async fn remove_record_if_current(
-        &self,
-        namespace: &str,
-        key: &str,
-        expected: &[u8],
-    ) -> Result<bool> {
-        S3Store::remove_record_if_current(self, namespace, key, expected).await
     }
 
     async fn list_record_keys(&self, namespace: &str) -> Result<Vec<String>> {

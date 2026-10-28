@@ -415,6 +415,7 @@ async fn writes_index_row_when_writer_provided() {
         .expect("row must exist at the git-hosted key");
     assert_eq!(row.algo, "sha512");
     assert_eq!(row.requires_build, Some(false));
+    assert_eq!(row.manifest, Some(serde_json::json!({ "name": "x", "version": "1.0.0" })));
     let keys: Vec<&str> = row.files
         .keys()
         .map(String::as_str)

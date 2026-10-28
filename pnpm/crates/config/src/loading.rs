@@ -1,8 +1,8 @@
 use super::{
     AuthSources, Config, EnvVar, EnvVarOs, ExplicitPaths, GetCurrentDir, GetHomeDir, LinkProbe,
-    LoadWorkspaceYamlError, NpmrcAuth, Path, WorkspaceSettings, build_package_manager_bootstrap,
-    collect_explicit_settings, default_config_dir, default_state_dir, ensure_windows_dir_envs,
-    resolve_configured_state_dir,
+    LoadWorkspaceYamlError, NpmrcAuth, Path, TrustedSettings, WorkspaceSettings,
+    build_package_manager_bootstrap, collect_explicit_trusted_settings, default_config_dir,
+    default_state_dir, ensure_windows_dir_envs, resolve_configured_state_dir,
 };
 
 /// A failed [`Config::current_keeping_warnings`].
@@ -169,7 +169,7 @@ impl Config {
         // The global `config.yaml` is loaded up front: its `npmrcAuthFile`
         // participates in the user-level path resolution below, and its
         // directory is where `auth.ini` lives.
-        let global_config_dir = default_config_dir::<Sys>();
+        let global_config_dir = self.config_dir.clone().or_else(default_config_dir::<Sys>);
         self.config_dir.clone_from(&global_config_dir);
         let global_settings = self.load_global_settings::<Sys>()?;
 
@@ -238,7 +238,7 @@ impl Config {
     pub(super) fn apply_bootstrap_settings<Sys: EnvVar>(
         &mut self,
         trusted_auth: NpmrcAuth,
-        global_settings: Option<&WorkspaceSettings>,
+        global_settings: Option<&TrustedSettings>,
     ) -> Result<(), LoadWorkspaceYamlError> {
         // Not left out when unreadable: an empty bootstrap would download the
         // pinned pnpm from the public registry, past the machine's mirror and
@@ -246,7 +246,11 @@ impl Config {
         self.package_manager_bootstrap = build_package_manager_bootstrap::<Sys>(trusted_auth)?;
         if let Some(global_settings) = global_settings {
             let bootstrap = &mut self.package_manager_bootstrap;
-            global_settings.apply_proxy_to(&mut bootstrap.proxy, &mut bootstrap.proxy_keys);
+            global_settings.settings.apply_proxy_to(
+                &mut bootstrap.proxy,
+                &mut bootstrap.proxy_keys,
+            );
+            global_settings.settings.apply_tls_to(&mut bootstrap.tls);
         }
         Ok(())
     }
@@ -271,16 +275,16 @@ impl Config {
     /// read at all and [`Config::settings_read`] skips unreadable ones.
     pub(super) fn load_global_settings<Sys: EnvVar>(
         &self,
-    ) -> Result<Option<WorkspaceSettings>, LoadWorkspaceYamlError> {
+    ) -> Result<Option<TrustedSettings>, LoadWorkspaceYamlError> {
         self.skip_if_unreadable(self.read_global_settings::<Sys>(), || None)
     }
 
     fn read_global_settings<Sys: EnvVar>(
         &self,
-    ) -> Result<Option<WorkspaceSettings>, LoadWorkspaceYamlError> {
+    ) -> Result<Option<TrustedSettings>, LoadWorkspaceYamlError> {
         let mut global_settings = self.config_dir
             .as_deref()
-            .map(|dir| WorkspaceSettings::load_global_reading(dir, self.settings_read))
+            .map(|dir| TrustedSettings::load_global_reading(dir, self.settings_read))
             .transpose()?
             .flatten();
         if let Some(global_settings) = global_settings.as_mut() {
@@ -306,17 +310,18 @@ impl Config {
     ) where
         Sys: EnvVar + EnvVarOs + GetCurrentDir + GetHomeDir + LinkProbe,
     {
-        let mut env_settings = WorkspaceSettings::from_pnpm_config_env::<Sys>();
-        explicit.note(&env_settings);
-        self.boot_overrides.overlay(&env_settings);
+        let mut env_settings = TrustedSettings::from_pnpm_config_env::<Sys>();
+        explicit.note(&env_settings.settings);
+        self.boot_overrides.overlay(&env_settings.settings);
         env_settings.substitute_env_trusted::<Sys>();
         // `PNPM_CONFIG_REGISTRY` comes from the environment, not the
         // repository, so it overrides the bootstrap default registry too.
-        let env_registry_override = env_settings.registry.clone();
-        collect_explicit_settings(&mut self.explicit_settings, &env_settings);
-        let configured_state_dir = env_settings.state_dir.take();
+        let env_registry_override = env_settings.settings.registry.clone();
+        collect_explicit_trusted_settings(&mut self.explicit_settings, &env_settings);
+        let configured_state_dir = env_settings.machine.state_dir.take();
         let bootstrap = &mut self.package_manager_bootstrap;
-        env_settings.apply_proxy_to(&mut bootstrap.proxy, &mut bootstrap.proxy_keys);
+        env_settings.settings.apply_proxy_to(&mut bootstrap.proxy, &mut bootstrap.proxy_keys);
+        env_settings.settings.apply_tls_to(&mut bootstrap.tls);
         let saved_workspace_dir = self.workspace_dir.clone();
         env_settings.expand_home_prefixes::<Sys>();
         env_settings.apply_to(self, start_dir);
@@ -349,15 +354,16 @@ impl Config {
         if self.cli.setting_values.is_empty() {
             return;
         }
-        let mut settings = WorkspaceSettings::from_string_values(&self.cli.setting_values);
-        explicit.note(&settings);
-        self.boot_overrides.overlay(&settings);
-        collect_explicit_settings(&mut self.explicit_settings, &settings);
-        if let Some(configured_state_dir) = settings.state_dir.take() {
+        let mut settings = TrustedSettings::from_string_values(&self.cli.setting_values);
+        explicit.note(&settings.settings);
+        self.boot_overrides.overlay(&settings.settings);
+        collect_explicit_trusted_settings(&mut self.explicit_settings, &settings);
+        if let Some(configured_state_dir) = settings.machine.state_dir.take() {
             self.state_dir = resolve_configured_state_dir(default_state_dir, &configured_state_dir);
         }
         let bootstrap = &mut self.package_manager_bootstrap;
-        settings.apply_proxy_to(&mut bootstrap.proxy, &mut bootstrap.proxy_keys);
+        settings.settings.apply_proxy_to(&mut bootstrap.proxy, &mut bootstrap.proxy_keys);
+        settings.settings.apply_tls_to(&mut bootstrap.tls);
         let saved_workspace_dir = self.workspace_dir.clone();
         settings.apply_to(self, start_dir);
         self.workspace_dir = saved_workspace_dir;

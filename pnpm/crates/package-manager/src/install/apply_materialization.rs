@@ -18,7 +18,9 @@ use super::{
     BTreeMap, CarriedSettings, HoistedDependencies, InstallError, Lockfile, Materialized, Reporter,
     StateWrite, recorded_workspace_state, update_workspace_state_or_warn,
 };
-use crate::optimistic_repeat_install::{filesystem_now_ms_in_modules, validation::Vouched};
+use crate::optimistic_repeat_install::{
+    ResolvedImporters, filesystem_now_ms_in_modules, validation::Vouched,
+};
 use std::{collections::HashSet, path::PathBuf};
 
 pub(super) struct ApplyMaterializationInputs<'a, 'selection> {
@@ -327,6 +329,34 @@ fn finish_apply<Reporter: self::Reporter>(
     completion
 }
 
+/// The settings an install's state write takes from the run. See
+/// [`CarriedSettings`].
+fn applied_carried_settings<'a>(
+    inputs: &'a ApplyMaterializationInputs<'_, '_>,
+) -> CarriedSettings<'a> {
+    let config = inputs.completion.config;
+    let resolved = inputs.materialized.fresh_lockfile.as_ref();
+    let lockfile = resolved.or(inputs.resolution.loaded);
+    let resolution = match (resolved.is_some(), inputs.projects.filtered_install) {
+        (false, _) => ResolvedImporters::None,
+        (true, true) => ResolvedImporters::Selected,
+        (true, false) => ResolvedImporters::All,
+    };
+    CarriedSettings {
+        established_auto_dedupe: (config.auto_dedupe && resolved.is_some()).then_some(true),
+        registry_keys_verified: crate::install::registry_keys_current(config, lockfile),
+        registry_routes: Some(
+            crate::optimistic_repeat_install::recorded_registry_routes_after_install(
+                config,
+                inputs.resolution.locked_registry_routes.as_ref(),
+                lockfile,
+                resolution,
+            ),
+        ),
+        kept_settings: None,
+    }
+}
+
 // Publish workspace freshness only after modules.yaml and the current lockfile are committed.
 fn write_applied_workspace_state<Reporter: self::Reporter>(
     inputs: &ApplyMaterializationInputs<'_, '_>,
@@ -351,18 +381,12 @@ fn write_applied_workspace_state<Reporter: self::Reporter>(
             supported_architectures: inputs.projects.supported_architectures.as_ref(),
         },
         catalogs: &inputs.completion.catalogs,
-        project_manifests: inputs.projects.importers.manifests,
-        filesystem_now_ms: filesystem_now_ms_in_modules(&modules_dir),
-        carried: CarriedSettings {
-            established_auto_dedupe: (config.auto_dedupe
-                && inputs.materialized.fresh_lockfile.is_some())
-            .then_some(true),
-            registry_keys_verified: crate::install::registry_keys_current(
-                config,
-                inputs.materialized.fresh_lockfile.as_ref().or(inputs.resolution.loaded),
-            ),
-            kept_settings: None,
+        projects: crate::install::StateProjects {
+            manifests: inputs.projects.importers.manifests,
+            workspace_projects: inputs.projects.importers.workspace_projects,
         },
+        filesystem_now_ms: filesystem_now_ms_in_modules(&modules_dir),
+        carried: applied_carried_settings(inputs),
         vouched: &vouched,
     });
     update_workspace_state_or_warn::<Reporter>(

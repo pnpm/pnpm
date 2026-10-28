@@ -4,8 +4,9 @@ use super::{
     ImportIndexedDirError, Placement, SymlinkTargets, clear_dir_blocking_file,
     file_matches_store_entry,
 };
-use pnpm_fs::Host;
+use pnpm_fs::{Host, SymlinkPlacement, SymlinkPlacementContext};
 use std::{
+    borrow::Cow,
     collections::{HashMap, HashSet},
     fs,
     path::{Path, PathBuf},
@@ -31,60 +32,37 @@ pub(super) struct SymlinkRoots<'a> {
 pub(in crate::import_indexed_dir) fn imported_paths(
     cas_paths: &HashMap<String, PathBuf>,
 ) -> HashSet<&str> {
-    let mut imported = HashSet::from([""]);
-    for entry in cas_paths.keys() {
-        let mut path = entry.as_str();
-        while !path.is_empty() && imported.insert(path) {
-            path = path.rsplit_once('/').map_or("", |(parent, _)| parent);
-        }
-    }
-    imported
+    pnpm_fs::selected_paths_and_ancestors(cas_paths.keys().map(String::as_str))
 }
 
-/// Whether `path` is a symlink or, on Windows, a junction, which
-/// [`fs::FileType::is_symlink`] does not report.
+/// Whether `path` is a symlink or, on Windows, a junction.
 pub(in crate::import_indexed_dir) fn is_symlink(path: &Path) -> bool {
-    let Ok(metadata) = fs::symlink_metadata(path) else {
-        return false;
-    };
-    #[cfg(windows)]
-    {
-        use std::os::windows::fs::MetadataExt;
-        const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x400;
-        if metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0 {
-            return pnpm_fs::is_symlink_or_junction(path).unwrap_or(false);
-        }
-    }
-    metadata.file_type().is_symlink()
+    pnpm_fs::is_symlink(path)
 }
 
-/// The target to give the recreated link at `target`: the source link's
-/// own, with an absolute one made relative to the source link. Refuses a
-/// target that leads out of `pkg_root`.
-fn validate_symlink_target(
-    store_path: &Path,
+/// Handle a symlink entry or resolve the regular-file path to import.
+///
+/// Returns `Ok(None)` when `store_path` was placed (or omitted) as a symlink,
+/// or `Ok(Some(resolved_path))` when the caller should import `resolved_path`
+/// as a regular file.
+pub(super) fn place_symlink_or_resolve_file<'a>(
+    placement: Placement,
+    store_path: &'a Path,
     target: &Path,
-    pkg_root: &Path,
-) -> Result<PathBuf, ImportIndexedDirError> {
-    let link_target = pnpm_fs::read_symlink_dir(store_path)
-        .map(|link| pnpm_fs::relative_link_target(store_path, link))
-        .map_err(|error| {
-            ImportIndexedDirError::LinkFile(crate::link_file::LinkFileError::Import {
-                from: store_path.to_path_buf(),
-                to: target.to_path_buf(),
-                error,
-            })
-        })?;
-    let dest_dir = target.parent().unwrap_or(pkg_root);
-    let resolved =
-        if link_target.is_absolute() { link_target.clone() } else { dest_dir.join(&link_target) };
-    if !pnpm_fs::is_subdir(pkg_root, &resolved) {
-        return Err(ImportIndexedDirError::SymlinkTargetEscapes {
-            target: link_target,
-            root: pkg_root.to_path_buf(),
-        });
+    symlinks: Option<SymlinkRoots<'_>>,
+) -> Result<Option<Cow<'a, Path>>, ImportIndexedDirError> {
+    let Some(roots) = symlinks else {
+        return Ok(Some(Cow::Borrowed(store_path)));
+    };
+    if !is_symlink(store_path) {
+        return Ok(Some(Cow::Borrowed(store_path)));
     }
-    Ok(link_target)
+    if place_symlink_entry(placement, store_path, target, roots)? {
+        return Ok(None);
+    }
+    let resolved =
+        fs::canonicalize(store_path).map_err(|error| import_link_error(store_path, target, error))?;
+    Ok(Some(Cow::Owned(resolved)))
 }
 
 /// Recreate the symlink at `store_path` as `target`, reporting whether the
@@ -97,43 +75,63 @@ pub(super) fn place_symlink_entry(
     target: &Path,
     roots: SymlinkRoots<'_>,
 ) -> Result<bool, ImportIndexedDirError> {
-    let link_target = validate_symlink_target(store_path, target, roots.written_dir)?;
-    let is_dir = fs::metadata(store_path).is_ok_and(|meta| meta.is_dir());
-    let keeps_left_out_target = roots.policy == SymlinkTargets::Internal && is_dir;
-    if !keeps_left_out_target && !imports_link_target(target, &link_target, roots) {
-        return Ok(is_dir);
-    }
+    let ctx = SymlinkPlacementContext {
+        dest_root: roots.written_dir,
+        selected_paths: roots.imported,
+        policy: roots.policy,
+    };
+    let decision = pnpm_fs::resolve_symlink_placement(store_path, target, ctx)
+        .map_err(|error| import_link_error(store_path, target, error))?;
+    let (link_target, is_dir) = match decision {
+        Ok(SymlinkPlacement::Preserve { link_target, is_dir, .. }) => (link_target, is_dir),
+        Ok(SymlinkPlacement::ImportFile) => return Ok(false),
+        Ok(SymlinkPlacement::Omit) => return Ok(true),
+        Err(escaped) => {
+            return Err(ImportIndexedDirError::SymlinkTargetEscapes {
+                target: escaped,
+                root: roots.written_dir.to_path_buf(),
+            });
+        }
+    };
     if placement == Placement::Repair && file_matches_store_entry(target, store_path) {
         return Ok(true);
     }
     clear_dir_blocking_file::<Host>(target)?;
-    let temp = super::super::staging::pick_stage_path(target);
-    let created = if is_dir {
-        let final_target = final_link_target(target, &link_target, roots);
-        pnpm_fs::symlink_dir_with_contents(&final_target, &link_target, &temp)
-    } else {
-        pnpm_fs::symlink_file_or_copy(&link_target, store_path, &temp)
-    };
-    if let Err(error) = created {
-        let _ = pnpm_fs::remove_dirent(&temp);
-        return Err(ImportIndexedDirError::LinkFile(crate::link_file::LinkFileError::Import {
-            from: store_path.to_path_buf(),
-            to: target.to_path_buf(),
-            error,
-        }));
-    }
+    let temp = stage_symlink(&link_target, is_dir, store_path, target, roots)?;
     commit_symlink_placement(&temp, target, store_path).map(|()| true)
 }
 
-fn imports_link_target(target: &Path, link_target: &Path, roots: SymlinkRoots<'_>) -> bool {
-    let written_dir = pnpm_fs::lexical_normalize(roots.written_dir);
-    let link_dir = target.parent().unwrap_or(roots.written_dir);
-    let resolved = pnpm_fs::lexical_normalize(&link_dir.join(link_target));
-    resolved
-        .strip_prefix(&written_dir)
-        .ok()
-        .and_then(Path::to_str)
-        .is_some_and(|rel| roots.imported.contains(rel.replace('\\', "/").as_str()))
+fn stage_symlink(
+    link_target: &Path,
+    is_dir: bool,
+    store_path: &Path,
+    target: &Path,
+    roots: SymlinkRoots<'_>,
+) -> Result<PathBuf, ImportIndexedDirError> {
+    let temp = super::super::staging::pick_stage_path(target);
+    let created = if is_dir {
+        let final_target = final_link_target(target, link_target, roots);
+        pnpm_fs::symlink_dir_with_contents(&final_target, link_target, &temp)
+    } else {
+        pnpm_fs::symlink_file_or_copy(link_target, store_path, &temp)
+    };
+    if let Err(error) = created {
+        let _ = pnpm_fs::remove_dirent(&temp);
+        return Err(import_link_error(store_path, target, error));
+    }
+    Ok(temp)
+}
+
+fn import_link_error(
+    store_path: &Path,
+    target: &Path,
+    error: std::io::Error,
+) -> ImportIndexedDirError {
+    ImportIndexedDirError::LinkFile(crate::link_file::LinkFileError::Import {
+        from: store_path.to_path_buf(),
+        to: target.to_path_buf(),
+        error,
+    })
 }
 
 /// The absolute path `link_target` resolves to from `target` once the

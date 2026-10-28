@@ -7,7 +7,7 @@ auth:
     file: ./htpasswd
     # Maximum amount of users allowed to register. Set to -1 by default;
     # test harnesses patch this to allow test user registration.
-    max_users: -1
+    maxUsers: -1
 
 registries:
   # The locally-hosted fixtures (and anything published during tests).
@@ -79,6 +79,7 @@ registries:
       'test-unpublish-force': *default-rules
       'test-unpublish-no-force': *default-rules
       'test-unpublish-no-ver': *default-rules
+      'test-unpublish-only-version': *default-rules
       'test-unpublish-version': *default-rules
       'workspace-package-with-default-catalog': *default-rules
       'workspace-package-with-named-catalog': *default-rules
@@ -89,6 +90,10 @@ registries:
     type: upstream
     url: https://registry.npmjs.org/
     public: true
+    # The default breaker stays open for 5m after two failures, longer than
+    # pnpm's fetch retries, so one network blip fails every npm request
+    # until the cooldown ends.
+    maxFails: 0
 
   # Router combining local fixtures and upstream npm.
   main:

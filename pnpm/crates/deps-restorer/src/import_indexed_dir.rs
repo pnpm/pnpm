@@ -1,4 +1,5 @@
 pub use placement::marker_present;
+pub use pnpm_fs::SymlinkTargets;
 
 mod hardlinks;
 mod placement;
@@ -62,18 +63,6 @@ pub struct ImportIndexedDirOpts<'a> {
     /// installs under the same modules directory. `None` replaces
     /// unserialized.
     pub swap_lock: Option<&'a ModulesSwapLock>,
-}
-
-/// The source symlinks an import recreates. Either way, a link whose
-/// target leads out of the package is refused.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SymlinkTargets {
-    /// Only links whose target is imported too. A file link to a target
-    /// left out is imported as a file, and a directory link is left out.
-    Imported,
-    /// Also a directory link whose target is left out. A file link to a
-    /// target left out is still imported as a file.
-    Internal,
 }
 
 /// Error type for [`import_indexed_dir`].

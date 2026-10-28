@@ -40,6 +40,7 @@ fn captures_unselected_workspace_projects_reached_by_workspace_dependencies() {
         prune_stale_importers: false,
         project_scripts_current: false,
         dependency_manifests: None,
+        workspace_projects: None,
     };
 
     assert_eq!(

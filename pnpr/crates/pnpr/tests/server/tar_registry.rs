@@ -1,3 +1,5 @@
+#[path = "tar_registry/hosted_tars.rs"]
+mod hosted_tars;
 #[path = "tar_registry/mutations.rs"]
 mod mutations;
 
@@ -8,7 +10,7 @@ use super::{
     sha512_integrity, tar_of,
 };
 use crate::tokens::issue_token;
-use pnpr_storage::layout::encode_segment;
+use pnpr_storage::layout::package_segments;
 
 fn widget_tar() -> Vec<u8> {
     tar_of(&[("package/package.json", br#"{"name":"@acme/widget","version":"1.0.0"}"#)])
@@ -194,7 +196,10 @@ async fn an_upstream_version_gains_its_tar_integrity_once_its_tar_was_served() {
     assert!(
         tmp.path()
             .join(".tar-integrity/packages")
-            .join(encode_segment("left-pad"))
+            .join(std::path::PathBuf::from_iter(package_segments(
+                pnpr_storage::Ecosystem::Npm,
+                "left-pad"
+            )))
             .join("document.json")
             .is_file(),
         "the tar integrity lives in the shared hosted storage",
@@ -679,7 +684,12 @@ async fn spoofed_dist_pnpr_is_stripped_and_replaced_by_tar_verified_requires_bui
     // `fileCount`/`unpackedSize` were persisted in `package.json`, while
     // `.tar-integrities` has the verified values: round-tripping `GET /:pkg`
     // into `PUT /:pkg/-rev/:rev` must still succeed.
-    let legacy_path = pnpr_storage::layout::local_document_path(tmp.path(), "acme", "@acme/native");
+    let legacy_path = pnpr_storage::layout::local_document_path(
+        tmp.path(),
+        "acme",
+        pnpr_storage::Ecosystem::Npm,
+        "@acme/native",
+    );
     let mut legacy_doc: serde_json::Value =
         serde_json::from_slice(&std::fs::read(&legacy_path).unwrap()).unwrap();
     let legacy_dist = legacy_doc["versions"]["1.0.0"]["dist"].as_object_mut().unwrap();

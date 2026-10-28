@@ -1,5 +1,6 @@
 use crate::{
-    EnvLockfile, Lockfile, ProjectSnapshot, extract_env_document, extract_main_document,
+    ComVer, EnvLockfile, Lockfile, LockfileVersion, ProjectSnapshot, extract_env_document,
+    extract_main_document,
     git_merge_file::{MERGE_CONFLICT_OURS, ParsedWantedFile, parse_wanted_file},
     load_lockfile::repair_document::prepare_value_for_fix,
     merge_lockfile_changes,
@@ -7,6 +8,7 @@ use crate::{
 use derive_more::{Display, Error};
 use pipe_trait::Pipe;
 use pnpm_diagnostics::miette::{self, Diagnostic};
+use serde::Deserialize;
 use serde_saphyr::MessageFormatter;
 use std::{
     collections::HashMap,
@@ -132,6 +134,26 @@ impl Lockfile {
     ) -> Result<Option<Self>, LoadLockfileError> {
         let file_path = install_state_dir.join(Lockfile::CURRENT_FILE_NAME);
         Self::load_from_path(&file_path)
+    }
+
+    /// The `lockfileVersion` of the lockfile at `file_path` when
+    /// [`LockfileVersion`] rejects it, which makes every load of that file
+    /// fail. `None` when the file is absent or its version is accepted or
+    /// unreadable.
+    pub fn unsupported_version_at(file_path: &Path) -> Result<Option<ComVer>, LoadLockfileError> {
+        #[derive(Deserialize)]
+        #[serde(rename_all = "camelCase")]
+        struct VersionField {
+            lockfile_version: ComVer,
+        }
+        let Some(content) = read_lockfile_text(file_path)? else { return Ok(None) };
+        let main = extract_main_document(&content);
+        let Ok(VersionField { lockfile_version }) =
+            serde_saphyr::from_str_with_options(&main, yaml_parse_options(main.len()))
+        else {
+            return Ok(None);
+        };
+        Ok((!LockfileVersion::<9>::is_compatible(lockfile_version)).then_some(lockfile_version))
     }
 
     /// Load the wanted lockfile (`<dir>/pnpm-lock.yaml`) — a

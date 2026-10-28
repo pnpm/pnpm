@@ -39,7 +39,7 @@ fn config_from_yaml(packages_block: &str) -> (TempDir, Config) {
         .collect::<Vec<_>>()
         .join("\n");
     let yaml = format!(
-        "storage: {}\nauth:\n  htpasswd:\n    max_users: 100\nregistries:\n  \
+        "storage: {}\nauth:\n  htpasswd:\n    maxUsers: 100\nregistries:\n  \
          local:\n    type: hosted\n    org: \"\"\n    access: $all\n    packages:\n{nested}\n  \
          main:\n    type: router\n    sources: [local]\n\
          defaultRegistry: main\n",

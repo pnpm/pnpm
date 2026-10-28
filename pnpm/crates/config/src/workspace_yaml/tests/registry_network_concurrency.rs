@@ -93,7 +93,7 @@ fn the_resolved_view_keeps_a_prefixed_registry_in_one_entry() {
         .filter(|(registry, _)| registry.contains("npm.corp.example"))
         .collect();
     assert_eq!(corp.len(), 1, "{resolved:?}");
-    assert_eq!(corp[0].1.prefix.as_deref(), Some("work"));
+    assert_eq!(corp[0].1.prefixes.prefix.as_deref(), Some("work"));
     assert_eq!(corp[0].1.network_concurrency, limit(4));
 }
 

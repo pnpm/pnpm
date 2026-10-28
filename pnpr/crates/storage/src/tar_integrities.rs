@@ -9,23 +9,18 @@ use std::{
 
 /// The tar integrity, build-trigger verdict, unpacked file statistics, and
 /// precalculated bin targets derived from one `.tgz`.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DerivedTar {
     pub tar_integrity: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub requires_build: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub file_count: Option<u64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub unpacked_size: Option<u64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub bins: Option<BTreeMap<String, PackageBin>>,
-    /// `true` once the `.tgz` has been scanned for tar metadata, even when
-    /// `requires_build` is `None` (unparsable `package.json`). `false` only
-    /// for a legacy string entry written before tar scanning existed.
-    #[serde(skip)]
-    pub scanned: bool,
 }
 
 impl DerivedTar {
@@ -36,14 +31,12 @@ impl DerivedTar {
         file_count: Option<u64>,
         unpacked_size: Option<u64>,
     ) -> Self {
-        let scanned = file_count.is_some() && unpacked_size.is_some();
         Self {
             tar_integrity: tar_integrity.into(),
             requires_build,
             file_count,
             unpacked_size,
             bins: None,
-            scanned,
         }
     }
 
@@ -53,57 +46,19 @@ impl DerivedTar {
         self
     }
 
+    /// Whether the `.tgz` has been scanned for tar file statistics.
+    #[must_use]
+    pub const fn is_scanned(&self) -> bool {
+        self.file_count.is_some() && self.unpacked_size.is_some()
+    }
+
     /// Whether this record includes the full set of metadata derived by the
     /// current tar scanner (file stats plus precalculated bins when the
     /// package does not require a build).
     #[must_use]
-    pub fn is_fully_scanned(&self) -> bool {
-        self.scanned && (self.requires_build != Some(false) || self.bins.is_some())
-    }
-}
-
-#[derive(Deserialize)]
-#[serde(untagged)]
-enum StoredDerivedTar {
-    Legacy(String),
-    Record {
-        #[serde(rename = "tarIntegrity")]
-        tar_integrity: String,
-        #[serde(default, rename = "requiresBuild")]
-        requires_build: Option<bool>,
-        #[serde(default, rename = "fileCount")]
-        file_count: Option<u64>,
-        #[serde(default, rename = "unpackedSize")]
-        unpacked_size: Option<u64>,
-        #[serde(default)]
-        bins: Option<BTreeMap<String, PackageBin>>,
-    },
-}
-
-impl<'de> Deserialize<'de> for DerivedTar {
-    fn deserialize<Deserializer: serde::Deserializer<'de>>(
-        deserializer: Deserializer,
-    ) -> std::result::Result<Self, Deserializer::Error> {
-        match StoredDerivedTar::deserialize(deserializer)? {
-            StoredDerivedTar::Legacy(tar_integrity) => Ok(Self {
-                tar_integrity,
-                requires_build: None,
-                file_count: None,
-                unpacked_size: None,
-                bins: None,
-                scanned: false,
-            }),
-            StoredDerivedTar::Record {
-                tar_integrity,
-                requires_build,
-                file_count,
-                unpacked_size,
-                bins,
-            } => {
-                let scanned = file_count.is_some() && unpacked_size.is_some();
-                Ok(Self { tar_integrity, requires_build, file_count, unpacked_size, bins, scanned })
-            }
-        }
+    pub const fn is_fully_scanned(&self) -> bool {
+        self.is_scanned()
+            && (!matches!(self.requires_build, Some(false)) || self.bins.is_some())
     }
 }
 
@@ -269,7 +224,7 @@ fn is_tar_entry_recorded(
         .is_some_and(|known| {
             known == derived
                 || (known.tar_integrity == derived.tar_integrity
-                    && known.scanned
+                    && known.is_scanned()
                     && (derived.requires_build.is_none()
                         || known.requires_build == derived.requires_build)
                     && (derived.file_count.is_none() || known.file_count == derived.file_count)
@@ -300,7 +255,6 @@ fn insert_tar_entry(
             file_count,
             unpacked_size,
             bins: derived.bins.or_else(|| previous.and_then(|known| known.bins.clone())),
-            scanned: file_count.is_some() && unpacked_size.is_some(),
         },
     );
 }

@@ -30,6 +30,7 @@ use std::{
 /// for the fast-override pre-pass. Only the consuming project's directory
 /// and its preferred-versions seed vary — see [`Self::build`].
 pub(super) struct SharedResolveOptions<'a> {
+    pub locked_package_policy: pnpm_resolving_resolver_base::LockedPackagePolicy,
     pub policy: pnpm_resolving_resolver_base::ResolutionPolicyOptions,
     pub config: &'a Config,
     pub lockfile_dir: &'a Path,
@@ -66,6 +67,7 @@ impl SharedResolveOptions<'_> {
                 refresh_metadata: self.refresh_metadata,
                 ..Default::default()
             },
+            locked_package_policy: self.locked_package_policy,
             policy: pnpm_resolving_resolver_base::ResolutionPolicyOptions {
                 fallback_published_by: None,
                 published_by: self.policy.published_by,
@@ -149,6 +151,8 @@ pub(super) struct WorkspaceWalk {
     pub registries: HashMap<String, String>,
     pub registries_by_prefix: HashMap<String, String>,
     pub declared_prefixes: pnpm_lockfile::DeclaredRegistryPrefixes,
+    /// See [`pnpm_lockfile::RegistryContext::locked_registries`].
+    pub locked_registries: Option<HashMap<String, String>>,
 }
 
 /// What every importer's resolve reads, and the walk reads alongside.
@@ -241,6 +245,7 @@ impl WorkspaceWalk {
                 registries_by_prefix: self.registries_by_prefix,
                 declared_prefixes: self.declared_prefixes,
                 registry_options_by_url: config.registry_options_by_url.clone(),
+                locked_registries: self.locked_registries,
             },
             share_workspace_resolutions: self.share_workspace_resolutions,
             allowed_deprecated_versions: config.allowed_deprecated_versions.clone(),

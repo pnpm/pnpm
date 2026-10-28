@@ -976,6 +976,9 @@ fn read_normalized_modules_manifest(modules_dir: &Path) -> Modules {
     if manifest.allow_builds.as_ref().is_some_and(BTreeMap::is_empty) {
         manifest.allow_builds = None;
     }
+    if manifest.ignored_builds.as_ref().is_some_and(indexmap::IndexSet::is_empty) {
+        manifest.ignored_builds = None;
+    }
     if let Some(hoisted_locations) = &mut manifest.hoisted_locations {
         normalize_dir_map(hoisted_locations);
     }
@@ -1084,6 +1087,26 @@ impl TreeView {
         self.memo.insert(real, described.clone());
         described
     }
+}
+
+/// Where Node.js finds each dependency `project_dir` declares from the
+/// registry, every group included. Workspace dependencies are left out.
+#[must_use]
+pub fn registry_dependency_dirs(project_dir: &Path) -> Vec<(String, Option<PathBuf>)> {
+    let manifest = read_manifest_or_null(project_dir);
+    declared_dependencies(&manifest, &["dependencies", "optionalDependencies", "devDependencies"])
+        .into_iter()
+        .filter(|name| {
+            ["dependencies", "optionalDependencies", "devDependencies"]
+                .iter()
+                .filter_map(|group| manifest[*group][name].as_str())
+                .all(|spec| !spec.starts_with("workspace:"))
+        })
+        .map(|name| {
+            let dir = resolve_node_modules_package(project_dir, &name);
+            (name, dir)
+        })
+        .collect()
 }
 
 fn read_manifest_or_null(dir: &Path) -> Value {

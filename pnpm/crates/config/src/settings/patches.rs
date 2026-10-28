@@ -1,5 +1,5 @@
 use crate::{
-    BTreeMap, CalcPatchHashError, Config, IndexMap, PatchGroupRecord, PatchInput, Path,
+    BTreeMap, CalcPatchHashError, Config, IndexMap, PatchGroupRecord, PatchInput, Path, PathBuf,
     ResolvePatchedDependenciesError, create_hex_hash_from_file, group_patched_dependencies,
     resolve_and_group,
 };
@@ -64,14 +64,26 @@ impl Config {
         };
         let mut hashes = IndexMap::with_capacity(raw.len());
         for (key, rel_or_abs) in raw {
-            let candidate = Path::new(rel_or_abs);
-            let path = if candidate.is_absolute() {
-                candidate.to_path_buf()
-            } else {
-                workspace_dir.join(candidate)
-            };
+            let path = resolve_patch_file(workspace_dir, rel_or_abs);
             hashes.insert(key.clone(), create_hex_hash_from_file(&path)?);
         }
         Ok((!hashes.is_empty()).then_some(hashes))
     }
+
+    /// The patch files [`Self::patched_dependency_hashes`] hashes. Empty when
+    /// [`Config::workspace_dir`] is unset.
+    pub fn patch_file_paths(&self) -> impl Iterator<Item = PathBuf> + '_ {
+        self.workspace_dir
+            .as_deref()
+            .zip(self.patched_dependencies.as_ref())
+            .into_iter()
+            .flat_map(|(workspace_dir, raw)| {
+                raw.values().map(move |rel_or_abs| resolve_patch_file(workspace_dir, rel_or_abs))
+            })
+    }
+}
+
+fn resolve_patch_file(workspace_dir: &Path, rel_or_abs: &str) -> PathBuf {
+    let candidate = Path::new(rel_or_abs);
+    if candidate.is_absolute() { candidate.to_path_buf() } else { workspace_dir.join(candidate) }
 }

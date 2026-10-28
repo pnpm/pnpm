@@ -709,3 +709,40 @@ fn force_symlink_inner_surfaces_a_conflict_that_never_materializes() {
 
     assert_eq!(error.kind(), std::io::ErrorKind::AlreadyExists);
 }
+
+/// The unlink-and-recreate of a stale link is spent once. A filesystem that
+/// reports the unlink done but keeps serving the stale link (a virtual
+/// `node_modules` mapped from a lockfile does) gets an error back, not another
+/// unlink: every pass is a stack frame, and the passes would not end.
+#[cfg(unix)]
+#[test]
+fn force_symlink_inner_gives_up_on_a_stale_link_that_survives_removal() {
+    fn stale_link_survives(_: &std::path::Path, link: &std::path::Path) -> std::io::Result<()> {
+        // Put the stale link back before reporting the conflict, the way a
+        // filesystem that ignores the unlink looks to the caller.
+        let stale_target = link.with_file_name("old-target");
+        match std::os::unix::fs::symlink(&stale_target, link) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
+            Err(error) => return Err(error),
+        }
+        Err(std::io::Error::from(std::io::ErrorKind::AlreadyExists))
+    }
+
+    let root = tempdir().expect("create temp dir");
+    let stale_target = root.path().join("old-target");
+    let fresh_target = root.path().join("new-target");
+    let link = root.path().join("link");
+    fs::create_dir_all(&stale_target).expect("create stale target");
+    fs::create_dir_all(&fresh_target).expect("create fresh target");
+
+    let error =
+        super::force_symlink_inner(&fresh_target, &link, TriedOnce::default(), stale_link_survives)
+            .expect_err("a stale link that survives its removal must surface the conflict");
+
+    assert_eq!(error.kind(), std::io::ErrorKind::AlreadyExists);
+    assert!(
+        error.to_string().contains("still does after it was removed"),
+        "the error names the stale link that could not be retargeted: {error}",
+    );
+}

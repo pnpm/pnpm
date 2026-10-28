@@ -8,7 +8,6 @@ pub(super) fn check_settings_match_lockfile(
     check: &OptimisticRepeatInstallCheck<'_>,
     wanted: &Lockfile,
     parsed_overrides: Option<&[pnpm_config_parse_overrides::VersionOverride]>,
-    dedupe_peers: bool,
 ) -> Result<(), &'static str> {
     if let Err(error) = crate::install::check_lockfile_settings_drift(
         wanted,
@@ -23,7 +22,6 @@ pub(super) fn check_settings_match_lockfile(
             // the checksum would cost a Node worker on the path that exists to avoid
             // starting one.
             pnpmfile_checksum: pnpm_lockfile::PnpmfileChecksumCheck::Skip,
-            dedupe_peers,
         },
     ) {
         tracing::debug!(target: "pacquet::install", %error, "repeat-install content check: lockfile settings drift");

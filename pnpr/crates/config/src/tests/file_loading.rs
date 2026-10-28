@@ -38,16 +38,16 @@ routes:
 #[test]
 fn from_yaml_str_accepts_string_and_bare_number_intervals() {
     use std::time::Duration;
-    // `maxage` is a string, `timeout` a bare number (verdaccio accepts
-    // both); the bare number must read as seconds rather than failing to
-    // deserialize against the `Option<String>`-shaped field.
+    // `maxAge` is a string, `timeout` a bare number; the bare number must
+    // read as seconds rather than failing to deserialize against the
+    // `Option<String>`-shaped field.
     let yaml = r"
 registries:
   npmjs:
     type: upstream
     url: https://registry.npmjs.org/
     public: true
-    maxage: 10m
+    maxAge: 10m
     timeout: 45
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
@@ -438,38 +438,38 @@ fn config_rejects_unknown_fields_across_subsystems() {
 }
 
 #[test]
-fn config_accepts_camel_case_and_snake_case_aliases() {
+fn config_accepts_camel_case_fields() {
     let yaml = "\
 storage: ./storage
-packument_ttl: 42s
-request_timeout: 55s
-trusted_proxies: [127.0.0.1]
-trusted_proxy_header: x-real-ip
+packumentTtl: 42s
+requestTimeout: 55s
+trustedProxies: [127.0.0.1]
+trustedProxyHeader: x-real-ip
 cors:
-  allowed_origins: ['https://example.com']
+  allowedOrigins: ['https://example.com']
 routes:
-  allowed_private_networks: ['10.0.0.0/8']
+  allowedPrivateNetworks: ['10.0.0.0/8']
 auth:
   htpasswd:
-    max_users: 10
+    maxUsers: 10
 backend:
   libsql:
     url: libsql://test.db
-    auth_token: secret
-    replica_path: ./replica.db
-    sync_interval: 15s
+    authToken: secret
+    replicaPath: ./replica.db
+    syncInterval: 15s
 registries:
   npm:
     type: hosted
-    teams_managed_by: api
-    rules_managed_by: api
+    teamsManagedBy: api
+    rulesManagedBy: api
   remote:
     type: upstream
     url: https://registry.npmjs.org/
     access: [$all]
-    max_fails: 4
-    fail_timeout: 25s
-    max_age: 12m
+    maxFails: 4
+    failTimeout: 25s
+    maxAge: 12m
     auth:
       type: bearer
       token: secret-token

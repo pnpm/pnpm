@@ -9,24 +9,48 @@ use crate::cli_args::{
     reporter::{CliReporter, EventFilter},
 };
 
+pub(crate) enum PlanExecution {
+    Switched,
+    Continue(Box<Option<Config>>),
+}
+
+/// Carry out what the pre-command checks planned. Returns whether the command
+/// has already been run by a delegated pnpm, or the already-loaded full
+/// [`Config`] to reuse when continuing.
+pub(crate) async fn execute_plan_reusing_config(
+    plan: PreCommandPlan,
+    child_argv: &[OsString],
+) -> miette::Result<PlanExecution> {
+    match plan {
+        PreCommandPlan::Switch(plan) => {
+            if execute_switch(plan, child_argv).await? {
+                Ok(PlanExecution::Switched)
+            } else {
+                Ok(PlanExecution::Continue(Box::new(None)))
+            }
+        }
+        PreCommandPlan::SyncEnvLockfile(sync) => {
+            let config = Box::pin(sync_env_lockfile(sync)).await?;
+            Ok(PlanExecution::Continue(Box::new(Some(config))))
+        }
+    }
+}
+
 /// Carry out what the pre-command checks planned. Returns whether the command
 /// has already been run by a delegated pnpm, in which case the caller is done.
 pub(crate) async fn execute_plan(
     plan: PreCommandPlan,
     child_argv: &[OsString],
 ) -> miette::Result<bool> {
-    match plan {
-        PreCommandPlan::Switch(plan) => execute_switch(plan, child_argv).await,
-        PreCommandPlan::SyncEnvLockfile(sync) => {
-            Box::pin(sync_env_lockfile(sync)).await?;
-            Ok(false)
-        }
-    }
+    Ok(matches!(
+        Box::pin(execute_plan_reusing_config(plan, child_argv)).await?,
+        PlanExecution::Switched,
+    ))
 }
 
 /// A frozen lockfile records nothing new, so the maturity lookup is skipped
 /// there: the sync only checks the entry it already has.
-async fn sync_env_lockfile(sync: EnvLockfileSync) -> miette::Result<()> {
+async fn sync_env_lockfile(sync: EnvLockfileSync) -> miette::Result<Config> {
     let EnvLockfileSync {
         config,
         env_root,
@@ -38,7 +62,7 @@ async fn sync_env_lockfile(sync: EnvLockfileSync) -> miette::Result<()> {
             mature_version_to_record(&config, &package_manager.specifier, &package_manager.version)
                 .await
         else {
-            return Ok(());
+            return Ok(config);
         };
         version
     } else {
@@ -53,7 +77,7 @@ async fn sync_env_lockfile(sync: EnvLockfileSync) -> miette::Result<()> {
         false,
     )
     .await?;
-    Ok(())
+    Ok(config)
 }
 
 async fn execute_switch(plan: SwitchPlan, child_argv: &[OsString]) -> miette::Result<bool> {

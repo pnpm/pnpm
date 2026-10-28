@@ -18,6 +18,28 @@ export function builtProjectBinPackages (modulesDir: string, dependencies: Recor
   return packages
 }
 
+export function getHoistedModulesDir (state: RebuildState): string {
+  return state.ctx.hoistedModulesDir ?? path.join(state.ctx.virtualStoreDir, 'node_modules')
+}
+
+export function builtHoistedBinPackages (state: RebuildState): Set<string> {
+  const hoistedModulesDir = getHoistedModulesDir(state)
+  const packages = new Set<string>()
+  for (const depPath of state.builtDepPaths) {
+    for (const pkgRoot of privateHoistedPkgRoots(depPath as DepPath, state, hoistedModulesDir)) {
+      packages.add(path.normalize(pkgRoot))
+    }
+  }
+  return packages
+}
+
+export function privateHoistedPkgRoots (depPath: DepPath, state: RebuildState, hoistedModulesDir = getHoistedModulesDir(state)): string[] {
+  const aliases = state.ctx.modulesFile?.hoistedDependencies[depPath] ?? {}
+  return Object.entries(aliases)
+    .filter(([, visibility]) => visibility === 'private')
+    .map(([alias]) => safeJoinModulesDir(hoistedModulesDir, alias))
+}
+
 export function builtBinPackages (modulesDir: string, dependencies: Record<string, string>, state: RebuildState): Set<string> {
   return new Set(Object.entries(dependencies)
     .filter(([alias, reference]) => {

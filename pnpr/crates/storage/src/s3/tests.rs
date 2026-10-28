@@ -1,7 +1,7 @@
 use super::{Body, ObjectStore, S3Store};
 use crate::DocumentWrite;
 use futures_util::TryStreamExt;
-use object_store::{ObjectStoreExt, PutPayload, memory::InMemory, path::Path as ObjectPath};
+use object_store::{PutPayload, memory::InMemory};
 use pnpr_config::S3Settings;
 use pnpr_package_name::CanonicalPackageName;
 use std::sync::Arc;
@@ -350,21 +350,32 @@ async fn multipart_streams_large_files_in_bounded_parts_and_aborts_failures() {
 #[tokio::test]
 async fn maintenance_inventory_includes_nested_and_unmanifested_repositories() {
     let (store, _staging) = store_with_prefix("images");
+    let store = store.with_ecosystem(pnpr_package_name::Ecosystem::Oci);
     let parent =
         CanonicalPackageName::parse("acme/app", pnpr_package_name::Ecosystem::Oci).unwrap();
     let child =
         CanonicalPackageName::parse("acme/app/tool", pnpr_package_name::Ecosystem::Oci).unwrap();
+    let blobs_repo =
+        CanonicalPackageName::parse("acme/blobs", pnpr_package_name::Ecosystem::Oci).unwrap();
     upload(&store, &parent, "sha256-parent", b"parent").await;
     upload(&store, &child, "sha256-child", b"child").await;
+    upload(&store, &blobs_repo, "sha256-blobs-repo", b"blobs-repo").await;
     write_document(&store, &parent, b"{}").await;
+    write_document(&store, &blobs_repo, b"{}").await;
     let files =
         crate::HostedBackend::list_blob_files(&store).try_collect::<Vec<_>>().await.unwrap();
-    assert_eq!(files.len(), 3);
+    assert_eq!(files.len(), 5);
     assert!(
         files
             .iter()
             .any(|file| file.package == "acme/app/tool"
                 && file.blob.as_deref() == Some("sha256-child")),
+    );
+    assert!(
+        files
+            .iter()
+            .any(|file| file.package == "acme/blobs"
+                && file.blob.as_deref() == Some("sha256-blobs-repo")),
     );
 
     let (store, _staging) = store_with_prefix("npm~internal");
@@ -470,11 +481,11 @@ async fn creating_a_record_twice_leaves_the_first_one() {
 #[tokio::test]
 async fn record_keys_are_listed_relative_to_their_namespace() {
     let (store, _staging) = store_with_prefix("bucket-prefix/");
-    store.create_record(".pipeline-runs/v0", "demo/100.json", b"{}").await.unwrap();
-    store.create_record(".pipeline-runs/v0", "other/200.json", b"{}").await.unwrap();
+    store.create_record(".pipeline-runs", "demo/100.json", b"{}").await.unwrap();
+    store.create_record(".pipeline-runs", "other/200.json", b"{}").await.unwrap();
     store.create_record(".staged", "stage.json", b"{}").await.unwrap();
 
-    let mut keys = store.list_record_keys(".pipeline-runs/v0").await.unwrap();
+    let mut keys = store.list_record_keys(".pipeline-runs").await.unwrap();
     keys.sort();
     assert_eq!(keys, ["demo/100.json", "other/200.json"]);
     assert_eq!(store.list_record_keys(".staged").await.unwrap(), ["stage.json"]);
@@ -499,142 +510,5 @@ async fn empty_records_can_be_created_read_replaced_and_listed() {
             .unwrap()
             .as_deref(),
         Some(&b"non-empty"[..]),
-    );
-}
-
-#[tokio::test]
-async fn remove_record_if_current_requires_matching_content() {
-    let (store, _staging) = store_with_prefix("");
-    store.create_record(".staged", "stage.json", br#"{"id":"stage"}"#).await.unwrap();
-
-    let removed = store
-        .remove_record_if_current(".staged", "stage.json", br#"{"id":"wrong"}"#)
-        .await
-        .unwrap();
-    assert!(!removed);
-    assert_eq!(
-        store
-            .read_record(".staged", "stage.json")
-            .await
-            .unwrap()
-            .as_deref(),
-        Some(&br#"{"id":"stage"}"#[..]),
-    );
-
-    let removed = store
-        .remove_record_if_current(".staged", "stage.json", br#"{"id":"stage"}"#)
-        .await
-        .unwrap();
-    assert!(removed);
-    assert_eq!(store.read_record(".staged", "stage.json").await.unwrap(), None);
-}
-
-#[derive(Debug)]
-struct ReplaceOnGetStore {
-    inner: Arc<dyn ObjectStore>,
-    target_path: ObjectPath,
-    replacement: Vec<u8>,
-    replaced: std::sync::atomic::AtomicBool,
-}
-
-impl std::fmt::Display for ReplaceOnGetStore {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "ReplaceOnGetStore")
-    }
-}
-
-#[async_trait::async_trait]
-impl ObjectStore for ReplaceOnGetStore {
-    async fn put_opts(
-        &self,
-        location: &ObjectPath,
-        payload: PutPayload,
-        opts: object_store::PutOptions,
-    ) -> object_store::Result<object_store::PutResult> {
-        self.inner.put_opts(location, payload, opts).await
-    }
-
-    async fn put_multipart_opts(
-        &self,
-        location: &ObjectPath,
-        opts: object_store::PutMultipartOptions,
-    ) -> object_store::Result<Box<dyn object_store::MultipartUpload>> {
-        self.inner.put_multipart_opts(location, opts).await
-    }
-
-    async fn get_opts(
-        &self,
-        location: &ObjectPath,
-        options: object_store::GetOptions,
-    ) -> object_store::Result<object_store::GetResult> {
-        let result = self.inner.get_opts(location, options).await?;
-        if location == &self.target_path
-            && !self.replaced.swap(true, std::sync::atomic::Ordering::SeqCst)
-        {
-            self.inner.put(location, PutPayload::from(self.replacement.clone())).await?;
-        }
-        Ok(result)
-    }
-
-    fn delete_stream(
-        &self,
-        locations: futures_util::stream::BoxStream<'static, object_store::Result<ObjectPath>>,
-    ) -> futures_util::stream::BoxStream<'static, object_store::Result<ObjectPath>> {
-        self.inner.delete_stream(locations)
-    }
-
-    fn list(
-        &self,
-        prefix: Option<&ObjectPath>,
-    ) -> futures_util::stream::BoxStream<'static, object_store::Result<object_store::ObjectMeta>>
-    {
-        self.inner.list(prefix)
-    }
-
-    async fn list_with_delimiter(
-        &self,
-        prefix: Option<&ObjectPath>,
-    ) -> object_store::Result<object_store::ListResult> {
-        self.inner.list_with_delimiter(prefix).await
-    }
-
-    async fn copy_opts(
-        &self,
-        from: &ObjectPath,
-        to: &ObjectPath,
-        options: object_store::CopyOptions,
-    ) -> object_store::Result<()> {
-        self.inner.copy_opts(from, to, options).await
-    }
-}
-
-#[tokio::test]
-async fn remove_record_if_current_preserves_concurrent_replacement() {
-    let staging = tempdir().expect("tempdir");
-    let inner: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
-    let target_path = ObjectPath::from(".staged/stage.json");
-    let hook_store = Arc::new(ReplaceOnGetStore {
-        inner: Arc::clone(&inner),
-        target_path,
-        replacement: br#"{"id":"stage","v":2}"#.to_vec(),
-        replaced: std::sync::atomic::AtomicBool::new(false),
-    });
-    let store = S3Store::new(hook_store, String::new(), staging.path().to_path_buf());
-
-    store.create_record(".staged", "stage.json", br#"{"id":"stage"}"#).await.unwrap();
-
-    let removed = store
-        .remove_record_if_current(".staged", "stage.json", br#"{"id":"stage"}"#)
-        .await
-        .unwrap();
-    assert!(!removed);
-
-    assert_eq!(
-        store
-            .read_record(".staged", "stage.json")
-            .await
-            .unwrap()
-            .as_deref(),
-        Some(&br#"{"id":"stage","v":2}"#[..]),
     );
 }

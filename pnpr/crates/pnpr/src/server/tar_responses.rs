@@ -6,6 +6,9 @@
 //!   encodes at its default level.
 //! - neither: the decoded tar.
 //!
+//! A hosted tar registry stores no `.tgz`, only the level-19 tar (see
+//! [`stored_tar_response`]).
+//!
 //! A cached upstream `.tgz` is served without a re-check against the current
 //! packument, and a client of a tar registry may have no tar hash to check what
 //! it receives. Its bytes are checked against the version's `.tgz` integrity
@@ -19,7 +22,7 @@ pub(super) use decode::{
 
 use super::{AppState, CanonicalPackageName, HeaderMap, Response, TarCopy, header, open_variant};
 use axum::body::Body;
-use decode::{DerivedFrom, gunzip_body};
+use decode::{DerivedFrom, gunzip_body, unzstd_body};
 use negotiation::{TarCoding, preferred_coding};
 use pnpr_storage::{Storage, streaming};
 use ssri::Integrity;
@@ -85,6 +88,32 @@ pub(super) async fn tar_response(
         }
         TarCoding::Gzip => gzip_response(storage.clone(), tgz, source),
         TarCoding::Identity => decoded_response(state, tgz, source, None),
+    }
+}
+
+/// Serve `stored`, a hosted tar registry's level-19 zstd tar, as the request
+/// accepts: the stored bytes to a `zstd` client, else the tar decoded, which
+/// the response compression layer encodes for a `gzip` client.
+pub(super) fn stored_tar_response(
+    state: &AppState,
+    headers: &HeaderMap,
+    stored: Response,
+) -> Response {
+    match preferred_coding(headers) {
+        TarCoding::Zstd => {
+            let len = stored
+                .headers()
+                .get(header::CONTENT_LENGTH)
+                .and_then(|value| value.to_str().ok()?.parse().ok());
+            let (parts, body) = stored.into_parts();
+            encoded_response(Response::from_parts(parts, Body::empty()), body, len, "zstd")
+        }
+        TarCoding::Gzip | TarCoding::Identity => {
+            let (mut parts, body) = stored.into_parts();
+            describe_tar_headers(&mut parts.headers);
+            let decodes = std::sync::Arc::clone(&state.inner.proxy.tar_decodes);
+            Response::from_parts(parts, unzstd_body(body, decodes))
+        }
     }
 }
 

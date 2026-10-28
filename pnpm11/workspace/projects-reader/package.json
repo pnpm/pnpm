@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/workspace.projects-reader",
-  "version": "1101.1.5",
+  "version": "1101.1.6",
   "description": "Finds packages inside a workspace",
   "keywords": [
     "pnpm",

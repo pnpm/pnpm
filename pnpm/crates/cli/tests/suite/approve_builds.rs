@@ -32,9 +32,76 @@ fn rebuild_refreshes_nested_hoisted_bins_before_a_dependent_build() {
 }
 
 #[cfg(unix)]
-fn assert_rebuild_refreshes_replaced_bin(linker: &str, nested: bool) {
+#[test]
+fn install_and_rebuild_refresh_privately_hoisted_bins_for_transitive_dependents() {
     let harness = CommandTempCwd::init();
-    let package = harness.root.path().join("package");
+    write_replaced_bin_fixture(harness.root.path());
+    let middle = harness.root.path().join("middle");
+    fs::create_dir(&middle).expect("create middle dependency");
+    fs::write(
+        middle.join("package.json"),
+        r#"{"name":"middle","version":"1.0.0","dependencies":{"replaced-bin":"file:../package"}}"#,
+    )
+    .expect("write middle manifest");
+    let parent = harness.root.path().join("parent");
+    fs::create_dir(&parent).expect("create parent dependency");
+    fs::write(
+        parent.join("package.json"),
+        r#"{"name":"parent","version":"1.0.0","dependencies":{"middle":"file:../middle"},"scripts":{"postinstall":"tool > parent-built"}}"#,
+    )
+    .expect("write parent manifest");
+    fs::write(
+        harness.workspace.join("package.json"),
+        r#"{"dependencies":{"parent":"file:../parent"}}"#,
+    )
+    .expect("write project manifest");
+    fs::write(
+        harness.workspace.join("pnpm-workspace.yaml"),
+        "nodeLinker: isolated\nenableGlobalVirtualStore: false\nextendNodePath: false\npreferSymlinkedExecutables: false\nallowBuilds:\n  'replaced-bin@file:../package': true\n  'parent@file:../parent': true\n",
+    )
+    .expect("write build policy");
+
+    pacquet(&harness.workspace)
+        .args(["install", "--ignore-scripts"])
+        .assert()
+        .success();
+    Command::new(harness.workspace.join("node_modules/.pnpm/node_modules/.bin/tool"))
+        .assert()
+        .success()
+        .stdout("placeholder\n");
+
+    pacquet(&harness.workspace)
+        .arg("rebuild")
+        .assert()
+        .success();
+    Command::new(harness.workspace.join("node_modules/.pnpm/node_modules/.bin/tool"))
+        .assert()
+        .success()
+        .stdout("built binary\n");
+    assert_eq!(
+        fs::read_to_string(harness.workspace.join("node_modules/parent/parent-built")).unwrap(),
+        "built binary\n",
+    );
+
+    fs::remove_dir_all(harness.workspace.join("node_modules")).expect("remove node_modules");
+    pacquet(&harness.workspace)
+        .arg("install")
+        .assert()
+        .success();
+
+    Command::new(harness.workspace.join("node_modules/.pnpm/node_modules/.bin/tool"))
+        .assert()
+        .success()
+        .stdout("built binary\n");
+    assert_eq!(
+        fs::read_to_string(harness.workspace.join("node_modules/parent/parent-built")).unwrap(),
+        "built binary\n",
+    );
+}
+
+#[cfg(unix)]
+fn write_replaced_bin_fixture(root: &Path) {
+    let package = root.join("package");
     fs::create_dir(&package).expect("create dependency");
     fs::write(package.join("tool"), "#!/usr/bin/env node\nconsole.log('placeholder')\n")
         .expect("write placeholder");
@@ -49,6 +116,12 @@ fn assert_rebuild_refreshes_replaced_bin(linker: &str, nested: bool) {
     });
     fs::write(package.join("package.json"), manifest.to_string())
         .expect("write dependency manifest");
+}
+
+#[cfg(unix)]
+fn assert_rebuild_refreshes_replaced_bin(linker: &str, nested: bool) {
+    let harness = CommandTempCwd::init();
+    write_replaced_bin_fixture(harness.root.path());
     let parent = harness.root.path().join("parent");
     fs::create_dir(&parent).expect("create parent dependency");
     fs::write(

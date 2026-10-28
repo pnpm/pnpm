@@ -172,29 +172,6 @@ backend:
 }
 
 #[test]
-fn postgresql_backend_alias_selects_postgres_record_store() {
-    let yaml = "\
-storage: /var/lib/pnpr
-backend:
-  postgresql:
-    url: postgresql://pnpr:secret@db.example/pnpr
-";
-    let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
-    match config.identity.backend {
-        BackendConfig::Postgres(settings) => {
-            assert_eq!(settings.url, "postgresql://pnpr:secret@db.example/pnpr");
-            assert_eq!(settings.max_connections, None);
-            assert_eq!(settings.timeout, super::super::SqlBackendSettings::DEFAULT_TIMEOUT);
-            assert_eq!(
-                settings.startup_timeout,
-                super::super::SqlBackendSettings::DEFAULT_STARTUP_TIMEOUT,
-            );
-        }
-        other => panic!("expected a postgres backend, got {other:?}"),
-    }
-}
-
-#[test]
 fn mysql_backend_block_selects_mysql_record_store() {
     let yaml = "\
 storage: /var/lib/pnpr

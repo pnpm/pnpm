@@ -1,5 +1,6 @@
 //! Fails when the settings reference in `pnpm/docs` drifts from the keys
-//! [`WorkspaceSettings`](crate::WorkspaceSettings) reads from config files.
+//! [`WorkspaceSettings`](crate::WorkspaceSettings) and
+//! [`MachineSettings`](crate::MachineSettings) read from config files.
 //!
 //! The reference is the index in `settings.md` plus the sections of
 //! `settings/*.md` and the `_*.mdx` partials they import. Index entries that
@@ -293,6 +294,7 @@ struct Gaps {
 fn find_gaps() -> Gaps {
     let code_keys: BTreeSet<&str> = settings_field_keys()
         .iter()
+        .chain(crate::MachineSettings::keys())
         .map(String::as_str)
         .collect();
     let settings_md_path = docs_dir().join("settings.md");

@@ -21,6 +21,7 @@ export type RebuildPackagesContext = {
   skipped: Set<string>
   virtualStoreDir: string
   rootModulesDir: string
+  hoistedModulesDir?: string
   currentLockfile: LockfileObject
   projects: Record<string, { id: ProjectId, rootDir: ProjectRootDir }>
   extraBinPaths: string[]

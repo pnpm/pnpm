@@ -138,6 +138,35 @@ pub(super) fn gunzip_body(
     decodes: Arc<Semaphore>,
     on_complete: impl FnOnce(Integrity, pnpm_tarball::TarInspection) + Send + 'static,
 ) -> Body {
+    decoded_body(body, decodes, move |compressed_rx, tar_tx| {
+        derive_from_decode(compressed_rx, tar_tx, derived, on_complete);
+    })
+}
+
+/// Decode a stored zstd tar as it streams. A body that fails to decode, or
+/// decodes past [`MAX_DECODED_TAR_BYTES`], ends the response with an error.
+pub(super) fn unzstd_body(body: Body, decodes: Arc<Semaphore>) -> Body {
+    decoded_body(body, decodes, |compressed_rx, tar_tx| {
+        let decoder = match zstd::stream::read::Decoder::new(ChannelReader::new(compressed_rx)) {
+            Ok(decoder) => decoder.take(MAX_DECODED_TAR_BYTES.saturating_add(1)),
+            Err(err) => {
+                let _ = tar_tx.blocking_send(Err(err));
+                return;
+            }
+        };
+        decode_into(decoder, tar_tx, &mut None, None, false, MAX_DECODED_TAR_BYTES);
+    })
+}
+
+/// The body `decode` produces on a blocking thread from `body`'s chunks,
+/// once a permit from `decodes` is free.
+fn decoded_body(
+    body: Body,
+    decodes: Arc<Semaphore>,
+    decode: impl FnOnce(mpsc::Receiver<io::Result<Bytes>>, &mpsc::Sender<io::Result<Bytes>>)
+    + Send
+    + 'static,
+) -> Body {
     const CHANNEL_CHUNKS: usize = 16;
     let (compressed_tx, compressed_rx) = mpsc::channel::<io::Result<Bytes>>(CHANNEL_CHUNKS);
     let (tar_tx, tar_rx) = mpsc::channel::<io::Result<Bytes>>(CHANNEL_CHUNKS);
@@ -149,7 +178,7 @@ pub(super) fn gunzip_body(
         };
         tokio::task::spawn_blocking(move || {
             let _permit = permit;
-            derive_from_decode(compressed_rx, &tar_tx, derived, on_complete);
+            decode(compressed_rx, &tar_tx);
         });
     });
     let chunks = futures_util::stream::unfold(tar_rx, |mut tar_rx| async move {

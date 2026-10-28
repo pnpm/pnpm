@@ -34,6 +34,7 @@ export interface CreatePackageStoreOptions {
   pnpmVersion?: string
   ignoreFile?: (filename: string) => boolean
   cacheDir: string
+  pruneProtectedDirs?: string[]
   storeDir: string
   networkConcurrency?: number
   packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
@@ -67,7 +68,12 @@ export function createPackageStore (
     fetchPackage: packageRequester.fetchPackageToStore,
     getFilesIndexFilePath: packageRequester.getFilesIndexFilePath,
     importPackage: createImportPackage(initOpts, cafs),
-    prune: prune.bind(null, { storeDir, cacheDir: initOpts.cacheDir, storeIndex: initOpts.storeIndex }),
+    prune: prune.bind(null, {
+      storeDir,
+      cacheDir: initOpts.cacheDir,
+      storeIndex: initOpts.storeIndex,
+      protectedDirs: initOpts.pruneProtectedDirs,
+    }),
     requestPackage: packageRequester.requestPackage,
     upload: uploadToStore.bind(null, { storeDir: cafs.storeDir, storeIndex: initOpts.storeIndex }),
     // A read-only store cannot accept new content, so it does not advertise the

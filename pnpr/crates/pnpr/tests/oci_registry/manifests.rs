@@ -270,7 +270,7 @@ async fn referrers_backfill_preexisting_manifests_on_both_backends() {
             config.storage.cache_dir.clone(),
         )
         .unwrap()
-        .for_hosted("images");
+        .for_hosted("images", Ecosystem::Oci);
         let app = router_with_auth(config, AuthState::in_memory());
         let auth = basic(&token(&app).await);
         let repository = repository_with_colliding_lock_keys();
@@ -361,7 +361,7 @@ async fn referrer_migration_does_not_block_writers_or_restore_deleted_manifests(
         config.storage.cache_dir.clone(),
     )
     .unwrap()
-    .for_hosted("images");
+    .for_hosted("images", Ecosystem::Oci);
     let app = router_with_auth(config, AuthState::in_memory());
     let auth = basic(&token(&app).await);
     let subject = digest_of(b"subject");
@@ -397,7 +397,7 @@ async fn referrer_migration_does_not_block_writers_or_restore_deleted_manifests(
         })
         .await
         .unwrap();
-    objects.pause(digest.blob_filename());
+    objects.pause(pnpr_storage::layout::blob_segment(key.as_str(), &digest.blob_filename()));
     let reader = app.clone();
     let path = format!("/v2/acme/migration/referrers/{subject}");
     let read = tokio::spawn(async move { get(&reader, &path).await });

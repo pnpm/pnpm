@@ -201,6 +201,11 @@ pub struct WorkspaceStateSettings {
     pub auto_install_peers: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub catalogs: Option<serde_json::Value>,
+    /// `dangerouslyAllowAllBuilds`. An unset value reads as `false`. Turned
+    /// on, it allows builds the last install ignored, so the next install has
+    /// to run them.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dangerously_allow_all_builds: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub dedupe_direct_deps: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -222,6 +227,11 @@ pub struct WorkspaceStateSettings {
     pub enable_global_virtual_store: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub exclude_links_from_lockfile: Option<bool>,
+    /// The directory a configured `globalVirtualStoreDir` resolves to,
+    /// recorded only when set, for the reason given on [`Self::store_dir`].
+    /// pnpm v11 has no such setting.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub global_virtual_store_dir: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hoist_pattern: Option<Vec<String>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -282,15 +292,28 @@ pub struct WorkspaceStateSettings {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub public_hoist_pattern: Option<Vec<String>>,
     /// What decides the lockfile keys of registry packages: each prefix
-    /// `registries` and `namedRegistries` declare, mapped to its URL, and
-    /// each route (`route:default`, `route:@<scope>`) whose registry declares
-    /// a prefix, mapped to that prefix. A prefix never contains `:`.
+    /// `registries` and `namedRegistries` declare, mapped to its URL.
     /// Recorded only when a prefix is declared, and only by an install that
     /// verified the lockfile's keys, so a state written under other
     /// registries, or by a pnpm that did not key by them, proves nothing about
     /// the lockfile's keys.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub registry_prefixes: Option<BTreeMap<String, String>>,
+    /// The registries the lockfile's plain `packages:` keys resolved from:
+    /// each scope route (`@<scope>`) in force when an install last resolved
+    /// them, mapped to its URL. A plain key names no registry, so this record
+    /// is what tells a key's package came from a registry its scope no
+    /// longer routes to. An install that resolves the whole lockfile records
+    /// the routes it ran under; one that keeps part of the lockfile as
+    /// recorded, a frozen or a filtered install, keeps the previous record
+    /// while a plain key still sits under a moved route. `None` when written
+    /// by a pnpm that did not record them.
+    ///
+    /// The default registry is not recorded: switching it is routinely a
+    /// switch between mirrors of one registry, and tracking it would resolve
+    /// every unscoped package again on each switch.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub registry_routes: Option<BTreeMap<String, String>>,
     /// `skills.dirs`, recorded only when set. pnpm v11 has no such setting.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub skills_dirs: Option<Vec<String>>,
@@ -305,6 +328,10 @@ pub struct WorkspaceStateSettings {
     /// are re-evaluated.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub supported_architectures: Option<serde_json::Value>,
+    /// `trustLockfile`, recorded only while it is on. Turned off, the lockfile
+    /// that no install verified has to be verified.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub trust_lockfile: Option<bool>,
     /// The lockfile-verification cache is keyed by the trust-policy
     /// settings, like the `minimumReleaseAge*` family: a policy turned
     /// on or an exclude list shrunk must make the workspace state look
@@ -324,6 +351,10 @@ pub struct WorkspaceStateSettings {
     /// only when set, for the reason given on [`Self::store_dir`].
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub virtual_store_dir: Option<String>,
+    /// `virtualStoreDirMaxLength`. An unset value reads as the default. The
+    /// virtual store's slot names are cut to it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub virtual_store_dir_max_length: Option<u64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub workspace_package_patterns: Option<Vec<String>>,
 }
@@ -405,7 +436,7 @@ pub fn update_workspace_state_in_modules(
         serde_json::to_string_pretty(state).map_err(UpdateWorkspaceStateError::SerializeJson)?;
     serialized.push('\n');
     let write = |source| UpdateWorkspaceStateError::WriteFile { path: file_path.clone(), source };
-    let mut temp = pnpm_fs::private_named_tempfile_in(parent).map_err(write)?;
+    let mut temp = pnpm_fs::umask_named_tempfile_in(parent).map_err(write)?;
     temp.write_all(serialized.as_bytes()).map_err(write)?;
     let temp = temp.into_temp_path();
     pnpm_fs::rename_with_retry(&temp, &file_path).map_err(write)

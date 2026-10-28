@@ -159,7 +159,9 @@ async function checkEachProjectAgainstLockfile ({ ctx, opts }: MutationRun, froz
       catalogs: opts.catalogs,
       readPackageHook: opts.readPackageHook,
       frozenLockfile,
-      registries: pickRegistryContext(opts),
+      // A frozen install keeps the lockfile as recorded, so its plain keys
+      // read as resolved through the current routes.
+      registries: { ...pickRegistryContext(opts), lockedRegistriesByScope: undefined },
     },
     hookedManifests: new Map(),
   })

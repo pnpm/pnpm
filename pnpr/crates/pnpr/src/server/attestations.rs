@@ -105,36 +105,39 @@ async fn serve_hosted_attestations(
         return err.into_response();
     }
     let filename = name.sigstore_name_for_version(version);
-    match state.inner.storage.for_hosted(&org).open_hosted_blob(name, &filename).await {
+    match super::hosted_storage(state, Some(&org)).open_hosted_blob(name, &filename).await {
         Ok(Some((body, _len))) => {
             let bytes = match axum::body::to_bytes(body, 16 * 1024 * 1024).await {
                 Ok(bytes) => bytes,
                 Err(err) => return RegistryError::Io(std::io::Error::other(err)).into_response(),
             };
-            let bundle: serde_json::Value = match serde_json::from_slice(&bytes) {
-                Ok(val) => val,
-                Err(err) => return RegistryError::Json(err).into_response(),
-            };
-            let predicate_type = extract_predicate_type(&String::from_utf8_lossy(&bytes));
-            let response_body = json!({
-                "attestations": [
-                    {
-                        "predicateType": predicate_type,
-                        "bundle": bundle,
-                    }
-                ]
-            });
-            let payload =
-                serde_json::to_vec(&response_body).expect("attestations response serializes");
-            Response::builder()
-                .status(StatusCode::OK)
-                .header(header::CONTENT_TYPE, "application/json")
-                .body(axum::body::Body::from(payload))
-                .expect("response builds")
+            attestation_bundle_response(&bytes)
         }
         Ok(None) => not_found(),
         Err(err) => err.into_response(),
     }
+}
+
+fn attestation_bundle_response(bytes: &[u8]) -> Response {
+    let bundle: serde_json::Value = match serde_json::from_slice(bytes) {
+        Ok(val) => val,
+        Err(err) => return RegistryError::Json(err).into_response(),
+    };
+    let predicate_type = extract_predicate_type(&String::from_utf8_lossy(bytes));
+    let response_body = json!({
+        "attestations": [
+            {
+                "predicateType": predicate_type,
+                "bundle": bundle,
+            }
+        ]
+    });
+    let payload = serde_json::to_vec(&response_body).expect("attestations response serializes");
+    Response::builder()
+        .status(StatusCode::OK)
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(axum::body::Body::from(payload))
+        .expect("response builds")
 }
 
 async fn serve_upstream_attestations(

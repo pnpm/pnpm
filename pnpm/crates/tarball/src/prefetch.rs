@@ -12,7 +12,8 @@ use super::{
     ParallelIterator, PathBuf, TarballError,
 };
 use pnpm_package_manifest::{
-    files_build_triggers, requires_build_from_cas_paths, stored_requires_build_needs_manifest_check,
+    requires_build_from_cas_paths, requires_build_from_files,
+    stored_requires_build_needs_manifest_check,
 };
 use pnpm_reporter::{GlobalLog, LogEvent, LogLevel};
 use pnpm_store_dir::{
@@ -346,23 +347,6 @@ fn decode_matching_prefetch_entry(cache_key: &str, bytes: &[u8]) -> Option<Packa
     Some(entry)
 }
 
-/// Derive `requiresBuild` for a store-index row that does not carry it, from
-/// the row's bundled manifest and its file list.
-fn row_requires_build<Filenames, Filename>(
-    manifest: Option<&serde_json::Value>,
-    filenames: Filenames,
-) -> bool
-where
-    Filenames: IntoIterator<Item = Filename>,
-    Filename: AsRef<str>,
-{
-    let mut triggers = files_build_triggers(filenames);
-    if let Some(manifest) = manifest {
-        triggers.read_manifest(manifest);
-    }
-    triggers.requires_build()
-}
-
 /// A git-hosted row (one that records `requiresPrepare`) with no bundled
 /// manifest derives `requiresBuild` from its files and ignores the stored
 /// value, which existing stores may hold wrong
@@ -381,7 +365,7 @@ fn resolve_row_requires_build(
             requires_build_from_cas_paths(cas_paths)
         }
         Some(stored) => stored,
-        None => row_requires_build(manifest, cas_paths.keys()),
+        None => requires_build_from_files(manifest, cas_paths.keys()),
     }
 }
 

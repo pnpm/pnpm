@@ -6,11 +6,11 @@
 use super::{
     Cursor, HashMap, MAX_UNTRUSTED_PREALLOC_BYTES, Path, PathBuf, Read, TarballError,
     allocate_tarball_buffer, clean_archive_entry_path, decompress_gzip, io,
-    is_eager_decode_limit_exceeded, normalize_bundled_manifest, oversized_manifest_error,
-    post_download_semaphore, tar_entry_payload, verify_tarball_integrity,
+    is_eager_decode_limit_exceeded, oversized_manifest_error, post_download_semaphore,
+    tar_entry_payload, verify_tarball_integrity,
 };
 use crate::extraction_task::spawn_extraction;
-use pnpm_package_manifest::parse_manifest_bytes;
+use pnpm_package_manifest::{normalize_bundled_manifest, parse_manifest_bytes};
 use ssri::{Integrity, IntegrityChecker};
 use tar::Archive;
 

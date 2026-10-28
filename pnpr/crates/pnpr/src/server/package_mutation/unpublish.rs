@@ -154,10 +154,14 @@ pub(crate) async fn delete_tarball(
         Ok(false) => return RegistryError::NotFound.into_response(),
         Err(err) => return err.into_response(),
     }
-    let removed = match storage.remove_blob(&name, &canonical).await {
-        Ok(removed) => removed,
-        Err(err) => return err.into_response(),
-    };
+    // A hosted tar registry stores the version's tar in place of its `.tgz`.
+    let mut removed = false;
+    for blob in [canonical.clone(), name.tar_name_for_version(&version)] {
+        match storage.remove_blob(&name, &blob).await {
+            Ok(found) => removed |= found,
+            Err(err) => return err.into_response(),
+        }
+    }
     let sigstore_name = name.sigstore_name_for_version(&version);
     let _ = storage.remove_blob(&name, &sigstore_name).await;
 

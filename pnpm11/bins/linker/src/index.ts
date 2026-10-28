@@ -1,4 +1,4 @@
-import { promises as fs } from 'node:fs'
+import { type Dirent, promises as fs } from 'node:fs'
 import { createRequire } from 'node:module'
 import path from 'node:path'
 
@@ -23,6 +23,7 @@ import { IS_WINDOWS } from './platform.js'
 
 export { getProjectNodePath } from './getProjectNodePath.js'
 export type { LinkBinOptions } from './linkBin.js'
+export { relinkModulesDirPackageBins } from './relinkModulesDirPackageBins.js'
 
 const binsConflictLogger = logger('bins-conflict')
 
@@ -72,7 +73,11 @@ export async function linkBinsOfPkgsByAliases (
 
 /** Return a function that refreshes launchers for completed package roots,
  * including removing commands those packages no longer provide. */
-export async function createBinRefreshPlan (modulesDir: string, binsDir: string, opts: { warn: WarnFunction }): Promise<(pkgRoots: ReadonlySet<string>) => Promise<void>> {
+export async function createBinRefreshPlan (
+  modulesDir: string,
+  binsDir: string,
+  opts: LinkBinOptions & { warn: WarnFunction }
+): Promise<(pkgRoots: ReadonlySet<string>) => Promise<void>> {
   const candidates = await readBinCandidates(modulesDir, binsDir, opts)
   return async pkgRoots => {
     const changedNames = new Set(Array.from(pkgRoots).flatMap(pkgRoot => (candidates.get(pkgRoot) ?? []).map(cmd => cmd.name)))
@@ -86,7 +91,7 @@ export async function createBinRefreshPlan (modulesDir: string, binsDir: string,
     const retainedNames = new Set(winners.map(cmd => cmd.name))
     const removedNames = Array.from(changedNames).filter(name => !retainedNames.has(name))
     await Promise.all(removedNames.map(async name => removeBin(path.join(binsDir, name))))
-    await _linkBins(IS_WINDOWS && removedNames.length > 0 ? allWinners : winners, binsDir, { forceForPackages: pkgRoots })
+    await _linkBins(IS_WINDOWS && removedNames.length > 0 ? allWinners : winners, binsDir, { ...opts, forceForPackages: pkgRoots })
   }
 }
 
@@ -370,6 +375,82 @@ async function removeBin (binPath: string): Promise<void> {
     rimraf(binPath),
     ...(IS_WINDOWS ? ['.cmd', '.ps1', getExeExtension()].map(async (ext) => rimraf(`${binPath}${ext}`)) : []),
   ])
+}
+
+export async function pruneStaleBins (
+  binsDir: string,
+  claimedCommandNames: ReadonlySet<string>
+): Promise<void> {
+  if (!await isRealBinsDir(binsDir)) return
+  const entries = await readBinsDirEntries(binsDir)
+  if (entries.length === 0) return
+  const claimed = IS_WINDOWS
+    ? new Set(Array.from(claimedCommandNames, (name) => name.toLowerCase()))
+    : claimedCommandNames
+  await Promise.all(
+    entries
+      .filter((entry) => !isBinEntryClaimed(entry.name, claimed))
+      .map(async (entry) => removeUnclaimedBinEntry(binsDir, entry))
+  )
+}
+
+async function isRealBinsDir (binsDir: string): Promise<boolean> {
+  const stats = await fs.lstat(binsDir).catch(() => undefined)
+  return stats?.isDirectory() === true
+}
+
+async function readBinsDirEntries (binsDir: string): Promise<Dirent[]> {
+  try {
+    return await fs.readdir(binsDir, { withFileTypes: true })
+  } catch (err: unknown) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return []
+    throw err
+  }
+}
+
+function isBinEntryClaimed (entry: string, claimed: ReadonlySet<string>): boolean {
+  const normalized = IS_WINDOWS ? entry.toLowerCase() : entry
+  if (claimed.has(normalized)) return true
+  if (!IS_WINDOWS) return false
+  const windowsExts = ['.cmd', '.ps1', getExeExtension().toLowerCase()]
+  return windowsExts.some((ext) => normalized.endsWith(ext) && claimed.has(normalized.slice(0, -ext.length)))
+}
+
+async function removeUnclaimedBinEntry (binsDir: string, entry: Dirent): Promise<void> {
+  const entryPath = path.join(binsDir, entry.name)
+  if (!await isPnpmBinEntry(entryPath, entry) || !await isRealBinsDir(binsDir)) return
+  try {
+    await fs.unlink(entryPath)
+  } catch (err: unknown) {
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err
+  }
+}
+
+async function isPnpmBinEntry (entryPath: string, entry: Dirent): Promise<boolean> {
+  if (entry.isSymbolicLink()) return true
+  if (!entry.isFile()) return false
+  if (IS_WINDOWS && entry.name.toLowerCase() === 'node.exe') return true
+  const content = await readFilePrefix(entryPath, 128)
+  const normalized = content.startsWith('\uFEFF') ? content.slice(1) : content
+  return normalized.startsWith('#!/bin/sh\n# Resolve $0 through symlinks') ||
+    normalized.startsWith('#!/bin/sh\nbasedir=') ||
+    normalized.startsWith('@SETLOCAL\r\n') ||
+    normalized.startsWith('@IF EXIST') ||
+    normalized.startsWith('#!/usr/bin/env pwsh\n$basedir=')
+}
+
+async function readFilePrefix (filePath: string, length: number): Promise<string> {
+  let handle: fs.FileHandle | undefined
+  try {
+    handle = await fs.open(filePath, 'r')
+    const buffer = Buffer.alloc(length)
+    const { bytesRead } = await handle.read(buffer, 0, length, 0)
+    return buffer.toString('utf8', 0, bytesRead)
+  } catch {
+    return ''
+  } finally {
+    await handle?.close().catch(() => {})
+  }
 }
 
 function isOwnBinsDir (pkgDir: string, binsDir: string): boolean {

@@ -280,6 +280,27 @@ pub fn pnpm_workspace_yaml_cannot_set_global_shims() {
     let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
     assert!(config.global_shims.is_enabled("node"), "the built-in defaults must survive");
     assert!(!config.global_shims.dispatches_nothing());
+    assert_eq!(config.workspace_key_issues.refused, ["globalShims"]);
+}
+
+/// A project file that names a machine setting is told where the setting
+/// belongs rather than ignored silently, whatever the value's shape.
+#[test]
+pub fn pnpm_workspace_yaml_machine_settings_are_reported_as_refused() {
+    let tmp = tempdir().unwrap();
+    fs::write(
+        tmp.path().join("pnpm-workspace.yaml"),
+        concat!(
+            "ci: not-a-bool\n",
+            "tools:\n  node:\n    mirror: https://mirror.example.test/node\n",
+            "symlinkedLockfileTargetDirs: [/]\n",
+        ),
+    )
+    .expect("write to pnpm-workspace.yaml");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
+    assert_eq!(config.tool_mirror(crate::Tool::Node), None);
+    assert!(config.symlinked_lockfile_target_dirs.is_empty());
+    assert_eq!(config.workspace_key_issues.refused, ["ci", "tools", "symlinkedLockfileTargetDirs"]);
 }
 
 /// The record merges key-wise, so a single named entry is the other shape
@@ -306,6 +327,7 @@ pub fn pnpm_home_manifest_sets_global_shims() {
     let config = load_with_fake_env(pnpm_home.path());
 
     assert!(config.global_shims.is_enabled("typescript"));
+    assert!(config.workspace_key_issues.refused.is_empty());
 }
 
 #[test]

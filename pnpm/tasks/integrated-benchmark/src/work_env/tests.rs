@@ -117,21 +117,33 @@ fn peer_heavy_scenario_generates_shared_subgraph_root() {
     let registry = dir.join("registry");
     seed_peer_heavy_registry(&registry);
     let first_packument: serde_json::Value = serde_json::from_slice(
-        &fs::read(local_document_path(&registry, "", &peer_heavy_package_name(0, 0)))
-            .expect("read first peer-heavy packument"),
+        &fs::read(local_document_path(
+            &registry,
+            "",
+            pnpr_storage::Ecosystem::Npm,
+            &peer_heavy_package_name(0, 0),
+        ))
+        .expect("read first peer-heavy packument"),
     )
     .expect("parse first peer-heavy packument");
     let leaf_packument: serde_json::Value = serde_json::from_slice(
         &fs::read(local_document_path(
             &registry,
             "",
+            pnpr_storage::Ecosystem::Npm,
             &peer_heavy_package_name(PEER_HEAVY_DEPTH - 1, 0),
         ))
         .expect("read leaf peer-heavy packument"),
     )
     .expect("parse leaf peer-heavy packument");
-    let registry_package_count =
-        fs::read_dir(registry.join("default/packages")).expect("read peer-heavy registry").count();
+    let registry_package_count: usize = fs::read_dir(registry.join("default/npm/packages"))
+        .expect("read peer-heavy registry")
+        .map(|scope| {
+            fs::read_dir(scope.expect("read peer-heavy registry scope").path())
+                .expect("read peer-heavy registry scope")
+                .count()
+        })
+        .sum();
     let _ = fs::remove_dir_all(&dir);
 
     let dependencies = manifest["dependencies"].as_object().expect("generated dependencies");
@@ -427,7 +439,7 @@ fn pnpr_benchmark_config_declares_local_registry_public() {
     assert!(yaml.contains("registry: http://localhost:4873/"));
     assert!(yaml.contains("registry: http://127.0.0.1:61824/"));
     assert!(yaml.contains("allowedPrivateNetworks:"));
-    assert!(yaml.contains("max_users: -1"));
+    assert!(yaml.contains("maxUsers: -1"));
     assert!(yaml.contains("htpasswd"));
 }
 

@@ -1,9 +1,9 @@
 use super::{build_has_bin_set, existing_commands, pkg_dir_under, read_location_bin_sources};
 use crate::PackageManifests;
 use pnpm_cmd_shim::{
-    BinOrigin, Host, LinkBinsError, LinkBinsOptions, PackageBinSource, ShimTargetCache,
-    collect_packages_in_modules_dir, link_bins_of_packages, link_bins_of_packages_cached,
-    link_bins_of_packages_with_excludes,
+    BinOrigin, Host, LinkBinsError, LinkBinsOptions, LinkBinsOutcome, PackageBinSource,
+    ShimTargetCache, collect_packages_in_modules_dir, link_bins_of_packages,
+    link_bins_of_packages_outcome,
 };
 use pnpm_config::{Config, NodeLinker};
 use pnpm_lockfile::{PackageKey, PackageMetadata};
@@ -80,13 +80,11 @@ pub fn link_direct_dep_bins(
 /// linked again after the builds. Every bin whose target is missing is held
 /// back until then, so a dependency's lifecycle scripts cannot reach a shim of
 /// a file they have yet to create. See [`PackageBinSource::build_pending`].
-///
-/// Returns whether a bin was held back.
 pub fn link_direct_dep_bins_before_builds(
     modules_dir: &Path,
     dep_names: &[String],
     link_options: &LinkBinsOptions,
-) -> Result<bool, LinkBinsError> {
+) -> Result<LinkBinsOutcome, LinkBinsError> {
     let deps: Vec<(&str, Option<&Path>)> = dep_names
         .iter()
         .map(|name| (name.as_str(), None))
@@ -117,12 +115,34 @@ pub fn link_direct_dep_bins_resolved(
     modules_dir: &Path,
     deps: &[(String, PathBuf)],
     link_options: &LinkBinsOptions,
-) -> Result<(), LinkBinsError> {
+) -> Result<HashSet<String>, LinkBinsError> {
+    link_direct_dep_bins_resolved_excluding(modules_dir, deps, &HashSet::new(), link_options)
+}
+pub(crate) fn link_direct_dep_bins_resolved_with_sources(
+    modules_dir: &Path,
+    deps: &[(String, PathBuf)],
+    link_options: &LinkBinsOptions,
+) -> Result<(HashSet<String>, Vec<PackageBinSource>), LinkBinsError> {
     let deps: Vec<(&str, Option<&Path>)> = deps
         .iter()
         .map(|(name, target)| (name.as_str(), Some(target.as_path())))
         .collect();
-    link_named_dep_bins(modules_dir, &deps, link_options, false).map(|_| ())
+    link_named_dep_bins_excluding(modules_dir, &deps, &HashSet::new(), link_options, false)
+        .map(|(outcome, sources)| (outcome.linked_commands, sources))
+}
+/// [`link_direct_dep_bins_resolved`] skipping command names in `exclude_bins`.
+pub fn link_direct_dep_bins_resolved_excluding(
+    modules_dir: &Path,
+    deps: &[(String, PathBuf)],
+    exclude_bins: &HashSet<String>,
+    link_options: &LinkBinsOptions,
+) -> Result<HashSet<String>, LinkBinsError> {
+    let deps: Vec<(&str, Option<&Path>)> = deps
+        .iter()
+        .map(|(name, target)| (name.as_str(), Some(target.as_path())))
+        .collect();
+    link_named_dep_bins_excluding(modules_dir, &deps, exclude_bins, link_options, false)
+        .map(|(outcome, _)| outcome.linked_commands)
 }
 /// One direct dep of [`link_direct_dep_bins_prefetched`]'s importer:
 /// the alias under `node_modules/`, the symlink's destination, and the
@@ -214,7 +234,7 @@ pub fn link_direct_dep_bins_prefetched(
     deps: &[PrefetchedDepBin],
     lookup: &PrefetchedBinLookup<'_>,
     link_options: &LinkBinsOptions,
-) -> Result<(), LinkBinsError> {
+) -> Result<HashSet<String>, LinkBinsError> {
     let bin_sources: Vec<PackageBinSource> = deps
         .par_iter()
         .filter_map(|(name, target, snapshot_key)| {
@@ -234,15 +254,16 @@ pub fn link_direct_dep_bins_prefetched(
         })
         .collect::<Result<_, _>>()?;
     if bin_sources.is_empty() {
-        return Ok(());
+        return Ok(HashSet::new());
     }
-    link_bins_of_packages_cached::<Host>(
+    link_bins_of_packages_outcome::<Host>(
         &bin_sources,
         &modules_dir.join(".bin"),
+        &HashSet::new(),
         link_options,
         &lookup.shim_cache,
     )
-    .map(|_| ())
+    .map(|outcome| outcome.linked_commands)
 }
 /// What the prefetched facts say about one direct dependency's bins.
 pub(super) enum PrefetchedBin {
@@ -360,9 +381,9 @@ pub(super) fn link_named_dep_bins(
     deps: &[(&str, Option<&Path>)],
     link_options: &LinkBinsOptions,
     build_pending: bool,
-) -> Result<bool, LinkBinsError> {
+) -> Result<LinkBinsOutcome, LinkBinsError> {
     link_named_dep_bins_with_sources(modules_dir, deps, link_options, build_pending)
-        .map(|(held_back, _)| held_back)
+        .map(|(outcome, _)| outcome)
 }
 
 pub(crate) fn link_named_dep_bins_with_sources(
@@ -370,7 +391,17 @@ pub(crate) fn link_named_dep_bins_with_sources(
     deps: &[(&str, Option<&Path>)],
     link_options: &LinkBinsOptions,
     build_pending: bool,
-) -> Result<(bool, Vec<PackageBinSource>), LinkBinsError> {
+) -> Result<(LinkBinsOutcome, Vec<PackageBinSource>), LinkBinsError> {
+    link_named_dep_bins_excluding(modules_dir, deps, &HashSet::new(), link_options, build_pending)
+}
+
+fn link_named_dep_bins_excluding(
+    modules_dir: &Path,
+    deps: &[(&str, Option<&Path>)],
+    exclude_bins: &HashSet<String>,
+    link_options: &LinkBinsOptions,
+    build_pending: bool,
+) -> Result<(LinkBinsOutcome, Vec<PackageBinSource>), LinkBinsError> {
     // Swallow only `NotFound`: a direct-dep symlink target can
     // legitimately be missing right after a partial pacquet run, or
     // be an in-progress install. Every other IO error (permission
@@ -394,13 +425,14 @@ pub(crate) fn link_named_dep_bins_with_sources(
             Some(Ok(source))
         })
         .collect::<Result<_, _>>()?;
-    let held_back = link_bins_of_packages_cached::<Host>(
+    let outcome = link_bins_of_packages_outcome::<Host>(
         &bin_sources,
         &modules_dir.join(".bin"),
+        exclude_bins,
         link_options,
         &ShimTargetCache::default(),
     )?;
-    Ok((held_back, bin_sources))
+    Ok((outcome, bin_sources))
 }
 /// Link bins from resolved direct-dependency locations without requiring
 /// importer symlinks. This is the `symlink: false` counterpart of
@@ -410,12 +442,28 @@ pub fn link_direct_dep_bins_from_locations(
     modules_dir: &Path,
     locations: &[PathBuf],
     link_options: &LinkBinsOptions,
-) -> Result<(), LinkBinsError> {
+) -> Result<HashSet<String>, LinkBinsError> {
+    link_bins_from_locations_excluding(modules_dir, locations, &HashSet::new(), link_options)
+}
+/// [`link_direct_dep_bins_from_locations`] skipping command names in `exclude_bins`.
+pub fn link_bins_from_locations_excluding(
+    modules_dir: &Path,
+    locations: &[PathBuf],
+    exclude_bins: &HashSet<String>,
+    link_options: &LinkBinsOptions,
+) -> Result<HashSet<String>, LinkBinsError> {
     let bin_sources = read_location_bin_sources(locations)?;
     if bin_sources.is_empty() {
-        return Ok(());
+        return Ok(HashSet::new());
     }
-    link_bins_of_packages::<Host>(&bin_sources, &modules_dir.join(".bin"), link_options)
+    link_bins_of_packages_outcome::<Host>(
+        &bin_sources,
+        &modules_dir.join(".bin"),
+        exclude_bins,
+        link_options,
+        &ShimTargetCache::default(),
+    )
+    .map(|outcome| outcome.linked_commands)
 }
 /// [`link_direct_dep_bins_from_locations`] that leaves every command
 /// already in `<modules_dir>/.bin` in place, so the packages at
@@ -425,13 +473,9 @@ pub fn link_new_bins_from_locations(
     locations: &[PathBuf],
     link_options: &LinkBinsOptions,
 ) -> Result<(), LinkBinsError> {
-    let bin_sources = read_location_bin_sources(locations)?;
-    if bin_sources.is_empty() {
-        return Ok(());
-    }
     let bins_dir = modules_dir.join(".bin");
     let existing = existing_commands(&bins_dir)?;
-    link_bins_of_packages_with_excludes::<Host>(&bin_sources, &bins_dir, &existing, link_options)
+    link_bins_from_locations_excluding(modules_dir, locations, &existing, link_options).map(|_| ())
 }
 /// Link a project's top-level bins while preserving direct-dependency
 /// precedence over every other package present in its `node_modules`.

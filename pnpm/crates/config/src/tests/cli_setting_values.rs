@@ -40,6 +40,20 @@ fn cli_setting_values_win_over_the_workspace_yaml() {
 }
 
 #[test]
+fn cache_dir_cli_setting_overrides_the_default() {
+    let project = tempdir().expect("project tempdir");
+    let cache_dir = project.path().join("pnpm-cache");
+    let cache_dir_str = cache_dir.to_str().expect("utf-8 tempdir path");
+
+    let config = config_with_cli_settings(&[("cache-dir", cache_dir_str)])
+        .current::<HostNoHome>(project.path())
+        .expect("loads");
+
+    assert_eq!(config.cache_dir, cache_dir);
+    assert_eq!(config.explicit_settings.get("cacheDir"), Some(&cache_dir_str.into()));
+}
+
+#[test]
 fn empty_cli_node_options_override_the_workspace_yaml() {
     let project = tempdir().expect("project tempdir");
     fs::write(project.path().join("pnpm-workspace.yaml"), "nodeOptions: --trace-warnings\n")

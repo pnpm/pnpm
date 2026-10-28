@@ -99,7 +99,7 @@ pub(super) fn frozen_tree_up_to_date<'a>(
 
 fn workspace_bins_unchanged(context: &FrozenTreeUpToDate<'_>) -> bool {
     let Some(state) = context.recorded.state else { return false };
-    let bins = workspace_bins_digest(context.tree.workspace_root, context.recorded.projects);
+    let bins = workspace_bins_digest(context.tree.workspace_root, context.recorded.bin_projects);
     context.recorded.projects
         .iter()
         .all(|(dir, manifest)| {
@@ -216,6 +216,9 @@ pub(super) struct UpToDateInstall<'a, 'install> {
 pub(super) struct CarriedWorkspaceState {
     /// The previous run's `autoDedupe`; only a resolving install sets it.
     pub(super) recorded_auto_dedupe: Option<bool>,
+    /// The previous run's `registryRoutes`, which an up-to-date tree, having
+    /// resolved nothing, keeps while a plain key sits under a moved route.
+    pub(super) recorded_registry_routes: Option<std::collections::BTreeMap<String, String>>,
 }
 /// Up-to-date installs still enforce dependency-name verification and recorded build policy.
 pub(super) async fn report_up_to_date<Reporter: self::Reporter + 'static>(
@@ -280,7 +283,10 @@ pub(super) fn refresh_up_to_date_workspace<Reporter: self::Reporter>(
             supported_architectures: context.supported_architectures,
         },
         catalogs: context.projects.catalogs,
-        project_manifests: context.projects.manifests,
+        projects: crate::install::StateProjects {
+            manifests: context.projects.manifests,
+            workspace_projects: context.projects.workspace_projects,
+        },
         filesystem_now_ms: filesystem_now_ms_in_modules(
             &context.tree.config.workspace_state_modules_dir(context.tree.workspace_root),
         ),
@@ -289,6 +295,14 @@ pub(super) fn refresh_up_to_date_workspace<Reporter: self::Reporter>(
             registry_keys_verified: crate::install::registry_keys_current(
                 context.tree.config,
                 Some(context.wanted_lockfile),
+            ),
+            registry_routes: Some(
+                crate::optimistic_repeat_install::recorded_registry_routes_after_install(
+                    context.tree.config,
+                    context.carried_state.recorded_registry_routes.as_ref(),
+                    Some(context.wanted_lockfile),
+                    crate::optimistic_repeat_install::ResolvedImporters::None,
+                ),
             ),
             kept_settings: None,
         },

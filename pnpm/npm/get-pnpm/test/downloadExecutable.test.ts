@@ -172,6 +172,28 @@ describe('downloadPnpmExecutable', () => {
     assert.deepEqual(proxiedOrigins, [])
   })
 
+  test('routes the download through the proxy it is given, over the one the environment names', { skip: PROXY_UNSUPPORTED }, async () => {
+    const destPath = destIn('given-proxy')
+
+    await withEnv({ HTTP_PROXY: 'http://127.0.0.1:9', NO_PROXY: undefined }, async () => {
+      await downloadPnpmExecutable({ version: VERSION, registry, destPath, keys: KEYS, proxy: { HTTP_PROXY: addressOf(proxy) } })
+    })
+
+    assert.equal(fs.readFileSync(destPath, 'utf8'), CONTENT)
+    assert.deepEqual(new Set(proxiedOrigins), new Set([hostOf(server), hostOf(cdn)]))
+  })
+
+  test('goes direct when it is given no proxy, whatever the environment names', { skip: PROXY_UNSUPPORTED }, async () => {
+    const destPath = destIn('no-given-proxy')
+
+    await withEnv({ HTTP_PROXY: addressOf(proxy), NO_PROXY: undefined }, async () => {
+      await downloadPnpmExecutable({ version: VERSION, registry, destPath, keys: KEYS, proxy: {} })
+    })
+
+    assert.equal(fs.readFileSync(destPath, 'utf8'), CONTENT)
+    assert.deepEqual(proxiedOrigins, [])
+  })
+
   test('stops using the proxy once the download is done', { skip: PROXY_UNSUPPORTED }, async () => {
     await withEnv({ HTTP_PROXY: addressOf(proxy), NO_PROXY: undefined }, async () => {
       await download(destIn('restored'))

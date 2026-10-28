@@ -72,7 +72,8 @@ test('toResolvedRegistryDeclarations() emits keys, fields, and scopes in canonic
     'https://npm.pkg.github.com/',
     'https://registry.npmjs.org/',
   ])
-  expect(Object.keys(resolved['https://npm.corp.example/'])).toStrictEqual(['serverType', 'supportsTimeField', 'scopes', 'prefix'])
+  expect(Object.keys(resolved['https://npm.corp.example/'])).toStrictEqual(['serverType', 'supportsTimeField', 'scopes', 'prefix', 'aliases'])
   expect(resolved['https://npm.corp.example/'].scopes).toStrictEqual(['@', '@acme'])
   expect(resolved['https://npm.corp.example/'].prefix).toBe('corp')
+  expect(resolved['https://npm.corp.example/'].aliases).toStrictEqual(['work'])
 })

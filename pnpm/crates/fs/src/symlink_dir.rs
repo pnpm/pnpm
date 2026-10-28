@@ -238,6 +238,20 @@ fn force_symlink_inner(
     if existing_symlink_up_to_date(target, link, &existing) {
         return Ok(ForceSymlinkOutcome { reused: true, warning: reuse_warning });
     }
+    // The unlink below already reported this link gone once, and the create
+    // still conflicts with a stale link: the filesystem keeps serving it (see
+    // `TriedOnce::retargeted`), so another unlink would not help, and every
+    // pass is a stack frame.
+    if tried.retargeted {
+        return Err(io::Error::new(
+            initial_err.kind(),
+            format!(
+                "Error while trying to symlink {target:?} to {link:?}. The link at {link:?} \
+                 points at {existing:?} and still does after it was removed to be retargeted. \
+                 Details: {initial_err}",
+            ),
+        ));
+    }
     // Stale link — unlink and retry. Ignore `NotFound` in case a parallel
     // installer beat us to the unlink.
     match remove_symlink_dir(link) {
@@ -245,7 +259,7 @@ fn force_symlink_inner(
         Err(error) if error.kind() == io::ErrorKind::NotFound => {}
         Err(error) => return Err(error),
     }
-    force_symlink_inner(target, link, tried, create_symlink)
+    force_symlink_inner(target, link, TriedOnce { retargeted: true, ..tried }, create_symlink)
 }
 
 /// Create the directory the link lives in, wrapping a failure so callers see

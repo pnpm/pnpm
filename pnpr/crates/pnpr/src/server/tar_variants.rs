@@ -246,11 +246,22 @@ async fn write_variant(job: &VariantJob) -> io::Result<()> {
 fn encode_level_19(tar_path: &std::path::Path) -> io::Result<Vec<u8>> {
     let mut tar = Vec::new();
     std::fs::File::open(tar_path)?.read_to_end(&mut tar)?;
-    let mut encoder = zstd::stream::write::Encoder::new(Vec::new(), LEVEL)?;
+    let size = tar.len() as u64;
+    encode_tar(tar.as_slice(), Vec::new(), Some(size))
+}
+
+/// Compress `tar` into `out` at level 19, within the window pnpm decodes.
+/// `size`, when known, is recorded in the frame.
+pub(super) fn encode_tar<Out: Write>(
+    mut tar: impl Read,
+    out: Out,
+    size: Option<u64>,
+) -> io::Result<Out> {
+    let mut encoder = zstd::stream::write::Encoder::new(out, LEVEL)?;
     encoder.window_log(WINDOW_LOG)?;
-    encoder.include_contentsize(true)?;
-    encoder.set_pledged_src_size(Some(tar.len() as u64))?;
-    encoder.write_all(&tar)?;
+    encoder.include_contentsize(size.is_some())?;
+    encoder.set_pledged_src_size(size)?;
+    io::copy(&mut tar, &mut encoder)?;
     encoder.finish()
 }
 

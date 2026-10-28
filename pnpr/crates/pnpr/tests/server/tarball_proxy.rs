@@ -1,8 +1,8 @@
 use super::{
     AccessList, AuthState, Body, PackageRules, Request, ServiceExt, StatusCode, TempDir, Value,
     access_rule, body_bytes, body_json, config_for, enable_osv, foo_packument, header, json,
-    mock_packument_for_tarball, osv_database, public_cache_blobs, router, router_with_auth,
-    sha512_integrity, upstream_endpoint_config,
+    mock_packument_for_tarball, osv_database, public_cache_blob, public_cache_blobs, router,
+    router_with_auth, sha512_integrity, upstream_endpoint_config,
 };
 use crate::tokens::issue_token;
 
@@ -629,7 +629,7 @@ async fn osv_refuses_vulnerable_cached_tarball_under_noncanonical_name() {
     // The warm-up must have written the tarball to the proxy cache, so the
     // screened request below genuinely exercises the cache-hit path rather than
     // silently falling back to a miss that would be refused anyway.
-    let cached_tarball = public_cache_blobs(&cache_dir, "foo").join("foo-0.0.1.tgz");
+    let cached_tarball = public_cache_blob(&cache_dir, "foo", "foo-0.0.1.tgz");
     assert!(
         cached_tarball.is_file(),
         "warm-up must populate the proxy cache at {cached_tarball:?}",
@@ -923,7 +923,7 @@ async fn scoped_tarball_filename_is_canonicalized_before_fetch_and_cache() {
         .unwrap();
     assert_eq!(canonical.status(), StatusCode::OK);
     assert_eq!(body_bytes(canonical.into_body()).await, bytes);
-    assert!(public_cache_blobs(&storage, "@types/node").join("node-20.0.0.tgz").exists());
+    assert!(public_cache_blob(&storage, "@types/node", "node-20.0.0.tgz").exists());
     assert!(!public_cache_blobs(&storage, "@types/node").join("@types").exists());
     packument_mock.assert_async().await;
     mock.assert_async().await;

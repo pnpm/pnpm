@@ -51,15 +51,16 @@ async fn sweep_abandoned_uploads(config: &Config) -> pnpr_error::Result<()> {
     // Shared sessions live in their hosted namespace. Local scratch can be
     // shared by those namespaces and is safe to sweep more than once.
     let mut namespaces: Vec<&str> = config.routing.hosted
-        .values()
-        .map(|hosted| hosted.org.as_str())
+        .iter()
+        .filter(|(name, _)| config.routing.registries.ecosystem(name) == Some(Ecosystem::Oci))
+        .map(|(_, hosted)| hosted.org.as_str())
         .collect();
     namespaces.push("");
     namespaces.sort_unstable();
     namespaces.dedup();
     for namespace in namespaces {
         let swept = storage
-            .for_hosted(namespace)
+            .for_hosted(namespace, Ecosystem::Oci)
             .sweep_blob_uploads(pnpr_storage::upload::UPLOAD_MAX_AGE)
             .await?;
         if swept > 0 {

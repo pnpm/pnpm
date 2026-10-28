@@ -56,9 +56,10 @@ pub(super) fn is_dotenv_file(path: &str) -> bool {
 
 /// Whether the `files` entries whose last segment starts with `.env`,
 /// negations included, match the packed path with the packlist's own
-/// `files` semantics. A directory entry such as `dist` that merely
-/// contains the file does not count, and neither does a dotenv glob
-/// rooted elsewhere.
+/// `files` semantics. An entry naming the path itself counts even after a
+/// glob exclusion, as it does for the packlist. An entry excluding that exact
+/// path always wins. A directory entry such as `dist` that merely contains
+/// the file does not count, and neither does a dotenv glob rooted elsewhere.
 pub(super) fn named_in_files(files_field: &[Value]) -> impl Fn(&str) -> bool {
     let dotenv_entries: Vec<Value> = files_field
         .iter()
@@ -72,8 +73,40 @@ pub(super) fn named_in_files(files_field: &[Value]) -> impl Fn(&str) -> bool {
         })
         .cloned()
         .collect();
+    let excluded: Vec<String> = dotenv_entries
+        .iter()
+        .filter_map(Value::as_str)
+        .filter_map(|entry| entry.strip_prefix('!'))
+        .map(literal_path)
+        .collect();
+    let named: Vec<String> = dotenv_entries
+        .iter()
+        .filter_map(Value::as_str)
+        .filter(|entry| !entry.starts_with('!'))
+        .map(literal_path)
+        .collect();
     let matcher = build_files_matcher(&dotenv_entries);
-    move |path| matcher.includes(path)
+    move |path| {
+        let lowercase = path.to_lowercase();
+        !excluded.contains(&lowercase) && (named.contains(&lowercase) || matcher.includes(path))
+    }
+}
+
+/// A `files` entry as the path it names, lowercased because the packlist
+/// matches without case sensitivity, with repeated separators collapsed.
+/// A trailing `/` stays: the packlist never reads such an entry as a file.
+fn literal_path(entry: &str) -> String {
+    let entry = entry.trim_start_matches("./");
+    let mut path = entry
+        .split('/')
+        .filter(|segment| !segment.is_empty())
+        .collect::<Vec<_>>()
+        .join("/")
+        .to_lowercase();
+    if entry.ends_with('/') {
+        path.push('/');
+    }
+    path
 }
 
 fn basename(path: &str) -> &str {

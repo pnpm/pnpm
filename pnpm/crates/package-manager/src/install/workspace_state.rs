@@ -4,7 +4,7 @@ pub(super) use projects::{
     build_selected_project_manifests_list, mutated_project_dirs, projects_running_own_scripts,
     selected_manifest_freshness_inputs,
 };
-pub(crate) use write::{CarriedSettings, StateWrite, recorded_workspace_state};
+pub(crate) use write::{CarriedSettings, StateProjects, StateWrite, recorded_workspace_state};
 
 mod projects;
 
@@ -464,9 +464,11 @@ pub(crate) fn build_workspace_state<Sys: Clock>(
         ),
     };
     // Frozen installs share this builder and cannot establish a deduplication
-    // baseline, nor vouch for the lockfile's registry keys.
+    // baseline, nor vouch for the lockfile's registry keys, nor say which
+    // routes its plain keys resolved through.
     state.settings.auto_dedupe = None;
     state.settings.registry_prefixes = None;
+    state.settings.registry_routes = None;
     if node_linker == NodeLinker::Hoisted {
         record_hoisted_modules_dirs(&mut state.projects, project_manifests);
     }

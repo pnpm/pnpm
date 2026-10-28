@@ -48,8 +48,8 @@ use tar_registry::{
 
 mod tar_responses;
 use tar_responses::{
-    CachedTgz, MAX_CONCURRENT_TAR_DECODES, TarSource, TgzTrust, tar_decode_limit, tar_integrity_of,
-    tar_integrity_within, tar_resource_integrity, tar_response,
+    CachedTgz, MAX_CONCURRENT_TAR_DECODES, TarSource, TgzTrust, stored_tar_response,
+    tar_decode_limit, tar_integrity_of, tar_integrity_within, tar_resource_integrity, tar_response,
 };
 
 mod version_tarballs;
@@ -68,8 +68,9 @@ use package_responses::{
 mod package_reads;
 use package_reads::{
     HostedGate, RegistrySource, default_registry_target, hosted_gate, hosted_read_namespace,
-    resolve_ecosystem_source, resolve_registry_source, resolves_to_private_source, serve_packument,
-    serve_registry_tarball, serve_tarball, serve_version_manifest,
+    resolve_ecosystem_source, resolve_registry_source, resolves_to_private_source,
+    serve_hosted_version_blob, serve_packument, serve_registry_tarball, serve_tarball,
+    serve_version_manifest,
 };
 
 mod revision_tarballs;
@@ -437,13 +438,10 @@ fn private_no_cache(mut response: Response) -> Response {
     response
 }
 
-/// The hosted storage view a publish writes to: a hosted namespace, or
-/// the flat (path-less) store when `org` is `None`.
+/// The npm hosted storage view for `org`, or the default npm namespace when
+/// `org` is `None`.
 fn hosted_storage(state: &AppState, org: Option<&str>) -> Storage {
-    match org {
-        Some(org) => state.inner.storage.for_hosted(org),
-        None => state.inner.storage.clone(),
-    }
+    state.inner.storage.for_hosted(org.unwrap_or(""), pnpr_registry::Ecosystem::Npm)
 }
 
 // --------------------------------------------------------------------

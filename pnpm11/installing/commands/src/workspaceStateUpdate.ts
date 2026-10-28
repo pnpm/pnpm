@@ -5,9 +5,10 @@ import type { Catalogs } from '@pnpm/catalogs.types'
 import { pickRegistryContext } from '@pnpm/config.normalize-registries'
 import type { DryRunInstallResult } from '@pnpm/installing.deps-installer'
 import { getWantedLockfileName, type LockfileObject, readWantedLockfile } from '@pnpm/lockfile.fs'
-import { findOutdatedRegistryKey } from '@pnpm/lockfile.utils'
+import { findMovedRegistryKey, findOutdatedRegistryKey } from '@pnpm/lockfile.utils'
 import type { Project, ProjectManifest, ProjectRootDir, RegistryContext } from '@pnpm/types'
-import { type ProjectsList, recordedRegistryPrefixes, sharedInputPaths, type StateValidationOptions, updateWorkspaceState, type WorkspaceStateSettings } from '@pnpm/workspace.state'
+import { loadWorkspaceState, type ProjectsList, recordedRegistryPrefixes, recordedRegistryRoutes, sharedInputPaths, type StateValidationOptions, updateWorkspaceState, type WorkspaceStateSettings } from '@pnpm/workspace.state'
+import { equals, once } from 'ramda'
 
 import type { InstallDepsOptions } from './installDeps.js'
 import { type CommandFullName, recursive, type RecursiveOptions } from './recursive.js'
@@ -42,11 +43,13 @@ export async function updateSingleProjectWorkspaceState (
   if (!shouldSaveWorkspaceState(opts)) return
   const installedProjectDirs = [opts.dir]
   const filteredInstall = isFilteredInstall(allProjects, installedProjectDirs)
+  const readLockfiles = once(async () => [await readLockfileForState(opts.lockfileDir ?? opts.workspaceDir ?? opts.dir, opts)])
   await updateWorkspaceState({
     allProjects: projectsToRecordInWorkspaceState(allProjects, opts, manifest),
     settings: {
       ...withUpdatedCatalogs(opts, updatedCatalogs),
-      registryPrefixes: await verifiedRegistryPrefixes(opts, async () => [await readLockfileForState(opts.lockfileDir ?? opts.workspaceDir ?? opts.dir, opts)]),
+      registryPrefixes: await verifiedRegistryPrefixes(opts, readLockfiles),
+      registryRoutes: await registryRoutesAfterInstall(opts, filteredInstall, readLockfiles),
     },
     workspaceDir: opts.lockfileDir ?? opts.workspaceDir ?? opts.dir,
     storeBaseDir: opts.workspaceDir ?? opts.dir,
@@ -60,7 +63,7 @@ export async function updateSingleProjectWorkspaceState (
 export async function recursiveInstallThenUpdateWorkspaceState (
   allProjects: Project[],
   params: string[],
-  opts: RecursiveOptions & WorkspaceStateSettings & Pick<InstallDepsOptions, 'lockfileCheck' | 'saveWorkspaceState'>,
+  opts: RecursiveOptions & WorkspaceStateSettings & Pick<InstallDepsOptions, 'frozenLockfile' | 'frozenLockfileIfExists' | 'lockedRegistriesByScope' | 'lockfileCheck' | 'saveWorkspaceState'>,
   cmdFullName: CommandFullName,
   updatedCatalogs?: Catalogs
 ): Promise<DryRunInstallResult | undefined> {
@@ -70,12 +73,14 @@ export async function recursiveInstallThenUpdateWorkspaceState (
   const recursiveResult = await recursive(allProjects, params, opts, cmdFullName)
   if (recursiveResult.installedProjectDirs.length > 0 && shouldSaveWorkspaceState(opts)) {
     const filteredInstall = isFilteredInstall(allProjects, recursiveResult.installedProjectDirs)
+    const readLockfiles = once(async () => readWorkspaceLockfiles(allProjects, opts))
     await updateWorkspaceState({
       allProjects,
       settings: {
         ...withUpdatedCatalogs(opts, updatedCatalogs, recursiveResult.updatedCatalogs),
         storeDir: configuredStoreDir,
-        registryPrefixes: await verifiedRegistryPrefixes(opts, async () => readWorkspaceLockfiles(allProjects, opts)),
+        registryPrefixes: await verifiedRegistryPrefixes(opts, readLockfiles),
+        registryRoutes: await registryRoutesAfterInstall(opts, filteredInstall, readLockfiles),
       },
       workspaceDir: opts.lockfileDir ?? opts.workspaceDir,
       storeBaseDir: opts.workspaceDir ?? opts.dir,
@@ -149,6 +154,43 @@ async function verifiedRegistryPrefixes (
   const lockfiles = await readLockfiles()
   const keysAreCurrent = lockfiles.every((lockfile) => lockfile != null && findOutdatedRegistryKey(lockfile, registries) == null)
   return keysAreCurrent ? declared : undefined
+}
+
+/**
+ * The routes the previous install recorded (see
+ * `WorkspaceStateSettings.registryRoutes`), for the install's reading of the
+ * lockfile's plain keys. `undefined` without a readable record.
+ */
+export function loadLockedRegistriesByScope (opts: Pick<InstallDepsOptions, 'dir' | 'lockfileDir' | 'workspaceDir'>): Record<string, string> | undefined {
+  try {
+    return loadWorkspaceState(opts.lockfileDir ?? opts.workspaceDir ?? opts.dir)?.settings.registryRoutes
+  } catch {
+    return undefined
+  }
+}
+
+type RegistryRoutesInputs = Partial<RegistryContext> & Pick<InstallDepsOptions, 'frozenLockfile' | 'frozenLockfileIfExists' | 'useLockfile'>
+
+/**
+ * The `registryRoutes` this install records (see `recordedRegistryRoutes`):
+ * the routes it ran under, unless it kept part of the lockfile as recorded,
+ * being frozen or filtered, while a plain key still sits under a route the
+ * previous record (`lockedRegistriesByScope`) names elsewhere. Then the
+ * previous record stands.
+ */
+async function registryRoutesAfterInstall (
+  opts: RegistryRoutesInputs,
+  filteredInstall: boolean,
+  readLockfiles: () => Promise<Array<LockfileObject | null>>
+): Promise<Record<string, string> | undefined> {
+  const { registriesByScope, lockedRegistriesByScope } = opts
+  if (registriesByScope == null) return undefined
+  const current = recordedRegistryRoutes(registriesByScope)
+  const resolvedAll = opts.useLockfile === false || (!filteredInstall && opts.frozenLockfile !== true && opts.frozenLockfileIfExists !== true)
+  if (lockedRegistriesByScope == null || resolvedAll || equals(lockedRegistriesByScope, current)) return current
+  const registries = pickRegistryContext({ ...opts, registriesByScope })
+  const lockfiles = await readLockfiles()
+  return lockfiles.some((lockfile) => lockfile != null && findMovedRegistryKey(lockfile, registries) != null) ? lockedRegistriesByScope : current
 }
 
 /**

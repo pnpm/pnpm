@@ -74,6 +74,9 @@ pub(super) fn upstream_cache_namespace(state: &AppState, upstream: &str) -> Stri
 /// (`~public/<digest-of-registry-name-and-url>`) that is shared across process
 /// restarts.
 pub(crate) fn compute_upstream_cache_namespace(config: &Config, upstream: &str) -> String {
+    let ecosystem = config.routing.registries.ecosystem(upstream).unwrap_or_default();
+    let local_name = pnpr_registry::Registries::local_name(upstream);
+    let canonical = format!("{ecosystem}/{local_name}");
     let url = config.routing.upstreams
         .get(upstream)
         .map_or("", |upstream_config| upstream_config.url.as_str());
@@ -90,13 +93,13 @@ pub(crate) fn compute_upstream_cache_namespace(config: &Config, upstream: &str) 
             pnpr_route::headers_credential_digest(&upstream_config.headers),
         ));
         let digest =
-            pnpr_route::upstream_cache_digest(upstream, epoch, &config.resolution_cache_secret);
+            pnpr_route::upstream_cache_digest(&canonical, epoch, &config.resolution_cache_secret);
         return format!("~upstreams/{digest}");
     }
     // Public registry: a stable, secret-free namespace keyed by the registry name
     // and its origin URL (hashed so a path-unsafe value can't escape the
     // cache root).
-    format!("~public/{}", pnpr_route::credential_digest(&format!("{upstream}\0{url}")))
+    format!("~public/{}", pnpr_route::credential_digest(&format!("{canonical}\0{url}")))
 }
 
 /// Require that an endpoint's caller is authenticated, returning their
@@ -212,3 +215,6 @@ pub(super) fn single_authorization_header(
             reason: "Authorization header is not valid text".to_string(),
         })
 }
+
+#[cfg(test)]
+mod tests;

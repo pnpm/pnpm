@@ -96,6 +96,40 @@ testOnUnix('final relinking refreshes publicly hoisted built transitive commands
   expect(result.stdout).toBe('built binary\n')
 })
 
+testOnUnix('isolated builds refresh privately hoisted commands before dependent builds and during final relinking', async () => {
+  const { modules, executable, state } = fixture()
+  state.opts.sideEffectsCacheWrite = false
+  const hoistedModules = path.join(state.ctx.virtualStoreDir, 'node_modules')
+  const hoistedBins = path.join(hoistedModules, '.bin')
+  fs.mkdirSync(hoistedModules, { recursive: true })
+  fs.symlinkSync(path.dirname(executable), path.join(hoistedModules, 'tool'), 'dir')
+  fs.writeFileSync(path.join(path.dirname(executable), 'package.json'), JSON.stringify({
+    name: 'tool',
+    version: '1.0.0',
+    bin: { tool: 'tool' },
+    scripts: { postinstall: 'node build.cjs' },
+  }))
+  fs.writeFileSync(
+    path.join(path.dirname(executable), 'build.cjs'),
+    `require('fs').writeFileSync('tool', ${JSON.stringify('#!/bin/sh\nprintf "built binary\\n"\n')})`
+  )
+  state.pkgSnapshots[toolDepPath].resolution = { type: 'directory', directory: '../tool' }
+  state.gvsDirByDepPath.set(toolDepPath, path.dirname(modules))
+  state.ctx.extraBinPaths = [hoistedBins]
+  state.ctx.modulesFile = modulesManifest(modules)
+  state.ctx.modulesFile.hoistedDependencies[toolDepPath] = { tool: 'private' }
+  state.builtDepPaths.add(toolDepPath)
+  await relinkBins(state, () => modules)
+  state.builtDepPaths.clear()
+
+  await runBuild(toolDepPath, state)
+
+  const result = spawnSync(path.join(hoistedBins, 'tool'), { encoding: 'utf8' })
+  expect(result.stderr).toBe('')
+  expect(result.status).toBe(0)
+  expect(result.stdout).toBe('built binary\n')
+})
+
 testOnUnix('hoisted refresh plans keep duplicate placements in their own physical directories', async () => {
   const { modules, state } = fixture()
   const roots = [path.join(modules, 'tool'), path.join(modules, 'parent/node_modules/tool')]
@@ -110,6 +144,29 @@ testOnUnix('hoisted refresh plans keep duplicate placements in their own physica
     expect(result.status).toBe(0)
     expect(result.stdout).toBe(`${index}\n`)
   }
+})
+
+test('concurrent hoisted refreshes in the same modules directory serialize and update both shims', async () => {
+  const { modules, executable, state } = fixture()
+  const rival = path.join(modules, 'rival')
+  const rivalExecutable = path.join(rival, 'rival')
+  fs.mkdirSync(rival, { recursive: true })
+  fs.writeFileSync(path.join(rival, 'package.json'), JSON.stringify({ name: 'rival', version: '1.0.0', bin: 'rival' }))
+  fs.writeFileSync(rivalExecutable, '#!/usr/bin/env node\nconsole.log("placeholder")\n', { mode: 0o755 })
+  const toolRoot = path.dirname(executable)
+  await relinkHoistedPackageBins([toolRoot, rival], state)
+  expect(fs.readFileSync(path.join(modules, '.bin/tool'), 'utf8')).toContain('node')
+  expect(fs.readFileSync(path.join(modules, '.bin/rival'), 'utf8')).toContain('node')
+
+  fs.writeFileSync(executable, '#!/bin/sh\nprintf "tool built\\n"\n', { mode: 0o755 })
+  fs.writeFileSync(rivalExecutable, '#!/bin/sh\nprintf "rival built\\n"\n', { mode: 0o755 })
+  await Promise.all([
+    relinkHoistedPackageBins([toolRoot], state),
+    relinkHoistedPackageBins([rival], state),
+  ])
+
+  expect(fs.readFileSync(path.join(modules, '.bin/tool'), 'utf8')).not.toContain('exec node')
+  expect(fs.readFileSync(path.join(modules, '.bin/rival'), 'utf8')).not.toContain('exec node')
 })
 
 function fixture () {

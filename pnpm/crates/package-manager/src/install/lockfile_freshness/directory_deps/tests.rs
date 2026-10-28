@@ -282,6 +282,7 @@ fn check_directory_dep_in_scope(
         workspace: crate::install::lockfile_freshness::WorkspaceProjects {
             packages: None,
             manifests_by_dir: &manifests_by_dir,
+            directory_manifests: crate::install::DirectoryManifests::none(),
             catalogs,
             canonical_paths: Box::leak(Box::default()),
             registries: Box::leak(Box::default()),
@@ -803,6 +804,7 @@ snapshots:
         workspace: crate::install::lockfile_freshness::WorkspaceProjects {
             packages: None,
             manifests_by_dir: &manifests_by_dir,
+            directory_manifests: crate::install::DirectoryManifests::none(),
             catalogs: &catalogs,
             canonical_paths: Box::leak(Box::default()),
             registries: Box::leak(Box::default()),
@@ -864,6 +866,7 @@ fn check_root_with_directories(
         workspace: crate::install::lockfile_freshness::WorkspaceProjects {
             packages: None,
             manifests_by_dir: &manifests_by_dir,
+            directory_manifests: crate::install::DirectoryManifests::none(),
             catalogs: &catalogs,
             canonical_paths: Box::leak(Box::default()),
             registries: Box::leak(Box::default()),

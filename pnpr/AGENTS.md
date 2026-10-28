@@ -2,9 +2,11 @@
 
 Guidance for AI coding agents working in `pnpr/`.
 
-**Read [`../AGENTS.md`](../AGENTS.md) first.** It covers the monorepo-wide
-conventions: GitHub PR workflow, signing agent-authored content, conventional
-commit messages, code-reuse philosophy, and "never ignore test failures."
+**Read [`../AGENTS.md`](../AGENTS.md) and [`../PHILOSOPHY.md`](../PHILOSOPHY.md) first.**
+They cover the monorepo-wide philosophy: security, performance, efficient disk
+usage, predictability, and feature consolidation. They also cover PR workflow,
+signing agent-authored content, conventional commit messages, code reuse, and
+fixing test failures.
 
 ## What this project is
 
@@ -17,12 +19,16 @@ that the registry can depend directly on the pacquet `pnpm-*` crates (tarball
 handling, integrity hashes, manifest parsing, network plumbing, etc.) and
 the `Cargo.lock` stays unified.
 
-## Relationship to pacquet
+## Relationship to pacquet and pre-1.0 policy
 
 - **`pnpm/`** is pnpm v12 and the target for new feature development. See
   [`../pnpm/AGENTS.md`](../pnpm/AGENTS.md) for its version policy.
 - **`pnpr/`** has no pnpm-CLI counterpart to mirror. It is a new
   server. Behavior here is designed, not ported.
+- **`pnpr/` is pre-1.0 (`0.1.0-alpha.x`, experimental per [`../PHILOSOPHY.md`](../PHILOSOPHY.md)).**
+  Consolidate storage layouts, internal record formats, configuration keys, and
+  CLI flags in place. Do not add backward-compatibility fallbacks, serde aliases
+  for old field names, or migration commands between alpha builds.
 
 The pnpm v12 and v11 coverage policy governs the CLI implementations, not
 pnpr. The registry can pick its own architecture, flags, and config format. It

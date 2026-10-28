@@ -10,12 +10,17 @@ keywords.workspace = true
 license.workspace = true
 repository.workspace = true
 
+[features]
+# The `SQLite` misuse counter, for a test that watches libsql's own error log.
+libsql = ["dep:libsql"]
+
 [dependencies]
 assert_cmd = { workspace = true }
 axum = { workspace = true }
 command-extra = { workspace = true }
 dunce = { workspace = true }
 flate2 = { workspace = true }
+libsql = { workspace = true, optional = true }
 pipe-trait = { workspace = true }
 pnpr = { workspace = true }
 rustls = { workspace = true }

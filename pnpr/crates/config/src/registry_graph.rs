@@ -74,7 +74,7 @@ pub(super) fn flatten_ecosystem_group(
         match &mut registry {
             RegistryFile::Hosted(hosted) => {
                 set_group_ecosystem(&name, &mut hosted.ecosystem, ecosystem)?;
-                hosted.org.get_or_insert_with(|| format!("{ecosystem}~{name}"));
+                hosted.org.get_or_insert_with(|| name.clone());
             }
             RegistryFile::Upstream(upstream) => {
                 set_group_ecosystem(&name, &mut upstream.ecosystem, ecosystem)?;
@@ -129,6 +129,7 @@ pub(super) fn build_registries(
     let defaults = addressed_defaults(defaults, &registries);
     let registries = registries.with_defaults(defaults);
     registries.validate().map_err(|err| registry_err(&err))?;
+    check_hosted_tar_sources(&registries, &builder.hosted, &builder.tar_registries)?;
     Ok(ResolvedRegistryGraph {
         hosted: builder.hosted,
         registries,
@@ -189,7 +190,7 @@ impl RegistryGraphBuilder {
         match file {
             RegistryFile::Hosted(registry) => {
                 let (config, ecosystem, patterns) =
-                    build_hosted_entry(&name, registry, &self.hosted)?;
+                    build_hosted_entry(&name, registry, &self.hosted, &self.ecosystems)?;
                 self.hosted.insert(name.clone(), config);
                 self.ecosystems.insert(name.clone(), ecosystem);
                 self.graph.insert(name, Registry::Hosted { patterns });
@@ -209,6 +210,32 @@ impl RegistryGraphBuilder {
         }
         Ok(())
     }
+}
+
+/// A hosted registry that declares `tarballs: tar` stores its versions as
+/// tars, with no `.tgz`, so a router that serves `.tgz` files cannot list it.
+fn check_hosted_tar_sources(
+    registries: &Registries,
+    hosted: &IndexMap<String, HostedConfig>,
+    tar_registries: &BTreeSet<String>,
+) -> Result<(), RegistryError> {
+    let tgz_routers = registries
+        .names()
+        .filter(|name| registries.is_router(name) && !tar_registries.contains(*name));
+    for router in tgz_routers {
+        let tar_source = registries
+            .sources(router, Ecosystem::Npm)
+            .into_iter()
+            .find(|source| hosted.contains_key(*source) && tar_registries.contains(*source));
+        if let Some(source) = tar_source {
+            return Err(RegistryError::InvalidConfig {
+                reason: format!(
+                    "router {router:?} serves `.tgz` files but lists {source:?}, which declares `tarballs: tar` and stores no `.tgz`; declare `tarballs: tar` on {router:?} or remove {source:?} from its sources",
+                ),
+            });
+        }
+    }
+    Ok(())
 }
 
 /// Whether `file` declares `tarballs: tar`, which only an npm registry may.
@@ -257,16 +284,24 @@ pub(super) fn build_hosted_entry(
     name: &str,
     registry: HostedFile,
     hosted: &IndexMap<String, HostedConfig>,
+    ecosystems: &IndexMap<String, Ecosystem>,
 ) -> Result<(HostedConfig, Ecosystem, Vec<PackagePattern>), RegistryError> {
     let org = registry.org.unwrap_or_default();
     validate_org_namespace(name, &org)?;
+    let ecosystem = registry.ecosystem.unwrap_or_default();
     if let Some((other, _)) = hosted
         .iter()
-        .find(|(_, existing): &(_, &HostedConfig)| existing.org == org)
+        .find(|(other_name, existing): &(&String, &HostedConfig)| {
+            existing.org == org
+                && ecosystems
+                    .get(*other_name)
+                    .copied()
+                    .unwrap_or_default()
+                    == ecosystem
+        })
     {
         return Err(org_collision_error(name, &org, other));
     }
-    let ecosystem = registry.ecosystem.unwrap_or_default();
     if ecosystem != Ecosystem::Npm && registry.teams_managed_by == Management::Api {
         return Err(RegistryError::InvalidConfig {
             reason: format!(

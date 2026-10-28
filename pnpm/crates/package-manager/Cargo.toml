@@ -96,6 +96,7 @@ tracing = { workspace = true }
 miette = { workspace = true }
 
 [dev-dependencies]
+proptest = { workspace = true }
 pnpm-testing-utils = { workspace = true }
 
 async-trait = { workspace = true }

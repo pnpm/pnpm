@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/fetching.binary-fetcher",
-  "version": "1102.0.21",
+  "version": "1102.0.22",
   "description": "A fetcher for binary archives",
   "keywords": [
     "pnpm",
@@ -31,11 +31,14 @@
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
+    "@pnpm/core-loggers": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/fetching.fetcher-base": "workspace:*",
     "@pnpm/fetching.types": "workspace:*",
+    "@pnpm/network.fetch": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/store.index": "workspace:*",
+    "@zkochan/retry": "catalog:",
     "is-subdir": "catalog:",
     "rename-overwrite": "catalog:",
     "ssri": "catalog:",

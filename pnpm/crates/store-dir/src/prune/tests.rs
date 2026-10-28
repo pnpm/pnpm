@@ -265,3 +265,40 @@ fn loaded_project_with_nonhidden_local_store_does_not_mark_unused_store_slots() 
         assert!(!dead_child.exists());
     }
 }
+
+#[test]
+fn prune_keeping_keeps_in_use_files_and_their_rows() {
+    let root = tempdir().unwrap();
+    let store = StoreDir::new(root.path().join("store"));
+    let digest = |head: &str| format!("{head}{}", "a".repeat(126));
+    let in_use = store.file_path_by_hex_str(&digest("01"), "");
+    let unused = store.file_path_by_hex_str(&digest("02"), "");
+    let index = crate::StoreIndex::open_in(&store).unwrap();
+    for (key, path, digest) in
+        [("in-use", &in_use, digest("01")), ("unused", &unused, digest("02"))]
+    {
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(path, "{}").unwrap();
+        let file = crate::CafsFileInfo { digest, mode: 0o644, size: 2, checked_at: None };
+        let row = crate::PackageFilesIndex {
+            files: std::iter::once(("package.json".to_string(), file)).collect(),
+            ..crate::PackageFilesIndex::default()
+        };
+        index.set(key, &row).unwrap();
+    }
+    drop(index);
+
+    store
+        .prune_keeping(&store.root().join("cache"), &[], || {
+            Ok(std::iter::once(in_use.clone()).collect())
+        })
+        .unwrap();
+
+    assert!(in_use.exists());
+    assert!(!unused.exists());
+    let keys = crate::StoreIndex::open_in(&store)
+        .unwrap()
+        .keys()
+        .unwrap();
+    assert_eq!(keys, ["in-use"]);
+}

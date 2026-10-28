@@ -1,5 +1,7 @@
 use super::{
-    super::{Decision, deps_status::RunDepsStatus, settings::current_settings},
+    super::{
+        Decision, deps_status::RunDepsStatus, first_setting_drift, settings::current_settings,
+    },
     MTIME_STEP_MS, backdate_validated_files, check, isolated_included, recorded_timestamp,
     single_project_deps_status, workspace_deps_status, write_empty_lockfile, write_state,
 };
@@ -7,7 +9,7 @@ use pnpm_config::Config;
 use pnpm_lockfile::Lockfile;
 use pnpm_package_manifest::PackageManifest;
 use pnpm_testing_utils::fs::set_mtime_ms;
-use pnpm_workspace_state::ProjectEntry;
+use pnpm_workspace_state::{ProjectEntry, WorkspaceState, WorkspaceStateSettings};
 use std::{collections::BTreeMap, fs};
 use tempfile::tempdir;
 
@@ -77,6 +79,7 @@ fn returns_skipped_when_patch_file_modified_after_validation() {
 
     let mut config = Config::new();
     config.modules_dir = workspace_root.join("node_modules");
+    config.workspace_dir = Some(workspace_root.to_path_buf());
     fs::create_dir_all(&config.modules_dir).unwrap();
     let mut patched = indexmap::IndexMap::new();
     patched.insert("foo@1.0.0".to_string(), "patches/foo.patch".to_string());
@@ -106,6 +109,139 @@ fn returns_skipped_when_patch_file_modified_after_validation() {
     );
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("patch")));
 }
+/// With dedicated lockfiles a project's state lives in the project, and its
+/// patch files are read from the workspace directory, as the config hashes
+/// them.
+#[test]
+fn a_project_with_its_own_lockfile_sees_an_edited_workspace_patch() {
+    let dir = tempdir().unwrap();
+    let project_dir = dir.path().join("project");
+    fs::create_dir_all(&project_dir).unwrap();
+    let manifest_path = project_dir.join("package.json");
+    fs::write(&manifest_path, r#"{"name":"project","version":"1.0.0"}"#).unwrap();
+    let manifest = PackageManifest::from_path(manifest_path).unwrap();
+    write_empty_lockfile(&project_dir);
+    let patch_path = dir
+        .path()
+        .join("patches")
+        .join("foo.patch");
+    fs::create_dir_all(patch_path.parent().unwrap()).unwrap();
+    fs::write(&patch_path, "--- a\n+++ b\n").unwrap();
+
+    let mut config = Config::new();
+    config.modules_dir = project_dir.join("node_modules");
+    config.workspace_dir = Some(dir.path().to_path_buf());
+    fs::create_dir_all(&config.modules_dir).unwrap();
+    config.patched_dependencies = Some(indexmap::IndexMap::from([(
+        "foo@1.0.0".to_string(),
+        "patches/foo.patch".to_string(),
+    )]));
+    let config = config.leak();
+    let settings =
+        current_settings(config, pnpm_config::NodeLinker::Isolated, isolated_included(), None);
+    let projects = BTreeMap::from([(
+        project_dir.to_string_lossy().into_owned(),
+        ProjectEntry {
+            name: Some("project".into()),
+            version: Some("1.0.0".into()),
+            has_modules_dir: false,
+        },
+    )]);
+    write_state(&project_dir, backdate_validated_files(dir.path()), settings, projects);
+    fs::write(&patch_path, "--- a\n+++ b\n+edited\n").unwrap();
+
+    let decision = check(
+        &project_dir,
+        config,
+        pnpm_config::NodeLinker::Isolated,
+        &[(project_dir.clone(), &manifest)],
+    );
+    assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("patch")));
+}
+
+/// pnpm v11 records each patch file resolved against the workspace
+/// directory, `.` and `..` segments collapsed.
+#[test]
+fn a_patch_file_recorded_by_its_absolute_path_matches_its_configured_path() {
+    let dir = tempdir().unwrap();
+    fs::create_dir_all(dir.path().join("patches")).unwrap();
+    fs::create_dir_all(dir.path().join("shared")).unwrap();
+    fs::write(dir.path().join("patches/foo.patch"), "").unwrap();
+    let configured = |path: String| {
+        let mut config = Config::new();
+        config.workspace_dir = Some(dir.path().to_path_buf());
+        config.patched_dependencies =
+            Some(indexmap::IndexMap::from([("foo@1.0.0".to_string(), path)]));
+        config
+    };
+    let config = configured("patches/foo.patch".to_string());
+    let absolute = dir
+        .path()
+        .join("patches/foo.patch")
+        .to_string_lossy()
+        .into_owned();
+    let state = WorkspaceState {
+        settings: current_settings(
+            &configured(absolute),
+            pnpm_config::NodeLinker::Isolated,
+            isolated_included(),
+            None,
+        ),
+        ..Default::default()
+    };
+    let drift = |config: &Config| {
+        first_setting_drift(
+            &state,
+            config,
+            pnpm_config::NodeLinker::Isolated,
+            isolated_included(),
+            None,
+            &[],
+        )
+    };
+    assert_eq!(drift(&config), None);
+    assert_eq!(drift(&configured("./shared/../patches/foo.patch".to_string())), None);
+    assert_eq!(drift(&configured("patches/bar.patch".to_string())), Some("patchedDependencies"));
+    #[cfg(unix)]
+    {
+        // `..` after a symlink leaves the link's target, not the link.
+        fs::create_dir_all(dir.path().join("elsewhere/inner")).unwrap();
+        fs::create_dir_all(dir.path().join("elsewhere/patches")).unwrap();
+        fs::write(dir.path().join("elsewhere/patches/foo.patch"), "").unwrap();
+        std::os::unix::fs::symlink(dir.path().join("elsewhere/inner"), dir.path().join("link"))
+            .unwrap();
+        assert_eq!(
+            drift(&configured("link/../patches/foo.patch".to_string())),
+            Some("patchedDependencies"),
+        );
+    }
+
+    let empty = WorkspaceState {
+        settings: WorkspaceStateSettings {
+            patched_dependencies: Some(indexmap::IndexMap::new()),
+            ..current_settings(
+                &Config::new(),
+                pnpm_config::NodeLinker::Isolated,
+                isolated_included(),
+                None,
+            )
+        },
+        ..Default::default()
+    };
+    assert_eq!(
+        first_setting_drift(
+            &empty,
+            &Config::new(),
+            pnpm_config::NodeLinker::Isolated,
+            isolated_included(),
+            None,
+            &[]
+        ),
+        None,
+        "an empty record names no patch, as an unset config does",
+    );
+}
+
 /// A newer patch mtime is resolved by comparing its content with the lockfile.
 #[test]
 fn workspace_compares_newer_patch_content_with_lockfile() {

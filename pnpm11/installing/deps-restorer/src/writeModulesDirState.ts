@@ -4,7 +4,7 @@ import { LAYOUT_VERSION } from '@pnpm/constants'
 import { writeModulesManifest } from '@pnpm/installing.modules-yaml'
 import { filterLockfileByImporters } from '@pnpm/lockfile.filtering'
 import { isEmptyLockfile, type LockfileObject, writeCurrentLockfile, writeLockfiles } from '@pnpm/lockfile.fs'
-import type { HoistedDependencies, IgnoredBuilds, ProjectId } from '@pnpm/types'
+import type { DepPath, HoistedDependencies, IgnoredBuilds, ProjectId } from '@pnpm/types'
 import { pick } from 'ramda'
 
 import type { HeadlessContext, HeadlessDepGraph } from './context.js'
@@ -12,6 +12,8 @@ import { getInjectedDeps } from './extendProjectsWithTargetDirs.js'
 import { linkBinsOfImporters } from './linkBinsOfImporters.js'
 
 export interface InstallOutcome {
+  builtDepPaths?: ReadonlySet<DepPath>
+  builtPackageDirs?: ReadonlySet<string>
   ignoredBuilds: IgnoredBuilds | undefined
   newHoistedDependencies?: HoistedDependencies
 }
@@ -25,7 +27,7 @@ export async function writeModulesDirState (ctx: HeadlessContext, depGraph: Head
   if (opts.enableModulesDir === false) return
   /** Skip linking and due to no project manifest */
   if (!ctx.skipPostImportLinking && !opts.ignorePackageManifest) {
-    await linkBinsOfImporters(ctx, depGraph)
+    await linkBinsOfImporters(ctx, depGraph, outcome)
   }
   await writeModulesManifestOfInstall(ctx, depGraph, outcome)
   await writeLockfilesOfInstall(ctx, mergeIntoCurrentLockfile(ctx, depGraph))

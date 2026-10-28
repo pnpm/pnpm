@@ -42,6 +42,7 @@ test('configuration dependency is resolved', async () => {
   expect(envLockfile!.packages['@pnpm.e2e/foo@100.0.0']).toStrictEqual({
     resolution: {
       integrity: getIntegrity('@pnpm.e2e/foo', '100.0.0'),
+      tarball: `${registry}@pnpm.e2e/foo@100.0.0`,
     },
   })
   expect(envLockfile!.snapshots['@pnpm.e2e/foo@100.0.0']).toStrictEqual({})
@@ -84,6 +85,7 @@ test('one level of optionalDependencies is recorded in the env lockfile with pla
   expect(envLockfile!.packages['@pnpm.e2e/only-darwin-arm64@1.0.0']).toStrictEqual({
     resolution: {
       integrity: getIntegrity('@pnpm.e2e/only-darwin-arm64', '1.0.0'),
+      tarball: `${registry}@pnpm.e2e/only-darwin-arm64@1.0.0`,
     },
     os: ['darwin'],
     cpu: ['arm64'],
@@ -93,6 +95,7 @@ test('one level of optionalDependencies is recorded in the env lockfile with pla
   expect(envLockfile!.packages['@pnpm.e2e/only-linux-x64-musl@1.0.0']).toStrictEqual({
     resolution: {
       integrity: getIntegrity('@pnpm.e2e/only-linux-x64-musl', '1.0.0'),
+      tarball: `${registry}@pnpm.e2e/only-linux-x64-musl@1.0.0`,
     },
     os: ['linux'],
     cpu: ['x64'],

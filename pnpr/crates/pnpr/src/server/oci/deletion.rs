@@ -32,7 +32,7 @@ impl Request {
         ) {
             return registry_error(err);
         }
-        let storage = self.state.inner.storage.for_hosted(&org);
+        let storage = self.state.inner.storage.for_hosted(&org, pnpr_registry::Ecosystem::Oci);
         let _guard = self.state.inner.locks.packages.lock(key.as_str()).await;
         let result = async {
             for _ in 0..DOCUMENT_WRITE_RETRIES {

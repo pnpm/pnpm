@@ -113,13 +113,19 @@ async fn optimistic_repeat_install_skips_entire_pipeline_when_state_is_fresh() {
             supported_architectures: None,
         },
         catalogs: &std::collections::BTreeMap::default(),
-        project_manifests: &[(dirs.project_root.clone(), &manifest)],
+        projects: crate::install::StateProjects {
+            manifests: &[(dirs.project_root.clone(), &manifest)],
+            workspace_projects: None,
+        },
         filesystem_now_ms: Some(pnpm_testing_utils::fs::backdate_existing_files(
             &dirs.project_root,
         )),
         carried: crate::install::CarriedSettings {
             established_auto_dedupe: None,
             registry_keys_verified: true,
+            registry_routes: Some(
+                crate::optimistic_repeat_install::settings::recorded_registry_routes(config),
+            ),
             kept_settings: None,
         },
         vouched: &crate::optimistic_repeat_install::validation::Vouched::All,
@@ -251,11 +257,17 @@ fn sync_fast_path_matches_optimistic_short_circuit() {
             supported_architectures: None,
         },
         catalogs: &std::collections::BTreeMap::default(),
-        project_manifests: &[(project_root.clone(), &manifest)],
+        projects: crate::install::StateProjects {
+            manifests: &[(project_root.clone(), &manifest)],
+            workspace_projects: None,
+        },
         filesystem_now_ms: Some(last_validated_timestamp),
         carried: crate::install::CarriedSettings {
             established_auto_dedupe: None,
             registry_keys_verified: true,
+            registry_routes: Some(
+                crate::optimistic_repeat_install::settings::recorded_registry_routes(config),
+            ),
             kept_settings: None,
         },
         vouched: &crate::optimistic_repeat_install::validation::Vouched::All,
@@ -396,13 +408,19 @@ async fn partial_install_disables_optimistic_short_circuit() {
             supported_architectures: None,
         },
         catalogs: &std::collections::BTreeMap::default(),
-        project_manifests: &[(dirs.project_root.clone(), &manifest)],
+        projects: crate::install::StateProjects {
+            manifests: &[(dirs.project_root.clone(), &manifest)],
+            workspace_projects: None,
+        },
         filesystem_now_ms: Some(pnpm_testing_utils::fs::backdate_existing_files(
             &dirs.project_root,
         )),
         carried: crate::install::CarriedSettings {
             established_auto_dedupe: None,
             registry_keys_verified: true,
+            registry_routes: Some(
+                crate::optimistic_repeat_install::settings::recorded_registry_routes(config),
+            ),
             kept_settings: None,
         },
         vouched: &crate::optimistic_repeat_install::validation::Vouched::All,

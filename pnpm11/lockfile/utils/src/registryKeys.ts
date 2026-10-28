@@ -1,8 +1,8 @@
-import { pickDeclaredRegistryPrefix, pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
+import { isSameRegistry, pickDeclaredRegistryPrefix, pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import { BUILTIN_REGISTRIES_BY_PREFIX } from '@pnpm/constants'
 import * as dp from '@pnpm/deps.path'
 import type { LockfileObject } from '@pnpm/lockfile.types'
-import type { DepPath, RegistryContext } from '@pnpm/types'
+import type { DepPath, RegistriesByScope, RegistryContext } from '@pnpm/types'
 
 /**
  * The registry a `<prefix>:` specifier or a registry-qualified key names: a
@@ -29,12 +29,54 @@ export function registryOfDepPath (registries: RegistryContext, depPath: string)
 
 /**
  * The registry of a locked package: the one its key's prefix names, or for a
- * plain key the one its scope routes to. See {@link registryOfDepPath}.
+ * plain key the one its scope was routed to when the lockfile was resolved
+ * (`lockedRegistriesByScope`), or routes to now. See {@link registryOfDepPath}.
  */
 export function registryOfPackage (registries: RegistryContext, { name, registryName }: { name: string, registryName?: string }): string | undefined {
   return registryName == null
-    ? pickRegistryForPackage(registries.registriesByScope, name)
+    ? pickRegistryForPackage(lockedRegistriesByScope(registries), name)
     : registryOfPrefix(registries, registryName)
+}
+
+/**
+ * The routes a plain key resolved through: the recorded scope routes over the
+ * current default registry, which the record leaves out, or the current
+ * routes without a record.
+ */
+function lockedRegistriesByScope (registries: RegistryContext): RegistriesByScope {
+  if (registries.lockedRegistriesByScope == null) return registries.registriesByScope
+  return { ...registries.lockedRegistriesByScope, default: registries.registriesByScope.default }
+}
+
+export interface MovedRegistryKey {
+  key: DepPath
+  from: string
+  to: string
+}
+
+/**
+ * The smallest plain `packages:` key whose package resolved from a registry
+ * its scope no longer routes to, with that registry and the current one.
+ * `undefined` without a record of the routes the lockfile was resolved under.
+ * The recorded integrity and children of such a key belong to the old
+ * registry, so a resolving install resolves the package again from the new
+ * one. A frozen install installs the lockfile as recorded.
+ */
+export function findMovedRegistryKey (lockfile: LockfileObject, registries: RegistryContext): MovedRegistryKey | undefined {
+  if (registries.lockedRegistriesByScope == null) return undefined
+  const locked = lockedRegistriesByScope(registries)
+  let moved: MovedRegistryKey | undefined
+  for (const key of Object.keys(lockfile.packages ?? {}) as DepPath[]) {
+    if (moved != null && moved.key < key) continue
+    const { name, version, registryName } = dp.parse(key)
+    if (name == null || version == null || registryName != null) continue
+    const from = pickRegistryForPackage(locked, name)
+    const to = pickRegistryForPackage(registries.registriesByScope, name)
+    if (!isSameRegistry(from, to)) {
+      moved = { key, from, to }
+    }
+  }
+  return moved
 }
 
 /**

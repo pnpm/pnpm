@@ -202,6 +202,10 @@ actual semantics. Check whether existing pnpm capabilities already solve the pro
 
 Breaking changes to stable behavior require a major version bump. Experimental areas can
 change sooner. An opt-in setting can expose a new behavior without breaking the stable default.
+`pnpr` is pre-1.0 on the `alpha` prerelease lane (experimental per `PHILOSOPHY.md` and
+`pnpr/AGENTS.md`), so its storage layouts, internal record formats, configuration keys, and CLI
+flags change in place without backward-compatibility fallbacks or migration paths between alpha
+builds.
 
 ### Avoid user-visible noise
 

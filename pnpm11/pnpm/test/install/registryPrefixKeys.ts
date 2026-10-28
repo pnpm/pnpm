@@ -18,8 +18,6 @@ import { execPnpm, execPnpmSync } from '../utils/index.js'
 const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/npm/`
 /** The same server under another host, which makes it another registry. */
 const OTHER_REGISTRY = `http://127.0.0.1:${REGISTRY_MOCK_PORT}/npm/`
-/** The routes to `REGISTRY` the workspace state records once `work` names it. */
-const WORK_ROUTES = { 'route:@pnpm.e2e': 'work', 'route:default': 'work' }
 
 /**
  * `@pnpm.e2e/foobar@100.0.0` declares `@pnpm.e2e/foo: ^100.0.0`, a plain range
@@ -181,7 +179,7 @@ test('a frozen install keeps an older duplicate and a resolving install merges i
     registries: { '@pnpm.e2e': REGISTRY },
   })
   await execPnpm(['install'])
-  expect(readRecordedRegistryPrefixes()).toStrictEqual({ work: REGISTRY, ...WORK_ROUTES })
+  expect(readRecordedRegistryPrefixes()).toStrictEqual({ work: REGISTRY })
   duplicateChildUnderPlainKey('100.1.0')
   fs.rmSync('node_modules', { recursive: true })
 
@@ -204,7 +202,7 @@ test('a frozen install keeps an older duplicate and a resolving install merges i
   const nestedCopy = fs.realpathSync(path.join(path.dirname(parentDir), 'foo'))
   expect(rootCopy).toBe(nestedCopy)
   expect(rootCopy).toContain('work')
-  expect(readRecordedRegistryPrefixes()).toStrictEqual({ work: REGISTRY, ...WORK_ROUTES })
+  expect(readRecordedRegistryPrefixes()).toStrictEqual({ work: REGISTRY })
 })
 
 /**
@@ -287,13 +285,13 @@ test('the workspace state records the registry prefixes only for a lockfile whos
   await execPnpm(['install', '--filter', 'project-1'])
 
   const keysAreCurrent = packageKeys(readLockfile(), CHILD).every((key) => key.includes('@work:'))
-  expect(readRecordedRegistryPrefixes()).toStrictEqual(keysAreCurrent ? { other: OTHER_REGISTRY, work: REGISTRY, ...WORK_ROUTES } : undefined)
+  expect(readRecordedRegistryPrefixes()).toStrictEqual(keysAreCurrent ? { other: OTHER_REGISTRY, work: REGISTRY } : undefined)
 
   await execPnpm(['install'])
 
   expect(packageKeys(readLockfile(), CHILD)).toStrictEqual(['@pnpm.e2e/foo@work:100.1.0'])
   expect(readLockfile().importers?.['project-2']?.dependencies?.[CHILD]).toStrictEqual({ specifier: '^100.0.0', version: 'work:100.1.0' })
-  expect(readRecordedRegistryPrefixes()).toStrictEqual({ other: OTHER_REGISTRY, work: REGISTRY, ...WORK_ROUTES })
+  expect(readRecordedRegistryPrefixes()).toStrictEqual({ other: OTHER_REGISTRY, work: REGISTRY })
 })
 
 test('the workspace state records the registry prefixes of an install that keeps no lockfile', async () => {
@@ -306,7 +304,7 @@ test('the workspace state records the registry prefixes of an install that keeps
   await execPnpm(['install'])
 
   expect(fs.existsSync(WANTED_LOCKFILE)).toBe(false)
-  expect(readRecordedRegistryPrefixes()).toStrictEqual({ work: REGISTRY, ...WORK_ROUTES })
+  expect(readRecordedRegistryPrefixes()).toStrictEqual({ work: REGISTRY })
 })
 
 test('a frozen reinstall accepts a registry-qualified child of a local directory dependency', async () => {
@@ -332,7 +330,7 @@ test('an install re-keys an outdated key that a changed lockfile adds after a fi
   ])
   writeYamlFileSync('pnpm-workspace.yaml', {
     packages: ['project-*'],
-    registries: { '@pnpm.e2e': REGISTRY },
+    registries: { [REGISTRY]: { scopes: ['@pnpm.e2e'], serverType: 'pnpr' } },
     namedRegistries: { work: REGISTRY },
   })
   await execPnpm(['install', '--filter', 'project-1'])

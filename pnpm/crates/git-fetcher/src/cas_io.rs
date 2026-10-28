@@ -104,7 +104,12 @@ pub(crate) fn import_into_cas(
         // See the matching note in `materialize_into`: `join_checked`
         // accepts forward-slash relative paths verbatim on every host.
         let source = join_checked(pkg_dir, rel)?;
-        let metadata = fs::metadata(&source).map_err(GitFetcherError::Io)?;
+        let metadata = match fs::metadata(&source) {
+            Ok(metadata) if metadata.is_file() => metadata,
+            Ok(_) => continue,
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(err) => return Err(GitFetcherError::Io(err)),
+        };
         let mode = file_mode_of(&metadata);
         // `add_files_from_dir` reads the full POSIX mode and routes
         // the executable bit through `is_executable(mode)`. Match

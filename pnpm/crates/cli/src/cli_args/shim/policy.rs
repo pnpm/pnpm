@@ -17,7 +17,7 @@ use crate::{cli_args::shim::ShimError, engine_pm::channel::PackageManager};
 use miette::{Context, IntoDiagnostic};
 use pnpm_config::{
     Config, GLOBAL_CONFIG_YAML_FILENAME, GlobalShims, GlobalShimsSetting, Host, NamedShimPolicy,
-    ShimPolicy, ShimPolicyValue, WorkspaceSettings, default_config_dir,
+    ShimPolicy, ShimPolicyValue, TrustedSettings, default_config_dir,
 };
 use pnpm_workspace_manifest_writer::update_manifest_field;
 use std::{
@@ -148,11 +148,11 @@ pub(super) fn dispatches_by_default(package: &str) -> bool {
 /// Recording an opt-in on the user's behalf would quietly undo that;
 /// asking for a shim outright still narrows it to what was asked for.
 pub(super) fn shims_disabled_globally(config_dir: &Path) -> miette::Result<bool> {
-    let settings = WorkspaceSettings::load_global(config_dir)
+    let settings = TrustedSettings::load_global(config_dir)
         .map_err(miette::Report::new)
         .wrap_err("read the global config.yaml")?;
     Ok(matches!(
-        settings.and_then(|settings| settings.global_shims),
+        settings.and_then(|settings| settings.machine.global_shims),
         Some(GlobalShimsSetting::Toggle(false)),
     ))
 }
@@ -163,10 +163,10 @@ pub(super) fn shims_disabled_globally(config_dir: &Path) -> miette::Result<bool>
 pub(super) fn recorded_entries(
     config_dir: &Path,
 ) -> miette::Result<std::collections::HashMap<String, ShimPolicyValue>> {
-    let settings = WorkspaceSettings::load_global(config_dir)
+    let settings = TrustedSettings::load_global(config_dir)
         .map_err(miette::Report::new)
         .wrap_err("read the global config.yaml")?;
-    match settings.and_then(|settings| settings.global_shims) {
+    match settings.and_then(|settings| settings.machine.global_shims) {
         Some(GlobalShimsSetting::Entries(entries)) => Ok(entries),
         Some(GlobalShimsSetting::Toggle(false)) => Ok(std::collections::HashMap::new()),
         Some(GlobalShimsSetting::Toggle(true)) | None => Ok(default_entries()),

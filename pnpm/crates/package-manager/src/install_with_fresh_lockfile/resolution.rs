@@ -151,6 +151,7 @@ impl<'a, Reporter: self::Reporter + 'static> ResolutionContext<'a, Reporter> {
 
     fn shared_options(&self) -> resolve::SharedResolveOptions<'a> {
         resolve::SharedResolveOptions {
+            locked_package_policy: self.install.execution.locked_package_policy,
             policy: pnpm_resolving_resolver_base::ResolutionPolicyOptions {
                 published_by: self.setup.policy.published_by,
                 published_by_exclude: self.setup.policy.published_by_exclude.clone(),
@@ -209,11 +210,7 @@ impl<'a, Reporter: self::Reporter + 'static> ResolutionContext<'a, Reporter> {
         let pnpmfile_checksum = self.current_pnpmfile_checksum().await;
         let untracked_pnpmfile_read_package_hook = self.untracked_read_package_hook().await?;
         Ok(resolve::lockfile_reuse_seed(resolve::ReuseSeedInputs {
-            hooks: pnpm_resolving_deps_resolver::ManifestTransformHooks {
-                manifest_hook: self.prep.transforms.hooks.manifest_hook.clone(),
-                overrides_hook: self.prep.transforms.hooks.overrides_hook.clone(),
-                pnpmfile_hook: None,
-            },
+            hooks: self.prep.transforms.hooks.with_pnpmfile(None),
             lockfile: crate::install_with_fresh_lockfile::resolution_inputs::ReuseLockfileInputs {
                 wanted: self.wanted_lockfile(),
                 shared: self.prep.wanted_lockfile_shared.as_ref(),
@@ -293,6 +290,7 @@ impl<'a, Reporter: self::Reporter + 'static> ResolutionContext<'a, Reporter> {
             registries_by_prefix: self.registries.named.clone(),
             registries: self.registries.by_scope.clone(),
             declared_prefixes: self.registries.declared.clone(),
+            locked_registries: self.registries.locked.clone(),
         }
     }
 
@@ -333,11 +331,7 @@ impl<'a, Reporter: self::Reporter + 'static> ResolutionContext<'a, Reporter> {
         >,
     ) -> resolve::ImporterInputs<'b> {
         resolve::ImporterInputs {
-            hooks: pnpm_resolving_deps_resolver::ManifestTransformHooks {
-                manifest_hook: self.prep.transforms.hooks.manifest_hook.clone(),
-                overrides_hook: self.prep.transforms.hooks.overrides_hook.clone(),
-                pnpmfile_hook: None,
-            },
+            hooks: self.prep.transforms.hooks.with_pnpmfile(None),
             versions: crate::install_with_fresh_lockfile::resolution_inputs::ImporterVersionSeeds {
                 shared: preferred_versions_seed,
                 by_importer: preferred_versions_seeds_by_importer,

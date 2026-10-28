@@ -75,6 +75,7 @@ test('resolves and installs config dep when no env lockfile exists', async () =>
   expect(envLockfile!.packages['@pnpm.e2e/foo@100.0.0']).toStrictEqual({
     resolution: {
       integrity: getIntegrity('@pnpm.e2e/foo', '100.0.0'),
+      tarball: `${registry}@pnpm.e2e/foo@100.0.0`,
     },
   })
 })
@@ -183,6 +184,7 @@ test('re-resolves and reinstalls when config dep version changes in pnpm-workspa
   expect(envLockfile!.packages['@pnpm.e2e/foo@100.1.0']).toStrictEqual({
     resolution: {
       integrity: getIntegrity('@pnpm.e2e/foo', '100.1.0'),
+      tarball: `${registry}@pnpm.e2e/foo@100.1.0`,
     },
   })
   // Old version should be cleaned up from the lockfile
@@ -209,7 +211,7 @@ test('takes the tarball of an old-format config dep from the packument', async (
 
   let advertisedTarball = ''
   await withNonDerivableTarballRegistry(async (registryUrl) => {
-    advertisedTarball = `${registryUrl}tarballs/@pnpm.e2e/foo/-/foo-100.0.0.tgz`
+    advertisedTarball = `${registryUrl}tarballs/@pnpm.e2e/foo@100.0.0`
     await resolveAndInstallConfigDeps({
       '@pnpm.e2e/foo': `100.0.0+${integrity}`,
     }, createOpts(registryUrl))

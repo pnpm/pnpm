@@ -53,7 +53,7 @@ async fn local_store_uses_the_cache_layout_and_round_trips_artifacts() {
     assert!(
         storage
             .path()
-            .join("shared-artifacts/v0/.locks/usage.json")
+            .join("shared-artifacts/.locks/usage.json")
             .is_file(),
     );
 }
@@ -114,7 +114,7 @@ async fn committed_envelope_writes_that_report_failure_remain_charged() {
 
     store.publish("acme", request).await.unwrap_err();
 
-    let usage_path = ObjectPath::from(".pnpr-artifacts/v0/quota.json");
+    let usage_path = ObjectPath::from(".artifacts/quota.json");
     let usage: ArtifactUsage = serde_json::from_slice(
         &backend
             .get(&usage_path)
@@ -266,7 +266,7 @@ async fn losing_a_race_for_a_slot_is_not_reported_as_idempotent() {
         quota: super::QuotaFaults {
             fail_next_write: None,
             claim_slot_first: Some((
-                format!(".pnpr-artifacts/v0/{owner}/entries/{entry}/{slot}.json"),
+                format!(".artifacts/{owner}/entries/{entry}/{slot}.json"),
                 serde_json::to_vec(&winner.envelope).unwrap(),
             )),
             fail_slot_read_after_first: None,
@@ -453,7 +453,7 @@ async fn a_marker_written_by_a_failing_write_stays_charged() {
         publish_overlapping_after_create: None,
         fail_reads_of: None,
         fail_scope_writes: false,
-        fail_only: Some(FailOnly::WriteOf(format!(".pnpr-artifacts/v0/{marker}"))),
+        fail_only: Some(FailOnly::WriteOf(format!(".artifacts/{marker}"))),
 
         quota: super::QuotaFaults {
             fail_next_write: None,
@@ -481,7 +481,7 @@ async fn a_marker_written_by_a_failing_write_stays_charged() {
     assert!(matches!(error, RegistryError::ObjectStore(_)), "{error:?}");
     let usage: ArtifactUsage = serde_json::from_slice(
         &backend
-            .get(&ObjectPath::from(".pnpr-artifacts/v0/quota.json"))
+            .get(&ObjectPath::from(".artifacts/quota.json"))
             .await
             .unwrap()
             .bytes()
@@ -518,7 +518,7 @@ async fn a_backfill_that_cannot_write_a_marker_gives_its_charge_back() {
         publish_overlapping_after_create: None,
         fail_reads_of: None,
         fail_scope_writes: false,
-        fail_only: Some(FailOnly::WriteOf(format!(".pnpr-artifacts/v0/{marker}"))),
+        fail_only: Some(FailOnly::WriteOf(format!(".artifacts/{marker}"))),
 
         quota: super::QuotaFaults {
             fail_next_write: None,
@@ -546,7 +546,7 @@ async fn a_backfill_that_cannot_write_a_marker_gives_its_charge_back() {
     assert!(matches!(error, RegistryError::ObjectStore(_)), "{error:?}");
     let usage: ArtifactUsage = serde_json::from_slice(
         &backend
-            .get(&ObjectPath::from(".pnpr-artifacts/v0/quota.json"))
+            .get(&ObjectPath::from(".artifacts/quota.json"))
             .await
             .unwrap()
             .bytes()

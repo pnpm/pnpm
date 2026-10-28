@@ -156,6 +156,7 @@ libc = { workspace = true }
 mimalloc = { workspace = true }
 
 [dev-dependencies]
+pnpm-fs-packlist = { workspace = true }
 pnpm-network-web-auth-testing = { workspace = true }
 pnpm-testing-utils = { workspace = true }
 pnpr = { workspace = true }

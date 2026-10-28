@@ -28,7 +28,7 @@ interface RegistryStub {
 
 /**
  * A minimal registry that 404s every packument read (so recursive publish considers every package
- * unpublished) and records `PUT /-/pnpm/v1/publish` requests.
+ * unpublished) and records `PUT /-/pnpr/v0/publish` requests.
  */
 async function createRegistryStub (): Promise<RegistryStub> {
   const received: ReceivedRequest[] = []
@@ -66,7 +66,7 @@ function toReceivedRequest (req: http.IncomingMessage, rawBody: Buffer): Receive
 function respondToStubRequest (req: http.IncomingMessage, res: http.ServerResponse, multiPublishStatusCode: number): void {
   res.setHeader('content-type', 'application/json')
   if (req.method === 'PUT') {
-    res.statusCode = req.url === '/-/pnpm/v1/publish' ? multiPublishStatusCode : 200
+    res.statusCode = req.url === '/-/pnpr/v0/publish' ? multiPublishStatusCode : 200
     res.end(JSON.stringify({ ok: true, success: true }))
     return
   }
@@ -133,7 +133,7 @@ test('batch publish sends all packages in a single batch publish request', async
     tag: 'next',
   }, [])
 
-  const publishRequests = registry.received.filter(({ url }) => url === '/-/pnpm/v1/publish')
+  const publishRequests = registry.received.filter(({ url }) => url === '/-/pnpr/v0/publish')
   expect(publishRequests).toHaveLength(1)
   expect(publishRequests[0].method).toBe('PUT')
 
@@ -195,8 +195,8 @@ test('batch publish runs completed group postpublish scripts before a later regi
       force: true,
     }, [])).rejects.toBeDefined()
 
-    expect(registry.received.filter(({ url }) => url === '/-/pnpm/v1/publish')).toHaveLength(1)
-    expect(failingRegistry.received.filter(({ url }) => url === '/-/pnpm/v1/publish').length).toBeGreaterThan(0)
+    expect(registry.received.filter(({ url }) => url === '/-/pnpr/v0/publish')).toHaveLength(1)
+    expect(failingRegistry.received.filter(({ url }) => url === '/-/pnpr/v0/publish').length).toBeGreaterThan(0)
     expect(fs.existsSync(path.join(workspaceDir, 'batch-postpublish-first', 'post-published'))).toBe(true)
     expect(fs.existsSync(path.join(workspaceDir, 'batch-postpublish-second', 'post-published'))).toBe(false)
   } finally {
@@ -221,7 +221,7 @@ test('batch publish sends a package to the registry its publishConfig sets for i
       registriesByScope: { default: npmrcScopedRegistry.url, '@scope': npmrcScopedRegistry.url },
     }, [])
 
-    expect(registry.received.filter(({ url }) => url === '/-/pnpm/v1/publish')).toHaveLength(1)
+    expect(registry.received.filter(({ url }) => url === '/-/pnpr/v0/publish')).toHaveLength(1)
     expect(registry.received.filter(({ method }) => method === 'GET')).not.toHaveLength(0)
     expect(npmrcScopedRegistry.received).toHaveLength(0)
   } finally {
@@ -277,7 +277,7 @@ test('batch publish accepts one scope credential for every package', async () =>
     },
   }, [])
 
-  const publishRequests = registry.received.filter(({ url }) => url === '/-/pnpm/v1/publish')
+  const publishRequests = registry.received.filter(({ url }) => url === '/-/pnpr/v0/publish')
   expect(publishRequests).toHaveLength(1)
   expect(publishRequests[0].headers.authorization).toBe('Bearer scope-token')
 })
@@ -311,7 +311,7 @@ test('batch publish accepts equivalent credentials configured differently', asyn
     },
   }, [])
 
-  const publishRequests = registry.received.filter(({ url }) => url === '/-/pnpm/v1/publish')
+  const publishRequests = registry.received.filter(({ url }) => url === '/-/pnpr/v0/publish')
   expect(publishRequests).toHaveLength(1)
   expect(publishRequests[0].headers.authorization).toBe(`Bearer ${getRegistryMockToken()}`)
 })
@@ -339,7 +339,7 @@ test('batch publish rejects different credentials for one registry before publis
     },
   }, [])).rejects.toMatchObject({ code: 'ERR_PNPM_BATCH_PUBLISH_CONFLICTING_CREDENTIALS' })
 
-  expect(registry.received.filter(({ url }) => url === '/-/pnpm/v1/publish')).toHaveLength(0)
+  expect(registry.received.filter(({ url }) => url === '/-/pnpr/v0/publish')).toHaveLength(0)
 })
 
 test('batch publish sends configured OTP on the first publish request', async () => {
@@ -356,7 +356,7 @@ test('batch publish sends configured OTP on the first publish request', async ()
     otp: '123456',
   }, [])
 
-  const publishRequests = registry.received.filter(({ url }) => url === '/-/pnpm/v1/publish')
+  const publishRequests = registry.received.filter(({ url }) => url === '/-/pnpr/v0/publish')
   expect(publishRequests).toHaveLength(1)
   expect(publishRequests[0].headers['npm-otp']).toBe('123456')
 })
@@ -380,7 +380,7 @@ test('batch publish with --dry-run sends no request but reports the packages', a
     json: true,
   }, [])
 
-  expect(registry.received.filter(({ url }) => url === '/-/pnpm/v1/publish')).toHaveLength(0)
+  expect(registry.received.filter(({ method }) => method === 'PUT')).toHaveLength(0)
   const publishedPackages = JSON.parse(result!.output!) as Array<{ name: string }>
   expect(publishedPackages.map(({ name }) => name).sort()).toStrictEqual(['batch-dry-1', 'batch-dry-2'])
 })
@@ -445,5 +445,5 @@ test('--batch without --recursive is rejected', async () => {
     recursive: false,
   }, [])).rejects.toMatchObject({ code: 'ERR_PNPM_BATCH_PUBLISH_REQUIRES_RECURSIVE' })
 
-  expect(registry.received.filter(({ url }) => url === '/-/pnpm/v1/publish')).toHaveLength(0)
+  expect(registry.received.filter(({ url }) => url === '/-/pnpr/v0/publish')).toHaveLength(0)
 })
