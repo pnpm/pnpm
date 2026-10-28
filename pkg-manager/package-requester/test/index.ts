@@ -425,6 +425,57 @@ test('refetch local tarball if its integrity has changed. The requester does not
   }
 })
 
+// https://github.com/pnpm/pnpm/issues/12001
+test('integrity of a tarball dependency is preserved when the resolver returns no integrity', async () => {
+  const storeDir = tempy.directory()
+  const cafs = createCafsStore(storeDir)
+  const projectDir = tempy.directory()
+
+  const tarball = 'https://example.com/foo/-/foo-1.0.0.tgz'
+  const integrity = 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg=='
+
+  // URL/tarball resolvers don't return an integrity, because it is only known
+  // after the tarball is downloaded. This mimics @pnpm/tarball-resolver.
+  const customResolve: typeof resolve = async () => ({
+    id: tarball as PkgResolutionId,
+    normalizedBareSpecifier: tarball,
+    resolution: { tarball },
+    resolvedVia: 'url',
+    manifest: {
+      name: 'foo',
+      version: '1.0.0',
+    },
+  })
+
+  const requestPackage = createPackageRequester({
+    resolve: customResolve,
+    fetchers,
+    cafs,
+    storeDir,
+    verifyStoreIntegrity: true,
+    virtualStoreDirMaxLength: 120,
+  })
+
+  // The package is already in the lockfile (currentPkg) with its integrity, and
+  // it is not re-fetched (skipFetch). The integrity from the resolver is absent,
+  // so it must be carried over from the current package instead of being dropped.
+  const response = await requestPackage({ alias: 'foo', bareSpecifier: tarball }, {
+    currentPkg: {
+      id: tarball as PkgResolutionId,
+      resolution: { tarball, integrity },
+    },
+    downloadPriority: 0,
+    lockfileDir: projectDir,
+    preferredVersions: {},
+    projectDir,
+    skipFetch: true,
+    update: false,
+  })
+
+  expect(response.body.updated).toBe(false)
+  expect(response.body.resolution).toStrictEqual({ tarball, integrity })
+})
+
 test('fetchPackageToStore()', async () => {
   const storeDir = tempy.directory()
   const cafs = createCafsStore(storeDir)
@@ -1173,6 +1224,193 @@ test('HTTP tarball without integrity gets integrity computed during fetch', asyn
   // The resolution should now include an integrity hash computed during fetch
   expect(pkgResponse.body.resolution).toHaveProperty('integrity')
   expect((pkgResponse.body.resolution as { integrity?: string }).integrity).toMatch(/^sha512-/)
+})
+
+test('a tarball whose integrity was computed during fetch is found in the store once the integrity is known', async () => {
+  const storeDir = tempy.directory()
+  const cafs = createCafsStore(storeDir)
+  const projectDir = tempy.directory()
+  const tarball = `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`
+  const requestPackageOpts = {
+    downloadPriority: 0,
+    lockfileDir: projectDir,
+    preferredVersions: {},
+    projectDir,
+  } satisfies RequestPackageOptions
+
+  let computedIntegrity: string | undefined
+  {
+    const requestPackage = createPackageRequester({
+      resolve: async () => ({
+        id: tarball as PkgResolutionId,
+        normalizedBareSpecifier: tarball,
+        resolution: { tarball },
+        resolvedVia: 'url',
+      }),
+      fetchers,
+      cafs,
+      networkConcurrency: 1,
+      storeDir,
+      verifyStoreIntegrity: true,
+      virtualStoreDirMaxLength: 120,
+    })
+    const response = await requestPackage({ alias: 'is-positive', bareSpecifier: tarball }, requestPackageOpts) as PackageResponse & {
+      fetching: () => Promise<PkgRequestFetchResult>
+    }
+    const { files } = await response.fetching()
+    expect(files.resolvedFrom).toBe('remote')
+    computedIntegrity = (response.body.resolution as { integrity?: string }).integrity
+    expect(computedIntegrity).toMatch(/^sha512-/)
+  }
+
+  // Re-resolution on a warm store (e.g. `pnpm update --lockfile-only`) carries
+  // over the integrity and reuses the cached package from the store.
+  {
+    const requestPackage = createPackageRequester({
+      resolve: async () => ({
+        id: tarball as PkgResolutionId,
+        normalizedBareSpecifier: tarball,
+        resolution: { tarball },
+        resolvedVia: 'url',
+      }),
+      fetchers,
+      cafs,
+      networkConcurrency: 1,
+      storeDir,
+      verifyStoreIntegrity: true,
+      virtualStoreDirMaxLength: 120,
+    })
+    const response = await requestPackage({ alias: 'is-positive', bareSpecifier: tarball }, {
+      ...requestPackageOpts,
+      currentPkg: {
+        id: tarball as PkgResolutionId,
+        name: 'is-positive',
+        version: '1.0.0',
+        resolution: { tarball, integrity: computedIntegrity },
+      },
+      skipFetch: true,
+      update: 'compatible',
+    }) as PackageResponse & {
+      fetching: () => Promise<PkgRequestFetchResult>
+    }
+    const { files } = await response.fetching()
+    expect(files.resolvedFrom).toBe('store')
+    expect(response.body.resolution).toStrictEqual({ tarball, integrity: computedIntegrity })
+  }
+
+  // `skipFetch` with `update: false` (e.g. `pnpm install --lockfile-only` after
+  // changing another dependency) peeks the manifest from the store by integrity
+  // without calling `resolve`.
+  {
+    const resolveSpy = jest.fn(resolve)
+    const requestPackage = createPackageRequester({
+      resolve: resolveSpy,
+      fetchers,
+      cafs,
+      networkConcurrency: 1,
+      storeDir,
+      verifyStoreIntegrity: true,
+      virtualStoreDirMaxLength: 120,
+    })
+    const response = await requestPackage({ alias: 'is-positive', bareSpecifier: tarball }, {
+      ...requestPackageOpts,
+      currentPkg: {
+        id: tarball as PkgResolutionId,
+        name: 'is-positive',
+        version: '1.0.0',
+        resolution: { tarball, integrity: computedIntegrity },
+      },
+      skipFetch: true,
+      update: false,
+    })
+    expect(resolveSpy).not.toHaveBeenCalled()
+    expect(response.body.manifest?.name).toBe('is-positive')
+    expect(response.body.resolution).toStrictEqual({ tarball, integrity: computedIntegrity })
+  }
+
+  // When the resolved tarball URL differs from `currentPkg.resolution.tarball`
+  // even with the same `id`, `previousIntegrity` must not be carried over.
+  {
+    const requestPackage = createPackageRequester({
+      resolve: async () => ({
+        id: tarball as PkgResolutionId,
+        normalizedBareSpecifier: tarball,
+        resolution: { tarball },
+        resolvedVia: 'url',
+      }),
+      fetchers,
+      cafs,
+      networkConcurrency: 1,
+      storeDir,
+      verifyStoreIntegrity: true,
+      virtualStoreDirMaxLength: 120,
+    })
+    const staleIntegrity = 'sha512-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000=='
+    const response = await requestPackage({ alias: 'is-positive', bareSpecifier: tarball }, {
+      ...requestPackageOpts,
+      currentPkg: {
+        id: tarball as PkgResolutionId,
+        name: 'is-positive',
+        version: '1.0.0',
+        resolution: {
+          tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/other.tgz`,
+          integrity: staleIntegrity,
+        },
+      },
+      skipFetch: true,
+      update: 'compatible',
+    })
+    expect(response.body.resolution).toStrictEqual({ tarball, integrity: computedIntegrity })
+  }
+})
+
+test('remote tarball without integrity gets integrity computed even when already in the local store', async () => {
+  const storeDir = tempy.directory()
+  const cafs = createCafsStore(storeDir)
+  const projectDir = tempy.directory()
+  const tarball = `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`
+  const requestPackageOpts = {
+    downloadPriority: 0,
+    lockfileDir: projectDir,
+    preferredVersions: {},
+    projectDir,
+  } satisfies RequestPackageOptions
+
+  {
+    const requestPackage = createPackageRequester({
+      resolve,
+      fetchers,
+      cafs,
+      networkConcurrency: 1,
+      storeDir,
+      verifyStoreIntegrity: true,
+      virtualStoreDirMaxLength: 120,
+    })
+    const pkgResponse = await requestPackage(
+      { alias: 'is-positive', bareSpecifier: tarball },
+      { ...requestPackageOpts, skipFetch: true }
+    )
+    expect(pkgResponse.body.resolution).toHaveProperty('integrity')
+    expect((pkgResponse.body.resolution as { integrity?: string }).integrity).toMatch(/^sha512-/)
+  }
+
+  {
+    const requestPackage = createPackageRequester({
+      resolve,
+      fetchers,
+      cafs,
+      networkConcurrency: 1,
+      storeDir,
+      verifyStoreIntegrity: true,
+      virtualStoreDirMaxLength: 120,
+    })
+    const pkgResponse = await requestPackage(
+      { alias: 'is-positive', bareSpecifier: tarball },
+      { ...requestPackageOpts, skipFetch: true }
+    )
+    expect(pkgResponse.body.resolution).toHaveProperty('integrity')
+    expect((pkgResponse.body.resolution as { integrity?: string }).integrity).toMatch(/^sha512-/)
+  }
 })
 
 test('should pass optional flag to resolve function', async () => {
