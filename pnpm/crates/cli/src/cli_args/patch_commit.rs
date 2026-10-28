@@ -11,7 +11,7 @@ use lockfile_update::update_lockfile_snapshots;
 use miette::Diagnostic;
 use paths::{
     PatchFileWriteContext, clean_source_dir, cleanup_after_diff, normalize_patches_dir_name,
-    path_from_forward_slash, remove_dir_if_exists, write_patch_file_atomically,
+    path_from_forward_slash, remove_dir_if_exists,
 };
 use pnpm_crypto_hash::create_short_hash;
 use pnpm_fs::{is_subdir, lexical_normalize};
@@ -28,7 +28,6 @@ use resolution::{format_candidates, resolve_patch_dir};
 use serde_json::Value;
 use std::{
     fs, io,
-    io::Write,
     path::{Component, Path, PathBuf},
 };
 
@@ -216,7 +215,7 @@ impl PatchCommitArgs {
         let patch_key = if apply_to_all { name.to_string() } else { format!("{name}@{version}") };
         let patch_file_name = format!("{}.patch", patch_key.replace('/', "__"));
         let patch_file_path = patch_file_context.patch_file_path(&patch_file_name)?;
-        write_patch_file_atomically(&patch_file_path, patch_content.as_bytes())
+        pnpm_fs::write_atomic(&patch_file_path, patch_content.as_bytes())
             .map_err(|source| PatchCommitError::WritePatch {
                 path: patch_file_path.clone(),
                 source,

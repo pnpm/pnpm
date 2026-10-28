@@ -394,7 +394,8 @@ fn create_workspace_temporary(
                 directory.handle.as_raw_fd(),
                 temporary.as_ptr(),
                 libc::O_WRONLY | libc::O_CLOEXEC | libc::O_CREAT | libc::O_EXCL | libc::O_NOFOLLOW,
-                0o600,
+                // The umask decides the mode, as it does for any new project file.
+                0o666,
             )
         };
         match file_from_descriptor(descriptor) {

@@ -7,24 +7,27 @@ use std::{
 /// Atomically replace `path` with `bytes`: write a sibling temp file, then
 /// rename it over the target, creating parent directories as needed. A crash
 /// or I/O failure mid-write leaves the original file intact rather than a
-/// truncated one — important for credential files like `.npmrc` / `auth.ini`,
-/// where a partial write could drop other tokens. Mirrors pnpm's
-/// `write-ini-file`.
+/// truncated one. Mirrors `write-file-atomic`.
 ///
 /// Symlink-safe and permission-preserving: an existing regular target's mode
 /// is carried across the rename, while a symlinked target is replaced with a
 /// fresh regular file (the link is never followed, so the write can't be
-/// redirected to an unintended path). New files keep the conservative 0600
-/// default — they may hold credentials.
+/// redirected to an unintended path). A new file gets 0666 less the umask,
+/// the mode `fs::write` gives it, so other users can read what pnpm writes
+/// into a project.
+///
+/// A file that holds or may come to hold a credential uses
+/// [`write_atomic_private_if_new`] or [`write_atomic_private`] instead.
 pub fn write_atomic(path: &Path, bytes: &[u8]) -> io::Result<()> {
-    create_parent_dir(path)?;
-    write_tmp_over(path, bytes, InheritMode::Yes, 0o600)
+    write_tmp_over(path, bytes, InheritMode::Yes, 0o666)
 }
 
-/// Like [`write_atomic`], but a new file gets mode 0666 less the umask, and a
-/// missing parent directory is an error. For project files other users read.
-pub fn write_atomic_with_umask(path: &Path, bytes: &[u8]) -> io::Result<()> {
-    write_tmp_over(path, bytes, InheritMode::Yes, 0o666)
+/// Like [`write_atomic`], but a new file is readable only by its owner.
+///
+/// For config files such as `.npmrc` and `auth.ini` that may come to hold a
+/// token. An existing file keeps the mode its owner gave it.
+pub fn write_atomic_private_if_new(path: &Path, bytes: &[u8]) -> io::Result<()> {
+    write_tmp_over(path, bytes, InheritMode::Yes, 0o600)
 }
 
 /// Like [`write_atomic`], but the result is only ever readable by its owner.
@@ -35,7 +38,6 @@ pub fn write_atomic_with_umask(path: &Path, bytes: &[u8]) -> io::Result<()> {
 /// The file `pnpm login` records a token in also holds ordinary settings, so
 /// it can already exist with the mode an editor gave it.
 pub fn write_atomic_private(path: &Path, bytes: &[u8]) -> io::Result<()> {
-    create_parent_dir(path)?;
     write_tmp_over(path, bytes, InheritMode::No, 0o600)
 }
 
@@ -67,17 +69,13 @@ fn create_new_file(path: &Path, mode: u32) -> io::Result<fs::File> {
     crate::wasi_fs::create_new(path, mode)
 }
 
-fn create_parent_dir(path: &Path) -> io::Result<()> {
-    match path.parent() {
-        Some(parent) if !parent.as_os_str().is_empty() => fs::create_dir_all(parent),
-        _ => Ok(()),
-    }
-}
-
 fn write_tmp_over(path: &Path, bytes: &[u8], inherit: InheritMode, mode: u32) -> io::Result<()> {
     let dir = path
         .parent()
         .filter(|parent| !parent.as_os_str().is_empty());
+    if let Some(parent) = dir {
+        fs::create_dir_all(parent)?;
+    }
     // Registered before the create, so no interrupt finds the temp file
     // unregistered. A colliding random name is retried under a new one,
     // whose registration replaces the old.

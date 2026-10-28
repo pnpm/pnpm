@@ -120,32 +120,22 @@ impl FsAtomicWrite for Host {
             .parent()
             .filter(|parent| !parent.as_os_str().is_empty())
             .unwrap_or_else(|| Path::new("."));
-        let mut tmp = pnpm_fs::private_named_tempfile_in(dir)?;
+        let mut tmp = pnpm_fs::umask_named_tempfile_in(dir)?;
         write_body(tmp.as_file_mut())?;
-        // A `NamedTempFile` is created 0o600. Match what a plain `fs::write`
-        // would leave: preserve the mode only when overwriting an existing
-        // regular file — `symlink_metadata` so a symlink at `dest` doesn't
-        // donate its target's (or a directory's) mode — otherwise widen to
-        // 0o644 so the archive isn't owner-only. Set the mode before the
-        // sync so content and metadata are flushed together.
+        // Overwriting an existing regular file keeps its mode. `symlink_metadata`,
+        // so a symlink at `dest` doesn't donate its target's (or a directory's) mode.
+        // Set the mode before the sync so content and metadata are flushed together.
         #[cfg(unix)]
+        if let Ok(metadata) = std::fs::symlink_metadata(dest)
+            && metadata.is_file()
         {
-            use std::os::unix::fs::PermissionsExt;
-            let mode = std::fs::symlink_metadata(dest)
-                .ok()
-                .filter(std::fs::Metadata::is_file)
-                .map_or(0o644, |metadata| metadata.permissions().mode() & 0o777);
-            tmp.as_file()
-                .set_permissions(std::fs::Permissions::from_mode(mode))?;
+            tmp.as_file().set_permissions(metadata.permissions())?;
         }
         #[cfg(target_os = "wasi")]
-        {
-            let mode = if std::fs::symlink_metadata(dest).is_ok_and(|metadata| metadata.is_file()) {
+        if std::fs::symlink_metadata(dest).is_ok_and(|metadata| metadata.is_file()) {
+            let mode =
                 pnpm_fs::read_file_permissions(&pnpm_fs::open_file_without_following(dest)?)?
-                    & 0o777
-            } else {
-                0o644
-            };
+                    & 0o777;
             pnpm_fs::set_file_permissions(tmp.as_file(), &mode)?;
         }
         pnpm_fs::sync_file(tmp.as_file())?;

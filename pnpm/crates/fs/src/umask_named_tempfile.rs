@@ -7,6 +7,10 @@ use std::{io, path::Path};
 /// in one Docker stage and used by another user in the next.
 /// [`private_named_tempfile_in`](crate::private_named_tempfile_in) is the 0600 counterpart.
 #[inline]
+#[cfg_attr(
+    not(target_os = "wasi"),
+    expect(clippy::disallowed_methods, reason = "the helper the lint points to")
+)]
 pub fn umask_named_tempfile_in(directory: impl AsRef<Path>) -> io::Result<tempfile::NamedTempFile> {
     #[cfg(unix)]
     {

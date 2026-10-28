@@ -43,8 +43,6 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 use serialization::{empty_dependency_fields, normalize_dependency_fields, serialize_with_indent};
 use strum::IntoStaticStr;
-#[cfg(not(target_os = "wasi"))]
-use tempfile::NamedTempFile;
 mod bins;
 mod blank_lines;
 mod build_triggers;

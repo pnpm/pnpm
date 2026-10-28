@@ -1,3 +1,9 @@
 # `print_stderr` and `print_stdout` guard the shipped binary against a closed stderr or stdout.
 # Tests may print freely.
 allow-print-in-tests = true
+
+# A temp file placed next to its target is usually persisted over it, and these create it 0600.
+disallowed-methods = [
+    { path = "tempfile::NamedTempFile::new_in", reason = "use pnpm_fs::umask_named_tempfile_in or pnpm_fs::private_named_tempfile_in to choose the file's mode" },
+    { path = "tempfile::Builder::tempfile_in", reason = "use pnpm_fs::umask_named_tempfile_in or pnpm_fs::private_named_tempfile_in to choose the file's mode" },
+]

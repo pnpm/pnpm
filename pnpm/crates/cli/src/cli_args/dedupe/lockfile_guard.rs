@@ -1,25 +1,4 @@
-use miette::{Context, IntoDiagnostic};
-use std::{
-    io::Write,
-    path::{Path, PathBuf},
-};
-
-/// Atomically write `content` to `path` via temp-file + rename, so the write
-/// does not follow symlinks and cannot produce a torn file on crash.
-fn atomic_write(path: &Path, content: &[u8]) -> miette::Result<()> {
-    let dir = path.parent().unwrap_or_else(|| Path::new("."));
-    let mut tmp = pnpm_fs::private_named_tempfile_in(dir)
-        .into_diagnostic()
-        .wrap_err("creating temp file for atomic write")?;
-    tmp.write_all(content)
-        .into_diagnostic()
-        .wrap_err("writing temp file")?;
-    pnpm_fs::sync_file(tmp.as_file()).into_diagnostic().wrap_err("syncing temp file")?;
-    tmp.persist(path)
-        .into_diagnostic()
-        .wrap_err("renaming temp file into place")?;
-    Ok(())
-}
+use std::path::{Path, PathBuf};
 
 /// A drop guard for `--check` mode: restores the lockfile snapshot on drop
 /// unless [`disarm`](LockfileGuard::disarm) has been called. This way an
@@ -48,7 +27,7 @@ impl Drop for LockfileGuard {
         }
         match self.existing.take() {
             Some(ref old) => {
-                let _ = atomic_write(&self.lockfile_path, old.as_bytes());
+                let _ = pnpm_fs::write_atomic(&self.lockfile_path, old.as_bytes());
             }
             None => {
                 let _ = std::fs::remove_file(&self.lockfile_path);

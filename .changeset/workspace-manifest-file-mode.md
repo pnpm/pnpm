@@ -2,4 +2,4 @@
 "pacquet": patch
 ---
 
-`pnpm deploy` now writes `package.json`, `pnpm-lock.yaml`, and `pnpm-workspace.yaml` with the mode the umask gives a new file, such as `0644`. A new `pnpm-workspace.yaml` gets the same mode, and an edit keeps the mode the file already had.
+Files that pnpm creates in a project now get the permissions the umask gives any new file, such as `0644`. Before, several of them were readable only by the user who ran pnpm. That broke Docker images that run as a different user. This covered `pnpm-workspace.yaml`, the files written by `pnpm deploy`, patch files from `pnpm patch-commit`, the lockfile restored by `pnpm dedupe --check`, and the Cargo and Python files that pnpm writes. When pnpm edits an existing file, the file keeps its permissions.

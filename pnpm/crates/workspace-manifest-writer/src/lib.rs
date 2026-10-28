@@ -521,7 +521,7 @@ fn write_or_remove_manifest(
 /// `pnpm-workspace.yaml` that is a symlink is overwritten rather than
 /// followed, and a crash mid-write cannot leave a torn manifest.
 fn write_atomic(path: &Path, contents: &str) -> io::Result<()> {
-    pnpm_fs::write_atomic_with_umask(path, contents.as_bytes())
+    pnpm_fs::write_atomic(path, contents.as_bytes())
 }
 
 mod build_settings;

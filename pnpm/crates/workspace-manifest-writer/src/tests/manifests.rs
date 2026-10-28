@@ -94,17 +94,15 @@ fn write_or_remove_manifest_reports_remove_errors() {
 #[test]
 fn write_or_remove_manifest_reports_write_errors() {
     let dir = TempDir::new().expect("temp dir");
-    let path = dir
-        .path()
-        .join("missing")
-        .join(WORKSPACE_MANIFEST_FILENAME);
+    let path = dir.path().join(WORKSPACE_MANIFEST_FILENAME);
+    std::fs::create_dir(&path).expect("put a directory where the manifest goes");
     let manifest = crate::model::Manifest::parse(Some("packages:\n  - '*'\n")).expect("manifest");
 
     let err = crate::write_or_remove_manifest(
         &crate::ManifestTarget { path, included: false, base_dir: dir.path().to_path_buf() },
         manifest,
     )
-    .expect_err("missing parent should fail");
+    .expect_err("replacing a directory should fail");
 
     assert!(matches!(err, crate::UpdateWorkspaceManifestError::Write { .. }));
 }

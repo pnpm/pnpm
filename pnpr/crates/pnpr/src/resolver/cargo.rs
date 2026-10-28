@@ -413,7 +413,7 @@ impl IndexFetcher {
         let _ = tokio::task::spawn_blocking(move || {
             let parent = path.parent()?;
             std::fs::create_dir_all(parent).ok()?;
-            pnpm_fs::write_atomic(&path, contents.as_bytes()).ok()
+            pnpm_fs::write_atomic_private_if_new(&path, contents.as_bytes()).ok()
         })
         .await;
     }
