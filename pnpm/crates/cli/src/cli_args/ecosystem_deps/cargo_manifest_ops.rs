@@ -1,4 +1,4 @@
-use crate::cargo_manifest::upsert_dependency;
+use crate::{cargo_manifest::upsert_dependency, cli_args::outdated::OutdatedQuery};
 use cargo_lock::Lockfile as CargoLockfile;
 use miette::{IntoDiagnostic, Result, WrapErr, bail};
 use pnpm_package_manifest::DependencyGroup;
@@ -36,6 +36,19 @@ pub(crate) fn cargo_project_name(project_dir: &Path) -> Option<String> {
         .get("name")?
         .as_str()
         .map(str::to_string)
+}
+
+pub(crate) fn has_matching_cargo_deps(
+    project_dir: &Path,
+    workspace_limit: Option<&Path>,
+    query: &OutdatedQuery<'_>,
+) -> Result<bool> {
+    Ok(declared_cargo_deps(project_dir, workspace_limit)?
+        .into_iter()
+        .any(|dep| {
+            query.include_direct.contains(&dep.group)
+                && (query.matches_name(&dep.alias) || query.matches_name(&dep.package_name))
+        }))
 }
 
 pub(crate) fn find_cargo_workspace_root(
@@ -154,6 +167,16 @@ fn collect_table_deps(
         let Some((package_name, raw_spec, target_manifest, target_table)) = resolved else {
             continue;
         };
+        if out
+            .iter()
+            .any(|existing| {
+                existing.manifest_path == target_manifest
+                    && existing.table == target_table
+                    && existing.alias == *alias
+            })
+        {
+            continue;
+        }
         let Ok(version_req) = VersionReq::parse(&raw_spec) else {
             continue;
         };
@@ -253,8 +276,44 @@ pub(crate) fn format_cargo_saved_spec(
     {
         return Ok(spec.to_string());
     }
-    let prefix = existing_prefix(existing_raw);
-    Ok(format!("{prefix}{resolved}"))
+    Ok(format_existing_cargo_spec(existing_raw, resolved))
+}
+
+fn format_existing_cargo_spec(existing_raw: &str, resolved: &Version) -> String {
+    if !existing_raw.contains(',') {
+        let prefix = existing_prefix(existing_raw);
+        return format!("{prefix}{resolved}");
+    }
+    let matches_existing = VersionReq::parse(existing_raw).is_ok_and(|req| req.matches(resolved));
+    if !matches_existing {
+        return format!("^{resolved}");
+    }
+    let mut replaced_lower = false;
+    let clauses: Vec<String> = existing_raw
+        .split(',')
+        .map(|clause| {
+            let trimmed = clause.trim();
+            if !replaced_lower && let Some(prefix) = lower_bound_prefix(trimmed) {
+                replaced_lower = true;
+                format!("{prefix}{resolved}")
+            } else {
+                trimmed.to_string()
+            }
+        })
+        .collect();
+    if replaced_lower { clauses.join(", ") } else { existing_raw.to_string() }
+}
+
+fn lower_bound_prefix(clause: &str) -> Option<&'static str> {
+    if clause.starts_with(">=") {
+        Some(">=")
+    } else if clause.starts_with('^') {
+        Some("^")
+    } else if clause.starts_with('~') {
+        Some("~")
+    } else {
+        None
+    }
 }
 
 fn existing_prefix(raw: &str) -> &'static str {

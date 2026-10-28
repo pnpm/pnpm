@@ -121,17 +121,22 @@ async fn resolve_outdated_cargo_dep(
     if target <= *current {
         return Ok(None);
     }
-    Ok(Some(build_cargo_outdated_package(dep, current, &target, &wanted, workspace_name)))
+    let index_url = config.cargo_index_url();
+    Ok(Some(build_cargo_outdated_package(
+        dep,
+        (current, &target, &wanted),
+        workspace_name,
+        index_url,
+    )))
 }
 
 fn build_cargo_outdated_package(
     dep: &DeclaredCargoDep,
-    current: &Version,
-    target: &Version,
-    wanted: &Version,
+    (current, target, wanted): (&Version, &Version, &Version),
     workspace_name: Option<&str>,
+    index_url: &str,
 ) -> OutdatedPackage {
-    let homepage = pnpm_cargo_resolver::is_crates_io(pnpm_cargo_resolver::CRATES_IO_SPARSE_INDEX)
+    let homepage = pnpm_cargo_resolver::is_crates_io(index_url)
         .then(|| format!("https://crates.io/crates/{}", dep.package_name));
     OutdatedPackage {
         alias: dep.alias.clone(),
@@ -178,11 +183,9 @@ pub(crate) async fn update_cargo_project<Reporter: self::Reporter + 'static>(
     }
     let manifest_path = project_dir.join("Cargo.toml");
     if !manifest_path.is_file() {
-        validate_no_explicit_cargo_requests(options.requests)?;
         return Ok(false);
     }
     let declared = declared_cargo_deps(project_dir, config.workspace_dir.as_deref())?;
-    validate_explicit_cargo_requests_exist(options.requests, &declared)?;
     let selected = select_cargo_deps_to_update(&declared, options);
     if selected.is_empty() {
         return Ok(false);
@@ -199,19 +202,26 @@ pub(crate) async fn update_cargo_project<Reporter: self::Reporter + 'static>(
     Ok(true)
 }
 
-fn validate_no_explicit_cargo_requests(requests: &[CargoUpdateSelector]) -> Result<()> {
-    if let Some(req) = requests.iter().find(|req| req.explicit) {
-        bail!("crate {} is not a declared dependency in Cargo.toml", req.name);
-    }
-    Ok(())
-}
-
-fn validate_explicit_cargo_requests_exist(
+pub(crate) fn validate_explicit_cargo_requests(
+    project_dirs: &[PathBuf],
+    workspace_root: Option<&Path>,
     requests: &[CargoUpdateSelector],
-    declared: &[DeclaredCargoDep],
 ) -> Result<()> {
-    for req in requests.iter().filter(|req| req.explicit) {
-        if !declared
+    let explicit: Vec<&CargoUpdateSelector> = requests
+        .iter()
+        .filter(|req| req.explicit)
+        .collect();
+    if explicit.is_empty() {
+        return Ok(());
+    }
+    let mut all_declared = Vec::new();
+    for dir in project_dirs {
+        if dir.join("Cargo.toml").is_file() {
+            all_declared.extend(declared_cargo_deps(dir, workspace_root)?);
+        }
+    }
+    for req in explicit {
+        if !all_declared
             .iter()
             .any(|dep| dep.alias == req.name || dep.package_name == req.name)
         {

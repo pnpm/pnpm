@@ -1689,3 +1689,74 @@ fn update_bumps_cargo_dependencies() {
     let cargo_lock = fs::read_to_string(workspace.join("Cargo.lock")).unwrap();
     assert!(cargo_lock.contains("name = \"foo\"\nversion = \"2.0.0\""), "{cargo_lock}");
 }
+
+#[test]
+fn recursive_update_bumps_selected_cargo_dependency_across_workspace_members() {
+    let root = tempfile::tempdir().unwrap();
+    let workspace = root.path().join("workspace");
+    let cache_dir = root.path().join("cache");
+    let crate_a = workspace.join("crates/a");
+    let crate_b = workspace.join("crates/b");
+    fs::create_dir_all(crate_a.join("src")).unwrap();
+    fs::create_dir_all(crate_b.join("src")).unwrap();
+    fs::write(crate_a.join("src/lib.rs"), "").unwrap();
+    fs::write(crate_b.join("src/lib.rs"), "").unwrap();
+
+    for (prefix, name) in [("3/f", "foo"), ("3/b", "bar")] {
+        let index_dir = cache_dir.join(format!("v11/cargo-index/crates-io/{prefix}"));
+        fs::create_dir_all(&index_dir).unwrap();
+        let entry = ["1.0.0", "1.2.0"]
+            .iter()
+            .map(|ver| {
+                format!(
+                    r#"{{"name":"{name}","vers":"{ver}","deps":[],"cksum":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","features":{{}},"yanked":false}}"#,
+                )
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        fs::write(index_dir.join(name), entry).unwrap();
+    }
+
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        format!(
+            "packages:\n  - crates/*\ncargo:\n  enabled: true\nstoreDir: '{}'\ncacheDir: '{}'\n",
+            root.path().join("store").display(),
+            cache_dir.display(),
+        ),
+    )
+    .unwrap();
+    fs::write(workspace.join("package.json"), r#"{"name":"root","private":true}"#).unwrap();
+    fs::write(crate_a.join("package.json"), r#"{"name":"crate-a","version":"0.1.0"}"#).unwrap();
+    fs::write(crate_b.join("package.json"), r#"{"name":"crate-b","version":"0.1.0"}"#).unwrap();
+    fs::write(
+        crate_a.join("Cargo.toml"),
+        "[package]\nname = \"crate-a\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[dependencies]\nfoo = \"^1.0.0\"\nbar = \"^1.0.0\"\n",
+    )
+    .unwrap();
+    fs::write(
+        crate_a.join("Cargo.lock"),
+        "version = 4\n\n[[package]]\nname = \"bar\"\nversion = \"1.0.0\"\nsource = \"registry+https://github.com/rust-lang/crates.io-index\"\nchecksum = \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"\n\n[[package]]\nname = \"crate-a\"\nversion = \"0.1.0\"\ndependencies = [\"bar\", \"foo\"]\n\n[[package]]\nname = \"foo\"\nversion = \"1.0.0\"\nsource = \"registry+https://github.com/rust-lang/crates.io-index\"\nchecksum = \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"\n",
+    )
+    .unwrap();
+    fs::write(
+        crate_b.join("Cargo.toml"),
+        "[package]\nname = \"crate-b\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[dependencies]\nbar = \"^1.0.0\"\n",
+    )
+    .unwrap();
+    fs::write(
+        crate_b.join("Cargo.lock"),
+        "version = 4\n\n[[package]]\nname = \"bar\"\nversion = \"1.0.0\"\nsource = \"registry+https://github.com/rust-lang/crates.io-index\"\nchecksum = \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"\n\n[[package]]\nname = \"crate-b\"\nversion = \"0.1.0\"\ndependencies = [\"bar\"]\n",
+    )
+    .unwrap();
+
+    pacquet(&workspace, ["-r", "update", "crate:foo", "--offline", "--lockfile-only"])
+        .assert()
+        .success();
+
+    let cargo_a = fs::read_to_string(crate_a.join("Cargo.toml")).unwrap();
+    assert!(cargo_a.contains(r#"foo = "^1.2.0""#), "{cargo_a}");
+    assert!(cargo_a.contains(r#"bar = "^1.0.0""#), "{cargo_a}");
+    let cargo_b = fs::read_to_string(crate_b.join("Cargo.toml")).unwrap();
+    assert!(cargo_b.contains(r#"bar = "^1.0.0""#), "{cargo_b}");
+}

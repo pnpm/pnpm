@@ -11,8 +11,11 @@ use crate::{
     cli_args::outdated::{OutdatedPackage, OutdatedQuery, OutdatedRun},
     ecosystem_install::{EcosystemManifest, EcosystemWorkspaceInventory, InstallContext},
 };
-use cargo::{CargoUpdateOptions, collect_cargo_outdated, has_cargo_lockfile, update_cargo_project};
-use cargo_manifest_ops::{cargo_project_name, declared_cargo_deps};
+use cargo::{
+    CargoUpdateOptions, collect_cargo_outdated, has_cargo_lockfile, update_cargo_project,
+    validate_explicit_cargo_requests,
+};
+use cargo_manifest_ops::{cargo_project_name, declared_cargo_deps, has_matching_cargo_deps};
 use miette::Result;
 use pnpm_config::Config;
 use pnpm_matcher::{Matcher, create_matcher};
@@ -21,8 +24,9 @@ use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_reporter::Reporter;
 use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
 use python::{
-    PythonUpdateOptions, collect_python_outdated, declared_python_dep_names, has_python_lockfile,
-    python_project_name, update_python_project,
+    PythonUpdateOptions, collect_python_outdated, declared_python_dep_names,
+    has_matching_python_deps, has_python_lockfile, python_project_name, update_python_project,
+    validate_explicit_python_requests,
 };
 use selectors::{is_cargo_prefixed, is_python_prefixed, parse_update_selectors};
 use std::{
@@ -47,26 +51,35 @@ pub(crate) struct EcosystemUpdateOutcome {
     pub(crate) remaining_node_selectors: Vec<String>,
 }
 
-pub(crate) fn ecosystem_lockfile_state(
+pub(crate) fn requires_ecosystem_lockfile(
     project_dir: &Path,
     config: &Config,
-) -> Result<(bool, bool)> {
+    query: &OutdatedQuery<'_>,
+    package_patterns: &[String],
+) -> Result<bool> {
     let workspace_root = config.workspace_dir.as_deref();
-    let (cargo_declared, cargo_locked) = if config.cargo.enabled {
-        let has_deps = !declared_cargo_deps(project_dir, workspace_root)?.is_empty();
-        (has_deps, has_cargo_lockfile(project_dir, workspace_root))
-    } else {
-        (false, true)
-    };
-    let (py_declared, py_locked) = if config.python.enabled {
-        let has_deps = !declared_python_dep_names(project_dir)?.is_empty();
-        (has_deps, has_python_lockfile(project_dir, workspace_root))
-    } else {
-        (false, true)
-    };
-    let has_declared = cargo_declared || py_declared;
-    let all_locked = (!cargo_declared || cargo_locked) && (!py_declared || py_locked);
-    Ok((has_declared, has_declared && all_locked))
+    if config.cargo.enabled
+        && !has_cargo_lockfile(project_dir, workspace_root)
+        && let Some(cargo_matcher) =
+            ecosystem_matcher(package_patterns, EcosystemFilterKind::Cargo)?
+    {
+        let cargo_query =
+            OutdatedQuery { match_names: cargo_matcher.as_ref().or(query.match_names), ..*query };
+        if has_matching_cargo_deps(project_dir, workspace_root, &cargo_query)? {
+            return Ok(true);
+        }
+    }
+    if config.python.enabled
+        && !has_python_lockfile(project_dir, workspace_root)
+        && let Some(py_matcher) = ecosystem_matcher(package_patterns, EcosystemFilterKind::Python)?
+    {
+        let py_query =
+            OutdatedQuery { match_names: py_matcher.as_ref().or(query.match_names), ..*query };
+        if has_matching_python_deps(project_dir, &py_query)? {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
 pub(crate) fn declared_ecosystem_dep_names(
@@ -206,9 +219,52 @@ fn extend_manifest_dirs(
     }
 }
 
-pub(crate) async fn run_ecosystem_updates<Reporter: self::Reporter + 'static>(
-    project_dir: &Path,
-    manifest: &PackageManifest,
+pub(crate) async fn run_ecosystem_updates_for_selection<Reporter: self::Reporter + 'static>(
+    state: &crate::State,
+    selection: Option<&crate::cli_args::pipelines::InstallFamilySelection>,
+    options: EcosystemUpdateStepOptions<'_>,
+) -> Result<EcosystemUpdateOutcome> {
+    let (target_dirs, manifests) = target_dirs_and_manifests(state, selection).await?;
+    Box::pin(run_ecosystem_updates_on_targets::<Reporter>(
+        &target_dirs,
+        &manifests,
+        state.config,
+        &state.http_client,
+        options,
+    ))
+    .await
+}
+
+async fn target_dirs_and_manifests<'a>(
+    state: &'a crate::State,
+    selection: Option<&'a crate::cli_args::pipelines::InstallFamilySelection>,
+) -> Result<(Vec<PathBuf>, Vec<&'a PackageManifest>)> {
+    let Some(selection) = selection else {
+        return Ok((vec![state.project_dir().to_path_buf()], vec![&state.manifest]));
+    };
+    let mut dirs = Vec::new();
+    let mut manifests = Vec::new();
+    for project in &selection.projects {
+        if selection.selected_dirs.contains(&project.root_dir) {
+            dirs.push(project.root_dir.clone());
+            manifests.push(&project.manifest);
+        }
+    }
+    if state.config.filter.is_empty() && state.config.test_pattern.is_empty() {
+        let standalone = discover_standalone_ecosystem_dirs(
+            &selection.workspace_root,
+            &selection.selected_dirs,
+            state.config,
+        )
+        .await?;
+        dirs.extend(standalone);
+    }
+    Ok((dirs, manifests))
+}
+
+async fn run_ecosystem_updates_on_targets<Reporter: self::Reporter + 'static>(
+    target_dirs: &[PathBuf],
+    manifests: &[&PackageManifest],
     config: &'static Config,
     http_client: &Arc<ThrottledClient>,
     options: EcosystemUpdateStepOptions<'_>,
@@ -220,77 +276,52 @@ pub(crate) async fn run_ecosystem_updates<Reporter: self::Reporter + 'static>(
             remaining_node_selectors: parsed.node_selectors,
         });
     }
+    validate_explicit_requests(target_dirs, config, &parsed)?;
     let restrict = !options.selectors.is_empty();
     let bare_matcher =
         (!parsed.bare_patterns.is_empty()).then(|| create_matcher(&parsed.bare_patterns));
-    let context = InstallContext {
-        config,
-        http_client: Arc::clone(http_client),
-        lockfile_only: options.lockfile_only,
-        frozen_lockfile: false,
-    };
-    let cargo_updated = run_cargo_half::<Reporter>(
-        project_dir,
-        context.clone(),
-        &options,
-        &parsed,
-        bare_matcher.as_ref(),
-        restrict,
-    )
-    .await?;
-    let python_updated = run_python_half::<Reporter>(
-        project_dir,
-        context,
-        &options,
-        &parsed,
-        bare_matcher.as_ref(),
-        restrict,
-    )
-    .await?;
-    let remaining_node_selectors =
-        filter_remaining_node_selectors(project_dir, manifest, config, &parsed.node_selectors)?;
-    Ok(EcosystemUpdateOutcome {
-        updated_any: cargo_updated || python_updated,
-        remaining_node_selectors,
-    })
-}
-
-pub(crate) async fn run_ecosystem_updates_for_selection<Reporter: self::Reporter + 'static>(
-    state: &crate::State,
-    selection: Option<&crate::cli_args::pipelines::InstallFamilySelection>,
-    options: EcosystemUpdateStepOptions<'_>,
-) -> Result<EcosystemUpdateOutcome> {
-    let Some(selection) = selection else {
-        return Box::pin(run_ecosystem_updates::<Reporter>(
-            state.project_dir(),
-            &state.manifest,
-            state.config,
-            &state.http_client,
-            options,
-        ))
-        .await;
-    };
     let mut updated_any = false;
-    let mut remaining = options.selectors.to_vec();
-    for project in &selection.projects {
-        if !selection.selected_dirs.contains(&project.root_dir) {
-            continue;
-        }
-        let out = Box::pin(run_ecosystem_updates::<Reporter>(
-            &project.root_dir,
-            &project.manifest,
-            state.config,
-            &state.http_client,
-            EcosystemUpdateStepOptions { selectors: &remaining, ..options },
-        ))
+    for project_dir in target_dirs {
+        let context = InstallContext {
+            config,
+            http_client: Arc::clone(http_client),
+            lockfile_only: options.lockfile_only,
+            frozen_lockfile: false,
+        };
+        updated_any |= update_project_ecosystems::<Reporter>(
+            project_dir,
+            context,
+            &options,
+            &parsed,
+            bare_matcher.as_ref(),
+            restrict,
+        )
         .await?;
-        updated_any |= out.updated_any;
-        remaining = out.remaining_node_selectors;
     }
-    Ok(EcosystemUpdateOutcome { updated_any, remaining_node_selectors: remaining })
+    let remaining_node_selectors =
+        filter_remaining_node_selectors(target_dirs, manifests, config, &parsed.node_selectors)?;
+    Ok(EcosystemUpdateOutcome { updated_any, remaining_node_selectors })
 }
 
-async fn run_cargo_half<Reporter: self::Reporter + 'static>(
+fn validate_explicit_requests(
+    target_dirs: &[PathBuf],
+    config: &Config,
+    parsed: &selectors::ParsedUpdateSelectors,
+) -> Result<()> {
+    if config.cargo.enabled {
+        validate_explicit_cargo_requests(
+            target_dirs,
+            config.workspace_dir.as_deref(),
+            &parsed.cargo_requests,
+        )?;
+    }
+    if config.python.enabled {
+        validate_explicit_python_requests(target_dirs, &parsed.python_requests)?;
+    }
+    Ok(())
+}
+
+async fn update_project_ecosystems<Reporter: self::Reporter + 'static>(
     project_dir: &Path,
     context: InstallContext,
     options: &EcosystemUpdateStepOptions<'_>,
@@ -304,47 +335,44 @@ async fn run_cargo_half<Reporter: self::Reporter + 'static>(
         restrict_to_selectors,
         step: options,
     };
-    update_cargo_project::<Reporter>(project_dir, context, &cargo_opts).await
-}
-
-async fn run_python_half<Reporter: self::Reporter + 'static>(
-    project_dir: &Path,
-    context: InstallContext,
-    options: &EcosystemUpdateStepOptions<'_>,
-    parsed: &selectors::ParsedUpdateSelectors,
-    bare_matcher: Option<&Matcher>,
-    restrict_to_selectors: bool,
-) -> Result<bool> {
+    let cargo_updated =
+        update_cargo_project::<Reporter>(project_dir, context.clone(), &cargo_opts).await?;
     let py_opts = PythonUpdateOptions {
         requests: &parsed.python_requests,
         bare_matcher,
         restrict_to_selectors,
         step: options,
     };
-    update_python_project::<Reporter>(project_dir, context, &py_opts).await
+    let py_updated = update_python_project::<Reporter>(project_dir, context, &py_opts).await?;
+    Ok(cargo_updated || py_updated)
 }
 
 fn filter_remaining_node_selectors(
-    project_dir: &Path,
-    manifest: &PackageManifest,
+    target_dirs: &[PathBuf],
+    manifests: &[&PackageManifest],
     config: &Config,
     node_selectors: &[String],
 ) -> Result<Vec<String>> {
     if node_selectors.is_empty() {
         return Ok(Vec::new());
     }
-    let eco_names: HashSet<String> =
-        declared_ecosystem_dep_names(project_dir, config)?.into_iter().collect();
+    let mut eco_names = HashSet::new();
+    for dir in target_dirs {
+        eco_names.extend(declared_ecosystem_dep_names(dir, config)?);
+    }
     if eco_names.is_empty() {
         return Ok(node_selectors.to_vec());
     }
-    let node_deps: HashSet<String> = manifest
-        .dependencies([
-            DependencyGroup::Prod,
-            DependencyGroup::Dev,
-            DependencyGroup::Optional,
-            DependencyGroup::Peer,
-        ])
+    let node_deps: HashSet<String> = manifests
+        .iter()
+        .flat_map(|manifest| {
+            manifest.dependencies([
+                DependencyGroup::Prod,
+                DependencyGroup::Dev,
+                DependencyGroup::Optional,
+                DependencyGroup::Peer,
+            ])
+        })
         .map(|(name, _)| name.to_string())
         .collect();
     Ok(node_selectors

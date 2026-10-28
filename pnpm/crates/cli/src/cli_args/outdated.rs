@@ -15,8 +15,8 @@ use crate::{
     cli_args::{
         catalogs::configured_catalogs,
         ecosystem_deps::{
-            EcosystemFilterKind, declared_ecosystem_dep_names, ecosystem_lockfile_state,
-            patterns_for_ecosystem,
+            EcosystemFilterKind, declared_ecosystem_dep_names, patterns_for_ecosystem,
+            requires_ecosystem_lockfile,
         },
         install::resolve_bool_override,
         recursive::{AutoExcludeRoot, discover_workspace_projects, select_recursive_projects},
@@ -296,8 +296,8 @@ impl OutdatedArgs {
                 .any(|(name, spec)| {
                     !pnpm_tool_protocol::is_tool_specifier(spec) && query.matches_name(name)
                 });
-        let (has_eco_deps, has_eco_lock) = ecosystem_lockfile_state(project_dir(manifest), config)?;
-        let needs_eco_lockfile = has_eco_deps && !has_eco_lock;
+        let needs_eco_lockfile =
+            requires_ecosystem_lockfile(project_dir(manifest), config, &query, package_patterns)?;
         Ok(needs_node_lockfile || needs_eco_lockfile)
     }
 

@@ -6,8 +6,9 @@ use super::{
     sort_workspace_outdated,
 };
 use crate::cli_args::ecosystem_deps::{
-    collect_ecosystem_outdated, declared_ecosystem_dep_names, discover_standalone_ecosystem_dirs,
-    ecosystem_lockfile_state, ecosystem_project_name,
+    EcosystemFilterKind, collect_ecosystem_outdated, declared_ecosystem_dep_names,
+    discover_standalone_ecosystem_dirs, ecosystem_project_name, patterns_for_ecosystem,
+    requires_ecosystem_lockfile,
 };
 use std::collections::HashSet;
 
@@ -189,18 +190,21 @@ fn ensure_project_lockfiles(
     manifest: &PackageManifest,
     lockfile: Option<&Lockfile>,
 ) -> miette::Result<()> {
-    let has_non_tool_dep = manifest
-        .dependencies(inputs.query.include_direct.iter().copied())
-        .any(|(name, spec)| {
-            !pnpm_tool_protocol::is_tool_specifier(spec) && inputs.query.matches_name(name)
-        });
+    let raw_packages = &inputs.run.raw_packages;
+    let node_patterns = patterns_for_ecosystem(raw_packages, EcosystemFilterKind::Node)?;
+    let checks_node = raw_packages.is_empty() || !node_patterns.is_empty();
+    let has_non_tool_dep = checks_node
+        && manifest
+            .dependencies(inputs.query.include_direct.iter().copied())
+            .any(|(name, spec)| {
+                !pnpm_tool_protocol::is_tool_specifier(spec) && inputs.query.matches_name(name)
+            });
     if lockfile.is_none() && has_non_tool_dep {
         let dir =
             if inputs.config.shares_one_lockfile() { inputs.lockfile_root } else { project_dir };
         return Err(no_lockfile_error(dir));
     }
-    let (has_eco_deps, has_eco_lock) = ecosystem_lockfile_state(project_dir, inputs.config)?;
-    if has_eco_deps && !has_eco_lock {
+    if requires_ecosystem_lockfile(project_dir, inputs.config, inputs.query, raw_packages)? {
         return Err(no_lockfile_error(project_dir));
     }
     Ok(())

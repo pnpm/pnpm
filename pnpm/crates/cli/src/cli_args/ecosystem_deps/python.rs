@@ -20,7 +20,7 @@ use pnpm_python_installer::{
 use pnpm_reporter::Reporter;
 use std::{
     collections::{BTreeMap, BTreeSet},
-    path::Path,
+    path::{Path, PathBuf},
     str::FromStr,
 };
 
@@ -33,6 +33,22 @@ pub(crate) struct PythonUpdateOptions<'a> {
 
 pub(crate) fn python_project_name(project_dir: &Path) -> Option<String> {
     project_name(&project_dir.join("pyproject.toml"))
+}
+
+pub(crate) fn has_matching_python_deps(
+    project_dir: &Path,
+    query: &OutdatedQuery<'_>,
+) -> Result<bool> {
+    let pyproject = project_dir.join("pyproject.toml");
+    if !pyproject.is_file() {
+        return Ok(false);
+    }
+    Ok(declared_dependencies(&pyproject)?
+        .into_iter()
+        .any(|dep| {
+            query.include_direct.contains(&map_python_group(dep.group))
+                && query.matches_name(dep.name.as_ref())
+        }))
 }
 
 pub(crate) fn has_python_lockfile(project_dir: &Path, workspace_root: Option<&Path>) -> bool {
@@ -169,11 +185,9 @@ pub(crate) async fn update_python_project<Reporter: self::Reporter + 'static>(
     }
     let pyproject_path = project_dir.join("pyproject.toml");
     if !pyproject_path.is_file() {
-        validate_no_explicit_python_requests(options.requests)?;
         return Ok(false);
     }
     let declared = declared_dependencies(&pyproject_path)?;
-    validate_explicit_python_requests_exist(options.requests, &declared)?;
     let targets = select_python_targets(&declared, options)?;
     if options.restrict_to_selectors && targets.is_empty() {
         return Ok(false);
@@ -185,22 +199,29 @@ pub(crate) async fn update_python_project<Reporter: self::Reporter + 'static>(
     Ok(true)
 }
 
-fn validate_no_explicit_python_requests(requests: &[PythonUpdateSelector]) -> Result<()> {
-    if let Some(req) = requests.iter().find(|req| req.explicit) {
-        bail!("package {} is not a declared dependency in pyproject.toml", req.name);
-    }
-    Ok(())
-}
-
-fn validate_explicit_python_requests_exist(
+pub(crate) fn validate_explicit_python_requests(
+    project_dirs: &[PathBuf],
     requests: &[PythonUpdateSelector],
-    declared: &[DeclaredPythonDep],
 ) -> Result<()> {
-    for req in requests.iter().filter(|req| req.explicit) {
+    let explicit: Vec<&PythonUpdateSelector> = requests
+        .iter()
+        .filter(|req| req.explicit)
+        .collect();
+    if explicit.is_empty() {
+        return Ok(());
+    }
+    let mut all_declared = Vec::new();
+    for dir in project_dirs {
+        let pyproject = dir.join("pyproject.toml");
+        if pyproject.is_file() {
+            all_declared.extend(declared_dependencies(&pyproject)?);
+        }
+    }
+    for req in explicit {
         let Ok(pkg_name) = PackageName::from_str(&req.name) else {
             bail!("invalid Python package name `{}`", req.name);
         };
-        if !declared
+        if !all_declared
             .iter()
             .any(|dep| dep.name == pkg_name)
         {
