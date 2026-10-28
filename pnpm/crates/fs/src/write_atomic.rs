@@ -79,15 +79,24 @@ fn write_tmp_over(path: &Path, bytes: &[u8], inherit: InheritMode, mode: u32) ->
     // Registered before the create, so no interrupt finds the temp file
     // unregistered. A colliding random name is retried under a new one,
     // whose registration replaces the old.
+    let inherited = match inherit {
+        InheritMode::Yes => existing_mode(path),
+        InheritMode::No => None,
+    };
+    // A replacement starts at the mode it will end with, so its contents are
+    // never readable by more users than the file it replaces.
+    let creation_mode = inherited.map_or(mode, |existing| existing & 0o777);
     let mut _pending_temp = None;
     let mut tmp = tempfile::Builder::new()
         .make_in(dir.unwrap_or_else(|| Path::new(".")), |path| {
             _pending_temp = Some(crate::pending_temp::track_temp_file(path));
-            create_new_file(path, mode)
+            create_new_file(path, creation_mode)
         })?;
     tmp.write_all(bytes)?;
     crate::sync_file(tmp.as_file())?;
-    inherit_permissions(path, tmp.as_file(), inherit)?;
+    if let Some(existing) = inherited {
+        set_mode(tmp.as_file(), existing)?;
+    }
     let mut pending = Some(tmp.into_temp_path());
     crate::retry::retry_transient_file_locks(|| {
         let temporary = pending.take().expect("temporary path retained after a failed persist");
@@ -102,34 +111,48 @@ fn write_tmp_over(path: &Path, bytes: &[u8], inherit: InheritMode, mode: u32) ->
     Ok(())
 }
 
-fn inherit_permissions(path: &Path, file: &fs::File, inherit: InheritMode) -> io::Result<()> {
-    // The temp file is created with the caller's mode; persisting it over an
-    // existing regular file would silently change that file's permissions, so
-    // carry the target's mode across the rename to preserve it.
-    //
-    // `symlink_metadata` (not `metadata`) so a symlinked target is detected
-    // rather than followed: the rename replaces the symlink with a fresh
-    // regular file, and copying the link target's (possibly 0644) mode would
-    // loosen permissions on freshly written credentials. A symlinked target gets
-    // the creation mode.
-    #[cfg(unix)]
-    if matches!(inherit, InheritMode::Yes)
-        && let Ok(metadata) = fs::symlink_metadata(path)
-        && !metadata.file_type().is_symlink()
-    {
-        use std::os::unix::fs::PermissionsExt as _;
-        let mode = metadata.permissions().mode();
-        file.set_permissions(std::fs::Permissions::from_mode(mode))?;
-    }
-    #[cfg(target_os = "wasi")]
-    if matches!(inherit, InheritMode::Yes)
-        && let Ok(mode) = crate::wasi_fs::path_mode(path)
-        && mode & libc::S_IFMT != libc::S_IFLNK
-    {
-        crate::wasi_fs::set_file_mode(file, mode & 0o7777)?;
-    }
-    #[cfg(not(any(unix, target_os = "wasi")))]
-    let _ = (path, file, inherit);
+/// The mode of an existing regular file at `path`, which a replacement keeps.
+///
+/// `symlink_metadata` (not `metadata`) so a symlinked target is detected
+/// rather than followed: the rename replaces the symlink with a fresh regular
+/// file, and copying the link target's (possibly 0644) mode would loosen
+/// permissions on freshly written credentials. A symlinked target gets the
+/// creation mode.
+#[cfg(unix)]
+fn existing_mode(path: &Path) -> Option<u32> {
+    use std::os::unix::fs::PermissionsExt as _;
+    fs::symlink_metadata(path)
+        .ok()
+        .filter(|metadata| !metadata.file_type().is_symlink())
+        .map(|metadata| metadata.permissions().mode())
+}
+
+#[cfg(target_os = "wasi")]
+fn existing_mode(path: &Path) -> Option<u32> {
+    crate::wasi_fs::path_mode(path)
+        .ok()
+        .filter(|mode| mode & libc::S_IFMT != libc::S_IFLNK)
+        .map(|mode| mode & 0o7777)
+}
+
+#[cfg(not(any(unix, target_os = "wasi")))]
+fn existing_mode(_path: &Path) -> Option<u32> {
+    None
+}
+
+#[cfg(unix)]
+fn set_mode(file: &fs::File, mode: u32) -> io::Result<()> {
+    use std::os::unix::fs::PermissionsExt as _;
+    file.set_permissions(fs::Permissions::from_mode(mode))
+}
+
+#[cfg(target_os = "wasi")]
+fn set_mode(file: &fs::File, mode: u32) -> io::Result<()> {
+    crate::wasi_fs::set_file_mode(file, mode)
+}
+
+#[cfg(not(any(unix, target_os = "wasi")))]
+fn set_mode(_file: &fs::File, _mode: u32) -> io::Result<()> {
     Ok(())
 }
 
