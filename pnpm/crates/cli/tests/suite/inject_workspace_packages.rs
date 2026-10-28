@@ -1469,9 +1469,8 @@ fn frozen_install_accepts_an_injected_project_with_a_dependency_that_is_also_opt
     }));
 }
 
-/// A `readPackage` hook that adds a peer to an injected project, then a
-/// frozen install filtered to the consumer. The filtered check reads the
-/// injected project from its directory, so it has to hook that manifest too.
+/// A filtered check reads the injected project from its directory, not from
+/// the hooked project manifests.
 #[test]
 fn filtered_frozen_install_accepts_a_peer_a_read_package_hook_adds_to_an_injected_project() {
     let CommandTempCwd {
