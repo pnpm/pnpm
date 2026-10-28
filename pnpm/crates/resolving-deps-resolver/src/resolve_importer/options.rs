@@ -131,6 +131,30 @@ pub struct ManifestTransformHooks {
     pub pnpmfile_hook: Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>,
 }
 
+impl ManifestTransformHooks {
+    /// A resolved manifest as the resolver hands it on: [`Self::manifest_hook`],
+    /// then the pnpmfile's `readPackage` with the context `hook_ctx` builds, then
+    /// [`Self::overrides_hook`]. A lockfile check that compares a package's
+    /// manifest with its snapshot reads it through this too.
+    pub async fn apply(
+        &self,
+        manifest: Arc<serde_json::Value>,
+        hook_ctx: impl FnOnce() -> pnpm_hooks::HookContext,
+    ) -> Result<Arc<serde_json::Value>, pnpm_hooks::HookError> {
+        let mut manifest = match &self.manifest_hook {
+            Some(hook) => hook(manifest),
+            None => manifest,
+        };
+        if let Some(pnpmfile_hook) = &self.pnpmfile_hook {
+            manifest = pnpmfile_hook.read_package((*manifest).clone(), hook_ctx()).await?;
+        }
+        Ok(match &self.overrides_hook {
+            Some(hook) => hook(manifest),
+            None => manifest,
+        })
+    }
+}
+
 impl std::fmt::Debug for ResolveImporterOptions {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ResolveImporterOptions")

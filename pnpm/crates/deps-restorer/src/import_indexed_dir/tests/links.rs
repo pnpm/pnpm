@@ -278,21 +278,25 @@ fn preserve_symlinks_imports_a_link_to_a_left_out_file_as_that_file() {
     symlink("real.txt", &link_file).unwrap();
     let cas = cas_map(&[("link.txt", link_file)]);
 
-    let target = tmp.path().join("target");
-    import_indexed_dir::<SilentReporter>(
-        &AtomicU8::new(0),
-        PackageImportMethod::Copy,
-        &target,
-        &cas,
-        ImportIndexedDirOpts {
-            symlink_targets: Some(SymlinkTargets::Imported),
-            ..ImportIndexedDirOpts::default()
-        },
-    )
-    .expect("import with preserve_symlinks should succeed");
+    for (idx, method) in
+        [PackageImportMethod::Copy, PackageImportMethod::Hardlink].into_iter().enumerate()
+    {
+        let target = tmp.path().join(format!("target-{idx}"));
+        import_indexed_dir::<SilentReporter>(
+            &AtomicU8::new(0),
+            method,
+            &target,
+            &cas,
+            ImportIndexedDirOpts {
+                symlink_targets: Some(SymlinkTargets::Imported),
+                ..ImportIndexedDirOpts::default()
+            },
+        )
+        .expect("import with preserve_symlinks should succeed");
 
-    assert!(fs::symlink_metadata(target.join("link.txt")).unwrap().is_file());
-    assert_eq!(fs::read(target.join("link.txt")).unwrap(), b"content");
+        assert!(fs::symlink_metadata(target.join("link.txt")).unwrap().is_file());
+        assert_eq!(fs::read(target.join("link.txt")).unwrap(), b"content");
+    }
 }
 
 #[cfg(unix)]

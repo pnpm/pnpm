@@ -358,7 +358,8 @@ npm, Yarn, and pnpm projects that do not opt in keep using `main`. A pnpm projec
 
 - Every registry serves a version's tarball at `<registry>/<name>@<version>`. A tar registry serves no `.tgz` path.
 - For an upstream package without fresh cached metadata, pnpr reads the version's metadata from `<upstream>/<name>/<version>`. If the upstream does not serve it, pnpr reads the package's full metadata.
-- pnpr keeps the published `.tgz` and derives the tar from it:
+- A hosted registry that declares `tarballs: tar` keeps no `.tgz`. At publish, pnpr compresses the tar at level 19 and stores only that. A `zstd` client gets the stored bytes, and any other client gets the tar decoded, compressed as the request accepts. pnpr refuses to start when a router without `tarballs: tar` lists such a registry as a source, because the router would have no `.tgz` to serve. npm signatures and provenance sign the `.tgz`, so these packages have neither.
+- For every other registry, pnpr keeps the published `.tgz` and derives the tar from it:
   - A `gzip` client gets the `.tgz` itself, which is the gzip encoding of its tar.
   - A `zstd` client gets a level-19 encoding once pnpr has stored one. Until then pnpr compresses the tar at level 3 as it streams, and a background worker stores the level-19 encoding. Tars larger than 256 MiB stay at level 3. The level-19 encodings live in the cache, so they can be evicted and are made again.
   - Any other client gets the tar uncompressed.
@@ -367,7 +368,7 @@ npm, Yarn, and pnpm projects that do not opt in keep using `main`. A pnpm projec
 - pnpr decodes at most 4.25 GiB from one `.tgz`, the most pnpm accepts by default. A version past that has no tar. Copies of tars waiting for the level-19 encoding share a 1 GiB quota, and a request makes no copy when it is full or when another request is already copying that version.
 - `tarballs` is accepted only on npm registries.
 
-You can also set `tarballs: tar` on the main router, so the base every pnpm project already uses serves tars. That works when all your clients are pnpm 12.15 or newer. npm, Yarn, and older pnpm cannot install from such a base: it has no `.tgz` path, and its metadata has no tarball URL, except for versions with [registry revisions](https://pnpm.io/registry-revisions). A project whose lockfile was written against the `.tgz` base has `.tgz` hashes in it, so run `pnpm install --update-checksums` there once after the switch.
+You can also set `tarballs: tar` on the main router, so the base every pnpm project already uses serves tars. That works when all your clients are pnpm 12.15 or newer and every project declares the base with `serverType: pnpr` in its [`registries`](https://pnpm.io/registries#tar-registries). Without that declaration, pnpm fails with "names no tarball URL". npm, Yarn, and older pnpm cannot install from such a base: it has no `.tgz` path, and its metadata has no tarball URL, except for versions with [registry revisions](https://pnpm.io/registry-revisions). A project whose lockfile was written against the `.tgz` base has `.tgz` hashes in it, so run `pnpm install --update-checksums` there once after the switch.
 
 ## Teams {#teams}
 

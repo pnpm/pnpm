@@ -59,3 +59,6 @@ impl SettingsRead {
         self != Self::All
     }
 }
+
+#[cfg(test)]
+mod tests;

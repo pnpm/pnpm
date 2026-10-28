@@ -7,6 +7,7 @@
 //! registry also needs for the `.tgz` integrity: from a fresh cached upstream
 //! packument, else from the upstream's version manifest, else from the
 //! packument. A dist read from an upstream is kept in a [`VersionTgzCache`].
+//! A hosted tar registry stores no `.tgz`: its stored tar is served instead.
 
 pub(super) use cache::VersionTgzCache;
 
@@ -17,10 +18,11 @@ use super::{
     HeaderMap, Identity, PackumentDists, RegistryError, RegistrySource, Response, StatusCode,
     TarSource, TarballOrigin, TgzTrust, Upstream, UpstreamTarball, Value, addressed_registry,
     authorize, authorized_upstream, cached_upstream_tarball, caller_scoped,
-    declared_tarball_integrity, ensure_osv_allowed, is_tar_registry, not_found,
-    read_source_packument, recover_stale_upstream_packument, resolve_registry_source,
-    serve_bound_upstream_tarball, serve_registry_tarball, serve_revision_tarball, tar_decode_limit,
-    tar_response, tarball_basename_for_package, tarball_cache_name, tgz_integrity_key, timed,
+    declared_tarball_integrity, ensure_osv_allowed, hosted_read_namespace, is_tar_registry,
+    not_found, read_source_packument, recover_stale_upstream_packument, resolve_registry_source,
+    serve_bound_upstream_tarball, serve_hosted_version_blob, serve_registry_tarball,
+    serve_revision_tarball, stored_tar_response, tar_decode_limit, tar_response,
+    tarball_basename_for_package, tarball_cache_name, tgz_integrity_key, timed,
     upstream_cache_namespace, version_route_tarball_version,
 };
 use axum::response::IntoResponse;
@@ -96,15 +98,32 @@ impl VersionRequest<'_> {
         }
         let tar_registry = is_tar_registry(self.state, self.target);
         let source = resolve_registry_source(self.state, self.target, name.as_str());
+        if let RegistrySource::Hosted(hosted) = &source
+            && is_tar_registry(self.state, hosted)
+        {
+            return self.serve_stored_tar(headers, hosted, &name).await;
+        }
         if !tar_registry && let Some(response) = self.serve_canonical_tgz(&name, &source).await {
             return response;
         }
-        let tgz = match self.version_tgz(&source, &name).await {
+        self.serve_from_dist(headers, name, &source, tar_registry).await
+    }
+
+    /// Serve the `.tgz` the version's dist names, and on a tar registry the
+    /// tar it decodes to.
+    async fn serve_from_dist(
+        &self,
+        headers: &HeaderMap,
+        name: CanonicalPackageName,
+        source: &RegistrySource,
+        tar_registry: bool,
+    ) -> Response {
+        let tgz = match self.version_tgz(source, &name).await {
             Ok(Some(tgz)) => tgz,
             Ok(None) => return not_found(),
             Err(err) => return err.into_response(),
         };
-        let (response, trust) = match &source {
+        let (response, trust) = match source {
             RegistrySource::Upstream(upstream) => self.serve_upstream(upstream, &name, &tgz).await,
             RegistrySource::Hosted(_) | RegistrySource::Unclaimed | RegistrySource::NotFound => {
                 let response = serve_registry_tarball(
@@ -121,8 +140,28 @@ impl VersionRequest<'_> {
         if !tar_registry || response.status() != StatusCode::OK {
             return response;
         }
-        let source = self.tar_source(name, &tgz, &source, trust).await;
+        let source = self.tar_source(name, &tgz, source, trust).await;
         tar_response(self.state, headers, response, source).await
+    }
+
+    /// Serve the version's stored tar from the hosted tar registry `hosted`
+    /// (see [`CanonicalPackageName::tar_name_for_version`]).
+    async fn serve_stored_tar(
+        &self,
+        headers: &HeaderMap,
+        hosted: &str,
+        name: &CanonicalPackageName,
+    ) -> Response {
+        let org = match hosted_read_namespace(self.state, self.identity, hosted, name.as_str()) {
+            Ok(org) => org,
+            Err(err) => return err.into_response(),
+        };
+        let blob = name.tar_name_for_version(self.version);
+        let response = serve_hosted_version_blob(self.state, &org, name, self.version, &blob).await;
+        if response.status() != StatusCode::OK {
+            return response;
+        }
+        stored_tar_response(self.state, headers, response)
     }
 
     /// Serve the version's `.tgz` without reading its packument: a hosted

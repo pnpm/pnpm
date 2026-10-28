@@ -466,16 +466,16 @@ impl Sink {
         }
         self.viewport.rendered_frame_rows = frame_rows;
         self.viewport.rendered_frame_outgrew_terminal = false;
-        // Shrinking the frame to just the overflow leaves those lines untouched
-        // where they already are, erases the rest of the frame below them, and
-        // parks the cursor on the next line — where the restarted differ picks
-        // up.
-        let handover =
-            format!("{}\n", lines[self.viewport.committed_lines..first_visible].join("\n"));
+        // The previous frame is still on screen, so the differ can draw the
+        // whole uncommitted frame over it; the overflow scrolls away as the new
+        // lines are appended. The restarted differ then takes the lines that
+        // stayed on screen as already drawn, rather than drawing them again.
+        let handover = format!("{}\n", lines[self.viewport.committed_lines..].join("\n"));
         let mut buf = std::mem::take(&mut self.frame_buf);
         self.diff.update_into(&handover, &mut buf);
         self.frame_buf = buf;
         self.diff = diff::Diff::new(self.viewport.columns);
+        self.diff.assume_drawn(&format!("{}\n", lines[first_visible..].join("\n")));
         self.viewport.committed_lines = first_visible;
     }
 }

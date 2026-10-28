@@ -18,7 +18,7 @@ import { writeModulesManifest } from '@pnpm/installing.modules-yaml'
 import { writeCurrentLockfile } from '@pnpm/lockfile.fs'
 import { PACKAGE_MAP_FILENAME, removePackageMap, writePackageMap, writePnpFile } from '@pnpm/lockfile.to-pnp'
 import { findLockedRootNodeRuntime } from '@pnpm/lockfile.utils'
-import type { DepPath, IgnoredBuilds, PeerDependencyIssuesByProjects } from '@pnpm/types'
+import type { DepPath, HoistedDependencies, IgnoredBuilds, PeerDependencyIssuesByProjects } from '@pnpm/types'
 import { pathAbsolute } from 'path-absolute'
 
 import { linkPackages } from './link.js'
@@ -57,12 +57,18 @@ export async function linkResolvedProjects (
   ctx.pendingBuilds = ctx.pendingBuilds
     .filter((relDepPath) => !result.removedDepPaths.has(relDepPath))
 
-  let ignoredBuilds = collectPreviouslyIgnoredBuilds(step, result)
-  if (result.newDepPaths?.length) {
-    ignoredBuilds = await buildNewDependencies(step, { ignoredBuilds, newDepPaths: result.newDepPaths })
-  }
+  const { ignoredBuilds, builtDepPaths, builtPackageDirs } = await buildNewDependencies(step, {
+    hoistedDependencies: result.newHoistedDependencies,
+    ignoredBuilds: collectPreviouslyIgnoredBuilds(step, result),
+    newDepPaths: result.newDepPaths,
+  })
 
-  await linkBinsOfResolvedProjects(step, result.newDepPaths)
+  await linkBinsOfResolvedProjects(step, {
+    builtDepPaths,
+    builtPackageDirs,
+    hoistedDependencies: result.newHoistedDependencies,
+    newDepPaths: result.newDepPaths,
+  })
 
   const injectionTargetsByDepPath = getInjectionTargetsByDepPath(resolution)
   const projectsWithTargetDirs = extendProjectsWithTargetDirs(projects, injectionTargetsByDepPath, opts.lockfileDir)
@@ -206,8 +212,17 @@ function collectPreviouslyIgnoredBuilds ({ ctx, opts }: LinkContext, result: Lin
 
 async function buildNewDependencies (
   step: LinkContext,
-  { ignoredBuilds, newDepPaths }: { ignoredBuilds: IgnoredBuilds | undefined, newDepPaths: DepPath[] }
-): Promise<IgnoredBuilds | undefined> {
+  {
+    hoistedDependencies,
+    ignoredBuilds,
+    newDepPaths,
+  }: {
+    hoistedDependencies: HoistedDependencies
+    ignoredBuilds: IgnoredBuilds | undefined
+    newDepPaths: DepPath[] | undefined
+  }
+): Promise<{ ignoredBuilds: IgnoredBuilds | undefined, builtDepPaths?: Set<DepPath>, builtPackageDirs?: Set<string> }> {
+  if (!newDepPaths?.length) return { ignoredBuilds }
   const { ctx, opts, resolution } = step
   if (opts.ignoreScripts) {
     // we can use concat here because we always only append new packages, which are guaranteed to not be there by definition
@@ -216,18 +231,24 @@ async function buildNewDependencies (
         newDepPaths.filter((depPath) => resolution.dependenciesGraph[depPath].requiresBuild)
       )
   }
-  if (opts.ignoreScripts && Object.keys(opts.patchedDependencies ?? {}).length === 0) return ignoredBuilds
+  if (opts.ignoreScripts && Object.keys(opts.patchedDependencies ?? {}).length === 0) return { ignoredBuilds }
   // postinstall hooks
-  const ignoredBuildsFromBuild = await buildDependencies(step, newDepPaths)
-  if (!ignoredBuildsFromBuild?.size) return ignoredBuilds
+  const { ignoredBuilds: ignoredBuildsFromBuild, builtDepPaths, builtPackageDirs } = await buildDependencies(step, {
+    hoistedDependencies,
+    newDepPaths,
+  })
+  if (!ignoredBuildsFromBuild?.size) return { ignoredBuilds, builtDepPaths, builtPackageDirs }
   const allIgnoredBuilds = ignoredBuilds ?? new Set()
   for (const ignoredBuild of ignoredBuildsFromBuild.values()) {
     allIgnoredBuilds.add(ignoredBuild)
   }
-  return allIgnoredBuilds
+  return { ignoredBuilds: allIgnoredBuilds, builtDepPaths, builtPackageDirs }
 }
 
-async function buildDependencies (step: LinkContext, newDepPaths: DepPath[]): Promise<IgnoredBuilds | undefined> {
+async function buildDependencies (
+  step: LinkContext,
+  { hoistedDependencies, newDepPaths }: { hoistedDependencies: HoistedDependencies, newDepPaths: DepPath[] }
+): ReturnType<typeof buildModules> {
   const { ctx, opts, projects, resolution } = step
   const { dependenciesGraph } = resolution
   const depPaths = Object.keys(dependenciesGraph) as DepPath[]
@@ -247,13 +268,16 @@ async function buildDependencies (step: LinkContext, newDepPaths: DepPath[]): Pr
   }
   // Dependency lifecycle scripts must not run on an unverified lockfile.
   await opts.verifyLockfile?.()
-  return (await buildModules(dependenciesGraph, rootNodes, {
-    ...describeBuildEnvironment(step, extraEnv),
+  return buildModules(dependenciesGraph, rootNodes, {
+    ...describeBuildEnvironment(step, { extraEnv, hoistedDependencies }),
     depsToBuild: new Set(newDepPaths),
-  })).ignoredBuilds
+  })
 }
 
-function describeBuildEnvironment ({ ctx, depsStateCache, opts, resolution }: LinkContext, extraEnv: Record<string, string> | undefined) {
+function describeBuildEnvironment (
+  { ctx, depsStateCache, opts, resolution }: LinkContext,
+  { extraEnv, hoistedDependencies }: { extraEnv: Record<string, string> | undefined, hoistedDependencies: HoistedDependencies }
+) {
   return {
     engineStrict: installabilityUnderForce(opts).engineStrict,
     engineNodeVersion: opts.nodeVersion,
@@ -268,6 +292,8 @@ function describeBuildEnvironment ({ ctx, depsStateCache, opts, resolution }: Li
     extraBinPaths: ctx.extraBinPaths,
     extraNodePaths: ctx.extraNodePaths,
     extraEnv,
+    hoistedDependencies,
+    hoistedModulesDir: ctx.hoistedModulesDir,
     ignoreScripts: opts.ignoreScripts,
     lockfileDir: ctx.lockfileDir,
     nodeVersion: findLockedRootNodeRuntime(resolution.newLockfile)?.version,

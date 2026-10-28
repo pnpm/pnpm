@@ -1,5 +1,5 @@
 //! Shell out to the system `git` binary, check out the pinned commit,
-//! run [`crate::prepare_package()`], delete `.git`, run [`crate::packlist()`],
+//! run [`crate::prepare_package()`], delete `.git`, run [`pnpm_fs_packlist::packlist()`],
 //! and import the resulting file set into the CAS.
 //!
 //! `git` operations are sync (no async git client lives in the workspace),

@@ -6,12 +6,15 @@ import path from 'node:path'
 import { Transform } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 
-import { isError, PnpmError } from '@pnpm/error'
+import { requestRetryLogger } from '@pnpm/core-loggers'
+import { FetchError, isError, PnpmError, redactUrlForDisplay } from '@pnpm/error'
 import type { BinaryFetcher, FetchFunction, FetchResult } from '@pnpm/fetching.fetcher-base'
-import type { FetchFromRegistry, GetAuthHeader } from '@pnpm/fetching.types'
+import type { FetchFromRegistry, GetAuthHeader, RetryTimeoutOptions } from '@pnpm/fetching.types'
+import { isNonRetryableError } from '@pnpm/network.fetch'
 import { assertUnpackedSize, DEFAULT_MAX_TARBALL_UNPACKED_SIZE } from '@pnpm/store.cafs'
 import type { StoreIndex } from '@pnpm/store.index'
 import { addFilesFromDir } from '@pnpm/worker'
+import * as retry from '@zkochan/retry'
 import { isSubdir } from 'is-subdir'
 import { renameOverwrite } from 'rename-overwrite'
 import ssri from 'ssri'
@@ -32,6 +35,7 @@ export interface CreateBinaryFetcherOptions {
   archiveFilters?: Record<string, string>
   /** Limits the total size of the files extracted from a zip archive. */
   maxTarballUnpackedSize?: number
+  retry?: RetryTimeoutOptions
 }
 
 export function createBinaryFetcher (ctx: CreateBinaryFetcherOptions): { binary: BinaryFetcher } {
@@ -127,6 +131,7 @@ async function fetchZipArchive (
     authHeaderValue: getSecureNodeMirrorAuthHeader(ctx.getAuthHeader, resolution.url, opts.pkg.name),
     ignoreEntry: archiveFilter?.regex,
     maxTarballUnpackedSize: ctx.maxTarballUnpackedSize,
+    retry: ctx.retry,
   }, tempLocation)
   return addFilesFromDir({
     storeDir: cafs.storeDir,
@@ -167,6 +172,15 @@ export interface AssetInfo {
   ignoreEntry?: RegExp
   /** The most bytes the extracted files may total. Defaults to `DEFAULT_MAX_TARBALL_UNPACKED_SIZE`. */
   maxTarballUnpackedSize?: number
+  /** How a failed or corrupted download is retried. Defaults to `DEFAULT_DOWNLOAD_RETRY`. */
+  retry?: RetryTimeoutOptions
+}
+
+const DEFAULT_DOWNLOAD_RETRY = {
+  factor: 10,
+  maxTimeout: 6e4,
+  minTimeout: 1e4,
+  retries: 2,
 }
 
 /**
@@ -184,7 +198,7 @@ export async function downloadAndUnpackZip (
   const tmp = path.join(temporaryDirectory(), 'pnpm.zip')
 
   try {
-    await downloadWithIntegrityCheck(fetchFromRegistry, assetInfo, tmp)
+    await downloadWithRetries(fetchFromRegistry, assetInfo, tmp)
     await extractZipToTarget(tmp, assetInfo.basename, targetDir, assetInfo)
   } finally {
     try {
@@ -196,6 +210,88 @@ export async function downloadAndUnpackZip (
 }
 
 /**
+ * Downloads to `tmpPath`, retrying the whole download when the connection
+ * drops mid-body or the checksum does not match.
+ *
+ * @throws {PnpmError} The last error, with the URL in its message
+ */
+function downloadWithRetries (
+  fetchFromRegistry: FetchFromRegistry,
+  assetInfo: AssetInfo,
+  tmpPath: string
+): Promise<void> {
+  // Callers pass every field, unset ones as undefined, which would override the defaults.
+  const retryOpts = {
+    ...DEFAULT_DOWNLOAD_RETRY,
+    ...Object.fromEntries(Object.entries(assetInfo.retry ?? {}).filter(([, value]) => value != null)),
+  }
+  const op = retry.operation(retryOpts)
+  return new Promise<void>((resolve, reject) => {
+    op.attempt(async (attempt) => {
+      try {
+        await downloadWithIntegrityCheck(fetchFromRegistry, assetInfo, tmpPath)
+        resolve()
+      } catch (error: unknown) {
+        retryOrReject({ attempt, error, maxRetries: retryOpts.retries, op, reject, url: assetInfo.url })
+      }
+    })
+  })
+}
+
+function retryOrReject (opts: {
+  attempt: number
+  error: unknown
+  maxRetries: number
+  op: ReturnType<typeof retry.operation>
+  reject: (reason: unknown) => void
+  url: string
+}): void {
+  const timeout = isFatalDownloadError(opts.error) ? false : opts.op.retry(opts.error as Error)
+  if (timeout === false) {
+    opts.reject(withUrlInMessage(opts.error, opts.url, opts.attempt))
+    return
+  }
+  logRetryAttempt({ ...opts, error: opts.error as DownloadError, timeout })
+}
+
+type DownloadError = Error & {
+  code?: string
+  errno?: number
+  response?: { status?: number }
+  cause?: { code?: string, errno?: number }
+}
+
+function isFatalDownloadError (error: unknown): boolean {
+  const status = (error as DownloadError).response?.status
+  return status === 401 || status === 403 || status === 404 || isNonRetryableError(error)
+}
+
+function withUrlInMessage (error: unknown, url: string, attempts: number): unknown {
+  if (error instanceof PnpmError) return error
+  const message = isError(error) ? error.message : String(error)
+  return new PnpmError('BINARY_FETCH_FAIL', `GET ${redactUrlForDisplay(url)}: ${message}`, { attempts, cause: error })
+}
+
+function logRetryAttempt (opts: { attempt: number, error: DownloadError, maxRetries: number, timeout: number, url: string }): void {
+  const { error } = opts
+  requestRetryLogger.debug({
+    attempt: opts.attempt,
+    error: {
+      // The message is left out because it can embed the raw URL.
+      name: error.name,
+      code: error.code,
+      errno: error.errno,
+      status: error.response?.status,
+      cause: error.cause ? { code: error.cause.code, errno: error.cause.errno } : undefined,
+    },
+    maxRetries: opts.maxRetries,
+    method: 'GET',
+    timeout: opts.timeout,
+    url: redactUrlForDisplay(opts.url),
+  })
+}
+
+/**
  * Streams a download to `tmpPath`, verifying its integrity on the way.
  */
 async function downloadWithIntegrityCheck (
@@ -203,7 +299,10 @@ async function downloadWithIntegrityCheck (
   { url, integrity, authHeaderValue }: AssetInfo,
   tmpPath: string
 ): Promise<void> {
-  const response = await fetchFromRegistry(url, { authHeaderValue })
+  const response = await fetchFromRegistry(url, { authHeaderValue, retry: { retries: 0 } })
+  if (response.status !== 200) {
+    throw new FetchError({ url, authHeaderValue }, response)
+  }
   const expected = ssri.parse(integrity)
   const algorithm = expected.pickAlgorithm()
   const hash = crypto.createHash(algorithm)
@@ -219,7 +318,7 @@ async function downloadWithIntegrityCheck (
   )
   const found = ssri.fromHex(hash.digest('hex'), algorithm)
   if (!expected.match(found)) {
-    throw new PnpmError('TARBALL_INTEGRITY', `Got unexpected checksum for "${url}". Wanted "${expected.toString()}". Got "${found.toString()}".`)
+    throw new PnpmError('TARBALL_INTEGRITY', `Got unexpected checksum for "${redactUrlForDisplay(url)}". Wanted "${expected.toString()}". Got "${found.toString()}".`)
   }
 }
 

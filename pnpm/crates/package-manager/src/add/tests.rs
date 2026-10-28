@@ -19,6 +19,7 @@ use pnpm_network::ThrottledClient;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_registry::RangeSpecStyle;
 use pnpm_reporter::SilentReporter;
+use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
 use pnpm_workspace::Project;
 use serde_json::json;
 use std::sync::Arc;
@@ -119,7 +120,8 @@ async fn add_npm_selector(selector: &str) -> Option<String> {
     .await
     .unwrap_or_else(|error| panic!("add {selector} should succeed: {error}"));
 
-    saved_dependency_specifier(&manifest, "foo")
+    let alias = parse_wanted_dependency(selector).alias.unwrap_or_else(|| "foo".to_string());
+    saved_dependency_specifier(&manifest, &alias)
 }
 
 /// Run `pacquet add <selector>` against a mocked `@jsr` registry and report

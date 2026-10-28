@@ -19,7 +19,7 @@ use peers::{
     omit_peers_of_excluded_dependencies, prune_deploy_lockfile_graph,
 };
 use pnpm_config::{Config, NodeLinker, PackageImportMethod};
-use pnpm_directory_fetcher::DirectoryFetcher;
+use pnpm_directory_fetcher::CopyFiles;
 use pnpm_fs::{lexical_normalize, remove_dirent};
 use pnpm_lockfile::{
     DirectoryResolution, ImporterDepVersion, LazyLockfile, Lockfile, LockfileResolution,
@@ -242,7 +242,11 @@ impl DeployArgs {
             deploy_dir,
             self.install_args.materialization.force,
         )?;
-        copy_project(&selected.project.root_dir, deploy_dir, !config.deploy_all_files)?;
+        copy_project(
+            &selected.project.root_dir,
+            deploy_dir,
+            CopyFiles::from_deploy_all_files(config.deploy_all_files),
+        )?;
 
         Ok(())
     }

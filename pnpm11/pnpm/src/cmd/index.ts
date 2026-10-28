@@ -59,6 +59,7 @@ export const GLOBAL_OPTIONS = pick([
   'yes',
   'include-workspace-root',
   'fail-if-no-match',
+  'npmrc-auth-file',
   'pm-on-fail',
 ], allTypes)
 

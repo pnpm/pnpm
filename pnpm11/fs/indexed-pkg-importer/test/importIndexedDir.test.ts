@@ -578,6 +578,70 @@ test('overwriteDirSync() falls back to removing newDir when renaming it aside th
   expect(fs.existsSync(path.join(newDir, 'stale.txt'))).toBe(false)
 })
 
+test('overwriteDirSync() falls back to removing newDir when renaming it aside throws EXDEV', () => {
+  const tmp = tempDir()
+  const stage = path.join(tmp, 'stage')
+  const newDir = path.join(tmp, 'dest')
+  fs.mkdirSync(stage, { recursive: true })
+  fs.writeFileSync(path.join(stage, 'package.json'), '{"name":"fresh"}')
+  fs.mkdirSync(newDir, { recursive: true })
+  fs.writeFileSync(path.join(newDir, 'stale.txt'), 'stale')
+
+  const realRenameSync = fs.renameSync.bind(fs)
+  const renameSpy = jest.spyOn(fs, 'renameSync').mockImplementation((oldPath, newPath) => {
+    if (oldPath === newDir) {
+      throw Object.assign(new Error('EXDEV: cross-device link not permitted, rename'), { code: 'EXDEV' })
+    }
+    realRenameSync(oldPath, newPath)
+  })
+  try {
+    overwriteDirSync(stage, newDir)
+  } finally {
+    renameSpy.mockRestore()
+  }
+
+  expect(fs.existsSync(stage)).toBe(false)
+  expect(fs.readFileSync(path.join(newDir, 'package.json'), 'utf8')).toBe('{"name":"fresh"}')
+  expect(fs.existsSync(path.join(newDir, 'stale.txt'))).toBe(false)
+})
+
+test('overwriteDirSync() restores the previous package when removing it after an EXDEV backup fails partway', () => {
+  const tmp = tempDir()
+  const stage = path.join(tmp, 'stage')
+  const newDir = path.join(tmp, 'dest')
+  fs.mkdirSync(stage, { recursive: true })
+  fs.writeFileSync(path.join(stage, 'package.json'), '{"name":"fresh"}')
+  fs.mkdirSync(path.join(newDir, 'lib'), { recursive: true })
+  fs.writeFileSync(path.join(newDir, 'package.json'), '{"name":"old"}')
+  fs.writeFileSync(path.join(newDir, 'lib/index.js'), 'old')
+
+  const realRenameSync = fs.renameSync.bind(fs)
+  const renameSpy = jest.spyOn(fs, 'renameSync').mockImplementation((oldPath, newPath) => {
+    if (oldPath === newDir) {
+      throw Object.assign(new Error('EXDEV: cross-device link not permitted, rename'), { code: 'EXDEV' })
+    }
+    realRenameSync(oldPath, newPath)
+  })
+  const realRmSync = fs.rmSync.bind(fs)
+  const rmSpy = jest.spyOn(fs, 'rmSync').mockImplementation((target, opts) => {
+    if (target === newDir) {
+      realRmSync(path.join(newDir, 'package.json'))
+      throw Object.assign(new Error('EACCES: permission denied, rmdir'), { code: 'EACCES' })
+    }
+    realRmSync(target, opts)
+  })
+  try {
+    expect(() => overwriteDirSync(stage, newDir)).toThrow('EACCES')
+  } finally {
+    renameSpy.mockRestore()
+    rmSpy.mockRestore()
+  }
+
+  expect(fs.readFileSync(path.join(newDir, 'package.json'), 'utf8')).toBe('{"name":"old"}')
+  expect(fs.readFileSync(path.join(newDir, 'lib/index.js'), 'utf8')).toBe('old')
+  expect(fs.readdirSync(tmp).sort()).toEqual(['dest', 'stage'])
+})
+
 test('overwriteDirSync() restores the backed-up target when both moving newDir aside and renaming stage fail', () => {
   const tmp = tempDir()
   const stage = path.join(tmp, 'stage')

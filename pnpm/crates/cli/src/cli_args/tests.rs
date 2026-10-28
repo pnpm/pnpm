@@ -7,7 +7,7 @@ use super::{
     install::{InstallArgs, resolve_bool_override},
     list::RecursionLimit,
     package_manager::{
-        current_source_pnpm_version, package_manager_to_sync, parse_package_manager,
+        current_source_pnpm_version, package_manager_to_sync_for_version, parse_package_manager,
         read_manifest_json,
     },
     parse_depth_limit,
@@ -19,10 +19,18 @@ use super::{
     version::VersionArgs,
 };
 use clap::Parser;
-use pnpm_config::ColorMode;
+use pnpm_config::{ColorMode, PNPM_VERSION, PmOnFail};
 use pnpm_default_reporter::SummaryScope;
 use std::path::Path;
 use tempfile::TempDir;
+
+fn package_manager_to_sync(
+    manifest: &serde_json::Value,
+    root_dir: &Path,
+    on_fail: Option<PmOnFail>,
+) -> Option<super::package_manager::PackageManagerToSync> {
+    package_manager_to_sync_for_version(manifest, root_dir, on_fail, PNPM_VERSION)
+}
 
 fn install_args(argv: &[&str]) -> InstallArgs {
     match CliArgs::try_parse_from(argv).expect("parses").command {

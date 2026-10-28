@@ -16,7 +16,7 @@ use std::{
 
 /// What to do about the warnings of the configuration a command loads,
 /// decided from its command line.
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct ConfigWarnings {
     key_issues: KeyIssueReporting,
     /// A `--global` invocation does not act on the project, so a satisfied
@@ -26,7 +26,7 @@ pub(crate) struct ConfigWarnings {
 
 /// What to do about the problem keys of the project's `pnpm-workspace.yaml`
 /// (see [`report_workspace_key_issues`]).
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum KeyIssueReporting {
     /// `pnpm config get <key>` prints one value for a script to capture, so
     /// config-load warnings stay off it entirely, as pnpm keeps them off. A
@@ -62,6 +62,7 @@ impl ConfigWarnings {
 
     /// What `pnpm --version` reports: it must work on a broken
     /// `pnpm-workspace.yaml`.
+    #[cfg(test)]
     pub(crate) fn for_version_flag() -> Self {
         Self { key_issues: KeyIssueReporting::WarnOnly, global: false }
     }
@@ -70,6 +71,33 @@ impl ConfigWarnings {
     /// not run.
     pub(crate) fn for_unparsed_argv() -> Self {
         Self { key_issues: KeyIssueReporting::Skip, global: false }
+    }
+
+    pub(crate) fn of_invocation(
+        entry_point: crate::cli_args::pre_command::EntryPoint,
+        command: Option<&str>,
+        positionals: &[String],
+        global: bool,
+        skip_pm_handling: bool,
+    ) -> Self {
+        use crate::cli_args::pre_command::EntryPoint;
+        let key_issues = match entry_point {
+            EntryPoint::Version => KeyIssueReporting::WarnOnly,
+            EntryPoint::UnknownFlag | EntryPoint::SelfUpdate => KeyIssueReporting::Skip,
+            EntryPoint::Command => match command {
+                _ if skip_pm_handling => KeyIssueReporting::Skip,
+                Some("get") if !positionals.is_empty() => KeyIssueReporting::Skip,
+                Some("config")
+                    if positionals.first().map(String::as_str) == Some("get")
+                        && positionals.len() >= 2 =>
+                {
+                    KeyIssueReporting::Skip
+                }
+                Some("config" | "get" | "set") => KeyIssueReporting::WarnOnly,
+                _ => KeyIssueReporting::Enforce,
+            },
+        };
+        Self { key_issues, global }
     }
 
     /// Report the warnings `config`, loaded for the project in `dir`,

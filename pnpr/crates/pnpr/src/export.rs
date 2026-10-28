@@ -131,6 +131,9 @@ async fn export_version_blobs(
     {
         export_single_blob(storage, canonical, filename, pkg_dir, report).await?;
     }
+    // A hosted tar registry stores the version's tar in place of its `.tgz`.
+    let tar = canonical.tar_name_for_version(ver);
+    export_single_blob(storage, canonical, &tar, pkg_dir, report).await?;
     if dist
         .get("attestations")
         .and_then(|a| a.get("url"))

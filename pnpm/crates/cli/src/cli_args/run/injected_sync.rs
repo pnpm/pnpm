@@ -4,8 +4,8 @@
 use super::{RunContext, Value};
 use pnpm_config::Config;
 use pnpm_injected_deps_syncer::{
-    BinLinkSettings, InjectedEditWatch, ProjectModulesDir, SyncInjectedDeps, injected_edit_sources,
-    sync_injected_deps, watch_injected_edits,
+    BinLinkSettings, CopyFiles, InjectedEditWatch, ProjectModulesDir, SyncInjectedDeps,
+    injected_edit_sources, sync_injected_deps, watch_injected_edits,
 };
 use pnpm_workspace::{FindWorkspaceProjectsOpts, find_workspace_projects};
 
@@ -79,7 +79,7 @@ fn injected_sync_opts<'a>(
         pkg_root_dir: ctx.dir,
         workspace_dir: ctx.config.workspace_dir.as_deref(),
         workspace_modules_dir: &ctx.config.modules_dir,
-        include_only_package_files: !ctx.config.deploy_all_files,
+        files: CopyFiles::from_deploy_all_files(ctx.config.deploy_all_files),
         // Read before the script ran, so a bin it drops can still be named.
         manifest_before_scripts: Some(ctx.manifest.value()),
         project_modules_dirs,

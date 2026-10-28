@@ -1,6 +1,7 @@
 use miette::IntoDiagnostic as _;
 use pnpr_config::{
     BackendConfig, Config, ConfigSource, FeatureOverrides, HostedStoreConfig, MaxUsers,
+    normalize_key_prefix,
 };
 use pnpr_package_name::Ecosystem;
 use pnpr_registry::{Registries, Registry};
@@ -142,11 +143,17 @@ fn describe_storage_backend(config: &Config) -> String {
             let display_path = config.storage.hosted_dir.display();
             format!("local filesystem ({display_path})")
         }
-        HostedStoreConfig::S3(settings) => {
-            format!("S3 (bucket: {}, prefix: {:?})", settings.bucket, settings.prefix)
-        }
+        HostedStoreConfig::S3(settings) => match settings.normalized_prefix().as_str() {
+            "" => format!("S3 (bucket: {})", settings.bucket),
+            prefix => {
+                format!("S3 (bucket: {}, prefix: {})", settings.bucket, prefix.escape_debug())
+            }
+        },
         HostedStoreConfig::ObjectStore { prefix, .. } => {
-            format!("custom object store (prefix: {prefix:?})")
+            match normalize_key_prefix(Some(prefix)).as_str() {
+                "" => "custom object store".to_string(),
+                prefix => format!("custom object store (prefix: {})", prefix.escape_debug()),
+            }
         }
     }
 }

@@ -48,8 +48,8 @@ use tar_registry::{
 
 mod tar_responses;
 use tar_responses::{
-    CachedTgz, MAX_CONCURRENT_TAR_DECODES, TarSource, TgzTrust, tar_decode_limit, tar_integrity_of,
-    tar_integrity_within, tar_resource_integrity, tar_response,
+    CachedTgz, MAX_CONCURRENT_TAR_DECODES, TarSource, TgzTrust, stored_tar_response,
+    tar_decode_limit, tar_integrity_of, tar_integrity_within, tar_resource_integrity, tar_response,
 };
 
 mod version_tarballs;
@@ -68,8 +68,9 @@ use package_responses::{
 mod package_reads;
 use package_reads::{
     HostedGate, RegistrySource, default_registry_target, hosted_gate, hosted_read_namespace,
-    resolve_ecosystem_source, resolve_registry_source, resolves_to_private_source, serve_packument,
-    serve_registry_tarball, serve_tarball, serve_version_manifest,
+    resolve_ecosystem_source, resolve_registry_source, resolves_to_private_source,
+    serve_hosted_version_blob, serve_packument, serve_registry_tarball, serve_tarball,
+    serve_version_manifest,
 };
 
 mod revision_tarballs;

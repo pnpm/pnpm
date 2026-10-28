@@ -46,6 +46,7 @@ test('prefers the closest crate for a nested manifest', () => {
 
 test('selects the crates that read a fixture stored outside them', () => {
   assert.deepEqual(selectPackages(['fixtures/gvs-link-hash-parity.json'], manifests), ['pnpm-deps-restorer'])
+  assert.deepEqual(selectPackages(['fixtures/pin-decision.json'], manifests), ['pnpm-cli', 'pnpm-config'])
   assert.deepEqual(selectPackages(['pnpm11/config/reader/src/unknownSettings.ts'], manifests), ['pnpm-config'])
   assert.deepEqual(
     selectPackages(['pnpm11/installing/deps-installer/test/fixtures/patch-pkg/is-positive@1.0.0.patch'], manifests),

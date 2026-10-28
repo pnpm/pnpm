@@ -3,9 +3,28 @@ use assert_cmd::assert::OutputAssertExt;
 
 #[test]
 fn compatible_catalog_range_update_reuses_the_locked_peer_snapshot() {
+    check_catalog_range_update(true, None, true);
+}
+
+#[test]
+fn compatible_catalog_range_update_honors_trust_lockfile_flag() {
+    check_catalog_range_update(false, Some("--trust-lockfile"), true);
+}
+
+#[test]
+fn compatible_catalog_range_update_honors_no_trust_lockfile_flag() {
+    check_catalog_range_update(true, Some("--no-trust-lockfile"), false);
+}
+
+fn check_catalog_range_update(configured_trust: bool, trust_flag: Option<&str>, succeeds: bool) {
     let CommandTempCwd { workspace, root, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, npmrc_path, .. } = npmrc_info;
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig: config => config } };",
+    )
+    .expect("write a pnpmfile without readPackage");
     let manifest_path = workspace.join("package.json");
     let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
     fs::write(
@@ -35,10 +54,15 @@ fn compatible_catalog_range_update_reuses_the_locked_peer_snapshot() {
     let workspace_yaml = fs::read_to_string(&workspace_yaml_path).expect("read initial catalog");
     fs::write(
         &workspace_yaml_path,
-        workspace_yaml.replace(
-            "'@pnpm.e2e/has-optional-peer-with-peer': ^1.0.0",
-            "'@pnpm.e2e/has-optional-peer-with-peer': '>=1.0.0 <2'",
-        ),
+        workspace_yaml
+            .replace(
+                "trustLockfile: true",
+                &format!("trustLockfile: {configured_trust}\nfetchRetries: 0"),
+            )
+            .replace(
+                "'@pnpm.e2e/has-optional-peer-with-peer': ^1.0.0",
+                "'@pnpm.e2e/has-optional-peer-with-peer': '>=1.0.0 <2'",
+            ),
     )
     .expect("update catalog range");
     let dead_registry = dead_registry_url();
@@ -51,10 +75,18 @@ fn compatible_catalog_range_update_reuses_the_locked_peer_snapshot() {
     fs::write(&npmrc_path, format!("registry={dead_registry}\n{npmrc}\n"))
         .expect("rewrite .npmrc with a dead registry");
 
-    pacquet_at(&workspace)
-        .with_arg("install")
-        .assert()
-        .success();
+    let mut command = pacquet_at(&workspace).with_arg("install");
+    if let Some(flag) = trust_flag {
+        command.arg(flag);
+    }
+    let assertion = command.assert();
+    if !succeeds {
+        let assertion = assertion.failure();
+        let stderr = String::from_utf8_lossy(&assertion.get_output().stderr);
+        assert!(stderr.contains("127.0.0.1"), "registry evidence is required: {stderr}");
+        return;
+    }
+    assertion.success();
 
     let wanted = pnpm_lockfile::Lockfile::load_wanted_from_dir(&workspace)
         .expect("load wanted lockfile")

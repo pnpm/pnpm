@@ -2,7 +2,7 @@ import path from 'node:path'
 
 import { packageManager } from '@pnpm/cli.meta'
 import { type Config, type ConfigContext, getPackageManagerBootstrapConfig, shouldPersistLockfile } from '@pnpm/config.reader'
-import { assertReleaseIsInstallable, installPnpmToStore, spawnPnpm } from '@pnpm/engine.pm.commands'
+import { assertReleaseIsInstallable, decide, installPnpmToStore, type PinDecision, spawnPnpm } from '@pnpm/engine.pm.commands'
 import { isError, PnpmError } from '@pnpm/error'
 import { isPackageManagerResolved, resolvePackageManagerIntegrities } from '@pnpm/installing.env-installer'
 import { readEnvLockfile } from '@pnpm/lockfile.fs'
@@ -13,7 +13,7 @@ import semver from 'semver'
 
 import { exit } from './exit.js'
 import { assertPackageManagerLockfileUsesRegistryResolutions } from './packageManagerLockfile.js'
-import { envLockfileDir, packageManagerTrustPolicy, pnpmVersionToRecord } from './syncEnvLockfile.js'
+import { envLockfileDir, executeRecordDecision, packageManagerTrustPolicy } from './syncEnvLockfile.js'
 
 export interface SwitchCliVersionOptions {
   /**
@@ -47,18 +47,56 @@ export async function switchCliVersion (
   const envLockfile = persistLockfile
     ? (await readEnvLockfile(envLockfileDir(config, context)) ?? undefined)
     : undefined
+  const decision = decide(
+    {
+      wanted: { ...pm, onFail: 'download' },
+      lockedEnv: envLockfile,
+      runningName: packageManager.name,
+      runningVersion: packageManager.version,
+      underCorepack: false,
+      isResolved: isPackageManagerResolved,
+    },
+    { ...config, ...context, pmOnFail: 'download' },
+    { entryPoint: 'command', recordPinWithoutSwitch }
+  )
+  if (decision.action === 'record') {
+    await executeRecordDecision({ config, context, decision, envLockfile })
+    return
+  }
+  if (decision.action === 'switch') {
+    await executeSwitchDecision({ config, context, decision, envLockfile })
+  }
+}
+
+export async function executeSwitchDecision ({
+  config,
+  context,
+  decision,
+  envLockfile,
+}: {
+  config: Config
+  context: ConfigContext
+  decision: Extract<PinDecision, { action: 'switch' }>
+  envLockfile: EnvLockfile | undefined
+}): Promise<void> {
   const versionSwitch: VersionSwitch = {
     config,
     context,
-    wantedVersion,
-    persistLockfile,
+    wantedVersion: decision.specifier,
+    persistLockfile: decision.persistLockfile,
     packageManagerConfig: getPackageManagerBootstrapConfig(config),
     envLockfile,
     freshlyResolved: false,
-    recordPinWithoutSwitch,
+    at: decision.at,
   }
 
-  const pmVersion = await resolveSwitchTargetVersion(versionSwitch)
+  let pmVersion: string | undefined
+  if (decision.lockedVersion != null) {
+    await recordPin(versionSwitch, decision.lockedVersion)
+    pmVersion = decision.lockedVersion
+  } else {
+    pmVersion = await resolvePinFromRegistry(versionSwitch)
+  }
   if (pmVersion == null) return
 
   // If the wanted version matches the current version, no switch needed.
@@ -84,7 +122,7 @@ interface VersionSwitch {
   envLockfile: EnvLockfile | undefined
   store?: StoreController
   freshlyResolved: boolean
-  recordPinWithoutSwitch: boolean
+  at: string
 }
 
 interface SwitchTarget {
@@ -94,40 +132,6 @@ interface SwitchTarget {
 
 function satisfiesPin (version: string, wantedVersion: string): boolean {
   return semver.satisfies(version, wantedVersion, { includePrerelease: true })
-}
-
-/**
- * The exact pnpm version the pin resolves to, with its integrities recorded in
- * `versionSwitch.envLockfile`. Returns `undefined`, after warning and closing
- * the store, when the registry has no version matching the pin.
- */
-async function resolveSwitchTargetVersion (versionSwitch: VersionSwitch): Promise<string | undefined> {
-  const { config, envLockfile, wantedVersion } = versionSwitch
-  let pmVersion = envLockfile?.importers['.'].packageManagerDependencies?.['pnpm']?.version
-  if (pmVersion != null && !satisfiesPin(pmVersion, wantedVersion)) {
-    pmVersion = undefined
-  }
-  // A range pin names no exact version, so the running pnpm's version is the
-  // one the project actually uses. Asking the registry instead would pin a
-  // version nobody is running and switch away from a satisfying one.
-  if (pmVersion == null && satisfiesPin(packageManager.version, wantedVersion)) {
-    if (versionSwitch.recordPinWithoutSwitch) {
-      const version = await pnpmVersionToRecord(config, wantedVersion)
-      if (version != null) await recordPin(versionSwitch, version)
-    }
-    return packageManager.version
-  }
-  if (pmVersion == null) {
-    return resolvePinFromRegistry(versionSwitch)
-  }
-  await recordLockedPin(versionSwitch, pmVersion)
-  return pmVersion
-}
-
-async function recordLockedPin (versionSwitch: VersionSwitch, pmVersion: string): Promise<void> {
-  if (versionSwitch.recordPinWithoutSwitch || pmVersion !== packageManager.version) {
-    await recordPin(versionSwitch, pmVersion)
-  }
 }
 
 async function recordPin (versionSwitch: VersionSwitch, pmVersion: string): Promise<void> {
@@ -164,15 +168,22 @@ async function resolveIntegrities (
   extraOptions: Pick<ResolveIntegritiesOptions, 'save' | 'frozenLockfile' | 'specifier'>
 ): Promise<EnvLockfile> {
   versionSwitch.store ??= await createPackageManagerStore(versionSwitch)
-  versionSwitch.envLockfile = await resolvePackageManagerIntegrities(version, {
-    envLockfile: versionSwitch.envLockfile,
-    registriesByScope: versionSwitch.packageManagerConfig.registriesByScope,
-    rootDir: envLockfileDir(versionSwitch.config, versionSwitch.context),
-    storeController: versionSwitch.store.ctrl,
-    storeDir: versionSwitch.store.dir,
-    ...packageManagerTrustPolicy(versionSwitch.config),
-    ...extraOptions,
-  })
+  try {
+    versionSwitch.envLockfile = await resolvePackageManagerIntegrities(version, {
+      envLockfile: versionSwitch.envLockfile,
+      registriesByScope: versionSwitch.packageManagerConfig.registriesByScope,
+      rootDir: versionSwitch.at,
+      storeController: versionSwitch.store.ctrl,
+      storeDir: versionSwitch.store.dir,
+      ...packageManagerTrustPolicy(versionSwitch.config),
+      ...extraOptions,
+    })
+  } catch (err: unknown) {
+    const store = versionSwitch.store
+    versionSwitch.store = undefined
+    await store?.ctrl.close()
+    throw err
+  }
   return versionSwitch.envLockfile
 }
 

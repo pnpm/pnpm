@@ -23,6 +23,7 @@ import { IS_WINDOWS } from './platform.js'
 
 export { getProjectNodePath } from './getProjectNodePath.js'
 export type { LinkBinOptions } from './linkBin.js'
+export { relinkModulesDirPackageBins } from './relinkModulesDirPackageBins.js'
 
 const binsConflictLogger = logger('bins-conflict')
 
@@ -72,7 +73,11 @@ export async function linkBinsOfPkgsByAliases (
 
 /** Return a function that refreshes launchers for completed package roots,
  * including removing commands those packages no longer provide. */
-export async function createBinRefreshPlan (modulesDir: string, binsDir: string, opts: { warn: WarnFunction }): Promise<(pkgRoots: ReadonlySet<string>) => Promise<void>> {
+export async function createBinRefreshPlan (
+  modulesDir: string,
+  binsDir: string,
+  opts: LinkBinOptions & { warn: WarnFunction }
+): Promise<(pkgRoots: ReadonlySet<string>) => Promise<void>> {
   const candidates = await readBinCandidates(modulesDir, binsDir, opts)
   return async pkgRoots => {
     const changedNames = new Set(Array.from(pkgRoots).flatMap(pkgRoot => (candidates.get(pkgRoot) ?? []).map(cmd => cmd.name)))
@@ -86,7 +91,7 @@ export async function createBinRefreshPlan (modulesDir: string, binsDir: string,
     const retainedNames = new Set(winners.map(cmd => cmd.name))
     const removedNames = Array.from(changedNames).filter(name => !retainedNames.has(name))
     await Promise.all(removedNames.map(async name => removeBin(path.join(binsDir, name))))
-    await _linkBins(IS_WINDOWS && removedNames.length > 0 ? allWinners : winners, binsDir, { forceForPackages: pkgRoots })
+    await _linkBins(IS_WINDOWS && removedNames.length > 0 ? allWinners : winners, binsDir, { ...opts, forceForPackages: pkgRoots })
   }
 }
 

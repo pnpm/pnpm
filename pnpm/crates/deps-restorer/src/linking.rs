@@ -125,6 +125,9 @@ pub struct PendingBinLinks {
     /// Command names linked into each isolated importer's `<modules_dir>/.bin`
     /// during the link phase, keyed by [`pnpm_fs::lexical_normalize`].
     pub claimed_importer_bins: HashMap<PathBuf, HashSet<String>>,
+    /// Privately-hoisted `(alias, snapshot key)` pairs with bins under
+    /// `<install_state_dir>/node_modules`.
+    pub privately_hoisted_bins: Vec<(String, PackageKey)>,
 }
 
 /// What the link phase hands to the build phase and the caller's
@@ -368,6 +371,13 @@ fn write_project_links<Reporter: self::Reporter>(
 
     let mut hoisted_dependencies = links.hoisted_dependencies;
     hoisted_dependencies.extend(hoisted.hoisted_dependencies);
+    let mut hoisted_bin_sources = hoisted.hoisted_bin_sources;
+    if !links.privately_hoisted_with_bins.is_empty() {
+        hoisted_bin_sources.insert(
+            config.install_state_dir.join("node_modules"),
+            links.private_bin_sources,
+        );
+    }
     Ok(LinkPhaseOutput {
         hoisted_dependencies,
         hoisted_locations: hoisted.hoisted_locations,
@@ -377,8 +387,9 @@ fn write_project_links<Reporter: self::Reporter>(
         publicly_hoisted_for_post_build: links.publicly_hoisted_with_bins,
         pending_bins: PendingBinLinks {
             held_back_bins_dirs: hoisted.held_back_bins_dirs,
-            hoisted_bin_sources: hoisted.hoisted_bin_sources,
+            hoisted_bin_sources,
             claimed_importer_bins,
+            privately_hoisted_bins: links.privately_hoisted_with_bins,
         },
     })
 }

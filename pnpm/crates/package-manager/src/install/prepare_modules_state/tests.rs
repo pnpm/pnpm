@@ -186,7 +186,12 @@ fn short_circuits_over_a_bin(
     short_circuits_over(
         (&project_root, config, node_linker),
         &recorded_modules(config, node_linker),
-        RecordedWorkspace { state, moved: tree_moved, projects: &projects },
+        RecordedWorkspace {
+            state,
+            moved: tree_moved,
+            projects: &projects,
+            bin_projects: &projects,
+        },
     )
 }
 
@@ -228,6 +233,7 @@ fn short_circuits_over_allow_builds(
             state: Some(&WorkspaceState::default()),
             moved: false,
             projects: &projects,
+            bin_projects: &projects,
         },
     )
 }

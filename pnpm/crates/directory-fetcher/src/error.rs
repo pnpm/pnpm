@@ -26,7 +26,7 @@ pub enum DirectoryFetcherError {
     PathOutsideDirectory { path: PathBuf, directory: PathBuf },
 
     #[diagnostic(transparent)]
-    Packlist(#[error(source)] pnpm_git_fetcher::PacklistError),
+    Packlist(#[error(source)] pnpm_fs_packlist::PacklistError),
 
     #[diagnostic(transparent)]
     ReadManifest(#[error(source)] pnpm_package_manifest::PackageManifestError),

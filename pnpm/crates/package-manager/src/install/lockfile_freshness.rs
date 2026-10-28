@@ -5,6 +5,7 @@ pub(crate) use directory_deps::{
     ProjectManifestsByDir, dependency_manifests_by_dir, is_declared_local_directory,
     project_manifests_by_dir, spec_target_and_range,
 };
+pub(crate) use directory_manifests::DirectoryManifests;
 pub(crate) use error::FreshnessCheckError;
 pub(super) use manifest::manifest_has_effective_dependencies;
 pub(crate) use manifest::{
@@ -15,7 +16,7 @@ pub(crate) use settings::{
     CheckLockfileSettingsDriftOptions, check_lockfile_settings_drift, parse_config_overrides,
 };
 
-mod injected_manifests;
+mod directory_manifests;
 
 use rayon::prelude::*;
 
@@ -387,17 +388,26 @@ pub(super) async fn check_lockfile_freshness(
         }));
     }
 
-    let injected = injected_manifests::hooked_injected_manifests(lockfile, inputs).await?;
-    check_importer_freshness(lockfile, inputs, (parsed_overrides_opt.as_deref(), &injected))
+    let directory_manifests = directory_manifests::hooked_directory_manifests(
+        lockfile,
+        inputs,
+        parsed_overrides_opt.as_deref(),
+    )
+    .await?;
+    check_importer_freshness(
+        lockfile,
+        inputs,
+        (parsed_overrides_opt.as_deref(), &directory_manifests),
+    )
 }
 
 // Parallel checks settle before the serial fold reports the first error in importer order.
 fn check_importer_freshness(
     lockfile: &Lockfile,
     inputs: &LockfileFreshnessInputs<'_, '_>,
-    (parsed_overrides, injected): (
+    (parsed_overrides, directory_manifests): (
         Option<&[pnpm_config_parse_overrides::VersionOverride]>,
-        &[(PathBuf, PackageManifest)],
+        &DirectoryManifests,
     ),
 ) -> Result<Vec<UnresolvedOptionalDependency>, FreshnessCheckError> {
     let ignored_optional_matcher = ignored_optional_matcher(inputs.config);
@@ -405,15 +415,16 @@ fn check_importer_freshness(
         inputs.manifests.iter().map(|(_, manifest)| *manifest),
         inputs.dependency_manifests,
     );
-    project_manifests.extend(
-        injected
-            .iter()
-            .map(|(dir, manifest)| (dir.clone(), manifest)),
-    );
+    project_manifests.extend(directory_manifests::injected_project_manifests(
+        lockfile,
+        inputs,
+        directory_manifests,
+    ));
     let registries = inputs.registry_context();
     let workspace = WorkspaceProjects {
         packages: inputs.workspace_packages,
         manifests_by_dir: &project_manifests,
+        directory_manifests,
         catalogs: inputs.catalogs,
         canonical_paths: &pnpm_fs::CanonicalPaths::default(),
         registries: &registries,
@@ -484,7 +495,7 @@ fn check_single_importer(
         .collect())
 }
 
-fn ignored_optional_matcher(config: &Config) -> pnpm_matcher::Matcher {
+pub(crate) fn ignored_optional_matcher(config: &Config) -> pnpm_matcher::Matcher {
     pnpm_matcher::create_matcher(
         config.ignored_optional_dependencies.as_deref().unwrap_or_default(),
     )

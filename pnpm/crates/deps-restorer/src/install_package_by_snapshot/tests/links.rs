@@ -3,7 +3,7 @@ use super::super::InstallPackageBySnapshotError;
 #[cfg(unix)]
 use crate::install_package_by_snapshot::fetch::fetch_directory_resolution;
 #[cfg(unix)]
-use pnpm_directory_fetcher::DirectoryFetcherError;
+use pnpm_directory_fetcher::{CopyFiles, DirectoryFetcherError};
 #[cfg(unix)]
 use pnpm_lockfile::DirectoryResolution;
 
@@ -24,7 +24,7 @@ fn directory_resolution_rejects_symlink_escape() {
     let err = fetch_directory_resolution(
         &workspace,
         &DirectoryResolution { directory: "packages/dep".to_string() },
-        false,
+        CopyFiles::AllFiles,
     )
     .expect_err("outside symlink should be rejected");
 
@@ -55,7 +55,7 @@ fn directory_resolution_preserves_internal_directory_symlink() {
     let (files_map, exists) = fetch_directory_resolution(
         &workspace,
         &DirectoryResolution { directory: "packages/dep".to_string() },
-        false,
+        CopyFiles::AllFiles,
     )
     .expect("directory resolution should succeed");
 

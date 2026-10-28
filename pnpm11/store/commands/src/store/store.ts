@@ -75,7 +75,7 @@ class StoreStatusError extends PnpmError {
   }
 }
 
-export type StoreCommandOptions = Pick<Config, 'dir' | 'lockfileDir' | 'registriesByScope' | 'tag' | 'storeDir' | 'force' | 'dlxCacheMaxAge'> & Partial<Pick<Config, 'globalPkgDir'>> & CreateStoreControllerOptions & {
+export type StoreCommandOptions = Pick<Config, 'dir' | 'lockfileDir' | 'registriesByScope' | 'tag' | 'storeDir' | 'force' | 'dlxCacheMaxAge'> & Partial<Pick<Config, 'globalDir' | 'stateDir' | 'globalPkgDir' | 'globalBinDir'>> & CreateStoreControllerOptions & {
   reporter?: (logObj: LogBase) => void
 }
 
@@ -91,7 +91,9 @@ export async function handler (opts: StoreCommandOptions, params: string[]): Pro
         pnpmHomeDir: opts.pnpmHomeDir,
       })
     case 'prune': {
-      store = await createStoreController(opts)
+      const pruneProtectedDirs = [opts.globalDir, opts.globalPkgDir, opts.globalBinDir, opts.pnpmHomeDir, opts.stateDir]
+        .filter((dir): dir is string => dir != null)
+      store = await createStoreController({ ...opts, pruneProtectedDirs })
       const storePruneOptions = Object.assign(opts, {
         storeController: store.ctrl,
         storeDir: store.dir,

@@ -9,10 +9,7 @@ use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use serde_json::Value;
 use std::collections::BTreeMap;
 
-use crate::{
-    parent_pkg_aliases::{declared_peer_dependencies, own_dependency_names},
-    resolved_tree::PeerSet,
-};
+use crate::resolved_tree::PeerSet;
 
 use super::{
     CatalogAnchor, DependencySpec, Deprecation, ResolveDependencyTreeError,
@@ -269,25 +266,15 @@ fn render_parent(result: &pnpm_resolving_resolver_base::ResolveResult) -> String
     }
 }
 
-/// The [`PeerSet`] of a resolved package: its
-/// [`declared_peer_dependencies`], taking the ones a `dependencies` entry
-/// does not supply. A same-named entry supplies the package directly
-/// unless it is `peer_shadowed` (see [`peer_shadowed_dependencies`]). When
-/// [`Catalogs`] are supplied, the `catalog:` ranges of the taken peers are
-/// dereferenced. The declared ones stay as written, which is what the
-/// lockfile records.
-///
-/// [`peer_shadowed_dependencies`]: crate::peer_provider::peer_shadowed_dependencies
+/// Classify the manifest through [`PeerSet::from_manifest`] and resolve any
+/// catalog ranges of its taken peers. Declared ranges stay as written.
 pub(super) fn extract_peer_dependencies(
     result: &pnpm_resolving_resolver_base::ResolveResult,
     peer_shadowed: &HashSet<String>,
     catalogs: Option<&Catalogs>,
 ) -> Result<PeerSet, ResolveDependencyTreeError> {
     let Some(manifest) = result.package.manifest.as_ref() else { return Ok(PeerSet::default()) };
-    let own_deps: HashSet<&str> =
-        own_dependency_names(manifest, |name| peer_shadowed.contains(name)).collect();
-    let peer_set =
-        PeerSet::new(declared_peer_dependencies(manifest), |name| own_deps.contains(name));
+    let peer_set = PeerSet::from_manifest(manifest, |name| peer_shadowed.contains(name));
     let Some(catalogs) = catalogs else { return Ok(peer_set) };
     // A peer range names a version range, never a path, so a `file:` /
     // `link:` entry has nothing to re-anchor.

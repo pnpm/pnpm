@@ -301,8 +301,6 @@ mod level_preferred_versions;
 
 mod cycle_edges;
 
-mod peer_proptest;
-
 /// The `(name, dir)` pairs recorded by [`RecordingHooks`].
 pub(crate) type RecordedReadPackageCalls = std::sync::Arc<Mutex<Vec<(String, Option<String>)>>>;
 

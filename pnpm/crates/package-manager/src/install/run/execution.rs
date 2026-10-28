@@ -326,6 +326,7 @@ impl<'a> RunExecution<'a> {
             real_ids: &scope.importers.real_importer_ids,
             manifests: project_manifests,
             declared_manifests: &scope.project_manifests,
+            workspace_projects: scope.workspace_projects.as_deref(),
             ignore_manifest_check: self.install.lockfile_policy.ignore_manifest_check,
         }
     }

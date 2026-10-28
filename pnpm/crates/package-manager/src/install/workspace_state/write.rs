@@ -14,12 +14,20 @@ pub(crate) struct StateWrite<'a> {
     pub(crate) config: &'a Config,
     pub(crate) layout: crate::RepeatInstallLayout<'a>,
     pub(crate) catalogs: &'a Catalogs,
-    pub(crate) project_manifests: &'a [(PathBuf, &'a PackageManifest)],
+    pub(crate) projects: StateProjects<'a>,
     /// The filesystem time, probed before the writer read what it validated,
     /// per [`build_workspace_state`].
     pub(crate) filesystem_now_ms: Option<i64>,
     pub(crate) carried: CarriedSettings<'a>,
     pub(crate) vouched: &'a crate::optimistic_repeat_install::validation::Vouched<'a>,
+}
+
+/// The projects a write records.
+#[derive(Clone, Copy)]
+pub(crate) struct StateProjects<'a> {
+    pub(crate) manifests: &'a [(PathBuf, &'a PackageManifest)],
+    /// See [`crate::RepeatInstallManifests::workspace_projects`].
+    pub(crate) workspace_projects: Option<&'a [(PathBuf, &'a PackageManifest)]>,
 }
 
 /// The settings a write takes from what earlier runs established rather than
@@ -51,7 +59,7 @@ pub(crate) fn recorded_workspace_state(write: &StateWrite<'_>) -> WorkspaceState
         write.layout.included,
         write.layout.supported_architectures,
         write.catalogs,
-        write.project_manifests,
+        write.projects.manifests,
         write.filesystem_now_ms,
     );
     state.settings.auto_dedupe =
@@ -73,7 +81,8 @@ pub(crate) fn recorded_workspace_state(write: &StateWrite<'_>) -> WorkspaceState
         &crate::optimistic_repeat_install::validation::RecordValidation {
             workspace_root: write.workspace_root,
             config: write.config,
-            project_manifests: write.project_manifests,
+            project_manifests: write.projects.manifests,
+            workspace_projects: write.projects.workspace_projects,
             vouched: write.vouched,
         },
     );

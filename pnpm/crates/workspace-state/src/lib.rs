@@ -436,7 +436,7 @@ pub fn update_workspace_state_in_modules(
         serde_json::to_string_pretty(state).map_err(UpdateWorkspaceStateError::SerializeJson)?;
     serialized.push('\n');
     let write = |source| UpdateWorkspaceStateError::WriteFile { path: file_path.clone(), source };
-    let mut temp = pnpm_fs::private_named_tempfile_in(parent).map_err(write)?;
+    let mut temp = pnpm_fs::umask_named_tempfile_in(parent).map_err(write)?;
     temp.write_all(serialized.as_bytes()).map_err(write)?;
     let temp = temp.into_temp_path();
     pnpm_fs::rename_with_retry(&temp, &file_path).map_err(write)

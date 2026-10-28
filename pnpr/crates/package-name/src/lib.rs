@@ -196,6 +196,13 @@ impl CanonicalPackageName {
         format!("{}-{version}.tgz", self.basename)
     }
 
+    /// The blob a hosted tar registry stores `version` in: its tar, zstd
+    /// compressed, in place of the published `.tgz`.
+    #[must_use]
+    pub fn tar_name_for_version(&self, version: &str) -> String {
+        format!("{}-{version}.tar.zst", self.basename)
+    }
+
     #[must_use]
     pub fn sigstore_name_for_version(&self, version: &str) -> String {
         format!("{}-{version}.sigstore", self.basename)

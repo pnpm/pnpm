@@ -1,8 +1,8 @@
 use super::{
-    CliArgs, CliCommand, Config, Context, Host, IntoDiagnostic, Path, PathBuf, SummaryScope,
-    apply_state_dir_override, apply_store_dir_override, configure_color, default_pnpm_home_dir,
-    now_millis, prepare_config, prints_json_errors,
-    warn_shared_workspace_lockfile_outside_workspace,
+    CliArgs, CliCommand, Config, ConfigWarnings, Context, DefaultReporterSetup, Host,
+    IntoDiagnostic, Path, PathBuf, ReporterType, SummaryScope, configure_default_reporter,
+    configure_max_log_level, default_pnpm_home_dir, now_millis, prepare_config, prints_json_errors,
+    seed_config, warn_shared_workspace_lockfile_outside_workspace,
 };
 use crate::{cli_args::reporter::CliReporter, config_overrides::ConfigOverrides};
 use pnpm_hooks::PnpmfileHooks;
@@ -200,75 +200,6 @@ impl StoreUse {
     }
 }
 
-/// The config every load starts from. `npmrc_auth_file` is seeded from the
-/// CLI flag before `current()` reads `.npmrc`, so the override redirects the
-/// user-level read. Mirrors pnpm's `--npmrc-auth-file`. Production callers
-/// turbofish `Host` explicitly so the dependency-injection plumbing is
-/// visible at the call site. See
-/// [pnpm/pacquet#339](https://github.com/pnpm/pacquet/issues/339).
-pub(in crate::cli_args) fn seed_config(
-    npmrc_auth_file: Option<&Path>,
-    ignore_workspace: bool,
-    config_overrides: &ConfigOverrides,
-    registry: Option<&str>,
-) -> Config {
-    Config {
-        npmrc_auth_file: npmrc_auth_file.map(Path::to_path_buf),
-        ignore_workspace,
-        cli: config_overrides.cli_layer(registry),
-        ..Config::default()
-    }
-}
-
-/// `--color` wins over `--no-color`, and both over the configured value.
-pub(super) fn apply_color_override(
-    cfg: &mut Config,
-    color: Option<pnpm_config::ColorMode>,
-    no_color: bool,
-) {
-    if color.is_some() || no_color {
-        cfg.cli_settings.insert("color".to_string());
-    }
-    cfg.color = match (color, no_color) {
-        (Some(color), _) => color,
-        (None, true) => pnpm_config::ColorMode::Never,
-        (None, false) => cfg.color,
-    };
-    configure_color(cfg.color);
-}
-
-/// The CLI overrides that redirect where pnpm reads and writes.
-pub(super) fn apply_location_overrides(
-    cfg: &mut Config,
-    anchor: &Path,
-    store_dir: Option<&Path>,
-    state_dir: Option<&Path>,
-) -> miette::Result<()> {
-    if let Some(store_dir) = store_dir {
-        apply_store_dir_override::<Host>(cfg, store_dir, anchor)?;
-        cfg.cli_settings.insert("storeDir".to_string());
-        if !cfg.cli.npmrc_tokens
-            .iter()
-            .any(|(key, _)| matches!(key.as_str(), "store-dir" | "storeDir"))
-            && let Some(raw) = store_dir.to_str()
-        {
-            cfg.cli.npmrc_tokens.push(("store-dir".to_string(), raw.to_string()));
-        }
-    }
-    if let Some(state_dir) = state_dir {
-        apply_state_dir_override::<Host>(cfg, state_dir, anchor);
-        cfg.cli_settings.insert("stateDir".to_string());
-        if !cfg.cli.npmrc_tokens
-            .iter()
-            .any(|(key, _)| matches!(key.as_str(), "state-dir" | "stateDir"))
-            && let Some(raw) = state_dir.to_str()
-        {
-            cfg.cli.npmrc_tokens.push(("state-dir".to_string(), raw.to_string()));
-        }
-    }
-    Ok(())
-}
-
 /// `--recursive` / `--filter` / `--filter-prod` / `--workspace-root` are
 /// CLI-only upstream (not `.npmrc` / yaml keys), so the global flags are
 /// threaded in here. Mirrors pnpm's `Config.recursive` / `.filter` /
@@ -458,4 +389,57 @@ pub(super) fn apply_run_output_config(args: &CliArgs, cfg: &mut Config) {
             workspace_concurrency: args.workspace.ordering.concurrency,
         },
     );
+}
+
+impl CliArgs {
+    pub(super) fn load_config_at(
+        &self,
+        anchor: &Path,
+        place_store: bool,
+        config_overrides: &ConfigOverrides,
+        warnings: ConfigWarnings,
+    ) -> miette::Result<Config> {
+        let mut seed = seed_config(
+            self.paths.npmrc_auth_file.as_deref(),
+            self.paths.ignore_workspace,
+            config_overrides,
+            self.network.registry.as_deref(),
+        );
+        seed.skip_store_dir_resolution = !place_store;
+        seed.current_keeping_warnings::<Host>(anchor)
+            .map_err(|failure| {
+                warnings.report_failed_load(&failure.warnings);
+                miette::Report::new(failure.error)
+            })
+            .wrap_err("load configuration")
+    }
+
+    pub(super) fn configure_run_reporter(
+        &self,
+        cfg: &Config,
+        reporter: ReporterType,
+        setup: &RunSetup,
+        anchors: &RunAnchors,
+    ) {
+        pnpm_default_reporter::set_progress(cfg.progress);
+        if self.output.presentation.loglevel.is_none()
+            && let Some(config_loglevel) = cfg.loglevel
+        {
+            configure_max_log_level(Some(config_loglevel.into()));
+        }
+        configure_default_reporter(&DefaultReporterSetup {
+            reporter,
+            dir: &anchors.dir,
+            summary_scope: setup.summary_scope,
+            reports_scope: setup.reports_scope,
+            hide_added_pkgs_progress: false,
+            is_recursive: self.workspace.recursive,
+            lifecycle: crate::cli_args::reporter::LifecycleReporterSetup {
+                use_stderr: cfg.use_stderr || setup.uses_stderr_reporter,
+                stream_output: cfg.stream,
+                aggregate_output: cfg.aggregate_output,
+                hide_prefix: cfg.reporter_hide_prefix.unwrap_or(false),
+            },
+        });
+    }
 }

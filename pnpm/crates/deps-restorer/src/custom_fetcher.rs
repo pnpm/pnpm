@@ -6,6 +6,7 @@ use crate::{
 };
 use callbacks::{NativeCallbacks, Verified, WalkedDirectory, drive_fetcher};
 use pnpm_config::Config;
+use pnpm_directory_fetcher::CopyFiles;
 use pnpm_hooks::{CustomFetcher, custom_fetcher_adapter::CustomFetcherPicker};
 use pnpm_lockfile::LockfileResolution;
 use pnpm_reporter::Reporter;
@@ -52,9 +53,8 @@ pub struct ResolvedTarballMetadata {
 pub struct CustomFetcherSession {
     picker: CustomFetcherPicker,
     completed: Mutex<HashMap<(String, String), Arc<FetchedTarball>>>,
-    /// How the `fetchers.directory` callback lists a directory. Defaults to
-    /// `true`, the install pass's `!deployAllFiles`.
-    include_only_package_files: bool,
+    /// How the `fetchers.directory` callback lists a directory.
+    files: CopyFiles,
 }
 
 impl CustomFetcherSession {
@@ -63,7 +63,7 @@ impl CustomFetcherSession {
         Self {
             picker: CustomFetcherPicker::new(fetchers),
             completed: Mutex::new(HashMap::new()),
-            include_only_package_files: true,
+            files: CopyFiles::default(),
         }
     }
 
@@ -71,7 +71,10 @@ impl CustomFetcherSession {
     /// install pass does under `config`.
     #[must_use]
     pub fn with_config(fetchers: Vec<Arc<dyn CustomFetcher>>, config: &Config) -> Self {
-        Self { include_only_package_files: !config.deploy_all_files, ..Self::new(fetchers) }
+        Self {
+            files: CopyFiles::from_deploy_all_files(config.deploy_all_files),
+            ..Self::new(fetchers)
+        }
     }
 
     pub(crate) async fn fetch<Reporter: self::Reporter>(
@@ -108,7 +111,7 @@ impl CustomFetcherSession {
             &NativeCallbacks {
                 download: &download,
                 lockfile_dir: &lockfile_dir,
-                include_only_package_files: self.include_only_package_files,
+                files: self.files,
             },
             selected_resolution.clone(),
             opts,

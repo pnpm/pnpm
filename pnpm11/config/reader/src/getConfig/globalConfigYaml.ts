@@ -13,6 +13,7 @@ import type { BootstrapNetworkSettings, ProxySettings } from './registries.js'
 import {
   GLOBAL_CONFIG_SKIPPED_KEYS,
   isRefusedByAProjectManifest,
+  PIN_DECISION_SETTINGS,
   quoteAndExplain,
   quoteAndSuggestCamelCase,
   SCHEMA_DIRECTIVE_KEY,
@@ -32,9 +33,65 @@ export interface AppliedGlobalYamlConfig {
  */
 export function applyGlobalYamlConfig (
   state: ConfigBuildState,
-  { configDir, globalYamlConfig }: { configDir: string, globalYamlConfig: WorkspaceManifest | undefined }
+  { configDir, globalYamlConfig, skipUnreadableSettings }: { configDir: string, globalYamlConfig: WorkspaceManifest | undefined, skipUnreadableSettings?: boolean }
 ): AppliedGlobalYamlConfig {
   if (!globalYamlConfig) return { registries: undefined, bootstrapNetworkSettings: {} }
+  if (!skipUnreadableSettings) {
+    return applyGlobalYamlManifest(state, { configDir, globalYamlConfig })
+  }
+  try {
+    return applyAllOrNothingSync(state, () => applyGlobalYamlManifest(state, { configDir, globalYamlConfig: { ...globalYamlConfig } }))
+  } catch {}
+  const pinDecisionSubset = pickKeys(globalYamlConfig, PIN_DECISION_SETTINGS)
+  try {
+    return applyAllOrNothingSync(state, () => applyGlobalYamlManifest(state, { configDir, globalYamlConfig: { ...pinDecisionSubset } }))
+  } catch {}
+  const readableSubset: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(pinDecisionSubset)) {
+    try {
+      applyAllOrNothingSync(state, () => applyGlobalYamlManifest(state, { configDir, globalYamlConfig: { [key]: value } as unknown as WorkspaceManifest }))
+      readableSubset[key] = value
+    } catch {}
+  }
+  try {
+    return applyAllOrNothingSync(state, () => applyGlobalYamlManifest(state, { configDir, globalYamlConfig: readableSubset as unknown as WorkspaceManifest }))
+  } catch {
+    return { registries: undefined, bootstrapNetworkSettings: {} }
+  }
+}
+
+function pickKeys (manifest: WorkspaceManifest, keys: ReadonlySet<string>): WorkspaceManifest {
+  const picked: Record<string, unknown> = {}
+  for (const key of keys) {
+    if (key in manifest) {
+      picked[key] = (manifest as unknown as Record<string, unknown>)[key]
+    }
+  }
+  return picked as unknown as WorkspaceManifest
+}
+
+function applyAllOrNothingSync<Result> (state: ConfigBuildState, apply: () => Result): Result {
+  const before = { ...state.pnpmConfig }
+  const explicitlySetKeysBefore = [...state.explicitlySetKeys]
+  const warningsLengthBefore = state.warnings.length
+  try {
+    return apply()
+  } catch (err: unknown) {
+    for (const key of Object.keys(state.pnpmConfig)) {
+      if (!(key in before)) delete (state.pnpmConfig as unknown as Record<string, unknown>)[key]
+    }
+    Object.assign(state.pnpmConfig, before)
+    state.explicitlySetKeys.clear()
+    for (const key of explicitlySetKeysBefore) state.explicitlySetKeys.add(key)
+    state.warnings.length = warningsLengthBefore
+    throw err
+  }
+}
+
+function applyGlobalYamlManifest (
+  state: ConfigBuildState,
+  { configDir, globalYamlConfig }: { configDir: string, globalYamlConfig: WorkspaceManifest }
+): AppliedGlobalYamlConfig {
   // Consumed by loadNpmrcConfig above; drop so it isn't flagged as unknown.
   delete (globalYamlConfig as unknown as Record<string, unknown>)._auth
   const droppedKeys = removeKeysTheGlobalConfigFileCannotSet(globalYamlConfig)

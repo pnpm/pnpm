@@ -1,4 +1,5 @@
 use super::PeerDep;
+use crate::parent_pkg_aliases::{declared_peer_dependencies, own_dependency_names};
 use pnpm_lockfile::PeerDependencyMeta;
 use std::collections::{BTreeMap, HashMap};
 
@@ -40,6 +41,14 @@ pub struct PeerSet {
 }
 
 impl PeerSet {
+    /// Classify the declared peers using the children owner's shadowed dependencies.
+    #[must_use]
+    pub fn from_manifest(manifest: &serde_json::Value, is_shadowed: impl Fn(&str) -> bool) -> Self {
+        let own: rustc_hash::FxHashSet<&str> =
+            own_dependency_names(manifest, is_shadowed).collect();
+        Self::new(declared_peer_dependencies(manifest), |name| own.contains(name))
+    }
+
     /// The `declared` peers, taking each one the package does not supply
     /// itself.
     #[must_use]

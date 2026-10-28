@@ -1,7 +1,7 @@
 use crate::process::Command;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pnpm_git_fetcher::PacklistError;
+use pnpm_fs_packlist::PacklistError;
 use pnpm_package_manifest::PackageManifestError;
 use serde_json::{Map, Value};
 use std::{
@@ -107,7 +107,7 @@ fn prepare_pkg_files_for_diff_with_fs(
     let manifest = pnpm_package_manifest::safe_read_package_json_from_dir(src)
         .map_err(|source| PatchCommitError::ReadManifest { dir: src.to_path_buf(), source })?
         .unwrap_or_else(|| Value::Object(Map::default()));
-    let files = pnpm_git_fetcher::packlist(src, &manifest)
+    let files = pnpm_fs_packlist::packlist(src, &manifest)
         .map_err(|source| PatchCommitError::Packlist { dir: src.to_path_buf(), source })?;
 
     let temp_dir = temporary_filtered_dir(src);
@@ -236,13 +236,16 @@ impl PatchCommitFs for RealPatchCommitFs {
     }
 
     fn hard_link(&self, source: &Path, target: &Path) -> io::Result<()> {
-        fs::hard_link(source, target)
+        if pnpm_fs::is_symlink(source) {
+            pnpm_fs::recreate_internal_symlink(source, target)
+        } else {
+            fs::hard_link(source, target)
+        }
     }
 
     fn copy(&self, source: &Path, target: &Path) -> io::Result<u64> {
-        let meta = self.symlink_metadata(source)?;
-        if meta.file_type().is_symlink() {
-            recreate_symlink(source, target).map(|()| 0)
+        if pnpm_fs::is_symlink(source) {
+            pnpm_fs::recreate_internal_symlink(source, target).map(|()| 0)
         } else {
             fs::copy(source, target)
         }
@@ -251,18 +254,6 @@ impl PatchCommitFs for RealPatchCommitFs {
     fn remove_dir_all(&self, path: &Path) -> io::Result<()> {
         fs::remove_dir_all(path)
     }
-}
-
-fn recreate_symlink(source: &Path, target: &Path) -> io::Result<()> {
-    let link_target = fs::read_link(source)?;
-    #[cfg(unix)]
-    return std::os::unix::fs::symlink(link_target, target);
-    #[cfg(windows)]
-    return std::os::windows::fs::symlink_file(link_target, target);
-    #[cfg(target_os = "wasi")]
-    return pnpm_fs::create_symlink(&link_target, target, false);
-    #[cfg(not(any(unix, windows, target_os = "wasi")))]
-    return Err(io::Error::new(io::ErrorKind::Unsupported, "symlinks unsupported"));
 }
 
 fn temporary_filtered_dir(src: &Path) -> PathBuf {

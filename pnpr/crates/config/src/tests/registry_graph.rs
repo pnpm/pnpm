@@ -500,6 +500,32 @@ registries:
 }
 
 #[test]
+fn a_tgz_router_cannot_list_a_hosted_tar_registry() {
+    let yaml = "
+registries:
+  local:
+    type: hosted
+    tarballs: tar
+    packages:
+      '@acme/*':
+        publish: $authenticated
+  main:
+    type: router
+    sources: [local]
+";
+    let error = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap_err();
+    assert!(
+        error.to_string().contains(r#"router "main" serves `.tgz` files but lists "local""#),
+        "{error}",
+    );
+
+    let tar_router = format!("{yaml}    tarballs: tar\n");
+    let config = Config::from_yaml_str(&tar_router, Path::new("/x"), listen(), None).unwrap();
+    assert!(config.routing.tar_registries.contains("local"));
+    assert!(config.routing.tar_registries.contains("main"));
+}
+
+#[test]
 fn tarballs_is_refused_outside_npm() {
     let yaml = "
 registries:

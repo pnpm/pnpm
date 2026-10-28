@@ -169,7 +169,7 @@ impl Config {
         // The global `config.yaml` is loaded up front: its `npmrcAuthFile`
         // participates in the user-level path resolution below, and its
         // directory is where `auth.ini` lives.
-        let global_config_dir = default_config_dir::<Sys>();
+        let global_config_dir = self.config_dir.clone().or_else(default_config_dir::<Sys>);
         self.config_dir.clone_from(&global_config_dir);
         let global_settings = self.load_global_settings::<Sys>()?;
 

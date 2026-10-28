@@ -55,6 +55,14 @@ const lockfileFs = await import('@pnpm/lockfile.fs')
 const fsUtils = await import('../lib/safeStat.js')
 const statManifestFileUtils = await import('../lib/statManifestFile.js')
 
+// Half a second past a whole second, so fake mtimes derived by subtracting
+// whole seconds never land on an exact second (mtimeMs % 1000 === 0), which
+// modifiedAtOrAfter widens by a second for whole-second-mtime filesystems.
+// Date.now() itself lands on an exact second about once in a thousand runs.
+function recentTimestamp (): number {
+  return Math.floor(Date.now() / 1000) * 1000 + 500 - 10_000
+}
+
 describe('checkDepsStatus - settings change detection', () => {
   beforeEach(() => {
     jest.resetModules()
@@ -62,7 +70,7 @@ describe('checkDepsStatus - settings change detection', () => {
   })
 
   it('returns upToDate: false when overrides have changed', async () => {
-    const lastValidatedTimestamp = Date.now() - 10_000
+    const lastValidatedTimestamp = recentTimestamp()
     const mockWorkspaceState: WorkspaceState = {
       lastValidatedTimestamp,
       pnpmfiles: [],
@@ -92,7 +100,7 @@ describe('checkDepsStatus - settings change detection', () => {
   })
 
   it('returns upToDate: false when packageExtensions have changed', async () => {
-    const lastValidatedTimestamp = Date.now() - 10_000
+    const lastValidatedTimestamp = recentTimestamp()
     const mockWorkspaceState: WorkspaceState = {
       lastValidatedTimestamp,
       pnpmfiles: [],
@@ -122,7 +130,7 @@ describe('checkDepsStatus - settings change detection', () => {
   })
 
   it('returns upToDate: false when ignoredOptionalDependencies have changed', async () => {
-    const lastValidatedTimestamp = Date.now() - 10_000
+    const lastValidatedTimestamp = recentTimestamp()
     const mockWorkspaceState: WorkspaceState = {
       lastValidatedTimestamp,
       pnpmfiles: [],
@@ -152,7 +160,7 @@ describe('checkDepsStatus - settings change detection', () => {
   })
 
   it('returns upToDate: false when patchedDependencies have changed', async () => {
-    const lastValidatedTimestamp = Date.now() - 10_000
+    const lastValidatedTimestamp = recentTimestamp()
     const mockWorkspaceState: WorkspaceState = {
       lastValidatedTimestamp,
       pnpmfiles: [],
@@ -182,7 +190,7 @@ describe('checkDepsStatus - settings change detection', () => {
   })
 
   it('returns upToDate: false when peersSuffixMaxLength has changed', async () => {
-    const lastValidatedTimestamp = Date.now() - 10_000
+    const lastValidatedTimestamp = recentTimestamp()
     const mockWorkspaceState: WorkspaceState = {
       lastValidatedTimestamp,
       pnpmfiles: [],
@@ -212,7 +220,7 @@ describe('checkDepsStatus - settings change detection', () => {
   })
 
   it('returns upToDate: false when allowBuilds have changed', async () => {
-    const lastValidatedTimestamp = Date.now() - 10_000
+    const lastValidatedTimestamp = recentTimestamp()
     const mockWorkspaceState: WorkspaceState = {
       lastValidatedTimestamp,
       pnpmfiles: [],
@@ -241,7 +249,7 @@ describe('checkDepsStatus - settings change detection', () => {
   })
 
   it('skips the allowBuilds change detection when allowBuilds is in ignoredWorkspaceStateSettings', async () => {
-    const lastValidatedTimestamp = Date.now() - 10_000
+    const lastValidatedTimestamp = recentTimestamp()
     const mockWorkspaceState: WorkspaceState = {
       lastValidatedTimestamp,
       pnpmfiles: [],
@@ -270,7 +278,7 @@ describe('checkDepsStatus - settings change detection', () => {
   })
 
   it('returns upToDate: false when enableGlobalVirtualStore is toggled off', async () => {
-    const lastValidatedTimestamp = Date.now() - 10_000
+    const lastValidatedTimestamp = recentTimestamp()
     const mockWorkspaceState: WorkspaceState = {
       lastValidatedTimestamp,
       pnpmfiles: [],
@@ -300,7 +308,7 @@ describe('checkDepsStatus - settings change detection', () => {
   })
 
   it('returns upToDate: false when enableGlobalVirtualStore is toggled on from a legacy state file that lacks the key', async () => {
-    const lastValidatedTimestamp = Date.now() - 10_000
+    const lastValidatedTimestamp = recentTimestamp()
     const mockWorkspaceState: WorkspaceState = {
       lastValidatedTimestamp,
       pnpmfiles: [],
@@ -332,7 +340,7 @@ describe('checkDepsStatus - settings change detection', () => {
     // An install outside CI leaves the setting unset, so the state file has no
     // key for it. Under `CI=true`, config resolution fills in the `false` the
     // setting already defaulted to. Both mean "global virtual store off".
-    const lastValidatedTimestamp = Date.now() - 10_000
+    const lastValidatedTimestamp = recentTimestamp()
     const mockWorkspaceState: WorkspaceState = {
       lastValidatedTimestamp,
       pnpmfiles: [],
@@ -362,7 +370,7 @@ describe('checkDepsStatus - settings change detection', () => {
   it('does not report a change when a state file recorded enableGlobalVirtualStore: false and the setting is now unset', async () => {
     // The reverse direction: the CI install records `false`, and the next run
     // outside CI resolves the setting to `undefined`.
-    const lastValidatedTimestamp = Date.now() - 10_000
+    const lastValidatedTimestamp = recentTimestamp()
     const mockWorkspaceState: WorkspaceState = {
       lastValidatedTimestamp,
       pnpmfiles: [],
@@ -396,7 +404,7 @@ describe('checkDepsStatus - settings change detection', () => {
     ['virtualStoreDirMaxLength', 120, 10],
   ] as const)('returns upToDate: false when %s has changed', async (setting, recorded, current) => {
     const mockWorkspaceState: WorkspaceState = {
-      lastValidatedTimestamp: Date.now() - 10_000,
+      lastValidatedTimestamp: recentTimestamp(),
       pnpmfiles: [],
       settings: {
         excludeLinksFromLockfile: false,
@@ -428,7 +436,7 @@ describe('checkDepsStatus - settings change detection', () => {
     ['trustLockfile', false],
     ['virtualStoreDirMaxLength', process.platform === 'win32' ? 60 : 120],
   ] as const)('stays up to date when an unrecorded %s meets its default', async (setting, current) => {
-    const lastValidatedTimestamp = Date.now() - 10_000
+    const lastValidatedTimestamp = recentTimestamp()
     const mockWorkspaceState: WorkspaceState = {
       lastValidatedTimestamp,
       pnpmfiles: [],
@@ -472,6 +480,57 @@ describe('checkDepsStatus - settings change detection', () => {
     expect(result.upToDate).toBe(true)
   })
 
+  const workspaceDir = path.resolve('/project')
+  it.each([
+    ['stays up to date when the patch file recorded relative to the workspace is the configured one', { 'foo@1.0.0': 'patches/foo.patch' }, { 'foo@1.0.0': path.join(workspaceDir, 'patches/foo.patch') }, undefined],
+    ['returns upToDate: false when the patch file recorded relative to the workspace is another one', { 'foo@1.0.0': 'patches/bar.patch' }, { 'foo@1.0.0': path.join(workspaceDir, 'patches/foo.patch') }, 'The value of the patchedDependencies setting has changed'],
+    ['stays up to date when an empty patchedDependencies was recorded and none is configured', {}, undefined, undefined],
+  ])('%s', async (_label, recordedPatchedDependencies, patchedDependencies, issue) => {
+    // pnpm v12 records each patch file as configured.
+    const lastValidatedTimestamp = recentTimestamp()
+    const mockWorkspaceState: WorkspaceState = {
+      lastValidatedTimestamp,
+      pnpmfiles: [],
+      settings: {
+        excludeLinksFromLockfile: false,
+        linkWorkspacePackages: true,
+        preferWorkspacePackages: true,
+        peersSuffixMaxLength: 1000,
+        patchedDependencies: recordedPatchedDependencies,
+      },
+      projects: {},
+      filteredInstall: false,
+    }
+    jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState)
+    const lockfileMtime = lastValidatedTimestamp - 10_000
+    jest.mocked(fsUtils.safeStat).mockImplementation(async () => ({
+      mtime: new Date(lockfileMtime),
+      mtimeMs: lockfileMtime,
+    } as Stats))
+    jest.mocked(fsUtils.safeStatSync).mockReturnValue(undefined)
+    jest.mocked(statManifestFileUtils.statManifestFile).mockImplementation(async () => ({
+      mtime: new Date(lockfileMtime),
+      mtimeMs: lockfileMtime,
+    } as Stats))
+    const lockfile = {
+      lockfileVersion: '9.0',
+      importers: { '.': { specifiers: {} } },
+    } as unknown as LockfileObject
+    jest.mocked(lockfileFs.readCurrentLockfile).mockImplementation(async () => lockfile)
+    jest.mocked(lockfileFs.readWantedLockfile).mockImplementation(async () => lockfile)
+
+    const result = await checkDepsStatus({
+      rootProjectManifest: {},
+      rootProjectManifestDir: workspaceDir,
+      pnpmfile: [],
+      ...mockWorkspaceState.settings,
+      patchedDependencies,
+    })
+
+    expect(result.issue).toBe(issue)
+    expect(result.upToDate).toBe(issue == null)
+  })
+
   it.each([
     ['nothing was recorded and a prefix is declared now', undefined, { work: 'https://npm.example.test/' }],
     ['the recorded prefixes differ from the declared ones', { work: 'https://npm.example.test/' }, { zeta: 'https://npm.example.test/' }],
@@ -480,7 +539,7 @@ describe('checkDepsStatus - settings change detection', () => {
     // A state written without proof that the lockfile keys carry the declared
     // prefixes cannot skip the install that re-keys them.
     const mockWorkspaceState: WorkspaceState = {
-      lastValidatedTimestamp: Date.now() - 10_000,
+      lastValidatedTimestamp: recentTimestamp(),
       pnpmfiles: [],
       settings: {
         excludeLinksFromLockfile: false,
@@ -513,7 +572,7 @@ describe('checkDepsStatus - settings change detection', () => {
     ['the recorded prefixes are the declared ones', { work: 'https://npm.example.test/' }, { work: 'https://npm.example.test/' }],
   ])('does not report a registryPrefixes change when %s', async (_label, registryPrefixes, registriesByPrefix) => {
     const mockWorkspaceState: WorkspaceState = {
-      lastValidatedTimestamp: Date.now() - 10_000,
+      lastValidatedTimestamp: recentTimestamp(),
       pnpmfiles: [],
       settings: {
         excludeLinksFromLockfile: false,
@@ -545,7 +604,7 @@ describe('checkDepsStatus - settings change detection', () => {
     // A plain lockfile key came from the registry its scope was routed to
     // when the lockfile was resolved, which the state records.
     const mockWorkspaceState: WorkspaceState = {
-      lastValidatedTimestamp: Date.now() - 10_000,
+      lastValidatedTimestamp: recentTimestamp(),
       pnpmfiles: [],
       settings: {
         excludeLinksFromLockfile: false,
@@ -577,7 +636,7 @@ describe('checkDepsStatus - settings change detection', () => {
     ['the caller ignores them', {}, ['registryRoutes' as const]],
   ])('does not report a registryRoutes change when %s', async (_label, registryRoutes, ignoredWorkspaceStateSettings) => {
     const mockWorkspaceState: WorkspaceState = {
-      lastValidatedTimestamp: Date.now() - 10_000,
+      lastValidatedTimestamp: recentTimestamp(),
       pnpmfiles: [],
       settings: {
         excludeLinksFromLockfile: false,
@@ -606,7 +665,7 @@ describe('checkDepsStatus - settings change detection', () => {
 
   it('does not report a registryPrefixes change the caller ignores', async () => {
     const mockWorkspaceState: WorkspaceState = {
-      lastValidatedTimestamp: Date.now() - 10_000,
+      lastValidatedTimestamp: recentTimestamp(),
       pnpmfiles: [],
       settings: {
         excludeLinksFromLockfile: false,
@@ -633,7 +692,7 @@ describe('checkDepsStatus - settings change detection', () => {
   })
 
   it('returns upToDate: true when the lockfile and the config both set dedupePeers', async () => {
-    const lastValidatedTimestamp = Date.now() - 10_000
+    const lastValidatedTimestamp = recentTimestamp()
     const mockWorkspaceState: WorkspaceState = {
       lastValidatedTimestamp,
       pnpmfiles: [],
@@ -686,10 +745,7 @@ describe('checkDepsStatus - pnpmfile modification', () => {
   })
 
   it('returns upToDate: false when a pnpmfile was modified', async () => {
-    // Half a second past a whole second, so none of the fake mtimes below
-    // reads as the whole-second mtime that modifiedAtOrAfter widens by a
-    // second; Date.now() itself lands on one about once in a thousand runs.
-    const lastValidatedTimestamp = Math.floor(Date.now() / 1000) * 1000 + 500 - 10_000
+    const lastValidatedTimestamp = recentTimestamp()
     const beforeLastValidation = lastValidatedTimestamp - 10_000
     const afterLastValidation = lastValidatedTimestamp + 1_000
     const mockWorkspaceState: WorkspaceState = {
@@ -801,7 +857,7 @@ describe('checkDepsStatus - pnpmfile modification', () => {
   })
 
   it('skips pnpmfile modification and list checks when ignorePnpmfile is true', async () => {
-    const lastValidatedTimestamp = Math.floor(Date.now() / 1000) * 1000 + 500 - 10_000
+    const lastValidatedTimestamp = recentTimestamp()
     const beforeLastValidation = lastValidatedTimestamp - 10_000
     const afterLastValidation = lastValidatedTimestamp + 1_000
     const mockWorkspaceState: WorkspaceState = {
@@ -869,7 +925,7 @@ describe('checkDepsStatus - pnpmfile modification', () => {
   })
 
   it('returns upToDate: false when a patch was modified and manifests were not modified', async () => {
-    const lastValidatedTimestamp = Date.now() - 10_000
+    const lastValidatedTimestamp = recentTimestamp()
     const beforeLastValidation = lastValidatedTimestamp - 10_000
     const afterLastValidation = lastValidatedTimestamp + 1_000
     const projectRootDir = '/project' as ProjectRootDir
@@ -948,7 +1004,7 @@ describe('checkDepsStatus - pnpmfile modification', () => {
       const patchPath = path.join(projectDir, 'patches/foo.patch')
       await fs.mkdir(path.dirname(patchPath))
       await fs.writeFile(patchPath, '--- a\n+++ b\n')
-      const lastValidatedTimestamp = Date.now() - 10_000
+      const lastValidatedTimestamp = recentTimestamp()
       const beforeLastValidation = lastValidatedTimestamp - 10_000
       const afterLastValidation = lastValidatedTimestamp + 1_000
       const projectRootDir = projectDir as ProjectRootDir
@@ -1036,7 +1092,7 @@ describe('checkDepsStatus - lockfile conflicts', () => {
     try {
       await writeConflictedLockfile(projectDir)
       const mockWorkspaceState: WorkspaceState = {
-        lastValidatedTimestamp: Date.now() - 10_000,
+        lastValidatedTimestamp: recentTimestamp(),
         pnpmfiles: [],
         settings: {
           excludeLinksFromLockfile: false,
@@ -1073,7 +1129,7 @@ describe('checkDepsStatus - lockfile conflicts', () => {
       const projectRootDir = projectDir as ProjectRootDir
       const projectRootDirRealPath = await fs.realpath(projectDir) as ProjectRootDirRealPath
       const mockWorkspaceState: WorkspaceState = {
-        lastValidatedTimestamp: Date.now() - 10_000,
+        lastValidatedTimestamp: recentTimestamp(),
         pnpmfiles: [],
         settings: {
           excludeLinksFromLockfile: false,
@@ -1123,7 +1179,7 @@ describe('checkDepsStatus - lockfile conflicts', () => {
       const branchLockfileName = 'pnpm-lock.main.yaml'
       await writeConflictedLockfile(projectDir, branchLockfileName)
       const mockWorkspaceState: WorkspaceState = {
-        lastValidatedTimestamp: Date.now() - 10_000,
+        lastValidatedTimestamp: recentTimestamp(),
         pnpmfiles: [],
         settings: {
           excludeLinksFromLockfile: false,
@@ -1164,7 +1220,7 @@ describe('checkDepsStatus - lockfile conflicts', () => {
       await fs.utimes(path.join(projectDir, 'pnpm-lock.yaml'), unmodifiedMtime, unmodifiedMtime)
       await writeConflictedLockfile(projectDir, 'pnpm-lock.feature.yaml')
       const mockWorkspaceState: WorkspaceState = {
-        lastValidatedTimestamp: Date.now() - 10_000,
+        lastValidatedTimestamp: recentTimestamp(),
         pnpmfiles: [],
         settings: {
           excludeLinksFromLockfile: false,
@@ -1204,7 +1260,7 @@ describe('checkDepsStatus - lockfile modification', () => {
   it('does not skip the wanted lockfile check when only the lockfile changed since the last validation', async () => {
     const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-check-deps-lockfile-'))
     try {
-      const lastValidatedTimestamp = Date.now() - 10_000
+      const lastValidatedTimestamp = recentTimestamp()
       const beforeLastValidation = lastValidatedTimestamp - 10_000
       const afterLastValidation = lastValidatedTimestamp + 1_000
       const projectRootDir = workspaceDir as ProjectRootDir
@@ -1298,7 +1354,7 @@ describe('checkDepsStatus - lockfile modification', () => {
   it('does not throw when pnpm-lock.yaml is absent but a git-branch lockfile exists', async () => {
     const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-check-deps-git-branch-'))
     try {
-      const lastValidatedTimestamp = Date.now() - 10_000
+      const lastValidatedTimestamp = recentTimestamp()
       const beforeLastValidation = lastValidatedTimestamp - 10_000
       const projectRootDir = workspaceDir as ProjectRootDir
       const projectRootDirRealPath = await fs.realpath(workspaceDir) as ProjectRootDirRealPath
@@ -1363,7 +1419,7 @@ describe('checkDepsStatus - lockfile modification', () => {
   it('does not take the optimistic fast-path when the git-branch lockfile is missing', async () => {
     const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-check-deps-git-branch-missing-'))
     try {
-      const lastValidatedTimestamp = Date.now() - 10_000
+      const lastValidatedTimestamp = recentTimestamp()
       const beforeLastValidation = lastValidatedTimestamp - 10_000
       const projectRootDir = workspaceDir as ProjectRootDir
       const projectRootDirRealPath = await fs.realpath(workspaceDir) as ProjectRootDirRealPath
@@ -1424,7 +1480,7 @@ describe('checkDepsStatus - lockfile modification', () => {
   it('does not take the optimistic fast-path when a project lockfile is missing and sharedWorkspaceLockfile is false', async () => {
     const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-check-deps-project-lockfile-missing-'))
     try {
-      const lastValidatedTimestamp = Date.now() - 10_000
+      const lastValidatedTimestamp = recentTimestamp()
       const beforeLastValidation = lastValidatedTimestamp - 10_000
       const projectDir = path.join(workspaceDir, 'packages/project')
       await fs.mkdir(projectDir, { recursive: true })
@@ -1492,7 +1548,7 @@ describe('checkDepsStatus - lockfile modification', () => {
     async function checkWithProjectLockfileMissing (selectedBy: 'graph' | 'dir', selectedProject: ProjectName): Promise<{ upToDate?: boolean, issue?: string }> {
       const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-check-deps-filtered-project-lockfile-'))
       try {
-        const lastValidatedTimestamp = Date.now() - 10_000
+        const lastValidatedTimestamp = recentTimestamp()
         const beforeLastValidation = lastValidatedTimestamp - 10_000
         const projectDirs = {
           installed: path.join(workspaceDir, 'packages/installed') as ProjectRootDir,
@@ -1581,7 +1637,7 @@ describe('checkDepsStatus - lockfile modification', () => {
   it('passes the workspace dir as cwd to getWantedLockfileName so git branch is resolved in the correct repo', async () => {
     jest.mocked(lockfileFs.getWantedLockfileName).mockResolvedValueOnce('pnpm-lock.main.yaml')
     jest.mocked(loadWorkspaceState).mockReturnValue({
-      lastValidatedTimestamp: Date.now() - 10_000,
+      lastValidatedTimestamp: recentTimestamp(),
       pnpmfiles: [],
       settings: { excludeLinksFromLockfile: false, linkWorkspacePackages: true, preferWorkspacePackages: true },
       projects: {},
@@ -1673,7 +1729,7 @@ describe('checkDepsStatus - missing wanted lockfile fallback', () => {
   }
 
   it('returns the current lockfile to restore when pnpm-lock.yaml is missing in a single project', async () => {
-    const lastValidatedTimestamp = Date.now() - 10_000
+    const lastValidatedTimestamp = recentTimestamp()
     const mockWorkspaceState: WorkspaceState = {
       lastValidatedTimestamp,
       pnpmfiles: [],
@@ -1754,7 +1810,7 @@ describe('checkDepsStatus - missing wanted lockfile fallback', () => {
   })
 
   it('does not set a lockfile to restore when pnpm-lock.yaml exists', async () => {
-    const lastValidatedTimestamp = Date.now() - 10_000
+    const lastValidatedTimestamp = recentTimestamp()
     const mockWorkspaceState: WorkspaceState = {
       lastValidatedTimestamp,
       pnpmfiles: [],
@@ -1786,7 +1842,7 @@ describe('checkDepsStatus - missing wanted lockfile fallback', () => {
   })
 
   it('still reports the lockfile as not found when the current lockfile is missing too', async () => {
-    const lastValidatedTimestamp = Date.now() - 10_000
+    const lastValidatedTimestamp = recentTimestamp()
     const mockWorkspaceState: WorkspaceState = {
       lastValidatedTimestamp,
       pnpmfiles: [],
@@ -1819,7 +1875,7 @@ describe('checkDepsStatus - missing wanted lockfile fallback', () => {
   })
 
   it('does not stand in for the wanted lockfile when git-branch lockfiles are enabled', async () => {
-    const lastValidatedTimestamp = Date.now() - 10_000
+    const lastValidatedTimestamp = recentTimestamp()
     const mockWorkspaceState: WorkspaceState = {
       lastValidatedTimestamp,
       pnpmfiles: [],
@@ -1853,7 +1909,7 @@ describe('checkDepsStatus - missing wanted lockfile fallback', () => {
   })
 
   it('returns the current lockfile to restore for a workspace with unmodified manifests', async () => {
-    const lastValidatedTimestamp = Date.now() - 10_000
+    const lastValidatedTimestamp = recentTimestamp()
     const projectRootDir = '/workspace' as ProjectRootDir
     const mockWorkspaceState: WorkspaceState = {
       lastValidatedTimestamp,
@@ -1942,7 +1998,7 @@ describe('checkDepsStatus - treatLocalFileDepsAsOutdated', () => {
   }
 
   it('returns upToDate: false when the root manifest has a file: dependency', async () => {
-    const lastValidatedTimestamp = Date.now() - 10_000
+    const lastValidatedTimestamp = recentTimestamp()
     jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState(lastValidatedTimestamp))
 
     const opts: CheckDepsStatusOptions = {
@@ -1961,7 +2017,7 @@ describe('checkDepsStatus - treatLocalFileDepsAsOutdated', () => {
   })
 
   it('returns upToDate: false when a workspace project has a file: dependency', async () => {
-    const lastValidatedTimestamp = Date.now() - 10_000
+    const lastValidatedTimestamp = recentTimestamp()
     jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState(lastValidatedTimestamp))
 
     const opts: CheckDepsStatusOptions = {
@@ -1998,7 +2054,7 @@ describe('checkDepsStatus - treatLocalFileDepsAsOutdated', () => {
   })
 
   it('returns upToDate: false when the root manifest has a file: dependency but allProjects omits the root', async () => {
-    const lastValidatedTimestamp = Date.now() - 10_000
+    const lastValidatedTimestamp = recentTimestamp()
     jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState(lastValidatedTimestamp))
 
     const opts: CheckDepsStatusOptions = {
@@ -2029,7 +2085,7 @@ describe('checkDepsStatus - treatLocalFileDepsAsOutdated', () => {
   })
 
   it('reports up-to-date when there is a file: dependency but the option is not set', async () => {
-    const lastValidatedTimestamp = Date.now() - 10_000
+    const lastValidatedTimestamp = recentTimestamp()
     jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState(lastValidatedTimestamp))
     mockUpToDateSingleProjectStats(lastValidatedTimestamp)
 
@@ -2047,7 +2103,7 @@ describe('checkDepsStatus - treatLocalFileDepsAsOutdated', () => {
   })
 
   it('does not report link: and registry dependencies as outdated', async () => {
-    const lastValidatedTimestamp = Date.now() - 10_000
+    const lastValidatedTimestamp = recentTimestamp()
     jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState(lastValidatedTimestamp))
     mockUpToDateSingleProjectStats(lastValidatedTimestamp)
 
@@ -2101,7 +2157,7 @@ describe('checkDepsStatus - treatLocalFileDepsAsOutdated', () => {
     }
 
     it('returns upToDate: false when a dependency is marked as injected in dependenciesMeta', async () => {
-      const lastValidatedTimestamp = Date.now() - 10_000
+      const lastValidatedTimestamp = recentTimestamp()
       jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState(lastValidatedTimestamp))
 
       const result = await checkDepsStatus(workspaceOpts({
@@ -2119,7 +2175,7 @@ describe('checkDepsStatus - treatLocalFileDepsAsOutdated', () => {
       ['a workspace path', 'workspace:../../packages/ui'],
       ['a plain range the workspace project satisfies', '^1.0.0'],
     ])('returns upToDate: false for a dependency on a workspace project as %s when injectWorkspacePackages is on', async (_desc, spec) => {
-      const lastValidatedTimestamp = Date.now() - 10_000
+      const lastValidatedTimestamp = recentTimestamp()
       jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState(lastValidatedTimestamp))
 
       const result = await checkDepsStatus(workspaceOpts(
@@ -2133,7 +2189,7 @@ describe('checkDepsStatus - treatLocalFileDepsAsOutdated', () => {
     })
 
     it('does not report a workspace: dependency that is not injected as injected', async () => {
-      const lastValidatedTimestamp = Date.now() - 10_000
+      const lastValidatedTimestamp = recentTimestamp()
       jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState(lastValidatedTimestamp))
 
       const result = await checkDepsStatus(workspaceOpts(
@@ -2145,7 +2201,7 @@ describe('checkDepsStatus - treatLocalFileDepsAsOutdated', () => {
     })
 
     it('does not report a registry dependency as injected when injectWorkspacePackages is on', async () => {
-      const lastValidatedTimestamp = Date.now() - 10_000
+      const lastValidatedTimestamp = recentTimestamp()
       jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState(lastValidatedTimestamp))
 
       const result = await checkDepsStatus(workspaceOpts(
@@ -2158,7 +2214,7 @@ describe('checkDepsStatus - treatLocalFileDepsAsOutdated', () => {
     })
 
     it('does not report a plain range the workspace project does not satisfy as injected', async () => {
-      const lastValidatedTimestamp = Date.now() - 10_000
+      const lastValidatedTimestamp = recentTimestamp()
       jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState(lastValidatedTimestamp))
 
       const result = await checkDepsStatus(workspaceOpts(
@@ -2171,7 +2227,7 @@ describe('checkDepsStatus - treatLocalFileDepsAsOutdated', () => {
     })
 
     it('does not report a plain range as injected when linkWorkspacePackages is false', async () => {
-      const lastValidatedTimestamp = Date.now() - 10_000
+      const lastValidatedTimestamp = recentTimestamp()
       jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState(lastValidatedTimestamp))
 
       const result = await checkDepsStatus(workspaceOpts(
@@ -2184,7 +2240,7 @@ describe('checkDepsStatus - treatLocalFileDepsAsOutdated', () => {
     })
 
     it('reports a workspace: dependency as injected even when linkWorkspacePackages is false', async () => {
-      const lastValidatedTimestamp = Date.now() - 10_000
+      const lastValidatedTimestamp = recentTimestamp()
       jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState(lastValidatedTimestamp))
 
       const result = await checkDepsStatus(workspaceOpts(
@@ -2198,7 +2254,7 @@ describe('checkDepsStatus - treatLocalFileDepsAsOutdated', () => {
     })
 
     it('does not report a registry tag such as "latest" as injected', async () => {
-      const lastValidatedTimestamp = Date.now() - 10_000
+      const lastValidatedTimestamp = recentTimestamp()
       jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState(lastValidatedTimestamp))
 
       const result = await checkDepsStatus(workspaceOpts(
@@ -2211,7 +2267,7 @@ describe('checkDepsStatus - treatLocalFileDepsAsOutdated', () => {
     })
 
     it('reports an npm: alias targeting a workspace project as injected', async () => {
-      const lastValidatedTimestamp = Date.now() - 10_000
+      const lastValidatedTimestamp = recentTimestamp()
       jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState(lastValidatedTimestamp))
 
       const result = await checkDepsStatus(workspaceOpts(
@@ -2225,7 +2281,7 @@ describe('checkDepsStatus - treatLocalFileDepsAsOutdated', () => {
     })
 
     it('reports a bare npm: alias targeting a workspace project as injected', async () => {
-      const lastValidatedTimestamp = Date.now() - 10_000
+      const lastValidatedTimestamp = recentTimestamp()
       jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState(lastValidatedTimestamp))
 
       const result = await checkDepsStatus(workspaceOpts(
@@ -2239,7 +2295,7 @@ describe('checkDepsStatus - treatLocalFileDepsAsOutdated', () => {
     })
 
     it('matches any workspace version when multiple versions of a package exist', async () => {
-      const lastValidatedTimestamp = Date.now() - 10_000
+      const lastValidatedTimestamp = recentTimestamp()
       jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState(lastValidatedTimestamp))
 
       const baseOpts = workspaceOpts(
@@ -2273,7 +2329,7 @@ describe('checkDepsStatus - treatLocalFileDepsAsOutdated', () => {
     })
 
     it('ignores an injected dependency in a group the install leaves out', async () => {
-      const lastValidatedTimestamp = Date.now() - 10_000
+      const lastValidatedTimestamp = recentTimestamp()
       jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState(lastValidatedTimestamp))
 
       const result = await checkDepsStatus(workspaceOpts(
@@ -2297,7 +2353,7 @@ describe('checkDepsStatus - treatLocalFileDepsAsOutdated', () => {
     ['an absolute Windows drive path', 'C:\\pkgs\\foo'],
     ['a drive-relative Windows path', 'C:pkgs'],
   ])('returns upToDate: false when the root manifest has %s dependency', async (_desc, spec) => {
-    const lastValidatedTimestamp = Date.now() - 10_000
+    const lastValidatedTimestamp = recentTimestamp()
     jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState(lastValidatedTimestamp))
 
     const opts: CheckDepsStatusOptions = {
@@ -2316,7 +2372,7 @@ describe('checkDepsStatus - treatLocalFileDepsAsOutdated', () => {
   })
 
   it('returns upToDate: false when an override maps to a local file dependency', async () => {
-    const lastValidatedTimestamp = Date.now() - 10_000
+    const lastValidatedTimestamp = recentTimestamp()
     jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState(lastValidatedTimestamp))
 
     const opts: CheckDepsStatusOptions = {
@@ -2336,7 +2392,7 @@ describe('checkDepsStatus - treatLocalFileDepsAsOutdated', () => {
   })
 
   it('does not report registry and link: overrides as outdated', async () => {
-    const lastValidatedTimestamp = Date.now() - 10_000
+    const lastValidatedTimestamp = recentTimestamp()
     const overrides = { bar: '^2.0.0', baz: 'link:../baz' }
     const lockfile = { ...currentLockfile, overrides }
     const workspaceState = mockWorkspaceState(lastValidatedTimestamp)
@@ -2359,7 +2415,7 @@ describe('checkDepsStatus - treatLocalFileDepsAsOutdated', () => {
   })
 
   it('does not report git, remote tarball, and tilde range dependencies as outdated', async () => {
-    const lastValidatedTimestamp = Date.now() - 10_000
+    const lastValidatedTimestamp = recentTimestamp()
     jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState(lastValidatedTimestamp))
     mockUpToDateSingleProjectStats(lastValidatedTimestamp)
 
@@ -2386,7 +2442,7 @@ describe('checkDepsStatus - treatLocalFileDepsAsOutdated', () => {
   })
 
   it('returns upToDate: false for a local file dependency even when nodeLinker is pnp', async () => {
-    const lastValidatedTimestamp = Date.now() - 10_000
+    const lastValidatedTimestamp = recentTimestamp()
     jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState(lastValidatedTimestamp))
 
     const opts: CheckDepsStatusOptions = {
@@ -2406,7 +2462,7 @@ describe('checkDepsStatus - treatLocalFileDepsAsOutdated', () => {
   })
 
   it('reports up-to-date when the only file: dependency is in a group excluded from the install', async () => {
-    const lastValidatedTimestamp = Date.now() - 10_000
+    const lastValidatedTimestamp = recentTimestamp()
     jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState(lastValidatedTimestamp))
     mockUpToDateSingleProjectStats(lastValidatedTimestamp)
 
@@ -2430,7 +2486,7 @@ describe('checkDepsStatus - treatLocalFileDepsAsOutdated', () => {
   })
 
   it('returns upToDate: false for a file: dependency in a group included in the install', async () => {
-    const lastValidatedTimestamp = Date.now() - 10_000
+    const lastValidatedTimestamp = recentTimestamp()
     jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState(lastValidatedTimestamp))
 
     const opts: CheckDepsStatusOptions = {
@@ -2454,7 +2510,7 @@ describe('checkDepsStatus - treatLocalFileDepsAsOutdated', () => {
   })
 
   it('skips non-string dependency specs in malformed manifests without throwing', async () => {
-    const lastValidatedTimestamp = Date.now() - 10_000
+    const lastValidatedTimestamp = recentTimestamp()
     jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState(lastValidatedTimestamp))
 
     const opts: CheckDepsStatusOptions = {
@@ -2476,7 +2532,7 @@ describe('checkDepsStatus - treatLocalFileDepsAsOutdated', () => {
   })
 
   it('returns upToDate: false when a catalog: dependency resolves to a bare local path', async () => {
-    const lastValidatedTimestamp = Date.now() - 10_000
+    const lastValidatedTimestamp = recentTimestamp()
     jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState(lastValidatedTimestamp))
 
     const opts: CheckDepsStatusOptions = {
@@ -2496,7 +2552,7 @@ describe('checkDepsStatus - treatLocalFileDepsAsOutdated', () => {
   })
 
   it('does not report a catalog: dependency resolving to a registry range as outdated', async () => {
-    const lastValidatedTimestamp = Date.now() - 10_000
+    const lastValidatedTimestamp = recentTimestamp()
     const catalogs = { default: { foo: '^1.0.0' } }
     const workspaceState = mockWorkspaceState(lastValidatedTimestamp)
     workspaceState.settings = { ...workspaceState.settings, catalogs }
@@ -2519,7 +2575,7 @@ describe('checkDepsStatus - treatLocalFileDepsAsOutdated', () => {
   })
 
   it('returns upToDate: false when an override maps through a catalog to a local path', async () => {
-    const lastValidatedTimestamp = Date.now() - 10_000
+    const lastValidatedTimestamp = recentTimestamp()
     jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState(lastValidatedTimestamp))
 
     const opts: CheckDepsStatusOptions = {
@@ -2540,7 +2596,7 @@ describe('checkDepsStatus - treatLocalFileDepsAsOutdated', () => {
   })
 
   it('returns upToDate: false when a packageExtension injects a local file dependency', async () => {
-    const lastValidatedTimestamp = Date.now() - 10_000
+    const lastValidatedTimestamp = recentTimestamp()
     jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState(lastValidatedTimestamp))
 
     const opts: CheckDepsStatusOptions = {
@@ -2562,7 +2618,7 @@ describe('checkDepsStatus - treatLocalFileDepsAsOutdated', () => {
   })
 
   it('reports up-to-date when a file: dependency is replaced by a registry override', async () => {
-    const lastValidatedTimestamp = Date.now() - 10_000
+    const lastValidatedTimestamp = recentTimestamp()
     const overrides = { foo: '^2.0.0' }
     const workspaceState = mockWorkspaceState(lastValidatedTimestamp)
     workspaceState.settings = { ...workspaceState.settings, overrides }
@@ -2584,7 +2640,7 @@ describe('checkDepsStatus - treatLocalFileDepsAsOutdated', () => {
   })
 
   it('returns upToDate: false when a file: dependency is overridden to another local file', async () => {
-    const lastValidatedTimestamp = Date.now() - 10_000
+    const lastValidatedTimestamp = recentTimestamp()
     const overrides = { foo: 'file:../bar' }
     const workspaceState = mockWorkspaceState(lastValidatedTimestamp)
     workspaceState.settings = { ...workspaceState.settings, overrides }
@@ -2606,7 +2662,7 @@ describe('checkDepsStatus - treatLocalFileDepsAsOutdated', () => {
   })
 
   it('returns upToDate: false when the override matching a file: dependency has a version constraint', async () => {
-    const lastValidatedTimestamp = Date.now() - 10_000
+    const lastValidatedTimestamp = recentTimestamp()
     const overrides = { 'foo@^2.0.0': '^2.0.0' }
     const workspaceState = mockWorkspaceState(lastValidatedTimestamp)
     workspaceState.settings = { ...workspaceState.settings, overrides }
@@ -2628,7 +2684,7 @@ describe('checkDepsStatus - treatLocalFileDepsAsOutdated', () => {
   })
 
   it('returns upToDate: false when a file: dependency is matched only by a parent-scoped override', async () => {
-    const lastValidatedTimestamp = Date.now() - 10_000
+    const lastValidatedTimestamp = recentTimestamp()
     const overrides = { 'bar>foo': '^2.0.0' }
     const workspaceState = mockWorkspaceState(lastValidatedTimestamp)
     workspaceState.settings = { ...workspaceState.settings, overrides }
@@ -2650,7 +2706,7 @@ describe('checkDepsStatus - treatLocalFileDepsAsOutdated', () => {
   })
 
   it('returns upToDate: false when a file: dependency is matched only by a convergence override', async () => {
-    const lastValidatedTimestamp = Date.now() - 10_000
+    const lastValidatedTimestamp = recentTimestamp()
     const overrides = { 'foo@': '2.0.0' }
     const workspaceState = mockWorkspaceState(lastValidatedTimestamp)
     workspaceState.settings = { ...workspaceState.settings, overrides }
@@ -2672,7 +2728,7 @@ describe('checkDepsStatus - treatLocalFileDepsAsOutdated', () => {
   })
 
   it('reports up-to-date when a catalog: dependency resolving to a local path is replaced by an override', async () => {
-    const lastValidatedTimestamp = Date.now() - 10_000
+    const lastValidatedTimestamp = recentTimestamp()
     const overrides = { foo: '^2.0.0' }
     const catalogs = { default: { foo: '../foo' } }
     const workspaceState = mockWorkspaceState(lastValidatedTimestamp)
@@ -2696,7 +2752,7 @@ describe('checkDepsStatus - treatLocalFileDepsAsOutdated', () => {
   })
 
   it('reports up-to-date when a packageExtension local file dependency is replaced by an override', async () => {
-    const lastValidatedTimestamp = Date.now() - 10_000
+    const lastValidatedTimestamp = recentTimestamp()
     const overrides = { bar: '^2.0.0' }
     const packageExtensions = { 'foo@1': { dependencies: { bar: 'file:../bar' } } }
     const workspaceState = mockWorkspaceState(lastValidatedTimestamp)
@@ -2901,7 +2957,7 @@ describe('checkDepsStatus - deduped sibling without a modules directory', () => 
   }: DedupedSibling) {
     const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-check-deps-dedupe-'))
     try {
-      const lastValidatedTimestamp = Date.now() - 10_000
+      const lastValidatedTimestamp = recentTimestamp()
       const beforeLastValidation = lastValidatedTimestamp - 10_000
       const rootDir = workspaceDir as ProjectRootDir
       const rootDirRealPath = await fs.realpath(workspaceDir) as ProjectRootDirRealPath
@@ -3105,7 +3161,7 @@ describe('checkDepsStatus - filtered install', () => {
   ) {
     const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-check-deps-filtered-'))
     try {
-      const lastValidatedTimestamp = Date.now() - 10_000
+      const lastValidatedTimestamp = recentTimestamp()
       const beforeLastValidation = lastValidatedTimestamp - 10_000
       const rootDir = workspaceDir as ProjectRootDir
       const rootDirRealPath = await fs.realpath(workspaceDir) as ProjectRootDirRealPath
@@ -3276,7 +3332,7 @@ describe('checkDepsStatus - filtered install', () => {
   it('is up to date when the lockfile is newer than the last validation but its contents did not change', async () => {
     const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-check-deps-filtered-'))
     try {
-      const lastValidatedTimestamp = Date.now() - 10_000
+      const lastValidatedTimestamp = recentTimestamp()
       const beforeLastValidation = lastValidatedTimestamp - 10_000
       const rootDir = workspaceDir as ProjectRootDir
       const siblingDir = path.join(workspaceDir, 'pkg-a') as ProjectRootDir
@@ -3362,7 +3418,7 @@ describe('checkDepsStatus - moved project', () => {
       preferWorkspacePackages: true,
     }
     jest.mocked(loadWorkspaceState).mockReturnValue({
-      lastValidatedTimestamp: Date.now() - 10_000,
+      lastValidatedTimestamp: recentTimestamp(),
       pnpmfiles: [],
       settings,
       projects: { ['/old/project' as ProjectRootDir]: { name: 'project', version: '1.0.0' } },
@@ -3388,7 +3444,7 @@ describe('checkDepsStatus - stale patch hashes', () => {
   })
 
   it('returns upToDate: false when the lockfile has patch hashes that disagree with its patchedDependencies', async () => {
-    const lastValidatedTimestamp = Date.now() - 10_000
+    const lastValidatedTimestamp = recentTimestamp()
     const mockWorkspaceState: WorkspaceState = {
       lastValidatedTimestamp,
       pnpmfiles: [],

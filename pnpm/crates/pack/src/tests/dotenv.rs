@@ -125,6 +125,27 @@ fn only_entries_that_name_the_dotenv_file_count_as_listing_it() {
     assert!(!is_named_in_files("node_modules/dep/.env", &["dist/.env*"]));
     assert!(is_named_in_files(".env.local", &[".env*", "!.env.production"]));
     assert!(!is_named_in_files(".env.production", &[".env*", "!.env.production"]));
+    assert!(is_named_in_files(".env", &[".env", "!.env*"]));
+    assert!(is_named_in_files("config/.env", &["./config/.env", "!**/.env"]));
+    assert!(!is_named_in_files(
+        "node_modules/dep/.env",
+        &["node_modules/dep/.env", "!node_modules/dep/.env"],
+    ));
+    assert!(!is_named_in_files(
+        "node_modules/dep/.env",
+        &["node_modules/dep/.env", "!node_modules//dep/.env"],
+    ));
+    assert!(!is_named_in_files(
+        "node_modules/dep/.env",
+        &["!node_modules/dep/.env", "node_modules/dep/.env"],
+    ));
+    assert!(!is_named_in_files(
+        "node_modules/dep/.env",
+        &["node_modules/dep/.env", "!node_modules/DEP/.env"],
+    ));
+    assert!(is_named_in_files("config/.ENV", &["config/.env", "!**/.env"]));
+    assert!(!is_named_in_files(".env", &["**", ".env/"]));
+    assert!(is_named_in_files(".env", &[".env", "!.env/"]));
 }
 
 #[test]

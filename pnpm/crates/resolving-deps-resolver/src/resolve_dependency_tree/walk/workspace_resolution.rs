@@ -3,8 +3,9 @@ use super::{
     PreferredVersionsOverlay, RegistryResponseError, ResolveDependencyTreeError, ResolveError,
     ResolveOptions, Resolver, SharedWorkspaceWantedKey, TreeCtx, UnsupportedProtocolError,
     WantedDependency, WantedKey, WorkspaceFinalWantedKey, cached_workspace_final,
-    completed_resolved_wanted, link_file_deps_inside_package, lock_recoverable, render_specifier,
-    wanted_key_admission,
+    completed_resolved_wanted, lock_recoverable,
+    manifest_hooks::{apply_manifest_hooks, original_manifest_opts},
+    render_specifier, wanted_key_admission,
 };
 
 /// Convert a workspace directory resolution into the representation shared by
@@ -190,60 +191,6 @@ where
     Ok(cache_resolved_wanted(ctx, cache_key, workspace_final_key, result))
 }
 
-/// Apply the configured manifest hooks to the resolved manifest fragment
-/// before anything downstream sees it. `readPackageHook` (today:
-/// `packageExtensions`) clones the inner `Value` only when it modifies it, so
-/// unrelated manifests keep sharing the resolver's cached `Arc`. Overrides run
-/// last so a pnpmfile hook that replaced the manifest cannot erase them — see
-/// `WorkspaceTreeCtx::overrides_hook`.
-pub(super) async fn apply_manifest_hooks(
-    ctx: &TreeCtx,
-    result: &mut pnpm_resolving_resolver_base::ResolveResult,
-) -> Result<(), ResolveDependencyTreeError> {
-    if !matches!(result.resolution, pnpm_lockfile::LockfileResolution::Directory(_))
-        && let Some(manifest) = result.package.manifest.take()
-    {
-        result.package.manifest = Some(link_file_deps_inside_package(manifest));
-    }
-
-    if let Some(hook) = ctx.workspace.hooks.manifests.manifest_hook.as_ref()
-        && let Some(manifest) = result.package.manifest.take()
-    {
-        result.package.manifest = Some(hook(manifest));
-    }
-
-    if let Some(pnpmfile_hook) = ctx.workspace.hooks.manifests.pnpmfile_hook.as_ref()
-        && let Some(manifest) = result.package.manifest.take()
-    {
-        let log = ctx.workspace.hooks.read_package_log
-            .clone()
-            .unwrap_or_else(|| Arc::new(|_| {}));
-        // Directory resolutions carry their directory so the hook can tell a
-        // workspace project's dependency instance apart from a registry
-        // manifest — see `HookContext::dir`.
-        let dir = match &result.resolution {
-            pnpm_lockfile::LockfileResolution::Directory(directory_resolution) => {
-                Some(directory_resolution.directory.clone())
-            }
-            _ => None,
-        };
-        let hook_ctx = pnpm_hooks::HookContext { log, dir };
-
-        let updated = pnpmfile_hook
-            .read_package((*manifest).clone(), hook_ctx)
-            .await
-            .map_err(ResolveDependencyTreeError::from)?;
-        result.package.manifest = Some(updated);
-    }
-
-    if let Some(hook) = ctx.workspace.hooks.manifests.overrides_hook.as_ref()
-        && let Some(manifest) = result.package.manifest.take()
-    {
-        result.package.manifest = Some(hook(manifest));
-    }
-    Ok(())
-}
-
 /// Render the shared workspace resolution when one is already cached for this
 /// edge, otherwise run the resolver chain and record the canonical form the
 /// next importer renders from.
@@ -279,7 +226,8 @@ where
             &opts.project.lockfile_dir,
         ));
     }
-    let result = resolver.resolve(wanted, opts).await.map_err(map_resolve_error)?;
+    let opts = original_manifest_opts(ctx, opts).await?;
+    let result = resolver.resolve(wanted, &opts).await.map_err(map_resolve_error)?;
     let Some(result) = result else {
         return Err(ResolveDependencyTreeError::SpecNotSupported {
             specifier: render_specifier(wanted),

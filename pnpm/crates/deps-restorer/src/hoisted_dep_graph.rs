@@ -22,7 +22,7 @@ use presence::{
 };
 
 mod walk;
-use walk::{WalkState, walk_deps};
+use walk::{PackageLocations, WalkState, walk_deps};
 
 use crate::{HoistedLocations, safe_join_modules_dir::InvalidDependencyAliasError};
 use derive_more::{Display, Error, From};
@@ -329,7 +329,7 @@ fn build_dep_graph<'a>(
         opts,
         prev_graph,
 
-        pkg_locations_by_pkg_id: BTreeMap::new(),
+        package_locations: PackageLocations::default(),
 
         per_importer_hierarchies: BTreeMap::new(),
         per_importer_direct_deps: BTreeMap::new(),

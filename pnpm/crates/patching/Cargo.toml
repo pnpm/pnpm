@@ -12,7 +12,7 @@ repository.workspace = true
 
 [dependencies]
 pnpm-fs = { workspace = true }
-pnpm-git-fetcher = { workspace = true }
+pnpm-fs-packlist = { workspace = true }
 pnpm-package-manifest = { workspace = true }
 
 derive_more = { workspace = true }
