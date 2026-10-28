@@ -132,6 +132,18 @@ It is a useful feature as you can install your peer dependencies only in the roo
 
 ### peerDependencyRules
 
+:::note
+
+Deprecated: `peerDependencyRules` only suppresses peer dependency warnings after resolution without changing `peerDependencies`. When you want to change or remove the declared peer dependency ranges so peer resolution itself is updated, use [`overrides`](./dependency-resolution.md#overriding-peer-dependencies) with `:peer`:
+
+- `peerDependencyRules.ignoreMissing: ["react", "@babel/*"]` only silences missing-peer warnings. The `overrides` entries `"react:peer": "-"` and `"@babel/*:peer": "-"` remove the peer declarations and their `peerDependenciesMeta` entries, so packages no longer receive those peers from their parents.
+- `peerDependencyRules.allowedVersions: { "button@2>react": "17" }` only changes peer-mismatch reporting and has no behavior-preserving `overrides` replacement. Use `"button@2>react:peer": "16 || 17"` in `overrides` when you intend to widen the declared peer range and change peer resolution.
+- `peerDependencyRules.allowAny: ["@babel/*"]` only suppresses peer-version mismatch warnings and does not rewrite `peerDependencies`, so it has no direct `overrides` equivalent. Use `"@babel/*:peer": "*"` in `overrides` only when you intend to widen the declared peer range and change peer resolution.
+
+`peerDependencyRules` continues to work for backward compatibility.
+
+:::
+
 #### peerDependencyRules.ignoreMissing
 
 pnpm will not print warnings about missing peer dependencies from this list.
