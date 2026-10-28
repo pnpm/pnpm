@@ -24,7 +24,7 @@ mod candidates;
 /// dependency several workspace projects share is fetched once, plus the
 /// catalogs their `catalog:` specifiers dereference against.
 pub(crate) struct OutdatedRun {
-    pub(crate) config: Config,
+    pub(crate) config: Box<Config>,
     pub(crate) http_client: Arc<ThrottledClient>,
     pub(crate) raw_packages: Vec<String>,
     pub(super) resolver: DefaultResolver,
@@ -46,7 +46,7 @@ impl OutdatedRun {
             create_configured_registry_resolver(config, Arc::clone(&http_client), &policy)
                 .map_err(miette::Report::new)?;
         Ok(Self {
-            config: config.clone(),
+            config: Box::new(config.clone()),
             http_client,
             raw_packages: Vec::new(),
             resolver,
@@ -274,14 +274,9 @@ pub(crate) async fn collect_outdated_for_importer(
     http_client: &Arc<ThrottledClient>,
     query: &OutdatedQuery<'_>,
 ) -> miette::Result<Vec<OutdatedPackage>> {
-    collect_outdated_for_importer_in_run(
-        manifest,
-        lockfile,
-        importer_id,
-        query,
-        &OutdatedRun::new(config, Arc::clone(http_client), query)?,
-    )
-    .await
+    let run = Box::new(OutdatedRun::new(config, Arc::clone(http_client), query)?);
+    Box::pin(collect_outdated_for_importer_in_run(manifest, lockfile, importer_id, query, &run))
+        .await
 }
 
 pub(crate) async fn collect_outdated_for_importer_in_run(
@@ -293,9 +288,15 @@ pub(crate) async fn collect_outdated_for_importer_in_run(
 ) -> miette::Result<Vec<OutdatedPackage>> {
     let manifest = &run.overridden_manifest(manifest, lockfile)?;
     let workspace = importer_workspace_label(manifest, importer_id, &run.config);
-    let mut results =
-        collect_node_outdated_for_importer(manifest, lockfile, importer_id, &workspace, query, run)
-            .await?;
+    let mut results = Box::pin(collect_node_outdated_for_importer(
+        manifest,
+        lockfile,
+        importer_id,
+        &workspace,
+        query,
+        run,
+    ))
+    .await?;
     if run.config.cargo.enabled || run.config.python.enabled {
         let ecosystem_outdated = Box::pin(collect_ecosystem_outdated(
             project_dir(manifest),
