@@ -1,6 +1,6 @@
 use crate::{
-    PackageSelector, ParseOverridesError, VersionOverride, create_overrides_map_from_parsed,
-    parse_overrides, parse_pkg_and_parent_selector,
+    OverrideDependencyType, PackageSelector, ParseOverridesError, VersionOverride,
+    create_overrides_map_from_parsed, parse_overrides, parse_pkg_and_parent_selector,
 };
 use pnpm_catalogs_types::{Catalog, Catalogs};
 use std::collections::HashMap;
@@ -21,7 +21,19 @@ fn vo(
 }
 
 fn sel(name: &str, bare: Option<&str>) -> PackageSelector {
-    PackageSelector { name: name.to_string(), bare_specifier: bare.map(str::to_owned) }
+    PackageSelector {
+        name: name.to_string(),
+        bare_specifier: bare.map(str::to_owned),
+        dep_type: None,
+    }
+}
+
+fn sel_typed(name: &str, bare: Option<&str>, dep_type: OverrideDependencyType) -> PackageSelector {
+    PackageSelector {
+        name: name.to_string(),
+        bare_specifier: bare.map(str::to_owned),
+        dep_type: Some(dep_type),
+    }
 }
 
 /// `HashMap` iteration order is unspecified, so when comparing
@@ -283,4 +295,75 @@ fn create_overrides_map_returns_resolved_specifiers() {
     let map = create_overrides_map_from_parsed(&parsed);
     assert_eq!(map.get("foo").map(String::as_str), Some("^1.2.3"));
     assert_eq!(map.get("bar").map(String::as_str), Some("2.0.0"));
+}
+
+#[test]
+fn parses_dependency_type_pseudo_selectors_and_globs() {
+    let input = HashMap::from([
+        ("foo:prod".to_string(), "1.0.0".to_string()),
+        ("bar@^2:optional".to_string(), "2.1.0".to_string()),
+        ("@esbuild/*:optional".to_string(), "-".to_string()),
+        ("@babel/*:peer".to_string(), "*".to_string()),
+        ("button@2>react@16:peer".to_string(), "16 || 17".to_string()),
+        ("@mui/*>react:peer".to_string(), "18.0.0".to_string()),
+    ]);
+    let out = sorted(parse_overrides(&input, &Catalogs::new()).unwrap());
+    assert_eq!(
+        out,
+        sorted(vec![
+            vo("foo:prod", "1.0.0", None, sel_typed("foo", None, OverrideDependencyType::Prod)),
+            vo(
+                "bar@^2:optional",
+                "2.1.0",
+                None,
+                sel_typed("bar", Some("^2"), OverrideDependencyType::Optional),
+            ),
+            vo(
+                "@esbuild/*:optional",
+                "-",
+                None,
+                sel_typed("@esbuild/*", None, OverrideDependencyType::Optional),
+            ),
+            vo(
+                "@babel/*:peer",
+                "*",
+                None,
+                sel_typed("@babel/*", None, OverrideDependencyType::Peer),
+            ),
+            vo(
+                "button@2>react@16:peer",
+                "16 || 17",
+                Some(sel("button", Some("2"))),
+                sel_typed("react", Some("16"), OverrideDependencyType::Peer),
+            ),
+            vo(
+                "@mui/*>react:peer",
+                "18.0.0",
+                Some(sel("@mui/*", None)),
+                sel_typed("react", None, OverrideDependencyType::Peer),
+            ),
+        ]),
+    );
+}
+
+#[test]
+fn rejects_unknown_or_misplaced_dependency_type_pseudo_selectors() {
+    for selector in [
+        "foo:unknown",
+        "foo:dev",
+        "foo@1:unknown",
+        "foo:peer>bar",
+        "foo@1:peer>bar",
+        "foo@:peer",
+        "*@",
+    ] {
+        let input = HashMap::from([(selector.to_string(), "1.0.0".to_string())]);
+        assert!(
+            matches!(
+                parse_overrides(&input, &Catalogs::new()),
+                Err(ParseOverridesError::InvalidSelector { .. }),
+            ),
+            "expected {selector:?} to be rejected as InvalidSelector",
+        );
+    }
 }

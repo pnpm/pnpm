@@ -59,6 +59,7 @@ pub(crate) fn is_dep_replaced_by_override(
         .any(|entry| {
             !entry.converge
                 && entry.parent_pkg.is_none()
+                && entry.target_pkg.dep_type.is_none()
                 && crate::overrides::matches_target(&entry.target_pkg, alias, spec)
         })
 }

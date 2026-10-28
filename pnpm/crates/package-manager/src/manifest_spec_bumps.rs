@@ -214,7 +214,7 @@ fn spec_bump(target: &SpecBumpTarget<'_>) -> SpecBump {
     // is why the text comparison below cannot stand in for this
     // (pnpm/pnpm#14224).
     if target.override_matcher.is_some_and(|matcher| {
-        matcher.matches(target.alias, target.manifest_specifier)
+        matcher.matches(target.manifest_group, target.alias, target.manifest_specifier)
     }) {
         return SpecBump::Skip;
     }

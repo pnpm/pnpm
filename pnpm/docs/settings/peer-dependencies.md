@@ -132,6 +132,18 @@ It is a useful feature as you can install your peer dependencies only in the roo
 
 ### peerDependencyRules
 
+:::note
+
+Deprecated: use [`overrides`](./dependency-resolution.md#overriding-peer-dependencies) with `:peer` instead:
+
+- Instead of `peerDependencyRules.ignoreMissing: ["react", "@babel/*"]`, use `overrides` with `"react:peer": "-"` and `"@babel/*:peer": "-"`.
+- Instead of `peerDependencyRules.allowedVersions: { "button@2>react": "17" }`, use `overrides` with `"button@2>react:peer": "16 || 17"`.
+- Instead of `peerDependencyRules.allowAny: ["@babel/*"]`, use `overrides` with `"@babel/*:peer": "*"`.
+
+`peerDependencyRules` continues to work for backward compatibility.
+
+:::
+
 #### peerDependencyRules.ignoreMissing
 
 pnpm will not print warnings about missing peer dependencies from this list.

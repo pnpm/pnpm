@@ -90,12 +90,18 @@ pub(super) fn fast_override(
     old_value: Option<&String>,
 ) -> Option<FastOverride> {
     if parsed.target_pkg.bare_specifier.is_some()
+        || parsed.target_pkg.dep_type.is_some()
+        || parsed.target_pkg.name.contains('*')
+        || parsed.parent_pkg
+            .as_ref()
+            .is_some_and(|parent| parent.name.contains('*'))
         || parsed.converge
         || parsed_overrides
             .iter()
             .any(|candidate| {
                 candidate.selector != parsed.selector
-                    && candidate.target_pkg.name == parsed.target_pkg.name
+                    && (candidate.target_pkg.name == parsed.target_pkg.name
+                        || candidate.target_pkg.name.contains('*'))
             })
     {
         return None;

@@ -261,7 +261,7 @@ fn collect_overridden_direct(
     let matcher = overrider.dependency_matcher(manifest.value());
     let matched = direct
         .iter()
-        .filter(|(name, _, previous)| matcher.matches(name, previous))
+        .filter(|(name, group, previous)| matcher.matches(*group, name, previous))
         .map(|(name, group, _)| (name.clone(), *group))
         .collect::<Vec<_>>();
     if matched.is_empty() {
