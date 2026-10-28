@@ -34,11 +34,18 @@ pub(super) struct UpdateScope<'a> {
     /// update rewrote anything: `(name, group, specifier)`.
     pub(super) direct: &'a [(String, DependencyGroup, String)],
     pub(super) overridden_direct: &'a [OverriddenDirect],
-    pub(super) lockfile: Option<&'a Lockfile>,
+    pub(super) lockfile: LockedImporter<'a>,
     pub(super) config: &'a Config,
     pub(super) version: super::UpdateVersionOptions,
     pub(super) selection: super::UpdateSelection<'a>,
     pub(super) updates_all_groups: bool,
+}
+
+/// The wanted lockfile and the id of the updated project's importer in it.
+#[derive(Clone, Copy)]
+pub(super) struct LockedImporter<'a> {
+    pub(super) document: Option<&'a Lockfile>,
+    pub(super) id: &'a str,
 }
 
 pub(super) struct OverriddenDirect {
@@ -234,7 +241,9 @@ pub(super) fn widen_drop_targets_to_lockfile(
     if !scope.updates_all_groups || (scope.version.latest && nothing_dropped) {
         return;
     }
-    let Some(snapshots) = scope.lockfile.and_then(|lockfile| lockfile.snapshots.as_ref()) else {
+    let Some(snapshots) =
+        scope.lockfile.document.and_then(|lockfile| lockfile.snapshots.as_ref())
+    else {
         return;
     };
     for key in snapshots.keys() {
@@ -264,7 +273,7 @@ pub(super) fn name_matched_seed_policy(
         }
         plan.drop_targets.insert(name.clone(), None);
     }
-    widen_drop_targets_by_matcher(scope.lockfile, plan, &matcher);
+    widen_drop_targets_by_matcher(scope.lockfile.document, plan, &matcher);
     plan.drop_only(scope.max_depth())
 }
 /// Lockfile names keep transitive-only matches in the update scope.
@@ -309,7 +318,7 @@ pub(super) async fn selector_seed_policy<Reporter: self::Reporter>(
         if scope.selection.depth == 0 || scope.version.latest {
             return Ok(None);
         }
-        widen_drop_targets_by_selectors(scope.lockfile, plan, &expanded);
+        widen_drop_targets_by_selectors(scope.lockfile.document, plan, &expanded);
         return Ok(Some(plan.drop_only(scope.max_depth())));
     }
     if scope.version.latest && !scope.version.save {

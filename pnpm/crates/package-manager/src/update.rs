@@ -229,8 +229,17 @@ impl Update<'_> {
             )?;
         }
         let mut latest_chain = None;
-        let Some(prepared) =
-            prepare_manifest::<Reporter>(manifest, update, &owned, None, &mut latest_chain).await?
+        let importer_id =
+            pnpm_workspace::importer_id_from_root_dir(&site.workspace_root, manifest_dir(manifest));
+        let Some(prepared) = prepare_manifest::<Reporter>(
+            manifest,
+            &importer_id,
+            update,
+            &owned,
+            None,
+            &mut latest_chain,
+        )
+        .await?
         else {
             return nothing_to_update(
                 update.selection.depth,

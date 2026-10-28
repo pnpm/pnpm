@@ -162,16 +162,17 @@ pub fn prune_unreachable_packages(lockfile: &mut Lockfile) {
 /// Every snapshot key an importer still reaches. `None` when the lockfile
 /// records no snapshots at all.
 fn reachable_keys(lockfile: &Lockfile) -> Option<HashSet<PkgNameVerPeer>> {
-    reachable_from(lockfile, |_| true, |_, _| true)
+    reachable_from(lockfile, |_, _| true, |_, _| true)
 }
 
-/// Every snapshot key reachable from the importer dependencies whose alias
-/// satisfies `is_root`, those dependencies included, through the snapshot
+/// Every snapshot key reachable from the importer dependencies whose
+/// `(importer id, alias)` satisfies `is_root`, those dependencies included,
+/// through the snapshot
 /// edges `(parent, alias)` that satisfy `follows`. `None` when the lockfile
 /// records no snapshots at all.
 pub(crate) fn reachable_from(
     lockfile: &Lockfile,
-    is_root: impl Fn(&PkgName) -> bool,
+    is_root: impl Fn(&str, &PkgName) -> bool,
     follows: impl Fn(&PkgNameVerPeer, &PkgName) -> bool,
 ) -> Option<HashSet<PkgNameVerPeer>> {
     let snapshots = lockfile.snapshots.as_ref()?;
@@ -187,15 +188,16 @@ pub(crate) fn reachable_from(
     Some(reachable)
 }
 
-/// The snapshot keys the importers declare directly under an alias that
-/// satisfies `is_root`.
+/// The snapshot keys the importers declare directly whose
+/// `(importer id, alias)` satisfies `is_root`.
 fn importer_root_keys(
     lockfile: &Lockfile,
-    is_root: impl Fn(&PkgName) -> bool,
+    is_root: impl Fn(&str, &PkgName) -> bool,
 ) -> VecDeque<PkgNameVerPeer> {
+    let is_root = &is_root;
     lockfile.importers
-        .values()
-        .flat_map(|importer| {
+        .iter()
+        .flat_map(|(importer_id, importer)| {
             [
                 importer.dependencies.as_ref(),
                 importer.dev_dependencies.as_ref(),
@@ -204,8 +206,8 @@ fn importer_root_keys(
             .into_iter()
             .flatten()
             .flatten()
+            .filter(move |(alias, _)| is_root(importer_id, alias))
         })
-        .filter(|(alias, _)| is_root(alias))
         .filter_map(|(alias, spec)| spec.version.resolved_key(alias))
         .collect()
 }

@@ -103,3 +103,27 @@ fn assert_installed_child(app: &Path, version: &str) {
         .success()
         .stdout(format!("{version}\n"));
 }
+
+#[test]
+fn latest_selectors_preserve_excluded_aliases_of_transitive_dependencies() {
+    let (root, workspace, anchor) = setup_with_own_registry();
+    anchor.set_dist_tag(PARENT, "100.0.0", "latest");
+    write_manifest(
+        &workspace,
+        &format!(r#"{{ "{PARENT}": "100.0.0", "dep-alias": "npm:{DEP}@100.0.0" }}"#),
+    );
+    pacquet(&workspace, ["install", "--lockfile-only"]).assert().success();
+    write_manifest(
+        &workspace,
+        &format!(r#"{{ "{PARENT}": "100.0.0", "dep-alias": "npm:{DEP}@^100.0.0" }}"#),
+    );
+    pacquet(&workspace, ["install", "--lockfile-only"]).assert().success();
+
+    pacquet(&workspace, ["update", "--latest", "!dep-alias", "--lockfile-only"]).assert().success();
+
+    let packages = lockfile_package_keys(&workspace);
+    assert!(packages.contains(&format!("{DEP}@100.0.0")), "{packages:?}");
+    assert!(!packages.contains(&format!("{DEP}@100.1.0")), "{packages:?}");
+
+    drop((root, anchor));
+}
