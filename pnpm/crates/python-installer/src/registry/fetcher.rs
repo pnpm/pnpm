@@ -52,7 +52,8 @@ impl Fetcher<'_> {
             if contents.len() > MAX_CACHE_BYTES {
                 bail!("Python index cache for {name} exceeds {MAX_CACHE_BYTES} bytes");
             }
-            pnpm_fs::write_atomic(&cache, &contents).into_diagnostic()?;
+            // The cached URLs can carry credentials in their userinfo.
+            pnpm_fs::write_atomic_private_if_new(&cache, &contents).into_diagnostic()?;
         }
         Ok(cached)
     }
@@ -104,7 +105,8 @@ impl Fetcher<'_> {
                 tokio::fs::create_dir_all(cache.parent().expect("cache file has a parent"))
                     .await
                     .into_diagnostic()?;
-                pnpm_fs::write_atomic(&cache, &document).into_diagnostic()?;
+                // The cached URLs can carry credentials in their userinfo.
+                pnpm_fs::write_atomic_private_if_new(&cache, &document).into_diagnostic()?;
                 document
             }
         };

@@ -3,9 +3,6 @@ use super::{
     Serialize, Value, Write, convert_engines_runtime_to_dependencies, fs, io,
 };
 
-#[cfg(not(target_os = "wasi"))]
-use super::NamedTempFile;
-
 const DEPENDENCY_FIELDS: [&str; 4] =
     ["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"];
 
@@ -197,16 +194,15 @@ impl PackageManifest {
                 pnpm_fs::create_new_with_mode(temporary, permissions.unwrap_or(0o666))
             })?;
         #[cfg(unix)]
-        let mut tmp = if permissions.is_none() {
-            use std::os::unix::fs::PermissionsExt;
-            tempfile::Builder::new()
-                .permissions(fs::Permissions::from_mode(0o666))
-                .tempfile_in(dir)?
-        } else {
-            NamedTempFile::new_in(dir)?
+        let mut tmp = {
+            use std::os::unix::fs::PermissionsExt as _;
+            let mode = permissions
+                .as_ref()
+                .map_or(0o666, |existing| existing.mode() & 0o777);
+            pnpm_fs::named_tempfile_with_mode_in(dir, mode)?
         };
         #[cfg(not(any(unix, target_os = "wasi")))]
-        let mut tmp = NamedTempFile::new_in(dir)?;
+        let mut tmp = pnpm_fs::umask_named_tempfile_in(dir)?;
         tmp.write_all(contents.as_bytes())?;
         if let Some(permissions) = permissions {
             pnpm_fs::set_file_permissions(tmp.as_file(), &permissions)?;

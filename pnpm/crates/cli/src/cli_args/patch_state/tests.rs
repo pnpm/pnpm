@@ -1,9 +1,6 @@
 #[cfg(unix)]
 use super::edit_dir_key;
-use super::{
-    EditDirState, StateFileError, read_edit_dir_state, write_edit_dir_state,
-    write_state_file_atomically,
-};
+use super::{EditDirState, StateFileError, read_edit_dir_state, write_edit_dir_state};
 use pretty_assertions::assert_eq;
 use serde_json::json;
 use std::{env, fs, path::Path, sync::Mutex};
@@ -98,17 +95,6 @@ fn patch_state_write_updates_existing_state_file() {
             },
         }),
     );
-}
-
-#[test]
-fn patch_state_atomic_writer_replaces_existing_file() {
-    let tmp = tempdir().expect("temp dir");
-    let state_file = tmp.path().join("state.json");
-    fs::write(&state_file, "old").expect("write old state");
-
-    write_state_file_atomically(&state_file, b"new").expect("replace state");
-
-    assert_eq!(fs::read_to_string(state_file).expect("read state"), "new");
 }
 
 #[test]

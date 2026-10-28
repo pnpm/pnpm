@@ -5,6 +5,7 @@ use super::{
     is_ancestor_path, is_child_path, lexical_normalize, path_compare::has_path_prefix,
     remove_dirent, same_path, warn,
 };
+use pnpm_fs::write_atomic;
 use pnpm_local_spec::LocalSpec;
 #[cfg(windows)]
 use std::os::windows::fs::MetadataExt;
@@ -369,6 +370,3 @@ pub(super) fn write_deploy_files(
         .wrap_err("write deployed package.json")?;
     Ok(())
 }
-
-mod atomic_write;
-use atomic_write::write_atomic;
