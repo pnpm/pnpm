@@ -123,15 +123,25 @@ impl UpdateArgs {
             actions_selector_matcher(inputs.update_actions, &self.packages)
         };
         let packages = filter_package_selectors(&packages, inputs.update_actions);
-        if self.updates_packages(&packages) {
-            let update = self.prepare_update(&mut state, inputs, &packages)?;
-            match &mut selection {
-                Some(selection) => {
-                    update.run_selected::<Reporter>(selection.selected_projects()).await
-                }
-                None => update.run::<Reporter>().await,
-            }
-            .wrap_err("updating dependencies")?;
+        let engine_outcome = self.run_engine_update_step(
+            &mut state,
+            selection.as_mut(),
+            &inputs.include_direct,
+            &packages,
+        )
+        .await?;
+        if engine_outcome.should_run_package_update(
+            &packages,
+            self.selection.patches,
+            self.updates_packages(&packages),
+        ) {
+            self.run_package_update_step::<Reporter>(
+                &mut state,
+                selection.as_mut(),
+                inputs,
+                &engine_outcome.remaining_packages,
+            )
+            .await?;
         }
         self.update_github_actions::<Reporter>(
             inputs.update_actions,
@@ -140,6 +150,40 @@ impl UpdateArgs {
             state.config,
         )
         .await
+    }
+
+    async fn run_engine_update_step(
+        &self,
+        state: &mut State,
+        selection: Option<&mut InstallFamilySelection>,
+        include_direct: &[DependencyGroup],
+        packages: &[String],
+    ) -> miette::Result<crate::cli_args::engine_deps::EngineUpdateOutcome> {
+        let engine_opts = crate::cli_args::engine_deps::EngineUpdateOptions {
+            include_direct,
+            packages,
+            latest: self.selection.latest,
+            no_save: self.save.no_save,
+            save_exact: self.save.exact || state.config.save_exact,
+            range_spec_style: self.range_spec_style(state.config),
+        };
+        Box::pin(crate::cli_args::engine_deps::update_engine_deps(state, selection, &engine_opts))
+            .await
+    }
+
+    async fn run_package_update_step<Reporter: self::Reporter + 'static>(
+        &self,
+        state: &mut State,
+        selection: Option<&mut InstallFamilySelection>,
+        inputs: &UpdateInputs,
+        remaining_packages: &[String],
+    ) -> miette::Result<()> {
+        let update = self.prepare_update(state, inputs, remaining_packages)?;
+        match selection {
+            Some(selection) => update.run_selected::<Reporter>(selection.selected_projects()).await,
+            None => update.run::<Reporter>().await,
+        }
+        .wrap_err("updating dependencies")
     }
 
     async fn select_local_packages<Reporter: self::Reporter + 'static>(

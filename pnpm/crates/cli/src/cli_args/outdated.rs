@@ -188,22 +188,23 @@ impl OutdatedArgs {
         let filters =
             OutdatedFilters::validated(&self, config, &package_patterns, [manifest], false)?;
         let lockfile = loaded_lockfile(&state)?;
-        if self.checks_packages(manifest, &package_patterns) && lockfile.is_none() {
+        if self.requires_lockfile(manifest, &package_patterns) && lockfile.is_none() {
             return Err(no_lockfile_error(project_dir(manifest)));
         }
-        let mut outdated = if self.checks_packages(manifest, &package_patterns) {
-            collect_outdated_for_importer(
-                manifest,
-                lockfile,
-                &state.active_importer_id(),
-                config,
-                &state.http_client,
-                &filters.query(self.target_version()),
-            )
-            .await?
-        } else {
-            Vec::new()
-        };
+        let mut outdated =
+            if self.checks_packages(manifest, config, &filters.include, &package_patterns) {
+                collect_outdated_for_importer(
+                    manifest,
+                    lockfile,
+                    &state.active_importer_id(),
+                    config,
+                    &state.http_client,
+                    &filters.query(self.target_version()),
+                )
+                .await?
+            } else {
+                Vec::new()
+            };
         let root = config.workspace_dir.as_deref().unwrap_or_else(|| project_dir(manifest));
         outdated.extend(
             self.outdated_actions::<Reporter>(
@@ -265,12 +266,35 @@ impl OutdatedArgs {
     /// package manifest requires no lockfile, and neither does a run
     /// whose selectors name only workflow actions — but the workflows
     /// are still inspected.
-    fn checks_packages(&self, manifest: &PackageManifest, package_patterns: &[String]) -> bool {
+    fn checks_packages(
+        &self,
+        manifest: &PackageManifest,
+        config: &Config,
+        include: &[DependencyGroup],
+        package_patterns: &[String],
+    ) -> bool {
         let has_any_dependency = manifest
             .dependencies([DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional])
             .next()
-            .is_some();
+            .is_some()
+            || !crate::cli_args::engine_deps::declared_engine_deps(manifest, config, include)
+                .is_empty();
         has_any_dependency && (self.packages.is_empty() || !package_patterns.is_empty())
+    }
+
+    fn requires_lockfile(&self, manifest: &PackageManifest, package_patterns: &[String]) -> bool {
+        if !self.packages.is_empty() && package_patterns.is_empty() {
+            return false;
+        }
+        let matcher = (!package_patterns.is_empty()).then(|| create_matcher(package_patterns));
+        manifest
+            .dependencies([DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional])
+            .any(|(name, spec)| {
+                !pnpm_tool_protocol::is_tool_specifier(spec)
+                    && matcher
+                        .as_ref()
+                        .is_none_or(|m| m.matches(name))
+            })
     }
 
     /// The outdated GitHub Actions of the workflows under `root`. Empty
@@ -432,7 +456,7 @@ impl OutdatedFilters {
         let include = args.dependency_options.include(config.optional);
         let mut manifests = manifests.into_iter().peekable();
         if !recursive || manifests.peek().is_some() {
-            validate_package_patterns(manifests, package_patterns, &include, recursive)?;
+            validate_package_patterns(manifests, config, package_patterns, &include, recursive)?;
         }
         Ok(Self {
             include,

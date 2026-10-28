@@ -65,10 +65,10 @@ pub(super) async fn matched_direct_rewrite<Reporter: self::Reporter>(
     inputs: MatchedRewriteInputs<'_, '_, '_>,
     declared: (&String, DependencyGroup, &String),
 ) -> Result<MatchedRewrite, UpdateError> {
-    let (name, _, previous) = declared;
+    let (name, group, previous) = declared;
     // The two sources are exclusive: `--latest` rejects versioned selectors.
     if scope.version.latest {
-        return latest_direct_rewrite(scope, inputs, (name, previous)).await;
+        return latest_direct_rewrite(scope, plan, inputs, (name, group, previous)).await;
     }
     let MatchedRewriteInputs { rewrite_ctx, latest_chain, .. } = inputs;
     let requested = scope.selectors
@@ -89,6 +89,7 @@ pub(super) async fn matched_direct_rewrite<Reporter: self::Reporter>(
     }
     let tag = requested
         .as_deref()
+        .filter(|_| !is_tool_specifier(previous))
         .filter(|specifier| get_version_selector_type(specifier) == Some(VersionSelectorType::Tag));
     if let Some(tag) = tag {
         let rewritten = tag_rewrite(
@@ -260,8 +261,15 @@ fn requested_runtime_rewrite(alias: &str, requested: &str, previous: &str) -> St
     let requested = strip_tool_protocol(requested).unwrap_or(requested);
     let as_requested = || format!("{RUNTIME_PROTOCOL}{requested}");
     let Some(selector) = node_runtime_version_spec(alias, previous) else {
-        // A deno or bun declaration records the selector as asked, which is
-        // what their resolvers report back for it.
+        if let Ok(version) = Version::parse(requested)
+            && let Some(declared_range) = strip_tool_protocol(previous)
+        {
+            let range = match infer_range_spec_style(declared_range) {
+                Some(style) => format!("{}{version}", style.range_prefix()),
+                None => requested.to_string(),
+            };
+            return format!("{RUNTIME_PROTOCOL}{range}");
+        }
         return as_requested();
     };
     // A selector naming a release channel the resolver does not know keeps its
@@ -374,12 +382,32 @@ pub(super) fn judge_against_kept_range(requested: &str, kept: &str) -> KeptRange
     };
     if requested.satisfies(&kept) { KeptRangeVerdict::Admitted } else { KeptRangeVerdict::Excluded }
 }
+pub(super) fn apply_channel_bump_target(
+    plan: &mut UpdatePlan,
+    name: &str,
+    group: DependencyGroup,
+    previous: &str,
+    specifier: String,
+) -> String {
+    if let Some((channel, _)) =
+        node_runtime_version_spec(name, previous).and_then(|selector| selector.split_once('/'))
+        && let Some(next_selector) = node_runtime_version_spec(name, &specifier)
+        && parse_node_specifier(next_selector).is_ok_and(|parsed| parsed.release_channel != channel)
+    {
+        let channel_specifier = format!("{RUNTIME_PROTOCOL}{channel}/{next_selector}");
+        plan.bump_targets.push((name.to_string(), group, channel_specifier.clone()));
+        return channel_specifier;
+    }
+    specifier
+}
+
 async fn latest_direct_rewrite(
     scope: &UpdateScope<'_>,
+    plan: &mut UpdatePlan,
     inputs: MatchedRewriteInputs<'_, '_, '_>,
-    declared: (&str, &str),
+    declared: (&str, DependencyGroup, &str),
 ) -> Result<MatchedRewrite, UpdateError> {
-    let (name, previous) = declared;
+    let (name, group, previous) = declared;
     let MatchedRewriteInputs {
         rewrite_ctx,
         latest_chain,
@@ -389,6 +417,12 @@ async fn latest_direct_rewrite(
     if !scope.version.save {
         return Ok(MatchedRewrite::Target(None));
     }
-    let specifier = latest_specifier(rewrite_ctx, latest_chain, catalog_ctx, name, previous).await?;
-    Ok(MatchedRewrite::Target(specifier))
+    let Some(specifier) =
+        latest_specifier(rewrite_ctx, latest_chain, catalog_ctx, name, previous).await?
+    else {
+        return Ok(MatchedRewrite::Target(None));
+    };
+    Ok(MatchedRewrite::Target(Some(apply_channel_bump_target(
+        plan, name, group, previous, specifier,
+    ))))
 }

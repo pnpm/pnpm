@@ -1435,3 +1435,157 @@ fn a_changed_specifier_keeps_the_locked_versions_of_its_dependencies() {
 
     drop((root, anchor));
 }
+
+#[test]
+fn update_bumps_package_manager_and_non_downloaded_runtime_in_dev_engines() {
+    let root = tempfile::tempdir().unwrap();
+    let workspace = root.path().join("workspace");
+    fs::create_dir(&workspace).unwrap();
+    let mut server = mockito::Server::new();
+    let pnpm_tarball = {
+        let mut tar = tar::Builder::new(Vec::new());
+        let pkg_json = br#"{"name":"pnpm","version":"10.5.0","bin":{"pnpm":"bin/pnpm.cjs"}}"#;
+        let mut header = tar::Header::new_gnu();
+        header.set_size(pkg_json.len() as u64);
+        header.set_mode(0o644);
+        tar.append_data(&mut header, "package/package.json", &pkg_json[..])
+            .unwrap();
+        let tar = tar.into_inner().unwrap();
+        let mut gz = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+        std::io::Write::write_all(&mut gz, &tar).unwrap();
+        gz.finish().unwrap()
+    };
+    let pnpm_integrity = ssri::IntegrityOpts::new()
+        .algorithm(ssri::Algorithm::Sha512)
+        .chain(&pnpm_tarball)
+        .result()
+        .to_string();
+    let server_url = server.url();
+    let _pnpm_mock = server
+        .mock("GET", "/npm/pnpm")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(
+            serde_json::json!({
+                "name": "pnpm",
+                "dist-tags": { "latest": "11.0.0" },
+                "versions": {
+                    "10.0.0": {
+                        "name": "pnpm",
+                        "version": "10.0.0",
+                        "dist": {
+                            "tarball": format!("{server_url}/npm/pnpm/-/pnpm-10.0.0.tgz"),
+                            "integrity": pnpm_integrity,
+                        },
+                    },
+                    "10.5.0": {
+                        "name": "pnpm",
+                        "version": "10.5.0",
+                        "dist": {
+                            "tarball": format!("{server_url}/npm/pnpm/-/pnpm-10.5.0.tgz"),
+                            "integrity": pnpm_integrity,
+                        },
+                    },
+                    "11.0.0": {
+                        "name": "pnpm",
+                        "version": "11.0.0",
+                        "dist": {
+                            "tarball": format!("{server_url}/npm/pnpm/-/pnpm-11.0.0.tgz"),
+                            "integrity": pnpm_integrity,
+                        },
+                    },
+                },
+            })
+            .to_string(),
+        )
+        .expect_at_least(1)
+        .create();
+    let _exe_mock = server
+        .mock("GET", "/npm/@pnpm%2Fexe")
+        .with_status(404)
+        .create();
+    let _node_mock = server
+        .mock("GET", "/node/index.json")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(
+            r#"[{"version":"v24.0.0","lts":false},{"version":"v22.5.0","lts":false},{"version":"v22.0.0","lts":false}]"#,
+        )
+        .expect_at_least(1)
+        .create();
+
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        format!(
+            "storeDir: ../store\ncacheDir: ../cache\nnodeDownloadMirrors:\n  release: '{server_url}/node/'\n",
+        ),
+    )
+    .unwrap();
+    fs::write(workspace.join(".npmrc"), format!("registry={server_url}/npm/\n")).unwrap();
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "test-update-engines",
+            "version": "1.0.0",
+            "packageManager": "pnpm@10.0.0+sha256.deadbeef",
+            "devEngines": {
+                "packageManager": {
+                    "name": "pnpm",
+                    "version": "^10.0.0",
+                    "onFail": "warn",
+                },
+                "runtime": {
+                    "name": "node",
+                    "version": "^22.0.0",
+                    "onFail": "warn",
+                },
+            },
+        })
+        .to_string(),
+    )
+    .unwrap();
+
+    let registry_flag = format!("--registry={server_url}/npm/");
+
+    // In-range `pnpm update` bumps within `^10.0.0` and `^22.0.0`, and syncs `packageManager`.
+    pacquet(&workspace, ["update", &registry_flag]).assert().success();
+    let manifest: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(workspace.join("package.json")).unwrap()).unwrap();
+    assert_eq!(manifest["devEngines"]["packageManager"]["version"], "^10.5.0");
+    assert_eq!(manifest["packageManager"], "pnpm@10.5.0");
+    assert_eq!(manifest["devEngines"]["runtime"]["version"], "^22.5.0");
+    let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).unwrap();
+    assert!(
+        lockfile.contains("packageManagerDependencies:") && lockfile.contains("pnpm@10.5.0:"),
+        "lockfile should record updated pnpm pin in packageManagerDependencies:\n{lockfile}",
+    );
+
+    // `pnpm update --latest` bumps across majors to 11.0.0 and 24.0.0.
+    pacquet(&workspace, ["update", "--latest", &registry_flag]).assert().success();
+    let manifest: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(workspace.join("package.json")).unwrap()).unwrap();
+    assert_eq!(manifest["devEngines"]["packageManager"]["version"], "^11.0.0");
+    assert_eq!(manifest["packageManager"], "pnpm@11.0.0");
+    assert_eq!(manifest["devEngines"]["runtime"]["version"], "^24.0.0");
+    let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).unwrap();
+    assert!(
+        lockfile.contains("pnpm@11.0.0:"),
+        "lockfile should record latest pnpm pin in packageManagerDependencies:\n{lockfile}",
+    );
+
+    // Explicit `pnpm update pnpm` selector skips pre-command PM enforcement and updates `packageManager`.
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "test-update-engines",
+            "version": "1.0.0",
+            "packageManager": "pnpm@10.0.0+sha256.deadbeef",
+        })
+        .to_string(),
+    )
+    .unwrap();
+    pacquet(&workspace, ["update", "--latest", "pnpm", &registry_flag]).assert().success();
+    let manifest: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(workspace.join("package.json")).unwrap()).unwrap();
+    assert_eq!(manifest["packageManager"], "pnpm@11.0.0");
+}

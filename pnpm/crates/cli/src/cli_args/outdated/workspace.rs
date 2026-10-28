@@ -61,6 +61,7 @@ pub(super) fn global_states(
 
 pub(super) fn validate_package_patterns<'a>(
     manifests: impl IntoIterator<Item = &'a PackageManifest>,
+    config: &Config,
     package_patterns: &[String],
     include: &[DependencyGroup],
     recursive: bool,
@@ -72,10 +73,18 @@ pub(super) fn validate_package_patterns<'a>(
     if positive_patterns.is_empty() {
         return Ok(());
     }
-    let deps: Vec<&str> = manifests
+    let deps: Vec<String> = manifests
         .into_iter()
-        .flat_map(|manifest| manifest.dependencies(include.iter().copied()))
-        .map(|(name, _)| name)
+        .flat_map(|manifest| {
+            manifest
+                .dependencies(include.iter().copied())
+                .map(|(name, _)| name.to_string())
+                .chain(
+                    crate::cli_args::engine_deps::declared_engine_deps(manifest, config, include)
+                        .into_iter()
+                        .map(|dep| dep.name),
+                )
+        })
         .collect();
     let unmatched = positive_patterns
         .iter()
@@ -167,13 +176,19 @@ async fn outdated_for_project(
     } else {
         (project_lockfile, Lockfile::ROOT_IMPORTER_KEY.to_string())
     };
-    let Some(lockfile) = lockfile else {
+    let has_non_tool_dep = project.manifest
+        .dependencies([DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional])
+        .any(|(name, spec)| {
+            !pnpm_tool_protocol::is_tool_specifier(spec)
+                && inputs.query.match_names.is_none_or(|m| m.matches(name))
+        });
+    if lockfile.is_none() && has_non_tool_dep {
         let lockfile_dir = if shares_one_lockfile { inputs.lockfile_root } else { project_dir };
         return Err(no_lockfile_error(lockfile_dir));
-    };
+    }
     let project_outdated = collect_outdated_for_importer_in_run(
         &project.manifest,
-        Some(lockfile),
+        lockfile,
         &importer_id,
         inputs.query,
         inputs.run,
@@ -203,7 +218,13 @@ pub(super) fn recursive_project_inputs<'a>(
         let has_any_dependency = project.manifest
             .dependencies([DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional])
             .next()
-            .is_some();
+            .is_some()
+            || !crate::cli_args::engine_deps::declared_engine_deps(
+                &project.manifest,
+                config,
+                &[DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional],
+            )
+            .is_empty();
         if !has_any_dependency {
             continue;
         }

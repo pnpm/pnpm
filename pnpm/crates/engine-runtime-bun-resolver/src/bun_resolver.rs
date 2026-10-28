@@ -10,7 +10,6 @@ use pnpm_resolving_npm_resolver::MINIMUM_RELEASE_AGE_VIOLATION_CODE;
 use pnpm_resolving_resolver_base::{
     LatestInfo, LatestQuery, PkgResolutionId, ResolveError, ResolveFuture, ResolveLatestFuture,
     ResolveOptions, ResolveResult, Resolver, UpdateBehavior, WantedDependency,
-    resolve_package_version,
 };
 use pnpm_tool_protocol::{RUNTIME_PROTOCOL, strip_tool_protocol};
 
@@ -96,31 +95,61 @@ impl BunResolver {
             )));
         }
 
-        let version = resolve_package_version(
-            self.npm_resolver.as_ref(),
-            &WantedDependency {
-                alias: wanted_dependency.alias.clone(),
-                bare_specifier: Some(version_spec.to_string()),
-                ..wanted_dependency.clone()
-            },
-            &ResolveOptions::default(),
-        )
-        .await?
-        .ok_or_else(|| {
-            Box::new(BunResolverError::ResolutionFailure { spec: version_spec.to_string() })
-                as ResolveError
-        })?;
-
-        let variants = read_bun_assets(&self.http_client, self.mirror.as_deref(), &version)
-            .await
-            .map_err(|err| Box::new(BunResolverError::ReadAssets(err)) as ResolveError)?;
+        let (version, normalized_spec) =
+            self.resolve_npm_version_and_spec(wanted_dependency, opts, version_spec).await?;
+        let variants = if opts.specifier.calc_specifier {
+            Vec::new()
+        } else {
+            read_bun_assets(&self.http_client, self.mirror.as_deref(), &version)
+                .await
+                .map_err(|err| Box::new(BunResolverError::ReadAssets(err)) as ResolveError)?
+        };
         Ok(Some(bun_resolve_result(
             wanted_dependency,
             format!("bun@runtime:{version}").into(),
             LockfileResolution::Variations(VariationsResolution { variants }),
             &version,
-            Some(format!("{RUNTIME_PROTOCOL}{version_spec}")),
+            Some(format!("{RUNTIME_PROTOCOL}{normalized_spec}")),
         )))
+    }
+
+    async fn resolve_npm_version_and_spec(
+        &self,
+        wanted_dependency: &WantedDependency,
+        opts: &ResolveOptions,
+        version_spec: &str,
+    ) -> Result<(String, String), ResolveError> {
+        let prev_specifier = wanted_dependency.prev_specifier
+            .as_deref()
+            .and_then(strip_tool_protocol)
+            .map(normalize_runtime_spec)
+            .unwrap_or(version_spec);
+        let mut npm_opts = opts.clone();
+        npm_opts.refresh.current_pkg = None;
+        let npm_result = self.npm_resolver.resolve(
+            &WantedDependency {
+                alias: wanted_dependency.alias.clone(),
+                bare_specifier: Some(version_spec.to_string()),
+                prev_specifier: Some(prev_specifier.to_string()),
+                ..wanted_dependency.clone()
+            },
+            &npm_opts,
+        )
+        .await?;
+        let version = npm_result
+            .as_ref()
+            .and_then(|res| res.package.name_ver.as_ref())
+            .map(|nv| nv.suffix.to_string())
+            .ok_or_else(|| {
+                Box::new(BunResolverError::ResolutionFailure { spec: version_spec.to_string() })
+                    as ResolveError
+            })?;
+        let normalized_spec = npm_result
+            .as_ref()
+            .and_then(|res| res.normalized_bare_specifier.as_deref())
+            .unwrap_or(version_spec)
+            .to_string();
+        Ok((version, normalized_spec))
     }
 
     async fn resolve_latest_impl(

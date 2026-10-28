@@ -97,7 +97,12 @@ pub async fn resolve_node_version_with_auth(
 ) -> Result<Option<String>, ResolveNodeVersionError> {
     let all_versions = fetch_all_versions(http_client, auth_headers, node_mirror_base_url).await?;
     if is_latest_selector(version_spec) {
-        return Ok(all_versions.first().map(|version| version.version.clone()));
+        let versions: Vec<String> = all_versions
+            .iter()
+            .map(|entry| entry.version.clone())
+            .collect();
+        return Ok(max_satisfying(&versions, "*")
+            .or_else(|| all_versions.first().map(|version| version.version.clone())));
     }
     let (versions, range) = filter_versions(&all_versions, version_spec);
     Ok(max_satisfying(&versions, &range))
@@ -138,11 +143,19 @@ pub async fn resolve_node_versions_with_auth(
             .collect());
     };
     if is_latest_selector(version_spec) {
-        return Ok(all_versions
+        let versions: Vec<String> = all_versions
+            .iter()
+            .map(|entry| entry.version.clone())
+            .collect();
+        return Ok(max_satisfying(&versions, "*")
+            .or_else(|| {
+                all_versions
+                    .into_iter()
+                    .next()
+                    .map(|version| version.version)
+            })
             .into_iter()
-            .next()
-            .map(|version| vec![version.version])
-            .unwrap_or_default());
+            .collect());
     }
     let (versions, range) = filter_versions(&all_versions, version_spec);
     let Ok(parsed_range) = Range::parse(&range) else { return Ok(Vec::new()) };

@@ -3,9 +3,13 @@ id: outdated
 title: pnpm outdated
 ---
 
-Checks for outdated packages. The check can be limited to a subset of the
-installed packages by providing arguments. Patterns support `*` wildcards, and a
-leading `!` excludes matching packages.
+Checks for outdated packages, runtimes (`node`, `deno`, `bun` declared in
+`devEngines.runtime`, `engines.runtime`, or through the `runtime:` / `tool:`
+protocol), and package managers (`pnpm`, `npm`, `yarn`, `bun` declared in
+`devEngines.packageManager` or `packageManager`). The check can be limited to a
+subset of the declared dependencies, runtimes, or package managers by providing
+arguments. Patterns support `*` wildcards, and a leading `!` excludes matching
+names.
 
 `pnpm outdated` exits with code 1 when any dependency is outdated.
 

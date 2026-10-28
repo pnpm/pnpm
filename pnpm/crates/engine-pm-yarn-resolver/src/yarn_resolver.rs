@@ -8,7 +8,7 @@ use pnpm_lockfile::{LockfileResolution, VariationsResolution};
 use pnpm_network::{ThrottledClient, redact_and_sanitize};
 use pnpm_resolving_resolver_base::{
     LatestInfo, LatestQuery, ResolveError, ResolveFuture, ResolveLatestFuture, ResolveOptions,
-    ResolveResult, Resolver, WantedDependency,
+    ResolveResult, Resolver, UpdateBehavior, WantedDependency,
 };
 use pnpm_tool_protocol::{RUNTIME_PROTOCOL, strip_tool_protocol};
 
@@ -86,16 +86,18 @@ impl YarnResolver {
     async fn resolve_impl(
         &self,
         wanted_dependency: &WantedDependency,
-        _opts: &ResolveOptions,
+        opts: &ResolveOptions,
     ) -> Result<Option<ResolveResult>, ResolveError> {
         let Some(version_spec) = bare_runtime_spec(wanted_dependency) else {
             return Ok(None);
         };
+        let lookup_spec =
+            if opts.refresh.update == UpdateBehavior::Latest { "latest" } else { version_spec };
         let releases = self
             .releases()
             .await
             .map_err(|error| Box::new(YarnResolverError::ReadReleases(error)) as ResolveError)?;
-        let release = pick_release(releases, version_spec)
+        let release = pick_release(releases, lookup_spec)
             .ok_or_else(|| {
                 // The specifier comes from a manifest, so it can carry
                 // credentials — the message a user sees must not.
@@ -132,14 +134,15 @@ impl YarnResolver {
         &self,
         query: &LatestQuery,
     ) -> Result<Option<LatestInfo>, ResolveError> {
-        if bare_runtime_spec(&query.wanted_dependency).is_none() {
+        let Some(manifest_spec) = bare_runtime_spec(&query.wanted_dependency) else {
             return Ok(None);
-        }
+        };
+        let version_spec = if query.compatible { manifest_spec } else { "latest" };
         let releases = self
             .releases()
             .await
             .map_err(|error| Box::new(YarnResolverError::ReadReleases(error)) as ResolveError)?;
-        let Some(release) = pick_release(releases, "latest") else {
+        let Some(release) = pick_release(releases, version_spec) else {
             return Ok(Some(LatestInfo::default()));
         };
         Ok(Some(LatestInfo {

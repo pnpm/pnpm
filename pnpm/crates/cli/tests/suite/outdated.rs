@@ -850,3 +850,131 @@ fn outdated_recursive_validates_workspace_dependencies() {
 
     drop((root, anchor));
 }
+
+#[test]
+fn outdated_reports_package_manager_and_runtime_from_dev_engines() {
+    let root = tempfile::tempdir().unwrap();
+    let workspace = root.path().join("workspace");
+    fs::create_dir(&workspace).unwrap();
+    let mut server = mockito::Server::new();
+    let server_url = server.url();
+    let _pnpm_mock = server
+        .mock("GET", "/npm/pnpm")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(
+            serde_json::json!({
+                "name": "pnpm",
+                "dist-tags": { "latest": "11.0.0" },
+                "versions": {
+                    "10.0.0": {
+                        "name": "pnpm",
+                        "version": "10.0.0",
+                        "dist": { "tarball": format!("{server_url}/npm/pnpm/-/pnpm-10.0.0.tgz") },
+                    },
+                    "10.5.0": {
+                        "name": "pnpm",
+                        "version": "10.5.0",
+                        "dist": { "tarball": format!("{server_url}/npm/pnpm/-/pnpm-10.5.0.tgz") },
+                    },
+                    "11.0.0": {
+                        "name": "pnpm",
+                        "version": "11.0.0",
+                        "dist": { "tarball": format!("{server_url}/npm/pnpm/-/pnpm-11.0.0.tgz") },
+                    },
+                },
+            })
+            .to_string(),
+        )
+        .expect_at_least(1)
+        .create();
+    let _node_mock = server
+        .mock("GET", "/node/index.json")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(
+            r#"[{"version":"v24.0.0","lts":false},{"version":"v22.5.0","lts":false},{"version":"v22.0.0","lts":false}]"#,
+        )
+        .expect_at_least(1)
+        .create();
+
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        format!(
+            "storeDir: ../store\ncacheDir: ../cache\nnodeDownloadMirrors:\n  release: '{}/node/'\n",
+            server.url(),
+        ),
+    )
+    .unwrap();
+    fs::write(workspace.join(".npmrc"), format!("registry={}/npm/\n", server.url())).unwrap();
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "test-outdated-engines",
+            "version": "1.0.0",
+            "devEngines": {
+                "packageManager": {
+                    "name": "pnpm",
+                    "version": "^10.0.0",
+                    "onFail": "warn",
+                },
+                "runtime": {
+                    "name": "node",
+                    "version": "^22.0.0",
+                    "onFail": "warn",
+                },
+            },
+        })
+        .to_string(),
+    )
+    .unwrap();
+
+    let output = pacquet(&workspace, ["outdated", "--format", "json"])
+        .output()
+        .expect("run outdated --format json");
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr),
+    );
+    let report: serde_json::Value =
+        serde_json::from_slice(&output.stdout).expect("parse outdated JSON");
+    assert_eq!(report["pnpm"]["current"], "10.0.0");
+    assert_eq!(report["pnpm"]["latest"], "11.0.0");
+    assert_eq!(report["pnpm"]["dependencyType"], "devDependencies");
+    assert_eq!(report["node"]["current"], "22.0.0");
+    assert_eq!(report["node"]["latest"], "24.0.0");
+    assert_eq!(report["node"]["dependencyType"], "devDependencies");
+
+    let compat_output = pacquet(&workspace, ["outdated", "--compatible", "--format", "json"])
+        .output()
+        .expect("run outdated --compatible --format json");
+    assert_eq!(compat_output.status.code(), Some(1));
+    let compat_report: serde_json::Value =
+        serde_json::from_slice(&compat_output.stdout).expect("parse compatible outdated JSON");
+    assert_eq!(compat_report["pnpm"]["current"], "10.0.0");
+    assert_eq!(compat_report["pnpm"]["latest"], "10.5.0");
+    assert_eq!(compat_report["node"]["current"], "22.0.0");
+    assert_eq!(compat_report["node"]["latest"], "22.5.0");
+
+    // Selector filtering works even when `onFail` would otherwise block or switch.
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "test-outdated-engines",
+            "version": "1.0.0",
+            "packageManager": "pnpm@10.0.0+sha256.deadbeef",
+        })
+        .to_string(),
+    )
+    .unwrap();
+    let selector_output = pacquet(&workspace, ["outdated", "pnpm", "--format", "json"])
+        .output()
+        .expect("run outdated pnpm --format json");
+    assert_eq!(selector_output.status.code(), Some(1));
+    let selector_report: serde_json::Value =
+        serde_json::from_slice(&selector_output.stdout).expect("parse selector outdated JSON");
+    assert_eq!(selector_report["pnpm"]["current"], "10.0.0");
+    assert_eq!(selector_report["pnpm"]["latest"], "11.0.0");
+}

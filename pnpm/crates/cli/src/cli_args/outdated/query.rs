@@ -12,6 +12,7 @@ use super::{
 /// dependency several workspace projects share is fetched once, plus the
 /// catalogs their `catalog:` specifiers dereference against.
 pub(crate) struct OutdatedRun {
+    pub(super) config: Config,
     pub(super) resolver: DefaultResolver,
     pub(super) resolve_options: ResolveOptions,
     pub(super) catalogs: Catalogs,
@@ -30,6 +31,7 @@ impl OutdatedRun {
         let resolver = create_configured_registry_resolver(config, http_client, &policy)
             .map_err(miette::Report::new)?;
         Ok(Self {
+            config: config.clone(),
             resolver,
             resolve_options: ResolveOptions {
                 version: pnpm_resolving_resolver_base::VersionSelectionOptions {
@@ -158,6 +160,13 @@ pub struct OutdatedQuery<'a> {
     pub full_metadata: bool,
 }
 
+impl OutdatedQuery<'_> {
+    fn matches_name(&self, name: &str) -> bool {
+        self.match_names.is_none_or(|matcher| matcher.matches(name))
+            && !self.ignore_names.is_some_and(|matcher| matcher.matches(name))
+    }
+}
+
 /// The matcher for `updateConfig.ignoreDependencies`, or [`None`] when
 /// nothing is ignored.
 pub(crate) fn ignored_dependencies_matcher(config: &Config) -> Option<Matcher> {
@@ -219,57 +228,98 @@ pub(crate) async fn collect_outdated_for_importer_in_run(
     let manifest = &run.overridden_manifest(manifest, lockfile)?;
     let current_versions =
         current_versions_from_importer(lockfile, importer_id, query.include_direct);
-    let current_versions = &current_versions;
-    // Recorded on every entry so the interactive update list can say
-    // which workspace project each outdated dependency came from. A
-    // project is not required to declare a name, and an empty label
-    // leaves several unnamed projects indistinguishable, so fall back to
-    // the path that identifies the project in the lockfile.
-    let workspace = manifest
-        .value()
-        .get("name")
-        .and_then(serde_json::Value::as_str)
-        // A name that is missing, empty, or only whitespace all give an
-        // equally blank label.
-        .map(str::trim)
-        .filter(|name| !name.is_empty())
-        .map_or_else(|| importer_id.to_string(), str::to_string);
-    let workspace = &workspace;
-
-    // Gather the lockfile-pinned direct dependencies to inspect, then
-    // fetch their packuments concurrently — mirroring pnpm's
-    // `Promise.all` fan-out. Concurrency is bounded by the HTTP client's
-    // per-registry limit (`network_concurrency`), so this does not flood
-    // the registry. Dependencies without a lockfile pin are dropped here.
-    let fetches = query.include_direct
-        .iter()
-        .flat_map(move |&group| {
-            manifest
-                .dependencies([group])
-                .filter_map(move |(alias, bare_specifier)| {
-                    if query.match_names.is_some_and(|matcher| !matcher.matches(alias))
-                        || query.ignore_names.is_some_and(|matcher| matcher.matches(alias))
-                    {
-                        return None;
-                    }
-                    let current = current_versions.get(alias).cloned()?;
-                    Some(OutdatedCandidate { alias, group, bare_specifier, current })
-                })
-        })
-        .map(|candidate| outdated_dependency(run, query, workspace, candidate));
-
+    let workspace = importer_workspace_label(manifest, importer_id);
+    let engine_deps = crate::cli_args::engine_deps::declared_engine_deps(
+        manifest,
+        &run.config,
+        query.include_direct,
+    );
+    let candidates = collect_importer_candidates(manifest, &current_versions, &engine_deps, query);
+    let fetches = candidates
+        .into_iter()
+        .map(|candidate| outdated_dependency(run, query, &workspace, candidate));
     let fetched = futures_util::future::join_all(fetches).await
         .into_iter()
         .collect::<miette::Result<Vec<_>>>()?;
     Ok(fetched.into_iter().flatten().collect())
 }
 
-/// One lockfile-pinned direct dependency to compare against the registry.
+// Recorded on every entry so the interactive update list can say which
+// workspace project each outdated dependency came from. A project is not
+// required to declare a name, and an empty label leaves several unnamed
+// projects indistinguishable, so fall back to the lockfile importer path.
+fn importer_workspace_label(manifest: &PackageManifest, importer_id: &str) -> String {
+    manifest
+        .value()
+        .get("name")
+        .and_then(serde_json::Value::as_str)
+        .map(str::trim)
+        .filter(|name| !name.is_empty())
+        .map_or_else(|| importer_id.to_string(), str::to_string)
+}
+
+fn collect_importer_candidates<'a>(
+    manifest: &'a PackageManifest,
+    current_versions: &HashMap<String, Version>,
+    engine_deps: &'a [crate::cli_args::engine_deps::DeclaredEngineDep],
+    query: &OutdatedQuery<'_>,
+) -> Vec<OutdatedCandidate<'a>> {
+    let mut candidates = Vec::new();
+    for &group in query.include_direct {
+        for (alias, bare_specifier) in manifest.dependencies([group]) {
+            if let Some(candidate) =
+                direct_outdated_candidate(alias, group, bare_specifier, current_versions, query)
+            {
+                candidates.push(candidate);
+            }
+        }
+    }
+    for dep in engine_deps {
+        if !query.matches_name(&dep.name) {
+            continue;
+        }
+        let Some(current) = dep.current.clone() else {
+            continue;
+        };
+        candidates.push(OutdatedCandidate {
+            alias: &dep.name,
+            group: dep.group,
+            bare_specifier: &dep.resolver_bare_specifier,
+            current,
+            is_engine: true,
+        });
+    }
+    candidates
+}
+
+fn direct_outdated_candidate<'a>(
+    alias: &'a str,
+    group: DependencyGroup,
+    bare_specifier: &'a str,
+    current_versions: &HashMap<String, Version>,
+    query: &OutdatedQuery<'_>,
+) -> Option<OutdatedCandidate<'a>> {
+    if !query.matches_name(alias) {
+        return None;
+    }
+    let current = current_versions
+        .get(alias)
+        .cloned()
+        .or_else(|| {
+            pnpm_tool_protocol::is_tool_specifier(bare_specifier)
+                .then(|| crate::cli_args::engine_deps::min_version_of_spec(alias, bare_specifier))
+                .flatten()
+        })?;
+    Some(OutdatedCandidate { alias, group, bare_specifier, current, is_engine: false })
+}
+
+/// One direct or engine dependency to compare against its upstream source.
 struct OutdatedCandidate<'a> {
     alias: &'a str,
     group: DependencyGroup,
     bare_specifier: &'a str,
     current: Version,
+    is_engine: bool,
 }
 
 /// The dependency's outdated entry: `None` when the registry names no
@@ -282,10 +332,13 @@ async fn outdated_dependency(
 ) -> miette::Result<Option<OutdatedPackage>> {
     let bare_specifier =
         dereference_catalog(&run.catalogs, candidate.alias, candidate.bare_specifier)?;
-    let resolved_package_name =
+    let resolved_package_name = if candidate.is_engine {
+        candidate.alias.to_string()
+    } else {
         PackageManifest::resolve_registry_dependency(candidate.alias, &bare_specifier)
             .0
-            .to_string();
+            .to_string()
+    };
     let latest = resolve_outdated_target(
         run,
         query,
@@ -404,11 +457,15 @@ fn outdated_target(
     if !(is_newer || (query.include_deprecated && deprecated.is_some())) {
         return None;
     }
-    let package_name = target_manifest
-        .get("name")
-        .and_then(serde_json::Value::as_str)
-        .unwrap_or(resolved_package_name)
-        .to_string();
+    let package_name = if candidate.is_engine {
+        candidate.alias.to_string()
+    } else {
+        target_manifest
+            .get("name")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or(resolved_package_name)
+            .to_string()
+    };
     Some(OutdatedPackage {
         alias: candidate.alias.to_string(),
         package_name,
