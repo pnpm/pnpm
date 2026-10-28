@@ -174,7 +174,7 @@ export async function installPnpm (
     if (error != null) throw error
     if (status === 0) {
       console.log(renderUndoHint(pnpmHomeDir(), process.platform, { modifiedPath: modifyPath }))
-      warnIfPnpmIsShadowed()
+      warnIfPnpmIsShadowed({ modifiedPath: modifyPath })
     }
     return status ?? 1
   } finally {
@@ -201,11 +201,11 @@ function assertSetupCanLeavePathAlone (binPath: string, version: string): void {
  * resolves, or the success above is the last thing the person reads before
  * `pnpm --version` prints the old version again.
  */
-function warnIfPnpmIsShadowed (): void {
+function warnIfPnpmIsShadowed (opts: { modifiedPath: boolean }): void {
   const pnpmHome = pnpmHomeDir()
   const shadowing = findShadowingPnpm(pnpmHome, { pathEnv: readPathEnv(process.env) })
   if (shadowing != null) {
-    console.error(renderShadowingPnpmWarning(shadowing, pnpmHome))
+    console.error(renderShadowingPnpmWarning(shadowing, pnpmHome, opts))
   }
 }
 
