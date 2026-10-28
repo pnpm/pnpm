@@ -333,6 +333,47 @@ fn existing_prefix(raw: &str) -> &'static str {
     }
 }
 
+pub(crate) async fn resolve_cargo_workspace_scope(
+    manifest_path: &Path,
+    declared: &[DeclaredCargoDep],
+    checkout: Option<&Path>,
+) -> Result<(PathBuf, Vec<DeclaredCargoDep>)> {
+    let (_, metadata) = crate::cargo_deps::workspace_metadata(manifest_path, checkout).await?;
+    let cargo_root = crate::cargo_deps::canonical_cargo_path(&metadata.workspace_root)?;
+    let mut all_declared = declared.to_vec();
+    for package in metadata.packages {
+        if let Some(member_dir) = package.manifest_path.parent() {
+            extend_unique_declared(
+                &mut all_declared,
+                declared_cargo_deps(member_dir, Some(&cargo_root))?,
+            );
+        }
+    }
+    Ok((cargo_root, all_declared))
+}
+
+fn extend_unique_declared(all_declared: &mut Vec<DeclaredCargoDep>, deps: Vec<DeclaredCargoDep>) {
+    for dep in deps {
+        if !all_declared.iter().any(|existing| same_declared_dep(existing, &dep)) {
+            all_declared.push(dep);
+        }
+    }
+}
+
+pub(crate) fn same_declared_dep(lhs: &DeclaredCargoDep, rhs: &DeclaredCargoDep) -> bool {
+    lhs.alias == rhs.alias
+        && lhs.table == rhs.table
+        && same_manifest(&lhs.manifest_path, &rhs.manifest_path)
+}
+
+fn same_manifest(lhs: &Path, rhs: &Path) -> bool {
+    lhs == rhs
+        || match (dunce::canonicalize(lhs), dunce::canonicalize(rhs)) {
+            (Ok(ca), Ok(cb)) => ca == cb,
+            _ => false,
+        }
+}
+
 pub(crate) fn apply_manifest_edits(
     edits: &[(PathBuf, &'static str, String, String)],
 ) -> Result<()> {

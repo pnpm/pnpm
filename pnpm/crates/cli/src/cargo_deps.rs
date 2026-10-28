@@ -1,7 +1,7 @@
 pub(crate) mod add;
 pub(crate) mod toolchain;
 
-pub(crate) use lockfile::workspace_root;
+pub(crate) use lockfile::{canonical_cargo_path, workspace_metadata, workspace_root};
 pub(crate) use sparse_registry::{cargo_auth_headers, latest_version, resolve_target_version};
 pub(crate) use toolchain::{installs_toolchains, provision as provision_toolchain};
 
@@ -75,14 +75,14 @@ pub(crate) enum CargoLockfilePolicy {
 }
 
 #[derive(Deserialize)]
-struct CargoWorkspaceMetadata {
-    workspace_root: PathBuf,
-    packages: Vec<CargoWorkspacePackage>,
+pub(crate) struct CargoWorkspaceMetadata {
+    pub(crate) workspace_root: PathBuf,
+    pub(crate) packages: Vec<CargoWorkspacePackage>,
 }
 
 #[derive(Deserialize)]
-struct CargoWorkspacePackage {
-    manifest_path: PathBuf,
+pub(crate) struct CargoWorkspacePackage {
+    pub(crate) manifest_path: PathBuf,
 }
 
 pub(crate) async fn plan<Reporter: self::Reporter + 'static>(

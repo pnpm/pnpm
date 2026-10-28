@@ -2,14 +2,15 @@ use super::{
     EcosystemUpdateStepOptions,
     cargo_manifest_ops::{
         DeclaredCargoDep, apply_manifest_edits, declared_cargo_deps, find_cargo_workspace_root,
-        format_cargo_saved_spec, read_locked_cargo_versions, select_locked_version,
+        format_cargo_saved_spec, read_locked_cargo_versions, resolve_cargo_workspace_scope,
+        same_declared_dep, select_locked_version,
     },
     selectors::CargoUpdateSelector,
 };
 use crate::{
     cargo_deps::{
         self, CargoLockfilePolicy, cargo_auth_headers, checkout, metadata_paths,
-        provision_toolchain, resolve_target_version, workspace_root,
+        provision_toolchain, resolve_target_version,
     },
     cli_args::outdated::{
         OutdatedPackage, OutdatedQuery, TargetVersion,
@@ -281,11 +282,12 @@ async fn execute_cargo_update<Reporter: self::Reporter + 'static>(
         checkout_dir.as_deref(),
     )
     .await?;
-    let cargo_root = workspace_root(manifest_path, checkout_dir.as_deref()).await?;
+    let (cargo_root, all_declared) =
+        resolve_cargo_workspace_scope(manifest_path, declared, checkout_dir.as_deref()).await?;
     let locked = read_locked_cargo_versions(&cargo_root.join("Cargo.lock")).unwrap_or_default();
     let (staged_edits, final_edits) =
-        build_cargo_update_edits(declared, selected, &locked, &context, options).await?;
-    let originals = snapshot_cargo_manifests(declared)?;
+        build_cargo_update_edits(&all_declared, selected, &locked, &context, options).await?;
+    let originals = snapshot_cargo_manifests(&all_declared)?;
     if let Err(err) = apply_manifest_edits(&staged_edits) {
         let _ = restore_cargo_manifests(&originals);
         return Err(err);
@@ -329,10 +331,7 @@ async fn build_cargo_update_edits(
         finalized.push(final_edit);
     }
     for dep in declared {
-        if selected
-            .iter()
-            .any(|(sel, _)| sel.alias == dep.alias && sel.table == dep.table)
-        {
+        if selected.iter().any(|(sel, _)| same_declared_dep(sel, dep)) {
             continue;
         }
         if let Some(locked_ver) = select_locked_version(locked, dep) {
