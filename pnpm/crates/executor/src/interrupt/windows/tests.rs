@@ -183,3 +183,28 @@ fn an_interrupt_for_a_released_entry_is_not_counted() {
 
     assert!(!counted, "the stale event does not count against the entry");
 }
+
+/// An interrupt while pnpm runs no command, between two scripts or during
+/// its own work, ends pnpm without the process tree: what earlier scripts
+/// left running outlives it. The test arms the cleanup in its own process,
+/// which nextest gives it alone, so no other test's child is registered.
+#[test]
+fn an_interrupt_while_no_command_runs_releases_the_process_tree_cleanup() {
+    use windows_sys::Win32::System::Console::CTRL_C_EVENT;
+
+    let armed = || {
+        crate::job_control::ARMED_JOB
+            .lock()
+            .expect("armed job lock")
+            .is_some()
+    };
+    crate::job_control::arm_process_tree_cleanup();
+    assert!(armed(), "the cleanup is armed before the interrupt");
+
+    // SAFETY: the handler reads only atomics and the relay list, and with
+    // no child registered it ends nothing.
+    let handled = unsafe { super::relay_console_event(CTRL_C_EVENT) };
+
+    assert_eq!(handled, 0, "pnpm ends, as nothing waits on the interrupt");
+    assert!(!armed(), "the cleanup is released before pnpm ends");
+}

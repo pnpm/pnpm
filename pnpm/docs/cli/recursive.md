@@ -62,7 +62,10 @@ A value of `0` or less means the number of available CPU cores minus its absolut
 * Default: **true**
 * Type: **Boolean**
 
-If true, stops when a task throws an error.
+If true, stops when a task throws an error. The tasks that are still running
+are stopped too. On Unix they receive `SIGTERM`, and those still running two
+seconds later receive `SIGKILL`. On Windows they are ended at once, together
+with every process they started.
 
 `--no-bail` is accepted only by `run`, `exec`, `test`, `start`, `stop`, `rebuild`, `install-test`, and the `pnpm <script>` shorthand. Other commands reject it.
 

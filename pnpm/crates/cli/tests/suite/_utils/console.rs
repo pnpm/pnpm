@@ -41,13 +41,39 @@ impl PrivateConsole {
         let sent = unsafe { GenerateConsoleCtrlEvent(CTRL_C_EVENT, 0) };
         assert_ne!(sent, 0, "GenerateConsoleCtrlEvent: {}", std::io::Error::last_os_error());
     }
+
+    /// Close the console's window, as a user closing the terminal does: the
+    /// console then delivers `CTRL_CLOSE_EVENT` to every process attached to
+    /// it and ends them. This process detaches first, so the close does not
+    /// end the test too.
+    pub fn close(self) {
+        use windows_sys::Win32::{
+            System::Console::GetConsoleWindow,
+            UI::WindowsAndMessaging::{PostMessageW, WM_CLOSE},
+        };
+
+        // SAFETY: plain FFI call with no arguments.
+        let window = unsafe { GetConsoleWindow() };
+        assert!(!window.is_null(), "the private console has a window");
+        drop(self);
+        // SAFETY: the window is the console's, which stays alive while the
+        // processes still attached to it hold it open, and posting to a
+        // window that has closed meanwhile only fails.
+        let posted = unsafe { PostMessageW(window, WM_CLOSE, 0, 0) };
+        assert_ne!(posted, 0, "PostMessageW: {}", std::io::Error::last_os_error());
+    }
 }
 
+/// Detaching leaves the handler in place. The console delivers a control
+/// event to each attached process on a thread of its own, in no set order,
+/// so a process the event ended can be gone before this one has received
+/// it. Removing the handler then would let that late event end the test.
+/// Once detached, this process has no console, so the handler sees nothing
+/// further.
 impl Drop for PrivateConsole {
     fn drop(&mut self) {
-        // SAFETY: plain FFI calls; the handler removed is the one `attach` added.
+        // SAFETY: plain FFI call.
         unsafe {
-            SetConsoleCtrlHandler(Some(survive_ctrl_c), 0);
             FreeConsole();
         }
     }

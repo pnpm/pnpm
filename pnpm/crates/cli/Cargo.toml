@@ -135,7 +135,7 @@ wax = { workspace = true }
 
 # Windows has no process groups, so a Job Object ties the lifetime of spawned
 # children (lifecycle scripts and their descendants) to pacquet's. See
-# `src/job_control.rs`.
+# `pnpm/crates/executor/PROCESS_LIFETIME.md`.
 [target.'cfg(windows)'.dependencies]
 windows-sys = { workspace = true, features = [
   "Win32_Storage_FileSystem",
@@ -183,6 +183,10 @@ pnpm-wasm-host = { path = "../wasm-host" }
 libc = { workspace = true }
 pnpm-process = { path = "../process" }
 pnpm-http = { workspace = true }
+
+# The process-lifetime tests close a private console through its window.
+[target.'cfg(windows)'.dev-dependencies]
+windows-sys = { workspace = true, features = ["Win32_UI_WindowsAndMessaging"] }
 
 [lints]
 workspace = true

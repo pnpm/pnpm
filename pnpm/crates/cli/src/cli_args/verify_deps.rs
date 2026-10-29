@@ -9,7 +9,7 @@ use super::{
     package_manager::read_root_manifest,
     reporter::{ReporterType, quiet_loglevel_arg},
 };
-use crate::process::{Command, exit};
+use crate::process::Command;
 use derive_more::{Display, Error};
 use miette::{Diagnostic, IntoDiagnostic};
 use pnpm_config::{Config, VerifyDepsBeforeRun};
@@ -260,7 +260,6 @@ fn acquire_install_lock(root: &Path) -> io::Result<(Option<DirLock>, bool)> {
 /// An install that exits with an error only warns, so a sandbox with a
 /// read-only store or no network can still run its scripts. An interrupted
 /// install aborts the command. Returns whether the install succeeded.
-#[expect(clippy::exit, reason = "an interrupted spawned install must stop the command")]
 fn spawn_install(
     dir: &Path,
     config: &Config,
@@ -295,7 +294,7 @@ fn spawn_install(
     }
     // The child already reported its own failure.
     if is_interrupted(status) {
-        exit(1);
+        pnpm_executor::exit(1);
     }
     warn(matches!(reporter, ReporterType::Silent), FAILED_INSTALL_WARNING);
     Ok(false)
@@ -331,7 +330,6 @@ fn warn(silent: bool, message: &str) {
     pnpm_diagnostics::eprintln!("{} {message}", colors.warn_label());
 }
 
-#[expect(clippy::exit, reason = "an interrupted prompt exits 1, like pnpm's ExitPromptError")]
 fn prompt_install(
     dir: &Path,
     selected_project_dirs: &[&Path],
@@ -356,7 +354,7 @@ fn prompt_install(
         Ok(false) => Ok(()),
         // The prompt was interrupted (Esc / Ctrl-C); exit like
         // pnpm's ExitPromptError handler.
-        Err(_) => exit(1),
+        Err(_) => pnpm_executor::exit(1),
     }
 }
 

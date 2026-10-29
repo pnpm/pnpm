@@ -173,11 +173,8 @@ fn is_reported_error(error: &miette::Report) -> bool {
 fn run_cli(launch: &shim_dispatch::ShimLaunch, argv: &[OsString]) -> miette::Result<()> {
     let argv = argv.to_vec();
     if let Some(exit_code) = launch.dispatch(&argv) {
-        #[expect(
-            clippy::exit,
-            reason = "the shim dispatcher propagates the dispatched command's exit status"
-        )]
-        std::process::exit(exit_code);
+        // The shim dispatcher propagates the dispatched command's exit status.
+        pnpm_executor::exit(exit_code);
     }
     let child_argv: Vec<_> = env_file::strip_flags(&argv)
         .into_iter()
@@ -469,16 +466,15 @@ fn run_cli_command(
     builtin_command_forced: bool,
     preloaded_config: Option<Result<pnpm_config::Config, pnpm_config::ConfigLoadFailure>>,
 ) -> miette::Result<()> {
-    // Arm Windows process-tree cleanup until the command succeeds.
-    let job_guard = pnpm_executor::arm_process_tree_cleanup();
+    // Tie the processes the command starts to pnpm, so they end with it if
+    // it is killed. pnpm returning, as exiting, releases them: what a
+    // command leaves running outlives pnpm as it would outlive the command
+    // run without pnpm, whether it succeeded or failed.
+    pnpm_executor::arm_process_tree_cleanup();
     let result = block_on_runtime(
         "pacquet-main",
         args.run(invocation, config_overrides, builtin_command_forced, preloaded_config),
     );
-    if result.is_ok()
-        && let Some(job_guard) = job_guard
-    {
-        job_guard.disarm();
-    }
+    pnpm_executor::before_exit();
     result
 }
