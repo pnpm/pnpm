@@ -109,7 +109,7 @@ fn resolve_catalog_and_warnings(
         &CatalogModeDep {
             alias: package_name,
             bare_specifier: &bare_specifier,
-            requested_dist_tag: super::registry::dist_tag(package_selector, None),
+            requested_dist_tag: super::registry::requested_dist_tag(package_selector),
             prev_specifier,
         },
         inputs.prefix,

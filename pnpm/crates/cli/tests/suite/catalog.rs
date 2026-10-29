@@ -312,6 +312,33 @@ fn add_reuses_a_catalog_entry_matching_the_dist_tag() {
 }
 
 #[test]
+fn add_latest_reuses_a_latest_catalog_entry_without_pinning_it() {
+    for catalog_mode in ["strict", "prefer"] {
+        let CommandTempCwd {
+            root, workspace, npmrc_info: anchor, ..
+        } = CommandTempCwd::init().add_mocked_registry_with_own_storage();
+        anchor.set_dist_tag(FOO, "100.0.0", "latest");
+        write_manifest(&workspace, "{}");
+        append_workspace_yaml(
+            &workspace,
+            &format!("catalogMode: {catalog_mode}\ncatalog:\n  '{FOO}': latest\n"),
+        );
+
+        run_ok(&workspace, &["add", "--lockfile-only", &format!("{FOO}@latest")]);
+
+        assert_eq!(dep_spec(&workspace, FOO).as_deref(), Some("catalog:"), "{catalog_mode}");
+        let workspace_yaml = read(&workspace, "pnpm-workspace.yaml");
+        assert!(workspace_yaml.contains(&format!("'{FOO}': latest")), "{workspace_yaml}");
+        assert_eq!(
+            catalog_snapshot(&workspace, FOO),
+            ("latest".to_string(), "100.0.0".to_string()),
+        );
+
+        drop((root, anchor));
+    }
+}
+
+#[test]
 fn add_pins_the_configured_tag_in_a_new_catalog_entry() {
     let CommandTempCwd {
         root, workspace, npmrc_info: anchor, ..
