@@ -1594,11 +1594,41 @@ fn an_edited_directory_beneath_an_excluded_optional_dependency_passes_frozen_ins
 /// `dist/package.json` alone makes the frozen install reject the lockfile.
 #[test]
 fn an_edited_publish_directory_beneath_a_registry_package_is_read_as_declared() {
-    let fixture = _utils::WorkspaceFixture::new();
-    fixture.append_workspace_yaml(
+    assert_frozen_install_rejects_an_edited_publish_directory(
         "overrides:\n  \
          '@pnpm.e2e/pkg-with-1-dep>@pnpm.e2e/dep-of-pkg-with-1-dep': file:./packages/lib/dist\n",
+        None,
     );
+}
+
+/// A `readPackage` hook adds the `file:` edge, so no setting declares it.
+/// An override for another package names the same directory with
+/// `workspace:`, which must not decide how this edge reads it.
+#[test]
+fn an_unrelated_setting_does_not_decide_how_a_hook_added_directory_reads() {
+    assert_frozen_install_rejects_an_edited_publish_directory(
+        "overrides:\n  '@pnpm.e2e/foo>@pnpm.e2e/bar': workspace:./packages/lib/dist\n",
+        Some(
+            "module.exports = { hooks: { readPackage(pkg) {\n\
+               if (pkg.name === '@pnpm.e2e/pkg-with-1-dep') pkg.dependencies.lib = 'file:./packages/lib/dist';\n\
+               return pkg;\n\
+             } } };\n",
+        ),
+    );
+}
+
+/// `lib` is a workspace project publishing from `dist`, which `settings` or
+/// `pnpmfile` puts beneath `@pnpm.e2e/pkg-with-1-dep`. After an edit to
+/// `dist/package.json` alone, the frozen install rejects the lockfile.
+fn assert_frozen_install_rejects_an_edited_publish_directory(
+    settings: &str,
+    pnpmfile: Option<&str>,
+) {
+    let fixture = _utils::WorkspaceFixture::new();
+    fixture.append_workspace_yaml(settings);
+    if let Some(pnpmfile) = pnpmfile {
+        fs::write(fixture.workspace.join(".pnpmfile.cjs"), pnpmfile).expect("write .pnpmfile.cjs");
+    }
     let lib = fixture.workspace.join("packages/lib");
     let manifest = |foo: &str| {
         format!(
@@ -1620,6 +1650,12 @@ fn an_edited_publish_directory_beneath_a_registry_package_is_read_as_declared() 
         fixture.command_at(&fixture.workspace, std::iter::once(&"install").chain(args))
     };
     _utils::assert_success(&install(&[]));
+    let lockfile =
+        fs::read_to_string(fixture.workspace.join("pnpm-lock.yaml")).expect("read the lockfile");
+    assert!(
+        lockfile.contains("lib@file:packages/lib/dist"),
+        "lib is beneath the registry package:\n{lockfile}"
+    );
 
     fs::write(lib.join("dist/package.json"), manifest("100.1.0"))
         .expect("edit the published manifest");

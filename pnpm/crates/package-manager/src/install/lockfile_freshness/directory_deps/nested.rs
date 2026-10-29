@@ -15,10 +15,15 @@ use pnpm_lockfile::{
 use pnpm_package_manifest::DependencyGroup;
 use std::collections::{HashMap, HashSet};
 
+mod declaration;
+
 /// A directory package beneath a package that is not one.
 pub(crate) struct NestedDirectoryPackage {
     /// The alias a parent depends on it by.
     pub(in crate::install::lockfile_freshness) alias: String,
+    /// Each package that is not a directory and depends on it, with the
+    /// alias it uses.
+    parents: Vec<(PackageKey, String)>,
     pub(in crate::install::lockfile_freshness) key: PackageKey,
     pub(in crate::install::lockfile_freshness) directory: String,
     /// The aliases of every package above it, which supply its peers with
@@ -58,12 +63,16 @@ pub(crate) fn nested_directory_packages(
     let graph = ReverseGraph::of(lockfile, snapshots, edges);
     nested
         .into_iter()
-        .map(|(key, (alias, directory))| {
+        .map(|(key, entry)| {
             let (ancestor_aliases, importers) = graph.ancestors(&key);
             NestedDirectoryPackage {
-                alias,
+                alias: entry.parents[0].1.clone(),
+                parents: entry.parents
+                    .into_iter()
+                    .map(|(parent, alias)| (parent.clone(), alias))
+                    .collect(),
                 key,
-                directory: directory.to_string(),
+                directory: entry.directory.to_string(),
                 ancestor_aliases,
                 importers,
             }
@@ -71,13 +80,18 @@ pub(crate) fn nested_directory_packages(
         .collect()
 }
 
-/// The key of every nested directory package in `lockfile` along `edges`,
-/// with the alias a parent depends on it by and its directory. Empty, without
-/// reading any snapshot, when the lockfile has no directory package.
+/// A nested directory package as the lockfile's edges reach it.
+struct NestedEntry<'a> {
+    directory: &'a str,
+    parents: Vec<(&'a PackageKey, String)>,
+}
+
+/// Every nested directory package in `lockfile` along `edges`. Empty,
+/// without reading any snapshot, when the lockfile has no directory package.
 fn nested_directory_entries(
     lockfile: &Lockfile,
     edges: GraphEdges,
-) -> HashMap<PackageKey, (String, &str)> {
+) -> HashMap<PackageKey, NestedEntry<'_>> {
     let (Some(packages), Some(snapshots)) = (&lockfile.packages, &lockfile.snapshots) else {
         return HashMap::new();
     };
@@ -85,12 +99,21 @@ fn nested_directory_entries(
     if directories.by_key.is_empty() {
         return HashMap::new();
     }
-    snapshots
+    let mut nested: HashMap<PackageKey, NestedEntry> = HashMap::new();
+    let parents = snapshots
         .iter()
-        .filter(|(parent, _)| directories.directory(parent).is_none())
-        .flat_map(|(_, snapshot)| snapshot_dependencies(snapshot, edges))
-        .filter_map(|(alias, child)| directories.nested_child(alias, child))
-        .collect()
+        .filter(|(parent, _)| directories.directory(parent).is_none());
+    for (parent, snapshot) in parents {
+        for (alias, child) in snapshot_dependencies(snapshot, edges) {
+            let Some((key, directory)) = directories.nested_child(alias, child) else { continue };
+            nested
+                .entry(key)
+                .or_insert_with(|| NestedEntry { directory, parents: Vec::new() })
+                .parents
+                .push((parent, alias.to_string()));
+        }
+    }
+    nested
 }
 
 /// The nested directory packages each importer's check walks.
@@ -172,7 +195,7 @@ impl<'a> DirectoryPackages<'a> {
         &self,
         alias: &PkgName,
         child: &SnapshotDepRef,
-    ) -> Option<(PackageKey, (String, &'a str))> {
+    ) -> Option<(PackageKey, &'a str)> {
         if !self.names.contains(target_name(alias, child)) {
             return None;
         }
@@ -180,14 +203,15 @@ impl<'a> DirectoryPackages<'a> {
         let directory = self
             .directory(&key)
             .filter(|directory| !is_deploy_file_url(&key, directory))?;
-        Some((key, (alias.to_string(), directory)))
+        Some((key, directory))
     }
 }
 
 /// Checks `nested` as the importer walk checks a directory package. The two
 /// declarations can read different manifests (see [`super::unhooked_manifest`]),
 /// and the lockfile does not record which one the parent used. The check
-/// reads the one [`settings_declaration`] finds, else requires both to match.
+/// reads the one [`declaration::settings_declaration`] finds, else requires both
+/// to match.
 pub(crate) fn check_nested_directory_package(
     check: &ImporterSatisfactionCheck<'_>,
     nested: &NestedDirectoryPackage,
@@ -226,59 +250,12 @@ pub(crate) fn check_nested_directory_package(
             &mut Visited::new(check.lockfile),
         )
     };
-    if let Some(declaration) = settings_declaration(check, &nested.directory) {
-        return check_declared(declaration == Declaration::File);
+    if let Some(declaration) = declaration::settings_declaration(check, nested) {
+        return check_declared(declaration == declaration::Declaration::File);
     }
     let declared_as_workspace = false;
     let declared_as_file = true;
     check_declared(declared_as_workspace).and_then(|()| check_declared(declared_as_file))
-}
-
-/// How a spec declares a local directory.
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum Declaration {
-    File,
-    Workspace,
-}
-
-/// How the overrides and package extensions declare `directory`. `None`
-/// when none of them names it, such as for a directory a `readPackage` hook
-/// adds, or when they disagree.
-fn settings_declaration(
-    check: &ImporterSatisfactionCheck<'_>,
-    directory: &str,
-) -> Option<Declaration> {
-    let target = pnpm_fs::lexical_normalize(&check.lockfile_dir.join(directory));
-    let override_specs = check.parsed_overrides
-        .into_iter()
-        .flatten()
-        .map(|entry| entry.new_bare_specifier.as_str());
-    let extension_specs = check.config.package_extensions
-        .iter()
-        .flat_map(|extensions| extensions.values())
-        .flat_map(|extension| [&extension.dependencies, &extension.optional_dependencies])
-        .flatten()
-        .flat_map(|dependencies| dependencies.values().map(String::as_str));
-    let mut declarations = override_specs
-        .chain(extension_specs)
-        .filter_map(declared_directory)
-        .filter(|(path, _)| pnpm_fs::lexical_normalize(&check.lockfile_dir.join(path)) == target)
-        .map(|(_, declaration)| declaration);
-    let first = declarations.next()?;
-    declarations
-        .all(|declaration| declaration == first)
-        .then_some(first)
-}
-
-/// The directory a spec names and how it declares it.
-fn declared_directory(spec: &str) -> Option<(&str, Declaration)> {
-    if let Some(path) = spec.strip_prefix("workspace:") {
-        return pnpm_local_spec::is_filespec(path).then_some((path, Declaration::Workspace));
-    }
-    let path = spec.strip_prefix("file:").unwrap_or(spec);
-    let names_directory = (path.len() < spec.len() || pnpm_local_spec::is_filespec(path))
-        && !pnpm_lockfile::is_local_tarball_path(path);
-    names_directory.then_some((path, Declaration::File))
 }
 
 fn snapshot_dependencies(
