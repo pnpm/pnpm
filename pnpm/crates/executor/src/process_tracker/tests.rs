@@ -6,6 +6,7 @@ use std::{
     fs,
     io::{BufRead, BufReader, Read},
     os::unix::{fs::symlink, process::CommandExt},
+    path::Path,
     process::{self, Child, Command, Stdio},
     ptr,
     sync::mpsc,
@@ -408,6 +409,187 @@ fn watchdogs() -> Vec<i32> {
             is_watchdog.then(|| pid.parse().expect("ps lists numeric pids"))
         })
         .collect()
+}
+
+/// A signal pnpm takes while a child is being spawned reaches no child:
+/// the handler passes it on to the children that have joined the relay,
+/// and this one has not. Nothing else would end that child, so pnpm would
+/// wait for it for as long as it ran. pnpm outliving the signal is the
+/// other half of the same contract: a handler that finds nothing to wait
+/// for ends pnpm, which here would end the test.
+#[test]
+fn a_signal_taken_while_a_child_is_spawned_reaches_it_once_it_joins() {
+    let directory = TempDir::new().expect("create a temporary directory");
+    let trapped = directory.path().join("trapped");
+    // Claimed before the spawn, as `spawn_child` claims it, which is also
+    // what arms the handler.
+    let mut spawning = crate::interrupt::spawning_child();
+    let mut child =
+        KillGroupOnDrop(trap_interrupt_and_hold(&trapped).spawn().expect("spawn the child"));
+    spawning.spawned();
+    // The marker says the child traps the signal, so the child is ready
+    // for it and only the relay is not.
+    wait_for_marker(&mut child.0, &trapped);
+
+    take_interrupt();
+    let relay = crate::interrupt::relay_to_child(child.0.id(), true);
+    spawning.joined(&relay);
+
+    assert!(
+        exits_within(&mut child.0, Duration::from_secs(30)),
+        "the child must be given the signal once it joins the relay",
+    );
+    let status = child.0.wait().expect("wait for the child");
+    dbg!(status);
+    assert_eq!(status.code(), Some(42), "the child must end through the signal it traps");
+}
+
+/// A signal can also arrive before the child exists at all, which is most
+/// of the gap: the spawn itself, and the watchdog's first `sh` behind it.
+/// The claim covers that too, and the child it creates is still given the
+/// signal rather than being left running by the spawn that made it.
+#[test]
+fn a_signal_taken_before_a_child_exists_reaches_it_once_it_joins() {
+    let directory = TempDir::new().expect("create a temporary directory");
+    let trapped = directory.path().join("trapped");
+    let mut spawning = crate::interrupt::spawning_child();
+    take_interrupt();
+    let mut child =
+        KillGroupOnDrop(trap_interrupt_and_hold(&trapped).spawn().expect("spawn the child"));
+    spawning.spawned();
+    wait_for_marker(&mut child.0, &trapped);
+
+    let relay = crate::interrupt::relay_to_child(child.0.id(), true);
+    spawning.joined(&relay);
+
+    assert!(
+        exits_within(&mut child.0, Duration::from_secs(30)),
+        "the child must be given the signal once it joins the relay",
+    );
+    let status = child.0.wait().expect("wait for the child");
+    dbg!(status);
+    assert_eq!(status.code(), Some(42), "the child must end through the signal it traps");
+}
+
+/// A child that misses two interrupts owes the escalation as well as the
+/// interrupt: the handler gives a registered child `SIGTERM` on the
+/// second, and a child that joined late must not be gentler for having
+/// been spawned while they arrived. The gap spans the spawn and the
+/// watchdog behind it, so two presses of `Ctrl+C` fit inside it.
+#[test]
+fn two_signals_taken_while_a_child_is_spawned_both_reach_it() {
+    let directory = TempDir::new().expect("create a temporary directory");
+    let (ready, received) = (directory.path().join("ready"), directory.path().join("received"));
+    let mut spawning = crate::interrupt::spawning_child();
+    let mut command = Command::new("sh");
+    command
+        .arg("-c")
+        .arg(format!(
+            "trap 'echo INT >> {received}' INT; trap 'echo TERM >> {received}' TERM; \
+             : > {ready}; while :; do sleep 0.05; done",
+            received = received.display(),
+            ready = ready.display(),
+        ))
+        .process_group(0);
+    // Recording rather than exiting, so the second signal has something
+    // to arrive at and neither races the child's exit.
+    let mut child = KillGroupOnDrop(command.spawn().expect("spawn the child"));
+    spawning.spawned();
+    wait_for_marker(&mut child.0, &ready);
+
+    take_interrupt();
+    take_interrupt();
+    let relay = crate::interrupt::relay_to_child(child.0.id(), true);
+    spawning.joined(&relay);
+
+    let seen = wait_for_signals(&received, ["INT", "TERM"]);
+    assert!(seen.contains("INT"), "the child missed INT, having received {seen:?}");
+    assert!(seen.contains("TERM"), "the child missed TERM, having received {seen:?}");
+}
+
+/// A child that traps `SIGINT` to exit 42, marks `trapped` once the trap
+/// is armed, and then holds.
+///
+/// It leads a process group of its own, which is the child a terminal's
+/// signals never reach and the child a parallel run spawns.
+fn trap_interrupt_and_hold(trapped: &Path) -> Command {
+    let mut command = Command::new("sh");
+    command
+        .arg("-c")
+        .arg(format!(
+            "trap 'exit 42' INT; : > '{trapped}.tmp'; mv '{trapped}.tmp' '{trapped}'; while :; do sleep 0.05; done",
+            trapped = trapped.display(),
+        ))
+        .process_group(0);
+    command
+}
+
+/// Take `SIGINT` as the handler the claim armed takes it, without asking
+/// the kernel to deliver it to this process.
+fn take_interrupt() {
+    crate::interrupt::take_signal(libc::SIGINT);
+}
+
+/// A child whose process group is killed once the test is done with it,
+/// so no path out leaves a fixture looping: not the assertion that fails,
+/// and not the unwind past it.
+struct KillGroupOnDrop(Child);
+
+impl Drop for KillGroupOnDrop {
+    fn drop(&mut self) {
+        let exited = self.0
+            .try_wait()
+            .expect("poll the child")
+            .is_some();
+        // A pid the kernel has already given back names another process
+        // by now, so only a child still running is addressed.
+        if exited {
+            return;
+        }
+        // SAFETY: the group of a child this test spawned, which leads a
+        // group of its own and has not been reaped.
+        unsafe {
+            libc::kill(-i32::try_from(self.0.id()).expect("pid fits i32"), libc::SIGKILL);
+        }
+        let _ = self.0.wait();
+    }
+}
+
+/// Block until the child creates `marker`, the file a fixture writes once
+/// it is ready for a signal.
+///
+/// A child that exits without writing it fails the test there, rather than
+/// leaving the test polling for a marker nothing will write.
+fn wait_for_marker(child: &mut Child, marker: &Path) {
+    while !marker.exists()
+        && child
+            .try_wait()
+            .expect("poll the child")
+            .is_none()
+    {
+        sleep(Duration::from_millis(5));
+    }
+    assert!(marker.exists(), "the child exited before it was ready for a signal");
+}
+
+/// Read `path` until it names every signal in `wanted`, and return what
+/// it held last.
+///
+/// The child records a signal when it handles one, which it does on its
+/// own schedule. The deadline is what turns a signal that never arrives
+/// into an assertion naming it.
+fn wait_for_signals(path: &Path, wanted: [&str; 2]) -> String {
+    let deadline = Instant::now() + Duration::from_secs(30);
+    let mut seen = String::new();
+    while Instant::now() < deadline
+        && !wanted
+            .iter()
+            .all(|signal| seen.contains(signal))
+    {
+        sleep(Duration::from_millis(20));
+        seen = fs::read_to_string(path).unwrap_or_default();
+    }
+    seen
 }
 
 fn exits_within(child: &mut Child, deadline: Duration) -> bool {

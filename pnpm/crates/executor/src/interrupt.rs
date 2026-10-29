@@ -59,6 +59,22 @@ const RELAYED_INTERRUPTS: usize = 2;
 /// [`interrupt_count`].
 static INTERRUPTS: AtomicUsize = AtomicUsize::new(0);
 
+/// The signal the handler took last, published before it counts it in
+/// [`INTERRUPTS`], so a thread that sees the count change sees the signal
+/// behind it.
+#[cfg(unix)]
+static LAST_SIGNAL: AtomicI32 = AtomicI32::new(0);
+
+/// Children pnpm has spawned that have not joined the relay yet. The
+/// handler passes a signal on to the children that have, so these are
+/// children it cannot reach, and ending pnpm would leave them behind.
+static SPAWNING_CHILDREN: AtomicUsize = AtomicUsize::new(0);
+
+/// Signals pnpm took while it had a child being spawned, counted from the
+/// first such child. A spawn in flight absorbs no more of them than a
+/// child in the relay does, so spawning cannot hold the terminal.
+static SPAWNING_INTERRUPTS: AtomicUsize = AtomicUsize::new(0);
+
 /// How many interrupts and terminations have reached pnpm so far: signals
 /// pnpm handles, or console control events on Windows. `pnpm run` reads
 /// it before and after a script, so it can tell a script the user ended
@@ -133,6 +149,123 @@ impl SignalRelay {
     /// Whether pnpm has relayed a signal to this child.
     pub(crate) fn relayed(&self) -> bool {
         self.entry.is_some_and(|entry| entry.relays.load(Ordering::Relaxed) > 0)
+    }
+}
+
+/// Pass on to `relay`'s child the `missed` signals pnpm took while it was
+/// being spawned.
+///
+/// `missed_the_child` carries the meaning
+/// [`kernel_gave_it_to_the_child`] documents.
+#[cfg(unix)]
+fn relay_late(relay: &SignalRelay, missed_the_child: bool, missed: usize) {
+    let Some(entry) = relay.entry else { return };
+    let steps = missed.min(RELAYED_INTERRUPTS);
+    // Taking every step the child missed is what keeps the handler from
+    // taking them as well, so no interrupt reaches the child twice.
+    if entry.relays.compare_exchange(0, steps, Ordering::AcqRel, Ordering::Relaxed).is_err() {
+        return;
+    }
+    let signal = LAST_SIGNAL.load(Ordering::Relaxed);
+    let target = entry.target.load(Ordering::Acquire);
+    if !kernel_gave_it_to_the_child(missed_the_child, target, signal, holds_the_terminal()) {
+        // SAFETY: `target` is the child this relay holds, or that child's
+        // process group, and the relay holds the entry for as long as pnpm
+        // waits for the child. `ESRCH` from one that exited concurrently
+        // is harmless.
+        unsafe {
+            libc::kill(target, signal);
+        }
+    }
+    if steps > 1 {
+        // A second interrupt escalates, as `relay_to` escalates it.
+        // SAFETY: as above.
+        unsafe {
+            libc::kill(target, libc::SIGTERM);
+        }
+    }
+}
+
+/// Whether the kernel has given `signal` to the child `target` names
+/// without the relay, which it does for a child that was already in
+/// pnpm's own process group when the terminal signalled that group. This
+/// is how [`relay_to`] reads it too.
+///
+/// `missed_the_child` says pnpm took the signal before the child existed,
+/// so no group the child is in carried it. A negative `target` is a group
+/// of the child's own, which the terminal never reaches.
+#[cfg(unix)]
+fn kernel_gave_it_to_the_child(
+    missed_the_child: bool,
+    target: i32,
+    signal: libc::c_int,
+    pnpm_holds_the_terminal: bool,
+) -> bool {
+    !missed_the_child && target > 0 && signal == libc::SIGINT && pnpm_holds_the_terminal
+}
+
+/// The console delivers its event to every process attached to it, so a
+/// child that joined the relay late has the event already.
+#[cfg(not(unix))]
+fn relay_late(_relay: &SignalRelay, _missed_the_child: bool, _missed: usize) {}
+
+/// A child pnpm has spawned that has not joined the relay yet.
+///
+/// pnpm waits for every child it spawns, so a signal that arrives before
+/// the child joins must still reach it: nothing else would end that child,
+/// and pnpm would wait for it for as long as it ran. The handler therefore
+/// counts a child being spawned as one more to wait for, and
+/// [`Self::joined`] passes on what the handler could not.
+pub(crate) struct SpawningChild {
+    /// [`INTERRUPTS`] as it stood before the child was spawned.
+    before_spawn: usize,
+    /// [`INTERRUPTS`] as it stood once the child existed.
+    once_spawned: usize,
+}
+
+/// Account for a child pnpm is about to spawn, and take the signals that
+/// would otherwise end pnpm with their default disposition.
+///
+/// Call it before the spawn: a signal taken from here on is one the
+/// handler cannot pass on, and one pnpm must outlive, or the child would
+/// be left behind by the very spawn that created it.
+pub(crate) fn spawning_child() -> SpawningChild {
+    install_handler();
+    // Counted before the claim, never after: a signal the claim keeps pnpm
+    // alive for has to be one `SpawningChild::joined` can still see. Taken
+    // the other way round, a signal landing between the two would raise the
+    // count the claim is about to read, leave the claim holding a snapshot
+    // that already includes it, and so be relayed to nobody, while the claim
+    // kept pnpm waiting for the child it went on to spawn. The `Acquire` load
+    // keeps the claim below it.
+    let taken = INTERRUPTS.load(Ordering::Acquire);
+    if SPAWNING_CHILDREN.fetch_add(1, Ordering::Release) == 0 {
+        SPAWNING_INTERRUPTS.store(0, Ordering::Release);
+    }
+    SpawningChild { before_spawn: taken, once_spawned: taken }
+}
+
+impl SpawningChild {
+    /// Record that the child now exists, so a signal counted from here on
+    /// reached whatever process group the child is already in.
+    pub(crate) fn spawned(&mut self) {
+        self.once_spawned = INTERRUPTS.load(Ordering::Acquire);
+    }
+
+    /// Hand the child over to `relay`, passing on whatever pnpm took while
+    /// it was being spawned.
+    pub(crate) fn joined(self, relay: &SignalRelay) {
+        let missed = INTERRUPTS.load(Ordering::Acquire).saturating_sub(self.before_spawn);
+        if missed == 0 {
+            return;
+        }
+        relay_late(relay, self.once_spawned != self.before_spawn, missed);
+    }
+}
+
+impl Drop for SpawningChild {
+    fn drop(&mut self) {
+        SPAWNING_CHILDREN.fetch_sub(1, Ordering::Release);
     }
 }
 
@@ -347,17 +480,32 @@ fn install_handler_for(signal: libc::c_int) {
 /// `kill`, `signal`, `raise`, and `_exit`.
 #[cfg(unix)]
 extern "C" fn relay_signal(signal: libc::c_int) {
-    INTERRUPTS.fetch_add(1, Ordering::Relaxed);
+    LAST_SIGNAL.store(signal, Ordering::Relaxed);
+    INTERRUPTS.fetch_add(1, Ordering::Release);
     let shared_with_group = signal == libc::SIGINT && holds_the_terminal();
-    let mut still_listening = false;
-    let reached = visit_targets(|entry, target| {
+    let spawning = SPAWNING_CHILDREN.load(Ordering::Acquire) > 0
+        && SPAWNING_INTERRUPTS.fetch_add(1, Ordering::Relaxed) < RELAYED_INTERRUPTS;
+    let mut still_listening = spawning;
+    let registered = visit_targets(|entry, target| {
         still_listening |= relay_to(entry, target, signal, shared_with_group);
     });
     // Nothing left to wait for, or every child has had its interrupt and
     // its `SIGTERM` and sat through both.
-    if !reached || !still_listening {
+    if !(registered || spawning) || !still_listening {
         pnpm_fs::die_from_signal(signal);
     }
+}
+
+/// Count and relay `signal` as the installed handler does.
+///
+/// A test that raised the signal for real would have the kernel deliver
+/// it process-wide: to the test runner's own process, and through
+/// [`visit_targets`] to the children of every test sharing that process.
+/// The kernel's part is to call this function, so a test calls it and
+/// leaves both alone.
+#[cfg(all(test, unix))]
+pub(crate) fn take_signal(signal: libc::c_int) {
+    relay_signal(signal);
 }
 
 /// Relay `signal`, or the escalation the child holding `entry` has
@@ -460,6 +608,9 @@ fn close_retired_handle(handle: *mut std::ffi::c_void) {
         CloseHandle(handle);
     }
 }
+
+#[cfg(all(test, unix))]
+mod tests;
 
 #[cfg(windows)]
 mod windows;

@@ -1,7 +1,12 @@
 use std::{collections::HashMap, io, sync::Mutex};
 #[cfg(unix)]
 use std::{
-    io::Read, os::unix::process::CommandExt, path::Path, process::Stdio, ptr, time::Duration,
+    io::Read,
+    os::unix::process::CommandExt,
+    path::Path,
+    process::Stdio,
+    ptr,
+    time::{Duration, Instant},
 };
 
 #[cfg(not(target_family = "wasm"))]
@@ -149,7 +154,13 @@ pub fn spawn_child<'tracker>(
     if separate_process_group {
         prepare_command(command);
     }
+    // The child joins the relay only once it exists, and the watchdog's
+    // first `sh` widens the gap. What reaches pnpm from here on is relayed
+    // by `SpawningChild::joined` rather than by the handler, which cannot
+    // see a child that has not joined.
+    let mut spawning = crate::interrupt::spawning_child();
     let child = spawn(command)?;
+    spawning.spawned();
     crate::job_control::assign_child(&child);
     // Only Unix gives a child a process group of its own, and only then
     // must a relayed signal address that group rather than the child.
@@ -157,6 +168,7 @@ pub fn spawn_child<'tracker>(
     #[cfg(unix)]
     let (child, watched) = watch_process_group(child, own_process_group)?;
     let relay = crate::interrupt::relay_to_child(child.id(), own_process_group);
+    spawning.joined(&relay);
     let registration = process_tracker.map(|tracker| {
         tracker.register(RunningExecution::Process {
             pid: child.id(),
@@ -228,13 +240,16 @@ impl SpawnedChild<'_> {
 
     /// Wait for the child, and after a relayed signal for its whole process
     /// group: a shell that died from the signal may have left the script it
-    /// started still shutting down. pnpm then stops watching the group, so
-    /// whatever the child left running in it is not ended by pnpm's own
-    /// exit.
+    /// started still shutting down. A group that drains is no longer
+    /// watched, so whatever the child left running in it is not ended by
+    /// pnpm's own exit; one that does not drain keeps its watch.
     pub fn wait(&mut self) -> io::Result<crate::process::ExitStatus> {
         let status = self.child.wait()?;
-        if self.own_process_group && self.relay.relayed() {
-            wait_for_process_group(self.child.id());
+        if self.own_process_group
+            && self.relay.relayed()
+            && !wait_for_process_group(self.child.id())
+        {
+            return Ok(status);
         }
         #[cfg(unix)]
         if std::mem::take(&mut self.watched) {
@@ -244,18 +259,38 @@ impl SpawnedChild<'_> {
     }
 }
 
-/// Block until no process of the group led by `leader` is still running.
+/// How long the process group of a signalled child is given to drain.
+///
+/// Every process in the group was sent the signal pnpm relayed, so one
+/// still running at the end of this has declined to stop, and waiting on
+/// it is waiting on something that has already refused.
 #[cfg(unix)]
-fn wait_for_process_group(leader: u32) {
-    let Ok(leader) = i32::try_from(leader) else { return };
+const PROCESS_GROUP_SHUTDOWN_GRACE: Duration = Duration::from_secs(30);
+
+/// Block until no process of the group led by `leader` is still running,
+/// and report whether the group drained within
+/// [`PROCESS_GROUP_SHUTDOWN_GRACE`].
+#[cfg(unix)]
+fn wait_for_process_group(leader: u32) -> bool {
+    let Ok(leader) = i32::try_from(leader) else { return true };
     let table = cfg!(target_os = "linux").then(|| Path::new("/proc"));
+    let deadline = Instant::now() + PROCESS_GROUP_SHUTDOWN_GRACE;
     while group_is_running(leader, table) {
+        if Instant::now() >= deadline {
+            tracing::warn!(
+                "a process the script started has not stopped, so pnpm's own exit ends it",
+            );
+            return false;
+        }
         std::thread::sleep(Duration::from_millis(20));
     }
+    true
 }
 
 #[cfg(not(unix))]
-fn wait_for_process_group(_: u32) {}
+fn wait_for_process_group(_: u32) -> bool {
+    true
+}
 
 /// Whether the group led by `leader` may still hold a process that has not
 /// exited, once the members that are pnpm's own children are reaped.
@@ -363,9 +398,23 @@ fn descendant_processes(roots: &[u32]) -> Vec<i32> {
     descendants
 }
 
-/// Run `ps` and read its whole listing, giving up on anything that does not
-/// finish promptly. A `ps` that hangs is killed and its output discarded: a
-/// partial listing would name the wrong parents.
+/// How long `ps` gets before [`process_listing`] gives up on it.
+///
+/// The listing is the only way cancellation reaches a descendant of a
+/// child that shares pnpm's process group, so giving up on it leaves that
+/// descendant running. The deadline turns a `ps` that hangs into a
+/// reported miss rather than a hang of pnpm's own, and is far longer than
+/// any listing takes so a loaded machine never reaches it.
+#[cfg(unix)]
+const PROCESS_LISTING_DEADLINE: Duration = Duration::from_secs(10);
+
+/// Run `ps` and read its whole listing. A `ps` that does not answer
+/// before [`PROCESS_LISTING_DEADLINE`] is killed and its output
+/// discarded, because a partial listing would name the wrong parents.
+///
+/// `None` says the listing could not be read, which is not the same as a
+/// tree with nothing in it: the descendants it would have named are left
+/// running, and a trace record says so.
 #[cfg(unix)]
 fn process_listing() -> Option<String> {
     let mut command = Command::new("/bin/ps");
@@ -378,26 +427,34 @@ fn process_listing() -> Option<String> {
         let mut listing = String::new();
         stdout.read_to_string(&mut listing).map(|_| listing)
     });
-    let completed = wait_briefly(&mut child);
-    if !completed {
+    if !exits_before(&mut child, PROCESS_LISTING_DEADLINE) {
         let _ = child.kill();
         let _ = child.wait();
+        // Reading the pipe is left to the thread that holds it: whatever
+        // else inherited it can keep it open for as long as it lives, and
+        // nothing here needs what it says any more.
+        drop(output);
+        tracing::warn!(
+            "the process listing did not arrive, so a process a cancelled script started may still be running",
+        );
+        return None;
     }
-    let listing = output.join().ok()?.ok()?;
-    completed.then_some(listing)
+    output.join().ok()?.ok()
 }
 
-/// Poll a child for up to half a second, reporting whether it exited.
+/// Poll a child until it exits or `deadline` passes, reporting whether it
+/// exited.
 #[cfg(unix)]
-fn wait_briefly(child: &mut crate::process::Child) -> bool {
-    for _ in 0..50 {
+fn exits_before(child: &mut crate::process::Child, deadline: Duration) -> bool {
+    let started = std::time::Instant::now();
+    loop {
         match child.try_wait() {
             Ok(Some(_)) => return true,
+            Ok(None) if started.elapsed() >= deadline => return false,
             Ok(None) => std::thread::sleep(Duration::from_millis(10)),
             Err(_) => return false,
         }
     }
-    false
 }
 
 /// The child pids of every parent named in a `pid ppid` listing.

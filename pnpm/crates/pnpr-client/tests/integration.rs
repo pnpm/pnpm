@@ -142,14 +142,35 @@ fn registry_upstream(registry_url: &str, token: &str) -> (String, pnpr::Upstream
     )
 }
 
+/// Wait until the server answers the handshake, which every surface
+/// mounts. A bare TCP connect would not do: the kernel satisfies one from
+/// the accept backlog before the service is driving the connection, so a
+/// request sent on it can outrun the router.
 async fn wait_until_ready(addr: SocketAddr) {
-    for _ in 0..200 {
-        if tokio::net::TcpStream::connect(addr).await.is_ok() {
+    // reqwest has no total request timeout of its own, so an attempt
+    // against a server that accepted the connection and then went quiet
+    // would never come back and the loop would never reach its panic.
+    const ATTEMPT: Duration = Duration::from_millis(500);
+    // Bounds the wait as a whole: a count of attempts would not, since
+    // each one can spend `ATTEMPT` before the next begins.
+    const READY: Duration = Duration::from_secs(10);
+
+    let handshake = format!("http://{addr}/-/pnpr");
+    let client = reqwest::Client::new();
+    let deadline = std::time::Instant::now() + READY;
+    loop {
+        let answered = client
+            .get(&handshake)
+            .timeout(ATTEMPT)
+            .send()
+            .await
+            .is_ok_and(|response| response.status().is_success());
+        if answered {
             return;
         }
+        assert!(std::time::Instant::now() < deadline, "pnpr server never became ready at {addr}");
         tokio::time::sleep(Duration::from_millis(20)).await;
     }
-    panic!("pnpr server never became ready at {addr}");
 }
 
 fn parse_content_length(headers: &str) -> usize {

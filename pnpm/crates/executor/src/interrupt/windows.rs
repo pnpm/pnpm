@@ -10,7 +10,7 @@ use std::{
 };
 use windows_sys::Win32::System::Diagnostics::ToolHelp::PROCESSENTRY32W;
 
-pub(super) fn install_handler() {
+pub(crate) fn install_handler() {
     use windows_sys::Win32::System::Console::SetConsoleCtrlHandler;
 
     pnpm_fs::install_temp_file_cleanup();

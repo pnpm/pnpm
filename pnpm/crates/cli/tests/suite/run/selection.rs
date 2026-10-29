@@ -1,6 +1,9 @@
 use super::{
-    CommandExtra, CommandTempCwd, Duration, assert_no_bail_lets_siblings_finish, fs, json,
+    CommandExtra, CommandTempCwd, Duration, Stdio, assert_no_bail_lets_siblings_finish, fs, json,
 };
+use crate::_utils::{exit_when_marked_script, hold_until_cancelled_script, wait_for_child};
+#[cfg(unix)]
+use crate::_utils::{is_running, read_pid};
 use assert_cmd::assert::OutputAssertExt;
 
 /// Without `--if-present`, calling a script that does not exist fails
@@ -203,22 +206,34 @@ pub(super) fn regexp_selected_scripts_cancel_siblings_after_failure() {
             "name": "test",
             "version": "0.0.0",
             "scripts": {
-                "dev:slow": r#"node -e "const fs = require('fs'); fs.writeFileSync('slow-started', ''); setTimeout(() => fs.writeFileSync('slow-finished', ''), 30000)""#,
-                "dev:fail": r#"node -e "const fs = require('fs'); const wait = () => fs.existsSync('slow-started') ? process.exit(17) : setTimeout(wait, 10); wait()""#,
+                "dev:slow": hold_until_cancelled_script(&workspace, "slow-started"),
+                "dev:fail": exit_when_marked_script(&workspace, "slow-started", 17),
             },
         })
         .to_string(),
     )
     .expect("write package.json");
 
-    assert_cmd::Command::from_std(pacquet)
-        .args(["--workspace-concurrency=2", "run", "/^dev:/"])
-        .timeout(Duration::from_mins(1))
-        .assert()
-        .code(17);
+    // pnpm waits for the scripts it started, so a run that ends at all is
+    // a run that cancelled `dev:slow`. `hold_until_cancelled_script` has
+    // the hold that makes it so.
+    let stderr_path = workspace.join("run.stderr");
+    let mut run = pacquet
+        .with_args(["--workspace-concurrency=2", "run", "/^dev:/"])
+        .stdout(Stdio::null())
+        .stderr(fs::File::create(&stderr_path).expect("create the run output"))
+        .spawn()
+        .expect("spawn pacquet");
+    let status = wait_for_child(&mut run);
+    let stderr = fs::read_to_string(&stderr_path).expect("read the run output");
+    eprintln!("STDERR:\n{stderr}\n");
+    assert_eq!(status.code(), Some(17), "the run must end with the failing script's code");
+    let started = workspace.join("slow-started");
+    assert!(started.exists(), "the slow script must have started beside the failing one");
+    #[cfg(unix)]
     assert!(
-        !workspace.join("slow-finished").exists(),
-        "the slow script must be cancelled before its watchdog completes",
+        !is_running(read_pid(&started)),
+        "the cancelled script must be gone, not left running without pnpm",
     );
 
     drop(root);

@@ -26,6 +26,7 @@ use std::{
     time::{Duration, Instant},
 };
 use tempfile::TempDir;
+use text_block_macros::text_block;
 
 /// Fresh `node <bundle>` invocation anchored in `workspace` with ambient pnpm
 /// config cleared.
@@ -595,6 +596,109 @@ pub fn repin_snapshot_dependency(
 #[must_use]
 pub fn write_marker_script(relative_path: &str) -> String {
     format!(r#"node -e "require('fs').writeFileSync('{relative_path}', '')""#)
+}
+
+/// A package script that writes its pid to `started_marker` and then
+/// holds past [`CHILD_DEADLINE`], so a cancellation that never arrives
+/// fails on that deadline rather than on the script's own exit. Nothing
+/// ends the hold, so a run the test gave up on leaves the script behind.
+///
+/// The marker is renamed into place, so a sibling waiting for it never
+/// reads it half written. It carries the pid because a run's exit code
+/// does not say whether the script went with the run or was orphaned when
+/// pnpm killed the shell above it, and [`is_running`] does.
+#[must_use]
+pub fn hold_until_cancelled_script(project: &Path, started_marker: &str) -> String {
+    let hold = (CHILD_DEADLINE * 2).as_millis();
+    let fixture = write_node_fixture(
+        project,
+        "hold-until-cancelled.js",
+        text_block! {
+            "const fs = require('node:fs')"
+            "const [marker, hold] = process.argv.slice(2)"
+            "fs.writeFileSync(`${marker}.tmp`, String(process.pid))"
+            "fs.renameSync(`${marker}.tmp`, marker)"
+            "setTimeout(() => {}, Number(hold))"
+        },
+    );
+    format!("node {fixture} {started_marker} {hold}")
+}
+
+/// A package script that waits for `marker` to appear and then fails with
+/// `code`, so a sibling script's failure lands while that sibling is still
+/// running and the run has something in flight to cancel.
+#[must_use]
+pub fn exit_when_marked_script(project: &Path, marker: &str, code: i32) -> String {
+    let fixture = write_node_fixture(
+        project,
+        "exit-when-marked.js",
+        text_block! {
+            "const fs = require('node:fs')"
+            "const [marker, code] = process.argv.slice(2)"
+            "const wait = () => fs.existsSync(marker) ? process.exit(Number(code)) : setTimeout(wait, 10)"
+            "wait()"
+        },
+    );
+    format!("node {fixture} {marker} {code}")
+}
+
+/// Place `source` in `project` under `name` and return `name`, for a
+/// package script to run with `node`.
+///
+/// `project` is created first: a caller building a workspace manifest
+/// names its projects before `write_workspace` makes their directories.
+fn write_node_fixture(project: &Path, name: &str, source: &str) -> String {
+    fs::create_dir_all(project).expect("create the project directory");
+    fs::write(project.join(name), source).expect("write the node fixture");
+    name.to_string()
+}
+
+/// The process id a fixture script wrote to `path`. A marker that exists
+/// holds the whole id, since [`hold_until_cancelled_script`] renames it
+/// into place.
+#[cfg(unix)]
+pub fn read_pid(path: &Path) -> libc::pid_t {
+    fs::read_to_string(path)
+        .expect("read the recorded pid")
+        .trim()
+        .parse()
+        .expect("the fixture recorded its pid")
+}
+
+/// Whether `pid` still names a live process. One the kernel no longer
+/// knows is gone, and so is one that has exited and only waits to be
+/// reaped; one that refuses the probe is still there.
+#[cfg(unix)]
+#[must_use]
+pub fn is_running(pid: libc::pid_t) -> bool {
+    // SAFETY: a signal of 0 only probes for the process.
+    if unsafe { libc::kill(pid, 0) } != 0 {
+        return match std::io::Error::last_os_error().raw_os_error() {
+            Some(libc::ESRCH) => false,
+            Some(libc::EPERM) => true,
+            _ => panic!("probe process {pid}: {}", std::io::Error::last_os_error()),
+        };
+    }
+    !has_exited(pid)
+}
+
+/// Whether `pid` has exited, whether or not anything has reaped it yet.
+///
+/// An orphan stays a zombie until init takes it over, which the probe in
+/// [`is_running`] cannot tell from a running process. `ps` names that
+/// state, and names nothing at all once init has been: a process reaped
+/// between the probe and this call is gone rather than running, which is
+/// the likeliest order for the script a test has just had cancelled.
+#[cfg(unix)]
+fn has_exited(pid: libc::pid_t) -> bool {
+    let state = std::process::Command::new("ps")
+        .args(["-o", "stat=", "-p", &pid.to_string()])
+        .output()
+        .expect("run ps");
+    state.stdout
+        .trim_ascii_start()
+        .first()
+        .is_none_or(|&flag| flag == b'Z')
 }
 
 /// How long [`wait_for_marker_script`] gives another project's script to
