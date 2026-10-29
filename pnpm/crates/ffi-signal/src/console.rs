@@ -82,14 +82,14 @@ const HANDLER_CAPACITY: usize = 4;
 
 /// A table of `fn`-pointer handlers of one signature, addressed as the
 /// integers an atomic can hold.
-struct HandlerTable<F: Copy> {
+struct HandlerTable<Signature: Copy> {
     entries: [AtomicUsize; HANDLER_CAPACITY],
-    signature: PhantomData<F>,
+    signature: PhantomData<Signature>,
 }
 
-impl<F: Copy> HandlerTable<F> {
+impl<Signature: Copy> HandlerTable<Signature> {
     const fn new() -> Self {
-        const { assert!(size_of::<F>() == size_of::<usize>()) };
+        const { assert!(size_of::<Signature>() == size_of::<usize>()) };
         Self { entries: [const { AtomicUsize::new(0) }; HANDLER_CAPACITY], signature: PhantomData }
     }
 
@@ -103,17 +103,19 @@ impl<F: Copy> HandlerTable<F> {
 
     /// The handlers, newest first, which is the order the console itself
     /// calls its own handlers in.
-    fn newest_first(&self) -> impl Iterator<Item = F> {
+    fn newest_first(&self) -> impl Iterator<Item = Signature> {
         self.entries
             .iter()
             .rev()
             .filter_map(|entry| {
                 let handler = entry.load(Ordering::Acquire);
-                // SAFETY: a non-zero entry is the address of the `F` a
-                // `push` stored, an ordinary `fn` item of exactly this
-                // signature that lives for the whole program, and `F` is a
-                // pointer-sized `fn` type by the assertion in `new`.
-                (handler != 0).then(|| unsafe { std::mem::transmute_copy::<usize, F>(&handler) })
+                // SAFETY: a non-zero entry is the address a `push` stored,
+                // an ordinary `fn` item of exactly this signature that lives
+                // for the whole program, and `Signature` is a pointer-sized
+                // `fn` type by the assertion in `new`.
+                (handler != 0).then(|| unsafe {
+                    std::mem::transmute_copy::<usize, Signature>(&handler)
+                })
             })
     }
 }

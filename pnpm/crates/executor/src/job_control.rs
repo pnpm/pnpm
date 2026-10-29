@@ -54,9 +54,9 @@ pub(crate) static ARMED_JOB: Mutex<Option<Arc<Job>>> = Mutex::new(None);
 static CHILD_JOB: Mutex<Option<Arc<Job>>> = Mutex::new(None);
 
 /// Tie every process pnpm starts from now on to pnpm, so they end with it if
-/// it is killed or crashes. [`release_process_tree_cleanup`] releases them
-/// again on every exit pnpm makes on its own. A failure to arm leaves the
-/// processes untied rather than failing the command.
+/// it is killed or crashes. Every exit pnpm makes on its own releases them
+/// again, through [`crate::exit()`] or the end of `main`. A failure to arm
+/// leaves the processes untied rather than failing the command.
 #[cfg(windows)]
 pub fn arm_process_tree_cleanup() {
     let mut armed = ARMED_JOB.lock().unwrap_or_else(PoisonError::into_inner);
@@ -101,11 +101,11 @@ pub(crate) fn release_process_tree_cleanup() {
     };
     drop(armed);
     // Clear the kill limit before the handle closes. Breakaway stays allowed
-    // for the processes that remain in the job. If clearing fails, leak the
-    // job for the operating system to close at exit instead, since closing an
-    // armed one terminates what is still in it.
+    // for the processes that remain in the job. If clearing fails, hold the
+    // job open for the operating system to close at exit instead, since
+    // closing an armed one terminates what is still in it.
     if !job.disarm() {
-        std::mem::forget(job);
+        let _armed = std::mem::ManuallyDrop::new(job);
     }
 }
 
