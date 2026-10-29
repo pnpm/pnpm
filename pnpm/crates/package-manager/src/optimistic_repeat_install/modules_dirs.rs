@@ -172,16 +172,18 @@ fn first_project_without_modules_dir(
 }
 
 /// Whether a direct dependency's entry in its project's modules directory is
-/// a link whose target no longer exists, or a local link the linker made and
-/// that is gone. Nothing the fast path records moves when a link is broken,
-/// deleted, or retargeted outside pnpm, and the full install relinks it.
+/// a link whose target no longer exists, or a local link the last install
+/// made and that is gone. Nothing the fast path records moves when a link is
+/// broken, deleted, or retargeted outside pnpm, and the full install relinks
+/// it.
 ///
-/// A missing entry counts only for a `workspace:` or `link:` spec of a project
-/// in `held_project_dirs` (every project when `None`), and only when the
-/// linker symlinks direct dependencies into `node_modules`
-/// ([`links_local_dependencies`]). A registry dependency may be absent because
-/// it is an excluded or skipped optional one, and a healthy entry costs one
-/// `stat`, so it stays out of that check.
+/// A missing entry counts only for a `workspace:` or `link:` spec of a
+/// project in `held_project_dirs` (every project when `None`), only when the
+/// linker symlinks direct dependencies ([`links_local_dependencies`]), and
+/// only when [`local_link_missing`] confirms it against the wanted lockfile.
+/// A registry dependency may be absent because it is an excluded or skipped
+/// optional one, and a healthy entry costs one `stat`, so it stays out of
+/// that check.
 pub(super) fn direct_dependency_link_dangling(
     check: &OptimisticRepeatInstallCheck<'_>,
     held_project_dirs: Option<&HashSet<PathBuf>>,
@@ -202,12 +204,18 @@ pub(super) fn direct_dependency_link_dangling(
                         .any(|modules_dir| is_dangling_link(&modules_dir.join(alias)))
                         || (held
                             && is_local_link_spec(spec)
-                            && !has_entry(check, &modules_dirs, alias))
+                            && local_link_missing(
+                                check,
+                                &groups,
+                                root_dir,
+                                &modules_dirs[0],
+                                alias,
+                            ))
                 })
         })
 }
 
-/// Whether the linker symlinks every `workspace:` and `link:` dependency into
+/// Whether the linker symlinks every `link:` dependency of the lockfile into
 /// its project's modules directory. `symlink: false` links no direct
 /// dependency, and the pnp and loaded linkers lay out no `node_modules` tree.
 fn links_local_dependencies(check: &OptimisticRepeatInstallCheck<'_>) -> bool {
@@ -215,17 +223,65 @@ fn links_local_dependencies(check: &OptimisticRepeatInstallCheck<'_>) -> bool {
         && matches!(check.layout.node_linker, NodeLinker::Isolated | NodeLinker::Hoisted)
 }
 
-/// Whether `alias` has an entry in any modules directory the linker may place
-/// it in. Under `dedupeDirectDeps` a sibling's dependency that resolves to the
-/// root's target is linked only into the root's modules directory.
-fn has_entry(
+/// Whether the wanted lockfile links `alias` of the project at `root_dir` to a
+/// local directory, and no entry the linker may have placed holds that link.
+/// The lockfile, not the manifest, says what the last install linked: an
+/// override or a `readPackage` hook may drop or rewrite the declared spec, and
+/// an injected workspace dependency resolves to a `file:` snapshot that a
+/// platform check may skip. It is read only once an entry is missing.
+///
+/// The hoisted linker may place a sibling's dependency in the root modules
+/// directory, and under `dedupeDirectDeps` the root's link stands in for a
+/// sibling's to the same target, so a root entry counts when it resolves to
+/// that target.
+fn local_link_missing(
     check: &OptimisticRepeatInstallCheck<'_>,
-    modules_dirs: &[PathBuf],
+    groups: &[DependencyGroup],
+    root_dir: &Path,
+    own_modules_dir: &Path,
     alias: &str,
 ) -> bool {
-    let exists = |modules_dir: &Path| fs::symlink_metadata(modules_dir.join(alias)).is_ok();
-    modules_dirs.iter().any(|modules_dir| exists(modules_dir))
-        || (check.config.dedupe_direct_deps && exists(&check.config.modules_dir))
+    if fs::symlink_metadata(own_modules_dir.join(alias)).is_ok() {
+        return false;
+    }
+    let Some(target) = locked_link_target(check, groups, root_dir, alias) else {
+        return false;
+    };
+    let is_root = lexical_normalize(root_dir) == lexical_normalize(check.workspace_root);
+    let shares_root_modules_dir =
+        check.layout.node_linker == NodeLinker::Hoisted || check.config.dedupe_direct_deps;
+    if is_root || !shares_root_modules_dir {
+        return true;
+    }
+    !resolves_to(&check.config.modules_dir.join(alias), &target)
+}
+
+/// The directory the wanted lockfile links `alias` of the project at
+/// `root_dir` to, or `None` when it records no `link:` for it or cannot be
+/// read.
+fn locked_link_target(
+    check: &OptimisticRepeatInstallCheck<'_>,
+    groups: &[DependencyGroup],
+    root_dir: &Path,
+    alias: &str,
+) -> Option<PathBuf> {
+    let Ok(Some(lockfile)) = check.lockfile.get() else { return None };
+    let importer =
+        lockfile.importers.get(&importer_id_from_root_dir(check.workspace_root, root_dir))?;
+    let alias = PkgName::parse(alias).ok()?;
+    importer
+        .dependencies_by_groups(groups.iter().copied())
+        .find(|(name, _)| **name == alias)
+        .and_then(|(_, dep)| dep.version.as_link_target())
+        .map(|target| root_dir.join(target))
+}
+
+/// Whether `entry` exists and resolves to the directory `target` names.
+fn resolves_to(entry: &Path, target: &Path) -> bool {
+    match (fs::canonicalize(entry), fs::canonicalize(target)) {
+        (Ok(entry), Ok(target)) => entry == target,
+        _ => false,
+    }
 }
 
 /// The modules directories the linker may place a project's direct
@@ -249,8 +305,8 @@ fn project_modules_dirs(
     }
 }
 
-/// A dependency the linker links to a local directory: a path (`link:`) or a
-/// workspace project (`workspace:`). Neither is ever skipped or excluded.
+/// A spec the linker may link to a local directory: a path (`link:`) or a
+/// workspace project (`workspace:`).
 pub(super) fn is_local_link_spec(spec: &str) -> bool {
     spec.starts_with("workspace:") || spec.starts_with("link:")
 }

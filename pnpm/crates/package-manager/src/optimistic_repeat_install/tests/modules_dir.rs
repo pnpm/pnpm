@@ -530,6 +530,11 @@ fn root_decision(
         |_| {},
     );
     prepare_modules(&config.modules_dir);
+    fs::create_dir_all(dir.path().join("lib")).unwrap();
+    let lockfile: pnpm_lockfile::Lockfile = serde_saphyr::from_str(
+        "lockfileVersion: '9.0'\n\nimporters:\n\n  .:\n    dependencies:\n      lib:\n        specifier: workspace:*\n        version: link:lib\n",
+    )
+    .unwrap();
     check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
         workspace_root: dir.path(),
         config,
@@ -538,7 +543,7 @@ fn root_decision(
             &root_manifest,
         )]),
         is_workspace_install: true,
-        lockfile: MaybeLazyLockfile::Loaded(None),
+        lockfile: MaybeLazyLockfile::Loaded(Some(&lockfile)),
         catalogs: &BTreeMap::default(),
         layout: crate::RepeatInstallLayout {
             node_linker: pnpm_config::NodeLinker::Isolated,
@@ -585,16 +590,57 @@ fn a_missing_registry_dependency_keeps_the_fast_path() {
     assert_eq!(decision, Decision::UpToDate);
 }
 
+/// The wanted lockfile of the workspace [`workspace_link_dangling`] checks:
+/// both projects link the `lib` project.
+const LINKED_LIB_LOCKFILE: &str = "lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    dependencies:
+      lib:
+        specifier: workspace:*
+        version: link:lib
+
+  pkg-a:
+    dependencies:
+      foo:
+        specifier: 1.0.0
+        version: 1.0.0
+      lib:
+        specifier: workspace:*
+        version: link:../lib
+";
+
 /// Whether the direct-dependency link gate fires for a workspace of the root
-/// and `pkg-a`, after `prepare` lays out the modules directories under the
-/// workspace root. `held` names the projects the gate holds, by directory
-/// relative to the root, or every project when `None`.
+/// and `pkg-a`, with `LINKED_LIB_LOCKFILE` as the wanted lockfile, after
+/// `prepare` lays out the modules directories under the workspace root.
+/// `held` names the projects the gate holds, by directory relative to the
+/// root, or every project when `None`.
 fn workspace_link_dangling(
     node_linker: pnpm_config::NodeLinker,
     configure: impl FnOnce(&mut Config),
     held: Option<&[&str]>,
     prepare: impl FnOnce(&std::path::Path),
 ) -> bool {
+    workspace_link_dangling_with_lockfile(
+        LINKED_LIB_LOCKFILE,
+        node_linker,
+        configure,
+        held,
+        prepare,
+    )
+}
+
+/// [`workspace_link_dangling`] with `lockfile` as the wanted lockfile.
+fn workspace_link_dangling_with_lockfile(
+    lockfile: &str,
+    node_linker: pnpm_config::NodeLinker,
+    configure: impl FnOnce(&mut Config),
+    held: Option<&[&str]>,
+    prepare: impl FnOnce(&std::path::Path),
+) -> bool {
+    let lockfile: pnpm_lockfile::Lockfile = serde_saphyr::from_str(lockfile).unwrap();
     let dir = tempfile::tempdir().unwrap();
     let root = dir.path();
     let sibling_dir = root.join("pkg-a");
@@ -631,7 +677,7 @@ fn workspace_link_dangling(
                 (sibling_dir, &sibling_manifest),
             ]),
             is_workspace_install: true,
-            lockfile: MaybeLazyLockfile::Loaded(None),
+            lockfile: MaybeLazyLockfile::Loaded(Some(&lockfile)),
             catalogs: &BTreeMap::default(),
             layout: crate::RepeatInstallLayout {
                 node_linker,
@@ -751,4 +797,49 @@ fn only_held_projects_need_their_workspace_links() {
         Some(&[""]),
         unselected_broken,
     ));
+}
+
+/// Under `dedupeDirectDeps` a root entry stands in for a sibling's only when
+/// it links the same target.
+#[test]
+fn a_root_link_to_another_target_does_not_stand_in_for_a_deduped_one() {
+    let lockfile = LINKED_LIB_LOCKFILE.replace("version: link:../lib", "version: link:../other");
+    let dangling = workspace_link_dangling_with_lockfile(
+        &lockfile,
+        pnpm_config::NodeLinker::Isolated,
+        |config| config.dedupe_direct_deps = true,
+        None,
+        |root| {
+            link_lib(root, "node_modules/lib");
+            fs::create_dir_all(root.join("other")).unwrap();
+            fs::create_dir_all(root.join("pkg-a/node_modules/foo")).unwrap();
+        },
+    );
+    assert!(dangling);
+}
+
+/// The lockfile, not the manifest, says what the last install linked. An
+/// override that removes the dependency leaves it out of the importer, and an
+/// injected workspace dependency resolves to a `file:` snapshot that a
+/// platform check may skip.
+#[test]
+fn a_local_dependency_the_lockfile_does_not_link_may_be_missing() {
+    let removed = LINKED_LIB_LOCKFILE.replace(
+        "      lib:\n        specifier: workspace:*\n        version: link:../lib\n",
+        "",
+    );
+    let injected = LINKED_LIB_LOCKFILE.replace("version: link:../lib", "version: file:lib");
+    for lockfile in [removed, injected] {
+        let dangling = workspace_link_dangling_with_lockfile(
+            &lockfile,
+            pnpm_config::NodeLinker::Isolated,
+            |_| {},
+            None,
+            |root| {
+                link_lib(root, "node_modules/lib");
+                fs::create_dir_all(root.join("pkg-a/node_modules/foo")).unwrap();
+            },
+        );
+        assert!(!dangling, "{lockfile}");
+    }
 }
