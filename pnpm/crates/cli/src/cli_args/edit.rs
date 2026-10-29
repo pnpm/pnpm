@@ -268,7 +268,7 @@ fn de_hardlink_file(path: &Path, metadata: &fs::Metadata) -> io::Result<()> {
         return Ok(());
     }
     let parent_dir = path.parent().unwrap_or_else(|| Path::new("."));
-    let mut tmp = tempfile::NamedTempFile::new_in(parent_dir)?;
+    let mut tmp = pnpm_fs::private_named_tempfile_in(parent_dir)?;
     {
         let mut src = fs::File::open(path)?;
         std::io::copy(&mut src, &mut tmp)?;
