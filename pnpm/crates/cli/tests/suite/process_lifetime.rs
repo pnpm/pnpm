@@ -41,8 +41,7 @@ wait()
 /// each leftover and waits until each is up. Then it does what `then` says:
 /// exit with that code, `wait` to be ended (writing `started.txt`), or
 /// `hold`, which waits too but ignores `Ctrl+C`.
-const LAUNCHER: &str = r#"#!/usr/bin/env node
-const { spawn, spawnSync } = require('child_process')
+const LAUNCHER: &str = r#"const { spawn, spawnSync } = require('child_process')
 const fs = require('fs')
 const waiter = require('path').join(__dirname, 'waiter.js')
 const [then, ...leftovers] = process.argv.slice(2)
@@ -106,7 +105,14 @@ impl Leftover {
 
 /// Write [`LAUNCHER`] and [`WAITER`] into `dir`.
 fn write_fixture(dir: &Path) {
-    fs::write(dir.join("launcher.js"), LAUNCHER).expect("write launcher.js");
+    // The shebang names the real Node too, for the bin `pnpm dlx` links to
+    // the launcher. A shebang cannot hold a path with spaces, which then
+    // goes through `env` instead.
+    let node = node_executable().to_string_lossy();
+    let shebang =
+        if node.contains(char::is_whitespace) { "/usr/bin/env node".into() } else { node };
+    fs::write(dir.join("launcher.js"), format!("#!{shebang}\n{LAUNCHER}"))
+        .expect("write launcher.js");
     fs::write(dir.join("waiter.js"), WAITER).expect("write waiter.js");
 }
 

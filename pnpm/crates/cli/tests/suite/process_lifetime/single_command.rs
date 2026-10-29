@@ -29,7 +29,8 @@ impl Launch {
     /// The command that has pnpm run the launcher with `args` in `dir`,
     /// which `pacquet` already runs in.
     fn command(self, pacquet: Command, dir: &Path, args: &[String]) -> Command {
-        let script = format!("node launcher.js {}", args.join(" "));
+        let script =
+            format!(r#""{}" launcher.js {}"#, super::node_executable().display(), args.join(" "));
         match self {
             Self::Exec => pacquet
                 .with_arg("exec")

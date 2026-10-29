@@ -52,6 +52,12 @@ enum RunningExecution {
         #[cfg(windows)]
         job: Option<crate::job_control::TaskJob>,
     },
+    /// The process group of a Unix child pnpm has reaped while it waits for
+    /// the rest of the group. The leader's pid is free for reuse, so only the
+    /// group is ever signalled, and only while it still has a member, which
+    /// keeps its id from being reused.
+    #[cfg(unix)]
+    Group { leader: u32 },
     #[cfg(not(target_family = "wasm"))]
     Emulated(watch::Sender<bool>),
 }
@@ -78,6 +84,8 @@ impl RunningExecution {
             Self::Process { pid, separate_process_group, .. } => {
                 terminate_process(*pid, *separate_process_group, stop);
             }
+            #[cfg(unix)]
+            Self::Group { leader } => signal::signal_group(*leader, stop),
             #[cfg(not(target_family = "wasm"))]
             Self::Emulated(sender) => {
                 let _ = sender.send(true);
@@ -278,12 +286,17 @@ impl SpawnedChild<'_> {
     /// exit.
     pub fn wait(&mut self) -> io::Result<crate::process::ExitStatus> {
         let status = self.child.wait()?;
-        // The pid is free for reuse from here on, so a bail must no longer
-        // count the child among the tasks it may signal by pid.
-        self.registration = None;
+        // The pid is free for reuse from here on. A bail may still stop the
+        // rest of the child's group, which the wait below sits on, but no
+        // longer anything by the child's pid.
         if self.own_process_group && self.relay.relayed() {
+            #[cfg(unix)]
+            if let Some(registration) = &self.registration {
+                registration.keep_group_only();
+            }
             wait_for_process_group(self.child.id());
         }
+        self.registration = None;
         #[cfg(unix)]
         if std::mem::take(&mut self.watched) {
             group_watchdog::release(self.child.id());
@@ -343,6 +356,21 @@ impl EmulatedCancellation<'_> {
 struct Registration<'tracker> {
     tracker: &'tracker ProcessTracker,
     id: Option<usize>,
+}
+
+impl Registration<'_> {
+    /// Turn the registered child, which its waiter has just reaped, into the
+    /// group it led (see [`RunningExecution::Group`]).
+    #[cfg(unix)]
+    fn keep_group_only(&self) {
+        let Some(id) = self.id else { return };
+        let mut state = self.tracker.state.lock().expect("process tracker lock is not poisoned");
+        if let Some(execution) = state.executions.get_mut(&id)
+            && let RunningExecution::Process { pid, separate_process_group: true } = *execution
+        {
+            *execution = RunningExecution::Group { leader: pid };
+        }
+    }
 }
 
 impl Drop for Registration<'_> {

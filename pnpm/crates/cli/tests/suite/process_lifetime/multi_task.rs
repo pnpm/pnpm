@@ -104,7 +104,7 @@ fn leftovers_of_the_script_a_bail_follows_survive_it() {
 fn recursive_run_bail_stops_running_scripts_gracefully_then_kills_them() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     let graceful = r#"node -e "const fs = require('fs'); process.on('SIGTERM', () => { fs.writeFileSync('terminated.txt', ''); process.exit(0) }); fs.writeFileSync('ran.txt', ''); setInterval(() => {}, 1000)""#;
-    let stubborn = r#"node -e "const fs = require('fs'); process.on('SIGTERM', () => fs.writeFileSync('terminated.txt', '')); fs.writeFileSync('ran.txt', String(process.pid)); setTimeout(() => process.exit(0), 20000)""#;
+    let stubborn = r#"node -e "const fs = require('fs'); process.on('SIGTERM', () => fs.writeFileSync('terminated.txt', '')); fs.writeFileSync('ran.txt', String(process.pid)); setTimeout(() => process.exit(0), 60000)""#;
     let fails = r#"node -e "const fs = require('fs'); const wait = () => fs.existsSync('../a-graceful/ran.txt') && fs.existsSync('../c-stubborn/ran.txt') ? process.exit(1) : setTimeout(wait, 10); wait()""#;
     write_workspace(
         &workspace,
@@ -237,4 +237,62 @@ fn ends_within(pid: libc::pid_t, deadline: std::time::Duration) -> bool {
         std::thread::sleep(std::time::Duration::from_millis(50));
     }
     true
+}
+
+/// After an interrupt pnpm waits for the rest of a script's process group,
+/// once the script itself has exited. A bail during that wait still stops
+/// what the script left in its group: without that, a process there that
+/// ignored the interrupt would keep pnpm waiting for ever.
+#[cfg(unix)]
+#[test]
+fn recursive_run_bail_stops_what_an_interrupted_script_left_in_its_group() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("parent.js"),
+        r"const fs = require('fs')
+require('child_process').spawn(process.execPath, [require('path').join(__dirname, 'lingering.js')], { stdio: 'ignore' })
+fs.writeFileSync('ran.txt', '')
+setInterval(() => {}, 1000)
+",
+    )
+    .expect("write parent.js");
+    fs::write(
+        workspace.join("lingering.js"),
+        r"const fs = require('fs')
+process.on('SIGINT', () => fs.writeFileSync('interrupted.txt', ''))
+process.on('SIGTERM', () => { fs.writeFileSync('terminated.txt', ''); process.exit(0) })
+fs.writeFileSync('lingering.txt', '')
+setTimeout(() => process.exit(0), 60000)
+",
+    )
+    .expect("write lingering.js");
+    let fails = r#"node -e "process.on('SIGINT', () => {}); const fs = require('fs'); const wait = () => fs.existsSync('../a-interrupted/interrupted.txt') ? setTimeout(() => process.exit(1), 300) : setTimeout(wait, 10); wait()""#;
+    write_workspace(&workspace, &[("a-interrupted", "node ../parent.js"), ("b-fails", fails)]);
+
+    let mut run = crate::_utils::terminal::spawn_without_terminal(
+        pacquet
+            .with_args(["--workspace-concurrency=2", "--no-sort", "-r", "run", "build"])
+            .with_stdout(Stdio::null())
+            .with_stderr(Stdio::null()),
+    );
+    let lingering = workspace.join("a-interrupted").join("lingering.txt");
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+    while !lingering.exists() && std::time::Instant::now() < deadline {
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
+    let pid = libc::pid_t::try_from(run.id()).expect("pnpm's pid fits");
+    // SAFETY: `pid` is the pnpm process this test spawned and still waits on.
+    unsafe {
+        libc::kill(pid, libc::SIGINT);
+    }
+    wait_for_child(&mut run);
+
+    assert!(
+        workspace
+            .join("a-interrupted")
+            .join("terminated.txt")
+            .exists(),
+        "the bail should have stopped what the interrupted script left in its group",
+    );
+    drop(root);
 }

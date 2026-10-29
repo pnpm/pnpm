@@ -87,9 +87,16 @@ whose failure caused the bail has already ended, so its leftovers keep running
   still has a member, a task pnpm has not reaped yet, and that task's
   descendants as a fresh scan finds them. A pid recorded two seconds earlier
   may name another process by then, so nothing is killed by a stale pid.
+  A descendant is pinned through a pidfd on Linux as soon as a scan finds it
+  and signalled through that, so even the moment between the scan and the
+  signal cannot misdirect it. Other Unix systems have no such handle and
+  signal its pid right after the scan.
   pnpm does not exit before those two seconds have passed or the tasks have
   ended, whichever comes first
   (`multi_task::recursive_run_bail_stops_running_scripts_gracefully_then_kills_them`).
+  A task whose script has exited while pnpm waits for the rest of its group
+  after an interrupt is still stopped through that group
+  (`multi_task::recursive_run_bail_stops_what_an_interrupted_script_left_in_its_group`).
 - **Windows:** there is no signal that reaches one task without reaching
   pnpm's console, so each task's Job Object is terminated at once. The job
   holds everything the task started, including detached processes whose

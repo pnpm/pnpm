@@ -3,7 +3,7 @@
 
 use super::{
     RunningExecution, Stop, TrackerState,
-    signal::{descendant_processes, in_signalled_group, signal},
+    signal::{descendant_processes, group_has_member, in_signalled_group, signal},
 };
 use std::{
     sync::{Arc, Mutex, PoisonError},
@@ -29,10 +29,10 @@ pub(super) fn stop_gracefully(
         .filter_map(|(id, execution)| {
             execution
                 .signal_target()
-                .map(|target| Root { id: *id, target })
+                .map(|target| Root { id: *id, target, pinned: pins_its_pid(execution) })
         })
         .collect();
-    let descendants = descendant_processes(&root_pids(&roots));
+    let descendants = descendant_processes(&pinned_pids(&roots));
     for (_, execution) in executions {
         execution.stop();
     }
@@ -40,36 +40,38 @@ pub(super) fn stop_gracefully(
         .iter()
         .map(|root| root.target)
         .collect();
-    for &pid in &descendants {
-        if !in_signalled_group(pid, &targets) {
-            signal(pid, Stop::Graceful);
+    for descendant in &descendants {
+        if !in_signalled_group(descendant.pid(), &targets) {
+            descendant.signal(Stop::Graceful);
         }
     }
     kill_after_grace(state, roots);
 }
 
-/// A cancelled execution: the tracker's id for it, and what a signal for it
-/// addresses (see [`RunningExecution::signal_target`]).
+/// A cancelled execution: the tracker's id for it, what a signal for it
+/// addresses (see [`RunningExecution::signal_target`]), and whether its pid
+/// still named it at the cancellation.
 #[derive(Clone, Copy)]
 struct Root {
     id: usize,
     target: i32,
+    pinned: bool,
 }
 
-/// The pids of `roots`, group leaders included.
-fn root_pids(roots: &[Root]) -> Vec<u32> {
+/// Whether `execution` is a child its waiter has not reaped, whose pid
+/// therefore still names it. A reaped child's group stays registered while
+/// its waiter waits on the rest of the group, but its pid is free.
+fn pins_its_pid(execution: &RunningExecution) -> bool {
+    matches!(execution, RunningExecution::Process { .. })
+}
+
+/// The pids of the pinned `roots`, group leaders included.
+fn pinned_pids(roots: &[Root]) -> Vec<u32> {
     roots
         .iter()
+        .filter(|root| root.pinned)
         .map(|root| root.target.unsigned_abs())
         .collect()
-}
-
-/// Whether the process group `target` names (negative) still has a member.
-/// While it does, its id cannot be handed to another process or group, so
-/// a signal to it reaches only the group pnpm created.
-fn group_has_member(target: i32) -> bool {
-    // SAFETY: signal 0 only probes.
-    unsafe { libc::kill(target, 0) == 0 }
 }
 
 /// What is left of the cancelled roots, as far as its identity is still
@@ -82,12 +84,14 @@ struct Survivors {
 
 impl Survivors {
     fn find(state: &Mutex<TrackerState>, roots: &[Root]) -> Self {
-        let registered: Vec<Root> = {
+        // A root reaped during the grace is still registered as its group,
+        // so what is unreaped is what is still registered as a process.
+        let unreaped: Vec<Root> = {
             let state = state.lock().unwrap_or_else(PoisonError::into_inner);
             roots
                 .iter()
-                .filter(|root| state.executions.contains_key(&root.id))
-                .copied()
+                .filter(|root| state.executions.get(&root.id).is_some_and(pins_its_pid))
+                .map(|&root| Root { pinned: true, ..root })
                 .collect()
         };
         let groups = roots
@@ -95,7 +99,7 @@ impl Survivors {
             .map(|root| root.target)
             .filter(|&target| target < 0 && group_has_member(target))
             .collect();
-        Self { groups, unreaped: root_pids(&registered) }
+        Self { groups, unreaped: pinned_pids(&unreaped) }
     }
 
     fn is_empty(&self) -> bool {
@@ -115,8 +119,11 @@ impl Survivors {
         let unreaped = self.unreaped
             .iter()
             .filter_map(|&pid| i32::try_from(pid).ok());
-        for pid in unreaped.chain(descendants) {
+        for pid in unreaped {
             signal(pid, Stop::Forced);
+        }
+        for descendant in &descendants {
+            descendant.signal(Stop::Forced);
         }
     }
 }
