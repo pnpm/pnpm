@@ -15,9 +15,10 @@ use pnpm_workspace::importer_id_from_root_dir;
 use pnpm_workspace_state::WorkspaceState;
 use rayon::prelude::*;
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     fs,
     path::{Path, PathBuf},
+    sync::OnceLock,
 };
 use workspace_deps::reached_workspace_project_dirs;
 
@@ -192,6 +193,7 @@ pub(super) fn direct_dependency_link_dangling(
 ) -> bool {
     let groups = included_groups(check.layout.included);
     let links_local_deps = links_local_dependencies(check);
+    let project_dirs_by_name = OnceLock::new();
     check.project_manifests
         .par_iter()
         .any(|(root_dir, manifest)| {
@@ -201,14 +203,22 @@ pub(super) fn direct_dependency_link_dangling(
             manifest
                 .dependencies(groups.iter().copied())
                 .any(|(alias, spec)| {
-                    modules_dirs
-                        .iter()
-                        .any(|modules_dir| is_dangling_link(&modules_dir.join(alias)))
-                        || (held
+                    let own_entry = entry_state(&modules_dirs[0].join(alias));
+                    own_entry == EntryState::Dangling
+                        || modules_dirs[1..]
+                            .iter()
+                            .any(|modules_dir| {
+                                entry_state(&modules_dir.join(alias)) == EntryState::Dangling
+                            })
+                        || (own_entry == EntryState::Missing
+                            && held
                             && is_local_link_spec(spec)
                             && local_link_missing(
-                                check,
-                                &groups,
+                                LocalLinkCheck {
+                                    check,
+                                    groups: &groups,
+                                    project_dirs_by_name: &project_dirs_by_name,
+                                },
                                 root_dir,
                                 &modules_dirs[0],
                                 (alias, spec),
@@ -225,34 +235,40 @@ fn links_local_dependencies(check: &OptimisticRepeatInstallCheck<'_>) -> bool {
         && matches!(check.layout.node_linker, NodeLinker::Isolated | NodeLinker::Hoisted)
 }
 
-/// Whether the lockfile links `alias` of the project at `root_dir` to a local
-/// directory, and no entry the linker may have placed holds that link. The
-/// lockfile, not the manifest, says what the last install linked: an override
-/// or a `readPackage` hook may drop or rewrite the declared spec, and an
-/// injected workspace dependency resolves to a `file:` snapshot that a
-/// platform check may skip. It is read only once an entry is missing and no
-/// root entry links the target `spec` names.
+/// What [`local_link_missing`] reads besides the dependency itself.
+#[derive(Clone, Copy)]
+struct LocalLinkCheck<'a> {
+    check: &'a OptimisticRepeatInstallCheck<'a>,
+    groups: &'a [DependencyGroup],
+    /// Each workspace project's directory by name, built on first use.
+    project_dirs_by_name: &'a OnceLock<HashMap<String, PathBuf>>,
+}
+
+/// Whether the lockfile links `alias` of the project at `root_dir`, whose
+/// own entry is missing, to a local directory that no root entry the linker
+/// may have placed holds. The lockfile, not the manifest, says what the last
+/// install linked: an override or a `readPackage` hook may drop or rewrite the
+/// declared spec, and an injected workspace dependency resolves to a `file:`
+/// snapshot that a platform check may skip. It is read only once no root
+/// entry links the target `spec` names.
 ///
 /// The hoisted linker may place a sibling's dependency in the root modules
-/// directory, and under `dedupeDirectDeps` the root's link stands in for a
-/// sibling's to the same target, so a root entry counts when it resolves to
-/// that target.
+/// directory, and under `dedupeDirectDeps` a shared-lockfile install links
+/// the root's entry in place of a sibling's to the same target, so a root
+/// entry counts when it resolves to that target.
 fn local_link_missing(
-    check: &OptimisticRepeatInstallCheck<'_>,
-    groups: &[DependencyGroup],
+    LocalLinkCheck { check, groups, project_dirs_by_name }: LocalLinkCheck<'_>,
     root_dir: &Path,
     own_modules_dir: &Path,
     (alias, spec): (&str, &str),
 ) -> bool {
-    if fs::symlink_metadata(own_modules_dir.join(alias)).is_ok() {
-        return false;
-    }
     let is_root = lexical_normalize(root_dir) == lexical_normalize(check.workspace_root);
     let shares_root_modules_dir = !is_root
-        && (check.layout.node_linker == NodeLinker::Hoisted || check.config.dedupe_direct_deps);
+        && (check.layout.node_linker == NodeLinker::Hoisted
+            || (check.config.dedupe_direct_deps && check.config.shared_workspace_lockfile));
     let root_entry = check.config.modules_dir.join(alias);
     if shares_root_modules_dir
-        && declared_link_target(check, root_dir, alias, spec)
+        && declared_link_target(check, project_dirs_by_name, root_dir, (alias, spec))
             .is_some_and(|target| resolves_to(&root_entry, &target))
     {
         return false;
@@ -267,9 +283,9 @@ fn local_link_missing(
 /// `link:` path, or the workspace project a `workspace:` spec selects by name.
 fn declared_link_target(
     check: &OptimisticRepeatInstallCheck<'_>,
+    project_dirs_by_name: &OnceLock<HashMap<String, PathBuf>>,
     root_dir: &Path,
-    alias: &str,
-    spec: &str,
+    (alias, spec): (&str, &str),
 ) -> Option<PathBuf> {
     if let Some(path) = spec.strip_prefix("link:") {
         return Some(root_dir.join(path));
@@ -279,10 +295,17 @@ fn declared_link_target(
         Some(at) if at > 0 => &range[..at],
         _ => alias,
     };
-    check.project_manifests
-        .iter()
-        .find(|(_, manifest)| manifest_string_field(manifest, "name").as_deref() == Some(name))
-        .map(|(project_dir, _)| project_dir.clone())
+    project_dirs_by_name
+        .get_or_init(|| {
+            check.project_manifests
+                .iter()
+                .filter_map(|(project_dir, manifest)| {
+                    Some((manifest_string_field(manifest, "name")?, project_dir.clone()))
+                })
+                .collect()
+        })
+        .get(name)
+        .cloned()
 }
 
 /// The directory the lockfile links `alias` of the project at `root_dir` to,
@@ -358,8 +381,24 @@ pub(super) fn is_local_link_spec(spec: &str) -> bool {
     spec.starts_with("workspace:") || spec.starts_with("link:")
 }
 
-fn is_dangling_link(path: &Path) -> bool {
-    fs::metadata(path).is_err() && fs::symlink_metadata(path).is_ok()
+/// What a direct dependency's entry in a modules directory is.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum EntryState {
+    Present,
+    /// A link whose target is gone.
+    Dangling,
+    Missing,
+}
+
+/// The state of `path`, at one `stat` for a healthy entry.
+fn entry_state(path: &Path) -> EntryState {
+    if fs::metadata(path).is_ok() {
+        EntryState::Present
+    } else if fs::symlink_metadata(path).is_ok() {
+        EntryState::Dangling
+    } else {
+        EntryState::Missing
+    }
 }
 
 /// The modules directory an isolated install creates for the workspace

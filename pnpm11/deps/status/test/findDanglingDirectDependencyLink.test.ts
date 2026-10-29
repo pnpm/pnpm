@@ -159,3 +159,36 @@ importers:
 
   expect(await findDangling({ sharedWorkspaceLockfile: false })).toBe(path.join(root, 'app/node_modules/lib'))
 })
+
+test('a root link does not stand in for a deduped one under a dedicated lockfile', async () => {
+  link('lib', 'node_modules/lib')
+  fs.mkdirSync(path.join(root, 'app/node_modules'), { recursive: true })
+  fs.writeFileSync(path.join(root, 'app/pnpm-lock.yaml'), `lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    dependencies:
+      lib:
+        specifier: workspace:*
+        version: link:../lib
+`)
+
+  expect(await findDangling({ sharedWorkspaceLockfile: false, dedupeDirectDeps: true })).toBe(path.join(root, 'app/node_modules/lib'))
+})
+
+test('the current lockfile is found under an absolute modules directory', async () => {
+  const modulesDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dangling-link-modules-'))
+  try {
+    writeLockfile('link:../lib')
+    fs.mkdirSync(path.join(modulesDir, '.pnpm'))
+    fs.renameSync(path.join(root, 'pnpm-lock.yaml'), path.join(modulesDir, '.pnpm/lock.yaml'))
+
+    expect(await findDangling({
+      modulesDir,
+      allProjects: [{ rootDir: root as ProjectRootDir, manifest: rootManifest }] as FindDanglingDirectDependencyLinkOptions['allProjects'],
+    })).toBe(path.join(modulesDir, 'lib'))
+  } finally {
+    fs.rmSync(modulesDir, { recursive: true, force: true })
+  }
+})

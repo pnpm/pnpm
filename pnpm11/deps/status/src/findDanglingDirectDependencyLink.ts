@@ -6,7 +6,7 @@ import { isError } from '@pnpm/error'
 import { getLockfileImporterId, type LockfileObject, type ProjectSnapshot, readCurrentLockfile } from '@pnpm/lockfile.fs'
 import { DEPENDENCIES_FIELDS, type IncludedDependencies, type ProjectManifest } from '@pnpm/types'
 
-import { readWantedLockfileIn } from './wantedLockfiles.js'
+import { currentLockfileDir, readWantedLockfileIn } from './wantedLockfiles.js'
 
 export type FindDanglingDirectDependencyLinkOptions = Pick<Config, 'lockfileDir' | 'modulesDir' | 'nodeLinker' | 'packageConfigs'>
 & Partial<Pick<Config, 'dedupeDirectDeps' | 'mergeGitBranchLockfiles' | 'sharedWorkspaceLockfile' | 'symlink' | 'useGitBranchLockfile' | 'workspaceDir'>>
@@ -22,6 +22,7 @@ interface DirectDependency {
   spec: string
   rootDir: string
   isRoot: boolean
+  ownModulesDir: string
   /** The entries the linker may place the dependency at, the project's own first. */
   entries: string[]
   /** Whether a missing own entry is checked against the wanted lockfile. */
@@ -66,7 +67,7 @@ export async function findDanglingDirectDependencyLink (opts: FindDanglingDirect
   const states = await Promise.all(dependencies.map(({ entries }) => Promise.all(entries.map(readEntryState))))
   return firstDanglingEntry(dependencies, states) ?? findMissingLockedLink(
     opts,
-    { layout, projects, readLockfile: createLockfileReader(opts) },
+    { layout, projectDirsByName: createProjectDirsByNameReader(projects), readLockfile: createLockfileReader(opts) },
     dependencies.filter(({ mayBeMissingLink }, index) => mayBeMissingLink && states[index][0] === 'missing')
   )
 }
@@ -113,6 +114,7 @@ function listProjectDependencies (
     spec,
     rootDir,
     isRoot,
+    ownModulesDir,
     entries: modulesDirs.map((modulesDir) => path.join(modulesDir, alias)),
     mayBeMissingLink: held && isLocalLinkSpec(spec),
   }))
@@ -144,7 +146,7 @@ function isLocalLinkSpec (spec: string): boolean {
 
 interface LockedLinkContext {
   layout: LinkLayout
-  projects: Project[]
+  projectDirsByName: () => Map<string, string>
   readLockfile: (dependency: DirectDependency) => Promise<LockedImporters | undefined>
 }
 
@@ -173,25 +175,35 @@ async function isLockedLinkMissing (
   context: LockedLinkContext,
   dependency: DirectDependency
 ): Promise<boolean> {
-  const sharesRoot = !dependency.isRoot && (opts.nodeLinker === 'hoisted' || opts.dedupeDirectDeps === true)
+  const dedupesIntoRoot = opts.dedupeDirectDeps === true && opts.sharedWorkspaceLockfile !== false
+  const sharesRoot = !dependency.isRoot && (opts.nodeLinker === 'hoisted' || dedupesIntoRoot)
   const rootEntry = path.join(context.layout.rootModulesDir, dependency.alias)
-  const declaredTarget = declaredLinkTarget(context.projects, dependency)
+  const declaredTarget = declaredLinkTarget(context.projectDirsByName, dependency)
   if (sharesRoot && declaredTarget != null && await resolvesTo(rootEntry, declaredTarget)) return false
   const locked = await context.readLockfile(dependency)
   const target = lockedLinkTarget(opts, locked?.importer, dependency)
   if (target == null) return false
   if (!sharesRoot) return true
   if (await resolvesTo(rootEntry, target)) return false
-  return opts.dedupeDirectDeps !== true || !(await rootLinksTarget(opts, context.layout, locked?.rootImporter, target))
+  return !dedupesIntoRoot || !(await rootLinksTarget(opts, context.layout, locked?.rootImporter, target))
 }
 
 /** The directory `spec` names: a `link:` path, or the workspace project a `workspace:` spec selects by name. */
-function declaredLinkTarget (projects: Project[], { alias, spec, rootDir }: DirectDependency): string | undefined {
+function declaredLinkTarget (projectDirsByName: () => Map<string, string>, { alias, spec, rootDir }: DirectDependency): string | undefined {
   if (spec.startsWith('link:')) return path.resolve(rootDir, spec.slice('link:'.length))
   const range = spec.slice('workspace:'.length)
   const at = range.lastIndexOf('@')
   const name = at > 0 ? range.slice(0, at) : alias
-  return projects.find(({ manifest }) => manifest.name === name)?.rootDir
+  return projectDirsByName().get(name)
+}
+
+/** Builds, on first use, each workspace project's directory by name. */
+function createProjectDirsByNameReader (projects: Project[]): () => Map<string, string> {
+  let projectDirsByName: Map<string, string> | undefined
+  return () => {
+    projectDirsByName ??= new Map(projects.flatMap(({ rootDir, manifest }) => manifest.name == null ? [] : [[manifest.name, rootDir]]))
+    return projectDirsByName
+  }
 }
 
 function lockedLinkTarget (
@@ -230,20 +242,12 @@ async function rootLinksTarget (
  * a missing wanted one.
  */
 function createLockfileReader (opts: FindDanglingDirectDependencyLinkOptions): (dependency: DirectDependency) => Promise<LockedImporters | undefined> {
-  const lockfiles = new Map<string, Promise<LockfileObject | null>>()
-  const read = (lockfileDir: string): Promise<LockfileObject | null> => {
-    let lockfile = lockfiles.get(lockfileDir)
-    if (lockfile == null) {
-      lockfile = readWantedOrCurrentLockfile(opts, lockfileDir)
-      lockfiles.set(lockfileDir, lockfile)
-    }
-    return lockfile
-  }
+  const read = createMemoizedLockfileRead(opts)
   const sharedLockfileDir = opts.lockfileDir ?? opts.rootProjectManifestDir
-  return async ({ rootDir, isRoot }) => {
+  return async ({ rootDir, isRoot, ownModulesDir }) => {
     const shared = opts.sharedWorkspaceLockfile !== false || isRoot
     const lockfileDir = shared ? sharedLockfileDir : rootDir
-    const lockfile = await read(lockfileDir)
+    const lockfile = await read(lockfileDir, shared ? currentLockfileDir(lockfileDir, opts.modulesDir) : path.join(ownModulesDir, '.pnpm'))
     if (lockfile == null) return undefined
     return {
       importer: lockfile.importers[getLockfileImporterId(lockfileDir, rootDir)],
@@ -252,9 +256,28 @@ function createLockfileReader (opts: FindDanglingDirectDependencyLinkOptions): (
   }
 }
 
-async function readWantedOrCurrentLockfile (opts: FindDanglingDirectDependencyLinkOptions, lockfileDir: string): Promise<LockfileObject | null> {
+/** Reads the lockfile of each lockfile directory once. */
+function createMemoizedLockfileRead (
+  opts: FindDanglingDirectDependencyLinkOptions
+): (lockfileDir: string, installStateDir: string) => Promise<LockfileObject | null> {
+  const lockfiles = new Map<string, Promise<LockfileObject | null>>()
+  return (lockfileDir, installStateDir) => {
+    let lockfile = lockfiles.get(lockfileDir)
+    if (lockfile == null) {
+      lockfile = readWantedOrCurrentLockfile(opts, lockfileDir, installStateDir)
+      lockfiles.set(lockfileDir, lockfile)
+    }
+    return lockfile
+  }
+}
+
+async function readWantedOrCurrentLockfile (
+  opts: FindDanglingDirectDependencyLinkOptions,
+  lockfileDir: string,
+  installStateDir: string
+): Promise<LockfileObject | null> {
   return await readWantedLockfileIn(lockfileDir, opts) ??
-    readCurrentLockfile(path.join(lockfileDir, opts.modulesDir ?? 'node_modules', '.pnpm'), { ignoreIncompatible: false })
+    readCurrentLockfile(installStateDir, { ignoreIncompatible: false })
 }
 
 async function resolvesTo (entry: string, target: string): Promise<boolean> {

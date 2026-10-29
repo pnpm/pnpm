@@ -907,3 +907,28 @@ fn a_deleted_workspace_link_is_found_through_a_dedicated_lockfile() {
     );
     assert!(dangling);
 }
+
+/// A project with its own lockfile is installed on its own, so
+/// `dedupeDirectDeps` never moves its link to the root.
+#[test]
+fn a_root_link_does_not_stand_in_under_a_dedicated_lockfile() {
+    let dangling = workspace_link_dangling_with_lockfile(
+        None,
+        pnpm_config::NodeLinker::Isolated,
+        |config| {
+            config.shared_workspace_lockfile = false;
+            config.dedupe_direct_deps = true;
+        },
+        None,
+        |root| {
+            link_lib(root, "node_modules/lib");
+            fs::create_dir_all(root.join("pkg-a/node_modules/foo")).unwrap();
+            fs::write(
+                root.join("pkg-a").join(pnpm_lockfile::Lockfile::FILE_NAME),
+                "lockfileVersion: '9.0'\n\nimporters:\n\n  .:\n    dependencies:\n      lib:\n        specifier: workspace:*\n        version: link:../lib\n",
+            )
+            .unwrap();
+        },
+    );
+    assert!(dangling);
+}
