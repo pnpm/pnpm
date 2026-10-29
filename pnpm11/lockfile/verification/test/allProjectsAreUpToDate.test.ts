@@ -2647,3 +2647,54 @@ test('checkLinkedPackagesAreUpToDate(): skips comparing on-disk manifest for dep
   })
 })
 
+
+// https://github.com/pnpm/pnpm/issues/17486
+describe('local directory dependency beneath a registry package', () => {
+  beforeEach(async () => {
+    prepareEmpty()
+    await mkdir('lib')
+    await writeFile('./lib/package.json', JSON.stringify({ name: 'lib', version: '1.0.0', dependencies: { leaf: '1.0.0' } }))
+  })
+  const lockfilePackages = {
+    'reg@1.0.0': {
+      resolution: { integrity: 'sha512-reg' },
+      version: '1.0.0',
+      dependencies: { child: 'lib@file:lib' },
+    },
+    'lib@file:lib': {
+      resolution: { directory: 'lib', type: 'directory' },
+      version: '1.0.0',
+      dependencies: { leaf: '1.0.0' },
+    },
+    'leaf@1.0.0': { resolution: { integrity: 'sha512-leaf' }, version: '1.0.0' },
+    'other@1.0.0': { resolution: { integrity: 'sha512-other' }, version: '1.0.0' },
+  } as LockfileObject['packages']
+  const projectDependingOn = (name: string) => ({
+    dir: path.resolve('app'),
+    manifest: { dependencies: { [name]: '1.0.0' } },
+    snapshot: {
+      dependencies: { [name]: '1.0.0' },
+      specifiers: { [name]: '1.0.0' },
+    } as ProjectSnapshot,
+  })
+  const ctx = () => ({
+    linkWorkspacePackages: true,
+    manifestsByDir: {},
+    lockfilePackages,
+    lockfileDir: process.cwd(),
+  })
+  test('checkLinkedPackagesAreUpToDate(): accepts an unchanged directory beneath a registry package', async () => {
+    expect((await checkLinkedPackagesAreUpToDate(ctx(), projectDependingOn('reg'))).upToDate).toBe(true)
+  })
+  test('checkLinkedPackagesAreUpToDate(): reports a directory beneath a registry package whose dependencies changed', async () => {
+    await writeFile('./lib/package.json', JSON.stringify({ name: 'lib', version: '1.0.0', dependencies: { leaf: '2.0.0' } }))
+    expect(await checkLinkedPackagesAreUpToDate(ctx(), projectDependingOn('reg'))).toStrictEqual({
+      upToDate: false,
+      detailedReason: 'The dependencies of local directory dependency "lib@file:lib" do not match the lockfile',
+    })
+  })
+  test('checkLinkedPackagesAreUpToDate(): leaves a directory beneath a registry package to the projects that reach it', async () => {
+    await writeFile('./lib/package.json', JSON.stringify({ name: 'lib', version: '1.0.0', dependencies: { leaf: '2.0.0' } }))
+    expect((await checkLinkedPackagesAreUpToDate(ctx(), projectDependingOn('other'))).upToDate).toBe(true)
+  })
+})

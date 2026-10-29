@@ -15,7 +15,7 @@ import type { LockfileFile } from '@pnpm/lockfile.fs'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
 import { addDistTag } from '@pnpm/testing.registry-mock'
-import type { ProjectRootDir } from '@pnpm/types'
+import type { PackageExtension, ProjectRootDir } from '@pnpm/types'
 import { rimrafSync } from '@zkochan/rimraf'
 import normalizePath from 'normalize-path'
 import { readYamlFileSync } from 'read-yaml-file'
@@ -580,4 +580,28 @@ test('local directory is not relinked if disableRelinkLocalDirDeps is set to tru
   await install(manifest, testDefaults({ frozenLockfile: true, disableRelinkLocalDirDeps: true }))
 
   expect(fs.readdirSync('node_modules/pkg').sort()).toStrictEqual(['index.js', 'package.json'])
+})
+
+// https://github.com/pnpm/pnpm/issues/17486
+test.each<[string, { overrides?: Record<string, string>, packageExtensions?: Record<string, PackageExtension> }]>([
+  ['an override', { overrides: { '@pnpm.e2e/pkg-with-1-dep>@pnpm.e2e/dep-of-pkg-with-1-dep': 'file:../lib' } }],
+  ['a package extension', { packageExtensions: { '@pnpm.e2e/pkg-with-1-dep': { dependencies: { lib: 'file:../lib' } } } }],
+])('a local directory that %s adds beneath a registry package is resolved again after an edit', async (_, settings) => {
+  const project = prepareEmpty()
+  const writeLib = (fooVersion: string) => {
+    fs.writeFileSync('../lib/package.json', JSON.stringify({ name: 'lib', version: '1.0.0', dependencies: { '@pnpm.e2e/foo': fooVersion } }), 'utf8')
+  }
+  fs.mkdirSync('../lib')
+  writeLib('100.0.0')
+  const manifest = { dependencies: { '@pnpm.e2e/pkg-with-1-dep': '100.0.0' } }
+  await install(manifest, testDefaults(settings))
+
+  writeLib('100.1.0')
+  await expect(
+    install(manifest, testDefaults({ ...settings, frozenLockfile: true }))
+  ).rejects.toMatchObject({ code: 'ERR_PNPM_OUTDATED_LOCKFILE' })
+
+  await install(manifest, testDefaults(settings))
+  expect(project.readLockfile().snapshots['lib@file:../lib'].dependencies?.['@pnpm.e2e/foo']).toBe('100.1.0')
+  await install(manifest, testDefaults({ ...settings, frozenLockfile: true }))
 })

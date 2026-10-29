@@ -2,8 +2,8 @@ pub(super) mod directory_deps;
 pub(super) mod error;
 pub(super) mod manifest;
 pub(crate) use directory_deps::{
-    ProjectManifestsByDir, dependency_manifests_by_dir, is_declared_local_directory,
-    project_manifests_by_dir, spec_target_and_range,
+    NestedDirectoryPackage, ProjectManifestsByDir, dependency_manifests_by_dir,
+    is_declared_local_directory, project_manifests_by_dir, spec_target_and_range,
 };
 pub(crate) use directory_manifests::DirectoryManifests;
 pub(crate) use error::FreshnessCheckError;
@@ -388,16 +388,24 @@ pub(super) async fn check_lockfile_freshness(
         }));
     }
 
+    let edges = directory_deps::GraphEdges::installed(inputs.config.optional);
+    let nested = directory_deps::nested_directory_packages(lockfile, edges);
+    let nested = directory_deps::NestedByImporter::assign(&nested, |importer_id| {
+        inputs.manifests
+            .iter()
+            .any(|(id, _)| id == importer_id)
+    });
     let directory_manifests = directory_manifests::hooked_directory_manifests(
         lockfile,
         inputs,
-        parsed_overrides_opt.as_deref(),
+        (parsed_overrides_opt.as_deref(), &nested),
     )
     .await?;
     check_importer_freshness(
         lockfile,
         inputs,
         (parsed_overrides_opt.as_deref(), &directory_manifests),
+        &nested,
     )
 }
 
@@ -409,6 +417,7 @@ fn check_importer_freshness(
         Option<&[pnpm_config_parse_overrides::VersionOverride]>,
         &DirectoryManifests,
     ),
+    nested: &directory_deps::NestedByImporter<'_>,
 ) -> Result<Vec<UnresolvedOptionalDependency>, FreshnessCheckError> {
     let ignored_optional_matcher = ignored_optional_matcher(inputs.config);
     let mut project_manifests = project_manifests_by_dir(
@@ -441,8 +450,8 @@ fn check_importer_freshness(
                 inputs,
                 parsed_overrides,
                 (&ignored_optional_matcher, workspace),
-                importer_id,
-                manifest,
+                (importer_id, manifest),
+                nested.of(importer_id),
             )
         })
         .collect();
@@ -458,8 +467,8 @@ fn check_single_importer(
     inputs: &LockfileFreshnessInputs<'_, '_>,
     parsed_overrides: Option<&[pnpm_config_parse_overrides::VersionOverride]>,
     (ignored_optional_matcher, workspace): (&pnpm_matcher::Matcher, WorkspaceProjects<'_>),
-    importer_id: &str,
-    manifest: &PackageManifest,
+    (importer_id, manifest): (&str, &PackageManifest),
+    nested: &[&NestedDirectoryPackage],
 ) -> Result<Vec<UnresolvedOptionalDependency>, FreshnessCheckError> {
     if inputs.scope.allow_missing_dependency_free_importers
         && !lockfile.importers.contains_key(importer_id)
@@ -467,7 +476,7 @@ fn check_single_importer(
     {
         return Ok(Vec::new());
     }
-    let skipped = check_importer_satisfies(&ImporterSatisfactionCheck {
+    let check = ImporterSatisfactionCheck {
         lockfile,
         lockfile_dir: inputs.lockfile_dir,
         manifest,
@@ -479,7 +488,11 @@ fn check_single_importer(
             frozen_lockfile: inputs.scope.frozen_lockfile,
         },
         parsed_overrides,
-    })?;
+    };
+    let skipped = check_importer_satisfies(&check)?;
+    for package in nested {
+        directory_deps::check_nested_directory_package(&check, package)?;
+    }
     let prefix = manifest
         .path()
         .parent()
