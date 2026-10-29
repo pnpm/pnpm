@@ -53,7 +53,7 @@ Install the LTS version of Node.js:
 pnpm runtime set node lts -g
 ```
 
-Install the latest version of Node.js:
+Install the newest stable release of Node.js:
 
 ```sh
 pnpm runtime set node latest -g
