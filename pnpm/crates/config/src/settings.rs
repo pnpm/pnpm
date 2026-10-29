@@ -1211,6 +1211,9 @@ pub struct Config {
     #[default(true)]
     pub git_checks: bool,
 
+    /// `pnpm version` creates a git commit and tag for the bump. Setting it to
+    /// `false` in `pnpm-workspace.yaml` or `PNPM_CONFIG_GIT_TAG_VERSION`, or
+    /// passing `--no-git-tag-version`, skips both.
     #[default = true]
     pub git_tag_version: bool,
 

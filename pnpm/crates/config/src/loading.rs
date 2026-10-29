@@ -260,13 +260,6 @@ impl Config {
         npmrc_auth: &mut NpmrcAuth,
         declared_registries: &mut crate::npmrc_auth::DeclaredRegistries,
     ) {
-        if let Some(git_tag_version) = npmrc_auth.git_tag_version {
-            self.git_tag_version = git_tag_version;
-            self.explicit_settings.insert(
-                "gitTagVersion".to_owned(),
-                serde_json::json!(git_tag_version),
-            );
-        }
         npmrc_auth.apply_registry_and_warn(self, declared_registries);
         // Proxy cascade fires unconditionally — even when no `.npmrc`
         // is found — because the env-var fallback is a normalization step

@@ -99,14 +99,7 @@ impl TrustedSettings {
     #[must_use]
     pub fn from_pnpm_config_env<Sys: EnvVar>() -> Self {
         Self::from_reader(&StringReader {
-            read: &|suffix| {
-                read_env::<Sys>(suffix)
-                    .or_else(|| {
-                        (suffix == "GIT_TAG_VERSION")
-                            .then(|| crate::read_npm_env::<Sys>("git_tag_version", suffix))
-                            .flatten()
-                    })
-            },
+            read: &|suffix| read_env::<Sys>(suffix),
             read_allow_empty: &|suffix| read_env_allow_empty::<Sys>(suffix),
         })
     }

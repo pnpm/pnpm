@@ -399,28 +399,15 @@ fn tag_version_prefix_reads_from_the_environment() {
 }
 
 #[test]
-fn git_tag_version_reads_from_both_environment_prefixes() {
+fn git_tag_version_reads_from_the_environment() {
     struct Env;
     impl EnvVar for Env {
         fn var(name: &str) -> Option<String> {
-            (name == "npm_config_git_tag_version").then(|| "false".to_owned())
+            (name == "PNPM_CONFIG_GIT_TAG_VERSION").then(|| "false".to_owned())
         }
     }
     let settings = TrustedSettings::from_pnpm_config_env::<Env>().settings;
     assert_eq!(settings.git_tag_version, Some(false));
-
-    struct EnvPnpmConfigWins;
-    impl EnvVar for EnvPnpmConfigWins {
-        fn var(name: &str) -> Option<String> {
-            match name {
-                "PNPM_CONFIG_GIT_TAG_VERSION" => Some("true".to_owned()),
-                "npm_config_git_tag_version" => Some("false".to_owned()),
-                _ => None,
-            }
-        }
-    }
-    let settings = TrustedSettings::from_pnpm_config_env::<EnvPnpmConfigWins>().settings;
-    assert_eq!(settings.git_tag_version, Some(true));
 }
 
 #[test]

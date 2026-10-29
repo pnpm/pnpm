@@ -396,6 +396,7 @@ pub struct WorkspaceSettings {
     /// skips its git working-tree checks. See [`Config::git_checks`](crate::settings::Config::git_checks). The
     /// `--no-git-checks` CLI flag forces it off on top of this.
     pub git_checks: Option<bool>,
+    /// See [`Config::git_tag_version`](crate::settings::Config::git_tag_version).
     pub git_tag_version: Option<bool>,
 
     /// See [`Config::publish_wait_timeout`](crate::settings::Config::publish_wait_timeout).

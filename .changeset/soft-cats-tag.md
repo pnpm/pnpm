@@ -2,4 +2,4 @@
 "pacquet": patch
 ---
 
-`pnpm version` now respects the `gitTagVersion` setting when deciding whether to create a commit and tag.
+`pnpm version` no longer creates a git commit and tag when `gitTagVersion` is set to `false` [#17460](https://github.com/pnpm/pnpm/issues/17460).
