@@ -161,13 +161,16 @@ fn publish_directory_reached_both_ways_keeps_the_workspace_version() {
     install(&fixture, &["--frozen-lockfile"]);
 }
 
-/// A `workspace:../dir` dependency outside the workspace patterns is a
-/// directory package no project describes, like a `file:` dependency, so the
-/// check hooks its manifest in either lockfile layout
-/// ([pnpm/pnpm#17473](https://github.com/pnpm/pnpm/issues/17473)).
+/// A `workspace:` dependency on a directory outside the workspace patterns is
+/// a directory package no project describes, like a `file:` dependency, so
+/// the check hooks its manifest in either lockfile layout
+/// ([pnpm/pnpm#17473](https://github.com/pnpm/pnpm/issues/17473)). `app` is a
+/// project beside the root so that a dedicated lockfile is its own file.
 #[test]
 fn package_extensions_on_an_injected_directory_outside_the_patterns_pass_frozen_install() {
-    // Each extension and the lockfile lines that prove the resolver applied it.
+    // Each extension and the lockfile lines that prove the resolver applied it;
+    // the dependency's recorded path is relative to the lockfile, so only its
+    // start is compared.
     let extensions = [
         (
             "packageExtensions:\n  peer@1.0.0:\n    peerDependencies:\n      host: 1.0.0\n",
@@ -175,7 +178,7 @@ fn package_extensions_on_an_injected_directory_outside_the_patterns_pass_frozen_
         ),
         (
             "packageExtensions:\n  peer@1.0.0:\n    dependencies:\n      host: workspace:../host\n",
-            "    dependencies:\n      host: file:../host\n",
+            "    dependencies:\n      host: file:",
         ),
     ];
     for shared_lockfile in [true, false] {
@@ -188,18 +191,24 @@ fn package_extensions_on_an_injected_directory_outside_the_patterns_pass_frozen_
             let outside = fixture.workspace.parent().expect("the workspace has a parent");
             write_package(&outside.join("peer"), &json!({ "name": "peer", "version": "1.0.0" }));
             write_package(&outside.join("host"), &json!({ "name": "host", "version": "1.0.0" }));
+            fixture.write_root_manifest("root", ManifestDeps::default());
+            let app = fixture.workspace.join("packages/app");
             write_package(
-                &fixture.workspace,
+                &app,
                 &json!({
                     "name": "app",
                     "version": "1.0.0",
-                    "dependencies": { "peer": "workspace:../peer", "host": "workspace:../host" },
+                    "dependencies": {
+                        "peer": "workspace:../../../peer",
+                        "host": "workspace:../../../host",
+                    },
                 }),
             );
 
             install(&fixture, &[]);
-            let lockfile = fs::read_to_string(fixture.workspace.join("pnpm-lock.yaml"))
-                .expect("read the lockfile");
+            let lockfile_dir = if shared_lockfile { &fixture.workspace } else { &app };
+            let lockfile =
+                fs::read_to_string(lockfile_dir.join("pnpm-lock.yaml")).expect("read the lockfile");
             assert!(
                 lockfile.contains(applied),
                 "shared_lockfile: {shared_lockfile}, the extension reached peer's entry:\n{lockfile}",
