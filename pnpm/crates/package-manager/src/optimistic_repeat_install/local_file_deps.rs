@@ -4,10 +4,13 @@ pub(crate) use specs::{
     is_local_file_spec, is_unambiguous_local_file_spec, is_workspace_path_spec,
 };
 
+mod injected;
+
 use super::{
     CatalogAnchor, CatalogResolutionResult, Catalogs, DependencyGroup, Lockfile,
     OptimisticRepeatInstallCheck, Path, PathBuf, WantedDependency, resolve_from_catalog,
 };
+use injected::{has_unvouched_injected_dep, settings_add_workspace_path};
 use pnpm_config_parse_overrides::VersionOverride;
 use pnpm_lockfile::{LockfileResolution, PkgName, is_local_tarball_path};
 use pnpm_resolving_local_resolver::local_tarball_path;
@@ -95,7 +98,9 @@ pub(crate) fn has_local_file_dep_requiring_install(
             LocalTarballScan::RequiresInstall => return Ok(true),
             LocalTarballScan::Candidates(candidates) => candidates,
         };
-    let check_injected_deps = !check.config.shared_workspace_lockfile || declares_directory;
+    let check_injected_deps = !check.config.shared_workspace_lockfile
+        || declares_directory
+        || settings_add_workspace_path(check, overrides);
     if tarballs.is_empty() && !check_injected_deps {
         return Ok(false);
     }
@@ -125,48 +130,6 @@ fn recorded_lockfile<'a>(
     Lockfile::load_current_from_install_state_dir(&check.config.install_state_dir)
         .map(|lockfile| lockfile.map(Cow::Owned))
         .map_err(|_| "the current lockfile cannot be loaded to verify local file dependencies")
-}
-
-/// Whether an injected dependency the fast path's manifest comparison does
-/// not vouch for rules it out. With a shared lockfile every workspace project
-/// is an importer, so a change to an injected project's own dependencies is
-/// caught by comparing its manifest, but an injected directory outside the
-/// workspace patterns has no importer. With per-project lockfiles the
-/// consumer's lockfile records every injected package's dependencies, which
-/// nothing else checks.
-fn has_unvouched_injected_dep(
-    check: &OptimisticRepeatInstallCheck<'_>,
-    lockfile: &Lockfile,
-) -> bool {
-    let included_groups = dependency_fields(check)
-        .into_iter()
-        .filter_map(|(_, group, included)| included.then_some(group))
-        .collect::<Vec<_>>();
-    let project_dirs: Option<HashSet<PathBuf>> = check.config
-        .shared_workspace_lockfile
-        .then(|| {
-            check.project_manifests
-                .iter()
-                .map(|(project_dir, _)| pnpm_fs::lexical_normalize(project_dir))
-                .collect()
-        });
-    let vouched = |directory: &str| {
-        project_dirs
-            .as_ref()
-            .is_some_and(|project_dirs| {
-                project_dirs.contains(&pnpm_fs::lexical_normalize(
-                    &check.workspace_root.join(directory),
-                ))
-            })
-    };
-    check.project_manifests
-        .iter()
-        .any(|(project_dir, _)| {
-            let importer_id = importer_id_from_root_dir(check.workspace_root, project_dir);
-            lockfile
-                .injected_dependencies(&importer_id, included_groups.iter().copied())
-                .any(|dependency| !vouched(&dependency.directory.directory))
-        })
 }
 
 /// Each manifest dependency field, its group, and whether this install

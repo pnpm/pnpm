@@ -137,5 +137,24 @@ pub(crate) fn is_workspace_path_spec(spec: &str) -> bool {
     spec.strip_prefix("workspace:").is_some_and(pnpm_local_spec::is_filespec)
 }
 
+/// Whether a specifier is, or resolves through the catalogs to, a
+/// `workspace:` path. An entry the catalogs cannot resolve counts, as in
+/// the manifest scan; the install reports it.
+pub(crate) fn is_effective_workspace_path(catalogs: &Catalogs, alias: &str, spec: &str) -> bool {
+    if !spec.starts_with("catalog:") {
+        return is_workspace_path_spec(spec);
+    }
+    match resolve_from_catalog(
+        catalogs,
+        &WantedDependency { alias: alias.to_string(), bare_specifier: spec.to_string() },
+        CatalogAnchor::AsWritten,
+    ) {
+        CatalogResolutionResult::Found(found) => {
+            is_workspace_path_spec(&found.resolution.specifier)
+        }
+        _ => true,
+    }
+}
+
 #[cfg(test)]
 mod tests;
