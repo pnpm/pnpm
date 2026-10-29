@@ -9,6 +9,7 @@ import { PnpmError } from '@pnpm/error'
 import { createFetchFromRegistry } from '@pnpm/network.fetch'
 import {
   createNpmResolver,
+  findWorkspaceLinkTarget,
   NoMatchingVersionError,
   RegistryResponseError,
 } from '@pnpm/resolving.npm-resolver'
@@ -1614,6 +1615,22 @@ test('resolve from local directory when alwaysTryWorkspacePackages is false but 
   expect(resolveResult!.manifest).toBeTruthy()
   expect(resolveResult!.manifest!.name).toBe('is-positive')
   expect(resolveResult!.manifest!.version).toBe('1.0.0')
+})
+
+test('findWorkspaceLinkTarget() returns the directory of the workspace package a dependency links to', () => {
+  const workspacePackages = new Map([
+    ['is-positive', new Map([
+      ['1.0.0', { rootDir: '/workspace/old' as ProjectRootDir, manifest: { name: 'is-positive', version: '1.0.0' } }],
+      ['1.5.0', { rootDir: '/workspace/new' as ProjectRootDir, manifest: { name: 'is-positive', version: '1.5.0', publishConfig: { directory: 'dist' } } }],
+    ])],
+  ])
+  const findTarget = (alias: string, bareSpecifier: string) => findWorkspaceLinkTarget(workspacePackages, { alias, bareSpecifier })
+  expect(findTarget('is-positive', '^1.0.0')).toBe(path.join('/workspace/new', 'dist'))
+  expect(findTarget('is-positive', '1.0.0')).toBe('/workspace/old')
+  expect(findTarget('positive', 'npm:is-positive@^1.0.0')).toBe(path.join('/workspace/new', 'dist'))
+  expect(findTarget('is-positive', '^2.0.0')).toBeUndefined()
+  expect(findTarget('is-negative', '^1.0.0')).toBeUndefined()
+  expect(findTarget('is-positive', 'link:../is-positive')).toBeUndefined()
 })
 
 test('use version from the registry if it is newer than the local one', async () => {

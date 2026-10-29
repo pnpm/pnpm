@@ -6730,6 +6730,12 @@ importers:
       '@pnpm/pnpr.client':
         specifier: workspace:*
         version: link:../../../pnpr/client
+      '@pnpm/resolving.npm-resolver':
+        specifier: workspace:*
+        version: link:../../resolving/npm-resolver
+      '@pnpm/resolving.resolver-base':
+        specifier: workspace:*
+        version: link:../../resolving/resolver-base
       '@pnpm/store.controller-types':
         specifier: workspace:*
         version: link:../../store/controller-types
@@ -7852,6 +7858,9 @@ importers:
       '@pnpm/resolving.git-resolver':
         specifier: workspace:*
         version: link:../../resolving/git-resolver
+      '@pnpm/resolving.npm-resolver':
+        specifier: workspace:*
+        version: link:../../resolving/npm-resolver
       '@pnpm/resolving.resolver-base':
         specifier: workspace:*
         version: link:../../resolving/resolver-base

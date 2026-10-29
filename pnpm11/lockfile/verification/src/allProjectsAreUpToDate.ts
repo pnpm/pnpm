@@ -46,6 +46,7 @@ export async function allProjectsAreUpToDate (
     autoInstallPeers: opts.autoInstallPeers,
     excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
     ignoredOptionalDependencies: opts.ignoredOptionalDependencies,
+    workspacePackages: opts.linkWorkspacePackages ? opts.workspacePackages : undefined,
   })
   const _linkedPackagesAreUpToDate = linkedPackagesAreUpToDate.bind(null, createLinkedPackagesContext(opts, manifestsByDir))
   const _localTarballDepsAreUpToDate = localTarballDepsAreUpToDate.bind(null, {

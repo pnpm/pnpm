@@ -347,3 +347,61 @@ test('links resolved from workspace protocol dependencies are not removed', asyn
     version: 'link:../project-2',
   })
 })
+
+test('a frozen install links a workspace package that a plain range resolved to', async () => {
+  const pkg1 = {
+    name: 'project-1',
+    version: '1.0.0',
+
+    dependencies: {
+      'is-positive': '1.0.0',
+      'project-2': '^1.0.0',
+    },
+  }
+  const pkg2 = {
+    name: 'project-2',
+    version: '1.0.0',
+  }
+  preparePackages([pkg1, pkg2])
+
+  const importers: MutatedProject[] = [
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-1') as ProjectRootDir,
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-2') as ProjectRootDir,
+    },
+  ]
+  const allProjects = [
+    {
+      buildIndex: 0,
+      manifest: pkg1,
+      rootDir: path.resolve('project-1') as ProjectRootDir,
+    },
+    {
+      buildIndex: 0,
+      manifest: pkg2,
+      rootDir: path.resolve('project-2') as ProjectRootDir,
+    },
+  ]
+  await mutateModules(importers, testDefaults({
+    allProjects,
+    excludeLinksFromLockfile: true,
+    linkWorkspacePackagesDepth: 0,
+  }))
+
+  const lockfile: LockfileFile = readYamlFileSync(WANTED_LOCKFILE)
+  expect(Object.keys(lockfile.importers?.['project-1'].dependencies ?? {})).toStrictEqual(['is-positive'])
+
+  rimrafSync('project-1/node_modules')
+  await mutateModules(importers, testDefaults({
+    allProjects,
+    excludeLinksFromLockfile: true,
+    frozenLockfile: true,
+    linkWorkspacePackagesDepth: 0,
+  }))
+
+  expect(fs.realpathSync('project-1/node_modules/project-2')).toBe(fs.realpathSync('project-2'))
+})

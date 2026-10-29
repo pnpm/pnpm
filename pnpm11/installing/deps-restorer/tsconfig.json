@@ -97,6 +97,12 @@
       "path": "../../pkg-manifest/reader"
     },
     {
+      "path": "../../resolving/npm-resolver"
+    },
+    {
+      "path": "../../resolving/resolver-base"
+    },
+    {
       "path": "../../store/cafs"
     },
     {
