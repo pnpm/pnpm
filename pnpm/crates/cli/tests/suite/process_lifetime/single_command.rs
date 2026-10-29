@@ -9,7 +9,7 @@ use serde_json::json;
 use std::{fs, path::Path, process::Command};
 
 /// How pnpm runs the launcher.
-#[derive(Clone, Copy, Debug)]
+#[derive(Debug, Clone, Copy)]
 enum Launch {
     Exec,
     /// `pnpm run`, through the script shell.

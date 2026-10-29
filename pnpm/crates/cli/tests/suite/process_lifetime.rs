@@ -77,7 +77,7 @@ if (then === 'wait' || then === 'hold') {
 "#;
 
 /// What a fixture leaves running.
-#[derive(Clone, Copy, Debug)]
+#[derive(Debug, Clone, Copy)]
 enum Leftover {
     /// A detached child: in a session of its own on Unix, without a console
     /// on Windows. Neither `Ctrl+C` nor a closing terminal reaches it.

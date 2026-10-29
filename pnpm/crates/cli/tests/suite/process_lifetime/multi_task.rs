@@ -45,7 +45,7 @@ fn launching(code: i32) -> String {
 fn leftovers_of_a_finished_script_survive_a_recursive_run() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     write_fixture(&workspace);
-    write_workspace(&workspace, &[("a-launches", &launching(0)), ("b-succeeds", "node -e \"\"")]);
+    write_workspace(&workspace, &[("a-launches", &launching(0)), ("b-succeeds", r#"node -e """#)]);
 
     let mut run = pacquet
         .with_args(["--workspace-concurrency=1", "--no-sort", "-r", "run", "build"])
@@ -104,7 +104,7 @@ fn leftovers_of_the_script_a_bail_follows_survive_it() {
 fn recursive_run_bail_stops_running_scripts_gracefully_then_kills_them() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     let graceful = r#"node -e "const fs = require('fs'); process.on('SIGTERM', () => { fs.writeFileSync('terminated.txt', ''); process.exit(0) }); fs.writeFileSync('ran.txt', ''); setInterval(() => {}, 1000)""#;
-    let stubborn = r#"node -e "const fs = require('fs'); process.on('SIGTERM', () => fs.writeFileSync('terminated.txt', '')); fs.writeFileSync('ran.txt', String(process.pid)); setInterval(() => {}, 1000)""#;
+    let stubborn = r#"node -e "const fs = require('fs'); process.on('SIGTERM', () => fs.writeFileSync('terminated.txt', '')); fs.writeFileSync('ran.txt', String(process.pid)); setTimeout(() => process.exit(0), 20000)""#;
     let fails = r#"node -e "const fs = require('fs'); const wait = () => fs.existsSync('../a-graceful/ran.txt') && fs.existsSync('../c-stubborn/ran.txt') ? process.exit(1) : setTimeout(wait, 10); wait()""#;
     write_workspace(
         &workspace,
@@ -117,6 +117,24 @@ fn recursive_run_bail_stops_running_scripts_gracefully_then_kills_them() {
         .stderr(Stdio::null())
         .spawn()
         .expect("spawn pacquet");
+    let stubborn_dir = workspace.join("c-stubborn");
+    let asked_to_stop = stubborn_dir.join("terminated.txt");
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+    while !asked_to_stop.exists() && std::time::Instant::now() < deadline {
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
+    let stubborn: libc::pid_t = fs::read_to_string(stubborn_dir.join("ran.txt"))
+        .expect("read the stubborn script's pid")
+        .parse()
+        .expect("the stubborn script wrote its pid");
+    // Well inside the grace: the script that ignored `SIGTERM` is still
+    // running, and pnpm still waits for it.
+    std::thread::sleep(std::time::Duration::from_secs(1));
+    let running_in_grace = is_running(stubborn)
+        && run
+            .try_wait()
+            .expect("poll pnpm")
+            .is_none();
     let status = wait_for_child(&mut run);
     assert!(!status.success(), "the failing project should fail the run");
     for name in ["a-graceful", "c-stubborn"] {
@@ -128,18 +146,13 @@ fn recursive_run_bail_stops_running_scripts_gracefully_then_kills_them() {
             "{name} should have been asked to stop with SIGTERM before pnpm exited",
         );
     }
-    let stubborn: libc::pid_t = fs::read_to_string(workspace.join("c-stubborn").join("ran.txt"))
-        .expect("read the stubborn script's pid")
-        .parse()
-        .expect("the stubborn script wrote its pid");
-    let killed = ends_within(stubborn, std::time::Duration::from_secs(5));
-    if !killed {
-        // SAFETY: `stubborn` is the process the test's own fixture recorded.
-        unsafe {
-            libc::kill(stubborn, libc::SIGKILL);
-        }
-    }
-    assert!(killed, "the script that ignored SIGTERM should have been killed after the grace");
+    assert!(running_in_grace, "the script that ignored SIGTERM gets its grace before the kill");
+    // The fixture gives up on its own well after this, so a failure leaves
+    // nothing running for long and no recorded pid has to be signalled.
+    assert!(
+        ends_within(stubborn, std::time::Duration::from_secs(5)),
+        "the script that ignored SIGTERM should have been killed after the grace",
+    );
 
     drop(root);
 }
@@ -199,25 +212,29 @@ fn recursive_run_bail_ends_a_detached_grandchild_of_a_running_script() {
     drop(root);
 }
 
-/// Whether `pid` is gone within `deadline`. A process that is gone but not
-/// yet reaped by its new parent counts as gone.
+/// Whether `pid` still runs. A process that has exited but that its new
+/// parent has not reaped yet has stopped running.
+#[cfg(unix)]
+fn is_running(pid: libc::pid_t) -> bool {
+    // SAFETY: signal 0 only probes the process the fixture recorded.
+    let alive = unsafe { libc::kill(pid, 0) == 0 };
+    let zombie = fs::read_to_string(format!("/proc/{pid}/stat"))
+        .is_ok_and(|stat| {
+            stat.rsplit_once(") ")
+                .is_some_and(|(_, rest)| rest.starts_with('Z'))
+        });
+    alive && !zombie
+}
+
+/// Whether `pid` stops running within `deadline`.
 #[cfg(unix)]
 fn ends_within(pid: libc::pid_t, deadline: std::time::Duration) -> bool {
     let until = std::time::Instant::now() + deadline;
-    loop {
-        // SAFETY: signal 0 only probes the process the fixture recorded.
-        let alive = unsafe { libc::kill(pid, 0) == 0 };
-        let zombie = fs::read_to_string(format!("/proc/{pid}/stat"))
-            .is_ok_and(|stat| {
-                stat.rsplit_once(") ")
-                    .is_some_and(|(_, rest)| rest.starts_with('Z'))
-            });
-        if !alive || zombie {
-            return true;
-        }
+    while is_running(pid) {
         if std::time::Instant::now() >= until {
             return false;
         }
         std::thread::sleep(std::time::Duration::from_millis(50));
     }
+    true
 }

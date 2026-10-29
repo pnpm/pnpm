@@ -4,8 +4,9 @@
 //! both, and one attached to it survives `Ctrl+C`, which it ignores, but
 //! not the terminal closing.
 //!
-//! Unix runs the command as the foreground job of a pseudo-terminal, and
-//! Windows on a private console.
+//! Unix runs the command as the foreground job of a pseudo-terminal, under
+//! a stand-in for the shell that leads its session, and Windows runs it on a
+//! private console.
 
 use super::{Leftover, launcher_args, launcher_directly, surviving, write_fixture};
 #[cfg(windows)]
@@ -26,7 +27,7 @@ use std::{
 const LEFTOVERS: [Leftover; 2] = [Leftover::Detached, Leftover::Attached];
 
 /// What the terminal does to the running command.
-#[derive(Clone, Copy, Debug)]
+#[derive(Debug, Clone, Copy)]
 enum Event {
     CtrlC,
     Close,
@@ -48,45 +49,137 @@ fn survivors(event: Event, under_pnpm: bool) -> Vec<bool> {
     } else {
         launcher_directly(&workspace, &args)
     };
-    run_through(command, &workspace, event);
+    let mut session = Session::start(command, &workspace);
+    session.deliver(event);
+    session.wait_for_command();
     let survivors = surviving(&workspace, &LEFTOVERS);
+    drop(session);
     drop(root);
     survivors
 }
 
+/// The command running on a private console.
 #[cfg(windows)]
-fn run_through(command: Command, workspace: &Path, event: Event) {
-    let console = PrivateConsole::attach();
-    let mut process = command
-        .with_stdin(Stdio::null())
-        .with_stdout(Stdio::null())
-        .with_stderr(Stdio::null())
-        .spawn()
-        .expect("spawn the command");
-    wait_for_start(&workspace.join("started.txt"), &mut process);
-    match event {
-        Event::CtrlC => {
-            console.press_ctrl_c();
-            wait_for_exit(&mut process);
+struct Session {
+    console: Option<PrivateConsole>,
+    command: Child,
+}
+
+#[cfg(windows)]
+impl Session {
+    fn start(command: Command, workspace: &Path) -> Self {
+        let console = PrivateConsole::attach();
+        let mut command = command
+            .with_stdin(Stdio::null())
+            .with_stdout(Stdio::null())
+            .with_stderr(Stdio::null())
+            .spawn()
+            .expect("spawn the command");
+        wait_for_start(&workspace.join("started.txt"), &mut command);
+        Self { console: Some(console), command }
+    }
+
+    fn deliver(&mut self, event: Event) {
+        let console = self.console.take().expect("the console is still open");
+        match event {
+            Event::CtrlC => {
+                console.press_ctrl_c();
+                self.console = Some(console);
+            }
+            Event::Close => console.close(),
         }
-        Event::Close => {
-            console.close();
-            wait_for_exit(&mut process);
+    }
+
+    fn wait_for_command(&mut self) {
+        wait_for_exit(&mut self.command);
+    }
+}
+
+/// Stands in for the interactive shell of a terminal: it leads the session,
+/// survives the interrupt of its foreground job, and stays until the test
+/// has released the leftovers. The kernel hangs up a terminal's foreground
+/// group when its session leader exits, which a shell does not do when its
+/// job ends.
+#[cfg(unix)]
+const SHELL: &str = r"const fs = require('fs')
+process.on('SIGINT', () => {})
+const [program, ...args] = process.argv.slice(2)
+const job = require('child_process').spawn(program, args, { stdio: 'inherit' })
+job.on('exit', () => {
+  fs.writeFileSync('command-exited.txt', '')
+  const deadline = Date.now() + 15000
+  const wait = () => fs.existsSync('release.txt') || Date.now() > deadline ? setTimeout(() => process.exit(0), 1000) : setTimeout(wait, 50)
+  wait()
+})
+";
+
+/// The command running as the foreground job of a pseudo-terminal, under a
+/// stand-in for the shell ([`SHELL`]).
+#[cfg(unix)]
+struct Session {
+    terminal: Terminal,
+    shell: Child,
+    exited: std::path::PathBuf,
+}
+
+#[cfg(unix)]
+impl Session {
+    fn start(command: Command, workspace: &Path) -> Self {
+        let script = workspace.join("shell.js");
+        std::fs::write(&script, SHELL).expect("write shell.js");
+        let mut shell = Command::new(super::node_executable());
+        shell
+            .current_dir(workspace)
+            .arg(script)
+            .arg(command.get_program())
+            .args(command.get_args());
+        for (name, value) in command.get_envs() {
+            match value {
+                Some(value) => shell.env(name, value),
+                None => shell.env_remove(name),
+            };
+        }
+        let terminal = Terminal::open();
+        let mut shell = terminal.spawn_foreground(shell);
+        wait_for_start(&workspace.join("started.txt"), &mut shell);
+        Self { terminal, shell, exited: workspace.join("command-exited.txt") }
+    }
+
+    fn deliver(&mut self, event: Event) {
+        match event {
+            Event::CtrlC => self.terminal.press_ctrl_c(),
+            Event::Close => self.terminal.hang_up(),
+        }
+    }
+
+    /// Wait for the command to end: the shell says so, unless the hangup
+    /// ended the shell too.
+    fn wait_for_command(&mut self) {
+        let deadline = Instant::now() + Duration::from_secs(30);
+        while !self.exited.exists() {
+            if self.shell
+                .try_wait()
+                .expect("poll the shell")
+                .is_some()
+            {
+                return;
+            }
+            if Instant::now() >= deadline {
+                let _ = self.shell.kill();
+                let _ = self.shell.wait();
+                panic!("the command kept running after the terminal's event");
+            }
+            sleep(Duration::from_millis(50));
         }
     }
 }
 
 #[cfg(unix)]
-fn run_through(command: Command, workspace: &Path, event: Event) {
-    let terminal = Terminal::open();
-    let mut process = terminal.spawn_foreground(command);
-    wait_for_start(&workspace.join("started.txt"), &mut process);
-    match event {
-        Event::CtrlC => terminal.press_ctrl_c(),
-        Event::Close => terminal.hang_up(),
+impl Drop for Session {
+    fn drop(&mut self) {
+        let _ = self.shell.kill();
+        let _ = self.shell.wait();
     }
-    wait_for_exit(&mut process);
-    drop(terminal);
 }
 
 /// `Ctrl+C` leaves both leftovers running: the detached one never sees it,

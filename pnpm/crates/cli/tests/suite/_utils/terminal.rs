@@ -153,14 +153,14 @@ impl Terminal {
     /// delivers it rather than by closing the terminal.
     pub fn hang_up(&self) {
         // SAFETY: plain FFI calls on the terminal this value owns.
-        // `tcgetpgrp` reports the foreground group pnpm made itself the
-        // leader of, and `kill` with a negative pid signals that group.
+        // `tcgetpgrp` reports the terminal's foreground group, and `kill`
+        // with a negative pid signals that group.
         unsafe {
             let group = libc::tcgetpgrp(self.master.as_raw_fd());
             assert!(
                 group > 0,
                 "the terminal has a foreground group: {}",
-                io::Error::last_os_error()
+                io::Error::last_os_error(),
             );
             assert_eq!(libc::kill(-group, libc::SIGHUP), 0, "hang up the foreground group");
         }

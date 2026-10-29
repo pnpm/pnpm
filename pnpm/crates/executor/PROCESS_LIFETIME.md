@@ -50,9 +50,11 @@ server holding its port. How far it reaches depends on the platform:
   example between two lifecycle scripts, is not a kill: it ends pnpm and
   leaves what earlier scripts started running
   (`an_interrupt_while_no_command_runs_releases_the_process_tree_cleanup` in
-  [`src/interrupt/windows/tests.rs`](./src/interrupt/windows/tests.rs)). Every
-  child that joins a job is created suspended and resumed once it is in, so
-  nothing it starts can escape the job in between.
+  [`src/interrupt/windows/tests.rs`](./src/interrupt/windows/tests.rs)). A
+  child joins a job it is assigned to by hand right after its creation, so a
+  process it starts in the moments before that is not covered;
+  [`src/job_control.rs`](./src/job_control.rs) explains why that window is
+  left open.
 - **Unix:** a script that runs in a process group of its own, which every
   script of a parallel run and every script without a controlling terminal
   does, is watched, and its group is killed when pnpm dies
@@ -95,10 +97,13 @@ whose failure caused the bail has already ended, so its leftovers keep running
   could misdirect
   (`multi_task::recursive_run_bail_ends_a_detached_grandchild_of_a_running_script`).
 
-On Unix a cancelled task's detached process is found only through its
-parent. One whose parent still runs is stopped with the task. One whose
-parent has exited, such as a daemon that forks twice, is not found and keeps
-running. This is the one place where the two platforms differ.
+On Unix a cancelled task's detached process is found only through its chain
+of parents. At the cancellation, one whose chain leads to the task gets
+`SIGTERM`. At the deadline, pnpm scans again from the tasks it has not reaped
+yet, so one whose chain no longer leads there, because the task or a process
+between them exited during the grace, keeps running. So does one whose
+parent had exited before the cancellation, such as a daemon that forks
+twice. This is the one place where the two platforms differ.
 
 `Ctrl+C` during a multi-task run reaches every task through the terminal.
 pnpm waits for them, and further `Ctrl+C` escalate as described in
