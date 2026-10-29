@@ -157,15 +157,7 @@ pub(super) fn importer_direct_deps(
             // (name, suffix); for a regular dep it's `(alias, version)`.
             let Some(dep_key) = spec.version.resolved_key(alias) else { continue };
             let own_copy = modules_dir.join(alias.to_string());
-            let holds_dep = |node: &DependenciesGraphNode| {
-                node.package.dep_path
-                    .as_str()
-                    .parse::<PackageKey>()
-                    .is_ok_and(|key| {
-                        pnpm_real_hoist::pkg_id(&key) == pnpm_real_hoist::pkg_id(&dep_key)
-                    })
-            };
-            if graph.get(&own_copy).is_some_and(holds_dep) {
+            if graph.get(&own_copy).is_some_and(|node| node_holds(node, &dep_key)) {
                 direct_deps.insert(alias.to_string(), own_copy);
             } else if let Some(first) = pkg_locations.first(&dep_key) {
                 direct_deps.insert(alias.to_string(), first.clone());
@@ -173,6 +165,14 @@ pub(super) fn importer_direct_deps(
         }
     }
     direct_deps
+}
+/// Whether `node` holds the package `dep_key` resolves to, by package id
+/// so a peer variant the hoister collapsed still matches.
+fn node_holds(node: &DependenciesGraphNode, dep_key: &PackageKey) -> bool {
+    node.package.dep_path
+        .as_str()
+        .parse::<PackageKey>()
+        .is_ok_and(|key| pnpm_real_hoist::pkg_id(&key) == pnpm_real_hoist::pkg_id(dep_key))
 }
 /// Second walker pass: with every node's directory already in
 /// `pkg_locations`, resolve each graph node's `children: alias →
