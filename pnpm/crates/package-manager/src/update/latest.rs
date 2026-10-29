@@ -8,11 +8,7 @@ use crate::{
 };
 use chrono::{DateTime, Utc};
 use node_semver::Version;
-use pnpm_config::{Config, Tool, version_policy::PackageVersionPolicy};
-use pnpm_engine_pm_yarn_resolver::YarnResolver;
-use pnpm_engine_runtime_bun_resolver::BunResolver;
-use pnpm_engine_runtime_deno_resolver::DenoResolver;
-use pnpm_engine_runtime_node_resolver::NodeResolver;
+use pnpm_config::{Config, version_policy::PackageVersionPolicy};
 use pnpm_lockfile_preferred_versions::get_version_selector_type;
 use pnpm_network::ThrottledClient;
 use pnpm_package_manifest::PackageManifest;
@@ -171,30 +167,12 @@ pub(super) fn ensure_latest_resolver_chain<'chain>(
         let policy =
             PickPolicy::from_config_with_extra_excludes(ctx.config, extra_excludes.as_deref())
                 .map_err(UpdateError::MinimumReleaseAgeExclude)?;
-        let registry_resolver: Arc<dyn Resolver> = Arc::new(
-            create_configured_registry_resolver(
-                ctx.config,
-                Arc::clone(ctx.http_client_arc),
-                &policy,
-            )
-            .map_err(UpdateError::InvalidNamedRegistry)?,
-        );
-        let resolver = DefaultResolver::new(vec![
-            Box::new(Arc::clone(&registry_resolver)) as Box<dyn Resolver>,
-            Box::new(ctx.node_resolver()),
-            Box::new(DenoResolver::new(
-                Arc::clone(ctx.http_client_arc),
-                Arc::clone(&registry_resolver),
-            )),
-            Box::new(
-                BunResolver::new(Arc::clone(ctx.http_client_arc), Arc::clone(&registry_resolver))
-                    .with_mirror(ctx.config.tool_mirror(Tool::Bun)),
-            ),
-            Box::new(YarnResolver::new(
-                Arc::clone(ctx.http_client_arc),
-                ctx.config.tls.strict_ssl.unwrap_or(true),
-            )),
-        ]);
+        let resolver = create_configured_registry_resolver(
+            ctx.config,
+            Arc::clone(ctx.http_client_arc),
+            &policy,
+        )
+        .map_err(UpdateError::InvalidNamedRegistry)?;
         *chain = Some(LatestResolverChain {
             resolver,
             published_by: policy.published_by,
@@ -225,19 +203,6 @@ pub(crate) fn is_workspace_local_path_specifier(bare_specifier: &str) -> bool {
 }
 
 impl LatestRewriteCtx<'_, '_> {
-    fn node_resolver(&self) -> NodeResolver {
-        let mut resolver = NodeResolver::new_with_auth(
-            Arc::clone(self.http_client_arc),
-            Arc::clone(&self.config.auth_headers),
-        );
-        resolver.node_download_mirrors.clone_from(&self.config.node_download_mirrors);
-        resolver.mirror = self.config.tool_mirror(Tool::Node).map(ToString::to_string);
-        resolver.channel_mirrors = self.config.tool_channel_mirrors(Tool::Node);
-        resolver.offline = self.config.offline;
-        resolver.cache_dir = Some(self.config.cache_dir.clone());
-        resolver
-    }
-
     fn resolve_options(&self, chain: &LatestResolverChain) -> ResolveOptions {
         let manifest_dir = self.manifest
             .path()

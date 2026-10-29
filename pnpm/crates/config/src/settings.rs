@@ -17,6 +17,7 @@ use super::{
     default_virtual_store_dir_max_length, default_workspace_concurrency, is_ci, npmrc_auth,
     side_effects_cache_remote_env, source_date_epoch, workspace_yaml,
 };
+use crate::MacosBackupConfig;
 
 /// The two hoist patterns as one value, for
 /// [`Config::hoist_patterns_before_virtual_store_only`].
@@ -24,17 +25,6 @@ use super::{
 pub struct HoistPatterns {
     pub hoist_pattern: Option<Vec<String>>,
     pub public_hoist_pattern: Option<Vec<String>>,
-}
-
-/// Machine-local macOS Time Machine policy. Both directories remain eligible
-/// for backup unless the user opts out in the global pnpm configuration or
-/// through `PNPM_CONFIG_*` environment variables.
-#[derive(Debug, Clone, SmartDefault)]
-pub struct MacosBackupConfig {
-    #[default = false]
-    pub exclude_modules_dir: bool,
-    #[default = false]
-    pub exclude_store_dir: bool,
 }
 
 /// Resolved runtime config built from defaults, the auth subset of
@@ -1220,6 +1210,12 @@ pub struct Config {
     /// flag — skips those checks. Mirrors pnpm's `opts.gitChecks !== false` gate.
     #[default(true)]
     pub git_checks: bool,
+
+    /// `pnpm version` creates a git commit and tag for the bump. Setting it to
+    /// `false` in `pnpm-workspace.yaml` or `PNPM_CONFIG_GIT_TAG_VERSION`, or
+    /// passing `--no-git-tag-version`, skips both.
+    #[default = true]
+    pub git_tag_version: bool,
 
     /// Maximum time in milliseconds to wait for published versions and their
     /// tarballs to become available. Zero disables the check.

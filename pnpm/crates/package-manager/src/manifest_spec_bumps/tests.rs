@@ -154,13 +154,18 @@ fn a_node_runtime_declaration_with_an_unknown_channel_is_left_alone() {
     assert_eq!(bump_under("node", "runtime:unknown/^26.8.2", "runtime:26.9.0"), None);
 }
 
-/// The deno and bun resolvers report a `runtime:` declaration back as written,
-/// so an update that moved one would leave the lockfile saying something the
-/// next resolve does not.
 #[test]
-fn a_deno_or_bun_runtime_declaration_is_left_alone() {
+fn a_deno_or_bun_runtime_declaration_moves_its_range_and_leaves_tags_alone() {
     for alias in ["deno", "bun"] {
-        for declared in ["runtime:^1.2.0", "runtime:1.2.0", "runtime:latest", "runtime:canary"] {
+        assert_eq!(
+            bump_under(alias, "runtime:^1.2.0", "runtime:1.2.5").as_deref(),
+            Some("runtime:^1.2.5"),
+        );
+        assert_eq!(
+            bump_under(alias, "runtime:1.2.0", "runtime:1.2.5").as_deref(),
+            Some("runtime:1.2.5"),
+        );
+        for declared in ["runtime:latest", "runtime:canary"] {
             assert_eq!(
                 bump_under(alias, declared, "runtime:1.2.5"),
                 None,

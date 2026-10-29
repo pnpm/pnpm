@@ -49,7 +49,7 @@ fn does_not_follow_a_symlinked_target() {
     let link = dir.path().join("auth.ini");
     std::os::unix::fs::symlink(&real, &link).unwrap();
 
-    write_atomic(&link, b"new").unwrap();
+    super::write_atomic_private_if_new(&link, b"new").unwrap();
 
     assert!(
         !std::fs::symlink_metadata(&link)
@@ -88,6 +88,50 @@ fn write_atomic_private_does_not_inherit_a_readable_mode() {
         .mode()
         & 0o777;
     assert_eq!(mode, 0o600, "got {mode:o}");
+}
+
+#[cfg(unix)]
+fn mode(path: &std::path::Path) -> u32 {
+    use std::os::unix::fs::PermissionsExt as _;
+    std::fs::metadata(path)
+        .expect("stat")
+        .permissions()
+        .mode()
+        & 0o777
+}
+
+#[cfg(unix)]
+#[test]
+fn write_atomic_private_if_new_creates_a_file_readable_only_by_its_owner() {
+    use std::os::unix::fs::PermissionsExt as _;
+    let dir = TempDir::new().expect("tempdir");
+    let path = dir.path().join("auth.ini");
+    super::write_atomic_private_if_new(&path, b"//host/:_authToken=tok\n")
+        .expect("write the credential");
+    assert_eq!(mode(&path), 0o600, "got {:o}", mode(&path));
+
+    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o640))
+        .expect("widen the mode");
+    super::write_atomic_private_if_new(&path, b"registry=https://example.test/\n")
+        .expect("replace the file");
+    assert_eq!(mode(&path), 0o640, "got {:o}", mode(&path));
+}
+
+#[cfg(unix)]
+#[test]
+fn write_atomic_creates_a_file_with_the_umask_mode() {
+    use std::os::unix::fs::PermissionsExt as _;
+    let dir = TempDir::new().expect("tempdir");
+    let path = dir.path().join("pnpm-workspace.yaml");
+    write_atomic(&path, b"packages: []\n").expect("write a new file");
+    let reference = dir.path().join("reference");
+    std::fs::File::create(&reference).expect("create the reference file");
+    assert_eq!(mode(&path), mode(&reference), "got {:o}", mode(&path));
+
+    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o640))
+        .expect("narrow the mode");
+    write_atomic(&path, b"packages: [a]\n").expect("replace the file");
+    assert_eq!(mode(&path), 0o640, "got {:o}", mode(&path));
 }
 
 #[test]

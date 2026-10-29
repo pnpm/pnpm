@@ -40,7 +40,6 @@ export function calcDepStateInputKey<NodeId extends string> (
   const depGraphHash = calcDepGraphHash({
     depsGraph: opts.depsGraph,
     cache: {},
-    parents: new Set(),
     depPath: opts.depPath,
     context: createDepGraphHashContext(opts.supportedArchitectures),
   })
@@ -83,7 +82,6 @@ export function calcDepState<NodeId extends string> (
     const depGraphHash = calcDepGraphHash({
       depsGraph,
       cache,
-      parents: new Set(),
       depPath: depPath as NodeId,
       context: createDepGraphHashContext(opts.supportedArchitectures),
     })

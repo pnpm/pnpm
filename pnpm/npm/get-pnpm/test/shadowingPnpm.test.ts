@@ -185,4 +185,15 @@ describe('renderShadowingPnpmWarning', () => {
       `Once a new shell adds it, it has to come first: move ${bin} ahead of ${path.dirname(executable)} in PATH.`
     )
   })
+
+  test('leaves adding the bin directory to the user when setup left PATH alone', () => {
+    const home = path.join('/home', 'me', '.local', 'share', 'pnpm')
+    const bin = path.join(home, 'bin')
+    const executable = path.join('/usr', 'local', 'bin', 'pnpm')
+    assert.equal(
+      renderShadowingPnpmWarning({ executable, origin: 'unknown', binOnPath: false }, home, { modifiedPath: false }),
+      `Warning: "pnpm" on PATH is ${executable} (not installed by pnpm), and ${bin} is not on PATH yet.\n` +
+      `When you add it, it has to come first: move ${bin} ahead of ${path.dirname(executable)} in PATH.`
+    )
+  })
 })

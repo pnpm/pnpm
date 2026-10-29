@@ -6,8 +6,8 @@ use super::{
     },
     latest::{LatestResolverChain, LatestRewriteCtx},
     seed_policy::{
-        OverriddenDirect, UpdatePlan, UpdateScope, importer_seed_policy, select_seed_policy,
-        selected_seed_policy,
+        LockedImporter, OverriddenDirect, UpdatePlan, UpdateScope, importer_seed_policy,
+        select_seed_policy, selected_seed_policy,
     },
     selectors::{
         ParsedSelector, parse_selectors, reject_versioned_latest_selectors,
@@ -146,13 +146,21 @@ pub(super) async fn apply_read_package_hook_to_update_manifest(
 }
 pub(super) async fn prepare_manifest<Reporter: self::Reporter>(
     manifest: &mut PackageManifest,
+    importer_id: &str,
     update: UpdateOptions<'_>,
     owned: &UpdateResources,
     catalogs_seed: Option<&Catalogs>,
     latest_chain: &mut Option<LatestResolverChain>,
 ) -> Result<Option<UpdatePreparation>, UpdateError> {
-    let Some(decision) =
-        decide_update::<Reporter>(manifest, update, owned, catalogs_seed, latest_chain).await?
+    let Some(decision) = decide_update::<Reporter>(
+        manifest,
+        importer_id,
+        update,
+        owned,
+        catalogs_seed,
+        latest_chain,
+    )
+    .await?
     else {
         return Ok(None);
     };
@@ -168,6 +176,7 @@ pub(super) struct UpdateDecision {
 }
 pub(super) async fn decide_update<Reporter: self::Reporter>(
     manifest: &PackageManifest,
+    importer_id: &str,
     update: UpdateOptions<'_>,
     owned: &UpdateResources,
     catalogs_seed: Option<&Catalogs>,
@@ -187,7 +196,7 @@ pub(super) async fn decide_update<Reporter: self::Reporter>(
         .transpose()?;
     let overridden_direct =
         overridden_direct(manifest, update, &selectors, &direct, &mut catalog_ctx)?;
-    let scope = update_scope(update, owned, &selectors, &direct, &overridden_direct);
+    let scope = update_scope(update, owned, importer_id, &selectors, &direct, &overridden_direct);
     let mut plan = UpdatePlan::default();
     let Some(seed_policy) = select_seed_policy::<Reporter>(
         &scope,
@@ -213,6 +222,7 @@ pub(super) async fn decide_update<Reporter: self::Reporter>(
 pub(super) fn update_scope<'a>(
     update: UpdateOptions<'a>,
     owned: &UpdateResources,
+    importer_id: &'a str,
     selectors: &'a [ParsedSelector],
     direct: &'a [(String, DependencyGroup, String)],
     overridden_direct: &'a [OverriddenDirect],
@@ -221,7 +231,7 @@ pub(super) fn update_scope<'a>(
         selectors,
         direct,
         overridden_direct,
-        lockfile: update.lockfile.document,
+        lockfile: LockedImporter { document: update.lockfile.document, id: importer_id },
         config: update.config,
         version: update.version,
         selection: update.selection,
@@ -261,7 +271,7 @@ fn collect_overridden_direct(
     let matcher = overrider.dependency_matcher(manifest.value());
     let matched = direct
         .iter()
-        .filter(|(name, _, previous)| matcher.matches(name, previous))
+        .filter(|(name, group, previous)| matcher.matches(*group, name, previous))
         .map(|(name, group, _)| (name.clone(), *group))
         .collect::<Vec<_>>();
     if matched.is_empty() {
@@ -393,8 +403,11 @@ pub(super) async fn prepare_selected_manifests<Reporter: self::Reporter>(
     }
 
     for &index in selected_indices {
+        let importer_id =
+            pnpm_workspace::importer_id_from_root_dir(workspace_root, &projects[index].root_dir);
         let Some(prepared) = prepare_manifest::<Reporter>(
             &mut projects[index].manifest,
+            &importer_id,
             update,
             owned,
             prepared_all.catalogs_override.as_ref(),
@@ -404,8 +417,6 @@ pub(super) async fn prepare_selected_manifests<Reporter: self::Reporter>(
         else {
             continue;
         };
-        let importer_id =
-            pnpm_workspace::importer_id_from_root_dir(workspace_root, &projects[index].root_dir);
         prepared_all.merge(index, importer_id, prepared);
     }
 

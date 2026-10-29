@@ -9,7 +9,7 @@ catalog:
   '@cyclonedx/cyclonedx-library': 10.3.0
   '@emnapi/wasi-threads': 2.2.0
   '@eslint/js': ^10.0.1
-  '@inquirer/prompts': ^8.7.4
+  '@inquirer/prompts': ^8.7.5
   # Jest 30.5.0 breaks ESM package imports in the Jest runtime.
   '@jest/globals': 30.4.1
   '@npm/types': ^2.1.0
@@ -25,7 +25,7 @@ catalog:
   '@pnpm/tabtab': ^0.5.4
   '@pnpm/tgz-fixtures': 0.0.0
   '@reflink/reflink': 0.1.19
-  '@rushstack/worker-pool': 0.7.30
+  '@rushstack/worker-pool': 0.7.31
   '@stylistic/eslint-plugin': ^5.10.0
   '@tybys/wasm-util': 0.10.4
   '@types/adm-zip': ^0.6.0
@@ -69,7 +69,7 @@ catalog:
   '@types/yarnpkg__lockfile': ^1.1.9
   '@types/yauzl': ^3.4.0
   '@types/zkochan__table': npm:@types/table@6.3.2
-  '@typescript-eslint/utils': ^8.72.0
+  '@typescript-eslint/utils': ^8.72.1
   '@typescript/native-preview': 7.0.0-dev.20260707.2
   '@webcontainer/api': ^1.6.4
   # @yarnpkg/core 4.9.2 was published with a Yarn `patch:` specifier for its
@@ -88,7 +88,7 @@ catalog:
   '@zkochan/table': ^2.0.1
   adm-zip: ^0.6.1
   agentkeepalive: ^4.6.0
-  amaro: ^1.2.2
+  amaro: ^1.3.0
   ansi-diff: ^1.2.0
   archy: ^1.0.0
   better-path-resolve: 2.0.0
@@ -272,7 +272,7 @@ catalog:
   # yet (https://github.com/typescript-eslint/typescript-eslint/issues/10940); the
   # 7.x compiler ships separately as @typescript/native-preview (tsgo).
   typescript: 6.0.3
-  typescript-eslint: ^8.72.0
+  typescript-eslint: ^8.72.1
   uid-number: 0.0.6
   # undici 8.x requires Node.js >=22.19.0, above pnpm's supported floor of
   # Node.js >=22.13.

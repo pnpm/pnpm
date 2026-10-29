@@ -20,7 +20,7 @@ const DIRECTORY_MODE: pnpm_ffi_fs::FileMode = pnpm_ffi_fs::FileMode::from_mode(0
 /// Owner-only, so a staged file is unreadable to anyone else even where
 /// the umask would have allowed more.
 #[cfg(unix)]
-const PRIVATE_FILE_MODE: pnpm_ffi_fs::FileMode = pnpm_ffi_fs::FileMode::from_mode(0o600);
+const NEW_FILE_MODE: pnpm_ffi_fs::FileMode = pnpm_ffi_fs::FileMode::from_mode(0o666);
 
 pub(super) struct ManagedDirectory {
     pub(super) path: PathBuf,
@@ -152,7 +152,7 @@ pub(super) fn write_workspace_file(
     use std::io::Write as _;
     use std::os::unix::fs::PermissionsExt as _;
 
-    let (temporary, mut file) = create_workspace_temporary(directory, name)?;
+    let (temporary, mut file) = create_workspace_temporary(directory, name, mode)?;
     let result = (|| {
         file.write_all(bytes)?;
         if let Some(mode) = mode {
@@ -255,6 +255,7 @@ pub(super) fn force_workspace_symlink(
 fn create_workspace_temporary(
     directory: &ManagedDirectory,
     name: &str,
+    existing_mode: Option<u32>,
 ) -> io::Result<(std::ffi::OsString, fs::File)> {
     loop {
         let temporary = std::ffi::OsString::from(format!(
@@ -262,7 +263,11 @@ fn create_workspace_temporary(
             pnpm_fs::process_id(),
             MANAGED_TEMP_ID.fetch_add(1, Ordering::Relaxed),
         ));
-        match pnpm_ffi_fs::create_file_at(&directory.handle, &temporary, PRIVATE_FILE_MODE) {
+        // A new file gets the umask mode, as any new project file does. A
+        // replacement starts at the existing mode, so its contents are never
+        // readable by more users than the file it replaces.
+        let mode = existing_mode.map_or(NEW_FILE_MODE, pnpm_ffi_fs::FileMode::from_mode);
+        match pnpm_ffi_fs::create_file_at(&directory.handle, &temporary, mode) {
             Ok(file) => return Ok((temporary, file)),
             Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
             Err(error) => return Err(error),

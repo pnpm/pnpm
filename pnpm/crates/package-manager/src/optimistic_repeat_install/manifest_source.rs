@@ -1,8 +1,56 @@
 //! How the repeat-install check reads the project manifests it is handed.
 
 use crate::install::ProjectManifestsByDir;
+use pnpm_hooks::PnpmfileHooks;
 use pnpm_package_manifest::PackageManifest;
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::Arc};
+
+/// The project manifests as the projects declare them: read from disk, or as
+/// a mutating command writes them after the install. The workspace state
+/// records their digests and the next check compares those with the files,
+/// so a view that `packageExtensions` or a `readPackage` hook rewrote must
+/// never stand in for them.
+#[derive(Clone, Copy)]
+pub struct DeclaredManifests<'a>(&'a [(PathBuf, &'a PackageManifest)]);
+
+impl<'a> DeclaredManifests<'a> {
+    #[must_use]
+    pub fn new(manifests: &'a [(PathBuf, &'a PackageManifest)]) -> Self {
+        Self(manifests)
+    }
+
+    #[must_use]
+    pub fn as_slice(self) -> &'a [(PathBuf, &'a PackageManifest)] {
+        self.0
+    }
+}
+
+impl<'a> std::ops::Deref for DeclaredManifests<'a> {
+    type Target = [(PathBuf, &'a PackageManifest)];
+
+    fn deref(&self) -> &Self::Target {
+        self.0
+    }
+}
+
+impl<'a> IntoIterator for DeclaredManifests<'a> {
+    type Item = &'a (PathBuf, &'a PackageManifest);
+    type IntoIter = std::slice::Iter<'a, (PathBuf, &'a PackageManifest)>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter()
+    }
+}
+
+/// The hooks that rewrite the project manifests during an install.
+#[derive(Clone, Copy)]
+pub enum ManifestHooks<'a> {
+    /// The pnpmfiles the configuration finds. The check loads them only when
+    /// it compares a modified manifest with the lockfile.
+    Pnpmfiles,
+    /// Hooks the caller holds in place of the pnpmfiles.
+    InMemory(&'a Arc<dyn PnpmfileHooks>),
+}
 
 /// How the check reads the project manifests it is handed.
 #[derive(Clone, Copy)]
@@ -20,9 +68,15 @@ pub struct RepeatInstallManifests<'a> {
     /// fields are part of what proves it installed. `None` when the projects
     /// the check is handed are the whole workspace.
     pub workspace_projects: Option<&'a [(PathBuf, &'a PackageManifest)]>,
+    pub hooks: ManifestHooks<'a>,
 }
 
 impl RepeatInstallManifests<'_> {
-    /// The `package.json` files on disk, which carry no dependency manifests.
-    pub const ON_DISK: Self = Self { dependency_manifests: None, workspace_projects: None };
+    /// The `package.json` files on disk, which carry no dependency manifests,
+    /// rewritten by the pnpmfiles.
+    pub const ON_DISK: Self = Self {
+        dependency_manifests: None,
+        workspace_projects: None,
+        hooks: ManifestHooks::Pnpmfiles,
+    };
 }

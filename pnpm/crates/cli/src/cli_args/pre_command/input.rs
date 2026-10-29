@@ -359,9 +359,13 @@ fn should_skip_invocation(
         && positionals
             .iter()
             .all(|spec| crate::engine_pm::pin::declared_package_manager(spec).is_some());
+    let is_engine_update_or_outdated =
+        matches!(command, Some("update" | "up" | "upgrade" | "outdated"))
+            && crate::cli_args::engine_deps::has_only_engine_selectors(positionals);
     ambiguous
         || (entry_point != EntryPoint::SelfUpdate && command.is_some_and(should_skip_command_name))
         || is_pm_only_add
+        || is_engine_update_or_outdated
         || reads_global_config
 }
 
@@ -395,37 +399,42 @@ pub(crate) fn is_global(command: &CliCommand) -> bool {
 /// (`store`, `doctor`, and so on), or run something that is not the project
 /// (`dlx`).
 pub(crate) fn should_skip_command(command: &CliCommand) -> bool {
-    if let CliCommand::Add(args) = command
-        && !args.package_names.is_empty()
-        && args.package_names
-            .iter()
-            .all(|request| {
-                crate::engine_pm::pin::declared_package_manager(request.selector()).is_some()
-            })
-    {
-        return true;
-    }
-    matches!(
-        command,
+    match command {
+        CliCommand::Add(args) => {
+            !args.package_names.is_empty()
+                && args.package_names
+                    .iter()
+                    .all(|request| {
+                        crate::engine_pm::pin::declared_package_manager(request.selector())
+                            .is_some()
+                    })
+        }
+        CliCommand::Update(args) => {
+            crate::cli_args::engine_deps::has_only_engine_selectors(&args.packages)
+        }
+        CliCommand::Outdated(args) => {
+            crate::cli_args::engine_deps::has_only_engine_selectors(&args.packages)
+        }
         CliCommand::CatFile(_)
-            | CliCommand::CatIndex(_)
-            | CliCommand::Completion(_)
-            | CliCommand::CompletionServer(_)
-            | CliCommand::Dlx(_)
-            | CliCommand::Doctor(_)
-            | CliCommand::FindHash(_)
-            | CliCommand::Runtime(_)
-            | CliCommand::Env(_)
-            | CliCommand::Edit(_)
-            | CliCommand::Profile(_)
-            | CliCommand::Token(_)
-            | CliCommand::Xmas(_)
-            | CliCommand::SelfUpdate(_)
-            | CliCommand::Setup(_)
-            | CliCommand::Shim(_)
-            | CliCommand::Store(_)
-            | CliCommand::With(_),
-    )
+        | CliCommand::CatIndex(_)
+        | CliCommand::Completion(_)
+        | CliCommand::CompletionServer(_)
+        | CliCommand::Dlx(_)
+        | CliCommand::Doctor(_)
+        | CliCommand::FindHash(_)
+        | CliCommand::Runtime(_)
+        | CliCommand::Env(_)
+        | CliCommand::Edit(_)
+        | CliCommand::Profile(_)
+        | CliCommand::Token(_)
+        | CliCommand::Xmas(_)
+        | CliCommand::SelfUpdate(_)
+        | CliCommand::Setup(_)
+        | CliCommand::Shim(_)
+        | CliCommand::Store(_)
+        | CliCommand::With(_) => true,
+        _ => false,
+    }
 }
 
 pub(super) fn should_skip_command_name(command: &str) -> bool {

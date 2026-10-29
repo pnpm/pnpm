@@ -48,7 +48,7 @@ fn empty_project_list_produces_empty_projects_map() {
         IncludedDependencies::default(),
         None,
         &BTreeMap::default(),
-        &[],
+        crate::DeclaredManifests::new(&[]),
         None,
     );
     assert!(state.projects.is_empty());
@@ -69,7 +69,7 @@ fn prefers_the_manifest_mtime_over_the_clock() {
         IncludedDependencies::default(),
         None,
         &BTreeMap::default(),
-        &[(dir.path().to_path_buf(), &manifest)],
+        crate::DeclaredManifests::new(&[(dir.path().to_path_buf(), &manifest)]),
         None,
     );
     assert_eq!(state.last_validated_timestamp, pnpm_testing_utils::fs::mtime_ms(manifest.path()));
@@ -96,7 +96,7 @@ fn raises_the_manifest_mtime_baseline_to_the_filesystem_now() {
             IncludedDependencies::default(),
             None,
             &BTreeMap::default(),
-            &[(dir.path().to_path_buf(), &manifest)],
+            crate::DeclaredManifests::new(&[(dir.path().to_path_buf(), &manifest)]),
             filesystem_now_ms,
         )
     };
@@ -124,7 +124,7 @@ fn source_date_epoch_lowers_the_timestamp_but_never_raises_it() {
             IncludedDependencies::default(),
             None,
             &BTreeMap::default(),
-            &[(dir.path().to_path_buf(), &manifest)],
+            crate::DeclaredManifests::new(&[(dir.path().to_path_buf(), &manifest)]),
             Some(1_600_000_001_000),
         )
         .last_validated_timestamp
@@ -165,7 +165,7 @@ fn records_every_workspace_project_keyed_by_root_dir() {
         IncludedDependencies::default(),
         None,
         &BTreeMap::default(),
-        &project_manifests,
+        crate::DeclaredManifests::new(&project_manifests),
         None,
     );
 
@@ -201,7 +201,7 @@ fn records_config_dependencies_from_config() {
         IncludedDependencies::default(),
         None,
         &BTreeMap::default(),
-        &[],
+        crate::DeclaredManifests::new(&[]),
         None,
     );
     assert_eq!(state.config_dependencies, config.config_dependencies);

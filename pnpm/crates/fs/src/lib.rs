@@ -33,7 +33,7 @@ pub use pending_temp::{
 };
 pub use private_named_tempfile::private_named_tempfile_in;
 pub use read_modules_dir::read_modules_dir;
-pub use realpath_missing::realpath_missing;
+pub use realpath_missing::{realpath_missing, symlinked_dir_real_path};
 pub use relative_path::{join_slash_separated_path, push_slash_separated_path, relative_path};
 pub use remove_dirent::remove_dirent;
 pub use rename_even_across_devices::rename_even_across_devices;
@@ -48,14 +48,14 @@ pub use secure_temp_lock::{
 };
 pub use symlink_dir::*;
 pub use sync_file::sync_file;
-pub use umask_named_tempfile::umask_named_tempfile_in;
+pub use umask_named_tempfile::{named_tempfile_with_mode_in, umask_named_tempfile_in};
 #[cfg(target_os = "wasi")]
 pub use wasi_fs::{
     check_file_owner, create_inheriting_mode as create_file_inheriting_mode,
     create_new as create_new_with_mode, executable_access, file_link_count, lock_file,
     open_nofollow as open_file_without_following, register_sqlite_permissions, try_lock_file,
 };
-pub use write_atomic::{write_atomic, write_atomic_private};
+pub use write_atomic::{write_atomic, write_atomic_private, write_atomic_private_if_new};
 
 mod background_drop;
 mod canonical_paths;

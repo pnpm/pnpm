@@ -32,6 +32,7 @@ const UNDOCUMENTED_SETTINGS: &[&str] = &[
     "changedFilesIgnorePattern", // filtering.md
     "configDependencies",        // config-dependencies.md
     "gitChecks",                 // cli/publish.md
+    "gitTagVersion",             // cli/version.md
     "registry",                  // registries.md
     "tagVersionPrefix",          // cli/version.md
     "testPattern",               // filtering.md

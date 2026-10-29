@@ -22,9 +22,9 @@ const MAX_CACHE_BYTES: usize = MAX_INDEX_BYTES + 64 * 1024;
 #[derive(Serialize, Deserialize)]
 pub(super) struct CachedIndex {
     url: Url,
-    body: Box<serde_json::value::RawValue>,
+    pub(super) body: Box<serde_json::value::RawValue>,
     #[serde(default)]
-    missing: bool,
+    pub(super) missing: bool,
 }
 
 pub(super) struct Registry<'a> {

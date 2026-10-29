@@ -119,7 +119,11 @@ fn parsed_override() -> Vec<VersionOverride> {
     vec![VersionOverride {
         selector: "target".to_string(),
         parent_pkg: None,
-        target_pkg: PackageSelector { name: "target".to_string(), bare_specifier: None },
+        target_pkg: PackageSelector {
+            name: "target".to_string(),
+            bare_specifier: None,
+            dep_type: None,
+        },
         new_bare_specifier: "2.0.0".to_string(),
         converge: false,
     }]
@@ -322,7 +326,11 @@ async fn remove_target(lockfile: &Lockfile) -> (Option<Lockfile>, usize) {
     let parsed = vec![VersionOverride {
         selector: "target".to_string(),
         parent_pkg: None,
-        target_pkg: PackageSelector { name: "target".to_string(), bare_specifier: None },
+        target_pkg: PackageSelector {
+            name: "target".to_string(),
+            bare_specifier: None,
+            dep_type: None,
+        },
         new_bare_specifier: "-".to_string(),
         converge: false,
     }];
@@ -392,8 +400,13 @@ async fn removes_a_dependency_only_from_matching_parent_snapshots() {
         parent_pkg: Some(PackageSelector {
             name: "parent".to_string(),
             bare_specifier: Some("^1".to_string()),
+            dep_type: None,
         }),
-        target_pkg: PackageSelector { name: "target".to_string(), bare_specifier: None },
+        target_pkg: PackageSelector {
+            name: "target".to_string(),
+            bare_specifier: None,
+            dep_type: None,
+        },
         new_bare_specifier: "-".to_string(),
         converge: false,
     }];
@@ -447,7 +460,11 @@ async fn applies_exact_replacements_and_dependency_removals_together() {
         VersionOverride {
             selector: "obsolete".to_string(),
             parent_pkg: None,
-            target_pkg: PackageSelector { name: "obsolete".to_string(), bare_specifier: None },
+            target_pkg: PackageSelector {
+                name: "obsolete".to_string(),
+                bare_specifier: None,
+                dep_type: None,
+            },
             new_bare_specifier: "-".to_string(),
             converge: false,
         },
@@ -545,7 +562,11 @@ fn range_override(value: &str) -> Vec<VersionOverride> {
     vec![VersionOverride {
         selector: "target".to_string(),
         parent_pkg: None,
-        target_pkg: PackageSelector { name: "target".to_string(), bare_specifier: None },
+        target_pkg: PackageSelector {
+            name: "target".to_string(),
+            bare_specifier: None,
+            dep_type: None,
+        },
         new_bare_specifier: value.to_string(),
         converge: false,
     }]
@@ -649,8 +670,16 @@ fn lockfile_with_two_dependents() -> Lockfile {
 fn parent_scoped_override() -> Vec<VersionOverride> {
     vec![VersionOverride {
         selector: "parent>target".to_string(),
-        parent_pkg: Some(PackageSelector { name: "parent".to_string(), bare_specifier: None }),
-        target_pkg: PackageSelector { name: "target".to_string(), bare_specifier: None },
+        parent_pkg: Some(PackageSelector {
+            name: "parent".to_string(),
+            bare_specifier: None,
+            dep_type: None,
+        }),
+        target_pkg: PackageSelector {
+            name: "target".to_string(),
+            bare_specifier: None,
+            dep_type: None,
+        },
         new_bare_specifier: "2.0.0".to_string(),
         converge: false,
     }]

@@ -161,8 +161,9 @@ pub(super) async fn prepare_dispatched_modules<'install, Reporter: self::Reporte
         loaded,
         lockfiles,
         verification,
-        projects: SettledProjects { workspace, scope, project_manifests },
+        projects,
     } = settled;
+    let scope = projects.scope;
     let verification = verification.take_inputs(options);
     let prepared = prepare_modules_state::<Reporter>(PrepareModulesStateInputs {
         tree: settled.modules_tree(),
@@ -171,13 +172,7 @@ pub(super) async fn prepare_dispatched_modules<'install, Reporter: self::Reporte
             current: loaded.current.as_ref(),
             importer_ids: scope.importers.requested_importer_ids.as_ref(),
         },
-        projects: crate::install::state_options::InstallProjectMetadata {
-            catalogs: &workspace.catalogs,
-            manifests: project_manifests,
-            workspace_projects: scope.workspace_projects.as_deref(),
-            prefix: &workspace.prefix,
-            workspace_packages: workspace.workspace_packages.as_deref(),
-        },
+        projects: projects.metadata(),
         repeat: crate::install::state_options::RepeatInstallPolicy {
             frozen: decided.take_frozen_path,
             filtered: scope.importers.filtered_install,

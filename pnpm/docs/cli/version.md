@@ -13,7 +13,7 @@ pnpm version -r [--dry-run]
 
 `<newversion>` can be any of the bump types above or an explicit semver version (e.g. `1.2.3`). Workspaces and the `workspace:` protocol are supported, so cross-references between workspace packages are updated correctly.
 
-When run inside a git repository, `pnpm version` creates a git commit and an annotated tag for the bump. The working tree must be clean (see `--no-git-checks` below) and commits/tags can be disabled with `--no-git-tag-version`. Git commits and tags are always skipped in recursive mode because multiple packages may be bumped to different versions in a single run.
+When run inside a git repository, `pnpm version` creates a git commit and an annotated tag for the bump. The working tree must be clean (see `--no-git-checks` below) and commits/tags can be disabled with `--no-git-tag-version` or `gitTagVersion: false` in `pnpm-workspace.yaml`. Git commits and tags are always skipped in recursive mode because multiple packages may be bumped to different versions in a single run.
 
 ## Usage
 

@@ -3,9 +3,16 @@ id: outdated
 title: pnpm outdated
 ---
 
-Checks for outdated packages. The check can be limited to a subset of the
-installed packages by providing arguments. Patterns support `*` wildcards, and a
-leading `!` excludes matching packages.
+Checks for outdated packages, runtimes (`node`, `deno`, `bun` declared in
+`devEngines.runtime`, `engines.runtime`, or through the `runtime:` / `tool:`
+protocol), package managers (`pnpm`, `npm`, `yarn`, `bun` declared in
+`devEngines.packageManager` or `packageManager`), Cargo crates (`Cargo.toml`
+when [`cargo.enabled`](../cargo.md#cargoenabled) is `true`), and Python packages
+(`pyproject.toml` when [`python.enabled`](../python.md#pythonenabled) is
+`true`). The check can be limited to a subset of the declared dependencies,
+runtimes, or package managers by providing arguments, including `crate:<name>`
+for Cargo crates and `pypi:<name>` for Python packages. Patterns support `*`
+wildcards, and a leading `!` excludes matching names.
 
 `pnpm outdated` exits with code 1 when any dependency is outdated.
 

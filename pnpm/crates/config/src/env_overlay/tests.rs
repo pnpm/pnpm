@@ -399,6 +399,18 @@ fn tag_version_prefix_reads_from_the_environment() {
 }
 
 #[test]
+fn git_tag_version_reads_from_the_environment() {
+    struct Env;
+    impl EnvVar for Env {
+        fn var(name: &str) -> Option<String> {
+            (name == "PNPM_CONFIG_GIT_TAG_VERSION").then(|| "false".to_owned())
+        }
+    }
+    let settings = TrustedSettings::from_pnpm_config_env::<Env>().settings;
+    assert_eq!(settings.git_tag_version, Some(false));
+}
+
+#[test]
 fn publish_wait_timeout_reads_from_environment() {
     struct Env;
     impl EnvVar for Env {

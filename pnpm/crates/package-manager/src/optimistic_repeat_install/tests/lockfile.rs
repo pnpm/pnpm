@@ -148,7 +148,7 @@ fn returns_up_to_date_in_workspace_mode_without_lockfile() {
     let decision = check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
         workspace_root: dir.path(),
         config,
-        project_manifests: &[(dir.path().to_path_buf(), &manifest)],
+        project_manifests: crate::DeclaredManifests::new(&[(dir.path().to_path_buf(), &manifest)]),
         is_workspace_install: true,
         lockfile: MaybeLazyLockfile::Loaded(None),
         catalogs: &BTreeMap::default(),
@@ -195,7 +195,10 @@ fn run_status_reports_wanted_lockfile_merge_conflicts() {
         &OptimisticRepeatInstallCheck {
             workspace_root: dir.path(),
             config,
-            project_manifests: &[(dir.path().to_path_buf(), &manifest)],
+            project_manifests: crate::DeclaredManifests::new(&[(
+                dir.path().to_path_buf(),
+                &manifest,
+            )]),
             is_workspace_install: false,
             lockfile: MaybeLazyLockfile::Loaded(None),
             catalogs: &BTreeMap::default(),
@@ -732,7 +735,7 @@ fn lockfile_rewritten_after_the_drift_stat_is_not_unchanged() {
     let check = OptimisticRepeatInstallCheck {
         workspace_root: dir.path(),
         config,
-        project_manifests: &project_manifests,
+        project_manifests: crate::DeclaredManifests::new(&project_manifests),
         is_workspace_install: false,
         lockfile: MaybeLazyLockfile::Loaded(None),
         catalogs: &BTreeMap::default(),
@@ -957,7 +960,10 @@ fn run_gate_detects_a_manifest_edit_that_landed_while_the_install_was_committing
         &OptimisticRepeatInstallCheck {
             workspace_root: dir.path(),
             config,
-            project_manifests: &[(dir.path().to_path_buf(), &manifest)],
+            project_manifests: crate::DeclaredManifests::new(&[(
+                dir.path().to_path_buf(),
+                &manifest,
+            )]),
             is_workspace_install: false,
             lockfile: MaybeLazyLockfile::Loaded(None),
             catalogs: &BTreeMap::default(),
@@ -1073,7 +1079,7 @@ fn workspace_without_projects_refuses_a_changed_unparsable_lockfile() {
     let decision = check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
         workspace_root,
         config,
-        project_manifests: &[],
+        project_manifests: crate::DeclaredManifests::new(&[]),
         is_workspace_install: true,
         lockfile: MaybeLazyLockfile::Lazy(&lazy),
         catalogs: &BTreeMap::default(),

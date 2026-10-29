@@ -91,7 +91,6 @@ export function calcGraphNodeHash<Meta extends PkgMeta> (
   const deps = calcDepGraphHash({
     depsGraph: graph,
     cache,
-    parents: new Set(),
     depPath,
     context: createDepGraphHashContext(supportedArchitectures),
   })

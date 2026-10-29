@@ -3,6 +3,8 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
+import semver from 'semver'
+
 import { extractTarball } from './extractTarball.js'
 import { registryConfigFromEnv } from './npmConfig.js'
 import { isMusl, platformPackageName } from './platformPackageName.js'
@@ -28,7 +30,10 @@ function wrapperPackageName (major: number): string {
   return major >= 12 ? CLI_PKG_NAME : '@pnpm/exe'
 }
 
-const USAGE = `Usage: npx get-pnpm [version]
+/** The first pnpm whose `pnpm setup` has `--no-modify-path`. */
+const NO_MODIFY_PATH_SINCE = '12.16.0'
+
+const USAGE = `Usage: npx get-pnpm [--no-modify-path] [version]
 
 Installs pnpm as a standalone executable and adds it to your PATH.
 
@@ -44,8 +49,15 @@ Arguments:
                      range resolves to the version pnpm-lock.yaml records
                      while that is still in range.
 
+Options:
+  --no-modify-path   Install pnpm without adding it to PATH: leave the shell
+                     config file and the Windows registry unchanged, and print
+                     the lines to add instead. Needs pnpm ${NO_MODIFY_PATH_SINCE} or
+                     newer.
+
 Environment variables:
   PNPM_VERSION           Version to install when no argument is given.
+  PNPM_NO_MODIFY_PATH    Set to 1 for the same as --no-modify-path.
   PNPM_HOME              Directory to install pnpm into.
   npm_config_registry    Registry to download pnpm from.
   npm_config_*:_authToken
@@ -62,11 +74,28 @@ Environment variables:
 `
 
 export async function runCli (argv: string[]): Promise<number> {
+  const args = parseCliArgs(argv, process.env)
+  if (args.help) {
+    console.log(USAGE)
+    return 0
+  }
+  const registryConfig = registryConfigFromEnv()
+  return installPnpm({
+    versionSpec: args.version ?? process.env.PNPM_VERSION ?? projectVersionSpec(process.cwd()) ?? 'latest',
+    modifyPath: args.modifyPath,
+    ...registryConfig,
+  })
+}
+
+/** The command line, with `PNPM_NO_MODIFY_PATH` as the default of `--no-modify-path`. */
+export function parseCliArgs (argv: string[], env: NodeJS.ProcessEnv): { help: boolean, version?: string, modifyPath: boolean } {
   const positional: string[] = []
+  let modifyPath = !isEnabled(env.PNPM_NO_MODIFY_PATH)
   for (const arg of argv) {
-    if (arg === '--help' || arg === '-h') {
-      console.log(USAGE)
-      return 0
+    if (arg === '--help' || arg === '-h') return { help: true, modifyPath }
+    if (arg === '--no-modify-path') {
+      modifyPath = false
+      continue
     }
     if (arg.startsWith('-')) {
       throw new Error(`Unknown option "${arg}".\n\n${USAGE}`)
@@ -76,11 +105,12 @@ export async function runCli (argv: string[]): Promise<number> {
   if (positional.length > 1) {
     throw new Error(`Expected at most one version, got ${positional.length}.\n\n${USAGE}`)
   }
-  const registryConfig = registryConfigFromEnv()
-  return installPnpm({
-    versionSpec: positional[0] ?? process.env.PNPM_VERSION ?? projectVersionSpec(process.cwd()) ?? 'latest',
-    ...registryConfig,
-  })
+  return { help: false, version: positional[0], modifyPath }
+}
+
+/** Whether an on/off environment variable is on: set to anything but "", "0", or "false". */
+function isEnabled (value: string | undefined): boolean {
+  return value != null && value !== '' && value !== '0' && value.toLowerCase() !== 'false'
 }
 
 /** The version `readProjectPin` finds for `dir`, saying where it comes from. */
@@ -103,12 +133,18 @@ function projectVersionSpec (dir: string): string | undefined {
  * https://get.pnpm.io/install.sh downloads — the executable next to its `dist/`
  * tree — because `pnpm setup` installs that directory as-is.
  *
+ * With `modifyPath: false`, `pnpm setup --no-modify-path` leaves the shell
+ * config and the Windows registry alone. A pnpm whose setup lacks that option
+ * is refused before setup runs.
+ *
  * @returns the exit code of `pnpm setup`.
  */
 export async function installPnpm (
   opts: {
     versionSpec: string
     registry: string
+    /** Whether `pnpm setup` adds pnpm to PATH. Defaults to `true`. */
+    modifyPath?: boolean
     authPath?: string
     headers?: RequestHeaders
     ca?: readonly string[]
@@ -132,12 +168,18 @@ export async function installPnpm (
     process.once(signal, onSignal)
   }
   try {
-    const { binPath } = await downloadPnpm({ ...opts, dest: tmpDir })
-    const { error, status } = spawnSync(binPath, ['setup', '--force'], { stdio: 'inherit' })
+    const { version, binPath } = await downloadPnpm({ ...opts, dest: tmpDir })
+    const modifyPath = opts.modifyPath ?? true
+    const setupArgs = [...setupCommand(version), '--force']
+    if (!modifyPath) {
+      assertSetupCanLeavePathAlone(version)
+      setupArgs.push('--no-modify-path')
+    }
+    const { error, status } = spawnSync(binPath, setupArgs, { stdio: 'inherit' })
     if (error != null) throw error
     if (status === 0) {
-      console.log(renderUndoHint(pnpmHomeDir()))
-      warnIfPnpmIsShadowed()
+      console.log(renderUndoHint(pnpmHomeDir(), process.platform, { modifiedPath: modifyPath }))
+      warnIfPnpmIsShadowed({ modifiedPath: modifyPath })
     }
     return status ?? 1
   } finally {
@@ -149,15 +191,36 @@ export async function installPnpm (
 }
 
 /**
+ * The versions whose `pm` prefix forces a built-in command. pnpm 12.0.0 was
+ * released without it.
+ */
+const PM_PREFIX_VERSIONS = '>=11.0.0-beta.6 <12.0.0-0 || >=12.1.0'
+
+/**
+ * How to invoke the built-in `pnpm setup` of pnpm `version`. From pnpm 11, a
+ * `setup` script in the project the installer runs from can replace the
+ * built-in unless the `pm` prefix forces it.
+ */
+export function setupCommand (version: string): string[] {
+  return semver.satisfies(version, PM_PREFIX_VERSIONS, { includePrerelease: true }) ? ['pm', 'setup'] : ['setup']
+}
+
+function assertSetupCanLeavePathAlone (version: string): void {
+  if (semver.lt(version, NO_MODIFY_PATH_SINCE)) {
+    throw new Error(`pnpm ${version} cannot be installed without adding it to PATH: --no-modify-path needs pnpm ${NO_MODIFY_PATH_SINCE} or newer. Install a newer pnpm, or leave out --no-modify-path.`)
+  }
+}
+
+/**
  * Says so when the pnpm `pnpm setup` just installed is not the one PATH
  * resolves, or the success above is the last thing the person reads before
  * `pnpm --version` prints the old version again.
  */
-function warnIfPnpmIsShadowed (): void {
+function warnIfPnpmIsShadowed (opts: { modifiedPath: boolean }): void {
   const pnpmHome = pnpmHomeDir()
   const shadowing = findShadowingPnpm(pnpmHome, { pathEnv: readPathEnv(process.env) })
   if (shadowing != null) {
-    console.error(renderShadowingPnpmWarning(shadowing, pnpmHome))
+    console.error(renderShadowingPnpmWarning(shadowing, pnpmHome, opts))
   }
 }
 

@@ -1,6 +1,6 @@
 use crate::optimistic_repeat_install::{
-    CatalogAnchor, CatalogResolutionResult, Catalogs, Config, IncludedDependencies,
-    WantedDependency, resolve_from_catalog,
+    CatalogAnchor, CatalogResolutionResult, Catalogs, Config, DependencyGroup,
+    IncludedDependencies, WantedDependency, resolve_from_catalog,
 };
 use pnpm_config_parse_overrides::VersionOverride;
 use pnpm_lockfile::is_local_tarball_path;
@@ -42,15 +42,17 @@ pub(crate) fn has_local_file_override(overrides: &[VersionOverride]) -> bool {
 pub(crate) fn is_effective_local_file_dep(
     catalogs: &Catalogs,
     overrides: &[VersionOverride],
+    group: DependencyGroup,
     alias: &str,
     spec: &str,
 ) -> bool {
     (is_local_file_spec(spec) || catalog_resolves_to_local_file(catalogs, alias, spec))
-        && !is_dep_replaced_by_override(overrides, alias, spec)
+        && !is_dep_replaced_by_override(overrides, group, alias, spec)
 }
 
 pub(crate) fn is_dep_replaced_by_override(
     overrides: &[VersionOverride],
+    group: DependencyGroup,
     alias: &str,
     spec: &str,
 ) -> bool {
@@ -59,7 +61,7 @@ pub(crate) fn is_dep_replaced_by_override(
         .any(|entry| {
             !entry.converge
                 && entry.parent_pkg.is_none()
-                && crate::overrides::matches_target(&entry.target_pkg, alias, spec)
+                && crate::overrides::matches_target(&entry.target_pkg, Some(group), alias, spec)
         })
 }
 
@@ -84,16 +86,17 @@ pub(crate) fn has_local_file_package_extension(
     extensions
         .values()
         .any(|extension| {
-            let optional = included.optional_dependencies
-                .then_some(extension.optional_dependencies.as_ref())
-                .flatten();
-            [extension.dependencies.as_ref(), optional]
-                .into_iter()
-                .flatten()
-                .any(|deps| {
+            let optional = included.optional_dependencies.then_some((
+                DependencyGroup::Optional,
+                extension.optional_dependencies.as_ref(),
+            ));
+            std::iter::once((DependencyGroup::Prod, extension.dependencies.as_ref()))
+                .chain(optional)
+                .filter_map(|(group, deps)| deps.map(|deps| (group, deps)))
+                .any(|(group, deps)| {
                     deps.iter()
                         .any(|(alias, spec)| {
-                            is_effective_local_file_dep(catalogs, overrides, alias, spec)
+                            is_effective_local_file_dep(catalogs, overrides, group, alias, spec)
                         })
                 })
         })

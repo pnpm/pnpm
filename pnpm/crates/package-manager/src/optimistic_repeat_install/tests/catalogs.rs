@@ -37,7 +37,7 @@ fn returns_skipped_when_a_catalog_dependency_resolves_to_a_local_path() {
     let decision = check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
         workspace_root: dir.path(),
         config,
-        project_manifests: &[(dir.path().to_path_buf(), &manifest)],
+        project_manifests: crate::DeclaredManifests::new(&[(dir.path().to_path_buf(), &manifest)]),
         is_workspace_install: false,
         lockfile: MaybeLazyLockfile::Loaded(None),
         catalogs: &catalogs,
@@ -98,7 +98,7 @@ fn returns_up_to_date_when_a_catalog_dependency_resolves_to_a_registry_range() {
     let decision = check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
         workspace_root: dir.path(),
         config,
-        project_manifests: &[(dir.path().to_path_buf(), &manifest)],
+        project_manifests: crate::DeclaredManifests::new(&[(dir.path().to_path_buf(), &manifest)]),
         is_workspace_install: false,
         lockfile: MaybeLazyLockfile::Loaded(None),
         catalogs: &catalogs,
@@ -134,7 +134,7 @@ fn returns_skipped_when_an_override_maps_through_a_catalog_to_a_local_path() {
     let decision = check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
         workspace_root: dir.path(),
         config,
-        project_manifests: &[(dir.path().to_path_buf(), &manifest)],
+        project_manifests: crate::DeclaredManifests::new(&[(dir.path().to_path_buf(), &manifest)]),
         is_workspace_install: false,
         lockfile: MaybeLazyLockfile::Loaded(None),
         catalogs: &catalogs,
@@ -285,7 +285,7 @@ fn expanded_selected_modules_dir_check_reanchors_catalog_links_from_workspace_di
     let check = OptimisticRepeatInstallCheck {
         workspace_root: external_lockfile_dir.path(),
         config,
-        project_manifests: &project_manifests,
+        project_manifests: crate::DeclaredManifests::new(&project_manifests),
         is_workspace_install: true,
         lockfile: MaybeLazyLockfile::Loaded(None),
         catalogs: &catalogs,

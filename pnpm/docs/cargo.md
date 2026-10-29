@@ -39,6 +39,8 @@ pnpm writes the dependency into `Cargo.toml` without reformatting anything else 
 
 `pnpm add crate:` and `pnpm add rust@` fail with `--recursive` or `--filter`. Run them in the project instead.
 
+[`pnpm outdated`](./cli/outdated.md) and [`pnpm update`](./cli/update.md) also check and update Cargo dependencies when `cargo.enabled` is `true`, and accept `crate:<name>` selectors to target specific crates.
+
 ## What an install does
 
 1. Reads the workspace's `Cargo.toml`, including its members.
