@@ -624,7 +624,7 @@ fn workspace_link_dangling(
     prepare: impl FnOnce(&std::path::Path),
 ) -> bool {
     workspace_link_dangling_with_lockfile(
-        LINKED_LIB_LOCKFILE,
+        Some(LINKED_LIB_LOCKFILE),
         node_linker,
         configure,
         held,
@@ -632,15 +632,17 @@ fn workspace_link_dangling(
     )
 }
 
-/// [`workspace_link_dangling`] with `lockfile` as the wanted lockfile.
+/// [`workspace_link_dangling`] with `lockfile` as the wanted lockfile, or
+/// none when `None`.
 fn workspace_link_dangling_with_lockfile(
-    lockfile: &str,
+    lockfile: Option<&str>,
     node_linker: pnpm_config::NodeLinker,
     configure: impl FnOnce(&mut Config),
     held: Option<&[&str]>,
     prepare: impl FnOnce(&std::path::Path),
 ) -> bool {
-    let lockfile: pnpm_lockfile::Lockfile = serde_saphyr::from_str(lockfile).unwrap();
+    let lockfile: Option<pnpm_lockfile::Lockfile> =
+        lockfile.map(|lockfile| serde_saphyr::from_str(lockfile).unwrap());
     let dir = tempfile::tempdir().unwrap();
     let root = dir.path();
     let sibling_dir = root.join("pkg-a");
@@ -660,6 +662,7 @@ fn workspace_link_dangling_with_lockfile(
     let sibling_manifest = PackageManifest::from_path(sibling_dir.join("package.json")).unwrap();
     let mut config = Config::new();
     config.modules_dir = root.join("node_modules");
+    config.install_state_dir = config.modules_dir.join(".pnpm");
     configure(&mut config);
     let config = config.leak();
     prepare(root);
@@ -677,7 +680,7 @@ fn workspace_link_dangling_with_lockfile(
                 (sibling_dir, &sibling_manifest),
             ]),
             is_workspace_install: true,
-            lockfile: MaybeLazyLockfile::Loaded(Some(&lockfile)),
+            lockfile: MaybeLazyLockfile::Loaded(lockfile.as_ref()),
             catalogs: &BTreeMap::default(),
             layout: crate::RepeatInstallLayout {
                 node_linker,
@@ -805,7 +808,7 @@ fn only_held_projects_need_their_workspace_links() {
 fn a_root_link_to_another_target_does_not_stand_in_for_a_deduped_one() {
     let lockfile = LINKED_LIB_LOCKFILE.replace("version: link:../lib", "version: link:../other");
     let dangling = workspace_link_dangling_with_lockfile(
-        &lockfile,
+        Some(&lockfile),
         pnpm_config::NodeLinker::Isolated,
         |config| config.dedupe_direct_deps = true,
         None,
@@ -831,7 +834,7 @@ fn a_local_dependency_the_lockfile_does_not_link_may_be_missing() {
     let injected = LINKED_LIB_LOCKFILE.replace("version: link:../lib", "version: file:lib");
     for lockfile in [removed, injected] {
         let dangling = workspace_link_dangling_with_lockfile(
-            &lockfile,
+            Some(&lockfile),
             pnpm_config::NodeLinker::Isolated,
             |_| {},
             None,
@@ -842,4 +845,65 @@ fn a_local_dependency_the_lockfile_does_not_link_may_be_missing() {
         );
         assert!(!dangling, "{lockfile}");
     }
+}
+
+/// A root link to the target the manifest names proves a deduped sibling
+/// installed without reading any lockfile.
+#[test]
+fn a_deduped_workspace_link_needs_no_lockfile() {
+    let dangling = workspace_link_dangling_with_lockfile(
+        None,
+        pnpm_config::NodeLinker::Isolated,
+        |config| config.dedupe_direct_deps = true,
+        None,
+        |root| {
+            link_lib(root, "node_modules/lib");
+            fs::create_dir_all(root.join("pkg-a/node_modules/foo")).unwrap();
+        },
+    );
+    assert!(!dangling);
+}
+
+/// The current lockfile stands in for a deleted wanted lockfile.
+#[test]
+fn a_deleted_workspace_link_is_found_through_the_current_lockfile() {
+    let dangling = workspace_link_dangling_with_lockfile(
+        None,
+        pnpm_config::NodeLinker::Isolated,
+        |_| {},
+        None,
+        |root| {
+            link_lib(root, "node_modules/lib");
+            fs::create_dir_all(root.join("pkg-a/node_modules")).unwrap();
+            fs::create_dir_all(root.join("node_modules/.pnpm")).unwrap();
+            fs::write(
+                root.join("node_modules/.pnpm").join(pnpm_lockfile::Lockfile::CURRENT_FILE_NAME),
+                LINKED_LIB_LOCKFILE,
+            )
+            .unwrap();
+        },
+    );
+    assert!(dangling);
+}
+
+/// Under `sharedWorkspaceLockfile: false` a sibling records its links in its
+/// own lockfile.
+#[test]
+fn a_deleted_workspace_link_is_found_through_a_dedicated_lockfile() {
+    let dangling = workspace_link_dangling_with_lockfile(
+        None,
+        pnpm_config::NodeLinker::Isolated,
+        |config| config.shared_workspace_lockfile = false,
+        None,
+        |root| {
+            link_lib(root, "node_modules/lib");
+            fs::create_dir_all(root.join("pkg-a/node_modules")).unwrap();
+            fs::write(
+                root.join("pkg-a").join(pnpm_lockfile::Lockfile::FILE_NAME),
+                "lockfileVersion: '9.0'\n\nimporters:\n\n  .:\n    dependencies:\n      lib:\n        specifier: workspace:*\n        version: link:../lib\n",
+            )
+            .unwrap();
+        },
+    );
+    assert!(dangling);
 }

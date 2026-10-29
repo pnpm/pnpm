@@ -79,6 +79,8 @@ test('a workspace dependency the lockfile does not link may be missing', async (
 
 test('a root link to the same target stands in for a deduped one, under any alias', async () => {
   writeLockfile('link:../lib')
+  const lockfilePath = path.join(root, 'pnpm-lock.yaml')
+  fs.writeFileSync(lockfilePath, fs.readFileSync(lockfilePath, 'utf8').replace('      lib:\n        specifier: workspace:*\n        version: link:lib', '      renamed:\n        specifier: workspace:lib@*\n        version: link:lib'))
   link('lib', 'node_modules/renamed')
   fs.mkdirSync(path.join(root, 'app/node_modules'), { recursive: true })
 
@@ -108,4 +110,52 @@ test('a missing workspace link is ignored when symlinks are off or the project i
 
   expect(await findDangling({ symlink: false })).toBeUndefined()
   expect(await findDangling({ selectedProjectsGraph: { [root]: {} } as unknown as FindDanglingDirectDependencyLinkOptions['selectedProjectsGraph'] })).toBeUndefined()
+})
+
+test('a shared-lockfile install filtered to another project still holds the workspace root', async () => {
+  writeLockfile('link:../lib')
+  fs.mkdirSync(path.join(root, 'node_modules'), { recursive: true })
+  link('lib', 'app/node_modules/lib')
+  const selectedProjectsGraph = { [path.join(root, 'app')]: {} } as unknown as FindDanglingDirectDependencyLinkOptions['selectedProjectsGraph']
+
+  expect(await findDangling({ selectedProjectsGraph, workspaceDir: root })).toBe(path.join(root, 'node_modules/lib'))
+  expect(await findDangling({ selectedProjectsGraph, workspaceDir: root, excludeWorkspaceRootProject: true })).toBeUndefined()
+})
+
+test('a deduped workspace link needs no lockfile', async () => {
+  link('lib', 'node_modules/lib')
+  fs.mkdirSync(path.join(root, 'app/node_modules'), { recursive: true })
+
+  expect(await findDangling({ dedupeDirectDeps: true, allProjects: [
+    { rootDir: root as ProjectRootDir, manifest: rootManifest },
+    { rootDir: path.join(root, 'app') as ProjectRootDir, manifest: appManifest },
+    { rootDir: path.join(root, 'lib') as ProjectRootDir, manifest: { name: 'lib', version: '1.0.0' } },
+  ] as FindDanglingDirectDependencyLinkOptions['allProjects'] })).toBeUndefined()
+})
+
+test('the current lockfile stands in for a deleted wanted lockfile', async () => {
+  writeLockfile('link:../lib')
+  link('lib', 'node_modules/lib')
+  fs.mkdirSync(path.join(root, 'app/node_modules'), { recursive: true })
+  fs.mkdirSync(path.join(root, 'node_modules/.pnpm'))
+  fs.renameSync(path.join(root, 'pnpm-lock.yaml'), path.join(root, 'node_modules/.pnpm/lock.yaml'))
+
+  expect(await findDangling()).toBe(path.join(root, 'app/node_modules/lib'))
+})
+
+test('a project with its own lockfile is checked against it', async () => {
+  link('lib', 'node_modules/lib')
+  fs.mkdirSync(path.join(root, 'app/node_modules'), { recursive: true })
+  fs.writeFileSync(path.join(root, 'app/pnpm-lock.yaml'), `lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    dependencies:
+      lib:
+        specifier: workspace:*
+        version: link:../lib
+`)
+
+  expect(await findDangling({ sharedWorkspaceLockfile: false })).toBe(path.join(root, 'app/node_modules/lib'))
 })

@@ -6,7 +6,9 @@ use super::{
 };
 use pnpm_config::{Config, NodeLinker};
 use pnpm_fs::lexical_normalize;
-use pnpm_lockfile::{MaybeLazyLockfile, PkgName, ProjectSnapshot, ResolvedDependencySpec};
+use pnpm_lockfile::{
+    Lockfile, MaybeLazyLockfile, PkgName, ProjectSnapshot, ResolvedDependencySpec,
+};
 use pnpm_modules_yaml::IncludedDependencies;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_workspace::importer_id_from_root_dir;
@@ -180,7 +182,7 @@ fn first_project_without_modules_dir(
 /// A missing entry counts only for a `workspace:` or `link:` spec of a
 /// project in `held_project_dirs` (every project when `None`), only when the
 /// linker symlinks direct dependencies ([`links_local_dependencies`]), and
-/// only when [`local_link_missing`] confirms it against the wanted lockfile.
+/// only when [`local_link_missing`] confirms it against the lockfile.
 /// A registry dependency may be absent because it is an excluded or skipped
 /// optional one, and a healthy entry costs one `stat`, so it stays out of
 /// that check.
@@ -209,7 +211,7 @@ pub(super) fn direct_dependency_link_dangling(
                                 &groups,
                                 root_dir,
                                 &modules_dirs[0],
-                                alias,
+                                (alias, spec),
                             ))
                 })
         })
@@ -223,12 +225,13 @@ fn links_local_dependencies(check: &OptimisticRepeatInstallCheck<'_>) -> bool {
         && matches!(check.layout.node_linker, NodeLinker::Isolated | NodeLinker::Hoisted)
 }
 
-/// Whether the wanted lockfile links `alias` of the project at `root_dir` to a
-/// local directory, and no entry the linker may have placed holds that link.
-/// The lockfile, not the manifest, says what the last install linked: an
-/// override or a `readPackage` hook may drop or rewrite the declared spec, and
-/// an injected workspace dependency resolves to a `file:` snapshot that a
-/// platform check may skip. It is read only once an entry is missing.
+/// Whether the lockfile links `alias` of the project at `root_dir` to a local
+/// directory, and no entry the linker may have placed holds that link. The
+/// lockfile, not the manifest, says what the last install linked: an override
+/// or a `readPackage` hook may drop or rewrite the declared spec, and an
+/// injected workspace dependency resolves to a `file:` snapshot that a
+/// platform check may skip. It is read only once an entry is missing and no
+/// root entry links the target `spec` names.
 ///
 /// The hoisted linker may place a sibling's dependency in the root modules
 /// directory, and under `dedupeDirectDeps` the root's link stands in for a
@@ -239,41 +242,85 @@ fn local_link_missing(
     groups: &[DependencyGroup],
     root_dir: &Path,
     own_modules_dir: &Path,
-    alias: &str,
+    (alias, spec): (&str, &str),
 ) -> bool {
     if fs::symlink_metadata(own_modules_dir.join(alias)).is_ok() {
         return false;
     }
-    let Some(target) = locked_link_target(check, groups, root_dir, alias) else {
+    let is_root = lexical_normalize(root_dir) == lexical_normalize(check.workspace_root);
+    let shares_root_modules_dir = !is_root
+        && (check.layout.node_linker == NodeLinker::Hoisted || check.config.dedupe_direct_deps);
+    let root_entry = check.config.modules_dir.join(alias);
+    if shares_root_modules_dir
+        && declared_link_target(check, root_dir, alias, spec)
+            .is_some_and(|target| resolves_to(&root_entry, &target))
+    {
+        return false;
+    }
+    let Some(target) = locked_link_target(check, groups, root_dir, own_modules_dir, alias) else {
         return false;
     };
-    let is_root = lexical_normalize(root_dir) == lexical_normalize(check.workspace_root);
-    let shares_root_modules_dir =
-        check.layout.node_linker == NodeLinker::Hoisted || check.config.dedupe_direct_deps;
-    if is_root || !shares_root_modules_dir {
-        return true;
-    }
-    !resolves_to(&check.config.modules_dir.join(alias), &target)
+    !(shares_root_modules_dir && resolves_to(&root_entry, &target))
 }
 
-/// The directory the wanted lockfile links `alias` of the project at
-/// `root_dir` to, or `None` when it records no `link:` for it or cannot be
-/// read.
+/// The directory `spec` names for `alias` of the project at `root_dir`: a
+/// `link:` path, or the workspace project a `workspace:` spec selects by name.
+fn declared_link_target(
+    check: &OptimisticRepeatInstallCheck<'_>,
+    root_dir: &Path,
+    alias: &str,
+    spec: &str,
+) -> Option<PathBuf> {
+    if let Some(path) = spec.strip_prefix("link:") {
+        return Some(root_dir.join(path));
+    }
+    let range = spec.strip_prefix("workspace:")?;
+    let name = match range.rfind('@') {
+        Some(at) if at > 0 => &range[..at],
+        _ => alias,
+    };
+    check.project_manifests
+        .iter()
+        .find(|(_, manifest)| manifest_string_field(manifest, "name").as_deref() == Some(name))
+        .map(|(project_dir, _)| project_dir.clone())
+}
+
+/// The directory the lockfile links `alias` of the project at `root_dir` to,
+/// or `None` when it records no `link:` for it or none can be read. The
+/// project's lockfile is the shared wanted lockfile, or its own under
+/// `sharedWorkspaceLockfile: false`. The current lockfile stands in for a
+/// missing wanted one, as it does for the rest of the fast path.
 fn locked_link_target(
     check: &OptimisticRepeatInstallCheck<'_>,
     groups: &[DependencyGroup],
     root_dir: &Path,
+    own_modules_dir: &Path,
     alias: &str,
 ) -> Option<PathBuf> {
-    let Ok(Some(lockfile)) = check.lockfile.get() else { return None };
-    let importer =
-        lockfile.importers.get(&importer_id_from_root_dir(check.workspace_root, root_dir))?;
     let alias = PkgName::parse(alias).ok()?;
-    importer
-        .dependencies_by_groups(groups.iter().copied())
-        .find(|(name, _)| **name == alias)
-        .and_then(|(_, dep)| dep.version.as_link_target())
-        .map(|target| root_dir.join(target))
+    let target_in = |lockfile: &Lockfile, importer_id: &str| {
+        lockfile.importers
+            .get(importer_id)?
+            .dependencies_by_groups(groups.iter().copied())
+            .find(|(name, _)| **name == alias)
+            .and_then(|(_, dep)| dep.version.as_link_target())
+            .map(|target| root_dir.join(target))
+    };
+    let is_root = lexical_normalize(root_dir) == lexical_normalize(check.workspace_root);
+    if check.config.shared_workspace_lockfile || is_root {
+        let importer_id = importer_id_from_root_dir(check.workspace_root, root_dir);
+        if let Ok(Some(lockfile)) = check.lockfile.get() {
+            return target_in(lockfile, &importer_id);
+        }
+        let current =
+            Lockfile::load_current_from_install_state_dir(&check.config.install_state_dir).ok()??;
+        return target_in(&current, &importer_id);
+    }
+    let lockfile = match Lockfile::load_wanted_from_dir(root_dir) {
+        Ok(Some(lockfile)) => lockfile,
+        _ => Lockfile::load_current_from_install_state_dir(&own_modules_dir.join(".pnpm")).ok()??,
+    };
+    target_in(&lockfile, ".")
 }
 
 /// Whether `entry` exists and resolves to the directory `target` names.
