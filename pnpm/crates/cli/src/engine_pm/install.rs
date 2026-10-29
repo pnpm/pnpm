@@ -171,8 +171,13 @@ async fn install_engine_from_env_with_config<Reporter: self::Reporter + 'static>
         if let Some(engine) = linked_engine_bins(config, env, package, version) {
             return Ok(engine);
         }
-        if let Some(slot) = populated_engine_slot(config, env, package, version) {
-            return link_engine_bins(&slot, package.wrapper, package.links_native_binary);
+        // A slot that cannot be linked, such as one an earlier install left
+        // without the host's native binary, is reinstalled below.
+        if let Some(slot) = populated_engine_slot(config, env, package, version)
+            && let Ok(engine) =
+                link_engine_bins(&slot, package.wrapper, package.links_native_binary)
+        {
+            return Ok(engine);
         }
     }
 
