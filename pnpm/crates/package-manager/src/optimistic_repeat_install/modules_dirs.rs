@@ -1,10 +1,11 @@
+pub(super) use direct_links::direct_dependency_link_dangling;
+#[cfg(test)]
+pub(super) use direct_links::is_local_link_spec;
+
 use super::{
     OptimisticRepeatInstallCheck, manifest_has_required_peers, manifest_has_runtime_deps,
     manifest_string_field,
 };
-pub(super) use direct_links::direct_dependency_link_dangling;
-#[cfg(test)]
-pub(super) use direct_links::is_local_link_spec;
 use pnpm_config::{Config, NodeLinker};
 use pnpm_fs::lexical_normalize;
 use pnpm_lockfile::{MaybeLazyLockfile, PkgName, ProjectSnapshot, ResolvedDependencySpec};
