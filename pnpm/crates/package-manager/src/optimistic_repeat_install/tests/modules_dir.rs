@@ -514,3 +514,73 @@ fn expanded_selected_modules_dir_check_under_dedicated_lockfiles_with_injection_
         None,
     );
 }
+
+/// The repeat-install decision for a single-project workspace whose manifest
+/// declares `dependencies_json`, after `prepare_modules` has had its way with
+/// the modules directory the install created.
+fn root_decision(
+    dependencies_json: &str,
+    prepare_modules: impl FnOnce(&std::path::Path),
+) -> Decision {
+    let (dir, config, root_manifest) = setup_fresh_install_with_config(
+        pnpm_config::NodeLinker::Isolated,
+        "root",
+        "1.0.0",
+        dependencies_json,
+        |_| {},
+    );
+    prepare_modules(&config.modules_dir);
+    check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
+        workspace_root: dir.path(),
+        config,
+        project_manifests: crate::DeclaredManifests::new(&[(
+            dir.path().to_path_buf(),
+            &root_manifest,
+        )]),
+        is_workspace_install: true,
+        lockfile: MaybeLazyLockfile::Loaded(None),
+        catalogs: &BTreeMap::default(),
+        layout: crate::RepeatInstallLayout {
+            node_linker: pnpm_config::NodeLinker::Isolated,
+            included: isolated_included(),
+            supported_architectures: None,
+        },
+        manifests: crate::RepeatInstallManifests::ON_DISK,
+    })
+}
+
+/// A `workspace:` dependency links into a directory that is on disk, so the
+/// linker creates its entry on every install. Deleting the entry moves
+/// nothing the recorded state sees, so the fast path has to notice the
+/// absence itself instead of reporting "Already up to date" over a missing
+/// link (<https://github.com/pnpm/pnpm/issues/17485>).
+#[test]
+fn a_deleted_workspace_dependency_link_is_reinstalled() {
+    let decision = root_decision(r#""dependencies":{"lib":"workspace:*"}"#, |modules_dir| {
+        fs::remove_dir(modules_dir.join("lib")).unwrap();
+    });
+    assert!(
+        matches!(
+            &decision,
+            Decision::Skipped { reason } if reason.contains("direct dependency link is missing")
+        ),
+        "expected the fast path to stand down, got {decision:?}",
+    );
+}
+
+#[test]
+fn a_linked_workspace_dependency_keeps_the_fast_path() {
+    let decision = root_decision(r#""dependencies":{"lib":"workspace:*"}"#, |modules_dir| {
+        fs::create_dir_all(modules_dir.join("lib")).unwrap();
+    });
+    assert_eq!(decision, Decision::UpToDate);
+}
+
+/// The absence check stays off for a registry dependency: an excluded or
+/// skipped optional one has no entry, and a full install would not create one
+/// either.
+#[test]
+fn a_missing_registry_dependency_keeps_the_fast_path() {
+    let decision = root_decision(r#""dependencies":{"foo":"1.0.0"}"#, |_| {});
+    assert_eq!(decision, Decision::UpToDate);
+}

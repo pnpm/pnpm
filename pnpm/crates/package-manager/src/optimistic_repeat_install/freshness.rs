@@ -121,7 +121,8 @@ pub(crate) enum Stale {
     /// A held project with dependencies lacks its modules directory, named by
     /// its id.
     MissingModulesDir(String),
-    /// A direct dependency link in a project's modules directory is dangling.
+    /// A direct dependency link in a project's modules directory is dangling,
+    /// or absent for a dependency the linker always links.
     DanglingDirectLink,
     /// `useGitBranchLockfile` is enabled and the branch lockfile is absent.
     MissingBranchLockfile,

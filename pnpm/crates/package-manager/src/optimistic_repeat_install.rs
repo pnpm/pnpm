@@ -223,7 +223,9 @@ fn skip_reason(stale: &Stale) -> &'static str {
         Stale::CatalogsCache => "catalogs cache outdated",
         Stale::ProjectStructure => "workspace project list changed",
         Stale::MissingModulesDir(_) => "project has dependencies but no node_modules directory",
-        Stale::DanglingDirectLink => "a direct dependency link points to a missing target",
+        Stale::DanglingDirectLink => {
+            "a direct dependency link is missing or points to a missing target"
+        }
         Stale::MissingBranchLockfile => "the branch lockfile is missing",
         Stale::Pnpmfile(_) => "a pnpmfile changed since the last validation",
         Stale::Unprovable => "the lockfile cannot be read",

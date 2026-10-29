@@ -378,6 +378,18 @@ fn setup_fresh_install_with_config(
     // Pre-create the modules dir so the "missing node_modules" guard
     // doesn't fire on the happy-path tests.
     fs::create_dir_all(&config.modules_dir).unwrap();
+    // A fresh install links every `workspace:`/`link:` dependency, so a
+    // fixture that claims a fresh state has to show those entries too. A test
+    // that wants one gone removes it itself.
+    for (alias, spec) in manifest.dependencies([
+        pnpm_package_manifest::DependencyGroup::Prod,
+        pnpm_package_manifest::DependencyGroup::Dev,
+        pnpm_package_manifest::DependencyGroup::Optional,
+    ]) {
+        if super::modules_dirs::is_local_link_spec(spec) {
+            fs::create_dir_all(config.modules_dir.join(alias)).unwrap();
+        }
+    }
 
     record_test_workspace_state(
         workspace_root,
@@ -1306,6 +1318,11 @@ fn linked_sibling_decision_for_spec(
     config.link_workspace_packages = link_workspace_packages;
     config.exclude_links_from_lockfile = exclude_links_from_lockfile;
     fs::create_dir_all(&config.modules_dir).unwrap();
+    // A fresh install links a `workspace:`/`link:` dependency, so the entry is
+    // part of the state the fixture records.
+    if super::modules_dirs::is_local_link_spec(specifier) || lockfile_ref.starts_with("link:") {
+        fs::create_dir_all(config.modules_dir.join(dependency_name)).unwrap();
+    }
     let config = config.leak();
 
     let root_manifest = PackageManifest::from_path(workspace_root.join("package.json")).unwrap();
