@@ -371,6 +371,18 @@ describe('batch script', () => {
     assert.equal(isShimMsysCmdSwitchDoubled(content), false)
     assert.equal(isShimMsysCmdSwitchDoubled(content.replace('exec cmd /C ', 'exec cmd //C ')), true)
   })
+
+  // A `/c` entry in MSYS2_ARG_CONV_EXCL would keep a drive path such as
+  // `/c/Users` from being converted.
+  test('excludes an upper-case switch from MSYS conversion', async () => {
+    const lowerCaseSrc = path.resolve(fixtures, 'lower-case-switch.bat')
+    const lowerCaseTo = path.resolve(fixtures, 'lower-case-switch.shim')
+    await fs.promises.writeFile(lowerCaseSrc, '#!/usr/bin/env cmd /c\n')
+    await cmdShim(lowerCaseSrc, lowerCaseTo, { createCmdFile: false, fs })
+    const content = await fs.promises.readFile(lowerCaseTo, 'utf8')
+    assert.ok(content.includes('  export MSYS2_ARG_CONV_EXCL="/C${MSYS2_ARG_CONV_EXCL:+;$MSYS2_ARG_CONV_EXCL}"\n'), content)
+    assert.match(content, /exec cmd +\/C "/, content)
+  })
 })
 
 describe('readShNodePath & isShimNodePath', () => {

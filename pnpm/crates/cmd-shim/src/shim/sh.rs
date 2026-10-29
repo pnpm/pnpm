@@ -128,21 +128,31 @@ fn write_sh_runtime_exec(sh: &mut String, prog: &str, args: &str, quoted: &Quote
     let prog_base = strip_exe_suffix(prog).unwrap_or(prog);
     let prog_has_exe = prog_base.len() != prog.len();
     let prog_exe = if prog_has_exe { prog.to_string() } else { format!("{prog}.exe") };
-    if prog_base.eq_ignore_ascii_case("cmd") {
-        write_msys_cmd_switch_exclusion(sh, args);
-    }
-    sh.push_str(&sh_exec_block(&ShExec { prog, prog_exe: &prog_exe, prog_has_exe, quoted }, args));
+    let args = if prog_base.eq_ignore_ascii_case("cmd") {
+        let args = upper_case_cmd_switches(args);
+        write_msys_cmd_switch_exclusion(sh, &args);
+        args
+    } else {
+        args.to_string()
+    };
+    sh.push_str(&sh_exec_block(&ShExec { prog, prog_exe: &prog_exe, prog_has_exe, quoted }, &args));
 }
 
 /// Exclude the standalone `cmd` switches in `args` from MSYS argument
 /// conversion, which otherwise turns `/C` into a drive path and leaves cmd.exe
 /// interactive. The caller's own exclusions follow them. Unlike a doubled
 /// `//C`, the switch reaches cmd.exe intact whether conversion is on or off.
+///
+/// An entry excludes every argument that starts with it, case-sensitively, so
+/// the switches are upper case: a `/c` entry would also exclude a drive path
+/// such as `/c/Users`.
 fn write_msys_cmd_switch_exclusion(sh: &mut String, args: &str) {
-    let switches = msys_cmd_switches(args).collect::<Vec<_>>();
+    let mut switches = msys_cmd_switches(args).collect::<Vec<_>>();
     if switches.is_empty() {
         return;
     }
+    switches.sort_unstable();
+    switches.dedup();
     let switches = switches.join(";");
     writeln!(
         sh,
@@ -279,9 +289,31 @@ if [ -n "$caller_path_set" ]; then PATH=$caller_path; else unset PATH; fi
 
 "#;
 
+/// `args` with every standalone `/c` and `/k` switch in upper case. cmd.exe
+/// reads its switches case-insensitively.
+pub(super) fn upper_case_cmd_switches(args: &str) -> String {
+    let mut upper_cased = String::with_capacity(args.len());
+    let mut rest = args;
+    while !rest.is_empty() {
+        let (arg, tail) = rest.split_at(rest.find(char::is_whitespace).unwrap_or(rest.len()));
+        upper_cased.push_str(match arg {
+            "/c" => "/C",
+            "/k" => "/K",
+            _ => arg,
+        });
+        let (whitespace, tail) = tail.split_at(
+            tail.find(|ch: char| !ch.is_whitespace())
+                .unwrap_or(tail.len()),
+        );
+        upper_cased.push_str(whitespace);
+        rest = tail;
+    }
+    upper_cased
+}
+
 pub(super) fn msys_cmd_switches(args: &str) -> impl Iterator<Item = &str> {
     args.split_whitespace()
-        .filter(|arg| matches!(*arg, "/C" | "/c" | "/K" | "/k"))
+        .filter(|arg| matches!(*arg, "/C" | "/K"))
 }
 
 /// Whether an already-on-disk POSIX shim hands `cmd` a doubled switch such as

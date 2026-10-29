@@ -6,7 +6,7 @@ use super::{
     sh::{
         SH_SHIM_CYGPATH_LINE, SH_SHIM_HARDENED_HELPER_LINE, SH_SHIM_HELPER_PATH_FILTER_LINE,
         SH_SHIM_PATH_PRINTF_LINE, SH_SHIM_WSLPATH_LINE, msys_cmd_switches, strip_exe_suffix,
-        write_sh_node_path,
+        upper_case_cmd_switches, write_sh_node_path,
     },
 };
 use crate::{
@@ -422,8 +422,31 @@ fn search_script_runtime_falls_back_to_cmd_with_c_switch() {
 #[test]
 fn msys_cmd_switches_finds_only_standalone_cmd_switches() {
     assert_eq!(msys_cmd_switches("/C").collect::<Vec<_>>(), ["/C"]);
-    assert_eq!(msys_cmd_switches(" /c\t/K ").collect::<Vec<_>>(), ["/c", "/K"]);
+    assert_eq!(msys_cmd_switches(" /C\t/K ").collect::<Vec<_>>(), ["/C", "/K"]);
     assert_eq!(msys_cmd_switches("--flag /Config path/C /C:bad").count(), 0);
+}
+
+#[test]
+fn upper_case_cmd_switches_changes_only_standalone_switches() {
+    assert_eq!(upper_case_cmd_switches(" /c\t/k  /K "), " /C\t/K  /K ");
+    assert_eq!(upper_case_cmd_switches("/config path/c /c:x"), "/config path/c /c:x");
+}
+
+/// A `/c` entry in `MSYS2_ARG_CONV_EXCL` would keep a drive path such as
+/// `/c/Users` from being converted.
+#[test]
+fn generate_sh_shim_excludes_an_upper_case_switch_from_msys_conversion() {
+    let target = Path::new("/proj/node_modules/foo/src.bat");
+    let shim = Path::new("/proj/node_modules/.bin/foo");
+    let runtime = ScriptRuntime { prog: Some("cmd".into()), args: "/c /C".into() };
+    let body = generate_sh_shim(target, shim, Some(&runtime), &[], None);
+    assert!(
+        body.contains(
+            "  export MSYS2_ARG_CONV_EXCL=\"/C${MSYS2_ARG_CONV_EXCL:+;$MSYS2_ARG_CONV_EXCL}\"\n"
+        ),
+        "body was:\n{body}",
+    );
+    assert!(body.contains("exec cmd /C /C "), "body was:\n{body}");
 }
 
 #[test]
@@ -1312,42 +1335,58 @@ fn a_shim_hands_node_on_path_the_windows_target_without_msys_path_conversion() {
 }
 
 /// cmd.exe reads `//C` as no switch and starts interactively, so the `/C`
-/// switch has to reach it intact whether Git Bash converts arguments or not
+/// switch has to reach it intact whether Git Bash converts arguments or not,
+/// while the target's own arguments keep the caller's conversion setting
 /// (pnpm/pnpm#17480).
 #[cfg(windows)]
 #[test]
 fn a_shim_runs_a_cmd_target_in_every_msys_conversion_mode() {
     let program_files = std::env::var_os("ProgramFiles").expect("ProgramFiles is set on Windows");
     let bash = Path::new(&program_files).join(r"Git\bin\bash.exe");
+    let converted_usr = std::process::Command::new(&bash)
+        .args(["--noprofile", "--norc", "-c", "cygpath -m /usr"])
+        .output()
+        .expect("run cygpath under Git Bash");
+    let converted_usr = String::from_utf8(converted_usr.stdout)
+        .unwrap()
+        .trim_end()
+        .to_owned();
     let tmp = tempfile::tempdir().unwrap();
     let target = tmp.path().join("tool.cmd");
-    std::fs::write(&target, "@echo CMD_OK %1\r\n").unwrap();
+    std::fs::write(&target, "@echo CMD_OK [%~1] [%~2]\r\n").unwrap();
     let shim = tmp.path().join("tool");
-    let runtime = ScriptRuntime { prog: Some("cmd".into()), args: "/C".into() };
-    std::fs::write(&shim, generate_sh_shim(&target, &shim, Some(&runtime), &[], None)).unwrap();
 
-    for conversion_off in
-        [None, Some(("MSYS_NO_PATHCONV", "1")), Some(("MSYS2_ARG_CONV_EXCL", "*"))]
-    {
-        let mut command = std::process::Command::new(&bash);
-        command
-            .args(["--noprofile", "--norc"])
-            .arg(&shim)
-            .arg("/usr")
-            .env_remove("MSYS_NO_PATHCONV")
-            .env_remove("MSYS2_ARG_CONV_EXCL")
-            .stdin(std::process::Stdio::null());
-        if let Some((name, value)) = conversion_off {
-            command.env(name, value);
+    for switch in ["/C", "/c"] {
+        let runtime = ScriptRuntime { prog: Some("cmd".into()), args: switch.into() };
+        std::fs::write(&shim, generate_sh_shim(&target, &shim, Some(&runtime), &[], None)).unwrap();
+        for (conversion_off, expected) in [
+            (None, format!("CMD_OK [{converted_usr}] [C:/Users]")),
+            (Some(("MSYS_NO_PATHCONV", "1")), "CMD_OK [/usr] [/c/Users]".to_owned()),
+            (Some(("MSYS2_ARG_CONV_EXCL", "*")), "CMD_OK [/usr] [/c/Users]".to_owned()),
+        ] {
+            let mut command = std::process::Command::new(&bash);
+            command
+                .args(["--noprofile", "--norc"])
+                .arg(&shim)
+                .args(["/usr", "/c/Users"])
+                .env_remove("MSYS_NO_PATHCONV")
+                .env_remove("MSYS2_ARG_CONV_EXCL")
+                .stdin(std::process::Stdio::null());
+            if let Some((name, value)) = conversion_off {
+                command.env(name, value);
+            }
+            let output = command.output().expect("run the shim under Git Bash");
+            assert!(
+                output.status.success(),
+                "{switch} {conversion_off:?}\nstderr:\n{}",
+                String::from_utf8_lossy(&output.stderr),
+            );
+            assert_eq!(
+                String::from_utf8_lossy(&output.stdout).trim_end(),
+                expected,
+                "{switch} {conversion_off:?}",
+            );
         }
-        let output = command.output().expect("run the shim under Git Bash");
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        assert!(
-            output.status.success(),
-            "{conversion_off:?}\nstderr:\n{}",
-            String::from_utf8_lossy(&output.stderr)
-        );
-        assert!(stdout.starts_with("CMD_OK "), "{conversion_off:?}\nstdout:\n{stdout}");
     }
 }
 

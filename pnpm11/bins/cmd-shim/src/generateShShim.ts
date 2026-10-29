@@ -254,8 +254,9 @@ fi
 }
 
 function buildShExecBlock (config: ShProgConfig): string {
-  const exclusion = config.isCmdRuntime ? buildMsysCmdSwitchExclusion(config.args) : ''
-  return exclusion + generateExecBlock(config, config.args)
+  if (!config.isCmdRuntime) return generateExecBlock(config, config.args)
+  const args = upperCaseCmdSwitches(config.args)
+  return buildMsysCmdSwitchExclusion(args) + generateExecBlock(config, args)
 }
 
 /**
@@ -263,15 +264,27 @@ function buildShExecBlock (config: ShProgConfig): string {
  * conversion, which otherwise turns `/C` into a drive path and leaves cmd.exe
  * interactive. The caller's own exclusions follow them. Unlike a doubled
  * `//C`, the switch reaches cmd.exe intact whether conversion is on or off.
+ *
+ * An entry excludes every argument that starts with it, case-sensitively, so
+ * the switches are upper case: a `/c` entry would also exclude a drive path
+ * such as `/c/Users`.
  */
 function buildMsysCmdSwitchExclusion (args: string): string {
-  const switches = msysCmdSwitches(args)
+  const switches = Array.from(new Set(msysCmdSwitches(args))).sort()
   if (switches.length === 0) return ''
   return `\
 if [ -n "$msys" ]; then
   export MSYS2_ARG_CONV_EXCL="${switches.join(';')}\${MSYS2_ARG_CONV_EXCL:+;$MSYS2_ARG_CONV_EXCL}"
 fi
 `
+}
+
+/**
+ * `args` with every standalone `/c` and `/k` switch in upper case. cmd.exe
+ * reads its switches case-insensitively.
+ */
+function upperCaseCmdSwitches (args: string): string {
+  return args.replace(/(?<=^|\s)\/[ck](?=\s|$)/g, (cmdSwitch) => cmdSwitch.toUpperCase())
 }
 
 function generateExecBlock (config: ShProgConfig, execArgs: string): string {
@@ -308,7 +321,7 @@ fi
 `
 }
 
-const MSYS_CMD_SWITCHES = new Set(['/C', '/c', '/K', '/k'])
+const MSYS_CMD_SWITCHES = new Set(['/C', '/K'])
 const MSYS_DOUBLED_CMD_SWITCHES = new Set(['//C', '//c', '//K', '//k'])
 
 function msysCmdSwitches (args: string): string[] {

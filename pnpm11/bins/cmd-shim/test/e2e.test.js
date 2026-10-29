@@ -134,31 +134,37 @@ describeOnWindows('create a command shim for a .exe file', () => {
 describeOnWindows('sh shim wrapping a .cmd target invoked from Git Bash', () => {
   // Git Bash rewrites a bare `/C` argument to `C:\` before launching cmd.exe,
   // and cmd.exe reads a doubled `//C` as no switch when conversion is off.
-  // Either way cmd.exe starts interactively (pnpm/pnpm#17480).
-  const conversionModes = [{}, { MSYS_NO_PATHCONV: '1' }, { MSYS2_ARG_CONV_EXCL: '*' }]
-  for (const conversionOff of conversionModes) {
+  // Either way cmd.exe starts interactively (pnpm/pnpm#17480). The target's
+  // own arguments keep the caller's conversion setting.
+  const bash = process.env.PROGRAMFILES
+    ? path.join(process.env.PROGRAMFILES, 'Git', 'bin', 'bash.exe')
+    : 'bash'
+  const convertedUsr = () => spawnSync(bash, ['--noprofile', '--norc', '-c', 'cygpath -m /usr'], { encoding: 'utf8' }).stdout.trimEnd()
+  const conversionModes = [
+    { conversionOff: {}, expectedArgs: () => `[${convertedUsr()}] [C:/Users]` },
+    { conversionOff: { MSYS_NO_PATHCONV: '1' }, expectedArgs: () => '[/usr] [/c/Users]' },
+    { conversionOff: { MSYS2_ARG_CONV_EXCL: '*' }, expectedArgs: () => '[/usr] [/c/Users]' },
+  ]
+  for (const { conversionOff, expectedArgs } of conversionModes) {
     test(`runs the wrapped batch script and captures its output with ${JSON.stringify(conversionOff)}`, async () => {
       const tempDir = temporaryDirectory()
       const target = path.join(tempDir, 'src.cmd')
-      fs.writeFileSync(target, '@echo HELLO_FROM_CMD\r\n', 'utf8')
+      fs.writeFileSync(target, '@echo HELLO_FROM_CMD [%~1] [%~2]\r\n', 'utf8')
       const shim = path.join(tempDir, 'shim')
       await cmdShim(target, shim)
 
       // If `/C` reaches cmd.exe intact, it runs src.cmd and prints
       // HELLO_FROM_CMD. Otherwise it starts interactively and dumps its banner
       // (`Microsoft Windows [Version ...]`) instead.
-      const bash = process.env.PROGRAMFILES
-        ? path.join(process.env.PROGRAMFILES, 'Git', 'bin', 'bash.exe')
-        : 'bash'
       const env = Object.fromEntries(Object.entries(process.env).filter(([name]) => name !== 'MSYS_NO_PATHCONV' && name !== 'MSYS2_ARG_CONV_EXCL'))
-      const r = spawnSync(bash, ['--noprofile', '--norc', shim], {
+      const r = spawnSync(bash, ['--noprofile', '--norc', shim, '/usr', '/c/Users'], {
         encoding: 'utf8',
         env: { ...env, ...conversionOff },
         stdio: ['ignore', 'pipe', 'pipe'],
       })
 
       assert.equal(r.status, 0, `bash exited ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`)
-      assert.match(r.stdout, /HELLO_FROM_CMD/, `expected script output, got:\n${r.stdout}`)
+      assert.equal(r.stdout.trimEnd(), `HELLO_FROM_CMD ${expectedArgs()}`)
       assert.doesNotMatch(
         r.stdout,
         /Microsoft Windows \[Version/,
