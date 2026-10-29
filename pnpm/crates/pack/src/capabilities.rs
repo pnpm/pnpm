@@ -126,13 +126,13 @@ impl FsAtomicWrite for Host {
         let existing = std::fs::symlink_metadata(dest).ok().filter(std::fs::Metadata::is_file);
         #[cfg(unix)]
         let existing_mode = existing.map(|metadata| {
-            use std::os::unix::fs::PermissionsExt as _;
-            metadata.permissions().mode() & 0o777
+            pnpm_fs::CopyPermissions::of_metadata(&metadata).mode() & 0o777
         });
         #[cfg(target_os = "wasi")]
         let existing_mode = match existing {
             Some(_) => Some(
                 pnpm_fs::read_file_permissions(&pnpm_fs::open_file_without_following(dest)?)?
+                    .mode()
                     & 0o777,
             ),
             None => None,
@@ -143,15 +143,9 @@ impl FsAtomicWrite for Host {
         write_body(tmp.as_file_mut())?;
         // The umask may have narrowed the creation mode; restore the exact one.
         // Set it before the sync so content and metadata are flushed together.
-        #[cfg(unix)]
+        #[cfg(any(unix, target_os = "wasi"))]
         if let Some(mode) = existing_mode {
-            use std::os::unix::fs::PermissionsExt as _;
-            tmp.as_file()
-                .set_permissions(std::fs::Permissions::from_mode(mode))?;
-        }
-        #[cfg(target_os = "wasi")]
-        if let Some(mode) = existing_mode {
-            pnpm_fs::set_file_permissions(tmp.as_file(), &mode)?;
+            pnpm_fs::CopyPermissions::from_mode(mode).apply_to_file(tmp.as_file())?;
         }
         pnpm_fs::sync_file(tmp.as_file())?;
         tmp.persist(dest).map_err(|error| error.error)?;

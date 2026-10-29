@@ -422,3 +422,54 @@ fn exits_within(child: &mut Child, deadline: Duration) -> bool {
     }
     false
 }
+
+/// After an interrupt, `SpawnedChild::wait` reaps the child and then waits
+/// for the rest of its group. A cancellation in that wait still reaches the
+/// group: the registration stays as the group alone, so a process the child
+/// left there gets the bail's `SIGTERM` rather than keeping pnpm waiting.
+#[test]
+fn the_group_of_a_reaped_child_stays_cancellable_while_its_waiter_waits() {
+    let tracker = ProcessTracker::default();
+    let mut command = Command::new("sh");
+    command
+        .args(["-c", "sleep 30 </dev/null >/dev/null 2>&1 & echo $!"])
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null());
+    let mut child = spawn_child(&mut command, Some(&tracker)).expect("spawn the child");
+    let mut stdout = BufReader::new(
+        child
+            .child_mut()
+            .stdout
+            .take()
+            .expect("stdout is piped"),
+    );
+    let mut line = String::new();
+    stdout.read_line(&mut line).expect("read the sleeper's pid");
+    let sleeper: i32 = line
+        .trim()
+        .parse()
+        .expect("the shell printed the sleeper's pid");
+    // What `SpawnedChild::wait` does before it waits for the group.
+    child
+        .child_mut()
+        .wait()
+        .expect("reap the shell");
+    child.registration
+        .as_ref()
+        .expect("the child is registered")
+        .keep_group_only();
+
+    tracker.cancel();
+
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while !is_gone(sleeper) && Instant::now() < deadline {
+        sleep(Duration::from_millis(20));
+    }
+    assert!(is_gone(sleeper), "the cancellation should have reached the reaped child's group");
+}
+
+/// Whether `pid` has exited, reaped or not.
+fn is_gone(pid: i32) -> bool {
+    !pnpm_testing_utils::process_liveness::is_running(pid)
+}

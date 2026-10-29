@@ -278,12 +278,12 @@ fn ingested_file_mode(
     #[cfg(target_os = "wasi")]
     {
         let _ = meta;
-        let mode = pnpm_fs::copy_permissions(read_path)
+        let permissions = pnpm_fs::copy_permissions(read_path)
             .map_err(|source| AddFilesFromDirError::Stat {
                 path: read_path.to_path_buf(),
                 source,
             })?;
-        Ok(FileMode::from_mode(mode & 0o777))
+        Ok(FileMode::from_mode(permissions.mode() & 0o777))
     }
 }
 

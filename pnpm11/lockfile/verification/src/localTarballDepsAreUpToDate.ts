@@ -1,6 +1,3 @@
-import path from 'node:path'
-import { fileURLToPath } from 'node:url'
-
 import { getTarballIntegrity, matchIntegrity } from '@pnpm/crypto.hash'
 import * as dp from '@pnpm/deps.path'
 import { isError, PnpmError } from '@pnpm/error'
@@ -10,8 +7,8 @@ import type {
   ProjectSnapshot,
   TarballResolution,
 } from '@pnpm/lockfile.types'
-import { refIsLocalTarball } from '@pnpm/lockfile.utils'
-import { DEPENDENCIES_FIELDS, type IncludedDependencies } from '@pnpm/types'
+import { refIsLocalTarball, resolveLocalTarballPath } from '@pnpm/lockfile.utils'
+import { DEPENDENCIES_FIELDS, type DependenciesField, type IncludedDependencies } from '@pnpm/types'
 
 export interface LocalTarballDepsUpToDateContext {
   /**
@@ -19,6 +16,12 @@ export interface LocalTarballDepsUpToDateContext {
    * initialized to an empty map by the caller.
    */
   readonly fileIntegrityCache: Map<string, Promise<string>>
+  /**
+   * The dependency paths a call already checked, so that each is checked
+   * once. Share one only across calls whose results the caller requires to
+   * all be `true`.
+   */
+  readonly walkedDepPaths?: Set<string>
   readonly includedDependencies?: IncludedDependencies
   readonly lockfilePackages?: PackageSnapshots
   readonly lockfileDir: string
@@ -28,39 +31,6 @@ export interface LocalTarballIntegrityMismatch {
   readonly expected: string
   readonly found: string
   readonly path: string
-}
-
-function isUncLikeFilePayload (pathPart: string): boolean {
-  return pathPart.startsWith('\\\\') ||
-    pathPart.startsWith('////') ||
-    (pathPart.startsWith('//') && !pathPart.startsWith('///'))
-}
-
-export function resolveLocalTarballPath (lockfileDir: string, tarball: string): string | undefined {
-  if (!refIsLocalTarball(tarball)) return undefined
-  const pathPart = tarball.slice('file:'.length)
-  if (isUncLikeFilePayload(pathPart) || pathPart.includes('\0')) {
-    return undefined
-  }
-  if (pathPart.startsWith('/') && tarball.startsWith('file:///')) {
-    return localFileUrlToPath(tarball)
-  }
-  if (path.isAbsolute(pathPart)) {
-    return path.normalize(pathPart)
-  }
-  return path.resolve(lockfileDir, pathPart)
-}
-
-function localFileUrlToPath (tarball: string): string | undefined {
-  try {
-    const url = new URL(tarball)
-    if (url.protocol !== 'file:' || url.host) {
-      return undefined
-    }
-    return fileURLToPath(url)
-  } catch {
-    return undefined
-  }
 }
 
 export async function findPackageTarballIntegrityMismatch (
@@ -119,10 +89,48 @@ export async function localTarballDepsAreUpToDate (
   }
 ): Promise<boolean> {
   const dependencies = DEPENDENCIES_FIELDS
-    .filter((field) => ctx.includedDependencies?.[field] !== false)
+    .filter((field) => isIncluded(ctx.includedDependencies, field))
     .flatMap((field) => Object.entries(project.snapshot[field] ?? {}))
-  const results = await Promise.all(dependencies.map(async ([depName, ref]) => localTarballDepIsUpToDate(ctx, depName, ref)))
+  const reached = reachableDependencies(ctx, dependencies)
+  const results = await Promise.all(reached.map(async ([depName, ref]) => localTarballDepIsUpToDate(ctx, depName, ref)))
   return results.every(Boolean)
+}
+
+/**
+ * Whether an install with `included` installs a project's `field`. Optional
+ * dependencies go with the production ones.
+ */
+function isIncluded (included: IncludedDependencies | undefined, field: DependenciesField): boolean {
+  if (included?.[field] === false) return false
+  return field !== 'optionalDependencies' || included?.dependencies !== false
+}
+
+/**
+ * `dependencies` and every dependency they reach through the lockfile
+ * packages, without the optional ones the install excludes. A project
+ * reaches a local tarball through a workspace project it injects, whose
+ * dependencies the project's own lockfile records.
+ */
+function reachableDependencies (
+  { lockfilePackages: packages, includedDependencies, walkedDepPaths }: Pick<LocalTarballDepsUpToDateContext, 'lockfilePackages' | 'includedDependencies' | 'walkedDepPaths'>,
+  dependencies: Array<[string, string]>
+): Array<[string, string]> {
+  const includesOptional = includedDependencies?.optionalDependencies !== false
+  const reached: Array<[string, string]> = []
+  const visited = walkedDepPaths ?? new Set<string>()
+  const queue = [...dependencies]
+  for (let next = queue.pop(); next != null; next = queue.pop()) {
+    const [depName, ref] = next
+    if (typeof ref !== 'string') continue
+    const depPath = dp.refToRelative(ref, depName)
+    if (depPath == null || visited.has(depPath)) continue
+    visited.add(depPath)
+    reached.push(next)
+    const snapshot = packages?.[depPath]
+    queue.push(...Object.entries(snapshot?.dependencies ?? {}))
+    if (includesOptional) queue.push(...Object.entries(snapshot?.optionalDependencies ?? {}))
+  }
+  return reached
 }
 
 async function localTarballDepIsUpToDate (
@@ -130,10 +138,6 @@ async function localTarballDepIsUpToDate (
   depName: string,
   ref: string
 ): Promise<boolean> {
-  if (!ref.startsWith('file:')) {
-    return true
-  }
-
   // The tarball ref can contain peers. Ex: file:bar.tgz(react@19.1.0)
   //
   // Trim out the peer suffix version to get a path to the local tarball.

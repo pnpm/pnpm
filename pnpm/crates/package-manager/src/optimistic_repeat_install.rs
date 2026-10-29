@@ -254,8 +254,18 @@ pub(crate) fn config_blocks_fast_path(config: &Config) -> Option<&'static str> {
 }
 
 /// A local file dependency's contents can change with nothing in the manifest
-/// or the lockfile moving, so any of them rules the fast path out.
-fn local_file_blocks_fast_path(check: &OptimisticRepeatInstallCheck<'_>) -> Option<&'static str> {
+/// or the lockfile moving, so any of them rules the fast path out: one a
+/// manifest declares, and one the last validation recorded from its
+/// lockfile, which a hook may have added.
+fn local_file_blocks_fast_path(
+    check: &OptimisticRepeatInstallCheck<'_>,
+    state: &WorkspaceState,
+) -> Option<&'static str> {
+    const LOCAL_FILE_DEPENDENCY: &str =
+        "a dependency is a local file dependency and its contents may have changed";
+    if recorded_local_dependency_changed(check, state) {
+        return Some(LOCAL_FILE_DEPENDENCY);
+    }
     let &OptimisticRepeatInstallCheck {
         config,
         catalogs,
@@ -269,11 +279,7 @@ fn local_file_blocks_fast_path(check: &OptimisticRepeatInstallCheck<'_>) -> Opti
         .as_deref()
         .unwrap_or(&[]);
     match has_local_file_dep_requiring_install(check, overrides) {
-        Ok(true) => {
-            return Some(
-                "a dependency is a local file dependency and its contents may have changed",
-            );
-        }
+        Ok(true) => return Some(LOCAL_FILE_DEPENDENCY),
         Ok(false) => {}
         Err(reason) => return Some(reason),
     }
@@ -288,6 +294,22 @@ fn local_file_blocks_fast_path(check: &OptimisticRepeatInstallCheck<'_>) -> Opti
         );
     }
     None
+}
+
+/// Whether a local dependency the last validation recorded may have changed,
+/// per [`validation::local_dependency_changed`].
+fn recorded_local_dependency_changed(
+    check: &OptimisticRepeatInstallCheck<'_>,
+    state: &WorkspaceState,
+) -> bool {
+    let workspace_dirs: std::collections::HashSet<PathBuf> = check
+        .bin_projects()
+        .iter()
+        .map(|(dir, _)| pnpm_fs::lexical_normalize(dir))
+        .collect();
+    state.validation
+        .as_ref()
+        .is_some_and(|validation| validation::local_dependency_changed(validation, &workspace_dirs))
 }
 
 pub(crate) fn manifest_has_runtime_deps(manifest: &PackageManifest) -> bool {

@@ -41,7 +41,7 @@ export async function toResolveImporter (
   project: ImporterToResolve
 ): Promise<ResolveImporter> {
   validatePeerDependencies(project)
-  const allDeps = getWantedDependencies(project.manifest, { autoInstallPeers: opts.autoInstallPeers })
+  const allDeps = getWantedDependencies(project.manifest, { autoInstallPeers: opts.autoInstallPeers, projectDir: project.rootDir })
   const nonLinkedDependencies = await partitionLinkedPackages(allDeps, {
     hideAlienModules: opts.hideAlienModules,
     modulesDir: project.modulesDir,

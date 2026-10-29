@@ -166,6 +166,21 @@ impl PackageManifest {
         Ok(contents)
     }
 
+    /// The permissions of the file at `path`, or `None` where nothing is
+    /// there yet.
+    fn existing_permissions(path: &Path) -> io::Result<Option<pnpm_fs::CopyPermissions>> {
+        #[cfg(not(target_os = "wasi"))]
+        let read =
+            fs::metadata(path).map(|metadata| pnpm_fs::CopyPermissions::of_metadata(&metadata));
+        #[cfg(target_os = "wasi")]
+        let read = pnpm_fs::copy_permissions(path);
+        match read {
+            Ok(permissions) => Ok(Some(permissions)),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
+            Err(error) => Err(error),
+        }
+    }
+
     /// Write `contents` to `path` atomically: a sibling temp file is written
     /// and fsynced, then renamed over `path`. A crash or write error therefore
     /// never leaves a truncated or partial manifest behind, matching the
@@ -176,26 +191,17 @@ impl PackageManifest {
             .parent()
             .filter(|parent| !parent.as_os_str().is_empty())
             .unwrap_or_else(|| Path::new("."));
-        #[cfg(not(target_os = "wasi"))]
-        let permissions = match fs::metadata(path) {
-            Ok(metadata) => Some(metadata.permissions()),
-            Err(error) if error.kind() == io::ErrorKind::NotFound => None,
-            Err(error) => return Err(error),
-        };
-        #[cfg(target_os = "wasi")]
-        let permissions = match pnpm_fs::copy_permissions(path) {
-            Ok(mode) => Some(mode),
-            Err(error) if error.kind() == io::ErrorKind::NotFound => None,
-            Err(error) => return Err(error),
-        };
+        let permissions = Self::existing_permissions(path)?;
         #[cfg(target_os = "wasi")]
         let mut tmp = tempfile::Builder::new()
             .make_in(dir, |temporary| {
-                pnpm_fs::create_new_with_mode(temporary, permissions.unwrap_or(0o666))
+                pnpm_fs::create_new_with_mode(
+                    temporary,
+                    permissions.as_ref().map_or(0o666, pnpm_fs::CopyPermissions::mode),
+                )
             })?;
         #[cfg(unix)]
         let mut tmp = {
-            use std::os::unix::fs::PermissionsExt as _;
             let mode = permissions
                 .as_ref()
                 .map_or(0o666, |existing| existing.mode() & 0o777);
@@ -205,7 +211,7 @@ impl PackageManifest {
         let mut tmp = pnpm_fs::umask_named_tempfile_in(dir)?;
         tmp.write_all(contents.as_bytes())?;
         if let Some(permissions) = permissions {
-            pnpm_fs::set_file_permissions(tmp.as_file(), &permissions)?;
+            permissions.apply_to_file(tmp.as_file())?;
         }
         pnpm_fs::sync_file(tmp.as_file())?;
         tmp.persist(path).map_err(|err| err.error)?;

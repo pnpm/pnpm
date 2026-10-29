@@ -286,6 +286,7 @@ pub(super) fn refresh_up_to_date_workspace<Reporter: self::Reporter>(
         projects: crate::install::StateProjects {
             manifests: context.projects.declared_manifests,
             workspace_projects: context.projects.workspace_projects,
+            lockfile: Some(context.wanted_lockfile),
         },
         filesystem_now_ms: filesystem_now_ms_in_modules(
             &context.tree.config.workspace_state_modules_dir(context.tree.workspace_root),

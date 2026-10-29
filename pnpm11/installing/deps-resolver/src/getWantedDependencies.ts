@@ -47,12 +47,15 @@ export function getWantedDependencies (
   opts?: {
     autoInstallPeers?: boolean
     includeDirect?: IncludedDependencies
+    /** Named in the error that rejects an invalid dependency name. */
+    projectDir?: string
   }
 ): ManifestWantedDependency[] {
-  assertValidDependencyAliases(pkg.dependencies, 'The current package')
-  assertValidDependencyAliases(pkg.devDependencies, 'The current package')
-  assertValidDependencyAliases(pkg.optionalDependencies, 'The current package')
-  assertValidDependencyAliases(pkg.peerDependencies, 'The current package')
+  const pkgDescription = opts?.projectDir != null ? `The project at "${opts.projectDir}"` : 'The current package'
+  assertValidDependencyAliases(pkg.dependencies, pkgDescription)
+  assertValidDependencyAliases(pkg.devDependencies, pkgDescription)
+  assertValidDependencyAliases(pkg.optionalDependencies, pkgDescription)
+  assertValidDependencyAliases(pkg.peerDependencies, pkgDescription)
   let depsToInstall = filterDependenciesByType(pkg,
     opts?.includeDirect ?? {
       dependencies: true,

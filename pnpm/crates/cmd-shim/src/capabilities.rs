@@ -314,14 +314,9 @@ impl FsWrite for Host {
 }
 
 fn set_file_executable(file: &std::fs::File) -> io::Result<()> {
-    #[cfg(unix)]
+    #[cfg(any(unix, target_os = "wasi"))]
     {
-        use std::os::unix::fs::PermissionsExt;
-        pnpm_fs::set_file_permissions(file, &std::fs::Permissions::from_mode(0o755))
-    }
-    #[cfg(target_os = "wasi")]
-    {
-        pnpm_fs::set_file_permissions(file, &0o755)
+        pnpm_fs::CopyPermissions::from_mode(0o755).apply_to_file(file)
     }
     #[cfg(not(any(unix, target_os = "wasi")))]
     {

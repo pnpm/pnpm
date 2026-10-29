@@ -14,6 +14,8 @@ pub mod git_repo;
 pub mod known_failure;
 #[cfg(windows)]
 pub mod privileges;
+#[cfg(unix)]
+pub mod process_liveness;
 pub mod registry;
 #[cfg(unix)]
 pub mod signal_delivery;

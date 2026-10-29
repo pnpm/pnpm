@@ -264,14 +264,14 @@ export interface RecordValidationOptions {
  * is probed, so a file rewritten after its stat either has a stat that no
  * longer matches or falls inside the window `fileDigestOf` distrusts.
  */
-export function recordValidation (state: WorkspaceState, opts: RecordValidationOptions): void {
+export function recordValidation (state: WorkspaceState, opts: RecordValidationOptions): RecordedValidation | undefined {
   const previous = opts.vouchedProjects == null ? undefined : opts.previous
-  const { lockfile, projectLockfiles, files } = recordedFiles(opts, previous?.validation)
+  const { lockfile, projectLockfiles, files, lockfiles } = recordedFiles(opts, previous?.validation)
   const recordedAtNs = filesystemNowNs(path.join(opts.workspaceDir, 'node_modules'))
   if (recordedAtNs == null) {
     delete state.validation
     state.filteredInstall = true
-    return
+    return undefined
   }
   const carried = previous != null && sharedInputsMatch(previous, state, opts.sharedInputs, files) ? previous.validation : undefined
   const validation: Validation = { recordedAtNs, files, lockfile, manifests: {} }
@@ -279,6 +279,15 @@ export function recordValidation (state: WorkspaceState, opts: RecordValidationO
   state.lastValidatedTimestamp = Math.trunc(recordedAtNs / 1_000_000)
   state.filteredInstall = recorded !== opts.allProjects.length
   state.validation = validation
+  return { lockfiles, carried }
+}
+
+/** What a `recordValidation` write read beyond the validation it records. */
+export interface RecordedValidation {
+  /** The lockfiles this write vouched for projects against, by digest. */
+  lockfiles: Map<string, RecordedLockfile>
+  /** The previous validation whose records of the other projects it kept. */
+  carried: Validation | undefined
 }
 
 /**
@@ -292,6 +301,7 @@ function recordedFiles (
   lockfile: string | undefined
   projectLockfiles: Map<string, string | undefined> | undefined
   files: Record<string, FileSignature>
+  lockfiles: Map<string, RecordedLockfile>
 } {
   const files: Record<string, FileSignature> = {}
   for (const input of opts.sharedInputs) {
@@ -299,19 +309,34 @@ function recordedFiles (
     if (digest.kind === 'present') files[input] = digest.signature
   }
   if (opts.sharedWorkspaceLockfile === false) {
-    return {
-      lockfile: undefined,
-      projectLockfiles: recordedProjectLockfiles(opts, previous, files),
-      files,
+    const projectLockfiles = recordedProjectLockfiles(opts, previous, files)
+    const lockfiles = new Map<string, RecordedLockfile>()
+    for (const [rootDir, digest] of projectLockfiles) {
+      if (digest != null) lockfiles.set(digest, { lockfileDir: rootDir, current: false })
     }
+    return { lockfile: undefined, projectLockfiles, files, lockfiles }
   }
   const lockfile = lockfileDigest(previous, opts.lockfileDir, opts.wantedLockfileName)
-  if (lockfile.digest.kind === 'present') files[lockfile.path] = lockfile.digest.signature
+  if (lockfile.digest.kind !== 'present') {
+    return { lockfile: undefined, projectLockfiles: undefined, files, lockfiles: new Map() }
+  }
+  files[lockfile.path] = lockfile.digest.signature
+  const current = lockfile.path !== path.join(opts.lockfileDir, opts.wantedLockfileName)
   return {
-    lockfile: lockfile.digest.kind === 'present' ? lockfile.digest.signature.digest : undefined,
+    lockfile: lockfile.digest.signature.digest,
     projectLockfiles: undefined,
     files,
+    lockfiles: new Map([[lockfile.digest.signature.digest, { lockfileDir: opts.lockfileDir, current }]]),
   }
+}
+
+/**
+ * A lockfile a write recorded the digest of: the wanted lockfile in
+ * `lockfileDir`, or the current lockfile standing in for it.
+ */
+export interface RecordedLockfile {
+  lockfileDir: string
+  current: boolean
 }
 
 function recordedProjectLockfiles (

@@ -12,11 +12,11 @@
 //! override variables defined in earlier files (matching `node --env-file`),
 //! and a variable already present in the environment is never overridden.
 //! Relative paths resolve against the invocation working directory, before
-//! `--dir` or `--workspace-root` is applied. A leading UTF-8 byte-order mark
-//! is tolerated. A missing or malformed file fails the
-//! command loudly rather than running with a partial environment. Parse
-//! errors name the file but never echo its contents: env files routinely
-//! hold secrets that must not leak into stderr and CI logs.
+//! `--dir` or `--workspace-root` is applied. The contents are read as
+//! `node --env-file` reads them (see [`parse`]). Unlike Node.js, a leading
+//! UTF-8 byte-order mark is dropped instead of becoming part of the first
+//! key. A missing file fails the command loudly rather than running with a
+//! partial environment.
 //!
 //! The load runs on the main thread before the startup thread exists,
 //! which is where the environment may still change (see
@@ -26,6 +26,8 @@
 //! variables travel by environment inheritance instead. Tokens past the
 //! passthrough point are left alone (see `crate::parse_boundary`). Those are
 //! the script arguments after `--`, or after a `run`/`exec` script name.
+
+mod parse;
 
 use crate::{
     flag_relocation::ArgTable,
@@ -39,7 +41,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-/// Raised when an `--env-file` file cannot be read or parsed.
+/// Raised when an `--env-file` file cannot be read.
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
 pub enum EnvFileError {
@@ -47,36 +49,6 @@ pub enum EnvFileError {
     #[display("Failed to read env file '{}': {source}", path.display())]
     #[diagnostic(code(ERR_PNPM_ENV_FILE_READ))]
     Read { path: PathBuf, source: std::io::Error },
-    /// The env file contains a line that is neither empty, a comment, nor
-    /// a `KEY=VALUE` pair.
-    #[display("Failed to parse env file '{}': {message}", path.display())]
-    #[diagnostic(code(ERR_PNPM_ENV_FILE_PARSE))]
-    Parse { path: PathBuf, message: String },
-}
-
-impl EnvFileError {
-    fn load(path: &Path, error: &dotenvy::Error) -> Self {
-        let message = match error {
-            // dotenvy reports the offending line; only its position is
-            // repeated here, so a malformed line cannot leak a secret into
-            // stderr and CI logs.
-            dotenvy::Error::LineParse(_, index) => {
-                format!("invalid dotenv entry (error at index {index})")
-            }
-            // `from_read_iter` reads an in-memory slice, so the only other
-            // error `read_line` can raise is `InvalidData` on non-UTF-8
-            // bytes.
-            _ => "file contains invalid UTF-8".to_string(),
-        };
-        Self::Parse { path: path.to_owned(), message }
-    }
-
-    /// A key or value with an embedded NUL byte, which `std::env::set_var`
-    /// would panic on instead of failing the command. The key is omitted
-    /// from the message: it echoes env-file contents into stderr.
-    fn nul(path: &Path) -> Self {
-        Self::Parse { path: path.to_owned(), message: "value contains a NUL byte".to_string() }
-    }
 }
 
 /// Load each file in order, handing every variable it defines to `set`.
@@ -125,9 +97,7 @@ pub fn strip_flags(argv: &[OsString]) -> Vec<OsString> {
 }
 
 /// The UTF-8 byte-order mark Windows editors routinely prepend to a `.env`
-/// file. `dotenvy::from_path_iter` never runs the BOM removal that
-/// `Iter::load` performs, so without this the first key would carry a
-/// leading U+FEFF and fail to parse (or misname the variable).
+/// file. Without stripping it, the first key would carry a leading U+FEFF.
 const UTF8_BOM: [u8; 3] = [0xEF, 0xBB, 0xBF];
 
 fn load_one(
@@ -138,25 +108,28 @@ fn load_one(
     let bytes =
         std::fs::read(path).map_err(|source| EnvFileError::Read { path: path.to_owned(), source })?;
     let stripped = bytes.strip_prefix(&UTF8_BOM).unwrap_or(&bytes);
-    for pair in dotenvy::from_read_iter(stripped) {
-        let (key, value) = pair.map_err(|error| EnvFileError::load(path, &error))?;
-        // `set_var` panics on a NUL byte in either half; `var_os` would
-        // report a NUL key as merely absent, so the guard below cannot be
-        // relied on to catch it.
-        if key.contains('\0') || value.contains('\0') {
-            return Err(EnvFileError::nul(path).into());
+    for (key, value) in parse::parse(&String::from_utf8_lossy(stripped)) {
+        // Node.js sets variables through C strings, which end at a NUL byte.
+        // `set_var` would panic on one, and on an empty key.
+        let (key, value) = (until_nul(&key), until_nul(&value));
+        if key.is_empty() {
+            continue;
         }
-        let id = env_key_id(&key);
-        if std::env::var_os(&key).is_none() || loaded_keys.contains(&id) {
+        let id = env_key_id(key);
+        if std::env::var_os(key).is_none() || loaded_keys.contains(&id) {
             loaded_keys.insert(id);
-            set(&key, &value);
+            set(key, value);
         }
     }
     Ok(())
 }
 
+fn until_nul(text: &str) -> &str {
+    text.split_once('\0').map_or(text, |(before, _)| before)
+}
+
 /// Normalize a dotenv variable name for set membership. Windows environment
-/// variable names are case-insensitive and `dotenvy` keys are ASCII.
+/// variable names are case-insensitive.
 fn env_key_id(key: &str) -> String {
     if cfg!(windows) { key.to_ascii_uppercase() } else { key.to_owned() }
 }

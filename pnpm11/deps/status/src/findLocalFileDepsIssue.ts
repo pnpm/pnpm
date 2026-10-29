@@ -3,6 +3,7 @@ import type { Catalogs } from '@pnpm/catalogs.types'
 import { parseOverrides, type VersionOverride } from '@pnpm/config.parse-overrides'
 import { createOverriddenDependencyMatcher, type OverriddenDependencyMatcher } from '@pnpm/hooks.read-package-hook'
 import { DEPENDENCIES_FIELDS, type IncludedDependencies, type ProjectManifest } from '@pnpm/types'
+import { recordedLockfileDigests, type WorkspaceState } from '@pnpm/workspace.state'
 import { isEmpty } from 'ramda'
 
 import { findInjectedWorkspaceDep } from './findInjectedWorkspaceDep.js'
@@ -51,6 +52,27 @@ export function findLocalFileDepsIssue (opts: CheckDepsStatusOptions): string | 
   const localFileExtension = findLocalFilePackageExtension(opts.packageExtensions, localFileDepContext)
   if (localFileExtension != null) {
     return `The package extension "${localFileExtension}" injects a local file dependency and its contents may have changed`
+  }
+  return undefined
+}
+
+/**
+ * Describes the first local dependency the last install recorded from its
+ * lockfile, which a `readPackage` hook may have added to a package no
+ * manifest declares it in. A directory in `workspaceProjectDirs` is a
+ * workspace project, not a local dependency. A lockfile the projects were
+ * proven against without a record of its local dependencies may resolve
+ * any, so it is an issue too. `undefined` when there is none.
+ */
+export function findRecordedLocalDependencyIssue (workspaceState: WorkspaceState, workspaceProjectDirs: Set<string>): string | undefined {
+  const validation = workspaceState.validation
+  if (validation == null) return undefined
+  if (!recordedLockfileDigests(validation).every((digest) => validation.localDependencies?.[digest] != null)) {
+    return 'The local dependencies of a lockfile are not recorded'
+  }
+  for (const local of Object.values(validation.localDependencies ?? {})) {
+    const localPath = local.tarballs?.[0] ?? local.directories?.find((dir) => !workspaceProjectDirs.has(dir))
+    if (localPath != null) return `The local dependency at "${localPath}" may have changed`
   }
   return undefined
 }

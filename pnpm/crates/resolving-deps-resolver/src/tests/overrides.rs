@@ -53,6 +53,37 @@ async fn transitive_dep_with_traversal_alias_is_rejected() {
     }
 }
 
+/// In a workspace, the error has to say which project to fix.
+#[tokio::test]
+async fn invalid_direct_dependency_name_names_the_project_directory() {
+    let resolver = StubResolver { table: HashMap::default(), calls: Mutex::new(Vec::new()) };
+    let (tmp, manifest) = fake_manifest(serde_json::json!({ ".": "1.0.0" }));
+
+    let err = resolve_dependency_tree(
+        &resolver,
+        &manifest,
+        [DependencyGroup::Prod],
+        ResolveDependencyTreeOptions {
+            base_opts: ResolveOptions::default(),
+            patched_dependencies: None,
+            manifest_hook: None,
+            overrides_hook: None,
+            pnpmfile_hook: None,
+            read_package_log: None,
+            auto_install_peers: false,
+        },
+    )
+    .await
+    .expect_err(r#""." is not a valid dependency name"#);
+    match err {
+        ResolveDependencyTreeError::InvalidDependencyName { parent, alias } => {
+            assert_eq!(alias, ".");
+            assert_eq!(parent, format!(r#"The project at "{}""#, tmp.path().display()));
+        }
+        other => panic!("expected InvalidDependencyName, got {other:?}"),
+    }
+}
+
 /// pnpm's `createReadPackageHook` order is packageExtensions → readPackage
 /// hooks → overrides: a pnpmfile hook that replaces the manifest must not
 /// erase the overrides. Here the hook replaces foo's manifest (bar pinned to

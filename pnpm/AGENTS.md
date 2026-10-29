@@ -311,6 +311,30 @@ CI runs the full suite on three platforms for every pull request, so a local
 step before every handoff. See
 [`CONTRIBUTING.md`](./CONTRIBUTING.md#automated-checks).
 
+### Process lifetime contract
+
+What happens to the processes pnpm starts for scripts and commands when they,
+or pnpm, end is a contract, written down in
+[`crates/executor/PROCESS_LIFETIME.md`](./crates/executor/PROCESS_LIFETIME.md).
+Its rule is that what a command leaves running outlives pnpm exactly when it
+would outlive the command run without pnpm, apart from two stated
+differences. Each row of the contract names the tests that pin it, most of
+them in `crates/cli/tests/suite/process_lifetime/`.
+
+- Treat a request to end, or to keep, some process that the contract says
+  otherwise about as a change to the contract. Change `PROCESS_LIFETIME.md`
+  first, give the reason for any new difference from the command run without
+  pnpm, and update the tests its changed rows name, in the same PR.
+- Never change or delete one of those tests on its own to make a change
+  pass. A failure there means the change diverges from the contract.
+- Exit through `pnpm_executor::exit` or return from `main`. Never call
+  `std::process::exit` or a platform exit directly, and never silence the
+  `clippy::disallowed_methods` lint that bans it: such an exit skips the
+  release of the Windows Job Object and kills whatever the command left
+  running.
+- A review should flag a PR that changes how pnpm spawns, waits for,
+  signals, or kills processes without checking it against the contract.
+
 ## Style
 
 `CODE_STYLE_GUIDE.md` is the source of truth. Highlights:
@@ -480,3 +504,6 @@ perf(store-dir): share one read-only StoreIndex across cache lookups
   workspace's `unsafe_code` lint, and `cargo test -p pnpm-unsafe-audit`
   says so.
 - Do not disable lints, tests, or CI checks to make a PR green.
+- Do not change what happens to the processes a command leaves running without
+  changing [`PROCESS_LIFETIME.md`](./crates/executor/PROCESS_LIFETIME.md)
+  first (see [Process lifetime contract](#process-lifetime-contract)).

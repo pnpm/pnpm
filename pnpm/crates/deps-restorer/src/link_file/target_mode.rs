@@ -7,13 +7,9 @@ use std::{io, path::Path};
 /// The permissions the copy tier gives a copy of `source_file`: the
 /// store-entry mode for a store entry, or the source's own permissions.
 pub(super) fn desired_permissions(source_file: &Path) -> io::Result<pnpm_fs::CopyPermissions> {
-    #[cfg(unix)]
+    #[cfg(any(unix, target_os = "wasi"))]
     if let Some(mode) = desired_mode(source_file) {
-        return Ok(mode.into());
-    }
-    #[cfg(target_os = "wasi")]
-    if let Some(mode) = desired_mode(source_file) {
-        return Ok(mode.mode());
+        return Ok(pnpm_fs::CopyPermissions::from_mode(mode.mode()));
     }
     pnpm_fs::copy_permissions(source_file)
 }
@@ -74,6 +70,6 @@ pub(super) fn align_target_mode(_source_file: &Path, _target_link: &Path) -> io:
 #[cfg(target_os = "wasi")]
 pub(super) fn source_has_desired_mode(source_file: &Path) -> io::Result<bool> {
     let Some(desired) = desired_mode(source_file) else { return Ok(true) };
-    let mode = pnpm_fs::FileMode::from_mode(pnpm_fs::copy_permissions(source_file)?);
+    let mode = pnpm_fs::FileMode::from_mode(pnpm_fs::copy_permissions(source_file)?.mode());
     Ok(pnpm_fs::file_mode::store_inode_mode_is_linkable(mode, desired))
 }

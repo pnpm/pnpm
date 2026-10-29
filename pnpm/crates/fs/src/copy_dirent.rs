@@ -39,12 +39,9 @@ fn copy_entry(src: &Path, dst: &Path, metadata: &fs::Metadata) -> io::Result<()>
         // After the contents, so a source directory the owner cannot
         // write to is still populated before it turns read-only.
         #[cfg(not(target_os = "wasi"))]
-        return fs::set_permissions(dst, metadata.permissions());
+        return crate::CopyPermissions::of_metadata(metadata).apply_to_path(dst);
         #[cfg(target_os = "wasi")]
-        return crate::file_mode::set_path_permissions(
-            dst,
-            crate::FileMode::from_mode(crate::copy_permissions(src)?),
-        );
+        return crate::copy_permissions(src)?.apply_to_path(dst);
     }
     if !file_type.is_file() {
         return Err(io::Error::new(

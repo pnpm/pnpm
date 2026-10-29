@@ -2,11 +2,8 @@
 mod tests;
 
 use super::Host;
-#[cfg(target_os = "wasi")]
 use pnpm_fs::CopyPermissions as Permissions;
 use std::{fs, io, path::Path};
-#[cfg(unix)]
-use std::{fs::Permissions, os::unix::fs::PermissionsExt};
 
 pub(super) trait FsSetPermissions {
     fn set_permissions(path: &Path, permissions: Permissions) -> io::Result<()>;
@@ -14,13 +11,7 @@ pub(super) trait FsSetPermissions {
 
 impl FsSetPermissions for Host {
     fn set_permissions(path: &Path, permissions: Permissions) -> io::Result<()> {
-        #[cfg(unix)]
-        return fs::set_permissions(path, permissions);
-        #[cfg(target_os = "wasi")]
-        return pnpm_fs::file_mode::set_path_permissions(
-            path,
-            pnpm_fs::FileMode::from_mode(permissions),
-        );
+        permissions.apply_to_path(path)
     }
 }
 
@@ -33,11 +24,7 @@ pub(super) fn ensure_executable<Sys: FsSetPermissions>(path: &Path) -> io::Resul
 }
 
 pub(super) fn set_executable<Sys: FsSetPermissions>(path: &Path) -> io::Result<()> {
-    #[cfg(unix)]
-    let permissions = Permissions::from_mode(0o755);
-    #[cfg(target_os = "wasi")]
-    let permissions = 0o755;
-    Sys::set_permissions(path, permissions)
+    Sys::set_permissions(path, Permissions::from_mode(0o755))
 }
 
 pub(super) fn ensure_executable_bits<Sys: FsSetPermissions>(
@@ -64,11 +51,7 @@ pub(super) fn ensure_executable_bits<Sys: FsSetPermissions>(
     if is_executable_by_everyone(mode) {
         return Ok(());
     }
-    #[cfg(unix)]
-    let permissions = Permissions::from_mode(mode | 0o111);
-    #[cfg(target_os = "wasi")]
-    let permissions = mode | 0o111;
-    Sys::set_permissions(&target, permissions)
+    Sys::set_permissions(&target, Permissions::from_mode(mode | 0o111))
 }
 
 /// A file that passes needs no chmod. That is what lets an install reuse a
@@ -78,8 +61,9 @@ fn is_executable_by_everyone(mode: u32) -> bool {
 }
 
 fn permission_bits(path: &Path) -> io::Result<u32> {
-    #[cfg(unix)]
-    return Ok(fs::metadata(path)?.permissions().mode());
+    // WASI metadata omits the bits, so only the host read reports them.
+    #[cfg(not(target_os = "wasi"))]
+    return fs::metadata(path).map(|metadata| Permissions::of_metadata(&metadata).mode());
     #[cfg(target_os = "wasi")]
-    return pnpm_fs::copy_permissions(path);
+    return pnpm_fs::copy_permissions(path).map(|permissions| permissions.mode());
 }

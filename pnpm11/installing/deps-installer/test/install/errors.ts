@@ -96,3 +96,21 @@ test('fail if a package cannot be fetched', async () => {
     ]
   )
 })
+
+test('an invalid dependency name in a project manifest names the project', async () => {
+  prepareEmpty()
+  const rootDir = process.cwd() as ProjectRootDir
+
+  await expect(mutateModulesInSingleProject({
+    manifest: {
+      dependencies: {
+        '.': '1.0.0',
+      },
+    },
+    mutation: 'install',
+    rootDir,
+  }, testDefaults())).rejects.toMatchObject({
+    code: 'ERR_PNPM_INVALID_DEPENDENCY_NAME',
+    message: `The project at "${rootDir}" contains a dependency with an invalid name: "."`,
+  })
+})

@@ -5,7 +5,7 @@ export { nameVerFromPkgSnapshot } from './nameVerFromPkgSnapshot.js'
 export { packageIdFromSnapshot } from './packageIdFromSnapshot.js'
 export { packageIsIndependent } from './packageIsIndependent.js'
 export { pkgSnapshotToResolution, type PkgSnapshotToResolutionOptions } from './pkgSnapshotToResolution.js'
-export { refIsLocalDirectory, refIsLocalTarball } from './refIsLocalTarball.js'
+export { refIsLocalDirectory, refIsLocalTarball, resolveLocalTarballPath } from './refIsLocalTarball.js'
 export {
   findMovedRegistryKey,
   findOutdatedRegistryKey,
