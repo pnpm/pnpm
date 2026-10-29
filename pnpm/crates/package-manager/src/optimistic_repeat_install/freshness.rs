@@ -254,7 +254,7 @@ fn check_settings_and_workspace_freshness(
     if !catalogs_cache_matches(state.settings.catalogs.as_ref(), catalogs) {
         return Err(Stale::CatalogsCache);
     }
-    if !project_structure_matches(state, project_manifests) {
+    if !project_structure_matches(state, project_manifests.as_slice()) {
         return Err(Stale::ProjectStructure);
     }
     if let Some(id) = first_held_project_missing_modules_dir(check, state, scope) {

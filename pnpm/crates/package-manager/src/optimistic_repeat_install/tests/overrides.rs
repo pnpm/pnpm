@@ -299,10 +299,10 @@ fn returns_up_to_date_when_a_linked_workspace_dependency_is_overridden_and_manif
         &super::super::OptimisticRepeatInstallCheck {
             workspace_root,
             config,
-            project_manifests: &[
+            project_manifests: crate::DeclaredManifests::new(&[
                 (workspace_root.to_path_buf(), &root_manifest_edited),
                 (sibling_dir, &sibling_manifest),
-            ],
+            ]),
             is_workspace_install: true,
             lockfile: pnpm_lockfile::MaybeLazyLockfile::Loaded(lockfile.as_ref()),
             catalogs: &BTreeMap::default(),

@@ -964,6 +964,58 @@ fn a_pnpmfile_hook_edited(layout: Layout) {
     scenario.check_gates_after_a_workspace_input_edit();
 }
 
+/// A `readPackage` hook that rewrites a workspace project's own specifier of
+/// `a`. It maps `workspace:*` too, so a manifest can declare the specifier the
+/// lockfile records while the hook resolves another one.
+const PNPMFILE_REWRITING_A_PROJECT_SPECIFIER: &str =
+    "module.exports = { hooks: { readPackage (pkg) {
+  const rewritten = { '*': 'workspace:*', 'workspace:*': 'workspace:^' }[pkg.dependencies?.a]
+  if (rewritten) pkg.dependencies.a = rewritten
+  return pkg
+} } }
+";
+
+/// A `readPackage` hook that rewrites `c`'s specifier of its sibling `a`, then
+/// edits to that specifier, then an edit to `c` that leaves its dependencies
+/// alone.
+fn a_pnpmfile_hook_rewriting_a_project_specifier(layout: Layout) {
+    let mut scenario = Scenario::new(layout);
+    scenario.install(&[]);
+    fs::write(scenario.workspace().join(".pnpmfile.cjs"), PNPMFILE_REWRITING_A_PROJECT_SPECIFIER)
+        .expect("write the pnpmfile");
+    scenario.check_gates_after_a_workspace_input_edit();
+    let dependencies = |specifier| json!({ "a": specifier, "@pnpm.e2e/bar": "100.0.0" });
+    for specifier in ["*", "workspace:*"] {
+        scenario.set_dependencies("c", &dependencies(specifier));
+        scenario.check_gates();
+    }
+    scenario.write_manifest(
+        "c",
+        json!({ "description": "edited", "dependencies": dependencies("workspace:*") }),
+    );
+    scenario.check_gates();
+}
+
+/// A `packageExtensions` entry that adds a dependency to the workspace project
+/// `c`, then an edit to `c` that leaves its dependencies alone.
+fn a_package_extension_of_a_project_then_an_edit(layout: Layout) {
+    let mut scenario = Scenario::new(layout);
+    scenario.install(&[]);
+    scenario.set_workspace_setting(
+        "packageExtensions",
+        Some("{ c: { dependencies: { '@pnpm.e2e/foo': '100.0.0' } } }"),
+    );
+    scenario.check_gates_after_a_workspace_input_edit();
+    scenario.write_manifest(
+        "c",
+        json!({
+            "description": "edited",
+            "dependencies": { "a": "workspace:*", "@pnpm.e2e/bar": "100.0.0" },
+        }),
+    );
+    scenario.check_gates();
+}
+
 /// `patchedDependencies` added, its patch file edited, and the entry removed.
 fn a_patch_added_edited_and_removed(layout: Layout) {
     let mut scenario = Scenario::new(layout);
@@ -1108,6 +1160,8 @@ macro_rules! matrix {
                     a_workspace_without_a_root_manifest,
                     overrides_edited,
                     a_pnpmfile_hook_edited,
+                    a_pnpmfile_hook_rewriting_a_project_specifier,
+                    a_package_extension_of_a_project_then_an_edit,
                     a_patch_added_edited_and_removed,
                     dedupe_peers_toggled,
                     a_workspace_bin_renamed,

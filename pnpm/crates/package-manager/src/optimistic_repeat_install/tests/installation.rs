@@ -120,7 +120,7 @@ fn returns_up_to_date_when_the_local_file_dependency_is_in_an_excluded_group() {
     let decision = check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
         workspace_root: dir.path(),
         config,
-        project_manifests: &[(dir.path().to_path_buf(), &manifest)],
+        project_manifests: crate::DeclaredManifests::new(&[(dir.path().to_path_buf(), &manifest)]),
         is_workspace_install: false,
         lockfile: MaybeLazyLockfile::Loaded(None),
         catalogs: &BTreeMap::default(),
@@ -166,7 +166,7 @@ fn returns_skipped_when_the_local_file_dependency_is_in_an_included_group() {
     let decision = check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
         workspace_root: dir.path(),
         config,
-        project_manifests: &[(dir.path().to_path_buf(), &manifest)],
+        project_manifests: crate::DeclaredManifests::new(&[(dir.path().to_path_buf(), &manifest)]),
         is_workspace_install: false,
         lockfile: MaybeLazyLockfile::Loaded(None),
         catalogs: &BTreeMap::default(),
@@ -262,7 +262,7 @@ fn returns_up_to_date_when_a_package_extension_optional_dependency_is_excluded()
     let decision = check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
         workspace_root: dir.path(),
         config,
-        project_manifests: &[(dir.path().to_path_buf(), &manifest)],
+        project_manifests: crate::DeclaredManifests::new(&[(dir.path().to_path_buf(), &manifest)]),
         is_workspace_install: false,
         lockfile: MaybeLazyLockfile::Loaded(None),
         catalogs: &BTreeMap::default(),

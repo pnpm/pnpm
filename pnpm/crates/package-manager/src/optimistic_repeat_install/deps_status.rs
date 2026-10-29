@@ -74,7 +74,8 @@ pub fn check_deps_status_before_run(
     if check.layout.node_linker == NodeLinker::Pnp {
         return RunDepsStatus::SkippedPnp;
     }
-    let relocated = relocated_state(state, check.workspace_root, check.project_manifests);
+    let relocated =
+        relocated_state(state, check.workspace_root, check.project_manifests.as_slice());
     let moved = relocated.is_some();
     let state = relocated.as_ref().unwrap_or(state);
     let config = check.config;
