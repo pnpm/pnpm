@@ -359,7 +359,7 @@ fn version_flag_reuses_the_pinned_engine_when_node_version_names_another_major()
 }
 
 #[test]
-fn version_flag_reuses_the_pinned_engine_with_project_install_settings() {
+fn version_flag_installs_the_pinned_engine_for_the_host_when_supported_architectures_exclude_it() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;

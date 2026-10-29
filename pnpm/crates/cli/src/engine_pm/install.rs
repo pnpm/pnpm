@@ -18,10 +18,7 @@
 
 use crate::{
     cli_args::self_update::{
-        install_pnpm::{
-            build_engine_install_config, link_exe_platform_binary, package_dir,
-            pnpm_executable_path, run_install,
-        },
+        install_pnpm::{link_exe_platform_binary, package_dir, pnpm_executable_path, run_install},
         verify_engine::{EngineToVerify, PlatformBinaries, verify_engine_identity},
     },
     config_deps,
@@ -32,7 +29,6 @@ use crate::{
     },
     slot_lock,
 };
-use engine_config::package_manager_engine_config;
 use miette::{Context, IntoDiagnostic};
 use pnpm_cmd_shim::{
     Host as CmdShimHost, LinkBinsOptions, PackageBinSource, link_bins_of_packages,
@@ -210,7 +206,8 @@ async fn install_engine_into_slot<Reporter: self::Reporter + 'static>(
         &tmp_install_dir,
         package_name,
         version,
-        config.supported_architectures.clone(),
+        // The engine runs on this host, whatever platforms the project installs for.
+        None,
         Some(package.pinned),
     ))
     .await
@@ -242,7 +239,8 @@ async fn install_engine_privately<Reporter: self::Reporter + 'static>(
         private_install.dir(),
         package.wrapper,
         version,
-        config.supported_architectures.clone(),
+        // The engine runs on this host, whatever platforms the project installs for.
+        None,
         None,
     ))
     .await?;
@@ -333,6 +331,21 @@ fn acquire_install_lock<Reporter: self::Reporter>(path: &Path, subject: &str) ->
     None
 }
 
+/// The project's config, retargeted at the shared engine store.
+///
+/// The project's `nodeVersion` is dropped: it names the Node.js the
+/// project's dependencies run on, while the engine runs on the host's, and
+/// [`compute_engine_slot`] keys the slot on the host. Keeping it would
+/// install the engine into a slot no later lookup finds.
+fn package_manager_engine_config(config: &Config) -> miette::Result<Config> {
+    let global_pkg_dir = config.global_pkg_dir.as_ref().ok_or(EngineError::NoGlobalDir)?;
+    let mut config = config.clone();
+    config.store_dir = StoreDir::new(package_manager_engine_store_root(global_pkg_dir));
+    config.global_virtual_store_dir = config.store_dir.links();
+    config.node_version = None;
+    Ok(config)
+}
+
 fn package_manager_engine_store_root(global_pkg_dir: &Path) -> PathBuf {
     package_manager_home(global_pkg_dir).join("package-manager-store")
 }
@@ -398,10 +411,14 @@ fn compute_engine_slot(
         .find(|key| key.without_peer() == wanted)?
         .clone();
 
-    // The layout reads no install-directory setting, so any directory
-    // yields the config the slot's install ran with.
-    let cfg =
-        build_engine_install_config(config, &config.store_dir.tmp(), None, Some(packages.pinned));
+    let mut cfg = config.clone();
+    cfg.enable_global_virtual_store = true;
+    cfg.global_virtual_store_dir = config.store_dir.links();
+    cfg.allow_builds.clear();
+    cfg.disable_agent_skills();
+    for name in packages.pinned {
+        cfg.allow_builds.insert((*name).to_string(), true);
+    }
     let policy = AllowBuildPolicy::from_config(&cfg).ok()?;
     let engine = detect_node_major().map(|major| engine_name(major, None, None));
     let layout = VirtualStoreLayout::new(
@@ -495,7 +512,6 @@ fn remove_dir_if_not_symlink(path: &Path) -> std::io::Result<()> {
     }
 }
 
-mod engine_config;
 mod linked_bins;
 use linked_bins::{linked_engine_bins, populated_engine_slot};
 
