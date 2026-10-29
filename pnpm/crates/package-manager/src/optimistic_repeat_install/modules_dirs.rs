@@ -1,6 +1,3 @@
-mod direct_links;
-mod workspace_deps;
-
 use super::{
     OptimisticRepeatInstallCheck, manifest_has_required_peers, manifest_has_runtime_deps,
     manifest_string_field,
@@ -20,6 +17,9 @@ use std::{
     path::{Path, PathBuf},
 };
 use workspace_deps::reached_workspace_project_dirs;
+
+mod direct_links;
+mod workspace_deps;
 
 /// The id (`name` field, falling back to the root dir) of the first
 /// project that declares dependencies but has no modules directory, or
