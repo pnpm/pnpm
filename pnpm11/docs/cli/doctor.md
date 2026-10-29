@@ -46,7 +46,7 @@ Checks that the [cache directory](../settings/other.md#cachedir) is writable.
 
 ### Store directory
 
-Checks that the [store directory](../settings/store.md#storedir) is writable. Skipped when no store directory is configured.
+Checks that the [store directory](../settings/store.md#storedir) is writable when `store-dir` is configured. Skipped when no store directory is configured.
 
 ### Filesystem
 

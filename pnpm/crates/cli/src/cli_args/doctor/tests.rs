@@ -1,8 +1,8 @@
 use super::{
-    CheckResult, CheckStatus, DoctorReport, can_write_to_dir, check_versions, last_line,
-    probe_link_capabilities, render_report, status_mark,
+    CheckResult, CheckStatus, DoctorArgs, DoctorReport, can_write_to_dir, check_versions,
+    connectivity_config, last_line, probe_link_capabilities, render_report, status_mark,
 };
-use pnpm_config::PNPM_VERSION;
+use pnpm_config::{Config, PNPM_VERSION};
 use pretty_assertions::assert_eq;
 
 fn report(checks: Vec<CheckResult>) -> DoctorReport {
@@ -100,4 +100,32 @@ fn last_line_skips_trailing_blanks() {
 fn check_versions_reports_the_released_pnpm_version() {
     let detail = check_versions().detail.expect("versions detail");
     assert!(detail.starts_with(&format!("pnpm {PNPM_VERSION}")), "{detail}");
+}
+
+#[test]
+fn connectivity_config_uses_the_doctor_timeout() {
+    let config = Config { fetch_timeout: 120_000, ..Config::default() };
+    assert_eq!(connectivity_config(&config).fetch_timeout, 15_000);
+}
+
+#[tokio::test]
+async fn connectivity_check_overrides_the_configured_fetch_timeout() {
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/-/ping?write=true")
+        .with_chunked_body(|writer| {
+            std::thread::sleep(std::time::Duration::from_millis(100));
+            std::io::Write::write_all(writer, b"pong")?;
+            Ok(())
+        })
+        .create_async()
+        .await;
+    let config = Config { registry: server.url(), fetch_timeout: 10, ..Config::default() };
+
+    let check =
+        DoctorArgs { offline: false, benchmark: false, json: false }.check_connectivity(&config)
+            .await;
+
+    assert_eq!(check.status, CheckStatus::Pass, "{check:?}");
+    mock.assert_async().await;
 }
