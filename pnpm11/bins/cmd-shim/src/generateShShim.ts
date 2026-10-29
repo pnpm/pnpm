@@ -254,17 +254,24 @@ fi
 }
 
 function buildShExecBlock (config: ShProgConfig): string {
-  const msysArgs = config.isCmdRuntime ? escapeMsysCmdSwitches(config.args) : config.args
-  if (msysArgs !== config.args) {
-    return `\
+  const exclusion = config.isCmdRuntime ? buildMsysCmdSwitchExclusion(config.args) : ''
+  return exclusion + generateExecBlock(config, config.args)
+}
+
+/**
+ * Excludes the standalone `cmd` switches in `args` from MSYS argument
+ * conversion, which otherwise turns `/C` into a drive path and leaves cmd.exe
+ * interactive. The caller's own exclusions follow them. Unlike a doubled
+ * `//C`, the switch reaches cmd.exe intact whether conversion is on or off.
+ */
+function buildMsysCmdSwitchExclusion (args: string): string {
+  const switches = msysCmdSwitches(args)
+  if (switches.length === 0) return ''
+  return `\
 if [ -n "$msys" ]; then
-${indentShellBlock(generateExecBlock(config, msysArgs))}
-else
-${indentShellBlock(generateExecBlock(config, config.args))}
+  export MSYS2_ARG_CONV_EXCL="${switches.join(';')}\${MSYS2_ARG_CONV_EXCL:+;$MSYS2_ARG_CONV_EXCL}"
 fi
 `
-  }
-  return generateExecBlock(config, config.args)
 }
 
 function generateExecBlock (config: ShProgConfig, execArgs: string): string {
@@ -301,10 +308,22 @@ fi
 `
 }
 
-function escapeMsysCmdSwitches (args: string): string {
-  return args.replace(/(^|\s)\/([CK])(\s|$)/gi, '$1//$2$3')
+const MSYS_CMD_SWITCHES = new Set(['/C', '/c', '/K', '/k'])
+const MSYS_DOUBLED_CMD_SWITCHES = new Set(['//C', '//c', '//K', '//k'])
+
+function msysCmdSwitches (args: string): string[] {
+  return args.split(/\s+/).filter((arg) => MSYS_CMD_SWITCHES.has(arg))
 }
 
-function indentShellBlock (script: string): string {
-  return script.split('\n').map((line) => line ? `  ${line}` : line).join('\n')
+/**
+ * Whether an already-on-disk shim hands `cmd` a doubled switch such as `//C`,
+ * which cmd.exe reads as no switch when MSYS argument conversion is off. The
+ * target marker still matches such a shim, so a warm reinstall checks for the
+ * doubled switch to replace it.
+ */
+export function isShimMsysCmdSwitchDoubled (shimContent: string): boolean {
+  return shimContent.split('\n').some((line) =>
+    line.trimStart().startsWith('exec ') &&
+    line.split(/\s+/).some((arg) => MSYS_DOUBLED_CMD_SWITCHES.has(arg))
+  )
 }

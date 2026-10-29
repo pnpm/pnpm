@@ -1,10 +1,11 @@
 use super::{
     CmdShimBatch, ScriptRuntime, extension_program, generate_cmd_shim, generate_pwsh_shim,
-    generate_sh_shim, is_sh_shim_hardened, is_shim_pointing_at, parse_shebang,
-    parse_shebang_from_bytes, read_head_filled, relative_target, search_script_runtime,
+    generate_sh_shim, is_sh_shim_hardened, is_sh_shim_msys_cmd_switch_doubled, is_shim_pointing_at,
+    parse_shebang, parse_shebang_from_bytes, read_head_filled, relative_target,
+    search_script_runtime,
     sh::{
         SH_SHIM_CYGPATH_LINE, SH_SHIM_HARDENED_HELPER_LINE, SH_SHIM_HELPER_PATH_FILTER_LINE,
-        SH_SHIM_PATH_PRINTF_LINE, SH_SHIM_WSLPATH_LINE, escape_msys_cmd_switches, strip_exe_suffix,
+        SH_SHIM_PATH_PRINTF_LINE, SH_SHIM_WSLPATH_LINE, msys_cmd_switches, strip_exe_suffix,
         write_sh_node_path,
     },
 };
@@ -419,13 +420,21 @@ fn search_script_runtime_falls_back_to_cmd_with_c_switch() {
 }
 
 #[test]
-fn escape_msys_cmd_switches_escapes_only_standalone_cmd_switches() {
-    assert_eq!(escape_msys_cmd_switches("/C"), "//C");
-    assert_eq!(escape_msys_cmd_switches(" /c\t/K "), " //c\t//K ");
-    assert_eq!(
-        escape_msys_cmd_switches("--flag /Config path/C /C:bad"),
-        "--flag /Config path/C /C:bad",
-    );
+fn msys_cmd_switches_finds_only_standalone_cmd_switches() {
+    assert_eq!(msys_cmd_switches("/C").collect::<Vec<_>>(), ["/C"]);
+    assert_eq!(msys_cmd_switches(" /c\t/K ").collect::<Vec<_>>(), ["/c", "/K"]);
+    assert_eq!(msys_cmd_switches("--flag /Config path/C /C:bad").count(), 0);
+}
+
+#[test]
+fn a_shim_that_doubles_the_cmd_switch_is_outdated() {
+    let target = Path::new("/proj/node_modules/foo/src.bat");
+    let shim = Path::new("/proj/node_modules/.bin/foo");
+    let runtime = ScriptRuntime { prog: Some("cmd".into()), args: "/C".into() };
+    let body = generate_sh_shim(target, shim, Some(&runtime), &[], None);
+    assert!(!is_sh_shim_msys_cmd_switch_doubled(&body), "body was:\n{body}");
+    let outdated = body.replace("exec cmd /C ", "exec cmd //C ");
+    assert!(is_sh_shim_msys_cmd_switch_doubled(&outdated));
 }
 
 #[test]
@@ -445,8 +454,8 @@ fn generate_sh_shim_uses_windows_target_only_for_exe_and_msys_branches() {
     let body = generate_sh_shim(target, shim, Some(&runtime), &[], None);
 
     assert!(
-        body.contains("if [ -n \"$msys\" ]; then\n  if [ -n \"$exe\" ] && [ -x \"$basedir/cmd.exe\" ]; then\n    exec \"$basedir/cmd.exe\" //C \"$basedir_win/../foo/src.bat\" \"$@\"\n  elif [ -x \"$basedir/cmd\" ]; then\n    exec \"$basedir/cmd\" //C \"$basedir_abs/../foo/src.bat\" \"$@\"\n  elif [ -n \"$msys\" ] && command -v cmd >/dev/null 2>&1; then\n    exec cmd //C \"$basedir_win/../foo/src.bat\" \"$@\"\n  elif command -v cmd >/dev/null 2>&1; then\n    exec cmd //C \"$basedir_abs/../foo/src.bat\" \"$@\"\n  elif [ -n \"$exe\" ] && command -v cmd.exe >/dev/null 2>&1; then\n    exec cmd.exe //C \"$basedir_win/../foo/src.bat\" \"$@\"\n  else\n    exec cmd //C \"$basedir_abs/../foo/src.bat\" \"$@\"\n  fi\nelse\n  if [ -n \"$exe\" ] && [ -x \"$basedir/cmd.exe\" ]; then\n    exec \"$basedir/cmd.exe\" /C \"$basedir_win/../foo/src.bat\" \"$@\"\n  elif [ -x \"$basedir/cmd\" ]; then\n    exec \"$basedir/cmd\" /C \"$basedir_abs/../foo/src.bat\" \"$@\"\n  elif [ -n \"$msys\" ] && command -v cmd >/dev/null 2>&1; then\n    exec cmd /C \"$basedir_win/../foo/src.bat\" \"$@\"\n  elif command -v cmd >/dev/null 2>&1; then\n    exec cmd /C \"$basedir_abs/../foo/src.bat\" \"$@\"\n  elif [ -n \"$exe\" ] && command -v cmd.exe >/dev/null 2>&1; then\n    exec cmd.exe /C \"$basedir_win/../foo/src.bat\" \"$@\"\n  else\n    exec cmd /C \"$basedir_abs/../foo/src.bat\" \"$@\"\n  fi\nfi\n"),
-        "cmd sh shim must escape switches only for MSYS and use Windows-form targets only for .exe and MSYS execution branches, body was:\n{body}",
+        body.contains("if [ -n \"$msys\" ]; then\n  export MSYS2_ARG_CONV_EXCL=\"/C${MSYS2_ARG_CONV_EXCL:+;$MSYS2_ARG_CONV_EXCL}\"\nfi\nif [ -n \"$exe\" ] && [ -x \"$basedir/cmd.exe\" ]; then\n  exec \"$basedir/cmd.exe\" /C \"$basedir_win/../foo/src.bat\" \"$@\"\nelif [ -x \"$basedir/cmd\" ]; then\n  exec \"$basedir/cmd\" /C \"$basedir_abs/../foo/src.bat\" \"$@\"\nelif [ -n \"$msys\" ] && command -v cmd >/dev/null 2>&1; then\n  exec cmd /C \"$basedir_win/../foo/src.bat\" \"$@\"\nelif command -v cmd >/dev/null 2>&1; then\n  exec cmd /C \"$basedir_abs/../foo/src.bat\" \"$@\"\nelif [ -n \"$exe\" ] && command -v cmd.exe >/dev/null 2>&1; then\n  exec cmd.exe /C \"$basedir_win/../foo/src.bat\" \"$@\"\nelse\n  exec cmd /C \"$basedir_abs/../foo/src.bat\" \"$@\"\nfi\n"),
+        "cmd sh shim must exclude switches from MSYS conversion and use Windows-form targets only for .exe and MSYS execution branches, body was:\n{body}",
     );
 }
 
@@ -472,8 +481,8 @@ fn generate_sh_shim_does_not_append_exe_twice() {
 
     assert!(!body.contains("cmd.exe.exe"), "explicit .exe runtime must not double suffix:\n{body}");
     assert!(
-        body.contains("if [ -n \"$msys\" ]; then\n  if [ -x \"$basedir/cmd.exe\" ]; then\n    exec \"$basedir/cmd.exe\" //C \"$basedir_win/../foo/src.bat\" \"$@\"\n  else\n    exec cmd.exe //C \"$basedir_win/../foo/src.bat\" \"$@\"\n  fi\nelse\n  if [ -x \"$basedir/cmd.exe\" ]; then\n    exec \"$basedir/cmd.exe\" /C \"$basedir_win/../foo/src.bat\" \"$@\"\n  else\n    exec cmd.exe /C \"$basedir_win/../foo/src.bat\" \"$@\"\n  fi\nfi\n"),
-        "explicit .exe runtime must use Windows-form targets and escape switches only for MSYS, body was:\n{body}",
+        body.contains("if [ -n \"$msys\" ]; then\n  export MSYS2_ARG_CONV_EXCL=\"/C${MSYS2_ARG_CONV_EXCL:+;$MSYS2_ARG_CONV_EXCL}\"\nfi\nif [ -x \"$basedir/cmd.exe\" ]; then\n  exec \"$basedir/cmd.exe\" /C \"$basedir_win/../foo/src.bat\" \"$@\"\nelse\n  exec cmd.exe /C \"$basedir_win/../foo/src.bat\" \"$@\"\nfi\n"),
+        "explicit .exe runtime must use Windows-form targets and exclude switches from MSYS conversion, body was:\n{body}",
     );
 }
 
@@ -1300,6 +1309,46 @@ fn a_shim_hands_node_on_path_the_windows_target_without_msys_path_conversion() {
         .expect("run the shim under Git Bash");
     assert!(output.status.success(), "stderr:\n{}", String::from_utf8_lossy(&output.stderr));
     assert_eq!(String::from_utf8_lossy(&output.stdout), "SHIM_OK");
+}
+
+/// cmd.exe reads `//C` as no switch and starts interactively, so the `/C`
+/// switch has to reach it intact whether Git Bash converts arguments or not
+/// (pnpm/pnpm#17480).
+#[cfg(windows)]
+#[test]
+fn a_shim_runs_a_cmd_target_in_every_msys_conversion_mode() {
+    let program_files = std::env::var_os("ProgramFiles").expect("ProgramFiles is set on Windows");
+    let bash = Path::new(&program_files).join(r"Git\bin\bash.exe");
+    let tmp = tempfile::tempdir().unwrap();
+    let target = tmp.path().join("tool.cmd");
+    std::fs::write(&target, "@echo CMD_OK %1\r\n").unwrap();
+    let shim = tmp.path().join("tool");
+    let runtime = ScriptRuntime { prog: Some("cmd".into()), args: "/C".into() };
+    std::fs::write(&shim, generate_sh_shim(&target, &shim, Some(&runtime), &[], None)).unwrap();
+
+    for conversion_off in
+        [None, Some(("MSYS_NO_PATHCONV", "1")), Some(("MSYS2_ARG_CONV_EXCL", "*"))]
+    {
+        let mut command = std::process::Command::new(&bash);
+        command
+            .args(["--noprofile", "--norc"])
+            .arg(&shim)
+            .arg("/usr")
+            .env_remove("MSYS_NO_PATHCONV")
+            .env_remove("MSYS2_ARG_CONV_EXCL")
+            .stdin(std::process::Stdio::null());
+        if let Some((name, value)) = conversion_off {
+            command.env(name, value);
+        }
+        let output = command.output().expect("run the shim under Git Bash");
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        assert!(
+            output.status.success(),
+            "{conversion_off:?}\nstderr:\n{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(stdout.starts_with("CMD_OK "), "{conversion_off:?}\nstdout:\n{stdout}");
+    }
 }
 
 /// Node normalizes the `..` of its script path lexically. Run through a

@@ -132,37 +132,40 @@ describeOnWindows('create a command shim for a .exe file', () => {
 })
 
 describeOnWindows('sh shim wrapping a .cmd target invoked from Git Bash', () => {
-  // Regression for the MSYS path-translation bug: Git Bash rewrites a bare
-  // `/C` argument to `C:\` before launching cmd.exe, dropping the switch
-  // and leaving cmd.exe interactive. The fix escapes it as `//C` so MSYS
-  // passes it through.
-  test('runs the wrapped batch script and captures its output', async () => {
-    const tempDir = temporaryDirectory()
-    const target = path.join(tempDir, 'src.cmd')
-    fs.writeFileSync(target, '@echo HELLO_FROM_CMD\r\n', 'utf8')
-    const shim = path.join(tempDir, 'shim')
-    await cmdShim(target, shim)
+  // Git Bash rewrites a bare `/C` argument to `C:\` before launching cmd.exe,
+  // and cmd.exe reads a doubled `//C` as no switch when conversion is off.
+  // Either way cmd.exe starts interactively (pnpm/pnpm#17480).
+  const conversionModes = [{}, { MSYS_NO_PATHCONV: '1' }, { MSYS2_ARG_CONV_EXCL: '*' }]
+  for (const conversionOff of conversionModes) {
+    test(`runs the wrapped batch script and captures its output with ${JSON.stringify(conversionOff)}`, async () => {
+      const tempDir = temporaryDirectory()
+      const target = path.join(tempDir, 'src.cmd')
+      fs.writeFileSync(target, '@echo HELLO_FROM_CMD\r\n', 'utf8')
+      const shim = path.join(tempDir, 'shim')
+      await cmdShim(target, shim)
 
-    // Invoke the sh shim via Git Bash. If `/C` survives MSYS translation,
-    // cmd.exe runs src.cmd and prints HELLO_FROM_CMD; if it gets rewritten
-    // to a drive path, cmd.exe starts interactively and dumps its banner
-    // (`Microsoft Windows [Version ...]`) instead.
-    const bash = process.env.PROGRAMFILES
-      ? path.join(process.env.PROGRAMFILES, 'Git', 'bin', 'bash.exe')
-      : 'bash'
-    const r = spawnSync(bash, ['--noprofile', '--norc', shim], {
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'pipe'],
+      // If `/C` reaches cmd.exe intact, it runs src.cmd and prints
+      // HELLO_FROM_CMD. Otherwise it starts interactively and dumps its banner
+      // (`Microsoft Windows [Version ...]`) instead.
+      const bash = process.env.PROGRAMFILES
+        ? path.join(process.env.PROGRAMFILES, 'Git', 'bin', 'bash.exe')
+        : 'bash'
+      const env = Object.fromEntries(Object.entries(process.env).filter(([name]) => name !== 'MSYS_NO_PATHCONV' && name !== 'MSYS2_ARG_CONV_EXCL'))
+      const r = spawnSync(bash, ['--noprofile', '--norc', shim], {
+        encoding: 'utf8',
+        env: { ...env, ...conversionOff },
+        stdio: ['ignore', 'pipe', 'pipe'],
+      })
+
+      assert.equal(r.status, 0, `bash exited ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`)
+      assert.match(r.stdout, /HELLO_FROM_CMD/, `expected script output, got:\n${r.stdout}`)
+      assert.doesNotMatch(
+        r.stdout,
+        /Microsoft Windows \[Version/,
+        'cmd.exe started interactively — the /C switch was dropped'
+      )
     })
-
-    assert.equal(r.status, 0, `bash exited ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`)
-    assert.match(r.stdout, /HELLO_FROM_CMD/, `expected script output, got:\n${r.stdout}`)
-    assert.doesNotMatch(
-      r.stdout,
-      /Microsoft Windows \[Version/,
-      'cmd.exe started interactively — the /C switch was dropped'
-    )
-  })
+  }
 })
 
 describeOnWindows('sh shim NODE_PATH invoked from Git Bash', () => {

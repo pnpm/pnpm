@@ -12,6 +12,7 @@ import {
   cmdShimIfExists,
   isShimBasedirAnchorCurrent,
   isShimForMissingTarget,
+  isShimMsysCmdSwitchDoubled,
   isShimNodePath,
   isShimPointingAt,
   readShNodePath,
@@ -363,6 +364,12 @@ describe('batch script', () => {
     await testFile(t, to)
     await testFile(t, `${to}${cmdExtension}`, '\r\n')
     await testFile(t, `${to}.ps1`)
+  })
+
+  test('isShimMsysCmdSwitchDoubled detects a shim that doubles the cmd switch', async () => {
+    const content = await fs.promises.readFile(to, 'utf8')
+    assert.equal(isShimMsysCmdSwitchDoubled(content), false)
+    assert.equal(isShimMsysCmdSwitchDoubled(content.replace('exec cmd /C ', 'exec cmd //C ')), true)
   })
 })
 
