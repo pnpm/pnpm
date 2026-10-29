@@ -185,6 +185,7 @@ impl VersionArgs {
         // tag the commit with. Skip the git commit and tag entirely then.
         if !self.dry_run
             && !recursive
+            && config.git_tag_version
             && !self.git.no_git_tag_version
             && is_git_repo::<Host>(&git_cwd)
         {

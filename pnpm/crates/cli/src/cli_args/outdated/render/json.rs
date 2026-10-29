@@ -31,7 +31,7 @@ impl<'a> JsonKeys<'a> {
         let suffix = dependency_type_label(pkg)
             .map(|label| format!(" ({label})"))
             .unwrap_or_default();
-        format!("{}@{}{suffix}", pkg.package_name, pkg.current)
+        format!("{}@{}{suffix}", pkg.package_name, pkg.current_str())
     }
 }
 
@@ -42,16 +42,16 @@ pub(crate) fn render_json(outdated: &[OutdatedPackage], long: bool) -> String {
         let dependency_type: &'static str =
             if pkg.github_action { "githubAction" } else { pkg.belongs_to.into() };
         let mut entry = serde_json::json!({
-            "current": pkg.current.to_string(),
-            "latest": pkg.target.to_string(),
-            "wanted": pkg.wanted.to_string(),
+            "current": pkg.current_str(),
+            "latest": pkg.target_str(),
+            "wanted": pkg.wanted_str(),
             "isDeprecated": pkg.metadata.deprecated.is_some(),
             "dependencyType": dependency_type,
         });
         if long {
             entry["latestManifest"] = serde_json::json!({
                 "name": pkg.package_name,
-                "version": pkg.target.to_string(),
+                "version": pkg.target_str(),
                 "deprecated": pkg.metadata.deprecated,
                 "homepage": pkg.metadata.homepage,
             });
@@ -67,9 +67,9 @@ fn recursive_entry_value(entry: &OutdatedInWorkspace, long: bool) -> serde_json:
     let dependency_type: &'static str =
         if package.github_action { "githubAction" } else { package.belongs_to.into() };
     let mut value = serde_json::json!({
-        "current": package.current.to_string(),
-        "latest": package.target.to_string(),
-        "wanted": package.wanted.to_string(),
+        "current": package.current_str(),
+        "latest": package.target_str(),
+        "wanted": package.wanted_str(),
         "isDeprecated": package.metadata.deprecated.is_some(),
         "dependencyType": dependency_type,
         "dependentPackages": entry.dependents.iter().map(|dependent| serde_json::json!({
@@ -80,7 +80,7 @@ fn recursive_entry_value(entry: &OutdatedInWorkspace, long: bool) -> serde_json:
     if long {
         value["latestManifest"] = serde_json::json!({
             "name": package.package_name,
-            "version": package.target.to_string(),
+            "version": package.target_str(),
             "deprecated": package.metadata.deprecated,
             "homepage": package.metadata.homepage,
         });

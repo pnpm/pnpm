@@ -190,6 +190,24 @@ fn no_git_tag_version_skips_the_commit_and_tag() {
 }
 
 #[test]
+fn git_tag_version_false_skips_the_commit_and_tag() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    init_git(&workspace);
+    write_manifest(&workspace, r#"{"name":"test-pkg","version":"1.0.0"}"#);
+    fs::write(workspace.join("pnpm-workspace.yaml"), "gitTagVersion: false\n")
+        .expect("write workspace settings");
+    git_commit_all(&workspace, "init");
+    let commits_before = git_stdout(&workspace, &["rev-list", "--count", "HEAD"]);
+
+    let output = pacquet_version(&workspace, &["patch"]);
+
+    assert!(output.status.success(), "{}", stderr_of(&output));
+    assert_eq!(git_stdout(&workspace, &["tag", "--list"]), "");
+    assert_eq!(git_stdout(&workspace, &["rev-list", "--count", "HEAD"]), commits_before);
+    drop(root);
+}
+
+#[test]
 fn allow_same_version_still_tags_via_an_empty_commit() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     init_git(&workspace);

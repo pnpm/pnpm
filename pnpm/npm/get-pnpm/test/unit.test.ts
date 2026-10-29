@@ -5,6 +5,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { after, before, describe, test } from 'node:test'
 
+import { parseCliArgs, setupCommand } from '../lib/install.js'
 import { platformPackageName, type Target } from '../lib/platformPackageName.js'
 import { resolveVersion } from '../lib/resolveVersion.js'
 import { sameFileContents } from '../lib/sameFileContents.js'
@@ -240,11 +241,54 @@ describe('renderUndoHint', () => {
     )
   })
 
+  test('names only PNPM_HOME when setup left PATH alone', () => {
+    for (const platform of ['linux', 'win32'] as const) {
+      assert.equal(
+        renderUndoHint('/home/me/.local/share/pnpm', platform, { modifiedPath: false }),
+        'To uninstall, delete /home/me/.local/share/pnpm.\nSee https://pnpm.io/uninstall'
+      )
+    }
+  })
+
   test('points at the user environment variables on Windows', () => {
     assert.equal(
       renderUndoHint('C:\\Users\\me\\AppData\\Local\\pnpm', 'win32'),
       'To uninstall, delete C:\\Users\\me\\AppData\\Local\\pnpm, then remove the PNPM_HOME variable and the Path entry pnpm setup added from your user environment variables.\n' +
       'See https://pnpm.io/uninstall'
     )
+  })
+})
+
+describe('parseCliArgs', () => {
+  test('adds pnpm to PATH unless --no-modify-path or PNPM_NO_MODIFY_PATH says otherwise', () => {
+    assert.deepEqual(parseCliArgs(['12'], {}), { help: false, version: '12', modifyPath: true })
+    assert.deepEqual(parseCliArgs(['--no-modify-path', '12'], {}), { help: false, version: '12', modifyPath: false })
+    for (const value of ['1', 'true', 'yes']) {
+      assert.equal(parseCliArgs([], { PNPM_NO_MODIFY_PATH: value }).modifyPath, false, value)
+    }
+    for (const value of ['', '0', 'false', 'FALSE']) {
+      assert.equal(parseCliArgs([], { PNPM_NO_MODIFY_PATH: value }).modifyPath, true, value)
+    }
+  })
+
+  test('refuses an unknown option and a second version', () => {
+    assert.throws(() => parseCliArgs(['--modify-path'], {}), /Unknown option "--modify-path"/)
+    assert.throws(() => parseCliArgs(['11', '12'], {}), /Expected at most one version, got 2/)
+  })
+
+  test('stops at --help', () => {
+    assert.equal(parseCliArgs(['--help', 'extra', 'args'], {}).help, true)
+  })
+})
+
+describe('setupCommand', () => {
+  test('forces the built-in setup on the versions that let a project script replace it', () => {
+    assert.deepEqual(setupCommand('10.33.0'), ['setup'])
+    assert.deepEqual(setupCommand('11.0.0-beta.5'), ['setup'])
+    assert.deepEqual(setupCommand('11.0.0-beta.6'), ['pm', 'setup'])
+    assert.deepEqual(setupCommand('11.20.0'), ['pm', 'setup'])
+    assert.deepEqual(setupCommand('12.0.0'), ['setup'])
+    assert.deepEqual(setupCommand('12.1.0'), ['pm', 'setup'])
+    assert.deepEqual(setupCommand('12.16.0'), ['pm', 'setup'])
   })
 })

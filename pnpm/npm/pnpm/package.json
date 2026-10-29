@@ -53,7 +53,7 @@
     "THIRD-PARTY-NOTICES.md"
   ],
   "dependencies": {
-    "get-pnpm": "workspace:*",
+    "get-pnpm": "workspace:~",
     "node-gyp": "catalog:"
   },
   "devDependencies": {

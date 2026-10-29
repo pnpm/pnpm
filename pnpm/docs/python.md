@@ -35,6 +35,8 @@ pnpm add -D pypi:pytest
 
 A bare `name@version` is written as an exact pin (`httpx==0.28.1`). A requirement that already carries a comparison operator is kept as written, and the full [PEP 508](https://peps.python.org/pep-0508/) grammar is accepted, environment markers and extras included.
 
+[`pnpm outdated`](./cli/outdated.md) and [`pnpm update`](./cli/update.md) also check and update Python dependencies when `python.enabled` is `true`, and accept `pypi:<name>` selectors to target specific distributions.
+
 ## The environment
 
 Each discovered Python project gets a `.venv` in its own directory, unless its workspace [shares one](#sharing-one-environment). It is a symlink into `python-envs` in the pnpm store, and pnpm swaps the link atomically when the environment changes, so a failed install leaves the previous environment in place.

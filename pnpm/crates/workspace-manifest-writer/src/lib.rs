@@ -19,11 +19,7 @@ pub use version_policies::{
     set_minimum_release_age_excludes, set_overrides, set_patched_dependencies,
 };
 
-use std::{
-    fs,
-    io::{self, Write as _},
-    path::Path,
-};
+use std::{fs, io, path::Path};
 
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
@@ -525,15 +521,7 @@ fn write_or_remove_manifest(
 /// `pnpm-workspace.yaml` that is a symlink is overwritten rather than
 /// followed, and a crash mid-write cannot leave a torn manifest.
 fn write_atomic(path: &Path, contents: &str) -> io::Result<()> {
-    let dir = path
-        .parent()
-        .filter(|parent| !parent.as_os_str().is_empty())
-        .unwrap_or_else(|| Path::new("."));
-    let mut tmp = pnpm_fs::private_named_tempfile_in(dir)?;
-    tmp.write_all(contents.as_bytes())?;
-    pnpm_fs::sync_file(tmp.as_file())?;
-    tmp.persist(path).map_err(|err| err.error)?;
-    Ok(())
+    pnpm_fs::write_atomic(path, contents.as_bytes())
 }
 
 mod build_settings;

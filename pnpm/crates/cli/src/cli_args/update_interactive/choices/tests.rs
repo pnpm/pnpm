@@ -30,11 +30,7 @@ fn pkg(
         target: v(target),
         wanted: v(current),
         github_action: false,
-        metadata: crate::cli_args::outdated::query::OutdatedMetadata {
-            deprecated: None,
-            homepage: None,
-            workspace: None,
-        },
+        metadata: crate::cli_args::outdated::query::OutdatedMetadata::default(),
     }
 }
 

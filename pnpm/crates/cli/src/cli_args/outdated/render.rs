@@ -87,9 +87,8 @@ fn compare_outdated(
     by_change
         .then_with(|| left.package_name.cmp(&right.package_name))
         .then_with(|| {
-            left.current
-                .to_string()
-                .cmp(&right.current.to_string())
+            left.current_str()
+                .cmp(&right.current_str())
         })
 }
 
@@ -111,7 +110,8 @@ pub(super) fn render_table(outdated: &[OutdatedPackage], long: bool) -> String {
     let mut builder = Builder::default();
     builder.push_record(header);
     for pkg in outdated {
-        let mut row = vec![render_package_name(pkg), pkg.current.to_string(), render_latest(pkg)];
+        let mut row =
+            vec![render_package_name(pkg), pkg.current_str().into_owned(), render_latest(pkg)];
         if long {
             row.push(render_details(pkg));
         }
@@ -129,7 +129,7 @@ pub(super) fn render_list(outdated: &[OutdatedPackage], long: bool) -> String {
             let mut info = format!(
                 "{}\n{} {} {}",
                 bold(&render_package_name(pkg)),
-                pkg.current,
+                pkg.current_str(),
                 grey("=>"),
                 render_latest(pkg),
             );
@@ -173,7 +173,7 @@ pub(super) fn render_recursive_table(outdated: &[OutdatedInWorkspace], long: boo
     for entry in outdated {
         let mut row = vec![
             render_package_name(&entry.package),
-            entry.package.current.to_string(),
+            entry.package.current_str().into_owned(),
             render_latest(&entry.package),
             render_dependents(entry),
         ];
@@ -200,7 +200,7 @@ pub(super) fn render_recursive_list(outdated: &[OutdatedInWorkspace], long: bool
             let mut info = format!(
                 "{}\n{} {} {}\n{} {}",
                 bold(&render_package_name(package)),
-                package.current,
+                package.current_str(),
                 grey("=>"),
                 render_latest(package),
                 bold(label),
@@ -255,9 +255,9 @@ pub(super) fn dependency_type_label(pkg: &OutdatedPackage) -> Option<&'static st
 pub(crate) fn colorize_target(pkg: &OutdatedPackage) -> String {
     let change = classify(&pkg.current, &pkg.target);
     if change == Change::None {
-        return pkg.target.to_string();
+        return pkg.target_str().into_owned();
     }
-    colorize_version(&pkg.target, change)
+    colorize_version(&pkg.target_str(), change)
 }
 
 pub(super) fn render_latest(pkg: &OutdatedPackage) -> String {
@@ -266,10 +266,10 @@ pub(super) fn render_latest(pkg: &OutdatedPackage) -> String {
         return if pkg.metadata.deprecated.is_some() {
             red_bold("Deprecated")
         } else {
-            pkg.target.to_string()
+            pkg.target_str().into_owned()
         };
     }
-    let colored = colorize_version(&pkg.target, change);
+    let colored = colorize_version(&pkg.target_str(), change);
     if pkg.metadata.deprecated.is_some() {
         format!("{colored} {}", red("(deprecated)"))
     } else {
@@ -280,8 +280,7 @@ pub(super) fn render_latest(pkg: &OutdatedPackage) -> String {
 /// Highlight the version segment that changed: the whole string for a
 /// breaking bump, from the minor field for a feature bump, from the patch
 /// field for a fix.
-fn colorize_version(version: &Version, change: Change) -> String {
-    let text = version.to_string();
+fn colorize_version(text: &str, change: Change) -> String {
     let split = match change {
         Change::Breaking => 0,
         Change::Feature => text.find('.').map_or(0, |i| i + 1),
@@ -295,7 +294,7 @@ fn colorize_version(version: &Version, change: Change) -> String {
             .unwrap_or(0),
         // Nothing is highlighted for an `unknown` (or no) change, so the
         // version renders plain.
-        Change::None | Change::Unknown => return text,
+        Change::None | Change::Unknown => return text.to_string(),
     };
     let (head, tail) = text.split_at(split);
     let painted = match change {

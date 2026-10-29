@@ -47,12 +47,22 @@ pub struct VersionOverride {
     pub converge: bool,
 }
 
+/// Which dependency map a `:prod`, `:optional`, or `:peer`
+/// pseudo-selector in `overrides` restricts the target to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum OverrideDependencyType {
+    Prod,
+    Optional,
+    Peer,
+}
+
 /// A name (and optional version-range scope) used to identify either
 /// the parent or the target of a [`VersionOverride`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageSelector {
     pub name: String,
     pub bare_specifier: Option<String>,
+    pub dep_type: Option<OverrideDependencyType>,
 }
 
 /// Failure modes of [`parse_overrides`] and [`parse_pkg_and_parent_selector`].
@@ -178,9 +188,9 @@ pub fn parse_pkg_and_parent_selector(
     if let Some(delimiter_idx) = find_parent_delimiter(trimmed_selector) {
         let parent_selector = &trimmed_selector[..delimiter_idx];
         let child_selector = &trimmed_selector[delimiter_idx + 1..];
-        Ok((Some(parse_pkg_selector(parent_selector)?), parse_pkg_selector(child_selector)?))
+        Ok((Some(parse_parent_selector(parent_selector)?), parse_target_selector(child_selector)?))
     } else {
-        Ok((None, parse_pkg_selector(trimmed_selector)?))
+        Ok((None, parse_target_selector(trimmed_selector)?))
     }
 }
 
@@ -228,6 +238,9 @@ fn check_converge(
     if target_pkg.bare_specifier.as_deref() != Some("") {
         return Ok(false);
     }
+    if target_pkg.name.contains('*') || target_pkg.dep_type.is_some() {
+        return Err(ParseOverridesError::InvalidSelector { selector: selector.to_string() });
+    }
     if Version::parse(new_bare_specifier).is_err() {
         return Err(ParseOverridesError::ConvergenceValueNotExactVersion {
             selector: selector.to_string(),
@@ -237,13 +250,44 @@ fn check_converge(
     Ok(true)
 }
 
-fn parse_pkg_selector(selector: &str) -> Result<PackageSelector, ParseOverridesError> {
+fn parse_parent_selector(selector: &str) -> Result<PackageSelector, ParseOverridesError> {
+    let parsed = parse_target_selector(selector)?;
+    if parsed.dep_type.is_some() {
+        return Err(ParseOverridesError::InvalidSelector { selector: selector.to_string() });
+    }
+    Ok(parsed)
+}
+
+fn parse_target_selector(selector: &str) -> Result<PackageSelector, ParseOverridesError> {
     let trimmed_selector = selector.trim();
-    let wanted = parse_wanted_dependency(trimmed_selector);
+    let (without_type, dep_type) = strip_dep_type(trimmed_selector);
+    let wanted = parse_wanted_dependency(without_type);
     let Some(name) = wanted.alias else {
         return Err(ParseOverridesError::InvalidSelector { selector: selector.to_string() });
     };
-    Ok(PackageSelector { name, bare_specifier: wanted.bare_specifier })
+    if wanted.bare_specifier
+        .as_deref()
+        .is_some_and(|spec| spec.contains(':'))
+    {
+        return Err(ParseOverridesError::InvalidSelector { selector: selector.to_string() });
+    }
+    Ok(PackageSelector { name, bare_specifier: wanted.bare_specifier, dep_type })
+}
+
+fn strip_dep_type(selector: &str) -> (&str, Option<OverrideDependencyType>) {
+    for (suffix, dep_type) in [
+        (":prod", OverrideDependencyType::Prod),
+        (":optional", OverrideDependencyType::Optional),
+        (":peer", OverrideDependencyType::Peer),
+    ] {
+        if let Some(rest) = selector.strip_suffix(suffix)
+            && !rest.is_empty()
+            && !rest.ends_with('@')
+        {
+            return (rest, Some(dep_type));
+        }
+    }
+    (selector, None)
 }
 
 /// Run the override value through the catalog resolver.

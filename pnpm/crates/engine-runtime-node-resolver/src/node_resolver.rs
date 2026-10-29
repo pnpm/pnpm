@@ -28,7 +28,7 @@ use pnpm_lockfile::{
 use pnpm_network::{AuthHeaders, ThrottledClient};
 use pnpm_resolving_resolver_base::{
     LatestInfo, LatestQuery, PkgResolutionId, ResolveError, ResolveFuture, ResolveLatestFuture,
-    ResolveOptions, ResolveResult, Resolver, WantedDependency,
+    ResolveOptions, ResolveResult, Resolver, UpdateBehavior, WantedDependency,
 };
 use pnpm_tool_protocol::{RUNTIME_PROTOCOL, strip_tool_protocol};
 use ssri::Integrity;
@@ -174,10 +174,14 @@ impl NodeResolver {
         }
 
         let picked = self
-            .pick_node_version(version_spec)
+            .pick_node_version(version_spec, opts.refresh.update)
             .await
             .map_err(|err| Box::new(err) as ResolveError)?;
-        let variants = self.read_picked_assets(&picked, version_spec).await?;
+        let variants = if opts.specifier.calc_specifier {
+            Vec::new()
+        } else {
+            self.read_picked_assets(&picked, version_spec).await?
+        };
         let PickedNodeVersion { version, .. } = picked;
         let range = normalize_node_runtime_version_specifier(
             version_spec,
@@ -234,12 +238,16 @@ impl NodeResolver {
     async fn pick_node_version(
         &self,
         version_spec: &str,
+        update: UpdateBehavior,
     ) -> Result<PickedNodeVersion, NodeResolverError> {
         if self.offline {
             return Err(NodeResolverError::Offline);
         }
-        let parsed =
+        let mut parsed =
             parse_node_specifier(version_spec).map_err(NodeResolverError::InvalidReleaseChannel)?;
+        if update == UpdateBehavior::Latest {
+            "latest".clone_into(&mut parsed.version_specifier);
+        }
         let mirror = get_node_mirror(
             self.mirror.as_deref(),
             self.channel_mirrors.get(&parsed.release_channel).map(String::as_str),
@@ -292,7 +300,7 @@ impl NodeResolver {
         if let Some(version) = exact_release_version(&parsed) {
             return Ok(format!("{RUNTIME_PROTOCOL}{version}"));
         }
-        let picked = self.pick_node_version(version_spec).await?;
+        let picked = self.pick_node_version(version_spec, UpdateBehavior::Off).await?;
         let range =
             normalize_node_runtime_version_specifier(version_spec, &picked.version, prev_specifier);
         Ok(format!("{RUNTIME_PROTOCOL}{range}"))
@@ -306,17 +314,16 @@ impl NodeResolver {
         let Some(manifest_spec) = bare_runtime_spec(&query.wanted_dependency, "node") else {
             return Ok(None);
         };
-        let spec_owned;
-        let version_spec = if query.compatible {
-            manifest_spec
-        } else {
-            spec_owned = "latest";
-            spec_owned
-        };
-        let parsed = parse_node_specifier(version_spec)
+        if self.offline {
+            return Err(Box::new(NodeResolverError::Offline));
+        }
+        let mut parsed = parse_node_specifier(manifest_spec)
             .map_err(|err| {
                 Box::new(NodeResolverError::InvalidReleaseChannel(err)) as ResolveError
             })?;
+        if !query.compatible {
+            "latest".clone_into(&mut parsed.version_specifier);
+        }
         let mirror = get_node_mirror(
             self.mirror.as_deref(),
             self.channel_mirrors.get(&parsed.release_channel).map(String::as_str),

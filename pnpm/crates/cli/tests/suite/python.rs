@@ -3347,3 +3347,55 @@ async fn deferred_wheel_files_cannot_replace_generated_record() {
     eprintln!("failed environment must not be published");
     assert!(!root.path().join(".venv").exists());
 }
+
+#[tokio::test]
+async fn update_bumps_python_dependencies() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let _mocks = serve(&mut server, "alpha", &[("1.0", wheel("alpha", "1.0", "", &[]))]).await;
+    project(root.path(), &server.url(), &["alpha>=1.0,<2.0"]);
+    pacquet_in(root.path())
+        .args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+    let initial_lock = fs::read_to_string(root.path().join("pylock.toml")).unwrap();
+    assert!(initial_lock.contains(r#"version = "1.0""#), "{initial_lock}");
+
+    // Serve 1.5 and 2.0 on the Simple JSON index.
+    let _mocks_updated = serve(
+        &mut server,
+        "alpha",
+        &[
+            ("1.0", wheel("alpha", "1.0", "", &[])),
+            ("1.5", wheel("alpha", "1.5", "", &[])),
+            ("2.0", wheel("alpha", "2.0", "", &[])),
+        ],
+    )
+    .await;
+
+    // In-range `pnpm update` bumps within `>=1.0,<2.0` to `>=1.5,<2.0` and locks `1.5`.
+    pacquet_in(root.path())
+        .args(["update", "--lockfile-only"])
+        .assert()
+        .success();
+    let pyproject = fs::read_to_string(root.path().join("pyproject.toml")).unwrap();
+    assert!(pyproject.contains(">=1.5,<2.0"), "{pyproject}");
+    let pylock = fs::read_to_string(root.path().join("pylock.toml")).unwrap();
+    assert!(pylock.contains(r#"version = "1.5""#), "{pylock}");
+    assert!(
+        !root
+            .path()
+            .join("package.json")
+            .exists(),
+    );
+
+    // `pnpm update --latest pypi:alpha` bumps across major to `>=2.0` and locks `2.0`.
+    pacquet_in(root.path())
+        .args(["update", "--latest", "pypi:alpha", "--lockfile-only"])
+        .assert()
+        .success();
+    let pyproject = fs::read_to_string(root.path().join("pyproject.toml")).unwrap();
+    assert!(pyproject.contains("alpha>=2.0"), "{pyproject}");
+    let pylock = fs::read_to_string(root.path().join("pylock.toml")).unwrap();
+    assert!(pylock.contains(r#"version = "2.0""#), "{pylock}");
+}

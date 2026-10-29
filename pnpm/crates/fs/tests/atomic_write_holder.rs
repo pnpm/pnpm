@@ -9,7 +9,7 @@
 
 use std::{
     fs,
-    os::unix::process::ExitStatusExt as _,
+    os::unix::{fs::PermissionsExt as _, process::ExitStatusExt as _},
     path::Path,
     process::{Child, Command},
     thread,
@@ -45,22 +45,44 @@ fn a_sigint_mid_write_removes_the_staged_temp_file() {
     assert!(leftovers.is_empty(), "the interrupt left temp files behind: {leftovers:?}");
 }
 
+/// A replacement is staged at the mode of the file it replaces, so its
+/// contents are never readable by more users than the original's.
+#[test]
+fn a_replacement_of_an_owner_only_file_is_staged_owner_only() {
+    let root = tempdir().expect("create tempdir");
+    let target = root.path().join("pyproject.toml");
+    fs::write(&target, "private").expect("seed the target");
+    fs::set_permissions(&target, fs::Permissions::from_mode(0o600)).expect("make it owner-only");
+    let mut writer = Command::new(HOLDER_BIN)
+        .arg(&target)
+        .spawn()
+        .expect("spawn atomic_write_holder");
+
+    let staged = wait_for_temp_file(root.path(), &mut writer);
+    let staged_mode = fs::metadata(&staged).map(|metadata| metadata.permissions().mode() & 0o777);
+    let _ = writer.kill();
+    writer.wait().expect("reap the writer");
+
+    let staged_mode = staged_mode.expect("stat the staged temp file");
+    assert_eq!(staged_mode & 0o077, 0, "staged at {staged_mode:o}");
+}
+
 /// Poll until the writer's staged temp file exists. The writer registers
 /// the file before creating it, so an interrupt from here on must find it.
-fn wait_for_temp_file(dir: &Path, writer: &mut Child) {
+fn wait_for_temp_file(dir: &Path, writer: &mut Child) -> std::path::PathBuf {
     let deadline = Instant::now() + Duration::from_secs(30);
     loop {
         let staged = fs::read_dir(dir)
             .expect("list the project directory")
             .filter_map(Result::ok)
-            .any(|entry| {
+            .find(|entry| {
                 entry
                     .file_name()
                     .to_string_lossy()
                     .starts_with(".tmp")
             });
-        if staged {
-            return;
+        if let Some(staged) = staged {
+            return staged.path();
         }
         assert!(
             writer

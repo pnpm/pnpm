@@ -10,7 +10,6 @@ use pnpm_resolving_npm_resolver::MINIMUM_RELEASE_AGE_VIOLATION_CODE;
 use pnpm_resolving_resolver_base::{
     LatestInfo, LatestQuery, PkgResolutionId, ResolveError, ResolveFuture, ResolveLatestFuture,
     ResolveOptions, ResolveResult, Resolver, UpdateBehavior, WantedDependency,
-    resolve_package_version,
 };
 use pnpm_tool_protocol::{RUNTIME_PROTOCOL, strip_tool_protocol};
 
@@ -87,33 +86,69 @@ impl DenoResolver {
                 current.resolution.clone(),
                 version,
                 None,
+                None,
             )));
         }
 
-        let version = resolve_package_version(
-            self.npm_resolver.as_ref(),
-            &WantedDependency {
-                alias: wanted_dependency.alias.clone(),
-                bare_specifier: Some(version_spec.to_string()),
-                ..wanted_dependency.clone()
-            },
-            &ResolveOptions::default(),
-        )
-        .await?
-        .ok_or_else(|| {
-            Box::new(DenoResolverError::ResolutionFailure { spec: version_spec.to_string() })
-                as ResolveError
-        })?;
-
-        let variants = read_deno_assets(&self.http_client, &version).await
-            .map_err(|err| Box::new(DenoResolverError::ReadAssets(err)) as ResolveError)?;
+        let (version, normalized_spec, policy_violation) =
+            self.resolve_npm_version_and_spec(wanted_dependency, opts, version_spec).await?;
+        let variants = if opts.specifier.calc_specifier {
+            Vec::new()
+        } else {
+            read_deno_assets(&self.http_client, &version).await
+                .map_err(|err| Box::new(DenoResolverError::ReadAssets(err)) as ResolveError)?
+        };
         Ok(Some(deno_resolve_result(
             wanted_dependency,
             format!("deno@runtime:{version}").into(),
             LockfileResolution::Variations(VariationsResolution { variants }),
             &version,
-            Some(format!("{RUNTIME_PROTOCOL}{version_spec}")),
+            Some(format!("{RUNTIME_PROTOCOL}{normalized_spec}")),
+            policy_violation,
         )))
+    }
+
+    async fn resolve_npm_version_and_spec(
+        &self,
+        wanted_dependency: &WantedDependency,
+        opts: &ResolveOptions,
+        version_spec: &str,
+    ) -> Result<
+        (String, String, Option<pnpm_resolving_resolver_base::ResolutionPolicyViolation>),
+        ResolveError,
+    > {
+        let prev_specifier = wanted_dependency.prev_specifier
+            .as_deref()
+            .and_then(strip_tool_protocol)
+            .map(normalize_runtime_spec)
+            .unwrap_or(version_spec);
+        let mut npm_opts = opts.clone();
+        npm_opts.refresh.current_pkg = None;
+        let npm_result = self.npm_resolver.resolve(
+            &WantedDependency {
+                alias: wanted_dependency.alias.clone(),
+                bare_specifier: Some(version_spec.to_string()),
+                prev_specifier: Some(prev_specifier.to_string()),
+                ..wanted_dependency.clone()
+            },
+            &npm_opts,
+        )
+        .await?;
+        let version = npm_result
+            .as_ref()
+            .and_then(|res| res.package.name_ver.as_ref())
+            .map(|nv| nv.suffix.to_string())
+            .ok_or_else(|| {
+                Box::new(DenoResolverError::ResolutionFailure { spec: version_spec.to_string() })
+                    as ResolveError
+            })?;
+        let normalized_spec = npm_result
+            .as_ref()
+            .and_then(|res| res.normalized_bare_specifier.as_deref())
+            .unwrap_or(version_spec)
+            .to_string();
+        let policy_violation = npm_result.and_then(|res| res.policy_violation);
+        Ok((version, normalized_spec, policy_violation))
     }
 
     async fn resolve_latest_impl(
@@ -167,6 +202,7 @@ fn deno_resolve_result(
     resolution: LockfileResolution,
     version: &str,
     normalized_bare_specifier: Option<String>,
+    policy_violation: Option<pnpm_resolving_resolver_base::ResolutionPolicyViolation>,
 ) -> ResolveResult {
     let manifest = serde_json::json!({
         "name": "deno",
@@ -179,7 +215,7 @@ fn deno_resolve_result(
         resolved_via: RESOLVED_VIA.to_string(),
         normalized_bare_specifier,
         alias: wanted_dependency.alias.clone(),
-        policy_violation: None,
+        policy_violation,
         package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
             manifest: Some(std::sync::Arc::new(manifest)),
             ..Default::default()

@@ -52,3 +52,16 @@ pub(super) struct SettledProjects<'r, 'a> {
     pub(super) scope: &'r InstallScope<'a>,
     pub(super) project_manifests: &'r [(PathBuf, &'a PackageManifest)],
 }
+
+impl<'r> SettledProjects<'r, '_> {
+    pub(super) fn metadata(self) -> crate::install::state_options::InstallProjectMetadata<'r> {
+        crate::install::state_options::InstallProjectMetadata {
+            catalogs: &self.workspace.catalogs,
+            manifests: self.project_manifests,
+            declared_manifests: self.scope.declared_manifests(),
+            workspace_projects: self.scope.workspace_projects.as_deref(),
+            prefix: &self.workspace.prefix,
+            workspace_packages: self.workspace.workspace_packages.as_deref(),
+        }
+    }
+}

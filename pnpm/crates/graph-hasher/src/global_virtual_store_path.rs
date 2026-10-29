@@ -59,7 +59,7 @@ where
     } else {
         Value::Null
     };
-    let deps_hash = calc_dep_graph_hash(graph, cache, &mut HashSet::new(), dep_path);
+    let deps_hash = calc_dep_graph_hash(graph, cache, dep_path);
     // The object-hash serialization of
     // `{ engine, deps }`, plus `project` when the caller has one, with
     // `sort = false`: keys stay in the order written here, which is the

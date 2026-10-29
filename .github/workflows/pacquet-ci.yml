@@ -821,10 +821,13 @@ jobs:
       - name: Install cargo-dylint and dylint-link
         uses: $/.github/actions/binstall
         with:
-          # Keep in step with the `dylint_linting` version the pinned
-          # perfectionist revision builds against: cargo-dylint refuses
-          # a library built by a newer one.
-          packages: cargo-dylint@6.0.4 dylint-link@6.0.4
+          # At least the `dylint_linting` version the pinned perfectionist
+          # revision builds against (6.0.4): cargo-dylint refuses a library
+          # built by a newer one. 6.3.0 is the first release whose driver
+          # build clones rust-clippy's `main` branch. The repository renamed
+          # its default branch from `master`, so an older driver build fails
+          # whenever the driver cache misses.
+          packages: cargo-dylint@6.3.0 dylint-link@6.3.0
 
       - name: Install pnpm
         uses: pnpm/setup@fa36a5ef7dcdefc3a7cb25655c122e00cf6e636e # v3.1.2

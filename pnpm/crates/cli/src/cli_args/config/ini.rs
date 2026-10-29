@@ -119,10 +119,11 @@ impl IniDocument {
     }
 
     /// Write document contents to `path`, creating parent directories
-    /// and replacing the file atomically and symlink-safely (see [`pnpm_fs::write_atomic`]).
+    /// and replacing the file atomically and symlink-safely. A new file is owner-only,
+    /// since it may come to hold a token (see [`pnpm_fs::write_atomic_private_if_new`]).
     pub fn write(&self, path: &Path) -> io::Result<()> {
         let contents = self.serialize();
-        pnpm_fs::write_atomic(path, contents.as_bytes())
+        pnpm_fs::write_atomic_private_if_new(path, contents.as_bytes())
     }
 
     /// Serialize the document back to a string.

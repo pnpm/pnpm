@@ -264,7 +264,7 @@ fn choice_cells(choice: &Choice<'_>, workspaces_enabled: bool) -> Vec<String> {
     // the row apart.
     let mut row = vec![
         sanitize_inline(&package.package_name).into_owned(),
-        package.current.to_string(),
+        package.current_str().into_owned(),
         "❯".to_string(),
         colorize_target(package),
     ];

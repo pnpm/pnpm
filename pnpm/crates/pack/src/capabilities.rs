@@ -119,32 +119,38 @@ impl FsAtomicWrite for Host {
             .parent()
             .filter(|parent| !parent.as_os_str().is_empty())
             .unwrap_or_else(|| Path::new("."));
-        let mut tmp = pnpm_fs::private_named_tempfile_in(dir)?;
-        write_body(tmp.as_file_mut())?;
-        // A `NamedTempFile` is created 0o600. Match what a plain `fs::write`
-        // would leave: preserve the mode only when overwriting an existing
-        // regular file — `symlink_metadata` so a symlink at `dest` doesn't
-        // donate its target's (or a directory's) mode — otherwise widen to
-        // 0o644 so the archive isn't owner-only. Set the mode before the
-        // sync so content and metadata are flushed together.
+        // Overwriting an existing regular file keeps its mode, and the temp file
+        // starts at that mode so the archive is never readable by more users.
+        // `symlink_metadata`, so a symlink at `dest` doesn't donate its target's
+        // (or a directory's) mode.
+        let existing = std::fs::symlink_metadata(dest).ok().filter(std::fs::Metadata::is_file);
         #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            let mode = std::fs::symlink_metadata(dest)
-                .ok()
-                .filter(std::fs::Metadata::is_file)
-                .map_or(0o644, |metadata| metadata.permissions().mode() & 0o777);
+        let existing_mode = existing.map(|metadata| {
+            use std::os::unix::fs::PermissionsExt as _;
+            metadata.permissions().mode() & 0o777
+        });
+        #[cfg(target_os = "wasi")]
+        let existing_mode = match existing {
+            Some(_) => Some(
+                pnpm_fs::read_file_permissions(&pnpm_fs::open_file_without_following(dest)?)?
+                    & 0o777,
+            ),
+            None => None,
+        };
+        #[cfg(not(any(unix, target_os = "wasi")))]
+        let existing_mode: Option<u32> = existing.and(None);
+        let mut tmp = pnpm_fs::named_tempfile_with_mode_in(dir, existing_mode.unwrap_or(0o666))?;
+        write_body(tmp.as_file_mut())?;
+        // The umask may have narrowed the creation mode; restore the exact one.
+        // Set it before the sync so content and metadata are flushed together.
+        #[cfg(unix)]
+        if let Some(mode) = existing_mode {
+            use std::os::unix::fs::PermissionsExt as _;
             tmp.as_file()
                 .set_permissions(std::fs::Permissions::from_mode(mode))?;
         }
         #[cfg(target_os = "wasi")]
-        {
-            let mode = if std::fs::symlink_metadata(dest).is_ok_and(|metadata| metadata.is_file()) {
-                pnpm_fs::read_file_permissions(&pnpm_fs::open_file_without_following(dest)?)?
-                    & 0o777
-            } else {
-                0o644
-            };
+        if let Some(mode) = existing_mode {
             pnpm_fs::set_file_permissions(tmp.as_file(), &mode)?;
         }
         pnpm_fs::sync_file(tmp.as_file())?;

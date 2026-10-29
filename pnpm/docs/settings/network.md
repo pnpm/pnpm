@@ -60,6 +60,8 @@ Empty, `false`, and `null` values behave as described for [`httpsProxy`](#httpsp
 The IP address of the local interface to use when making connections to the npm
 registry.
 
+Pass `--local-address <ip>` on the command line to set this value.
+
 ### maxsockets
 
 * Default: **unset**
@@ -81,6 +83,8 @@ command line wins even when the two sides spelled the setting differently.
 
 Whether or not to do SSL key validation when making requests to the registry via
 HTTPS.
+
+Use `--strict-ssl` to enable validation or `--no-strict-ssl` to disable it.
 
 ### userAgent
 

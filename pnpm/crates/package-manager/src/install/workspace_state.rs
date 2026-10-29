@@ -191,7 +191,7 @@ fn check_fast_path_repeat_install(
         &OptimisticRepeatInstallCheck {
             workspace_root: inputs.state_root,
             config: check.config,
-            project_manifests: inputs.project_manifests,
+            project_manifests: crate::DeclaredManifests::new(inputs.project_manifests),
             is_workspace_install: inputs.is_workspace_install,
             lockfile: MaybeLazyLockfile::Lazy(inputs.lockfile),
             catalogs: inputs.catalogs,
@@ -434,9 +434,10 @@ pub(crate) fn build_workspace_state<Sys: Clock>(
     included: IncludedDependencies,
     supported_architectures: Option<&pnpm_package_is_installable::SupportedArchitectures>,
     catalogs: &Catalogs,
-    project_manifests: &[(std::path::PathBuf, &PackageManifest)],
+    project_manifests: crate::DeclaredManifests<'_>,
     filesystem_now_ms: Option<i64>,
 ) -> WorkspaceState {
+    let project_manifests = project_manifests.as_slice();
     let mut state = WorkspaceState {
         last_validated_timestamp: last_validated_timestamp::<Sys>(
             workspace_root,

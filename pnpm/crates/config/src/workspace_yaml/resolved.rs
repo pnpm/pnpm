@@ -173,6 +173,7 @@ impl WorkspaceSettings {
             ignore_scripts: Some(config.ignore_scripts),
             ignore_pnpmfile: Some(config.ignore_pnpmfile),
             git_checks: Some(config.git_checks),
+            git_tag_version: Some(config.git_tag_version),
             engine_strict: Some(config.engine_strict),
             force_ignores_platform: Some(config.force_ignores_platform),
             node_version: config.node_version.clone(),

@@ -123,23 +123,139 @@ impl UpdateArgs {
             actions_selector_matcher(inputs.update_actions, &self.packages)
         };
         let packages = filter_package_selectors(&packages, inputs.update_actions);
-        if self.updates_packages(&packages) {
-            let update = self.prepare_update(&mut state, inputs, &packages)?;
-            match &mut selection {
-                Some(selection) => {
-                    update.run_selected::<Reporter>(selection.selected_projects()).await
-                }
-                None => update.run::<Reporter>().await,
-            }
-            .wrap_err("updating dependencies")?;
+        let engine_outcome =
+            self.run_engine_update_step(&mut state, selection.as_mut(), inputs, &packages).await?;
+        let eco_outcome = self.run_ecosystem_update_step::<Reporter>(
+            &state,
+            selection.as_ref(),
+            inputs,
+            &engine_outcome.remaining_packages,
+        )
+        .await?;
+        if self.should_run_node_update(
+            &state,
+            selection.as_ref(),
+            &packages,
+            &engine_outcome,
+            &eco_outcome,
+        ) {
+            self.run_package_update_step::<Reporter>(
+                &mut state,
+                selection.as_mut(),
+                inputs,
+                &eco_outcome.remaining_node_selectors,
+            )
+            .await?;
         }
-        self.update_github_actions::<Reporter>(
-            inputs.update_actions,
-            &inputs.actions_root,
-            action_matcher.as_ref(),
-            state.config,
+        self.update_github_actions::<Reporter>(inputs, action_matcher.as_ref(), state.config).await
+    }
+
+    async fn run_engine_update_step(
+        &self,
+        state: &mut State,
+        selection: Option<&mut InstallFamilySelection>,
+        inputs: &UpdateInputs,
+        packages: &[String],
+    ) -> miette::Result<crate::cli_args::engine_deps::EngineUpdateOutcome> {
+        if self.selection.patches {
+            return Ok(crate::cli_args::engine_deps::EngineUpdateOutcome {
+                has_engine_deps: false,
+                remaining_packages: packages.to_vec(),
+                has_regular_deps: true,
+            });
+        }
+        let engine_opts = crate::cli_args::engine_deps::EngineUpdateOptions {
+            include_direct: &inputs.include_direct,
+            packages,
+            latest: self.selection.latest,
+            no_save: self.save.no_save,
+            save_exact: self.save.exact || state.config.save_exact,
+            range_spec_style: self.range_spec_style(state.config),
+        };
+        Box::pin(crate::cli_args::engine_deps::update_engine_deps(state, selection, &engine_opts))
+            .await
+    }
+
+    fn should_run_node_update(
+        &self,
+        state: &State,
+        selection: Option<&InstallFamilySelection>,
+        packages: &[String],
+        engine_outcome: &crate::cli_args::engine_deps::EngineUpdateOutcome,
+        eco_outcome: &crate::cli_args::ecosystem_deps::EcosystemUpdateOutcome,
+    ) -> bool {
+        if !engine_outcome.should_run_package_update(
+            packages,
+            self.selection.patches,
+            self.updates_packages(packages),
+        ) {
+            return false;
+        }
+        if !packages.is_empty() && eco_outcome.remaining_node_selectors.is_empty() {
+            return false;
+        }
+        if packages.is_empty()
+            && eco_outcome.updated_any
+            && selection.is_none()
+            && !state.manifest.path().exists()
+        {
+            return false;
+        }
+        true
+    }
+
+    async fn run_ecosystem_update_step<Reporter: self::Reporter + 'static>(
+        &self,
+        state: &State,
+        selection: Option<&InstallFamilySelection>,
+        inputs: &UpdateInputs,
+        selectors: &[String],
+    ) -> miette::Result<crate::cli_args::ecosystem_deps::EcosystemUpdateOutcome> {
+        use crate::cli_args::{
+            ecosystem_deps::{
+                EcosystemUpdateOutcome, EcosystemUpdateStepOptions,
+                run_ecosystem_updates_for_selection,
+            },
+            outdated::ignored_dependencies_matcher,
+        };
+        if self.selection.patches {
+            return Ok(EcosystemUpdateOutcome {
+                updated_any: false,
+                remaining_node_selectors: selectors.to_vec(),
+            });
+        }
+        let ignored = ignored_dependencies_matcher(state.config);
+        let save_prefix = state.config.save_prefix.as_deref();
+        run_ecosystem_updates_for_selection::<Reporter>(
+            state,
+            selection,
+            EcosystemUpdateStepOptions {
+                selectors,
+                include_groups: &inputs.include_direct,
+                ignore_matcher: ignored.as_ref(),
+                latest: self.selection.latest,
+                no_save: self.save.no_save,
+                save_exact: self.save.exact || state.config.save_exact,
+                save_prefix,
+                lockfile_only: self.install.lockfile_only,
+            },
         )
         .await
+    }
+
+    async fn run_package_update_step<Reporter: self::Reporter + 'static>(
+        &self,
+        state: &mut State,
+        selection: Option<&mut InstallFamilySelection>,
+        inputs: &UpdateInputs,
+        remaining_packages: &[String],
+    ) -> miette::Result<()> {
+        let update = self.prepare_update(state, inputs, remaining_packages)?;
+        match selection {
+            Some(selection) => update.run_selected::<Reporter>(selection.selected_projects()).await,
+            None => update.run::<Reporter>().await,
+        }
+        .wrap_err("updating dependencies")
     }
 
     async fn select_local_packages<Reporter: self::Reporter + 'static>(
@@ -151,8 +267,7 @@ impl UpdateArgs {
         let packages = filter_package_selectors(&self.packages, inputs.update_actions);
         if !self.selection.interactive && !self.packages.is_empty() && packages.is_empty() {
             self.update_github_actions::<Reporter>(
-                inputs.update_actions,
-                &inputs.actions_root,
+                inputs,
                 actions_selector_matcher(inputs.update_actions, &self.packages).as_ref(),
                 state.config,
             )
@@ -230,16 +345,15 @@ impl UpdateArgs {
     /// Run the GitHub Actions half of the update, if this run covers it.
     async fn update_github_actions<Reporter: self::Reporter + 'static>(
         &self,
-        update_actions: bool,
-        actions_root: &Path,
+        inputs: &UpdateInputs,
         matcher: Option<&Matcher>,
         config: &Config,
     ) -> miette::Result<()> {
-        if !update_actions {
+        if !inputs.update_actions {
             return Ok(());
         }
         github_actions::update::<Reporter>(
-            actions_root,
+            &inputs.actions_root,
             self.selection.latest,
             matcher,
             config.update_config.github_actions_server.as_deref(),

@@ -305,6 +305,7 @@ impl WorkspaceSettings {
         overlay(&mut config.ignore_scripts, self.ignore_scripts.take());
         overlay(&mut config.ignore_pnpmfile, self.ignore_pnpmfile.take());
         overlay(&mut config.git_checks, self.git_checks.take());
+        overlay(&mut config.git_tag_version, self.git_tag_version.take());
         overlay(&mut config.engine_strict, self.engine_strict.take());
         overlay(&mut config.force_ignores_platform, self.force_ignores_platform.take());
         overlay_some(&mut config.node_version, self.node_version.take());

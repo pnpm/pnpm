@@ -13,11 +13,11 @@ use pnpm_lockfile::{
     ResolvedDependencySpec,
 };
 use pnpm_lockfile_preferred_versions::get_version_selector_type;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_package_manifest::{DependencyGroup, PackageManifest, is_runtime_alias};
 use pnpm_registry::RangeSpecStyle;
 use pnpm_resolving_npm_resolver::calc_version_range;
 use pnpm_resolving_resolver_base::VersionSelectorType;
-use pnpm_tool_protocol::RUNTIME_PROTOCOL;
+use pnpm_tool_protocol::{RUNTIME_PROTOCOL, strip_tool_protocol};
 use std::{
     borrow::Cow,
     collections::{BTreeMap, HashMap, HashSet},
@@ -214,7 +214,7 @@ fn spec_bump(target: &SpecBumpTarget<'_>) -> SpecBump {
     // is why the text comparison below cannot stand in for this
     // (pnpm/pnpm#14224).
     if target.override_matcher.is_some_and(|matcher| {
-        matcher.matches(target.alias, target.manifest_specifier)
+        matcher.matches(target.manifest_group, target.alias, target.manifest_specifier)
     }) {
         return SpecBump::Skip;
     }
@@ -353,22 +353,8 @@ fn bumped_range(
         // A link or an injected directory has no version to pin.
         ImporterDepVersion::Link(_) | ImporterDepVersion::File(_) => return None,
     };
-    if let Some(selector) = node_runtime_version_spec(alias, declared) {
-        // A selector naming a release channel the resolver does not know is
-        // left for it to reject, rather than moved to a channel-less one it
-        // would accept.
-        if parse_node_specifier(selector).is_err() {
-            return None;
-        }
-        let bumped = format!(
-            "{RUNTIME_PROTOCOL}{}",
-            normalize_node_runtime_version_specifier(
-                selector,
-                &resolved.to_string(),
-                Some(declared),
-            ),
-        );
-        return (bumped != declared).then_some(bumped);
+    if let Some(bumped) = bumped_runtime_range(alias, declared, resolved, default_style) {
+        return bumped;
     }
     let (prefix, declared_range) = split_registry_alias(declared)?;
     // A dist-tag names no version of its own, so the version behind it
@@ -383,6 +369,45 @@ fn bumped_range(
     let range = calc_version_range(resolved, Some(declared_range), None, default_style);
     let bumped = format!("{prefix}{range}");
     (bumped != declared).then_some(bumped)
+}
+
+fn bumped_runtime_range(
+    alias: &str,
+    declared: &str,
+    resolved: &node_semver::Version,
+    default_style: RangeSpecStyle,
+) -> Option<Option<String>> {
+    if let Some(selector) = node_runtime_version_spec(alias, declared) {
+        // A selector naming a release channel the resolver does not know is
+        // left for it to reject, rather than moved to a channel-less one it
+        // would accept.
+        if parse_node_specifier(selector).is_err() {
+            return Some(None);
+        }
+        let bumped = format!(
+            "{RUNTIME_PROTOCOL}{}",
+            normalize_node_runtime_version_specifier(
+                selector,
+                &resolved.to_string(),
+                Some(declared),
+            ),
+        );
+        return Some((bumped != declared).then_some(bumped));
+    }
+    if is_runtime_alias(alias)
+        && let Some(declared_range) = strip_tool_protocol(declared)
+    {
+        let declared_range = declared_range.trim();
+        if declared_range.is_empty()
+            || get_version_selector_type(declared_range) == Some(VersionSelectorType::Tag)
+        {
+            return Some(None);
+        }
+        let range = calc_version_range(resolved, Some(declared_range), None, default_style);
+        let bumped = format!("{RUNTIME_PROTOCOL}{range}");
+        return Some((bumped != declared).then_some(bumped));
+    }
+    None
 }
 
 /// A declared specifier split into the `npm:<name>@` or `jsr:<name>@`

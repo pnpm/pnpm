@@ -266,13 +266,14 @@ impl ImporterPass<'_> {
         // Safe: the task groups were built from `importers.keys()`.
         let project_snapshot = &self.graph.importers[importer_id];
         let project_dir = importer_root_dir(self.context.workspace_root, importer_id);
-        let modules_dir = importer_modules_parent(
+        let modules_parent = importer_modules_parent(
             self.workspace_root_real.as_deref(),
             &project_dir,
             real_dir,
             importer_id,
-        )
-        .join(modules_dir_name);
+        );
+        let modules_dir = pnpm_fs::lexical_normalize(&modules_parent.join(modules_dir_name));
+        let real_modules_dir = pnpm_fs::symlinked_dir_real_path(modules_parent, &modules_dir);
 
         // Only non-root importers get deduped against root: the
         // root project is linked unfiltered, then each sibling's
@@ -285,7 +286,7 @@ impl ImporterPass<'_> {
             project_snapshot,
             self.graph.packages,
             &project_dir,
-            &modules_dir,
+            real_modules_dir.as_deref().unwrap_or(&modules_dir),
             self.dependency_groups.iter().copied(),
             self.graph.skipped,
             self.policy.link_only,
@@ -294,7 +295,10 @@ impl ImporterPass<'_> {
             self.context.link_options,
             &self.bin_lookup,
         )?;
-        Ok((pnpm_fs::lexical_normalize(&modules_dir), claimed))
+        if self.context.config.symlink {
+            remove_publish_modules_link(project_snapshot, &project_dir, &modules_dir)?;
+        }
+        Ok((modules_dir, claimed))
     }
 }
 
@@ -570,10 +574,6 @@ fn link_one_importer<Reporter: self::Reporter>(
         crate::link_direct_dep_bins_from_locations(modules_dir, &locations, link_options)
             .map_err(SymlinkDirectDependenciesError::LinkBins)?
     };
-
-    if symlink {
-        remove_publish_modules_link(project_snapshot, project_dir, modules_dir)?;
-    }
 
     Ok(claimed)
 }

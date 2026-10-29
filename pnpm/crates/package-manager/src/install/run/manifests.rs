@@ -16,9 +16,8 @@ pub(super) struct HookedManifests {
     hooked: Vec<(PathBuf, PackageManifest)>,
 }
 impl HookedManifests {
-    // The optimistic repeat-install gate runs before this and stays on
-    // the on-disk manifests on purpose: it is the one gate that must not
-    // spawn the Node worker.
+    // The optimistic repeat-install gate runs before this and hooks only
+    // the manifests that changed since the last install.
     // `packageExtensions` runs ahead of the pnpmfile's `readPackage`,
     // the order the resolver applies them in. The freshness gates below
     // compare against these, because the lockfile they check was written
@@ -132,7 +131,7 @@ pub(super) async fn hook_project_manifests(
     )
     .await
 }
-pub(super) async fn hook_one_manifest(
+pub(crate) async fn hook_one_manifest(
     hook: &Arc<dyn pnpm_hooks::PnpmfileHooks>,
     ctx: pnpm_hooks::HookContext,
     project_dir: &Path,

@@ -293,7 +293,7 @@ fn override_with_valid_peer_range_rewrites_peer_dependencies() {
 }
 
 #[test]
-fn override_with_non_peer_range_lands_in_dependencies_and_keeps_the_peer() {
+fn override_with_non_peer_range_leaves_peer_dependencies_unchanged_and_out_of_dependencies() {
     let overrides = parsed(&[("istanbul-reports", "npm:@zkochan/istanbul-reports")]);
     let overrider = VersionsOverrider::new(&overrides, Path::new("/workspace"));
 
@@ -304,11 +304,8 @@ fn override_with_non_peer_range_lands_in_dependencies_and_keeps_the_peer() {
     }));
     overrider.apply(&mut manifest, Some(Path::new("/workspace")));
 
-    assert_eq!(
-        dep_spec(&manifest, "dependencies", "istanbul-reports"),
-        Some("npm:@zkochan/istanbul-reports"),
-    );
     assert_eq!(dep_spec(&manifest, "peerDependencies", "istanbul-reports"), Some("^3.0.0"));
+    assert_eq!(dep_spec(&manifest, "dependencies", "istanbul-reports"), None);
 }
 
 #[test]
@@ -665,4 +662,137 @@ fn override_that_another_resolver_claims_is_not_reanchored() {
             "{value} is not a local path",
         );
     }
+}
+
+#[test]
+fn dependency_type_pseudo_selectors_only_rewrite_matching_group() {
+    let overrides =
+        parsed(&[("foo:prod", "1.1.1"), ("foo:optional", "3.3.3"), ("foo:peer", "4.4.4")]);
+    let overrider = VersionsOverrider::new(&overrides, Path::new("/workspace"));
+
+    let mut manifest = manifest_from_value(json!({
+        "name": "my-app",
+        "version": "1.0.0",
+        "dependencies": { "foo": "^1.0.0" },
+        "devDependencies": { "foo": "^2.0.0" },
+        "optionalDependencies": { "foo": "^3.0.0" },
+        "peerDependencies": { "foo": "^4.0.0" },
+    }));
+    overrider.apply(&mut manifest, Some(Path::new("/workspace")));
+
+    assert_eq!(dep_spec(&manifest, "dependencies", "foo"), Some("1.1.1"));
+    assert_eq!(dep_spec(&manifest, "devDependencies", "foo"), Some("^2.0.0"));
+    assert_eq!(dep_spec(&manifest, "optionalDependencies", "foo"), Some("3.3.3"));
+    assert_eq!(dep_spec(&manifest, "peerDependencies", "foo"), Some("4.4.4"));
+}
+
+#[test]
+fn peer_removal_leaves_regular_dependency_intact() {
+    let overrides = parsed(&[("react-dom>react:peer", "-")]);
+    let overrider = VersionsOverrider::new(&overrides, Path::new("/workspace"));
+
+    let mut manifest = manifest_from_value(json!({
+        "name": "react-dom",
+        "version": "18.3.1",
+        "dependencies": { "react": "18.3.1" },
+        "peerDependencies": { "react": "^18.0.0" },
+        "peerDependenciesMeta": { "react": { "optional": false } },
+    }));
+    overrider.apply(&mut manifest, Some(Path::new("/workspace")));
+
+    assert_eq!(dep_spec(&manifest, "dependencies", "react"), Some("18.3.1"));
+    assert_eq!(dep_spec(&manifest, "peerDependencies", "react"), None);
+    assert_eq!(manifest.value()["peerDependenciesMeta"], json!({}));
+}
+
+#[test]
+fn optional_dash_override_also_removes_duplicate_from_dependencies() {
+    let overrides = parsed(&[("@esbuild/*:optional", "-"), ("fsevents:optional", "-")]);
+    let overrider = VersionsOverrider::new(&overrides, Path::new("/workspace"));
+
+    let mut manifest = manifest_from_value(json!({
+        "name": "esbuild",
+        "version": "0.20.0",
+        "dependencies": {
+            "fsevents": "^2.3.2",
+            "only-prod": "^1.0.0",
+        },
+        "optionalDependencies": {
+            "fsevents": "^2.3.2",
+            "@esbuild/linux-x64": "0.20.0",
+            "kept-opt": "^1.0.0",
+        },
+    }));
+    overrider.apply(&mut manifest, Some(Path::new("/workspace")));
+
+    assert_eq!(dep_spec(&manifest, "optionalDependencies", "fsevents"), None);
+    assert_eq!(dep_spec(&manifest, "optionalDependencies", "@esbuild/linux-x64"), None);
+    assert_eq!(dep_spec(&manifest, "optionalDependencies", "kept-opt"), Some("^1.0.0"));
+    assert_eq!(
+        dep_spec(&manifest, "dependencies", "fsevents"),
+        None,
+        "duplicate in dependencies must also be cleared when removed from optionalDependencies",
+    );
+    assert_eq!(dep_spec(&manifest, "dependencies", "only-prod"), Some("^1.0.0"));
+}
+
+#[test]
+fn optional_dash_override_does_not_remove_prod_only_dependency() {
+    let overrides = parsed(&[("fsevents:optional", "-")]);
+    let overrider = VersionsOverrider::new(&overrides, Path::new("/workspace"));
+
+    let mut manifest = manifest_from_value(json!({
+        "name": "my-app",
+        "version": "1.0.0",
+        "dependencies": { "fsevents": "^2.3.2" },
+    }));
+    overrider.apply(&mut manifest, Some(Path::new("/workspace")));
+
+    assert_eq!(dep_spec(&manifest, "dependencies", "fsevents"), Some("^2.3.2"));
+}
+
+#[test]
+fn wildcard_and_typed_overrides_respect_specificity() {
+    let overrides = parsed(&[
+        ("@babel/*:peer", "*"),
+        ("@babel/core:peer", "^7.20.0"),
+        ("react", "18.3.1"),
+        ("react:peer", "^18.0.0"),
+        ("@mui/*>react:peer", "17 || 18"),
+        ("@mui/material>react:peer", "^18.2.0"),
+    ]);
+    let overrider = VersionsOverrider::new(&overrides, Path::new("/workspace"));
+
+    let mut plugin = manifest_from_value(json!({
+        "name": "my-plugin",
+        "version": "1.0.0",
+        "dependencies": { "react": "^18.0.0" },
+        "peerDependencies": {
+            "@babel/core": "^7.0.0",
+            "@babel/preset-env": "^7.0.0",
+            "react": "^17.0.0",
+        },
+    }));
+    overrider.apply(&mut plugin, Some(Path::new("/workspace")));
+
+    assert_eq!(dep_spec(&plugin, "dependencies", "react"), Some("18.3.1"));
+    assert_eq!(dep_spec(&plugin, "peerDependencies", "react"), Some("^18.0.0"));
+    assert_eq!(dep_spec(&plugin, "peerDependencies", "@babel/core"), Some("^7.20.0"));
+    assert_eq!(dep_spec(&plugin, "peerDependencies", "@babel/preset-env"), Some("*"));
+
+    let mut mui_button = manifest_from_value(json!({
+        "name": "@mui/button",
+        "version": "5.0.0",
+        "peerDependencies": { "react": "^17.0.0" },
+    }));
+    overrider.apply(&mut mui_button, Some(Path::new("/workspace")));
+    assert_eq!(dep_spec(&mui_button, "peerDependencies", "react"), Some("17 || 18"));
+
+    let mut mui_material = manifest_from_value(json!({
+        "name": "@mui/material",
+        "version": "5.0.0",
+        "peerDependencies": { "react": "^17.0.0" },
+    }));
+    overrider.apply(&mut mui_material, Some(Path::new("/workspace")));
+    assert_eq!(dep_spec(&mui_material, "peerDependencies", "react"), Some("^18.2.0"));
 }

@@ -19,7 +19,9 @@
 // are frozen and reviewed per pnpm release rather than resolved on the user's
 // machine. get-pnpm is the workspace package in pnpm/npm/get-pnpm, so a pnpm
 // release ships its source as of that release — see pnpm/crates/executor/src/bundled_node_gyp.rs for node-gyp's
-// runtime half, and pnpm/npm/pnpm/bin/pnpm.mjs for get-pnpm's.
+// runtime half, and pnpm/npm/pnpm/bin/pnpm.mjs for get-pnpm's. The wrapper
+// depends on it as `workspace:~`, not `workspace:*`: an exact range would make
+// every get-pnpm release force a pnpm release too.
 //
 // The TypeScript CLI builds the same payload for its own package in
 // pnpm11/pnpm/bundle-deps.ts, and both read the node-gyp version from the

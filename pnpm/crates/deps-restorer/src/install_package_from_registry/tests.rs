@@ -53,6 +53,7 @@ fn create_config(
         aggregate_output: false,
         reporter_hide_prefix: None,
         use_stderr: false,
+        git_tag_version: true,
         ignore_workspace: false,
         workspace_search_skipped: false,
         workspace_package_patterns: None,
