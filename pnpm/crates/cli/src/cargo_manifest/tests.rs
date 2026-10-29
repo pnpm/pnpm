@@ -60,6 +60,11 @@ fn updates_strings_and_inline_tables_without_losing_formatting() {
         "[dependencies.reqwest]\nversion = \"=0.12.0\"\nfeatures = [\"json\"]\n",
     );
 
+    let single_quoted_subtable = "[dependencies.'reqwest']\nversion = \"0.11\"\n";
+    let updated_single_quoted =
+        upsert_dependency(single_quoted_subtable, "dependencies", "reqwest", "=0.12.0").unwrap();
+    assert_eq!(updated_single_quoted, "[dependencies.'reqwest']\nversion = \"=0.12.0\"\n");
+
     let dotted_manifest =
         "[dependencies]\nreqwest.features = [\"json\"]\nreqwest.version = \"0.11\"\n";
     let updated_dotted =
@@ -117,12 +122,18 @@ fn workspace_membership_discovers_implicit_path_dependency_members() {
     let root = dir.path();
     let member = root.join("crates/alpha");
     let implicit_lib = root.join("support/implicit-lib");
+    let inherited_lib = root.join("support/inherited-lib");
     let excluded_lib = root.join("support/excluded-lib");
-    for path in [&member, &implicit_lib, &excluded_lib] {
+    for path in [&member, &implicit_lib, &inherited_lib, &excluded_lib] {
         fs::create_dir_all(path).unwrap();
         fs::write(path.join("Cargo.toml"), "[package]\nname = \"x\"\nversion = \"0.1.0\"\n")
             .unwrap();
     }
+    fs::write(
+        implicit_lib.join("Cargo.toml"),
+        "[package]\nname = \"implicit-lib\"\nversion = \"0.1.0\"\n\n[dependencies]\ninherited-alias = { workspace = true }\n",
+    )
+    .unwrap();
     fs::write(
         member.join("Cargo.toml"),
         "[package]\nname = \"alpha\"\nversion = \"0.1.0\"\n\n[dependencies]\nimplicit-lib = { path = \"../../support/implicit-lib\" }\nexcluded-lib = { path = \"../../support/excluded-lib\" }\n",
@@ -130,12 +141,14 @@ fn workspace_membership_discovers_implicit_path_dependency_members() {
     .unwrap();
     fs::write(
         root.join("Cargo.toml"),
-        "[workspace]\nmembers = [\"crates/*\"]\nexclude = [\"support/excluded-lib\"]\n",
+        "[workspace]\nmembers = [\"crates/*\"]\nexclude = [\"support/excluded-lib\"]\n\n[workspace.dependencies]\ninherited-alias = { package = \"inherited-lib\", path = \"support/inherited-lib\" }\n",
     )
     .unwrap();
 
     assert!(workspace_includes_member(root, &implicit_lib));
+    assert!(workspace_includes_member(root, &inherited_lib));
     assert!(!workspace_includes_member(root, &excluded_lib));
     assert_eq!(find_cargo_workspace_root(&implicit_lib, Some(root)), root);
+    assert_eq!(find_cargo_workspace_root(&inherited_lib, Some(root)), root);
     assert_eq!(find_cargo_workspace_root(&excluded_lib, Some(root)), excluded_lib);
 }

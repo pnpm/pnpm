@@ -124,7 +124,7 @@ fn is_implicit_workspace_member(
         if !visited.insert(pkg_dir.clone()) {
             continue;
         }
-        for dep_dir in eligible_path_dependencies(&pkg_dir, workspace_dir, excludes) {
+        for dep_dir in eligible_path_dependencies(&pkg_dir, workspace_dir, root_doc, excludes) {
             if dep_dir == target {
                 return true;
             }
@@ -192,6 +192,7 @@ fn is_skipped_dir(path: &Path, workspace_dir: &Path, excludes: &[String]) -> boo
 fn eligible_path_dependencies(
     pkg_dir: &Path,
     workspace_dir: &Path,
+    root_doc: &toml::Table,
     excludes: &[String],
 ) -> Vec<PathBuf> {
     let Ok(contents) = fs::read_to_string(pkg_dir.join("Cargo.toml")) else {
@@ -201,7 +202,7 @@ fn eligible_path_dependencies(
         return Vec::new();
     };
     let mut paths = Vec::new();
-    collect_table_path_deps(&doc, pkg_dir, &mut paths);
+    collect_table_path_deps(&doc, pkg_dir, (workspace_dir, root_doc), &mut paths);
     let norm_ws = normalize_lexical(workspace_dir);
     paths
         .into_iter()
@@ -213,30 +214,69 @@ fn eligible_path_dependencies(
         .collect()
 }
 
-fn collect_table_path_deps(doc: &toml::Table, pkg_dir: &Path, out: &mut Vec<PathBuf>) {
+fn collect_table_path_deps(
+    doc: &toml::Table,
+    pkg_dir: &Path,
+    workspace_ctx: (&Path, &toml::Table),
+    out: &mut Vec<PathBuf>,
+) {
     for section in ["dependencies", "dev-dependencies", "build-dependencies"] {
         if let Some(table) = doc.get(section).and_then(toml::Value::as_table) {
-            extract_paths_from_dep_table(table, pkg_dir, out);
+            extract_paths_from_dep_table(table, pkg_dir, workspace_ctx, out);
         }
     }
     let Some(targets) = doc.get("target").and_then(toml::Value::as_table) else {
         return;
     };
     for target_cfg in targets.values().filter_map(toml::Value::as_table) {
-        collect_table_path_deps(target_cfg, pkg_dir, out);
+        collect_table_path_deps(target_cfg, pkg_dir, workspace_ctx, out);
     }
 }
 
-fn extract_paths_from_dep_table(table: &toml::Table, pkg_dir: &Path, out: &mut Vec<PathBuf>) {
-    for value in table.values() {
-        if let Some(rel_path) = value
-            .as_table()
-            .and_then(|dep| dep.get("path"))
-            .and_then(toml::Value::as_str)
-        {
+fn extract_paths_from_dep_table(
+    table: &toml::Table,
+    pkg_dir: &Path,
+    (workspace_dir, root_doc): (&Path, &toml::Table),
+    out: &mut Vec<PathBuf>,
+) {
+    for (key, value) in table {
+        let Some(dep) = value.as_table() else {
+            continue;
+        };
+        if let Some(rel_path) = dep.get("path").and_then(toml::Value::as_str) {
             out.push(normalize_lexical(&pkg_dir.join(rel_path)));
+        } else if dep.get("workspace").and_then(toml::Value::as_bool) == Some(true)
+            && let Some(ws_path) = resolve_workspace_dep_path(workspace_dir, root_doc, key, dep)
+        {
+            out.push(ws_path);
         }
     }
+}
+
+fn resolve_workspace_dep_path(
+    workspace_dir: &Path,
+    root_doc: &toml::Table,
+    key: &str,
+    member_dep: &toml::Table,
+) -> Option<PathBuf> {
+    let ws_deps = root_doc
+        .get("workspace")?
+        .as_table()?
+        .get("dependencies")?
+        .as_table()?;
+    let ws_val = ws_deps
+        .get(key)
+        .or_else(|| {
+            member_dep
+                .get("package")
+                .and_then(toml::Value::as_str)
+                .and_then(|pkg| ws_deps.get(pkg))
+        })?;
+    let rel_path = ws_val
+        .as_table()?
+        .get("path")?
+        .as_str()?;
+    Some(normalize_lexical(&workspace_dir.join(rel_path)))
 }
 
 fn normalize_lexical(path: &Path) -> PathBuf {

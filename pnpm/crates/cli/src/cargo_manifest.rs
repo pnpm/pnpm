@@ -72,7 +72,7 @@ pub(crate) fn upsert_dependency(
 }
 
 fn find_dependency_subtable(contents: &str, table: &str, name: &str) -> Option<String> {
-    [format!("{table}.{name}"), format!("{table}.{}", quoted(name))]
+    [format!("{table}.{name}"), format!("{table}.{}", quoted(name)), format!("{table}.'{name}'")]
         .into_iter()
         .find(|subtable| find_table(contents, subtable).is_some())
 }
