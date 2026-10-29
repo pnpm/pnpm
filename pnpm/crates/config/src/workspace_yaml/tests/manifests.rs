@@ -40,6 +40,10 @@ fn find_propagates_parse_yaml_error_on_malformed_manifest() {
 
     let err = WorkspaceSettings::find_and_load(tmp.path())
         .expect_err("malformed yaml must surface as ParseYaml");
+    assert_eq!(
+        miette::Diagnostic::code(&err).map(|code| code.to_string()).as_deref(),
+        Some("ERR_PNPM_INVALID_SETTING"),
+    );
     let LoadWorkspaceYamlError::ParseYaml { path, .. } = err else {
         panic!("expected ParseYaml, got {err:?}");
     };
