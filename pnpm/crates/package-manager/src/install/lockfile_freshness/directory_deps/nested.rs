@@ -184,10 +184,10 @@ impl<'a> DirectoryPackages<'a> {
     }
 }
 
-/// Checks `nested` as the importer walk checks a directory package. The
-/// lockfile does not record whether the parent declared it with `file:` or
-/// with `workspace:`, which can read different manifests (see
-/// [`super::unhooked_manifest`]), so a snapshot either one matches is fresh.
+/// Checks `nested` as the importer walk checks a directory package. The two
+/// declarations can read different manifests (see [`super::unhooked_manifest`]),
+/// and the lockfile does not record which one the parent used. The check
+/// reads the one [`settings_declaration`] finds, else requires both to match.
 pub(crate) fn check_nested_directory_package(
     check: &ImporterSatisfactionCheck<'_>,
     nested: &NestedDirectoryPackage,
@@ -226,10 +226,59 @@ pub(crate) fn check_nested_directory_package(
             &mut Visited::new(check.lockfile),
         )
     };
+    if let Some(declaration) = settings_declaration(check, &nested.directory) {
+        return check_declared(declaration == Declaration::File);
+    }
     let declared_as_workspace = false;
     let declared_as_file = true;
-    check_declared(declared_as_workspace)
-        .or_else(|error| check_declared(declared_as_file).map_err(|_| error))
+    check_declared(declared_as_workspace).and_then(|()| check_declared(declared_as_file))
+}
+
+/// How a spec declares a local directory.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Declaration {
+    File,
+    Workspace,
+}
+
+/// How the overrides and package extensions declare `directory`. `None`
+/// when none of them names it, such as for a directory a `readPackage` hook
+/// adds, or when they disagree.
+fn settings_declaration(
+    check: &ImporterSatisfactionCheck<'_>,
+    directory: &str,
+) -> Option<Declaration> {
+    let target = pnpm_fs::lexical_normalize(&check.lockfile_dir.join(directory));
+    let override_specs = check.parsed_overrides
+        .into_iter()
+        .flatten()
+        .map(|entry| entry.new_bare_specifier.as_str());
+    let extension_specs = check.config.package_extensions
+        .iter()
+        .flat_map(|extensions| extensions.values())
+        .flat_map(|extension| [&extension.dependencies, &extension.optional_dependencies])
+        .flatten()
+        .flat_map(|dependencies| dependencies.values().map(String::as_str));
+    let mut declarations = override_specs
+        .chain(extension_specs)
+        .filter_map(declared_directory)
+        .filter(|(path, _)| pnpm_fs::lexical_normalize(&check.lockfile_dir.join(path)) == target)
+        .map(|(_, declaration)| declaration);
+    let first = declarations.next()?;
+    declarations
+        .all(|declaration| declaration == first)
+        .then_some(first)
+}
+
+/// The directory a spec names and how it declares it.
+fn declared_directory(spec: &str) -> Option<(&str, Declaration)> {
+    if let Some(path) = spec.strip_prefix("workspace:") {
+        return pnpm_local_spec::is_filespec(path).then_some((path, Declaration::Workspace));
+    }
+    let path = spec.strip_prefix("file:").unwrap_or(spec);
+    let names_directory = (path.len() < spec.len() || pnpm_local_spec::is_filespec(path))
+        && !pnpm_lockfile::is_local_tarball_path(path);
+    names_directory.then_some((path, Declaration::File))
 }
 
 fn snapshot_dependencies(

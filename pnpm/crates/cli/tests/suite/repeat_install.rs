@@ -1587,3 +1587,46 @@ fn an_edited_directory_beneath_an_excluded_optional_dependency_passes_frozen_ins
     fixture.append_workspace_yaml("optional: false\n");
     _utils::assert_success(&install(&["--frozen-lockfile"]));
 }
+
+/// A workspace project that publishes from `dist` reads differently through
+/// `file:` (its `dist/package.json`) and `workspace:` (the project
+/// manifest). The override declares it with `file:`, so an edit to
+/// `dist/package.json` alone makes the frozen install reject the lockfile.
+#[test]
+fn an_edited_publish_directory_beneath_a_registry_package_is_read_as_declared() {
+    let fixture = _utils::WorkspaceFixture::new();
+    fixture.append_workspace_yaml(
+        "overrides:\n  \
+         '@pnpm.e2e/pkg-with-1-dep>@pnpm.e2e/dep-of-pkg-with-1-dep': file:./packages/lib/dist\n",
+    );
+    let lib = fixture.workspace.join("packages/lib");
+    let manifest = |foo: &str| {
+        format!(
+            r#"{{ "name": "lib", "version": "1.0.0", "dependencies": {{ "@pnpm.e2e/foo": "{foo}" }}, "publishConfig": {{ "directory": "dist" }} }}"#
+        )
+    };
+    fs::create_dir_all(lib.join("dist")).expect("create the publish directory");
+    fs::write(lib.join("package.json"), manifest("100.0.0")).expect("write the project manifest");
+    fs::write(lib.join("dist/package.json"), manifest("100.0.0"))
+        .expect("write the published manifest");
+    fixture.write_root_manifest(
+        "app",
+        _utils::ManifestDeps {
+            prod: &[("@pnpm.e2e/pkg-with-1-dep", "100.0.0")],
+            .._utils::ManifestDeps::default()
+        },
+    );
+    let install = |args: &[&str]| {
+        fixture.command_at(&fixture.workspace, std::iter::once(&"install").chain(args))
+    };
+    _utils::assert_success(&install(&[]));
+
+    fs::write(lib.join("dist/package.json"), manifest("100.1.0"))
+        .expect("edit the published manifest");
+    let frozen = install(&["--frozen-lockfile"]);
+    let stderr = String::from_utf8_lossy(&frozen.stderr);
+    assert!(
+        !frozen.status.success() && stderr.contains("ERR_PNPM_OUTDATED_LOCKFILE"),
+        "the frozen install must reject the stale lockfile: {stderr}",
+    );
+}
