@@ -1602,7 +1602,7 @@ fn an_edited_publish_directory_beneath_a_registry_package_is_read_as_declared() 
     let lib = fixture.workspace.join("packages/lib");
     let manifest = |foo: &str| {
         format!(
-            r#"{{ "name": "lib", "version": "1.0.0", "dependencies": {{ "@pnpm.e2e/foo": "{foo}" }}, "publishConfig": {{ "directory": "dist" }} }}"#
+            r#"{{ "name": "lib", "version": "1.0.0", "dependencies": {{ "@pnpm.e2e/foo": "{foo}" }}, "publishConfig": {{ "directory": "dist" }} }}"#,
         )
     };
     fs::create_dir_all(lib.join("dist")).expect("create the publish directory");
