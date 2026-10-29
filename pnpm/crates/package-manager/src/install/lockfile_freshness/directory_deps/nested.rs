@@ -226,7 +226,10 @@ pub(crate) fn check_nested_directory_package(
             &mut Visited::new(check.lockfile),
         )
     };
-    check_declared(false).or_else(|error| check_declared(true).map_err(|_| error))
+    let declared_as_workspace = false;
+    let declared_as_file = true;
+    check_declared(declared_as_workspace)
+        .or_else(|error| check_declared(declared_as_file).map_err(|_| error))
 }
 
 fn snapshot_dependencies(
