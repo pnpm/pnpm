@@ -534,11 +534,7 @@ impl BuildModules<'_> {
         let graph = cache_gate_active.then(|| {
             // Every requires-build snapshot is a root, including the ones
             // the install's dependency-group filter keeps out of the build
-            // graph. Narrowing the roots to what will actually build would
-            // make a package inside a dependency cycle hash differently
-            // under `--prod` than under a full install, because
-            // `warm_deps_state_cache` below resolves such a cycle by
-            // whichever walk reaches it first.
+            // graph.
             let roots = requires_build_map
                 .iter()
                 .filter(|&(_, &requires_build)| requires_build)
@@ -550,20 +546,6 @@ impl BuildModules<'_> {
             )
         });
         let cache = Mutex::new(pnpm_graph_hasher::DepsStateCache::new());
-        // Prime it in lockfile key order before any build runs. The
-        // ready nodes race for the mutex, and a snapshot inside a
-        // dependency cycle takes the digest of whichever walk reached
-        // it first — so an unprimed cache would hand the same install
-        // a different side-effects-cache key on every run, and every
-        // repeat install would re-run the build it already has cached.
-        if let Some(graph) = &graph {
-            let mut cache_guard = cache.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-            pnpm_graph_hasher::warm_deps_state_cache(
-                graph,
-                &mut cache_guard,
-                crate::deps_graph::in_lockfile_order(graph).into_iter().map(|(key, _)| key),
-            );
-        }
         DepStates { graph, cache }
     }
 }

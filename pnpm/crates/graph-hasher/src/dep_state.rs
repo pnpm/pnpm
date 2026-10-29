@@ -1,5 +1,9 @@
-use crate::object_hasher::{digest_base64, serialize_str};
+use crate::{
+    hash_object,
+    object_hasher::{digest_base64, serialize_str},
+};
 use indexmap::IndexMap;
+use serde_json::{Value, json};
 use std::collections::{HashMap, HashSet};
 
 pub const DEPENDENCY_SIDE_EFFECTS_INPUT_KEY_PREFIX: &str = "dependency-side-effects:v1:";
@@ -19,15 +23,6 @@ pub const DEPENDENCY_SIDE_EFFECTS_INPUT_KEY_PREFIX: &str = "dependency-side-effe
 /// children. Pacquet's natural input shape is the lockfile's
 /// `snapshots[].dependencies` + `optionalDependencies` flattened,
 /// with each value resolved to the snapshot key it points at.
-///
-/// The map is insertion-ordered because iteration order is part of the
-/// hash contract: a node reached while one of its own ancestors is
-/// mid-walk hashes with its children truncated, so inside a dependency
-/// cycle the digest a node settles on depends on the order its parents
-/// were visited in. Upstream's node holds a plain JS object built by
-/// spreading `dependencies` then `optionalDependencies`, so callers must
-/// insert in that same order (each section in lockfile key order) for
-/// the digests to match.
 ///
 /// Owns its strings so a caller building the graph from a lockfile
 /// doesn't have to keep a separate `String` arena alive for the
@@ -77,7 +72,7 @@ where
 {
     let mut result = format!("{};{SIDE_EFFECTS_FORMAT_KEY}", opts.engine_name);
     if opts.include_dep_graph_hash {
-        let deps_hash = calc_dep_graph_hash(graph, cache, &mut HashSet::new(), dep_path);
+        let deps_hash = calc_dep_graph_hash(graph, cache, dep_path);
         result.push_str(";deps=");
         result.push_str(&deps_hash);
     }
@@ -116,7 +111,7 @@ where
         graph.contains_key(dep_path),
         "dependency side-effects input-key root is not present in the graph",
     );
-    let deps_hash = calc_dep_graph_hash(graph, &mut HashMap::new(), &mut HashSet::new(), dep_path);
+    let deps_hash = calc_dep_graph_hash(graph, &mut HashMap::new(), dep_path);
     let mut result = format!("{DEPENDENCY_SIDE_EFFECTS_INPUT_KEY_PREFIX}deps={deps_hash}");
     if let Some(patch) = patch_file_hash {
         result.push_str(";patch=");
@@ -125,53 +120,23 @@ where
     result
 }
 
-/// Recursive helper for the `deps=` portion.
+/// The `deps=` portion: the digest of the subgraph `dep_path` reaches.
 ///
-/// Hashes each node as `hash_object({ id, deps })` where `deps` is
-/// the alias→child-hash map. `parents` breaks dependency cycles —
-/// when a node would re-enter via its own ancestor, the child's
-/// contribution becomes `""` (the "node not in graph" guard returns
-/// the empty string).
+/// A node outside any dependency cycle hashes as
+/// `hash_object({ id, deps })`, where `deps` maps each alias to the
+/// child's digest. A child the graph has no node for contributes `""`.
 ///
-/// **Visit order is part of the digest.** Upstream is deterministic
-/// because JS objects iterate in insertion order; pacquet reproduces
-/// that by keeping [`DepsGraphNode::children`] insertion-ordered and by
-/// having callers drive the per-snapshot walks in lockfile key order
-/// (see [`crate::warm_deps_state_cache`]). Feeding this walk a
-/// `HashMap`-ordered graph instead would give the same lockfile a
-/// different global-virtual-store slot on every run, and each install
-/// would re-import whatever landed on a fresh slot path.
+/// The members of a cycle (a strongly connected component, or a node
+/// that depends on itself) hash as one unit, so each member's digest
+/// covers everything the cycle reaches. See [`hash_cycle`].
+///
+/// The digests depend only on the graph, not on the order nodes or
+/// children are visited in, so a shared `cache` gives the same answers
+/// whichever root reaches a node first.
 pub(crate) fn calc_dep_graph_hash<Key>(
     graph: &HashMap<Key, DepsGraphNode<Key>>,
     cache: &mut DepsStateCache<Key>,
-    parents: &mut HashSet<String>,
     dep_path: &Key,
-) -> String
-where
-    Key: Clone + Eq + std::hash::Hash,
-{
-    // The buffer is for the walk, so a node already in the cache should
-    // not pay for one: `calc_graph_node_hash` asks per snapshot, and on
-    // a large lockfile most of those are repeat questions about shared
-    // dependencies.
-    if let Some(cached) = cache.get(dep_path) {
-        return cached.clone();
-    }
-    let mut scratch = Vec::with_capacity(8192);
-    calc_dep_graph_hash_direct(graph, cache, parents, dep_path, &mut scratch)
-}
-
-/// The recursive body of [`calc_dep_graph_hash`].
-///
-/// `scratch` is reused across the whole walk. A node serializes only
-/// after every one of its child calls has returned, so one buffer
-/// serves every level of the recursion.
-fn calc_dep_graph_hash_direct<Key>(
-    graph: &HashMap<Key, DepsGraphNode<Key>>,
-    cache: &mut DepsStateCache<Key>,
-    parents: &mut HashSet<String>,
-    dep_path: &Key,
-    scratch: &mut Vec<u8>,
 ) -> String
 where
     Key: Clone + Eq + std::hash::Hash,
@@ -179,42 +144,233 @@ where
     if let Some(cached) = cache.get(dep_path) {
         return cached.clone();
     }
-    let Some(node) = graph.get(dep_path) else {
+    let Some((dep_path, _)) = graph.get_key_value(dep_path) else {
         return String::new();
     };
-    // A node reached while its own `full_pkg_id` is still mid-walk
-    // hashes with its children truncated, which terminates the cycle.
-    let walk_children = !node.children.is_empty() && !parents.contains(&node.full_pkg_id);
-    if walk_children {
-        hash_children(graph, cache, parents, node, scratch);
-    }
-    let hashed = digest_node(node, cache, walk_children, scratch);
-    cache.insert(dep_path.clone(), hashed.clone());
-    hashed
+    let mut walk = ComponentWalk {
+        graph,
+        cache,
+        visits: HashMap::new(),
+        stack: Vec::new(),
+        scratch: Vec::with_capacity(8192),
+    };
+    walk.visit(dep_path);
+    cache[dep_path].clone()
 }
 
-/// Hash every child of `node` into `cache`, with `node` marked as
-/// mid-walk so a cycle back to it truncates instead of recursing.
-fn hash_children<Key>(
-    graph: &HashMap<Key, DepsGraphNode<Key>>,
-    cache: &mut DepsStateCache<Key>,
-    parents: &mut HashSet<String>,
-    node: &DepsGraphNode<Key>,
-    scratch: &mut Vec<u8>,
-) where
+/// Tarjan's strongly-connected-components search over the nodes that
+/// are not in `cache` yet. It finishes a component only after every
+/// component the component depends on, so a component's external
+/// children are always hashed by the time it is.
+struct ComponentWalk<'graph, 'cache, Key> {
+    graph: &'graph HashMap<Key, DepsGraphNode<Key>>,
+    cache: &'cache mut DepsStateCache<Key>,
+    visits: HashMap<&'graph Key, Visit>,
+    stack: Vec<&'graph Key>,
+    /// Reused by every [`digest_node`] of the walk.
+    scratch: Vec<u8>,
+}
+
+struct Visit {
+    index: usize,
+    low_link: usize,
+    on_stack: bool,
+}
+
+impl<'graph, Key> ComponentWalk<'graph, '_, Key>
+where
     Key: Clone + Eq + std::hash::Hash,
 {
-    let inserted = parents.insert(node.full_pkg_id.clone());
-    for child_key in node.children.values() {
-        calc_dep_graph_hash_direct(graph, cache, parents, child_key, scratch);
+    fn visit(&mut self, dep_path: &'graph Key) {
+        let index = self.visits.len();
+        self.visits.insert(dep_path, Visit { index, low_link: index, on_stack: true });
+        self.stack.push(dep_path);
+        for child_key in self.graph[dep_path].children.values() {
+            if let Some(reached) = self.visit_child(child_key) {
+                let visit = self.visits.get_mut(dep_path).expect("visited above");
+                visit.low_link = visit.low_link.min(reached);
+            }
+        }
+        if self.visits[dep_path].low_link == index {
+            self.finish_component(dep_path);
+        }
     }
-    if inserted {
-        parents.remove(&node.full_pkg_id);
+
+    /// The lowest index `child_key` reaches back to, or `None` for a
+    /// child that is missing from the graph or in a finished component.
+    fn visit_child(&mut self, child_key: &Key) -> Option<usize> {
+        let (child_key, _) = self.graph.get_key_value(child_key)?;
+        if self.cache.contains_key(child_key) {
+            return None;
+        }
+        match self.visits.get(child_key) {
+            None => {
+                self.visit(child_key);
+                Some(self.visits[child_key].low_link)
+            }
+            Some(child) => child.on_stack.then_some(child.index),
+        }
+    }
+
+    fn finish_component(&mut self, root: &'graph Key) {
+        let start = self.stack
+            .iter()
+            .rposition(|member| *member == root)
+            .expect("a visited node stays on the stack until its component is finished");
+        let members = self.stack.split_off(start);
+        for member in &members {
+            self.visits.get_mut(*member).expect("visited above").on_stack = false;
+        }
+        self.hash_component(&members);
+    }
+
+    fn hash_component(&mut self, members: &[&'graph Key]) {
+        if let [dep_path] = members {
+            let node = &self.graph[*dep_path];
+            if !node.children
+                .values()
+                .any(|child_key| child_key == *dep_path)
+            {
+                let hashed = digest_node(node, self.cache, &mut self.scratch);
+                self.cache.insert((*dep_path).clone(), hashed);
+                return;
+            }
+        }
+        let hashes = hash_cycle(self.graph, self.cache, members);
+        for (member, hashed) in members.iter().zip(hashes) {
+            self.cache.insert((*member).clone(), hashed);
+        }
     }
 }
 
-/// The digest of one node, written into `scratch` without an
-/// intermediate `serde_json` value.
+/// The digests of the members of one dependency cycle, in `members`
+/// order. Every child outside the cycle must already be in `cache`.
+///
+/// Each member is first labelled `hash_object({ id, deps })` over its
+/// children outside the cycle. The labels are then refined with the
+/// children inside the cycle,
+/// `hash_object({ color: <label>, deps: { <alias>: <child label> } })`,
+/// until a round no longer splits a group of equal labels. Two members
+/// end with the same label only when their dependency trees are the
+/// same, however far they are unrolled.
+///
+/// The cycle's `shape` maps each final label to that member's
+/// `{ <alias>: <child label> }` inside the cycle. A member's digest is
+/// `hash_object({ member: <label>, component: hash_object(shape) })`,
+/// so it changes when anything in or below the cycle changes.
+fn hash_cycle<Key>(
+    graph: &HashMap<Key, DepsGraphNode<Key>>,
+    cache: &DepsStateCache<Key>,
+    members: &[&Key],
+) -> Vec<String>
+where
+    Key: Clone + Eq + std::hash::Hash,
+{
+    let cycle = Cycle {
+        graph,
+        members,
+        position: members
+            .iter()
+            .enumerate()
+            .map(|(index, member)| (*member, index))
+            .collect(),
+    };
+    let labels = refine_labels(cycle.initial_labels(cache), &|labels, index| {
+        cycle.internal_deps(index, labels)
+    });
+    let shape: serde_json::Map<String, Value> = labels
+        .iter()
+        .enumerate()
+        .map(|(index, label)| (label.clone(), cycle.internal_deps(index, &labels)))
+        .collect();
+    let component = hash_object(&Value::Object(shape));
+    labels
+        .iter()
+        .map(|label| hash_object(&json!({ "member": label, "component": component })))
+        .collect()
+}
+
+/// The members of one dependency cycle, for [`hash_cycle`].
+struct Cycle<'a, Key> {
+    graph: &'a HashMap<Key, DepsGraphNode<Key>>,
+    members: &'a [&'a Key],
+    position: HashMap<&'a Key, usize>,
+}
+
+impl<Key> Cycle<'_, Key>
+where
+    Key: Clone + Eq + std::hash::Hash,
+{
+    /// Each member's `hash_object({ id, deps })` over its children
+    /// outside the cycle.
+    fn initial_labels(&self, cache: &DepsStateCache<Key>) -> Vec<String> {
+        self.members
+            .iter()
+            .map(|member| {
+                let node = &self.graph[*member];
+                let external_deps = node.children
+                    .iter()
+                    .filter(|(_, child_key)| !self.position.contains_key(child_key))
+                    .map(|(alias, child_key)| {
+                        let child = cache.get(child_key).map_or("", String::as_str);
+                        (alias.clone(), Value::String(child.to_owned()))
+                    })
+                    .collect();
+                hash_object(
+                    &json!({ "id": node.full_pkg_id, "deps": Value::Object(external_deps) }),
+                )
+            })
+            .collect()
+    }
+
+    /// `{ <alias>: <child label> }` over the children of the member at
+    /// `index` that are inside the cycle.
+    fn internal_deps(&self, index: usize, labels: &[String]) -> Value {
+        let deps = self.graph[self.members[index]].children
+            .iter()
+            .filter_map(|(alias, child_key)| {
+                let child = self.position.get(child_key)?;
+                Some((alias.clone(), Value::String(labels[*child].clone())))
+            })
+            .collect();
+        Value::Object(deps)
+    }
+}
+
+/// Refine each member's label with its children's labels until a round
+/// no longer splits a group of equal labels.
+fn refine_labels(
+    mut labels: Vec<String>,
+    internal_deps: &dyn Fn(&[String], usize) -> Value,
+) -> Vec<String> {
+    let mut groups = count_distinct(&labels);
+    loop {
+        let refined: Vec<String> = labels
+            .iter()
+            .enumerate()
+            .map(|(index, label)| {
+                hash_object(&json!({ "color": label, "deps": internal_deps(&labels, index) }))
+            })
+            .collect();
+        let refined_groups = count_distinct(&refined);
+        if refined_groups == groups {
+            return labels;
+        }
+        labels = refined;
+        groups = refined_groups;
+    }
+}
+
+fn count_distinct(labels: &[String]) -> usize {
+    labels
+        .iter()
+        .collect::<HashSet<_>>()
+        .len()
+}
+
+/// The digest of one node outside any cycle, written into `scratch`
+/// without an intermediate `serde_json` value. Every child must already
+/// be in `cache`.
 ///
 /// The bytes are the object-hash serialization of
 /// `{ "id": <full_pkg_id>, "deps": { <alias>: <child digest>, .. } }`
@@ -222,31 +378,19 @@ fn hash_children<Key>(
 /// `deps` before `id`, each pair framed `<key>:<value>,`. Sorting the
 /// aliases reproduces the sort `crate::object_hasher::serialize` runs
 /// over an object's keys, which is what keeps the two byte-identical.
-///
-/// `walk_children` is false for a node whose children the caller
-/// truncated, which hashes as an empty `deps` object.
 fn digest_node<Key>(
     node: &DepsGraphNode<Key>,
     cache: &DepsStateCache<Key>,
-    walk_children: bool,
     scratch: &mut Vec<u8>,
 ) -> String
 where
     Key: Clone + Eq + std::hash::Hash,
 {
-    // Children are read back from the cache rather than carried out of
-    // the recursion, so no digest is cloned on the way up. A child the
-    // graph has no node for contributes the empty string.
-    let mut pairs: Vec<(&str, &str)> = if walk_children {
-        node.children
-            .iter()
-            .map(|(alias, child_key)| {
-                (alias.as_str(), cache.get(child_key).map_or("", String::as_str))
-            })
-            .collect()
-    } else {
-        Vec::new()
-    };
+    // A child the graph has no node for contributes the empty string.
+    let mut pairs: Vec<(&str, &str)> = node.children
+        .iter()
+        .map(|(alias, child_key)| (alias.as_str(), cache.get(child_key).map_or("", String::as_str)))
+        .collect();
     pairs.sort_unstable_by_key(|(alias, _)| *alias);
 
     scratch.clear();
@@ -270,35 +414,17 @@ where
     digest_base64(scratch)
 }
 
-/// Populate `cache` by walking `keys` in order, so that later lookups
-/// see the same digests no matter what order — or from how many
-/// threads — the callers ask for them.
+/// Return every node that is, or transitively depends on, a node
+/// in `built_dep_paths`.
 ///
-/// [`calc_dep_state`] and [`crate::calc_graph_node_hash`] both memoize
-/// into a shared install-scoped cache, and for cyclic subgraphs the
-/// digest they store depends on the entry point that reached the node
-/// first (see [`DepsGraphNode::children`] for why). Callers that would
-/// otherwise enter the graph in an unordered — or concurrent — sequence
-/// prime the cache through here first, passing the snapshot keys in
-/// lockfile order.
-pub fn warm_deps_state_cache<'a, Key>(
-    graph: &HashMap<Key, DepsGraphNode<Key>>,
-    cache: &mut DepsStateCache<Key>,
-    keys: impl IntoIterator<Item = &'a Key>,
-) where
-    Key: 'a + Clone + Eq + std::hash::Hash,
-{
-    // One `parents` set for the whole warm-up: each walk leaves it empty
-    // again, and a key that is already memoized needs no walk at all.
-    let mut parents = HashSet::new();
-    for key in keys {
-        if cache.contains_key(key) {
-            continue;
-        }
-        calc_dep_graph_hash(graph, cache, &mut parents, key);
-    }
-}
-
+/// The result controls whether [`crate::calc_graph_node_hash`] includes
+/// the engine in a global-virtual-store hash. It is computed as one
+/// graph-wide fixed point so dependency cycles cannot produce different
+/// answers for different entry points.
+///
+/// A key with no node in `graph` is kept and still marks whatever depends
+/// on it: the built set comes from the allow-build policy rather than the
+/// graph, so the two can disagree.
 #[must_use]
 pub fn build_required_dep_paths<Key>(
     graph: &HashMap<Key, DepsGraphNode<Key>>,
@@ -331,18 +457,6 @@ where
         .collect()
 }
 
-/// Return every node that is, or transitively depends on, a node
-/// in `built_dep_paths`.
-///
-/// The result controls whether [`crate::calc_graph_node_hash`] includes
-/// the engine in a global-virtual-store hash. It is computed as one
-/// graph-wide fixed point so dependency cycles cannot produce different
-/// answers for different entry points.
-///
-/// A key with no node in `graph` is kept and still marks whatever depends
-/// on it: the built set comes from the allow-build policy rather than the
-/// graph, so the two can disagree.
-#[must_use]
 /// Reverse the graph: every node, and the nodes that depend on it.
 fn index_parents_by_child<Key>(graph: &HashMap<Key, DepsGraphNode<Key>>) -> HashMap<&Key, Vec<&Key>>
 where

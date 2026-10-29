@@ -651,14 +651,14 @@ fn collect_injected_deps_maps_file_snapshots_to_slots() {
 #[test]
 fn cyclic_gvs_slots_match_pnpm() {
     let expected = [
-        ("a@1.0.0", "@/a/1.0.0/3bf76a728c7e155a17137e13ca7af820eb13a0ff4003fed5c39649aac0309905"),
-        ("b@1.0.0", "@/b/1.0.0/728ab1a600ca69780231a2630496c2e83a88c82e965d09ac193fa448c0148a6d"),
-        ("m@1.0.0", "@/m/1.0.0/d671219222f32dfed181f294115e23fc07805b7b78048002872f131f69c07983"),
-        ("n@1.0.0", "@/n/1.0.0/92dec6e2ee818106a34b91bea178347566cc47fe25208afa683831ca5d494605"),
-        ("p@1.0.0", "@/p/1.0.0/b666adb72829d0d822cf2005226985c0b19de632b569fcd75363adf141af3c41"),
-        ("q@1.0.0", "@/q/1.0.0/49a1cd21058b93255957e5accf04137fe74ef88364f96f4b1116e3ca75083b6a"),
-        ("x@1.0.0", "@/x/1.0.0/4230805547fe5208b58758d53b200bc13c5475e3324af75adc87538fcf247857"),
-        ("y@1.0.0", "@/y/1.0.0/4fba92559776b8cd9c4a541f07da9fcc95c8a8ea427f4116de7b2f0606f0f03d"),
+        ("a@1.0.0", "@/a/1.0.0/bd272542d63223ed529ce27f4e12054b6c6c74cb8836230305a5412942fb859a"),
+        ("b@1.0.0", "@/b/1.0.0/550bbefdd5593893e25510ffc9b3b84a73702d1ca65bb88b07785ab7f0bfed71"),
+        ("m@1.0.0", "@/m/1.0.0/6de9d6a3ba789d4d34ee89a6aa6437d6d681c1fa6baa074f657b7e9ce8407250"),
+        ("n@1.0.0", "@/n/1.0.0/8acdbf8980591330320110496c50042c6bd062acc674cb336465dcdd7b86a131"),
+        ("p@1.0.0", "@/p/1.0.0/ae8419e6382fec84acca7dbe4d75968111aa86e4aaa01adc2d67d1177600fb1c"),
+        ("q@1.0.0", "@/q/1.0.0/8689d87400f1e84873127e5f2b181133c134d4884dcdf51c825ef72d54d00b8c"),
+        ("x@1.0.0", "@/x/1.0.0/c14012d285f39faca5f91a9b8a86bbdfcbb42be0c77199e7b2ba3b236e9395ce"),
+        ("y@1.0.0", "@/y/1.0.0/869923572f0196f91568fc2f2b3550ae47b4f27df0cce9f44b2e71b8ec8d4ff8"),
     ];
     assert_eq!(
         cyclic_slot_suffixes(),

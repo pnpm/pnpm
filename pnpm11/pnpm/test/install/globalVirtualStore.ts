@@ -63,6 +63,33 @@ fs.writeFileSync('phantom.txt', 'resolved')
   expect(fs.readFileSync('phantom.txt', 'utf8')).toBe('resolved')
 })
 
+// https://github.com/pnpm/pnpm/issues/17466
+test('a change below a cycle member moves the whole cycle to new slots', async () => {
+  prepare({
+    dependencies: {
+      '@pnpm.e2e/circular-deps-1-of-2': '1.0.2',
+    },
+  })
+  const storeDir = path.resolve('store')
+  for (const fooVersion of ['100.0.0', '100.1.0', '100.0.0']) {
+    writeYamlFileSync(path.resolve('pnpm-workspace.yaml'), {
+      enableGlobalVirtualStore: true,
+      storeDir,
+      packageExtensions: {
+        '@pnpm.e2e/circular-deps-1-of-2': {
+          dependencies: { '@pnpm.e2e/foo': fooVersion },
+        },
+      },
+    })
+    // eslint-disable-next-line no-await-in-loop -- each install builds on the previous one
+    await execPnpm(['install'])
+
+    const first = fs.realpathSync('node_modules/@pnpm.e2e/circular-deps-1-of-2')
+    const second = fs.realpathSync(path.join(first, '../circular-deps-2-of-2'))
+    expect(fs.realpathSync(path.join(second, '../circular-deps-1-of-2'))).toBe(first)
+  }
+})
+
 test('approve-builds updates GVS symlinks and runs builds at correct hash directory', async () => {
   prepare({
     dependencies: {
