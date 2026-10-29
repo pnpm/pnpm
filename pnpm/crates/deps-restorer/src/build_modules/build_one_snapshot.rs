@@ -86,8 +86,6 @@ fn build_candidate<Reporter: self::Reporter>(
         return Ok(());
     };
 
-    let extra_bin_paths = snapshot_extra_bin_paths(context, &pkg_dir);
-
     // Apply the patch before running postinstall hooks. A snapshot
     // with a patch entry but no resolved `patch_file_path` is a hard
     // error (`PatchFilePathMissing`).
@@ -98,11 +96,10 @@ fn build_candidate<Reporter: self::Reporter>(
         return Ok(());
     };
 
-    let Some(has_side_effects) = run_snapshot_scripts::<Reporter>(
+    let Some(has_side_effects) = run_scripts_in_every_copy::<Reporter>(
         context,
         snapshot_key,
         &pkg_dir,
-        &extra_bin_paths,
         slot_lock.as_ref(),
         (candidate.should_run_scripts, optional, &candidate.name, &candidate.version),
     )?
@@ -337,6 +334,41 @@ fn global_slot_carries_overlay(
             .pkg_roots()
             .canonical(snapshot_key)
             .is_some_and(|pkg_dir| slot_carries_overlay(&pkg_dir, overlay))
+}
+
+/// Runs the build scripts in every copy of the package, `pkg_dir` first, as
+/// pnpm builds each node of the hoisted graph. A version conflict nests a
+/// copy under each project that needs it, and a copy left unbuilt lacks what
+/// the scripts generate. Only `pkg_dir` seeds the side-effects cache.
+fn run_scripts_in_every_copy<Reporter: self::Reporter>(
+    context: &BuildOneSnapshot<'_>,
+    snapshot_key: &PackageKey,
+    pkg_dir: &Path,
+    slot_lock: Option<&pnpm_fs::DirLock>,
+    run: (bool, bool, &str, &str),
+) -> Result<Option<bool>, BuildModulesError> {
+    let other_copies = context
+        .pkg_roots()
+        .all(snapshot_key)
+        .into_iter()
+        .filter(|dir| dir != pkg_dir && dir.exists());
+    let mut has_side_effects = false;
+    for dir in std::iter::once(pkg_dir.to_path_buf()).chain(other_copies) {
+        let extra_bin_paths = snapshot_extra_bin_paths(context, &dir);
+        let Some(ran) = run_snapshot_scripts::<Reporter>(
+            context,
+            snapshot_key,
+            &dir,
+            &extra_bin_paths,
+            slot_lock,
+            run,
+        )?
+        else {
+            return Ok(None);
+        };
+        has_side_effects |= ran;
+    }
+    Ok(Some(has_side_effects))
 }
 
 /// Whether the lifecycle scripts left side effects behind. `None` means an
