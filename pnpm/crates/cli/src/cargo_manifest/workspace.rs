@@ -5,6 +5,67 @@ use std::{
     path::{Component, Path, PathBuf},
 };
 
+pub(crate) struct WorkspaceCargoDep {
+    pub(crate) workspace_root: PathBuf,
+    pub(crate) package_name: String,
+    pub(crate) path: Option<String>,
+}
+
+pub(crate) fn workspace_dependency_spec(
+    member_dir: &Path,
+    dep_key: &str,
+) -> Option<WorkspaceCargoDep> {
+    for candidate in member_dir.ancestors() {
+        if let Some(spec) = read_workspace_dep_from_candidate(candidate, member_dir, dep_key) {
+            return Some(spec);
+        }
+    }
+    None
+}
+
+fn read_workspace_dep_from_candidate(
+    workspace_dir: &Path,
+    member_dir: &Path,
+    dep_key: &str,
+) -> Option<WorkspaceCargoDep> {
+    let contents = fs::read_to_string(workspace_dir.join("Cargo.toml")).ok()?;
+    let doc = toml::from_str::<toml::Table>(&contents).ok()?;
+    let ws = doc.get("workspace")?.as_table()?;
+    if workspace_dir != member_dir && !workspace_includes_member(workspace_dir, member_dir) {
+        return None;
+    }
+    let dep_val = ws
+        .get("dependencies")?
+        .as_table()?
+        .get(dep_key)?;
+    parse_workspace_dep_value(workspace_dir, dep_key, dep_val)
+}
+
+fn parse_workspace_dep_value(
+    workspace_dir: &Path,
+    dep_key: &str,
+    dep_val: &toml::Value,
+) -> Option<WorkspaceCargoDep> {
+    if dep_val.is_str() {
+        return Some(WorkspaceCargoDep {
+            workspace_root: workspace_dir.to_path_buf(),
+            package_name: dep_key.to_string(),
+            path: None,
+        });
+    }
+    let table = dep_val.as_table()?;
+    let package_name = table
+        .get("package")
+        .and_then(toml::Value::as_str)
+        .unwrap_or(dep_key)
+        .to_string();
+    let path = table
+        .get("path")
+        .and_then(toml::Value::as_str)
+        .map(str::to_string);
+    Some(WorkspaceCargoDep { workspace_root: workspace_dir.to_path_buf(), package_name, path })
+}
+
 pub(crate) fn workspace_includes_member(workspace_dir: &Path, member_dir: &Path) -> bool {
     let Ok(contents) = fs::read_to_string(workspace_dir.join("Cargo.toml")) else {
         return false;

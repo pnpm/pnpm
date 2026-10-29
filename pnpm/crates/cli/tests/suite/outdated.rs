@@ -1165,28 +1165,29 @@ fn outdated_reports_cargo_and_python_dependencies() {
     assert_eq!(filtered_dependents, vec!["py-standalone"]);
     assert!(filtered_report.get("foo").is_none());
 
-    // Two standalone Cargo projects where `cargo-app` has a path dependency on `cargo-lib`:
-    let cargo_lib = workspace.join("crates/cargo-lib");
-    let cargo_app = workspace.join("crates/cargo-app");
+    // Two standalone Cargo projects connected via an aliased `[workspace.dependencies]` entry:
+    let crates_root = workspace.join("crates");
+    let cargo_lib = crates_root.join("cargo-lib");
+    let cargo_app = crates_root.join("cargo-app");
     fs::create_dir_all(&cargo_lib).unwrap();
     fs::create_dir_all(&cargo_app).unwrap();
+    fs::write(
+        crates_root.join("Cargo.toml"),
+        "[workspace]\nmembers = [\"cargo-lib\", \"cargo-app\"]\n\n[workspace.dependencies]\nlib-alias = { package = \"cargo-lib\", path = \"cargo-lib\" }\n",
+    )
+    .unwrap();
     fs::write(
         cargo_lib.join("Cargo.toml"),
         "[package]\nname = \"cargo-lib\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[dependencies]\nfoo = \"^1.0.0\"\n",
     )
     .unwrap();
     fs::write(
-        cargo_lib.join("Cargo.lock"),
-        "version = 4\n\n[[package]]\nname = \"cargo-lib\"\nversion = \"0.1.0\"\ndependencies = [\"foo\"]\n\n[[package]]\nname = \"foo\"\nversion = \"1.0.0\"\nsource = \"registry+https://github.com/rust-lang/crates.io-index\"\nchecksum = \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"\n",
-    )
-    .unwrap();
-    fs::write(
         cargo_app.join("Cargo.toml"),
-        "[package]\nname = \"cargo-app\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[dependencies]\ncargo-lib = { path = \"../cargo-lib\" }\nfoo = \"^1.0.0\"\n",
+        "[package]\nname = \"cargo-app\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[dependencies]\nlib-alias = { workspace = true }\nfoo = \"^1.0.0\"\n",
     )
     .unwrap();
     fs::write(
-        cargo_app.join("Cargo.lock"),
+        crates_root.join("Cargo.lock"),
         "version = 4\n\n[[package]]\nname = \"cargo-app\"\nversion = \"0.1.0\"\ndependencies = [\"cargo-lib\", \"foo\"]\n\n[[package]]\nname = \"cargo-lib\"\nversion = \"0.1.0\"\ndependencies = [\"foo\"]\n\n[[package]]\nname = \"foo\"\nversion = \"1.0.0\"\nsource = \"registry+https://github.com/rust-lang/crates.io-index\"\nchecksum = \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"\n",
     )
     .unwrap();

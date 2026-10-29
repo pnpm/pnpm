@@ -1,5 +1,6 @@
 use super::cargo_manifest_ops::cargo_project_name;
 use crate::{
+    cargo_manifest::workspace_dependency_spec,
     cli_args::{
         pipelines::WorkspaceScope,
         recursive::{
@@ -281,13 +282,32 @@ fn resolve_cargo_edge_target(
         return index.by_norm_dir.get(&norm).cloned();
     }
     if dep_table.get("workspace").and_then(toml::Value::as_bool) == Some(true) {
-        let pkg_name = dep_table
+        let ws_key = dep_table
             .get("package")
             .and_then(toml::Value::as_str)
             .unwrap_or(key);
-        return index.by_name.get(pkg_name).cloned();
+        return resolve_workspace_cargo_edge(ws_key, dir, index);
     }
     None
+}
+
+fn resolve_workspace_cargo_edge(
+    ws_key: &str,
+    dir: &Path,
+    index: &CargoWorkspaceIndex,
+) -> Option<PathBuf> {
+    if let Some(spec) = workspace_dependency_spec(dir, ws_key) {
+        if let Some(rel_path) = spec.path {
+            let norm = pnpm_fs::lexical_normalize(&spec.workspace_root.join(rel_path));
+            if let Some(target) = index.by_norm_dir.get(&norm) {
+                return Some(target.clone());
+            }
+        }
+        if let Some(target) = index.by_name.get(&spec.package_name) {
+            return Some(target.clone());
+        }
+    }
+    index.by_name.get(ws_key).cloned()
 }
 
 fn filter_standalone_graph<Pkg: BaseProject>(

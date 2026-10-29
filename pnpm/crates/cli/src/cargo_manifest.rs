@@ -1,6 +1,6 @@
 pub(crate) mod workspace;
 
-pub(crate) use workspace::workspace_includes_member;
+pub(crate) use workspace::{workspace_dependency_spec, workspace_includes_member};
 
 use miette::{IntoDiagnostic, Result, WrapErr};
 use std::{fs, ops::Range, path::Path};
