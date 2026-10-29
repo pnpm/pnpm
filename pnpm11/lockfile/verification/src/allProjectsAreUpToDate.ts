@@ -52,6 +52,7 @@ export async function allProjectsAreUpToDate (
   const _linkedPackagesAreUpToDate = linkedPackagesAreUpToDate.bind(null, createLinkedPackagesContext(opts, manifestsByDir))
   const _localTarballDepsAreUpToDate = localTarballDepsAreUpToDate.bind(null, {
     fileIntegrityCache: new Map(),
+    walkedDepPaths: new Set<string>(),
     includedDependencies: opts.includedDependencies,
     lockfilePackages: opts.wantedLockfile.packages,
     lockfileDir: opts.lockfileDir,

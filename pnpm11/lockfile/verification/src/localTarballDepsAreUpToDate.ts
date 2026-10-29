@@ -16,6 +16,12 @@ export interface LocalTarballDepsUpToDateContext {
    * initialized to an empty map by the caller.
    */
   readonly fileIntegrityCache: Map<string, Promise<string>>
+  /**
+   * The dependency paths a call already checked, so that each is checked
+   * once. Share one only across calls whose results the caller requires to
+   * all be `true`.
+   */
+  readonly walkedDepPaths?: Set<string>
   readonly includedDependencies?: IncludedDependencies
   readonly lockfilePackages?: PackageSnapshots
   readonly lockfileDir: string
@@ -97,12 +103,12 @@ export async function localTarballDepsAreUpToDate (
  * dependencies the project's own lockfile records.
  */
 function reachableDependencies (
-  { lockfilePackages: packages, includedDependencies }: Pick<LocalTarballDepsUpToDateContext, 'lockfilePackages' | 'includedDependencies'>,
+  { lockfilePackages: packages, includedDependencies, walkedDepPaths }: Pick<LocalTarballDepsUpToDateContext, 'lockfilePackages' | 'includedDependencies' | 'walkedDepPaths'>,
   dependencies: Array<[string, string]>
 ): Array<[string, string]> {
   const includesOptional = includedDependencies?.optionalDependencies !== false
   const reached: Array<[string, string]> = []
-  const visited = new Set<string>()
+  const visited = walkedDepPaths ?? new Set<string>()
   const queue = [...dependencies]
   for (let next = queue.pop(); next != null; next = queue.pop()) {
     const [depName, ref] = next
@@ -122,10 +128,6 @@ async function localTarballDepIsUpToDate (
   depName: string,
   ref: string
 ): Promise<boolean> {
-  if (!ref.startsWith('file:')) {
-    return true
-  }
-
   // The tarball ref can contain peers. Ex: file:bar.tgz(react@19.1.0)
   //
   // Trim out the peer suffix version to get a path to the local tarball.

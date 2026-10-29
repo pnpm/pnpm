@@ -1732,6 +1732,28 @@ describe('local tgz file dependency', () => {
     })).toBe(upToDate)
   })
 
+  test('localTarballDepsAreUpToDate(): checks an aliased local file an injected project depends on', async () => {
+    const pack = tar.pack()
+    pack.entry({ name: 'package.json' }, JSON.stringify({ name: 'local-tarball', version: '1.0.0' }))
+    pack.entry({ name: 'newly-added-file.txt' }, 'This file changes the tarball.')
+    pack.finalize()
+    await pipeline(pack, createWriteStream('./local-tarball.tar'))
+
+    expect(await localTarballDepsAreUpToDate({
+      fileIntegrityCache: new Map(),
+      lockfileDir: process.cwd(),
+      lockfilePackages: {
+        ...wantedLockfile.packages,
+        ['qux@file:qux' as DepPath]: {
+          resolution: { directory: 'qux', type: 'directory' },
+          dependencies: { alias: 'local-tarball@file:local-tarball.tar' },
+        },
+      },
+    }, {
+      snapshot: { dependencies: { qux: 'file:qux' }, specifiers: { qux: 'workspace:*' } },
+    })).toBe(false)
+  })
+
   test('localTarballDepsAreUpToDate(): skips an optional local file the install excludes', async () => {
     const pack = tar.pack()
     pack.entry({ name: 'package.json' }, JSON.stringify({ name: 'local-tarball', version: '1.0.0' }))
