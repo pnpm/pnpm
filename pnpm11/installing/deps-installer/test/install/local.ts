@@ -605,3 +605,23 @@ test.each<[string, { overrides?: Record<string, string>, packageExtensions?: Rec
   expect(project.readLockfile().snapshots['lib@file:../lib'].dependencies?.['@pnpm.e2e/foo']).toBe('100.1.0')
   await install(manifest, testDefaults({ ...settings, frozenLockfile: true }))
 })
+
+// https://github.com/pnpm/pnpm/issues/17486
+test('an install without optional dependencies leaves out a local directory reached only through one', async () => {
+  prepareEmpty()
+  const writeLib = (fooVersion: string) => {
+    fs.writeFileSync('../lib/package.json', JSON.stringify({ name: 'lib', version: '1.0.0', dependencies: { '@pnpm.e2e/foo': fooVersion } }), 'utf8')
+  }
+  fs.mkdirSync('../lib')
+  writeLib('100.0.0')
+  const manifest = { optionalDependencies: { '@pnpm.e2e/pkg-with-1-dep': '100.0.0' } }
+  const overrides = { '@pnpm.e2e/pkg-with-1-dep>@pnpm.e2e/dep-of-pkg-with-1-dep': 'file:../lib' }
+  await install(manifest, testDefaults({ overrides }))
+
+  writeLib('100.1.0')
+  await install(manifest, testDefaults({
+    overrides,
+    frozenLockfile: true,
+    include: { dependencies: true, devDependencies: true, optionalDependencies: false },
+  }))
+})

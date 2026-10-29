@@ -390,10 +390,12 @@ pub(super) async fn check_lockfile_freshness(
 
     let edges = directory_deps::GraphEdges::installed(inputs.config.optional);
     let nested = directory_deps::nested_directory_packages(lockfile, edges);
+    let checked: std::collections::HashSet<&str> = inputs.manifests
+        .iter()
+        .map(|(id, _)| id.as_str())
+        .collect();
     let nested = directory_deps::NestedByImporter::assign(&nested, |importer_id| {
-        inputs.manifests
-            .iter()
-            .any(|(id, _)| id == importer_id)
+        checked.contains(importer_id)
     });
     let directory_manifests = directory_manifests::hooked_directory_manifests(
         lockfile,

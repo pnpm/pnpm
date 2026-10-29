@@ -23,38 +23,51 @@ export interface NestedDirectoryPackage {
   ancestorAliases: Record<string, true>
 }
 
-const nestedByPackages = new WeakMap<PackageSnapshots, NestedDirectoryPackage[]>()
+export interface GraphEdges {
+  /**
+   * Whether the walk follows `optionalDependencies` edges, which an install
+   * without optional dependencies leaves out.
+   */
+  includesOptional: boolean
+}
 
-export function findNestedDirectoryPackages (packages: PackageSnapshots): NestedDirectoryPackage[] {
-  let nested = nestedByPackages.get(packages)
+const nestedByPackages = new WeakMap<PackageSnapshots, Map<boolean, NestedDirectoryPackage[]>>()
+
+export function findNestedDirectoryPackages (packages: PackageSnapshots, edges: GraphEdges): NestedDirectoryPackage[] {
+  let byEdges = nestedByPackages.get(packages)
+  if (byEdges == null) {
+    byEdges = new Map()
+    nestedByPackages.set(packages, byEdges)
+  }
+  let nested = byEdges.get(edges.includesOptional)
   if (nested == null) {
-    nested = collectNestedDirectoryPackages(packages)
-    nestedByPackages.set(packages, nested)
+    nested = collectNestedDirectoryPackages(packages, edges)
+    byEdges.set(edges.includesOptional, nested)
   }
   return nested
 }
 
-function collectNestedDirectoryPackages (packages: PackageSnapshots): NestedDirectoryPackage[] {
+function collectNestedDirectoryPackages (packages: PackageSnapshots, edges: GraphEdges): NestedDirectoryPackage[] {
   if (!Object.values(packages).some(isDirectoryPackage)) return []
-  const refs = nestedDirectoryRefs(packages)
+  const refs = nestedDirectoryRefs(packages, edges)
   if (refs.size === 0) return []
-  const parents = parentsByDepPath(packages)
+  const parents = parentsByDepPath(packages, edges)
   return Array.from(refs, ([depPath, ref]) => {
     const ancestors = ancestorsOf(parents, depPath)
     const ancestorAliases = Object.fromEntries(Array.from(ancestors).flatMap((ancestor) =>
-      childrenOf(packages[ancestor]).map(({ alias }) => [alias, true as const])
+      childrenOf(packages[ancestor], edges).map(({ alias }) => [alias, true as const])
     ))
     return { depPath, snapshot: packages[depPath], ref, ancestors, ancestorAliases }
   })
 }
 
 /** The ref of each nested directory package, by its dependency path. */
-function nestedDirectoryRefs (packages: PackageSnapshots): Map<DepPath, string> {
+function nestedDirectoryRefs (packages: PackageSnapshots, edges: GraphEdges): Map<DepPath, string> {
   const refs = new Map<DepPath, string>()
   for (const parent of Object.values(packages)) {
     if (isDirectoryPackage(parent)) continue
     // A directory package is always locked by a `file:` ref.
-    for (const { depPath, ref } of childrenOf(parent, (ref) => ref.includes('file:'))) {
+    for (const { depPath, ref } of childrenOf(parent, edges, (ref) => ref.includes('file:'))) {
       if (!refs.has(depPath) && isDirectoryPackage(packages[depPath])) {
         refs.set(depPath, ref)
       }
@@ -69,9 +82,11 @@ function isDirectoryPackage (snapshot: PackageSnapshot | undefined): boolean {
 
 function childrenOf (
   snapshot: PackageSnapshot | undefined,
+  edges: GraphEdges,
   refFilter?: (ref: string) => boolean
 ): Array<{ alias: string, ref: string, depPath: DepPath }> {
-  return [snapshot?.dependencies, snapshot?.optionalDependencies].flatMap((deps) =>
+  const optional = edges.includesOptional ? snapshot?.optionalDependencies : undefined
+  return [snapshot?.dependencies, optional].flatMap((deps) =>
     Object.entries(deps ?? {}).flatMap(([alias, ref]) => {
       if (refFilter != null && !refFilter(ref)) return []
       const depPath = refToRelative(ref, alias)
@@ -80,10 +95,10 @@ function childrenOf (
   )
 }
 
-function parentsByDepPath (packages: PackageSnapshots): Map<DepPath, DepPath[]> {
+function parentsByDepPath (packages: PackageSnapshots, edges: GraphEdges): Map<DepPath, DepPath[]> {
   const parents = new Map<DepPath, DepPath[]>()
   for (const [parentDepPath, parent] of Object.entries(packages) as Array<[DepPath, PackageSnapshot]>) {
-    for (const { depPath } of childrenOf(parent)) {
+    for (const { depPath } of childrenOf(parent, edges)) {
       const depParents = parents.get(depPath)
       if (depParents == null) {
         parents.set(depPath, [parentDepPath])

@@ -176,7 +176,9 @@ impl<'a> DirectoryPackages<'a> {
     }
 
     /// The entry of a dependency of a package that is not a directory, when
-    /// it is a directory package other than a `pnpm deploy` one.
+    /// it is a directory package other than a `pnpm deploy` one. A deploy
+    /// entry is recognized as [`super::is_deploy_file_url_key`] recognizes
+    /// one: an aliased reference to a `file://` key.
     fn nested_child(
         &self,
         alias: &PkgName,
@@ -188,7 +190,9 @@ impl<'a> DirectoryPackages<'a> {
         let key = child.resolve(alias)?;
         let directory = self
             .directory(&key)
-            .filter(|directory| !is_deploy_file_url(&key, directory))?;
+            .filter(|directory| {
+                !(matches!(child, SnapshotDepRef::Alias(_)) && is_deploy_file_url(&key, directory))
+            })?;
         Some((key, directory))
     }
 }
@@ -221,6 +225,7 @@ pub(crate) fn check_nested_directory_package(
             .into_iter()
             .flat_map(importer_aliases),
     );
+    let visited = Visited::new(check.lockfile);
     let check_declared = |declared_as_file| {
         let dep = LocalDepContext {
             name: &nested.alias,
@@ -235,7 +240,7 @@ pub(crate) fn check_nested_directory_package(
             &scope,
             &dep,
             (&nested.key, snapshot, pkg_meta),
-            &mut Visited::new(check.lockfile),
+            &mut visited.clone(),
         )
     };
     let declared_as_workspace = false;
