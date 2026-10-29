@@ -92,11 +92,7 @@ pub(super) fn record(
     (previous, digests): (Option<&Validation>, &FileDigests<'_>),
     recordable: impl Fn(FileSignature) -> FileSignature,
 ) {
-    let referenced: HashSet<&str> = validation.lockfile
-        .iter()
-        .chain(validation.lockfiles.values().flatten())
-        .map(String::as_str)
-        .collect();
+    let referenced: HashSet<&str> = referenced_lockfiles(validation).collect();
     let mut recorded = BTreeMap::new();
     let mut signatures = BTreeMap::new();
     let current_digest = current.as_ref().map(|(digest, _)| *digest);
@@ -134,10 +130,26 @@ fn carried_signatures<'a>(
         })
 }
 
+/// The digests of the lockfiles the projects in `validation` were proven
+/// against.
+fn referenced_lockfiles(validation: &Validation) -> impl Iterator<Item = &str> {
+    validation.lockfile
+        .iter()
+        .chain(validation.lockfiles.values().flatten())
+        .map(String::as_str)
+}
+
 /// Whether a local dependency `validation` records may have changed: a
 /// directory other than `workspace_dirs`, whose contents no signature
-/// covers, or a tarball that is no longer the one recorded.
+/// covers, or a tarball that is no longer the one recorded. A lockfile the
+/// projects were proven against without a record of its local dependencies
+/// may resolve any, so it counts as changed.
 pub(crate) fn changed(validation: &Validation, workspace_dirs: &HashSet<PathBuf>) -> bool {
+    if !referenced_lockfiles(validation)
+        .all(|digest| validation.local_dependencies.contains_key(digest))
+    {
+        return true;
+    }
     let digests = FileDigests::new(Some(validation));
     validation.local_dependencies
         .values()

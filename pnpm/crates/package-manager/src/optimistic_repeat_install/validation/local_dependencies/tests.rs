@@ -81,6 +81,29 @@ fn reports_a_replaced_tarball_and_any_directory() {
 }
 
 #[test]
+fn reports_a_lockfile_whose_local_dependencies_are_not_recorded() {
+    let unrecorded = Validation { lockfile: Some("current".to_string()), ..Validation::default() };
+    assert!(changed(&unrecorded, &HashSet::new()));
+
+    let held_against_another = Validation {
+        lockfile: Some("current".to_string()),
+        lockfiles: BTreeMap::from([("packages/b".to_string(), Some("other".to_string()))]),
+        local_dependencies: BTreeMap::from([("current".to_string(), LocalDependencies::default())]),
+        ..Validation::default()
+    };
+    assert!(changed(&held_against_another, &HashSet::new()));
+
+    let recorded = Validation {
+        local_dependencies: BTreeMap::from([
+            ("current".to_string(), LocalDependencies::default()),
+            ("other".to_string(), LocalDependencies::default()),
+        ]),
+        ..held_against_another
+    };
+    assert!(!changed(&recorded, &HashSet::new()));
+}
+
+#[test]
 fn keeps_the_entry_of_a_lockfile_without_local_dependencies() {
     let mut validation =
         Validation { lockfile: Some("current".to_string()), ..Validation::default() };

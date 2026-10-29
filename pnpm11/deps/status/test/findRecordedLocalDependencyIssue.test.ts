@@ -25,6 +25,25 @@ test('findRecordedLocalDependencyIssue() finds nothing in a state that records n
   expect(findRecordedLocalDependencyIssue(state({ recordedAtNs: 0, manifests: {} }), new Set())).toBeUndefined()
 })
 
+test('findRecordedLocalDependencyIssue() reports a lockfile whose local dependencies are not recorded', () => {
+  const unrecorded = 'The local dependencies of a lockfile are not recorded'
+  expect(findRecordedLocalDependencyIssue(state({ recordedAtNs: 0, manifests: {}, lockfile: 'current' }), new Set())).toBe(unrecorded)
+  expect(findRecordedLocalDependencyIssue(state({
+    recordedAtNs: 0,
+    manifests: {},
+    lockfile: 'current',
+    lockfiles: { b: 'other' },
+    localDependencies: { current: {} },
+  }), new Set())).toBe(unrecorded)
+  expect(findRecordedLocalDependencyIssue(state({
+    recordedAtNs: 0,
+    manifests: {},
+    lockfile: 'current',
+    lockfiles: { b: 'other', c: null },
+    localDependencies: { current: {}, other: {} },
+  }), new Set())).toBeUndefined()
+})
+
 test('findRecordedLocalDependencyIssue() takes a recorded directory that is a workspace project for no local dependency', () => {
   const recorded = state({ recordedAtNs: 0, manifests: {}, localDependencies: { digest: { directories: ['/repo/packages/a'] } } })
   expect(findRecordedLocalDependencyIssue(recorded, new Set(['/repo/packages/a']))).toBeUndefined()

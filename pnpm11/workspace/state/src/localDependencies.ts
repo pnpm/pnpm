@@ -4,6 +4,11 @@ import { fileDigestOf, type RecordedLockfile, type RecordedValidation } from './
 /** The local dependencies the lockfile of a `RecordedLockfile` resolves. */
 export type ReadLocalDependencies = (lockfile: RecordedLockfile) => Promise<LocalDependencies | undefined>
 
+/** The digests of the lockfiles the projects in `validation` were proven against. */
+export function recordedLockfileDigests (validation: Validation): string[] {
+  return [validation.lockfile, ...Object.values(validation.lockfiles ?? {})].filter((digest): digest is string => digest != null)
+}
+
 interface LocalDependencyRecords {
   entries: Record<string, LocalDependencies>
   signatures: Record<string, FileSignature>
@@ -21,7 +26,7 @@ export async function recordLocalDependencies (
   recorded: RecordedValidation,
   opts: { previous: Validation | undefined, read: ReadLocalDependencies | undefined }
 ): Promise<void> {
-  const referenced = new Set([validation.lockfile, ...Object.values(validation.lockfiles ?? {})])
+  const referenced = new Set(recordedLockfileDigests(validation))
   const records: LocalDependencyRecords = { entries: {}, signatures: {} }
   await recordVouchedLockfiles(records, recorded.lockfiles, { ...opts, referenced })
   carryLockfiles(records, recorded.carried, referenced)
@@ -34,7 +39,7 @@ export async function recordLocalDependencies (
 async function recordVouchedLockfiles (
   records: LocalDependencyRecords,
   lockfiles: Map<string, RecordedLockfile>,
-  opts: { previous: Validation | undefined, read: ReadLocalDependencies | undefined, referenced: Set<string | null | undefined> }
+  opts: { previous: Validation | undefined, read: ReadLocalDependencies | undefined, referenced: Set<string> }
 ): Promise<void> {
   for (const [digest, lockfile] of lockfiles) {
     if (!opts.referenced.has(digest)) continue
@@ -52,7 +57,7 @@ async function recordVouchedLockfiles (
 function carryLockfiles (
   records: LocalDependencyRecords,
   carried: Validation | undefined,
-  referenced: Set<string | null | undefined>
+  referenced: Set<string>
 ): void {
   for (const [digest, local] of Object.entries(carried?.localDependencies ?? {})) {
     if (!referenced.has(digest) || records.entries[digest] != null) continue
