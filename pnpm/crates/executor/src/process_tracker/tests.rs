@@ -430,7 +430,7 @@ fn exits_within(child: &mut Child, deadline: Duration) -> bool {
 /// group: the registration stays as the group alone, so a process the child
 /// left there gets the bail's `SIGTERM` rather than keeping pnpm waiting.
 #[test]
-fn a_reaped_childs_group_stays_cancellable_while_its_waiter_waits_for_it() {
+fn the_group_of_a_reaped_child_stays_cancellable_while_its_waiter_waits() {
     let tracker = ProcessTracker::default();
     let mut command = Command::new("sh");
     command

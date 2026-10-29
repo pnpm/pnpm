@@ -96,7 +96,7 @@ whose failure caused the bail has already ended, so its leftovers keep running
   (`multi_task::recursive_run_bail_stops_running_scripts_gracefully_then_kills_them`).
   A task whose script has exited while pnpm waits for the rest of its group
   after an interrupt is still stopped through that group
-  (`a_reaped_childs_group_stays_cancellable_while_its_waiter_waits_for_it` in
+  (`the_group_of_a_reaped_child_stays_cancellable_while_its_waiter_waits` in
   [`src/process_tracker/tests.rs`](./src/process_tracker/tests.rs)).
 - **Windows:** there is no signal that reaches one task without reaching
   pnpm's console, so each task's Job Object is terminated at once. The job
