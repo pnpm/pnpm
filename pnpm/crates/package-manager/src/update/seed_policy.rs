@@ -222,6 +222,8 @@ pub(super) async fn record_direct_update(
         && let Some(specifier) =
             latest_specifier(rewrite_ctx, latest_chain, catalog_ctx, name, previous).await?
     {
+        let specifier =
+            super::rewrite::apply_channel_bump_target(plan, name, group, previous, specifier);
         plan.rewrites.push((name.clone(), group, specifier));
     }
     if scope.version.save && !scope.version.latest {

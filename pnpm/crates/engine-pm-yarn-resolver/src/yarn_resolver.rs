@@ -8,7 +8,7 @@ use pnpm_lockfile::{LockfileResolution, VariationsResolution};
 use pnpm_network::{ThrottledClient, redact_and_sanitize};
 use pnpm_resolving_resolver_base::{
     LatestInfo, LatestQuery, ResolveError, ResolveFuture, ResolveLatestFuture, ResolveOptions,
-    ResolveResult, Resolver, WantedDependency,
+    ResolveResult, Resolver, UpdateBehavior, WantedDependency,
 };
 use pnpm_tool_protocol::{RUNTIME_PROTOCOL, strip_tool_protocol};
 
@@ -86,16 +86,18 @@ impl YarnResolver {
     async fn resolve_impl(
         &self,
         wanted_dependency: &WantedDependency,
-        _opts: &ResolveOptions,
+        opts: &ResolveOptions,
     ) -> Result<Option<ResolveResult>, ResolveError> {
         let Some(version_spec) = bare_runtime_spec(wanted_dependency) else {
             return Ok(None);
         };
+        let lookup_spec =
+            if opts.refresh.update == UpdateBehavior::Latest { "latest" } else { version_spec };
         let releases = self
             .releases()
             .await
             .map_err(|error| Box::new(YarnResolverError::ReadReleases(error)) as ResolveError)?;
-        let release = pick_release(releases, version_spec)
+        let release = pick_release(releases, lookup_spec)
             .ok_or_else(|| {
                 // The specifier comes from a manifest, so it can carry
                 // credentials — the message a user sees must not.
@@ -106,6 +108,12 @@ impl YarnResolver {
             .map_err(|error| Box::new(YarnResolverError::ReadReleases(error)) as ResolveError)?;
 
         let version = release.version.clone();
+        let normalized_spec = normalized_yarn_spec(
+            opts.refresh.update,
+            version_spec,
+            wanted_dependency.prev_specifier.as_deref(),
+            &version,
+        );
         let manifest = serde_json::json!({
             "name": "yarn",
             "version": version,
@@ -115,15 +123,12 @@ impl YarnResolver {
             id: format!("yarn@runtime:{version}").into(),
             resolution: LockfileResolution::Variations(VariationsResolution { variants }),
             resolved_via: RESOLVED_VIA.to_string(),
-            normalized_bare_specifier: Some(format!("{RUNTIME_PROTOCOL}{version_spec}")),
+            normalized_bare_specifier: Some(format!("{RUNTIME_PROTOCOL}{normalized_spec}")),
             alias: wanted_dependency.alias.clone(),
             policy_violation: None,
             package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
-                name_ver: None,
-                latest: None,
-                published_at: None,
                 manifest: Some(Arc::new(manifest)),
-                non_deprecated_alternative: None,
+                ..Default::default()
             },
         }))
     }
@@ -132,14 +137,15 @@ impl YarnResolver {
         &self,
         query: &LatestQuery,
     ) -> Result<Option<LatestInfo>, ResolveError> {
-        if bare_runtime_spec(&query.wanted_dependency).is_none() {
+        let Some(manifest_spec) = bare_runtime_spec(&query.wanted_dependency) else {
             return Ok(None);
-        }
+        };
+        let version_spec = if query.compatible { manifest_spec } else { "latest" };
         let releases = self
             .releases()
             .await
             .map_err(|error| Box::new(YarnResolverError::ReadReleases(error)) as ResolveError)?;
-        let Some(release) = pick_release(releases, "latest") else {
+        let Some(release) = pick_release(releases, version_spec) else {
             return Ok(Some(LatestInfo::default()));
         };
         Ok(Some(LatestInfo {
@@ -148,6 +154,28 @@ impl YarnResolver {
                 "version": release.version,
             }))),
         }))
+    }
+}
+
+fn normalized_yarn_spec(
+    update: UpdateBehavior,
+    version_spec: &str,
+    prev_specifier: Option<&str>,
+    resolved_version: &str,
+) -> String {
+    if update != UpdateBehavior::Latest {
+        return version_spec.to_string();
+    }
+    let source = prev_specifier
+        .and_then(pnpm_tool_protocol::strip_tool_protocol)
+        .unwrap_or(version_spec)
+        .trim();
+    if source.starts_with('~') {
+        format!("~{resolved_version}")
+    } else if source.starts_with('^') {
+        format!("^{resolved_version}")
+    } else {
+        resolved_version.to_string()
     }
 }
 

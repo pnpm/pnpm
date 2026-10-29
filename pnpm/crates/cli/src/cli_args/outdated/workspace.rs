@@ -1,7 +1,13 @@
 use super::{
-    Arc, Config, DependencyGroup, HashMap, IntoDiagnostic, Lockfile, OutdatedPackage,
-    OutdatedQuery, OutdatedRun, PackageManifest, PathBuf, State,
-    collect_outdated_for_importer_in_run, create_matcher,
+    Arc, Config, DependencyGroup, HashMap, IntoDiagnostic, Lockfile, OutdatedArgs, OutdatedFilters,
+    OutdatedOutcome, OutdatedPackage, OutdatedQuery, OutdatedRun, PackageManifest, PathBuf,
+    Reporter, State, collect_outdated, collect_outdated_for_importer_in_run,
+    discover_workspace_projects, github_actions, sort_outdated, sort_workspace_outdated,
+};
+use crate::cli_args::ecosystem_deps::{
+    EcosystemFilterKind, collect_ecosystem_outdated, declared_ecosystem_dep_names,
+    ecosystem_project_name, patterns_for_ecosystem, requires_ecosystem_lockfile,
+    select_recursive_and_standalone_projects,
 };
 
 pub(super) struct OutdatedInWorkspace {
@@ -29,13 +35,6 @@ pub(super) fn loaded_lockfile(state: &State) -> miette::Result<Option<&Lockfile>
         .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))
 }
 
-/// The pnpm home may contain a workspace config, but each global install
-/// group owns its package.json and lockfile. Keep project lookup anchored
-/// to the scanned group while retaining the global registry and network
-/// settings. A group's lockfile is written unconditionally
-/// (`run_group_install` forces it) because it is where the installed
-/// versions are recorded, so reading it back must not depend on the
-/// caller's `lockfile` setting.
 pub(super) fn isolated_global_config(config: &Config) -> &'static Config {
     let mut isolated_config = config.clone();
     isolated_config.workspace_dir = None;
@@ -59,54 +58,24 @@ pub(super) fn global_states(
         .collect()
 }
 
-pub(super) fn validate_package_patterns<'a>(
-    manifests: impl IntoIterator<Item = &'a PackageManifest>,
-    package_patterns: &[String],
-    include: &[DependencyGroup],
-    recursive: bool,
-) -> miette::Result<()> {
-    let positive_patterns: Vec<&String> = package_patterns
-        .iter()
-        .filter(|pattern| !pattern.starts_with('!'))
-        .collect();
-    if positive_patterns.is_empty() {
-        return Ok(());
-    }
-    let deps: Vec<&str> = manifests
-        .into_iter()
-        .flat_map(|manifest| manifest.dependencies(include.iter().copied()))
-        .map(|(name, _)| name)
-        .collect();
-    let unmatched = positive_patterns
-        .iter()
-        .any(|pattern| {
-            let matcher = create_matcher(std::slice::from_ref(*pattern));
-            !deps
-                .iter()
-                .any(|dep| matcher.matches(dep))
-        });
-    if unmatched {
-        let message = if recursive {
-            "None of the specified packages were found in the dependencies of any of the projects."
-        } else {
-            "None of the specified packages were found in the dependencies."
-        };
-        return Err(miette::miette!(code = "ERR_PNPM_NO_PACKAGE_IN_DEPENDENCIES", "{message}"));
-    }
-    Ok(())
-}
-
 /// Every selected project's outdated dependencies, grouped by package.
 pub(super) async fn workspace_outdated(
     inputs: &ProjectOutdatedInputs<'_>,
     project_inputs: &[(&PathBuf, &pnpm_workspace::Project, Option<Lockfile>)],
+    standalone_dirs: &[PathBuf],
 ) -> miette::Result<Vec<OutdatedInWorkspace>> {
     let project_queries = project_inputs
         .iter()
         .map(|(project_dir, project, project_lockfile)| {
             outdated_for_project(inputs, project_dir, project, project_lockfile.as_ref())
         });
-    group_workspace_outdated(futures_util::future::join_all(project_queries).await)
+    let mut project_results = futures_util::future::join_all(project_queries).await;
+    if !standalone_dirs.is_empty() {
+        project_results.extend(
+            collect_standalone_ecosystem_outdated(standalone_dirs, inputs.query, inputs.run).await?,
+        );
+    }
+    group_workspace_outdated(project_results)
 }
 
 pub(super) fn no_lockfile_error(dir: &std::path::Path) -> miette::Report {
@@ -121,12 +90,15 @@ pub(super) fn no_lockfile_error(dir: &std::path::Path) -> miette::Report {
 pub(super) async fn recursive_workspace_outdated(
     state: &State,
     selection: &crate::cli_args::recursive::RecursiveSelection<'_>,
+    standalone_dirs: &[PathBuf],
     query: &OutdatedQuery<'_>,
+    raw_packages: Vec<String>,
 ) -> miette::Result<Vec<OutdatedInWorkspace>> {
     let config = state.config;
     let shared_lockfile = if config.shares_one_lockfile() { loaded_lockfile(state)? } else { None };
     let project_inputs = recursive_project_inputs(config, selection)?;
-    let run = OutdatedRun::new(config, Arc::clone(&state.http_client), query)?;
+    let run = OutdatedRun::new(config, Arc::clone(&state.http_client), query)?
+        .with_raw_packages(raw_packages);
     workspace_outdated(
         &ProjectOutdatedInputs {
             config,
@@ -136,22 +108,41 @@ pub(super) async fn recursive_workspace_outdated(
             run: &run,
         },
         &project_inputs,
+        standalone_dirs,
     )
     .await
 }
 
+async fn collect_standalone_ecosystem_outdated(
+    dirs: &[PathBuf],
+    query: &OutdatedQuery<'_>,
+    run: &OutdatedRun,
+) -> miette::Result<Vec<miette::Result<(Vec<OutdatedPackage>, DependentProject)>>> {
+    let mut project_results = Vec::new();
+    for dir in dirs {
+        if requires_ecosystem_lockfile(dir, &run.config, query, &run.raw_packages)? {
+            return Err(no_lockfile_error(dir));
+        }
+        let name = ecosystem_project_name(dir, &run.config)
+            .unwrap_or_else(|| dir.to_string_lossy().into_owned());
+        let outdated =
+            collect_ecosystem_outdated(dir, Some(name.clone()), query, &run.raw_packages, run)
+                .await?;
+        if !outdated.is_empty() {
+            project_results.push(Ok((outdated, DependentProject { name, location: dir.clone() })));
+        }
+    }
+    Ok(project_results)
+}
+
 pub(super) struct ProjectOutdatedInputs<'a> {
     pub(super) config: &'a Config,
-    /// The directory the importer ids name projects relative to, which
-    /// `lockfileDir` can pin somewhere other than the workspace root.
     pub(super) lockfile_root: &'a std::path::Path,
     pub(super) shared_lockfile: Option<&'a Lockfile>,
     pub(super) query: &'a OutdatedQuery<'a>,
     pub(super) run: &'a OutdatedRun,
 }
 
-/// One project's outdated packages, and the dependent entry the report
-/// lists it under.
 async fn outdated_for_project(
     inputs: &ProjectOutdatedInputs<'_>,
     project_dir: &std::path::Path,
@@ -167,13 +158,10 @@ async fn outdated_for_project(
     } else {
         (project_lockfile, Lockfile::ROOT_IMPORTER_KEY.to_string())
     };
-    let Some(lockfile) = lockfile else {
-        let lockfile_dir = if shares_one_lockfile { inputs.lockfile_root } else { project_dir };
-        return Err(no_lockfile_error(lockfile_dir));
-    };
+    ensure_project_lockfiles(inputs, project_dir, &project.manifest, lockfile)?;
     let project_outdated = collect_outdated_for_importer_in_run(
         &project.manifest,
-        Some(lockfile),
+        lockfile,
         &importer_id,
         inputs.query,
         inputs.run,
@@ -184,26 +172,59 @@ async fn outdated_for_project(
             .value()
             .get("name")
             .and_then(|name| name.as_str())
-            .map_or_else(|| project_dir.to_string_lossy().into_owned(), str::to_owned),
+            .map(str::to_owned)
+            .or_else(|| ecosystem_project_name(project_dir, inputs.config))
+            .unwrap_or_else(|| project_dir.to_string_lossy().into_owned()),
         location: project_dir.to_path_buf(),
     };
     Ok((project_outdated, dependent))
 }
 
-/// The selected projects that declare at least one dependency, with the
-/// lockfile each one reads. A project with no dependencies has nothing
-/// to report and needs no lockfile.
+fn ensure_project_lockfiles(
+    inputs: &ProjectOutdatedInputs<'_>,
+    project_dir: &std::path::Path,
+    manifest: &PackageManifest,
+    lockfile: Option<&Lockfile>,
+) -> miette::Result<()> {
+    let raw_packages = &inputs.run.raw_packages;
+    let node_patterns = patterns_for_ecosystem(raw_packages, EcosystemFilterKind::Node)?;
+    let checks_node = raw_packages.is_empty() || !node_patterns.is_empty();
+    let has_non_tool_dep = checks_node
+        && manifest
+            .dependencies(inputs.query.include_direct.iter().copied())
+            .any(|(name, spec)| {
+                !pnpm_tool_protocol::is_tool_specifier(spec) && inputs.query.matches_name(name)
+            });
+    if lockfile.is_none() && has_non_tool_dep {
+        let dir =
+            if inputs.config.shares_one_lockfile() { inputs.lockfile_root } else { project_dir };
+        return Err(no_lockfile_error(dir));
+    }
+    if requires_ecosystem_lockfile(project_dir, inputs.config, inputs.query, raw_packages)? {
+        return Err(no_lockfile_error(project_dir));
+    }
+    Ok(())
+}
+
 pub(super) fn recursive_project_inputs<'a>(
     config: &Config,
     selection: &'a crate::cli_args::recursive::RecursiveSelection<'a>,
 ) -> miette::Result<Vec<(&'a PathBuf, &'a pnpm_workspace::Project, Option<Lockfile>)>> {
     let mut project_inputs = Vec::new();
+    let all_groups = [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional];
     for (project_dir, node) in &selection.selected {
         let project = node.package.project;
         let has_any_dependency = project.manifest
-            .dependencies([DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional])
+            .dependencies(all_groups)
             .next()
-            .is_some();
+            .is_some()
+            || !crate::cli_args::engine_deps::declared_engine_deps(
+                &project.manifest,
+                config,
+                &all_groups,
+            )
+            .is_empty()
+            || !declared_ecosystem_dep_names(project_dir, config, &all_groups)?.is_empty();
         if !has_any_dependency {
             continue;
         }
@@ -217,8 +238,6 @@ pub(super) fn recursive_project_inputs<'a>(
     Ok(project_inputs)
 }
 
-/// Collect the per-project results into one report, listing every
-/// project that depends on each outdated package.
 fn group_workspace_outdated(
     project_results: Vec<miette::Result<(Vec<OutdatedPackage>, DependentProject)>>,
 ) -> miette::Result<Vec<OutdatedInWorkspace>> {
@@ -228,7 +247,8 @@ fn group_workspace_outdated(
         let (project_outdated, dependent) = result?;
         for package in project_outdated {
             let dependency_type: &'static str = package.belongs_to.into();
-            let key = format!("{}\0{}\0{}", package.package_name, package.current, dependency_type);
+            let key =
+                format!("{}\0{}\0{}", package.package_name, package.current_str(), dependency_type);
             if let Some(&index) = outdated_indexes.get(&key) {
                 outdated[index].dependents.push(dependent.clone());
             } else {
@@ -238,4 +258,111 @@ fn group_workspace_outdated(
         }
     }
     Ok(outdated)
+}
+
+impl OutdatedArgs {
+    pub(super) async fn run_recursive<Reporter: self::Reporter>(
+        self,
+        state: State,
+    ) -> miette::Result<OutdatedOutcome> {
+        let config = state.config;
+        let workspace_root = config.workspace_dir
+            .clone()
+            .unwrap_or_else(|| state.lockfile_dir().to_path_buf());
+        let (projects, _) = discover_workspace_projects(&workspace_root, config)?;
+        let (selection, standalone_dirs) = select_recursive_and_standalone_projects(
+            &workspace_root,
+            project_dir(&state.manifest),
+            &projects,
+            config,
+        )
+        .await?;
+        let package_patterns = self.package_patterns();
+        let filters = OutdatedFilters::validated_with_standalone(
+            &self,
+            config,
+            &package_patterns,
+            selection.selected.values().map(|node| &node.package.project.manifest),
+            &standalone_dirs,
+            true,
+        )?;
+        let mut outdated = recursive_workspace_outdated(
+            &state,
+            &selection,
+            &standalone_dirs,
+            &filters.query(self.target_version()),
+            package_patterns,
+        )
+        .await?;
+        outdated.extend(
+            self.workspace_outdated_actions::<Reporter>(config, &workspace_root, &filters.include)
+                .await?,
+        );
+
+        sort_workspace_outdated(&mut outdated);
+        self.write_recursive_rendered(&outdated)?;
+
+        Ok(if outdated.is_empty() { OutdatedOutcome::UpToDate } else { OutdatedOutcome::Outdated })
+    }
+
+    async fn workspace_outdated_actions<Reporter: self::Reporter>(
+        &self,
+        config: &Config,
+        workspace_root: &std::path::Path,
+        include: &[DependencyGroup],
+    ) -> miette::Result<Vec<OutdatedInWorkspace>> {
+        let action_matcher = github_actions::selector_matcher(&self.packages);
+        Ok(self
+            .outdated_actions::<Reporter>(config, workspace_root, include, action_matcher.as_ref())
+            .await?
+            .into_iter()
+            .map(|action| OutdatedInWorkspace {
+                package: OutdatedPackage::from(action),
+                dependents: vec![DependentProject {
+                    name: ".github".to_string(),
+                    location: workspace_root.to_path_buf(),
+                }],
+            })
+            .collect())
+    }
+
+    pub async fn run_global(self, config: &'static Config) -> miette::Result<OutdatedOutcome> {
+        let global_pkg_dir = config.global_pkg_dir
+            .clone()
+            .ok_or_else(|| {
+                miette::miette!(
+                    code = "ERR_PNPM_NO_GLOBAL_BIN_DIR",
+                    "Unable to find the global packages directory"
+                )
+            })?;
+        let config = isolated_global_config(config);
+        let package_patterns = self.package_patterns();
+        let states = global_states(&global_pkg_dir, config)?;
+        let filters = OutdatedFilters::validated(
+            &self,
+            config,
+            &package_patterns,
+            states.iter().map(|state| &state.manifest),
+            false,
+        )?;
+        let query = filters.query(self.target_version());
+        let mut outdated = Vec::new();
+        for state in states {
+            outdated.extend(
+                collect_outdated(
+                    &state.manifest,
+                    loaded_lockfile(&state)?,
+                    config,
+                    &state.http_client,
+                    &query,
+                )
+                .await?,
+            );
+        }
+
+        sort_outdated(&mut outdated, self.output.sort_by);
+        self.write_rendered(&outdated)?;
+
+        Ok(if outdated.is_empty() { OutdatedOutcome::UpToDate } else { OutdatedOutcome::Outdated })
+    }
 }
