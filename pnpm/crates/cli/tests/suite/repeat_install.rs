@@ -1630,9 +1630,9 @@ fn assert_frozen_install_rejects_an_edited_publish_directory(
         fs::write(fixture.workspace.join(".pnpmfile.cjs"), pnpmfile).expect("write .pnpmfile.cjs");
     }
     let lib = fixture.workspace.join("packages/lib");
-    let manifest = |foo: &str| {
+    let manifest = |foo_version: &str| {
         format!(
-            r#"{{ "name": "lib", "version": "1.0.0", "dependencies": {{ "@pnpm.e2e/foo": "{foo}" }}, "publishConfig": {{ "directory": "dist" }} }}"#,
+            r#"{{ "name": "lib", "version": "1.0.0", "dependencies": {{ "@pnpm.e2e/foo": "{foo_version}" }}, "publishConfig": {{ "directory": "dist" }} }}"#,
         )
     };
     fs::create_dir_all(lib.join("dist")).expect("create the publish directory");
@@ -1654,7 +1654,7 @@ fn assert_frozen_install_rejects_an_edited_publish_directory(
         fs::read_to_string(fixture.workspace.join("pnpm-lock.yaml")).expect("read the lockfile");
     assert!(
         lockfile.contains("lib@file:packages/lib/dist"),
-        "lib is beneath the registry package:\n{lockfile}"
+        "lib is beneath the registry package:\n{lockfile}",
     );
 
     fs::write(lib.join("dist/package.json"), manifest("100.1.0"))
