@@ -33,6 +33,7 @@ pub use boot_config::BootConfig;
 pub use cas::{CAS_LOADER_FILENAME, CAS_MANIFEST_FILENAME};
 pub use cli_layer::CliLayer;
 pub use loading::ConfigLoadFailure;
+pub use macos_backup::MacosBackupConfig;
 pub use network_policy::NetworkPolicy;
 pub use node_linker::{NodeLinkerOptions, NodeLinkerSetting};
 pub use pnpm_matcher as matcher;
@@ -42,7 +43,7 @@ pub use setting_types::{
     PackageImportMethod, PmOnFail, ReporterType, ResolutionMode, RuntimeOnFail,
     SaveWorkspaceProtocol, TrustPolicy, VerifyDepsBeforeRun, VirtualStoreType,
 };
-pub use settings::{Config, HoistPatterns, MacosBackupConfig};
+pub use settings::{Config, HoistPatterns};
 pub use settings_read::{PIN_DECISION_SETTINGS, SettingsRead};
 pub use shim_policy::{
     GlobalShims, GlobalShimsSetting, NamedShimPolicy, ShimPolicy, ShimPolicyValue,
@@ -390,6 +391,7 @@ mod workspace_settings;
 
 mod auth_sources;
 
+mod macos_backup;
 mod settings;
 
 use auth_sources::{AuthSources, note_declared_registries};

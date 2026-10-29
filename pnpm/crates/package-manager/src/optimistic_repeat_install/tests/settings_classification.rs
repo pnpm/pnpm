@@ -128,6 +128,7 @@ const CLASSIFICATION: &[(&str, Reach)] = &[
     ("git_branch_lockfile_candidates", Through(LOCKFILE_LOCATION)),
     ("git_branch_lockfile_name", Through(LOCKFILE_LOCATION)),
     ("git_checks", NotAnInput(OTHER_COMMAND)),
+    ("git_tag_version", NotAnInput("read only by `pnpm version`")),
     ("git_shallow_hosts", NotAnInput(NETWORK)),
     ("global_bin", NotAnInput("the global packages, which a project install does not touch")),
     ("global_bin_dir", NotAnInput("the global packages, which a project install does not touch")),
