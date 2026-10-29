@@ -164,7 +164,7 @@ function addUnselectedWorkspaceProjects (
     // This code block mirrors the installCase() function in
     // mutateModules(). Consider a refactor that combines this logic to
     // deduplicate code.
-    const wantedDependencies = getWantedDependencies(project.manifest, getWantedDepsOpts)
+    const wantedDependencies = getWantedDependencies(project.manifest, { ...getWantedDepsOpts, projectDir: project.rootDir })
       .map((wantedDependency) => ({ ...wantedDependency, updateSpec: true, preserveNonSemverVersionSpec: true }))
     forgetResolutionsOfPrevWantedDeps(wantedDependencies, {
       importer: ctx.wantedLockfile.importers[project.id],
