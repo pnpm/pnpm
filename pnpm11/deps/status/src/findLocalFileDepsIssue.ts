@@ -3,6 +3,7 @@ import type { Catalogs } from '@pnpm/catalogs.types'
 import { parseOverrides, type VersionOverride } from '@pnpm/config.parse-overrides'
 import { createOverriddenDependencyMatcher, type OverriddenDependencyMatcher } from '@pnpm/hooks.read-package-hook'
 import { DEPENDENCIES_FIELDS, type IncludedDependencies, type ProjectManifest } from '@pnpm/types'
+import type { WorkspaceState } from '@pnpm/workspace.state'
 import { isEmpty } from 'ramda'
 
 import { findInjectedWorkspaceDep } from './findInjectedWorkspaceDep.js'
@@ -51,6 +52,19 @@ export function findLocalFileDepsIssue (opts: CheckDepsStatusOptions): string | 
   const localFileExtension = findLocalFilePackageExtension(opts.packageExtensions, localFileDepContext)
   if (localFileExtension != null) {
     return `The package extension "${localFileExtension}" injects a local file dependency and its contents may have changed`
+  }
+  return undefined
+}
+
+/**
+ * Describes the first local dependency the last install recorded from its
+ * lockfile, which a `readPackage` hook may have added to a package no
+ * manifest declares it in. `undefined` when there is none.
+ */
+export function findRecordedLocalDependencyIssue (workspaceState: WorkspaceState): string | undefined {
+  for (const local of Object.values(workspaceState.validation?.localDependencies ?? {})) {
+    const path = local.tarballs?.[0] ?? local.directories?.[0]
+    if (path != null) return `The local dependency at "${path}" may have changed`
   }
   return undefined
 }

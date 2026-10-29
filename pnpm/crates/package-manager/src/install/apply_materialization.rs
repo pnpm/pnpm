@@ -384,6 +384,9 @@ fn write_applied_workspace_state<Reporter: self::Reporter>(
         projects: crate::install::StateProjects {
             manifests: inputs.projects.importers.declared_manifests,
             workspace_projects: inputs.projects.importers.workspace_projects,
+            lockfile: inputs.materialized.fresh_lockfile
+                .as_ref()
+                .or(inputs.resolution.loaded),
         },
         filesystem_now_ms: filesystem_now_ms_in_modules(&modules_dir),
         carried: applied_carried_settings(inputs),

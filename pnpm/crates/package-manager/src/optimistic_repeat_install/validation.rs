@@ -12,6 +12,7 @@ pub(crate) use bins::{
     dedicated_bin_projects, held_workspace_bins_match, links_workspace_commands,
     project_bins_digest, project_bins_match, workspace_bins_digest,
 };
+pub(crate) use local_dependencies::changed as local_dependency_changed;
 
 use super::{Config, Lockfile, PackageManifest, Path, PathBuf};
 use pnpm_workspace::importer_id_from_root_dir;
@@ -23,6 +24,7 @@ use std::{
 };
 
 mod bins;
+mod local_dependencies;
 
 /// How many hex digits of a SHA-256 digest a record keeps.
 const DIGEST_LEN: usize = 32;
@@ -313,6 +315,9 @@ pub(crate) struct RecordValidation<'a> {
     /// See [`crate::RepeatInstallManifests::workspace_projects`].
     pub(crate) workspace_projects: Option<&'a [(PathBuf, &'a PackageManifest)]>,
     pub(crate) vouched: &'a Vouched<'a>,
+    /// The lockfile the vouched projects are proven against, when the writer
+    /// holds it parsed.
+    pub(crate) lockfile: Option<&'a Lockfile>,
 }
 
 /// Record in `state` what this write proves, and mark it filtered when a
@@ -332,7 +337,7 @@ pub(crate) fn record_validation(state: &mut WorkspaceState, inputs: &RecordValid
         Vouched::All => None,
         Vouched::Projects { previous, .. } => *previous,
     };
-    let (lockfile, files) = recorded_files(state, inputs, previous);
+    let ((lockfile_path, lockfile), files) = recorded_files(state, inputs, previous);
     let Some(recorded_at_ns) = recorded_validation_time_ns(inputs) else {
         state.validation = None;
         state.filtered_install = true;
@@ -345,6 +350,12 @@ pub(crate) fn record_validation(state: &mut WorkspaceState, inputs: &RecordValid
     let mut validation =
         Validation { recorded_at_ns, files, lockfile: lockfile.clone(), ..Validation::default() };
     let recorded = record_projects(&mut validation, inputs, carried, lockfile.as_deref());
+    local_dependencies::record_for_write(
+        &mut validation,
+        inputs,
+        carried,
+        (lockfile.as_deref(), &lockfile_path),
+    );
     state.filtered_install = recorded != inputs.project_manifests.len();
     state.validation = Some(validation);
 }
@@ -364,11 +375,11 @@ fn recorded_files(
     state: &WorkspaceState,
     inputs: &RecordValidation<'_>,
     previous: Option<&WorkspaceState>,
-) -> (Option<String>, BTreeMap<String, FileSignature>) {
+) -> ((PathBuf, Option<String>), BTreeMap<String, FileSignature>) {
     let digests = FileDigests::new(previous.and_then(|state| state.validation.as_ref()));
     let (lockfile_path, lockfile) = digests.lockfile(inputs.workspace_root, inputs.config);
     let shared_inputs = shared_input_paths(inputs.config, &state.pnpmfiles);
-    let files = std::iter::once((lockfile_path, lockfile.clone()))
+    let files = std::iter::once((lockfile_path.clone(), lockfile.clone()))
         .chain(
             shared_inputs
                 .into_iter()
@@ -378,17 +389,24 @@ fn recorded_files(
                 }),
         )
         .filter_map(|(path, digest)| match digest {
-            FileDigest::Present(mut signature) => {
-                if inputs.config.source_date_epoch.is_some() {
-                    signature.mtime_ns = 0;
-                    signature.ctime_ns = None;
-                }
-                Some((path.to_string_lossy().into_owned(), signature))
-            }
+            FileDigest::Present(signature) => Some((
+                path.to_string_lossy().into_owned(),
+                recordable_signature(inputs.config, signature),
+            )),
             FileDigest::Absent | FileDigest::Unreadable => None,
         })
         .collect();
-    (lockfile.digest().map(str::to_string), files)
+    ((lockfile_path, lockfile.digest().map(str::to_string)), files)
+}
+
+/// `signature` as a write records it: under `SOURCE_DATE_EPOCH`, without the
+/// stat timestamps.
+pub(super) fn recordable_signature(config: &Config, mut signature: FileSignature) -> FileSignature {
+    if config.source_date_epoch.is_some() {
+        signature.mtime_ns = 0;
+        signature.ctime_ns = None;
+    }
+    signature
 }
 
 /// Record in `validation` each project the write vouches for, proven against

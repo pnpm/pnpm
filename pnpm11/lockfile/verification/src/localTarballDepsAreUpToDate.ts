@@ -1,6 +1,3 @@
-import path from 'node:path'
-import { fileURLToPath } from 'node:url'
-
 import { getTarballIntegrity, matchIntegrity } from '@pnpm/crypto.hash'
 import * as dp from '@pnpm/deps.path'
 import { isError, PnpmError } from '@pnpm/error'
@@ -10,7 +7,7 @@ import type {
   ProjectSnapshot,
   TarballResolution,
 } from '@pnpm/lockfile.types'
-import { refIsLocalTarball } from '@pnpm/lockfile.utils'
+import { refIsLocalTarball, resolveLocalTarballPath } from '@pnpm/lockfile.utils'
 import { DEPENDENCIES_FIELDS, type IncludedDependencies } from '@pnpm/types'
 
 export interface LocalTarballDepsUpToDateContext {
@@ -28,39 +25,6 @@ export interface LocalTarballIntegrityMismatch {
   readonly expected: string
   readonly found: string
   readonly path: string
-}
-
-function isUncLikeFilePayload (pathPart: string): boolean {
-  return pathPart.startsWith('\\\\') ||
-    pathPart.startsWith('////') ||
-    (pathPart.startsWith('//') && !pathPart.startsWith('///'))
-}
-
-export function resolveLocalTarballPath (lockfileDir: string, tarball: string): string | undefined {
-  if (!refIsLocalTarball(tarball)) return undefined
-  const pathPart = tarball.slice('file:'.length)
-  if (isUncLikeFilePayload(pathPart) || pathPart.includes('\0')) {
-    return undefined
-  }
-  if (pathPart.startsWith('/') && tarball.startsWith('file:///')) {
-    return localFileUrlToPath(tarball)
-  }
-  if (path.isAbsolute(pathPart)) {
-    return path.normalize(pathPart)
-  }
-  return path.resolve(lockfileDir, pathPart)
-}
-
-function localFileUrlToPath (tarball: string): string | undefined {
-  try {
-    const url = new URL(tarball)
-    if (url.protocol !== 'file:' || url.host) {
-      return undefined
-    }
-    return fileURLToPath(url)
-  } catch {
-    return undefined
-  }
 }
 
 export async function findPackageTarballIntegrityMismatch (
@@ -121,8 +85,33 @@ export async function localTarballDepsAreUpToDate (
   const dependencies = DEPENDENCIES_FIELDS
     .filter((field) => ctx.includedDependencies?.[field] !== false)
     .flatMap((field) => Object.entries(project.snapshot[field] ?? {}))
-  const results = await Promise.all(dependencies.map(async ([depName, ref]) => localTarballDepIsUpToDate(ctx, depName, ref)))
+  const reached = reachableDependencies(ctx.lockfilePackages, dependencies)
+  const results = await Promise.all(reached.map(async ([depName, ref]) => localTarballDepIsUpToDate(ctx, depName, ref)))
   return results.every(Boolean)
+}
+
+/**
+ * `dependencies` and every dependency they reach through `packages`. A
+ * project reaches a local tarball through a workspace project it injects,
+ * whose dependencies the project's own lockfile records.
+ */
+function reachableDependencies (
+  packages: PackageSnapshots | undefined,
+  dependencies: Array<[string, string]>
+): Array<[string, string]> {
+  const reached: Array<[string, string]> = []
+  const visited = new Set<string>()
+  const queue = [...dependencies]
+  for (let next = queue.pop(); next != null; next = queue.pop()) {
+    const [depName, ref] = next
+    const depPath = dp.refToRelative(ref, depName)
+    if (depPath == null || visited.has(depPath)) continue
+    visited.add(depPath)
+    reached.push(next)
+    const snapshot = packages?.[depPath]
+    queue.push(...Object.entries(snapshot?.dependencies ?? {}), ...Object.entries(snapshot?.optionalDependencies ?? {}))
+  }
+  return reached
 }
 
 async function localTarballDepIsUpToDate (

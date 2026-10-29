@@ -68,6 +68,19 @@ export interface Validation {
    * they have an entry.
    */
   workspaceBins?: Record<string, string>
+  /**
+   * The local dependencies each recorded lockfile resolves, keyed by the
+   * lockfile's digest. Their contents can change with no manifest or lockfile
+   * moving. Each tarball's signature is in `files`.
+   */
+  localDependencies?: Record<string, LocalDependencies>
+}
+
+/** The local dependencies one lockfile resolves, as absolute paths. */
+export interface LocalDependencies {
+  tarballs?: string[]
+  /** The directories that are not workspace projects. */
+  directories?: string[]
 }
 
 export interface FileSignature {

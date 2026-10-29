@@ -122,6 +122,29 @@ pub struct Validation {
     /// only they have an entry.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub workspace_bins: BTreeMap<String, String>,
+    /// The local dependencies each recorded lockfile resolves, keyed by the
+    /// lockfile's digest. Their contents can change with no manifest or
+    /// lockfile moving. Each tarball's signature is in [`Self::files`].
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub local_dependencies: BTreeMap<String, LocalDependencies>,
+}
+
+/// The local dependencies one lockfile resolves, as absolute paths.
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalDependencies {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tarballs: Vec<String>,
+    /// The directories that are not workspace projects.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub directories: Vec<String>,
+}
+
+impl LocalDependencies {
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.tarballs.is_empty() && self.directories.is_empty()
+    }
 }
 
 impl Validation {

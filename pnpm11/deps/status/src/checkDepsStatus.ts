@@ -11,7 +11,7 @@ import { equals } from 'ramda'
 
 import { checkRootProjectDepsStatus } from './checkRootProjectDepsStatus.js'
 import { checkWorkspaceDepsStatus } from './checkWorkspaceDepsStatus.js'
-import { findLocalFileDepsIssue } from './findLocalFileDepsIssue.js'
+import { findLocalFileDepsIssue, findRecordedLocalDependencyIssue } from './findLocalFileDepsIssue.js'
 import { outdatedResult } from './outdatedResult.js'
 import { storeBaseDir } from './storeBaseDir.js'
 import type { CheckDepsStatusOptions, CheckDepsStatusResult } from './types.js'
@@ -113,7 +113,7 @@ function checkWithoutLockfiles (opts: CheckDepsStatusOptions, workspaceState: Wo
   // (the only one setting this flag) "up-to-date" would skip the install
   // and break the local-file-deps guarantee.
   if (opts.treatLocalFileDepsAsOutdated) {
-    const localFileDepsIssue = findLocalFileDepsIssue(opts)
+    const localFileDepsIssue = findLocalFileDepsIssue(opts) ?? findRecordedLocalDependencyIssue(workspaceState)
     if (localFileDepsIssue != null) return outdatedResult(localFileDepsIssue, workspaceState)
   }
 

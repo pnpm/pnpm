@@ -11,6 +11,7 @@ import { loadWorkspaceState, type ProjectsList, recordedRegistryPrefixes, record
 import { equals, once } from 'ramda'
 
 import type { InstallDepsOptions } from './installDeps.js'
+import { createLocalDependenciesReader } from './localDependencies.js'
 import { type CommandFullName, recursive, type RecursiveOptions } from './recursive.js'
 
 /**
@@ -44,8 +45,9 @@ export async function updateSingleProjectWorkspaceState (
   const installedProjectDirs = [opts.dir]
   const filteredInstall = isFilteredInstall(allProjects, installedProjectDirs)
   const readLockfiles = once(async () => [await readLockfileForState(opts.lockfileDir ?? opts.workspaceDir ?? opts.dir, opts)])
+  const recordedProjects = projectsToRecordInWorkspaceState(allProjects, opts, manifest)
   await updateWorkspaceState({
-    allProjects: projectsToRecordInWorkspaceState(allProjects, opts, manifest),
+    allProjects: recordedProjects,
     settings: {
       ...withUpdatedCatalogs(opts, updatedCatalogs),
       registryPrefixes: await verifiedRegistryPrefixes(opts, readLockfiles),
@@ -56,7 +58,11 @@ export async function updateSingleProjectWorkspaceState (
     pnpmfiles: opts.pnpmfile,
     filteredInstall,
     configDependencies: opts.configDependencies,
-    validation: await stateValidation({ ...opts, installedProjectDirs }, filteredInstall),
+    validation: await stateValidation({
+      ...opts,
+      installedProjectDirs,
+      workspaceProjectDirs: recordedProjects.map(({ rootDir }) => rootDir),
+    }, filteredInstall),
   })
 }
 
@@ -91,6 +97,7 @@ export async function recursiveInstallThenUpdateWorkspaceState (
         ...opts,
         dir: opts.workspaceDir,
         installedProjectDirs: recursiveResult.installedProjectDirs,
+        workspaceProjectDirs: allProjects.map(({ rootDir }) => rootDir),
       }, filteredInstall),
     })
   }
@@ -106,6 +113,8 @@ function isFilteredInstall (allProjects: Project[], installedProjectDirs: string
 interface StateValidationInputs {
   dir: string
   installedProjectDirs: string[]
+  /** The directories a lockfile resolves that are not local dependencies. */
+  workspaceProjectDirs: string[]
   lockfileDir?: string
   workspaceDir?: string
   sharedWorkspaceLockfile?: boolean
@@ -130,6 +139,10 @@ async function stateValidation (
     sharedInputs: sharedInputPaths(lockfileDir, opts.patchedDependencies, opts.pnpmfile),
     vouchedProjects: filteredInstall ? opts.installedProjectDirs : undefined,
     sharedWorkspaceLockfile: opts.sharedWorkspaceLockfile,
+    readLocalDependencies: createLocalDependenciesReader(
+      opts.workspaceProjectDirs,
+      async (lockfileDir) => readLockfileForState(lockfileDir, opts)
+    ),
   }
 }
 

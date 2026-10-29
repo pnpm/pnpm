@@ -8,7 +8,7 @@ import { beforeEach, describe, expect, test } from '@jest/globals'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import { getTarballIntegrity } from '@pnpm/crypto.hash'
 import type { LockfileObject, PackageSnapshot, ProjectSnapshot, TarballResolution } from '@pnpm/lockfile.types'
-import { allProjectsAreUpToDate, checkLinkedPackagesAreUpToDate, findPackageTarballIntegrityMismatch, resolveLocalTarballPath } from '@pnpm/lockfile.verification'
+import { allProjectsAreUpToDate, checkLinkedPackagesAreUpToDate, findPackageTarballIntegrityMismatch, localTarballDepsAreUpToDate, resolveLocalTarballPath } from '@pnpm/lockfile.verification'
 import { prepareEmpty } from '@pnpm/prepare'
 import type { WorkspacePackages } from '@pnpm/resolving.resolver-base'
 import type { BaseManifest, DependencyManifest, DepPath, ProjectId, ProjectRootDir, ReadPackageHook } from '@pnpm/types'
@@ -1702,6 +1702,34 @@ describe('local tgz file dependency', () => {
 
     const lockfileDir = process.cwd()
     expect(await allProjectsAreUpToDate(projects, { ...options, lockfileDir })).toBeFalsy()
+  })
+
+  test.each([
+    ['unchanged', true],
+    ['replaced', false],
+  ])('localTarballDepsAreUpToDate(): checks a local file an injected project depends on when it is %s', async (state, upToDate) => {
+    const pack = tar.pack()
+    pack.entry({ name: 'package.json', mtime: new Date('1970-01-01T00:00:00.000Z') }, JSON.stringify({
+      name: 'local-tarball',
+      version: '1.0.0',
+    }))
+    if (state === 'replaced') pack.entry({ name: 'newly-added-file.txt' }, 'This file changes the tarball.')
+    pack.finalize()
+    await pipeline(pack, createWriteStream('./local-tarball.tar'))
+
+    expect(await localTarballDepsAreUpToDate({
+      fileIntegrityCache: new Map(),
+      lockfileDir: process.cwd(),
+      lockfilePackages: {
+        ...wantedLockfile.packages,
+        ['qux@file:qux' as DepPath]: {
+          resolution: { directory: 'qux', type: 'directory' },
+          dependencies: { 'local-tarball': 'file:local-tarball.tar' },
+        },
+      },
+    }, {
+      snapshot: { dependencies: { qux: 'file:qux' }, specifiers: { qux: 'workspace:*' } },
+    })).toBe(upToDate)
   })
 
   test('findPackageTarballIntegrityMismatch(): reports a changed local file', async () => {
