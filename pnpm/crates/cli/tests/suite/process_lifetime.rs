@@ -19,8 +19,9 @@ use std::{
 
 /// `node launcher.js <leftover> <marker> <release> <code>` starts a leftover
 /// process, then exits with `code`. The leftover is either a detached child
-/// or, on Windows, a program `start` launched, which is how scripts open
-/// editors and browsers.
+/// or, on Windows, a program `start /b` launched. `/b` keeps the program on
+/// the test's console instead of opening a window, and the program
+/// still outlives the `cmd` that started it, as from `start` without it.
 const LAUNCHER: &str = r#"const { spawn, spawnSync } = require('child_process')
 const waiter = require('path').join(__dirname, 'waiter.js')
 const [leftover, marker, release, code] = process.argv.slice(2)

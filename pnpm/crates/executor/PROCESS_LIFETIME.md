@@ -16,8 +16,8 @@ follow the same rule.
 pnpm differs from it on purpose in two places only. Each is listed below with
 its reason.
 
-1. When **pnpm itself is killed or crashes**, everything it started ends with
-   it.
+1. When **pnpm itself is killed or crashes**, what it started ends with it,
+   within the limits each platform sets (see below).
 2. When a **bail cancels the tasks of a multi-task run**, pnpm stops those
    tasks.
 
@@ -29,19 +29,31 @@ its reason.
 | the command failed | keeps running |
 | the user pressed `Ctrl+C` and pnpm exited after the command | keeps running, unless the interrupt itself ended it, as it would without pnpm |
 | the terminal was closed | the operating system ends what is attached to the terminal; everything else keeps running |
-| pnpm was killed, crashed, or was forced down by repeated `Ctrl+C` | **ends** (difference 1) |
+| pnpm was killed, crashed, or was forced down by repeated `Ctrl+C` | **ends**, within the platform limits of difference 1 |
 
-A program a script opened through the shell, such as a browser opened by the
-`open` package, or an editor started with `start`, is never attached to the
-terminal. It therefore keeps running in every row but the last
+A program a script opened through the shell in a console of its own, such as a
+browser opened by the `open` package or an editor started with `start`, is not
+attached to the terminal. It therefore keeps running in every row but the last
 ([pnpm/pnpm#17465](https://github.com/pnpm/pnpm/issues/17465),
-[pnpm/pnpm#14356](https://github.com/pnpm/pnpm/issues/14356)).
+[pnpm/pnpm#14356](https://github.com/pnpm/pnpm/issues/14356)). A program
+started with `start /b` shares the terminal's console instead, so closing the
+terminal ends it, as it would without pnpm.
 
 Difference 1 exists so that a pnpm stopped by its parent, such as a CI runner
 cancelling a job or Node killing the pnpm it launched, does not leave a dev
-server holding its port. On Windows a process that asks for
-`CREATE_BREAKAWAY_FROM_JOB` is exempt
-([pnpm/pnpm#16628](https://github.com/pnpm/pnpm/issues/16628)).
+server holding its port. How far it reaches depends on the platform:
+
+- **Windows:** the Job Object ends everything pnpm started, detached processes
+  included. Only a process that asks for `CREATE_BREAKAWAY_FROM_JOB` is exempt
+  ([pnpm/pnpm#16628](https://github.com/pnpm/pnpm/issues/16628)).
+- **Unix:** a script that runs in a process group of its own, which every
+  script of a parallel run and every script without a controlling terminal
+  does, is watched, and its group is killed when pnpm dies
+  ([pnpm/pnpm#15555](https://github.com/pnpm/pnpm/issues/15555)). A script
+  that shares the terminal's process group is not watched: a signal sent to
+  that group, such as the one a closing terminal sends, reaches it directly,
+  and a signal sent to pnpm alone does not. A process that leaves its group,
+  such as a daemon calling `setsid`, keeps running in either case.
 
 ## Multi-task runs
 

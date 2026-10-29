@@ -7,7 +7,7 @@
 /// Settle what pnpm owes the processes it started before it exits on its
 /// own: let the tasks a bail cancelled finish their grace, then release the
 /// process-tree cleanup so nothing a command left running ends with pnpm.
-/// [`exit`] calls it, and `main` does before returning.
+/// [`exit()`] calls it, and `main` does before returning.
 pub fn before_exit() {
     crate::process_tracker::finish_cancellations();
     crate::job_control::release_process_tree_cleanup();

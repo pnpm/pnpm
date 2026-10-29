@@ -5,7 +5,7 @@
 //! Windows has no POSIX signals or process groups, so terminating a child
 //! reaches only the direct child. A Job Object with `KILL_ON_JOB_CLOSE` lets
 //! the OS terminate the whole process tree when pnpm is killed or crashes.
-//! Whenever pnpm exits on its own, [`crate::exit`] or
+//! Whenever pnpm exits on its own, [`crate::exit()`] or
 //! [`release_process_tree_cleanup`] clears the kill limit first, so whatever
 //! a command left running outlives pnpm, as it does when the command runs
 //! without pnpm. Cargo and `turbo exec` follow the same rule. A descendant
@@ -55,7 +55,7 @@ unsafe impl Send for JobHandle {}
 unsafe impl Sync for JobHandle {}
 
 /// Tie every process pnpm starts from now on to pnpm, so they end with it if
-/// it is killed or crashes. [`crate::exit`] releases them again on every exit pnpm
+/// it is killed or crashes. [`crate::exit()`] releases them again on every exit pnpm
 /// makes on its own. A failure to arm leaves the processes untied rather than
 /// failing the command.
 #[cfg(windows)]
@@ -120,7 +120,7 @@ pub fn arm_process_tree_cleanup() {
 pub fn arm_process_tree_cleanup() {}
 
 /// Untie the processes pnpm started from pnpm's own lifetime, so they keep
-/// running after it exits. [`crate::exit`] calls this, and so does every other
+/// running after it exits. [`crate::exit()`] calls this, and so does every other
 /// path on which pnpm decides to end: the end of `main`, and a closing
 /// console, whose own processes the operating system ends anyway.
 #[cfg(windows)]

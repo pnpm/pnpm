@@ -144,8 +144,12 @@ impl ProcessTracker {
         }
         #[cfg(unix)]
         {
+            // A second `SIGTERM` reads as "quit now" to many tools, so a
+            // descendant the signal to its group reached is not sent another.
             for &pid in &descendants {
-                signal(pid, Stop::Graceful);
+                if !in_signalled_group(pid, &targets) {
+                    signal(pid, Stop::Graceful);
+                }
             }
             targets.extend(descendants);
             kill_after_grace(targets);
@@ -417,6 +421,15 @@ fn signal(target: i32, stop: Stop) {
     unsafe {
         libc::kill(target, stop.signal());
     }
+}
+
+/// Whether `pid` is in a process group that one of `targets` signals.
+#[cfg(unix)]
+fn in_signalled_group(pid: i32, targets: &[i32]) -> bool {
+    // SAFETY: `getpgid` only reads the process table, and fails with -1 for a
+    // process that has exited.
+    let group = unsafe { libc::getpgid(pid) };
+    group > 0 && targets.contains(&-group)
 }
 
 /// Whether `target` still names a process, or a group with one in it.

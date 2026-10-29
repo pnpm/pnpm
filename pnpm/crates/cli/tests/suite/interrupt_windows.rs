@@ -67,16 +67,17 @@ const WAITER_SCRIPT: &str = "const fs = require('fs'); const marker = process.en
 /// it runs outside the console, and one sharing the console. Say when both
 /// are up and wait to be interrupted. PowerShell would end a script file
 /// with 0 after `Ctrl+C`, so it fails explicitly, as an interrupted Node
-/// does.
-const OPEN_SCRIPT: &str = r"
-$waiter = Join-Path $PSScriptRoot 'waiter.js'
+/// does. `Start-Process` joins its arguments with spaces and quotes none of
+/// them, so the waiter's path is quoted by hand.
+const OPEN_SCRIPT: &str = r#"
+$waiter = '"' + (Join-Path $PSScriptRoot 'waiter.js') + '"'
 Start-Process -FilePath node -ArgumentList $waiter, 'DETACHED_MARKER' -WindowStyle Hidden
 Start-Process -FilePath node -ArgumentList $waiter, 'CONSOLE_MARKER' -NoNewWindow
 $deadline = (Get-Date).AddSeconds(30)
 while (-not ((Test-Path ($env:DETACHED_MARKER + '.up')) -and (Test-Path ($env:CONSOLE_MARKER + '.up'))) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 50 }
 Set-Content -Path 'started.txt' -Value ''
 try { Start-Sleep -Seconds 60 } finally { exit 1 }
-";
+"#;
 
 /// Which of [`OPEN_SCRIPT`]'s waiters outlived the command.
 #[derive(Debug, PartialEq, Eq)]

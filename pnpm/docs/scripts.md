@@ -60,11 +60,14 @@ succeeded or failed, and after `Ctrl+C`, just as it would if the script ran
 without pnpm. Closing the terminal ends the processes attached to it, as the
 operating system always does.
 
-pnpm ends everything it started in two cases only:
+pnpm ends what it started in two cases only:
 
 - When pnpm itself is killed or crashes while a script runs, for example when
-  a CI job is cancelled. A Windows process started with
-  `CREATE_BREAKAWAY_FROM_JOB` is exempt.
+  a CI job is cancelled. On Windows this ends everything the script started,
+  except a process started with `CREATE_BREAKAWAY_FROM_JOB`. On Unix it ends
+  the scripts that run in a process group of their own, which is every script
+  of a parallel run and every script started without a terminal. A process
+  that leaves its process group, such as a daemon, keeps running.
 - When a script fails in a recursive or parallel run, pnpm stops the scripts
   of the other packages that are still running, unless
   [`--no-bail`](./cli/recursive.md#--no-bail) is set.
