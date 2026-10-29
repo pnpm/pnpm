@@ -4,6 +4,94 @@ use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::CommandTempCwd;
 
 #[test]
+fn dlx_and_create_run_in_cli_directory() {
+    for (command, directory, shell_mode) in [
+        ("dlx", "target", false),
+        ("dlx", "invoker", false),
+        ("dlx", "workspace", false),
+        ("dlx", "target", true),
+        ("dlx", "invoker", true),
+        ("dlx", "workspace", true),
+        ("create", "target", false),
+        ("create", "invoker", false),
+        ("create", "workspace", false),
+        ("create", "target", true),
+        ("create", "invoker", true),
+        ("create", "workspace", true),
+    ] {
+        let CommandTempCwd { mut pacquet, root, workspace, .. } = CommandTempCwd::init();
+        let invoker = workspace.join("invoker");
+        let target = workspace.join("target");
+        let fixture = root.path().join("fixture");
+        for dir in [&invoker, &target, &fixture] {
+            std::fs::create_dir(dir).expect("create fixture directory");
+        }
+        std::fs::write(workspace.join("package.json"), r#"{"name":"project","private":true}"#)
+            .expect("write nearest project manifest");
+        std::fs::write(workspace.join("pnpm-workspace.yaml"), "enableGlobalVirtualStore: false\n")
+            .expect("write workspace config");
+        std::fs::write(
+            fixture.join("package.json"),
+            r#"{"name":"create-cwd-fixture","version":"1.0.0","bin":{"cwd-fixture":"bin.js"}}"#,
+        )
+        .expect("write local package manifest");
+        std::fs::write(
+            fixture.join("bin.js"),
+            "#!/usr/bin/env node\nrequire('fs').writeFileSync('cwd-result.json', JSON.stringify({ cwd: process.cwd(), args: process.argv.slice(2) }));\n",
+        )
+        .expect("write local package bin");
+
+        pacquet
+            .current_dir(&invoker)
+            .env("PNPM_CONFIG_OFFLINE", "true")
+            .env("PNPM_CONFIG_STORE_DIR", root.path().join("store"))
+            .env("PNPM_CONFIG_CACHE_DIR", root.path().join("cache"));
+        match directory {
+            "target" => {
+                pacquet.args(["-C", "../target"]);
+            }
+            "workspace" => {
+                pacquet.arg("-w");
+            }
+            _ => {}
+        }
+        pacquet.arg(command);
+        if shell_mode {
+            pacquet.arg("-c");
+        }
+        pacquet
+            .arg(format!("create-cwd-fixture@file:{}", fixture.display()))
+            .args(["--sentinel", "value", "--dir=unchanged"])
+            .assert()
+            .success();
+
+        let expected_dir = match directory {
+            "target" => &target,
+            "workspace" => &workspace,
+            _ => &invoker,
+        };
+        let result: serde_json::Value = serde_json::from_slice(
+            &std::fs::read(expected_dir.join("cwd-result.json")).expect("read bin output"),
+        )
+        .expect("parse bin output");
+        assert_eq!(
+            std::fs::canonicalize(result["cwd"].as_str().expect("child working directory"))
+                .expect("resolve child working directory"),
+            std::fs::canonicalize(expected_dir).expect("resolve expected working directory"),
+            "{command}, directory={directory}, shell_mode={shell_mode}",
+        );
+        assert_eq!(result["args"], serde_json::json!(["--sentinel", "value", "--dir=unchanged"]));
+        for other in [&invoker, &target, &workspace] {
+            if other != expected_dir {
+                assert!(!other.join("cwd-result.json").exists(), "must not write in {other:?}");
+            }
+        }
+        assert!(!fixture.join("cwd-result.json").exists(), "must not run in the installed package");
+        drop(root);
+    }
+}
+
+#[test]
 fn dlx_sets_package_manager_environment() {
     let CommandTempCwd { mut pacquet, root, workspace, .. } =
         CommandTempCwd::init().add_mocked_registry();
