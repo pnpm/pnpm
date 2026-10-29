@@ -34,9 +34,11 @@ pub(super) fn install_handler() {
 /// process-tree cleanup first: the operating system ends the processes
 /// attached to the console itself, and the rest, such as a browser a script
 /// opened, keep running as they would without pnpm
-/// ([pnpm/pnpm#17465](https://github.com/pnpm/pnpm/issues/17465)). An
-/// interrupt that nothing is waiting on any more is the user forcing pnpm
-/// down, and that takes the process tree with it.
+/// ([pnpm/pnpm#17465](https://github.com/pnpm/pnpm/issues/17465)). So does
+/// an interrupt while pnpm runs no command, between two scripts or during
+/// its own work: what earlier scripts left running outlives it. Only an
+/// interrupt that a running command has outlasted every escalation of is
+/// the user forcing pnpm down, and that takes the process tree with it.
 unsafe extern "system" fn relay_console_event(event: u32) -> windows_sys::core::BOOL {
     use windows_sys::Win32::System::Console::{CTRL_BREAK_EVENT, CTRL_C_EVENT};
 
@@ -46,9 +48,12 @@ unsafe extern "system" fn relay_console_event(event: u32) -> windows_sys::core::
     }
     super::INTERRUPTS.fetch_add(1, Ordering::Relaxed);
     let mut still_listening = false;
-    visit_targets(|entry, target| {
+    let running = visit_targets(|entry, target| {
         still_listening |= interrupt_child(entry, target);
     });
+    if !running {
+        crate::job_control::release_process_tree_cleanup();
+    }
     windows_sys::core::BOOL::from(still_listening)
 }
 

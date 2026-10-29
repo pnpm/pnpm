@@ -104,7 +104,7 @@ fn leftovers_of_the_script_a_bail_follows_survive_it() {
 fn recursive_run_bail_stops_running_scripts_gracefully_then_kills_them() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     let graceful = r#"node -e "const fs = require('fs'); process.on('SIGTERM', () => { fs.writeFileSync('terminated.txt', ''); process.exit(0) }); fs.writeFileSync('ran.txt', ''); setInterval(() => {}, 1000)""#;
-    let stubborn = r#"node -e "const fs = require('fs'); process.on('SIGTERM', () => fs.writeFileSync('terminated.txt', '')); fs.writeFileSync('ran.txt', ''); setInterval(() => {}, 1000)""#;
+    let stubborn = r#"node -e "const fs = require('fs'); process.on('SIGTERM', () => fs.writeFileSync('terminated.txt', '')); fs.writeFileSync('ran.txt', String(process.pid)); setInterval(() => {}, 1000)""#;
     let fails = r#"node -e "const fs = require('fs'); const wait = () => fs.existsSync('../a-graceful/ran.txt') && fs.existsSync('../c-stubborn/ran.txt') ? process.exit(1) : setTimeout(wait, 10); wait()""#;
     write_workspace(
         &workspace,
@@ -128,6 +128,18 @@ fn recursive_run_bail_stops_running_scripts_gracefully_then_kills_them() {
             "{name} should have been asked to stop with SIGTERM before pnpm exited",
         );
     }
+    let stubborn: libc::pid_t = fs::read_to_string(workspace.join("c-stubborn").join("ran.txt"))
+        .expect("read the stubborn script's pid")
+        .parse()
+        .expect("the stubborn script wrote its pid");
+    let killed = ends_within(stubborn, std::time::Duration::from_secs(5));
+    if !killed {
+        // SAFETY: `stubborn` is the process the test's own fixture recorded.
+        unsafe {
+            libc::kill(stubborn, libc::SIGKILL);
+        }
+    }
+    assert!(killed, "the script that ignored SIGTERM should have been killed after the grace");
 
     drop(root);
 }
@@ -185,4 +197,27 @@ fn recursive_run_bail_ends_a_detached_grandchild_of_a_running_script() {
     super::killed::assert_connection_closes(connection);
 
     drop(root);
+}
+
+/// Whether `pid` is gone within `deadline`. A process that is gone but not
+/// yet reaped by its new parent counts as gone.
+#[cfg(unix)]
+fn ends_within(pid: libc::pid_t, deadline: std::time::Duration) -> bool {
+    let until = std::time::Instant::now() + deadline;
+    loop {
+        // SAFETY: signal 0 only probes the process the fixture recorded.
+        let alive = unsafe { libc::kill(pid, 0) == 0 };
+        let zombie = fs::read_to_string(format!("/proc/{pid}/stat"))
+            .is_ok_and(|stat| {
+                stat.rsplit_once(") ")
+                    .is_some_and(|(_, rest)| rest.starts_with('Z'))
+            });
+        if !alive || zombie {
+            return true;
+        }
+        if std::time::Instant::now() >= until {
+            return false;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
 }

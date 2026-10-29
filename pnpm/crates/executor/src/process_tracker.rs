@@ -1,4 +1,8 @@
-use std::{collections::HashMap, io, sync::Mutex};
+use std::{
+    collections::HashMap,
+    io,
+    sync::{Arc, Mutex},
+};
 #[cfg(unix)]
 use std::{
     io::Read, os::unix::process::CommandExt, path::Path, process::Stdio, ptr, time::Duration,
@@ -19,7 +23,7 @@ use crate::process::{Child, Command};
 /// reaches a task without also reaching pnpm's console, so the Job Object
 /// holding the task is terminated at once.
 pub struct ProcessTracker {
-    state: Mutex<TrackerState>,
+    state: Arc<Mutex<TrackerState>>,
     separate_process_groups: bool,
 }
 
@@ -31,7 +35,7 @@ const CANCEL_GRACE: Duration = Duration::from_secs(2);
 
 impl Default for ProcessTracker {
     fn default() -> Self {
-        Self { state: Mutex::default(), separate_process_groups: true }
+        Self { state: Arc::default(), separate_process_groups: true }
     }
 }
 
@@ -102,7 +106,7 @@ impl ProcessTracker {
     /// gets its own group regardless (see [`spawn_child`]).
     #[must_use]
     pub fn foreground() -> Self {
-        Self { state: Mutex::default(), separate_process_groups: false }
+        Self { state: Arc::default(), separate_process_groups: false }
     }
 
     /// Cancel every registered execution. Returns `true` only to the caller
@@ -112,6 +116,10 @@ impl ProcessTracker {
     /// thread of its own kills those still running once the grace has
     /// passed, so the caller does not wait it out. pnpm waits for that thread
     /// before it exits (see [`crate::before_exit`]).
+    #[expect(
+        clippy::must_use_candidate,
+        reason = "clippy does not see the state's interior mutability through its `Arc`; most callers cancel without needing to know whether they were first"
+    )]
     pub fn cancel(&self) -> bool {
         let executions = {
             let mut state = self.state.lock().expect("process tracker lock is not poisoned");
@@ -120,39 +128,40 @@ impl ProcessTracker {
             }
             state.cancelled = true;
             state.executions
-                .values()
-                .cloned()
+                .iter()
+                .map(|(&id, execution)| (id, execution.clone()))
                 .collect::<Vec<_>>()
         };
         #[cfg(unix)]
-        let (mut targets, descendants) = {
-            let roots: Vec<u32> = executions
+        let (roots, descendants) = {
+            let roots: Vec<Root> = executions
                 .iter()
-                .filter_map(|execution| match execution {
-                    RunningExecution::Process { pid, .. } => Some(*pid),
-                    RunningExecution::Emulated(_) => None,
+                .filter_map(|(id, execution)| {
+                    execution
+                        .signal_target()
+                        .map(|target| Root { id: *id, target })
                 })
                 .collect();
-            let targets: Vec<i32> = executions
-                .iter()
-                .filter_map(RunningExecution::signal_target)
-                .collect();
-            (targets, descendant_processes(&roots))
+            let descendants = descendant_processes(&root_pids(&roots));
+            (roots, descendants)
         };
-        for execution in executions {
+        for (_, execution) in executions {
             execution.stop();
         }
         #[cfg(unix)]
         {
             // A second `SIGTERM` reads as "quit now" to many tools, so a
             // descendant the signal to its group reached is not sent another.
+            let targets: Vec<i32> = roots
+                .iter()
+                .map(|root| root.target)
+                .collect();
             for &pid in &descendants {
                 if !in_signalled_group(pid, &targets) {
                     signal(pid, Stop::Graceful);
                 }
             }
-            targets.extend(descendants);
-            kill_after_grace(targets);
+            kill_after_grace(&self.state, roots);
         }
         true
     }
@@ -206,12 +215,30 @@ pub fn spawn_child<'tracker>(
     if separate_process_group {
         prepare_command(command);
     }
-    let child = spawn(command)?;
+    // A child that joins a job by hand is created suspended and resumed once
+    // it is in, so nothing it starts in between escapes the job.
+    #[cfg(windows)]
+    let suspended = process_tracker.is_some() || crate::job_control::assigns_children();
+    #[cfg(windows)]
+    if suspended {
+        use std::os::windows::process::CommandExt;
+        use windows_sys::Win32::System::Threading::CREATE_SUSPENDED;
+        command.creation_flags(CREATE_SUSPENDED);
+    }
+    let spawned = spawn(command);
+    #[cfg(windows)]
+    if suspended {
+        use std::os::windows::process::CommandExt;
+        command.creation_flags(0);
+    }
+    let child = spawned?;
     crate::job_control::assign_child(&child);
     // A task a bail may cancel gets a job of its own, so the cancellation
     // reaches everything the task started.
     #[cfg(windows)]
     let job = process_tracker.and_then(|_| crate::job_control::TaskJob::contain(&child));
+    #[cfg(windows)]
+    let child = if suspended { resume_suspended(child)? } else { child };
     // Only Unix gives a child a process group of its own, and only then
     // must a relayed signal address that group rather than the child.
     let own_process_group = cfg!(unix) && separate_process_group;
@@ -234,6 +261,19 @@ pub fn spawn_child<'tracker>(
         #[cfg(unix)]
         watched,
     })
+}
+
+/// Resume a child spawned suspended. One that cannot be resumed would never
+/// run, so it is ended and the failure returned instead.
+#[cfg(windows)]
+fn resume_suspended(mut child: Child) -> io::Result<Child> {
+    if crate::job_control::resume(&child) {
+        return Ok(child);
+    }
+    let error = io::Error::last_os_error();
+    let _ = child.kill();
+    let _ = child.wait();
+    Err(error)
 }
 
 /// Have the watchdog watch `child`'s group when the child leads one.
@@ -432,12 +472,85 @@ fn in_signalled_group(pid: i32, targets: &[i32]) -> bool {
     group > 0 && targets.contains(&-group)
 }
 
-/// Whether `target` still names a process, or a group with one in it.
+/// A cancelled execution: the tracker's id for it, and what a signal for it
+/// addresses (see [`RunningExecution::signal_target`]).
 #[cfg(unix)]
-fn is_running(target: i32) -> bool {
+#[derive(Clone, Copy)]
+struct Root {
+    id: usize,
+    target: i32,
+}
+
+/// The pids of `roots`, group leaders included.
+#[cfg(unix)]
+fn root_pids(roots: &[Root]) -> Vec<u32> {
+    roots
+        .iter()
+        .map(|root| root.target.unsigned_abs())
+        .collect()
+}
+
+/// Whether the process group `target` names (negative) still has a member.
+/// While it does, its id cannot be handed to another process or group, so
+/// a signal to it reaches only the group pnpm created.
+#[cfg(unix)]
+fn group_has_member(target: i32) -> bool {
     // SAFETY: signal 0 only probes.
-    unsafe {
-        libc::kill(target, 0) == 0 || io::Error::last_os_error().raw_os_error() != Some(libc::ESRCH)
+    unsafe { libc::kill(target, 0) == 0 }
+}
+
+/// What is left of the cancelled roots, as far as its identity is still
+/// pinned: groups that still have a member, and roots their waiter has not
+/// reaped, which therefore still hold their pid.
+#[cfg(unix)]
+struct Survivors {
+    groups: Vec<i32>,
+    unreaped: Vec<u32>,
+}
+
+#[cfg(unix)]
+impl Survivors {
+    fn find(state: &Mutex<TrackerState>, roots: &[Root]) -> Self {
+        let registered: Vec<Root> = {
+            let state = state.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+            roots
+                .iter()
+                .filter(|root| state.executions.contains_key(&root.id))
+                .copied()
+                .collect()
+        };
+        Self {
+            groups: roots
+                .iter()
+                .map(|root| root.target)
+                .filter(|&target| target < 0 && group_has_member(target))
+                .collect(),
+            unreaped: root_pids(&registered),
+        }
+    }
+
+    fn is_empty(&self) -> bool {
+        self.groups.is_empty() && self.unreaped.is_empty()
+    }
+
+    /// Kill the survivors and the descendants of the unreaped roots, as a
+    /// scan finds them now rather than as they were at the cancellation, so
+    /// no pid recycled in between is hit.
+    fn kill(&self) {
+        let descendants = descendant_processes(&self.unreaped);
+        for &group in &self.groups {
+            if group_has_member(group) {
+                signal(group, Stop::Forced);
+            }
+        }
+        for &pid in &self.unreaped {
+            if let Ok(pid) = i32::try_from(pid) {
+                signal(pid, Stop::Forced);
+            }
+        }
+        for pid in descendants {
+            signal(pid, Stop::Forced);
+        }
     }
 }
 
@@ -446,26 +559,33 @@ fn is_running(target: i32) -> bool {
 #[cfg(unix)]
 static GRACE_WATCHES: Mutex<Vec<std::thread::JoinHandle<()>>> = Mutex::new(Vec::new());
 
-/// Kill whatever of `targets` is still running once [`CANCEL_GRACE`] has
-/// passed, from a thread of its own that ends as soon as nothing is. A
-/// thread that cannot be started kills them at once instead: waiting on a
-/// task that ignores `SIGTERM` would never end.
+/// Kill what is left of `roots` once [`CANCEL_GRACE`] has passed, from a
+/// thread of its own that ends as soon as nothing is left. A thread that
+/// cannot be started kills them at once instead: waiting on a task that
+/// ignores `SIGTERM` would never end.
 ///
-/// The targets are the pids and groups the cancellation signalled. Unix
-/// hands out pids in sequence, so none of them is recycled within the grace.
+/// Only what is still provably the cancelled task is killed (see
+/// [`Survivors`]), since a pid recorded two seconds earlier may name another
+/// process by then. A descendant that left the task's group, and whose
+/// parent exited during the grace, is no longer found and keeps running.
 #[cfg(unix)]
-fn kill_after_grace(targets: Vec<i32>) {
-    if targets.is_empty() {
+fn kill_after_grace(state: &Arc<Mutex<TrackerState>>, roots: Vec<Root>) {
+    if roots.is_empty() {
         return;
     }
     let deadline = std::time::Instant::now() + CANCEL_GRACE;
-    let targets: std::sync::Arc<[i32]> = targets.into();
+    let roots: Arc<[Root]> = roots.into();
     let watch = {
-        let targets = std::sync::Arc::clone(&targets);
+        let state = Arc::clone(state);
+        let roots = Arc::clone(&roots);
         move || {
-            while targets.iter().any(|&target| is_running(target)) {
+            loop {
+                let survivors = Survivors::find(&state, &roots);
+                if survivors.is_empty() {
+                    return;
+                }
                 if std::time::Instant::now() >= deadline {
-                    kill_all(&targets);
+                    survivors.kill();
                     return;
                 }
                 std::thread::sleep(Duration::from_millis(20));
@@ -477,14 +597,7 @@ fn kill_after_grace(targets: Vec<i32>) {
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .push(handle),
-        Err(_) => kill_all(&targets),
-    }
-}
-
-#[cfg(unix)]
-fn kill_all(targets: &[i32]) {
-    for &target in targets {
-        signal(target, Stop::Forced);
+        Err(_) => Survivors::find(state, &roots).kill(),
     }
 }
 

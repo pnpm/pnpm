@@ -47,7 +47,12 @@ server holding its port. How far it reaches depends on the platform:
   included. Only a process that asks for `CREATE_BREAKAWAY_FROM_JOB` is exempt
   ([pnpm/pnpm#16628](https://github.com/pnpm/pnpm/issues/16628)), which
   `breakaway::*` pins. A `Ctrl+C` that arrives while pnpm runs no command, for
-  example between lifecycle scripts, ends pnpm the same way.
+  example between two lifecycle scripts, is not a kill: it ends pnpm and
+  leaves what earlier scripts started running
+  (`an_interrupt_while_no_command_runs_releases_the_process_tree_cleanup` in
+  [`src/interrupt/windows/tests.rs`](./src/interrupt/windows/tests.rs)). Every
+  child that joins a job is created suspended and resumed once it is in, so
+  nothing it starts can escape the job in between.
 - **Unix:** a script that runs in a process group of its own, which every
   script of a parallel run and every script without a controlling terminal
   does, is watched, and its group is killed when pnpm dies
@@ -73,10 +78,15 @@ still running (difference 2), as `turbo run`, moon, and pnpm 11 do. The task
 whose failure caused the bail has already ended, so its leftovers keep running
 (`multi_task::leftovers_of_the_script_a_bail_follows_survive_it`).
 
-- **Unix:** each task's process group, or the task and its descendants when it
-  shares the terminal's group, gets `SIGTERM` once. Whatever is still running
-  two seconds later gets `SIGKILL`. pnpm does not exit before those two
-  seconds have passed or the tasks have ended, whichever comes first
+- **Unix:** each task's process group, or the task when it shares the
+  terminal's group, gets `SIGTERM` once, and so does every descendant found
+  through parent links that the group signal did not reach. Two seconds
+  later, whatever is still provably the task gets `SIGKILL`: a group that
+  still has a member, a task pnpm has not reaped yet, and that task's
+  descendants as a fresh scan finds them. A pid recorded two seconds earlier
+  may name another process by then, so nothing is killed by a stale pid.
+  pnpm does not exit before those two seconds have passed or the tasks have
+  ended, whichever comes first
   (`multi_task::recursive_run_bail_stops_running_scripts_gracefully_then_kills_them`).
 - **Windows:** there is no signal that reaches one task without reaching
   pnpm's console, so each task's Job Object is terminated at once. The job
@@ -85,9 +95,10 @@ whose failure caused the bail has already ended, so its leftovers keep running
   could misdirect
   (`multi_task::recursive_run_bail_ends_a_detached_grandchild_of_a_running_script`).
 
-A detached process that a cancelled task started on Unix leaves the task's
-process group, so it keeps running there. This is the one place where the two
-platforms differ.
+On Unix a cancelled task's detached process is found only through its
+parent. One whose parent still runs is stopped with the task. One whose
+parent has exited, such as a daemon that forks twice, is not found and keeps
+running. This is the one place where the two platforms differ.
 
 `Ctrl+C` during a multi-task run reaches every task through the terminal.
 pnpm waits for them, and further `Ctrl+C` escalate as described in

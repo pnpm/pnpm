@@ -135,16 +135,16 @@ pub(crate) fn release_process_tree_cleanup() {
         JobObjectExtendedLimitInformation, SetInformationJobObject,
     };
 
-    // Stop assigning children first so no spawn can reach the handle once
-    // it is closed.
+    // Take the locks in the order arming takes them, and hold the armed job's
+    // across both, so a release that races the arming waits for it rather
+    // than leaving a job armed behind it. Children stop being assigned
+    // first, so no spawn can reach the handle once it is closed.
+    let mut armed = ARMED_JOB.lock().unwrap_or_else(PoisonError::into_inner);
     *CHILD_JOB.lock().unwrap_or_else(PoisonError::into_inner) = None;
-    let Some(JobHandle(job)) = ARMED_JOB
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner)
-        .take()
-    else {
+    let Some(JobHandle(job)) = armed.take() else {
         return;
     };
+    drop(armed);
     // SAFETY: `job` is the valid handle created by
     // [`arm_process_tree_cleanup`]. The information pointer refers to a
     // stack local that outlives the call. Clear the kill limit before
@@ -207,8 +207,8 @@ fn enclosing_job_releases_children() -> bool {
 }
 
 /// Make a freshly spawned child a member of the armed job when pacquet itself
-/// stayed out of it. Call it right after the spawn: a grandchild created
-/// before the assignment is not covered.
+/// stayed out of it. [`crate::spawn_child`] spawns such a child suspended
+/// and resumes it after this, so no grandchild is created outside the job.
 #[cfg(windows)]
 pub(crate) fn assign_child(child: &Child) {
     use std::os::windows::io::AsRawHandle;
@@ -252,10 +252,10 @@ impl Drop for OwnedJob {
 
 #[cfg(windows)]
 impl TaskJob {
-    /// Put a freshly spawned `child` in a job of its own. Call it right after
-    /// the spawn, and after [`assign_child`]: a grandchild created before the
-    /// assignment is not covered. `None` when the job cannot be made, which
-    /// leaves the task to [`crate::ProcessTracker`]'s fallback.
+    /// Put a freshly spawned `child` in a job of its own, after
+    /// [`assign_child`] and while the child is still suspended. `None` when
+    /// the job cannot be made, which leaves the task to
+    /// [`crate::ProcessTracker`]'s fallback.
     pub(crate) fn contain(child: &Child) -> Option<Self> {
         use std::{
             mem::{size_of, zeroed},
@@ -303,5 +303,66 @@ impl TaskJob {
         unsafe {
             TerminateJobObject((self.0.0).0, 1);
         }
+    }
+}
+
+/// Whether the process-tree cleanup is armed, for the tests of the paths
+/// that release it.
+#[cfg(all(test, windows))]
+pub(crate) fn is_armed() -> bool {
+    ARMED_JOB
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .is_some()
+}
+
+/// Whether a child spawned now has to be assigned to the armed job by hand,
+/// because pacquet stayed out of it.
+#[cfg(windows)]
+pub(crate) fn assigns_children() -> bool {
+    CHILD_JOB
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .is_some()
+}
+
+/// Resume a child created with `CREATE_SUSPENDED`, once it is in the jobs
+/// it belongs to, so nothing it starts can be created outside them. Returns
+/// whether its thread was resumed.
+#[cfg(windows)]
+pub(crate) fn resume(child: &Child) -> bool {
+    use std::mem::{size_of, zeroed};
+    use windows_sys::Win32::Foundation::{CloseHandle, INVALID_HANDLE_VALUE};
+    use windows_sys::Win32::System::Diagnostics::ToolHelp::{
+        CreateToolhelp32Snapshot, TH32CS_SNAPTHREAD, THREADENTRY32, Thread32First, Thread32Next,
+    };
+    use windows_sys::Win32::System::Threading::{OpenThread, ResumeThread, THREAD_SUSPEND_RESUME};
+
+    let pid = child.id();
+    // SAFETY: the snapshot and thread handles are checked before use and
+    // closed below, and `entry` is a stack local with `dwSize` set as the
+    // API requires. `child` is unreaped, so its pid names it alone, and a
+    // process created suspended has exactly the one thread resumed here.
+    unsafe {
+        let snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
+        if snapshot == INVALID_HANDLE_VALUE {
+            return false;
+        }
+        let mut entry: THREADENTRY32 = zeroed();
+        entry.dwSize = size_of::<THREADENTRY32>() as u32;
+        let mut resumed = false;
+        let mut more = Thread32First(snapshot, &raw mut entry) != 0;
+        while more {
+            if entry.th32OwnerProcessID == pid {
+                let thread = OpenThread(THREAD_SUSPEND_RESUME, 0, entry.th32ThreadID);
+                if !thread.is_null() {
+                    resumed |= ResumeThread(thread) != u32::MAX;
+                    CloseHandle(thread);
+                }
+            }
+            more = Thread32Next(snapshot, &raw mut entry) != 0;
+        }
+        CloseHandle(snapshot);
+        resumed
     }
 }
