@@ -265,7 +265,7 @@ fn peer_report_workspace<'a>(
     crate::peer_dependency_issues::PeerReportWorkspace {
         lockfile_dir: &inputs.projects.workspace_root,
         catalogs: inputs.completion.catalog_context_present.then_some(&inputs.completion.catalogs),
-        project_manifests: inputs.projects.importers.declared_manifests,
+        project_manifests: inputs.projects.importers.declared_manifests.as_slice(),
     }
 }
 
@@ -314,7 +314,7 @@ fn finish_apply<Reporter: self::Reporter>(
             catalogs: peer_catalogs,
             workspace_root: &inputs.projects.workspace_root,
             workspace_manifest_dir: &inputs.completion.workspace_manifest_dir,
-            project_manifests: inputs.projects.importers.declared_manifests,
+            project_manifests: inputs.projects.importers.declared_manifests.as_slice(),
         },
 
         prefix: inputs.completion.prefix,
@@ -382,7 +382,7 @@ fn write_applied_workspace_state<Reporter: self::Reporter>(
         },
         catalogs: &inputs.completion.catalogs,
         projects: crate::install::StateProjects {
-            manifests: inputs.projects.importers.manifests,
+            manifests: inputs.projects.importers.declared_manifests,
             workspace_projects: inputs.projects.importers.workspace_projects,
         },
         filesystem_now_ms: filesystem_now_ms_in_modules(&modules_dir),

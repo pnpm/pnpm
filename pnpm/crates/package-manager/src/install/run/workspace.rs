@@ -199,6 +199,10 @@ pub(super) fn workspace_projects<'s>(
     selection.map_or(loaded, |selection| Some(selection.all_projects))
 }
 impl<'w> InstallScope<'w> {
+    pub(super) fn declared_manifests(&self) -> crate::DeclaredManifests<'_> {
+        crate::DeclaredManifests::new(&self.project_manifests)
+    }
+
     pub(super) fn select(
         install: InstallView<'w>,
         workspace_root: &Path,
@@ -277,7 +281,7 @@ impl<'w> InstallScope<'w> {
             workspace: super::super::OptimisticRepeatInstallCheck {
                 config: install.context.config,
                 workspace_root: &workspace.dirs.workspace_root,
-                project_manifests: &self.project_manifests,
+                project_manifests: self.declared_manifests(),
                 is_workspace_install: workspace.workspace_manifest.is_some(),
                 lockfile: install.context.lockfile,
                 catalogs: &workspace.catalogs,
@@ -291,6 +295,11 @@ impl<'w> InstallScope<'w> {
                 manifests: crate::RepeatInstallManifests {
                     dependency_manifests: self.dependency_manifests.as_ref(),
                     workspace_projects: self.workspace_projects.as_deref(),
+                    hook_source: if owned.projects.pnpmfile_hook_override.is_some() {
+                        crate::ManifestHookSource::InMemory
+                    } else {
+                        crate::ManifestHookSource::Pnpmfiles
+                    },
                 },
             },
             mutation: install.execution.mutation,

@@ -203,6 +203,7 @@ async fn report_prepared_up_to_date<Reporter: self::Reporter + 'static>(
         projects: crate::install::state_options::InstallProjectMetadata {
             catalogs: inputs.projects.catalogs,
             manifests: inputs.projects.manifests,
+            declared_manifests: inputs.projects.declared_manifests,
             workspace_projects: inputs.projects.workspace_projects,
             prefix: inputs.projects.prefix,
             workspace_packages: inputs.projects.workspace_packages,

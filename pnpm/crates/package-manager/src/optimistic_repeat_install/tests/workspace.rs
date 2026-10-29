@@ -654,10 +654,10 @@ fn returns_skipped_when_sibling_node_modules_missing_for_project_with_deps() {
     let decision = check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
         workspace_root: dir.path(),
         config,
-        project_manifests: &[
+        project_manifests: crate::DeclaredManifests::new(&[
             (dir.path().to_path_buf(), &root_manifest),
             (sibling_dir, &sibling_manifest),
-        ],
+        ]),
         is_workspace_install: true,
         lockfile: MaybeLazyLockfile::Loaded(None),
         catalogs: &BTreeMap::default(),
@@ -1039,10 +1039,10 @@ fn deduped_sibling_decision_in(sibling: DedupedSibling<'_>) -> Decision {
     check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
         workspace_root: dir.path(),
         config,
-        project_manifests: &[
+        project_manifests: crate::DeclaredManifests::new(&[
             (dir.path().to_path_buf(), &root_manifest),
             (sibling_dir, &sibling_manifest),
-        ],
+        ]),
         is_workspace_install: true,
         lockfile: MaybeLazyLockfile::Loaded(Some(&lockfile)),
         catalogs: &BTreeMap::default(),
