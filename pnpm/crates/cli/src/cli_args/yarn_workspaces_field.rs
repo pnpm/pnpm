@@ -207,6 +207,13 @@ fn declares_settings(path: &Path, text: &str) -> miette::Result<bool> {
 
 /// A concurrent reader sees no file at `path` or the complete `text`.
 /// Fails with `AlreadyExists` when `path` exists, which is never replaced.
+#[cfg_attr(
+    not(target_os = "wasi"),
+    expect(
+        clippy::disallowed_methods,
+        reason = "sets the umask mode itself, with a recognizable name"
+    )
+)]
 fn publish_new_workspace_manifest(path: &Path, text: &str) -> std::io::Result<()> {
     use std::io::Write as _;
     let dir = path.parent().unwrap_or_else(|| Path::new("."));

@@ -136,15 +136,9 @@ pub(super) struct DepStateHasher {
 impl DepStateHasher {
     fn new(plan: &CandidatePlan<'_>, roots: &[PackageKey]) -> Self {
         let graph = build_deps_subgraph(plan.snapshots, plan.packages, roots.iter().cloned());
-        let mut cache = pnpm_graph_hasher::DepsStateCache::new();
-        pnpm_graph_hasher::warm_deps_state_cache(
-            &graph,
-            &mut cache,
-            in_lockfile_order(&graph).into_iter().map(|(key, _)| key),
-        );
         Self {
             graph,
-            cache,
+            cache: pnpm_graph_hasher::DepsStateCache::new(),
             engine_name: pnpm_graph_hasher::engine_name(plan.setup.node_major, None, None),
         }
     }

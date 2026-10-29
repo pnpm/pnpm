@@ -442,7 +442,6 @@ fn graph_node_hash_matches_the_object_hash_of_the_value_it_models() {
         let deps_hash = crate::dep_state::calc_dep_graph_hash(
             &graph,
             &mut reference_cache,
-            &mut HashSet::new(),
             &"root".to_string(),
         );
         let engine_value = match engine {

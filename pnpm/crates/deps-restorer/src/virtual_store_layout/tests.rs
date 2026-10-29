@@ -121,15 +121,9 @@ fn cyclic_slot_suffixes() -> Vec<(String, String)> {
     suffixes
 }
 
-/// Two cyclic subgraphs whose digests only come out right when the
-/// hasher visits a snapshot's children the way pnpm's
-/// `{...dependencies, ...optionalDependencies}` object does.
-///
-/// `a` reaches the `p` ↔ `x` cycle through two regular dependencies —
-/// aliased `c` and `p` — so it pins the order *within* a section.
-/// `b` reaches the `n` ↔ `y` cycle through a regular `n` and an
-/// optional `c`, whose alias sorts first, so it pins that
-/// `optionalDependencies` still come last.
+/// Two cyclic subgraphs: `a` reaches the `p` ↔ `x` cycle through two
+/// regular dependencies, and `b` reaches the `n` ↔ `y` cycle through a
+/// regular and an optional dependency.
 fn cyclic_snapshots() -> (HashMap<PackageKey, SnapshotEntry>, HashMap<PackageKey, PackageMetadata>)
 {
     let snapshots = HashMap::from([

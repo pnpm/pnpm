@@ -60,10 +60,10 @@ fn sibling_decision(sibling_modules_dir: &str, configure: impl FnOnce(&mut Confi
     check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
         workspace_root: dir.path(),
         config,
-        project_manifests: &[
+        project_manifests: crate::DeclaredManifests::new(&[
             (dir.path().to_path_buf(), &root_manifest),
             (sibling_dir, &sibling_manifest),
-        ],
+        ]),
         is_workspace_install: true,
         lockfile: MaybeLazyLockfile::Loaded(None),
         catalogs: &BTreeMap::default(),
@@ -132,7 +132,10 @@ fn a_root_with_a_multi_component_modules_dir_is_installed() {
     let decision = check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
         workspace_root: dir.path(),
         config,
-        project_manifests: &[(dir.path().to_path_buf(), &root_manifest)],
+        project_manifests: crate::DeclaredManifests::new(&[(
+            dir.path().to_path_buf(),
+            &root_manifest,
+        )]),
         is_workspace_install: true,
         lockfile: MaybeLazyLockfile::Loaded(None),
         catalogs: &BTreeMap::default(),
@@ -161,7 +164,10 @@ fn root_direct_dependency_decision(link_foo: impl FnOnce(&std::path::Path)) -> D
     check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
         workspace_root: dir.path(),
         config,
-        project_manifests: &[(dir.path().to_path_buf(), &root_manifest)],
+        project_manifests: crate::DeclaredManifests::new(&[(
+            dir.path().to_path_buf(),
+            &root_manifest,
+        )]),
         is_workspace_install: false,
         lockfile: MaybeLazyLockfile::Loaded(None),
         catalogs: &BTreeMap::default(),
@@ -237,10 +243,10 @@ fn a_hoisted_sibling_dependency_linked_to_a_missing_target_is_not_installed() {
     let decision = check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
         workspace_root: dir.path(),
         config,
-        project_manifests: &[
+        project_manifests: crate::DeclaredManifests::new(&[
             (dir.path().to_path_buf(), &root_manifest),
             (sibling_dir, &sibling_manifest),
-        ],
+        ]),
         is_workspace_install: true,
         lockfile: MaybeLazyLockfile::Loaded(None),
         catalogs: &BTreeMap::default(),
@@ -327,7 +333,7 @@ fn expanded_selected_modules_dir_check_follows_aliases_paths_and_matching_versio
     let check = OptimisticRepeatInstallCheck {
         workspace_root: dir.path(),
         config,
-        project_manifests: &project_manifests,
+        project_manifests: crate::DeclaredManifests::new(&project_manifests),
         is_workspace_install: true,
         lockfile: MaybeLazyLockfile::Loaded(None),
         catalogs: &catalogs,
@@ -472,7 +478,7 @@ fn expanded_selected_modules_dir_check_under_dedicated_lockfiles_with_injection_
     let check = OptimisticRepeatInstallCheck {
         workspace_root: dir.path(),
         config,
-        project_manifests: &project_manifests,
+        project_manifests: crate::DeclaredManifests::new(&project_manifests),
         is_workspace_install: true,
         lockfile: MaybeLazyLockfile::Loaded(None),
         catalogs: &catalogs,

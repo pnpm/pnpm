@@ -114,7 +114,7 @@ async fn optimistic_repeat_install_skips_entire_pipeline_when_state_is_fresh() {
         },
         catalogs: &std::collections::BTreeMap::default(),
         projects: crate::install::StateProjects {
-            manifests: &[(dirs.project_root.clone(), &manifest)],
+            manifests: crate::DeclaredManifests::new(&[(dirs.project_root.clone(), &manifest)]),
             workspace_projects: None,
         },
         filesystem_now_ms: Some(pnpm_testing_utils::fs::backdate_existing_files(
@@ -258,7 +258,7 @@ fn sync_fast_path_matches_optimistic_short_circuit() {
         },
         catalogs: &std::collections::BTreeMap::default(),
         projects: crate::install::StateProjects {
-            manifests: &[(project_root.clone(), &manifest)],
+            manifests: crate::DeclaredManifests::new(&[(project_root.clone(), &manifest)]),
             workspace_projects: None,
         },
         filesystem_now_ms: Some(last_validated_timestamp),
@@ -409,7 +409,7 @@ async fn partial_install_disables_optimistic_short_circuit() {
         },
         catalogs: &std::collections::BTreeMap::default(),
         projects: crate::install::StateProjects {
-            manifests: &[(dirs.project_root.clone(), &manifest)],
+            manifests: crate::DeclaredManifests::new(&[(dirs.project_root.clone(), &manifest)]),
             workspace_projects: None,
         },
         filesystem_now_ms: Some(pnpm_testing_utils::fs::backdate_existing_files(

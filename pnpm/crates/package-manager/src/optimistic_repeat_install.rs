@@ -30,7 +30,7 @@ pub(crate) use local_file_deps::{
     has_local_file_override, has_local_file_package_extension,
 };
 pub(crate) use manifest_agreement::{ManifestStat, held_projects_match_lockfile};
-pub use manifest_source::RepeatInstallManifests;
+pub use manifest_source::{DeclaredManifests, ManifestHooks, RepeatInstallManifests};
 pub(crate) use modules_dirs::{hoisted_project_modules_dir, project_id};
 pub(crate) use relocation::recorded_elsewhere;
 pub(crate) use settings::{
@@ -110,7 +110,7 @@ pub struct OptimisticRepeatInstallCheck<'a> {
     /// otherwise walk. The caller passes this in (rather than this
     /// function rediscovering it) so the same walk seeds the regular
     /// install path on the fall-through.
-    pub project_manifests: &'a [(PathBuf, &'a PackageManifest)],
+    pub project_manifests: DeclaredManifests<'a>,
     /// `true` when a `pnpm-workspace.yaml` drives the install — that
     /// selects the workspace branch, which keys the manifest and
     /// lockfile comparisons off `lastValidatedTimestamp`. `false` (no
@@ -143,7 +143,7 @@ impl<'a> OptimisticRepeatInstallCheck<'a> {
     /// The projects whose commands the importers link, per
     /// [`RepeatInstallManifests::workspace_projects`].
     pub(crate) fn bin_projects(&self) -> &'a [(PathBuf, &'a PackageManifest)] {
-        self.manifests.workspace_projects.unwrap_or(self.project_manifests)
+        self.manifests.workspace_projects.unwrap_or(self.project_manifests.as_slice())
     }
 }
 
@@ -189,9 +189,12 @@ pub(crate) fn check_optimistic_repeat_install_with_state(
     state: WorkspaceState,
     scope: Scope<'_>,
 ) -> Decision {
-    let (state, moved) =
-        relocation::relocated_state(&state, check.workspace_root, check.project_manifests)
-            .map_or((state, false), |relocated| (relocated, true));
+    let (state, moved) = relocation::relocated_state(
+        &state,
+        check.workspace_root,
+        check.project_manifests.as_slice(),
+    )
+    .map_or((state, false), |relocated| (relocated, true));
     let policy = GatePolicy {
         gate: Gate::Install,
         ignored_settings: &[],

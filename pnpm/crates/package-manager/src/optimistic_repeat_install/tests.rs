@@ -85,7 +85,7 @@ fn check_with_catalogs(
     check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
         workspace_root,
         config,
-        project_manifests,
+        project_manifests: crate::DeclaredManifests::new(project_manifests),
         is_workspace_install,
         lockfile: MaybeLazyLockfile::Loaded(None),
         catalogs,
@@ -108,7 +108,7 @@ fn check_with_lockfile(
     check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
         workspace_root,
         config,
-        project_manifests,
+        project_manifests: crate::DeclaredManifests::new(project_manifests),
         is_workspace_install: false,
         lockfile: MaybeLazyLockfile::Loaded(Some(lockfile)),
         catalogs: &BTreeMap::default(),
@@ -260,7 +260,7 @@ fn record_installed(
         &super::validation::RecordValidation {
             workspace_root,
             config,
-            project_manifests,
+            project_manifests: crate::DeclaredManifests::new(project_manifests),
             workspace_projects: None,
             vouched: &super::validation::Vouched::All,
         },
@@ -292,7 +292,7 @@ fn record_validation_on_disk(workspace_root: &std::path::Path, state: &mut Works
         &super::validation::RecordValidation {
             workspace_root,
             config: &config,
-            project_manifests: &project_manifests,
+            project_manifests: crate::DeclaredManifests::new(&project_manifests),
             workspace_projects: None,
             vouched: &super::validation::Vouched::All,
         },
@@ -405,7 +405,7 @@ fn record_test_workspace_state(
         },
         catalogs: &BTreeMap::default(),
         projects: crate::install::StateProjects {
-            manifests: project_manifests,
+            manifests: crate::DeclaredManifests::new(project_manifests),
             workspace_projects: None,
         },
         filesystem_now_ms: Some(backdate_validated_files(workspace_root)),
@@ -500,7 +500,7 @@ fn content_check_decision(
     check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
         workspace_root: dir.path(),
         config,
-        project_manifests,
+        project_manifests: crate::DeclaredManifests::new(project_manifests),
         is_workspace_install,
         lockfile: MaybeLazyLockfile::Loaded(lockfile.as_ref()),
         catalogs: &BTreeMap::default(),
@@ -652,7 +652,7 @@ fn deps_status(
         &OptimisticRepeatInstallCheck {
             workspace_root: dir.path(),
             config,
-            project_manifests,
+            project_manifests: crate::DeclaredManifests::new(project_manifests),
             is_workspace_install,
             lockfile: MaybeLazyLockfile::Loaded(lockfile.as_ref()),
             catalogs: &BTreeMap::default(),
@@ -1353,10 +1353,10 @@ fn linked_sibling_decision_for_spec(
     check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
         workspace_root,
         config,
-        project_manifests: &[
+        project_manifests: crate::DeclaredManifests::new(&[
             (workspace_root.to_path_buf(), &root_manifest_touched),
             (sibling_dir, &sibling_manifest),
-        ],
+        ]),
         is_workspace_install: true,
         lockfile: MaybeLazyLockfile::Loaded(lockfile.as_ref()),
         catalogs: &BTreeMap::default(),

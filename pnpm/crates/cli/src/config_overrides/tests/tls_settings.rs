@@ -63,3 +63,28 @@ fn dotted_tls_settings_override_the_workspace_yaml() {
     assert_eq!(config.package_manager_bootstrap.tls.strict_ssl, Some(false));
     assert_eq!(config.package_manager_bootstrap.tls.local_address, Some([127, 0, 0, 2].into()));
 }
+
+#[test]
+fn bare_tls_flags_override_the_workspace_yaml() {
+    let project = tempfile::tempdir().expect("project tempdir");
+    std::fs::write(
+        project.path().join("pnpm-workspace.yaml"),
+        "strictSsl: false\nlocalAddress: 127.0.0.3\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+    let (overrides, remaining) = ConfigOverrides::extract(argv([
+        "pacquet",
+        "--strict-ssl",
+        "--local-address",
+        "127.0.0.2",
+        "install",
+    ]));
+    assert_eq!(remaining, argv(["pacquet", "install"]));
+
+    let config = Config { cli: overrides.cli_layer(None), ..Config::default() }
+        .current::<NoEnv>(project.path())
+        .expect("load config");
+
+    assert_eq!(config.tls.strict_ssl, Some(true));
+    assert_eq!(config.tls.local_address, Some([127, 0, 0, 2].into()));
+}

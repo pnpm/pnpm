@@ -834,7 +834,7 @@ async fn frozen_install_short_circuits_when_modules_and_lockfile_are_consistent(
         included,
         None,
         &Default::default(),
-        &[(dirs.project_root.clone(), &manifest)],
+        crate::DeclaredManifests::new(&[(dirs.project_root.clone(), &manifest)]),
         None,
     );
     update_workspace_state(&dirs.project_root, &seed_state).expect("seed workspace state");

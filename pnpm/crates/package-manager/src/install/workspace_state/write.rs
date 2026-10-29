@@ -25,7 +25,7 @@ pub(crate) struct StateWrite<'a> {
 /// The projects a write records.
 #[derive(Clone, Copy)]
 pub(crate) struct StateProjects<'a> {
-    pub(crate) manifests: &'a [(PathBuf, &'a PackageManifest)],
+    pub(crate) manifests: crate::DeclaredManifests<'a>,
     /// See [`crate::RepeatInstallManifests::workspace_projects`].
     pub(crate) workspace_projects: Option<&'a [(PathBuf, &'a PackageManifest)]>,
 }

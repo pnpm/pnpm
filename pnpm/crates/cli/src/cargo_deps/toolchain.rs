@@ -28,7 +28,7 @@ static PROVISIONED: Mutex<BTreeMap<PathBuf, InstalledToolchain>> = Mutex::new(BT
 
 /// Install the toolchain named by the toolchain file of each Cargo manifest,
 /// and link it beside the file, where [`installs_toolchains`] allows it.
-pub(super) async fn provision<Reporter: self::Reporter>(
+pub(crate) async fn provision<Reporter: self::Reporter>(
     config: &Config,
     http_client: &ThrottledClient,
     manifests: &[PathBuf],

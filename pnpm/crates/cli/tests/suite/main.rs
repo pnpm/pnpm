@@ -130,6 +130,7 @@ mod optional_dependencies;
 mod optional_peer_edges;
 mod optional_peer_pins;
 mod outdated;
+mod override_selectors;
 mod override_version_references;
 mod pack;
 mod pack_recursive;

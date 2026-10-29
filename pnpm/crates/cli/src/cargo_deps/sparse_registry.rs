@@ -33,6 +33,28 @@ pub(crate) async fn latest_version(
         .wrap_err_with(|| format!("select the latest version of crate {name}"))
 }
 
+pub(crate) async fn resolve_target_version(
+    config: &Config,
+    auth_headers: &AuthHeaders,
+    name: &str,
+    requirement: Option<&semver::VersionReq>,
+    http_client: &ThrottledClient,
+) -> Result<Option<semver::Version>> {
+    let cache_dir = cargo_index_cache_dir(config);
+    let index_file = fetch_sparse_index_file(
+        name,
+        config.cargo_index_url(),
+        &cache_dir,
+        http_client,
+        auth_headers,
+        config.offline,
+        config.retry_opts(),
+    )
+    .await?;
+    pnpm_cargo_resolver::latest_matching_version(name, &index_file, requirement)
+        .wrap_err_with(|| format!("select a matching version of crate {name}"))
+}
+
 /// The credentials a crate archive download may carry.
 ///
 /// The Cargo index is repository-selected and its `config.json` names the
@@ -207,7 +229,8 @@ pub(super) async fn fetch_sparse_index_file(
             .into_diagnostic()
             .wrap_err_with(|| format!("create Cargo sparse-index cache at {}", parent.display()))?;
     }
-    pnpm_fs::write_atomic(&cache_path, contents.as_bytes())
+    // The cached URLs can carry credentials in their userinfo.
+    pnpm_fs::write_atomic_private_if_new(&cache_path, contents.as_bytes())
         .into_diagnostic()
         .wrap_err_with(|| format!("cache sparse index entry for {name}"))?;
     Ok(contents)
@@ -261,7 +284,8 @@ async fn download_registry_config(
             .into_diagnostic()
             .wrap_err_with(|| format!("create Cargo registry cache at {}", parent.display()))?;
     }
-    pnpm_fs::write_atomic(cache_path, &response.body)
+    // The cached URLs can carry credentials in their userinfo.
+    pnpm_fs::write_atomic_private_if_new(cache_path, &response.body)
         .into_diagnostic()
         .wrap_err_with(|| format!("cache Cargo registry config at {}", cache_path.display()))?;
     Ok(response.body)

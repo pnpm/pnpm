@@ -1,3 +1,7 @@
+pub(crate) mod workspace;
+
+pub(crate) use workspace::{workspace_dependency_spec, workspace_includes_member};
+
 use miette::{IntoDiagnostic, Result, WrapErr};
 use std::{fs, ops::Range, path::Path};
 
@@ -38,12 +42,15 @@ pub(crate) fn add_dependencies(
     Ok(())
 }
 
-fn upsert_dependency(
+pub(crate) fn upsert_dependency(
     contents: &str,
     table: &str,
     name: &str,
     version_spec: &str,
 ) -> Result<String> {
+    if let Some(subtable) = find_dependency_subtable(contents, table, name) {
+        return upsert_dependency(contents, &subtable, "version", version_spec);
+    }
     let Some((section_start, section_end)) = find_table(contents, table) else {
         let separator = appended_table_separator(contents);
         return Ok(format!("{contents}{separator}[{table}]\n{name} = {}\n", quoted(version_spec)));
@@ -62,6 +69,12 @@ fn upsert_dependency(
     let prefix = &contents[..section_end];
     let newline = if !prefix.is_empty() && !prefix.ends_with('\n') { "\n" } else { "" };
     Ok(format!("{prefix}{newline}{name} = {}\n{}", quoted(version_spec), &contents[section_end..]))
+}
+
+fn find_dependency_subtable(contents: &str, table: &str, name: &str) -> Option<String> {
+    [format!("{table}.{name}"), format!("{table}.{}", quoted(name)), format!("{table}.'{name}'")]
+        .into_iter()
+        .find(|subtable| find_table(contents, subtable).is_some())
 }
 
 /// What has to come between the existing contents and a table appended
@@ -101,6 +114,25 @@ fn is_table_header(line: &str) -> bool {
     line.starts_with('[') && line.ends_with(']')
 }
 
+fn unquote_key(key: &str) -> &str {
+    key.strip_prefix('"')
+        .and_then(|s| s.strip_suffix('"'))
+        .or_else(|| {
+            key.strip_prefix('\'')
+                .and_then(|s| s.strip_suffix('\''))
+        })
+        .unwrap_or(key)
+}
+
+fn matches_dependency_key(raw_key: &str, name: &str) -> bool {
+    unquote_key(raw_key) == name
+        || raw_key
+            .rsplit_once('.')
+            .is_some_and(|(prefix, suffix)| {
+                unquote_key(prefix.trim()) == name && unquote_key(suffix.trim()) == "version"
+            })
+}
+
 fn dependency_value_range(line: &str, name: &str) -> Option<Range<usize>> {
     let content_start = line.len() - line.trim_start().len();
     let content = &line[content_start..];
@@ -108,16 +140,7 @@ fn dependency_value_range(line: &str, name: &str) -> Option<Range<usize>> {
         return None;
     }
     let equals = content.find('=')?;
-    let key = content[..equals].trim();
-    let key = key
-        .strip_prefix('"')
-        .and_then(|key| key.strip_suffix('"'))
-        .or_else(|| {
-            key.strip_prefix('\'')
-                .and_then(|key| key.strip_suffix('\''))
-        })
-        .unwrap_or(key);
-    if key != name {
+    if !matches_dependency_key(content[..equals].trim(), name) {
         return None;
     }
     let after_equals = content_start + equals + 1;

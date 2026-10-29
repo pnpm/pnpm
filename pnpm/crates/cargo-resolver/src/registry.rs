@@ -124,6 +124,38 @@ pub fn latest_version(name: &str, index_file: &str) -> Result<String> {
         .ok_or_else(|| miette::miette!("crate {name} has no stable, non-yanked version"))
 }
 
+/// Return the newest non-yanked version from a crates.io sparse-index entry
+/// matching `requirement`, or the newest stable non-yanked version when
+/// `requirement` is `None`.
+pub fn latest_matching_version(
+    name: &str,
+    index_file: &str,
+    requirement: Option<&VersionReq>,
+) -> Result<Option<Version>> {
+    let registry = Registry::new(
+        &BTreeMap::from([(name.to_string(), index_file.to_string())]),
+        CRATES_IO_SOURCE,
+    )?;
+    let versions = registry.package(name)?;
+    let selected = match requirement {
+        Some(req) => versions
+            .iter()
+            .rev()
+            .find(|version| !version.yanked && req.matches(&version.version)),
+        None => versions
+            .iter()
+            .rev()
+            .find(|version| !version.yanked && version.version.pre.is_empty())
+            .or_else(|| {
+                versions
+                    .iter()
+                    .rev()
+                    .find(|version| !version.yanked)
+            }),
+    };
+    Ok(selected.map(|version| version.version.clone()))
+}
+
 fn parse_index_file(name: &str, contents: &str) -> Result<Vec<RegistryVersion>> {
     let mut versions = Vec::new();
     for (line_index, line) in contents.lines().enumerate() {

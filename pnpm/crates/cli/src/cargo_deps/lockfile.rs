@@ -86,7 +86,7 @@ pub(crate) async fn workspace_root(
     canonical_cargo_path(&metadata.workspace_root)
 }
 
-async fn workspace_metadata(
+pub(crate) async fn workspace_metadata(
     manifest_path: &Path,
     checkout: Option<&Path>,
 ) -> Result<(String, CargoWorkspaceMetadata)> {
@@ -158,7 +158,7 @@ pub(super) fn verify_existing_lockfile(workspace: &DiscoveredWorkspace) -> Resul
         })
 }
 
-fn canonical_cargo_path(path: &Path) -> Result<PathBuf> {
+pub(crate) fn canonical_cargo_path(path: &Path) -> Result<PathBuf> {
     dunce::canonicalize(path)
         .into_diagnostic()
         .wrap_err_with(|| format!("resolve Cargo workspace path {}", path.display()))

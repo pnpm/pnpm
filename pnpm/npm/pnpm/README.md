@@ -65,6 +65,15 @@ To quote the [Rush](https://rushjs.io/) team:
           </picture>
         </a>
       </td>
+      <td align="center" valign="middle">
+        <a href="https://www.cloudflare.com/?utm_source=pnpm&utm_medium=readme" target="_blank" rel="noopener noreferrer">
+          <picture>
+            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/cloudflare.svg" />
+            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/cloudflare_light.svg" />
+            <img src="https://pnpm.io/img/users/cloudflare.svg" width="160" alt="Cloudflare" />
+          </picture>
+        </a>
+      </td>
     </tr>
   </tbody>
 </table>
@@ -137,6 +146,15 @@ To quote the [Rush](https://rushjs.io/) team:
       </td>
       <td align="center" valign="middle">
         <a href="https://latitude.so/?utm_source=pnpm&utm_medium=readme" target="_blank" rel="noopener noreferrer"><img src="https://pnpm.io/img/users/latitude.svg" width="160" alt="Latitude"></a>
+      </td>
+      <td align="center" valign="middle">
+        <a href="https://syntax.fm/?utm_source=pnpm&utm_medium=readme" target="_blank" rel="noopener noreferrer">
+          <picture>
+            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/syntaxfm.svg" />
+            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/syntaxfm_light.svg" />
+            <img src="https://pnpm.io/img/users/syntaxfm.svg" width="90" alt="Syntax" />
+          </picture>
+        </a>
       </td>
     </tr>
   </tbody>

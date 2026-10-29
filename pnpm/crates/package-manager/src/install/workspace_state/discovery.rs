@@ -193,7 +193,7 @@ pub(super) fn check_discovered_deps(
         &OptimisticRepeatInstallCheck {
             workspace_root: lockfile_root,
             config,
-            project_manifests: &project_manifests,
+            project_manifests: crate::DeclaredManifests::new(&project_manifests),
             is_workspace_install: workspace_manifest.is_some(),
             lockfile: MaybeLazyLockfile::Lazy(&lazy_wanted_lockfile(config, lockfile_root)),
             catalogs: &catalogs,

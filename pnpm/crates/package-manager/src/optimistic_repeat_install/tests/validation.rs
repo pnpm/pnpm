@@ -121,7 +121,7 @@ fn a_filtered_write_carries_the_other_records_while_the_shared_inputs_stand() {
             &RecordValidation {
                 workspace_root: root,
                 config: &config,
-                project_manifests: &project_manifests,
+                project_manifests: crate::DeclaredManifests::new(&project_manifests),
                 workspace_projects: None,
                 vouched,
             },
@@ -181,7 +181,7 @@ fn source_date_epoch_records_deterministic_pnpmfile_digests_without_trusting_mti
         &RecordValidation {
             workspace_root: root,
             config: &config,
-            project_manifests: &project_manifests,
+            project_manifests: crate::DeclaredManifests::new(&project_manifests),
             workspace_projects: None,
             vouched: &Vouched::All,
         },

@@ -144,9 +144,10 @@ pub(crate) struct SelectedLockfiles<'a> {
 pub(crate) struct SelectedImporters<'a> {
     pub(crate) requested_ids: Option<&'a HashSet<String>>,
     pub(crate) real_ids: &'a HashSet<String>,
+    /// The manifests after `packageExtensions` and `readPackage`, which the
+    /// lockfile's importers are resolved from.
     pub(crate) manifests: &'a [(PathBuf, &'a PackageManifest)],
-    /// [`Self::manifests`] before `packageExtensions` and `readPackage`.
-    pub(crate) declared_manifests: &'a [(PathBuf, &'a PackageManifest)],
+    pub(crate) declared_manifests: crate::DeclaredManifests<'a>,
     /// See [`crate::RepeatInstallManifests::workspace_projects`].
     pub(crate) workspace_projects: Option<&'a [(PathBuf, &'a PackageManifest)]>,
     pub(crate) ignore_manifest_check: bool,
@@ -161,7 +162,9 @@ pub(crate) struct LockfileVerificationInputs<'a, 'install> {
 #[derive(Clone, Copy)]
 pub(crate) struct InstallProjectMetadata<'a> {
     pub(crate) catalogs: &'a Catalogs,
+    /// See [`SelectedImporters::manifests`].
     pub(crate) manifests: &'a [(PathBuf, &'a PackageManifest)],
+    pub(crate) declared_manifests: crate::DeclaredManifests<'a>,
     /// See [`crate::RepeatInstallManifests::workspace_projects`].
     pub(crate) workspace_projects: Option<&'a [(PathBuf, &'a PackageManifest)]>,
     pub(crate) prefix: &'a str,

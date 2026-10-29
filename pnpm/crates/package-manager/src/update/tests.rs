@@ -218,20 +218,23 @@ fn a_requested_version_on_a_node_runtime_declaration_uses_the_runtime_rule() {
     );
 }
 
-/// The deno and bun resolvers report a `runtime:` declaration back as written,
-/// so the selector is recorded as asked rather than moved onto an operator the
-/// next resolve would not report.
+/// The deno and bun resolvers normalize a `runtime:` declaration through the
+/// npm resolver's `calc_specifier`, so an exact version keeps the `^` or `~`
+/// operator `previous` already pins while a range or dist-tag is recorded as
+/// asked.
 #[test]
-fn a_requested_version_on_a_deno_or_bun_runtime_declaration_is_recorded_as_asked() {
+fn a_requested_version_on_a_deno_or_bun_runtime_declaration_preserves_range_operator() {
     use pnpm_registry::RangeSpecStyle;
 
     for alias in ["deno", "bun"] {
         for (requested, previous, expected) in [
-            ("1.2.5", "runtime:^1.2.0", "runtime:1.2.5"),
+            ("1.2.5", "runtime:^1.2.0", "runtime:^1.2.5"),
+            ("1.2.5", "runtime:~1.2.0", "runtime:~1.2.5"),
+            ("1.2.5", "runtime:1.2.0", "runtime:1.2.5"),
             ("^1.3", "runtime:^1.2.0", "runtime:^1.3"),
             ("1.2.5", "runtime:latest", "runtime:1.2.5"),
             ("canary", "runtime:latest", "runtime:canary"),
-            ("runtime:1.2.5", "runtime:^1.2.0", "runtime:1.2.5"),
+            ("runtime:1.2.5", "runtime:^1.2.0", "runtime:^1.2.5"),
             ("runtime:canary", "runtime:latest", "runtime:canary"),
         ] {
             assert_eq!(

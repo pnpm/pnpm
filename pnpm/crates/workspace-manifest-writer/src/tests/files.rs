@@ -146,3 +146,36 @@ fn prune_allow_builds_prunes_a_dep_path_key_by_its_package_name() {
         ),
     );
 }
+
+#[cfg(unix)]
+fn mode(path: &std::path::Path) -> u32 {
+    use std::os::unix::fs::PermissionsExt as _;
+    std::fs::metadata(path)
+        .expect("stat")
+        .permissions()
+        .mode()
+        & 0o777
+}
+
+#[cfg(unix)]
+#[test]
+fn an_update_keeps_the_permissions_of_the_existing_manifest() {
+    use std::os::unix::fs::PermissionsExt as _;
+    let dir = TempDir::new().expect("temp dir");
+    let path = dir.path().join(WORKSPACE_MANIFEST_FILENAME);
+    std::fs::write(&path, "allowBuilds:\n  esbuild: false\n").expect("seed manifest");
+    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o640)).expect("chmod");
+    crate::set_allow_builds(dir.path(), [("esbuild", true)]).expect("update succeeds");
+    assert_eq!(std::fs::read_to_string(&path).expect("read"), "allowBuilds:\n  esbuild: true\n");
+    assert_eq!(mode(&path), 0o640);
+}
+
+#[cfg(unix)]
+#[test]
+fn a_created_manifest_gets_the_mode_of_any_new_file() {
+    let dir = TempDir::new().expect("temp dir");
+    crate::set_allow_builds(dir.path(), [("esbuild", true)]).expect("update succeeds");
+    let reference = dir.path().join("reference");
+    std::fs::File::create(&reference).expect("create reference file");
+    assert_eq!(mode(&dir.path().join(WORKSPACE_MANIFEST_FILENAME)), mode(&reference));
+}

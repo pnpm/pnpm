@@ -17,6 +17,12 @@ pub(crate) use tokio::process as async_process;
 pub use add::{AddOptions, plan_add, writable_project};
 pub use discovery::{Discovery, PythonProject, discover};
 pub use manifest::DependencySelection;
+pub use outdated::{
+    DeclaredPythonDep, PythonDependencyGroup, declared_dependencies, locked_versions,
+    lockfile_dir_for, project_name, resolve_target_version,
+};
+pub use pep508_rs::PackageName;
+pub use update::{UpdateOptions, plan_update};
 pub use workspace::members::in_declared_workspace;
 
 mod add;
@@ -29,6 +35,7 @@ mod host;
 mod interpreter;
 mod lockfile;
 mod manifest;
+mod outdated;
 mod projects;
 mod registry;
 mod requirements;
@@ -37,6 +44,7 @@ mod resolver;
 mod settings;
 mod sources;
 mod targets;
+mod update;
 mod workspace;
 
 use environment::{Generation, LockfileInputs, PythonPrepare, Shared, publish_link};

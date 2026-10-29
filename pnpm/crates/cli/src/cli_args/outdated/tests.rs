@@ -1,6 +1,6 @@
 use super::{
-    DependentProject, OutdatedDependencyOptions, OutdatedInWorkspace, OutdatedPackage, render_json,
-    render_recursive_json, render_recursive_table, sort_outdated,
+    OutdatedDependencyOptions, OutdatedInWorkspace, OutdatedPackage, render_json,
+    render_recursive_json, render_recursive_table, sort_outdated, workspace::DependentProject,
 };
 use crate::cli_args::outdated::{
     query::current_versions_from_importer,
@@ -27,11 +27,7 @@ fn pkg(name: &str, current: &str, target: &str, group: DependencyGroup) -> Outda
         target: v(target),
         wanted: v(current),
         github_action: false,
-        metadata: crate::cli_args::outdated::query::OutdatedMetadata {
-            deprecated: None,
-            homepage: None,
-            workspace: None,
-        },
+        metadata: crate::cli_args::outdated::query::OutdatedMetadata::default(),
     }
 }
 

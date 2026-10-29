@@ -4,9 +4,13 @@
 
 use chrono::{DateTime, Utc};
 use pnpm_config::{
-    Config, NeedsFullMetadataFor, ResolutionMode,
+    Config, NeedsFullMetadataFor, ResolutionMode, Tool,
     version_policy::{PackageVersionPolicy, VersionPolicyError, create_package_version_policy},
 };
+use pnpm_engine_pm_yarn_resolver::YarnResolver;
+use pnpm_engine_runtime_bun_resolver::BunResolver;
+use pnpm_engine_runtime_deno_resolver::DenoResolver;
+use pnpm_engine_runtime_node_resolver::NodeResolver;
 use pnpm_network::ThrottledClient;
 use pnpm_resolving_default_resolver::DefaultResolver;
 use pnpm_resolving_npm_resolver::{
@@ -14,6 +18,7 @@ use pnpm_resolving_npm_resolver::{
     OfflineStoreView, PackumentFetchLocker, PickPackageContext, merge_named_registries,
     shared_packument_fetch_locker, shared_picked_manifest_cache,
 };
+use pnpm_resolving_resolver_base::Resolver;
 use std::sync::Arc;
 
 /// The version-pick knobs derived purely from [`Config`]. Computed once per
@@ -138,14 +143,35 @@ pub fn create_configured_registry_resolver(
     http_client: Arc<ThrottledClient>,
     policy: &PickPolicy,
 ) -> Result<DefaultResolver, MergeNamedRegistriesError> {
-    let npm = create_configured_npm_resolver(config, http_client, policy)?;
+    let npm = create_configured_npm_resolver(config, Arc::clone(&http_client), policy)?;
+    let named = create_configured_named_registry_resolver(config, &npm, policy)?;
+    let registry_resolver: Arc<dyn Resolver> =
+        Arc::new(DefaultResolver::new(vec![Box::new(npm), Box::new(named)]));
+    let node_resolver = create_configured_node_resolver(config, Arc::clone(&http_client));
+    Ok(DefaultResolver::new(vec![
+        Box::new(Arc::clone(&registry_resolver)) as Box<dyn Resolver>,
+        Box::new(node_resolver),
+        Box::new(DenoResolver::new(Arc::clone(&http_client), Arc::clone(&registry_resolver))),
+        Box::new(
+            BunResolver::new(Arc::clone(&http_client), Arc::clone(&registry_resolver))
+                .with_mirror(config.tool_mirror(Tool::Bun)),
+        ),
+        Box::new(YarnResolver::new(http_client, config.tls.strict_ssl.unwrap_or(true))),
+    ]))
+}
+
+fn create_configured_named_registry_resolver(
+    config: &Config,
+    npm: &NpmResolver<InMemoryPackageMetaCache>,
+    policy: &PickPolicy,
+) -> Result<NamedRegistryResolver<InMemoryPackageMetaCache>, MergeNamedRegistriesError> {
     let registries_by_prefix = merge_named_registries(
         &config.registries_by_prefix
             .clone()
             .into_iter()
             .collect(),
     )?;
-    let named = NamedRegistryResolver {
+    Ok(NamedRegistryResolver {
         registry_names: registries_by_prefix
             .keys()
             .cloned()
@@ -169,8 +195,21 @@ pub fn create_configured_registry_resolver(
         },
         cache_policy: npm.cache_policy,
         store_view: offline_store_view(config),
-    };
-    Ok(DefaultResolver::new(vec![Box::new(npm), Box::new(named)]))
+    })
+}
+
+fn create_configured_node_resolver(
+    config: &Config,
+    http_client: Arc<ThrottledClient>,
+) -> NodeResolver {
+    let mut node_resolver =
+        NodeResolver::new_with_auth(http_client, Arc::clone(&config.auth_headers));
+    node_resolver.node_download_mirrors.clone_from(&config.node_download_mirrors);
+    node_resolver.mirror = config.tool_mirror(Tool::Node).map(ToString::to_string);
+    node_resolver.channel_mirrors = config.tool_channel_mirrors(Tool::Node);
+    node_resolver.offline = config.offline;
+    node_resolver.cache_dir = Some(config.cache_dir.clone());
+    node_resolver
 }
 
 fn create_configured_npm_resolver(

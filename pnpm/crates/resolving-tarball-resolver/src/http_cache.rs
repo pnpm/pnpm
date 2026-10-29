@@ -229,8 +229,11 @@ pub(crate) fn store(cache_dir: &Path, record: &TarballResolutionRecord) {
         "fetchedAt": record.fetched_at,
         "initialAgeMs": record.initial_age_ms,
     });
-    let _ =
-        pnpm_fs::write_atomic(&record_path(cache_dir, &record.url), body.to_string().as_bytes());
+    // The recorded URLs can carry credentials in their userinfo.
+    let _ = pnpm_fs::write_atomic_private_if_new(
+        &record_path(cache_dir, &record.url),
+        body.to_string().as_bytes(),
+    );
 }
 
 pub(crate) fn remove(cache_dir: &Path, url: &str) {

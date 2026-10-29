@@ -28,6 +28,31 @@ separating the package selector from the dependency selector with a ">", for
 example `qar@1>zoo` will only override the `zoo` dependency of `qar@1`, not for
 any other dependencies.
 
+Both the parent selector and the target selector support `*` wildcard patterns on package names:
+
+```yaml title="pnpm-workspace.yaml"
+overrides:
+  "@esbuild/*:optional": "-"
+  "@mui/*>react:peer": "^17.0.0 || ^18.0.0"
+```
+
+#### Dependency-type selectors
+
+By default, an override applies to `dependencies`, `devDependencies`, `optionalDependencies`, and `peerDependencies`. Append a [Dependency Selector Syntax](https://docs.vlt.sh/cli/selectors) pseudo-selector to the target to restrict the override to one dependency group:
+
+- `:prod` matches only `dependencies`.
+- `:optional` matches only `optionalDependencies`.
+- `:peer` matches only `peerDependencies`.
+
+```yaml title="pnpm-workspace.yaml"
+overrides:
+  "foo:prod": "^2.0.0"
+  "@esbuild/*:optional": "-"
+  "react-dom>react:peer": "^18.0.0 || ^19.0.0"
+```
+
+When an override removes an entry from `optionalDependencies` with `"-"`, pnpm also removes any duplicate declaration of that package from `dependencies` in the same manifest.
+
 To keep an overridden version in sync with the version used elsewhere in your workspace, define the version in a [catalog](../catalogs.md) and reference it with the `catalog:` protocol. This way the version is maintained in a single place and referenced from both your dependencies and your overrides:
 
 ```yaml title="pnpm-workspace.yaml"
@@ -71,17 +96,30 @@ When a full resolution finds that every declared range also admits a newer versi
 
 #### Overriding peer dependencies
 
-Overrides also apply to `peerDependencies`. The behavior depends on the type of version specifier used in the override:
+Overrides also apply to `peerDependencies`. Use `:peer` on the target selector to target only `peerDependencies` without overriding direct or transitive runtime dependencies of the same name:
 
-- **Semver ranges** (e.g., `^1.0.0`), **workspace**, and **catalog** protocols: the peer dependency is overridden and remains a peer dependency.
-- **Non-range specifiers** such as `link:` or `file:` protocols: the peer dependency is overridden and moved to `dependencies`, since these are not valid peer dependency ranges.
-- **Removal** (`-`): the peer dependency is removed entirely.
+- **Version ranges** (e.g., `^1.0.0`, `*`), **workspace**, and **catalog** protocols: the peer dependency range is replaced in `peerDependencies`.
+- **Non-range specifiers** such as `link:`, `file:`, or `npm:` protocols: `peerDependencies` is left unchanged (so an untyped override like `"foo": "file:./foo.tgz"` replaces `foo` in `dependencies` without wiping out consumers' peer version ranges).
+- **Removal** (`-`): the peer dependency (and its `peerDependenciesMeta` entry) is removed.
 
-For example, to override the `react` peer dependency of `react-dom`:
+For example, to widen the `react` peer dependency of `react-dom`, or to allow any version for `@babel/*` peer dependencies:
 
 ```yaml title="pnpm-workspace.yaml"
 overrides:
-  "react-dom>react": "18.1.0"
+  "react-dom>react:peer": "^18.0.0 || ^19.0.0"
+  "@babel/*:peer": "*"
+```
+
+To replace a package's peer dependency with a direct dependency, add the dependency in [`packageExtensions`](#packageextensions) and remove the peer declaration with `:peer`:
+
+```yaml title="pnpm-workspace.yaml"
+packageExtensions:
+  react-dom:
+    dependencies:
+      react: "18.3.1"
+
+overrides:
+  "react-dom>react:peer": "-"
 ```
 
 ### packageExtensions
@@ -259,6 +297,12 @@ transitive optional dependencies. Equivalent to
 [`pnpm install --no-optional`](../cli/install.md#--no-optional).
 
 ### ignoredOptionalDependencies
+
+:::note
+
+Deprecated: use [`overrides`](#dependency-type-selectors) with `:optional` and `"-"` instead (for example, `"fsevents:optional": "-"` and `"@esbuild/*:optional": "-"`). `ignoredOptionalDependencies` continues to work for backward compatibility.
+
+:::
 
 If an optional dependency has its name included in this array, it will be skipped. For example:
 

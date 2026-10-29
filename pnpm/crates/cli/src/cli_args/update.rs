@@ -196,7 +196,7 @@ impl UpdateArgs {
     }
 
     pub async fn run<Reporter: self::Reporter + 'static>(self, state: State) -> miette::Result<()> {
-        self.run_inner::<Reporter>(state, None).await
+        Box::pin(self.run_inner::<Reporter>(state, None)).await
     }
 
     pub(crate) async fn run_selected<Reporter: self::Reporter + 'static>(
@@ -204,7 +204,7 @@ impl UpdateArgs {
         state: State,
         selection: InstallFamilySelection,
     ) -> miette::Result<()> {
-        self.run_inner::<Reporter>(state, Some(selection)).await
+        Box::pin(self.run_inner::<Reporter>(state, Some(selection))).await
     }
 
     fn interactive_options<'a>(

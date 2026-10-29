@@ -284,7 +284,7 @@ pub(super) fn refresh_up_to_date_workspace<Reporter: self::Reporter>(
         },
         catalogs: context.projects.catalogs,
         projects: crate::install::StateProjects {
-            manifests: context.projects.manifests,
+            manifests: context.projects.declared_manifests,
             workspace_projects: context.projects.workspace_projects,
         },
         filesystem_now_ms: filesystem_now_ms_in_modules(

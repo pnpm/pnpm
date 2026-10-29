@@ -1,4 +1,4 @@
-use super::{ResolvedOverride, VersionsOverrider, remove_peer_dependency};
+use super::{DependencyGroup, ResolvedOverride, VersionsOverrider, remove_peer_dependency};
 use serde_json::Value;
 
 impl VersionsOverrider {
@@ -25,7 +25,7 @@ impl VersionsOverrider {
     }
 
     fn is_removed_peer(&self, applicable_parent_scoped: &[&ResolvedOverride], name: &str) -> bool {
-        self.choose_override(applicable_parent_scoped, name, "*")
+        self.choose_override(Some(DependencyGroup::Peer), applicable_parent_scoped, name, "*")
             .is_some_and(|chosen| chosen.inner.new_bare_specifier == "-")
     }
 }

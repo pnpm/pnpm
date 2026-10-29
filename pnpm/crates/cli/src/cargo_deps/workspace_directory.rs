@@ -195,7 +195,7 @@ pub(super) fn write_workspace_file(
     use std::os::{fd::AsRawFd as _, unix::ffi::OsStrExt as _, unix::fs::PermissionsExt as _};
 
     let destination = std::ffi::CString::new(std::ffi::OsStr::new(name).as_bytes())?;
-    let (temporary, mut file) = create_workspace_temporary(directory, name)?;
+    let (temporary, mut file) = create_workspace_temporary(directory, name, mode)?;
     let result = (|| {
         file.write_all(bytes)?;
         if let Some(mode) = mode {
@@ -378,6 +378,7 @@ pub(super) fn force_workspace_symlink(
 fn create_workspace_temporary(
     directory: &ManagedDirectory,
     name: &str,
+    existing_mode: Option<u32>,
 ) -> io::Result<(std::ffi::CString, fs::File)> {
     use std::os::fd::AsRawFd as _;
     loop {
@@ -394,7 +395,10 @@ fn create_workspace_temporary(
                 directory.handle.as_raw_fd(),
                 temporary.as_ptr(),
                 libc::O_WRONLY | libc::O_CLOEXEC | libc::O_CREAT | libc::O_EXCL | libc::O_NOFOLLOW,
-                0o600,
+                // A new file gets the umask mode, as any new project file does. A
+                // replacement starts at the existing mode, so its contents are never
+                // readable by more users than the file it replaces.
+                existing_mode.map_or(0o666, |mode| mode & 0o777),
             )
         };
         match file_from_descriptor(descriptor) {

@@ -1,6 +1,6 @@
 use super::{
     CalcDepStateOptions, DepsGraphNode, build_required_dep_paths, calc_dep_graph_hash,
-    calc_dep_state, calc_dep_state_input_key, warm_deps_state_cache,
+    calc_dep_state, calc_dep_state_input_key,
 };
 use crate::hash_object;
 use indexmap::IndexMap;
@@ -226,30 +226,14 @@ fn shared_input_keys_isolate_cyclic_roots() {
         },
     );
 
-    let truncated_a = hash_object(&serde_json::json!({
-        "id": "a@1.0.0:sha512-a",
-        "deps": {},
-    }));
-    let nested_b = hash_object(&serde_json::json!({
-        "id": "b@1.0.0:sha512-b",
-        "deps": { "a": truncated_a },
-    }));
-    let root_a = hash_object(&serde_json::json!({
-        "id": "a@1.0.0:sha512-a",
-        "deps": { "b": nested_b },
-    }));
-    let truncated_b = hash_object(&serde_json::json!({
-        "id": "b@1.0.0:sha512-b",
-        "deps": {},
-    }));
-    let nested_a = hash_object(&serde_json::json!({
-        "id": "a@1.0.0:sha512-a",
-        "deps": { "b": truncated_b },
-    }));
-    let root_b = hash_object(&serde_json::json!({
-        "id": "b@1.0.0:sha512-b",
-        "deps": { "a": nested_a },
-    }));
+    let label_a = hash_object(&serde_json::json!({ "id": "a@1.0.0:sha512-a", "deps": {} }));
+    let label_b = hash_object(&serde_json::json!({ "id": "b@1.0.0:sha512-b", "deps": {} }));
+    let mut shape = serde_json::Map::new();
+    shape.insert(label_a.clone(), serde_json::json!({ "b": label_b }));
+    shape.insert(label_b.clone(), serde_json::json!({ "a": label_a }));
+    let component = hash_object(&serde_json::Value::Object(shape));
+    let root_a = hash_object(&serde_json::json!({ "member": label_a, "component": component }));
+    let root_b = hash_object(&serde_json::json!({ "member": label_b, "component": component }));
 
     assert_eq!(
         calc_dep_state_input_key(&graph, &"a@1.0.0".to_string(), None),
@@ -314,24 +298,36 @@ fn build_required_dep_paths_handles_empty_and_missing_builders() {
     );
 }
 
-/// `a` sits in two cycles at once — `a` ↔ `b` and `a` ↔ `m` — so the
-/// digest each member settles on depends on which entry point the walk
-/// started from.
-fn entry_order_sensitive_graph() -> HashMap<String, DepsGraphNode<String>> {
-    fn node(id: &str, children: &[(&str, &str)]) -> DepsGraphNode<String> {
-        DepsGraphNode {
-            full_pkg_id: format!("{id}@1.0.0:sha512-{id}"),
-            children: children
-                .iter()
-                .map(|(alias, key)| ((*alias).to_string(), (*key).to_string()))
-                .collect(),
-        }
+fn node(id: &str, children: &[(&str, &str)]) -> DepsGraphNode<String> {
+    DepsGraphNode {
+        full_pkg_id: format!("{id}@1.0.0:sha512-{id}"),
+        children: children
+            .iter()
+            .map(|(alias, key)| ((*alias).to_string(), (*key).to_string()))
+            .collect(),
     }
-    HashMap::from([
-        ("a".to_string(), node("a", &[("m", "m"), ("z", "z"), ("b", "b")])),
-        ("b".to_string(), node("b", &[("a", "a")])),
-        ("m".to_string(), node("m", &[("a", "a")])),
-        ("z".to_string(), node("z", &[])),
+}
+
+fn graph_of<const LEN: usize>(
+    nodes: [(&str, DepsGraphNode<String>); LEN],
+) -> HashMap<String, DepsGraphNode<String>> {
+    nodes
+        .into_iter()
+        .map(|(key, node)| (key.to_string(), node))
+        .collect()
+}
+
+fn graph_hash(graph: &HashMap<String, DepsGraphNode<String>>, key: &str) -> String {
+    calc_dep_graph_hash(graph, &mut HashMap::new(), &key.to_string())
+}
+
+/// `a` sits in two cycles at once — `a` ↔ `b` and `a` ↔ `m`.
+fn two_cycle_graph() -> HashMap<String, DepsGraphNode<String>> {
+    graph_of([
+        ("a", node("a", &[("m", "m"), ("z", "z"), ("b", "b")])),
+        ("b", node("b", &[("a", "a")])),
+        ("m", node("m", &[("a", "a")])),
+        ("z", node("z", &[])),
     ])
 }
 
@@ -354,36 +350,96 @@ fn dep_states(
 }
 
 #[test]
-fn query_order_alone_decides_cyclic_dep_states() {
-    let graph = entry_order_sensitive_graph();
+fn cyclic_dep_states_do_not_depend_on_query_order() {
+    let graph = two_cycle_graph();
     let forward = dep_states(&graph, &mut HashMap::new(), &["a", "b", "m", "z"]);
     let backward = dep_states(&graph, &mut HashMap::new(), &["z", "m", "b", "a"]);
-    assert_ne!(forward, backward, "the cache is what `warm_deps_state_cache` exists to pin");
+    assert_eq!(forward, backward);
+    let fresh_per_query: Vec<(String, String)> = ["a", "b", "m", "z"]
+        .into_iter()
+        .flat_map(|key| dep_states(&graph, &mut HashMap::new(), &[key]))
+        .collect();
+    assert_eq!(forward, fresh_per_query);
+}
+
+/// [pnpm/pnpm#17466](https://github.com/pnpm/pnpm/issues/17466): `core`
+/// and `ws` depend on each other, so a change below `core` has to move
+/// `ws` too, whichever of them the walk enters the cycle from.
+#[test]
+fn every_cycle_member_covers_what_the_cycle_reaches() {
+    let with_leaf = |leaf_id: &str| {
+        graph_of([
+            ("core", node("core", &[("ws", "ws"), ("leaf", "leaf")])),
+            ("ws", node("ws", &[("core", "core")])),
+            ("leaf", node(leaf_id, &[])),
+        ])
+    };
+    let before = with_leaf("leaf-1");
+    let after = with_leaf("leaf-2");
+    for key in ["core", "ws"] {
+        assert_ne!(graph_hash(&before, key), graph_hash(&after, key), "{key} kept its digest");
+    }
+    let mut ws_first = HashMap::new();
+    calc_dep_graph_hash(&before, &mut ws_first, &"ws".to_string());
+    assert_eq!(ws_first["core"], graph_hash(&before, "core"));
 }
 
 #[test]
-fn warming_makes_cyclic_dep_states_independent_of_query_order() {
-    let graph = entry_order_sensitive_graph();
-    let keys = ["a".to_string(), "b".to_string(), "m".to_string(), "z".to_string()];
+fn a_self_dependency_covers_its_other_dependencies() {
+    let with_leaf = |leaf_id: &str| {
+        graph_of([
+            ("self", node("self", &[("self", "self"), ("leaf", "leaf")])),
+            ("leaf", node(leaf_id, &[])),
+        ])
+    };
+    assert_ne!(graph_hash(&with_leaf("leaf-1"), "self"), graph_hash(&with_leaf("leaf-2"), "self"));
+}
 
-    let mut forward_cache = HashMap::new();
-    warm_deps_state_cache(&graph, &mut forward_cache, &keys);
-    let forward = dep_states(&graph, &mut forward_cache, &["a", "b", "m", "z"]);
+/// `a1` and `a2` are one package in two peer contexts inside the same
+/// cycle. Only `a1` reaches `leaf`, two steps into the cycle, so they
+/// must not share a slot. The digest is pinned in pnpm's own tests too,
+/// since both CLIs share one store.
+#[test]
+fn cycle_members_with_one_package_id_split_by_what_they_reach() {
+    let graph = graph_of([
+        ("a1", node("a", &[("b", "b1")])),
+        ("a2", node("a", &[("b", "b2")])),
+        ("b1", node("b", &[("a", "a2"), ("leaf", "leaf")])),
+        ("b2", node("b", &[("a", "a1")])),
+        ("leaf", node("leaf", &[])),
+    ]);
+    assert_eq!(graph_hash(&graph, "a1"), "OP/WBenoO6ds9rjouLr7e1U1KKHcnH5ZP6fvD1vWIjs=");
+    assert_ne!(graph_hash(&graph, "a1"), graph_hash(&graph, "a2"));
+    assert_ne!(graph_hash(&graph, "b1"), graph_hash(&graph, "b2"));
+}
 
-    let mut backward_cache = HashMap::new();
-    warm_deps_state_cache(&graph, &mut backward_cache, &keys);
-    let backward = dep_states(&graph, &mut backward_cache, &["z", "m", "b", "a"]);
+/// Unrolled, `a1` and `a2` link identical trees, so one slot serves both.
+#[test]
+fn cycle_members_with_identical_trees_share_a_digest() {
+    let graph = graph_of([
+        ("a1", node("a", &[("b", "b1")])),
+        ("b1", node("b", &[("a", "a2")])),
+        ("a2", node("a", &[("b", "b2")])),
+        ("b2", node("b", &[("a", "a1")])),
+    ]);
+    assert_eq!(graph_hash(&graph, "a1"), graph_hash(&graph, "a2"));
+    assert_eq!(graph_hash(&graph, "b1"), graph_hash(&graph, "b2"));
+    assert_ne!(graph_hash(&graph, "a1"), graph_hash(&graph, "b1"));
+}
 
-    assert_eq!(forward, backward);
-
-    // The warm-up threads one `parents` set through every walk; that is
-    // only sound while each walk leaves it empty again, so hold it
-    // against walks that each start from a fresh set.
-    let mut per_key_cache = HashMap::new();
-    for key in &keys {
-        calc_dep_graph_hash(&graph, &mut per_key_cache, &mut HashSet::new(), key);
-    }
-    assert_eq!(forward_cache, per_key_cache);
+/// A package reached twice on one path without a cycle in the graph is
+/// hashed in full each time.
+#[test]
+fn a_repeated_package_id_without_a_cycle_is_not_truncated() {
+    let with_leaf = |leaf_id: &str| {
+        graph_of([
+            ("a1", node("a", &[("b", "b")])),
+            ("b", node("b", &[("a", "a2")])),
+            ("a2", node("a", &[("leaf", "leaf")])),
+            ("leaf", node(leaf_id, &[])),
+        ])
+    };
+    assert_ne!(graph_hash(&with_leaf("leaf-1"), "a1"), graph_hash(&with_leaf("leaf-2"), "a1"));
 }
 
 /// The digest is a store-layout contract: it names the directory a
@@ -398,15 +454,6 @@ fn warming_makes_cyclic_dep_states_independent_of_query_order() {
 /// graph has no node for, and a node with no children at all.
 #[test]
 fn dep_graph_hash_matches_the_object_hash_of_the_value_it_models() {
-    fn node(id: &str, children: &[(&str, &str)]) -> DepsGraphNode<String> {
-        DepsGraphNode {
-            full_pkg_id: format!("{id}@1.0.0:sha512-{id}"),
-            children: children
-                .iter()
-                .map(|(alias, key)| ((*alias).to_string(), (*key).to_string()))
-                .collect(),
-        }
-    }
     let graph: HashMap<String, DepsGraphNode<String>> = HashMap::from([
         ("root".to_string(), node("root", &[("z", "leaf"), ("a", "mid"), ("m", "absent")])),
         ("mid".to_string(), node("mid", &[("leaf", "leaf")])),
@@ -416,11 +463,11 @@ fn dep_graph_hash_matches_the_object_hash_of_the_value_it_models() {
     let mut cache = HashMap::new();
     for dep_path in ["root", "mid", "leaf"] {
         let dep_path = dep_path.to_string();
-        let actual = calc_dep_graph_hash(&graph, &mut cache, &mut HashSet::new(), &dep_path);
+        let actual = calc_dep_graph_hash(&graph, &mut cache, &dep_path);
         let node = &graph[&dep_path];
         let mut deps = serde_json::Map::new();
         for (alias, child_key) in &node.children {
-            let child = calc_dep_graph_hash(&graph, &mut cache, &mut HashSet::new(), child_key);
+            let child = calc_dep_graph_hash(&graph, &mut cache, child_key);
             deps.insert(alias.clone(), serde_json::Value::String(child));
         }
         let expected = hash_object(&serde_json::json!({

@@ -459,7 +459,7 @@ impl IndexReader {
             let parent = path.parent()?;
             std::fs::create_dir_all(parent).ok()?;
             let bytes = serde_json::to_vec(&document).ok()?;
-            pnpm_fs::write_atomic(&path, &bytes).ok()
+            pnpm_fs::write_atomic_private_if_new(&path, &bytes).ok()
         })
         .await;
     }

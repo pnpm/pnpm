@@ -180,7 +180,12 @@ pub(in super::super) fn stale_override_targets(
         .keys()
         .filter(|selector| !overrides.is_some_and(|overrides| overrides.contains_key(*selector)))
         .filter_map(|selector| parse_pkg_and_parent_selector(selector).ok())
-        .filter(|(parent, target)| parent.is_none() && target.bare_specifier.is_none())
+        .filter(|(parent, target)| {
+            parent.is_none()
+                && target.bare_specifier.is_none()
+                && target.dep_type.is_none()
+                && !target.name.contains('*')
+        })
         .map(|(_, target)| (target.name, None))
         .collect()
 }

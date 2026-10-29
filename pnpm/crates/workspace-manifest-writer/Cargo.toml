@@ -25,13 +25,13 @@ miette = { workspace = true }
 serde = { workspace = true }
 serde-saphyr = { workspace = true }
 serde_json = { workspace = true }
-tempfile = { workspace = true }
 yaml_serde = { workspace = true }
 yamlpatch = { workspace = true }
 yamlpath = { workspace = true }
 
 [dev-dependencies]
 insta = { workspace = true }
+tempfile = { workspace = true }
 
 [lints]
 workspace = true

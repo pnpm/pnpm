@@ -96,7 +96,7 @@ pub(super) fn outdated<'a>(
     if args.global {
         let config = (ctx.loaders.global_config)()?;
         return Ok(Box::pin(async move {
-            if args.run_global(config).await? == OutdatedOutcome::Outdated {
+            if Box::pin(args.run_global(config)).await? == OutdatedOutcome::Outdated {
                 #[expect(
                     clippy::exit,
                     reason = "`outdated` exits non-zero when a dependency is outdated, mirroring pnpm"

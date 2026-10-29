@@ -113,8 +113,8 @@ pub(super) fn write_hoist_links(
     link_options: &LinkBinsOptions,
 ) -> Result<HoistLinks, LinkPhaseError> {
     let HoistPlan { graph, result, skipped, .. } = plan;
-    let private_hoist_dir = config.install_state_dir.join("node_modules");
-    let public_hoist_dir = config.modules_dir.clone();
+    let private_hoist_dir = real_hoist_dir(config, config.install_state_dir.join("node_modules"));
+    let public_hoist_dir = real_hoist_dir(config, config.modules_dir.clone());
     symlink_hoisted_dependencies(
         &result.hoisted_dependencies_by_node_id,
         &result.hoisted_workspace_aliases,
@@ -139,4 +139,13 @@ pub(super) fn write_hoist_links(
         privately_hoisted_with_bins: result.hoisted_aliases_with_bins,
         private_bin_sources: private_bin_sources.into(),
     })
+}
+
+/// `dir`, or its real path when it is reached through a symlinked modules dir.
+/// See [`pnpm_fs::symlinked_dir_real_path`].
+fn real_hoist_dir(config: &Config, dir: PathBuf) -> PathBuf {
+    config.modules_dir
+        .parent()
+        .and_then(|base| pnpm_fs::symlinked_dir_real_path(base, &dir))
+        .unwrap_or(dir)
 }

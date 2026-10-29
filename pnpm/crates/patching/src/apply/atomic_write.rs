@@ -129,7 +129,7 @@ pub(super) fn write_atomic_with_mode(
         tempfile::Builder::new()
             .make_in(parent, |path| pnpm_fs::create_new_with_mode(path, permissions.mode()))?
     } else {
-        tempfile::Builder::new().tempfile_in(parent)?
+        pnpm_fs::umask_named_tempfile_in(parent)?
     };
     temporary.write_all(content)?;
     if let Some(permissions) = permissions {

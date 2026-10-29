@@ -5896,7 +5896,6 @@ dependencies = [
  "indexmap 2.14.0",
  "miette 7.6.0",
  "pathdiff",
- "pipe-trait",
  "pnpm-catalogs-types",
  "pnpm-cmd-shim",
  "pnpm-config",
