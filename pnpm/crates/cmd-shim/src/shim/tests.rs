@@ -5,8 +5,8 @@ use super::{
     search_script_runtime,
     sh::{
         SH_SHIM_CYGPATH_LINE, SH_SHIM_HARDENED_HELPER_LINE, SH_SHIM_HELPER_PATH_FILTER_LINE,
-        SH_SHIM_PATH_PRINTF_LINE, SH_SHIM_WSLPATH_LINE, msys_cmd_switches, strip_exe_suffix,
-        upper_case_cmd_switches, write_sh_node_path,
+        SH_SHIM_PATH_PRINTF_LINE, SH_SHIM_WSLPATH_LINE, strip_exe_suffix, upper_case_cmd_switch,
+        write_sh_node_path,
     },
 };
 use crate::{
@@ -420,25 +420,23 @@ fn search_script_runtime_falls_back_to_cmd_with_c_switch() {
 }
 
 #[test]
-fn msys_cmd_switches_finds_only_standalone_cmd_switches() {
-    assert_eq!(msys_cmd_switches("/C").collect::<Vec<_>>(), ["/C"]);
-    assert_eq!(msys_cmd_switches(" /C\t/K ").collect::<Vec<_>>(), ["/C", "/K"]);
-    assert_eq!(msys_cmd_switches("--flag /Config path/C /C:bad").count(), 0);
-}
-
-#[test]
-fn upper_case_cmd_switches_changes_only_standalone_switches() {
-    assert_eq!(upper_case_cmd_switches(" /c\t/k  /K "), " /C\t/K  /K ");
-    assert_eq!(upper_case_cmd_switches("/config path/c /c:x"), "/config path/c /c:x");
+fn upper_case_cmd_switch_changes_only_the_first_standalone_switch() {
+    assert_eq!(upper_case_cmd_switch("/C"), ("/C".to_owned(), Some("/C")));
+    assert_eq!(upper_case_cmd_switch(" /d\t/k  /c "), (" /d\t/K  /c ".to_owned(), Some("/K")));
+    assert_eq!(
+        upper_case_cmd_switch("/config path/c /c:x"),
+        ("/config path/c /c:x".to_owned(), None),
+    );
 }
 
 /// A `/c` entry in `MSYS2_ARG_CONV_EXCL` would keep a drive path such as
-/// `/c/Users` from being converted.
+/// `/c/Users` from being converted. The `/c` after the switch is part of the
+/// command cmd.exe runs.
 #[test]
-fn generate_sh_shim_excludes_an_upper_case_switch_from_msys_conversion() {
+fn generate_sh_shim_excludes_only_the_upper_cased_switch_from_msys_conversion() {
     let target = Path::new("/proj/node_modules/foo/src.bat");
     let shim = Path::new("/proj/node_modules/.bin/foo");
-    let runtime = ScriptRuntime { prog: Some("cmd".into()), args: "/c /C".into() };
+    let runtime = ScriptRuntime { prog: Some("cmd".into()), args: "/c echo /c".into() };
     let body = generate_sh_shim(target, shim, Some(&runtime), &[], None);
     assert!(
         body.contains(
@@ -446,7 +444,7 @@ fn generate_sh_shim_excludes_an_upper_case_switch_from_msys_conversion() {
         ),
         "body was:\n{body}",
     );
-    assert!(body.contains("exec cmd /C /C "), "body was:\n{body}");
+    assert!(body.contains("exec cmd /C echo /c "), "body was:\n{body}");
 }
 
 #[test]

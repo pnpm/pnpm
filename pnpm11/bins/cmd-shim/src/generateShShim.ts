@@ -255,36 +255,41 @@ fi
 
 function buildShExecBlock (config: ShProgConfig): string {
   if (!config.isCmdRuntime) return generateExecBlock(config, config.args)
-  const args = upperCaseCmdSwitches(config.args)
-  return buildMsysCmdSwitchExclusion(args) + generateExecBlock(config, args)
+  const { args, cmdSwitch } = upperCaseCmdSwitch(config.args)
+  const exclusion = cmdSwitch ? buildMsysCmdSwitchExclusion(cmdSwitch) : ''
+  return exclusion + generateExecBlock(config, args)
 }
 
 /**
- * Excludes the standalone `cmd` switches in `args` from MSYS argument
- * conversion, which otherwise turns `/C` into a drive path and leaves cmd.exe
- * interactive. The caller's own exclusions follow them. Unlike a doubled
- * `//C`, the switch reaches cmd.exe intact whether conversion is on or off.
+ * Excludes `cmdSwitch` from MSYS argument conversion, which otherwise turns
+ * `/C` into a drive path and leaves cmd.exe interactive. The caller's own
+ * exclusions follow it. Unlike a doubled `//C`, the switch reaches cmd.exe
+ * intact whether conversion is on or off.
  *
  * An entry excludes every argument that starts with it, case-sensitively, so
- * the switches are upper case: a `/c` entry would also exclude a drive path
- * such as `/c/Users`.
+ * the switch is upper case: a `/c` entry would also exclude a drive path such
+ * as `/c/Users`.
  */
-function buildMsysCmdSwitchExclusion (args: string): string {
-  const switches = Array.from(new Set(msysCmdSwitches(args))).sort()
-  if (switches.length === 0) return ''
+function buildMsysCmdSwitchExclusion (cmdSwitch: string): string {
   return `\
 if [ -n "$msys" ]; then
-  export MSYS2_ARG_CONV_EXCL="${switches.join(';')}\${MSYS2_ARG_CONV_EXCL:+;$MSYS2_ARG_CONV_EXCL}"
+  export MSYS2_ARG_CONV_EXCL="${cmdSwitch}\${MSYS2_ARG_CONV_EXCL:+;$MSYS2_ARG_CONV_EXCL}"
 fi
 `
 }
 
 /**
- * `args` with every standalone `/c` and `/k` switch in upper case. cmd.exe
- * reads its switches case-insensitively.
+ * `args` with its first standalone `/C` or `/K` switch in upper case, and that
+ * switch. cmd.exe reads its switches case-insensitively and everything after
+ * that switch as the command to run, which keeps its own spelling.
  */
-function upperCaseCmdSwitches (args: string): string {
-  return args.replace(/(?<=^|\s)\/[ck](?=\s|$)/g, (cmdSwitch) => cmdSwitch.toUpperCase())
+function upperCaseCmdSwitch (args: string): { args: string, cmdSwitch?: string } {
+  let cmdSwitch: string | undefined
+  const upperCased = args.replace(/(?<=^|\s)\/[ck](?=\s|$)/i, (found) => {
+    cmdSwitch = found.toUpperCase()
+    return cmdSwitch
+  })
+  return { args: upperCased, cmdSwitch }
 }
 
 function generateExecBlock (config: ShProgConfig, execArgs: string): string {
@@ -321,12 +326,7 @@ fi
 `
 }
 
-const MSYS_CMD_SWITCHES = new Set(['/C', '/K'])
 const MSYS_DOUBLED_CMD_SWITCHES = new Set(['//C', '//c', '//K', '//k'])
-
-function msysCmdSwitches (args: string): string[] {
-  return args.split(/\s+/).filter((arg) => MSYS_CMD_SWITCHES.has(arg))
-}
 
 /**
  * Whether an already-on-disk shim hands `cmd` a doubled switch such as `//C`,
