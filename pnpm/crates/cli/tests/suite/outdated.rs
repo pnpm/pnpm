@@ -1164,4 +1164,50 @@ fn outdated_reports_cargo_and_python_dependencies() {
         .collect();
     assert_eq!(filtered_dependents, vec!["py-standalone"]);
     assert!(filtered_report.get("foo").is_none());
+
+    // Two standalone Cargo projects where `cargo-app` has a path dependency on `cargo-lib`:
+    let cargo_lib = workspace.join("crates/cargo-lib");
+    let cargo_app = workspace.join("crates/cargo-app");
+    fs::create_dir_all(&cargo_lib).unwrap();
+    fs::create_dir_all(&cargo_app).unwrap();
+    fs::write(
+        cargo_lib.join("Cargo.toml"),
+        "[package]\nname = \"cargo-lib\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[dependencies]\nfoo = \"^1.0.0\"\n",
+    )
+    .unwrap();
+    fs::write(
+        cargo_lib.join("Cargo.lock"),
+        "version = 4\n\n[[package]]\nname = \"cargo-lib\"\nversion = \"0.1.0\"\ndependencies = [\"foo\"]\n\n[[package]]\nname = \"foo\"\nversion = \"1.0.0\"\nsource = \"registry+https://github.com/rust-lang/crates.io-index\"\nchecksum = \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"\n",
+    )
+    .unwrap();
+    fs::write(
+        cargo_app.join("Cargo.toml"),
+        "[package]\nname = \"cargo-app\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[dependencies]\ncargo-lib = { path = \"../cargo-lib\" }\nfoo = \"^1.0.0\"\n",
+    )
+    .unwrap();
+    fs::write(
+        cargo_app.join("Cargo.lock"),
+        "version = 4\n\n[[package]]\nname = \"cargo-app\"\nversion = \"0.1.0\"\ndependencies = [\"cargo-lib\", \"foo\"]\n\n[[package]]\nname = \"cargo-lib\"\nversion = \"0.1.0\"\ndependencies = [\"foo\"]\n\n[[package]]\nname = \"foo\"\nversion = \"1.0.0\"\nsource = \"registry+https://github.com/rust-lang/crates.io-index\"\nchecksum = \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"\n",
+    )
+    .unwrap();
+
+    for filter_expr in ["cargo-app...", "...cargo-lib"] {
+        let cargo_graph_out = pacquet(
+            &workspace,
+            ["-r", "--filter", filter_expr, "outdated", "--offline", "--format", "json"],
+        )
+        .output()
+        .expect("run cargo graph filtered outdated");
+        assert_eq!(cargo_graph_out.status.code(), Some(1));
+        let cargo_graph_report: serde_json::Value =
+            serde_json::from_slice(&cargo_graph_out.stdout).expect("parse cargo graph JSON");
+        let mut cargo_deps: Vec<&str> = cargo_graph_report["foo"]["dependentPackages"]
+            .as_array()
+            .expect("dependentPackages array")
+            .iter()
+            .filter_map(|entry| entry["name"].as_str())
+            .collect();
+        cargo_deps.sort_unstable();
+        assert_eq!(cargo_deps, vec!["cargo-app", "cargo-lib"], "filter {filter_expr}");
+    }
 }

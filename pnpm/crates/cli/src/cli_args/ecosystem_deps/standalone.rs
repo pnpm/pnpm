@@ -13,7 +13,8 @@ use miette::Result;
 use pnpm_config::Config;
 use pnpm_workspace_projects_graph::{BaseProject, ProjectGraph, ProjectGraphNode};
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet},
+    fs,
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -36,6 +37,11 @@ impl BaseProject for StandaloneCargoProject {
     fn manifest_name(&self) -> Option<&str> {
         self.name.as_deref()
     }
+}
+
+struct CargoWorkspaceIndex {
+    by_norm_dir: HashMap<PathBuf, PathBuf>,
+    by_name: HashMap<String, PathBuf>,
 }
 
 pub(crate) async fn discover_standalone_ecosystem_dirs(
@@ -153,30 +159,140 @@ fn select_standalone_cargo_dirs(
     prefix: &Path,
 ) -> Result<(usize, Vec<PathBuf>)> {
     let mut dirs = Vec::new();
-    let mut seen = npm_project_dirs.clone();
+    let mut seen = HashSet::new();
     extend_manifest_dirs(manifests, &mut seen, &mut dirs);
-    if dirs.is_empty() {
+    let discovered = dirs
+        .iter()
+        .filter(|dir| !npm_project_dirs.contains(*dir))
+        .count();
+    if discovered == 0 {
         return Ok((0, Vec::new()));
     }
-    let graph: ProjectGraph<StandaloneCargoProject> = dirs
+    let entries: Vec<(PathBuf, Option<String>)> = dirs
         .iter()
-        .map(|dir| {
-            let package =
-                StandaloneCargoProject { root: dir.clone(), name: cargo_project_name(dir) };
-            (dir.clone(), ProjectGraphNode { package, dependencies: Vec::new() })
-        })
+        .map(|dir| (dir.clone(), cargo_project_name(dir)))
         .collect();
-    let matched = filter_standalone_graph(&graph, config, prefix)?;
-    let discovered = dirs.len();
+    let index = build_cargo_index(&entries);
+    let all_graph = build_cargo_graph(&entries, true, &index);
+    let prod_graph = build_cargo_graph(&entries, false, &index);
+    let matched = filter_standalone_graph(&all_graph, &prod_graph, config, prefix)?;
     let selected = dirs
         .into_iter()
-        .filter(|dir| matched.contains(dir))
+        .filter(|dir| !npm_project_dirs.contains(dir) && matched.contains(dir))
         .collect();
     Ok((discovered, selected))
 }
 
+fn build_cargo_index(entries: &[(PathBuf, Option<String>)]) -> CargoWorkspaceIndex {
+    let mut by_norm_dir = HashMap::new();
+    let mut by_name = HashMap::new();
+    for (dir, name) in entries {
+        by_norm_dir.insert(pnpm_fs::lexical_normalize(dir), dir.clone());
+        if let Some(pkg_name) = name {
+            by_name.insert(pkg_name.clone(), dir.clone());
+        }
+    }
+    CargoWorkspaceIndex { by_norm_dir, by_name }
+}
+
+fn build_cargo_graph(
+    entries: &[(PathBuf, Option<String>)],
+    include_dev: bool,
+    index: &CargoWorkspaceIndex,
+) -> ProjectGraph<StandaloneCargoProject> {
+    entries
+        .iter()
+        .map(|(dir, name)| {
+            let package = StandaloneCargoProject { root: dir.clone(), name: name.clone() };
+            let dependencies = cargo_project_dependencies(dir, include_dev, index);
+            (dir.clone(), ProjectGraphNode { package, dependencies })
+        })
+        .collect()
+}
+
+fn cargo_project_dependencies(
+    dir: &Path,
+    include_dev: bool,
+    index: &CargoWorkspaceIndex,
+) -> Vec<PathBuf> {
+    let Ok(contents) = fs::read_to_string(dir.join("Cargo.toml")) else {
+        return Vec::new();
+    };
+    let Ok(doc) = toml::from_str::<toml::Table>(&contents) else {
+        return Vec::new();
+    };
+    let mut deps = Vec::new();
+    collect_doc_cargo_edges(&doc, dir, include_dev, index, &mut deps);
+    deps
+}
+
+fn collect_doc_cargo_edges(
+    doc: &toml::Table,
+    dir: &Path,
+    include_dev: bool,
+    index: &CargoWorkspaceIndex,
+    out: &mut Vec<PathBuf>,
+) {
+    let sections: &[&str] = if include_dev {
+        &["dependencies", "dev-dependencies", "build-dependencies"]
+    } else {
+        &["dependencies", "build-dependencies"]
+    };
+    for &section in sections {
+        if let Some(table) = doc.get(section).and_then(toml::Value::as_table) {
+            collect_table_cargo_edges(table, dir, index, out);
+        }
+    }
+    let Some(targets) = doc.get("target").and_then(toml::Value::as_table) else {
+        return;
+    };
+    for target_cfg in targets.values().filter_map(toml::Value::as_table) {
+        collect_doc_cargo_edges(target_cfg, dir, include_dev, index, out);
+    }
+}
+
+fn collect_table_cargo_edges(
+    table: &toml::Table,
+    dir: &Path,
+    index: &CargoWorkspaceIndex,
+    out: &mut Vec<PathBuf>,
+) {
+    for (key, value) in table {
+        let Some(dep_table) = value.as_table() else {
+            continue;
+        };
+        if let Some(target_dir) = resolve_cargo_edge_target(key, dep_table, dir, index)
+            && target_dir != dir
+            && !out.contains(&target_dir)
+        {
+            out.push(target_dir);
+        }
+    }
+}
+
+fn resolve_cargo_edge_target(
+    key: &str,
+    dep_table: &toml::Table,
+    dir: &Path,
+    index: &CargoWorkspaceIndex,
+) -> Option<PathBuf> {
+    if let Some(rel_path) = dep_table.get("path").and_then(toml::Value::as_str) {
+        let norm = pnpm_fs::lexical_normalize(&dir.join(rel_path));
+        return index.by_norm_dir.get(&norm).cloned();
+    }
+    if dep_table.get("workspace").and_then(toml::Value::as_bool) == Some(true) {
+        let pkg_name = dep_table
+            .get("package")
+            .and_then(toml::Value::as_str)
+            .unwrap_or(key);
+        return index.by_name.get(pkg_name).cloned();
+    }
+    None
+}
+
 fn filter_standalone_graph<Pkg: BaseProject>(
-    graph: &ProjectGraph<Pkg>,
+    all_graph: &ProjectGraph<Pkg>,
+    prod_graph: &ProjectGraph<Pkg>,
     config: &Config,
     prefix: &Path,
 ) -> Result<HashSet<PathBuf>> {
@@ -184,7 +300,7 @@ fn filter_standalone_graph<Pkg: BaseProject>(
     let prod = !config.filter_prod.is_empty();
     let options = recursive_filter_options(config, prefix);
     let mut selected: HashSet<PathBuf> = filter_against(
-        graph,
+        all_graph,
         &config.filter,
         root_selector.as_deref().filter(|_| !prod),
         false,
@@ -195,7 +311,7 @@ fn filter_standalone_graph<Pkg: BaseProject>(
     .collect();
     if prod {
         selected.extend(filter_against(
-            graph,
+            prod_graph,
             &config.filter_prod,
             root_selector.as_deref().filter(|_| prod),
             true,
