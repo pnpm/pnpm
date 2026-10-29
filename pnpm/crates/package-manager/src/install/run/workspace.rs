@@ -295,11 +295,9 @@ impl<'w> InstallScope<'w> {
                 manifests: crate::RepeatInstallManifests {
                     dependency_manifests: self.dependency_manifests.as_ref(),
                     workspace_projects: self.workspace_projects.as_deref(),
-                    hook_source: if owned.projects.pnpmfile_hook_override.is_some() {
-                        crate::ManifestHookSource::InMemory
-                    } else {
-                        crate::ManifestHookSource::Pnpmfiles
-                    },
+                    hooks: owned.projects.pnpmfile_hook_override
+                        .as_ref()
+                        .map_or(crate::ManifestHooks::Pnpmfiles, crate::ManifestHooks::InMemory),
                 },
             },
             mutation: install.execution.mutation,

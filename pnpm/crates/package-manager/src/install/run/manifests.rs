@@ -132,7 +132,7 @@ pub(super) async fn hook_project_manifests(
     )
     .await
 }
-pub(super) async fn hook_one_manifest(
+pub(crate) async fn hook_one_manifest(
     hook: &Arc<dyn pnpm_hooks::PnpmfileHooks>,
     ctx: pnpm_hooks::HookContext,
     project_dir: &Path,

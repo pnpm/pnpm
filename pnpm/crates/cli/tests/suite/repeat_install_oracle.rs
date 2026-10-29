@@ -976,17 +976,24 @@ const PNPMFILE_REWRITING_A_PROJECT_SPECIFIER: &str =
 ";
 
 /// A `readPackage` hook that rewrites `c`'s specifier of its sibling `a`, then
-/// edits to that specifier.
+/// edits to that specifier, then an edit to `c` that leaves its dependencies
+/// alone.
 fn a_pnpmfile_hook_rewriting_a_project_specifier(layout: Layout) {
     let mut scenario = Scenario::new(layout);
     scenario.install(&[]);
     fs::write(scenario.workspace().join(".pnpmfile.cjs"), PNPMFILE_REWRITING_A_PROJECT_SPECIFIER)
         .expect("write the pnpmfile");
     scenario.check_gates_after_a_workspace_input_edit();
+    let dependencies = |specifier| json!({ "a": specifier, "@pnpm.e2e/bar": "100.0.0" });
     for specifier in ["*", "workspace:*"] {
-        scenario.set_dependencies("c", &json!({ "a": specifier, "@pnpm.e2e/bar": "100.0.0" }));
-        scenario.check_gates_allowing(AllowedRefusal::Install);
+        scenario.set_dependencies("c", &dependencies(specifier));
+        scenario.check_gates();
     }
+    scenario.write_manifest(
+        "c",
+        json!({ "description": "edited", "dependencies": dependencies("workspace:*") }),
+    );
+    scenario.check_gates();
 }
 
 /// A `packageExtensions` entry that adds a dependency to the workspace project

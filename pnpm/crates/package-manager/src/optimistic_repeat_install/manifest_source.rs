@@ -1,8 +1,9 @@
 //! How the repeat-install check reads the project manifests it is handed.
 
 use crate::install::ProjectManifestsByDir;
+use pnpm_hooks::PnpmfileHooks;
 use pnpm_package_manifest::PackageManifest;
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::Arc};
 
 /// The project manifests as the projects declare them: read from disk, or as
 /// a mutating command writes them after the install. The workspace state
@@ -41,14 +42,14 @@ impl<'a> IntoIterator for DeclaredManifests<'a> {
     }
 }
 
-/// Where the hooks that rewrite the project manifests during an install come
-/// from. The check runs no hook, so it cannot see what one rewrites.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ManifestHookSource {
-    /// The pnpmfiles the configuration finds, if any.
+/// The hooks that rewrite the project manifests during an install.
+#[derive(Clone, Copy)]
+pub enum ManifestHooks<'a> {
+    /// The pnpmfiles the configuration finds. The check loads them only when
+    /// it compares a modified manifest with the lockfile.
     Pnpmfiles,
-    /// Hooks the caller holds in memory in place of the pnpmfiles.
-    InMemory,
+    /// Hooks the caller holds in place of the pnpmfiles.
+    InMemory(&'a Arc<dyn PnpmfileHooks>),
 }
 
 /// How the check reads the project manifests it is handed.
@@ -67,7 +68,7 @@ pub struct RepeatInstallManifests<'a> {
     /// fields are part of what proves it installed. `None` when the projects
     /// the check is handed are the whole workspace.
     pub workspace_projects: Option<&'a [(PathBuf, &'a PackageManifest)]>,
-    pub hook_source: ManifestHookSource,
+    pub hooks: ManifestHooks<'a>,
 }
 
 impl RepeatInstallManifests<'_> {
@@ -76,6 +77,6 @@ impl RepeatInstallManifests<'_> {
     pub const ON_DISK: Self = Self {
         dependency_manifests: None,
         workspace_projects: None,
-        hook_source: ManifestHookSource::Pnpmfiles,
+        hooks: ManifestHooks::Pnpmfiles,
     };
 }

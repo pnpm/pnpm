@@ -160,13 +160,11 @@ pub(super) fn check_projects_content(
     wanted: &Lockfile,
     to_check: &[&ManifestStat<'_>],
 ) -> Result<(), &'static str> {
-    if read_package_hook_may_run(check) {
-        return Err("a pnpmfile hook may rewrite a modified manifest");
-    }
     let parsed_overrides = crate::install::parse_config_overrides(check.config, check.catalogs)
         .map_err(|_| "pnpm.overrides cannot be parsed")?;
     check_settings_match_lockfile(check, wanted, parsed_overrides.as_deref())?;
     let transforms = ManifestTransforms::new(check, parsed_overrides.as_deref())?;
+    let manifests = transforms.resolver_view(check, to_check)?;
 
     let linked_ctx = LinkedPackagesContext::new(check.config, check.project_manifests.as_slice());
     let workspace_packages = crate::install::workspace_packages_for_freshness(
@@ -188,7 +186,7 @@ pub(super) fn check_projects_content(
         workspace: crate::install::WorkspaceProjects {
             packages: workspace_packages.as_ref(),
             manifests_by_dir: &project_manifests,
-            // No pnpmfile hook runs once `read_package_hook_may_run` is false.
+            // Directory packages are read from disk, without the resolver's hooks.
             directory_manifests: crate::install::DirectoryManifests::none(),
             catalogs: check.catalogs,
             canonical_paths: &pnpm_fs::CanonicalPaths::default(),
@@ -197,31 +195,25 @@ pub(super) fn check_projects_content(
         ignored_optional_matcher: &ignored_optional_matcher,
         transforms,
     };
-    check_each_project(&content_check, to_check)
+    check_each_project(&content_check, to_check, &manifests)
 }
 
+/// Check each of `to_check` with its manifest in `manifests`, as
+/// [`ManifestTransforms::resolver_view`] returns them.
 fn check_each_project(
     content_check: &ProjectContentCheck<'_>,
     to_check: &[&ManifestStat<'_>],
+    manifests: &[std::borrow::Cow<'_, PackageManifest>],
 ) -> Result<(), &'static str> {
     // Collect before returning so errors remain ordered by project.
     let results: Vec<Result<(), &'static str>> = to_check
         .par_iter()
-        .map(|project| project_content_check(content_check, project))
+        .zip(manifests)
+        .map(|(project, manifest)| {
+            project_content_check(content_check, (project.root_dir, manifest))
+        })
         .collect();
     results.into_iter().collect()
-}
-
-/// Whether the install may run a `readPackage` hook over the project
-/// manifests. The check runs none, so a manifest it holds may differ from the
-/// one the lockfile's importer was resolved from.
-fn read_package_hook_may_run(check: &OptimisticRepeatInstallCheck<'_>) -> bool {
-    match check.manifests.hook_source {
-        crate::ManifestHookSource::InMemory => true,
-        crate::ManifestHookSource::Pnpmfiles => {
-            !super::current_pnpmfiles(check.workspace_root, check.config).is_empty()
-        }
-    }
 }
 
 /// What one modified project is checked against.
@@ -237,17 +229,15 @@ struct ProjectContentCheck<'a> {
 
 fn project_content_check(
     context: &ProjectContentCheck<'_>,
-    project: &ManifestStat<'_>,
+    (root_dir, manifest): (&Path, &PackageManifest),
 ) -> Result<(), &'static str> {
-    let importer_id =
-        pnpm_workspace::importer_id_from_root_dir(context.workspace_root, project.root_dir);
+    let importer_id = pnpm_workspace::importer_id_from_root_dir(context.workspace_root, root_dir);
     let importer = context.wanted.importers.get(&importer_id);
-    let extended = context.transforms.extended(project.manifest);
     if let Err(error) =
         crate::install::check_importer_satisfies(&crate::install::ImporterSatisfactionCheck {
             lockfile: context.wanted,
             lockfile_dir: context.workspace_root,
-            manifest: &extended,
+            manifest,
             importer_id: &importer_id,
             config: context.config,
             workspace: context.workspace,
@@ -258,7 +248,7 @@ fn project_content_check(
             parsed_overrides: context.transforms.parsed_overrides,
         })
     {
-        if is_outdated_linked_package(context, (project.root_dir, &extended), importer, &error) {
+        if is_outdated_linked_package(context, (root_dir, manifest), importer, &error) {
             return Err("a linked package is out of date");
         }
         tracing::debug!(target: "pacquet::install", %error, importer_id, "repeat-install content check: manifest no longer satisfied");
@@ -267,8 +257,8 @@ fn project_content_check(
     let Some(importer) = importer else {
         return Err("a modified project has no importer entry in the lockfile");
     };
-    let manifest = context.transforms.overridden((project.root_dir, &extended));
-    if !linked_packages_are_up_to_date(context.linked_ctx, project.root_dir, &manifest, importer) {
+    let manifest = context.transforms.overridden((root_dir, manifest));
+    if !linked_packages_are_up_to_date(context.linked_ctx, root_dir, &manifest, importer) {
         return Err("a linked package is out of date");
     }
     Ok(())

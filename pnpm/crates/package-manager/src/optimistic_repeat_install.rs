@@ -30,7 +30,7 @@ pub(crate) use local_file_deps::{
     has_local_file_override, has_local_file_package_extension,
 };
 pub(crate) use manifest_agreement::{ManifestStat, held_projects_match_lockfile};
-pub use manifest_source::{DeclaredManifests, ManifestHookSource, RepeatInstallManifests};
+pub use manifest_source::{DeclaredManifests, ManifestHooks, RepeatInstallManifests};
 pub(crate) use modules_dirs::{hoisted_project_modules_dir, project_id};
 pub(crate) use relocation::recorded_elsewhere;
 pub(crate) use settings::{
