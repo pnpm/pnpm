@@ -591,3 +591,21 @@ test('correctly handles constructor and __proto__ keys in dependencies and forei
   expect((({} as Record<string, unknown>)).polluted).toBeUndefined()
 })
 
+test.each(['ours', 'theirs', 'both'])('preserves a __proto__ importer from %s', (side) => {
+  const ourImporter: LockfileObject = JSON.parse('{"lockfileVersion":"5.2","importers":{"__proto__":{"specifiers":{"foo":"1.0.0"},"dependencies":{"foo":"1.0.0"}}}}')
+  const theirImporter: LockfileObject = JSON.parse('{"lockfileVersion":"5.2","importers":{"__proto__":{"specifiers":{"bar":"2.0.0"},"devDependencies":{"bar":"2.0.0"}}}}')
+  const empty: LockfileObject = { lockfileVersion: '5.2', importers: {} }
+  const ours = side === 'theirs' ? empty : ourImporter
+  const theirs = side === 'ours' ? empty : theirImporter
+  const expected = side === 'both'
+    ? { specifiers: { foo: '1.0.0', bar: '2.0.0' }, dependencies: { foo: '1.0.0' }, devDependencies: { bar: '2.0.0' } }
+    : (side === 'ours' ? ourImporter : theirImporter).importers['__proto__' as ProjectId]
+  const merged = mergeLockfileChanges(ours, theirs)
+
+  expect(Object.hasOwn(merged.importers, '__proto__')).toBe(true)
+  expect(Object.getPrototypeOf(merged.importers)).toBe(Object.prototype)
+  expect(merged.importers['__proto__' as ProjectId]).toStrictEqual(expected)
+  expect(JSON.parse(JSON.stringify(merged)).importers['__proto__']).toStrictEqual(expected)
+  expect(Object.getPrototypeOf(ourImporter.importers)).toBe(Object.prototype)
+  expect(Object.getPrototypeOf(theirImporter.importers)).toBe(Object.prototype)
+})

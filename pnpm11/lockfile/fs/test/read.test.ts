@@ -394,3 +394,22 @@ test('readWantedLockfile() with inlineSpecifiersFormat', async () => {
   expect(lockfile?.importers).toEqual(wantedLockfile.importers)
   expect(lockfile?.packages).toEqual(wantedLockfile.packages)
 })
+
+test('readWantedLockfile preserves a __proto__ importer when merging branch lockfiles', async () => {
+  const dir = temporaryDirectory()
+  const branch = JSON.parse('{"lockfileVersion":"9.0","importers":{"__proto__":{"dependencies":{"foo":{"specifier":"link:../foo","version":"link:../foo"}}}}}')
+  await writeFile(path.join(dir, 'pnpm-lock.yaml'), yaml.dump({ lockfileVersion: '9.0', importers: {} }))
+  await writeFile(path.join(dir, 'pnpm-lock.branch.yaml'), yaml.dump(branch))
+
+  const lockfile = await readWantedLockfile(dir, {
+    ignoreIncompatible: false,
+    mergeGitBranchLockfiles: true,
+  })
+
+  expect(Object.hasOwn(lockfile!.importers, '__proto__')).toBe(true)
+  expect(Object.getPrototypeOf(lockfile!.importers)).toBe(Object.prototype)
+  expect(lockfile!.importers['__proto__' as ProjectId]).toStrictEqual({
+    specifiers: { foo: 'link:../foo' },
+    dependencies: { foo: 'link:../foo' },
+  })
+})
