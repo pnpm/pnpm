@@ -18,6 +18,7 @@ export async function installCase (collector: ProjectCollector, project: Install
   const wantedDependencies = getWantedDependencies(project.manifest, {
     autoInstallPeers: opts.autoInstallPeers,
     includeDirect: opts.includeDirect,
+    projectDir: project.rootDir,
   })
     .map((wantedDependency) => hookOwnedAliases?.has(wantedDependency.alias)
       ? { ...wantedDependency, saveSpec: false, updateToLatestAllowed: false, updateSpec: true }
