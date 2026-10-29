@@ -914,7 +914,10 @@ fn a_repeat_frozen_install_keeps_each_projects_own_nested_copy() {
         )
         .expect("write the project manifest");
     }
-    write_workspace_yaml(&workspace, "nodeLinker: hoisted\npackages:\n  - packages/*\n");
+    write_workspace_yaml(
+        &workspace,
+        "nodeLinker: hoisted\noptimisticRepeatInstall: false\npackages:\n  - packages/*\n",
+    );
     pacquet
         .with_arg("install")
         .assert()
@@ -935,7 +938,7 @@ fn a_repeat_frozen_install_keeps_each_projects_own_nested_copy() {
     assert_eq!(read_pkg_version(&workspace, &format!("{shared}/node_modules/{NESTED}")), "100.1.0");
     assert_eq!(
         read_pkg_version(&workspace, &format!("packages/pkg-b/node_modules/{NESTED}")),
-        "100.0.0"
+        "100.0.0",
     );
 
     drop((root, mock_instance));
