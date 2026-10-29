@@ -34,11 +34,6 @@ impl CachedBuildInputs<'_> {
         }
         let graph = crate::build_deps_subgraph(snapshots, packages, roots);
         let mut deps_state_cache = pnpm_graph_hasher::DepsStateCache::new();
-        pnpm_graph_hasher::warm_deps_state_cache(
-            &graph,
-            &mut deps_state_cache,
-            crate::deps_graph::in_lockfile_order(&graph).into_iter().map(|(key, _)| key),
-        );
         self.fetched.requires_build_by_snapshot
             .iter()
             .filter(|(_, requires_build)| **requires_build)
