@@ -882,6 +882,65 @@ fn a_repeat_install_restores_a_removed_workspace_project_modules_dir() {
     drop((root, mock_instance));
 }
 
+/// Two projects that need the same version of a package the root cannot
+/// hold each get a copy nested in their own `node_modules`. Only pkg-b's
+/// copy nests the dependency, since pkg-b pins another version of it.
+/// Linking pkg-b's copy to pkg-a's dropped that nested dependency, so
+/// every repeat install imported it again.
+#[test]
+fn a_repeat_frozen_install_keeps_each_projects_own_nested_copy() {
+    const SHARED: &str = "@pnpm.e2e/pkg-with-1-dep";
+    const NESTED: &str = "@pnpm.e2e/dep-of-pkg-with-1-dep";
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    // An alias takes the name at the root, so the projects' copies nest.
+    write_manifest(&workspace, serde_json::json!({ SHARED: "npm:is-positive@1.0.0" }));
+    for (project, deps) in [
+        ("pkg-a", serde_json::json!({ SHARED: "100.0.0" })),
+        ("pkg-b", serde_json::json!({ SHARED: "100.0.0", NESTED: "100.0.0" })),
+    ] {
+        let dir = workspace.join("packages").join(project);
+        fs::create_dir_all(&dir).expect("create the workspace project");
+        fs::write(
+            dir.join("package.json"),
+            serde_json::json!({ "name": project, "version": "1.0.0", "dependencies": deps })
+                .to_string(),
+        )
+        .expect("write the project manifest");
+    }
+    write_workspace_yaml(&workspace, "nodeLinker: hoisted\npackages:\n  - packages/*\n");
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    for _ in 0..2 {
+        let output = pacquet_at(&workspace)
+            .with_args(["install", "--frozen-lockfile"])
+            .output()
+            .expect("run pnpm install");
+        assert!(output.status.success(), "repeat install failed: {output:?}");
+        let stdout = String::from_utf8(output.stdout).expect("stdout is UTF-8");
+        assert!(!stdout.contains("Packages:"), "stdout:\n{stdout}");
+    }
+
+    let shared = format!("packages/pkg-b/node_modules/{SHARED}");
+    assert!(is_real_dir(&workspace, &shared), "pkg-b keeps its own copy");
+    assert_eq!(read_pkg_version(&workspace, &format!("{shared}/node_modules/{NESTED}")), "100.1.0");
+    assert_eq!(
+        read_pkg_version(&workspace, &format!("packages/pkg-b/node_modules/{NESTED}")),
+        "100.0.0"
+    );
+
+    drop((root, mock_instance));
+}
+
 /// The hoisted linker's orphan diff covers only the package directories
 /// it imported, so a removed `link:` dependency needs its own cleanup.
 #[test]
