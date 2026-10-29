@@ -58,7 +58,7 @@ fn parse_value(content: &str) -> (String, &str) {
         && let Some(offset) = content[1..].find(quote)
     {
         let inner = &content[1..=offset];
-        let value = if quote == '"' { inner.replace("\\n", "\n") } else { inner.to_owned() };
+        let value = if quote == '"' { inner.replace(r"\n", "\n") } else { inner.to_owned() };
         return (value, after_line(&content[offset + 2..]));
     }
     let (line, rest) = content

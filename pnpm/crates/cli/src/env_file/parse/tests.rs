@@ -75,7 +75,7 @@ fn matches_node_on_malformed_input() {
 #[test]
 fn matches_node_on_generated_input() {
     const ALPHABET: [&str; 16] = [
-        "T", "=", "\"", "'", "`", "#", "\n", "\r\n", " ", "\t", "\\n", "\\", "$", "x", "export ",
+        "T", "=", r#"""#, "'", "`", "#", "\n", "\r\n", " ", "\t", r"\n", r"\", "$", "x", "export ",
         "é",
     ];
     let mut state: u64 = 0x9E37_79B9_7F4A_7C15;
