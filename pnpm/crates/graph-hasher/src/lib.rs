@@ -19,7 +19,6 @@ pub(crate) use std::process;
 pub use dep_state::{
     CalcDepStateOptions, DEPENDENCY_SIDE_EFFECTS_INPUT_KEY_PREFIX, DepsGraphNode, DepsStateCache,
     SIDE_EFFECTS_FORMAT_KEY, build_required_dep_paths, calc_dep_state, calc_dep_state_input_key,
-    warm_deps_state_cache,
 };
 pub use engine_name::{
     detect_node_major, detect_node_version, engine_name, host_arch, host_libc, host_platform,

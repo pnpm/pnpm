@@ -160,9 +160,7 @@ pub(crate) fn full_pkg_id_without_builtin_integrity(
 /// `{...dependencies, ...optionalDependencies}` object: each section in
 /// lockfile key order, an alias in both sections keeping its position
 /// from `dependencies` while taking its value from
-/// `optionalDependencies`. Both sections are sorted on disk, so sorting
-/// them here restores the order the graph hasher's digests are defined
-/// in (see [`pnpm_graph_hasher::DepsGraphNode::children`]).
+/// `optionalDependencies`.
 #[must_use]
 pub fn build_children(snapshot: &SnapshotEntry) -> IndexMap<String, PackageKey> {
     build_children_with(snapshot, |alias, dep_ref| dep_ref.resolve(alias))
@@ -194,13 +192,9 @@ fn extend_children<Child>(
 
 /// A snapshot map's entries in lockfile key order.
 ///
-/// Pacquet parses the lockfile into `HashMap`s, so iterating one
-/// directly hands the graph hasher a different entry-point order on
-/// every run — and the digests it computes for cyclic subgraphs depend
-/// on that order (see
-/// [`pnpm_graph_hasher::DepsGraphNode::children`]). Sorting by the
-/// rendered snapshot key reproduces how pnpm writes — and therefore
-/// iterates — the `snapshots:` section.
+/// Pacquet parses the lockfile into `HashMap`s, whose iteration order
+/// varies from run to run. Sorting by the rendered snapshot key
+/// reproduces how pnpm writes the `snapshots:` section.
 #[must_use]
 pub fn in_lockfile_order<Value>(
     snapshots: &HashMap<PackageKey, Value>,

@@ -684,13 +684,9 @@ fn assert_no_post_import_linking(workspace: &Path) {
     assert!(!workspace.join("node_modules/.bin").exists(), "no bins must be linked");
 }
 
-/// The GVS hash of a package inside a dependency cycle depends on the
-/// order the hasher walks the lockfile, so an install that walked the
-/// parsed `HashMap`s directly re-derived a *different* slot for the
-/// cycle on some fraction of its runs — and re-imported the packages
-/// that landed there. `pnpm install --frozen-lockfile` over an
-/// unchanged project must reuse the slots the previous run
-/// materialized ([pnpm/pnpm#13316](https://github.com/pnpm/pnpm/issues/13316)).
+/// `pnpm install --frozen-lockfile` over an unchanged project must reuse
+/// the slots the previous run materialized for a dependency cycle
+/// ([pnpm/pnpm#13316](https://github.com/pnpm/pnpm/issues/13316)).
 #[test]
 fn repeat_installs_reuse_the_slots_of_circular_dependencies() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
@@ -727,6 +723,45 @@ fn repeat_installs_reuse_the_slots_of_circular_dependencies() {
             &hash_dirs(version_dir),
             expected,
             "a repeat install moved {version_dir:?} to a new slot",
+        );
+    }
+
+    drop((root, mock_instance));
+}
+
+/// A change below one member of a dependency cycle has to move every
+/// member to a new slot. A member that kept its slot would keep linking
+/// the other member's old slot, so the project and the cycle would load
+/// two copies of one package
+/// ([pnpm/pnpm#17466](https://github.com/pnpm/pnpm/issues/17466)).
+#[test]
+fn a_change_below_a_cycle_member_moves_the_whole_cycle() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_manifest(&workspace, &serde_json::json!({ "@pnpm.e2e/circular-deps-1-of-2": "1.0.2" }));
+    for foo_version in ["100.0.0", "100.1.0", "100.0.0"] {
+        set_gvs_workspace_yaml(
+            &workspace,
+            &format!(
+                "packageExtensions:\n  '@pnpm.e2e/circular-deps-1-of-2':\n    dependencies:\n      '@pnpm.e2e/foo': {foo_version}\n",
+            ),
+        );
+        pacquet(&workspace)
+            .with_arg("install")
+            .assert()
+            .success();
+
+        let first = fs::canonicalize(workspace.join("node_modules/@pnpm.e2e/circular-deps-1-of-2"))
+            .expect("resolve the project's circular-deps-1-of-2");
+        let second = fs::canonicalize(first.join("../circular-deps-2-of-2"))
+            .expect("resolve circular-deps-2-of-2 next to circular-deps-1-of-2");
+        let first_seen_by_second = fs::canonicalize(second.join("../circular-deps-1-of-2"))
+            .expect("resolve circular-deps-1-of-2 next to circular-deps-2-of-2");
+        assert_eq!(
+            first_seen_by_second, first,
+            "with foo@{foo_version}, circular-deps-2-of-2 links another copy of circular-deps-1-of-2",
         );
     }
 

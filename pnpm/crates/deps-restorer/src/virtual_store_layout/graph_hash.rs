@@ -156,17 +156,12 @@ impl<'h> GvsHasher<'h> {
     /// second. Default host platform / arch (`None`, `None`) matches
     /// whatever the caller used to format the fallback `engine` so the
     /// two strings remain comparable across snapshots in one install.
-    /// Every snapshot's suffix, walked in lockfile key order rather
-    /// than `HashMap` order: [`calc_graph_node_hash`] memoizes into
-    /// `cache`, and for a snapshot inside a dependency cycle the digest
-    /// that lands there depends on which snapshot the walk reached it
-    /// from.
     pub(super) fn suffixes(
         &mut self,
         snapshots: &HashMap<PackageKey, SnapshotEntry>,
     ) -> HashMap<PackageKey, String> {
         let mut gvs_suffixes = HashMap::with_capacity(snapshots.len());
-        for (snapshot_key, snapshot) in crate::deps_graph::in_lockfile_order(snapshots) {
+        for (snapshot_key, snapshot) in snapshots {
             gvs_suffixes.insert(snapshot_key.clone(), self.suffix(snapshot_key, snapshot));
         }
         gvs_suffixes
