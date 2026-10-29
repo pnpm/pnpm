@@ -222,32 +222,32 @@ fn visit_targets(mut visit: impl FnMut(&'static RelayEntry, i32)) -> bool {
 ///
 /// A child killed by a signal makes pnpm re-raise that signal on itself,
 /// so the shell reports an interrupted command rather than a plain
-/// non-zero exit. Anything else exits with the child's code.
+/// non-zero exit. Anything else exits with the child's code. Either way
+/// pnpm ends on its own, so what the script left running outlives it.
 #[cfg(unix)]
-#[expect(clippy::exit, reason = "the command's exit code is the script's")]
 pub fn exit_like(exit: ScriptExit) -> ! {
     use std::os::unix::process::ExitStatusExt;
 
     if let ScriptExit::Process(status) = exit
         && let Some(signal) = status.signal()
     {
+        crate::before_exit();
         pnpm_fs::die_from_signal(signal);
     }
-    std::process::exit(exit.code().unwrap_or(1));
+    crate::exit(exit.code().unwrap_or(1));
 }
 
 /// End pnpm the way `exit` ended. Windows has no signals, so that is the
 /// script's exit code.
 #[cfg(not(unix))]
-#[expect(clippy::exit, reason = "the command's exit code is the script's")]
 pub fn exit_like(exit: ScriptExit) -> ! {
     #[cfg(target_family = "wasm")]
     if let ScriptExit::Process(status) = exit
         && let Some(signal) = status.signal()
     {
-        std::process::exit(128 + signal);
+        crate::exit(128 + signal);
     }
-    std::process::exit(exit.code().unwrap_or(1));
+    crate::exit(exit.code().unwrap_or(1));
 }
 
 #[cfg(unix)]

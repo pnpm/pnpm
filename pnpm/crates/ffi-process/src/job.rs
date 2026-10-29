@@ -10,19 +10,36 @@ use windows_sys::Win32::{
             JOB_OBJECT_LIMIT_BREAKAWAY_OK, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
             JOB_OBJECT_LIMIT_SILENT_BREAKAWAY_OK, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
             JobObjectExtendedLimitInformation, QueryInformationJobObject, SetInformationJobObject,
+            TerminateJobObject,
         },
         Threading::GetCurrentProcess,
     },
 };
 
-/// A Job Object that terminates the processes still in it when its last
-/// handle closes.
+/// A Job Object holding a process tree.
+///
+/// Every job this crate creates allows breakaway, because a descendant
+/// asking for `CREATE_BREAKAWAY_FROM_JOB` fails to start unless every job
+/// enclosing it allows one
+/// ([pnpm/pnpm#16628](https://github.com/pnpm/pnpm/issues/16628)). What the
+/// constructors differ in is whether closing the job terminates what is
+/// still in it.
 ///
 /// `OwnedHandle` carries the job, so it closes exactly once and crosses
 /// threads without anything further being claimed about it.
 pub struct Job(OwnedHandle);
 
 impl Job {
+    /// Create a job that terminates nothing when it closes, so only
+    /// [`Self::terminate`] ends its members.
+    ///
+    /// `None` when the job cannot be created.
+    #[must_use]
+    pub fn new() -> Option<Self> {
+        let job = create()?;
+        set_limits(job.as_raw_handle(), JOB_OBJECT_LIMIT_BREAKAWAY_OK).then_some(Self(job))
+    }
+
     /// Create a job whose members are terminated when the job closes.
     ///
     /// A descendant created with `CREATE_BREAKAWAY_FROM_JOB` leaves the
@@ -77,6 +94,17 @@ impl Job {
         // SAFETY: both handles are open for the call, each kept so by the
         // borrow it came from, and the call takes neither's ownership.
         unsafe { AssignProcessToJobObject(self.0.as_raw_handle(), process.as_raw_handle()) != 0 }
+    }
+
+    /// End every process in the job.
+    ///
+    /// A job whose members have all exited is unaffected.
+    pub fn terminate(&self) {
+        // SAFETY: the handle is owned by `self` and so open for the call,
+        // which takes it and the exit code by value.
+        unsafe {
+            TerminateJobObject(self.0.as_raw_handle(), 1);
+        }
     }
 }
 

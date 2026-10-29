@@ -13,7 +13,18 @@ use std::{
 pub(super) fn install_handler() {
     pnpm_fs::install_temp_file_cleanup();
     static INSTALLED: Once = Once::new();
-    INSTALLED.call_once(|| pnpm_ffi_signal::on_console_event(relay_console_event));
+    INSTALLED.call_once(|| {
+        pnpm_ffi_signal::on_console_event(relay_console_event);
+        pnpm_ffi_signal::on_console_closing(release_process_tree_cleanup);
+    });
+}
+
+/// Release the process-tree cleanup when the console goes away, because the
+/// operating system ends the processes attached to it itself, and the rest,
+/// such as a browser a script opened, keep running as they would without
+/// pnpm ([pnpm/pnpm#17465](https://github.com/pnpm/pnpm/issues/17465)).
+fn release_process_tree_cleanup() {
+    crate::job_control::release_process_tree_cleanup();
 }
 
 /// Report a console interrupt as handled while children are still
@@ -22,13 +33,20 @@ pub(super) fn install_handler() {
 /// it and nothing needs relaying.
 ///
 /// Reporting it unhandled passes the event to the default handler, which
-/// terminates pnpm.
+/// terminates pnpm. An interrupt while pnpm runs no command, between two
+/// scripts or during its own work, releases the process-tree cleanup first:
+/// what earlier scripts left running outlives it. Only an interrupt that a
+/// running command has outlasted every escalation of is the user forcing
+/// pnpm down, and that takes the process tree with it.
 fn relay_console_event(_interrupt: Interrupt) -> Handled {
     super::INTERRUPTS.fetch_add(1, Ordering::Relaxed);
     let mut still_listening = false;
-    visit_targets(|entry, target| {
+    let running = visit_targets(|entry, target| {
         still_listening |= interrupt_child(entry, target);
     });
+    if !running {
+        crate::job_control::release_process_tree_cleanup();
+    }
     if still_listening { Handled::Yes } else { Handled::No }
 }
 

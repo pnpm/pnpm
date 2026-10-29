@@ -211,7 +211,7 @@ fn check_static_freshness(
         return Err(Stale::LockfileConflict { lockfile_path, failure });
     }
     if policy.check_local_file_deps
-        && let Some(reason) = local_file_blocks_fast_path(check)
+        && let Some(reason) = local_file_blocks_fast_path(check, state)
     {
         return Err(Stale::LocalFileDep(reason));
     }
@@ -496,6 +496,7 @@ fn refreshed_state(
         projects: crate::install::StateProjects {
             manifests: check.project_manifests,
             workspace_projects: check.manifests.workspace_projects,
+            lockfile: None,
         },
         filesystem_now_ms: filesystem_now,
         carried: crate::install::CarriedSettings {

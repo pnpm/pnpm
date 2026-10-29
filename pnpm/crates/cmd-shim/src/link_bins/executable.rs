@@ -23,14 +23,8 @@ where
 
 #[cfg(any(unix, target_os = "wasi"))]
 pub(super) fn target_requires_shim<Sys: FsReadHead>(target_path: &Path) -> bool {
-    #[cfg(unix)]
-    use std::os::unix::fs::PermissionsExt;
-    #[cfg(unix)]
-    let needs_executable_bits = std::fs::metadata(target_path)
-        .is_ok_and(|metadata| metadata.permissions().mode() & 0o111 != 0o111);
-    #[cfg(target_os = "wasi")]
-    let needs_executable_bits =
-        pnpm_fs::copy_permissions(target_path).is_ok_and(|mode| mode & 0o111 != 0o111);
+    let needs_executable_bits = pnpm_fs::copy_permissions(target_path)
+        .is_ok_and(|permissions| permissions.mode() & 0o111 != 0o111);
     if needs_executable_bits {
         return true;
     }

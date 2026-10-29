@@ -98,7 +98,6 @@ clap = { workspace = true }
 console = { workspace = true }
 derive_more = { workspace = true }
 dialoguer = { workspace = true }
-dotenvy = { workspace = true }
 dunce = { workspace = true }
 flate2 = { workspace = true }
 futures-util = { workspace = true }
@@ -140,7 +139,7 @@ wax = { workspace = true }
 
 # Windows has no process groups, so a Job Object ties the lifetime of spawned
 # children (lifecycle scripts and their descendants) to pacquet's. See
-# `src/job_control.rs`.
+# `pnpm/crates/executor/PROCESS_LIFETIME.md`.
 [target.'cfg(windows)'.dependencies]
 windows-sys = { workspace = true, features = [
   "Win32_Storage_FileSystem",

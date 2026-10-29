@@ -79,8 +79,8 @@ pub(super) fn recursive<'a>(_ctx: &RunCtx<'a>) -> miette::Result<CommandFuture<'
             .find_subcommand_mut("recursive")
             .expect("recursive subcommand")
             .print_help();
-        #[expect(clippy::exit, reason = "`recursive` exits non-zero, mirroring pnpm")]
-        std::process::exit(1);
+        // `recursive` exits non-zero, mirroring pnpm.
+        pnpm_executor::exit(1);
     }))
 }
 
@@ -97,11 +97,8 @@ pub(super) fn outdated<'a>(
         let config = (ctx.loaders.global_config)()?;
         return Ok(Box::pin(async move {
             if Box::pin(args.run_global(config)).await? == OutdatedOutcome::Outdated {
-                #[expect(
-                    clippy::exit,
-                    reason = "`outdated` exits non-zero when a dependency is outdated, mirroring pnpm"
-                )]
-                std::process::exit(1);
+                // `outdated` exits non-zero when a dependency is outdated, mirroring pnpm.
+                pnpm_executor::exit(1);
             }
             Ok(())
         }));
@@ -111,11 +108,8 @@ pub(super) fn outdated<'a>(
         let command_state = command_state.await?;
         let outcome = args.run::<CliReporter>(command_state).await?;
         if outcome == OutdatedOutcome::Outdated {
-            #[expect(
-                clippy::exit,
-                reason = "`outdated` exits non-zero when a dependency is outdated, mirroring pnpm"
-            )]
-            std::process::exit(1);
+            // `outdated` exits non-zero when a dependency is outdated, mirroring pnpm.
+            pnpm_executor::exit(1);
         }
         Ok(())
     }))
@@ -126,11 +120,8 @@ pub(super) fn audit<'a>(ctx: &RunCtx<'a>, args: AuditArgs) -> miette::Result<Com
     Ok(Box::pin(async move {
         let command_state = command_state.await?;
         if Box::pin(args.run::<CliReporter>(command_state)).await? == AuditOutcome::Vulnerable {
-            #[expect(
-                clippy::exit,
-                reason = "`audit` exits non-zero when vulnerabilities are found, mirroring pnpm"
-            )]
-            std::process::exit(1);
+            // `audit` exits non-zero when vulnerabilities are found, mirroring pnpm.
+            pnpm_executor::exit(1);
         }
         Ok(())
     }))
@@ -181,11 +172,8 @@ pub(super) fn peers<'a>(ctx: &RunCtx<'a>, args: PeersArgs) -> miette::Result<Com
     Ok(Box::pin(async move {
         apply_update_config(cfg, dir).await?;
         if args.run(cfg, dir, recursive)? != PeersOutcome::NoIssues {
-            #[expect(
-                clippy::exit,
-                reason = "`peers` exits non-zero when peer issues are found or the subcommand is unknown, mirroring pnpm"
-            )]
-            std::process::exit(1);
+            // `peers` exits non-zero when peer issues are found or the subcommand is unknown, mirroring pnpm.
+            pnpm_executor::exit(1);
         }
         Ok(())
     }))

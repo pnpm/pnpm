@@ -290,6 +290,7 @@ fn ingest_file(
     #[cfg(target_os = "wasi")]
     let mode = pnpm_fs::copy_permissions(read_path)
         .map_err(|source| AddFilesFromDirError::Stat { path: read_path.to_path_buf(), source })?
+        .mode()
         & 0o777;
     let (_path, hash) = ctx.store_dir
         .write_cas_file(&buffer, is_executable(mode))

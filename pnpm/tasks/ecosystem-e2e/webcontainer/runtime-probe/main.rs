@@ -215,7 +215,7 @@ fn check_shared_descriptors(directory: &Path) {
 
 async fn check_secure_filesystem(directory: &Path) {
     let temporary = pnpm_fs::private_named_tempfile_in(directory).expect("private tempfile");
-    assert_eq!(pnpm_fs::read_file_permissions(temporary.as_file()).unwrap() & 0o777, 0o600);
+    assert_eq!(pnpm_fs::read_file_permissions(temporary.as_file()).unwrap().mode() & 0o777, 0o600);
     drop(temporary);
     let credential = directory.join("credential");
     pnpm_fs::write_atomic_private(&credential, b"secret").expect("private atomic write");
@@ -235,7 +235,7 @@ async fn check_secure_filesystem(directory: &Path) {
     assert_eq!(std::fs::read(&linked).expect("read healed hardlink"), b"repaired");
     let copied = directory.join("copied-credential");
     pnpm_fs::copy_file_atomic(&credential, &copied).expect("copy private file");
-    assert_eq!(pnpm_fs::copy_permissions(&copied).unwrap() & 0o777, 0o600);
+    assert_eq!(pnpm_fs::copy_permissions(&copied).unwrap().mode() & 0o777, 0o600);
     std::fs::remove_file(copied).unwrap();
     check_host_file_modes(&credential, &executable).await;
     for file in [&credential, &executable, &linked] {

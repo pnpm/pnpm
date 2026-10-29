@@ -17,6 +17,13 @@ use super::{
     dependency_meta_is_injected, resolve_catalog_specifiers,
 };
 
+/// Names the importer in a diagnostic by the directory of its manifest.
+pub(super) fn describe_importer(manifest: &PackageManifest) -> String {
+    let manifest_path = manifest.path();
+    let dir = manifest_path.parent().unwrap_or(manifest_path);
+    format!(r#"The project at "{}""#, dir.display())
+}
+
 /// Collect the names of the importer manifest's `optionalDependencies`
 /// entries so the walker can tag each direct dep with the right
 /// `wanted.optional` flag. `optionalDependencies` wins over the other
@@ -107,7 +114,7 @@ where
     for (name, range) in manifest.dependencies(groups) {
         if !crate::is_valid_dependency_alias(name) {
             return Err(ResolveDependencyTreeError::InvalidDependencyName {
-                parent: "The current package".to_string(),
+                parent: describe_importer(manifest),
                 alias: name.to_string(),
             });
         }

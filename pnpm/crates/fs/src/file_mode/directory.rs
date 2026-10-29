@@ -230,7 +230,7 @@ pub(super) fn is_unchangeable(error: &io::Error) -> bool {
 #[cfg(target_os = "wasi")]
 fn reachable_mode(path: &Path) -> io::Result<Option<u32>> {
     match crate::copy_permissions(path) {
-        Ok(mode) => Ok(Some(mode)),
+        Ok(permissions) => Ok(Some(permissions.mode())),
         Err(error) if is_unchangeable(&error) || error.kind() == io::ErrorKind::NotFound => {
             Ok(None)
         }

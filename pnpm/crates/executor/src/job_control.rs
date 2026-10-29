@@ -1,14 +1,17 @@
-//! Best-effort process-tree cleanup for failed and interrupted commands.
+//! Process-tree cleanup for when pnpm is killed, and containment for the
+//! tasks a bail cancels. The contract these implement is in
+//! `PROCESS_LIFETIME.md` at the root of this crate.
 //!
 //! Windows has no POSIX signals or process groups, so terminating a child
 //! reaches only the direct child. A Job Object with `KILL_ON_JOB_CLOSE` lets
-//! the OS terminate the whole process tree after an error, panic, or
-//! interrupt. Successful commands disarm the job so a process deliberately
-//! detached by a script can outlive pacquet. A descendant created with
-//! `CREATE_BREAKAWAY_FROM_JOB` leaves the job, so it outlives pacquet even
-//! after a failure. On Unix the kernel's
-//! process-group and signal model already provides cleanup, so setup is a
-//! no-op.
+//! the OS terminate the whole process tree when pnpm is killed or crashes.
+//! Whenever pnpm exits on its own, [`crate::exit()`] or
+//! [`release_process_tree_cleanup`] clears the kill limit first, so whatever
+//! a command left running outlives pnpm, as it does when the command runs
+//! without pnpm. Cargo and `turbo exec` follow the same rule. A descendant
+//! created with `CREATE_BREAKAWAY_FROM_JOB` leaves the job and outlives even
+//! a pnpm that is killed. On Unix the kernel's process-group and signal model
+//! already provides cleanup, so arming is a no-op.
 //!
 //! pacquet normally joins the job itself, so every descendant inherits the
 //! membership. A parent such as Node's libuv may already have placed pacquet
@@ -19,90 +22,135 @@
 //! out of its own job and assigns the children it spawns instead: they take
 //! the breakaway out of the parent's job and belong to pacquet's job alone.
 //!
-//! [`arm_process_tree_cleanup`] returns a guard to bind for the lifetime of
-//! the process.
+//! A task that a bail may cancel also gets a Job Object of its own, nested in
+//! pnpm's, so the cancellation ends everything the task started without
+//! walking parent links, which a recycled pid could misdirect.
+//!
+//! A child joins a job it is assigned to by hand right after it is created,
+//! so a process the child starts before that is not covered. The child would
+//! have to start one within moments of its own creation. Closing that window
+//! needs the child to be created inside the job, through
+//! `PROC_THREAD_ATTRIBUTE_JOB_LIST`, which stable Rust's `Command` cannot pass
+//! until `CommandExt::raw_attribute` is stable. Creating the child suspended
+//! instead would overwrite a caller's creation flags, and resuming it would
+//! take a walk of every thread on the system for each child.
 
 use crate::process::Child;
 
 #[cfg(windows)]
 use pnpm_ffi_process::Job;
 #[cfg(windows)]
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex, PoisonError};
 
-/// Process-tree cleanup armed for the lifetime of a command.
-///
-/// Call [`Self::disarm`] after a successful command to let detached
-/// descendants survive. Otherwise the operating system closes the armed Job
-/// Object at process exit and terminates its remaining processes. The guard
-/// is inert on Unix.
-pub struct JobGuard {
-    #[cfg(windows)]
-    job: &'static Job,
-}
-
-/// The armed job that spawned children join explicitly because pacquet
-/// itself stayed out of it. `None` while pacquet is a member of its own
-/// job, so the children inherit the membership, and after the job is
-/// disarmed.
+/// The armed job, until the cleanup is released. Tests read it to see whether
+/// a path released the cleanup.
 #[cfg(windows)]
-static CHILD_JOB: Mutex<Option<&'static Job>> = Mutex::new(None);
+pub(crate) static ARMED_JOB: Mutex<Option<Arc<Job>>> = Mutex::new(None);
 
-impl JobGuard {
-    /// Disable process-tree cleanup after a successful command.
-    #[cfg(windows)]
-    pub fn disarm(self) {
-        // Stop assigning children first, so no spawn can reach the job once
-        // it is no longer the one doing the cleanup.
-        *CHILD_JOB.lock().expect("child job lock is not poisoned") = None;
-        // A disarm that fails leaves the job armed, and the detached
-        // processes in it are terminated at exit after all. There is nothing
-        // better to do: the alternative is to keep waiting on them.
-        let _ = self.job.disarm();
-    }
-
-    /// Disable the inert process-tree cleanup guard on Unix.
-    #[cfg(not(windows))]
-    pub fn disarm(self) {
-        let Self {} = self;
-    }
-}
-
+/// The armed job that spawned children join explicitly because pacquet itself
+/// stayed out of it. `None` while pacquet is a member of its own job, so the
+/// children inherit the membership, and after the cleanup is released.
 #[cfg(windows)]
-#[must_use]
-pub fn arm_process_tree_cleanup() -> Option<JobGuard> {
-    // The job is leaked deliberately. An armed one has to stay open until
-    // the process exits, so that the kill-on-close fires then rather than
-    // when the guard goes; and a child assigned from another thread reads
-    // the job through `CHILD_JOB`, which outlives the guard too.
-    let job: &'static Job = Box::leak(Box::new(Job::with_tree_cleanup()?));
+static CHILD_JOB: Mutex<Option<Arc<Job>>> = Mutex::new(None);
+
+/// Tie every process pnpm starts from now on to pnpm, so they end with it if
+/// it is killed or crashes. [`release_process_tree_cleanup`] releases them
+/// again on every exit pnpm makes on its own. A failure to arm leaves the
+/// processes untied rather than failing the command.
+#[cfg(windows)]
+pub fn arm_process_tree_cleanup() {
+    let mut armed = ARMED_JOB.lock().unwrap_or_else(PoisonError::into_inner);
+    if armed.is_some() {
+        return;
+    }
+    let Some(job) = Job::with_tree_cleanup().map(Arc::new) else {
+        return;
+    };
     if pnpm_ffi_process::enclosing_job_releases_children() {
-        *CHILD_JOB.lock().expect("child job lock is not poisoned") = Some(job);
+        *CHILD_JOB.lock().unwrap_or_else(PoisonError::into_inner) = Some(Arc::clone(&job));
     } else if !job.assign_current_process() {
         // Fails when pacquet is already inside a job that forbids nesting;
         // fall back to no tree cleanup rather than aborting the command.
-        return None;
+        // Closing the job here ends nothing, since the join that would have
+        // put this process in it is what failed.
+        return;
     }
-    Some(JobGuard { job })
+    // The job is deliberately held rather than dropped: it must stay open
+    // until the process exits so its kill-on-close fires then.
+    *armed = Some(job);
 }
 
 #[cfg(not(windows))]
-#[must_use]
-pub fn arm_process_tree_cleanup() -> Option<JobGuard> {
-    Some(JobGuard {})
+pub fn arm_process_tree_cleanup() {}
+
+/// Untie the processes pnpm started from pnpm's own lifetime, so they keep
+/// running after it exits. [`crate::exit()`] calls this, and so does every
+/// other path on which pnpm decides to end: the end of `main`, a closing
+/// console, whose own processes the operating system ends anyway, and an
+/// interrupt while pnpm runs no command.
+#[cfg(windows)]
+pub(crate) fn release_process_tree_cleanup() {
+    // Take the locks in the order arming takes them, and hold the armed job's
+    // across both, so a release that races the arming waits for it rather
+    // than leaving a job armed behind it. Children stop being assigned
+    // first, so no spawn can reach the job once it is closed.
+    let mut armed = ARMED_JOB.lock().unwrap_or_else(PoisonError::into_inner);
+    *CHILD_JOB.lock().unwrap_or_else(PoisonError::into_inner) = None;
+    let Some(job) = armed.take() else {
+        return;
+    };
+    drop(armed);
+    // Clear the kill limit before the handle closes. Breakaway stays allowed
+    // for the processes that remain in the job. If clearing fails, leak the
+    // job for the operating system to close at exit instead, since closing an
+    // armed one terminates what is still in it.
+    if !job.disarm() {
+        std::mem::forget(job);
+    }
 }
 
-/// Make a freshly spawned child a member of the armed job when pacquet
-/// itself stayed out of it. Call it right after the spawn: a grandchild
-/// created before the assignment is not covered.
+#[cfg(not(windows))]
+pub(crate) fn release_process_tree_cleanup() {}
+
+/// Make a freshly spawned child a member of the armed job when pacquet itself
+/// stayed out of it. Call it right after the spawn: a process the child
+/// starts before the assignment is not covered (see the module docs).
 #[cfg(windows)]
 pub(crate) fn assign_child(child: &Child) {
     use std::os::windows::io::AsHandle as _;
 
-    let child_job = CHILD_JOB.lock().expect("child job lock is not poisoned");
-    let Some(job) = *child_job else { return };
+    let child_job = CHILD_JOB.lock().unwrap_or_else(PoisonError::into_inner);
+    let Some(job) = child_job.as_ref() else { return };
     // A failed assignment only leaves that child outside the tree cleanup.
     let _ = job.assign(child.as_handle());
 }
 
 #[cfg(not(windows))]
 pub(crate) fn assign_child(_: &Child) {}
+
+/// A Job Object holding one task's process tree, nested in pnpm's own job.
+/// [`Self::terminate`] ends everything the task started, wherever its parent
+/// links lead. Closing the job ends nothing: a task that finishes on its own
+/// leaves its leftovers running, as any command does.
+#[cfg(windows)]
+#[derive(Clone)]
+pub(crate) struct TaskJob(Arc<Job>);
+
+#[cfg(windows)]
+impl TaskJob {
+    /// Put a freshly spawned `child` in a job of its own, right after
+    /// [`assign_child`]. `None` when the job cannot be made, which leaves the
+    /// task to [`crate::ProcessTracker`]'s fallback.
+    pub(crate) fn contain(child: &Child) -> Option<Self> {
+        use std::os::windows::io::AsHandle as _;
+
+        let job = Job::new()?;
+        job.assign(child.as_handle())
+            .then(|| Self(Arc::new(job)))
+    }
+
+    /// End every process of the task.
+    pub(crate) fn terminate(&self) {
+        self.0.terminate();
+    }
+}

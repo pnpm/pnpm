@@ -1,13 +1,16 @@
 pub(crate) mod specs;
 pub(crate) use specs::{
     has_local_file_override, has_local_file_package_extension, is_dep_replaced_by_override,
-    is_local_file_spec, is_unambiguous_local_file_spec,
+    is_local_file_spec, is_unambiguous_local_file_spec, is_workspace_path_spec,
 };
+
+mod injected;
 
 use super::{
     CatalogAnchor, CatalogResolutionResult, Catalogs, DependencyGroup, Lockfile,
     OptimisticRepeatInstallCheck, Path, PathBuf, WantedDependency, resolve_from_catalog,
 };
+use injected::{has_unvouched_injected_dep, settings_add_workspace_path};
 use pnpm_config_parse_overrides::VersionOverride;
 use pnpm_lockfile::{LockfileResolution, PkgName, is_local_tarball_path};
 use pnpm_resolving_local_resolver::local_tarball_path;
@@ -57,14 +60,7 @@ pub(crate) fn frozen_local_tarballs_to_verify(
             continue;
         };
         let LockfileResolution::Tarball(resolution) = &metadata.resolution else { continue };
-        if !is_local_tarball_path(&resolution.tarball) {
-            continue;
-        }
-        let url = crate::local_file_tarball_install_url(
-            Cow::Borrowed(&resolution.tarball),
-            check.workspace_root,
-        );
-        let Some(recorded_path) = pnpm_tarball::local_file_tarball_path(&url) else {
+        let Some(recorded_path) = local_tarball_file(resolution, check.workspace_root) else {
             continue;
         };
         let Some(integrity) = resolution.integrity
@@ -80,27 +76,44 @@ pub(crate) fn frozen_local_tarballs_to_verify(
     targets
 }
 
+/// The file a local tarball resolution names, measured from the lockfile
+/// directory. `None` for a remote tarball.
+pub(crate) fn local_tarball_file(
+    resolution: &pnpm_lockfile::TarballResolution,
+    lockfile_dir: &Path,
+) -> Option<PathBuf> {
+    if !is_local_tarball_path(&resolution.tarball) {
+        return None;
+    }
+    let url =
+        crate::local_file_tarball_install_url(Cow::Borrowed(&resolution.tarball), lockfile_dir);
+    pnpm_tarball::local_file_tarball_path(&url)
+}
+
 /// Whether any project declares a mutable local directory dependency or a
 /// local tarball whose current bytes do not match the integrity recorded by
 /// the previous install, or has an injected dependency the fast path cannot
-/// vouch for (see [`injected_deps_block_fast_path`]). Groups excluded from
+/// vouch for (see [`has_unvouched_injected_dep`]). Groups excluded from
 /// the current install are skipped. `catalog:` specs are dereferenced through
 /// the workspace catalogs.
 pub(crate) fn has_local_file_dep_requiring_install(
     check: &OptimisticRepeatInstallCheck<'_>,
     overrides: &[VersionOverride],
 ) -> Result<bool, &'static str> {
-    let tarballs = match scan_local_tarball_deps(check, overrides) {
-        LocalTarballScan::RequiresInstall => return Ok(true),
-        LocalTarballScan::Candidates(tarballs) => tarballs,
-    };
-    let check_injected_deps = injected_deps_block_fast_path(check.config);
+    let LocalDependencyCandidates { tarballs, declares_directory } =
+        match scan_local_tarball_deps(check, overrides) {
+            LocalTarballScan::RequiresInstall => return Ok(true),
+            LocalTarballScan::Candidates(candidates) => candidates,
+        };
+    let check_injected_deps = !check.config.shared_workspace_lockfile
+        || declares_directory
+        || settings_add_workspace_path(check, overrides);
     if tarballs.is_empty() && !check_injected_deps {
         return Ok(false);
     }
 
     let Some(lockfile) = recorded_lockfile(check)? else { return Ok(!tarballs.is_empty()) };
-    if check_injected_deps && has_injected_dep(check, &lockfile) {
+    if check_injected_deps && has_unvouched_injected_dep(check, &lockfile) {
         return Ok(true);
     }
     Ok(tarballs
@@ -126,33 +139,6 @@ fn recorded_lockfile<'a>(
         .map_err(|_| "the current lockfile cannot be loaded to verify local file dependencies")
 }
 
-/// Whether an injected dependency rules the fast path out.
-///
-/// With a shared lockfile every project is an importer of the one lockfile,
-/// and the fast path already compares each project's manifest with it, so a
-/// change to an injected project's own dependencies is caught there. With
-/// per-project lockfiles the consumer's lockfile records the injected
-/// project's dependencies in its `file:` snapshot, which nothing else checks.
-fn injected_deps_block_fast_path(config: &pnpm_config::Config) -> bool {
-    !config.shared_workspace_lockfile
-}
-
-fn has_injected_dep(check: &OptimisticRepeatInstallCheck<'_>, lockfile: &Lockfile) -> bool {
-    let included_groups = dependency_fields(check)
-        .into_iter()
-        .filter_map(|(_, group, included)| included.then_some(group))
-        .collect::<Vec<_>>();
-    check.project_manifests
-        .iter()
-        .any(|(project_dir, _)| {
-            let importer_id = importer_id_from_root_dir(check.workspace_root, project_dir);
-            lockfile
-                .injected_dependencies(&importer_id, included_groups.iter().copied())
-                .next()
-                .is_some()
-        })
-}
-
 /// Each manifest dependency field, its group, and whether this install
 /// includes it.
 fn dependency_fields(
@@ -169,12 +155,25 @@ fn dependency_fields(
     ]
 }
 
-/// What the manifests' `file:` dependencies amount to.
+/// What the manifests' local dependencies amount to.
 enum LocalTarballScan {
     /// One of them names a path that cannot be resolved, which only an
     /// install can settle.
     RequiresInstall,
-    Candidates(Vec<LocalTarballDependency>),
+    Candidates(LocalDependencyCandidates),
+}
+
+/// The local dependencies the lockfile can vouch for.
+#[derive(Default)]
+struct LocalDependencyCandidates {
+    tarballs: Vec<LocalTarballDependency>,
+    /// A project declares a dependency that may be an injected directory
+    /// outside the workspace patterns: a `workspace:` path, or a `catalog:`
+    /// entry the catalogs cannot resolve, which the install reports. Only
+    /// such a declaration can make [`has_unvouched_injected_dep`] true
+    /// under a shared lockfile, and the scan reads it from the manifests
+    /// already in hand, before the lockfile is loaded.
+    declares_directory: bool,
 }
 
 fn scan_local_tarball_deps(
@@ -182,20 +181,20 @@ fn scan_local_tarball_deps(
     overrides: &[VersionOverride],
 ) -> LocalTarballScan {
     let fields = dependency_fields(check);
-    let mut tarballs = Vec::new();
+    let mut candidates = LocalDependencyCandidates::default();
     for (project_dir, manifest) in check.project_manifests {
         if !scan_project_manifest_tarballs(
             check,
             project_dir,
             manifest,
             &fields,
-            &mut tarballs,
+            &mut candidates,
             overrides,
         ) {
             return LocalTarballScan::RequiresInstall;
         }
     }
-    LocalTarballScan::Candidates(tarballs)
+    LocalTarballScan::Candidates(candidates)
 }
 
 fn scan_project_manifest_tarballs(
@@ -203,7 +202,7 @@ fn scan_project_manifest_tarballs(
     project_dir: &Path,
     manifest: &pnpm_package_manifest::PackageManifest,
     fields: &[(&str, DependencyGroup, bool); 3],
-    tarballs: &mut Vec<LocalTarballDependency>,
+    candidates: &mut LocalDependencyCandidates,
     overrides: &[VersionOverride],
 ) -> bool {
     for (field, group, group_included) in fields {
@@ -218,7 +217,7 @@ fn scan_project_manifest_tarballs(
             group: *group,
             overrides,
         };
-        if !scan_field_tarballs(&scan, manifest, tarballs) {
+        if !scan_field_tarballs(&scan, manifest, candidates) {
             return false;
         }
     }
@@ -243,7 +242,7 @@ struct FieldTarballScan<'a> {
 fn scan_field_tarballs(
     scan: &FieldTarballScan<'_>,
     manifest: &pnpm_package_manifest::PackageManifest,
-    tarballs: &mut Vec<LocalTarballDependency>,
+    candidates: &mut LocalDependencyCandidates,
 ) -> bool {
     let Some(deps) = manifest
         .value()
@@ -255,9 +254,10 @@ fn scan_field_tarballs(
     for (alias, spec) in deps {
         match local_tarball_candidate(scan, alias, spec) {
             LocalTarballCandidate::Skip => {}
+            LocalTarballCandidate::Directory => candidates.declares_directory = true,
             LocalTarballCandidate::Unresolvable => return false,
             LocalTarballCandidate::Found { path, must_be_local } => {
-                tarballs.push(LocalTarballDependency {
+                candidates.tarballs.push(LocalTarballDependency {
                     project_dir: scan.project_dir.to_path_buf(),
                     alias: alias.clone(),
                     group: scan.group,
@@ -274,6 +274,8 @@ fn scan_field_tarballs(
 enum LocalTarballCandidate {
     /// Not a local `file:` dependency.
     Skip,
+    /// See [`LocalDependencyCandidates::declares_directory`].
+    Directory,
     Unresolvable,
     Found {
         path: Option<PathBuf>,
@@ -288,7 +290,10 @@ fn local_tarball_candidate(
 ) -> LocalTarballCandidate {
     let Some(raw_spec) = spec.as_str() else { return LocalTarballCandidate::Skip };
     let resolved_spec = resolve_catalog_spec(scan, alias, raw_spec);
-    let Some(spec) = resolved_spec.as_deref() else { return LocalTarballCandidate::Skip };
+    let Some(spec) = resolved_spec.as_deref() else { return LocalTarballCandidate::Directory };
+    if is_workspace_path_spec(spec) {
+        return LocalTarballCandidate::Directory;
+    }
     if !is_local_file_spec(spec) {
         return LocalTarballCandidate::Skip;
     }

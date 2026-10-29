@@ -1,22 +1,39 @@
-use std::{collections::HashMap, io, sync::Mutex};
+use std::{
+    collections::HashMap,
+    io,
+    sync::{Arc, Mutex},
+};
 #[cfg(unix)]
-use std::{io::Read, os::unix::process::CommandExt, path::Path, process::Stdio, time::Duration};
+use std::{os::unix::process::CommandExt, path::Path, time::Duration};
 
 #[cfg(not(target_family = "wasm"))]
 use tokio::sync::watch;
 
 use crate::process::{Child, Command};
+#[cfg(unix)]
+pub(crate) use grace::finish_cancellations;
+#[cfg(unix)]
+use signal::terminate_process;
+#[cfg(windows)]
+use windows::terminate_process;
 
 /// Tracks the processes started by one command so a bailing task can stop
 /// other work that is still in flight.
+///
+/// A cancellation stops each task the way the contract in
+/// `PROCESS_LIFETIME.md` sets out. On Unix the task's process group, or the
+/// task and its descendants, get `SIGTERM`, and whatever is still running
+/// after a grace of two seconds gets `SIGKILL`. Windows has no signal that
+/// reaches a task without also reaching pnpm's console, so the Job Object
+/// holding the task is terminated at once.
 pub struct ProcessTracker {
-    state: Mutex<TrackerState>,
+    state: Arc<Mutex<TrackerState>>,
     separate_process_groups: bool,
 }
 
 impl Default for ProcessTracker {
     fn default() -> Self {
-        Self { state: Mutex::new(TrackerState::default()), separate_process_groups: true }
+        Self { state: Arc::default(), separate_process_groups: true }
     }
 }
 
@@ -32,23 +49,55 @@ enum RunningExecution {
     Process {
         pid: u32,
         separate_process_group: bool,
+        #[cfg(windows)]
+        job: Option<crate::job_control::TaskJob>,
     },
+    /// The process group of a Unix child pnpm has reaped while it waits for
+    /// the rest of the group. The leader's pid is free for reuse, so only the
+    /// group is ever signalled, and only while it still has a member, which
+    /// keeps its id from being reused.
+    #[cfg(unix)]
+    Group { leader: u32 },
     #[cfg(not(target_family = "wasm"))]
     Emulated(watch::Sender<bool>),
 }
 
 impl RunningExecution {
-    fn cancel(&self) {
+    /// Ask the execution to stop: `SIGTERM` for a Unix process. Windows and
+    /// WebAssembly have nothing gentler than [`Self::kill`].
+    fn stop(&self) {
+        self.end(Stop::Graceful);
+    }
+
+    /// End the execution without giving it a chance to clean up.
+    fn kill(&self) {
+        self.end(Stop::Forced);
+    }
+
+    fn end(&self, stop: Stop) {
         match self {
-            Self::Process { pid, separate_process_group } => {
-                terminate_process(*pid, *separate_process_group);
+            #[cfg(windows)]
+            Self::Process { job: Some(job), .. } => {
+                let _ = stop;
+                job.terminate();
             }
+            Self::Process { pid, separate_process_group, .. } => {
+                terminate_process(*pid, *separate_process_group, stop);
+            }
+            #[cfg(unix)]
+            Self::Group { leader } => signal::signal_group(*leader, stop),
             #[cfg(not(target_family = "wasm"))]
             Self::Emulated(sender) => {
                 let _ = sender.send(true);
             }
         }
     }
+}
+
+#[derive(Clone, Copy)]
+enum Stop {
+    Graceful,
+    Forced,
 }
 
 impl ProcessTracker {
@@ -63,11 +112,20 @@ impl ProcessTracker {
     /// gets its own group regardless (see [`spawn_child`]).
     #[must_use]
     pub fn foreground() -> Self {
-        Self { state: Mutex::new(TrackerState::default()), separate_process_groups: false }
+        Self { state: Arc::default(), separate_process_groups: false }
     }
 
     /// Cancel every registered execution. Returns `true` only to the caller
     /// that initiated cancellation.
+    ///
+    /// On Unix every process of the executions gets `SIGTERM` now, and a
+    /// thread of its own kills those still running once the grace has
+    /// passed, so the caller does not wait it out. pnpm waits for that thread
+    /// before it exits (see [`crate::before_exit`]).
+    #[expect(
+        clippy::must_use_candidate,
+        reason = "clippy does not see the state's interior mutability through its `Arc`; most callers cancel without needing to know whether they were first"
+    )]
     pub fn cancel(&self) -> bool {
         let executions = {
             let mut state = self.state.lock().expect("process tracker lock is not poisoned");
@@ -76,26 +134,15 @@ impl ProcessTracker {
             }
             state.cancelled = true;
             state.executions
-                .values()
-                .cloned()
+                .iter()
+                .map(|(&id, execution)| (id, execution.clone()))
                 .collect::<Vec<_>>()
         };
         #[cfg(unix)]
-        let roots: Vec<u32> = executions
-            .iter()
-            .filter_map(|exec| match exec {
-                RunningExecution::Process { pid, .. } => Some(*pid),
-                RunningExecution::Emulated(_) => None,
-            })
-            .collect();
-        #[cfg(unix)]
-        let descendants = descendant_processes(&roots);
-        for execution in executions {
-            execution.cancel();
-        }
-        #[cfg(unix)]
-        for pid in descendants {
-            terminate_descendant(pid);
+        grace::stop_gracefully(&self.state, executions);
+        #[cfg(not(unix))]
+        for (_, execution) in executions {
+            execution.stop();
         }
         true
     }
@@ -115,8 +162,10 @@ impl ProcessTracker {
     fn register(&self, execution: RunningExecution) -> Registration<'_> {
         let mut state = self.state.lock().expect("process tracker lock is not poisoned");
         if state.cancelled {
+            // A task that starts after the cancellation has done no work yet
+            // that a graceful stop would save.
             drop(state);
-            execution.cancel();
+            execution.kill();
             return Registration { tracker: self, id: None };
         }
         let id = state.next_id;
@@ -149,6 +198,10 @@ pub fn spawn_child<'tracker>(
     }
     let child = spawn(command)?;
     crate::job_control::assign_child(&child);
+    // A task a bail may cancel gets a job of its own, so the cancellation
+    // reaches everything the task started.
+    #[cfg(windows)]
+    let job = process_tracker.and_then(|_| crate::job_control::TaskJob::contain(&child));
     // Only Unix gives a child a process group of its own, and only then
     // must a relayed signal address that group rather than the child.
     let own_process_group = cfg!(unix) && separate_process_group;
@@ -159,12 +212,14 @@ pub fn spawn_child<'tracker>(
         tracker.register(RunningExecution::Process {
             pid: child.id(),
             separate_process_group: own_process_group,
+            #[cfg(windows)]
+            job,
         })
     });
     Ok(SpawnedChild {
         child,
         own_process_group,
-        _registration: registration,
+        registration,
         relay,
         #[cfg(unix)]
         watched,
@@ -185,7 +240,7 @@ fn watch_process_group(mut child: Child, own_process_group: bool) -> io::Result<
     match group_watchdog::watch(child.id()) {
         Ok(watched) => Ok((child, watched)),
         Err(error) => {
-            terminate_process(child.id(), true);
+            terminate_process(child.id(), true, Stop::Forced);
             let _ = child.wait();
             Err(error)
         }
@@ -213,7 +268,7 @@ fn spawns_without_terminal() -> bool {
 pub struct SpawnedChild<'tracker> {
     child: Child,
     own_process_group: bool,
-    _registration: Option<Registration<'tracker>>,
+    registration: Option<Registration<'tracker>>,
     relay: crate::interrupt::SignalRelay,
     #[cfg(unix)]
     watched: bool,
@@ -231,9 +286,17 @@ impl SpawnedChild<'_> {
     /// exit.
     pub fn wait(&mut self) -> io::Result<crate::process::ExitStatus> {
         let status = self.child.wait()?;
+        // The pid is free for reuse from here on. A bail may still stop the
+        // rest of the child's group, which the wait below sits on, but no
+        // longer anything by the child's pid.
         if self.own_process_group && self.relay.relayed() {
+            #[cfg(unix)]
+            if let Some(registration) = &self.registration {
+                registration.keep_group_only();
+            }
             wait_for_process_group(self.child.id());
         }
+        self.registration = None;
         #[cfg(unix)]
         if std::mem::take(&mut self.watched) {
             group_watchdog::release(self.child.id());
@@ -266,11 +329,8 @@ fn wait_for_process_group(_: u32) {}
 /// are still shutting down.
 #[cfg(unix)]
 fn group_is_running(leader: i32, table: Option<&Path>) -> bool {
-    let Ok(leader) = u32::try_from(leader) else { return false };
-    pnpm_ffi_signal::group_has_members(leader)
-        && table.is_none_or(|table| {
-            process_table::has_running_member(table, i32::try_from(leader).unwrap_or(0))
-        })
+    u32::try_from(leader).is_ok_and(pnpm_ffi_signal::group_has_members)
+        && table.is_none_or(|table| process_table::has_running_member(table, leader))
 }
 
 #[cfg(not(target_family = "wasm"))]
@@ -289,6 +349,21 @@ impl EmulatedCancellation<'_> {
 struct Registration<'tracker> {
     tracker: &'tracker ProcessTracker,
     id: Option<usize>,
+}
+
+impl Registration<'_> {
+    /// Turn the registered child, which its waiter has just reaped, into the
+    /// group it led (see [`RunningExecution::Group`]).
+    #[cfg(unix)]
+    fn keep_group_only(&self) {
+        let Some(id) = self.id else { return };
+        let mut state = self.tracker.state.lock().expect("process tracker lock is not poisoned");
+        if let Some(execution) = state.executions.get_mut(&id)
+            && let RunningExecution::Process { pid, separate_process_group: true } = *execution
+        {
+            *execution = RunningExecution::Group { leader: pid };
+        }
+    }
 }
 
 impl Drop for Registration<'_> {
@@ -310,139 +385,26 @@ fn prepare_command(command: &mut Command) {
 #[cfg(not(unix))]
 fn prepare_command(_: &mut Command) {}
 
-#[cfg(unix)]
-fn terminate_process(pid: u32, separate_process_group: bool) {
-    // The group is the one `prepare_command` created for the child; the
-    // bare child is the one that stayed in pnpm's own foreground group.
-    let target = if separate_process_group {
-        pnpm_ffi_signal::Target::Group(pid)
-    } else {
-        pnpm_ffi_signal::Target::Process(pid)
-    };
-    pnpm_ffi_signal::signal_target(target, libc::SIGKILL);
-}
-
-#[cfg(unix)]
-fn terminate_descendant(pid: i32) {
-    let Ok(pid) = u32::try_from(pid) else { return };
-    pnpm_ffi_signal::signal_target(pnpm_ffi_signal::Target::Process(pid), libc::SIGKILL);
-}
-
-#[cfg(unix)]
-fn descendant_processes(roots: &[u32]) -> Vec<i32> {
-    if roots.is_empty() {
-        return Vec::new();
-    }
-    let Some(listing) = process_listing() else {
-        return Vec::new();
-    };
-    let children = parse_parent_child_pids(&listing);
-    let mut descendants = Vec::new();
-    let mut stack = roots.to_vec();
-    while let Some(parent) = stack.pop() {
-        for &pid in children
-            .get(&parent)
-            .into_iter()
-            .flatten()
-        {
-            stack.push(pid);
-            if let Ok(pid) = i32::try_from(pid) {
-                descendants.push(pid);
-            }
-        }
-    }
-    descendants
-}
-
-/// Run `ps` and read its whole listing, giving up on anything that does not
-/// finish promptly. A `ps` that hangs is killed and its output discarded: a
-/// partial listing would name the wrong parents.
-#[cfg(unix)]
-fn process_listing() -> Option<String> {
-    let mut command = Command::new("/bin/ps");
-    command
-        .args(["-A", "-o", "pid=", "-o", "ppid="])
-        .stdout(Stdio::piped());
-    let mut child = spawn(&mut command).ok()?;
-    let mut stdout = child.stdout.take()?;
-    let output = std::thread::spawn(move || {
-        let mut listing = String::new();
-        stdout.read_to_string(&mut listing).map(|_| listing)
-    });
-    let completed = wait_briefly(&mut child);
-    if !completed {
-        let _ = child.kill();
-        let _ = child.wait();
-    }
-    let listing = output.join().ok()?.ok()?;
-    completed.then_some(listing)
-}
-
-/// Poll a child for up to half a second, reporting whether it exited.
-#[cfg(unix)]
-fn wait_briefly(child: &mut crate::process::Child) -> bool {
-    for _ in 0..50 {
-        match child.try_wait() {
-            Ok(Some(_)) => return true,
-            Ok(None) => std::thread::sleep(Duration::from_millis(10)),
-            Err(_) => return false,
-        }
-    }
-    false
-}
-
-/// The child pids of every parent named in a `pid ppid` listing.
-#[cfg(unix)]
-fn parse_parent_child_pids(listing: &str) -> HashMap<u32, Vec<u32>> {
-    let mut children: HashMap<u32, Vec<u32>> = HashMap::new();
-    for line in listing.lines() {
-        let mut fields = line.split_whitespace();
-        let (Some(pid), Some(parent)) = (fields.next(), fields.next()) else {
-            continue;
-        };
-        let (Ok(pid), Ok(parent)) = (pid.parse(), parent.parse()) else {
-            continue;
-        };
-        children
-            .entry(parent)
-            .or_default()
-            .push(pid);
-    }
-    children
-}
-
-#[cfg(windows)]
-fn terminate_process(pid: u32, _separate_process_group: bool) {
-    use std::os::windows::process::CommandExt;
-
-    use crate::process::Stdio;
-
-    let Some(taskkill) = taskkill_path() else { return };
-    let _ = Command::new(taskkill)
-        .args(["/pid", &pid.to_string(), "/T", "/F"])
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .creation_flags(0x0800_0000)
-        .spawn();
-}
-
 #[cfg(target_family = "wasm")]
-fn terminate_process(pid: u32, _separate_process_group: bool) {
+fn terminate_process(pid: u32, _separate_process_group: bool, _stop: Stop) {
     if let Err(error) = pnpm_process::kill(pid) {
         eprintln!("Failed to terminate child process {pid}: {error}");
     }
 }
 
-#[cfg(windows)]
-fn taskkill_path() -> Option<std::path::PathBuf> {
-    pnpm_ffi_fs::system_directory().map(|directory| directory.join("taskkill.exe"))
-}
+#[cfg(not(unix))]
+pub(crate) fn finish_cancellations() {}
 
+#[cfg(unix)]
+mod grace;
 #[cfg(unix)]
 mod group_watchdog;
 #[cfg(unix)]
 mod process_table;
+#[cfg(unix)]
+mod signal;
+#[cfg(windows)]
+mod windows;
 
 #[cfg(all(test, unix))]
 mod tests;

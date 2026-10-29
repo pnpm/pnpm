@@ -11,9 +11,10 @@ import { createWorkspaceState } from './createWorkspaceState.js'
 import { getFilePath } from './filePath.js'
 import { getHoistedProjectModulesDir } from './hoistedProjectModulesDir.js'
 import { loadWorkspaceState } from './loadWorkspaceState.js'
+import { type ReadLocalDependencies, recordLocalDependencies } from './localDependencies.js'
 import { resolveStoreLocationSettings } from './storeLocation.js'
 import type { ProjectsList, WorkspaceState, WorkspaceStateSettings } from './types.js'
-import { recordValidation, trustsEveryFile } from './validation.js'
+import { type RecordedValidation, recordValidation, trustsEveryFile } from './validation.js'
 
 export interface UpdateWorkspaceStateOptions {
   allProjects: ProjectsList
@@ -53,6 +54,12 @@ export interface StateValidationOptions {
    */
   onlyIfTrusted?: boolean
   sharedWorkspaceLockfile?: boolean
+  /**
+   * Reads the local dependencies of a lockfile whose digest the previous
+   * state does not record them for. Left out by a writer that holds no
+   * lockfile reader, which then records none for such a lockfile.
+   */
+  readLocalDependencies?: ReadLocalDependencies
 }
 
 export async function updateWorkspaceState (opts: UpdateWorkspaceStateOptions): Promise<void> {
@@ -70,10 +77,7 @@ export async function updateWorkspaceState (opts: UpdateWorkspaceStateOptions): 
   try {
     const previous = carriesPreviousState(opts) ? readPreviousWorkspaceState(opts.workspaceDir) : undefined
     preserveCarriedSettings(workspaceState.settings, previous?.settings, opts.ignoredWorkspaceStateSettings)
-    if (opts.validation != null) {
-      recordStateValidation(workspaceState, opts, opts.validation, previous)
-      if (opts.validation.onlyIfTrusted && !(workspaceState.validation != null && trustsEveryFile(workspaceState.validation))) return
-    }
+    if (opts.validation != null && !(await recordValidationToWrite(workspaceState, opts, opts.validation, previous))) return
     if (opts.settings.nodeLinker === 'hoisted') {
       await recordHoistedModulesDirs(workspaceState, opts.allProjects)
     }
@@ -120,6 +124,27 @@ function preserveCarriedSettings (
 }
 
 /**
+ * Records in `workspaceState` what `validation` proves, with the local
+ * dependencies of its lockfiles. `false` when the state is not to be written:
+ * an `onlyIfTrusted` record the next check would not trust.
+ */
+async function recordValidationToWrite (
+  workspaceState: WorkspaceState,
+  opts: UpdateWorkspaceStateOptions,
+  validation: StateValidationOptions,
+  previous: WorkspaceState | undefined
+): Promise<boolean> {
+  const recorded = recordStateValidation(workspaceState, opts, validation, previous)
+  if (recorded != null && workspaceState.validation != null) {
+    await recordLocalDependencies(workspaceState.validation, recorded, {
+      previous: previous?.validation,
+      read: validation.readLocalDependencies,
+    })
+  }
+  return !validation.onlyIfTrusted || (workspaceState.validation != null && trustsEveryFile(workspaceState.validation))
+}
+
+/**
  * Records in `workspaceState` what `validation` proves. A record that cannot
  * be made leaves the state without one, which the next check proves from the
  * lockfiles.
@@ -127,11 +152,11 @@ function preserveCarriedSettings (
 function recordStateValidation (
   workspaceState: WorkspaceState,
   opts: UpdateWorkspaceStateOptions,
-  { vouchedProjects, onlyIfTrusted: _onlyIfTrusted, ...validation }: StateValidationOptions,
+  { vouchedProjects, onlyIfTrusted: _onlyIfTrusted, readLocalDependencies: _readLocalDependencies, ...validation }: StateValidationOptions,
   previous: WorkspaceState | undefined
-): void {
+): RecordedValidation | undefined {
   try {
-    recordValidation(workspaceState, {
+    return recordValidation(workspaceState, {
       ...validation,
       allProjects: opts.allProjects,
       workspaceDir: opts.workspaceDir,
@@ -141,6 +166,7 @@ function recordStateValidation (
   } catch (err: unknown) {
     delete workspaceState.validation
     globalWarn(`Failed to record the validation in the workspace state: ${isError(err) ? err.message : String(err)}`)
+    return undefined
   }
 }
 

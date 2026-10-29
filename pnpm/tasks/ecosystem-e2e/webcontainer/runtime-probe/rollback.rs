@@ -39,7 +39,7 @@ fn check_manifest_write(directory: &Path) {
     pnpm_fs::file_mode::set_path_permissions(&path, 0o600).unwrap();
     manifest.value_mut()["version"] = serde_json::json!("1.0.0");
     manifest.save().unwrap();
-    assert_eq!(pnpm_fs::copy_permissions(&path).unwrap() & 0o777, 0o600);
+    assert_eq!(pnpm_fs::copy_permissions(&path).unwrap().mode() & 0o777, 0o600);
     let contents: serde_json::Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
     assert_eq!(contents["version"], "1.0.0");
     fs::remove_file(path).unwrap();

@@ -51,6 +51,36 @@ fn script_sees_env_file_variables() {
     drop(root);
 }
 
+/// Values reach scripts as written, as with `node --env-file`: no variable
+/// is expanded, and backslashes and quotes inside an unquoted value are
+/// kept.
+#[test]
+fn script_sees_env_file_values_as_written() {
+    let CommandTempCwd { pacquet: _, root, workspace, .. } = CommandTempCwd::init();
+    write_manifest(&workspace);
+    fs::write(
+        workspace.join(".env"),
+        r#"PACQUET_ENV_FILE_SCRIPT=C:\Users\me\$HOME
+PACQUET_ENV_FILE_EXPORTED="cost ${HOME}"
+PACQUET_ENV_FILE_QUOTED={"k":"v"}
+"#,
+    )
+    .expect("write .env");
+
+    let output = pacquet_in(&workspace)
+        .with_args(["--env-file", ".env", "print-env"])
+        .output()
+        .expect("run pacquet with --env-file");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(output.status.success(), "command must exit 0, got: {output:?}");
+    assert!(
+        stdout.contains(r#"C:\Users\me\$HOME|cost ${HOME}|{"k":"v"}"#),
+        "script must see the values as written; stdout: {stdout:?}",
+    );
+
+    drop(root);
+}
+
 /// Repeatable: later files override variables defined in earlier files,
 /// matching `node --env-file`.
 #[test]
@@ -141,85 +171,35 @@ fn missing_env_file_fails_loudly() {
     drop(root);
 }
 
-/// A malformed file fails the command and names the file, without echoing
-/// its contents (env files routinely hold secrets).
+/// Content Node.js accepts loads the way `node --env-file` loads it: a line
+/// without `=` is skipped, a value ends at a NUL byte, invalid UTF-8 becomes
+/// U+FFFD, and an unclosed quote keeps the rest of the line.
 #[test]
-fn malformed_env_file_fails_loudly() {
+fn malformed_env_file_loads_like_node() {
     let CommandTempCwd { pacquet: _, root, workspace, .. } = CommandTempCwd::init();
-    fs::write(workspace.join("pnpm-workspace.yaml"), "packages: []\n")
-        .expect("write pnpm-workspace.yaml");
+    write_manifest(&workspace);
     fs::write(
-        workspace.join("malformed.env"),
-        "PACQUET_ENV_FILE_TEST_REDACTED_SECRET no equals here\n",
+        workspace.join(".env"),
+        b"no equals here\nPACQUET_ENV_FILE_SCRIPT=before\0after\nPACQUET_ENV_FILE_EXPORTED=\xFF\nPACQUET_ENV_FILE_QUOTED=\"never closed\n",
     )
-    .expect("write malformed.env");
+    .expect("write .env");
 
     let output = pacquet_in(&workspace)
-        .with_args(["--env-file", "malformed.env", "get", "registry"])
+        .with_args(["--env-file", ".env", "print-env"])
         .output()
-        .expect("run pacquet with a malformed --env-file");
-    assert!(!output.status.success(), "malformed file must fail: {output:?}");
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("malformed.env"), "error must name the file: {stderr}");
+        .expect("run pacquet with --env-file");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(output.status.success(), "command must exit 0, got: {output:?}");
     assert!(
-        !stderr.contains("PACQUET_ENV_FILE_TEST_REDACTED_SECRET"),
-        "error must not echo file contents: {stderr}",
+        stdout.contains("before|\u{FFFD}|\"never closed"),
+        "script must see the values Node.js would set; stdout: {stdout:?}",
     );
 
     drop(root);
 }
 
-/// A value containing a NUL byte fails the command instead of panicking in
-/// `set_var`, and names the file and the cause.
-#[test]
-fn nul_valued_env_file_fails_loudly() {
-    let CommandTempCwd { pacquet: _, root, workspace, .. } = CommandTempCwd::init();
-    fs::write(workspace.join("pnpm-workspace.yaml"), "packages: []\n")
-        .expect("write pnpm-workspace.yaml");
-    fs::write(workspace.join("nul.env"), b"PACQUET_ENV_FILE_TEST_NUL=before\0after\n")
-        .expect("write nul.env");
-
-    let output = pacquet_in(&workspace)
-        .with_args(["--env-file", "nul.env", "get", "registry"])
-        .output()
-        .expect("run pacquet with a NUL-valued --env-file");
-    assert!(!output.status.success(), "NUL value must fail: {output:?}");
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("nul.env"), "error must name the file: {stderr}");
-    assert!(stderr.contains("NUL"), "error must name the cause: {stderr}");
-    assert!(!stderr.contains("PACQUET_ENV_FILE_TEST_NUL"), "error must not echo the key: {stderr}");
-
-    drop(root);
-}
-
-/// A file with invalid UTF-8 fails as a malformed file, not a read error:
-/// the file is readable, its contents are not valid dotenv input.
-#[test]
-fn invalid_utf8_env_file_fails_as_malformed() {
-    let CommandTempCwd { pacquet: _, root, workspace, .. } = CommandTempCwd::init();
-    fs::write(workspace.join("pnpm-workspace.yaml"), "packages: []\n")
-        .expect("write pnpm-workspace.yaml");
-    fs::write(workspace.join("invalid-utf8.env"), b"PACQUET_ENV_FILE_TEST_UTF8=\xFF\n")
-        .expect("write invalid-utf8.env");
-
-    let output = pacquet_in(&workspace)
-        .with_args(["--env-file", "invalid-utf8.env", "get", "registry"])
-        .output()
-        .expect("run pacquet with an invalid-UTF-8 --env-file");
-    assert!(!output.status.success(), "invalid UTF-8 must fail: {output:?}");
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("invalid-utf8.env"), "error must name the file: {stderr}");
-    assert!(stderr.contains("UTF-8"), "error must name the cause: {stderr}");
-    assert!(
-        !stderr.contains("Failed to read"),
-        "a readable file must not report a read error: {stderr}",
-    );
-
-    drop(root);
-}
-
-/// A UTF-8 byte-order mark does not break the first entry: Windows editors
-/// prepend one routinely, and dotenvy's own file loader tolerates it.
+/// A UTF-8 byte-order mark does not become part of the first key, as it
+/// would under `node --env-file`: Windows editors prepend one routinely.
 #[test]
 fn bom_prefixed_env_file_loads() {
     let CommandTempCwd { pacquet: _, root, workspace, .. } = CommandTempCwd::init();
