@@ -469,16 +469,19 @@ fn run_cli_command(
     builtin_command_forced: bool,
     preloaded_config: Option<Result<pnpm_config::Config, pnpm_config::ConfigLoadFailure>>,
 ) -> miette::Result<()> {
-    // Arm Windows process-tree cleanup until the command succeeds.
+    // Arm Windows process-tree cleanup until the command succeeds. After an
+    // interrupt, it ends only the processes that share pnpm's console.
     let job_guard = pnpm_executor::arm_process_tree_cleanup();
     let result = block_on_runtime(
         "pacquet-main",
         args.run(invocation, config_overrides, builtin_command_forced, preloaded_config),
     );
-    if result.is_ok()
-        && let Some(job_guard) = job_guard
-    {
-        job_guard.disarm();
+    if let Some(job_guard) = job_guard {
+        if result.is_ok() {
+            job_guard.disarm();
+        } else if pnpm_executor::interrupt_count() > 0 {
+            job_guard.release_after_interrupt();
+        }
     }
     result
 }

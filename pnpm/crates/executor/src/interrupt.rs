@@ -291,10 +291,14 @@ pub fn exit_like(exit: ScriptExit) -> ! {
 }
 
 /// End pnpm the way `exit` ended. Windows has no signals, so that is the
-/// script's exit code.
+/// script's exit code. After an interrupt, only the processes that share
+/// pnpm's console go down with it.
 #[cfg(not(unix))]
 #[expect(clippy::exit, reason = "the command's exit code is the script's")]
 pub fn exit_like(exit: ScriptExit) -> ! {
+    if interrupt_count() > 0 {
+        crate::job_control::release_after_interrupt();
+    }
     #[cfg(target_family = "wasm")]
     if let ScriptExit::Process(status) = exit
         && let Some(signal) = status.signal()
@@ -463,6 +467,8 @@ fn close_retired_handle(handle: *mut std::ffi::c_void) {
 
 #[cfg(windows)]
 mod windows;
+#[cfg(windows)]
+pub(crate) use windows::STATUS_CONTROL_C_EXIT;
 #[cfg(windows)]
 use windows::install_handler;
 

@@ -58,6 +58,81 @@ fn ctrl_c_under_a_powershell_script_shell_reports_no_lifecycle_failure() {
     );
 }
 
+/// A Node process that ignores `Ctrl+C` and, once `$env:RELEASE` exists,
+/// writes the file the environment variable named by its argument holds. It
+/// writes that path with `.up` appended as soon as it runs.
+const WAITER_SCRIPT: &str = "const fs = require('fs'); const marker = process.env[process.argv[2]]; process.on('SIGINT', () => {}); fs.writeFileSync(marker + '.up', ''); const deadline = Date.now() + 30000; const wait = () => fs.existsSync(process.env.RELEASE) ? fs.writeFileSync(marker, '') : Date.now() < deadline && setTimeout(wait, 50); wait()";
+
+/// Start one waiter the way `open` starts a browser, through the shell, so
+/// it runs outside pnpm's console, and one sharing that console. Say when
+/// both are up and wait to be interrupted. PowerShell would end a script
+/// file with 0 after `Ctrl+C`, so it fails explicitly, as an interrupted
+/// Node does.
+const OPEN_SCRIPT: &str = r"
+$waiter = Join-Path $PSScriptRoot 'waiter.js'
+Start-Process -FilePath node -ArgumentList $waiter, 'DETACHED_MARKER' -WindowStyle Hidden
+Start-Process -FilePath node -ArgumentList $waiter, 'CONSOLE_MARKER' -NoNewWindow
+$deadline = (Get-Date).AddSeconds(30)
+while (-not ((Test-Path ($env:DETACHED_MARKER + '.up')) -and (Test-Path ($env:CONSOLE_MARKER + '.up'))) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 50 }
+Set-Content -Path 'started.txt' -Value ''
+try { Start-Sleep -Seconds 60 } finally { exit 1 }
+";
+
+/// `Ctrl+C` ends what shares pnpm's console, which the console's event
+/// reached too, but not a program a script started outside it, such as the
+/// browser `open` starts (pnpm/pnpm#17465).
+#[test]
+fn ctrl_c_spares_a_process_started_outside_the_console() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_project(&workspace);
+    fs::write(workspace.join("waiter.js"), WAITER_SCRIPT).expect("write waiter.js");
+    fs::write(workspace.join("open.ps1"), OPEN_SCRIPT).expect("write open.ps1");
+    let release = workspace.join("release.txt");
+    let detached_marker = workspace.join("detached-marker.txt");
+    let console_marker = workspace.join("console-marker.txt");
+
+    let console = PrivateConsole::attach();
+    let mut process = pacquet
+        .with_env("RELEASE", &release)
+        .with_env("DETACHED_MARKER", &detached_marker)
+        .with_env("CONSOLE_MARKER", &console_marker)
+        .with_args(["exec", "powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File"])
+        .with_arg(workspace.join("open.ps1"))
+        .with_stdin(Stdio::null())
+        .with_stdout(Stdio::null())
+        .with_stderr(Stdio::null())
+        .spawn()
+        .expect("spawn pnpm");
+    wait_for_file(&workspace.join("started.txt"), &mut process);
+    console.press_ctrl_c();
+    let status = wait_for_shutdown(&mut process);
+    drop(console);
+    assert!(!status.success(), "the interrupted command fails: {status:?}");
+
+    fs::write(&release, "").expect("release the waiters");
+    assert!(
+        wait_for_marker(&detached_marker),
+        "a process outside pnpm's console should outlive the interrupt",
+    );
+    sleep(Duration::from_secs(1));
+    assert!(
+        !console_marker.exists(),
+        "a process sharing pnpm's console should end with the interrupt",
+    );
+    drop(root);
+}
+
+fn wait_for_marker(path: &Path) -> bool {
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while !path.exists() {
+        if Instant::now() >= deadline {
+            return false;
+        }
+        sleep(Duration::from_millis(50));
+    }
+    true
+}
+
 /// Run `pnpm run dev` with `args` ahead of the command, press `Ctrl+C` at
 /// a private console once the script is up, and return how pnpm ended
 /// together with everything it wrote.

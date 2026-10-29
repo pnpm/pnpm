@@ -30,11 +30,13 @@ pub(super) fn install_handler() {
 /// it and nothing needs relaying.
 ///
 /// Returning `FALSE` passes the event on to the default handler, which
-/// terminates pnpm.
+/// terminates pnpm. The process-tree cleanup is released first, so only
+/// the processes the event reached go down with pnpm.
 unsafe extern "system" fn relay_console_event(event: u32) -> windows_sys::core::BOOL {
     use windows_sys::Win32::System::Console::{CTRL_BREAK_EVENT, CTRL_C_EVENT};
 
     if !matches!(event, CTRL_C_EVENT | CTRL_BREAK_EVENT) {
+        crate::job_control::release_after_interrupt();
         return 0;
     }
     super::INTERRUPTS.fetch_add(1, Ordering::Relaxed);
@@ -42,6 +44,9 @@ unsafe extern "system" fn relay_console_event(event: u32) -> windows_sys::core::
     visit_targets(|entry, target| {
         still_listening |= interrupt_child(entry, target);
     });
+    if !still_listening {
+        crate::job_control::release_after_interrupt();
+    }
     windows_sys::core::BOOL::from(still_listening)
 }
 
@@ -96,7 +101,7 @@ const WINDOWS_INTERRUPT_POLL_MS: u32 = 100;
 
 /// The exit code a process ended by `Ctrl+C` reports, so a child pnpm has
 /// to end reads the same as one the console event ended on its own.
-const STATUS_CONTROL_C_EXIT: u32 = 0xC000_013A;
+pub(crate) const STATUS_CONTROL_C_EXIT: u32 = 0xC000_013A;
 
 /// End `pid` once it has had no child processes for the grace, unless it
 /// exits first or is not a `cmd`. Any other shell, or a script run without
