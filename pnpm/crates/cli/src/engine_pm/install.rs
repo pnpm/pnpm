@@ -171,8 +171,13 @@ async fn install_engine_from_env_with_config<Reporter: self::Reporter + 'static>
         if let Some(engine) = linked_engine_bins(config, env, package, version) {
             return Ok(engine);
         }
-        if let Some(slot) = populated_engine_slot(config, env, package, version) {
-            return link_engine_bins(&slot, package.wrapper, package.links_native_binary);
+        // A slot that cannot be linked, such as one an earlier install left
+        // without the host's native binary, is reinstalled below.
+        if let Some(slot) = populated_engine_slot(config, env, package, version)
+            && let Ok(engine) =
+                link_engine_bins(&slot, package.wrapper, package.links_native_binary)
+        {
+            return Ok(engine);
         }
     }
 
@@ -206,7 +211,8 @@ async fn install_engine_into_slot<Reporter: self::Reporter + 'static>(
         &tmp_install_dir,
         package_name,
         version,
-        config.supported_architectures.clone(),
+        // The engine runs on this host, whatever platforms the project installs for.
+        None,
         Some(package.pinned),
     ))
     .await
@@ -238,7 +244,8 @@ async fn install_engine_privately<Reporter: self::Reporter + 'static>(
         private_install.dir(),
         package.wrapper,
         version,
-        config.supported_architectures.clone(),
+        // The engine runs on this host, whatever platforms the project installs for.
+        None,
         None,
     ))
     .await?;
