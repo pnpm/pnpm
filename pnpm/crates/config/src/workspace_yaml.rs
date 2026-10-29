@@ -216,7 +216,7 @@ impl DroppedKeys {
 macro_rules! identically_named_settings {
     ($mac:ident) => {
         $mac! {
-            bail, ci, progress, update_notifier, color, embed_readme, editor, ignore_workspace_root_check,
+            bail, progress, update_notifier, color, embed_readme, editor, ignore_workspace_root_check,
             optional, package_lock, pending, recursive_install, reverse,
             stream, aggregate_output, use_stderr, ignore_workspace, shell_emulator,
             skip_manifest_obfuscation, sort, use_beta_cli,
