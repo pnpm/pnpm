@@ -147,6 +147,16 @@ describe('checkDepsStatus with recorded validations', () => {
     expect(await check(workspace)).toMatchObject({ upToDate: true })
   })
 
+  it('records the local dependencies of a rewritten lockfile it proved the projects against', async () => {
+    const workspace = await installedWorkspace(lockfileWith({ bar: '1.0.0' }))
+    const lockfilePath = path.join(workspace.workspaceDir, 'pnpm-lock.yaml')
+    await fs.appendFile(lockfilePath, '\n')
+    expect(await check(workspace)).toMatchObject({ upToDate: true })
+    const { validation } = loadWorkspaceState(workspace.workspaceDir)!
+    expect(validation!.lockfile).toBeDefined()
+    expect(validation!.localDependencies).toStrictEqual({ [validation!.lockfile!]: {} })
+  })
+
   // `cp -p`, `rsync -a`, an archive extraction, or a Docker `COPY` of an older
   // file leave the mtime where it was.
   it('is outdated after a manifest edit that kept its mtime', async () => {

@@ -3,6 +3,7 @@ import path from 'node:path'
 import { mergeCatalogs } from '@pnpm/catalogs.config'
 import type { Catalogs } from '@pnpm/catalogs.types'
 import { pickRegistryContext } from '@pnpm/config.normalize-registries'
+import { createLocalDependenciesReader } from '@pnpm/deps.status'
 import type { DryRunInstallResult } from '@pnpm/installing.deps-installer'
 import { getWantedLockfileName, type LockfileObject, readWantedLockfile } from '@pnpm/lockfile.fs'
 import { findMovedRegistryKey, findOutdatedRegistryKey } from '@pnpm/lockfile.utils'
@@ -11,7 +12,6 @@ import { loadWorkspaceState, type ProjectsList, recordedRegistryPrefixes, record
 import { equals, once } from 'ramda'
 
 import type { InstallDepsOptions } from './installDeps.js'
-import { createLocalDependenciesReader } from './localDependencies.js'
 import { type CommandFullName, recursive, type RecursiveOptions } from './recursive.js'
 
 /**

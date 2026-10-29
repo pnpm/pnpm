@@ -150,6 +150,30 @@ test('updateWorkspaceState() reads a lockfile without local dependencies once pe
   expect(reads).toBe(1)
 })
 
+test('updateWorkspaceState() records no local dependencies for a lockfile its reader cannot read', async () => {
+  prepareEmpty()
+  const workspaceDir = process.cwd()
+  fs.writeFileSync('pnpm-lock.yaml', "lockfileVersion: '9.0'\n")
+  await updateWorkspaceState({
+    allProjects: [{ rootDir: path.join(workspaceDir, 'a') as ProjectRootDir, manifest: { name: 'a' } }],
+    settings: { excludeLinksFromLockfile: false, linkWorkspacePackages: false, preferWorkspacePackages: false },
+    workspaceDir,
+    pnpmfiles: [],
+    filteredInstall: false,
+    validation: {
+      lockfileDir: workspaceDir,
+      wantedLockfileName: 'pnpm-lock.yaml',
+      sharedInputs: [],
+      readLocalDependencies: async () => {
+        throw new Error('cannot parse the lockfile')
+      },
+    },
+  })
+  const { validation } = loadWorkspaceState(workspaceDir)!
+  expect(validation?.lockfile).toBeDefined()
+  expect(validation?.localDependencies).toBeUndefined()
+})
+
 test('sharedInputPaths() lists no pnpmfile when --ignore-pnpmfile left them unloaded', () => {
   expect(sharedInputPaths('/repo', { foo: 'patches/foo.patch' }, undefined)).toStrictEqual([path.resolve('/repo', 'patches/foo.patch')])
 })

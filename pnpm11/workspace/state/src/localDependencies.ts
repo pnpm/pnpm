@@ -1,3 +1,6 @@
+import { isError } from '@pnpm/error'
+import { globalWarn } from '@pnpm/logger'
+
 import type { FileSignature, LocalDependencies, Validation } from './types.js'
 import { fileDigestOf, type RecordedLockfile, type RecordedValidation } from './validation.js'
 
@@ -44,13 +47,27 @@ async function recordVouchedLockfiles (
   for (const [digest, lockfile] of lockfiles) {
     if (!opts.referenced.has(digest)) continue
     // eslint-disable-next-line no-await-in-loop -- a write records one lockfile, or one per project with its own
-    const local = opts.previous?.localDependencies?.[digest] ?? await opts.read?.(lockfile)
+    const local = opts.previous?.localDependencies?.[digest] ?? await readLocalDependencies(opts.read, lockfile)
     if (local == null) continue
     records.entries[digest] = local
     for (const tarball of local.tarballs ?? []) {
       const digestOfTarball = fileDigestOf(opts.previous, tarball)
       if (digestOfTarball.kind === 'present') records.signatures[tarball] = digestOfTarball.signature
     }
+  }
+}
+
+/**
+ * The local dependencies `read` finds in `lockfile`, or `undefined` when it
+ * cannot read them. The lockfile then has no entry, which the next install
+ * fast path refuses, so the state write still records the rest.
+ */
+async function readLocalDependencies (read: ReadLocalDependencies | undefined, lockfile: RecordedLockfile): Promise<LocalDependencies | undefined> {
+  try {
+    return await read?.(lockfile)
+  } catch (err: unknown) {
+    globalWarn(`Failed to read the local dependencies of the lockfile in ${lockfile.lockfileDir}: ${isError(err) ? err.message : String(err)}`)
+    return undefined
   }
 }
 

@@ -6,4 +6,4 @@
 "pnpm": patch
 ---
 
-A repeat `pnpm install` no longer reports "Already up to date" after a local tarball or directory that only a pnpmfile `readPackage` hook depends on changes [pnpm/tasks#227](https://github.com/pnpm/tasks/issues/227).
+`pnpm install` now detects a change to a local tarball or directory that only a pnpmfile `readPackage` hook depends on [pnpm/tasks#227](https://github.com/pnpm/tasks/issues/227). A repeat install reported "Already up to date" and kept the old contents before.

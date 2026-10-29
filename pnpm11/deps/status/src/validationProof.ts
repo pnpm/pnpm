@@ -15,8 +15,10 @@ import {
   type WorkspaceState,
 } from '@pnpm/workspace.state'
 
+import { createLocalDependenciesReader } from './localDependenciesReader.js'
 import { storeBaseDir } from './storeBaseDir.js'
 import type { CheckDepsStatusOptions } from './types.js'
+import { readWantedLockfileIn } from './wantedLockfiles.js'
 
 /** Whether a project is still proven installed. */
 export type ProjectProof =
@@ -192,6 +194,7 @@ export async function recordValidatedWorkspaceState (
       vouchedProjects,
       onlyIfTrusted,
       sharedWorkspaceLockfile: opts.sharedWorkspaceLockfile,
+      readLocalDependencies: createLocalDependenciesReader(async (lockfileDir) => readWantedLockfileIn(lockfileDir, opts)),
     },
   })
 }
