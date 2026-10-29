@@ -100,7 +100,7 @@ export async function localTarballDepsAreUpToDate (
  * Whether an install with `included` installs a project's `field`. Optional
  * dependencies go with the production ones.
  */
-export function isIncluded (included: IncludedDependencies | undefined, field: DependenciesField): boolean {
+function isIncluded (included: IncludedDependencies | undefined, field: DependenciesField): boolean {
   if (included?.[field] === false) return false
   return field !== 'optionalDependencies' || included?.dependencies !== false
 }
