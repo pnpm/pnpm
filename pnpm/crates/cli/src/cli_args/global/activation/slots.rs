@@ -240,10 +240,10 @@ fn backup_bin_slot(original: PathBuf, backup: PathBuf) -> miette::Result<Option<
         }
         BinSlotKind::RegularFile => {
             #[cfg(not(target_os = "wasi"))]
-            let permissions = metadata.permissions();
+            let permissions = pnpm_fs::CopyPermissions::of_metadata(&metadata);
             #[cfg(target_os = "wasi")]
             let permissions = pnpm_fs::copy_permissions(&original).into_diagnostic()?;
-            backup_regular_file(&original, &backup, permissions)
+            backup_regular_file(&original, &backup, &permissions)
                 .into_diagnostic()
                 .wrap_err_with(|| format!("back up global bin file at {}", original.display()))?;
         }
@@ -254,7 +254,7 @@ fn backup_bin_slot(original: PathBuf, backup: PathBuf) -> miette::Result<Option<
 fn backup_regular_file(
     original: &Path,
     backup: &Path,
-    permissions: pnpm_fs::CopyPermissions,
+    permissions: &pnpm_fs::CopyPermissions,
 ) -> io::Result<()> {
     if reflink_copy::reflink(original, backup).is_err() {
         match fs::remove_file(backup) {
@@ -264,14 +264,7 @@ fn backup_regular_file(
         }
         fs::copy(original, backup)?;
     }
-    #[cfg(not(target_os = "wasi"))]
-    {
-        fs::set_permissions(backup, permissions)
-    }
-    #[cfg(target_os = "wasi")]
-    {
-        pnpm_fs::file_mode::set_path_permissions(backup, permissions)
-    }
+    permissions.apply_to_path(backup)
 }
 
 #[cfg(any(unix, target_os = "wasi"))]

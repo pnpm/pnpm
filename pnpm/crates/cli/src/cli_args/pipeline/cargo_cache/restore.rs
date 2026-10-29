@@ -26,13 +26,12 @@ pub(super) fn clone_file(source: &Path, target: &Path) -> io::Result<()> {
         .set_times(FileTimes::new().set_modified(metadata.modified()?))?;
     #[cfg(not(target_os = "wasi"))]
     {
-        fs::set_permissions(target, metadata.permissions())
+        pnpm_fs::CopyPermissions::of_metadata(&metadata).apply_to_path(target)
     }
     #[cfg(target_os = "wasi")]
     {
-        let permissions = pnpm_fs::copy_permissions(source)?;
         let file = pnpm_fs::open_file_without_following(target)?;
-        pnpm_fs::set_file_permissions(&file, &permissions)
+        pnpm_fs::copy_permissions(source)?.apply_to_file(&file)
     }
 }
 
