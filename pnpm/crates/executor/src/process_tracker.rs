@@ -211,7 +211,7 @@ pub fn spawn_child<'tracker>(
     Ok(SpawnedChild {
         child,
         own_process_group,
-        _registration: registration,
+        registration,
         relay,
         #[cfg(unix)]
         watched,
@@ -260,7 +260,7 @@ fn spawns_without_terminal() -> bool {
 pub struct SpawnedChild<'tracker> {
     child: Child,
     own_process_group: bool,
-    _registration: Option<Registration<'tracker>>,
+    registration: Option<Registration<'tracker>>,
     relay: crate::interrupt::SignalRelay,
     #[cfg(unix)]
     watched: bool,
@@ -278,6 +278,9 @@ impl SpawnedChild<'_> {
     /// exit.
     pub fn wait(&mut self) -> io::Result<crate::process::ExitStatus> {
         let status = self.child.wait()?;
+        // The pid is free for reuse from here on, so a bail must no longer
+        // count the child among the tasks it may signal by pid.
+        self.registration = None;
         if self.own_process_group && self.relay.relayed() {
             wait_for_process_group(self.child.id());
         }

@@ -16,10 +16,10 @@ use crate::_utils::terminal::Terminal;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::CommandTempCwd;
 #[cfg(windows)]
-use std::process::Stdio;
+use std::process::{ExitStatus, Stdio};
 use std::{
     path::Path,
-    process::{Child, Command, ExitStatus},
+    process::{Child, Command},
     thread::sleep,
     time::{Duration, Instant},
 };
@@ -49,7 +49,10 @@ fn survivors(event: Event, under_pnpm: bool) -> Vec<bool> {
     } else {
         launcher_directly(&workspace, &args)
     };
+    #[cfg(windows)]
     let mut session = Session::start(command, &workspace);
+    #[cfg(unix)]
+    let mut session = Session::start(&command, &workspace);
     session.deliver(event);
     session.wait_for_command();
     let survivors = surviving(&workspace, &LEFTOVERS);
@@ -124,7 +127,7 @@ struct Session {
 
 #[cfg(unix)]
 impl Session {
-    fn start(command: Command, workspace: &Path) -> Self {
+    fn start(command: &Command, workspace: &Path) -> Self {
         let script = workspace.join("shell.js");
         std::fs::write(&script, SHELL).expect("write shell.js");
         let mut shell = Command::new(super::node_executable());
@@ -145,7 +148,7 @@ impl Session {
         Self { terminal, shell, exited: workspace.join("command-exited.txt") }
     }
 
-    fn deliver(&mut self, event: Event) {
+    fn deliver(&self, event: Event) {
         match event {
             Event::CtrlC => self.terminal.press_ctrl_c(),
             Event::Close => self.terminal.hang_up(),
@@ -263,6 +266,7 @@ fn wait_for_start(path: &Path, process: &mut Child) {
 }
 
 /// Wait for the command to end on its own after the terminal's event.
+#[cfg(windows)]
 fn wait_for_exit(process: &mut Child) -> ExitStatus {
     let deadline = Instant::now() + Duration::from_secs(30);
     loop {
