@@ -1412,3 +1412,48 @@ fn repeat_install_verifies_the_lockfile_after_trust_lockfile_is_turned_off() {
     );
     drop(harness);
 }
+
+/// No project manifest describes an injected directory outside the workspace
+/// patterns, so the fast path cannot vouch for it: an install after an edit
+/// to it resolves again
+/// ([pnpm/pnpm#17476](https://github.com/pnpm/pnpm/issues/17476)).
+#[test]
+fn repeat_install_sees_a_changed_injected_directory_outside_the_patterns() {
+    let fixture = _utils::WorkspaceFixture::new();
+    fixture.append_workspace_yaml("injectWorkspacePackages: true\n");
+    let outside = fixture.workspace
+        .parent()
+        .expect("the workspace has a parent")
+        .join("lib");
+    fs::create_dir_all(&outside).expect("create the directory outside the workspace");
+    fs::write(
+        outside.join("package.json"),
+        r#"{ "name": "lib", "version": "1.0.0", "dependencies": { "@pnpm.e2e/foo": "100.0.0" } }"#,
+    )
+    .expect("write the manifest");
+    fixture.write_root_manifest(
+        "app",
+        _utils::ManifestDeps {
+            prod: &[("lib", "workspace:../lib")],
+            .._utils::ManifestDeps::default()
+        },
+    );
+    let install = |args: &[&str]| {
+        let output =
+            fixture.command_at(&fixture.workspace, std::iter::once(&"install").chain(args));
+        _utils::assert_success(&output);
+    };
+    install(&[]);
+
+    _utils::set_dependency(&outside, "dependencies", "@pnpm.e2e/foo", "100.1.0");
+    install(&[]);
+
+    let lockfile = _utils::read_lockfile(&fixture.workspace.join("pnpm-lock.yaml"));
+    let key: pnpm_lockfile::PackageKey = "lib@file:../lib".parse().expect("parse the package key");
+    let snapshot = &lockfile.snapshots.as_ref().expect("the lockfile has snapshots")[&key];
+    let foo: pnpm_lockfile::PkgName = "@pnpm.e2e/foo".parse().expect("parse the name");
+    let recorded =
+        snapshot.dependencies.as_ref().expect("lib's dependencies are recorded")[&foo].to_string();
+    assert_eq!(recorded, "100.1.0", "the install resolved the edited directory again");
+    install(&["--frozen-lockfile"]);
+}

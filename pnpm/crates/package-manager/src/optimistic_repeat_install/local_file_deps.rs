@@ -83,7 +83,7 @@ pub(crate) fn frozen_local_tarballs_to_verify(
 /// Whether any project declares a mutable local directory dependency or a
 /// local tarball whose current bytes do not match the integrity recorded by
 /// the previous install, or has an injected dependency the fast path cannot
-/// vouch for (see [`injected_deps_block_fast_path`]). Groups excluded from
+/// vouch for (see [`has_unvouched_injected_dep`]). Groups excluded from
 /// the current install are skipped. `catalog:` specs are dereferenced through
 /// the workspace catalogs.
 pub(crate) fn has_local_file_dep_requiring_install(
@@ -94,13 +94,14 @@ pub(crate) fn has_local_file_dep_requiring_install(
         LocalTarballScan::RequiresInstall => return Ok(true),
         LocalTarballScan::Candidates(tarballs) => tarballs,
     };
-    let check_injected_deps = injected_deps_block_fast_path(check.config);
+    let check_injected_deps =
+        !check.config.shared_workspace_lockfile || declares_directory_dependency(check);
     if tarballs.is_empty() && !check_injected_deps {
         return Ok(false);
     }
 
     let Some(lockfile) = recorded_lockfile(check)? else { return Ok(!tarballs.is_empty()) };
-    if check_injected_deps && has_injected_dep(check, &lockfile) {
+    if check_injected_deps && has_unvouched_injected_dep(check, &lockfile) {
         return Ok(true);
     }
     Ok(tarballs
@@ -126,30 +127,86 @@ fn recorded_lockfile<'a>(
         .map_err(|_| "the current lockfile cannot be loaded to verify local file dependencies")
 }
 
-/// Whether an injected dependency rules the fast path out.
-///
-/// With a shared lockfile every project is an importer of the one lockfile,
-/// and the fast path already compares each project's manifest with it, so a
-/// change to an injected project's own dependencies is caught there. With
-/// per-project lockfiles the consumer's lockfile records the injected
-/// project's dependencies in its `file:` snapshot, which nothing else checks.
-fn injected_deps_block_fast_path(config: &pnpm_config::Config) -> bool {
-    !config.shared_workspace_lockfile
+/// Whether a project declares a dependency by directory path, a `file:`
+/// directory or a `workspace:` path, which can name a directory outside the
+/// workspace patterns. Only such a declaration can make
+/// [`has_unvouched_injected_dep`] true under a shared lockfile, and it is
+/// read from the manifests already in hand, before the lockfile is loaded.
+/// A `catalog:` specifier is read through the catalogs; one they cannot
+/// resolve counts, and the install reports it.
+fn declares_directory_dependency(check: &OptimisticRepeatInstallCheck<'_>) -> bool {
+    let fields = dependency_fields(check);
+    check.project_manifests
+        .iter()
+        .any(|(_, manifest)| {
+            fields
+                .iter()
+                .filter(|(_, _, included)| *included)
+                .filter_map(|(field, _, _)| {
+                    manifest
+                        .value()
+                        .get(*field)?
+                        .as_object()
+                })
+                .flat_map(|dependencies| dependencies.iter())
+                .filter_map(|(alias, specifier)| Some((alias, specifier.as_str()?)))
+                .any(|(alias, specifier)| names_directory(check.catalogs, alias, specifier))
+        })
 }
 
-fn has_injected_dep(check: &OptimisticRepeatInstallCheck<'_>, lockfile: &Lockfile) -> bool {
+fn names_directory(catalogs: &Catalogs, alias: &str, specifier: &str) -> bool {
+    let resolved = if specifier.starts_with("catalog:") {
+        let wanted =
+            WantedDependency { alias: alias.to_string(), bare_specifier: specifier.to_string() };
+        match resolve_from_catalog(catalogs, &wanted, CatalogAnchor::AsWritten) {
+            CatalogResolutionResult::Found(found) => Cow::Owned(found.resolution.specifier),
+            CatalogResolutionResult::Unused | CatalogResolutionResult::Misconfiguration(_) => {
+                return true;
+            }
+        }
+    } else {
+        Cow::Borrowed(specifier)
+    };
+    // `workspace:~` and `workspace:^` are version ranges; a path starts
+    // with `.`, `/`, or `~/`.
+    crate::install::is_declared_local_directory(&resolved)
+        || resolved
+            .strip_prefix("workspace:")
+            .is_some_and(|target| target.starts_with(['.', '/']) || target.starts_with("~/"))
+}
+
+/// Whether an injected dependency the fast path's manifest comparison does
+/// not vouch for rules it out. With a shared lockfile every workspace project
+/// is an importer, so a change to an injected project's own dependencies is
+/// caught by comparing its manifest, but an injected directory outside the
+/// workspace patterns has no importer. With per-project lockfiles the
+/// consumer's lockfile records every injected package's dependencies, which
+/// nothing else checks.
+fn has_unvouched_injected_dep(
+    check: &OptimisticRepeatInstallCheck<'_>,
+    lockfile: &Lockfile,
+) -> bool {
     let included_groups = dependency_fields(check)
         .into_iter()
         .filter_map(|(_, group, included)| included.then_some(group))
         .collect::<Vec<_>>();
+    let project_dirs: HashSet<PathBuf> = check.project_manifests
+        .iter()
+        .map(|(project_dir, _)| pnpm_fs::lexical_normalize(project_dir))
+        .collect();
+    let vouched = |directory: &str| {
+        check.config.shared_workspace_lockfile
+            && project_dirs.contains(&pnpm_fs::lexical_normalize(
+                &check.workspace_root.join(directory),
+            ))
+    };
     check.project_manifests
         .iter()
         .any(|(project_dir, _)| {
             let importer_id = importer_id_from_root_dir(check.workspace_root, project_dir);
             lockfile
                 .injected_dependencies(&importer_id, included_groups.iter().copied())
-                .next()
-                .is_some()
+                .any(|dependency| !vouched(&dependency.directory.directory))
         })
 }
 
