@@ -31,9 +31,7 @@ export async function resolveNodeVersion (
   const allVersions = await fetchAllVersions(createAuthenticatedFetch(fetch, getAuthHeader), nodeMirrorBaseUrl)
   versionSpec = normalizeRuntimeSpec(versionSpec)
   if (versionSpec === 'latest') {
-    return releaseChannel != null && releaseChannel !== 'release'
-      ? allVersions[0]?.version ?? null
-      : latestStableVersion(allVersions)
+    return latestVersion(allVersions, releaseChannel)
   }
   const { versions, versionRange } = filterVersions(allVersions, versionSpec)
   return semver.maxSatisfying(versions, versionRange, SEMVER_OPTS) ?? null
@@ -51,17 +49,18 @@ export async function resolveNodeVersions (
   }
   versionSpec = normalizeRuntimeSpec(versionSpec)
   if (versionSpec === 'latest') {
-    const latest = releaseChannel != null && releaseChannel !== 'release'
-      ? allVersions[0]?.version ?? null
-      : latestStableVersion(allVersions)
+    const latest = latestVersion(allVersions, releaseChannel)
     return latest == null ? [] : [latest]
   }
   const { versions, versionRange } = filterVersions(allVersions, versionSpec)
   return versions.filter(version => semver.satisfies(version, versionRange, SEMVER_OPTS))
 }
 
-function latestStableVersion (versions: NodeVersion[]): string | null {
-  return versions.find(({ version }) => semver.valid(version) != null && semver.prerelease(version) == null)?.version ?? null
+function latestVersion (versions: NodeVersion[], releaseChannel = 'release'): string | null {
+  const latest = releaseChannel === 'release'
+    ? versions.find(({ version }) => semver.valid(version) != null && semver.prerelease(version) == null)
+    : versions[0]
+  return latest?.version ?? null
 }
 
 export function normalizeRuntimeSpec (versionSpec: string): string {
