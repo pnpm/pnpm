@@ -128,7 +128,7 @@ where
 ///
 /// The members of a cycle (a strongly connected component, or a node
 /// that depends on itself) hash as one unit, so each member's digest
-/// covers everything the cycle reaches. See [`hash_cycle`].
+/// covers everything the cycle reaches.
 ///
 /// The digests depend only on the graph, not on the order nodes or
 /// children are visited in, so a shared `cache` gives the same answers
@@ -312,7 +312,10 @@ where
                     .iter()
                     .filter(|(_, child_key)| !self.position.contains_key(child_key))
                     .map(|(alias, child_key)| {
-                        let child = cache.get(child_key).map_or("", String::as_str);
+                        let child = cache
+                            .get(child_key)
+                            .map(String::as_str)
+                            .unwrap_or("");
                         (alias.clone(), Value::String(child.to_owned()))
                     })
                     .collect();
@@ -389,7 +392,15 @@ where
     // A child the graph has no node for contributes the empty string.
     let mut pairs: Vec<(&str, &str)> = node.children
         .iter()
-        .map(|(alias, child_key)| (alias.as_str(), cache.get(child_key).map_or("", String::as_str)))
+        .map(|(alias, child_key)| {
+            (
+                alias.as_str(),
+                cache
+                    .get(child_key)
+                    .map(String::as_str)
+                    .unwrap_or(""),
+            )
+        })
         .collect();
     pairs.sort_unstable_by_key(|(alias, _)| *alias);
 
