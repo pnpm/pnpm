@@ -133,9 +133,9 @@ pub(super) fn root_direct_deps(
 /// moves dedupe-able deps up to root, leaving the workspace node's
 /// children empty even when the importer declared those deps.
 ///
-/// A copy the hoister placed in the importer's own `modules_dir` is the
-/// one the importer resolves, even when another importer's copy of the
-/// same snapshot was recorded first. Elsewhere the first recorded
+/// A copy of the resolved package the hoister placed in the importer's own
+/// `modules_dir` is the one the importer resolves, even when another
+/// importer's copy of the same snapshot was recorded first. Elsewhere the first recorded
 /// location of each resolved snapshot wins.
 pub(super) fn importer_direct_deps(
     importer: &pnpm_lockfile::ProjectSnapshot,
@@ -157,7 +157,15 @@ pub(super) fn importer_direct_deps(
             // (name, suffix); for a regular dep it's `(alias, version)`.
             let Some(dep_key) = spec.version.resolved_key(alias) else { continue };
             let own_copy = modules_dir.join(alias.to_string());
-            if graph.contains_key(&own_copy) {
+            let holds_dep = |node: &DependenciesGraphNode| {
+                node.package.dep_path
+                    .as_str()
+                    .parse::<PackageKey>()
+                    .is_ok_and(|key| {
+                        pnpm_real_hoist::pkg_id(&key) == pnpm_real_hoist::pkg_id(&dep_key)
+                    })
+            };
+            if graph.get(&own_copy).is_some_and(holds_dep) {
                 direct_deps.insert(alias.to_string(), own_copy);
             } else if let Some(first) = pkg_locations.first(&dep_key) {
                 direct_deps.insert(alias.to_string(), first.clone());
