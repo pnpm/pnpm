@@ -1,7 +1,10 @@
 import { createMatcher } from '@pnpm/config.matcher'
 import type { ProjectSnapshot } from '@pnpm/lockfile.types'
+import type { WorkspacePackages } from '@pnpm/resolving.resolver-base'
 import type { ProjectManifest } from '@pnpm/types'
 import { pickBy } from 'ramda'
+
+import { isExcludedLink } from './dependencySpec.js'
 
 /**
  * Returns a map of package names to requested specifiers for any direct
@@ -11,14 +14,14 @@ import { pickBy } from 'ramda'
  * could not be resolved when the lockfile was written so they can be skipped
  * rather than reported as added.
  *
- * Dependencies matching configured `ignoredOptionalDependencies` or starting
- * with `link:` when `excludeLinksFromLockfile` is enabled are omitted from
- * the result.
+ * Dependencies matching configured `ignoredOptionalDependencies`, and the
+ * links `excludeLinksFromLockfile` leaves out, are omitted from the result.
  */
 export function unresolvedOptionalDependencies (
   opts: {
     excludeLinksFromLockfile?: boolean
     ignoredOptionalDependencies?: string[]
+    workspacePackages?: WorkspacePackages
   },
   importer: Pick<ProjectSnapshot, 'specifiers'>,
   pkg: Pick<ProjectManifest, 'optionalDependencies'>
@@ -28,7 +31,7 @@ export function unresolvedOptionalDependencies (
     (bareSpecifier, depName) =>
       importer.specifiers[depName] == null &&
       !isIgnored(depName) &&
-      !(opts.excludeLinksFromLockfile && bareSpecifier.startsWith('link:')),
+      !(opts.excludeLinksFromLockfile && isExcludedLink(opts.workspacePackages, { importer, depName, spec: bareSpecifier })),
     pkg.optionalDependencies ?? {}
   )
 }

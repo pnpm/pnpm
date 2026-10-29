@@ -9,8 +9,10 @@ import {
   type LockfileToDepGraphOptions,
 } from '@pnpm/deps.graph-builder'
 import { filterLockfileByImportersAndEngine } from '@pnpm/lockfile.filtering'
-import type { LockfileObject } from '@pnpm/lockfile.fs'
+import type { LockfileObject, ProjectSnapshot } from '@pnpm/lockfile.fs'
 import { writePnpFile } from '@pnpm/lockfile.to-pnp'
+import { findWorkspaceLinkTarget } from '@pnpm/resolving.npm-resolver'
+import type { WorkspacePackages } from '@pnpm/resolving.resolver-base'
 import {
   type AllowBuild,
   DEPENDENCIES_FIELDS,
@@ -31,7 +33,7 @@ export async function createHeadlessDepGraph (ctx: HeadlessContext): Promise<Hea
   const initialImporterIds = pickInitialImporterIds(ctx)
   const { lockfile: filteredLockfile, selectedImporterIds: importerIds, requiredDepPaths } = filterLockfileByImportersAndEngine(ctx.wantedLockfile, initialImporterIds, ctx.filterOpts)
   if (opts.excludeLinksFromLockfile) {
-    addLinkedDependenciesToLockfile(filteredLockfile, ctx.selectedProjects)
+    addLinkedDependenciesToLockfile(filteredLockfile, { projects: ctx.selectedProjects, workspacePackages: opts.workspacePackages })
   }
   addDeeplyLinkedProjects(ctx.selectedProjects, opts.allProjects, { initialImporterIds, importerIds })
 
@@ -82,7 +84,10 @@ function pickInitialImporterIds (ctx: HeadlessContext): ProjectId[] {
   return Array.from(new Set([...selectedIds, ...pickMaterializedImporterIds(ctx.currentLockfile, wantedImporterIds)]))
 }
 
-function addLinkedDependenciesToLockfile (lockfile: LockfileObject, projects: Project[]): void {
+function addLinkedDependenciesToLockfile (
+  lockfile: LockfileObject,
+  { projects, workspacePackages }: { projects: Project[], workspacePackages?: WorkspacePackages }
+): void {
   for (const { id, manifest, rootDir } of projects) {
     const importer = lockfile.importers[id]
     if (!importer) continue
@@ -90,9 +95,24 @@ function addLinkedDependenciesToLockfile (lockfile: LockfileObject, projects: Pr
       importer[depType] = {
         ...importer[depType],
         ...getLinkSpecsRelativeTo(manifest[depType], rootDir),
+        ...workspacePackages && getOmittedWorkspaceLinks(manifest[depType], { importer, rootDir, workspacePackages }),
       }
     }
   }
+}
+
+/** `link:` refs for the workspace links `excludeLinksFromLockfile` left out of the importer. */
+function getOmittedWorkspaceLinks (
+  specs: Record<string, string> | undefined,
+  { importer, rootDir, workspacePackages }: { importer: ProjectSnapshot, rootDir: string, workspacePackages: WorkspacePackages }
+): Record<string, string> {
+  const links: Record<string, string> = {}
+  for (const [depName, spec] of Object.entries(specs ?? {})) {
+    if (importer.specifiers[depName] != null) continue
+    const linkTarget = findWorkspaceLinkTarget(workspacePackages, { alias: depName, bareSpecifier: spec })
+    if (linkTarget != null) links[depName] = `link:${path.relative(rootDir, linkTarget)}`
+  }
+  return links
 }
 
 function getLinkSpecsRelativeTo (specs: Record<string, string> | undefined, rootDir: string): Record<string, string> {

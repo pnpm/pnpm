@@ -75,7 +75,7 @@ export {
   MINIMUM_RELEASE_AGE_VIOLATION_CODE,
   TRUST_DOWNGRADE_VIOLATION_CODE,
 } from './violationCodes.js'
-export { pickMatchingLocalVersionOrNull } from './workspaceResolution.js'
+export { findWorkspaceLinkTarget, pickMatchingLocalVersionOrNull } from './workspaceResolution.js'
 
 export interface ResolverFactoryOptions {
   cacheDir: string
