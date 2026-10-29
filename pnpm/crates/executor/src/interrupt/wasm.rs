@@ -27,14 +27,13 @@ fn listen() {
     }
 }
 
-#[expect(clippy::exit, reason = "an unhandled host signal ends the command")]
 fn relay_signal(signal: &HostSignal) {
     let mut still_listening = false;
     let reached = visit_targets(|entry, target| {
         still_listening |= relay_to(entry, target, signal);
     });
     if !reached || !still_listening {
-        std::process::exit(128 + signal.number);
+        crate::exit(128 + signal.number);
     }
 }
 

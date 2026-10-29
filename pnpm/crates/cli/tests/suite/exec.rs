@@ -3,25 +3,18 @@ use crate::_utils::write_executable;
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::CommandTempCwd;
+use std::{fs, path::Path};
+#[cfg(target_os = "windows")]
 use std::{
-    fs,
-    path::Path,
     thread,
     time::{Duration, Instant},
 };
 
-fn make_detached_node_script(marker_path: &Path, parent_exit_code: i32) -> String {
-    let marker_json = serde_json::to_string(&marker_path.to_string_lossy()).expect("quote marker");
-    let detached_script =
-        format!("setTimeout(() => require('fs').writeFileSync({marker_json}, 'survived'), 500)");
-    let detached_script_json = serde_json::to_string(&detached_script).expect("quote script");
-    format!(
-        "const {{ spawn }} = require('child_process'); const child = spawn(process.execPath, ['-e', {detached_script_json}], {{ detached: true, stdio: 'ignore' }}); child.unref(); process.exit({parent_exit_code})",
-    )
-}
-
+/// A command that starts a detached child connected to `port`, then keeps
+/// running once the child is connected, so the test can kill pnpm while the
+/// command is still running. It exits 42 if the child never connects.
 #[cfg(target_os = "windows")]
-fn make_connected_detached_node_script(ready_path: &Path, port: u16) -> String {
+pub(crate) fn make_connected_detached_node_script(ready_path: &Path, port: u16) -> String {
     let ready_path_json =
         serde_json::to_string(&ready_path.to_string_lossy()).expect("quote ready path");
     let detached_script = format!(
@@ -29,12 +22,12 @@ fn make_connected_detached_node_script(ready_path: &Path, port: u16) -> String {
     );
     let detached_script_json = serde_json::to_string(&detached_script).expect("quote script");
     format!(
-        "const {{ spawn }} = require('child_process'); const fs = require('fs'); const child = spawn(process.execPath, ['-e', {detached_script_json}], {{ detached: true, stdio: 'ignore' }}); child.unref(); const deadline = Date.now() + 10000; while (!fs.existsSync({ready_path_json}) && Date.now() < deadline) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 10); process.exit(fs.existsSync({ready_path_json}) ? 1 : 42)",
+        "const {{ spawn }} = require('child_process'); const fs = require('fs'); const child = spawn(process.execPath, ['-e', {detached_script_json}], {{ detached: true, stdio: 'ignore' }}); child.unref(); const deadline = Date.now() + 10000; const wait = () => fs.existsSync({ready_path_json}) ? setInterval(() => {{}}, 1000) : Date.now() < deadline ? setTimeout(wait, 10) : process.exit(42); wait()",
     )
 }
 
 #[cfg(target_os = "windows")]
-fn assert_connection_closes(mut connection: std::net::TcpStream) {
+pub(crate) fn assert_connection_closes(mut connection: std::net::TcpStream) {
     use std::io::{ErrorKind, Read, Write};
 
     // A socket accepted from a non-blocking listener inherits that mode on
@@ -72,7 +65,7 @@ fn assert_connection_closes(mut connection: std::net::TcpStream) {
 /// Wait for the detached fixture to connect, terminating `parent` if it never
 /// does so a failed test does not leave the chain running.
 #[cfg(target_os = "windows")]
-fn accept_detached_connection(
+pub(crate) fn accept_detached_connection(
     listener: &std::net::TcpListener,
     parent: &mut std::process::Child,
 ) -> std::net::TcpStream {
@@ -99,7 +92,7 @@ fn accept_detached_connection(
 /// Node without a shell, which places it in libuv's Job Object. `on_close` is
 /// the JavaScript run with pacquet's exit `code` once it exits.
 #[cfg(target_os = "windows")]
-fn node_launching_pacquet(
+pub(crate) fn node_launching_pacquet(
     pacquet: &std::process::Command,
     args: &[&str],
     on_close: &str,
@@ -107,7 +100,7 @@ fn node_launching_pacquet(
     let pacquet_path_json = serde_json::to_string(&pacquet.get_program().to_string_lossy())
         .expect("quote pacquet path");
     let args_json = serde_json::to_string(args).expect("quote pacquet args");
-    let mut node = std::process::Command::new("node");
+    let mut node = std::process::Command::new(node_executable());
     node.arg("-e").arg(format!(
         "const child = require('child_process').spawn({pacquet_path_json}, {args_json}, {{ stdio: 'inherit' }}); child.on('close', code => {{ {on_close} }})",
     ));
@@ -123,20 +116,20 @@ fn node_launching_pacquet(
     node
 }
 
-/// JavaScript for [`node_launching_pacquet`] that records pacquet's exit in
-/// `exited_path` and keeps Node alive until `release_path` appears, so the
-/// test can tell a process killed by pacquet's job from one killed by Node's.
+/// The Node executable itself. `node` on `PATH` may be a shim that runs the
+/// real one as its child, and a test that kills the Node launching pnpm must
+/// kill the process pnpm's parent is.
 #[cfg(target_os = "windows")]
-fn linger_after_pacquet_exits(exited_path: &Path, release_path: &Path) -> String {
-    let exited_path_json =
-        serde_json::to_string(&exited_path.to_string_lossy()).expect("quote exited path");
-    let release_path_json =
-        serde_json::to_string(&release_path.to_string_lossy()).expect("quote release path");
-    format!(
-        "const fs = require('fs'); fs.writeFileSync({exited_path_json}, String(code)); const deadline = Date.now() + 30000; const wait = () => fs.existsSync({release_path_json}) || Date.now() > deadline ? process.exit(code) : setTimeout(wait, 50); wait()",
-    )
+fn node_executable() -> std::path::PathBuf {
+    let output = std::process::Command::new("node")
+        .args(["-p", "process.execPath"])
+        .output()
+        .expect("ask node for its executable");
+    let path = String::from_utf8(output.stdout).expect("node prints its path as UTF-8");
+    std::path::PathBuf::from(path.trim())
 }
 
+#[cfg(target_os = "windows")]
 fn wait_for_file(path: &Path) -> bool {
     let deadline = Instant::now() + Duration::from_secs(10);
     while !path.exists() && Instant::now() < deadline {
@@ -512,51 +505,6 @@ fn exec_keeps_inherited_pwd_when_running_in_the_invocation_dir() {
     drop(root);
 }
 
-#[test]
-fn exec_preserves_a_detached_process_after_success() {
-    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    let marker_path = workspace.join("detached-marker.txt");
-
-    pacquet
-        .with_arg("exec")
-        .with_arg("node")
-        .with_arg("-e")
-        .with_arg(make_detached_node_script(&marker_path, 0))
-        .assert()
-        .success();
-
-    let marker_exists = wait_for_file(&marker_path);
-    eprintln!("DETACHED MARKER EXISTS: {marker_exists}");
-    assert!(marker_exists, "the detached process should survive a successful pnpm exec");
-
-    drop(root);
-}
-
-#[cfg(target_os = "windows")]
-#[test]
-fn exec_preserves_a_detached_process_after_success_when_node_launches_pnpm() {
-    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    let marker_path = workspace.join("detached-marker.txt");
-    let detached_script = make_detached_node_script(&marker_path, 0);
-
-    node_launching_pacquet(
-        &pacquet,
-        &["exec", "node", "-e", &detached_script],
-        "process.exit(code)",
-    )
-    .assert()
-    .success();
-
-    let marker_exists = wait_for_file(&marker_path);
-    eprintln!("DETACHED MARKER EXISTS: {marker_exists}");
-    assert!(
-        marker_exists,
-        "the detached process should survive a successful pnpm exec launched from Node",
-    );
-
-    drop(root);
-}
-
 /// PowerShell run with a mode argument:
 ///
 /// - `fail`: start a breakaway waiter, then exit 1.
@@ -696,7 +644,7 @@ fn exec_lets_a_breakaway_process_outlive_a_failure_when_node_launches_pnpm() {
 }
 
 /// A detached process that survives a successful command stays in the
-/// disarmed job, which must still let its children break away.
+/// released job, which must still let its children break away.
 #[cfg(target_os = "windows")]
 #[test]
 fn exec_lets_a_detached_process_break_away_after_success() {
@@ -719,9 +667,12 @@ fn exec_lets_a_detached_process_break_away_after_success() {
     drop(root);
 }
 
+/// pnpm killed while its command runs is the one case where pnpm, rather
+/// than the command, decides what happens to the command's process tree:
+/// the Job Object ends all of it, detached processes included.
 #[cfg(target_os = "windows")]
 #[test]
-fn exec_cleans_up_a_detached_process_after_failure() {
+fn exec_ends_a_detached_process_when_pnpm_is_killed() {
     use std::net::TcpListener;
 
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
@@ -742,25 +693,23 @@ fn exec_cleans_up_a_detached_process_after_failure() {
         .expect("spawn pacquet exec");
 
     let connection = accept_detached_connection(&listener, &mut pacquet_process);
-    let status = pacquet_process.wait().expect("wait for pacquet exec");
-    assert_eq!(status.code(), Some(1), "the fixture must reach its intentional failure");
+    pacquet_process.kill().expect("kill pacquet");
+    let _ = pacquet_process.wait();
     assert_connection_closes(connection);
 
     drop(root);
 }
 
-/// Node keeps running after pacquet exits, so a detached process that is
-/// still connected at that point escaped pacquet's job and would only die
-/// with Node.
+/// Killing the Node process that launched pnpm makes libuv's job end pnpm,
+/// and pnpm's own job then ends the command's tree, as `nr` users see when
+/// they close what started it.
 #[cfg(target_os = "windows")]
 #[test]
-fn exec_cleans_up_a_detached_process_after_failure_when_node_launches_pnpm() {
+fn exec_ends_a_detached_process_when_the_node_launching_pnpm_is_killed() {
     use std::net::TcpListener;
 
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     let ready_path = workspace.join("detached-ready.txt");
-    let exited_path = workspace.join("pnpm-exited.txt");
-    let release_path = workspace.join("release-node.txt");
     let listener = TcpListener::bind(("127.0.0.1", 0)).expect("listen for detached child");
     listener.set_nonblocking(true).expect("set listener nonblocking");
     let port = listener
@@ -772,23 +721,15 @@ fn exec_cleans_up_a_detached_process_after_failure_when_node_launches_pnpm() {
     let mut node_process = node_launching_pacquet(
         &pacquet,
         &["exec", "node", "-e", &detached_script],
-        &linger_after_pacquet_exits(&exited_path, &release_path),
+        "process.exit(code)",
     )
     .spawn()
     .expect("spawn node launching pacquet exec");
 
     let connection = accept_detached_connection(&listener, &mut node_process);
-    let pacquet_exited = wait_for_file(&exited_path);
-    if !pacquet_exited {
-        let _ = node_process.kill();
-        let _ = node_process.wait();
-        panic!("pacquet exec did not exit before the deadline");
-    }
+    node_process.kill().expect("kill node");
+    let _ = node_process.wait();
     assert_connection_closes(connection);
-
-    fs::write(&release_path, "").expect("release node");
-    let status = node_process.wait().expect("wait for node launching pacquet exec");
-    assert_eq!(status.code(), Some(1), "node must forward the fixture's intentional failure");
 
     drop(root);
 }

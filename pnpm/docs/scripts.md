@@ -51,6 +51,24 @@ starting with `_`, `/`, or `@`, or containing `:_`).
 
 :::
 
+## Processes a script leaves running
+
+A process that a script or a command run by `pnpm exec` or `pnpm dlx` starts
+and leaves running, such as a daemon, an editor, or a browser opened by the
+`open` package, keeps running after pnpm exits. It does so whether the script
+succeeded or failed, and after `Ctrl+C`, just as it would if the script ran
+without pnpm. Closing the terminal ends the processes attached to it, as the
+operating system always does.
+
+pnpm ends everything it started in two cases only:
+
+- When pnpm itself is killed or crashes while a script runs, for example when
+  a CI job is cancelled. A Windows process started with
+  `CREATE_BREAKAWAY_FROM_JOB` is exempt.
+- When a script fails in a recursive or parallel run, pnpm stops the scripts
+  of the other packages that are still running, unless
+  [`--no-bail`](./cli/recursive.md#--no-bail) is set.
+
 ## Built-in command and script name conflicts
 
 The following built-in commands prefer user scripts: `clean` (and its alias `purge`), `setup`, `deploy`, `rebuild` (and its alias `rb`), and `tasks`. If your `package.json` defines a script with one of these names, `pnpm <name>` will execute the script instead of the built-in command.

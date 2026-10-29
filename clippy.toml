@@ -6,4 +6,6 @@ allow-print-in-tests = true
 disallowed-methods = [
     { path = "tempfile::NamedTempFile::new_in", reason = "use pnpm_fs::umask_named_tempfile_in or pnpm_fs::private_named_tempfile_in to choose the file's mode" },
     { path = "tempfile::Builder::tempfile_in", reason = "use pnpm_fs::umask_named_tempfile_in or pnpm_fs::private_named_tempfile_in to choose the file's mode" },
+    # Exiting without releasing the Windows Job Object kills whatever the command left running (pnpm/crates/executor/PROCESS_LIFETIME.md).
+    { path = "std::process::exit", reason = "use pnpm_executor::exit, which releases the process-tree cleanup first" },
 ]

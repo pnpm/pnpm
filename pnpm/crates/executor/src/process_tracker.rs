@@ -11,14 +11,27 @@ use crate::process::{Child, Command};
 
 /// Tracks the processes started by one command so a bailing task can stop
 /// other work that is still in flight.
+///
+/// A cancellation stops each task the way the contract in
+/// `PROCESS_LIFETIME.md` sets out. On Unix the task's process group, or the
+/// task and its descendants, get `SIGTERM`, and whatever is still running
+/// after a grace of two seconds gets `SIGKILL`. Windows has no signal that
+/// reaches a task without also reaching pnpm's console, so the Job Object
+/// holding the task is terminated at once.
 pub struct ProcessTracker {
     state: Mutex<TrackerState>,
     separate_process_groups: bool,
 }
 
+/// How long a cancelled task has to stop on `SIGTERM` before it is killed.
+/// Other task runners force the stop after half a second (turborepo), two
+/// seconds (moon), or five (Nx).
+#[cfg(unix)]
+const CANCEL_GRACE: Duration = Duration::from_secs(2);
+
 impl Default for ProcessTracker {
     fn default() -> Self {
-        Self { state: Mutex::new(TrackerState::default()), separate_process_groups: true }
+        Self { state: Mutex::default(), separate_process_groups: true }
     }
 }
 
@@ -34,16 +47,34 @@ enum RunningExecution {
     Process {
         pid: u32,
         separate_process_group: bool,
+        #[cfg(windows)]
+        job: Option<crate::job_control::TaskJob>,
     },
     #[cfg(not(target_family = "wasm"))]
     Emulated(watch::Sender<bool>),
 }
 
 impl RunningExecution {
-    fn cancel(&self) {
+    /// Ask the execution to stop: `SIGTERM` for a Unix process. Windows and
+    /// WebAssembly have nothing gentler than [`Self::kill`].
+    fn stop(&self) {
+        self.end(Stop::Graceful);
+    }
+
+    /// End the execution without giving it a chance to clean up.
+    fn kill(&self) {
+        self.end(Stop::Forced);
+    }
+
+    fn end(&self, stop: Stop) {
         match self {
-            Self::Process { pid, separate_process_group } => {
-                terminate_process(*pid, *separate_process_group);
+            #[cfg(windows)]
+            Self::Process { job: Some(job), .. } => {
+                let _ = stop;
+                job.terminate();
+            }
+            Self::Process { pid, separate_process_group, .. } => {
+                terminate_process(*pid, *separate_process_group, stop);
             }
             #[cfg(not(target_family = "wasm"))]
             Self::Emulated(sender) => {
@@ -51,6 +82,12 @@ impl RunningExecution {
             }
         }
     }
+}
+
+#[derive(Clone, Copy)]
+enum Stop {
+    Graceful,
+    Forced,
 }
 
 impl ProcessTracker {
@@ -65,11 +102,16 @@ impl ProcessTracker {
     /// gets its own group regardless (see [`spawn_child`]).
     #[must_use]
     pub fn foreground() -> Self {
-        Self { state: Mutex::new(TrackerState::default()), separate_process_groups: false }
+        Self { state: Mutex::default(), separate_process_groups: false }
     }
 
     /// Cancel every registered execution. Returns `true` only to the caller
     /// that initiated cancellation.
+    ///
+    /// On Unix every process of the executions gets `SIGTERM` now, and a
+    /// thread of its own kills those still running once the grace has
+    /// passed, so the caller does not wait it out. pnpm waits for that thread
+    /// before it exits (see [`crate::before_exit`]).
     pub fn cancel(&self) -> bool {
         let executions = {
             let mut state = self.state.lock().expect("process tracker lock is not poisoned");
@@ -83,21 +125,30 @@ impl ProcessTracker {
                 .collect::<Vec<_>>()
         };
         #[cfg(unix)]
-        let roots: Vec<u32> = executions
-            .iter()
-            .filter_map(|exec| match exec {
-                RunningExecution::Process { pid, .. } => Some(*pid),
-                RunningExecution::Emulated(_) => None,
-            })
-            .collect();
-        #[cfg(unix)]
-        let descendants = descendant_processes(&roots);
+        let (mut targets, descendants) = {
+            let roots: Vec<u32> = executions
+                .iter()
+                .filter_map(|execution| match execution {
+                    RunningExecution::Process { pid, .. } => Some(*pid),
+                    RunningExecution::Emulated(_) => None,
+                })
+                .collect();
+            let targets: Vec<i32> = executions
+                .iter()
+                .filter_map(RunningExecution::signal_target)
+                .collect();
+            (targets, descendant_processes(&roots))
+        };
         for execution in executions {
-            execution.cancel();
+            execution.stop();
         }
         #[cfg(unix)]
-        for pid in descendants {
-            terminate_descendant(pid);
+        {
+            for &pid in &descendants {
+                signal(pid, Stop::Graceful);
+            }
+            targets.extend(descendants);
+            kill_after_grace(targets);
         }
         true
     }
@@ -117,8 +168,10 @@ impl ProcessTracker {
     fn register(&self, execution: RunningExecution) -> Registration<'_> {
         let mut state = self.state.lock().expect("process tracker lock is not poisoned");
         if state.cancelled {
+            // A task that starts after the cancellation has done no work yet
+            // that a graceful stop would save.
             drop(state);
-            execution.cancel();
+            execution.kill();
             return Registration { tracker: self, id: None };
         }
         let id = state.next_id;
@@ -151,6 +204,10 @@ pub fn spawn_child<'tracker>(
     }
     let child = spawn(command)?;
     crate::job_control::assign_child(&child);
+    // A task a bail may cancel gets a job of its own, so the cancellation
+    // reaches everything the task started.
+    #[cfg(windows)]
+    let job = process_tracker.and_then(|_| crate::job_control::TaskJob::contain(&child));
     // Only Unix gives a child a process group of its own, and only then
     // must a relayed signal address that group rather than the child.
     let own_process_group = cfg!(unix) && separate_process_group;
@@ -161,6 +218,8 @@ pub fn spawn_child<'tracker>(
         tracker.register(RunningExecution::Process {
             pid: child.id(),
             separate_process_group: own_process_group,
+            #[cfg(windows)]
+            job,
         })
     });
     Ok(SpawnedChild {
@@ -187,7 +246,7 @@ fn watch_process_group(mut child: Child, own_process_group: bool) -> io::Result<
     match group_watchdog::watch(child.id()) {
         Ok(watched) => Ok((child, watched)),
         Err(error) => {
-            terminate_process(child.id(), true);
+            terminate_process(child.id(), true, Stop::Forced);
             let _ = child.wait();
             Err(error)
         }
@@ -317,25 +376,121 @@ fn prepare_command(command: &mut Command) {
 fn prepare_command(_: &mut Command) {}
 
 #[cfg(unix)]
-fn terminate_process(pid: u32, separate_process_group: bool) {
-    let Ok(pid) = i32::try_from(pid) else { return };
-    let target = if separate_process_group { -pid } else { pid };
-    // SAFETY: a negative target signals the process group created by
-    // `prepare_command`; a positive target signals the foreground child.
-    // ESRCH is harmless when the process exited concurrently.
-    unsafe {
-        libc::kill(target, libc::SIGKILL);
+impl Stop {
+    fn signal(self) -> libc::c_int {
+        match self {
+            Self::Graceful => libc::SIGTERM,
+            Self::Forced => libc::SIGKILL,
+        }
     }
 }
 
 #[cfg(unix)]
-fn terminate_descendant(pid: i32) {
-    // SAFETY: every PID comes from the OS process list as a descendant of
-    // this process. ESRCH is harmless when it exited concurrently.
-    unsafe {
-        libc::kill(pid, libc::SIGKILL);
+impl RunningExecution {
+    /// What a signal for this execution addresses: the process group the
+    /// child leads, or the child alone.
+    fn signal_target(&self) -> Option<i32> {
+        match self {
+            Self::Process { pid, separate_process_group } => {
+                let pid = i32::try_from(*pid).ok()?;
+                Some(if *separate_process_group { -pid } else { pid })
+            }
+            Self::Emulated(_) => None,
+        }
     }
 }
+
+#[cfg(unix)]
+fn terminate_process(pid: u32, separate_process_group: bool, stop: Stop) {
+    let execution = RunningExecution::Process { pid, separate_process_group };
+    if let Some(target) = execution.signal_target() {
+        signal(target, stop);
+    }
+}
+
+/// Signal `target`: a negative target signals the process group created by
+/// `prepare_command`, a positive one a child or a descendant pnpm listed.
+#[cfg(unix)]
+fn signal(target: i32, stop: Stop) {
+    // SAFETY: plain `kill`; ESRCH is harmless when the target exited
+    // concurrently.
+    unsafe {
+        libc::kill(target, stop.signal());
+    }
+}
+
+/// Whether `target` still names a process, or a group with one in it.
+#[cfg(unix)]
+fn is_running(target: i32) -> bool {
+    // SAFETY: signal 0 only probes.
+    unsafe {
+        libc::kill(target, 0) == 0 || io::Error::last_os_error().raw_os_error() != Some(libc::ESRCH)
+    }
+}
+
+/// The threads waiting out the grace of a cancellation, for
+/// [`finish_cancellations`] to join.
+#[cfg(unix)]
+static GRACE_WATCHES: Mutex<Vec<std::thread::JoinHandle<()>>> = Mutex::new(Vec::new());
+
+/// Kill whatever of `targets` is still running once [`CANCEL_GRACE`] has
+/// passed, from a thread of its own that ends as soon as nothing is. A
+/// thread that cannot be started kills them at once instead: waiting on a
+/// task that ignores `SIGTERM` would never end.
+///
+/// The targets are the pids and groups the cancellation signalled. Unix
+/// hands out pids in sequence, so none of them is recycled within the grace.
+#[cfg(unix)]
+fn kill_after_grace(targets: Vec<i32>) {
+    if targets.is_empty() {
+        return;
+    }
+    let deadline = std::time::Instant::now() + CANCEL_GRACE;
+    let targets: std::sync::Arc<[i32]> = targets.into();
+    let watch = {
+        let targets = std::sync::Arc::clone(&targets);
+        move || {
+            while targets.iter().any(|&target| is_running(target)) {
+                if std::time::Instant::now() >= deadline {
+                    kill_all(&targets);
+                    return;
+                }
+                std::thread::sleep(Duration::from_millis(20));
+            }
+        }
+    };
+    match std::thread::Builder::new().name("pnpm-cancel-grace".to_string()).spawn(watch) {
+        Ok(handle) => GRACE_WATCHES
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .push(handle),
+        Err(_) => kill_all(&targets),
+    }
+}
+
+#[cfg(unix)]
+fn kill_all(targets: &[i32]) {
+    for &target in targets {
+        signal(target, Stop::Forced);
+    }
+}
+
+/// Wait until every task a cancellation stopped has ended, killing those
+/// still running when their grace runs out. pnpm calls it on its way out,
+/// so a task that ignores `SIGTERM` behind a shell that did not cannot
+/// outlive the grace by outliving pnpm.
+#[cfg(unix)]
+pub(crate) fn finish_cancellations() {
+    let watches = std::mem::take(
+        &mut *GRACE_WATCHES.lock().unwrap_or_else(std::sync::PoisonError::into_inner),
+    );
+    for watch in watches {
+        let _ = watch.join();
+    }
+}
+
+#[cfg(not(unix))]
+pub(crate) fn finish_cancellations() {}
 
 #[cfg(unix)]
 fn descendant_processes(roots: &[u32]) -> Vec<i32> {
@@ -420,8 +575,12 @@ fn parse_parent_child_pids(listing: &str) -> HashMap<u32, Vec<u32>> {
     children
 }
 
+/// The fallback for a task whose [`TaskJob`] could not be made: `taskkill`
+/// reaches only the descendants whose parent links still lead to the task.
+///
+/// [`TaskJob`]: crate::job_control::TaskJob
 #[cfg(windows)]
-fn terminate_process(pid: u32, _separate_process_group: bool) {
+fn terminate_process(pid: u32, _separate_process_group: bool, _stop: Stop) {
     use std::os::windows::process::CommandExt;
 
     use crate::process::Stdio;
@@ -437,7 +596,7 @@ fn terminate_process(pid: u32, _separate_process_group: bool) {
 }
 
 #[cfg(target_family = "wasm")]
-fn terminate_process(pid: u32, _separate_process_group: bool) {
+fn terminate_process(pid: u32, _separate_process_group: bool, _stop: Stop) {
     if let Err(error) = pnpm_process::kill(pid) {
         eprintln!("Failed to terminate child process {pid}: {error}");
     }

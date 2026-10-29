@@ -157,8 +157,8 @@ pub(super) fn exit_on_json_error(
         && print_json_errors
     {
         print_json_error(error);
-        #[expect(clippy::exit, reason = "a JSON-mode command exits non-zero after its own report")]
-        std::process::exit(1);
+        // A JSON-mode command exits non-zero after its own report.
+        pnpm_executor::exit(1);
     }
     result
 }

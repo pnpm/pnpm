@@ -675,6 +675,111 @@ fn assert_recursive_run_bail_cancels_in_flight(shell_emulator: bool) {
     drop(root);
 }
 
+/// A bail asks the scripts still running to stop with `SIGTERM`, so one
+/// that handles it gets to clean up, and kills one that ignores it once the
+/// grace has passed. The run ending is the proof of the kill.
+#[cfg(unix)]
+#[test]
+fn recursive_run_bail_stops_running_scripts_gracefully_then_kills_them() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let manifest = |name: &str, body: &str| json!({ "name": name, "version": "1.0.0", "scripts": { "build": body } });
+    let graceful = r#"node -e "const fs = require('fs'); process.on('SIGTERM', () => { fs.writeFileSync('terminated.txt', ''); process.exit(0) }); fs.writeFileSync('ran.txt', ''); setInterval(() => {}, 1000)""#;
+    let stubborn = r#"node -e "const fs = require('fs'); process.on('SIGTERM', () => fs.writeFileSync('terminated.txt', '')); fs.writeFileSync('ran.txt', ''); setInterval(() => {}, 1000)""#;
+    write_workspace(
+        &workspace,
+        &[
+            ("a-graceful", manifest("a-graceful", graceful)),
+            (
+                "b-fails",
+                manifest(
+                    "b-fails",
+                    r#"node -e "const fs = require('fs'); const wait = () => fs.existsSync('../a-graceful/ran.txt') && fs.existsSync('../c-stubborn/ran.txt') ? process.exit(1) : setTimeout(wait, 10); wait()""#,
+                ),
+            ),
+            ("c-stubborn", manifest("c-stubborn", stubborn)),
+        ],
+    );
+
+    let mut run = pacquet
+        .with_args(["--workspace-concurrency=3", "--no-sort", "-r", "run", "build"])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("spawn pacquet");
+    let status = wait_for_child(&mut run);
+    assert!(!status.success(), "the failing project should fail the run");
+    for name in ["a-graceful", "c-stubborn"] {
+        assert!(
+            workspace
+                .join(name)
+                .join("terminated.txt")
+                .exists(),
+            "{name} should have been asked to stop with SIGTERM before pnpm exited",
+        );
+    }
+
+    drop(root);
+}
+
+/// A bail ends everything a running script started, even a detached process
+/// whose parent has exited, which no walk of parent links would find: each
+/// script runs in a Job Object of its own.
+#[cfg(windows)]
+#[test]
+fn recursive_run_bail_ends_a_detached_grandchild_of_a_running_script() {
+    use std::net::TcpListener;
+
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let listener = TcpListener::bind(("127.0.0.1", 0)).expect("listen for the grandchild");
+    listener.set_nonblocking(true).expect("set listener nonblocking");
+    let port = listener
+        .local_addr()
+        .expect("read listener address")
+        .port();
+    let ready = workspace.join("grandchild-ready.txt");
+    // The script starts a child that starts the detached grandchild and
+    // exits at once, then keeps running until the bail ends it.
+    let starter = crate::exec::make_connected_detached_node_script(&ready, port)
+        .replace("setInterval(() => {}, 1000)", "process.exit(0)");
+    let starter_json = serde_json::to_string(&starter).expect("quote the starter");
+    fs::write(
+        workspace.join("script.cjs"),
+        format!(
+            "require('child_process').spawn(process.execPath, ['-e', {starter_json}], {{ stdio: 'ignore' }}); setInterval(() => {{}}, 1000)",
+        ),
+    )
+    .expect("write script.cjs");
+    let ready_json = serde_json::to_string(&ready.to_string_lossy()).expect("quote ready path");
+    fs::write(
+        workspace.join("fail.cjs"),
+        format!(
+            "const fs = require('fs'); const wait = () => fs.existsSync({ready_json}) ? process.exit(1) : setTimeout(wait, 10); wait()",
+        ),
+    )
+    .expect("write fail.cjs");
+    let manifest = |name: &str, body: &str| json!({ "name": name, "version": "1.0.0", "scripts": { "build": body } });
+    write_workspace(
+        &workspace,
+        &[
+            ("a-running", manifest("a-running", "node ../script.cjs")),
+            ("b-fails", manifest("b-fails", "node ../fail.cjs")),
+        ],
+    );
+
+    let mut run = pacquet
+        .with_args(["--workspace-concurrency=2", "--no-sort", "-r", "run", "build"])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("spawn pacquet");
+    let connection = crate::exec::accept_detached_connection(&listener, &mut run);
+    let status = wait_for_child(&mut run);
+    assert!(!status.success(), "the failing project should fail the run");
+    crate::exec::assert_connection_closes(connection);
+
+    drop(root);
+}
+
 /// A recursive run for a script no package defines fails with pnpm's
 /// `ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT`. Covers the no-script branch.
 #[test]

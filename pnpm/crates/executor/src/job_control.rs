@@ -1,20 +1,17 @@
-//! Best-effort process-tree cleanup for failed and interrupted commands.
+//! Process-tree cleanup for when pnpm is killed, and containment for the
+//! tasks a bail cancels. The contract these implement is in
+//! `PROCESS_LIFETIME.md` at the root of this crate.
 //!
 //! Windows has no POSIX signals or process groups, so terminating a child
 //! reaches only the direct child. A Job Object with `KILL_ON_JOB_CLOSE` lets
-//! the OS terminate the whole process tree after an error, panic, or
-//! interrupt. Successful commands disarm the job so a process deliberately
-//! detached by a script can outlive pacquet. A descendant created with
-//! `CREATE_BREAKAWAY_FROM_JOB` leaves the job, so it outlives pacquet even
-//! after a failure. On Unix the kernel's
-//! process-group and signal model already provides cleanup, so setup is a
-//! no-op.
-//!
-//! An interrupt or a closed console ends only the job's processes that share
-//! pacquet's console, which the console's event has reached as well. The rest
-//! are released, so a browser a script opened outlives `Ctrl+C`, as it does
-//! when the command runs without pnpm
-//! ([pnpm/pnpm#17465](https://github.com/pnpm/pnpm/issues/17465)).
+//! the OS terminate the whole process tree when pnpm is killed or crashes.
+//! Whenever pnpm exits on its own, [`crate::exit`] or
+//! [`release_process_tree_cleanup`] clears the kill limit first, so whatever
+//! a command left running outlives pnpm, as it does when the command runs
+//! without pnpm. Cargo and `turbo exec` follow the same rule. A descendant
+//! created with `CREATE_BREAKAWAY_FROM_JOB` leaves the job and outlives even
+//! a pnpm that is killed. On Unix the kernel's process-group and signal model
+//! already provides cleanup, so arming is a no-op.
 //!
 //! pacquet normally joins the job itself, so every descendant inherits the
 //! membership. A parent such as Node's libuv may already have placed pacquet
@@ -25,31 +22,22 @@
 //! out of its own job and assigns the children it spawns instead: they take
 //! the breakaway out of the parent's job and belong to pacquet's job alone.
 //!
-//! [`arm_process_tree_cleanup`] returns a guard to bind for the lifetime of
-//! the process.
+//! A task that a bail may cancel also gets a `TaskJob` of its own, nested
+//! in pnpm's job, so the cancellation ends everything the task started
+//! without walking parent links, which a recycled pid could misdirect.
 
 use crate::process::Child;
 
 #[cfg(windows)]
-use std::sync::{Mutex, PoisonError};
+use std::sync::{Arc, Mutex, PoisonError};
 
-/// Process-tree cleanup armed for the lifetime of a command.
-///
-/// Call [`Self::disarm`] after a successful command to let detached descendants
-/// survive, or [`Self::release_after_interrupt`] after a command the user
-/// interrupted. Otherwise the operating system closes the armed Job Object at
-/// process exit and terminates its remaining processes. The guard is inert on
-/// Unix.
-pub struct JobGuard {}
-
-/// The armed job, until it is disarmed or released after an interrupt. The
-/// console's control handler reaches it here, as it holds no guard.
+/// The armed job, until the cleanup is released.
 #[cfg(windows)]
 static ARMED_JOB: Mutex<Option<JobHandle>> = Mutex::new(None);
 
 /// The armed job that spawned children join explicitly because pacquet itself
 /// stayed out of it. `None` while pacquet is a member of its own job, so the
-/// children inherit the membership, and after the job is disarmed.
+/// children inherit the membership, and after the cleanup is released.
 #[cfg(windows)]
 static CHILD_JOB: Mutex<Option<JobHandle>> = Mutex::new(None);
 
@@ -61,44 +49,82 @@ struct JobHandle(windows_sys::Win32::Foundation::HANDLE);
 #[cfg(windows)]
 unsafe impl Send for JobHandle {}
 
-impl JobGuard {
-    /// Disable process-tree cleanup after a successful command.
-    #[cfg(windows)]
-    pub fn disarm(self) {
-        let Self {} = self;
-        if let Some(job) = take_armed_job() {
-            clear_kill_limit(&job);
+// SAFETY: as for `Send`; every call made through a shared handle is a
+// thread-safe kernel call.
+#[cfg(windows)]
+unsafe impl Sync for JobHandle {}
+
+/// Tie every process pnpm starts from now on to pnpm, so they end with it if
+/// it is killed or crashes. [`crate::exit`] releases them again on every exit pnpm
+/// makes on its own. A failure to arm leaves the processes untied rather than
+/// failing the command.
+#[cfg(windows)]
+pub fn arm_process_tree_cleanup() {
+    use std::{
+        mem::{size_of, zeroed},
+        ptr,
+    };
+    use windows_sys::Win32::Foundation::CloseHandle;
+    use windows_sys::Win32::System::JobObjects::{
+        AssignProcessToJobObject, CreateJobObjectW, JOB_OBJECT_LIMIT_BREAKAWAY_OK,
+        JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
+        JobObjectExtendedLimitInformation, SetInformationJobObject,
+    };
+    use windows_sys::Win32::System::Threading::GetCurrentProcess;
+
+    let mut armed = ARMED_JOB.lock().unwrap_or_else(PoisonError::into_inner);
+    if armed.is_some() {
+        return;
+    }
+    // SAFETY: these are standard Win32 Job Object calls. Every pointer
+    // argument is either null or a stack local that outlives the call,
+    // `GetCurrentProcess` returns a pseudo-handle that must not be closed,
+    // and the job handle is released by the OS at process exit.
+    unsafe {
+        let job = CreateJobObjectW(ptr::null(), ptr::null());
+        if job.is_null() {
+            return;
         }
-    }
-
-    /// Disable the inert process-tree cleanup guard on Unix.
-    #[cfg(not(windows))]
-    pub fn disarm(self) {
-        let Self {} = self;
-    }
-
-    /// End the job's processes that share pacquet's console after an
-    /// interrupt, and release the rest. See [`release_after_interrupt`].
-    pub fn release_after_interrupt(self) {
-        let Self {} = self;
-        release_after_interrupt();
+        let mut info: JOBOBJECT_EXTENDED_LIMIT_INFORMATION = zeroed();
+        // Not `SILENT_BREAKAWAY_OK`: that would release every descendant and
+        // leave nothing for `KILL_ON_JOB_CLOSE` to clean up.
+        info.BasicLimitInformation.LimitFlags =
+            JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE | JOB_OBJECT_LIMIT_BREAKAWAY_OK;
+        let set = SetInformationJobObject(
+            job,
+            JobObjectExtendedLimitInformation,
+            ptr::addr_of!(info).cast(),
+            size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
+        );
+        if set == 0 {
+            CloseHandle(job);
+            return;
+        }
+        if enclosing_job_releases_children() {
+            *CHILD_JOB.lock().unwrap_or_else(PoisonError::into_inner) = Some(JobHandle(job));
+        } else if AssignProcessToJobObject(job, GetCurrentProcess()) == 0 {
+            // Fails when pacquet is already inside a job that forbids
+            // nesting; fall back to no tree cleanup rather than aborting the
+            // command.
+            CloseHandle(job);
+            return;
+        }
+        // Deliberately do not close `job`: it must stay open until the process
+        // exits so `KILL_ON_JOB_CLOSE` fires then. Closing it now would also
+        // terminate this process when it is assigned to the job.
+        *armed = Some(JobHandle(job));
     }
 }
 
-/// Take the armed job, and stop assigning children to it first so no spawn
-/// can reach the handle once it is closed.
-#[cfg(windows)]
-fn take_armed_job() -> Option<JobHandle> {
-    *CHILD_JOB.lock().unwrap_or_else(PoisonError::into_inner) = None;
-    ARMED_JOB
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner)
-        .take()
-}
+#[cfg(not(windows))]
+pub fn arm_process_tree_cleanup() {}
 
-/// Clear the kill limit of `job` and close it, so its processes run on.
+/// Untie the processes pnpm started from pnpm's own lifetime, so they keep
+/// running after it exits. [`crate::exit`] calls this, and so does every other
+/// path on which pnpm decides to end: the end of `main`, and a closing
+/// console, whose own processes the operating system ends anyway.
 #[cfg(windows)]
-fn clear_kill_limit(job: &JobHandle) {
+pub(crate) fn release_process_tree_cleanup() {
     use std::{
         mem::{size_of, zeroed},
         ptr,
@@ -109,13 +135,22 @@ fn clear_kill_limit(job: &JobHandle) {
         JobObjectExtendedLimitInformation, SetInformationJobObject,
     };
 
-    let job = job.0;
+    // Stop assigning children first so no spawn can reach the handle once
+    // it is closed.
+    *CHILD_JOB.lock().unwrap_or_else(PoisonError::into_inner) = None;
+    let Some(JobHandle(job)) = ARMED_JOB
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .take()
+    else {
+        return;
+    };
     // SAFETY: `job` is the valid handle created by
     // [`arm_process_tree_cleanup`]. The information pointer refers to a
     // stack local that outlives the call. Clear the kill limit before
     // closing the handle; if clearing fails, leave the armed handle for
     // the operating system to close at exit. Breakaway stays allowed for
-    // the detached processes that remain in the job.
+    // the processes that remain in the job.
     unsafe {
         let mut info: JOBOBJECT_EXTENDED_LIMIT_INFORMATION = zeroed();
         info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_BREAKAWAY_OK;
@@ -131,183 +166,8 @@ fn clear_kill_limit(job: &JobHandle) {
     }
 }
 
-/// End the armed job's processes that share pacquet's console, then release
-/// the rest instead of letting the job's close end them.
-///
-/// The console delivers an interrupt or a close to every process attached to
-/// it, so those processes belong to the command and have been told to stop;
-/// ending them is what the job's close would have done. A process outside
-/// the console never saw the event: a GUI application such as the browser
-/// `open` starts, or a program `start` gave a console of its own. Ending
-/// the command does not end those when it runs without pnpm either.
-///
-/// Without a console to tell the two apart, the job stays armed and ends
-/// everything at exit.
-#[cfg(windows)]
-pub(crate) fn release_after_interrupt() {
-    let Some(console) = console_process_ids() else { return };
-    let Some(job) = take_armed_job() else { return };
-    end_console_members(&job, &console);
-    clear_kill_limit(&job);
-}
-
 #[cfg(not(windows))]
-pub(crate) fn release_after_interrupt() {}
-
-/// The processes attached to pacquet's console, or `None` when it has none.
-#[cfg(windows)]
-fn console_process_ids() -> Option<Vec<u32>> {
-    use windows_sys::Win32::System::Console::GetConsoleProcessList;
-
-    let mut ids = vec![0_u32; 64];
-    loop {
-        // SAFETY: the buffer holds `ids.len()` entries for the call to fill.
-        let count = unsafe { GetConsoleProcessList(ids.as_mut_ptr(), ids.len() as u32) } as usize;
-        if count == 0 {
-            return None;
-        }
-        if count <= ids.len() {
-            ids.truncate(count);
-            return Some(ids);
-        }
-        ids.resize(count, 0);
-    }
-}
-
-/// End every process of `job` that `console` lists, other than pacquet.
-#[cfg(windows)]
-fn end_console_members(job: &JobHandle, console: &[u32]) {
-    use windows_sys::Win32::Foundation::CloseHandle;
-    use windows_sys::Win32::System::JobObjects::IsProcessInJob;
-    use windows_sys::Win32::System::Threading::{
-        GetCurrentProcessId, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_TERMINATE,
-        TerminateProcess,
-    };
-
-    // SAFETY: plain FFI call.
-    let own_pid = unsafe { GetCurrentProcessId() };
-    for pid in job_process_ids(job) {
-        if pid == own_pid || !console.contains(&pid) {
-            continue;
-        }
-        // SAFETY: the process handle is checked before use and closed below.
-        // The membership check runs on that handle, which pins the process,
-        // so a pid recycled since the listing is never ended.
-        unsafe {
-            let process =
-                OpenProcess(PROCESS_TERMINATE | PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
-            if process.is_null() {
-                continue;
-            }
-            let mut in_job = 0;
-            if IsProcessInJob(process, job.0, &raw mut in_job) != 0 && in_job != 0 {
-                TerminateProcess(process, crate::interrupt::STATUS_CONTROL_C_EXIT);
-            }
-            CloseHandle(process);
-        }
-    }
-}
-
-/// The ids of the processes in `job`, or none when they cannot be read.
-#[cfg(windows)]
-fn job_process_ids(job: &JobHandle) -> Vec<u32> {
-    use std::{mem::size_of, ptr};
-    use windows_sys::Win32::System::JobObjects::{
-        JOBOBJECT_BASIC_PROCESS_ID_LIST, JobObjectBasicProcessIdList, QueryInformationJobObject,
-    };
-
-    // The list's two counts are followed by one `usize` per process, so a
-    // `usize` buffer keeps every field aligned.
-    let header = size_of::<JOBOBJECT_BASIC_PROCESS_ID_LIST>() / size_of::<usize>() - 1;
-    let mut capacity = 64;
-    loop {
-        let mut buffer = vec![0_usize; header + capacity];
-        let list = buffer.as_mut_ptr().cast::<JOBOBJECT_BASIC_PROCESS_ID_LIST>();
-        // SAFETY: the buffer is aligned for the list, as long as the length
-        // passed, and outlives the call. A buffer too small for every process
-        // fails the call but still reports how many there are.
-        let (assigned, listed) = unsafe {
-            QueryInformationJobObject(
-                job.0,
-                JobObjectBasicProcessIdList,
-                list.cast(),
-                (buffer.len() * size_of::<usize>()) as u32,
-                ptr::null_mut(),
-            );
-            ((*list).NumberOfAssignedProcesses as usize, (*list).NumberOfProcessIdsInList as usize)
-        };
-        if assigned > capacity {
-            capacity = assigned + 16;
-            continue;
-        }
-        return buffer[header..header + listed.min(capacity)]
-            .iter()
-            .map(|&id| id as u32)
-            .collect();
-    }
-}
-
-#[cfg(windows)]
-#[must_use]
-pub fn arm_process_tree_cleanup() -> Option<JobGuard> {
-    use std::{
-        mem::{size_of, zeroed},
-        ptr,
-    };
-    use windows_sys::Win32::Foundation::CloseHandle;
-    use windows_sys::Win32::System::JobObjects::{
-        AssignProcessToJobObject, CreateJobObjectW, JOB_OBJECT_LIMIT_BREAKAWAY_OK,
-        JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
-        JobObjectExtendedLimitInformation, SetInformationJobObject,
-    };
-    use windows_sys::Win32::System::Threading::GetCurrentProcess;
-
-    // SAFETY: these are standard Win32 Job Object calls. Every pointer
-    // argument is either null or a stack local that outlives the call,
-    // `GetCurrentProcess` returns a pseudo-handle that must not be closed,
-    // and the job handle is released by the OS at process exit.
-    unsafe {
-        let job = CreateJobObjectW(ptr::null(), ptr::null());
-        if job.is_null() {
-            return None;
-        }
-        let mut info: JOBOBJECT_EXTENDED_LIMIT_INFORMATION = zeroed();
-        // Not `SILENT_BREAKAWAY_OK`: that would release every descendant and
-        // leave nothing for `KILL_ON_JOB_CLOSE` to clean up.
-        info.BasicLimitInformation.LimitFlags =
-            JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE | JOB_OBJECT_LIMIT_BREAKAWAY_OK;
-        let set = SetInformationJobObject(
-            job,
-            JobObjectExtendedLimitInformation,
-            ptr::addr_of!(info).cast(),
-            size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
-        );
-        if set == 0 {
-            CloseHandle(job);
-            return None;
-        }
-        if enclosing_job_releases_children() {
-            *CHILD_JOB.lock().expect("child job lock is not poisoned") = Some(JobHandle(job));
-        } else if AssignProcessToJobObject(job, GetCurrentProcess()) == 0 {
-            // Fails when pacquet is already inside a job that forbids
-            // nesting; fall back to no tree cleanup rather than aborting the
-            // command.
-            CloseHandle(job);
-            return None;
-        }
-        // Deliberately do not close `job`: it must stay open until the process
-        // exits so `KILL_ON_JOB_CLOSE` fires then. Closing it now would also
-        // terminate this process when it is assigned to the job.
-        *ARMED_JOB.lock().expect("armed job lock is not poisoned") = Some(JobHandle(job));
-        Some(JobGuard {})
-    }
-}
-
-#[cfg(not(windows))]
-#[must_use]
-pub fn arm_process_tree_cleanup() -> Option<JobGuard> {
-    Some(JobGuard {})
-}
+pub(crate) fn release_process_tree_cleanup() {}
 
 /// Whether pacquet is already a member of a job that lets its members'
 /// children silently break away, so that nesting our own job would pin them
@@ -354,7 +214,7 @@ pub(crate) fn assign_child(child: &Child) {
     use std::os::windows::io::AsRawHandle;
     use windows_sys::Win32::System::JobObjects::AssignProcessToJobObject;
 
-    let child_job = CHILD_JOB.lock().expect("child job lock is not poisoned");
+    let child_job = CHILD_JOB.lock().unwrap_or_else(PoisonError::into_inner);
     let Some(job) = child_job.as_ref() else { return };
     // SAFETY: `job.0` is the open handle created by
     // [`arm_process_tree_cleanup`], kept alive by the lock held across the
@@ -367,3 +227,81 @@ pub(crate) fn assign_child(child: &Child) {
 
 #[cfg(not(windows))]
 pub(crate) fn assign_child(_: &Child) {}
+
+/// A Job Object holding one task's process tree, nested in pnpm's own job.
+/// [`Self::terminate`] ends everything the task started, wherever its parent
+/// links lead. Closing the job ends nothing: a task that finishes on its own
+/// leaves its leftovers running, as any command does.
+#[cfg(windows)]
+#[derive(Clone)]
+pub(crate) struct TaskJob(Arc<OwnedJob>);
+
+#[cfg(windows)]
+struct OwnedJob(JobHandle);
+
+#[cfg(windows)]
+impl Drop for OwnedJob {
+    fn drop(&mut self) {
+        // SAFETY: the handle was created by `TaskJob::contain` and is closed
+        // once, by the last owner.
+        unsafe {
+            windows_sys::Win32::Foundation::CloseHandle((self.0).0);
+        }
+    }
+}
+
+#[cfg(windows)]
+impl TaskJob {
+    /// Put a freshly spawned `child` in a job of its own. Call it right after
+    /// the spawn, and after [`assign_child`]: a grandchild created before the
+    /// assignment is not covered. `None` when the job cannot be made, which
+    /// leaves the task to [`crate::ProcessTracker`]'s fallback.
+    pub(crate) fn contain(child: &Child) -> Option<Self> {
+        use std::{
+            mem::{size_of, zeroed},
+            os::windows::io::AsRawHandle,
+            ptr,
+        };
+        use windows_sys::Win32::System::JobObjects::{
+            AssignProcessToJobObject, CreateJobObjectW, JOB_OBJECT_LIMIT_BREAKAWAY_OK,
+            JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JobObjectExtendedLimitInformation,
+            SetInformationJobObject,
+        };
+
+        // SAFETY: standard Win32 Job Object calls. Every pointer argument is
+        // null or a stack local that outlives the call, and the child handle
+        // is owned by `child`. The job handle is owned by the returned value,
+        // which closes it on every path below.
+        unsafe {
+            let job = CreateJobObjectW(ptr::null(), ptr::null());
+            if job.is_null() {
+                return None;
+            }
+            let job = OwnedJob(JobHandle(job));
+            // Breakaway must be allowed by every job of the hierarchy, or a
+            // descendant asking for it fails to start (pnpm/pnpm#16628).
+            let mut info: JOBOBJECT_EXTENDED_LIMIT_INFORMATION = zeroed();
+            info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_BREAKAWAY_OK;
+            let set = SetInformationJobObject(
+                (job.0).0,
+                JobObjectExtendedLimitInformation,
+                ptr::addr_of!(info).cast(),
+                size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
+            );
+            (set != 0 && AssignProcessToJobObject((job.0).0, child.as_raw_handle()) != 0).then(
+                || Self(Arc::new(job)),
+            )
+        }
+    }
+
+    /// End every process of the task.
+    pub(crate) fn terminate(&self) {
+        use windows_sys::Win32::System::JobObjects::TerminateJobObject;
+
+        // SAFETY: the handle stays open for as long as `self` holds it. On a
+        // job whose processes have all exited the call is a no-op.
+        unsafe {
+            TerminateJobObject((self.0.0).0, 1);
+        }
+    }
+}

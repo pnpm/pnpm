@@ -21,11 +21,8 @@ pub(in super::super) fn doctor<'a>(
         let result = args.run(cfg).await?;
         pnpm_diagnostics::println!("{}", result.output);
         if result.outcome == DoctorOutcome::Unhealthy {
-            #[expect(
-                clippy::exit,
-                reason = "`doctor` exits non-zero when a check fails, mirroring pnpm"
-            )]
-            std::process::exit(1);
+            // `doctor` exits non-zero when a check fails, mirroring pnpm.
+            pnpm_executor::exit(1);
         }
         Ok(())
     }))
