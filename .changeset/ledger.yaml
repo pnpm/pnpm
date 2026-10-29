@@ -5371,6 +5371,10 @@ get-pnpm@0.0.10:
   intents:
     - corepack-download-reads-pnpm-proxy
     - get-pnpm-no-token-over-http
+get-pnpm@0.0.11:
+  dir: pnpm/npm/get-pnpm
+  intents:
+    - get-pnpm-no-modify-path
 pacquet@12.0.0:
   dir: pnpm/npm/pnpm
   intents:
