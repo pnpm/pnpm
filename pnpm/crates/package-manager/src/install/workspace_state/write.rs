@@ -28,6 +28,8 @@ pub(crate) struct StateProjects<'a> {
     pub(crate) manifests: crate::DeclaredManifests<'a>,
     /// See [`crate::RepeatInstallManifests::workspace_projects`].
     pub(crate) workspace_projects: Option<&'a [(PathBuf, &'a PackageManifest)]>,
+    /// See [`RecordValidation::lockfile`](crate::optimistic_repeat_install::validation::RecordValidation::lockfile).
+    pub(crate) lockfile: Option<&'a pnpm_lockfile::Lockfile>,
 }
 
 /// The settings a write takes from what earlier runs established rather than
@@ -84,6 +86,7 @@ pub(crate) fn recorded_workspace_state(write: &StateWrite<'_>) -> WorkspaceState
             project_manifests: write.projects.manifests,
             workspace_projects: write.projects.workspace_projects,
             vouched: write.vouched,
+            lockfile: write.projects.lockfile,
         },
     );
     state

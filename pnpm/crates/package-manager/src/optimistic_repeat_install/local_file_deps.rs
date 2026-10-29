@@ -60,14 +60,7 @@ pub(crate) fn frozen_local_tarballs_to_verify(
             continue;
         };
         let LockfileResolution::Tarball(resolution) = &metadata.resolution else { continue };
-        if !is_local_tarball_path(&resolution.tarball) {
-            continue;
-        }
-        let url = crate::local_file_tarball_install_url(
-            Cow::Borrowed(&resolution.tarball),
-            check.workspace_root,
-        );
-        let Some(recorded_path) = pnpm_tarball::local_file_tarball_path(&url) else {
+        let Some(recorded_path) = local_tarball_file(resolution, check.workspace_root) else {
             continue;
         };
         let Some(integrity) = resolution.integrity
@@ -81,6 +74,20 @@ pub(crate) fn frozen_local_tarballs_to_verify(
         }
     }
     targets
+}
+
+/// The file a local tarball resolution names, measured from the lockfile
+/// directory. `None` for a remote tarball.
+pub(crate) fn local_tarball_file(
+    resolution: &pnpm_lockfile::TarballResolution,
+    lockfile_dir: &Path,
+) -> Option<PathBuf> {
+    if !is_local_tarball_path(&resolution.tarball) {
+        return None;
+    }
+    let url =
+        crate::local_file_tarball_install_url(Cow::Borrowed(&resolution.tarball), lockfile_dir);
+    pnpm_tarball::local_file_tarball_path(&url)
 }
 
 /// Whether any project declares a mutable local directory dependency or a

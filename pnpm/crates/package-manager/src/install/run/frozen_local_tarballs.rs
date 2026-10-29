@@ -115,9 +115,11 @@ async fn verify_frozen_tarballs(settled: Settled<'_, '_>) -> Result<(), InstallE
     verify_integrity(targets, lockfile.integrity_target().into()).await
 }
 
-/// Whether a local tarball a project depends on was replaced since the
+/// Whether a local tarball a project reaches was replaced since the
 /// lockfile recorded it. An install not told to keep the lockfile frozen
-/// then has to re-resolve it instead of reusing the lockfile.
+/// then has to re-resolve it instead of reusing the lockfile. A project can
+/// reach one through a workspace project it injects, whose dependencies its
+/// own lockfile records.
 async fn local_tarballs_changed(settled: Settled<'_, '_>) -> bool {
     let Some(lockfile) = settled.lockfiles.wanted.get() else { return false };
     if !has_local_tarball(lockfile) {
@@ -125,13 +127,22 @@ async fn local_tarballs_changed(settled: Settled<'_, '_>) -> bool {
     }
     let workspace_root = settled.projects.workspace.dirs.workspace_root.clone();
     let kind = lockfile.integrity_target().into();
-    let resolutions: Vec<_> = direct_package_keys(
+    let groups = crate::GroupSelection::classify(
         lockfile,
-        &installed_importer_ids(settled, lockfile),
         settled.mode.included,
+        settled.install.context.config.peer_edge_options(),
+    );
+    let resolutions: Vec<_> = crate::collect_reachable(
+        lockfile,
+        &workspace_root,
+        &installed_importer_ids(settled, lockfile),
+        &groups,
+        |_| false,
     )
+    .snapshot_keys
     .iter()
-    .filter_map(|key| lockfile.packages.as_ref()?.get(key))
+    .map(pnpm_lockfile::PackageKey::without_peer)
+    .filter_map(|key| lockfile.packages.as_ref()?.get(&key))
     .filter(|metadata| is_local_file_tarball(&metadata.resolution))
     .map(|metadata| metadata.resolution.clone())
     .collect();
@@ -146,35 +157,6 @@ async fn local_tarballs_changed(settled: Settled<'_, '_>) -> bool {
     })
     .await
     .expect("detect changed local tarballs task panicked")
-}
-
-/// The packages `importer_ids` depend on directly through the included
-/// dependency groups.
-fn direct_package_keys(
-    lockfile: &pnpm_lockfile::Lockfile,
-    importer_ids: &HashSet<String>,
-    included: pnpm_modules_yaml::IncludedDependencies,
-) -> HashSet<pnpm_lockfile::PackageKey> {
-    use pnpm_package_manifest::DependencyGroup;
-    let groups = [
-        (DependencyGroup::Prod, included.dependencies),
-        (DependencyGroup::Dev, included.dev_dependencies),
-        (DependencyGroup::Optional, included.includes_project_optional_dependencies()),
-    ];
-    importer_ids
-        .iter()
-        .filter_map(|importer_id| lockfile.importers.get(importer_id))
-        .flat_map(|importer| {
-            groups
-                .iter()
-                .filter(|(_, group_included)| *group_included)
-                .filter_map(|(group, _)| importer.get_map_by_group(*group))
-                .flatten()
-        })
-        .filter_map(|(alias, resolved)| {
-            resolved.version.resolved_key(alias).map(|key| key.without_peer())
-        })
-        .collect()
 }
 
 /// Whether the local tarball `resolution` points at no longer holds the

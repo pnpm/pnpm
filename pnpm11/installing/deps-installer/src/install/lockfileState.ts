@@ -198,5 +198,6 @@ export function upToDateCheckOptions (
     workspaceDir: opts.workspaceDir,
     readPackageHook: opts.readPackageHook,
     registries: pickRegistryContext(opts),
+    includedDependencies: opts.include,
   }
 }

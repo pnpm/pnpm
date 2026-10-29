@@ -262,6 +262,7 @@ fn record_installed(
             config,
             project_manifests: crate::DeclaredManifests::new(project_manifests),
             workspace_projects: None,
+            lockfile: None,
             vouched: &super::validation::Vouched::All,
         },
     );
@@ -294,6 +295,7 @@ fn record_validation_on_disk(workspace_root: &std::path::Path, state: &mut Works
             config: &config,
             project_manifests: crate::DeclaredManifests::new(&project_manifests),
             workspace_projects: None,
+            lockfile: None,
             vouched: &super::validation::Vouched::All,
         },
     );
@@ -407,6 +409,7 @@ fn record_test_workspace_state(
         projects: crate::install::StateProjects {
             manifests: crate::DeclaredManifests::new(project_manifests),
             workspace_projects: None,
+            lockfile: None,
         },
         filesystem_now_ms: Some(backdate_validated_files(workspace_root)),
         carried: crate::install::CarriedSettings {

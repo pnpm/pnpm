@@ -124,6 +124,7 @@ fn a_filtered_write_carries_the_other_records_while_the_shared_inputs_stand() {
                 project_manifests: crate::DeclaredManifests::new(&project_manifests),
                 workspace_projects: None,
                 vouched,
+                lockfile: None,
             },
         );
     };
@@ -184,6 +185,7 @@ fn source_date_epoch_records_deterministic_pnpmfile_digests_without_trusting_mti
             project_manifests: crate::DeclaredManifests::new(&project_manifests),
             workspace_projects: None,
             vouched: &Vouched::All,
+            lockfile: None,
         },
     );
 

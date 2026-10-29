@@ -3,6 +3,7 @@ import path from 'node:path'
 import { mergeCatalogs } from '@pnpm/catalogs.config'
 import type { Catalogs } from '@pnpm/catalogs.types'
 import { pickRegistryContext } from '@pnpm/config.normalize-registries'
+import { createLocalDependenciesReader } from '@pnpm/deps.status'
 import type { DryRunInstallResult } from '@pnpm/installing.deps-installer'
 import { getWantedLockfileName, type LockfileObject, readWantedLockfile } from '@pnpm/lockfile.fs'
 import { findMovedRegistryKey, findOutdatedRegistryKey } from '@pnpm/lockfile.utils'
@@ -130,6 +131,7 @@ async function stateValidation (
     sharedInputs: sharedInputPaths(lockfileDir, opts.patchedDependencies, opts.pnpmfile),
     vouchedProjects: filteredInstall ? opts.installedProjectDirs : undefined,
     sharedWorkspaceLockfile: opts.sharedWorkspaceLockfile,
+    readLocalDependencies: createLocalDependenciesReader(async (lockfileDir) => readLockfileForState(lockfileDir, opts)),
   }
 }
 

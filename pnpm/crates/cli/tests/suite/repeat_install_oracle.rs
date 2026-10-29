@@ -96,6 +96,8 @@ struct Scenario {
     fixture: WorkspaceFixture,
     layout: Layout,
     oracle_runs: usize,
+    /// A project depends on a local tarball or directory.
+    local_file_dependency: bool,
 }
 
 /// What an install leaves behind that a user can observe: where every
@@ -132,7 +134,8 @@ impl Scenario {
         let fixture = WorkspaceFixture::new();
         fixture.append_workspace_yaml(&layout.workspace_yaml());
         fixture.write_root_manifest("root", ManifestDeps::default());
-        let scenario = Self { driver, fixture, layout, oracle_runs: 0 };
+        let scenario =
+            Self { driver, fixture, layout, oracle_runs: 0, local_file_dependency: false };
         scenario.set_dependencies("a", &json!({ "@pnpm.e2e/foo": "100.0.0" }));
         scenario.write_manifest(
             "b",
@@ -247,16 +250,23 @@ impl Scenario {
     /// `file:` snapshot, which the install fast path does not compare, so both
     /// CLIs refuse it (pnpm/tasks#145). With a shared lockfile, v11 also
     /// refuses the install fast path to refresh injected copies (pnpm/pnpm#15679).
+    /// v11 refuses it over any local file dependency, unchanged or not.
     fn offers_next_install_fast_path(&self) -> bool {
+        if self.local_file_dependency && self.next_is_v11() {
+            return false;
+        }
         if !self.layout.inject_workspace_packages {
             return true;
         }
-        let next_is_v11 = match &self.driver {
+        self.layout.shared_lockfile && !self.next_is_v11()
+    }
+
+    fn next_is_v11(&self) -> bool {
+        match &self.driver {
             Driver::V12 => false,
             Driver::V11(_) => true,
             Driver::Mixed { next_v11, .. } => next_v11.get(),
-        };
-        self.layout.shared_lockfile && !next_is_v11
+        }
     }
 
     /// Runs `pnpm install` with `args` and tells whether it took the fast
@@ -1016,6 +1026,39 @@ fn a_package_extension_of_a_project_then_an_edit(layout: Layout) {
     scenario.check_gates();
 }
 
+/// A `readPackage` hook that gives `a` a dependency on a local tarball no
+/// manifest declares.
+const PNPMFILE_ADDING_A_LOCAL_TARBALL: &str = "module.exports = { hooks: { readPackage (pkg) {
+  if (pkg.name === 'a') pkg.dependencies = { ...pkg.dependencies, 'local-pkg': 'file:../../vendor/local-pkg.tgz' }
+  return pkg
+} } }
+";
+
+/// A local tarball that only a `readPackage` hook depends on, replaced with
+/// other contents.
+fn a_local_tarball_a_hook_adds_then_replaced(layout: Layout) {
+    let mut scenario = Scenario::new(layout);
+    let tarball = scenario.workspace().join("vendor/local-pkg.tgz");
+    let write_tarball = |version: &str| {
+        fs::create_dir_all(tarball.parent().expect("vendor dir")).expect("create vendor dir");
+        fs::write(
+            &tarball,
+            pnpm_testing_utils::fixtures::tarball_with_manifest(
+                &json!({ "name": "local-pkg", "version": version }),
+            ),
+        )
+        .expect("write the local tarball");
+    };
+    write_tarball("1.0.0");
+    fs::write(scenario.workspace().join(".pnpmfile.cjs"), PNPMFILE_ADDING_A_LOCAL_TARBALL)
+        .expect("write the pnpmfile");
+    scenario.install(&[]);
+    scenario.local_file_dependency = true;
+    scenario.check_gates();
+    write_tarball("1.0.1");
+    scenario.check_gates_after_a_workspace_input_edit();
+}
+
 /// `patchedDependencies` added, its patch file edited, and the entry removed.
 fn a_patch_added_edited_and_removed(layout: Layout) {
     let mut scenario = Scenario::new(layout);
@@ -1162,6 +1205,7 @@ macro_rules! matrix {
                     a_pnpmfile_hook_edited,
                     a_pnpmfile_hook_rewriting_a_project_specifier,
                     a_package_extension_of_a_project_then_an_edit,
+                    a_local_tarball_a_hook_adds_then_replaced,
                     a_patch_added_edited_and_removed,
                     dedupe_peers_toggled,
                     a_workspace_bin_renamed,
