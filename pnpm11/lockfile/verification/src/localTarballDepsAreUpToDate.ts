@@ -85,20 +85,22 @@ export async function localTarballDepsAreUpToDate (
   const dependencies = DEPENDENCIES_FIELDS
     .filter((field) => ctx.includedDependencies?.[field] !== false)
     .flatMap((field) => Object.entries(project.snapshot[field] ?? {}))
-  const reached = reachableDependencies(ctx.lockfilePackages, dependencies)
+  const reached = reachableDependencies(ctx, dependencies)
   const results = await Promise.all(reached.map(async ([depName, ref]) => localTarballDepIsUpToDate(ctx, depName, ref)))
   return results.every(Boolean)
 }
 
 /**
- * `dependencies` and every dependency they reach through `packages`. A
- * project reaches a local tarball through a workspace project it injects,
- * whose dependencies the project's own lockfile records.
+ * `dependencies` and every dependency they reach through the lockfile
+ * packages, without the optional ones the install excludes. A project
+ * reaches a local tarball through a workspace project it injects, whose
+ * dependencies the project's own lockfile records.
  */
 function reachableDependencies (
-  packages: PackageSnapshots | undefined,
+  { lockfilePackages: packages, includedDependencies }: Pick<LocalTarballDepsUpToDateContext, 'lockfilePackages' | 'includedDependencies'>,
   dependencies: Array<[string, string]>
 ): Array<[string, string]> {
+  const includesOptional = includedDependencies?.optionalDependencies !== false
   const reached: Array<[string, string]> = []
   const visited = new Set<string>()
   const queue = [...dependencies]
@@ -109,7 +111,8 @@ function reachableDependencies (
     visited.add(depPath)
     reached.push(next)
     const snapshot = packages?.[depPath]
-    queue.push(...Object.entries(snapshot?.dependencies ?? {}), ...Object.entries(snapshot?.optionalDependencies ?? {}))
+    queue.push(...Object.entries(snapshot?.dependencies ?? {}))
+    if (includesOptional) queue.push(...Object.entries(snapshot?.optionalDependencies ?? {}))
   }
   return reached
 }
