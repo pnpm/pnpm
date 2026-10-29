@@ -32,7 +32,7 @@ Reports the running pnpm and Node.js versions.
 
 ### Install method
 
-Warns when pnpm is being run by Corepack, which manages the pnpm version itself and makes `pnpm self-update` unavailable.
+Reports `pnpm` as the install method and warns when pnpm is being run by Corepack, which manages the pnpm version itself and makes `pnpm self-update` unavailable.
 
 ### Global bin directory
 

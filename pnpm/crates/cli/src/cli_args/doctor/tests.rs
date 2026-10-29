@@ -1,8 +1,8 @@
 use super::{
-    CheckResult, CheckStatus, DoctorReport, can_write_to_dir, check_versions, last_line,
-    probe_link_capabilities, render_report, status_mark,
+    CheckResult, CheckStatus, DoctorReport, can_write_to_dir, check_versions, connectivity_config,
+    last_line, probe_link_capabilities, render_report, status_mark,
 };
-use pnpm_config::PNPM_VERSION;
+use pnpm_config::{Config, PNPM_VERSION};
 use pretty_assertions::assert_eq;
 
 fn report(checks: Vec<CheckResult>) -> DoctorReport {
@@ -100,4 +100,10 @@ fn last_line_skips_trailing_blanks() {
 fn check_versions_reports_the_released_pnpm_version() {
     let detail = check_versions().detail.expect("versions detail");
     assert!(detail.starts_with(&format!("pnpm {PNPM_VERSION}")), "{detail}");
+}
+
+#[test]
+fn connectivity_config_uses_the_doctor_timeout() {
+    let config = Config { fetch_timeout: 120_000, ..Config::default() };
+    assert_eq!(connectivity_config(&config).fetch_timeout, 15_000);
 }
