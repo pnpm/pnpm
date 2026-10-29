@@ -5,8 +5,6 @@
 //! versions, and pick the one (or the set) matching a user-supplied
 //! selector. The selector may be:
 //!
-//! - `latest` or an empty selector — the first entry in the index
-//!   (the newest published build on that channel).
 //! - `lts` — the newest entry tagged with any LTS codename.
 //! - An LTS codename (`argon`, `iron`, ...) — `*` within that codename.
 //! - A semver range — pick the [`max_satisfying`] version.
@@ -77,12 +75,14 @@ pub async fn resolve_node_version(
     http_client: &ThrottledClient,
     version_spec: &str,
     node_mirror_base_url: Option<&str>,
+    release_channel: &str,
 ) -> Result<Option<String>, ResolveNodeVersionError> {
     resolve_node_version_with_auth(
         http_client,
         &AuthHeaders::default(),
         version_spec,
         node_mirror_base_url,
+        release_channel,
     )
     .await
 }
@@ -94,15 +94,15 @@ pub async fn resolve_node_version_with_auth(
     auth_headers: &AuthHeaders,
     version_spec: &str,
     node_mirror_base_url: Option<&str>,
+    release_channel: &str,
 ) -> Result<Option<String>, ResolveNodeVersionError> {
     let all_versions = fetch_all_versions(http_client, auth_headers, node_mirror_base_url).await?;
     if is_latest_selector(version_spec) {
-        let versions: Vec<String> = all_versions
-            .iter()
-            .map(|entry| entry.version.clone())
-            .collect();
-        return Ok(max_satisfying(&versions, "*")
-            .or_else(|| all_versions.first().map(|version| version.version.clone())));
+        return Ok(if release_channel == "release" {
+            latest_stable_version(&all_versions)
+        } else {
+            all_versions.first().map(|version| version.version.clone())
+        });
     }
     let (versions, range) = filter_versions(&all_versions, version_spec);
     Ok(max_satisfying(&versions, &range))
@@ -117,12 +117,14 @@ pub async fn resolve_node_versions(
     http_client: &ThrottledClient,
     version_spec: Option<&str>,
     node_mirror_base_url: Option<&str>,
+    release_channel: &str,
 ) -> Result<Vec<String>, ResolveNodeVersionError> {
     resolve_node_versions_with_auth(
         http_client,
         &AuthHeaders::default(),
         version_spec,
         node_mirror_base_url,
+        release_channel,
     )
     .await
 }
@@ -134,6 +136,7 @@ pub async fn resolve_node_versions_with_auth(
     auth_headers: &AuthHeaders,
     version_spec: Option<&str>,
     node_mirror_base_url: Option<&str>,
+    release_channel: &str,
 ) -> Result<Vec<String>, ResolveNodeVersionError> {
     let all_versions = fetch_all_versions(http_client, auth_headers, node_mirror_base_url).await?;
     let Some(version_spec) = version_spec else {
@@ -143,19 +146,12 @@ pub async fn resolve_node_versions_with_auth(
             .collect());
     };
     if is_latest_selector(version_spec) {
-        let versions: Vec<String> = all_versions
-            .iter()
-            .map(|entry| entry.version.clone())
-            .collect();
-        return Ok(max_satisfying(&versions, "*")
-            .or_else(|| {
-                all_versions
-                    .into_iter()
-                    .next()
-                    .map(|version| version.version)
-            })
-            .into_iter()
-            .collect());
+        let latest = if release_channel == "release" {
+            latest_stable_version(&all_versions)
+        } else {
+            all_versions.first().map(|version| version.version.clone())
+        };
+        return Ok(latest.into_iter().collect());
     }
     let (versions, range) = filter_versions(&all_versions, version_spec);
     let Ok(parsed_range) = Range::parse(&range) else { return Ok(Vec::new()) };
@@ -166,6 +162,16 @@ pub async fn resolve_node_versions_with_auth(
                 .is_ok_and(|parsed| satisfies_with_prereleases(&parsed, &parsed_range))
         })
         .collect())
+}
+
+fn latest_stable_version(versions: &[NodeVersion]) -> Option<String> {
+    versions
+        .iter()
+        .find_map(|version| {
+            Version::parse(&version.version)
+                .is_ok_and(|parsed| parsed.pre_release.is_empty())
+                .then(|| version.version.clone())
+        })
 }
 
 async fn fetch_all_versions(

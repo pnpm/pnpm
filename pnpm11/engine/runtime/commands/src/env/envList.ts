@@ -17,5 +17,6 @@ async function listRemoteVersions (opts: NvmNodeCommandOptions, versionSpec?: st
   return resolveNodeVersions(fetch, versionSpecifier, {
     nodeMirrorBaseUrl,
     getAuthHeader: createGetAuthHeaderByURI(opts.configByUri),
+    releaseChannel,
   })
 }

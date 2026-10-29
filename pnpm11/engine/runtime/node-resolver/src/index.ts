@@ -114,6 +114,7 @@ export async function resolveLatestNodeRuntime (
   const version = await resolveNodeVersion(ctx.fetchFromRegistry, versionSpecifier, {
     nodeMirrorBaseUrl,
     getAuthHeader: ctx.getAuthHeader,
+    releaseChannel,
   })
   if (!version) return {}
   return { latestManifest: { name: 'node', version } }
@@ -209,7 +210,7 @@ async function resolveVersionAndVariants (
   const { releaseChannel, versionSpecifier } = parseNodeSpecifier(versionSpec)
   const nodeMirrorBaseUrl = getNodeMirror(ctx.nodeDownloadMirrors, releaseChannel)
   const exactVersion = exactReleaseVersion(releaseChannel, versionSpecifier)
-  const version = exactVersion ?? await resolveNodeVersionOrThrow(fetch, versionSpecifier, nodeMirrorBaseUrl, versionSpec)
+  const version = exactVersion ?? await resolveNodeVersionOrThrow(fetch, versionSpecifier, nodeMirrorBaseUrl, versionSpec, releaseChannel)
 
   try {
     const variants = await readNodeAssets(fetch, {
@@ -232,9 +233,10 @@ async function resolveNodeVersionOrThrow (
   fetch: FetchFromRegistry,
   versionSpecifier: string,
   nodeMirrorBaseUrl: string,
-  versionSpec: string
+  versionSpec: string,
+  releaseChannel: string
 ): Promise<string> {
-  const version = await resolveNodeVersion(fetch, versionSpecifier, nodeMirrorBaseUrl)
+  const version = await resolveNodeVersion(fetch, versionSpecifier, { nodeMirrorBaseUrl, releaseChannel })
   if (!version) {
     throw new PnpmError('NODEJS_VERSION_NOT_FOUND', `Could not find a Node.js version that satisfies ${versionSpec}`)
   }

@@ -56,21 +56,107 @@ async fn empty_selector_picks_latest_version() {
     let base_url = format!("{}/", server.url());
     let http_client = ThrottledClient::new_for_installs();
 
-    let picked = resolve_node_version(&http_client, "", Some(&base_url)).await.unwrap();
+    let picked = resolve_node_version(&http_client, "", Some(&base_url), "release")
+        .await
+        .unwrap();
     assert_eq!(picked, Some("22.1.0".to_string()));
 
-    let picked = resolve_node_versions(&http_client, Some(""), Some(&base_url))
+    let picked = resolve_node_versions(&http_client, Some(""), Some(&base_url), "release")
         .await
         .unwrap();
     assert_eq!(picked, vec!["22.1.0"]);
 
-    let picked = resolve_node_version(&http_client, "  ", Some(&base_url)).await.unwrap();
+    let picked = resolve_node_version(&http_client, "  ", Some(&base_url), "release")
+        .await
+        .unwrap();
     assert_eq!(picked, Some("22.1.0".to_string()));
 
-    let picked = resolve_node_versions(&http_client, Some("  "), Some(&base_url))
+    let picked = resolve_node_versions(&http_client, Some("  "), Some(&base_url), "release")
         .await
         .unwrap();
     assert_eq!(picked, vec!["22.1.0"]);
+}
+
+#[tokio::test]
+async fn latest_selector_skips_prereleases_and_returns_no_match_without_stable_versions() {
+    let mut server = mockito::Server::new_async().await;
+    let _stable_index = server
+        .mock("GET", "/index.json")
+        .with_status(200)
+        .with_body(
+            r#"[
+                { "version": "v27.0.0-alpha.0.0.0", "lts": false },
+                { "version": "v26.13.0", "lts": false },
+                { "version": "v26.12.0-rc.1", "lts": false }
+            ]"#,
+        )
+        .expect(2)
+        .create_async()
+        .await;
+    let base_url = format!("{}/", server.url());
+    let http_client = ThrottledClient::new_for_installs();
+
+    assert_eq!(
+        resolve_node_version(&http_client, "latest", Some(&base_url), "release")
+            .await
+            .unwrap(),
+        Some("26.13.0".to_string()),
+    );
+    assert_eq!(
+        resolve_node_versions(&http_client, Some("latest"), Some(&base_url), "release")
+            .await
+            .unwrap(),
+        vec!["26.13.0"],
+    );
+
+    let prerelease_index = server
+        .mock("GET", "/prerelease/index.json")
+        .with_status(200)
+        .with_body(r#"[{ "version": "v27.0.0-alpha.0.0.0", "lts": false }]"#)
+        .expect(2)
+        .create_async()
+        .await;
+    let prerelease_base_url = format!("{}/prerelease/", server.url());
+    assert_eq!(
+        resolve_node_version(&http_client, "latest", Some(&prerelease_base_url), "release")
+            .await
+            .unwrap(),
+        None,
+    );
+    assert!(
+        resolve_node_versions(&http_client, Some("latest"), Some(&prerelease_base_url), "release")
+            .await
+            .unwrap()
+            .is_empty(),
+    );
+    prerelease_index.assert_async().await;
+}
+
+#[tokio::test]
+async fn latest_selector_keeps_the_newest_prerelease_on_prerelease_channels() {
+    let mut server = mockito::Server::new_async().await;
+    let _index = server
+        .mock("GET", "/nightly/index.json")
+        .with_status(200)
+        .with_body(r#"[{ "version": "v27.0.0-nightly20261029abcdef", "lts": false }]"#)
+        .expect(2)
+        .create_async()
+        .await;
+    let base_url = format!("{}/nightly/", server.url());
+    let http_client = ThrottledClient::new_for_installs();
+
+    assert_eq!(
+        resolve_node_version(&http_client, "latest", Some(&base_url), "nightly")
+            .await
+            .unwrap(),
+        Some("27.0.0-nightly20261029abcdef".to_string()),
+    );
+    assert_eq!(
+        resolve_node_versions(&http_client, Some("latest"), Some(&base_url), "nightly")
+            .await
+            .unwrap(),
+        vec!["27.0.0-nightly20261029abcdef"],
+    );
 }
 
 #[tokio::test]
@@ -88,10 +174,15 @@ async fn authenticated_version_resolve_uses_matching_mirror_credentials() {
         AuthHeaders::from_creds_map([(nerf_dart(&base_url), "Bearer mirror-token".to_string())]);
     let http_client = ThrottledClient::new_for_installs();
 
-    let picked =
-        resolve_node_version_with_auth(&http_client, &auth_headers, "latest", Some(&base_url))
-            .await
-            .unwrap();
+    let picked = resolve_node_version_with_auth(
+        &http_client,
+        &auth_headers,
+        "latest",
+        Some(&base_url),
+        "release",
+    )
+    .await
+    .unwrap();
 
     assert_eq!(picked, Some("22.1.0".to_string()));
     index.assert_async().await;
@@ -114,10 +205,15 @@ async fn authenticated_version_resolve_omits_unmatched_credentials() {
     )]);
     let http_client = ThrottledClient::new_for_installs();
 
-    let picked =
-        resolve_node_version_with_auth(&http_client, &auth_headers, "latest", Some(&base_url))
-            .await
-            .unwrap();
+    let picked = resolve_node_version_with_auth(
+        &http_client,
+        &auth_headers,
+        "latest",
+        Some(&base_url),
+        "release",
+    )
+    .await
+    .unwrap();
 
     assert_eq!(picked, Some("22.1.0".to_string()));
     index.assert_async().await;
@@ -145,10 +241,15 @@ async fn authenticated_version_resolve_reselects_credentials_after_redirects() {
         AuthHeaders::from_creds_map([(nerf_dart(&base_url), "Bearer mirror-token".to_string())]);
     let http_client = ThrottledClient::new_for_installs();
 
-    let picked =
-        resolve_node_version_with_auth(&http_client, &auth_headers, "latest", Some(&base_url))
-            .await
-            .unwrap();
+    let picked = resolve_node_version_with_auth(
+        &http_client,
+        &auth_headers,
+        "latest",
+        Some(&base_url),
+        "release",
+    )
+    .await
+    .unwrap();
 
     assert_eq!(picked, Some("22.1.0".to_string()));
     redirect.assert_async().await;

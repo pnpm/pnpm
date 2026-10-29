@@ -213,6 +213,7 @@ impl NodeResolver {
                     &self.auth_headers,
                     &picked.version,
                     Some(&picked.mirror),
+                    &picked.release_channel,
                 )
                 .await
                 {
@@ -267,6 +268,7 @@ impl NodeResolver {
             &self.auth_headers,
             &parsed.version_specifier,
             Some(&mirror),
+            &parsed.release_channel,
         )
         .await
         .map_err(NodeResolverError::FetchReleaseIndex)?
@@ -335,6 +337,7 @@ impl NodeResolver {
             &self.auth_headers,
             &parsed.version_specifier,
             Some(&mirror),
+            &parsed.release_channel,
         )
         .await
         .map_err(|err| Box::new(NodeResolverError::FetchReleaseIndex(err)) as ResolveError)?;
