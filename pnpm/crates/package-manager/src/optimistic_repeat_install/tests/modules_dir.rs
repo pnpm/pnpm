@@ -613,7 +613,7 @@ importers:
 ";
 
 /// Whether the direct-dependency link gate fires for a workspace of the root
-/// and `pkg-a`, with `LINKED_LIB_LOCKFILE` as the wanted lockfile, after
+/// and `pkg-a`, with [`LINKED_LIB_LOCKFILE`] as the wanted lockfile, after
 /// `prepare` lays out the modules directories under the workspace root.
 /// `held` names the projects the gate holds, by directory relative to the
 /// root, or every project when `None`.
