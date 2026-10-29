@@ -31,6 +31,7 @@ import {
   createLocalDirectoryDepUpToDateChecker,
   type LocalDirectoryResolution,
 } from './localDirectoryDepIsUpToDate.js'
+import { isIncluded } from './localTarballDepsAreUpToDate.js'
 import { findNestedDirectoryPackages } from './nestedDirectoryPackages.js'
 
 export interface CheckLinkedPackagesResult {
@@ -110,7 +111,7 @@ async function checkNestedDirectoryPackages (
   localDirectoryDepIsUpToDate: DependencyCheckContext['localDirectoryDepIsUpToDate']
 ): Promise<CheckLinkedPackagesResult> {
   if (ctx.skipLocalDirectoryDependencies || ctx.lockfilePackages == null) return UP_TO_DATE
-  const includesOptional = ctx.includedDependencies?.optionalDependencies !== false
+  const includesOptional = isIncluded(ctx.includedDependencies, 'optionalDependencies')
   const reached = directDepPaths(project.snapshot, includesOptional)
   const projectAliases = dependencyAliases(project.manifest)
   const results = await Promise.all(findNestedDirectoryPackages(ctx.lockfilePackages, { includesOptional })

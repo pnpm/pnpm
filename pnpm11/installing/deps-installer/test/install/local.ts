@@ -607,7 +607,10 @@ test.each<[string, { overrides?: Record<string, string>, packageExtensions?: Rec
 })
 
 // https://github.com/pnpm/pnpm/issues/17486
-test('an install without optional dependencies leaves out a local directory reached only through one', async () => {
+test.each([
+  ['optional dependencies', { dependencies: true, devDependencies: true, optionalDependencies: false }],
+  ['production dependencies', { dependencies: false, devDependencies: true, optionalDependencies: true }],
+])('an install without %s leaves out a local directory reached only through an optional one', async (_, include) => {
   prepareEmpty()
   const writeLib = (fooVersion: string) => {
     fs.writeFileSync('../lib/package.json', JSON.stringify({ name: 'lib', version: '1.0.0', dependencies: { '@pnpm.e2e/foo': fooVersion } }), 'utf8')
@@ -622,6 +625,6 @@ test('an install without optional dependencies leaves out a local directory reac
   await install(manifest, testDefaults({
     overrides,
     frozenLockfile: true,
-    include: { dependencies: true, devDependencies: true, optionalDependencies: false },
+    include,
   }))
 })
