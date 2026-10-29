@@ -1,4 +1,6 @@
-mod workspace_deps;
+pub(super) mod direct_links;
+
+pub(super) use direct_links::direct_dependency_link_dangling;
 
 use super::{
     OptimisticRepeatInstallCheck, manifest_has_required_peers, manifest_has_runtime_deps,
@@ -11,13 +13,13 @@ use pnpm_modules_yaml::IncludedDependencies;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_workspace::importer_id_from_root_dir;
 use pnpm_workspace_state::WorkspaceState;
-use rayon::prelude::*;
 use std::{
     collections::HashSet,
-    fs,
     path::{Path, PathBuf},
 };
 use workspace_deps::reached_workspace_project_dirs;
+
+mod workspace_deps;
 
 /// The id (`name` field, falling back to the root dir) of the first
 /// project that declares dependencies but has no modules directory, or
@@ -45,7 +47,20 @@ pub(super) fn first_selected_project_missing_modules_dir(
     selected_project_dirs: &[&Path],
     reach: SelectedReach,
 ) -> Option<String> {
-    let selected = match reach {
+    let selected = reached_project_dirs(check, state, selected_project_dirs, reach);
+    first_missing_modules_dir(check, state, &|root_dir| {
+        selected.contains(&lexical_normalize(root_dir))
+    })
+}
+
+/// The selected projects, as far as `reach` takes them, lexically normalized.
+pub(super) fn reached_project_dirs(
+    check: &OptimisticRepeatInstallCheck<'_>,
+    state: &WorkspaceState,
+    selected_project_dirs: &[&Path],
+    reach: SelectedReach,
+) -> HashSet<PathBuf> {
+    match reach {
         SelectedReach::WithWorkspaceDeps => {
             reached_workspace_project_dirs(check, state, selected_project_dirs)
         }
@@ -53,10 +68,7 @@ pub(super) fn first_selected_project_missing_modules_dir(
             .iter()
             .map(|dir| lexical_normalize(dir))
             .collect(),
-    };
-    first_missing_modules_dir(check, state, &|root_dir| {
-        selected.contains(&lexical_normalize(root_dir))
-    })
+    }
 }
 /// The first project that needs a modules directory and lacks one, over the
 /// projects `is_selected` accepts.
@@ -161,28 +173,6 @@ fn first_project_without_modules_dir(
         })
 }
 
-/// Whether a direct dependency's entry in its project's modules directory is
-/// a link whose target no longer exists. Nothing the fast path records moves
-/// when a link is broken or retargeted outside pnpm, and the full install
-/// relinks it. A missing entry is not a broken link: skipped optional and
-/// excluded dependencies have none, and a healthy entry costs one `stat`.
-/// The hoisted linker places a sibling's dependencies in the root modules
-/// directory too, so both are probed there.
-pub(super) fn direct_dependency_link_dangling(check: &OptimisticRepeatInstallCheck<'_>) -> bool {
-    let groups = included_groups(check.layout.included);
-    check.project_manifests
-        .par_iter()
-        .any(|(root_dir, manifest)| {
-            project_modules_dirs(check, root_dir, manifest)
-                .iter()
-                .any(|modules_dir| {
-                    manifest
-                        .dependencies(groups.iter().copied())
-                        .any(|(alias, _)| is_dangling_link(&modules_dir.join(alias)))
-                })
-        })
-}
-
 /// The modules directories the linker may place a project's direct
 /// dependencies in.
 fn project_modules_dirs(
@@ -195,15 +185,13 @@ fn project_modules_dirs(
         return vec![config.modules_dir.clone()];
     }
     let own = sibling_modules_dir(config, root_dir, manifest);
+    // The hoisted linker places a sibling's dependencies in the root modules
+    // directory too.
     if check.layout.node_linker == NodeLinker::Hoisted {
         vec![own, config.modules_dir.clone()]
     } else {
         vec![own]
     }
-}
-
-fn is_dangling_link(path: &Path) -> bool {
-    fs::metadata(path).is_err() && fs::symlink_metadata(path).is_ok()
 }
 
 /// The modules directory an isolated install creates for the workspace

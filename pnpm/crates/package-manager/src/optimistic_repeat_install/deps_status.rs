@@ -123,7 +123,7 @@ fn stale_issue(check: &OptimisticRepeatInstallCheck<'_>, stale: Stale) -> String
             format!("Workspace package {id} has dependencies but does not have a modules directory")
         }
         Stale::DanglingDirectLink => {
-            "a direct dependency link points to a missing target".to_string()
+            "a direct dependency link is missing or points to a missing target".to_string()
         }
         Stale::MissingBranchLockfile | Stale::NoLockfile => {
             format!("Cannot find a lockfile in {}", check.workspace_root.display())

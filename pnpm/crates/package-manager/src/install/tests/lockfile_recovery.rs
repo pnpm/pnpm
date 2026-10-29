@@ -131,6 +131,10 @@ fn sync_fast_path_reads_the_workspace_root_wanted_lockfile_from_a_member() {
     std::fs::create_dir_all(&project_root).expect("create workspace member");
     std::fs::create_dir_all(project_root.join("node_modules"))
         .expect("create member modules directory");
+    // The member's `link:` dependency is linked on every install, so the
+    // recorded state has to see the entry.
+    std::fs::create_dir_all(project_root.join("node_modules").join("sibling"))
+        .expect("create the member's link entry");
     std::fs::create_dir_all(&virtual_store_dir).expect("create virtual store");
     std::fs::write(workspace_root.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
         .expect("write workspace manifest");
