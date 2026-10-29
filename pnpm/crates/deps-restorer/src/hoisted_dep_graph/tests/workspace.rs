@@ -228,3 +228,49 @@ fn walker_workspace_root_version_wins_root_slot() {
     );
     assert_eq!(result.direct_dependencies_by_importer_id["packages/app"]["webby"], nested_webby);
 }
+/// Two projects that lose the root slot with the same snapshot each get a
+/// copy under their own `node_modules`. Each project's direct dependency is
+/// that copy: pointing the second project at the first one's makes the
+/// linker replace the second copy with a symlink, which the next install
+/// finds missing and imports again.
+#[test]
+fn walker_projects_sharing_a_nested_snapshot_keep_their_own_copy() {
+    let mut root_deps = ResolvedDependencyMap::new();
+    root_deps.insert(pkg_name("webby"), resolved_dep("5.0.0"));
+
+    let mut project_deps = ResolvedDependencyMap::new();
+    project_deps.insert(pkg_name("webby"), resolved_dep("2.0.0"));
+
+    let mut packages = HashMap::new();
+    packages.insert(dep_key("webby", "5.0.0"), metadata_stub());
+    packages.insert(dep_key("webby", "2.0.0"), metadata_stub());
+
+    let mut snapshots = HashMap::new();
+    snapshots.insert(dep_key("webby", "5.0.0"), SnapshotEntry::default());
+    snapshots.insert(dep_key("webby", "2.0.0"), SnapshotEntry::default());
+
+    let lockfile = workspace_lockfile(
+        vec![
+            (Lockfile::ROOT_IMPORTER_KEY, root_deps),
+            ("packages/app", project_deps.clone()),
+            ("packages/web", project_deps),
+        ],
+        packages,
+        snapshots,
+    );
+    let lockfile_dir = PathBuf::from("/repo");
+    let opts = LockfileToHoistedDepGraphOptions {
+        lockfile_dir: lockfile_dir.clone(),
+        ..LockfileToHoistedDepGraphOptions::default()
+    };
+    let result = lockfile_to_hoisted_dep_graph(&lockfile, None, &opts).expect("walker succeeds");
+
+    for project in ["packages/app", "packages/web"] {
+        let own_copy = lockfile_dir
+            .join(project)
+            .join("node_modules")
+            .join("webby");
+        assert!(result.graph.contains_key(&own_copy), "{project} holds a copy");
+        assert_eq!(result.direct_dependencies_by_importer_id[project]["webby"], own_copy);
+    }
+}
