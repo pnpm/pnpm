@@ -15,6 +15,7 @@ pub(crate) fn package_metadata(
 ) -> Result<PackageMetadata, LockfileFormError> {
     let manifest = result.package.manifest.as_deref();
     Ok(PackageMetadata {
+        specifiers: None,
         resolution: result.resolution.to_lockfile_form(
             name,
             version,

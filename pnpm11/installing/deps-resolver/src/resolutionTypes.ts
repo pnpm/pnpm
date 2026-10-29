@@ -1,5 +1,5 @@
 import type { CatalogResolver } from '@pnpm/catalogs.resolver'
-import type { LockfileObject, PackageSnapshot, ResolvedDependencies } from '@pnpm/lockfile.types'
+import type { DeclaredSpecifiers, LockfileObject, PackageSnapshot, ResolvedDependencies } from '@pnpm/lockfile.types'
 import type { PatchGroupRecord } from '@pnpm/patching.config'
 import type { PatchInfo } from '@pnpm/patching.types'
 import type {
@@ -263,6 +263,8 @@ export interface ResolvedPackage {
   name: string
   version: string
   peers: PeerSet
+  /** See `DeclaredSpecifiers`. Set for a directory resolution. */
+  specifiers?: DeclaredSpecifiers
   optionalDependencies: Set<string>
   hasBin: boolean
   hasBundledDependencies: boolean

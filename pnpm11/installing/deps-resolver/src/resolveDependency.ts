@@ -2,6 +2,7 @@ import path from 'node:path'
 
 import * as dp from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
+import type { DeclaredSpecifiers } from '@pnpm/lockfile.types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { logger } from '@pnpm/logger'
 import { getPatchInfo } from '@pnpm/patching.config'
@@ -18,7 +19,7 @@ import { pathExists } from 'path-exists'
 import { omit } from 'ramda'
 
 import { addResolvedPackageToGraph, type ResolvedManifest } from './addResolvedPackageToGraph.js'
-import { prepareDependencyManifest } from './dependencyManifest.js'
+import { getDeclaredSpecifiers, prepareDependencyManifest } from './dependencyManifest.js'
 import type { WantedDependency } from './getWantedDependencies.js'
 import { startPackageResolution, waitForPackageResolutionTurn } from './packageResolutionBarrier.js'
 import { parentIdsContainSequence } from './parentIdsContainSequence.js'
@@ -202,7 +203,7 @@ async function resolveNonLocalPackage (
   pkgResponse: PackageResponse
 ): Promise<ResolveDependencyResult> {
   const { ctx, options } = request
-  const manifest = await readResolvedManifest(request, pkgResponse)
+  const { pkg: manifest, declaredSpecifiers } = await readResolvedManifest(request, pkgResponse)
   let pkgIdWithPatchHash = (pkgResponse.body.id.startsWith(`${manifest.name}@`) ? pkgResponse.body.id : `${manifest.name}@${pkgResponse.body.id}`) as PkgIdWithPatchHash
   const patch = getPatchInfo(ctx.patchedDependencies, manifest.name, manifest.version)
   if (patch) {
@@ -233,7 +234,7 @@ async function resolveNonLocalPackage (
     ctx.outdatedDependencies[pkgResponse.body.id] = pkgResponse.body.latest
   }
   collectPeerDependencyNames(ctx.allPeerDepNames, resolvedManifest.pkg)
-  return addResolvedPackageToGraph(request, { ...resolvedManifest, patch, pkgIdWithPatchHash, pkgResponse })
+  return addResolvedPackageToGraph(request, { ...resolvedManifest, declaredSpecifiers, patch, pkgIdWithPatchHash, pkgResponse })
 }
 
 function isRepeatedInParentPath (options: ResolveDependencyOptions, pkgId: PkgResolutionId): boolean {
@@ -244,10 +245,15 @@ function isRepeatedInParentPath (options: ResolveDependencyOptions, pkgId: PkgRe
   ) || pkgId === options.parentPkg.pkgId
 }
 
+/**
+ * The resolved manifest as the walk reads it and, for a directory package, the
+ * specifiers its lockfile entry records, read before the parent scope shadows
+ * any of them.
+ */
 async function readResolvedManifest (
   { ctx, currentPkg, options, wantedDependency }: DependencyRequest,
   pkgResponse: PackageResponse
-): Promise<PackageManifest> {
+): Promise<{ pkg: PackageManifest, declaredSpecifiers?: DeclaredSpecifiers }> {
   let pkg: PackageManifest = copyResolvedManifest(getManifestFromResponse(pkgResponse, wantedDependency, currentPkg))
   if (ctx.readPackageHook != null && !pkgResponse.body.hooked) {
     pkg = await ctx.readPackageHook(pkg)
@@ -256,11 +262,12 @@ async function readResolvedManifest (
   if (!pkg.version) {
     pkg.version = '0.0.0'
   }
+  const declaredSpecifiers = pkgResponse.body.resolution.type === 'directory' ? getDeclaredSpecifiers(pkg) : undefined
   pkg = prepareDependencyManifest(pkg, { autoInstallPeers: ctx.autoInstallPeers, parentPkgAliases: options.parentPkgAliases })
   if (!pkg.name) { // TODO: don't fail on optional dependencies
     throw new PnpmError('MISSING_PACKAGE_NAME', `Can't install ${wantedDependency.bareSpecifier}: Missing package name`)
   }
-  return pkg
+  return { pkg, declaredSpecifiers }
 }
 
 /**

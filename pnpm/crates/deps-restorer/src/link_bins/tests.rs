@@ -653,6 +653,7 @@ fn metadata_with_resolution(
     has_bin: Option<bool>,
 ) -> PackageMetadata {
     PackageMetadata {
+        specifiers: None,
         resolution,
         version: None,
         engines: None,

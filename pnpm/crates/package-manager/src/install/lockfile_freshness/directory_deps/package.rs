@@ -6,6 +6,7 @@ use super::{
     FreshnessCheckError, ImporterSatisfactionCheck, InjectedDirectory, LocalDepContext,
     children::check_local_dep_children_freshness,
     peers::PeerShadowing,
+    recorded::check_recorded_children_freshness,
     scope::{AliasScope, Visited, snapshot_aliases},
     unhooked_manifest,
 };
@@ -76,13 +77,23 @@ pub(super) fn check_single_directory_dep_freshness(
         .cloned()
         .chain(snapshot_aliases(snapshot))
         .collect();
-    check_local_dep_children_freshness(
-        check,
-        (dep, &children_scope),
-        &local_manifest,
-        snapshot,
-        &peers.shadowed,
-        visited,
-    )?;
+    match pkg_meta.specifiers.as_ref() {
+        Some(recorded) => check_recorded_children_freshness(
+            check,
+            (dep, &children_scope),
+            (&local_manifest, recorded),
+            snapshot,
+            &peers.shadowed,
+            visited,
+        )?,
+        None => check_local_dep_children_freshness(
+            check,
+            (dep, &children_scope),
+            &local_manifest,
+            snapshot,
+            &peers.shadowed,
+            visited,
+        )?,
+    }
     peers.check_local_peer_deps_freshness(dep, &local_manifest, pkg_meta)
 }

@@ -32,6 +32,7 @@ fn make_config(gvs: bool, virtual_store_dir: PathBuf, gvs_dir: PathBuf) -> Confi
 /// [`PackageMetadata`] carrying only the fields the layout reads.
 fn package_metadata(resolution: LockfileResolution, version: Option<&str>) -> PackageMetadata {
     PackageMetadata {
+        specifiers: None,
         resolution,
         version: version.map(str::to_string),
         engines: None,
@@ -189,6 +190,7 @@ fn depends_on(name: &str) -> SnapshotEntry {
 fn registry_metadata(lead: &str) -> PackageMetadata {
     let integrity = format!("sha512-{lead}{}", "A".repeat(91));
     PackageMetadata {
+        specifiers: None,
         resolution: LockfileResolution::Registry(RegistryResolution {
             integrity: integrity.parse().expect("parse integrity"),
             revision: None,

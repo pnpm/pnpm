@@ -59,6 +59,7 @@ fn synthetic_metadata(
     // resolution shape entirely, but every `PackageMetadata` must
     // carry one.
     PackageMetadata {
+        specifiers: None,
         resolution: LockfileResolution::Tarball(TarballResolution {
             integrity: None,
             tarball: "https://example.test/pkg.tgz".to_string(),

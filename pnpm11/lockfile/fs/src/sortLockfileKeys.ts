@@ -21,13 +21,14 @@ const ORDERED_KEYS = {
   bundleDependencies: 13,
   peerDependencies: 14,
   peerDependenciesMeta: 15,
+  specifiers: 16,
 
-  dependencies: 16,
-  optionalDependencies: 17,
+  dependencies: 17,
+  optionalDependencies: 18,
 
-  transitivePeerDependencies: 18,
-  dev: 19,
-  optional: 20,
+  transitivePeerDependencies: 19,
+  dev: 20,
+  optional: 21,
 }
 
 type RootKey = keyof LockfileFile

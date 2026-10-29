@@ -193,6 +193,33 @@ pub fn manifest_child_specs(
     Ok(out)
 }
 
+/// [`manifest_child_specs`] in the groups the lockfile records a directory
+/// package's children under: what its `packages:` entry records as
+/// `specifiers`.
+pub fn declared_specifiers(
+    manifest: &Value,
+    parent: &str,
+) -> Result<pnpm_lockfile::DeclaredSpecifiers, ResolveDependencyTreeError> {
+    Ok(declared_specifiers_of(&manifest_child_specs(manifest, parent)?))
+}
+
+/// [`declared_specifiers`] of children already read from the manifest.
+#[must_use]
+pub fn declared_specifiers_of(children: &[DependencySpec]) -> pnpm_lockfile::DeclaredSpecifiers {
+    let group = |optional: bool| {
+        let specifiers: std::collections::HashMap<String, String> = children
+            .iter()
+            .filter(|child| child.optional == optional)
+            .map(|child| (child.alias.clone(), child.bare_specifier.clone()))
+            .collect();
+        (!specifiers.is_empty()).then_some(specifiers)
+    };
+    pnpm_lockfile::DeclaredSpecifiers {
+        dependencies: group(false),
+        optional_dependencies: group(true),
+    }
+}
+
 /// The dependency names a manifest declares as bundled, read from
 /// `bundledDependencies` with `bundleDependencies` as the fallback
 /// spelling. `true` stands for "every entry in `dependencies`".

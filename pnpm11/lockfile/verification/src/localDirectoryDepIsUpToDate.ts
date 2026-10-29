@@ -6,6 +6,7 @@ import type { Catalogs } from '@pnpm/catalogs.types'
 import { DEFAULT_REGISTRIES_BY_SCOPE } from '@pnpm/config.normalize-registries'
 import { refToRelative, removeSuffix } from '@pnpm/deps.path'
 import {
+  getDeclaredSpecifiers,
   getNonDevWantedDependencies,
   getPeerSet,
   lockedVersionSatisfies,
@@ -21,7 +22,7 @@ import type { DependencyManifest, ReadPackageHook, RegistryContext } from '@pnpm
 import { safeReadParentPublishManifest, safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
 import pEvery from 'p-every'
 import { pathExists } from 'path-exists'
-import { clone } from 'ramda'
+import { clone, equals } from 'ramda'
 import semver from 'semver'
 
 import {
@@ -148,11 +149,8 @@ async function localDirectoryDepIsUpToDateRec (
   // is already being checked.
   if (!markVisited(walk, pkgSnapshot, manifest)) return true
   if (!recordedPeersMatch(ctx, manifest, pkgSnapshot)) return false
-  const children = getNonDevWantedDependencies(prepareDependencyManifest(clone(manifest), {
-    autoInstallPeers: ctx.resolution?.autoInstallPeers ?? true,
-    parentPkgAliases: walk.parentPkgAliases,
-  }))
-  if (!recordedChildrenAreExpected(manifest, children, pkgSnapshot)) return false
+  const children = childrenToCheck(ctx, manifest, pkgSnapshot, walk)
+  if (children == null) return false
   const localDep: LocalDirectoryDep = {
     lockfileDir: ctx.lockfileDir,
     localDepDir,
@@ -165,6 +163,29 @@ async function localDirectoryDepIsUpToDateRec (
     recordedPeers: walk.recordedPeers,
   }
   return pEvery.default(children, async (child) => childIsUpToDate(ctx, localDep, pkgSnapshot, child, childWalk))
+}
+
+/**
+ * The children whose lockfile entries the check compares with their specs,
+ * the way the resolver walks them. An entry that records the specifiers the
+ * resolver read (see `DeclaredSpecifiers`) must equal the manifest's first,
+ * so a changed specifier is a change even while its locked resolution still
+ * satisfies it. `undefined` when the entry is stale.
+ */
+function childrenToCheck (
+  ctx: LocalDirectoryDepContext,
+  manifest: DependencyManifest,
+  pkgSnapshot: PackageSnapshot,
+  walk: DirectoryWalk
+): ManifestWantedDependency[] | undefined {
+  if (pkgSnapshot.specifiers != null && !equals(getDeclaredSpecifiers(manifest), pkgSnapshot.specifiers)) {
+    return undefined
+  }
+  const walked = getNonDevWantedDependencies(prepareDependencyManifest(clone(manifest), {
+    autoInstallPeers: ctx.resolution?.autoInstallPeers ?? true,
+    parentPkgAliases: walk.parentPkgAliases,
+  }))
+  return recordedChildrenAreExpected(manifest, walked, pkgSnapshot) ? walked : undefined
 }
 
 /** Records the snapshot in its peer scope. `false` when it was already there. */

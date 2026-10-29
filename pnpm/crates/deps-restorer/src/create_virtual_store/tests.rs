@@ -46,6 +46,7 @@ fn name(text: &str) -> PkgName {
 
 fn metadata_with_integrity(integrity: &str) -> PackageMetadata {
     PackageMetadata {
+        specifiers: None,
         resolution: LockfileResolution::Registry(RegistryResolution {
             integrity: integrity.parse().expect("parse integrity"),
             revision: None,
@@ -295,6 +296,7 @@ fn key(name_text: &str, version: &str) -> PackageKey {
 
 fn git_metadata() -> PackageMetadata {
     PackageMetadata {
+        specifiers: None,
         resolution: LockfileResolution::Git(GitResolution {
             repo: "https://github.com/ksxnodemodules/ts-pipe-compose.git".to_string(),
             commit: "e63c09e460269b0c535e4c34debf69bb91d57b22".to_string(),
@@ -317,6 +319,7 @@ fn git_metadata() -> PackageMetadata {
 
 fn git_hosted_tarball_metadata() -> PackageMetadata {
     PackageMetadata {
+        specifiers: None,
         resolution: LockfileResolution::Tarball(TarballResolution {
             tarball: "https://codeload.github.com/foo/bar/tar.gz/f43f6a1cefff47fb361c88cf4b943fdbcaafe540"
                 .to_string(),
@@ -341,6 +344,7 @@ fn git_hosted_tarball_metadata() -> PackageMetadata {
 
 fn tarball_metadata_without_integrity() -> PackageMetadata {
     PackageMetadata {
+        specifiers: None,
         resolution: LockfileResolution::Tarball(TarballResolution {
             tarball: "https://registry.npmjs.org/foo/-/foo-1.0.0.tgz".to_string(),
             integrity: None,
@@ -387,6 +391,7 @@ fn gvs_layout(
 
 fn directory_metadata(directory: &str) -> PackageMetadata {
     PackageMetadata {
+        specifiers: None,
         resolution: LockfileResolution::Directory(pnpm_lockfile::DirectoryResolution {
             directory: directory.to_string(),
         }),

@@ -218,6 +218,7 @@ fn convert_deploy_packages(
         packages.insert(
             package_key,
             PackageMetadata {
+                specifiers: None,
                 resolution: LockfileResolution::Directory(DirectoryResolution {
                     directory: relative_path(deploy_dir, &project_root),
                 }),

@@ -183,6 +183,7 @@ pub(super) fn build_package_metadata(
         lockfile_form,
     )?;
     Ok(PackageMetadata {
+        specifiers: declared_specifiers(&resolution, metadata_key, manifest),
         version: explicit_version(node, metadata_key, &resolution, manifest),
         resolution,
         engines: read_engines(manifest),
@@ -201,6 +202,26 @@ pub(super) fn build_package_metadata(
         peer_dependencies_meta,
     })
 }
+/// The specifiers a directory package's entry records; see
+/// [`pnpm_lockfile::DeclaredSpecifiers`]. A directory package reaches the
+/// writer with the hooked manifest the walk read its children from, so the
+/// children are readable here.
+fn declared_specifiers(
+    resolution: &LockfileResolution,
+    metadata_key: &PackageKey,
+    manifest: Option<&Value>,
+) -> Option<pnpm_lockfile::DeclaredSpecifiers> {
+    if !matches!(resolution, LockfileResolution::Directory(_)) {
+        return None;
+    }
+    let specifiers = pnpm_resolving_deps_resolver::declared_specifiers(
+        manifest?,
+        &metadata_key.name.to_string(),
+    )
+    .expect("the walk read this directory package's children from the same manifest");
+    Some(specifiers)
+}
+
 /// The manifest's `engines`, without the ranges that constrain nothing.
 /// The legacy array form, such as `["node >= 0.8"]`, is not checked for
 /// installability, so it is not recorded either.

@@ -7,7 +7,7 @@ import { pipeline } from 'node:stream/promises'
 import { beforeEach, describe, expect, test } from '@jest/globals'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import { getTarballIntegrity } from '@pnpm/crypto.hash'
-import type { LockfileObject, PackageSnapshot, ProjectSnapshot, TarballResolution } from '@pnpm/lockfile.types'
+import type { DeclaredSpecifiers, LockfileObject, PackageSnapshot, ProjectSnapshot, TarballResolution } from '@pnpm/lockfile.types'
 import { allProjectsAreUpToDate, checkLinkedPackagesAreUpToDate, findPackageTarballIntegrityMismatch, resolveLocalTarballPath } from '@pnpm/lockfile.verification'
 import { prepareEmpty } from '@pnpm/prepare'
 import type { WorkspacePackages } from '@pnpm/resolving.resolver-base'
@@ -2550,3 +2550,119 @@ test('checkLinkedPackagesAreUpToDate(): skips comparing on-disk manifest for dep
   })
 })
 
+
+describe('allProjectsAreUpToDate(): a directory package whose entry records its specifiers', () => {
+  async function check (specifiers: DeclaredSpecifiers): Promise<boolean> {
+    prepareEmpty()
+    await mkdir('packages/pkg-a', { recursive: true })
+    await writeFile('./packages/pkg-a/package.json', JSON.stringify({
+      name: 'pkg-a',
+      version: '1.0.0',
+      dependencies: { 'is-positive': '1.0.0' },
+      optionalDependencies: { 'is-negative': '1.0.0' },
+    }))
+    return allProjectsAreUpToDate([
+      {
+        id: 'app' as ProjectId,
+        manifest: { dependencies: { 'pkg-a': 'file:packages/pkg-a' } },
+        rootDir: 'app' as ProjectRootDir,
+      },
+    ], {
+      autoInstallPeers: false,
+      catalogs: {},
+      excludeLinksFromLockfile: false,
+      linkWorkspacePackages: true,
+      wantedLockfile: {
+        importers: {
+          app: {
+            dependencies: { 'pkg-a': 'file:packages/pkg-a' },
+            specifiers: { 'pkg-a': 'file:packages/pkg-a' },
+          },
+        },
+        packages: {
+          'pkg-a@file:packages/pkg-a': {
+            resolution: { directory: 'packages/pkg-a', type: 'directory' },
+            specifiers,
+            dependencies: { 'is-positive': '1.0.0' },
+            optionalDependencies: { 'is-negative': '1.0.0' },
+          },
+          'is-positive@1.0.0': { resolution: { integrity: 'sha512-AAAA' } },
+          'is-negative@1.0.0': { resolution: { integrity: 'sha512-BBBB' } },
+        },
+        lockfileVersion: LOCKFILE_VERSION,
+      } as LockfileObject,
+      workspacePackages: new Map(),
+      lockfileDir: process.cwd(),
+    })
+  }
+
+  test('is up to date when they equal the manifest', async () => {
+    expect(await check({
+      dependencies: { 'is-positive': '1.0.0' },
+      optionalDependencies: { 'is-negative': '1.0.0' },
+    })).toBeTruthy()
+  })
+
+  test('is outdated when a specifier changed', async () => {
+    expect(await check({
+      dependencies: { 'is-positive': '^1.0.0' },
+      optionalDependencies: { 'is-negative': '1.0.0' },
+    })).toBeFalsy()
+  })
+
+  test('is outdated when a dependency moved to another group', async () => {
+    expect(await check({
+      dependencies: { 'is-positive': '1.0.0', 'is-negative': '1.0.0' },
+    })).toBeFalsy()
+  })
+})
+
+describe('allProjectsAreUpToDate(): the snapshot of a directory package with recorded specifiers', () => {
+  async function check (snapshotDependencies: Record<string, string>): Promise<boolean> {
+    prepareEmpty()
+    await mkdir('packages/pkg-a', { recursive: true })
+    await writeFile('./packages/pkg-a/package.json', JSON.stringify({
+      name: 'pkg-a',
+      version: '1.0.0',
+      dependencies: { 'is-positive': '1.0.0' },
+    }))
+    return allProjectsAreUpToDate([
+      {
+        id: 'app' as ProjectId,
+        manifest: { dependencies: { 'pkg-a': 'file:packages/pkg-a' } },
+        rootDir: 'app' as ProjectRootDir,
+      },
+    ], {
+      autoInstallPeers: false,
+      catalogs: {},
+      excludeLinksFromLockfile: false,
+      linkWorkspacePackages: true,
+      wantedLockfile: {
+        importers: {
+          app: {
+            dependencies: { 'pkg-a': 'file:packages/pkg-a' },
+            specifiers: { 'pkg-a': 'file:packages/pkg-a' },
+          },
+        },
+        packages: {
+          'pkg-a@file:packages/pkg-a': {
+            resolution: { directory: 'packages/pkg-a', type: 'directory' },
+            specifiers: { dependencies: { 'is-positive': '1.0.0' } },
+            dependencies: snapshotDependencies,
+          },
+          'is-positive@1.0.0': { resolution: { integrity: 'sha512-AAAA' } },
+          'is-negative@1.0.0': { resolution: { integrity: 'sha512-BBBB' } },
+        },
+        lockfileVersion: LOCKFILE_VERSION,
+      } as LockfileObject,
+      workspacePackages: new Map(),
+      lockfileDir: process.cwd(),
+    })
+  }
+
+  test('is still held to the manifest', async () => {
+    expect(await check({ 'is-positive': '1.0.0' })).toBeTruthy()
+    expect(await check({})).toBeFalsy()
+    expect(await check({ 'is-positive': '1.0.0', 'is-negative': '1.0.0' })).toBeFalsy()
+  })
+})

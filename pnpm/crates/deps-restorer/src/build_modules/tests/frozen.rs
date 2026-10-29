@@ -93,6 +93,7 @@ async fn frozen_store_skips_side_effects_upload() {
         HashMap::from([(
             pkg_key.without_peer(),
             pnpm_lockfile::PackageMetadata {
+                specifiers: None,
                 resolution: pnpm_lockfile::LockfileResolution::Registry(
                     pnpm_lockfile::RegistryResolution {
                         integrity: integrity_str.parse().expect("parse integrity"),

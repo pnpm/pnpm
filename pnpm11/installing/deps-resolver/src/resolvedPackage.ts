@@ -1,5 +1,5 @@
 import { PnpmError } from '@pnpm/error'
-import type { PackageSnapshot, TarballResolution } from '@pnpm/lockfile.types'
+import type { DeclaredSpecifiers, PackageSnapshot, TarballResolution } from '@pnpm/lockfile.types'
 import type { PatchInfo } from '@pnpm/patching.types'
 import type { PackageResponse } from '@pnpm/store.controller-types'
 import { DEPENDENCIES_OR_PEER_FIELDS, type PackageManifest, type PkgIdWithPatchHash, type ProjectManifest } from '@pnpm/types'
@@ -77,6 +77,7 @@ export function getResolvedPackage (
     prepare?: boolean
     optional: boolean
     wantedDependency: WantedDependency
+    declaredSpecifiers?: DeclaredSpecifiers
   }
 ): ResolvedPackage {
   return {
@@ -103,6 +104,7 @@ export function getResolvedPackage (
     optionalDependencies: new Set(Object.keys(options.pkg.optionalDependencies ?? {})),
     patch: options.patch,
     peers: getPeerSet(options.pkg),
+    ...(options.declaredSpecifiers != null && { specifiers: options.declaredSpecifiers }),
     prepare: options.prepare,
     prod: !options.wantedDependency.dev && !options.wantedDependency.optional,
     resolution: options.pkgResponse.body.resolution,

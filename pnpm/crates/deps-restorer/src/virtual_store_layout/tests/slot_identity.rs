@@ -39,6 +39,7 @@ fn slot_dir_uses_gvs_layout_when_gvs_on() {
     packages.insert(
         key.clone(),
         PackageMetadata {
+            specifiers: None,
             resolution: LockfileResolution::Registry(RegistryResolution {
                 integrity: "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
                     .parse()
@@ -93,6 +94,7 @@ fn slot_dir_prefixes_unscoped_with_at_slash_under_gvs() {
     packages.insert(
         key.clone(),
         PackageMetadata {
+            specifiers: None,
             resolution: LockfileResolution::Registry(RegistryResolution {
                 integrity: "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
                     .parse()
@@ -174,6 +176,7 @@ fn slot_dir_engine_specific_when_snapshot_is_built() {
     packages.insert(
         key.clone(),
         PackageMetadata {
+            specifiers: None,
             resolution: LockfileResolution::Registry(RegistryResolution {
                 integrity: "sha512-CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC"
                     .parse()
@@ -295,6 +298,7 @@ fn cross_pinning_siblings_get_distinct_slots() {
         packages.insert(
             key,
             PackageMetadata {
+                specifiers: None,
                 resolution: LockfileResolution::Registry(RegistryResolution {
                     integrity: integrity_str.parse().expect("parse integrity"),
                     revision: None,
@@ -577,6 +581,7 @@ fn collect_injected_deps_maps_file_snapshots_to_slots() {
         packages.insert(
             key.without_peer(),
             PackageMetadata {
+                specifiers: None,
                 resolution: DirectoryResolution { directory: key.suffix.version().to_string() }
                     .into(),
                 version: None,

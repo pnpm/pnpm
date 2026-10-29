@@ -64,6 +64,7 @@ fn directory_resolution(directory: &str) -> LockfileResolution {
 /// has a non-default value to inspect.
 fn metadata_stub() -> PackageMetadata {
     PackageMetadata {
+        specifiers: None,
         resolution: directory_resolution("/dev/null/stub"),
         version: None,
         engines: None,

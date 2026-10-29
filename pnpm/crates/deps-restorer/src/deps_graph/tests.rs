@@ -31,6 +31,7 @@ fn integrity() -> Integrity {
 
 fn registry_metadata() -> PackageMetadata {
     PackageMetadata {
+        specifiers: None,
         resolution: LockfileResolution::Registry(RegistryResolution {
             integrity: integrity(),
             revision: None,
@@ -65,6 +66,7 @@ fn variations_metadata() -> PackageMetadata {
         }],
     };
     PackageMetadata {
+        specifiers: None,
         resolution: LockfileResolution::Variations(VariationsResolution {
             variants: vec![
                 variant("sha512-AAAA".parse().unwrap(), "linux", None),

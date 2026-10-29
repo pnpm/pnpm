@@ -55,6 +55,7 @@ async fn force_resync_overwrites_recorded_package_manager_entries() {
 fn prune_drops_orphan_packages_and_snapshots() {
     fn registry_pkg() -> PackageMetadata {
         PackageMetadata {
+            specifiers: None,
             resolution: LockfileResolution::Registry(RegistryResolution {
                 integrity: ssri::Integrity::from(b"x"),
                 revision: None,

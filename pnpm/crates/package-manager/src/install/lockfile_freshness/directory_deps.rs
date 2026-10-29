@@ -10,6 +10,7 @@ mod importer_deps;
 mod injected_manifest;
 mod package;
 mod peers;
+mod recorded;
 mod scope;
 mod spec;
 

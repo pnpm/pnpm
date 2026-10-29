@@ -658,6 +658,7 @@ fn run_rejects_uncontained_slot_before_creating_dirs() {
     packages.insert(
         package_key.without_peer(),
         pnpm_lockfile::PackageMetadata {
+            specifiers: None,
             resolution: pnpm_lockfile::LockfileResolution::Tarball(
                 pnpm_lockfile::TarballResolution {
                     tarball: "file:vendor/dep.tgz".to_string(),

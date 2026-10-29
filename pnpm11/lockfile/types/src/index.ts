@@ -67,6 +67,24 @@ export interface LockfilePackageInfo {
   cpu?: string[]
   libc?: string[]
   deprecated?: string
+  /**
+   * See `DeclaredSpecifiers`. Absent from every resolution but a directory.
+   * A directory entry may record none, and a lockfile check then derives the
+   * children from the manifest.
+   */
+  specifiers?: DeclaredSpecifiers
+}
+
+/**
+ * The dependency specifiers the resolver read for a package resolved from a
+ * local directory: the children it walks, as the hooked manifest declares
+ * them, before peer shadowing and catalog resolution, in the group the
+ * snapshot records each one under. A lockfile check compares them with the
+ * directory's current manifest instead of resolving its dependencies again.
+ */
+export interface DeclaredSpecifiers {
+  dependencies?: ResolvedDependencies
+  optionalDependencies?: ResolvedDependencies
 }
 
 export interface ProjectSnapshotBase {
