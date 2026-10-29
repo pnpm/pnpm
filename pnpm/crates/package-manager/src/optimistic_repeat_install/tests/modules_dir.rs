@@ -584,3 +584,171 @@ fn a_missing_registry_dependency_keeps_the_fast_path() {
     let decision = root_decision(r#""dependencies":{"foo":"1.0.0"}"#, |_| {});
     assert_eq!(decision, Decision::UpToDate);
 }
+
+/// Whether the direct-dependency link gate fires for a workspace of the root
+/// and `pkg-a`, after `prepare` lays out the modules directories under the
+/// workspace root. `held` names the projects the gate holds, by directory
+/// relative to the root, or every project when `None`.
+fn workspace_link_dangling(
+    node_linker: pnpm_config::NodeLinker,
+    configure: impl FnOnce(&mut Config),
+    held: Option<&[&str]>,
+    prepare: impl FnOnce(&std::path::Path),
+) -> bool {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path();
+    let sibling_dir = root.join("pkg-a");
+    fs::create_dir_all(&sibling_dir).unwrap();
+    fs::create_dir_all(root.join("lib")).unwrap();
+    fs::write(
+        root.join("package.json"),
+        r#"{"name":"root","version":"1.0.0","dependencies":{"lib":"workspace:*"}}"#,
+    )
+    .unwrap();
+    fs::write(
+        sibling_dir.join("package.json"),
+        r#"{"name":"pkg-a","version":"1.0.0","dependencies":{"lib":"workspace:*","foo":"1.0.0"}}"#,
+    )
+    .unwrap();
+    let root_manifest = PackageManifest::from_path(root.join("package.json")).unwrap();
+    let sibling_manifest = PackageManifest::from_path(sibling_dir.join("package.json")).unwrap();
+    let mut config = Config::new();
+    config.modules_dir = root.join("node_modules");
+    configure(&mut config);
+    let config = config.leak();
+    prepare(root);
+    let held = held.map(|dirs| {
+        dirs.iter()
+            .map(|dir| pnpm_fs::lexical_normalize(&root.join(dir)))
+            .collect::<std::collections::HashSet<_>>()
+    });
+    super::super::modules_dirs::direct_dependency_link_dangling(
+        &OptimisticRepeatInstallCheck {
+            workspace_root: root,
+            config,
+            project_manifests: crate::DeclaredManifests::new(&[
+                (root.to_path_buf(), &root_manifest),
+                (sibling_dir, &sibling_manifest),
+            ]),
+            is_workspace_install: true,
+            lockfile: MaybeLazyLockfile::Loaded(None),
+            catalogs: &BTreeMap::default(),
+            layout: crate::RepeatInstallLayout {
+                node_linker,
+                included: isolated_included(),
+                supported_architectures: None,
+            },
+            manifests: crate::RepeatInstallManifests::ON_DISK,
+        },
+        held.as_ref(),
+    )
+}
+
+/// Create `entry` as a link to `target`, both relative to `root`.
+fn link_dir(root: &std::path::Path, target: &str, entry: &str) {
+    let entry = root.join(entry);
+    fs::create_dir_all(entry.parent().unwrap()).unwrap();
+    fs::create_dir_all(root.join(target)).unwrap();
+    pnpm_fs::symlink_dir(&root.join(target), &entry).unwrap();
+}
+
+/// Create `entry` as a link to the workspace's `lib` project.
+fn link_lib(root: &std::path::Path, entry: &str) {
+    link_dir(root, "lib", entry);
+}
+
+#[test]
+fn a_workspace_link_missing_from_a_sibling_is_dangling() {
+    let dangling = workspace_link_dangling(
+        pnpm_config::NodeLinker::Isolated,
+        |_| {},
+        None,
+        |root| {
+            link_lib(root, "node_modules/lib");
+            fs::create_dir_all(root.join("pkg-a/node_modules")).unwrap();
+        },
+    );
+    assert!(dangling);
+}
+
+/// The hoisted linker places a sibling's `workspace:` dependency in either
+/// modules directory, so an entry in one of them is enough.
+#[test]
+fn a_hoisted_workspace_link_in_either_modules_dir_is_not_dangling() {
+    for sibling_entry in ["pkg-a/node_modules/lib", "node_modules/lib"] {
+        let dangling = workspace_link_dangling(
+            pnpm_config::NodeLinker::Hoisted,
+            |_| {},
+            None,
+            |root| {
+                link_lib(root, "node_modules/lib");
+                if sibling_entry != "node_modules/lib" {
+                    link_lib(root, sibling_entry);
+                }
+            },
+        );
+        assert!(!dangling, "{sibling_entry}");
+    }
+}
+
+/// Under `dedupeDirectDeps` a sibling's dependency that resolves to the root's
+/// target is linked only into the root's modules directory, while the sibling
+/// keeps its own for the dependencies that differ.
+#[test]
+fn a_deduped_workspace_link_is_not_dangling() {
+    let dangling = workspace_link_dangling(
+        pnpm_config::NodeLinker::Isolated,
+        |config| config.dedupe_direct_deps = true,
+        None,
+        |root| {
+            link_lib(root, "node_modules/lib");
+            fs::create_dir_all(root.join("pkg-a/node_modules/foo")).unwrap();
+        },
+    );
+    assert!(!dangling);
+}
+
+/// `symlink: false` links no direct dependency at all.
+#[test]
+fn a_missing_workspace_link_is_not_dangling_without_symlinks() {
+    let dangling = workspace_link_dangling(
+        pnpm_config::NodeLinker::Isolated,
+        |config| config.symlink = false,
+        None,
+        |root| fs::create_dir_all(root.join("node_modules")).unwrap(),
+    );
+    assert!(!dangling);
+}
+
+/// A filtered install does not link the projects it did not select, so their
+/// missing entries leave the gate alone. A broken link still counts anywhere.
+#[test]
+fn only_held_projects_need_their_workspace_links() {
+    let unselected_missing = |root: &std::path::Path| {
+        link_lib(root, "node_modules/lib");
+        fs::create_dir_all(root.join("pkg-a/node_modules")).unwrap();
+    };
+    assert!(!workspace_link_dangling(
+        pnpm_config::NodeLinker::Isolated,
+        |_| {},
+        Some(&[""]),
+        unselected_missing,
+    ));
+    assert!(workspace_link_dangling(
+        pnpm_config::NodeLinker::Isolated,
+        |_| {},
+        Some(&["pkg-a"]),
+        unselected_missing,
+    ));
+    let unselected_broken = |root: &std::path::Path| {
+        link_lib(root, "node_modules/lib");
+        link_dir(root, "gone", "pkg-a/node_modules/lib");
+        fs::remove_dir(root.join("gone")).unwrap();
+    };
+    assert!(workspace_link_dangling(
+        pnpm_config::NodeLinker::Isolated,
+        |_| {},
+        Some(&[""]),
+        unselected_broken,
+    ));
+}

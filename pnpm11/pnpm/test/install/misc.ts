@@ -1015,3 +1015,41 @@ test('a repeat install relinks an optional dependency whose link points to a mis
 
   expect((await readPackageJsonFromDir(optionalLink)).version).toBe('1.0.0')
 })
+
+test('a repeat install relinks a deleted workspace dependency', async () => {
+  preparePackages([
+    { location: '.', package: { name: 'root' } },
+    { name: 'lib', version: '1.0.0' },
+    { name: 'app', version: '1.0.0', dependencies: { lib: 'workspace:*' } },
+  ])
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['app', 'lib'], optimisticRepeatInstall: true })
+
+  await execPnpm(['install'])
+
+  const link = path.resolve('app/node_modules/lib')
+  fs.rmSync(link)
+
+  await execPnpm(['install'])
+
+  expect((await readPackageJsonFromDir(link)).name).toBe('lib')
+})
+
+test('a repeat install keeps the fast path for a workspace dependency deduped into the root', async () => {
+  preparePackages([
+    { location: '.', package: { name: 'root', dependencies: { lib: 'workspace:*' } } },
+    { name: 'lib', version: '1.0.0' },
+    { name: 'app', version: '1.0.0', dependencies: { lib: 'workspace:*', 'is-positive': '1.0.0' } },
+  ])
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['app', 'lib'],
+    dedupeDirectDeps: true,
+    optimisticRepeatInstall: true,
+  })
+
+  await execPnpm(['install'])
+  expect(fs.existsSync('app/node_modules/is-positive')).toBe(true)
+  expect(fs.existsSync('app/node_modules/lib')).toBe(false)
+
+  const repeatResult = execPnpmSync(['install'], { expectSuccess: true })
+  expect(repeatResult.stdout.toString()).toContain('Already up to date')
+})

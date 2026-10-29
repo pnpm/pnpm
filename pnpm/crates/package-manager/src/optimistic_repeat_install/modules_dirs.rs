@@ -45,7 +45,20 @@ pub(super) fn first_selected_project_missing_modules_dir(
     selected_project_dirs: &[&Path],
     reach: SelectedReach,
 ) -> Option<String> {
-    let selected = match reach {
+    let selected = reached_project_dirs(check, state, selected_project_dirs, reach);
+    first_missing_modules_dir(check, state, &|root_dir| {
+        selected.contains(&lexical_normalize(root_dir))
+    })
+}
+
+/// The selected projects, as far as `reach` takes them, lexically normalized.
+pub(super) fn reached_project_dirs(
+    check: &OptimisticRepeatInstallCheck<'_>,
+    state: &WorkspaceState,
+    selected_project_dirs: &[&Path],
+    reach: SelectedReach,
+) -> HashSet<PathBuf> {
+    match reach {
         SelectedReach::WithWorkspaceDeps => {
             reached_workspace_project_dirs(check, state, selected_project_dirs)
         }
@@ -53,10 +66,7 @@ pub(super) fn first_selected_project_missing_modules_dir(
             .iter()
             .map(|dir| lexical_normalize(dir))
             .collect(),
-    };
-    first_missing_modules_dir(check, state, &|root_dir| {
-        selected.contains(&lexical_normalize(root_dir))
-    })
+    }
 }
 /// The first project that needs a modules directory and lacks one, over the
 /// projects `is_selected` accepts.
@@ -162,34 +172,60 @@ fn first_project_without_modules_dir(
 }
 
 /// Whether a direct dependency's entry in its project's modules directory is
-/// a link whose target no longer exists, or is absent for a dependency the
-/// linker always links. Nothing the fast path records moves when a link is
-/// broken or retargeted outside pnpm, and the full install relinks it.
+/// a link whose target no longer exists, or a local link the linker made and
+/// that is gone. Nothing the fast path records moves when a link is broken,
+/// deleted, or retargeted outside pnpm, and the full install relinks it.
 ///
-/// A missing entry is only a broken link for a `workspace:` or `link:` spec:
-/// those resolve to a directory that is on disk, so the linker links them on
-/// every install and the entry cannot be legitimately skipped. A registry
-/// dependency may be absent because it is an excluded or skipped optional
-/// one, and a healthy entry costs one `stat`, so it stays out of the check.
-/// The hoisted linker places a sibling's dependencies in the root modules
-/// directory too, so both are probed there.
-pub(super) fn direct_dependency_link_dangling(check: &OptimisticRepeatInstallCheck<'_>) -> bool {
+/// A missing entry counts only for a `workspace:` or `link:` spec of a project
+/// in `held_project_dirs` (every project when `None`), and only when the
+/// linker symlinks direct dependencies into `node_modules`
+/// ([`links_local_dependencies`]). A registry dependency may be absent because
+/// it is an excluded or skipped optional one, and a healthy entry costs one
+/// `stat`, so it stays out of that check.
+pub(super) fn direct_dependency_link_dangling(
+    check: &OptimisticRepeatInstallCheck<'_>,
+    held_project_dirs: Option<&HashSet<PathBuf>>,
+) -> bool {
     let groups = included_groups(check.layout.included);
+    let links_local_deps = links_local_dependencies(check);
     check.project_manifests
         .par_iter()
         .any(|(root_dir, manifest)| {
-            project_modules_dirs(check, root_dir, manifest)
-                .iter()
-                // A project whose modules directory the linker never created
-                // is `first_project_without_modules_dir`'s business; probing a
-                // directory that is not there would reinstall forever.
-                .filter(|modules_dir| modules_dir.is_dir())
-                .any(|modules_dir| {
-                    manifest
-                        .dependencies(groups.iter().copied())
-                        .any(|(alias, spec)| is_dangling_link(&modules_dir.join(alias), spec))
+            let modules_dirs = project_modules_dirs(check, root_dir, manifest);
+            let held = links_local_deps
+                && held_project_dirs.is_none_or(|held| held.contains(&lexical_normalize(root_dir)));
+            manifest
+                .dependencies(groups.iter().copied())
+                .any(|(alias, spec)| {
+                    modules_dirs
+                        .iter()
+                        .any(|modules_dir| is_dangling_link(&modules_dir.join(alias)))
+                        || (held
+                            && is_local_link_spec(spec)
+                            && !has_entry(check, &modules_dirs, alias))
                 })
         })
+}
+
+/// Whether the linker symlinks every `workspace:` and `link:` dependency into
+/// its project's modules directory. `symlink: false` links no direct
+/// dependency, and the pnp and loaded linkers lay out no `node_modules` tree.
+fn links_local_dependencies(check: &OptimisticRepeatInstallCheck<'_>) -> bool {
+    check.config.symlink
+        && matches!(check.layout.node_linker, NodeLinker::Isolated | NodeLinker::Hoisted)
+}
+
+/// Whether `alias` has an entry in any modules directory the linker may place
+/// it in. Under `dedupeDirectDeps` a sibling's dependency that resolves to the
+/// root's target is linked only into the root's modules directory.
+fn has_entry(
+    check: &OptimisticRepeatInstallCheck<'_>,
+    modules_dirs: &[PathBuf],
+    alias: &str,
+) -> bool {
+    let exists = |modules_dir: &Path| fs::symlink_metadata(modules_dir.join(alias)).is_ok();
+    modules_dirs.iter().any(|modules_dir| exists(modules_dir))
+        || (check.config.dedupe_direct_deps && exists(&check.config.modules_dir))
 }
 
 /// The modules directories the linker may place a project's direct
@@ -204,6 +240,8 @@ fn project_modules_dirs(
         return vec![config.modules_dir.clone()];
     }
     let own = sibling_modules_dir(config, root_dir, manifest);
+    // The hoisted linker places a sibling's dependencies in the root modules
+    // directory too.
     if check.layout.node_linker == NodeLinker::Hoisted {
         vec![own, config.modules_dir.clone()]
     } else {
@@ -211,21 +249,14 @@ fn project_modules_dirs(
     }
 }
 
-/// A dependency the linker resolves to a local directory: the spec names a
-/// path (`link:`) or a workspace project (`workspace:`), and either way the
-/// target exists, so a missing entry is a broken install rather than a
-/// dependency that was never meant to be linked.
+/// A dependency the linker links to a local directory: a path (`link:`) or a
+/// workspace project (`workspace:`). Neither is ever skipped or excluded.
 pub(super) fn is_local_link_spec(spec: &str) -> bool {
     spec.starts_with("workspace:") || spec.starts_with("link:")
 }
 
-fn is_dangling_link(path: &Path, spec: &str) -> bool {
-    if fs::metadata(path).is_ok() {
-        return false;
-    }
-    // The entry is there but its target is gone, or it is gone altogether and
-    // the linker was always going to create it.
-    fs::symlink_metadata(path).is_ok() || is_local_link_spec(spec)
+fn is_dangling_link(path: &Path) -> bool {
+    fs::metadata(path).is_err() && fs::symlink_metadata(path).is_ok()
 }
 
 /// The modules directory an isolated install creates for the workspace

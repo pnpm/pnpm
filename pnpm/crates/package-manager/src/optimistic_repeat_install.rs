@@ -54,13 +54,14 @@ use freshness::{
 };
 use modules_dirs::{
     SelectedReach, direct_dependency_link_dangling, first_project_missing_modules_dir,
-    first_selected_project_missing_modules_dir,
+    first_selected_project_missing_modules_dir, reached_project_dirs,
 };
 use settle::{
     current_lockfile_file_has_content, project_structure_matches, wanted_lockfile_file_has_content,
 };
 
 use std::{
+    collections::HashSet,
     fs,
     io::{ErrorKind, Read},
     path::{Path, PathBuf},
@@ -350,31 +351,46 @@ fn patch_modified_since(path: &Path, cutoff_ms: i64) -> bool {
 }
 
 /// The first project `scope` holds that needs a modules directory and lacks
-/// one. A state that leaves some project unproven, such as one a filtered
-/// install wrote, holds only the selected projects to it.
+/// one.
 fn first_held_project_missing_modules_dir(
     check: &OptimisticRepeatInstallCheck<'_>,
     state: &WorkspaceState,
     scope: Scope<'_>,
 ) -> Option<String> {
+    match held_selection(state, scope) {
+        Some((selected, reach)) => {
+            first_selected_project_missing_modules_dir(check, state, selected, reach)
+        }
+        None => first_project_missing_modules_dir(check, state),
+    }
+}
+
+/// The projects `scope` holds to the modules directory checks, lexically
+/// normalized, or `None` for every project.
+fn held_project_dirs(
+    check: &OptimisticRepeatInstallCheck<'_>,
+    state: &WorkspaceState,
+    scope: Scope<'_>,
+) -> Option<HashSet<PathBuf>> {
+    held_selection(state, scope)
+        .map(|(selected, reach)| reached_project_dirs(check, state, selected, reach))
+}
+
+/// The selection `scope` holds, or `None` for every project. A state that
+/// leaves some project unproven, such as one a filtered install wrote, holds
+/// only the selected projects.
+fn held_selection<'a>(
+    state: &WorkspaceState,
+    scope: Scope<'a>,
+) -> Option<(&'a [&'a Path], SelectedReach)> {
     match scope {
         Scope::Selected(selected) if state.filtered_install => {
-            first_selected_project_missing_modules_dir(
-                check,
-                state,
-                selected,
-                SelectedReach::SelectedOnly,
-            )
+            Some((selected, SelectedReach::SelectedOnly))
         }
         Scope::Command(selected) if state.filtered_install => {
-            first_selected_project_missing_modules_dir(
-                check,
-                state,
-                selected,
-                SelectedReach::WithWorkspaceDeps,
-            )
+            Some((selected, SelectedReach::WithWorkspaceDeps))
         }
-        _ => first_project_missing_modules_dir(check, state),
+        _ => None,
     }
 }
 
