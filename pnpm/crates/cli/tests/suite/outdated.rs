@@ -1108,4 +1108,60 @@ fn outdated_reports_cargo_and_python_dependencies() {
         serde_json::from_slice(&compat_output.stdout).expect("parse compatible outdated JSON");
     assert_eq!(compat_report["foo"]["latest"], "1.2.0");
     assert_eq!(compat_report["requests"]["latest"], "1.5");
+
+    // Add a root package.json and a standalone Python project sharing the same outdated dependency `requests`:
+    fs::write(workspace.join("package.json"), r#"{"name":"app","version":"0.1.0"}"#).unwrap();
+    let standalone_py = workspace.join("packages/py-standalone");
+    fs::create_dir_all(&standalone_py).unwrap();
+    fs::write(
+        standalone_py.join("pyproject.toml"),
+        "[project]\nname = 'py-standalone'\nversion = '1.0'\nrequires-python = '>=3.10'\ndependencies = ['requests>=1.0,<2.0']\n",
+    )
+    .unwrap();
+    fs::write(
+        standalone_py.join("pylock.toml"),
+        "lock-version = '1.0'\nenvironments = []\ncreated-by = 'pnpm'\nrequires-python = '>=3.10'\n\n[[packages]]\nname = 'requests'\nversion = '1.0'\nwheels = [{ name = 'requests-1.0-py3-none-any.whl', url = 'https://example.test/requests-1.0-py3-none-any.whl', hashes = { sha256 = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' } }]\n",
+    )
+    .unwrap();
+
+    // Recursive `outdated -r` groups both `app` and `py-standalone` under `requests.dependentPackages`:
+    let recursive_output =
+        pacquet(&workspace, ["-r", "outdated", "pypi:requests", "--offline", "--format", "json"])
+            .output()
+            .expect("run -r outdated pypi:requests --offline --format json");
+    assert_eq!(recursive_output.status.code(), Some(1));
+    let recursive_report: serde_json::Value =
+        serde_json::from_slice(&recursive_output.stdout).expect("parse recursive outdated JSON");
+    let dependents: Vec<&str> = recursive_report["requests"]["dependentPackages"]
+        .as_array()
+        .expect("dependentPackages array")
+        .iter()
+        .filter_map(|entry| entry["name"].as_str())
+        .collect();
+    assert!(dependents.contains(&"app"), "expected app in {dependents:?}");
+    assert!(dependents.contains(&"py-standalone"), "expected py-standalone in {dependents:?}");
+
+    // Recursive `--filter py-standalone` selects only the standalone Python project:
+    let filtered_output = pacquet(
+        &workspace,
+        ["-r", "--filter", "py-standalone", "outdated", "--offline", "--format", "json"],
+    )
+    .output()
+    .expect("run -r --filter py-standalone outdated --offline --format json");
+    assert_eq!(
+        filtered_output.status.code(),
+        Some(1),
+        "stderr: {}",
+        String::from_utf8_lossy(&filtered_output.stderr),
+    );
+    let filtered_report: serde_json::Value =
+        serde_json::from_slice(&filtered_output.stdout).expect("parse filtered outdated JSON");
+    let filtered_dependents: Vec<&str> = filtered_report["requests"]["dependentPackages"]
+        .as_array()
+        .expect("dependentPackages array")
+        .iter()
+        .filter_map(|entry| entry["name"].as_str())
+        .collect();
+    assert_eq!(filtered_dependents, vec!["py-standalone"]);
+    assert!(filtered_report.get("foo").is_none());
 }

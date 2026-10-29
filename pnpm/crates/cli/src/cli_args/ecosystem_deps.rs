@@ -2,14 +2,18 @@ pub(crate) mod cargo;
 pub(crate) mod cargo_manifest_ops;
 pub(crate) mod python;
 pub(crate) mod selectors;
+pub(crate) mod standalone;
 
 pub(crate) use selectors::{
     EcosystemFilterKind, patterns_for_ecosystem, validate_ecosystem_selectors,
 };
+pub(crate) use standalone::{
+    select_recursive_and_standalone_projects, select_standalone_ecosystem_dirs,
+};
 
 use crate::{
     cli_args::outdated::{OutdatedPackage, OutdatedQuery, OutdatedRun},
-    ecosystem_install::{EcosystemManifest, EcosystemWorkspaceInventory, InstallContext},
+    ecosystem_install::InstallContext,
 };
 use cargo::{
     CargoUpdateOptions, collect_cargo_outdated, has_cargo_lockfile, update_cargo_project,
@@ -177,48 +181,6 @@ fn ecosystem_matcher(
     Ok(Some(Some(create_matcher(&patterns))))
 }
 
-pub(crate) async fn discover_standalone_ecosystem_dirs(
-    workspace_root: &Path,
-    existing_dirs: &HashSet<PathBuf>,
-    config: &Config,
-) -> Result<Vec<PathBuf>> {
-    if !config.cargo.enabled && !config.python.enabled {
-        return Ok(Vec::new());
-    }
-    let inventory = EcosystemWorkspaceInventory::new(workspace_root.to_path_buf(), config);
-    let mut dirs = Vec::new();
-    let mut seen = existing_dirs.clone();
-    if config.cargo.enabled {
-        extend_manifest_dirs(
-            inventory.manifests(EcosystemManifest::Cargo).await?,
-            &mut seen,
-            &mut dirs,
-        );
-    }
-    if config.python.enabled {
-        extend_manifest_dirs(
-            inventory.manifests(EcosystemManifest::Python).await?,
-            &mut seen,
-            &mut dirs,
-        );
-    }
-    Ok(dirs)
-}
-
-fn extend_manifest_dirs(
-    manifests: &[PathBuf],
-    seen: &mut HashSet<PathBuf>,
-    dirs: &mut Vec<PathBuf>,
-) {
-    for manifest in manifests {
-        if let Some(dir) = manifest.parent()
-            && seen.insert(dir.to_path_buf())
-        {
-            dirs.push(dir.to_path_buf());
-        }
-    }
-}
-
 pub(crate) async fn run_ecosystem_updates_for_selection<Reporter: self::Reporter + 'static>(
     state: &crate::State,
     selection: Option<&crate::cli_args::pipelines::InstallFamilySelection>,
@@ -244,21 +206,23 @@ async fn target_dirs_and_manifests<'a>(
     };
     let mut dirs = Vec::new();
     let mut manifests = Vec::new();
+    let mut npm_dirs = HashSet::new();
     for project in &selection.projects {
+        npm_dirs.insert(project.root_dir.clone());
         if selection.selected_dirs.contains(&project.root_dir) {
             dirs.push(project.root_dir.clone());
             manifests.push(&project.manifest);
         }
     }
-    if state.config.filter.is_empty() && state.config.filter_prod.is_empty() {
-        let standalone = discover_standalone_ecosystem_dirs(
-            &selection.workspace_root,
-            &selection.selected_dirs,
-            state.config,
-        )
-        .await?;
-        dirs.extend(standalone);
-    }
+    let standalone = select_standalone_ecosystem_dirs(
+        &selection.workspace_root,
+        state.project_dir(),
+        &npm_dirs,
+        &selection.selected_dirs,
+        state.config,
+    )
+    .await?;
+    dirs.extend(standalone.selected);
     Ok((dirs, manifests))
 }
 

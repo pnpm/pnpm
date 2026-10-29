@@ -106,7 +106,8 @@ fn collect_cargo_dirs(
     };
     for entry in entries.flatten() {
         let path = entry.path();
-        if !path.is_dir() || is_skipped_dir(&path, workspace_dir, excludes) {
+        let is_real_dir = entry.file_type().is_ok_and(|file_type| file_type.is_dir());
+        if !is_real_dir || is_skipped_dir(&path, workspace_dir, excludes) {
             continue;
         }
         if path.join("Cargo.toml").is_file() {

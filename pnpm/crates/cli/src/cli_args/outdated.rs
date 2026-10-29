@@ -19,7 +19,7 @@ use crate::{
             requires_ecosystem_lockfile,
         },
         install::resolve_bool_override,
-        recursive::{AutoExcludeRoot, discover_workspace_projects, select_recursive_projects},
+        recursive::discover_workspace_projects,
         sanitize::sanitize_inline,
     },
 };

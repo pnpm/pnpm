@@ -1,16 +1,14 @@
 use super::{
-    Arc, AutoExcludeRoot, Config, DependencyGroup, HashMap, IntoDiagnostic, Lockfile, OutdatedArgs,
-    OutdatedFilters, OutdatedOutcome, OutdatedPackage, OutdatedQuery, OutdatedRun, PackageManifest,
-    PathBuf, Reporter, State, collect_outdated, collect_outdated_for_importer_in_run,
-    discover_workspace_projects, github_actions, select_recursive_projects, sort_outdated,
-    sort_workspace_outdated,
+    Arc, Config, DependencyGroup, HashMap, IntoDiagnostic, Lockfile, OutdatedArgs, OutdatedFilters,
+    OutdatedOutcome, OutdatedPackage, OutdatedQuery, OutdatedRun, PackageManifest, PathBuf,
+    Reporter, State, collect_outdated, collect_outdated_for_importer_in_run,
+    discover_workspace_projects, github_actions, sort_outdated, sort_workspace_outdated,
 };
 use crate::cli_args::ecosystem_deps::{
     EcosystemFilterKind, collect_ecosystem_outdated, declared_ecosystem_dep_names,
-    discover_standalone_ecosystem_dirs, ecosystem_project_name, patterns_for_ecosystem,
-    requires_ecosystem_lockfile,
+    ecosystem_project_name, patterns_for_ecosystem, requires_ecosystem_lockfile,
+    select_recursive_and_standalone_projects,
 };
-use std::collections::HashSet;
 
 pub(super) struct OutdatedInWorkspace {
     pub(super) package: OutdatedPackage,
@@ -64,13 +62,20 @@ pub(super) fn global_states(
 pub(super) async fn workspace_outdated(
     inputs: &ProjectOutdatedInputs<'_>,
     project_inputs: &[(&PathBuf, &pnpm_workspace::Project, Option<Lockfile>)],
+    standalone_dirs: &[PathBuf],
 ) -> miette::Result<Vec<OutdatedInWorkspace>> {
     let project_queries = project_inputs
         .iter()
         .map(|(project_dir, project, project_lockfile)| {
             outdated_for_project(inputs, project_dir, project, project_lockfile.as_ref())
         });
-    group_workspace_outdated(futures_util::future::join_all(project_queries).await)
+    let mut project_results = futures_util::future::join_all(project_queries).await;
+    if !standalone_dirs.is_empty() {
+        project_results.extend(
+            collect_standalone_ecosystem_outdated(standalone_dirs, inputs.query, inputs.run).await?,
+        );
+    }
+    group_workspace_outdated(project_results)
 }
 
 pub(super) fn no_lockfile_error(dir: &std::path::Path) -> miette::Report {
@@ -94,7 +99,7 @@ pub(super) async fn recursive_workspace_outdated(
     let project_inputs = recursive_project_inputs(config, selection)?;
     let run = OutdatedRun::new(config, Arc::clone(&state.http_client), query)?
         .with_raw_packages(raw_packages);
-    let mut results = workspace_outdated(
+    workspace_outdated(
         &ProjectOutdatedInputs {
             config,
             lockfile_root: state.lockfile_dir(),
@@ -103,36 +108,16 @@ pub(super) async fn recursive_workspace_outdated(
             run: &run,
         },
         &project_inputs,
+        standalone_dirs,
     )
-    .await?;
-    if !standalone_dirs.is_empty() {
-        let standalone_results =
-            collect_standalone_ecosystem_outdated(standalone_dirs, query, &run).await?;
-        results.extend(standalone_results);
-    }
-    Ok(results)
-}
-
-async fn standalone_dirs_for_selection(
-    workspace_root: &std::path::Path,
-    selection: &crate::cli_args::recursive::RecursiveSelection<'_>,
-    config: &Config,
-) -> miette::Result<Vec<PathBuf>> {
-    if !config.filter.is_empty() || !config.filter_prod.is_empty() {
-        return Ok(Vec::new());
-    }
-    let existing: HashSet<PathBuf> = selection.selected
-        .keys()
-        .cloned()
-        .collect();
-    discover_standalone_ecosystem_dirs(workspace_root, &existing, config).await
+    .await
 }
 
 async fn collect_standalone_ecosystem_outdated(
     dirs: &[PathBuf],
     query: &OutdatedQuery<'_>,
     run: &OutdatedRun,
-) -> miette::Result<Vec<OutdatedInWorkspace>> {
+) -> miette::Result<Vec<miette::Result<(Vec<OutdatedPackage>, DependentProject)>>> {
     let mut project_results = Vec::new();
     for dir in dirs {
         if requires_ecosystem_lockfile(dir, &run.config, query, &run.raw_packages)? {
@@ -147,7 +132,7 @@ async fn collect_standalone_ecosystem_outdated(
             project_results.push(Ok((outdated, DependentProject { name, location: dir.clone() })));
         }
     }
-    group_workspace_outdated(project_results)
+    Ok(project_results)
 }
 
 pub(super) struct ProjectOutdatedInputs<'a> {
@@ -285,14 +270,13 @@ impl OutdatedArgs {
             .clone()
             .unwrap_or_else(|| state.lockfile_dir().to_path_buf());
         let (projects, _) = discover_workspace_projects(&workspace_root, config)?;
-        let selection = select_recursive_projects(
+        let (selection, standalone_dirs) = select_recursive_and_standalone_projects(
+            &workspace_root,
+            project_dir(&state.manifest),
             &projects,
             config,
-            project_dir(&state.manifest),
-            AutoExcludeRoot::Disabled,
-        )?;
-        let standalone_dirs =
-            standalone_dirs_for_selection(&workspace_root, &selection, config).await?;
+        )
+        .await?;
         let package_patterns = self.package_patterns();
         let filters = OutdatedFilters::validated_with_standalone(
             &self,
