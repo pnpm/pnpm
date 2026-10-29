@@ -102,6 +102,12 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
   return { upToDate: undefined, workspaceState }
 }
 
+function workspaceProjectDirs ({ allProjects, rootProjectManifestDir }: CheckDepsStatusOptions): Set<string> {
+  const dirs = new Set((allProjects ?? []).map(({ rootDir }) => path.resolve(rootDir)))
+  if (rootProjectManifestDir != null) dirs.add(path.resolve(rootProjectManifestDir))
+  return dirs
+}
+
 /**
  * The result of the checks that do not read the lockfiles, or `undefined`
  * when those checks pass.
@@ -113,7 +119,7 @@ function checkWithoutLockfiles (opts: CheckDepsStatusOptions, workspaceState: Wo
   // (the only one setting this flag) "up-to-date" would skip the install
   // and break the local-file-deps guarantee.
   if (opts.treatLocalFileDepsAsOutdated) {
-    const localFileDepsIssue = findLocalFileDepsIssue(opts) ?? findRecordedLocalDependencyIssue(workspaceState)
+    const localFileDepsIssue = findLocalFileDepsIssue(opts) ?? findRecordedLocalDependencyIssue(workspaceState, workspaceProjectDirs(opts))
     if (localFileDepsIssue != null) return outdatedResult(localFileDepsIssue, workspaceState)
   }
 

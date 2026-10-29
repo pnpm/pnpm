@@ -263,7 +263,7 @@ fn local_file_blocks_fast_path(
 ) -> Option<&'static str> {
     const LOCAL_FILE_DEPENDENCY: &str =
         "a dependency is a local file dependency and its contents may have changed";
-    if state.validation.as_ref().is_some_and(validation::local_dependency_changed) {
+    if recorded_local_dependency_changed(check, state) {
         return Some(LOCAL_FILE_DEPENDENCY);
     }
     let &OptimisticRepeatInstallCheck {
@@ -294,6 +294,22 @@ fn local_file_blocks_fast_path(
         );
     }
     None
+}
+
+/// Whether a local dependency the last validation recorded may have changed,
+/// per [`validation::local_dependency_changed`].
+fn recorded_local_dependency_changed(
+    check: &OptimisticRepeatInstallCheck<'_>,
+    state: &WorkspaceState,
+) -> bool {
+    let workspace_dirs: std::collections::HashSet<PathBuf> = check
+        .bin_projects()
+        .iter()
+        .map(|(dir, _)| pnpm_fs::lexical_normalize(dir))
+        .collect();
+    state.validation
+        .as_ref()
+        .is_some_and(|validation| validation::local_dependency_changed(validation, &workspace_dirs))
 }
 
 pub(crate) fn manifest_has_runtime_deps(manifest: &PackageManifest) -> bool {

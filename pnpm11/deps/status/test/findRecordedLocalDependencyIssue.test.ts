@@ -17,10 +17,16 @@ test('findRecordedLocalDependencyIssue() names a local dependency the last insta
     recordedAtNs: 0,
     manifests: {},
     localDependencies: { digest: { tarballs: ['/repo/vendor/pkg.tgz'] } },
-  }))).toBe('The local dependency at "/repo/vendor/pkg.tgz" may have changed')
+  }), new Set())).toBe('The local dependency at "/repo/vendor/pkg.tgz" may have changed')
 })
 
 test('findRecordedLocalDependencyIssue() finds nothing in a state that records no local dependency', () => {
-  expect(findRecordedLocalDependencyIssue(state())).toBeUndefined()
-  expect(findRecordedLocalDependencyIssue(state({ recordedAtNs: 0, manifests: {} }))).toBeUndefined()
+  expect(findRecordedLocalDependencyIssue(state(), new Set())).toBeUndefined()
+  expect(findRecordedLocalDependencyIssue(state({ recordedAtNs: 0, manifests: {} }), new Set())).toBeUndefined()
+})
+
+test('findRecordedLocalDependencyIssue() takes a recorded directory that is a workspace project for no local dependency', () => {
+  const recorded = state({ recordedAtNs: 0, manifests: {}, localDependencies: { digest: { directories: ['/repo/packages/a'] } } })
+  expect(findRecordedLocalDependencyIssue(recorded, new Set(['/repo/packages/a']))).toBeUndefined()
+  expect(findRecordedLocalDependencyIssue(recorded, new Set())).toBe('The local dependency at "/repo/packages/a" may have changed')
 })

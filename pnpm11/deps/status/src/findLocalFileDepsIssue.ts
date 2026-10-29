@@ -59,12 +59,13 @@ export function findLocalFileDepsIssue (opts: CheckDepsStatusOptions): string | 
 /**
  * Describes the first local dependency the last install recorded from its
  * lockfile, which a `readPackage` hook may have added to a package no
- * manifest declares it in. `undefined` when there is none.
+ * manifest declares it in. A directory in `workspaceProjectDirs` is a
+ * workspace project, not a local dependency. `undefined` when there is none.
  */
-export function findRecordedLocalDependencyIssue (workspaceState: WorkspaceState): string | undefined {
+export function findRecordedLocalDependencyIssue (workspaceState: WorkspaceState, workspaceProjectDirs: Set<string>): string | undefined {
   for (const local of Object.values(workspaceState.validation?.localDependencies ?? {})) {
-    const path = local.tarballs?.[0] ?? local.directories?.[0]
-    if (path != null) return `The local dependency at "${path}" may have changed`
+    const localPath = local.tarballs?.[0] ?? local.directories?.find((dir) => !workspaceProjectDirs.has(dir))
+    if (localPath != null) return `The local dependency at "${localPath}" may have changed`
   }
   return undefined
 }

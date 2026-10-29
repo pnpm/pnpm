@@ -17,17 +17,9 @@ pub(super) fn record_for_write(
     carried: Option<&Validation>,
     (digest, lockfile_path): (Option<&str>, &Path),
 ) {
-    let workspace_dirs: HashSet<PathBuf> = inputs.workspace_projects
-        .unwrap_or(inputs.project_manifests.as_slice())
-        .iter()
-        .map(|(dir, _)| pnpm_fs::lexical_normalize(dir))
-        .collect();
     let current = digest.and_then(|digest| {
-        let local = of_lockfile(
-            carried,
-            (digest, lockfile_path, inputs.lockfile),
-            (inputs.workspace_root, &workspace_dirs),
-        )?;
+        let local =
+            of_lockfile(carried, (digest, lockfile_path, inputs.lockfile), inputs.workspace_root)?;
         Some((digest, local))
     });
     let digests = FileDigests::new(carried);
@@ -43,7 +35,7 @@ pub(super) fn record_for_write(
 fn of_lockfile(
     previous: Option<&Validation>,
     (digest, lockfile_path, parsed): (&str, &Path, Option<&Lockfile>),
-    (workspace_root, workspace_dirs): (&Path, &HashSet<PathBuf>),
+    workspace_root: &Path,
 ) -> Option<LocalDependencies> {
     if let Some(recorded) =
         previous.and_then(|previous| previous.local_dependencies.get(digest))
@@ -51,21 +43,18 @@ fn of_lockfile(
         return Some(recorded.clone());
     }
     if let Some(lockfile) = parsed {
-        return Some(resolved_by(lockfile, workspace_root, workspace_dirs));
+        return Some(resolved_by(lockfile, workspace_root));
     }
     let lockfile = Lockfile::load_from_path(lockfile_path).ok()?;
     Some(lockfile.map_or_else(LocalDependencies::default, |lockfile| {
-        resolved_by(&lockfile, workspace_root, workspace_dirs)
+        resolved_by(&lockfile, workspace_root)
     }))
 }
 
-/// The local tarballs and the directories other than `workspace_dirs` that
-/// `lockfile` resolves.
-fn resolved_by(
-    lockfile: &Lockfile,
-    workspace_root: &Path,
-    workspace_dirs: &HashSet<PathBuf>,
-) -> LocalDependencies {
+/// The local tarballs and the directories `lockfile` resolves. Workspace
+/// projects are among the directories, so that the list depends on the
+/// lockfile alone; [`changed`] tells them apart.
+fn resolved_by(lockfile: &Lockfile, workspace_root: &Path) -> LocalDependencies {
     let mut tarballs = BTreeSet::new();
     let mut directories = BTreeSet::new();
     for metadata in lockfile.packages.iter().flat_map(|packages| packages.values()) {
@@ -77,10 +66,9 @@ fn resolved_by(
                 ));
             }
             LockfileResolution::Directory(resolution) => {
-                let dir = pnpm_fs::lexical_normalize(&workspace_root.join(&resolution.directory));
-                if !workspace_dirs.contains(&dir) {
-                    directories.insert(dir);
-                }
+                directories.insert(pnpm_fs::lexical_normalize(&workspace_root.join(
+                    &resolution.directory,
+                )));
             }
             _ => {}
         }
@@ -147,14 +135,16 @@ fn carried_signatures<'a>(
 }
 
 /// Whether a local dependency `validation` records may have changed: a
-/// directory, whose contents no signature covers, or a tarball that is no
-/// longer the one recorded.
-pub(crate) fn changed(validation: &Validation) -> bool {
+/// directory other than `workspace_dirs`, whose contents no signature
+/// covers, or a tarball that is no longer the one recorded.
+pub(crate) fn changed(validation: &Validation, workspace_dirs: &HashSet<PathBuf>) -> bool {
     let digests = FileDigests::new(Some(validation));
     validation.local_dependencies
         .values()
         .any(|local| {
-            !local.directories.is_empty()
+            local.directories
+                .iter()
+                .any(|dir| !workspace_dirs.contains(Path::new(dir)))
                 || local.tarballs
                     .iter()
                     .any(|tarball| {

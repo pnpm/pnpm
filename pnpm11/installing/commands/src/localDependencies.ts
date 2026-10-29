@@ -5,30 +5,29 @@ import { resolveLocalTarballPath } from '@pnpm/lockfile.utils'
 import type { LocalDependencies, ReadLocalDependencies } from '@pnpm/workspace.state'
 
 /**
- * Reads, for the workspace state, the local tarballs a recorded lockfile
- * resolves and the directories it resolves other than `workspaceProjectDirs`.
+ * Reads, for the workspace state, the local tarballs and directories a
+ * recorded lockfile resolves. Workspace projects are among the directories,
+ * so that the list depends on the lockfile alone.
  */
 export function createLocalDependenciesReader (
-  workspaceProjectDirs: string[],
   readWantedLockfile: (lockfileDir: string) => Promise<LockfileObject | null>
 ): ReadLocalDependencies {
-  const projectDirs = new Set(workspaceProjectDirs.map((dir) => path.resolve(dir)))
   return async ({ lockfileDir, current }) => {
     const lockfile = current
       ? await readCurrentLockfile(path.join(lockfileDir, 'node_modules/.pnpm'), { ignoreIncompatible: true })
       : await readWantedLockfile(lockfileDir)
-    return lockfile == null ? {} : localDependenciesOf(lockfile, lockfileDir, projectDirs)
+    return lockfile == null ? {} : localDependenciesOf(lockfile, lockfileDir)
   }
 }
 
-function localDependenciesOf (lockfile: LockfileObject, lockfileDir: string, projectDirs: Set<string>): LocalDependencies {
+function localDependenciesOf (lockfile: LockfileObject, lockfileDir: string): LocalDependencies {
   const tarballs = new Set<string>()
   const directories = new Set<string>()
   for (const { resolution } of Object.values(lockfile.packages ?? {})) {
     const tarball = localTarballOf(resolution, lockfileDir)
     if (tarball != null) tarballs.add(tarball)
     const dir = localDirectoryOf(resolution, lockfileDir)
-    if (dir != null && !projectDirs.has(dir)) directories.add(dir)
+    if (dir != null) directories.add(dir)
   }
   return {
     ...tarballs.size > 0 ? { tarballs: [...tarballs].sort() } : {},

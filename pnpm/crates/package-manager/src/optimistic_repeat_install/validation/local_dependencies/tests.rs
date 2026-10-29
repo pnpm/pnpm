@@ -1,6 +1,10 @@
 use super::{FileDigests, Validation, changed, record};
 use pnpm_workspace_state::{FileSignature, LocalDependencies};
-use std::{collections::BTreeMap, fs};
+use std::{
+    collections::{BTreeMap, HashSet},
+    fs,
+    path::PathBuf,
+};
 
 fn tarballs(paths: &[&str]) -> LocalDependencies {
     LocalDependencies {
@@ -60,10 +64,10 @@ fn reports_a_replaced_tarball_and_any_directory() {
         (None, &digests),
         |signature| signature,
     );
-    assert!(!changed(&validation));
+    assert!(!changed(&validation, &HashSet::new()));
 
     fs::write(&tarball, "second").expect("replace the tarball");
-    assert!(changed(&validation));
+    assert!(changed(&validation, &HashSet::new()));
 
     let with_directory = Validation {
         local_dependencies: BTreeMap::from([(
@@ -72,7 +76,8 @@ fn reports_a_replaced_tarball_and_any_directory() {
         )]),
         ..Validation::default()
     };
-    assert!(changed(&with_directory));
+    assert!(changed(&with_directory, &HashSet::new()));
+    assert!(!changed(&with_directory, &HashSet::from([PathBuf::from("/lib")])));
 }
 
 #[test]
@@ -90,5 +95,5 @@ fn keeps_the_entry_of_a_lockfile_without_local_dependencies() {
         validation.local_dependencies,
         BTreeMap::from([("current".to_string(), LocalDependencies::default())]),
     );
-    assert!(!changed(&validation));
+    assert!(!changed(&validation, &HashSet::new()));
 }
