@@ -122,28 +122,36 @@ pub(super) fn write_sh_node_path(sh: &mut String, node_path: &[String], windows_
     .unwrap();
 }
 
-/// Emit the `exec` block for a target with a script runtime, wrapping it in an
-/// MSYS branch when `cmd` switches need escaping there.
+/// Emit the `exec` block for a target with a script runtime, preceded by the
+/// MSYS exclusion of the `cmd` switch in `args`.
 fn write_sh_runtime_exec(sh: &mut String, prog: &str, args: &str, quoted: &QuotedTarget) {
     let prog_base = strip_exe_suffix(prog).unwrap_or(prog);
     let prog_has_exe = prog_base.len() != prog.len();
     let prog_exe = if prog_has_exe { prog.to_string() } else { format!("{prog}.exe") };
-    let exec = |exec_args: &str| {
-        sh_exec_block(&ShExec { prog, prog_exe: &prog_exe, prog_has_exe, quoted }, exec_args)
+    let args = if prog_base.eq_ignore_ascii_case("cmd") {
+        let (args, cmd_switch) = upper_case_cmd_switch(args);
+        if let Some(cmd_switch) = cmd_switch {
+            write_msys_cmd_switch_exclusion(sh, cmd_switch);
+        }
+        args
+    } else {
+        args.to_string()
     };
-    let msys_args = prog_base
-        .eq_ignore_ascii_case("cmd")
-        .then(|| escape_msys_cmd_switches(args))
-        .filter(|escaped_args| escaped_args != args);
-    let Some(msys_args) = msys_args else {
-        sh.push_str(&exec(args));
-        return;
-    };
+    sh.push_str(&sh_exec_block(&ShExec { prog, prog_exe: &prog_exe, prog_has_exe, quoted }, &args));
+}
+
+/// Exclude `cmd_switch` from MSYS argument conversion, which otherwise turns
+/// `/C` into a drive path and leaves cmd.exe interactive. The caller's own
+/// exclusions follow it. Unlike a doubled `//C`, the switch reaches cmd.exe
+/// intact whether conversion is on or off.
+///
+/// An entry excludes every argument that starts with it, case-sensitively, so
+/// the switch is upper case: a `/c` entry would also exclude a drive path such
+/// as `/c/Users`.
+fn write_msys_cmd_switch_exclusion(sh: &mut String, cmd_switch: &str) {
     writeln!(
         sh,
-        "if [ -n \"$msys\" ]; then\n{}else\n{}fi",
-        indent_shell_block(&exec(&msys_args)),
-        indent_shell_block(&exec(args)),
+        "if [ -n \"$msys\" ]; then\n  export MSYS2_ARG_CONV_EXCL=\"{cmd_switch}${{MSYS2_ARG_CONV_EXCL:+;$MSYS2_ARG_CONV_EXCL}}\"\nfi",
     )
     .unwrap();
 }
@@ -276,39 +284,41 @@ if [ -n "$caller_path_set" ]; then PATH=$caller_path; else unset PATH; fi
 
 "#;
 
-fn indent_shell_block(script: &str) -> String {
-    script
-        .split('\n')
-        .map(|line| if line.is_empty() { String::new() } else { format!("  {line}") })
-        .collect::<Vec<_>>()
-        .join("\n")
+/// `args` with its first standalone `/C` or `/K` switch in upper case, and
+/// that switch. cmd.exe reads its switches case-insensitively and everything
+/// after that switch as the command to run, which keeps its own spelling.
+pub(super) fn upper_case_cmd_switch(args: &str) -> (String, Option<&'static str>) {
+    let mut offset = 0;
+    for piece in args.split_inclusive(char::is_whitespace) {
+        let arg = piece.trim_end_matches(char::is_whitespace);
+        let cmd_switch = if arg.eq_ignore_ascii_case("/C") {
+            "/C"
+        } else if arg.eq_ignore_ascii_case("/K") {
+            "/K"
+        } else {
+            offset += piece.len();
+            continue;
+        };
+        let upper_cased = format!("{}{cmd_switch}{}", &args[..offset], &args[offset + arg.len()..]);
+        return (upper_cased, Some(cmd_switch));
+    }
+    (args.to_owned(), None)
 }
 
-pub(super) fn escape_msys_cmd_switches(args: &str) -> String {
-    let mut escaped = String::with_capacity(args.len());
-    let mut chars = args.char_indices();
-    let mut at_boundary = true;
-
-    while let Some((_, ch)) = chars.next() {
-        if ch == '/' && at_boundary {
-            let mut lookahead = chars.clone();
-            if let Some((_, switch @ ('C' | 'c' | 'K' | 'k'))) = lookahead.next()
-                && lookahead.next().is_none_or(|(_, next)| next.is_whitespace())
-            {
-                escaped.push('/');
-                escaped.push('/');
-                escaped.push(switch);
-                chars.next();
-                at_boundary = false;
-                continue;
-            }
-        }
-
-        escaped.push(ch);
-        at_boundary = ch.is_whitespace();
-    }
-
-    escaped
+/// Whether an already-on-disk POSIX shim hands `cmd` a doubled switch such as
+/// `//C`, which cmd.exe reads as no switch when MSYS argument conversion is
+/// off. The target marker still matches such a shim, so a warm reinstall
+/// checks for the doubled switch to replace it.
+#[must_use]
+pub fn is_sh_shim_msys_cmd_switch_doubled(shim_content: &str) -> bool {
+    shim_content
+        .lines()
+        .any(|line| {
+            line.trim_start().starts_with("exec ")
+                && line
+                    .split_whitespace()
+                    .any(|arg| matches!(arg, "//C" | "//c" | "//K" | "//k"))
+        })
 }
 
 pub(super) fn strip_exe_suffix(prog: &str) -> Option<&str> {

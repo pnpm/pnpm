@@ -7,9 +7,9 @@ use super::{
     DirCreation, FsEnsureExecutableBits, FsReadHead, FsReadToString, FsSetExecutable, FsWrite,
     LinkBinsError, LinkBinsOptions, Path, PathBuf, ScriptRuntime, ShimTargetCache,
     chmod_tolerating_removal, generate_cmd_shim, generate_pwsh_shim, io, is_node_bin_name,
-    is_sh_shim_basedir_anchor_current, is_sh_shim_hardened, is_shim_pointing_at, link_node_bin,
-    link_symlinked_executable, linking_paths::LinkingPaths, symlink_already_points_at,
-    target_requires_shim, windows_shim_policy::WindowsShimPolicy,
+    is_sh_shim_basedir_anchor_current, is_sh_shim_hardened, is_sh_shim_msys_cmd_switch_doubled,
+    is_shim_pointing_at, link_node_bin, link_symlinked_executable, linking_paths::LinkingPaths,
+    symlink_already_points_at, target_requires_shim, windows_shim_policy::WindowsShimPolicy,
 };
 use crate::shim::{CmdShimBatch, end_replaced_cmd_shim_batch};
 
@@ -312,7 +312,8 @@ fn cmd_shim<Sys: FsReadToString>(spec: &ShimSpec<'_>, runtime: Option<&ScriptRun
 /// requires [`is_sh_shim_hardened`]. A shim an older version wrote still points
 /// at the right target, and without that check an upgrade would leave a stale
 /// header in place. [`is_sh_shim_basedir_anchor_current`] does the same for
-/// the physical directory anchor.
+/// the physical directory anchor, and [`is_sh_shim_msys_cmd_switch_doubled`]
+/// for the `cmd` switch.
 fn existing_shim_is_current(existing: Option<&str>, sh_body: &str, spec: &ShimSpec<'_>) -> bool {
     let Some(existing) = existing else {
         return false;
@@ -327,6 +328,7 @@ fn existing_shim_is_current(existing: Option<&str>, sh_body: &str, spec: &ShimSp
     is_shim_pointing_at(existing, spec.shim_path, spec.target_path)
         && is_sh_shim_hardened(existing)
         && is_sh_shim_basedir_anchor_current(existing, sh_body)
+        && !is_sh_shim_msys_cmd_switch_doubled(existing)
         && !existing.contains("export NODE_PATH=")
 }
 
