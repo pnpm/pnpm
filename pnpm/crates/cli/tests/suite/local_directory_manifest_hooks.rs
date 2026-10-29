@@ -1,6 +1,7 @@
-//! The lockfile checks read a `file:` directory package's manifest with the
-//! hooks the resolver applies to it, at any depth and in either lockfile
-//! layout.
+//! The lockfile checks read a directory package's manifest with the hooks
+//! the resolver applies to it: a `file:` dependency or an injected
+//! `workspace:` dependency that no workspace project describes, at any depth
+//! and in either lockfile layout.
 
 use crate::_utils::{
     ManifestDeps, WorkspaceFixture, assert_success, ndjson_records, write_manifest_value,
@@ -158,4 +159,39 @@ fn publish_directory_reached_both_ways_keeps_the_workspace_version() {
 
     install(&fixture, &[]);
     install(&fixture, &["--frozen-lockfile"]);
+}
+
+/// A `workspace:../dir` dependency outside the workspace patterns is a
+/// directory package no project describes, like a `file:` dependency, so the
+/// check hooks its manifest in either lockfile layout
+/// ([pnpm/pnpm#17473](https://github.com/pnpm/pnpm/issues/17473)).
+#[test]
+fn package_extensions_on_an_injected_directory_outside_the_patterns_pass_frozen_install() {
+    let extensions = [
+        "packageExtensions:\n  peer@1.0.0:\n    peerDependencies:\n      host: 1.0.0\n",
+        "packageExtensions:\n  peer@1.0.0:\n    dependencies:\n      host: workspace:../host\n",
+    ];
+    for shared_lockfile in [true, false] {
+        for extension in extensions {
+            let fixture = WorkspaceFixture::new();
+            fixture.append_workspace_yaml(&format!(
+                "injectWorkspacePackages: true\npreferWorkspacePackages: true\n\
+                 sharedWorkspaceLockfile: {shared_lockfile}\n{extension}",
+            ));
+            let outside = fixture.workspace.parent().expect("the workspace has a parent");
+            write_package(&outside.join("peer"), &json!({ "name": "peer", "version": "1.0.0" }));
+            write_package(&outside.join("host"), &json!({ "name": "host", "version": "1.0.0" }));
+            write_package(
+                &fixture.workspace,
+                &json!({
+                    "name": "app",
+                    "version": "1.0.0",
+                    "dependencies": { "peer": "workspace:../peer", "host": "workspace:../host" },
+                }),
+            );
+
+            install(&fixture, &[]);
+            install(&fixture, &["--frozen-lockfile"]);
+        }
+    }
 }
