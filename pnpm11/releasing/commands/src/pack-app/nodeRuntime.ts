@@ -135,7 +135,7 @@ export async function resolveVersion (
 ): Promise<string> {
   const { releaseChannel, versionSpecifier } = parseNodeSpecifier(specifier)
   const nodeMirrorBaseUrl = getNodeMirror(nodeDownloadMirrors, releaseChannel)
-  const version = await resolveNodeVersion(fetch, versionSpecifier, { nodeMirrorBaseUrl, releaseChannel })
+  const version = await resolveNodeVersion(fetch, versionSpecifier, nodeMirrorBaseUrl)
   if (!version) {
     throw new PnpmError('PACK_APP_NODE_VERSION_NOT_FOUND',
       `Could not find a Node.js version that satisfies "${specifier}"`)

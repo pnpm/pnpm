@@ -176,14 +176,9 @@ pub(super) async fn resolve_version(config: &Config, specifier: &str) -> miette:
         &parsed.release_channel,
     );
     let http_client = build_http_client(config)?;
-    let version = resolve_node_version(
-        &http_client,
-        &parsed.version_specifier,
-        Some(&mirror),
-        &parsed.release_channel,
-    )
-    .await
-    .map_err(miette::Report::new)?;
+    let version = resolve_node_version(&http_client, &parsed.version_specifier, Some(&mirror))
+        .await
+        .map_err(miette::Report::new)?;
     // The resolved version becomes a path component of the per-target
     // runtime cache dir (`<build_root>/<target_id>-<version>`). For the
     // `latest` / channel selectors the resolver returns the mirror's first

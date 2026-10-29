@@ -3,10 +3,8 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it } from '@jest/globals'
-import type { FetchFromRegistry } from '@pnpm/fetching.types'
 
 import { packApp } from '../../src/index.js'
-import { resolveVersion } from '../../src/pack-app/nodeRuntime.js'
 
 const { cliOptionsTypes, commandNames, handler, help, shorthands } = packApp
 
@@ -329,15 +327,4 @@ describe('pack-app command', () => {
       )
     ).rejects.toMatchObject({ code: 'ERR_PNPM_PACK_APP_MISSING_TARGET' })
   })
-})
-
-it('resolves latest Node.js versions from the selected release channel', async () => {
-  const requests: string[] = []
-  const fetch: FetchFromRegistry = async url => {
-    requests.push(url)
-    return new Response(JSON.stringify([{ version: 'v27.0.0-nightly20261029abcdef', lts: false }]))
-  }
-
-  await expect(resolveVersion(fetch, 'nightly')).resolves.toBe('27.0.0-nightly20261029abcdef')
-  expect(requests).toEqual(['https://nodejs.org/download/nightly/index.json'])
 })

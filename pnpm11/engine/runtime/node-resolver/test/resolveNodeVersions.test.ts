@@ -34,21 +34,10 @@ test('resolve latest skips prereleases at the start of the index', async () => {
   await expect(resolveNodeVersions(mockFetch, 'latest', 'https://node.example/')).resolves.toEqual(['26.13.0'])
 })
 
-test('resolve latest returns no versions when the index has only prereleases', async () => {
-  const mockFetch = async () => new Response(JSON.stringify([
-    { version: 'v27.0.0-alpha.0.0.0', lts: false },
-  ]))
-
-  await expect(resolveNodeVersions(mockFetch, 'latest', 'https://node.example/')).resolves.toEqual([])
-})
-
-test('resolve latest follows the selected prerelease channel', async () => {
+test('resolve latest returns the newest build of a nightly index', async () => {
   const mockFetch = async () => new Response(JSON.stringify([
     { version: 'v27.0.0-nightly20261029abcdef', lts: false },
   ]))
 
-  await expect(resolveNodeVersions(mockFetch, 'latest', {
-    nodeMirrorBaseUrl: 'https://node.example/nightly/',
-    releaseChannel: 'nightly',
-  })).resolves.toEqual(['27.0.0-nightly20261029abcdef'])
+  await expect(resolveNodeVersions(mockFetch, 'latest', 'https://node.example/nightly/')).resolves.toEqual(['27.0.0-nightly20261029abcdef'])
 })

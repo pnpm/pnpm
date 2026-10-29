@@ -192,7 +192,6 @@ impl EnvArgs {
             &config.auth_headers,
             Some(specifier.version_specifier.as_str()),
             Some(&mirror),
-            &specifier.release_channel,
         )
         .await
         .map_err(miette::Report::new)?;

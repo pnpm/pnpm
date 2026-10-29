@@ -19,7 +19,6 @@ const MAX_NODE_MIRROR_REDIRECTS = 20
 export interface NodeVersionFetchOptions {
   nodeMirrorBaseUrl?: string
   getAuthHeader?: GetAuthHeader
-  releaseChannel?: string
 }
 
 export async function resolveNodeVersion (
@@ -27,11 +26,11 @@ export async function resolveNodeVersion (
   versionSpec: string,
   opts?: string | NodeVersionFetchOptions
 ): Promise<string | null> {
-  const { nodeMirrorBaseUrl, getAuthHeader, releaseChannel } = normalizeNodeVersionFetchOptions(opts)
+  const { nodeMirrorBaseUrl, getAuthHeader } = normalizeNodeVersionFetchOptions(opts)
   const allVersions = await fetchAllVersions(createAuthenticatedFetch(fetch, getAuthHeader), nodeMirrorBaseUrl)
   versionSpec = normalizeRuntimeSpec(versionSpec)
   if (versionSpec === 'latest') {
-    return latestVersion(allVersions, releaseChannel)
+    return latestVersion(allVersions)
   }
   const { versions, versionRange } = filterVersions(allVersions, versionSpec)
   return semver.maxSatisfying(versions, versionRange, SEMVER_OPTS) ?? null
@@ -42,24 +41,22 @@ export async function resolveNodeVersions (
   versionSpec?: string,
   opts?: string | NodeVersionFetchOptions
 ): Promise<string[]> {
-  const { nodeMirrorBaseUrl, getAuthHeader, releaseChannel } = normalizeNodeVersionFetchOptions(opts)
+  const { nodeMirrorBaseUrl, getAuthHeader } = normalizeNodeVersionFetchOptions(opts)
   const allVersions = await fetchAllVersions(createAuthenticatedFetch(fetch, getAuthHeader), nodeMirrorBaseUrl)
   if (versionSpec == null) {
     return allVersions.map(({ version }) => version)
   }
   versionSpec = normalizeRuntimeSpec(versionSpec)
   if (versionSpec === 'latest') {
-    const latest = latestVersion(allVersions, releaseChannel)
+    const latest = latestVersion(allVersions)
     return latest == null ? [] : [latest]
   }
   const { versions, versionRange } = filterVersions(allVersions, versionSpec)
   return versions.filter(version => semver.satisfies(version, versionRange, SEMVER_OPTS))
 }
 
-function latestVersion (versions: NodeVersion[], releaseChannel = 'release'): string | null {
-  const latest = releaseChannel === 'release'
-    ? versions.find(({ version }) => semver.valid(version) != null && semver.prerelease(version) == null)
-    : versions[0]
+function latestVersion (versions: NodeVersion[]): string | null {
+  const latest = versions.find(({ version }) => semver.valid(version) != null && semver.prerelease(version) == null) ?? versions[0]
   return latest?.version ?? null
 }
 
