@@ -625,3 +625,25 @@ test('an install without optional dependencies leaves out a local directory reac
     include: { dependencies: true, devDependencies: true, optionalDependencies: false },
   }))
 })
+
+// https://github.com/pnpm/pnpm/issues/17486
+test('an install without production dependencies checks a local directory beneath a dev dependency\'s optional edge', async () => {
+  prepareEmpty()
+  const writeLib = (fooVersion: string) => {
+    fs.writeFileSync('../lib/package.json', JSON.stringify({ name: 'lib', version: '1.0.0', dependencies: { '@pnpm.e2e/foo': fooVersion } }), 'utf8')
+  }
+  fs.mkdirSync('../lib')
+  writeLib('100.0.0')
+  const manifest = { devDependencies: { '@pnpm.e2e/pkg-with-1-dep': '100.0.0' } }
+  const packageExtensions = { '@pnpm.e2e/pkg-with-1-dep': { optionalDependencies: { lib: 'file:../lib' } } }
+  await install(manifest, testDefaults({ packageExtensions }))
+
+  writeLib('100.1.0')
+  await expect(
+    install(manifest, testDefaults({
+      packageExtensions,
+      frozenLockfile: true,
+      include: { dependencies: false, devDependencies: true, optionalDependencies: true },
+    }))
+  ).rejects.toMatchObject({ code: 'ERR_PNPM_OUTDATED_LOCKFILE' })
+})
