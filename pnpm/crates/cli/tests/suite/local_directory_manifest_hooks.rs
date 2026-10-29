@@ -167,12 +167,19 @@ fn publish_directory_reached_both_ways_keeps_the_workspace_version() {
 /// ([pnpm/pnpm#17473](https://github.com/pnpm/pnpm/issues/17473)).
 #[test]
 fn package_extensions_on_an_injected_directory_outside_the_patterns_pass_frozen_install() {
+    // Each extension and the lockfile lines that prove the resolver applied it.
     let extensions = [
-        "packageExtensions:\n  peer@1.0.0:\n    peerDependencies:\n      host: 1.0.0\n",
-        "packageExtensions:\n  peer@1.0.0:\n    dependencies:\n      host: workspace:../host\n",
+        (
+            "packageExtensions:\n  peer@1.0.0:\n    peerDependencies:\n      host: 1.0.0\n",
+            "    peerDependencies:\n      host: 1.0.0\n",
+        ),
+        (
+            "packageExtensions:\n  peer@1.0.0:\n    dependencies:\n      host: workspace:../host\n",
+            "    dependencies:\n      host: file:../host\n",
+        ),
     ];
     for shared_lockfile in [true, false] {
-        for extension in extensions {
+        for (extension, applied) in extensions {
             let fixture = WorkspaceFixture::new();
             fixture.append_workspace_yaml(&format!(
                 "injectWorkspacePackages: true\npreferWorkspacePackages: true\n\
@@ -191,6 +198,12 @@ fn package_extensions_on_an_injected_directory_outside_the_patterns_pass_frozen_
             );
 
             install(&fixture, &[]);
+            let lockfile = fs::read_to_string(fixture.workspace.join("pnpm-lock.yaml"))
+                .expect("read the lockfile");
+            assert!(
+                lockfile.contains(applied),
+                "shared_lockfile: {shared_lockfile}, the extension reached peer's entry:\n{lockfile}",
+            );
             install(&fixture, &["--frozen-lockfile"]);
         }
     }
