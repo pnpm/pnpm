@@ -55,6 +55,7 @@ fn empty_lockfile() -> Lockfile {
 
 fn registry_metadata() -> PackageMetadata {
     PackageMetadata {
+        specifiers: None,
         resolution: LockfileResolution::Registry(RegistryResolution {
             integrity: "sha512-gf6ZldcfCDyNXPRiW3lQjEP1Z9rrUM/4Cn7BZbv3SdTA82zxWRP8OmLwvGR974uuENhGCFgFdN11z3n1Ofpprg=="
                 .parse()
@@ -263,6 +264,7 @@ fn reuses_an_unchanged_git_specifier_at_its_locked_commit() {
     lockfile.packages = Some(HashMap::from([(
         key.clone(),
         PackageMetadata {
+            specifiers: None,
             resolution: LockfileResolution::Git(GitResolution {
                 repo: "file:///repo".to_string(),
                 commit: "0123456789012345678901234567890123456789".to_string(),

@@ -222,6 +222,7 @@ async fn installing_a_runtime_persists_the_synthesized_manifest_into_the_store_i
 
     let package_key: PackageKey = "node@runtime:22.0.0".parse().expect("parse runtime key");
     let metadata = pnpm_lockfile::PackageMetadata {
+        specifiers: None,
         resolution: LockfileResolution::Binary(BinaryResolution {
             url: format!("file:{}", tarball_path.display()),
             integrity: integrity.clone(),

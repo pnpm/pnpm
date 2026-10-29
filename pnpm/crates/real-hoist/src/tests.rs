@@ -59,6 +59,7 @@ fn pkg_metadata_with_peer(peer_name: &str) -> pnpm_lockfile::PackageMetadata {
     let mut peer_deps = HashMap::new();
     peer_deps.insert(peer_name.to_string(), "*".to_string());
     PackageMetadata {
+        specifiers: None,
         resolution: LockfileResolution::Tarball(TarballResolution {
             tarball: format!("https://example.invalid/{peer_name}-host.tgz"),
             integrity: None,

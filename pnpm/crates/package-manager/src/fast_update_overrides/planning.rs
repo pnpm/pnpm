@@ -357,6 +357,7 @@ pub(super) fn package_metadata(
     resolution: LockfileResolution,
 ) -> PackageMetadata {
     PackageMetadata {
+        specifiers: None,
         resolution,
         version: None,
         engines: string_map(manifest, "engines")

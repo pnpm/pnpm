@@ -1,6 +1,7 @@
 import path from 'node:path'
 
 import { deprecationLogger, progressLogger } from '@pnpm/core-loggers'
+import type { DeclaredSpecifiers } from '@pnpm/lockfile.types'
 import type { PatchInfo } from '@pnpm/patching.types'
 import type { DirectoryResolution } from '@pnpm/resolving.resolver-base'
 import type { PackageResponse } from '@pnpm/store.controller-types'
@@ -23,6 +24,8 @@ export interface ResolvedManifest {
   hasBin: boolean
   pkg: PackageManifest
   prepare?: boolean
+  /** See `DeclaredSpecifiers`. Set for a directory resolution. */
+  declaredSpecifiers?: DeclaredSpecifiers
 }
 
 export interface ResolvedPackageSource extends ResolvedManifest {
@@ -100,6 +103,7 @@ function addNewResolvedPackage (
     pkg: resolved.pkg,
     pkgResponse,
     prepare: resolved.prepare,
+    declaredSpecifiers: resolved.declaredSpecifiers,
     wantedDependency,
     parentImporterId: options.parentIds[0],
     optional: wantedDependency.optional || options.parentPkg.optional,

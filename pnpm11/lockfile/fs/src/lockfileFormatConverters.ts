@@ -60,6 +60,7 @@ function splitPackageSnapshots (packageSnapshots: PackageSnapshots): {
         'peerDependencies',
         'peerDependenciesMeta',
         'resolution',
+        'specifiers',
         'version',
       ], pkg))
     }

@@ -396,6 +396,7 @@ fn migrate_into_lockfile(
 /// dependency (with no peer/engine metadata of its own) takes.
 fn registry_package_metadata(resolution: LockfileResolution) -> PackageMetadata {
     PackageMetadata {
+        specifiers: None,
         resolution,
         version: None,
         engines: None,

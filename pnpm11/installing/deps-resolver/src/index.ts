@@ -55,7 +55,7 @@ export {
   type UpdateMatchingFunction,
   type WantedDependency,
 }
-export { type DependencyManifestContext, lockedVersionSatisfies, prepareDependencyManifest } from './dependencyManifest.js'
+export { type DependencyManifestContext, getDeclaredSpecifiers, lockedVersionSatisfies, prepareDependencyManifest } from './dependencyManifest.js'
 export { getNonDevWantedDependencies } from './getNonDevWantedDependencies.js'
 export { getPeerSet } from './resolvedPackage.js'
 export { getLockfilePeerDependencies } from './updateLockfile.js'

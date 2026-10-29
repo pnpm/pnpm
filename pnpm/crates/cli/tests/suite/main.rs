@@ -55,6 +55,7 @@ mod deploy_specifiers;
 mod deprecate;
 mod dev_install;
 mod dir_clone_cache;
+mod directory_package_specifiers;
 mod dist_tag;
 mod dlx;
 mod docs;

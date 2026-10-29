@@ -122,6 +122,7 @@ const DUMMY_SHA512: &str = "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
 
 fn registry_metadata() -> PackageMetadata {
     PackageMetadata {
+        specifiers: None,
         resolution: LockfileResolution::Registry(RegistryResolution {
             integrity: DUMMY_SHA512.parse().expect("parse integrity"),
             revision: None,
@@ -425,6 +426,7 @@ fn force_defeats_the_current_lockfile_skip() {
 fn gvs_directory_resolution_is_never_skipped_by_slot_existence() {
     let temp_dir = tempfile::tempdir().expect("create temp directory");
     let metadata = PackageMetadata {
+        specifiers: None,
         resolution: LockfileResolution::Directory(DirectoryResolution {
             directory: "local-foo".to_string(),
         }),

@@ -55,6 +55,32 @@ pub struct PackageMetadata {
         serialize_with = "crate::serialize_yaml::sorted_map_opt"
     )]
     pub peer_dependencies_meta: Option<HashMap<String, PeerDependencyMeta>>,
+
+    /// See [`DeclaredSpecifiers`]. `None` for every resolution but a
+    /// directory. A directory entry may record none, and a lockfile check
+    /// then derives the children from the manifest.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub specifiers: Option<DeclaredSpecifiers>,
+}
+
+/// The dependency specifiers the resolver read for a package resolved from a
+/// local directory: the children it walks, as the hooked manifest declares
+/// them, before peer shadowing and catalog resolution, in the group the
+/// snapshot records each one under. A lockfile check compares them with the
+/// directory's current manifest instead of resolving its dependencies again.
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeclaredSpecifiers {
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "crate::serialize_yaml::sorted_map_opt"
+    )]
+    pub dependencies: Option<HashMap<String, String>>,
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "crate::serialize_yaml::sorted_map_opt"
+    )]
+    pub optional_dependencies: Option<HashMap<String, String>>,
 }
 
 /// What a package bundles inside its own tarball, as pnpm records it: the

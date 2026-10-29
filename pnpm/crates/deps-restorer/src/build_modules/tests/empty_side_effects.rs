@@ -14,6 +14,7 @@ const ENGINE: &str = "darwin;arm64;node20";
 
 fn registry_package() -> PackageMetadata {
     PackageMetadata {
+        specifiers: None,
         resolution: pnpm_lockfile::LockfileResolution::Registry(pnpm_lockfile::RegistryResolution {
             integrity: "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
                 .parse()

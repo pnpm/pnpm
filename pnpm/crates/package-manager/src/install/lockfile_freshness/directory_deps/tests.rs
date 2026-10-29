@@ -1135,3 +1135,124 @@ snapshots:
         "expected LocalDependencyOutdated for d, got: {error:?}",
     );
 }
+
+/// A directory package whose entry records the specifiers the resolver read
+/// (see [`pnpm_lockfile::DeclaredSpecifiers`]), with `manifest` on disk and
+/// `snapshot` recorded for it.
+fn check_recorded_directory_dep(
+    manifest: serde_json::Value,
+    recorded: serde_json::Value,
+    snapshot: serde_json::Value,
+) -> Result<(), FreshnessCheckError> {
+    let mut metadata = directory_metadata();
+    metadata["specifiers"] = recorded;
+    check_directory_dep(&DirectoryDepCase {
+        manifest,
+        metadata,
+        snapshot,
+        frozen_lockfile: false,
+        auto_install_peers: true,
+        include_optional: true,
+        catalogs: Catalogs::new(),
+    })
+}
+
+#[test]
+fn recorded_specifiers_that_equal_the_manifest_are_fresh() {
+    let result = check_recorded_directory_dep(
+        serde_json::json!({
+            "name": "lib",
+            "dependencies": { "foo": "1.0.0" },
+            "optionalDependencies": { "bar": "^1.0.0" },
+        }),
+        serde_json::json!({
+            "dependencies": { "foo": "1.0.0" },
+            "optionalDependencies": { "bar": "^1.0.0" },
+        }),
+        serde_json::json!({
+            "dependencies": { "foo": "1.0.0" },
+            "optionalDependencies": { "bar": "1.2.0" },
+        }),
+    );
+    assert!(result.is_ok(), "{result:?}");
+}
+
+#[test]
+fn a_recorded_specifier_the_manifest_changed_is_outdated() {
+    let error = check_recorded_directory_dep(
+        serde_json::json!({ "name": "lib", "dependencies": { "foo": "^1.0.0" } }),
+        serde_json::json!({ "dependencies": { "foo": "1.0.0" } }),
+        serde_json::json!({ "dependencies": { "foo": "1.0.0" } }),
+    )
+    .expect_err("the manifest widened the range");
+    assert!(
+        matches!(
+            error,
+            FreshnessCheckError::Stale(StalenessReason::LocalDependencyOutdated { .. })
+        ),
+        "{error:?}",
+    );
+}
+
+#[test]
+fn a_dependency_recorded_in_another_group_is_outdated() {
+    let result = check_recorded_directory_dep(
+        serde_json::json!({ "name": "lib", "optionalDependencies": { "foo": "1.0.0" } }),
+        serde_json::json!({ "dependencies": { "foo": "1.0.0" } }),
+        serde_json::json!({ "dependencies": { "foo": "1.0.0" } }),
+    );
+    assert!(result.is_err(), "the dependency became optional: {result:?}");
+}
+
+/// The snapshot of a recorded entry is still held to the manifest: a required
+/// child it lacks, or a child the manifest does not declare, is a change.
+#[test]
+fn a_recorded_entry_still_holds_the_snapshot_to_the_manifest() {
+    let manifest = serde_json::json!({ "name": "lib", "dependencies": { "foo": "1.0.0" } });
+    let recorded = serde_json::json!({ "dependencies": { "foo": "1.0.0" } });
+    let missing =
+        check_recorded_directory_dep(manifest.clone(), recorded.clone(), serde_json::json!({}));
+    assert!(missing.is_err(), "the snapshot lacks foo: {missing:?}");
+    let undeclared = check_recorded_directory_dep(
+        manifest,
+        recorded,
+        serde_json::json!({ "dependencies": { "foo": "1.0.0", "bar": "1.0.0" } }),
+    );
+    assert!(undeclared.is_err(), "the snapshot records bar: {undeclared:?}");
+}
+
+/// A `catalog:` child is read through the catalogs before the check decides
+/// whether it names a workspace project to follow. Here the target is gone.
+#[test]
+fn a_recorded_entry_follows_a_catalog_child_into_the_workspace() {
+    let mut metadata = directory_metadata();
+    metadata["specifiers"] = serde_json::json!({ "dependencies": { "lib2": "catalog:" } });
+    let result = check_directory_dep(&DirectoryDepCase {
+        manifest: serde_json::json!({ "name": "lib", "dependencies": { "lib2": "catalog:" } }),
+        metadata,
+        snapshot: serde_json::json!({ "dependencies": { "lib2": "link:../lib2" } }),
+        frozen_lockfile: false,
+        auto_install_peers: true,
+        include_optional: true,
+        catalogs: Catalogs::from([(
+            "default".to_string(),
+            std::collections::BTreeMap::from([(
+                "lib2".to_string(),
+                "workspace:^1.0.0".to_string(),
+            )]),
+        )]),
+    });
+    assert!(result.is_err(), "the linked project does not exist: {result:?}");
+}
+
+/// A workspace child can drift without its specifier changing, so a recorded
+/// entry still checks it against its target. Here the target is gone.
+#[test]
+fn a_recorded_entry_checks_a_workspace_child_against_its_target() {
+    let result = check_recorded_directory_dep(
+        serde_json::json!({ "name": "lib", "dependencies": { "lib2": "workspace:^1.0.0" } }),
+        serde_json::json!({ "dependencies": { "lib2": "workspace:^1.0.0" } }),
+        serde_json::json!({ "dependencies": { "lib2": "link:../lib2" } }),
+    );
+    assert!(result.is_err(), "the linked project does not exist: {result:?}");
+}

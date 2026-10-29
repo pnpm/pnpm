@@ -490,6 +490,7 @@ test('re-install should update local file dependency', async () => {
     packages: {
       'local-pkg@file:../local-pkg': {
         resolution: { directory: '../local-pkg', type: 'directory' },
+        specifiers: {},
       },
     },
     snapshots: {

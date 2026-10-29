@@ -269,6 +269,7 @@ async fn patch_extract_records_download_in_store_index() {
     let lockfile = lockfile_with_package_metadata(
         &package_id,
         PackageMetadata {
+            specifiers: None,
             resolution: resolved.resolution,
             version: None,
             engines: None,

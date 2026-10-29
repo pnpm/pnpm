@@ -28,6 +28,7 @@ const DUMMY_SHA512: &str = "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
 
 fn registry_metadata() -> pnpm_lockfile::PackageMetadata {
     pnpm_lockfile::PackageMetadata {
+        specifiers: None,
         resolution: LockfileResolution::Registry(pnpm_lockfile::RegistryResolution {
             integrity: DUMMY_SHA512.parse().expect("parse integrity"),
             revision: None,

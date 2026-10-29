@@ -188,6 +188,7 @@ fn resolves_git_snapshot_patch_from_package_version() {
     let packages = HashMap::from([(
         key.without_peer(),
         PackageMetadata {
+            specifiers: None,
             resolution: LockfileResolution::Git(GitResolution {
                 repo: "file:///repo".to_string(),
                 commit: "0123456789012345678901234567890123456789".to_string(),

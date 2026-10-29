@@ -103,7 +103,7 @@ function toLockfileDependency (
   if (pkg.transitivePeerDependencies.size) {
     result['transitivePeerDependencies'] = Array.from(pkg.transitivePeerDependencies).sort()
   }
-  Object.assign(result, toLockfilePeerDependencies(pkg.peers.declared))
+  addDeclaredDependencyFields(result, pkg)
   addPlatformRequirements(result, pkg.additionalInfo)
   const deprecated = getDeprecationToRecord(opts.prevSnapshot, lockfileResolution, pkg.additionalInfo.deprecated)
   if (deprecated != null) {
@@ -116,6 +116,14 @@ function toLockfileDependency (
     result['patched'] = true
   }
   return result
+}
+
+/** The peers and, for a directory package, the specifiers the manifest declares. */
+function addDeclaredDependencyFields (result: PackageSnapshot, pkg: ResolvedPackage): void {
+  Object.assign(result, toLockfilePeerDependencies(pkg.peers.declared))
+  if (pkg.specifiers != null) {
+    result['specifiers'] = pkg.specifiers
+  }
 }
 
 function addChildDependencies (

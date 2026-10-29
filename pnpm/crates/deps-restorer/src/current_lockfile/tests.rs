@@ -64,6 +64,7 @@ fn snapshot_with_deps(deps: &[(&str, &str)]) -> SnapshotEntry {
 
 fn package_metadata(name: &str) -> PackageMetadata {
     PackageMetadata {
+        specifiers: None,
         resolution: LockfileResolution::Tarball(TarballResolution {
             integrity: None,
             tarball: format!("https://example.test/{name}.tgz"),

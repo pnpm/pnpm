@@ -131,6 +131,11 @@ test('inject local packages', async () => {
         directory: 'project-1',
         type: 'directory',
       },
+      specifiers: {
+        dependencies: {
+          'is-negative': '1.0.0',
+        },
+      },
       peerDependencies: {
         'is-positive': '>=1.0.0',
       },
@@ -145,6 +150,11 @@ test('inject local packages', async () => {
       resolution: {
         directory: 'project-2',
         type: 'directory',
+      },
+      specifiers: {
+        dependencies: {
+          'project-1': 'workspace:1.0.0',
+        },
       },
     })
     expect(lockfile.snapshots['project-2@file:project-2(is-positive@2.0.0)']).toEqual({
@@ -197,6 +207,11 @@ test('inject local packages', async () => {
       resolution: {
         directory: 'project-1',
         type: 'directory',
+      },
+      specifiers: {
+        dependencies: {
+          'is-negative': '2.0.0',
+        },
       },
       peerDependencies: {
         'is-positive': '>=1.0.0',
@@ -327,6 +342,11 @@ test('inject local packages using the injectWorkspacePackages setting', async ()
         directory: 'project-1',
         type: 'directory',
       },
+      specifiers: {
+        dependencies: {
+          'is-negative': '1.0.0',
+        },
+      },
       peerDependencies: {
         'is-positive': '>=1.0.0',
       },
@@ -341,6 +361,11 @@ test('inject local packages using the injectWorkspacePackages setting', async ()
       resolution: {
         directory: 'project-2',
         type: 'directory',
+      },
+      specifiers: {
+        dependencies: {
+          'project-1': 'workspace:1.0.0',
+        },
       },
     })
     expect(lockfile.snapshots['project-2@file:project-2(is-positive@2.0.0)']).toEqual({
@@ -395,6 +420,11 @@ test('inject local packages using the injectWorkspacePackages setting', async ()
       resolution: {
         directory: 'project-1',
         type: 'directory',
+      },
+      specifiers: {
+        dependencies: {
+          'is-negative': '2.0.0',
+        },
       },
       peerDependencies: {
         'is-positive': '>=1.0.0',
@@ -539,6 +569,11 @@ test('inject local packages declared via file protocol', async () => {
         directory: 'project-1',
         type: 'directory',
       },
+      specifiers: {
+        dependencies: {
+          'is-negative': '1.0.0',
+        },
+      },
       peerDependencies: {
         'is-positive': '>=1.0.0',
       },
@@ -553,6 +588,11 @@ test('inject local packages declared via file protocol', async () => {
       resolution: {
         directory: 'project-2',
         type: 'directory',
+      },
+      specifiers: {
+        dependencies: {
+          'project-1': 'file:../project-1',
+        },
       },
     })
 
@@ -606,6 +646,11 @@ test('inject local packages declared via file protocol', async () => {
       resolution: {
         directory: 'project-1',
         type: 'directory',
+      },
+      specifiers: {
+        dependencies: {
+          'is-negative': '2.0.0',
+        },
       },
       peerDependencies: {
         'is-positive': '>=1.0.0',
@@ -729,6 +774,11 @@ test('inject local packages when the file protocol is used', async () => {
         directory: 'project-1',
         type: 'directory',
       },
+      specifiers: {
+        dependencies: {
+          'is-negative': '1.0.0',
+        },
+      },
       peerDependencies: {
         'is-positive': '>=1.0.0',
       },
@@ -743,6 +793,11 @@ test('inject local packages when the file protocol is used', async () => {
       resolution: {
         directory: 'project-2',
         type: 'directory',
+      },
+      specifiers: {
+        dependencies: {
+          'project-1': 'file:../project-1',
+        },
       },
     })
 
@@ -794,6 +849,11 @@ test('inject local packages when the file protocol is used', async () => {
       resolution: {
         directory: 'project-1',
         type: 'directory',
+      },
+      specifiers: {
+        dependencies: {
+          'is-negative': '2.0.0',
+        },
       },
       peerDependencies: {
         'is-positive': '>=1.0.0',
@@ -900,6 +960,11 @@ test('inject local packages and relink them after build', async () => {
     resolution: {
       directory: 'project-1',
       type: 'directory',
+    },
+    specifiers: {
+      dependencies: {
+        'is-negative': '1.0.0',
+      },
     },
     peerDependencies: {
       'is-positive': '1.0.0',
@@ -1008,6 +1073,11 @@ test('inject local packages and relink them after build (file protocol is used)'
     resolution: {
       directory: 'project-1',
       type: 'directory',
+    },
+    specifiers: {
+      dependencies: {
+        'is-negative': '1.0.0',
+      },
     },
     peerDependencies: {
       'is-positive': '1.0.0',
@@ -1161,6 +1231,12 @@ test('inject local packages when node-linker is hoisted', async () => {
         directory: 'project-1',
         type: 'directory',
       },
+      specifiers: {
+        dependencies: {
+          '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.0.0',
+          'is-negative': '1.0.0',
+        },
+      },
       peerDependencies: {
         'is-positive': '>=1.0.0',
       },
@@ -1176,6 +1252,12 @@ test('inject local packages when node-linker is hoisted', async () => {
       resolution: {
         directory: 'project-2',
         type: 'directory',
+      },
+      specifiers: {
+        dependencies: {
+          '@pnpm.e2e/dep-of-pkg-with-1-dep': '101.0.0',
+          'project-1': 'workspace:1.0.0',
+        },
       },
     })
 
@@ -1321,6 +1403,12 @@ test('inject local packages when node-linker is hoisted and dependenciesMeta is 
         directory: 'project-1',
         type: 'directory',
       },
+      specifiers: {
+        dependencies: {
+          '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.0.0',
+          'is-negative': '1.0.0',
+        },
+      },
       peerDependencies: {
         'is-positive': '>=1.0.0',
       },
@@ -1336,6 +1424,12 @@ test('inject local packages when node-linker is hoisted and dependenciesMeta is 
       resolution: {
         directory: 'project-2',
         type: 'directory',
+      },
+      specifiers: {
+        dependencies: {
+          '@pnpm.e2e/dep-of-pkg-with-1-dep': '101.0.0',
+          'project-1': 'workspace:1.0.0',
+        },
       },
     })
 
@@ -1965,6 +2059,11 @@ test('injected local packages are deduped', async () => {
       resolution: {
         directory: 'project-2',
         type: 'directory',
+      },
+      specifiers: {
+        dependencies: {
+          'project-1': 'workspace:1.0.0',
+        },
       },
     })
 

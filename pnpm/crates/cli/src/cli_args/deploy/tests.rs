@@ -66,6 +66,7 @@ fn convert_package_metadata_rebases_file_tarball_resolution_to_deploy_dir() {
     let deployed_project_root = lockfile_dir.join("packages/app");
     let projects_by_path = HashMap::new();
     let metadata = PackageMetadata {
+        specifiers: None,
         resolution: LockfileResolution::Tarball(TarballResolution {
             tarball: "file:vendor/pkg.tgz".to_string(),
             integrity: Some(

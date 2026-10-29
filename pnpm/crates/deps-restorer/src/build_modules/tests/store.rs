@@ -64,6 +64,7 @@ fn materialization_failure_on_incomplete_slot_is_fatal() {
         HashMap::from([(
             pkg_key.without_peer(),
             pnpm_lockfile::PackageMetadata {
+                specifiers: None,
                 resolution: pnpm_lockfile::LockfileResolution::Registry(
                     pnpm_lockfile::RegistryResolution {
                         integrity: "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
@@ -308,6 +309,7 @@ async fn write_path_populates_side_effects_row() {
         HashMap::from([(
             pkg_key.without_peer(),
             pnpm_lockfile::PackageMetadata {
+                specifiers: None,
                 resolution: pnpm_lockfile::LockfileResolution::Registry(
                     pnpm_lockfile::RegistryResolution {
                         integrity: integrity_str.parse().expect("parse integrity"),

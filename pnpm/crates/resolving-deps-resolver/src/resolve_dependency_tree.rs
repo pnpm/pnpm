@@ -1,6 +1,6 @@
 pub use catalogs::{ChildCatalogs, local_directory_child_specs};
 pub use failure::DependencyResolutionError;
-pub use manifest::manifest_child_specs;
+pub use manifest::{declared_specifiers, declared_specifiers_of, manifest_child_specs};
 
 pub use update_scope::{UpdateDepth, UpdateReuseScope, UpdateTargets, VersionLine};
 

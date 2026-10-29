@@ -8,6 +8,7 @@ use text_block_macros::text_block_fnl;
 
 fn pkg_metadata(integrity_source: &[u8]) -> PackageMetadata {
     PackageMetadata {
+        specifiers: None,
         resolution: LockfileResolution::Registry(RegistryResolution {
             integrity: ssri::Integrity::from(integrity_source),
             revision: None,
