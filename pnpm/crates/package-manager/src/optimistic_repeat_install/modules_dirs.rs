@@ -1,6 +1,6 @@
+pub(super) mod direct_links;
+
 pub(super) use direct_links::direct_dependency_link_dangling;
-#[cfg(test)]
-pub(super) use direct_links::is_local_link_spec;
 
 use super::{
     OptimisticRepeatInstallCheck, manifest_has_required_peers, manifest_has_runtime_deps,
@@ -19,7 +19,6 @@ use std::{
 };
 use workspace_deps::reached_workspace_project_dirs;
 
-mod direct_links;
 mod workspace_deps;
 
 /// The id (`name` field, falling back to the root dir) of the first

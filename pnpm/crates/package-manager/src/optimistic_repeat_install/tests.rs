@@ -386,7 +386,7 @@ fn setup_fresh_install_with_config(
         pnpm_package_manifest::DependencyGroup::Dev,
         pnpm_package_manifest::DependencyGroup::Optional,
     ]) {
-        if super::modules_dirs::is_local_link_spec(spec) {
+        if super::modules_dirs::direct_links::is_local_link_spec(spec) {
             fs::create_dir_all(config.modules_dir.join(alias)).unwrap();
         }
     }
@@ -1320,7 +1320,9 @@ fn linked_sibling_decision_for_spec(
     fs::create_dir_all(&config.modules_dir).unwrap();
     // A fresh install links a `workspace:`/`link:` dependency, so the entry is
     // part of the state the fixture records.
-    if super::modules_dirs::is_local_link_spec(specifier) || lockfile_ref.starts_with("link:") {
+    if super::modules_dirs::direct_links::is_local_link_spec(specifier)
+        || lockfile_ref.starts_with("link:")
+    {
         fs::create_dir_all(config.modules_dir.join(dependency_name)).unwrap();
     }
     let config = config.leak();
