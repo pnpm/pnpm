@@ -12,6 +12,7 @@ import type { DirectoryResolution, WorkspacePackages } from '@pnpm/resolving.res
 import {
   DEPENDENCIES_FIELDS,
   type DependencyManifest,
+  type DepPath,
   type ProjectManifest,
 } from '@pnpm/types'
 import getVersionSelectorType from 'version-selector-type'
@@ -29,6 +30,7 @@ import {
   createLocalDirectoryDepUpToDateChecker,
   type LocalDirectoryResolution,
 } from './localDirectoryDepIsUpToDate.js'
+import { findNestedDirectoryPackages } from './nestedDirectoryPackages.js'
 
 export interface CheckLinkedPackagesResult {
   upToDate: boolean
@@ -95,6 +97,30 @@ export async function checkLinkedPackagesAreUpToDate (ctx: LinkedPackagesContext
         localDirectoryDepIsUpToDate,
       }))
   }))
+  return results.find((result) => !result.upToDate) ??
+    checkNestedDirectoryPackages(ctx, project, localDirectoryDepIsUpToDate)
+}
+
+async function checkNestedDirectoryPackages (
+  ctx: LinkedPackagesContext,
+  project: ProjectToCheck,
+  localDirectoryDepIsUpToDate: DependencyCheckContext['localDirectoryDepIsUpToDate']
+): Promise<CheckLinkedPackagesResult> {
+  if (ctx.skipLocalDirectoryDependencies || ctx.lockfilePackages == null) return UP_TO_DATE
+  const reached = new Set<DepPath>(DEPENDENCIES_FIELDS.flatMap((depField) =>
+    Object.entries(project.snapshot[depField] ?? {}).flatMap(([alias, ref]) => refToRelative(ref, alias) ?? [])
+  ))
+  const projectAliases = dependencyAliases(project.manifest)
+  const results = await Promise.all(findNestedDirectoryPackages(ctx.lockfilePackages)
+    .filter(({ depPath, ref, snapshot, ancestors }) =>
+      !isDeployDirectoryRef(ref, snapshot) &&
+      (reached.has(depPath) || Array.from(reached).some((direct) => ancestors.has(direct)))
+    )
+    .map(async ({ depPath, snapshot, ancestorAliases }) =>
+      await localDirectoryDepIsUpToDate(snapshot, { ...ancestorAliases, ...projectAliases })
+        ? UP_TO_DATE
+        : outdated(`The dependencies of local directory dependency "${depPath}" do not match the lockfile`)
+    ))
   return results.find((result) => !result.upToDate) ?? UP_TO_DATE
 }
 

@@ -1492,3 +1492,98 @@ fn assert_repeat_install_sees_a_changed_injected_directory(
     assert_eq!(recorded, "100.1.0", "the install resolved the edited directory again");
     install(&["--frozen-lockfile"]);
 }
+
+/// A directory that an override or a package extension gives a registry
+/// package hangs beneath that package, where no importer's walk of its
+/// directory dependencies reaches it. After an edit to it, a frozen install
+/// rejects the lockfile and an install resolves it again
+/// ([pnpm/pnpm#17486](https://github.com/pnpm/pnpm/issues/17486)).
+#[test]
+fn an_edited_injected_directory_beneath_a_registry_package_is_resolved_again() {
+    let declarations = [
+        "overrides:\n  '@pnpm.e2e/pkg-with-1-dep>@pnpm.e2e/dep-of-pkg-with-1-dep': workspace:../lib\n",
+        "packageExtensions:\n  '@pnpm.e2e/pkg-with-1-dep':\n    dependencies:\n      lib: workspace:../lib\n",
+    ];
+    for declaration in declarations {
+        let fixture = _utils::WorkspaceFixture::new();
+        fixture.append_workspace_yaml(&format!("injectWorkspacePackages: true\n{declaration}"));
+        let outside = fixture.workspace
+            .parent()
+            .expect("the workspace has a parent")
+            .join("lib");
+        fs::create_dir_all(&outside).expect("create the directory outside the workspace");
+        fs::write(
+            outside.join("package.json"),
+            r#"{ "name": "lib", "version": "1.0.0", "dependencies": { "@pnpm.e2e/foo": "100.0.0" } }"#,
+        )
+        .expect("write the manifest");
+        fixture.write_root_manifest(
+            "app",
+            _utils::ManifestDeps {
+                prod: &[("@pnpm.e2e/pkg-with-1-dep", "100.0.0")],
+                .._utils::ManifestDeps::default()
+            },
+        );
+        let install = |args: &[&str]| {
+            fixture.command_at(&fixture.workspace, std::iter::once(&"install").chain(args))
+        };
+        _utils::assert_success(&install(&[]));
+
+        _utils::set_dependency(&outside, "dependencies", "@pnpm.e2e/foo", "100.1.0");
+        let frozen = install(&["--frozen-lockfile"]);
+        let stderr = String::from_utf8_lossy(&frozen.stderr);
+        assert!(
+            !frozen.status.success() && stderr.contains("ERR_PNPM_OUTDATED_LOCKFILE"),
+            "{declaration}: the frozen install must reject the stale lockfile: {stderr}",
+        );
+        _utils::assert_success(&install(&[]));
+
+        let lockfile = _utils::read_lockfile(&fixture.workspace.join("pnpm-lock.yaml"));
+        let key: pnpm_lockfile::PackageKey =
+            "lib@file:../lib".parse().expect("parse the package key");
+        let snapshot = &lockfile.snapshots.as_ref().expect("the lockfile has snapshots")[&key];
+        let child: pnpm_lockfile::PkgName = "@pnpm.e2e/foo".parse().expect("parse the name");
+        let recorded = snapshot.dependencies.as_ref().expect("lib's dependencies are recorded")
+            [&child]
+            .to_string();
+        assert_eq!(recorded, "100.1.0", "{declaration}: the install resolved the edited directory");
+        _utils::assert_success(&install(&["--frozen-lockfile"]));
+    }
+}
+
+/// An install with `optional: false` leaves out a directory reached only
+/// through an optional edge, so an edit to it does not make that frozen
+/// install reject the lockfile.
+#[test]
+fn an_edited_directory_beneath_an_excluded_optional_dependency_passes_frozen_install() {
+    let fixture = _utils::WorkspaceFixture::new();
+    fixture.append_workspace_yaml(
+        "injectWorkspacePackages: true\noverrides:\n  \
+         '@pnpm.e2e/pkg-with-1-dep>@pnpm.e2e/dep-of-pkg-with-1-dep': workspace:../lib\n",
+    );
+    let outside = fixture.workspace
+        .parent()
+        .expect("the workspace has a parent")
+        .join("lib");
+    fs::create_dir_all(&outside).expect("create the directory outside the workspace");
+    fs::write(
+        outside.join("package.json"),
+        r#"{ "name": "lib", "version": "1.0.0", "dependencies": { "@pnpm.e2e/foo": "100.0.0" } }"#,
+    )
+    .expect("write the manifest");
+    fixture.write_root_manifest(
+        "app",
+        _utils::ManifestDeps {
+            optional: &[("@pnpm.e2e/pkg-with-1-dep", "100.0.0")],
+            .._utils::ManifestDeps::default()
+        },
+    );
+    let install = |args: &[&str]| {
+        fixture.command_at(&fixture.workspace, std::iter::once(&"install").chain(args))
+    };
+    _utils::assert_success(&install(&[]));
+
+    _utils::set_dependency(&outside, "dependencies", "@pnpm.e2e/foo", "100.1.0");
+    fixture.append_workspace_yaml("optional: false\n");
+    _utils::assert_success(&install(&["--frozen-lockfile"]));
+}
