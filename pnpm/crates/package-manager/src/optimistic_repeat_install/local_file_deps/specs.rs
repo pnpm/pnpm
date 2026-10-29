@@ -127,23 +127,15 @@ pub(crate) fn is_local_file_spec(spec: &str) -> bool {
 }
 
 pub(crate) fn is_unambiguous_local_file_spec(spec: &str) -> bool {
-    if spec.starts_with("file:") {
-        return true;
-    }
-    if spec.starts_with(['.', '/', '\\'])
-        || spec.starts_with("~/")
-        || spec.starts_with(r"~\")
-        || is_windows_drive_path(spec)
-    {
-        return true;
-    }
-    false
+    spec.starts_with("file:") || pnpm_local_spec::is_filespec(spec)
 }
 
-/// `c:/...`, `c:\...`, or drive-relative `c:foo` — a Windows drive
-/// path. No separator is required after the colon; no registry protocol
-/// is a single letter, so `[a-z]:` is unambiguous.
-pub(crate) fn is_windows_drive_path(spec: &str) -> bool {
-    let bytes = spec.as_bytes();
-    bytes.len() >= 2 && bytes[0].is_ascii_alphabetic() && bytes[1] == b':'
+/// Whether a `workspace:` specifier names a path, such as
+/// `workspace:../lib`, rather than a version range such as `workspace:^`
+/// or `workspace:~`.
+pub(crate) fn is_workspace_path_spec(spec: &str) -> bool {
+    spec.strip_prefix("workspace:").is_some_and(pnpm_local_spec::is_filespec)
 }
+
+#[cfg(test)]
+mod tests;
