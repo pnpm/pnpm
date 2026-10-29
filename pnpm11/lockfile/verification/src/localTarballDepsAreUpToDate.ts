@@ -8,7 +8,7 @@ import type {
   TarballResolution,
 } from '@pnpm/lockfile.types'
 import { refIsLocalTarball, resolveLocalTarballPath } from '@pnpm/lockfile.utils'
-import { DEPENDENCIES_FIELDS, type IncludedDependencies } from '@pnpm/types'
+import { DEPENDENCIES_FIELDS, type DependenciesField, type IncludedDependencies } from '@pnpm/types'
 
 export interface LocalTarballDepsUpToDateContext {
   /**
@@ -89,11 +89,20 @@ export async function localTarballDepsAreUpToDate (
   }
 ): Promise<boolean> {
   const dependencies = DEPENDENCIES_FIELDS
-    .filter((field) => ctx.includedDependencies?.[field] !== false)
+    .filter((field) => isIncluded(ctx.includedDependencies, field))
     .flatMap((field) => Object.entries(project.snapshot[field] ?? {}))
   const reached = reachableDependencies(ctx, dependencies)
   const results = await Promise.all(reached.map(async ([depName, ref]) => localTarballDepIsUpToDate(ctx, depName, ref)))
   return results.every(Boolean)
+}
+
+/**
+ * Whether an install with `included` installs a project's `field`. Optional
+ * dependencies go with the production ones.
+ */
+function isIncluded (included: IncludedDependencies | undefined, field: DependenciesField): boolean {
+  if (included?.[field] === false) return false
+  return field !== 'optionalDependencies' || included?.dependencies !== false
 }
 
 /**
@@ -112,6 +121,7 @@ function reachableDependencies (
   const queue = [...dependencies]
   for (let next = queue.pop(); next != null; next = queue.pop()) {
     const [depName, ref] = next
+    if (typeof ref !== 'string') continue
     const depPath = dp.refToRelative(ref, depName)
     if (depPath == null || visited.has(depPath)) continue
     visited.add(depPath)

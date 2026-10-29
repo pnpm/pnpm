@@ -130,7 +130,6 @@ pub(super) fn record(
         signatures.extend(carried_signatures(previous, local));
         recorded.insert(digest.clone(), local.clone());
     }
-    recorded.retain(|_, local| !local.is_empty());
     validation.files.extend(signatures);
     validation.local_dependencies = recorded;
 }

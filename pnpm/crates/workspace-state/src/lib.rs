@@ -140,13 +140,6 @@ pub struct LocalDependencies {
     pub directories: Vec<String>,
 }
 
-impl LocalDependencies {
-    #[must_use]
-    pub fn is_empty(&self) -> bool {
-        self.tarballs.is_empty() && self.directories.is_empty()
-    }
-}
-
 impl Validation {
     /// What the project with `importer_id` was proven installed with.
     #[must_use]

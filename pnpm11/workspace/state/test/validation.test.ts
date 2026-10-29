@@ -120,6 +120,36 @@ test('updateWorkspaceState() records the local dependencies of a lockfile once p
   expect(reads).toStrictEqual([workspaceDir])
 })
 
+test('updateWorkspaceState() reads a lockfile without local dependencies once per digest', async () => {
+  prepareEmpty()
+  const workspaceDir = process.cwd()
+  fs.writeFileSync('pnpm-lock.yaml', "lockfileVersion: '9.0'\n")
+  let reads = 0
+  const write = async () => {
+    await updateWorkspaceState({
+      allProjects: [{ rootDir: path.join(workspaceDir, 'a') as ProjectRootDir, manifest: { name: 'a' } }],
+      settings: { excludeLinksFromLockfile: false, linkWorkspacePackages: false, preferWorkspacePackages: false },
+      workspaceDir,
+      pnpmfiles: [],
+      filteredInstall: false,
+      validation: {
+        lockfileDir: workspaceDir,
+        wantedLockfileName: 'pnpm-lock.yaml',
+        sharedInputs: [],
+        readLocalDependencies: async () => {
+          reads++
+          return {}
+        },
+      },
+    })
+    return loadWorkspaceState(workspaceDir)!.validation!
+  }
+  await write()
+  const second = await write()
+  expect(second.localDependencies).toStrictEqual({ [second.lockfile!]: {} })
+  expect(reads).toBe(1)
+})
+
 test('sharedInputPaths() lists no pnpmfile when --ignore-pnpmfile left them unloaded', () => {
   expect(sharedInputPaths('/repo', { foo: 'patches/foo.patch' }, undefined)).toStrictEqual([path.resolve('/repo', 'patches/foo.patch')])
 })

@@ -25,9 +25,9 @@ export async function recordLocalDependencies (
   const records: LocalDependencyRecords = { entries: {}, signatures: {} }
   await recordVouchedLockfiles(records, recorded.lockfiles, { ...opts, referenced })
   carryLockfiles(records, recorded.carried, referenced)
-  const nonEmpty = Object.entries(records.entries).filter(([, local]) => !isEmpty(local))
-  if (nonEmpty.length === 0) return
-  validation.localDependencies = Object.fromEntries(nonEmpty)
+  // An empty entry stays, so that the next write of the same lockfile reads it from here.
+  if (Object.keys(records.entries).length === 0) return
+  validation.localDependencies = records.entries
   validation.files = { ...validation.files, ...records.signatures }
 }
 
@@ -62,8 +62,4 @@ function carryLockfiles (
       if (signature != null) records.signatures[tarball] = signature
     }
   }
-}
-
-function isEmpty (local: LocalDependencies): boolean {
-  return (local.tarballs?.length ?? 0) === 0 && (local.directories?.length ?? 0) === 0
 }

@@ -74,3 +74,21 @@ fn reports_a_replaced_tarball_and_any_directory() {
     };
     assert!(changed(&with_directory));
 }
+
+#[test]
+fn keeps_the_entry_of_a_lockfile_without_local_dependencies() {
+    let mut validation =
+        Validation { lockfile: Some("current".to_string()), ..Validation::default() };
+    let digests = FileDigests::new(None);
+    record(
+        &mut validation,
+        Some(("current", LocalDependencies::default())),
+        (None, &digests),
+        |signature| signature,
+    );
+    assert_eq!(
+        validation.local_dependencies,
+        BTreeMap::from([("current".to_string(), LocalDependencies::default())]),
+    );
+    assert!(!changed(&validation));
+}
