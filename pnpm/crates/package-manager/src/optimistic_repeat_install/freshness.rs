@@ -258,6 +258,17 @@ fn check_settings_and_workspace_freshness(
     if !project_structure_matches(state, project_manifests.as_slice()) {
         return Err(Stale::ProjectStructure);
     }
+    check_held_modules_dirs(check, state, policy, scope)
+}
+
+/// The modules directories of the projects `scope` holds: each one the linker
+/// needs exists, and holds no broken direct dependency link.
+fn check_held_modules_dirs(
+    check: &OptimisticRepeatInstallCheck<'_>,
+    state: &WorkspaceState,
+    policy: &GatePolicy<'_>,
+    scope: Scope<'_>,
+) -> Result<(), Stale> {
     if let Some(id) = first_held_project_missing_modules_dir(check, state, scope) {
         return Err(Stale::MissingModulesDir(id));
     }
