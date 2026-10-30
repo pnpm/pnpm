@@ -40,3 +40,15 @@ test('latest selects the newest build of a nightly index', async () => {
 
   await expect(resolveNodeVersion(mockFetch, 'latest', mirror)).resolves.toBe('27.0.0-nightly20261029abcdef')
 })
+
+test('a range selects the newest stable version when a prerelease also satisfies it', async () => {
+  const mirror = 'https://node.example/download/release/'
+  const mockFetch = async () => new Response(JSON.stringify([
+    { version: 'v27.0.0-alpha.0.0.0', lts: false },
+    { version: 'v26.13.0', lts: false },
+    { version: 'v26.12.0', lts: false },
+  ]))
+
+  await expect(resolveNodeVersion(mockFetch, '>=26.13', mirror)).resolves.toBe('26.13.0')
+  await expect(resolveNodeVersion(mockFetch, '>=27', mirror)).resolves.toBe('27.0.0-alpha.0.0.0')
+})
