@@ -325,7 +325,7 @@ fn generate_sh_shim_uses_absolute_target_when_no_common_prefix() {
     let runtime = ScriptRuntime { prog: Some("node".into()), args: String::new() };
     let body = generate_sh_shim(target, shim, Some(&runtime), &[], None);
     assert!(
-        body.contains(r#""/abs/elsewhere/cli""#),
+        body.contains("'/abs/elsewhere/cli'"),
         "absolute-target branch must skip $basedir prefix, body:\n{body}",
     );
 }
