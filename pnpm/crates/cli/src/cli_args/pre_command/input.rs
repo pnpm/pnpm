@@ -372,27 +372,10 @@ fn should_skip_invocation(
 /// pnpm treats `--global` as an opt-out of the project's package manager
 /// and runtime pins — a global install does not belong to the project.
 pub(crate) fn is_global(command: &CliCommand) -> bool {
-    match command {
-        CliCommand::Add(args) => args.target.global,
-        CliCommand::ApproveBuilds(args) => args.global,
-        CliCommand::Bin(args) => args.global,
-        CliCommand::Config(args) => args.flags.is_global(),
-        CliCommand::Get(args) => args.flags.is_global(),
-        CliCommand::Set(args) => args.flags.is_global(),
-        CliCommand::Env(args) => args.global,
-        CliCommand::List(args) | CliCommand::Ll(args) => args.global,
-        CliCommand::Outdated(args) => args.global,
-        CliCommand::Peers(args) => args.global,
-        CliCommand::Prefix(args) => args.global,
-        CliCommand::Remove(args) => args.global,
-        CliCommand::Root(args) => args.global,
-        CliCommand::Runtime(args) => args.global,
-        CliCommand::Update(args) => args.selection.global,
-        // `pnpm link` with no arguments links the current project into the
-        // global directory.
-        CliCommand::Link(args) => args.package_paths.is_empty(),
-        _ => false,
-    }
+    // `pnpm link` with no arguments links the current project into the
+    // global directory.
+    command.is_global()
+        || matches!(command, CliCommand::Link(args) if args.package_paths.is_empty())
 }
 
 /// The commands pnpm marks with `skipPackageManagerCheck`, plus `setup` —

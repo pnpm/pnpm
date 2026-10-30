@@ -71,6 +71,12 @@ impl PeersArgs {
         let groups = scan_global_packages(global_dir)
             .into_diagnostic()
             .wrap_err_with(|| format!("read global packages in {}", global_dir.display()))?;
+        // Each group installs without catalogs and as its own workspace root
+        // (see `global_group_config`), so the home's catalogs must not
+        // resolve its peer ranges either.
+        let mut group_config = config.clone();
+        group_config.catalogs = None;
+        group_config.workspace_dir = None;
         let mut checked_dirs = BTreeSet::new();
         let mut issues = IssuesByProjects::new();
         for group in groups {
@@ -80,7 +86,7 @@ impl PeersArgs {
             let install_state_dir = group.install_dir.join("node_modules").join(".pnpm");
             let lockfile = self.load_lockfile(&install_state_dir, &group.install_dir)?;
             let mut group_issues = checked_issues(
-                config,
+                &group_config,
                 &group.install_dir,
                 std::slice::from_ref(&group.install_dir),
                 lockfile.as_ref(),
@@ -88,7 +94,11 @@ impl PeersArgs {
             if let Some(root_issues) = group_issues.remove(".") {
                 let mut aliases = group.aliases();
                 aliases.sort();
-                issues.insert(aliases.join(", "), root_issues);
+                let mut key = aliases.join(", ");
+                if issues.contains_key(&key) {
+                    key = format!("{key} ({})", group.hash);
+                }
+                issues.insert(key, root_issues);
             }
         }
         Ok(issues)

@@ -31,7 +31,7 @@ fn global_install_and_update_recommend_global_peer_checks() {
         .assert()
         .code(1);
     assert!(
-        String::from_utf8_lossy(&output.get_output().stdout).contains("✕ unmet peer @pnpm.e2e/foo")
+        String::from_utf8_lossy(&output.get_output().stdout).contains("✕ unmet peer @pnpm.e2e/foo"),
     );
     drop((root, mock_instance));
 }

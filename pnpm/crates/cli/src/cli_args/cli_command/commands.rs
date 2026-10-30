@@ -311,7 +311,7 @@ impl CliCommand {
 
     /// Whether `--global` was passed. pnpm parses it as one CLI-wide
     /// option; pacquet declares it per subcommand.
-    pub(super) fn is_global(&self) -> bool {
+    pub(crate) fn is_global(&self) -> bool {
         match self {
             CliCommand::Add(args) => args.target.global,
             CliCommand::ApproveBuilds(args) => args.global,

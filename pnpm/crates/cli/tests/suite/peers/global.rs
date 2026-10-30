@@ -136,7 +136,7 @@ fn global_peers_keeps_install_groups_isolated_and_ignores_inactive_slots() {
             .unwrap()
             .keys()
             .collect::<Vec<_>>(),
-        ["peer, tool-b", "tool-a", "tool-c"]
+        ["peer, tool-b", "tool-a", "tool-c"],
     );
     assert_eq!(issues["tool-a"]["missing"]["peer"][0]["wantedRange"], "^2.0.0");
     assert_eq!(issues["peer, tool-b"]["bad"], json!({}));
@@ -224,4 +224,55 @@ fn global_peers_reports_a_corrupt_active_lockfile() {
         .assert()
         .failure();
     assert!(String::from_utf8_lossy(&output.get_output().stderr).contains("load lockfile in"));
+}
+
+#[test]
+fn global_peers_reports_every_group_that_shares_aliases() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let home = root.path().join("home");
+    write_group(&home, "first", &["tool"], &lockfile(None));
+    write_group(&home, "second", &["tool"], &lockfile(Some("2.0.0")));
+    let output = global_command(&workspace, &home)
+        .with_args(["peers", "check", "-g", "--json"])
+        .output()
+        .expect("check global peers as JSON");
+    assert_eq!(output.status.code(), Some(1), "{output:?}");
+    let issues: Value = serde_json::from_slice(&output.stdout).unwrap();
+    dbg!(&issues);
+    let missing = issues
+        .as_object()
+        .unwrap()
+        .values()
+        .filter(|group| group["missing"] != json!({}))
+        .count();
+    assert_eq!(issues.as_object().unwrap().len(), 2);
+    assert_eq!(missing, 1);
+}
+
+#[test]
+fn global_peers_does_not_resolve_catalog_ranges_from_the_home_workspace() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let home = root.path().join("home");
+    let install = write_group(&home, "tool", &["tool"], &lockfile(None));
+    let lockfile_path = install.join("pnpm-lock.yaml");
+    let mut group_lockfile: Value =
+        serde_json::from_str(&fs::read_to_string(&lockfile_path).unwrap()).unwrap();
+    group_lockfile["importers"]["."]["dependencies"]["lib"] =
+        json!({"specifier": "link:./lib", "version": "link:lib"});
+    fs::write(&lockfile_path, group_lockfile.to_string()).unwrap();
+    fs::create_dir_all(install.join("lib")).unwrap();
+    fs::write(
+        install.join("lib/package.json"),
+        json!({"name": "lib", "version": "1.0.0", "peerDependencies": {"peer": "catalog:"}})
+            .to_string(),
+    )
+    .unwrap();
+    fs::write(home.join("pnpm-workspace.yaml"), "catalog:\n  peer: 2.0.0\n").unwrap();
+    let output = global_command(&workspace, &home)
+        .with_args(["peers", "check", "-g", "--json"])
+        .output()
+        .expect("check global peers as JSON");
+    assert_eq!(output.status.code(), Some(1), "{output:?}");
+    let issues: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(issues["tool"]["missing"]["peer"][0]["wantedRange"], "catalog:", "{issues:#}");
 }
