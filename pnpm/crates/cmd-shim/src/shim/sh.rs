@@ -388,8 +388,8 @@ pub fn is_shim_pointing_at(shim_content: &str, shim_path: &Path, target_path: &P
                 || marker == normalized_target
                 || marker == rel_target
                 || {
-                    let normalized_marker =
-                        super::lexical_normalize(Path::new(marker)).to_string_lossy();
+                    let normalized_marker = super::lexical_normalize(Path::new(marker));
+                    let normalized_marker = normalized_marker.to_string_lossy();
                     normalize_sh_path(&normalized_marker) == normalized_target
                 }
         })
