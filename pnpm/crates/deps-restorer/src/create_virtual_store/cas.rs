@@ -55,6 +55,7 @@ impl CreateVirtualStore<'_> {
         let mut installer = CreateVirtualStore { ctx: &fetch_context, ..self };
         let (mut fetched, prefetch) =
             installer.run_retaining::<Report>(installer.entries.snapshots, check).await?;
+        cached_builds::restore_empty_builds(&mut fetched);
         let physical = prepare_loaded_packages(
             &mut selected,
             installer.entries.snapshots,

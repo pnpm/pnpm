@@ -41,12 +41,16 @@ fn insert(
     let crate::BuiltSideEffects { cache_key, diff } = result;
     let overlays = Arc::make_mut(fetched.side_effects.maps.entry(key.clone()).or_default());
     overlays.remove(&cache_key);
-    let Some(diff) = diff.filter(|diff| !diff.is_empty()) else { return };
+    let Some(diff) = diff else { return };
     let base = &fetched.cas_paths_by_pkg_id.as_ref().expect("fetched packages")
         [&super::super::cas_paths_key(key)]
         .cas_paths;
-    let overlay =
-        pnpm_store_dir::side_effects_overlay(&context.config.store_dir, &cache_key, &diff, base);
+    // See `cached_builds::restore_empty_builds`.
+    let overlay = if diff.is_empty() {
+        Some((**base).clone().into())
+    } else {
+        pnpm_store_dir::side_effects_overlay(&context.config.store_dir, &cache_key, &diff, base)
+    };
     if let Some(overlay) = overlay {
         overlays.insert(cache_key.clone(), overlay);
         Arc::make_mut(fetched.side_effects.diffs.entry(key.clone()).or_default())
