@@ -135,11 +135,10 @@ function readShNodePath (shimContent: string): string | undefined {
     const raw = readShSingleQuotedWord(rest)?.raw ?? (lineEnd === -1 ? rest : rest.slice(0, lineEnd))
     return unquoteSh(raw)
   }
-  if (isWindows) {
-    return shimContent.includes(SH_NODE_PATH_EXPORT) ? '' : undefined
-  }
   const start = shimContent.indexOf(SH_NODE_PATH_EXPORT)
-  if (start === -1) return undefined
+  if (start === -1) {
+    return isWindows && shimContent.includes(SH_NODE_PATH_EXPORT) ? '' : undefined
+  }
   const valueStart = start + SH_NODE_PATH_EXPORT.length
   const lineEnd = shimContent.indexOf('\n', valueStart)
   const rest = shimContent.slice(valueStart)

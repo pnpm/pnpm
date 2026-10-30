@@ -24,7 +24,7 @@ describeOnPosix('shell shim paths with shell metacharacters', () => {
       const shim = path.join(tempDir, 'bin', 'shim')
       fs.writeFileSync(target, '#!/usr/bin/env node\nprocess.stdout.write(`${process.env.NODE_PATH}|SHIM_OK`)\n', 'utf8')
       await cmdShim(target, shim, { nodePath: [targetDir] })
-      const result = spawnSync(shim, [], { cwd: tempDir, encoding: 'utf8' })
+      const result = spawnSync(shim, [], { cwd: tempDir, encoding: 'utf8', env: { ...process.env, NODE_PATH: '' } })
       assert.equal(result.status, 0, `stdout: ${result.stdout}\nstderr: ${result.stderr}`)
       assert.equal(result.stdout, `${targetDir}|SHIM_OK`)
       assert.equal(fs.existsSync(path.join(tempDir, 'marker')), false)
