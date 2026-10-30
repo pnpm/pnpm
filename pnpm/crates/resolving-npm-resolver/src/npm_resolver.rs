@@ -28,6 +28,7 @@ pub(crate) use guarded_pick::{
 
 pub(crate) use workspace_pick::{no_matching_version, swallowed_as_no_latest};
 
+mod platform_variants;
 mod release_policy;
 mod resolution_result;
 use release_policy::latest_allowed_by_policy;

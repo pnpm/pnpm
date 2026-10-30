@@ -43,7 +43,7 @@ const body = {
   versions: { [spec.version]: manifest },
   _attachments: attachments,
 }
-const res = await fetch(registry + spec.name.replace('/', '%2f'), {
+const res = await fetch(registry + spec.name.replaceAll('/', '%2f'), {
   method: 'PUT',
   headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
   body: JSON.stringify(body),

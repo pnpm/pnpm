@@ -1,4 +1,3 @@
-use super::variants::{self, Declarations, PublishedVariant, VariantTar};
 use super::{
     Action, AppState, CanonicalPackageName, Ecosystem, HashSet, HostedDocumentVersion, Identity,
     Integrity, PendingAttachment, RegistryError, RegistrySource, Storage, Value, WriteTarget,
@@ -9,6 +8,7 @@ use super::{
     },
     resolve_write_target, stream_decode_verify_and_write, tar_integrity_of, tgz_integrity_key,
     tombstones::{check_publish_tombstone, check_staged_tombstone},
+    variants::{self, Declarations, PublishedVariant, VariantTar},
     write_sigstore_bundle,
 };
 use std::sync::Arc;

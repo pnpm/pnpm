@@ -9,13 +9,13 @@
 //! under the server-owned `_pnprVariants`, and serves it as
 //! `dist.pnpr.variants`.
 
-use std::collections::{BTreeMap, HashSet};
-use std::io::Read;
-
-use serde_json::{Map, Value, json};
-
 use pnpr_error::RegistryError;
 use pnpr_package_name::CanonicalPackageName;
+use serde_json::{Map, Value, json};
+use std::{
+    collections::{BTreeMap, HashSet},
+    io::Read,
+};
 
 /// The field a publish body declares variants in.
 const DECLARATION_FIELD: &str = "pnprVariants";
@@ -86,7 +86,7 @@ pub(in super::super) fn take_declarations(
                 .to_string();
             if !is_valid_tag(&tag) {
                 return Err(bad_request(format!(
-                    "variant of {version} has an invalid tag {tag:?}"
+                    "variant of {version} has an invalid tag {tag:?}",
                 )));
             }
             if !tags.insert(tag.clone()) {
@@ -96,7 +96,7 @@ pub(in super::super) fn take_declarations(
                 Some(Value::Array(platforms)) if !platforms.is_empty() => platforms.clone(),
                 _ => {
                     return Err(bad_request(format!(
-                        "variant {tag:?} of {version} must list at least one platform"
+                        "variant {tag:?} of {version} must list at least one platform",
                     )));
                 }
             };
@@ -123,13 +123,13 @@ const PLATFORM_FIELDS: &[&str] = &["os", "cpu", "libc"];
 fn check_platform(version: &str, tag: &str, platform: &Value) -> Result<(), RegistryError> {
     let Some(platform) = platform.as_object() else {
         return Err(bad_request(format!(
-            "platform of variant {tag:?} of {version} is not an object"
+            "platform of variant {tag:?} of {version} is not an object",
         )));
     };
     for field in ["os", "cpu"] {
         if !platform.get(field).is_some_and(Value::is_string) {
             return Err(bad_request(format!(
-                "platform of variant {tag:?} of {version} has no {field:?}"
+                "platform of variant {tag:?} of {version} has no {field:?}",
             )));
         }
     }
@@ -138,14 +138,14 @@ fn check_platform(version: &str, tag: &str, platform: &Value) -> Result<(), Regi
         .find(|key| !PLATFORM_FIELDS.contains(&key.as_str()))
     {
         return Err(bad_request(format!(
-            "platform of variant {tag:?} of {version} has an unknown field {unknown:?}"
+            "platform of variant {tag:?} of {version} has an unknown field {unknown:?}",
         )));
     }
     if let Some(libc) = platform.get("libc")
         && !matches!(libc.as_str(), Some("glibc" | "musl"))
     {
         return Err(bad_request(format!(
-            "platform of variant {tag:?} of {version} has an unknown libc {libc}"
+            "platform of variant {tag:?} of {version} has an unknown libc {libc}",
         )));
     }
     Ok(())
@@ -287,7 +287,7 @@ pub(in super::super) fn attach_variants(
             else {
                 return Err(bad_request(format!(
                     "variant {:?} of {version} is declared but not attached",
-                    variant.tag
+                    variant.tag,
                 )));
             };
             check_invariants(version, variant, &primary, found)?;

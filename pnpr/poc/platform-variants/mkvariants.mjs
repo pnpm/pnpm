@@ -16,7 +16,7 @@ fs.rmSync(work, { recursive: true, force: true })
 fs.mkdirSync(work, { recursive: true })
 
 async function manifest (pkg, ver) {
-  const res = await fetch(NPM + pkg.replace('/', '%2f') + '/' + ver)
+  const res = await fetch(NPM + pkg.replaceAll('/', '%2f') + '/' + ver)
   if (!res.ok) throw new Error(`${pkg}@${ver}: ${res.status}`)
   return res.json()
 }

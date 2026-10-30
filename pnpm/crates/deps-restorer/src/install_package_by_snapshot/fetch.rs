@@ -10,6 +10,7 @@ use pnpm_directory_fetcher::{CopyFiles, DirectoryFetchOutput, DirectoryFetcherEr
 use pnpm_fs::lexical_normalize;
 use pnpm_lockfile::{
     DirectoryResolution, LockfileResolution, PackageKey, PackageMetadata, SnapshotEntry,
+    VariationsResolution,
 };
 use pnpm_package_manifest::PackageBin;
 use pnpm_reporter::{LogEvent, LogLevel, ProgressLog, ProgressMessage, Reporter};
@@ -278,6 +279,44 @@ impl InstallPackageBySnapshot<'_> {
         }
     }
 
+    /// Fetch the variant the selected platform installs. A registry
+    /// package's variant is a tarball, and its primary archive is the
+    /// fallback; a runtime's variant is a binary archive.
+    async fn fetch_variations<Reporter: self::Reporter>(
+        &self,
+        fetch: &SnapshotFetch<'_>,
+        variations: &VariationsResolution,
+        allow_build: &(impl Fn(&str) -> Option<bool> + Send + Sync),
+    ) -> Result<(HashMap<String, PathBuf>, ExtractedPackageMetadata), InstallPackageBySnapshotError>
+    {
+        if !super::runtime::is_package_variations(variations) {
+            let binary = binary_variant_for_host(
+                variations,
+                fetch.package_key,
+                self.runtime_platform_selector,
+            )?;
+            return self
+                .fetch_binary::<Reporter>(binary, fetch.package_key)
+                .await
+                .map(|cas_paths| (cas_paths, ExtractedPackageMetadata::default()));
+        }
+        let (resolution, variant) = super::runtime::package_variant_for_host(
+            variations,
+            fetch.package_key,
+            self.runtime_platform_selector,
+            self.ctx.config,
+        )?;
+        self.tarball_cas_paths::<Reporter>(TarballFetch {
+            download: fetch.download,
+            resolution: &resolution,
+            package_key: fetch.package_key,
+            package_id: fetch.package_id,
+            allow_build,
+            variant,
+        })
+        .await
+    }
+
     /// Returns the fetched CAS paths alongside extracted package metadata and
     /// whether the source they came from existed. Always `true` except for a
     /// directory resolution; see [`crate::SlotImportSource::source_exists`].
@@ -327,37 +366,10 @@ impl InstallPackageBySnapshot<'_> {
                 self.fetch_binary::<Reporter>(binary, fetch.package_key).await
                     .map(|cas_paths| (cas_paths, ExtractedPackageMetadata::default(), true))
             }
-            LockfileResolution::Variations(variations)
-                if super::runtime::is_package_variations(variations) =>
-            {
-                let (resolution, variant) = super::runtime::package_variant_for_host(
-                    variations,
-                    fetch.package_key,
-                    self.runtime_platform_selector,
-                    config,
-                )?;
-                self.tarball_cas_paths::<Reporter>(TarballFetch {
-                    download: fetch.download,
-                    resolution: &resolution,
-                    package_key: fetch.package_key,
-                    package_id: fetch.package_id,
-                    allow_build: &allow_build,
-                    variant,
-                })
-                .await
-                .map(|(cas_paths, extracted)| (cas_paths, extracted, true))
-            }
             LockfileResolution::Variations(variations) => self
-                .fetch_binary::<Reporter>(
-                    binary_variant_for_host(
-                        variations,
-                        fetch.package_key,
-                        self.runtime_platform_selector,
-                    )?,
-                    fetch.package_key,
-                )
+                .fetch_variations::<Reporter>(&fetch, variations, &allow_build)
                 .await
-                .map(|cas_paths| (cas_paths, ExtractedPackageMetadata::default(), true)),
+                .map(|(cas_paths, extracted)| (cas_paths, extracted, true)),
             LockfileResolution::Git(git_resolution) => self
                 .fetch_git::<Reporter>(&fetch, git_resolution, &allow_build)
                 .await
