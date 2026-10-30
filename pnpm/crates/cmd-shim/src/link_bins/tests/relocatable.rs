@@ -516,7 +516,7 @@ fn unresolved_optional_node_paths_do_not_prevent_linking_bins() {
             eprintln!("destination={destination}, body={body}");
             assert!(
                 body.contains(r#""$basedir_abs"/'../extra'"#),
-                "optional path remains in NODE_PATH"
+                "optional path remains in NODE_PATH",
             );
             let output = run_command(
                 Command::new(bins.join(name)).env_remove("NODE_PATH").env_remove("NODE_OPTIONS"),

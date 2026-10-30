@@ -670,7 +670,7 @@ fn a_reinstall_replaces_a_shim_whose_relative_target_climbs_from_another_dir() {
     );
     assert!(
         stale.contains(r#""$basedir_abs"/'../pkg/cli.js'"#),
-        "precondition, body was:\n{stale}"
+        "precondition, body was:\n{stale}",
     );
 
     link_bins_of_packages::<Host>(
