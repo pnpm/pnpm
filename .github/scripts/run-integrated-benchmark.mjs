@@ -2,16 +2,20 @@ import { spawnSync } from 'node:child_process'
 import { readFile, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { compare } from './compare-integrated-benchmarks.mjs'
+import { compare, parseSyscallSummary, syscallCountRounds } from './compare-integrated-benchmarks.mjs'
 
 export async function runBenchmark (args, { directory = 'bench-work-env', execute = executeBenchmark } = {}) {
-  const status = await execute(args)
-  if (status !== 0) return status
   const engines = ['pacquet', 'pnpr'].filter(engine => args.includes(`${engine}@HEAD`) && args.includes(`${engine}@main`))
+  const status = await execute(engines.length === 0 ? args : [...args, '--count-syscalls'])
+  if (status !== 0) return status
   if (engines.length === 0) return 0
   const reportPath = join(directory, 'BENCHMARK_REPORT.json')
   const markdownPath = join(directory, 'BENCHMARK_REPORT.md')
-  const initial = JSON.parse(await readFile(reportPath, 'utf8'))
+  const initial = {
+    ...JSON.parse(await readFile(reportPath, 'utf8')),
+    syscalls: await readSyscallCounts(directory, args.filter(isTarget)),
+  }
+  await writeFile(reportPath, JSON.stringify(initial))
   if (!engines.some(engine => compare(initial, engine).status === 'Regression')) return 0
 
   const markdown = await readFile(markdownPath, 'utf8')
@@ -29,6 +33,22 @@ export async function runBenchmark (args, { directory = 'bench-work-env', execut
   await writeFile(reportPath, JSON.stringify({ ...initial, confirmation }))
   await writeFile(markdownPath, `${markdown}\n#### Confirmation (reversed target order)\n\n${confirmationMarkdown}`)
   return 0
+}
+
+async function readSyscallCounts (directory, targets) {
+  const counts = {}
+  for (const target of targets) {
+    counts[target] = []
+    for (let round = 0; round < syscallCountRounds; round++) {
+      const path = join(directory, target, `SYSCALL_COUNTS.${round}.txt`)
+      try {
+        counts[target].push(parseSyscallSummary(await readFile(path, 'utf8')))
+      } catch (error) {
+        throw new Error(`Cannot read syscall counts from ${path}`, { cause: error })
+      }
+    }
+  }
+  return counts
 }
 
 function isTarget (arg) {
