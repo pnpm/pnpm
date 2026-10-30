@@ -1,9 +1,13 @@
+#[cfg(test)]
+pub(super) mod tests;
+
 use super::cargo_manifest_ops::{DeclaredCargoDep, declared_cargo_deps, same_declared_dep};
 use crate::cargo_deps::CargoWorkspaceDependency;
-use miette::Result;
+use miette::{IntoDiagnostic, Result, WrapErr};
 use semver::VersionReq;
 use std::{
     collections::{BTreeSet, HashMap},
+    fs,
     path::{Path, PathBuf},
 };
 
@@ -17,6 +21,8 @@ pub(crate) struct CargoWorkspaceScope {
     /// The registry dependency declarations of the workspace's packages, as
     /// `cargo metadata` reports them, keyed by package name and alias.
     declarations: HashMap<(String, String), Vec<RequirementFeatures>>,
+    /// The crates `[patch.crates-io]` in the workspace manifest replaces.
+    patched: BTreeSet<String>,
 }
 
 impl CargoWorkspaceScope {
@@ -35,6 +41,19 @@ impl CargoWorkspaceScope {
             .flat_map(|(_, features)| features)
             .collect();
         features.into_iter().cloned().collect()
+    }
+
+    /// Whether the workspace also declares `dep`'s package under another
+    /// name, so `dep` is a renamed alias kept on a line of its own.
+    pub(crate) fn has_sibling_alias(&self, dep: &DeclaredCargoDep) -> bool {
+        dep.alias != dep.package_name
+            && self.declarations
+                .keys()
+                .any(|(name, alias)| *name == dep.package_name && *alias != dep.alias)
+    }
+
+    pub(crate) fn is_patched(&self, package_name: &str) -> bool {
+        self.patched.contains(package_name)
     }
 
     /// Record the declarations `pnpm update` can target: those resolved
@@ -71,10 +90,12 @@ pub(crate) async fn resolve_cargo_workspace_scope(
 ) -> Result<CargoWorkspaceScope> {
     let (_, metadata) = crate::cargo_deps::workspace_metadata(manifest_path, checkout).await?;
     let cargo_root = crate::cargo_deps::canonical_cargo_path(&metadata.workspace_root)?;
+    let patched = read_crates_io_patches(&cargo_root.join("Cargo.toml"))?;
     let mut scope = CargoWorkspaceScope {
         root: cargo_root,
         declared: declared.to_vec(),
         declarations: HashMap::new(),
+        patched,
     };
     for package in metadata.packages {
         let canonical = crate::cargo_deps::canonical_cargo_path(&package.manifest_path)?;
@@ -93,6 +114,33 @@ pub(crate) async fn resolve_cargo_workspace_scope(
     Ok(scope)
 }
 
+/// The package names of the entries in `[patch.crates-io]`.
+fn read_crates_io_patches(root_manifest_path: &Path) -> Result<BTreeSet<String>> {
+    let contents = fs::read_to_string(root_manifest_path)
+        .into_diagnostic()
+        .wrap_err_with(|| format!("read {}", root_manifest_path.display()))?;
+    let manifest: toml::Table = toml::from_str(&contents)
+        .into_diagnostic()
+        .wrap_err_with(|| format!("parse {}", root_manifest_path.display()))?;
+    let Some(patches) = manifest
+        .get("patch")
+        .and_then(|patch| patch.get("crates-io"))
+        .and_then(toml::Value::as_table)
+    else {
+        return Ok(BTreeSet::new());
+    };
+    Ok(patches
+        .iter()
+        .map(|(key, value)| {
+            value
+                .get("package")
+                .and_then(toml::Value::as_str)
+                .unwrap_or(key)
+                .to_string()
+        })
+        .collect())
+}
+
 fn extend_unique_declared(
     all_declared: &mut Vec<DeclaredCargoDep>,
     deps: Vec<DeclaredCargoDep>,
@@ -108,6 +156,3 @@ fn extend_unique_declared(
         }
     }
 }
-
-#[cfg(test)]
-mod tests;
