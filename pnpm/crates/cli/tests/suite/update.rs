@@ -1413,6 +1413,8 @@ mod overrides;
 
 mod compatibility_db;
 
+mod cargo_features;
+
 /// A changed specifier re-resolves its dependency, and that dependency's
 /// own dependencies keep the versions the lockfile pins while nothing else
 /// in the graph prefers another (pnpm/pnpm#2191).

@@ -81,10 +81,33 @@ pub(crate) fn supports_features(package: &RegistryVersion, selection: &FeatureSe
         implicit_optional_aliases(&package.dependencies, &package.features);
     selection.features
         .iter()
-        .all(|feature| {
-            package.features.contains_key(feature)
-                || implicit_optional_aliases.contains(feature.as_str())
+        .all(|feature| defines_feature(package, &implicit_optional_aliases, feature))
+}
+
+/// The entries of `features` that `package` does not define. An entry
+/// naming a feature of one of its dependencies (`dep/feature`) is left for
+/// Cargo to check.
+pub(crate) fn missing_features<'a>(
+    package: &RegistryVersion,
+    features: &'a [String],
+) -> Vec<&'a str> {
+    let implicit_optional_aliases =
+        implicit_optional_aliases(&package.dependencies, &package.features);
+    features
+        .iter()
+        .map(String::as_str)
+        .filter(|feature| {
+            !feature.contains('/') && !defines_feature(package, &implicit_optional_aliases, feature)
         })
+        .collect()
+}
+
+fn defines_feature(
+    package: &RegistryVersion,
+    implicit_optional_aliases: &BTreeSet<&str>,
+    feature: &str,
+) -> bool {
+    package.features.contains_key(feature) || implicit_optional_aliases.contains(feature)
 }
 
 pub(crate) fn dependencies_from_parts(

@@ -2,7 +2,9 @@ pub(crate) mod add;
 pub(crate) mod toolchain;
 
 pub(crate) use lockfile::{canonical_cargo_path, workspace_metadata, workspace_root};
-pub(crate) use sparse_registry::{cargo_auth_headers, latest_version, resolve_target_version};
+pub(crate) use sparse_registry::{
+    cargo_auth_headers, fetch_crate_index_file, latest_version, resolve_target_version,
+};
 pub(crate) use toolchain::{installs_toolchains, provision as provision_toolchain};
 
 use crate::{
@@ -83,6 +85,21 @@ pub(crate) struct CargoWorkspaceMetadata {
 #[derive(Deserialize)]
 pub(crate) struct CargoWorkspacePackage {
     pub(crate) manifest_path: PathBuf,
+    #[serde(default)]
+    pub(crate) dependencies: Vec<CargoWorkspaceDependency>,
+}
+
+/// A dependency declaration as `cargo metadata` reports it, with the
+/// features of the workspace entry it inherits from merged in. Each
+/// target-specific table declaring it is an entry of its own.
+#[derive(Deserialize)]
+pub(crate) struct CargoWorkspaceDependency {
+    pub(crate) name: String,
+    #[serde(default)]
+    pub(crate) rename: Option<String>,
+    pub(crate) req: String,
+    #[serde(default)]
+    pub(crate) features: Vec<String>,
 }
 
 pub(crate) async fn plan<Reporter: self::Reporter + 'static>(
