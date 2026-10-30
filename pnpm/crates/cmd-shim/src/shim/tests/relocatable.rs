@@ -1,5 +1,7 @@
 use super::{Path, ScriptRuntime, generate_sh_shim};
 use crate::shim::is_relocatable_shim;
+#[cfg(unix)]
+use crate::shim::is_sh_shim_basedir_anchor_current;
 
 #[test]
 fn generate_sh_shim_keeps_paths_outside_the_root_absolute() {
@@ -23,7 +25,7 @@ fn generate_sh_shim_keeps_paths_outside_the_root_absolute() {
     let posix_node_path = if cfg!(windows) {
         "  new_node_path='/store/links/node_modules'\n"
     } else {
-        "  export NODE_PATH=\"/store/links/node_modules\"\n"
+        "  export NODE_PATH='/store/links/node_modules'\n"
     };
     assert!(body.contains(posix_node_path), "the shim must name the store NODE_PATH as is");
     assert!(body.ends_with("# cmd-shim-target=/store/links/tool/cli.js\n"));
@@ -66,6 +68,59 @@ fn relative_node_path_segments_are_sh_escaped() {
     assert!(!root.join("pwned").exists(), "the directory name ran as a command");
 }
 
+#[cfg(unix)]
+#[test]
+fn shell_metacharacters_in_target_and_node_path_are_literal() {
+    use super::write_executable;
+    use std::{fs, process::Command};
+
+    let tmp = tempfile::tempdir().unwrap();
+    let root = tmp.path();
+    let hostile = root.join("bin/$basedir_abs").join("$(touch marker) `touch marker` $ \" q' \\\n");
+    let shim_dir = root.join("bin");
+    let shim = shim_dir.join("tool");
+    let target = hostile.join("cli");
+    fs::create_dir_all(&hostile).unwrap();
+    write_executable(&target, "#!/bin/sh\nprintf '%s' \"$NODE_PATH\"\n");
+    let node_path = [hostile.to_string_lossy().into_owned()];
+    write_executable(&shim, &generate_sh_shim(&target, &shim, None, &node_path, None));
+
+    let output = Command::new(&shim)
+        .current_dir(root)
+        .env_remove("NODE_PATH")
+        .output()
+        .unwrap();
+
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    assert_eq!(String::from_utf8_lossy(&output.stdout), node_path[0]);
+    assert!(!root.join("marker").exists());
+}
+
+#[test]
+#[cfg(unix)]
+fn anchored_target_comparison_uses_the_exec_target_word() {
+    let root = Path::new("/p");
+    let shim = Path::new("/p/.bin/tool");
+    let first_target = Path::new(r#"/p/é/"$basedir_abs"/first/cli"#);
+    let second_target = Path::new(r#"/p/é/"$basedir_abs"/second/cli"#);
+    let node_path = [String::from("/p/é/node_modules")];
+    let first = generate_sh_shim(first_target, shim, None, &node_path, Some(root));
+    let second = generate_sh_shim(second_target, shim, None, &node_path, Some(root));
+    assert!(!is_sh_shim_basedir_anchor_current(&first, &second));
+}
+
+#[test]
+#[cfg(unix)]
+fn anchored_target_comparison_ignores_marker_text_in_the_target() {
+    let root = Path::new("/p");
+    let target = Path::new("/p/# cmd-shim-target=/cli");
+    let node_path = [String::from("/p/node_modules")];
+    let first = generate_sh_shim(target, Path::new("/p/a/.bin/tool"), None, &node_path, Some(root));
+    let second = generate_sh_shim(target, Path::new("/p/.bin/tool"), None, &node_path, Some(root));
+    assert!(!is_sh_shim_basedir_anchor_current(&first, &second));
+    assert!(is_sh_shim_basedir_anchor_current(&first, &first));
+}
+
 #[test]
 #[cfg_attr(not(unix), ignore = "relocatable shims are only written on Unix")]
 fn in_root_shim_is_written_relative_to_itself_and_only_such_a_shim_is_relocatable() {
@@ -89,9 +144,9 @@ fn in_root_shim_is_written_relative_to_itself_and_only_such_a_shim_is_relocatabl
     eprintln!("BODY:\n{relocatable}");
     assert!(relocatable.contains(concat!(
         "if [ -z \"$NODE_PATH\" ]; then\n",
-        "  export NODE_PATH=\"$basedir_abs/../.pnpm/typescript@5.0.0/node_modules:$basedir_abs/../.pnpm/node_modules\"\n",
+        "  export NODE_PATH=\"$basedir_abs\"/'../.pnpm/typescript@5.0.0/node_modules':\"$basedir_abs\"/'../.pnpm/node_modules'\n",
         "else\n",
-        "  export NODE_PATH=\"$basedir_abs/../.pnpm/typescript@5.0.0/node_modules:$basedir_abs/../.pnpm/node_modules:$NODE_PATH\"\n",
+        "  export NODE_PATH=\"$basedir_abs\"/'../.pnpm/typescript@5.0.0/node_modules':\"$basedir_abs\"/'../.pnpm/node_modules':\"$NODE_PATH\"\n",
         "fi\n",
     )));
     assert!(
@@ -123,13 +178,51 @@ fn in_root_shim_is_written_relative_to_itself_and_only_such_a_shim_is_relocatabl
             "marker climbing out",
             relocatable.replace(marker, "# cmd-shim-target=../../../../x/tsc\n"),
         ),
-        ("absolute entry", relocatable.replace("$basedir_abs/../.pnpm", "/p/node_modules/.pnpm")),
+        (
+            "absolute entry",
+            relocatable.replace(r#""$basedir_abs"/'../.pnpm"#, "/p/node_modules/.pnpm"),
+        ),
         (
             "climbing out",
-            relocatable.replace("$basedir_abs/../.pnpm", "$basedir_abs/../../../../x"),
+            relocatable.replace(r#""$basedir_abs"/'../.pnpm"#, "$basedir_abs/../../../../x"),
         ),
     ];
     for (label, shim_content) in rejected {
         assert!(!is_relocatable_shim(&shim_content, shim_dir, root), "{label}:\n{shim_content}");
     }
+}
+
+#[cfg(not(windows))]
+#[test]
+fn adjacent_literal_node_path_entries_share_one_quoted_word() {
+    let runtime = ScriptRuntime { prog: Some("node".into()), args: String::new() };
+    let node_path = [
+        "/store/links/node_modules".to_string(),
+        "/p/node_modules/.pnpm/node_modules".to_string(),
+        "/g/it's/node_modules".to_string(),
+    ];
+    let body = generate_sh_shim(
+        Path::new("/p/node_modules/tool/cli.js"),
+        Path::new("/p/node_modules/.bin/tool"),
+        Some(&runtime),
+        &node_path,
+        Some(Path::new("/p")),
+    );
+    eprintln!("BODY:\n{body}");
+    assert!(body.contains(concat!(
+        "  export NODE_PATH='/store/links/node_modules':",
+        r#""$basedir_abs"/'../.pnpm/node_modules':"#,
+        "'/g/it'\\''s/node_modules'\n",
+    )));
+    let body = generate_sh_shim(
+        Path::new("/p/node_modules/tool/cli.js"),
+        Path::new("/p/node_modules/.bin/tool"),
+        Some(&runtime),
+        &node_path,
+        None,
+    );
+    assert!(body.contains(concat!(
+        "  export NODE_PATH='/store/links/node_modules:/p/node_modules/.pnpm/node_modules:",
+        "/g/it'\\''s/node_modules'\n",
+    )));
 }

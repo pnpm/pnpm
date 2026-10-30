@@ -1172,7 +1172,7 @@ fn relinked_bin_of_an_injected_copy_keeps_a_custom_modules_dir_on_node_path() {
     let shim = fs::read_to_string(workspace.join("project-2/vendor/.bin/project-1-bin"))
         .expect("read the project-1-bin shim");
     assert!(
-        shim.contains(r#"export NODE_PATH="$basedir_abs/..:"#),
+        shim.contains(r#"export NODE_PATH="$basedir_abs"/'..':"#),
         "the shim should put the vendor directory first on NODE_PATH:\n{shim}",
     );
 
