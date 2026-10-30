@@ -49,8 +49,8 @@ use install::{
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use node_semver::Version;
 use pnpm_cmd_shim::{
-    Host as CmdShimHost, LinkBinsOptions, PackageBinSource, choose_bins,
-    link_bins_of_packages_with_excludes, remove_bin as remove_cmd_shim,
+    Host as CmdShimHost, PackageBinSource, choose_bins, link_bins_of_packages_with_excludes,
+    remove_bin as remove_cmd_shim,
 };
 use pnpm_config::{CatalogMode, Config, GlobalShims, WorkspaceSettings, check_global_bin_dir};
 use pnpm_fs::{is_subdir, lexical_normalize, remove_symlink_dir, symlink_dir};

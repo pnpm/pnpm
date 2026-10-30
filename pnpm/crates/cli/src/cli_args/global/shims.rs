@@ -1,11 +1,12 @@
 use super::{
     BTreeMap, BTreeSet, CmdShimHost, Config, Context, GlobalError, GlobalPackageBinSnapshot,
-    GlobalShims, HashMap, HashSet, IntoDiagnostic, LinkBinsOptions, PackageBinSource, Path,
-    ShimTarget, choose_bins, get_installed_bin_names, install_native_shim,
-    link_bins_of_packages_with_excludes, migrate_legacy_shims, read_installed_packages,
-    record_package_manager_shims, remove_native_shim, scan_global_packages,
-    virtual_shim_bins_to_restore, virtual_shim_owner, virtual_shim_restoration_owners,
+    GlobalShims, HashMap, HashSet, IntoDiagnostic, PackageBinSource, Path, ShimTarget, choose_bins,
+    get_installed_bin_names, install_native_shim, link_bins_of_packages_with_excludes,
+    migrate_legacy_shims, read_installed_packages, record_package_manager_shims,
+    remove_native_shim, scan_global_packages, virtual_shim_bins_to_restore, virtual_shim_owner,
+    virtual_shim_restoration_owners,
 };
+use pnpm_deps_restorer::shim_link_options;
 use pnpm_tool_protocol::is_tool_specifier;
 
 /// Link `pkgs`' bins into the global bin dir in the shape selected by the
@@ -16,6 +17,7 @@ use pnpm_tool_protocol::is_tool_specifier;
 /// elevated.
 pub(super) fn link_global_bins(
     config: &Config,
+    install_dir: &Path,
     pkgs: &[PackageBinSource],
     dependencies: &[(String, String)],
     global_bin_dir: &Path,
@@ -55,11 +57,21 @@ pub(super) fn link_global_bins(
                 .into_diagnostic()
                 .wrap_err_with(|| format!("remove the stale {} shim", command.name))?;
         }
+        let mut link_options = shim_link_options(config, config.node_linker);
+        if !link_options.extra_node_paths.is_empty() {
+            link_options.extra_node_paths = vec![
+                install_dir
+                    .join(config.modules_dir_name())
+                    .join(".pnpm/node_modules")
+                    .to_string_lossy()
+                    .into_owned(),
+            ];
+        }
         link_bins_of_packages_with_excludes::<CmdShimHost>(
             &direct,
             global_bin_dir,
             bins_to_skip,
-            &LinkBinsOptions::default(),
+            &link_options,
         )
         .map_err(miette::Report::new)
         .wrap_err("link direct global package bins")?;

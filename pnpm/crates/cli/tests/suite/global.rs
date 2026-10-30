@@ -405,6 +405,33 @@ fn global_add_materializes_transitive_optional_dependencies() {
     drop(root);
 }
 
+#[cfg(all(target_os = "linux", target_arch = "x86_64", target_env = "gnu"))]
+#[test]
+fn global_bin_resolves_transitive_optional_dependencies_from_the_hoist_dir() {
+    use assert_cmd::assert::OutputAssertExt;
+
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let pnpm_home = root.path().join("pnpm-home");
+    prepare_global_home(&pnpm_home, &npmrc_info);
+
+    global_command(&workspace, &pnpm_home)
+        .with_args(["add", "-g", "@pnpm.e2e/global-bin-with-platform-optional"])
+        .assert()
+        .success();
+
+    let output = Command::new(pnpm_home.join("bin/global-bin-with-platform-optional"))
+        .current_dir(&workspace)
+        .env_remove("NODE_PATH")
+        .output()
+        .expect("run the installed global bin");
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "@pnpm.e2e/only-linux-x64-glibc\n",);
+
+    drop(npmrc_info);
+    drop(root);
+}
+
 /// `pnpm setup` installs the standalone executable through this exact
 /// command shape. Its package files include the bundled node-gyp payload,
 /// while its lifecycle scripts must remain disabled.

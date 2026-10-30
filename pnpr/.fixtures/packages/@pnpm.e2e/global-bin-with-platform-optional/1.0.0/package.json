@@ -1,0 +1,10 @@
+{
+  "name": "@pnpm.e2e/global-bin-with-platform-optional",
+  "version": "1.0.0",
+  "bin": {
+    "global-bin-with-platform-optional": "cli.js"
+  },
+  "dependencies": {
+    "@pnpm.e2e/support-different-architectures": "1.0.0"
+  }
+}
