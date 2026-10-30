@@ -27,8 +27,13 @@ fn an_unhandled_signal_maps_to_no_interrupt() {
 ///
 /// `sigaction` stores the one-argument and three-argument handlers in a
 /// union, so nothing but `SA_SIGINFO` distinguishes them, and calling one
-/// through the other's signature is undefined. This is the read that makes
-/// the distinction, driven here against a handler installed each way.
+/// through the other's signature is undefined.
+///
+/// What this pins is the read: that the address and the flag come back as
+/// installed, for a handler installed each way. That the flag then decides
+/// which signature a replaced handler is called through is pinned by
+/// `a_replaced_siginfo_handler_is_passed_the_signal_details` in
+/// `pnpm-fs`, which aborts if the two are confused.
 #[test]
 fn the_siginfo_flag_is_read_back_from_the_disposition() {
     extern "C" fn plain(_: libc::c_int) {}

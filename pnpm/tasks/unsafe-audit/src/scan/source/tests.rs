@@ -48,37 +48,22 @@ fn a_name_ending_in_the_word_opens_nothing() {
 /// An `unsafe extern` block declares a foreign ABI, which only a `-sys`
 /// crate may; an `unsafe extern "abi" fn` item defines a callback the
 /// operating system calls, which any abstraction crate may.
-mod only_a_block_declares_a_foreign_abi {
-    use super::{Kind, kind};
-
-    #[test]
-    fn a_block_is_a_declaration() {
-        assert_eq!(kind(r#"unsafe extern "C" {"#), Kind::ForeignAbiBlock);
-        assert_eq!(kind("unsafe extern {"), Kind::ForeignAbiBlock);
-        assert_eq!(kind(r#"    unsafe extern "system" {"#), Kind::ForeignAbiBlock);
-    }
-
-    #[test]
-    fn a_signature_is_not() {
-        assert_eq!(
-            kind(r#"unsafe extern "system" fn dispatch(event: u32) -> BOOL {"#),
-            Kind::ForeignSignature,
-        );
-        assert_eq!(
-            kind(r#"    unsafe extern "C" fn handler(signal: i32);"#),
-            Kind::ForeignSignature,
-        );
-        assert_eq!(
-            kind(r#"    unsafe extern "system" fn(HANDLE, *mut u16) -> BOOL;"#),
-            Kind::ForeignSignature,
-        );
-    }
-
-    #[test]
-    fn anything_else_is_an_operation() {
-        assert_eq!(kind("    unsafe { libc::geteuid() }"), Kind::Operation);
-        assert_eq!(kind("unsafe impl Send for Handle {}"), Kind::Operation);
-    }
+#[test]
+fn only_a_block_declares_a_foreign_abi() {
+    assert_eq!(kind(r#"unsafe extern "C" {"#), Kind::ForeignAbiBlock);
+    assert_eq!(kind("unsafe extern {"), Kind::ForeignAbiBlock);
+    assert_eq!(kind(r#"    unsafe extern "system" {"#), Kind::ForeignAbiBlock);
+    assert_eq!(
+        kind(r#"unsafe extern "system" fn dispatch(event: u32) -> BOOL {"#),
+        Kind::ForeignSignature,
+    );
+    assert_eq!(kind(r#"    unsafe extern "C" fn handler(signal: i32);"#), Kind::ForeignSignature);
+    assert_eq!(
+        kind(r#"    unsafe extern "system" fn(HANDLE, *mut u16) -> BOOL;"#),
+        Kind::ForeignSignature,
+    );
+    assert_eq!(kind("    unsafe { libc::geteuid() }"), Kind::Operation);
+    assert_eq!(kind("unsafe impl Send for Handle {}"), Kind::Operation);
 }
 
 /// The formatter wraps a long `let` after the `=`, which puts the comment
