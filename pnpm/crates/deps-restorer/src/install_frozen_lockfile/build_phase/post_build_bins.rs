@@ -211,3 +211,19 @@ fn selected_importer_modules_dirs(
         dirs
     })
 }
+
+pub(super) fn loaded_snapshots(
+    inputs: &BuildPhaseInputs<'_>,
+) -> HashMap<PackageKey, SnapshotEntry> {
+    let snapshots = inputs.graph.snapshots;
+    let Some(keys) = inputs.graph.loaded_snapshots else {
+        return crate::create_virtual_store::cas::materialized_snapshots(
+            inputs.policy.config,
+            snapshots,
+        );
+    };
+    keys.iter()
+        .filter_map(|key| Some((key.clone(), snapshots?.get(key)?.clone())))
+        .collect()
+}
+

@@ -353,10 +353,26 @@ async fn materialize_loaded<Report: Reporter>(
     let mut materialized = installer.run_inner::<Report>(check).await?;
     materialized.snapshot_placement.materialized.extend(promoted);
     materialized.snapshot_placement.loaded = Some(selected.keys().cloned().collect());
+    merge_fetched(&mut materialized, fetched);
+    Ok(materialized)
+}
+
+/// Fold the fetch pass's output into the materialization pass's. The
+/// build metadata of the snapshots that pass did not cover, the loaded
+/// and promoted ones, comes from the fetch pass.
+fn merge_fetched(materialized: &mut CreateVirtualStoreOutput, fetched: CreateVirtualStoreOutput) {
     materialized.cas_paths_by_pkg_id = fetched.cas_paths_by_pkg_id;
     materialized.cas_paths_by_snapshot = fetched.cas_paths_by_snapshot;
     materialized.package_manifests.extend(fetched.package_manifests);
     materialized.package_bins.extend(fetched.package_bins);
     materialized.fetch_failed.extend(fetched.fetch_failed);
-    Ok(materialized)
+    for (key, requires_build) in fetched.requires_build_by_snapshot {
+        materialized.requires_build_by_snapshot.entry(key).or_insert(requires_build);
+    }
+    for (key, maps) in fetched.side_effects.maps {
+        materialized.side_effects.maps.entry(key).or_insert(maps);
+    }
+    for (key, diffs) in fetched.side_effects.diffs {
+        materialized.side_effects.diffs.entry(key).or_insert(diffs);
+    }
 }
