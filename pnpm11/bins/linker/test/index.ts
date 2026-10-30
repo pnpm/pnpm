@@ -214,6 +214,20 @@ test('linkBins() rewrites a bin whose package moved out of a node_modules direct
   expect(nodePathEntries(fs.readFileSync(binLocation, 'utf8'))).not.toContainEqual(expect.stringMatching(/\/store\//))
 })
 
+test('linkBins() keeps a bin whose extraNodePaths repeat one of its own directories', async () => {
+  const binTarget = temporaryDirectory()
+  const warn = jest.fn()
+  const modulesDir = path.join(testFixtures.prepare('simple-fixture'), 'node_modules')
+  const binLocation = path.join(binTarget, 'simple')
+  const extraNodePaths = [fs.realpathSync(modulesDir), path.join(modulesDir, '.pnpm', 'node_modules')]
+
+  await linkBins(modulesDir, binTarget, { warn, extraNodePaths })
+  fs.appendFileSync(binLocation, '# sentinel\n')
+  await linkBins(modulesDir, binTarget, { warn, extraNodePaths })
+
+  expect(fs.readFileSync(binLocation, 'utf8')).toContain('# sentinel')
+})
+
 test('linkBins() keeps an existing bin whose shim is larger than 4 KiB', async () => {
   const binTarget = temporaryDirectory()
   const warn = jest.fn()

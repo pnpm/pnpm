@@ -154,14 +154,20 @@ function isShimRelativeTargetCurrent (content: string, { cmd, shShimDir }: BinLi
 async function isShimNodePathCurrent (content: string, { cmd, opts }: BinLinkContext): Promise<boolean> {
   if (opts.extraNodePaths == null && opts.projectModulesDir == null) return true
   const writesNodePath = Boolean(opts.extraNodePaths?.length) || opts.projectModulesDir != null
+  // The shim lists every entry once, at its first position.
+  const listed = new Set(opts.projectModulesDir == null ? [] : [opts.projectModulesDir])
+  const middle = takeUnlisted(writesNodePath ? await getBinNodePaths(cmd.path, opts.projectModulesDir) : [], listed)
   return isShimNodePath(content, {
     first: opts.projectModulesDir,
-    // The shim lists every entry once, at its first position.
-    middle: writesNodePath
-      ? (await getBinNodePaths(cmd.path, opts.projectModulesDir)).filter((nodePath) => nodePath !== opts.projectModulesDir)
-      : undefined,
-    last: opts.extraNodePaths && Array.from(new Set(opts.extraNodePaths)).filter((nodePath) => nodePath !== opts.projectModulesDir),
+    middle,
+    last: opts.extraNodePaths && takeUnlisted(opts.extraNodePaths, listed),
   })
+}
+
+function takeUnlisted (entries: string[], listed: Set<string>): string[] {
+  const unlisted = entries.filter((entry) => !listed.has(entry))
+  for (const entry of unlisted) listed.add(entry)
+  return Array.from(new Set(unlisted))
 }
 
 /**
