@@ -463,7 +463,7 @@ test('linkBins() replaces a shim whose relative target does not match the physic
   const binLocation = path.join(binTarget, 'simple')
   await cmdShim(target, binLocation, { createCmdFile: false, createPwshFile: false })
   const original = fs.readFileSync(binLocation, 'utf8')
-  const stale = original.replace(`"$basedir_abs"/'`, `"$basedir_abs"/'../stale/`)
+  const stale = original.replace('"$basedir_abs"/\'', '"$basedir_abs"/\'../stale/')
   expect(stale).not.toEqual(original)
   fs.writeFileSync(binLocation, stale, 'utf8')
 
@@ -489,7 +489,7 @@ test('linkBins() computes a relative target from the physical bin directory when
 
   await linkBins(modulesDir, binsDir, { warn: jest.fn() })
 
-  expect(fs.readFileSync(path.join(binsDir, 'tool'), 'utf8')).toContain(`"$basedir_abs"/'../../../node_modules/tool/cli.js'`)
+  expect(fs.readFileSync(path.join(binsDir, 'tool'), 'utf8')).toContain('"$basedir_abs"/\'../../../node_modules/tool/cli.js\'')
 })
 
 testOnPosix('linkBins does not rewrite a shim when the target path contains a literal backslash', async () => {
