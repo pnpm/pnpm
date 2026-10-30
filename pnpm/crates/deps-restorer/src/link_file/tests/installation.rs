@@ -767,3 +767,37 @@ fn eexist_does_not_align_hardlinked_target_sharing_store_inode() {
         & 0o777;
     assert_eq!(final_mode, store_mode, "shared store inode mode must not be modified");
 }
+
+/// pnpm/pnpm#17500: a store blob's mode belongs to the blob, not to the
+/// target it is linked to, so one blob linked into three packages is
+/// `stat`ed once. Before the cache this cost one `statx` per link — 66,898
+/// extra on the 67,068-file install in the report, and 639 `statx` calls
+/// on a single `LICENSE` blob.
+#[test]
+#[cfg(unix)]
+fn hardlink_stats_a_shared_store_blob_once() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let tmp = tempdir().unwrap();
+    let desired = pnpm_fs::file_mode::store_entry_mode(false, pnpm_fs::file_mode::current_umask());
+    let src = write_source(tmp.path(), STORE_ENTRY, b"data\n");
+    fs::set_permissions(&src, fs::Permissions::from_mode(desired)).unwrap();
+    let before = super::super::target_mode::source_mode_stats();
+
+    for package in ["a", "b", "c"] {
+        let dst = tmp
+            .path()
+            .join(package)
+            .join("node_modules/lib/index.js");
+        fs::create_dir_all(dst.parent().unwrap()).unwrap();
+        link_file::<SilentReporter>(&AtomicU8::new(0), PackageImportMethod::Hardlink, &src, &dst)
+            .expect("a mode-matching store file is hardlinked");
+        assert_eq!(super::inode(&src), super::inode(&dst), "the store inode is shared");
+    }
+
+    assert_eq!(
+        super::super::target_mode::source_mode_stats() - before,
+        1,
+        "three links of one blob must ask the filesystem for its mode once",
+    );
+}
