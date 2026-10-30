@@ -6053,6 +6053,9 @@ importers:
 
   pnpm11/installing/context:
     dependencies:
+      '@pnpm/bins.linker':
+        specifier: workspace:*
+        version: link:../../bins/linker
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../core/constants

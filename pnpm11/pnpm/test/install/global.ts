@@ -5,6 +5,7 @@ import { expect, test } from '@jest/globals'
 import { GLOBAL_LAYOUT_VERSION } from '@pnpm/constants'
 import { prepare } from '@pnpm/prepare'
 import type { ProjectManifest } from '@pnpm/types'
+import crossSpawn from 'cross-spawn'
 import isWindows from 'is-windows'
 import PATH_NAME from 'path-name'
 import { readYamlFileSync } from 'read-yaml-file'
@@ -159,6 +160,30 @@ test('run lifecycle events of global packages in correct working directory', asy
   const pkgPath = findGlobalPkg(globalPkgDir(pnpmHome), '@pnpm.e2e/postinstall-calls-pnpm')
   expect(pkgPath).toBeTruthy()
   expect(fs.existsSync(path.join(pkgPath!, 'created-by-postinstall'))).toBeTruthy()
+})
+
+// The group's packages live in the global virtual store, where Node cannot
+// walk up to the group's hidden hoisted modules directory, so the bin shim
+// puts that directory on NODE_PATH.
+test('a global bin resolves the hoisted dependencies of its group', async () => {
+  prepare()
+  const global = path.resolve('..', 'global')
+  const pnpmHome = path.join(global, 'pnpm')
+  fs.mkdirSync(pnpmHome, { recursive: true })
+
+  const env = {
+    [PATH_NAME]: `${path.join(pnpmHome, 'bin')}${path.delimiter}${process.env[PATH_NAME]!}`,
+    PNPM_HOME: pnpmHome,
+    XDG_DATA_HOME: global,
+  }
+
+  await execPnpm(['add', '-g', '@pnpm.e2e/bin-requires-hoisted-dep@1.0.0'], { env })
+
+  const { NODE_PATH: _nodePath, ...binEnv } = { ...process.env, ...env }
+  const result = crossSpawn.sync('bin-requires-hoisted-dep', [], { env: binEnv })
+  expect(result.stderr.toString()).toBe('')
+  expect(result.stdout.toString()).toBe('@pnpm.e2e/dep-of-pkg-with-1-dep\n')
+  expect(result.status).toBe(0)
 })
 
 // A denial has to survive the post-install approval prompt: an undecided
