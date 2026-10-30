@@ -8,7 +8,7 @@ use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
 use std::{fs, path::Path, process::Command};
 
 const PACKAGE: &str = "@pnpm.e2e/with-agent-skills";
-const LINK: &str = ".claude/skills/pnpm-@pnpm.e2e+with-agent-skills-guide";
+const LINK: &str = ".claude/skills/guide";
 
 /// `pnpm` rooted at `workspace`, with no agent identifying itself.
 fn pnpm(workspace: &Path) -> Command {
@@ -128,7 +128,7 @@ fn approve_links_the_skills_and_records_the_grant() {
     assert_eq!(entries.len(), 2, "only the guide skill and the .gitignore: {entries:?}");
     assert_eq!(
         fs::read_to_string(workspace.join(".claude/skills/.gitignore")).expect("read .gitignore"),
-        "pnpm-*\n",
+        "/guide\n",
     );
     assert_eq!(pending_skills(&workspace), None);
 
@@ -197,7 +197,7 @@ fn agents_named_by_the_environment_get_their_directories() {
         assert!(
             workspace
                 .join(dir)
-                .join("pnpm-@pnpm.e2e+with-agent-skills-guide")
+                .join("guide")
                 .join("SKILL.md")
                 .is_file(),
             "skill linked for {env_var} in {dir}",
@@ -271,9 +271,7 @@ fn repeat_install_links_into_a_new_agent_dir() {
         .assert()
         .success();
 
-    assert!(
-        workspace.join(".cursor/skills/pnpm-@pnpm.e2e+with-agent-skills-guide/SKILL.md").is_file(),
-    );
+    assert!(workspace.join(".cursor/skills/guide/SKILL.md").is_file(),);
     drop(harness);
 }
 

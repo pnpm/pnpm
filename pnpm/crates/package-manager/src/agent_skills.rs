@@ -3,7 +3,8 @@
 //! A skill is a directory `skills/<name>/` holding a `SKILL.md`. pnpm never
 //! reads a skill: it finds the directories, records the packages whose
 //! skills await approval, and links the approved ones into the project's
-//! agent skill directories as `pnpm-<package>-<skill>`.
+//! agent skill directories under the skill's own name, as the Agent Skills
+//! specification requires a skill's directory to be named after it.
 
 pub(crate) use installed::resync_agent_skills_at;
 pub use installed::{ResyncAgentSkillsError, resync_installed_agent_skills};
@@ -43,9 +44,6 @@ use std::{
     fs, io,
     path::{Component, Path, PathBuf},
 };
-
-/// The prefix of every entry pnpm links into an agent skill directory.
-pub const AGENT_SKILL_LINK_PREFIX: &str = "pnpm-";
 
 /// What [`sync_agent_skills`] reconciles.
 pub struct SyncAgentSkills<'a> {
@@ -116,7 +114,10 @@ pub enum AgentSkillsError {
     },
 
     #[display("The agent skills of {first} and {second} would both be linked as {name}")]
-    #[diagnostic(code(ERR_PNPM_AGENT_SKILL_NAME_COLLISION))]
+    #[diagnostic(
+        code(ERR_PNPM_AGENT_SKILL_NAME_COLLISION),
+        help("Deny the skills of one of the packages in the permissions setting.")
+    )]
     NameCollision { name: String, first: String, second: String },
 
     #[display(
@@ -151,6 +152,7 @@ pub fn sync_agent_skills(
         || input.config.skills_dirs.as_ref().is_some_and(Vec::is_empty)
     {
         prune(input.workspace_root, input.linked, &BTreeSet::new())?;
+        update_gitignores(input.workspace_root, input.linked, &BTreeMap::new())?;
         return Ok(AgentSkillsState::default());
     }
     let sources = discover_skill_sources(input);
@@ -178,9 +180,7 @@ pub fn sync_agent_skills(
     let desired = desired_entries(input.workspace_root, &dirs, &entries);
     prune(input.workspace_root, input.linked, &desired.keys().cloned().collect())?;
     materialize(input.workspace_root, input.linked, &desired, input.config.virtual_store_dir())?;
-    for dir in &dirs {
-        ignore_links_in(dir)?;
-    }
+    update_gitignores(input.workspace_root, input.linked, &desired)?;
     pending.sort();
     Ok(AgentSkillsState { pending, linked: desired.into_keys().collect() })
 }
@@ -201,7 +201,7 @@ fn link_entries(approved: &[SkillSource]) -> Result<BTreeMap<String, PathBuf>, A
     let mut entries: BTreeMap<String, (PathBuf, &str)> = BTreeMap::new();
     for source in approved {
         for skill in &source.skills {
-            let name = format!("{AGENT_SKILL_LINK_PREFIX}{}-{skill}", source.link_segment);
+            let name = skill.clone();
             let target = source.package_dir.join("skills").join(skill);
             if let Some((_, first)) = entries.get(&name) {
                 return Err(AgentSkillsError::NameCollision {
@@ -249,26 +249,36 @@ fn prune(
     for entry in linked
         .iter()
         .filter(|entry| !keep.contains(*entry))
-        .filter(|entry| is_link_entry(entry))
+        .filter(|entry| is_within_workspace(entry))
     {
         let path = workspace_root.join(entry);
-        remove_link(&path).map_err(|source| AgentSkillsError::Io { path, source })?;
+        if links_to_a_package_skill(&path) {
+            remove_link(&path).map_err(|source| AgentSkillsError::Io { path, source })?;
+        }
     }
     Ok(())
 }
 
-/// `.modules.yaml` is not trusted to name only pnpm's links, so pruning
-/// touches nothing but a `pnpm-*` entry reached without `..`.
-fn is_link_entry(entry: &str) -> bool {
-    let path = Path::new(entry);
-    let named_as_link = path
-        .file_name()
-        .and_then(|name| name.to_str())
-        .is_some_and(|name| name.starts_with(AGENT_SKILL_LINK_PREFIX));
-    named_as_link
-        && path
+/// `.modules.yaml` is not trusted to name only pnpm's entries, so pnpm
+/// touches only a relative entry reached without `..`.
+fn is_within_workspace(entry: &str) -> bool {
+    Path::new(entry)
+        .components()
+        .all(|component| matches!(component, Component::Normal(_)))
+}
+
+/// Whether `path` is a link to `node_modules/**/skills/<skill>`, as every
+/// link pnpm creates is, even after `node_modules` is removed.
+fn links_to_a_package_skill(path: &Path) -> bool {
+    let Ok(target) = fs::read_link(path) else { return false };
+    let in_skills_dir = target
+        .parent()
+        .and_then(Path::file_name)
+        .is_some_and(|name| name == "skills");
+    in_skills_dir
+        && target
             .components()
-            .all(|component| component != Component::ParentDir)
+            .any(|component| component.as_os_str() == "node_modules")
 }
 
 /// Remove a link or junction without following it. Anything else at the path
@@ -359,39 +369,110 @@ fn links_to(path: &Path, target: &Path) -> bool {
     )
 }
 
-/// The ignore rule that keeps pnpm's entries out of commits: they point
-/// into `node_modules`, so they would dangle in a fresh clone.
-const GITIGNORE_RULE: &str = "pnpm-*";
+/// The ignore rule that older pnpm versions added for links named
+/// `pnpm-<package>-<skill>`.
+const LEGACY_GITIGNORE_RULE: &str = "pnpm-*";
 
-/// Add [`GITIGNORE_RULE`] to the `.gitignore` of `dir`, keeping what the
-/// file already says.
-fn ignore_links_in(dir: &Path) -> Result<(), AgentSkillsError> {
-    let path = dir.join(".gitignore");
-    if let Ok(meta) = fs::symlink_metadata(&path)
+/// Keep pnpm's entries out of commits, because they point into
+/// `node_modules` and would dangle in a fresh clone. Each agent skill
+/// directory's `.gitignore` lists the entries linked into it, and drops the
+/// ones that were pruned. Other lines are kept.
+fn update_gitignores(
+    workspace_root: &Path,
+    linked: &[String],
+    desired: &BTreeMap<String, PathBuf>,
+) -> Result<(), AgentSkillsError> {
+    let mut by_dir: BTreeMap<PathBuf, (BTreeSet<String>, BTreeSet<String>)> = BTreeMap::new();
+    let entries = linked
+        .iter()
+        .filter(|entry| !desired.contains_key(*entry))
+        .filter(|entry| is_within_workspace(entry))
+        .map(|entry| (entry, false))
+        .chain(
+            desired
+                .keys()
+                .map(|entry| (entry, true)),
+        );
+    for (entry, keep) in entries {
+        let path = Path::new(entry);
+        let (Some(dir), Some(name)) = (path.parent(), path.file_name()) else { continue };
+        let (kept, pruned) = by_dir
+            .entry(workspace_root.join(dir))
+            .or_default();
+        let rule = gitignore_rule(&name.to_string_lossy());
+        let rules = if keep { kept } else { pruned };
+        rules.insert(rule);
+    }
+    for (dir, (kept, pruned)) in by_dir {
+        update_gitignore(&dir.join(".gitignore"), &kept, &pruned)?;
+    }
+    Ok(())
+}
+
+/// Rewrite the `.gitignore` at `path` to list every rule of `kept` and no
+/// rule of `pruned`. The file is created only when there is a rule to keep,
+/// and removed when no line remains.
+fn update_gitignore(
+    path: &Path,
+    kept: &BTreeSet<String>,
+    pruned: &BTreeSet<String>,
+) -> Result<(), AgentSkillsError> {
+    let io_error = |source| AgentSkillsError::Io { path: path.to_path_buf(), source };
+    if let Ok(meta) = fs::symlink_metadata(path)
         && meta.file_type().is_symlink()
     {
-        return Err(AgentSkillsError::Io {
-            path,
-            source: io::Error::new(
-                io::ErrorKind::PermissionDenied,
-                "cannot write through a symlinked .gitignore",
-            ),
-        });
+        return Err(io_error(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            "cannot write through a symlinked .gitignore",
+        )));
     }
-    let existing = match fs::read_to_string(&path) {
+    let existing = match fs::read_to_string(path) {
         Ok(text) => text,
+        Err(error) if error.kind() == io::ErrorKind::NotFound && kept.is_empty() => return Ok(()),
         Err(error) if error.kind() == io::ErrorKind::NotFound => String::new(),
-        Err(source) => return Err(AgentSkillsError::Io { path, source }),
+        Err(source) => return Err(io_error(source)),
     };
-    if existing
+    let mut lines: Vec<&str> = existing
         .lines()
-        .any(|line| line.trim() == GITIGNORE_RULE)
-    {
+        .filter(|line| {
+            let line = line.trim_end();
+            line != LEGACY_GITIGNORE_RULE && !pruned.contains(line)
+        })
+        .collect();
+    let present: BTreeSet<&str> = lines
+        .iter()
+        .map(|line| line.trim_end())
+        .collect();
+    let missing: Vec<&str> = kept
+        .iter()
+        .map(String::as_str)
+        .filter(|rule| !present.contains(rule))
+        .collect();
+    lines.extend(missing);
+    let updated: String = lines
+        .iter()
+        .flat_map(|line| [*line, "\n"])
+        .collect();
+    if updated == existing {
         return Ok(());
     }
-    let separator = if existing.is_empty() || existing.ends_with('\n') { "" } else { "\n" };
-    fs::write(&path, format!("{existing}{separator}{GITIGNORE_RULE}\n"))
-        .map_err(|source| AgentSkillsError::Io { path, source })
+    if updated.is_empty() {
+        return fs::remove_file(path).map_err(io_error);
+    }
+    fs::write(path, updated).map_err(io_error)
+}
+
+/// The `.gitignore` rule that matches exactly the entry `name` of its
+/// directory.
+fn gitignore_rule(name: &str) -> String {
+    let mut rule = String::from("/");
+    for character in name.chars() {
+        if matches!(character, '\\' | '*' | '?' | '[' | ']' | ' ' | '!' | '#') {
+            rule.push('\\');
+        }
+        rule.push(character);
+    }
+    rule
 }
 
 #[cfg(test)]

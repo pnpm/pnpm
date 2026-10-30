@@ -20,7 +20,7 @@ my-package/
         └── reference.md
 ```
 
-pnpm only looks one level deep, at `skills/<name>/SKILL.md`. A package can consist of nothing but skills.
+pnpm only looks one level deep, at `skills/<name>/SKILL.md`. Name each directory after the `name` in its `SKILL.md`, as the [Agent Skills specification](https://agentskills.io/specification) requires. A package can consist of nothing but skills.
 
 ## Approving skills
 
@@ -61,9 +61,9 @@ By default, pnpm links into the agent skill directories that already exist in th
 
 To choose the directories yourself, set [`skills.dirs`](./settings/build.md#skillsdirs). An empty list turns agent skills off.
 
-Each skill is linked as `pnpm-<package>-<skill>`. A scoped package name has its `/` replaced by `+`, so the `auth` skill of `@acme/kit` is linked as `pnpm-@acme+kit-auth`. A tarball or local directory dependency is linked under the alias the project gives it, not its package name. pnpm adds a `pnpm-*` rule to a `.gitignore` in each directory, because the links point into `node_modules`.
+Each skill is linked under the name of its directory, so the `auth` skill of `@acme/kit` is linked as `auth`. The [Agent Skills specification](https://agentskills.io/specification) requires a skill's directory to match the `name` in its `SKILL.md`. pnpm lists each link in a `.gitignore` in its directory, because the links point into `node_modules`.
 
-pnpm removes a link once the package is removed, the approval is revoked, or the package no longer ships the skill. It never replaces or removes an entry it did not create, and fails if one is in the way.
+pnpm removes a link once the package is removed, the approval is revoked, or the package no longer ships the skill. It never replaces or removes an entry it did not create, and fails if one is in the way. The install also fails if two approved packages ship a skill of the same name.
 
 If a skill is approved but there is no directory to link it into, the install fails.
 
