@@ -11,10 +11,12 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+derive_more = { workspace = true }
 serde = { workspace = true }
 toml = { workspace = true }
 
 [dev-dependencies]
+text-block-macros = { workspace = true }
 tempfile = { workspace = true }
 
 [lints]

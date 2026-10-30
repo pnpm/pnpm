@@ -15,7 +15,13 @@ pub(super) fn workspace_findings(root: &Path) -> Vec<Finding> {
     let linted = level
         .as_deref()
         .is_some_and(|level| matches!(level, "warn" | "deny" | "forbid"));
-    if linted { Vec::new() } else { vec![Finding::UnsafeCodeNotLinted { level }] }
+    if linted {
+        return Vec::new();
+    }
+    vec![match level {
+        Some(level) => Finding::UnsafeCodeLintedTooWeakly { level },
+        None => Finding::UnsafeCodeNotLinted,
+    }]
 }
 
 pub(super) fn audit_member(root: &Path, member: &Member) -> Vec<Finding> {

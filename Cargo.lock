@@ -6755,8 +6755,10 @@ dependencies = [
 name = "pnpm-unsafe-audit"
 version = "0.0.1"
 dependencies = [
+ "derive_more",
  "serde",
  "tempfile",
+ "text-block-macros",
  "toml",
 ]
 
