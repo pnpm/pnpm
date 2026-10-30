@@ -247,54 +247,46 @@ fn gvs_successful_build_creates_package_directory_with_build_artifacts() {
     drop((root, mock_instance));
 }
 
-/// A slot an earlier install built is linked again, not built again, by an
-/// install into a fresh `node_modules`. The postinstall artifact deleted
-/// from the slot tells the two apart: with the side-effects cache off, only
-/// a rebuild writes it back, which an explicit `rebuild` still does.
+/// An install into a fresh `node_modules` runs the build of a slot an earlier
+/// install built when the side-effects cache has nothing to restore for it.
+/// The postinstall writes only into the installing project, so the
+/// side-effects cache row it leaves is empty
+/// ([pnpm/pnpm#17526](https://github.com/pnpm/pnpm/issues/17526)).
 #[test]
-fn gvs_reinstall_does_not_rebuild_a_built_slot() {
+fn gvs_reinstall_builds_a_built_slot_with_nothing_cached() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
-    let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
-    write_manifest(
+    let repo = GitRepoFixture::init(root.path(), "hook-installer");
+    repo.write_file(
+        "package.json",
+        &serde_json::json!({
+            "name": "hook-installer",
+            "version": "1.0.0",
+            "scripts": {
+                "postinstall": r#"node -e "require('fs').writeFileSync(require('path').join(process.env.INIT_CWD, 'hook-installed'), '')""#,
+            },
+        })
+        .to_string(),
+    );
+    let spec = repo.git_url_at(&repo.commit("init"));
+    write_manifest(&workspace, &serde_json::json!({ "hook-installer": spec }));
+    set_gvs_workspace_yaml(
         &workspace,
-        &serde_json::json!({ "@pnpm.e2e/pre-and-postinstall-scripts-example": "1.0.0" }),
+        &allow_builds_yaml(&[(&format!("hook-installer@{spec}"), true)]),
     );
-    let allow_builds =
-        allow_builds_yaml(&[("@pnpm.e2e/pre-and-postinstall-scripts-example", true)]);
-    set_gvs_workspace_yaml(&workspace, &format!("{allow_builds}sideEffectsCache: false\n"));
-    pacquet(&workspace)
-        .with_arg("install")
-        .assert()
-        .success();
+    let hook = workspace.join("hook-installed");
 
-    let version_dir =
-        pkg_version_dir(&store_dir, "@pnpm.e2e/pre-and-postinstall-scripts-example", "1.0.0");
-    let pkg =
-        pkg_in_slot(&sole_hash_dir(&version_dir), "@pnpm.e2e/pre-and-postinstall-scripts-example");
-    let artifact = pkg.join("generated-by-postinstall.js");
-    fs::remove_file(&artifact).expect("remove the postinstall artifact");
-    fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
-
-    pacquet(&workspace)
-        .with_arg("install")
-        .assert()
-        .success();
-    assert!(!artifact.exists(), "a built slot must not be built again");
-    assert!(
-        is_symlink_or_junction(&workspace.join(
-            "node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example"
-        ))
-        .expect("stat the linked package"),
-        "the built slot must be linked into the fresh node_modules",
-    );
-
-    pacquet(&workspace)
-        .with_arg("rebuild")
-        .assert()
-        .success();
-    assert!(artifact.exists(), "an explicit rebuild must build the slot again");
+    for install in ["first", "second"] {
+        pacquet(&workspace)
+            .with_arg("install")
+            .assert()
+            .success();
+        assert!(hook.exists(), "the {install} install did not run the postinstall");
+        fs::remove_file(&hook).expect("remove the postinstall output");
+        fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+    }
 
     drop((root, mock_instance));
 }
