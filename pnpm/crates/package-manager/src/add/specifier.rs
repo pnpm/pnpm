@@ -62,14 +62,10 @@ pub(super) async fn resolve_added_dependency(
         bare_specifier,
         prev_specifier.as_deref(),
         package_selector,
+        picked.as_ref(),
     )?;
-    let dist_tag = super::registry::requested_dist_tag(
-        package_selector,
-        Some(inputs.add.config.default_tag()),
-    );
-    if let Some(picked) = picked
-        .as_ref()
-        .filter(|_| dist_tag.is_some_and(|tag| tag != "latest"))
+    if let Some(picked) =
+        picked.as_ref().filter(|_| pins_dist_tag(package_selector, inputs.add.config.default_tag()))
     {
         pin_catalog_entry(&mut updated_catalogs, package_name, &picked.version);
     }
@@ -82,6 +78,13 @@ pub(super) async fn resolve_added_dependency(
         types_selector,
         picked,
     })
+}
+
+/// Whether the selector asks for a dist-tag other than `latest`, whose new
+/// catalog entry [`pin_catalog_entry`] pins.
+fn pins_dist_tag(package_selector: &str, default_tag: &str) -> bool {
+    super::registry::requested_dist_tag(package_selector, Some(default_tag))
+        .is_some_and(|tag| tag != "latest")
 }
 
 /// A catalog entry written for a dist-tag records the exact version the tag
@@ -101,8 +104,13 @@ fn resolve_catalog_and_warnings(
     bare_specifier: String,
     prev_specifier: Option<&str>,
     package_selector: &str,
+    picked: Option<&PickedPackage>,
 ) -> Result<(String, Catalogs, Vec<LogEvent>), AddError> {
     let mut updated_catalogs = Catalogs::new();
+    // A tag resolved locally through `linkWorkspacePackages` names no registry
+    // version, so it cannot match a catalog entry.
+    let requested_dist_tag =
+        picked.and_then(|_| super::registry::requested_dist_tag(package_selector, None));
     let outcome = decide_catalog_outcome(
         inputs.add.config.catalog_mode,
         inputs.owned.save_catalog_name.as_deref(),
@@ -110,7 +118,7 @@ fn resolve_catalog_and_warnings(
         &CatalogModeDep {
             alias: package_name,
             bare_specifier: &bare_specifier,
-            requested_dist_tag: super::registry::requested_dist_tag(package_selector, None),
+            requested_dist_tag,
             prev_specifier,
         },
         inputs.prefix,
