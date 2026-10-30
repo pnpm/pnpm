@@ -331,46 +331,6 @@ fn existing_prefix(raw: &str) -> &'static str {
     }
 }
 
-pub(crate) async fn resolve_cargo_workspace_scope(
-    manifest_path: &Path,
-    declared: &[DeclaredCargoDep],
-    checkout: Option<&Path>,
-) -> Result<(PathBuf, Vec<DeclaredCargoDep>)> {
-    let (_, metadata) = crate::cargo_deps::workspace_metadata(manifest_path, checkout).await?;
-    let cargo_root = crate::cargo_deps::canonical_cargo_path(&metadata.workspace_root)?;
-    let mut all_declared = declared.to_vec();
-    for package in metadata.packages {
-        let canonical = crate::cargo_deps::canonical_cargo_path(&package.manifest_path)?;
-        if let Some(dir) = canonical
-            .parent()
-            .filter(|dir| dir.starts_with(&cargo_root))
-        {
-            extend_unique_declared(
-                &mut all_declared,
-                declared_cargo_deps(dir, Some(&cargo_root))?,
-                &cargo_root,
-            );
-        }
-    }
-    Ok((cargo_root, all_declared))
-}
-
-fn extend_unique_declared(
-    all_declared: &mut Vec<DeclaredCargoDep>,
-    deps: Vec<DeclaredCargoDep>,
-    cargo_root: &Path,
-) {
-    for dep in deps {
-        if dep.manifest_path.starts_with(cargo_root)
-            && !all_declared
-                .iter()
-                .any(|existing| existing.group == dep.group && same_declared_dep(existing, &dep))
-        {
-            all_declared.push(dep);
-        }
-    }
-}
-
 pub(crate) fn same_declared_dep(lhs: &DeclaredCargoDep, rhs: &DeclaredCargoDep) -> bool {
     lhs.alias == rhs.alias && lhs.table == rhs.table && lhs.manifest_path == rhs.manifest_path
 }
