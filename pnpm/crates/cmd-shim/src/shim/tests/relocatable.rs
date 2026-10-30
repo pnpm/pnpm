@@ -1,5 +1,5 @@
 use super::{Path, ScriptRuntime, generate_sh_shim};
-use crate::shim::is_relocatable_shim;
+use crate::shim::{is_relocatable_shim, is_sh_shim_basedir_anchor_current};
 
 #[test]
 fn generate_sh_shim_keeps_paths_outside_the_root_absolute() {
@@ -92,6 +92,17 @@ fn shell_metacharacters_in_target_and_node_path_are_literal() {
     assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
     assert_eq!(String::from_utf8_lossy(&output.stdout), node_path[0]);
     assert!(!root.join("marker").exists());
+}
+
+#[test]
+fn anchored_target_comparison_uses_the_exec_target_word() {
+    let root = Path::new("/p");
+    let shim = Path::new("/p/.bin/tool");
+    let first_target = Path::new(r#"/p/"$basedir_abs"/first/cli"#);
+    let second_target = Path::new(r#"/p/"$basedir_abs"/second/cli"#);
+    let first = generate_sh_shim(first_target, shim, None, &[], Some(root));
+    let second = generate_sh_shim(second_target, shim, None, &[], Some(root));
+    assert!(!is_sh_shim_basedir_anchor_current(&first, &second));
 }
 
 #[test]

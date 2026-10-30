@@ -431,12 +431,77 @@ fn anchored_target(shim: &str) -> Option<&str> {
     const LEGACY_QUOTED_BASEDIR_ABS: &str = r#""$basedir_abs/"#;
     let marker = shim.find("# cmd-shim-target=")?;
     let header = &shim[..marker];
-    if let Some(start) = header.rfind(QUOTED_BASEDIR_ABS) {
-        return sh_single_quoted_word(&header[start + QUOTED_BASEDIR_ABS.len()..]);
+    let bytes = header.as_bytes();
+    let mut quote = None;
+    let mut in_exec = false;
+    let mut index = 0;
+    while index < bytes.len() {
+        if quote.is_none() && in_exec {
+            if header[index..].starts_with(QUOTED_BASEDIR_ABS) {
+                return sh_single_quoted_word(&header[index + QUOTED_BASEDIR_ABS.len()..]);
+            }
+            if header[index..].starts_with(LEGACY_QUOTED_BASEDIR_ABS) {
+                let start = index + LEGACY_QUOTED_BASEDIR_ABS.len();
+                let target = &header[start..];
+                let target_bytes = target.as_bytes();
+                let mut len = 0;
+                while len < target_bytes.len() {
+                    if target_bytes[len] == b'\\' {
+                        len = (len + 2).min(target_bytes.len());
+                    } else if target_bytes[len] == b'"' {
+                        return Some(&target[..len]);
+                    } else {
+                        len += 1;
+                    }
+                }
+                return None;
+            }
+        }
+        match quote {
+            Some(b'\'') => {
+                if bytes[index] == b'\'' {
+                    quote = None;
+                }
+                index += 1;
+            }
+            Some(delimiter @ (b'"' | b'`')) => {
+                if bytes[index] == b'\\' {
+                    index = (index + 2).min(bytes.len());
+                } else if bytes[index] == delimiter {
+                    quote = None;
+                    index += 1;
+                } else {
+                    index += 1;
+                }
+            }
+            None => {
+                if bytes[index] == b'\\' {
+                    index = (index + 2).min(bytes.len());
+                    continue;
+                }
+                if bytes[index] == b'\n' {
+                    in_exec = false;
+                    index += 1;
+                    continue;
+                }
+                if bytes[index] == b'\'' || bytes[index] == b'"' || bytes[index] == b'`' {
+                    quote = Some(bytes[index]);
+                    index += 1;
+                    continue;
+                }
+                let line_start = header[..index].rfind('\n').map_or(0, |start| start + 1);
+                if header[line_start..index].trim().is_empty()
+                    && header[index..].starts_with("exec ")
+                {
+                    in_exec = true;
+                    index += "exec ".len();
+                    continue;
+                }
+                index += 1;
+            }
+        }
     }
-    let start = header.rfind(LEGACY_QUOTED_BASEDIR_ABS)? + LEGACY_QUOTED_BASEDIR_ABS.len();
-    let len = header[start..].find('"')?;
-    Some(&header[start..start + len])
+    None
 }
 
 fn sh_single_quoted_word(text: &str) -> Option<&str> {
@@ -445,18 +510,19 @@ fn sh_single_quoted_word(text: &str) -> Option<&str> {
         return None;
     }
     let mut index = 1;
+    let mut quoted = true;
     while index < bytes.len() {
-        if bytes[index] == b'\'' {
-            if text[index..].starts_with(r"'\''") {
-                index += 4;
-            } else {
-                return text.get(..=index);
-            }
-        } else {
-            index += 1;
+        match (quoted, bytes[index]) {
+            (true, b'\'') => quoted = false,
+            (true, _) => {}
+            (false, b'\\') if bytes.get(index + 1) == Some(&b'\'') => index += 1,
+            (false, b'\'') => quoted = true,
+            (false, byte) if byte.is_ascii_whitespace() => return text.get(..index),
+            (false, _) => return None,
         }
+        index += 1;
     }
-    None
+    (!quoted).then_some(text)
 }
 
 /// Whether an already-on-disk POSIX shim has the header a warm reinstall can

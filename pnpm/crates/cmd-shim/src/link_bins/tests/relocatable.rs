@@ -438,7 +438,7 @@ fn warm_install_upgrades_physical_target_anchor_without_node_path() {
     link_bins_of_packages::<Host>(&packages, &bins, &options).unwrap();
     let shim = bins.join("foo");
     let current = read_to_string(&shim).unwrap();
-    let old = current.replace("$basedir_abs/", "$basedir/");
+    let old = current.replace(r#"$basedir_abs"/"#, r#"$basedir"/"#);
     write_file(&shim, &old).unwrap();
     link_bins_of_packages::<Host>(&packages, &bins, &options).unwrap();
     assert_eq!(read_to_string(&shim).unwrap(), current);
