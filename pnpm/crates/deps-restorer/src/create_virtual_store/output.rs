@@ -42,11 +42,15 @@ pub struct CreateVirtualStoreOutput {
 pub struct SnapshotPlacement {
     pub materialized: Vec<PackageKey>,
     pub loaded: Option<Vec<PackageKey>>,
+    /// Snapshots that require a build but that the loaded linker loads
+    /// from the store or promoted from a temporary build. The build phase
+    /// never sees them; they are reported as requiring a build.
+    pub loaded_builds: Vec<PackageKey>,
 }
 
 impl SnapshotPlacement {
     pub(super) fn materialized(materialized: Vec<PackageKey>) -> Self {
-        Self { materialized, loaded: None }
+        Self { materialized, loaded: None, loaded_builds: Vec::new() }
     }
 }
 

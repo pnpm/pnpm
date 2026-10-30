@@ -253,6 +253,7 @@ fn fetch_pass_rows_keep_the_selection_and_its_downloads() {
         snapshot_placement: super::super::SnapshotPlacement {
             materialized: Vec::new(),
             loaded: None,
+            loaded_builds: Vec::new(),
         },
         fetch_failed: HashSet::new(),
         cas_paths_by_pkg_id: Some(by_pkg_id),

@@ -294,10 +294,7 @@ impl<'a> OnDiskInputs<'a> {
         .await;
         let extra_env =
             build_extra_env(self.ctx.config, self.ctx.linker.kind, self.ctx.workspace_root);
-        publish_deps_requiring_build(
-            self.deps_requiring_build_sink.as_ref(),
-            &materialized.requires_build_by_snapshot,
-        );
+        publish_deps_requiring_build(self.deps_requiring_build_sink.as_ref(), materialized);
         let built = crate::install_frozen_lockfile::run_build_phase::<Reporter>(
             &crate::install_frozen_lockfile::BuildPhaseInputs {
                 cache: materialized.build_cache(
@@ -397,17 +394,19 @@ pub(super) async fn finish_early_materialization<Reporter: self::Reporter + 'sta
         "phase complete",
     );
 }
-/// `CreateVirtualStore` keeps skipped snapshots out of this map, so it holds
-/// only what the install put on disk. See [`crate::DepsRequiringBuildSink`].
+/// `CreateVirtualStore` keeps skipped snapshots out of its output, so this
+/// lists only what the install placed. See [`crate::DepsRequiringBuildSink`].
 pub(super) fn publish_deps_requiring_build(
     sink: Option<&crate::DepsRequiringBuildSink>,
-    requires_build_by_snapshot: &HashMap<pnpm_lockfile::PackageKey, bool>,
+    materialized: &CreateVirtualStoreOutput,
 ) {
     let Some(sink) = sink else { return };
-    let deps_requiring_build = requires_build_by_snapshot
+    let deps_requiring_build = materialized.requires_build_by_snapshot
         .iter()
         .filter(|(_, requires_build)| **requires_build)
-        .map(|(snapshot_key, _)| snapshot_key.to_string())
+        .map(|(snapshot_key, _)| snapshot_key)
+        .chain(&materialized.snapshot_placement.loaded_builds)
+        .map(ToString::to_string)
         .collect();
     *sink.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = Some(deps_requiring_build);
 }

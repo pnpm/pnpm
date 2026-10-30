@@ -351,6 +351,12 @@ async fn materialize_loaded<Report: Reporter>(
         ..installer
     };
     let mut materialized = installer.run_inner::<Report>(check).await?;
+    materialized.snapshot_placement.loaded_builds = fetched
+        .requires_build_by_snapshot
+        .iter()
+        .filter(|(key, requires_build)| **requires_build && !pending.contains_key(*key))
+        .map(|(key, _)| key.clone())
+        .collect();
     materialized.snapshot_placement.materialized.extend(promoted);
     materialized.snapshot_placement.loaded = Some(selected.keys().cloned().collect());
     materialized.cas_paths_by_pkg_id = fetched.cas_paths_by_pkg_id;
