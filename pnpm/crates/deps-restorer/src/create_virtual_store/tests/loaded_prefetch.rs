@@ -205,6 +205,7 @@ async fn loaded_materialization_reuses_the_fetch_pass_prefetch() {
         native_child_slot.exists(),
     );
     assert!(!layout.slot_dir(&loaded).exists(), "the loaded package is not materialized");
+    assert_eq!(output.requires_build_by_snapshot.get(&loaded), Some(&false));
     let cas_paths = output.cas_paths_by_pkg_id.expect("loaded installs keep the CAS paths");
     assert_eq!(cas_paths.len(), 5);
 }

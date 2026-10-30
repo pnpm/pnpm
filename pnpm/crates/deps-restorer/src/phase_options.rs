@@ -160,7 +160,9 @@ pub struct HoistedLinkGraph<'a> {
 #[derive(Clone, Copy)]
 pub struct BuildPhaseGraph<'a> {
     pub trusted_importer_ids: &'a std::collections::HashSet<String>,
-    pub loaded_snapshots: Option<&'a HashMap<PackageKey, SnapshotEntry>>,
+    /// The snapshots the loaded linker gave physical directories. `None`
+    /// falls back to the `nodeLinker.excluded` closure.
+    pub loaded_snapshots: Option<&'a [PackageKey]>,
     pub snapshots: Option<&'a HashMap<PackageKey, SnapshotEntry>>,
     pub packages: Option<&'a HashMap<PackageKey, PackageMetadata>>,
     pub importers: &'a HashMap<String, ProjectSnapshot>,

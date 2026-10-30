@@ -196,9 +196,9 @@ fn finish_cas_bin_links(
     bin_state: &crate::build_options::BuildBinState,
 ) -> Result<(), BuildPhaseError> {
     let config = inputs.policy.config;
-    let selected = inputs.graph.loaded_snapshots.expect("loaded linker selection");
+    let selected = post_build_bins::loaded_snapshots(inputs);
     let native_inputs = BuildPhaseInputs {
-        graph: crate::BuildPhaseGraph { snapshots: Some(selected), ..inputs.graph },
+        graph: crate::BuildPhaseGraph { snapshots: Some(&selected), ..inputs.graph },
         ..*inputs
     };
     finish_dependency_bin_links(&native_inputs, build_output, bin_state)?;

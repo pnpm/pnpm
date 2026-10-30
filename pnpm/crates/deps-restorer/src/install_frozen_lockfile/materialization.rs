@@ -49,7 +49,7 @@ impl<'a> InstallFrozenLockfile<'a> {
                 directories: build_directories(install.projects.workspace_root, ctx, phase.linked),
                 graph: crate::BuildPhaseGraph {
                     trusted_importer_ids: &install.importer_sets().0,
-                    loaded_snapshots: ctx.select_loaded_snapshots(snapshots),
+                    loaded_snapshots: phase.fetched.snapshot_placement.loaded.as_deref(),
                     snapshots,
                     packages,
                     importers: &install.lockfiles.wanted.importers,
