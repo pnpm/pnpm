@@ -136,9 +136,7 @@ function readShNodePath (shimContent: string): string | undefined {
     return unquoteSh(raw)
   }
   const start = shimContent.indexOf(SH_NODE_PATH_EXPORT)
-  if (start === -1) {
-    return isWindows && shimContent.includes(SH_NODE_PATH_EXPORT) ? '' : undefined
-  }
+  if (start === -1) return undefined
   const valueStart = start + SH_NODE_PATH_EXPORT.length
   const lineEnd = shimContent.indexOf('\n', valueStart)
   const rest = shimContent.slice(valueStart)
