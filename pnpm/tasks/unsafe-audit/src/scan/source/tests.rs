@@ -36,6 +36,15 @@ fn the_word_alone_opens_nothing() {
     assert!(!opens_unsafe(r#"#[expect(unsafe_code, reason = "...")]"#));
 }
 
+/// A name that ends in the word, followed by the brace that would make it a
+/// block. Every other line above is rejected for what follows the word, so
+/// this shape is the only one the token boundary itself rejects.
+#[test]
+fn a_name_ending_in_the_word_opens_nothing() {
+    assert!(!opens_unsafe("    if is_unsafe {"));
+    assert!(!opens_unsafe("    while still_unsafe {"));
+}
+
 /// An `unsafe extern` block declares a foreign ABI, which only a `-sys`
 /// crate may; an `unsafe extern "abi" fn` item defines a callback the
 /// operating system calls, which any abstraction crate may.
