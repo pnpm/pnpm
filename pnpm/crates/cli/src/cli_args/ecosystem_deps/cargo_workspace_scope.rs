@@ -7,13 +7,16 @@ use std::{
     path::{Path, PathBuf},
 };
 
+/// A declaration's version requirement and the features it enables.
+type RequirementFeatures = (VersionReq, Vec<String>);
+
 /// The Cargo workspace a `pnpm update` edits.
 pub(crate) struct CargoWorkspaceScope {
     pub(crate) root: PathBuf,
     pub(crate) declared: Vec<DeclaredCargoDep>,
     /// The registry dependency declarations of the workspace's packages, as
     /// `cargo metadata` reports them, keyed by package name and alias.
-    declarations: HashMap<(String, String), Vec<(VersionReq, Vec<String>)>>,
+    declarations: HashMap<(String, String), Vec<RequirementFeatures>>,
 }
 
 impl CargoWorkspaceScope {
