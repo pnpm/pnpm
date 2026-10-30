@@ -6,7 +6,7 @@ mod linked_copies;
 mod patched_engines;
 mod side_effects;
 mod slot_to_build;
-use lifecycle_scripts::run_scripts_in_every_copy;
+use lifecycle_scripts::{ScriptRun, run_scripts_in_every_copy};
 use patched_engines::skip_incompatible_optional;
 use side_effects::{
     FrozenStoreWrites, SideEffectsUpload, already_built, side_effects_cache_key,
@@ -102,7 +102,7 @@ fn build_candidate<Reporter: self::Reporter>(
         snapshot_key,
         &pkg_dir,
         slot_lock.as_ref(),
-        (candidate.should_run_scripts, optional, &candidate.name, &candidate.version),
+        &candidate.script_run(optional),
     )?
     else {
         return Ok(());
@@ -159,6 +159,15 @@ struct BuildCandidate<'c> {
 }
 
 impl<'c> BuildCandidate<'c> {
+    fn script_run(&self, optional: bool) -> ScriptRun<'_> {
+        ScriptRun {
+            should_run_scripts: self.should_run_scripts,
+            optional,
+            name: &self.name,
+            version: &self.version,
+        }
+    }
+
     fn of(context: &BuildOneSnapshot<'c>, snapshot_key: &PackageKey) -> Option<Self> {
         if !crate::build_scope::in_build_scope(context.graph.build_scope, snapshot_key) {
             return None;

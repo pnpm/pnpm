@@ -9,6 +9,14 @@ use super::{
     BuildOneSnapshot, dependency_bins, linked_copies,
 };
 
+/// The package whose lifecycle scripts a build runs.
+pub(super) struct ScriptRun<'a> {
+    pub should_run_scripts: bool,
+    pub optional: bool,
+    pub name: &'a str,
+    pub version: &'a str,
+}
+
 /// Runs the build scripts in every copy of the package, `pkg_dir` first, as
 /// pnpm builds each node of the hoisted graph. A version conflict nests a
 /// copy under each project that needs it, and a copy left unbuilt lacks what
@@ -18,8 +26,13 @@ pub(super) fn run_scripts_in_every_copy<Reporter: self::Reporter>(
     snapshot_key: &PackageKey,
     pkg_dir: &Path,
     slot_lock: Option<&pnpm_fs::DirLock>,
-    run: (bool, bool, &str, &str),
+    run: &ScriptRun<'_>,
 ) -> Result<Option<bool>, BuildModulesError> {
+    if !run.should_run_scripts {
+        return Ok(Some(false));
+    }
+    dependency_bins::refresh(context, snapshot_key)?;
+    dependency_bins::record_mutation(context, snapshot_key)?;
     let other_copies = context
         .pkg_roots()
         .all(snapshot_key)
@@ -52,20 +65,19 @@ fn run_snapshot_scripts<Reporter: self::Reporter>(
     pkg_dir: &Path,
     extra_bin_paths: &[PathBuf],
     slot_lock: Option<&pnpm_fs::DirLock>,
-    run: (bool, bool, &str, &str),
+    run: &ScriptRun<'_>,
 ) -> Result<Option<bool>, BuildModulesError> {
-    let (should_run_scripts, optional, name, version) = run;
-    if !should_run_scripts {
-        return Ok(Some(false));
-    }
-    dependency_bins::refresh(context, snapshot_key)?;
-    dependency_bins::record_mutation(context, snapshot_key)?;
-    let result =
-        run_candidate_hooks::<Reporter>(context, snapshot_key, pkg_dir, extra_bin_paths, optional);
+    let result = run_candidate_hooks::<Reporter>(
+        context,
+        snapshot_key,
+        pkg_dir,
+        extra_bin_paths,
+        run.optional,
+    );
     match result {
         Ok(ran) => Ok(Some(ran)),
         Err(err) => {
-            if !optional {
+            if !run.optional {
                 return Err(BuildModulesError::LifecycleScript(err));
             }
             // A global virtual store slot is removed only by an install that
@@ -83,8 +95,8 @@ fn run_snapshot_scripts<Reporter: self::Reporter>(
                 details: Some(err.to_string()),
                 package: SkippedOptionalPackage::Installed {
                     id: pkg_dir.to_string_lossy().into_owned(),
-                    name: name.to_string(),
-                    version: version.to_string(),
+                    name: run.name.to_string(),
+                    version: run.version.to_string(),
                 },
                 parents: None,
                 prefix: context.directories.lockfile_dir.to_string_lossy().into_owned(),
