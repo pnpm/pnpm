@@ -1,6 +1,7 @@
 use super::{
     super::{
-        CreateVirtualStore, CreateVirtualStoreOutput, SnapshotCacheKey, cas::retain_fetch_pass_rows,
+        CreateVirtualStore, CreateVirtualStoreOutput, SnapshotCacheKey,
+        cas::{merge_fetched, retain_fetch_pass_rows},
     },
     DUMMY_SHA512, key, metadata_with_integrity, snapshot_with_dep, take_prefetch_starts,
 };
@@ -271,4 +272,42 @@ fn fetch_pass_rows_keep_the_selection_and_its_downloads() {
     assert!(Arc::ptr_eq(&rows.cas_paths["downloaded-row"], &downloads));
     assert_eq!(rows.requires_build.get("downloaded-row"), Some(&true));
     assert!(!rows.requires_build.contains_key("unselected-row"));
+}
+
+fn output_with_overlays(keys: &[&PackageKey]) -> CreateVirtualStoreOutput {
+    let mut side_effects = super::super::output::SideEffectsOutput::default();
+    for key in keys {
+        side_effects.maps.insert((*key).clone(), Arc::default());
+    }
+    CreateVirtualStoreOutput {
+        package_manifests: HashMap::new(),
+        package_bins: HashMap::new(),
+        side_effects,
+        requires_build_by_snapshot: keys
+            .iter()
+            .map(|key| ((*key).clone(), true))
+            .collect(),
+        snapshot_placement: super::super::SnapshotPlacement {
+            materialized: Vec::new(),
+            loaded: None,
+        },
+        fetch_failed: HashSet::new(),
+        cas_paths_by_pkg_id: None,
+        cas_paths_by_snapshot: None,
+    }
+}
+
+#[test]
+fn fetched_overlays_fill_only_snapshots_the_materialization_pass_skipped() {
+    let rebuilt = key("rebuilt", "1.0.0");
+    let loaded = key("loaded", "1.0.0");
+    let mut materialized = output_with_overlays(&[]);
+    materialized.requires_build_by_snapshot.insert(rebuilt.clone(), true);
+    let pending = HashMap::from([(rebuilt.clone(), SnapshotEntry::default())]);
+
+    merge_fetched(&mut materialized, output_with_overlays(&[&rebuilt, &loaded]), &pending);
+
+    assert!(!materialized.side_effects.maps.contains_key(&rebuilt));
+    assert!(materialized.side_effects.maps.contains_key(&loaded));
+    assert_eq!(materialized.requires_build_by_snapshot.get(&loaded), Some(&true));
 }
