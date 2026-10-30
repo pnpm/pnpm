@@ -95,6 +95,7 @@ fn shell_metacharacters_in_target_and_node_path_are_literal() {
 }
 
 #[test]
+#[cfg(unix)]
 fn anchored_target_comparison_uses_the_exec_target_word() {
     let root = Path::new("/p");
     let shim = Path::new("/p/.bin/tool");

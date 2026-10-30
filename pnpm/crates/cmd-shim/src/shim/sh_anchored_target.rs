@@ -109,6 +109,10 @@ impl<'a> ExecTargetScanner<'a> {
             self.line_start = self.index + 1;
             self.in_exec = false;
             self.index += 1;
+        } else if self.starts_shell_comment() {
+            self.index = self.header[self.index..]
+                .find('\n')
+                .map_or(self.header.len(), |newline| self.index + newline);
         } else if matches!(byte, b'\'' | b'"' | b'`') {
             self.quote = Some(byte);
             self.index += 1;
@@ -123,6 +127,15 @@ impl<'a> ExecTargetScanner<'a> {
     fn starts_exec_command(&self) -> bool {
         self.header[self.line_start..self.index].trim().is_empty()
             && self.header[self.index..].starts_with("exec ")
+    }
+
+    fn starts_shell_comment(&self) -> bool {
+        self.header.as_bytes()[self.index] == b'#'
+            && (self.index == self.line_start
+                || self.header[self.line_start..self.index]
+                    .chars()
+                    .next_back()
+                    .is_some_and(char::is_whitespace))
     }
 
     fn current_char_len(&self) -> usize {
