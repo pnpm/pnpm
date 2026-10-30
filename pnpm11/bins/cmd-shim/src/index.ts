@@ -87,19 +87,40 @@ function isShimForMissingTarget (shimContent: string): boolean {
 }
 
 /**
- * Check whether a shell shim's `NODE_PATH` matches expectations: it starts
- * with `first`, lists `middle` as one consecutive run, and ends with `last`.
+ * Check whether a shell shim's `NODE_PATH` is `first`, then `middle`, then
+ * `last`. An omitted `first` or `last` accepts the shim's own entries at that
+ * end, but only where a non-empty `middle` separates them from the rest.
  */
 function isShimNodePath (shimContent: string, expected: { first?: string, middle?: string[], last?: string[] }): boolean {
-  const first = expected.first == null ? '' : normalizePathEnvVar([expected.first]).posix
-  const middle = normalizePathEnvVar(expected.middle).posix
-  const last = normalizePathEnvVar(expected.last).posix
+  const first = expected.first == null ? undefined : normalizePathEnvVar([expected.first]).posix
+  const last = expected.last == null ? undefined : normalizePathEnvVar(expected.last).posix
   const value = readShNodePath(shimContent)
-  if (value == null) return first === '' && last === ''
-  return (first !== '' || last !== '') &&
-    (first === '' || value === first || value.startsWith(`${first}:`)) &&
-    (middle === '' || `:${value}:`.includes(`:${middle}:`)) &&
-    (last === '' || value === last || value.endsWith(`:${last}`))
+  if (value == null) return !first && !last
+  if (!first && !last) return false
+  const rest = stripOuterEntries(value, first, last)
+  return rest != null && isMiddleCurrent(rest, normalizePathEnvVar(expected.middle).posix, {
+    keepsLeading: first == null,
+    keepsTrailing: last == null,
+  })
+}
+
+function stripOuterEntries (value: string, first: string | undefined, last: string | undefined): string | undefined {
+  const afterFirst = first ? stripEntries(value, first, 'start') : value
+  if (afterFirst == null || !last) return afterFirst
+  return stripEntries(afterFirst, last, 'end')
+}
+
+function isMiddleCurrent (rest: string, middle: string, keeps: { keepsLeading: boolean, keepsTrailing: boolean }): boolean {
+  if (rest === middle) return true
+  if (middle === '') return false
+  return (keeps.keepsLeading && rest.endsWith(`:${middle}`)) ||
+    (keeps.keepsTrailing && rest.startsWith(`${middle}:`))
+}
+
+function stripEntries (value: string, entries: string, end: 'start' | 'end'): string | undefined {
+  if (value === entries) return ''
+  if (end === 'start') return value.startsWith(`${entries}:`) ? value.slice(entries.length + 1) : undefined
+  return value.endsWith(`:${entries}`) ? value.slice(0, -entries.length - 1) : undefined
 }
 
 /**

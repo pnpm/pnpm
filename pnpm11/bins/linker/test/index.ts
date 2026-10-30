@@ -189,6 +189,31 @@ test('linkBins() rewrites a bin whose NODE_PATH lists a former real location of 
   expect(entries).not.toContainEqual(expect.stringMatching(/\/v1\//))
 })
 
+test('linkBins() rewrites a bin whose package moved out of a node_modules directory', async () => {
+  const warn = jest.fn()
+  const root = temporaryDirectory()
+  const simpleSource = path.join(testFixtures.prepare('simple-fixture'), 'node_modules', 'simple')
+  const storeLocation = path.join(root, 'store', 'node_modules', 'simple')
+  const workspaceLocation = path.join(root, 'workspace', 'simple')
+  fs.cpSync(simpleSource, storeLocation, { recursive: true })
+  fs.cpSync(simpleSource, workspaceLocation, { recursive: true })
+  const modulesDir = path.join(root, 'project', 'node_modules')
+  fs.mkdirSync(modulesDir, { recursive: true })
+  fs.symlinkSync(storeLocation, path.join(modulesDir, 'simple'), 'junction')
+  const binTarget = temporaryDirectory()
+  const binLocation = path.join(binTarget, 'simple')
+  const extraNodePaths = [path.join(modulesDir, '.pnpm', 'node_modules')]
+
+  await linkBins(modulesDir, binTarget, { warn, extraNodePaths })
+  expect(nodePathEntries(fs.readFileSync(binLocation, 'utf8'))).toContainEqual(expect.stringMatching(/\/store\/node_modules$/))
+
+  fs.rmSync(path.join(modulesDir, 'simple'))
+  fs.symlinkSync(workspaceLocation, path.join(modulesDir, 'simple'), 'junction')
+  await linkBins(modulesDir, binTarget, { warn, extraNodePaths })
+
+  expect(nodePathEntries(fs.readFileSync(binLocation, 'utf8'))).not.toContainEqual(expect.stringMatching(/\/store\//))
+})
+
 test('linkBins() keeps an existing bin whose shim is larger than 4 KiB', async () => {
   const binTarget = temporaryDirectory()
   const warn = jest.fn()
