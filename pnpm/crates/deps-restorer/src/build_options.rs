@@ -153,6 +153,8 @@ pub struct BuildCacheStore<'a> {
 
 #[derive(Clone, Copy)]
 pub struct BuildCacheContext<'a> {
+    /// Receives each built snapshot's cache key and diff, so the loaded
+    /// linker can load a temporary build's output from the store.
     pub captured: Option<&'a CapturedBuildSideEffects>,
     pub side_effects: CachedSideEffects<'a>,
     /// `<platform>;<arch>;node<major>` — the prefix part of the
@@ -171,6 +173,8 @@ pub struct BuildCacheContext<'a> {
     /// `PackageFilesIndex.sideEffects` row.
     pub write: bool,
     pub publisher: Option<&'a crate::shared_side_effects::SharedSideEffectsPublisher>,
+    /// The store the WRITE path uploads build outputs to. `None`
+    /// short-circuits the upload site, for unit tests without a CAFS.
     pub store: Option<BuildCacheStore<'a>>,
 
     /// Mirrors `config.frozen_store`. When `true` together with the

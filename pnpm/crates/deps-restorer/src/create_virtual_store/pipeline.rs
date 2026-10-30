@@ -38,16 +38,14 @@ impl CasHandoffTemplate {
 
     fn into_prefetch(
         self,
-        retained: &HashMap<PackageKey, SnapshotEntry>,
         mut rows: PrefetchResult,
         output: &CreateVirtualStoreOutput,
     ) -> CasPrefetch {
-        let cache_keys = retained_cache_keys(&self.cache_keys, retained);
-        retain_fetch_pass_rows(&mut rows, &cache_keys, output);
+        retain_fetch_pass_rows(&mut rows, &self.cache_keys, output);
         CasPrefetch {
             store_index: self.store_index,
             verified_files_cache: self.verified_files_cache,
-            cache_keys,
+            cache_keys: self.cache_keys,
             task: PrefetchTask::Settled(Box::new(rows)),
         }
     }
@@ -79,7 +77,7 @@ impl<'a> CreateVirtualStore<'a> {
         };
         let (prefetch, marker_source) = self.prefetch_and_prepare_store(wanted, check).await?;
         let handoff_template =
-            retained.map(|_| CasHandoffTemplate::new(&prefetch, wanted.snapshots));
+            retained.map(|retained| CasHandoffTemplate::new(&prefetch, retained));
         let mut plan = self.plan::<Reporter>(wanted, prefetch.cache_keys)?;
         let planned = plan.survivors.len();
         let prefetched = run_checked(
@@ -105,11 +103,7 @@ impl<'a> CreateVirtualStore<'a> {
         )
         .await?;
         self.report_added::<Reporter>(planned.saturating_sub(output.fetch_failed.len()));
-        let handoff = retained.map(|retained| {
-            handoff_template
-                .expect("retained prefetch template")
-                .into_prefetch(retained, prefetched, &output)
-        });
+        let handoff = handoff_template.map(|template| template.into_prefetch(prefetched, &output));
         Ok((output, handoff))
     }
 
@@ -224,7 +218,7 @@ impl<'a> CreateVirtualStore<'a> {
             package_bins: partition.package_bins,
             side_effects: partition.side_effects.into(),
             requires_build_by_snapshot: partition.requires_build_by_snapshot,
-            snapshot_selection: super::SnapshotSelection::materialized(plan.materialized_keys()),
+            snapshot_placement: super::SnapshotPlacement::materialized(plan.materialized_keys()),
             fetch_failed,
             cas_paths_by_pkg_id: indexes.by_pkg_id,
             cas_paths_by_snapshot: None,

@@ -351,8 +351,8 @@ async fn materialize_loaded<Report: Reporter>(
         ..installer
     };
     let mut materialized = installer.run_inner::<Report>(check).await?;
-    materialized.snapshot_selection.materialized.extend(promoted);
-    materialized.snapshot_selection.loaded = Some(selected.keys().cloned().collect());
+    materialized.snapshot_placement.materialized.extend(promoted);
+    materialized.snapshot_placement.loaded = Some(selected.keys().cloned().collect());
     materialized.cas_paths_by_pkg_id = fetched.cas_paths_by_pkg_id;
     materialized.cas_paths_by_snapshot = fetched.cas_paths_by_snapshot;
     materialized.package_manifests.extend(fetched.package_manifests);

@@ -214,8 +214,8 @@ impl<'a> OnDiskInputs<'a> {
         let linked = pnpm_deps_restorer::linking::run_link_phase::<Reporter>(
             pnpm_deps_restorer::linking::LinkPhaseInputs {
                 graph: self.link_lockfiles(
-                    &materialized.snapshot_selection.materialized,
-                    materialized.snapshot_selection.loaded.as_deref(),
+                    &materialized.snapshot_placement.materialized,
+                    materialized.snapshot_placement.loaded.as_deref(),
                 ),
                 packages: pnpm_deps_restorer::LinkPackageData {
                     package_manifests: &materialized.package_manifests,
@@ -263,7 +263,7 @@ impl<'a> OnDiskInputs<'a> {
             importers: &self.projects.materialization_lockfile.importers,
             dependency_groups: self.install.projects.dependency_groups,
             materialized_snapshots: linked.build_snapshots(
-                &materialized.snapshot_selection.materialized,
+                &materialized.snapshot_placement.materialized,
             ),
             build_scope: linked.build_scope.as_ref(),
         }

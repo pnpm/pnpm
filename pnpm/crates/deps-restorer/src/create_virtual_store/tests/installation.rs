@@ -167,7 +167,7 @@ async fn shared_store_context_materializes_a_warm_package() {
 
     assert_eq!(output.requires_build_by_snapshot.get(&package_key), Some(&false));
     assert_eq!(
-        output.snapshot_selection.materialized.as_slice(),
+        output.snapshot_placement.materialized.as_slice(),
         std::slice::from_ref(&package_key),
     );
     let installed_body = layout

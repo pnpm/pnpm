@@ -23,7 +23,7 @@ pub struct CreateVirtualStoreOutput {
     /// The build phase uses this list to record only newly deferred
     /// builds under `ignoreScripts`; earlier debt is retained from
     /// `.modules.yaml` by the install orchestrator.
-    pub snapshot_selection: SnapshotSelection,
+    pub snapshot_placement: SnapshotPlacement,
     pub fetch_failed: HashSet<PackageKey>,
     /// Per-package CAS index, populated only when
     /// [`crate::ModuleLinkerContext::kind`] is
@@ -39,12 +39,12 @@ pub struct CreateVirtualStoreOutput {
     pub cas_paths_by_snapshot: Option<crate::CasPathsBySnapshot>,
 }
 
-pub struct SnapshotSelection {
+pub struct SnapshotPlacement {
     pub materialized: Vec<PackageKey>,
     pub loaded: Option<Vec<PackageKey>>,
 }
 
-impl SnapshotSelection {
+impl SnapshotPlacement {
     pub(super) fn materialized(materialized: Vec<PackageKey>) -> Self {
         Self { materialized, loaded: None }
     }
@@ -69,6 +69,8 @@ impl CreateVirtualStoreOutput {
 #[derive(Default)]
 pub struct SideEffectsOutput {
     pub maps: SideEffectsMapsBySnapshot,
+    /// The raw side-effects rows `maps` was built from, including the
+    /// empty rows the overlays leave out.
     pub diffs: SideEffectsBySnapshot,
 }
 

@@ -2,7 +2,7 @@ pub(crate) mod cas;
 pub(crate) use cache_keys::{dir_clone_cacheable, package_content_changed};
 pub use pnpm_package_manifest::requires_build_from_cas_paths;
 
-pub use output::{CreateVirtualStoreOutput, SnapshotSelection};
+pub use output::{CreateVirtualStoreOutput, SnapshotPlacement};
 
 mod output;
 mod pipeline;
@@ -44,6 +44,12 @@ use std::{
     sync::Arc,
 };
 
+/// Bundled package manifests recovered from the `SQLite` store index
+/// or cold-batch tarball extraction during [`CreateVirtualStore::run`],
+/// keyed by the same `PkgNameVerPeer` (without peer suffix) that
+/// [`pnpm_lockfile::Lockfile::packages`] uses. Consumed by the
+/// bin-linker so it doesn't have to re-read `package.json` per child
+/// during [`crate::LinkVirtualStoreBins::run`].
 pub type PackageManifests = HashMap<PkgNameVerPeer, std::sync::Arc<serde_json::Value>>;
 
 /// Precalculated bin commands and shebang runtimes recovered from
@@ -582,7 +588,7 @@ fn nothing_to_materialize(is_hoisted: bool) -> CreateVirtualStoreOutput {
         package_bins: PackageBins::new(),
         side_effects: output::SideEffectsOutput::default(),
         requires_build_by_snapshot: RequiresBuildBySnapshot::new(),
-        snapshot_selection: SnapshotSelection::materialized(Vec::new()),
+        snapshot_placement: SnapshotPlacement::materialized(Vec::new()),
         fetch_failed: HashSet::new(),
         cas_paths_by_pkg_id: is_hoisted.then(CasPathsByPkgId::new),
         cas_paths_by_snapshot: None,
