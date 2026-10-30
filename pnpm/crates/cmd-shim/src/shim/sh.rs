@@ -365,11 +365,7 @@ fn shim_target_marker(target: &str) -> String {
 }
 
 fn normalize_sh_path(path: &str) -> String {
-    if cfg!(windows) {
-        path.replace('\\', "/")
-    } else {
-        path.to_owned()
-    }
+    if cfg!(windows) { path.replace('\\', "/") } else { path.to_owned() }
 }
 
 /// Whether an already-on-disk shim at `shim_path` targets `target_path`. The
@@ -384,14 +380,11 @@ pub fn is_shim_pointing_at(shim_content: &str, shim_path: &Path, target_path: &P
     let rel_target = relative_target(target_path, shim_path);
     shim_target_markers(shim_content)
         .any(|marker| {
-            marker == target
-                || marker == normalized_target
-                || marker == rel_target
-                || {
-                    let normalized_marker = super::lexical_normalize(Path::new(marker));
-                    let normalized_marker = normalized_marker.to_string_lossy();
-                    normalize_sh_path(&normalized_marker) == normalized_target
-                }
+            marker == target || marker == normalized_target || marker == rel_target || {
+                let normalized_marker = super::lexical_normalize(Path::new(marker));
+                let normalized_marker = normalized_marker.to_string_lossy();
+                normalize_sh_path(&normalized_marker) == normalized_target
+            }
         })
 }
 

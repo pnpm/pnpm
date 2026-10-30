@@ -276,11 +276,7 @@ fn relative_target(target_path: &Path, shim_path: &Path) -> String {
     let shim_dir = shim_path.parent().unwrap_or_else(|| Path::new(""));
     let rel = relative_path_from(shim_dir, target_path);
     let rel = rel.to_string_lossy();
-    if cfg!(windows) {
-        rel.replace('\\', "/")
-    } else {
-        rel.into_owned()
-    }
+    if cfg!(windows) { rel.replace('\\', "/") } else { rel.into_owned() }
 }
 
 fn relative_path_from(from: &Path, to: &Path) -> PathBuf {
