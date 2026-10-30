@@ -79,9 +79,8 @@ fn node_path_validation_rejects_malformed_shell_words() {
     let bins = root.join(".bin");
     fs::create_dir_all(&bins).unwrap();
     fs::create_dir_all(root.join("literal$HOME/modules")).unwrap();
-    let legacy = format!(
-        "# cmd-shim-target=../cli\nexport NODE_PATH=\"$basedir_abs/../literal\\$HOME/modules:$NODE_PATH\"\n",
-    );
+    let legacy =
+        "# cmd-shim-target=../cli\nexport NODE_PATH=\"$basedir_abs/../literal\\$HOME/modules:$NODE_PATH\"\n";
     assert!(is_relocatable_shim(&legacy, &bins, root));
     let entries = [
         r#""$basedir_abs"/../unquoted"#,
