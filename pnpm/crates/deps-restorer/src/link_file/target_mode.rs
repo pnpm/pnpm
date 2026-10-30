@@ -48,9 +48,9 @@ pub(super) fn source_has_desired_mode(source_file: &Path) -> io::Result<bool> {
         return Ok(linkable);
     }
     // A `stat` that fails is not remembered: the blob may still be arriving
-    // from another process. The miss and the insert it makes are one
-    // critical section, so workers that want the same blob share one `stat`
-    // rather than racing to pay for one each.
+    // from another process. The `stat` runs without the map's lock, so
+    // workers that miss at the same time pay for one `stat` each in parallel
+    // rather than queueing behind one another.
     #[cfg(test)]
     super::tests::bump();
     pnpm_fs::file_mode::source_mode_is_linkable(source_file, desired)

@@ -8,11 +8,14 @@
 //! to `0o755`, and when that target shares its inode with the store entry it
 //! widens the entry too.
 //!
-//! One mutex guards the map, the `stat` that fills it, and the `chmod` that
-//! invalidates it ([`with_mode_change`]), so a read cannot straddle a mode
-//! change: an answer computed from the old mode is either published before
-//! the change starts and dropped by it, or computed after the change and
-//! correct.
+//! A mode change must not leave a stale answer behind, and a `stat` must not
+//! hold up the other links that are being made at the same time. The two
+//! are reconciled with a version counter: a mode change bumps it under the
+//! map's lock before the `chmod` and drops the inode's answer after it, and
+//! a `stat` that fills the map is remembered only if the counter did not
+//! move while it ran. A `stat` therefore runs outside the lock, in parallel
+//! with the others, and an answer computed from a mode that a change then
+//! superseded is never published.
 //!
 //! A replacement of the entry under the same path needs no invalidation.
 //! The store writes a content-addressed path once, and a repair or rewrite
@@ -30,7 +33,10 @@ use std::{
     fs, io,
     os::unix::fs::MetadataExt,
     path::{Path, PathBuf},
-    sync::{Mutex, MutexGuard, OnceLock, PoisonError},
+    sync::{
+        Mutex, MutexGuard, OnceLock, PoisonError,
+        atomic::{AtomicU64, Ordering},
+    },
 };
 
 struct Linkability {
@@ -49,6 +55,13 @@ fn lock() -> MutexGuard<'static, Linkability> {
     linkability().lock().unwrap_or_else(PoisonError::into_inner)
 }
 
+/// How many mode changes have started, so a `stat` can tell whether one
+/// began while it ran.
+fn epoch() -> &'static AtomicU64 {
+    static EPOCH: AtomicU64 = AtomicU64::new(0);
+    &EPOCH
+}
+
 /// The remembered answer for the file at `path`, if any is remembered for
 /// the inode last seen there.
 ///
@@ -64,15 +77,20 @@ pub fn cached_linkability(path: &Path) -> Option<bool> {
 /// Whether the file at `path` can be linked where a fresh store write under
 /// the current umask would put it, remembering the answer for its inode.
 ///
-/// The `stat` this pays is the one a cache hit avoids. It runs under the
-/// map's lock so no mode change can slip between the read and the insert.
+/// The `stat` this pays is the one a cache hit avoids, and it runs without
+/// the map's lock: concurrent misses do not queue behind each other. The
+/// answer is only remembered if no mode change started meanwhile, so a
+/// `chmod` through a hardlink cannot leave this one behind.
 pub fn source_mode_is_linkable(path: &Path, desired: u32) -> io::Result<bool> {
-    let mut cache = lock();
+    let before = epoch().load(Ordering::Acquire);
     let metadata = fs::metadata(path)?;
     let linkable = super::store_inode_mode_is_linkable(metadata.mode(), desired);
     let inode = (metadata.dev(), metadata.ino());
-    cache.paths.insert(path.to_path_buf(), inode);
-    cache.inodes.insert(inode, linkable);
+    let mut cache = lock();
+    if epoch().load(Ordering::Acquire) == before {
+        cache.paths.insert(path.to_path_buf(), inode);
+        cache.inodes.insert(inode, linkable);
+    }
     Ok(linkable)
 }
 
@@ -81,11 +99,11 @@ pub fn source_mode_is_linkable(path: &Path, desired: u32) -> io::Result<bool> {
 ///
 /// A `chmod` through a hardlink changes the mode of every name of the inode,
 /// the store entry among them, so the remembered answer no longer holds.
-/// The inode is read before the change and the entry dropped after it, with
-/// the map locked across the change, so a concurrent import either reads the
-/// old mode before the change and has its answer dropped here, or reads the
-/// new mode after. The `stat` this pays is confined to mode changes, not to
-/// the links a cache hit avoids.
+/// The counter is bumped before the change and the entry dropped after it,
+/// with the map locked throughout, so a `stat` that ran while the change
+/// happened is not remembered, and one that finished before it has its
+/// answer dropped here. The `stat` this pays is confined to mode changes,
+/// not to the links a cache hit avoids.
 ///
 /// `change` runs under the lock and so must not call back into this module.
 pub fn with_mode_change<Value>(path: &Path, change: impl FnOnce() -> Value) -> Value {
@@ -93,6 +111,7 @@ pub fn with_mode_change<Value>(path: &Path, change: impl FnOnce() -> Value) -> V
         .ok()
         .map(|metadata| (metadata.dev(), metadata.ino()));
     let mut cache = lock();
+    epoch().fetch_add(1, Ordering::Release);
     let result = change();
     if let Some(inode) = inode {
         cache.inodes.remove(&inode);
