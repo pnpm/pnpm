@@ -117,7 +117,7 @@ fn resolution_kind(resolution: &LockfileResolution) -> &'static str {
 /// Linux).
 ///
 /// Translating `host_libc()`'s `"unknown"` to `None` lets
-/// [`select_platform_variant`]'s asymmetric libc rule apply
+/// [`select_platform_variant`](pnpm_lockfile::select_platform_variant)'s asymmetric libc rule apply
 /// consistently: `None` and `Some("glibc")` both require the
 /// variant to omit `libc`, and `Some("musl")` requires an exact
 /// match.
