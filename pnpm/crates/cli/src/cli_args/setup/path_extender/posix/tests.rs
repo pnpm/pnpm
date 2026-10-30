@@ -8,7 +8,7 @@ use super::{
     AddDirToEnvPathOpts, AddingPosition, ConfigFileChangeType, PathExtenderError, PathGuard,
     add_dir_to_posix_env_path, find_section, fish_quote, render_fish_section, render_fish_settings,
     render_nu_settings, render_posix_section, render_posix_settings, replace_section, sh_quote,
-    update_shell_config, v11_quote, wrap_settings,
+    update_shell_config, v11_quote, wrap_section,
 };
 use pretty_assertions::assert_eq;
 use std::{fs, path::Path};
@@ -227,7 +227,7 @@ fn rejects_pnpm_home_with_a_path_separator() {
 fn create_config_file_when_it_does_not_exist() {
     let dir = tempfile::tempdir().expect("create temp dir");
     let config_file = dir.path().join("sub").join(".bashrc");
-    let content = wrap_settings("pnpm", "export FOO=1");
+    let content = wrap_section("pnpm", "export FOO=1");
 
     let (change_type, old_settings) =
         update_shell_config(&config_file, &content, &[], &opts(false))
@@ -244,7 +244,7 @@ fn append_to_an_existing_config_file() {
     let dir = tempfile::tempdir().expect("create temp dir");
     let config_file = dir.path().join(".bashrc");
     fs::write(&config_file, "").expect("write empty config file");
-    let content = wrap_settings("pnpm", "export FOO=1");
+    let content = wrap_section("pnpm", "export FOO=1");
 
     let (change_type, old_settings) =
         update_shell_config(&config_file, &content, &[], &opts(false))
@@ -260,7 +260,7 @@ fn append_to_an_existing_config_file() {
 fn skip_when_the_config_is_already_present() {
     let dir = tempfile::tempdir().expect("create temp dir");
     let config_file = dir.path().join(".bashrc");
-    let content = wrap_settings("pnpm", "export FOO=1");
+    let content = wrap_section("pnpm", "export FOO=1");
     fs::write(&config_file, format!("\n{content}\n")).expect("write config file");
 
     let (change_type, old_settings) =
@@ -275,9 +275,9 @@ fn skip_when_the_config_is_already_present() {
 fn fail_when_the_section_differs_and_overwrite_is_off() {
     let dir = tempfile::tempdir().expect("create temp dir");
     let config_file = dir.path().join(".bashrc");
-    let existing = wrap_settings("pnpm", "export FOO=old");
+    let existing = wrap_section("pnpm", "export FOO=old");
     fs::write(&config_file, format!("\n{existing}\n")).expect("write config file");
-    let content = wrap_settings("pnpm", "export FOO=new");
+    let content = wrap_section("pnpm", "export FOO=new");
 
     let err = update_shell_config(&config_file, &content, &[], &opts(false))
         .expect_err("differing section without --force must error");
@@ -291,9 +291,9 @@ fn fail_when_the_section_differs_and_overwrite_is_off() {
 fn replace_when_the_section_differs_and_overwrite_is_on() {
     let dir = tempfile::tempdir().expect("create temp dir");
     let config_file = dir.path().join(".bashrc");
-    let existing = wrap_settings("pnpm", "export FOO=old");
+    let existing = wrap_section("pnpm", "export FOO=old");
     fs::write(&config_file, format!("before\n{existing}\nafter\n")).expect("write config file");
-    let content = wrap_settings("pnpm", "export FOO=new");
+    let content = wrap_section("pnpm", "export FOO=new");
 
     let (change_type, old_settings) =
         update_shell_config(&config_file, &content, &[], &opts(true)).expect("update shell config");
@@ -308,9 +308,9 @@ fn replace_when_the_section_differs_and_overwrite_is_on() {
 fn replace_the_outdated_section_without_overwrite() {
     let dir = tempfile::tempdir().expect("create temp dir");
     let config_file = dir.path().join(".bashrc");
-    let existing = wrap_settings("pnpm", "export FOO=old");
+    let existing = wrap_section("pnpm", "export FOO=old");
     fs::write(&config_file, format!("before\n{existing}\nafter\n")).expect("write config file");
-    let content = wrap_settings("pnpm", "export FOO=new");
+    let content = wrap_section("pnpm", "export FOO=new");
 
     let (change_type, old_settings) =
         update_shell_config(&config_file, &content, std::slice::from_ref(&existing), &opts(false))
@@ -371,7 +371,7 @@ esac
 "#;
     fs::write(&config_file, initial).expect("write initial config");
 
-    let new_section = wrap_settings(
+    let new_section = wrap_section(
         "pnpm",
         r#"export PNPM_HOME="/home/user/.new_pnpm"
 case ":$PATH:" in
@@ -419,7 +419,7 @@ fn update_shell_config_appends_when_only_comment_present() {
     let initial = "# pnpm\nalias p=\"pnpm\"\n";
     fs::write(&config_file, initial).expect("write initial config");
 
-    let new_section = wrap_settings("pnpm", "export FOO=1");
+    let new_section = wrap_section("pnpm", "export FOO=1");
     let (change_type, old_settings) =
         update_shell_config(&config_file, &new_section, &[], &opts(false))
             .expect("update shell config");
@@ -436,14 +436,12 @@ fn update_shell_config_selects_path_section_when_multiple_sections_exist() {
     let dir = tempfile::tempdir().expect("create temp dir");
     let config_file = dir.path().join(".zshrc");
 
-    let alias_block = wrap_settings("pnpm", "alias p=pnpm");
-    let old_env_block =
-        wrap_settings("pnpm", "export PNPM_HOME=/old\nexport PATH=$PNPM_HOME:$PATH");
+    let alias_block = wrap_section("pnpm", "alias p=pnpm");
+    let old_env_block = wrap_section("pnpm", "export PNPM_HOME=/old\nexport PATH=$PNPM_HOME:$PATH");
     let initial = format!("{alias_block}\n\nexport OTHER=1\n\n{old_env_block}\n");
     fs::write(&config_file, &initial).expect("write initial config");
 
-    let new_env_block =
-        wrap_settings("pnpm", "export PNPM_HOME=/new\nexport PATH=$PNPM_HOME:$PATH");
+    let new_env_block = wrap_section("pnpm", "export PNPM_HOME=/new\nexport PATH=$PNPM_HOME:$PATH");
     let (change_type, old_settings) =
         update_shell_config(&config_file, &new_env_block, &[], &opts(true))
             .expect("update shell config");
@@ -460,14 +458,12 @@ fn update_shell_config_prioritizes_path_block_over_later_block_mentioning_pnpm()
     let dir = tempfile::tempdir().expect("create temp dir");
     let config_file = dir.path().join(".zshrc");
 
-    let old_env_block =
-        wrap_settings("pnpm", "export PNPM_HOME=/old\nexport PATH=$PNPM_HOME:$PATH");
-    let alias_block = wrap_settings("pnpm", "# PNPM aliases\nalias p=pnpm");
+    let old_env_block = wrap_section("pnpm", "export PNPM_HOME=/old\nexport PATH=$PNPM_HOME:$PATH");
+    let alias_block = wrap_section("pnpm", "# PNPM aliases\nalias p=pnpm");
     let initial = format!("{old_env_block}\n\nexport OTHER=1\n\n{alias_block}\n");
     fs::write(&config_file, &initial).expect("write initial config");
 
-    let new_env_block =
-        wrap_settings("pnpm", "export PNPM_HOME=/new\nexport PATH=$PNPM_HOME:$PATH");
+    let new_env_block = wrap_section("pnpm", "export PNPM_HOME=/new\nexport PATH=$PNPM_HOME:$PATH");
     let (change_type, old_settings) =
         update_shell_config(&config_file, &new_env_block, &[], &opts(true))
             .expect("update shell config");
@@ -485,13 +481,12 @@ fn update_shell_config_prioritizes_generated_env_block_over_later_custom_path_bl
     let config_file = dir.path().join(".zshrc");
 
     let generated_env_block =
-        wrap_settings("pnpm", "export PNPM_HOME=/old\nexport PATH=$PNPM_HOME:$PATH");
-    let custom_path_block = wrap_settings("pnpm", "export PATH=/custom/bin:$PATH");
+        wrap_section("pnpm", "export PNPM_HOME=/old\nexport PATH=$PNPM_HOME:$PATH");
+    let custom_path_block = wrap_section("pnpm", "export PATH=/custom/bin:$PATH");
     let initial = format!("{generated_env_block}\n\nexport OTHER=1\n\n{custom_path_block}\n");
     fs::write(&config_file, &initial).expect("write initial config");
 
-    let new_env_block =
-        wrap_settings("pnpm", "export PNPM_HOME=/new\nexport PATH=$PNPM_HOME:$PATH");
+    let new_env_block = wrap_section("pnpm", "export PNPM_HOME=/new\nexport PATH=$PNPM_HOME:$PATH");
     let (change_type, old_settings) =
         update_shell_config(&config_file, &new_env_block, &[], &opts(true))
             .expect("update shell config");
@@ -509,14 +504,13 @@ fn update_shell_config_ignores_comments_mentioning_pnpm_home_and_path() {
     let config_file = dir.path().join(".zshrc");
 
     let generated_env_block =
-        wrap_settings("pnpm", "export PNPM_HOME=/old\nexport PATH=$PNPM_HOME:$PATH");
+        wrap_section("pnpm", "export PNPM_HOME=/old\nexport PATH=$PNPM_HOME:$PATH");
     let custom_block =
-        wrap_settings("pnpm", "# Keep PNPM_HOME and PATH customizations\nalias pn=pnpm");
+        wrap_section("pnpm", "# Keep PNPM_HOME and PATH customizations\nalias pn=pnpm");
     fs::write(&config_file, format!("{generated_env_block}\n\n{custom_block}\n"))
         .expect("write initial config");
 
-    let new_env_block =
-        wrap_settings("pnpm", "export PNPM_HOME=/new\nexport PATH=$PNPM_HOME:$PATH");
+    let new_env_block = wrap_section("pnpm", "export PNPM_HOME=/new\nexport PATH=$PNPM_HOME:$PATH");
     let (_, old_settings) = update_shell_config(&config_file, &new_env_block, &[], &opts(true))
         .expect("update shell config");
 
@@ -531,7 +525,7 @@ fn update_shell_config_skips_an_equivalent_crlf_section() {
     let config_file = dir.path().join(".zshrc");
 
     let lf_block =
-        wrap_settings("pnpm", "export PNPM_HOME=/home/user/.pnpm\nexport PATH=$PNPM_HOME:$PATH");
+        wrap_section("pnpm", "export PNPM_HOME=/home/user/.pnpm\nexport PATH=$PNPM_HOME:$PATH");
     fs::write(&config_file, lf_block.replace('\n', "\r\n")).expect("write initial config");
 
     let (change_type, _) = update_shell_config(&config_file, &lf_block, &[], &opts(false))
