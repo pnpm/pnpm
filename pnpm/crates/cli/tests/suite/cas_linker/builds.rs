@@ -430,3 +430,64 @@ fn loaded_build_without_package_changes_is_shared_between_projects_unless_exclud
         );
     }
 }
+
+#[test]
+fn loaded_temporary_build_reuses_a_dependency_build_without_package_changes() {
+    let fixture = loaded_build_fixture(
+        &serde_json::json!({
+            "name": "outside-build", "version": "1.0.0",
+            "scripts": {"postinstall": r#"node -e "require('node:fs').appendFileSync(process.env.INIT_CWD + '/build-count', 'x')""#}
+        }),
+        &serde_json::json!({"dependencies": {"outside-build": "file:../outside.tgz"}}),
+        "allowBuilds:\n  'outside-build@file:../outside.tgz': true\n  'writes-file@file:../writes.tgz': true\noverrides:\n  outside-build: file:../outside.tgz\n",
+    );
+    let root = fixture.root.path();
+    fs::rename(fixture.workspace.join("dep.tgz"), root.join("outside.tgz")).unwrap();
+    let second = root.join("second");
+    fs::create_dir(&second).unwrap();
+    write_loaded_tarball(
+        &second,
+        &[
+            (
+                "package.json",
+                &serde_json::json!({
+                    "name": "writes-file", "version": "1.0.0",
+                    "dependencies": {"outside-build": "1.0.0"},
+                    "scripts": {"postinstall": r#"node -e "require('node:fs').writeFileSync('built.json', '42')""#}
+                })
+                .to_string(),
+            ),
+            ("index.js", "module.exports = require('./built.json')"),
+        ],
+    );
+    fs::rename(second.join("dep.tgz"), root.join("writes.tgz")).unwrap();
+    for file in [".npmrc", "pnpm-workspace.yaml"] {
+        fs::copy(fixture.workspace.join(file), second.join(file)).unwrap();
+    }
+    fs::write(
+        second.join("package.json"),
+        r#"{"dependencies":{"writes-file":"file:../writes.tgz"}}"#,
+    )
+    .unwrap();
+    fixture.pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    Command::cargo_bin("pnpm")
+        .unwrap()
+        .with_current_dir(&second)
+        .with_arg("install")
+        .assert()
+        .success();
+    assert_eq!(fs::read_to_string(fixture.workspace.join("build-count")).unwrap(), "x");
+    assert!(!second.join("build-count").exists());
+    let output = Command::cargo_bin("pnpm")
+        .unwrap()
+        .with_current_dir(&second)
+        .with_args(["exec", "node", "-e", "console.log(require('writes-file'))"])
+        .env_remove("NODE_OPTIONS")
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "42");
+}

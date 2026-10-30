@@ -27,7 +27,7 @@ pub(super) fn apply(
         fetched.package_bins.remove(&key.without_peer());
         let Some(result) = captured.remove(key) else { continue };
         insert(context, key, result, fetched);
-        update_prefetch(installer, key, fetched);
+        super::super::cached_builds::update_prefetch(installer, key, fetched);
     }
     Ok(())
 }
@@ -55,33 +55,6 @@ fn insert(
         overlays.insert(cache_key.clone(), overlay);
         Arc::make_mut(fetched.side_effects.diffs.entry(key.clone()).or_default())
             .insert(cache_key, diff);
-    }
-}
-
-fn update_prefetch(
-    installer: &mut CreateVirtualStore<'_>,
-    key: &PackageKey,
-    fetched: &CreateVirtualStoreOutput,
-) {
-    let Some(metadata) =
-        installer.entries.packages.and_then(|packages| packages.get(&key.without_peer()))
-    else {
-        return;
-    };
-    let Some(row_key) = crate::store_index_key_for_resolution(
-        &metadata.resolution,
-        &key.without_peer().pkg_id(),
-        true,
-    ) else {
-        return;
-    };
-    let Some(prefetch) = installer.fetching.cas_prefetch.as_mut() else { return };
-    let crate::create_virtual_store::PrefetchTask::Settled(rows) = &mut prefetch.task else {
-        return;
-    };
-    rows.side_effects_maps.insert(row_key.clone(), Arc::clone(&fetched.side_effects.maps[key]));
-    if let Some(diffs) = fetched.side_effects.diffs.get(key) {
-        rows.side_effects.insert(row_key, Arc::clone(diffs));
     }
 }
 
