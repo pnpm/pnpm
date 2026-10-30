@@ -32,14 +32,16 @@ pub(super) struct PackageLocations {
 
 impl PackageLocations {
     fn first(&self, pkg_key: &PackageKey) -> Option<&PathBuf> {
-        self.by_package_key
-            .get(pkg_key)
-            .and_then(|locations| locations.first())
+        self.first_exact(pkg_key)
             .or_else(|| {
                 self.by_pkg_id
                     .get(&pnpm_real_hoist::pkg_id(pkg_key))
                     .and_then(|locations| locations.first())
             })
+    }
+
+    fn first_exact(&self, pkg_key: &PackageKey) -> Option<&PathBuf> {
+        self.by_package_key.get(pkg_key).and_then(|locations| locations.first())
     }
 
     fn record(&mut self, pkg_key: &PackageKey, dir: &Path) {
@@ -133,10 +135,7 @@ pub(super) fn root_direct_deps(
 /// moves dedupe-able deps up to root, leaving the workspace node's
 /// children empty even when the importer declared those deps.
 ///
-/// A copy of the resolved package the hoister placed in the importer's own
-/// `modules_dir` is the one the importer resolves, even when another
-/// importer's copy of the same snapshot was recorded first. Elsewhere the first recorded
-/// location of each resolved snapshot wins.
+/// Each dependency resolves through [`direct_dep_location`].
 pub(super) fn importer_direct_deps(
     importer: &pnpm_lockfile::ProjectSnapshot,
     modules_dir: &Path,
@@ -157,22 +156,46 @@ pub(super) fn importer_direct_deps(
             // (name, suffix); for a regular dep it's `(alias, version)`.
             let Some(dep_key) = spec.version.resolved_key(alias) else { continue };
             let own_copy = modules_dir.join(alias.to_string());
-            if graph.get(&own_copy).is_some_and(|node| node_holds(node, &dep_key)) {
-                direct_deps.insert(alias.to_string(), own_copy);
-            } else if let Some(first) = pkg_locations.first(&dep_key) {
-                direct_deps.insert(alias.to_string(), first.clone());
+            if let Some(location) = direct_dep_location(own_copy, &dep_key, graph, pkg_locations) {
+                direct_deps.insert(alias.to_string(), location);
             }
         }
     }
     direct_deps
 }
-/// Whether `node` holds the package `dep_key` resolves to, by package id
-/// so a peer variant the hoister collapsed still matches.
-fn node_holds(node: &DependenciesGraphNode, dep_key: &PackageKey) -> bool {
-    node.package.dep_path
-        .as_str()
-        .parse::<PackageKey>()
-        .is_ok_and(|key| pnpm_real_hoist::pkg_id(&key) == pnpm_real_hoist::pkg_id(dep_key))
+/// Where an importer finds its direct dependency `dep_key`.
+///
+/// A copy the hoister placed in the importer's own `modules_dir` is the one
+/// the importer resolves, even when another importer's copy of the same
+/// snapshot was recorded first. An exact snapshot match is taken before a
+/// package-id match, so a copy of another peer variant in `own_copy` never
+/// shadows the variant's own location; the package id still finds a variant
+/// the hoister collapsed.
+fn direct_dep_location(
+    own_copy: PathBuf,
+    dep_key: &PackageKey,
+    graph: &DependenciesGraph,
+    pkg_locations: &PackageLocations,
+) -> Option<PathBuf> {
+    let own_key = graph
+        .get(&own_copy)
+        .and_then(|node| {
+            node.package.dep_path
+                .as_str()
+                .parse::<PackageKey>()
+                .ok()
+        });
+    if own_key.as_ref() == Some(dep_key) {
+        return Some(own_copy);
+    }
+    if let Some(exact) = pkg_locations.first_exact(dep_key) {
+        return Some(exact.clone());
+    }
+    if own_key.is_some_and(|key| pnpm_real_hoist::pkg_id(&key) == pnpm_real_hoist::pkg_id(dep_key))
+    {
+        return Some(own_copy);
+    }
+    pkg_locations.first(dep_key).cloned()
 }
 /// Second walker pass: with every node's directory already in
 /// `pkg_locations`, resolve each graph node's `children: alias →
