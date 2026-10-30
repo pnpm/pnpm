@@ -254,17 +254,42 @@ fi
 }
 
 function buildShExecBlock (config: ShProgConfig): string {
-  const msysArgs = config.isCmdRuntime ? escapeMsysCmdSwitches(config.args) : config.args
-  if (msysArgs !== config.args) {
-    return `\
+  if (!config.isCmdRuntime) return generateExecBlock(config, config.args)
+  const { args, cmdSwitch } = upperCaseCmdSwitch(config.args)
+  const exclusion = cmdSwitch ? buildMsysCmdSwitchExclusion(cmdSwitch) : ''
+  return exclusion + generateExecBlock(config, args)
+}
+
+/**
+ * Excludes `cmdSwitch` from MSYS argument conversion, which otherwise turns
+ * `/C` into a drive path and leaves cmd.exe interactive. The caller's own
+ * exclusions follow it. Unlike a doubled `//C`, the switch reaches cmd.exe
+ * intact whether conversion is on or off.
+ *
+ * An entry excludes every argument that starts with it, case-sensitively, so
+ * the switch is upper case: a `/c` entry would also exclude a drive path such
+ * as `/c/Users`.
+ */
+function buildMsysCmdSwitchExclusion (cmdSwitch: string): string {
+  return `\
 if [ -n "$msys" ]; then
-${indentShellBlock(generateExecBlock(config, msysArgs))}
-else
-${indentShellBlock(generateExecBlock(config, config.args))}
+  export MSYS2_ARG_CONV_EXCL="${cmdSwitch}\${MSYS2_ARG_CONV_EXCL:+;$MSYS2_ARG_CONV_EXCL}"
 fi
 `
-  }
-  return generateExecBlock(config, config.args)
+}
+
+/**
+ * `args` with its first standalone `/C` or `/K` switch in upper case, and that
+ * switch. cmd.exe reads its switches case-insensitively and everything after
+ * that switch as the command to run, which keeps its own spelling.
+ */
+function upperCaseCmdSwitch (args: string): { args: string, cmdSwitch?: string } {
+  let cmdSwitch: string | undefined
+  const upperCased = args.replace(/(?<=^|\s)\/[ck](?=\s|$)/i, (found) => {
+    cmdSwitch = found.toUpperCase()
+    return cmdSwitch
+  })
+  return { args: upperCased, cmdSwitch }
 }
 
 function generateExecBlock (config: ShProgConfig, execArgs: string): string {
@@ -301,10 +326,17 @@ fi
 `
 }
 
-function escapeMsysCmdSwitches (args: string): string {
-  return args.replace(/(^|\s)\/([CK])(\s|$)/gi, '$1//$2$3')
-}
+const MSYS_DOUBLED_CMD_SWITCHES = new Set(['//C', '//c', '//K', '//k'])
 
-function indentShellBlock (script: string): string {
-  return script.split('\n').map((line) => line ? `  ${line}` : line).join('\n')
+/**
+ * Whether an already-on-disk shim hands `cmd` a doubled switch such as `//C`,
+ * which cmd.exe reads as no switch when MSYS argument conversion is off. The
+ * target marker still matches such a shim, so a warm reinstall checks for the
+ * doubled switch to replace it.
+ */
+export function isShimMsysCmdSwitchDoubled (shimContent: string): boolean {
+  return shimContent.split('\n').some((line) =>
+    line.trimStart().startsWith('exec ') &&
+    line.split(/\s+/).some((arg) => MSYS_DOUBLED_CMD_SWITCHES.has(arg))
+  )
 }

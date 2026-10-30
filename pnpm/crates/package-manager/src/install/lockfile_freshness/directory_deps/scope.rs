@@ -3,6 +3,7 @@ use std::collections::HashSet;
 
 /// The snapshots already checked, each with the peers its ancestors supply:
 /// what a package and its descendants must record depends on that scope.
+#[derive(Clone)]
 pub(super) struct Visited {
     checked: HashSet<(pnpm_lockfile::PackageKey, Vec<String>)>,
     /// Every peer the lockfile records for a package, which bounds the part

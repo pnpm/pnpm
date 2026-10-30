@@ -48,6 +48,10 @@ async fn optimistic_repeat_install_skips_entire_pipeline_when_state_is_fresh() {
     std::fs::create_dir_all(&dirs.project_root).expect("create project root");
     std::fs::create_dir_all(&dirs.modules_dir)
         .expect("create modules dirs.dir so the deps gate passes");
+    // A fresh install links a `link:` dependency, so the fixture's modules
+    // directory has to hold the entry the state was recorded for.
+    std::fs::create_dir_all(dirs.modules_dir.join("sibling"))
+        .expect("create the link entry the fresh install would have made");
     let manifest_path = dirs.project_root.join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path.clone()).unwrap();
     manifest.add_dependency("sibling", "link:../sibling", DependencyGroup::Prod).unwrap();
@@ -227,6 +231,10 @@ fn sync_fast_path_matches_optimistic_short_circuit() {
     let modules_dir = project_root.join("node_modules");
 
     std::fs::create_dir_all(&modules_dir).expect("create modules dir so the deps gate passes");
+    // A fresh install links a `link:` dependency, so the recorded state has to
+    // see the entry the install made.
+    std::fs::create_dir_all(modules_dir.join("sibling"))
+        .expect("create the link entry the fresh install would have made");
     let manifest_path = project_root.join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path.clone()).unwrap();
     manifest.add_dependency("sibling", "link:../sibling", DependencyGroup::Prod).unwrap();

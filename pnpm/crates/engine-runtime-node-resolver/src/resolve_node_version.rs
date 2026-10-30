@@ -5,8 +5,9 @@
 //! versions, and pick the one (or the set) matching a user-supplied
 //! selector. The selector may be:
 //!
-//! - `latest` or an empty selector — the first entry in the index
-//!   (the newest published build on that channel).
+//! - `latest` or an empty selector — the newest stable entry in the
+//!   index, or the first entry when the index has no stable entry (the
+//!   newest build on a prerelease channel such as `nightly`).
 //! - `lts` — the newest entry tagged with any LTS codename.
 //! - An LTS codename (`argon`, `iron`, ...) — `*` within that codename.
 //! - A semver range — pick the [`max_satisfying`] version.
@@ -97,12 +98,7 @@ pub async fn resolve_node_version_with_auth(
 ) -> Result<Option<String>, ResolveNodeVersionError> {
     let all_versions = fetch_all_versions(http_client, auth_headers, node_mirror_base_url).await?;
     if is_latest_selector(version_spec) {
-        let versions: Vec<String> = all_versions
-            .iter()
-            .map(|entry| entry.version.clone())
-            .collect();
-        return Ok(max_satisfying(&versions, "*")
-            .or_else(|| all_versions.first().map(|version| version.version.clone())));
+        return Ok(latest_version(&all_versions));
     }
     let (versions, range) = filter_versions(&all_versions, version_spec);
     Ok(max_satisfying(&versions, &range))
@@ -143,19 +139,7 @@ pub async fn resolve_node_versions_with_auth(
             .collect());
     };
     if is_latest_selector(version_spec) {
-        let versions: Vec<String> = all_versions
-            .iter()
-            .map(|entry| entry.version.clone())
-            .collect();
-        return Ok(max_satisfying(&versions, "*")
-            .or_else(|| {
-                all_versions
-                    .into_iter()
-                    .next()
-                    .map(|version| version.version)
-            })
-            .into_iter()
-            .collect());
+        return Ok(latest_version(&all_versions).into_iter().collect());
     }
     let (versions, range) = filter_versions(&all_versions, version_spec);
     let Ok(parsed_range) = Range::parse(&range) else { return Ok(Vec::new()) };
@@ -166,6 +150,17 @@ pub async fn resolve_node_versions_with_auth(
                 .is_ok_and(|parsed| satisfies_with_prereleases(&parsed, &parsed_range))
         })
         .collect())
+}
+
+fn latest_version(versions: &[NodeVersion]) -> Option<String> {
+    versions
+        .iter()
+        .find(|version| {
+            Version::parse(&version.version)
+                .is_ok_and(|parsed| parsed.pre_release.is_empty())
+        })
+        .or_else(|| versions.first())
+        .map(|version| version.version.clone())
 }
 
 async fn fetch_all_versions(

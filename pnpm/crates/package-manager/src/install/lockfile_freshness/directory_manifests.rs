@@ -4,7 +4,7 @@
 use super::{
     FreshnessCheckError, LockfileFreshnessInputs,
     directory_deps::{
-        InjectedDirectory, is_declared_local_directory, is_deploy_file_url_key,
+        InjectedDirectory, NestedByImporter, is_declared_local_directory, is_deploy_file_url_key,
         overridden_unhooked_manifest, unhooked_manifest,
     },
     project_manifests_by_dir,
@@ -37,7 +37,8 @@ impl DirectoryManifests {
 }
 
 /// The manifest of every directory package the importers of `inputs` reach
-/// through directory packages, that no project in `inputs` describes, with
+/// through directory packages, and of every `nested` one they reach and the directory
+/// packages beneath it, that no project in `inputs` describes, with
 /// the resolver's manifest hooks applied as the resolver applies them:
 /// `packageExtensions`, the pnpmfile's `readPackage` with the recorded
 /// directory, overrides, and `ignoredOptionalDependencies`.
@@ -47,9 +48,13 @@ impl DirectoryManifests {
 pub(super) async fn hooked_directory_manifests(
     lockfile: &Lockfile,
     inputs: &LockfileFreshnessInputs<'_, '_>,
-    parsed_overrides: Option<&[pnpm_config_parse_overrides::VersionOverride]>,
+    (parsed_overrides, nested): (
+        Option<&[pnpm_config_parse_overrides::VersionOverride]>,
+        &NestedByImporter<'_>,
+    ),
 ) -> Result<DirectoryManifests, FreshnessCheckError> {
     let mut level = direct_directory_deps(lockfile, inputs);
+    level.extend(nested_directory_deps(nested));
     if level.is_empty() {
         return Ok(DirectoryManifests::default());
     }
@@ -166,6 +171,20 @@ fn direct_directory_deps(
             })
         })
         .collect()
+}
+
+/// Each nested package under both declarations, which the check tries (see
+/// [`super::directory_deps::check_nested_directory_package`]).
+fn nested_directory_deps<'n>(nested: &'n NestedByImporter<'_>) -> impl Iterator<Item = Visit> + 'n {
+    nested
+        .packages()
+        .flat_map(|package| {
+            [false, true].map(|declared_as_file| Visit {
+                dep: (package.directory.clone(), declared_as_file),
+                alias: package.alias.clone(),
+                key: package.key.clone(),
+            })
+        })
 }
 
 struct DirectoryWalk<'a, 'i> {

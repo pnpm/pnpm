@@ -89,6 +89,7 @@ function createLinkedPackagesContext (
     lockfileDir: opts.lockfileDir,
     workspaceDir: opts.workspaceDir,
     injectWorkspacePackages: opts.wantedLockfile.settings?.injectWorkspacePackages,
+    includedDependencies: opts.includedDependencies,
     resolution: {
       autoInstallPeers: opts.autoInstallPeers,
       catalogs: opts.catalogs,

@@ -15,8 +15,8 @@ use super::{
     deps_status::config_dependencies_drifted,
     direct_dependency_link_dangling, filesystem_now_ms_in_modules,
     first_held_project_missing_modules_dir, first_lockfile_requiring_conflict_safe_install,
-    first_setting_drift, held_projects_match_lockfile, local_file_blocks_fast_path,
-    pnpmfiles_drift, project_structure_matches,
+    first_setting_drift, held_project_dirs, held_projects_match_lockfile,
+    local_file_blocks_fast_path, pnpmfiles_drift, project_structure_matches,
     relocation::{prove_move, rekeyed_validation_now},
     settle::{
         current_lockfile_unusable_with_non_empty_wanted, regenerate_wanted_lockfile_if_missing,
@@ -121,7 +121,8 @@ pub(crate) enum Stale {
     /// A held project with dependencies lacks its modules directory, named by
     /// its id.
     MissingModulesDir(String),
-    /// A direct dependency link in a project's modules directory is dangling.
+    /// A direct dependency link in a project's modules directory is dangling,
+    /// or absent for a dependency the linker always links.
     DanglingDirectLink,
     /// `useGitBranchLockfile` is enabled and the branch lockfile is absent.
     MissingBranchLockfile,
@@ -257,10 +258,23 @@ fn check_settings_and_workspace_freshness(
     if !project_structure_matches(state, project_manifests.as_slice()) {
         return Err(Stale::ProjectStructure);
     }
+    check_held_modules_dirs(check, state, policy, scope)
+}
+
+/// The modules directories of the projects `scope` holds: each one the linker
+/// needs exists, and holds no broken direct dependency link.
+fn check_held_modules_dirs(
+    check: &OptimisticRepeatInstallCheck<'_>,
+    state: &WorkspaceState,
+    policy: &GatePolicy<'_>,
+    scope: Scope<'_>,
+) -> Result<(), Stale> {
     if let Some(id) = first_held_project_missing_modules_dir(check, state, scope) {
         return Err(Stale::MissingModulesDir(id));
     }
-    if policy.check_dangling_direct_links && direct_dependency_link_dangling(check) {
+    if policy.check_dangling_direct_links
+        && direct_dependency_link_dangling(check, held_project_dirs(check, state, scope).as_ref())
+    {
         return Err(Stale::DanglingDirectLink);
     }
     Ok(())
