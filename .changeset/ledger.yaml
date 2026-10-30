@@ -53,6 +53,11 @@
   dir: pnpm11/bins/cmd-shim
   intents:
     - shim-helpers-without-default-path
+"@pnpm/bins.cmd-shim@1100.0.5":
+  dir: pnpm11/bins/cmd-shim
+  intents:
+    - cmd-shim-msys-conversion-off
+    - global-bins-resolve-hoisted-dependencies
 "@pnpm/bins.linker@1100.0.22":
   dir: pnpm11/bins/linker
   intents:
@@ -110,6 +115,12 @@
   dir: pnpm11/bins/linker
   intents:
     - prune-removed-workspace-bins
+"@pnpm/bins.linker@1100.0.40":
+  dir: pnpm11/bins/linker
+  intents:
+    - cmd-shim-msys-conversion-off
+    - global-bins-resolve-hoisted-dependencies
+    - refresh-private-hoisted-bins
 "@pnpm/bins.remover@1100.0.16":
   dir: pnpm11/bins/remover
   intents:
@@ -147,6 +158,10 @@
   dir: pnpm11/building/after-install
   intents:
     - injected-copy-package-files
+"@pnpm/building.after-install@1103.0.14":
+  dir: pnpm11/building/after-install
+  intents:
+    - refresh-private-hoisted-bins
 "@pnpm/building.after-install@1103.0.2":
   dir: pnpm11/building/after-install
   intents:
@@ -225,6 +240,10 @@
   dir: pnpm11/building/during-install
   intents:
     - patched-install-scripts-need-approval
+"@pnpm/building.during-install@1102.2.11":
+  dir: pnpm11/building/during-install
+  intents:
+    - refresh-private-hoisted-bins
 "@pnpm/building.during-install@1102.2.4":
   dir: pnpm11/building/during-install
   intents:
@@ -417,6 +436,10 @@
   intents:
     - forward-config-flags-to-verify-deps-install
     - location-global-skips-workspace
+"@pnpm/cli.parse-cli-args@1100.1.19":
+  dir: pnpm11/cli/parse-cli-args
+  intents:
+    - unified-pin-decision
 "@pnpm/cli.parse-cli-args@1100.1.6":
   dir: pnpm11/cli/parse-cli-args
   intents:
@@ -682,6 +705,10 @@
     - registry-prefix-proto
     - symlinked-lockfile-target-dirs-v11-warning
     - worker-pool-cgroup-cpu-quota
+"@pnpm/config.reader@1102.3.8":
+  dir: pnpm11/config/reader
+  intents:
+    - unified-pin-decision
 "@pnpm/config.registry-auth-key@1100.0.0":
   dir: pnpm11/config/registry-auth-key
   intents:
@@ -1040,6 +1067,10 @@
   dir: pnpm11/deps/graph-hasher
   intents:
     - fix-cyclic-build-hashes
+"@pnpm/deps.graph-hasher@1100.3.10":
+  dir: pnpm11/deps/graph-hasher
+  intents:
+    - gvs-cycle-slots-cover-the-cycle
 "@pnpm/deps.graph-hasher@1100.3.5":
   dir: pnpm11/deps/graph-hasher
   intents:
@@ -1331,6 +1362,11 @@
     - repeat-install-records-more-settings
     - verify-deps-before-run-dedupe-peers
     - workspace-bin-repeat-install
+"@pnpm/deps.status@1100.1.33":
+  dir: pnpm11/deps/status
+  intents:
+    - relink-missing-workspace-dependency
+    - repeat-install-hook-added-local-deps
 "@pnpm/deps.status@1100.1.7":
   dir: pnpm11/deps/status
   intents:
@@ -1393,6 +1429,10 @@
     - self-update-pin-under-homebrew
     - setup-restricted-registry
     - setup-unknown-shell
+"@pnpm/engine.pm.commands@1102.1.12":
+  dir: pnpm11/engine/pm/commands
+  intents:
+    - unified-pin-decision
 "@pnpm/engine.pm.commands@1102.1.3":
   dir: pnpm11/engine/pm/commands
   intents:
@@ -1478,6 +1518,10 @@
   dir: pnpm11/engine/runtime/node-resolver
   intents:
     - authenticated-node-mirrors
+"@pnpm/engine.runtime.node-resolver@1101.3.11":
+  dir: pnpm11/engine/runtime/node-resolver
+  intents:
+    - 17490-node-runtime-latest-stable
 "@pnpm/engine.runtime.node-resolver@1101.3.2":
   dir: pnpm11/engine/runtime/node-resolver
   intents:
@@ -1553,6 +1597,10 @@
     - drop-linuxstatic-arm64-broken-sea
     - local-npm-windows-exe-shims
     - restore-windows-standalone-shims
+"@pnpm/exe@11.28.10":
+  dir: pnpm11/pnpm/artifacts/exe
+  intents:
+    - exe-embed-node-26-13-0
 "@pnpm/exe@11.28.3":
   dir: pnpm11/pnpm/artifacts/exe
   intents:
@@ -1611,6 +1659,11 @@
   intents:
     - reinstall-after-store-location-change
     - repeat-install-records-more-settings
+"@pnpm/exec.commands@1101.1.13":
+  dir: pnpm11/exec/commands
+  intents:
+    - dlx-working-directory
+    - unified-pin-decision
 "@pnpm/exec.commands@1101.1.3":
   dir: pnpm11/exec/commands
   intents:
@@ -1804,6 +1857,10 @@
   dir: pnpm11/fetching/binary-fetcher
   intents:
     - max-tarball-unpacked-size
+"@pnpm/fetching.binary-fetcher@1102.0.23":
+  dir: pnpm11/fetching/binary-fetcher
+  intents:
+    - retry-dropped-zip-downloads
 "@pnpm/fetching.binary-fetcher@1102.0.4":
   dir: pnpm11/fetching/binary-fetcher
   intents:
@@ -2025,6 +2082,10 @@
   dir: pnpm11/fs/indexed-pkg-importer
   intents:
     - deploy-dependency-symlinks
+"@pnpm/fs.indexed-pkg-importer@1100.0.37":
+  dir: pnpm11/fs/indexed-pkg-importer
+  intents:
+    - prune-exdev-docker-layer
 "@pnpm/fs.is-empty-dir-or-nothing@1100.0.1":
   dir: pnpm11/fs/is-empty-dir-or-nothing
   intents:
@@ -2033,6 +2094,10 @@
   dir: pnpm11/fs/packlist
   intents:
     - bright-pots-pack
+"@pnpm/fs.packlist@1100.0.11":
+  dir: pnpm11/fs/packlist
+  intents:
+    - packlist-bin-string-normalize
 "@pnpm/fs.packlist@1100.0.2":
   dir: pnpm11/fs/packlist
   intents:
@@ -2122,6 +2187,10 @@
   dir: pnpm11/global/commands
   intents:
     - fail-closed-global-bin-enumeration
+"@pnpm/global.commands@1102.0.11":
+  dir: pnpm11/global/commands
+  intents:
+    - global-bins-resolve-hoisted-dependencies
 "@pnpm/global.commands@1102.0.2":
   dir: pnpm11/global/commands
   intents:
@@ -2268,6 +2337,10 @@
   dir: pnpm11/installing/client
   intents:
     - max-tarball-unpacked-size
+"@pnpm/installing.client@1100.3.19":
+  dir: pnpm11/installing/client
+  intents:
+    - retry-dropped-zip-downloads
 "@pnpm/installing.client@1100.3.8":
   dir: pnpm11/installing/client
   intents:
@@ -2433,6 +2506,10 @@
     - moved-scope-registry-reresolve
     - registry-prefix-keys-merge
     - reinstall-after-store-location-change
+"@pnpm/installing.commands@1101.4.9":
+  dir: pnpm11/installing/commands
+  intents:
+    - repeat-install-hook-added-local-deps
 "@pnpm/installing.context@1100.0.28":
   dir: pnpm11/installing/context
   intents:
@@ -2454,6 +2531,10 @@
   dir: pnpm11/installing/context
   intents:
     - prune-extraneous-and-workspace-selection
+"@pnpm/installing.context@1101.0.14":
+  dir: pnpm11/installing/context
+  intents:
+    - global-bins-resolve-hoisted-dependencies
 "@pnpm/installing.context@1101.0.2":
   dir: pnpm11/installing/context
   intents:
@@ -2690,6 +2771,12 @@
     - prune-removed-workspace-bins
     - refuse-v11-node-linker-drift
     - registry-prefix-keys-merge
+"@pnpm/installing.deps-installer@1104.2.8":
+  dir: pnpm11/installing/deps-installer
+  intents:
+    - injected-local-tarball-relock
+    - invalid-dependency-name-names-project
+    - refresh-private-hoisted-bins
 "@pnpm/installing.deps-resolver@1100.2.11":
   dir: pnpm11/installing/deps-resolver
   intents:
@@ -2761,6 +2848,11 @@
     - locked-named-registry-optional
     - moved-scope-registry-reresolve
     - registry-prefix-keys-merge
+"@pnpm/installing.deps-resolver@1102.2.11":
+  dir: pnpm11/installing/deps-resolver
+  intents:
+    - invalid-dependency-name-names-project
+    - quiet-tags-stay
 "@pnpm/installing.deps-resolver@1102.2.2":
   dir: pnpm11/installing/deps-resolver
   intents:
@@ -2947,6 +3039,10 @@
   intents:
     - hoisted-interrupted-install-reuse
     - prune-removed-workspace-bins
+"@pnpm/installing.deps-restorer@1103.2.8":
+  dir: pnpm11/installing/deps-restorer
+  intents:
+    - refresh-private-hoisted-bins
 "@pnpm/installing.env-installer@1102.0.12":
   dir: pnpm11/installing/env-installer
   intents:
@@ -3238,6 +3334,10 @@
   intents:
     - global-pnpmfile-readpackage-lockfile-reuse
     - preserve-lockfile-config-fields
+"@pnpm/lockfile.merger@1100.0.28":
+  dir: pnpm11/lockfile/merger
+  intents:
+    - fast-pigs-worry
 "@pnpm/lockfile.peer-edges@1100.0.0":
   dir: pnpm11/lockfile/peer-edges
   intents:
@@ -3360,6 +3460,10 @@
   intents:
     - moved-scope-registry-reresolve
     - registry-prefix-keys-merge
+"@pnpm/lockfile.utils@1102.1.9":
+  dir: pnpm11/lockfile/utils
+  intents:
+    - injected-local-tarball-relock
 "@pnpm/lockfile.verification@1100.0.26":
   dir: pnpm11/lockfile/verification
   intents:
@@ -3389,6 +3493,11 @@
   intents:
     - quiet-lizards-travel
     - registry-prefix-keys-merge
+"@pnpm/lockfile.verification@1100.1.15":
+  dir: pnpm11/lockfile/verification
+  intents:
+    - injected-local-tarball-relock
+    - nested-directory-dependency-freshness
 "@pnpm/lockfile.verification@1100.1.4":
   dir: pnpm11/lockfile/verification
   intents:
@@ -4086,6 +4195,10 @@
   dir: pnpm11/registry-access/commands
   intents:
     - fix-owner-list-metadata
+"@pnpm/registry-access.commands@1101.0.14":
+  dir: pnpm11/registry-access/commands
+  intents:
+    - unpublish-range-every-version
 "@pnpm/registry-access.commands@1101.0.3":
   dir: pnpm11/registry-access/commands
   intents:
@@ -4821,6 +4934,10 @@
   intents:
     - store-prune-keeps-copied-packages
     - store-prune-symlinked-store-path-v11
+"@pnpm/store.controller@1102.2.8":
+  dir: pnpm11/store/controller
+  intents:
+    - protect-store-data-on-prune
 "@pnpm/store.create-cafs-store@1100.0.21":
   dir: pnpm11/store/create-cafs-store
   intents:
@@ -5290,6 +5407,10 @@
     - reinstall-after-store-location-change
     - repeat-install-records-more-settings
     - workspace-bin-repeat-install
+"@pnpm/workspace.state@1100.0.53":
+  dir: pnpm11/workspace/state
+  intents:
+    - repeat-install-hook-added-local-deps
 "@pnpm/workspace.task-scheduler@1100.0.0":
   dir: pnpm11/workspace/task-scheduler
   intents:
@@ -5323,6 +5444,10 @@
   dir: pnpm11/workspace/workspace-manifest-reader
   intents:
     - pin-decision-survives-unreadable-setting
+"@pnpm/workspace.workspace-manifest-reader@1100.3.2":
+  dir: pnpm11/workspace/workspace-manifest-reader
+  intents:
+    - unified-pin-decision
 "@pnpm/workspace.workspace-manifest-writer@1100.0.18":
   dir: pnpm11/workspace/workspace-manifest-writer
   intents:
@@ -6914,6 +7039,40 @@ pacquet@12.16.1:
     - refresh-private-hoisted-bins
     - unified-pin-decision
     - unpublish-range-every-version
+pacquet@12.17.0:
+  dir: pnpm/npm/pnpm
+  intents:
+    - 17490-node-runtime-latest-stable
+    - accept-tls-settings-cli-flags
+    - bright-lobsters-repeat
+    - cmd-shim-msys-conversion-off
+    - dlx-working-directory
+    - doctor-ping-timeout
+    - env-file-dotenv-values
+    - file-dependency-manifest-hooks
+    - fix-publish-branch-setting
+    - global-bins-resolve-hoisted-dependencies
+    - global-peers-check
+    - gvs-cycle-slots-cover-the-cycle
+    - hardlink-mode-check-once
+    - injected-local-tarball-relock
+    - invalid-dependency-name-names-project
+    - latest-transitive-selectors
+    - nested-directory-dependency-freshness
+    - outdated-and-update-engines
+    - override-dependency-type-selectors
+    - own-nested-copy-direct-dep
+    - pin-tag-catalog-adds
+    - process-lifetime
+    - quiet-engines-reuse
+    - relink-missing-workspace-dependency
+    - repeat-install-hook-added-local-deps
+    - repeat-install-injected-outside-patterns
+    - repeat-install-readpackage-project-specifier
+    - soft-cats-tag
+    - symlinked-modules-dir-links
+    - workspace-manifest-file-mode
+    - workspace-state-file-mode
 pacquet@12.2.0:
   dir: pnpm/npm/pnpm
   intents:
@@ -8557,6 +8716,29 @@ pnpm@11.28.1:
     - windows-setup-registry-type
     - windows-side-effects-cache-mode
     - workspace-state-write-race
+pnpm@11.28.10:
+  dir: pnpm11/pnpm
+  intents:
+    - 17490-node-runtime-latest-stable
+    - cmd-shim-msys-conversion-off
+    - dlx-working-directory
+    - exe-embed-node-26-13-0
+    - fast-pigs-worry
+    - global-bins-resolve-hoisted-dependencies
+    - gvs-cycle-slots-cover-the-cycle
+    - injected-local-tarball-relock
+    - invalid-dependency-name-names-project
+    - nested-directory-dependency-freshness
+    - packlist-bin-string-normalize
+    - protect-store-data-on-prune
+    - prune-exdev-docker-layer
+    - quiet-tags-stay
+    - refresh-private-hoisted-bins
+    - relink-missing-workspace-dependency
+    - repeat-install-hook-added-local-deps
+    - retry-dropped-zip-downloads
+    - unified-pin-decision
+    - unpublish-range-every-version
 pnpm@11.28.2:
   dir: pnpm11/pnpm
   intents:
