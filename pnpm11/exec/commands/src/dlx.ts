@@ -10,7 +10,7 @@ import {
 import type { CommandHandlerMap } from '@pnpm/cli.command'
 import { OUTPUT_OPTIONS } from '@pnpm/cli.common-cli-options-help'
 import { docsUrl, readProjectManifestOnly } from '@pnpm/cli.utils'
-import { type Config, types } from '@pnpm/config.reader'
+import { type Config, type ConfigContext, types } from '@pnpm/config.reader'
 import { getPublishedByPolicy } from '@pnpm/config.version-policy'
 import { getSystemNodeVersion } from '@pnpm/engine.runtime.system-version'
 import { isError, PnpmError } from '@pnpm/error'
@@ -97,7 +97,7 @@ export type DlxCommandOptions = {
   package?: string[]
   shellMode?: boolean
   allowBuild?: string[]
-} & Pick<Config, 'extraBinPaths' | 'minimumReleaseAgeExclude' | 'registriesByScope' | 'reporter' | 'userAgent' | 'cacheDir' | 'dlxCacheMaxAge' | 'symlink'> & Omit<add.AddCommandOptions, 'rootProjectManifestDir'> & PnpmSettings
+} & Pick<Config, 'extraBinPaths' | 'minimumReleaseAgeExclude' | 'registriesByScope' | 'reporter' | 'userAgent' | 'cacheDir' | 'dlxCacheMaxAge' | 'symlink'> & Partial<Pick<ConfigContext, 'cliOptions'>> & Omit<add.AddCommandOptions, 'rootProjectManifestDir'> & PnpmSettings
 
 export async function handler (
   opts: DlxCommandOptions,
@@ -132,7 +132,11 @@ export async function handler (
   const binName = opts.package
     ? command
     : await getBinName(cachedDir, opts)
-  return runDlxBin(binName, args, { env, shellMode: opts.shellMode })
+  return runDlxBin(binName, args, {
+    cwd: (opts.cliOptions?.dir as string | undefined) ?? process.cwd(),
+    env,
+    shellMode: opts.shellMode,
+  })
 }
 
 type DlxResolve = ReturnType<typeof createResolver>['resolve']
@@ -309,11 +313,11 @@ function createDlxEnv (opts: DlxCommandOptions, cachedDir: string, enableGlobalV
 async function runDlxBin (
   binName: string,
   args: string[],
-  opts: { env: NodeJS.ProcessEnv, shellMode?: boolean }
+  opts: { cwd: string, env: NodeJS.ProcessEnv, shellMode?: boolean }
 ): Promise<{ exitCode: number }> {
   try {
     const child = trackedExeca(binName, args, {
-      cwd: process.cwd(),
+      cwd: opts.cwd,
       env: opts.env,
       stdio: 'inherit',
       shell: opts.shellMode ?? false,
