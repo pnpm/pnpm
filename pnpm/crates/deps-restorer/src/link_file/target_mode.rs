@@ -1,10 +1,9 @@
 //! The mode a file materialized into `node_modules` carries.
 
 #[cfg(unix)]
-use std::fs;
-#[cfg(unix)]
 use std::{
     collections::HashMap,
+    fs,
     path::PathBuf,
     sync::{Mutex, OnceLock, PoisonError},
 };
