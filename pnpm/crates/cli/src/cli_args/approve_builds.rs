@@ -398,6 +398,7 @@ pub(crate) async fn prompt_approve_install_builds<Reporter: self::Reporter + 'st
         args.prepare::<Reporter>(settings_dir, &settings_config, config, &manifest_path)?
     {
         let selection = crate::cli_args::rebuild::RebuildSelection {
+            snapshots: None,
             names: Some(build_packages),
             projects: Vec::new(),
         };

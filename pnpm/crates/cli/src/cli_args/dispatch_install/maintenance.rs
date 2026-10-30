@@ -280,8 +280,11 @@ pub(in super::super) fn approve_builds<'a>(
         else {
             return Ok(());
         };
-        let selected =
-            rebuild::RebuildSelection { names: Some(build_packages), projects: Vec::new() };
+        let selected = rebuild::RebuildSelection {
+            snapshots: None,
+            names: Some(build_packages),
+            projects: Vec::new(),
+        };
         Box::pin(rebuild::run_rebuild::<CliReporter>(&rebuild_state, selected, None)).await
     }))
 }

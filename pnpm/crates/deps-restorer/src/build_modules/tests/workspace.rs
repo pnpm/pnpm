@@ -42,6 +42,7 @@ fn rebuild_selection_runs_only_selected_scripts() {
     let zzz_dir = create_marker_pkg(virtual_store_dir.path(), &key("zzz", "1.0.0"));
 
     let rebuild = RebuildOptions {
+        selected_snapshots: None,
         selected_names: Some(std::iter::once("aaa".to_string()).collect()),
         pending_projects: Vec::new(),
         check_lockfile_patches_only: false,

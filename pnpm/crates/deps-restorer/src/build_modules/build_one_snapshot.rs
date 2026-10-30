@@ -15,10 +15,9 @@ use slot_to_build::slot_to_build;
 use super::{
     AllowBuildPolicy, BuildModulesError, LogEvent, LogLevel, NEEDS_BUILD_MARKER, PackageKey, Path,
     PathBuf, PkgRoots, RebuildOptions, Reporter, RunPostinstallHooks, SkippedOptionalDependencyLog,
-    SkippedOptionalPackage, SkippedOptionalReason, allow_build_key_from_ignored_build,
-    apply_patch_to_dir, bin_dirs_in_all_parent_dirs, discard_skipped_optional_dependency,
-    get_pkg_id_with_patch_hash, parse_name_version_from_key, run_postinstall_hooks,
-    slot_carries_overlay,
+    SkippedOptionalPackage, SkippedOptionalReason, apply_patch_to_dir, bin_dirs_in_all_parent_dirs,
+    discard_skipped_optional_dependency, get_pkg_id_with_patch_hash, parse_name_version_from_key,
+    run_postinstall_hooks, slot_carries_overlay,
 };
 
 /// Everything one snapshot's build reads: the lockfile shape it belongs to,
@@ -161,13 +160,6 @@ struct BuildCandidate<'c> {
     patch: Option<&'c pnpm_patching::ExtendedPatchInfo>,
     name: String,
     version: String,
-    /// An explicit `pacquet rebuild` re-runs the build scripts of the
-    /// selected packages even when the side-effects cache reports them
-    /// already built; this marks those so they bypass the `is_built`
-    /// gate. The selection holds allow-build keys (the package name for
-    /// registry deps, the full pkgId for git/tarball artifacts), so
-    /// either form matches — a selected non-registry artifact is forced
-    /// past the gate too.
     force_rebuild: bool,
     should_run_scripts: bool,
     /// `--ignore-scripts` left the build scripts for a later install to run
@@ -177,7 +169,11 @@ struct BuildCandidate<'c> {
 
 impl<'c> BuildCandidate<'c> {
     fn of(context: &BuildOneSnapshot<'c>, snapshot_key: &PackageKey) -> Option<Self> {
-        if !crate::build_scope::in_build_scope(context.graph.build_scope, snapshot_key) {
+        if !crate::build_scope::in_build_scope(context.graph.build_scope, snapshot_key)
+            || context.rebuild.is_some_and(|rebuild| {
+                rebuild.selected_snapshots.is_some() && !rebuild.selects_snapshot(snapshot_key)
+            })
+        {
             return None;
         }
         let metadata_key = snapshot_key.without_peer();
@@ -191,7 +187,8 @@ impl<'c> BuildCandidate<'c> {
         }
         let dep_path = metadata_key.to_string();
         let (name, version) = parse_name_version_from_key(&dep_path);
-        let force_rebuild = rebuild_forces_build(context.rebuild, &name, &dep_path);
+        let force_rebuild =
+            context.rebuild.is_some_and(|rebuild| rebuild.selects_snapshot(snapshot_key));
         let should_run_scripts = snapshot_runs_scripts(
             context,
             snapshot_key,
@@ -452,18 +449,6 @@ fn clear_global_virtual_store_build_markers(
 
 fn is_build_candidate(requires_build: bool, has_patch: bool) -> bool {
     requires_build || has_patch
-}
-
-/// An explicit `pacquet rebuild` re-runs the build scripts of the selected
-/// packages even when the side-effects cache reports them already built. The
-/// selection holds allow-build keys (the package name for registry deps, the
-/// full pkgId for git/tarball artifacts), so either form matches — a selected
-/// non-registry artifact is forced past the `is_built` gate too.
-fn rebuild_forces_build(rebuild: Option<&RebuildOptions>, name: &str, dep_path: &str) -> bool {
-    rebuild.is_some_and(|rebuild| {
-        rebuild.is_selected(name)
-            || rebuild.is_selected(&allow_build_key_from_ignored_build(dep_path))
-    })
 }
 
 /// Whether this snapshot's lifecycle scripts run at all.
