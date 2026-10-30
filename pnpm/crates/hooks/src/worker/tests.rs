@@ -9,6 +9,58 @@ use tokio::{
 use super::{MAX_IN_FLIGHT_REQUESTS, NodeWorker};
 
 #[tokio::test]
+async fn custom_fetcher_receives_native_git_and_binary_fetchers() {
+    let tmp = TempDir::new().expect("temp dir");
+    let pnpmfile_path = tmp.path().join(".pnpmfile.cjs");
+    std::fs::write(
+        &pnpmfile_path,
+        "module.exports = { fetchers: [{ canFetch: () => true, fetch: async (cafs, resolution, opts, fetchers) => { let result; for (const name of ['gitHostedTarball', 'git', 'binary']) result = await fetchers[name](cafs, resolution, opts); return result } }] }\n",
+    )
+    .expect("write pnpmfile");
+    let worker = NodeWorker::spawn(&pnpmfile_path).await.expect("spawn worker");
+    let (callbacks, mut requests) = tokio::sync::mpsc::unbounded_channel();
+    let call = tokio::spawn(async move {
+        worker.call_fetcher(
+            0,
+            "fetch",
+            serde_json::json!([null, {}, {}, null]),
+            Arc::new(|_| {}),
+            Some(callbacks),
+        )
+        .await
+    });
+
+    let cafs_info = requests.recv().await.expect("CAFS info callback");
+    assert_eq!(cafs_info.method, crate::FetcherMethod::CafsInfo);
+    cafs_info.response
+        .send(Ok(serde_json::json!({
+            "storeDir": tmp.path().to_string_lossy(),
+        })))
+        .expect("send CAFS info");
+
+    for method in [
+        crate::FetcherMethod::GitHostedTarball,
+        crate::FetcherMethod::Git,
+        crate::FetcherMethod::Binary,
+    ] {
+        let callback = requests.recv().await.expect("native callback");
+        assert_eq!(callback.method, method);
+        callback.response
+            .send(Ok(serde_json::json!({
+                "filesMap": {},
+                "integrity": null,
+                "local": false,
+                "manifest": null,
+                "requiresBuild": false,
+            })))
+            .expect("send native callback result");
+    }
+
+    let result = call.await.expect("fetch task").expect("custom fetch result");
+    assert_eq!(result["filesMap"], serde_json::json!({}));
+}
+
+#[tokio::test]
 async fn cancelled_request_removes_its_pending_entry() {
     let tmp = TempDir::new().expect("temp dir");
     let pnpmfile_path = tmp.path().join(".pnpmfile.cjs");
