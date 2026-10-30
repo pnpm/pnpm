@@ -1,6 +1,7 @@
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
 
+import { getExtraNodePaths } from '@pnpm/bins.linker'
 import { contextLogger, packageManifestLogger } from '@pnpm/core-loggers'
 import type {
   IncludedDependencies,
@@ -410,20 +411,6 @@ function resolveHoistedDirs (opts: {
     extraBinPaths.unshift(path.join(hoistedModulesDir, '.bin'))
   }
   return { extraBinPaths, hoistedModulesDir }
-}
-
-function getExtraNodePaths (
-  { extendNodePath = true, hoistPattern, nodeLinker, hoistedModulesDir }: {
-    extendNodePath?: boolean
-    hoistPattern?: string[]
-    nodeLinker: 'isolated' | 'hoisted' | 'pnp'
-    hoistedModulesDir: string
-  }
-): string[] {
-  if (extendNodePath && nodeLinker === 'isolated' && hoistPattern?.length) {
-    return [hoistedModulesDir]
-  }
-  return []
 }
 
 export function arrayOfWorkspacePackagesToMap (

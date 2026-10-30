@@ -21,6 +21,7 @@ import { isMissing } from './fileChecks.js'
 import { type CommandInfo, linkBin, type LinkBinOptions } from './linkBin.js'
 import { IS_WINDOWS } from './platform.js'
 
+export { getExtraNodePaths } from './getExtraNodePaths.js'
 export { getProjectNodePath } from './getProjectNodePath.js'
 export type { LinkBinOptions } from './linkBin.js'
 export { relinkModulesDirPackageBins } from './relinkModulesDirPackageBins.js'

@@ -147,7 +147,7 @@ jest.spyOn(fs, 'symlink').mockImplementation(async (target, linkPath, type) => {
   await realSymlink(target, linkPath, type)
 })
 
-jest.unstable_mockModule('@pnpm/bins.linker', () => ({ getBinsToLink, linkBinsOfPackages }))
+jest.unstable_mockModule('@pnpm/bins.linker', () => ({ getBinsToLink, getExtraNodePaths: () => [], linkBinsOfPackages }))
 jest.unstable_mockModule('@pnpm/bins.remover', () => ({ removeBin }))
 jest.unstable_mockModule('@pnpm/global.packages', () => ({ getHashLink }))
 jest.unstable_mockModule('@pnpm/logger', () => ({ globalWarn }))
@@ -259,6 +259,7 @@ test('restores exact bin slots when linking fails after a partial write', async 
   await expect(activateGlobalInstall({
     installDir: fixture.freshInstallDir,
     hashLink: fixture.hashLink,
+    nodePathOptions: {},
     globalBinDir: fixture.globalBinDir,
     pkgs: [{ manifest, location: fixture.packageDir }],
     binsToSkip: new Set(),
@@ -294,6 +295,7 @@ test('rolls back when a retained bin target disappears during activation', async
   await expect(activateGlobalInstall({
     installDir: fixture.freshInstallDir,
     hashLink: fixture.hashLink,
+    nodePathOptions: {},
     globalBinDir: fixture.globalBinDir,
     pkgs: [{ manifest, location: fixture.packageDir }],
     binsToSkip: new Set(),
@@ -322,6 +324,7 @@ test('rejects a retained bin with a dangling symlink target before activation', 
   await expect(activateGlobalInstall({
     installDir: fixture.freshInstallDir,
     hashLink: fixture.hashLink,
+    nodePathOptions: {},
     globalBinDir: fixture.globalBinDir,
     pkgs: [{ manifest, location: fixture.packageDir }],
     binsToSkip: new Set(),
@@ -357,6 +360,7 @@ test('rolls back when the selected duplicate bin target disappears during activa
   await expect(activateGlobalInstall({
     installDir: fixture.freshInstallDir,
     hashLink: fixture.hashLink,
+    nodePathOptions: {},
     globalBinDir: fixture.globalBinDir,
     pkgs: [
       { manifest, location: fixture.packageDir },
@@ -397,6 +401,7 @@ test('leaves skipped bins untouched when hash-link activation fails', async () =
   await expect(activateGlobalInstall({
     installDir: fixture.freshInstallDir,
     hashLink: fixture.hashLink,
+    nodePathOptions: {},
     globalBinDir: fixture.globalBinDir,
     pkgs: [{ manifest, location: fixture.packageDir }],
     binsToSkip: new Set(['shared']),
@@ -440,6 +445,7 @@ test('keeps recovery artifacts when rollback fails', async () => {
     await activateGlobalInstall({
       installDir: fixture.freshInstallDir,
       hashLink: fixture.hashLink,
+      nodePathOptions: {},
       globalBinDir: fixture.globalBinDir,
       pkgs: [{ manifest, location: fixture.packageDir }],
       binsToSkip: new Set(),
@@ -492,6 +498,7 @@ test('preserves Windows file and directory symlink kinds with relative targets',
     await expect(activateGlobalInstall({
       installDir: fixture.freshInstallDir,
       hashLink: fixture.hashLink,
+      nodePathOptions: {},
       globalBinDir: fixture.globalBinDir,
       pkgs: [{ manifest, location: fixture.packageDir }],
       binsToSkip: new Set(),
@@ -521,6 +528,7 @@ test('links bins through the hash link, and moves it before linking', async () =
   await activateGlobalInstall({
     installDir: fixture.freshInstallDir,
     hashLink: fixture.hashLink,
+    nodePathOptions: {},
     globalBinDir: fixture.globalBinDir,
     pkgs: [{ manifest, location: fixture.packageDir }],
     binsToSkip: new Set(),
@@ -550,6 +558,7 @@ test('activates into a global bin directory that does not exist yet', async () =
   const activatedBins = await activateGlobalInstall({
     installDir: fixture.freshInstallDir,
     hashLink: fixture.hashLink,
+    nodePathOptions: {},
     globalBinDir: fixture.globalBinDir,
     pkgs: [{ manifest, location: fixture.packageDir }],
     binsToSkip: new Set(),
@@ -578,6 +587,7 @@ test('succeeds when removing the backup directory fails after activation', async
   const activatedBins = await activateGlobalInstall({
     installDir: fixture.freshInstallDir,
     hashLink: fixture.hashLink,
+    nodePathOptions: {},
     globalBinDir: fixture.globalBinDir,
     pkgs: [{ manifest, location: fixture.packageDir }],
     binsToSkip: new Set(),
@@ -611,6 +621,7 @@ test('activates when a Windows bin slot is a dangling symlink', async () => {
     const activatedBins = await activateGlobalInstall({
       installDir: fixture.freshInstallDir,
       hashLink: fixture.hashLink,
+      nodePathOptions: {},
       globalBinDir: fixture.globalBinDir,
       pkgs: [{ manifest, location: fixture.packageDir }],
       binsToSkip: new Set(),
@@ -639,6 +650,7 @@ test('rejects an unsupported bin slot type and cleans up preparation artifacts',
   await expect(activateGlobalInstall({
     installDir: fixture.freshInstallDir,
     hashLink: fixture.hashLink,
+    nodePathOptions: {},
     globalBinDir: fixture.globalBinDir,
     pkgs: [{ manifest, location: fixture.packageDir }],
     binsToSkip: new Set(),
@@ -675,6 +687,7 @@ test('reports fresh-install cleanup failure without claiming a core rollback fai
     await activateGlobalInstall({
       installDir: fixture.freshInstallDir,
       hashLink: fixture.hashLink,
+      nodePathOptions: {},
       globalBinDir: fixture.globalBinDir,
       pkgs: [{ manifest, location: fixture.packageDir }],
       binsToSkip: new Set(),
@@ -719,6 +732,7 @@ test('reports backup cleanup failure after restoring bins and removes the fresh 
     await activateGlobalInstall({
       installDir: fixture.freshInstallDir,
       hashLink: fixture.hashLink,
+      nodePathOptions: {},
       globalBinDir: fixture.globalBinDir,
       pkgs: [{ manifest, location: fixture.packageDir }],
       binsToSkip: new Set(),
@@ -766,6 +780,7 @@ test('preserves both cleanup errors when backup and fresh-install cleanup fail',
     await activateGlobalInstall({
       installDir: fixture.freshInstallDir,
       hashLink: fixture.hashLink,
+      nodePathOptions: {},
       globalBinDir: fixture.globalBinDir,
       pkgs: [{ manifest, location: fixture.packageDir }],
       binsToSkip: new Set(),
@@ -811,6 +826,7 @@ test('does not report a bin whose source is missing as activated', async () => {
   const activatedBins = await activateGlobalInstall({
     installDir: fixture.freshInstallDir,
     hashLink: fixture.hashLink,
+    nodePathOptions: {},
     globalBinDir: fixture.globalBinDir,
     pkgs: [{ manifest, location: fixture.packageDir }],
     binsToSkip: new Set(),

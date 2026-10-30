@@ -405,9 +405,14 @@ fn global_add_materializes_transitive_optional_dependencies() {
     drop(root);
 }
 
-#[cfg(all(target_os = "linux", target_arch = "x86_64", target_env = "gnu"))]
+/// A global group's packages live in the global virtual store, where Node
+/// cannot walk up to the group's hidden hoisted modules dir. The bin shim
+/// puts that dir on `NODE_PATH`, so a package that requires a dependency it
+/// does not declare still finds it (a native addon loader requiring its
+/// parent's platform package, for example).
+#[cfg(unix)]
 #[test]
-fn global_bin_resolves_transitive_optional_dependencies_from_the_hoist_dir() {
+fn global_bin_resolves_hoisted_dependencies() {
     use assert_cmd::assert::OutputAssertExt;
 
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
@@ -416,17 +421,17 @@ fn global_bin_resolves_transitive_optional_dependencies_from_the_hoist_dir() {
     prepare_global_home(&pnpm_home, &npmrc_info);
 
     global_command(&workspace, &pnpm_home)
-        .with_args(["add", "-g", "@pnpm.e2e/global-bin-with-platform-optional"])
+        .with_args(["add", "-g", "@pnpm.e2e/bin-requires-hoisted-dep"])
         .assert()
         .success();
 
-    let output = Command::new(pnpm_home.join("bin/global-bin-with-platform-optional"))
+    let output = Command::new(pnpm_home.join("bin/bin-requires-hoisted-dep"))
         .current_dir(&workspace)
         .env_remove("NODE_PATH")
         .output()
         .expect("run the installed global bin");
     assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
-    assert_eq!(String::from_utf8_lossy(&output.stdout), "@pnpm.e2e/only-linux-x64-glibc\n",);
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "@pnpm.e2e/dep-of-pkg-with-1-dep\n");
 
     drop(npmrc_info);
     drop(root);

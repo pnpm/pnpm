@@ -1,7 +1,7 @@
 use super::{
     AddGroups, CatalogMode, Config, Context, DependencyGroup, GlobalPackageBinSnapshot,
     GlobalPackageInfo, HashMap, HashSet, ImporterDepVersion, Lockfile, PackageBinSource, Path,
-    RangeSpecStyle, Reporter, State, SupportedArchitectures, Version, WorkspaceSettings,
+    PathBuf, RangeSpecStyle, Reporter, State, SupportedArchitectures, Version, WorkspaceSettings,
     add_packages, apply_allow_build, infer_local_package_alias, installed_versions,
     prompt_approve_install_builds, update_selectors,
 };
@@ -184,6 +184,12 @@ pub(super) async fn run_group_install<Reporter: self::Reporter + 'static>(
     Ok(config)
 }
 
+/// The virtual store dir a group's install keeps its hidden hoisted modules
+/// under, `install_dir` being the group's install dir or its hash link.
+pub(super) fn group_install_state_dir(install_dir: &Path) -> PathBuf {
+    install_dir.join("node_modules").join(".pnpm")
+}
+
 pub(super) fn global_group_config(
     base_config: &Config,
     install_dir: &Path,
@@ -192,7 +198,7 @@ pub(super) fn global_group_config(
 ) -> miette::Result<Config> {
     let mut cfg = base_config.clone();
     cfg.modules_dir = install_dir.join("node_modules");
-    cfg.install_state_dir = install_dir.join("node_modules").join(".pnpm");
+    cfg.install_state_dir = group_install_state_dir(install_dir);
     use_global_virtual_store_by_default(&mut cfg);
     // Persist a `pnpm-lock.yaml` in the group's install dir (pnpm sets
     // `lockfileDir = installDir`). `outdated -g` / `update -g` read these
