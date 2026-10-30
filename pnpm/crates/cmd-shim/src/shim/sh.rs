@@ -474,6 +474,7 @@ fn anchored_target(shim: &str) -> Option<&str> {
                     index += 1;
                 }
             }
+            Some(_) => unreachable!(),
             None => {
                 if bytes[index] == b'\\' {
                     index = (index + 2).min(bytes.len());
@@ -489,7 +490,9 @@ fn anchored_target(shim: &str) -> Option<&str> {
                     index += 1;
                     continue;
                 }
-                let line_start = header[..index].rfind('\n').map_or(0, |start| start + 1);
+                let line_start = header[..index]
+                    .rfind('\n')
+                    .map_or(0, |start| start + 1);
                 if header[line_start..index].trim().is_empty()
                     && header[index..].starts_with("exec ")
                 {
