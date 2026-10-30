@@ -1,4 +1,5 @@
 use crate::{members, workspace_root};
+use text_block_macros::text_block_fnl;
 
 /// Pins that the member walk finds the crates the workspace actually has,
 /// since an audit that found none would pass vacuously.
@@ -16,16 +17,48 @@ fn every_member_pattern_is_expanded() {
     }
 }
 
-/// The vendored `tar` fork is excluded from the workspace, so the policy
-/// does not reach it and the walk must not pick it up.
+/// A directory the workspace excludes is not a member, so the policy does
+/// not reach it.
+///
+/// A fixture rather than this workspace, where no member pattern reaches
+/// the one excluded directory, so the real manifest cannot tell a walk that
+/// honours `exclude` from one that ignores it.
 #[test]
 fn an_excluded_directory_is_not_a_member() {
-    let members = members(&workspace_root());
-    assert!(
-        members
-            .iter()
-            .all(|member| !member.directory.ends_with("vendor/tar")),
+    let workspace = tempfile::tempdir().expect("create the fixture workspace");
+    let root = workspace.path();
+    write(
+        &root.join("Cargo.toml"),
+        text_block_fnl! {
+            "[workspace]"
+            r#"members = ["crates/*"]"#
+            r#"exclude = ["crates/skipped"]"#
+        },
     );
+    write_member(root, "kept");
+    write_member(root, "skipped");
+
+    let found = members(root);
+    let names: Vec<&str> = found
+        .iter()
+        .map(|member| member.name.as_str())
+        .collect();
+
+    assert_eq!(names, ["kept"]);
+}
+
+/// A member crate under `root/crates`, with the one table [`members`]
+/// reads and a library root for it to find.
+fn write_member(root: &std::path::Path, name: &str) {
+    let directory = root.join("crates").join(name);
+    write(&directory.join("Cargo.toml"), &format!("[package]\nname = \"{name}\"\n"));
+    write(&directory.join("src/lib.rs"), "");
+}
+
+fn write(path: &std::path::Path, contents: &str) {
+    std::fs::create_dir_all(path.parent().expect("the path has a parent"))
+        .expect("create the fixture directory");
+    std::fs::write(path, contents).expect("write the fixture file");
 }
 
 /// Pins that a crate's roots include the ones Cargo discovers as well as
