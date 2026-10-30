@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "scripts": {
     "prepublishOnly": "pnpm install --ignore-scripts --node-linker=hoisted --no-lockfile",
-    "postinstall": "node -e \"require('fs').writeFileSync('generated-by-postinstall.js', '')\""
+    "postinstall": "node postinstall.js"
   },
   "bundledDependencies": [
     "@pnpm.e2e/hello-world-js-bin"

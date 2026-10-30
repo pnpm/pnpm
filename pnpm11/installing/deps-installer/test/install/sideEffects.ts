@@ -364,20 +364,25 @@ test('bundled dependencies are restored from the side-effects cache', async () =
   expect(diff.added?.has('generated-by-postinstall.js')).toBe(true)
   expect(diff.deleted).toBeUndefined()
 
-  // Side effects cached by earlier pnpm versions list the bundled files as deleted.
+  // A cached diff that lists the bundled files as deleted still restores them.
   const bundledFiles = [...filesIndex.files.keys()].filter((file) => file.startsWith('node_modules/'))
   expect(bundledFiles).not.toHaveLength(0)
   filesIndex.sideEffects!.set(sideEffectsKey, { ...diff, deleted: bundledFiles })
   storeIndex.set(filesIndexKey, filesIndex)
 
   rimrafSync('node_modules')
-  await install(manifest, testDefaults({
-    fastUnpack: false,
-    sideEffectsCacheRead: true,
-    sideEffectsCacheWrite: true,
-    storeDir: opts.storeDir,
-    allowBuilds: { [pkgName]: true },
-  }))
+  process.env.PNPM_E2E_FAIL_POSTINSTALL = '1'
+  try {
+    await install(manifest, testDefaults({
+      fastUnpack: false,
+      sideEffectsCacheRead: true,
+      sideEffectsCacheWrite: true,
+      storeDir: opts.storeDir,
+      allowBuilds: { [pkgName]: true },
+    }))
+  } finally {
+    delete process.env.PNPM_E2E_FAIL_POSTINSTALL
+  }
 
   expect(fs.existsSync(`node_modules/${pkgName}/generated-by-postinstall.js`)).toBe(true)
   expect(fs.existsSync(bundledFile)).toBe(true)
