@@ -30,8 +30,8 @@ fn range_scans_keep_the_first_raw_version_when_precedence_ties() {
     for versions in [["v1.2.3", "1.2.3"], ["1.2.3", "v1.2.3"]] {
         let expected = Some(versions[0].to_string());
         assert_eq!(max_version(&versions), expected);
-        assert_eq!(max_satisfying(&versions, "^1"), expected);
-        assert_eq!(min_satisfying(&versions, "^1"), expected);
+        assert_eq!(max_satisfying(versions.iter().copied(), "^1"), expected);
+        assert_eq!(min_satisfying(versions.iter().copied(), "^1"), expected);
     }
 }
 
@@ -42,15 +42,15 @@ fn range_scans_keep_prerelease_and_build_spelling() {
     let versions = ["invalid", "1.2.3-beta.1+build.7", "1.2.3-beta.2+build.9"];
     assert_eq!(max_version(&versions).as_deref(), Some("1.2.3-beta.2+build.9"));
     assert_eq!(
-        max_satisfying(&versions, ">=1.2.3-beta.1").as_deref(),
+        max_satisfying(versions.iter().copied(), ">=1.2.3-beta.1").as_deref(),
         Some("1.2.3-beta.2+build.9"),
     );
     assert_eq!(
-        min_satisfying(&versions, ">=1.2.3-beta.1").as_deref(),
+        min_satisfying(versions.iter().copied(), ">=1.2.3-beta.1").as_deref(),
         Some("1.2.3-beta.1+build.7"),
     );
-    assert_eq!(max_satisfying(&versions, "*"), None);
-    assert_eq!(min_satisfying(&versions, "*"), None);
+    assert_eq!(max_satisfying(versions.iter().copied(), "*"), None);
+    assert_eq!(min_satisfying(versions.iter().copied(), "*"), None);
     assert_eq!(max_version(&["invalid"]), None);
 }
 
@@ -396,6 +396,22 @@ fn lowest_version_star_picks_smallest() {
         published_by: None,
     };
     assert_eq!(pick_lowest_version_by_version_range(&opts).as_deref(), Some("1.0.0"));
+}
+
+#[test]
+fn lowest_version_star_includes_prereleases() {
+    let pkg = make_package(
+        "acme",
+        &[("1.0.0", None), ("1.0.0-beta.1", None), ("2.0.0", None)],
+        &[("latest", "2.0.0")],
+    );
+    let opts = PickVersionByVersionRangeOptions {
+        meta: &pkg,
+        version_range: "*",
+        preferred_version_selectors: None,
+        published_by: None,
+    };
+    assert_eq!(pick_lowest_version_by_version_range(&opts).as_deref(), Some("1.0.0-beta.1"));
 }
 
 #[test]
