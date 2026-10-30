@@ -6,7 +6,7 @@ use super::{
         select_locked_version,
     },
     cargo_selection::{
-        SelectedCargoDep, SelectedCargoTarget, admits_enabled_features, is_downgrade,
+        SelectedCargoDep, SelectedCargoTarget, admits_enabled_features, is_held_as_downgrade,
         is_held_by_patch, select_cargo_deps_to_update, target_requirement,
     },
     cargo_workspace_scope::{CargoWorkspaceScope, resolve_cargo_workspace_scope},
@@ -328,7 +328,7 @@ async fn build_cargo_update_edits<Reporter: self::Reporter>(
 
 /// The edits that move a selected dependency to its target version, or
 /// `None` when the dependency keeps its version: see [`is_held_by_patch`],
-/// [`is_downgrade`], and [`admits_enabled_features`].
+/// [`is_held_as_downgrade`], and [`admits_enabled_features`].
 async fn resolve_selected_cargo_edit<Reporter: self::Reporter>(
     target: &SelectedCargoTarget<'_>,
     auth_headers: &pnpm_network::AuthHeaders,
@@ -355,7 +355,7 @@ async fn resolve_selected_cargo_edit<Reporter: self::Reporter>(
     )
     .wrap_err_with(|| format!("select a matching version of crate {}", dep.package_name))?
     .ok_or_else(|| miette::miette!("no matching version found for crate {}", dep.package_name))?;
-    if is_downgrade(target, &resolved)
+    if is_held_as_downgrade::<Reporter>(target, &resolved)
         || !admits_enabled_features::<Reporter>(target, &index_file, &resolved)?
     {
         return Ok(None);

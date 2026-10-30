@@ -5,7 +5,7 @@ use super::{
 };
 use miette::{IntoDiagnostic, Result, bail};
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
-use semver::{Version, VersionReq};
+use semver::{Op, Version, VersionReq};
 
 /// A dependency `pnpm update` is to update.
 pub(super) struct SelectedCargoDep<'a> {
@@ -98,11 +98,45 @@ pub(super) fn is_held_by_patch<Reporter: self::Reporter>(target: &SelectedCargoT
     true
 }
 
-/// Whether `version` is older than the locked one. Only an explicit
+/// Whether the update leaves a crate alone, with a warning, because
+/// `version` is older than its current version: the locked one, or without
+/// a lockfile the lowest version its requirement admits. Only an explicit
 /// version moves a crate backwards, as `--latest` would for a prerelease
 /// newer than the newest stable release.
-pub(super) fn is_downgrade(target: &SelectedCargoTarget<'_>, version: &Version) -> bool {
-    target.selection.explicit_spec.is_none() && target.locked.is_some_and(|locked| version < locked)
+pub(super) fn is_held_as_downgrade<Reporter: self::Reporter>(
+    target: &SelectedCargoTarget<'_>,
+    version: &Version,
+) -> bool {
+    let dep = target.selection.dep;
+    if target.selection.explicit_spec.is_some() {
+        return false;
+    }
+    let current = target.locked.cloned().or_else(|| requirement_floor(&dep.version_req));
+    let Some(current) = current.filter(|current| version < current) else {
+        return false;
+    };
+    warn::<Reporter>(
+        target.scope,
+        format!("Not updating crate {}: {version} is older than {current}", dep.alias),
+    );
+    true
+}
+
+fn requirement_floor(req: &VersionReq) -> Option<Version> {
+    req.comparators
+        .iter()
+        .filter(|comparator| {
+            matches!(comparator.op, Op::Exact | Op::GreaterEq | Op::Tilde | Op::Caret)
+        })
+        .map(|comparator| Version {
+            pre: comparator.pre.clone(),
+            ..Version::new(
+                comparator.major,
+                comparator.minor.unwrap_or(0),
+                comparator.patch.unwrap_or(0),
+            )
+        })
+        .max()
 }
 
 /// Whether `version` defines every feature the workspace enables on the

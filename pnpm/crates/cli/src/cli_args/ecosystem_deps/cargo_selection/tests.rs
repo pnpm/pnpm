@@ -1,5 +1,6 @@
 use super::{
-    SelectedCargoDep, SelectedCargoTarget, is_downgrade, is_held_by_patch, target_requirement,
+    SelectedCargoDep, SelectedCargoTarget, is_held_as_downgrade, is_held_by_patch,
+    target_requirement,
 };
 use crate::cli_args::ecosystem_deps::{
     cargo_manifest_ops::DeclaredCargoDep, cargo_workspace_scope::tests::scope_with,
@@ -64,20 +65,25 @@ fn an_unnamed_patched_crate_is_held() {
 }
 
 #[test]
-fn only_an_explicit_version_moves_a_crate_below_its_locked_version() {
-    let dep = tower_0_4();
+fn only_an_explicit_version_moves_a_crate_below_its_current_version() {
+    let dep = DeclaredCargoDep {
+        raw_spec: "2.0.0-rc.1".to_string(),
+        version_req: VersionReq::parse("2.0.0-rc.1").unwrap(),
+        ..tower_0_4()
+    };
     let scope = scope_with(&[], &[]);
     let locked = Version::parse("2.0.0-rc.1").unwrap();
     let older = Version::parse("1.0.0").unwrap();
     let implicit = selection(&dep, true);
     let explicit = SelectedCargoDep { dep: &dep, explicit_spec: Some("1"), named: true };
+    let held = |selection, locked| {
+        is_held_as_downgrade::<SilentReporter>(
+            &SelectedCargoTarget { selection, scope: &scope, locked },
+            &older,
+        )
+    };
 
-    assert!(is_downgrade(
-        &SelectedCargoTarget { selection: &implicit, scope: &scope, locked: Some(&locked) },
-        &older,
-    ));
-    assert!(!is_downgrade(
-        &SelectedCargoTarget { selection: &explicit, scope: &scope, locked: Some(&locked) },
-        &older,
-    ));
+    assert!(held(&implicit, Some(&locked)));
+    assert!(held(&implicit, None), "without a lockfile the requirement sets the floor");
+    assert!(!held(&explicit, Some(&locked)));
 }

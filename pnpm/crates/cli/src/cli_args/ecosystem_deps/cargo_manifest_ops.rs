@@ -1,3 +1,6 @@
+#[cfg(test)]
+mod tests;
+
 use crate::{
     cargo_manifest::{upsert_dependency, workspace_includes_member},
     cli_args::outdated::OutdatedQuery,
@@ -236,7 +239,11 @@ pub(crate) fn read_locked_cargo_versions(
         .wrap_err_with(|| format!("parse {}", cargo_lock_path.display()))?;
     let mut map: HashMap<String, Vec<Version>> = HashMap::new();
     for pkg in lockfile.packages {
-        if pkg.source.as_ref().is_some_and(cargo_lock::SourceId::is_registry) {
+        // A git entry is the version a `[patch]` replacement locks.
+        if pkg.source
+            .as_ref()
+            .is_some_and(|source| source.is_registry() || source.is_git())
+        {
             map.entry(pkg.name.as_str().to_string())
                 .or_default()
                 .push(pkg.version);

@@ -1,4 +1,4 @@
-use super::{CargoWorkspaceScope, read_crates_io_patches};
+use super::{CargoWorkspaceScope, RootManifest, read_root_manifest};
 use crate::{
     cargo_deps::CargoWorkspaceDependency,
     cli_args::ecosystem_deps::cargo_manifest_ops::DeclaredCargoDep,
@@ -48,10 +48,13 @@ pub(in crate::cli_args::ecosystem_deps) fn scope_with(
             .iter()
             .map(|(name, alias)| ((name.to_string(), alias.to_string()), Vec::new()))
             .collect(),
-        patched: patched
-            .iter()
-            .map(ToString::to_string)
-            .collect(),
+        root_manifest: RootManifest {
+            patched: patched
+                .iter()
+                .map(ToString::to_string)
+                .collect(),
+            workspace_aliases: BTreeSet::new(),
+        },
     }
 }
 
@@ -96,16 +99,47 @@ fn only_a_renamed_alias_of_a_package_declared_twice_has_a_sibling() {
 }
 
 #[test]
-fn crates_io_patches_are_read_by_package_name() {
+fn the_root_manifest_yields_crates_io_patches_and_workspace_aliases() {
     let dir = tempfile::tempdir().unwrap();
     let manifest = dir.path().join("Cargo.toml");
     std::fs::write(
         &manifest,
-        "[workspace]\n\n[patch.crates-io]\nlib = { path = \"vendor/lib\" }\nfork = { package = \"upstream\", git = \"https://example.test/fork\" }\n\n[patch.\"https://example.test/index\"]\nother = { path = \"vendor/other\" }\n",
+        concat!(
+            "[workspace.dependencies]\n",
+            "tower = \"0.5\"\n",
+            "tower-0-4 = { package = \"tower\", version = \"0.4\" }\n",
+            "local = { path = \"crates/local\" }\n",
+            "\n[patch.crates-io]\n",
+            "lib = { path = \"vendor/lib\" }\n",
+            "fork = { package = \"upstream\", git = \"https://example.test/fork\" }\n",
+            "\n[patch.\"https://github.com/rust-lang/crates.io-index\"]\n",
+            "by-url = { path = \"vendor/by-url\" }\n",
+            "\n[patch.\"https://example.test/index\"]\n",
+            "other = { path = \"vendor/other\" }\n",
+        ),
     )
     .unwrap();
 
-    let patched = read_crates_io_patches(&manifest).unwrap();
+    let root = read_root_manifest(&manifest).unwrap();
 
-    assert_eq!(patched, BTreeSet::from(["lib".to_string(), "upstream".to_string()]));
+    assert_eq!(
+        root.patched,
+        BTreeSet::from(["by-url", "lib", "upstream"].map(ToString::to_string)),
+    );
+    assert_eq!(
+        root.workspace_aliases,
+        BTreeSet::from([("tower", "tower"), ("tower", "tower-0-4")].map(|(name, alias)| (
+            name.to_string(),
+            alias.to_string()
+        )),),
+    );
+}
+
+#[test]
+fn an_uninherited_workspace_declaration_is_a_sibling() {
+    let mut scope = scope_with(&[("hash", "hash-0-4")], &[]);
+    scope.root_manifest.workspace_aliases.insert(("hash".to_string(), "hash".to_string()));
+    let renamed = DeclaredCargoDep { alias: "hash-0-4".to_string(), ..declared("0.4") };
+
+    assert!(scope.has_sibling_alias(&renamed));
 }
