@@ -1128,7 +1128,7 @@ test('linkBinsOfPackages() rewrites a shim written for a missing target once the
   fs.writeFileSync(path.join(pkgDir, 'bin', 'tool'), '#!/usr/bin/env node\nconsole.log(\'built\')\n')
   await linkBinsOfPackages([pkg], binsDir)
 
-  expect(fs.readFileSync(path.join(binsDir, 'tool'), 'utf8')).toMatch(/exec node +"\$basedir_abs\//)
+  expect(fs.readFileSync(path.join(binsDir, 'tool'), 'utf8')).toMatch(/exec node +"\$basedir_abs"\/'/)
   if (IS_WINDOWS) {
     expect(fs.readFileSync(path.join(binsDir, `tool${CMD_EXTENSION}`), 'utf8')).toMatch('node')
   }

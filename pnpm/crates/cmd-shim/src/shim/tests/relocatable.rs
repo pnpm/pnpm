@@ -1,5 +1,7 @@
 use super::{Path, ScriptRuntime, generate_sh_shim};
-use crate::shim::{is_relocatable_shim, is_sh_shim_basedir_anchor_current};
+use crate::shim::is_relocatable_shim;
+#[cfg(unix)]
+use crate::shim::is_sh_shim_basedir_anchor_current;
 
 #[test]
 fn generate_sh_shim_keeps_paths_outside_the_root_absolute() {
