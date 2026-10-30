@@ -335,3 +335,42 @@ fn loaded_optional_temporary_build_failure_is_omitted_from_the_manifest() {
             .any(|key| key.starts_with("optional-build@")),
     );
 }
+
+#[test]
+fn loaded_temporary_build_keeps_excluded_packages_materialized() {
+    let fixture = loaded_build_fixture(
+        &serde_json::json!({
+            "name": "temporary-build", "version": "1.0.0",
+            "scripts": {"postinstall": r#"node -e "require('node:fs').writeFileSync('built.txt', 'built')""#}
+        }),
+        &serde_json::json!({"dependencies": {
+            "temporary-build": "file:dep.tgz",
+            "@pnpm.e2e/pkg-with-1-dep": "100.0.0",
+        }}),
+        "allowBuilds:\n  'temporary-build@file:dep.tgz': true\n",
+    );
+    let yaml = fixture.workspace.join("pnpm-workspace.yaml");
+    let config = fs::read_to_string(&yaml)
+        .unwrap()
+        .replace(
+            "  type: loaded\n",
+            "  type: loaded\n  excluded:\n    - '@pnpm.e2e/pkg-with-1-dep'\n",
+        );
+    fs::write(yaml, config).unwrap();
+    fixture.pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    let manifest: Value = serde_json::from_slice(
+        &fs::read(fixture.workspace.join("node_modules/.pnpm/.store-manifest.json")).unwrap(),
+    )
+    .unwrap();
+    let packages = manifest["packages"].as_object().unwrap();
+    assert!(
+        packages
+            .values()
+            .any(|package| package["files"].get("built.txt").is_some()),
+    );
+    let excluded = &packages["@pnpm.e2e/pkg-with-1-dep@100.0.0"];
+    assert!(Path::new(excluded["root"].as_str().unwrap()).is_dir());
+}

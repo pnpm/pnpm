@@ -21,14 +21,7 @@ pub(super) fn retain(
         if !moved.insert(target.clone()) {
             continue;
         }
-        let _slot_lock = crate::gvs_slot_lock::lock_global_virtual_store_slot(layout, key)
-            .ok_or_else(|| CreateVirtualStoreError::LoadedBuildIo {
-                path: target.clone(),
-                source: io::Error::new(
-                    io::ErrorKind::WouldBlock,
-                    "Cannot acquire the package build lock",
-                ),
-            })?;
+        let _slot_lock = crate::gvs_slot_lock::lock_global_virtual_store_slot(layout, key);
         promote(temporary, layout, key, &target)
             .map_err(|source| CreateVirtualStoreError::LoadedBuildIo {
                 path: target.clone(),

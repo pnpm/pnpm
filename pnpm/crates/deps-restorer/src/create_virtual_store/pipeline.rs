@@ -218,7 +218,7 @@ impl<'a> CreateVirtualStore<'a> {
             side_effects_maps_by_snapshot: partition.side_effects.maps,
             side_effects_by_snapshot: partition.side_effects.diffs,
             requires_build_by_snapshot: partition.requires_build_by_snapshot,
-            materialized_snapshots: plan.materialized_keys(),
+            snapshot_placement: super::SnapshotPlacement::materialized(plan.materialized_keys()),
             fetch_failed,
             cas_paths_by_pkg_id: indexes.by_pkg_id,
         })
