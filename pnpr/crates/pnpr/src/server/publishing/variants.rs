@@ -141,12 +141,12 @@ fn check_platform(version: &str, tag: &str, platform: &Value) -> Result<(), Regi
             "platform of variant {tag:?} of {version} has an unknown field {unknown:?}"
         )));
     }
-    if let Some(libc) = platform.get("libc") {
-        if !matches!(libc.as_str(), Some("glibc" | "musl")) {
-            return Err(bad_request(format!(
-                "platform of variant {tag:?} of {version} has an unknown libc {libc}"
-            )));
-        }
+    if let Some(libc) = platform.get("libc")
+        && !matches!(libc.as_str(), Some("glibc" | "musl"))
+    {
+        return Err(bad_request(format!(
+            "platform of variant {tag:?} of {version} has an unknown libc {libc}"
+        )));
     }
     Ok(())
 }
