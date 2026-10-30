@@ -1,5 +1,12 @@
 # @pnpm/scripts
 
+## 1100.0.28
+
+### Patch Changes
+
+- Updated dependencies:
+  - @pnpm/workspace.workspace-manifest-reader@1100.3.2
+
 ## 1100.0.27
 
 ### Patch Changes
