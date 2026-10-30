@@ -1,13 +1,14 @@
 use super::{
     EcosystemUpdateStepOptions,
     cargo_manifest_ops::{
-        CargoWorkspaceScope, DeclaredCargoDep, apply_manifest_edits, declared_cargo_deps,
-        find_cargo_workspace_root, format_cargo_saved_spec, read_locked_cargo_versions,
-        resolve_cargo_workspace_scope, same_declared_dep, select_locked_version,
+        DeclaredCargoDep, apply_manifest_edits, declared_cargo_deps, find_cargo_workspace_root,
+        format_cargo_saved_spec, read_locked_cargo_versions, same_declared_dep,
+        select_locked_version,
     },
     cargo_selection::{
         SelectedCargoDep, SelectedCargoTarget, admits_enabled_features, select_cargo_deps_to_update,
     },
+    cargo_workspace_scope::{CargoWorkspaceScope, resolve_cargo_workspace_scope},
     selectors::CargoUpdateSelector,
 };
 use crate::{

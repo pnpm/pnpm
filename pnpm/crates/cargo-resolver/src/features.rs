@@ -85,8 +85,9 @@ pub(crate) fn supports_features(package: &RegistryVersion, selection: &FeatureSe
 }
 
 /// The entries of `features` that `package` does not define. An entry
-/// naming a feature of one of its dependencies (`dep/feature`) is left for
-/// Cargo to check.
+/// naming a feature of one of its dependencies (`dep/feature`) counts as
+/// defined while `package` still has that dependency; the dependency's own
+/// feature is left for Cargo to check.
 pub(crate) fn missing_features<'a>(
     package: &RegistryVersion,
     features: &'a [String],
@@ -96,10 +97,17 @@ pub(crate) fn missing_features<'a>(
     features
         .iter()
         .map(String::as_str)
-        .filter(|feature| {
-            !feature.contains('/') && !defines_feature(package, &implicit_optional_aliases, feature)
+        .filter(|feature| match feature.split_once('/') {
+            Some((alias, _)) => !has_dependency(package, alias.trim_end_matches('?')),
+            None => !defines_feature(package, &implicit_optional_aliases, feature),
         })
         .collect()
+}
+
+fn has_dependency(package: &RegistryVersion, alias: &str) -> bool {
+    package.dependencies
+        .iter()
+        .any(|dependency| dependency.alias == alias)
 }
 
 fn defines_feature(

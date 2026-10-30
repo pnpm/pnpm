@@ -100,6 +100,12 @@ pub(crate) struct CargoWorkspaceDependency {
     pub(crate) req: String,
     #[serde(default)]
     pub(crate) features: Vec<String>,
+    /// `None` for a path dependency.
+    #[serde(default)]
+    pub(crate) source: Option<String>,
+    /// The index URL of an alternate registry, `None` for crates.io.
+    #[serde(default)]
+    pub(crate) registry: Option<String>,
 }
 
 pub(crate) async fn plan<Reporter: self::Reporter + 'static>(

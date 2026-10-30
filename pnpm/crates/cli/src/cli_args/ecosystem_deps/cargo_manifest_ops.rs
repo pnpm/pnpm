@@ -1,5 +1,4 @@
 use crate::{
-    cargo_deps::CargoWorkspaceDependency,
     cargo_manifest::{upsert_dependency, workspace_includes_member},
     cli_args::outdated::OutdatedQuery,
 };
@@ -8,7 +7,7 @@ use miette::{IntoDiagnostic, Result, WrapErr, bail};
 use pnpm_package_manifest::DependencyGroup;
 use semver::{Version, VersionReq};
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap},
+    collections::{BTreeMap, HashMap},
     fs,
     path::{Path, PathBuf},
     str::FromStr,
@@ -329,75 +328,6 @@ fn existing_prefix(raw: &str) -> &'static str {
             .into_iter()
             .find(|prefix| trimmed.starts_with(prefix))
             .unwrap_or("")
-    }
-}
-
-/// The Cargo workspace a `pnpm update` edits.
-pub(crate) struct CargoWorkspaceScope {
-    pub(crate) root: PathBuf,
-    pub(crate) declared: Vec<DeclaredCargoDep>,
-    /// Every dependency declaration of the workspace's packages, as
-    /// `cargo metadata` reports it.
-    declarations: Vec<CargoWorkspaceDependency>,
-}
-
-impl CargoWorkspaceScope {
-    /// The features the workspace enables on `dep`, from every declaration
-    /// that resolves through it: the declaration itself, the members
-    /// inheriting it, and their target-specific tables.
-    pub(crate) fn enabled_features(&self, dep: &DeclaredCargoDep) -> Vec<String> {
-        let features: BTreeSet<&String> = self.declarations
-            .iter()
-            .filter(|declaration| {
-                declaration.name == dep.package_name
-                    && declaration.rename.as_deref().unwrap_or(&declaration.name) == dep.alias
-                    && VersionReq::parse(&declaration.req).is_ok_and(|req| req == dep.version_req)
-            })
-            .flat_map(|declaration| &declaration.features)
-            .collect();
-        features.into_iter().cloned().collect()
-    }
-}
-
-pub(crate) async fn resolve_cargo_workspace_scope(
-    manifest_path: &Path,
-    declared: &[DeclaredCargoDep],
-    checkout: Option<&Path>,
-) -> Result<CargoWorkspaceScope> {
-    let (_, metadata) = crate::cargo_deps::workspace_metadata(manifest_path, checkout).await?;
-    let cargo_root = crate::cargo_deps::canonical_cargo_path(&metadata.workspace_root)?;
-    let mut all_declared = declared.to_vec();
-    let mut declarations = Vec::new();
-    for package in metadata.packages {
-        let canonical = crate::cargo_deps::canonical_cargo_path(&package.manifest_path)?;
-        if let Some(dir) = canonical
-            .parent()
-            .filter(|dir| dir.starts_with(&cargo_root))
-        {
-            extend_unique_declared(
-                &mut all_declared,
-                declared_cargo_deps(dir, Some(&cargo_root))?,
-                &cargo_root,
-            );
-            declarations.extend(package.dependencies);
-        }
-    }
-    Ok(CargoWorkspaceScope { root: cargo_root, declared: all_declared, declarations })
-}
-
-fn extend_unique_declared(
-    all_declared: &mut Vec<DeclaredCargoDep>,
-    deps: Vec<DeclaredCargoDep>,
-    cargo_root: &Path,
-) {
-    for dep in deps {
-        if dep.manifest_path.starts_with(cargo_root)
-            && !all_declared
-                .iter()
-                .any(|existing| existing.group == dep.group && same_declared_dep(existing, &dep))
-        {
-            all_declared.push(dep);
-        }
     }
 }
 

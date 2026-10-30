@@ -1,6 +1,7 @@
 use super::{
     cargo::CargoUpdateOptions,
-    cargo_manifest_ops::{CargoWorkspaceScope, DeclaredCargoDep, same_declared_dep},
+    cargo_manifest_ops::{DeclaredCargoDep, same_declared_dep},
+    cargo_workspace_scope::CargoWorkspaceScope,
 };
 use miette::{Result, bail};
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
@@ -73,12 +74,12 @@ pub(super) fn admits_enabled_features<Reporter: self::Reporter>(
     version: &Version,
 ) -> Result<bool> {
     let dep = target.selection.dep;
-    let missing = pnpm_cargo_resolver::missing_features(
-        &dep.package_name,
-        index_file,
-        version,
-        &target.scope.enabled_features(dep),
-    )?;
+    let enabled = target.scope.enabled_features(dep);
+    if enabled.is_empty() {
+        return Ok(true);
+    }
+    let missing =
+        pnpm_cargo_resolver::missing_features(&dep.package_name, index_file, version, &enabled)?;
     if missing.is_empty() {
         return Ok(true);
     }
