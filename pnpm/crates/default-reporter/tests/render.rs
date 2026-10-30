@@ -371,3 +371,6 @@ mod files;
 
 #[path = "render/script_output.rs"]
 mod script_output;
+
+#[path = "render/peers.rs"]
+mod peers;

@@ -975,3 +975,5 @@ mod hooked_manifests;
 
 mod named_registry;
 mod workspace_root;
+
+mod global;

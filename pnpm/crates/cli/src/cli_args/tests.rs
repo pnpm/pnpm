@@ -392,7 +392,7 @@ fn workspace_fixture() -> (TempDir, std::path::PathBuf) {
 
 /// Every subcommand declaring `--global`. A new one added without wiring
 /// it into [`CliCommand::is_global`] slips past the conflict check.
-const GLOBAL_SUBCOMMAND_ARGV: [&[&str]; 12] = [
+const GLOBAL_SUBCOMMAND_ARGV: [&[&str]; 13] = [
     &["add", "foo"],
     &["approve-builds"],
     &["bin"],
@@ -400,6 +400,7 @@ const GLOBAL_SUBCOMMAND_ARGV: [&[&str]; 12] = [
     &["list"],
     &["ll"],
     &["outdated"],
+    &["peers", "check"],
     &["prefix"],
     &["remove", "foo"],
     &["root"],
