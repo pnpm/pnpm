@@ -60,12 +60,8 @@ pub(crate) fn upsert_dependency(
     let mut offset = section_start;
     for line in section.split_inclusive('\n') {
         if let Some(value_range) = dependency_value_range(line, name) {
-            let value_start = offset + value_range.start;
-            let value_end = match inline_table_len(&contents[value_start..]) {
-                Some(len) => value_start + len,
-                None => offset + value_range.end,
-            };
-            return replace_dependency_value(contents, value_start..value_end, name, version_spec);
+            let value_range = value_range_in_contents(contents, offset, value_range);
+            return replace_dependency_value(contents, value_range, name, version_spec);
         }
         offset += line.len();
     }
@@ -73,6 +69,20 @@ pub(crate) fn upsert_dependency(
     let prefix = &contents[..section_end];
     let newline = if !prefix.is_empty() && !prefix.ends_with('\n') { "\n" } else { "" };
     Ok(format!("{prefix}{newline}{name} = {}\n{}", quoted(version_spec), &contents[section_end..]))
+}
+
+/// Translate a value range found on the line at `line_offset` into
+/// `contents`, extending an inline table to its closing `}` on a later line.
+fn value_range_in_contents(
+    contents: &str,
+    line_offset: usize,
+    value_range: Range<usize>,
+) -> Range<usize> {
+    let start = line_offset + value_range.start;
+    match inline_table_len(&contents[start..]) {
+        Some(len) => start..start + len,
+        None => start..line_offset + value_range.end,
+    }
 }
 
 fn find_dependency_subtable(contents: &str, table: &str, name: &str) -> Option<String> {
