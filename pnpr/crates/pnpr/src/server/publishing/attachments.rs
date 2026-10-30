@@ -93,28 +93,18 @@ pub(in super::super) async fn validate_publish_doc(
 
     let attachments = extract_attachments(&mut incoming)?;
     record_publisher(&mut incoming, identity);
-    let declared_variants = variants::take_declarations(&mut incoming)?;
+    let variants = variants::take_declarations(&mut incoming)?;
 
     // Validate attachment filenames against the package and parse their
     // canonical storage filename, matching version, and payload kind.
-    let prepared = prepare_attachments(&name, &incoming, attachments, &declared_variants)?;
+    let prepared = prepare_attachments(&name, &incoming, attachments, &variants)?;
     let publisher = identity.clone();
     let tarballs = if super::super::tar_registry::is_tar_registry(state, &target.source) {
         TarballStorage::Tar
     } else {
         TarballStorage::Tgz
     };
-    Ok((
-        ValidatedPublish {
-            name,
-            incoming,
-            prepared,
-            publisher,
-            tarballs,
-            variants: declared_variants,
-        },
-        target,
-    ))
+    Ok((ValidatedPublish { name, incoming, prepared, publisher, tarballs, variants }, target))
 }
 
 fn prepare_attachments(
@@ -128,47 +118,16 @@ fn prepare_attachments(
     let mut tarball_versions = HashSet::new();
 
     for attachment in attachments {
-        if let Some(parsed) = variants::parse_variant_attachment(name, &attachment.filename) {
-            let (canonical, version, tag) = parsed?;
-            if !seen_canonical.insert(canonical.clone()) {
-                return Err(RegistryError::BadRequest {
-                    reason: format!("duplicate attachment for {canonical}"),
-                });
-            }
-            let dist = variants::attachment_dist(declared_variants, &version, &tag)?;
-            prepared.push(PreparedAttachment {
-                attachment,
-                canonical,
-                version,
-                dist,
-                kind: AttachmentKind::Variant,
-                variant_tag: Some(tag),
-            });
-            continue;
-        }
-        let (canonical, version, kind) = parse_attachment_kind(name, &attachment.filename)?;
-        if !seen_canonical.insert(canonical.clone()) {
+        let item = prepare_attachment(name, incoming, attachment, declared_variants)?;
+        if !seen_canonical.insert(item.canonical.clone()) {
             return Err(RegistryError::BadRequest {
-                reason: format!("duplicate attachment for {canonical}"),
+                reason: format!("duplicate attachment for {}", item.canonical),
             });
         }
-        if kind == AttachmentKind::Tarball {
-            tarball_versions.insert(version.clone());
+        if item.kind == AttachmentKind::Tarball {
+            tarball_versions.insert(item.version.clone());
         }
-        let dist = incoming
-            .get("versions")
-            .and_then(|versions| versions.get(&version))
-            .and_then(|manifest| manifest.get("dist"))
-            .cloned()
-            .unwrap_or(Value::Null);
-        prepared.push(PreparedAttachment {
-            attachment,
-            canonical,
-            version,
-            dist,
-            kind,
-            variant_tag: None,
-        });
+        prepared.push(item);
     }
     for att in &prepared {
         if att.kind == AttachmentKind::Sigstore && !tarball_versions.contains(&att.version) {
@@ -178,6 +137,27 @@ fn prepare_attachments(
         }
     }
     Ok(prepared)
+}
+
+/// Prepare an attachment to be verified against its version's `dist`, or a
+/// variant's against its declaration.
+fn prepare_attachment(
+    name: &CanonicalPackageName,
+    incoming: &Value,
+    attachment: PendingAttachment,
+    declared_variants: &Declarations,
+) -> Result<PreparedAttachment, RegistryError> {
+    if let Some(parsed) = variants::parse_variant_attachment(name, &attachment.filename) {
+        return variants::prepare_variant_attachment(attachment, parsed?, declared_variants);
+    }
+    let (canonical, version, kind) = parse_attachment_kind(name, &attachment.filename)?;
+    let dist = incoming
+        .get("versions")
+        .and_then(|versions| versions.get(&version))
+        .and_then(|manifest| manifest.get("dist"))
+        .cloned()
+        .unwrap_or(Value::Null);
+    Ok(PreparedAttachment { attachment, canonical, version, dist, kind, variant_tag: None })
 }
 
 fn parse_attachment_kind(
@@ -240,7 +220,7 @@ pub(in super::super) async fn stage_publish(
         mut incoming,
         prepared,
         tarballs,
-        variants: declared_variants,
+        variants,
         ..
     } = doc;
     restore_submitted_tgz_integrities(&storage, &name, hosted.as_ref(), &mut incoming).await?;
@@ -257,16 +237,10 @@ pub(in super::super) async fn stage_publish(
     // missing integrity field — short-circuits the publish with a
     // 400; any tmp files written before the failure get removed
     // along the way so a bad upload leaves no on-disk artifact.
-    let mut written =
+    let written =
         write_attachment_slots(&storage, &name, prepared, tarballs, &state.inner.proxy.tar_decodes)
             .await?;
-    let published_variants: Vec<PublishedVariant> = std::mem::take(&mut written.variants);
-    if let Err(err) =
-        variants::attach_variants(&mut merged, &declared_variants, &published_variants)
-    {
-        cleanup_tmp_slots(written.slots).await;
-        return Err(err);
-    }
+    let written = variants::attach_written_variants(&mut merged, &variants, written).await?;
     let document = serialize_staged_document(merged, &written.tars);
     Ok(StagedPublish {
         name,
@@ -312,15 +286,9 @@ pub(super) async fn write_attachment_slots(
         match write_attachment_slot(storage, name, attachment, tarballs, decodes).await {
             Ok((slot, tar)) => {
                 written.slots.push(slot);
-                match tar {
-                    Some(PublishedTar {
-                        version,
-                        inspection,
-                        variant: Some(tar),
-                    }) => {
-                        written.variants.push(PublishedVariant { version, tar, inspection });
-                    }
-                    Some(tar) => written.tars.push(tar),
+                match tar.map(variants::split_variant) {
+                    Some(Ok(variant)) => written.variants.push(variant),
+                    Some(Err(tar)) => written.tars.push(tar),
                     None => {}
                 }
             }
@@ -356,7 +324,6 @@ pub(super) async fn write_attachment_slot(
     let paths = AttachmentPaths::for_slot(&slot.tmp_path, stores_tar);
     let result =
         write_under_permit(prepared.attachment, prepared.kind, prepared.dist, paths, decodes).await;
-    let is_variant = prepared.kind == AttachmentKind::Variant;
     let derived = match result {
         Ok(Ok(derived)) => derived,
         Ok(Err(err)) => {
@@ -369,28 +336,17 @@ pub(super) async fn write_attachment_slot(
         }
     };
     let Some((tgz_integrity, integrity, inspection)) = derived else {
-        if is_variant {
-            let _ = tokio::fs::remove_file(&slot.tmp_path).await;
-            return Err(RegistryError::BadRequest {
-                reason: format!("{} does not decode to a tar", prepared.canonical),
-            });
-        }
+        let slot = variants::keep_undecoded(slot, prepared.kind, &prepared.canonical).await?;
         return Ok((slot, None));
     };
-    let variant = match &prepared.variant_tag {
-        Some(tag) => Some(VariantTar {
-            tag: tag.clone(),
-            tar_integrity: integrity.to_string(),
-            manifest: variants::read_tgz_manifest(&slot.tmp_path),
-        }),
-        None => None,
-    };
-    let recorded =
-        record_published_tar(storage, name, &tgz_integrity, &integrity, &inspection, stores_tar);
-    if let Err(err) = recorded.await {
+    if let Err(err) =
+        record_published_tar(storage, name, &tgz_integrity, &integrity, &inspection, stores_tar)
+            .await
+    {
         let _ = tokio::fs::remove_file(&slot.tmp_path).await;
         return Err(err);
     }
+    let variant = variants::variant_tar(prepared.variant_tag, &integrity, &slot.tmp_path);
     Ok((slot, Some(PublishedTar { version: prepared.version, inspection, variant })))
 }
 

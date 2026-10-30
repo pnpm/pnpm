@@ -9,22 +9,25 @@
 //! under the server-owned `_pnprVariants`, and serves it as
 //! `dist.pnpr.variants`.
 
+pub(super) use declarations::take_declarations;
+
+mod declarations;
+mod verification;
+
+use super::{
+    Integrity, PendingAttachment,
+    attachments::{AttachmentKind, PreparedAttachment, PublishedTar, WrittenAttachments},
+    cleanup_tmp_slots,
+};
 use pnpr_error::RegistryError;
 use pnpr_package_name::CanonicalPackageName;
 use serde_json::{Map, Value, json};
-use std::{
-    collections::{BTreeMap, HashSet},
-    io::Read,
-};
+use std::{collections::BTreeMap, io::Read};
 
 /// The field a publish body declares variants in.
 const DECLARATION_FIELD: &str = "pnprVariants";
 /// The server-owned field the stored packument keeps verified variants in.
 pub(in super::super) const STORED_FIELD: &str = "_pnprVariants";
-
-/// Dependency fields every variant must share with the primary.
-const DEPENDENCY_FIELDS: &[&str] =
-    &["dependencies", "optionalDependencies", "peerDependencies", "peerDependenciesMeta"];
 
 /// One declared variant of one version.
 #[derive(Debug, Clone)]
@@ -44,6 +47,13 @@ pub(in super::super) struct VariantTar {
     pub(in super::super) manifest: Option<Value>,
 }
 
+/// What a published variant contributes to the stored version.
+pub(in super::super) struct PublishedVariant {
+    pub(in super::super) version: String,
+    pub(in super::super) tar: VariantTar,
+    pub(in super::super) inspection: pnpm_tarball::TarInspection,
+}
+
 fn bad_request(reason: String) -> RegistryError {
     RegistryError::BadRequest { reason }
 }
@@ -58,137 +68,6 @@ pub(in super::super) fn is_valid_tag(tag: &str) -> bool {
             .all(|byte| {
                 byte.is_ascii_lowercase() || byte.is_ascii_digit() || b"._-".contains(&byte)
             })
-}
-
-/// Remove variant declarations, and any server-owned variant field, from a
-/// publish body, and return the declarations.
-pub(in super::super) fn take_declarations(
-    incoming: &mut Value,
-) -> Result<Declarations, RegistryError> {
-    let mut declared = Declarations::new();
-    let Some(versions) = incoming.get_mut("versions").and_then(Value::as_object_mut) else {
-        return Ok(declared);
-    };
-    for (version, manifest) in versions.iter_mut() {
-        let Some(manifest) = manifest.as_object_mut() else { continue };
-        manifest.remove(STORED_FIELD);
-        let Some(list) = manifest.remove(DECLARATION_FIELD) else { continue };
-        let Value::Array(list) = list else {
-            return Err(bad_request(format!("{DECLARATION_FIELD} of {version} must be an array")));
-        };
-        let mut tags = HashSet::new();
-        let mut out = Vec::with_capacity(list.len());
-        for entry in list {
-            let tag = entry
-                .get("tag")
-                .and_then(Value::as_str)
-                .unwrap_or_default()
-                .to_string();
-            if !is_valid_tag(&tag) {
-                return Err(bad_request(format!(
-                    "variant of {version} has an invalid tag {tag:?}",
-                )));
-            }
-            if !tags.insert(tag.clone()) {
-                return Err(bad_request(format!("variant tag {tag:?} of {version} is not unique")));
-            }
-            let platforms = match entry.get("platforms") {
-                Some(Value::Array(platforms)) if !platforms.is_empty() => platforms.clone(),
-                _ => {
-                    return Err(bad_request(format!(
-                        "variant {tag:?} of {version} must list at least one platform",
-                    )));
-                }
-            };
-            for platform in &platforms {
-                check_platform(version, &tag, platform)?;
-            }
-            let Some(tgz_integrity) = entry.get("integrity").and_then(Value::as_str) else {
-                return Err(bad_request(format!("variant {tag:?} of {version} has no integrity")));
-            };
-            out.push(VariantDeclaration {
-                tag,
-                platforms,
-                tgz_integrity: tgz_integrity.to_string(),
-            });
-        }
-        check_no_platform_overlap(version, &out)?;
-        declared.insert(version.clone(), out);
-    }
-    Ok(declared)
-}
-
-const PLATFORM_FIELDS: &[&str] = &["os", "cpu", "libc"];
-
-fn check_platform(version: &str, tag: &str, platform: &Value) -> Result<(), RegistryError> {
-    let Some(platform) = platform.as_object() else {
-        return Err(bad_request(format!(
-            "platform of variant {tag:?} of {version} is not an object",
-        )));
-    };
-    for field in ["os", "cpu"] {
-        if !platform.get(field).is_some_and(Value::is_string) {
-            return Err(bad_request(format!(
-                "platform of variant {tag:?} of {version} has no {field:?}",
-            )));
-        }
-    }
-    if let Some(unknown) = platform
-        .keys()
-        .find(|key| !PLATFORM_FIELDS.contains(&key.as_str()))
-    {
-        return Err(bad_request(format!(
-            "platform of variant {tag:?} of {version} has an unknown field {unknown:?}",
-        )));
-    }
-    if let Some(libc) = platform.get("libc")
-        && !matches!(libc.as_str(), Some("glibc" | "musl"))
-    {
-        return Err(bad_request(format!(
-            "platform of variant {tag:?} of {version} has an unknown libc {libc}",
-        )));
-    }
-    Ok(())
-}
-
-/// The platform as one comparable key. A Linux platform without `libc` is
-/// glibc.
-fn platform_key(platform: &Value) -> (String, String, String) {
-    let field = |name| {
-        platform
-            .get(name)
-            .and_then(Value::as_str)
-            .unwrap_or_default()
-            .to_string()
-    };
-    let os = field("os");
-    let libc = match platform.get("libc").and_then(Value::as_str) {
-        Some(libc) => libc.to_string(),
-        None if os == "linux" => "glibc".to_string(),
-        None => String::new(),
-    };
-    (os, field("cpu"), libc)
-}
-
-fn check_no_platform_overlap(
-    version: &str,
-    variants: &[VariantDeclaration],
-) -> Result<(), RegistryError> {
-    let mut seen = HashSet::new();
-    for variant in variants {
-        for platform in &variant.platforms {
-            let key = platform_key(platform);
-            if !seen.insert(key.clone()) {
-                return Err(bad_request(format!(
-                    "more than one variant of {version} lists the platform {}-{}{}",
-                    key.0,
-                    key.1,
-                    if key.2.is_empty() { String::new() } else { format!("-{}", key.2) },
-                )));
-            }
-        }
-    }
-    Ok(())
 }
 
 /// Parse a variant attachment filename, `<basename>-<version>~<tag>.tgz`, into
@@ -220,8 +99,26 @@ pub(in super::super) fn variant_blob_name(
     format!("{stem}~{tag}.tgz")
 }
 
+/// Prepare a variant attachment, parsed by [`parse_variant_attachment`], to
+/// be verified against its declared `.tgz` integrity.
+pub(super) fn prepare_variant_attachment(
+    attachment: PendingAttachment,
+    (canonical, version, tag): (String, String, String),
+    declared: &Declarations,
+) -> Result<PreparedAttachment, RegistryError> {
+    let dist = attachment_dist(declared, &version, &tag)?;
+    Ok(PreparedAttachment {
+        attachment,
+        canonical,
+        version,
+        dist,
+        kind: AttachmentKind::Variant,
+        variant_tag: Some(tag),
+    })
+}
+
 /// The `dist` a variant attachment is verified against.
-pub(in super::super) fn attachment_dist(
+fn attachment_dist(
     declared: &Declarations,
     version: &str,
     tag: &str,
@@ -239,8 +136,48 @@ pub(in super::super) fn attachment_dist(
         })
 }
 
+/// Keep the slot of a `.tgz` that does not decode to a tar. A variant must
+/// decode, so its slot is removed and the publish fails.
+pub(super) async fn keep_undecoded(
+    slot: pnpr_storage::BlobSlot,
+    kind: AttachmentKind,
+    canonical: &str,
+) -> Result<pnpr_storage::BlobSlot, RegistryError> {
+    if kind != AttachmentKind::Variant {
+        return Ok(slot);
+    }
+    let _ = tokio::fs::remove_file(&slot.tmp_path).await;
+    Err(bad_request(format!("{canonical} does not decode to a tar")))
+}
+
+/// What a variant's `.tgz`, written to `path`, derived; `None` for any other
+/// attachment.
+pub(super) fn variant_tar(
+    tag: Option<String>,
+    integrity: &Integrity,
+    path: &std::path::Path,
+) -> Option<VariantTar> {
+    tag.map(|tag| VariantTar {
+        tag,
+        tar_integrity: integrity.to_string(),
+        manifest: read_tgz_manifest(path),
+    })
+}
+
+/// Split a variant's tar from the tars of primary `.tgz` files.
+pub(super) fn split_variant(tar: PublishedTar) -> Result<PublishedVariant, PublishedTar> {
+    match tar {
+        PublishedTar {
+            version,
+            inspection,
+            variant: Some(tar),
+        } => Ok(PublishedVariant { version, tar, inspection }),
+        tar => Err(tar),
+    }
+}
+
 /// Read `package.json` from a `.tgz`.
-pub(in super::super) fn read_tgz_manifest(path: &std::path::Path) -> Option<Value> {
+fn read_tgz_manifest(path: &std::path::Path) -> Option<Value> {
     let file = std::fs::File::open(path).ok()?;
     let decoder = flate2::read::MultiGzDecoder::new(std::io::BufReader::new(file));
     let mut archive = tar::Archive::new(decoder);
@@ -258,131 +195,19 @@ pub(in super::super) fn read_tgz_manifest(path: &std::path::Path) -> Option<Valu
     None
 }
 
-/// What a published variant contributes to the stored version.
-pub(in super::super) struct PublishedVariant {
-    pub(in super::super) version: String,
-    pub(in super::super) tar: VariantTar,
-    pub(in super::super) inspection: pnpm_tarball::TarInspection,
-}
-
-/// Check every published variant against its primary and record the verified
-/// variants on the merged document.
-pub(in super::super) fn attach_variants(
+/// Record the written variants on the merged document (see
+/// [`verification::attach_variants`]). A failure removes every written slot.
+pub(super) async fn attach_written_variants(
     merged: &mut Value,
     declared: &Declarations,
-    published: &[PublishedVariant],
-) -> Result<(), RegistryError> {
-    for (version, variants) in declared {
-        let primary = merged
-            .pointer(&format!("/versions/{}", escape_pointer(version)))
-            .cloned()
-            .ok_or_else(|| {
-                bad_request(format!("variants declared for unknown version {version}"))
-            })?;
-        let mut stored = Vec::with_capacity(variants.len());
-        for variant in variants {
-            let Some(found) = published
-                .iter()
-                .find(|item| item.version == *version && item.tar.tag == variant.tag)
-            else {
-                return Err(bad_request(format!(
-                    "variant {:?} of {version} is declared but not attached",
-                    variant.tag,
-                )));
-            };
-            check_invariants(version, variant, &primary, found)?;
-            let mut entry = Map::new();
-            entry.insert("tag".into(), Value::String(variant.tag.clone()));
-            entry.insert("platforms".into(), Value::Array(variant.platforms.clone()));
-            entry.insert("integrity".into(), Value::String(found.tar.tar_integrity.clone()));
-            if let Some(size) = found.inspection.unpacked_size {
-                entry.insert("unpackedSize".into(), Value::from(size));
-            }
-            if let Some(count) = found.inspection.file_count {
-                entry.insert("fileCount".into(), Value::from(count));
-            }
-            if let Some(bin) = found.tar.manifest
-                .as_ref()
-                .and_then(|manifest| manifest.get("bin"))
-            {
-                entry.insert("bin".into(), bin.clone());
-            }
-            stored.push(Value::Object(entry));
-        }
-        if let Some(manifest) = merged
-            .pointer_mut(&format!("/versions/{}", escape_pointer(version)))
-            .and_then(Value::as_object_mut)
-        {
-            manifest.insert(STORED_FIELD.to_string(), Value::Array(stored));
-        }
+    mut written: WrittenAttachments,
+) -> Result<WrittenAttachments, RegistryError> {
+    let published = std::mem::take(&mut written.variants);
+    if let Err(err) = verification::attach_variants(merged, declared, &published) {
+        cleanup_tmp_slots(written.slots).await;
+        return Err(err);
     }
-    Ok(())
-}
-
-fn escape_pointer(segment: &str) -> String {
-    segment.replace('~', "~0").replace('/', "~1")
-}
-
-fn check_invariants(
-    version: &str,
-    variant: &VariantDeclaration,
-    primary: &Value,
-    published: &PublishedVariant,
-) -> Result<(), RegistryError> {
-    let tag = &variant.tag;
-    let reject = |reason: String| bad_request(format!("variant {tag:?} of {version}: {reason}"));
-    let Some(manifest) = published.tar.manifest.as_ref() else {
-        return Err(reject("its package.json cannot be read".into()));
-    };
-    for field in ["name", "version"] {
-        if manifest.get(field) != primary.get(field) {
-            return Err(reject(format!("its {field:?} differs from the primary's")));
-        }
-    }
-    for field in DEPENDENCY_FIELDS {
-        let variant_deps = without_bundled(manifest, field);
-        let primary_deps = without_bundled(primary, field);
-        if variant_deps != primary_deps {
-            return Err(reject(format!("its {field:?} differ from the primary's")));
-        }
-    }
-    if published.inspection.requires_build != Some(false) {
-        return Err(reject("it requires a build".into()));
-    }
-    for platform in &variant.platforms {
-        for field in PLATFORM_FIELDS {
-            let Some(value) = platform.get(*field).and_then(Value::as_str) else { continue };
-            if let Some(Value::Array(allowed)) = manifest.get(*field)
-                && !allowed
-                    .iter()
-                    .any(|allowed| allowed.as_str() == Some(value))
-            {
-                return Err(reject(format!("its package.json {field:?} excludes {value:?}")));
-            }
-        }
-    }
-    Ok(())
-}
-
-/// A dependency field, without the names the manifest bundles.
-fn without_bundled(manifest: &Value, field: &str) -> Map<String, Value> {
-    let bundled: HashSet<&str> = ["bundleDependencies", "bundledDependencies"]
-        .iter()
-        .filter_map(|key| manifest.get(*key))
-        .filter_map(Value::as_array)
-        .flatten()
-        .filter_map(Value::as_str)
-        .collect();
-    manifest
-        .get(field)
-        .and_then(Value::as_object)
-        .map(|deps| {
-            deps.iter()
-                .filter(|(name, _)| !bundled.contains(name.as_str()))
-                .map(|(name, value)| (name.clone(), value.clone()))
-                .collect()
-        })
-        .unwrap_or_default()
+    Ok(written)
 }
 
 /// Move each version's stored variants into `dist.pnpr.variants`, with the
@@ -394,6 +219,19 @@ pub fn describe_variants(doc: &mut Value, name: &str, public_url: &str) {
     for (version, manifest) in versions.iter_mut() {
         describe_version_variants(manifest, name, version, public_url);
     }
+}
+
+/// [`describe_version_variants`] for a version manifest, which names its
+/// version.
+pub fn describe_manifest_variants(manifest: &mut Value, name: &str, public_url: &str) {
+    let Some(version) = manifest
+        .get("version")
+        .and_then(Value::as_str)
+        .map(str::to_string)
+    else {
+        return;
+    };
+    describe_version_variants(manifest, name, &version, public_url);
 }
 
 /// [`describe_variants`] for one version manifest.

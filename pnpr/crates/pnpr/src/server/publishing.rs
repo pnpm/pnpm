@@ -1,3 +1,5 @@
+pub(super) mod variants;
+
 pub(super) use attachments::{
     StagedPublish, ValidatedPublish, stage_publish, validate_publish_doc,
 };
@@ -6,7 +8,6 @@ pub(super) use tombstones::check_publish_tombstone;
 mod attachments;
 mod manifest;
 mod tombstones;
-pub(super) mod variants;
 
 use std::collections::{BTreeSet, HashSet};
 
