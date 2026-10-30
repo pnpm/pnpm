@@ -884,9 +884,8 @@ fn a_repeat_install_restores_a_removed_workspace_project_modules_dir() {
 
 /// Two projects that need the same version of a package the root cannot
 /// hold each get a copy nested in their own `node_modules`. Only pkg-b's
-/// copy nests the dependency, since pkg-b pins another version of it.
-/// Linking pkg-b's copy to pkg-a's dropped that nested dependency, so
-/// every repeat install imported it again.
+/// copy nests the dependency, since pkg-b pins another version of it. A
+/// repeat frozen install keeps both copies and imports nothing.
 #[test]
 fn a_repeat_frozen_install_keeps_each_projects_own_nested_copy() {
     const SHARED: &str = "@pnpm.e2e/pkg-with-1-dep";

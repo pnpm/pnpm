@@ -229,10 +229,8 @@ fn walker_workspace_root_version_wins_root_slot() {
     assert_eq!(result.direct_dependencies_by_importer_id["packages/app"]["webby"], nested_webby);
 }
 /// Two projects that lose the root slot with the same snapshot each get a
-/// copy under their own `node_modules`. Each project's direct dependency is
-/// that copy: pointing the second project at the first one's makes the
-/// linker replace the second copy with a symlink, which the next install
-/// finds missing and imports again.
+/// copy under their own `node_modules`, and each project's direct dependency
+/// is its own copy.
 #[test]
 fn walker_projects_sharing_a_nested_snapshot_keep_their_own_copy() {
     let mut root_deps = ResolvedDependencyMap::new();
