@@ -599,7 +599,7 @@ fn a_reinstall_anchors_a_shim_written_without_the_physical_basedir() {
 
     let body = read_to_string(&shim).unwrap();
     assert!(body.contains(PRELUDE), "the reinstall must anchor the shim, body was:\n{body}");
-    assert!(body.contains(r#""$basedir_abs/../foo/cli.js""#), "body was:\n{body}");
+    assert!(body.contains(r#""$basedir_abs"/'../foo/cli.js'"#), "body was:\n{body}");
 }
 
 /// A POSIX shim climbs to its target from its physical directory, so the
@@ -668,7 +668,7 @@ fn a_reinstall_replaces_a_shim_whose_relative_target_climbs_from_another_dir() {
         is_shim_pointing_at(&stale, &shim, &target),
         "precondition: the stale shim carries a matching target marker",
     );
-    assert!(stale.contains(r#""$basedir_abs/../pkg/cli.js""#), "precondition, body was:\n{stale}");
+    assert!(stale.contains(r#""$basedir_abs"/'../pkg/cli.js'"#), "precondition, body was:\n{stale}");
 
     link_bins_of_packages::<Host>(
         &[PackageBinSource::new(pkg, Arc::new(json!({"name": "tool", "bin": "cli.js"})))],
@@ -678,7 +678,7 @@ fn a_reinstall_replaces_a_shim_whose_relative_target_climbs_from_another_dir() {
     .unwrap();
 
     let body = read_to_string(&shim).unwrap();
-    assert!(body.contains(r#""$basedir_abs/../../../pkg/cli.js""#), "body was:\n{body}");
+    assert!(body.contains(r#""$basedir_abs"/'../../../pkg/cli.js'"#), "body was:\n{body}");
 }
 
 /// The MSYS shell's `cd -P` resolves a junction the way a POSIX shell
@@ -708,7 +708,7 @@ fn a_shim_in_a_junctioned_bin_dir_names_its_target_from_the_physical_dir() {
     .unwrap();
 
     let body = read_to_string(bins_dir.join("tool")).unwrap();
-    assert!(body.contains(r#""$basedir_abs/../../../pkg/cli.js""#), "body was:\n{body}");
+    assert!(body.contains(r#""$basedir_abs"/'../../../pkg/cli.js'"#), "body was:\n{body}");
 }
 
 #[test]

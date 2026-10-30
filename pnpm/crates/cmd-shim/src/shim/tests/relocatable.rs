@@ -74,7 +74,9 @@ fn shell_metacharacters_in_target_and_node_path_are_literal() {
 
     let tmp = tempfile::tempdir().unwrap();
     let root = tmp.path();
-    let hostile = root.join("bin/$basedir_abs").join("$(touch marker) `touch marker` $ \" q' \\\n");
+    let hostile = root
+        .join("bin/$basedir_abs")
+        .join("$(touch marker) `touch marker` $ \" q' \\\n");
     let shim_dir = root.join("bin");
     let shim = shim_dir.join("tool");
     let target = hostile.join("cli");
@@ -151,10 +153,16 @@ fn in_root_shim_is_written_relative_to_itself_and_only_such_a_shim_is_relocatabl
             "marker climbing out",
             relocatable.replace(marker, "# cmd-shim-target=../../../../x/tsc\n"),
         ),
-        ("absolute entry", relocatable.replace("$basedir_abs/../.pnpm", "/p/node_modules/.pnpm")),
+        (
+            "absolute entry",
+            relocatable.replace(r#""$basedir_abs"/'../.pnpm"#, "/p/node_modules/.pnpm"),
+        ),
         (
             "climbing out",
-            relocatable.replace("$basedir_abs/../.pnpm", "$basedir_abs/../../../../x"),
+            relocatable.replace(
+                r#""$basedir_abs"/'../.pnpm"#,
+                "$basedir_abs/../../../../x",
+            ),
         ),
     ];
     for (label, shim_content) in rejected {

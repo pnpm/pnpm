@@ -365,7 +365,11 @@ fn shim_target_marker(target: &str) -> String {
 }
 
 fn normalize_sh_path(path: &str) -> String {
-    if cfg!(windows) { path.replace('\\', "/") } else { path.to_owned() }
+    if cfg!(windows) {
+        path.replace('\\', "/")
+    } else {
+        path.to_owned()
+    }
 }
 
 /// Whether an already-on-disk shim at `shim_path` targets `target_path`. The
@@ -380,11 +384,14 @@ pub fn is_shim_pointing_at(shim_content: &str, shim_path: &Path, target_path: &P
     let rel_target = relative_target(target_path, shim_path);
     shim_target_markers(shim_content)
         .any(|marker| {
-            marker == target || marker == normalized_target || marker == rel_target || {
-                let normalized_marker = super::lexical_normalize(Path::new(marker));
-                let normalized_marker = normalized_marker.to_string_lossy();
-                normalize_sh_path(&normalized_marker) == normalized_target
-            }
+            marker == target
+                || marker == normalized_target
+                || marker == rel_target
+                || {
+                    let normalized_marker =
+                        super::lexical_normalize(Path::new(marker)).to_string_lossy();
+                    normalize_sh_path(&normalized_marker) == normalized_target
+                }
         })
 }
 
@@ -427,10 +434,36 @@ pub fn is_sh_shim_basedir_anchor_current(existing: &str, expected: &str) -> bool
 /// The first path the shim spells from `$basedir_abs`: its target, in a shim
 /// without a relocatable `NODE_PATH`.
 fn anchored_target(shim: &str) -> Option<&str> {
-    const QUOTED_BASEDIR_ABS: &str = r#""$basedir_abs/"#;
-    let start = shim.find(QUOTED_BASEDIR_ABS)? + QUOTED_BASEDIR_ABS.len();
-    let len = shim[start..].find('"')?;
-    Some(&shim[start..start + len])
+    const QUOTED_BASEDIR_ABS: &str = r#""$basedir_abs"/"#;
+    const LEGACY_QUOTED_BASEDIR_ABS: &str = r#""$basedir_abs/"#;
+    let marker = shim.find("# cmd-shim-target=")?;
+    let header = &shim[..marker];
+    if let Some(start) = header.rfind(QUOTED_BASEDIR_ABS) {
+        return sh_single_quoted_word(&header[start + QUOTED_BASEDIR_ABS.len()..]);
+    }
+    let start = header.rfind(LEGACY_QUOTED_BASEDIR_ABS)? + LEGACY_QUOTED_BASEDIR_ABS.len();
+    let len = header[start..].find('"')?;
+    Some(&header[start..start + len])
+}
+
+fn sh_single_quoted_word(text: &str) -> Option<&str> {
+    let bytes = text.as_bytes();
+    if bytes.first() != Some(&b'\'') {
+        return None;
+    }
+    let mut index = 1;
+    while index < bytes.len() {
+        if bytes[index] == b'\'' {
+            if text[index..].starts_with(r"'\''") {
+                index += 4;
+            } else {
+                return text.get(..=index);
+            }
+        } else {
+            index += 1;
+        }
+    }
+    None
 }
 
 /// Whether an already-on-disk POSIX shim has the header a warm reinstall can
