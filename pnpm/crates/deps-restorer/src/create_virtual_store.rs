@@ -3,7 +3,7 @@ pub(crate) mod linked_archives;
 pub(crate) use cache_keys::{dir_clone_cacheable, package_content_changed};
 pub use pnpm_package_manifest::requires_build_from_cas_paths;
 
-pub use output::{CreateVirtualStoreOutput, SnapshotPlacement};
+pub use output::{CreateVirtualStoreOutput, SideEffectsOutput, SnapshotPlacement};
 
 mod output;
 mod pipeline;
