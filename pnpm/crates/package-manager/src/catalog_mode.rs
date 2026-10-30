@@ -169,12 +169,29 @@ fn decide_catalog_entry(
     // reads best exactly as `pnpm-workspace.yaml` writes it.
     let entry = match resolve_from_catalog(catalogs, &wanted, CatalogAnchor::AsWritten) {
         CatalogResolutionResult::Found(found) => found.resolution.specifier,
-        _ => return Ok(write_catalog_entry(dep, catalog_name, catalog_specifier)),
+        _ => {
+            return Ok(CatalogDecisionOutcome {
+                decision: CatalogDecision::Catalog {
+                    manifest_specifier: catalog_specifier,
+                    updated_entry: Some(CatalogEntry {
+                        catalog_name: catalog_name.to_string(),
+                        specifier: dep.bare_specifier.to_string(),
+                    }),
+                },
+                warning: None,
+            });
+        }
     };
 
-    // An entry that names the requested dist-tag is replaced like a missing one.
+    // An entry that names the requested dist-tag already follows it, so it stays as written.
     if dep.requested_dist_tag == Some(entry.as_str()) {
-        return Ok(write_catalog_entry(dep, catalog_name, catalog_specifier));
+        return Ok(CatalogDecisionOutcome {
+            decision: CatalogDecision::Catalog {
+                manifest_specifier: catalog_specifier,
+                updated_entry: None,
+            },
+            warning: None,
+        });
     }
 
     if catalog_covers(&entry, dep.bare_specifier) {
@@ -190,23 +207,6 @@ fn decide_catalog_entry(
     }
 
     catalog_mismatch(catalog_mode, dep, prefix, &entry)
-}
-
-fn write_catalog_entry(
-    dep: &CatalogModeDep<'_>,
-    catalog_name: &str,
-    catalog_specifier: String,
-) -> CatalogDecisionOutcome {
-    CatalogDecisionOutcome {
-        decision: CatalogDecision::Catalog {
-            manifest_specifier: catalog_specifier,
-            updated_entry: Some(CatalogEntry {
-                catalog_name: catalog_name.to_string(),
-                specifier: dep.bare_specifier.to_string(),
-            }),
-        },
-        warning: None,
-    }
 }
 
 fn catalog_mismatch(

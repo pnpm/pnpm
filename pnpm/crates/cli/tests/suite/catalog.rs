@@ -285,7 +285,7 @@ fn add_pins_a_dist_tag_in_a_new_catalog_entry() {
 }
 
 #[test]
-fn add_pins_a_catalog_entry_naming_the_dist_tag() {
+fn add_keeps_a_catalog_entry_naming_the_dist_tag() {
     for catalog_mode in ["strict", "prefer"] {
         let CommandTempCwd {
             root, workspace, npmrc_info: anchor, ..
@@ -301,10 +301,10 @@ fn add_pins_a_catalog_entry_naming_the_dist_tag() {
 
         assert_eq!(dep_spec(&workspace, FOO).as_deref(), Some("catalog:"), "{catalog_mode}");
         let workspace_yaml = read(&workspace, "pnpm-workspace.yaml");
-        assert!(workspace_yaml.contains(&format!("'{FOO}': 100.0.0")), "{workspace_yaml}");
+        assert!(workspace_yaml.contains(&format!("'{FOO}': legacy")), "{workspace_yaml}");
         assert_eq!(
             catalog_snapshot(&workspace, FOO),
-            ("100.0.0".to_string(), "100.0.0".to_string()),
+            ("legacy".to_string(), "100.0.0".to_string()),
             "{catalog_mode}",
         );
 
@@ -313,7 +313,7 @@ fn add_pins_a_catalog_entry_naming_the_dist_tag() {
 }
 
 #[test]
-fn add_latest_replaces_a_latest_catalog_entry_with_a_range() {
+fn add_latest_keeps_a_latest_catalog_entry() {
     for catalog_mode in ["strict", "prefer"] {
         let CommandTempCwd {
             root, workspace, npmrc_info: anchor, ..
@@ -329,10 +329,10 @@ fn add_latest_replaces_a_latest_catalog_entry_with_a_range() {
 
         assert_eq!(dep_spec(&workspace, FOO).as_deref(), Some("catalog:"), "{catalog_mode}");
         let workspace_yaml = read(&workspace, "pnpm-workspace.yaml");
-        assert!(workspace_yaml.contains(&format!("'{FOO}': ^100.0.0")), "{workspace_yaml}");
+        assert!(workspace_yaml.contains(&format!("'{FOO}': latest")), "{workspace_yaml}");
         assert_eq!(
             catalog_snapshot(&workspace, FOO),
-            ("^100.0.0".to_string(), "100.0.0".to_string()),
+            ("latest".to_string(), "100.0.0".to_string()),
             "{catalog_mode}",
         );
 

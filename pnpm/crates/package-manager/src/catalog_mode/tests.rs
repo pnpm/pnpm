@@ -129,7 +129,7 @@ fn strict_keeps_a_catalog_entry_that_already_names_the_wanted_version() {
 }
 
 #[test]
-fn strict_replaces_a_catalog_entry_naming_the_requested_dist_tag() {
+fn strict_keeps_a_catalog_entry_naming_the_requested_dist_tag() {
     let catalogs = catalogs(&[("default", &[("is-positive", "legacy")])]);
     let dependency =
         CatalogModeDep { requested_dist_tag: Some("legacy"), ..dep("is-positive", "^2.1.0") };
@@ -138,10 +138,7 @@ fn strict_replaces_a_catalog_entry_naming_the_requested_dist_tag() {
         decision,
         CatalogDecision::Catalog {
             manifest_specifier: "catalog:".to_string(),
-            updated_entry: Some(CatalogEntry {
-                catalog_name: "default".to_string(),
-                specifier: "^2.1.0".to_string(),
-            }),
+            updated_entry: None,
         },
     );
 }
