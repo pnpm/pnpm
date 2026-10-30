@@ -4872,6 +4872,7 @@ dependencies = [
  "pnpm-tarball",
  "pnpm-testing-utils",
  "pnpm-text-sanitize",
+ "pnpm-text-section",
  "pnpm-tool-protocol",
  "pnpm-versioning",
  "pnpm-wasm-host",
@@ -6002,6 +6003,7 @@ dependencies = [
  "pnpm-tarball",
  "pnpm-testing-utils",
  "pnpm-text-sanitize",
+ "pnpm-text-section",
  "pnpm-tool-protocol",
  "pnpm-wasm-host",
  "pnpm-workspace",
@@ -6649,6 +6651,10 @@ dependencies = [
 
 [[package]]
 name = "pnpm-text-sanitize"
+version = "0.0.1"
+
+[[package]]
+name = "pnpm-text-section"
 version = "0.0.1"
 
 [[package]]

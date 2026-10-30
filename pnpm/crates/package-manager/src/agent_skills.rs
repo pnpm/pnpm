@@ -29,12 +29,14 @@ pub(crate) fn agent_skill_targets_changed(config: &Config, workspace_root: &Path
 }
 
 mod discovery;
+mod gitignore;
 mod installed;
 mod targets;
 
 use crate::{AllowBuildPolicy, VersionPolicyError};
 use derive_more::{Display, Error};
 use discovery::{SkillSource, discover_skill_sources};
+use gitignore::update_gitignores;
 use miette::Diagnostic;
 use pnpm_config::Config;
 use pnpm_lockfile::Lockfile;
@@ -152,7 +154,7 @@ pub fn sync_agent_skills(
         || input.config.skills_dirs.as_ref().is_some_and(Vec::is_empty)
     {
         prune(input.workspace_root, input.linked, &BTreeSet::new())?;
-        update_gitignores(input.workspace_root, input.linked, &BTreeMap::new())?;
+        update_gitignores(input.workspace_root, &[], input.linked, &BTreeMap::new())?;
         return Ok(AgentSkillsState::default());
     }
     let sources = discover_skill_sources(input);
@@ -180,7 +182,7 @@ pub fn sync_agent_skills(
     let desired = desired_entries(input.workspace_root, &dirs, &entries);
     prune(input.workspace_root, input.linked, &desired.keys().cloned().collect())?;
     materialize(input.workspace_root, input.linked, &desired, input.config.virtual_store_dir())?;
-    update_gitignores(input.workspace_root, input.linked, &desired)?;
+    update_gitignores(input.workspace_root, &dirs, input.linked, &desired)?;
     pending.sort();
     Ok(AgentSkillsState { pending, linked: desired.into_keys().collect() })
 }
@@ -367,118 +369,6 @@ fn links_to(path: &Path, target: &Path) -> bool {
         (fs::canonicalize(path), fs::canonicalize(target)),
         (Ok(resolved), Ok(target)) if resolved == target,
     )
-}
-
-/// The ignore rule that older pnpm versions added for links named
-/// `pnpm-<package>-<skill>`.
-const LEGACY_GITIGNORE_RULE: &str = "pnpm-*";
-
-/// Keep pnpm's entries out of commits, because they point into
-/// `node_modules` and would dangle in a fresh clone. Each agent skill
-/// directory's `.gitignore` lists the entries linked into it, and drops the
-/// ones that were pruned. Other lines are kept.
-fn update_gitignores(
-    workspace_root: &Path,
-    linked: &[String],
-    desired: &BTreeMap<String, PathBuf>,
-) -> Result<(), AgentSkillsError> {
-    let mut by_dir: BTreeMap<PathBuf, (BTreeSet<String>, BTreeSet<String>)> = BTreeMap::new();
-    let entries = linked
-        .iter()
-        .filter(|entry| !desired.contains_key(*entry))
-        .filter(|entry| is_within_workspace(entry))
-        .map(|entry| (entry, false))
-        .chain(
-            desired
-                .keys()
-                .map(|entry| (entry, true)),
-        );
-    for (entry, keep) in entries {
-        let path = Path::new(entry);
-        let (Some(dir), Some(name)) = (path.parent(), path.file_name()) else { continue };
-        let (kept, pruned) = by_dir
-            .entry(workspace_root.join(dir))
-            .or_default();
-        let rule = gitignore_rule(&name.to_string_lossy());
-        let rules = if keep { kept } else { pruned };
-        rules.insert(rule);
-    }
-    for (dir, (kept, pruned)) in by_dir {
-        update_gitignore(&dir.join(".gitignore"), &kept, &pruned)?;
-    }
-    Ok(())
-}
-
-/// Rewrite the `.gitignore` at `path` to list every rule of `kept` and no
-/// rule of `pruned`. The file is created only when there is a rule to keep,
-/// and removed when no line remains.
-fn update_gitignore(
-    path: &Path,
-    kept: &BTreeSet<String>,
-    pruned: &BTreeSet<String>,
-) -> Result<(), AgentSkillsError> {
-    let io_error = |source| AgentSkillsError::Io { path: path.to_path_buf(), source };
-    if let Ok(meta) = fs::symlink_metadata(path)
-        && meta.file_type().is_symlink()
-    {
-        return Err(io_error(io::Error::new(
-            io::ErrorKind::PermissionDenied,
-            "cannot write through a symlinked .gitignore",
-        )));
-    }
-    let existing = match fs::read_to_string(path) {
-        Ok(text) => text,
-        Err(error) if error.kind() == io::ErrorKind::NotFound && kept.is_empty() => return Ok(()),
-        Err(error) if error.kind() == io::ErrorKind::NotFound => String::new(),
-        Err(source) => return Err(io_error(source)),
-    };
-    let updated = updated_gitignore(&existing, kept, pruned);
-    if updated == existing {
-        return Ok(());
-    }
-    if updated.is_empty() {
-        return fs::remove_file(path).map_err(io_error);
-    }
-    fs::write(path, updated).map_err(io_error)
-}
-
-/// `existing` without the rules of `pruned` and the legacy rule, followed
-/// by the rules of `kept` it lacks.
-fn updated_gitignore(existing: &str, kept: &BTreeSet<String>, pruned: &BTreeSet<String>) -> String {
-    let mut lines: Vec<&str> = existing
-        .lines()
-        .filter(|line| {
-            let line = line.trim_end();
-            line != LEGACY_GITIGNORE_RULE && !pruned.contains(line)
-        })
-        .collect();
-    let present: BTreeSet<&str> = lines
-        .iter()
-        .map(|line| line.trim_end())
-        .collect();
-    let missing: Vec<&str> = kept
-        .iter()
-        .map(String::as_str)
-        .filter(|rule| !present.contains(rule))
-        .collect();
-    lines.extend(missing);
-    lines
-        .iter()
-        .flat_map(|line| [*line, "\n"])
-        .collect()
-}
-
-/// The `.gitignore` rule that matches exactly the entry `name` of its
-/// directory.
-fn gitignore_rule(name: &str) -> String {
-    let mut rule = String::from("/");
-    for character in name.chars() {
-        if matches!(character, '\\' | '*' | '?' | '[' | ']' | ' ' | '!' | '#') {
-            rule.push('\\');
-        }
-        rule.push(character);
-    }
-    rule
 }
 
 #[cfg(test)]

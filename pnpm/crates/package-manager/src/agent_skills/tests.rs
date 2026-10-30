@@ -122,11 +122,11 @@ fn links_approved_skills_into_existing_agent_dirs() {
     );
     assert_eq!(
         fs::read_to_string(root.path().join(".claude/skills/.gitignore")).unwrap(),
-        "local-*\n/guide\n/migrate\n",
+        "local-*\n# pnpm\n/guide\n/migrate\n# pnpm end\n",
     );
     assert_eq!(
         fs::read_to_string(root.path().join(".cursor/skills/.gitignore")).unwrap(),
-        "/guide\n/migrate\n",
+        "# pnpm\n/guide\n/migrate\n# pnpm end\n",
     );
 }
 
@@ -280,7 +280,10 @@ fn replaces_links_named_after_the_package() {
 
     assert_eq!(state.linked, [".claude/skills/guide"]);
     assert!(fs::symlink_metadata(skills.join("pnpm-foo-guide")).is_err());
-    assert_eq!(fs::read_to_string(skills.join(".gitignore")).unwrap(), "local-*\n/guide\n");
+    assert_eq!(
+        fs::read_to_string(skills.join(".gitignore")).unwrap(),
+        "local-*\n# pnpm\n/guide\n# pnpm end\n",
+    );
 }
 
 #[test]
@@ -293,14 +296,39 @@ fn unlists_pruned_entries_from_the_gitignore() {
         sync(root.path(), &lockfile, &config(&[("foo", true), ("bar", true)], None), &[], None)
             .unwrap()
             .linked;
-    assert_eq!(fs::read_to_string(skills.join(".gitignore")).unwrap(), "local-*\n/guide\n/lint\n");
+    assert_eq!(
+        fs::read_to_string(skills.join(".gitignore")).unwrap(),
+        "local-*\n# pnpm\n/guide\n/lint\n# pnpm end\n",
+    );
 
     sync(root.path(), &lockfile, &config(&[("foo", true)], None), &linked, None).unwrap();
-    assert_eq!(fs::read_to_string(skills.join(".gitignore")).unwrap(), "local-*\n/guide\n");
+    assert_eq!(
+        fs::read_to_string(skills.join(".gitignore")).unwrap(),
+        "local-*\n# pnpm\n/guide\n# pnpm end\n",
+    );
 
     sync(root.path(), &lockfile, &config(&[], None), &[".claude/skills/guide".to_string()], None)
         .unwrap();
     assert_eq!(fs::read_to_string(skills.join(".gitignore")).unwrap(), "local-*\n");
+}
+
+#[test]
+fn rewrites_the_pnpm_block_in_place_without_a_record() {
+    let (root, lockfile) = workspace(&[("foo", "1.0.0", &["guide"])]);
+    let skills = root.path().join(".claude/skills");
+    fs::create_dir_all(&skills).unwrap();
+    fs::write(
+        skills.join(".gitignore"),
+        "local-*\n# pnpm\n/removed\n# pnpm end\nmine\n# pnpm\n/stale\n# pnpm end\n",
+    )
+    .unwrap();
+
+    sync(root.path(), &lockfile, &config(&[("foo", true)], None), &[], None).unwrap();
+
+    assert_eq!(
+        fs::read_to_string(skills.join(".gitignore")).unwrap(),
+        "local-*\n# pnpm\n/guide\n# pnpm end\nmine\n",
+    );
 }
 
 #[test]
@@ -329,7 +357,7 @@ fn escapes_gitignore_patterns_in_skill_names() {
 
     assert_eq!(
         fs::read_to_string(root.path().join(".claude/skills/.gitignore")).unwrap(),
-        "/\\!a\\ b\n/\\*\n",
+        "# pnpm\n/\\!a\\ b\n/\\*\n# pnpm end\n",
     );
 }
 

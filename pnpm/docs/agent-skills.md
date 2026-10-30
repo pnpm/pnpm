@@ -61,7 +61,15 @@ By default, pnpm links into the agent skill directories that already exist in th
 
 To choose the directories yourself, set [`skills.dirs`](./settings/build.md#skillsdirs). An empty list turns agent skills off.
 
-Each skill is linked under the name of its directory, so the `auth` skill of `@acme/kit` is linked as `auth`. The [Agent Skills specification](https://agentskills.io/specification) requires a skill's directory to match the `name` in its `SKILL.md`. pnpm lists each link in a `.gitignore` in its directory, because the links point into `node_modules`.
+Each skill is linked under the name of its directory, so the `auth` skill of `@acme/kit` is linked as `auth`. The [Agent Skills specification](https://agentskills.io/specification) requires a skill's directory to match the `name` in its `SKILL.md`. Because the links point into `node_modules`, pnpm lists them in a `# pnpm` block of a `.gitignore` in each directory:
+
+```gitignore title=".claude/skills/.gitignore"
+# pnpm
+/auth
+# pnpm end
+```
+
+pnpm rewrites the block on every install and leaves the other lines of the file alone.
 
 pnpm removes a link once the package is removed, the approval is revoked, or the package no longer ships the skill. It never replaces or removes an entry it did not create, and fails if one is in the way. The install also fails if two approved packages ship a skill of the same name.
 

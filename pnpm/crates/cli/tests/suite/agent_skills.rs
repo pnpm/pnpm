@@ -128,7 +128,7 @@ fn approve_links_the_skills_and_records_the_grant() {
     assert_eq!(entries.len(), 2, "only the guide skill and the .gitignore: {entries:?}");
     assert_eq!(
         fs::read_to_string(workspace.join(".claude/skills/.gitignore")).expect("read .gitignore"),
-        "/guide\n",
+        "# pnpm\n/guide\n# pnpm end\n",
     );
     assert_eq!(pending_skills(&workspace), None);
 
