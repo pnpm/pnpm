@@ -207,3 +207,23 @@ test('addFilesFromDir() ignores the dependency node_modules link when caching si
   expect(filesIndex.sideEffects?.get('test-engine')?.added?.has('generated.js')).toBe(true)
   storeIndex.close()
 })
+
+test('addFilesFromDir() does not record bundled dependencies as deleted side effects', async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-worker-test-'))
+  const dir = path.join(tmp, 'pkg')
+  fs.mkdirSync(path.join(dir, 'node_modules/bundled'), { recursive: true })
+  fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ name: 'bundled-side-effects-pkg', version: '1.0.0' }))
+  fs.writeFileSync(path.join(dir, 'node_modules/bundled/index.js'), 'module.exports = true')
+  const storeDir = path.join(tmp, 'store')
+  const filesIndexFile = 'bundled-side-effects-pkg'
+  const storeIndex = new StoreIndex(storeDir)
+
+  await addFilesFromDir({ storeDir, dir, filesIndexFile, includeNodeModules: true, storeIndex })
+  fs.writeFileSync(path.join(dir, 'generated.js'), 'module.exports = true')
+  await addFilesFromDir({ storeDir, dir, filesIndexFile, sideEffectsCacheKey: 'test-engine', storeIndex })
+
+  const sideEffects = (storeIndex.get(filesIndexFile) as PackageFilesIndex).sideEffects?.get('test-engine')
+  expect(Array.from(sideEffects!.added!.keys())).toStrictEqual(['generated.js'])
+  expect(sideEffects!.deleted).toBeUndefined()
+  storeIndex.close()
+})

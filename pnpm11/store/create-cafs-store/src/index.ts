@@ -125,9 +125,15 @@ function applySideEffectsDiffWithMaps (
       filesWithSideEffects.set(name, filePath)
     }
   }
-  // Add base files that weren't deleted or replaced by a symlink
+  // Add base files that weren't deleted or replaced by a symlink.
+  // Files of bundled dependencies are always kept: side effects cached by
+  // earlier pnpm versions list them as deleted.
   for (const [fileName, filePath] of baseFiles) {
-    if (!deleted?.includes(fileName) && !filesWithSideEffects.has(fileName) && !symlinks?.has(fileName)) {
+    if (
+      (!deleted?.includes(fileName) || fileName.startsWith('node_modules/')) &&
+      !filesWithSideEffects.has(fileName) &&
+      !symlinks?.has(fileName)
+    ) {
       filesWithSideEffects.set(fileName, filePath)
     }
   }
