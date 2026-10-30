@@ -156,6 +156,7 @@ impl<'a> CreateVirtualStore<'a> {
             allow_build_policy: self.ctx.allow_build_policy,
             known_requires_build: self.selection.known_requires_build,
             known_bins: self.selection.known_bins,
+            restores_empty_builds: self.ctx.config.node_linker == NodeLinker::Loaded,
         }
     }
 

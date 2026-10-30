@@ -1,8 +1,6 @@
-use super::{
-    CreateVirtualStore, CreateVirtualStoreOutput, immutable_download, retain_dependency_closure,
-};
+use super::{CreateVirtualStoreOutput, immutable_download, retain_dependency_closure};
 use pnpm_lockfile::{PackageKey, SnapshotEntry};
-use std::{collections::HashMap, sync::Arc};
+use std::collections::HashMap;
 
 struct CachedBuildInputs<'a> {
     selected: &'a mut HashMap<PackageKey, SnapshotEntry>,
@@ -103,72 +101,4 @@ pub(super) fn retain(
         engine_name: context.linker.layout.engine_name(),
     }
     .retain()
-}
-
-/// Adds an overlay of the pristine files for each empty side-effects row
-/// in `fetched`, so a build that changed nothing in its package loads
-/// from CAS without running again.
-///
-/// Only the loaded linker restores such a build. The other linkers drop
-/// the row and rebuild, so a script whose effect lands outside its
-/// package runs in every project (pnpm/pnpm#14717). The loaded linker
-/// leaves that to `sideEffectsCache.exclude`.
-///
-/// The overlays also go to the retained prefetch, so the later passes of
-/// this install restore such a build too.
-pub(super) fn restore_empty_builds(
-    installer: &mut CreateVirtualStore<'_>,
-    fetched: &mut CreateVirtualStoreOutput,
-) {
-    let Some(downloaded) = fetched.cas_paths_by_pkg_id.as_ref() else { return };
-    let mut restored = Vec::new();
-    for (key, rows) in &fetched.side_effects.diffs {
-        let Some(files) = immutable_download(downloaded, key) else { continue };
-        let mut empty = rows
-            .iter()
-            .filter(|(_, diff)| diff.is_empty())
-            .peekable();
-        if empty.peek().is_none() {
-            continue;
-        }
-        let overlays = Arc::make_mut(fetched.side_effects.maps.entry(key.clone()).or_default());
-        for (cache_key, _) in empty {
-            overlays
-                .entry(cache_key.clone())
-                .or_insert_with(|| (*files.cas_paths).clone().into());
-        }
-        restored.push(key.clone());
-    }
-    for key in &restored {
-        update_prefetch(installer, key, fetched);
-    }
-}
-
-/// Puts the side-effects rows and overlays `fetched` holds for `key` into
-/// the retained prefetch.
-pub(super) fn update_prefetch(
-    installer: &mut CreateVirtualStore<'_>,
-    key: &PackageKey,
-    fetched: &CreateVirtualStoreOutput,
-) {
-    let Some(metadata) =
-        installer.entries.packages.and_then(|packages| packages.get(&key.without_peer()))
-    else {
-        return;
-    };
-    let Some(row_key) = crate::store_index_key_for_resolution(
-        &metadata.resolution,
-        &key.without_peer().pkg_id(),
-        true,
-    ) else {
-        return;
-    };
-    let Some(prefetch) = installer.fetching.cas_prefetch.as_mut() else { return };
-    let crate::create_virtual_store::PrefetchTask::Settled(rows) = &mut prefetch.task else {
-        return;
-    };
-    rows.side_effects_maps.insert(row_key.clone(), Arc::clone(&fetched.side_effects.maps[key]));
-    if let Some(diffs) = fetched.side_effects.diffs.get(key) {
-        rows.side_effects.insert(row_key, Arc::clone(diffs));
-    }
 }
