@@ -1,6 +1,4 @@
-pub use runtime::{
-    binary_store_index_key, host_platform_selector, runtime_platform_selector, selected_platform,
-};
+pub use runtime::{binary_store_index_key, host_platform_selector, runtime_platform_selector};
 pub use tarball_resolution::{
     local_file_tarball_install_url, tarball_url_and_integrity, unverified_fetch_is_allowed,
 };
@@ -181,17 +179,17 @@ pub enum InstallPackageBySnapshotError {
         available_targets: String,
     },
 
-    /// A variant inside a [`LockfileResolution::Variations`](pnpm_lockfile::LockfileResolution::Variations) carries
-    /// a resolution other than [`LockfileResolution::Binary`](pnpm_lockfile::LockfileResolution::Binary).
-    /// The lockfile contract guarantees variants are atomic
-    /// `BinaryResolution`s; this variant catches lockfile corruption
-    /// or a future shape pacquet doesn't recognise rather than
-    /// silently routing through and confusing the install pipeline.
+    /// The archive a [`LockfileResolution::Variations`](pnpm_lockfile::LockfileResolution::Variations)
+    /// selected has a resolution pnpm cannot install from a `variations`
+    /// entry: only a `binary` archive or a registry tarball can be one.
+    /// This catches lockfile corruption or a future shape pacquet doesn't
+    /// recognise rather than silently routing it through the install
+    /// pipeline.
     #[display(
-        "Package `{package_key}` carries a runtime variant whose inner resolution is `{inner_kind}` rather than `binary`; pnpm only knows how to install binary-shaped variants."
+        "Package `{package_key}` selects a platform variant whose resolution is `{inner_kind}`; pnpm only installs `binary` archives and registry tarballs as variants."
     )]
-    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_VARIANT_HAS_NON_BINARY_RESOLUTION))]
-    VariantHasNonBinaryResolution { package_key: String, inner_kind: &'static str },
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_UNSUPPORTED_VARIANT_RESOLUTION))]
+    UnsupportedVariantResolution { package_key: String, inner_kind: &'static str },
 
     /// Serializing the synthesized runtime `package.json` failed.
     /// The manifest is a small fixed-shape JSON object (`name`,

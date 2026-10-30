@@ -6,7 +6,7 @@ use crate::{
 use pnpm_config::Config;
 use pnpm_lockfile::{
     LockfileEntries, LockfileResolution, PackageKey, PackageMetadata, PlatformSelector,
-    SnapshotEntry, select_platform_variant,
+    SnapshotEntry,
 };
 use pnpm_store_dir::store_index_key;
 use std::collections::HashMap;
@@ -276,37 +276,23 @@ pub(super) fn variant_cache_key(
     pkg_id: &str,
     built: bool,
 ) -> Result<SnapshotCacheKey, CreateVirtualStoreError> {
-    let Some(variant) = select_platform_variant(&variations.variants, runtime_platform_selector)
-    else {
-        // A registry package's primary archive serves hosts no variant
-        // matches.
-        let value = variations.fallback
-            .as_deref()
-            .and_then(|fallback| store_index_key_for_resolution(fallback, pkg_id, built));
-        return Ok(SnapshotCacheKey { value, is_git_hosted: false });
-    };
-    match &variant.resolution {
-        // A registry package's platform variant, keyed by its own tar
-        // digest like any registry archive.
-        LockfileResolution::Registry(_) | LockfileResolution::Tarball(_)
-            if variant.tag.is_some() =>
-        {
-            Ok(SnapshotCacheKey {
-                value: store_index_key_for_resolution(&variant.resolution, pkg_id, built),
-                is_git_hosted: false,
-            })
-        }
-        LockfileResolution::Binary(binary) => Ok(SnapshotCacheKey {
-            value: Some(store_index_key(&binary.integrity.to_string(), pkg_id)),
-            is_git_hosted: false,
-        }),
-        // Non-`Binary` variant (corrupt lockfile, or a
-        // future shape pacquet doesn't recognise). The
-        // cold path raises the typed
-        // `VariantHasNonBinaryResolution` error; we just
-        // skip the warm key.
-        _ => Ok(SnapshotCacheKey { value: None, is_git_hosted: false }),
-    }
+    let value = variations
+        .select(runtime_platform_selector)
+        .and_then(|selected| match selected.resolution() {
+            LockfileResolution::Binary(binary) => {
+                Some(store_index_key(&binary.integrity.to_string(), pkg_id))
+            }
+            // A registry package's variant or primary archive, keyed by
+            // its own digest like any registry archive.
+            resolution @ (LockfileResolution::Registry(_) | LockfileResolution::Tarball(_)) => {
+                store_index_key_for_resolution(resolution, pkg_id, built)
+            }
+            // The cold path raises the typed
+            // `UnsupportedVariantResolution` error; we just skip the
+            // warm key.
+            _ => None,
+        });
+    Ok(SnapshotCacheKey { value, is_git_hosted: false })
 }
 /// Rejects warm reuse when the downloader would refuse missing integrity.
 /// The key must match the fetcher's git-hosted and script-policy variants.

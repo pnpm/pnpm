@@ -112,6 +112,8 @@ mod lockfile_deserialize_rejects_malformed_builtin;
 
 mod behavior;
 
+mod variant_selection;
+
 mod streaming;
 
 mod security;

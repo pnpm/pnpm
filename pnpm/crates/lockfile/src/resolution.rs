@@ -9,7 +9,7 @@ pub use revision_url::{
     is_on_revision_tarball_route, is_revision_registry_tarball_url, revision_registry_tarball_path,
     revision_registry_tarball_url,
 };
-pub use variants::variant_registry_tarball_url;
+pub use variants::{SelectedVariant, variant_registry_tarball_url};
 
 use crate::IntegrityTarget;
 use derive_more::{Display, Error, From, Into, TryInto};

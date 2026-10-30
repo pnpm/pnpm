@@ -1,7 +1,30 @@
 use super::{
     LockfileFormError, LockfileFormOptions, LockfileResolution, PlatformAssetResolution,
-    RegistryResolution, VariationsResolution,
+    PlatformSelector, RegistryResolution, VariationsResolution, select_platform_variant,
 };
+
+/// The archive a `variations` resolution installs on one platform.
+///
+/// Where it came from decides how its integrity is read: a variant's is
+/// the digest of what its own resolution points at, and the fallback is an
+/// ordinary resolution. The resolution's type, not the entry it sits in,
+/// decides how it is fetched, so a runtime and a registry package select
+/// alike.
+#[derive(Debug, Clone, Copy)]
+pub enum SelectedVariant<'a> {
+    Variant(&'a PlatformAssetResolution),
+    Fallback(&'a LockfileResolution),
+}
+
+impl<'a> SelectedVariant<'a> {
+    #[must_use]
+    pub fn resolution(self) -> &'a LockfileResolution {
+        match self {
+            SelectedVariant::Variant(variant) => &variant.resolution,
+            SelectedVariant::Fallback(fallback) => fallback,
+        }
+    }
+}
 
 impl VariationsResolution {
     /// Variants with no fallback, as a runtime resolves: a host no variant
@@ -9,6 +32,15 @@ impl VariationsResolution {
     #[must_use]
     pub fn without_fallback(variants: Vec<PlatformAssetResolution>) -> Self {
         VariationsResolution { variants, fallback: None }
+    }
+
+    /// The first variant whose targets include `platform`, or the
+    /// fallback when none does. `None` when neither exists.
+    #[must_use]
+    pub fn select(&self, platform: &PlatformSelector) -> Option<SelectedVariant<'_>> {
+        select_platform_variant(&self.variants, platform)
+            .map(SelectedVariant::Variant)
+            .or_else(|| self.fallback.as_deref().map(SelectedVariant::Fallback))
     }
 
     /// Write each package variant whose tarball sits on its registry route,

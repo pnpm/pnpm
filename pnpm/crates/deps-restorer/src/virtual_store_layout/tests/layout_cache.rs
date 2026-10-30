@@ -28,8 +28,15 @@ fn layout_cache_fingerprint_tracks_every_derivation_input() {
                        engine: Option<&str>,
                        policy: Option<&crate::AllowBuildPolicy>,
                        dir: Option<&Path>| {
-        super::super::GvsHasher::new(snapshots, Some(packages), engine, policy, dir)
-            .fingerprint(snapshots)
+        super::super::GvsHasher::new(
+            snapshots,
+            Some(packages),
+            engine,
+            policy,
+            dir,
+            &crate::host_platform_selector(),
+        )
+        .fingerprint(snapshots)
     };
     let baseline =
         fingerprint(&snapshots, &packages, Some("linux;x64;22"), Some(&policy), Some(&dir));

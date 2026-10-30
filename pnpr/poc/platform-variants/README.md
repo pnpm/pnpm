@@ -23,11 +23,15 @@ pnpm:
 - The npm resolver turns `dist.pnpr.variants` into a `variations` resolution
   with a `tag` per variant and the primary as `fallback`. Variants on their
   registry route are written integrity-only.
-- Install selects the variant for the platform `supportedArchitectures`
-  selects (the host by default), fetches it like a revision (verified
-  against its tar digest), and falls back to the primary.
-- The global virtual store hashes a package with variants by the selected
-  archive's integrity.
+- Runtimes (Node.js, Bun, Deno) and registry packages share one
+  `variations` selection: the first variant whose targets include the
+  platform `supportedArchitectures` selects (the host by default), else the
+  `fallback`. The selected resolution's type picks the fetcher: a `binary`
+  archive goes through the runtime extractor, and a registry variant is
+  fetched from its route like a revision (verified against its tar digest).
+- The global virtual store hashes every `variations` entry, runtime or
+  package, by the selected archive's integrity, with the platform passed
+  down from the install's config.
 
 Not implemented: staged publishing, the `libcVersion`, `osVersion`, `napi`,
 `nodeAbi`, and `wasm32` fields, the compatibility view for other clients,

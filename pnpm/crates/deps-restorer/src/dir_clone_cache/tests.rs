@@ -159,6 +159,7 @@ mod macos {
             None,
             None,
             None,
+            &crate::host_platform_selector(),
         )
         .hashed_slot_dir(&key)
         .expect("hashed slot for the one snapshot");

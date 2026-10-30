@@ -2,7 +2,7 @@ mod sources;
 
 use super::{
     InstallPackageBySnapshot, InstallPackageBySnapshotError, InstalledPackage,
-    runtime::binary_variant_for_host,
+    runtime::{VariantFetch, variant_for_host},
 };
 use crate::{CreateVirtualDirBySnapshot, create_virtual_store::requires_build_from_cas_paths};
 use pnpm_config::NodeLinker;
@@ -279,9 +279,9 @@ impl InstallPackageBySnapshot<'_> {
         }
     }
 
-    /// Fetch the variant the selected platform installs. A registry
-    /// package's variant is a tarball, and its primary archive is the
-    /// fallback; a runtime's variant is a binary archive.
+    /// Fetch the archive a `variations` resolution selects for this
+    /// install's platform: a runtime's binary archive, or a registry
+    /// package's variant or primary tarball.
     async fn fetch_variations<Reporter: self::Reporter>(
         &self,
         fetch: &SnapshotFetch<'_>,
@@ -289,23 +289,21 @@ impl InstallPackageBySnapshot<'_> {
         allow_build: &(impl Fn(&str) -> Option<bool> + Send + Sync),
     ) -> Result<(HashMap<String, PathBuf>, ExtractedPackageMetadata), InstallPackageBySnapshotError>
     {
-        if !super::runtime::is_package_variations(variations) {
-            let binary = binary_variant_for_host(
-                variations,
-                fetch.package_key,
-                self.runtime_platform_selector,
-            )?;
-            return self
-                .fetch_binary::<Reporter>(binary, fetch.package_key)
-                .await
-                .map(|cas_paths| (cas_paths, ExtractedPackageMetadata::default()));
-        }
-        let (resolution, variant) = super::runtime::package_variant_for_host(
+        let selected = variant_for_host(
             variations,
             fetch.package_key,
             self.runtime_platform_selector,
             self.ctx.config,
         )?;
+        let (resolution, variant) = match selected {
+            VariantFetch::Binary(binary) => {
+                return self
+                    .fetch_binary::<Reporter>(binary, fetch.package_key)
+                    .await
+                    .map(|cas_paths| (cas_paths, ExtractedPackageMetadata::default()));
+            }
+            VariantFetch::Tarball { resolution, variant } => (resolution, variant),
+        };
         self.tarball_cas_paths::<Reporter>(TarballFetch {
             download: fetch.download,
             resolution: &resolution,
