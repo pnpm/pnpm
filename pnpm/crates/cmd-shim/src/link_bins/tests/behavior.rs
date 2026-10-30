@@ -580,7 +580,7 @@ fn a_reinstall_anchors_a_shim_written_without_the_physical_basedir() {
         .lines()
         .filter(|line| !line.starts_with("basedir_abs=") && *line != r#"basedir="$basedir_abs""#)
     {
-        outdated.push_str(&line.replace("$basedir_abs/", "$basedir/"));
+        outdated.push_str(&line.replace(r#"$basedir_abs"/"#, r#"$basedir"/"#));
         outdated.push('\n');
     }
     write_file(&shim, &outdated).unwrap();
