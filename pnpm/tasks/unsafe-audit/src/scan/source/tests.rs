@@ -1,4 +1,5 @@
 use super::{Kind, has_safety_comment, kind, opens_unsafe, opts_out};
+use text_block_macros::text_block_fnl;
 
 /// Drive [`super::occurrences`] over `source`, written to a scratch file.
 ///
@@ -14,52 +15,60 @@ fn occurrences_in(source: &str) -> Vec<super::Occurrence> {
 
 #[test]
 fn an_unsafe_block_opens_one() {
-    for line in [
-        "    unsafe { libc::geteuid() }",
-        "    unsafe {",
-        "unsafe fn raw() {}",
-        "unsafe impl Send for Handle {}",
-        r#"unsafe extern "C" {"#,
-        "    let value = unsafe { read() };",
-    ] {
-        assert!(opens_unsafe(line), "{line}");
-    }
+    assert!(opens_unsafe("    unsafe { libc::geteuid() }"));
+    assert!(opens_unsafe("    unsafe {"));
+    assert!(opens_unsafe("unsafe fn raw() {}"));
+    assert!(opens_unsafe("unsafe impl Send for Handle {}"));
+    assert!(opens_unsafe(r#"unsafe extern "C" {"#));
+    assert!(opens_unsafe("    let value = unsafe { read() };"));
 }
 
 /// The word appears in plenty of lines that are not an operation, and a
 /// scan that matched them would flag crates that hold no `unsafe` at all.
 #[test]
 fn the_word_alone_opens_nothing() {
-    for line in [
-        "#![allow(unsafe_code)]",
-        "pub fn default_unsafe_perm() -> bool {",
-        "/// `unsafe` is the crate's purpose",
-        "// SAFETY: the unsafe below is sound",
-        r#"    let message = "refusing an unsafe target";"#,
-        "    unsafe_perm: bool,",
-        r#"#[expect(unsafe_code, reason = "...")]"#,
-    ] {
-        assert!(!opens_unsafe(line), "{line}");
-    }
+    assert!(!opens_unsafe("#![allow(unsafe_code)]"));
+    assert!(!opens_unsafe("pub fn default_unsafe_perm() -> bool {"));
+    assert!(!opens_unsafe("/// `unsafe` is the crate's purpose"));
+    assert!(!opens_unsafe("// SAFETY: the unsafe below is sound"));
+    assert!(!opens_unsafe(r#"    let message = "refusing an unsafe target";"#));
+    assert!(!opens_unsafe("    unsafe_perm: bool,"));
+    assert!(!opens_unsafe(r#"#[expect(unsafe_code, reason = "...")]"#));
 }
 
 /// An `unsafe extern` block declares a foreign ABI, which only a `-sys`
 /// crate may; an `unsafe extern "abi" fn` item defines a callback the
 /// operating system calls, which any abstraction crate may.
-#[test]
-fn only_a_block_declares_a_foreign_abi() {
-    for line in [r#"unsafe extern "C" {"#, "unsafe extern {", r#"    unsafe extern "system" {"#] {
-        assert_eq!(kind(line), Kind::ForeignAbiBlock, "{line}");
+mod only_a_block_declares_a_foreign_abi {
+    use super::{Kind, kind};
+
+    #[test]
+    fn a_block_is_a_declaration() {
+        assert_eq!(kind(r#"unsafe extern "C" {"#), Kind::ForeignAbiBlock);
+        assert_eq!(kind("unsafe extern {"), Kind::ForeignAbiBlock);
+        assert_eq!(kind(r#"    unsafe extern "system" {"#), Kind::ForeignAbiBlock);
     }
-    for line in [
-        r#"unsafe extern "system" fn dispatch(event: u32) -> BOOL {"#,
-        r#"    unsafe extern "C" fn handler(signal: i32);"#,
-        r#"    unsafe extern "system" fn(HANDLE, *mut u16) -> BOOL;"#,
-    ] {
-        assert_eq!(kind(line), Kind::ForeignSignature, "{line}");
+
+    #[test]
+    fn a_signature_is_not() {
+        assert_eq!(
+            kind(r#"unsafe extern "system" fn dispatch(event: u32) -> BOOL {"#),
+            Kind::ForeignSignature,
+        );
+        assert_eq!(
+            kind(r#"    unsafe extern "C" fn handler(signal: i32);"#),
+            Kind::ForeignSignature,
+        );
+        assert_eq!(
+            kind(r#"    unsafe extern "system" fn(HANDLE, *mut u16) -> BOOL;"#),
+            Kind::ForeignSignature,
+        );
     }
-    for line in ["    unsafe { libc::geteuid() }", "unsafe impl Send for Handle {}"] {
-        assert_eq!(kind(line), Kind::Operation, "{line}");
+
+    #[test]
+    fn anything_else_is_an_operation() {
+        assert_eq!(kind("    unsafe { libc::geteuid() }"), Kind::Operation);
+        assert_eq!(kind("unsafe impl Send for Handle {}"), Kind::Operation);
     }
 }
 
@@ -74,14 +83,11 @@ fn a_wrapped_let_does_not_break_the_pairing() {
 /// such lines, and so is a diagnostic that quotes one.
 #[test]
 fn a_token_inside_a_string_literal_opens_nothing() {
-    for line in [
-        r#"    for line in ["unsafe extern \"C\" {", "unsafe {"] {"#,
-        r#"        "    let value = unsafe { read() };","#,
-        r#"    panic!("unsafe fn found");"#,
-    ] {
-        let found = occurrences_in(line);
-        assert!(found.is_empty(), "{line}: {found:?}");
-    }
+    assert!(
+        occurrences_in(r#"    for line in ["unsafe extern \"C\" {", "unsafe {"] {"#).is_empty(),
+    );
+    assert!(occurrences_in(r#"        "    let value = unsafe { read() };","#).is_empty());
+    assert!(occurrences_in(r#"    panic!("unsafe fn found");"#).is_empty());
 }
 
 /// A raw string takes no escapes, so a quote count cannot be read through
@@ -89,20 +95,15 @@ fn a_token_inside_a_string_literal_opens_nothing() {
 /// token is still inside the literal.
 #[test]
 fn a_token_inside_a_raw_string_opens_nothing() {
-    for line in
-        [r##"        r#"unsafe extern "C" {"#,"##, r###"    let text = r##"a "# unsafe { b"##;"###]
-    {
-        let found = occurrences_in(line);
-        assert!(found.is_empty(), "{line}: {found:?}");
-    }
+    assert!(occurrences_in(r##"        r#"unsafe extern "C" {"#,"##).is_empty());
+    assert!(occurrences_in(r###"    let text = r##"a "# unsafe { b"##;"###).is_empty());
 }
 
 /// An escaped quote does not open or close a literal, so a token after one
 /// is still inside the literal that holds it.
 #[test]
 fn an_escaped_quote_does_not_end_a_literal() {
-    let found = occurrences_in(r#"    let text = "a \" unsafe { b";"#);
-    assert!(found.is_empty(), "{found:?}");
+    assert!(occurrences_in(r#"    let text = "a \" unsafe { b";"#).is_empty());
 }
 
 #[test]
@@ -145,28 +146,20 @@ fn no_comment_at_all_is_no_pairing() {
 /// so a line that merely mentions the attribute must not read as one.
 #[test]
 fn an_inner_attribute_opts_out() {
-    for line in [
-        "#![allow(unsafe_code)]",
-        r#"#![allow(unsafe_code, reason = "declares the ABI")]"#,
-        "#![expect(unsafe_code)]",
-        "    #![allow(unsafe_code)]",
-    ] {
-        assert!(opts_out(line), "{line}");
-    }
+    assert!(opts_out("#![allow(unsafe_code)]"));
+    assert!(opts_out(r#"#![allow(unsafe_code, reason = "declares the ABI")]"#));
+    assert!(opts_out("#![expect(unsafe_code)]"));
+    assert!(opts_out("    #![allow(unsafe_code)]"));
 }
 
 #[test]
 fn nothing_else_opts_out() {
-    for line in [
-        "//! The crate carries `#![allow(unsafe_code)]`.",
-        "/// Whether a crate root has `#![allow(unsafe_code)]`.",
-        r##"    let attribute = "#![allow(unsafe_code)]";"##,
-        "#[allow(unsafe_code)]",
-        "#![allow(clippy::pedantic)]",
-        "#![forbid(unsafe_code)]",
-    ] {
-        assert!(!opts_out(line), "{line}");
-    }
+    assert!(!opts_out("//! The crate carries `#![allow(unsafe_code)]`."));
+    assert!(!opts_out("/// Whether a crate root has `#![allow(unsafe_code)]`."));
+    assert!(!opts_out(r##"    let attribute = "#![allow(unsafe_code)]";"##));
+    assert!(!opts_out("#[allow(unsafe_code)]"));
+    assert!(!opts_out("#![allow(clippy::pedantic)]"));
+    assert!(!opts_out("#![forbid(unsafe_code)]"));
 }
 
 /// A dereference opens with the same `*` a block-comment continuation
@@ -174,20 +167,18 @@ fn nothing_else_opts_out() {
 /// carry its `unsafe` past both the scan and the `// SAFETY:` check.
 #[test]
 fn a_dereference_is_not_a_block_comment() {
-    for line in
-        ["    *slot = unsafe { libc::geteuid() };", "    *pointer = unsafe { read(source) };"]
-    {
-        assert!(opens_unsafe(line), "{line}");
-    }
+    assert!(opens_unsafe("    *slot = unsafe { libc::geteuid() };"));
+    assert!(opens_unsafe("    *pointer = unsafe { read(source) };"));
 }
 
 /// A block-comment continuation is prose either way it is written: a `*`
 /// alone, a `*` before the text, or the `*/` that closes the comment.
 #[test]
 fn a_block_comment_continuation_opens_nothing() {
-    for line in ["     * unsafe { read() }", "     *", "     */", "    * unsafe {"] {
-        assert!(!opens_unsafe(line), "{line}");
-    }
+    assert!(!opens_unsafe("     * unsafe { read() }"));
+    assert!(!opens_unsafe("     *"));
+    assert!(!opens_unsafe("     */"));
+    assert!(!opens_unsafe("    * unsafe {"));
 }
 
 /// A string that spans lines holds lines that read as code on their own.
@@ -195,19 +186,37 @@ fn a_block_comment_continuation_opens_nothing() {
 /// audit over a crate that holds no `unsafe` at all.
 #[test]
 fn an_unsafe_inside_a_multiline_raw_string_opens_nothing() {
-    let found = occurrences_in("fn main() {\n    let sample = r#\"\nunsafe {\n\"#;\n}\n");
+    let found = occurrences_in(text_block_fnl! {
+        "fn main() {"
+        r##"    let sample = r#""##
+        "unsafe {"
+        r##""#;"##
+        "}"
+    });
     assert!(found.is_empty(), "{found:?}");
 }
 
 #[test]
 fn an_unsafe_inside_a_multiline_string_opens_nothing() {
-    let found = occurrences_in("fn main() {\n    let sample = \"\nunsafe {\n\";\n}\n");
+    let found = occurrences_in(text_block_fnl! {
+        "fn main() {"
+        r#"    let sample = ""#
+        "unsafe {"
+        r#"";"#
+        "}"
+    });
     assert!(found.is_empty(), "{found:?}");
 }
 
 #[test]
 fn an_unsafe_inside_a_block_comment_opens_nothing() {
-    let found = occurrences_in("fn main() {\n    /*\n    unsafe { read() }\n    */\n}\n");
+    let found = occurrences_in(text_block_fnl! {
+        "fn main() {"
+        "    /*"
+        "    unsafe { read() }"
+        "    */"
+        "}"
+    });
     assert!(found.is_empty(), "{found:?}");
 }
 
@@ -216,8 +225,14 @@ fn an_unsafe_inside_a_block_comment_opens_nothing() {
 /// let an `unsafe` through.
 #[test]
 fn an_unsafe_after_a_multiline_raw_string_still_opens_one() {
-    let found =
-        occurrences_in("fn main() {\n    let s = r#\"\nnot code\n\"#;\n    unsafe { read() }\n}\n");
+    let found = occurrences_in(text_block_fnl! {
+        "fn main() {"
+        r##"    let s = r#""##
+        "not code"
+        r##""#;"##
+        "    unsafe { read() }"
+        "}"
+    });
     assert_eq!(found.len(), 1, "{found:?}");
 }
 
@@ -226,7 +241,11 @@ fn an_unsafe_after_a_multiline_raw_string_still_opens_one() {
 /// anything counting quotes on the blanked line still sees an opener.
 #[test]
 fn an_unsafe_after_a_closed_raw_string_on_one_line_opens_one() {
-    let found = occurrences_in("fn main() {\n    let v = r#\"x\"#; unsafe { read() }\n}\n");
+    let found = occurrences_in(text_block_fnl! {
+        "fn main() {"
+        r##"    let v = r#"x"#; unsafe { read() }"##
+        "}"
+    });
     assert_eq!(found.len(), 1, "{found:?}");
 }
 
@@ -234,6 +253,10 @@ fn an_unsafe_after_a_closed_raw_string_on_one_line_opens_one() {
 /// `unsafe` after it is an operation.
 #[test]
 fn an_unsafe_after_a_quote_character_literal_opens_one() {
-    let found = occurrences_in("fn main() {\n    if c == '\"' { unsafe { read() } }\n}\n");
+    let found = occurrences_in(text_block_fnl! {
+        "fn main() {"
+        r#"    if c == '"' { unsafe { read() } }"#
+        "}"
+    });
     assert_eq!(found.len(), 1, "{found:?}");
 }

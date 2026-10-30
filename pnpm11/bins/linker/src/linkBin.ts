@@ -1,7 +1,7 @@
 import { existsSync, promises as fs } from 'node:fs'
 import path from 'node:path'
 
-import { cmdShim, getExeExtension, getShShimDir, isShimBasedirAnchorCurrent, isShimForMissingTarget, isShimNodePath, isShimPointingAt, readShRelativeTarget } from '@pnpm/bins.cmd-shim'
+import { cmdShim, getExeExtension, getShShimDir, isShimBasedirAnchorCurrent, isShimForMissingTarget, isShimMsysCmdSwitchDoubled, isShimNodePath, isShimPointingAt, readShRelativeTarget } from '@pnpm/bins.cmd-shim'
 import type { Command } from '@pnpm/bins.resolver'
 import { globalWarn } from '@pnpm/logger'
 import { rimraf } from '@zkochan/rimraf'
@@ -132,7 +132,7 @@ async function isSymlinkCurrent ({ cmd, binsDir, externalBinPath }: BinLinkConte
 
 async function isShimFileCurrent (content: string, ctx: BinLinkContext): Promise<boolean> {
   const { cmd, binsDir, externalBinPath } = ctx
-  if (!isShimPointingAt(content, cmd.path) || !isShimHardened(content)) return false
+  if (!isShimPointingAt(content, cmd.path) || !isShimHardened(content) || isShimMsysCmdSwitchDoubled(content)) return false
   if (IS_WINDOWS && !existsSync(`${externalBinPath}.cmd`)) return false
   if (isShimForMissingTarget(content) && !await isMissing(cmd.path)) return false
   return isShimBasedirAnchorCurrent(content, path.relative(binsDir, cmd.path)) &&

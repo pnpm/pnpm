@@ -82,35 +82,20 @@ esac
 if [ -n "$caller_path_set" ]; then PATH=$caller_path; else unset PATH; fi
 
 if [ -n "$msys" ]; then
-  if [ -n "$exe" ] && [ -x "$basedir/cmd.exe" ]; then
-    exec "$basedir/cmd.exe" //C "$basedir_win/src.bat" "$@"
-  elif [ -x "$basedir/cmd" ]; then
-    exec "$basedir/cmd" //C "$basedir_abs/src.bat" "$@"
-  elif [ -n "$msys" ] && command -v cmd >/dev/null 2>&1; then
-    exec cmd //C "$basedir_win/src.bat" "$@"
-  elif command -v cmd >/dev/null 2>&1; then
-    exec cmd //C "$basedir_abs/src.bat" "$@"
-  elif [ -n "$exe" ] && command -v cmd.exe >/dev/null 2>&1; then
-    exec cmd.exe //C "$basedir_win/src.bat" "$@"
-  else
-    exec cmd //C "$basedir_abs/src.bat" "$@"
-  fi
-
+  export MSYS2_ARG_CONV_EXCL="/C\${MSYS2_ARG_CONV_EXCL:+;$MSYS2_ARG_CONV_EXCL}"
+fi
+if [ -n "$exe" ] && [ -x "$basedir/cmd.exe" ]; then
+  exec "$basedir/cmd.exe" /C "$basedir_win/src.bat" "$@"
+elif [ -x "$basedir/cmd" ]; then
+  exec "$basedir/cmd" /C "$basedir_abs/src.bat" "$@"
+elif [ -n "$msys" ] && command -v cmd >/dev/null 2>&1; then
+  exec cmd /C "$basedir_win/src.bat" "$@"
+elif command -v cmd >/dev/null 2>&1; then
+  exec cmd /C "$basedir_abs/src.bat" "$@"
+elif [ -n "$exe" ] && command -v cmd.exe >/dev/null 2>&1; then
+  exec cmd.exe /C "$basedir_win/src.bat" "$@"
 else
-  if [ -n "$exe" ] && [ -x "$basedir/cmd.exe" ]; then
-    exec "$basedir/cmd.exe" /C "$basedir_win/src.bat" "$@"
-  elif [ -x "$basedir/cmd" ]; then
-    exec "$basedir/cmd" /C "$basedir_abs/src.bat" "$@"
-  elif [ -n "$msys" ] && command -v cmd >/dev/null 2>&1; then
-    exec cmd /C "$basedir_win/src.bat" "$@"
-  elif command -v cmd >/dev/null 2>&1; then
-    exec cmd /C "$basedir_abs/src.bat" "$@"
-  elif [ -n "$exe" ] && command -v cmd.exe >/dev/null 2>&1; then
-    exec cmd.exe /C "$basedir_win/src.bat" "$@"
-  else
-    exec cmd /C "$basedir_abs/src.bat" "$@"
-  fi
-
+  exec cmd /C "$basedir_abs/src.bat" "$@"
 fi
 
 `;

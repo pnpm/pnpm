@@ -12,6 +12,8 @@ import type { DirectoryResolution, WorkspacePackages } from '@pnpm/resolving.res
 import {
   DEPENDENCIES_FIELDS,
   type DependencyManifest,
+  type DepPath,
+  type IncludedDependencies,
   type ProjectManifest,
 } from '@pnpm/types'
 import getVersionSelectorType from 'version-selector-type'
@@ -29,6 +31,7 @@ import {
   createLocalDirectoryDepUpToDateChecker,
   type LocalDirectoryResolution,
 } from './localDirectoryDepIsUpToDate.js'
+import { findNestedDirectoryPackages } from './nestedDirectoryPackages.js'
 
 export interface CheckLinkedPackagesResult {
   upToDate: boolean
@@ -50,6 +53,8 @@ export interface LinkedPackagesContext {
    * `pnpm deploy` writes.
    */
   skipLocalDirectoryDependencies?: boolean
+  /** The dependency groups the install includes. Every group when unset. */
+  includedDependencies?: IncludedDependencies
   /** The settings and hooks the lockfile was resolved with. */
   resolution?: LocalDirectoryResolution
   /** See `LocalDirectoryDepContext.hookedManifests`. */
@@ -95,7 +100,39 @@ export async function checkLinkedPackagesAreUpToDate (ctx: LinkedPackagesContext
         localDirectoryDepIsUpToDate,
       }))
   }))
+  return results.find((result) => !result.upToDate) ??
+    checkNestedDirectoryPackages(ctx, project, localDirectoryDepIsUpToDate)
+}
+
+async function checkNestedDirectoryPackages (
+  ctx: LinkedPackagesContext,
+  project: ProjectToCheck,
+  localDirectoryDepIsUpToDate: DependencyCheckContext['localDirectoryDepIsUpToDate']
+): Promise<CheckLinkedPackagesResult> {
+  if (ctx.skipLocalDirectoryDependencies || ctx.lockfilePackages == null) return UP_TO_DATE
+  const includesOptional = ctx.includedDependencies?.optionalDependencies !== false
+  const reached = directDepPaths(project.snapshot, includesOptional)
+  const projectAliases = dependencyAliases(project.manifest)
+  const results = await Promise.all(findNestedDirectoryPackages(ctx.lockfilePackages, { includesOptional })
+    .filter(({ depPath, ref, snapshot, ancestors }) =>
+      !isDeployDirectoryRef(ref, snapshot) &&
+      reached.some((direct) => direct === depPath || ancestors.has(direct))
+    )
+    .map(async ({ depPath, snapshot, ancestorAliases }) =>
+      await localDirectoryDepIsUpToDate(snapshot, { ...ancestorAliases, ...projectAliases })
+        ? UP_TO_DATE
+        : outdated(`The dependencies of local directory dependency "${depPath}" do not match the lockfile`)
+    ))
   return results.find((result) => !result.upToDate) ?? UP_TO_DATE
+}
+
+/** The dependency paths a project depends on directly, in the groups the install includes. */
+function directDepPaths (snapshot: ProjectSnapshot, includesOptional: boolean): DepPath[] {
+  return Array.from(new Set<DepPath>(DEPENDENCIES_FIELDS
+    .filter((depField) => includesOptional || depField !== 'optionalDependencies')
+    .flatMap((depField) =>
+      Object.entries(snapshot[depField] ?? {}).flatMap(([alias, ref]) => refToRelative(ref, alias) ?? [])
+    )))
 }
 
 async function checkDependency (

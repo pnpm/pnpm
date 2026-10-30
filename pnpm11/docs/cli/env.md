@@ -41,7 +41,7 @@ pnpm env use --global 16.0.0-rc.0
 pnpm env use --global rc/14
 ```
 
-Install the latest version of Node.js:
+Install the latest stable version of Node.js:
 
 ```sh
 pnpm env use --global latest

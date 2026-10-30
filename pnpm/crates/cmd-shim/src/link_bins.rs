@@ -17,7 +17,8 @@ use crate::{
     },
     shim::{
         ScriptRuntime, generate_cmd_shim, generate_pwsh_shim, is_sh_shim_basedir_anchor_current,
-        is_sh_shim_hardened, is_shim_pointing_at, search_script_runtime,
+        is_sh_shim_hardened, is_sh_shim_msys_cmd_switch_doubled, is_shim_pointing_at,
+        search_script_runtime,
     },
 };
 use derive_more::{Display, Error};

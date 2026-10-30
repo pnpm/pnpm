@@ -225,6 +225,7 @@ async function assertLinkedPackagesUpToDate (
     workspacePackages: ctx.getWorkspacePackages(),
     lockfilePackages: wantedLockfile.packages,
     injectWorkspacePackages: ctx.injectWorkspacePackages ?? wantedLockfile.settings?.injectWorkspacePackages,
+    includedDependencies: ctx.config.include,
     resolution: {
       autoInstallPeers: ctx.autoInstallPeers,
       catalogs: ctx.config.catalogs,

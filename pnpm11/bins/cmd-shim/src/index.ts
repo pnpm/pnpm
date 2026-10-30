@@ -9,6 +9,7 @@ import { generateCmdShim } from './generateCmdShim.js'
 import { generatePwshShim } from './generatePwshShim.js'
 import {
   generateShShim,
+  isShimMsysCmdSwitchDoubled,
   SH_NODE_PATH_EXPORT,
   SH_SHIM_BASEDIR_ABS_PRELUDE,
   TARGET_MISSING_MARKER,
@@ -321,6 +322,7 @@ export {
   getShShimDir,
   isShimBasedirAnchorCurrent,
   isShimForMissingTarget,
+  isShimMsysCmdSwitchDoubled,
   isShimNodePath,
   isShimPointingAt,
   readShNodePath,

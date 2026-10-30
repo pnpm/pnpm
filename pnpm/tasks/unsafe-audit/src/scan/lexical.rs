@@ -8,9 +8,8 @@
 #[derive(Clone, Copy)]
 pub(super) enum Carry {
     Code,
-    BlockComment(usize),
-    /// A raw string, holding the number of `#` its close needs.
-    RawText(usize),
+    BlockComment { depth: usize },
+    RawText { hashes: usize },
     Text,
 }
 
@@ -25,9 +24,9 @@ pub(super) fn blank_quoted(line: &str, carry: Carry) -> (String, Carry) {
     while blanker.index < chars.len() {
         carry = match carry {
             Carry::Code => blanker.step_code(),
-            Carry::BlockComment(depth) => blanker.step_block_comment(depth),
+            Carry::BlockComment { depth } => blanker.step_block_comment(depth),
             Carry::Text => blanker.step_text(),
-            Carry::RawText(hashes) => blanker.step_raw_text(hashes),
+            Carry::RawText { hashes } => blanker.step_raw_text(hashes),
         };
     }
     (blanker.out, carry)
@@ -61,17 +60,17 @@ impl Blanker<'_> {
             }
             Opener::BlockComment => {
                 self.keep(2);
-                Carry::BlockComment(1)
+                Carry::BlockComment { depth: 1 }
             }
             Opener::RawText { width, hashes } => {
                 self.keep(width);
-                Carry::RawText(hashes)
+                Carry::RawText { hashes }
             }
             Opener::Text => {
                 self.keep(1);
                 Carry::Text
             }
-            Opener::Character(width) => {
+            Opener::Character { width } => {
                 self.keep(width);
                 Carry::Code
             }
@@ -85,14 +84,14 @@ impl Blanker<'_> {
     fn step_block_comment(&mut self, depth: usize) -> Carry {
         if self.starts_with('/', '*') {
             self.blank(2);
-            return Carry::BlockComment(depth + 1);
+            return Carry::BlockComment { depth: depth + 1 };
         }
         if self.starts_with('*', '/') {
             self.blank(2);
-            return if depth == 1 { Carry::Code } else { Carry::BlockComment(depth - 1) };
+            return if depth == 1 { Carry::Code } else { Carry::BlockComment { depth: depth - 1 } };
         }
         self.blank(1);
-        Carry::BlockComment(depth)
+        Carry::BlockComment { depth }
     }
 
     fn step_text(&mut self) -> Carry {
@@ -114,7 +113,7 @@ impl Blanker<'_> {
             return Carry::Code;
         }
         self.blank(1);
-        Carry::RawText(hashes)
+        Carry::RawText { hashes }
     }
 
     fn starts_with(&self, first: char, second: char) -> bool {
@@ -131,14 +130,15 @@ enum Opener {
         hashes: usize,
     },
     Text,
-    /// A character literal, which is not a quote; its width.
-    Character(usize),
+    /// A character literal, which is not a quote.
+    Character {
+        width: usize,
+    },
     Plain,
 }
 
 fn opener_at(chars: &[char], index: usize) -> Opener {
-    let pair =
-        |first: char, second: char| chars[index] == first && chars.get(index + 1) == Some(&second);
+    let pair = |first: char, second: char| chars[index..].first_chunk() == Some(&[first, second]);
     if pair('/', '/') {
         return Opener::LineComment;
     }
@@ -148,10 +148,10 @@ fn opener_at(chars: &[char], index: usize) -> Opener {
     if let Some((width, hashes)) = raw_text_opener(chars, index) {
         return Opener::RawText { width, hashes };
     }
-    if chars[index] == '"' {
+    if chars.get(index) == Some(&'"') {
         return Opener::Text;
     }
-    character_literal_width(chars, index).map_or(Opener::Plain, Opener::Character)
+    character_literal_width(chars, index).map_or(Opener::Plain, |width| Opener::Character { width })
 }
 
 /// The opener of a raw string at `index`, as its width and its `#` count.

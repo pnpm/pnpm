@@ -19,3 +19,24 @@ test.each([
   const version = await resolveNodeVersion(fetch, spec, nodeMirrorBaseUrl)
   expect(version).toMatch(expectedVersion)
 })
+
+test('latest selects the newest stable version when the index starts with a prerelease', async () => {
+  const mirror = 'https://node.example/download/release/'
+  const mockFetch = async () => new Response(JSON.stringify([
+    { version: 'v27.0.0-alpha.0.0.0', lts: false },
+    { version: 'v26.13.0', lts: false },
+    { version: 'v26.12.0-rc.1', lts: false },
+  ]))
+
+  await expect(resolveNodeVersion(mockFetch, 'latest', mirror)).resolves.toBe('26.13.0')
+  await expect(resolveNodeVersion(mockFetch, '', mirror)).resolves.toBe('26.13.0')
+})
+
+test('latest selects the newest build of a nightly index', async () => {
+  const mirror = 'https://nodejs.org/download/nightly/'
+  const mockFetch = async () => new Response(JSON.stringify([
+    { version: 'v27.0.0-nightly20261029abcdef', lts: false },
+  ]))
+
+  await expect(resolveNodeVersion(mockFetch, 'latest', mirror)).resolves.toBe('27.0.0-nightly20261029abcdef')
+})
