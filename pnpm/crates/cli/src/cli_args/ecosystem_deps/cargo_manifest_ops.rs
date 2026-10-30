@@ -228,8 +228,17 @@ fn extract_registry_spec(alias: &str, value: &toml::Value) -> Option<(String, St
     Some((package_name, version))
 }
 
+/// Which `Cargo.lock` entries [`read_locked_cargo_versions`] reads.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum LockedSource {
+    Registry,
+    /// The version a git `[patch]` replacement locks.
+    Git,
+}
+
 pub(crate) fn read_locked_cargo_versions(
     cargo_lock_path: &Path,
+    source: LockedSource,
 ) -> Result<HashMap<String, Vec<Version>>> {
     let contents = fs::read_to_string(cargo_lock_path)
         .into_diagnostic()
@@ -239,11 +248,11 @@ pub(crate) fn read_locked_cargo_versions(
         .wrap_err_with(|| format!("parse {}", cargo_lock_path.display()))?;
     let mut map: HashMap<String, Vec<Version>> = HashMap::new();
     for pkg in lockfile.packages {
-        // A git entry is the version a `[patch]` replacement locks.
-        if pkg.source
-            .as_ref()
-            .is_some_and(|source| source.is_registry() || source.is_git())
-        {
+        let read = match source {
+            LockedSource::Registry => cargo_lock::SourceId::is_registry,
+            LockedSource::Git => cargo_lock::SourceId::is_git,
+        };
+        if pkg.source.as_ref().is_some_and(read) {
             map.entry(pkg.name.as_str().to_string())
                 .or_default()
                 .push(pkg.version);

@@ -1,8 +1,8 @@
-use super::read_locked_cargo_versions;
+use super::{LockedSource, read_locked_cargo_versions};
 use semver::Version;
 
 #[test]
-fn locked_versions_include_git_replacements_and_leave_out_workspace_members() {
+fn locked_versions_are_read_per_source_without_workspace_members() {
     let dir = tempfile::tempdir().unwrap();
     let lockfile = dir.path().join("Cargo.lock");
     std::fs::write(
@@ -19,11 +19,10 @@ fn locked_versions_include_git_replacements_and_leave_out_workspace_members() {
     )
     .unwrap();
 
-    let locked = read_locked_cargo_versions(&lockfile).unwrap();
+    let registry = read_locked_cargo_versions(&lockfile, LockedSource::Registry).unwrap();
+    let git = read_locked_cargo_versions(&lockfile, LockedSource::Git).unwrap();
 
-    assert_eq!(
-        locked.get("lib").unwrap(),
-        &[Version::parse("1.0.0").unwrap(), Version::parse("1.1.0-fork").unwrap()],
-    );
-    assert!(!locked.contains_key("app"));
+    assert_eq!(registry.get("lib").unwrap(), &[Version::parse("1.0.0").unwrap()]);
+    assert_eq!(git.get("lib").unwrap(), &[Version::parse("1.1.0-fork").unwrap()]);
+    assert!(!registry.contains_key("app") && !git.contains_key("app"));
 }
