@@ -132,14 +132,13 @@ fn write_sh_node_path_entries(sh: &mut String, entries: &[ShNodePathEntry]) {
     if entries.is_empty() {
         return;
     }
+    // Adjacent literal entries share one quoted word, so a shim without a
+    // relocatable entry is byte-identical to the one pnpm 11 writes.
     let posix = entries
-        .iter()
-        .map(|entry| match entry {
-            ShNodePathEntry::Literal(path) => sh_single_quote(path),
-            ShNodePathEntry::RelativeToBasedir(path) => {
-                format!(r#""$basedir_abs"/{}"#, sh_single_quote(path))
-            }
+        .chunk_by(|left, right| {
+            matches!((left, right), (ShNodePathEntry::Literal(_), ShNodePathEntry::Literal(_)))
         })
+        .map(quote_sh_node_path_run)
         .collect::<Vec<_>>()
         .join(":");
     writeln!(
@@ -147,6 +146,20 @@ fn write_sh_node_path_entries(sh: &mut String, entries: &[ShNodePathEntry]) {
         "if [ -z \"$NODE_PATH\" ]; then\n  export NODE_PATH={posix}\nelse\n  export NODE_PATH={posix}:\"$NODE_PATH\"\nfi",
     )
     .unwrap();
+}
+
+/// One shell word for `run`: a single relocatable entry, or adjacent literal
+/// entries joined with `:`.
+#[cfg(not(windows))]
+fn quote_sh_node_path_run(run: &[ShNodePathEntry]) -> String {
+    if let [ShNodePathEntry::RelativeToBasedir(path)] = run {
+        return format!(r#""$basedir_abs"/{}"#, sh_single_quote(path));
+    }
+    let literals = run
+        .iter()
+        .map(ShNodePathEntry::path)
+        .collect::<Vec<_>>();
+    sh_single_quote(&literals.join(":"))
 }
 
 /// Emit the `exec` block for a target with a script runtime, preceded by the

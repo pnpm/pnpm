@@ -64,6 +64,15 @@ pub(super) enum ShNodePathEntry {
 }
 
 #[cfg(not(windows))]
+impl ShNodePathEntry {
+    pub(super) fn path(&self) -> &str {
+        match self {
+            ShNodePathEntry::Literal(path) | ShNodePathEntry::RelativeToBasedir(path) => path,
+        }
+    }
+}
+
+#[cfg(not(windows))]
 pub(super) fn sh_node_path_entries(
     node_path: &[String],
     shim_dir: &Path,

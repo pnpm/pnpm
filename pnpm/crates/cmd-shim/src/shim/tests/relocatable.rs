@@ -179,3 +179,38 @@ fn in_root_shim_is_written_relative_to_itself_and_only_such_a_shim_is_relocatabl
         assert!(!is_relocatable_shim(&shim_content, shim_dir, root), "{label}:\n{shim_content}");
     }
 }
+
+#[cfg(not(windows))]
+#[test]
+fn adjacent_literal_node_path_entries_share_one_quoted_word() {
+    let runtime = ScriptRuntime { prog: Some("node".into()), args: String::new() };
+    let node_path = [
+        "/store/links/node_modules".to_string(),
+        "/p/node_modules/.pnpm/node_modules".to_string(),
+        "/g/it's/node_modules".to_string(),
+    ];
+    let body = generate_sh_shim(
+        Path::new("/p/node_modules/tool/cli.js"),
+        Path::new("/p/node_modules/.bin/tool"),
+        Some(&runtime),
+        &node_path,
+        Some(Path::new("/p")),
+    );
+    eprintln!("BODY:\n{body}");
+    assert!(body.contains(concat!(
+        "  export NODE_PATH='/store/links/node_modules':",
+        r#""$basedir_abs"/'../.pnpm/node_modules':"#,
+        "'/g/it'\\''s/node_modules'\n",
+    )));
+    let body = generate_sh_shim(
+        Path::new("/p/node_modules/tool/cli.js"),
+        Path::new("/p/node_modules/.bin/tool"),
+        Some(&runtime),
+        &node_path,
+        None,
+    );
+    assert!(body.contains(concat!(
+        "  export NODE_PATH='/store/links/node_modules:/p/node_modules/.pnpm/node_modules:",
+        "/g/it'\\''s/node_modules'\n",
+    )));
+}
