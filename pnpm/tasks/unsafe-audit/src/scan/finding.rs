@@ -108,3 +108,6 @@ pub enum Finding {
     )]
     MissingSafetyComment { crate_name: String, occurrence: Occurrence },
 }
+
+#[cfg(test)]
+mod tests;
