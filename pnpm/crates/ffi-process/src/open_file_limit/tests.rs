@@ -21,6 +21,14 @@ fn raising_never_lowers_the_limit() {
 fn raising_reaches_the_hard_limit() {
     const CEILING: u64 = 1 << 20;
     let hard = current_hard_limit();
+    // Lower the soft limit first, so the raise has somewhere to go. On a
+    // host whose soft limit already equals its hard one, every assertion
+    // below holds before the raise runs at all.
+    let floor = u64::try_from(hard).unwrap_or(u64::MAX).min(256);
+    assert!(
+        super::set_soft_limit(floor, super::current_limit().expect("readable").rlim_max),
+        "lower the soft limit to {floor}",
+    );
     raise_open_file_limit(CEILING);
     let soft = soft_open_file_limit().expect("the limit is readable");
     let ceiling = usize::try_from(CEILING).expect("the ceiling fits in a usize");
@@ -29,7 +37,7 @@ fn raising_reaches_the_hard_limit() {
     // the `OPEN_MAX` it falls back on. A host whose hard limit is unlimited
     // reports one far above the ceiling, so the ceiling is what it reaches.
     let expected = if cfg!(target_os = "macos") { hard.min(10_240) } else { hard.min(ceiling) };
-    assert!(soft >= expected, "soft {soft} did not reach {expected}");
+    assert_eq!(soft, expected, "the raise did not reach {expected}");
 }
 
 fn current_hard_limit() -> usize {

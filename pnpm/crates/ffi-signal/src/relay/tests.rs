@@ -15,6 +15,19 @@ fn an_absent_target_does_not_exist() {
     assert!(process_group_of(u32::MAX).is_none());
 }
 
+/// A reaped child, whose id fits `i32` and names no process. `u32::MAX`
+/// does not reach the lookup at all: it fails the conversion first, which
+/// leaves what `getpgid` reports for an absent process untested.
+#[test]
+fn a_reaped_pid_has_no_process_group() {
+    let mut child = std::process::Command::new("true").spawn().expect("spawn a child to reap");
+    let pid = child.id();
+    child.wait().expect("reap the child");
+
+    assert!(process_group_of(pid).is_none(), "pid {pid} was reaped");
+    assert!(!target_exists(Target::Process(pid)));
+}
+
 /// The other half of the same branch: this process exists, so the probe
 /// cannot be reporting absence for everything.
 #[test]
