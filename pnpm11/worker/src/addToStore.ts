@@ -326,19 +326,20 @@ function addPlaceholderPackageJsonToCafs (cafs: CafsFunctions, filesIndex: Files
 }
 
 function calculateDiff (baseFiles: PackageFiles, sideEffectsFiles: PackageFiles): SideEffectsDiff {
-  const deleted: string[] = []
+  // The scan of the built package skips its node_modules, so the files of
+  // bundled dependencies are absent from it without having been deleted.
+  const deleted = Array.from(baseFiles.keys())
+    .filter((file) => !sideEffectsFiles.has(file) && !file.startsWith('node_modules/'))
   const added: PackageFiles = new Map()
-  const allFiles = new Set([...baseFiles.keys(), ...sideEffectsFiles.keys()])
-  for (const file of allFiles) {
-    if (!sideEffectsFiles.has(file)) {
-      deleted.push(file)
-    } else if (
-      !baseFiles.has(file) ||
-      baseFiles.get(file)!.digest !== sideEffectsFiles.get(file)!.digest ||
+  for (const [file, sideEffectsFile] of sideEffectsFiles) {
+    const baseFile = baseFiles.get(file)
+    if (
+      baseFile == null ||
+      baseFile.digest !== sideEffectsFile.digest ||
       // On Windows, the mode read back from disk does not preserve the mode stored from the tarball.
-      (process.platform !== 'win32' && baseFiles.get(file)!.mode !== sideEffectsFiles.get(file)!.mode)
+      (process.platform !== 'win32' && baseFile.mode !== sideEffectsFile.mode)
     ) {
-      added.set(file, sideEffectsFiles.get(file)!)
+      added.set(file, sideEffectsFile)
     }
   }
   const diff: SideEffectsDiff = {}

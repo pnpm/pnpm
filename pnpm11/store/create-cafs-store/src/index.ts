@@ -125,9 +125,15 @@ function applySideEffectsDiffWithMaps (
       filesWithSideEffects.set(name, filePath)
     }
   }
-  // Add base files that weren't deleted or replaced by a symlink
+  // Add base files that weren't deleted or replaced by a symlink.
+  // Files of bundled dependencies are always kept: the scan after a build
+  // skips node_modules, so a diff cannot know that they were deleted.
   for (const [fileName, filePath] of baseFiles) {
-    if (!deleted?.includes(fileName) && !filesWithSideEffects.has(fileName) && !symlinks?.has(fileName)) {
+    if (
+      (!deleted?.includes(fileName) || fileName.startsWith('node_modules/')) &&
+      !filesWithSideEffects.has(fileName) &&
+      !symlinks?.has(fileName)
+    ) {
       filesWithSideEffects.set(fileName, filePath)
     }
   }
