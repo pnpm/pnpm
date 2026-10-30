@@ -398,6 +398,7 @@ pub struct WorkspaceSettings {
     pub git_checks: Option<bool>,
     /// See [`Config::git_tag_version`](crate::settings::Config::git_tag_version).
     pub git_tag_version: Option<bool>,
+    /// See [`Config::publish_branch`](crate::settings::Config::publish_branch).
     pub publish_branch: Option<String>,
 
     /// See [`Config::publish_wait_timeout`](crate::settings::Config::publish_wait_timeout).

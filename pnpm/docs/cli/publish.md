@@ -71,9 +71,9 @@ Skip the git checks. By default, pnpm checks that the working tree is clean, tha
 * Default: **master** or **main**
 * Types: **String**
 
-The branch that publishing is allowed from. Without this option, the current
-branch must be `master` or `main`. In CI, a detached `HEAD` skips the branch
-check.
+The branch that publishing is allowed from. It overrides the
+[`publishBranch`](#publishbranch) setting. Without either, the current branch
+must be `master` or `main`. In CI, a detached `HEAD` skips the branch check.
 
 ### --ignore-scripts
 
@@ -222,10 +222,10 @@ publishBranch: production
 
 ### publishBranch
 
-* Default: **`main` or `master`**
+* Default: **master** or **main**
 * Type: **String**
 
-Sets the branch allowed by the Git checks before publishing. The `--publish-branch` flag overrides this setting.
+Sets the default for [`--publish-branch`](#--publish-branch-branch).
 
 ### publishWaitTimeout
 

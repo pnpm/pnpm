@@ -1210,6 +1210,9 @@ pub struct Config {
     /// flag — skips those checks. Mirrors pnpm's `opts.gitChecks !== false` gate.
     #[default(true)]
     pub git_checks: bool,
+
+    /// The branch `pnpm publish` allows when git checks run. `None` allows
+    /// `master` or `main`. The `--publish-branch` flag overrides it.
     pub publish_branch: Option<String>,
 
     /// `pnpm version` creates a git commit and tag for the bump. Setting it to
