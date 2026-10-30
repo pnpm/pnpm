@@ -2,4 +2,4 @@
 "pacquet": patch
 ---
 
-Hardlinking from the store stats each store file once per install, not once per package that links it. An offline install of a large workspace made about twice as many `stat` calls as before and spent up to 15% more system CPU [#17500](https://github.com/pnpm/pnpm/issues/17500).
+Hardlinking from the store now stats each store file once per install. Since pnpm 12.8.0, a store file was stat'ed again for every package that links it. On an offline install of a large workspace, that added up to 15% system CPU [#17500](https://github.com/pnpm/pnpm/issues/17500).
