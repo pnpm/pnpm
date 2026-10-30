@@ -10,7 +10,7 @@ pub struct Section {
     /// From the start of the opening marker to the end of the closing
     /// marker, excluding its line break.
     pub range: Range<usize>,
-    /// The lines between the markers, without the final line break.
+    /// The lines between the markers, without trailing line breaks.
     pub body: String,
 }
 
