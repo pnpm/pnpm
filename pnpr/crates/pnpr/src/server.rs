@@ -213,7 +213,8 @@ const MAX_TARBALL_BYTES: u64 = 100 * 1024 * 1024;
 /// at 100 MiB and verdaccio inherits that limit. We apply it via
 /// [`axum::extract::DefaultBodyLimit::max`] on the router rather than on each
 /// route, so future write endpoints inherit the same ceiling.
-const MAX_PUBLISH_BODY_BYTES: usize = MAX_TARBALL_BYTES as usize;
+// PoC: one publish body carries a primary and every platform variant.
+const MAX_PUBLISH_BODY_BYTES: usize = MAX_TARBALL_BYTES as usize * 8;
 
 /// Cap adduser/login bodies far below the publish ceiling. The body is a
 /// small couchdb-user JSON document, and login is the one body-accepting

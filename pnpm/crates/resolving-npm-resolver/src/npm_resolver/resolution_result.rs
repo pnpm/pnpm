@@ -373,7 +373,77 @@ pub(super) fn picked_tarball_resolution(
         git_hosted: None,
         path: None,
     });
+    let resolution = with_platform_variants(resolution, picked, source)?;
     Ok((resolution, revision))
+}
+
+/// Wrap the primary `resolution` in a `variations` resolution when the
+/// version publishes platform variants under `dist.pnpr.variants`. The
+/// primary becomes the fallback for a host no variant matches.
+fn with_platform_variants(
+    resolution: LockfileResolution,
+    picked: &PackageVersion,
+    source: &RegistryResolutionSource<'_>,
+) -> Result<LockfileResolution, ResolveError> {
+    let Some(variants) = picked.dist.pnpr.as_ref().and_then(|pnpr| pnpr.variants.as_ref()) else {
+        return Ok(resolution);
+    };
+    if variants.is_empty() {
+        return Ok(resolution);
+    }
+    let version = picked.version.to_string();
+    let mut out = Vec::with_capacity(variants.len());
+    for variant in variants {
+        let integrity = variant.integrity
+            .parse()
+            .map_err(|_| {
+                Box::new(MissingTarballUrlError {
+                    package: format!("{}@{version} variant {}", picked.name, variant.tag),
+                    registry: redact_and_sanitize(source.registry),
+                }) as ResolveError
+            })?;
+        let tarball = match &variant.tarball {
+            Some(tarball) => normalize_tarball_url(tarball),
+            None => pnpm_lockfile::variant_registry_tarball_url(
+                &picked.name,
+                &version,
+                &variant.tag,
+                source.registry,
+            )
+            .ok_or_else(|| {
+                Box::new(MissingTarballUrlError {
+                    package: format!("{}@{version} variant {}", picked.name, variant.tag),
+                    registry: redact_and_sanitize(source.registry),
+                }) as ResolveError
+            })?,
+        };
+        let targets = variant.platforms
+            .iter()
+            .map(|platform| pnpm_lockfile::PlatformAssetTarget {
+                os: platform.os.clone(),
+                cpu: platform.cpu.clone(),
+                // The lockfile spells glibc as an absent `libc`.
+                libc: platform.libc
+                    .clone()
+                    .filter(|libc| libc != "glibc"),
+            })
+            .collect();
+        out.push(pnpm_lockfile::PlatformAssetResolution {
+            tag: Some(variant.tag.clone()),
+            resolution: LockfileResolution::Tarball(TarballResolution {
+                tarball,
+                integrity: Some(integrity),
+                revision: None,
+                git_hosted: None,
+                path: None,
+            }),
+            targets,
+        });
+    }
+    Ok(LockfileResolution::Variations(pnpm_lockfile::VariationsResolution {
+        variants: out,
+        fallback: Some(Box::new(resolution)),
+    }))
 }
 
 impl BuildResolveResult<'_> {

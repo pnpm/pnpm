@@ -458,7 +458,9 @@ async fn verifies_variations_resolution_matching_tarball_url() {
     let opts = default_opts(&registry);
     let verifier = create_npm_resolution_verifier(opts);
     let resolution = LockfileResolution::Variations(VariationsResolution {
+        fallback: None,
         variants: vec![PlatformAssetResolution {
+            tag: None,
             resolution: LockfileResolution::Tarball(TarballResolution {
                 tarball: format!("{server_url}/variations-pkg/-/variations-pkg-1.0.0.tgz"),
                 integrity: Some(fake_integrity()),
@@ -506,7 +508,9 @@ async fn rejects_variations_resolution_with_mismatched_tarball_url() {
     let opts = default_opts(&registry);
     let verifier = create_npm_resolution_verifier(opts);
     let resolution = LockfileResolution::Variations(VariationsResolution {
+        fallback: None,
         variants: vec![PlatformAssetResolution {
+            tag: None,
             resolution: LockfileResolution::Tarball(TarballResolution {
                 tarball: "https://attacker.example/variations-pkg-1.0.0.tgz".to_string(),
                 integrity: Some(fake_integrity()),
@@ -531,7 +535,9 @@ async fn rejects_variations_resolution_with_missing_integrity() {
     let opts = default_opts("https://registry.example/");
     let verifier = create_npm_resolution_verifier(opts);
     let resolution = LockfileResolution::Variations(VariationsResolution {
+        fallback: None,
         variants: vec![PlatformAssetResolution {
+            tag: None,
             resolution: LockfileResolution::Tarball(TarballResolution {
                 tarball: "https://registry.example/pkg-1.0.0.tgz".to_string(),
                 integrity: None,

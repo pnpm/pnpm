@@ -57,6 +57,9 @@ pub(super) struct TarballFetch<'a, AllowBuild> {
     package_key: &'a PackageKey,
     package_id: &'a str,
     allow_build: &'a AllowBuild,
+    /// A package platform variant, served like a revision: verified against
+    /// its tar's digest, without redirects.
+    variant: bool,
 }
 
 #[derive(Debug, Default)]
@@ -324,6 +327,26 @@ impl InstallPackageBySnapshot<'_> {
                 self.fetch_binary::<Reporter>(binary, fetch.package_key).await
                     .map(|cas_paths| (cas_paths, ExtractedPackageMetadata::default(), true))
             }
+            LockfileResolution::Variations(variations)
+                if super::runtime::is_package_variations(variations) =>
+            {
+                let (resolution, variant) = super::runtime::package_variant_for_host(
+                    variations,
+                    fetch.package_key,
+                    self.runtime_platform_selector,
+                    config,
+                )?;
+                self.tarball_cas_paths::<Reporter>(TarballFetch {
+                    download: fetch.download,
+                    resolution: &resolution,
+                    package_key: fetch.package_key,
+                    package_id: fetch.package_id,
+                    allow_build: &allow_build,
+                    variant,
+                })
+                .await
+                .map(|(cas_paths, extracted)| (cas_paths, extracted, true))
+            }
             LockfileResolution::Variations(variations) => self
                 .fetch_binary::<Reporter>(
                     binary_variant_for_host(
@@ -361,6 +384,7 @@ impl InstallPackageBySnapshot<'_> {
             package_key: fetch.package_key,
             package_id: fetch.package_id,
             allow_build,
+            variant: false,
         })
         .await
     }

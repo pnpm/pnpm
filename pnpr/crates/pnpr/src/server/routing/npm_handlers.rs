@@ -126,9 +126,22 @@ pub(super) async fn get_scoped_version_manifest(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
     TargetRegistry(registry): TargetRegistry,
+    headers: HeaderMap,
     Path(path): Path<ScopedVersionPath>,
 ) -> Response {
     let ScopedVersionPath { scope, name, version } = path;
+    if name == "variants"
+        && let Some((package, package_version)) = split_package_identifier(&scope)
+    {
+        return super::super::revision_tarballs::serve_variant_tarball(
+            &state,
+            &identity,
+            &headers,
+            registry.as_deref(),
+            (package, package_version, &version),
+        )
+        .await;
+    }
     if !scope.starts_with('@') {
         return not_found();
     }
@@ -482,4 +495,38 @@ pub(super) async fn delete_package_dist_tag(
     Path(path): Path<DistTagPath>,
 ) -> Response {
     remove_dist_tag(&state, &identity, registry.as_deref(), &path.name, &path.tag).await
+}
+
+#[derive(Deserialize)]
+pub(super) struct ScopedVariantPath {
+    pub(super) scope: String,
+    pub(super) name: String,
+    pub(super) tag: String,
+}
+
+/// `GET {base}/@{scope}/{pkg}@{version}/variants/{tag}` — a scoped package's
+/// platform variant.
+pub(super) async fn get_scoped_variant_tarball(
+    State(state): State<AppState>,
+    AuthedCaller(identity): AuthedCaller,
+    TargetRegistry(registry): TargetRegistry,
+    headers: HeaderMap,
+    Path(path): Path<ScopedVariantPath>,
+) -> Response {
+    let ScopedVariantPath { scope, name, tag } = path;
+    let Some((bare_name, version)) = split_package_identifier(&name) else {
+        return not_found();
+    };
+    if !scope.starts_with('@') {
+        return not_found();
+    }
+    let full = format!("{scope}/{bare_name}");
+    super::super::revision_tarballs::serve_variant_tarball(
+        &state,
+        &identity,
+        &headers,
+        registry.as_deref(),
+        (&full, version, &tag),
+    )
+    .await
 }

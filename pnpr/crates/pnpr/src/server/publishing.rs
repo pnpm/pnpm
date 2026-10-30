@@ -6,6 +6,7 @@ pub(super) use tombstones::check_publish_tombstone;
 mod attachments;
 mod manifest;
 mod tombstones;
+pub(super) mod variants;
 
 use std::collections::{BTreeSet, HashSet};
 

@@ -319,14 +319,24 @@ pub(super) fn engine_gating_dep_paths(
         .collect();
     pnpm_graph_hasher::build_required_dep_paths(graph, &built_dep_paths)
 }
-/// `variations` (cross-platform variant) resolutions don't exist in
-/// pacquet's lockfile model yet — when they're added, this helper
-/// will need a `selectPlatformVariant` branch to pick the right
-/// integrity.
+/// A registry package's `variations` resolution is identified by the
+/// archive selected for this install's platform, so projects that select
+/// different variants of one version get different slots.
 pub(super) fn create_full_pkg_id(
     pkg_id_with_patch_hash: &PkgIdWithPatchHash,
     resolution: Option<&LockfileResolution>,
 ) -> String {
+    if let Some(LockfileResolution::Variations(variations)) = resolution {
+        let selected = pnpm_lockfile::select_platform_variant(
+            &variations.variants,
+            &crate::install_package_by_snapshot::selected_platform(),
+        )
+        .map(|variant| &variant.resolution)
+        .or(variations.fallback.as_deref());
+        if let Some(integrity) = selected.and_then(LockfileResolution::integrity) {
+            return format!("{pkg_id_with_patch_hash}:{integrity}");
+        }
+    }
     if let Some(integrity) = resolution.and_then(LockfileResolution::integrity) {
         return format!("{pkg_id_with_patch_hash}:{integrity}");
     }

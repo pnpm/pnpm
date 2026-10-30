@@ -233,6 +233,7 @@ pub fn asset_variants(
             libc: (parsed.musl && has_glibc_build).then(|| "musl".to_string()),
         };
         variants.push(PlatformAssetResolution {
+            tag: None,
             resolution: LockfileResolution::Binary(binary),
             targets: vec![target],
         });

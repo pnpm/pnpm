@@ -172,6 +172,11 @@ impl VirtualStoreLayout {
         allow_build_policy: Option<&AllowBuildPolicy>,
         lockfile_dir: Option<&Path>,
     ) -> Self {
+        // PoC: record the platform package variants are selected for
+        // before any slot is hashed.
+        let _ = crate::install_package_by_snapshot::runtime_platform_selector(
+            config.supported_architectures.as_ref(),
+        );
         let package_store_dir = config.virtual_store_dir().to_path_buf();
         let virtual_store_dir_max_length = config.virtual_store_dir_max_length as usize;
         if !config.enable_global_virtual_store {
@@ -210,6 +215,9 @@ impl VirtualStoreLayout {
         allow_build_policy: Option<&AllowBuildPolicy>,
         lockfile_dir: Option<&Path>,
     ) -> Self {
+        let _ = crate::install_package_by_snapshot::runtime_platform_selector(
+            config.supported_architectures.as_ref(),
+        );
         let Some(snapshots) = snapshots.filter(|_| config.enable_global_virtual_store) else {
             return Self::new(
                 config,

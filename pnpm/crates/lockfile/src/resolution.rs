@@ -241,6 +241,11 @@ pub struct PlatformAssetTarget {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct PlatformAssetResolution {
+    /// The registry's name for a package platform variant: the archive is
+    /// served at `<registry>/<name>@<version>/variants/<tag>`. Absent for
+    /// runtime archives, whose resolution carries their own URL.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tag: Option<String>,
     pub resolution: LockfileResolution,
     pub targets: Vec<PlatformAssetTarget>,
 }
@@ -255,6 +260,10 @@ pub struct PlatformAssetResolution {
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct VariationsResolution {
     pub variants: Vec<PlatformAssetResolution>,
+    /// The archive a host no variant matches installs: a registry package's
+    /// primary archive. Absent for runtimes, which fail on such a host.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fallback: Option<Box<LockfileResolution>>,
 }
 
 /// The `type` tag of a [`CustomResolution`]. Any tag other than the
@@ -461,6 +470,9 @@ impl LockfileResolution {
         version: &str,
         opts: LockfileFormOptions<'_>,
     ) -> Result<LockfileResolution, LockfileFormError> {
+        if let LockfileResolution::Variations(variations) = self {
+            return variations.to_lockfile_form(name, version, opts).map(LockfileResolution::from);
+        }
         let LockfileResolution::Tarball(tarball) = self else { return Ok(self.clone()) };
         let Some(integrity) = tarball.integrity.as_ref() else {
             return if tarball.revision.is_some() {
@@ -485,6 +497,67 @@ impl LockfileResolution {
         kept.git_hosted = git_hosted.then_some(true);
         Ok(LockfileResolution::Tarball(kept))
     }
+}
+
+impl VariationsResolution {
+    /// Write each package variant whose tarball sits on its registry route,
+    /// and the fallback, in the integrity-only registry form.
+    fn to_lockfile_form(
+        &self,
+        name: &str,
+        version: &str,
+        opts: LockfileFormOptions<'_>,
+    ) -> Result<VariationsResolution, LockfileFormError> {
+        let variants = self.variants
+            .iter()
+            .map(|variant| {
+                let mut variant = variant.clone();
+                if let (Some(tag), LockfileResolution::Tarball(tarball)) =
+                    (&variant.tag, &variant.resolution)
+                    && let Some(integrity) = &tarball.integrity
+                    && !opts.include_tarball_url
+                    && variant_registry_tarball_url(name, version, tag, opts.registry).as_deref()
+                        == Some(tarball.tarball.as_str())
+                {
+                    variant.resolution = LockfileResolution::Registry(RegistryResolution {
+                        integrity: integrity.clone(),
+                        revision: None,
+                    });
+                }
+                variant
+            })
+            .collect();
+        let fallback = match &self.fallback {
+            Some(fallback) => Some(Box::new(fallback.to_lockfile_form(name, version, opts)?)),
+            None => None,
+        };
+        Ok(VariationsResolution { variants, fallback })
+    }
+}
+
+/// Build a package variant's URL `<registry>/<name>@<version>/variants/<tag>`.
+#[must_use]
+pub fn variant_registry_tarball_url(
+    name: &str,
+    version: &str,
+    tag: &str,
+    registry: &str,
+) -> Option<String> {
+    let valid_tag = !tag.is_empty()
+        && tag
+            .bytes()
+            .all(|byte| {
+                byte.is_ascii_lowercase() || byte.is_ascii_digit() || b"._-".contains(&byte)
+            });
+    if !valid_tag {
+        return None;
+    }
+    let base = format!("{}/", registry.trim_end_matches('/'));
+    url::Url::parse(&base)
+        .ok()?
+        .join(&format!("{name}@{version}/variants/{tag}"))
+        .ok()
+        .map(Into::into)
 }
 
 impl TarballResolution {

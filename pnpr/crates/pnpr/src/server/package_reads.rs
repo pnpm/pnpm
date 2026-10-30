@@ -84,6 +84,18 @@ pub(super) async fn serve_registry_version_manifest(
     if let Some(table) = view.tar_integrities {
         describe_tar(&mut manifest, table, view.tar_registry);
     }
+    if let Some(version) = manifest
+        .get("version")
+        .and_then(Value::as_str)
+        .map(str::to_string)
+    {
+        super::publishing::variants::describe_version_variants(
+            &mut manifest,
+            name.as_str(),
+            &version,
+            tarball_base,
+        );
+    }
     match serde_json::to_vec(&manifest) {
         Ok(body) => packument_bytes_response(body, "application/json", None),
         Err(err) => RegistryError::Json(err).into_response(),

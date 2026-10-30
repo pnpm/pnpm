@@ -127,6 +127,12 @@ fn full_pkg_id_for(
     {
         return format!("{pkg_id}:{integrity}");
     }
+    if let LockfileResolution::Variations(variations) = resolution
+        && let Some(integrity) =
+            variations.fallback.as_deref().and_then(LockfileResolution::integrity)
+    {
+        return format!("{pkg_id}:{integrity}");
+    }
     if let Some(integrity) = resolution.integrity() {
         return format!("{pkg_id}:{integrity}");
     }

@@ -60,6 +60,65 @@ pub(super) fn binary_variant_for_host<'a>(
     };
     Ok(binary)
 }
+/// Whether `variations` describes a registry package's platform variants
+/// rather than a runtime's archives.
+pub(super) fn is_package_variations(variations: &pnpm_lockfile::VariationsResolution) -> bool {
+    variations.fallback.is_some()
+        || variations.variants.iter().any(|variant| variant.tag.is_some())
+}
+
+/// The archive a registry package's `variations` resolution installs on this
+/// host: the matching variant, addressed at its registry route, or the
+/// primary when no variant matches. The flag is `true` for a variant, whose
+/// integrity is its tar's digest.
+pub(super) fn package_variant_for_host(
+    variations: &pnpm_lockfile::VariationsResolution,
+    package_key: &PackageKey,
+    selector: &PlatformSelector,
+    config: &Config,
+) -> Result<(LockfileResolution, bool), InstallPackageBySnapshotError> {
+    let Some(variant) = select_platform_variant(&variations.variants, selector) else {
+        return match &variations.fallback {
+            Some(fallback) => Ok(((**fallback).clone(), false)),
+            None => Err(InstallPackageBySnapshotError::NoMatchingPlatformVariant {
+                package_key: package_key.to_string(),
+                selected_target: format!(
+                    "os = `{}`, cpu = `{}`, libc = `{:?}`",
+                    selector.os, selector.cpu, selector.libc,
+                ),
+                available_targets: render_variant_targets(&variations.variants),
+            }),
+        };
+    };
+    let resolution = match (&variant.tag, &variant.resolution) {
+        (Some(tag), LockfileResolution::Registry(registry)) => {
+            let (registry_url, version) =
+                super::tarball_resolution::registry_and_version(package_key, config)?;
+            let tarball = pnpm_lockfile::variant_registry_tarball_url(
+                &package_key.name.to_string(),
+                &version,
+                tag,
+                &registry_url,
+            )
+            .ok_or_else(|| {
+                super::tarball_resolution::invalid_tarball_revision(
+                    package_key,
+                    "has an invalid variant tag",
+                )
+            })?;
+            LockfileResolution::Tarball(pnpm_lockfile::TarballResolution {
+                tarball,
+                integrity: Some(registry.integrity.clone()),
+                revision: None,
+                git_hosted: None,
+                path: None,
+            })
+        }
+        (_, resolution) => resolution.clone(),
+    };
+    Ok((resolution, true))
+}
+
 /// Build the host's [`PlatformSelector`] for runtime-variant
 /// matching, from the host's os, cpu, and libc (the latter only on
 /// Linux).
@@ -86,6 +145,30 @@ pub fn host_platform_selector() -> PlatformSelector {
 /// <https://github.com/pnpm/pnpm/issues/13898>
 #[must_use]
 pub fn runtime_platform_selector(supported: Option<&SupportedArchitectures>) -> PlatformSelector {
+    let selector = runtime_platform_selector_uncached(supported);
+    // PoC: the global virtual store hash reads the selected platform from
+    // here instead of having it threaded through the layout.
+    *SELECTED_PLATFORM.lock().expect("not poisoned") = Some(selector.clone());
+    selector
+}
+
+/// The platform the last [`runtime_platform_selector`] call selected.
+static SELECTED_PLATFORM: std::sync::Mutex<Option<PlatformSelector>> = std::sync::Mutex::new(None);
+
+/// The platform package variants are selected for: the one this install's
+/// `supportedArchitectures` selected, or the host's.
+#[must_use]
+pub fn selected_platform() -> PlatformSelector {
+    SELECTED_PLATFORM
+        .lock()
+        .expect("not poisoned")
+        .clone()
+        .unwrap_or_else(host_platform_selector)
+}
+
+fn runtime_platform_selector_uncached(
+    supported: Option<&SupportedArchitectures>,
+) -> PlatformSelector {
     let host = host_platform_selector();
     match supported {
         Some(SupportedArchitectures::Platforms(platforms)) => runtime_platform_of(platforms, host),

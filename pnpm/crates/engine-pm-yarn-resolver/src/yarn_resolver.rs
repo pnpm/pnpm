@@ -121,7 +121,10 @@ impl YarnResolver {
         });
         Ok(Some(ResolveResult {
             id: format!("yarn@runtime:{version}").into(),
-            resolution: LockfileResolution::Variations(VariationsResolution { variants }),
+            resolution: LockfileResolution::Variations(VariationsResolution {
+                variants,
+                fallback: None,
+            }),
             resolved_via: RESOLVED_VIA.to_string(),
             normalized_bare_specifier: Some(format!("{RUNTIME_PROTOCOL}{normalized_spec}")),
             alias: wanted_dependency.alias.clone(),

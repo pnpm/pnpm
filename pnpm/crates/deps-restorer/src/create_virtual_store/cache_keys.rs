@@ -147,7 +147,7 @@ pub(super) fn snapshot_cache_key(
         // is best-effort and the cold path is where errors are
         // raised).
         LockfileResolution::Variations(variations) => {
-            variant_cache_key(variations, runtime_platform_selector, &pkg_id)
+            variant_cache_key(variations, runtime_platform_selector, &pkg_id, !ignore_scripts)
         }
         // Custom resolutions have no built-in warm-cache key — the
         // cold path consults the pnpmfile custom fetchers, and the
@@ -274,12 +274,28 @@ pub(super) fn variant_cache_key(
     variations: &pnpm_lockfile::VariationsResolution,
     runtime_platform_selector: &PlatformSelector,
     pkg_id: &str,
+    built: bool,
 ) -> Result<SnapshotCacheKey, CreateVirtualStoreError> {
     let Some(variant) = select_platform_variant(&variations.variants, runtime_platform_selector)
     else {
-        return Ok(SnapshotCacheKey { value: None, is_git_hosted: false });
+        // A registry package's primary archive serves hosts no variant
+        // matches.
+        let value = variations.fallback
+            .as_deref()
+            .and_then(|fallback| store_index_key_for_resolution(fallback, pkg_id, built));
+        return Ok(SnapshotCacheKey { value, is_git_hosted: false });
     };
     match &variant.resolution {
+        // A registry package's platform variant, keyed by its own tar
+        // digest like any registry archive.
+        LockfileResolution::Registry(_) | LockfileResolution::Tarball(_)
+            if variant.tag.is_some() =>
+        {
+            Ok(SnapshotCacheKey {
+                value: store_index_key_for_resolution(&variant.resolution, pkg_id, built),
+                is_git_hosted: false,
+            })
+        }
         LockfileResolution::Binary(binary) => Ok(SnapshotCacheKey {
             value: Some(store_index_key(&binary.integrity.to_string(), pkg_id)),
             is_git_hosted: false,

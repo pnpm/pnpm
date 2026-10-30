@@ -209,6 +209,7 @@ pub(super) fn packument_response(
     if let Some(table) = view.tar_integrities {
         describe_tars(&mut doc, table, view.tar_registry);
     }
+    super::publishing::variants::describe_variants(&mut doc, name.as_str(), tarball_base);
     let abbreviated = wants_abbreviated(headers);
     let (body, content_type) = if abbreviated {
         let trimmed = abbreviate_packument(&doc, Utc::now());

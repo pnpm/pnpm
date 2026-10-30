@@ -191,7 +191,7 @@ impl NodeResolver {
         Ok(Some(node_resolve_result(
             wanted_dependency,
             format!("node@runtime:{version}").into(),
-            LockfileResolution::Variations(VariationsResolution { variants }),
+            LockfileResolution::Variations(VariationsResolution { variants, fallback: None }),
             &version,
             Some(format!("{RUNTIME_PROTOCOL}{range}")),
         )))

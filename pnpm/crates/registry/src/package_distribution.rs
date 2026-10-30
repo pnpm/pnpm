@@ -92,6 +92,30 @@ pub struct PnprDistribution {
         skip_serializing_if = "Option::is_none"
     )]
     pub bins: Option<BTreeMap<String, PackageBin>>,
+    /// Platform variants of the version: archives the installer links in
+    /// place of the primary on a matching host.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub variants: Option<Vec<PnprVariant>>,
+}
+
+/// One platform variant under `dist.pnpr.variants`.
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PnprVariant {
+    pub tag: String,
+    pub platforms: Vec<PnprVariantPlatform>,
+    pub integrity: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tarball: Option<String>,
+}
+
+/// One platform a [`PnprVariant`] runs on.
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PnprVariantPlatform {
+    pub os: String,
+    pub cpu: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub libc: Option<String>,
 }
 
 /// Container for the attestation evidence a version exposes on its

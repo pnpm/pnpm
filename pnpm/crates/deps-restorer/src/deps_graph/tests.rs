@@ -51,6 +51,7 @@ fn registry_metadata() -> PackageMetadata {
 
 fn variations_metadata() -> PackageMetadata {
     let variant = |integrity: Integrity, os: &str, libc: Option<&str>| PlatformAssetResolution {
+        tag: None,
         resolution: LockfileResolution::Binary(BinaryResolution {
             url: format!("https://example.com/{os}.tar.gz"),
             integrity,
@@ -66,6 +67,7 @@ fn variations_metadata() -> PackageMetadata {
     };
     PackageMetadata {
         resolution: LockfileResolution::Variations(VariationsResolution {
+            fallback: None,
             variants: vec![
                 variant("sha512-AAAA".parse().unwrap(), "linux", None),
                 variant("sha512-BBBB".parse().unwrap(), "linux", Some("musl")),

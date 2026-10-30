@@ -342,6 +342,10 @@ fn npm_package_routes(router: Router<AppState>, base: &str) -> Router<AppState> 
         )
         .route(&path("/{scope}/{name}/{version}"), get(get_scoped_version_manifest))
         .route(
+            &path("/{scope}/{name}/variants/{tag}"),
+            get(npm_handlers::get_scoped_variant_tarball),
+        )
+        .route(
             &path("/{scope}/{name}/-/{filename}"),
             get(get_scoped_tarball).delete(unpublish_scoped_tarball),
         )
