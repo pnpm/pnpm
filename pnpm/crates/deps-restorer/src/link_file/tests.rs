@@ -14,6 +14,27 @@ use std::{
     path::{Path, PathBuf},
 };
 
+#[cfg(unix)]
+thread_local! {
+    static SOURCE_MODE_STATS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+/// Count a `stat` the linkability cache is about to miss on.
+///
+/// The count is per thread, so a test reads its own imports and not a
+/// parallel test's.
+#[cfg(unix)]
+pub(super) fn bump() {
+    SOURCE_MODE_STATS.with(|count| count.set(count.get() + 1));
+}
+
+/// The count of `stat` calls the cache has missed on, for the tests that
+/// hold the hardlink tiers to one `stat` per blob (pnpm/pnpm#17500).
+#[cfg(unix)]
+pub(super) fn source_mode_stats() -> usize {
+    SOURCE_MODE_STATS.with(std::cell::Cell::get)
+}
+
 fn write_source(dir: &Path, name: &str, contents: &[u8]) -> PathBuf {
     let path = dir.join(name);
     fs::create_dir_all(path.parent().unwrap()).expect("create source parent");
@@ -132,6 +153,12 @@ impl FsReflink for FreshClone {
 fn inode(path: &Path) -> u64 {
     use std::os::unix::fs::MetadataExt;
     fs::metadata(path).unwrap().ino()
+}
+
+#[cfg(unix)]
+fn mode(path: &Path) -> u32 {
+    use std::os::unix::fs::MetadataExt;
+    fs::metadata(path).unwrap().mode() & 0o7777
 }
 
 #[cfg(unix)]

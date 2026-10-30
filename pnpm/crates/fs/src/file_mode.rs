@@ -13,6 +13,19 @@ use pipe_trait::Pipe;
 
 use std::{io, path::Path};
 
+#[cfg(unix)]
+mod linkability;
+#[cfg(unix)]
+pub use linkability::{cached_linkability, source_mode_is_linkable, with_mode_change};
+
+/// Run `change` without the bookkeeping the Unix build does around a mode
+/// change: no store entry's mode can be changed through a hardlink here, so
+/// nothing is remembered to be dropped.
+#[cfg(not(unix))]
+pub fn with_mode_change<Value>(_: &Path, change: impl FnOnce() -> Value) -> Value {
+    change()
+}
+
 /// Bit mask to filter executable bits (`--x--x--x`).
 pub const EXEC_MASK: u32 = 0b001_001_001;
 

@@ -77,10 +77,16 @@ impl CopyPermissions {
 
     /// Apply these permissions to whatever `path` names, following a final
     /// symlink as [`fs::set_permissions`] does. WASI refuses one instead.
+    ///
+    /// A target that is a hardlink shares its inode with the file it was
+    /// linked from, so a mode change here may change that file's mode too.
+    /// The change runs under the linkability map's lock, which drops the
+    /// inode's remembered answer, so the next import reads the new mode
+    /// rather than trusting the old one (pnpm/pnpm#17500).
     pub fn apply_to_path(&self, path: &Path) -> io::Result<()> {
         #[cfg(not(target_os = "wasi"))]
         {
-            fs::set_permissions(path, self.0.clone())
+            crate::file_mode::with_mode_change(path, || fs::set_permissions(path, self.0.clone()))
         }
         #[cfg(target_os = "wasi")]
         {

@@ -770,9 +770,7 @@ fn eexist_does_not_align_hardlinked_target_sharing_store_inode() {
 
 /// pnpm/pnpm#17500: a store blob's mode belongs to the blob, not to the
 /// target it is linked to, so one blob linked into three packages is
-/// `stat`ed once. Before the cache this cost one `statx` per link — 66,898
-/// extra on the 67,068-file install in the report, and 639 `statx` calls
-/// on a single `LICENSE` blob.
+/// `stat`ed once rather than once per link.
 #[test]
 #[cfg(unix)]
 fn hardlink_stats_a_shared_store_blob_once() {
@@ -782,7 +780,7 @@ fn hardlink_stats_a_shared_store_blob_once() {
     let desired = pnpm_fs::file_mode::store_entry_mode(false, pnpm_fs::file_mode::current_umask());
     let src = write_source(tmp.path(), STORE_ENTRY, b"data\n");
     fs::set_permissions(&src, fs::Permissions::from_mode(desired)).unwrap();
-    let before = super::super::target_mode::source_mode_stats();
+    let before = super::source_mode_stats();
 
     for package in ["a", "b", "c"] {
         let dst = tmp
@@ -796,8 +794,51 @@ fn hardlink_stats_a_shared_store_blob_once() {
     }
 
     assert_eq!(
-        super::super::target_mode::source_mode_stats() - before,
+        super::source_mode_stats() - before,
         1,
         "three links of one blob must ask the filesystem for its mode once",
+    );
+}
+
+/// pnpm/pnpm#17500: `cmd-shim` widens a bin target to `0o755` through
+/// [`pnpm_fs::CopyPermissions::apply_to_path`], and a target that is a
+/// hardlink shares its inode with the store entry, so the widening reaches
+/// the entry. The linkability remembered for that entry must not outlive
+/// the change: the next package to import the blob would otherwise get an
+/// executable file where a store write would have given it a plain one.
+#[test]
+#[cfg(unix)]
+fn a_mode_change_through_a_hardlink_is_read_again() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let tmp = tempdir().unwrap();
+    let desired = pnpm_fs::file_mode::store_entry_mode(false, pnpm_fs::file_mode::current_umask());
+    let src = write_source(tmp.path(), STORE_ENTRY, b"data\n");
+    fs::set_permissions(&src, fs::Permissions::from_mode(desired)).unwrap();
+
+    let bin = tmp.path().join("a/node_modules/lib/cli.js");
+    fs::create_dir_all(bin.parent().unwrap()).unwrap();
+    link_file::<SilentReporter>(&AtomicU8::new(0), PackageImportMethod::Hardlink, &src, &bin)
+        .expect("a mode-matching store file is hardlinked");
+    assert_eq!(super::inode(&src), super::inode(&bin), "the store inode is shared");
+
+    pnpm_fs::CopyPermissions::from_mode(0o755)
+        .apply_to_path(&bin)
+        .expect("a bin target is widened");
+    assert_eq!(
+        super::mode(&src),
+        0o755,
+        "the chmod went through the shared inode, as cmd-shim's does",
+    );
+
+    let other = tmp.path().join("b/node_modules/lib/index.js");
+    fs::create_dir_all(other.parent().unwrap()).unwrap();
+    link_file::<SilentReporter>(&AtomicU8::new(0), PackageImportMethod::Hardlink, &src, &other)
+        .expect("the blob is materialized for the next package");
+
+    assert_eq!(
+        super::mode(&other),
+        desired,
+        "the widened blob is copied at the mode a store write would give it",
     );
 }
