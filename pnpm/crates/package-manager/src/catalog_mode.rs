@@ -49,6 +49,8 @@ pub struct CatalogModeDep<'a> {
     /// `catalog:` / `catalog:<name>` when the manifest already references a
     /// catalog and is staying that way.
     pub bare_specifier: &'a str,
+    /// The dist-tag `pnpm add` was asked for, such as `legacy` in
+    /// `foo@legacy`.
     pub(crate) requested_dist_tag: Option<&'a str>,
     /// The specifier already recorded in the manifest, consulted to
     /// preserve a named catalog group (`catalog:<name>`). `None` for a
@@ -167,28 +169,12 @@ fn decide_catalog_entry(
     // reads best exactly as `pnpm-workspace.yaml` writes it.
     let entry = match resolve_from_catalog(catalogs, &wanted, CatalogAnchor::AsWritten) {
         CatalogResolutionResult::Found(found) => found.resolution.specifier,
-        _ => {
-            return Ok(CatalogDecisionOutcome {
-                decision: CatalogDecision::Catalog {
-                    manifest_specifier: catalog_specifier,
-                    updated_entry: Some(CatalogEntry {
-                        catalog_name: catalog_name.to_string(),
-                        specifier: dep.bare_specifier.to_string(),
-                    }),
-                },
-                warning: None,
-            });
-        }
+        _ => return Ok(write_catalog_entry(dep, catalog_name, catalog_specifier)),
     };
 
+    // An entry that names the requested dist-tag is replaced like a missing one.
     if dep.requested_dist_tag == Some(entry.as_str()) {
-        return Ok(CatalogDecisionOutcome {
-            decision: CatalogDecision::Catalog {
-                manifest_specifier: catalog_specifier,
-                updated_entry: None,
-            },
-            warning: None,
-        });
+        return Ok(write_catalog_entry(dep, catalog_name, catalog_specifier));
     }
 
     if catalog_covers(&entry, dep.bare_specifier) {
@@ -204,6 +190,23 @@ fn decide_catalog_entry(
     }
 
     catalog_mismatch(catalog_mode, dep, prefix, &entry)
+}
+
+fn write_catalog_entry(
+    dep: &CatalogModeDep<'_>,
+    catalog_name: &str,
+    catalog_specifier: String,
+) -> CatalogDecisionOutcome {
+    CatalogDecisionOutcome {
+        decision: CatalogDecision::Catalog {
+            manifest_specifier: catalog_specifier,
+            updated_entry: Some(CatalogEntry {
+                catalog_name: catalog_name.to_string(),
+                specifier: dep.bare_specifier.to_string(),
+            }),
+        },
+        warning: None,
+    }
 }
 
 fn catalog_mismatch(

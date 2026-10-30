@@ -63,12 +63,13 @@ pub(super) async fn resolve_added_dependency(
         prev_specifier.as_deref(),
         package_selector,
     )?;
+    let dist_tag = super::registry::requested_dist_tag(
+        package_selector,
+        Some(inputs.add.config.default_tag()),
+    );
     if let Some(picked) = picked
         .as_ref()
-        .filter(|_| {
-            super::registry::dist_tag(package_selector, Some(inputs.add.config.default_tag()))
-                .is_some()
-        })
+        .filter(|_| dist_tag.is_some_and(|tag| tag != "latest"))
     {
         pin_catalog_entry(&mut updated_catalogs, package_name, &picked.version);
     }
@@ -109,7 +110,7 @@ fn resolve_catalog_and_warnings(
         &CatalogModeDep {
             alias: package_name,
             bare_specifier: &bare_specifier,
-            requested_dist_tag: super::registry::requested_dist_tag(package_selector),
+            requested_dist_tag: super::registry::requested_dist_tag(package_selector, None),
             prev_specifier,
         },
         inputs.prefix,

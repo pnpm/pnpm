@@ -208,26 +208,15 @@ pub(super) fn is_registry_style_specifier(
     parse_bare_specifier(specifier, Some(package_name), "latest", registry)
         .is_some_and(|parsed| parsed.normalized_bare_specifier.is_none())
 }
-pub(super) fn dist_tag<'a>(
+/// The dist-tag `package_selector` requests, such as `legacy` in
+/// `foo@legacy`, or `default_tag` when it names no version.
+pub(super) fn requested_dist_tag<'a>(
     package_selector: &'a str,
     default_tag: Option<&'a str>,
-) -> Option<&'a str> {
-    selector_dist_tag(package_selector, default_tag, false)
-}
-pub(super) fn requested_dist_tag(package_selector: &str) -> Option<&str> {
-    selector_dist_tag(package_selector, None, true)
-}
-fn selector_dist_tag<'a>(
-    package_selector: &'a str,
-    default_tag: Option<&'a str>,
-    include_latest: bool,
 ) -> Option<&'a str> {
     pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency(package_selector).alias?;
     let specifier = super::specifier::split_name_spec(package_selector).1
         .filter(|specifier| !specifier.is_empty())
         .or(default_tag)?;
-    ((include_latest || specifier != "latest")
-        && !specifier.contains(':')
-        && node_semver::Range::parse(specifier).is_err())
-    .then_some(specifier)
+    (!specifier.contains(':') && node_semver::Range::parse(specifier).is_err()).then_some(specifier)
 }
