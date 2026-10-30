@@ -432,6 +432,19 @@ fn update_gitignore(
         Err(error) if error.kind() == io::ErrorKind::NotFound => String::new(),
         Err(source) => return Err(io_error(source)),
     };
+    let updated = updated_gitignore(&existing, kept, pruned);
+    if updated == existing {
+        return Ok(());
+    }
+    if updated.is_empty() {
+        return fs::remove_file(path).map_err(io_error);
+    }
+    fs::write(path, updated).map_err(io_error)
+}
+
+/// `existing` without the rules of `pruned` and the legacy rule, followed
+/// by the rules of `kept` it lacks.
+fn updated_gitignore(existing: &str, kept: &BTreeSet<String>, pruned: &BTreeSet<String>) -> String {
     let mut lines: Vec<&str> = existing
         .lines()
         .filter(|line| {
@@ -449,17 +462,10 @@ fn update_gitignore(
         .filter(|rule| !present.contains(rule))
         .collect();
     lines.extend(missing);
-    let updated: String = lines
+    lines
         .iter()
         .flat_map(|line| [*line, "\n"])
-        .collect();
-    if updated == existing {
-        return Ok(());
-    }
-    if updated.is_empty() {
-        return fs::remove_file(path).map_err(io_error);
-    }
-    fs::write(path, updated).map_err(io_error)
+        .collect()
 }
 
 /// The `.gitignore` rule that matches exactly the entry `name` of its

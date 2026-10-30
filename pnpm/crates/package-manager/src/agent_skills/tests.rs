@@ -243,7 +243,7 @@ fn prunes_only_recorded_links() {
 
     assert!(skills.join("replaced").exists());
     assert!(skills.join("hand-written").exists());
-    assert!(root.path().join("outside").exists(),);
+    assert!(root.path().join("outside").exists());
 }
 
 #[cfg(unix)]
@@ -293,7 +293,7 @@ fn unlists_pruned_entries_from_the_gitignore() {
         sync(root.path(), &lockfile, &config(&[("foo", true), ("bar", true)], None), &[], None)
             .unwrap()
             .linked;
-    assert_eq!(fs::read_to_string(skills.join(".gitignore")).unwrap(), "local-*\n/guide\n/lint\n",);
+    assert_eq!(fs::read_to_string(skills.join(".gitignore")).unwrap(), "local-*\n/guide\n/lint\n");
 
     sync(root.path(), &lockfile, &config(&[("foo", true)], None), &linked, None).unwrap();
     assert_eq!(fs::read_to_string(skills.join(".gitignore")).unwrap(), "local-*\n/guide\n");
@@ -316,7 +316,7 @@ fn removes_a_gitignore_left_empty() {
         !root
             .path()
             .join(".claude/skills/.gitignore")
-            .exists()
+            .exists(),
     );
 }
 
