@@ -164,6 +164,31 @@ test('linkBins() keeps or rewrites the NODE_PATH of an existing bin according to
   expect(projectWithoutExtras.entries[0]).toMatch(/\/vendor$/)
 })
 
+test('linkBins() rewrites a bin whose NODE_PATH lists a former real location of its package', async () => {
+  const warn = jest.fn()
+  const root = temporaryDirectory()
+  const simpleSource = path.join(testFixtures.prepare('simple-fixture'), 'node_modules', 'simple')
+  for (const version of ['v1', 'v2']) {
+    fs.cpSync(simpleSource, path.join(root, version, 'node_modules', 'simple'), { recursive: true })
+  }
+  const link = path.join(root, 'link')
+  fs.symlinkSync(path.join(root, 'v1'), link, 'junction')
+  const binTarget = temporaryDirectory()
+  const binLocation = path.join(binTarget, 'simple')
+  const extraNodePaths = [path.join(link, 'node_modules', '.pnpm', 'node_modules')]
+
+  await linkBins(path.join(link, 'node_modules'), binTarget, { warn, extraNodePaths })
+  expect(nodePathEntries(fs.readFileSync(binLocation, 'utf8'))).toContainEqual(expect.stringMatching(/\/v1\/node_modules$/))
+
+  fs.rmSync(link)
+  fs.symlinkSync(path.join(root, 'v2'), link, 'junction')
+  await linkBins(path.join(link, 'node_modules'), binTarget, { warn, extraNodePaths })
+
+  const entries = nodePathEntries(fs.readFileSync(binLocation, 'utf8'))
+  expect(entries).toContainEqual(expect.stringMatching(/\/v2\/node_modules$/))
+  expect(entries).not.toContainEqual(expect.stringMatching(/\/v1\//))
+})
+
 test('linkBins() keeps an existing bin whose shim is larger than 4 KiB', async () => {
   const binTarget = temporaryDirectory()
   const warn = jest.fn()

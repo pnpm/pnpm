@@ -87,15 +87,18 @@ function isShimForMissingTarget (shimContent: string): boolean {
 }
 
 /**
- * Check whether a shell shim's `NODE_PATH` matches expectations.
+ * Check whether a shell shim's `NODE_PATH` matches expectations: it starts
+ * with `first`, lists `middle` as one consecutive run, and ends with `last`.
  */
-function isShimNodePath (shimContent: string, expected: { first?: string, last?: string[] }): boolean {
+function isShimNodePath (shimContent: string, expected: { first?: string, middle?: string[], last?: string[] }): boolean {
   const first = expected.first == null ? '' : normalizePathEnvVar([expected.first]).posix
+  const middle = normalizePathEnvVar(expected.middle).posix
   const last = normalizePathEnvVar(expected.last).posix
   const value = readShNodePath(shimContent)
   if (value == null) return first === '' && last === ''
   return (first !== '' || last !== '') &&
     (first === '' || value === first || value.startsWith(`${first}:`)) &&
+    (middle === '' || `:${value}:`.includes(`:${middle}:`)) &&
     (last === '' || value === last || value.endsWith(`:${last}`))
 }
 
