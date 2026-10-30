@@ -10,7 +10,8 @@
 //!   newest build on a prerelease channel such as `nightly`).
 //! - `lts` — the newest entry tagged with any LTS codename.
 //! - An LTS codename (`argon`, `iron`, ...) — `*` within that codename.
-//! - A semver range — pick the [`max_satisfying`] version.
+//! - A semver range — pick the [`max_satisfying`] version, preferring
+//!   stable versions over prereleases.
 
 use std::sync::Arc;
 
@@ -260,15 +261,16 @@ fn is_dist_tag(selector: &str) -> bool {
 
 fn max_satisfying(versions: &[String], range: &str) -> Option<String> {
     let parsed_range = Range::parse(range).ok()?;
-    let mut best: Option<(Version, String)> = None;
+    let mut best: Option<((bool, Version), String)> = None;
     for version in versions {
         let Ok(parsed) = Version::parse(version) else { continue };
         if !satisfies_with_prereleases(&parsed, &parsed_range) {
             continue;
         }
+        let rank = (parsed.pre_release.is_empty(), parsed);
         match &best {
-            Some((current, _)) if current >= &parsed => {}
-            _ => best = Some((parsed, version.clone())),
+            Some((current, _)) if current >= &rank => {}
+            _ => best = Some((rank, version.clone())),
         }
     }
     best.map(|(_, raw)| raw)
