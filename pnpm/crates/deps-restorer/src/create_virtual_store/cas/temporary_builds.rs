@@ -116,8 +116,10 @@ fn candidates(
                         .and_then(|files| immutable_download(files, key))
                         .is_none()
                     || (fetched.requires_build_by_snapshot.get(key) == Some(&true)
-                        && installer.ctx.allow_build_policy.check(&key.without_peer().to_string())
-                            != Some(true))
+                        && (installer.ctx.allow_build_policy.check(
+                            &key.without_peer().to_string(),
+                        ) != Some(true)
+                            || !installer.ctx.allow_build_policy.caches_build(key)))
             })
         {
             continue;

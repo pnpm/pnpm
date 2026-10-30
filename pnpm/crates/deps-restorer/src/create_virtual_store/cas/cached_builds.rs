@@ -1,6 +1,6 @@
 use super::{CreateVirtualStoreOutput, immutable_download, retain_dependency_closure};
 use pnpm_lockfile::{PackageKey, SnapshotEntry};
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 struct CachedBuildInputs<'a> {
     selected: &'a mut HashMap<PackageKey, SnapshotEntry>,
@@ -101,4 +101,24 @@ pub(super) fn retain(
         engine_name: context.linker.layout.engine_name(),
     }
     .retain()
+}
+
+/// Adds an overlay of the pristine files for each empty side-effects row
+/// in `fetched`, so a build that changed nothing in its package loads
+/// from CAS without running again.
+///
+/// Only the loaded linker restores such a build. The other linkers drop
+/// the row and rebuild, so a script whose effect lands outside its
+/// package runs in every project (pnpm/pnpm#14717). The loaded linker
+/// leaves that to `sideEffectsCache.exclude`.
+pub(super) fn restore_empty_builds(fetched: &mut CreateVirtualStoreOutput) {
+    let Some(downloaded) = fetched.cas_paths_by_pkg_id.as_ref() else { return };
+    for (key, rows) in &fetched.side_effects.diffs {
+        let Some(files) = immutable_download(downloaded, key) else { continue };
+        for (cache_key, _) in rows.iter().filter(|(_, diff)| diff.is_empty()) {
+            Arc::make_mut(fetched.side_effects.maps.entry(key.clone()).or_default())
+                .entry(cache_key.clone())
+                .or_insert_with(|| (*files.cas_paths).clone().into());
+        }
+    }
 }

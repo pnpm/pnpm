@@ -164,7 +164,6 @@ fn loaded_filesystem_packages_are_materialized_without_an_exclusion() {
 #[test]
 fn loaded_incompatible_build_outputs_are_retained_without_rebuilding() {
     let mut cases = vec![
-        ("empty", ""),
         (
             "native",
             "fs.writeFileSync('built.json', '42'); fs.writeFileSync('binding.node', 'native')",
@@ -373,4 +372,61 @@ fn loaded_temporary_build_keeps_excluded_packages_materialized() {
     );
     let excluded = &packages["@pnpm.e2e/pkg-with-1-dep@100.0.0"];
     assert!(Path::new(excluded["root"].as_str().unwrap()).is_dir());
+}
+
+#[test]
+fn loaded_build_without_package_changes_is_shared_between_projects_unless_excluded() {
+    for exclude in [false, true] {
+        let fixture = loaded_build_fixture(
+            &serde_json::json!({
+                "name": "outside-build", "version": "1.0.0",
+                "scripts": {"postinstall": r#"node -e "require('node:fs').appendFileSync(process.env.INIT_CWD + '/build-count', 'x')""#}
+            }),
+            &serde_json::json!({"dependencies": {"outside-build": "file:dep.tgz"}}),
+            "allowBuilds:\n  'outside-build@file:dep.tgz': true\n",
+        );
+        if exclude {
+            let yaml = fixture.workspace.join("pnpm-workspace.yaml");
+            let config = fs::read_to_string(&yaml).unwrap().replace(
+                "sideEffectsCache: true\n",
+                "sideEffectsCache:\n  read: true\n  write: true\n  exclude:\n    - outside-build\n",
+            );
+            fs::write(yaml, config).unwrap();
+        }
+        let second = fixture.root.path().join("second");
+        fs::create_dir(&second).unwrap();
+        for file in [".npmrc", "pnpm-workspace.yaml", "package.json", "dep.tgz"] {
+            fs::copy(fixture.workspace.join(file), second.join(file)).unwrap();
+        }
+        fixture.pacquet
+            .with_arg("install")
+            .assert()
+            .success();
+        Command::cargo_bin("pnpm")
+            .unwrap()
+            .with_current_dir(&second)
+            .with_arg("install")
+            .assert()
+            .success();
+        for project in [&fixture.workspace, &second] {
+            let manifest: Value = serde_json::from_slice(
+                &fs::read(project.join("node_modules/.pnpm/.store-manifest.json")).unwrap(),
+            )
+            .unwrap();
+            let (_, package) = manifest["packages"]
+                .as_object()
+                .unwrap()
+                .iter()
+                .find(|(key, _)| key.starts_with("outside-build@"))
+                .unwrap();
+            dbg!(exclude, package);
+            assert_eq!(package["root"].is_string(), exclude);
+            assert_eq!(package["files"].get("index.js").is_some(), !exclude);
+        }
+        assert_eq!(fs::read_to_string(fixture.workspace.join("build-count")).unwrap(), "x");
+        assert_eq!(
+            fs::read_to_string(second.join("build-count")).ok().as_deref(),
+            exclude.then_some("x"),
+        );
+    }
 }
