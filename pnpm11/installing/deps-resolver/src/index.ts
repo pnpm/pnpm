@@ -296,21 +296,34 @@ function getUpdatedCatalogs (
 function * getCatalogUpdatesOfProject (
   project: ResolveImporter,
   resolvedImporter: ResolvedImporters[string]
-): Generator<{ alias: string, catalogName: string, spec: string }> {
+): Generator<CatalogUpdate> {
   for (let index = 0; index < resolvedImporter.directDependencies.length; index++) {
     if (!wantedDepShouldUpdateCatalog(project.wantedDependencies[index])) continue
-    const dep = resolvedImporter.directDependencies[index]
-    if (dep.catalogLookup == null) continue
-    // If normalizedBareSpecifier isn't defined, this catalog entry was resolved from cache.
-    // Avoid updating the updatedCatalogs map since it is likely unchanged.
-    if (dep.normalizedBareSpecifier == null) continue
-    yield {
-      alias: dep.alias,
-      catalogName: dep.catalogLookup.catalogName,
-      spec: isExplicitDistTagSpecifier(dep.wantedDependency?.bareSpecifier)
-        ? dep.version
-        : dep.normalizedBareSpecifier,
-    }
+    const update = getCatalogUpdateOfDependency(resolvedImporter.directDependencies[index])
+    if (update != null) yield update
+  }
+}
+
+interface CatalogUpdate {
+  alias: string
+  catalogName: string
+  spec: string
+}
+
+function getCatalogUpdateOfDependency (
+  dep: ResolvedImporters[string]['directDependencies'][number]
+): CatalogUpdate | undefined {
+  if (dep.catalogLookup == null) return undefined
+  // If normalizedBareSpecifier isn't defined, this catalog entry was resolved from cache.
+  // Avoid updating the updatedCatalogs map since it is likely unchanged.
+  if (dep.normalizedBareSpecifier == null) return undefined
+  if (isCatalogDistTagEntry(dep.wantedDependency?.bareSpecifier, dep.catalogLookup.specifier)) return undefined
+  return {
+    alias: dep.alias,
+    catalogName: dep.catalogLookup.catalogName,
+    spec: isExplicitDistTagSpecifier(dep.wantedDependency?.bareSpecifier)
+      ? dep.version
+      : dep.normalizedBareSpecifier,
   }
 }
 
@@ -392,7 +405,20 @@ function createWaitTillAllFetchingsFinish (resolvedPkgsById: ResolvedPkgsById): 
 }
 
 function isExplicitDistTagSpecifier (bareSpecifier: string | undefined): boolean {
-  return bareSpecifier != null && bareSpecifier !== 'latest' && !bareSpecifier.includes(':') && semver.validRange(bareSpecifier) == null
+  return bareSpecifier != null && bareSpecifier !== 'latest' && isDistTag(bareSpecifier)
+}
+
+/**
+ * Whether the dependency resolved through a catalog entry that is a dist-tag, such as
+ * `beta`. The entry already says what to follow, so it is not rewritten to the version
+ * the tag points to today.
+ */
+function isCatalogDistTagEntry (bareSpecifier: string | undefined, catalogEntry: string): boolean {
+  return bareSpecifier === catalogEntry && isDistTag(bareSpecifier)
+}
+
+function isDistTag (bareSpecifier: string): boolean {
+  return !bareSpecifier.includes(':') && semver.validRange(bareSpecifier) == null
 }
 
 function treeHasLockedPeerContexts (dependenciesTree: DependenciesTree<ResolvedPackage>): boolean {

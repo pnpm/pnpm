@@ -404,6 +404,19 @@ fn a_bare_workspace_add_uses_the_local_package_and_saved_protocol_setting() {
     }
 }
 
+#[test]
+fn a_workspace_add_at_a_dist_tag_keeps_the_local_package_over_a_matching_catalog_entry() {
+    const LIB: &str = "@pnpm.e2e/ws-tagged";
+    let settings =
+        format!("{}catalogMode: prefer\ncatalog:\n  '{LIB}': legacy\n", linking_settings(None));
+    let (root, app_dir) =
+        workspace_with_lib(&settings, &[(LIB, "1.2.3")], "packages/app/package.json");
+    add_in(&app_dir, &format!("{LIB}@legacy"));
+
+    assert_eq!(saved_spec(&app_dir, LIB).as_deref(), Some("workspace:^"));
+    drop(root);
+}
+
 /// `workspace:<target>@<range>` installs `<target>` under the name the
 /// selector gave, so the saved specifier has to keep naming the target —
 /// dropping it would leave a `workspace:` entry pointing at the install
