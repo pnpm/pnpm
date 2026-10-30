@@ -382,6 +382,7 @@ pub(crate) fn is_global(command: &CliCommand) -> bool {
         CliCommand::Env(args) => args.global,
         CliCommand::List(args) | CliCommand::Ll(args) => args.global,
         CliCommand::Outdated(args) => args.global,
+        CliCommand::Peers(args) => args.global,
         CliCommand::Prefix(args) => args.global,
         CliCommand::Remove(args) => args.global,
         CliCommand::Root(args) => args.global,

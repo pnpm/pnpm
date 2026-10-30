@@ -59,6 +59,7 @@ impl CliArgs {
     /// path fails with a proper diagnostic in [`Self::run`], and the
     /// reporter only uses it to shorten the paths it prints.
     pub fn configure_reporter(&self) {
+        pnpm_default_reporter::set_is_global(super::pre_command::is_global(&self.command));
         if let Some(color) = self.output.presentation.color.or_else(|| {
             self.output.presentation.no_color.then_some(ColorMode::Never)
         }) {

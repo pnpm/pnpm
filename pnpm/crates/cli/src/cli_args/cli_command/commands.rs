@@ -322,6 +322,7 @@ impl CliCommand {
             CliCommand::Set(args) => args.flags.is_global(),
             CliCommand::List(args) | CliCommand::Ll(args) => args.global,
             CliCommand::Outdated(args) => args.global,
+            CliCommand::Peers(args) => args.global,
             CliCommand::Prefix(args) => args.global,
             CliCommand::Remove(args) => args.global,
             CliCommand::Root(args) => args.global,

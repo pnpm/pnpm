@@ -348,7 +348,11 @@ impl ReporterState {
             self.rendering.colors,
             &mut self.display.frame,
             self.options.append_only,
-            r#"Issues with peer dependencies found. Run "pnpm peers check" to list them."#,
+            if self.options.scope.is_global {
+                r#"Issues with peer dependencies found. Run "pnpm peers check -g" to list them."#
+            } else {
+                r#"Issues with peer dependencies found. Run "pnpm peers check" to list them."#
+            },
         );
     }
 }

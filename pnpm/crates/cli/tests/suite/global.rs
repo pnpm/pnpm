@@ -1472,3 +1472,6 @@ mod ownership;
 
 #[cfg(unix)]
 mod virtual_store;
+
+#[cfg(unix)]
+mod peers;

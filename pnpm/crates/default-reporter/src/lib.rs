@@ -50,6 +50,7 @@ static HIDE_ADDED_PKGS_PROGRESS: OnceLock<bool> = OnceLock::new();
 static STREAM_LIFECYCLE_OUTPUT: OnceLock<bool> = OnceLock::new();
 static AGGREGATE_OUTPUT: OnceLock<bool> = OnceLock::new();
 static HIDE_LIFECYCLE_PREFIX: OnceLock<bool> = OnceLock::new();
+static IS_GLOBAL: OnceLock<bool> = OnceLock::new();
 static IS_RECURSIVE: OnceLock<bool> = OnceLock::new();
 static MAX_LOG_LEVEL: OnceLock<MaxLogLevel> = OnceLock::new();
 
@@ -73,6 +74,11 @@ pub enum SummaryScope {
     CurrentPrefix,
     /// Include events from every prefix, used by global install groups.
     AllPrefixes,
+}
+
+/// Whether the command operates on global packages. Call before the first event.
+pub fn set_is_global(is_global: bool) {
+    let _ = IS_GLOBAL.set(is_global);
 }
 
 /// Set the project root the reporter renders paths relative to. Call once
@@ -500,6 +506,7 @@ fn reporter_options(append_only: bool) -> state::ReporterOptions {
                 .copied()
                 .unwrap_or(SummaryScope::CurrentPrefix),
             reports_scope: REPORTS_SCOPE.get().is_some_and(|value| *value),
+            is_global: IS_GLOBAL.get().is_some_and(|value| *value),
             recursive: IS_RECURSIVE.get().is_some_and(|value| *value),
         },
         ..state::ReporterOptions::default()
