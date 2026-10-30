@@ -128,6 +128,7 @@ test('global update emits a single summary after updating all isolated groups', 
     pkgs: [],
     binsToSkip: new Set(),
     requiredBinNames: new Set(['fresh']),
+    nodePathOptions: expect.any(Object),
   })
   expect(activateGlobalInstall).toHaveBeenNthCalledWith(2, {
     installDir: '/global/v11/install-2',
@@ -136,6 +137,7 @@ test('global update emits a single summary after updating all isolated groups', 
     pkgs: [],
     binsToSkip: new Set(),
     requiredBinNames: new Set(['fresh']),
+    nodePathOptions: expect.any(Object),
   })
   expect(cleanupReplacedGlobalInstalls).toHaveBeenNthCalledWith(1, {
     groups: [{ info: groups[0], binNames: [] }],

@@ -1,4 +1,4 @@
-use super::{PublishArgs, PublishFlags, run_publish_scripts};
+use super::{PublishArgs, PublishFlags, configured_publish_branch, run_publish_scripts};
 use crate::{
     boolean_values::resolve_boolean_values,
     cli_args::{CliArgs, cli_command::CliCommand},
@@ -60,6 +60,13 @@ fn should_ignore_scripts_ors_the_flag_with_the_config() {
             .should_ignore_scripts(&config_off),
     );
     assert!(publish_args().should_ignore_scripts(&config_on));
+}
+
+#[test]
+fn publish_branch_flag_overrides_the_workspace_setting() {
+    let config = Config { publish_branch: Some("production".to_owned()), ..Config::default() };
+    assert_eq!(configured_publish_branch(None, &config), Some("production"));
+    assert_eq!(configured_publish_branch(Some("release"), &config), Some("release"));
 }
 
 #[test]

@@ -1,3 +1,5 @@
+import path from 'node:path'
+
 import { beforeEach, expect, it, jest } from '@jest/globals'
 import { PnpmError } from '@pnpm/error'
 
@@ -17,6 +19,16 @@ it('throws an error if called without arguments', async () => {
     dir: process.cwd(),
   }, [])).rejects.toThrow(PnpmError)
   expect(dlx.handler).not.toHaveBeenCalled()
+})
+
+it('passes the directory selected on the command line to dlx', async () => {
+  const cliOptions = { dir: path.resolve('target') }
+  await create.handler({
+    ...DEFAULT_OPTS,
+    cliOptions,
+    dir: process.cwd(),
+  }, ['some-app'])
+  expect(dlx.handler).toHaveBeenCalledWith(expect.objectContaining({ cliOptions }), ['create-some-app'], undefined)
 })
 
 it(

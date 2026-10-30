@@ -681,6 +681,41 @@ fn detached_tag_publish_in_ci_preserves_git_checks() {
     assert!(stderr.contains("ERR_PNPM_GIT_UNCLEAN"), "stderr: {stderr}");
 }
 
+#[test]
+fn publish_branch_setting_allows_publishing_from_that_branch() {
+    let dir = tempfile::tempdir().unwrap();
+    write_project(
+        dir.path(),
+        "http://127.0.0.1:1/",
+        &json!({
+            "name": "test-publish-branch-setting", "version": "1.0.0",
+        }),
+    );
+    fs::write(dir.path().join("pnpm-workspace.yaml"), "publishBranch: production\n").unwrap();
+    pnpm_testing_utils::git_repo::init_isolated_repo(dir.path());
+    for args in
+        [vec!["add", "."], vec!["commit", "-m", "init"], vec!["checkout", "-b", "production"]]
+    {
+        Command::new("git")
+            .with_current_dir(dir.path())
+            .with_args(args)
+            .assert()
+            .success();
+    }
+
+    pacquet(dir.path())
+        .with_args(["publish", "--dry-run"])
+        .assert()
+        .success();
+
+    let rejected = pacquet(dir.path())
+        .with_args(["publish", "--dry-run", "--publish-branch", "release"])
+        .assert()
+        .failure();
+    let stderr = String::from_utf8_lossy(&rejected.get_output().stderr);
+    assert!(stderr.contains("ERR_PNPM_GIT_NOT_CORRECT_BRANCH"), "stderr: {stderr}");
+}
+
 #[cfg(unix)]
 #[test]
 fn publish_rejects_refused_head_metadata_in_ci() {

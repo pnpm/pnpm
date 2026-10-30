@@ -148,6 +148,31 @@ fn hardlink_mode_match_shares_the_store_inode() {
     );
 }
 
+/// pnpm/pnpm#17500: the mode check stats a store entry once, not once per
+/// link. A mode that changes after the first link is not seen, so the
+/// second link still shares the inode.
+#[test]
+#[cfg(unix)]
+fn hardlink_reuses_a_store_entry_mode_check() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let tmp = tempdir().unwrap();
+    let desired =
+        pnpm_fs::file_mode::store_entry_mode(false, pnpm_fs::file_mode::current_umask()).mode();
+    let src = write_source(tmp.path(), STORE_ENTRY, b"data\n");
+    fs::set_permissions(&src, fs::Permissions::from_mode(desired)).unwrap();
+    let first = tmp.path().join("first.txt");
+    link_file::<SilentReporter>(&AtomicU8::new(0), PackageImportMethod::Hardlink, &src, &first)
+        .expect("a mode-matching store file is hardlinked");
+
+    fs::set_permissions(&src, fs::Permissions::from_mode(desired ^ 0o001)).unwrap();
+    let second = tmp.path().join("second.txt");
+    link_file::<SilentReporter>(&AtomicU8::new(0), PackageImportMethod::Hardlink, &src, &second)
+        .expect("the store file is hardlinked again");
+
+    assert_eq!(super::inode(&src), super::inode(&second), "the store inode is shared");
+}
+
 /// pnpm/pnpm#16677: a group-writable store entry differs from the
 /// umask's mode only in group-write, which the store directory grants, so
 /// it is still hardlinked.

@@ -22,7 +22,7 @@ fn catalogs(entries: &[(&str, &[(&str, &str)])]) -> Catalogs {
 
 /// A freshly-added direct dependency (no previous specifier).
 fn dep<'a>(alias: &'a str, bare_specifier: &'a str) -> CatalogModeDep<'a> {
-    CatalogModeDep { alias, bare_specifier, prev_specifier: None }
+    CatalogModeDep { alias, bare_specifier, requested_dist_tag: None, prev_specifier: None }
 }
 
 fn decide(
@@ -126,6 +126,30 @@ fn strict_keeps_a_catalog_entry_that_already_names_the_wanted_version() {
             updated_entry: None
         },
     );
+}
+
+#[test]
+fn strict_keeps_a_catalog_entry_naming_the_requested_dist_tag() {
+    let catalogs = catalogs(&[("default", &[("is-positive", "legacy")])]);
+    let dependency =
+        CatalogModeDep { requested_dist_tag: Some("legacy"), ..dep("is-positive", "^2.1.0") };
+    let decision = decide(CatalogMode::Strict, &catalogs, &dependency).unwrap();
+    assert_eq!(
+        decision,
+        CatalogDecision::Catalog {
+            manifest_specifier: "catalog:".to_string(),
+            updated_entry: None,
+        },
+    );
+}
+
+#[test]
+fn a_different_requested_dist_tag_does_not_match_the_catalog_entry() {
+    let catalogs = catalogs(&[("default", &[("is-positive", "legacy")])]);
+    let dependency =
+        CatalogModeDep { requested_dist_tag: Some("next"), ..dep("is-positive", "^2.1.0") };
+    let error = decide(CatalogMode::Strict, &catalogs, &dependency).unwrap_err();
+    assert_eq!(error.catalog_dep, "is-positive@legacy");
 }
 
 #[test]
@@ -333,6 +357,7 @@ fn reinstalling_a_catalog_dependency_reuses_the_existing_entry() {
     let dep = CatalogModeDep {
         alias: "is-positive",
         bare_specifier: "catalog:",
+        requested_dist_tag: None,
         prev_specifier: Some("catalog:"),
     };
     let decision = decide(CatalogMode::Strict, &catalogs, &dep).unwrap();
@@ -355,6 +380,7 @@ fn strict_resolves_a_named_catalog_via_the_previous_specifier() {
     let dep = CatalogModeDep {
         alias: "is-positive",
         bare_specifier: "2.0.0",
+        requested_dist_tag: None,
         prev_specifier: Some("catalog:my-catalog"),
     };
     let err = decide(CatalogMode::Strict, &catalogs, &dep)

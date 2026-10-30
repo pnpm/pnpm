@@ -395,7 +395,7 @@ These settings are configured in `pnpm-workspace.yaml` as well, but are document
 
 ### Settings documented elsewhere
 
-* [publishWaitTimeout](./cli/publish.md#publishwaittimeout)
+* [publishBranch](./cli/publish.md#publishbranch) and [publishWaitTimeout](./cli/publish.md#publishwaittimeout)
 * [patchedDependencies](./cli/patch.md#patcheddependencies)
 * [pnpmfile](./pnpmfile.md#pnpmfile), [globalPnpmfile](./pnpmfile.md#globalpnpmfile) and [ignorePnpmfile](./pnpmfile.md#ignorepnpmfile)
 * [audit.level](./cli/audit.md#auditlevel), [audit.ignore](./cli/audit.md#auditignore) and [audit.ignorePrune](./cli/audit.md#auditignoreprune)

@@ -1,8 +1,9 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { getBinsToLink, linkBinsOfPackages } from '@pnpm/bins.linker'
+import { getBinsToLink, getExtraNodePaths, linkBinsOfPackages } from '@pnpm/bins.linker'
 import { removeBin } from '@pnpm/bins.remover'
+import type { Config } from '@pnpm/config.reader'
 import { isError, PnpmError } from '@pnpm/error'
 import { getHashLink, type GlobalPackageBinSnapshot } from '@pnpm/global.packages'
 import { globalWarn } from '@pnpm/logger'
@@ -12,6 +13,8 @@ import { symlinkDir } from 'symlink-dir'
 
 import { getErrorMessage } from './errorMessage.js'
 
+export type GlobalNodePathOptions = Pick<Config, 'extendNodePath' | 'hoistPattern' | 'nodeLinker'>
+
 export interface ActivateGlobalInstallOptions {
   installDir: string
   hashLink: string
@@ -19,6 +22,7 @@ export interface ActivateGlobalInstallOptions {
   pkgs: Array<{ manifest: DependencyManifest, location: string }>
   binsToSkip: Set<string>
   requiredBinNames?: Set<string>
+  nodePathOptions: GlobalNodePathOptions
 }
 
 export interface CleanupReplacedGlobalInstallsOptions {
@@ -54,7 +58,10 @@ export async function activateGlobalInstall (
     // has to write the shims whose target actually changed, which for an
     // update of the same commands is none of them.
     await swapHashLink(opts.installDir, opts.hashLink)
-    await linkBinsOfPackages(hashLinkedPkgs(opts), opts.globalBinDir, { excludeBins: opts.binsToSkip })
+    await linkBinsOfPackages(hashLinkedPkgs(opts), opts.globalBinDir, {
+      excludeBins: opts.binsToSkip,
+      extraNodePaths: getHoistedNodePaths(opts),
+    })
     await ensureRequiredBinTargets(opts.requiredBinNames, prepared.actualBins)
     await removeSlotsOfMissingBins(opts, prepared.actualBins)
   } catch (activationError) {
@@ -150,6 +157,21 @@ function hashLinkedPkgs (opts: ActivateGlobalInstallOptions): ActivateGlobalInst
   return opts.pkgs.map((pkg) => {
     if (!isSubdir(opts.installDir, pkg.location)) return pkg
     return { ...pkg, location: path.join(opts.hashLink, path.relative(opts.installDir, pkg.location)) }
+  })
+}
+
+/**
+ * The group's packages live in the global virtual store, where Node cannot
+ * walk up to the group's hidden hoisted modules directory, so the shims put
+ * it on `NODE_PATH`. It is addressed through the hash link, like the shim
+ * targets.
+ */
+function getHoistedNodePaths (opts: ActivateGlobalInstallOptions): string[] {
+  return getExtraNodePaths({
+    extendNodePath: opts.nodePathOptions.extendNodePath,
+    hoistPattern: opts.nodePathOptions.hoistPattern,
+    nodeLinker: opts.nodePathOptions.nodeLinker ?? 'isolated',
+    hoistedModulesDir: path.join(opts.hashLink, 'node_modules', '.pnpm', 'node_modules'),
   })
 }
 

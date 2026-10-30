@@ -19,13 +19,13 @@ import type { CreateStoreControllerOptions } from '@pnpm/store.connection-manage
 import { getGlobalBinOwnership } from './binOwnership.js'
 import { checkGlobalBinConflicts } from './checkGlobalBinConflicts.js'
 import { cleanupFailedGlobalInstall } from './cleanupFailedGlobalInstall.js'
-import { activateGlobalInstall, cleanupReplacedGlobalInstalls, getActualBinNames } from './globalActivation.js'
+import { activateGlobalInstall, cleanupReplacedGlobalInstalls, getActualBinNames, type GlobalNodePathOptions } from './globalActivation.js'
 import { installGlobalPackages, type ResolutionPolicyViolation } from './installGlobalPackages.js'
 import { isPnpmCliDependency, isPnpmCliOnlyGroup, selectsPnpmCli } from './pnpmCliPackages.js'
 import { promptApproveGlobalBuilds } from './promptApproveGlobalBuilds.js'
 import { type InstalledGroupPackage, readInstalledPackages } from './readInstalledPackages.js'
 
-export type GlobalAddOptions = CreateStoreControllerOptions & {
+export type GlobalAddOptions = CreateStoreControllerOptions & GlobalNodePathOptions & {
   bin?: string
   globalPkgDir?: string
   registriesByScope: Record<string, string>
@@ -197,6 +197,7 @@ async function activateGroup (
     pkgs,
     binsToSkip: plan.binsToSkip,
     requiredBinNames: plan.retainedBinNames,
+    nodePathOptions: ctx.opts,
   })
   await cleanupReplacedGlobalInstalls({
     groups: plan.existingGlobalInstalls.groups,
