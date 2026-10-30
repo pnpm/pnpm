@@ -119,6 +119,35 @@ fn careful_path_trusts_file_when_mtime_is_within_slack() {
     assert_eq!(result.files_map.len(), 1);
 }
 
+/// pnpm/pnpm#17500: a blob that passes verification hands its on-disk
+/// mode to the importer, which would otherwise `stat` it again before
+/// every hardlink.
+#[test]
+#[cfg(unix)]
+fn careful_path_records_the_mode_of_a_verified_file() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let tmp = tempdir().unwrap();
+    let store_dir = StoreDir::new(tmp.path());
+    let content = b"verified mode";
+    let digest = sha512_hex(content);
+    let path = plant_cafs_file(&store_dir, &digest, 0o644, content);
+    fs::set_permissions(&path, fs::Permissions::from_mode(0o640)).unwrap();
+    let future = now_ms() + 3_600_000;
+    let entry = index_with(
+        "sha512",
+        vec![("index.js", info(&digest, content.len() as u64, 0o644, Some(future)))],
+    );
+
+    let result = check_pkg_files_integrity(&store_dir, entry, &VerifiedFilesCache::new());
+
+    assert!(result.passed);
+    assert_eq!(
+        pnpm_fs::file_mode::observed_store_inode_mode(&path).map(|mode| mode & 0o7777),
+        Some(0o640),
+    );
+}
+
 #[test]
 fn careful_path_fails_on_missing_cafs_file() {
     let tmp = tempdir().unwrap();

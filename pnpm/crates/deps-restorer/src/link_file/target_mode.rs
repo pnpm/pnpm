@@ -1,12 +1,8 @@
 //! The mode a file materialized into `node_modules` carries.
 
-#[cfg(any(unix, target_os = "wasi"))]
-use dashmap::DashSet;
 #[cfg(unix)]
 use std::fs;
 use std::{io, path::Path};
-#[cfg(any(unix, target_os = "wasi"))]
-use std::{path::PathBuf, sync::LazyLock};
 
 /// The permissions the copy tier gives a copy of `source_file`: the
 /// store-entry mode for a store entry, or the source's own permissions.
@@ -41,23 +37,23 @@ fn desired_mode(source_file: &Path) -> Option<u32> {
 /// copy instead; a reflink that copied the same mode onto the target is
 /// aligned instead.
 ///
-/// A linkable answer is remembered for the rest of the process, so a store
-/// entry linked into many packages is stat'ed once (pnpm/pnpm#17500). A
-/// later change to the entry's mode, such as a bin's exec bit set through
-/// one of its hardlinks, does not reach the answer.
+/// The entry's mode is read at most once per process (pnpm/pnpm#17500):
+/// the store verifier records the mode of every entry it passes, and a
+/// mode read here is recorded too, so a store entry linked into many
+/// packages is not stat'ed again. A later change to the entry's mode, such
+/// as a bin's exec bit set through one of its hardlinks, does not reach
+/// the recorded mode.
 #[cfg(any(unix, target_os = "wasi"))]
 pub(super) fn source_has_desired_mode(source_file: &Path) -> io::Result<bool> {
-    static LINKABLE_SOURCES: LazyLock<DashSet<PathBuf>> = LazyLock::new(DashSet::new);
     let Some(desired) = desired_mode(source_file) else { return Ok(true) };
-    if LINKABLE_SOURCES.contains(source_file) {
-        return Ok(true);
-    }
-    let linkable =
-        pnpm_fs::file_mode::store_inode_mode_is_linkable(source_mode(source_file)?, desired);
-    if linkable {
-        LINKABLE_SOURCES.insert(source_file.to_path_buf());
-    }
-    Ok(linkable)
+    let mode = if let Some(mode) = pnpm_fs::file_mode::observed_store_inode_mode(source_file) {
+        mode
+    } else {
+        let mode = source_mode(source_file)?;
+        pnpm_fs::file_mode::record_store_inode_mode(source_file, mode);
+        mode
+    };
+    Ok(pnpm_fs::file_mode::store_inode_mode_is_linkable(mode, desired))
 }
 
 #[cfg(unix)]
