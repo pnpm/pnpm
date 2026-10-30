@@ -45,8 +45,7 @@ impl<'a> ExecTargetScanner<'a> {
         if let Some(target) = rest.strip_prefix(QUOTED_BASEDIR_ABS) {
             return sh_single_quoted_word(target);
         }
-        rest.strip_prefix(LEGACY_QUOTED_BASEDIR_ABS)
-            .and_then(legacy_double_quoted_word)
+        rest.strip_prefix(LEGACY_QUOTED_BASEDIR_ABS).and_then(legacy_double_quoted_word)
     }
 
     fn advance(&mut self) {
@@ -127,7 +126,11 @@ impl<'a> ExecTargetScanner<'a> {
     }
 
     fn current_char_len(&self) -> usize {
-        self.header[self.index..].chars().next().unwrap().len_utf8()
+        self.header[self.index..]
+            .chars()
+            .next()
+            .unwrap()
+            .len_utf8()
     }
 }
 
@@ -136,7 +139,10 @@ fn legacy_double_quoted_word(text: &str) -> Option<&str> {
     let mut index = 0;
     while index < bytes.len() {
         if bytes[index] == b'\\' {
-            index += 1 + text[index + 1..].chars().next()?.len_utf8();
+            index += 1 + text[index + 1..]
+                .chars()
+                .next()?
+                .len_utf8();
         } else if bytes[index] == b'"' {
             return Some(&text[..index]);
         } else {

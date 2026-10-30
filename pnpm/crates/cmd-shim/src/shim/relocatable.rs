@@ -168,7 +168,11 @@ fn read_legacy_sh_node_path_entry(text: &str) -> Option<(String, bool, &str)> {
     None
 }
 
-fn append_legacy_sh_node_path_character(text: &str, index: usize, entry: &mut String) -> Option<usize> {
+fn append_legacy_sh_node_path_character(
+    text: &str,
+    index: usize,
+    entry: &mut String,
+) -> Option<usize> {
     let character = text[index..].chars().next()?;
     if character != '\\' {
         if matches!(character, '$' | '`') {
