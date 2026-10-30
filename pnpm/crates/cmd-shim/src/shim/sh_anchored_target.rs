@@ -3,6 +3,11 @@ use super::relocatable::BASEDIR_ABS_PRELUDE;
 const QUOTED_BASEDIR_ABS: &str = r#""$basedir_abs"/"#;
 const LEGACY_QUOTED_BASEDIR_ABS: &str = r#""$basedir_abs/"#;
 
+/// Whether an already-on-disk POSIX shim anchors its target on the shim's
+/// physical directory exactly when `expected`, the shim this version writes,
+/// does, and climbs to it by the same relative path. The target marker names
+/// the absolute target, so it matches a shim without the anchor, and one whose
+/// relative path was computed from a physical directory that has since moved.
 #[must_use]
 pub fn is_sh_shim_basedir_anchor_current(existing: &str, expected: &str) -> bool {
     existing.contains(BASEDIR_ABS_PRELUDE) == expected.contains(BASEDIR_ABS_PRELUDE)
@@ -10,7 +15,8 @@ pub fn is_sh_shim_basedir_anchor_current(existing: &str, expected: &str) -> bool
 }
 
 fn anchored_target(shim: &str) -> Option<&str> {
-    let marker = shim.find("# cmd-shim-target=")?;
+    // The trailer is the last line; a quoted target may contain its text.
+    let marker = shim.rfind("\n# cmd-shim-target=")?;
     ExecTargetScanner::new(&shim[..marker]).find_target()
 }
 
@@ -125,8 +131,8 @@ impl<'a> ExecTargetScanner<'a> {
     }
 
     fn starts_exec_command(&self) -> bool {
-        self.header[self.line_start..self.index].trim().is_empty()
-            && self.header[self.index..].starts_with("exec ")
+        self.header[self.index..].starts_with("exec ")
+            && self.header[self.line_start..self.index].trim().is_empty()
     }
 
     fn starts_shell_comment(&self) -> bool {

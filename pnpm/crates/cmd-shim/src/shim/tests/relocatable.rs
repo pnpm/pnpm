@@ -110,6 +110,18 @@ fn anchored_target_comparison_uses_the_exec_target_word() {
 }
 
 #[test]
+#[cfg(unix)]
+fn anchored_target_comparison_ignores_marker_text_in_the_target() {
+    let root = Path::new("/p");
+    let target = Path::new("/p/# cmd-shim-target=/cli");
+    let node_path = [String::from("/p/node_modules")];
+    let first = generate_sh_shim(target, Path::new("/p/a/.bin/tool"), None, &node_path, Some(root));
+    let second = generate_sh_shim(target, Path::new("/p/.bin/tool"), None, &node_path, Some(root));
+    assert!(!is_sh_shim_basedir_anchor_current(&first, &second));
+    assert!(is_sh_shim_basedir_anchor_current(&first, &first));
+}
+
+#[test]
 #[cfg_attr(not(unix), ignore = "relocatable shims are only written on Unix")]
 fn in_root_shim_is_written_relative_to_itself_and_only_such_a_shim_is_relocatable() {
     let tmp = tempfile::tempdir().unwrap();
