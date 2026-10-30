@@ -405,6 +405,53 @@ fn global_add_materializes_transitive_optional_dependencies() {
     drop(root);
 }
 
+#[cfg(all(target_os = "linux", target_arch = "x86_64", target_env = "gnu"))]
+#[test]
+fn global_add_materializes_the_matching_platform_optional_dependency() {
+    use assert_cmd::assert::OutputAssertExt;
+
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+
+    let pnpm_home = root.path().join("pnpm-home");
+    let global_pkg_dir = pnpm_home.join("global").join("v11");
+    prepare_global_home(&pnpm_home, &npmrc_info);
+
+    global_command(&workspace, &pnpm_home)
+        .with_args(["add", "-g", "@pnpm.e2e/support-different-architectures"])
+        .assert()
+        .success();
+
+    let links = symlink_entries(&global_pkg_dir);
+    assert_eq!(links.len(), 1, "exactly one cache-keyed hash symlink should exist: {links:?}");
+    let install_dir = global_pkg_dir.join(fs::read_link(&links[0]).expect("read the hash symlink"));
+    let output = Command::new("node")
+        .args([
+            "-e",
+            "process.stdout.write(JSON.stringify(require('@pnpm.e2e/support-different-architectures').getOptionalDependencies()))",
+        ])
+        .current_dir(install_dir)
+        .output()
+        .expect("run the installed package");
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    let dependencies: serde_json::Value =
+        serde_json::from_slice(&output.stdout).expect("parse optional dependency results");
+    assert!(
+        dependencies["installed"].get("@pnpm.e2e/only-linux-x64-glibc").is_some(),
+        "the matching native dependency must resolve: {dependencies}",
+    );
+    assert!(
+        dependencies["notInstalled"]
+            .as_array()
+            .unwrap()
+            .contains(&serde_json::Value::String("@pnpm.e2e/only-linux-x64-musl".to_string())),
+        "the incompatible libc variant must remain absent: {dependencies}",
+    );
+
+    drop(npmrc_info);
+    drop(root);
+}
+
 /// `pnpm setup` installs the standalone executable through this exact
 /// command shape. Its package files include the bundled node-gyp payload,
 /// while its lifecycle scripts must remain disabled.
