@@ -60,8 +60,12 @@ pub(crate) fn upsert_dependency(
     let mut offset = section_start;
     for line in section.split_inclusive('\n') {
         if let Some(value_range) = dependency_value_range(line, name) {
-            let value_range = (offset + value_range.start)..(offset + value_range.end);
-            return replace_dependency_value(contents, value_range, name, version_spec);
+            let value_start = offset + value_range.start;
+            let value_end = match inline_table_len(&contents[value_start..]) {
+                Some(len) => value_start + len,
+                None => offset + value_range.end,
+            };
+            return replace_dependency_value(contents, value_start..value_end, name, version_spec);
         }
         offset += line.len();
     }
@@ -193,7 +197,7 @@ fn replace_dependency_value(
         replace_inline_version(value, name, version_spec)?
     } else {
         return Err(miette::miette!(
-            "cannot update crate {name}: its Cargo.toml dependency declaration is not a string or single-line inline table"
+            "cannot update crate {name}: its Cargo.toml dependency declaration is not a string or inline table"
         ));
     };
     Ok(
@@ -229,12 +233,49 @@ fn is_identifier_byte(byte: u8) -> bool {
     byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_')
 }
 
+/// Length of the inline table at the start of `value`, through its
+/// closing `}`, which may sit on a later line. `None` when `value` does
+/// not start with `{` or the table never closes.
+fn inline_table_len(value: &str) -> Option<usize> {
+    if !value.starts_with('{') {
+        return None;
+    }
+    let mut scan = InlineScan { bytes: value.as_bytes(), cursor: 0 };
+    let mut depth = 0usize;
+    while let Some(byte) = scan.peek() {
+        match byte {
+            b'"' | b'\'' => {
+                scan.take_string()?;
+                continue;
+            }
+            b'#' => {
+                scan.skip_comment();
+                continue;
+            }
+            b'{' | b'[' => depth += 1,
+            b'}' | b']' => {
+                depth = depth.checked_sub(1)?;
+                if depth == 0 {
+                    return Some(scan.cursor + 1);
+                }
+            }
+            _ => {}
+        }
+        scan.cursor += 1;
+    }
+    None
+}
+
 fn inline_version_range(value: &str) -> Option<Range<usize>> {
     let mut scan = InlineScan { bytes: value.as_bytes(), cursor: 0 };
     while let Some(byte) = scan.peek() {
-        // A quoted value may contain anything, `version =` included.
+        // A quoted value or a comment may contain anything, `version =` included.
         if matches!(byte, b'"' | b'\'') {
             scan.take_string()?;
+            continue;
+        }
+        if byte == b'#' {
+            scan.skip_comment();
             continue;
         }
         if !is_identifier_byte(byte) {
@@ -301,6 +342,16 @@ impl InlineScan<'_> {
         self.skip_whitespace();
         matches!(self.peek(), Some(b'"' | b'\''))
     }
+    /// Step to the end of the line the cursor's comment is on.
+    fn skip_comment(&mut self) {
+        while self
+            .peek()
+            .is_some_and(|byte| byte != b'\n')
+        {
+            self.cursor += 1;
+        }
+    }
+
     fn skip_whitespace(&mut self) {
         while self.peek().is_some_and(|byte| byte.is_ascii_whitespace()) {
             self.cursor += 1;
