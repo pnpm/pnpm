@@ -153,9 +153,7 @@ fn legacy_sh_node_path_entries(text: &str) -> Option<Vec<String>> {
             match character {
                 '"' => {
                     entries.push(entry);
-                    return input[index + character.len_utf8()..]
-                        .is_empty()
-                        .then_some(entries);
+                    return input[index + character.len_utf8()..].is_empty().then_some(entries);
                 }
                 ':' => {
                     entries.push(entry);
