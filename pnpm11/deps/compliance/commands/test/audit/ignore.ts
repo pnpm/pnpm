@@ -202,6 +202,7 @@ test.each([
     ...flags,
   })).rejects.toMatchObject({ code: 'ERR_PNPM_AUDIT_FIX_WITH_IGNORE', message })
 
+  expect(getMockAgent().pendingInterceptors()).toMatchObject([{ timesInvoked: 0 }])
   expect(fs.readFileSync(workspaceManifestPath, 'utf8')).toBe(workspaceManifest)
 })
 
