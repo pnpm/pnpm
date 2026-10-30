@@ -387,6 +387,19 @@ describe('batch script', () => {
 })
 
 describe('readShNodePath & isShimNodePath', () => {
+  test('extracts a multiline single-quoted POSIX path with embedded quotes', () => {
+    const shim = `
+if [ -z "$NODE_PATH" ]; then
+  export NODE_PATH='/tmp/a'\\''b
+c'
+else
+  export NODE_PATH='/tmp/a'\\''b
+c':"$NODE_PATH"
+fi
+`
+    assert.equal(readShNodePath(shim), "/tmp/a'b\nc")
+  })
+
   test('extracts posix new_node_path with single quote escapes from Windows shim', () => {
     const shim = `
 case \`command -p uname -a\` in
@@ -421,6 +434,14 @@ basedir_win="$basedir"
 exec "$basedir/node" "$basedir_abs/../foo/bin/cli.js" "$@"
 `
     assert.equal(readShRelativeTarget(shim), '../foo/bin/cli.js')
+  })
+
+  test('extracts a single-quoted relative target anchored on basedir_abs', () => {
+    const shim = `
+basedir_abs=$(CDPATH= cd -P -- "$basedir" && pwd -P) || exit $?
+exec "$basedir_abs"/'../$(touch marker)/cli.js' "$@"
+`
+    assert.equal(readShRelativeTarget(shim), '../$(touch marker)/cli.js')
   })
 
   test('returns undefined when shim has no basedir_abs anchor', () => {

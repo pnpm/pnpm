@@ -23,7 +23,7 @@ fn generate_sh_shim_keeps_paths_outside_the_root_absolute() {
     let posix_node_path = if cfg!(windows) {
         "  new_node_path='/store/links/node_modules'\n"
     } else {
-        "  export NODE_PATH=\"/store/links/node_modules\"\n"
+        "  export NODE_PATH='/store/links/node_modules'\n"
     };
     assert!(body.contains(posix_node_path), "the shim must name the store NODE_PATH as is");
     assert!(body.ends_with("# cmd-shim-target=/store/links/tool/cli.js\n"));
@@ -66,6 +66,34 @@ fn relative_node_path_segments_are_sh_escaped() {
     assert!(!root.join("pwned").exists(), "the directory name ran as a command");
 }
 
+#[cfg(unix)]
+#[test]
+fn shell_metacharacters_in_target_and_node_path_are_literal() {
+    use super::write_executable;
+    use std::{fs, process::Command};
+
+    let tmp = tempfile::tempdir().unwrap();
+    let root = tmp.path();
+    let hostile = root.join("bin/$basedir_abs").join("$(touch marker) `touch marker` $ \" q' \\\n");
+    let shim_dir = root.join("bin");
+    let shim = shim_dir.join("tool");
+    let target = hostile.join("cli");
+    fs::create_dir_all(&hostile).unwrap();
+    write_executable(&target, "#!/bin/sh\nprintf '%s' \"$NODE_PATH\"\n");
+    let node_path = [hostile.to_string_lossy().into_owned()];
+    write_executable(&shim, &generate_sh_shim(&target, &shim, None, &node_path, None));
+
+    let output = Command::new(&shim)
+        .current_dir(root)
+        .env_remove("NODE_PATH")
+        .output()
+        .unwrap();
+
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    assert_eq!(String::from_utf8_lossy(&output.stdout), node_path[0]);
+    assert!(!root.join("marker").exists());
+}
+
 #[test]
 #[cfg_attr(not(unix), ignore = "relocatable shims are only written on Unix")]
 fn in_root_shim_is_written_relative_to_itself_and_only_such_a_shim_is_relocatable() {
@@ -89,9 +117,9 @@ fn in_root_shim_is_written_relative_to_itself_and_only_such_a_shim_is_relocatabl
     eprintln!("BODY:\n{relocatable}");
     assert!(relocatable.contains(concat!(
         "if [ -z \"$NODE_PATH\" ]; then\n",
-        "  export NODE_PATH=\"$basedir_abs/../.pnpm/typescript@5.0.0/node_modules:$basedir_abs/../.pnpm/node_modules\"\n",
+        "  export NODE_PATH=\"$basedir_abs\"/'../.pnpm/typescript@5.0.0/node_modules':\"$basedir_abs\"/'../.pnpm/node_modules'\n",
         "else\n",
-        "  export NODE_PATH=\"$basedir_abs/../.pnpm/typescript@5.0.0/node_modules:$basedir_abs/../.pnpm/node_modules:$NODE_PATH\"\n",
+        "  export NODE_PATH=\"$basedir_abs\"/'../.pnpm/typescript@5.0.0/node_modules':\"$basedir_abs\"/'../.pnpm/node_modules':\"$NODE_PATH\"\n",
         "fi\n",
     )));
     assert!(

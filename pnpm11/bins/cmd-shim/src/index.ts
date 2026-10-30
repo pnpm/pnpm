@@ -131,7 +131,8 @@ function readShNodePath (shimContent: string): string | undefined {
   if (winStart !== -1) {
     const valueStart = winStart + '\nelse\n  new_node_path='.length
     const lineEnd = shimContent.indexOf('\n', valueStart)
-    const raw = lineEnd === -1 ? shimContent.slice(valueStart) : shimContent.slice(valueStart, lineEnd)
+    const rest = shimContent.slice(valueStart)
+    const raw = rest.match(/^('(?:[^']|'\\'')*')/)?.[1] ?? (lineEnd === -1 ? rest : rest.slice(0, lineEnd))
     return unquoteSh(raw)
   }
   if (isWindows) {
@@ -141,7 +142,8 @@ function readShNodePath (shimContent: string): string | undefined {
   if (start === -1) return undefined
   const valueStart = start + SH_NODE_PATH_EXPORT.length
   const lineEnd = shimContent.indexOf('\n', valueStart)
-  const raw = lineEnd === -1 ? shimContent.slice(valueStart) : shimContent.slice(valueStart, lineEnd)
+  const rest = shimContent.slice(valueStart)
+  const raw = rest.match(/^('(?:[^']|'\\'')*')/)?.[1] ?? (lineEnd === -1 ? rest : rest.slice(0, lineEnd))
   return unquoteSh(raw)
 }
 
@@ -161,6 +163,13 @@ function isShimBasedirAnchorCurrent (shimContent: string, relativeTarget: string
 }
 
 function readShRelativeTarget (shimContent: string): string | undefined {
+  const quotedStart = '"$basedir_abs"/'
+  const quotedStartIndex = shimContent.indexOf(quotedStart)
+  if (quotedStartIndex !== -1) {
+    const valueStart = quotedStartIndex + quotedStart.length
+    const raw = shimContent.slice(valueStart).match(/^('(?:[^']|'\\'')*')/)
+    return raw ? unquoteSh(raw[1]) : undefined
+  }
   const marker = '"$basedir_abs/'
   const start = shimContent.indexOf(marker)
   if (start === -1) return undefined

@@ -45,10 +45,11 @@ export function generateShShim (src: string, to: string, opts: InternalOptions):
 }
 
 function resolveShProgConfig (src: string, to: string, opts: InternalOptions): ShProgConfig {
-  const rawTarget = path.relative(opts.shShimDir ?? path.dirname(to), src).split('\\').join('/')
+  const relativeTarget = path.relative(opts.shShimDir ?? path.dirname(to), src)
+  const rawTarget = isWindows ? relativeTarget.split('\\').join('/') : relativeTarget
   const isTargetAbsolute = path.isAbsolute(rawTarget)
-  const quotedTarget = isTargetAbsolute ? `"${rawTarget}"` : `"$basedir_abs/${rawTarget}"`
-  const quotedTargetWin = isTargetAbsolute ? `"${rawTarget}"` : `"$basedir_win/${rawTarget}"`
+  const quotedTarget = isTargetAbsolute ? shSingleQuote(rawTarget) : `"$basedir_abs"/${shSingleQuote(rawTarget)}`
+  const quotedTargetWin = isTargetAbsolute ? shSingleQuote(rawTarget) : `"$basedir_win"/${shSingleQuote(rawTarget)}`
   const progArgs = opts.progArgs ? `${opts.progArgs.join(' ')} ` : ''
   const isCmdRuntime = opts.prog === 'cmd' || opts.prog === 'cmd.exe'
 
@@ -242,11 +243,12 @@ else
 fi
 `
   } else if (shNodePath) {
+    const quotedNodePath = shSingleQuote(shNodePath)
     sh += `\
 if [ -z "$NODE_PATH" ]; then
-  export NODE_PATH="${shNodePath}"
+  export NODE_PATH=${quotedNodePath}
 else
-  export NODE_PATH="${shNodePath}:$NODE_PATH"
+  export NODE_PATH=${quotedNodePath}:"$NODE_PATH"
 fi
 `
   }

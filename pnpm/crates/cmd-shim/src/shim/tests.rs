@@ -181,7 +181,7 @@ case `run_helper uname -a` in"#
         "WSL2 branch must enable .exe fallback only after wslpath succeeds, body was:\n{body}",
     );
     assert!(
-        body.contains("if [ -n \"$exe\" ] && [ -x \"$basedir/node.exe\" ]; then\n  exec \"$basedir/node.exe\"  \"$basedir_win/../typescript/bin/tsc\" \"$@\"\nelif [ -x \"$basedir/node\" ]; then\n  exec \"$basedir/node\"  \"$basedir_abs/../typescript/bin/tsc\" \"$@\"\nelif [ -n \"$msys\" ] && command -v node >/dev/null 2>&1; then\n  exec node  \"$basedir_win/../typescript/bin/tsc\" \"$@\"\nelif command -v node >/dev/null 2>&1; then\n  exec node  \"$basedir_abs/../typescript/bin/tsc\" \"$@\"\nelif [ -n \"$exe\" ] && command -v node.exe >/dev/null 2>&1; then\n  exec node.exe  \"$basedir_win/../typescript/bin/tsc\" \"$@\"\nelse\n  exec node  \"$basedir_abs/../typescript/bin/tsc\" \"$@\"\nfi\n"),
+        body.contains("if [ -n \"$exe\" ] && [ -x \"$basedir/node.exe\" ]; then\n  exec \"$basedir/node.exe\"  \"$basedir_win\"/'../typescript/bin/tsc' \"$@\"\nelif [ -x \"$basedir/node\" ]; then\n  exec \"$basedir/node\"  \"$basedir_abs\"/'../typescript/bin/tsc' \"$@\"\nelif [ -n \"$msys\" ] && command -v node >/dev/null 2>&1; then\n  exec node  \"$basedir_win\"/'../typescript/bin/tsc' \"$@\"\nelif command -v node >/dev/null 2>&1; then\n  exec node  \"$basedir_abs\"/'../typescript/bin/tsc' \"$@\"\nelif [ -n \"$exe\" ] && command -v node.exe >/dev/null 2>&1; then\n  exec node.exe  \"$basedir_win\"/'../typescript/bin/tsc' \"$@\"\nelse\n  exec node  \"$basedir_abs\"/'../typescript/bin/tsc' \"$@\"\nfi\n"),
         "exec block must preserve the generated sh shim fallback order, body was:\n{body}",
     );
     assert!(
@@ -289,7 +289,7 @@ fn generate_sh_shim_emits_direct_exec_when_no_runtime() {
     let shim = Path::new("/proj/node_modules/.bin/cli");
     let body = generate_sh_shim(target, shim, None, &[], None);
     assert!(
-        body.contains("exec \"$basedir_abs/../foo/bin/cli\"  \"$@\"\nexit $?\n"),
+        body.contains("exec \"$basedir_abs\"/'../foo/bin/cli'  \"$@\"\nexit $?\n"),
         "no-runtime arm must exec the target directly, body:\n{body}",
     );
     assert!(body.ends_with("# cmd-shim-target=/proj/node_modules/foo/bin/cli\n"));
@@ -302,7 +302,7 @@ fn generate_sh_shim_threads_args_when_prog_is_none() {
     let runtime = ScriptRuntime { prog: None, args: "--flag".to_string() };
     let body = generate_sh_shim(target, shim, Some(&runtime), &[], None);
     assert!(
-        body.contains("exec \"$basedir_abs/../cli\" --flag \"$@\"\nexit $?\n"),
+        body.contains("exec \"$basedir_abs\"/'../cli' --flag \"$@\"\nexit $?\n"),
         "args must be threaded into the no-prog arm, body:\n{body}",
     );
 }
@@ -475,7 +475,7 @@ fn generate_sh_shim_uses_windows_target_only_for_exe_and_msys_branches() {
     let body = generate_sh_shim(target, shim, Some(&runtime), &[], None);
 
     assert!(
-        body.contains("if [ -n \"$msys\" ]; then\n  export MSYS2_ARG_CONV_EXCL=\"/C${MSYS2_ARG_CONV_EXCL:+;$MSYS2_ARG_CONV_EXCL}\"\nfi\nif [ -n \"$exe\" ] && [ -x \"$basedir/cmd.exe\" ]; then\n  exec \"$basedir/cmd.exe\" /C \"$basedir_win/../foo/src.bat\" \"$@\"\nelif [ -x \"$basedir/cmd\" ]; then\n  exec \"$basedir/cmd\" /C \"$basedir_abs/../foo/src.bat\" \"$@\"\nelif [ -n \"$msys\" ] && command -v cmd >/dev/null 2>&1; then\n  exec cmd /C \"$basedir_win/../foo/src.bat\" \"$@\"\nelif command -v cmd >/dev/null 2>&1; then\n  exec cmd /C \"$basedir_abs/../foo/src.bat\" \"$@\"\nelif [ -n \"$exe\" ] && command -v cmd.exe >/dev/null 2>&1; then\n  exec cmd.exe /C \"$basedir_win/../foo/src.bat\" \"$@\"\nelse\n  exec cmd /C \"$basedir_abs/../foo/src.bat\" \"$@\"\nfi\n"),
+        body.contains("if [ -n \"$msys\" ]; then\n  export MSYS2_ARG_CONV_EXCL=\"/C${MSYS2_ARG_CONV_EXCL:+;$MSYS2_ARG_CONV_EXCL}\"\nfi\nif [ -n \"$exe\" ] && [ -x \"$basedir/cmd.exe\" ]; then\n  exec \"$basedir/cmd.exe\" /C \"$basedir_win\"/'../foo/src.bat' \"$@\"\nelif [ -x \"$basedir/cmd\" ]; then\n  exec \"$basedir/cmd\" /C \"$basedir_abs\"/'../foo/src.bat' \"$@\"\nelif [ -n \"$msys\" ] && command -v cmd >/dev/null 2>&1; then\n  exec cmd /C \"$basedir_win\"/'../foo/src.bat' \"$@\"\nelif command -v cmd >/dev/null 2>&1; then\n  exec cmd /C \"$basedir_abs\"/'../foo/src.bat' \"$@\"\nelif [ -n \"$exe\" ] && command -v cmd.exe >/dev/null 2>&1; then\n  exec cmd.exe /C \"$basedir_win\"/'../foo/src.bat' \"$@\"\nelse\n  exec cmd /C \"$basedir_abs\"/'../foo/src.bat' \"$@\"\nfi\n"),
         "cmd sh shim must exclude switches from MSYS conversion and use Windows-form targets only for .exe and MSYS execution branches, body was:\n{body}",
     );
 }
@@ -488,7 +488,7 @@ fn generate_sh_shim_checks_path_before_exe_fallback() {
     let body = generate_sh_shim(target, shim, Some(&runtime), &[], None);
 
     assert!(
-        body.contains("elif [ -n \"$msys\" ] && command -v sh >/dev/null 2>&1; then\n  exec sh  \"$basedir_win/../foo/src.sh\" \"$@\"\nelif command -v sh >/dev/null 2>&1; then\n  exec sh  \"$basedir_abs/../foo/src.sh\" \"$@\"\nelif [ -n \"$exe\" ] && command -v sh.exe >/dev/null 2>&1; then\n  exec sh.exe  \"$basedir_win/../foo/src.sh\" \"$@\"\nelse\n  exec sh  \"$basedir_abs/../foo/src.sh\" \"$@\"\nfi\n"),
+        body.contains("elif [ -n \"$msys\" ] && command -v sh >/dev/null 2>&1; then\n  exec sh  \"$basedir_win\"/'../foo/src.sh' \"$@\"\nelif command -v sh >/dev/null 2>&1; then\n  exec sh  \"$basedir_abs\"/'../foo/src.sh' \"$@\"\nelif [ -n \"$exe\" ] && command -v sh.exe >/dev/null 2>&1; then\n  exec sh.exe  \"$basedir_win\"/'../foo/src.sh' \"$@\"\nelse\n  exec sh  \"$basedir_abs\"/'../foo/src.sh' \"$@\"\nfi\n"),
         "PATH fallback must prefer POSIX runtimes and gate .exe fallback, body was:\n{body}",
     );
 }
@@ -502,7 +502,7 @@ fn generate_sh_shim_does_not_append_exe_twice() {
 
     assert!(!body.contains("cmd.exe.exe"), "explicit .exe runtime must not double suffix:\n{body}");
     assert!(
-        body.contains("if [ -n \"$msys\" ]; then\n  export MSYS2_ARG_CONV_EXCL=\"/C${MSYS2_ARG_CONV_EXCL:+;$MSYS2_ARG_CONV_EXCL}\"\nfi\nif [ -x \"$basedir/cmd.exe\" ]; then\n  exec \"$basedir/cmd.exe\" /C \"$basedir_win/../foo/src.bat\" \"$@\"\nelse\n  exec cmd.exe /C \"$basedir_win/../foo/src.bat\" \"$@\"\nfi\n"),
+        body.contains("if [ -n \"$msys\" ]; then\n  export MSYS2_ARG_CONV_EXCL=\"/C${MSYS2_ARG_CONV_EXCL:+;$MSYS2_ARG_CONV_EXCL}\"\nfi\nif [ -x \"$basedir/cmd.exe\" ]; then\n  exec \"$basedir/cmd.exe\" /C \"$basedir_win\"/'../foo/src.bat' \"$@\"\nelse\n  exec cmd.exe /C \"$basedir_win\"/'../foo/src.bat' \"$@\"\nfi\n"),
         "explicit .exe runtime must use Windows-form targets and exclude switches from MSYS conversion, body was:\n{body}",
     );
 }
@@ -1267,7 +1267,7 @@ fn a_unix_sh_shim_keeps_its_node_path_block() {
     write_sh_node_path(&mut block, &["/proj/node_modules/.pnpm/node_modules".to_owned()], false);
     assert_eq!(
         block,
-        "if [ -z \"$NODE_PATH\" ]; then\n  export NODE_PATH=\"/proj/node_modules/.pnpm/node_modules\"\nelse\n  export NODE_PATH=\"/proj/node_modules/.pnpm/node_modules:$NODE_PATH\"\nfi\n",
+        "if [ -z \"$NODE_PATH\" ]; then\n  export NODE_PATH='/proj/node_modules/.pnpm/node_modules'\nelse\n  export NODE_PATH='/proj/node_modules/.pnpm/node_modules':\"$NODE_PATH\"\nfi\n",
     );
 }
 
