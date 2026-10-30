@@ -350,14 +350,14 @@ fn removes_a_gitignore_left_empty() {
 
 #[test]
 fn escapes_gitignore_patterns_in_skill_names() {
-    let (root, lockfile) = workspace(&[("foo", "1.0.0", &["*", "!a b"])]);
+    let (root, lockfile) = workspace(&[("foo", "1.0.0", &["!a b", "[x]#"])]);
     fs::create_dir_all(root.path().join(".claude/skills")).unwrap();
 
     sync(root.path(), &lockfile, &config(&[("foo", true)], None), &[], None).unwrap();
 
     assert_eq!(
         fs::read_to_string(root.path().join(".claude/skills/.gitignore")).unwrap(),
-        "# pnpm\n/\\!a\\ b\n/\\*\n# pnpm end\n",
+        "# pnpm\n/\\!a\\ b\n/\\[x\\]\\#\n# pnpm end\n",
     );
 }
 
