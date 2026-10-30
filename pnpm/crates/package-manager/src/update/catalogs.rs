@@ -66,8 +66,12 @@ pub(super) fn reconcile_rewrite<Reporter: self::Reporter>(
     if config.catalog_mode == CatalogMode::Manual {
         return Ok(Some(specifier.to_string()));
     }
-    let dependency =
-        CatalogModeDep { alias: name, bare_specifier: specifier, prev_specifier: previous };
+    let dependency = CatalogModeDep {
+        alias: name,
+        bare_specifier: specifier,
+        requested_dist_tag: None,
+        prev_specifier: previous,
+    };
     let decision = decide_catalog::<Reporter>(
         config.catalog_mode,
         None,

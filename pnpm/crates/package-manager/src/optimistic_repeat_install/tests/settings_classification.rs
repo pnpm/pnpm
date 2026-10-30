@@ -223,6 +223,7 @@ const CLASSIFICATION: &[(&str, Reach)] = &[
     ("proxy_keys", NotAnInput(NETWORK)),
     ("prune_direct_dependencies", BlocksFastPath(|config| config.prune_direct_dependencies = true)),
     ("public_hoist_pattern", Recorded { key: "publicHoistPattern", change: |config| config.public_hoist_pattern = Some(vec!["foo".into()]) }),
+    ("publish_branch", NotAnInput(OTHER_COMMAND)),
     ("publish_wait_timeout", NotAnInput(OTHER_COMMAND)),
     ("python", NotAnInput("Python dependencies are installed by their own step")),
     ("raw_auth_config", NotAnInput(AUTH)),

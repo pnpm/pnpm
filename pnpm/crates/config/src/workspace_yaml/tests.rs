@@ -97,6 +97,8 @@ mod provenance;
 
 mod publish_wait_timeout;
 
+mod publish_branch;
+
 mod env_placeholders;
 
 mod readable_settings;

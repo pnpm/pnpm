@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/lockfile.preferred-versions",
-  "version": "1100.0.40",
+  "version": "1100.0.41",
   "description": "Get preferred version from lockfile",
   "keywords": [
     "pnpm",

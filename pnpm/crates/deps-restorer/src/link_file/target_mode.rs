@@ -1,8 +1,12 @@
 //! The mode a file materialized into `node_modules` carries.
 
+#[cfg(any(unix, target_os = "wasi"))]
+use dashmap::DashSet;
 #[cfg(unix)]
 use std::fs;
 use std::{io, path::Path};
+#[cfg(any(unix, target_os = "wasi"))]
+use std::{path::PathBuf, sync::LazyLock};
 
 /// The permissions the copy tier gives a copy of `source_file`: the
 /// store-entry mode for a store entry, or the source's own permissions.
@@ -36,12 +40,35 @@ fn desired_mode(source_file: &Path) -> Option<u32> {
 /// mode that is not cannot be fixed on a store inode, so the hardlink tiers
 /// copy instead; a reflink that copied the same mode onto the target is
 /// aligned instead.
-#[cfg(unix)]
+///
+/// A linkable answer is remembered for the rest of the process, so a store
+/// entry linked into many packages is stat'ed once (pnpm/pnpm#17500). A
+/// later change to the entry's mode, such as a bin's exec bit set through
+/// one of its hardlinks, does not reach the answer.
+#[cfg(any(unix, target_os = "wasi"))]
 pub(super) fn source_has_desired_mode(source_file: &Path) -> io::Result<bool> {
-    use std::os::unix::fs::MetadataExt;
+    static LINKABLE_SOURCES: LazyLock<DashSet<PathBuf>> = LazyLock::new(DashSet::new);
     let Some(desired) = desired_mode(source_file) else { return Ok(true) };
-    let mode = fs::metadata(source_file)?.mode();
-    Ok(pnpm_fs::file_mode::store_inode_mode_is_linkable(mode, desired))
+    if LINKABLE_SOURCES.contains(source_file) {
+        return Ok(true);
+    }
+    let linkable =
+        pnpm_fs::file_mode::store_inode_mode_is_linkable(source_mode(source_file)?, desired);
+    if linkable {
+        LINKABLE_SOURCES.insert(source_file.to_path_buf());
+    }
+    Ok(linkable)
+}
+
+#[cfg(unix)]
+fn source_mode(source_file: &Path) -> io::Result<u32> {
+    use std::os::unix::fs::MetadataExt;
+    Ok(fs::metadata(source_file)?.mode())
+}
+
+#[cfg(target_os = "wasi")]
+fn source_mode(source_file: &Path) -> io::Result<u32> {
+    Ok(pnpm_fs::copy_permissions(source_file)?.mode())
 }
 
 /// Align a materialized `target_link` with the mode a fresh store write
@@ -66,11 +93,4 @@ pub(super) fn source_has_desired_mode(_source_file: &Path) -> io::Result<bool> {
 #[cfg(not(any(unix, target_os = "wasi")))]
 pub(super) fn align_target_mode(_source_file: &Path, _target_link: &Path) -> io::Result<()> {
     Ok(())
-}
-
-#[cfg(target_os = "wasi")]
-pub(super) fn source_has_desired_mode(source_file: &Path) -> io::Result<bool> {
-    let Some(desired) = desired_mode(source_file) else { return Ok(true) };
-    let mode = pnpm_fs::copy_permissions(source_file)?.mode();
-    Ok(pnpm_fs::file_mode::store_inode_mode_is_linkable(mode, desired))
 }

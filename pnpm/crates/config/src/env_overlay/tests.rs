@@ -411,6 +411,18 @@ fn git_tag_version_reads_from_the_environment() {
 }
 
 #[test]
+fn publish_branch_reads_from_environment() {
+    struct Env;
+    impl EnvVar for Env {
+        fn var(name: &str) -> Option<String> {
+            (name == "PNPM_CONFIG_PUBLISH_BRANCH").then(|| "production".to_owned())
+        }
+    }
+    let settings = TrustedSettings::from_pnpm_config_env::<Env>().settings;
+    assert_eq!(settings.publish_branch.as_deref(), Some("production"));
+}
+
+#[test]
 fn publish_wait_timeout_reads_from_environment() {
     struct Env;
     impl EnvVar for Env {

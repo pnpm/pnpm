@@ -167,7 +167,8 @@ impl PublishArgs {
 
         // Upstream gates on `opts.gitChecks !== false`, which folds together
         // the `git-checks` config setting and the `--no-git-checks` flag.
-        let publish_branch = self.flags.git.publish_branch.as_deref();
+        let publish_branch =
+            configured_publish_branch(self.flags.git.publish_branch.as_deref(), config);
         let git_checks = config.git_checks && !self.flags.git.no_git_checks;
         run_git_checks::<Host>(dir, git_checks, publish_branch, config.ci)?;
 
@@ -394,6 +395,10 @@ impl PublishArgs {
             .map_err(miette::Report::new)
             .wrap_err(crate::cli_args::pack::PACK_ERROR_CONTEXT)
     }
+}
+
+fn configured_publish_branch<'a>(flag: Option<&'a str>, config: &'a Config) -> Option<&'a str> {
+    flag.or(config.publish_branch.as_deref())
 }
 
 /// Run the publish-lifecycle scripts the manifest declares, in order, with

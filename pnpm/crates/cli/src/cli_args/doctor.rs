@@ -19,6 +19,8 @@ use std::{
     time::Instant,
 };
 
+const DOCTOR_FETCH_TIMEOUT: u64 = 15_000;
+
 #[derive(Debug, Args)]
 pub struct DoctorArgs {
     /// Skip checks that need network access.
@@ -156,7 +158,7 @@ impl DoctorArgs {
             return CheckResult::pass(title, "skipped (--offline)");
         }
         let started = Instant::now();
-        match (PingArgs { registry: None }).run(config).await {
+        match (PingArgs { registry: None }).run(&connectivity_config(config)).await {
             Ok(_) => CheckResult::pass(
                 title,
                 format!("{} ({}ms)", config.registry, started.elapsed().as_millis()),
@@ -168,6 +170,10 @@ impl DoctorArgs {
             ),
         }
     }
+}
+
+fn connectivity_config(config: &Config) -> Config {
+    Config { fetch_timeout: DOCTOR_FETCH_TIMEOUT, ..config.clone() }
 }
 
 fn check_versions() -> CheckResult {

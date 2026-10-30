@@ -1537,6 +1537,43 @@ describe('add', () => {
     })
   })
 
+  test.each([
+    ['strict', 'beta', '@pnpm.e2e/foo@beta'],
+    ['prefer', 'beta', '@pnpm.e2e/foo@beta'],
+    ['strict', 'latest', '@pnpm.e2e/foo@latest'],
+    ['prefer', 'latest', '@pnpm.e2e/foo@latest'],
+    ['strict', 'beta', '@pnpm.e2e/foo'],
+  ] as const)('adding with catalogMode: %s keeps a catalog entry set to the dist-tag %s (%s)', async (catalogMode, distTag, selector) => {
+    await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag })
+    const { options, projects, readLockfile } = preparePackagesAndReturnObjects([{
+      name: 'project1',
+      dependencies: {},
+    }])
+
+    const { updatedCatalogs, updatedManifest } = await addDependenciesToPackage(
+      projects['project1' as ProjectId],
+      [selector],
+      {
+        ...options,
+        dir: path.join(options.lockfileDir, 'project1'),
+        lockfileOnly: true,
+        allowNew: true,
+        catalogs: { default: { '@pnpm.e2e/foo': distTag } },
+        catalogMode,
+      })
+
+    expect(updatedManifest).toEqual({
+      name: 'project1',
+      dependencies: {
+        '@pnpm.e2e/foo': 'catalog:',
+      },
+    })
+    expect(updatedCatalogs).toBeUndefined()
+    expect(readLockfile().catalogs).toStrictEqual({
+      default: { '@pnpm.e2e/foo': { specifier: distTag, version: '100.1.0' } },
+    })
+  })
+
   // Regression test for https://github.com/pnpm/pnpm/issues/10176
   // When re-adding a dependency that already exists in the catalog with catalogMode: strict,
   // the catalog entry should preserve the original version specifier, not become 'catalog:'

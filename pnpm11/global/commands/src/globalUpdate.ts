@@ -23,7 +23,7 @@ import semver from 'semver'
 import { getGlobalBinOwnership } from './binOwnership.js'
 import { checkGlobalBinConflicts } from './checkGlobalBinConflicts.js'
 import { cleanupFailedGlobalInstall } from './cleanupFailedGlobalInstall.js'
-import { activateGlobalInstall, cleanupReplacedGlobalInstalls, getActualBinNames } from './globalActivation.js'
+import { activateGlobalInstall, cleanupReplacedGlobalInstalls, getActualBinNames, type GlobalNodePathOptions } from './globalActivation.js'
 import {
   installGlobalPackages,
   type InstallGlobalPackagesResult,
@@ -33,7 +33,7 @@ import { hasPnpmCliDependency } from './pnpmCliPackages.js'
 import { promptApproveGlobalBuilds } from './promptApproveGlobalBuilds.js'
 import { type InstalledGroupPackage, readInstalledPackages } from './readInstalledPackages.js'
 
-export type GlobalUpdateOptions = CreateStoreControllerOptions & {
+export type GlobalUpdateOptions = CreateStoreControllerOptions & GlobalNodePathOptions & {
   bin?: string
   globalPkgDir?: string
   latest?: boolean
@@ -219,6 +219,7 @@ async function activateUpdatedGroup (
     pkgs,
     binsToSkip,
     requiredBinNames: retainedBinNames,
+    nodePathOptions: ctx.opts,
   })
   await cleanupReplacedGlobalInstalls({
     groups: ownership.groups,

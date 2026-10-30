@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/installing.context",
-  "version": "1101.0.13",
+  "version": "1101.0.14",
   "description": "Gets context information about a project",
   "keywords": [
     "pnpm",
@@ -32,6 +32,7 @@
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
+    "@pnpm/bins.linker": "workspace:*",
     "@pnpm/constants": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",
     "@pnpm/error": "workspace:*",

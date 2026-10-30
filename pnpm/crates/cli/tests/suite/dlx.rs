@@ -3,6 +3,92 @@ use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::CommandTempCwd;
 
+/// Which directory flag the invocation passes; each one names the
+/// directory the bin is expected to run in.
+#[derive(Debug, Clone, Copy)]
+enum DirFlag {
+    /// `-C ../target`
+    Dir,
+    /// No flag: the bin runs in the invocation directory.
+    None,
+    /// `-w`
+    WorkspaceRoot,
+}
+
+#[test]
+fn dlx_and_create_run_in_cli_directory() {
+    for command in ["dlx", "create"] {
+        for dir_flag in [DirFlag::Dir, DirFlag::None, DirFlag::WorkspaceRoot] {
+            for shell_mode in [false, true] {
+                assert_bin_runs_in_selected_directory(command, dir_flag, shell_mode);
+            }
+        }
+    }
+}
+
+fn assert_bin_runs_in_selected_directory(command: &str, dir_flag: DirFlag, shell_mode: bool) {
+    let CommandTempCwd { mut pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let invoker = workspace.join("invoker");
+    let target = workspace.join("target");
+    let fixture = root.path().join("fixture");
+    for dir in [&invoker, &target, &fixture] {
+        std::fs::create_dir(dir).expect("create fixture directory");
+    }
+    std::fs::write(workspace.join("package.json"), r#"{"name":"project","private":true}"#)
+        .expect("write nearest project manifest");
+    std::fs::write(workspace.join("pnpm-workspace.yaml"), "enableGlobalVirtualStore: false\n")
+        .expect("write workspace config");
+    std::fs::write(
+        fixture.join("package.json"),
+        r#"{"name":"create-cwd-fixture","version":"1.0.0","bin":{"cwd-fixture":"bin.js"}}"#,
+    )
+    .expect("write local package manifest");
+    std::fs::write(
+        fixture.join("bin.js"),
+        "#!/usr/bin/env node\nrequire('fs').writeFileSync('cwd-result.json', JSON.stringify({ cwd: process.cwd(), args: process.argv.slice(2) }));\n",
+    )
+    .expect("write local package bin");
+
+    let (flags, expected_dir): (&[&str], _) = match dir_flag {
+        DirFlag::Dir => (&["-C", "../target"], &target),
+        DirFlag::None => (&[], &invoker),
+        DirFlag::WorkspaceRoot => (&["-w"], &workspace),
+    };
+    let shell_flag: &[&str] = if shell_mode { &["-c"] } else { &[] };
+    pacquet
+        .current_dir(&invoker)
+        .env("PNPM_CONFIG_OFFLINE", "true")
+        .env("PNPM_CONFIG_STORE_DIR", root.path().join("store"))
+        .env("PNPM_CONFIG_CACHE_DIR", root.path().join("cache"))
+        .args(flags)
+        .arg(command)
+        .args(shell_flag)
+        .arg(format!("create-cwd-fixture@file:{}", fixture.display()))
+        .args(["--sentinel", "value", "--dir=unchanged"])
+        .assert()
+        .success();
+
+    let result: serde_json::Value = serde_json::from_slice(
+        &std::fs::read(expected_dir.join("cwd-result.json")).expect("read bin output"),
+    )
+    .expect("parse bin output");
+    assert_eq!(
+        std::fs::canonicalize(result["cwd"].as_str().expect("child working directory"))
+            .expect("resolve child working directory"),
+        std::fs::canonicalize(expected_dir).expect("resolve expected working directory"),
+        "{command}, dir_flag={dir_flag:?}, shell_mode={shell_mode}",
+    );
+    assert_eq!(result["args"], serde_json::json!(["--sentinel", "value", "--dir=unchanged"]));
+    for other in [&invoker, &target, &workspace]
+        .into_iter()
+        .filter(|dir| *dir != expected_dir)
+    {
+        assert!(!other.join("cwd-result.json").exists(), "must not write in {other:?}");
+    }
+    assert!(!fixture.join("cwd-result.json").exists(), "must not run in the installed package");
+    drop(root);
+}
+
 #[test]
 fn dlx_sets_package_manager_environment() {
     let CommandTempCwd { mut pacquet, root, workspace, .. } =

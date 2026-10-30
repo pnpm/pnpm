@@ -338,6 +338,7 @@ impl WorkspaceSettings {
         json_field!(settings, reader, ignore_scripts, "IGNORE_SCRIPTS");
         json_field!(settings, reader, git_checks, "GIT_CHECKS");
         json_field!(settings, reader, git_tag_version, "GIT_TAG_VERSION");
+        string_field!(settings, reader, publish_branch, "PUBLISH_BRANCH");
         json_field!(settings, reader, publish_wait_timeout, "PUBLISH_WAIT_TIMEOUT");
         json_field!(settings, reader, provenance, "PROVENANCE");
         string_field_allow_empty!(settings, reader, tag_version_prefix, "TAG_VERSION_PREFIX");

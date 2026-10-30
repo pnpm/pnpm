@@ -167,9 +167,7 @@ impl From<BadPathDir> for DlxError {
 
 impl DlxArgs {
     /// Execute the subcommand. The package is installed into a cache
-    /// directory under `config.cache_dir`, and the resolved bin runs in
-    /// the process working directory (`cwd: process.cwd()`). `dir` is only
-    /// the fallback when the process cwd can't be read.
+    /// directory under `config.cache_dir`, and the resolved bin runs in `dir`.
     pub async fn run<Reporter: self::Reporter + 'static>(
         self,
         dir: &Path,
@@ -234,15 +232,15 @@ pub(crate) fn exit_unless_success(status: crate::process::ExitStatus) {
 
 /// The config values every dlx spawn applies, read before the install path
 /// consumes `config` to anchor it at the cache directory.
-struct SpawnEnv {
-    cwd: PathBuf,
+struct SpawnEnv<'a> {
+    cwd: &'a Path,
     extra_bin_paths: Vec<PathBuf>,
     extra_env: HashMap<String, String>,
     user_agent: String,
 }
 
-impl SpawnEnv {
-    fn from_config(config: &Config, dir: &Path) -> Self {
+impl<'a> SpawnEnv<'a> {
+    fn from_config(config: &Config, dir: &'a Path) -> Self {
         let mut extra_env = config.extra_env.clone();
         // The GVS resolution env injected by `Config::current` points at
         // the *invoking* project's node_modules; the dlx tool runs from
@@ -252,9 +250,7 @@ impl SpawnEnv {
         extra_env.remove("NODE_PATH");
         extra_env.remove("NODE_OPTIONS");
         SpawnEnv {
-            // The dlx command runs in the process working directory
-            // (`cwd: process.cwd()`), independent of `--dir`.
-            cwd: std::env::current_dir().unwrap_or_else(|_| dir.to_path_buf()),
+            cwd: dir,
             extra_bin_paths: config.extra_bin_paths.clone(),
             extra_env,
             user_agent: config.user_agent.clone(),
@@ -263,7 +259,7 @@ impl SpawnEnv {
 
     fn spawn(&self, shell_mode: bool) -> DlxSpawn<'_> {
         DlxSpawn {
-            cwd: &self.cwd,
+            cwd: self.cwd,
             extra_bin_paths: &self.extra_bin_paths,
             extra_env: &self.extra_env,
             user_agent: &self.user_agent,
