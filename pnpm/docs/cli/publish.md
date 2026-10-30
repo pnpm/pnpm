@@ -226,6 +226,10 @@ publishBranch: production
 * Type: **String**
 
 Sets the default for [`--publish-branch`](#--publish-branch-branch).
+Configure it in `pnpm-workspace.yaml`.
+
+The `PNPM_CONFIG_PUBLISH_BRANCH` environment variable overrides
+`pnpm-workspace.yaml`. The command-line option takes precedence over both.
 
 ### publishWaitTimeout
 
