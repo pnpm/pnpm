@@ -162,7 +162,7 @@ impl WorkspaceSettings {
             registry, scope, pnpr_server, cargo, python, tools, remote_side_effects_cache, remote_cache,
             reporter_hide_prefix, loglevel, reporter, max_sockets, patched_dependencies, patches_dir,
             config_dependencies, dangerously_allow_all_builds, strict_dep_builds,
-            ignore_scripts, ignore_pnpmfile, git_checks, git_tag_version, engine_strict, force_ignores_platform,
+            ignore_scripts, ignore_pnpmfile, git_checks, git_tag_version, publish_branch, engine_strict, force_ignores_platform,
             node_version,
             runtime_on_fail, node_download_mirrors, script_shell,
             node_options, unsafe_perm, supported_architectures, ignored_optional_dependencies,

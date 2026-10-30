@@ -44,7 +44,8 @@ pub struct PublishManifestArgs {
 
 #[derive(Debug, Clone, clap::Args)]
 pub struct PublishGitArgs {
-    /// The branch publishing is allowed from. Defaults to `master` / `main`.
+    /// The branch publishing is allowed from. Overrides the `publishBranch`
+    /// setting. Without either, defaults to `master` / `main`.
     #[clap(long = "publish-branch")]
     pub publish_branch: Option<String>,
     /// Skip the git working-tree / branch / remote checks.

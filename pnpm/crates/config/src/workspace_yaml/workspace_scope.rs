@@ -58,6 +58,7 @@ impl WorkspaceSettings {
     /// where pnpm downloads a runtime from.
     pub(super) fn clear_workspace_project_fields(&mut self) {
         self.versioning = None;
+        self.publish_branch = None;
         self.cargo = None;
         self.python = None;
         self.packages = None;

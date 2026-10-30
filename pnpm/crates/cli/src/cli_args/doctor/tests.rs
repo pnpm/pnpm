@@ -1,12 +1,35 @@
 use super::{
-    CheckResult, CheckStatus, DoctorReport, can_write_to_dir, check_versions, last_line,
-    probe_link_capabilities, render_report, status_mark,
+    CheckResult, CheckStatus, DoctorArgs, DoctorReport, can_write_to_dir, check_versions,
+    last_line, probe_link_capabilities, render_report, status_mark,
 };
-use pnpm_config::PNPM_VERSION;
+use pnpm_config::{Config, PNPM_VERSION};
 use pretty_assertions::assert_eq;
 
 fn report(checks: Vec<CheckResult>) -> DoctorReport {
     DoctorReport { checks }
+}
+
+/// The registry answers slower than `fetchTimeout` but well within the
+/// doctor's own timeout, so the check passes only if it ignores `fetchTimeout`.
+#[tokio::test]
+async fn registry_connectivity_ignores_fetch_timeout() {
+    let mut server = mockito::Server::new_async().await;
+    let _ping = server
+        .mock("GET", mockito::Matcher::Any)
+        .with_status(200)
+        .with_chunked_body(|writer| {
+            std::thread::sleep(std::time::Duration::from_millis(500));
+            writer.write_all(b"{}")
+        })
+        .create_async()
+        .await;
+    let config =
+        Config { registry: format!("{}/", server.url()), fetch_timeout: 50, ..Config::default() };
+    let doctor = DoctorArgs { offline: false, benchmark: false, json: false };
+
+    let result = doctor.check_connectivity(&config).await;
+    dbg!(&result);
+    assert_eq!(result.status, CheckStatus::Pass);
 }
 
 #[test]
