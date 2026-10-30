@@ -110,6 +110,9 @@ pub(crate) fn is_relocatable_shim(shim_content: &str, shim_dir: &Path, root: &Pa
         return result;
     }
     let entries_resolve_in_root = |value: &str| {
+        if let Some(entries) = legacy_sh_node_path_entries(value) {
+            return entries.iter().all(|entry| resolves_in_root(entry));
+        }
         value
             .split(':')
             .filter(|entry| !matches!(*entry, "$NODE_PATH" | r#""$NODE_PATH""#))
@@ -133,6 +136,54 @@ fn unquote_sh_single_quoted(text: &str) -> Option<String> {
     let quoted = text.strip_prefix('\'')?.strip_suffix('\'')?;
     let unquoted = quoted.replace(r"'\''", "'");
     (super::sh_single_quote(&unquoted) == text).then_some(unquoted)
+}
+
+fn legacy_sh_node_path_entries(text: &str) -> Option<Vec<String>> {
+    let mut input = text.strip_prefix('"')?;
+    let mut entries = Vec::new();
+    loop {
+        if let Some(rest) = input.strip_prefix("$NODE_PATH\"") {
+            return (rest.is_empty() && !entries.is_empty()).then_some(entries);
+        }
+        input = input.strip_prefix("$basedir_abs/")?;
+        let mut entry = String::new();
+        let mut index = 0;
+        loop {
+            let character = input[index..].chars().next()?;
+            match character {
+                '"' => {
+                    entries.push(entry);
+                    return input[index + character.len_utf8()..]
+                        .is_empty()
+                        .then_some(entries);
+                }
+                ':' => {
+                    entries.push(entry);
+                    input = &input[index + 1..];
+                    break;
+                }
+                '\\' => {
+                    let next_index = index + character.len_utf8();
+                    let next = input[next_index..].chars().next()?;
+                    match next {
+                        '$' | '`' | '"' | '\\' => entry.push(next),
+                        '\n' => {}
+                        _ => {
+                            entry.push(character);
+                            index = next_index;
+                            continue;
+                        }
+                    }
+                    index = next_index + next.len_utf8();
+                }
+                '$' | '`' => return None,
+                _ => {
+                    entry.push(character);
+                    index += character.len_utf8();
+                }
+            }
+        }
+    }
 }
 
 #[cfg(any(test, target_family = "wasm"))]

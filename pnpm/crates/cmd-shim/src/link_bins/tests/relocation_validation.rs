@@ -78,6 +78,11 @@ fn node_path_validation_rejects_malformed_shell_words() {
     let root = tmp.path();
     let bins = root.join(".bin");
     fs::create_dir_all(&bins).unwrap();
+    fs::create_dir_all(root.join("literal$HOME/modules")).unwrap();
+    let legacy = format!(
+        "# cmd-shim-target=../cli\nexport NODE_PATH=\"$basedir_abs/../literal\\$HOME/modules:$NODE_PATH\"\n",
+    );
+    assert!(is_relocatable_shim(&legacy, &bins, root));
     let entries = [
         r#""$basedir_abs"/../unquoted"#,
         r#""$basedir_abs"/'../unterminated"#,
@@ -86,6 +91,16 @@ fn node_path_validation_rejects_malformed_shell_words() {
         r#""$basedir_abs"/../`pwd`"#,
     ];
     for entry in entries {
+        let content = format!("# cmd-shim-target=../cli\nexport NODE_PATH={entry}\n");
+        assert!(!is_relocatable_shim(&content, &bins, root), "{content}");
+    }
+    let legacy_entries = [
+        r#""$basedir_abs/../$HOME""#,
+        r#""$basedir_abs/../`pwd`""#,
+        r#""$basedir_abs/../closed"junk""#,
+        r#""$basedir_abs/../unterminated"#,
+    ];
+    for entry in legacy_entries {
         let content = format!("# cmd-shim-target=../cli\nexport NODE_PATH={entry}\n");
         assert!(!is_relocatable_shim(&content, &bins, root), "{content}");
     }
