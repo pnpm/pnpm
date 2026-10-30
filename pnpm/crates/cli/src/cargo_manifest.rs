@@ -308,25 +308,47 @@ struct InlineScan<'a> {
 }
 
 impl InlineScan<'_> {
-    /// Step over the quoted string at the cursor, leaving the cursor
-    /// past its closing quote. The returned range covers both quotes.
-    /// `None` when the string never closes.
+    /// Step over the quoted string at the cursor, single-line or
+    /// multi-line (`"""` or `'''`), leaving the cursor past its closing
+    /// delimiter. The returned range covers both delimiters. `None` when
+    /// the string never closes.
     fn take_string(&mut self) -> Option<Range<usize>> {
         let quote = self.peek()?;
         let start = self.cursor;
-        self.cursor += 1;
-        let mut escaped = false;
-        while let Some(byte) = self.peek() {
-            self.cursor += 1;
-            if escaped {
-                escaped = false;
-            } else if quote == b'"' && byte == b'\\' {
-                escaped = true;
-            } else if byte == quote {
-                return Some(start..self.cursor);
-            }
+        let multi_line = self.bytes.get(start..start + 3) == Some(&[quote; 3]);
+        self.cursor += if multi_line { 3 } else { 1 };
+        while !self.step_in_string(quote, multi_line)? {}
+        Some(start..self.cursor)
+    }
+
+    /// Step over one character or escape of a string's body, or over its
+    /// closing delimiter. `Some(true)` once the string has closed.
+    fn step_in_string(&mut self, quote: u8, multi_line: bool) -> Option<bool> {
+        let byte = self.peek()?;
+        if quote == b'"' && byte == b'\\' {
+            self.cursor += 2;
+            return Some(false);
         }
-        None
+        if byte != quote {
+            self.cursor += 1;
+            return Some(false);
+        }
+        let run = self.quote_run(quote);
+        if multi_line && run < 3 {
+            self.cursor += run;
+            return Some(false);
+        }
+        // A multi-line string may end in up to two quotes right before its
+        // closing delimiter.
+        self.cursor += if multi_line { run.min(5) } else { 1 };
+        Some(true)
+    }
+
+    fn quote_run(&self, quote: u8) -> usize {
+        self.bytes[self.cursor..]
+            .iter()
+            .take_while(|&&byte| byte == quote)
+            .count()
     }
 
     fn peek(&self) -> Option<u8> {
