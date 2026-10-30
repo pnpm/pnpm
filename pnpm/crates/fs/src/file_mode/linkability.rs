@@ -27,6 +27,11 @@
 //! entry some other program replaced with a different mode is outside that
 //! guarantee, and is why the answer is dropped on every mode change pnpm
 //! makes itself.
+//!
+//! The cache is emptied once it holds [`MAX_ENTRIES`] answers. Only a blob
+//! that is linked more than once is worth remembering, so a working set that
+//! large is a host that has been installing into store after store, and the
+//! paths and inodes of the ones it finished with are not worth keeping.
 
 use std::{
     collections::HashMap,
@@ -38,6 +43,9 @@ use std::{
         atomic::{AtomicU64, Ordering},
     },
 };
+
+/// How many answers the cache keeps before it starts over.
+const MAX_ENTRIES: usize = 16 * 1024;
 
 struct Linkability {
     inodes: HashMap<(u64, u64), bool>,
@@ -88,6 +96,10 @@ pub fn source_mode_is_linkable(path: &Path, desired: u32) -> io::Result<bool> {
     let inode = (metadata.dev(), metadata.ino());
     let mut cache = lock();
     if epoch().load(Ordering::Acquire) == before {
+        if cache.paths.len() >= MAX_ENTRIES {
+            cache.paths.clear();
+            cache.inodes.clear();
+        }
         cache.paths.insert(path.to_path_buf(), inode);
         cache.inodes.insert(inode, linkable);
     }
