@@ -23,7 +23,7 @@ fn peer_warning_targets_the_command_scope_and_is_printed_once() {
         let output = render(&mut reporter, vec![event.clone(), event]);
         assert_eq!(
             output,
-            format!("[WARN] Issues with peer dependencies found. Run \"{command}\" to list them.")
+            format!(r#"[WARN] Issues with peer dependencies found. Run "{command}" to list them."#),
         );
     }
 }
