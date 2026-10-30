@@ -98,10 +98,11 @@ fn shell_metacharacters_in_target_and_node_path_are_literal() {
 fn anchored_target_comparison_uses_the_exec_target_word() {
     let root = Path::new("/p");
     let shim = Path::new("/p/.bin/tool");
-    let first_target = Path::new(r#"/p/"$basedir_abs"/first/cli"#);
-    let second_target = Path::new(r#"/p/"$basedir_abs"/second/cli"#);
-    let first = generate_sh_shim(first_target, shim, None, &[], Some(root));
-    let second = generate_sh_shim(second_target, shim, None, &[], Some(root));
+    let first_target = Path::new(r#"/p/é/"$basedir_abs"/first/cli"#);
+    let second_target = Path::new(r#"/p/é/"$basedir_abs"/second/cli"#);
+    let node_path = [String::from("/p/é/node_modules")];
+    let first = generate_sh_shim(first_target, shim, None, &node_path, Some(root));
+    let second = generate_sh_shim(second_target, shim, None, &node_path, Some(root));
     assert!(!is_sh_shim_basedir_anchor_current(&first, &second));
 }
 

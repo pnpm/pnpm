@@ -5,9 +5,10 @@ pub use powershell::generate_pwsh_shim;
 pub use quoting::{cmd_escape, sh_single_quote};
 pub(crate) use relocatable::{is_relocatable_shim, is_within_root};
 pub use replaced_batch::end_replaced_cmd_shim_batch;
+pub use sh_anchored_target::is_sh_shim_basedir_anchor_current;
 pub use sh::{
-    generate_sh_shim, is_sh_shim_basedir_anchor_current, is_sh_shim_hardened,
-    is_sh_shim_msys_cmd_switch_doubled, is_shim_pointing_at,
+    generate_sh_shim, is_sh_shim_hardened, is_sh_shim_msys_cmd_switch_doubled,
+    is_shim_pointing_at,
 };
 #[cfg(target_family = "wasm")]
 pub(crate) use wasm::generate_wasm_shim;
@@ -315,5 +316,7 @@ mod quoting;
 mod relocatable;
 
 mod replaced_batch;
+
+mod sh_anchored_target;
 
 mod sh;

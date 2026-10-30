@@ -142,44 +142,52 @@ fn legacy_sh_node_path_entries(text: &str) -> Option<Vec<String>> {
     let mut input = text.strip_prefix('"')?;
     let mut entries = Vec::new();
     loop {
-        if let Some(rest) = input.strip_prefix("$NODE_PATH\"") {
+        if let Some(rest) = input.strip_prefix(r#"$NODE_PATH""#) {
             return (rest.is_empty() && !entries.is_empty()).then_some(entries);
         }
         input = input.strip_prefix("$basedir_abs/")?;
-        let mut entry = String::new();
-        let mut index = 0;
-        loop {
-            let character = input[index..].chars().next()?;
-            match character {
-                '"' => {
-                    entries.push(entry);
-                    return input[index + character.len_utf8()..].is_empty().then_some(entries);
-                }
-                ':' => {
-                    entries.push(entry);
-                    input = &input[index + 1..];
-                    break;
-                }
-                '\\' => {
-                    let next_index = index + character.len_utf8();
-                    let next = input[next_index..].chars().next()?;
-                    match next {
-                        '$' | '`' | '"' | '\\' => entry.push(next),
-                        '\n' => {}
-                        _ => {
-                            entry.push(character);
-                            index = next_index;
-                            continue;
-                        }
-                    }
-                    index = next_index + next.len_utf8();
-                }
-                '$' | '`' => return None,
-                _ => {
-                    entry.push(character);
-                    index += character.len_utf8();
-                }
-            }
+        let (entry, is_final, rest) = read_legacy_sh_node_path_entry(input)?;
+        entries.push(entry);
+        if is_final {
+            return rest.is_empty().then_some(entries);
+        }
+        input = rest;
+    }
+}
+
+fn read_legacy_sh_node_path_entry(text: &str) -> Option<(String, bool, &str)> {
+    let mut entry = String::new();
+    let mut index = 0;
+    while index < text.len() {
+        match text[index..].chars().next()? {
+            '"' => return Some((entry, true, &text[index + 1..])),
+            ':' => return Some((entry, false, &text[index + 1..])),
+            _ => index = append_legacy_sh_node_path_character(text, index, &mut entry)?,
+        }
+    }
+    None
+}
+
+fn append_legacy_sh_node_path_character(text: &str, index: usize, entry: &mut String) -> Option<usize> {
+    let character = text[index..].chars().next()?;
+    if character != '\\' {
+        if matches!(character, '$' | '`') {
+            return None;
+        }
+        entry.push(character);
+        return Some(index + character.len_utf8());
+    }
+    let next_index = index + character.len_utf8();
+    let next = text[next_index..].chars().next()?;
+    match next {
+        '$' | '`' | '"' | '\\' => {
+            entry.push(next);
+            Some(next_index + next.len_utf8())
+        }
+        '\n' => Some(next_index + next.len_utf8()),
+        _ => {
+            entry.push(character);
+            Some(next_index)
         }
     }
 }
