@@ -32,12 +32,16 @@ fn raising_reaches_the_hard_limit() {
     raise_open_file_limit(CEILING);
     let soft = soft_open_file_limit().expect("the limit is readable");
     let ceiling = usize::try_from(CEILING).expect("the ceiling fits in a usize");
-    // The raise stops at the lower of the hard limit and the ceiling it was
-    // asked for, and macOS caps it again below an unlimited hard limit at
-    // the `OPEN_MAX` it falls back on. A host whose hard limit is unlimited
-    // reports one far above the ceiling, so the ceiling is what it reaches.
+    // A lower bound, not the value: the raise stops at the lower of the hard
+    // limit and the ceiling it was asked for, and on macOS it may stop
+    // lower still, at the `OPEN_MAX` it falls back on when the kernel
+    // refuses a soft limit the hard limit would allow. Which of the two a
+    // macOS host lands on is the kernel's call, so only the smaller is
+    // asserted there. The lowering above is what gives this teeth: without
+    // it a host whose soft limit already equals its hard one satisfies the
+    // bound before the raise runs.
     let expected = if cfg!(target_os = "macos") { hard.min(10_240) } else { hard.min(ceiling) };
-    assert_eq!(soft, expected, "the raise did not reach {expected}");
+    assert!(soft >= expected, "the raise did not reach {expected}, stopping at {soft}");
 }
 
 fn current_hard_limit() -> usize {
