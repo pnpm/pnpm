@@ -235,6 +235,25 @@ describe('catalogs inherited from pnpm-workspace.yaml', () => {
   })
 })
 
+test.each([
+  { flags: ['-C', '../target'], runDir: 'target' },
+  { flags: ['-w'], runDir: '.' },
+  { flags: [], runDir: 'invoker' },
+])('dlx runs the command in the directory selected by $flags', async ({ flags, runDir }) => {
+  prepare()
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: [] })
+  fs.mkdirSync('invoker')
+  fs.mkdirSync('target')
+  const expectedDir = fs.realpathSync(runDir)
+
+  const result = execPnpmSync([...flags, 'dlx', 'shx@0.3.4', 'pwd'], {
+    cwd: path.resolve('invoker'),
+    expectSuccess: true,
+  })
+
+  expect(fs.realpathSync(result.stdout.toString().trim())).toBe(expectedDir)
+})
+
 test('dlx should work with pnpm_config_save_dev env variable', async () => {
   prepareEmpty()
   execPnpmSync(['dlx', '@foo/touch-file-one-bin@latest'], {
