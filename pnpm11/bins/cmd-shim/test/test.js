@@ -74,7 +74,7 @@ describe('missing source', () => {
   test('infers the runtime from the extension', async () => {
     const src = path.resolve(fixtures, 'dist', 'missing.js')
     await cmdShim(src, to, { createCmdFile: true, fs })
-    assert.match(fs.readFileSync(to, 'utf8'), /\n +exec node +"\$basedir_abs\/dist\/missing\.js" "\$@"\n/)
+    assert.match(fs.readFileSync(to, 'utf8'), /\n +exec node +"\$basedir_abs"\/'dist\/missing\.js' "\$@"\n/)
     assert.match(fs.readFileSync(`${to}${cmdExtension}`, 'utf8'), /\n +node +"%~dp0\\dist\\missing\.js" %\*/)
   })
 
@@ -82,7 +82,7 @@ describe('missing source', () => {
     const src = path.resolve(fixtures, 'missing')
     await cmdShim(src, to, { createCmdFile: false, fs })
     const content = fs.readFileSync(to, 'utf8')
-    assert.match(content, /\nexec "\$basedir_abs\/missing" +"\$@"\n/)
+    assert.match(content, /\nexec "\$basedir_abs"\/'missing' +"\$@"\n/)
     assert.doesNotMatch(content, /exec node/)
   })
 

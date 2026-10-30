@@ -1683,17 +1683,17 @@ $ret=0
 if (Test-Path "$basedir//usr/bin/sh$exe") {
   # Support pipeline input
   if ($MyInvocation.ExpectingInput) {
-    $input | & "$basedir//usr/bin/sh$exe"  -x 'J:/cmd-shim/fixtures/src.sh.args' $args
+    $input | & "$basedir//usr/bin/sh$exe"  -x "J:/cmd-shim/fixtures/src.sh.args" $args
   } else {
-    & "$basedir//usr/bin/sh$exe"  -x 'J:/cmd-shim/fixtures/src.sh.args' $args
+    & "$basedir//usr/bin/sh$exe"  -x "J:/cmd-shim/fixtures/src.sh.args" $args
   }
   $ret=$LASTEXITCODE
 } else {
   # Support pipeline input
   if ($MyInvocation.ExpectingInput) {
-    $input | & "/usr/bin/sh$exe"  -x 'J:/cmd-shim/fixtures/src.sh.args' $args
+    $input | & "/usr/bin/sh$exe"  -x "J:/cmd-shim/fixtures/src.sh.args" $args
   } else {
-    & "/usr/bin/sh$exe"  -x 'J:/cmd-shim/fixtures/src.sh.args' $args
+    & "/usr/bin/sh$exe"  -x "J:/cmd-shim/fixtures/src.sh.args" $args
   }
   $ret=$LASTEXITCODE
 }

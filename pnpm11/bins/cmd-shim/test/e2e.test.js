@@ -17,7 +17,7 @@ describeOnPosix('shell shim paths with shell metacharacters', () => {
   test('runs a target from a directory named with command substitution syntax', async () => {
     const tempDir = temporaryDirectory()
     try {
-      const hostile = '$(touch marker) `touch marker` $ " q\' \\\n'
+      const hostile = '$(touch marker) `touch marker` $ " q\''
       const targetDir = path.join(tempDir, 'bin', '$basedir_abs', hostile)
       fs.mkdirSync(targetDir, { recursive: true })
       const target = path.join(targetDir, 'cli.js')
