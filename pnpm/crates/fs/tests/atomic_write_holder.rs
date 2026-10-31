@@ -31,10 +31,8 @@ fn a_sigint_mid_write_removes_the_staged_temp_file() {
         .expect("spawn atomic_write_holder");
 
     wait_for_temp_file(root.path(), &mut writer);
-    // SAFETY: the writer is this test's own child and still running.
-    unsafe {
-        libc::kill(i32::try_from(writer.id()).expect("the child's pid fits in i32"), libc::SIGINT);
-    }
+    // The writer is this test's own child and still running.
+    pnpm_ffi_signal::signal_target(pnpm_ffi_signal::Target::Process(writer.id()), libc::SIGINT);
     let status = writer.wait().expect("reap the writer");
     assert_eq!(status.signal(), Some(libc::SIGINT), "the writer died from SIGINT");
 

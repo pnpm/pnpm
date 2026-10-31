@@ -166,7 +166,7 @@ impl NodeWorker {
             .stdout(Stdio::piped())
             .kill_on_drop(true);
         #[cfg(target_vendor = "apple")]
-        inherited_descriptors::inherit_only_stdio(&mut command);
+        pnpm_ffi_process::inherit_only_stdio(command.as_std_mut());
         let mut child = command.spawn().map_err(|err| exec_err(err.to_string()))?;
 
         let stdin = Arc::new(Mutex::new(child.stdin.take().expect("worker stdin is piped")));
@@ -449,7 +449,5 @@ mod dispatch;
 use dispatch::spawn_stdout_reader;
 
 #[cfg(target_vendor = "apple")]
-mod inherited_descriptors;
-
 #[cfg(test)]
 mod tests;

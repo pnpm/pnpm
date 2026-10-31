@@ -4,7 +4,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 #[cfg(unix)]
-use std::{os::unix::process::CommandExt, path::Path, ptr, time::Duration};
+use std::{os::unix::process::CommandExt, path::Path, time::Duration};
 
 #[cfg(not(target_family = "wasm"))]
 use tokio::sync::watch;
@@ -329,15 +329,8 @@ fn wait_for_process_group(_: u32) {}
 /// are still shutting down.
 #[cfg(unix)]
 fn group_is_running(leader: i32, table: Option<&Path>) -> bool {
-    let group = -leader;
-    // SAFETY: `group` names the process group pnpm created for the
-    // child. `waitpid` with `WNOHANG` never blocks, and `kill` with
-    // signal 0 only probes; `ESRCH` says the group is empty.
-    let empty = unsafe {
-        while libc::waitpid(group, ptr::null_mut(), libc::WNOHANG) > 0 {}
-        libc::kill(group, 0) != 0 && io::Error::last_os_error().raw_os_error() == Some(libc::ESRCH)
-    };
-    !empty && table.is_none_or(|table| process_table::has_running_member(table, leader))
+    u32::try_from(leader).is_ok_and(pnpm_ffi_signal::group_has_members)
+        && table.is_none_or(|table| process_table::has_running_member(table, leader))
 }
 
 #[cfg(not(target_family = "wasm"))]

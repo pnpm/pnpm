@@ -14,39 +14,40 @@ repository.workspace = true
 test = []
 
 [dependencies]
+pnpm-ffi-fs = { workspace = true }
+pnpm-signal-registry = { workspace = true }
 dashmap = { workspace = true }
 derive_more = { workspace = true }
 dunce = { workspace = true }
 getrandom = { workspace = true }
 miette = { workspace = true }
 pathdiff = { workspace = true }
-pipe-trait = { workspace = true }
 pnpm-crypto-hash = { workspace = true }
 reflink-copy = { workspace = true }
 tempfile = { workspace = true }
 tracing = { workspace = true }
 
 [dev-dependencies]
+pipe-trait = { workspace = true }
 sha2 = { workspace = true }
-text-block-macros = { workspace = true }
 
 [target.'cfg(any(unix, target_os = "wasi"))'.dependencies]
+pnpm-ffi-process = { workspace = true }
 libc = { workspace = true }
+
+[target.'cfg(any(unix, windows))'.dependencies]
+pnpm-ffi-signal = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
 junction = { workspace = true }
 same-file = { workspace = true }
-windows-sys = { workspace = true, features = [
-  "Win32_Storage_FileSystem",
-  "Win32_System_Com",
-  "Win32_System_Console",
-  "Win32_UI_Shell",
-] }
+windows-sys = { workspace = true, features = ["Win32_Storage_FileSystem"] }
 
-[target.'cfg(windows)'.dev-dependencies]
-windows-sys = { workspace = true, features = ["Win32_Security"] }
+[target.'cfg(any(unix, windows))'.dev-dependencies]
+pnpm-testing-utils = { workspace = true }
 
 [target.'cfg(target_family = "wasm")'.dependencies]
+pnpm-ffi-webcontainer = { path = "../ffi-webcontainer" }
 pnpm-wasm-host = { path = "../wasm-host" }
 
 [lints]

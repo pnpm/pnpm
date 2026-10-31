@@ -11,6 +11,8 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+pnpm-ffi-fs = { workspace = true }
+pnpm-signal-registry = { workspace = true }
 pnpm-fs = { workspace = true }
 pnpm-package-manifest = { workspace = true }
 pnpm-reporter = { workspace = true }
@@ -25,6 +27,10 @@ tracing = { workspace = true }
 [target.'cfg(unix)'.dependencies]
 libc = { workspace = true }
 
+[target.'cfg(any(unix, windows))'.dependencies]
+pnpm-ffi-process = { workspace = true }
+pnpm-ffi-signal = { workspace = true }
+
 [target.'cfg(windows)'.dependencies]
 windows-sys = { workspace = true, features = [
   "Win32_Foundation",
@@ -36,6 +42,7 @@ windows-sys = { workspace = true, features = [
 ] }
 
 [dev-dependencies]
+pnpm-testing-utils = { workspace = true }
 pretty_assertions = { workspace = true }
 tempfile = { workspace = true }
 

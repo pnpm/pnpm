@@ -10,7 +10,7 @@
 //! else.
 #![cfg(windows)]
 
-use crate::_utils::console::PrivateConsole;
+use crate::_utils::console::{ConsoleEvent, PrivateConsole};
 use assert_cmd::cargo::CommandCargoExt;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::{bin::CommandTempCwd, command_env::CommandTestExt};
@@ -25,10 +25,7 @@ use std::{
     time::{Duration, Instant},
 };
 use tempfile::TempDir;
-use windows_sys::Win32::System::{
-    Console::{CTRL_BREAK_EVENT, CTRL_C_EVENT, GenerateConsoleCtrlEvent},
-    Threading::CREATE_NEW_PROCESS_GROUP,
-};
+use windows_sys::Win32::System::Threading::CREATE_NEW_PROCESS_GROUP;
 
 /// A script that prints its arguments, one JSON array per run.
 const PRINT_ARGS_SCRIPT: &str = "console.log(JSON.stringify(process.argv.slice(2)))\n";
@@ -383,7 +380,7 @@ fn assert_interrupt_asks_nothing(interrupt: Interrupt) {
     )
     .expect("write the project manifest");
 
-    let _console = PrivateConsole::attach();
+    let console = PrivateConsole::attach();
     let mut command = cli.via_cmd("run dev");
     if matches!(interrupt, Interrupt::CtrlBreak) {
         command.creation_flags(CREATE_NEW_PROCESS_GROUP);
@@ -409,16 +406,12 @@ fn assert_interrupt_asks_nothing(interrupt: Interrupt) {
         sleep(Duration::from_millis(50));
     }
 
-    let (event, group) = match interrupt {
-        Interrupt::CtrlC => (CTRL_C_EVENT, 0),
-        Interrupt::CtrlBreak => (CTRL_BREAK_EVENT, child.id()),
-    };
-    // SAFETY: plain FFI call with no pointer arguments. Group 0 is the whole
-    // private console, where this process ignores the event (see
-    // `PrivateConsole`); any other group is the one `CREATE_NEW_PROCESS_GROUP`
-    // made for `child`.
-    let sent = unsafe { GenerateConsoleCtrlEvent(event, group) };
-    assert_ne!(sent, 0, "GenerateConsoleCtrlEvent: {}", std::io::Error::last_os_error());
+    // `CREATE_NEW_PROCESS_GROUP` made `child` the leader of a group of its
+    // own, which is the one a break event can be aimed at.
+    match interrupt {
+        Interrupt::CtrlC => console.send(ConsoleEvent::CtrlC, None),
+        Interrupt::CtrlBreak => console.send(ConsoleEvent::CtrlBreak, Some(child.id())),
+    }
 
     let deadline = Instant::now() + Duration::from_secs(20);
     let status = loop {

@@ -469,7 +469,7 @@ fn platform_unsafe_perm_default() -> bool {
 
 #[cfg(all(unix, not(target_os = "cygwin")))]
 fn platform_unsafe_perm_default() -> bool {
-    is_unsafe_perm_posix(posix_getuid())
+    is_unsafe_perm_posix(pnpm_ffi_process::real_user_id())
 }
 
 /// Targets that are neither Windows, Cygwin, nor POSIX
@@ -489,16 +489,6 @@ pub fn is_unsafe_perm_posix(uid: u32) -> bool {
     // `unsafe_perm = true` means "do NOT drop privileges". Drop
     // only when we *are* root (uid == 0).
     uid != 0
-}
-
-/// Safe wrapper around `libc::getuid` — contains the `unsafe`
-/// FFI block internally so the caller doesn't need to propagate
-/// `unsafe`.
-#[cfg(all(unix, not(target_os = "cygwin")))]
-fn posix_getuid() -> u32 {
-    // SAFETY: `libc::getuid` has no preconditions; it reads a
-    // kernel-owned uid field and cannot fail.
-    unsafe { libc::getuid() as u32 }
 }
 
 #[cfg(test)]

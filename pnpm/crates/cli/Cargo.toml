@@ -15,6 +15,10 @@ name = "pnpm"
 path = "src/bin/main.rs"
 
 [dependencies]
+pnpm-ffi-signal = { workspace = true }
+pnpm-ffi-terminal = { workspace = true }
+pnpm-ffi-fs = { workspace = true }
+pnpm-ffi-process = { workspace = true }
 pnpm-python-installer = { workspace = true }
 pnpm-rust-toolchain = { workspace = true }
 pnpm-package-name = { workspace = true }
@@ -184,10 +188,6 @@ pnpm-wasm-host = { path = "../wasm-host" }
 libc = { workspace = true }
 pnpm-process = { path = "../process" }
 pnpm-http = { workspace = true }
-
-# The process-lifetime tests close a private console through its window.
-[target.'cfg(windows)'.dev-dependencies]
-windows-sys = { workspace = true, features = ["Win32_UI_WindowsAndMessaging"] }
 
 [lints]
 workspace = true

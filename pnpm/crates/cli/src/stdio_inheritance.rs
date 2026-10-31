@@ -13,25 +13,7 @@
 
 #[cfg(windows)]
 pub fn disable() {
-    use windows_sys::Win32::Foundation::{
-        HANDLE_FLAG_INHERIT, INVALID_HANDLE_VALUE, SetHandleInformation,
-    };
-    use windows_sys::Win32::System::Console::{
-        GetStdHandle, STD_ERROR_HANDLE, STD_INPUT_HANDLE, STD_OUTPUT_HANDLE,
-    };
-
-    // SAFETY: `GetStdHandle` returns a borrowed handle that must not be
-    // closed, and `SetHandleInformation` only changes its inherit flag.
-    // A failure leaves the handle inheritable, as it was.
-    unsafe {
-        for stream in [STD_INPUT_HANDLE, STD_OUTPUT_HANDLE, STD_ERROR_HANDLE] {
-            let handle = GetStdHandle(stream);
-            if handle.is_null() || handle == INVALID_HANDLE_VALUE {
-                continue;
-            }
-            SetHandleInformation(handle, HANDLE_FLAG_INHERIT, 0);
-        }
-    }
+    pnpm_ffi_terminal::stop_inheriting_standard_handles();
 }
 
 #[cfg(not(windows))]

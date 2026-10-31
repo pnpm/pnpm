@@ -235,25 +235,9 @@ fn hard_link_count(_path: &Path, metadata: &fs::Metadata) -> Result<u64, PruneCa
 
 #[cfg(windows)]
 fn hard_link_count(path: &Path, _metadata: &fs::Metadata) -> Result<u64, PruneCasError> {
-    use std::{mem::MaybeUninit, os::windows::io::AsRawHandle as _};
-    use windows_sys::Win32::Storage::FileSystem::{
-        BY_HANDLE_FILE_INFORMATION, GetFileInformationByHandle,
-    };
-
-    let file = fs::File::open(path)
-        .map_err(|error| PruneCasError::InspectFile { path: path.to_path_buf(), error })?;
-    let mut info = MaybeUninit::<BY_HANDLE_FILE_INFORMATION>::uninit();
-    // SAFETY: `file` owns a valid handle and `info` points to writable storage
-    // of the structure initialized by `GetFileInformationByHandle`.
-    if unsafe { GetFileInformationByHandle(file.as_raw_handle().cast(), info.as_mut_ptr()) } == 0 {
-        return Err(PruneCasError::InspectFile {
-            path: path.to_path_buf(),
-            error: io::Error::last_os_error(),
-        });
-    }
-    // SAFETY: a successful `GetFileInformationByHandle` initializes `info`.
-    let info = unsafe { info.assume_init() };
-    Ok(u64::from(info.nNumberOfLinks))
+    pnpm_ffi_fs::file_information(path)
+        .map(|info| u64::from(info.hard_links))
+        .map_err(|error| PruneCasError::InspectFile { path: path.to_path_buf(), error })
 }
 
 #[cfg(not(any(unix, windows, target_os = "wasi")))]
