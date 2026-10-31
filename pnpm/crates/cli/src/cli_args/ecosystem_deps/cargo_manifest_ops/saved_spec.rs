@@ -21,7 +21,9 @@ pub(crate) fn format_cargo_saved_spec(
     if let Some(spec) = explicit_spec
         && spec.starts_with(['^', '~', '=', '>', '<'])
     {
-        return Ok(spec.to_string());
+        // A parsed requirement drops build metadata, which Cargo ignores and
+        // warns about.
+        return Ok(VersionReq::parse(spec).map_or_else(|_| spec.to_string(), |req| req.to_string()));
     }
     if existing_raw.trim().starts_with('=') {
         return Ok(format!("={resolved}"));

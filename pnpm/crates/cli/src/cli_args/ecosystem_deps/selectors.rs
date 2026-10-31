@@ -139,9 +139,6 @@ fn push_prefixed_pattern(
 }
 
 fn python_pattern_name(spec: &str) -> Result<String> {
-    if (spec.contains('*') || spec.contains('?')) && !spec.chars().any(char::is_whitespace) {
-        return Ok(strip_version_suffix(spec).to_string());
-    }
     let requirement = spec
         .rsplit_once('@')
         .filter(|(name, version)| {
@@ -153,7 +150,29 @@ fn python_pattern_name(spec: &str) -> Result<String> {
                 && !version.contains(':')
         })
         .map_or(spec, |(name, _)| name);
-    Ok(pnpm_python_resolver::parse_requirement(requirement)?.name.to_string())
+    match pnpm_python_resolver::parse_requirement(requirement) {
+        Ok(parsed) => Ok(parsed.name.to_string()),
+        Err(_) if requirement.contains(['*', '?']) => {
+            Ok(normalize_python_name_pattern(requirement))
+        }
+        Err(error) => Err(error),
+    }
+}
+
+/// Applies Python name normalization to the literal parts of a glob, so it
+/// matches the normalized names of declared dependencies.
+fn normalize_python_name_pattern(pattern: &str) -> String {
+    let mut normalized = String::with_capacity(pattern.len());
+    for character in pattern.chars() {
+        if matches!(character, '-' | '_' | '.') {
+            if !normalized.ends_with('-') {
+                normalized.push('-');
+            }
+        } else {
+            normalized.push(character.to_ascii_lowercase());
+        }
+    }
+    normalized
 }
 
 fn push_negated_purl_pattern(
