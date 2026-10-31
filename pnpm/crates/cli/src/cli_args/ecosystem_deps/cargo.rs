@@ -1,9 +1,9 @@
 use super::{
     EcosystemUpdateStepOptions,
     cargo_manifest_ops::{
-        DeclaredCargoDep, LockedSource, apply_manifest_edits, declared_cargo_deps,
-        find_cargo_workspace_root, format_cargo_saved_spec, read_locked_cargo_versions,
-        same_declared_dep, select_locked_version,
+        DeclaredCargoDep, apply_manifest_edits, declared_cargo_deps, find_cargo_workspace_root,
+        format_cargo_saved_spec, read_locked_cargo_versions, same_declared_dep,
+        select_locked_version,
     },
     cargo_selection::{
         SelectedCargoDep, SelectedCargoTarget, admits_enabled_features, is_held_as_downgrade,
@@ -64,7 +64,7 @@ pub(crate) async fn collect_cargo_outdated(
     if declared.is_empty() || !cargo_lock_path.is_file() {
         return Ok(Vec::new());
     }
-    let locked = read_locked_cargo_versions(&cargo_lock_path, LockedSource::Registry)?;
+    let locked = read_locked_cargo_versions(&cargo_lock_path)?.registry;
     let auth_headers = cargo_auth_headers(config)?;
     let mut outdated = Vec::new();
     for dep in declared {
@@ -290,13 +290,16 @@ async fn build_cargo_update_edits<Reporter: self::Reporter>(
     options: &CargoUpdateOptions<'_>,
 ) -> Result<(Vec<ManifestEdit>, Vec<ManifestEdit>)> {
     let auth_headers = cargo_auth_headers(context.config)?;
-    let locked = LockedVersions::read(&scope.root.join("Cargo.lock"));
+    let locked = read_locked_cargo_versions(&scope.root.join("Cargo.lock")).unwrap_or_default();
     let mut staged = Vec::new();
     let mut finalized = Vec::new();
     let mut updated = Vec::new();
     for selection in selected {
-        let target =
-            SelectedCargoTarget { selection, scope, locked: locked.current(scope, selection.dep) };
+        let target = SelectedCargoTarget {
+            selection,
+            scope,
+            locked: locked.current(selection.dep, scope.is_patched(&selection.dep.package_name)),
+        };
         let Some((staged_edit, final_edit)) =
             resolve_selected_cargo_edit::<Reporter>(&target, &auth_headers, context, options)
                 .await?
@@ -311,7 +314,7 @@ async fn build_cargo_update_edits<Reporter: self::Reporter>(
         if updated.iter().any(|sel| same_declared_dep(sel, dep)) {
             continue;
         }
-        if let Some(locked_ver) = select_locked_version(&locked.registry, dep) {
+        if let Some(locked_ver) = locked.current(dep, scope.is_patched(&dep.package_name)) {
             staged.push((
                 dep.manifest_path.clone(),
                 dep.table,
@@ -321,30 +324,6 @@ async fn build_cargo_update_edits<Reporter: self::Reporter>(
         }
     }
     Ok((staged, finalized))
-}
-
-/// The versions `Cargo.lock` records, by package name.
-struct LockedVersions {
-    registry: HashMap<String, Vec<Version>>,
-    /// Versions locked by git `[patch]` replacements.
-    git: HashMap<String, Vec<Version>>,
-}
-
-impl LockedVersions {
-    fn read(lockfile: &Path) -> Self {
-        let read = |source| read_locked_cargo_versions(lockfile, source).unwrap_or_default();
-        Self { registry: read(LockedSource::Registry), git: read(LockedSource::Git) }
-    }
-
-    /// The version `dep` uses now: the `[patch.crates-io]` replacement's
-    /// for a crate the workspace patches, otherwise the registry one.
-    fn current(&self, scope: &CargoWorkspaceScope, dep: &DeclaredCargoDep) -> Option<&Version> {
-        scope
-            .is_patched(&dep.package_name)
-            .then(|| select_locked_version(&self.git, dep))
-            .flatten()
-            .or_else(|| select_locked_version(&self.registry, dep))
-    }
 }
 
 /// The edits that move a selected dependency to its target version, or
@@ -412,6 +391,3 @@ fn restore_cargo_manifests(originals: &BTreeMap<PathBuf, String>) -> Result<()> 
     }
     Ok(())
 }
-
-#[cfg(test)]
-mod tests;

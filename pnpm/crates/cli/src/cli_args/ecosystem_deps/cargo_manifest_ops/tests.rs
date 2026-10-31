@@ -1,8 +1,22 @@
-use super::{LockedSource, read_locked_cargo_versions};
-use semver::Version;
+use super::{DeclaredCargoDep, read_locked_cargo_versions};
+use pnpm_package_manifest::DependencyGroup;
+use semver::{Version, VersionReq};
+use std::path::PathBuf;
+
+fn lib() -> DeclaredCargoDep {
+    DeclaredCargoDep {
+        alias: "lib".to_string(),
+        package_name: "lib".to_string(),
+        raw_spec: "1".to_string(),
+        version_req: VersionReq::parse("1").unwrap(),
+        group: DependencyGroup::Prod,
+        manifest_path: PathBuf::from("Cargo.toml"),
+        table: "workspace.dependencies",
+    }
+}
 
 #[test]
-fn locked_versions_are_read_per_source_without_workspace_members() {
+fn a_git_entry_is_the_current_version_only_of_a_patched_crate() {
     let dir = tempfile::tempdir().unwrap();
     let lockfile = dir.path().join("Cargo.lock");
     std::fs::write(
@@ -13,16 +27,15 @@ fn locked_versions_are_read_per_source_without_workspace_members() {
             "[[package]]\nname = \"lib\"\nversion = \"1.0.0\"\n",
             "source = \"registry+https://github.com/rust-lang/crates.io-index\"\n",
             "checksum = \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"\n\n",
-            "[[package]]\nname = \"lib\"\nversion = \"1.1.0-fork\"\n",
+            "[[package]]\nname = \"lib\"\nversion = \"1.5.0\"\n",
             "source = \"git+https://example.test/lib?rev=abc#abc\"\n",
         ),
     )
     .unwrap();
 
-    let registry = read_locked_cargo_versions(&lockfile, LockedSource::Registry).unwrap();
-    let git = read_locked_cargo_versions(&lockfile, LockedSource::Git).unwrap();
+    let locked = read_locked_cargo_versions(&lockfile).unwrap();
 
-    assert_eq!(registry.get("lib").unwrap(), &[Version::parse("1.0.0").unwrap()]);
-    assert_eq!(git.get("lib").unwrap(), &[Version::parse("1.1.0-fork").unwrap()]);
-    assert!(!registry.contains_key("app") && !git.contains_key("app"));
+    assert!(!locked.registry.contains_key("app") && !locked.git.contains_key("app"));
+    assert_eq!(locked.current(&lib(), false), Some(&Version::parse("1.0.0").unwrap()));
+    assert_eq!(locked.current(&lib(), true), Some(&Version::parse("1.5.0").unwrap()));
 }
