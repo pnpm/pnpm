@@ -1,3 +1,6 @@
+pub(crate) use update::update_cargo_projects;
+mod update;
+
 use super::{
     EcosystemUpdateStepOptions,
     cargo_manifest_ops::{
@@ -37,6 +40,8 @@ use std::{
 
 pub(crate) struct CargoUpdateOptions<'a> {
     pub(crate) requests: &'a [CargoUpdateSelector],
+    pub(crate) exclusions: &'a [String],
+    pub(crate) update_all_except_exclusions: bool,
     pub(crate) bare_matcher: Option<&'a Matcher>,
     pub(crate) restrict_to_selectors: bool,
     pub(crate) step: &'a EcosystemUpdateStepOptions<'a>,
@@ -113,13 +118,19 @@ async fn resolve_outdated_cargo_dep(
     let target = match query.target_version {
         TargetVersion::WithinRange => wanted.clone(),
         TargetVersion::Latest => {
-            let Some(latest) =
-                resolve_target_version(config, auth_headers, &dep.package_name, None, http_client)
-                    .await?
+            let latest_req = latest_requirement(dep);
+            let Some(latest) = resolve_target_version(
+                config,
+                auth_headers,
+                &dep.package_name,
+                latest_req,
+                http_client,
+            )
+            .await?
             else {
                 return Ok(None);
             };
-            latest
+            latest_cargo_target(current, latest)
         }
     };
     if target <= *current {
@@ -131,6 +142,18 @@ async fn resolve_outdated_cargo_dep(
         workspace_name,
         config.cargo_index_url(),
     )))
+}
+
+fn latest_cargo_target(current: &Version, latest: Version) -> Version {
+    latest.max(current.clone())
+}
+
+fn latest_requirement(dep: &DeclaredCargoDep) -> Option<&VersionReq> {
+    (dep.alias != dep.package_name
+        || dep.version_req.comparators
+            .iter()
+            .any(|comparator| !comparator.pre.is_empty()))
+    .then_some(&dep.version_req)
 }
 
 fn build_cargo_outdated_package(
@@ -173,33 +196,6 @@ fn semver_to_node_version(version: &Version) -> node_semver::Version {
             build: Vec::new(),
             pre_release: Vec::new(),
         })
-}
-
-pub(crate) async fn update_cargo_project<Reporter: self::Reporter + 'static>(
-    project_dir: &Path,
-    context: InstallContext,
-    options: &CargoUpdateOptions<'_>,
-) -> Result<bool> {
-    let config = context.config;
-    let manifest_path = project_dir.join("Cargo.toml");
-    if !config.cargo.enabled || !manifest_path.is_file() {
-        return Ok(false);
-    }
-    let declared = declared_cargo_deps(project_dir, config.workspace_dir.as_deref())?;
-    let selected = select_cargo_deps_to_update(&declared, options);
-    if selected.is_empty() {
-        return Ok(false);
-    }
-    execute_cargo_update::<Reporter>(
-        project_dir,
-        &manifest_path,
-        &declared,
-        &selected,
-        context,
-        options,
-    )
-    .await?;
-    Ok(true)
 }
 
 pub(crate) fn validate_explicit_cargo_requests(
@@ -334,7 +330,7 @@ async fn resolve_selected_cargo_edit<Reporter: self::Reporter>(
     let explicit_spec = target.selection.explicit_spec;
     let target_req = match explicit_spec {
         Some(spec) => Some(VersionReq::parse(spec).into_diagnostic()?),
-        None if options.step.latest => None,
+        None if options.step.latest && latest_requirement(dep).is_none() => None,
         None => Some(dep.version_req.clone()),
     };
     let index_file = fetch_crate_index_file(
@@ -385,3 +381,6 @@ fn restore_cargo_manifests(originals: &BTreeMap<PathBuf, String>) -> Result<()> 
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests;

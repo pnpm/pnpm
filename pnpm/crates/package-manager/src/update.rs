@@ -11,7 +11,8 @@ use install::{
 mod prepare;
 use prepare::{
     ReadPackageHook, apply_read_package_hook_to_update_manifest, prepare_manifest,
-    prepare_selected_manifests, update_read_package_hook,
+    prepare_selected_manifests, selection::selection_matches_ignored_direct,
+    update_read_package_hook,
 };
 
 mod workspace;
@@ -241,6 +242,9 @@ impl Update<'_> {
         )
         .await?
         else {
+            if selection_matches_ignored_direct(manifest, update, &owned) {
+                return Ok(());
+            }
             return nothing_to_update(
                 update.selection.depth,
                 update.selection.packages,
@@ -280,7 +284,7 @@ impl Update<'_> {
             &owned,
         )
         .await?;
-        if !prepared.any_work {
+        if !prepared.has_work() {
             return Ok(());
         }
         run_prepared_selected_update::<Reporter>(

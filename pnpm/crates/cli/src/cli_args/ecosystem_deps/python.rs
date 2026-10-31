@@ -26,6 +26,8 @@ use std::{
 
 pub(crate) struct PythonUpdateOptions<'a> {
     pub(crate) requests: &'a [PythonUpdateSelector],
+    pub(crate) exclusions: &'a [String],
+    pub(crate) update_all_except_exclusions: bool,
     pub(crate) bare_matcher: Option<&'a Matcher>,
     pub(crate) restrict_to_selectors: bool,
     pub(crate) step: &'a EcosystemUpdateStepOptions<'a>,
@@ -269,24 +271,41 @@ fn select_python_targets(
             continue;
         }
         let dep_name_str = dep.name.to_string();
-        if options.step.ignore_matcher.is_some_and(|matcher| matcher.matches(&dep_name_str)) {
+        if is_python_dep_excluded(&dep_name_str, options) {
             continue;
         }
-        if let Some(req) = options.requests
-            .iter()
-            .find(|req| {
-                PackageName::from_str(&req.name)
-                    .ok()
-                    .is_some_and(|name| name == dep.name)
-            })
-        {
+        if let Some(req) = find_python_request(&dep.name, options.requests) {
             let spec = req.version_spec.as_deref().map(normalize_python_spec);
             targets.insert(dep.name.clone(), spec);
-        } else if options.bare_matcher.is_some_and(|matcher| matcher.matches(&dep_name_str)) {
+            continue;
+        }
+        if options.bare_matcher.is_some_and(|matcher| matcher.matches(&dep_name_str))
+            || options.update_all_except_exclusions
+        {
             targets.insert(dep.name.clone(), None);
         }
     }
     Ok(targets)
+}
+
+fn is_python_dep_excluded(name: &str, options: &PythonUpdateOptions<'_>) -> bool {
+    options.step.ignore_matcher.is_some_and(|matcher| matcher.matches(name))
+        || options.exclusions
+            .iter()
+            .any(|excluded| excluded == name)
+}
+
+fn find_python_request<'a>(
+    name: &PackageName,
+    requests: &'a [PythonUpdateSelector],
+) -> Option<&'a PythonUpdateSelector> {
+    requests
+        .iter()
+        .find(|req| {
+            PackageName::from_str(&req.name)
+                .ok()
+                .is_some_and(|request_name| request_name == *name)
+        })
 }
 
 fn normalize_python_spec(spec: &str) -> String {

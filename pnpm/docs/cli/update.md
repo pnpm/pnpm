@@ -116,6 +116,10 @@ Update the dependencies to their latest stable version as determined by their `l
 
 Since v12.6.0, `--latest` does not move a dependency past a specifier supplied by `packageExtensions`, a `readPackage` hook, or an override. The lockfile stays inside that specifier.
 
+For Cargo dependencies declared under an alias, `--latest` stays within the
+declared version requirement. Exact Cargo requirements remain exact when
+updated, and Cargo requirement strings omit build metadata.
+
 ### --patches
 
 Added in: v12.0.0
