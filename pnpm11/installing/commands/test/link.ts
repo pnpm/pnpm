@@ -211,7 +211,7 @@ test('link fails if nothing is linked', async () => {
   ).rejects.toThrow(/You must provide a parameter/)
 })
 
-test.each([
+test.each<{ linked: string, linkedManifest: { name?: string, version: string } }>([
   { linked: '.', linkedManifest: { version: '1.0.0' } },
   { linked: './linked', linkedManifest: { name: 'mcp-use server', version: '1.0.0' } },
 ])('link refuses the invalid package name of $linked without writing anything', async ({ linked, linkedManifest }) => {
