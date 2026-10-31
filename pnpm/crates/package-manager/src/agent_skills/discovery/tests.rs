@@ -144,3 +144,39 @@ fn a_symlinked_category_directory_is_not_searched() {
 
     assert_eq!(found, [top_level()]);
 }
+
+#[cfg(unix)]
+#[test]
+fn a_symlinked_skill_directory_is_found() {
+    let root = tempfile::tempdir().unwrap();
+    let actual_skill = root.path().join("internal/guide");
+    std::fs::create_dir_all(&actual_skill).unwrap();
+    std::fs::write(actual_skill.join("SKILL.md"), "# skill\n").unwrap();
+    let skills_dir = root.path().join("skills");
+    std::fs::create_dir_all(&skills_dir).unwrap();
+    std::os::unix::fs::symlink(&actual_skill, skills_dir.join("guide")).unwrap();
+
+    let found = super::skills(root.path());
+
+    assert_eq!(found, [top_level()]);
+}
+
+#[cfg(unix)]
+#[test]
+fn a_symlink_escaping_package_is_dropped() {
+    let temp = tempfile::tempdir().unwrap();
+    let outside = temp.path().join("outside");
+    std::fs::create_dir_all(&outside).unwrap();
+    std::fs::write(outside.join("SKILL.md"), "# skill\n").unwrap();
+
+    let package = temp.path().join("package");
+    let skills_dir = package.join("skills");
+    std::fs::create_dir_all(&skills_dir).unwrap();
+    std::os::unix::fs::symlink(&outside, skills_dir.join("escaped")).unwrap();
+
+    let probe = super::probe_package(&package);
+    let super::Probe::Found(Some((shipped, _))) = probe else {
+        panic!("expected Probe::Found");
+    };
+    assert!(shipped.is_empty());
+}

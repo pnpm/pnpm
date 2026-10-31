@@ -222,7 +222,7 @@ fn removes_dirs_entry_while_preserving_other_skills_settings() {
 fn upserts_dirs_into_existing_skills_block_with_other_entries() {
     let original = "skills:\n  other: value\n";
     let out = run_skills_dirs(Some(original), &[".claude/skills".to_string()]);
-    assert_eq!(out.as_deref(), Some("skills:\n  dirs:\n    - .claude/skills\n  other: value\n"),);
+    assert_eq!(out.as_deref(), Some("skills:\n  dirs:\n    - .claude/skills\n  other: value\n"));
 }
 
 /// Run `set_skills_dirs` against `original` (when `Some`) and return the
