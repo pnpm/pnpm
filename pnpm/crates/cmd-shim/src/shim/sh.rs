@@ -1,9 +1,10 @@
+#[cfg(not(windows))]
+use super::relocatable::{ShNodePathEntry, sh_node_path_entries};
+#[cfg(any(windows, test))]
+use super::{NodePathEnvVar, normalize_node_path_env_var};
 use super::{
-    NodePathEnvVar, Path, ScriptRuntime, normalize_node_path_env_var, relative_target,
-    relocatable::{
-        BASEDIR_ABS_PRELUDE, is_within_root, marker_target, sh_node_path_entries,
-        shim_target_markers,
-    },
+    Path, ScriptRuntime, relative_target,
+    relocatable::{BASEDIR_ABS_PRELUDE, is_within_root, marker_target, shim_target_markers},
     sh_single_quote,
 };
 use std::fmt::Write as _;
@@ -39,10 +40,12 @@ pub fn generate_sh_shim(
         sh.push_str(BASEDIR_ABS_PRELUDE);
     }
     sh.push_str(SH_SHIM_PLATFORM);
-    write_sh_node_path(
+    #[cfg(windows)]
+    write_sh_node_path(&mut sh, node_path, true);
+    #[cfg(not(windows))]
+    write_sh_node_path_entries(
         &mut sh,
         &sh_node_path_entries(node_path, shim_dir, relocatable_root),
-        cfg!(windows),
     );
 
     let quoted = QuotedTarget::new(&sh_target, absolute, physical_basedir);
@@ -77,16 +80,16 @@ impl QuotedTarget {
     fn new(sh_target: &str, absolute: bool, physical_basedir: bool) -> Self {
         Self {
             posix: if absolute {
-                format!(r#""{sh_target}""#)
+                sh_single_quote(sh_target)
             } else if physical_basedir {
-                format!(r#""$basedir_abs/{sh_target}""#)
+                format!(r#""$basedir_abs"/{}"#, sh_single_quote(sh_target))
             } else {
-                format!(r#""$basedir/{sh_target}""#)
+                format!(r#""$basedir"/{}"#, sh_single_quote(sh_target))
             },
             windows: if absolute {
-                format!(r#""{sh_target}""#)
+                sh_single_quote(sh_target)
             } else {
-                format!(r#""$basedir_win/{sh_target}""#)
+                format!(r#""$basedir_win"/{}"#, sh_single_quote(sh_target))
             },
         }
     }
@@ -100,15 +103,17 @@ impl QuotedTarget {
 /// native Windows `node`, which reads `;`-separated Windows paths (MSYS would
 /// otherwise move `/mnt/c/...` under its own install directory), while WSL
 /// reads the `/mnt` form.
+#[cfg(any(windows, test))]
 pub(super) fn write_sh_node_path(sh: &mut String, node_path: &[String], windows_host: bool) {
     let NodePathEnvVar { win32, posix } = normalize_node_path_env_var(node_path, windows_host);
     if posix.is_empty() {
         return;
     }
     if !windows_host {
+        let posix = sh_single_quote(&posix);
         writeln!(
             sh,
-            "if [ -z \"$NODE_PATH\" ]; then\n  export NODE_PATH=\"{posix}\"\nelse\n  export NODE_PATH=\"{posix}:$NODE_PATH\"\nfi",
+            "if [ -z \"$NODE_PATH\" ]; then\n  export NODE_PATH={posix}\nelse\n  export NODE_PATH={posix}:\"$NODE_PATH\"\nfi",
         )
         .unwrap();
         return;
@@ -120,6 +125,41 @@ pub(super) fn write_sh_node_path(sh: &mut String, node_path: &[String], windows_
         "if [ -n \"$msys\" ]; then\n  new_node_path={win32}\n  node_path_sep=';'\nelse\n  new_node_path={posix}\n  node_path_sep=':'\nfi\nif [ -z \"$NODE_PATH\" ]; then\n  export NODE_PATH=\"$new_node_path\"\nelse\n  export NODE_PATH=\"$new_node_path$node_path_sep$NODE_PATH\"\nfi",
     )
     .unwrap();
+}
+
+#[cfg(not(windows))]
+fn write_sh_node_path_entries(sh: &mut String, entries: &[ShNodePathEntry]) {
+    if entries.is_empty() {
+        return;
+    }
+    // Adjacent literal entries share one quoted word, so a shim without a
+    // relocatable entry is byte-identical to the one pnpm 11 writes.
+    let posix = entries
+        .chunk_by(|left, right| {
+            matches!((left, right), (ShNodePathEntry::Literal(_), ShNodePathEntry::Literal(_)))
+        })
+        .map(quote_sh_node_path_run)
+        .collect::<Vec<_>>()
+        .join(":");
+    writeln!(
+        sh,
+        "if [ -z \"$NODE_PATH\" ]; then\n  export NODE_PATH={posix}\nelse\n  export NODE_PATH={posix}:\"$NODE_PATH\"\nfi",
+    )
+    .unwrap();
+}
+
+/// One shell word for `run`: a single relocatable entry, or adjacent literal
+/// entries joined with `:`.
+#[cfg(not(windows))]
+fn quote_sh_node_path_run(run: &[ShNodePathEntry]) -> String {
+    if let [ShNodePathEntry::RelativeToBasedir(path)] = run {
+        return format!(r#""$basedir_abs"/{}"#, sh_single_quote(path));
+    }
+    let literals = run
+        .iter()
+        .map(ShNodePathEntry::path)
+        .collect::<Vec<_>>();
+    sh_single_quote(&literals.join(":"))
 }
 
 /// Emit the `exec` block for a target with a script runtime, preceded by the
@@ -334,7 +374,11 @@ pub(super) fn strip_exe_suffix(prog: &str) -> Option<&str> {
 /// already targets the same source without re-parsing its body,
 /// short-circuiting warm reinstalls.
 fn shim_target_marker(target: &str) -> String {
-    format!("cmd-shim-target={}", target.replace('\\', "/"))
+    format!("cmd-shim-target={}", normalize_sh_path(target))
+}
+
+fn normalize_sh_path(path: &str) -> String {
+    if cfg!(windows) { path.replace('\\', "/") } else { path.to_owned() }
 }
 
 /// Whether an already-on-disk shim at `shim_path` targets `target_path`. The
@@ -343,17 +387,17 @@ fn shim_target_marker(target: &str) -> String {
 /// against the shim's directory.
 #[must_use]
 pub fn is_shim_pointing_at(shim_content: &str, shim_path: &Path, target_path: &Path) -> bool {
-    let target = target_path.to_string_lossy().replace('\\', "/");
+    let target = normalize_sh_path(&target_path.to_string_lossy());
     let normalized_target =
-        super::lexical_normalize(target_path).to_string_lossy().replace('\\', "/");
+        normalize_sh_path(&super::lexical_normalize(target_path).to_string_lossy());
     let rel_target = relative_target(target_path, shim_path);
     shim_target_markers(shim_content)
         .any(|marker| {
-            marker == target
-                || marker == normalized_target
-                || marker == rel_target
-                || super::lexical_normalize(Path::new(marker)).to_string_lossy().replace('\\', "/")
-                    == normalized_target
+            marker == target || marker == normalized_target || marker == rel_target || {
+                let normalized_marker = super::lexical_normalize(Path::new(marker));
+                let normalized_marker = normalized_marker.to_string_lossy();
+                normalize_sh_path(&normalized_marker) == normalized_target
+            }
         })
 }
 
@@ -381,26 +425,6 @@ pub(super) const SH_SHIM_WSLPATH_LINE: &str = r#"    if converted=$(command -p w
 /// The line that keeps `node_modules` entries out of the `PATH` the helpers
 /// resolve through. Pinned the same way as [`SH_SHIM_HARDENED_HELPER_LINE`].
 pub(super) const SH_SHIM_HELPER_PATH_FILTER_LINE: &str = "    */node_modules/*|*/node_modules) ;;";
-
-/// Whether an already-on-disk POSIX shim anchors its target on the shim's
-/// physical directory exactly when `expected`, the shim this version writes,
-/// does, and climbs to it by the same relative path. The target marker names
-/// the absolute target, so it matches a shim without the anchor, and one whose
-/// relative path was computed from a physical directory that has since moved.
-#[must_use]
-pub fn is_sh_shim_basedir_anchor_current(existing: &str, expected: &str) -> bool {
-    existing.contains(BASEDIR_ABS_PRELUDE) == expected.contains(BASEDIR_ABS_PRELUDE)
-        && anchored_target(existing) == anchored_target(expected)
-}
-
-/// The first path the shim spells from `$basedir_abs`: its target, in a shim
-/// without a relocatable `NODE_PATH`.
-fn anchored_target(shim: &str) -> Option<&str> {
-    const QUOTED_BASEDIR_ABS: &str = r#""$basedir_abs/"#;
-    let start = shim.find(QUOTED_BASEDIR_ABS)? + QUOTED_BASEDIR_ABS.len();
-    let len = shim[start..].find('"')?;
-    Some(&shim[start..start + len])
-}
 
 /// Whether an already-on-disk POSIX shim has the header a warm reinstall can
 /// leave in place.

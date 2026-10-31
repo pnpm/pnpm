@@ -2,15 +2,19 @@ use super::{
     EcosystemUpdateStepOptions,
     cargo_manifest_ops::{
         DeclaredCargoDep, apply_manifest_edits, declared_cargo_deps, find_cargo_workspace_root,
-        format_cargo_saved_spec, read_locked_cargo_versions, resolve_cargo_workspace_scope,
-        same_declared_dep, select_locked_version,
+        format_cargo_saved_spec, read_locked_cargo_versions, same_declared_dep,
+        select_locked_version,
     },
+    cargo_selection::{
+        SelectedCargoDep, SelectedCargoTarget, admits_enabled_features, select_cargo_deps_to_update,
+    },
+    cargo_workspace_scope::{CargoWorkspaceScope, resolve_cargo_workspace_scope},
     selectors::CargoUpdateSelector,
 };
 use crate::{
     cargo_deps::{
-        self, CargoLockfilePolicy, cargo_auth_headers, checkout, metadata_paths,
-        provision_toolchain, resolve_target_version,
+        self, CargoLockfilePolicy, cargo_auth_headers, checkout, fetch_crate_index_file,
+        metadata_paths, provision_toolchain, resolve_target_version,
     },
     cli_args::outdated::{
         OutdatedPackage, OutdatedQuery, TargetVersion,
@@ -227,49 +231,11 @@ pub(crate) fn validate_explicit_cargo_requests(
     Ok(())
 }
 
-fn select_cargo_deps_to_update<'a>(
-    declared: &'a [DeclaredCargoDep],
-    options: &'a CargoUpdateOptions<'a>,
-) -> Vec<(&'a DeclaredCargoDep, Option<&'a str>)> {
-    let mut selected: Vec<(&'a DeclaredCargoDep, Option<&'a str>)> = Vec::new();
-    for dep in declared {
-        if let Some(spec) = match_cargo_dep(dep, options)
-            && !selected.iter().any(|(sel, _)| same_declared_dep(sel, dep))
-        {
-            selected.push((dep, spec));
-        }
-    }
-    selected
-}
-
-fn match_cargo_dep<'a>(
-    dep: &DeclaredCargoDep,
-    options: &'a CargoUpdateOptions<'a>,
-) -> Option<Option<&'a str>> {
-    if !options.step.include_groups.contains(&dep.group)
-        || options.step.ignore_matcher.is_some_and(|matcher| matcher.matches(&dep.alias))
-    {
-        return None;
-    }
-    if !options.restrict_to_selectors {
-        return Some(None);
-    }
-    if let Some(req) = options.requests
-        .iter()
-        .find(|req| req.name == dep.alias || req.name == dep.package_name)
-    {
-        return Some(req.version_spec.as_deref());
-    }
-    options.bare_matcher
-        .is_some_and(|matcher| matcher.matches(&dep.alias))
-        .then_some(None)
-}
-
 async fn execute_cargo_update<Reporter: self::Reporter + 'static>(
     project_dir: &Path,
     manifest_path: &Path,
     declared: &[DeclaredCargoDep],
-    selected: &[(&DeclaredCargoDep, Option<&str>)],
+    selected: &[SelectedCargoDep<'_>],
     context: InstallContext,
     options: &CargoUpdateOptions<'_>,
 ) -> Result<()> {
@@ -282,11 +248,11 @@ async fn execute_cargo_update<Reporter: self::Reporter + 'static>(
         checkout_dir.as_deref(),
     )
     .await?;
-    let (cargo_root, all_declared) =
+    let scope =
         resolve_cargo_workspace_scope(manifest_path, declared, checkout_dir.as_deref()).await?;
-    let locked = read_locked_cargo_versions(&cargo_root.join("Cargo.lock")).unwrap_or_default();
     let (staged_edits, final_edits) =
-        build_cargo_update_edits(&all_declared, selected, &locked, &context, options).await?;
+        build_cargo_update_edits::<Reporter>(&scope, selected, &context, options).await?;
+    let cargo_root = scope.root;
     let originals = snapshot_cargo_manifests(&staged_edits)?;
     if let Err(err) = apply_manifest_edits(&staged_edits) {
         let _ = restore_cargo_manifests(&originals);
@@ -313,28 +279,37 @@ async fn execute_cargo_update<Reporter: self::Reporter + 'static>(
 
 type ManifestEdit = (PathBuf, &'static str, String, String);
 
-async fn build_cargo_update_edits(
-    declared: &[DeclaredCargoDep],
-    selected: &[(&DeclaredCargoDep, Option<&str>)],
-    locked: &HashMap<String, Vec<Version>>,
+/// The manifest edits that stage the update for Cargo and the ones saved
+/// after it. A dependency not updated is pinned to its locked version while
+/// Cargo resolves.
+async fn build_cargo_update_edits<Reporter: self::Reporter>(
+    scope: &CargoWorkspaceScope,
+    selected: &[SelectedCargoDep<'_>],
     context: &InstallContext,
     options: &CargoUpdateOptions<'_>,
 ) -> Result<(Vec<ManifestEdit>, Vec<ManifestEdit>)> {
     let auth_headers = cargo_auth_headers(context.config)?;
+    let locked = read_locked_cargo_versions(&scope.root.join("Cargo.lock")).unwrap_or_default();
     let mut staged = Vec::new();
     let mut finalized = Vec::new();
-    for (dep, explicit_spec) in selected {
-        let (staged_edit, final_edit) =
-            resolve_selected_cargo_edit(dep, *explicit_spec, &auth_headers, context, options)
-                .await?;
+    let mut updated = Vec::new();
+    for selection in selected {
+        let target = SelectedCargoTarget { selection, scope };
+        let Some((staged_edit, final_edit)) =
+            resolve_selected_cargo_edit::<Reporter>(&target, &auth_headers, context, options)
+                .await?
+        else {
+            continue;
+        };
         staged.push(staged_edit);
         finalized.push(final_edit);
+        updated.push(selection.dep);
     }
-    for dep in declared {
-        if selected.iter().any(|(sel, _)| same_declared_dep(sel, dep)) {
+    for dep in &scope.declared {
+        if updated.iter().any(|sel| same_declared_dep(sel, dep)) {
             continue;
         }
-        if let Some(locked_ver) = select_locked_version(locked, dep) {
+        if let Some(locked_ver) = select_locked_version(&locked, dep) {
             staged.push((
                 dep.manifest_path.clone(),
                 dep.table,
@@ -346,27 +321,39 @@ async fn build_cargo_update_edits(
     Ok((staged, finalized))
 }
 
-async fn resolve_selected_cargo_edit(
-    dep: &DeclaredCargoDep,
-    explicit_spec: Option<&str>,
+/// The edits that move a selected dependency to its target version, or
+/// `None` when that version lacks a feature the workspace enables on it and
+/// the command line does not name the crate.
+async fn resolve_selected_cargo_edit<Reporter: self::Reporter>(
+    target: &SelectedCargoTarget<'_>,
     auth_headers: &pnpm_network::AuthHeaders,
     context: &InstallContext,
     options: &CargoUpdateOptions<'_>,
-) -> Result<(ManifestEdit, ManifestEdit)> {
+) -> Result<Option<(ManifestEdit, ManifestEdit)>> {
+    let dep = target.selection.dep;
+    let explicit_spec = target.selection.explicit_spec;
     let target_req = match explicit_spec {
         Some(spec) => Some(VersionReq::parse(spec).into_diagnostic()?),
         None if options.step.latest => None,
         None => Some(dep.version_req.clone()),
     };
-    let resolved = resolve_target_version(
+    let index_file = fetch_crate_index_file(
         context.config,
         auth_headers,
         &dep.package_name,
-        target_req.as_ref(),
         &context.http_client,
     )
-    .await?
+    .await?;
+    let resolved = pnpm_cargo_resolver::latest_matching_version(
+        &dep.package_name,
+        &index_file,
+        target_req.as_ref(),
+    )
+    .wrap_err_with(|| format!("select a matching version of crate {}", dep.package_name))?
     .ok_or_else(|| miette::miette!("no matching version found for crate {}", dep.package_name))?;
+    if !admits_enabled_features::<Reporter>(target, &index_file, &resolved)? {
+        return Ok(None);
+    }
     let saved_spec = format_cargo_saved_spec(
         &dep.raw_spec,
         &resolved,
@@ -376,7 +363,7 @@ async fn resolve_selected_cargo_edit(
     )?;
     let staged = (dep.manifest_path.clone(), dep.table, dep.alias.clone(), format!("={resolved}"));
     let finalized = (dep.manifest_path.clone(), dep.table, dep.alias.clone(), saved_spec);
-    Ok((staged, finalized))
+    Ok(Some((staged, finalized)))
 }
 
 fn snapshot_cargo_manifests(edits: &[ManifestEdit]) -> Result<BTreeMap<PathBuf, String>> {

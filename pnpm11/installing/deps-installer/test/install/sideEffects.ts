@@ -341,3 +341,49 @@ test('a build with nothing to restore runs again when the package ships an execu
     delete process.env.PNPM_E2E_OUTSIDE_LOG
   }
 })
+
+// https://github.com/pnpm/pnpm/issues/17523
+test('bundled dependencies are restored from the side-effects cache', async () => {
+  prepareEmpty()
+  const pkgName = '@pnpm.e2e/pkg-with-bundled-dependencies-and-postinstall'
+  const bundledFile = `node_modules/${pkgName}/node_modules/@pnpm.e2e/hello-world-js-bin/package.json`
+  const opts = testDefaults({
+    fastUnpack: false,
+    sideEffectsCacheRead: true,
+    sideEffectsCacheWrite: true,
+    allowBuilds: { [pkgName]: true },
+  })
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, [`${pkgName}@1.0.0`], opts)
+  expect(fs.existsSync(bundledFile)).toBe(true)
+
+  const filesIndexKey = storeIndexKey(getIntegrity(pkgName, '1.0.0'), `${pkgName}@1.0.0`)
+  const storeIndex = new StoreIndex(opts.storeDir)
+  storeIndexes.push(storeIndex)
+  const filesIndex = storeIndex.get(filesIndexKey) as PackageFilesIndex
+  const [sideEffectsKey, diff] = [...filesIndex.sideEffects!.entries()][0]
+  expect(diff.added?.has('generated-by-postinstall.js')).toBe(true)
+  expect(diff.deleted).toBeUndefined()
+
+  // A cached diff that lists the bundled files as deleted still restores them.
+  const bundledFiles = [...filesIndex.files.keys()].filter((file) => file.startsWith('node_modules/'))
+  expect(bundledFiles).not.toHaveLength(0)
+  filesIndex.sideEffects!.set(sideEffectsKey, { ...diff, deleted: bundledFiles })
+  storeIndex.set(filesIndexKey, filesIndex)
+
+  rimrafSync('node_modules')
+  process.env.PNPM_E2E_FAIL_POSTINSTALL = '1'
+  try {
+    await install(manifest, testDefaults({
+      fastUnpack: false,
+      sideEffectsCacheRead: true,
+      sideEffectsCacheWrite: true,
+      storeDir: opts.storeDir,
+      allowBuilds: { [pkgName]: true },
+    }))
+  } finally {
+    delete process.env.PNPM_E2E_FAIL_POSTINSTALL
+  }
+
+  expect(fs.existsSync(`node_modules/${pkgName}/generated-by-postinstall.js`)).toBe(true)
+  expect(fs.existsSync(bundledFile)).toBe(true)
+})

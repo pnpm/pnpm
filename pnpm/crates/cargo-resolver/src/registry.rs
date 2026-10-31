@@ -124,6 +124,30 @@ pub fn latest_version(name: &str, index_file: &str) -> Result<String> {
         .ok_or_else(|| miette::miette!("crate {name} has no stable, non-yanked version"))
 }
 
+/// The entries of `features` that version `version` of crate `name` does
+/// not define, read from its sparse-index entry. A dependency declaration
+/// that enables one of them cannot resolve to that version.
+pub fn missing_features(
+    name: &str,
+    index_file: &str,
+    version: &Version,
+    features: &[String],
+) -> Result<Vec<String>> {
+    let registry = Registry::new(
+        &BTreeMap::from([(name.to_string(), index_file.to_string())]),
+        CRATES_IO_SOURCE,
+    )?;
+    let package = registry
+        .package(name)?
+        .iter()
+        .find(|candidate| candidate.version == *version)
+        .ok_or_else(|| miette::miette!("crate {name} has no version {version} in its index"))?;
+    Ok(crate::features::missing_features(package, features)
+        .into_iter()
+        .map(str::to_string)
+        .collect())
+}
+
 /// Return the newest non-yanked version from a crates.io sparse-index entry
 /// matching `requirement`, or the newest stable non-yanked version when
 /// `requirement` is `None`.

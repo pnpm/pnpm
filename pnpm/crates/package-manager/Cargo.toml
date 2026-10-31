@@ -70,6 +70,7 @@ pnpm-workspace-spec = { workspace = true }
 pnpm-workspace-state = { workspace = true }
 pnpm-workspace-task-scheduler = { workspace = true }
 pnpm-text-sanitize = { workspace = true }
+pnpm-text-section = { workspace = true }
 
 async-recursion = { workspace = true }
 chrono = { workspace = true }

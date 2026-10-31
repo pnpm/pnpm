@@ -130,6 +130,35 @@ async fn latest_selector_picks_the_newest_build_of_a_nightly_index() {
 }
 
 #[tokio::test]
+async fn range_selector_prefers_stable_versions() {
+    let mut server = mockito::Server::new_async().await;
+    let _index = server
+        .mock("GET", "/index.json")
+        .with_status(200)
+        .with_body(
+            r#"[
+                { "version": "v27.0.0-alpha.0.0.0", "lts": false },
+                { "version": "v26.13.0", "lts": false },
+                { "version": "v26.12.0", "lts": false }
+            ]"#,
+        )
+        .expect(2)
+        .create_async()
+        .await;
+    let base_url = format!("{}/", server.url());
+    let http_client = ThrottledClient::new_for_installs();
+
+    assert_eq!(
+        resolve_node_version(&http_client, ">=26.13", Some(&base_url)).await.unwrap(),
+        Some("26.13.0".to_string()),
+    );
+    assert_eq!(
+        resolve_node_version(&http_client, ">=27", Some(&base_url)).await.unwrap(),
+        Some("27.0.0-alpha.0.0.0".to_string()),
+    );
+}
+
+#[tokio::test]
 async fn authenticated_version_resolve_uses_matching_mirror_credentials() {
     let mut server = mockito::Server::new_async().await;
     let index = server
