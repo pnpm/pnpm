@@ -251,7 +251,7 @@ fn package_choices_distinguishes_colliding_labels() {
                 "foo@https://codeload.github.com/org2/foo/tar.gz/2".to_string(),
                 "foo (git) [foo@https://codeload.github.com/org2/foo/tar.gz/2]  skills".to_string(),
             ),
-        ]
+        ],
     );
 }
 
