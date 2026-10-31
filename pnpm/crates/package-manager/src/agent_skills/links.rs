@@ -34,18 +34,33 @@ pub(super) fn is_within_workspace(entry: &str) -> bool {
         .all(|component| matches!(component, Component::Normal(_)))
 }
 
-/// Whether `path` is a link to `node_modules/**/skills/<skill>`, as every
-/// link pnpm creates is, even after `node_modules` is removed.
+/// Whether `path` is a link into the `skills` directory of a package in
+/// `node_modules`, as every link pnpm creates is, even after `node_modules`
+/// is removed.
 fn links_to_a_package_skill(path: &Path) -> bool {
     let Ok(target) = fs::read_link(path) else { return false };
     let components: Vec<&std::ffi::OsStr> = target
         .components()
         .map(Component::as_os_str)
         .collect();
-    components
+    let Some(modules) = components
         .iter()
         .rposition(|component| *component == "node_modules")
-        .is_some_and(|modules| components[modules + 1..].contains(&"skills".as_ref()))
+    else {
+        return false;
+    };
+    let package = &components[modules + 1..];
+    let name_len = if package
+        .first()
+        .is_some_and(|name| name.as_encoded_bytes().starts_with(b"@"))
+    {
+        2
+    } else {
+        1
+    };
+    package
+        .get(name_len)
+        .is_some_and(|dir| *dir == "skills")
 }
 
 /// Remove a link or junction without following it. Anything else at the path
@@ -151,3 +166,6 @@ fn links_to(path: &Path, target: &Path) -> bool {
         (Ok(resolved), Ok(target)) if resolved == target,
     )
 }
+
+#[cfg(test)]
+mod tests;

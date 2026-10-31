@@ -106,7 +106,7 @@ fn category_directories_hold_skills() {
 #[test]
 fn a_skill_name_shipped_in_two_categories_is_kept_once() {
     let root = tempfile::tempdir().unwrap();
-    for relative in ["backend/guide", "frontend/guide"] {
+    for relative in ["backend/guide", "frontend/Guide"] {
         let dir = root
             .path()
             .join("skills")
@@ -115,9 +115,11 @@ fn a_skill_name_shipped_in_two_categories_is_kept_once() {
         std::fs::write(dir.join("SKILL.md"), "# skill\n").unwrap();
     }
 
-    let found = super::skills(root.path());
+    let super::Probe::Found(Some((shipped, _))) = super::probe_package(root.path()) else {
+        panic!("expected Probe::Found");
+    };
 
-    assert_eq!(found, [Skill { name: "guide".to_string(), dir: PathBuf::from("backend/guide") }]);
+    assert_eq!(shipped, [Skill { name: "guide".to_string(), dir: PathBuf::from("backend/guide") }]);
 }
 
 #[test]
@@ -207,4 +209,24 @@ fn a_symlink_escaping_package_is_dropped() {
         panic!("expected Probe::Found");
     };
     assert!(shipped.is_empty());
+}
+
+#[cfg(unix)]
+#[test]
+fn an_escaping_skill_does_not_hide_a_later_one_of_its_name() {
+    let temp = tempfile::tempdir().unwrap();
+    let outside = temp.path().join("outside");
+    std::fs::create_dir_all(&outside).unwrap();
+    std::fs::write(outside.join("SKILL.md"), "# skill\n").unwrap();
+    let package = temp.path().join("package");
+    std::fs::create_dir_all(package.join("skills/a")).unwrap();
+    std::os::unix::fs::symlink(&outside, package.join("skills/a/guide")).unwrap();
+    std::fs::create_dir_all(package.join("skills/b/guide")).unwrap();
+    std::fs::write(package.join("skills/b/guide/SKILL.md"), "# skill\n").unwrap();
+
+    let super::Probe::Found(Some((shipped, _))) = super::probe_package(&package) else {
+        panic!("expected Probe::Found");
+    };
+
+    assert_eq!(shipped, [Skill { name: "guide".to_string(), dir: PathBuf::from("b/guide") }]);
 }

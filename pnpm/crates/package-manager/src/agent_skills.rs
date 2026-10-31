@@ -258,8 +258,8 @@ fn link_entries(
 ) -> Result<BTreeMap<String, PathBuf>, AgentSkillsError> {
     let by_name = skills_by_name(approved);
     let mut entries: BTreeMap<String, (PathBuf, &str)> = BTreeMap::new();
-    for (skill_name, providers) in &by_name {
-        insert_skill_entries(input, dirs, skill_name, providers, &mut entries)?;
+    for providers in by_name.values() {
+        insert_skill_entries(input, dirs, providers, &mut entries)?;
     }
     Ok(entries
         .into_iter()
@@ -267,12 +267,14 @@ fn link_entries(
         .collect())
 }
 
+/// The approved skills grouped by name, ignoring case: a case-insensitive
+/// filesystem holds one entry for names that differ only in case.
 fn skills_by_name(approved: &[SkillSource]) -> BTreeMap<String, Vec<(&SkillSource, &Skill)>> {
     let mut by_name: BTreeMap<String, Vec<(&SkillSource, &Skill)>> = BTreeMap::new();
     for source in approved {
         for skill in &source.skills {
             by_name
-                .entry(skill.name.clone())
+                .entry(skill.name.to_lowercase())
                 .or_default()
                 .push((source, skill));
         }
@@ -283,7 +285,6 @@ fn skills_by_name(approved: &[SkillSource]) -> BTreeMap<String, Vec<(&SkillSourc
 fn insert_skill_entries<'a>(
     input: &SyncAgentSkills<'_>,
     dirs: &[PathBuf],
-    skill_name: &str,
     providers: &[(&'a SkillSource, &'a Skill)],
     entries: &mut BTreeMap<String, (PathBuf, &'a str)>,
 ) -> Result<(), AgentSkillsError> {
@@ -295,8 +296,8 @@ fn insert_skill_entries<'a>(
     }
     let (source, skill) = providers[0];
     let target = target_of(source, skill);
-    let name = if bare_name_free(input, dirs, skill_name, &target) {
-        skill_name.to_string()
+    let name = if bare_name_free(input, dirs, &skill.name, &target) {
+        skill.name.clone()
     } else {
         prefixed_name(source, skill)
     };

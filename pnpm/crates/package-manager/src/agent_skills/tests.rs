@@ -383,6 +383,18 @@ fn a_prefixed_fallback_name_may_still_be_occupied() {
 }
 
 #[test]
+fn skill_names_differing_in_case_take_the_prefixed_names() {
+    let (root, lockfile) = workspace(&[("foo", "1.0.0", &["Guide"]), ("bar", "1.0.0", &["guide"])]);
+    fs::create_dir_all(root.path().join(".claude/skills")).unwrap();
+
+    let state =
+        sync(root.path(), &lockfile, &config(&[("foo", true), ("bar", true)], None), &[], None)
+            .unwrap();
+
+    assert_eq!(state.linked, [".claude/skills/pnpm-bar-guide", ".claude/skills/pnpm-foo-Guide"]);
+}
+
+#[test]
 fn an_occupied_fallback_keeps_the_existing_links() {
     let (root, lockfile) = workspace(&[("foo", "1.0.0", &["guide"]), ("bar", "1.0.0", &["guide"])]);
     let skills = root.path().join(".claude/skills");
