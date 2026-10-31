@@ -6,9 +6,9 @@ pub use quoting::{cmd_escape, sh_single_quote};
 pub(crate) use relocatable::{is_relocatable_shim, is_within_root};
 pub use replaced_batch::end_replaced_cmd_shim_batch;
 pub use sh::{
-    generate_sh_shim, is_sh_shim_basedir_anchor_current, is_sh_shim_hardened,
-    is_sh_shim_msys_cmd_switch_doubled, is_shim_pointing_at,
+    generate_sh_shim, is_sh_shim_hardened, is_sh_shim_msys_cmd_switch_doubled, is_shim_pointing_at,
 };
+pub use sh_anchored_target::is_sh_shim_basedir_anchor_current;
 #[cfg(target_family = "wasm")]
 pub(crate) use wasm::generate_wasm_shim;
 #[cfg(any(all(test, unix), target_family = "wasm"))]
@@ -275,7 +275,8 @@ fn relative_target_windows(target_path: &Path, shim_path: &Path) -> String {
 fn relative_target(target_path: &Path, shim_path: &Path) -> String {
     let shim_dir = shim_path.parent().unwrap_or_else(|| Path::new(""));
     let rel = relative_path_from(shim_dir, target_path);
-    rel.to_string_lossy().replace('\\', "/")
+    let rel = rel.to_string_lossy();
+    if cfg!(windows) { rel.replace('\\', "/") } else { rel.into_owned() }
 }
 
 fn relative_path_from(from: &Path, to: &Path) -> PathBuf {
@@ -314,5 +315,7 @@ mod quoting;
 mod relocatable;
 
 mod replaced_batch;
+
+mod sh_anchored_target;
 
 mod sh;

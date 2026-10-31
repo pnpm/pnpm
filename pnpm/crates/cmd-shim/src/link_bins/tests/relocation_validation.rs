@@ -52,7 +52,7 @@ fn shim_markers_and_node_paths_must_resolve_inside_the_physical_root() {
 }
 
 #[test]
-fn escaped_node_path_alias_is_checked_using_its_literal_name() {
+fn quoted_node_path_alias_is_checked_using_its_literal_name() {
     let tmp = tempdir().unwrap();
     let root = tmp.path().join("project");
     let bins = root.join(".bin");
@@ -61,27 +61,45 @@ fn escaped_node_path_alias_is_checked_using_its_literal_name() {
     fs::create_dir_all(tmp.path().join("outside")).unwrap();
     let alias = root.join(r#"alias$`"\"#);
     symlink("internal", &alias).unwrap();
-    let content = concat!(
-        "# cmd-shim-target=../internal/cli\n",
-        r#"export NODE_PATH="$basedir_abs/../alias\$\`\"\\/missing/modules""#,
-        "\n",
+    let relative_path = r#"../alias$`"\/missing/modules"#;
+    let content = format!(
+        "# cmd-shim-target=../internal/cli\nexport NODE_PATH=\"$basedir_abs\"/{}\n",
+        crate::shim::sh_single_quote(relative_path),
     );
-    assert!(is_relocatable_shim(content, &bins, &root));
+    assert!(is_relocatable_shim(&content, &bins, &root));
     fs::remove_file(&alias).unwrap();
     symlink("../outside", &alias).unwrap();
-    assert!(!is_relocatable_shim(content, &bins, &root));
+    assert!(!is_relocatable_shim(&content, &bins, &root));
 }
 
 #[test]
-fn node_path_validation_rejects_malformed_escapes_and_shell_expansion() {
+fn node_path_validation_rejects_malformed_shell_words() {
     let tmp = tempdir().unwrap();
     let root = tmp.path();
     let bins = root.join(".bin");
     fs::create_dir_all(&bins).unwrap();
-    let entries = [r"../invalid\q", r"../trailing\", "../$HOME", "../`pwd`", r#"../unquoted"name"#];
+    fs::create_dir_all(root.join("literal$HOME/modules")).unwrap();
+    let legacy = "# cmd-shim-target=../cli\nexport NODE_PATH=\"$basedir_abs/../literal\\$HOME/modules:$NODE_PATH\"\n";
+    assert!(is_relocatable_shim(legacy, &bins, root));
+    let entries = [
+        r#""$basedir_abs"/../unquoted"#,
+        r#""$basedir_abs"/'../unterminated"#,
+        r#""$basedir_abs"/'../closed'junk"#,
+        r#""$basedir_abs"/../$HOME"#,
+        r#""$basedir_abs"/../`pwd`"#,
+    ];
     for entry in entries {
-        let content =
-            format!("# cmd-shim-target=../cli\nexport NODE_PATH=\"$basedir_abs/{entry}\"\n");
+        let content = format!("# cmd-shim-target=../cli\nexport NODE_PATH={entry}\n");
+        assert!(!is_relocatable_shim(&content, &bins, root), "{content}");
+    }
+    let legacy_entries = [
+        r#""$basedir_abs/../$HOME""#,
+        r#""$basedir_abs/../`pwd`""#,
+        r#""$basedir_abs/../closed"junk""#,
+        r#""$basedir_abs/../unterminated"#,
+    ];
+    for entry in legacy_entries {
+        let content = format!("# cmd-shim-target=../cli\nexport NODE_PATH={entry}\n");
         assert!(!is_relocatable_shim(&content, &bins, root), "{content}");
     }
 }

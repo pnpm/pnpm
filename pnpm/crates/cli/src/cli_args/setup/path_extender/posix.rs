@@ -9,6 +9,7 @@ use super::{
     AddDirToEnvPathOpts, AddingPosition, ConfigFileChangeType, ConfigReport, PathExtenderError,
     PathExtenderReport,
 };
+use pnpm_text_section::{find_sections, wrap_section};
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -87,10 +88,10 @@ fn setup_shell(
     let config_file = get_config_file_path(shell)?;
     let dir = dir.to_string_lossy();
     let new_settings = render_posix_settings(&dir, opts);
-    let content = wrap_settings(opts.config_section_name, &new_settings);
+    let content = wrap_section(opts.config_section_name, &new_settings);
     let outdated = [sh_quote, v11_quote].map(|quote_value| {
         let settings = render_posix_section(&dir, opts, PathGuard::Anywhere, quote_value);
-        wrap_settings(opts.config_section_name, &settings)
+        wrap_section(opts.config_section_name, &settings)
     });
     let (change_type, old_settings) = update_shell_config(&config_file, &content, &outdated, opts)?;
     Ok(PathExtenderReport {
@@ -201,10 +202,10 @@ fn setup_fish_shell(
     let config_file = home_dir()?.join(".config/fish/config.fish");
     let dir = dir.to_string_lossy();
     let new_settings = render_fish_settings(&dir, opts);
-    let content = wrap_settings(opts.config_section_name, &new_settings);
+    let content = wrap_section(opts.config_section_name, &new_settings);
     let outdated = [fish_quote, v11_quote].map(|quote_value| {
         let settings = render_fish_section(&dir, opts, PathGuard::Anywhere, quote_value);
-        wrap_settings(opts.config_section_name, &settings)
+        wrap_section(opts.config_section_name, &settings)
     });
     let (change_type, old_settings) = update_shell_config(&config_file, &content, &outdated, opts)?;
     Ok(PathExtenderReport {
@@ -285,7 +286,7 @@ fn setup_nu_shell(
 ) -> Result<PathExtenderReport, PathExtenderError> {
     let config_file = home_dir()?.join(".config/nushell/env.nu");
     let new_settings = render_nu_settings(&dir.to_string_lossy(), opts);
-    let content = wrap_settings(opts.config_section_name, &new_settings);
+    let content = wrap_section(opts.config_section_name, &new_settings);
     let (change_type, old_settings) = update_shell_config(&config_file, &content, &[], opts)?;
     Ok(PathExtenderReport {
         config_file: Some(ConfigReport { path: config_file, change_type }),
@@ -328,10 +329,6 @@ fn render_nu_settings(dir: &str, opts: &AddDirToEnvPathOpts) -> String {
 /// literal with no expansion.
 fn nu_quote(value: &str) -> String {
     format!(r#""{}""#, value.replace('\\', r"\\").replace('"', r#"\""#))
-}
-
-fn wrap_settings(section_name: &str, settings: &str) -> String {
-    format!("# {section_name}\n{settings}\n# {section_name} end")
 }
 
 /// Write `new_content` into the `# <section>` block of `config_file`. An
@@ -383,47 +380,6 @@ fn write_config(path: &Path, content: &str) -> Result<(), PathExtenderError> {
     Ok(())
 }
 
-fn complete_section(
-    content: &str,
-    start_offset: usize,
-    inner_start: usize,
-    line_start: usize,
-    line: &str,
-) -> (std::ops::Range<usize>, String) {
-    let inner_len = content[inner_start..line_start]
-        .trim_end_matches(['\r', '\n'])
-        .len();
-    let inner = content[inner_start..inner_start + inner_len].to_string();
-    let marker_len = line
-        .trim_end_matches(['\r', '\n'])
-        .len();
-    (start_offset..line_start + marker_len, inner)
-}
-
-fn parse_sections(content: &str, section: &str) -> Vec<(std::ops::Range<usize>, String)> {
-    let start_marker = format!("# {section}");
-    let end_marker = format!("# {section} end");
-    let mut sections = Vec::new();
-    let mut last_start = None;
-    let mut offset = 0;
-
-    for line in content.split_inclusive('\n') {
-        let line_start = offset;
-        offset += line.len();
-        let trimmed = line.trim_end_matches(['\r', '\n', ' ', '\t']);
-
-        if trimmed == start_marker {
-            last_start = Some((line_start, offset));
-        } else if trimmed == end_marker
-            && let Some((start, inner)) = last_start.take()
-        {
-            sections.push(complete_section(content, start, inner, line_start, line));
-        }
-    }
-
-    sections
-}
-
 fn select_section(
     mut sections: Vec<(std::ops::Range<usize>, String)>,
     section: &str,
@@ -470,7 +426,10 @@ fn find_section(content: &str, section: &str) -> Option<(std::ops::Range<usize>,
     if content.is_empty() {
         return None;
     }
-    let sections = parse_sections(content, section);
+    let sections = find_sections(content, section)
+        .into_iter()
+        .map(|found| (found.range, found.body))
+        .collect();
     select_section(sections, section)
 }
 

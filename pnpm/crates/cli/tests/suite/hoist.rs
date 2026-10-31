@@ -923,7 +923,7 @@ fn should_add_extra_node_paths_to_command_shims() {
     let hoisted_modules_entry = if cfg!(windows) {
         "/node_modules/.pnpm/node_modules"
     } else {
-        "$basedir_abs/../.pnpm/node_modules"
+        r#""$basedir_abs"/'../.pnpm/node_modules'"#
     };
     assert!(
         shim.contains(hoisted_modules_entry),

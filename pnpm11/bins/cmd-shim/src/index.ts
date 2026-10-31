@@ -131,17 +131,16 @@ function readShNodePath (shimContent: string): string | undefined {
   if (winStart !== -1) {
     const valueStart = winStart + '\nelse\n  new_node_path='.length
     const lineEnd = shimContent.indexOf('\n', valueStart)
-    const raw = lineEnd === -1 ? shimContent.slice(valueStart) : shimContent.slice(valueStart, lineEnd)
+    const rest = shimContent.slice(valueStart)
+    const raw = readShSingleQuotedWord(rest)?.raw ?? (lineEnd === -1 ? rest : rest.slice(0, lineEnd))
     return unquoteSh(raw)
-  }
-  if (isWindows) {
-    return shimContent.includes(SH_NODE_PATH_EXPORT) ? '' : undefined
   }
   const start = shimContent.indexOf(SH_NODE_PATH_EXPORT)
   if (start === -1) return undefined
   const valueStart = start + SH_NODE_PATH_EXPORT.length
   const lineEnd = shimContent.indexOf('\n', valueStart)
-  const raw = lineEnd === -1 ? shimContent.slice(valueStart) : shimContent.slice(valueStart, lineEnd)
+  const rest = shimContent.slice(valueStart)
+  const raw = readShSingleQuotedWord(rest)?.raw ?? (lineEnd === -1 ? rest : rest.slice(0, lineEnd))
   return unquoteSh(raw)
 }
 
@@ -156,11 +155,33 @@ function unquoteSh (raw: string): string {
   return trimmed
 }
 
+function readShSingleQuotedWord (value: string): { raw: string } | undefined {
+  if (!value.startsWith("'")) return undefined
+  let index = 1
+  while (index < value.length) {
+    if (value.startsWith("'\\''", index)) {
+      index += 4
+    } else if (value[index] === "'") {
+      return { raw: value.slice(0, index + 1) }
+    } else {
+      index++
+    }
+  }
+  return undefined
+}
+
 function isShimBasedirAnchorCurrent (shimContent: string, relativeTarget: string): boolean {
   return shimContent.includes(SH_SHIM_BASEDIR_ABS_PRELUDE) !== path.isAbsolute(relativeTarget)
 }
 
 function readShRelativeTarget (shimContent: string): string | undefined {
+  const quotedStart = '"$basedir_abs"/'
+  const quotedStartIndex = shimContent.indexOf(quotedStart)
+  if (quotedStartIndex !== -1) {
+    const valueStart = quotedStartIndex + quotedStart.length
+    const raw = readShSingleQuotedWord(shimContent.slice(valueStart))
+    return raw ? unquoteSh(raw.raw) : undefined
+  }
   const marker = '"$basedir_abs/'
   const start = shimContent.indexOf(marker)
   if (start === -1) return undefined

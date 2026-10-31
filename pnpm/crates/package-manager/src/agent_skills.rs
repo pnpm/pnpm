@@ -3,7 +3,8 @@
 //! A skill is a directory `skills/<name>/` holding a `SKILL.md`. pnpm never
 //! reads a skill: it finds the directories, records the packages whose
 //! skills await approval, and links the approved ones into the project's
-//! agent skill directories as `pnpm-<package>-<skill>`.
+//! agent skill directories under the skill's own name, as the Agent Skills
+//! specification requires a skill's directory to be named after it.
 
 pub(crate) use installed::resync_agent_skills_at;
 pub use installed::{ResyncAgentSkillsError, resync_installed_agent_skills};
@@ -28,12 +29,14 @@ pub(crate) fn agent_skill_targets_changed(config: &Config, workspace_root: &Path
 }
 
 mod discovery;
+mod gitignore;
 mod installed;
 mod targets;
 
 use crate::{AllowBuildPolicy, VersionPolicyError};
 use derive_more::{Display, Error};
 use discovery::{SkillSource, discover_skill_sources};
+use gitignore::update_gitignores;
 use miette::Diagnostic;
 use pnpm_config::Config;
 use pnpm_lockfile::Lockfile;
@@ -43,9 +46,6 @@ use std::{
     fs, io,
     path::{Component, Path, PathBuf},
 };
-
-/// The prefix of every entry pnpm links into an agent skill directory.
-pub const AGENT_SKILL_LINK_PREFIX: &str = "pnpm-";
 
 /// What [`sync_agent_skills`] reconciles.
 pub struct SyncAgentSkills<'a> {
@@ -116,7 +116,10 @@ pub enum AgentSkillsError {
     },
 
     #[display("The agent skills of {first} and {second} would both be linked as {name}")]
-    #[diagnostic(code(ERR_PNPM_AGENT_SKILL_NAME_COLLISION))]
+    #[diagnostic(
+        code(ERR_PNPM_AGENT_SKILL_NAME_COLLISION),
+        help("Deny the skills of one of the packages in the permissions setting.")
+    )]
     NameCollision { name: String, first: String, second: String },
 
     #[display(
@@ -151,6 +154,7 @@ pub fn sync_agent_skills(
         || input.config.skills_dirs.as_ref().is_some_and(Vec::is_empty)
     {
         prune(input.workspace_root, input.linked, &BTreeSet::new())?;
+        update_gitignores(input.workspace_root, &[], input.linked, &BTreeMap::new())?;
         return Ok(AgentSkillsState::default());
     }
     let sources = discover_skill_sources(input);
@@ -178,9 +182,7 @@ pub fn sync_agent_skills(
     let desired = desired_entries(input.workspace_root, &dirs, &entries);
     prune(input.workspace_root, input.linked, &desired.keys().cloned().collect())?;
     materialize(input.workspace_root, input.linked, &desired, input.config.virtual_store_dir())?;
-    for dir in &dirs {
-        ignore_links_in(dir)?;
-    }
+    update_gitignores(input.workspace_root, &dirs, input.linked, &desired)?;
     pending.sort();
     Ok(AgentSkillsState { pending, linked: desired.into_keys().collect() })
 }
@@ -201,7 +203,7 @@ fn link_entries(approved: &[SkillSource]) -> Result<BTreeMap<String, PathBuf>, A
     let mut entries: BTreeMap<String, (PathBuf, &str)> = BTreeMap::new();
     for source in approved {
         for skill in &source.skills {
-            let name = format!("{AGENT_SKILL_LINK_PREFIX}{}-{skill}", source.link_segment);
+            let name = skill.clone();
             let target = source.package_dir.join("skills").join(skill);
             if let Some((_, first)) = entries.get(&name) {
                 return Err(AgentSkillsError::NameCollision {
@@ -249,26 +251,36 @@ fn prune(
     for entry in linked
         .iter()
         .filter(|entry| !keep.contains(*entry))
-        .filter(|entry| is_link_entry(entry))
+        .filter(|entry| is_within_workspace(entry))
     {
         let path = workspace_root.join(entry);
-        remove_link(&path).map_err(|source| AgentSkillsError::Io { path, source })?;
+        if links_to_a_package_skill(&path) {
+            remove_link(&path).map_err(|source| AgentSkillsError::Io { path, source })?;
+        }
     }
     Ok(())
 }
 
-/// `.modules.yaml` is not trusted to name only pnpm's links, so pruning
-/// touches nothing but a `pnpm-*` entry reached without `..`.
-fn is_link_entry(entry: &str) -> bool {
-    let path = Path::new(entry);
-    let named_as_link = path
-        .file_name()
-        .and_then(|name| name.to_str())
-        .is_some_and(|name| name.starts_with(AGENT_SKILL_LINK_PREFIX));
-    named_as_link
-        && path
+/// `.modules.yaml` is not trusted to name only pnpm's entries, so pnpm
+/// touches only a relative entry reached without `..`.
+fn is_within_workspace(entry: &str) -> bool {
+    Path::new(entry)
+        .components()
+        .all(|component| matches!(component, Component::Normal(_)))
+}
+
+/// Whether `path` is a link to `node_modules/**/skills/<skill>`, as every
+/// link pnpm creates is, even after `node_modules` is removed.
+fn links_to_a_package_skill(path: &Path) -> bool {
+    let Ok(target) = fs::read_link(path) else { return false };
+    let in_skills_dir = target
+        .parent()
+        .and_then(Path::file_name)
+        .is_some_and(|name| name == "skills");
+    in_skills_dir
+        && target
             .components()
-            .all(|component| component != Component::ParentDir)
+            .any(|component| component.as_os_str() == "node_modules")
 }
 
 /// Remove a link or junction without following it. Anything else at the path
@@ -357,41 +369,6 @@ fn links_to(path: &Path, target: &Path) -> bool {
         (fs::canonicalize(path), fs::canonicalize(target)),
         (Ok(resolved), Ok(target)) if resolved == target,
     )
-}
-
-/// The ignore rule that keeps pnpm's entries out of commits: they point
-/// into `node_modules`, so they would dangle in a fresh clone.
-const GITIGNORE_RULE: &str = "pnpm-*";
-
-/// Add [`GITIGNORE_RULE`] to the `.gitignore` of `dir`, keeping what the
-/// file already says.
-fn ignore_links_in(dir: &Path) -> Result<(), AgentSkillsError> {
-    let path = dir.join(".gitignore");
-    if let Ok(meta) = fs::symlink_metadata(&path)
-        && meta.file_type().is_symlink()
-    {
-        return Err(AgentSkillsError::Io {
-            path,
-            source: io::Error::new(
-                io::ErrorKind::PermissionDenied,
-                "cannot write through a symlinked .gitignore",
-            ),
-        });
-    }
-    let existing = match fs::read_to_string(&path) {
-        Ok(text) => text,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => String::new(),
-        Err(source) => return Err(AgentSkillsError::Io { path, source }),
-    };
-    if existing
-        .lines()
-        .any(|line| line.trim() == GITIGNORE_RULE)
-    {
-        return Ok(());
-    }
-    let separator = if existing.is_empty() || existing.ends_with('\n') { "" } else { "\n" };
-    fs::write(&path, format!("{existing}{separator}{GITIGNORE_RULE}\n"))
-        .map_err(|source| AgentSkillsError::Io { path, source })
 }
 
 #[cfg(test)]

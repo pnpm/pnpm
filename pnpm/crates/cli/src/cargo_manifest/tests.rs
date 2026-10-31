@@ -76,6 +76,30 @@ fn updates_strings_and_inline_tables_without_losing_formatting() {
 }
 
 #[test]
+fn updates_an_inline_table_that_spans_several_lines() {
+    let manifest = "[workspace.dependencies]\naxum = { version = \"0.8.7\", default-features = false, features = [\n  \"http1\", # version = \"0\"\n  \"json\",\n] }\nbase64 = \"0.22\"\n";
+    let updated = upsert_dependency(manifest, "workspace.dependencies", "axum", "0.8.9").unwrap();
+    eprintln!("UPDATED:\n{updated}\n");
+    assert_eq!(
+        updated,
+        "[workspace.dependencies]\naxum = { version = \"0.8.9\", default-features = false, features = [\n  \"http1\", # version = \"0\"\n  \"json\",\n] }\nbase64 = \"0.22\"\n",
+    );
+
+    let version_last = "[dependencies]\ntokio = { features = [\n  \"rt\", # } version = \"0\"\n], version = \"1\" }\n";
+    let updated = upsert_dependency(version_last, "dependencies", "tokio", "1.43").unwrap();
+    eprintln!("UPDATED:\n{updated}\n");
+    assert_eq!(
+        updated,
+        "[dependencies]\ntokio = { features = [\n  \"rt\", # } version = \"0\"\n], version = \"1.43\" }\n",
+    );
+
+    let multi_line_strings = "[dependencies]\nlocal = { path = \'\'\'crates/it\'s}dep\'\'\', features = [\n  \"\"\"a \"quoted\"} version = \"0\"\"\"\"\",\n], version = \"1\" }\n";
+    let updated = upsert_dependency(multi_line_strings, "dependencies", "local", "2").unwrap();
+    eprintln!("UPDATED:\n{updated}\n");
+    assert_eq!(updated, multi_line_strings.replace(r#"version = "1""#, r#"version = "2""#));
+}
+
+#[test]
 fn workspace_membership_respects_single_segment_globs_and_literal_bang_paths() {
     let dir = tempfile::tempdir().unwrap();
     let root = dir.path();

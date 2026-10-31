@@ -81,7 +81,7 @@ case \`run_helper uname -a\` in
 esac
 if [ -n "$caller_path_set" ]; then PATH=$caller_path; else unset PATH; fi
 
-exec "$basedir_abs/foo"   "$@"
+exec "$basedir_abs"/'foo'   "$@"
 exit $?
 
 `;

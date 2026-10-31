@@ -4,6 +4,7 @@
 //! directory, so each entry starts from the shim's directory, made absolute
 //! when the shim runs.
 
+#[cfg(not(windows))]
 use super::relative_path_from;
 use pnpm_fs::{is_subdir, realpath_missing};
 use std::{borrow::Cow, path::Path};
@@ -16,7 +17,7 @@ pub(super) const BASEDIR_ABS_PRELUDE: &str = r#"basedir_abs=$(CDPATH= cd -P -- "
 basedir="$basedir_abs"
 "#;
 
-pub(super) const BASEDIR_ABS: &str = "$basedir_abs/";
+pub(super) const BASEDIR_ABS: &str = r#""$basedir_abs"/"#;
 
 /// Whether a shim in `shim_dir` names `target` relative to itself: both lie
 /// inside `relocatable_root`. Never on Windows, whose directory links are
@@ -56,36 +57,44 @@ pub(super) fn shim_target_markers(shim_content: &str) -> impl Iterator<Item = &s
 
 /// The sh `NODE_PATH` entries of a shim in `shim_dir`. An entry inside
 /// `relocatable_root` is spelled from [`BASEDIR_ABS`], any other stays as is.
+#[cfg(not(windows))]
+pub(super) enum ShNodePathEntry {
+    Literal(String),
+    RelativeToBasedir(String),
+}
+
+#[cfg(not(windows))]
+impl ShNodePathEntry {
+    pub(super) fn path(&self) -> &str {
+        match self {
+            ShNodePathEntry::Literal(path) | ShNodePathEntry::RelativeToBasedir(path) => path,
+        }
+    }
+}
+
+#[cfg(not(windows))]
 pub(super) fn sh_node_path_entries(
     node_path: &[String],
     shim_dir: &Path,
     relocatable_root: Option<&Path>,
-) -> Vec<String> {
+) -> Vec<ShNodePathEntry> {
     node_path
         .iter()
         .map(|entry| sh_node_path_entry(entry, shim_dir, relocatable_root))
         .collect()
 }
 
-fn sh_node_path_entry(entry: &str, shim_dir: &Path, relocatable_root: Option<&Path>) -> String {
+#[cfg(not(windows))]
+fn sh_node_path_entry(
+    entry: &str,
+    shim_dir: &Path,
+    relocatable_root: Option<&Path>,
+) -> ShNodePathEntry {
     if !is_within_root(relocatable_root, shim_dir, Path::new(entry)) {
-        return entry.to_string();
+        return ShNodePathEntry::Literal(entry.to_string());
     }
     let relative = relative_path_from(shim_dir, Path::new(entry));
-    format!("{BASEDIR_ABS}{}", escape_sh_double_quoted(&relative.to_string_lossy()))
-}
-
-/// Escape `text` for a double-quoted sh string, inside which `\`, `"`, `$`
-/// and a backtick keep their special meaning.
-fn escape_sh_double_quoted(text: &str) -> String {
-    let mut escaped = String::with_capacity(text.len());
-    for character in text.chars() {
-        if matches!(character, '\\' | '"' | '$' | '`') {
-            escaped.push('\\');
-        }
-        escaped.push(character);
-    }
-    escaped
+    ShNodePathEntry::RelativeToBasedir(relative.to_string_lossy().into_owned())
 }
 
 /// Whether `shim_content`, a shim in `shim_dir`, names its target and every
@@ -110,13 +119,16 @@ pub(crate) fn is_relocatable_shim(shim_content: &str, shim_dir: &Path, root: &Pa
         return result;
     }
     let entries_resolve_in_root = |value: &str| {
+        if let Some(entries) = legacy_sh_node_path_entries(value) {
+            return entries.iter().all(|entry| resolves_in_root(entry));
+        }
         value
             .split(':')
-            .filter(|entry| *entry != "$NODE_PATH")
+            .filter(|entry| !matches!(*entry, "$NODE_PATH" | r#""$NODE_PATH""#))
             .all(|entry| {
                 entry
                     .strip_prefix(BASEDIR_ABS)
-                    .and_then(unescape_sh_double_quoted)
+                    .and_then(unquote_sh_single_quoted)
                     .is_some_and(|relative| resolves_in_root(&relative))
             })
     };
@@ -126,27 +138,71 @@ pub(crate) fn is_relocatable_shim(shim_content: &str, shim_dir: &Path, root: &Pa
         && shim_content
             .lines()
             .filter_map(|line| line.trim_start().strip_prefix("export NODE_PATH="))
-            .map(|value| value.strip_prefix('"')?.strip_suffix('"'))
-            .all(|value| value.is_some_and(entries_resolve_in_root))
+            .all(entries_resolve_in_root)
 }
 
-fn unescape_sh_double_quoted(text: &str) -> Option<String> {
-    let mut unescaped = String::with_capacity(text.len());
-    let mut characters = text.chars();
-    while let Some(character) = characters.next() {
-        if character == '\\' {
-            let escaped = characters.next()?;
-            if !matches!(escaped, '\\' | '"' | '$' | '`') {
-                return None;
-            }
-            unescaped.push(escaped);
-        } else if matches!(character, '"' | '$' | '`') {
-            return None;
-        } else {
-            unescaped.push(character);
+fn unquote_sh_single_quoted(text: &str) -> Option<String> {
+    let quoted = text.strip_prefix('\'')?.strip_suffix('\'')?;
+    let unquoted = quoted.replace(r"'\''", "'");
+    (super::sh_single_quote(&unquoted) == text).then_some(unquoted)
+}
+
+fn legacy_sh_node_path_entries(text: &str) -> Option<Vec<String>> {
+    let mut input = text.strip_prefix('"')?;
+    let mut entries = Vec::new();
+    loop {
+        if let Some(rest) = input.strip_prefix(r#"$NODE_PATH""#) {
+            return (rest.is_empty() && !entries.is_empty()).then_some(entries);
+        }
+        input = input.strip_prefix("$basedir_abs/")?;
+        let (entry, is_final, rest) = read_legacy_sh_node_path_entry(input)?;
+        entries.push(entry);
+        if is_final {
+            return rest.is_empty().then_some(entries);
+        }
+        input = rest;
+    }
+}
+
+fn read_legacy_sh_node_path_entry(text: &str) -> Option<(String, bool, &str)> {
+    let mut entry = String::new();
+    let mut index = 0;
+    while index < text.len() {
+        match text[index..].chars().next()? {
+            '"' => return Some((entry, true, &text[index + 1..])),
+            ':' => return Some((entry, false, &text[index + 1..])),
+            _ => index = append_legacy_sh_node_path_character(text, index, &mut entry)?,
         }
     }
-    Some(unescaped)
+    None
+}
+
+fn append_legacy_sh_node_path_character(
+    text: &str,
+    index: usize,
+    entry: &mut String,
+) -> Option<usize> {
+    let character = text[index..].chars().next()?;
+    if character != '\\' {
+        if matches!(character, '$' | '`') {
+            return None;
+        }
+        entry.push(character);
+        return Some(index + character.len_utf8());
+    }
+    let next_index = index + character.len_utf8();
+    let next = text[next_index..].chars().next()?;
+    match next {
+        '$' | '`' | '"' | '\\' => {
+            entry.push(next);
+            Some(next_index + next.len_utf8())
+        }
+        '\n' => Some(next_index + next.len_utf8()),
+        _ => {
+            entry.push(character);
+            Some(next_index)
+        }
+    }
 }
 
 #[cfg(any(test, target_family = "wasm"))]

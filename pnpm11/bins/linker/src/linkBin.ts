@@ -140,7 +140,8 @@ async function isShimFileCurrent (content: string, ctx: BinLinkContext): Promise
 }
 
 function isShimRelativeTargetCurrent (content: string, { cmd, shShimDir }: BinLinkContext): boolean {
-  const expectedRelativeTarget = path.relative(shShimDir, cmd.path).split('\\').join('/')
+  const relativeTarget = path.relative(shShimDir, cmd.path)
+  const expectedRelativeTarget = IS_WINDOWS ? relativeTarget.split('\\').join('/') : relativeTarget
   const storedRelativeTarget = readShRelativeTarget(content)
   return path.isAbsolute(expectedRelativeTarget)
     ? storedRelativeTarget == null

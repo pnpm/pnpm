@@ -442,7 +442,7 @@ test('linkBins() replaces a shim whose relative target climbs from the lexical b
   const outdated = fs.readFileSync(binLocation, 'utf8')
     .replace(`${BASEDIR_ABS_LINE}\n`, '')
     .replace('basedir="$basedir_abs"\n', '')
-    .replaceAll('"$basedir_abs/', '"$basedir/')
+    .replaceAll('"$basedir_abs"/', '"$basedir"/')
   expect(outdated).not.toContain('basedir_abs')
   fs.writeFileSync(binLocation, outdated, 'utf8')
 
@@ -450,7 +450,7 @@ test('linkBins() replaces a shim whose relative target climbs from the lexical b
 
   const content = fs.readFileSync(binLocation, 'utf8')
   expect(content).toContain(`${BASEDIR_ABS_LINE}\n`)
-  expect(content).toContain('"$basedir_abs/')
+  expect(content).toContain('"$basedir_abs"/')
 })
 
 test('linkBins() replaces a shim whose relative target does not match the physical bin directory', async () => {
@@ -463,7 +463,7 @@ test('linkBins() replaces a shim whose relative target does not match the physic
   const binLocation = path.join(binTarget, 'simple')
   await cmdShim(target, binLocation, { createCmdFile: false, createPwshFile: false })
   const original = fs.readFileSync(binLocation, 'utf8')
-  const stale = original.replace('"$basedir_abs/', '"$basedir_abs/../stale/')
+  const stale = original.replace('"$basedir_abs"/\'', '"$basedir_abs"/\'../stale/')
   expect(stale).not.toEqual(original)
   fs.writeFileSync(binLocation, stale, 'utf8')
 
@@ -489,7 +489,26 @@ test('linkBins() computes a relative target from the physical bin directory when
 
   await linkBins(modulesDir, binsDir, { warn: jest.fn() })
 
-  expect(fs.readFileSync(path.join(binsDir, 'tool'), 'utf8')).toContain('"$basedir_abs/../../../node_modules/tool/cli.js"')
+  expect(fs.readFileSync(path.join(binsDir, 'tool'), 'utf8')).toContain('"$basedir_abs"/\'../../../node_modules/tool/cli.js\'')
+})
+
+testOnPosix('linkBins does not rewrite a shim when the target path contains a literal backslash', async () => {
+  const root = temporaryDirectory()
+  const modulesDir = path.join(root, 'node_modules')
+  const pkgDir = path.join(modulesDir, 'tool\\dir')
+  const binsDir = path.join(modulesDir, '.bin')
+  fs.mkdirSync(pkgDir, { recursive: true })
+  fs.writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify({ name: 'tool', version: '1.0.0', bin: { tool: 'cli.js' } }), 'utf8')
+  fs.writeFileSync(path.join(pkgDir, 'cli.js'), '#!/usr/bin/env node\n', 'utf8')
+  const writeFile = jest.spyOn(fs.promises, 'writeFile')
+  try {
+    await linkBins(modulesDir, binsDir, { warn: jest.fn() })
+    writeFile.mockClear()
+    await linkBins(modulesDir, binsDir, { warn: jest.fn() })
+    expect(writeFile).not.toHaveBeenCalled()
+  } finally {
+    writeFile.mockRestore()
+  }
 })
 
 test('linkBins() keeps a shim whose size exceeds 4KB but stays within the shim size limit', async () => {
@@ -1109,7 +1128,7 @@ test('linkBinsOfPackages() rewrites a shim written for a missing target once the
   fs.writeFileSync(path.join(pkgDir, 'bin', 'tool'), '#!/usr/bin/env node\nconsole.log(\'built\')\n')
   await linkBinsOfPackages([pkg], binsDir)
 
-  expect(fs.readFileSync(path.join(binsDir, 'tool'), 'utf8')).toMatch(/exec node +"\$basedir_abs\//)
+  expect(fs.readFileSync(path.join(binsDir, 'tool'), 'utf8')).toMatch(/exec node +"\$basedir_abs"\/'/)
   if (IS_WINDOWS) {
     expect(fs.readFileSync(path.join(binsDir, `tool${CMD_EXTENSION}`), 'utf8')).toMatch('node')
   }
