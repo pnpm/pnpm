@@ -85,7 +85,11 @@ pub(super) async fn serve_registry_version_manifest(
     if let Some(table) = view.tar_integrities {
         describe_tar(&mut manifest, table, view.tar_registry);
     }
-    describe_manifest_variants(&mut manifest, name.as_str(), tarball_base);
+    // A release record is part of pnpr's own format, so it describes the
+    // variants; npm's version document does not.
+    if revision.is_some() {
+        describe_manifest_variants(&mut manifest, name.as_str(), tarball_base);
+    }
     super::split_packuments::version_document_response(manifest, revision)
 }
 

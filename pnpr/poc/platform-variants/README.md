@@ -15,8 +15,12 @@ pnpr:
   requires a build, whose `os`/`cpu`/`libc` excludes a declared platform,
   that lists a platform another variant lists, or that is declared but not
   attached (or attached but not declared).
-- Packuments serve the verified variants as `dist.pnpr.variants`, and each
-  variant's tar is served at `<name>@<version>/variants/<tag>`.
+- pnpr's own package document (see [Split packuments](#split-packuments))
+  and its release records describe the verified variants as
+  `dist.pnpr.variants`; npm's abbreviated, full, and version documents do
+  not, so npm clients see only the primary. Each variant's tar is served at
+  `<name>@<version>/variants/<tag>`. The PoC serves pnpr's document only
+  with `PNPR_SPLIT_METADATA_THRESHOLD` set, so variants need it too.
 
 pnpm:
 

@@ -209,10 +209,12 @@ pub(super) fn packument_response(
     if let Some(table) = view.tar_integrities {
         describe_tars(&mut doc, table, view.tar_registry);
     }
-    super::publishing::variants::describe_variants(&mut doc, name.as_str(), tarball_base);
     let split = super::split_packuments::wants_split(headers);
     let abbreviated = split || wants_abbreviated(headers);
     let (body, content_type) = if split {
+        // Variants are described only in pnpr's own format: npm's documents
+        // keep the version as npm clients read it.
+        super::publishing::variants::describe_variants(&mut doc, name.as_str(), tarball_base);
         let trimmed = abbreviate_packument(&doc, Utc::now());
         let body = serde_json::to_vec(&trimmed)?;
         (
