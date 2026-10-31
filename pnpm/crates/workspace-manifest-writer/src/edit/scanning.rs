@@ -116,10 +116,7 @@ fn inline_value_on_line(text: &str, line_start: usize) -> Option<usize> {
     }
     Some(line_start + colon + 1 + (after.len() - value.len()))
 }
-
-// ---------------------------------------------------------------------------
 // Line-oriented scanning of the block-style YAML pnpm writes.
-// ---------------------------------------------------------------------------
 
 /// A located mapping and its direct child entries.
 pub(super) struct Mapping {
