@@ -49,6 +49,23 @@ pub(crate) fn validate_ecosystem_selectors(selectors: &[String], config: &Config
     Ok(())
 }
 
+/// Whether every selector is negated, so the update covers every dependency
+/// of every ecosystem except the named ones.
+pub(crate) fn excludes_only(selectors: &[String]) -> bool {
+    !selectors.is_empty()
+        && selectors
+            .iter()
+            .all(|selector| selector.starts_with('!'))
+}
+
+/// A negated bare pattern already selects the rest through the bare matcher.
+pub(super) fn updates_all_except_exclusions(
+    selectors: &[String],
+    parsed: &ParsedUpdateSelectors,
+) -> bool {
+    excludes_only(selectors) && parsed.bare_patterns.is_empty()
+}
+
 pub(crate) fn is_cargo_prefixed(selector: &str) -> bool {
     let selector = selector.strip_prefix('!').unwrap_or(selector);
     selector.starts_with("crate:")

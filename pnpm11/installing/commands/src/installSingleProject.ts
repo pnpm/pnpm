@@ -30,9 +30,9 @@ import { handleIgnoredBuilds } from './handleIgnoredBuilds.js'
 import type { InstallDepsOptions } from './installDeps.js'
 import { type PolicyHandlersPlan, setupPolicyHandlers } from './policyHandlers.js'
 import {
+  addIgnorePatterns,
   createMatcher,
   failOnVersionsOfIndirectUpdateSpecs,
-  makeIgnorePatterns,
   matchDependencies,
   type UpdateDepsMatcher,
 } from './recursive.js'
@@ -183,9 +183,8 @@ function selectUpdateTargets (ctx: SingleProjectInstallContext, params: string[]
 }
 
 function selectUpdateSpecs (opts: InstallDepsOptions, params: string[]): string[] {
-  if (!opts.update || params.length > 0) return params
-  const ignoreDeps = opts.updateConfig?.ignoreDependencies
-  return ignoreDeps?.length ? makeIgnorePatterns(ignoreDeps) : params
+  if (!opts.update) return params
+  return addIgnorePatterns(params, opts.updateConfig?.ignoreDependencies)
 }
 
 function matchDirectUpdateTargets (

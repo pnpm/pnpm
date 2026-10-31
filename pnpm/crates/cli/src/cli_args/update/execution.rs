@@ -3,8 +3,9 @@ use super::{
     Update, UpdateArgs, build_workspace_packages_map, github_actions, recursive,
 };
 use crate::{
-    cli_args::install::{
-        PnprLink, PnprTarget, install_selected_via_pnpr, install_via_pnpr, pnpr_target,
+    cli_args::{
+        ecosystem_deps::excludes_only,
+        install::{PnprLink, PnprTarget, install_selected_via_pnpr, install_via_pnpr, pnpr_target},
     },
     state::command_lockfile,
 };
@@ -191,10 +192,11 @@ impl UpdateArgs {
         ) {
             return false;
         }
-        if !packages.is_empty() && eco_outcome.remaining_node_selectors.is_empty() {
+        let updates_all = packages.is_empty() || excludes_only(packages);
+        if !updates_all && eco_outcome.remaining_node_selectors.is_empty() {
             return false;
         }
-        if packages.is_empty()
+        if updates_all
             && eco_outcome.updated_any
             && selection.is_none()
             && !state.manifest.path().exists()

@@ -172,6 +172,8 @@ update:
 
 Patterns are also supported, so you may ignore any packages from a scope: `@babel/*`.
 
+The ignored packages still update when you name them, as in `pnpm update load-json-file`. They stay unchanged when every selector is negated, as in `pnpm update '!webpack'`.
+
 #### update.changeset
 
 Added in: v11.16.0

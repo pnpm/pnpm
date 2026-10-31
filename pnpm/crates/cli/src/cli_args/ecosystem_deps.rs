@@ -5,7 +5,7 @@ pub(crate) mod selectors;
 pub(crate) mod standalone;
 
 pub(crate) use selectors::{
-    EcosystemFilterKind, patterns_for_ecosystem, validate_ecosystem_selectors,
+    EcosystemFilterKind, excludes_only, patterns_for_ecosystem, validate_ecosystem_selectors,
 };
 pub(crate) use standalone::{
     select_recursive_and_standalone_projects, select_standalone_ecosystem_dirs,
@@ -32,7 +32,9 @@ use python::{
     has_matching_python_deps, has_python_lockfile, python_project_name, update_python_project,
     validate_explicit_python_requests,
 };
-use selectors::{is_cargo_prefixed, is_python_prefixed, parse_update_selectors};
+use selectors::{
+    is_cargo_prefixed, is_python_prefixed, parse_update_selectors, updates_all_except_exclusions,
+};
 use std::{
     collections::HashSet,
     path::{Path, PathBuf},
@@ -48,14 +50,6 @@ pub(crate) struct EcosystemUpdateStepOptions<'a> {
     pub(crate) save_exact: bool,
     pub(crate) save_prefix: Option<&'a str>,
     pub(crate) lockfile_only: bool,
-}
-
-fn should_update_all_except_exclusions<Request>(
-    requests: &[Request],
-    exclusions: &[String],
-    bare_patterns: &[String],
-) -> bool {
-    requests.is_empty() && !exclusions.is_empty() && bare_patterns.is_empty()
 }
 
 pub(crate) struct EcosystemUpdateOutcome {
@@ -285,10 +279,9 @@ async fn update_ecosystem_targets<Reporter: self::Reporter + 'static>(
     let cargo_opts = CargoUpdateOptions {
         requests: &run.parsed.cargo_requests,
         exclusions: &run.parsed.cargo_exclusions,
-        update_all_except_exclusions: should_update_all_except_exclusions(
-            &run.parsed.cargo_requests,
-            &run.parsed.cargo_exclusions,
-            &run.parsed.bare_patterns,
+        update_all_except_exclusions: updates_all_except_exclusions(
+            run.options.selectors,
+            run.parsed,
         ),
         bare_matcher: run.bare_matcher,
         restrict_to_selectors: run.restrict_to_selectors,
@@ -351,11 +344,7 @@ async fn update_project_ecosystems<Reporter: self::Reporter + 'static>(
     let py_opts = PythonUpdateOptions {
         requests: &parsed.python_requests,
         exclusions: &parsed.python_exclusions,
-        update_all_except_exclusions: should_update_all_except_exclusions(
-            &parsed.python_requests,
-            &parsed.python_exclusions,
-            &parsed.bare_patterns,
-        ),
+        update_all_except_exclusions: updates_all_except_exclusions(options.selectors, parsed),
         bare_matcher,
         restrict_to_selectors,
         step: options,

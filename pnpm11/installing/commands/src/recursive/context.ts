@@ -20,9 +20,9 @@ import { setupPolicyHandlers } from '../policyHandlers.js'
 import { toWorkspaceSpecs } from '../updateWorkspaceDependencies.js'
 import type { CommandFullName, RecursiveOptions } from './options.js'
 import {
+  addIgnorePatterns,
   createMatcher,
   failOnVersionsOfIndirectUpdateSpecs,
-  makeIgnorePatterns,
   matchDependencies,
   type UpdateDepsMatcher,
 } from './updateSelectors.js'
@@ -37,8 +37,8 @@ export interface RecursiveContext {
   allProjects: Project[]
   cmdFullName: CommandFullName
   /**
-   * The selectors the user passed, or for an `update` without selectors, the
-   * negated `updateConfig.ignoreDependencies`.
+   * The selectors the user passed. For an `update` whose selectors are all
+   * negated, or absent, the negated `updateConfig.ignoreDependencies` follow.
    */
   params: string[]
   /**
@@ -170,12 +170,7 @@ function createProjectConfigGetter (opts: RecursiveOptions): RecursiveContext['g
 
 function createUpdateMatch ({ params, opts, cmdFullName }: RecursiveInput): Pick<RecursiveContext, 'params' | 'updateMatch'> {
   if (cmdFullName !== 'update') return { params, updateMatch: null }
-  if (params.length === 0) {
-    const ignoreDeps = opts.updateConfig?.ignoreDependencies
-    if (ignoreDeps?.length) {
-      params = makeIgnorePatterns(ignoreDeps)
-    }
-  }
+  params = addIgnorePatterns(params, opts.updateConfig?.ignoreDependencies)
   return { params, updateMatch: params.length ? createMatcher(params) : null }
 }
 
