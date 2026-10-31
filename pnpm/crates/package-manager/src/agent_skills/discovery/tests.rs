@@ -1,12 +1,17 @@
-use super::{SkillSource, keep_highest};
+use super::{Skill, SkillSource, keep_highest};
 use std::{collections::BTreeMap, path::PathBuf};
+
+fn top_level() -> Skill {
+    Skill { name: "guide".to_string(), dir: PathBuf::from("guide") }
+}
 
 fn source(package_dir: &str) -> SkillSource {
     SkillSource {
         dep_path: "foo@1.0.0".to_string(),
         approval_key: "foo".to_string(),
+        link_segment: "foo".to_string(),
         package_dir: PathBuf::from(package_dir),
-        skills: vec!["guide".to_string()],
+        skills: vec![top_level()],
     }
 }
 
@@ -47,7 +52,7 @@ fn unresolved_package_locations_do_not_hide_skills_from_installed_variants() {
 
         let (skills, package_dir) =
             super::cached_skills(&mut cache, "foo@1.0.0".to_string(), &package).unwrap();
-        assert_eq!(skills, ["guide"]);
+        assert_eq!(skills, [top_level()]);
         assert_eq!(package_dir, std::fs::canonicalize(&package).unwrap());
     }
 }
@@ -65,4 +70,113 @@ fn peer_variants_without_skills_do_not_suppress_valid_skill_sources() {
         }
         assert_eq!(selected["foo"].package_dir, PathBuf::from("b"));
     }
+}
+
+#[test]
+fn category_directories_hold_skills() {
+    let root = tempfile::tempdir().unwrap();
+    for relative in ["guide", "engineering/implement", "engineering/tooling/migrate"] {
+        let dir = root
+            .path()
+            .join("skills")
+            .join(relative);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("SKILL.md"), "# skill\n").unwrap();
+    }
+    std::fs::write(root.path().join("skills/policy.md"), "not a skill\n").unwrap();
+    let notes = root.path().join("skills/notes");
+    std::fs::create_dir_all(&notes).unwrap();
+    std::fs::write(notes.join("README.md"), "no SKILL.md\n").unwrap();
+
+    let found = super::skills(root.path());
+
+    assert_eq!(
+        found,
+        [
+            Skill { name: "implement".to_string(), dir: PathBuf::from("engineering/implement") },
+            Skill {
+                name: "migrate".to_string(),
+                dir: PathBuf::from("engineering/tooling/migrate"),
+            },
+            Skill { name: "guide".to_string(), dir: PathBuf::from("guide") },
+        ],
+    );
+}
+
+#[test]
+fn a_skill_deeper_than_the_bound_is_not_found() {
+    let root = tempfile::tempdir().unwrap();
+    let deep = root.path().join("skills/engineering/platform/agent-schema/conventions");
+    std::fs::create_dir_all(&deep).unwrap();
+    std::fs::write(deep.join("SKILL.md"), "# skill\n").unwrap();
+
+    let found = super::skills(root.path());
+
+    assert_eq!(found, []);
+}
+
+#[test]
+fn a_skill_directory_is_not_searched_for_inner_skills() {
+    let root = tempfile::tempdir().unwrap();
+    let guide = root.path().join("skills/guide");
+    std::fs::create_dir_all(&guide).unwrap();
+    std::fs::write(guide.join("SKILL.md"), "# skill\n").unwrap();
+    let inner = guide.join("reference/conventions");
+    std::fs::create_dir_all(&inner).unwrap();
+    std::fs::write(inner.join("SKILL.md"), "# skill\n").unwrap();
+
+    let found = super::skills(root.path());
+
+    assert_eq!(found, [top_level()]);
+}
+
+#[cfg(unix)]
+#[test]
+fn a_symlinked_category_directory_is_not_searched() {
+    let root = tempfile::tempdir().unwrap();
+    let guide = root.path().join("skills/guide");
+    std::fs::create_dir_all(&guide).unwrap();
+    std::fs::write(guide.join("SKILL.md"), "# skill\n").unwrap();
+    std::os::unix::fs::symlink(root.path().join("skills"), root.path().join("skills/loop"))
+        .unwrap();
+
+    let found = super::skills(root.path());
+
+    assert_eq!(found, [top_level()]);
+}
+
+#[cfg(unix)]
+#[test]
+fn a_symlinked_skill_directory_is_found() {
+    let root = tempfile::tempdir().unwrap();
+    let actual_skill = root.path().join("internal/guide");
+    std::fs::create_dir_all(&actual_skill).unwrap();
+    std::fs::write(actual_skill.join("SKILL.md"), "# skill\n").unwrap();
+    let skills_dir = root.path().join("skills");
+    std::fs::create_dir_all(&skills_dir).unwrap();
+    std::os::unix::fs::symlink(&actual_skill, skills_dir.join("guide")).unwrap();
+
+    let found = super::skills(root.path());
+
+    assert_eq!(found, [top_level()]);
+}
+
+#[cfg(unix)]
+#[test]
+fn a_symlink_escaping_package_is_dropped() {
+    let temp = tempfile::tempdir().unwrap();
+    let outside = temp.path().join("outside");
+    std::fs::create_dir_all(&outside).unwrap();
+    std::fs::write(outside.join("SKILL.md"), "# skill\n").unwrap();
+
+    let package = temp.path().join("package");
+    let skills_dir = package.join("skills");
+    std::fs::create_dir_all(&skills_dir).unwrap();
+    std::os::unix::fs::symlink(&outside, skills_dir.join("escaped")).unwrap();
+
+    let probe = super::probe_package(&package);
+    let super::Probe::Found(Some((shipped, _))) = probe else {
+        panic!("expected Probe::Found");
+    };
+    assert!(shipped.is_empty());
 }

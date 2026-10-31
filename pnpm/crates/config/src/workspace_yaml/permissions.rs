@@ -1,6 +1,6 @@
 use super::{
     AllowBuild, Config, Deserialize, HashMap, IndexMap, NAMED_UNRECOGNIZED_SETTINGS,
-    UnrecognizedSettings, WorkspaceSettings, decided_allow_builds, overlay_some,
+    SkillsPermission, UnrecognizedSettings, WorkspaceSettings, decided_allow_builds, overlay_some,
 };
 
 /// A capability a [`PackagePermissions`] entry decides.
@@ -33,9 +33,11 @@ pub struct PackagePermissions {
     pub build: Option<AllowBuild>,
 
     /// May have the agent skills it ships linked into the project's agent
-    /// skill directories.
+    /// skill directories: `true` links every skill, `false` records a
+    /// denial so the package is not offered for approval again, and a
+    /// list links exactly the named skills.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub skills: Option<AllowBuild>,
+    pub skills: Option<SkillsPermission>,
 
     /// Capabilities this version of pnpm does not read, kept only until
     /// [`WorkspaceSettings::collect_key_issues`] has named them in its
@@ -57,16 +59,16 @@ pub struct SkillsSettings {
 
 /// Reduce `permissions` to the decided entries of one capability.
 #[must_use]
-pub fn decided_permissions<Capability>(
+pub fn decided_permissions<Value, Capability>(
     permissions: &IndexMap<String, PackagePermissions>,
     capability: Capability,
-) -> HashMap<String, bool>
+) -> HashMap<String, Value>
 where
-    Capability: Fn(&PackagePermissions) -> Option<&AllowBuild>,
+    Capability: Fn(&PackagePermissions) -> Option<Value>,
 {
     permissions
         .iter()
-        .filter_map(|(pkg, entry)| Some((pkg.clone(), capability(entry)?.decided()?)))
+        .filter_map(|(pkg, entry)| Some((pkg.clone(), capability(entry)?)))
         .collect()
 }
 
@@ -95,7 +97,7 @@ impl WorkspaceSettings {
             .unwrap_or_default();
         if let Some(permissions) = &self.permissions {
             approvals.extend(decided_permissions(permissions, |entry| {
-                entry.build.as_ref()
+                entry.build.as_ref().and_then(AllowBuild::decided)
             }));
         }
         Some(approvals)
@@ -104,11 +106,11 @@ impl WorkspaceSettings {
     /// The `permissions.<pkg>.skills` decisions of this layer. `None` when
     /// the layer has no `permissions`.
     #[must_use]
-    pub fn decided_skill_approvals(&self) -> Option<HashMap<String, bool>> {
+    pub fn decided_skill_approvals(&self) -> Option<HashMap<String, SkillsPermission>> {
         self.permissions
             .as_ref()
             .map(|permissions| {
-                decided_permissions(permissions, |entry| entry.skills.as_ref())
+                decided_permissions(permissions, |entry| entry.skills.clone())
             })
     }
 
@@ -127,10 +129,10 @@ impl WorkspaceSettings {
         }
         if let Some(permissions) = self.permissions.take() {
             config.allow_builds.extend(decided_permissions(&permissions, |entry| {
-                entry.build.as_ref()
+                entry.build.as_ref().and_then(AllowBuild::decided)
             }));
             config.allow_skills =
-                decided_permissions(&permissions, |entry| entry.skills.as_ref());
+                decided_permissions(&permissions, |entry| entry.skills.clone());
         }
         if let Some(skills) = self.skills.take() {
             overlay_some(&mut config.skills_dirs, skills.dirs);

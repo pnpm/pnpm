@@ -233,7 +233,7 @@ semver = { version = "1.0.28" }
 shell-words = { version = "1.1.1" }
 rustc-hash = { version = "2.1.1" }
 rustls = { version = "0.23", default-features = false, features = ["std"] }
-rustls-platform-verifier = { version = "0.7.0" }
+rustls-platform-verifier = { version = "0.7.1" }
 serde-saphyr = { version = "0.0.29" }
 sqlx = { version = "0.8.6", default-features = false, features = ["runtime-tokio-rustls"] }
 # 0.11 removes the LowerHex impl on Output; revisit after upstream/consumers catch up

@@ -19,6 +19,7 @@ pub(crate) use policies::{
     set_minimum_release_age_excludes,
 };
 pub(crate) use scanning::{Inline, document_root_is_inline, has_unsupported_inline_value};
+pub(crate) use skills_dirs::set_skills_dirs;
 pub(crate) use spacing::uses_blank_line_style;
 
 use std::{
@@ -483,11 +484,13 @@ use allow_builds::render_bool;
 
 mod mapping;
 use mapping::{
-    replace_bool_value_at, replace_value_at, upsert, write_entry_at, write_named_subblock,
+    replace_value_at, replace_value_text_at, upsert, write_entry_at, write_named_subblock,
     write_rendered_entry_at,
 };
 
 mod permissions;
+
+mod skills_dirs;
 
 mod scanning;
 
