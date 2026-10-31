@@ -6,7 +6,7 @@ use crate::{
 use pnpm_config::NodeLinker;
 use pnpm_deps_restorer::parse_name_version_from_key;
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{BTreeMap, HashMap, HashSet},
     fs,
     path::{Path, PathBuf},
 };
@@ -223,11 +223,16 @@ fn skill_source(
 ) -> SkillSource {
     let dep_path = normalize_build_dep_path(dep_path);
     let approval_key = allow_build_key_from_ignored_build(&dep_path);
-    let (name, _) = parse_name_version_from_key(&dep_path);
+    // The name ends at the first `@` past a scope: a git URL such as
+    // `git+ssh://git@host/...` holds another one.
+    let name = dep_path
+        .get(1..)
+        .and_then(|rest| rest.find('@'))
+        .map_or(dep_path.as_str(), |at| &dep_path[..=at]);
     // A registry or git package has a unique name. A tarball or a local
     // directory does not, so it takes the name the project gave it.
     let link_segment = if approval_key == name || is_git_hosted_dep_path(&dep_path) {
-        name
+        name.to_string()
     } else {
         alias.to_string()
     };
@@ -274,15 +279,15 @@ fn supersedes(candidate: &SkillSource, kept: &SkillSource) -> bool {
 /// `skills/engineering/implement/SKILL.md` does.
 const MAX_SKILL_DIR_DEPTH: usize = 3;
 
-/// [`find_skills`] over the package's `skills` directory, sorted.
+/// [`find_skills`] over the package's `skills` directory, sorted by
+/// directory. A skill name that several categories ship is kept once, at
+/// its first directory: approvals and links name a skill by its name alone.
 fn skills(package_dir: &Path) -> Vec<Skill> {
     let root = package_dir.join("skills");
     let mut found = find_skills(&root, Path::new(""), 1);
-    found.sort_by(|left, right| {
-        left.dir
-            .cmp(&right.dir)
-            .then_with(|| left.name.cmp(&right.name))
-    });
+    found.sort_by(|left, right| left.dir.cmp(&right.dir));
+    let mut seen = HashSet::new();
+    found.retain(|skill| seen.insert(skill.name.clone()));
     found
 }
 
