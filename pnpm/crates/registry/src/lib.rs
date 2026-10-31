@@ -16,6 +16,7 @@ pub use package_version::{
 };
 pub use package_versions::{MirrorFile, PackageVersions, read_exact_at};
 pub use range_spec_style::{RangeSpecGranularity, RangeSpecStyle};
+pub use split_index::add_external_versions;
 
 mod package;
 mod package_distribution;
@@ -23,6 +24,7 @@ mod package_tag;
 mod package_version;
 mod package_versions;
 mod range_spec_style;
+mod split_index;
 mod wire_tolerance;
 
 use derive_more::{Display, Error, From};

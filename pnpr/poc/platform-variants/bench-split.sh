@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Benchmark whole packuments, packuments split by moving only each version's
-# dist, and packuments split by moving whole versions, through the CDN-like
-# shaping proxy. Both split forms keep the likely picks inline. Each run starts with an empty pnpm cache and store.
+# dist, and packuments split into an external-versions map and release
+# records, through the CDN-like shaping proxy. Both split forms keep the
+# likely picks whole. Each run starts with an empty pnpm cache and store.
 # usage: bench-split.sh <runs> <work-dir> <pnpr-config>
 # Expects release builds in target/release, and a pnpr config whose upstream
 # proxies npmjs (set its maxAge long so the runs do not revalidate).
@@ -41,11 +42,11 @@ one_run() { # <label> <cmd> <profile>
   rm -rf $dir
 }
 
-for mode in whole split-dist split-version; do
+for mode in whole split-dist split-map; do
   case $mode in
     whole) threshold=1000000000000000 dist_only=0 ;;
     split-dist) threshold=65536 dist_only=1 ;;
-    split-version) threshold=65536 dist_only=0 ;;
+    split-map) threshold=65536 dist_only=0 ;;
   esac
   cd $(dirname $CONFIG)
   PNPR_SPLIT_METADATA_THRESHOLD=$threshold PNPR_SPLIT_DIST_ONLY=$dist_only \

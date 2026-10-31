@@ -117,7 +117,7 @@ pub(super) async fn get_packument_or_version_manifest(
         let name = format!("{first}/{second}");
         return serve_packument(&state, &identity, &headers, registry.as_deref(), &name).await;
     }
-    serve_version_manifest(&state, &identity, &headers, registry.as_deref(), &first, &second).await
+    serve_version_manifest(&state, &identity, registry.as_deref(), &first, &second).await
 }
 
 /// `GET {base}/{pkg}/-/{filename}`.

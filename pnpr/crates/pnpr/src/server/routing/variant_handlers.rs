@@ -41,7 +41,7 @@ pub(super) async fn get_scoped_version_manifest_or_variant(
         return not_found();
     }
     let full = format!("{scope}/{name}");
-    serve_version_manifest(&state, &identity, &headers, registry.as_deref(), &full, &version).await
+    serve_version_manifest(&state, &identity, registry.as_deref(), &full, &version).await
 }
 
 /// `GET {base}/@{scope}/{pkg}@{version}/variants/{tag}` — a scoped package's

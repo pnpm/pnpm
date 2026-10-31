@@ -32,7 +32,6 @@ pub(super) async fn serve_packument(
 pub(super) async fn serve_version_manifest(
     state: &AppState,
     identity: &Identity,
-    headers: &HeaderMap,
     registry: Option<&str>,
     raw_name: &str,
     version_or_tag: &str,
@@ -41,30 +40,23 @@ pub(super) async fn serve_version_manifest(
         return not_found();
     };
     let base = registry_endpoint(state, Ecosystem::Npm, registry);
-    let response = serve_registry_version_manifest(
-        state,
-        identity,
-        headers,
-        &target,
-        raw_name,
-        version_or_tag,
-        &base,
-    )
-    .await;
+    let address = super::split_packuments::record_address(version_or_tag);
+    let response =
+        serve_registry_version_manifest(state, identity, &target, raw_name, address, &base).await;
     caller_scoped(state, Ecosystem::Npm, registry, Some(raw_name), response)
 }
 
 /// Serve a single version's manifest (`GET <base>/<pkg>/<version-or-tag>`)
 /// through the registry graph. Resolves the package to its one concrete origin,
 /// loads that origin's packument, and extracts the requested version with its
-/// `dist.tarball` rewritten onto the same origin's base.
+/// `dist.tarball` rewritten onto the same origin's base. A revision in the
+/// address asks for that revision's release record.
 pub(super) async fn serve_registry_version_manifest(
     state: &AppState,
     identity: &Identity,
-    headers: &HeaderMap,
     registry: &str,
     raw_name: &str,
-    version_or_tag: &str,
+    (version_or_tag, revision): (&str, Option<u64>),
     tarball_base: &str,
 ) -> Response {
     let (name, resolved_source, packument) =
@@ -94,7 +86,7 @@ pub(super) async fn serve_registry_version_manifest(
         describe_tar(&mut manifest, table, view.tar_registry);
     }
     describe_manifest_variants(&mut manifest, name.as_str(), tarball_base);
-    super::split_packuments::version_document_response(manifest, headers, version_or_tag)
+    super::split_packuments::version_document_response(manifest, revision)
 }
 
 /// The packument a version-manifest request reads, with the source it

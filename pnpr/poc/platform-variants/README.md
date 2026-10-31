@@ -46,20 +46,25 @@ does not compress. So the PoC also implements split packuments:
 - pnpm asks for `application/vnd.pnpr.install-v2+json` first. pnpr answers
   with the abbreviated packument. When that is larger than
   `PNPR_SPLIT_METADATA_THRESHOLD` (off unless set; the benchmark uses
-  64 KiB), each version moves to its immutable version document
-  `<name>/<version>` and is marked `dist.pnpr.details: "external"`. Only
-  what picking reads stays inline: `deprecated`, the `_npmUser` trust flags,
-  and provenance. A missing `integrity` cannot be the marker, because it
-  already means the integrity is computed while fetching the tarball.
-  `PNPR_SPLIT_DIST_ONLY=1` moves only each version's `dist`, keeping its
-  dependencies and its variants' `tag` and `platforms` inline.
-- Every dist-tag target and the highest release of each major (of each minor
-  below 1.0) stay whole (`PNPR_SPLIT_KEEP_LATEST=0` turns this off), so most
-  picks need no second request.
-- pnpm fetches the version document of a picked version marked external, once
-  per install, asking for the abbreviated form with the same media type, and
-  reads the whole version from it. Version documents are not yet cached on
-  disk.
+  64 KiB), only the likely picks stay in `versions`: every dist-tag target
+  and the highest release of each major (of each minor below 1.0;
+  `PNPR_SPLIT_KEEP_LATEST=0` turns this off). Every other version moves to
+  `pnpr.externalVersions` as its publish time, or `[time, flags]` with its
+  `deprecated` notice, trust rank, and selected revision. A client that does
+  not read the map sees only complete versions.
+- The rest of a version is its release record at
+  `<name>/<version>+r<revision>`, served with `Cache-Control: immutable`:
+  the abbreviated version without `deprecated`, `_npmUser`, signatures, and
+  attestations, which may change or are evidence kept apart. `<name>/<version>`
+  is the selected revision and keeps its usual caching. The PoC serves a
+  record only while its revision is the selected one.
+- pnpm turns each entry into a version marked `dist.pnpr.details: "external"`
+  where the document is parsed, so the picker, the trust policy, and the
+  release-age filter read it like any other. It fetches the record of a picked
+  external version once per install and takes the deprecation and trust
+  evidence from the packument. Records are not yet cached on disk.
+- `PNPR_SPLIT_DIST_ONLY=1` keeps every version in `versions` with only its
+  `dist` moved, for comparison.
 - Split documents need a metadata cache of their own on the client: an older
   pnpm on `PATH` that shares the cache read a split document the new one had
   cached, and failed to switch versions. Moving the cache directory touches
@@ -72,20 +77,19 @@ request by a round trip, and caps bandwidth. The registry is declared with
 `serverType: pnpr`, as it would be in use; otherwise pnpm reads the full
 document of every optional dependency, which is never split. Every run starts
 with an empty pnpm cache and store. Both split forms keep the likely picks
-inline. Medians of 3 runs:
+whole. Medians of 3 runs:
 
-| Network | Whole | Split, `dist` only | Split, whole versions |
+| Network | Whole | Only `dist` moved | External map |
 | --- | --- | --- | --- |
-| 10 ms, 200 Mbit/s, resolve | 1.32 s | 0.47 s | 0.43 s |
-| 40 ms, 50 Mbit/s, resolve | 5.12 s | 1.54 s | 1.41 s |
-| 100 ms, 10 Mbit/s, resolve | 24.64 s | 6.68 s | 5.86 s |
-| 40 ms, 50 Mbit/s, install | 28.45 s | 24.86 s | 24.65 s |
-| Packument bytes (gzip) | 30.3 MB | 7.6 MB | 6.6 MB |
-| Version documents | 0 | 22 (12 KB) | 22 (12 KB) |
+| 10 ms, 200 Mbit/s, resolve | 1.34 s | 0.46 s | 0.37 s |
+| 40 ms, 50 Mbit/s, resolve | 5.06 s | 1.51 s | 1.13 s |
+| 100 ms, 10 Mbit/s, resolve | 24.70 s | 6.73 s | 4.80 s |
+| 40 ms, 50 Mbit/s, install | 28.44 s | 24.82 s | 24.43 s |
+| Packument bytes (gzip) | 30.3 MB | 7.6 MB | 5.3 MB |
+| Release records | 0 | 22 (7 KB) | 22 (7 KB) |
 
-All three lockfiles are identical. Of the 6.6 MB left, about half is in
-documents under the threshold, and 1.6 MB is the `time` maps, which stay
-because a minimum release age filters versions by them.
+All three lockfiles are identical. About 3 MB of the 5.3 MB left is in
+documents under the threshold.
 
 ## Reproducing
 

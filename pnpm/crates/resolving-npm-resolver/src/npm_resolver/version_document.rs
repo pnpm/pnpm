@@ -1,9 +1,10 @@
 //! Split packuments (proof of concept). A registry that serves the
-//! `application/vnd.pnpr.install-v2+json` form may leave a version out of a
-//! large packument, keeping only what picking reads (its `deprecated` notice,
-//! trust flags, and provenance), and mark it `dist.pnpr.details: "external"`.
-//! The whole version is then in its immutable version document
-//! `<registry><name>/<version>`, fetched here once the version is picked.
+//! `application/vnd.pnpr.install-v2+json` form may list a version only by
+//! what picking reads and what may change after publication: its publish
+//! time, `deprecated` notice, trust evidence, and selected revision (see
+//! `pnpm_registry::add_external_versions`). The rest of the version is in
+//! its release record `<registry><name>/<version>+r<revision>`, which never
+//! changes, fetched here once the version is picked.
 
 use std::sync::{Arc, LazyLock};
 
@@ -18,16 +19,12 @@ use crate::{
     MetadataHttpClient, PackageMetaCache, PickPackageError, pick_package::PickPackageContext,
 };
 
-/// Asks for the version as the split packument would have listed it.
-const ACCEPT_VERSION_DOC: &str =
-    "application/vnd.pnpr.install-v2+json; q=1.0, application/json; q=0.9";
-
-/// Version documents never change, so one fetch per URL serves the install.
+/// Release records never change, so one fetch per URL serves the install.
 static VERSION_DOCS: LazyLock<DashMap<String, Arc<OnceCell<Arc<PackageVersion>>>>> =
     LazyLock::new(DashMap::new);
 
-/// The picked version, read from its version document when its packument
-/// left it there.
+/// The picked version, read from its release record when its packument left
+/// it there. What may change after publication comes from the packument.
 pub(crate) async fn with_version_document<Cache: PackageMetaCache>(
     ctx: &PickPackageContext<'_, Cache>,
     registry: &str,
@@ -36,17 +33,32 @@ pub(crate) async fn with_version_document<Cache: PackageMetaCache>(
     if !version.dist.is_external() {
         return Ok(version);
     }
-    let url = format!("{}/{}/{}", registry.trim_end_matches('/'), version.name, version.version);
+    let revision = version.dist.revision
+        .as_ref()
+        .and_then(serde_json::Value::as_u64)
+        .unwrap_or(0);
+    let url = format!(
+        "{}/{}/{}+r{revision}",
+        registry.trim_end_matches('/'),
+        version.name,
+        version.version,
+    );
     let cell = Arc::clone(
         VERSION_DOCS
             .entry(url.clone())
             .or_default()
             .value(),
     );
-    cell.get_or_try_init(|| fetch_version_document(ctx.metadata.http, &url, &version))
+    let record = cell
+        .get_or_try_init(|| fetch_version_document(ctx.metadata.http, &url, &version))
         .await
-        .cloned()
-        .map_err(|error| PickPackageError::VersionDocument { url, error })
+        .map_err(|error| PickPackageError::VersionDocument { url, error })?;
+    let mut picked = PackageVersion::clone(record);
+    picked.deprecated.clone_from(&version.deprecated);
+    picked.npm_user.clone_from(&version.npm_user);
+    picked.dist.attestations.clone_from(&version.dist.attestations);
+    picked.dist.revision.clone_from(&version.dist.revision);
+    Ok(Arc::new(picked))
 }
 
 async fn fetch_version_document(
@@ -57,7 +69,7 @@ async fn fetch_version_document(
     let fetched = async {
         let (_guard, response) =
             send_with_retry(http.http_client, url, http.retry_opts, |client| {
-                let request = client.get(url).header(header::ACCEPT, ACCEPT_VERSION_DOC);
+                let request = client.get(url).header(header::ACCEPT, "application/json");
                 match http.auth_headers.for_url_with_package(url, Some(&picked.name)) {
                     Some(value) => request.header(header::AUTHORIZATION, value),
                     None => request,
