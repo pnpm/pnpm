@@ -31,13 +31,17 @@ A `-sys` crate is not safe to call and does not pretend to be. It opts out
 of the workspace's `unsafe_code` lint, because declaring the ABI is its
 whole job.
 
-### `pnpm-ffi-*` crates: turn one ABI into a safe API
+### Abstraction crates: turn one unsafe API into a safe one
 
-An FFI abstraction crate exists to make one foreign surface safe to call.
-Its `unsafe` blocks are the point of it, not an implementation detail that
+An abstraction crate exists to make one unsafe surface safe to call: a
+foreign ABI, or a raw-pointer structure no safe one can replace. Its
+`unsafe` blocks are the point of it, not an implementation detail that
 leaked in.
 
-It is named `pnpm-ffi-<surface>`, and it must:
+A crate abstracting a foreign surface is named `pnpm-ffi-<surface>`, and
+one abstracting a raw-pointer structure is named for the structure, as
+[`pnpm-signal-registry`](./pnpm/crates/signal-registry) is. Either way it
+must:
 
 - **Expose no way to break it.** No `unsafe fn`, no raw pointer, no raw
   descriptor or handle, no bare `errno` in its public API. A caller who can
