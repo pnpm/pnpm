@@ -195,7 +195,9 @@ fn cached_skills(
 
 /// Most packages ship no skills, so the directory is resolved only for the
 /// ones that do. A skill directory that resolves outside the package is
-/// not the package's skill.
+/// not the package's skill. A name several categories ship, compared
+/// ignoring case, is kept once, at its first directory: approvals and
+/// links name a skill by its name alone.
 fn probe_package(dir: &Path) -> Probe {
     let candidates = skills(dir);
     if candidates.is_empty() {
@@ -206,12 +208,14 @@ fn probe_package(dir: &Path) -> Probe {
         };
     }
     let Ok(package_dir) = fs::canonicalize(dir) else { return Probe::Found(None) };
+    let mut seen = HashSet::new();
     let shipped = candidates
         .into_iter()
         .filter(|skill| {
             fs::canonicalize(package_dir.join("skills").join(&skill.dir))
                 .is_ok_and(|resolved| resolved.starts_with(&package_dir))
         })
+        .filter(|skill| seen.insert(skill.name.to_lowercase()))
         .collect();
     Probe::Found(Some((shipped, package_dir)))
 }
@@ -280,14 +284,11 @@ fn supersedes(candidate: &SkillSource, kept: &SkillSource) -> bool {
 const MAX_SKILL_DIR_DEPTH: usize = 3;
 
 /// [`find_skills`] over the package's `skills` directory, sorted by
-/// directory. A skill name that several categories ship is kept once, at
-/// its first directory: approvals and links name a skill by its name alone.
+/// directory.
 fn skills(package_dir: &Path) -> Vec<Skill> {
     let root = package_dir.join("skills");
     let mut found = find_skills(&root, Path::new(""), 1);
     found.sort_by(|left, right| left.dir.cmp(&right.dir));
-    let mut seen = HashSet::new();
-    found.retain(|skill| seen.insert(skill.name.clone()));
     found
 }
 
