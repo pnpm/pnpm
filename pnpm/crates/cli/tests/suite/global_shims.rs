@@ -289,6 +289,36 @@ fn a_held_runtime_lock_installs_the_runtime_privately() {
     );
 }
 
+#[cfg(unix)]
+#[test]
+fn a_runtime_install_skips_the_global_pnpmfile() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new();
+    let version = "24.0.0-rc.4";
+    let _mocks = crate::install_runtimes::mock_node_release(&mut server, version);
+    let (project, global_target) = runtime_pin_project(&root, &server, version, ".nvmrc");
+    let marker = root.path().join("pnpmfile-loaded");
+    let pnpmfile = root.path().join("global-pnpmfile.cjs");
+    fs::write(
+        &pnpmfile,
+        format!(
+            "require('fs').writeFileSync({marker:?}, '')\nmodule.exports = {{ hooks: {{}} }}\n",
+        ),
+    )
+    .unwrap();
+    let config_yaml = root.path().join("config/pnpm/config.yaml");
+    let config = fs::read_to_string(&config_yaml).unwrap();
+    fs::write(&config_yaml, format!("{config}globalPnpmfile: {}\n", pnpmfile.display())).unwrap();
+
+    shim_command(&root, &project, "node", global_target.to_str().unwrap())
+        .with_env(AUTO_TRUST_ENV, "1")
+        .with_env("PNPM_CONFIG_GLOBAL_SHIMS", r#"{"tool": true}"#)
+        .assert()
+        .success()
+        .stdout("");
+    assert!(!marker.exists(), "the runtime install must not load the global pnpmfile");
+}
+
 /// A project pinning Node.js `version` through `file_name`, whose own
 /// configuration must not reach the runtime install: a repo-controlled
 /// store or mirror could feed the dispatcher a poisoned artifact, so
