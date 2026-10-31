@@ -145,7 +145,13 @@ fn is_tarball(request: &RecordedRequest) -> bool {
 
 fn document(request: &RecordedRequest) -> &'static str {
     match request.accept.as_deref() {
-        Some(accept) if accept.starts_with("application/vnd.npm.install-v1+json") => "abbreviated",
+        // v12 offers pnpr's split form first; both ask for the abbreviated document.
+        Some(accept)
+            if accept.starts_with("application/vnd.npm.install-v1+json")
+                || accept.starts_with("application/vnd.pnpr.install-v2+json") =>
+        {
+            "abbreviated"
+        }
         _ => "full",
     }
 }

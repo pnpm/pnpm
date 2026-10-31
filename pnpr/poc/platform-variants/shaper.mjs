@@ -37,7 +37,8 @@ function count (url, bytes) {
   s.requests++
   s.bytes += bytes
 }
-const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
+// Delays come from the control endpoint, so cap them.
+const sleep = ms => new Promise(resolve => setTimeout(resolve, Math.min(Math.max(ms, 0), 60_000)))
 
 async function send (res, status, headers, body) {
   res.writeHead(status, headers)
@@ -81,7 +82,7 @@ http.createServer(async (req, res) => {
   let entry = req.method === 'GET' ? cache.get(key) : undefined
   if (!entry) {
     let up
-    try { up = await fetchUpstream(req) } catch (err) { res.writeHead(502); return res.end(String(err)) }
+    try { up = await fetchUpstream(req) } catch { res.writeHead(502); return res.end('upstream request failed') }
     const headers = { ...up.headers }
     delete headers['content-length']
     delete headers['transfer-encoding']

@@ -895,7 +895,11 @@ fn format_recorded_request(req: RecordedRequest) -> String {
     }
     let is_abbreviated = accept
         .as_deref()
-        .is_some_and(|header| header.starts_with("application/vnd.npm.install-v1+json"));
+        // v12 offers pnpr's split form first; both ask for the abbreviated document.
+        .is_some_and(|header| {
+            header.starts_with("application/vnd.npm.install-v1+json")
+                || header.starts_with("application/vnd.pnpr.install-v2+json")
+        });
     let doc = if is_abbreviated { "abbreviated" } else { "full" };
     let etag = if_none_match
         .map(|val| format!(" etag={val}"))
