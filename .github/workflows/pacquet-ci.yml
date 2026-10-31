@@ -330,6 +330,19 @@ jobs:
           New-ItemProperty -Force $key -Name DumpType -PropertyType DWord -Value 1 | Out-Null
           New-ItemProperty -Force $key -Name DumpCount -PropertyType DWord -Value 10 | Out-Null
 
+          # Prove WER writes a dump on this runner: a configured automatic
+          # debugger, for one, would take the crash instead. FailFast ends the
+          # process through the same fail-fast path as `__fastfail`.
+          Start-Process pwsh -ArgumentList '-NoProfile', '-Command', "[Environment]::FailFast('WER check')" -Wait
+          $deadline = (Get-Date).AddSeconds(30)
+          while (-not (Get-ChildItem $dumps -Filter 'pwsh.exe.*.dmp') -and (Get-Date) -lt $deadline) {
+            Start-Sleep -Seconds 1
+          }
+          if (-not (Get-ChildItem $dumps -Filter 'pwsh.exe.*.dmp')) {
+            throw "Windows Error Reporting wrote no dump to $dumps"
+          }
+          Remove-Item (Join-Path $dumps 'pwsh.exe.*.dmp')
+
       - name: Install Python for ecosystem tests
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 #v7.1.0  v6
         with:
