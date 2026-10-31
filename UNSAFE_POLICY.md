@@ -38,10 +38,11 @@ foreign ABI, or a raw-pointer structure no safe one can replace. Its
 `unsafe` blocks are the point of it, not an implementation detail that
 leaked in.
 
-A crate abstracting a foreign surface is named `pnpm-ffi-<surface>`, and
-one abstracting a raw-pointer structure is named for the structure, as
-[`pnpm-signal-registry`](./pnpm/crates/signal-registry) is. Either way it
-must:
+It is named for what it abstracts: `pnpm-ffi-<surface>` for a foreign
+surface, and the structure itself for a raw-pointer one, as
+[`pnpm-signal-registry`](./pnpm/crates/signal-registry) is.
+
+Either way it must:
 
 - **Expose no way to break it.** No `unsafe fn`, no raw pointer, no raw
   descriptor or handle, no bare `errno` in its public API. A caller who can
