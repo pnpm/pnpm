@@ -235,13 +235,13 @@ fn do_not_fail_on_optional_dep_with_failing_postinstall() {
 
     let ignored = BuildModules {
         cache: crate::BuildCacheContext {
+            captured: None,
             side_effects: crate::CachedSideEffects { overlays: None, rows: None },
             engine_name: None,
             read: true,
             write: false,
             publisher: None,
-            store_dir: None,
-            store_index_writer: None,
+            store: None,
             frozen_store: false,
         },
         directories: crate::BuildLayout {
@@ -338,13 +338,13 @@ pub(super) fn fail_when_failing_postinstall_is_required() {
 
     let err = BuildModules {
         cache: crate::BuildCacheContext {
+            captured: None,
             side_effects: crate::CachedSideEffects { overlays: None, rows: None },
             engine_name: None,
             read: true,
             write: false,
             publisher: None,
-            store_dir: None,
-            store_index_writer: None,
+            store: None,
             frozen_store: false,
         },
         directories: crate::BuildLayout {
@@ -466,13 +466,13 @@ async fn write_path_disabled_skips_upload() {
 
     BuildModules {
         cache: crate::BuildCacheContext {
+            captured: None,
             side_effects: crate::CachedSideEffects { overlays: None, rows: None },
             engine_name: Some("darwin;arm64;node20"),
             read: true,
             write: false,
             publisher: None,
-            store_dir: Some(&store_dir),
-            store_index_writer: Some(&writer),
+            store: Some(crate::BuildCacheStore { directory: &store_dir, writer: &writer }),
             frozen_store: false,
         },
         directories: crate::BuildLayout {
@@ -616,13 +616,13 @@ async fn upload_error_does_not_interrupt_install() {
 
     BuildModules {
         cache: crate::BuildCacheContext {
+            captured: None,
             side_effects: crate::CachedSideEffects { overlays: None, rows: None },
             engine_name: Some("darwin;arm64;node20"),
             read: true,
             write: true,
             publisher: None,
-            store_dir: Some(&store_dir),
-            store_index_writer: Some(&writer),
+            store: Some(crate::BuildCacheStore { directory: &store_dir, writer: &writer }),
             frozen_store: false,
         },
         directories: crate::BuildLayout {

@@ -138,8 +138,24 @@ impl<'a> CachedSideEffects<'a> {
     }
 }
 
+pub struct BuiltSideEffects {
+    pub cache_key: String,
+    pub diff: Option<pnpm_store_dir::SideEffectsDiff>,
+}
+
+pub type CapturedBuildSideEffects = Mutex<HashMap<PackageKey, BuiltSideEffects>>;
+
+#[derive(Clone, Copy)]
+pub struct BuildCacheStore<'a> {
+    pub directory: &'a pnpm_store_dir::StoreDir,
+    pub writer: &'a std::sync::Arc<pnpm_store_dir::StoreIndexWriter>,
+}
+
 #[derive(Clone, Copy)]
 pub struct BuildCacheContext<'a> {
+    /// Receives each built snapshot's cache key and diff, so the loaded
+    /// linker can load a temporary build's output from the store.
+    pub captured: Option<&'a CapturedBuildSideEffects>,
     pub side_effects: CachedSideEffects<'a>,
     /// `<platform>;<arch>;node<major>` — the prefix part of the
     /// dep-state cache key. Computed once at install
@@ -157,14 +173,9 @@ pub struct BuildCacheContext<'a> {
     /// `PackageFilesIndex.sideEffects` row.
     pub write: bool,
     pub publisher: Option<&'a crate::shared_side_effects::SharedSideEffectsPublisher>,
-    /// Store-dir handle for the WRITE path's `add_files_from_dir`
-    /// call. `None` short-circuits the upload site entirely — used
-    /// by unit tests that don't set up a CAFS.
-    pub store_dir: Option<&'a pnpm_store_dir::StoreDir>,
-    /// Shared batched writer for the side-effects upload's
-    /// read-modify-write of the existing `PackageFilesIndex` row.
-    /// `None` short-circuits the upload site.
-    pub store_index_writer: Option<&'a std::sync::Arc<pnpm_store_dir::StoreIndexWriter>>,
+    /// The store the WRITE path uploads build outputs to. `None`
+    /// short-circuits the upload site, for unit tests without a CAFS.
+    pub store: Option<BuildCacheStore<'a>>,
 
     /// Mirrors `config.frozen_store`. When `true` together with the
     /// global virtual store, a snapshot that would apply a patch or

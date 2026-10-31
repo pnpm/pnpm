@@ -45,3 +45,33 @@ pub(super) fn slot_to_build(
     mark_global_virtual_store_build_started(context.pkg_roots(), snapshot_key);
     Ok(Some((pkg_dir, lock)))
 }
+
+/// Whether the global-virtual-store slot `marker` belongs to was built by an
+/// earlier install: every import of a slot that needs a build writes the
+/// marker, and a finished build removes it. A directory dependency is left
+/// out, since its files, and whether they need a build, can change under
+/// the same slot.
+///
+/// The slot is imported in place, so a concurrent install may still be
+/// importing it. The import places its completion marker, `package.json`,
+/// after every other file, the build marker included, so the slot counts as
+/// built only once `package.json` is there and the build marker is not;
+/// checked in that order.
+fn built_by_an_earlier_install(
+    context: &BuildOneSnapshot<'_>,
+    candidate: &BuildCandidate<'_>,
+    marker: &Path,
+) -> Result<bool, BuildModulesError> {
+    let from_an_immutable_source = context.graph.packages
+        .and_then(|packages| packages.get(&candidate.metadata_key))
+        .is_some_and(|metadata| !matches!(metadata.resolution, LockfileResolution::Directory(_)));
+    if candidate.force_rebuild
+        || !from_an_immutable_source
+        || !context.directories.layout.enable_global_virtual_store()
+    {
+        return Ok(false);
+    }
+    crate::build_modules::slots::built_slot_is_complete(
+        marker.parent().expect("build marker has a package directory"),
+    )
+}

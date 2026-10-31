@@ -247,7 +247,7 @@ async fn cold_batch_links_slots_in_parallel() {
         "build-free cold-batch packages must populate precalculated package_bins",
     );
     assert_eq!(
-        output.materialized_snapshots.into_iter().collect::<HashSet<_>>(),
+        output.snapshot_placement.materialized.into_iter().collect::<HashSet<_>>(),
         HashSet::from([cold_a, cold_b, key("cold-02", "1.0.0"), key("cold-03", "1.0.0"),]),
     );
 }
@@ -274,7 +274,7 @@ async fn cold_downloads_complete_while_a_link_pass_runs() {
         Some(PACKAGE_COUNT),
         "the first link pass started before the drain delivered every capture",
     );
-    assert_eq!(output.materialized_snapshots.len(), PACKAGE_COUNT);
+    assert_eq!(output.snapshot_placement.materialized.len(), PACKAGE_COUNT);
 }
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn an_aborting_concurrent_check_stops_the_fetch() {
@@ -317,7 +317,7 @@ async fn the_fetch_drives_its_concurrent_check_to_the_verdict() {
         settled.load(Ordering::SeqCst),
         "the check must reach its verdict before the fetch returns",
     );
-    assert_eq!(output.materialized_snapshots.len(), 4);
+    assert_eq!(output.snapshot_placement.materialized.len(), 4);
 }
 /// A warm global-virtual-store slot is skipped without its store row's
 /// CAS blobs being checked: nothing imports them, and the row still
@@ -326,15 +326,18 @@ async fn the_fetch_drives_its_concurrent_check_to_the_verdict() {
 async fn skipped_warm_slot_keeps_its_store_row_without_checking_cas_blobs() {
     let install = SeededStoreInstall::new(None);
     let first = install.run().await.expect("seeded store satisfies the offline install");
-    assert_eq!(first.materialized_snapshots.as_slice(), std::slice::from_ref(&install.package_key));
+    assert_eq!(
+        first.snapshot_placement.materialized.as_slice(),
+        std::slice::from_ref(&install.package_key),
+    );
 
     fs::remove_file(&install.body_blob).expect("remove the CAS blob behind index.js");
 
     let second = install.run().await.expect("an existing slot needs no CAS blob");
     assert!(
-        second.materialized_snapshots.is_empty(),
+        second.snapshot_placement.materialized.is_empty(),
         "the slot is current: {:?}",
-        second.materialized_snapshots,
+        second.snapshot_placement.materialized,
     );
     assert_eq!(second.requires_build_by_snapshot.get(&install.package_key), Some(&false));
 }
@@ -347,7 +350,7 @@ async fn skipped_warm_slot_with_a_side_effects_row_is_still_checked() {
     let first = install.run().await.expect("seeded store satisfies the offline install");
     assert_eq!(first.requires_build_by_snapshot.get(&install.package_key), Some(&false));
     assert!(
-        first.side_effects_maps_by_snapshot.contains_key(&install.package_key),
+        first.side_effects.maps.contains_key(&install.package_key),
         "the seeded side-effects row must reach the build phase while its files verify",
     );
 
@@ -355,12 +358,12 @@ async fn skipped_warm_slot_with_a_side_effects_row_is_still_checked() {
 
     let second = install.run().await.expect("an existing slot needs no CAS blob");
     assert!(
-        second.materialized_snapshots.is_empty(),
+        second.snapshot_placement.materialized.is_empty(),
         "the slot is current: {:?}",
-        second.materialized_snapshots,
+        second.snapshot_placement.materialized,
     );
     assert!(
-        !second.side_effects_maps_by_snapshot.contains_key(&install.package_key),
+        !second.side_effects.maps.contains_key(&install.package_key),
         "a row that failed its files check must not feed the build phase",
     );
     assert_eq!(
