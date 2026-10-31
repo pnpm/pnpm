@@ -9,10 +9,12 @@
 //! offline and deterministic (outside a supported CI it resolves to "no token"
 //! without a network request).
 
+use crate::_utils::hosted_registry::{
+    add_user, block_on, http_client, spawn_hosted_registry, write_auth_file,
+};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use mockito::Matcher;
-use pnpr_fixtures::MockConfigPresets;
 use serde_json::{Value, json};
 use std::{
     fs,
@@ -365,81 +367,6 @@ fn package_tarball(manifest: &Value) -> Vec<u8> {
 // publishes, so these tests serve their own static-mode instance.
 // --------------------------------------------------------------------
 
-/// A hosted pnpr on an ephemeral localhost port, backed by a fresh
-/// storage tempdir (returned so it outlives the test), and its npm registry
-/// URL.
-fn spawn_hosted_registry() -> (String, tempfile::TempDir) {
-    let storage = tempfile::tempdir().expect("registry storage");
-    let listener = std::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0))
-        .expect("bind the stage e2e registry to an unused localhost port");
-    listener.set_nonblocking(true).expect("set the registry listener to nonblocking");
-    let listen = listener.local_addr().expect("read the registry listener address");
-    let url = format!("http://{listen}/");
-    let mut config = pnpr::Config::static_serve(listen, storage.path().to_path_buf());
-    config.http.public_url = url.trim_end_matches('/').to_string();
-    config.identity.auth.htpasswd.max_users = pnpr::MaxUsers::Unlimited;
-    std::thread::Builder::new()
-        .name("stage-e2e-registry".to_string())
-        .spawn(move || {
-            let runtime = tokio::runtime::Builder::new_current_thread()
-                .enable_all()
-                .build()
-                .expect("create the registry runtime");
-            runtime.block_on(async move {
-                let listener = tokio::net::TcpListener::from_std(listener)
-                    .expect("create the registry tokio listener");
-                pnpr::serve_listener(config, listener).await.expect("serve the stage e2e registry");
-            });
-        })
-        .expect("spawn the registry thread");
-    (format!("{url}npm/"), storage)
-}
-
-/// Run one async request against the e2e registry from this synchronous test.
-fn block_on<Output>(future: impl std::future::Future<Output = Output>) -> Output {
-    tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .expect("create the request runtime")
-        .block_on(future)
-}
-
-/// An HTTP client whose requests time out instead of hanging the test run
-/// if the hosted registry stops responding.
-fn http_client() -> reqwest::Client {
-    reqwest::Client::builder()
-        .timeout(std::time::Duration::from_mins(1))
-        .build()
-        .expect("build the test HTTP client")
-}
-
-/// Register a user against the e2e registry and return their bearer token.
-fn add_user(registry: &str) -> String {
-    let url = format!("{registry}-/user/org.couchdb.user:alice");
-    let body = json!({
-        "_id": "org.couchdb.user:alice",
-        "name": "alice",
-        "password": "secret",
-        "email": "alice@example.com",
-        "type": "user",
-        "roles": [],
-    });
-    block_on(async {
-        let response = http_client()
-            .put(&url)
-            .json(&body)
-            .send()
-            .await
-            .expect("send the adduser request");
-        assert_eq!(response.status().as_u16(), 201, "adduser must succeed");
-        let payload: Value = response.json().await.expect("parse the adduser response");
-        payload["token"]
-            .as_str()
-            .expect("token in the adduser response")
-            .to_owned()
-    })
-}
-
 /// The HTTP status of a plain packument read, bypassing the CLI.
 fn packument_status(registry: &str, token: &str, name: &str) -> u16 {
     let url = format!("{registry}{name}");
@@ -459,9 +386,8 @@ fn packument_status(registry: &str, token: &str, name: &str) -> u16 {
 /// carrying the registered user's token.
 fn e2e_workspace(dir: &Path, registry: &str, token: &str, manifest: &Value) -> PathBuf {
     write_project(dir, registry, manifest);
-    let host = registry.strip_prefix("http://").unwrap_or(registry);
     let auth_file = dir.join("auth-npmrc");
-    fs::write(&auth_file, format!("//{host}:_authToken={token}\n")).expect("write auth .npmrc");
+    write_auth_file(&auth_file, registry, token);
     auth_file
 }
 

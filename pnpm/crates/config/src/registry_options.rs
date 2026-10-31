@@ -382,4 +382,20 @@ impl Config {
         registries.insert("default".to_string(), self.registry.clone());
         registries
     }
+
+    /// The prefixes the project's `pnpm-workspace.yaml` declares, through a
+    /// `registries` entry or a `namedRegistries` alias. A published manifest
+    /// qualifies a `workspace:` dependency with the one for the registry the
+    /// dependency publishes to, so the dependency names the registry its
+    /// consumers address it by. Only [`Self::workspace_registry_prefixes`]
+    /// count, so a published manifest does not depend on the machine that
+    /// packed it.
+    #[must_use]
+    pub fn workspace_declared_registry_prefixes(&self) -> DeclaredRegistryPrefixes {
+        DeclaredRegistryPrefixes::new(
+            self.registries_by_prefix
+                .iter()
+                .filter(|(prefix, _)| self.workspace_registry_prefixes.contains(*prefix)),
+        )
+    }
 }

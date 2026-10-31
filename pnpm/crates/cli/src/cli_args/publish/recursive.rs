@@ -48,8 +48,7 @@ struct RecursivePublishContext<'a> {
     before_packing_hooks: &'a [Arc<dyn PnpmfileHooks>],
     to_publish: &'a HashSet<PathBuf>,
     project_dependencies: &'a indexmap::IndexMap<PathBuf, Vec<PathBuf>>,
-    workspace_packages:
-        &'a Arc<std::collections::HashMap<String, pnpm_pack::WorkspacePackageManifest>>,
+    workspace_packages: &'a Arc<pnpm_pack::WorkspacePackageManifests>,
 }
 
 fn order_publish_roots(
@@ -147,7 +146,7 @@ impl PublishArgs {
         // selection; its own name/version/private eligibility check drops it
         // below.
         let (projects, _patterns) = discover_workspace_projects(workspace_root, config)?;
-        let workspace_packages = Arc::new(build_workspace_package_manifest_map(&projects));
+        let workspace_packages = Arc::new(build_workspace_package_manifest_map(&projects, config)?);
         let selection =
             select_recursive_projects(&projects, config, dir, AutoExcludeRoot::Disabled)?;
         let graph = &selection.selected;

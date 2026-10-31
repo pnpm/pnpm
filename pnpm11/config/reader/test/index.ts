@@ -5858,6 +5858,57 @@ describe('global config.yaml', () => {
     expect(warnings.find((w) => w.includes('global config file'))).toBeUndefined()
   })
 
+  test('workspaceRegistryPrefixes lists only the prefixes pnpm-workspace.yaml declares', async () => {
+    prepareEmpty()
+
+    fs.mkdirSync('.config/pnpm', { recursive: true })
+    writeYamlFileSync('.config/pnpm/config.yaml', {
+      namedRegistries: { personal: 'https://personal.example.com/' },
+    })
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      registries: {
+        'https://work.example.com/': { prefix: 'work', scopes: ['@work'] },
+        'https://other.example.com/': { scopes: ['@other'] },
+      },
+    })
+    process.env.XDG_CONFIG_HOME = path.resolve('.config')
+
+    const { config } = await getConfig({
+      cliOptions: {},
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.workspaceRegistryPrefixes).toStrictEqual(['work'])
+  })
+
+  test('workspaceRegistryPrefixes leaves out an alias whose URL holds an env placeholder', async () => {
+    prepareEmpty()
+
+    fs.mkdirSync('.config/pnpm', { recursive: true })
+    writeYamlFileSync('.config/pnpm/config.yaml', {
+      namedRegistries: { work: 'https://registry.npmjs.org/' },
+    })
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      namedRegistries: { work: 'https://${REGISTRY_HOST}/' },
+    })
+    process.env.XDG_CONFIG_HOME = path.resolve('.config')
+
+    const { config } = await getConfig({
+      cliOptions: {},
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.workspaceRegistryPrefixes).toStrictEqual([])
+  })
+
   test('workspace manifest registries win over global config.yaml registries', async () => {
     prepareEmpty()
 
