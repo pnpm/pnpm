@@ -1,40 +1,22 @@
 use std::sync::Arc;
 
 use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient};
-use pnpm_registry::{Package, PackageVersion};
+use pnpm_registry::PackageVersion;
 
 use crate::{
-    InMemoryPackageMetaCache,
-    npm_resolver::{PickedFromRegistry, RegistryPick, with_external_dist},
-    pick_package::PickPackageContext,
+    InMemoryPackageMetaCache, npm_resolver::with_external_dist, pick_package::PickPackageContext,
     shared_packument_fetch_locker,
 };
 
 const INTEGRITY: &str = "sha512-41Cifkg6e8TylSpdtTpeLVMqvSBEVzTttHvERD741+pnZ8ANv0004MRL43QKPDlK9cGvNp6NZWZUBlbGXYxxng==";
 
-fn picked(dist: &serde_json::Value) -> RegistryPick {
-    let version: PackageVersion = serde_json::from_value(
-        serde_json::json!({ "name": "acme", "version": "1.0.0", "dist": dist }),
-    )
-    .expect("version");
-    let meta: Package = serde_json::from_value(
-        serde_json::json!({ "name": "acme", "dist-tags": {}, "versions": {} }),
-    )
-    .expect("packument");
-    RegistryPick::Picked(PickedFromRegistry {
-        meta: Arc::new(meta),
-        version: Arc::new(version),
-        trust_downgrades_skipped: Vec::new(),
-    })
+fn version(dist: &serde_json::Value) -> Arc<PackageVersion> {
+    let version = serde_json::json!({ "name": "acme", "version": "1.0.0", "dist": dist });
+    Arc::new(serde_json::from_value(version).expect("version"))
 }
 
-fn integrity_of(pick: &RegistryPick) -> Option<String> {
-    match pick {
-        RegistryPick::Picked(picked) => {
-            picked.version.dist.integrity.as_ref().map(ToString::to_string)
-        }
-        RegistryPick::NoMatchingVersion(_) => None,
-    }
+fn integrity_of(version: &PackageVersion) -> Option<String> {
+    version.dist.integrity.as_ref().map(ToString::to_string)
 }
 
 #[tokio::test]
@@ -78,9 +60,9 @@ async fn an_external_dist_is_read_once_from_the_version_document() {
     };
 
     for _ in 0..2 {
-        let pick = picked(&serde_json::json!({ "pnpr": { "details": "external" } }));
-        let pick = with_external_dist(&ctx, &registry, pick).await.expect("hydrated");
-        assert_eq!(integrity_of(&pick).as_deref(), Some(INTEGRITY));
+        let picked = version(&serde_json::json!({ "pnpr": { "details": "external" } }));
+        let picked = with_external_dist(&ctx, &registry, picked).await.expect("hydrated");
+        assert_eq!(integrity_of(&picked).as_deref(), Some(INTEGRITY));
     }
     version_doc.assert_async().await;
 }
@@ -110,10 +92,10 @@ async fn an_inline_dist_is_kept() {
     };
     // No server: a version with its integrity inline, or with none at all
     // (computed while fetching the tarball), needs no version document.
-    let pick = picked(&serde_json::json!({ "integrity": INTEGRITY }));
-    let pick = with_external_dist(&ctx, "http://127.0.0.1:9/", pick).await.expect("kept");
-    assert_eq!(integrity_of(&pick).as_deref(), Some(INTEGRITY));
-    let pick = picked(&serde_json::json!({}));
-    let pick = with_external_dist(&ctx, "http://127.0.0.1:9/", pick).await.expect("kept");
-    assert_eq!(integrity_of(&pick), None);
+    let picked = version(&serde_json::json!({ "integrity": INTEGRITY }));
+    let picked = with_external_dist(&ctx, "http://127.0.0.1:9/", picked).await.expect("kept");
+    assert_eq!(integrity_of(&picked).as_deref(), Some(INTEGRITY));
+    let picked = version(&serde_json::json!({}));
+    let picked = with_external_dist(&ctx, "http://127.0.0.1:9/", picked).await.expect("kept");
+    assert_eq!(integrity_of(&picked), None);
 }

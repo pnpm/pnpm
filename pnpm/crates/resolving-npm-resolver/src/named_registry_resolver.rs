@@ -208,7 +208,6 @@ impl<Cache: PackageMetaCache + 'static> NamedRegistryResolver<Cache> {
         let pick_opts =
             PickFromRegistryOptions::new(registry, spec, opts, base_selectors, optional, None);
         let picked = pick_from_registry_with_guard(&ctx, pick_opts).await?;
-        let picked = crate::npm_resolver::with_external_dist(&ctx, registry, picked).await?;
         if let RegistryPick::Picked(picked) = &picked {
             crate::preferred_overlay::warn_once_on_held_back_update(
                 opts,

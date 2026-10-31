@@ -70,8 +70,14 @@ function fetchUpstream (req) {
 http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x')
   if (url.pathname === '/__config') {
-    rtt = Number(url.searchParams.get('rtt') ?? rtt)
-    bytesPerMs = Number(url.searchParams.get('mbit') ?? 0) * 1e6 / 8 / 1000
+    const newRtt = Number(url.searchParams.get('rtt') ?? rtt)
+    const mbit = Number(url.searchParams.get('mbit') ?? 0)
+    if (!(newRtt >= 0 && newRtt <= 10_000 && mbit >= 0 && mbit <= 100_000)) {
+      res.writeHead(400)
+      return res.end('rtt must be 0-10000 ms and mbit 0-100000')
+    }
+    rtt = newRtt
+    bytesPerMs = mbit * 1e6 / 8 / 1000
     return res.end('ok')
   }
   if (url.pathname === '/__flush') { cache.clear(); return res.end('ok') }

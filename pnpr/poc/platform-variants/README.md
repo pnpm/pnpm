@@ -45,7 +45,8 @@ does not compress. So the PoC also implements split packuments:
 
 - pnpm asks for `application/vnd.pnpr.install-v2+json` first. pnpr answers
   with the abbreviated packument. When that is larger than
-  `PNPR_SPLIT_METADATA_THRESHOLD` (default 64 KiB), each version's `dist`
+  `PNPR_SPLIT_METADATA_THRESHOLD` (off unless set; the benchmark uses
+  64 KiB), each version's `dist`
   moves to its immutable version document `<name>/<version>` and is marked
   `dist.pnpr.details: "external"`. Only provenance and each variant's `tag`
   and `platforms` stay inline. A missing `integrity` cannot be the marker,
@@ -56,6 +57,11 @@ does not compress. So the PoC also implements split packuments:
   off), so most picks need no second request.
 - pnpm fetches the version document of a picked version marked external, once
   per install. Version documents are not yet cached on disk.
+- Split documents need a metadata cache of their own on the client: an older
+  pnpm on `PATH` that shares the cache read a split document the new one had
+  cached, and failed to switch versions. Moving the cache directory touches
+  the cache commands and many tests, so the PoC leaves splitting off unless
+  `PNPR_SPLIT_METADATA_THRESHOLD` is set.
 
 `bench-split.sh` resolves `bench-app.json` (787 packages, all proxied from
 npmjs) through `shaper.mjs`, a CDN-like proxy that gzips, caches, delays each

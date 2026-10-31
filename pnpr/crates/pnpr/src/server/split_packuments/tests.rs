@@ -1,4 +1,4 @@
-use super::{likely_picks, split_body};
+use super::{likely_picks, split_above};
 use serde_json::{Value, json};
 
 fn version(integrity: &str) -> Value {
@@ -47,13 +47,13 @@ fn likely_picks_are_the_tag_targets_and_the_highest_of_each_line() {
 fn a_small_document_stays_whole() {
     let doc = packument();
     let body = serde_json::to_vec(&doc).expect("serialize");
-    assert_eq!(split_body(doc, body.clone()).expect("split"), body);
+    assert_eq!(split_above(doc, body.clone(), 64 * 1024).expect("split"), body);
 }
 
 #[test]
 fn a_large_document_leaves_other_versions_dist_in_the_version_document() {
     // Only the body's length is compared with the threshold.
-    let split = split_body(packument(), vec![b' '; 1024 * 1024]).expect("split");
+    let split = split_above(packument(), vec![b' '; 1024 * 1024], 64 * 1024).expect("split");
     let split: Value = serde_json::from_slice(&split).expect("parse");
     assert_eq!(split["versions"]["2.1.0"], version("sha512-g"));
     assert_eq!(

@@ -27,12 +27,14 @@ use std::{
 pub(super) const SPLIT_CONTENT_TYPE: &str = "application/vnd.pnpr.install-v2+json";
 
 /// The serialized abbreviated size above which versions are split, from
-/// `PNPR_SPLIT_METADATA_THRESHOLD` (bytes, default 64 KiB).
+/// `PNPR_SPLIT_METADATA_THRESHOLD` (bytes). Unset, nothing is split: pnpm
+/// releases that predate the split form share the metadata cache, and must
+/// never read a split document a newer release cached.
 static THRESHOLD: LazyLock<usize> = LazyLock::new(|| {
     std::env::var("PNPR_SPLIT_METADATA_THRESHOLD")
         .ok()
         .and_then(|value| value.parse().ok())
-        .unwrap_or(64 * 1024)
+        .unwrap_or(usize::MAX)
 });
 
 /// Whether the versions a resolution likely picks keep their dist inline.
@@ -48,8 +50,17 @@ pub(super) fn wants_split(headers: &HeaderMap) -> bool {
 }
 
 /// The split form of an abbreviated packument serialized to `body`.
-pub(super) fn split_body(mut abbreviated: Value, body: Vec<u8>) -> serde_json::Result<Vec<u8>> {
-    if body.len() <= *THRESHOLD {
+pub(super) fn split_body(abbreviated: Value, body: Vec<u8>) -> serde_json::Result<Vec<u8>> {
+    split_above(abbreviated, body, *THRESHOLD)
+}
+
+/// [`split_body`] with the threshold given.
+fn split_above(
+    mut abbreviated: Value,
+    body: Vec<u8>,
+    threshold: usize,
+) -> serde_json::Result<Vec<u8>> {
+    if body.len() <= threshold {
         return Ok(body);
     }
     let inline = if *KEEP_LATEST { likely_picks(&abbreviated) } else { HashSet::new() };

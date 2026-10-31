@@ -14,8 +14,9 @@ use pnpm_resolving_resolver_base::ResolveError;
 use reqwest::header;
 use tokio::sync::OnceCell;
 
-use super::{PickedFromRegistry, RegistryPick};
-use crate::{MetadataHttpClient, PackageMetaCache, pick_package::PickPackageContext};
+use crate::{
+    MetadataHttpClient, PackageMetaCache, PickPackageError, pick_package::PickPackageContext,
+};
 
 /// Version documents never change, so one fetch per URL serves the install.
 static VERSION_DIST: LazyLock<DashMap<String, Arc<OnceCell<Arc<PackageDistribution>>>>> =
@@ -26,30 +27,25 @@ static VERSION_DIST: LazyLock<DashMap<String, Arc<OnceCell<Arc<PackageDistributi
 pub(crate) async fn with_external_dist<Cache: PackageMetaCache>(
     ctx: &PickPackageContext<'_, Cache>,
     registry: &str,
-    pick: RegistryPick,
-) -> Result<RegistryPick, ResolveError> {
-    let RegistryPick::Picked(picked) = pick else { return Ok(pick) };
-    if !picked.version.dist.is_external() {
-        return Ok(RegistryPick::Picked(picked));
+    version: Arc<PackageVersion>,
+) -> Result<Arc<PackageVersion>, PickPackageError> {
+    if !version.dist.is_external() {
+        return Ok(version);
     }
-    let url = format!(
-        "{}/{}/{}",
-        registry.trim_end_matches('/'),
-        picked.version.name,
-        picked.version.version,
-    );
+    let url = format!("{}/{}/{}", registry.trim_end_matches('/'), version.name, version.version);
     let cell = Arc::clone(
         VERSION_DIST
             .entry(url.clone())
             .or_default()
             .value(),
     );
-    let dist =
-        cell.get_or_try_init(|| fetch_version_dist(ctx.metadata.http, &url, &picked.version.name))
-            .await?;
-    let mut version = PackageVersion::clone(&picked.version);
+    let dist = cell
+        .get_or_try_init(|| fetch_version_dist(ctx.metadata.http, &url, &version.name))
+        .await
+        .map_err(|error| PickPackageError::VersionDocument { url, error: error.to_string() })?;
+    let mut version = PackageVersion::clone(&version);
     version.dist = PackageDistribution::clone(dist);
-    Ok(RegistryPick::Picked(PickedFromRegistry { version: Arc::new(version), ..picked }))
+    Ok(Arc::new(version))
 }
 
 async fn fetch_version_dist(
