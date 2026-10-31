@@ -39,6 +39,19 @@ fn seed_store_row(config: &Config, package_key: &PackageKey) -> String {
             },
         );
     }
+    if package_key.name.bare.as_str() == "native" {
+        let content = b"native addon";
+        let (_, digest) = config.store_dir.write_cas_file(content, false).expect("write addon");
+        files.insert(
+            "binding.node".to_string(),
+            CafsFileInfo {
+                digest: format!("{digest:x}"),
+                mode: 0o644,
+                size: content.len() as u64,
+                checked_at: None,
+            },
+        );
+    }
     let row_key = store_index_key(DUMMY_SHA512, &package_key.without_peer().pkg_id());
     StoreIndex::open_in(&config.store_dir)
         .expect("open store index")
@@ -46,7 +59,7 @@ fn seed_store_row(config: &Config, package_key: &PackageKey) -> String {
             &row_key,
             &PackageFilesIndex {
                 manifest: None,
-                requires_build: Some(false),
+                requires_build: Some(package_key.name.bare.as_str() == "native"),
                 requires_prepare: None,
                 algo: "sha512".to_string(),
                 files,
@@ -82,10 +95,13 @@ async fn loaded_materialization_reuses_the_fetch_pass_prefetch() {
     let excluded = key("excluded", "1.0.0");
     let child = key("child", "1.0.0");
     let loaded = key("loaded", "1.0.0");
+    let native = key("native", "1.0.0");
     let snapshots = HashMap::from([
         (excluded.clone(), snapshot_with_dep("child", "1.0.0")),
         (child.clone(), SnapshotEntry::default()),
         (loaded.clone(), SnapshotEntry::default()),
+        (native.clone(), snapshot_with_dep("native-child", "1.0.0")),
+        (key("native-child", "1.0.0"), SnapshotEntry::default()),
     ]);
     let packages: HashMap<_, _> = snapshots
         .keys()
@@ -174,9 +190,23 @@ async fn loaded_materialization_reuses_the_fetch_pass_prefetch() {
             .join("index.js");
         assert!(index_js.is_file(), "{selected} materialized from the shared rows");
     }
+    let native_dir = layout
+        .slot_dir(&native)
+        .join("node_modules")
+        .join("native");
+    assert!(native_dir.join("binding.node").is_file());
+    let native_child_slot = layout.slot_dir(&key("native-child", "1.0.0"));
+    assert!(
+        layout
+            .slot_dir(&native)
+            .join("node_modules/native-child/index.js")
+            .is_file(),
+        "native child slot exists: {}",
+        native_child_slot.exists(),
+    );
     assert!(!layout.slot_dir(&loaded).exists(), "the loaded package is not materialized");
     let cas_paths = output.cas_paths_by_pkg_id.expect("loaded installs keep the CAS paths");
-    assert_eq!(cas_paths.len(), 3);
+    assert_eq!(cas_paths.len(), 5);
 }
 
 fn row_cas_paths(file: &str) -> Arc<HashMap<String, PathBuf>> {
@@ -218,12 +248,15 @@ fn fetch_pass_rows_keep_the_selection_and_its_downloads() {
     let fetched = CreateVirtualStoreOutput {
         package_manifests: HashMap::new(),
         package_bins: HashMap::new(),
-        side_effects_maps_by_snapshot: HashMap::new(),
-        side_effects_by_snapshot: HashMap::new(),
+        side_effects: super::super::output::SideEffectsOutput::default(),
         requires_build_by_snapshot: HashMap::from([(key("downloaded", "1.0.0"), true)]),
-        materialized_snapshots: Vec::new(),
+        snapshot_selection: super::super::SnapshotSelection {
+            materialized: Vec::new(),
+            loaded: None,
+        },
         fetch_failed: HashSet::new(),
         cas_paths_by_pkg_id: Some(by_pkg_id),
+        cas_paths_by_snapshot: None,
     };
 
     retain_fetch_pass_rows(&mut rows, &cache_keys, &fetched);

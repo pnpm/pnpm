@@ -48,9 +48,7 @@ fn build_manifest(
 ) -> io::Result<StoreManifest> {
     let config = inputs.ctx.config;
     let lockfile = inputs.graph.lockfile;
-    let selected = inputs.ctx
-        .select_loaded_snapshots(inputs.graph.lockfile.snapshots.as_ref())
-        .expect("loaded linker selection");
+    let selected = selected_snapshots(inputs);
     let base = Url::from_directory_path(&config.modules_dir)
         .map_err(|()| io::Error::other("CAS modules directory must be absolute"))?;
     let snapshots: std::collections::HashMap<_, _> = lockfile.snapshots
@@ -67,6 +65,7 @@ fn build_manifest(
         let entry = store_package(
             inputs,
             (&id, package),
+            snapshot,
             (&base, snapshot.map(|key| selected.contains_key(key))),
         )?;
         packages.insert(id, entry);
@@ -76,6 +75,30 @@ fn build_manifest(
         package.dependencies.retain(|_, id| ids.contains(id));
     }
     Ok(StoreManifest { version: 1, store_dir: config.store_dir.root().to_path_buf(), packages })
+}
+
+pub(super) fn selected_snapshots(
+    inputs: &LinkPhaseInputs<'_>,
+) -> std::collections::HashMap<pnpm_lockfile::PackageKey, pnpm_lockfile::SnapshotEntry> {
+    if let Some(selected_snapshots) = inputs.graph.selected_snapshots {
+        let selected_snapshots: std::collections::HashSet<_> = selected_snapshots.iter().collect();
+        return inputs.graph.lockfile.snapshots
+            .as_ref()
+            .into_iter()
+            .flat_map(|snapshots| snapshots.iter())
+            .filter(|(key, _)| selected_snapshots.contains(key))
+            .map(|(key, snapshot)| (key.clone(), snapshot.clone()))
+            .collect();
+    }
+    let mut selected = inputs.ctx
+        .select_loaded_snapshots(inputs.graph.lockfile.snapshots.as_ref())
+        .expect("loaded linker selection")
+        .clone();
+    if let Some(materialized) = inputs.graph.materialized_snapshots {
+        let materialized: std::collections::HashSet<_> = materialized.iter().collect();
+        selected.retain(|key, _| materialized.contains(key));
+    }
+    selected
 }
 
 fn package_map(inputs: &LinkPhaseInputs<'_>) -> crate::package_map::PackageMap {
@@ -96,6 +119,7 @@ fn package_map(inputs: &LinkPhaseInputs<'_>) -> crate::package_map::PackageMap {
 fn store_package(
     inputs: &LinkPhaseInputs<'_>,
     (id, package): (&str, crate::package_map::PackageMapPackage),
+    snapshot: Option<&pnpm_lockfile::PackageKey>,
     (base, materialized): (&Url, Option<bool>),
 ) -> io::Result<StorePackage> {
     let root = base
@@ -113,20 +137,29 @@ fn store_package(
         entry.resolution = Some("node".to_string());
         entry.dependencies.clear();
     } else if materialized == Some(false) {
-        entry.files = Some(package_files(inputs, id)?);
+        entry.files = Some(package_files(inputs, id, snapshot)?);
         entry.root = None;
     }
     Ok(entry)
 }
 
-fn package_files(inputs: &LinkPhaseInputs<'_>, id: &str) -> io::Result<BTreeMap<String, String>> {
+fn package_files(
+    inputs: &LinkPhaseInputs<'_>,
+    id: &str,
+    snapshot: Option<&pnpm_lockfile::PackageKey>,
+) -> io::Result<BTreeMap<String, String>> {
     let key = PkgIdWithPatchHash::from(pnpm_deps_path::get_pkg_id_with_patch_hash(id).to_string());
-    let paths = inputs.packages.cas_paths_by_pkg_id
-        .as_ref()
-        .and_then(|paths| paths.get(&key))
+    let snapshot_paths =
+        snapshot.and_then(|snapshot| inputs.packages.cas_paths_by_snapshot.as_ref()?.get(snapshot));
+    let paths = snapshot_paths
+        .or_else(|| {
+            inputs.packages.cas_paths_by_pkg_id
+                .as_ref()
+                .and_then(|paths| paths.get(&key).map(|paths| &paths.cas_paths))
+        })
         .ok_or_else(|| io::Error::other(format!("Missing CAS files for {id}")))?;
     let files_dir = inputs.ctx.config.store_dir.root().join("files");
-    paths.cas_paths
+    paths
         .iter()
         .map(|(name, path)| {
             let relative = path

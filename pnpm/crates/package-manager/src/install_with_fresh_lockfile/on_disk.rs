@@ -3,7 +3,7 @@ use crate::{CreateVirtualStore, CreateVirtualStoreOutput, SkippedSnapshots};
 use pnpm_config::{Config, NodeLinker};
 use pnpm_lockfile::{Lockfile, LockfileEntries};
 use pnpm_package_manifest::PackageManifest;
-use pnpm_reporter::{LogEvent, LogLevel, Reporter, Stage, StageLog};
+use pnpm_reporter::Reporter;
 use pnpm_tarball::MemCache;
 use std::{
     collections::HashMap,
@@ -182,6 +182,7 @@ impl<'a> OnDiskInputs<'a> {
     fn link_lockfiles<'b>(
         &self,
         materialized_snapshots: &'b [pnpm_lockfile::PackageKey],
+        selected_snapshots: Option<&'b [pnpm_lockfile::PackageKey]>,
     ) -> pnpm_deps_restorer::LinkLockfiles<'b>
     where
         'a: 'b,
@@ -192,6 +193,7 @@ impl<'a> OnDiskInputs<'a> {
             materialized_snapshots: (!self.install.prior.relink_every_slot_bin).then_some(
                 materialized_snapshots,
             ),
+            selected_snapshots,
             sidecar_lockfile: self.projects.materialization_lockfile,
         }
     }
@@ -211,12 +213,16 @@ impl<'a> OnDiskInputs<'a> {
 
         let linked = pnpm_deps_restorer::linking::run_link_phase::<Reporter>(
             pnpm_deps_restorer::linking::LinkPhaseInputs {
-                graph: self.link_lockfiles(&materialized.materialized_snapshots),
+                graph: self.link_lockfiles(
+                    &materialized.snapshot_selection.materialized,
+                    materialized.snapshot_selection.loaded.as_deref(),
+                ),
                 packages: pnpm_deps_restorer::LinkPackageData {
                     package_manifests: &materialized.package_manifests,
                     package_bins: Some(&materialized.package_bins),
                     requires_build_by_snapshot: Some(&materialized.requires_build_by_snapshot),
                     cas_paths_by_pkg_id: materialized.cas_paths_by_pkg_id.take(),
+                    cas_paths_by_snapshot: materialized.cas_paths_by_snapshot.take(),
                 },
                 prior: self.install.prior.link_state(),
                 projects: pnpm_deps_restorer::LinkProjects {
@@ -235,16 +241,13 @@ impl<'a> OnDiskInputs<'a> {
             skipped,
         )
         .map_err(InstallWithFreshLockfileError::LinkPhase)?;
-        if let Some(observer) = self.store.resolution_observer {
-            observer.flush_progress();
-        }
-        Reporter::emit(&LogEvent::Stage(StageLog {
-            level: LogLevel::Debug,
-            prefix: self.ctx.requester.to_string(),
-            stage: Stage::ImportingDone,
-        }));
+        super::report_importing_done::<Reporter>(
+            self.store.resolution_observer,
+            self.ctx.requester,
+        );
         Ok(linked)
     }
+
     fn build_graph<'b>(
         &'b self,
         materialized: &'b CreateVirtualStoreOutput,
@@ -259,7 +262,9 @@ impl<'a> OnDiskInputs<'a> {
             packages: self.projects.materialization_lockfile.packages.as_ref(),
             importers: &self.projects.materialization_lockfile.importers,
             dependency_groups: self.install.projects.dependency_groups,
-            materialized_snapshots: linked.build_snapshots(&materialized.materialized_snapshots),
+            materialized_snapshots: linked.build_snapshots(
+                &materialized.snapshot_selection.materialized,
+            ),
             build_scope: linked.build_scope.as_ref(),
         }
     }
