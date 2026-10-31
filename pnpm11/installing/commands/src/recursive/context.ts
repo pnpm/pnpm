@@ -24,6 +24,7 @@ import {
   createMatcher,
   failOnVersionsOfIndirectUpdateSpecs,
   matchDependencies,
+  selectsOnlyIgnoredDependencies,
   type UpdateDepsMatcher,
 } from './updateSelectors.js'
 
@@ -47,6 +48,8 @@ export interface RecursiveContext {
    * dependency exists in the workspace when it was asked for by name.
    */
   userNamedDeps: boolean
+  /** See {@link selectsOnlyIgnoredDependencies}. */
+  selectsOnlyIgnoredDependencies: boolean
   /** The same object as `installOpts`, which extends it in place. */
   opts: RecursiveOptions
   installOpts: InstallOptions
@@ -93,12 +96,13 @@ export async function createRecursiveContext (input: RecursiveInput): Promise<Re
     devDependencies: true,
     optionalDependencies: true,
   }
-  const { params, updateMatch } = createUpdateMatch(input)
+  const updateSelection = createUpdateMatch(input, includeDirect)
   return {
     allProjects,
     cmdFullName: input.cmdFullName,
-    params,
+    params: updateSelection.params,
     userNamedDeps: input.params.length > 0,
+    selectsOnlyIgnoredDependencies: updateSelection.selectsOnlyIgnoredDependencies,
     opts,
     installOpts,
     manifestsByPath,
@@ -109,7 +113,7 @@ export async function createRecursiveContext (input: RecursiveInput): Promise<Re
     getProjectConfig,
     updateToLatest: opts.update && opts.latest,
     includeDirect,
-    updateMatch: failOnIndirectVersionedUpdates(input, { includeDirect, params, updateMatch }),
+    updateMatch: failOnIndirectVersionedUpdates(input, { includeDirect, ...updateSelection }),
   }
 }
 
@@ -168,10 +172,22 @@ function createProjectConfigGetter (opts: RecursiveOptions): RecursiveContext['g
     : () => undefined
 }
 
-function createUpdateMatch ({ params, opts, cmdFullName }: RecursiveInput): Pick<RecursiveContext, 'params' | 'updateMatch'> {
-  if (cmdFullName !== 'update') return { params, updateMatch: null }
-  params = addIgnorePatterns(params, opts.updateConfig?.ignoreDependencies)
-  return { params, updateMatch: params.length ? createMatcher(params) : null }
+function createUpdateMatch (
+  { params, opts, cmdFullName, selectedProjects }: RecursiveInput,
+  includeDirect: IncludedDependencies
+): Pick<RecursiveContext, 'params' | 'updateMatch' | 'selectsOnlyIgnoredDependencies'> {
+  if (cmdFullName !== 'update') return { params, updateMatch: null, selectsOnlyIgnoredDependencies: false }
+  const ignoredSelection = { params, ignoredDependencies: opts.updateConfig?.ignoreDependencies }
+  const updateSpecs = addIgnorePatterns(params, ignoredSelection.ignoredDependencies)
+  return {
+    params: updateSpecs,
+    updateMatch: updateSpecs.length ? createMatcher(updateSpecs) : null,
+    selectsOnlyIgnoredDependencies: selectsOnlyIgnoredDependencies(
+      ignoredSelection,
+      selectedProjects.map(({ manifest }) => manifest),
+      includeDirect
+    ),
+  }
 }
 
 /**

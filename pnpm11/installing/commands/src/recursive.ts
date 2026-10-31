@@ -14,6 +14,7 @@ export {
   failOnVersionsOfIndirectUpdateSpecs,
   matchDependencies,
   parseUpdateParam,
+  selectsOnlyIgnoredDependencies,
   type UpdateDepsMatcher,
 } from './recursive/updateSelectors.js'
 
