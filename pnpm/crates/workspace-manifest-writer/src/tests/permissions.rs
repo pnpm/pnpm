@@ -114,7 +114,7 @@ fn a_chosen_list_matching_the_recorded_one_is_a_no_op() {
     let original = "permissions:\n  drizzle-kit:\n    skills: [guide, migrate]\n";
     assert_eq!(
         run(Some(original), &[("drizzle-kit", chosen(&["guide", "migrate"]))]).as_deref(),
-        Some(original)
+        Some(original),
     );
 }
 
@@ -147,7 +147,7 @@ fn skills_dirs_replace_an_existing_entry() {
         Some("skills:\n  dirs:\n    - .cursor/skills\n"),
         &[".claude/skills".to_string()],
     );
-    assert_eq!(out.as_deref(), Some("skills:\n  dirs:\n    - .claude/skills\n"),);
+    assert_eq!(out.as_deref(), Some("skills:\n  dirs:\n    - .claude/skills\n"));
 }
 
 #[test]
@@ -165,7 +165,7 @@ fn no_dirs_drop_the_dirs_entry_and_the_block() {
     assert_eq!(
         out.as_deref(),
         None,
-        "an emptied manifest is removed, like every emptied root manifest"
+        "an emptied manifest is removed, like every emptied root manifest",
     );
     assert_eq!(run_skills_dirs(None, &[]).as_deref(), None, "nothing to record, nothing written");
 }

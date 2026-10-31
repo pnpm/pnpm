@@ -19,6 +19,7 @@ pub(crate) use policies::{
     set_minimum_release_age_excludes,
 };
 pub(crate) use scanning::{Inline, document_root_is_inline, has_unsupported_inline_value};
+pub(crate) use skills_dirs::set_skills_dirs;
 pub(crate) use spacing::uses_blank_line_style;
 
 use std::{
@@ -490,7 +491,6 @@ use mapping::{
 mod permissions;
 
 mod skills_dirs;
-pub(crate) use skills_dirs::set_skills_dirs;
 
 mod scanning;
 

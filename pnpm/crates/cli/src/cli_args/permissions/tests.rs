@@ -1,4 +1,8 @@
-use super::{ApproveArgs, Capabilities, PackageDecisions, confirmation, render_permissions};
+use super::{
+    ApproveArgs, Capabilities,
+    decisions::{PackageDecisions, confirmation},
+    render_permissions,
+};
 use pnpm_config::{
     Config,
     PermissionCapability::{Build, Skills},

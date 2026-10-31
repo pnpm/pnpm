@@ -290,24 +290,33 @@ fn find_skills(dir: &Path, relative: &Path, depth: usize) -> Vec<Skill> {
     let Ok(entries) = fs::read_dir(dir) else { return Vec::new() };
     let mut found = Vec::new();
     for entry in entries.filter_map(Result::ok) {
-        let path = entry.path();
-        if !path.is_dir() {
-            continue;
-        }
-        let Ok(name) = entry.file_name().into_string() else { continue };
-        if name.starts_with('.') || name.chars().any(char::is_control) {
-            continue;
-        }
-        let dir_relative = relative.join(&name);
-        if path.join("SKILL.md").is_file() {
-            found.push(Skill { name, dir: dir_relative });
-        } else if depth < MAX_SKILL_DIR_DEPTH
-            && pnpm_fs::is_symlink_or_junction(&path).is_ok_and(|symlink| !symlink)
-        {
-            found.extend(find_skills(&path, &dir_relative, depth + 1));
-        }
+        collect_skill_entry(&entry, relative, depth, &mut found);
     }
     found
+}
+
+fn collect_skill_entry(
+    entry: &fs::DirEntry,
+    relative: &Path,
+    depth: usize,
+    found: &mut Vec<Skill>,
+) {
+    let path = entry.path();
+    if !path.is_dir() {
+        return;
+    }
+    let Ok(name) = entry.file_name().into_string() else { return };
+    if name.starts_with('.') || name.chars().any(char::is_control) {
+        return;
+    }
+    let dir_relative = relative.join(&name);
+    if path.join("SKILL.md").is_file() {
+        found.push(Skill { name, dir: dir_relative });
+    } else if depth < MAX_SKILL_DIR_DEPTH
+        && pnpm_fs::is_symlink_or_junction(&path).is_ok_and(|symlink| !symlink)
+    {
+        found.extend(find_skills(&path, &dir_relative, depth + 1));
+    }
 }
 
 #[cfg(test)]

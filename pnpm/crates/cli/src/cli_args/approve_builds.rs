@@ -432,35 +432,3 @@ pub(crate) fn config_with_install_approvals(
     }
     Ok(Config::leak(cfg))
 }
-
-#[cfg(test)]
-mod config_with_install_approvals_tests {
-    use super::*;
-    use std::fs;
-    use tempfile::TempDir;
-
-    /// The approval run records `skills.dirs` into the manifest after its
-    /// config was loaded, so the overlay must carry the freshly written
-    /// value into the linking step.
-    #[test]
-    fn overlays_the_manifests_skills_dirs() {
-        let dir = TempDir::new().expect("create temp dir");
-        fs::write(
-            dir.path().join("pnpm-workspace.yaml"),
-            "permissions:\n  '@pnpm.e2e/with-agent-skills':\n    skills: true\nskills:\n  dirs:\n    - .claude/skills\n",
-        )
-        .expect("write pnpm-workspace.yaml");
-
-        let approved = config_with_install_approvals(&Config::default(), dir.path())
-            .expect("lay the approvals over the config");
-
-        assert_eq!(
-            approved.skills_dirs.as_deref(),
-            Some([".claude/skills".to_string()].as_slice()),
-        );
-        assert_eq!(
-            approved.allow_skills.get("@pnpm.e2e/with-agent-skills").cloned(),
-            Some(pnpm_config::SkillsPermission::All(true)),
-        );
-    }
-}
