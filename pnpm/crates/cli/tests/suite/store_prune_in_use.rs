@@ -289,6 +289,70 @@ fn store_prune_keeps_every_package_installed_by_copy_in_the_global_virtual_store
     );
 }
 
+#[test]
+fn store_prune_keeps_global_virtual_store_slots_from_a_custom_modules_dir() {
+    assert_prune_keeps_global_virtual_store_slots(|workspace| {
+        append_workspace_yaml(workspace, "modulesDir: pnpm_modules\n");
+        workspace.join("pnpm_modules")
+    });
+}
+
+#[test]
+fn store_prune_keeps_global_virtual_store_slots_from_package_configs_modules_dir() {
+    assert_prune_keeps_global_virtual_store_slots(|workspace| {
+        move_dependencies_to_a_project_with_its_own_lockfile(
+            workspace,
+            "packageConfigs:\n  project:\n    modulesDir: project_modules\n",
+        );
+        workspace.join("project/project_modules")
+    });
+}
+
+fn assert_prune_keeps_global_virtual_store_slots(configure: impl FnOnce(&Path) -> PathBuf) {
+    let CommandTempCwd {
+        root: _root, workspace, npmrc_info, ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry {
+        mock_instance: _mock_instance,
+        store_dir,
+        ..
+    } = npmrc_info;
+    write_manifest(&workspace);
+    let modules_dir = configure(&workspace);
+    enable_gvs_in_workspace_yaml(&workspace, "");
+    pacquet_at(&workspace)
+        .with_args(["install", "--reporter=silent"])
+        .assert()
+        .success();
+    let store = StoreDir::new(store_dir);
+    let live_slot = add_global_virtual_store_prune_anchor(&workspace, &store, &modules_dir);
+    assert!(live_slot.is_dir(), "install must create the global virtual store slot");
+
+    prune(&workspace);
+
+    assert!(live_slot.is_dir(), "prune must keep the slot linked from the configured modules dir");
+}
+
+fn add_global_virtual_store_prune_anchor(
+    workspace: &Path,
+    store: &StoreDir,
+    modules_dir: &Path,
+) -> PathBuf {
+    let links = store.links();
+    let anchor_package = links.join("@/anchor/1.0.0/hash/node_modules/anchor");
+    let custom_package = links.join("@/custom/1.0.0/hash/node_modules/custom");
+    fs::create_dir_all(&anchor_package).expect("create the anchor package");
+    fs::create_dir_all(&custom_package).expect("create the custom package");
+    let project_modules = workspace.join("node_modules");
+    fs::create_dir_all(&project_modules).expect("create the default modules directory");
+    pnpm_fs::symlink_dir(&anchor_package, &project_modules.join("anchor"))
+        .expect("link the anchor package from the default modules directory");
+    fs::create_dir_all(modules_dir).expect("create the configured modules directory");
+    pnpm_fs::symlink_dir(&custom_package, &modules_dir.join("custom"))
+        .expect("link the custom package from the configured modules directory");
+    links.join("@/custom/1.0.0/hash")
+}
+
 fn assert_prune_keeps_every_package_installed_by_copy(
     configure: impl FnOnce(&Path),
     installed_lockfile: &str,

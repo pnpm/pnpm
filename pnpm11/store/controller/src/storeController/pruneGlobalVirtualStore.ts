@@ -7,6 +7,7 @@ import { globalInfo } from '@pnpm/logger'
 import { rimraf } from '@zkochan/rimraf'
 import { isSubdir } from 'is-subdir'
 
+import { readConfiguredModulesDir } from './inUseFiles.js'
 import { getRegisteredProjects } from './projectRegistry.js'
 
 const LINKS_DIR = 'links'
@@ -39,9 +40,12 @@ export async function pruneGlobalVirtualStore (storeDir: string): Promise<void> 
   // For each project, find all node_modules directories (root + workspace packages)
   await Promise.all(
     projects.map(async (projectDir) => {
-      const nodeModulesDirs = await findAllNodeModulesDirs(projectDir)
+      const [nodeModulesDirs, configuredModulesDir] = await Promise.all([
+        findAllNodeModulesDirs(projectDir),
+        readConfiguredModulesDir(projectDir),
+      ])
       await Promise.all(
-        nodeModulesDirs.map((modulesDir) =>
+        [...nodeModulesDirs, path.resolve(projectDir, configuredModulesDir)].map((modulesDir) =>
           walkSymlinksToStore(modulesDir, linksDir, reachable, visited)
         )
       )
