@@ -397,7 +397,7 @@ pub(crate) async fn decode_metadata_response<Output: Send + 'static>(
                 url: redact_url_credentials(&task_url),
                 error,
             })?;
-        pnpm_registry::add_external_versions(&raw_body, &mut meta)
+        pnpm_registry::add_other_versions(&raw_body, &mut meta)
             .map_err(|error| FetchMetadataError::Decode {
                 url: redact_url_credentials(&task_url),
                 error,

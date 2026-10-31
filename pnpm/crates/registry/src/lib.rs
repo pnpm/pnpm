@@ -16,7 +16,7 @@ pub use package_version::{
 };
 pub use package_versions::{MirrorFile, PackageVersions, read_exact_at};
 pub use range_spec_style::{RangeSpecGranularity, RangeSpecStyle};
-pub use split_index::add_external_versions;
+pub use split_index::add_other_versions;
 
 mod package;
 mod package_distribution;

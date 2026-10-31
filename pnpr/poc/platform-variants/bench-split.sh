@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Benchmark whole packuments, packuments split by moving only each version's
-# dist, and packuments split into an external-versions map and release
+# dist, and packuments split into a map of other versions and release
 # records, through the CDN-like shaping proxy. Both split forms keep the
 # likely picks whole. Each run starts with an empty pnpm cache and store.
 # usage: bench-split.sh <runs> <work-dir> <pnpr-config>

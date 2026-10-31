@@ -28,7 +28,13 @@ fn packument() -> Value {
     json!({
         "name": "acme",
         "dist-tags": { "latest": "2.1.0", "next": "3.0.0-rc.1" },
-        "time": { "modified": "2026-01-01T00:00Z", "1.0.0": "2025-01-01T00:00Z", "2.1.0": "2026-01-01T00:00Z" },
+        "time": {
+            "modified": "2026-01-01T00:00:00.000Z",
+            "1.0.0": "2025-01-01T00:00:00.000Z",
+            "1.4.2": "2025-12-15T00:00:00.000Z",
+            "2.0.0": "2025-12-20T00:00:00.000Z",
+            "2.1.0": "2026-01-01T00:00:00.000Z",
+        },
         "versions": {
             "0.1.0": version("sha512-a"),
             "0.1.1": version("sha512-b"),
@@ -56,25 +62,42 @@ fn a_small_document_stays_whole() {
     assert_eq!(split_above(doc, body.clone(), 64 * 1024, false).expect("split"), body);
 }
 
-#[test]
-fn a_large_document_moves_other_versions_to_the_external_map() {
+fn split(doc: Value) -> Value {
     // Only the body's length is compared with the threshold.
-    let split = split_above(packument(), vec![b' '; 1024 * 1024], 64 * 1024, false).expect("split");
-    let split: Value = serde_json::from_slice(&split).expect("parse");
+    let split = split_above(doc, vec![b' '; 1024 * 1024], 64 * 1024, false).expect("split");
+    serde_json::from_slice(&split).expect("parse")
+}
+
+#[test]
+fn a_large_document_moves_other_versions_to_their_own_map() {
+    let split = split(packument());
     assert_eq!(split["versions"]["2.1.0"], version("sha512-g"));
     assert!(split["versions"].get("1.0.0").is_none());
     assert_eq!(
         split["time"],
-        json!({ "modified": "2026-01-01T00:00Z", "2.1.0": "2026-01-01T00:00Z" }),
+        json!({
+            "modified": "2026-01-01T00:00:00.000Z",
+            "1.4.2": "2025-12-15T00:00:00.000Z",
+            "2.1.0": "2026-01-01T00:00:00.000Z",
+        }),
     );
     assert_eq!(
-        split["pnpr"]["externalVersions"]["1.0.0"],
-        json!(["2025-01-01T00:00Z", { "deprecated": "use 2", "trust": "trustedPublisher" }]),
+        split["pnpr"]["otherVersions"]["1.0.0"],
+        json!({ "deprecated": "use 2", "trust": "trustedPublisher" }),
     );
 }
 
 #[test]
-fn an_external_version_without_flags_is_its_publish_time() {
+fn only_versions_inside_the_window_keep_their_publish_time() {
+    let split = split(packument());
+    assert_eq!(split["pnpr"]["timesSince"], json!("2025-12-02T00:00:00.000Z"));
+    assert_eq!(split["pnpr"]["otherVersions"]["2.0.0"]["time"], json!("2025-12-20T00:00:00.000Z"));
+    assert!(split["pnpr"]["otherVersions"]["1.0.0"].get("time").is_none());
+    assert_eq!(split["pnpr"]["otherVersions"]["0.1.0"]["time"], Value::Null);
+}
+
+#[test]
+fn an_other_version_without_flags_is_an_empty_entry() {
     let mut doc = packument();
     let manifest = doc["versions"]["1.0.0"].as_object_mut().expect("manifest");
     manifest.remove("deprecated");
@@ -83,18 +106,14 @@ fn an_external_version_without_flags_is_its_publish_time() {
         .as_object_mut()
         .expect("dist")
         .remove("attestations");
-    let split = split_above(doc, vec![b' '; 1024 * 1024], 64 * 1024, false).expect("split");
-    let split: Value = serde_json::from_slice(&split).expect("parse");
-    assert_eq!(split["pnpr"]["externalVersions"]["1.0.0"], json!("2025-01-01T00:00Z"));
+    assert_eq!(split(doc)["pnpr"]["otherVersions"]["1.0.0"], json!({}));
 }
 
 #[test]
-fn a_selected_replacement_is_in_the_external_entry() {
+fn a_selected_replacement_is_in_the_entry() {
     let mut doc = packument();
     doc["versions"]["1.0.0"]["dist"]["revision"] = json!(2);
-    let split = split_above(doc, vec![b' '; 1024 * 1024], 64 * 1024, false).expect("split");
-    let split: Value = serde_json::from_slice(&split).expect("parse");
-    assert_eq!(split["pnpr"]["externalVersions"]["1.0.0"][1]["revision"], json!(2));
+    assert_eq!(split(doc)["pnpr"]["otherVersions"]["1.0.0"]["revision"], json!(2));
 }
 
 #[test]

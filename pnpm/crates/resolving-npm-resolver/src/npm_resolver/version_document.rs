@@ -1,8 +1,9 @@
 //! Split packuments (proof of concept). A registry that serves the
 //! `application/vnd.pnpr.install-v2+json` form may list a version only by
-//! what picking reads and what may change after publication: its publish
-//! time, `deprecated` notice, trust evidence, and selected revision (see
-//! `pnpm_registry::add_external_versions`). The rest of the version is in
+//! what picking reads and what may change after publication: its
+//! `deprecated` notice, trust evidence, selected revision, and recent publish
+//! time (see
+//! `pnpm_registry::add_other_versions`). The rest of the version is in
 //! its release record `<registry><name>/<version>+r<revision>`, which never
 //! changes, fetched here once the version is picked.
 

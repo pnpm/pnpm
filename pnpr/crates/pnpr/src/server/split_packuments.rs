@@ -3,12 +3,15 @@
 //! and when that is larger than the threshold, only the versions a fresh
 //! resolution almost always picks stay in `versions`: every dist-tag target
 //! and the highest release of each major (of each minor below 1.0). Every
-//! other version moves to `pnpr.externalVersions`, which keeps only what
+//! other version moves to `pnpr.otherVersions`, which keeps only what
 //! picking a version reads and what may change after publication: its
-//! publish time, `deprecated` notice, trust rank, and selected revision. The
-//! version itself, as its release record, is in the immutable version
-//! document `<base>/<name>/<version>+r<revision>`. A client that does not
-//! read the map sees only complete versions.
+//! `deprecated` notice, trust rank, and selected revision, and its publish
+//! time if it was published within [`TIME_WINDOW_DAYS`] of the package's last
+//! publish. `pnpr.timesSince` is where that window starts, so an entry
+//! without a time was published before it. The version itself, as its
+//! release record, is in the immutable version document
+//! `<base>/<name>/<version>+r<revision>`. A client that does not read the map
+//! sees only complete versions.
 //!
 //! `PNPR_SPLIT_DIST_ONLY=1` keeps the earlier shape for comparison: every
 //! version stays in `versions`, with only its dist facts moved and the
@@ -19,8 +22,9 @@ use axum::{
     http::{HeaderMap, HeaderValue, header},
     response::{IntoResponse, Response},
 };
+use chrono::{DateTime, Duration, FixedOffset, SecondsFormat};
 use node_semver::Version;
-use serde_json::{Map, Value, json};
+use serde_json::{Map, Value};
 use std::{
     collections::{BTreeMap, HashSet},
     sync::LazyLock,
@@ -47,6 +51,11 @@ static KEEP_LATEST: LazyLock<bool> =
 /// Whether only the dist facts move, rather than the whole version.
 static DIST_ONLY: LazyLock<bool> =
     LazyLock::new(|| std::env::var("PNPR_SPLIT_DIST_ONLY").is_ok_and(|value| value == "1"));
+
+/// How far back from a package's last publish the other versions keep their
+/// publish times. pnpm accepts a minimum release age of at most this many
+/// days, so a version older than the window is old enough for any of them.
+const TIME_WINDOW_DAYS: i64 = 30;
 
 /// Whether the client's `Accept` header offers the split form.
 pub(super) fn wants_split(headers: &HeaderMap) -> bool {
@@ -81,56 +90,95 @@ fn split_above(
             .filter_map(|(_, manifest)| manifest.get_mut("dist").and_then(Value::as_object_mut))
             .for_each(externalize_dist);
     } else {
-        move_external_versions(&mut abbreviated, &inline);
+        move_other_versions(&mut abbreviated, &inline);
     }
     serde_json::to_vec(&abbreviated)
 }
 
 /// Move every version not in `inline` from `versions` and `time` to
-/// `pnpr.externalVersions`.
-fn move_external_versions(abbreviated: &mut Value, inline: &HashSet<String>) {
+/// `pnpr.otherVersions`.
+fn move_other_versions(abbreviated: &mut Value, inline: &HashSet<String>) {
     let Some(doc) = abbreviated.as_object_mut() else { return };
     let Some(Value::Object(versions)) = doc.remove("versions") else { return };
     let mut time = match doc.remove("time") {
         Some(Value::Object(time)) => time,
         _ => Map::new(),
     };
+    let times_since = times_since(&versions, &time);
     let mut kept = Map::new();
-    let mut external = Map::new();
+    let mut others = Map::new();
     for (version, manifest) in versions {
         if inline.contains(&version) {
             kept.insert(version, manifest);
         } else {
-            let published = time.remove(&version).unwrap_or(Value::Null);
-            external.insert(version, external_entry(&manifest, published));
+            let published = time.remove(&version);
+            let entry = other_entry(&manifest, published.as_ref(), times_since.as_ref());
+            others.insert(version, entry);
         }
     }
     doc.insert("versions".into(), Value::Object(kept));
     if !time.is_empty() {
         doc.insert("time".into(), Value::Object(time));
     }
-    doc.insert("pnpr".into(), json!({ "externalVersions": external }));
+    let mut pnpr = Map::new();
+    if let Some(times_since) = times_since {
+        let since = times_since.to_rfc3339_opts(SecondsFormat::Millis, true);
+        pnpr.insert("timesSince".into(), Value::String(since));
+    }
+    pnpr.insert("otherVersions".into(), Value::Object(others));
+    doc.insert("pnpr".into(), Value::Object(pnpr));
 }
 
-/// An external version's entry: its publish time, or `[time, flags]` when it
-/// is deprecated, has trust evidence, or has a revision other than the
-/// original selected.
-fn external_entry(manifest: &Value, published: Value) -> Value {
-    let mut flags = Map::new();
+/// Where the publish-time window starts: [`TIME_WINDOW_DAYS`] before the
+/// package's last publish. It moves only when the package is published to,
+/// so the document does not change as time passes.
+fn times_since(
+    versions: &Map<String, Value>,
+    time: &Map<String, Value>,
+) -> Option<DateTime<FixedOffset>> {
+    let last = versions
+        .keys()
+        .filter_map(|version| parse_time(time.get(version)?))
+        .max()?;
+    Some(last - Duration::days(TIME_WINDOW_DAYS))
+}
+
+fn parse_time(value: &Value) -> Option<DateTime<FixedOffset>> {
+    DateTime::parse_from_rfc3339(value.as_str()?).ok()
+}
+
+/// An other version's entry: its `deprecated` notice, trust rank, and
+/// selected revision when it is not the original, and its publish time when
+/// that is inside the window, or `null` when the registry has none.
+fn other_entry(
+    manifest: &Value,
+    published: Option<&Value>,
+    times_since: Option<&DateTime<FixedOffset>>,
+) -> Value {
+    let mut entry = Map::new();
+    match published.map(|value| (value, parse_time(value))) {
+        Some((_, Some(at))) if times_since.is_some_and(|since| at < *since) => {}
+        Some((value, Some(_))) => {
+            entry.insert("time".into(), value.clone());
+        }
+        _ => {
+            entry.insert("time".into(), Value::Null);
+        }
+    }
     if let Some(deprecated) = manifest
         .get("deprecated")
         .filter(|value| !value.is_null())
     {
-        flags.insert("deprecated".into(), deprecated.clone());
+        entry.insert("deprecated".into(), deprecated.clone());
     }
     if let Some(trust) = trust_rank(manifest) {
-        flags.insert("trust".into(), Value::String(trust.into()));
+        entry.insert("trust".into(), Value::String(trust.into()));
     }
     let revision = selected_revision(manifest);
     if revision != 0 {
-        flags.insert("revision".into(), Value::from(revision));
+        entry.insert("revision".into(), Value::from(revision));
     }
-    if flags.is_empty() { published } else { json!([published, flags]) }
+    Value::Object(entry)
 }
 
 /// The strongest trust evidence a version has, as the trust policy ranks it.
