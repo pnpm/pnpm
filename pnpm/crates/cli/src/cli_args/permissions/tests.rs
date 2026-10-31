@@ -182,6 +182,29 @@ fn the_list_shows_a_git_package_by_short_label() {
     );
 }
 
+#[test]
+fn the_list_keeps_pending_packages_with_one_short_label_apart() {
+    let dir = tempfile::tempdir().unwrap();
+    let config = config_awaiting(
+        &dir,
+        &[
+            "foo@https://codeload.github.com/org1/foo/tar.gz/1",
+            "foo@https://codeload.github.com/org2/foo/tar.gz/2",
+        ],
+    );
+
+    let listing = render_permissions(&config).unwrap();
+
+    assert!(
+        listing.contains("foo (git) [foo@https://codeload.github.com/org1/foo/tar.gz/1]"),
+        "{listing}",
+    );
+    assert!(
+        listing.contains("foo (git) [foo@https://codeload.github.com/org2/foo/tar.gz/2]"),
+        "{listing}",
+    );
+}
+
 #[tokio::test]
 async fn approve_run_with_no_pending_and_no_packages_is_a_noop() {
     let dir = tempfile::tempdir().unwrap();

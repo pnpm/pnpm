@@ -1,6 +1,5 @@
-use super::pending_permissions;
+use super::{disambiguated_labels, pending_permissions};
 use pnpm_config::{Config, SkillsPermission};
-use pnpm_package_manager::short_package_label;
 use std::{collections::BTreeMap, fmt::Write as _};
 
 pub(crate) fn render_permissions(config: &Config) -> miette::Result<String> {
@@ -32,7 +31,7 @@ fn populate_build_permissions(
     for (pkg, &allowed) in allow_builds {
         let section = if allowed { &mut *granted } else { &mut *denied };
         section
-            .entry(short_package_label(pkg))
+            .entry(pkg.clone())
             .or_default()
             .push("build".to_string());
     }
@@ -50,7 +49,7 @@ fn populate_skills_permissions(
         };
         let section = if decision.links_any() { &mut *granted } else { &mut *denied };
         section
-            .entry(short_package_label(pkg))
+            .entry(pkg.clone())
             .or_default()
             .push(label);
     }
@@ -62,7 +61,7 @@ fn pending_permissions_section(config: &Config) -> miette::Result<BTreeMap<Strin
         .into_iter()
         .map(|(pkg, capabilities)| {
             (
-                short_package_label(&pkg),
+                pkg,
                 capabilities
                     .into_iter()
                     .map(|capability| capability.as_str().to_string())
@@ -72,6 +71,8 @@ fn pending_permissions_section(config: &Config) -> miette::Result<BTreeMap<Strin
         .collect())
 }
 
+/// One line per key of `section`, labelled as the approval prompts label
+/// it, so keys sharing a short label stay separate lines.
 fn render_section(output: &mut String, title: &str, section: &BTreeMap<String, Vec<String>>) {
     if section.is_empty() {
         return;
@@ -79,14 +80,20 @@ fn render_section(output: &mut String, title: &str, section: &BTreeMap<String, V
     if !output.is_empty() {
         output.push('\n');
     }
-    let width = section
-        .keys()
-        .map(String::len)
+    let labels = disambiguated_labels(section.keys().map(String::as_str));
+    let mut rows: Vec<(&str, String)> = section
+        .iter()
+        .map(|(key, capabilities)| (labels[key.as_str()].as_str(), capabilities.join(", ")))
+        .collect();
+    rows.sort();
+    let width = rows
+        .iter()
+        .map(|(label, _)| label.len())
         .max()
         .unwrap_or_default();
     output.push_str(title);
     output.push_str(":\n");
-    for (pkg, labels) in section {
-        writeln!(output, "  {pkg:width$}  {}", labels.join(", ")).expect("write to a String");
+    for (label, capabilities) in rows {
+        writeln!(output, "  {label:width$}  {capabilities}").expect("write to a String");
     }
 }
