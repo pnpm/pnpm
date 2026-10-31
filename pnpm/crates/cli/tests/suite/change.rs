@@ -602,6 +602,41 @@ fn change_check_validates_committed_versions_against_configured_invariants() {
 }
 
 #[test]
+fn change_leaves_private_packages_out_when_include_private_packages_is_false() {
+    let CommandTempCwd { workspace, root: _root, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\nversioning:\n  includePrivatePackages: false\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+    fs::write(workspace.join("package.json"), "{\"name\": \"e2e-root\", \"private\": true}\n")
+        .expect("write root package.json");
+    add_pkg(&workspace, "lib", "1.0.0", "{}");
+    let app_dir = workspace.join("packages").join("app");
+    fs::create_dir_all(&app_dir).expect("create package dir");
+    fs::write(
+        app_dir.join("package.json"),
+        "{\"name\": \"app\", \"version\": \"0.5.0\", \"private\": true}\n",
+    )
+    .expect("write package.json");
+
+    let recorded = stdout_of(
+        pnpm(&workspace)
+            .with_args(["change", "--bump", "patch", "--summary", "Fixed a bug.", "lib"]),
+    );
+    assert!(recorded.contains("Recorded change intent"), "unexpected: {recorded}");
+
+    let failed = pnpm(&workspace)
+        .with_args(["change", "--bump", "patch", "--summary", "A private change.", "app"])
+        .output()
+        .expect("run pnpm");
+    assert!(!failed.status.success(), "a private package should be rejected");
+    let stderr = String::from_utf8_lossy(&failed.stderr);
+    assert!(stderr.contains("ERR_PNPM_VERSIONING_UNKNOWN_PACKAGE"), "unexpected: {stderr}");
+    assert!(stderr.contains("app is not a releasable package"), "unexpected: {stderr}");
+}
+
+#[test]
 fn change_check_rejects_an_intent_naming_a_package_outside_the_workspace() {
     let CommandTempCwd { workspace, root: _root, .. } = CommandTempCwd::init();
     fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
