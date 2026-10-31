@@ -71,6 +71,26 @@ fn patterns_for_ecosystem_preserves_negated_pypi_wildcards_and_at_versions() {
 }
 
 #[test]
+fn patterns_for_ecosystem_parses_pypi_version_wildcards_as_requirements() {
+    let selectors = vec!["!pypi:requests==2.*".to_string()];
+
+    assert_eq!(
+        patterns_for_ecosystem(&selectors, EcosystemFilterKind::Python).unwrap(),
+        vec!["!requests"],
+    );
+}
+
+#[test]
+fn patterns_for_ecosystem_normalizes_pypi_name_wildcards() {
+    let selectors = vec!["!pypi:Zope_Interface*".to_string()];
+
+    assert_eq!(
+        patterns_for_ecosystem(&selectors, EcosystemFilterKind::Python).unwrap(),
+        vec!["!zope-interface*"],
+    );
+}
+
+#[test]
 fn update_selectors_keep_negated_cargo_exclusions_out_of_node_selectors() {
     let mut config = Config::default();
     config.cargo.enabled = true;
