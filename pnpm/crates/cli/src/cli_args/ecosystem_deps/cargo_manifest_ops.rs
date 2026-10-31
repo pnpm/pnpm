@@ -1,6 +1,3 @@
-#[cfg(test)]
-mod tests;
-
 use crate::{
     cargo_manifest::{upsert_dependency, workspace_includes_member},
     cli_args::outdated::OutdatedQuery,
@@ -228,56 +225,27 @@ fn extract_registry_spec(alias: &str, value: &toml::Value) -> Option<(String, St
     Some((package_name, version))
 }
 
-/// The versions `Cargo.lock` records, by package name.
-#[derive(Debug, Default)]
-pub(crate) struct LockedCargoVersions {
-    pub(crate) registry: HashMap<String, Vec<Version>>,
-    /// Git and path entries: the versions `[patch]` replacements lock, and
-    /// the workspace's own members.
-    pub(crate) local: HashMap<String, Vec<Version>>,
-}
-
-impl LockedCargoVersions {
-    /// The version `dep` uses now: for a crate `[patch.crates-io]`
-    /// replaces, the replacement's when it meets `dep`'s requirement,
-    /// otherwise the registry one.
-    pub(crate) fn current(&self, dep: &DeclaredCargoDep, patched: bool) -> Option<&Version> {
-        let replacement = || {
-            self.local
-                .get(&dep.package_name)?
-                .iter()
-                .rev()
-                .find(|version| dep.version_req.matches(version))
-        };
-        patched
-            .then(replacement)
-            .flatten()
-            .or_else(|| select_locked_version(&self.registry, dep))
-    }
-}
-
-pub(crate) fn read_locked_cargo_versions(cargo_lock_path: &Path) -> Result<LockedCargoVersions> {
+pub(crate) fn read_locked_cargo_versions(
+    cargo_lock_path: &Path,
+) -> Result<HashMap<String, Vec<Version>>> {
     let contents = fs::read_to_string(cargo_lock_path)
         .into_diagnostic()
         .wrap_err_with(|| format!("read {}", cargo_lock_path.display()))?;
     let lockfile = CargoLockfile::from_str(&contents)
         .into_diagnostic()
         .wrap_err_with(|| format!("parse {}", cargo_lock_path.display()))?;
-    let mut locked = LockedCargoVersions::default();
+    let mut map: HashMap<String, Vec<Version>> = HashMap::new();
     for pkg in lockfile.packages {
-        let map = match &pkg.source {
-            Some(source) if source.is_registry() => &mut locked.registry,
-            Some(source) if !source.is_git() => continue,
-            _ => &mut locked.local,
-        };
-        map.entry(pkg.name.as_str().to_string())
-            .or_default()
-            .push(pkg.version);
+        if pkg.source.as_ref().is_some_and(cargo_lock::SourceId::is_registry) {
+            map.entry(pkg.name.as_str().to_string())
+                .or_default()
+                .push(pkg.version);
+        }
     }
-    for versions in locked.registry.values_mut().chain(locked.local.values_mut()) {
+    for versions in map.values_mut() {
         versions.sort();
     }
-    Ok(locked)
+    Ok(map)
 }
 
 pub(crate) fn select_locked_version<'a>(

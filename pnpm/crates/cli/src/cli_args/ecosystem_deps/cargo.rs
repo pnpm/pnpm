@@ -64,7 +64,7 @@ pub(crate) async fn collect_cargo_outdated(
     if declared.is_empty() || !cargo_lock_path.is_file() {
         return Ok(Vec::new());
     }
-    let locked = read_locked_cargo_versions(&cargo_lock_path)?.registry;
+    let locked = read_locked_cargo_versions(&cargo_lock_path)?;
     let auth_headers = cargo_auth_headers(config)?;
     let mut outdated = Vec::new();
     for dep in declared {
@@ -281,8 +281,7 @@ async fn execute_cargo_update<Reporter: self::Reporter + 'static>(
 type ManifestEdit = (PathBuf, &'static str, String, String);
 
 /// The manifest edits that stage the update for Cargo and the ones saved
-/// after it. A dependency not updated is pinned to its locked version while
-/// Cargo resolves.
+/// after it.
 async fn build_cargo_update_edits<Reporter: self::Reporter>(
     scope: &CargoWorkspaceScope,
     selected: &[SelectedCargoDep<'_>],
@@ -298,7 +297,7 @@ async fn build_cargo_update_edits<Reporter: self::Reporter>(
         let target = SelectedCargoTarget {
             selection,
             scope,
-            locked: locked.current(selection.dep, scope.is_patched(&selection.dep.package_name)),
+            locked: select_locked_version(&locked, selection.dep),
         };
         let Some((staged_edit, final_edit)) =
             resolve_selected_cargo_edit::<Reporter>(&target, &auth_headers, context, options)
@@ -310,20 +309,35 @@ async fn build_cargo_update_edits<Reporter: self::Reporter>(
         finalized.push(final_edit);
         updated.push(selection.dep);
     }
-    for dep in &scope.declared {
-        if updated.iter().any(|sel| same_declared_dep(sel, dep)) {
-            continue;
-        }
-        if let Some(locked_ver) = locked.current(dep, scope.is_patched(&dep.package_name)) {
-            staged.push((
+    staged.extend(pin_unchanged_deps(scope, &locked, &updated));
+    Ok((staged, finalized))
+}
+
+/// The edits that pin each dependency the update leaves alone to its
+/// locked version while Cargo resolves. A crate `[patch.crates-io]`
+/// replaces is left as declared: that requirement is what selects the
+/// replacement, and its `Cargo.lock` entry is not a registry version.
+fn pin_unchanged_deps(
+    scope: &CargoWorkspaceScope,
+    locked: &HashMap<String, Vec<Version>>,
+    updated: &[&DeclaredCargoDep],
+) -> Vec<ManifestEdit> {
+    scope.declared
+        .iter()
+        .filter(|dep| {
+            !scope.is_patched(&dep.package_name)
+                && !updated.iter().any(|sel| same_declared_dep(sel, dep))
+        })
+        .filter_map(|dep| {
+            let locked_ver = select_locked_version(locked, dep)?;
+            Some((
                 dep.manifest_path.clone(),
                 dep.table,
                 dep.alias.clone(),
                 format!("={locked_ver}"),
-            ));
-        }
-    }
-    Ok((staged, finalized))
+            ))
+        })
+        .collect()
 }
 
 /// The edits that move a selected dependency to its target version, or
@@ -391,3 +405,6 @@ fn restore_cargo_manifests(originals: &BTreeMap<PathBuf, String>) -> Result<()> 
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests;
