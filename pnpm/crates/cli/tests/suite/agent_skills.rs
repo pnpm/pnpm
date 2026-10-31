@@ -9,6 +9,11 @@ use std::{fs, path::Path, process::Command};
 
 const PACKAGE: &str = "@pnpm.e2e/with-agent-skills";
 const LINK: &str = ".claude/skills/guide";
+const NESTED_PACKAGE: &str = "@pnpm.e2e/with-nested-agent-skills";
+const NESTED_LINK: &str = ".claude/skills/migrate";
+const TWO_SKILLS_PACKAGE: &str = "@pnpm.e2e/with-two-skills";
+const TWO_SKILLS_GUIDE: &str = ".claude/skills/guide";
+const TWO_SKILLS_MIGRATE: &str = ".claude/skills/migrate";
 
 /// `pnpm` rooted at `workspace`, with no agent identifying itself.
 fn pnpm(workspace: &Path) -> Command {
@@ -30,12 +35,16 @@ fn pnpm(workspace: &Path) -> Command {
     command.with_current_dir(workspace)
 }
 
-/// A project that depends on the skills fixture and has a
-/// `.claude/skills` directory, with `workspace_yaml` as its settings.
-fn project(workspace_yaml: &str) -> (CommandTempCwd<AddMockedRegistry>, std::path::PathBuf) {
+/// A project that depends on `package`, a package shipping agent skills on
+/// the mocked registry, and has a `.claude/skills` directory, with
+/// `workspace_yaml` as its settings.
+fn project(
+    package: &str,
+    workspace_yaml: &str,
+) -> (CommandTempCwd<AddMockedRegistry>, std::path::PathBuf) {
     let harness = CommandTempCwd::init().add_mocked_registry();
     let workspace = harness.workspace.clone();
-    let package_json = serde_json::json!({ "devDependencies": { PACKAGE: "1.0.0" } });
+    let package_json = serde_json::json!({ "devDependencies": { package: "1.0.0" } });
     fs::write(workspace.join("package.json"), package_json.to_string())
         .expect("write package.json");
     let yaml_path = workspace.join("pnpm-workspace.yaml");
@@ -72,7 +81,7 @@ fn pending_skills(workspace: &Path) -> Option<Vec<String>> {
 
 #[test]
 fn install_records_unapproved_skills_and_links_nothing() {
-    let (harness, workspace) = project("");
+    let (harness, workspace) = project(PACKAGE, "");
 
     let output = output_of(pnpm(&workspace).with_arg("install"));
 
@@ -87,7 +96,7 @@ fn install_records_unapproved_skills_and_links_nothing() {
 
 #[test]
 fn approve_links_the_skills_and_records_the_grant() {
-    let (harness, workspace) = project("");
+    let (harness, workspace) = project(PACKAGE, "");
     pnpm(&workspace)
         .with_arg("install")
         .assert()
@@ -140,7 +149,7 @@ fn approve_links_the_skills_and_records_the_grant() {
 #[test]
 fn install_links_approved_skills_and_prunes_revoked_ones() {
     let (harness, workspace) =
-        project("permissions:\n  '@pnpm.e2e/with-agent-skills':\n    skills: true\n");
+        project(PACKAGE, "permissions:\n  '@pnpm.e2e/with-agent-skills':\n    skills: true\n");
 
     pnpm(&workspace)
         .with_arg("install")
@@ -178,6 +187,38 @@ fn install_links_approved_skills_and_prunes_revoked_ones() {
 }
 
 #[test]
+fn install_links_skills_nested_in_category_directories() {
+    let (harness, workspace) = project(
+        NESTED_PACKAGE,
+        "permissions:\n  '@pnpm.e2e/with-nested-agent-skills':\n    skills: true\n",
+    );
+
+    pnpm(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    assert!(
+        workspace
+            .join(NESTED_LINK)
+            .join("SKILL.md")
+            .is_file(),
+        "{NESTED_LINK} links the skill in the engineering category directory",
+    );
+
+    let yaml_path = workspace.join("pnpm-workspace.yaml");
+    let yaml =
+        fs::read_to_string(&yaml_path).expect("read yaml").replace("skills: true", "skills: false");
+    fs::write(&yaml_path, yaml).expect("write yaml");
+    pnpm(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    assert!(!workspace.join(NESTED_LINK).exists());
+    drop(harness);
+}
+
+#[test]
 fn agents_named_by_the_environment_get_their_directories() {
     for (env_var, dir) in [
         ("CLAUDECODE", ".claude/skills"),
@@ -185,7 +226,7 @@ fn agents_named_by_the_environment_get_their_directories() {
         ("COPILOT_AGENT", ".github/skills"),
     ] {
         let (harness, workspace) =
-            project("permissions:\n  '@pnpm.e2e/with-agent-skills':\n    skills: true\n");
+            project(PACKAGE, "permissions:\n  '@pnpm.e2e/with-agent-skills':\n    skills: true\n");
         fs::remove_dir_all(workspace.join(".claude")).expect("remove .claude");
 
         pnpm(&workspace)
@@ -209,7 +250,7 @@ fn agents_named_by_the_environment_get_their_directories() {
 #[test]
 fn an_approved_skill_without_a_directory_fails_the_install() {
     let (harness, workspace) =
-        project("permissions:\n  '@pnpm.e2e/with-agent-skills':\n    skills: true\n");
+        project(PACKAGE, "permissions:\n  '@pnpm.e2e/with-agent-skills':\n    skills: true\n");
     fs::remove_dir_all(workspace.join(".claude")).expect("remove .claude");
 
     let output = pnpm(&workspace)
@@ -230,8 +271,86 @@ fn an_approved_skill_without_a_directory_fails_the_install() {
 }
 
 #[test]
+fn install_links_only_the_skills_listed_in_the_permission() {
+    let (harness, workspace) = project(
+        TWO_SKILLS_PACKAGE,
+        "permissions:\n  '@pnpm.e2e/with-two-skills':\n    skills: [guide]\n",
+    );
+
+    pnpm(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    assert!(
+        workspace
+            .join(TWO_SKILLS_GUIDE)
+            .join("SKILL.md")
+            .is_file(),
+        "the listed skill links",
+    );
+    assert!(!workspace.join(TWO_SKILLS_MIGRATE).exists(), "the unlisted skill stays unlinked");
+    drop(harness);
+}
+
+#[test]
+fn approve_links_into_the_recorded_directories() {
+    let (harness, workspace) =
+        project(TWO_SKILLS_PACKAGE, "skills:\n  dirs:\n    - .claude/skills\n");
+    fs::create_dir_all(workspace.join(".cursor/skills")).expect("create .cursor/skills");
+    pnpm(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    assert_eq!(pending_skills(&workspace), Some(vec![format!("{TWO_SKILLS_PACKAGE}@1.0.0")]));
+
+    pnpm(&workspace)
+        .with_args(["approve", TWO_SKILLS_PACKAGE])
+        .assert()
+        .success();
+
+    assert!(
+        workspace
+            .join(TWO_SKILLS_GUIDE)
+            .join("SKILL.md")
+            .is_file(),
+    );
+    assert!(
+        workspace
+            .join(TWO_SKILLS_MIGRATE)
+            .join("SKILL.md")
+            .is_file(),
+    );
+    let modules = pnpm_modules_yaml::read_modules_manifest::<pnpm_modules_yaml::Host>(
+        &workspace.join("node_modules"),
+    )
+    .unwrap()
+    .unwrap();
+    let linked = modules.linked_skills.expect("linked skills recorded");
+    assert!(
+        linked
+            .iter()
+            .all(|link| link.starts_with(".claude/skills/")),
+        "links follow the recorded directories: {linked:?}",
+    );
+    let cursor_entries: Vec<String> = fs::read_dir(workspace.join(".cursor/skills"))
+        .expect("read .cursor/skills")
+        .map(|entry| {
+            entry
+                .expect("dir entry")
+                .file_name()
+                .to_string_lossy()
+                .into_owned()
+        })
+        .collect();
+    assert!(cursor_entries.is_empty(), "the unrecorded directory stays empty: {cursor_entries:?}");
+    drop(harness);
+}
+
+#[test]
 fn approve_builds_writes_into_an_existing_permissions_block() {
     let (harness, workspace) = project(
+        PACKAGE,
         "strictDepBuilds: false\npermissions:\n  '@pnpm.e2e/with-agent-skills':\n    skills: false\n",
     );
     let package_json = serde_json::json!({
@@ -259,7 +378,7 @@ fn approve_builds_writes_into_an_existing_permissions_block() {
 #[test]
 fn repeat_install_links_into_a_new_agent_dir() {
     let (harness, workspace) =
-        project("permissions:\n  '@pnpm.e2e/with-agent-skills':\n    skills: true\n");
+        project(PACKAGE, "permissions:\n  '@pnpm.e2e/with-agent-skills':\n    skills: true\n");
     pnpm(&workspace)
         .with_arg("install")
         .assert()
@@ -271,23 +390,26 @@ fn repeat_install_links_into_a_new_agent_dir() {
         .assert()
         .success();
 
-    assert!(workspace.join(".cursor/skills/guide/SKILL.md").is_file());
+    assert!(workspace.join(".cursor/skills/guide/SKILL.md").is_file(),);
     drop(harness);
 }
 
 #[test]
 fn peer_variants_keep_one_link_target_and_replace_unrecorded_links() {
-    let (harness, workspace) = project(concat!(
-        "packages:\n  - packages/*\n",
-        "dedupePeerDependents: false\n",
-        "permissions:\n  '@pnpm.e2e/with-agent-skills':\n    skills: true\n",
-        "packageExtensions:\n  '@pnpm.e2e/with-agent-skills@*':\n",
-        "    peerDependencies:\n      '@pnpm.e2e/peer-a': '*'\n",
-    ));
+    let (harness, workspace) = project(
+        PACKAGE,
+        concat!(
+            "packages:\n  - packages/*\n",
+            "dedupePeerDependents: false\n",
+            "permissions:\n  '@pnpm.e2e/with-agent-skills':\n    skills: true\n",
+            "packageExtensions:\n  '@pnpm.e2e/with-agent-skills@*':\n",
+            "    peerDependencies:\n      '@pnpm.e2e/peer-a': '*'\n",
+        ),
+    );
     let app = workspace.join("packages/app");
     fs::create_dir_all(&app).unwrap();
     let modules_dir = workspace.join("node_modules");
-    let install = |root_peer: &str, app_peer: &str| {
+    let install = |root_peer: &str, app_peer: &str, link: &str| {
         for (dir, name, peer) in [(&workspace, "root", root_peer), (&app, "app", app_peer)] {
             let manifest = serde_json::json!({
                 "name": name,
@@ -299,11 +421,11 @@ fn peer_variants_keep_one_link_target_and_replace_unrecorded_links() {
             .with_args(["install", "--no-frozen-lockfile"])
             .assert()
             .success();
-        fs::canonicalize(workspace.join(LINK)).unwrap()
+        fs::canonicalize(workspace.join(link)).unwrap()
     };
 
-    let first = install("1.0.0", "1.0.1");
-    let swapped = install("1.0.1", "1.0.0");
+    let first = install("1.0.0", "1.0.1", LINK);
+    let swapped = install("1.0.1", "1.0.0", LINK);
     assert_eq!(first, swapped, "swapping which importer has which variant keeps the target");
 
     let mut modules =
@@ -315,7 +437,7 @@ fn peer_variants_keep_one_link_target_and_replace_unrecorded_links() {
     pnpm_modules_yaml::write_modules_manifest::<pnpm_modules_yaml::Host>(&modules_dir, modules)
         .unwrap();
 
-    let after_peer_change = install("1.0.1", "1.0.1");
+    let after_peer_change = install("1.0.1", "1.0.1", LINK);
     assert_ne!(after_peer_change, first);
     assert!(first.is_dir(), "the variant that left the lockfile is still installed");
     drop(harness);

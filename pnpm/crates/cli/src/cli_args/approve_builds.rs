@@ -6,11 +6,13 @@ use derive_more::{Display, Error};
 #[cfg(not(target_family = "wasm"))]
 use dialoguer::{Confirm, MultiSelect};
 use miette::{Context, Diagnostic, IntoDiagnostic};
-use pnpm_config::{Config, PermissionCapability, WorkspaceSettings};
+use pnpm_config::{Config, WorkspaceSettings};
 use pnpm_modules_yaml::{Host, write_modules_manifest};
-use pnpm_package_manager::{allow_build_key_from_ignored_build, parse_allow_build_selector};
+use pnpm_package_manager::{
+    allow_build_key_from_ignored_build, parse_allow_build_selector, short_package_label,
+};
 use pnpm_reporter::{Reporter, emit_global_warning};
-use pnpm_workspace_manifest_writer::set_permissions;
+use pnpm_workspace_manifest_writer::{PermissionValue, set_permissions};
 #[cfg(not(target_family = "wasm"))]
 use std::io::IsTerminal;
 use std::{
@@ -204,7 +206,7 @@ pub(crate) fn write_approval_settings(
         settings_dir,
         decision.decisions
             .iter()
-            .map(|(pkg, &value)| (pkg.as_str(), PermissionCapability::Build, value)),
+            .map(|(pkg, &value)| (pkg.as_str(), PermissionValue::Build(value))),
     )
     .into_diagnostic()
 }
@@ -268,7 +270,7 @@ fn prompt_for_builds(
 ) -> miette::Result<Option<Vec<String>>> {
     let choices: Vec<(String, String)> = sort_unique(automatically_ignored_builds.to_vec())
         .into_iter()
-        .map(|name| (name.clone(), name))
+        .map(|key| (key.clone(), short_package_label(&key)))
         .collect();
     prompt_for_choices("Choose which packages to build", &choices)
 }
@@ -303,8 +305,12 @@ pub(crate) fn prompt_for_choices(
 /// Ask the user to confirm building `build_packages`.
 fn confirm_builds(build_packages: &[String]) -> miette::Result<bool> {
     confirm(&format!(
-        "The next packages will now be built: {}.\nDo you approve?",
-        build_packages.join(", "),
+        "Build {}?",
+        build_packages
+            .iter()
+            .map(|key| short_package_label(key))
+            .collect::<Vec<_>>()
+            .join(", "),
     ))
 }
 
@@ -419,6 +425,42 @@ pub(crate) fn config_with_install_approvals(
     {
         cfg.allow_builds.extend(settings.decided_build_approvals().unwrap_or_default());
         cfg.allow_skills.extend(settings.decided_skill_approvals().unwrap_or_default());
+        // The approval run just wrote this manifest, so its `skills.dirs`
+        // is the value the skills link should follow, the same way a fresh
+        // install loads it.
+        cfg.skills_dirs = settings.skills.as_ref().and_then(|skills| skills.dirs.clone());
     }
     Ok(Config::leak(cfg))
+}
+
+#[cfg(test)]
+mod config_with_install_approvals_tests {
+    use super::*;
+    use std::fs;
+    use tempfile::TempDir;
+
+    /// The approval run records `skills.dirs` into the manifest after its
+    /// config was loaded, so the overlay must carry the freshly written
+    /// value into the linking step.
+    #[test]
+    fn overlays_the_manifests_skills_dirs() {
+        let dir = TempDir::new().expect("create temp dir");
+        fs::write(
+            dir.path().join("pnpm-workspace.yaml"),
+            "permissions:\n  '@pnpm.e2e/with-agent-skills':\n    skills: true\nskills:\n  dirs:\n    - .claude/skills\n",
+        )
+        .expect("write pnpm-workspace.yaml");
+
+        let approved = config_with_install_approvals(&Config::default(), dir.path())
+            .expect("lay the approvals over the config");
+
+        assert_eq!(
+            approved.skills_dirs.as_deref(),
+            Some([".claude/skills".to_string()].as_slice()),
+        );
+        assert_eq!(
+            approved.allow_skills.get("@pnpm.e2e/with-agent-skills").cloned(),
+            Some(pnpm_config::SkillsPermission::All(true)),
+        );
+    }
 }

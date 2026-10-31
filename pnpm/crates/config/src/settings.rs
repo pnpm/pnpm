@@ -1159,8 +1159,9 @@ pub struct Config {
 
     /// The `skills` decisions of `permissions` in `pnpm-workspace.yaml`:
     /// package names (or `name@version`, or a pkgId) mapped to whether
-    /// pnpm links the agent skills the package ships.
-    pub allow_skills: HashMap<String, bool>,
+    /// pnpm links the agent skills the package ships, or to the named
+    /// skills it links when the entry is a list.
+    pub allow_skills: HashMap<String, workspace_yaml::SkillsPermission>,
 
     /// `skills.dirs` from `pnpm-workspace.yaml`: the agent skill
     /// directories, relative to the workspace root, that replace the

@@ -179,3 +179,17 @@ fn accepts_target_symlinked_inside_workspace() {
     assert_eq!(targets, vec![workspace.path().join(".agents/skills")]);
     assert!(internal.join("skills").is_dir());
 }
+
+#[test]
+fn detected_agent_dirs_offers_standard_dirs_and_existing_directories() {
+    let workspace = tempfile::tempdir().expect("create workspace tempdir");
+    fs::create_dir_all(workspace.path().join(".custom-agent/skills")).expect("create custom dir");
+
+    let detected = super::detected_agent_dirs(workspace.path());
+
+    assert!(detected.contains(&".agent/skills".to_string()));
+    assert!(detected.contains(&".agents/skills".to_string()));
+    assert!(detected.contains(&".claude/skills".to_string()));
+    assert!(detected.contains(&".cursor/skills".to_string()));
+    assert!(detected.contains(&".custom-agent/skills".to_string()));
+}

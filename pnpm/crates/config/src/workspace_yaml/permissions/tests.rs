@@ -1,4 +1,4 @@
-use crate::{AllowBuild, Config, NAMED_UNRECOGNIZED_SETTINGS, WorkspaceSettings};
+use crate::{AllowBuild, Config, NAMED_UNRECOGNIZED_SETTINGS, SkillsPermission, WorkspaceSettings};
 use pretty_assertions::assert_eq;
 use std::{collections::HashMap, path::Path};
 
@@ -25,7 +25,27 @@ fn folds_build_permissions_into_allow_builds() {
             ("drizzle-kit".to_string(), false),
         ]),
     );
-    assert_eq!(config.allow_skills, HashMap::from([("drizzle-kit".to_string(), true)]));
+    assert_eq!(
+        config.allow_skills,
+        HashMap::from([("drizzle-kit".to_string(), SkillsPermission::All(true))]),
+    );
+}
+
+#[test]
+fn skill_choices_are_recorded_as_chosen() {
+    let config = applied("permissions:\n  drizzle-kit:\n    skills: [guide, migrate]\n");
+    assert_eq!(
+        config.allow_skills,
+        HashMap::from([(
+            "drizzle-kit".to_string(),
+            SkillsPermission::Chosen(vec!["guide".to_string(), "migrate".to_string()]),
+        )]),
+    );
+    let denied = applied("permissions:\n  drizzle-kit:\n    skills: false\n");
+    assert_eq!(
+        denied.allow_skills,
+        HashMap::from([("drizzle-kit".to_string(), SkillsPermission::All(false))]),
+    );
 }
 
 #[test]

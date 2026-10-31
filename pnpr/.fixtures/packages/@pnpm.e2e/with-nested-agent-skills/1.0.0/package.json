@@ -1,0 +1,6 @@
+{
+  "name": "@pnpm.e2e/with-nested-agent-skills",
+  "version": "1.0.0",
+  "description": "A package whose agent skills live in category directories",
+  "license": "MIT"
+}
