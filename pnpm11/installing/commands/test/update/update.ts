@@ -1168,6 +1168,39 @@ test('negated selectors keep updateConfig.ignoreDependencies ignored', async () 
   expect(lockfileUpdated.packages['@pnpm.e2e/qar@100.1.0']).toBeTruthy()
 })
 
+test('negated selectors keep updateConfig.ignoreDependencies within their locked versions', async () => {
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/qar', version: '100.0.0', distTag: 'latest' })
+
+  const project = prepare({
+    dependencies: {
+      '@pnpm.e2e/foo': '^100.0.0',
+      '@pnpm.e2e/qar': '^100.0.0',
+    },
+  })
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+  })
+
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/qar', version: '100.1.0', distTag: 'latest' })
+
+  await update.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    updateConfig: {
+      ignoreDependencies: ['@pnpm.e2e/foo'],
+    },
+  }, ['!@pnpm.e2e/bar'])
+
+  const lockfileUpdated = project.readLockfile()
+
+  expect(lockfileUpdated.packages['@pnpm.e2e/foo@100.0.0']).toBeTruthy()
+  expect(lockfileUpdated.packages['@pnpm.e2e/qar@100.1.0']).toBeTruthy()
+})
+
 test('not ignore packages if these are specified in parameter even if these are listed in package.json > pnpm.update.ignoreDependencies fields in update command', async () => {
   await addDistTag({ package: '@pnpm.e2e/foo', version: '100.0.0', distTag: 'latest' })
   await addDistTag({ package: '@pnpm.e2e/bar', version: '100.0.0', distTag: 'latest' })

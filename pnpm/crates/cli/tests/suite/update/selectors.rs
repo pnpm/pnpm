@@ -273,6 +273,25 @@ fn update_compatible_honors_ignore_dependencies() {
 }
 
 #[test]
+fn update_compatible_negation_only_selector_honors_ignore_dependencies() {
+    let (root, workspace, anchor) = setup();
+    set_ignore_dependencies(&workspace, &[FOO]);
+
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "100.0.0", "{FOO}": "1.0.0" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "^100.0.0", "{FOO}": "^1.0.0" }}"#));
+    pacquet(&workspace, ["update", "!@pnpm.e2e/bar"]).assert().success();
+
+    eprintln!("virtual store contents: {:?}", list_virtual_store(&workspace));
+    assert!(virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@100.1.0"));
+    assert!(virtual_store_has(&workspace, "@pnpm.e2e+foo@1.0.0"));
+    assert!(!virtual_store_has(&workspace, "@pnpm.e2e+foo@1.3.0"));
+
+    drop((root, anchor));
+}
+
+#[test]
 fn update_negation_only_selector_honors_ignore_dependencies() {
     let (root, workspace, anchor) = setup();
     set_ignore_dependencies(&workspace, &[DEP]);
