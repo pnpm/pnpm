@@ -9,8 +9,8 @@
 //! styles of everything it does not touch.
 
 pub use build_settings::{
-    LEGACY_BUILD_SETTINGS, UNDECIDED_ALLOW_BUILD, scaffold_allow_builds, set_allow_builds,
-    set_allow_builds_clearing_legacy, set_permissions,
+    LEGACY_BUILD_SETTINGS, PermissionValue, UNDECIDED_ALLOW_BUILD, scaffold_allow_builds,
+    set_allow_builds, set_allow_builds_clearing_legacy, set_permissions, set_skills_dirs,
 };
 pub use catalog_references::CatalogReferenceSources;
 pub use pnpm_config::version_policy::ResolvedPackageVersions;

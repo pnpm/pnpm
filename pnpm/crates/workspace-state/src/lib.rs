@@ -210,9 +210,10 @@ pub struct WorkspaceStateSettings {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub allow_builds: Option<BTreeMap<String, serde_json::Value>>,
     /// The `skills` decisions of `permissions`, recorded only when there
-    /// are any. pnpm v11 has no such setting.
+    /// are any. pnpm v11 has no such setting. A decision is a boolean, or
+    /// the skills the package may link when the entry names them.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub allow_skills: Option<BTreeMap<String, bool>>,
+    pub allow_skills: Option<BTreeMap<String, serde_json::Value>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub auto_install_peers: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

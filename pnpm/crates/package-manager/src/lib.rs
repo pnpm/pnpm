@@ -2,8 +2,9 @@
 
 pub use add::*;
 pub use agent_skills::{
-    AgentSkillsError, AgentSkillsState, ResyncAgentSkillsError, SyncAgentSkills,
-    agent_skills_dir_from_env, resync_installed_agent_skills, sync_agent_skills,
+    AGENT_SKILL_LINK_PREFIX, AgentSkillsError, AgentSkillsState, ResyncAgentSkillsError,
+    SkillApprovalError, SkillApprovalOptions, SyncAgentSkills, agent_skills_dir_from_env,
+    detected_agent_dirs, resync_installed_agent_skills, skill_approval_options, sync_agent_skills,
 };
 pub use build_resolution_verifiers::*;
 pub use build_snapshot::*;

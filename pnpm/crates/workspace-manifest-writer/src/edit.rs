@@ -483,11 +483,14 @@ use allow_builds::render_bool;
 
 mod mapping;
 use mapping::{
-    replace_bool_value_at, replace_value_at, upsert, write_entry_at, write_named_subblock,
+    replace_value_at, replace_value_text_at, upsert, write_entry_at, write_named_subblock,
     write_rendered_entry_at,
 };
 
 mod permissions;
+
+mod skills_dirs;
+pub(crate) use skills_dirs::set_skills_dirs;
 
 mod scanning;
 
