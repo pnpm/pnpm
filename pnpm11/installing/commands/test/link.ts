@@ -48,6 +48,10 @@ test('linking multiple packages', async () => {
 
   project.has('linked-foo')
   project.has('linked-bar')
+  expect(readYamlFileSync<{ overrides?: Record<string, string> }>('pnpm-workspace.yaml').overrides).toStrictEqual({
+    'linked-foo': 'link:../linked-foo',
+    'linked-bar': 'link:../linked-bar',
+  })
 })
 
 test('link global bin', async function () {

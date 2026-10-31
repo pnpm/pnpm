@@ -139,12 +139,17 @@ async function addLinksToManifest (opts: LinkOpts, manifest: ProjectManifest, pk
   const linkedPkgs = await Promise.all(
     pkgPaths.map(async (dir) => ({ dir, name: await readLinkedPkgName(dir, opts) }))
   )
-  await Promise.all(
-    linkedPkgs.map(async (linkedPkg) => {
-      await addLinkToManifest(opts, manifest, linkedPkg, opts.rootProjectManifestDir)
-      await checkPeerDeps(linkedPkg.dir, opts)
-    })
-  )
+  for (const linkedPkg of linkedPkgs) {
+    addLinkToManifest(opts, manifest, linkedPkg)
+  }
+  await writeSettings({
+    ...opts,
+    workspaceDir: opts.workspaceDir ?? opts.rootProjectManifestDir,
+    updatedSettings: {
+      overrides: opts.overrides,
+    },
+  })
+  await Promise.all(linkedPkgs.map(async ({ dir }) => checkPeerDeps(dir, opts)))
 }
 
 async function readLinkedPkgName (linkedDepDir: string, opts: LinkOpts): Promise<string> {
@@ -158,24 +163,16 @@ async function readLinkedPkgName (linkedDepDir: string, opts: LinkOpts): Promise
   return name
 }
 
-async function addLinkToManifest (
+function addLinkToManifest (
   opts: LinkOpts,
   manifest: ProjectManifest,
-  { dir: linkedDepDir, name: linkedPkgName }: { dir: string, name: string },
-  manifestDir: string
-) {
-  const linkedPkgSpec = `link:${normalize(path.relative(manifestDir, linkedDepDir))}`
+  { dir: linkedDepDir, name: linkedPkgName }: { dir: string, name: string }
+): void {
+  const linkedPkgSpec = `link:${normalize(path.relative(opts.rootProjectManifestDir, linkedDepDir))}`
   opts.overrides = {
     ...opts.overrides,
     [linkedPkgName]: linkedPkgSpec,
   }
-  await writeSettings({
-    ...opts,
-    workspaceDir: opts.workspaceDir ?? opts.rootProjectManifestDir,
-    updatedSettings: {
-      overrides: opts.overrides,
-    },
-  })
   if (DEPENDENCIES_FIELDS.every((depField) => manifest[depField]?.[linkedPkgName] == null)) {
     manifest.dependencies = manifest.dependencies ?? {}
     manifest.dependencies[linkedPkgName] = linkedPkgSpec
