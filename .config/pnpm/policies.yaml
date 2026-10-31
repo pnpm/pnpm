@@ -39,9 +39,14 @@ auditConfig:
     # objects. No patched release exists upstream; patched locally via
     # .config/pnpm/patches/deepmerge@4.3.1.patch.
     - GHSA-gcqx-w48m-w2h4
-    # GHSA-g3hv-75wg-m249: minimatch ReDoS / path traversal.
+    # GHSA-g3hv-75wg-m249: minimatch globparts amplification DoS. Upgrading to
+    # minimatch 11 drops makeRe and breaks eslint-plugin-import-x loading, so
+    # minimatch is capped at ^10.2.4. Used only in internal test and lint tooling
+    # with trusted static patterns, never attacker-controlled glob inputs.
     - GHSA-g3hv-75wg-m249
-    # GHSA-3g3m-2fjr-6pw4: glob AbortSignal cancellation bypass.
+    # GHSA-3g3m-2fjr-6pw4: glob AbortSignal cancellation bypass post-timeout traversal.
+    # glob 14 requires minimatch 11. Used only in test-exclude and @npmcli/package-json
+    # where AbortSignal timeouts are not used and glob runs to completion locally.
     - GHSA-3g3m-2fjr-6pw4
 
 minimumReleaseAge: 1440 # At least a day

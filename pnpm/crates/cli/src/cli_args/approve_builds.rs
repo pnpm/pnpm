@@ -302,16 +302,21 @@ pub(crate) fn prompt_for_choices(
     }
 }
 
-/// Ask the user to confirm building `build_packages`.
-fn confirm_builds(build_packages: &[String]) -> miette::Result<bool> {
-    confirm(&format!(
+/// The confirmation prompt text for building `build_packages`.
+pub(crate) fn confirm_builds_prompt(build_packages: &[String]) -> String {
+    format!(
         "Build {}?",
         build_packages
             .iter()
             .map(|key| short_package_label(key))
             .collect::<Vec<_>>()
             .join(", "),
-    ))
+    )
+}
+
+/// Ask the user to confirm building `build_packages`.
+fn confirm_builds(build_packages: &[String]) -> miette::Result<bool> {
+    confirm(&confirm_builds_prompt(build_packages))
 }
 
 /// Ask a yes/no question that defaults to "no", matching pnpm's

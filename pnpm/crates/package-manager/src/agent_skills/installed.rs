@@ -178,3 +178,6 @@ fn pending_skills_by_key(pending: Vec<SkillSource>) -> BTreeMap<String, Vec<Stri
         })
         .collect()
 }
+
+#[cfg(test)]
+mod tests;
