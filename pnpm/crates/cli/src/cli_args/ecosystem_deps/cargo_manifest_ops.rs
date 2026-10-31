@@ -232,16 +232,25 @@ fn extract_registry_spec(alias: &str, value: &toml::Value) -> Option<(String, St
 #[derive(Debug, Default)]
 pub(crate) struct LockedCargoVersions {
     pub(crate) registry: HashMap<String, Vec<Version>>,
-    /// Versions locked by git `[patch]` replacements.
-    pub(crate) git: HashMap<String, Vec<Version>>,
+    /// Git and path entries: the versions `[patch]` replacements lock, and
+    /// the workspace's own members.
+    pub(crate) local: HashMap<String, Vec<Version>>,
 }
 
 impl LockedCargoVersions {
     /// The version `dep` uses now: for a crate `[patch.crates-io]`
-    /// replaces, the replacement's, otherwise the registry one.
+    /// replaces, the replacement's when it meets `dep`'s requirement,
+    /// otherwise the registry one.
     pub(crate) fn current(&self, dep: &DeclaredCargoDep, patched: bool) -> Option<&Version> {
+        let replacement = || {
+            self.local
+                .get(&dep.package_name)?
+                .iter()
+                .rev()
+                .find(|version| dep.version_req.matches(version))
+        };
         patched
-            .then(|| select_locked_version(&self.git, dep))
+            .then(replacement)
             .flatten()
             .or_else(|| select_locked_version(&self.registry, dep))
     }
@@ -258,14 +267,14 @@ pub(crate) fn read_locked_cargo_versions(cargo_lock_path: &Path) -> Result<Locke
     for pkg in lockfile.packages {
         let map = match &pkg.source {
             Some(source) if source.is_registry() => &mut locked.registry,
-            Some(source) if source.is_git() => &mut locked.git,
-            _ => continue,
+            Some(source) if !source.is_git() => continue,
+            _ => &mut locked.local,
         };
         map.entry(pkg.name.as_str().to_string())
             .or_default()
             .push(pkg.version);
     }
-    for versions in locked.registry.values_mut().chain(locked.git.values_mut()) {
+    for versions in locked.registry.values_mut().chain(locked.local.values_mut()) {
         versions.sort();
     }
     Ok(locked)
