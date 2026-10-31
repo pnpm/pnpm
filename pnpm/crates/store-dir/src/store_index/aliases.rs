@@ -6,7 +6,10 @@
 //! apart from the rows, in a table pnpm v11 never reads, so a store shared
 //! with it keeps a row layout that pnpm v11 understands.
 
-use super::{Backend, Connection, HashMap, StoreIndex, StoreIndexError, queries::GET_MANY_CHUNK};
+use super::{
+    Backend, Connection, HashMap, StoreIndex, StoreIndexError,
+    queries::{GET_MANY_CHUNK, ends_with_pkg_id, pkg_id_key_suffix},
+};
 
 pub(super) const CREATE_ALIAS_TABLE: &str = "
     CREATE TABLE IF NOT EXISTS package_index_alias (
@@ -38,6 +41,23 @@ impl StoreIndex {
                 .get_many(keys)?
                 .into_iter()
                 .filter_map(|(key, target)| Some((key, String::from_utf8(target).ok()?)))
+                .collect()),
+        }
+    }
+
+    /// The targets of the aliases whose keys end with `\t{pkg_id}`, in key
+    /// order. See [`StoreIndex::get_by_pkg_id`].
+    pub(super) fn alias_targets_by_pkg_id(
+        &self,
+        pkg_id: &str,
+    ) -> Result<Vec<String>, StoreIndexError> {
+        match &self.backend {
+            Backend::Sqlite { conn, .. } => sqlite_alias_targets_by_pkg_id(conn, pkg_id),
+            Backend::Files(files) => Ok(files
+                .aliases()
+                .all_matching(|key| ends_with_pkg_id(key, pkg_id))?
+                .into_iter()
+                .filter_map(|(_, target)| String::from_utf8(target).ok())
                 .collect()),
         }
     }
@@ -102,6 +122,23 @@ fn sqlite_alias_targets(
         }
     }
     Ok(out)
+}
+
+fn sqlite_alias_targets_by_pkg_id(
+    conn: &Connection,
+    pkg_id: &str,
+) -> Result<Vec<String>, StoreIndexError> {
+    let mut stmt = match conn.prepare_cached(
+        "SELECT target FROM package_index_alias WHERE substr(key, -length(?1)) = ?1 ORDER BY key",
+    ) {
+        Ok(stmt) => stmt,
+        // A read-only index without the alias table holds no aliases.
+        Err(error) if is_missing_alias_table(&error) => return Ok(Vec::new()),
+        Err(source) => return Err(StoreIndexError::Read { source }),
+    };
+    stmt.query_map([pkg_id_key_suffix(pkg_id)], |row| row.get::<_, String>(0))
+        .and_then(Iterator::collect)
+        .map_err(|source| StoreIndexError::Read { source })
 }
 
 fn is_missing_alias_table(error: &rusqlite::Error) -> bool {

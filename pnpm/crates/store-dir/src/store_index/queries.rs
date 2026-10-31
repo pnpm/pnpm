@@ -13,15 +13,20 @@ use rusqlite::Connection;
 /// need to think about the cap on the read path.
 pub(super) const GET_MANY_CHUNK: usize = 999;
 
-fn escape_like_pattern(value: &str) -> String {
-    let mut escaped = String::with_capacity(value.len());
-    for character in value.chars() {
-        if matches!(character, '\\' | '%' | '_') {
-            escaped.push('\\');
-        }
-        escaped.push(character);
-    }
-    escaped
+/// Whether `key` is a `package_index` key of `pkg_id`.
+pub(super) fn ends_with_pkg_id(key: &str, pkg_id: &str) -> bool {
+    key.strip_suffix(pkg_id)
+        .is_some_and(|rest| rest.ends_with('\t'))
+}
+
+/// The end of every `package_index` key of `pkg_id`, the one
+/// [`ends_with_pkg_id`] checks for.
+///
+/// SQL compares it as `substr(key, -length(?1)) = ?1`. `LIKE` would ignore
+/// the case of ASCII letters, and some package names differ only in case,
+/// like `JSONStream` and `jsonstream`.
+pub(super) fn pkg_id_key_suffix(pkg_id: &str) -> String {
+    format!("\t{pkg_id}")
 }
 
 impl StoreIndex {
@@ -68,19 +73,39 @@ impl StoreIndex {
     /// package id and must not resolve against a registry to recover the
     /// integrity half of the key. A per-file index has no key order to
     /// search, so every entry is read.
+    ///
+    /// A `pkg_id` that only an alias names reads the row it is an alias of.
     pub fn get_by_pkg_id(
         &self,
         pkg_id: &str,
     ) -> Result<Option<PackageFilesIndex>, StoreIndexError> {
-        let row = match &self.backend {
-            Backend::Sqlite { conn, .. } => sqlite_get_by_pkg_id(conn, pkg_id)?,
-            Backend::Files(files) => {
-                let suffix = format!("\t{pkg_id}");
-                files.first_matching(|key| key.ends_with(&suffix))?
-            }
+        let row = match self.get_raw_by_pkg_id(pkg_id)? {
+            Some(row) => Some(row),
+            None => self.get_raw_through_pkg_id_alias(pkg_id)?,
         };
         let Some(bytes) = row else { return Ok(None) };
         decode_index_value(&bytes).map(Some)
+    }
+
+    /// The row of the first alias of `pkg_id`, in key order, whose row still
+    /// exists. Deleting a row leaves its aliases behind.
+    fn get_raw_through_pkg_id_alias(
+        &self,
+        pkg_id: &str,
+    ) -> Result<Option<Vec<u8>>, StoreIndexError> {
+        for target in self.alias_targets_by_pkg_id(pkg_id)? {
+            if let Some(row) = self.get_raw(&target)? {
+                return Ok(Some(row));
+            }
+        }
+        Ok(None)
+    }
+
+    fn get_raw_by_pkg_id(&self, pkg_id: &str) -> Result<Option<Vec<u8>>, StoreIndexError> {
+        match &self.backend {
+            Backend::Sqlite { conn, .. } => sqlite_get_by_pkg_id(conn, pkg_id),
+            Backend::Files(files) => files.first_matching(|key| ends_with_pkg_id(key, pkg_id)),
+        }
     }
 
     /// Look up many keys in one trip across the `SQLite` mutex.
@@ -455,10 +480,9 @@ fn sqlite_get_by_pkg_id(
     conn: &Connection,
     pkg_id: &str,
 ) -> Result<Option<Vec<u8>>, StoreIndexError> {
-    let pattern = format!("%\t{}", escape_like_pattern(pkg_id));
     conn.query_row(
-        r"SELECT data FROM package_index WHERE key LIKE ?1 ESCAPE '\' ORDER BY key LIMIT 1",
-        [pattern],
+        "SELECT data FROM package_index WHERE substr(key, -length(?1)) = ?1 ORDER BY key LIMIT 1",
+        [pkg_id_key_suffix(pkg_id)],
         |row| row.get::<_, Vec<u8>>(0),
     )
     .map(Some)
