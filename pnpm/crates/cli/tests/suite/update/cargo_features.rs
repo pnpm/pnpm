@@ -13,9 +13,11 @@ fn setup_workspace(root: &Path) -> PathBuf {
     let member = workspace.join("crates/app");
     fs::create_dir_all(member.join("src")).unwrap();
     fs::write(member.join("src/lib.rs"), "").unwrap();
-    for (prefix, name, old_features, new_features) in
-        [("3/f", "foo", r#"{"asm":[]}"#, "{}"), ("3/b", "bar", "{}", "{}")]
-    {
+    for (prefix, name, old_features, new_features) in [
+        ("3/f", "foo", r#"{"asm":[]}"#, "{}"),
+        ("3/b", "bar", "{}", "{}"),
+        ("3/b", "baz", "{}", "{}"),
+    ] {
         let index_dir = cache_dir.join(format!("v11/cargo-index/crates-io/{prefix}"));
         fs::create_dir_all(&index_dir).unwrap();
         let entry = [("1.0.0", old_features), ("2.0.0", new_features)]
@@ -40,18 +42,18 @@ fn setup_workspace(root: &Path) -> PathBuf {
     .unwrap();
     fs::write(
         workspace.join("Cargo.toml"),
-        "[workspace]\nmembers = [\"crates/app\"]\nresolver = \"3\"\n\n[workspace.dependencies]\nbar = \"1.0.0\"\nfoo = \"1.0.0\"\n",
+        "[workspace]\nmembers = [\"crates/app\"]\nresolver = \"3\"\n\n[workspace.dependencies]\nbar = \"1.0.0\"\nbaz = \"1.0.0\"\nfoo = \"1.0.0\"\n",
     )
     .unwrap();
     fs::write(
         member.join("Cargo.toml"),
-        "[package]\nname = \"app\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[dependencies]\nbar = { workspace = true }\nfoo = { workspace = true }\n\n[target.'cfg(unix)'.dependencies]\nfoo = { workspace = true, features = [\"asm\"] }\n",
+        "[package]\nname = \"app\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[dependencies]\nbar = { workspace = true }\nbaz = { workspace = true }\nfoo = { workspace = true }\n\n[target.'cfg(unix)'.dependencies]\nfoo = { workspace = true, features = [\"asm\"] }\n",
     )
     .unwrap();
     fs::write(
         workspace.join("Cargo.lock"),
         format!(
-            "version = 4\n\n[[package]]\nname = \"app\"\nversion = \"0.1.0\"\ndependencies = [\"bar\", \"foo\"]\n\n[[package]]\nname = \"bar\"\nversion = \"1.0.0\"\nsource = \"registry+https://github.com/rust-lang/crates.io-index\"\nchecksum = \"{CHECKSUM}\"\n\n[[package]]\nname = \"foo\"\nversion = \"1.0.0\"\nsource = \"registry+https://github.com/rust-lang/crates.io-index\"\nchecksum = \"{CHECKSUM}\"\n",
+            "version = 4\n\n[[package]]\nname = \"app\"\nversion = \"0.1.0\"\ndependencies = [\"bar\", \"baz\", \"foo\"]\n\n[[package]]\nname = \"bar\"\nversion = \"1.0.0\"\nsource = \"registry+https://github.com/rust-lang/crates.io-index\"\nchecksum = \"{CHECKSUM}\"\n\n[[package]]\nname = \"baz\"\nversion = \"1.0.0\"\nsource = \"registry+https://github.com/rust-lang/crates.io-index\"\nchecksum = \"{CHECKSUM}\"\n\n[[package]]\nname = \"foo\"\nversion = \"1.0.0\"\nsource = \"registry+https://github.com/rust-lang/crates.io-index\"\nchecksum = \"{CHECKSUM}\"\n",
         ),
     )
     .unwrap();
@@ -99,5 +101,45 @@ fn update_latest_fails_for_a_named_crate_whose_new_version_lacks_an_enabled_feat
         &stderr,
         "cannot update crate foo 2.0.0: it does not have the features this workspace enables on it: `asm`",
     );
+    assert_eq!(fs::read_to_string(workspace.join("Cargo.toml")).unwrap(), original);
+}
+
+#[test]
+fn update_with_a_prefixed_exclusion_keeps_unselected_crates_unchanged() {
+    let root = tempfile::tempdir().unwrap();
+    let workspace = setup_workspace(root.path());
+
+    let output = pacquet(
+        &workspace,
+        ["update", "--latest", "crate:bar", "!crate:foo", "--offline", "--lockfile-only"],
+    )
+    .output()
+    .unwrap();
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "stdout:\n{stdout}\nstderr:\n{stderr}");
+    let cargo_toml = fs::read_to_string(workspace.join("Cargo.toml")).unwrap();
+    assert!(cargo_toml.contains(r#"foo = "1.0.0""#), "{cargo_toml}");
+    assert!(cargo_toml.contains(r#"bar = "2.0.0""#), "{cargo_toml}");
+    assert!(cargo_toml.contains(r#"baz = "1.0.0""#), "{cargo_toml}");
+}
+
+#[test]
+fn update_with_an_exclusion_does_not_override_an_explicit_crate_request() {
+    let root = tempfile::tempdir().unwrap();
+    let workspace = setup_workspace(root.path());
+    let original = fs::read_to_string(workspace.join("Cargo.toml")).unwrap();
+
+    let output = pacquet(
+        &workspace,
+        ["update", "--latest", "crate:bar", "!pkg:cargo/bar", "--offline", "--lockfile-only"],
+    )
+    .output()
+    .unwrap();
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "stdout:\n{stdout}\nstderr:\n{stderr}");
     assert_eq!(fs::read_to_string(workspace.join("Cargo.toml")).unwrap(), original);
 }
