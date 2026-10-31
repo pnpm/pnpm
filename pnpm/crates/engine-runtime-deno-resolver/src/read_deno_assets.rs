@@ -170,7 +170,11 @@ async fn asset_resolution(
         archive: BinaryArchive::Zip,
         prefix: None,
     };
-    Ok(PlatformAssetResolution { resolution: LockfileResolution::Binary(binary), targets })
+    Ok(PlatformAssetResolution {
+        tag: None,
+        resolution: LockfileResolution::Binary(binary),
+        targets,
+    })
 }
 
 fn variant_url(variant: &PlatformAssetResolution) -> &str {

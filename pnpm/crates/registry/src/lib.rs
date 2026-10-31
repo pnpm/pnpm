@@ -7,7 +7,7 @@ extern crate pnpm_http as reqwest;
 
 pub use package::{DerivedPackuments, Package};
 pub use package_distribution::{
-    AttestationsDist, PackageDistribution, PnprDistribution, ProvenanceMeta,
+    AttestationsDist, PackageDistribution, PnprDistribution, PnprVariant, ProvenanceMeta,
 };
 pub use package_tag::PackageTag;
 pub use package_version::{

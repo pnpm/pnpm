@@ -135,6 +135,22 @@ pub async fn pick_package<Cache: PackageMetaCache>(
     spec: &RegistryPackageSpec,
     opts: &PickPackageOptions<'_>,
 ) -> Result<PickPackageResult, PickPackageError> {
+    let result = pick_from_metadata(ctx, spec, opts).await?;
+    let picked_package = match result.picked_package {
+        Some(version) => {
+            Some(crate::npm_resolver::with_external_dist(ctx, opts.registry, version).await?)
+        }
+        None => None,
+    };
+    Ok(PickPackageResult { picked_package, ..result })
+}
+
+/// [`pick_package`] before a split packument's external dist is read.
+async fn pick_from_metadata<Cache: PackageMetaCache>(
+    ctx: &PickPackageContext<'_, Cache>,
+    spec: &RegistryPackageSpec,
+    opts: &PickPackageOptions<'_>,
+) -> Result<PickPackageResult, PickPackageError> {
     validate_package_name(&spec.name)?;
     let state = PickState::new(ctx, spec, opts);
 

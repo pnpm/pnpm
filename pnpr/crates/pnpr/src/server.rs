@@ -59,6 +59,7 @@ mod tar_variants;
 use tar_variants::{TarCopy, TarVariantQueue, open_variant};
 
 mod package_responses;
+mod split_packuments;
 use package_responses::{
     DistBlock, PackumentDists, TarballDist, declared_tarball_integrity, expected_tarball_dist,
     packument_bytes_response, packument_response, tarball_integrity_error, tarball_response,
@@ -75,6 +76,8 @@ use package_reads::{
 
 mod revision_tarballs;
 use revision_tarballs::serve_revision_tarball;
+
+mod variant_tarballs;
 
 mod upstream_tarballs;
 use upstream_tarballs::{
@@ -213,7 +216,8 @@ const MAX_TARBALL_BYTES: u64 = 100 * 1024 * 1024;
 /// at 100 MiB and verdaccio inherits that limit. We apply it via
 /// [`axum::extract::DefaultBodyLimit::max`] on the router rather than on each
 /// route, so future write endpoints inherit the same ceiling.
-const MAX_PUBLISH_BODY_BYTES: usize = MAX_TARBALL_BYTES as usize;
+// PoC: one publish body carries a primary and every platform variant.
+const MAX_PUBLISH_BODY_BYTES: usize = MAX_TARBALL_BYTES as usize * 8;
 
 /// Cap adduser/login bodies far below the publish ceiling. The body is a
 /// small couchdb-user JSON document, and login is the one body-accepting

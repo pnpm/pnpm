@@ -6,7 +6,7 @@ use crate::{
 use pnpm_config::Config;
 use pnpm_lockfile::{
     LockfileEntries, LockfileResolution, PackageKey, PackageMetadata, PlatformSelector,
-    SnapshotEntry, select_platform_variant,
+    SnapshotEntry,
 };
 use pnpm_store_dir::store_index_key;
 use std::collections::HashMap;
@@ -147,7 +147,7 @@ pub(super) fn snapshot_cache_key(
         // is best-effort and the cold path is where errors are
         // raised).
         LockfileResolution::Variations(variations) => {
-            variant_cache_key(variations, runtime_platform_selector, &pkg_id)
+            variant_cache_key(variations, runtime_platform_selector, &pkg_id, !ignore_scripts)
         }
         // Custom resolutions have no built-in warm-cache key — the
         // cold path consults the pnpmfile custom fetchers, and the
@@ -274,23 +274,25 @@ pub(super) fn variant_cache_key(
     variations: &pnpm_lockfile::VariationsResolution,
     runtime_platform_selector: &PlatformSelector,
     pkg_id: &str,
+    built: bool,
 ) -> Result<SnapshotCacheKey, CreateVirtualStoreError> {
-    let Some(variant) = select_platform_variant(&variations.variants, runtime_platform_selector)
-    else {
-        return Ok(SnapshotCacheKey { value: None, is_git_hosted: false });
-    };
-    match &variant.resolution {
-        LockfileResolution::Binary(binary) => Ok(SnapshotCacheKey {
-            value: Some(store_index_key(&binary.integrity.to_string(), pkg_id)),
-            is_git_hosted: false,
-        }),
-        // Non-`Binary` variant (corrupt lockfile, or a
-        // future shape pacquet doesn't recognise). The
-        // cold path raises the typed
-        // `VariantHasNonBinaryResolution` error; we just
-        // skip the warm key.
-        _ => Ok(SnapshotCacheKey { value: None, is_git_hosted: false }),
-    }
+    let value = variations
+        .select(runtime_platform_selector)
+        .and_then(|selected| match selected.resolution() {
+            LockfileResolution::Binary(binary) => {
+                Some(store_index_key(&binary.integrity.to_string(), pkg_id))
+            }
+            // A registry package's variant or primary archive, keyed by
+            // its own digest like any registry archive.
+            resolution @ (LockfileResolution::Registry(_) | LockfileResolution::Tarball(_)) => {
+                store_index_key_for_resolution(resolution, pkg_id, built)
+            }
+            // The cold path raises the typed
+            // `UnsupportedVariantResolution` error; we just skip the
+            // warm key.
+            _ => None,
+        });
+    Ok(SnapshotCacheKey { value, is_git_hosted: false })
 }
 /// Rejects warm reuse when the downloader would refuse missing integrity.
 /// The key must match the fetcher's git-hosted and script-policy variants.

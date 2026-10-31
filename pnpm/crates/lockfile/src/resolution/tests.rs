@@ -66,7 +66,7 @@ fn target(os: &str, cpu: &str, libc: Option<&str>) -> PlatformAssetTarget {
 }
 
 fn variant(url: &str, targets: Vec<PlatformAssetTarget>) -> PlatformAssetResolution {
-    PlatformAssetResolution { resolution: binary_resolution(url), targets }
+    PlatformAssetResolution { tag: None, resolution: binary_resolution(url), targets }
 }
 
 fn selector(os: &str, cpu: &str, libc: Option<&str>) -> PlatformSelector {
@@ -111,6 +111,8 @@ mod lockfile_deserialize_tarball_resolution;
 mod lockfile_deserialize_rejects_malformed_builtin;
 
 mod behavior;
+
+mod variant_selection;
 
 mod streaming;
 

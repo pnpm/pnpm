@@ -116,6 +116,7 @@ fn host_platform_selector_omits_libc_on_non_linux_hosts() {
 fn render_variant_targets_formats_each_triple_with_optional_libc() {
     let variants = vec![
         PlatformAssetResolution {
+            tag: None,
             // Inner resolution is unused by the renderer; pick any
             // shape that round-trips through serde (Directory keeps
             // the fixture light).
@@ -132,6 +133,7 @@ fn render_variant_targets_formats_each_triple_with_optional_libc() {
             ],
         },
         PlatformAssetResolution {
+            tag: None,
             resolution: LockfileResolution::Directory(pnpm_lockfile::DirectoryResolution {
                 directory: "fixture".into(),
             }),

@@ -19,6 +19,7 @@ pub use release_policy::detect_min_release_age_violation;
 pub use resolution_result::normalize_tarball_url;
 pub(crate) use resolution_result::{RegistryResolutionSource, ResolvedSpecifier, dist_integrity};
 
+pub(crate) use external_dist::with_external_dist;
 pub(crate) use package_revision::validate_revision_selector;
 
 pub(crate) use guarded_pick::{
@@ -28,6 +29,8 @@ pub(crate) use guarded_pick::{
 
 pub(crate) use workspace_pick::{no_matching_version, swallowed_as_no_latest};
 
+mod external_dist;
+mod platform_variants;
 mod release_policy;
 mod resolution_result;
 use release_policy::latest_allowed_by_policy;

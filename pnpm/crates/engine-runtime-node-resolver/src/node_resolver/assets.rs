@@ -164,7 +164,11 @@ fn node_platform_asset(
     let binary =
         BinaryResolution { url, integrity, bin: bin_spec_for_platform(&platform), archive, prefix };
     let targets = platform_asset_targets(&platform, &parsed.arch, libc, version);
-    Ok(PlatformAssetResolution { resolution: LockfileResolution::Binary(binary), targets })
+    Ok(PlatformAssetResolution {
+        tag: None,
+        resolution: LockfileResolution::Binary(binary),
+        targets,
+    })
 }
 
 fn platform_asset_targets(

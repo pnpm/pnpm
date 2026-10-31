@@ -103,7 +103,10 @@ fn runtime_dependency_strips_importer_prefix_and_records_package_version() {
     let dep_path = DepPath::from("node@runtime:26.3.0".to_string());
     let resolve_result = ResolveResult {
         id: PkgResolutionId::from("node@runtime:26.3.0"),
-        resolution: LockfileResolution::Variations(VariationsResolution { variants: vec![] }),
+        resolution: LockfileResolution::Variations(VariationsResolution {
+            variants: vec![],
+            fallback: None,
+        }),
         resolved_via: "node-runtime".to_string(),
         normalized_bare_specifier: None,
         alias: Some("node".to_string()),

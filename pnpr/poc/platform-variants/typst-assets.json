@@ -1,0 +1,7 @@
+[
+ {"tag":"linux-x64-static","url":"https://github.com/typst/typst/releases/download/v0.15.1/typst-x86_64-unknown-linux-musl.tar.xz","exe":"typst-x86_64-unknown-linux-musl/typst","platforms":[{"os":"linux","cpu":"x64","libc":"glibc"},{"os":"linux","cpu":"x64","libc":"musl"}]},
+ {"tag":"linux-arm64-static","url":"https://github.com/typst/typst/releases/download/v0.15.1/typst-aarch64-unknown-linux-musl.tar.xz","exe":"typst-aarch64-unknown-linux-musl/typst","platforms":[{"os":"linux","cpu":"arm64","libc":"glibc"},{"os":"linux","cpu":"arm64","libc":"musl"}]},
+ {"tag":"darwin-arm64","url":"https://github.com/typst/typst/releases/download/v0.15.1/typst-aarch64-apple-darwin.tar.xz","exe":"typst-aarch64-apple-darwin/typst","platforms":[{"os":"darwin","cpu":"arm64"}]},
+ {"tag":"darwin-x64","url":"https://github.com/typst/typst/releases/download/v0.15.1/typst-x86_64-apple-darwin.tar.xz","exe":"typst-x86_64-apple-darwin/typst","platforms":[{"os":"darwin","cpu":"x64"}]},
+ {"tag":"win32-x64","url":"https://github.com/typst/typst/releases/download/v0.15.1/typst-x86_64-pc-windows-msvc.zip","exe":"typst-x86_64-pc-windows-msvc/typst.exe","platforms":[{"os":"win32","cpu":"x64"}]}
+]

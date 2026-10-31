@@ -252,7 +252,7 @@ async fn pnpr_registry_frozen_lockfile_fetches_abbreviated_metadata_for_age_and_
         .mock("GET", "/acme")
         .match_header(
             "accept",
-            "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*",
+            "application/vnd.pnpr.install-v2+json; q=1.0, application/vnd.npm.install-v1+json; q=0.9, application/json; q=0.8, */*",
         )
         .with_status(200)
         .with_body(packument.to_string())

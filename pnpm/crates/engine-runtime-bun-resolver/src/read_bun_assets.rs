@@ -90,6 +90,7 @@ fn asset_resolution(
         libc: parsed.musl.then(|| "musl".to_string()),
     };
     Ok(PlatformAssetResolution {
+        tag: None,
         resolution: LockfileResolution::Binary(binary),
         targets: vec![target],
     })

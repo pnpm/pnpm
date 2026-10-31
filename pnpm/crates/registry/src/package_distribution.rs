@@ -92,6 +92,44 @@ pub struct PnprDistribution {
         skip_serializing_if = "Option::is_none"
     )]
     pub bins: Option<BTreeMap<String, PackageBin>>,
+    /// Platform variants of the version: archives the installer links in
+    /// place of the primary on a matching host.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub variants: Option<Vec<PnprVariant>>,
+    /// `"external"` when a split packument left this version's dist facts
+    /// (integrities, sizes, bins) in its immutable version document.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub details: Option<String>,
+}
+
+impl PackageDistribution {
+    /// Whether the dist facts are in the version document rather than here.
+    #[must_use]
+    pub fn is_external(&self) -> bool {
+        self.pnpr.as_ref().and_then(|pnpr| pnpr.details.as_deref()) == Some("external")
+    }
+}
+
+/// One platform variant under `dist.pnpr.variants`.
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PnprVariant {
+    pub tag: String,
+    pub platforms: Vec<PnprVariantPlatform>,
+    /// Absent from a split packument, which keeps it in the version document.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub integrity: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tarball: Option<String>,
+}
+
+/// One platform a [`PnprVariant`] runs on.
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PnprVariantPlatform {
+    pub os: String,
+    pub cpu: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub libc: Option<String>,
 }
 
 /// Container for the attestation evidence a version exposes on its

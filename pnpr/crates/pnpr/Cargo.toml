@@ -107,6 +107,7 @@ tracing = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["json"] }
 url = { workspace = true }
 wax = { workspace = true }
+tar = { workspace = true }
 zip = { workspace = true }
 zstd = { workspace = true }
 

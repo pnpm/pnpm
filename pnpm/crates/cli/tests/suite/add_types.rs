@@ -471,7 +471,7 @@ fn bulk_add_fetches_only_required_metadata_formats() {
                 .mock("GET", mockito::Matcher::Regex(format!("(?i)^/{encoded}$")))
                 .match_header(
                     "accept",
-                    "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*",
+                    "application/vnd.pnpr.install-v2+json; q=1.0, application/vnd.npm.install-v1+json; q=0.9, application/json; q=0.8, */*",
                 )
                 .with_header("content-type", "application/json")
                 .with_header("etag", METADATA_ETAG)
@@ -522,7 +522,7 @@ fn jsr_sources_and_direct_jsr_registry_packages_use_their_own_metadata_policy() 
         for (accept, body, count) in [
             ("application/json; q=1.0, */*", full, usize::from(direct)),
             (
-                "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*",
+                "application/vnd.pnpr.install-v2+json; q=1.0, application/vnd.npm.install-v1+json; q=0.9, application/json; q=0.8, */*",
                 abbreviated,
                 1,
             ),

@@ -1,0 +1,29 @@
+storage: ./storage
+auth:
+  htpasswd:
+    file: ./htpasswd
+    maxUsers: 1
+registries:
+  local:
+    type: hosted
+    packages:
+      'esbuild':
+        publish: $authenticated
+      '@biomejs/biome':
+        publish: $authenticated
+      'lightningcss':
+        publish: $authenticated
+      '@tailwindcss/oxide':
+        publish: $authenticated
+      'rolldown':
+        publish: $authenticated
+      '@variants-poc/*':
+        publish: $authenticated
+  npmjs:
+    type: upstream
+    url: https://registry.npmjs.org/
+    public: true
+  main:
+    type: router
+    sources: [local, npmjs]
+defaultRegistry: main

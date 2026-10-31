@@ -9,6 +9,7 @@ pub use revision_url::{
     is_on_revision_tarball_route, is_revision_registry_tarball_url, revision_registry_tarball_path,
     revision_registry_tarball_url,
 };
+pub use variants::{SelectedVariant, variant_registry_tarball_url};
 
 use crate::IntegrityTarget;
 use derive_more::{Display, Error, From, Into, TryInto};
@@ -241,6 +242,11 @@ pub struct PlatformAssetTarget {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct PlatformAssetResolution {
+    /// The registry's name for a package platform variant: the archive is
+    /// served at `<registry>/<name>@<version>/variants/<tag>`. Absent for
+    /// runtime archives, whose resolution carries their own URL.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tag: Option<String>,
     pub resolution: LockfileResolution,
     pub targets: Vec<PlatformAssetTarget>,
 }
@@ -255,6 +261,10 @@ pub struct PlatformAssetResolution {
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct VariationsResolution {
     pub variants: Vec<PlatformAssetResolution>,
+    /// The archive a host no variant matches installs: a registry package's
+    /// primary archive. Absent for runtimes, which fail on such a host.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fallback: Option<Box<LockfileResolution>>,
 }
 
 /// The `type` tag of a [`CustomResolution`]. Any tag other than the
@@ -461,6 +471,9 @@ impl LockfileResolution {
         version: &str,
         opts: LockfileFormOptions<'_>,
     ) -> Result<LockfileResolution, LockfileFormError> {
+        if let LockfileResolution::Variations(variations) = self {
+            return variations.to_lockfile_form(name, version, opts).map(LockfileResolution::from);
+        }
         let LockfileResolution::Tarball(tarball) = self else { return Ok(self.clone()) };
         let Some(integrity) = tarball.integrity.as_ref() else {
             return if tarball.revision.is_some() {
@@ -625,6 +638,7 @@ mod tests;
 
 mod registry;
 mod revision_url;
+mod variants;
 
 use registry::is_canonical_registry_tarball_url;
 
