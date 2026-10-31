@@ -33,7 +33,6 @@ pub(super) struct UpToDateCheck<'a> {
     /// not registered in the store.
     pub(super) resolve_only: bool,
     pub(super) disable_optimistic_repeat_install: bool,
-    pub(super) effective_node_version: Option<&'a str>,
 }
 /// Whether nothing has changed since the previous successful install
 /// (settings, workspace structure, manifest mtimes), so the whole pipeline can
@@ -129,7 +128,6 @@ pub(super) fn build_state_allows_short_circuit(
         check.workspace.config,
         check.workspace.lockfile,
         check.workspace.workspace_root,
-        check.effective_node_version,
     )
     .is_err()
     {
@@ -144,7 +142,6 @@ pub(in crate::install) fn gvs_build_markers_complete(
     config: &Config,
     lockfile: pnpm_lockfile::MaybeLazyLockfile<'_>,
     lockfile_root: &Path,
-    effective_node_version: Option<&str>,
 ) -> Result<(), &'static str> {
     if !gvs_build_markers_may_require_recovery(config) {
         return Ok(());
@@ -156,7 +153,7 @@ pub(in crate::install) fn gvs_build_markers_complete(
         .ok_or(
             "the wanted lockfile cannot be read to look for global virtual store build markers",
         )?;
-    if gvs_build_marker_present(wanted, config, lockfile_root, effective_node_version) {
+    if gvs_build_marker_present(wanted, config, lockfile_root) {
         return Err("a global virtual store build marker needs recovery");
     }
     Ok(())
