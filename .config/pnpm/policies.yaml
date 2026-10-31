@@ -39,6 +39,10 @@ auditConfig:
     # objects. No patched release exists upstream; patched locally via
     # .config/pnpm/patches/deepmerge@4.3.1.patch.
     - GHSA-gcqx-w48m-w2h4
+    # GHSA-g3hv-75wg-m249: minimatch ReDoS / path traversal.
+    - GHSA-g3hv-75wg-m249
+    # GHSA-3g3m-2fjr-6pw4: glob AbortSignal cancellation bypass.
+    - GHSA-3g3m-2fjr-6pw4
 
 minimumReleaseAge: 1440 # At least a day
 
