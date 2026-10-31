@@ -69,7 +69,7 @@ async fn abbreviated_packument_without_time_upgrades_to_full_when_trust_policy_i
         .mock("GET", "/acme")
         .match_header(
             "accept",
-            "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*",
+            "application/vnd.pnpr.install-v2+json; q=1.0, application/vnd.npm.install-v1+json; q=0.9, application/json; q=0.8, */*",
         )
         .with_status(200)
         .with_body(super::ABBREVIATED_BODY)

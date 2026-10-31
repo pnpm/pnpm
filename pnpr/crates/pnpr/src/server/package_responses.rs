@@ -210,8 +210,16 @@ pub(super) fn packument_response(
         describe_tars(&mut doc, table, view.tar_registry);
     }
     super::publishing::variants::describe_variants(&mut doc, name.as_str(), tarball_base);
-    let abbreviated = wants_abbreviated(headers);
-    let (body, content_type) = if abbreviated {
+    let split = super::split_packuments::wants_split(headers);
+    let abbreviated = split || wants_abbreviated(headers);
+    let (body, content_type) = if split {
+        let trimmed = abbreviate_packument(&doc, Utc::now());
+        let body = serde_json::to_vec(&trimmed)?;
+        (
+            super::split_packuments::split_body(trimmed, body)?,
+            super::split_packuments::SPLIT_CONTENT_TYPE,
+        )
+    } else if abbreviated {
         let trimmed = abbreviate_packument(&doc, Utc::now());
         (serde_json::to_vec(&trimmed)?, ABBREVIATED_CONTENT_TYPE)
     } else {

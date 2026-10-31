@@ -96,6 +96,18 @@ pub struct PnprDistribution {
     /// place of the primary on a matching host.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub variants: Option<Vec<PnprVariant>>,
+    /// `"external"` when a split packument left this version's dist facts
+    /// (integrities, sizes, bins) in its immutable version document.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub details: Option<String>,
+}
+
+impl PackageDistribution {
+    /// Whether the dist facts are in the version document rather than here.
+    #[must_use]
+    pub fn is_external(&self) -> bool {
+        self.pnpr.as_ref().and_then(|pnpr| pnpr.details.as_deref()) == Some("external")
+    }
 }
 
 /// One platform variant under `dist.pnpr.variants`.
@@ -104,6 +116,8 @@ pub struct PnprDistribution {
 pub struct PnprVariant {
     pub tag: String,
     pub platforms: Vec<PnprVariantPlatform>,
+    /// Absent from a split packument, which keeps it in the version document.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     pub integrity: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tarball: Option<String>,

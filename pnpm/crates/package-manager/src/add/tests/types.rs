@@ -13,7 +13,7 @@ async fn type_discovery_shares_metadata_without_fetching_unused_formats() {
     let mut requests = Vec::new();
     for name in ["foo", "bar", "@types/foo", "@types/bar"] {
         for (full, accept) in [
-            (false, "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*"),
+            (false, "application/vnd.pnpr.install-v2+json; q=1.0, application/vnd.npm.install-v1+json; q=0.9, application/json; q=0.8, */*"),
             (true, "application/json; q=1.0, */*"),
         ] {
             let expected = usize::from(full != name.starts_with("@types/"));

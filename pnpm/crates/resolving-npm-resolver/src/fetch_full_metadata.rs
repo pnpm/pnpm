@@ -37,8 +37,12 @@ use crate::{
 pub(crate) const ACCEPT_FULL_DOC: &str = "application/json; q=1.0, */*";
 
 /// Accept header for the abbreviated `install-v1` packument.
-pub(crate) const ACCEPT_ABBREVIATED_DOC: &str =
-    "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*";
+pub(crate) const ACCEPT_ABBREVIATED_DOC: &str = "application/vnd.pnpr.install-v2+json; q=1.0, \
+     application/vnd.npm.install-v1+json; q=0.9, application/json; q=0.8, */*";
+
+/// Content type of pnpr's split abbreviated packument (proof of concept),
+/// which may leave a version's dist facts in its version document.
+const SPLIT_META_CONTENT_TYPE: &str = "application/vnd.pnpr.install-v2+json";
 
 /// Content type of an abbreviated (install-oriented) packument. A
 /// spec-compliant registry echoes this in the response `Content-Type` when it
@@ -89,7 +93,9 @@ pub(crate) fn is_abbreviated_content_type(headers: &header::HeaderMap) -> bool {
         .and_then(|value| value.to_str().ok())
         .is_some_and(|value| {
             let media_type = value.split_once(';').map_or(value, |(media_type, _)| media_type);
-            media_type.trim().eq_ignore_ascii_case(ABBREVIATED_META_CONTENT_TYPE)
+            let media_type = media_type.trim();
+            media_type.eq_ignore_ascii_case(ABBREVIATED_META_CONTENT_TYPE)
+                || media_type.eq_ignore_ascii_case(SPLIT_META_CONTENT_TYPE)
         })
 }
 

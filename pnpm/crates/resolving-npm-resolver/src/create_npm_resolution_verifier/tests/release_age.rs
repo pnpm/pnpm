@@ -316,7 +316,7 @@ async fn min_age_pass_via_abbreviated_modified_shortcut() {
         .mock("GET", "/acme")
         .match_header(
             "accept",
-            "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*",
+            "application/vnd.pnpr.install-v2+json; q=1.0, application/vnd.npm.install-v1+json; q=0.9, application/json; q=0.8, */*",
         )
         .with_status(200)
         .with_body(
@@ -353,7 +353,7 @@ async fn min_age_shortcut_falls_through_when_modified_within_cutoff() {
         .mock("GET", "/acme")
         .match_header(
             "accept",
-            "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*",
+            "application/vnd.pnpr.install-v2+json; q=1.0, application/vnd.npm.install-v1+json; q=0.9, application/json; q=0.8, */*",
         )
         .with_status(200)
         .with_body(
@@ -403,7 +403,7 @@ async fn min_age_shortcut_falls_through_when_version_not_listed() {
         .mock("GET", "/acme")
         .match_header(
             "accept",
-            "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*",
+            "application/vnd.pnpr.install-v2+json; q=1.0, application/vnd.npm.install-v1+json; q=0.9, application/json; q=0.8, */*",
         )
         .with_status(200)
         // `modified` is old enough, but the abbreviated packument

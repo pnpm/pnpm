@@ -3,8 +3,8 @@ use super::{
     RegistryError, Resolved, Response, Value, addressed_registry, authorize, caller_scoped,
     describe_tar, dist_view, ensure_osv_allowed, extract_upstream_version_manifest,
     extract_version_manifest, is_osv_vulnerable_packument_version, is_tar_registry, not_found,
-    packument_bytes_response, packument_response, publishing::variants::describe_manifest_variants,
-    read_source_packument, registry_endpoint, resolve_version_or_tag, serve_packument_via_upstream,
+    packument_response, publishing::variants::describe_manifest_variants, read_source_packument,
+    registry_endpoint, resolve_version_or_tag, serve_packument_via_upstream,
     serve_tarball_via_upstream, tar_integrities_of, tarball_response,
 };
 use axum::response::IntoResponse;
@@ -86,7 +86,7 @@ pub(super) async fn serve_registry_version_manifest(
     }
     describe_manifest_variants(&mut manifest, name.as_str(), tarball_base);
     match serde_json::to_vec(&manifest) {
-        Ok(body) => packument_bytes_response(body, "application/json", None),
+        Ok(body) => super::split_packuments::version_document_response(body, version_or_tag),
         Err(err) => RegistryError::Json(err).into_response(),
     }
 }

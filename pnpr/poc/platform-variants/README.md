@@ -38,6 +38,44 @@ Not implemented: staged publishing, the `libcVersion`, `osVersion`, `napi`,
 fetching several variants for `supportedArchitectures`, and relinking a
 local virtual store slot when the selection changes.
 
+## Split packuments
+
+Variant integrities make a packument several times larger, because a digest
+does not compress. So the PoC also implements split packuments:
+
+- pnpm asks for `application/vnd.pnpr.install-v2+json` first. pnpr answers
+  with the abbreviated packument. When that is larger than
+  `PNPR_SPLIT_METADATA_THRESHOLD` (default 64 KiB), each version's `dist`
+  moves to its immutable version document `<name>/<version>` and is marked
+  `dist.pnpr.details: "external"`. Only provenance and each variant's `tag`
+  and `platforms` stay inline. A missing `integrity` cannot be the marker,
+  because it already means the integrity is computed while fetching the
+  tarball.
+- Every dist-tag target and the highest release of each major (of each minor
+  below 1.0) keep their `dist` inline (`PNPR_SPLIT_KEEP_LATEST=0` turns this
+  off), so most picks need no second request.
+- pnpm fetches the version document of a picked version marked external, once
+  per install. Version documents are not yet cached on disk.
+
+`bench-split.sh` resolves `bench-app.json` (787 packages, all proxied from
+npmjs) through `shaper.mjs`, a CDN-like proxy that gzips, caches, delays each
+request by a round trip, and caps bandwidth. Every run starts with an empty
+pnpm cache and store. Medians of 3 runs:
+
+| Network | Whole | Split, every version | Split, likely picks inline |
+| --- | --- | --- | --- |
+| 10 ms, 200 Mbit/s, resolve | 1.71 s | 1.15 s | 1.21 s |
+| 40 ms, 50 Mbit/s, resolve | 6.67 s | 4.10 s | 3.98 s |
+| 100 ms, 10 Mbit/s, resolve | 31.89 s | 19.06 s | 19.04 s |
+| 40 ms, 50 Mbit/s, install | 29.89 s | 27.32 s | 27.40 s |
+| Packument bytes (gzip) | 39.2 MB | 22.5 MB | 23.0 MB |
+| Version documents | 0 | 180 (278 KB) | 14 (20 KB) |
+
+180 of the 711 packuments are over the threshold, and they hold most of the
+bytes. The 9 `@next/swc-*` platform packages alone are about 1 MB each, even
+split, since they list thousands of canary versions; as variants of one
+package they would be one document.
+
 ## Reproducing
 
 ```sh

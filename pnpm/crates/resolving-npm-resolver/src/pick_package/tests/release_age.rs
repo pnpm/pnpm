@@ -48,7 +48,7 @@ async fn published_by_triggers_upgrade_when_modified_after_cutoff() {
         .mock("GET", "/acme")
         .match_header(
             "accept",
-            "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*",
+            "application/vnd.pnpr.install-v2+json; q=1.0, application/vnd.npm.install-v1+json; q=0.9, application/json; q=0.8, */*",
         )
         .with_status(200)
         .with_body(ABBREVIATED_BODY)
@@ -123,7 +123,7 @@ async fn published_by_upgrades_metadata_with_partial_time_map() {
         .mock("GET", "/acme")
         .match_header(
             "accept",
-            "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*",
+            "application/vnd.pnpr.install-v2+json; q=1.0, application/vnd.npm.install-v1+json; q=0.9, application/json; q=0.8, */*",
         )
         .with_status(200)
         .with_body(PARTIAL_TIME_PACKAGE_BODY)
@@ -186,7 +186,7 @@ async fn published_by_skips_upgrade_when_modified_equals_cutoff() {
         .mock("GET", "/acme")
         .match_header(
             "accept",
-            "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*",
+            "application/vnd.pnpr.install-v2+json; q=1.0, application/vnd.npm.install-v1+json; q=0.9, application/json; q=0.8, */*",
         )
         .with_status(200)
         .with_body(ABBREVIATED_BODY)
@@ -241,7 +241,7 @@ async fn published_by_exclude_skips_upgrade_for_abbreviated_meta_without_time() 
         .mock("GET", "/acme")
         .match_header(
             "accept",
-            "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*",
+            "application/vnd.pnpr.install-v2+json; q=1.0, application/vnd.npm.install-v1+json; q=0.9, application/json; q=0.8, */*",
         )
         .with_status(200)
         .with_body(ABBREVIATED_BODY)
@@ -455,7 +455,7 @@ async fn published_by_upgrade_answering_200_is_remembered_across_picks() {
         .mock("GET", "/acme")
         .match_header(
             "accept",
-            "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*",
+            "application/vnd.pnpr.install-v2+json; q=1.0, application/vnd.npm.install-v1+json; q=0.9, application/json; q=0.8, */*",
         )
         .with_status(200)
         .with_body(PARTIAL_TIME_PACKAGE_BODY)
@@ -531,7 +531,7 @@ async fn published_by_upgrade_marker_is_scoped_to_document() {
         .mock("GET", "/acme")
         .match_header(
             "accept",
-            "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*",
+            "application/vnd.pnpr.install-v2+json; q=1.0, application/vnd.npm.install-v1+json; q=0.9, application/json; q=0.8, */*",
         )
         .with_status(200)
         .with_header("etag", r#""acme-etag-2""#)

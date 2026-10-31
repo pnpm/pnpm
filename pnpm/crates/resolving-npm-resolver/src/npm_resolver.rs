@@ -19,6 +19,7 @@ pub use release_policy::detect_min_release_age_violation;
 pub use resolution_result::normalize_tarball_url;
 pub(crate) use resolution_result::{RegistryResolutionSource, ResolvedSpecifier, dist_integrity};
 
+pub(crate) use external_dist::with_external_dist;
 pub(crate) use package_revision::validate_revision_selector;
 
 pub(crate) use guarded_pick::{
@@ -28,6 +29,7 @@ pub(crate) use guarded_pick::{
 
 pub(crate) use workspace_pick::{no_matching_version, swallowed_as_no_latest};
 
+mod external_dist;
 mod platform_variants;
 mod release_policy;
 mod resolution_result;
@@ -311,6 +313,7 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             trust_check,
         );
         let picked = pick_from_registry_with_guard(&ctx, pick_opts).await?;
+        let picked = with_external_dist(&ctx, registry, picked).await?;
         if let RegistryPick::Picked(picked) = &picked {
             crate::preferred_overlay::warn_once_on_held_back_update(
                 opts,
