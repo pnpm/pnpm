@@ -109,6 +109,7 @@ pub(super) fn hardened_install_config(
     install_config.frozen_lockfile = Some(false);
     install_config.prefer_frozen_lockfile = false;
     install_config.ignore_scripts = true;
+    install_config.ignore_pnpmfile = true;
     install_config.dangerously_allow_all_builds = false;
     install_config.strict_dep_builds = false;
     install_config.supported_architectures = None;
