@@ -39,6 +39,11 @@ auditConfig:
     # objects. No patched release exists upstream; patched locally via
     # .config/pnpm/patches/deepmerge@4.3.1.patch.
     - GHSA-gcqx-w48m-w2h4
+    # GHSA-g3hv-75wg-m249: minimatch globparts amplification DoS. Patched only in
+    # minimatch 11, which removes makeRe, and eslint-plugin-import-x calls makeRe.
+    # The vulnerable preprocessing runs only at optimizationLevel 2, which only glob
+    # sets, and glob 14 uses minimatch 11. minimatch 3 and 5 lack that code.
+    - GHSA-g3hv-75wg-m249
 
 minimumReleaseAge: 1440 # At least a day
 
@@ -52,7 +57,6 @@ minimumReleaseAgeExclude:
   - comver-to-semver
   - dir-is-case-sensitive
   - '@esbuild/*'
-  - glob@11.1.0
   - is-inner-link
   - is-subdir
   - make-empty-dir
@@ -95,7 +99,7 @@ overrides:
   express@<4.22.1: ^4.22.1
   follow-redirects@<=1.15.5: '>=1.15.6'
   glob-parent@<5.1.2: '>=5.1.2'
-  glob@>=10.3.7 <=11.0.3: '^11.1.0'
+  glob@>=9.0.0 <=14.0.1: '^14.0.2'
   handlebars@>=4.0.0 <4.7.9: '>=4.7.9'
   hosted-git-info@1: 'catalog:'
   istanbul-reports: npm:@zkochan/istanbul-reports
