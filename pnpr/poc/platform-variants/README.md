@@ -51,7 +51,8 @@ does not compress. So the PoC also implements split packuments:
   `PNPR_SPLIT_KEEP_LATEST=0` turns this off). Every other version moves to
   `pnpr.otherVersions` as an object with its `deprecated` notice, trust
   rank, and selected revision, and its publish `time` only if it was
-  published within 30 days of the package's last publish. `pnpr.timesSince`
+  published within 30 days of the package's last publish
+  (`PNPR_SPLIT_TIME_WINDOW_DAYS` makes the window longer, never shorter). `pnpr.timesSince`
   is where that window starts. A client that does not read the map sees only
   complete versions.
 - The rest of a version is its release record at
@@ -64,7 +65,7 @@ does not compress. So the PoC also implements split packuments:
   where the document is parsed, so the picker, the trust policy, and the
   release-age filter read it like any other. A version without a time is
   recorded as published at `timesSince`, which passes any minimum release
-  age up to 30 days. pnpm does not yet reject a longer one, which the RFC
+  age up to 30 days and is what time-based resolution compares too. pnpm does not yet reject a longer one, which the RFC
   requires. It fetches the record of a picked
   other version once per install and takes the deprecation and trust
   evidence from the packument. Records are not yet cached on disk.

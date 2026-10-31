@@ -6,7 +6,7 @@
 //! other version moves to `pnpr.otherVersions`, which keeps only what
 //! picking a version reads and what may change after publication: its
 //! `deprecated` notice, trust rank, and selected revision, and its publish
-//! time if it was published within [`TIME_WINDOW_DAYS`] of the package's last
+//! time if it was published within [`TIME_WINDOW_DAYS`] (30 by default) of the package's last
 //! publish. `pnpr.timesSince` is where that window starts, so an entry
 //! without a time was published before it. The version itself, as its
 //! release record, is in the immutable version document
@@ -53,9 +53,18 @@ static DIST_ONLY: LazyLock<bool> =
     LazyLock::new(|| std::env::var("PNPR_SPLIT_DIST_ONLY").is_ok_and(|value| value == "1"));
 
 /// How far back from a package's last publish the other versions keep their
-/// publish times. pnpm accepts a minimum release age of at most this many
-/// days, so a version older than the window is old enough for any of them.
-const TIME_WINDOW_DAYS: i64 = 30;
+/// publish times, from `PNPR_SPLIT_TIME_WINDOW_DAYS`. pnpm accepts a minimum
+/// release age of at most 30 days, so the window is never shorter: a version
+/// older than it is old enough for any of them.
+static TIME_WINDOW_DAYS: LazyLock<i64> = LazyLock::new(|| {
+    std::env::var("PNPR_SPLIT_TIME_WINDOW_DAYS")
+        .ok()
+        .and_then(|value| value.parse().ok())
+        .map_or(MIN_TIME_WINDOW_DAYS, |days: i64| days.max(MIN_TIME_WINDOW_DAYS))
+});
+
+/// The longest minimum release age pnpm accepts, in days.
+const MIN_TIME_WINDOW_DAYS: i64 = 30;
 
 /// Whether the client's `Accept` header offers the split form.
 pub(super) fn wants_split(headers: &HeaderMap) -> bool {
@@ -140,7 +149,7 @@ fn times_since(
         .keys()
         .filter_map(|version| parse_time(time.get(version)?))
         .max()?;
-    Some(last - Duration::days(TIME_WINDOW_DAYS))
+    Some(last - Duration::days(*TIME_WINDOW_DAYS))
 }
 
 fn parse_time(value: &Value) -> Option<DateTime<FixedOffset>> {
