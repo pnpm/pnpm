@@ -210,7 +210,6 @@ fn check_fast_path_repeat_install(
             check.config,
             MaybeLazyLockfile::Lazy(inputs.lockfile),
             inputs.lockfile_root,
-            super::effective_node_version(check.config, check.manifest).as_deref(),
         ),
         OptimisticRepeatInstallDecision::Skipped { reason } => Err(reason),
     }

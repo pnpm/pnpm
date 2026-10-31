@@ -326,7 +326,6 @@ fn gvs_build_markers_complete_refuses_missing_wanted_lockfile() {
             &config,
             MaybeLazyLockfile::Loaded(None),
             dir.path(),
-            None,
         ),
         Err("the wanted lockfile cannot be read to look for global virtual store build markers"),
     );
