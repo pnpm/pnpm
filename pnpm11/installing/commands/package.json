@@ -65,6 +65,7 @@
     "@pnpm/installing.dedupe.check": "workspace:*",
     "@pnpm/installing.dedupe.issues-renderer": "workspace:*",
     "@pnpm/installing.deps-installer": "workspace:*",
+    "@pnpm/installing.deps-resolver": "workspace:*",
     "@pnpm/installing.env-installer": "workspace:*",
     "@pnpm/installing.modules-yaml": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",

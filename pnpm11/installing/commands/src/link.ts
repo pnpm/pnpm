@@ -12,6 +12,7 @@ import { arrayOfWorkspacePackagesToMap } from '@pnpm/installing.context'
 import type {
   WorkspacePackages,
 } from '@pnpm/installing.deps-installer'
+import { isValidDependencyAlias } from '@pnpm/installing.deps-resolver'
 import { DEPENDENCIES_FIELDS, type Project, type ProjectManifest } from '@pnpm/types'
 import { findWorkspaceProjects } from '@pnpm/workspace.projects-reader'
 import normalize from 'normalize-path'
@@ -123,13 +124,7 @@ export async function handler (
   }
 
   const newManifest = opts.rootProjectManifest ?? {}
-  await Promise.all(
-    pkgPaths.map(async (dir) => {
-      await addLinkToManifest(opts, newManifest, dir, opts.rootProjectManifestDir)
-      await checkPeerDeps(dir, opts)
-    })
-  )
-
+  await addLinksToManifest(opts, newManifest, pkgPaths)
   await writeProjectManifest(newManifest)
   await install.handler({
     ...linkOpts,
@@ -139,9 +134,36 @@ export async function handler (
   })
 }
 
-async function addLinkToManifest (opts: LinkOpts, manifest: ProjectManifest, linkedDepDir: string, manifestDir: string) {
-  const { manifest: linkedManifest } = await tryReadProjectManifest(linkedDepDir, opts)
-  const linkedPkgName = linkedManifest?.name ?? path.basename(linkedDepDir)
+async function addLinksToManifest (opts: LinkOpts, manifest: ProjectManifest, pkgPaths: string[]): Promise<void> {
+  // Every name is checked before the first link is written.
+  const linkedPkgs = await Promise.all(
+    pkgPaths.map(async (dir) => ({ dir, name: await readLinkedPkgName(dir, opts) }))
+  )
+  await Promise.all(
+    linkedPkgs.map(async (linkedPkg) => {
+      await addLinkToManifest(opts, manifest, linkedPkg, opts.rootProjectManifestDir)
+      await checkPeerDeps(linkedPkg.dir, opts)
+    })
+  )
+}
+
+async function readLinkedPkgName (linkedDepDir: string, opts: LinkOpts): Promise<string> {
+  const { manifest } = await tryReadProjectManifest(linkedDepDir, opts)
+  const name = manifest?.name ?? path.basename(linkedDepDir)
+  if (!isValidDependencyAlias(name)) {
+    throw new PnpmError('INVALID_DEPENDENCY_NAME', `Cannot link "${linkedDepDir}" under the invalid package name ${JSON.stringify(name)}`, {
+      hint: 'A package is linked under the "name" field of its package.json, or under its directory name if it has no "name" field. That name must be a valid npm package name.',
+    })
+  }
+  return name
+}
+
+async function addLinkToManifest (
+  opts: LinkOpts,
+  manifest: ProjectManifest,
+  { dir: linkedDepDir, name: linkedPkgName }: { dir: string, name: string },
+  manifestDir: string
+) {
   const linkedPkgSpec = `link:${normalize(path.relative(manifestDir, linkedDepDir))}`
   opts.overrides = {
     ...opts.overrides,

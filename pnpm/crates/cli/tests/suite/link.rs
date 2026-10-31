@@ -281,6 +281,10 @@ fn link_refuses_invalid_target_name_without_writing() {
 
     let manifest = serde_json::json!({ "name": "test-project", "version": "1.0.0" }).to_string();
     fs::write(workspace.join("package.json"), &manifest).expect("write package.json");
+    let read_workspace_yaml = || {
+        fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read pnpm-workspace.yaml")
+    };
+    let workspace_yaml = read_workspace_yaml();
 
     let target_dir = root.path().join("invalid-name");
     fs::create_dir_all(&target_dir).expect("create target dir");
@@ -302,7 +306,7 @@ fn link_refuses_invalid_target_name_without_writing() {
         fs::read_to_string(workspace.join("package.json")).expect("read package.json"),
         manifest,
     );
-    assert!(!workspace.join("pnpm-workspace.yaml").exists());
+    assert_eq!(read_workspace_yaml(), workspace_yaml);
 
     drop((root, mock_instance));
 }
