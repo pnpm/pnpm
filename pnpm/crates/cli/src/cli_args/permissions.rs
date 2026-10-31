@@ -8,8 +8,8 @@ use crate::{
     State,
     cli_args::{
         approve_builds::{
-            ApproveBuildsArgs, config_with_install_approvals, confirm, partition_params,
-            prompt_for_choices,
+            ApproveBuildsArgs, config_with_install_approvals, confirm, disambiguated_labels,
+            partition_params, prompt_for_choices,
         },
         ignored_builds::{IgnoredBuildsScan, get_automatically_ignored_builds},
         rebuild::{RebuildSelection, run_rebuild},
@@ -98,8 +98,8 @@ pub(crate) fn pending_permissions(config: &Config) -> miette::Result<PendingPerm
 }
 
 use decisions::{
-    capability_list, clear_decided, confirmation, decisions_by_approval, named_decisions,
-    pending_builds_approved, write_decisions,
+    capability_list, clear_decided, confirmation, decisions_by_approval, decisions_for_all,
+    named_decisions, pending_builds_approved, write_decisions,
 };
 
 impl ApproveArgs {
@@ -164,11 +164,7 @@ impl ApproveArgs {
         }
         if self.all {
             return Ok(Some(Approval {
-                decisions: decisions_by_approval(
-                    &pending.keys().cloned().collect(),
-                    pending,
-                    &BTreeMap::new(),
-                ),
+                decisions: decisions_for_all(pending),
                 skills_dirs: Vec::new(),
             }));
         }
@@ -194,22 +190,11 @@ impl ApproveArgs {
 }
 
 pub(crate) fn package_choices(pending: &BTreeMap<String, Capabilities>) -> Vec<(String, String)> {
-    let mut counts = BTreeMap::<String, usize>::new();
-    for pkg in pending.keys() {
-        *counts
-            .entry(short_package_label(pkg))
-            .or_default() += 1;
-    }
+    let labels = disambiguated_labels(pending.keys().map(String::as_str));
     pending
         .iter()
         .map(|(pkg, capabilities)| {
-            let base = short_package_label(pkg);
-            let label = if counts.get(&base).copied().unwrap_or(0) > 1 {
-                format!("{base} [{pkg}]")
-            } else {
-                base
-            };
-            (pkg.clone(), format!("{label}  {}", capability_list(capabilities)))
+            (pkg.clone(), format!("{}  {}", labels[pkg.as_str()], capability_list(capabilities)))
         })
         .collect()
 }
@@ -260,10 +245,13 @@ fn review_skills(
             .get(pkg.as_str())
             .cloned()
             .unwrap_or_default();
-        let Some(decision) = prompt_for_package_skills(pkg, &skills)? else {
-            return Ok(None);
-        };
-        skills_by_package.insert(pkg.clone(), decision);
+        match prompt_for_package_skills(pkg, &skills)? {
+            SkillPromptOutcome::Cancelled => return Ok(None),
+            SkillPromptOutcome::Undiscovered => {}
+            SkillPromptOutcome::Decided(decision) => {
+                skills_by_package.insert(pkg.clone(), decision);
+            }
+        }
     }
 
     let dirs = if config.skills_dirs.is_none()
@@ -282,12 +270,22 @@ fn review_skills(
     Ok(Some(SkillsReview { skills_by_package, dirs }))
 }
 
-fn prompt_for_package_skills(
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) enum SkillPromptOutcome {
+    /// The user selected skills or unselected all of them.
+    Decided(SkillsPermission),
+    /// No skills were discovered for this package, so it cannot be reviewed.
+    Undiscovered,
+    /// The user cancelled the prompt.
+    Cancelled,
+}
+
+pub(crate) fn prompt_for_package_skills(
     pkg: &str,
     skills: &[String],
-) -> miette::Result<Option<SkillsPermission>> {
+) -> miette::Result<SkillPromptOutcome> {
     if skills.is_empty() {
-        return Ok(None);
+        return Ok(SkillPromptOutcome::Undiscovered);
     }
     let choices: Vec<(String, String)> = skills
         .iter()
@@ -295,14 +293,14 @@ fn prompt_for_package_skills(
         .collect();
     let prompt = format!("Choose which of {}'s agent skills to link", short_package_label(pkg));
     let Some(selected) = prompt_for_choices(&prompt, &choices)? else {
-        return Ok(None);
+        return Ok(SkillPromptOutcome::Cancelled);
     };
     let decision = if selected.is_empty() {
         SkillsPermission::All(false)
     } else {
         SkillsPermission::Chosen(selected)
     };
-    Ok(Some(decision))
+    Ok(SkillPromptOutcome::Decided(decision))
 }
 
 fn prompt_for_skills_dirs(detected_dirs: &[String]) -> miette::Result<Option<Vec<String>>> {

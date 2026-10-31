@@ -125,10 +125,30 @@ pub(super) fn named_decisions<Reporter: self::Reporter>(
         .collect())
 }
 
+/// The decisions for `--all`: every capability of every pending package is
+/// approved.
+pub(super) fn decisions_for_all(pending: &BTreeMap<String, Capabilities>) -> Decisions {
+    pending
+        .iter()
+        .map(|(pkg, capabilities)| {
+            (
+                pkg.clone(),
+                PackageDecisions {
+                    build: capabilities.contains(&PermissionCapability::Build).then_some(true),
+                    skills: capabilities
+                        .contains(&PermissionCapability::Skills)
+                        .then_some(SkillsPermission::All(true)),
+                },
+            )
+        })
+        .collect()
+}
+
 /// A decision for every pending capability of the packages named in
 /// `approved`; the packages left out are denied, so they are not offered
-/// again. A package the skills review decided keeps its decision — the
-/// all-or-nothing one is written only when the review did not ask.
+/// again. An approved package whose skills were reviewed takes the
+/// chosen decision; an approved package whose skills could not be
+/// discovered leaves them undecided so they remain pending.
 pub(super) fn decisions_by_approval(
     approved: &BTreeSet<String>,
     pending: &BTreeMap<String, Capabilities>,
@@ -138,18 +158,18 @@ pub(super) fn decisions_by_approval(
         .iter()
         .map(|(pkg, capabilities)| {
             let value = approved.contains(pkg);
+            let skills = if value {
+                skills_by_package.get(pkg).cloned()
+            } else {
+                capabilities
+                    .contains(&PermissionCapability::Skills)
+                    .then_some(SkillsPermission::All(false))
+            };
             (
                 pkg.clone(),
                 PackageDecisions {
                     build: capabilities.contains(&PermissionCapability::Build).then_some(value),
-                    skills: skills_by_package
-                        .get(pkg)
-                        .cloned()
-                        .or_else(|| {
-                            capabilities
-                                .contains(&PermissionCapability::Skills)
-                                .then_some(SkillsPermission::All(value))
-                        }),
+                    skills,
                 },
             )
         })

@@ -263,17 +263,20 @@ pub(crate) fn partition_params(
     partition
 }
 
-/// Turn `keys` into `(key, label)` choices for a checkbox prompt,
-/// keeping choices with colliding short labels distinguishable by
-/// appending their approval key.
-pub(crate) fn build_choices(keys: &[String]) -> Vec<(String, String)> {
+/// Given package keys, format each into a short label, appending
+/// `[{key}]` if the short label collides with another key's.
+pub(crate) fn disambiguated_labels<'a>(
+    keys: impl IntoIterator<Item = &'a str>,
+) -> BTreeMap<&'a str, String> {
+    let items: Vec<&'a str> = keys.into_iter().collect();
     let mut counts = std::collections::BTreeMap::<String, usize>::new();
-    for key in keys {
+    for &key in &items {
         *counts
             .entry(short_package_label(key))
             .or_default() += 1;
     }
-    keys.iter()
+    items
+        .into_iter()
         .map(|key| {
             let base = short_package_label(key);
             let label = if counts.get(&base).copied().unwrap_or(0) > 1 {
@@ -281,8 +284,18 @@ pub(crate) fn build_choices(keys: &[String]) -> Vec<(String, String)> {
             } else {
                 base
             };
-            (key.clone(), label)
+            (key, label)
         })
+        .collect()
+}
+
+/// Turn `keys` into `(key, label)` choices for a checkbox prompt,
+/// keeping choices with colliding short labels distinguishable by
+/// appending their approval key.
+pub(crate) fn build_choices(keys: &[String]) -> Vec<(String, String)> {
+    let labels = disambiguated_labels(keys.iter().map(String::as_str));
+    keys.iter()
+        .map(|key| (key.clone(), labels[key.as_str()].clone()))
         .collect()
 }
 
