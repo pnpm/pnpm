@@ -14,21 +14,22 @@ pub(crate) fn format_cargo_saved_spec(
     {
         bail!("Cargo --save-prefix must be empty, ^, ~, or =");
     }
-    if existing_raw.trim().starts_with('=') && !save_exact {
-        return Ok(format!("={}", without_build_metadata(resolved)));
-    }
+    let resolved = without_build_metadata(resolved);
     if save_exact {
-        return Ok(format!("={}", without_build_metadata(resolved)));
-    }
-    if let Some(prefix) = save_prefix {
-        return Ok(format!("{prefix}{}", without_build_metadata(resolved)));
+        return Ok(format!("={resolved}"));
     }
     if let Some(spec) = explicit_spec
         && spec.starts_with(['^', '~', '=', '>', '<'])
     {
         return Ok(spec.to_string());
     }
-    Ok(format_existing_cargo_spec(existing_raw, &without_build_metadata(resolved)))
+    if existing_raw.trim().starts_with('=') {
+        return Ok(format!("={resolved}"));
+    }
+    if let Some(prefix) = save_prefix {
+        return Ok(format!("{prefix}{resolved}"));
+    }
+    Ok(format_existing_cargo_spec(existing_raw, &resolved))
 }
 
 fn without_build_metadata(version: &Version) -> Version {

@@ -7,11 +7,11 @@ import type { CommandFullName, RecursiveOptions, RecursiveResult } from './recur
 
 export type { CommandFullName, RecursiveOptions, RecursiveResult } from './recursive/options.js'
 export {
+  addIgnorePatterns,
   createMatcher,
   createUpdateMatching,
   expandUpdateSelectorsForMatching,
   failOnVersionsOfIndirectUpdateSpecs,
-  makeIgnorePatterns,
   matchDependencies,
   parseUpdateParam,
   type UpdateDepsMatcher,

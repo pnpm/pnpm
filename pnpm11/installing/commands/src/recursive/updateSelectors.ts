@@ -201,6 +201,12 @@ export function expandUpdateSelectorsForMatching (selector: string): string[] {
   return [selector, aliasSpec]
 }
 
-export function makeIgnorePatterns (ignoredDependencies: string[]): string[] {
-  return ignoredDependencies.map(depName => `!${depName}`)
+/**
+ * `updateConfig.ignoreDependencies` applies unless a selector names a
+ * dependency to update. Negated selectors only narrow the update, so they
+ * keep the ignored dependencies out too.
+ */
+export function addIgnorePatterns (params: string[], ignoredDependencies: string[] | undefined): string[] {
+  if (!ignoredDependencies?.length || !params.every(param => param.startsWith('!'))) return params
+  return [...params, ...ignoredDependencies.map(depName => `!${depName}`)]
 }

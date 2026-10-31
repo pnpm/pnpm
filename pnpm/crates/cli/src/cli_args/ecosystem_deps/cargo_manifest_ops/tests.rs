@@ -17,6 +17,20 @@ fn format_cargo_saved_spec_preserves_exact_requirements() {
 }
 
 #[test]
+fn format_cargo_saved_spec_prefers_an_explicit_range_over_an_exact_requirement() {
+    let saved = format_cargo_saved_spec(
+        "=1.3.1",
+        &Version::parse("2.0.0").unwrap(),
+        Some("^2.0.0"),
+        false,
+        Some("^"),
+    )
+    .unwrap();
+
+    assert_eq!(saved, "^2.0.0");
+}
+
+#[test]
 fn format_cargo_saved_spec_omits_build_metadata() {
     let saved = format_cargo_saved_spec(
         "1.1.8+spec-1.1.0",
