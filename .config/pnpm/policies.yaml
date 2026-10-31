@@ -39,6 +39,17 @@ auditConfig:
     # objects. No patched release exists upstream; patched locally via
     # .config/pnpm/patches/deepmerge@4.3.1.patch.
     - GHSA-gcqx-w48m-w2h4
+    # GHSA-g3hv-75wg-m249: minimatch pattern amplification DoS. Patched only in 11,
+    # which removes makeRe and parses to non-RegExp parts that glob 11 and 13 do not
+    # match. minimatch 3 and 5 lack the vulnerable code, and minimatch 10 runs it
+    # only at optimizationLevel 2, which only glob sets. The pnpm bundle reaches glob
+    # only through @npmcli/package-json, which passes fixed patterns, and cacache,
+    # whose globbing functions it never calls.
+    - GHSA-g3hv-75wg-m249
+    # GHSA-3g3m-2fjr-6pw4: glob keeps walking directories after its AbortSignal
+    # fires. Patched only in glob 14. No caller passes glob a signal. rimraf
+    # forwards one only in glob mode, which no script here enables.
+    - GHSA-3g3m-2fjr-6pw4
 
 minimumReleaseAge: 1440 # At least a day
 
