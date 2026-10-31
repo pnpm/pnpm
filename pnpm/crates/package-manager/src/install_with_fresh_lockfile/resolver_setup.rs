@@ -506,13 +506,21 @@ async fn load_pnpmfile(
             );
             InstallWithFreshLockfileError::CustomFetcherHook(err)
         })?;
-    Ok(PnpmfileLoad {
-        hook: Some(hook),
-        custom_resolvers,
-        custom_fetcher_session: (!fetchers.is_empty()).then(|| {
-            Arc::new(pnpm_deps_restorer::CustomFetcherSession::with_config(fetchers, config))
-        }),
-    })
+    let custom_fetcher_session = custom_fetcher_session(fetchers, config)?;
+    Ok(PnpmfileLoad { hook: Some(hook), custom_resolvers, custom_fetcher_session })
+}
+
+fn custom_fetcher_session(
+    fetchers: Vec<Arc<dyn pnpm_hooks::CustomFetcher>>,
+    config: &Config,
+) -> Result<Option<Arc<pnpm_deps_restorer::CustomFetcherSession>>, InstallWithFreshLockfileError> {
+    if fetchers.is_empty() {
+        return Ok(None);
+    }
+    pnpm_deps_restorer::CustomFetcherSession::with_config(fetchers, config)
+        .map(Arc::new)
+        .map(Some)
+        .map_err(InstallWithFreshLockfileError::AllowBuildsPolicy)
 }
 
 mod prior_tarballs;

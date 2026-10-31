@@ -1,9 +1,14 @@
 //! The native callbacks a hook's `fetch` makes through its `cafs` and
 //! `fetchers` arguments.
 
+mod native;
+
 use super::{TarballLocation, failure, fetch_location};
-use crate::{InstallPackageBySnapshotError, install_package_by_snapshot::walk_directory};
+use crate::{
+    AllowBuildPolicy, InstallPackageBySnapshotError, install_package_by_snapshot::walk_directory,
+};
 use miette::Diagnostic;
+use pnpm_config::{Config, PmOnFail};
 use pnpm_directory_fetcher::CopyFiles;
 use pnpm_fs::lexical_normalize;
 use pnpm_hooks::{CustomFetcher, FetcherCallback, FetcherMethod};
@@ -17,11 +22,75 @@ use std::{
     sync::Arc,
 };
 
+pub(super) struct NativeFetcherSettings {
+    ignore_scripts: bool,
+    unsafe_perm: bool,
+    user_agent: String,
+    pm_on_fail: Option<String>,
+    git_shallow_hosts: Vec<String>,
+    allow_build_policy: AllowBuildPolicy,
+}
+
+impl NativeFetcherSettings {
+    pub(super) fn from_config(config: &Config) -> Result<Self, crate::VersionPolicyError> {
+        Ok(Self {
+            ignore_scripts: config.ignore_scripts,
+            unsafe_perm: config.unsafe_perm,
+            user_agent: config.user_agent.clone(),
+            pm_on_fail: config.pm_on_fail.map(PmOnFail::as_str).map(ToString::to_string),
+            git_shallow_hosts: config.git_shallow_hosts.clone(),
+            allow_build_policy: AllowBuildPolicy::from_config(config)?,
+        })
+    }
+}
+
+#[derive(Clone)]
+pub(crate) struct NativeFetcherResult {
+    pub(crate) files_map: HashMap<String, PathBuf>,
+    pub(crate) integrity: Option<String>,
+    pub(crate) local: bool,
+    pub(crate) manifest: Option<Value>,
+    pub(crate) requires_build: bool,
+    pub(crate) bins: Option<std::collections::BTreeMap<String, pnpm_package_manifest::PackageBin>>,
+}
+
+impl NativeFetcherResult {
+    fn value(&self) -> Value {
+        serde_json::json!({
+            "filesMap": &self.files_map,
+            "integrity": &self.integrity,
+            "local": self.local,
+            "manifest": &self.manifest,
+            "requiresBuild": self.requires_build,
+        })
+    }
+
+    fn from_files(files_map: HashMap<String, PathBuf>, integrity: Option<String>) -> Self {
+        let manifest = pnpm_package_manifest::read_package_json_from_cas_paths(&files_map);
+        let requires_build = pnpm_package_manifest::requires_build_from_cas_paths(&files_map);
+        let bins = manifest
+            .as_ref()
+            .and_then(|manifest| {
+                pnpm_package_manifest::resolve_package_bins_from_cas_paths(manifest, &files_map)
+            });
+        Self { files_map, integrity, local: false, manifest, requires_build, bins }
+    }
+}
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct ReturnedNativeFiles {
+    pub(super) files_map: HashMap<String, PathBuf>,
+    pub(super) integrity: Option<String>,
+}
+
 /// What the native callbacks of one fetch run against.
 pub(super) struct NativeCallbacks<'a> {
     pub(super) download: &'a IngestTarballToStore<'a>,
     pub(super) lockfile_dir: &'a Path,
     pub(super) files: CopyFiles,
+    pub(super) settings: Option<&'a NativeFetcherSettings>,
+    pub(super) git_source_cache: &'a pnpm_git_fetcher::GitSourceCache,
 }
 
 /// What the native callbacks of one fetch produced. A hook may only return
@@ -30,6 +99,7 @@ pub(super) struct NativeCallbacks<'a> {
 pub(super) struct Verified {
     pub(super) archives: Vec<Arc<FetchedTarball>>,
     pub(super) directories: Vec<WalkedDirectory>,
+    pub(super) packages: Vec<NativeFetcherResult>,
 }
 
 /// A directory the `fetchers.directory` callback walked, with the install
@@ -93,6 +163,9 @@ async fn run_callback<Reporter: self::Reporter>(
         FetcherMethod::TempDir => return temp_dir(download).await,
         FetcherMethod::Directory => {
             return walk_callback_directory(native, callback, &mut verified.directories);
+        }
+        FetcherMethod::GitHostedTarball | FetcherMethod::Git | FetcherMethod::Binary => {
+            return native::run_native_callback::<Reporter>(native, callback, verified).await;
         }
         FetcherMethod::LocalTarball => true,
         FetcherMethod::RemoteTarball => false,

@@ -28,6 +28,7 @@ use std::{
 pub(super) struct CustomFetched {
     resolution: Option<LockfileResolution>,
     cas_paths: Option<HashMap<String, PathBuf>>,
+    extracted: ExtractedPackageMetadata,
     /// See [`crate::SlotImportSource::source_exists`].
     source_exists: bool,
 }
@@ -198,7 +199,7 @@ impl InstallPackageBySnapshot<'_> {
         // lockfile entry says otherwise.
         let source_is_mutable = matches!(resolution, LockfileResolution::Directory(_));
         let (cas_paths, extracted, source_exists) = match custom.cas_paths {
-            Some(paths) => (paths, ExtractedPackageMetadata::default(), custom.source_exists),
+            Some(paths) => (paths, custom.extracted, custom.source_exists),
             None => {
                 self.fetch_cas_paths::<Reporter>(SnapshotFetch {
                     package_key,
@@ -235,6 +236,14 @@ impl InstallPackageBySnapshot<'_> {
         metadata: &'d PackageMetadata,
         package_id: &'d str,
     ) -> IngestTarballToStore<'d> {
+        let mut download = self.empty_ingest(package_id);
+        download.package.integrity_kind =
+            metadata.resolution.integrity_target(self.ctx.config.lockfile_integrity_target).into();
+        download.package.integrity = metadata.resolution.checkable_integrity();
+        download
+    }
+
+    pub(super) fn empty_ingest<'d>(&'d self, package_id: &'d str) -> IngestTarballToStore<'d> {
         let config = self.ctx.config;
         IngestTarballToStore {
             fetching: pnpm_tarball::ArchiveFetchOptions {
@@ -245,10 +254,8 @@ impl InstallPackageBySnapshot<'_> {
                 tar_limits: config.tar_limits(),
             },
             package: pnpm_tarball::TarballPackage {
-                integrity_kind: metadata.resolution
-                    .integrity_target(config.lockfile_integrity_target)
-                    .into(),
-                integrity: metadata.resolution.checkable_integrity(),
+                integrity_kind: pnpm_tarball::IntegrityKind::Resource,
+                integrity: None,
                 unpacked_size: None,
                 file_count: None,
                 url: "",
