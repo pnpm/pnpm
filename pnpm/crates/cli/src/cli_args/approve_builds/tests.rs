@@ -127,13 +127,13 @@ fn build_choices_distinguishes_colliding_labels() {
         vec![
             (
                 "foo@https://codeload.github.com/org1/foo/tar.gz/1".to_string(),
-                "foo (git) [foo@https://codeload.github.com/org1/foo/tar.gz/1]".to_string()
+                "foo (git) [foo@https://codeload.github.com/org1/foo/tar.gz/1]".to_string(),
             ),
             (
                 "foo@https://codeload.github.com/org2/foo/tar.gz/2".to_string(),
-                "foo (git) [foo@https://codeload.github.com/org2/foo/tar.gz/2]".to_string()
+                "foo (git) [foo@https://codeload.github.com/org2/foo/tar.gz/2]".to_string(),
             ),
             ("bar@1.0.0".to_string(), "bar".to_string()),
-        ]
+        ],
     );
 }
