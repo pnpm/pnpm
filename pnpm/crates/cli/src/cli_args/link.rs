@@ -6,6 +6,7 @@ use miette::{Context, Diagnostic};
 use pnpm_config::Config;
 use pnpm_package_manager::{Install, ProjectMutation, linked_peer_dependencies_warning};
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_package_name::is_valid_dependency_alias;
 use pnpm_reporter::Reporter;
 use pnpm_workspace_manifest_writer::set_overrides;
 use std::{
@@ -32,6 +33,13 @@ pub enum LinkError {
         #[error(not(source))]
         name: String,
     },
+
+    #[display(r#"Cannot link "{dir}" under the invalid package name {name:?}"#)]
+    #[diagnostic(
+        code(ERR_PNPM_INVALID_DEPENDENCY_NAME),
+        help(r#"A package is linked under the "name" field of its package.json. That name must be a valid npm package name."#)
+    )]
+    InvalidName { dir: String, name: String },
 }
 
 const DEPENDENCY_FIELDS: [&str; 3] = ["optionalDependencies", "dependencies", "devDependencies"];
@@ -188,6 +196,9 @@ fn link_target(
         .as_str()
         .ok_or_else(|| miette::miette!("Target package does not have a name field"))?
         .to_string();
+    if !is_valid_dependency_alias(&package_name) {
+        return Err(LinkError::InvalidName { dir: path_str.to_string(), name: package_name }.into());
+    }
     Ok((target_dir, package_name, target_manifest))
 }
 

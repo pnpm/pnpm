@@ -5827,6 +5827,9 @@ importers:
       '@pnpm/installing.deps-installer':
         specifier: workspace:*
         version: link:../deps-installer
+      '@pnpm/installing.deps-resolver':
+        specifier: workspace:*
+        version: link:../deps-resolver
       '@pnpm/installing.env-installer':
         specifier: workspace:*
         version: link:../env-installer

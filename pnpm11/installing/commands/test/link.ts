@@ -48,6 +48,10 @@ test('linking multiple packages', async () => {
 
   project.has('linked-foo')
   project.has('linked-bar')
+  expect(readYamlFileSync<{ overrides?: Record<string, string> }>('pnpm-workspace.yaml').overrides).toStrictEqual({
+    'linked-foo': 'link:../linked-foo',
+    'linked-bar': 'link:../linked-bar',
+  })
 })
 
 test('link global bin', async function () {
@@ -209,6 +213,48 @@ test('link fails if nothing is linked', async () => {
       globalPkgDir: '',
     }, [])
   ).rejects.toThrow(/You must provide a parameter/)
+})
+
+test.each<{ linked: string, linkedManifest: { name?: string, version: string } }>([
+  { linked: '.', linkedManifest: { version: '1.0.0' } },
+  { linked: './linked', linkedManifest: { name: 'mcp-use server', version: '1.0.0' } },
+])('link refuses the invalid package name of $linked without writing anything', async ({ linked, linkedManifest }) => {
+  prepareEmpty()
+  const rootProjectManifest = { version: '1.0.0' }
+  writePackageSync('.', rootProjectManifest)
+  writePackageSync(linked, linkedManifest)
+
+  await expect(
+    link.handler({
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+      rootProjectManifest,
+      rootProjectManifestDir: process.cwd(),
+    }, [linked])
+  ).rejects.toMatchObject({ code: 'ERR_PNPM_INVALID_DEPENDENCY_NAME' })
+
+  expect(JSON.parse(fs.readFileSync('package.json', 'utf8'))).toStrictEqual({ version: '1.0.0' })
+  expect(fs.existsSync('pnpm-workspace.yaml')).toBe(false)
+})
+
+test('link checks every package name before writing any link', async () => {
+  prepareEmpty()
+  const rootProjectManifest = { version: '1.0.0' }
+  writePackageSync('.', rootProjectManifest)
+  writePackageSync('valid', { name: 'valid', version: '1.0.0' })
+  writePackageSync('invalid', { name: 'mcp-use server', version: '1.0.0' })
+
+  await expect(
+    link.handler({
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+      rootProjectManifest,
+      rootProjectManifestDir: process.cwd(),
+    }, ['./valid', './invalid'])
+  ).rejects.toMatchObject({ code: 'ERR_PNPM_INVALID_DEPENDENCY_NAME' })
+
+  expect(JSON.parse(fs.readFileSync('package.json', 'utf8'))).toStrictEqual({ version: '1.0.0' })
+  expect(fs.existsSync('pnpm-workspace.yaml')).toBe(false)
 })
 
 test('logger warns about peer dependencies when linking', async () => {
