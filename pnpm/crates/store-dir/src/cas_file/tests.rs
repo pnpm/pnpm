@@ -144,7 +144,7 @@ fn write_cas_file_from_reader_matches_write_cas_file() {
                 .permissions()
                 .mode();
             assert_eq!(
-                pnpm_fs::file_mode::is_executable(mode),
+                pnpm_fs::file_mode::is_executable(pnpm_fs::FileMode::from_mode(mode)),
                 executable,
                 "streamed CAS file mode {mode:o} must match executable = {executable}",
             );

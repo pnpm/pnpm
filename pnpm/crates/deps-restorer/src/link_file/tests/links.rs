@@ -283,7 +283,8 @@ fn eacces_from_both_link_tiers_copies_at_the_store_entry_mode() {
     let src = write_source(tmp.path(), "source-exec", b"executable");
     // A mode-matching source is what drives the link attempt (and its
     // EACCES); the store-entry mode is what the copy tier then lands.
-    let expected = pnpm_fs::file_mode::store_entry_mode(true, pnpm_fs::file_mode::current_umask());
+    let expected =
+        pnpm_fs::file_mode::store_entry_mode(true, pnpm_fs::file_mode::current_umask()).mode();
     fs::set_permissions(&src, fs::Permissions::from_mode(expected)).unwrap();
 
     for first_tier in [LINK_STATE_CLONE, LINK_STATE_HARDLINK] {
