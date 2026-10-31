@@ -150,9 +150,9 @@ fn short_with_conflicting_arity_moves_with_the_value_its_command_reads() {
 #[test]
 fn short_with_conflicting_arity_takes_a_command_name_as_its_value() {
     assert_eq!(
-        relocate(&["pnpm", "-d", "edit", "patch", "foo"]),
-        ["pnpm", "patch", "-d", "edit", "foo"],
-        "`edit` does not declare -d, so `patch -d` reads `edit` as its value",
+        relocate(&["pnpm", "-d", "store", "patch", "foo"]),
+        ["pnpm", "patch", "-d", "store", "foo"],
+        "`store` does not declare -d, so `patch -d` reads `store` as its value",
     );
     assert_eq!(
         relocate(&["pnpm", "-d", "add", "foo"]),

@@ -2,7 +2,7 @@ pub(super) use maintenance::{
     approve, approve_builds, dedupe, deploy, env, fetch, import, link, permissions, prune, rebuild,
     runtime, unlink,
 };
-pub(super) use patches::{patch, patch_commit, patch_remove};
+pub(super) use patches::{edit, patch, patch_commit, patch_remove};
 pub(super) use pipeline::{install_test, pipeline};
 
 use super::{
@@ -15,6 +15,7 @@ use super::{
     deploy::DeployArgs,
     dispatch::{CommandFuture, RunCtx, apply_update_config},
     dlx::DlxArgs,
+    edit::EditArgs,
     env::{EnvArgs, EnvSubcommand},
     fetch::FetchArgs,
     global,
