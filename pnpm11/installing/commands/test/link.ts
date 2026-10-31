@@ -211,6 +211,28 @@ test('link fails if nothing is linked', async () => {
   ).rejects.toThrow(/You must provide a parameter/)
 })
 
+test.each([
+  { linked: '.', linkedManifest: { version: '1.0.0' } },
+  { linked: './linked', linkedManifest: { name: 'mcp-use server', version: '1.0.0' } },
+])('link refuses the invalid package name of $linked without writing anything', async ({ linked, linkedManifest }) => {
+  prepareEmpty()
+  const rootProjectManifest = { version: '1.0.0' }
+  writePackageSync('.', rootProjectManifest)
+  writePackageSync(linked, linkedManifest)
+
+  await expect(
+    link.handler({
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+      rootProjectManifest,
+      rootProjectManifestDir: process.cwd(),
+    }, [linked])
+  ).rejects.toMatchObject({ code: 'ERR_PNPM_INVALID_DEPENDENCY_NAME' })
+
+  expect(JSON.parse(fs.readFileSync('package.json', 'utf8'))).toStrictEqual({ version: '1.0.0' })
+  expect(fs.existsSync('pnpm-workspace.yaml')).toBe(false)
+})
+
 test('logger warns about peer dependencies when linking', async () => {
   prepare()
 
