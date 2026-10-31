@@ -205,6 +205,25 @@ fn the_list_keeps_pending_packages_with_one_short_label_apart() {
     );
 }
 
+#[test]
+fn the_list_labels_a_short_label_apart_across_sections() {
+    let modules_dir = tempfile::tempdir().unwrap();
+    let config = Config {
+        modules_dir: modules_dir.path().to_path_buf(),
+        allow_builds: [
+            ("foo@https://codeload.github.com/org1/foo/tar.gz/1".to_string(), true),
+            ("foo@https://codeload.github.com/org2/foo/tar.gz/2".to_string(), false),
+        ]
+        .into(),
+        ..Config::default()
+    };
+
+    assert_eq!(
+        render_permissions(&config).unwrap(),
+        "Granted:\n  foo (git) [foo@https://codeload.github.com/org1/foo/tar.gz/1]  build\n\nDenied:\n  foo (git) [foo@https://codeload.github.com/org2/foo/tar.gz/2]  build\n",
+    );
+}
+
 #[tokio::test]
 async fn approve_run_with_no_pending_and_no_packages_is_a_noop() {
     let dir = tempfile::tempdir().unwrap();

@@ -16,7 +16,7 @@ use pnpm_workspace_manifest_writer::{PermissionValue, set_permissions};
 #[cfg(not(target_family = "wasm"))]
 use std::io::IsTerminal;
 use std::{
-    collections::{BTreeMap, HashSet},
+    collections::{BTreeMap, BTreeSet, HashSet},
     path::Path,
 };
 #[cfg(target_family = "wasm")]
@@ -264,11 +264,12 @@ pub(crate) fn partition_params(
 }
 
 /// Given package keys, format each into a short label, appending
-/// `[{key}]` if the short label collides with another key's.
+/// `[{key}]` if the short label collides with another key's. A key given
+/// twice is one key.
 pub(crate) fn disambiguated_labels<'a>(
     keys: impl IntoIterator<Item = &'a str>,
 ) -> BTreeMap<&'a str, String> {
-    let items: Vec<&'a str> = keys.into_iter().collect();
+    let items: BTreeSet<&'a str> = keys.into_iter().collect();
     let mut counts = std::collections::BTreeMap::<String, usize>::new();
     for &key in &items {
         *counts

@@ -9,11 +9,16 @@ pub(crate) fn render_permissions(config: &Config) -> miette::Result<String> {
     populate_skills_permissions(&config.allow_skills, &mut granted, &mut denied);
 
     let pending = pending_permissions_section(config)?;
+    let sections = [("Granted", &granted), ("Denied", &denied), ("Awaiting approval", &pending)];
+    let labels = disambiguated_labels(
+        sections
+            .iter()
+            .flat_map(|(_, section)| section.keys())
+            .map(String::as_str),
+    );
     let mut output = String::new();
-    for (title, section) in
-        [("Granted", &granted), ("Denied", &denied), ("Awaiting approval", &pending)]
-    {
-        render_section(&mut output, title, section);
+    for (title, section) in sections {
+        render_section(&mut output, title, section, &labels);
     }
     if output.is_empty() {
         output.push_str("No packages have been approved, denied, or are awaiting approval\n");
@@ -71,16 +76,20 @@ fn pending_permissions_section(config: &Config) -> miette::Result<BTreeMap<Strin
         .collect())
 }
 
-/// One line per key of `section`, labelled as the approval prompts label
-/// it, so keys sharing a short label stay separate lines.
-fn render_section(output: &mut String, title: &str, section: &BTreeMap<String, Vec<String>>) {
+/// One line per key of `section`, under its label from `labels`, so keys
+/// sharing a short label stay distinguishable in and across sections.
+fn render_section(
+    output: &mut String,
+    title: &str,
+    section: &BTreeMap<String, Vec<String>>,
+    labels: &BTreeMap<&str, String>,
+) {
     if section.is_empty() {
         return;
     }
     if !output.is_empty() {
         output.push('\n');
     }
-    let labels = disambiguated_labels(section.keys().map(String::as_str));
     let mut rows: Vec<(&str, String)> = section
         .iter()
         .map(|(key, capabilities)| (labels[key.as_str()].as_str(), capabilities.join(", ")))
