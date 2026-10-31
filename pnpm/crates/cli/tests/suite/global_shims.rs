@@ -302,7 +302,7 @@ fn a_runtime_install_skips_the_global_pnpmfile() {
     fs::write(
         &pnpmfile,
         format!(
-            "require('fs').writeFileSync({marker:?}, '')\nmodule.exports = {{ hooks: {{}} }}\n"
+            "require('fs').writeFileSync({marker:?}, '')\nmodule.exports = {{ hooks: {{}} }}\n",
         ),
     )
     .unwrap();
