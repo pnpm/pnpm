@@ -137,3 +137,16 @@ fn conservative_merge_keeps_the_deny_then_the_first_decision() {
     first.upsert_conservative("foo@1.0.0".to_string(), &SkillsPermission::All(true));
     assert_eq!(first["foo@1.0.0"], chosen(&["guide"]), "the first seen decision that links wins");
 }
+
+#[test]
+fn deterministic_collapsed_key_merge_regardless_of_input_order() {
+    let policy_a = policy(&[
+        ("foo@1.0.0 || 2.0.0", chosen(&["guide"])),
+        ("foo@2.0.0", SkillsPermission::All(true)),
+    ]);
+    let policy_b = policy(&[
+        ("foo@2.0.0", SkillsPermission::All(true)),
+        ("foo@1.0.0 || 2.0.0", chosen(&["guide"])),
+    ]);
+    assert_eq!(policy_a.check("foo@2.0.0"), policy_b.check("foo@2.0.0"));
+}

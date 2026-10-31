@@ -193,6 +193,38 @@ fn a_block_valued_hand_written_dirs_is_replaced() {
     );
 }
 
+#[test]
+fn rejects_control_character_in_chosen_skill() {
+    let dir = TempDir::new().expect("temp dir");
+    let err = crate::set_permissions(dir.path(), [("foo", chosen(&["guide\ninjected: true"]))])
+        .expect_err("refuse the write");
+    assert!(err.to_string().contains("control character"), "{err:#}");
+}
+
+#[test]
+fn rejects_inline_block_in_set_skills_dirs() {
+    let dir = TempDir::new().expect("temp dir");
+    let path = dir.path().join(WORKSPACE_MANIFEST_FILENAME);
+    fs::write(&path, "{ skills: { dirs: [] } }\n").expect("seed manifest");
+    let err = crate::set_skills_dirs(dir.path(), &[".claude/skills".to_string()])
+        .expect_err("refuse inline block");
+    assert!(err.to_string().contains("inline"), "{err:#}");
+}
+
+#[test]
+fn removes_dirs_entry_while_preserving_other_skills_settings() {
+    let original = "skills:\n  other: value\n  dirs:\n    - .claude/skills\n";
+    let out = run_skills_dirs(Some(original), &[]);
+    assert_eq!(out.as_deref(), Some("skills:\n  other: value\n"));
+}
+
+#[test]
+fn upserts_dirs_into_existing_skills_block_with_other_entries() {
+    let original = "skills:\n  other: value\n";
+    let out = run_skills_dirs(Some(original), &[".claude/skills".to_string()]);
+    assert_eq!(out.as_deref(), Some("skills:\n  dirs:\n    - .claude/skills\n  other: value\n"),);
+}
+
 /// Run `set_skills_dirs` against `original` (when `Some`) and return the
 /// resulting file contents.
 fn run_skills_dirs(original: Option<&str>, dirs: &[String]) -> Option<String> {
