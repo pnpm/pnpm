@@ -384,6 +384,24 @@ fn a_prefixed_fallback_name_may_still_be_occupied() {
     assert_eq!(fs::read_to_string(skills.join("pnpm-foo-guide/SKILL.md")).unwrap(), "mine");
 }
 
+#[test]
+fn an_occupied_fallback_keeps_the_existing_links() {
+    let (root, lockfile) = workspace(&[("foo", "1.0.0", &["guide"]), ("bar", "1.0.0", &["guide"])]);
+    let skills = root.path().join(".claude/skills");
+    fs::create_dir_all(&skills).unwrap();
+    let linked =
+        sync(root.path(), &lockfile, &config(&[("foo", true)], None), &[], None).unwrap().linked;
+    assert_eq!(linked, [".claude/skills/guide"]);
+    fs::create_dir_all(skills.join("pnpm-bar-guide")).unwrap();
+
+    let error =
+        sync(root.path(), &lockfile, &config(&[("foo", true), ("bar", true)], None), &linked, None)
+            .expect_err("the fallback name of bar is taken");
+
+    assert!(matches!(error, AgentSkillsError::Occupied { .. }));
+    assert!(skills.join("guide/SKILL.md").is_file());
+}
+
 #[cfg(unix)]
 #[test]
 fn replaces_a_dangling_link() {

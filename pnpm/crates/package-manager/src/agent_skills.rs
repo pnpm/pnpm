@@ -39,20 +39,22 @@ pub(crate) fn agent_skill_targets_changed(config: &Config, workspace_root: &Path
 mod discovery;
 mod gitignore;
 mod installed;
+mod links;
 mod targets;
 
 use crate::{SkillsPolicy, VersionPolicyError};
 use derive_more::{Display, Error};
 use discovery::{Skill, SkillSource, discover_skill_sources};
 use gitignore::update_gitignores;
+use links::{ensure_unoccupied, is_occupied, materialize, prune};
 use miette::Diagnostic;
 use pnpm_config::{Config, SkillsPermission};
 use pnpm_lockfile::Lockfile;
 use pnpm_modules_yaml::IncludedDependencies;
 use std::{
     collections::{BTreeMap, BTreeSet, btree_map},
-    fs, io,
-    path::{Component, Path, PathBuf},
+    io,
+    path::{Path, PathBuf},
 };
 
 /// The prefix of every entry pnpm links into an agent skill directory.
@@ -190,8 +192,14 @@ pub fn sync_agent_skills(
     }
     let entries = link_entries(input, &dirs, &approved)?;
     let desired = desired_entries(input.workspace_root, &dirs, &entries);
+    ensure_unoccupied(
+        input.workspace_root,
+        input.linked,
+        &desired,
+        input.config.virtual_store_dir(),
+    )?;
     prune(input.workspace_root, input.linked, &desired.keys().cloned().collect())?;
-    materialize(input.workspace_root, input.linked, &desired, input.config.virtual_store_dir())?;
+    materialize(input.workspace_root, &desired)?;
     update_gitignores(input.workspace_root, &dirs, input.linked, &desired)?;
     let mut pending: Vec<String> = pending_sources
         .into_iter()
@@ -368,138 +376,6 @@ fn desired_entries(
 pub(super) fn recorded_path(workspace_root: &Path, path: &Path) -> String {
     let path = path.strip_prefix(workspace_root).unwrap_or(path);
     path.to_string_lossy().replace('\\', "/")
-}
-
-fn prune(
-    workspace_root: &Path,
-    linked: &[String],
-    keep: &BTreeSet<String>,
-) -> Result<(), AgentSkillsError> {
-    for entry in linked
-        .iter()
-        .filter(|entry| !keep.contains(*entry))
-        .filter(|entry| is_within_workspace(entry))
-    {
-        let path = workspace_root.join(entry);
-        if links_to_a_package_skill(&path) {
-            remove_link(&path).map_err(|source| AgentSkillsError::Io { path, source })?;
-        }
-    }
-    Ok(())
-}
-
-/// `.modules.yaml` is not trusted to name only pnpm's entries, so pnpm
-/// touches only a relative entry reached without `..`.
-fn is_within_workspace(entry: &str) -> bool {
-    Path::new(entry)
-        .components()
-        .all(|component| matches!(component, Component::Normal(_)))
-}
-
-/// Whether `path` is a link to `node_modules/**/skills/<skill>`, as every
-/// link pnpm creates is, even after `node_modules` is removed.
-fn links_to_a_package_skill(path: &Path) -> bool {
-    let Ok(target) = fs::read_link(path) else { return false };
-    let in_skills_dir = target
-        .ancestors()
-        .any(|ancestor| {
-            ancestor
-                .file_name()
-                .is_some_and(|name| name == "skills")
-        });
-    in_skills_dir
-        && target
-            .components()
-            .any(|component| component.as_os_str() == "node_modules")
-}
-
-/// Remove a link or junction without following it. Anything else at the path
-/// was put there by someone other than pnpm and is left alone.
-fn remove_link(path: &Path) -> io::Result<()> {
-    match pnpm_fs::is_symlink_or_junction(path) {
-        Ok(true) => pnpm_fs::remove_symlink_dir(path),
-        Ok(false) => Ok(()),
-        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(error),
-    }
-}
-
-fn materialize(
-    workspace_root: &Path,
-    linked: &[String],
-    desired: &BTreeMap<String, PathBuf>,
-    virtual_store_dir: &Path,
-) -> Result<(), AgentSkillsError> {
-    for (entry, target) in desired {
-        let path = workspace_root.join(entry);
-        if is_occupied(&path, target, linked.contains(entry), virtual_store_dir) {
-            return Err(AgentSkillsError::Occupied { path });
-        }
-    }
-    for (entry, target) in desired {
-        let path = workspace_root.join(entry);
-        create_link(target, &path).map_err(|source| AgentSkillsError::Io { path, source })?;
-    }
-    Ok(())
-}
-
-/// Whether `path` holds something pnpm must not replace. pnpm replaces only
-/// a link: one it recorded, one that already resolves to `target`, one that
-/// resolves to nothing, as a link into a removed `node_modules` does, or one
-/// that resolves to the same skill of another copy of the package in
-/// `virtual_store_dir`, such as a peer variant that has left the lockfile.
-fn is_occupied(path: &Path, target: &Path, recorded: bool, virtual_store_dir: &Path) -> bool {
-    if fs::symlink_metadata(path).is_err() {
-        return false;
-    }
-    let replaceable = pnpm_fs::is_symlink_or_junction(path).unwrap_or(false)
-        && (recorded
-            || links_to(path, target)
-            || fs::metadata(path).is_err()
-            || links_to_same_skill_in(path, target, virtual_store_dir));
-    !replaceable
-}
-
-/// The link target is relative and `target` is canonical, so the link is
-/// placed through the canonical form of its directory. Otherwise a symlink
-/// in the workspace path, such as `/var` on macOS, leaves it dangling.
-fn create_link(target: &Path, path: &Path) -> io::Result<()> {
-    let (Some(dir), Some(name)) = (path.parent(), path.file_name()) else {
-        return Err(io::Error::from(io::ErrorKind::InvalidInput));
-    };
-    pnpm_fs::force_symlink_dir(target, &fs::canonicalize(dir)?.join(name)).map(drop)
-}
-
-/// Whether `path` resolves inside `virtual_store_dir` to a path ending in
-/// the `node_modules/<name>/skills/<skill>` of `target`.
-fn links_to_same_skill_in(path: &Path, target: &Path, virtual_store_dir: &Path) -> bool {
-    let Some(skill_path) = skill_path_from_modules_dir(target) else { return false };
-    matches!(
-        (fs::canonicalize(path), fs::canonicalize(virtual_store_dir)),
-        (Ok(resolved), Ok(store)) if resolved.starts_with(&store) && resolved.ends_with(skill_path),
-    )
-}
-
-/// `node_modules/<name>/skills/<skill>` of `<dir>/node_modules/<name>/skills/<skill>`,
-/// nested categories included: the canonical form of every copy of the skill
-/// in the virtual store ends with it.
-fn skill_path_from_modules_dir(target: &Path) -> Option<&Path> {
-    let modules_dir = target
-        .ancestors()
-        .find(|dir| {
-            dir.file_name()
-                .is_some_and(|name| name == "node_modules")
-        })?;
-    target
-        .strip_prefix(modules_dir.parent()?)
-        .ok()
-}
-
-fn links_to(path: &Path, target: &Path) -> bool {
-    matches!(
-        (fs::canonicalize(path), fs::canonicalize(target)),
-        (Ok(resolved), Ok(target)) if resolved == target,
-    )
 }
 
 #[cfg(test)]
