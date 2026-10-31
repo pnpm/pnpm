@@ -269,6 +269,49 @@ fn link_fails_target_no_name() {
 }
 
 #[test]
+fn link_refuses_invalid_target_name_without_writing() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let manifest = serde_json::json!({ "name": "test-project", "version": "1.0.0" }).to_string();
+    fs::write(workspace.join("package.json"), &manifest).expect("write package.json");
+    let read_workspace_yaml = || {
+        fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read pnpm-workspace.yaml")
+    };
+    let workspace_yaml = read_workspace_yaml();
+
+    let target_dir = root.path().join("invalid-name");
+    fs::create_dir_all(&target_dir).expect("create target dir");
+    fs::write(
+        target_dir.join("package.json"),
+        serde_json::json!({ "name": "mcp-use server", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write target package.json");
+
+    let output = pacquet
+        .with_arg("link")
+        .with_arg("../invalid-name")
+        .output()
+        .expect("spawn");
+    assert!(!output.status.success(), "link to a target with an invalid name must fail");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("ERR_PNPM_INVALID_DEPENDENCY_NAME"), "stderr: {stderr}");
+    assert_eq!(
+        fs::read_to_string(workspace.join("package.json")).expect("read package.json"),
+        manifest,
+    );
+    assert_eq!(read_workspace_yaml(), workspace_yaml);
+
+    drop((root, mock_instance));
+}
+
+#[test]
 fn ln_alias_succeeds_with_valid_target() {
     let CommandTempCwd {
         pacquet,
