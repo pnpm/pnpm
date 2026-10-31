@@ -272,8 +272,6 @@ pub enum CliCommand {
     Profile(ProfileArgs),
     /// Manage authentication tokens on the registry.
     Token(TokenArgs),
-    /// Not implemented in pnpm. Use the npm CLI directly.
-    Xmas(NotImplementedArgs),
     #[clap(external_subcommand)]
     External(Vec<String>),
 }
