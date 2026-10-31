@@ -193,3 +193,11 @@ fn detected_agent_dirs_offers_standard_dirs_and_existing_directories() {
     assert!(detected.contains(&".cursor/skills".to_string()));
     assert!(detected.contains(&".custom-agent/skills".to_string()));
 }
+
+#[test]
+fn detected_agent_dirs_includes_active_agent_target() {
+    let workspace = tempfile::tempdir().expect("create workspace tempdir");
+    let detected =
+        super::detected_agent_dirs_with_agent(workspace.path(), Some(".custom-env-agent/skills"));
+    assert!(detected.contains(&".custom-env-agent/skills".to_string()));
+}

@@ -181,3 +181,102 @@ fn the_list_shows_a_git_package_by_short_label() {
         "Awaiting approval:\n  mattpocock-skills (git)  skills\n\nRun \"pnpm approve\" to review the packages awaiting approval.\n",
     );
 }
+
+#[tokio::test]
+async fn approve_run_with_no_pending_and_no_packages_is_a_noop() {
+    let dir = tempfile::tempdir().unwrap();
+    let config =
+        Config::leak(Config { modules_dir: dir.path().join("node_modules"), ..Config::new() });
+    let manifest = dir.path().join("package.json");
+    fs::write(&manifest, "{}\n").unwrap();
+
+    let result = args(&[], false).run::<SilentReporter>(dir.path(), config, &manifest).await;
+    assert!(result.is_ok());
+}
+
+#[tokio::test]
+async fn approve_run_denying_package_writes_decisions_and_exits() {
+    let dir = tempfile::tempdir().unwrap();
+    let workspace_manifest = dir.path().join("pnpm-workspace.yaml");
+    fs::write(&workspace_manifest, "packages:\n  - .\n").unwrap();
+    let config = Config::leak(Config {
+        workspace_dir: Some(dir.path().to_path_buf()),
+        modules_dir: dir.path().join("node_modules"),
+        ..Config::new()
+    });
+    let manifest = dir.path().join("package.json");
+    fs::write(&manifest, "{}\n").unwrap();
+
+    let result = args(&["!foo"], false).run::<SilentReporter>(dir.path(), config, &manifest).await;
+    assert!(result.is_ok());
+    let written = fs::read_to_string(&workspace_manifest).unwrap();
+    assert!(written.contains("foo"));
+}
+
+#[test]
+fn pending_builds_approved_filters_only_approved_build_requests() {
+    let mut decisions = BTreeMap::new();
+    decisions.insert("foo".to_string(), decided(Some(true), None));
+    decisions.insert("bar".to_string(), decided(Some(false), None));
+    decisions.insert("baz".to_string(), decided(Some(true), None));
+
+    let pending = pending(&[("foo", &[Build]), ("bar", &[Build])]);
+    let approved = super::decisions::pending_builds_approved(&decisions, &pending);
+    assert_eq!(approved, vec!["foo".to_string()]);
+}
+
+#[test]
+fn prompt_for_package_skills_with_empty_skills_returns_all_true() {
+    let decision = super::prompt_for_package_skills("foo", &[]).unwrap();
+    assert_eq!(decision, Some(SkillsPermission::All(true)));
+}
+
+#[test]
+fn review_skills_with_no_pending_skills_returns_empty_review() {
+    let approved = std::collections::BTreeSet::from(["esbuild".to_string()]);
+    let pending = pending(&[("esbuild", &[Build])]);
+    let review =
+        super::review_skills(decide_config(), Path::new("/workspace"), &approved, &pending)
+            .unwrap()
+            .unwrap();
+    assert!(review.skills_by_package.is_empty());
+    assert!(review.dirs.is_empty());
+}
+
+#[test]
+fn clear_decided_removes_decided_entries_from_modules_manifest() {
+    let dir = tempfile::tempdir().unwrap();
+    let modules_dir = dir.path().join("node_modules");
+    fs::create_dir_all(&modules_dir).unwrap();
+    let modules = pnpm_modules_yaml::Modules {
+        ignored_builds: Some(indexmap::IndexSet::from([pnpm_modules_yaml::DepPath::from(
+            "foo@1.0.0".to_string(),
+        )])),
+        pending_skills: Some(indexmap::IndexSet::from([pnpm_modules_yaml::DepPath::from(
+            "bar@1.0.0".to_string(),
+        )])),
+        ..Default::default()
+    };
+    pnpm_modules_yaml::write_modules_manifest::<pnpm_modules_yaml::Host>(&modules_dir, modules)
+        .unwrap();
+
+    let scan = crate::cli_args::ignored_builds::IgnoredBuildsScan {
+        modules_dir: modules_dir.clone(),
+        modules_manifest: pnpm_modules_yaml::read_modules_manifest::<pnpm_modules_yaml::Host>(
+            &modules_dir,
+        )
+        .unwrap(),
+        names: None,
+    };
+    let mut decisions = BTreeMap::new();
+    decisions.insert("foo".to_string(), decided(Some(true), None));
+    decisions.insert("bar".to_string(), decided(None, Some(SkillsPermission::All(true))));
+
+    super::decisions::clear_decided(scan, &decisions).unwrap();
+
+    let updated = pnpm_modules_yaml::read_modules_manifest::<pnpm_modules_yaml::Host>(&modules_dir)
+        .unwrap()
+        .unwrap();
+    assert!(updated.ignored_builds.is_none());
+    assert!(updated.pending_skills.is_none());
+}

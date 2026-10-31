@@ -105,3 +105,11 @@ fn overlays_the_manifests_skills_dirs() {
         Some(pnpm_config::SkillsPermission::All(true)),
     );
 }
+
+#[test]
+fn confirm_builds_prompt_formats_short_labels() {
+    assert_eq!(
+        super::confirm_builds_prompt(&["esbuild@0.25.0".to_string(), "sharp".to_string()]),
+        "Build esbuild, sharp?",
+    );
+}

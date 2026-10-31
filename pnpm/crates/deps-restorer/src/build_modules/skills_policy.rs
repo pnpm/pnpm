@@ -73,7 +73,9 @@ impl SkillsPolicy {
         approvals: &HashMap<String, SkillsPermission>,
     ) -> Result<Self, VersionPolicyError> {
         let mut keys = SkillsKeys::default();
-        for (spec, decision) in approvals {
+        let mut ordered: Vec<(&String, &SkillsPermission)> = approvals.iter().collect();
+        ordered.sort_by(|left, right| left.0.cmp(right.0));
+        for (spec, decision) in ordered {
             keys.add(spec, decision);
         }
         let mut expanded: HashMap<String, SkillsPermission> = HashMap::new();

@@ -301,14 +301,15 @@ fn collect_skill_entry(
     depth: usize,
     found: &mut Vec<Skill>,
 ) {
-    let path = entry.path();
-    if !path.is_dir() {
-        return;
-    }
     let Ok(name) = entry.file_name().into_string() else { return };
     if name.starts_with('.') || name.chars().any(char::is_control) {
         return;
     }
+    let Ok(file_type) = entry.file_type() else { return };
+    if !file_type.is_dir() {
+        return;
+    }
+    let path = entry.path();
     let dir_relative = relative.join(&name);
     if path.join("SKILL.md").is_file() {
         found.push(Skill { name, dir: dir_relative });
