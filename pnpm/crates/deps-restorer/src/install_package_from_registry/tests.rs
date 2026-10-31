@@ -36,6 +36,7 @@ fn create_config(
         tools: std::collections::BTreeMap::new(),
         indexes_by_ecosystem: std::collections::BTreeMap::new(),
         network_concurrency_by_registry: std::collections::BTreeMap::new(),
+        publish_branch: None,
         bail: true,
         ci: false,
         source_date_epoch: None,

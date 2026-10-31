@@ -95,19 +95,18 @@ function mergeImporters (
   ourImporters: Record<ProjectId, ProjectSnapshot>,
   theirImporters: Record<ProjectId, ProjectSnapshot>
 ): Record<ProjectId, ProjectSnapshot> {
-  const merged: Record<ProjectId, ProjectSnapshot> = {}
   const allIds = Array.from(new Set([
     ...Object.keys(ourImporters),
     ...Object.keys(theirImporters),
   ])) as ProjectId[]
 
-  for (const id of allIds) {
-    merged[id] = mergeSingleImporter(
+  return Object.fromEntries(allIds.map(id => [
+    id,
+    mergeSingleImporter(
       Object.hasOwn(ourImporters, id) ? ourImporters[id] : undefined,
       Object.hasOwn(theirImporters, id) ? theirImporters[id] : undefined
-    )
-  }
-  return merged
+    ),
+  ]))
 }
 
 function mergeSingleImporter (

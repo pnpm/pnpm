@@ -425,8 +425,10 @@ fn make_shims_absolute_and_move(location: &Path, name: &str) -> PathBuf {
                 .display(),
         );
         let body = fs::read_to_string(&shim).expect("read the shim");
-        assert!(body.contains("$basedir_abs/"), "a relocatable shim: {body}");
-        fs::write(&shim, body.replace("$basedir_abs/", &shim_dir)).expect("write an absolute shim");
+        assert!(body.contains(r#""$basedir_abs"/"#), "a relocatable shim: {body}");
+        let absolute_shim_dir = format!("'{}'", shim_dir.replace('\'', r"'\''"));
+        fs::write(&shim, body.replace(r#""$basedir_abs"/"#, &absolute_shim_dir))
+            .expect("write an absolute shim");
     }
     let moved = location.with_file_name(name);
     fs::rename(location, &moved).expect("move the workspace");

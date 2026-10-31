@@ -13,6 +13,27 @@ import { cmdShim } from '@pnpm/bins.cmd-shim'
 const describeOnWindows = process.platform === 'win32' ? describe : describe.skip
 const describeOnPosix = process.platform === 'win32' ? describe.skip : describe
 
+describeOnPosix('shell shim paths with shell metacharacters', () => {
+  test('runs a target from a directory named with command substitution syntax', async () => {
+    const tempDir = temporaryDirectory()
+    try {
+      const hostile = '$(touch marker) `touch marker` $ " q\''
+      const targetDir = path.join(tempDir, 'bin', '$basedir_abs', hostile)
+      fs.mkdirSync(targetDir, { recursive: true })
+      const target = path.join(targetDir, 'cli.js')
+      const shim = path.join(tempDir, 'bin', 'shim')
+      fs.writeFileSync(target, '#!/usr/bin/env node\nprocess.stdout.write(`${process.env.NODE_PATH}|SHIM_OK`)\n', 'utf8')
+      await cmdShim(target, shim, { nodePath: [targetDir] })
+      const result = spawnSync(shim, [], { cwd: tempDir, encoding: 'utf8', env: { ...process.env, NODE_PATH: '' } })
+      assert.equal(result.status, 0, `stdout: ${result.stdout}\nstderr: ${result.stderr}`)
+      assert.equal(result.stdout, `${targetDir}|SHIM_OK`)
+      assert.equal(fs.existsSync(path.join(tempDir, 'marker')), false)
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true })
+    }
+  })
+})
+
 describeOnWindows('CMD shims with Unicode paths', () => {
   for (const codepage of [437, 936, 65001]) {
     for (const exitCode of [0, 7]) {

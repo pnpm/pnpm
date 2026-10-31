@@ -405,6 +405,38 @@ fn global_add_materializes_transitive_optional_dependencies() {
     drop(root);
 }
 
+/// A global group's packages live in the global virtual store, where Node
+/// cannot walk up to the group's hidden hoisted modules dir. The bin shim
+/// puts that dir on `NODE_PATH`, so a package that requires a dependency it
+/// does not declare still finds it (a native addon loader requiring its
+/// parent's platform package, for example).
+#[cfg(unix)]
+#[test]
+fn global_bin_resolves_hoisted_dependencies() {
+    use assert_cmd::assert::OutputAssertExt;
+
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let pnpm_home = root.path().join("pnpm-home");
+    prepare_global_home(&pnpm_home, &npmrc_info);
+
+    global_command(&workspace, &pnpm_home)
+        .with_args(["add", "-g", "@pnpm.e2e/bin-requires-hoisted-dep"])
+        .assert()
+        .success();
+
+    let output = Command::new(pnpm_home.join("bin/bin-requires-hoisted-dep"))
+        .current_dir(&workspace)
+        .env_remove("NODE_PATH")
+        .output()
+        .expect("run the installed global bin");
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "@pnpm.e2e/dep-of-pkg-with-1-dep\n");
+
+    drop(npmrc_info);
+    drop(root);
+}
+
 /// `pnpm setup` installs the standalone executable through this exact
 /// command shape. Its package files include the bundled node-gyp payload,
 /// while its lifecycle scripts must remain disabled.
@@ -1472,3 +1504,6 @@ mod ownership;
 
 #[cfg(unix)]
 mod virtual_store;
+
+#[cfg(unix)]
+mod peers;

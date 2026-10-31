@@ -81,10 +81,41 @@ pub(crate) fn supports_features(package: &RegistryVersion, selection: &FeatureSe
         implicit_optional_aliases(&package.dependencies, &package.features);
     selection.features
         .iter()
-        .all(|feature| {
-            package.features.contains_key(feature)
-                || implicit_optional_aliases.contains(feature.as_str())
+        .all(|feature| defines_feature(package, &implicit_optional_aliases, feature))
+}
+
+/// The entries of `features` that `package` does not define. An entry
+/// naming a feature of one of its dependencies (`dep/feature`) counts as
+/// defined while `package` still has that dependency; the dependency's own
+/// feature is left for Cargo to check.
+pub(crate) fn missing_features<'a>(
+    package: &RegistryVersion,
+    features: &'a [String],
+) -> Vec<&'a str> {
+    let implicit_optional_aliases =
+        implicit_optional_aliases(&package.dependencies, &package.features);
+    features
+        .iter()
+        .map(String::as_str)
+        .filter(|feature| match feature.split_once('/') {
+            Some((alias, _)) => !has_dependency(package, alias.trim_end_matches('?')),
+            None => !defines_feature(package, &implicit_optional_aliases, feature),
         })
+        .collect()
+}
+
+fn has_dependency(package: &RegistryVersion, alias: &str) -> bool {
+    package.dependencies
+        .iter()
+        .any(|dependency| dependency.alias == alias)
+}
+
+fn defines_feature(
+    package: &RegistryVersion,
+    implicit_optional_aliases: &BTreeSet<&str>,
+    feature: &str,
+) -> bool {
+    package.features.contains_key(feature) || implicit_optional_aliases.contains(feature)
 }
 
 pub(crate) fn dependencies_from_parts(

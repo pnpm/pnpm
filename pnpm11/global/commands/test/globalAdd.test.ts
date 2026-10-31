@@ -160,6 +160,7 @@ test('global add does not inspect survivors when every replaced bin is retained'
     pkgs: [],
     binsToSkip: new Set(),
     requiredBinNames: new Set(['pnpm']),
+    nodePathOptions: expect.any(Object),
   })
   expect(cleanupReplacedGlobalInstalls).toHaveBeenCalledWith({
     groups: [{ info: existingPnpm, binNames: ['pnpm'] }],

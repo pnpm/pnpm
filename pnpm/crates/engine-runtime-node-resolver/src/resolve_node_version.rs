@@ -10,7 +10,7 @@
 //!   newest build on a prerelease channel such as `nightly`).
 //! - `lts` — the newest entry tagged with any LTS codename.
 //! - An LTS codename (`argon`, `iron`, ...) — `*` within that codename.
-//! - A semver range — pick the [`max_satisfying`] version.
+//! - A semver range — pick the [`max_satisfying_stable_first`] version.
 
 use std::sync::Arc;
 
@@ -101,7 +101,7 @@ pub async fn resolve_node_version_with_auth(
         return Ok(latest_version(&all_versions));
     }
     let (versions, range) = filter_versions(&all_versions, version_spec);
-    Ok(max_satisfying(&versions, &range))
+    Ok(max_satisfying_stable_first(&versions, &range))
 }
 
 /// Pick every Node.js version a selector accepts against a mirror.
@@ -256,6 +256,17 @@ fn filter_versions(versions: &[NodeVersion], version_selector: &str) -> (Vec<Str
 /// LTS-codename branch, and codenames are alphabetic.
 fn is_dist_tag(selector: &str) -> bool {
     Version::parse(selector).is_err() && Range::parse(selector).is_err()
+}
+
+fn max_satisfying_stable_first(versions: &[String], range: &str) -> Option<String> {
+    let stable_versions: Vec<String> = versions
+        .iter()
+        .filter(|version| {
+            Version::parse(version).is_ok_and(|parsed| parsed.pre_release.is_empty())
+        })
+        .cloned()
+        .collect();
+    max_satisfying(&stable_versions, range).or_else(|| max_satisfying(versions, range))
 }
 
 fn max_satisfying(versions: &[String], range: &str) -> Option<String> {

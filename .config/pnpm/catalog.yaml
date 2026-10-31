@@ -178,7 +178,7 @@ catalog:
   memfs: ^4.80.0
   memoize: ^11.0.0
   micromatch: ^4.0.8
-  msgpackr: 2.1.2
+  msgpackr: 2.1.3
   nm-prune: ^5.0.0
   # node-gyp 13 (with its nopt 10 and which 7 dependencies) requires Node.js
   # ^22.22.2 || ^24.15.0 || >=26.0.0, above pnpm's supported floor of >=22.13.

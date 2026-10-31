@@ -1,7 +1,7 @@
 use super::SyncAgentSkills;
 use crate::{
-    allow_build_key_from_ignored_build, importer_root_dir, is_git_hosted_dep_path,
-    normalize_build_dep_path, selected_groups,
+    allow_build_key_from_ignored_build, importer_root_dir, normalize_build_dep_path,
+    selected_groups,
 };
 use pnpm_config::NodeLinker;
 use pnpm_deps_restorer::parse_name_version_from_key;
@@ -18,8 +18,6 @@ pub(super) struct SkillSource {
     pub(super) dep_path: String,
     /// The key that approves the package in `permissions`.
     pub(super) approval_key: String,
-    /// The package part of the entry names.
-    pub(super) link_segment: String,
     /// The package directory, with symlinks resolved when it ships skills.
     pub(super) package_dir: PathBuf,
     /// The names of the skill directories, sorted.
@@ -49,7 +47,7 @@ pub(super) fn discover_skill_sources(input: &SyncAgentSkills<'_>) -> Vec<SkillSo
             else {
                 continue;
             };
-            keep_highest(&mut by_key, skill_source(skills, &resolved, &alias));
+            keep_highest(&mut by_key, skill_source(skills, &resolved));
         }
     }
     by_key
@@ -205,28 +203,10 @@ fn probe_package(dir: &Path) -> Probe {
     Probe::Found(Some((skills, package_dir)))
 }
 
-fn skill_source(
-    (skills, package_dir): (Vec<String>, PathBuf),
-    dep_path: &str,
-    alias: &str,
-) -> SkillSource {
+fn skill_source((skills, package_dir): (Vec<String>, PathBuf), dep_path: &str) -> SkillSource {
     let dep_path = normalize_build_dep_path(dep_path);
     let approval_key = allow_build_key_from_ignored_build(&dep_path);
-    let (name, _) = parse_name_version_from_key(&dep_path);
-    // A registry or git package has a unique name. A tarball or a local
-    // directory does not, so it takes the name the project gave it.
-    let link_segment = if approval_key == name || is_git_hosted_dep_path(&dep_path) {
-        name
-    } else {
-        alias.to_string()
-    };
-    SkillSource {
-        skills,
-        dep_path,
-        approval_key,
-        link_segment: link_segment.replace('/', "+"),
-        package_dir,
-    }
+    SkillSource { dep_path, approval_key, package_dir, skills }
 }
 
 /// Record `source` under its approval key unless a source already kept
@@ -259,13 +239,15 @@ fn supersedes(candidate: &SkillSource, kept: &SkillSource) -> bool {
 }
 
 /// The skills directly under `<package_dir>/skills`: the subdirectories
-/// that hold a `SKILL.md`.
+/// that hold a `SKILL.md`. A name that cannot be a line of a `.gitignore`
+/// or that is hidden is not a skill's.
 fn skill_names(package_dir: &Path) -> Vec<String> {
     let Ok(entries) = fs::read_dir(package_dir.join("skills")) else { return Vec::new() };
     let mut names: Vec<String> = entries
         .filter_map(Result::ok)
         .filter(|entry| entry.path().join("SKILL.md").is_file())
         .filter_map(|entry| entry.file_name().into_string().ok())
+        .filter(|name| !name.starts_with('.') && !name.chars().any(char::is_control))
         .collect();
     names.sort();
     names

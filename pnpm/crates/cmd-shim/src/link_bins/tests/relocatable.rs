@@ -438,7 +438,7 @@ fn warm_install_upgrades_physical_target_anchor_without_node_path() {
     link_bins_of_packages::<Host>(&packages, &bins, &options).unwrap();
     let shim = bins.join("foo");
     let current = read_to_string(&shim).unwrap();
-    let old = current.replace("$basedir_abs/", "$basedir/");
+    let old = current.replace(r#"$basedir_abs"/"#, r#"$basedir"/"#);
     write_file(&shim, &old).unwrap();
     link_bins_of_packages::<Host>(&packages, &bins, &options).unwrap();
     assert_eq!(read_to_string(&shim).unwrap(), current);
@@ -514,7 +514,10 @@ fn unresolved_optional_node_paths_do_not_prevent_linking_bins() {
         for name in ["foo", "bar"] {
             let body = read_to_string(bins.join(name)).unwrap();
             eprintln!("destination={destination}, body={body}");
-            assert!(body.contains("$basedir_abs/../extra"), "optional path remains in NODE_PATH");
+            assert!(
+                body.contains(r#""$basedir_abs"/'../extra'"#),
+                "optional path remains in NODE_PATH",
+            );
             let output = run_command(
                 Command::new(bins.join(name)).env_remove("NODE_PATH").env_remove("NODE_OPTIONS"),
             );

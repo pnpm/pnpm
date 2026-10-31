@@ -19,6 +19,10 @@ The command exits with code 1 when it finds issues.
 
 ## Options
 
+### --global, -g
+
+Checks peer dependency issues in globally installed packages.
+
 ### --json
 
 Print the issues in JSON format.

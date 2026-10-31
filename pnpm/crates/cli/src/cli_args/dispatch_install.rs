@@ -339,13 +339,13 @@ pub(super) fn ci<'a>(ctx: &RunCtx<'a>, args: CiArgs) -> miette::Result<CommandFu
 }
 
 pub(super) fn dlx<'a>(ctx: &RunCtx<'a>, args: DlxArgs) -> miette::Result<CommandFuture<'a>> {
-    let dir = ctx.locations.dir;
+    let dir = ctx.locations.cli_dir;
     let config = (ctx.loaders.config)()?;
     Ok(Box::pin(args.run::<CliReporter>(dir, config)))
 }
 
 pub(super) fn create<'a>(ctx: &RunCtx<'a>, args: CreateArgs) -> miette::Result<CommandFuture<'a>> {
-    let dir = ctx.locations.dir;
+    let dir = ctx.locations.cli_dir;
     let config = (ctx.loaders.config)()?;
     Ok(Box::pin(args.run::<CliReporter>(dir, config)))
 }

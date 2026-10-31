@@ -364,6 +364,7 @@ impl GlobalInstallTarget<'_> {
             || {
                 link_global_bins(
                     self.base_config,
+                    &hash_link,
                     &linked_pkgs,
                     activation.dependencies,
                     self.global_bin_dir,

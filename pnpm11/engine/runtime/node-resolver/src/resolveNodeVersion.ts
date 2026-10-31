@@ -33,7 +33,7 @@ export async function resolveNodeVersion (
     return latestVersion(allVersions)
   }
   const { versions, versionRange } = filterVersions(allVersions, versionSpec)
-  return semver.maxSatisfying(versions, versionRange, SEMVER_OPTS) ?? null
+  return maxSatisfyingVersion(versions, versionRange)
 }
 
 export async function resolveNodeVersions (
@@ -58,6 +58,12 @@ export async function resolveNodeVersions (
 function latestVersion (versions: NodeVersion[]): string | null {
   const latest = versions.find(({ version }) => semver.valid(version) != null && semver.prerelease(version) == null) ?? versions[0]
   return latest?.version ?? null
+}
+
+function maxSatisfyingVersion (versions: string[], versionRange: string): string | null {
+  const stableVersions = versions.filter(version => semver.prerelease(version, SEMVER_OPTS) == null)
+  return semver.maxSatisfying(stableVersions, versionRange, SEMVER_OPTS) ??
+    semver.maxSatisfying(versions, versionRange, SEMVER_OPTS)
 }
 
 export function normalizeRuntimeSpec (versionSpec: string): string {

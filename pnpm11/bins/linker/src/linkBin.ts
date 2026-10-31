@@ -135,26 +135,40 @@ async function isShimFileCurrent (content: string, ctx: BinLinkContext): Promise
   if (!isShimPointingAt(content, cmd.path) || !isShimHardened(content) || isShimMsysCmdSwitchDoubled(content)) return false
   if (IS_WINDOWS && !existsSync(`${externalBinPath}.cmd`)) return false
   if (isShimForMissingTarget(content) && !await isMissing(cmd.path)) return false
-  return isShimBasedirAnchorCurrent(content, path.relative(binsDir, cmd.path)) &&
-    isShimRelativeTargetCurrent(content, ctx) &&
-    isShimNodePathCurrent(content, ctx.opts)
+  if (!isShimBasedirAnchorCurrent(content, path.relative(binsDir, cmd.path)) || !isShimRelativeTargetCurrent(content, ctx)) return false
+  return isShimNodePathCurrent(content, ctx)
 }
 
 function isShimRelativeTargetCurrent (content: string, { cmd, shShimDir }: BinLinkContext): boolean {
-  const expectedRelativeTarget = path.relative(shShimDir, cmd.path).split('\\').join('/')
+  const relativeTarget = path.relative(shShimDir, cmd.path)
+  const expectedRelativeTarget = IS_WINDOWS ? relativeTarget.split('\\').join('/') : relativeTarget
   const storedRelativeTarget = readShRelativeTarget(content)
   return path.isAbsolute(expectedRelativeTarget)
     ? storedRelativeTarget == null
     : storedRelativeTarget === expectedRelativeTarget
 }
 
-function isShimNodePathCurrent (content: string, opts: LinkBinOptions): boolean {
+/**
+ * The bin's own directories are compared too: they come from the target's
+ * real path, which moves when a link on the way to it is re-pointed.
+ */
+async function isShimNodePathCurrent (content: string, { cmd, opts }: BinLinkContext): Promise<boolean> {
   if (opts.extraNodePaths == null && opts.projectModulesDir == null) return true
+  const writesNodePath = Boolean(opts.extraNodePaths?.length) || opts.projectModulesDir != null
+  // The shim lists every entry once, at its first position.
+  const listed = new Set(opts.projectModulesDir == null ? [] : [opts.projectModulesDir])
+  const middle = takeUnlisted(writesNodePath ? await getBinNodePaths(cmd.path, opts.projectModulesDir) : [], listed)
   return isShimNodePath(content, {
     first: opts.projectModulesDir,
-    // The shim lists every entry once, at its first position.
-    last: opts.extraNodePaths && Array.from(new Set(opts.extraNodePaths)).filter((nodePath) => nodePath !== opts.projectModulesDir),
+    middle,
+    last: opts.extraNodePaths && takeUnlisted(opts.extraNodePaths, listed),
   })
+}
+
+function takeUnlisted (entries: string[], listed: Set<string>): string[] {
+  const unlisted = entries.filter((entry) => !listed.has(entry))
+  for (const entry of unlisted) listed.add(entry)
+  return Array.from(new Set(unlisted))
 }
 
 /**

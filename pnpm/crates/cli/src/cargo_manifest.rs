@@ -60,7 +60,7 @@ pub(crate) fn upsert_dependency(
     let mut offset = section_start;
     for line in section.split_inclusive('\n') {
         if let Some(value_range) = dependency_value_range(line, name) {
-            let value_range = (offset + value_range.start)..(offset + value_range.end);
+            let value_range = value_range_in_contents(contents, offset, value_range);
             return replace_dependency_value(contents, value_range, name, version_spec);
         }
         offset += line.len();
@@ -69,6 +69,20 @@ pub(crate) fn upsert_dependency(
     let prefix = &contents[..section_end];
     let newline = if !prefix.is_empty() && !prefix.ends_with('\n') { "\n" } else { "" };
     Ok(format!("{prefix}{newline}{name} = {}\n{}", quoted(version_spec), &contents[section_end..]))
+}
+
+/// Translate a value range found on the line at `line_offset` into
+/// `contents`, extending an inline table to its closing `}` on a later line.
+fn value_range_in_contents(
+    contents: &str,
+    line_offset: usize,
+    value_range: Range<usize>,
+) -> Range<usize> {
+    let start = line_offset + value_range.start;
+    match inline_table_len(&contents[start..]) {
+        Some(len) => start..start + len,
+        None => start..line_offset + value_range.end,
+    }
 }
 
 fn find_dependency_subtable(contents: &str, table: &str, name: &str) -> Option<String> {
@@ -193,7 +207,7 @@ fn replace_dependency_value(
         replace_inline_version(value, name, version_spec)?
     } else {
         return Err(miette::miette!(
-            "cannot update crate {name}: its Cargo.toml dependency declaration is not a string or single-line inline table"
+            "cannot update crate {name}: its Cargo.toml dependency declaration is not a string or inline table"
         ));
     };
     Ok(
@@ -229,12 +243,49 @@ fn is_identifier_byte(byte: u8) -> bool {
     byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_')
 }
 
+/// Length of the inline table at the start of `value`, through its
+/// closing `}`, which may sit on a later line. `None` when `value` does
+/// not start with `{` or the table never closes.
+fn inline_table_len(value: &str) -> Option<usize> {
+    if !value.starts_with('{') {
+        return None;
+    }
+    let mut scan = InlineScan { bytes: value.as_bytes(), cursor: 0 };
+    let mut depth = 0usize;
+    while let Some(byte) = scan.peek() {
+        match byte {
+            b'"' | b'\'' => {
+                scan.take_string()?;
+                continue;
+            }
+            b'#' => {
+                scan.skip_comment();
+                continue;
+            }
+            b'{' | b'[' => depth += 1,
+            b'}' | b']' => {
+                depth = depth.checked_sub(1)?;
+                if depth == 0 {
+                    return Some(scan.cursor + 1);
+                }
+            }
+            _ => {}
+        }
+        scan.cursor += 1;
+    }
+    None
+}
+
 fn inline_version_range(value: &str) -> Option<Range<usize>> {
     let mut scan = InlineScan { bytes: value.as_bytes(), cursor: 0 };
     while let Some(byte) = scan.peek() {
-        // A quoted value may contain anything, `version =` included.
+        // A quoted value or a comment may contain anything, `version =` included.
         if matches!(byte, b'"' | b'\'') {
             scan.take_string()?;
+            continue;
+        }
+        if byte == b'#' {
+            scan.skip_comment();
             continue;
         }
         if !is_identifier_byte(byte) {
@@ -257,25 +308,47 @@ struct InlineScan<'a> {
 }
 
 impl InlineScan<'_> {
-    /// Step over the quoted string at the cursor, leaving the cursor
-    /// past its closing quote. The returned range covers both quotes.
-    /// `None` when the string never closes.
+    /// Step over the quoted string at the cursor, single-line or
+    /// multi-line (`"""` or `'''`), leaving the cursor past its closing
+    /// delimiter. The returned range covers both delimiters. `None` when
+    /// the string never closes.
     fn take_string(&mut self) -> Option<Range<usize>> {
         let quote = self.peek()?;
         let start = self.cursor;
-        self.cursor += 1;
-        let mut escaped = false;
-        while let Some(byte) = self.peek() {
-            self.cursor += 1;
-            if escaped {
-                escaped = false;
-            } else if quote == b'"' && byte == b'\\' {
-                escaped = true;
-            } else if byte == quote {
-                return Some(start..self.cursor);
-            }
+        let multi_line = self.bytes.get(start..start + 3) == Some(&[quote; 3]);
+        self.cursor += if multi_line { 3 } else { 1 };
+        while !self.step_in_string(quote, multi_line)? {}
+        Some(start..self.cursor)
+    }
+
+    /// Step over one character or escape of a string's body, or over its
+    /// closing delimiter. `Some(true)` once the string has closed.
+    fn step_in_string(&mut self, quote: u8, multi_line: bool) -> Option<bool> {
+        let byte = self.peek()?;
+        if quote == b'"' && byte == b'\\' {
+            self.cursor += 2;
+            return Some(false);
         }
-        None
+        if byte != quote {
+            self.cursor += 1;
+            return Some(false);
+        }
+        let run = self.quote_run(quote);
+        if multi_line && run < 3 {
+            self.cursor += run;
+            return Some(false);
+        }
+        // A multi-line string may end in up to two quotes right before its
+        // closing delimiter.
+        self.cursor += if multi_line { run.min(5) } else { 1 };
+        Some(true)
+    }
+
+    fn quote_run(&self, quote: u8) -> usize {
+        self.bytes[self.cursor..]
+            .iter()
+            .take_while(|&&byte| byte == quote)
+            .count()
     }
 
     fn peek(&self) -> Option<u8> {
@@ -301,6 +374,16 @@ impl InlineScan<'_> {
         self.skip_whitespace();
         matches!(self.peek(), Some(b'"' | b'\''))
     }
+    /// Step to the end of the line the cursor's comment is on.
+    fn skip_comment(&mut self) {
+        while self
+            .peek()
+            .is_some_and(|byte| byte != b'\n')
+        {
+            self.cursor += 1;
+        }
+    }
+
     fn skip_whitespace(&mut self) {
         while self.peek().is_some_and(|byte| byte.is_ascii_whitespace()) {
             self.cursor += 1;

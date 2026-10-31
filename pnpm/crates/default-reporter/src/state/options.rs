@@ -58,6 +58,8 @@ pub struct ProgressOptions {
 
 #[derive(Debug, Clone)]
 pub struct ScopeOptions {
+    /// Whether recovery instructions target global packages.
+    pub is_global: bool,
     /// Select which project prefixes contribute to the package summary.
     pub summary: SummaryScope,
     /// Whether the running command reports the workspace scope it
@@ -87,6 +89,7 @@ impl Default for ReporterOptions {
                 summary: SummaryScope::CurrentPrefix,
                 reports_scope: false,
                 recursive: false,
+                is_global: false,
             },
         }
     }
@@ -94,6 +97,11 @@ impl Default for ReporterOptions {
 
 impl Default for ScopeOptions {
     fn default() -> Self {
-        Self { summary: SummaryScope::CurrentPrefix, reports_scope: false, recursive: false }
+        Self {
+            summary: SummaryScope::CurrentPrefix,
+            reports_scope: false,
+            recursive: false,
+            is_global: false,
+        }
     }
 }

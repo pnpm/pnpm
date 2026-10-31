@@ -18,17 +18,7 @@ pub(crate) async fn latest_version(
     name: &str,
     http_client: &ThrottledClient,
 ) -> Result<String> {
-    let cache_dir = cargo_index_cache_dir(config);
-    let index_file = fetch_sparse_index_file(
-        name,
-        config.cargo_index_url(),
-        &cache_dir,
-        http_client,
-        auth_headers,
-        config.offline,
-        config.retry_opts(),
-    )
-    .await?;
+    let index_file = fetch_crate_index_file(config, auth_headers, name, http_client).await?;
     pnpm_cargo_resolver::latest_version(name, &index_file)
         .wrap_err_with(|| format!("select the latest version of crate {name}"))
 }
@@ -40,19 +30,28 @@ pub(crate) async fn resolve_target_version(
     requirement: Option<&semver::VersionReq>,
     http_client: &ThrottledClient,
 ) -> Result<Option<semver::Version>> {
-    let cache_dir = cargo_index_cache_dir(config);
-    let index_file = fetch_sparse_index_file(
+    let index_file = fetch_crate_index_file(config, auth_headers, name, http_client).await?;
+    pnpm_cargo_resolver::latest_matching_version(name, &index_file, requirement)
+        .wrap_err_with(|| format!("select a matching version of crate {name}"))
+}
+
+/// The sparse-index entry of crate `name` in the configured Cargo index.
+pub(crate) async fn fetch_crate_index_file(
+    config: &Config,
+    auth_headers: &AuthHeaders,
+    name: &str,
+    http_client: &ThrottledClient,
+) -> Result<String> {
+    fetch_sparse_index_file(
         name,
         config.cargo_index_url(),
-        &cache_dir,
+        &cargo_index_cache_dir(config),
         http_client,
         auth_headers,
         config.offline,
         config.retry_opts(),
     )
-    .await?;
-    pnpm_cargo_resolver::latest_matching_version(name, &index_file, requirement)
-        .wrap_err_with(|| format!("select a matching version of crate {name}"))
+    .await
 }
 
 /// The credentials a crate archive download may carry.

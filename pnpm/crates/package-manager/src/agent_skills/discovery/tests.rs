@@ -5,7 +5,6 @@ fn source(package_dir: &str) -> SkillSource {
     SkillSource {
         dep_path: "foo@1.0.0".to_string(),
         approval_key: "foo".to_string(),
-        link_segment: "foo".to_string(),
         package_dir: PathBuf::from(package_dir),
         skills: vec!["guide".to_string()],
     }
