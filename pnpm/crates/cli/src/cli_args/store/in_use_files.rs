@@ -52,6 +52,18 @@ pub(super) fn in_use_files(store_dir: &StoreDir) -> Result<HashSet<PathBuf>, Pru
         .collect())
 }
 
+pub(super) fn registered_modules_dirs(projects: &[PathBuf]) -> Result<Vec<PathBuf>, PruneError> {
+    projects
+        .iter()
+        .map(|project| {
+            let project = lexical_normalize(project);
+            configured_modules_dir(&project)
+                .map(|modules_dir| project.join(modules_dir))
+                .map_err(PruneError::InUseFiles)
+        })
+        .collect()
+}
+
 /// Fails on an undecodable row, which [`StoreIndex::get_many`] skips,
 /// because skipping it would let the prune remove the row's files.
 fn read_rows(

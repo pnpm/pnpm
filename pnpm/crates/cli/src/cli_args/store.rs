@@ -82,9 +82,12 @@ fn prune(config: &Config) -> miette::Result<()> {
     .flatten()
     .collect();
     config.store_dir
-        .prune_keeping(&config.cache_dir, &protected_dirs, || {
-            in_use_files::in_use_files(&config.store_dir)
-        })
+        .prune_keeping_with_modules_dirs(
+            &config.cache_dir,
+            &protected_dirs,
+            in_use_files::registered_modules_dirs,
+            || in_use_files::in_use_files(&config.store_dir),
+        )
         .wrap_err("pruning store")?;
     remove_orphaned_private_engine_installs(config)?;
     Ok(())

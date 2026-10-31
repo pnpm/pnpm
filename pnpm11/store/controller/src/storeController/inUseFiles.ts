@@ -125,7 +125,7 @@ async function readInstalledLockfiles (projectDir: string): Promise<LockfileObje
  * set only on the command line, in the environment, or in the global config
  * is not seen.
  */
-async function readConfiguredModulesDir (projectDir: string): Promise<string> {
+export async function readConfiguredModulesDir (projectDir: string): Promise<string> {
   try {
     // `findWorkspaceDir` would also honor the workspace directory that the
     // environment of the prune sets, which names no registered project's

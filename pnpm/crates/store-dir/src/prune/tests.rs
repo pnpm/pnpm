@@ -1,6 +1,6 @@
 use crate::{StoreDir, register_project};
 use pnpm_fs::symlink_dir;
-use std::{fs, path::PathBuf};
+use std::{collections::HashSet, fs, path::PathBuf};
 use tempfile::tempdir;
 
 /// Helper: lay out a slot under
@@ -63,6 +63,29 @@ fn prune_keeps_everything_when_no_registered_project_uses_the_links() {
         .expect("prune");
 
     assert!(slot.exists());
+}
+
+#[test]
+fn prune_keeps_slots_linked_from_a_configured_modules_dir() {
+    let store = tempdir().unwrap();
+    let store_dir = StoreDir::new(store.path().join("store"));
+    let slot = make_slot(&store_dir.links(), "@", "custom", "1.0.0", "custom1");
+    let project = tempdir().unwrap();
+    let modules_dir = project.path().join("custom_modules");
+    fs::create_dir_all(&modules_dir).unwrap();
+    symlink_dir(&slot.join("node_modules/custom"), &modules_dir.join("custom")).unwrap();
+    register_project(&store_dir, project.path()).expect("register");
+
+    store_dir
+        .prune_keeping_with_modules_dirs(
+            &store_dir.root().join("cache"),
+            &[],
+            |_| Ok(vec![modules_dir]),
+            || Ok(HashSet::default()),
+        )
+        .expect("prune");
+
+    assert!(slot.exists(), "slot linked from the configured modules dir must survive");
 }
 
 #[test]
@@ -225,11 +248,14 @@ fn nonexistent_loader_roots_cannot_escape_links_through_parent_components() {
         links.join("scope/name/../../../../outside/node_modules/missing"),
         links.join("node_modules/missing"),
     ] {
-        assert_eq!(super::store_slot_from_target(&target, &links), None);
+        assert_eq!(super::mark::store_slot_from_target(&target, &links), None);
     }
     let slot = PathBuf::from("scope/name/1/hash");
     assert_eq!(
-        super::store_slot_from_target(&links.join(&slot).join("node_modules/missing"), &links),
+        super::mark::store_slot_from_target(
+            &links.join(&slot).join("node_modules/missing"),
+            &links
+        ),
         Some(slot),
     );
 }
