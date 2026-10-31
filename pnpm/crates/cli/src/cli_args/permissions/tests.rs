@@ -226,9 +226,33 @@ fn pending_builds_approved_filters_only_approved_build_requests() {
 }
 
 #[test]
-fn prompt_for_package_skills_with_empty_skills_returns_all_true() {
+fn prompt_for_package_skills_with_empty_skills_is_unresolved() {
     let decision = super::prompt_for_package_skills("foo", &[]).unwrap();
-    assert_eq!(decision, Some(SkillsPermission::All(true)));
+    assert_eq!(decision, None);
+}
+
+#[test]
+fn package_choices_distinguishes_colliding_labels() {
+    let pending = pending(&[
+        ("foo@https://codeload.github.com/org1/foo/tar.gz/1", &[Build]),
+        ("foo@https://codeload.github.com/org2/foo/tar.gz/2", &[Skills]),
+        ("bar", &[Build, Skills]),
+    ]);
+    let choices = super::package_choices(&pending);
+    assert_eq!(
+        choices,
+        vec![
+            ("bar".to_string(), "bar  build, skills".to_string()),
+            (
+                "foo@https://codeload.github.com/org1/foo/tar.gz/1".to_string(),
+                "foo (git) [foo@https://codeload.github.com/org1/foo/tar.gz/1]  build".to_string(),
+            ),
+            (
+                "foo@https://codeload.github.com/org2/foo/tar.gz/2".to_string(),
+                "foo (git) [foo@https://codeload.github.com/org2/foo/tar.gz/2]  skills".to_string(),
+            ),
+        ]
+    );
 }
 
 #[test]
