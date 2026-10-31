@@ -239,9 +239,27 @@ fn review_skills(
         .map_err(Report::new)
         .wrap_err("find the skills of the packages awaiting approval")?;
 
-    let mut skills_by_package: BTreeMap<String, SkillsPermission> = BTreeMap::new();
-    for pkg in skills_pending {
-        let skills = options.skills_by_key
+    let Some(skills_by_package) =
+        collect_package_skill_decisions(&skills_pending, &options.skills_by_key)?
+    else {
+        return Ok(None);
+    };
+
+    let Some(dirs) = resolve_skills_dirs(config, &skills_by_package, &options.detected_dirs)?
+    else {
+        return Ok(None);
+    };
+
+    Ok(Some(SkillsReview { skills_by_package, dirs }))
+}
+
+fn collect_package_skill_decisions(
+    skills_pending: &[&String],
+    skills_by_key: &BTreeMap<String, Vec<String>>,
+) -> miette::Result<Option<BTreeMap<String, SkillsPermission>>> {
+    let mut skills_by_package = BTreeMap::new();
+    for &pkg in skills_pending {
+        let skills = skills_by_key
             .get(pkg.as_str())
             .cloned()
             .unwrap_or_default();
@@ -253,21 +271,22 @@ fn review_skills(
             }
         }
     }
+    Ok(Some(skills_by_package))
+}
 
-    let dirs = if config.skills_dirs.is_none()
+fn resolve_skills_dirs(
+    config: &Config,
+    skills_by_package: &BTreeMap<String, SkillsPermission>,
+    detected_dirs: &[String],
+) -> miette::Result<Option<Vec<String>>> {
+    if config.skills_dirs.is_none()
         && skills_by_package.values().any(SkillsPermission::links_any)
-        && !options.detected_dirs.is_empty()
+        && !detected_dirs.is_empty()
         && can_prompt()
     {
-        let Some(selected) = prompt_for_skills_dirs(&options.detected_dirs)? else {
-            return Ok(None);
-        };
-        selected
-    } else {
-        Vec::new()
-    };
-
-    Ok(Some(SkillsReview { skills_by_package, dirs }))
+        return prompt_for_skills_dirs(detected_dirs);
+    }
+    Ok(Some(Vec::new()))
 }
 
 #[derive(Debug, PartialEq, Eq)]
