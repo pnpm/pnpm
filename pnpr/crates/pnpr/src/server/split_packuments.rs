@@ -1,11 +1,14 @@
 //! Split packuments (proof of concept). A client that accepts
 //! `application/vnd.pnpr.install-v2+json` gets the abbreviated packument,
-//! and when that is larger than the threshold, each version's dist facts
-//! (integrities, sizes, bins, variant archives) are left in its immutable
-//! version document `<base>/<name>/<version>`. Such a version says so with
+//! and when that is larger than the threshold, each version keeps only what
+//! picking a version reads: its `deprecated` notice, the `_npmUser` trust
+//! flags, and its provenance. The rest of the version (dependencies,
+//! integrities, bins, variant archives) is in its immutable version document
+//! `<base>/<name>/<version>`. Such a version says so with
 //! `dist.pnpr.details: "external"`, because an absent `integrity` already
-//! means the client computes it while fetching the tarball. The variants'
-//! `tag` and `platforms` stay inline.
+//! means the client computes it while fetching the tarball.
+//! `PNPR_SPLIT_DIST_ONLY=1` moves only each version's dist facts, keeping its
+//! dependencies and its variants' `tag` and `platforms` inline.
 //!
 //! The versions a fresh resolution almost always picks keep their dist facts
 //! inline, so most picks need no second request: every dist-tag target and
@@ -14,7 +17,7 @@
 
 use axum::{
     http::{HeaderMap, HeaderValue, header},
-    response::Response,
+    response::{IntoResponse, Response},
 };
 use node_semver::Version;
 use serde_json::{Map, Value};
@@ -41,6 +44,10 @@ static THRESHOLD: LazyLock<usize> = LazyLock::new(|| {
 static KEEP_LATEST: LazyLock<bool> =
     LazyLock::new(|| std::env::var("PNPR_SPLIT_KEEP_LATEST").map_or(true, |value| value != "0"));
 
+/// Whether only the dist facts move, rather than the whole version.
+static DIST_ONLY: LazyLock<bool> =
+    LazyLock::new(|| std::env::var("PNPR_SPLIT_DIST_ONLY").is_ok_and(|value| value == "1"));
+
 /// Whether the client's `Accept` header offers the split form.
 pub(super) fn wants_split(headers: &HeaderMap) -> bool {
     headers
@@ -51,14 +58,15 @@ pub(super) fn wants_split(headers: &HeaderMap) -> bool {
 
 /// The split form of an abbreviated packument serialized to `body`.
 pub(super) fn split_body(abbreviated: Value, body: Vec<u8>) -> serde_json::Result<Vec<u8>> {
-    split_above(abbreviated, body, *THRESHOLD)
+    split_above(abbreviated, body, *THRESHOLD, *DIST_ONLY)
 }
 
-/// [`split_body`] with the threshold given.
+/// [`split_body`] with the threshold and the shape given.
 fn split_above(
     mut abbreviated: Value,
     body: Vec<u8>,
     threshold: usize,
+    dist_only: bool,
 ) -> serde_json::Result<Vec<u8>> {
     if body.len() <= threshold {
         return Ok(body);
@@ -68,24 +76,47 @@ fn split_above(
         versions
             .iter_mut()
             .filter(|(version, _)| !inline.contains(*version))
-            .filter_map(|(_, manifest)| manifest.get_mut("dist").and_then(Value::as_object_mut))
-            .for_each(externalize_dist);
+            .filter_map(|(_, manifest)| manifest.as_object_mut())
+            .for_each(|manifest| externalize(manifest, dist_only));
     }
     serde_json::to_vec(&abbreviated)
 }
 
-/// The response for an exact version's document, which never changes (a
-/// revision has its own route), so a split packument's clients and any CDN
-/// can keep it forever. A tag's target moves.
-pub(super) fn version_document_response(body: Vec<u8>, version_or_tag: &str) -> Response {
+/// Leave a version, or only its dist facts, to its version document.
+fn externalize(manifest: &mut Map<String, Value>, dist_only: bool) {
+    if !dist_only {
+        externalize_version(manifest);
+    } else if let Some(dist) = manifest.get_mut("dist").and_then(Value::as_object_mut) {
+        externalize_dist(dist);
+    }
+}
+
+/// The response for a version's document. A split packument's client reads
+/// the version as the abbreviated packument would list it, so the shape
+/// follows `Accept` and the response varies by it. An exact version's
+/// document never changes (a revision has its own route), so clients and any
+/// CDN can keep it forever; a tag's target moves.
+pub(super) fn version_document_response(
+    manifest: Value,
+    headers: &HeaderMap,
+    version_or_tag: &str,
+) -> Response {
+    let split = wants_split(headers);
+    let manifest = if split { pnpr_upstream::abbreviate_version(&manifest) } else { manifest };
+    let body = match serde_json::to_vec(&manifest) {
+        Ok(body) => body,
+        Err(err) => return super::RegistryError::Json(err).into_response(),
+    };
     let mut response = super::packument_bytes_response(body, "application/json", None);
+    let headers = response.headers_mut();
     if Version::parse(version_or_tag).is_ok() {
-        response
-            .headers_mut()
-            .insert(
-                header::CACHE_CONTROL,
-                HeaderValue::from_static("public, max-age=31536000, immutable"),
-            );
+        headers.insert(
+            header::CACHE_CONTROL,
+            HeaderValue::from_static("public, max-age=31536000, immutable"),
+        );
+    }
+    if split {
+        headers.insert(header::VARY, HeaderValue::from_static("Accept"));
     }
     response
 }
@@ -122,7 +153,25 @@ fn likely_picks(abbreviated: &Value) -> HashSet<String> {
     picks
 }
 
-/// Keep only what resolution reads before a version is picked: provenance,
+/// Keep only what picking a version reads: its name and version, its
+/// `deprecated` notice, the `_npmUser` trust flags, and its provenance.
+fn externalize_version(manifest: &mut Map<String, Value>) {
+    manifest.retain(|field, _| {
+        matches!(field.as_str(), "name" | "version" | "deprecated" | "_npmUser" | "dist")
+    });
+    let attestations = manifest
+        .get_mut("dist")
+        .and_then(Value::as_object_mut)
+        .and_then(|dist| dist.remove("attestations"));
+    let mut dist = Map::new();
+    if let Some(attestations) = attestations {
+        dist.insert("attestations".into(), attestations);
+    }
+    dist.insert("pnpr".into(), serde_json::json!({ "details": "external" }));
+    manifest.insert("dist".into(), Value::Object(dist));
+}
+
+/// Keep only what resolution reads of a version's dist facts: provenance,
 /// for the trust policy, and each variant's tag and platforms.
 fn externalize_dist(dist: &mut Map<String, Value>) {
     let attestations = dist.remove("attestations");

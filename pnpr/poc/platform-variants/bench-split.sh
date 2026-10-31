@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Benchmark whole, split, and split-but-keep-latest packuments through the
-# CDN-like shaping proxy. Each run starts with an empty pnpm cache and store.
+# Benchmark whole packuments, packuments split by moving only each version's
+# dist, and packuments split by moving whole versions, through the CDN-like
+# shaping proxy. Both split forms keep the likely picks inline. Each run starts with an empty pnpm cache and store.
 # usage: bench-split.sh <runs> <work-dir> <pnpr-config>
 # Expects release builds in target/release, and a pnpr config whose upstream
 # proxies npmjs (set its maxAge long so the runs do not revalidate).
@@ -23,7 +24,9 @@ one_run() { # <label> <cmd> <profile>
   dir=$(mktemp -d -p $WORK runs.XXXX)
   cp $HERE/bench-app.json $dir/package.json
   echo "registry=$P/npm/" > $dir/.npmrc
-  printf 'storeDir: %s/store\ncacheDir: %s/cache\nminimumReleaseAge: 0\n' "$dir" "$dir" > $dir/pnpm-workspace.yaml
+  # Declared as pnpr, the registry's abbreviated documents serve optional
+  # dependencies too; otherwise pnpm reads their full documents for `libc`.
+  printf 'storeDir: %s/store\ncacheDir: %s/cache\nminimumReleaseAge: 0\nregistries:\n  %s/npm/: {serverType: pnpr}\n' "$dir" "$dir" "$P" > $dir/pnpm-workspace.yaml
   local args=(install --lockfile-only)
   [[ "$2" == *install ]] && args=(install --ignore-scripts)
   curl -s $P/__stats > /dev/null
@@ -33,18 +36,19 @@ one_run() { # <label> <cmd> <profile>
   end=$(date +%s.%N)
   local pkgs
   pkgs=$(awk '/^packages:/{p=1;next} /^[a-z]/{p=0} p && /^  [^ ].*:$/{n++} END{print n+0}' $dir/pnpm-lock.yaml)
-  echo "{\"label\":\"$1\",\"cmd\":\"$2\",\"profile\":\"$3\",\"secs\":$(echo "$end - $start" | bc),\"packages\":$pkgs,\"stats\":$(curl -s $P/__stats)}" | tee -a $OUT
+  [ -f $WORK/lock-$1.yaml ] || cp $dir/pnpm-lock.yaml $WORK/lock-$1.yaml
+  echo "{\"label\":\"$1\",\"cmd\":\"$2\",\"profile\":\"$3\",\"secs\":$(printf %.3f "$(echo "$end - $start" | bc)"),\"packages\":$pkgs,\"stats\":$(curl -s $P/__stats)}" | tee -a $OUT
   rm -rf $dir
 }
 
-for mode in whole split-all split-latest; do
+for mode in whole split-dist split-version; do
   case $mode in
-    whole) threshold=1000000000000000 keep=1 ;;
-    split-all) threshold=65536 keep=0 ;;
-    split-latest) threshold=65536 keep=1 ;;
+    whole) threshold=1000000000000000 dist_only=0 ;;
+    split-dist) threshold=65536 dist_only=1 ;;
+    split-version) threshold=65536 dist_only=0 ;;
   esac
   cd $(dirname $CONFIG)
-  PNPR_SPLIT_METADATA_THRESHOLD=$threshold PNPR_SPLIT_KEEP_LATEST=$keep \
+  PNPR_SPLIT_METADATA_THRESHOLD=$threshold PNPR_SPLIT_DIST_ONLY=$dist_only \
     $BIN/pnpr -c $CONFIG --listen 127.0.0.1:7690 --public-url http://127.0.0.1:7700 > $WORK/pnpr-$mode.log 2>&1 &
   pnpr_pid=$!
   for _ in $(seq 100); do curl -sf http://127.0.0.1:7690/npm/is-number > /dev/null && break; sleep 0.1; done

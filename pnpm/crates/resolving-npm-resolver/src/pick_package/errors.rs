@@ -62,7 +62,7 @@ pub enum PickPackageError {
     #[diagnostic(transparent)]
     Fetch(FetchMetadataError),
     /// `ERR_PNPM_VERSION_DOCUMENT`: a split packument left the picked
-    /// version's dist in its version document, and that could not be read.
+    /// version in its version document, and that could not be read.
     #[display("Failed to read the version document {url}: {error}")]
     #[diagnostic(code(ERR_PNPM_VERSION_DOCUMENT))]
     VersionDocument {

@@ -138,14 +138,14 @@ pub async fn pick_package<Cache: PackageMetaCache>(
     let result = pick_from_metadata(ctx, spec, opts).await?;
     let picked_package = match result.picked_package {
         Some(version) => {
-            Some(crate::npm_resolver::with_external_dist(ctx, opts.registry, version).await?)
+            Some(crate::npm_resolver::with_version_document(ctx, opts.registry, version).await?)
         }
         None => None,
     };
     Ok(PickPackageResult { picked_package, ..result })
 }
 
-/// [`pick_package`] before a split packument's external dist is read.
+/// [`pick_package`] before a split packument's external version is read.
 async fn pick_from_metadata<Cache: PackageMetaCache>(
     ctx: &PickPackageContext<'_, Cache>,
     spec: &RegistryPackageSpec,

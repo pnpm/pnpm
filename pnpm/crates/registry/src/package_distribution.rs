@@ -103,7 +103,8 @@ pub struct PnprDistribution {
 }
 
 impl PackageDistribution {
-    /// Whether the dist facts are in the version document rather than here.
+    /// Whether the version's details are in its version document rather than
+    /// in the packument that listed it.
     #[must_use]
     pub fn is_external(&self) -> bool {
         self.pnpr.as_ref().and_then(|pnpr| pnpr.details.as_deref()) == Some("external")

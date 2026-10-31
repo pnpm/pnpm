@@ -1,4 +1,4 @@
-pub use abbreviate::abbreviate_packument;
+pub use abbreviate::{abbreviate_packument, abbreviate_version};
 pub use discovery::SearchResponse;
 pub use packument::{
     extract_upstream_revision_integrity, extract_upstream_version_manifest,

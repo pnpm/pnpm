@@ -2,9 +2,7 @@
 
 use super::{
     AppState, AuthedCaller, Deserialize, HeaderMap, Path, Response, State, TargetRegistry,
-    not_found,
-    npm_handlers::{ScopedVersionPath, get_scoped_version_manifest},
-    split_package_identifier,
+    not_found, npm_handlers::ScopedVersionPath, serve_version_manifest, split_package_identifier,
 };
 
 #[derive(Deserialize)]
@@ -36,13 +34,14 @@ pub(super) async fn get_scoped_version_manifest_or_variant(
         )
         .await;
     }
-    get_scoped_version_manifest(
-        State(state),
-        AuthedCaller(identity),
-        TargetRegistry(registry),
-        Path(path),
-    )
-    .await
+    // A scoped package's version manifest. A first segment that is not a
+    // scope names no package.
+    let ScopedVersionPath { scope, name, version } = path;
+    if !scope.starts_with('@') {
+        return not_found();
+    }
+    let full = format!("{scope}/{name}");
+    serve_version_manifest(&state, &identity, &headers, registry.as_deref(), &full, &version).await
 }
 
 /// `GET {base}/@{scope}/{pkg}@{version}/variants/{tag}` — a scoped package's

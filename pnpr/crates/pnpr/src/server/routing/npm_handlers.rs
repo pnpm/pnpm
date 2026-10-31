@@ -117,23 +117,7 @@ pub(super) async fn get_packument_or_version_manifest(
         let name = format!("{first}/{second}");
         return serve_packument(&state, &identity, &headers, registry.as_deref(), &name).await;
     }
-    serve_version_manifest(&state, &identity, registry.as_deref(), &first, &second).await
-}
-
-/// `GET {base}/@{scope}/{pkg}/{version-or-tag}` — a scoped package's version
-/// manifest. A first segment that is not a scope names no package.
-pub(super) async fn get_scoped_version_manifest(
-    State(state): State<AppState>,
-    AuthedCaller(identity): AuthedCaller,
-    TargetRegistry(registry): TargetRegistry,
-    Path(path): Path<ScopedVersionPath>,
-) -> Response {
-    let ScopedVersionPath { scope, name, version } = path;
-    if !scope.starts_with('@') {
-        return not_found();
-    }
-    let full = format!("{scope}/{name}");
-    serve_version_manifest(&state, &identity, registry.as_deref(), &full, &version).await
+    serve_version_manifest(&state, &identity, &headers, registry.as_deref(), &first, &second).await
 }
 
 /// `GET {base}/{pkg}/-/{filename}`.
