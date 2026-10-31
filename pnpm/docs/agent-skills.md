@@ -20,7 +20,7 @@ my-package/
         └── reference.md
 ```
 
-pnpm looks for skills up to three levels below `skills/`: `skills/<name>/SKILL.md`, and category paths such as `skills/engineering/<name>/SKILL.md`. Name each skill directory after the `name` in its `SKILL.md`, as the [Agent Skills specification](https://agentskills.io/specification) requires. A package can consist of nothing but skills.
+pnpm looks for skills up to three levels below `skills/`: `skills/<name>/SKILL.md`, and category paths such as `skills/engineering/<name>/SKILL.md`. Name each skill directory after the `name` in its `SKILL.md`, as the [Agent Skills specification](https://agentskills.io/specification) requires. If two category directories hold a skill of the same name, pnpm uses the first one in path order. A package can consist of nothing but skills.
 
 ## Approving skills
 

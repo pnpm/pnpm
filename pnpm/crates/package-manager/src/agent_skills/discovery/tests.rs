@@ -104,6 +104,34 @@ fn category_directories_hold_skills() {
 }
 
 #[test]
+fn a_skill_name_shipped_in_two_categories_is_kept_once() {
+    let root = tempfile::tempdir().unwrap();
+    for relative in ["backend/guide", "frontend/guide"] {
+        let dir = root
+            .path()
+            .join("skills")
+            .join(relative);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("SKILL.md"), "# skill\n").unwrap();
+    }
+
+    let found = super::skills(root.path());
+
+    assert_eq!(found, [Skill { name: "guide".to_string(), dir: PathBuf::from("backend/guide") }]);
+}
+
+#[test]
+fn a_git_ssh_package_is_named_up_to_its_first_at() {
+    for (dep_path, segment) in [
+        ("foo@git+ssh://git@github.com/org/foo.git#abc123", "foo"),
+        ("@scope/foo@git+ssh://git@github.com/org/foo.git#abc123", "@scope+foo"),
+    ] {
+        let source = super::skill_source((Vec::new(), PathBuf::from("pkg")), dep_path, "alias");
+        assert_eq!(source.link_segment, segment, "{dep_path}");
+    }
+}
+
+#[test]
 fn a_skill_deeper_than_the_bound_is_not_found() {
     let root = tempfile::tempdir().unwrap();
     let deep = root.path().join("skills/engineering/platform/agent-schema/conventions");

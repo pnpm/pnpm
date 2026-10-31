@@ -2,4 +2,4 @@
 "pacquet": minor
 ---
 
-`pnpm approve` now asks which of a package's agent skills to link when the package ships more than one. The chosen ones are recorded as a list, such as `permissions.<pkg>.skills: [guide, migrate]`, and a skill outside the list is not offered for approval again. The first time a project approves a skill, `pnpm approve` also asks which agent directories the skills are linked into, recording the answer under `skills.dirs`.
+`pnpm approve` now asks which agent skills to link when a package ships more than one. pnpm records the chosen skills as a list, such as `permissions.<pkg>.skills: [guide, migrate]`. pnpm does not offer a skill outside the list for approval again. The first time a project approves a skill, `pnpm approve` also asks which agent directories to link skills into. pnpm records the answer under `skills.dirs`.

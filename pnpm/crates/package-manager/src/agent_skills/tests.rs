@@ -185,21 +185,19 @@ fn links_skills_nested_in_category_directories() {
 }
 
 #[test]
-fn skills_of_one_package_with_one_name_collide() {
+fn a_skill_name_one_package_ships_twice_links_its_first_directory() {
     let (root, lockfile) =
         workspace(&[("foo", "1.0.0", &["engineering/implement", "productivity/implement"])]);
-    fs::create_dir_all(root.path().join(".claude/skills")).unwrap();
+    let skills = root.path().join(".claude/skills");
+    fs::create_dir_all(&skills).unwrap();
 
-    let error = sync(root.path(), &lockfile, &config(&[("foo", true)], None), &[], None)
-        .expect_err("two skills linked as one entry cannot both exist");
+    let state = sync(root.path(), &lockfile, &config(&[("foo", true)], None), &[], None).unwrap();
 
+    assert_eq!(state.linked, [".claude/skills/implement"]);
     assert!(
-        matches!(
-            &error,
-            AgentSkillsError::NameCollision { name, first, second }
-                if name == "pnpm-foo-implement" && first == second,
-        ),
-        "{error:?}",
+        fs::canonicalize(skills.join("implement"))
+            .unwrap()
+            .ends_with("skills/engineering/implement"),
     );
 }
 

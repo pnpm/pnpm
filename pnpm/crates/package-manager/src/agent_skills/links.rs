@@ -38,17 +38,14 @@ pub(super) fn is_within_workspace(entry: &str) -> bool {
 /// link pnpm creates is, even after `node_modules` is removed.
 fn links_to_a_package_skill(path: &Path) -> bool {
     let Ok(target) = fs::read_link(path) else { return false };
-    let in_skills_dir = target
-        .ancestors()
-        .any(|ancestor| {
-            ancestor
-                .file_name()
-                .is_some_and(|name| name == "skills")
-        });
-    in_skills_dir
-        && target
-            .components()
-            .any(|component| component.as_os_str() == "node_modules")
+    let components: Vec<&std::ffi::OsStr> = target
+        .components()
+        .map(Component::as_os_str)
+        .collect();
+    components
+        .iter()
+        .rposition(|component| *component == "node_modules")
+        .is_some_and(|modules| components[modules + 1..].contains(&"skills".as_ref()))
 }
 
 /// Remove a link or junction without following it. Anything else at the path
