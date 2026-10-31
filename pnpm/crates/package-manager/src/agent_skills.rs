@@ -404,11 +404,9 @@ fn recorded_parent_is_within_workspace(workspace_root: &Path, entry: &str) -> bo
 /// `.modules.yaml` is not trusted to name only pnpm's entries, so pnpm
 /// touches only a relative entry reached without `..`.
 fn is_within_workspace(entry: &str) -> bool {
-    let path = Path::new(entry);
-    path.is_relative()
-        && path
-            .components()
-            .all(|component| component != Component::ParentDir)
+    Path::new(entry)
+        .components()
+        .all(|component| matches!(component, Component::Normal(_)))
 }
 
 /// Whether `path` is a link to `node_modules/**/skills/<skill>`, as every

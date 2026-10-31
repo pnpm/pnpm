@@ -232,6 +232,12 @@ fn prompt_for_package_skills_with_empty_skills_is_undiscovered() {
 }
 
 #[test]
+fn a_single_skill_is_approved_with_its_package_without_a_prompt() {
+    let outcome = super::prompt_for_package_skills("foo", &["guide".to_string()]).unwrap();
+    assert_eq!(outcome, super::SkillPromptOutcome::Decided(SkillsPermission::All(true)));
+}
+
+#[test]
 fn review_skills_with_undiscovered_skills_leaves_package_out_of_review() {
     let approved = std::collections::BTreeSet::from(["foo".to_string()]);
     let pending = pending(&[("foo", &[Skills])]);

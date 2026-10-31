@@ -236,3 +236,15 @@ fn run_skills_dirs(original: Option<&str>, dirs: &[String]) -> Option<String> {
     crate::set_skills_dirs(dir.path(), dirs).expect("update succeeds");
     fs::read_to_string(&path).ok()
 }
+
+#[test]
+fn a_chosen_skill_name_with_flow_indicators_reads_back_as_one_name() {
+    let name = "a, b] {c}";
+    let out = run(None, &[("drizzle-kit", chosen(&[name]))]).expect("manifest written");
+    let parsed: pnpm_config::WorkspaceSettings = serde_saphyr::from_str(&out).expect("valid YAML");
+    assert_eq!(
+        parsed.permissions.expect("permissions")["drizzle-kit"].skills,
+        Some(SkillsPermission::Chosen(vec![name.to_string()])),
+        "{out}",
+    );
+}

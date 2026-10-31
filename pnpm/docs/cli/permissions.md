@@ -22,7 +22,7 @@ drizzle-kit  build, skills
 esbuild      build
 ```
 
-Without arguments, the packages are chosen in an interactive prompt. The packages you do not select are denied. For a package you approve for skills, a follow-up prompt lists the skills the package ships and you choose which ones to link. A skill you leave out is neither linked nor offered again: the recorded list names the only skills pnpm may link. When your project approves skills for the first time, pnpm also asks which agent skill directories to link into, and records your choices as [`skills.dirs`](../settings/build.md#skillsdirs). Leave every directory unselected and the detected directories decide instead.
+Without arguments, the packages are chosen in an interactive prompt. The packages you do not select are denied. For a package you approve that ships several skills, a follow-up prompt lists them and you choose which ones to link. A skill you leave out is neither linked nor offered again: the recorded list names the only skills pnpm may link. When your project approves skills for the first time, pnpm also asks which agent skill directories to link into, and records your choices as [`skills.dirs`](../settings/build.md#skillsdirs). Leave every directory unselected and the detected directories decide instead.
 
 You can also pass package names, prefixing a name with `!` to deny it:
 

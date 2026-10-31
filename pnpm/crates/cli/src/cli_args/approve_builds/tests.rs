@@ -109,8 +109,23 @@ fn overlays_the_manifests_skills_dirs() {
 #[test]
 fn confirm_builds_prompt_formats_short_labels() {
     assert_eq!(
-        super::confirm_builds_prompt(&["esbuild@0.25.0".to_string(), "sharp".to_string()]),
+        super::confirm_builds_prompt(
+            &["esbuild@0.25.0".to_string(), "sharp".to_string()],
+            &["esbuild@0.25.0".to_string(), "sharp".to_string()],
+        ),
         "Build esbuild, sharp?",
+    );
+}
+
+#[test]
+fn confirm_builds_prompt_keeps_colliding_labels_distinguishable() {
+    let pending = [
+        "foo@https://codeload.github.com/org1/foo/tar.gz/1".to_string(),
+        "foo@https://codeload.github.com/org2/foo/tar.gz/2".to_string(),
+    ];
+    assert_eq!(
+        super::confirm_builds_prompt(&pending[..1], &pending),
+        "Build foo (git) [foo@https://codeload.github.com/org1/foo/tar.gz/1]?",
     );
 }
 
