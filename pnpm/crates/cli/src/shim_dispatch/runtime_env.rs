@@ -76,12 +76,12 @@ pub(crate) fn trusted_runtime_config(environments_dir: &Path) -> miette::Result<
 
 /// Point `config` into the runtime environment and strip everything a
 /// dependency install may not do on the dispatcher's behalf: lifecycle
-/// scripts, build approvals, and project dependency rewrites are
-/// disabled, and the install always targets the host architecture — the
-/// dispatched runtime executes on this host, and honoring a
-/// `supportedArchitectures.libc: [musl]` override on a glibc host would
-/// select an unofficial-builds artifact that the promptless policy's
-/// host-libc check did not account for.
+/// scripts, pnpmfile hooks, build approvals, and project dependency
+/// rewrites are disabled, and the install always targets the host
+/// architecture, because the dispatched runtime executes on this host, and
+/// honoring a `supportedArchitectures.libc: [musl]` override on a glibc
+/// host would select an unofficial-builds artifact that the promptless
+/// policy's host-libc check did not account for.
 ///
 /// The runtime materializes in the global virtual store at
 /// `global_virtual_store_dir`, or self-contained inside the environment
