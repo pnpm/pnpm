@@ -292,6 +292,19 @@ fn update_compatible_negation_only_selector_honors_ignore_dependencies() {
 }
 
 #[test]
+fn update_depth_zero_negation_leaving_only_ignored_dependencies_is_a_noop() {
+    let (root, workspace, anchor) = setup();
+    set_ignore_dependencies(&workspace, &[FOO]);
+    write_manifest(&workspace, &format!(r#"{{ "{FOO}": "^1.0.0" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+
+    pacquet(&workspace, ["update", "!@pnpm.e2e/bar", "--depth", "0"]).assert().success();
+
+    assert_eq!(dep_spec(&workspace, FOO).as_deref(), Some("^1.0.0"));
+    drop((root, anchor));
+}
+
+#[test]
 fn update_negation_only_selector_honors_ignore_dependencies() {
     let (root, workspace, anchor) = setup();
     set_ignore_dependencies(&workspace, &[DEP]);

@@ -471,3 +471,46 @@ test('recursive update --depth 0 of a filtered selection fails when no selected 
     workspaceDir: process.cwd(),
   }, ['is-positive'])).rejects.toHaveProperty('code', 'ERR_PNPM_NO_PACKAGE_IN_DEPENDENCIES')
 })
+
+test('recursive update with negated selectors that leave only ignored dependencies does nothing at depth 0', async () => {
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.0.0', distTag: 'latest' })
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      dependencies: {
+        '@pnpm.e2e/foo': '^100.0.0',
+      },
+    },
+  ])
+  const lockfileDir = process.cwd()
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+  await install.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    lockfileDir,
+    recursive: true,
+    selectedProjectsGraph,
+    workspaceDir: process.cwd(),
+  })
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
+
+  await update.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    depth: 0,
+    dir: process.cwd(),
+    lockfileDir,
+    recursive: true,
+    selectedProjectsGraph,
+    updateConfig: {
+      ignoreDependencies: ['@pnpm.e2e/foo'],
+    },
+    workspaceDir: process.cwd(),
+  }, ['!@pnpm.e2e/bar'])
+
+  const lockfile = readYamlFileSync<LockfileObject>('./pnpm-lock.yaml')
+  expect(Object.keys(lockfile.packages ?? {})).toStrictEqual(['@pnpm.e2e/foo@100.0.0'])
+})

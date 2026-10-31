@@ -34,6 +34,7 @@ import {
   createMatcher,
   failOnVersionsOfIndirectUpdateSpecs,
   matchDependencies,
+  selectsOnlyIgnoredDependencies,
   type UpdateDepsMatcher,
 } from './recursive.js'
 import { keptCatalogsForPrune, resolvedPackageVersionsForPrune } from './resolvedPackageVersionsForPrune.js'
@@ -178,6 +179,10 @@ function selectUpdateTargets (ctx: SingleProjectInstallContext, params: string[]
   const updateMatch = opts.update && updateSpecs.length ? createMatcher(updateSpecs) : null
   if (updateMatch == null) {
     return { params: updateSpecs, updatePackageManifest: opts.updatePackageManifest }
+  }
+  const ignoredSelection = { params, ignoredDependencies: opts.updateConfig?.ignoreDependencies }
+  if (opts.depth === 0 && selectsOnlyIgnoredDependencies(ignoredSelection, [ctx.manifest], ctx.includeDirect)) {
+    return undefined
   }
   return matchDirectUpdateTargets(ctx, updateSpecs, updateMatch)
 }
