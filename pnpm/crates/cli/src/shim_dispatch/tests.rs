@@ -405,6 +405,19 @@ fn a_private_runtime_install_stays_out_of_the_global_virtual_store() {
     assert!(!install_config.enable_global_virtual_store);
 }
 
+/// A pnpmfile hook runs in a worker started as `node`, which on `PATH` can
+/// be the very shim that is installing the runtime.
+#[test]
+fn a_runtime_install_ignores_the_global_pnpmfile() {
+    let root = tempfile::tempdir().unwrap();
+    let config =
+        Config { global_pnpmfile: Some(root.path().join("pnpmfile.mjs")), ..Config::default() };
+
+    let install_config = hardened_install_config(config, &root.path().join("environment"), None);
+
+    assert!(install_config.ignore_pnpmfile);
+}
+
 #[test]
 fn a_runtime_install_keeps_its_release_age_approvals_out_of_the_caller_workspace() {
     let root = tempfile::tempdir().unwrap();
