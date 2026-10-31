@@ -972,6 +972,45 @@ test('allProjectsAreUpToDate(): use link and registry version if linkWorkspacePa
   ).toBeTruthy()
 })
 
+test('allProjectsAreUpToDate(): accepts a workspace link that excludeLinksFromLockfile left out only when linkWorkspacePackages is on', async () => {
+  const projects = [
+    {
+      id: 'bar' as ProjectId,
+      manifest: {
+        dependencies: {
+          foo: '^1.0.0',
+        },
+      },
+      rootDir: 'bar' as ProjectRootDir,
+    },
+    {
+      id: 'foo' as ProjectId,
+      manifest: fooManifest,
+      rootDir: 'foo' as ProjectRootDir,
+    },
+  ]
+  const opts = {
+    autoInstallPeers: false,
+    catalogs: {},
+    excludeLinksFromLockfile: true,
+    wantedLockfile: {
+      importers: {
+        ['bar' as ProjectId]: {
+          specifiers: {},
+        },
+        ['foo' as ProjectId]: {
+          specifiers: {},
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+    },
+    workspacePackages,
+    lockfileDir: '',
+  }
+  expect(await allProjectsAreUpToDate(projects, { ...opts, linkWorkspacePackages: true })).toBe(true)
+  expect(await allProjectsAreUpToDate(projects, { ...opts, linkWorkspacePackages: false })).toBe(false)
+})
+
 test('allProjectsAreUpToDate(): returns false if dependenciesMeta differs', async () => {
   expect(await allProjectsAreUpToDate([
     {
