@@ -33,7 +33,9 @@ pub(crate) use release_age::{PublishedByView, apply_published_by_policy};
 
 pub use release_age::{filter_pkg_metadata_by_publish_date, filter_pkg_metadata_versions};
 
-use semver_range::{max_satisfying, max_version, min_satisfying, semver_satisfies_loose};
+use semver_range::{
+    max_satisfying, max_version, min_satisfying, min_version, semver_satisfies_loose,
+};
 
 mod preferred_versions;
 use preferred_versions::prioritize_preferred_versions;
@@ -368,21 +370,19 @@ pub fn pick_version_by_version_range(
         if !opts.meta.versions.is_deprecated(latest) {
             return Some(latest.to_string());
         }
-        let all_versions: Vec<&str> = opts.meta.versions
-            .keys()
-            .map(String::as_str)
-            .collect();
         return Some(
-            non_deprecated_pick(opts, &all_versions, latest).unwrap_or_else(|| latest.to_string()),
+            non_deprecated_pick(opts, opts.meta.versions.keys().map(String::as_str), latest)
+                .unwrap_or_else(|| latest.to_string()),
         );
     }
 
-    let all_versions: Vec<&str> = opts.meta.versions
-        .keys()
-        .map(String::as_str)
-        .collect();
-    let max_pick = max_satisfying(&all_versions, opts.version_range)?;
-    non_deprecated_pick(opts, &all_versions, &max_pick).or(Some(max_pick))
+    let max_pick =
+        max_satisfying(opts.meta.versions.keys().map(String::as_str), opts.version_range)?;
+    if !opts.meta.versions.is_deprecated(&max_pick) {
+        return Some(max_pick);
+    }
+    non_deprecated_pick(opts, opts.meta.versions.keys().map(String::as_str), &max_pick)
+        .or(Some(max_pick))
 }
 
 /// The highest satisfying version of the first preference group that has
@@ -404,10 +404,12 @@ fn preferred_max_pick(
         {
             Some(latest.to_string())
         } else {
-            max_satisfying(&group, opts.version_range)
+            max_satisfying(group.iter().map(String::as_str), opts.version_range)
         };
         if let Some(pick) = pick {
-            return Some(non_deprecated_pick(opts, &group, &pick).unwrap_or(pick));
+            return Some(
+                non_deprecated_pick(opts, group.iter().map(String::as_str), &pick).unwrap_or(pick),
+            );
         }
     }
     None
@@ -436,26 +438,28 @@ fn same_release_non_deprecated_pick(non_deprecated: &[&str], picked: &str) -> Op
 /// among `candidates`, when the packument carries another one at all.
 /// Scoping the retry to the candidates keeps a preference group that is
 /// one explicitly pinned version from being overridden.
-fn non_deprecated_pick<Raw: AsRef<str>>(
+fn non_deprecated_pick<'a>(
     opts: &PickVersionByVersionRangeOptions<'_>,
-    candidates: &[Raw],
+    candidates: impl IntoIterator<Item = &'a str>,
     picked: &str,
 ) -> Option<String> {
-    if !opts.meta.versions.is_deprecated(picked) || candidates.len() <= 1 {
+    if !opts.meta.versions.is_deprecated(picked) {
         return None;
     }
-    let non_deprecated: Vec<&str> = candidates
-        .iter()
-        .map(AsRef::as_ref)
-        .filter(|version| !opts.meta.versions.is_deprecated(version))
-        .collect();
-    if opts.version_range == "*"
-        && !semver_satisfies_loose(picked, opts.version_range)
-        && let Some(same_release) = same_release_non_deprecated_pick(&non_deprecated, picked)
-    {
-        return Some(same_release);
+    if opts.version_range == "*" && !semver_satisfies_loose(picked, opts.version_range) {
+        let non_deprecated: Vec<&str> = candidates
+            .into_iter()
+            .filter(|version| !opts.meta.versions.is_deprecated(version))
+            .collect();
+        return same_release_non_deprecated_pick(&non_deprecated, picked)
+            .or_else(|| max_satisfying(non_deprecated.iter().copied(), opts.version_range));
     }
-    max_satisfying(&non_deprecated, opts.version_range)
+    max_satisfying(
+        candidates
+            .into_iter()
+            .filter(|version| !opts.meta.versions.is_deprecated(version)),
+        opts.version_range,
+    )
 }
 
 /// Pick the **lowest** version in `meta.versions` satisfying
@@ -469,29 +473,17 @@ pub fn pick_lowest_version_by_version_range(
     {
         let groups = prioritize_preferred_versions(opts.meta, opts.version_range, Some(selectors));
         for group in groups {
-            if let Some(pick) = min_satisfying(&group, opts.version_range) {
+            if let Some(pick) = min_satisfying(group.iter().map(String::as_str), opts.version_range)
+            {
                 return Some(pick);
             }
         }
     }
 
-    let all_versions: Vec<&str> = opts.meta.versions
-        .keys()
-        .map(String::as_str)
-        .collect();
     if opts.version_range == "*" {
-        let mut parsed: Vec<(Version, &str)> = all_versions
-            .iter()
-            .filter_map(|raw| {
-                Version::parse(raw)
-                    .ok()
-                    .map(|version| (version, *raw))
-            })
-            .collect();
-        parsed.sort_by(|left, right| left.0.cmp(&right.0));
-        return parsed.first().map(|(_, raw)| (*raw).to_string());
+        return min_version(opts.meta.versions.keys().map(String::as_str));
     }
-    min_satisfying(&all_versions, opts.version_range)
+    min_satisfying(opts.meta.versions.keys().map(String::as_str), opts.version_range)
 }
 
 /// Returns the cached version only when lockfile preferences prove
