@@ -14,7 +14,7 @@ async fn cache_key_separates_abbreviated_from_full() {
         .mock("GET", "/acme")
         .match_header(
             "accept",
-            "application/vnd.pnpr.install-v2+json; q=1.0, application/vnd.npm.install-v1+json; q=0.9, application/json; q=0.8, */*",
+            "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*",
         )
         .with_status(200)
         .with_body(ABBREVIATED_BODY)
@@ -37,6 +37,7 @@ async fn cache_key_separates_abbreviated_from_full() {
     let meta_cache = InMemoryPackageMetaCache::default();
     let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
+        registry_options: None,
         full_metadata: false,
         needs_full_metadata_for: None,
         filter_metadata: false,
@@ -75,7 +76,7 @@ async fn optional_dependency_on_pnpr_registry_does_not_fetch_full_metadata() {
         .mock("GET", "/acme")
         .match_header(
             "accept",
-            "application/vnd.pnpr.install-v2+json; q=1.0, application/vnd.npm.install-v1+json; q=0.9, application/json; q=0.8, */*",
+            "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*",
         )
         .with_status(200)
         .with_body(ABBREVIATED_BODY)
@@ -91,6 +92,7 @@ async fn optional_dependency_on_pnpr_registry_does_not_fetch_full_metadata() {
     let fetch_locker = shared_packument_fetch_locker();
     let needs_full_metadata_for = |_: &str, _optional: bool| false;
     let ctx = PickPackageContext {
+        registry_options: None,
         full_metadata: false,
         needs_full_metadata_for: Some(&needs_full_metadata_for),
         filter_metadata: false,
@@ -150,6 +152,7 @@ async fn cache_key_separates_filtered_full_from_unfiltered_full() {
     let meta_cache = InMemoryPackageMetaCache::default();
     let fetch_locker = shared_packument_fetch_locker();
     let unfiltered_ctx = PickPackageContext {
+        registry_options: None,
         full_metadata: true,
         needs_full_metadata_for: None,
         filter_metadata: false,
@@ -170,6 +173,7 @@ async fn cache_key_separates_filtered_full_from_unfiltered_full() {
         },
     };
     let filtered_ctx = PickPackageContext {
+        registry_options: None,
         full_metadata: true,
         needs_full_metadata_for: None,
         filter_metadata: true,
@@ -235,6 +239,7 @@ async fn update_checksums_bypasses_warm_in_memory_cache() {
     let meta_cache = InMemoryPackageMetaCache::default();
     let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
+        registry_options: None,
         full_metadata: false,
         needs_full_metadata_for: None,
         filter_metadata: false,
@@ -318,6 +323,7 @@ async fn cache_fast_paths_record_route_through_hook() {
         meta_cache.set(format!("{registry}\x00acme"), Arc::new(preloaded.clone()));
         let fetch_locker = shared_packument_fetch_locker();
         let ctx = PickPackageContext {
+            registry_options: None,
             full_metadata: false,
             needs_full_metadata_for: None,
             filter_metadata: false,
@@ -356,6 +362,7 @@ async fn cache_fast_paths_record_route_through_hook() {
         let meta_cache = InMemoryPackageMetaCache::default();
         let fetch_locker = shared_packument_fetch_locker();
         let ctx = PickPackageContext {
+            registry_options: None,
             full_metadata: false,
             needs_full_metadata_for: None,
             filter_metadata: false,
@@ -394,6 +401,7 @@ async fn cache_fast_paths_record_route_through_hook() {
         let meta_cache = InMemoryPackageMetaCache::default();
         let fetch_locker = shared_packument_fetch_locker();
         let ctx = PickPackageContext {
+            registry_options: None,
             full_metadata: false,
             needs_full_metadata_for: None,
             filter_metadata: false,
@@ -485,6 +493,7 @@ async fn private_scope_writes_descriptor_namespaced_mirror() {
     let meta_cache = InMemoryPackageMetaCache::default();
     let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
+        registry_options: None,
         full_metadata: false,
         needs_full_metadata_for: None,
         filter_metadata: false,
@@ -548,6 +557,7 @@ async fn public_scope_falls_back_to_mirror_on_401() {
     let meta_cache = InMemoryPackageMetaCache::default();
     let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
+        registry_options: None,
         full_metadata: false,
         needs_full_metadata_for: None,
         filter_metadata: false,

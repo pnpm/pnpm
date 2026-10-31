@@ -378,6 +378,7 @@ impl<Cache: PackageMetaCache> RegistryMetadataClient<Cache> {
         store_view: Option<&'a OfflineStoreView>,
     ) -> PickPackageContext<'a, Cache> {
         PickPackageContext {
+            registry_options: Some(&format.registry_options_by_url),
             full_metadata: format.full_metadata,
             needs_full_metadata_for: format.needs_full_metadata_for.as_deref(),
             filter_metadata: format.filter_metadata,

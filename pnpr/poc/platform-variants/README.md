@@ -46,9 +46,11 @@ local virtual store slot when the selection changes.
 Variant integrities make a packument several times larger, because a digest
 does not compress. So the PoC also implements split packuments:
 
-- pnpm asks for `application/vnd.pnpr.install-v2+json` first, and pnpr
-  answers with a document in its own format (`PNPR_INSTALL_V2=0` turns it
-  off): `name`, `distTags`,
+- pnpm asks a registry declared `serverType: pnpr` for
+  `application/vnd.pnpr.install-v2+json` first, and pnpr answers with a
+  document in its own format (`PNPR_INSTALL_V2=0` turns it off). Other
+  registries, and pnpr when it is not declared, are asked for npm's
+  documents. The format has: `name`, `distTags`,
   `modified`, `timesSince`, and an entry per version in `versions` with its
   `deprecated` notice, `trust` rank, selected `revision`, and its publish
   `time` only if it was published within 30 days of the package's last
@@ -79,12 +81,10 @@ does not compress. So the PoC also implements split packuments:
   RFC requires. It fetches the record of a picked version without a manifest
   once per install and takes the deprecation and trust evidence from the
   document. Records are not yet cached on disk.
-- pnpr's documents need a metadata cache of their own on the client: an
-  older pnpm on `PATH` that shares the cache read a split document the new
-  one had cached, and failed to switch versions. Moving the cache directory
-  touches the cache commands, cache pruning, and their tests, so the PoC does
-  not do it yet: an older pnpm sharing `v12/metadata` with this one can
-  resolve a version without its dependencies.
+- pnpr's documents are cached in `v12/metadata-pnpr`, apart from npm's in
+  `v12/metadata`: an older pnpm on `PATH` that shared the cache read a split
+  document the new one had cached, and failed to switch versions. The
+  `pnpm cache` commands do not list the new directory yet.
 
 `bench-split.sh` resolves `bench-app.json` (787 packages, all proxied from
 npmjs) through `shaper.mjs`, a CDN-like proxy that gzips, caches, delays each

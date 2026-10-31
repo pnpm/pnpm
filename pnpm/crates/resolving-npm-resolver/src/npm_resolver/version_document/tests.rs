@@ -53,6 +53,7 @@ async fn an_external_version_is_read_once_from_the_version_document() {
     let meta_cache = InMemoryPackageMetaCache::default();
     let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
+        registry_options: None,
         full_metadata: false,
         needs_full_metadata_for: None,
         filter_metadata: false,
@@ -95,6 +96,7 @@ async fn an_inline_dist_is_kept() {
     let meta_cache = InMemoryPackageMetaCache::default();
     let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
+        registry_options: None,
         full_metadata: false,
         needs_full_metadata_for: None,
         filter_metadata: false,
@@ -143,6 +145,7 @@ async fn a_version_document_of_another_version_is_rejected() {
     let meta_cache = InMemoryPackageMetaCache::default();
     let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
+        registry_options: None,
         full_metadata: false,
         needs_full_metadata_for: None,
         filter_metadata: false,
@@ -182,6 +185,7 @@ async fn the_selected_revision_addresses_the_release_record() {
     let meta_cache = InMemoryPackageMetaCache::default();
     let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
+        registry_options: None,
         full_metadata: false,
         needs_full_metadata_for: None,
         filter_metadata: false,

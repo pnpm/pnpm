@@ -145,6 +145,18 @@ pub async fn pick_package<Cache: PackageMetaCache>(
     Ok(PickPackageResult { picked_package, ..result })
 }
 
+/// Whether `registry` is declared `serverType: pnpr`, so its abbreviated
+/// metadata is read in pnpr's own format.
+pub(crate) fn serves_pnpr_format<Cache: PackageMetaCache>(
+    ctx: &PickPackageContext<'_, Cache>,
+    registry: &str,
+) -> bool {
+    ctx.registry_options.is_some_and(|options| {
+        pnpm_lockfile::registry_server_type(options, registry)
+            == Some(pnpm_lockfile::RegistryServerType::Pnpr)
+    })
+}
+
 /// [`pick_package`] before a split packument's external version is read.
 async fn pick_from_metadata<Cache: PackageMetaCache>(
     ctx: &PickPackageContext<'_, Cache>,

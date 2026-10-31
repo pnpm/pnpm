@@ -24,6 +24,7 @@ async fn concurrent_picks_for_same_key_share_one_network_fetch() {
     let meta_cache = InMemoryPackageMetaCache::default();
     let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
+        registry_options: None,
         full_metadata: false,
         needs_full_metadata_for: None,
         filter_metadata: false,
@@ -90,6 +91,7 @@ async fn private_scope_fails_closed_on_401_without_disk_fallback() {
     let meta_cache = InMemoryPackageMetaCache::default();
     let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
+        registry_options: None,
         full_metadata: false,
         needs_full_metadata_for: None,
         filter_metadata: false,

@@ -16,7 +16,7 @@ use reqwest::header::{self, HeaderMap};
 
 use crate::{
     fetch_full_metadata::{
-        ACCEPT_ABBREVIATED_DOC, ACCEPT_FULL_DOC, is_abbreviated_content_type,
+        ACCEPT_ABBREVIATED_DOC, ACCEPT_FULL_DOC, ACCEPT_PNPR_DOC, is_abbreviated_content_type,
         metadata_response_is_uncacheable,
     },
     mirror::MetaHeaders,
@@ -61,8 +61,11 @@ impl DocumentKind {
         }
     }
 
-    pub(crate) fn accept(self) -> &'static str {
+    /// The `Accept` header for this kind; `pnpr_format` asks a registry
+    /// declared `serverType: pnpr` for its own document first.
+    pub(crate) fn accept(self, pnpr_format: bool) -> &'static str {
         match self {
+            DocumentKind::Abbreviated if pnpr_format => ACCEPT_PNPR_DOC,
             DocumentKind::Abbreviated => ACCEPT_ABBREVIATED_DOC,
             DocumentKind::Full | DocumentKind::FullInAbbreviatedMirror => ACCEPT_FULL_DOC,
         }

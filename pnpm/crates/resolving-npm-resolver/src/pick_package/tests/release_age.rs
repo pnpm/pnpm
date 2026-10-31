@@ -15,6 +15,7 @@ async fn invalid_package_name_errors_synchronously() {
     let meta_cache = InMemoryPackageMetaCache::default();
     let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
+        registry_options: None,
         full_metadata: false,
         needs_full_metadata_for: None,
         filter_metadata: false,
@@ -48,7 +49,7 @@ async fn published_by_triggers_upgrade_when_modified_after_cutoff() {
         .mock("GET", "/acme")
         .match_header(
             "accept",
-            "application/vnd.pnpr.install-v2+json; q=1.0, application/vnd.npm.install-v1+json; q=0.9, application/json; q=0.8, */*",
+            "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*",
         )
         .with_status(200)
         .with_body(ABBREVIATED_BODY)
@@ -71,6 +72,7 @@ async fn published_by_triggers_upgrade_when_modified_after_cutoff() {
     let meta_cache = InMemoryPackageMetaCache::default();
     let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
+        registry_options: None,
         full_metadata: false,
         needs_full_metadata_for: None,
         filter_metadata: false,
@@ -123,7 +125,7 @@ async fn published_by_upgrades_metadata_with_partial_time_map() {
         .mock("GET", "/acme")
         .match_header(
             "accept",
-            "application/vnd.pnpr.install-v2+json; q=1.0, application/vnd.npm.install-v1+json; q=0.9, application/json; q=0.8, */*",
+            "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*",
         )
         .with_status(200)
         .with_body(PARTIAL_TIME_PACKAGE_BODY)
@@ -146,6 +148,7 @@ async fn published_by_upgrades_metadata_with_partial_time_map() {
     let meta_cache = InMemoryPackageMetaCache::default();
     let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
+        registry_options: None,
         full_metadata: false,
         needs_full_metadata_for: None,
         filter_metadata: false,
@@ -186,7 +189,7 @@ async fn published_by_skips_upgrade_when_modified_equals_cutoff() {
         .mock("GET", "/acme")
         .match_header(
             "accept",
-            "application/vnd.pnpr.install-v2+json; q=1.0, application/vnd.npm.install-v1+json; q=0.9, application/json; q=0.8, */*",
+            "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*",
         )
         .with_status(200)
         .with_body(ABBREVIATED_BODY)
@@ -204,6 +207,7 @@ async fn published_by_skips_upgrade_when_modified_equals_cutoff() {
     let meta_cache = InMemoryPackageMetaCache::default();
     let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
+        registry_options: None,
         full_metadata: false,
         needs_full_metadata_for: None,
         filter_metadata: false,
@@ -241,7 +245,7 @@ async fn published_by_exclude_skips_upgrade_for_abbreviated_meta_without_time() 
         .mock("GET", "/acme")
         .match_header(
             "accept",
-            "application/vnd.pnpr.install-v2+json; q=1.0, application/vnd.npm.install-v1+json; q=0.9, application/json; q=0.8, */*",
+            "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*",
         )
         .with_status(200)
         .with_body(ABBREVIATED_BODY)
@@ -258,6 +262,7 @@ async fn published_by_exclude_skips_upgrade_for_abbreviated_meta_without_time() 
     let meta_cache = InMemoryPackageMetaCache::default();
     let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
+        registry_options: None,
         full_metadata: false,
         needs_full_metadata_for: None,
         filter_metadata: false,
@@ -321,6 +326,7 @@ async fn published_by_upgrade_marker_is_scoped_to_install() {
     meta_cache.set(format!("{registry}\u{0}acme"), Arc::new(seeded));
     let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
+        registry_options: None,
         full_metadata: false,
         needs_full_metadata_for: None,
         filter_metadata: false,
@@ -355,6 +361,7 @@ async fn published_by_upgrade_marker_is_scoped_to_install() {
     // install's marker from the cached Package.
     let next_install_fetch_locker = shared_packument_fetch_locker();
     let next_install_ctx = PickPackageContext {
+        registry_options: None,
         full_metadata: false,
         needs_full_metadata_for: None,
         filter_metadata: false,
@@ -409,6 +416,7 @@ async fn published_by_upgrade_answering_repeated_304_does_not_fail_the_pick() {
     meta_cache.set(format!("{registry}\u{0}acme"), Arc::new(seeded));
     let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
+        registry_options: None,
         full_metadata: false,
         needs_full_metadata_for: None,
         filter_metadata: false,
@@ -455,7 +463,7 @@ async fn published_by_upgrade_answering_200_is_remembered_across_picks() {
         .mock("GET", "/acme")
         .match_header(
             "accept",
-            "application/vnd.pnpr.install-v2+json; q=1.0, application/vnd.npm.install-v1+json; q=0.9, application/json; q=0.8, */*",
+            "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*",
         )
         .with_status(200)
         .with_body(PARTIAL_TIME_PACKAGE_BODY)
@@ -478,6 +486,7 @@ async fn published_by_upgrade_answering_200_is_remembered_across_picks() {
     let meta_cache = InMemoryPackageMetaCache::default();
     let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
+        registry_options: None,
         full_metadata: false,
         needs_full_metadata_for: None,
         filter_metadata: false,
@@ -531,7 +540,7 @@ async fn published_by_upgrade_marker_is_scoped_to_document() {
         .mock("GET", "/acme")
         .match_header(
             "accept",
-            "application/vnd.pnpr.install-v2+json; q=1.0, application/vnd.npm.install-v1+json; q=0.9, application/json; q=0.8, */*",
+            "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*",
         )
         .with_status(200)
         .with_header("etag", r#""acme-etag-2""#)
@@ -561,6 +570,7 @@ async fn published_by_upgrade_marker_is_scoped_to_document() {
     meta_cache.set(format!("{registry}\u{0}acme"), Arc::new(seeded));
     let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
+        registry_options: None,
         full_metadata: false,
         needs_full_metadata_for: None,
         filter_metadata: false,
@@ -654,6 +664,7 @@ async fn published_by_excluded_package_bypasses_mtime_shortcut_and_revalidates()
     let meta_cache = InMemoryPackageMetaCache::default();
     let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
+        registry_options: None,
         full_metadata: false,
         needs_full_metadata_for: None,
         filter_metadata: false,
@@ -729,6 +740,7 @@ async fn published_by_upgrade_of_a_lowest_version_mirror_pick_is_remembered_acro
     let meta_cache = InMemoryPackageMetaCache::default();
     let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
+        registry_options: None,
         full_metadata: false,
         needs_full_metadata_for: None,
         filter_metadata: false,

@@ -37,7 +37,12 @@ use crate::{
 pub(crate) const ACCEPT_FULL_DOC: &str = "application/json; q=1.0, */*";
 
 /// Accept header for the abbreviated `install-v1` packument.
-pub(crate) const ACCEPT_ABBREVIATED_DOC: &str = "application/vnd.pnpr.install-v2+json; q=1.0, \
+pub(crate) const ACCEPT_ABBREVIATED_DOC: &str =
+    "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*";
+
+/// Accept header for pnpr's own package document (proof of concept), sent
+/// only to a registry declared `serverType: pnpr`.
+pub(crate) const ACCEPT_PNPR_DOC: &str = "application/vnd.pnpr.install-v2+json; q=1.0, \
      application/vnd.npm.install-v1+json; q=0.9, application/json; q=0.8, */*";
 
 /// Content type of pnpr's own package document (proof of concept), which may
@@ -340,7 +345,7 @@ async fn one_metadata_attempt(
     let (client, response) = send_metadata_request(&MetadataRequestOptions {
         pkg_name,
         url,
-        accept: kind.accept(),
+        accept: kind.accept(false),
         priority: pnpm_network::UNPRIORITIZED,
         etag: opts.etag,
         modified: opts.modified,

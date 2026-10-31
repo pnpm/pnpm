@@ -76,7 +76,7 @@ async fn published_by_upgrade_of_an_upgraded_mirror_revalidates_with_the_full_et
         .mock("GET", "/acme")
         .match_header(
             "accept",
-            "application/vnd.pnpr.install-v2+json; q=1.0, application/vnd.npm.install-v1+json; q=0.9, application/json; q=0.8, */*",
+            "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*",
         )
         .with_status(200)
         .with_header("etag", r#""abbreviated-etag""#)
@@ -127,7 +127,7 @@ async fn published_by_changed_full_document_without_complete_time_is_not_upgrade
         .mock("GET", "/acme")
         .match_header(
             "accept",
-            "application/vnd.pnpr.install-v2+json; q=1.0, application/vnd.npm.install-v1+json; q=0.9, application/json; q=0.8, */*",
+            "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*",
         )
         .with_status(200)
         .with_body(ABBREVIATED_BODY)
@@ -193,6 +193,7 @@ async fn install_ignoring_missing_time(
         let meta_cache = InMemoryPackageMetaCache::default();
         let fetch_locker = shared_packument_fetch_locker();
         let ctx = PickPackageContext {
+            registry_options: None,
             full_metadata: false,
             needs_full_metadata_for: None,
             filter_metadata: false,
@@ -228,7 +229,7 @@ async fn mock_upgrade(server: &mut mockito::Server) -> (mockito::Mock, mockito::
         .mock("GET", "/acme")
         .match_header(
             "accept",
-            "application/vnd.pnpr.install-v2+json; q=1.0, application/vnd.npm.install-v1+json; q=0.9, application/json; q=0.8, */*",
+            "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*",
         )
         .with_status(200)
         .with_header("etag", r#""abbreviated-etag""#)
@@ -268,6 +269,7 @@ async fn upgrade_then_revalidate(
         let meta_cache = InMemoryPackageMetaCache::default();
         let fetch_locker = shared_packument_fetch_locker();
         let ctx = PickPackageContext {
+            registry_options: None,
             full_metadata: false,
             needs_full_metadata_for: None,
             filter_metadata: false,

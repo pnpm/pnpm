@@ -24,6 +24,7 @@ async fn cold_cache_writes_mirror_on_200() {
     let http_client = ThrottledClient::default();
     let auth_headers = AuthHeaders::default();
     let opts = FetchFullMetadataCachedOptions {
+        pnpr_format: false,
         registry: &registry,
         cache_dir: Some(cache.path()),
         full_metadata: true,
@@ -65,6 +66,7 @@ async fn offline_with_mirror_reads_cache_without_registry() {
     let http_client = ThrottledClient::default();
     let auth_headers = AuthHeaders::default();
     let opts = FetchFullMetadataCachedOptions {
+        pnpr_format: false,
         registry: &registry,
         cache_dir: Some(cache.path()),
         full_metadata: true,
@@ -98,6 +100,7 @@ async fn offline_without_mirror_errors_without_registry() {
     let http_client = ThrottledClient::default();
     let auth_headers = AuthHeaders::default();
     let opts = FetchFullMetadataCachedOptions {
+        pnpr_format: false,
         registry: &registry,
         cache_dir: Some(cache.path()),
         full_metadata: true,
@@ -141,6 +144,7 @@ async fn offline_without_mirror_names_the_legacy_mirror_when_it_predates_the_ren
     let http_client = ThrottledClient::default();
     let auth_headers = AuthHeaders::default();
     let opts = FetchFullMetadataCachedOptions {
+        pnpr_format: false,
         registry: &registry,
         cache_dir: Some(cache.path()),
         full_metadata: true,
@@ -192,6 +196,7 @@ async fn unsolicited_304_retries_without_cache() {
     let http_client = ThrottledClient::default();
     let auth_headers = AuthHeaders::default();
     let opts = FetchFullMetadataCachedOptions {
+        pnpr_format: false,
         registry: &registry,
         cache_dir: Some(cache.path()),
         full_metadata: true,
@@ -234,6 +239,7 @@ async fn repeated_unsolicited_304_reports_missing_cache() {
     let http_client = ThrottledClient::default();
     let auth_headers = AuthHeaders::default();
     let opts = FetchFullMetadataCachedOptions {
+        pnpr_format: false,
         registry: &registry,
         cache_dir: Some(cache.path()),
         full_metadata: true,
@@ -298,6 +304,7 @@ async fn cache_loss_after_304_stops_after_one_fallback() {
     let http_client = ThrottledClient::default();
     let auth_headers = AuthHeaders::default();
     let opts = FetchFullMetadataCachedOptions {
+        pnpr_format: false,
         registry: &registry,
         cache_dir: Some(cache.path()),
         full_metadata: true,
@@ -364,6 +371,7 @@ async fn cache_loss_after_304_body_retry_remains_bypassed() {
     let http_client = ThrottledClient::default();
     let auth_headers = AuthHeaders::default();
     let opts = FetchFullMetadataCachedOptions {
+        pnpr_format: false,
         registry: &registry,
         cache_dir: Some(cache.path()),
         full_metadata: true,
@@ -419,6 +427,7 @@ async fn cache_loss_after_304_registry_error_propagates() {
     let http_client = ThrottledClient::default();
     let auth_headers = AuthHeaders::default();
     let opts = FetchFullMetadataCachedOptions {
+        pnpr_format: false,
         registry: &registry,
         cache_dir: Some(cache.path()),
         full_metadata: true,
@@ -474,6 +483,7 @@ async fn filtered_full_cache_writes_filtered_mirror_on_200() {
     let http_client = ThrottledClient::default();
     let auth_headers = AuthHeaders::default();
     let opts = FetchFullMetadataCachedOptions {
+        pnpr_format: false,
         registry: &registry,
         cache_dir: Some(cache.path()),
         full_metadata: true,
@@ -527,6 +537,7 @@ async fn a_doc_served_with_the_abbreviated_content_type_is_cached_verbatim() {
     let http_client = ThrottledClient::default();
     let auth_headers = AuthHeaders::default();
     let opts = FetchFullMetadataCachedOptions {
+        pnpr_format: false,
         registry: &registry,
         cache_dir: Some(cache.path()),
         full_metadata: false,
@@ -576,6 +587,7 @@ async fn warm_cache_serves_from_mirror_on_304() {
     let http_client = ThrottledClient::default();
     let auth_headers = AuthHeaders::default();
     let opts = FetchFullMetadataCachedOptions {
+        pnpr_format: false,
         registry: &registry,
         cache_dir: Some(cache.path()),
         full_metadata: true,
@@ -623,6 +635,7 @@ async fn a_304_renews_the_mirror_mtime() {
     let http_client = ThrottledClient::default();
     let auth_headers = AuthHeaders::default();
     let opts = FetchFullMetadataCachedOptions {
+        pnpr_format: false,
         registry: &registry,
         cache_dir: Some(cache.path()),
         full_metadata: true,
@@ -689,6 +702,7 @@ async fn stale_cache_refreshes_mirror_on_200() {
     let http_client = ThrottledClient::default();
     let auth_headers = AuthHeaders::default();
     let opts = FetchFullMetadataCachedOptions {
+        pnpr_format: false,
         registry: &registry,
         cache_dir: Some(cache.path()),
         full_metadata: true,
@@ -729,6 +743,7 @@ async fn no_cache_dir_skips_mirror_io() {
     let http_client = ThrottledClient::default();
     let auth_headers = AuthHeaders::default();
     let opts = FetchFullMetadataCachedOptions {
+        pnpr_format: false,
         registry: &registry,
         cache_dir: None,
         full_metadata: true,
@@ -774,6 +789,7 @@ async fn read_only_cache_dir_does_not_fail_the_call() {
     let http_client = ThrottledClient::default();
     let auth_headers = AuthHeaders::default();
     let opts = FetchFullMetadataCachedOptions {
+        pnpr_format: false,
         registry: &registry,
         cache_dir: Some(cache.path()),
         full_metadata: true,
@@ -815,6 +831,7 @@ async fn max_age_zero_metadata_is_revalidated_with_the_origin() {
     let http_client = ThrottledClient::default();
     let auth_headers = AuthHeaders::default();
     let opts = FetchFullMetadataCachedOptions {
+        pnpr_format: false,
         registry: &registry,
         cache_dir: Some(cache.path()),
         full_metadata: true,
@@ -879,6 +896,7 @@ async fn uncacheable_mirror_is_served_after_a_304_from_the_origin() {
     let http_client = ThrottledClient::default();
     let auth_headers = AuthHeaders::default();
     let opts = FetchFullMetadataCachedOptions {
+        pnpr_format: false,
         registry: &registry,
         cache_dir: Some(cache.path()),
         full_metadata: true,
@@ -945,6 +963,7 @@ async fn uncacheable_304_to_an_unflagged_mirror_is_refetched_without_validators(
     let http_client = ThrottledClient::default();
     let auth_headers = AuthHeaders::default();
     let opts = FetchFullMetadataCachedOptions {
+        pnpr_format: false,
         registry: &registry,
         cache_dir: Some(cache.path()),
         full_metadata: true,

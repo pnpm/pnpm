@@ -26,6 +26,7 @@ async fn normal_range_fetches_when_trust_policy_is_active() {
     let meta_cache = InMemoryPackageMetaCache::default();
     let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
+        registry_options: None,
         full_metadata: false,
         needs_full_metadata_for: None,
         filter_metadata: false,
@@ -69,7 +70,7 @@ async fn abbreviated_packument_without_time_upgrades_to_full_when_trust_policy_i
         .mock("GET", "/acme")
         .match_header(
             "accept",
-            "application/vnd.pnpr.install-v2+json; q=1.0, application/vnd.npm.install-v1+json; q=0.9, application/json; q=0.8, */*",
+            "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*",
         )
         .with_status(200)
         .with_body(super::ABBREVIATED_BODY)
@@ -92,6 +93,7 @@ async fn abbreviated_packument_without_time_upgrades_to_full_when_trust_policy_i
     let fetch_locker = shared_packument_fetch_locker();
     let needs_full_metadata_for = |_: &str, _optional: bool| false;
     let ctx = PickPackageContext {
+        registry_options: None,
         full_metadata: false,
         needs_full_metadata_for: Some(&needs_full_metadata_for),
         filter_metadata: false,

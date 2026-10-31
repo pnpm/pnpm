@@ -91,6 +91,11 @@ use sha2::{Digest, Sha256};
 /// Mirror directory for the **abbreviated** metadata cache.
 pub const ABBREVIATED_META_DIR: &str = "v12/metadata";
 
+/// Mirror directory for pnpr's own package documents (proof of concept),
+/// read from registries declared `serverType: pnpr`. A pnpm release that
+/// predates the format never reads it.
+pub const PNPR_META_DIR: &str = "v12/metadata-pnpr";
+
 /// Mirror directory for the **full** metadata cache.
 pub const FULL_META_DIR: &str = "v12/metadata-full";
 
