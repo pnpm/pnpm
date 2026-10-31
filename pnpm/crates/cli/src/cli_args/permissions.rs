@@ -20,8 +20,7 @@ use clap::{Args, Subcommand};
 use miette::{Context, IntoDiagnostic, Report};
 use pnpm_config::{Config, PermissionCapability, SkillsPermission, is_ci};
 use pnpm_package_manager::{
-    allow_build_key_from_ignored_build, resync_installed_agent_skills, short_package_label,
-    skill_approval_options,
+    allow_build_key_from_ignored_build, resync_installed_agent_skills, skill_approval_options,
 };
 use pnpm_reporter::{Reporter, emit_global_warning};
 use pnpm_workspace_manifest_writer::set_skills_dirs;
@@ -239,8 +238,9 @@ fn review_skills(
         .map_err(Report::new)
         .wrap_err("find the skills of the packages awaiting approval")?;
 
+    let labels = disambiguated_labels(pending.keys().map(String::as_str));
     let Some(skills_by_package) =
-        collect_package_skill_decisions(&skills_pending, &options.skills_by_key)?
+        collect_package_skill_decisions(&skills_pending, &labels, &options.skills_by_key)?
     else {
         return Ok(None);
     };
@@ -255,6 +255,7 @@ fn review_skills(
 
 fn collect_package_skill_decisions(
     skills_pending: &[&String],
+    labels: &BTreeMap<&str, String>,
     skills_by_key: &BTreeMap<String, Vec<String>>,
 ) -> miette::Result<Option<BTreeMap<String, SkillsPermission>>> {
     let mut skills_by_package = BTreeMap::new();
@@ -263,7 +264,7 @@ fn collect_package_skill_decisions(
             .get(pkg.as_str())
             .cloned()
             .unwrap_or_default();
-        match prompt_for_package_skills(pkg, &skills)? {
+        match prompt_for_package_skills(&labels[pkg.as_str()], &skills)? {
             SkillPromptOutcome::Cancelled => return Ok(None),
             SkillPromptOutcome::Undiscovered => {}
             SkillPromptOutcome::Decided(decision) => {
@@ -291,7 +292,8 @@ fn resolve_skills_dirs(
 
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) enum SkillPromptOutcome {
-    /// The user selected skills or unselected all of them.
+    /// The user selected skills or unselected all of them, or the package
+    /// ships one skill, which approving the package approves.
     Decided(SkillsPermission),
     /// No skills were discovered for this package, so it cannot be reviewed.
     Undiscovered,
@@ -300,17 +302,19 @@ pub(crate) enum SkillPromptOutcome {
 }
 
 pub(crate) fn prompt_for_package_skills(
-    pkg: &str,
+    label: &str,
     skills: &[String],
 ) -> miette::Result<SkillPromptOutcome> {
-    if skills.is_empty() {
-        return Ok(SkillPromptOutcome::Undiscovered);
+    match skills.len() {
+        0 => return Ok(SkillPromptOutcome::Undiscovered),
+        1 => return Ok(SkillPromptOutcome::Decided(SkillsPermission::All(true))),
+        _ => {}
     }
     let choices: Vec<(String, String)> = skills
         .iter()
         .map(|skill| (skill.clone(), skill.clone()))
         .collect();
-    let prompt = format!("Choose which of {}'s agent skills to link", short_package_label(pkg));
+    let prompt = format!("Choose which of {label}'s agent skills to link");
     let Some(selected) = prompt_for_choices(&prompt, &choices)? else {
         return Ok(SkillPromptOutcome::Cancelled);
     };

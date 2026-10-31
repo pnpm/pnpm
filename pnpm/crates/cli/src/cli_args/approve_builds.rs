@@ -154,7 +154,7 @@ impl ApproveBuildsArgs {
 
         // Only the interactive path asks for confirmation: named
         // packages and `--all` are the answer already.
-        if !all && packages.is_empty() && !confirm_selected_builds(&build_packages)? {
+        if !all && packages.is_empty() && !confirm_selected_builds(&build_packages, pending)? {
             return Ok(None);
         }
 
@@ -190,12 +190,12 @@ fn named_decisions(approved: &[String], denied: &[String]) -> BTreeMap<String, b
 
 /// Whether the interactive run may proceed. An empty selection needs no
 /// confirmation — it denies every pending package.
-fn confirm_selected_builds(build_packages: &[String]) -> miette::Result<bool> {
+fn confirm_selected_builds(build_packages: &[String], pending: &[String]) -> miette::Result<bool> {
     if build_packages.is_empty() {
         pnpm_diagnostics::println!("All packages were added to allowBuilds with value false.");
         return Ok(true);
     }
-    confirm_builds(build_packages)
+    confirm(&confirm_builds_prompt(build_packages, pending))
 }
 
 pub(crate) fn write_approval_settings(
@@ -335,21 +335,23 @@ pub(crate) fn prompt_for_choices(
     }
 }
 
-/// The confirmation prompt text for building `build_packages`.
-pub(crate) fn confirm_builds_prompt(build_packages: &[String]) -> String {
+/// The confirmation prompt text for building `build_packages`, labelled
+/// as the checkbox prompt over `pending` labelled them.
+pub(crate) fn confirm_builds_prompt(build_packages: &[String], pending: &[String]) -> String {
+    let labels = disambiguated_labels(pending.iter().map(String::as_str));
     format!(
         "Build {}?",
         build_packages
             .iter()
-            .map(|key| short_package_label(key))
+            .map(|key| {
+                labels
+                    .get(key.as_str())
+                    .cloned()
+                    .unwrap_or_else(|| short_package_label(key))
+            })
             .collect::<Vec<_>>()
             .join(", "),
     )
-}
-
-/// Ask the user to confirm building `build_packages`.
-fn confirm_builds(build_packages: &[String]) -> miette::Result<bool> {
-    confirm(&confirm_builds_prompt(build_packages))
 }
 
 /// Ask a yes/no question that defaults to "no", matching pnpm's
@@ -463,10 +465,10 @@ pub(crate) fn config_with_install_approvals(
     {
         cfg.allow_builds.extend(settings.decided_build_approvals().unwrap_or_default());
         cfg.allow_skills.extend(settings.decided_skill_approvals().unwrap_or_default());
-        // The approval run just wrote this manifest, so its `skills.dirs`
-        // is the value the skills link should follow, the same way a fresh
-        // install loads it.
-        cfg.skills_dirs = settings.skills.as_ref().and_then(|skills| skills.dirs.clone());
+        // The approval run may have just written `skills.dirs`.
+        if let Some(dirs) = settings.skills.and_then(|skills| skills.dirs) {
+            cfg.skills_dirs = Some(dirs);
+        }
     }
     Ok(Config::leak(cfg))
 }

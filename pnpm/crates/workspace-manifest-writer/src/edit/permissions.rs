@@ -65,11 +65,22 @@ fn render_permission_value(value: &PermissionValue) -> String {
                 "[{}]",
                 chosen
                     .iter()
-                    .map(|skill| render::render_value(skill))
+                    .map(|skill| render_flow_item(skill))
                     .collect::<Vec<String>>()
                     .join(", "),
             )
         }
+    }
+}
+
+/// `item` rendered for a flow sequence. A plain scalar there ends at a flow
+/// indicator, and a skill name is a directory name a package chose, so one
+/// holding an indicator is double-quoted.
+fn render_flow_item(item: &str) -> String {
+    if item.contains([',', '[', ']', '{', '}']) {
+        serde_json::to_string(item).expect("serializing a string to JSON never fails")
+    } else {
+        render::render_value(item)
     }
 }
 
