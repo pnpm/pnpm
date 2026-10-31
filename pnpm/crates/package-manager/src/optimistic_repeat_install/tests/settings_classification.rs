@@ -60,7 +60,7 @@ const CLASSIFICATION: &[(&str, Reach)] = &[
     ("aggregate_output", NotAnInput(CLI_ONLY)),
     ("agent_skills_disabled", Through("the agent skill targets, compared after the fast path")),
     ("allow_builds", Recorded { key: "allowBuilds", change: |config| { config.allow_builds.insert("foo".into(), true); } }),
-    ("allow_skills", Recorded { key: "allowSkills", change: |config| { config.allow_skills.insert("foo".into(), true); } }),
+    ("allow_skills", Recorded { key: "allowSkills", change: |config| { config.allow_skills.insert("foo".into(), pnpm_config::SkillsPermission::All(true)); } }),
     ("allow_unused_patches", NotAnInput("whether an unused patch fails the install")),
     ("allowed_deprecated_versions", NotAnInput(RESOLUTION_ONLY)),
     ("audit_config", NotAnInput(OTHER_COMMAND)),

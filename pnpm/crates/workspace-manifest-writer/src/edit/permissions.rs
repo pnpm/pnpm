@@ -1,8 +1,10 @@
 use super::{
     IndexMap, Inline, Manifest, flow, insert_top_level_block, locate, locate_mapping, mapping_keys,
-    remove_top_level_block, render, render_bool, replace_bool_value_at, write_named_subblock,
+    remove_top_level_block, render, render_bool, replace_value_text_at, write_named_subblock,
     write_rendered_entry_at,
 };
+use crate::build_settings::PermissionValue;
+use pnpm_config::SkillsPermission;
 
 const BLOCK: &str = "permissions";
 
@@ -13,16 +15,16 @@ pub(crate) fn set_permission(
     manifest: &mut Manifest,
     pkg: &str,
     capability: &str,
-    value: bool,
+    value: &PermissionValue,
 ) -> bool {
+    let value_text = render_permission_value(value);
     let text = manifest.document.text();
     let new_text = if locate(text, &[BLOCK]).is_none()
         && !matches!(locate_mapping(text, &[BLOCK]), Inline::Flow(_))
     {
         let block = format!(
-            "{BLOCK}:\n  {}:\n    {capability}: {}\n",
+            "{BLOCK}:\n  {}:\n    {capability}: {value_text}\n",
             render::render_value(pkg),
-            render_bool(value),
         );
         let new_text = insert_top_level_block(manifest, BLOCK, &block);
         manifest.document.keys =
@@ -32,24 +34,52 @@ pub(crate) fn set_permission(
         .iter()
         .any(|key| key == pkg)
     {
-        write_named_subblock(text, BLOCK, pkg, capability, render_bool(value))
+        write_named_subblock(text, BLOCK, pkg, capability, &value_text)
     } else if !mapping_keys(text, &[BLOCK, pkg])
         .iter()
         .any(|key| key == capability)
     {
-        write_rendered_entry_at(text, &[BLOCK, pkg], capability, render_bool(value))
-    } else if recorded_permission(text, pkg, capability) == Some(value) {
+        write_rendered_entry_at(text, &[BLOCK, pkg], capability, &value_text)
+    } else if recorded_permission(text, pkg, capability) == Some(permission_json(value)) {
         return false;
     } else if let Inline::Flow(collection) = locate_mapping(text, &[BLOCK, pkg]) {
-        flow::upsert(text, &collection, capability, render_bool(value))
+        flow::upsert(text, &collection, capability, &value_text)
     } else {
-        replace_bool_value_at(text, &[BLOCK, pkg], capability, value)
+        replace_value_text_at(text, &[BLOCK, pkg], capability, &value_text)
     };
     manifest.document.set_text(new_text);
     true
 }
 
-fn recorded_permission(text: &str, pkg: &str, capability: &str) -> Option<bool> {
+/// The entry's value text: booleans plain, a chosen skills list inline in
+/// flow style (`skills: [guide, migrate]`), one line per entry, so every
+/// splice above stays line-based.
+fn render_permission_value(value: &PermissionValue) -> String {
+    match value {
+        PermissionValue::Build(allowed) => render_bool(*allowed).to_string(),
+        PermissionValue::Skills(SkillsPermission::All(allowed)) => {
+            render_bool(*allowed).to_string()
+        }
+        PermissionValue::Skills(SkillsPermission::Chosen(chosen)) => {
+            format!(
+                "[{}]",
+                chosen
+                    .iter()
+                    .map(|skill| render::render_value(skill))
+                    .collect::<Vec<String>>()
+                    .join(", ")
+            )
+        }
+    }
+}
+
+/// The value as JSON, compared against what the document records for the
+/// no-op decision.
+fn permission_json(value: &PermissionValue) -> serde_json::Value {
+    serde_json::to_value(value).expect("a permission value serializes to JSON")
+}
+
+fn recorded_permission(text: &str, pkg: &str, capability: &str) -> Option<serde_json::Value> {
     #[derive(serde::Deserialize)]
     struct OnlyPermissions {
         #[serde(default)]
@@ -59,8 +89,8 @@ fn recorded_permission(text: &str, pkg: &str, capability: &str) -> Option<bool> 
         .ok()?
         .permissions
         .get(pkg)?
-        .get(capability)?
-        .as_bool()
+        .get(capability)
+        .cloned()
 }
 
 /// Remove `pkg`'s entry from the top-level `allowBuilds:` block, and the

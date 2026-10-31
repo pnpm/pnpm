@@ -7,7 +7,11 @@ pub(super) fn agent_skills_settings(config: &Config) -> WorkspaceStateSettings {
         allow_skills: (!config.allow_skills.is_empty()).then(|| {
             config.allow_skills
                 .iter()
-                .map(|(spec, allowed)| (spec.clone(), *allowed))
+                .filter_map(|(spec, decision)| {
+                    serde_json::to_value(decision)
+                        .ok()
+                        .map(|decided| (spec.clone(), decided))
+                })
                 .collect()
         }),
         skills_dirs: config.skills_dirs.clone(),

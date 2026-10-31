@@ -1,21 +1,30 @@
 //! Agent skills shipped by direct dependencies.
 //!
-//! A skill is a directory `skills/<name>/` holding a `SKILL.md`. pnpm never
+//! A skill is a directory holding a `SKILL.md`, directly under the
+//! package's `skills/` or inside category directories below it. pnpm never
 //! reads a skill: it finds the directories, records the packages whose
 //! skills await approval, and links the approved ones into the project's
-//! agent skill directories under the skill's own name, as the Agent Skills
-//! specification requires a skill's directory to be named after it.
+//! agent skill directories. A skill is linked under its own name, so
+//! agents can invoke it as the skill's ID; when two approved packages ship
+//! the same skill name, or the name is already taken in an agent skill
+//! directory, the entry is `pnpm-<package>-<skill>` instead.
 
 pub(crate) use installed::resync_agent_skills_at;
-pub use installed::{ResyncAgentSkillsError, resync_installed_agent_skills};
+pub use installed::{
+    ResyncAgentSkillsError, SkillApprovalError, SkillApprovalOptions,
+    resync_installed_agent_skills, skill_approval_options,
+};
 pub use targets::agent_skills_dir_from_env;
+pub use targets::detected_agent_dirs;
 
 /// Whether an install whose tree is up to date still has agent skills to
 /// link, because an approved skill's target directories changed since the
 /// links in `.modules.yaml` were made. Reads nothing unless a skill is
 /// approved.
 pub(crate) fn agent_skill_targets_changed(config: &Config, workspace_root: &Path) -> bool {
-    if config.agent_skills_disabled || !config.allow_skills.values().any(|allowed| *allowed) {
+    if config.agent_skills_disabled
+        || !config.allow_skills.values().any(SkillsPermission::links_any)
+    {
         return false;
     }
     let Ok(Some(modules)) =
@@ -33,19 +42,22 @@ mod gitignore;
 mod installed;
 mod targets;
 
-use crate::{AllowBuildPolicy, VersionPolicyError};
+use crate::{SkillsPolicy, VersionPolicyError};
 use derive_more::{Display, Error};
-use discovery::{SkillSource, discover_skill_sources};
+use discovery::{Skill, SkillSource, discover_skill_sources};
 use gitignore::update_gitignores;
 use miette::Diagnostic;
-use pnpm_config::Config;
+use pnpm_config::{Config, SkillsPermission};
 use pnpm_lockfile::Lockfile;
 use pnpm_modules_yaml::IncludedDependencies;
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{BTreeMap, BTreeSet, btree_map},
     fs, io,
     path::{Component, Path, PathBuf},
 };
+
+/// The prefix of every entry pnpm links into an agent skill directory.
+pub const AGENT_SKILL_LINK_PREFIX: &str = "pnpm-";
 
 /// What [`sync_agent_skills`] reconciles.
 pub struct SyncAgentSkills<'a> {
@@ -88,14 +100,21 @@ impl AgentSkillsState {
     }
 }
 
-/// Tell the user which packages' skills await approval.
-pub(crate) fn report_pending_skills<Reporter: pnpm_reporter::Reporter>(package_names: Vec<String>) {
-    if package_names.is_empty() {
+/// Tell the user which packages' skills await approval, by their short
+/// label ([`crate::short_package_label`]) rather than the dep path: the approval
+/// key of a git package is a URL. Peer variants of one package dedupe to
+/// one label.
+pub(crate) fn report_pending_skills<Reporter: pnpm_reporter::Reporter>(dep_paths: Vec<String>) {
+    if dep_paths.is_empty() {
         return;
     }
+    let package_names: BTreeSet<String> = dep_paths
+        .into_iter()
+        .map(|dep_path| crate::short_package_label(dep_path.as_str()))
+        .collect();
     Reporter::emit(&pnpm_reporter::LogEvent::PendingSkills(pnpm_reporter::PendingSkillsLog {
         level: pnpm_reporter::LogLevel::Debug,
-        package_names,
+        package_names: package_names.into_iter().collect(),
     }));
 }
 
@@ -158,39 +177,58 @@ pub fn sync_agent_skills(
         return Ok(AgentSkillsState::default());
     }
     let sources = discover_skill_sources(input);
-    let policy = AllowBuildPolicy::from_approvals(&input.config.allow_skills, false)
-        .map_err(AgentSkillsError::Policy)?;
-    let mut pending = Vec::new();
-    let mut approved = Vec::new();
-    for source in sources {
-        match policy.check(&source.dep_path) {
-            Some(true) => approved.push(source),
-            Some(false) => {}
-            None => pending.push(source.dep_path),
-        }
-    }
-    let entries = link_entries(&approved)?;
-    let dirs = if entries.is_empty() {
+    let policy =
+        SkillsPolicy::from_approvals(&input.config.allow_skills).map_err(AgentSkillsError::Policy)?;
+    let (pending_sources, approved) = decide_sources(sources, &policy);
+    let dirs = if approved.is_empty() {
         Vec::new()
     } else {
         targets::target_dirs(input.config, input.workspace_root, input.agent_dir)
             .map_err(|(path, source)| AgentSkillsError::Io { path, source })?
     };
-    if !entries.is_empty() && dirs.is_empty() {
+    if !approved.is_empty() && dirs.is_empty() {
         return Err(AgentSkillsError::NoTargetDir { packages: package_list(&approved) });
     }
+    let entries = link_entries(input, &dirs, &approved)?;
     let desired = desired_entries(input.workspace_root, &dirs, &entries);
     prune(input.workspace_root, input.linked, &desired.keys().cloned().collect())?;
     materialize(input.workspace_root, input.linked, &desired, input.config.virtual_store_dir())?;
     update_gitignores(input.workspace_root, &dirs, input.linked, &desired)?;
+    let mut pending: Vec<String> = pending_sources
+        .into_iter()
+        .map(|source| source.dep_path)
+        .collect();
     pending.sort();
     Ok(AgentSkillsState { pending, linked: desired.into_keys().collect() })
+}
+
+fn decide_sources(
+    sources: impl IntoIterator<Item = SkillSource>,
+    policy: &SkillsPolicy,
+) -> (Vec<SkillSource>, Vec<SkillSource>) {
+    let mut pending = Vec::new();
+    let mut approved = Vec::new();
+    for source in sources {
+        let Some(decision) = policy.check(&source.dep_path) else {
+            pending.push(source);
+            continue;
+        };
+        let skills: Vec<Skill> = source.skills
+            .iter()
+            .filter(|skill| decision.links_skill(&skill.name))
+            .cloned()
+            .collect();
+        if !skills.is_empty() {
+            approved.push(SkillSource { skills, ..source });
+        }
+    }
+    (pending, approved)
 }
 
 fn package_list(sources: &[SkillSource]) -> String {
     sources
         .iter()
-        .map(|source| source.approval_key.as_str())
+        .map(|source| crate::short_package_label(source.approval_key.as_str()))
         .collect::<BTreeSet<_>>()
         .into_iter()
         .collect::<Vec<_>>()
@@ -199,26 +237,106 @@ fn package_list(sources: &[SkillSource]) -> String {
 
 /// The entry name of every approved skill, mapped to the skill directory
 /// it links to.
-fn link_entries(approved: &[SkillSource]) -> Result<BTreeMap<String, PathBuf>, AgentSkillsError> {
-    let mut entries: BTreeMap<String, (PathBuf, &str)> = BTreeMap::new();
+///
+/// A skill name one approved package ships is the entry name, unless a
+/// target directory holds an entry pnpm must not replace there (a link
+/// pnpm recorded may be replaced; anything else may not) — then the
+/// prefixed name is the entry, in every directory, so the names do not
+/// differ across them. A skill name several approved packages ship gets
+/// the prefixed form everywhere.
+fn link_entries(
+    input: &SyncAgentSkills<'_>,
+    dirs: &[PathBuf],
+    approved: &[SkillSource],
+) -> Result<BTreeMap<String, PathBuf>, AgentSkillsError> {
+    let mut by_name: BTreeMap<String, Vec<(&SkillSource, &Skill)>> = BTreeMap::new();
     for source in approved {
         for skill in &source.skills {
-            let name = skill.clone();
-            let target = source.package_dir.join("skills").join(skill);
-            if let Some((_, first)) = entries.get(&name) {
-                return Err(AgentSkillsError::NameCollision {
-                    name,
-                    first: (*first).to_string(),
-                    second: source.dep_path.clone(),
-                });
-            }
-            entries.insert(name, (target, &source.dep_path));
+            by_name
+                .entry(skill.name.clone())
+                .or_default()
+                .push((source, skill));
         }
+    }
+    let mut entries: BTreeMap<String, (PathBuf, &str)> = BTreeMap::new();
+    for (skill_name, providers) in &by_name {
+        if providers.len() > 1 {
+            for (source, skill) in providers {
+                insert_entry(
+                    &mut entries,
+                    prefixed_name(source, skill),
+                    target_of(source, skill),
+                    source,
+                )?;
+            }
+            continue;
+        }
+        let (source, skill) = providers[0];
+        let target = target_of(source, skill);
+        let name = if bare_name_free(input, dirs, skill_name, &target) {
+            skill_name.clone()
+        } else {
+            prefixed_name(source, skill)
+        };
+        insert_entry(&mut entries, name, target, source)?;
     }
     Ok(entries
         .into_iter()
         .map(|(name, (target, _))| (name, target))
         .collect())
+}
+
+/// The directory an approved skill links to, already resolved to the
+/// package's real location.
+fn target_of(source: &SkillSource, skill: &Skill) -> PathBuf {
+    source.package_dir.join("skills").join(&skill.dir)
+}
+
+/// The fallback entry name: `pnpm-<package>-<skill>`.
+fn prefixed_name(source: &SkillSource, skill: &Skill) -> String {
+    format!("{AGENT_SKILL_LINK_PREFIX}{}-{}", source.link_segment, skill.name)
+}
+
+/// Whether every target directory can take an entry named `name`: an
+/// absent path is fine and so is a link pnpm recorded, while a link
+/// another package made, a real directory, or a file needs the prefixed
+/// name.
+fn bare_name_free(
+    input: &SyncAgentSkills<'_>,
+    dirs: &[PathBuf],
+    name: &str,
+    target: &Path,
+) -> bool {
+    !dirs
+        .iter()
+        .any(|dir| {
+            let path = input.workspace_root.join(dir).join(name);
+            let recorded = input.linked
+                .iter()
+                .any(|entry| *entry == recorded_path(input.workspace_root, &path));
+            is_occupied(&path, target, recorded, input.config.virtual_store_dir())
+        })
+}
+
+/// Record the entry name with the skill directory it links to, erroring
+/// when an entry of this sync already claimed the name.
+fn insert_entry<'a>(
+    entries: &mut BTreeMap<String, (PathBuf, &'a str)>,
+    name: String,
+    target: PathBuf,
+    source: &'a SkillSource,
+) -> Result<(), AgentSkillsError> {
+    match entries.entry(name) {
+        btree_map::Entry::Vacant(slot) => {
+            slot.insert((target, source.dep_path.as_str()));
+            Ok(())
+        }
+        btree_map::Entry::Occupied(occupied) => Err(AgentSkillsError::NameCollision {
+            name: occupied.key().clone(),
+            first: (*occupied.get().1).to_string(),
+            second: source.dep_path.clone(),
+        }),
+    }
 }
 
 /// Every entry to link, keyed by the form recorded in `.modules.yaml`.
@@ -264,9 +382,11 @@ fn prune(
 /// `.modules.yaml` is not trusted to name only pnpm's entries, so pnpm
 /// touches only a relative entry reached without `..`.
 fn is_within_workspace(entry: &str) -> bool {
-    Path::new(entry)
-        .components()
-        .all(|component| matches!(component, Component::Normal(_)))
+    let path = Path::new(entry);
+    path.is_relative()
+        && path
+            .components()
+            .all(|component| component != Component::ParentDir)
 }
 
 /// Whether `path` is a link to `node_modules/**/skills/<skill>`, as every
@@ -274,9 +394,12 @@ fn is_within_workspace(entry: &str) -> bool {
 fn links_to_a_package_skill(path: &Path) -> bool {
     let Ok(target) = fs::read_link(path) else { return false };
     let in_skills_dir = target
-        .parent()
-        .and_then(Path::file_name)
-        .is_some_and(|name| name == "skills");
+        .ancestors()
+        .any(|ancestor| {
+            ancestor
+                .file_name()
+                .is_some_and(|name| name == "skills")
+        });
     in_skills_dir
         && target
             .components()
@@ -350,10 +473,11 @@ fn links_to_same_skill_in(path: &Path, target: &Path, virtual_store_dir: &Path) 
     )
 }
 
-/// `node_modules/<name>/skills/<skill>` of `<dir>/node_modules/<name>/skills/<skill>`.
+/// `node_modules/<name>/skills/<skill>` of `<dir>/node_modules/<name>/skills/<skill>`,
+/// nested categories included: the canonical form of every copy of the skill
+/// in the virtual store ends with it.
 fn skill_path_from_modules_dir(target: &Path) -> Option<&Path> {
-    let package_dir = target.parent()?.parent()?;
-    let modules_dir = package_dir
+    let modules_dir = target
         .ancestors()
         .find(|dir| {
             dir.file_name()
