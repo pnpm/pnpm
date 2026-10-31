@@ -81,6 +81,12 @@ You may use the [pnpm runtime] command then to install Node.js.
 
 :::
 
+On Linux (kernel 5.9 or newer) with a LUKS2-encrypted NVMe SSD, `dm-crypt` queues reads and writes through kernel workqueues by default, which can slow down package installation. Find your `crypt` volume name with `lsblk -o NAME,TYPE,MOUNTPOINTS`, then bypass the workqueues and persist the setting in the LUKS2 header:
+
+```sh
+sudo cryptsetup refresh --perf-no_read_workqueue --perf-no_write_workqueue --persistent <crypt-volume-name>
+```
+
 ### In a Docker container
 
 ```sh
