@@ -38,14 +38,27 @@ use std::{
 pub(super) const SPLIT_CONTENT_TYPE: &str = "application/vnd.pnpr.install-v2+json";
 
 /// The serialized abbreviated size above which only the likely picks keep
-/// their manifests, from `PNPR_SPLIT_METADATA_THRESHOLD` (bytes). Unset, the
-/// format is not served at all: pnpm releases that predate it share the
-/// metadata cache, and must never read a document a newer release cached.
+/// their manifests, from `PNPR_SPLIT_METADATA_THRESHOLD` (bytes, 64 KiB by
+/// default). `PNPR_INSTALL_V2=0` turns the format off, for comparison.
 static THRESHOLD: LazyLock<Option<usize>> = LazyLock::new(|| {
-    std::env::var("PNPR_SPLIT_METADATA_THRESHOLD")
-        .ok()
-        .and_then(|value| value.parse().ok())
+    if std::env::var("PNPR_INSTALL_V2").is_ok_and(|value| value == "0") {
+        return None;
+    }
+    let threshold = std::env::var("PNPR_SPLIT_METADATA_THRESHOLD").ok();
+    Some(
+        threshold
+            .and_then(|value| value.parse().ok())
+            .unwrap_or(64 * 1024),
+    )
 });
+
+/// The fields of a version's `dist` that pnpr's format keeps, at the top of
+/// the version's entry and release record.
+const DIST_FIELDS: [&str; 3] = ["integrity", "fileCount", "unpackedSize"];
+
+/// The fields of `dist.pnpr` that pnpr's format keeps, beside them. npm's
+/// documents carry none of them.
+const PNPR_FIELDS: [&str; 3] = ["requiresBuild", "bins", "variants"];
 
 /// Whether the versions a resolution likely picks keep their manifests.
 static KEEP_LATEST: LazyLock<bool> =
@@ -137,7 +150,7 @@ fn version_entries(
                     .as_ref()
                     .is_some_and(|inline| inline.contains(version))
             {
-                entry.insert("manifest".into(), inline_manifest(manifest));
+                entry.extend(release_record(manifest));
             }
             (version.clone(), Value::Object(entry))
         })
@@ -203,17 +216,6 @@ fn version_entry(
     entry
 }
 
-/// A version's release record without `name` and `version`, which its key
-/// in the document gives.
-fn inline_manifest(manifest: &Value) -> Value {
-    let mut record = release_record(manifest);
-    if let Some(record) = record.as_object_mut() {
-        record.remove("name");
-        record.remove("version");
-    }
-    record
-}
-
 /// The strongest trust evidence a version has, as the trust policy ranks it.
 fn trust_rank(manifest: &Value) -> Option<&'static str> {
     let user = manifest.get("_npmUser");
@@ -260,11 +262,27 @@ pub(super) fn record_address(version_or_tag: &str) -> (&str, Option<u64>) {
 /// the record (`_npmUser`, signatures, attestations), served only while that
 /// revision is the selected one in this prototype, and cached forever.
 /// Otherwise it is today's view of the selected revision.
-pub(super) fn version_document_response(manifest: Value, revision: Option<u64>) -> Response {
+pub(super) fn version_document_response(mut manifest: Value, revision: Option<u64>) -> Response {
     let manifest = match revision {
         Some(revision) if revision != selected_revision(&manifest) => return super::not_found(),
-        Some(_) => release_record(&manifest),
-        None => manifest,
+        Some(_) => {
+            let mut record = Map::new();
+            for field in ["name", "version"] {
+                record.insert(
+                    field.into(),
+                    manifest
+                        .get(field)
+                        .cloned()
+                        .unwrap_or(Value::Null),
+                );
+            }
+            record.extend(release_record(&manifest));
+            Value::Object(record)
+        }
+        None => {
+            without_pnpr_facts(&mut manifest);
+            manifest
+        }
     };
     let body = match serde_json::to_vec(&manifest) {
         Ok(body) => body,
@@ -282,18 +300,56 @@ pub(super) fn version_document_response(manifest: Value, revision: Option<u64>) 
     response
 }
 
-/// A manifest cut down to its release record.
-fn release_record(manifest: &Value) -> Value {
-    let mut record = pnpr_upstream::abbreviate_version(manifest);
-    if let Some(record) = record.as_object_mut() {
-        record.remove("deprecated");
-        record.remove("_npmUser");
-        if let Some(dist) = record.get_mut("dist").and_then(Value::as_object_mut) {
-            dist.remove("signatures");
-            dist.remove("attestations");
+/// A version's release record, without its `name` and `version`: pnpr's
+/// facts about its archives, and under `manifest` the publisher's manifest
+/// without `dist` and without what may change after publication
+/// (`deprecated`) or is evidence kept apart from the record (`_npmUser`).
+fn release_record(manifest: &Value) -> Map<String, Value> {
+    let mut fields = match pnpr_upstream::abbreviate_version(manifest) {
+        Value::Object(fields) => fields,
+        _ => Map::new(),
+    };
+    for field in ["name", "version", "deprecated", "_npmUser"] {
+        fields.remove(field);
+    }
+    let dist = match fields.remove("dist") {
+        Some(Value::Object(dist)) => dist,
+        _ => Map::new(),
+    };
+    let pnpr = dist.get("pnpr").and_then(Value::as_object);
+    let mut record = Map::new();
+    for field in DIST_FIELDS {
+        if let Some(value) = dist.get(field) {
+            record.insert(field.into(), value.clone());
         }
     }
+    for field in PNPR_FIELDS {
+        if let Some(value) = pnpr.and_then(|pnpr| pnpr.get(field)) {
+            record.insert(field.into(), value.clone());
+        }
+    }
+    record.insert("manifest".into(), Value::Object(fields));
     record
+}
+
+/// Remove pnpr's facts from a version manifest served in npm's format,
+/// including the variants it stores with a hosted version.
+pub(super) fn without_pnpr_facts(manifest: &mut Value) {
+    let Some(fields) = manifest.as_object_mut() else { return };
+    fields.remove(super::publishing::variants::STORED_FIELD);
+    if let Some(dist) = fields.get_mut("dist").and_then(Value::as_object_mut) {
+        dist.remove("pnpr");
+    }
+}
+
+/// Remove pnpr's facts from every version of a document served in npm's
+/// format.
+pub(super) fn without_pnpr_facts_in(doc: &mut Value) {
+    let versions = doc.get_mut("versions").and_then(Value::as_object_mut);
+    versions
+        .into_iter()
+        .flat_map(|versions| versions.values_mut())
+        .for_each(without_pnpr_facts);
 }
 
 /// Every dist-tag target, and the highest release of each major, or of each

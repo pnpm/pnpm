@@ -2,8 +2,10 @@
 //! (proof of concept). Every version has an entry with what picking it reads
 //! and what may change after publication: its `deprecated` notice, `trust`
 //! rank, selected `revision`, and its publish `time` if it is after
-//! `timesSince`. An entry with a `manifest` is complete; for any other, the
-//! manifest is the release record `<registry><name>/<version>+r<revision>`.
+//! `timesSince`. An entry with a `manifest` is complete: beside the manifest,
+//! it has pnpr's facts about the archives (`integrity`, `fileCount`,
+//! `unpackedSize`, `requiresBuild`, `bins`, `variants`). For any other entry,
+//! those are in the release record `<registry><name>/<version>+r<revision>`.
 //!
 //! [`parse_install_v2`] turns the document into a [`Package`] where it is
 //! parsed, with a version marked `dist.pnpr.details: "external"` for every
@@ -61,21 +63,65 @@ pub fn parse_install_v2(body: &str) -> serde_json::Result<Package> {
     serde_json::from_str(&Value::Object(package).to_string())
 }
 
-/// The version fragment an entry stands for: its manifest when the document
-/// has it, else one marked `dist.pnpr.details: "external"`, with the entry's
-/// deprecation, trust rank, and revision in npm's fields.
+/// The [`crate::PackageVersion`] a release record, fetched from
+/// `<registry><name>/<version>+r<revision>`, describes.
+pub fn parse_release_record(body: &[u8]) -> serde_json::Result<crate::PackageVersion> {
+    let record: Value = serde_json::from_slice(body)?;
+    let field = |name: &str| {
+        record
+            .get(name)
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+    };
+    serde_json::from_value(fragment(field("name"), field("version"), &record))
+}
+
+/// pnpr's facts about the archives, which pnpm keeps in `dist` and
+/// `dist.pnpr`.
+const DIST_FIELDS: [&str; 3] = ["integrity", "fileCount", "unpackedSize"];
+const PNPR_FIELDS: [&str; 3] = ["requiresBuild", "bins", "variants"];
+
+/// The version an entry or release record stands for, in npm's shape: its
+/// manifest when it has one, else a version marked
+/// `dist.pnpr.details: "external"`, with the deprecation, trust rank, and
+/// revision in npm's fields.
 fn fragment(name: &str, version: &str, entry: &Value) -> Value {
     let inline = entry.get("manifest").and_then(Value::as_object);
     let mut manifest = inline.cloned().unwrap_or_default();
-    let mut dist = match manifest.remove("dist") {
-        Some(Value::Object(dist)) => dist,
-        _ => Map::new(),
-    };
+    let mut dist = Map::new();
+    let mut pnpr = Map::new();
+    for (fields, target) in [(DIST_FIELDS, &mut dist), (PNPR_FIELDS, &mut pnpr)] {
+        for field in fields {
+            if let Some(value) = entry.get(field) {
+                target.insert(field.into(), value.clone());
+            }
+        }
+    }
     manifest.insert("name".into(), json!(name));
     manifest.insert("version".into(), json!(version));
     if let Some(deprecated) = entry.get("deprecated") {
         manifest.insert("deprecated".into(), deprecated.clone());
     }
+    add_trust_evidence(entry, &mut manifest, &mut dist);
+    if let Some(revision) = entry.get("revision") {
+        dist.insert("revision".into(), revision.clone());
+    }
+    if inline.is_none() {
+        pnpr.insert("details".into(), json!("external"));
+    }
+    if !pnpr.is_empty() {
+        dist.insert("pnpr".into(), Value::Object(pnpr));
+    }
+    manifest.insert("dist".into(), Value::Object(dist));
+    Value::Object(manifest)
+}
+
+/// The npm fields the trust policy reads, for the entry's `trust` rank.
+fn add_trust_evidence(
+    entry: &Value,
+    manifest: &mut Map<String, Value>,
+    dist: &mut Map<String, Value>,
+) {
     match entry.get("trust").and_then(Value::as_str) {
         Some("stagedPublish") => {
             manifest.insert("_npmUser".into(), json!({ "approver": true }));
@@ -89,14 +135,6 @@ fn fragment(name: &str, version: &str, entry: &Value) -> Value {
         }
         _ => {}
     }
-    if let Some(revision) = entry.get("revision") {
-        dist.insert("revision".into(), revision.clone());
-    }
-    if inline.is_none() {
-        dist.insert("pnpr".into(), json!({ "details": "external" }));
-    }
-    manifest.insert("dist".into(), Value::Object(dist));
-    Value::Object(manifest)
 }
 
 fn provenance() -> Value {

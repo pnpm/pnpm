@@ -39,8 +39,8 @@ async fn an_external_version_is_read_once_from_the_version_document() {
             serde_json::json!({
                 "name": "acme",
                 "version": "1.0.0",
-                "dependencies": { "dep": "^2.0.0" },
-                "dist": { "integrity": INTEGRITY, "tarball": format!("{}/acme/-/acme-1.0.0.tgz", server.url()) },
+                "integrity": INTEGRITY,
+                "manifest": { "dependencies": { "dep": "^2.0.0" } },
             })
             .to_string(),
         )
@@ -132,7 +132,7 @@ async fn a_version_document_of_another_version_is_rejected() {
         .mock("GET", "/acme/1.0.0+r0")
         .with_status(200)
         .with_body(
-            serde_json::json!({ "name": "acme", "version": "1.0.1", "dist": { "integrity": INTEGRITY } })
+            serde_json::json!({ "name": "acme", "version": "1.0.1", "integrity": INTEGRITY, "manifest": {} })
                 .to_string(),
         )
         .create_async()
@@ -171,7 +171,7 @@ async fn the_selected_revision_addresses_the_release_record() {
         .mock("GET", "/acme/1.0.0+r2")
         .with_status(200)
         .with_body(
-            serde_json::json!({ "name": "acme", "version": "1.0.0", "dist": { "integrity": INTEGRITY } })
+            serde_json::json!({ "name": "acme", "version": "1.0.0", "integrity": INTEGRITY, "manifest": {} })
                 .to_string(),
         )
         .create_async()

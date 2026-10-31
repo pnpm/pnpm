@@ -211,32 +211,43 @@ pub(super) fn packument_response(
     }
     let split = super::split_packuments::wants_split(headers);
     let abbreviated = split || wants_abbreviated(headers);
-    let (body, content_type) = if split {
-        // Variants are described only in pnpr's own format: npm's documents
-        // keep the version as npm clients read it.
-        super::publishing::variants::describe_variants(&mut doc, name.as_str(), tarball_base);
-        let trimmed = abbreviate_packument(&doc, Utc::now());
-        let body = serde_json::to_vec(&trimmed)?;
-        (
-            super::split_packuments::split_body(&trimmed, &body)?,
-            super::split_packuments::SPLIT_CONTENT_TYPE,
-        )
-    } else if abbreviated {
-        let trimmed = abbreviate_packument(&doc, Utc::now());
-        (serde_json::to_vec(&trimmed)?, ABBREVIATED_CONTENT_TYPE)
-    } else {
-        (serde_json::to_vec(&doc)?, "application/json")
-    };
+    let last_modified_source = packument_last_modified(&doc);
+    let (body, content_type) = represent(doc, split, abbreviated, name.as_str(), tarball_base)?;
     let etag = format!(r#""{}""#, super::ecosystem::sha256_hex(&body));
     // Per RFC 9110 Section 8.8.2, Last-Modified is omitted when the representation
     // is dynamically generated or subject to content negotiation (such as OSV
     // filtering or abbreviation) and can vary independently of modification time.
     let last_modified =
-        if osv_index.is_some() || abbreviated { None } else { packument_last_modified(&doc) };
+        if osv_index.is_some() || abbreviated { None } else { last_modified_source };
     if is_not_modified(headers, &etag, last_modified.as_deref()) {
         return Ok(packument_not_modified_response(&etag, last_modified, max_age));
     }
     Ok(packument_ok_response(body, content_type, &etag, last_modified, max_age))
+}
+
+/// The document in the form the client asked for. pnpr's facts about the
+/// archives (`requiresBuild`, `bins`, and variants) are only in its own
+/// format: npm's documents keep the versions as npm clients read them.
+fn represent(
+    mut doc: Value,
+    split: bool,
+    abbreviated: bool,
+    name: &str,
+    tarball_base: &str,
+) -> Result<(Vec<u8>, &'static str), RegistryError> {
+    if split {
+        super::publishing::variants::describe_variants(&mut doc, name, tarball_base);
+        let trimmed = abbreviate_packument(&doc, Utc::now());
+        let body = serde_json::to_vec(&trimmed)?;
+        let body = super::split_packuments::split_body(&trimmed, &body)?;
+        return Ok((body, super::split_packuments::SPLIT_CONTENT_TYPE));
+    }
+    super::split_packuments::without_pnpr_facts_in(&mut doc);
+    if abbreviated {
+        let trimmed = abbreviate_packument(&doc, Utc::now());
+        return Ok((serde_json::to_vec(&trimmed)?, ABBREVIATED_CONTENT_TYPE));
+    }
+    Ok((serde_json::to_vec(&doc)?, "application/json"))
 }
 
 fn is_not_modified(headers: &HeaderMap, etag: &str, last_modified: Option<&str>) -> bool {

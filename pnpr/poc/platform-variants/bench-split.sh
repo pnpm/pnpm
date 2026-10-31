@@ -44,12 +44,12 @@ one_run() { # <label> <cmd> <profile>
 
 for mode in whole v2-whole v2-split; do
   case $mode in
-    whole) threshold= ;;
-    v2-whole) threshold=1000000000000000 ;;
-    v2-split) threshold=65536 ;;
+    whole) settings=PNPR_INSTALL_V2=0 ;;
+    v2-whole) settings=PNPR_SPLIT_METADATA_THRESHOLD=1000000000000000 ;;
+    v2-split) settings=PNPR_SPLIT_METADATA_THRESHOLD=65536 ;;
   esac
   cd $(dirname $CONFIG)
-  env ${threshold:+PNPR_SPLIT_METADATA_THRESHOLD=$threshold} \
+  env $settings \
     $BIN/pnpr -c $CONFIG --listen 127.0.0.1:7690 --public-url http://127.0.0.1:7700 > $WORK/pnpr-$mode.log 2>&1 &
   pnpr_pid=$!
   for _ in $(seq 100); do curl -sf http://127.0.0.1:7690/npm/is-number > /dev/null && break; sleep 0.1; done

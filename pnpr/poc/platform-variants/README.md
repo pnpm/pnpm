@@ -16,11 +16,10 @@ pnpr:
   that lists a platform another variant lists, or that is declared but not
   attached (or attached but not declared).
 - pnpr's own package document (see [Split packuments](#split-packuments))
-  and its release records describe the verified variants as
-  `dist.pnpr.variants`; npm's abbreviated, full, and version documents do
-  not, so npm clients see only the primary. Each variant's tar is served at
-  `<name>@<version>/variants/<tag>`. The PoC serves pnpr's document only
-  with `PNPR_SPLIT_METADATA_THRESHOLD` set, so variants need it too.
+  and its release records list the verified variants as `variants`; npm's
+  abbreviated, full, and version documents do not, so npm clients see only
+  the primary. Each variant's tar is served at
+  `<name>@<version>/variants/<tag>`.
 
 pnpm:
 
@@ -47,22 +46,27 @@ local virtual store slot when the selection changes.
 Variant integrities make a packument several times larger, because a digest
 does not compress. So the PoC also implements split packuments:
 
-- pnpm asks for `application/vnd.pnpr.install-v2+json` first. With
-  `PNPR_SPLIT_METADATA_THRESHOLD` set (the benchmark uses 64 KiB), pnpr
-  answers with a document in its own format: `name`, `distTags`,
+- pnpm asks for `application/vnd.pnpr.install-v2+json` first, and pnpr
+  answers with a document in its own format (`PNPR_INSTALL_V2=0` turns it
+  off): `name`, `distTags`,
   `modified`, `timesSince`, and an entry per version in `versions` with its
   `deprecated` notice, `trust` rank, selected `revision`, and its publish
   `time` only if it was published within 30 days of the package's last
   publish (`PNPR_SPLIT_TIME_WINDOW_DAYS` makes the window longer, never
   shorter). `timesSince` is where that window starts.
-- An entry with a `manifest` is complete. Under the threshold every entry
-  has one; above it only the likely picks do: every dist-tag target and the
+- An entry with a `manifest` is complete: beside the publisher's manifest it
+  has pnpr's facts about the archives, `integrity`, `fileCount`,
+  `unpackedSize`, `requiresBuild`, `bins`, and `variants`. npm's documents
+  carry none of pnpr's facts, not even `dist.pnpr`. Under
+  `PNPR_SPLIT_METADATA_THRESHOLD` (64 KiB by default) every entry has a
+  manifest; above it only the likely picks do: every dist-tag target and the
   highest release of each major (of each minor below 1.0;
   `PNPR_SPLIT_KEEP_LATEST=0` turns this off).
-- The manifest of any version is its release record at
-  `<name>/<version>+r<revision>`, served with `Cache-Control: immutable`:
-  the abbreviated version without `deprecated`, `_npmUser`, signatures, and
-  attestations, which may change or are evidence kept apart. `<name>/<version>`
+- Any version's facts and manifest are its release record at
+  `<name>/<version>+r<revision>`, `{ name, version, integrity, ...,
+  manifest }`, served with `Cache-Control: immutable`. It leaves out
+  `deprecated`, `_npmUser`, signatures, and attestations, which may change or
+  are evidence kept apart. `<name>/<version>`
   is the selected revision and keeps its usual caching. The PoC serves a
   record only while its revision is the selected one.
 - pnpm turns the document into its usual package type where it is parsed
@@ -75,11 +79,12 @@ does not compress. So the PoC also implements split packuments:
   RFC requires. It fetches the record of a picked version without a manifest
   once per install and takes the deprecation and trust evidence from the
   document. Records are not yet cached on disk.
-- Split documents need a metadata cache of their own on the client: an older
-  pnpm on `PATH` that shares the cache read a split document the new one had
-  cached, and failed to switch versions. Moving the cache directory touches
-  the cache commands and many tests, so the PoC serves the format only when
-  `PNPR_SPLIT_METADATA_THRESHOLD` is set.
+- pnpr's documents need a metadata cache of their own on the client: an
+  older pnpm on `PATH` that shares the cache read a split document the new
+  one had cached, and failed to switch versions. Moving the cache directory
+  touches the cache commands, cache pruning, and their tests, so the PoC does
+  not do it yet: an older pnpm sharing `v12/metadata` with this one can
+  resolve a version without its dependencies.
 
 `bench-split.sh` resolves `bench-app.json` (787 packages, all proxied from
 npmjs) through `shaper.mjs`, a CDN-like proxy that gzips, caches, delays each

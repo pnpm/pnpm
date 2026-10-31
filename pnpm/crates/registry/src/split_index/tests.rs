@@ -12,7 +12,9 @@ const DOCUMENT: &str = r#"{
         "2.0.0": {
             "time": "2026-01-01T00:00Z",
             "trust": "provenance",
-            "manifest": { "dependencies": { "dep": "^1.0.0" }, "dist": { "integrity": "sha512-a" } }
+            "integrity": "sha512-a",
+            "requiresBuild": false,
+            "manifest": { "dependencies": { "dep": "^1.0.0" } }
         }
     }
 }"#;
@@ -45,6 +47,17 @@ fn an_entry_with_a_manifest_is_a_complete_version() {
     assert_eq!(latest.version.to_string(), "2.0.0");
     assert!(latest.dist.integrity.is_some());
     assert!(latest.dist.attestations.is_some());
+    assert_eq!(latest.dist.pnpr.as_ref().and_then(|pnpr| pnpr.requires_build), Some(false));
+}
+
+#[test]
+fn a_release_record_is_a_complete_version() {
+    let record = br#"{ "name": "acme", "version": "1.0.0", "integrity": "sha512-a", "requiresBuild": true, "manifest": { "dependencies": { "dep": "^1.0.0" } } }"#;
+    let version = super::parse_release_record(record).expect("parse");
+    assert_eq!(version.name, "acme");
+    assert!(!version.dist.is_external());
+    assert!(version.dist.integrity.is_some());
+    assert_eq!(version.dist.pnpr.as_ref().and_then(|pnpr| pnpr.requires_build), Some(true));
 }
 
 #[test]

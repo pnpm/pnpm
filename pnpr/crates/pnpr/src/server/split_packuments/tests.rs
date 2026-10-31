@@ -1,4 +1,4 @@
-use super::{install_v2, likely_picks, record_address, release_record};
+use super::{install_v2, likely_picks, record_address, release_record, without_pnpr_facts_in};
 use serde_json::{Value, json};
 
 fn version(integrity: &str) -> Value {
@@ -78,21 +78,14 @@ fn a_large_document_keeps_the_manifests_of_the_likely_picks() {
             "time": "2026-01-01T00:00:00.000Z",
             "deprecated": "use 2",
             "trust": "trustedPublisher",
-            "manifest": {
-                "dependencies": { "dep": "^1.0.0" },
-                "dist": {
-                    "integrity": "sha512-g",
-                    "tarball": "https://registry.example/acme@x",
-                    "pnpr": {
-                        "requiresBuild": false,
-                        "variants": [{
-                            "tag": "linux-x64",
-                            "platforms": [{ "os": "linux", "cpu": "x64" }],
-                            "integrity": "sha512-variant",
-                        }],
-                    },
-                },
-            },
+            "integrity": "sha512-g",
+            "requiresBuild": false,
+            "variants": [{
+                "tag": "linux-x64",
+                "platforms": [{ "os": "linux", "cpu": "x64" }],
+                "integrity": "sha512-variant",
+            }],
+            "manifest": { "dependencies": { "dep": "^1.0.0" } },
         }),
     );
     assert_eq!(
@@ -152,10 +145,28 @@ fn a_record_address_names_a_revision() {
 
 #[test]
 fn a_release_record_leaves_out_what_may_change() {
-    let record = release_record(&version("sha512-a"));
-    assert!(record.get("deprecated").is_none());
-    assert!(record.get("_npmUser").is_none());
-    assert!(record["dist"].get("attestations").is_none());
-    assert_eq!(record["dependencies"], json!({ "dep": "^1.0.0" }));
-    assert_eq!(record["dist"]["integrity"], json!("sha512-a"));
+    let record = Value::Object(release_record(&version("sha512-a")));
+    assert_eq!(
+        record,
+        json!({
+            "integrity": "sha512-a",
+            "requiresBuild": false,
+            "variants": [{
+                "tag": "linux-x64",
+                "platforms": [{ "os": "linux", "cpu": "x64" }],
+                "integrity": "sha512-variant",
+            }],
+            "manifest": { "dependencies": { "dep": "^1.0.0" } },
+        }),
+    );
+}
+
+#[test]
+fn npm_documents_carry_no_pnpr_facts() {
+    let mut doc = packument();
+    doc["versions"]["1.0.0"]["_pnprVariants"] = json!([]);
+    without_pnpr_facts_in(&mut doc);
+    assert!(doc["versions"]["1.0.0"].get("_pnprVariants").is_none());
+    assert!(doc["versions"]["1.0.0"]["dist"].get("pnpr").is_none());
+    assert_eq!(doc["versions"]["1.0.0"]["dist"]["integrity"], json!("sha512-d"));
 }

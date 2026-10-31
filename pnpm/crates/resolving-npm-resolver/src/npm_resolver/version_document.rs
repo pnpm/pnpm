@@ -77,7 +77,7 @@ async fn fetch_version_document(
             })
             .await?;
         let bytes = response.error_for_status()?.bytes().await?;
-        Ok::<PackageVersion, ResolveError>(serde_json::from_slice(&bytes)?)
+        Ok::<PackageVersion, ResolveError>(pnpm_registry::parse_release_record(&bytes)?)
     }
     .await
     .map_err(|error| error.to_string())?;
