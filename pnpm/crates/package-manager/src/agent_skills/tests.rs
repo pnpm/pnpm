@@ -166,7 +166,7 @@ fn chosen_skills_link_only_the_chosen_ones() {
         !root
             .path()
             .join(".claude/skills/migrate")
-            .exists()
+            .exists(),
     );
 }
 
@@ -177,7 +177,7 @@ fn links_skills_nested_in_category_directories() {
 
     let state = sync(root.path(), &lockfile, &config(&[("foo", true)], None), &[], None).unwrap();
 
-    assert_eq!(state.linked, [".claude/skills/guide", ".claude/skills/implement"],);
+    assert_eq!(state.linked, [".claude/skills/guide", ".claude/skills/implement"]);
     assert_eq!(
         link_target(&root.path().join(".claude/skills/implement")),
         link_target(&root.path().join("node_modules/foo/skills/engineering/implement")),
@@ -774,7 +774,7 @@ fn two_packages_ship_the_same_skill_name_prefixes_both() {
     let state = sync(root.path(), &lockfile, &config(&[("a", true), ("b", true)], None), &[], None)
         .unwrap();
 
-    assert_eq!(state.linked, [".claude/skills/pnpm-a-guide", ".claude/skills/pnpm-b-guide"],);
+    assert_eq!(state.linked, [".claude/skills/pnpm-a-guide", ".claude/skills/pnpm-b-guide"]);
     // Both prefixed entries resolve to their own package's skill.
     assert_eq!(
         link_target(&root.path().join(".claude/skills/pnpm-a-guide")),
@@ -796,10 +796,10 @@ fn a_bare_name_taken_in_any_dir_is_prefixed_in_all_of_them() {
 
     let state = sync(root.path(), &lockfile, &config(&[("foo", true)], None), &[], None).unwrap();
 
-    assert_eq!(state.linked, [".claude/skills/pnpm-foo-guide", ".cursor/skills/pnpm-foo-guide"],);
+    assert_eq!(state.linked, [".claude/skills/pnpm-foo-guide", ".cursor/skills/pnpm-foo-guide"]);
     assert_eq!(
         fs::read_to_string(cursor.join("guide")).unwrap(),
-        "an agent minding its own file\n"
+        "an agent minding its own file\n",
     );
 }
 

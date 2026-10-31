@@ -67,7 +67,7 @@ fn render_permission_value(value: &PermissionValue) -> String {
                     .iter()
                     .map(|skill| render::render_value(skill))
                     .collect::<Vec<String>>()
-                    .join(", ")
+                    .join(", "),
             )
         }
     }

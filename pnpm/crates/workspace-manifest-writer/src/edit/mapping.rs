@@ -338,6 +338,22 @@ pub(super) fn replace_value_text_at(
     let indent_len = content.len() - content.trim_start().len();
     let colon = indent_len
         + structural_colon_index(&content[indent_len..]).expect("entry line has a delimiter");
+    let new_line = format_replaced_line(content, colon, value_text);
+    // A block-valued entry's sub-block ends past its own line; ending the
+    // span at `line_end` would leave the nested lines behind.
+    let value_span_end =
+        if entry.block_end > entry.line_end { entry.block_end } else { entry.line_end };
+
+    let mut out = String::with_capacity(text.len());
+    out.push_str(&text[..entry.line_start]);
+    out.push_str(&new_line);
+    out.push_str(&text[value_span_end..]);
+    out
+}
+
+/// Key and replacement value formatted into a line, keeping any trailing
+/// comment on the original entry.
+fn format_replaced_line(content: &str, colon: usize, value_text: &str) -> String {
     let key_text = content[..colon].trim_end();
     // Preserve any trailing comment, and replace the whole value.
     // Ending the value at its first whitespace would truncate a
@@ -349,15 +365,5 @@ pub(super) fn replace_value_text_at(
         Some(idx) => format!(" {}", &after[idx..]),
         None => String::new(),
     };
-    let new_line = format!("{key_text}: {value_text}{trailing}\n");
-    // A block-valued entry's sub-block ends past its own line; ending the
-    // span at `line_end` would leave the nested lines behind.
-    let value_span_end =
-        if entry.block_end > entry.line_end { entry.block_end } else { entry.line_end };
-
-    let mut out = String::with_capacity(text.len());
-    out.push_str(&text[..entry.line_start]);
-    out.push_str(&new_line);
-    out.push_str(&text[value_span_end..]);
-    out
+    format!("{key_text}: {value_text}{trailing}\n")
 }

@@ -1,6 +1,6 @@
 use super::{
     AgentSkillsError, SyncAgentSkills, agent_skills_dir_from_env, decide_sources,
-    detected_agent_dirs, discover_skill_sources, sync_agent_skills,
+    detected_agent_dirs, discover_skill_sources, discovery::SkillSource, sync_agent_skills,
 };
 use crate::{SkillsPolicy, VersionPolicyError};
 use derive_more::{Display, Error};
@@ -159,18 +159,22 @@ pub fn skill_approval_options(
         SkillsPolicy::from_approvals(&config.allow_skills).map_err(SkillApprovalError::Policy)?;
     let (pending, _) = decide_sources(sources, &policy);
     Ok(SkillApprovalOptions {
-        skills_by_key: pending
-            .into_iter()
-            .map(|source| {
-                (
-                    source.approval_key,
-                    source.skills
-                        .into_iter()
-                        .map(|skill| skill.name)
-                        .collect(),
-                )
-            })
-            .collect(),
+        skills_by_key: pending_skills_by_key(pending),
         detected_dirs: detected_agent_dirs(&workspace_root),
     })
+}
+
+fn pending_skills_by_key(pending: Vec<SkillSource>) -> BTreeMap<String, Vec<String>> {
+    pending
+        .into_iter()
+        .map(|source| {
+            (
+                source.approval_key,
+                source.skills
+                    .into_iter()
+                    .map(|skill| skill.name)
+                    .collect(),
+            )
+        })
+        .collect()
 }

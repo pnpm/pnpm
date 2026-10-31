@@ -390,7 +390,7 @@ fn repeat_install_links_into_a_new_agent_dir() {
         .assert()
         .success();
 
-    assert!(workspace.join(".cursor/skills/guide/SKILL.md").is_file(),);
+    assert!(workspace.join(".cursor/skills/guide/SKILL.md").is_file());
     drop(harness);
 }
 

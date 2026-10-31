@@ -14,8 +14,7 @@ pub use installed::{
     ResyncAgentSkillsError, SkillApprovalError, SkillApprovalOptions,
     resync_installed_agent_skills, skill_approval_options,
 };
-pub use targets::agent_skills_dir_from_env;
-pub use targets::detected_agent_dirs;
+pub use targets::{agent_skills_dir_from_env, detected_agent_dirs};
 
 /// Whether an install whose tree is up to date still has agent skills to
 /// link, because an approved skill's target directories changed since the
@@ -249,6 +248,18 @@ fn link_entries(
     dirs: &[PathBuf],
     approved: &[SkillSource],
 ) -> Result<BTreeMap<String, PathBuf>, AgentSkillsError> {
+    let by_name = skills_by_name(approved);
+    let mut entries: BTreeMap<String, (PathBuf, &str)> = BTreeMap::new();
+    for (skill_name, providers) in &by_name {
+        insert_skill_entries(input, dirs, skill_name, providers, &mut entries)?;
+    }
+    Ok(entries
+        .into_iter()
+        .map(|(name, (target, _))| (name, target))
+        .collect())
+}
+
+fn skills_by_name(approved: &[SkillSource]) -> BTreeMap<String, Vec<(&SkillSource, &Skill)>> {
     let mut by_name: BTreeMap<String, Vec<(&SkillSource, &Skill)>> = BTreeMap::new();
     for source in approved {
         for skill in &source.skills {
@@ -258,32 +269,30 @@ fn link_entries(
                 .push((source, skill));
         }
     }
-    let mut entries: BTreeMap<String, (PathBuf, &str)> = BTreeMap::new();
-    for (skill_name, providers) in &by_name {
-        if providers.len() > 1 {
-            for (source, skill) in providers {
-                insert_entry(
-                    &mut entries,
-                    prefixed_name(source, skill),
-                    target_of(source, skill),
-                    source,
-                )?;
-            }
-            continue;
+    by_name
+}
+
+fn insert_skill_entries<'a>(
+    input: &SyncAgentSkills<'_>,
+    dirs: &[PathBuf],
+    skill_name: &str,
+    providers: &[(&'a SkillSource, &'a Skill)],
+    entries: &mut BTreeMap<String, (PathBuf, &'a str)>,
+) -> Result<(), AgentSkillsError> {
+    if providers.len() > 1 {
+        for &(source, skill) in providers {
+            insert_entry(entries, prefixed_name(source, skill), target_of(source, skill), source)?;
         }
-        let (source, skill) = providers[0];
-        let target = target_of(source, skill);
-        let name = if bare_name_free(input, dirs, skill_name, &target) {
-            skill_name.clone()
-        } else {
-            prefixed_name(source, skill)
-        };
-        insert_entry(&mut entries, name, target, source)?;
+        return Ok(());
     }
-    Ok(entries
-        .into_iter()
-        .map(|(name, (target, _))| (name, target))
-        .collect())
+    let (source, skill) = providers[0];
+    let target = target_of(source, skill);
+    let name = if bare_name_free(input, dirs, skill_name, &target) {
+        skill_name.to_string()
+    } else {
+        prefixed_name(source, skill)
+    };
+    insert_entry(entries, name, target, source)
 }
 
 /// The directory an approved skill links to, already resolved to the
