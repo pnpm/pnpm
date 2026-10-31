@@ -1,27 +1,28 @@
-use crate::Package;
+use super::parse_install_v2;
 
-use super::add_other_versions;
-
-const SPLIT: &str = r#"{
+const DOCUMENT: &str = r#"{
     "name": "acme",
-    "dist-tags": { "latest": "2.0.0" },
-    "time": { "2.0.0": "2026-01-01T00:00Z" },
-    "versions": { "2.0.0": { "name": "acme", "version": "2.0.0", "dist": { "integrity": "sha512-a" } } },
-    "pnpr": { "timesSince": "2025-12-02T00:00Z", "otherVersions": {
+    "distTags": { "latest": "2.0.0" },
+    "modified": "2026-01-01T00:00:00.000Z",
+    "timesSince": "2025-12-02T00:00Z",
+    "versions": {
         "0.1.0": { "time": null },
         "1.0.0": {},
-        "1.1.0": { "time": "2025-12-20T00:00Z", "deprecated": "use 2", "trust": "trustedPublisher", "revision": 2 }
-    } }
+        "1.1.0": { "time": "2025-12-20T00:00Z", "deprecated": "use 2", "trust": "trustedPublisher", "revision": 2 },
+        "2.0.0": {
+            "time": "2026-01-01T00:00Z",
+            "trust": "provenance",
+            "manifest": { "dependencies": { "dep": "^1.0.0" }, "dist": { "integrity": "sha512-a" } }
+        }
+    }
 }"#;
 
 #[test]
-fn other_versions_become_marked_versions() {
-    let mut meta: Package = serde_json::from_str(SPLIT).expect("parse");
-    add_other_versions(SPLIT, &mut meta).expect("other versions");
+fn entries_without_a_manifest_become_marked_versions() {
+    let meta = parse_install_v2(DOCUMENT).expect("parse");
+    assert_eq!(meta.name, "acme");
+    assert_eq!(meta.dist_tag("latest"), Some("2.0.0"));
     assert_eq!(meta.versions.len(), 4);
-    assert_eq!(meta.published_at("0.1.0"), None);
-    assert_eq!(meta.published_at("1.0.0"), Some("2025-12-02T00:00Z"));
-    assert_eq!(meta.published_at("1.1.0"), Some("2025-12-20T00:00Z"));
     assert!(meta.versions.is_deprecated("1.1.0"));
     assert!(!meta.versions.is_deprecated("1.0.0"));
     let old = meta.versions.get("1.1.0").expect("1.1.0");
@@ -33,19 +34,24 @@ fn other_versions_become_marked_versions() {
             .and_then(|user| user.trusted_publisher.as_ref())
             .is_some(),
     );
-    assert!(
-        !meta.versions
-            .get("2.0.0")
-            .expect("2.0.0")
-            .dist
-            .is_external(),
-    );
 }
 
 #[test]
-fn a_document_without_other_versions_is_unchanged() {
-    let body = r#"{ "name": "acme", "dist-tags": {}, "versions": {} }"#;
-    let mut meta: Package = serde_json::from_str(body).expect("parse");
-    add_other_versions(body, &mut meta).expect("other versions");
-    assert!(meta.versions.is_empty());
+fn an_entry_with_a_manifest_is_a_complete_version() {
+    let meta = parse_install_v2(DOCUMENT).expect("parse");
+    let latest = meta.versions.get("2.0.0").expect("2.0.0");
+    assert!(!latest.dist.is_external());
+    assert_eq!(latest.name, "acme");
+    assert_eq!(latest.version.to_string(), "2.0.0");
+    assert!(latest.dist.integrity.is_some());
+    assert!(latest.dist.attestations.is_some());
+}
+
+#[test]
+fn a_version_without_a_time_is_published_at_times_since() {
+    let meta = parse_install_v2(DOCUMENT).expect("parse");
+    assert_eq!(meta.published_at("0.1.0"), None);
+    assert_eq!(meta.published_at("1.0.0"), Some("2025-12-02T00:00Z"));
+    assert_eq!(meta.published_at("1.1.0"), Some("2025-12-20T00:00Z"));
+    assert_eq!(meta.modified.as_deref(), Some("2026-01-01T00:00:00.000Z"));
 }

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Benchmark whole packuments, packuments split by moving only each version's
-# dist, and packuments split into a map of other versions and release
-# records, through the CDN-like shaping proxy. Both split forms keep the
-# likely picks whole. Each run starts with an empty pnpm cache and store.
+# Benchmark npm's abbreviated packuments, pnpr's own document with every
+# manifest inline, and pnpr's document split above 64 KiB, with only the
+# likely picks' manifests inline and the rest in release records, through the
+# CDN-like shaping proxy. Each run starts with an empty pnpm cache and store.
 # usage: bench-split.sh <runs> <work-dir> <pnpr-config>
 # Expects release builds in target/release, and a pnpr config whose upstream
 # proxies npmjs (set its maxAge long so the runs do not revalidate).
@@ -42,14 +42,14 @@ one_run() { # <label> <cmd> <profile>
   rm -rf $dir
 }
 
-for mode in whole split-dist split-map; do
+for mode in whole v2-whole v2-split; do
   case $mode in
-    whole) threshold=1000000000000000 dist_only=0 ;;
-    split-dist) threshold=65536 dist_only=1 ;;
-    split-map) threshold=65536 dist_only=0 ;;
+    whole) threshold= ;;
+    v2-whole) threshold=1000000000000000 ;;
+    v2-split) threshold=65536 ;;
   esac
   cd $(dirname $CONFIG)
-  PNPR_SPLIT_METADATA_THRESHOLD=$threshold PNPR_SPLIT_DIST_ONLY=$dist_only \
+  env ${threshold:+PNPR_SPLIT_METADATA_THRESHOLD=$threshold} \
     $BIN/pnpr -c $CONFIG --listen 127.0.0.1:7690 --public-url http://127.0.0.1:7700 > $WORK/pnpr-$mode.log 2>&1 &
   pnpr_pid=$!
   for _ in $(seq 100); do curl -sf http://127.0.0.1:7690/npm/is-number > /dev/null && break; sleep 0.1; done

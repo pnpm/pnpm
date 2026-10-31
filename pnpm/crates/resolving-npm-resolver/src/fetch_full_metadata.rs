@@ -40,8 +40,8 @@ pub(crate) const ACCEPT_FULL_DOC: &str = "application/json; q=1.0, */*";
 pub(crate) const ACCEPT_ABBREVIATED_DOC: &str = "application/vnd.pnpr.install-v2+json; q=1.0, \
      application/vnd.npm.install-v1+json; q=0.9, application/json; q=0.8, */*";
 
-/// Content type of pnpr's split abbreviated packument (proof of concept),
-/// which may leave a version's dist facts in its version document.
+/// Content type of pnpr's own package document (proof of concept), which may
+/// leave a version's manifest in its release record.
 const SPLIT_META_CONTENT_TYPE: &str = "application/vnd.pnpr.install-v2+json";
 
 /// Content type of an abbreviated (install-oriented) packument. A
@@ -97,6 +97,20 @@ pub(crate) fn is_abbreviated_content_type(headers: &header::HeaderMap) -> bool {
             media_type.eq_ignore_ascii_case(ABBREVIATED_META_CONTENT_TYPE)
                 || media_type.eq_ignore_ascii_case(SPLIT_META_CONTENT_TYPE)
         })
+}
+
+/// A metadata body, in npm's format or, when `install_v2`, in pnpr's own.
+fn parse_metadata(body: &str, install_v2: bool) -> serde_json::Result<Package> {
+    if install_v2 { pnpm_registry::parse_install_v2(body) } else { serde_json::from_str(body) }
+}
+
+/// Whether the response is pnpr's own package document.
+fn is_install_v2_content_type(headers: &header::HeaderMap) -> bool {
+    headers
+        .get(header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.split(';').next())
+        .is_some_and(|media_type| media_type.trim().eq_ignore_ascii_case(SPLIT_META_CONTENT_TYPE))
 }
 
 /// Options bundle for [`fetch_full_metadata`]. The cached variant
@@ -372,6 +386,7 @@ pub(crate) async fn decode_metadata_response<Output: Send + 'static>(
 ) -> Result<Output, FetchMetadataError> {
     let MetadataResponse { client, response, url, http_client } = response;
     let started_at = client.acquired_at();
+    let install_v2 = is_install_v2_content_type(response.headers());
     let response = response
         .error_for_status()
         .map_err(|error| FetchMetadataError::Network {
@@ -392,12 +407,7 @@ pub(crate) async fn decode_metadata_response<Output: Send + 'static>(
     let task_url = url.to_string();
     let (output, elapsed) = run_decode(move || {
         let raw_body = raw_body.into_text();
-        let mut meta = serde_json::from_str::<Package>(&raw_body)
-            .map_err(|error| FetchMetadataError::Decode {
-                url: redact_url_credentials(&task_url),
-                error,
-            })?;
-        pnpm_registry::add_other_versions(&raw_body, &mut meta)
+        let mut meta = parse_metadata(&raw_body, install_v2)
             .map_err(|error| FetchMetadataError::Decode {
                 url: redact_url_credentials(&task_url),
                 error,

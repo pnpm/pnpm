@@ -1,4 +1,4 @@
-use super::{likely_picks, record_address, release_record, split_above};
+use super::{install_v2, likely_picks, record_address, release_record};
 use serde_json::{Value, json};
 
 fn version(integrity: &str) -> Value {
@@ -56,64 +56,90 @@ fn likely_picks_are_the_tag_targets_and_the_highest_of_each_line() {
 }
 
 #[test]
-fn a_small_document_stays_whole() {
-    let doc = packument();
-    let body = serde_json::to_vec(&doc).expect("serialize");
-    assert_eq!(split_above(doc, body.clone(), 64 * 1024, false).expect("split"), body);
-}
-
-fn split(doc: Value) -> Value {
-    // Only the body's length is compared with the threshold.
-    let split = split_above(doc, vec![b' '; 1024 * 1024], 64 * 1024, false).expect("split");
-    serde_json::from_slice(&split).expect("parse")
+fn a_small_document_keeps_every_manifest() {
+    let doc = install_v2(&packument(), false);
+    assert_eq!(doc["name"], json!("acme"));
+    assert_eq!(doc["distTags"], json!({ "latest": "2.1.0", "next": "3.0.0-rc.1" }));
+    let versions = doc["versions"].as_object().expect("versions");
+    assert_eq!(versions.len(), 8);
+    assert!(
+        versions
+            .values()
+            .all(|entry| entry.get("manifest").is_some()),
+    );
 }
 
 #[test]
-fn a_large_document_moves_other_versions_to_their_own_map() {
-    let split = split(packument());
-    assert_eq!(split["versions"]["2.1.0"], version("sha512-g"));
-    assert!(split["versions"].get("1.0.0").is_none());
+fn a_large_document_keeps_the_manifests_of_the_likely_picks() {
+    let doc = install_v2(&packument(), true);
     assert_eq!(
-        split["time"],
+        doc["versions"]["2.1.0"],
         json!({
-            "modified": "2026-01-01T00:00:00.000Z",
-            "1.4.2": "2025-12-15T00:00:00.000Z",
-            "2.1.0": "2026-01-01T00:00:00.000Z",
+            "time": "2026-01-01T00:00:00.000Z",
+            "deprecated": "use 2",
+            "trust": "trustedPublisher",
+            "manifest": {
+                "dependencies": { "dep": "^1.0.0" },
+                "dist": {
+                    "integrity": "sha512-g",
+                    "tarball": "https://registry.example/acme@x",
+                    "pnpr": {
+                        "requiresBuild": false,
+                        "variants": [{
+                            "tag": "linux-x64",
+                            "platforms": [{ "os": "linux", "cpu": "x64" }],
+                            "integrity": "sha512-variant",
+                        }],
+                    },
+                },
+            },
         }),
     );
     assert_eq!(
-        split["pnpr"]["otherVersions"]["1.0.0"],
+        doc["versions"]["1.0.0"],
         json!({ "deprecated": "use 2", "trust": "trustedPublisher" }),
     );
 }
 
 #[test]
 fn only_versions_inside_the_window_keep_their_publish_time() {
-    let split = split(packument());
-    assert_eq!(split["pnpr"]["timesSince"], json!("2025-12-02T00:00:00.000Z"));
-    assert_eq!(split["pnpr"]["otherVersions"]["2.0.0"]["time"], json!("2025-12-20T00:00:00.000Z"));
-    assert!(split["pnpr"]["otherVersions"]["1.0.0"].get("time").is_none());
-    assert_eq!(split["pnpr"]["otherVersions"]["0.1.0"]["time"], Value::Null);
+    let doc = install_v2(&packument(), true);
+    assert_eq!(doc["timesSince"], json!("2025-12-02T00:00:00.000Z"));
+    assert_eq!(doc["versions"]["2.0.0"]["time"], json!("2025-12-20T00:00:00.000Z"));
+    assert!(doc["versions"]["1.0.0"].get("time").is_none());
+    assert_eq!(doc["versions"]["0.1.0"]["time"], Value::Null);
 }
 
 #[test]
-fn an_other_version_without_flags_is_an_empty_entry() {
-    let mut doc = packument();
-    let manifest = doc["versions"]["1.0.0"].as_object_mut().expect("manifest");
+fn coarsened_publish_times_are_read() {
+    let mut packument = packument();
+    packument["time"]["2.1.0"] = json!("2026-01-01T00:00Z");
+    packument["time"]["2.0.0"] = json!("2025-12-20");
+    packument["time"]["1.0.0"] = json!("2025-01-01");
+    let doc = install_v2(&packument, true);
+    assert_eq!(doc["timesSince"], json!("2025-12-02T00:00:00.000Z"));
+    assert_eq!(doc["versions"]["2.0.0"]["time"], json!("2025-12-20"));
+    assert!(doc["versions"]["1.0.0"].get("time").is_none());
+}
+
+#[test]
+fn a_version_without_flags_is_an_empty_entry() {
+    let mut packument = packument();
+    let manifest = packument["versions"]["1.0.0"].as_object_mut().expect("manifest");
     manifest.remove("deprecated");
     manifest.remove("_npmUser");
     manifest["dist"]
         .as_object_mut()
         .expect("dist")
         .remove("attestations");
-    assert_eq!(split(doc)["pnpr"]["otherVersions"]["1.0.0"], json!({}));
+    assert_eq!(install_v2(&packument, true)["versions"]["1.0.0"], json!({}));
 }
 
 #[test]
 fn a_selected_replacement_is_in_the_entry() {
-    let mut doc = packument();
-    doc["versions"]["1.0.0"]["dist"]["revision"] = json!(2);
-    assert_eq!(split(doc)["pnpr"]["otherVersions"]["1.0.0"]["revision"], json!(2));
+    let mut packument = packument();
+    packument["versions"]["1.0.0"]["dist"]["revision"] = json!(2);
+    assert_eq!(install_v2(&packument, true)["versions"]["1.0.0"]["revision"], json!(2));
 }
 
 #[test]
@@ -132,21 +158,4 @@ fn a_release_record_leaves_out_what_may_change() {
     assert!(record["dist"].get("attestations").is_none());
     assert_eq!(record["dependencies"], json!({ "dep": "^1.0.0" }));
     assert_eq!(record["dist"]["integrity"], json!("sha512-a"));
-}
-
-#[test]
-fn a_dist_only_split_keeps_dependencies_and_variant_platforms() {
-    let split = split_above(packument(), vec![b' '; 1024 * 1024], 64 * 1024, true).expect("split");
-    let split: Value = serde_json::from_slice(&split).expect("parse");
-    assert_eq!(split["versions"]["1.0.0"]["dependencies"], json!({ "dep": "^1.0.0" }));
-    assert_eq!(
-        split["versions"]["1.0.0"]["dist"],
-        json!({
-            "attestations": { "provenance": { "predicateType": "https://slsa.dev/provenance/v1" } },
-            "pnpr": {
-                "details": "external",
-                "variants": [{ "tag": "linux-x64", "platforms": [{ "os": "linux", "cpu": "x64" }] }],
-            },
-        }),
-    );
 }

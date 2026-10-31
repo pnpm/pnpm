@@ -216,7 +216,7 @@ pub(super) fn packument_response(
         let trimmed = abbreviate_packument(&doc, Utc::now());
         let body = serde_json::to_vec(&trimmed)?;
         (
-            super::split_packuments::split_body(trimmed, body)?,
+            super::split_packuments::split_body(&trimmed, &body)?,
             super::split_packuments::SPLIT_CONTENT_TYPE,
         )
     } else if abbreviated {

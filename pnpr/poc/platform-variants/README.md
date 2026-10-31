@@ -43,59 +43,61 @@ local virtual store slot when the selection changes.
 Variant integrities make a packument several times larger, because a digest
 does not compress. So the PoC also implements split packuments:
 
-- pnpm asks for `application/vnd.pnpr.install-v2+json` first. pnpr answers
-  with the abbreviated packument. When that is larger than
-  `PNPR_SPLIT_METADATA_THRESHOLD` (off unless set; the benchmark uses
-  64 KiB), only the likely picks stay in `versions`: every dist-tag target
-  and the highest release of each major (of each minor below 1.0;
-  `PNPR_SPLIT_KEEP_LATEST=0` turns this off). Every other version moves to
-  `pnpr.otherVersions` as an object with its `deprecated` notice, trust
-  rank, and selected revision, and its publish `time` only if it was
-  published within 30 days of the package's last publish
-  (`PNPR_SPLIT_TIME_WINDOW_DAYS` makes the window longer, never shorter). `pnpr.timesSince`
-  is where that window starts. A client that does not read the map sees only
-  complete versions.
-- The rest of a version is its release record at
+- pnpm asks for `application/vnd.pnpr.install-v2+json` first. With
+  `PNPR_SPLIT_METADATA_THRESHOLD` set (the benchmark uses 64 KiB), pnpr
+  answers with a document in its own format: `name`, `distTags`,
+  `modified`, `timesSince`, and an entry per version in `versions` with its
+  `deprecated` notice, `trust` rank, selected `revision`, and its publish
+  `time` only if it was published within 30 days of the package's last
+  publish (`PNPR_SPLIT_TIME_WINDOW_DAYS` makes the window longer, never
+  shorter). `timesSince` is where that window starts.
+- An entry with a `manifest` is complete. Under the threshold every entry
+  has one; above it only the likely picks do: every dist-tag target and the
+  highest release of each major (of each minor below 1.0;
+  `PNPR_SPLIT_KEEP_LATEST=0` turns this off).
+- The manifest of any version is its release record at
   `<name>/<version>+r<revision>`, served with `Cache-Control: immutable`:
   the abbreviated version without `deprecated`, `_npmUser`, signatures, and
   attestations, which may change or are evidence kept apart. `<name>/<version>`
   is the selected revision and keeps its usual caching. The PoC serves a
   record only while its revision is the selected one.
-- pnpm turns each entry into a version marked `dist.pnpr.details: "external"`
-  where the document is parsed, so the picker, the trust policy, and the
-  release-age filter read it like any other. A version without a time is
-  recorded as published at `timesSince`, which passes any minimum release
-  age up to 30 days and is what time-based resolution compares too. pnpm does not yet reject a longer one, which the RFC
-  requires. It fetches the record of a picked
-  other version once per install and takes the deprecation and trust
-  evidence from the packument. Records are not yet cached on disk.
-- `PNPR_SPLIT_DIST_ONLY=1` keeps every version in `versions` with only its
-  `dist` moved, for comparison.
+- pnpm turns the document into its usual package type where it is parsed
+  (`parse_install_v2`), with a version marked `dist.pnpr.details: "external"`
+  for each entry without a manifest, so the picker, the trust policy, the
+  release-age filter, and the metadata cache read it like any other. A
+  version without a time is recorded as published at `timesSince`, which
+  passes any minimum release age up to 30 days and is what time-based
+  resolution compares too. pnpm does not yet reject a longer one, which the
+  RFC requires. It fetches the record of a picked version without a manifest
+  once per install and takes the deprecation and trust evidence from the
+  document. Records are not yet cached on disk.
 - Split documents need a metadata cache of their own on the client: an older
   pnpm on `PATH` that shares the cache read a split document the new one had
   cached, and failed to switch versions. Moving the cache directory touches
-  the cache commands and many tests, so the PoC leaves splitting off unless
+  the cache commands and many tests, so the PoC serves the format only when
   `PNPR_SPLIT_METADATA_THRESHOLD` is set.
 
 `bench-split.sh` resolves `bench-app.json` (787 packages, all proxied from
 npmjs) through `shaper.mjs`, a CDN-like proxy that gzips, caches, delays each
 request by a round trip, and caps bandwidth. The registry is declared with
 `serverType: pnpr`, as it would be in use; otherwise pnpm reads the full
-document of every optional dependency, which is never split. Every run starts
-with an empty pnpm cache and store. Both split forms keep the likely picks
-whole. Medians of 3 runs:
+document of every optional dependency. Every run starts with an empty pnpm
+cache and store. It compares npm's abbreviated documents, pnpr's format with
+every manifest inline, and pnpr's format with the 64 KiB threshold. Medians
+of 3 runs:
 
-| Network | Whole | Only `dist` moved | Map of other versions |
+| Network | npm's abbreviated | pnpr's, every manifest | pnpr's, 64 KiB threshold |
 | --- | --- | --- | --- |
-| 10 ms, 200 Mbit/s, resolve | 1.36 s | 0.45 s | 0.32 s |
-| 40 ms, 50 Mbit/s, resolve | 5.05 s | 1.51 s | 1.01 s |
-| 100 ms, 10 Mbit/s, resolve | 24.66 s | 6.67 s | 4.03 s |
-| 40 ms, 50 Mbit/s, install | 28.48 s | 24.82 s | 24.27 s |
-| Packument bytes (gzip) | 30.3 MB | 7.6 MB | 4.3 MB |
-| Release records | 0 | 22 (7 KB) | 22 (7 KB) |
+| 10 ms, 200 Mbit/s, resolve | 1.35 s | 0.76 s | 0.36 s |
+| 40 ms, 50 Mbit/s, resolve | 5.07 s | 2.60 s | 0.79 s |
+| 100 ms, 10 Mbit/s, resolve | 24.68 s | 12.38 s | 2.62 s |
+| 40 ms, 50 Mbit/s, install | 28.50 s | 25.99 s | 24.03 s |
+| Package documents (gzip) | 30.3 MB | 14.9 MB | 2.5 MB |
+| Release records | 0 | 0 | 22 (7 KB) |
 
-All three lockfiles are identical. About 3 MB of the 4.3 MB left is in
-documents under the threshold.
+All three lockfiles are identical. The format alone halves the bytes: it
+leaves out npm's registry signatures, attestations, `_npmUser`, publish
+times older than the window, and the repeated `name` and `version`.
 
 ## Reproducing
 

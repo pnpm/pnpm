@@ -1,28 +1,32 @@
-//! Split packuments (proof of concept). A client that accepts
-//! `application/vnd.pnpr.install-v2+json` gets the abbreviated packument,
-//! and when that is larger than the threshold, only the versions a fresh
-//! resolution almost always picks stay in `versions`: every dist-tag target
-//! and the highest release of each major (of each minor below 1.0). Every
-//! other version moves to `pnpr.otherVersions`, which keeps only what
-//! picking a version reads and what may change after publication: its
-//! `deprecated` notice, trust rank, and selected revision, and its publish
-//! time if it was published within [`TIME_WINDOW_DAYS`] (30 by default) of the package's last
-//! publish. `pnpr.timesSince` is where that window starts, so an entry
-//! without a time was published before it. The version itself, as its
-//! release record, is in the immutable version document
-//! `<base>/<name>/<version>+r<revision>`. A client that does not read the map
-//! sees only complete versions.
+//! The `application/vnd.pnpr.install-v2+json` package document (proof of
+//! concept). It is pnpr's own format, served only to clients that ask for it:
 //!
-//! `PNPR_SPLIT_DIST_ONLY=1` keeps the earlier shape for comparison: every
-//! version stays in `versions`, with only its dist facts moved and the
-//! version marked `dist.pnpr.details: "external"`. `PNPR_SPLIT_KEEP_LATEST=0`
-//! splits the likely picks too.
+//! ```json
+//! { "name": "acme", "distTags": { "latest": "2.1.0" }, "timesSince": "...",
+//!   "versions": { "1.0.0": { "deprecated": "use 2" },
+//!                 "2.1.0": { "time": "...", "trust": "provenance", "manifest": { ... } } } }
+//! ```
+//!
+//! Every version has an entry with what picking it reads and what may change
+//! after publication: its `deprecated` notice, `trust` rank, selected
+//! `revision` when it is not the original, and its publish `time` if it was
+//! published within [`TIME_WINDOW_DAYS`] (30 by default) of the package's last
+//! publish. `timesSince` is where that window starts, so an entry without a
+//! time was published before it. An entry with a `manifest` is complete. When
+//! the abbreviated document is larger than the threshold, only the versions a
+//! fresh resolution almost always picks keep their manifest: every dist-tag
+//! target and the highest release of each major (of each minor below 1.0).
+//! The manifest of any version is its release record, the immutable version
+//! document `<base>/<name>/<version>+r<revision>`.
+//!
+//! `PNPR_SPLIT_KEEP_LATEST=0` leaves out the manifests of the likely picks
+//! too.
 
 use axum::{
     http::{HeaderMap, HeaderValue, header},
     response::{IntoResponse, Response},
 };
-use chrono::{DateTime, Duration, FixedOffset, SecondsFormat};
+use chrono::{DateTime, Duration, NaiveDate, NaiveDateTime, SecondsFormat, Utc};
 use node_semver::Version;
 use serde_json::{Map, Value};
 use std::{
@@ -30,29 +34,24 @@ use std::{
     sync::LazyLock,
 };
 
-/// The split abbreviated form's media type.
+/// The media type of pnpr's package document.
 pub(super) const SPLIT_CONTENT_TYPE: &str = "application/vnd.pnpr.install-v2+json";
 
-/// The serialized abbreviated size above which versions are split, from
-/// `PNPR_SPLIT_METADATA_THRESHOLD` (bytes). Unset, nothing is split: pnpm
-/// releases that predate the split form share the metadata cache, and must
-/// never read a split document a newer release cached.
-static THRESHOLD: LazyLock<usize> = LazyLock::new(|| {
+/// The serialized abbreviated size above which only the likely picks keep
+/// their manifests, from `PNPR_SPLIT_METADATA_THRESHOLD` (bytes). Unset, the
+/// format is not served at all: pnpm releases that predate it share the
+/// metadata cache, and must never read a document a newer release cached.
+static THRESHOLD: LazyLock<Option<usize>> = LazyLock::new(|| {
     std::env::var("PNPR_SPLIT_METADATA_THRESHOLD")
         .ok()
         .and_then(|value| value.parse().ok())
-        .unwrap_or(usize::MAX)
 });
 
-/// Whether the versions a resolution likely picks stay whole.
+/// Whether the versions a resolution likely picks keep their manifests.
 static KEEP_LATEST: LazyLock<bool> =
     LazyLock::new(|| std::env::var("PNPR_SPLIT_KEEP_LATEST").map_or(true, |value| value != "0"));
 
-/// Whether only the dist facts move, rather than the whole version.
-static DIST_ONLY: LazyLock<bool> =
-    LazyLock::new(|| std::env::var("PNPR_SPLIT_DIST_ONLY").is_ok_and(|value| value == "1"));
-
-/// How far back from a package's last publish the other versions keep their
+/// How far back from a package's last publish the versions keep their
 /// publish times, from `PNPR_SPLIT_TIME_WINDOW_DAYS`. pnpm accepts a minimum
 /// release age of at most 30 days, so the window is never shorter: a version
 /// older than it is old enough for any of them.
@@ -66,85 +65,89 @@ static TIME_WINDOW_DAYS: LazyLock<i64> = LazyLock::new(|| {
 /// The longest minimum release age pnpm accepts, in days.
 const MIN_TIME_WINDOW_DAYS: i64 = 30;
 
-/// Whether the client's `Accept` header offers the split form.
+/// Whether the client's `Accept` header offers pnpr's format, and it is
+/// served.
 pub(super) fn wants_split(headers: &HeaderMap) -> bool {
-    headers
-        .get(header::ACCEPT)
-        .and_then(|value| value.to_str().ok())
-        .is_some_and(|accept| accept.contains(SPLIT_CONTENT_TYPE))
+    THRESHOLD.is_some()
+        && headers
+            .get(header::ACCEPT)
+            .and_then(|value| value.to_str().ok())
+            .is_some_and(|accept| accept.contains(SPLIT_CONTENT_TYPE))
 }
 
-/// The split form of an abbreviated packument serialized to `body`.
-pub(super) fn split_body(abbreviated: Value, body: Vec<u8>) -> serde_json::Result<Vec<u8>> {
-    split_above(abbreviated, body, *THRESHOLD, *DIST_ONLY)
+/// pnpr's document for an abbreviated packument serialized to `body`.
+pub(super) fn split_body(abbreviated: &Value, body: &[u8]) -> serde_json::Result<Vec<u8>> {
+    let threshold = THRESHOLD.unwrap_or(usize::MAX);
+    serde_json::to_vec(&install_v2(abbreviated, body.len() > threshold))
 }
 
-/// [`split_body`] with the threshold and the shape given.
-fn split_above(
-    mut abbreviated: Value,
-    body: Vec<u8>,
-    threshold: usize,
-    dist_only: bool,
-) -> serde_json::Result<Vec<u8>> {
-    if body.len() <= threshold {
-        return Ok(body);
-    }
-    let inline = if *KEEP_LATEST { likely_picks(&abbreviated) } else { HashSet::new() };
-    if dist_only {
-        let versions = abbreviated.get_mut("versions").and_then(Value::as_object_mut);
-        versions
-            .into_iter()
-            .flat_map(|versions| versions.iter_mut())
-            .filter(|(version, _)| !inline.contains(*version))
-            .filter_map(|(_, manifest)| manifest.get_mut("dist").and_then(Value::as_object_mut))
-            .for_each(externalize_dist);
-    } else {
-        move_other_versions(&mut abbreviated, &inline);
-    }
-    serde_json::to_vec(&abbreviated)
-}
-
-/// Move every version not in `inline` from `versions` and `time` to
-/// `pnpr.otherVersions`.
-fn move_other_versions(abbreviated: &mut Value, inline: &HashSet<String>) {
-    let Some(doc) = abbreviated.as_object_mut() else { return };
-    let Some(Value::Object(versions)) = doc.remove("versions") else { return };
-    let mut time = match doc.remove("time") {
-        Some(Value::Object(time)) => time,
-        _ => Map::new(),
+/// pnpr's document for an abbreviated packument, with every manifest inline
+/// unless `split`, and then only those of the likely picks.
+fn install_v2(abbreviated: &Value, split: bool) -> Value {
+    let empty = Map::new();
+    let field = |name: &str| {
+        abbreviated
+            .get(name)
+            .and_then(Value::as_object)
+            .unwrap_or(&empty)
     };
-    let times_since = times_since(&versions, &time);
-    let mut kept = Map::new();
-    let mut others = Map::new();
-    for (version, manifest) in versions {
-        if inline.contains(&version) {
-            kept.insert(version, manifest);
-        } else {
-            let published = time.remove(&version);
-            let entry = other_entry(&manifest, published.as_ref(), times_since.as_ref());
-            others.insert(version, entry);
-        }
+    let times_since = times_since(field("versions"), field("time"));
+    let mut doc = Map::new();
+    doc.insert(
+        "name".into(),
+        abbreviated
+            .get("name")
+            .cloned()
+            .unwrap_or(Value::Null),
+    );
+    doc.insert("distTags".into(), Value::Object(field("dist-tags").clone()));
+    if let Some(modified) = abbreviated.get("modified") {
+        doc.insert("modified".into(), modified.clone());
     }
-    doc.insert("versions".into(), Value::Object(kept));
-    if !time.is_empty() {
-        doc.insert("time".into(), Value::Object(time));
-    }
-    let mut pnpr = Map::new();
-    if let Some(times_since) = times_since {
+    if let Some(times_since) = &times_since {
         let since = times_since.to_rfc3339_opts(SecondsFormat::Millis, true);
-        pnpr.insert("timesSince".into(), Value::String(since));
+        doc.insert("timesSince".into(), Value::String(since));
     }
-    pnpr.insert("otherVersions".into(), Value::Object(others));
-    doc.insert("pnpr".into(), Value::Object(pnpr));
+    let entries = version_entries(abbreviated, split, times_since.as_ref());
+    doc.insert("versions".into(), Value::Object(entries));
+    Value::Object(doc)
+}
+
+/// Every version's entry, with its manifest unless `split` leaves it to the
+/// release record.
+fn version_entries(
+    abbreviated: &Value,
+    split: bool,
+    times_since: Option<&DateTime<Utc>>,
+) -> Map<String, Value> {
+    let empty = Map::new();
+    let field = |name: &str| {
+        abbreviated
+            .get(name)
+            .and_then(Value::as_object)
+            .unwrap_or(&empty)
+    };
+    let inline = (split && *KEEP_LATEST).then(|| likely_picks(abbreviated));
+    field("versions")
+        .iter()
+        .map(|(version, manifest)| {
+            let mut entry = version_entry(manifest, field("time").get(version), times_since);
+            if !split
+                || inline
+                    .as_ref()
+                    .is_some_and(|inline| inline.contains(version))
+            {
+                entry.insert("manifest".into(), inline_manifest(manifest));
+            }
+            (version.clone(), Value::Object(entry))
+        })
+        .collect()
 }
 
 /// Where the publish-time window starts: [`TIME_WINDOW_DAYS`] before the
 /// package's last publish. It moves only when the package is published to,
 /// so the document does not change as time passes.
-fn times_since(
-    versions: &Map<String, Value>,
-    time: &Map<String, Value>,
-) -> Option<DateTime<FixedOffset>> {
+fn times_since(versions: &Map<String, Value>, time: &Map<String, Value>) -> Option<DateTime<Utc>> {
     let last = versions
         .keys()
         .filter_map(|version| parse_time(time.get(version)?))
@@ -152,18 +155,28 @@ fn times_since(
     Some(last - Duration::days(*TIME_WINDOW_DAYS))
 }
 
-fn parse_time(value: &Value) -> Option<DateTime<FixedOffset>> {
-    DateTime::parse_from_rfc3339(value.as_str()?).ok()
+/// A publish time as the abbreviated document gives it: RFC 3339, or
+/// coarsened to the minute (`2026-10-31T10:05Z`) or the day (`2026-10-31`).
+fn parse_time(value: &Value) -> Option<DateTime<Utc>> {
+    let value = value.as_str()?;
+    if let Ok(parsed) = DateTime::parse_from_rfc3339(value) {
+        return Some(parsed.with_timezone(&Utc));
+    }
+    if let Ok(parsed) = NaiveDateTime::parse_from_str(value, "%Y-%m-%dT%H:%MZ") {
+        return Some(parsed.and_utc());
+    }
+    let date = NaiveDate::parse_from_str(value, "%Y-%m-%d").ok()?;
+    Some(date.and_hms_opt(0, 0, 0)?.and_utc())
 }
 
-/// An other version's entry: its `deprecated` notice, trust rank, and
-/// selected revision when it is not the original, and its publish time when
-/// that is inside the window, or `null` when the registry has none.
-fn other_entry(
+/// A version's entry: its `deprecated` notice, trust rank, and selected
+/// revision when it is not the original, and its publish time when that is
+/// inside the window, or `null` when the registry has none.
+fn version_entry(
     manifest: &Value,
     published: Option<&Value>,
-    times_since: Option<&DateTime<FixedOffset>>,
-) -> Value {
+    times_since: Option<&DateTime<Utc>>,
+) -> Map<String, Value> {
     let mut entry = Map::new();
     match published.map(|value| (value, parse_time(value))) {
         Some((_, Some(at))) if times_since.is_some_and(|since| at < *since) => {}
@@ -187,7 +200,18 @@ fn other_entry(
     if revision != 0 {
         entry.insert("revision".into(), Value::from(revision));
     }
-    Value::Object(entry)
+    entry
+}
+
+/// A version's release record without `name` and `version`, which its key
+/// in the document gives.
+fn inline_manifest(manifest: &Value) -> Value {
+    let mut record = release_record(manifest);
+    if let Some(record) = record.as_object_mut() {
+        record.remove("name");
+        record.remove("version");
+    }
+    record
 }
 
 /// The strongest trust evidence a version has, as the trust policy ranks it.
@@ -302,50 +326,6 @@ fn likely_picks(abbreviated: &Value) -> HashSet<String> {
     }
     picks.extend(highest.values().map(Version::to_string));
     picks
-}
-
-/// Keep only what resolution reads of a version's dist facts: provenance,
-/// for the trust policy, the selected revision, and each variant's tag and
-/// platforms.
-fn externalize_dist(dist: &mut Map<String, Value>) {
-    let attestations = dist.remove("attestations");
-    let revision = dist.remove("revision");
-    let variants = dist
-        .get("pnpr")
-        .and_then(|pnpr| pnpr.get("variants"))
-        .and_then(Value::as_array)
-        .map(|variants| {
-            variants
-                .iter()
-                .map(variant_summary)
-                .collect::<Vec<_>>()
-        });
-    dist.clear();
-    if let Some(attestations) = attestations {
-        dist.insert("attestations".into(), attestations);
-    }
-    if let Some(revision) = revision {
-        dist.insert("revision".into(), revision);
-    }
-    let mut pnpr = Map::new();
-    pnpr.insert("details".into(), Value::String("external".into()));
-    if let Some(variants) = variants {
-        pnpr.insert("variants".into(), Value::Array(variants));
-    }
-    dist.insert("pnpr".into(), Value::Object(pnpr));
-}
-
-/// A variant's `tag` and `platforms`, all that resolution reads of it.
-fn variant_summary(variant: &Value) -> Value {
-    let kept = ["tag", "platforms"]
-        .into_iter()
-        .filter_map(|field| {
-            variant
-                .get(field)
-                .map(|value| (field.to_string(), value.clone()))
-        })
-        .collect::<Map<_, _>>();
-    Value::Object(kept)
 }
 
 #[cfg(test)]

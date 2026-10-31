@@ -1,11 +1,10 @@
-//! Split packuments (proof of concept). A registry that serves the
-//! `application/vnd.pnpr.install-v2+json` form may list a version only by
-//! what picking reads and what may change after publication: its
-//! `deprecated` notice, trust evidence, selected revision, and recent publish
-//! time (see
-//! `pnpm_registry::add_other_versions`). The rest of the version is in
-//! its release record `<registry><name>/<version>+r<revision>`, which never
-//! changes, fetched here once the version is picked.
+//! pnpr's package document (proof of concept). `application/vnd.pnpr.install-v2+json`
+//! may give a version only by what picking reads and what may change after
+//! publication: its `deprecated` notice, trust rank, selected revision, and
+//! recent publish time (see `pnpm_registry::parse_install_v2`). The rest of
+//! the version is in its release record
+//! `<registry><name>/<version>+r<revision>`, which never changes, fetched
+//! here once the version is picked.
 
 use std::sync::{Arc, LazyLock};
 
