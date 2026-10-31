@@ -113,3 +113,27 @@ fn confirm_builds_prompt_formats_short_labels() {
         "Build esbuild, sharp?",
     );
 }
+
+#[test]
+fn build_choices_distinguishes_colliding_labels() {
+    let keys = vec![
+        "foo@https://codeload.github.com/org1/foo/tar.gz/1".to_string(),
+        "foo@https://codeload.github.com/org2/foo/tar.gz/2".to_string(),
+        "bar@1.0.0".to_string(),
+    ];
+    let choices = super::build_choices(&keys);
+    assert_eq!(
+        choices,
+        vec![
+            (
+                "foo@https://codeload.github.com/org1/foo/tar.gz/1".to_string(),
+                "foo (git) [foo@https://codeload.github.com/org1/foo/tar.gz/1]".to_string()
+            ),
+            (
+                "foo@https://codeload.github.com/org2/foo/tar.gz/2".to_string(),
+                "foo (git) [foo@https://codeload.github.com/org2/foo/tar.gz/2]".to_string()
+            ),
+            ("bar@1.0.0".to_string(), "bar".to_string()),
+        ]
+    );
+}

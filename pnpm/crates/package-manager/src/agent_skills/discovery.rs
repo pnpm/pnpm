@@ -306,10 +306,10 @@ fn collect_skill_entry(
         return;
     }
     let Ok(file_type) = entry.file_type() else { return };
-    if !file_type.is_dir() {
+    let path = entry.path();
+    if !file_type.is_dir() && !path.is_dir() {
         return;
     }
-    let path = entry.path();
     let dir_relative = relative.join(&name);
     if path.join("SKILL.md").is_file() {
         found.push(Skill { name, dir: dir_relative });

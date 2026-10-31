@@ -193,19 +193,31 @@ impl ApproveArgs {
     }
 }
 
+pub(crate) fn package_choices(pending: &BTreeMap<String, Capabilities>) -> Vec<(String, String)> {
+    let mut counts = BTreeMap::<String, usize>::new();
+    for pkg in pending.keys() {
+        *counts
+            .entry(short_package_label(pkg))
+            .or_default() += 1;
+    }
+    pending
+        .iter()
+        .map(|(pkg, capabilities)| {
+            let base = short_package_label(pkg);
+            let label = if counts.get(&base).copied().unwrap_or(0) > 1 {
+                format!("{base} [{pkg}]")
+            } else {
+                base
+            };
+            (pkg.clone(), format!("{label}  {}", capability_list(capabilities)))
+        })
+        .collect()
+}
+
 fn prompt_for_packages(
     pending: &BTreeMap<String, Capabilities>,
 ) -> miette::Result<Option<Vec<String>>> {
-    let choices: Vec<(String, String)> = pending
-        .iter()
-        .map(|(pkg, capabilities)| {
-            (
-                pkg.clone(),
-                format!("{}  {}", short_package_label(pkg), capability_list(capabilities)),
-            )
-        })
-        .collect();
-    prompt_for_choices("Choose which packages to approve", &choices)
+    prompt_for_choices("Choose which packages to approve", &package_choices(pending))
 }
 
 /// The interactive skills review of an approval: the first-run
@@ -275,7 +287,7 @@ fn prompt_for_package_skills(
     skills: &[String],
 ) -> miette::Result<Option<SkillsPermission>> {
     if skills.is_empty() {
-        return Ok(Some(SkillsPermission::All(true)));
+        return Ok(None);
     }
     let choices: Vec<(String, String)> = skills
         .iter()

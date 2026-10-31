@@ -263,15 +263,35 @@ pub(crate) fn partition_params(
     partition
 }
 
+/// Turn `keys` into `(key, label)` choices for a checkbox prompt,
+/// keeping choices with colliding short labels distinguishable by
+/// appending their approval key.
+pub(crate) fn build_choices(keys: &[String]) -> Vec<(String, String)> {
+    let mut counts = std::collections::BTreeMap::<String, usize>::new();
+    for key in keys {
+        *counts
+            .entry(short_package_label(key))
+            .or_default() += 1;
+    }
+    keys.iter()
+        .map(|key| {
+            let base = short_package_label(key);
+            let label = if counts.get(&base).copied().unwrap_or(0) > 1 {
+                format!("{base} [{key}]")
+            } else {
+                base
+            };
+            (key.clone(), label)
+        })
+        .collect()
+}
+
 /// Show the checkbox prompt and return the chosen package names, or `None`
 /// when the prompt is interrupted.
 fn prompt_for_builds(
     automatically_ignored_builds: &[String],
 ) -> miette::Result<Option<Vec<String>>> {
-    let choices: Vec<(String, String)> = sort_unique(automatically_ignored_builds.to_vec())
-        .into_iter()
-        .map(|key| (key.clone(), short_package_label(&key)))
-        .collect();
+    let choices = build_choices(&sort_unique(automatically_ignored_builds.to_vec()));
     prompt_for_choices("Choose which packages to build", &choices)
 }
 
