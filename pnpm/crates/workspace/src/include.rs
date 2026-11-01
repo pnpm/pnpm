@@ -231,6 +231,11 @@ fn parse_mapping(text: &str) -> Result<Option<Mapping>, yaml_serde::Error> {
     Ok(Some(mapping))
 }
 
+/// Whether a file extension spells `.yaml` or `.yml`, in any case.
+fn is_yaml_extension(extension: &str) -> bool {
+    extension.eq_ignore_ascii_case("yaml") || extension.eq_ignore_ascii_case("yml")
+}
+
 fn load_includes(
     root_path: &Path,
     mut root: Mapping,
