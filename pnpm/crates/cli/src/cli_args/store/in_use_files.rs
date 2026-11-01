@@ -222,12 +222,7 @@ fn configured_modules_dir(project: &Path) -> io::Result<String> {
     let workspace_dir = workspace_root_or(project);
     let Some(mut settings) = WorkspaceSettings::load_at_reading(
         &workspace_dir,
-        pnpm_config::SettingsRead::Required(&[
-            "lockfileDir",
-            "modulesDir",
-            "packageConfigs",
-            "sharedWorkspaceLockfile",
-        ]),
+        pnpm_config::SettingsRead::RequiredModulesDir,
     )
     .map_err(io::Error::other)?
     else {
