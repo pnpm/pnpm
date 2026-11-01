@@ -1,5 +1,7 @@
-//! The `<name>@<version>/variants/<tag>` route: a hosted platform variant's
-//! tar (see [`super::publishing::variants`]).
+//! The `<name>@<version>/variants/<tag>` route, and
+//! `<name>@<version>+r<revision>/variants/<tag>` for a revision-aware
+//! version: a hosted platform variant's tar (see
+//! [`super::publishing::variants`]).
 
 use super::{
     AppState, CanonicalPackageName, Ecosystem, HeaderMap, Identity, RegistryError, RegistrySource,
@@ -18,14 +20,16 @@ pub(super) async fn serve_variant_tarball(
     identity: &Identity,
     headers: &HeaderMap,
     registry: Option<&str>,
-    (raw_name, version, tag): (&str, &str, &str),
+    (raw_name, release, tag): (&str, &str, &str),
 ) -> Response {
+    let (version, revision) = super::split_packuments::record_address(release);
     let (storage, package) =
         match variant_storage(state, identity, registry, (raw_name, version, tag)) {
             Ok(found) => found,
             Err(response) => return response,
         };
-    let (label, unpacked_size) = match hosted_variant(&storage, &package, version, tag).await {
+    let found = hosted_variant(&storage, &package, version, revision, tag).await;
+    let (label, unpacked_size) = match found {
         Ok(Some(found)) => found,
         Ok(None) => return not_found(),
         Err(err) => return err.into_response(),
@@ -78,10 +82,13 @@ fn variant_storage(
 
 /// The attachment label a hosted version's variant `tag` is stored under,
 /// and its unpacked size, or `None` when the version has no such variant.
+/// Addressed by revision, the variant is served only while that revision is
+/// the selected one, as release records are in this prototype.
 async fn hosted_variant(
     storage: &Storage,
     package: &CanonicalPackageName,
     version: &str,
+    revision: Option<u64>,
     tag: &str,
 ) -> Result<Option<(String, Option<u64>)>, RegistryError> {
     let Some(bytes) = storage.read_hosted_document(package).await? else {
@@ -91,5 +98,10 @@ async fn hosted_variant(
     Ok(packument
         .get("versions")
         .and_then(|versions| versions.get(version))
+        .filter(|manifest| {
+            revision.is_none_or(|revision| {
+                revision == super::split_packuments::selected_revision(manifest)
+            })
+        })
         .and_then(|manifest| variants::stored_variant_label(manifest, tag)))
 }

@@ -28,6 +28,7 @@ pub use global_virtual_store_path::{
     calc_leaf_global_virtual_store_path, format_global_virtual_store_path,
     join_global_virtual_store_path,
 };
+pub use host_floors::detect_host_floors;
 pub use object_hasher::{
     hash_object, hash_object_nullable_with_prefix, hash_object_with_encoding,
     hash_object_without_sorting,
@@ -36,6 +37,7 @@ pub use object_hasher::{
 mod dep_state;
 mod engine_name;
 mod global_virtual_store_path;
+mod host_floors;
 mod object_hasher;
 
 /// Hex/base64 encoding option for [`hash_object_with_encoding`].

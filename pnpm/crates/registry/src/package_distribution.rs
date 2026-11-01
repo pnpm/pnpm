@@ -116,21 +116,18 @@ impl PackageDistribution {
 #[serde(rename_all = "camelCase")]
 pub struct PnprVariant {
     pub tag: String,
-    pub platforms: Vec<PnprVariantPlatform>,
+    /// The platforms the variant runs on, in the structured form of
+    /// `pnpm_platform_variants::Platform`. Kept as JSON so that a platform
+    /// with a field this client does not know makes only its variant
+    /// unselectable, not the version unreadable.
+    pub platforms: Vec<serde_json::Value>,
     /// Absent from a split packument, which keeps it in the version document.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub integrity: String,
+    /// The fields of the variant's manifest that differ from the version's;
+    /// each replaces the version's field, and `null` removes it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub tarball: Option<String>,
-}
-
-/// One platform a [`PnprVariant`] runs on.
-#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct PnprVariantPlatform {
-    pub os: String,
-    pub cpu: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub libc: Option<String>,
+    pub manifest: Option<serde_json::Map<String, serde_json::Value>>,
 }
 
 /// Container for the attestation evidence a version exposes on its

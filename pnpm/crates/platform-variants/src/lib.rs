@@ -319,14 +319,14 @@ impl Platform {
         self.os.as_deref() == Some(host.os.as_str())
             && self.cpu.as_deref() == Some(host.cpu.as_str())
             && self.effective_libc() == host.effective_libc()
-            && floor(self.libc_version, host.libc_version)
-            && floor(self.os_version, host.os_version)
-            && match (self.napi, host.napi) {
+            && floor(self.libc_version, host.floors.libc_version)
+            && floor(self.os_version, host.floors.os_version)
+            && match (self.napi, host.floors.napi) {
                 (Some(napi), Some(host)) => host >= napi,
                 _ => true,
             }
             && match self.node_abi {
-                Some(abi) => host.node_abi == Some(abi),
+                Some(abi) => host.floors.node_abi == Some(abi),
                 None => true,
             }
     }
@@ -385,17 +385,24 @@ pub fn is_valid_variant_tag(tag: &str) -> bool {
             })
 }
 
-/// What a client knows about the host it selects a variant for. A floor it
-/// does not know is `None`.
+/// What a client knows about the host it selects a variant for.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Host {
     pub os: String,
     pub cpu: String,
     /// `None` outside Linux; on Linux, `None` means glibc.
     pub libc: Option<Libc>,
+    pub floors: HostFloors,
+}
+
+/// The host's versions that floors and ABIs are matched against. A value
+/// the client does not know is `None`.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+pub struct HostFloors {
     pub libc_version: Option<Floor>,
     pub os_version: Option<Floor>,
     pub napi: Option<u32>,
+    /// The ABI of the runtime addons load into.
     pub node_abi: Option<NodeAbi>,
 }
 

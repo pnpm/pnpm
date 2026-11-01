@@ -15,6 +15,7 @@ base64 = { workspace = true }
 indexmap = { workspace = true }
 pnpm-detect-libc = { workspace = true }
 pnpm-fs = { workspace = true }
+pnpm-platform-variants = { workspace = true }
 serde_json = { workspace = true }
 sha2 = { workspace = true }
 

@@ -1,9 +1,9 @@
 use super::InstallPackageBySnapshotError;
 use pnpm_config::Config;
-use pnpm_graph_hasher::{host_arch, host_libc, host_platform};
+use pnpm_graph_hasher::{detect_host_floors, host_arch, host_libc, host_platform};
 use pnpm_lockfile::{
-    BinaryArchive, BinaryResolution, BinarySpec, LockfileResolution, PackageKey, PlatformSelector,
-    SelectedVariant,
+    BinaryArchive, BinaryResolution, BinarySpec, HostFloors, LockfileResolution, PackageKey,
+    PlatformSelector, SelectedVariant,
 };
 use pnpm_network::ThrottledClient;
 use pnpm_package_is_installable::{SupportedArchitectures, SupportedPlatform};
@@ -38,13 +38,19 @@ pub(super) fn variant_for_host<'a>(
     platform: &PlatformSelector,
     config: &Config,
 ) -> Result<VariantFetch<'a>, InstallPackageBySnapshotError> {
-    let Some(selected) = variations.select(platform) else {
+    let selected_target = || {
+        format!("os = `{}`, cpu = `{}`, libc = `{:?}`", platform.os, platform.cpu, platform.libc)
+    };
+    let selected = variations
+        .select(platform)
+        .map_err(|_| InstallPackageBySnapshotError::AmbiguousPlatformVariant {
+            package_key: package_key.to_string(),
+            selected_target: selected_target(),
+        })?;
+    let Some(selected) = selected else {
         return Err(InstallPackageBySnapshotError::NoMatchingPlatformVariant {
             package_key: package_key.to_string(),
-            selected_target: format!(
-                "os = `{}`, cpu = `{}`, libc = `{:?}`",
-                platform.os, platform.cpu, platform.libc,
-            ),
+            selected_target: selected_target(),
             available_targets: render_variant_targets(&variations.variants),
         });
     };
@@ -52,7 +58,7 @@ pub(super) fn variant_for_host<'a>(
     let resolution = match (selected, selected.resolution()) {
         (_, LockfileResolution::Binary(binary)) => return Ok(VariantFetch::Binary(binary)),
         (SelectedVariant::Variant(selected), LockfileResolution::Registry(registry)) => {
-            variant_registry_tarball(selected, registry, package_key, config)?
+            variant_registry_tarball(selected, registry, variations.revision, package_key, config)?
         }
         (_, resolution @ (LockfileResolution::Registry(_) | LockfileResolution::Tarball(_))) => {
             resolution.clone()
@@ -68,10 +74,12 @@ pub(super) fn variant_for_host<'a>(
 }
 
 /// A registry package variant recorded integrity-only, at the registry
-/// route `<registry>/<name>@<version>/variants/<tag>`.
+/// route `<registry>/<name>@<version>[+r<revision>]/variants/<tag>`, its tag
+/// derived from its targets.
 fn variant_registry_tarball(
     variant: &pnpm_lockfile::PlatformAssetResolution,
     registry: &pnpm_lockfile::RegistryResolution,
+    revision: Option<u64>,
     package_key: &PackageKey,
     config: &Config,
 ) -> Result<LockfileResolution, InstallPackageBySnapshotError> {
@@ -81,13 +89,14 @@ fn variant_registry_tarball(
             "has a registry variant without a valid tag",
         )
     };
-    let tag = variant.tag.as_deref().ok_or_else(invalid_tag)?;
+    let tag = variant.variant_tag().ok_or_else(invalid_tag)?;
     let (registry_url, version) =
         super::tarball_resolution::registry_and_version(package_key, config)?;
     let tarball = pnpm_lockfile::variant_registry_tarball_url(
         &package_key.name.to_string(),
         &version,
-        tag,
+        &tag,
+        revision,
         &registry_url,
     )
     .ok_or_else(invalid_tag)?;
@@ -127,7 +136,12 @@ pub fn host_platform_selector() -> PlatformSelector {
         "unknown" => None,
         other => Some(other.to_string()),
     };
-    PlatformSelector { os: host_platform().to_string(), cpu: host_arch().to_string(), libc }
+    PlatformSelector {
+        os: host_platform().to_string(),
+        cpu: host_arch().to_string(),
+        libc,
+        floors: detect_host_floors(),
+    }
 }
 /// Resolve the runtime archive selector from `supportedArchitectures`.
 ///
@@ -141,13 +155,20 @@ pub fn runtime_platform_selector(supported: Option<&SupportedArchitectures>) -> 
     let host = host_platform_selector();
     match supported {
         Some(SupportedArchitectures::Platforms(platforms)) => runtime_platform_of(platforms, host),
-        Some(SupportedArchitectures::Axes(axes)) => PlatformSelector {
-            os: pick_supported(axes.os.as_deref(), Some(&host.os)).unwrap_or(&host.os).to_string(),
-            cpu: pick_supported(axes.cpu.as_deref(), Some(&host.cpu))
-                .unwrap_or(&host.cpu)
-                .to_string(),
-            libc: pick_supported(axes.libc.as_deref(), host.libc.as_deref()).map(str::to_string),
-        },
+        Some(SupportedArchitectures::Axes(axes)) => with_host_floors(
+            PlatformSelector {
+                os: pick_supported(axes.os.as_deref(), Some(&host.os))
+                    .unwrap_or(&host.os)
+                    .to_string(),
+                cpu: pick_supported(axes.cpu.as_deref(), Some(&host.cpu))
+                    .unwrap_or(&host.cpu)
+                    .to_string(),
+                libc: pick_supported(axes.libc.as_deref(), host.libc.as_deref())
+                    .map(str::to_string),
+                floors: HostFloors::default(),
+            },
+            &host,
+        ),
         None => host,
     }
 }
@@ -173,14 +194,29 @@ pub(super) fn runtime_platform_of(
             libc: named.libc
                 .as_ref()
                 .map(|libc| libc.name().to_string()),
+            floors: HostFloors::default(),
         };
-        if selector == host {
+        if is_host(&selector, &host) {
             return host;
         }
         first.get_or_insert(selector);
     }
     first.unwrap_or(host)
 }
+/// Whether `selector` names the host's own platform.
+fn is_host(selector: &PlatformSelector, host: &PlatformSelector) -> bool {
+    selector.os == host.os && selector.cpu == host.cpu && selector.libc == host.libc
+}
+
+/// `selector` with the host's floors when it names the host's platform:
+/// another platform's versions are not known.
+fn with_host_floors(mut selector: PlatformSelector, host: &PlatformSelector) -> PlatformSelector {
+    if is_host(&selector, host) {
+        selector.floors = host.floors;
+    }
+    selector
+}
+
 pub(super) fn pick_supported<'a>(
     requested: Option<&'a [String]>,
     host_value: Option<&'a str>,

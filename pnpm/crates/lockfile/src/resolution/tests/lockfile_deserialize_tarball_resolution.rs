@@ -458,8 +458,8 @@ fn deserialize_variations_resolution() {
 fn serialize_variations_resolution() {
     let resolution = LockfileResolution::Variations(VariationsResolution {
         fallback: None,
+        revision: None,
         variants: vec![PlatformAssetResolution {
-            tag: None,
             resolution: LockfileResolution::Binary(BinaryResolution {
                 url: "https://nodejs.org/dist/v22.0.0/node-v22.0.0-darwin-arm64.tar.gz".to_string(),
                 integrity: integrity(
@@ -473,6 +473,7 @@ fn serialize_variations_resolution() {
                 os: "darwin".to_string(),
                 cpu: "arm64".to_string(),
                 libc: None,
+                ..PlatformAssetTarget::default()
             }],
         }],
     });

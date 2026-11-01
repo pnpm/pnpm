@@ -106,6 +106,7 @@ fn runtime_dependency_strips_importer_prefix_and_records_package_version() {
         resolution: LockfileResolution::Variations(VariationsResolution {
             variants: vec![],
             fallback: None,
+            revision: None,
         }),
         resolved_via: "node-runtime".to_string(),
         normalized_bare_specifier: None,

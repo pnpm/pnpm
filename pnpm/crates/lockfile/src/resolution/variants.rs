@@ -1,7 +1,9 @@
 use super::{
     LockfileFormError, LockfileFormOptions, LockfileResolution, PlatformAssetResolution,
-    PlatformSelector, RegistryResolution, VariationsResolution, select_platform_variant,
+    PlatformAssetTarget, PlatformSelector, RegistryResolution, VariationsResolution,
+    select_platform_variant,
 };
+use pnpm_platform_variants::{AmbiguousSelection, Host, Libc, Platform};
 
 /// The archive a `variations` resolution installs on one platform.
 ///
@@ -26,21 +28,116 @@ impl<'a> SelectedVariant<'a> {
     }
 }
 
+impl PlatformAssetTarget {
+    /// The target in the platform-variants vocabulary, or `None` for a C
+    /// library the vocabulary does not know, which never matches.
+    #[must_use]
+    pub fn platform(&self) -> Option<Platform> {
+        let libc = match self.libc.as_deref() {
+            None => None,
+            Some("glibc") => Some(Libc::Glibc),
+            Some("musl") => Some(Libc::Musl),
+            Some(_) => return None,
+        };
+        let present = |value: &str| (!value.is_empty()).then(|| value.to_string());
+        Some(Platform {
+            os: present(&self.os),
+            cpu: present(&self.cpu),
+            libc,
+            libc_version: self.libc_version,
+            os_version: self.os_version,
+            napi: self.napi,
+            node_abi: self.node_abi,
+            wasm32: self.wasm32,
+        })
+    }
+
+    /// The lockfile's target for a platform: glibc is written as no `libc`.
+    #[must_use]
+    pub fn from_platform(platform: Platform) -> Self {
+        let platform = platform.without_explicit_glibc();
+        PlatformAssetTarget {
+            os: platform.os.unwrap_or_default(),
+            cpu: platform.cpu.unwrap_or_default(),
+            libc: platform.libc.map(|libc| {
+                match libc {
+                    Libc::Glibc => "glibc",
+                    Libc::Musl => "musl",
+                }
+                .to_string()
+            }),
+            libc_version: platform.libc_version,
+            os_version: platform.os_version,
+            napi: platform.napi,
+            node_abi: platform.node_abi,
+            wasm32: platform.wasm32,
+        }
+    }
+}
+
+impl PlatformAssetResolution {
+    fn platforms(&self) -> Vec<Platform> {
+        self.targets
+            .iter()
+            .filter_map(PlatformAssetTarget::platform)
+            .collect()
+    }
+
+    /// A package variant's name in its registry route: its targets' platform
+    /// tags, sorted and joined with `+`.
+    #[must_use]
+    pub fn variant_tag(&self) -> Option<String> {
+        pnpm_platform_variants::variant_tag(&self.platforms()).ok()
+    }
+}
+
+impl PlatformSelector {
+    fn host(&self) -> Host {
+        Host {
+            os: self.os.clone(),
+            cpu: self.cpu.clone(),
+            libc: (self.libc.as_deref() == Some("musl")).then_some(Libc::Musl),
+            floors: self.floors,
+        }
+    }
+}
+
 impl VariationsResolution {
     /// Variants with no fallback, as a runtime resolves: a host no variant
     /// matches fails.
     #[must_use]
     pub fn without_fallback(variants: Vec<PlatformAssetResolution>) -> Self {
-        VariationsResolution { variants, fallback: None }
+        VariationsResolution { variants, fallback: None, revision: None }
     }
 
-    /// The first variant whose targets include `platform`, or the
-    /// fallback when none does. `None` when neither exists.
-    #[must_use]
-    pub fn select(&self, platform: &PlatformSelector) -> Option<SelectedVariant<'_>> {
-        select_platform_variant(&self.variants, platform)
-            .map(SelectedVariant::Variant)
-            .or_else(|| self.fallback.as_deref().map(SelectedVariant::Fallback))
+    /// The variant that fits `platform` best, comparing each variant by its
+    /// best matching target, or the fallback when none matches. `None` when
+    /// neither exists.
+    ///
+    /// A runtime's archives keep the first match: a runtime lists an
+    /// emulated platform as a target of the build that runs there, so two
+    /// of its archives can fit one host equally well.
+    pub fn select(
+        &self,
+        platform: &PlatformSelector,
+    ) -> Result<Option<SelectedVariant<'_>>, AmbiguousSelection> {
+        if self.variants
+            .iter()
+            .any(|variant| matches!(variant.resolution, LockfileResolution::Binary(_)))
+        {
+            return Ok(select_platform_variant(&self.variants, platform)
+                .map(SelectedVariant::Variant)
+                .or_else(|| self.fallback.as_deref().map(SelectedVariant::Fallback)));
+        }
+        let platforms: Vec<Vec<Platform>> = self.variants
+            .iter()
+            .map(PlatformAssetResolution::platforms)
+            .collect();
+        let selected =
+            pnpm_platform_variants::select(platforms.iter().map(Vec::as_slice), &platform.host())?;
+        Ok(selected
+            .map(|index| SelectedVariant::Variant(&self.variants[index]))
+            .or_else(|| self.fallback.as_deref().map(SelectedVariant::Fallback)))
     }
 
     /// Write each package variant whose tarball sits on its registry route,
@@ -55,11 +152,18 @@ impl VariationsResolution {
             .iter()
             .map(|variant| {
                 let mut variant = variant.clone();
-                if let (Some(tag), LockfileResolution::Tarball(tarball)) =
-                    (&variant.tag, &variant.resolution)
+                if let LockfileResolution::Tarball(tarball) = &variant.resolution
                     && let Some(integrity) = &tarball.integrity
+                    && let Some(tag) = variant.variant_tag()
                     && !opts.include_tarball_url
-                    && variant_registry_tarball_url(name, version, tag, opts.registry).as_deref()
+                    && variant_registry_tarball_url(
+                        name,
+                        version,
+                        &tag,
+                        self.revision,
+                        opts.registry,
+                    )
+                    .as_deref()
                         == Some(tarball.tarball.as_str())
                 {
                     variant.resolution = LockfileResolution::Registry(RegistryResolution {
@@ -74,31 +178,31 @@ impl VariationsResolution {
             Some(fallback) => Some(Box::new(fallback.to_lockfile_form(name, version, opts)?)),
             None => None,
         };
-        Ok(VariationsResolution { variants, fallback })
+        Ok(VariationsResolution { variants, fallback, revision: self.revision })
     }
 }
 
-/// Build a package variant's URL `<registry>/<name>@<version>/variants/<tag>`.
+/// Build a package variant's URL,
+/// `<registry>/<name>@<version>[+r<revision>]/variants/<tag>`.
 #[must_use]
 pub fn variant_registry_tarball_url(
     name: &str,
     version: &str,
     tag: &str,
+    revision: Option<u64>,
     registry: &str,
 ) -> Option<String> {
-    let valid_tag = !tag.is_empty()
-        && tag
-            .bytes()
-            .all(|byte| {
-                byte.is_ascii_lowercase() || byte.is_ascii_digit() || b"._-".contains(&byte)
-            });
-    if !valid_tag {
+    if !pnpm_platform_variants::is_valid_variant_tag(tag) {
         return None;
     }
     let base = format!("{}/", registry.trim_end_matches('/'));
+    let release = match revision {
+        Some(revision) => format!("{version}+r{revision}"),
+        None => version.to_string(),
+    };
     url::Url::parse(&base)
         .ok()?
-        .join(&format!("{name}@{version}/variants/{tag}"))
+        .join(&format!("{name}@{release}/variants/{tag}"))
         .ok()
         .map(Into::into)
 }

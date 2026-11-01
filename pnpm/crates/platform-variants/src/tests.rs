@@ -1,4 +1,6 @@
-use super::{AmbiguousSelection, Floor, Host, Libc, NodeAbi, Platform, select, variant_tag};
+use super::{
+    AmbiguousSelection, Floor, Host, HostFloors, Libc, NodeAbi, Platform, select, variant_tag,
+};
 use pretty_assertions::assert_eq;
 
 fn tag(value: &str) -> Platform {
@@ -10,9 +12,11 @@ fn linux_host(libc: Option<Libc>, glibc: Option<(u32, u32)>, napi: Option<u32>) 
         os: "linux".into(),
         cpu: "x64".into(),
         libc,
-        libc_version: glibc.map(|(major, minor)| Floor { major, minor }),
-        napi,
-        ..Host::default()
+        floors: HostFloors {
+            libc_version: glibc.map(|(major, minor)| Floor { major, minor }),
+            napi,
+            ..HostFloors::default()
+        },
     }
 }
 

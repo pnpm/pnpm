@@ -1,9 +1,9 @@
 use super::{build_deps_graph, build_deps_graph_for_platform, build_deps_subgraph};
 use pnpm_graph_hasher::calc_dep_state_input_key;
 use pnpm_lockfile::{
-    BinaryArchive, BinaryResolution, BinarySpec, LockfileResolution, PackageKey, PackageMetadata,
-    PkgName, PkgVerPeer, PlatformAssetResolution, PlatformAssetTarget, PlatformSelector,
-    RegistryResolution, SnapshotDepRef, SnapshotEntry, VariationsResolution,
+    BinaryArchive, BinaryResolution, BinarySpec, HostFloors, LockfileResolution, PackageKey,
+    PackageMetadata, PkgName, PkgVerPeer, PlatformAssetResolution, PlatformAssetTarget,
+    PlatformSelector, RegistryResolution, SnapshotDepRef, SnapshotEntry, VariationsResolution,
 };
 use pretty_assertions::assert_eq;
 use ssri::Integrity;
@@ -51,7 +51,6 @@ fn registry_metadata() -> PackageMetadata {
 
 fn variations_metadata() -> PackageMetadata {
     let variant = |integrity: Integrity, os: &str, libc: Option<&str>| PlatformAssetResolution {
-        tag: None,
         resolution: LockfileResolution::Binary(BinaryResolution {
             url: format!("https://example.com/{os}.tar.gz"),
             integrity,
@@ -63,11 +62,13 @@ fn variations_metadata() -> PackageMetadata {
             os: os.to_string(),
             cpu: "x64".to_string(),
             libc: libc.map(str::to_string),
+            ..PlatformAssetTarget::default()
         }],
     };
     PackageMetadata {
         resolution: LockfileResolution::Variations(VariationsResolution {
             fallback: None,
+            revision: None,
             variants: vec![
                 variant("sha512-AAAA".parse().unwrap(), "linux", None),
                 variant("sha512-BBBB".parse().unwrap(), "linux", Some("musl")),
@@ -127,13 +128,20 @@ fn variation_input_keys_use_the_selected_platform_integrity() {
         os: "linux".to_string(),
         cpu: "x64".to_string(),
         libc: Some("glibc".to_string()),
+        floors: HostFloors::default(),
     };
     let linux_musl = PlatformSelector {
         os: "linux".to_string(),
         cpu: "x64".to_string(),
         libc: Some("musl".to_string()),
+        floors: HostFloors::default(),
     };
-    let darwin = PlatformSelector { os: "darwin".to_string(), cpu: "x64".to_string(), libc: None };
+    let darwin = PlatformSelector {
+        os: "darwin".to_string(),
+        cpu: "x64".to_string(),
+        libc: None,
+        floors: HostFloors::default(),
+    };
 
     let input_key = |selector: &PlatformSelector| {
         let graph = build_deps_graph_for_platform(&snapshots, &packages, selector);

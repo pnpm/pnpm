@@ -4,20 +4,29 @@ use crate::install_package_by_snapshot::{
     runtime::{VariantFetch, variant_for_host},
 };
 use pnpm_lockfile::{
-    BinaryArchive, BinaryResolution, BinarySpec, DirectoryResolution, LockfileResolution,
-    PackageKey, PlatformAssetResolution, PlatformAssetTarget, PlatformSelector, RegistryResolution,
-    VariationsResolution,
+    BinaryArchive, BinaryResolution, BinarySpec, DirectoryResolution, HostFloors,
+    LockfileResolution, PackageKey, PlatformAssetResolution, PlatformAssetTarget, PlatformSelector,
+    RegistryResolution, VariationsResolution,
 };
 use pretty_assertions::assert_eq;
 
 const DIGEST: &str = "sha512-gf6ZldcfCDyNXPRiW3lQjEP1Z9rrUM/4Cn7BZbv3SdTA82zxWRP8OmLwvGR974uuENhGCFgFdN11z3n1Ofpprg==";
 
 fn linux_x64() -> PlatformSelector {
-    PlatformSelector { os: "linux".to_string(), cpu: "x64".to_string(), libc: None }
+    PlatformSelector {
+        os: "linux".to_string(),
+        cpu: "x64".to_string(),
+        libc: None,
+        floors: HostFloors::default(),
+    }
 }
 
 fn targets_linux_x64() -> Vec<PlatformAssetTarget> {
-    vec![PlatformAssetTarget { os: "linux".to_string(), cpu: "x64".to_string(), libc: None }]
+    vec![PlatformAssetTarget {
+        os: "linux".to_string(),
+        cpu: "x64".to_string(),
+        ..PlatformAssetTarget::default()
+    }]
 }
 
 fn registry() -> LockfileResolution {
@@ -28,17 +37,14 @@ fn registry() -> LockfileResolution {
 }
 
 fn variations(
-    tag: Option<&str>,
     resolution: LockfileResolution,
     fallback: Option<LockfileResolution>,
+    revision: Option<u64>,
 ) -> VariationsResolution {
     VariationsResolution {
-        variants: vec![PlatformAssetResolution {
-            tag: tag.map(str::to_string),
-            resolution,
-            targets: targets_linux_x64(),
-        }],
+        variants: vec![PlatformAssetResolution { resolution, targets: targets_linux_x64() }],
         fallback: fallback.map(Box::new),
+        revision,
     }
 }
 
@@ -56,7 +62,7 @@ fn a_binary_variant_is_fetched_as_a_runtime_archive() {
         archive: BinaryArchive::Tarball,
         prefix: None,
     });
-    let variations = variations(None, binary, None);
+    let variations = variations(binary, None, None);
 
     let selected = variant_for_host(&variations, &key, &linux_x64(), config).expect("selected");
 
@@ -71,7 +77,7 @@ fn a_registry_variant_is_fetched_from_its_route_and_the_primary_as_a_fallback() 
     let dir = tempfile::tempdir().expect("tempdir");
     let config = leaked_offline_config("https://registry.example/", dir.path());
     let key: PackageKey = "fast-thing@1.0.0".parse().expect("parse key");
-    let variations = variations(Some("linux-x64"), registry(), Some(registry()));
+    let variations = variations(registry(), Some(registry()), None);
 
     let VariantFetch::Tarball { resolution, variant } =
         variant_for_host(&variations, &key, &linux_x64(), config).expect("selected")
@@ -79,13 +85,17 @@ fn a_registry_variant_is_fetched_from_its_route_and_the_primary_as_a_fallback() 
         panic!("a registry variant is a tarball");
     };
     let LockfileResolution::Tarball(tarball) = resolution else {
-        panic!("the variant's route is rebuilt from its tag");
+        panic!("the variant's route is rebuilt from the tag its targets give");
     };
     assert_eq!(tarball.tarball, "https://registry.example/fast-thing@1.0.0/variants/linux-x64");
     assert!(variant);
 
-    let darwin =
-        PlatformSelector { os: "darwin".to_string(), cpu: "arm64".to_string(), libc: None };
+    let darwin = PlatformSelector {
+        os: "darwin".to_string(),
+        cpu: "arm64".to_string(),
+        libc: None,
+        floors: HostFloors::default(),
+    };
     let VariantFetch::Tarball { resolution, variant } =
         variant_for_host(&variations, &key, &darwin, config).expect("selected")
     else {
@@ -102,7 +112,7 @@ fn a_variant_that_is_neither_an_archive_nor_a_registry_tarball_is_rejected() {
     let key: PackageKey = "fast-thing@1.0.0".parse().expect("parse key");
     let directory =
         LockfileResolution::Directory(DirectoryResolution { directory: "local".to_string() });
-    let variations = variations(None, directory, None);
+    let variations = variations(directory, None, None);
 
     let error = variant_for_host(&variations, &key, &linux_x64(), config)
         .err()
@@ -112,4 +122,22 @@ fn a_variant_that_is_neither_an_archive_nor_a_registry_tarball_is_rejected() {
         error,
         InstallPackageBySnapshotError::UnsupportedVariantResolution { inner_kind: "directory", .. },
     ));
+}
+
+/// A revision-aware version's variant is at its revision's route.
+#[test]
+fn a_revision_aware_variant_is_fetched_from_its_revision_route() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let config = leaked_offline_config("https://registry.example/", dir.path());
+    let key: PackageKey = "fast-thing@1.0.0".parse().expect("parse key");
+    let variations = variations(registry(), Some(registry()), Some(2));
+
+    let VariantFetch::Tarball {
+        resolution: LockfileResolution::Tarball(tarball),
+        ..
+    } = variant_for_host(&variations, &key, &linux_x64(), config).expect("selected")
+    else {
+        panic!("a registry variant is a tarball");
+    };
+    assert_eq!(tarball.tarball, "https://registry.example/fast-thing@1.0.0+r2/variants/linux-x64");
 }

@@ -278,6 +278,8 @@ pub(super) fn variant_cache_key(
 ) -> Result<SnapshotCacheKey, CreateVirtualStoreError> {
     let value = variations
         .select(runtime_platform_selector)
+        .ok()
+        .flatten()
         .and_then(|selected| match selected.resolution() {
             LockfileResolution::Binary(binary) => {
                 Some(store_index_key(&binary.integrity.to_string(), pkg_id))

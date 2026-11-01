@@ -164,11 +164,7 @@ fn node_platform_asset(
     let binary =
         BinaryResolution { url, integrity, bin: bin_spec_for_platform(&platform), archive, prefix };
     let targets = platform_asset_targets(&platform, &parsed.arch, libc, version);
-    Ok(PlatformAssetResolution {
-        tag: None,
-        resolution: LockfileResolution::Binary(binary),
-        targets,
-    })
+    Ok(PlatformAssetResolution { resolution: LockfileResolution::Binary(binary), targets })
 }
 
 fn platform_asset_targets(
@@ -177,14 +173,19 @@ fn platform_asset_targets(
     libc: Option<String>,
     version: &str,
 ) -> Vec<PlatformAssetTarget> {
-    let mut targets =
-        vec![PlatformAssetTarget { os: platform.to_string(), cpu: arch.to_string(), libc }];
+    let mut targets = vec![PlatformAssetTarget {
+        os: platform.to_string(),
+        cpu: arch.to_string(),
+        libc,
+        ..PlatformAssetTarget::default()
+    }];
     if let Some(major) = node_major(version) {
         if platform == "darwin" && arch == "x64" && major < 16 {
             targets.push(PlatformAssetTarget {
                 os: "darwin".to_string(),
                 cpu: "arm64".to_string(),
                 libc: None,
+                ..PlatformAssetTarget::default()
             });
         }
         if platform == "win32" && arch == "x64" && major < 20 {
@@ -192,6 +193,7 @@ fn platform_asset_targets(
                 os: "win32".to_string(),
                 cpu: "arm64".to_string(),
                 libc: None,
+                ..PlatformAssetTarget::default()
             });
         }
     }

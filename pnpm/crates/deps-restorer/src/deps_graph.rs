@@ -126,6 +126,8 @@ fn full_pkg_id_for(
     if let LockfileResolution::Variations(variations) = resolution
         && let Some(integrity) = variations
             .select(platform_selector)
+            .ok()
+            .flatten()
             .and_then(|selected| selected.resolution().integrity())
     {
         return format!("{pkg_id}:{integrity}");

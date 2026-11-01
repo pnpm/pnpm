@@ -108,7 +108,7 @@ impl BunResolver {
         Ok(Some(bun_resolve_result(
             wanted_dependency,
             format!("bun@runtime:{version}").into(),
-            LockfileResolution::Variations(VariationsResolution { variants, fallback: None }),
+            VariationsResolution::without_fallback(variants).into(),
             &version,
             Some(format!("{RUNTIME_PROTOCOL}{normalized_spec}")),
             policy_violation,

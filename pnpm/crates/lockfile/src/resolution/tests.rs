@@ -1,5 +1,5 @@
 use super::{
-    BinaryArchive, BinaryResolution, BinarySpec, DirectoryResolution, GitResolution,
+    BinaryArchive, BinaryResolution, BinarySpec, DirectoryResolution, GitResolution, HostFloors,
     LockfileFormError, LockfileFormOptions, LockfileResolution, PlatformAssetResolution,
     PlatformAssetTarget, PlatformSelector, RegistryOptions, RegistryResolution, RegistryServerType,
     TarballResolution, TarballRevision, TarballUrlOptions, VariationsResolution,
@@ -62,15 +62,25 @@ fn binary_resolution(url: &str) -> LockfileResolution {
 }
 
 fn target(os: &str, cpu: &str, libc: Option<&str>) -> PlatformAssetTarget {
-    PlatformAssetTarget { os: os.to_string(), cpu: cpu.to_string(), libc: libc.map(str::to_string) }
+    PlatformAssetTarget {
+        os: os.to_string(),
+        cpu: cpu.to_string(),
+        libc: libc.map(str::to_string),
+        ..PlatformAssetTarget::default()
+    }
 }
 
 fn variant(url: &str, targets: Vec<PlatformAssetTarget>) -> PlatformAssetResolution {
-    PlatformAssetResolution { tag: None, resolution: binary_resolution(url), targets }
+    PlatformAssetResolution { resolution: binary_resolution(url), targets }
 }
 
 fn selector(os: &str, cpu: &str, libc: Option<&str>) -> PlatformSelector {
-    PlatformSelector { os: os.to_string(), cpu: cpu.to_string(), libc: libc.map(str::to_string) }
+    PlatformSelector {
+        os: os.to_string(),
+        cpu: cpu.to_string(),
+        libc: libc.map(str::to_string),
+        floors: HostFloors::default(),
+    }
 }
 
 const SHA512: &str = "sha512-gf6ZldcfCDyNXPRiW3lQjEP1Z9rrUM/4Cn7BZbv3SdTA82zxWRP8OmLwvGR974uuENhGCFgFdN11z3n1Ofpprg==";

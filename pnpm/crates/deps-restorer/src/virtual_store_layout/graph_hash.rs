@@ -337,6 +337,8 @@ pub(super) fn create_full_pkg_id(
     let resolution = match resolution {
         Some(LockfileResolution::Variations(variations)) => variations
             .select(platform)
+            .ok()
+            .flatten()
             .map(SelectedVariant::resolution)
             .or(resolution),
         resolution => resolution,

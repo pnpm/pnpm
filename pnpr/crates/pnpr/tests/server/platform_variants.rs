@@ -164,6 +164,12 @@ async fn archives_declare_their_platforms_and_pnpr_derives_the_tags() {
         get(&app, "/npm/~main/@acme/fast@1.0.0/variants/linux-x64+linux-x64-musl", None).await;
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(body_bytes(response.into_body()).await, static_tar);
+    let selected =
+        get(&app, "/npm/~main/@acme/fast@1.0.0+r0/variants/linux-x64+linux-x64-musl", None).await;
+    assert_eq!(selected.status(), StatusCode::OK, "the selected revision's route serves it");
+    let other =
+        get(&app, "/npm/~main/@acme/fast@1.0.0+r1/variants/linux-x64+linux-x64-musl", None).await;
+    assert_eq!(other.status(), StatusCode::NOT_FOUND);
     let unknown = get(&app, "/npm/~main/@acme/fast@1.0.0/variants/static", None).await;
     assert_eq!(unknown.status(), StatusCode::NOT_FOUND);
 }

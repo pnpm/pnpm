@@ -6,7 +6,8 @@ use crate::install_package_by_snapshot::runtime::{
     runtime_platform_of, synthesize_runtime_manifest_bytes,
 };
 use pnpm_lockfile::{
-    BinaryArchive, BinaryResolution, BinarySpec, LockfileResolution, PackageKey, PlatformSelector,
+    BinaryArchive, BinaryResolution, BinarySpec, HostFloors, LockfileResolution, PackageKey,
+    PlatformSelector,
 };
 use pnpm_package_is_installable::{ArchitectureAxes, SupportedArchitectures};
 use pretty_assertions::assert_eq;
@@ -92,7 +93,12 @@ fn runtime_platform_selector_prefers_the_host_among_the_platforms_a_list_names()
 /// an archive for a platform nobody named.
 #[test]
 fn runtime_platform_selector_stays_among_the_platforms_named() {
-    let host = PlatformSelector { os: "linux".to_string(), cpu: "x64".to_string(), libc: None };
+    let host = PlatformSelector {
+        os: "linux".to_string(),
+        cpu: "x64".to_string(),
+        libc: None,
+        floors: HostFloors::default(),
+    };
     let platforms = vec!["linux-x64-musl".parse().unwrap()];
 
     assert_eq!(
@@ -101,6 +107,7 @@ fn runtime_platform_selector_stays_among_the_platforms_named() {
             os: "linux".to_string(),
             cpu: "x64".to_string(),
             libc: Some("musl".to_string()),
+            floors: HostFloors::default(),
         },
     );
 }

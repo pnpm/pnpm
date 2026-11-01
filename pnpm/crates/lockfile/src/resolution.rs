@@ -1,5 +1,6 @@
 pub use git_hosted::is_git_hosted_tarball_url;
 pub use pnpm_crypto_hash::has_complete_sha512_digest;
+pub use pnpm_platform_variants::{AmbiguousSelection, HostFloors};
 pub use registry::{
     DeclaredRegistryPrefixes, RegistryContext, RegistryOptions, RegistryServerType,
     TarballUrlOptions, normalized_registry_key, npm_tarball_url, pick_registry_for_package,
@@ -216,13 +217,30 @@ pub struct BinaryResolution {
 /// else. `Option<String>` (rather than `Option<Libc>` enum) keeps
 /// future libc values future-compatible without a churning serde
 /// migration if a new one lands.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+///
+/// A package platform variant's target may also carry the floor and ABI
+/// fields of the platform-variants vocabulary (see
+/// [`pnpm_platform_variants::Platform`]); a `wasm32` target has no `os` or
+/// `cpu`.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct PlatformAssetTarget {
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     pub os: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     pub cpu: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub libc: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub libc_version: Option<pnpm_platform_variants::Floor>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub os_version: Option<pnpm_platform_variants::Floor>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub napi: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub node_abi: Option<pnpm_platform_variants::NodeAbi>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub wasm32: bool,
 }
 
 /// One variant of a [`VariationsResolution`]: an inner [`LockfileResolution`]
@@ -242,11 +260,6 @@ pub struct PlatformAssetTarget {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct PlatformAssetResolution {
-    /// The registry's name for a package platform variant: the archive is
-    /// served at `<registry>/<name>@<version>/variants/<tag>`. Absent for
-    /// runtime archives, whose resolution carries their own URL.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub tag: Option<String>,
     pub resolution: LockfileResolution,
     pub targets: Vec<PlatformAssetTarget>,
 }
@@ -262,9 +275,15 @@ pub struct PlatformAssetResolution {
 pub struct VariationsResolution {
     pub variants: Vec<PlatformAssetResolution>,
     /// The archive a host no variant matches installs: a registry package's
-    /// primary archive. Absent for runtimes, which fail on such a host.
+    /// primary archive. Absent for runtimes, which fail on such a host, and
+    /// for a package version without a primary.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fallback: Option<Box<LockfileResolution>>,
+    /// The registry revision of a package's archives: each variant is at
+    /// `<registry>/<name>@<version>+r<revision>/variants/<tag>`. Absent for
+    /// a version that is not revision-aware, and for runtimes.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub revision: Option<u64>,
 }
 
 /// The `type` tag of a [`CustomResolution`]. Any tag other than the
@@ -341,6 +360,9 @@ pub struct PlatformSelector {
     pub os: String,
     pub cpu: String,
     pub libc: Option<String>,
+    /// The versions a package variant's floors and ABI are matched
+    /// against. Runtimes do not read them.
+    pub floors: pnpm_platform_variants::HostFloors,
 }
 
 /// Pick the variant whose target list contains the host triple, or

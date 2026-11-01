@@ -179,6 +179,15 @@ pub enum InstallPackageBySnapshotError {
         available_targets: String,
     },
 
+    /// Two platform variants of a package fit the host equally well.
+    /// Publication rejects such a version, so the lockfile is not one a
+    /// registry produced; pnpm fails rather than pick one.
+    #[display(
+        "Package `{package_key}` has more than one platform variant that fits the selected platform ({selected_target}) equally well."
+    )]
+    #[diagnostic(code(ERR_PNPM_AMBIGUOUS_PLATFORM_VARIANT))]
+    AmbiguousPlatformVariant { package_key: String, selected_target: String },
+
     /// The archive a [`LockfileResolution::Variations`](pnpm_lockfile::LockfileResolution::Variations)
     /// selected has a resolution pnpm cannot install from a `variations`
     /// entry: only a `binary` archive or a registry tarball can be one.

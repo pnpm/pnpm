@@ -170,11 +170,7 @@ async fn asset_resolution(
         archive: BinaryArchive::Zip,
         prefix: None,
     };
-    Ok(PlatformAssetResolution {
-        tag: None,
-        resolution: LockfileResolution::Binary(binary),
-        targets,
-    })
+    Ok(PlatformAssetResolution { resolution: LockfileResolution::Binary(binary), targets })
 }
 
 fn variant_url(variant: &PlatformAssetResolution) -> &str {
@@ -201,13 +197,18 @@ fn parse_asset_name(name: &str) -> Option<Vec<PlatformAssetTarget>> {
         "pc-windows-msvc" => "win32",
         _ => return None,
     };
-    let mut targets =
-        vec![PlatformAssetTarget { os: os.to_string(), cpu: cpu.to_string(), libc: None }];
+    let mut targets = vec![PlatformAssetTarget {
+        os: os.to_string(),
+        cpu: cpu.to_string(),
+        libc: None,
+        ..PlatformAssetTarget::default()
+    }];
     if os == "win32" && cpu == "x64" {
         targets.push(PlatformAssetTarget {
             os: "win32".to_string(),
             cpu: "arm64".to_string(),
             libc: None,
+            ..PlatformAssetTarget::default()
         });
     }
     Some(targets)

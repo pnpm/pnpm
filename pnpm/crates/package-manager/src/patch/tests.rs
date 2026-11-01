@@ -509,6 +509,7 @@ fn resolution_kind_names_non_patchable_resolution_shapes() {
     let variations = LockfileResolution::Variations(VariationsResolution {
         variants: Vec::new(),
         fallback: None,
+        revision: None,
     });
     assert_eq!(resolution_kind(&variations), "variations");
 }

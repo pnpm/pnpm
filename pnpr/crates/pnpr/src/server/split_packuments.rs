@@ -240,7 +240,7 @@ fn trust_rank(manifest: &Value) -> Option<&'static str> {
 
 /// The revision a version's manifest is projected from: `0`, the original,
 /// unless the registry selected a replacement.
-fn selected_revision(manifest: &Value) -> u64 {
+pub(super) fn selected_revision(manifest: &Value) -> u64 {
     manifest
         .pointer("/dist/revision")
         .and_then(Value::as_u64)
