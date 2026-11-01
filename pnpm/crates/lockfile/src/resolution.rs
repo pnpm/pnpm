@@ -10,7 +10,7 @@ pub use revision_url::{
     is_on_revision_tarball_route, is_revision_registry_tarball_url, revision_registry_tarball_path,
     revision_registry_tarball_url,
 };
-pub use variants::{SelectedVariant, variant_registry_tarball_url};
+pub use variants::{PlatformAssetTarget, SelectedVariant, variant_registry_tarball_url};
 
 use crate::IntegrityTarget;
 use derive_more::{Display, Error, From, Into, TryInto};
@@ -208,39 +208,6 @@ pub struct BinaryResolution {
     /// stays `None` for them.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub prefix: Option<String>,
-}
-
-/// One `(os, cpu, libc?)` triple a [`PlatformAssetResolution`] covers.
-///
-/// `libc` is only written for musl-built variants; glibc is the
-/// implicit default on Linux and the field is omitted everywhere
-/// else. `Option<String>` (rather than `Option<Libc>` enum) keeps
-/// future libc values future-compatible without a churning serde
-/// migration if a new one lands.
-///
-/// A package platform variant's target may also carry the floor and ABI
-/// fields of the platform-variants vocabulary (see
-/// [`pnpm_platform_variants::Platform`]); a `wasm32` target has no `os` or
-/// `cpu`.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields, rename_all = "camelCase")]
-pub struct PlatformAssetTarget {
-    #[serde(default, skip_serializing_if = "String::is_empty")]
-    pub os: String,
-    #[serde(default, skip_serializing_if = "String::is_empty")]
-    pub cpu: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub libc: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub libc_version: Option<pnpm_platform_variants::Floor>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub os_version: Option<pnpm_platform_variants::Floor>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub napi: Option<u32>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub node_abi: Option<pnpm_platform_variants::NodeAbi>,
-    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-    pub wasm32: bool,
 }
 
 /// One variant of a [`VariationsResolution`]: an inner [`LockfileResolution`]

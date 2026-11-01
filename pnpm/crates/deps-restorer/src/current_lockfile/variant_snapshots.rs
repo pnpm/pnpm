@@ -2,7 +2,11 @@
 //! the installer walks the selected variant's dependencies instead of the
 //! version's.
 
-use pnpm_lockfile::{Lockfile, LockfileResolution, PackageKey, PlatformSelector, SelectedVariant};
+use std::collections::HashMap;
+
+use pnpm_lockfile::{
+    Lockfile, LockfileResolution, PackageKey, PlatformSelector, SelectedVariant, SnapshotEntry,
+};
 
 const VARIANT_SEGMENT: &str = "/variants/";
 
@@ -19,41 +23,47 @@ pub fn with_selected_variant_snapshots(
         return None;
     }
     let mut lockfile = lockfile.clone();
-    let snapshots = lockfile.snapshots.as_mut()?;
-    let variant_keys: Vec<PackageKey> = snapshots
-        .keys()
-        .filter(|key| is_variant_key(key))
-        .cloned()
-        .collect();
-    let mut variants = Vec::with_capacity(variant_keys.len());
-    for key in variant_keys {
-        if let Some(entry) = snapshots.remove(&key) {
-            variants.push((key, entry));
-        }
-    }
-    for (key, entry) in variants {
+    for (key, entry) in take_variant_snapshots(&mut lockfile) {
         let Some((base, tag)) = split_variant_key(&key) else { continue };
-        let selected = lockfile.packages
-            .as_ref()
-            .and_then(|packages| packages.get(&base.without_peer()))
-            .and_then(|metadata| match &metadata.resolution {
-                LockfileResolution::Variations(variations) => variations
-                    .select(platform)
-                    .ok()
-                    .flatten(),
-                _ => None,
-            });
-        let is_selected = matches!(
-            selected,
-            Some(SelectedVariant::Variant(variant)) if variant.variant_tag().as_deref() == Some(&tag)
-        );
-        if is_selected && let Some(snapshot) = snapshots.get_mut(&base) {
+        if selected_tag(&lockfile, &base, platform).as_deref() != Some(tag.as_str()) {
+            continue;
+        }
+        if let Some(snapshot) = lockfile.snapshots
+            .as_mut()
+            .and_then(|map| map.get_mut(&base))
+        {
             snapshot.dependencies = entry.dependencies;
             snapshot.optional_dependencies = entry.optional_dependencies;
             snapshot.transitive_peer_dependencies = entry.transitive_peer_dependencies;
         }
     }
     Some(lockfile)
+}
+
+/// Remove and return the variants' own snapshots.
+fn take_variant_snapshots(lockfile: &mut Lockfile) -> Vec<(PackageKey, SnapshotEntry)> {
+    let Some(snapshots) = lockfile.snapshots.as_mut() else { return Vec::new() };
+    let (variants, rest): (HashMap<_, _>, HashMap<_, _>) =
+        std::mem::take(snapshots).into_iter().partition(|(key, _)| is_variant_key(key));
+    *snapshots = rest;
+    variants.into_iter().collect()
+}
+
+/// The tag of the variant `platform` selects for the package of `base`, or
+/// `None` when it selects the primary or nothing.
+fn selected_tag(
+    lockfile: &Lockfile,
+    base: &PackageKey,
+    platform: &PlatformSelector,
+) -> Option<String> {
+    let metadata = lockfile.packages
+        .as_ref()?
+        .get(&base.without_peer())?;
+    let LockfileResolution::Variations(variations) = &metadata.resolution else { return None };
+    match variations.select(platform).ok()?? {
+        SelectedVariant::Variant(variant) => variant.variant_tag(),
+        SelectedVariant::Fallback(_) => None,
+    }
 }
 
 /// Whether `lockfile` has a platform variant's own snapshot, so installing

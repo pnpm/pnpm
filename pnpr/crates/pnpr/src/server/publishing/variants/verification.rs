@@ -39,26 +39,42 @@ pub(super) fn attach_variants(
                 "the primary archive of {version} declares a variant",
             )));
         }
-        let mut stored = Vec::with_capacity(variants.len());
-        let mut listed: HashMap<Platform, String> = HashMap::new();
-        for variant in variants {
-            let (entry, platforms) = stored_variant(version, variant, &primary, published)?;
-            for platform in platforms {
-                if let Some(other) = listed.insert(platform.clone(), variant.label.clone()) {
-                    return Err(bad_request(format!(
-                        "variants {other:?} and {:?} of {version} both list {}",
-                        variant.label,
-                        platform.tag().unwrap_or_default(),
-                    )));
-                }
-            }
-            stored.push(entry);
-        }
+        let stored = stored_variants(version, variants, &primary, published)?;
         if let Some(manifest) = merged.pointer_mut(&pointer).and_then(Value::as_object_mut) {
             manifest.insert(STORED_FIELD.to_string(), Value::Array(stored));
         }
     }
     Ok(())
+}
+
+/// What the stored version keeps of each of its verified variants. Two
+/// variants may not list the same platform.
+fn stored_variants(
+    version: &str,
+    variants: &[VariantDeclaration],
+    primary: &Value,
+    published: &[PublishedVariant],
+) -> Result<Vec<Value>, RegistryError> {
+    let mut stored = Vec::with_capacity(variants.len());
+    let mut listed: HashMap<Platform, &str> = HashMap::new();
+    for variant in variants {
+        let (entry, platforms) = stored_variant(version, variant, primary, published)?;
+        let overlap = platforms
+            .into_iter()
+            .find_map(|platform| {
+                let other = listed.insert(platform.clone(), &variant.label)?;
+                Some((other, platform))
+            });
+        if let Some((other, platform)) = overlap {
+            return Err(bad_request(format!(
+                "variants {other:?} and {:?} of {version} both list {}",
+                variant.label,
+                platform.tag().unwrap_or_default(),
+            )));
+        }
+        stored.push(entry);
+    }
+    Ok(stored)
 }
 
 fn escape_pointer(segment: &str) -> String {
@@ -82,44 +98,59 @@ fn stored_variant(
             "variant {label:?} of {version} is declared but not attached",
         )));
     };
-    let Some(manifest) = found.tar.manifest.as_ref() else {
-        return Err(reject("its package.json cannot be read".into()));
-    };
-    if let Some(reason) = primary_difference(manifest, primary) {
-        return Err(reject(reason));
-    }
-    if found.inspection.requires_build != Some(false) {
-        return Err(reject("it requires a build".into()));
-    }
-    if let Some(field) = PLATFORM_FIELDS
-        .iter()
-        .find(|field| manifest.get(**field).is_some())
-    {
-        return Err(reject(format!("it declares {field:?} beside its variant field")));
-    }
+    let manifest = verified_manifest(found, primary).map_err(reject)?;
     let platforms = declared_platforms(manifest).map_err(reject)?;
     let tag = variant_tag(&platforms).map_err(|err| reject(err.to_string()))?;
-    let mut entry = Map::new();
+    let mut entry = archive_facts(found);
     entry.insert("tag".into(), Value::String(tag));
     entry.insert(
         "platforms".into(),
         serde_json::to_value(&platforms).expect("platforms serialize"),
     );
-    entry.insert("integrity".into(), Value::String(found.tar.tar_integrity.clone()));
+    entry.insert("manifest".into(), Value::Object(manifest_difference(manifest, primary)));
+    entry.insert(LABEL_FIELD.into(), Value::String(label.clone()));
+    Ok((Value::Object(entry), platforms))
+}
+
+/// The variant archive's manifest, once it passes the invariants a variant
+/// shares with its version.
+fn verified_manifest<'found>(
+    found: &'found PublishedVariant,
+    primary: &Value,
+) -> Result<&'found Value, String> {
+    let manifest = found.tar.manifest.as_ref().ok_or("its package.json cannot be read")?;
+    if let Some(reason) = primary_difference(manifest, primary) {
+        return Err(reason);
+    }
+    if found.inspection.requires_build != Some(false) {
+        return Err("it requires a build".into());
+    }
+    match PLATFORM_FIELDS
+        .iter()
+        .find(|field| manifest.get(**field).is_some())
+    {
+        Some(field) => Err(format!("it declares {field:?} beside its variant field")),
+        None => Ok(manifest),
+    }
+}
+
+/// pnpr's facts about a variant's archive: its tar's integrity, sizes, and
+/// bins.
+fn archive_facts(found: &PublishedVariant) -> Map<String, Value> {
+    let mut facts = Map::new();
+    facts.insert("integrity".into(), Value::String(found.tar.tar_integrity.clone()));
     if let Some(size) = found.inspection.unpacked_size {
-        entry.insert("unpackedSize".into(), Value::from(size));
+        facts.insert("unpackedSize".into(), Value::from(size));
     }
     if let Some(count) = found.inspection.file_count {
-        entry.insert("fileCount".into(), Value::from(count));
+        facts.insert("fileCount".into(), Value::from(count));
     }
     if let Some((bins, _)) =
         found.inspection.bins.as_ref().and_then(pnpm_package_manifest::serialize_precalculated_bins)
     {
-        entry.insert("bins".into(), bins);
+        facts.insert("bins".into(), bins);
     }
-    entry.insert("manifest".into(), Value::Object(manifest_difference(manifest, primary)));
-    entry.insert(LABEL_FIELD.into(), Value::String(label.clone()));
-    Ok((Value::Object(entry), platforms))
+    facts
 }
 
 /// How a variant's manifest differs from its version's in a field the two
@@ -172,16 +203,13 @@ fn manifest_difference(manifest: &Value, primary: &Value) -> Map<String, Value> 
     };
     let variant = fields(manifest);
     let version = fields(primary);
-    let mut difference = Map::new();
-    for (field, value) in &variant {
-        if version.get(field) != Some(value) {
-            difference.insert(field.clone(), value.clone());
-        }
-    }
-    for field in version.keys() {
-        if !variant.contains_key(field) {
-            difference.insert(field.clone(), Value::Null);
-        }
-    }
-    difference
+    let changed = variant
+        .iter()
+        .filter(|(field, value)| version.get(*field) != Some(*value))
+        .map(|(field, value)| (field.clone(), value.clone()));
+    let removed = version
+        .keys()
+        .filter(|field| !variant.contains_key(*field))
+        .map(|field| (field.clone(), Value::Null));
+    changed.chain(removed).collect()
 }

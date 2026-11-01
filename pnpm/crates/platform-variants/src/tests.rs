@@ -90,7 +90,7 @@ fn the_structured_form_serializes_as_the_document_writes_it() {
         serde_json::from_value::<Platform>(serde_json::json!({
             "os": "linux", "cpu": "x64", "cuda": "12",
         }))
-        .is_err()
+        .is_err(),
     );
 }
 

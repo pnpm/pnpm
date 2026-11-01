@@ -28,18 +28,12 @@ pub(super) async fn serve_variant_tarball(
             Ok(found) => found,
             Err(response) => return response,
         };
-    let found = hosted_variant(&storage, &package, version, revision, tag).await;
-    let (label, unpacked_size) = match found {
-        Ok(Some(found)) => found,
-        Ok(None) => return not_found(),
-        Err(err) => return err.into_response(),
-    };
-    let filename = variants::variant_blob_name(&package, version, &label);
-    let (body, len) = match storage.open_hosted_blob(&package, &filename).await {
-        Ok(Some(blob)) => blob,
-        Ok(None) => return not_found(),
-        Err(err) => return err.into_response(),
-    };
+    let (body, len, unpacked_size) =
+        match open_variant(&storage, &package, (version, revision, tag)).await {
+            Ok(Some(found)) => found,
+            Ok(None) => return not_found(),
+            Err(err) => return err.into_response(),
+        };
     let source = TarSource {
         name: None,
         tgz_integrity: None,
@@ -49,6 +43,25 @@ pub(super) async fn serve_variant_tarball(
         decode_limit: tar_decode_limit(unpacked_size),
     };
     revision_tarball_response(state, headers, body, len, RevisionResource::Gzip(source)).await
+}
+
+/// A hosted variant's stored `.tgz`, its length, and its tar's unpacked
+/// size, or `None` when the version has no such variant.
+async fn open_variant(
+    storage: &Storage,
+    package: &CanonicalPackageName,
+    (version, revision, tag): (&str, Option<u64>, &str),
+) -> Result<Option<(axum::body::Body, Option<u64>, Option<u64>)>, RegistryError> {
+    let Some((label, unpacked_size)) =
+        hosted_variant(storage, package, version, revision, tag).await?
+    else {
+        return Ok(None);
+    };
+    let filename = variants::variant_blob_name(package, version, &label);
+    Ok(storage
+        .open_hosted_blob(package, &filename)
+        .await?
+        .map(|(body, len)| (body, len, unpacked_size)))
 }
 
 /// The hosted storage a variant request reads, with its package, or the

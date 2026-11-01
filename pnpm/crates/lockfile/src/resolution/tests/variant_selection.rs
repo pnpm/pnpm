@@ -116,7 +116,7 @@ fn package_variations_with_equal_fits_are_ambiguous() {
     assert!(
         variations
             .select(&selector("linux", "x64", None))
-            .is_err()
+            .is_err(),
     );
 }
 
