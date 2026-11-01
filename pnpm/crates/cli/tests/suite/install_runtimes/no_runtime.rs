@@ -367,34 +367,33 @@ fn no_runtime_install_unlinks_a_linked_runtime() {
         let mut server = mockito::Server::new();
         let (workspace, fixture) =
             locked_runtime_project(&root, &mut server, &format!("nodeLinker: {linker}\n"));
-        command(&workspace)
-            .with_arg("install")
-            .assert()
-            .success();
-        assert_installed(&workspace, std::slice::from_ref(&fixture));
 
         for args in [&["--no-runtime"][..], &["--no-runtime", "--frozen-lockfile"][..]] {
+            command(&workspace)
+                .with_arg("install")
+                .assert()
+                .success();
+            assert_installed(&workspace, std::slice::from_ref(&fixture));
+
             command(&workspace)
                 .with_arg("install")
                 .with_args(args)
                 .assert()
                 .success();
-            assert!(!workspace.join("node_modules/node").exists(), "{linker} {args:?}");
-            for bin in ["node", "node.exe", "node.cmd"] {
-                assert!(
-                    !workspace
-                        .join("node_modules/.bin")
-                        .join(bin)
-                        .exists(),
-                    "{linker} {args:?}: runtime bin {bin} must be removed",
-                );
+            let bin_dir = workspace.join("node_modules/.bin");
+            for link in std::iter::once(workspace.join("node_modules/node"))
+                .chain(["node", "node.exe", "node.cmd"].map(|bin| bin_dir.join(bin)))
+            {
+                assert_no_entry(&link, &format!("{linker} {args:?}"));
             }
         }
+    }
+}
 
-        command(&workspace)
-            .with_arg("install")
-            .assert()
-            .success();
-        assert_installed(&workspace, std::slice::from_ref(&fixture));
+/// Unlike [`Path::exists`], also fails on a dangling symlink.
+fn assert_no_entry(path: &Path, context: &str) {
+    match fs::symlink_metadata(path) {
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        result => panic!("{context}: {} must be removed, got {result:?}", path.display()),
     }
 }
