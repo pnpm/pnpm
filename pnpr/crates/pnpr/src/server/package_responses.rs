@@ -212,7 +212,7 @@ pub(super) fn packument_response(
     let split = super::split_packuments::wants_split(headers);
     let abbreviated = split || wants_abbreviated(headers);
     let last_modified_source = packument_last_modified(&doc);
-    let (body, content_type) = represent(doc, split, abbreviated, name.as_str(), tarball_base)?;
+    let (body, content_type) = represent(doc, split, abbreviated)?;
     let etag = format!(r#""{}""#, super::ecosystem::sha256_hex(&body));
     // Per RFC 9110 Section 8.8.2, Last-Modified is omitted when the representation
     // is dynamically generated or subject to content negotiation (such as OSV
@@ -232,11 +232,9 @@ fn represent(
     mut doc: Value,
     split: bool,
     abbreviated: bool,
-    name: &str,
-    tarball_base: &str,
 ) -> Result<(Vec<u8>, &'static str), RegistryError> {
     if split {
-        super::publishing::variants::describe_variants(&mut doc, name, tarball_base);
+        super::publishing::variants::describe_variants(&mut doc);
         let trimmed = abbreviate_packument(&doc, Utc::now());
         let body = serde_json::to_vec(&trimmed)?;
         let body = super::split_packuments::split_body(&trimmed, &body)?;

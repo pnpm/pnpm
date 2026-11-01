@@ -25,12 +25,12 @@ pub(super) async fn serve_variant_tarball(
             Ok(found) => found,
             Err(response) => return response,
         };
-    let declared = match hosted_variant(&storage, &package, version, tag).await {
-        Ok(Some(declared)) => declared,
+    let (label, unpacked_size) = match hosted_variant(&storage, &package, version, tag).await {
+        Ok(Some(found)) => found,
         Ok(None) => return not_found(),
         Err(err) => return err.into_response(),
     };
-    let filename = variants::variant_blob_name(&package, version, tag);
+    let filename = variants::variant_blob_name(&package, version, &label);
     let (body, len) = match storage.open_hosted_blob(&package, &filename).await {
         Ok(Some(blob)) => blob,
         Ok(None) => return not_found(),
@@ -42,7 +42,7 @@ pub(super) async fn serve_variant_tarball(
         keeps_content: false,
         trust: TgzTrust::Verified,
         tar_integrity_known: true,
-        decode_limit: tar_decode_limit(declared),
+        decode_limit: tar_decode_limit(unpacked_size),
     };
     revision_tarball_response(state, headers, body, len, RevisionResource::Gzip(source)).await
 }
@@ -61,7 +61,9 @@ fn variant_storage(
     let Ok(package) = CanonicalPackageName::parse(raw_name, Ecosystem::Npm) else {
         return Err(not_found());
     };
-    if !pnpr_package_name::is_safe_path_segment(version) || !variants::is_valid_tag(tag) {
+    if !pnpr_package_name::is_safe_path_segment(version)
+        || !pnpm_platform_variants::is_valid_variant_tag(tag)
+    {
         return Err(not_found());
     }
     let RegistrySource::Hosted(source) = resolve_registry_source(state, &target, package.as_str())
@@ -74,27 +76,20 @@ fn variant_storage(
     Ok((state.inner.storage.for_hosted(&org, pnpr_registry::Ecosystem::Npm), package))
 }
 
-/// The unpacked size of a hosted version's variant `tag`, or `None` when the
-/// version declares no such variant.
+/// The attachment label a hosted version's variant `tag` is stored under,
+/// and its unpacked size, or `None` when the version has no such variant.
 async fn hosted_variant(
     storage: &Storage,
     package: &CanonicalPackageName,
     version: &str,
     tag: &str,
-) -> Result<Option<Option<u64>>, RegistryError> {
+) -> Result<Option<(String, Option<u64>)>, RegistryError> {
     let Some(bytes) = storage.read_hosted_document(package).await? else {
         return Ok(None);
     };
     let packument = serde_json::from_slice::<Value>(&bytes)?;
-    let variant = packument
+    Ok(packument
         .get("versions")
         .and_then(|versions| versions.get(version))
-        .and_then(|manifest| manifest.get(variants::STORED_FIELD))
-        .and_then(Value::as_array)
-        .and_then(|variants| {
-            variants
-                .iter()
-                .find(|variant| variant.get("tag").and_then(Value::as_str) == Some(tag))
-        });
-    Ok(variant.map(|variant| variant.get("unpackedSize").and_then(Value::as_u64)))
+        .and_then(|manifest| variants::stored_variant_label(manifest, tag)))
 }

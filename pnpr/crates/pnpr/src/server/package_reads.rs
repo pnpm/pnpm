@@ -3,7 +3,7 @@ use super::{
     RegistryError, Resolved, Response, Value, addressed_registry, authorize, caller_scoped,
     describe_tar, dist_view, ensure_osv_allowed, extract_upstream_version_manifest,
     extract_version_manifest, is_osv_vulnerable_packument_version, is_tar_registry, not_found,
-    packument_response, publishing::variants::describe_manifest_variants, read_source_packument,
+    packument_response, publishing::variants::describe_version_variants, read_source_packument,
     registry_endpoint, resolve_version_or_tag, serve_packument_via_upstream,
     serve_tarball_via_upstream, tar_integrities_of, tarball_response,
 };
@@ -88,7 +88,7 @@ pub(super) async fn serve_registry_version_manifest(
     // A release record is part of pnpr's own format, so it describes the
     // variants; npm's version document does not.
     if revision.is_some() {
-        describe_manifest_variants(&mut manifest, name.as_str(), tarball_base);
+        describe_version_variants(&mut manifest);
     }
     super::split_packuments::version_document_response(manifest, revision)
 }

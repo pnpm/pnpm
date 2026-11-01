@@ -22,17 +22,19 @@ manifest.dist = {
   shasum: crypto.createHash('sha1').update(primaryBytes).digest('hex'),
   tarball: `${registry}${spec.name}/-/${tgzName}`,
 }
+// The commit references each variant archive by its integrity; what the
+// archive is a variant for is in its own package.json.
 if (spec.variants.length > 0) {
-  manifest.pnprVariants = spec.variants
+  manifest.pnprVariants = Object.fromEntries(spec.variants
     .filter(v => !v.undeclared)
-    .map(v => ({ tag: v.tag, platforms: v.platforms, integrity: v.integrity }))
+    .map(v => [v.label, v.integrity]))
 }
 const attachments = {
   [tgzName]: { content_type: 'application/octet-stream', data: primaryBytes.toString('base64'), length: primaryBytes.length },
 }
 for (const v of spec.variants.filter(v => !v.missing)) {
   const bytes = fs.readFileSync(v.file)
-  attachments[`${base}-${spec.version}~${v.tag}.tgz`] = {
+  attachments[`${base}-${spec.version}~${v.label}.tgz`] = {
     content_type: 'application/octet-stream', data: bytes.toString('base64'), length: bytes.length,
   }
 }

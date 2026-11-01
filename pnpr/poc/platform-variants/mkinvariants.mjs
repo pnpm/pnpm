@@ -18,24 +18,29 @@ function pack (pj, files, out) {
   return 'sha512-' + crypto.createHash('sha512').update(fs.readFileSync(out)).digest('base64')
 }
 
-const linuxX64 = [{ os: 'linux', cpu: 'x64', libc: 'glibc' }]
-const darwin = [{ os: 'darwin', cpu: 'arm64' }]
+const linuxX64 = ['linux-x64']
+const darwin = ['darwin-arm64']
+// Each case is accepted (`ok`, `deps-differ`, `bundled-extra-dep`) or
+// rejected with the reason its name gives.
 const cases = {
-  ok: { variants: [{ tag: 'linux-x64', platforms: linuxX64 }, { tag: 'darwin-arm64', platforms: darwin }] },
-  'name-differs': { variants: [{ tag: 'linux-x64', platforms: linuxX64, pj: { name: '@variants-poc/other' } }] },
-  'deps-differ': { variants: [{ tag: 'linux-x64', platforms: linuxX64, pj: { dependencies: { 'is-number': '7.0.0' } } }] },
-  'requires-build': { variants: [{ tag: 'linux-x64', platforms: linuxX64, pj: { scripts: { postinstall: 'node x.js' } } }] },
-  'platform-overlap': { variants: [{ tag: 'linux-x64', platforms: linuxX64 }, { tag: 'linux-x64-static', platforms: [{ os: 'linux', cpu: 'x64' }] }] },
-  'os-field-excludes': { variants: [{ tag: 'linux-x64', platforms: linuxX64, pj: { os: ['darwin'] } }] },
+  ok: { variants: [{ label: 'linux', platforms: linuxX64 }, { label: 'darwin', platforms: darwin }] },
+  'name-differs': { variants: [{ label: 'linux', platforms: linuxX64, pj: { name: '@variants-poc/other' } }] },
+  'deps-differ': { variants: [{ label: 'linux', platforms: linuxX64, pj: { dependencies: { 'is-number': '7.0.0' } } }] },
+  'peers-differ': { variants: [{ label: 'linux', platforms: linuxX64, pj: { peerDependencies: { react: '*' } } }] },
+  'requires-build': { variants: [{ label: 'linux', platforms: linuxX64, pj: { scripts: { postinstall: 'node x.js' } } }] },
+  'platform-overlap': { variants: [{ label: 'linux', platforms: linuxX64 }, { label: 'static', platforms: ['linux-x64', 'linux-x64-musl'] }] },
+  'os-field': { variants: [{ label: 'linux', platforms: linuxX64, pj: { os: ['linux'] } }] },
+  'non-canonical-tag': { variants: [{ label: 'linux', platforms: ['linux-x64-glibc'] }] },
+  'no-variant-field': { variants: [{ label: 'linux', platforms: null }] },
   'bundled-extra-dep': {
     variants: [{
-      tag: 'linux-x64',
+      label: 'linux',
       platforms: linuxX64,
       pj: { dependencies: { 'is-number': '7.0.0' }, bundleDependencies: ['is-number'] },
     }],
   },
-  'undeclared-attachment': { variants: [{ tag: 'linux-x64', platforms: linuxX64, undeclared: true }] },
-  'declared-not-attached': { variants: [{ tag: 'linux-x64', platforms: linuxX64, missing: true }] },
+  'undeclared-attachment': { variants: [{ label: 'linux', platforms: linuxX64, undeclared: true }] },
+  'declared-not-attached': { variants: [{ label: 'linux', platforms: linuxX64, missing: true }] },
 }
 
 for (const [caseName, spec] of Object.entries(cases)) {
@@ -50,9 +55,10 @@ for (const [caseName, spec] of Object.entries(cases)) {
     variants: [],
   }
   for (const v of spec.variants) {
-    const file = path.join(outDir, `${base}-${version}~${v.tag}.tgz`)
-    const integrity = pack({ ...primaryPj, ...(v.pj ?? {}) }, { 'index.js': `module.exports = ${JSON.stringify(v.tag)}\n` }, file)
-    result.variants.push({ tag: v.tag, platforms: v.platforms, file, integrity, undeclared: v.undeclared, missing: v.missing })
+    const file = path.join(outDir, `${base}-${version}~${v.label}.tgz`)
+    const pj = { ...primaryPj, ...(v.platforms && { variant: { platforms: v.platforms } }), ...(v.pj ?? {}) }
+    const integrity = pack(pj, { 'index.js': `module.exports = ${JSON.stringify(v.label)}\n` }, file)
+    result.variants.push({ label: v.label, file, integrity, undeclared: v.undeclared, missing: v.missing })
   }
   fs.writeFileSync(path.join(outDir, `${base}.variants.json`), JSON.stringify(result, null, 2))
 }

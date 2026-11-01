@@ -1,8 +1,8 @@
 // Repackage a GitHub-released executable as a pnpr package with platform
 // variants and a stub primary.
 // usage: node mktool.mjs <outDir> <name> <version> <bin> <assetsJson>
-// assetsJson: [{ tag, url, platforms, exe }] where exe is the executable's
-// path inside the downloaded archive.
+// assetsJson: [{ label, url, platforms, exe }] where platforms are platform
+// tags and exe is the executable's path inside the downloaded archive.
 import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
@@ -30,7 +30,7 @@ const result = { name, version, primary: { file: path.join(outDir, `${base}-${ve
 result.primary.integrity = pack(stub, result.primary.file)
 
 for (const asset of assets) {
-  const dl = path.join(work, 'dl', asset.tag)
+  const dl = path.join(work, 'dl', asset.label)
   fs.mkdirSync(dl, { recursive: true })
   const archive = path.join(dl, path.basename(new URL(asset.url).pathname))
   const res = await fetch(asset.url)
@@ -39,13 +39,13 @@ for (const asset of assets) {
   if (archive.endsWith('.zip')) execFileSync('unzip', ['-q', archive, '-d', dl])
   else execFileSync('tar', ['xf', archive, '-C', dl])
   const exeName = asset.exe.endsWith('.exe') ? `${bin}.exe` : bin
-  const pkg = path.join(work, 'variant', asset.tag)
+  const pkg = path.join(work, 'variant', asset.label)
   fs.mkdirSync(path.join(pkg, 'package/bin'), { recursive: true })
   fs.copyFileSync(path.join(dl, asset.exe), path.join(pkg, 'package/bin', exeName))
   fs.chmodSync(path.join(pkg, 'package/bin', exeName), 0o755)
-  fs.writeFileSync(path.join(pkg, 'package/package.json'), JSON.stringify({ name, version, bin: { [bin]: `bin/${exeName}` } }, null, 2))
-  const file = path.join(outDir, `${base}-${version}~${asset.tag}.tgz`)
-  result.variants.push({ tag: asset.tag, platforms: asset.platforms, file, integrity: pack(pkg, file) })
+  fs.writeFileSync(path.join(pkg, 'package/package.json'), JSON.stringify({ name, version, bin: { [bin]: `bin/${exeName}` }, variant: { platforms: asset.platforms } }, null, 2))
+  const file = path.join(outDir, `${base}-${version}~${asset.label}.tgz`)
+  result.variants.push({ label: asset.label, file, integrity: pack(pkg, file) })
 }
 fs.writeFileSync(path.join(outDir, `${base}-${version}.variants.json`), JSON.stringify(result, null, 2))
 console.log(`${name}@${version}: ${result.variants.length} variants`)

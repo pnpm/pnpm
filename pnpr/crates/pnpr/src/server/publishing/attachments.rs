@@ -48,7 +48,7 @@ pub(in super::super) struct ValidatedPublish {
     /// the package lock.
     pub(in super::super) publisher: Identity,
     pub(in super::super) tarballs: TarballStorage,
-    /// Declared platform variants, by version.
+    /// Referenced platform variant archives, by version.
     pub(in super::super) variants: Declarations,
 }
 
@@ -65,8 +65,8 @@ pub(in super::super) struct PreparedAttachment {
     /// The matching `dist` block, or `Value::Null` when absent.
     pub(in super::super) dist: Value,
     pub(in super::super) kind: AttachmentKind,
-    /// The variant tag of an [`AttachmentKind::Variant`].
-    pub(in super::super) variant_tag: Option<String>,
+    /// The attachment label of an [`AttachmentKind::Variant`].
+    pub(in super::super) variant_label: Option<String>,
 }
 
 pub(in super::super) async fn validate_publish_doc(
@@ -157,7 +157,7 @@ fn prepare_attachment(
         .and_then(|manifest| manifest.get("dist"))
         .cloned()
         .unwrap_or(Value::Null);
-    Ok(PreparedAttachment { attachment, canonical, version, dist, kind, variant_tag: None })
+    Ok(PreparedAttachment { attachment, canonical, version, dist, kind, variant_label: None })
 }
 
 fn parse_attachment_kind(
@@ -346,7 +346,7 @@ pub(super) async fn write_attachment_slot(
         let _ = tokio::fs::remove_file(&slot.tmp_path).await;
         return Err(err);
     }
-    let variant = variants::variant_tar(prepared.variant_tag, &integrity, &slot.tmp_path);
+    let variant = variants::variant_tar(prepared.variant_label, &integrity, &slot.tmp_path);
     Ok((slot, Some(PublishedTar { version: prepared.version, inspection, variant })))
 }
 
@@ -449,7 +449,9 @@ fn write_and_derive_tar(
     if kind == AttachmentKind::Sigstore {
         return Ok(None);
     }
-    let Some(tgz_integrity) = dist.as_object().and_then(tgz_integrity_key) else { return Ok(None) };
+    let Some(tgz_integrity) = dist.as_object().and_then(tgz_integrity_key) else {
+        return Ok(None);
+    };
     let tgz = std::fs::File::open(tmp_path)?;
     Ok(tar_integrity_of(std::io::BufReader::new(tgz))
         .map(|(tar, inspection)| (tgz_integrity, tar, inspection)))

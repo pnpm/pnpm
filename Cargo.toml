@@ -18,6 +18,7 @@ pnpm-github-actions = { path = "pnpm/crates/github-actions" }
 pnpm-matcher = { path = "pnpm/crates/matcher" }
 pnpm-pnpr-client = { path = "pnpm/crates/pnpr-client" }
 pnpm-shared-artifact-protocol = { path = "pnpm/crates/shared-artifact-protocol" }
+pnpm-platform-variants = { path = "pnpm/crates/platform-variants" }
 pnpm-auth-commands = { path = "pnpm/crates/auth-commands" }
 pnpm-cargo-resolver = { path = "pnpm/crates/cargo-resolver" }
 pnpm-catalogs-config = { path = "pnpm/crates/catalogs-config" }

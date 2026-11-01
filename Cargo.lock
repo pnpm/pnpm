@@ -6076,6 +6076,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "pnpm-platform-variants"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "pretty_assertions",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "pnpm-pnpr-client"
 version = "0.0.1"
 dependencies = [
@@ -6880,6 +6890,7 @@ dependencies = [
  "pnpm-network",
  "pnpm-package-manager",
  "pnpm-package-manifest",
+ "pnpm-platform-variants",
  "pnpm-python-resolver",
  "pnpm-reporter",
  "pnpm-resolving-npm-resolver",

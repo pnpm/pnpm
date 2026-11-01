@@ -162,19 +162,23 @@ for (const plat of platforms) {
   fs.cpSync(primaryDir, dir, { recursive: true })
   const pj = readJson(path.join(dir, 'package.json'))
   adapter.variant(dir, platDir, pj)
-  writeJson(path.join(dir, 'package.json'), pj)
-  const platformsOut = []
+  // The archive declares where it runs, as platform tags; glibc is written
+  // as no part.
+  const platformTags = []
   for (const os of m.os) {
     if (os === 'linux') {
       const libcs = m.libc ?? (adapter.staticLinux ? ['glibc', 'musl'] : ['glibc'])
-      for (const libc of libcs) platformsOut.push({ os, cpu, libc })
+      for (const libc of libcs) platformTags.push(libc === 'musl' ? `${os}-${cpu}-musl` : `${os}-${cpu}`)
     } else {
-      platformsOut.push({ os, cpu })
+      platformTags.push(`${os}-${cpu}`)
     }
   }
+  for (const field of ['os', 'cpu', 'libc']) delete pj[field]
+  pj.variant = { platforms: platformTags }
+  writeJson(path.join(dir, 'package.json'), pj)
   const file = path.join(outDir, `${base}-${version}~${tag}.tgz`)
   const integrity = pack(dir, file)
-  result.variants.push({ tag, platforms: platformsOut, file, integrity })
+  result.variants.push({ label: tag, platforms: platformTags, file, integrity })
 }
 if (adapter.primary) {
   const pj = readJson(path.join(primaryDir, 'package.json'))

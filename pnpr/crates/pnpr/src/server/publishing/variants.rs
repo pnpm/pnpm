@@ -1,13 +1,15 @@
 //! Platform variants (proof of concept for the pnpr platform-variants RFC).
 //!
 //! A version publishes its primary `.tgz` plus one `.tgz` per variant,
-//! attached as `<basename>-<version>~<tag>.tgz`. The publish body declares
-//! each variant under `versions[<version>].pnprVariants` as
-//! `{ "tag", "platforms": [{ "os", "cpu", "libc"? }], "integrity" }`, where
-//! `integrity` is the `.tgz` digest the upload is verified against. The
-//! registry checks the variants against the primary, records what it derived
-//! under the server-owned `_pnprVariants`, and serves it as
-//! `dist.pnpr.variants`.
+//! attached as `<basename>-<version>~<label>.tgz`. The publish body
+//! references each variant archive under `versions[<version>].pnprVariants`
+//! as `{ "<label>": "<.tgz integrity>" }`, the integrity the upload is
+//! verified against; the label only pairs the reference with its attachment.
+//! Each archive declares itself: its `package.json` has a `variant` field
+//! listing the platform tags it runs on, from which pnpr derives the
+//! variant's tag. The registry checks the variants against the version,
+//! records what it derived under the server-owned `_pnprVariants`, and
+//! describes it as `variants` in its own package document only.
 
 pub(super) use declarations::take_declarations;
 
@@ -28,12 +30,14 @@ use std::{collections::BTreeMap, io::Read};
 const DECLARATION_FIELD: &str = "pnprVariants";
 /// The server-owned field the stored packument keeps verified variants in.
 pub(in super::super) const STORED_FIELD: &str = "_pnprVariants";
+/// The field of a stored variant naming the attachment its blob is stored
+/// under. pnpr's document leaves it out.
+const LABEL_FIELD: &str = "label";
 
-/// One declared variant of one version.
+/// One variant archive a version references.
 #[derive(Debug, Clone)]
 pub(in super::super) struct VariantDeclaration {
-    pub(in super::super) tag: String,
-    pub(in super::super) platforms: Vec<Value>,
+    pub(in super::super) label: String,
     pub(in super::super) tgz_integrity: String,
 }
 
@@ -42,7 +46,7 @@ pub(in super::super) type Declarations = BTreeMap<String, Vec<VariantDeclaration
 
 /// What publishing a variant's `.tgz` derived from it.
 pub(in super::super) struct VariantTar {
-    pub(in super::super) tag: String,
+    pub(in super::super) label: String,
     pub(in super::super) tar_integrity: String,
     pub(in super::super) manifest: Option<Value>,
 }
@@ -58,33 +62,36 @@ fn bad_request(reason: String) -> RegistryError {
     RegistryError::BadRequest { reason }
 }
 
-/// Whether `tag` is a valid variant tag: lowercase letters, digits, `.`,
-/// `_`, and `-`.
-pub(in super::super) fn is_valid_tag(tag: &str) -> bool {
-    !tag.is_empty()
-        && tag.len() <= 64
-        && tag
+/// Whether `label` is a valid attachment label: lowercase letters, digits,
+/// `.`, `_`, and `-`.
+pub(in super::super) fn is_valid_label(label: &str) -> bool {
+    !label.is_empty()
+        && label.len() <= 64
+        && !label.starts_with('.')
+        && label
             .bytes()
             .all(|byte| {
                 byte.is_ascii_lowercase() || byte.is_ascii_digit() || b"._-".contains(&byte)
             })
 }
 
-/// Parse a variant attachment filename, `<basename>-<version>~<tag>.tgz`, into
-/// its canonical blob name, version, and tag. `None` when `filename` is not a
-/// variant attachment.
+/// Parse a variant attachment filename, `<basename>-<version>~<label>.tgz`,
+/// into its canonical blob name, version, and label. `None` when `filename`
+/// is not a variant attachment.
 pub(in super::super) fn parse_variant_attachment(
     name: &CanonicalPackageName,
     filename: &str,
 ) -> Option<Result<(String, String, String), RegistryError>> {
     let stem = filename.strip_suffix(".tgz")?;
-    let (primary_stem, tag) = stem.rsplit_once('~')?;
-    if !is_valid_tag(tag) {
-        return Some(Err(bad_request(format!("invalid variant tag in {filename:?}"))));
+    let (primary_stem, label) = stem.rsplit_once('~')?;
+    if !is_valid_label(label) {
+        return Some(Err(bad_request(format!("invalid variant label in {filename:?}"))));
     }
     Some(
         name.parse_tarball_name(&format!("{primary_stem}.tgz"))
-            .map(|(_, version)| (variant_blob_name(name, &version, tag), version, tag.to_string())),
+            .map(|(_, version)| {
+                (variant_blob_name(name, &version, label), version, label.to_string())
+            }),
     )
 }
 
@@ -92,28 +99,48 @@ pub(in super::super) fn parse_variant_attachment(
 pub(in super::super) fn variant_blob_name(
     name: &CanonicalPackageName,
     version: &str,
-    tag: &str,
+    label: &str,
 ) -> String {
     let primary = name.tarball_name_for_version(version);
     let stem = primary.strip_suffix(".tgz").unwrap_or(&primary);
-    format!("{stem}~{tag}.tgz")
+    format!("{stem}~{label}.tgz")
+}
+
+/// The label of the stored variant of a version whose tag is `tag`, and
+/// its unpacked size.
+pub(in super::super) fn stored_variant_label(
+    manifest: &Value,
+    tag: &str,
+) -> Option<(String, Option<u64>)> {
+    manifest
+        .get(STORED_FIELD)?
+        .as_array()?
+        .iter()
+        .find(|variant| variant.get("tag").and_then(Value::as_str) == Some(tag))
+        .and_then(|variant| {
+            let label = variant
+                .get(LABEL_FIELD)?
+                .as_str()?
+                .to_string();
+            Some((label, variant.get("unpackedSize").and_then(Value::as_u64)))
+        })
 }
 
 /// Prepare a variant attachment, parsed by [`parse_variant_attachment`], to
 /// be verified against its declared `.tgz` integrity.
 pub(super) fn prepare_variant_attachment(
     attachment: PendingAttachment,
-    (canonical, version, tag): (String, String, String),
+    (canonical, version, label): (String, String, String),
     declared: &Declarations,
 ) -> Result<PreparedAttachment, RegistryError> {
-    let dist = attachment_dist(declared, &version, &tag)?;
+    let dist = attachment_dist(declared, &version, &label)?;
     Ok(PreparedAttachment {
         attachment,
         canonical,
         version,
         dist,
         kind: AttachmentKind::Variant,
-        variant_tag: Some(tag),
+        variant_label: Some(label),
     })
 }
 
@@ -121,18 +148,18 @@ pub(super) fn prepare_variant_attachment(
 fn attachment_dist(
     declared: &Declarations,
     version: &str,
-    tag: &str,
+    label: &str,
 ) -> Result<Value, RegistryError> {
     declared
         .get(version)
         .and_then(|variants| {
             variants
                 .iter()
-                .find(|variant| variant.tag == tag)
+                .find(|variant| variant.label == label)
         })
         .map(|variant| json!({ "integrity": variant.tgz_integrity }))
         .ok_or_else(|| {
-            bad_request(format!("attachment for variant {tag:?} of {version} is not declared"))
+            bad_request(format!("attachment for variant {label:?} of {version} is not declared"))
         })
 }
 
@@ -153,12 +180,12 @@ pub(super) async fn keep_undecoded(
 /// What a variant's `.tgz`, written to `path`, derived; `None` for any other
 /// attachment.
 pub(super) fn variant_tar(
-    tag: Option<String>,
+    label: Option<String>,
     integrity: &Integrity,
     path: &std::path::Path,
 ) -> Option<VariantTar> {
-    tag.map(|tag| VariantTar {
-        tag,
+    label.map(|label| VariantTar {
+        label,
         tar_integrity: integrity.to_string(),
         manifest: read_tgz_manifest(path),
     })
@@ -210,53 +237,30 @@ pub(super) async fn attach_written_variants(
     Ok(written)
 }
 
-/// Move each version's stored variants into `dist.pnpr.variants`, with the
-/// route each is served at.
-pub fn describe_variants(doc: &mut Value, name: &str, public_url: &str) {
+/// Move each version's stored variants into `dist.pnpr.variants`, where
+/// pnpr's document reads them. The client derives each variant's route from
+/// its tag, so no URL is written.
+pub fn describe_variants(doc: &mut Value) {
     let Some(versions) = doc.get_mut("versions").and_then(Value::as_object_mut) else {
         return;
     };
-    for (version, manifest) in versions.iter_mut() {
-        describe_version_variants(manifest, name, version, public_url);
+    for manifest in versions.values_mut() {
+        describe_version_variants(manifest);
     }
-}
-
-/// [`describe_version_variants`] for a version manifest, which names its
-/// version.
-pub fn describe_manifest_variants(manifest: &mut Value, name: &str, public_url: &str) {
-    let Some(version) = manifest
-        .get("version")
-        .and_then(Value::as_str)
-        .map(str::to_string)
-    else {
-        return;
-    };
-    describe_version_variants(manifest, name, &version, public_url);
 }
 
 /// [`describe_variants`] for one version manifest.
-pub fn describe_version_variants(
-    manifest: &mut Value,
-    name: &str,
-    version: &str,
-    public_url: &str,
-) {
+pub fn describe_version_variants(manifest: &mut Value) {
     let Some(manifest) = manifest.as_object_mut() else { return };
     let Some(Value::Array(mut variants)) = manifest.remove(STORED_FIELD) else { return };
-    let public_url = public_url.trim_end_matches('/');
     for variant in &mut variants {
-        let Some(variant) = variant.as_object_mut() else { continue };
-        let tag = variant
-            .get("tag")
-            .and_then(Value::as_str)
-            .unwrap_or_default()
-            .to_string();
-        variant.insert(
-            "tarball".into(),
-            Value::String(format!("{public_url}/{name}@{version}/variants/{tag}")),
-        );
+        if let Some(variant) = variant.as_object_mut() {
+            variant.remove(LABEL_FIELD);
+        }
     }
-    let Some(dist) = manifest.get_mut("dist").and_then(Value::as_object_mut) else { return };
+    let Some(dist) = manifest.get_mut("dist").and_then(Value::as_object_mut) else {
+        return;
+    };
     let pnpr = dist
         .entry("pnpr")
         .or_insert_with(|| Value::Object(Map::new()));

@@ -1,0 +1,22 @@
+[package]
+name = "pnpm-platform-variants"
+version = "0.0.1"
+publish = false
+authors.workspace = true
+description = "Platform tags of package variants, shared by pnpm and pnpr"
+edition.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+derive_more = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[dev-dependencies]
+pretty_assertions = { workspace = true }
+
+[lints]
+workspace = true

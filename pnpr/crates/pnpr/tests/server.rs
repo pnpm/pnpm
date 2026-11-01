@@ -34,6 +34,9 @@ mod packuments;
 #[path = "server/tar_registry.rs"]
 mod tar_registry;
 
+#[path = "server/platform_variants.rs"]
+mod platform_variants;
+
 #[path = "server/version_tarballs.rs"]
 mod version_tarballs;
 
