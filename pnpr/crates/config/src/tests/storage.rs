@@ -195,8 +195,6 @@ backend:
     assert!(err.to_string().contains("backend.libsql.syncInterval"), "{err}");
 }
 
-// ----- serde defaults ---------------------------------------------------
-
 #[test]
 fn yaml_with_no_storage_uses_default_storage_string() {
     // `storage:` is absent entirely — `default_storage_string`

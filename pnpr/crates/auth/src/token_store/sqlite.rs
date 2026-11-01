@@ -1,7 +1,8 @@
-use super::{Connection, HashMap, RegistryError, Result, TokenRecord};
+use super::{Connection, HashMap, Result, TokenRecord};
 use crate::validation::{
     token_scopes_from_sql, token_scopes_to_sql, token_timestamp_from_sql, token_timestamp_to_sql,
 };
+use pnpr_error::RegistryError;
 
 /// `tokens` table DDL — shared by every SQL-backed auth store so the
 /// backends store the same shape and records can be moved between them.
