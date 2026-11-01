@@ -150,9 +150,12 @@ pub(super) fn release_age_upgrade_needed<Cache: PackageMetaCache>(
     cache_key: &str,
     meta: &Arc<Package>,
 ) -> bool {
+    // pnpr's own document already gives every publish time and trust rank
+    // pnpr has, so npm's full document could add nothing to it.
     if ctx.cache_policy.network.forbids_registry()
         || full_metadata
         || meta.time.is_some()
+        || super::serves_pnpr_format(ctx, opts.registry)
         || ctx.metadata.fetch_locker.release_age_upgrade_was_checked(cache_key, meta)
     {
         return false;
