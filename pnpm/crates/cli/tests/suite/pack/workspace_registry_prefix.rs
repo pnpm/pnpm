@@ -441,6 +441,14 @@ fn published_siblings_share_one_lockfile_entry_with_a_prefixed_consumer() {
         .assert()
         .success();
 
+    // A resolver qualifies a plain dependency with its registry's prefix too,
+    // so the lockfile alone cannot tell that publish rewrote the dependency.
+    let published_b: Value =
+        fs::read_to_string(consumer.join("node_modules/e2e-prefix-b/package.json"))
+            .map(|manifest| serde_json::from_str(&manifest).expect("parse installed b manifest"))
+            .expect("read installed b manifest");
+    assert_eq!(published_b["dependencies"], json!({ "e2e-prefix-a": "work:1.0.0" }));
+
     let lockfile = read_lockfile(&consumer.join("pnpm-lock.yaml"));
     assert_eq!(keys_of(lockfile.packages.as_ref(), "e2e-prefix-a"), ["e2e-prefix-a@work:1.0.0"]);
     assert_eq!(keys_of(lockfile.snapshots.as_ref(), "e2e-prefix-a"), ["e2e-prefix-a@work:1.0.0"]);

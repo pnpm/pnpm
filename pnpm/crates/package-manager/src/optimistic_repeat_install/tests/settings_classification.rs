@@ -310,6 +310,7 @@ const CLASSIFICATION: &[(&str, Reach)] = &[
     ("workspace_includes", Through("the project list, compared by the project-structure check")),
     ("workspace_key_issues", NotAnInput(CLI_ONLY)),
     ("workspace_package_patterns", Through("the project list, compared by the project-structure check")),
+    ("workspace_registry_prefixes", NotAnInput(OTHER_COMMAND)),
     ("workspace_root", Through("the selection the fast path is scoped to")),
     ("workspace_search_skipped", NotAnInput("how the config loader finds the workspace")),
 ];

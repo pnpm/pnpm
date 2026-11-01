@@ -6,6 +6,7 @@ use super::{
     redact_url_credentials, send_with_retry,
 };
 use crate::cli_args::registry_client::apply_auth_and_otp;
+use std::collections::HashSet;
 
 /// A failed `-/stage` registry response
 /// (`ERR_PNPM_STAGE_REGISTRY_ERROR`), with the same message shape as the
@@ -72,6 +73,9 @@ pub(super) struct StageContext {
     pub(super) retry_opts: RetryOpts,
     pub(super) otp: Option<String>,
     pub(super) web_auth_fetch_options: WebAuthFetchOptions,
+    /// Every prefix a `<prefix>:` dependency of a staged package may name,
+    /// the built-in ones included.
+    pub(super) registry_prefixes: HashSet<String>,
 }
 
 /// An HTTP-level failure of a stage mutation, handed to the

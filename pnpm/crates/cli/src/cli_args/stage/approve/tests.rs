@@ -99,32 +99,65 @@ fn a_dependent_of_an_unpublished_package_is_blocked() {
 
 #[test]
 fn published_npm_aliases_are_resolved_to_their_real_package_names() {
-    let manifest = manifest_for_graph(json!({
-        "name": "dependent",
-        "version": "1.0.0",
-        "dependencies": { "local-name": "npm:dependency@^1.0.0" },
-    }));
+    let manifest = manifest_for_graph(
+        json!({
+            "name": "dependent",
+            "version": "1.0.0",
+            "dependencies": { "local-name": "npm:dependency@^1.0.0" },
+        }),
+        &HashSet::new(),
+    )
+    .expect("normalize manifest");
     assert_eq!(manifest["dependencies"], json!({ "dependency": "^1.0.0" }));
 }
 
 #[test]
 fn npm_aliases_to_tags_keep_their_alias_name() {
-    let manifest = manifest_for_graph(json!({
-        "name": "dependent",
-        "version": "1.0.0",
-        "dependencies": { "local-name": "npm:dependency@latest" },
-    }));
+    let manifest = manifest_for_graph(
+        json!({
+            "name": "dependent",
+            "version": "1.0.0",
+            "dependencies": { "local-name": "npm:dependency@latest" },
+        }),
+        &HashSet::new(),
+    )
+    .expect("normalize manifest");
     assert_eq!(manifest["dependencies"], json!({ "local-name": "npm:dependency@latest" }));
 }
 
 #[test]
 fn npm_alias_ranges_with_an_empty_set_match_every_version() {
-    let manifest = manifest_for_graph(json!({
-        "name": "dependent",
-        "version": "1.0.0",
-        "dependencies": { "local-name": "npm:dependency@^1.0.0 || " },
-    }));
+    let manifest = manifest_for_graph(
+        json!({
+            "name": "dependent",
+            "version": "1.0.0",
+            "dependencies": { "local-name": "npm:dependency@^1.0.0 || " },
+        }),
+        &HashSet::new(),
+    )
+    .expect("normalize manifest");
     assert_eq!(manifest["dependencies"], json!({ "dependency": "*" }));
+}
+
+#[test]
+fn registry_prefixed_dependencies_are_resolved_to_their_package_and_range() {
+    let manifest = manifest_for_graph(
+        json!({
+            "name": "dependent",
+            "version": "1.0.0",
+            "dependencies": {
+                "dependency": "work:1.0.0",
+                "local-name": "work:other@^2.0.0",
+                "tagged": "work:latest",
+            },
+        }),
+        &HashSet::from(["work".to_owned()]),
+    )
+    .expect("normalize manifest");
+    assert_eq!(
+        manifest["dependencies"],
+        json!({ "dependency": "1.0.0", "other": "^2.0.0", "tagged": "work:latest" }),
+    );
 }
 
 #[test]
