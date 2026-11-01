@@ -463,11 +463,20 @@ jobs:
         timeout-minutes: 50
         env:
           SCENARIO: ${{ matrix.scenario }}
+          HEAD_SHA: ${{ needs.revisions.outputs.head_sha }}
         run: |
+          pnpm_repository_args=()
           if [ "$SCENARIO" = isolated-linker.peer-heavy-resolve.hot-cache.offline ]; then
             BENCHMARK_BUILD_TARGETS="$BENCHMARK_BUILD_TARGETS pnpm@HEAD"
+            # pnpm@HEAD builds the HEAD of the repository it is given. The
+            # checkout holds the tools revision, which a head_ref dispatch
+            # sets apart from the measured HEAD.
+            if [ "$HEAD_SHA" != "$(git rev-parse HEAD)" ]; then
+              git worktree add --detach "$RUNNER_TEMP/pnpm-head" "$HEAD_SHA"
+              pnpm_repository_args=(--pnpm-repository "$RUNNER_TEMP/pnpm-head")
+            fi
           fi
-          target/debug/integrated-benchmark --reuse-prebuilt-binaries --build-only --registry=npm $BENCHMARK_BUILD_TARGETS
+          target/debug/integrated-benchmark --reuse-prebuilt-binaries --build-only --registry=npm "${pnpm_repository_args[@]}" $BENCHMARK_BUILD_TARGETS
 
       - name: 'Benchmark: Isolated linker: fresh restore, cold cache + cold store'
         if: matrix.scenario == 'isolated-linker.fresh-restore.cold-cache.cold-store'
@@ -822,16 +831,20 @@ jobs:
       - name: Generate summary
         shell: bash
         env:
-          # The PR head SHA for pull_request events, otherwise (push,
-          # workflow_dispatch) the ref's own SHA. Display-only — no
-          # control flow consumes it; the comment workflow resolves the
-          # PR number from the trusted workflow_run payload regardless.
-          SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          # The measured HEAD on a head_ref dispatch, the PR head SHA for
+          # pull_request events, otherwise (push, workflow_dispatch) the
+          # ref's own SHA. Display-only — no control flow consumes it; the
+          # comment workflow resolves the PR number from the trusted
+          # workflow_run payload regardless.
+          SHA: ${{ inputs.head_ref && needs.revisions.outputs.head_sha || github.event.pull_request.head.sha || github.sha }}
+          MAIN_SHA: ${{ needs.revisions.outputs.main_sha }}
         run: |
           (
             echo '## Integrated-Benchmark Report (${{ runner.os }})'
             echo
             echo "**Commit:** [\`${SHA:0:12}\`](${{ github.server_url }}/${{ github.repository }}/commit/$SHA)"
+            echo
+            echo "**Compared against main at:** [\`${MAIN_SHA:0:12}\`](${{ github.server_url }}/${{ github.repository }}/commit/$MAIN_SHA)"
             echo
             echo 'Regular scenarios report direct and pnpr installs. The peer-heavy resolver scenario compares current Rust, main Rust, and TypeScript pnpm; the linked, injected, and Cargo workspace scenarios compare current Rust against main Rust. Bencher consumes pacquet@HEAD and pnpr@HEAD.'
             echo
