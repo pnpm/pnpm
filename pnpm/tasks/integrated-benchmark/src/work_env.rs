@@ -384,8 +384,9 @@ impl WorkEnv {
             self.install_for_lockfile_comparison(&cleanup_command);
         }
         self.write_benchmark_diagnostics();
-        // After the diagnostics are written, so the traced runs' metrics
-        // never mix with the timed runs' in `BENCHMARK_OUTPUT.ndjson`.
+        // After the diagnostics are written: the traced runs append their
+        // events to `BENCHMARK_OUTPUT.ndjson` like the timed runs, and only
+        // the timed runs' events may reach the diagnostics.
         if self.options.count_syscalls {
             self.count_syscalls(&cleanup_command);
             // The traced runs' cleanup removed the lockfiles the parity
