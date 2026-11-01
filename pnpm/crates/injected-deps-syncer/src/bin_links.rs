@@ -116,6 +116,7 @@ fn relink_project_bins(
         &FindWorkspaceProjectsOpts {
             patterns: None,
             ignored_directories: opts.settings.ignored_directories.clone(),
+            ignored_directory_suffixes: Vec::new(),
         },
     )
     .map_err(|error| SyncInjectedDepsError::FindProjects { error })?;

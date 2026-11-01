@@ -81,6 +81,9 @@ pub fn is_workspace_project_dir(
     let ignored_directories =
         resolve_ignored_directories(workspace_root, &opts.ignored_directories);
     if is_under_ignored_directory(dir, &ignored_directories)
+        || opts.ignored_directory_suffixes
+            .iter()
+            .any(|suffix| relative_dir.ends_with(suffix))
         || has_always_ignored_component(relative_dir)
     {
         return Ok(false);

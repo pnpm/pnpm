@@ -70,6 +70,7 @@ pub(super) fn registered_modules_dirs(
                 &FindWorkspaceProjectsOpts {
                     patterns: Some(workspace_package_patterns(&manifest)),
                     ignored_directories: vec![store_dir.to_path_buf()],
+                    ignored_directory_suffixes: workspace_modules_dir_suffixes(&workspace_dir)?,
                 },
             )
             .map_err(|error| PruneError::InUseFiles(io::Error::other(error)))?
@@ -87,6 +88,48 @@ pub(super) fn registered_modules_dirs(
         }
     }
     Ok(modules_dirs.into_iter().collect())
+}
+
+fn workspace_modules_dir_suffixes(workspace_dir: &Path) -> Result<Vec<PathBuf>, PruneError> {
+    let Some(mut settings) = WorkspaceSettings::load_at(workspace_dir)
+        .map_err(|error| PruneError::InUseFiles(io::Error::other(error)))?
+    else {
+        return Ok(Vec::new());
+    };
+    settings.substitute_env_untrusted::<pnpm_config::Host>();
+    let mut modules_dirs: Vec<String> = settings.modules_dir.into_iter().collect();
+    let shares_one_lockfile = settings.shared_workspace_lockfile != Some(false)
+        || settings.lockfile_dir.is_some();
+    if !shares_one_lockfile && let Some(package_configs) = settings.package_configs {
+        modules_dirs.extend(
+            package_configs
+                .into_record()
+                .into_values()
+                .filter_map(|config| config.modules_dir),
+        );
+    }
+    Ok(modules_dirs
+        .iter()
+        .filter_map(|modules_dir| modules_dir_suffix(modules_dir))
+        .collect())
+}
+
+fn modules_dir_suffix(modules_dir: &str) -> Option<PathBuf> {
+    let path = Path::new(modules_dir);
+    if path.is_absolute() {
+        return None;
+    }
+    let mut suffix = PathBuf::new();
+    for component in path.components() {
+        match component {
+            std::path::Component::Normal(name) => suffix.push(name),
+            std::path::Component::CurDir => {}
+            std::path::Component::ParentDir
+            | std::path::Component::RootDir
+            | std::path::Component::Prefix(_) => return None,
+        }
+    }
+    (!suffix.as_os_str().is_empty()).then_some(suffix)
 }
 
 /// Fails on an undecodable row, which [`StoreIndex::get_many`] skips,
