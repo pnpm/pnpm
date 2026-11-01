@@ -46,6 +46,7 @@ pub enum SettingsRead {
     /// may give a setting a shape or a value this one rejects, so the load
     /// that switches to the pinned pnpm reads this way.
     Readable,
+    Required(&'static [&'static str]),
     /// Only the [`PIN_DECISION_SETTINGS`] this pnpm can read. No `.npmrc` or
     /// auth source is read.
     PinDecision,
@@ -57,6 +58,13 @@ impl SettingsRead {
     #[must_use]
     pub fn skips_unreadable(self) -> bool {
         self != Self::All
+    }
+
+    pub(crate) fn required_settings(self) -> &'static [&'static str] {
+        match self {
+            Self::Required(settings) => settings,
+            Self::All | Self::Readable | Self::PinDecision => &[],
+        }
     }
 }
 

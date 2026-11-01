@@ -46,17 +46,28 @@ pub(crate) fn select_settings(text: &str, settings_read: SettingsRead) -> Cow<'_
 pub(crate) fn read_readable_settings<Settings, Error>(
     text: &str,
     read: impl Fn(&str) -> Result<Settings, Error>,
+    required_settings: &[&str],
 ) -> Result<Settings, Error> {
     let error = match read(text) {
         Ok(settings) => return Ok(settings),
         Err(error) => error,
     };
-    let Some(key_lines) = top_level_key_lines(text) else {
+    let Some(keys) = top_level_keys::<String>(text) else {
         return Err(error);
     };
+    let key_lines: Vec<usize> = keys
+        .iter()
+        .map(|(line, _)| *line)
+        .collect();
     let mut lines: Vec<&str> = text.split_inclusive('\n').collect();
     let mut left_out_any = false;
-    for setting in setting_lines(&key_lines, lines.len()) {
+    for ((_, key), setting) in keys
+        .iter()
+        .zip(setting_lines(&key_lines, lines.len()))
+    {
+        if required_settings.contains(&key.as_str()) {
+            continue;
+        }
         if read(&lines[setting.clone()].concat()).is_err() {
             // Blanked rather than removed, so what is left keeps its lines.
             lines[setting].fill("\n");
@@ -100,17 +111,6 @@ fn setting_lines(key_lines: &[usize], line_count: usize) -> impl Iterator<Item =
                 .copied()
                 .unwrap_or(line_count);
             start..end.min(line_count)
-        })
-}
-
-/// The 0-based line of each top-level key, in document order, or `None`
-/// when the document is not a block mapping with one key per line.
-fn top_level_key_lines(text: &str) -> Option<Vec<usize>> {
-    top_level_keys::<IgnoredAny>(text)
-        .map(|keys| {
-            keys.into_iter()
-                .map(|(line, _)| line)
-                .collect()
         })
 }
 

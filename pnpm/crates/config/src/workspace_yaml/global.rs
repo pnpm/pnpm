@@ -103,6 +103,10 @@ fn read_global<Settings: DeserializeOwned>(
     settings_read: SettingsRead,
 ) -> Result<Settings, LoadWorkspaceYamlError> {
     let read = parse_settings::<SystemEnv, Settings>;
-    if settings_read.skips_unreadable() { read_readable_settings(text, read) } else { read(text) }
-        .map_err(|source| LoadWorkspaceYamlError::ParseYaml { path: path.to_path_buf(), source })
+    if settings_read.skips_unreadable() {
+        read_readable_settings(text, read, settings_read.required_settings())
+    } else {
+        read(text)
+    }
+    .map_err(|source| LoadWorkspaceYamlError::ParseYaml { path: path.to_path_buf(), source })
 }
