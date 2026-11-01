@@ -7,15 +7,20 @@ import { compare, parseSyscallSummary, syscallCountRounds } from './compare-inte
 export async function runBenchmark (args, { directory = 'bench-work-env', execute = executeBenchmark } = {}) {
   const engines = ['pacquet', 'pnpr'].filter(engine => args.includes(`${engine}@HEAD`) && args.includes(`${engine}@main`))
   const status = await execute(engines.length === 0 ? args : [...args, '--count-syscalls'])
-  if (status !== 0) return status
-  if (engines.length === 0) return 0
+  if (engines.length === 0) return status
   const reportPath = join(directory, 'BENCHMARK_REPORT.json')
   const markdownPath = join(directory, 'BENCHMARK_REPORT.md')
-  const initial = {
-    ...JSON.parse(await readFile(reportPath, 'utf8')),
-    syscalls: await readSyscallCounts(directory, args.filter(isTarget)),
+  if (status !== 0) {
+    // The harness checks its diagnostics after the traced runs, so a failed
+    // check still leaves a report and counts the workflow publishes.
+    try {
+      await attachSyscallCounts(reportPath, directory, args)
+    } catch (error) {
+      console.error(`Syscall counts not recorded after the harness exited with ${status}: ${error.message}`)
+    }
+    return status
   }
-  await writeFile(reportPath, JSON.stringify(initial))
+  const initial = await attachSyscallCounts(reportPath, directory, args)
   if (!engines.some(engine => compare(initial, engine).status === 'Regression')) return 0
 
   const markdown = await readFile(markdownPath, 'utf8')
@@ -33,6 +38,15 @@ export async function runBenchmark (args, { directory = 'bench-work-env', execut
   await writeFile(reportPath, JSON.stringify({ ...initial, confirmation }))
   await writeFile(markdownPath, `${markdown}\n#### Confirmation (reversed target order)\n\n${confirmationMarkdown}`)
   return 0
+}
+
+async function attachSyscallCounts (reportPath, directory, args) {
+  const withCounts = {
+    ...JSON.parse(await readFile(reportPath, 'utf8')),
+    syscalls: await readSyscallCounts(directory, args.filter(isTarget)),
+  }
+  await writeFile(reportPath, JSON.stringify(withCounts))
+  return withCounts
 }
 
 async function readSyscallCounts (directory, targets) {

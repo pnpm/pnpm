@@ -69,6 +69,26 @@ test('initial command failures are not retried or swallowed', async () => {
   assert.equal(calls, 1)
 })
 
+test('a harness failure after the traced runs still records their counts', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'benchmark-confirmation-'))
+  try {
+    const status = await runBenchmark(['pacquet@HEAD', 'pacquet@main'], { directory, execute: async () => {
+      await writeSyscallCounts(directory)
+      await writeFile(join(directory, 'BENCHMARK_REPORT.json'), JSON.stringify(report(1)))
+      await writeFile(join(directory, 'BENCHMARK_REPORT.md'), 'Initial measurement')
+      return 101
+    } })
+    assert.equal(status, 101)
+    const result = JSON.parse(await readFile(join(directory, 'BENCHMARK_REPORT.json'), 'utf8'))
+    assert.deepEqual(result, { ...report(1), syscalls: {
+      'pacquet@HEAD': [{ statx: 135, read: 30 }, { statx: 135, read: 30 }],
+      'pacquet@main': [{ statx: 135, read: 30 }, { statx: 135, read: 30 }],
+    } })
+  } finally {
+    await rm(directory, { recursive: true, force: true })
+  }
+})
+
 test('main-only runs do not require comparison reports or syscall counts', async () => {
   const calls = []
   assert.equal(await runBenchmark(['pacquet@HEAD', 'pnpr@HEAD'], { execute: received => { calls.push(received); return 0 } }), 0)

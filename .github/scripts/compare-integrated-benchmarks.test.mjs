@@ -152,7 +152,7 @@ test('a doubled statx count is a syscall regression', () => {
     'pacquet@main': [{ statx: 53886, read: 900, futex: 5 }, { statx: 53889, read: 901, futex: 7000 }],
   } }
   assert.deepEqual(compareSyscalls(input, 'pacquet'), [
-    { syscall: 'statx', head: 121177, base: 53889, change: 67288, spread: 3, tolerance: 1078, status: 'Regression' },
+    { syscall: 'statx', head: 121177, base: 53889, change: 67288, spread: 3, tolerance: 1077, status: 'Regression' },
   ])
 })
 
@@ -165,6 +165,8 @@ test('syscall changes within 2% or 50 calls pass, and an improvement passes', ()
   assert.equal(compareSyscalls(counts(1051, 1000), 'pacquet')[0].status, 'Regression')
   assert.equal(compareSyscalls(counts(10200, 10000), 'pacquet')[0].status, 'Within tolerance')
   assert.equal(compareSyscalls(counts(10201, 10000), 'pacquet')[0].status, 'Regression')
+  assert.equal(compareSyscalls(counts(10201, 10001), 'pacquet')[0].status, 'Within tolerance')
+  assert.equal(compareSyscalls(counts(10202, 10001), 'pacquet')[0].status, 'Regression')
   assert.equal(compareSyscalls(counts(500, 1000), 'pacquet')[0].status, 'Within tolerance')
   assert.deepEqual(compareSyscalls(counts(51, 0), 'pacquet'), [
     { syscall: 'openat', head: 51, base: 0, change: 51, spread: 0, tolerance: 50, status: 'Regression' },

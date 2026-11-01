@@ -100,7 +100,7 @@ export function compareSyscalls (report, engine) {
     const headLow = Math.min(...headCounts)
     const baseHigh = Math.max(...baseCounts)
     const spread = Math.max(Math.max(...headCounts) - headLow, baseHigh - Math.min(...baseCounts))
-    const tolerance = Math.max(Math.ceil(baseHigh * 0.02), 50)
+    const tolerance = Math.max(Math.floor(baseHigh * 0.02), 50)
     const status = spread > tolerance ? `Unstable (identical runs differ by ${spread}, not gated)`
       : headLow > baseHigh + tolerance ? 'Regression' : 'Within tolerance'
     return { syscall, head: headLow, base: baseHigh, change: headLow - baseHigh, spread, tolerance, status }
