@@ -167,6 +167,25 @@ test('strace summaries parse every row and must add up to the total', () => {
   assert.throws(() => parseSyscallSummary(''), /add up to 0 calls, its total row says undefined/)
 })
 
+test('mkdir calls that fail with EEXIST are not counted', () => {
+  const summary = `% time     seconds  usecs/call     calls    errors syscall
+------ ----------- ----------- --------- --------- ------------------
+ 60,00    0,000600           5     11049      2349 mkdir
+ 40,00    0,000400           5       120           mkdirat
+------ ----------- ----------- --------- --------- ------------------
+100,00    0,001000           5     11169      2349 total
+`
+  assert.deepEqual(parseSyscallSummary(summary), { 'mkdir (succeeded)': 8700, 'mkdirat (succeeded)': 120 })
+  assert.throws(() => parseSyscallSummary(summary.replace('2349 mkdir', '11050 mkdir')), { message: 'Unexpected strace summary line:  60,00    0,000600           5     11049      11050 mkdir' })
+  const input = { syscalls: {
+    'pacquet@HEAD': [{ 'mkdir (succeeded)': 8700 }, { 'mkdir (succeeded)': 8700 }],
+    'pacquet@main': [{ 'mkdir (succeeded)': 8700 }, { 'mkdir (succeeded)': 8700 }],
+  } }
+  assert.deepEqual(compareSyscalls(input, 'pacquet'), [
+    { syscall: 'mkdir (succeeded)', head: 8700, base: 8700, change: 0, spread: 0, tolerance: 174, status: 'Within tolerance' },
+  ])
+})
+
 test('a doubled statx count is a syscall regression', () => {
   const input = { syscalls: {
     'pacquet@HEAD': [{ statx: 121177, read: 900, futex: 9000 }, { statx: 121180, read: 900, futex: 1 }],

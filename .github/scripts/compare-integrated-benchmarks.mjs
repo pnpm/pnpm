@@ -28,10 +28,14 @@ export const gatedSyscalls = new Set([
   'open', 'openat', 'openat2',
   'link', 'linkat', 'symlink', 'symlinkat', 'readlink', 'readlinkat',
   'copy_file_range', 'ioctl', 'getdents64',
-  'mkdir', 'mkdirat', 'rename', 'renameat', 'renameat2', 'unlink', 'unlinkat',
+  'mkdir (succeeded)', 'mkdirat (succeeded)', 'rename', 'renameat', 'renameat2', 'unlink', 'unlinkat',
   'chmod', 'fchmod', 'fchmodat', 'fchmodat2',
   'access', 'faccessat', 'faccessat2',
 ])
+// Concurrent installs race to create the same directories, so how many mkdir
+// calls fail with EEXIST varies between identical runs. Only the calls that
+// created a directory are counted for these.
+const successCountedSyscalls = new Set(['mkdir', 'mkdirat'])
 export const syscallCountRounds = 2
 
 export function compare (report, engine) {
@@ -66,18 +70,26 @@ export function compareConfirmed (report, engine) {
 export function parseSyscallSummary (text) {
   const counts = {}
   let total
+  let sum = 0
   for (const line of text.split('\n')) {
     const fields = line.trim().split(/\s+/)
     if (fields[0] === '' || fields[0] === '%' || /^-+$/.test(fields[0])) continue
     const name = fields.at(-1)
     const calls = Number(fields[3])
-    if ((fields.length !== 5 && fields.length !== 6) || !Number.isInteger(calls) || calls < 0) {
+    // strace leaves the errors column empty when no call failed.
+    const errors = fields.length === 6 ? Number(fields[4]) : 0
+    if ((fields.length !== 5 && fields.length !== 6) || !Number.isInteger(calls) || calls < 0 ||
+      !Number.isInteger(errors) || errors < 0 || errors > calls) {
       throw new Error(`Unexpected strace summary line: ${line}`)
     }
-    if (name === 'total') total = calls
+    if (name === 'total') {
+      total = calls
+      continue
+    }
+    sum += calls
+    if (successCountedSyscalls.has(name)) counts[`${name} (succeeded)`] = calls - errors
     else counts[name] = calls
   }
-  const sum = Object.values(counts).reduce((left, right) => left + right, 0)
   if (total === undefined || total !== sum) {
     throw new Error(`strace summary rows add up to ${sum} calls, its total row says ${total}`)
   }
@@ -159,7 +171,7 @@ export async function renderComparison (directory) {
     '',
     '### Same-run syscall check',
     '',
-    `Each install runs ${syscallCountRounds} more times per revision, untimed, under \`strace --follow-forks --summary-only\`. A file syscall regresses when HEAD's fewest calls exceed main's most by more than 2% of main or 50 calls, whichever is larger. A syscall whose identical runs differ by more than that tolerance is reported unstable and not gated, unless HEAD's fewest calls also exceed main's most by more than the tolerance plus that difference. Each scenario lists its largest change relative to its tolerance and every row that is not within tolerance.`,
+    `Each install runs ${syscallCountRounds} more times per revision, untimed, under \`strace --follow-forks --summary-only\`. A file syscall regresses when HEAD's fewest calls exceed main's most by more than 2% of main or 50 calls, whichever is larger. mkdir and mkdirat count only the calls that created a directory, since concurrent installs fail a varying number with EEXIST. A syscall whose identical runs differ by more than that tolerance is reported unstable and not gated, unless HEAD's fewest calls also exceed main's most by more than the tolerance plus that difference. Each scenario lists its largest change relative to its tolerance and every row that is not within tolerance.`,
     '',
     '| Scenario | Engine | Syscall | main calls (max) | HEAD calls (min) | Change | Tolerance | Identical-run spread | Result |',
     '| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | --- |',
