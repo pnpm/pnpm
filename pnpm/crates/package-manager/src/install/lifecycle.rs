@@ -31,6 +31,7 @@ pub(super) fn load_workspace_projects(
     let opts = pnpm_workspace::FindWorkspaceProjectsOpts {
         patterns: Some(pnpm_workspace::workspace_package_patterns(manifest)),
         ignored_directories: ignored_directories.to_vec(),
+        ignored_directory_suffixes: Vec::new(),
     };
     pnpm_workspace::find_workspace_projects(workspace_root, &opts).map(Some)
 }

@@ -114,6 +114,7 @@ pub fn discover_workspace_projects(
         &FindWorkspaceProjectsOpts {
             patterns: patterns.clone(),
             ignored_directories: config.managed_directories(),
+            ignored_directory_suffixes: Vec::new(),
         },
     )
     .wrap_err("finding workspace projects")?;

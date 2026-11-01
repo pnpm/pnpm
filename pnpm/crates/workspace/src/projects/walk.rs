@@ -42,6 +42,7 @@ pub(super) fn collect_manifests_in_children(
     workspace_root: &Path,
     user_negations: &wax::Any<'_>,
     ignored_directories: &[PathBuf],
+    ignored_directory_suffixes: &[PathBuf],
     manifest_paths: &mut BTreeSet<PathBuf>,
 ) -> Result<(), FindWorkspaceProjectsError> {
     for_each_directory_entry(parent, workspace_root, |entry| {
@@ -56,6 +57,7 @@ pub(super) fn collect_manifests_in_children(
             workspace_root,
             user_negations,
             ignored_directories,
+            ignored_directory_suffixes,
             manifest_paths,
         );
         Ok(())
@@ -127,10 +129,16 @@ pub(super) fn collect_candidate_manifests_in(
     workspace_root: &Path,
     user_negations: &wax::Any<'_>,
     ignored_directories: &[PathBuf],
+    ignored_directory_suffixes: &[PathBuf],
     manifest_paths: &mut BTreeSet<PathBuf>,
 ) {
-    if is_ignored_manifest_directory(directory, workspace_root, user_negations, ignored_directories)
-    {
+    if is_ignored_manifest_directory(
+        directory,
+        workspace_root,
+        user_negations,
+        ignored_directories,
+        ignored_directory_suffixes,
+    ) {
         return;
     }
     for basename in PROJECT_MANIFEST_BASENAMES {
@@ -143,10 +151,16 @@ pub(super) fn collect_literal_manifests_in(
     workspace_root: &Path,
     user_negations: &wax::Any<'_>,
     ignored_directories: &[PathBuf],
+    ignored_directory_suffixes: &[PathBuf],
     manifest_paths: &mut BTreeSet<PathBuf>,
 ) {
-    if is_ignored_manifest_directory(directory, workspace_root, user_negations, ignored_directories)
-    {
+    if is_ignored_manifest_directory(
+        directory,
+        workspace_root,
+        user_negations,
+        ignored_directories,
+        ignored_directory_suffixes,
+    ) {
         return;
     }
     for basename in PROJECT_MANIFEST_BASENAMES {
@@ -186,20 +200,36 @@ fn is_ignored_manifest_directory(
     workspace_root: &Path,
     user_negations: &wax::Any<'_>,
     ignored_directories: &[PathBuf],
+    ignored_directory_suffixes: &[PathBuf],
 ) -> bool {
     let relative = directory.strip_prefix(workspace_root).unwrap_or(directory);
     is_under_ignored_directory(directory, ignored_directories)
+        || has_ignored_directory_suffix(relative, ignored_directory_suffixes)
         || has_always_ignored_component(relative)
         || is_negated_directory(directory, workspace_root, user_negations)
 }
 
+fn has_ignored_directory_suffix(directory: &Path, suffixes: &[PathBuf]) -> bool {
+    suffixes
+        .iter()
+        .any(|suffix| directory.ends_with(suffix))
+}
+
 fn is_ignored_directory(dir: &Path, ctx: &WalkContext<'_>) -> bool {
     is_under_ignored_directory(dir, ctx.ignored_directories)
+        || has_ignored_directory_suffix(
+            dir.strip_prefix(ctx.workspace_root).unwrap_or(dir),
+            ctx.ignored_directory_suffixes,
+        )
         || is_negated_directory(dir, ctx.workspace_root, ctx.user_negations)
 }
 
 fn is_pruned_subtree(dir: &Path, ctx: &WalkContext<'_>) -> bool {
     is_under_ignored_directory(dir, ctx.ignored_directories)
+        || has_ignored_directory_suffix(
+            dir.strip_prefix(ctx.workspace_root).unwrap_or(dir),
+            ctx.ignored_directory_suffixes,
+        )
         || is_pruned_by_subtree_negation(dir, ctx.workspace_root, ctx.subtree_negations)
 }
 

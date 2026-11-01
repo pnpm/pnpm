@@ -322,7 +322,7 @@ fn store_prune_keeps_global_virtual_store_slots_from_a_workspace_package_modules
     write_manifest(&workspace);
     append_workspace_yaml(
         &workspace,
-        "packages: [project]\nmodulesDir: ${PNPM_TASKS_230_MODULES_DIR:-custom_modules}\n",
+        "packages: [\"**\"]\nmodulesDir: ${PNPM_TASKS_230_MODULES_DIR:-vendor}\n",
     );
     let project = workspace.join("project");
     fs::create_dir_all(&project).expect("create workspace package");
@@ -335,8 +335,11 @@ fn store_prune_keeps_global_virtual_store_slots_from_a_workspace_package_modules
         .assert()
         .success();
     let store = StoreDir::new(store_dir);
-    let modules_dir = project.join("custom_modules");
+    let modules_dir = project.join("vendor");
     let live_slot = add_global_virtual_store_prune_anchor(&workspace, &store, &modules_dir);
+    fs::create_dir_all(modules_dir.join("installed")).expect("create an installed package dir");
+    fs::write(modules_dir.join("installed/package.json"), "{")
+        .expect("write an invalid installed package manifest");
 
     prune(&workspace);
 
