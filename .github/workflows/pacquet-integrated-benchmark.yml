@@ -6,11 +6,11 @@ on:
       # Benchmark two arbitrary revisions with this ref's harness, e.g. a
       # past regression against its parent to check the gates still catch it.
       head_ref:
-        description: Revision benchmarked as HEAD (default this ref)
+        description: SHA or origin/<branch> benchmarked as HEAD (default this ref)
         required: false
         default: ''
       main_ref:
-        description: Revision benchmarked as main (default origin/main)
+        description: SHA or origin/<branch> benchmarked as main (default origin/main)
         required: false
         default: ''
   push:
@@ -121,8 +121,18 @@ jobs:
             echo "::error::main_ref is ignored when dispatching from main. Dispatch from another branch to compare two revisions."
             exit 1
           fi
-          echo "head_sha=$(git rev-parse --verify "${HEAD_REF:-HEAD}^{commit}")" >> "$GITHUB_OUTPUT"
-          echo "main_sha=$(git rev-parse --verify "${MAIN_REF:-origin/main}^{commit}")" >> "$GITHUB_OUTPUT"
+          # A failed command substitution inside echo would write an empty SHA
+          # and pass, and the build would then check out the dispatched ref.
+          head_sha=$(git rev-parse --verify --quiet "${HEAD_REF:-HEAD}^{commit}") || {
+            echo "::error::head_ref '$HEAD_REF' is not a commit here. Pass a SHA or origin/<branch>."
+            exit 1
+          }
+          main_sha=$(git rev-parse --verify --quiet "${MAIN_REF:-origin/main}^{commit}") || {
+            echo "::error::main_ref '$MAIN_REF' is not a commit here. Pass a SHA or origin/<branch>."
+            exit 1
+          }
+          echo "head_sha=$head_sha" >> "$GITHUB_OUTPUT"
+          echo "main_sha=$main_sha" >> "$GITHUB_OUTPUT"
           echo "tools_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
   build:
