@@ -27,7 +27,7 @@ use bin_links::{SyncBinLinks, bin_names, sync_bin_links};
 use derive_more::{Display, Error};
 use injection_records::{InjectionRecord, copies_of_source, injection_records};
 use miette::Diagnostic;
-use pnpm_cmd_shim::LinkBinsError;
+use pnpm_cmd_shim::{LinkBinsError, LinkBinsOptions};
 use pnpm_modules_yaml::{ReadModulesError, read_modules_manifest};
 use pnpm_package_manifest::PackageManifestError;
 use pnpm_workspace::FindWorkspaceProjectsError;
@@ -118,6 +118,8 @@ pub struct BinLinkSettings<'a> {
     /// Passed to [`pnpm_workspace::FindWorkspaceProjectsOpts::ignored_directories`] when
     /// discovering the projects whose bins are relinked.
     pub ignored_directories: Vec<PathBuf>,
+    /// The bin-link options the install linked with.
+    pub link_options: LinkBinsOptions,
 }
 
 /// Bring every injected copy of `pkg_root_dir` back in step with it.

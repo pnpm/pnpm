@@ -3,7 +3,7 @@ use crate::{AllowBuildPolicy, install_frozen_lockfile::find_own_runtime_node_maj
 use indexmap::IndexMap;
 use pnpm_deps_path::get_pkg_id_with_patch_hash;
 use pnpm_graph_hasher::{
-    DepsGraphNode, DepsStateCache, calc_graph_node_hash, engine_name,
+    DepsGraphNode, DepsStateCache, calc_graph_node_hash_with_layout, engine_name,
     format_global_virtual_store_path,
 };
 use pnpm_lockfile::{
@@ -121,6 +121,7 @@ pub(super) struct GvsHasher<'h> {
     /// to it.
     uncached_builds: HashSet<String>,
     engine: Option<&'h str>,
+    preserve_bin_name: bool,
     packages: Option<&'h HashMap<PackageKey, PackageMetadata>>,
 }
 impl<'h> GvsHasher<'h> {
@@ -128,6 +129,7 @@ impl<'h> GvsHasher<'h> {
         snapshots: &HashMap<PackageKey, SnapshotEntry>,
         packages: Option<&'h HashMap<PackageKey, PackageMetadata>>,
         engine: Option<&'h str>,
+        preserve_bin_name: bool,
         allow_build_policy: Option<&AllowBuildPolicy>,
         lockfile_dir: Option<&'h Path>,
     ) -> Self {
@@ -144,6 +146,7 @@ impl<'h> GvsHasher<'h> {
             project_scope: lockfile_dir.map(|dir| dir.to_string_lossy()),
             uncached_builds,
             engine,
+            preserve_bin_name,
             packages,
         }
     }
@@ -192,6 +195,7 @@ impl<'h> GvsHasher<'h> {
             }
             None => hasher.update([0_u8]),
         }
+        hasher.update([u8::from(self.preserve_bin_name)]);
         write_field(&mut hasher, self.project_scope.as_deref().unwrap_or(""));
         self.write_gating_set(&mut hasher);
         write_sorted(&mut hasher, &self.uncached_builds);
@@ -267,13 +271,14 @@ impl<'h> GvsHasher<'h> {
                         .as_deref()
                         .filter(|_| self.uncached_builds.contains(&dep_path))
                 });
-        let hex_digest = calc_graph_node_hash(
+        let hex_digest = calc_graph_node_hash_with_layout(
             &self.graph,
             &mut self.cache,
             &dep_path,
             own_engine.as_deref().or(self.engine),
             self.build_required_dep_paths.as_ref(),
             project_scope,
+            self.preserve_bin_name.then_some("preserve-bin-name"),
         );
         format_global_virtual_store_path(
             &metadata_key.name.to_string(),

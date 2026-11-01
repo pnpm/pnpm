@@ -3,6 +3,7 @@ use crate::{
     injected_source_dirs, sync_injected_deps, sync_injected_deps_of_modules_dir,
     watch_injected_edits,
 };
+use pnpm_cmd_shim::LinkBinsOptions;
 use pretty_assertions::assert_eq;
 use std::{
     collections::HashSet,
@@ -70,6 +71,7 @@ fn sync_leaves_an_injected_copy_alone_when_its_publish_directory_is_missing() {
             modules_dir_name: OsStr::new("node_modules"),
             extend_node_path: false,
             ignored_directories: Vec::new(),
+            link_options: LinkBinsOptions::default(),
         },
     })
     .expect("sync should not fail when the publish directory is missing");
@@ -198,6 +200,7 @@ fn sync_removes_a_stale_bin_shim_the_publish_directory_no_longer_declares() {
             modules_dir_name: OsStr::new("node_modules"),
             extend_node_path: false,
             ignored_directories: Vec::new(),
+            link_options: LinkBinsOptions::default(),
         },
     })
     .expect("sync should not fail");
@@ -266,6 +269,7 @@ fn watch_publishes_from_the_publish_directory_once_it_exists() {
             modules_dir_name: OsStr::new("node_modules"),
             extend_node_path: false,
             ignored_directories: Vec::new(),
+            link_options: LinkBinsOptions::default(),
         },
     });
     assert_eq!(
@@ -332,6 +336,7 @@ fn edit_sources_include_the_copies_a_project_with_its_own_lockfile_lists() {
                 modules_dir_name: OsStr::new("node_modules"),
                 extend_node_path: false,
                 ignored_directories: Vec::new(),
+                link_options: LinkBinsOptions::default(),
             },
         })
         .into_iter()

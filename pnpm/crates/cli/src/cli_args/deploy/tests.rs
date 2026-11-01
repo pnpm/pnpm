@@ -43,6 +43,19 @@ fn split_local_payload_preserves_parentheses_in_path_before_patch_suffix() {
     );
 }
 
+#[cfg(unix)]
+#[test]
+fn deploy_workspace_manifest_preserves_bin_name_setting() {
+    let mut config = Config::new();
+    config.preserve_bin_name = true;
+
+    let manifest = DeployWorkspaceSettings::from_config(&config)
+        .to_workspace_manifest()
+        .expect("deploy workspace manifest");
+
+    assert_eq!(manifest.get("preserveBinName"), Some(&json!(true)));
+}
+
 #[test]
 fn hoisted_deploy_install_config_preserves_lockfile_setting() {
     let deploy_dir = Path::new("deploy");
