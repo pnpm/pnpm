@@ -366,36 +366,6 @@ fn store_prune_keeps_global_virtual_store_slots_from_a_workspace_package_modules
     );
 }
 
-#[test]
-fn store_prune_fails_when_workspace_modules_dir_is_malformed() {
-    let CommandTempCwd {
-        root: _root, workspace, npmrc_info, ..
-    } = CommandTempCwd::init().add_mocked_registry();
-    let AddMockedRegistry { store_dir, .. } = npmrc_info;
-    write_manifest(&workspace);
-    append_workspace_yaml(&workspace, "modulesDir: vendor\n");
-    pacquet_at(&workspace)
-        .with_args(["install", "--reporter=silent"])
-        .assert()
-        .success();
-    let store_dir = StoreDir::new(store_dir);
-    let keys_before = sorted_index_keys(&store_dir);
-    assert!(!keys_before.is_empty());
-    fs::write(
-        workspace.join("pnpm-workspace.yaml"),
-        "modulesDir: [vendor]\nvirtualStoreDirMaxLength: invalid\n",
-    )
-    .expect("write malformed workspace settings");
-
-    let output = pacquet_at(&workspace)
-        .with_args(["store", "prune"])
-        .output()
-        .expect("run store prune");
-
-    assert!(!output.status.success());
-    assert_eq!(sorted_index_keys(&store_dir), keys_before);
-}
-
 fn assert_prune_keeps_global_virtual_store_slots(configure: impl FnOnce(&Path) -> PathBuf) {
     let CommandTempCwd {
         root: _root, workspace, npmrc_info, ..

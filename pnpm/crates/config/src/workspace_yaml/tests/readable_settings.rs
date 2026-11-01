@@ -81,15 +81,18 @@ fn load_at_reading_skips_unreadable_settings() {
 }
 
 #[test]
-fn required_settings_fail_when_their_value_is_unreadable() {
-    let error = read_readable_settings(
-        "modulesDir: [vendor]\nvirtualStoreDirMaxLength: invalid\n",
-        parse_settings::<SystemEnv, WorkspaceSettings>,
-        &["modulesDir"],
+fn required_modules_dir_settings_fail_while_unrelated_settings_are_skipped() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        "modulesDir: {vendor: true}\nvirtualStoreDirMaxLength: invalid\n",
     )
-    .unwrap_err();
+    .unwrap();
 
-    assert!(error.to_string().contains("modulesDir"));
+    let error = WorkspaceSettings::load_at_reading(dir.path(), SettingsRead::RequiredModulesDir)
+        .unwrap_err();
+
+    assert!(error.to_string().contains("modulesDir"), "{error}");
 }
 
 #[test]
