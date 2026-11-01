@@ -209,9 +209,10 @@ fn version_entry(
     if let Some(trust) = trust_rank(manifest) {
         entry.insert("trust".into(), Value::String(trust.into()));
     }
-    let revision = selected_revision(manifest);
-    if revision != 0 {
-        entry.insert("revision".into(), Value::from(revision));
+    // A revision-aware version is marked even at revision 0: its tar is at
+    // `<name>@<version>+r<revision>` and its integrity is the tar's.
+    if let Some(revision) = manifest.pointer("/dist/revision") {
+        entry.insert("revision".into(), revision.clone());
     }
     entry
 }
@@ -264,21 +265,13 @@ pub(super) fn record_address(version_or_tag: &str) -> (&str, Option<u64>) {
 /// Otherwise it is today's view of the selected revision.
 pub(super) fn version_document_response(mut manifest: Value, revision: Option<u64>) -> Response {
     let manifest = match revision {
-        Some(revision) if revision != selected_revision(&manifest) => return super::not_found(),
-        Some(_) => {
-            let mut record = Map::new();
-            for field in ["name", "version"] {
-                record.insert(
-                    field.into(),
-                    manifest
-                        .get(field)
-                        .cloned()
-                        .unwrap_or(Value::Null),
-                );
+        Some(revision) if revision != selected_revision(&manifest) => {
+            match revision_from_history(&manifest, revision) {
+                Some(manifest) => manifest,
+                None => return super::not_found(),
             }
-            record.extend(release_record(&manifest));
-            Value::Object(record)
         }
+        Some(_) => named_record(&manifest, &manifest),
         None => {
             without_pnpr_facts(&mut manifest);
             manifest
@@ -332,13 +325,51 @@ fn release_record(manifest: &Value) -> Map<String, Value> {
     record
 }
 
-/// Remove pnpr's facts from a version manifest served in npm's format,
-/// including the variants it stores with a hosted version.
+/// The release record of a revision other than the selected one, from the
+/// version's revision history: its manifest and its tar's integrity.
+fn revision_from_history(manifest: &Value, revision: u64) -> Option<Value> {
+    let entry = manifest
+        .pointer("/dist/revisions")?
+        .as_array()?
+        .iter()
+        .find(|entry| entry.get("revision").and_then(Value::as_u64) == Some(revision))?;
+    let mut fields = entry
+        .get("manifest")?
+        .as_object()?
+        .clone();
+    let mut dist = Map::new();
+    dist.insert("integrity".into(), entry.get("integrity")?.clone());
+    fields.insert("dist".into(), Value::Object(dist));
+    Some(named_record(manifest, &Value::Object(fields)))
+}
+
+/// The release record of `manifest`, named by the version `named` is of.
+fn named_record(named: &Value, manifest: &Value) -> Value {
+    let mut record = Map::new();
+    for field in ["name", "version"] {
+        record.insert(
+            field.into(),
+            named
+                .get(field)
+                .cloned()
+                .unwrap_or(Value::Null),
+        );
+    }
+    record.extend(release_record(manifest));
+    Value::Object(record)
+}
+
+/// Remove pnpm's extensions from a version manifest served in npm's format:
+/// pnpr's facts about the archives, the variants it stores with a hosted
+/// version, and the revision protocol's marker and history. The selected
+/// revision's `tarball` and `integrity` stay, so npm clients install it.
 pub(super) fn without_pnpr_facts(manifest: &mut Value) {
     let Some(fields) = manifest.as_object_mut() else { return };
     fields.remove(super::publishing::variants::STORED_FIELD);
     if let Some(dist) = fields.get_mut("dist").and_then(Value::as_object_mut) {
-        dist.remove("pnpr");
+        for field in ["pnpr", "revision", "revisions"] {
+            dist.remove(field);
+        }
     }
 }
 

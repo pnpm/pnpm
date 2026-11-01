@@ -233,3 +233,35 @@ impl UpstreamRouteHook for ScopeHook {
         self.scope.clone()
     }
 }
+
+fn pnpr_document_version(revision: u64) -> Arc<pnpm_registry::PackageVersion> {
+    let version = serde_json::json!({
+        "name": "acme",
+        "version": "1.0.0",
+        "dist": { "integrity": "sha512-a", "revision": revision },
+    });
+    Arc::new(serde_json::from_value(version).expect("version"))
+}
+
+#[test]
+fn a_revision_override_on_pnprs_document_reads_the_revisions_record() {
+    let mut spec = version_spec("acme", "1.0.0");
+    spec.revision = Some(crate::RegistryRevisionSelector::Valid(1));
+    let requested = super::requested_revision_record(pnpr_document_version(0), &spec);
+    assert_eq!(requested.dist.revision, Some(serde_json::json!(1)));
+    assert!(requested.dist.is_external(), "read from the release record");
+
+    let selected = super::requested_revision_record(pnpr_document_version(1), &spec);
+    assert!(!selected.dist.is_external(), "the selected revision is already in the document");
+}
+
+#[test]
+fn a_revision_override_on_npms_document_keeps_its_history() {
+    let mut spec = version_spec("acme", "1.0.0");
+    spec.revision = Some(crate::RegistryRevisionSelector::Valid(1));
+    let mut version = pnpm_registry::PackageVersion::clone(&pnpr_document_version(0));
+    version.dist.tarball = "https://registry.example/acme@1.0.0+r0".to_string();
+    let requested = super::requested_revision_record(Arc::new(version), &spec);
+    assert_eq!(requested.dist.revision, Some(serde_json::json!(0)));
+    assert!(!requested.dist.is_external());
+}

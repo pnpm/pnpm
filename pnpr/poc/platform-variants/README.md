@@ -86,6 +86,25 @@ does not compress. So the PoC also implements split packuments:
   document the new one had cached, and failed to switch versions. The
   `pnpm cache` commands do not list the new directory yet.
 
+### Revisions
+
+The revision protocol's fields are only in pnpr's format too. npm's documents
+give a selected revision the way npm clients read one: its `+r<N>` tarball
+URL and that tar's integrity, without `dist.revision` and `dist.revisions`.
+pnpr's format marks a revision-aware version with `revision`, including `0`,
+and gives no history: every revision in the history has its release record
+at `<name>/<version>+r<N>`. pnpm rebuilds the `+r<N>` URL from `revision`,
+reads a `+r<N>` override's record when it is not the selected revision, and
+treats an unmarked revision URL in npm's documents as an ordinary tarball
+that answers only for its own revision.
+
+`revisions.sh` serves an original and a patched revision from a small
+upstream (`revision-upstream.mjs`) through pnpr. Declared `serverType: pnpr`,
+pnpm installs the patched revision and records `revision: 1`; undeclared, it
+installs it from npm's document and records the URL; a `+r0` override
+installs the original when declared and fails when not, since npm's document
+cannot name another revision. Every install that succeeds is repeated frozen.
+
 `bench-split.sh` resolves `bench-app.json` (787 packages, all proxied from
 npmjs) through `shaper.mjs`, a CDN-like proxy that gzips, caches, delays each
 request by a round trip, and caps bandwidth. The registry is declared with

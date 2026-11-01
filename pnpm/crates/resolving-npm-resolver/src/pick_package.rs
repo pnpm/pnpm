@@ -138,11 +138,35 @@ pub async fn pick_package<Cache: PackageMetaCache>(
     let result = pick_from_metadata(ctx, spec, opts).await?;
     let picked_package = match result.picked_package {
         Some(version) => {
+            let version = requested_revision_record(version, spec);
             Some(crate::npm_resolver::with_version_document(ctx, opts.registry, version).await?)
         }
         None => None,
     };
     Ok(PickPackageResult { picked_package, ..result })
+}
+
+/// A version from pnpr's own document with a `+r<N>` override for another
+/// revision than the selected one: pnpr's document has no revision history,
+/// so the revision is read from its release record, as for a version whose
+/// manifest the document left out.
+fn requested_revision_record(
+    version: Arc<PackageVersion>,
+    spec: &RegistryPackageSpec,
+) -> Arc<PackageVersion> {
+    let Some(crate::RegistryRevisionSelector::Valid(requested)) = spec.revision.as_ref() else {
+        return version;
+    };
+    let current = version.dist.revision.as_ref().and_then(serde_json::Value::as_u64);
+    let from_pnpr_document =
+        version.dist.tarball.is_empty() && version.dist.revisions.is_none();
+    if !from_pnpr_document || current.unwrap_or(0) == *requested {
+        return version;
+    }
+    let mut record = PackageVersion::clone(&version);
+    record.dist.revision = Some(serde_json::Value::from(*requested));
+    record.dist.pnpr.get_or_insert_default().details = Some("external".to_string());
+    Arc::new(record)
 }
 
 /// Whether `registry` is declared `serverType: pnpr`, so its abbreviated
