@@ -29,12 +29,14 @@ jobs:
           set -euo pipefail
 
           cutoff=$(date -u -d '30 minutes ago' '+%Y-%m-%dT%H:%M:%SZ')
-          gh api --method GET --paginate "repos/$REPO/actions/runs" \
+          # Finish the listing first: deleting runs while it pages would shift
+          # the later pages and skip runs.
+          run_ids=$(gh api --method GET --paginate "repos/$REPO/actions/runs" \
             -f status=action_required \
             -f "created=<=$cutoff" \
             -f per_page=100 \
-            --jq '.workflow_runs[] | select(.conclusion == "action_required") | .id' |
-          while IFS= read -r run_id; do
+            --jq '.workflow_runs[] | select(.conclusion == "action_required") | .id')
+          for run_id in $run_ids; do
             conclusion=$(gh api "repos/$REPO/actions/runs/$run_id" --jq '.conclusion')
             if [ "$conclusion" != action_required ]; then
               echo "Workflow run $run_id no longer needs approval; skipping"
