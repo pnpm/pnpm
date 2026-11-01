@@ -212,7 +212,8 @@ impl WorkEnv {
 
     /// Path of one traced run's `strace --summary-only` table.
     fn syscall_counts_path(&self, id: BenchId, round: usize) -> PathBuf {
-        self.bench_dir(id).join(format!("SYSCALL_COUNTS.{round}.txt"))
+        self.bench_dir(id)
+            .join(format!("SYSCALL_COUNTS.{round}.txt"))
     }
 
     /// Path of the untimed online priming script, written only for

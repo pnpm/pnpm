@@ -35,7 +35,5 @@ pub fn forget_store_inode_mode(store_path: &Path) {
 /// or `None` when this process has not read it yet.
 #[must_use]
 pub fn observed_store_inode_mode(store_path: &Path) -> Option<u32> {
-    OBSERVED_STORE_MODES
-        .get(store_path)
-        .map(|entry| *entry)
+    OBSERVED_STORE_MODES.get(store_path).map(|entry| *entry)
 }
