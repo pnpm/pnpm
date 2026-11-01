@@ -151,7 +151,7 @@ fn overlay_blob_path(
             .then(|| store_dir.cas_file_path_by_mode(&info.digest, info.mode))
             .flatten()
     } else {
-        overlay.files.get(file_path).cloned()
+        overlay.files.get(file_path).map(|file| file.path.clone())
     }
 }
 pub(super) fn quarantine_remote_side_effects(

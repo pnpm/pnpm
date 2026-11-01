@@ -10,7 +10,7 @@ use std::{
 
 pub(super) fn directory_matches(
     target: &Path,
-    files: &HashMap<String, PathBuf>,
+    files: &pnpm_fs::CasPaths,
     keep_modules_dir: bool,
 ) -> bool {
     if files.is_empty() || files.contains_key(crate::NEEDS_BUILD_MARKER) {
@@ -38,7 +38,7 @@ enum EntryKind {
 }
 
 impl<'a> ExpectedTree<'a> {
-    fn new(files: &'a HashMap<String, PathBuf>, keep_modules_dir: bool) -> Option<Self> {
+    fn new(files: &'a pnpm_fs::CasPaths, keep_modules_dir: bool) -> Option<Self> {
         let directories = imported_paths(files)
             .into_iter()
             .filter(|entry| !files.contains_key(*entry))
@@ -59,7 +59,7 @@ impl<'a> ExpectedTree<'a> {
             {
                 return None;
             }
-            if expected.files.insert(path.to_path_buf(), source).is_some() {
+            if expected.files.insert(path.to_path_buf(), &source.path).is_some() {
                 return None;
             }
         }

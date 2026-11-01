@@ -3,7 +3,7 @@ use super::{
     PackageFilesIndex, PathBuf, PrefetchIntegrityCheck, PrefetchedCasPaths,
     SharedReportedProgressKeys, SharedVerifiedFilesCache, SilentReporter, StoreIndex,
     StoreIndexWriter, TarballError, UNREACHABLE_URL, assert_eq, fast_fail_client, gzipped_tar,
-    integrity, prefetch_cas_paths, store_index_cache_key, store_index_key, tempdir,
+    integrity, prefetch_cas_paths, store_index_cache_key, store_index_key, store_paths, tempdir,
     tempdir_with_leaked_path, test_retry_opts,
 };
 
@@ -105,8 +105,8 @@ async fn reuses_cached_cas_paths_when_index_entry_is_live() {
         .expect("cache hit should succeed without network");
 
     assert_eq!(cas_paths.len(), 2);
-    assert_eq!(cas_paths.get("package.json"), Some(&pkg_json_path));
-    assert_eq!(cas_paths.get("bin/cli.js"), Some(&bin_path));
+    assert_eq!(store_paths(&cas_paths).get("package.json"), Some(&pkg_json_path.path.as_path()));
+    assert_eq!(store_paths(&cas_paths).get("bin/cli.js"), Some(&bin_path.path.as_path()));
     assert!(
         progress_reported.contains(&index_key),
         "a store cache hit must record its progress key; got {progress_reported:?}",
@@ -138,9 +138,9 @@ async fn reuses_prefetched_cas_paths_when_provided() {
     // verbatim by the prefetched short-circuit. They don't need to
     // resolve to anything on disk because no integrity check runs
     // on this path.
-    let mut files: HashMap<String, PathBuf> = HashMap::new();
-    files.insert("package.json".to_string(), PathBuf::from("/synthetic/package.json"));
-    files.insert("bin/cli.js".to_string(), PathBuf::from("/synthetic/bin/cli.js"));
+    let mut files: pnpm_fs::CasPaths = HashMap::new();
+    files.insert("package.json".to_string(), PathBuf::from("/synthetic/package.json").into());
+    files.insert("bin/cli.js".to_string(), PathBuf::from("/synthetic/bin/cli.js").into());
     let mut prefetched: PrefetchedCasPaths = HashMap::new();
     prefetched.insert(cache_key, Arc::new(files.clone()));
 
@@ -245,7 +245,7 @@ async fn prefetch_cas_paths_returns_hits_for_live_index_rows() {
     .await;
 
     let map = prefetched.cas_paths.get(&index_key).expect("hit");
-    assert_eq!(map.get("package.json"), Some(&pkg_json_path));
+    assert_eq!(map.get("package.json").map(|file| &file.path), Some(&pkg_json_path.path));
     assert_eq!(prefetched.requires_build.get(&index_key), Some(&false));
     assert_eq!(prefetched.requires_prepare.get(&index_key), Some(&true));
     drop(store_dir);
@@ -298,7 +298,7 @@ async fn prefetch_cas_paths_recomputes_requires_build_for_legacy_rows() {
     .await;
 
     let map = prefetched.cas_paths.get(&index_key).expect("hit");
-    assert_eq!(map.get("package.json"), Some(&pkg_json_path));
+    assert_eq!(map.get("package.json").map(|file| &file.path), Some(&pkg_json_path.path));
     assert_eq!(prefetched.requires_build.get(&index_key), Some(&true));
     drop(store_dir);
 }

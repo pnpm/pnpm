@@ -89,7 +89,7 @@ fn shard_cache_populates_on_first_write_and_skips_mkdir_thereafter() {
     // Second write of identical content — same hash, same path.
     let (path_b, hash_b) = store_dir.write_cas_file(b"hello world", false).unwrap();
     assert_eq!(hash_a, hash_b);
-    assert_eq!(path_a, path_b);
+    assert_eq!(path_a.path, path_b.path);
     assert!(store_dir.shard_already_ensured(hash_b[0]));
 
     // Different content: either lands in a fresh shard (cache
@@ -170,7 +170,7 @@ fn write_cas_file_from_reader_keeps_existing_live_entry_and_removes_temp() {
         .write_cas_file_from_reader(&mut content.as_slice(), false, Some(content.len() as u64))
         .unwrap();
 
-    assert_eq!(first_path, second_path);
+    assert_eq!(first_path.path, second_path.path);
     assert_eq!(second_size, content.len() as u64);
     assert_eq!(std::fs::read(&second_path).unwrap(), content);
 
@@ -205,7 +205,7 @@ fn write_cas_file_from_reader_replaces_same_length_corrupt_entry() {
         .write_cas_file_from_reader(&mut content.as_slice(), false, Some(content.len() as u64))
         .unwrap();
 
-    assert_eq!(second_path, file_path);
+    assert_eq!(second_path.path, file_path.path);
     assert_eq!(std::fs::read(&file_path).unwrap(), content, "corrupt blob must be healed");
 }
 
@@ -237,7 +237,7 @@ fn write_cas_file_from_reader_preserves_inode_when_repairing() {
         .write_cas_file_from_reader(&mut content.as_slice(), false, Some(content.len() as u64))
         .unwrap();
 
-    assert_eq!(second_path, file_path);
+    assert_eq!(second_path.path, file_path.path);
     assert_eq!(
         std::fs::metadata(&file_path).unwrap().ino(),
         ino_before,
@@ -357,4 +357,29 @@ fn cas_file_path_by_mode_rejects_invalid_hex() {
     assert_eq!(store_dir.cas_file_path_by_mode("Ab\tcd", 0o644), None);
     assert!(store_dir.cas_file_path_by_mode("abc", 0o644).is_some());
     assert!(store_dir.cas_file_path_by_mode("abcdef", 0o755).is_some());
+}
+
+/// pnpm/pnpm#17543: a write that finds the blob already present reports
+/// the mode it read while comparing, so the importer does not `stat` the
+/// blob again. A write that places a new inode reports none.
+#[test]
+#[cfg(unix)]
+fn a_write_that_keeps_an_existing_blob_reports_its_mode() {
+    use std::os::unix::fs::PermissionsExt;
+    use tempfile::tempdir;
+
+    let dir = tempdir().unwrap();
+    let store_dir = StoreDir::new(dir.path());
+    let content = b"written twice";
+
+    let (first, _) = store_dir.write_cas_file(content, false).unwrap();
+    assert_eq!(first.mode, None);
+    std::fs::set_permissions(&first.path, std::fs::Permissions::from_mode(0o640)).unwrap();
+    let (buffered, _) = store_dir.write_cas_file(content, false).unwrap();
+    let (streamed, _, _) = store_dir
+        .write_cas_file_from_reader(&mut content.as_slice(), false, Some(content.len() as u64))
+        .unwrap();
+
+    assert_eq!(buffered.mode.map(|mode| mode & 0o7777), Some(0o640));
+    assert_eq!(streamed.mode.map(|mode| mode & 0o7777), Some(0o640));
 }

@@ -18,13 +18,13 @@ impl ChecksumCache<'_> {
     /// before their paths are used to identify a checksum projection.
     pub(super) fn add(
         &self,
-        cas_paths: &mut HashMap<String, PathBuf>,
+        cas_paths: &mut pnpm_fs::CasPaths,
         package_checksum: &str,
     ) -> Result<()> {
         cas_paths.remove(CARGO_CHECKSUM_FILE);
         let key = checksum_cache_key(cas_paths, package_checksum);
         if let Some(path) = self.read(&key) {
-            cas_paths.insert(CARGO_CHECKSUM_FILE.to_string(), path);
+            cas_paths.insert(CARGO_CHECKSUM_FILE.to_string(), pnpm_fs::StoreFile::new(path));
             return Ok(());
         }
         let info = add_cargo_checksum(self.store_dir, cas_paths, Some(package_checksum))?;
@@ -55,16 +55,17 @@ impl ChecksumCache<'_> {
         verified.passed
             .then(|| verified.files_map.remove(CARGO_CHECKSUM_FILE))
             .flatten()
+            .map(|file| file.path)
     }
 }
 
-fn checksum_cache_key(cas_paths: &HashMap<String, PathBuf>, package_checksum: &str) -> String {
+fn checksum_cache_key(cas_paths: &pnpm_fs::CasPaths, package_checksum: &str) -> String {
     let mut input = package_checksum.as_bytes().to_vec();
     input.push(0);
     let mut files = cas_paths.iter().collect::<Vec<_>>();
     files.sort_unstable_by_key(|(name, _)| *name);
     for (name, path) in files {
-        for bytes in [name.as_bytes(), path.as_os_str().as_encoded_bytes()] {
+        for bytes in [name.as_bytes(), path.path.as_os_str().as_encoded_bytes()] {
             input.extend_from_slice(&(bytes.len() as u64).to_le_bytes());
             input.extend_from_slice(bytes);
         }

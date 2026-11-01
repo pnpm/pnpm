@@ -1,12 +1,8 @@
 use super::{CARGO_CHECKSUM_FILE, ChecksumCache, checksum_cache_key};
 use pnpm_store_dir::{SharedVerifiedFilesCache, StoreDir, StoreIndex, StoreIndexWriter};
-use std::{collections::HashMap, fs, path::PathBuf};
+use std::{collections::HashMap, fs};
 
-async fn add_cached_checksum(
-    store: &StoreDir,
-    files: &mut HashMap<String, PathBuf>,
-    checksum: &str,
-) {
+async fn add_cached_checksum(store: &StoreDir, files: &mut pnpm_fs::CasPaths, checksum: &str) {
     let (writer, task) = StoreIndexWriter::spawn(store);
     let index = StoreIndex::shared_readonly_in(store);
     ChecksumCache {
@@ -35,7 +31,7 @@ async fn repairs_a_corrupted_cached_checksum() {
 
     add_cached_checksum(&store, &mut files, &checksum).await;
 
-    assert_eq!(files[CARGO_CHECKSUM_FILE], path);
+    assert_eq!(files[CARGO_CHECKSUM_FILE].path, path.path);
     assert_eq!(fs::read(&path).unwrap(), expected);
 }
 
@@ -96,7 +92,7 @@ async fn reuses_a_persisted_checksum() {
     }
     .read(&key);
 
-    assert_eq!(cached, Some(files[CARGO_CHECKSUM_FILE].clone()));
+    assert_eq!(cached, Some(files[CARGO_CHECKSUM_FILE].path.clone()));
     drop(writer);
     StoreIndexWriter::drain(task, "").await;
 }

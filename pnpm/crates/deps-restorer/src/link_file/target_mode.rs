@@ -1,5 +1,6 @@
 //! The mode a file materialized into `node_modules` carries.
 
+use pnpm_fs::StoreFile;
 #[cfg(unix)]
 use std::fs;
 use std::{io, path::Path};
@@ -31,18 +32,15 @@ fn desired_mode(source_file: &Path) -> Option<u32> {
         })
 }
 
-/// Whether `source_file`'s on-disk mode is linkable where [`desired_mode`]
-/// is wanted (see [`pnpm_fs::file_mode::store_inode_mode_is_linkable`]). A
+/// Whether `source`'s on-disk mode is linkable where [`desired_mode`] is
+/// wanted (see [`pnpm_fs::file_mode::store_inode_mode_is_linkable`]). A
 /// mode that is not cannot be fixed on a store inode, so the hardlink tiers
 /// copy instead; a reflink that copied the same mode onto the target is
 /// aligned instead.
 ///
-/// The entry's mode is read at most once per process (pnpm/pnpm#17500):
-/// the store verifier records the mode of every entry it passes, and a
-/// mode read here is recorded too, so a store entry linked into many
-/// packages is not stat'ed again. A later change to the entry's mode, such
-/// as a bin's exec bit set through one of its hardlinks, does not reach
-/// the recorded mode.
+/// Uses the mode the install already read for this file (see
+/// [`StoreFile::mode`]) and reads it from disk only when there is none
+/// (pnpm/pnpm#17543).
 ///
 /// Another process changing a store entry's mode during an install (a
 /// `chmod` of the store, a backup restore, a concurrent install linking
@@ -50,14 +48,11 @@ fn desired_mode(source_file: &Path) -> Option<u32> {
 /// window: the mode can change between a stat and the `linkat`, and after
 /// the link the change reaches `node_modules` through the shared inode.
 #[cfg(any(unix, target_os = "wasi"))]
-pub(super) fn source_has_desired_mode(source_file: &Path) -> io::Result<bool> {
-    let Some(desired) = desired_mode(source_file) else { return Ok(true) };
-    let mode = if let Some(mode) = pnpm_fs::file_mode::observed_store_inode_mode(source_file) {
-        mode
-    } else {
-        let mode = source_mode(source_file)?;
-        pnpm_fs::file_mode::record_store_inode_mode(source_file, mode);
-        mode
+pub(super) fn source_has_desired_mode(source: &StoreFile) -> io::Result<bool> {
+    let Some(desired) = desired_mode(&source.path) else { return Ok(true) };
+    let mode = match source.mode {
+        Some(mode) => mode,
+        None => source_mode(&source.path)?,
     };
     Ok(pnpm_fs::file_mode::store_inode_mode_is_linkable(mode, desired))
 }
@@ -88,7 +83,7 @@ pub(super) fn align_target_mode(source_file: &Path, target_link: &Path) -> io::R
 }
 
 #[cfg(not(any(unix, target_os = "wasi")))]
-pub(super) fn source_has_desired_mode(_source_file: &Path) -> io::Result<bool> {
+pub(super) fn source_has_desired_mode(_source: &StoreFile) -> io::Result<bool> {
     Ok(true)
 }
 

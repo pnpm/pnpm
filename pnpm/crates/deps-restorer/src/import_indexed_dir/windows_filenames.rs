@@ -7,15 +7,15 @@ use std::{
 };
 
 pub(super) struct SanitizedFilenames {
-    pub paths: HashMap<String, PathBuf>,
+    pub paths: pnpm_fs::CasPaths,
     pub renamed: Vec<String>,
 }
 
 pub(super) fn sanitize_after_not_found<Reporter: self::Reporter>(
     error: &ImportIndexedDirError,
     dir_path: &Path,
-    cas_paths: &HashMap<String, PathBuf>,
-) -> Option<HashMap<String, PathBuf>> {
+    cas_paths: &pnpm_fs::CasPaths,
+) -> Option<pnpm_fs::CasPaths> {
     if !is_import_not_found(error) {
         return None;
     }
@@ -53,9 +53,7 @@ fn is_import_not_found(error: &ImportIndexedDirError) -> bool {
 /// Paths that Windows treats as equal (case-insensitively) keep one source.
 /// A name that needed no renaming wins over a renamed one, so `package?.json`
 /// never replaces `package.json`. Otherwise the later name in sorted order wins.
-pub(super) fn sanitize_filenames(
-    cas_paths: &HashMap<String, PathBuf>,
-) -> Option<SanitizedFilenames> {
+pub(super) fn sanitize_filenames(cas_paths: &pnpm_fs::CasPaths) -> Option<SanitizedFilenames> {
     let mut entries = Vec::with_capacity(cas_paths.len());
     for (filename, source) in cas_paths {
         let sanitized = sanitize_path(filename);

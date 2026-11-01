@@ -60,7 +60,7 @@ pub type CasPathsByPkgId = HashMap<PkgIdWithPatchHash, HoistedPackageFiles>;
 /// One package's entry in [`CasPathsByPkgId`].
 #[derive(Debug, Clone)]
 pub struct HoistedPackageFiles {
-    pub cas_paths: Arc<HashMap<String, PathBuf>>,
+    pub cas_paths: Arc<pnpm_fs::CasPaths>,
     /// Whether [`Self::cas_paths`] points at mutable local source, taken
     /// from the fetch's effective resolution. See
     /// [`crate::SlotImportSource::is_mutable`].
@@ -81,9 +81,9 @@ impl HoistedPackageFiles {
     }
 }
 
-impl From<Arc<HashMap<String, PathBuf>>> for HoistedPackageFiles {
+impl From<Arc<pnpm_fs::CasPaths>> for HoistedPackageFiles {
     /// Content-addressed files, which are never mutable.
-    fn from(cas_paths: Arc<HashMap<String, PathBuf>>) -> Self {
+    fn from(cas_paths: Arc<pnpm_fs::CasPaths>) -> Self {
         HoistedPackageFiles { cas_paths, source_is_mutable: false, source_exists: true }
     }
 }

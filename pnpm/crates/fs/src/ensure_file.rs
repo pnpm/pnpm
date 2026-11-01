@@ -148,7 +148,7 @@ pub fn ensure_file(
     #[cfg_attr(windows, allow(unused, reason = "POSIX mode bits are only applied on Unix"))]
     mode: Option<u32>,
 ) -> Result<(), EnsureFileError> {
-    ensure(file_path, content, mode, Repair::Rename)
+    ensure(file_path, content, mode, Repair::Rename).map(drop)
 }
 
 /// [`ensure_file`] with the repair strategy CAS blobs need: when the
@@ -165,12 +165,15 @@ pub fn ensure_file(
 /// re-trigger this repair on a torn read. Files whose readers take the
 /// bytes as-is (`.pnp.cjs`, the package map) must keep [`ensure_file`]'s
 /// atomic rename.
+///
+/// Returns the mode of an existing file kept as the blob, which this call
+/// read anyway; `None` when it placed a new inode or off Unix.
 pub fn ensure_cas_file(
     file_path: &Path,
     content: &[u8],
     #[cfg_attr(windows, allow(unused, reason = "POSIX mode bits are only applied on Unix"))]
     mode: Option<u32>,
-) -> Result<(), EnsureFileError> {
+) -> Result<Option<u32>, EnsureFileError> {
     ensure(file_path, content, mode, Repair::InPlace)
 }
 
@@ -186,7 +189,7 @@ pub fn ensure_file_atomically(
 ) -> Result<(), EnsureFileError> {
     let lock = cas_write_lock(file_path);
     let _guard = lock.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-    verify_or_rewrite(file_path, content, mode, Repair::Rename)
+    verify_or_rewrite(file_path, content, mode, Repair::Rename).map(drop)
 }
 
 /// How [`ensure`] repairs an existing file whose bytes mismatch.
@@ -205,7 +208,7 @@ fn ensure(
     content: &[u8],
     mode: Option<u32>,
     repair: Repair,
-) -> Result<(), EnsureFileError> {
+) -> Result<Option<u32>, EnsureFileError> {
     // See the "Process-local per-path mutex" bullet above and
     // [`cas_write_lock`] for the rationale.
     let lock = cas_write_lock(file_path);
@@ -222,6 +225,7 @@ fn ensure(
                     error,
                 })?;
             file.write_all(content)
+                .map(|()| None)
                 .map_err(|error| EnsureFileError::WriteFile {
                     file_path: file_path.to_path_buf(),
                     error,
@@ -307,49 +311,53 @@ fn verify_or_rewrite(
     content: &[u8],
     mode: Option<u32>,
     repair: Repair,
-) -> Result<(), EnsureFileError> {
-    match fs::symlink_metadata(file_path) {
-        Ok(meta) if !meta.file_type().is_file() => {
-            // Symlink, directory, fifo, socket, block/char device —
-            // not a regular CAS blob. Scrub via atomic rewrite.
-            write_atomic(file_path, content, mode)
-        }
-        // Cheap size-mismatch reject before we read a single byte —
-        // a CAS file whose length doesn't match the buffer we were
-        // about to write cannot possibly have matching contents.
-        Ok(meta) if meta.len() != content.len() as u64 => {
-            repair_file(file_path, content, mode, repair)
-        }
-        Ok(_) => match file_equals_bytes(file_path, content) {
-            Ok(true) => Ok(()),
-            Ok(false) => repair_file(file_path, content, mode, repair),
-            Err(error) if error.kind() == io::ErrorKind::NotFound => {
-                write_atomic(file_path, content, mode)
-            }
-            Err(error) => {
-                Err(EnsureFileError::ReadFile { file_path: file_path.to_path_buf(), error })
-            }
-        },
-        Err(error) if error.kind() == io::ErrorKind::NotFound => {
-            write_atomic(file_path, content, mode)
-        }
-        Err(error) => Err(EnsureFileError::ReadFile { file_path: file_path.to_path_buf(), error }),
+) -> Result<Option<u32>, EnsureFileError> {
+    let rewrite = || write_atomic(file_path, content, mode).map(|()| None);
+    let read_error =
+        |error| EnsureFileError::ReadFile { file_path: file_path.to_path_buf(), error };
+    let meta = match fs::symlink_metadata(file_path) {
+        Ok(meta) if meta.file_type().is_file() => meta,
+        // Symlink, directory, fifo, socket, block/char device —
+        // not a regular CAS blob. Scrub via atomic rewrite.
+        Ok(_) => return rewrite(),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return rewrite(),
+        Err(error) => return Err(read_error(error)),
+    };
+    let existing_mode = crate::file_mode::metadata_mode(&meta);
+    match bytes_match(file_path, content, &meta) {
+        Ok(true) => Ok(existing_mode),
+        // A repair in place keeps the inode, and with it the mode just read.
+        Ok(false) => repair_file(file_path, content, mode, repair)
+            .map(|in_place| if in_place { existing_mode } else { None }),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => rewrite(),
+        Err(error) => Err(read_error(error)),
     }
 }
 
+/// Whether the regular file `meta` describes holds `content`.
+fn bytes_match(file_path: &Path, content: &[u8], meta: &fs::Metadata) -> io::Result<bool> {
+    // Cheap size-mismatch reject before we read a single byte —
+    // a CAS file whose length doesn't match the buffer we were
+    // about to write cannot possibly have matching contents.
+    if meta.len() != content.len() as u64 {
+        return Ok(false);
+    }
+    file_equals_bytes(file_path, content)
+}
+
 /// Repair a corrupt regular file at `file_path` per the caller's
-/// strategy.
+/// strategy. `true` when it was repaired in place, keeping its inode.
 fn repair_file(
     file_path: &Path,
     content: &[u8],
     mode: Option<u32>,
     repair: Repair,
-) -> Result<(), EnsureFileError> {
+) -> Result<bool, EnsureFileError> {
     let mut source = content;
     let repaired = matches!(repair, Repair::InPlace)
         && overwrite_file_in_place(file_path, &mut source)
         && file_equals_bytes(file_path, content).unwrap_or(false);
-    if repaired { Ok(()) } else { write_atomic(file_path, content, mode) }
+    if repaired { Ok(true) } else { write_atomic(file_path, content, mode).map(|()| false) }
 }
 
 /// Stream `file_path` and byte-compare against `content` without

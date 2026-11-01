@@ -1,8 +1,7 @@
 use super::{
-    Arc, ContentCoding, ExtractedResource, HashMap, IgnoreEntryFilter,
-    MAX_UNTRUSTED_PREALLOC_BYTES, PackageFilesIndex, PathBuf, StoreDir, StreamedResource,
-    TarLimits, TarballError, extract_archive_bytes, extract_resource_stream,
-    post_download_semaphore, spawn_extraction, verify_tarball_integrity,
+    Arc, ContentCoding, ExtractedResource, IgnoreEntryFilter, MAX_UNTRUSTED_PREALLOC_BYTES,
+    PackageFilesIndex, StoreDir, StreamedResource, TarLimits, TarballError, extract_archive_bytes,
+    extract_resource_stream, post_download_semaphore, spawn_extraction, verify_tarball_integrity,
 };
 use crate::{
     ArchiveIntegrity,
@@ -22,12 +21,8 @@ pub(crate) struct BufferedArchive {
 }
 
 /// The integrities, CAFS files, store row, and precalculated bins of one extracted archive.
-pub(crate) type ExtractedFiles = (
-    ArchiveIntegrity,
-    HashMap<String, PathBuf>,
-    PackageFilesIndex,
-    Option<BTreeMap<String, PackageBin>>,
-);
+pub(crate) type ExtractedFiles =
+    (ArchiveIntegrity, pnpm_fs::CasPaths, PackageFilesIndex, Option<BTreeMap<String, PackageBin>>);
 
 pub(crate) async fn extract_tarball_buffer(
     archive: BufferedArchive,

@@ -539,7 +539,7 @@ impl PatchExtractFixture {
         git_hosted_flag: bool,
     ) -> Self {
         use pnpm_tarball::{CacheValue, CachedTarball};
-        use std::{collections::HashMap, path::PathBuf, sync::Arc};
+        use std::{collections::HashMap, sync::Arc};
 
         let tmp = tempfile::tempdir().expect("temp dir");
         let store_dir = tmp.path().join("store");
@@ -579,10 +579,10 @@ impl PatchExtractFixture {
         } else {
             format!("https://registry.test/{name}/-/{name}-{version}.tgz")
         };
-        let seeded: HashMap<String, PathBuf> = HashMap::from([
-            ("package.json".to_string(), pkg_json),
-            ("index.js".to_string(), index),
-            ("ignore.txt".to_string(), ignored),
+        let seeded: pnpm_fs::CasPaths = HashMap::from([
+            ("package.json".to_string(), pkg_json.into()),
+            ("index.js".to_string(), index.into()),
+            ("ignore.txt".to_string(), ignored.into()),
         ]);
         let mem_cache = pnpm_tarball::MemCache::default();
         mem_cache.insert(

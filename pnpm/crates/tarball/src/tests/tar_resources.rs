@@ -39,7 +39,7 @@ async fn fetch(
     integrity: Option<&Integrity>,
     unpacked_size: Option<usize>,
     store_dir: &'static StoreDir,
-) -> Result<(Integrity, std::collections::HashMap<String, std::path::PathBuf>), TarballError> {
+) -> Result<(Integrity, pnpm_fs::CasPaths), TarballError> {
     fetch_and_extract_with_retry::<SilentReporter>(
         &ThrottledClient::default(),
         url,

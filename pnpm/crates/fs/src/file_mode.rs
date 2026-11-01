@@ -3,13 +3,8 @@ pub use directory::grant_inherited_dir_mode;
 pub use directory::{
     create_dir_all_inheriting_mode, inherited_dir_bits, nearest_existing_ancestor,
 };
-pub use observed_store_modes::{
-    forget_store_inode_mode, observed_store_inode_mode, record_store_inode_mode,
-    record_verified_store_inode_mode,
-};
 
 mod directory;
-mod observed_store_modes;
 #[cfg(unix)]
 use directory::is_unchangeable;
 
@@ -17,6 +12,21 @@ use directory::is_unchangeable;
 use pipe_trait::Pipe;
 
 use std::{io, path::Path};
+
+/// The POSIX mode `metadata` carries, or `None` off Unix.
+#[must_use]
+pub fn metadata_mode(metadata: &std::fs::Metadata) -> Option<u32> {
+    #[cfg(unix)]
+    return {
+        use std::os::unix::fs::MetadataExt;
+        Some(metadata.mode())
+    };
+    #[cfg(not(unix))]
+    {
+        let _ = metadata;
+        None
+    }
+}
 
 /// Bit mask to filter executable bits (`--x--x--x`).
 pub const EXEC_MASK: u32 = 0b001_001_001;

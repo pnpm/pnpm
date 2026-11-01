@@ -179,14 +179,11 @@ async fn loaded_materialization_reuses_the_fetch_pass_prefetch() {
     assert_eq!(cas_paths.len(), 3);
 }
 
-fn row_cas_paths(file: &str) -> Arc<HashMap<String, PathBuf>> {
-    Arc::new(HashMap::from([("index.js".to_string(), PathBuf::from(file))]))
+fn row_cas_paths(file: &str) -> Arc<pnpm_fs::CasPaths> {
+    Arc::new(HashMap::from([("index.js".to_string(), PathBuf::from(file).into())]))
 }
 
-fn downloaded(
-    cas_paths: &Arc<HashMap<String, PathBuf>>,
-    source_is_mutable: bool,
-) -> HoistedPackageFiles {
+fn downloaded(cas_paths: &Arc<pnpm_fs::CasPaths>, source_is_mutable: bool) -> HoistedPackageFiles {
     HoistedPackageFiles { cas_paths: Arc::clone(cas_paths), source_is_mutable, source_exists: true }
 }
 

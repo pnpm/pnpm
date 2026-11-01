@@ -5,7 +5,7 @@ use super::{
     StoreIndex, StoreIndexWriter, TarballError, ThrottledClient, UNREACHABLE_URL,
     VerifyChecksumError, assert_eq, fast_fail_client, fast_fail_client_with_connect_timeout,
     fast_retry_opts, fetch_and_extract_with_retry, gzipped_tar, integrity, is_transient_error,
-    seed_row_holding_another_package, store_index_cache_key, store_index_key, tempdir,
+    seed_row_holding_another_package, store_index_cache_key, store_index_key, store_paths, tempdir,
     tempdir_with_leaked_path, test_retry_opts,
 };
 
@@ -554,7 +554,7 @@ async fn raw_archive_projection_skips_npm_identity_checks_on_store_hits() {
     .await
     .expect("raw archive cache hits must not use npm package identity semantics");
 
-    assert_eq!(cas_paths, HashMap::from([("README.md".to_string(), cas_path)]));
+    assert_eq!(store_paths(&cas_paths), HashMap::from([("README.md", cas_path.path.as_path())]));
     drop(store_dir);
 }
 

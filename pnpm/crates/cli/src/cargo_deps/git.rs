@@ -268,7 +268,7 @@ fn import_package(
     root: &Path,
     package: &CheckoutPackage,
     package_dirs: &BTreeSet<&Path>,
-) -> Result<HashMap<String, PathBuf>> {
+) -> Result<pnpm_fs::CasPaths> {
     let context = ImportContext {
         store_dir,
         root,
@@ -289,7 +289,7 @@ fn import_directory(
     context: &ImportContext<'_>,
     dir: &Path,
     prefix: &str,
-    cas_paths: &mut HashMap<String, PathBuf>,
+    cas_paths: &mut pnpm_fs::CasPaths,
 ) -> Result<()> {
     for entry in read_directory(dir)? {
         // A lossy name would key one file's contents under another's, and
@@ -334,7 +334,7 @@ fn import_file(
     path: &Path,
     relative: &str,
     executable: bool,
-) -> Result<PathBuf> {
+) -> Result<pnpm_fs::StoreFile> {
     if relative == "Cargo.toml" {
         return context.store_dir
             .write_cas_file(context.manifest.as_bytes(), executable)

@@ -2,9 +2,9 @@ pub(crate) use gzip_members::stream_extract_gzipped_tarball_with_tar;
 
 use super::{
     Archive, BTreeMap, BuildTriggers, CafsFileInfo, ExtractedEntries, GZIP_MAGIC, HashMap,
-    IgnoreEntryFilter, PackageBin, PackageFilesIndex, PathBuf, PendingFile, Read, ScriptRuntime,
-    StoreDir, TAR_BLOCK, TarBudget, TarLimits, TarballError, check_trailer,
-    clean_archive_entry_path, file_mode, is_tar_block, write_pending_files,
+    IgnoreEntryFilter, PackageBin, PackageFilesIndex, PendingFile, Read, ScriptRuntime, StoreDir,
+    TAR_BLOCK, TarBudget, TarLimits, TarballError, check_trailer, clean_archive_entry_path,
+    file_mode, is_tar_block, write_pending_files,
 };
 use crate::{
     ArchiveIntegrity, BodyHasher, IntegrityKind,
@@ -209,7 +209,7 @@ impl StreamedResource<'_> {
 
 /// The CAFS files, the store row, and precalculated bins of one extraction.
 pub(crate) type Extraction = Result<
-    (HashMap<String, PathBuf>, PackageFilesIndex, Option<BTreeMap<String, PackageBin>>),
+    (pnpm_fs::CasPaths, PackageFilesIndex, Option<BTreeMap<String, PackageBin>>),
     TarballError,
 >;
 
@@ -397,7 +397,7 @@ pub(super) fn entry_meta<Source: Read>(
 /// archive said about build hooks.
 pub(super) struct StreamingExtract<'a> {
     pub(super) store_dir: &'a StoreDir,
-    pub(super) written: Vec<(String, PathBuf, CafsFileInfo)>,
+    pub(super) written: Vec<(String, pnpm_fs::StoreFile, CafsFileInfo)>,
     pub(super) batch: Vec<PendingFile<'static>>,
     pub(super) batch_bytes: usize,
     pub(super) manifest: Option<serde_json::Value>,
@@ -418,7 +418,7 @@ pub(super) fn flush_pending_batch(
     store_dir: &StoreDir,
     batch: &mut Vec<PendingFile<'_>>,
     batch_bytes: &mut usize,
-    written: &mut Vec<(String, PathBuf, CafsFileInfo)>,
+    written: &mut Vec<(String, pnpm_fs::StoreFile, CafsFileInfo)>,
 ) -> Result<(), TarballError> {
     if batch.is_empty() {
         return Ok(());

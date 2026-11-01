@@ -188,7 +188,7 @@ async fn run_emits_imported_event_after_import_indexed_dir() {
 
     let dir = tempdir().expect("tempdir");
     let virtual_store_dir = dir.path().to_path_buf();
-    let cas_paths: HashMap<String, std::path::PathBuf> = HashMap::new();
+    let cas_paths = pnpm_fs::CasPaths::new();
     let logged_methods = AtomicU8::new(0);
     let snapshot = SnapshotEntry::default();
     let package_key: PackageKey = "react@18.0.0".parse().expect("valid v9 snapshot key");
@@ -406,8 +406,8 @@ fn a_build_write_does_not_reach_the_import_source() {
     std::fs::write(&source_data, "ORIGINAL").expect("write source data");
 
     let cas_paths = HashMap::from([
-        ("package.json".to_string(), source_manifest),
-        ("data.txt".to_string(), source_data.clone()),
+        ("package.json".to_string(), source_manifest.into()),
+        ("data.txt".to_string(), source_data.clone().into()),
     ]);
     let logged_methods = AtomicU8::new(0);
     let snapshot = SnapshotEntry::default();
@@ -474,7 +474,7 @@ fn run_imports_needs_build_marker_with_a_fresh_package() {
         .expect("write package manifest source");
     std::fs::write(&marker_source, "").expect("write marker source");
 
-    let cas_paths = HashMap::from([("package.json".to_string(), package_json)]);
+    let cas_paths = HashMap::from([("package.json".to_string(), package_json.into())]);
     let logged_methods = AtomicU8::new(0);
     let snapshot = SnapshotEntry::default();
     let package_key: PackageKey = "react@18.0.0".parse().expect("valid snapshot key");
@@ -566,7 +566,7 @@ fn force_import_replaces_an_existing_package_at_the_same_snapshot_key() {
             needs_build: false,
         },
         layout: &layout,
-        cas_paths: &HashMap::from([("index.js".to_string(), source)]),
+        cas_paths: &HashMap::from([("index.js".to_string(), source.into())]),
 
         package_id: "revision-pkg@1.0.0",
 
@@ -590,7 +590,7 @@ fn force_import_replaces_an_existing_package_at_the_same_snapshot_key() {
 fn run_rejects_traversal_package_name() {
     let dir = tempdir().expect("tempdir");
     let virtual_store_dir = dir.path().to_path_buf();
-    let cas_paths: HashMap<String, std::path::PathBuf> = HashMap::new();
+    let cas_paths = pnpm_fs::CasPaths::new();
     let logged_methods = AtomicU8::new(0);
     let snapshot = SnapshotEntry::default();
     let package_key: PackageKey =
@@ -689,7 +689,7 @@ fn run_rejects_uncontained_slot_before_creating_dirs() {
         None,
         None,
     );
-    let cas_paths: HashMap<String, std::path::PathBuf> = HashMap::new();
+    let cas_paths = pnpm_fs::CasPaths::new();
     let logged_methods = AtomicU8::new(0);
     let skipped = crate::SkippedSnapshots::default();
 
@@ -776,7 +776,7 @@ async fn run_removes_obsolete_child_links() {
         force_symlink_dir(&target, &node_modules.join(alias)).expect("create stale child symlink");
     }
 
-    let cas_paths: HashMap<String, std::path::PathBuf> = HashMap::new();
+    let cas_paths = pnpm_fs::CasPaths::new();
     let logged_methods = AtomicU8::new(0);
     let snapshot = SnapshotEntry::default();
     let skipped = crate::SkippedSnapshots::default();

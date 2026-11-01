@@ -17,10 +17,7 @@ use pep508_rs::PackageName;
 use pnpm_python_resolver::{LockedSdist, parse_requirement};
 use pnpm_reporter::Reporter;
 use pnpm_tarball::{ArchiveStoreProjection, IngestTarballToStore, IngestZipArchiveToStore};
-use std::{
-    collections::HashMap,
-    path::{Component, Path, PathBuf},
-};
+use std::path::{Component, Path, PathBuf};
 
 /// What the store's progress reporting calls a Python download, the
 /// same for every artifact a Python install fetches.
@@ -124,7 +121,7 @@ impl Registry<'_> {
     async fn fetch_sdist<Reporter: self::Reporter + 'static>(
         &self,
         sdist: &LockedSdist,
-    ) -> Result<HashMap<String, PathBuf>> {
+    ) -> Result<pnpm_fs::CasPaths> {
         let integrity = sdist.integrity()?;
         let package_id = format!("python:{}", sdist.name);
         let fetching = pnpm_tarball::ArchiveFetchOptions {
@@ -170,7 +167,7 @@ impl Registry<'_> {
         fetching: pnpm_tarball::ArchiveFetchOptions<'_>,
         integrity: &ssri::Integrity,
         package_id: &str,
-    ) -> Result<HashMap<String, PathBuf>> {
+    ) -> Result<pnpm_fs::CasPaths> {
         IngestZipArchiveToStore {
             fetching,
             package: pnpm_tarball::ZipArchivePackage {
@@ -200,10 +197,10 @@ impl Registry<'_> {
 /// destination is created fresh, which is what leaves the tree writable:
 /// a store blob is read-only, and a copy that carried its mode over
 /// would hand the backend a source tree it cannot build in.
-fn unpack(files: &HashMap<String, PathBuf>, root: &str) -> Result<tempfile::TempDir> {
+fn unpack(files: &pnpm_fs::CasPaths, root: &str) -> Result<tempfile::TempDir> {
     let source = tempfile::tempdir().into_diagnostic()?;
     let nested = nested_in_its_release_directory(files, root);
-    for (entry, stored) in files {
+    for (entry, pnpm_fs::StoreFile { path: stored, .. }) in files {
         let path = entry_path(source.path(), strip_release_directory(entry, root, nested))?;
         std::fs::create_dir_all(path.parent().expect("an entry path has a parent"))
             .into_diagnostic()?;
@@ -227,7 +224,7 @@ fn unpack(files: &HashMap<String, PathBuf>, root: &str) -> Result<tempfile::Temp
 ///
 /// The release directory is named after the archive, so an archive whose
 /// entries say otherwise is left exactly as the extractor produced it.
-fn nested_in_its_release_directory(files: &HashMap<String, PathBuf>, root: &str) -> bool {
+fn nested_in_its_release_directory(files: &pnpm_fs::CasPaths, root: &str) -> bool {
     !files.is_empty()
         && files
             .keys()

@@ -181,7 +181,7 @@ fn fallback_in_one_filesystem_pair_does_not_disable_other_importers() {
         .import::<pnpm_reporter::SilentReporter, Unlinkable>(
             PackageImportMethod::Auto,
             &logged,
-            &source,
+            &pnpm_fs::StoreFile::new(source.clone()),
             &temporary.path().join("unavailable"),
         )
         .unwrap();
@@ -190,7 +190,7 @@ fn fallback_in_one_filesystem_pair_does_not_disable_other_importers() {
         .import::<pnpm_reporter::SilentReporter, Linkable>(
             PackageImportMethod::Auto,
             &logged,
-            &source,
+            &pnpm_fs::StoreFile::new(source.clone()),
             &temporary.path().join("cached"),
         )
         .unwrap();
@@ -200,7 +200,7 @@ fn fallback_in_one_filesystem_pair_does_not_disable_other_importers() {
         .import::<pnpm_reporter::SilentReporter, Linkable>(
             PackageImportMethod::Auto,
             &logged,
-            &source,
+            &pnpm_fs::StoreFile::new(source),
             &temporary.path().join("available"),
         )
         .unwrap();

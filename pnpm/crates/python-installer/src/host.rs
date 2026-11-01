@@ -242,7 +242,7 @@ impl FileImport {
         let method = state.import::<pnpm_reporter::SilentReporter, Sys>(
             mode,
             logged,
-            &self.source,
+            &pnpm_fs::StoreFile::new(self.source.clone()),
             &self.destination,
         )?;
         // Unpacked wheels use their file modes, even when a name has the CAS -exec suffix.

@@ -15,7 +15,6 @@ mod links;
 
 use super::ImportIndexedDirOpts;
 use std::{
-    collections::HashMap,
     fs,
     path::{Path, PathBuf},
 };
@@ -29,10 +28,10 @@ fn write_source(dir: &Path, rel: &str, contents: &[u8]) -> PathBuf {
     path
 }
 
-fn cas_map(entries: &[(&str, PathBuf)]) -> HashMap<String, PathBuf> {
+fn cas_map(entries: &[(&str, PathBuf)]) -> pnpm_fs::CasPaths {
     entries
         .iter()
-        .map(|(k, v)| ((*k).to_string(), v.clone()))
+        .map(|(k, v)| ((*k).to_string(), v.clone().into()))
         .collect()
 }
 

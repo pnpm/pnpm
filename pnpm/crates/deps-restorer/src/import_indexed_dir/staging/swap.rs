@@ -4,7 +4,6 @@ use super::{
 };
 use crate::import_indexed_dir::placement::exact::all_imported_entries_match_exactly;
 use std::{
-    collections::HashMap,
     io,
     path::{Path, PathBuf},
     time::{Duration, Instant},
@@ -32,7 +31,7 @@ const DIRECTORY_SWAP_RETRY_DELAY: Duration = Duration::from_millis(10);
 pub(super) fn replace_target(
     paths: &StagePaths,
     dir_path: &Path,
-    cas_paths: &HashMap<String, PathBuf>,
+    cas_paths: &pnpm_fs::CasPaths,
     preserved_modules: &PreservedModules,
 ) -> Result<Option<PathBuf>, ImportIndexedDirError> {
     if pnpm_fs::exchange_dirents(&paths.stage, dir_path).is_ok() {
@@ -82,7 +81,7 @@ enum Displaced {
 fn displace_target(
     paths: &StagePaths,
     dir_path: &Path,
-    cas_paths: &HashMap<String, PathBuf>,
+    cas_paths: &pnpm_fs::CasPaths,
     preserved_modules: &PreservedModules,
 ) -> Result<Displaced, io::Error> {
     let aside = pick_stage_path(dir_path);
@@ -120,7 +119,7 @@ fn restore_displaced_target(displaced: &Path, dir_path: &Path) {
 fn swap_staged_dir(
     paths: &StagePaths,
     dir_path: &Path,
-    cas_paths: &HashMap<String, PathBuf>,
+    cas_paths: &pnpm_fs::CasPaths,
     preserved_modules: &PreservedModules,
 ) -> Result<(), io::Error> {
     let retry_deadline = Instant::now() + DIRECTORY_SWAP_RETRY_BUDGET;
@@ -150,7 +149,7 @@ fn swap_staged_dir(
 fn try_rename(
     paths: &StagePaths,
     dir_path: &Path,
-    cas_paths: &HashMap<String, PathBuf>,
+    cas_paths: &pnpm_fs::CasPaths,
     preserved_modules: &PreservedModules,
 ) -> Result<bool, io::Error> {
     match pnpm_fs::rename_with_retry(&paths.stage, dir_path) {
@@ -176,7 +175,7 @@ fn try_rename(
 
 fn remove_target_for_swap(
     dir_path: &Path,
-    cas_paths: &HashMap<String, PathBuf>,
+    cas_paths: &pnpm_fs::CasPaths,
     accept_complete: bool,
     preserve_node_modules: bool,
 ) -> Result<bool, io::Error> {

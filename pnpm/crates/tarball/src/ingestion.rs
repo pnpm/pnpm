@@ -11,11 +11,7 @@ use pnpm_package_manifest::PackageBin;
 use pnpm_reporter::Reporter;
 use pnpm_store_dir::PackageFilesIndex;
 use ssri::Integrity;
-use std::{
-    collections::{BTreeMap, HashMap},
-    path::PathBuf,
-    sync::Arc,
-};
+use std::{collections::BTreeMap, sync::Arc};
 
 #[derive(Clone, Copy)]
 pub(crate) enum ArchiveFormat<'a> {
@@ -45,7 +41,7 @@ pub(crate) struct ArchiveIngestion<'a> {
 impl ArchiveIngestion<'_> {
     pub(crate) async fn run<Reporter: self::Reporter>(
         &self,
-    ) -> Result<HashMap<String, PathBuf>, TarballError> {
+    ) -> Result<pnpm_fs::CasPaths, TarballError> {
         self.load_or_fetch::<Reporter>().await.map(|cached| cached.files)
     }
 
@@ -105,7 +101,7 @@ impl ArchiveIngestion<'_> {
     pub(crate) async fn ingest_zip_buffer(
         &self,
         buffer: Vec<u8>,
-    ) -> Result<HashMap<String, PathBuf>, TarballError> {
+    ) -> Result<pnpm_fs::CasPaths, TarballError> {
         let ArchiveFormat::Zip { integrity, prefix, max_bytes } = self.format else {
             unreachable!("ZIP buffers require ZIP ingestion")
         };
@@ -130,7 +126,7 @@ impl ArchiveIngestion<'_> {
     async fn load_legacy_cache<Reporter: self::Reporter>(
         &self,
         progress_key: Option<(&SharedReportedProgressKeys, &str)>,
-    ) -> Result<Option<HashMap<String, PathBuf>>, TarballError> {
+    ) -> Result<Option<pnpm_fs::CasPaths>, TarballError> {
         if let (
             Some(package_integrity),
             ArchiveStoreProjection::Package { append_manifest: Some(_) },
@@ -228,7 +224,7 @@ impl ArchiveIngestion<'_> {
     ) -> Result<
         (
             ArchiveIntegrity,
-            HashMap<String, PathBuf>,
+            pnpm_fs::CasPaths,
             PackageFilesIndex,
             Option<BTreeMap<String, PackageBin>>,
         ),
@@ -276,7 +272,7 @@ impl ArchiveIngestion<'_> {
         integrity: &Integrity,
         prefix: Option<&str>,
         max_bytes: Option<usize>,
-    ) -> Result<(Integrity, HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
+    ) -> Result<(Integrity, pnpm_fs::CasPaths, PackageFilesIndex), TarballError> {
         let (paths, index) = fetch_and_extract_zip_with_retry::<Reporter>(
             self.fetching.http_client,
             self.package.url,
@@ -297,7 +293,7 @@ impl ArchiveIngestion<'_> {
 
     fn project_files(
         &self,
-        cas_paths: &mut HashMap<String, PathBuf>,
+        cas_paths: &mut pnpm_fs::CasPaths,
         pkg_files_idx: &mut PackageFilesIndex,
     ) -> Result<(), TarballError> {
         match self.store_projection {

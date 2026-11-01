@@ -19,13 +19,8 @@ use std::collections::{HashMap, HashSet};
 
 /// One warm entry: the snapshot, its prefetched CAS paths, the cache key
 /// that found them, and whether its slot needs a build marker.
-pub(super) type WarmEntry<'a> = (
-    &'a PackageKey,
-    &'a SnapshotEntry,
-    &'a std::sync::Arc<HashMap<String, std::path::PathBuf>>,
-    &'a str,
-    bool,
-);
+pub(super) type WarmEntry<'a> =
+    (&'a PackageKey, &'a SnapshotEntry, &'a std::sync::Arc<pnpm_fs::CasPaths>, &'a str, bool);
 
 pub(super) struct Partition<'a> {
     pub warm: Vec<WarmEntry<'a>>,

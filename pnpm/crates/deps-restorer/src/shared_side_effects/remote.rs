@@ -253,7 +253,7 @@ pub(super) async fn stage_artifact(
     context: &ResolvedArtifactContext<'_>,
     input_key: &str,
     artifact: &pnpm_pnpr_client::VerifiedArtifact,
-    base: &HashMap<String, PathBuf>,
+    base: &pnpm_fs::CasPaths,
 ) -> Result<StagedArtifact, (String, bool)> {
     let mut downloaded = HashMap::<String, Vec<u8>>::new();
     let mut stored = HashMap::<(String, u32), PathBuf>::new();
@@ -370,7 +370,7 @@ pub(super) async fn stage_artifact_blob(
         let bytes = download_artifact_file(context, artifact, file).await?;
         downloaded.insert(file.integrity.clone(), bytes);
     }
-    let (path, _) = context.config.store_dir
+    let (pnpm_fs::StoreFile { path, .. }, _) = context.config.store_dir
         .write_cas_file(&downloaded[&file.integrity], pnpm_fs::file_mode::is_executable(file.mode))
         .map_err(|error| (error.to_string(), false))?;
     stored.insert(storage_key, path.clone());

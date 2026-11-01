@@ -86,7 +86,7 @@ fn deferred_check_builds_the_maps_first_and_stats_only_when_run() {
     assert!(result.passed, "a well-formed row passes before its files are checked");
     let path = result.files_map.get("index.js").expect("path inserted");
     let cache = VerifiedFilesCache::new();
-    assert!(!pending.verify(&store_dir, &cache), "the file was never planted");
+    assert!(pending.verify(&store_dir, &cache).is_none(), "the file was never planted");
     assert!(cache.is_empty(), "a failed file is not cached as verified");
 
     plant_cafs_file(&store_dir, &digest, 0o644, content);
@@ -94,8 +94,8 @@ fn deferred_check_builds_the_maps_first_and_stats_only_when_run() {
         &store_dir,
         index_with("sha512", vec![("index.js", info(&digest, content.len() as u64, 0o644, None))]),
     );
-    assert!(pending.verify(&store_dir, &cache), "the planted file verifies");
-    assert!(cache.contains(path), "a verified file is cached for later rows");
+    assert!(pending.verify(&store_dir, &cache).is_some(), "the planted file verifies");
+    assert!(cache.contains_key(&path.path), "a verified file is cached for later rows");
 }
 
 /// We can't easily set `mtime` from the standard library, but
@@ -119,12 +119,12 @@ fn careful_path_trusts_file_when_mtime_is_within_slack() {
     assert_eq!(result.files_map.len(), 1);
 }
 
-/// pnpm/pnpm#17500: a blob that passes verification hands its on-disk
-/// mode to the importer, which would otherwise `stat` it again before
-/// every hardlink.
+/// pnpm/pnpm#17543: a blob that passes verification hands the mode the
+/// check read to the importer through the row's files map, so the importer
+/// does not `stat` it again before a hardlink.
 #[test]
 #[cfg(unix)]
-fn careful_path_records_the_mode_of_a_verified_file() {
+fn careful_path_hands_the_mode_of_a_verified_file_to_the_files_map() {
     use std::os::unix::fs::PermissionsExt;
 
     let tmp = tempdir().unwrap();
@@ -142,72 +142,83 @@ fn careful_path_records_the_mode_of_a_verified_file() {
     let result = check_pkg_files_integrity(&store_dir, entry, &VerifiedFilesCache::new());
 
     assert!(result.passed);
-    assert_eq!(
-        pnpm_fs::file_mode::observed_store_inode_mode(&path).map(|mode| mode & 0o7777),
-        Some(0o640),
-    );
+    assert_eq!(result.files_map["index.js"].mode.map(|mode| mode & 0o7777), Some(0o640));
 }
 
-/// A blob that fails verification is re-fetched, and the new inode may
-/// carry another mode, so the mode recorded when it last passed is dropped.
+/// A blob an earlier row verified is trusted from the cache without a
+/// `stat`, and the later row still gets the mode the first check read.
 #[test]
 #[cfg(unix)]
-fn careful_path_forgets_the_mode_of_a_file_that_went_missing() {
+fn a_cached_file_hands_its_verified_mode_to_a_later_row() {
     use std::os::unix::fs::PermissionsExt;
 
     let tmp = tempdir().unwrap();
     let store_dir = StoreDir::new(tmp.path());
-    let content = b"missing mode";
+    let content = b"shared blob";
     let digest = sha512_hex(content);
     let path = plant_cafs_file(&store_dir, &digest, 0o644, content);
     fs::set_permissions(&path, fs::Permissions::from_mode(0o640)).unwrap();
     let future = now_ms() + 3_600_000;
-    let entry = index_with(
-        "sha512",
-        vec![("index.js", info(&digest, content.len() as u64, 0o644, Some(future)))],
-    );
-    let first = check_pkg_files_integrity(&store_dir, entry, &VerifiedFilesCache::new());
-    assert!(first.passed);
-    fs::remove_file(&path).unwrap();
-    let entry = index_with(
-        "sha512",
-        vec![("index.js", info(&digest, content.len() as u64, 0o644, Some(future)))],
-    );
+    let row = |filename| {
+        index_with(
+            "sha512",
+            vec![(filename, info(&digest, content.len() as u64, 0o644, Some(future)))],
+        )
+    };
+    let cache = VerifiedFilesCache::new();
+    assert!(check_pkg_files_integrity(&store_dir, row("LICENSE"), &cache).passed);
+    // Only a fresh `stat` would see this; the cache answers instead.
+    fs::set_permissions(&path, fs::Permissions::from_mode(0o600)).unwrap();
+
+    let result = check_pkg_files_integrity(&store_dir, row("LICENSE.md"), &cache);
+
+    assert!(result.passed);
+    assert_eq!(result.files_map["LICENSE.md"].mode.map(|mode| mode & 0o7777), Some(0o640));
+}
+
+/// A side-effects overlay shares the base files' store paths, so it gets
+/// their verified modes too. An `added` file was not checked and has none.
+#[test]
+#[cfg(unix)]
+fn careful_path_hands_verified_modes_to_side_effects_overlays() {
+    let tmp = tempdir().unwrap();
+    let store_dir = StoreDir::new(tmp.path());
+    let base = b"base";
+    let base_digest = sha512_hex(base);
+    plant_cafs_file(&store_dir, &base_digest, 0o644, base);
+    let added_digest = sha512_hex(b"added");
+    let future = now_ms() + 3_600_000;
+    let entry = PackageFilesIndex {
+        manifest: None,
+        requires_build: None,
+        requires_prepare: None,
+        algo: "sha512".into(),
+        files: HashMap::from([(
+            "a.js".to_string(),
+            info(&base_digest, base.len() as u64, 0o644, Some(future)),
+        )]),
+        side_effects: Some(HashMap::from([(
+            "k1".to_string(),
+            SideEffectsDiff {
+                added: Some(HashMap::from([(
+                    "built.js".to_string(),
+                    info(&added_digest, 5, 0o644, None),
+                )])),
+                deleted: None,
+                remote_origin: None,
+            },
+        )])),
+        remote_side_effects_quarantine: None,
+        tar_integrity: None,
+    };
 
     let result = check_pkg_files_integrity(&store_dir, entry, &VerifiedFilesCache::new());
 
-    assert!(!result.passed);
-    assert_eq!(pnpm_fs::file_mode::observed_store_inode_mode(&path), None);
-}
-
-#[test]
-#[cfg(unix)]
-fn careful_path_forgets_the_mode_of_a_file_whose_content_hash_mismatches() {
-    use std::os::unix::fs::PermissionsExt;
-
-    let tmp = tempdir().unwrap();
-    let store_dir = StoreDir::new(tmp.path());
-    let content = b"mismatched mode";
-    let digest = sha512_hex(content);
-    let path = plant_cafs_file(&store_dir, &digest, 0o644, content);
-    fs::set_permissions(&path, fs::Permissions::from_mode(0o640)).unwrap();
-    let future = now_ms() + 3_600_000;
-    let passing = index_with(
-        "sha512",
-        vec![("index.js", info(&digest, content.len() as u64, 0o644, Some(future)))],
-    );
-    let first = check_pkg_files_integrity(&store_dir, passing, &VerifiedFilesCache::new());
-    assert!(first.passed);
-    fs::write(&path, b"corrupted bytes").unwrap();
-    let rehashed = index_with(
-        "sha512",
-        vec![("index.js", info(&digest, b"corrupted bytes".len() as u64, 0o644, Some(0)))],
-    );
-
-    let result = check_pkg_files_integrity(&store_dir, rehashed, &VerifiedFilesCache::new());
-
-    assert!(!result.passed);
-    assert_eq!(pnpm_fs::file_mode::observed_store_inode_mode(&path), None);
+    assert!(result.passed);
+    let overlay = &result.side_effects_maps.as_ref().unwrap()["k1"];
+    assert_eq!(overlay.files["a.js"].mode, result.files_map["a.js"].mode);
+    assert!(overlay.files["a.js"].mode.is_some());
+    assert_eq!(overlay.files["built.js"].mode, None);
 }
 
 #[test]
@@ -310,8 +321,8 @@ fn careful_path_dedups_across_calls_via_shared_cache() {
     let result_a = check_pkg_files_integrity(&store_dir, entry_a, &cache);
     dbg!(&result_a);
     assert!(result_a.passed, "first call verifies the live file");
-    eprintln!("cache.contains(&path)={}", cache.contains(&path));
-    assert!(cache.contains(&path), "successful verify populates the shared cache");
+    eprintln!("cache.contains_key(&path)={}", cache.contains_key(&path));
+    assert!(cache.contains_key(&path), "successful verify populates the shared cache");
 
     std::fs::remove_file(&path).unwrap();
     let entry_b = index_with("sha512", vec![("b-pkg/index.js", info_shared.clone_for_test())]);
@@ -1065,6 +1076,6 @@ fn a_large_row_checks_every_file_and_caches_the_ones_that_pass() {
     let cache = VerifiedFilesCache::default();
 
     let (_, pending) = defer_pkg_files_integrity(&store_dir, entry);
-    assert!(!pending.verify(&store_dir, &cache), "the missing file fails the row");
+    assert!(pending.verify(&store_dir, &cache).is_none(), "the missing file fails the row");
     assert_eq!(cache.len(), 39, "every present file was checked and cached");
 }

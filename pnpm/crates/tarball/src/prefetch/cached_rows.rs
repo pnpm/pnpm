@@ -1,7 +1,7 @@
 use super::{
-    Arc, ArchiveStoreProjection, GlobalLog, HashMap, LogEvent, LogLevel, PackageContentCheck,
-    PackageFilesIndex, PathBuf, PkgContentMismatch, SharedReadonlyStoreIndex,
-    SharedVerifiedFilesCache, StoreDir, TarballError,
+    Arc, ArchiveStoreProjection, GlobalLog, LogEvent, LogLevel, PackageContentCheck,
+    PackageFilesIndex, PkgContentMismatch, SharedReadonlyStoreIndex, SharedVerifiedFilesCache,
+    StoreDir, TarballError,
 };
 use pnpm_package_manifest::PackageBin;
 use std::collections::BTreeMap;
@@ -11,14 +11,14 @@ use std::collections::BTreeMap;
 /// extraction recorded.
 #[derive(Debug, Clone)]
 pub struct CachedCasPaths {
-    pub files: HashMap<String, PathBuf>,
+    pub files: pnpm_fs::CasPaths,
     pub manifest: Option<serde_json::Value>,
     pub requires_build: Option<bool>,
     pub bins: Option<Arc<BTreeMap<String, PackageBin>>>,
 }
 
 impl CachedCasPaths {
-    pub(crate) fn files_only(files: HashMap<String, PathBuf>) -> Self {
+    pub(crate) fn files_only(files: pnpm_fs::CasPaths) -> Self {
         Self { files, manifest: None, requires_build: None, bins: None }
     }
 }
@@ -33,7 +33,7 @@ enum CachedRow {
     /// A usable row's per-file CAS map, carrying the identity
     /// disagreement the caller warns about when the check is not strict.
     Hit {
-        cas_paths: HashMap<String, PathBuf>,
+        cas_paths: pnpm_fs::CasPaths,
         manifest: Option<serde_json::Value>,
         requires_build: bool,
         bins: Option<Arc<BTreeMap<String, PackageBin>>>,
@@ -194,7 +194,7 @@ fn cached_row(
 fn resolve_cached_row_bins(
     requires_build: bool,
     manifest: Option<&serde_json::Value>,
-    cas_paths: &HashMap<String, PathBuf>,
+    cas_paths: &pnpm_fs::CasPaths,
 ) -> Option<Arc<BTreeMap<String, PackageBin>>> {
     if requires_build {
         return None;
@@ -225,7 +225,7 @@ pub(crate) async fn load_legacy_synthesized_cas_paths<Reporter: crate::Reporter>
     verify_store_integrity: bool,
     verified_files_cache: SharedVerifiedFilesCache,
     store_projection: ArchiveStoreProjection<'_>,
-) -> Result<Option<HashMap<String, PathBuf>>, TarballError> {
+) -> Result<Option<pnpm_fs::CasPaths>, TarballError> {
     let Some((legacy_key, expected_manifest)) =
         store_projection.legacy_synthesized_store_row(integrity, package_id)
     else {

@@ -1,10 +1,10 @@
 use super::{sanitize_component, sanitize_filenames};
 use std::{collections::HashMap, path::PathBuf};
 
-fn entries(names: &[&str]) -> HashMap<String, PathBuf> {
+fn entries(names: &[&str]) -> pnpm_fs::CasPaths {
     names
         .iter()
-        .map(|name| ((*name).to_string(), PathBuf::from(name)))
+        .map(|name| ((*name).to_string(), PathBuf::from(name).into()))
         .collect()
 }
 

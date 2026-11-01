@@ -56,7 +56,7 @@ fn an_artifact_digest_addresses_the_file_the_store_wrote() {
         let located = store_dir
             .cas_file_path_by_mode(&digest, mode)
             .expect("an artifact digest must address a CAS path");
-        assert_eq!(located, written, "mode {mode:o}");
+        assert_eq!(located, written.path, "mode {mode:o}");
         assert!(located.is_file(), "mode {mode:o}");
         located_by_mode.push((mode, located));
     }
@@ -495,6 +495,7 @@ mod restore {
         restored_overlay(&side_effects).files
             .get(BUILT_FILE)
             .expect("the built file must be in the overlay")
+            .path
             .clone()
     }
 
@@ -684,7 +685,7 @@ mod restore {
         let (written, _) = store_dir
             .write_cas_file(built_bytes(), true)
             .expect("re-writing the same bytes names the same path");
-        assert_eq!(restored, written);
+        assert_eq!(restored, written.path);
         assert_eq!(std::fs::read(&restored).expect("read restored"), built_bytes());
     }
 
@@ -713,7 +714,7 @@ mod restore {
 
         let restored = restore(&store_dir, 0).await;
 
-        assert_eq!(restored, seeded);
+        assert_eq!(restored, seeded.path);
     }
 
     /// The restore above, served by a server that speaks the Turborepo Remote

@@ -144,43 +144,19 @@ fn hardlink_mode_match_shares_the_store_inode() {
     );
 }
 
-/// pnpm/pnpm#17500: the mode check stats a store entry once, not once per
-/// link. A mode that changes after the first link is not seen, so the
-/// second link still shares the inode.
+/// pnpm/pnpm#17543: a mode the install already read for a store file is
+/// not read again before the link. The entry's real mode differs from the
+/// known one, so a stat would make the link copy.
 #[test]
 #[cfg(unix)]
-fn hardlink_reuses_a_store_entry_mode_check() {
-    use std::os::unix::fs::PermissionsExt;
-
-    let tmp = tempdir().unwrap();
-    let desired = pnpm_fs::file_mode::store_entry_mode(false, pnpm_fs::file_mode::current_umask());
-    let src = write_source(tmp.path(), STORE_ENTRY, b"data\n");
-    fs::set_permissions(&src, fs::Permissions::from_mode(desired)).unwrap();
-    let first = tmp.path().join("first.txt");
-    link_file::<SilentReporter>(&AtomicU8::new(0), PackageImportMethod::Hardlink, &src, &first)
-        .expect("a mode-matching store file is hardlinked");
-
-    fs::set_permissions(&src, fs::Permissions::from_mode(desired ^ 0o001)).unwrap();
-    let second = tmp.path().join("second.txt");
-    link_file::<SilentReporter>(&AtomicU8::new(0), PackageImportMethod::Hardlink, &src, &second)
-        .expect("the store file is hardlinked again");
-
-    assert_eq!(super::inode(&src), super::inode(&second), "the store inode is shared");
-}
-
-/// pnpm/pnpm#17500: a mode the store verifier recorded is not read again
-/// before the first link. The entry's real mode differs from the recorded
-/// one, so a stat would make the link copy.
-#[test]
-#[cfg(unix)]
-fn hardlink_uses_the_mode_the_verifier_recorded() {
+fn hardlink_uses_the_known_mode_of_the_source() {
     use std::os::unix::fs::PermissionsExt;
 
     let tmp = tempdir().unwrap();
     let desired = pnpm_fs::file_mode::store_entry_mode(false, pnpm_fs::file_mode::current_umask());
     let src = write_source(tmp.path(), STORE_ENTRY, b"data\n");
     fs::set_permissions(&src, fs::Permissions::from_mode(desired ^ 0o001)).unwrap();
-    pnpm_fs::file_mode::record_verified_store_inode_mode(&src, desired);
+    let src = pnpm_fs::StoreFile::with_mode(src.path, Some(desired));
     let dst = tmp.path().join("dst.txt");
     link_file::<SilentReporter>(&AtomicU8::new(0), PackageImportMethod::Hardlink, &src, &dst)
         .expect("the store file is hardlinked");
@@ -495,13 +471,13 @@ fn not_found_without_a_target_propagates() {
         recover_from_concurrent_import(io::Error::from(io::ErrorKind::NotFound), &src, &dst)
             .expect_err("a NotFound with no target dirent is a real failure");
     let LinkFileError::Import { from, to, error } = error;
-    assert_eq!((from, to), (src, dst));
+    assert_eq!((from, to), (src.path, dst));
     assert_eq!(error.kind(), io::ErrorKind::NotFound);
 }
 #[test]
 fn not_found_without_a_source_propagates() {
     let tmp = tempdir().unwrap();
-    let src = tmp.path().join("missing-blob");
+    let src = pnpm_fs::StoreFile::new(tmp.path().join("missing-blob"));
     let dst = write_source(tmp.path(), "dst", b"data\n");
 
     let error =
@@ -585,7 +561,7 @@ fn clone_or_copy_materializes_the_file_contents() {
 #[test]
 fn explicit_clone_surfaces_errors() {
     let tmp = tempdir().unwrap();
-    let src = tmp.path().join("does-not-exist");
+    let src = pnpm_fs::StoreFile::new(tmp.path().join("does-not-exist"));
     let dst = tmp.path().join("dst.txt");
 
     let err =
@@ -774,7 +750,7 @@ fn eperm_downgrade_still_surfaces_a_failed_copy() {
 #[cfg(unix)]
 fn a_failed_copy_removes_its_partial_target() {
     let tmp = tempdir().unwrap();
-    let src = tmp.path().join("a-directory");
+    let src = pnpm_fs::StoreFile::new(tmp.path().join("a-directory"));
     fs::create_dir(&src).unwrap();
     let dst = tmp.path().join("dst");
 
