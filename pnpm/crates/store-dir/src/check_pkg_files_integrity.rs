@@ -492,8 +492,7 @@ fn verify_modified_file(path: &Path, filename: &str, info: &CafsFileInfo, algo: 
         record_verified_mode(path, &metadata);
         return true;
     }
-    let size = metadata.len();
-    if size != info.size {
+    if metadata.len() != info.size {
         // Wrong size → content definitely changed. Report the miss so
         // the caller re-fetches; see `scrub_directory_at_cafs_path` for
         // why nothing but a directory is removed here.
@@ -502,7 +501,7 @@ fn verify_modified_file(path: &Path, filename: &str, info: &CafsFileInfo, algo: 
             ?filename,
             ?path,
             expected_size = info.size,
-            actual_size = size,
+            actual_size = metadata.len(),
             "CAFS file size mismatch; re-fetching",
         );
         scrub_directory_at_cafs_path(path);
