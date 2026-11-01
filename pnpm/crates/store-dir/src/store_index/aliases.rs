@@ -6,7 +6,10 @@
 //! apart from the rows, in a table pnpm v11 never reads, so a store shared
 //! with it keeps a row layout that pnpm v11 understands.
 
-use super::{Backend, Connection, HashMap, StoreIndex, StoreIndexError, queries::GET_MANY_CHUNK};
+use super::{
+    Backend, Connection, HashMap, HashSet, StoreIndex, StoreIndexError, files::FilesIndex,
+    queries::GET_MANY_CHUNK,
+};
 
 pub(super) const CREATE_ALIAS_TABLE: &str = "
     CREATE TABLE IF NOT EXISTS package_index_alias (
@@ -106,6 +109,36 @@ fn sqlite_alias_targets(
 
 fn is_missing_alias_table(error: &rusqlite::Error) -> bool {
     matches!(error, rusqlite::Error::SqliteFailure(_, Some(message)) if message.contains("no such table"))
+}
+
+pub(super) fn delete_sqlite_aliases(
+    conn: &Connection,
+    keys: &[String],
+) -> Result<(), StoreIndexError> {
+    for chunk in keys.chunks(GET_MANY_CHUNK) {
+        let placeholders = std::iter::repeat_n("?", chunk.len()).collect::<Vec<_>>().join(",");
+        let sql = format!("DELETE FROM package_index_alias WHERE target IN ({placeholders})");
+        conn.execute(&sql, rusqlite::params_from_iter(chunk))
+            .map_err(|source| StoreIndexError::Write { source })?;
+    }
+    Ok(())
+}
+
+pub(super) fn delete_files_aliases(
+    files: &FilesIndex,
+    keys: &[String],
+) -> Result<(), StoreIndexError> {
+    let targets: HashSet<&[u8]> = keys
+        .iter()
+        .map(String::as_bytes)
+        .collect();
+    let aliases = files.aliases();
+    aliases.for_each(|key, target| {
+        if targets.contains(target.as_slice()) {
+            aliases.remove(&key)?;
+        }
+        Ok(())
+    })
 }
 
 #[cfg(test)]
