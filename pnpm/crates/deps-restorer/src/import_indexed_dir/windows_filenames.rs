@@ -1,10 +1,7 @@
 use super::ImportIndexedDirError;
 use crate::LinkFileError;
 use pnpm_reporter::Reporter;
-use std::{
-    collections::HashMap,
-    path::{Path, PathBuf},
-};
+use std::{collections::HashMap, path::Path};
 
 pub(super) struct SanitizedFilenames {
     pub paths: pnpm_fs::CasPaths,
