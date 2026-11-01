@@ -637,6 +637,39 @@ describe('stage command against the registry mock', () => {
     }
   })
 
+  test('stage approve does not bind a dependency on another registry to a staged package of the same name', async () => {
+    const items = [
+      { id: STAGE_ID, packageName: '@pnpmtest/stage-dependent', version: '1.0.0' },
+      { id: SECOND_STAGE_ID, packageName: '@pnpmtest/stage-dependency', version: '1.0.0' },
+    ]
+    const tarballs = await createStageTarballs(items, {
+      [STAGE_ID]: { dependencies: { '@pnpmtest/stage-dependency': 'other:1.0.0' } },
+    })
+    const approved: string[] = []
+    const registry = await createRegistry((request) => {
+      const stageReadResponse = respondToStageRead(request, { items, tarballs })
+      if (stageReadResponse) return stageReadResponse
+      const stageId = approvedStageId(request)
+      if (stageId) {
+        approved.push(stageId)
+        return { status: 201, body: { ok: true } }
+      }
+      return { status: 404, body: { error: 'not found' } }
+    })
+    try {
+      const result = await stage.handler({
+        ...stageOpts(registry.url),
+        registriesByPrefix: { other: 'https://npm.other.example.com/' },
+        cliOptions: { otp: '123456' },
+        otp: '123456',
+      }, ['approve', STAGE_ID, SECOND_STAGE_ID])
+      expect(result).toStrictEqual({ exitCode: 0, output: 'Approved 2 staged packages successfully.' })
+      expect(approved).toEqual([STAGE_ID, SECOND_STAGE_ID])
+    } finally {
+      await registry.close()
+    }
+  })
+
   test('stage approve does not bind an npm alias tag to a selected version', async () => {
     const items = [
       { id: STAGE_ID, packageName: '@pnpmtest/stage-dependent', version: '1.0.0' },

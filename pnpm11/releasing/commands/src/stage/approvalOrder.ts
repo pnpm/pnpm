@@ -1,3 +1,4 @@
+import { isSameRegistry } from '@pnpm/config.pick-registry-for-package'
 import { graphSequencer } from '@pnpm/deps.graph-sequencer'
 import { PnpmError } from '@pnpm/error'
 import npa from '@pnpm/npm-package-arg'
@@ -47,10 +48,7 @@ interface StagedProject {
 async function readStagedProjects (context: StageContext, items: ApprovalItem[]): Promise<StagedProject[]> {
   const projects: StagedProject[] = []
   const stageIdByVersionByPackageName = new Map<string, Map<string, string>>()
-  const registryPrefixes = new Set([
-    ...Object.keys(BUILTIN_REGISTRIES_BY_PREFIX),
-    ...Object.keys(context.opts.registriesByPrefix ?? {}),
-  ])
+  const registryPrefixes = getRegistryPrefixes(context)
   for (const item of items) {
     // eslint-disable-next-line no-await-in-loop -- one tarball at a time keeps a single tarball in memory
     const tarball = await fetchStageTarball(context, item.id)
@@ -72,6 +70,20 @@ async function readStagedProjects (context: StageContext, items: ApprovalItem[])
     })
   }
   return projects
+}
+
+/**
+ * The prefixes, the built-in ones included, whose registry is the one the
+ * stage commands talk to. A staged package's `<prefix>:` dependency on another
+ * registry names a different package than a staged one of the same name.
+ */
+function getRegistryPrefixes (context: StageContext): Set<string> {
+  const registriesByPrefix = { ...BUILTIN_REGISTRIES_BY_PREFIX, ...context.opts.registriesByPrefix }
+  return new Set(
+    Object.entries(registriesByPrefix)
+      .filter(([, registry]) => isSameRegistry(registry, context.registry))
+      .map(([prefix]) => prefix)
+  )
 }
 
 function orderStagedProjects (projects: StagedProject[]): StageApprovalOrder {

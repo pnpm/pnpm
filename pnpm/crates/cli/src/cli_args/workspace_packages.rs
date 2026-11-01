@@ -55,7 +55,7 @@ fn publish_registry_prefix<'prefixes>(
     config: &Config,
     declared_prefixes: &'prefixes DeclaredRegistryPrefixes,
 ) -> Result<Option<&'prefixes str>, PackageManifestError> {
-    if config.workspace_registry_prefixes.is_empty() {
+    if declared_prefixes.is_empty() {
         return Ok(None);
     }
     let manifest = publication_manifest(project)?;
