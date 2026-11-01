@@ -99,3 +99,21 @@ fn a_workspace_alias_that_is_not_applied_does_not_declare_the_global_alias() {
     );
     assert_eq!(declared.prefix_for("https://registry.npmjs.org/"), None);
 }
+
+#[test]
+fn a_built_in_prefix_the_workspace_overrides_is_not_declared() {
+    fake_env!(load_with_fake_env);
+    let project = tempdir().expect("project tempdir");
+    fs::write(
+        project.path().join("pnpm-workspace.yaml"),
+        format!("registries:\n  {WORK}:\n    prefix: npmjs\n"),
+    )
+    .expect("write workspace yaml");
+
+    set_fake_env(&[]);
+    let config = load_with_fake_env(project.path());
+    let declared = config.workspace_declared_registry_prefixes();
+
+    assert_eq!(config.registries_by_prefix.get("npmjs").map(String::as_str), Some(WORK));
+    assert_eq!(declared.prefix_for(WORK), None);
+}

@@ -352,6 +352,10 @@ impl StageArgs {
         Ok(StageContext {
             registry,
             auth_header,
+            registry_prefixes: config
+                .merged_registries_by_prefix()
+                .into_keys()
+                .collect(),
             http_client: build_registry_client(config)?,
             retry_opts: config.retry_opts(),
             otp: resolve_otp_from_env::<Host>(self.flags.registry.otp.clone()),

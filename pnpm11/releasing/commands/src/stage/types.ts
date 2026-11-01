@@ -14,7 +14,7 @@ export type StageSubcommand = typeof STAGE_SUBCOMMANDS[number]
  * but accepting the full set keeps a single type across the dispatcher.
  */
 export type StageOptions = Parameters<typeof publishCommand.publish>[0]
-& Partial<Pick<Config, 'linkWorkspacePackages' | 'workspacePackagePatterns'>>
+& Partial<Pick<Config, 'linkWorkspacePackages' | 'registriesByPrefix' | 'workspacePackagePatterns'>>
 & {
   cliOptions?: Record<string, unknown>
   json?: boolean

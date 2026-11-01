@@ -1924,6 +1924,7 @@ describe('pack: workspace dependencies on packages that publish through a named-
   test.each([
     ['no prefix is declared for the registry', undefined, undefined],
     ['only the global config declares the prefix', { work: WORK_REGISTRY }, []],
+    ['the declared prefix is a built-in one', { npmjs: WORK_REGISTRY }, undefined],
   ])('stays plain when %s', async (_, registriesByPrefix, workspaceRegistryPrefixes) => {
     const manifest = await packMain(prepareWorkspace(), registriesByPrefix, workspaceRegistryPrefixes)
 

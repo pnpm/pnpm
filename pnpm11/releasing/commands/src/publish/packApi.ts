@@ -6,6 +6,7 @@ import type { Catalogs } from '@pnpm/catalogs.types'
 import { readProjectManifest } from '@pnpm/cli.utils'
 import { pickDeclaredRegistryPrefix, pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import type { Config } from '@pnpm/config.reader'
+import { BUILTIN_REGISTRIES_BY_PREFIX } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import { packlistWithSources } from '@pnpm/fs.packlist'
 import type { Hooks } from '@pnpm/hooks.pnpmfile'
@@ -194,7 +195,9 @@ async function findWorkspaceProjects (opts: PackOptions): Promise<Project[] | un
 /**
  * The prefixes the project's `pnpm-workspace.yaml` declares, or `undefined`
  * when it declares none. A machine-local prefix is left out, so a packed
- * manifest does not depend on the machine that packed it.
+ * manifest does not depend on the machine that packed it. A built-in prefix is
+ * left out too: a consumer that has not overridden it the same way would
+ * resolve the dependency from the public registry the prefix names.
  */
 function workspaceRegistriesByPrefix (
   opts: Pick<PackOptions, 'registriesByPrefix' | 'workspaceRegistryPrefixes'>
@@ -202,7 +205,7 @@ function workspaceRegistriesByPrefix (
   const { registriesByPrefix, workspaceRegistryPrefixes } = opts
   if (registriesByPrefix == null || workspaceRegistryPrefixes == null) return undefined
   const declared = Object.entries(registriesByPrefix)
-    .filter(([prefix]) => workspaceRegistryPrefixes.includes(prefix))
+    .filter(([prefix]) => workspaceRegistryPrefixes.includes(prefix) && !Object.hasOwn(BUILTIN_REGISTRIES_BY_PREFIX, prefix))
   return declared.length > 0 ? Object.fromEntries(declared) : undefined
 }
 
