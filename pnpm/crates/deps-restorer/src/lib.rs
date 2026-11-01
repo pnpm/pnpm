@@ -44,8 +44,9 @@ pub mod virtual_store_layout;
 pub use build_graph::*;
 pub use build_modules::*;
 pub use build_options::{
-    BuildCacheContext, BuildGraphInputs, BuildLayout, BuildProgress, BuildScriptOptions,
-    BuildSnapshotInputs, CachedSideEffects, PatchedEngineCheck, ScriptPath,
+    BuildCacheContext, BuildCacheStore, BuildGraphInputs, BuildLayout, BuildProgress,
+    BuildScriptOptions, BuildSnapshotInputs, BuiltSideEffects, CachedSideEffects,
+    CapturedBuildSideEffects, PatchedEngineCheck, ScriptPath,
 };
 pub use create_symlink_layout::*;
 pub use create_virtual_dir_by_snapshot::*;
