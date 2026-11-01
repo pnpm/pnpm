@@ -63,10 +63,16 @@ for (const [name, initial, confirmation, expectedCalls, expectedStatus] of [
   })
 }
 
-test('initial command failures are not retried or swallowed', async () => {
+test('initial command failures are not retried or swallowed', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'benchmark-confirmation-'))
+  t.mock.method(console, 'error', () => {})
   let calls = 0
-  assert.equal(await runBenchmark(['pacquet@HEAD', 'pacquet@main'], { execute: () => { calls++; return 7 } }), 7)
-  assert.equal(calls, 1)
+  try {
+    assert.equal(await runBenchmark(['pacquet@HEAD', 'pacquet@main'], { directory, execute: () => { calls++; return 7 } }), 7)
+    assert.equal(calls, 1)
+  } finally {
+    await rm(directory, { recursive: true, force: true })
+  }
 })
 
 test('a harness failure after the traced runs still records their counts', async () => {
@@ -89,6 +95,25 @@ test('a harness failure after the traced runs still records their counts', async
   }
 })
 
+test('a harness failure before the traced runs leaves an earlier run\'s counts out of the report', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'benchmark-confirmation-'))
+  const logError = t.mock.method(console, 'error', () => {})
+  try {
+    await writeSyscallCounts(directory)
+    const status = await runBenchmark(['pacquet@HEAD', 'pacquet@main'], { directory, execute: async () => {
+      await writeFile(join(directory, 'BENCHMARK_REPORT.json'), JSON.stringify(report(1)))
+      return 1
+    } })
+    assert.equal(status, 1)
+    assert.deepEqual(JSON.parse(await readFile(join(directory, 'BENCHMARK_REPORT.json'), 'utf8')), report(1))
+    assert.deepEqual(logError.mock.calls.map(call => call.arguments), [
+      [`Syscall counts not recorded after the harness exited with 1: Cannot read syscall counts from ${join(directory, 'pacquet@HEAD', 'SYSCALL_COUNTS.0.txt')}`],
+    ])
+  } finally {
+    await rm(directory, { recursive: true, force: true })
+  }
+})
+
 test('main-only runs do not require comparison reports or syscall counts', async () => {
   const calls = []
   assert.equal(await runBenchmark(['pacquet@HEAD', 'pnpr@HEAD'], { execute: received => { calls.push(received); return 0 } }), 0)
@@ -106,8 +131,11 @@ test('missing or malformed syscall counts fail the run', async () => {
     await assert.rejects(runBenchmark(['pacquet@HEAD', 'pacquet@main'], { directory, execute }), {
       message: `Cannot read syscall counts from ${join(directory, 'pacquet@HEAD', 'SYSCALL_COUNTS.0.txt')}`,
     })
-    await writeSyscallCounts(directory, 'garbage\n')
-    await assert.rejects(runBenchmark(['pacquet@HEAD', 'pacquet@main'], { directory, execute }), error => {
+    const executeWithGarbage = async () => {
+      await writeSyscallCounts(directory, 'garbage\n')
+      return execute()
+    }
+    await assert.rejects(runBenchmark(['pacquet@HEAD', 'pacquet@main'], { directory, execute: executeWithGarbage }), error => {
       assert.equal(error.message, `Cannot read syscall counts from ${join(directory, 'pacquet@HEAD', 'SYSCALL_COUNTS.0.txt')}`)
       assert.equal(error.cause.message, 'Unexpected strace summary line: garbage')
       return true

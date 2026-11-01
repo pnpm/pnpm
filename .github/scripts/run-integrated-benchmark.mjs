@@ -1,13 +1,16 @@
 import { spawnSync } from 'node:child_process'
-import { readFile, writeFile } from 'node:fs/promises'
+import { readFile, rm, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { compare, parseSyscallSummary, syscallCountRounds } from './compare-integrated-benchmarks.mjs'
 
 export async function runBenchmark (args, { directory = 'bench-work-env', execute = executeBenchmark } = {}) {
   const engines = ['pacquet', 'pnpr'].filter(engine => args.includes(`${engine}@HEAD`) && args.includes(`${engine}@main`))
-  const status = await execute(engines.length === 0 ? args : [...args, '--count-syscalls'])
-  if (engines.length === 0) return status
+  if (engines.length === 0) return execute(args)
+  // A harness that fails before its traced runs must not leave an earlier
+  // run's counts in this work env to be attached to its report.
+  await removeSyscallCounts(directory, args.filter(isTarget))
+  const status = await execute([...args, '--count-syscalls'])
   const reportPath = join(directory, 'BENCHMARK_REPORT.json')
   const markdownPath = join(directory, 'BENCHMARK_REPORT.md')
   if (status !== 0) {
@@ -47,6 +50,14 @@ async function attachSyscallCounts (reportPath, directory, args) {
   }
   await writeFile(reportPath, JSON.stringify(withCounts))
   return withCounts
+}
+
+async function removeSyscallCounts (directory, targets) {
+  for (const target of targets) {
+    for (let round = 0; round < syscallCountRounds; round++) {
+      await rm(join(directory, target, `SYSCALL_COUNTS.${round}.txt`), { force: true })
+    }
+  }
 }
 
 async function readSyscallCounts (directory, targets) {
