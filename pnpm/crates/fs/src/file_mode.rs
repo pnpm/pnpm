@@ -3,7 +3,9 @@ pub use directory::grant_inherited_dir_mode;
 pub use directory::{
     create_dir_all_inheriting_mode, inherited_dir_bits, nearest_existing_ancestor,
 };
-pub use observed_store_modes::{observed_store_inode_mode, record_store_inode_mode};
+pub use observed_store_modes::{
+    forget_store_inode_mode, observed_store_inode_mode, record_store_inode_mode,
+};
 
 mod directory;
 mod observed_store_modes;

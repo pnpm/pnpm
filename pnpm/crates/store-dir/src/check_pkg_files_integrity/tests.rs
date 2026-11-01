@@ -148,6 +148,68 @@ fn careful_path_records_the_mode_of_a_verified_file() {
     );
 }
 
+/// A blob that fails verification is re-fetched, and the new inode may
+/// carry another mode, so the mode recorded when it last passed is dropped.
+#[test]
+#[cfg(unix)]
+fn careful_path_forgets_the_mode_of_a_file_that_went_missing() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let tmp = tempdir().unwrap();
+    let store_dir = StoreDir::new(tmp.path());
+    let content = b"missing mode";
+    let digest = sha512_hex(content);
+    let path = plant_cafs_file(&store_dir, &digest, 0o644, content);
+    fs::set_permissions(&path, fs::Permissions::from_mode(0o640)).unwrap();
+    let future = now_ms() + 3_600_000;
+    let entry = index_with(
+        "sha512",
+        vec![("index.js", info(&digest, content.len() as u64, 0o644, Some(future)))],
+    );
+    let first = check_pkg_files_integrity(&store_dir, entry, &VerifiedFilesCache::new());
+    assert!(first.passed);
+    fs::remove_file(&path).unwrap();
+    let entry = index_with(
+        "sha512",
+        vec![("index.js", info(&digest, content.len() as u64, 0o644, Some(future)))],
+    );
+
+    let result = check_pkg_files_integrity(&store_dir, entry, &VerifiedFilesCache::new());
+
+    assert!(!result.passed);
+    assert_eq!(pnpm_fs::file_mode::observed_store_inode_mode(&path), None);
+}
+
+#[test]
+#[cfg(unix)]
+fn careful_path_forgets_the_mode_of_a_file_whose_content_hash_mismatches() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let tmp = tempdir().unwrap();
+    let store_dir = StoreDir::new(tmp.path());
+    let content = b"mismatched mode";
+    let digest = sha512_hex(content);
+    let path = plant_cafs_file(&store_dir, &digest, 0o644, content);
+    fs::set_permissions(&path, fs::Permissions::from_mode(0o640)).unwrap();
+    let future = now_ms() + 3_600_000;
+    let passing = index_with(
+        "sha512",
+        vec![("index.js", info(&digest, content.len() as u64, 0o644, Some(future)))],
+    );
+    let first = check_pkg_files_integrity(&store_dir, passing, &VerifiedFilesCache::new());
+    assert!(first.passed);
+    fs::write(&path, b"corrupted bytes").unwrap();
+    let rehashed = index_with(
+        "sha512",
+        vec![("index.js", info(&digest, b"corrupted bytes".len() as u64, 0o644, Some(0)))],
+    );
+
+    let result = check_pkg_files_integrity(&store_dir, rehashed, &VerifiedFilesCache::new());
+
+    assert!(!result.passed);
+    assert_eq!(pnpm_fs::file_mode::observed_store_inode_mode(&path), None);
+}
+
 #[test]
 fn careful_path_fails_on_missing_cafs_file() {
     let tmp = tempdir().unwrap();

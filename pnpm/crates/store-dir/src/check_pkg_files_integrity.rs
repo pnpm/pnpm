@@ -436,6 +436,7 @@ fn verify_file(path: &Path, filename: &str, info: &CafsFileInfo, algo: &str) -> 
             ?path,
             "CAFS file missing or unreadable; re-fetching",
         );
+        pnpm_fs::file_mode::forget_store_inode_mode(path);
         return false;
     };
     if !is_modified {
@@ -443,7 +444,13 @@ fn verify_file(path: &Path, filename: &str, info: &CafsFileInfo, algo: &str) -> 
         return true;
     }
 
-    verify_modified_file(path, filename, info, algo)
+    let passed = verify_modified_file(path, filename, info, algo);
+    if !passed {
+        // The re-fetch may land a new inode with this process's mode, so a
+        // mode recorded before must not reach the importer.
+        pnpm_fs::file_mode::forget_store_inode_mode(path);
+    }
+    passed
 }
 
 /// Hand the mode of a blob that passed verification to the importer, which
