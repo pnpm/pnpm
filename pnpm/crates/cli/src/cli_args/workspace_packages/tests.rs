@@ -212,6 +212,23 @@ fn a_workspace_without_prefixes_does_not_read_publish_directories() {
 }
 
 #[test]
+fn a_workspace_that_only_overrides_a_built_in_prefix_does_not_read_publish_directories() {
+    let root = tempfile::tempdir().expect("project dir");
+    fs::create_dir_all(root.path().join("dist")).expect("create dist");
+    fs::write(root.path().join("dist/package.json"), "{ not json")
+        .expect("write the dist manifest");
+    let project = project_publishing_from_dist(root.path(), json!({}), None);
+    let mut config = Config::new();
+    config.registries_by_prefix = BTreeMap::from([("npmjs".to_string(), WORK.to_string())]);
+    config.workspace_registry_prefixes = BTreeSet::from(["npmjs".to_string()]);
+
+    let map = build_workspace_package_manifest_map(&[project], &config)
+        .expect("an unread manifest cannot fail the build");
+
+    assert_eq!(map["pkg-f"][0].registry_prefix, None);
+}
+
+#[test]
 fn an_unreadable_publish_directory_manifest_is_an_error_when_prefixes_are_declared() {
     let root = tempfile::tempdir().expect("project dir");
     fs::create_dir_all(root.path().join("dist")).expect("create dist");

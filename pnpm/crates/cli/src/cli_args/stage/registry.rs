@@ -6,6 +6,8 @@ use super::{
     redact_url_credentials, send_with_retry,
 };
 use crate::cli_args::registry_client::apply_auth_and_otp;
+use pnpm_config::Config;
+use pnpm_lockfile::normalized_registry_key;
 use std::collections::HashSet;
 
 /// A failed `-/stage` registry response
@@ -73,9 +75,23 @@ pub(super) struct StageContext {
     pub(super) retry_opts: RetryOpts,
     pub(super) otp: Option<String>,
     pub(super) web_auth_fetch_options: WebAuthFetchOptions,
-    /// Every prefix a `<prefix>:` dependency of a staged package may name,
-    /// the built-in ones included.
+    /// The prefixes that name [`Self::registry`]. See [`registry_prefixes`].
     pub(super) registry_prefixes: HashSet<String>,
+}
+
+/// The prefixes, the built-in ones included, whose registry is `registry`. A
+/// staged package's `<prefix>:` dependency on another registry names a
+/// different package than a staged one of the same name.
+pub(super) fn registry_prefixes(config: &Config, registry: &str) -> HashSet<String> {
+    let Some(registry) = normalized_registry_key(registry) else {
+        return HashSet::new();
+    };
+    config
+        .merged_registries_by_prefix()
+        .into_iter()
+        .filter(|(_, url)| normalized_registry_key(url).as_deref() == Some(registry.as_str()))
+        .map(|(prefix, _)| prefix)
+        .collect()
 }
 
 /// An HTTP-level failure of a stage mutation, handed to the
