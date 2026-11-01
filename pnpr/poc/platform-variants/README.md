@@ -50,7 +50,10 @@ does not compress. So the PoC also implements split packuments:
   `application/vnd.pnpr.install-v2+json` first, and pnpr answers with a
   document in its own format (`PNPR_INSTALL_V2=0` turns it off). Other
   registries, and pnpr when it is not declared, are asked for npm's
-  documents. The format has: `name`, `distTags`,
+  documents. pnpr sends a `pnpr-registry` header with package documents; the
+  RFC has pnpm warn when an undeclared registry sends it, which the PoC does
+  not do yet, since pnpm's own tests run against an undeclared pnpr and
+  compare their output exactly. The format has: `name`, `distTags`,
   `modified`, `timesSince`, and an entry per version in `versions` with its
   `deprecated` notice, `trust` rank, selected `revision`, and its publish
   `time` only if it was published within 30 days of the package's last

@@ -303,6 +303,10 @@ fn if_modified_since_matches(if_modified_since: &str, last_modified: &str) -> bo
     lm_time <= ims_time
 }
 
+/// The response header that tells a client a package document comes from
+/// pnpr, so pnpm can warn about a registry not declared `serverType: pnpr`.
+const PNPR_REGISTRY_HEADER: &str = "pnpr-registry";
+
 fn packument_not_modified_response(
     etag: &str,
     last_modified: Option<String>,
@@ -312,7 +316,8 @@ fn packument_not_modified_response(
         .status(StatusCode::NOT_MODIFIED)
         .header(header::ETAG, etag)
         .header(header::VARY, "Accept")
-        .header(header::CACHE_CONTROL, format!("public, max-age={max_age}"));
+        .header(header::CACHE_CONTROL, format!("public, max-age={max_age}"))
+        .header(PNPR_REGISTRY_HEADER, env!("CARGO_PKG_VERSION"));
     if let Some(last_modified) = last_modified {
         builder = builder.header(header::LAST_MODIFIED, last_modified);
     }
@@ -333,7 +338,8 @@ fn packument_ok_response(
         .header(header::CONTENT_TYPE, content_type)
         .header(header::ETAG, etag)
         .header(header::VARY, "Accept")
-        .header(header::CACHE_CONTROL, format!("public, max-age={max_age}"));
+        .header(header::CACHE_CONTROL, format!("public, max-age={max_age}"))
+        .header(PNPR_REGISTRY_HEADER, env!("CARGO_PKG_VERSION"));
     if let Some(last_modified) = last_modified {
         builder = builder.header(header::LAST_MODIFIED, last_modified);
     }
