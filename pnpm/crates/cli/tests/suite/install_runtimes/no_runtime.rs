@@ -5,6 +5,8 @@ use super::{
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_graph_hasher::{host_arch, host_platform};
+use pnpm_testing_utils::fs::{MTIME_STEP_MS, set_mtime_ms};
+use pnpm_workspace_state::{load_workspace_state, update_workspace_state};
 use serde_json::{Value, json};
 use std::{fs, path::Path};
 
@@ -340,10 +342,20 @@ fn run_after_a_no_runtime_install_does_not_install_again() {
         .with_args(["install", "--no-runtime"])
         .assert()
         .success();
+    // A lockfile newer than the state, with unchanged content, makes the gate
+    // refresh the state.
+    let mut state = load_workspace_state(&workspace).unwrap().unwrap();
+    state.last_validated_timestamp -= 4 * MTIME_STEP_MS;
+    let validated = state.last_validated_timestamp;
+    update_workspace_state(&workspace, &state).unwrap();
+    set_mtime_ms(&workspace.join("pnpm-lock.yaml"), validated + 2 * MTIME_STEP_MS);
     command(&workspace)
         .with_args(["run", "noop"])
         .assert()
         .success();
     assert!(!workspace.join("node_modules/node").exists());
     assert!(!fixture.archive_mock.matched());
+    let state = load_workspace_state(&workspace).unwrap().unwrap();
+    assert!(state.last_validated_timestamp > validated);
+    assert_eq!(state.settings.runtime, Some(false));
 }
