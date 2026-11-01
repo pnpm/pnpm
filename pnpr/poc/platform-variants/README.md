@@ -1,5 +1,7 @@
 # Platform variants proof of concept
 
+<!-- cspell:words mkinvariants mkvariants mktool typst Mbit -->
+
 A prototype of the
 [pnpr platform-variants RFC](https://github.com/pnpm/rfcs/blob/main/pnpr/text/0000-platform-variants.md):
 one package version with a primary archive and platform variant archives.
