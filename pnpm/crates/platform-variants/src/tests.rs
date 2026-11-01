@@ -1,5 +1,6 @@
 use super::{
-    AmbiguousSelection, Floor, Host, HostFloors, Libc, NodeAbi, Platform, select, variant_tag,
+    AmbiguousSelection, Floor, Host, HostFloors, Libc, NodeAbi, Platform, select,
+    variant_manifests, variant_tag,
 };
 use pretty_assertions::assert_eq;
 
@@ -129,4 +130,25 @@ fn equal_fits_are_ambiguous() {
         select(variants, &linux_host(None, None, None)),
         Err(AmbiguousSelection { first: 0, second: 1 }),
     );
+}
+
+#[test]
+fn variant_manifests_apply_each_difference() {
+    let manifest = serde_json::json!({
+        "name": "fast",
+        "dependencies": { "a": "1" },
+        "engines": { "node": ">=18" },
+        "dist": { "pnpr": { "variants": [
+            {
+                "platforms": [{ "os": "linux", "cpu": "x64", "libc": "glibc" }],
+                "manifest": { "dependencies": { "a": "1", "b": "2" }, "engines": null },
+            },
+            { "platforms": [{ "os": "linux", "cpu": "x64", "cuda": "12" }], "manifest": {} },
+        ] } },
+    });
+    let variants = variant_manifests(&manifest);
+    assert_eq!(variants.len(), 1, "a variant with an unknown field is left out");
+    assert_eq!(variants[0].0, "linux-x64");
+    assert_eq!(variants[0].1["dependencies"], serde_json::json!({ "a": "1", "b": "2" }));
+    assert!(variants[0].1.get("engines").is_none());
 }

@@ -375,7 +375,11 @@ fn closure_importer_ids(
     let hoisted_prior = install.prior.lockfile.filter(|_| is_hoisted);
     materialization_importer_ids(install.projects.selected_ids, hoisted_prior, built)
         .or_else(|| {
-            (install.resolve_widened_groups() || install.included().excludes_a_group()).then(|| {
+            // A platform variant's own snapshot is wired in by the closure.
+            (install.resolve_widened_groups()
+                || install.included().excludes_a_group()
+                || pnpm_deps_restorer::has_variant_snapshots(built))
+            .then(|| {
                 built.importers
                     .keys()
                     .cloned()
