@@ -204,32 +204,44 @@ fn is_ignored_manifest_directory(
 ) -> bool {
     let relative = directory.strip_prefix(workspace_root).unwrap_or(directory);
     is_under_ignored_directory(directory, ignored_directories)
-        || has_ignored_directory_suffix(relative, ignored_directory_suffixes)
+        || has_ignored_directory_suffix(directory, workspace_root, ignored_directory_suffixes)
         || has_always_ignored_component(relative)
         || is_negated_directory(directory, workspace_root, user_negations)
 }
 
-fn has_ignored_directory_suffix(directory: &Path, suffixes: &[PathBuf]) -> bool {
-    suffixes
-        .iter()
-        .any(|suffix| directory.ends_with(suffix))
+pub(super) fn has_ignored_directory_suffix(
+    directory: &Path,
+    workspace_root: &Path,
+    suffixes: &[PathBuf],
+) -> bool {
+    let relative = directory.strip_prefix(workspace_root).unwrap_or(directory);
+    relative
+        .ancestors()
+        .any(|ancestor| {
+            !ancestor.as_os_str().is_empty()
+                && suffixes
+                    .iter()
+                    .any(|suffix| ancestor.ends_with(suffix))
+                && !PROJECT_MANIFEST_BASENAMES
+                    .iter()
+                    .any(|basename| {
+                        workspace_root
+                            .join(ancestor)
+                            .join(basename)
+                            .is_file()
+                    })
+        })
 }
 
 fn is_ignored_directory(dir: &Path, ctx: &WalkContext<'_>) -> bool {
     is_under_ignored_directory(dir, ctx.ignored_directories)
-        || has_ignored_directory_suffix(
-            dir.strip_prefix(ctx.workspace_root).unwrap_or(dir),
-            ctx.ignored_directory_suffixes,
-        )
+        || has_ignored_directory_suffix(dir, ctx.workspace_root, ctx.ignored_directory_suffixes)
         || is_negated_directory(dir, ctx.workspace_root, ctx.user_negations)
 }
 
 fn is_pruned_subtree(dir: &Path, ctx: &WalkContext<'_>) -> bool {
     is_under_ignored_directory(dir, ctx.ignored_directories)
-        || has_ignored_directory_suffix(
-            dir.strip_prefix(ctx.workspace_root).unwrap_or(dir),
-            ctx.ignored_directory_suffixes,
-        )
+        || has_ignored_directory_suffix(dir, ctx.workspace_root, ctx.ignored_directory_suffixes)
         || is_pruned_by_subtree_negation(dir, ctx.workspace_root, ctx.subtree_negations)
 }
 

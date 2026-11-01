@@ -340,6 +340,19 @@ fn store_prune_keeps_global_virtual_store_slots_from_a_workspace_package_modules
     fs::create_dir_all(modules_dir.join("installed")).expect("create an installed package dir");
     fs::write(modules_dir.join("installed/package.json"), "{")
         .expect("write an invalid installed package manifest");
+    let vendor_project = workspace.join("packages/vendor");
+    let vendor_modules_dir = vendor_project.join("vendor");
+    fs::create_dir_all(&vendor_modules_dir).expect("create the vendor project modules dir");
+    fs::write(
+        vendor_project.join("package.json"),
+        serde_json::json!({"name": "vendor"}).to_string(),
+    )
+    .expect("write the vendor project manifest");
+    let same_named_slot = store.links().join("@/same-named/1.0.0/hash");
+    let same_named_package = same_named_slot.join("node_modules/same-named");
+    fs::create_dir_all(&same_named_package).expect("create the same-named store package");
+    pnpm_fs::symlink_dir(&same_named_package, &vendor_modules_dir.join("same-named"))
+        .expect("link the package from the vendor project modules dir");
 
     prune(&workspace);
 
@@ -347,6 +360,40 @@ fn store_prune_keeps_global_virtual_store_slots_from_a_workspace_package_modules
         live_slot.is_dir(),
         "prune must keep the slot linked from a workspace package's configured modules dir",
     );
+    assert!(
+        same_named_slot.is_dir(),
+        "prune must keep the slot linked from a workspace package named like modulesDir",
+    );
+}
+
+#[test]
+fn store_prune_fails_when_workspace_modules_dir_is_malformed() {
+    let CommandTempCwd {
+        root: _root, workspace, npmrc_info, ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { store_dir, .. } = npmrc_info;
+    write_manifest(&workspace);
+    append_workspace_yaml(&workspace, "modulesDir: vendor\n");
+    pacquet_at(&workspace)
+        .with_args(["install", "--reporter=silent"])
+        .assert()
+        .success();
+    let store_dir = StoreDir::new(store_dir);
+    let keys_before = sorted_index_keys(&store_dir);
+    assert!(!keys_before.is_empty());
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "modulesDir: [vendor]\nvirtualStoreDirMaxLength: invalid\n",
+    )
+    .expect("write malformed workspace settings");
+
+    let output = pacquet_at(&workspace)
+        .with_args(["store", "prune"])
+        .output()
+        .expect("run store prune");
+
+    assert!(!output.status.success());
+    assert_eq!(sorted_index_keys(&store_dir), keys_before);
 }
 
 fn assert_prune_keeps_global_virtual_store_slots(configure: impl FnOnce(&Path) -> PathBuf) {

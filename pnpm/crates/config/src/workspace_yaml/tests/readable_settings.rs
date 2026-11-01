@@ -14,7 +14,7 @@ impl EnvVar for Env {
 }
 
 fn read<Sys: EnvVar>(text: &str) -> Result<WorkspaceSettings, Box<serde_saphyr::Error>> {
-    read_readable_settings(text, parse_settings::<Sys, WorkspaceSettings>)
+    read_readable_settings(text, parse_settings::<Sys, WorkspaceSettings>, &[])
 }
 
 /// [`WorkspaceSettings::find_and_read`] over a file holding `text`, which
@@ -78,6 +78,18 @@ fn load_at_reading_skips_unreadable_settings() {
 
     assert_eq!(settings.modules_dir.as_deref(), Some("vendor"));
     assert_eq!(settings.virtual_store_dir_max_length, None);
+}
+
+#[test]
+fn required_settings_fail_when_their_value_is_unreadable() {
+    let error = read_readable_settings(
+        "modulesDir: [vendor]\nvirtualStoreDirMaxLength: invalid\n",
+        parse_settings::<SystemEnv, WorkspaceSettings>,
+        &["modulesDir"],
+    )
+    .unwrap_err();
+
+    assert!(error.to_string().contains("modulesDir"));
 }
 
 #[test]

@@ -46,6 +46,7 @@ fn skips_configured_modules_directories_during_broad_workspace_discovery() {
     let tmp = TempDir::new().unwrap();
     make_project(tmp.path(), ".", "root");
     make_project(tmp.path(), "packages/real", "real");
+    make_project(tmp.path(), "packages/vendor", "vendor");
     fs::create_dir_all(tmp.path().join("packages/real/vendor/installed")).unwrap();
     fs::write(tmp.path().join("packages/real/vendor/installed/package.json"), "{").unwrap();
     let opts = FindWorkspaceProjectsOpts {
@@ -68,7 +69,31 @@ fn skips_configured_modules_directories_during_broad_workspace_discovery() {
         .collect();
     names.sort_unstable();
 
-    assert_eq!(names, ["real", "root"]);
+    assert_eq!(names, ["real", "root", "vendor"]);
+}
+
+#[test]
+fn skips_descendants_of_configured_modules_directories() {
+    let tmp = TempDir::new().unwrap();
+    make_project(tmp.path(), ".", "root");
+    fs::create_dir_all(tmp.path().join("packages/real/vendor/installed")).unwrap();
+    fs::write(tmp.path().join("packages/real/vendor/installed/package.json"), "{").unwrap();
+    let opts = FindWorkspaceProjectsOpts {
+        patterns: Some(vec!["packages/real/vendor/*".to_string()]),
+        ignored_directory_suffixes: vec![PathBuf::from("vendor")],
+        ..Default::default()
+    };
+
+    let projects = find_workspace_projects(tmp.path(), &opts).unwrap();
+
+    assert_eq!(projects.len(), 1);
+    assert_eq!(
+        projects[0].manifest
+            .value()
+            .get("name")
+            .unwrap(),
+        "root",
+    );
 }
 
 #[test]

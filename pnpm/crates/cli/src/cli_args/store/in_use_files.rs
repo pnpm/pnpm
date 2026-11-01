@@ -220,9 +220,16 @@ fn load_installed_lockfiles(project: &Path) -> io::Result<Vec<Lockfile>> {
 /// environment, or in the global config is not seen.
 fn configured_modules_dir(project: &Path) -> io::Result<String> {
     let workspace_dir = workspace_root_or(project);
-    let Some(mut settings) =
-        WorkspaceSettings::load_at_reading(&workspace_dir, pnpm_config::SettingsRead::Readable)
-            .map_err(io::Error::other)?
+    let Some(mut settings) = WorkspaceSettings::load_at_reading(
+        &workspace_dir,
+        pnpm_config::SettingsRead::Required(&[
+            "lockfileDir",
+            "modulesDir",
+            "packageConfigs",
+            "sharedWorkspaceLockfile",
+        ]),
+    )
+    .map_err(io::Error::other)?
     else {
         return Ok("node_modules".to_string());
     };
