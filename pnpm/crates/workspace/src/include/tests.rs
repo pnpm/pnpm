@@ -368,6 +368,17 @@ fn non_yaml_source() {
 }
 
 #[test]
+fn uppercase_extension_source() {
+    let dir = workspace(&[
+        ("pnpm-workspace.yaml", "include:\n  ./config/policy.YAML: '*'\n"),
+        ("config/policy.YAML", "minimumReleaseAge: 1440\n"),
+    ]);
+    let expected: yaml_serde::Value =
+        yaml_serde::from_str("minimumReleaseAge: 1440\n").expect("parse expected");
+    assert_eq!(merged(dir.path()), expected);
+}
+
+#[test]
 fn absolute_source() {
     let error = load_error(&[("pnpm-workspace.yaml", "include:\n  /etc/config.yaml: '*'\n")]);
     assert!(matches!(error, IncludeError::InvalidSource { .. }), "{error:?}");
@@ -517,6 +528,19 @@ fn package_entry_that_is_not_yaml() {
         ),
     ]);
     assert!(matches!(error, IncludeError::InvalidPackageEntry { .. }), "{error:?}");
+}
+
+#[test]
+fn package_entry_with_an_uppercase_extension() {
+    let dir = policy_workspace(
+        r#"{"name":"@acme/policy","pnpm":{"config":"./CONFIG.YML"}}"#,
+        &[("CONFIG.YML", "minimumReleaseAge: 1440\n")],
+    );
+    let expected: yaml_serde::Value = yaml_serde::from_str(
+        "configDependencies:\n  '@acme/policy': 3.1.0\nminimumReleaseAge: 1440\n",
+    )
+    .expect("parse expected");
+    assert_eq!(merged(dir.path()), expected);
 }
 
 #[cfg(unix)]
