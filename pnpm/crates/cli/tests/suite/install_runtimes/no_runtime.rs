@@ -359,3 +359,42 @@ fn run_after_a_no_runtime_install_does_not_install_again() {
     assert!(state.last_validated_timestamp > validated);
     assert_eq!(state.settings.runtime, Some(false));
 }
+
+#[test]
+fn no_runtime_install_unlinks_a_linked_runtime() {
+    for linker in ["isolated", "hoisted"] {
+        let root = tempfile::tempdir().unwrap();
+        let mut server = mockito::Server::new();
+        let (workspace, fixture) =
+            locked_runtime_project(&root, &mut server, &format!("nodeLinker: {linker}\n"));
+        command(&workspace)
+            .with_arg("install")
+            .assert()
+            .success();
+        assert_installed(&workspace, std::slice::from_ref(&fixture));
+
+        for args in [&["--no-runtime"][..], &["--no-runtime", "--frozen-lockfile"][..]] {
+            command(&workspace)
+                .with_arg("install")
+                .with_args(args)
+                .assert()
+                .success();
+            assert!(!workspace.join("node_modules/node").exists(), "{linker} {args:?}");
+            for bin in ["node", "node.exe", "node.cmd"] {
+                assert!(
+                    !workspace
+                        .join("node_modules/.bin")
+                        .join(bin)
+                        .exists(),
+                    "{linker} {args:?}: runtime bin {bin} must be removed",
+                );
+            }
+        }
+
+        command(&workspace)
+            .with_arg("install")
+            .assert()
+            .success();
+        assert_installed(&workspace, std::slice::from_ref(&fixture));
+    }
+}

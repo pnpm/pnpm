@@ -1,4 +1,5 @@
 use super::{DependencyGroup, Lockfile, OptimisticRepeatInstallCheck, Path, WorkspaceState};
+use pnpm_config::Config;
 use pnpm_modules_yaml::IncludedDependencies;
 use std::{cell::OnceCell, collections::HashSet};
 
@@ -79,14 +80,21 @@ pub(crate) fn assert_loaded_current_lockfile_records(
 /// settle instead of re-materializing on every run.
 ///
 /// The equal case is the common one and answers without building the
-/// filtered shape at all.
+/// filtered shape at all. Under `config.skip_runtimes` the direct runtimes are
+/// left out of the shape, so a tree that still holds one does not match.
 pub(crate) fn materialized_shape_matches(
     wanted: &Lockfile,
     current: &Lockfile,
     included: IncludedDependencies,
-    peer_edges: pnpm_lockfile::PeerEdgeOptions,
+    config: &Config,
 ) -> bool {
-    if wanted == current {
+    let mut skipped = crate::SkippedSnapshots::new();
+    if config.skip_runtimes
+        && let Some(packages) = wanted.packages.as_ref()
+    {
+        crate::add_direct_runtime_skips(&mut skipped, &wanted.importers, packages);
+    }
+    if skipped.is_empty() && wanted == current {
         return true;
     }
     // A transient skip (a failed optional fetch) prunes the current lockfile
@@ -95,8 +103,8 @@ pub(crate) fn materialized_shape_matches(
     current
         == &crate::filter_lockfile_for_current(
             wanted,
-            &crate::GroupSelection::classify(wanted, included, peer_edges),
-            &crate::SkippedSnapshots::new(),
+            &crate::GroupSelection::classify(wanted, included, config.peer_edge_options()),
+            &skipped,
         )
 }
 
