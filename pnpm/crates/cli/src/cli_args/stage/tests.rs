@@ -1,11 +1,13 @@
 use super::{
-    StageError, is_uuid, parse_package_filter, render_stage_item, render_stage_publish_summary,
-    render_tarball_summary, require_stage_id,
+    StageError, is_uuid, parse_package_filter, registry_prefixes, render_stage_item,
+    render_stage_publish_summary, render_tarball_summary, require_stage_id,
     summarize_tarball::{create_tarball_filename, summarize_tarball},
 };
 use flate2::{Compression, write::GzEncoder};
+use pnpm_config::Config;
 use pretty_assertions::assert_eq;
 use serde_json::json;
+use std::collections::{BTreeMap, HashSet};
 
 const STAGE_ID: &str = "1de6f3db-2ed9-4d72-b3dd-8f0e2b474a2f";
 
@@ -294,4 +296,22 @@ fn gzipped_tarball(entries: &[(&str, &str)]) -> Vec<u8> {
     let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
     std::io::Write::write_all(&mut encoder, &tar).expect("gzip the tarball");
     encoder.finish().expect("finish the gzip stream")
+}
+
+#[test]
+fn only_the_prefixes_of_the_stage_registry_name_staged_packages() {
+    let mut config = Config::new();
+    config.registries_by_prefix = BTreeMap::from([
+        ("work".to_string(), "https://NPM.Work.Example.com".to_string()),
+        ("other".to_string(), "https://npm.other.example.com/".to_string()),
+    ]);
+
+    assert_eq!(
+        registry_prefixes(&config, "https://npm.work.example.com/"),
+        HashSet::from(["work".to_string()]),
+    );
+    assert_eq!(
+        registry_prefixes(&config, "https://registry.npmjs.org/"),
+        HashSet::from(["npmjs".to_string()]),
+    );
 }
