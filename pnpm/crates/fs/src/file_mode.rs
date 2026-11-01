@@ -5,6 +5,7 @@ pub use directory::{
 };
 pub use observed_store_modes::{
     forget_store_inode_mode, observed_store_inode_mode, record_store_inode_mode,
+    record_verified_store_inode_mode,
 };
 
 mod directory;

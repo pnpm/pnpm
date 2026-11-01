@@ -180,7 +180,7 @@ fn hardlink_uses_the_mode_the_verifier_recorded() {
     let desired = pnpm_fs::file_mode::store_entry_mode(false, pnpm_fs::file_mode::current_umask());
     let src = write_source(tmp.path(), STORE_ENTRY, b"data\n");
     fs::set_permissions(&src, fs::Permissions::from_mode(desired ^ 0o001)).unwrap();
-    pnpm_fs::file_mode::record_store_inode_mode(&src, desired);
+    pnpm_fs::file_mode::record_verified_store_inode_mode(&src, desired);
     let dst = tmp.path().join("dst.txt");
     link_file::<SilentReporter>(&AtomicU8::new(0), PackageImportMethod::Hardlink, &src, &dst)
         .expect("the store file is hardlinked");
