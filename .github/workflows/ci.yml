@@ -51,10 +51,11 @@ jobs:
         id: filter
         with:
           # The TypeScript pnpm stack lives under pnpm11/, plus the
-          # workspace-root tooling that drives its build/lint/test.
+          # pnpr registry its tests use and workspace-root build/lint/test tooling.
           filters: |
             ts:
               - 'pnpm11/**'
+              - 'pnpr/**'
               - '.meta-updater/**'
               - '.config/pnpm/**'
               - 'package.json'
