@@ -36,7 +36,7 @@ fn sanitizes_c1_controls_without_other_invalid_characters() {
     let sanitized = sanitize_filenames(&input).unwrap();
     assert_eq!(
         sanitized.paths["assets/name.txt"].path,
-        PathBuf::from("assets/name\u{80}\u{9f}.txt")
+        PathBuf::from("assets/name\u{80}\u{9f}.txt"),
     );
     assert_eq!(sanitized.renamed, ["assets/name\u{80}\u{9f}.txt"]);
 }
