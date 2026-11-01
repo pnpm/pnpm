@@ -1,5 +1,5 @@
 use super::{sanitize_component, sanitize_filenames};
-use std::{collections::HashMap, path::PathBuf};
+use std::path::PathBuf;
 
 fn entries(names: &[&str]) -> pnpm_fs::CasPaths {
     names
