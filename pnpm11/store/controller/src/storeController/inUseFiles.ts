@@ -1,5 +1,6 @@
 import path from 'node:path'
 
+import { envReplace } from '@pnpm/config.env-replace'
 import { type Config, createProjectModulesDirResolver } from '@pnpm/config.reader'
 import { LOCKFILE_VERSION, WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
 import { isError, PnpmError } from '@pnpm/error'
@@ -138,7 +139,7 @@ export async function readConfiguredModulesDir (projectDir: string): Promise<str
     const lockfileDir = settings?.sharedWorkspaceLockfile === false ? settings.lockfileDir : workspaceDir
     const resolveModulesDir = createProjectModulesDirResolver({
       lockfileDir,
-      modulesDir: typeof settings?.modulesDir === 'string' ? settings.modulesDir : undefined,
+      modulesDir: typeof settings?.modulesDir === 'string' ? envReplace(settings.modulesDir, process.env) : undefined,
       packageConfigs: settings?.packageConfigs,
     })
     const projectName = lockfileDir != null || settings?.packageConfigs == null

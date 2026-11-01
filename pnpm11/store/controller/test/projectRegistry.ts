@@ -209,6 +209,50 @@ describe('projectRegistry', () => {
 
       expect((await fs.stat(packageDir)).isDirectory()).toBe(true)
     })
+
+    it('keeps packages linked from a workspace package modules directory', async () => {
+      const root = await fs.realpath(temporaryDirectory())
+      const storeDir = temporaryDirectory()
+      const projectDir = await createProject(root, 'project')
+      const modulesDir = path.join(projectDir, 'custom_modules')
+      const packageDir = path.join(storeDir, 'links', '@', 'custom', '1.0.0', 'hash', 'node_modules', 'custom')
+      await fs.mkdir(packageDir, { recursive: true })
+      await fs.mkdir(modulesDir)
+      await fs.writeFile(path.join(root, 'pnpm-workspace.yaml'), 'packages: [project]\nmodulesDir: custom_modules\n')
+      await fs.writeFile(path.join(projectDir, 'package.json'), JSON.stringify({ name: 'project' }))
+      await fs.symlink(packageDir, path.join(modulesDir, 'custom'), 'junction')
+      await addPruneAnchor(storeDir, root)
+      await registerProject(storeDir, root)
+
+      await pruneGlobalVirtualStore(storeDir)
+
+      expect((await fs.stat(packageDir)).isDirectory()).toBe(true)
+    })
+
+    it('expands environment placeholders in the configured modules directory', async () => {
+      const root = await fs.realpath(temporaryDirectory())
+      const storeDir = path.join(root, 'store')
+      const projectDir = await createProject(root, 'project')
+      const modulesDir = path.join(projectDir, 'custom_modules')
+      const packageDir = path.join(storeDir, 'links', '@', 'custom', '1.0.0', 'hash', 'node_modules', 'custom')
+      const previous = process.env.PNPM_PRUNE_MODULES_DIR
+      delete process.env.PNPM_PRUNE_MODULES_DIR
+      try {
+        await fs.mkdir(packageDir, { recursive: true })
+        await fs.mkdir(modulesDir)
+        await fs.writeFile(path.join(root, 'pnpm-workspace.yaml'), 'packages: [project]\nmodulesDir: ${PNPM_PRUNE_MODULES_DIR:-custom_modules}\n')
+        await fs.writeFile(path.join(projectDir, 'package.json'), JSON.stringify({ name: 'project' }))
+        await fs.symlink(packageDir, path.join(modulesDir, 'custom'), 'junction')
+        await addPruneAnchor(storeDir, root)
+        await registerProject(storeDir, projectDir)
+        await pruneGlobalVirtualStore(storeDir)
+      } finally {
+        if (previous == null) delete process.env.PNPM_PRUNE_MODULES_DIR
+        else process.env.PNPM_PRUNE_MODULES_DIR = previous
+      }
+
+      expect((await fs.stat(packageDir)).isDirectory()).toBe(true)
+    })
   })
 })
 
@@ -231,4 +275,12 @@ async function createProject (root: string, name: string): Promise<string> {
   const projectDir = path.join(root, name)
   await fs.mkdir(projectDir)
   return projectDir
+}
+
+async function addPruneAnchor (storeDir: string, projectDir: string): Promise<void> {
+  const anchorDir = path.join(storeDir, 'links', '@', 'anchor', '1.0.0', 'hash', 'node_modules', 'anchor')
+  const modulesDir = path.join(projectDir, 'node_modules')
+  await fs.mkdir(anchorDir, { recursive: true })
+  await fs.mkdir(modulesDir)
+  await fs.symlink(anchorDir, path.join(modulesDir, 'anchor'), 'junction')
 }

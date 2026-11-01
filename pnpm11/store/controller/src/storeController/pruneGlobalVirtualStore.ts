@@ -2,9 +2,14 @@ import crypto from 'node:crypto'
 import { type Dirent, promises as fs } from 'node:fs'
 import path from 'node:path'
 
+import { envReplace } from '@pnpm/config.env-replace'
+import { type Config, createProjectConfigRecord } from '@pnpm/config.reader'
 import { isError } from '@pnpm/error'
 import { globalInfo } from '@pnpm/logger'
+import { findWorkspaceProjectsNoCheck } from '@pnpm/workspace.projects-reader'
+import { readWorkspaceManifestKeys } from '@pnpm/workspace.workspace-manifest-reader'
 import { rimraf } from '@zkochan/rimraf'
+import * as find from 'empathic/find'
 import { isSubdir } from 'is-subdir'
 
 import { readConfiguredModulesDir } from './inUseFiles.js'
@@ -40,12 +45,12 @@ export async function pruneGlobalVirtualStore (storeDir: string): Promise<void> 
   // For each project, find all node_modules directories (root + workspace packages)
   await Promise.all(
     projects.map(async (projectDir) => {
-      const [nodeModulesDirs, configuredModulesDir] = await Promise.all([
+      const [nodeModulesDirs, configuredModulesDirs] = await Promise.all([
         findAllNodeModulesDirs(projectDir),
-        readConfiguredModulesDir(projectDir),
+        findRegisteredWorkspaceModulesDirs(projectDir),
       ])
       await Promise.all(
-        [...nodeModulesDirs, path.resolve(projectDir, configuredModulesDir)].map((modulesDir) =>
+        [...nodeModulesDirs, ...configuredModulesDirs].map((modulesDir) =>
           walkSymlinksToStore(modulesDir, linksDir, reachable, visited)
         )
       )
@@ -289,6 +294,27 @@ async function pathExists (checkedPath: string): Promise<boolean> {
   } catch {
     return false
   }
+}
+
+async function findRegisteredWorkspaceModulesDirs (projectDir: string): Promise<string[]> {
+  const workspaceManifest = find.file('pnpm-workspace.yaml', { cwd: projectDir })
+  if (workspaceManifest == null) return [path.resolve(projectDir, await readConfiguredModulesDir(projectDir))]
+  const workspaceDir = path.dirname(workspaceManifest)
+  const workspaceSettings = await readWorkspaceManifestKeys(workspaceDir, new Set(['lockfileDir', 'modulesDir', 'packageConfigs', 'packages', 'sharedWorkspaceLockfile'])) as Partial<Pick<Config, 'lockfileDir' | 'modulesDir' | 'packageConfigs' | 'sharedWorkspaceLockfile'>> & { packages?: string[] } | undefined
+  const lockfileDir = workspaceSettings?.sharedWorkspaceLockfile === false ? workspaceSettings.lockfileDir : workspaceDir
+  const modulesDir = typeof workspaceSettings?.modulesDir === 'string' ? envReplace(workspaceSettings.modulesDir, process.env) : undefined
+  const modulesDirsByProjectName = lockfileDir == null
+    ? Object.fromEntries(Object.entries(createProjectConfigRecord({ packageConfigs: workspaceSettings?.packageConfigs }) ?? {}).flatMap(([name, config]) => config.modulesDir == null ? [] : [[name, config.modulesDir]]))
+    : {}
+  const workspaceProjects = await findWorkspaceProjectsNoCheck(workspaceDir, {
+    patterns: workspaceSettings?.packages ?? ['.'],
+    modulesDir: modulesDir ?? await readConfiguredModulesDir(workspaceDir),
+    modulesDirsByProjectName,
+  })
+  const projectDirs = new Set([projectDir, ...workspaceProjects.map(({ rootDir }) => rootDir)])
+  return Promise.all(Array.from(projectDirs, async (rootDir) =>
+    path.resolve(rootDir, await readConfiguredModulesDir(rootDir))
+  ))
 }
 
 async function getSubdirsSafely (dir: string): Promise<string[]> {
