@@ -455,7 +455,9 @@ fn verify_file(path: &Path, filename: &str, info: &CafsFileInfo, algo: &str) -> 
 
 /// Hand the mode of a blob that passed verification to the importer, which
 /// would otherwise `stat` it again before every hardlink to decide whether
-/// the inode can be shared (pnpm/pnpm#17500).
+/// the inode can be shared (pnpm/pnpm#17500). Another process changing the
+/// blob's mode before the link is a usage error, not guarded against (see
+/// `source_has_desired_mode` in pnpm-deps-restorer).
 fn record_verified_mode(path: &Path, metadata: &fs::Metadata) {
     #[cfg(unix)]
     {

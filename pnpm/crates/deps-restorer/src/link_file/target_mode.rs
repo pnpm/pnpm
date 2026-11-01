@@ -43,6 +43,12 @@ fn desired_mode(source_file: &Path) -> Option<u32> {
 /// packages is not stat'ed again. A later change to the entry's mode, such
 /// as a bin's exec bit set through one of its hardlinks, does not reach
 /// the recorded mode.
+///
+/// Another process changing a store entry's mode during an install (a
+/// `chmod` of the store, a backup restore, a concurrent install linking
+/// bins) is a usage error this does not guard against. No stat closes that
+/// window: the mode can change between a stat and the `linkat`, and after
+/// the link the change reaches `node_modules` through the shared inode.
 #[cfg(any(unix, target_os = "wasi"))]
 pub(super) fn source_has_desired_mode(source_file: &Path) -> io::Result<bool> {
     let Some(desired) = desired_mode(source_file) else { return Ok(true) };
