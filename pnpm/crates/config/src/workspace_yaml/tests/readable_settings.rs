@@ -65,6 +65,22 @@ fn every_unreadable_setting_is_left_out() {
 }
 
 #[test]
+fn load_at_reading_skips_unreadable_settings() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        "modulesDir: vendor\nvirtualStoreDirMaxLength: invalid\n",
+    )
+    .unwrap();
+
+    let settings =
+        WorkspaceSettings::load_at_reading(dir.path(), SettingsRead::Readable).unwrap().unwrap();
+
+    assert_eq!(settings.modules_dir.as_deref(), Some("vendor"));
+    assert_eq!(settings.virtual_store_dir_max_length, None);
+}
+
+#[test]
 fn a_readable_document_is_read_whole() {
     let settings = read::<SystemEnv>("ignoreScripts: true\n").unwrap();
 
