@@ -838,14 +838,18 @@ jobs:
           # workflow_run payload regardless.
           SHA: ${{ inputs.head_ref && needs.revisions.outputs.head_sha || github.event.pull_request.head.sha || github.sha }}
           MAIN_SHA: ${{ needs.revisions.outputs.main_sha }}
+          REF_NAME: ${{ github.ref_name }}
         run: |
           (
             echo '## Integrated-Benchmark Report (${{ runner.os }})'
             echo
             echo "**Commit:** [\`${SHA:0:12}\`](${{ github.server_url }}/${{ github.repository }}/commit/$SHA)"
             echo
-            echo "**Compared against main at:** [\`${MAIN_SHA:0:12}\`](${{ github.server_url }}/${{ github.repository }}/commit/$MAIN_SHA)"
-            echo
+            # On main the benchmark runs HEAD alone, with no main target.
+            if [ "$REF_NAME" != main ]; then
+              echo "**Compared against main at:** [\`${MAIN_SHA:0:12}\`](${{ github.server_url }}/${{ github.repository }}/commit/$MAIN_SHA)"
+              echo
+            fi
             echo 'Regular scenarios report direct and pnpr installs. The peer-heavy resolver scenario compares current Rust, main Rust, and TypeScript pnpm; the linked, injected, and Cargo workspace scenarios compare current Rust against main Rust. Bencher consumes pacquet@HEAD and pnpr@HEAD.'
             echo
             echo 'The tables below show mean ± σ. Bencher tracks absolute minimum latency; PR regression checks compare HEAD and main samples from the same runner. Historical timing alerts do not gate PRs.'
