@@ -254,7 +254,7 @@ describe('projectRegistry', () => {
       expect((await fs.stat(packageDir)).isDirectory()).toBe(true)
     })
 
-    it('does not fail when modulesDir has an unresolved environment placeholder', async () => {
+    it('fails when modulesDir has an unresolved environment placeholder', async () => {
       const root = await fs.realpath(temporaryDirectory())
       const storeDir = path.join(root, 'store')
       const projectDir = await createProject(root, 'project')
@@ -266,7 +266,7 @@ describe('projectRegistry', () => {
         await addPruneAnchor(storeDir, root)
         await registerProject(storeDir, projectDir)
 
-        await expect(pruneGlobalVirtualStore(storeDir)).resolves.toBeUndefined()
+        await expect(pruneGlobalVirtualStore(storeDir)).rejects.toThrow('Failed to replace env in config')
       } finally {
         if (previous == null) delete process.env.PNPM_PRUNE_UNRESOLVED_MODULES_DIR
         else process.env.PNPM_PRUNE_UNRESOLVED_MODULES_DIR = previous
