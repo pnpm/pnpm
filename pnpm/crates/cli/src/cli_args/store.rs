@@ -85,7 +85,7 @@ fn prune(config: &Config) -> miette::Result<()> {
         .prune_keeping_with_modules_dirs(
             &config.cache_dir,
             &protected_dirs,
-            in_use_files::registered_modules_dirs,
+            |projects| in_use_files::registered_modules_dirs(config.store_dir.root(), projects),
             || in_use_files::in_use_files(&config.store_dir),
         )
         .wrap_err("pruning store")?;

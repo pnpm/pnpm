@@ -13,6 +13,9 @@
       "path": "../../__utils__/prepare"
     },
     {
+      "path": "../../config/env-replace"
+    },
+    {
       "path": "../../config/reader"
     },
     {
@@ -62,6 +65,9 @@
     },
     {
       "path": "../../workspace/project-manifest-reader"
+    },
+    {
+      "path": "../../workspace/projects-reader"
     },
     {
       "path": "../../workspace/workspace-manifest-reader"

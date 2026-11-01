@@ -114,6 +114,7 @@ fn blob_paths_of_rows(store_dir: &StoreDir, keys: &[String]) -> Vec<PathBuf> {
 fn prune(workspace: &Path) {
     let output = pacquet_at(workspace)
         .with_args(["store", "prune"])
+        .env_remove("PNPM_TASKS_230_MODULES_DIR")
         .output()
         .expect("run store prune");
     let stderr = String::from_utf8_lossy(&output.stderr);
@@ -308,6 +309,43 @@ fn store_prune_keeps_global_virtual_store_slots_from_package_configs_modules_dir
     });
 }
 
+#[test]
+fn store_prune_keeps_global_virtual_store_slots_from_a_workspace_package_modules_dir() {
+    let CommandTempCwd {
+        root: _root, workspace, npmrc_info, ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry {
+        mock_instance: _mock_instance,
+        store_dir,
+        ..
+    } = npmrc_info;
+    write_manifest(&workspace);
+    append_workspace_yaml(
+        &workspace,
+        "packages: [project]\nmodulesDir: ${PNPM_TASKS_230_MODULES_DIR:-custom_modules}\n",
+    );
+    let project = workspace.join("project");
+    fs::create_dir_all(&project).expect("create workspace package");
+    fs::write(project.join("package.json"), serde_json::json!({"name": "project"}).to_string())
+        .expect("write workspace package manifest");
+    enable_gvs_in_workspace_yaml(&workspace, "");
+    pacquet_at(&workspace)
+        .with_args(["install", "--reporter=silent"])
+        .env_remove("PNPM_TASKS_230_MODULES_DIR")
+        .assert()
+        .success();
+    let store = StoreDir::new(store_dir);
+    let modules_dir = project.join("custom_modules");
+    let live_slot = add_global_virtual_store_prune_anchor(&workspace, &store, &modules_dir);
+
+    prune(&workspace);
+
+    assert!(
+        live_slot.is_dir(),
+        "prune must keep the slot linked from a workspace package's configured modules dir",
+    );
+}
+
 fn assert_prune_keeps_global_virtual_store_slots(configure: impl FnOnce(&Path) -> PathBuf) {
     let CommandTempCwd {
         root: _root, workspace, npmrc_info, ..
@@ -326,8 +364,6 @@ fn assert_prune_keeps_global_virtual_store_slots(configure: impl FnOnce(&Path) -
         .success();
     let store = StoreDir::new(store_dir);
     let live_slot = add_global_virtual_store_prune_anchor(&workspace, &store, &modules_dir);
-    assert!(live_slot.is_dir(), "install must create the global virtual store slot");
-
     prune(&workspace);
 
     assert!(live_slot.is_dir(), "prune must keep the slot linked from the configured modules dir");

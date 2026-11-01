@@ -3,7 +3,7 @@
 //! A package imported by copy or clone, such as a patched or built one, has
 //! no hard link to the store, so `store prune` needs this list to keep it.
 
-use pnpm_config::{PackageConfigsSetting, workspace_root_or};
+use pnpm_config::{PackageConfigsSetting, WorkspaceSettings, workspace_root_or};
 use pnpm_deps_restorer::{binary_store_index_key, store_index_key_for_resolution};
 use pnpm_fs::lexical_normalize;
 use pnpm_lockfile::{Lockfile, LockfileResolution, PackageKey};
@@ -13,8 +13,10 @@ use pnpm_store_dir::{
     CafsFileInfo, PackageFilesIndex, PruneError, StoreDir, StoreIndex, StoreIndexError,
     decode_package_files_index, get_registered_projects,
 };
-use pnpm_workspace::read_workspace_manifest_document;
-use serde::Deserialize;
+use pnpm_workspace::{
+    FindWorkspaceProjectsOpts, find_workspace_projects, read_workspace_manifest,
+    workspace_package_patterns,
+};
 use std::{
     collections::HashSet,
     io, iter,
@@ -52,16 +54,39 @@ pub(super) fn in_use_files(store_dir: &StoreDir) -> Result<HashSet<PathBuf>, Pru
         .collect())
 }
 
-pub(super) fn registered_modules_dirs(projects: &[PathBuf]) -> Result<Vec<PathBuf>, PruneError> {
-    projects
-        .iter()
-        .map(|project| {
-            let project = lexical_normalize(project);
-            configured_modules_dir(&project)
-                .map(|modules_dir| project.join(modules_dir))
-                .map_err(PruneError::InUseFiles)
-        })
-        .collect()
+pub(super) fn registered_modules_dirs(
+    store_dir: &Path,
+    projects: &[PathBuf],
+) -> Result<Vec<PathBuf>, PruneError> {
+    let mut modules_dirs = HashSet::new();
+    for registered_project in projects {
+        let registered_project = lexical_normalize(registered_project);
+        let workspace_dir = workspace_root_or(&registered_project);
+        let workspace_manifest = read_workspace_manifest(&workspace_dir)
+            .map_err(|error| PruneError::InUseFiles(io::Error::other(error)))?;
+        let workspace_projects = match workspace_manifest {
+            Some(manifest) => find_workspace_projects(
+                &workspace_dir,
+                &FindWorkspaceProjectsOpts {
+                    patterns: Some(workspace_package_patterns(&manifest)),
+                    ignored_directories: vec![store_dir.to_path_buf()],
+                },
+            )
+            .map_err(|error| PruneError::InUseFiles(io::Error::other(error)))?
+            .into_iter()
+            .map(|project| project.root_dir)
+            .collect(),
+            None => Vec::new(),
+        };
+        for project in workspace_projects
+            .into_iter()
+            .chain(std::iter::once(registered_project))
+        {
+            let modules_dir = configured_modules_dir(&project).map_err(PruneError::InUseFiles)?;
+            modules_dirs.insert(project.join(modules_dir));
+        }
+    }
+    Ok(modules_dirs.into_iter().collect())
 }
 
 /// Fails on an undecodable row, which [`StoreIndex::get_many`] skips,
@@ -106,24 +131,12 @@ fn load_installed_lockfiles(project: &Path) -> io::Result<Vec<Lockfile>> {
 /// install. A `modulesDir` set only on the command line, in the
 /// environment, or in the global config is not seen.
 fn configured_modules_dir(project: &Path) -> io::Result<String> {
-    #[derive(Deserialize)]
-    #[serde(rename_all = "camelCase")]
-    struct ModulesDirSettings {
-        lockfile_dir: Option<String>,
-        modules_dir: Option<String>,
-        package_configs: Option<PackageConfigsSetting>,
-        shared_workspace_lockfile: Option<bool>,
-    }
-    let Some(document) =
-        read_workspace_manifest_document(&workspace_root_or(project)).map_err(io::Error::other)?
+    let workspace_dir = workspace_root_or(project);
+    let Some(mut settings) = WorkspaceSettings::load_at(&workspace_dir).map_err(io::Error::other)?
     else {
         return Ok("node_modules".to_string());
     };
-    let Some(settings) = serde_saphyr::from_str::<Option<ModulesDirSettings>>(&document.text)
-        .map_err(|error| io::Error::other(format!("{}: {error}", document.path.display())))?
-    else {
-        return Ok("node_modules".to_string());
-    };
+    settings.substitute_env_untrusted::<pnpm_config::Host>();
     let shares_one_lockfile = settings.shared_workspace_lockfile != Some(false)
         || settings.lockfile_dir.is_some();
     let project_modules_dir = match settings.package_configs {
