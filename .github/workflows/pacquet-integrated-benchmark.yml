@@ -114,7 +114,13 @@ jobs:
         env:
           HEAD_REF: ${{ inputs.head_ref }}
           MAIN_REF: ${{ inputs.main_ref }}
+          REF_NAME: ${{ github.ref_name }}
         run: |
+          # On main the benchmark runs HEAD alone, so a main_ref would compare nothing.
+          if [ -n "$MAIN_REF" ] && [ "$REF_NAME" = main ]; then
+            echo "::error::main_ref is ignored when dispatching from main. Dispatch from another branch to compare two revisions."
+            exit 1
+          fi
           echo "head_sha=$(git rev-parse --verify "${HEAD_REF:-HEAD}^{commit}")" >> "$GITHUB_OUTPUT"
           echo "main_sha=$(git rev-parse --verify "${MAIN_REF:-origin/main}^{commit}")" >> "$GITHUB_OUTPUT"
           echo "tools_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
@@ -433,7 +439,7 @@ jobs:
 
       # Every comparison also counts each install's syscalls under strace.
       - name: Install strace
-        run: sudo apt-get install --yes strace
+        run: sudo apt-get update && sudo apt-get install --yes strace
 
       - name: Install just
         uses: taiki-e/install-action@86f7a0ffb25f40114606501a311ebcfaf882ea32 # v2.88.0
@@ -1106,15 +1112,16 @@ jobs:
           retention-days: 14
 
       - name: Install Bencher CLI
-        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && !inputs.head_ref
         uses: bencherdev/bencher@58a33f76185c1187f3df355817d2ac7285ac77f0 # v0.6.14
 
       - name: Upload results to Bencher
         # Runs on push and workflow_dispatch — both execute in the
         # base-repo privilege context where secrets are available.
         # PR runs (including from forks) skip this step and upload
-        # via the workflow_run comment workflow instead.
-        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        # via the workflow_run comment workflow instead. A dispatch with
+        # head_ref measured another revision than the branch it names.
+        if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && !inputs.head_ref
         env:
           BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
           REF_NAME: ${{ github.ref_name }}
