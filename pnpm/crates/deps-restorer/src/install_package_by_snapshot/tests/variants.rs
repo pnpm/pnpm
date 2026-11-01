@@ -4,21 +4,16 @@ use crate::install_package_by_snapshot::{
     runtime::{VariantFetch, variant_for_host},
 };
 use pnpm_lockfile::{
-    BinaryArchive, BinaryResolution, BinarySpec, DirectoryResolution, HostFloors,
-    LockfileResolution, PackageKey, PlatformAssetResolution, PlatformAssetTarget, PlatformSelector,
-    RegistryResolution, VariationsResolution,
+    BinaryArchive, BinaryResolution, BinarySpec, DirectoryResolution, LockfileResolution,
+    PackageKey, PlatformAssetResolution, PlatformAssetTarget, PlatformSelector, RegistryResolution,
+    VariationsResolution,
 };
 use pretty_assertions::assert_eq;
 
 const DIGEST: &str = "sha512-gf6ZldcfCDyNXPRiW3lQjEP1Z9rrUM/4Cn7BZbv3SdTA82zxWRP8OmLwvGR974uuENhGCFgFdN11z3n1Ofpprg==";
 
 fn linux_x64() -> PlatformSelector {
-    PlatformSelector {
-        os: "linux".to_string(),
-        cpu: "x64".to_string(),
-        libc: None,
-        floors: HostFloors::default(),
-    }
+    PlatformSelector { os: "linux".to_string(), cpu: "x64".to_string(), libc: None, floors: None }
 }
 
 fn targets_linux_x64() -> Vec<PlatformAssetTarget> {
@@ -94,7 +89,7 @@ fn a_registry_variant_is_fetched_from_its_route_and_the_primary_as_a_fallback() 
         os: "darwin".to_string(),
         cpu: "arm64".to_string(),
         libc: None,
-        floors: HostFloors::default(),
+        floors: None,
     };
     let VariantFetch::Tarball { resolution, variant } =
         variant_for_host(&variations, &key, &darwin, config).expect("selected")

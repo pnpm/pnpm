@@ -1,5 +1,5 @@
 use super::{
-    BinaryArchive, BinaryResolution, BinarySpec, DirectoryResolution, GitResolution, HostFloors,
+    BinaryArchive, BinaryResolution, BinarySpec, DirectoryResolution, GitResolution,
     LockfileFormError, LockfileFormOptions, LockfileResolution, PlatformAssetResolution,
     PlatformAssetTarget, PlatformSelector, RegistryOptions, RegistryResolution, RegistryServerType,
     TarballResolution, TarballRevision, TarballUrlOptions, VariationsResolution,
@@ -79,7 +79,7 @@ fn selector(os: &str, cpu: &str, libc: Option<&str>) -> PlatformSelector {
         os: os.to_string(),
         cpu: cpu.to_string(),
         libc: libc.map(str::to_string),
-        floors: HostFloors::default(),
+        floors: None,
     }
 }
 

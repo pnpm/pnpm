@@ -12,8 +12,12 @@ repository.workspace = true
 
 [dependencies]
 derive_more = { workspace = true }
+pnpm-detect-libc = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+
+[target.'cfg(target_family = "wasm")'.dependencies]
+pnpm-process = { path = "../process" }
 
 [dev-dependencies]
 pretty_assertions = { workspace = true }

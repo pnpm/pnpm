@@ -94,8 +94,10 @@ fn package_variations_rank_by_floor() {
     };
     let host = |minor| {
         let mut host = selector("linux", "x64", None);
-        host.floors =
-            HostFloors { libc_version: Some(Floor { major: 2, minor }), ..HostFloors::default() };
+        host.floors = Some(HostFloors {
+            libc_version: Some(Floor { major: 2, minor }),
+            ..HostFloors::default()
+        });
         host
     };
     assert_eq!(selected_integrity(variations.select(&host(31)).unwrap()), Some(NEW_GLIBC.into()));

@@ -12,7 +12,9 @@ pub struct Host {
     pub cpu: String,
     /// `None` outside Linux; on Linux, `None` means glibc.
     pub libc: Option<Libc>,
-    pub floors: HostFloors,
+    /// `None` for the running host, whose versions are probed the first
+    /// time a platform with a floor or ABI is matched against it.
+    pub floors: Option<HostFloors>,
 }
 
 impl Host {
@@ -69,10 +71,22 @@ impl Platform {
         self.os.as_deref() == Some(host.os.as_str())
             && self.cpu.as_deref() == Some(host.cpu.as_str())
             && self.effective_libc() == host.effective_libc()
-            && meets(self.libc_version, host.floors.libc_version)
-            && meets(self.os_version, host.floors.os_version)
-            && meets(self.napi, host.floors.napi)
-            && self.node_abi.is_none_or(|abi| host.floors.node_abi == Some(abi))
+            && (!self.has_floor()
+                || self.meets_floors(&host.floors.unwrap_or_else(super::host_floors::detect)))
+    }
+
+    fn has_floor(&self) -> bool {
+        self.libc_version.is_some()
+            || self.os_version.is_some()
+            || self.napi.is_some()
+            || self.node_abi.is_some()
+    }
+
+    fn meets_floors(&self, floors: &HostFloors) -> bool {
+        meets(self.libc_version, floors.libc_version)
+            && meets(self.os_version, floors.os_version)
+            && meets(self.napi, floors.napi)
+            && self.node_abi.is_none_or(|abi| floors.node_abi == Some(abi))
     }
 
     /// How well this platform fits a host it matches: more matched fields,

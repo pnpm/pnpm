@@ -5518,7 +5518,6 @@ dependencies = [
  "indexmap 2.14.0",
  "pnpm-detect-libc",
  "pnpm-fs",
- "pnpm-platform-variants",
  "pnpm-process",
  "pretty_assertions",
  "serde_json",
@@ -6083,6 +6082,8 @@ name = "pnpm-platform-variants"
 version = "0.0.1"
 dependencies = [
  "derive_more",
+ "pnpm-detect-libc",
+ "pnpm-process",
  "pretty_assertions",
  "serde",
  "serde_json",

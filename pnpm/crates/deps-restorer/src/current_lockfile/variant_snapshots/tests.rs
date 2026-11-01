@@ -1,5 +1,5 @@
 use super::with_selected_variant_snapshots;
-use pnpm_lockfile::{HostFloors, Lockfile, PlatformSelector};
+use pnpm_lockfile::{Lockfile, PlatformSelector};
 use pretty_assertions::assert_eq;
 
 const LOCKFILE: &str = "lockfileVersion: '9.0'
@@ -37,12 +37,7 @@ snapshots:
 ";
 
 fn host(os: &str) -> PlatformSelector {
-    PlatformSelector {
-        os: os.to_string(),
-        cpu: "x64".to_string(),
-        libc: None,
-        floors: HostFloors::default(),
-    }
+    PlatformSelector { os: os.to_string(), cpu: "x64".to_string(), libc: None, floors: None }
 }
 
 fn dependency_names(lockfile: &Lockfile) -> Vec<String> {

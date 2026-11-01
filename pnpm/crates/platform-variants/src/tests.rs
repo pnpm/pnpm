@@ -13,11 +13,11 @@ fn linux_host(libc: Option<Libc>, glibc: Option<(u32, u32)>, napi: Option<u32>) 
         os: "linux".into(),
         cpu: "x64".into(),
         libc,
-        floors: HostFloors {
+        floors: Some(HostFloors {
             libc_version: glibc.map(|(major, minor)| Floor { major, minor }),
             napi,
             ..HostFloors::default()
-        },
+        }),
     }
 }
 

@@ -1,6 +1,6 @@
 use super::InstallPackageBySnapshotError;
 use pnpm_config::Config;
-use pnpm_graph_hasher::{detect_host_floors, host_arch, host_libc, host_platform};
+use pnpm_graph_hasher::{host_arch, host_libc, host_platform};
 use pnpm_lockfile::{
     BinaryArchive, BinaryResolution, BinarySpec, HostFloors, LockfileResolution, PackageKey,
     PlatformSelector, SelectedVariant,
@@ -140,7 +140,7 @@ pub fn host_platform_selector() -> PlatformSelector {
         os: host_platform().to_string(),
         cpu: host_arch().to_string(),
         libc,
-        floors: detect_host_floors(),
+        floors: None,
     }
 }
 /// Resolve the runtime archive selector from `supportedArchitectures`.
@@ -165,7 +165,7 @@ pub fn runtime_platform_selector(supported: Option<&SupportedArchitectures>) -> 
                     .to_string(),
                 libc: pick_supported(axes.libc.as_deref(), host.libc.as_deref())
                     .map(str::to_string),
-                floors: HostFloors::default(),
+                floors: Some(HostFloors::default()),
             },
             &host,
         ),
@@ -194,7 +194,7 @@ pub(super) fn runtime_platform_of(
             libc: named.libc
                 .as_ref()
                 .map(|libc| libc.name().to_string()),
-            floors: HostFloors::default(),
+            floors: Some(HostFloors::default()),
         };
         if is_host(&selector, &host) {
             return host;
@@ -208,8 +208,9 @@ fn is_host(selector: &PlatformSelector, host: &PlatformSelector) -> bool {
     selector.os == host.os && selector.cpu == host.cpu && selector.libc == host.libc
 }
 
-/// `selector` with the host's floors when it names the host's platform:
-/// another platform's versions are not known.
+/// `selector` with the running host's floors, probed on demand, when it
+/// names the host's platform: another platform's versions are not known, so
+/// its floors all match.
 fn with_host_floors(mut selector: PlatformSelector, host: &PlatformSelector) -> PlatformSelector {
     if is_host(&selector, host) {
         selector.floors = host.floors;

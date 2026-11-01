@@ -11,9 +11,15 @@ pub use manifests::variant_manifests;
 pub use selection::{AmbiguousSelection, Host, HostFloors, select, selection_order};
 pub use tag::{is_valid_variant_tag, variant_tag};
 
+mod host_floors;
 mod manifests;
 mod selection;
 mod tag;
+
+#[cfg(target_family = "wasm")]
+pub(crate) use pnpm_process as process;
+#[cfg(not(target_family = "wasm"))]
+pub(crate) use std::process;
 
 use derive_more::{Display, Error};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};

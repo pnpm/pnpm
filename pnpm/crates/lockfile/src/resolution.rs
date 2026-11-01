@@ -328,8 +328,10 @@ pub struct PlatformSelector {
     pub cpu: String,
     pub libc: Option<String>,
     /// The versions a package variant's floors and ABI are matched
-    /// against. Runtimes do not read them.
-    pub floors: pnpm_platform_variants::HostFloors,
+    /// against: `None` for the running host, probed only when a variant has
+    /// a floor or ABI, and known values for another platform. Runtimes do
+    /// not read them.
+    pub floors: Option<pnpm_platform_variants::HostFloors>,
 }
 
 /// Pick the variant whose target list contains the host triple, or

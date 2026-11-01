@@ -1,13 +1,13 @@
-//! The host's versions that platform variants' floors and ABIs are matched
-//! against (see [`pnpm_platform_variants::HostFloors`]).
+//! Probing the running host's versions that floors and ABIs are matched
+//! against. Each probe spawns a process, so it runs only when a platform
+//! with such a field is matched against the running host.
 
-use pnpm_platform_variants::{Floor, HostFloors, NodeAbi};
+use super::{Floor, HostFloors, NodeAbi};
 use std::sync::OnceLock;
 
-/// The host's glibc, macOS, N-API, and Node.js ABI versions, probed once
-/// per process. A value that cannot be read is `None`.
-#[must_use]
-pub fn detect_host_floors() -> HostFloors {
+/// The running host's glibc, macOS, N-API, and Node.js ABI versions, probed
+/// once per process. A value that cannot be read is `None`.
+pub(super) fn detect() -> HostFloors {
     static CACHED: OnceLock<HostFloors> = OnceLock::new();
     *CACHED.get_or_init(|| {
         let (napi, node_abi) = probe_node_abi().unwrap_or_default();
@@ -47,7 +47,7 @@ fn parse_node_abi(stdout: &str) -> (Option<u32>, Option<NodeAbi>) {
 
 /// The macOS version, from `sw_vers`. `None` on other systems.
 fn probe_macos_version() -> Option<Floor> {
-    if crate::host_platform() != "darwin" {
+    if !cfg!(target_os = "macos") {
         return None;
     }
     let output = crate::process::Command::new("sw_vers")
