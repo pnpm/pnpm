@@ -216,6 +216,17 @@ test('a regression beyond both the tolerance and the run spread fails even when 
   assert.equal(compareSyscalls(counts([1251, 1300], [1000, 1100]), 'pacquet')[0].status, 'Regression')
 })
 
+test('a run spread within the tolerance does not widen the gate', () => {
+  const counts = (head, base) => ({ syscalls: {
+    'pacquet@HEAD': [{ getdents64: head[0] }, { getdents64: head[1] }],
+    'pacquet@main': [{ getdents64: base[0] }, { getdents64: base[1] }],
+  } })
+  assert.deepEqual(compareSyscalls(counts([1091, 1091], [1000, 1040]), 'pacquet'), [
+    { syscall: 'getdents64', head: 1091, base: 1040, change: 51, spread: 40, tolerance: 50, status: 'Regression' },
+  ])
+  assert.equal(compareSyscalls(counts([1090, 1090], [1000, 1040]), 'pacquet')[0].status, 'Within tolerance')
+})
+
 test('missing, partial and invalid syscall counts fail closed', () => {
   const run = { statx: 1 }
   for (const [syscalls, message] of [

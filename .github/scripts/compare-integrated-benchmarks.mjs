@@ -102,10 +102,12 @@ export function compareSyscalls (report, engine) {
     const baseHigh = Math.max(...baseCounts)
     const spread = Math.max(Math.max(...headCounts) - headLow, baseHigh - Math.min(...baseCounts))
     const tolerance = Math.max(Math.floor(baseHigh * 0.02), 50)
-    // A gap wider than the tolerance plus the run spread is a regression
-    // however noisy the runs; noise alone cannot open it.
-    const status = headLow > baseHigh + tolerance + spread ? 'Regression'
-      : spread > tolerance ? `Unstable (identical runs differ by ${spread}, not gated)`
+    const unstable = spread > tolerance
+    // Runs that disagree widen the gate by their spread, so noise alone
+    // cannot open it; a gap wider than both is still a regression.
+    const regressionGap = unstable ? tolerance + spread : tolerance
+    const status = headLow > baseHigh + regressionGap ? 'Regression'
+      : unstable ? `Unstable (identical runs differ by ${spread}, not gated)`
         : 'Within tolerance'
     return { syscall, head: headLow, base: baseHigh, change: headLow - baseHigh, spread, tolerance, status }
   })
@@ -157,7 +159,7 @@ export async function renderComparison (directory) {
     '',
     '### Same-run syscall check',
     '',
-    `Each install runs ${syscallCountRounds} more times per revision, untimed, under \`strace --follow-forks --summary-only\`. A file syscall regresses when HEAD's fewest calls exceed main's most by more than 2% of main or 50 calls, whichever is larger. A syscall whose identical runs differ by more than that tolerance is reported unstable and not gated, unless HEAD's fewest calls also exceed main's most by more than the tolerance plus that difference. Each scenario lists its largest change and every row that is not within tolerance.`,
+    `Each install runs ${syscallCountRounds} more times per revision, untimed, under \`strace --follow-forks --summary-only\`. A file syscall regresses when HEAD's fewest calls exceed main's most by more than 2% of main or 50 calls, whichever is larger. A syscall whose identical runs differ by more than that tolerance is reported unstable and not gated, unless HEAD's fewest calls also exceed main's most by more than the tolerance plus that difference. Each scenario lists its largest change relative to its tolerance and every row that is not within tolerance.`,
     '',
     '| Scenario | Engine | Syscall | main calls (max) | HEAD calls (min) | Change | Tolerance | Identical-run spread | Result |',
     '| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | --- |',
