@@ -103,6 +103,27 @@ test('all scenarios and both engines are checked, and missing reports fail', asy
   }
 })
 
+test('reports from a harness that predates syscall counting render without the syscall rows', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'benchmark-comparison-'))
+  try {
+    for (const scenario of scenarios) {
+      const input = { results: ['pacquet', 'pnpr'].flatMap(engine => [command(`${engine}@HEAD`, stable), command(`${engine}@main`, stable)]) }
+      input.confirmation = { results: input.results }
+      if (scenario !== 'ISOLATED_FRESH_RESTORE_HOT_CACHE_HOT_STORE') {
+        input.syscalls = Object.fromEntries(input.results.map(result => [result.command, [{ statx: 1000 }, { statx: 1000 }]]))
+      }
+      await writeFile(join(directory, `BENCHMARK_REPORT_${scenario}.json`), JSON.stringify(input))
+    }
+    const result = await renderComparison(directory)
+    assert.equal(result.failed, false)
+    assert.equal(result.markdown.match(/\| Not recorded by this run's harness \|/g).length, 2)
+    assert.match(result.markdown, /\n\| isolated-fresh-restore-hot-cache-hot-store \| pacquet \| — \| — \| — \| — \| — \| — \| Not recorded by this run's harness \|\n/)
+    assert.match(result.markdown, /\n\| isolated-fresh-restore-hot-cache-hot-store \| pnpr \| — \| — \| — \| — \| — \| — \| Not recorded by this run's harness \|\n/)
+  } finally {
+    await rm(directory, { recursive: true, force: true })
+  }
+})
+
 test('comparison and Bencher uploads cover every matrix scenario', async () => {
   const workflow = await readFile(new URL('../workflows/pacquet-integrated-benchmark.yml', import.meta.url), 'utf8')
   const tags = [...workflow.matchAll(/'([A-Z_]+):[a-z][^']+'/g)].map(match => match[1])
