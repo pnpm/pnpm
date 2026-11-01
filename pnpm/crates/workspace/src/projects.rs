@@ -70,6 +70,7 @@ pub struct FindWorkspaceProjectsOpts {
     /// entries may be absolute or relative to the workspace root, and
     /// entries that do not exist never match anything.
     pub ignored_directories: Vec<PathBuf>,
+    /// Suffixes matched against directory ancestors relative to the workspace root. A matched subtree is skipped unless its matching directory has a project manifest.
     pub ignored_directory_suffixes: Vec<PathBuf>,
 }
 
