@@ -29,32 +29,37 @@ jobs:
           set -euo pipefail
 
           cutoff=$(date -u -d '30 minutes ago' '+%Y-%m-%dT%H:%M:%SZ')
-          gh api --method GET --paginate "repos/$REPO/actions/runs" \
+          # Finish the listing first: deleting runs while it pages would shift
+          # the later pages and skip runs.
+          run_ids=$(gh api --method GET --paginate "repos/$REPO/actions/runs" \
             -f status=action_required \
             -f "created=<=$cutoff" \
             -f per_page=100 \
-            --jq '.workflow_runs[] | select(.conclusion == "action_required") | .id' |
-          while IFS= read -r run_id; do
+            --jq '.workflow_runs[] | select(.conclusion == "action_required") | .id')
+          for run_id in $run_ids; do
             conclusion=$(gh api "repos/$REPO/actions/runs/$run_id" --jq '.conclusion')
             if [ "$conclusion" != action_required ]; then
               echo "Workflow run $run_id no longer needs approval; skipping"
               continue
             fi
 
-            echo "Canceling workflow run $run_id after its 30-minute approval window expired"
-            if cancel_error=$(gh api --silent --method POST \
-              "repos/$REPO/actions/runs/$run_id/cancel" 2>&1); then
+            # A held run already reports completed, so the cancel endpoint
+            # rejects it with a 409. Deleting the run ends the approval request.
+            echo "Deleting workflow run $run_id after its 30-minute approval window expired"
+            if delete_error=$(gh api --silent --method DELETE \
+              "repos/$REPO/actions/runs/$run_id" 2>&1); then
               continue
             fi
 
-            # Approval can arrive between the re-check and the cancellation.
-            # That expected race returns a conflict and must not fail the sweep.
+            # Approval can arrive between the re-check and the deletion. GitHub
+            # then refuses the delete, and that expected race must not fail the
+            # sweep.
             conclusion=$(gh api "repos/$REPO/actions/runs/$run_id" --jq '.conclusion')
             if [ "$conclusion" != action_required ]; then
-              echo "Workflow run $run_id was approved before cancellation; skipping"
+              echo "Workflow run $run_id was approved before deletion; skipping"
               continue
             fi
 
-            printf '%s\n' "$cancel_error" >&2
+            printf '%s\n' "$delete_error" >&2
             exit 1
           done
