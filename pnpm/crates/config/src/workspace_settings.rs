@@ -106,7 +106,7 @@ impl Config {
         note_declared_registries(declared_registries, &settings);
         collect_explicit_settings(&mut self.explicit_settings, &settings);
         settings.resolve_script_shell(base_dir);
-        settings.apply_to(self, base_dir);
+        self.workspace_registry_prefixes = settings.apply_to(self, base_dir);
         if default_pnpm_home_dir::<Sys>().as_deref() == Some(base_dir) {
             self.apply_pnpm_home_global_shims::<Sys>(base_dir)?;
         }

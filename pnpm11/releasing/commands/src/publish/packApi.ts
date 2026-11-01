@@ -4,13 +4,16 @@ import path from 'node:path'
 import { getBinsFromPackageManifest } from '@pnpm/bins.resolver'
 import type { Catalogs } from '@pnpm/catalogs.types'
 import { readProjectManifest } from '@pnpm/cli.utils'
+import { pickDeclaredRegistryPrefix, pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import type { Config } from '@pnpm/config.reader'
+import { BUILTIN_REGISTRIES_BY_PREFIX } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import { packlistWithSources } from '@pnpm/fs.packlist'
 import type { Hooks } from '@pnpm/hooks.pnpmfile'
-import { createExportableManifest, type ExportedManifest, readReadmeFile, type WorkspacePackageLookup } from '@pnpm/releasing.exportable-manifest'
+import { createExportableManifest, type ExportedManifest, readReadmeFile, type WorkspacePackageEntry, type WorkspacePackageLookup } from '@pnpm/releasing.exportable-manifest'
 import { changelogStorage, readPendingChangelog, renderChangelog } from '@pnpm/releasing.versioning'
-import type { DependencyManifest, ProjectManifest } from '@pnpm/types'
+import type { DependencyManifest, Project, ProjectManifest, RegistriesByScope } from '@pnpm/types'
+import { tryReadProjectManifest } from '@pnpm/workspace.project-manifest-reader'
 import { glob } from 'tinyglobby'
 import validateNpmPackageName from 'validate-npm-package-name'
 
@@ -19,6 +22,7 @@ import type { PackOptions, PackResultJson } from './pack.js'
 import { checkPackedBinsForCrlf, isManifestEntry, packPkg } from './packTarball.js'
 import { fetchPreviousChangelog, type PreviousChangelogOptions } from './previousChangelog.js'
 import { bindRunScriptsIfPresent } from './publish.js'
+import { getPublishConfigRegistry } from './publishPackedPkg.js'
 
 const LICENSE_GLOB = 'LICEN{S,C}E{,.*}' // cspell:disable-line
 
@@ -167,13 +171,84 @@ async function createPackedManifest (
 }
 
 async function findWorkspacePackages (opts: PackOptions): Promise<WorkspacePackageLookup | undefined> {
-  const workspacePackages: WorkspacePackageLookup | undefined = opts.allProjects ??
+  const projects = await findWorkspaceProjects(opts)
+  if (projects == null) return undefined
+  const { registriesByScope } = opts
+  const prefixes = workspaceRegistriesByPrefix(opts)
+  return Promise.all(projects.map(async (project): Promise<WorkspacePackageEntry> => ({
+    manifest: project.manifest,
+    rootDir: project.rootDir,
+    registryPrefix: prefixes && registriesByScope && await publishRegistryPrefix(project, registriesByScope, prefixes),
+  })))
+}
+
+async function findWorkspaceProjects (opts: PackOptions): Promise<Project[] | undefined> {
+  const projects = opts.allProjects ??
     (opts.selectedProjectsGraph ? Object.values(opts.selectedProjectsGraph).map((p) => p.package) : undefined) ??
     (opts.allProjectsGraph ? Object.values(opts.allProjectsGraph).map((p) => p.package) : undefined)
-  if (workspacePackages || !opts.workspaceDir) return workspacePackages
+  if (projects || !opts.workspaceDir) return projects
   const { filterProjectsBySelectorObjectsFromDir } = await import('@pnpm/workspace.projects-filter')
   const result = await filterProjectsBySelectorObjectsFromDir(opts.workspaceDir, [])
   return result.allProjects
+}
+
+/**
+ * The prefixes the project's `pnpm-workspace.yaml` declares, or `undefined`
+ * when it declares none. A machine-local prefix is left out, so a packed
+ * manifest does not depend on the machine that packed it. A built-in prefix is
+ * left out too: a consumer that has not overridden it the same way would
+ * resolve the dependency from the public registry the prefix names.
+ */
+function workspaceRegistriesByPrefix (
+  opts: Pick<PackOptions, 'registriesByPrefix' | 'workspaceRegistryPrefixes'>
+): Record<string, string> | undefined {
+  const { registriesByPrefix, workspaceRegistryPrefixes } = opts
+  if (registriesByPrefix == null || workspaceRegistryPrefixes == null) return undefined
+  const declared = Object.entries(registriesByPrefix)
+    .filter(([prefix]) => workspaceRegistryPrefixes.includes(prefix) && !Object.hasOwn(BUILTIN_REGISTRIES_BY_PREFIX, prefix))
+  return declared.length > 0 ? Object.fromEntries(declared) : undefined
+}
+
+/**
+ * The prefix declared for the registry `pnpm publish` would publish `project`
+ * to: the registry `publishConfig` names for the published name, else the
+ * scope's registry, read from the {@link publicationManifest}. The scope is
+ * that of the published name, which `publishConfig.name` may rename.
+ *
+ * Cached per project, since recursive pack and publish build the lookup once
+ * per packed project.
+ */
+async function publishRegistryPrefix (
+  project: Project,
+  registriesByScope: RegistriesByScope,
+  registriesByPrefix: Record<string, string>
+): Promise<string | undefined> {
+  let manifest = publicationManifests.get(project)
+  if (manifest == null) {
+    manifest = publicationManifest(project)
+    publicationManifests.set(project, manifest)
+  }
+  const { publishConfig, name } = await manifest
+  const publishedName = publishConfig?.name ?? name ?? project.manifest.name
+  if (publishedName == null) return undefined
+  const registry = getPublishConfigRegistry(publishConfig, publishedName) ??
+    pickRegistryForPackage(registriesByScope, publishedName)
+  return pickDeclaredRegistryPrefix(registriesByPrefix, registry)
+}
+
+const publicationManifests = new WeakMap<Project, Promise<ProjectManifest>>()
+
+/**
+ * The manifest `pnpm publish` selects the registry from. A project that
+ * publishes from `publishConfig.directory` packs that directory's manifest, so
+ * it is read from there once it exists; until then, and for every other
+ * project, the project's own manifest is what will be published.
+ */
+async function publicationManifest (project: Project): Promise<ProjectManifest> {
+  const directory = project.manifest.publishConfig?.directory
+  if (!directory) return project.manifest
+  const { manifest } = await tryReadProjectManifest(path.join(project.rootDir, directory))
+  return manifest ?? project.manifest
 }
 
 interface CollectPackedFilesOptions {

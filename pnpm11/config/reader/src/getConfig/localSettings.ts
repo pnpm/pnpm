@@ -176,7 +176,7 @@ function applyLoadedProjectWorkspaceManifest (
   pnpmConfig.workspacePackagePatterns = cliOptions['workspace-packages'] as string[] ?? workspaceManifest?.packages ?? ['.']
   if (!workspaceManifest) return undefined
   warnAboutDroppedWorkspaceManifestKeys(state.warnings, workspaceManifest)
-  addSettingsFromWorkspaceManifestToConfig(pnpmConfig, {
+  const settings = addSettingsFromWorkspaceManifestToConfig(pnpmConfig, {
     configFromCliOpts: state.configFromCliOpts,
     projectManifest: pnpmConfig.rootProjectManifest,
     skipSettings: forSelfUpdate
@@ -185,6 +185,9 @@ function applyLoadedProjectWorkspaceManifest (
     workspaceDir,
     workspaceManifest,
   })
+  // Read after the manifest's entries it may not contribute, such as one whose
+  // URL holds an env placeholder, are dropped.
+  pnpmConfig.workspaceRegistryPrefixes = Object.keys(settings.registriesByPrefix ?? {})
   return getRegistriesDeclaredByWorkspaceManifest(state, workspaceManifest)
 }
 
