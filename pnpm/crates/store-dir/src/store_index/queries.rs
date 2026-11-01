@@ -394,7 +394,7 @@ impl StoreIndex {
         Ok(out)
     }
 
-    /// Delete a batch of package-index rows in one transaction, then
+    /// Delete package-index rows and their aliases in one transaction, then
     /// shrink `index.db`.
     ///
     /// `index.db` uses `auto_vacuum=NONE`, so freed pages stay in the file
@@ -407,9 +407,9 @@ impl StoreIndex {
         let conn = match &mut self.backend {
             Backend::Sqlite { conn, .. } => conn,
             Backend::Files(files) => {
-                return keys
-                    .iter()
-                    .try_for_each(|key| files.remove(key));
+                keys.iter()
+                    .try_for_each(|key| files.remove(key))?;
+                return super::aliases::delete_files_aliases(files, keys);
             }
         };
         let tx = conn
@@ -424,6 +424,7 @@ impl StoreIndex {
                     .map_err(|source| StoreIndexError::Write { source })?;
             }
         }
+        super::aliases::delete_sqlite_aliases(&tx, keys)?;
         tx.commit()
             .map_err(|source| StoreIndexError::Write { source })?;
         conn.execute_batch("VACUUM; PRAGMA wal_checkpoint(TRUNCATE);")
