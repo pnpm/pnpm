@@ -4,6 +4,7 @@ use super::{
     create_projects_graph, fetch_stage_tarball, is_any_version_range, is_valid_semver_range,
     read_tarball_manifest, sequence_graph,
 };
+use pnpm_resolving_npm_resolver::parse_named_registry_specifier_to_registry_package_spec;
 
 /// The dependency order derived from the exact tarballs being approved.
 pub(super) struct StageApprovalOrder {
@@ -68,7 +69,7 @@ async fn staged_project(
         }
         .into());
     }
-    let manifest = manifest_for_graph(manifest);
+    let manifest = manifest_for_graph(manifest, &context.registry_prefixes)?;
     Ok(Project {
         manifest: PackageManifest::from_value(root_dir.join("package.json"), manifest),
         root_dir,
@@ -141,29 +142,52 @@ fn order_index_of(item: &StageApprovalItem, order: &StageApprovalOrder) -> usize
         .unwrap_or(usize::MAX)
 }
 
-pub(super) fn manifest_for_graph(mut manifest: Value) -> Value {
+pub(super) fn manifest_for_graph(
+    mut manifest: Value,
+    registry_prefixes: &HashSet<String>,
+) -> miette::Result<Value> {
     for field in ["peerDependencies", "devDependencies", "optionalDependencies", "dependencies"] {
         let Some(dependencies) = manifest.get(field).and_then(Value::as_object) else {
             continue;
         };
-        let normalized = dependencies
-            .iter()
-            .filter_map(|(name, spec)| {
-                let spec = spec.as_str()?;
-                let (registry_name, registry_spec) =
-                    PackageManifest::resolve_registry_dependency(name, spec);
-                let (name, spec) =
-                    if let Some(registry_spec) = registry_spec_for_graph(registry_spec) {
-                        (registry_name, registry_spec)
-                    } else {
-                        (name.as_str(), spec)
-                    };
-                Some((name.to_owned(), Value::String(spec.to_owned())))
-            })
-            .collect();
+        let mut normalized = serde_json::Map::with_capacity(dependencies.len());
+        for (name, spec) in dependencies {
+            let Some(spec) = spec.as_str() else {
+                continue;
+            };
+            let (name, spec) = dependency_for_graph(name, spec, registry_prefixes)?;
+            normalized.insert(name, Value::String(spec));
+        }
         manifest[field] = Value::Object(normalized);
     }
-    manifest
+    Ok(manifest)
+}
+
+/// The package and range a registry dependency names, so a staged package
+/// depends on the staged package it resolves to whether the dependency is
+/// written plainly, as an `npm:` alias, or behind a registry prefix such as
+/// `work:1.0.0`.
+fn dependency_for_graph(
+    name: &str,
+    spec: &str,
+    registry_prefixes: &HashSet<String>,
+) -> miette::Result<(String, String)> {
+    if let Some(named) = parse_named_registry_specifier_to_registry_package_spec(
+        spec,
+        registry_prefixes,
+        Some(name),
+        "latest",
+    )? {
+        return Ok(match registry_spec_for_graph(&named.spec.fetch_spec) {
+            Some(registry_spec) => (named.spec.name.clone(), registry_spec.to_owned()),
+            None => (name.to_owned(), spec.to_owned()),
+        });
+    }
+    let (registry_name, registry_spec) = PackageManifest::resolve_registry_dependency(name, spec);
+    Ok(match registry_spec_for_graph(registry_spec) {
+        Some(registry_spec) => (registry_name.to_owned(), registry_spec.to_owned()),
+        None => (name.to_owned(), spec.to_owned()),
+    })
 }
 
 fn registry_spec_for_graph(spec: &str) -> Option<&str> {

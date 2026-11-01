@@ -1,6 +1,7 @@
 import { graphSequencer } from '@pnpm/deps.graph-sequencer'
 import { PnpmError } from '@pnpm/error'
 import npa from '@pnpm/npm-package-arg'
+import { BUILTIN_REGISTRIES_BY_PREFIX, parseNamedRegistrySpecifierToRegistryPackageSpec } from '@pnpm/resolving.npm-resolver'
 import type { BaseManifest, ProjectRootDir } from '@pnpm/types'
 import { createProjectsGraph } from '@pnpm/workspace.projects-graph'
 
@@ -46,6 +47,10 @@ interface StagedProject {
 async function readStagedProjects (context: StageContext, items: ApprovalItem[]): Promise<StagedProject[]> {
   const projects: StagedProject[] = []
   const stageIdByVersionByPackageName = new Map<string, Map<string, string>>()
+  const registryPrefixes = new Set([
+    ...Object.keys(BUILTIN_REGISTRIES_BY_PREFIX),
+    ...Object.keys(context.opts.registriesByPrefix ?? {}),
+  ])
   for (const item of items) {
     // eslint-disable-next-line no-await-in-loop -- one tarball at a time keeps a single tarball in memory
     const tarball = await fetchStageTarball(context, item.id)
@@ -62,7 +67,7 @@ async function readStagedProjects (context: StageContext, items: ApprovalItem[])
     stageIdByVersion.set(manifest.version, item.id)
     stageIdByVersionByPackageName.set(manifest.name, stageIdByVersion)
     projects.push({
-      manifest: manifestForGraph(manifest),
+      manifest: manifestForGraph(manifest, registryPrefixes),
       rootDir: item.id as ProjectRootDir,
     })
   }
@@ -105,7 +110,7 @@ export function unavailableDependencies (
     .map((stageId) => order.packageNameByStageId.get(stageId) ?? stageId)
 }
 
-function manifestForGraph (manifest: TarballManifest): BaseManifest {
+function manifestForGraph (manifest: TarballManifest, registryPrefixes: ReadonlySet<string>): BaseManifest {
   const graphManifest: BaseManifest = {
     name: manifest.name,
     version: manifest.version,
@@ -116,7 +121,7 @@ function manifestForGraph (manifest: TarballManifest): BaseManifest {
     const normalized: Record<string, string> = {}
     for (const [name, spec] of Object.entries(dependencies)) {
       if (typeof spec !== 'string') continue
-      const parsed = parseRegistryDependency(name, spec)
+      const parsed = parseRegistryDependency(name, spec, registryPrefixes)
       normalized[parsed.name] = parsed.spec
     }
     graphManifest[field] = normalized
@@ -124,7 +129,23 @@ function manifestForGraph (manifest: TarballManifest): BaseManifest {
   return graphManifest
 }
 
-function parseRegistryDependency (name: string, spec: string): { name: string, spec: string } {
+/**
+ * The package and range a registry dependency names, so a staged package
+ * depends on the staged package it will resolve to whether the dependency is
+ * written plainly, as an `npm:` alias, or behind a registry prefix such as
+ * `work:1.0.0`.
+ */
+function parseRegistryDependency (
+  name: string,
+  spec: string,
+  registryPrefixes: ReadonlySet<string>
+): { name: string, spec: string } {
+  const prefixed = parseNamedRegistrySpecifierToRegistryPackageSpec(spec, registryPrefixes, name, 'latest')
+  if (prefixed != null) {
+    return prefixed.type === 'version' || prefixed.type === 'range'
+      ? { name: prefixed.name, spec: prefixed.fetchSpec }
+      : { name, spec }
+  }
   if (!spec.startsWith('npm:')) return { name, spec }
   const parsed = npa.resolve(name, spec, process.cwd())
   return (parsed.type === 'version' || parsed.type === 'range') &&
