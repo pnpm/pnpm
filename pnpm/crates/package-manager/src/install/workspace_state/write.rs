@@ -46,8 +46,8 @@ pub(crate) struct CarriedSettings<'a> {
     /// [`recorded_registry_routes_after_install`](crate::optimistic_repeat_install::recorded_registry_routes_after_install)
     /// for an install and the recorded ones for a passing check.
     pub(crate) registry_routes: Option<std::collections::BTreeMap<String, String>>,
-    /// The recorded dependency groups and store location to keep instead of
-    /// the run's, for a writer that ignored their drift.
+    /// The recorded dependency groups, runtime setting and store location to
+    /// keep instead of the run's, for a writer that ignored their drift.
     pub(crate) kept_settings: Option<&'a pnpm_workspace_state::WorkspaceStateSettings>,
 }
 
@@ -75,6 +75,7 @@ pub(crate) fn recorded_workspace_state(write: &StateWrite<'_>) -> WorkspaceState
         state.settings.dev = kept.dev;
         state.settings.optional = kept.optional;
         state.settings.production = kept.production;
+        state.settings.runtime = kept.runtime;
         state.settings.store_dir.clone_from(&kept.store_dir);
         state.settings.virtual_store_dir.clone_from(&kept.virtual_store_dir);
     }

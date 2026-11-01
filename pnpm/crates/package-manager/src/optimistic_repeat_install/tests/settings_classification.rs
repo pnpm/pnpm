@@ -263,7 +263,7 @@ const CLASSIFICATION: &[(&str, Reach)] = &[
     ("side_effects_cache_write_setting", NotAnInput(STORE_INTERNALS)),
     ("skills_dirs", Recorded { key: "skills.dirs", change: |config| config.skills_dirs = Some(vec!["foo".into()]) }),
     ("skip_manifest_obfuscation", NotAnInput(OTHER_COMMAND)),
-    ("skip_runtimes", Unseen("turned off, a full install links the runtimes it skipped, while `fresh_install_with_no_runtime_resolves_but_does_not_fetch_the_runtime` pins the fast path keeping them absent")),
+    ("skip_runtimes", Recorded { key: "runtime", change: |config| config.skip_runtimes = !config.skip_runtimes }),
     ("skip_store_dir_resolution", NotAnInput("how the config loader places the store")),
     ("sort", NotAnInput(CLI_ONLY)),
     ("source_date_epoch", NotAnInput(OTHER_COMMAND)),

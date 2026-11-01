@@ -5,6 +5,8 @@ use super::{
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_graph_hasher::{host_arch, host_platform};
+use pnpm_testing_utils::fs::{MTIME_STEP_MS, set_mtime_ms};
+use pnpm_workspace_state::{load_workspace_state, update_workspace_state};
 use serde_json::{Value, json};
 use std::{fs, path::Path};
 
@@ -241,14 +243,16 @@ fn fresh_install_with_no_runtime_resolves_but_does_not_fetch_the_runtime() {
     for bin in ["node", "node.exe", "node.cmd"] {
         assert!(!bin_dir.join(bin).exists(), "runtime bin {bin} must not be linked");
     }
-    // A follow-up plain install treats the modules state as up to date
-    // and does not restore the runtime — same as the TypeScript CLI.
+    assert!(!archive.matched(), "the runtime archive must not be downloaded");
+
     command(&workspace)
         .with_arg("install")
         .assert()
         .success();
-    assert!(!workspace.join("node_modules/node").exists());
-    assert!(!archive.matched(), "the runtime archive must never be downloaded");
+    assert!(
+        workspace.join("node_modules/node").exists(),
+        "a follow-up install without --no-runtime links the runtime",
+    );
 }
 
 #[test]
@@ -321,4 +325,37 @@ fn write_range_runtime_project(
     lockfile["snapshots"]["dependency@file:dependency"] =
         json!({ "optional": dependency_group == "optionalDependencies" });
     fs::write(&lockfile_path, serde_saphyr::to_string(&lockfile).unwrap()).unwrap();
+}
+
+#[test]
+fn run_after_a_no_runtime_install_does_not_install_again() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new();
+    let (workspace, fixture) =
+        locked_runtime_project(&root, &mut server, "verifyDepsBeforeRun: error\n");
+    let manifest_path = workspace.join("package.json");
+    let mut manifest: Value = serde_json::from_slice(&fs::read(&manifest_path).unwrap()).unwrap();
+    manifest["scripts"] = json!({ "noop": "exit 0" });
+    fs::write(manifest_path, manifest.to_string()).unwrap();
+
+    command(&workspace)
+        .with_args(["install", "--no-runtime"])
+        .assert()
+        .success();
+    // A lockfile newer than the state, with unchanged content, makes the gate
+    // refresh the state.
+    let mut state = load_workspace_state(&workspace).unwrap().unwrap();
+    state.last_validated_timestamp -= 4 * MTIME_STEP_MS;
+    let validated = state.last_validated_timestamp;
+    update_workspace_state(&workspace, &state).unwrap();
+    set_mtime_ms(&workspace.join("pnpm-lock.yaml"), validated + 2 * MTIME_STEP_MS);
+    command(&workspace)
+        .with_args(["run", "noop"])
+        .assert()
+        .success();
+    assert!(!workspace.join("node_modules/node").exists());
+    assert!(!fixture.archive_mock.matched());
+    let state = load_workspace_state(&workspace).unwrap().unwrap();
+    assert!(state.last_validated_timestamp > validated);
+    assert_eq!(state.settings.runtime, Some(false));
 }
