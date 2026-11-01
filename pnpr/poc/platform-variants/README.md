@@ -1,45 +1,85 @@
 # Platform variants proof of concept
 
-A prototype of the pnpr platform-variants RFC (pnpm/rfcs#51): one package
-version with a primary archive and platform variant archives.
+A prototype of the
+[pnpr platform-variants RFC](https://github.com/pnpm/rfcs/blob/main/pnpr/text/0000-platform-variants.md):
+one package version with a primary archive and platform variant archives.
 
 ## What is implemented
 
 pnpr:
 
-- A publish body declares variants under `versions[<v>].pnprVariants`
-  (`tag`, `platforms`, `.tgz` `integrity`) and attaches each one as
-  `<basename>-<version>~<tag>.tgz`.
-- Publication rejects a variant whose `name` or `version` differs from the
-  primary, whose dependency fields differ after removing bundled names, that
-  requires a build, whose `os`/`cpu`/`libc` excludes a declared platform,
-  that lists a platform another variant lists, or that is declared but not
-  attached (or attached but not declared).
+- A variant archive declares the platforms it runs on in its own
+  `package.json`, as platform tags: `"variant": { "platforms":
+  ["linux-x64", "linux-x64-musl"] }`. The tags cover `os`, `cpu`, musl,
+  glibc floors (`manylinux_2_28`), macOS and Windows floors (`macos_11_0`),
+  N-API (`napi8`), Node.js and Electron ABIs (`node127`), and `wasm32`
+  (the shared `pnpm-platform-variants` crate); only the canonical form
+  parses. pnpr names the variant by its platforms' tags, sorted and joined
+  with `+`, such as `linux-x64+linux-x64-musl`.
+- The publish body references each variant archive by the `.tgz` integrity
+  its upload is verified against, under `versions[<v>].pnprVariants` as
+  `{ "<label>": "<integrity>" }`, and attaches it as
+  `<basename>-<version>~<label>.tgz`. The label only pairs a reference with
+  its attachment. Uploads by integrity before a separate commit request
+  (atomic workspace publication) are not implemented; the archives travel
+  in one publish body.
+- Publication rejects a variant whose `name`, `version`, `peerDependencies`,
+  or `peerDependenciesMeta` differ from the version's, that requires a
+  build, that has no `variant` field or one that does not parse, that
+  declares `os`, `cpu`, or `libc`, or that lists a platform another variant
+  lists; a primary with a `variant` field; and a variant referenced but not
+  attached, or attached but not referenced. Variants may differ in their
+  dependencies, bundled dependencies, `bin`, `main`, `exports`, and
+  `engines`.
 - pnpr's own package document (see [Split packuments](#split-packuments))
-  and its release records list the verified variants as `variants`; npm's
-  abbreviated, full, and version documents do not, so npm clients see only
-  the primary. Each variant's tar is served at
-  `<name>@<version>/variants/<tag>`.
+  and its release records list the verified variants as `variants`: each
+  with its `tag`, structured `platforms`, tar `integrity`, sizes, `bins`,
+  and a `manifest` of only the fields that differ from the version's
+  (`null` for a removed field). npm's documents do not list them. Each
+  variant's tar is served at `<name>@<version>/variants/<tag>`, and at
+  `<name>@<version>+r<revision>/variants/<tag>` while that revision is the
+  selected one.
 
 pnpm:
 
-- The npm resolver turns `dist.pnpr.variants` into a `variations` resolution
-  with a `tag` per variant and the primary as `fallback`. Variants on their
-  registry route are written integrity-only.
-- Runtimes (Node.js, Bun, Deno) and registry packages share one
-  `variations` selection: the first variant whose targets include the
-  platform `supportedArchitectures` selects (the host by default), else the
-  `fallback`. The selected resolution's type picks the fetcher: a `binary`
-  archive goes through the runtime extractor, and a registry variant is
-  fetched from its route like a revision (verified against its tar digest).
+- The npm resolver turns pnpr's `variants` into a `variations` resolution
+  with the primary as `fallback`, ordered best first. The lockfile stores no
+  tag: pnpm derives it from each variant's `targets`, which carry the floor
+  and ABI fields. A revision-aware version records `revision` on the
+  `variations` resolution, and its variants are fetched from their `+r<N>`
+  route. A variant with a platform field pnpm does not know is left out.
+- A package's variant is selected by the RFC's rule: more matched fields,
+  then the highest glibc, OS, and N-API floors, then `wasm32`, then the
+  primary; two variants that fit equally well fail the install. pnpm
+  probes the host's glibc, macOS, N-API, and ABI versions once. Runtimes
+  (Node.js, Bun, Deno) keep their first-match selection.
+- Every archive's dependencies are resolved on every machine. The version's
+  snapshot keeps those its primary declares, and a variant whose resolved
+  snapshot differs gets `<name>@<version>/variants/<tag>(<peers>)`. Before
+  materializing the lockfile, the installer wires each package with its
+  selected variant's snapshot.
 - The global virtual store hashes every `variations` entry, runtime or
-  package, by the selected archive's integrity, with the platform passed
-  down from the install's config.
+  package, by the selected archive's integrity.
 
-Not implemented: staged publishing, the `libcVersion`, `osVersion`, `napi`,
-`nodeAbi`, and `wasm32` fields, the compatibility view for other clients,
-fetching several variants for `supportedArchitectures`, and relinking a
-local virtual store slot when the selection changes.
+`variants.sh` publishes the `mkinvariants.mjs` packages to a hosted pnpr,
+shows which are rejected and why, and installs the accepted ones from pnpr's
+format, frozen and after a `pnpm add`: the host's variant is linked, and a
+dependency only the Linux variant declares is linked for it alone.
+
+Not implemented:
+
+- a version without a primary, and the minimal primary archive pnpr would
+  generate for npm clients;
+- a name that two archives declare with different specifiers: it resolves
+  once, with the version's specifier;
+- `supportedArchitectures` fetching several variants, and linking the one
+  platform it names: the materialized dependencies follow the host;
+- relinking a package when its selected variant changes;
+- `pnpm why`, `audit`, `licenses`, and SBOM generation visiting the
+  variants' snapshots;
+- a lockfile marker that older pnpm releases reject;
+- uploads by integrity, one provenance statement naming every archive, and
+  the compatibility view for other clients.
 
 ## Split packuments
 
@@ -142,4 +182,5 @@ node publish.mjs http://127.0.0.1:7690/npm/ <token> out/esbuild-0.28.2.variants.
 Adapters in `mkvariants.mjs`: `esbuild`, `biome`, `napi`,
 `napi-wasm-primary` (`@tailwindcss/oxide`), `lightningcss`, `rolldown`.
 `mktool.mjs` repackages GitHub release archives (`typst-assets.json`).
-`mkinvariants.mjs` builds packages that each break one invariant.
+`mkinvariants.mjs` builds packages that each break one invariant, and
+`variants.sh` publishes and installs them.
