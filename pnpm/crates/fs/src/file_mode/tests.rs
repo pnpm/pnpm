@@ -569,3 +569,23 @@ fn a_non_octal_umask_line_parses_as_absent() {
     let status = text_block_fnl! { "Umask:\trw-r--r--" };
     assert_eq!(super::parse_published_umask(status), None);
 }
+
+#[test]
+fn verifier_read_does_not_refill_a_forgotten_store_path() {
+    let path = Path::new("/store/files/aa/verifier-read-after-forget");
+    super::record_verified_store_inode_mode(path, 0o644);
+    super::forget_store_inode_mode(path);
+    super::record_verified_store_inode_mode(path, 0o644);
+    assert_eq!(super::observed_store_inode_mode(path), None);
+    super::record_store_inode_mode(path, 0o600);
+    assert_eq!(super::observed_store_inode_mode(path), Some(0o600));
+}
+
+#[test]
+fn verifier_read_does_not_overwrite_a_fresh_stat() {
+    let path = Path::new("/store/files/aa/verifier-read-after-fresh-stat");
+    super::forget_store_inode_mode(path);
+    super::record_store_inode_mode(path, 0o600);
+    super::record_verified_store_inode_mode(path, 0o644);
+    assert_eq!(super::observed_store_inode_mode(path), Some(0o600));
+}

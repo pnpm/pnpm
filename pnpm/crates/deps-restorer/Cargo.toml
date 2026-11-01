@@ -44,7 +44,6 @@ pnpm-tarball = { workspace = true }
 pnpm-workspace = { workspace = true }
 pnpm-workspace-task-scheduler = { workspace = true }
 
-dashmap = { workspace = true }
 derive_more = { workspace = true }
 base64 = { workspace = true }
 futures-util = { workspace = true }

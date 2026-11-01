@@ -429,20 +429,43 @@ fn is_safe_overlay_path(filename: &str) -> bool {
 /// another *process* sharing the store may be importing from it — see
 /// [`scrub_directory_at_cafs_path`].
 fn verify_file(path: &Path, filename: &str, info: &CafsFileInfo, algo: &str) -> bool {
-    let Some((is_modified, _)) = check_file(path, info.checked_at) else {
+    let Some((is_modified, metadata)) = check_file(path, info.checked_at) else {
         tracing::debug!(
             target: "pacquet::store_index",
             ?filename,
             ?path,
             "CAFS file missing or unreadable; re-fetching",
         );
+        pnpm_fs::file_mode::forget_store_inode_mode(path);
         return false;
     };
     if !is_modified {
+        record_verified_mode(path, &metadata);
         return true;
     }
 
-    verify_modified_file(path, filename, info, algo)
+    let passed = verify_modified_file(path, filename, info, algo);
+    if !passed {
+        // The re-fetch may land a new inode with this process's mode, so a
+        // mode recorded before must not reach the importer.
+        pnpm_fs::file_mode::forget_store_inode_mode(path);
+    }
+    passed
+}
+
+/// Hand the mode of a blob that passed verification to the importer, which
+/// would otherwise `stat` it again before every hardlink to decide whether
+/// the inode can be shared (pnpm/pnpm#17500). Another process changing the
+/// blob's mode before the link is a usage error, not guarded against (see
+/// `source_has_desired_mode` in pnpm-deps-restorer).
+fn record_verified_mode(path: &Path, metadata: &fs::Metadata) {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        pnpm_fs::file_mode::record_verified_store_inode_mode(path, metadata.mode());
+    }
+    #[cfg(not(unix))]
+    let _ = (path, metadata);
 }
 
 fn verify_modified_file(path: &Path, filename: &str, info: &CafsFileInfo, algo: &str) -> bool {
@@ -455,7 +478,7 @@ fn verify_modified_file(path: &Path, filename: &str, info: &CafsFileInfo, algo: 
     // (concurrent prune or a sibling verifier that beat us in)
     // surfaces as ENOENT here and we propagate the cache miss
     // without trying to delete a path that's already gone.
-    let Some((is_modified, size)) = check_file(path, info.checked_at) else {
+    let Some((is_modified, metadata)) = check_file(path, info.checked_at) else {
         tracing::debug!(
             target: "pacquet::store_index",
             ?filename,
@@ -468,9 +491,10 @@ fn verify_modified_file(path: &Path, filename: &str, info: &CafsFileInfo, algo: 
         // Writer completed and the result happens to match
         // `checked_at` (uncommon but possible if `checked_at` was
         // updated very recently). Trust the cache, no further work.
+        record_verified_mode(path, &metadata);
         return true;
     }
-    if size != info.size {
+    if metadata.len() != info.size {
         // Wrong size → content definitely changed. Report the miss so
         // the caller re-fetches; see `scrub_directory_at_cafs_path` for
         // why nothing but a directory is removed here.
@@ -479,14 +503,16 @@ fn verify_modified_file(path: &Path, filename: &str, info: &CafsFileInfo, algo: 
             ?filename,
             ?path,
             expected_size = info.size,
-            actual_size = size,
+            actual_size = metadata.len(),
             "CAFS file size mismatch; re-fetching",
         );
         scrub_directory_at_cafs_path(path);
         return false;
     }
     let passed = verify_file_integrity(path, &info.digest, algo);
-    if !passed {
+    if passed {
+        record_verified_mode(path, &metadata);
+    } else {
         tracing::debug!(
             target: "pacquet::store_index",
             ?filename,
@@ -560,7 +586,7 @@ fn scrub_directory_at_cafs_path(path: &Path) {
     }
 }
 
-/// `Some((is_modified, size))` for a file we can read metadata for;
+/// `Some((is_modified, metadata))` for a file we can read metadata for;
 /// `None` otherwise.
 ///
 /// Pnpm rethrows non-`ENOENT` metadata errors and only treats `ENOENT`
@@ -578,7 +604,7 @@ fn scrub_directory_at_cafs_path(path: &Path) {
 /// actually stamped the inode. A missing `checked_at` deserializes as
 /// `Option<u64>::None` and is treated as `0`, which forces a re-hash the
 /// first time an old-format row is read (as pnpm also does).
-fn check_file(path: &Path, checked_at: Option<u64>) -> Option<(bool, u64)> {
+fn check_file(path: &Path, checked_at: Option<u64>) -> Option<(bool, fs::Metadata)> {
     let meta = fs::metadata(path).ok()?;
     let mtime_ms = meta
         .modified()
@@ -589,7 +615,7 @@ fn check_file(path: &Path, checked_at: Option<u64>) -> Option<(bool, u64)> {
         .min(u128::from(u64::MAX)) as u64;
     let baseline = checked_at.unwrap_or(0);
     let is_modified = mtime_ms.saturating_sub(baseline) > 100;
-    Some((is_modified, meta.len()))
+    Some((is_modified, meta))
 }
 
 /// Streams the file through the hasher in 64 KiB chunks and compares

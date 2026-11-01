@@ -57,6 +57,9 @@ const BENCHMARK_OUTPUT_LOG: &str = "BENCHMARK_OUTPUT.ndjson";
 const PREWARM_SCRIPT: &str = "prewarm.bash";
 const BENCHMARK_DIAGNOSTICS_JSON: &str = "BENCHMARK_DIAGNOSTICS.json";
 const BENCHMARK_DIAGNOSTICS_MD: &str = "BENCHMARK_DIAGNOSTICS.md";
+// Two traced runs per target let the comparison tell a count that moved
+// between revisions from one that moves between identical runs.
+const SYSCALL_COUNT_ROUNDS: usize = 2;
 const PNPR_DIRECT_RATIO_MAX: f64 = 1.05;
 // Absolute slack for the pnpr-vs-direct gate: the repeat-install
 // scenarios finish in tens of milliseconds, where run-to-run noise
@@ -205,6 +208,12 @@ impl WorkEnv {
 
     fn script_path(&self, id: BenchId) -> PathBuf {
         self.bench_dir(id).join("install.bash")
+    }
+
+    /// Path of one traced run's `strace --summary-only` table.
+    fn syscall_counts_path(&self, id: BenchId, round: usize) -> PathBuf {
+        self.bench_dir(id)
+            .join(format!("SYSCALL_COUNTS.{round}.txt"))
     }
 
     /// Path of the untimed online priming script, written only for
@@ -376,6 +385,17 @@ impl WorkEnv {
             self.install_for_lockfile_comparison(&cleanup_command);
         }
         self.write_benchmark_diagnostics();
+        // After the diagnostics are written: the traced runs append their
+        // events to `BENCHMARK_OUTPUT.ndjson` like the timed runs, and only
+        // the timed runs' events may reach the diagnostics.
+        if self.options.count_syscalls {
+            self.count_syscalls(&cleanup_command);
+            // The traced runs' cleanup removed the lockfiles the parity
+            // check reads, so write them again.
+            if scenario.uses_peer_heavy_fixture() {
+                self.install_for_lockfile_comparison(&cleanup_command);
+            }
+        }
     }
 
     fn run_hyperfine(&self, cleanup_command: &str) {
@@ -401,6 +421,32 @@ impl WorkEnv {
             .arg(self.root().join("BENCHMARK_REPORT.md"));
 
         executor("hyperfine")(&mut command);
+    }
+
+    /// Trace every benchmarked install from the state a timed run starts
+    /// from. Each round traces every target once, so drift across rounds
+    /// reaches both revisions alike. A `pnpr@*` target's server was started
+    /// before the trace, so its counts cover the client only.
+    fn count_syscalls(&self, cleanup_command: &str) {
+        for round in 0..SYSCALL_COUNT_ROUNDS {
+            for id in self.benchmarked_ids() {
+                Command::new("bash")
+                    .current_dir(self.root())
+                    .arg("-c")
+                    .arg(cleanup_command)
+                    .pipe_mut(executor("syscall count cleanup"));
+                eprintln!("Counting syscalls for {id}, round {round}...");
+                Command::new("strace")
+                    .current_dir(self.root())
+                    .arg("--follow-forks")
+                    .arg("--summary-only")
+                    .arg("--output")
+                    .arg(self.syscall_counts_path(id, round))
+                    .arg("bash")
+                    .arg(self.script_path(id))
+                    .pipe_mut(executor("strace install"));
+            }
+        }
     }
 
     /// Prime the install state for the scenarios whose contract is "GVS
