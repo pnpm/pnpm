@@ -196,12 +196,24 @@ test('syscall changes within 2% or 50 calls pass, and an improvement passes', ()
 
 test('identical runs that disagree beyond the tolerance are unstable, not gated', () => {
   const input = { syscalls: {
-    'pacquet@HEAD': [{ getdents64: 5000 }, { getdents64: 5000 }],
+    'pacquet@HEAD': [{ getdents64: 1160 }, { getdents64: 1260 }],
     'pacquet@main': [{ getdents64: 1000 }, { getdents64: 1100 }],
   } }
   assert.deepEqual(compareSyscalls(input, 'pacquet'), [
-    { syscall: 'getdents64', head: 5000, base: 1100, change: 3900, spread: 100, tolerance: 50, status: 'Unstable (identical runs differ by 100, not gated)' },
+    { syscall: 'getdents64', head: 1160, base: 1100, change: 60, spread: 100, tolerance: 50, status: 'Unstable (identical runs differ by 100, not gated)' },
   ])
+})
+
+test('a regression beyond both the tolerance and the run spread fails even when runs disagree', () => {
+  const counts = (head, base) => ({ syscalls: {
+    'pacquet@HEAD': [{ getdents64: head[0] }, { getdents64: head[1] }],
+    'pacquet@main': [{ getdents64: base[0] }, { getdents64: base[1] }],
+  } })
+  assert.deepEqual(compareSyscalls(counts([3000, 3100], [1000, 1000]), 'pacquet'), [
+    { syscall: 'getdents64', head: 3000, base: 1000, change: 2000, spread: 100, tolerance: 50, status: 'Regression' },
+  ])
+  assert.equal(compareSyscalls(counts([1250, 1300], [1000, 1100]), 'pacquet')[0].status, 'Unstable (identical runs differ by 100, not gated)')
+  assert.equal(compareSyscalls(counts([1251, 1300], [1000, 1100]), 'pacquet')[0].status, 'Regression')
 })
 
 test('missing, partial and invalid syscall counts fail closed', () => {

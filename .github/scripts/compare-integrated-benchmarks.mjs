@@ -84,9 +84,10 @@ export function parseSyscallSummary (text) {
   return counts
 }
 
-// Compare HEAD's fewest calls against main's most, per file syscall. The two
-// traced runs of a revision must agree within the tolerance, or the syscall
-// is reported unstable instead of gated.
+// Compare HEAD's fewest calls against main's most, per file syscall. When
+// the two traced runs of a revision disagree beyond the tolerance, only a
+// gap wider than that disagreement too is gated; smaller ones are reported
+// unstable.
 export function compareSyscalls (report, engine) {
   const head = syscallRuns(report, `${engine}@HEAD`)
   const base = syscallRuns(report, `${engine}@main`)
@@ -101,8 +102,11 @@ export function compareSyscalls (report, engine) {
     const baseHigh = Math.max(...baseCounts)
     const spread = Math.max(Math.max(...headCounts) - headLow, baseHigh - Math.min(...baseCounts))
     const tolerance = Math.max(Math.floor(baseHigh * 0.02), 50)
-    const status = spread > tolerance ? `Unstable (identical runs differ by ${spread}, not gated)`
-      : headLow > baseHigh + tolerance ? 'Regression' : 'Within tolerance'
+    // A gap wider than the tolerance plus the run spread is a regression
+    // however noisy the runs; noise alone cannot open it.
+    const status = headLow > baseHigh + tolerance + spread ? 'Regression'
+      : spread > tolerance ? `Unstable (identical runs differ by ${spread}, not gated)`
+        : 'Within tolerance'
     return { syscall, head: headLow, base: baseHigh, change: headLow - baseHigh, spread, tolerance, status }
   })
 }
@@ -153,7 +157,7 @@ export async function renderComparison (directory) {
     '',
     '### Same-run syscall check',
     '',
-    `Each install runs ${syscallCountRounds} more times per revision, untimed, under \`strace --follow-forks --summary-only\`. A file syscall regresses when HEAD's fewest calls exceed main's most by more than 2% of main or 50 calls, whichever is larger. A syscall whose identical runs differ by more than that tolerance is reported unstable and not gated. Each scenario lists its largest change and every row that is not within tolerance.`,
+    `Each install runs ${syscallCountRounds} more times per revision, untimed, under \`strace --follow-forks --summary-only\`. A file syscall regresses when HEAD's fewest calls exceed main's most by more than 2% of main or 50 calls, whichever is larger. A syscall whose identical runs differ by more than that tolerance is reported unstable and not gated, unless HEAD's fewest calls also exceed main's most by more than the tolerance plus that difference. Each scenario lists its largest change and every row that is not within tolerance.`,
     '',
     '| Scenario | Engine | Syscall | main calls (max) | HEAD calls (min) | Change | Tolerance | Identical-run spread | Result |',
     '| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | --- |',
