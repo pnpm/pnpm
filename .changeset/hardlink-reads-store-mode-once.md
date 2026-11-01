@@ -2,4 +2,4 @@
 "pacquet": patch
 ---
 
-`pnpm install` no longer reads the mode of a store file before its first hardlink when the store integrity check has just read it. An offline install makes as many `statx` calls as 12.7.0 did [pnpm/pnpm#17500](https://github.com/pnpm/pnpm/issues/17500).
+`pnpm install` makes fewer `statx` calls when it hardlinks files from a hot store. It no longer reads a store file's mode before linking it when the store integrity check has already read it. With the default `verify-store-integrity`, an offline install makes as many `statx` calls as 12.7.0 did [pnpm/pnpm#17500](https://github.com/pnpm/pnpm/issues/17500).

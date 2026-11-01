@@ -7,8 +7,10 @@ use std::{
 };
 
 /// Keyed by CAS path. A store blob is content-addressed and only ever
-/// replaced by an equivalent write, so the mode read once stands for every
-/// later import of the same path in this process.
+/// replaced by equal bytes, so the mode read once stands for every later
+/// import of the same path in this process. The bytes match but the mode
+/// may not: another process's atomic rewrite carries its own mode, and a
+/// `chmod` through a hardlink changes the shared inode. Neither is seen here.
 ///
 /// Process-global rather than install-scoped, like [`crate::cas_write_lock`]:
 /// the store verifier that stats every blob and the importer that needs the

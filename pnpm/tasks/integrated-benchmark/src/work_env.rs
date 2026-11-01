@@ -423,7 +423,8 @@ impl WorkEnv {
 
     /// Trace every benchmarked install from the state a timed run starts
     /// from. Each round traces every target once, so drift across rounds
-    /// reaches both revisions alike.
+    /// reaches both revisions alike. A `pnpr@*` target's server was started
+    /// before the trace, so its counts cover the client only.
     fn count_syscalls(&self, cleanup_command: &str) {
         for round in 0..SYSCALL_COUNT_ROUNDS {
             for id in self.benchmarked_ids() {
