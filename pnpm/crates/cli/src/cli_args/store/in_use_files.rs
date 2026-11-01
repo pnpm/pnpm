@@ -18,7 +18,7 @@ use pnpm_workspace::{
     workspace_package_patterns,
 };
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet, hash_map::Entry},
     io, iter,
     path::{Path, PathBuf},
 };
@@ -59,40 +59,85 @@ pub(super) fn registered_modules_dirs(
     projects: &[PathBuf],
 ) -> Result<Vec<PathBuf>, PruneError> {
     let mut modules_dirs = HashSet::new();
+    let mut workspace_discoveries: HashMap<PathBuf, WorkspaceDiscovery> = HashMap::new();
+    let mut modules_dirs_by_project: HashMap<PathBuf, PathBuf> = HashMap::new();
     for registered_project in projects {
         let registered_project = lexical_normalize(registered_project);
         let workspace_dir = workspace_root_or(&registered_project);
-        let workspace_manifest = read_workspace_manifest(&workspace_dir)
-            .map_err(|error| PruneError::InUseFiles(io::Error::other(error)))?;
-        let workspace_projects = match workspace_manifest {
-            Some(manifest) => find_workspace_projects(
-                &workspace_dir,
-                &FindWorkspaceProjectsOpts {
-                    patterns: Some(workspace_package_patterns(&manifest)),
-                    ignored_directories: vec![store_dir.to_path_buf()],
-                    ignored_directory_suffixes: workspace_modules_dir_suffixes(&workspace_dir)?,
-                },
-            )
-            .map_err(|error| PruneError::InUseFiles(io::Error::other(error)))?
-            .into_iter()
-            .map(|project| project.root_dir)
-            .collect(),
-            None => Vec::new(),
-        };
-        for project in workspace_projects
-            .into_iter()
-            .chain(std::iter::once(registered_project))
+        let workspace =
+            cached_workspace_discovery(&mut workspace_discoveries, &workspace_dir, store_dir)?;
+        for project in workspace.projects
+            .iter()
+            .chain(std::iter::once(&registered_project))
         {
-            let modules_dir = configured_modules_dir(&project).map_err(PruneError::InUseFiles)?;
-            modules_dirs.insert(project.join(modules_dir));
+            modules_dirs.insert(cached_configured_modules_dir(
+                project,
+                &mut modules_dirs_by_project,
+            )?);
         }
     }
     Ok(modules_dirs.into_iter().collect())
 }
 
-fn workspace_modules_dir_suffixes(workspace_dir: &Path) -> Result<Vec<PathBuf>, PruneError> {
-    let Some(mut settings) = WorkspaceSettings::load_at(workspace_dir)
+fn cached_workspace_discovery<'cache>(
+    cache: &'cache mut HashMap<PathBuf, WorkspaceDiscovery>,
+    workspace_dir: &Path,
+    store_dir: &Path,
+) -> Result<&'cache WorkspaceDiscovery, PruneError> {
+    if let Entry::Vacant(entry) = cache.entry(workspace_dir.to_path_buf()) {
+        entry.insert(load_workspace_discovery(workspace_dir, store_dir)?);
+    }
+    Ok(cache.get(workspace_dir).expect("workspace discovery is cached"))
+}
+
+fn load_workspace_discovery(
+    workspace_dir: &Path,
+    store_dir: &Path,
+) -> Result<WorkspaceDiscovery, PruneError> {
+    let workspace_manifest = read_workspace_manifest(workspace_dir)
+        .map_err(|error| PruneError::InUseFiles(io::Error::other(error)))?;
+    let modules_dir_suffixes = workspace_modules_dir_suffixes(workspace_dir)?;
+    let projects = match workspace_manifest {
+        Some(manifest) => find_workspace_projects(
+            workspace_dir,
+            &FindWorkspaceProjectsOpts {
+                patterns: Some(workspace_package_patterns(&manifest)),
+                ignored_directories: vec![store_dir.to_path_buf()],
+                ignored_directory_suffixes: modules_dir_suffixes,
+            },
+        )
         .map_err(|error| PruneError::InUseFiles(io::Error::other(error)))?
+        .into_iter()
+        .map(|project| project.root_dir)
+        .collect(),
+        None => Vec::new(),
+    };
+    Ok(WorkspaceDiscovery { projects })
+}
+
+fn cached_configured_modules_dir(
+    project: &Path,
+    cache: &mut HashMap<PathBuf, PathBuf>,
+) -> Result<PathBuf, PruneError> {
+    match cache.entry(project.to_path_buf()) {
+        Entry::Occupied(entry) => Ok(entry.get().clone()),
+        Entry::Vacant(entry) => {
+            let modules_dir = configured_modules_dir(project).map_err(PruneError::InUseFiles)?;
+            Ok(entry
+                .insert(project.join(modules_dir))
+                .clone())
+        }
+    }
+}
+
+struct WorkspaceDiscovery {
+    projects: Vec<PathBuf>,
+}
+
+fn workspace_modules_dir_suffixes(workspace_dir: &Path) -> Result<Vec<PathBuf>, PruneError> {
+    let Some(mut settings) =
+        WorkspaceSettings::load_at_reading(workspace_dir, pnpm_config::SettingsRead::Readable)
+            .map_err(|error| PruneError::InUseFiles(io::Error::other(error)))?
     else {
         return Ok(Vec::new());
     };
@@ -175,7 +220,9 @@ fn load_installed_lockfiles(project: &Path) -> io::Result<Vec<Lockfile>> {
 /// environment, or in the global config is not seen.
 fn configured_modules_dir(project: &Path) -> io::Result<String> {
     let workspace_dir = workspace_root_or(project);
-    let Some(mut settings) = WorkspaceSettings::load_at(&workspace_dir).map_err(io::Error::other)?
+    let Some(mut settings) =
+        WorkspaceSettings::load_at_reading(&workspace_dir, pnpm_config::SettingsRead::Readable)
+            .map_err(io::Error::other)?
     else {
         return Ok("node_modules".to_string());
     };

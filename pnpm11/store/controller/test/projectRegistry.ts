@@ -253,6 +253,25 @@ describe('projectRegistry', () => {
 
       expect((await fs.stat(packageDir)).isDirectory()).toBe(true)
     })
+
+    it('does not fail when modulesDir has an unresolved environment placeholder', async () => {
+      const root = await fs.realpath(temporaryDirectory())
+      const storeDir = path.join(root, 'store')
+      const projectDir = await createProject(root, 'project')
+      const previous = process.env.PNPM_PRUNE_UNRESOLVED_MODULES_DIR
+      delete process.env.PNPM_PRUNE_UNRESOLVED_MODULES_DIR
+      try {
+        await fs.writeFile(path.join(root, 'pnpm-workspace.yaml'), 'packages: [project]\nmodulesDir: ${PNPM_PRUNE_UNRESOLVED_MODULES_DIR}\n')
+        await fs.writeFile(path.join(projectDir, 'package.json'), JSON.stringify({ name: 'project' }))
+        await addPruneAnchor(storeDir, root)
+        await registerProject(storeDir, projectDir)
+
+        await expect(pruneGlobalVirtualStore(storeDir)).resolves.toBeUndefined()
+      } finally {
+        if (previous == null) delete process.env.PNPM_PRUNE_UNRESOLVED_MODULES_DIR
+        else process.env.PNPM_PRUNE_UNRESOLVED_MODULES_DIR = previous
+      }
+    })
   })
 })
 

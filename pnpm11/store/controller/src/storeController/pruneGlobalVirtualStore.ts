@@ -2,7 +2,7 @@ import crypto from 'node:crypto'
 import { type Dirent, promises as fs } from 'node:fs'
 import path from 'node:path'
 
-import { envReplace } from '@pnpm/config.env-replace'
+import { envReplaceLossy } from '@pnpm/config.env-replace'
 import { type Config, createProjectConfigRecord } from '@pnpm/config.reader'
 import { isError } from '@pnpm/error'
 import { globalInfo } from '@pnpm/logger'
@@ -302,7 +302,7 @@ async function findRegisteredWorkspaceModulesDirs (projectDir: string): Promise<
   const workspaceDir = path.dirname(workspaceManifest)
   const workspaceSettings = await readWorkspaceManifestKeys(workspaceDir, new Set(['lockfileDir', 'modulesDir', 'packageConfigs', 'packages', 'sharedWorkspaceLockfile'])) as Partial<Pick<Config, 'lockfileDir' | 'modulesDir' | 'packageConfigs' | 'sharedWorkspaceLockfile'>> & { packages?: string[] } | undefined
   const lockfileDir = workspaceSettings?.sharedWorkspaceLockfile === false ? workspaceSettings.lockfileDir : workspaceDir
-  const modulesDir = typeof workspaceSettings?.modulesDir === 'string' ? envReplace(workspaceSettings.modulesDir, process.env) : undefined
+  const modulesDir = typeof workspaceSettings?.modulesDir === 'string' ? envReplaceLossy(workspaceSettings.modulesDir, process.env).value : undefined
   const modulesDirsByProjectName = lockfileDir == null
     ? Object.fromEntries(Object.entries(createProjectConfigRecord({ packageConfigs: workspaceSettings?.packageConfigs }) ?? {}).flatMap(([name, config]) => config.modulesDir == null ? [] : [[name, config.modulesDir]]))
     : {}
