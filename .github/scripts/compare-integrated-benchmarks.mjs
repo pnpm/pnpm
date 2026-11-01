@@ -175,7 +175,7 @@ export async function renderComparison (directory) {
       lines.push(`| ${label} | ${engine} | ${(result.base * 1000).toFixed(2)} ms | ${(result.head * 1000).toFixed(2)} ms | ${((result.ratio - 1) * 100).toFixed(1)}% | ${(result.tolerance * 1000).toFixed(2)} ms | ${result.status} |`)
     }
     for (const engine of engines) {
-      // PR artifacts from a harness older than syscall counting carry none.
+      // A report written without --count-syscalls carries none.
       if (report.syscalls === undefined) {
         syscallLines.push(`| ${label} | ${engine} | — | — | — | — | — | — | Not recorded by this run's harness |`)
         continue

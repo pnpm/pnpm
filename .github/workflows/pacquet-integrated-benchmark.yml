@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       # Benchmark two arbitrary revisions with this ref's harness, e.g. a
-      # past regression against its parent to check the gates still catch it.
+      # known regression against its parent to check the gates catch it.
       head_ref:
         description: SHA or origin/<branch> benchmarked as HEAD (default this ref)
         required: false
@@ -91,6 +91,8 @@ concurrency:
 # fork PRs (GitHub Actions security policy). The result is uploaded as an
 # artifact and posted by `integrated-benchmark-comment.yml`, which runs in
 # the base-repo privilege context via `workflow_run`.
+# Fork PRs run on the runner `vars.INTEGRATED_BENCHMARK_RUNNER` names, so it
+# must be a hosted or ephemeral runner, never a persistent self-hosted one.
 permissions:
   contents: read
 
@@ -123,11 +125,11 @@ jobs:
           fi
           # A failed command substitution inside echo would write an empty SHA
           # and pass, and the build would then check out the dispatched ref.
-          head_sha=$(git rev-parse --verify --quiet "${HEAD_REF:-HEAD}^{commit}") || {
+          head_sha=$(git rev-parse --verify --quiet --end-of-options "${HEAD_REF:-HEAD}^{commit}") || {
             echo "::error::head_ref '$HEAD_REF' is not a commit here. Pass a SHA or origin/<branch>."
             exit 1
           }
-          main_sha=$(git rev-parse --verify --quiet "${MAIN_REF:-origin/main}^{commit}") || {
+          main_sha=$(git rev-parse --verify --quiet --end-of-options "${MAIN_REF:-origin/main}^{commit}") || {
             echo "::error::main_ref '$MAIN_REF' is not a commit here. Pass a SHA or origin/<branch>."
             exit 1
           }
