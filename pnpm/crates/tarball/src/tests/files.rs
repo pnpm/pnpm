@@ -532,7 +532,8 @@ async fn prefetch_cas_paths_deferred_check_drops_a_row_only_when_verified() {
 }
 
 /// pnpm/pnpm#17543: a deferred row that passes `verify_rows` hands the
-/// modes its check read to its files and to its side-effects overlays.
+/// modes its check read to its files and to its side-effects overlays,
+/// in the maps already handed out.
 #[tokio::test]
 #[cfg(unix)]
 async fn verify_rows_hands_verified_modes_to_the_row_and_its_overlays() {
@@ -580,12 +581,18 @@ async fn verify_rows_hands_verified_modes_to_the_row_and_its_overlays() {
     )
     .await;
     assert_eq!(prefetched.cas_paths[&index_key]["package.json"].mode(), None);
+    let held_by_a_snapshot = Arc::clone(&prefetched.cas_paths[&index_key]);
 
     let failed = prefetched.verify_rows([index_key.as_str()], store_path, &verified_files_cache);
 
     assert_eq!(failed, 0);
     let mode = prefetched.cas_paths[&index_key]["package.json"].mode();
     assert!(mode.is_some(), "a passed check hands its mode to the row");
+    assert_eq!(
+        held_by_a_snapshot["package.json"].mode(),
+        mode,
+        "the mode lands on the map snapshots share, not on a copy",
+    );
     let overlay = &prefetched.side_effects_maps[&index_key]["k1"];
     assert_eq!(overlay.files["package.json"].mode(), mode);
     drop(store_dir);

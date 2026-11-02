@@ -13,6 +13,7 @@ use pnpm_lockfile::{BinaryResolution, LockfileResolution, PackageKey, PackageMet
 use pnpm_reporter::Reporter;
 use pnpm_store_dir::git_hosted_store_index_key;
 use pnpm_tarball::IngestTarballToStore;
+use std::sync::Arc;
 
 fn is_revision_addressed(resolution: &LockfileResolution) -> bool {
     match resolution {
@@ -161,7 +162,8 @@ impl InstallPackageBySnapshot<'_> {
     pub(super) async fn tarball_cas_paths<Reporter: self::Reporter>(
         &self,
         fetch: TarballFetch<'_, impl Fn(&str) -> Option<bool> + Send + Sync>,
-    ) -> Result<(pnpm_fs::CasPaths, ExtractedPackageMetadata), InstallPackageBySnapshotError> {
+    ) -> Result<(Arc<pnpm_fs::CasPaths>, ExtractedPackageMetadata), InstallPackageBySnapshotError>
+    {
         let config = self.ctx.config;
         let revision_addressed = is_revision_addressed(fetch.resolution);
         let (tarball_url, integrity) =
@@ -192,9 +194,13 @@ impl InstallPackageBySnapshot<'_> {
                 .map_err(InstallPackageBySnapshotError::DownloadTarball)?;
         match fetch.resolution {
             LockfileResolution::Tarball(tarball) if tarball.is_git_hosted() => self
-                .prepare_git_hosted::<Reporter>(&fetch, tarball, raw_cas_paths)
+                .prepare_git_hosted::<Reporter>(
+                    &fetch,
+                    tarball,
+                    Arc::unwrap_or_clone(raw_cas_paths),
+                )
                 .await
-                .map(|cas_paths| (cas_paths, ExtractedPackageMetadata::default())),
+                .map(|cas_paths| (Arc::new(cas_paths), ExtractedPackageMetadata::default())),
             _ => Ok((raw_cas_paths, extracted)),
         }
     }

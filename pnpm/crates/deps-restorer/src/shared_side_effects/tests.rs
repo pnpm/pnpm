@@ -162,12 +162,12 @@ async fn a_persisted_symlink_entry_is_valid_while_its_target_blob_is_stored() {
         deleted: None,
         remote_origin: None,
     };
-    let mut overlay = SideEffectsOverlay {
-        files: HashMap::new(),
+    let overlay = SideEffectsOverlay {
+        files: std::sync::Arc::default(),
         symlinks: HashMap::from([(link, "addon.node".to_string())]),
     };
     assert!(
-        super::stored_remote_side_effects_blobs_are_valid(&store_dir, &diff, &mut overlay)
+        super::stored_remote_side_effects_blobs_are_valid(&store_dir, &diff, &overlay)
             .await
             .unwrap(),
     );
@@ -175,7 +175,7 @@ async fn a_persisted_symlink_entry_is_valid_while_its_target_blob_is_stored() {
         !super::stored_remote_side_effects_blobs_are_valid(
             &store_dir,
             &diff,
-            &mut SideEffectsOverlay::default(),
+            &SideEffectsOverlay::default(),
         )
         .await
         .unwrap(),
@@ -184,14 +184,14 @@ async fn a_persisted_symlink_entry_is_valid_while_its_target_blob_is_stored() {
 
     std::fs::remove_file(&path).unwrap();
     assert!(
-        !super::stored_remote_side_effects_blobs_are_valid(&store_dir, &diff, &mut overlay)
+        !super::stored_remote_side_effects_blobs_are_valid(&store_dir, &diff, &overlay)
             .await
             .unwrap(),
     );
 }
 
-/// pnpm/pnpm#17543: each peer snapshot gets its own copy of a persisted
-/// overlay, so the check that stats its blobs records their modes on it.
+/// pnpm/pnpm#17543: the check that stats a persisted overlay's blobs
+/// records their modes on the files every snapshot of the overlay shares.
 #[tokio::test]
 #[cfg(unix)]
 async fn checking_a_persisted_overlay_records_the_modes_it_read() {
@@ -216,19 +216,20 @@ async fn checking_a_persisted_overlay_records_the_modes_it_read() {
         deleted: None,
         remote_origin: None,
     };
-    let mut overlay = SideEffectsOverlay {
-        files: HashMap::from([(name.clone(), pnpm_fs::StoreFile::new(blob.path.clone()))]),
-        symlinks: HashMap::new(),
-    };
+    let overlay = SideEffectsOverlay::from(HashMap::from([(
+        name.clone(),
+        pnpm_fs::StoreFile::new(blob.path.clone()),
+    )]));
+    let shared = overlay.clone();
 
     assert!(
-        super::stored_remote_side_effects_blobs_are_valid(&store_dir, &diff, &mut overlay)
+        super::stored_remote_side_effects_blobs_are_valid(&store_dir, &diff, &overlay)
             .await
             .unwrap(),
     );
 
     let on_disk = std::fs::metadata(&blob.path).unwrap().mode();
-    assert_eq!(overlay.files[&name].mode(), Some(on_disk));
+    assert_eq!(shared.files[&name].mode(), Some(on_disk));
 }
 
 /// A restore only happens where the remote cache applies at all. Unsupported
@@ -679,7 +680,10 @@ mod restore {
         super::super::apply_shared_side_effects(
             super::super::ApplySharedSideEffectsOptions {
                 cached: crate::shared_side_effects::SharedSideEffectsCacheRows {
-                    base_cas_paths: &HashMap::from([(snapshot_key.clone(), HashMap::new())]),
+                    base_cas_paths: &HashMap::from([(
+                        snapshot_key.clone(),
+                        std::sync::Arc::default(),
+                    )]),
                     cold_snapshots: None,
                     by_snapshot: &HashMap::new(),
                     quarantine_by_snapshot: &HashMap::new(),

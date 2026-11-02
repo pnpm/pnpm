@@ -291,7 +291,7 @@ async fn custom_fetcher_delegate_rewrites_the_resolution() {
     .await
     .expect("the delegated registry resolution must drive the fetch");
 
-    assert_eq!(cas_paths.cas_paths, seeded);
+    assert_eq!(*cas_paths.cas_paths, seeded);
 
     drop(store_tmp);
 }
@@ -340,7 +340,7 @@ async fn custom_fetcher_declining_falls_through_to_the_original_resolution() {
     .await
     .expect("a declined package must take the built-in path unchanged");
 
-    assert_eq!(cas_paths.cas_paths, seeded);
+    assert_eq!(*cas_paths.cas_paths, seeded);
 
     drop(store_tmp);
 }
@@ -468,7 +468,7 @@ async fn custom_typed_resolution_installs_via_delegating_fetcher() {
     .await
     .expect("a delegating fetcher must install a custom-typed resolution");
 
-    assert_eq!(cas_paths.cas_paths, seeded);
+    assert_eq!(*cas_paths.cas_paths, seeded);
 
     drop(store_tmp);
 }

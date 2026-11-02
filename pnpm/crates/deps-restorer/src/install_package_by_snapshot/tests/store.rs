@@ -35,15 +35,15 @@ async fn cold_batch_reuses_in_flight_prefetch_from_mem_cache() {
     let seeded: pnpm_fs::CasPaths =
         HashMap::from([("package.json".to_string(), store_tmp.path().join("blob").into())]);
     let mem_cache = Arc::new(MemCache::default());
+    let cached = CachedTarball::from_files(seeded.clone());
+    let shared = Arc::clone(&cached.files);
     mem_cache.insert(
         package_mem_cache_key(
             &tarball_url,
             Some(&DUMMY_SHA512.parse().expect("parse integrity")),
             false,
         ),
-        Arc::new(tokio::sync::RwLock::new(CacheValue::Available(CachedTarball::from_files(
-            seeded.clone(),
-        )))),
+        Arc::new(tokio::sync::RwLock::new(CacheValue::Available(cached))),
     );
 
     let layout = crate::VirtualStoreLayout::legacy(store_tmp.path().join("vstore"), 120);
@@ -103,7 +103,11 @@ async fn cold_batch_reuses_in_flight_prefetch_from_mem_cache() {
     .await
     .expect("cold batch must reuse the prefetched download instead of fetching");
 
-    assert_eq!(cas_paths.cas_paths, seeded);
+    assert_eq!(*cas_paths.cas_paths, seeded);
+    assert!(
+        Arc::ptr_eq(&cas_paths.cas_paths, &shared),
+        "every snapshot of the package imports from the cached map, not a copy",
+    );
 
     drop(store_tmp);
 }
