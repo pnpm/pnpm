@@ -691,3 +691,44 @@ fn staged_files(root: &std::path::Path) -> Vec<PathBuf> {
     }
     staged
 }
+
+#[tokio::test]
+async fn another_file_of_a_published_python_version_takes_no_publish_time_note() {
+    let tmp = TempDir::new().unwrap();
+    let mut config = tri_ecosystem_config(tmp.path().to_path_buf());
+    config.storage.metadata =
+        pnpr_config::MetadataBackend::Sqlite(tmp.path().join("metadata.sqlite"));
+    let app = router_with_auth(config, AuthState::in_memory());
+    let token = token_for(&app, "alice").await;
+    let first = json!({ "packages": [pypi_entry("demo-pkg", "1.0.0", WHEEL, b"PK\x03\x04 one")] });
+    let published = app
+        .clone()
+        .oneshot(publish_request("/-/pnpr/v0/publish", &first, Some(&token)))
+        .await
+        .unwrap();
+    assert_eq!(published.status(), StatusCode::CREATED);
+
+    let mut sdist = pypi_entry("demo-pkg", "1.0.0", "demo_pkg-1.0.0.tar.gz", b"sdist bytes");
+    sdist["filetype"] = json!("sdist");
+    sdist["notes"] = json!("- late\n");
+    let second = json!({ "packages": [sdist] });
+    let refused = app
+        .clone()
+        .oneshot(publish_request("/-/pnpr/v0/publish", &second, Some(&token)))
+        .await
+        .unwrap();
+    assert_eq!(refused.status(), StatusCode::CONFLICT);
+
+    // Without the note, the same file publishes.
+    let mut quiet = second;
+    quiet["packages"][0]
+        .as_object_mut()
+        .unwrap()
+        .remove("notes");
+    let accepted = app
+        .clone()
+        .oneshot(publish_request("/-/pnpr/v0/publish", &quiet, Some(&token)))
+        .await
+        .unwrap();
+    assert_eq!(accepted.status(), StatusCode::CREATED);
+}

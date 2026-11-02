@@ -276,8 +276,9 @@ impl super::SqliteMetadata {
         self.read(move |connection, _| read_note(connection, &subject)).await
     }
 
-    /// The current versions of `name` in `org` that have a note, without
-    /// their text.
+    /// The current versions of `name` in `org` whose note holds text or the
+    /// digest it was published with, without the text. A note added later and
+    /// then deleted holds neither.
     pub async fn noted_versions(
         self: &std::sync::Arc<Self>,
         name: &CanonicalPackageName,
@@ -288,6 +289,7 @@ impl super::SqliteMetadata {
             let mut statement = connection.prepare_cached(
                 "SELECT n.subject FROM notes n
                  WHERE n.catalog = ?1 AND n.kind = 'version' AND n.ecosystem = ?2 AND n.name = ?3
+                   AND (n.text IS NOT NULL OR n.initial_digest IS NOT NULL)
                    AND (n.ecosystem != 'npm' OR EXISTS (
                      SELECT 1 FROM versions v WHERE v.catalog = n.catalog
                        AND v.ecosystem = n.ecosystem AND v.name = n.name
@@ -376,9 +378,10 @@ impl super::SqliteMetadata {
     }
 
     /// The initial publication of every current version of `name` in `org`
-    /// that has one recorded, as `(version, publication id)`. A removed
-    /// version's publication stays recorded but is not listed.
-    pub async fn package_publications(
+    /// whose publication note holds text or its publish-time digest, as
+    /// `(version, publication id)`. A removed version's publication stays
+    /// recorded but is not listed.
+    pub async fn noted_publications(
         self: &std::sync::Arc<Self>,
         name: &CanonicalPackageName,
         org: &str,
@@ -386,13 +389,19 @@ impl super::SqliteMetadata {
         let key = package_key(name, org);
         self.read(move |connection, _| {
             let mut statement = connection.prepare_cached(
-                "SELECT m.version, MIN(m.publication) FROM publication_members m
-                 WHERE m.catalog = ?1 AND m.ecosystem = ?2 AND m.name = ?3
-                   AND EXISTS (
-                     SELECT 1 FROM versions v WHERE v.catalog = m.catalog
-                       AND v.ecosystem = m.ecosystem AND v.name = m.name
-                       AND v.version = m.version)
-                 GROUP BY m.version",
+                "SELECT p.version, p.publication FROM (
+                   SELECT m.version, MIN(m.publication) AS publication FROM publication_members m
+                   WHERE m.catalog = ?1 AND m.ecosystem = ?2 AND m.name = ?3
+                     AND EXISTS (
+                       SELECT 1 FROM versions v WHERE v.catalog = m.catalog
+                         AND v.ecosystem = m.ecosystem AND v.name = m.name
+                         AND v.version = m.version)
+                   GROUP BY m.version
+                 ) p
+                 WHERE EXISTS (
+                   SELECT 1 FROM notes n WHERE n.catalog = ?1 AND n.kind = 'publication'
+                     AND n.ecosystem = '' AND n.name = '' AND n.subject = CAST(p.publication AS TEXT)
+                     AND (n.text IS NOT NULL OR n.initial_digest IS NOT NULL))",
             )?;
             let rows = statement
                 .query_map(key.params(), |row| {

@@ -28,8 +28,9 @@ use super::{
     oci::{OciPublication, authorize_publication},
     publishing::{
         StagedPublish, check_note_storage, cleanup_tmp_slots, commit_publication, publication_name,
-        publication_request, publish_committed_response, replayed_outcome, single_catalog,
-        stage_publish, take_note, take_version_note, validate_publish_doc,
+        publication_request, publish_committed_response, refuse_notes_of_published_python_versions,
+        replayed_outcome, single_catalog, stage_publish, take_note, take_version_note,
+        validate_publish_doc,
     },
     pypi::{PypiPublication, authorize_upload, verify_upload},
 };
@@ -181,10 +182,25 @@ async fn publish_batch(
     if let Some(replayed) = replayed_batch(state, request.as_ref(), &validated).await? {
         return Ok(replayed);
     }
+    refuse_late_python_notes(state, &validated, &notes).await?;
 
     let staged = stage_entries(state, validated).await?;
     let receipt = commit_publication(state, staged, notes, request).await?;
     Ok(publish_committed_response(&receipt))
+}
+
+/// Refuse the batch's notes for Python versions already published, in the
+/// one catalog its entries target.
+async fn refuse_late_python_notes(
+    state: &AppState,
+    validated: &[ValidatedEntry],
+    notes: &PublishNotes,
+) -> Result<(), RegistryError> {
+    if notes.versions.is_empty() {
+        return Ok(());
+    }
+    let catalog = single_catalog(validated.iter().map(ValidatedEntry::org))?;
+    refuse_notes_of_published_python_versions(state, &catalog, notes).await
 }
 
 /// The recorded outcome of the batch `request` repeats, in the one catalog

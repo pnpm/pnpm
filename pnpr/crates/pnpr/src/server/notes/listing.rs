@@ -23,6 +23,8 @@ use std::collections::{BTreeMap, BTreeSet};
 const MAX_ENTRIES: usize = 100;
 /// Most bytes of serialized entries the document holds.
 const MAX_BYTES: usize = 1024 * 1024;
+/// Most versions the listing examines for one document.
+const MAX_CANDIDATES: usize = 4 * MAX_ENTRIES;
 
 pub(in crate::server) async fn serve_package_notes(
     state: &AppState,
@@ -70,7 +72,17 @@ async fn package_notes(
         crate::server::publications::anonymously_readable(state, &notes.target.source, &notes.name);
     let mut listing = Listing { public: package_public, ..Listing::default() };
     let mut links = BTreeMap::new();
-    for version in candidates.newest_first() {
+    for (examined, version) in candidates
+        .newest_first()
+        .into_iter()
+        .enumerate()
+    {
+        // Entries the caller may not read are skipped; stop looking long
+        // before a package's whole history is examined.
+        if examined == MAX_CANDIDATES {
+            listing.truncated = true;
+            break;
+        }
         let Some((entry, public)) =
             candidates.entry(state, identity, notes, &mut links, version).await?
         else {
@@ -83,8 +95,9 @@ async fn package_notes(
     Ok(listing.into_response())
 }
 
-/// The versions the listing may name, without their notes: those with a
-/// note, and those with a recorded publication.
+/// The versions the listing may name, without their notes: those whose note
+/// holds text or a publish-time digest, and those whose publication's note
+/// does.
 struct Candidates {
     noted: BTreeSet<String>,
     published: BTreeMap<String, u64>,
@@ -94,7 +107,7 @@ impl Candidates {
     async fn load(notes: &NotesTarget) -> Result<Self, RegistryError> {
         let NotesTarget { database, name, target } = notes;
         let noted = database.noted_versions(name, &target.org).await?;
-        let published = database.package_publications(name, &target.org).await?;
+        let published = database.noted_publications(name, &target.org).await?;
         Ok(Self { noted: noted.into_iter().collect(), published: published.into_iter().collect() })
     }
 
@@ -123,6 +136,8 @@ impl Candidates {
         } else {
             None
         };
+        // A note added later and then deleted names nothing.
+        let note = note.filter(|note| note.text.is_some() || note.initial_digest.is_some());
         let link = match self.published.get(version) {
             Some(&id) => publication_link(state, identity, notes, links, id).await?,
             None => None,

@@ -5,7 +5,9 @@ pub(super) use atomic::{
 pub(super) use attachments::{
     StagedPublish, ValidatedPublish, stage_publish, validate_publish_doc,
 };
-pub(super) use notes::{check_note_storage, take_note, take_version_note};
+pub(super) use notes::{
+    check_note_storage, refuse_notes_of_published_python_versions, take_note, take_version_note,
+};
 pub(super) use tombstones::check_publish_tombstone;
 
 mod atomic;

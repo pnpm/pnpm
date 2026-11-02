@@ -320,3 +320,22 @@ async fn a_package_of_an_upstream_lists_no_notes() {
     let note = send(&app, "GET", "/npm/lodash/4.17.21/notes", None, Body::empty()).await;
     assert_eq!(note.status, StatusCode::NOT_FOUND);
 }
+
+#[tokio::test]
+async fn a_note_added_and_deleted_after_publishing_is_not_listed() {
+    let tmp = TempDir::new().unwrap();
+    let app = app(&tmp);
+    let token = token(&app).await;
+    let doc = publish_doc("erased", "1.0.0", b"bytes");
+    let published = send(&app, "PUT", "/npm/erased", Some(&token), json_body(&doc)).await;
+    assert_eq!(published.status, StatusCode::CREATED);
+    let added = send(&app, "PUT", "/npm/erased/1.0.0/notes", Some(&token), Body::from("x")).await;
+    assert_eq!(added.status, StatusCode::NO_CONTENT);
+    let deleted =
+        send(&app, "DELETE", "/npm/erased/1.0.0/notes", Some(&token), Body::empty()).await;
+    assert_eq!(deleted.status, StatusCode::NO_CONTENT);
+    let listing = send(&app, "GET", "/npm/erased/-/notes", None, Body::empty())
+        .await
+        .json();
+    assert_eq!(listing, json!({ "notes": [] }));
+}

@@ -66,6 +66,47 @@ fn entry_version(entry: &Value, ecosystem: Ecosystem) -> Option<(String, String)
     }
 }
 
+/// Refuse a Python version note whose version the project already has a file
+/// of: a publish that adds another distribution of a published version does
+/// not publish the version, so it takes no publish-time note. Runs under the
+/// package locks, before staging. An npm or Cargo version is published once,
+/// so the commit's own check covers it.
+pub(in super::super) async fn refuse_notes_of_published_python_versions(
+    state: &AppState,
+    org: &str,
+    notes: &PublishNotes,
+) -> Result<(), RegistryError> {
+    let storage = state.inner.storage.for_hosted(org, Ecosystem::Pypi);
+    for note in notes.versions
+        .iter()
+        .filter(|note| note.ecosystem == Ecosystem::Pypi)
+    {
+        let name = CanonicalPackageName::parse(&note.name, Ecosystem::Pypi)?;
+        let Some(bytes) = storage.read_hosted_document(&name).await? else { continue };
+        let project = pnpr_pypi::ProjectDocument::parse(&bytes)?;
+        let published = project.files
+            .iter()
+            .any(|file| {
+                pnpr_pypi::parse_distribution_filename(&file.filename)
+                    .ok()
+                    .and_then(|distribution| {
+                        pnpr_pypi::normalize_version(&distribution.version).ok()
+                    })
+                    .is_some_and(|version| version == note.version)
+            });
+        if published {
+            return Err(RegistryError::AdminConflict {
+                reason: format!(
+                    "{}@{} is already published, so it takes no publish-time note; edit its \
+                     note instead",
+                    note.name, note.version,
+                ),
+            });
+        }
+    }
+    Ok(())
+}
+
 /// Refuse notes a store without `SQLite` metadata cannot keep.
 pub(in super::super) fn check_note_storage(
     state: &AppState,
