@@ -556,3 +556,29 @@ async fn rejects_variations_resolution_with_missing_integrity() {
     };
     assert_eq!(code, "MISSING_TARBALL_INTEGRITY");
 }
+
+/// A host that no variant matches installs the fallback, so the fallback
+/// is verified like a variant.
+#[tokio::test]
+async fn rejects_variations_resolution_with_an_unverifiable_fallback() {
+    let opts = default_opts("https://registry.example/");
+    let verifier = create_npm_resolution_verifier(opts);
+    let resolution = LockfileResolution::Variations(VariationsResolution {
+        fallback: Some(Box::new(LockfileResolution::Tarball(TarballResolution {
+            tarball: "https://registry.example/pkg-1.0.0.tgz".to_string(),
+            integrity: None,
+            revision: None,
+            git_hosted: None,
+            path: None,
+        }))),
+        revision: None,
+        variants: vec![],
+    });
+    let name: PkgName = "variations-pkg".parse().expect("parse");
+    assert!(verifier.might_verify(&resolution, ctx(&name, "1.0.0")));
+    let result = verifier.verify(&resolution, ctx(&name, "1.0.0")).await;
+    let ResolutionVerification::Err { code, .. } = result else {
+        panic!("expected Err, got {result:?}");
+    };
+    assert_eq!(code, "MISSING_TARBALL_INTEGRITY");
+}

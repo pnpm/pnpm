@@ -439,9 +439,7 @@ fn is_registry_shaped_resolution(resolution: &LockfileResolution) -> bool {
         }
         LockfileResolution::Variations(variations) => {
             !variations.variants.is_empty()
-                && variations.variants
-                    .iter()
-                    .all(|variant| is_registry_shaped_resolution(&variant.resolution))
+                && variations.resolutions().all(is_registry_shaped_resolution)
         }
         // Custom resolver protocols (`type: "custom:*"`) can only be materialized
         // by a project-configured custom fetcher, which owns its own trust

@@ -175,8 +175,8 @@ fn package_index_keys(lockfile: &Lockfile) -> io::Result<Vec<String>> {
 /// The lockfile does not say which key the install used for:
 /// - a git-hosted package, which has a key for its built and its unbuilt
 ///   contents;
-/// - a `Variations` resolution, whose variant depends on the installing
-///   host and its `supportedArchitectures`;
+/// - a `Variations` resolution, whose variant or fallback depends on the
+///   installing host and its `supportedArchitectures`;
 /// - a runtime, whose row an older install keyed without its manifest.
 fn add_resolution_index_keys(
     keys: &mut Vec<String>,
@@ -184,8 +184,8 @@ fn add_resolution_index_keys(
     resolution: &LockfileResolution,
 ) -> io::Result<()> {
     if let LockfileResolution::Variations(variations) = resolution {
-        for variant in &variations.variants {
-            add_resolution_index_keys(keys, key, &variant.resolution)?;
+        for resolution in variations.resolutions() {
+            add_resolution_index_keys(keys, key, resolution)?;
         }
         return Ok(());
     }

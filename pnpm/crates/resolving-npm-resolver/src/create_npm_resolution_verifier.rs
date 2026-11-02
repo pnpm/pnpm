@@ -337,9 +337,9 @@ pub fn create_npm_resolution_verifier(
 impl ResolutionVerifier for NpmResolutionVerifier {
     fn might_verify(&self, resolution: &LockfileResolution, ctx: VerifyCtx<'_>) -> bool {
         if let LockfileResolution::Variations(variations) = resolution {
-            return variations.variants
-                .iter()
-                .any(|variant| self.might_verify(&variant.resolution, ctx));
+            return variations
+                .resolutions()
+                .any(|resolution| self.might_verify(resolution, ctx));
         }
         let Some(tarball_url) = npm_registry_tarball(resolution) else {
             return false;
@@ -429,8 +429,8 @@ impl NpmResolutionVerifier {
         variations: &pnpm_lockfile::VariationsResolution,
         ctx: VerifyCtx<'_>,
     ) -> ResolutionVerification {
-        for variant in &variations.variants {
-            let verification = Box::pin(self.verify_impl(&variant.resolution, ctx)).await;
+        for resolution in variations.resolutions() {
+            let verification = Box::pin(self.verify_impl(resolution, ctx)).await;
             if !matches!(verification, ResolutionVerification::Ok) {
                 return verification;
             }

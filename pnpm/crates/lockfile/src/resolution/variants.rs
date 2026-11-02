@@ -143,6 +143,23 @@ impl VariationsResolution {
         VariationsResolution { variants, fallback: None, revision: None }
     }
 
+    /// Every archive some host can install: each variant's, then the
+    /// fallback.
+    pub fn resolutions(&self) -> impl Iterator<Item = &LockfileResolution> {
+        self.variants
+            .iter()
+            .map(|variant| &variant.resolution)
+            .chain(self.fallback.as_deref())
+    }
+
+    /// [`Self::resolutions`], mutably.
+    pub fn resolutions_mut(&mut self) -> impl Iterator<Item = &mut LockfileResolution> {
+        self.variants
+            .iter_mut()
+            .map(|variant| &mut variant.resolution)
+            .chain(self.fallback.as_deref_mut())
+    }
+
     /// The variant that fits `platform` best, comparing each variant by its
     /// best matching target, or the fallback when none matches. `None` when
     /// neither exists.
