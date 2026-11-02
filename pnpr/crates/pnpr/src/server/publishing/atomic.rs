@@ -20,7 +20,10 @@ use futures_util::StreamExt as _;
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_storage::{
     BlobFinalize, BlobSlot, Storage,
-    metadata::{ArtifactMember, BatchDocument, Generation, PublicationRequest, PublishNotes},
+    metadata::{
+        ArtifactMember, BatchDocument, Generation, PublicationCommit, PublicationRequest,
+        PublishNotes,
+    },
 };
 use serde_json::json;
 use ssri::{Algorithm, IntegrityOpts};
@@ -37,6 +40,19 @@ pub(in super::super) struct PublishReceipt {
     pub(in super::super) generation: Option<Generation>,
     /// The publication the commit recorded.
     pub(in super::super) publication: Option<u64>,
+    /// What the publisher should hear about a version accepted with a
+    /// difference, sent back as `npm-notice` response headers.
+    pub(in super::super) notices: Vec<String>,
+}
+
+impl From<PublicationCommit> for PublishReceipt {
+    fn from(commit: PublicationCommit) -> Self {
+        Self {
+            generation: Some(commit.generation),
+            publication: commit.publication,
+            notices: Vec::new(),
+        }
+    }
 }
 
 /// The idempotency claim of a publish request: who sent it, the request it
@@ -107,13 +123,29 @@ pub(in super::super) async fn replayed_outcome(
     let receipt = PublishReceipt {
         generation: Some(Generation { catalog: outcome.catalog, value: outcome.generation }),
         publication: outcome.publication,
+        notices: Vec::new(),
     };
     Ok(Some(publish_committed_response(&receipt)))
 }
 
 /// Commit `staged` in one transaction when the metadata lives in `SQLite`,
-/// through the publish journal otherwise.
+/// through the publish journal otherwise. The receipt carries the notices
+/// staging left for the publisher.
 pub(in super::super) async fn commit_publication(
+    state: &AppState,
+    mut staged: Vec<StagedPublish>,
+    notes: PublishNotes,
+    request: Option<PublicationRequest>,
+) -> Result<PublishReceipt, RegistryError> {
+    let notices = staged
+        .iter_mut()
+        .flat_map(|stage| std::mem::take(&mut stage.notices))
+        .collect();
+    let receipt = commit_staged(state, staged, notes, request).await?;
+    Ok(PublishReceipt { notices, ..receipt })
+}
+
+async fn commit_staged(
     state: &AppState,
     mut staged: Vec<StagedPublish>,
     notes: PublishNotes,
@@ -155,7 +187,7 @@ pub(in super::super) async fn commit_publication(
                 return Err(err);
             }
         };
-    Ok(PublishReceipt { generation: Some(commit.generation), publication: commit.publication })
+    Ok(commit.into())
 }
 
 /// The one organization every package of a publish belongs to. A
@@ -396,7 +428,7 @@ fn write_sequence<Item>(
 }
 
 /// `201 Created` for a committed publish, naming the generation that holds
-/// it and the publication it recorded.
+/// it and the publication it recorded, with its notices.
 pub(in super::super) fn publish_committed_response(receipt: &PublishReceipt) -> Response {
     let mut body = json!({ "ok": true, "success": true });
     if let Some(publication) = receipt.publication {
@@ -408,7 +440,44 @@ pub(in super::super) fn publish_committed_response(receipt: &PublishReceipt) -> 
     if let Some(generation) = &receipt.generation {
         builder = builder.header(crate::server::GENERATION_HEADER, generation.to_string());
     }
-    builder
+    let mut response = builder
         .body(Body::from(body.to_string()))
-        .expect("static-shape response always builds")
+        .expect("static-shape response always builds");
+    add_npm_notices(&mut response, &receipt.notices);
+    response
+}
+
+/// The most bytes of `npm-notice` values one response carries, so a publish
+/// of many versions, or of long names, cannot grow its headers past what a
+/// proxy or client accepts.
+const NPM_NOTICE_BYTES: usize = 2048;
+
+/// The bytes held back from [`NPM_NOTICE_BYTES`] for the summary of the
+/// notices that do not fit: its text with the longest count.
+const NPM_NOTICE_SUMMARY_BYTES: usize = 64;
+
+/// Send `notices` in `npm-notice` headers, which npm prints to the
+/// publisher: those that fit in [`NPM_NOTICE_BYTES`] beside a count of the
+/// rest.
+pub(in super::super) fn add_npm_notices(response: &mut Response, notices: &[String]) {
+    let mut budget = NPM_NOTICE_BYTES - NPM_NOTICE_SUMMARY_BYTES;
+    let mut sent = 0;
+    for notice in notices {
+        let Some(left) = budget.checked_sub(notice.len()) else { break };
+        let Ok(value) = header::HeaderValue::from_str(notice) else { break };
+        response.headers_mut().append("npm-notice", value);
+        budget = left;
+        sent += 1;
+    }
+    let rest = notices.len() - sent;
+    if rest > 0 {
+        let summary = format!("{rest} more versions were accepted with a notice");
+        response
+            .headers_mut()
+            .append(
+                "npm-notice",
+                header::HeaderValue::from_str(&summary)
+                    .expect("an ASCII summary is a header value"),
+            );
+    }
 }

@@ -9,7 +9,7 @@ use axum::{
     http::{Request, StatusCode},
 };
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
-use npm::sri_sha512;
+use npm::{npm_tgz, publishable_tgz, sri_sha512};
 use pnpr::{
     AccessList, AuthState, Config, Ecosystem, HostedConfig, MaxUsers, PackagePattern, PackageRules,
     Registries, Registry, router_with_auth,
@@ -101,6 +101,7 @@ fn publish_request(path: &str, body: &Value, token: Option<&str>) -> Request<Bod
 
 /// An npm publish document, the same one the npm batch endpoint takes.
 fn npm_entry(name: &str, version: &str, tarball: &[u8]) -> Value {
+    let tarball = &publishable_tgz(name, version, tarball);
     let filename = format!("{name}-{version}.tgz");
     json!({
         "_id": name,
@@ -211,7 +212,7 @@ async fn publishes_a_package_a_crate_and_a_wheel_in_one_transaction() {
     let storage = tmp.path().to_path_buf();
     let app = router_with_auth(tri_ecosystem_config(storage.clone()), AuthState::in_memory());
     let token = token_for(&app, "alice").await;
-    let tarball = b"npm-tarball-bytes";
+    let tarball = &npm_tgz("mixed-pkg", "1.0.0", b"npm-tarball-bytes");
     let archive = crate_archive("demo", "0.1.0");
     let wheel = b"PK\x03\x04 pretend wheel";
 
@@ -250,7 +251,7 @@ async fn publishes_a_package_a_crate_and_a_wheel_in_one_transaction() {
         .await
         .unwrap();
     assert_eq!(npm_tarball.status(), StatusCode::OK);
-    assert_eq!(body_bytes(npm_tarball.into_body()).await, tarball);
+    assert_eq!(body_bytes(npm_tarball.into_body()).await, *tarball);
 
     let index = app
         .clone()

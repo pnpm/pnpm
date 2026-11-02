@@ -2,7 +2,7 @@
 
 use super::{
     commit::Commit,
-    packument::{ORDINARY, Readme, SUBMITTED_PROFILE, VersionRows},
+    packument::{ORDINARY, Readme, VersionRows},
     to_column,
 };
 use pnpr_error::{RegistryError, Result};
@@ -29,20 +29,22 @@ pub(super) fn insert_version(commit: &Commit<'_>, version: &str, rows: &VersionR
         ],
     )?;
     let manifest = serde_json::to_string(&rows.manifest)?;
-    let input_digest = super::commit::input_digest(rows)?;
+    let inputs = serde_json::to_string(&rows.interpretation.inputs)?;
+    let accepted_digest = super::commit::accepted_digest(rows)?;
     commit.transaction.execute(
         "INSERT INTO accepted_manifests (catalog, ecosystem, name, version, revision_key, profile,
-                                         manifest, input_digest)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                                         manifest, inputs, accepted_digest)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
         params![
             catalog,
             ecosystem,
             name,
             version,
             ORDINARY,
-            SUBMITTED_PROFILE,
+            rows.interpretation.profile,
             manifest,
-            input_digest,
+            inputs,
+            accepted_digest,
         ],
     )?;
     insert_readme(commit, version, &rows.readme)?;

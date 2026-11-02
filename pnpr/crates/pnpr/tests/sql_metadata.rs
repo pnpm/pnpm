@@ -2,7 +2,7 @@
 //! read, retag, deprecate, and unpublish, with no package document written
 //! to the hosted store.
 
-use crate::npm::publish_doc;
+use crate::npm::{npm_tgz, publish_doc, sri_sha512};
 
 use axum::{
     Router,
@@ -101,7 +101,16 @@ async fn npm_metadata_round_trips_through_sqlite() {
         "sql-pkg",
         "sql-pkg-1.0.0.tgz",
     );
-    assert_eq!(std::fs::read(blob).unwrap(), b"1.0.0");
+    let archive = npm_tgz("sql-pkg", "1.0.0", b"1.0.0");
+    assert_eq!(std::fs::read(blob).unwrap(), archive);
+    // The version is served as its archive was accepted, under the profile
+    // the accepted manifest records.
+    let accepted = &document["versions"]["1.0.0"];
+    assert_eq!(accepted["_archiveManifest"]["profile"], "npm-install-manifest/1");
+    let manifest = json!({ "name": "sql-pkg", "version": "1.0.0" }).to_string();
+    assert_eq!(accepted["_archiveManifest"]["packageJson"], sri_sha512(manifest.as_bytes()));
+    assert_eq!(accepted["hasInstallScript"], false);
+    assert_eq!(accepted["_hasShrinkwrap"], false);
 
     let tag = json!("1.0.0");
     let (status, committed, _) =

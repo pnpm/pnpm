@@ -10,7 +10,7 @@ use axum::{
     http::{Request, StatusCode},
 };
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
-use npm::{sha1_hex, sri_sha512};
+use npm::{npm_tgz, sha1_hex, sri_sha512};
 use pnpr::{Config, MaxUsers, recover_publish_journal, router};
 use pnpr_fixtures::MockConfigPresets;
 use pnpr_storage::layout::{
@@ -330,7 +330,7 @@ async fn successful_batch_publish_leaves_no_journal_residue() {
     let app = router(static_config(storage.clone()));
     let token = add_user_and_get_token(app.clone(), "alice", "secret").await;
 
-    let tarball = b"journaled-bytes";
+    let tarball = &npm_tgz("residue-pkg", "1.0.0", b"journaled-bytes");
     let mut doc = packument("residue-pkg", "1.0.0", tarball);
     doc["_id"] = json!("residue-pkg");
     doc["versions"]["1.0.0"]["dist"]["shasum"] = json!(sha1_hex(tarball));

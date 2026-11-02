@@ -61,7 +61,11 @@ async fn a_partial_unpublish_through_a_tar_registry_keeps_the_stored_dist_and_de
     let token = issue_token(&auth, "alice").await;
     let app = router_with_auth(acme_config(tmp.path().to_path_buf()), auth);
     for (version, content) in [("1.0.0", "a"), ("1.0.1", "b")] {
-        let tar = tar_of(&[("package/index.js", content.as_bytes())]);
+        let manifest = format!(r#"{{"name":"@acme/widget","version":"{version}"}}"#);
+        let tar = tar_of(&[
+            ("package/package.json", manifest.as_bytes()),
+            ("package/index.js", content.as_bytes()),
+        ]);
         let publish = app
             .clone()
             .oneshot(hosted_publish_request(

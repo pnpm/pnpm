@@ -1,0 +1,35 @@
+{
+  "description": "With a root binding.gyp the added script is what an installer runs anyway (sharp@0.17.1).",
+  "archive": {
+    "packageJson": {
+      "name": "widgets",
+      "version": "0.17.1"
+    },
+    "files": [
+      "package.json",
+      "binding.gyp",
+      "src/widgets.cc"
+    ]
+  },
+  "submitted": {
+    "name": "widgets",
+    "version": "0.17.1",
+    "gypfile": true,
+    "scripts": {
+      "install": "node-gyp rebuild"
+    }
+  },
+  "expected": {
+    "manifest": {
+      "name": "widgets",
+      "version": "0.17.1",
+      "scripts": {
+        "install": "node-gyp rebuild"
+      },
+      "hasInstallScript": true,
+      "hasShrinkwrap": false
+    },
+    "mismatched": [],
+    "tolerated": []
+  }
+}

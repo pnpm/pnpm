@@ -300,5 +300,6 @@ pub(super) async fn stage_hosted_artifact<Document: HostedDocument + Send>(
         org: Some(org.to_string()),
         // Only an npm document has dist-tags to record a publisher with.
         publisher: None,
+        notices: Vec::new(),
     })
 }

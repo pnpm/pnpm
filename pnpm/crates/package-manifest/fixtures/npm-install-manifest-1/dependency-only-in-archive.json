@@ -1,0 +1,39 @@
+{
+  "description": "A dependency the submitted manifest omits is rejected.",
+  "archive": {
+    "packageJson": {
+      "name": "widgets",
+      "version": "1.0.0",
+      "dependencies": {
+        "helper": "^1.0.0",
+        "extra": "1.0.0"
+      }
+    },
+    "files": [
+      "package.json"
+    ]
+  },
+  "submitted": {
+    "name": "widgets",
+    "version": "1.0.0",
+    "dependencies": {
+      "helper": "^1.0.0"
+    }
+  },
+  "expected": {
+    "manifest": {
+      "name": "widgets",
+      "version": "1.0.0",
+      "dependencies": {
+        "extra": "1.0.0",
+        "helper": "^1.0.0"
+      },
+      "hasInstallScript": false,
+      "hasShrinkwrap": false
+    },
+    "mismatched": [
+      "dependencies.extra"
+    ],
+    "tolerated": []
+  }
+}

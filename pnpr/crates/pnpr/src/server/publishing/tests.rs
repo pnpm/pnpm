@@ -32,8 +32,9 @@ async fn a_published_tarball_hashes_its_tar_under_a_decode_permit() {
         Storage::new(&HostedStoreConfig::Fs, temp.path().join("store"), temp.path().join("cache"))
             .unwrap();
     let name = CanonicalPackageName::parse("pkg", Ecosystem::Npm).unwrap();
+    let tar = package_tar(br#"{"name":"pkg","version":"1.0.0"}"#);
     let mut encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
-    encoder.write_all(b"tar bytes").unwrap();
+    encoder.write_all(&tar).unwrap();
     let tgz = encoder.finish().unwrap();
     let prepared = PreparedAttachment {
         attachment: PendingAttachment {
@@ -53,16 +54,25 @@ async fn a_published_tarball_hashes_its_tar_under_a_decode_permit() {
     let waited = tokio::time::timeout(Duration::from_millis(200), &mut write).await;
     assert!(waited.is_err(), "the write must wait for a decode permit");
     decodes.add_permits(1);
-    let (_slot, tar) = write.await.unwrap();
-    assert!(tar.is_some());
+    let (_slot, published) = write.await.unwrap();
+    assert!(published.is_some());
     let integrities = storage.read_tar_integrities(&name).await.unwrap();
     assert_eq!(
         integrities
             .get(&sha512(&tgz).to_string())
             .map(|derived| derived.tar_integrity.as_str()),
-        Some(sha512(b"tar bytes").to_string().as_str()),
+        Some(sha512(&tar).to_string().as_str()),
     );
     assert_eq!(decodes.available_permits(), 1);
+}
+
+fn package_tar(manifest: &[u8]) -> Vec<u8> {
+    let mut builder = tar::Builder::new(Vec::new());
+    let mut header = tar::Header::new_gnu();
+    header.set_size(manifest.len() as u64);
+    header.set_mode(0o644);
+    builder.append_data(&mut header, "package/package.json", manifest).unwrap();
+    builder.into_inner().unwrap()
 }
 
 fn sha512(bytes: &[u8]) -> ssri::Integrity {
@@ -121,4 +131,30 @@ fn a_python_version_note_is_keyed_by_the_normalized_version() {
         .unwrap();
     assert_eq!(note.version, "1.0");
     assert!(entry.get("notes").is_none());
+}
+
+#[test]
+fn a_response_carries_a_bounded_size_of_notices() {
+    let notices: Vec<String> = (0..20)
+        .map(|index| format!("{index:03} {}", "x".repeat(196)))
+        .collect();
+    let mut response = axum::response::Response::new(axum::body::Body::empty());
+    super::add_npm_notices(&mut response, &notices);
+    let sent: Vec<&str> = response
+        .headers()
+        .get_all("npm-notice")
+        .iter()
+        .map(|value| value.to_str().unwrap())
+        .collect();
+    // Nine 200-byte notices fit beside the summary, which counts the rest.
+    assert_eq!(sent.len(), 10);
+    assert!(sent[8].starts_with("008 "));
+    assert_eq!(sent[9], "11 more versions were accepted with a notice");
+    let total: usize = sent
+        .iter()
+        .map(|value| value.len())
+        .sum();
+    assert!(total <= 2048, "{total}");
+    let longest_summary = format!("{} more versions were accepted with a notice", usize::MAX);
+    assert!(longest_summary.len() <= 64);
 }

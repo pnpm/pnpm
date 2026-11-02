@@ -4,7 +4,7 @@
 use super::{
     Expected, PackageKey,
     batch::Batch,
-    packument::{ORDINARY, PackumentRows, Readme, SUBMITTED_PROFILE, VersionRows, decompose},
+    packument::{Interpretation, ORDINARY, PackumentRows, Readme, VersionRows, decompose},
     tags::{TagMove, record_tag_move},
     to_column, to_generation,
 };
@@ -134,25 +134,26 @@ fn apply_packument(
 
 /// What the store holds for one accepted version, short of its manifest.
 struct StoredVersion {
-    input_digest: String,
+    accepted_digest: String,
     deprecated: Option<Value>,
 }
 
+/// Each accepted version's digest and deprecation. A version has one
+/// accepted manifest, under the profile it was accepted under.
 fn stored_versions(commit: &Commit<'_>) -> Result<BTreeMap<String, StoredVersion>> {
     let mut statement = commit.transaction.prepare_cached(
-        "SELECT v.version, m.input_digest, a.deprecated
+        "SELECT v.version, m.accepted_digest, a.deprecated
          FROM versions v
          JOIN accepted_manifests m USING (catalog, ecosystem, name, version, revision_key)
          LEFT JOIN annotations a USING (catalog, ecosystem, name, version)
-         WHERE v.catalog = ?1 AND v.ecosystem = ?2 AND v.name = ?3
-           AND v.revision_key = ?4 AND m.profile = ?5",
+         WHERE v.catalog = ?1 AND v.ecosystem = ?2 AND v.name = ?3 AND v.revision_key = ?4",
     )?;
     let (catalog, ecosystem, name) = commit.key.params();
-    let mut rows = statement.query(params![catalog, ecosystem, name, ORDINARY, SUBMITTED_PROFILE])?;
+    let mut rows = statement.query(params![catalog, ecosystem, name, ORDINARY])?;
     let mut stored = BTreeMap::new();
     while let Some(row) = rows.next()? {
         let deprecated = parse_optional_json(row.get::<_, Option<String>>(2)?.as_deref())?;
-        stored.insert(row.get(0)?, StoredVersion { input_digest: row.get(1)?, deprecated });
+        stored.insert(row.get(0)?, StoredVersion { accepted_digest: row.get(1)?, deprecated });
     }
     Ok(stored)
 }
@@ -188,9 +189,11 @@ fn reconcile_version(
     existing: &StoredVersion,
     incoming: &VersionRows,
 ) -> Result<bool> {
-    let restated = existing.input_digest == input_digest(incoming)? || {
-        let (manifest, readme) = accepted_rows(commit, version)?;
-        manifest == incoming.manifest && readme == incoming.readme
+    let restated = existing.accepted_digest == accepted_digest(incoming)? || {
+        let accepted = accepted_rows(commit, version)?;
+        accepted.manifest == incoming.manifest
+            && accepted.readme == incoming.readme
+            && accepted.interpretation == incoming.interpretation
     };
     if !restated {
         return Err(RegistryError::VersionAlreadyPublished {
@@ -205,22 +208,32 @@ fn reconcile_version(
     Ok(true)
 }
 
-/// The accepted manifest and README of `version`, for a restatement whose
-/// digest differs, such as one with its fields in another order.
-fn accepted_rows(commit: &Commit<'_>, version: &str) -> Result<(Map<String, Value>, Readme)> {
+/// What a version was accepted as.
+struct AcceptedRows {
+    manifest: Map<String, Value>,
+    readme: Readme,
+    interpretation: Interpretation,
+}
+
+/// The accepted manifest, README, and interpretation of `version`, for a
+/// restatement whose digest differs, such as one with its fields in another
+/// order.
+fn accepted_rows(commit: &Commit<'_>, version: &str) -> Result<AcceptedRows> {
     let (catalog, ecosystem, name) = commit.key.params();
-    let (manifest, text, filename) = commit.transaction.query_row(
-        "SELECT m.manifest, r.readme, r.readme_filename
+    let (manifest, text, filename, profile, inputs) = commit.transaction.query_row(
+        "SELECT m.manifest, r.readme, r.readme_filename, m.profile, m.inputs
          FROM accepted_manifests m
          LEFT JOIN readmes r USING (catalog, ecosystem, name, version, revision_key)
          WHERE m.catalog = ?1 AND m.ecosystem = ?2 AND m.name = ?3 AND m.version = ?4
-           AND m.revision_key = ?5 AND m.profile = ?6",
-        params![catalog, ecosystem, name, version, ORDINARY, SUBMITTED_PROFILE],
+           AND m.revision_key = ?5",
+        params![catalog, ecosystem, name, version, ORDINARY],
         |row| {
             Ok((
                 row.get::<_, String>(0)?,
                 row.get::<_, Option<String>>(1)?,
                 row.get::<_, Option<String>>(2)?,
+                row.get::<_, String>(3)?,
+                row.get::<_, String>(4)?,
             ))
         },
     )?;
@@ -228,13 +241,19 @@ fn accepted_rows(commit: &Commit<'_>, version: &str) -> Result<(Map<String, Valu
         text: parse_optional_json(text.as_deref())?,
         filename: parse_optional_json(filename.as_deref())?,
     };
-    Ok((parse_json(&manifest)?, readme))
+    let interpretation = Interpretation { profile, inputs: parse_json(&inputs)? };
+    Ok(AcceptedRows { manifest: parse_json(&manifest)?, readme, interpretation })
 }
 
-/// The digest of what a version's insert-only rows hold: its manifest and
-/// README.
-pub(super) fn input_digest(rows: &VersionRows) -> Result<String> {
-    let input = serde_json::to_vec(&(&rows.manifest, &rows.readme.text, &rows.readme.filename))?;
+/// The digest of what a version's insert-only rows hold: its manifest,
+/// README, and interpretation.
+pub(super) fn accepted_digest(rows: &VersionRows) -> Result<String> {
+    let input = serde_json::to_vec(&(
+        &rows.manifest,
+        &rows.readme.text,
+        &rows.readme.filename,
+        &rows.interpretation,
+    ))?;
     Ok(ssri::Integrity::from(input).to_string())
 }
 
