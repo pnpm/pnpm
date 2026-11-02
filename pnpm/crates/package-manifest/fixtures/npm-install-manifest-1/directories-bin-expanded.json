@@ -1,0 +1,44 @@
+{
+  "description": "npm's binDir step expands directories.bin into bin entries, skipping dot files.",
+  "archive": {
+    "packageJson": {
+      "name": "widgets",
+      "version": "1.0.0",
+      "directories": {
+        "bin": "./bin"
+      }
+    },
+    "files": [
+      "package.json",
+      "bin/widgets",
+      "bin/nested/helper.js",
+      "bin/.hidden",
+      "lib/index.js"
+    ]
+  },
+  "submitted": {
+    "name": "widgets",
+    "version": "1.0.0",
+    "directories": {
+      "bin": "./bin"
+    },
+    "bin": {
+      "widgets": "bin/widgets",
+      "helper.js": "bin/nested/helper.js"
+    }
+  },
+  "expected": {
+    "manifest": {
+      "name": "widgets",
+      "version": "1.0.0",
+      "bin": {
+        "helper.js": "bin/nested/helper.js",
+        "widgets": "bin/widgets"
+      },
+      "hasInstallScript": false,
+      "hasShrinkwrap": false
+    },
+    "mismatched": [],
+    "tolerated": []
+  }
+}

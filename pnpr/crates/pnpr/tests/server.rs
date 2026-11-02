@@ -316,15 +316,16 @@ fn hosted_publish_request(
 ) -> Request<Body> {
     use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 
+    let tarball = &crate::npm::publishable_tgz(package, version, tarball);
     let basename = package.rsplit('/').next().unwrap();
     let attachment = format!("{package}-{version}.tgz");
     let body = json!({
         "name": package,
         "dist-tags": { "latest": version },
-        "versions": { (version): { "name": package, "version": version, "dist": {
+        "versions": { (version): crate::npm::version_metadata(tarball, package, version, json!({
             "tarball": format!("http://example.test/{package}/-/{basename}-{version}.tgz"),
             "integrity": sha512_integrity(tarball),
-        } } },
+        })) },
         "_attachments": { (attachment): {
             "content_type": "application/octet-stream",
             "data": BASE64.encode(tarball),

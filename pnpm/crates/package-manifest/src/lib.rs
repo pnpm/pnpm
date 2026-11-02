@@ -17,6 +17,10 @@ pub use build_triggers::{
 pub use bundled_manifest::normalize_bundled_manifest;
 pub use error::PackageManifestError;
 pub use initialization::{InitAuthor, InitOptions};
+pub use install_manifest::{
+    ArchiveFacts, INSTALL_MANIFEST_FIELDS, INSTALL_MANIFEST_PROFILE, InstallManifest,
+    ManifestComparison, NODE_GYP_REBUILD,
+};
 pub use metadata::{extract_author, extract_homepage, extract_license};
 pub use project::{
     PROJECT_MANIFEST_BASENAMES, find_parent_publish_manifest, project_manifest_path,
@@ -49,6 +53,7 @@ mod build_triggers;
 mod bundled_manifest;
 mod error;
 mod initialization;
+mod install_manifest;
 mod json5;
 mod metadata;
 mod project;

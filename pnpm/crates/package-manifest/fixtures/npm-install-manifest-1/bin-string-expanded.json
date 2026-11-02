@@ -1,0 +1,34 @@
+{
+  "description": "npm's binRefs step turns a string `bin` with a `./` prefix into an object (c8, eslint, cross-env).",
+  "archive": {
+    "packageJson": {
+      "name": "c8",
+      "version": "12.0.0",
+      "bin": "./bin/c8.js"
+    },
+    "files": [
+      "package.json",
+      "bin/c8.js"
+    ]
+  },
+  "submitted": {
+    "name": "c8",
+    "version": "12.0.0",
+    "bin": {
+      "c8": "bin/c8.js"
+    }
+  },
+  "expected": {
+    "manifest": {
+      "name": "c8",
+      "version": "12.0.0",
+      "bin": {
+        "c8": "bin/c8.js"
+      },
+      "hasInstallScript": false,
+      "hasShrinkwrap": false
+    },
+    "mismatched": [],
+    "tolerated": []
+  }
+}

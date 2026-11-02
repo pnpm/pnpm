@@ -1,6 +1,6 @@
 use super::{
     BASE64, Body, Request, ServiceExt, StatusCode, TempDir, Value, add_user_and_get_token,
-    body_json, common, json, publish_doc, put_json, router, static_config,
+    body_json, common, json, npm_tgz, publish_doc, put_json, router, static_config,
     static_config_with_packages,
 };
 use base64::Engine;
@@ -91,7 +91,7 @@ async fn authenticated_publish_writes_manifest_and_tarball() {
     let app = router(static_config(storage.clone()));
     let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
 
-    let bytes = b"fake-tarball-bytes";
+    let bytes = &npm_tgz("mypkg", "1.0.0", b"fake-tarball-bytes");
     let body = publish_doc("mypkg", "1.0.0", bytes);
     let request = Request::put("/npm/mypkg")
         .header("content-type", "application/json")
@@ -125,7 +125,7 @@ async fn authenticated_publish_writes_manifest_and_tarball() {
         "mypkg-1.0.0.tgz",
     ))
     .expect("tarball written");
-    assert_eq!(on_disk_tarball, bytes);
+    assert_eq!(on_disk_tarball, *bytes);
 
     // Subsequent GET serves it back with the public URL rewritten.
     let response = app

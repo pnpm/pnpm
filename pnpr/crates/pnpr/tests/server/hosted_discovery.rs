@@ -217,7 +217,7 @@ async fn registry_addressed_surface_serves_dist_tags_unpublish_whoami_search_and
     };
 
     // Seed the registry through its own publish endpoint.
-    let tarball = b"acme-widget-bytes";
+    let tarball = &crate::npm::npm_tgz("@acme/widget", "1.0.0", b"acme-widget-bytes");
     let publish_body = json!({
         "name": "@acme/widget",
         "dist-tags": { "latest": "1.0.0" },

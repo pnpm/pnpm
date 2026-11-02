@@ -174,7 +174,7 @@ async fn verify_and_export_keep_the_stored_tar_of_a_hosted_tar_registry() {
 
     let prune = VerifyOptions { check_hashes: true, prune_orphans: true, min_age_secs: 0 };
     let report = verify_storage(&config, &prune).await.unwrap();
-    assert_eq!(report.blobs_checked, 1);
+    assert_eq!(report.blobs.checked, 1);
     assert!(report.missing_blobs.is_empty(), "{:?}", report.missing_blobs);
     assert!(report.orphaned_blobs.is_empty(), "{:?}", report.orphaned_blobs);
     assert!(stored_tar.exists());
@@ -185,6 +185,53 @@ async fn verify_and_export_keep_the_stored_tar_of_a_hosted_tar_registry() {
     let exported = export_storage(&config, &export_out, true).await.unwrap();
     assert_eq!(exported.blobs_exported, 1);
     assert!(export_out.join("demo-pkg/demo-pkg-1.0.0.tar.zst").exists());
+}
+
+#[tokio::test]
+async fn verify_reports_hosted_versions_whose_metadata_disagrees_with_their_archive() {
+    let dir = TempDir::new().unwrap();
+    let (config, _cfg_file) = create_test_config(dir.path());
+    let pkg = "demo-pkg";
+    write_local_layout_marker(&config.storage.hosted_dir).unwrap();
+    let archive = serde_json::json!({
+        "name": pkg,
+        "version": "1.0.0",
+        "dependencies": { "helper": "^1.0.0" },
+    });
+    let agreeing = serde_json::json!({ "name": pkg, "version": "1.0.1" });
+    let versions = [("1.0.0", archive), ("1.0.1", agreeing)];
+    let mut doc = serde_json::json!({ "name": pkg, "versions": {} });
+    for (version, manifest) in &versions {
+        let tgz = crate::npm::npm_tgz_with(manifest, b"payload");
+        let filename = format!("{pkg}-{version}.tgz");
+        // Stored as a version published before verification: without the
+        // dependency the archive declares.
+        doc["versions"][*version] = serde_json::json!({
+            "name": pkg,
+            "version": version,
+            "dist": {
+                "tarball": format!("http://localhost:7677/{pkg}/-/{filename}"),
+                "integrity": crate::npm::sri_sha512(&tgz),
+            },
+        });
+        seed_file(
+            local_blob_path(&config.storage.hosted_dir, "", Ecosystem::Npm, pkg, &filename),
+            tgz,
+        );
+    }
+    seed_file(
+        local_document_path(&config.storage.hosted_dir, "", Ecosystem::Npm, pkg),
+        serde_json::to_vec(&doc).unwrap(),
+    );
+
+    let opts = VerifyOptions { check_hashes: true, prune_orphans: false, min_age_secs: 0 };
+    let report = verify_storage(&config, &opts).await.unwrap();
+    assert!(report.corrupted_blobs.is_empty(), "{:?}", report.corrupted_blobs);
+    assert_eq!(report.manifest_disagreements.len(), 1, "{:?}", report.manifest_disagreements);
+    let disagreement = &report.manifest_disagreements[0];
+    assert!(disagreement.starts_with("demo-pkg@1.0.0 (not verified at publish)"), "{disagreement}");
+    assert!(disagreement.contains("dependencies"), "{disagreement}");
+    assert!(format_verify_report(&report).contains("MANIFEST: demo-pkg@1.0.0"));
 }
 
 #[tokio::test]
@@ -229,7 +276,7 @@ async fn test_verify_storage_health_and_orphan_prune() {
     let report = verify_storage(&config, &opts).await.unwrap();
     assert_eq!(report.packages_checked, 1);
     assert_eq!(report.versions_checked, 1);
-    assert_eq!(report.blobs_checked, 1);
+    assert_eq!(report.blobs.checked, 1);
     assert!(report.missing_blobs.is_empty());
     assert!(report.corrupted_blobs.is_empty());
     assert_eq!(report.orphaned_blobs.len(), 1);

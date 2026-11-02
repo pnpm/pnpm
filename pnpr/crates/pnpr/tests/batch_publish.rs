@@ -9,7 +9,7 @@ use axum::{
     http::{Request, StatusCode},
 };
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
-use npm::{publish_doc, sha1_hex, sri_sha512};
+use npm::{npm_tgz, publish_doc, sha1_hex, sri_sha512};
 use pnpr::{Config, MaxUsers, router};
 use pnpr_fixtures::MockConfigPresets;
 use pnpr_storage::layout::{local_blob_path, local_document_path, local_package_dir};
@@ -81,8 +81,8 @@ async fn batch_publish_writes_every_package_in_one_request() {
     let app = router(static_config(storage.clone()));
     let token = add_user_and_get_token(app.clone(), "alice", "secret").await;
 
-    let bytes_a = b"tarball-a";
-    let bytes_b = b"tarball-b";
+    let bytes_a = &npm_tgz("batch-a", "1.0.0", b"tarball-a");
+    let bytes_b = &npm_tgz("batch-b", "2.0.0", b"tarball-b");
     let body = json!({
         "packages": [
             publish_doc("batch-a", "1.0.0", bytes_a),
@@ -141,7 +141,7 @@ async fn batch_publish_supports_scoped_packages_with_libnpmpublish_attachment_na
     let app = router(static_config(storage.clone()));
     let token = add_user_and_get_token(app.clone(), "alice", "secret").await;
 
-    let bytes = b"scoped-batch-bytes";
+    let bytes = &npm_tgz("@scope/wire-form", "1.0.0", b"scoped-batch-bytes");
     // `pnpm publish --batch` names attachments by the full scoped name
     // + version, same as libnpmpublish: `@scope/name-version.tgz`. The
     // submitted `dist.tarball` uses that scoped filename too — the
@@ -186,7 +186,7 @@ async fn batch_publish_supports_scoped_packages_with_libnpmpublish_attachment_na
         "@scope/wire-form",
         "wire-form-1.0.0.tgz",
     );
-    assert_eq!(std::fs::read(&on_disk).unwrap(), bytes);
+    assert_eq!(std::fs::read(&on_disk).unwrap(), *bytes);
 
     // The served packument canonicalizes `dist.tarball` to the
     // routable 4-segment form, regardless of the scoped filename the
@@ -216,7 +216,7 @@ async fn batch_publish_supports_scoped_packages_with_libnpmpublish_attachment_na
         .await
         .unwrap();
     assert_eq!(served.status(), StatusCode::OK);
-    assert_eq!(body_bytes(served.into_body()).await, bytes);
+    assert_eq!(body_bytes(served.into_body()).await, *bytes);
 }
 
 #[tokio::test]

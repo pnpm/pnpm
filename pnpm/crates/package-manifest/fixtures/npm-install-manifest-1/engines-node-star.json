@@ -1,0 +1,29 @@
+{
+  "description": "normalize-package-data adds engines: {node: \"*\"}, which admits every Node.js.",
+  "archive": {
+    "packageJson": {
+      "name": "widgets",
+      "version": "1.0.0"
+    },
+    "files": [
+      "package.json"
+    ]
+  },
+  "submitted": {
+    "name": "widgets",
+    "version": "1.0.0",
+    "engines": {
+      "node": "*"
+    }
+  },
+  "expected": {
+    "manifest": {
+      "name": "widgets",
+      "version": "1.0.0",
+      "hasInstallScript": false,
+      "hasShrinkwrap": false
+    },
+    "mismatched": [],
+    "tolerated": []
+  }
+}

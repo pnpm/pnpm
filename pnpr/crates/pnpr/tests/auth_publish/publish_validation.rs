@@ -1,7 +1,7 @@
 use super::{
     BASE64, Body, Request, ServiceExt, StatusCode, TempDir, Value, add_user_and_get_token,
-    body_bytes, body_json, json, publish_doc, put_json, router, sha1_hex, sri_sha512,
-    static_config,
+    body_bytes, body_json, json, npm_tgz, npm_tgz_with, publish_doc, put_json, router, sha1_hex,
+    sri_sha512, static_config,
 };
 use base64::Engine;
 use pnpr_storage::layout::{local_blob_path, local_document_path, local_package_dir};
@@ -58,7 +58,7 @@ async fn republishing_an_existing_version_is_rejected_with_conflict() {
         "mypkg-1.0.0.tgz",
     ))
     .unwrap();
-    assert_eq!(on_disk, b"original-bytes");
+    assert_eq!(on_disk, npm_tgz("mypkg", "1.0.0", b"original-bytes"));
 }
 
 #[tokio::test]
@@ -455,7 +455,12 @@ async fn metadata_only_republish_cannot_mutate_resolution_metadata() {
     let app = router(static_config(storage.clone()));
     let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
 
-    let mut publish_body = publish_doc("mypkg", "1.0.0", b"original");
+    let manifest = json!({
+        "name": "mypkg",
+        "version": "1.0.0",
+        "dependencies": { "lodash": "^4.0.0" },
+    });
+    let mut publish_body = publish_doc("mypkg", "1.0.0", &npm_tgz_with(&manifest, b"original"));
     publish_body["versions"]["1.0.0"]["dependencies"] = json!({ "lodash": "^4.0.0" });
     let first = Request::put("/npm/mypkg")
         .header("content-type", "application/json")
@@ -535,7 +540,7 @@ async fn published_package_survives_wiping_the_proxy_cache() {
     let app = router(static_config(storage.clone()));
     let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
 
-    let bytes = b"durable-tarball-bytes";
+    let bytes = &npm_tgz("durable-pkg", "1.0.0", b"durable-tarball-bytes");
     let body = publish_doc("durable-pkg", "1.0.0", bytes);
     let request = Request::put("/npm/durable-pkg")
         .header("content-type", "application/json")
@@ -599,7 +604,7 @@ async fn published_package_survives_wiping_the_proxy_cache() {
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
-    assert_eq!(body_bytes(response.into_body()).await, bytes);
+    assert_eq!(body_bytes(response.into_body()).await, *bytes);
 }
 
 #[tokio::test]

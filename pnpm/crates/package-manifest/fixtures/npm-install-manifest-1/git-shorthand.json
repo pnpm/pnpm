@@ -1,0 +1,38 @@
+{
+  "description": "A hosted-git shorthand equals its github: form.",
+  "archive": {
+    "packageJson": {
+      "name": "widgets",
+      "version": "1.0.0",
+      "dependencies": {
+        "helper": "example/helper#v1.0.0",
+        "other": "^1.0.0"
+      }
+    },
+    "files": [
+      "package.json"
+    ]
+  },
+  "submitted": {
+    "name": "widgets",
+    "version": "1.0.0",
+    "dependencies": {
+      "helper": "github:example/helper#v1.0.0",
+      "other": "^1.0.0"
+    }
+  },
+  "expected": {
+    "manifest": {
+      "name": "widgets",
+      "version": "1.0.0",
+      "dependencies": {
+        "helper": "github:example/helper#v1.0.0",
+        "other": "^1.0.0"
+      },
+      "hasInstallScript": false,
+      "hasShrinkwrap": false
+    },
+    "mismatched": [],
+    "tolerated": []
+  }
+}

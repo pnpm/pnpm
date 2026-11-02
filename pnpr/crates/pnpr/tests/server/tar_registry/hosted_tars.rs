@@ -196,7 +196,7 @@ async fn verify_checks_a_stored_tar_against_its_tar_integrity() {
     let options =
         pnpr::verify::VerifyOptions { check_hashes: true, prune_orphans: false, min_age_secs: 0 };
     let report = pnpr::verify::verify_storage(&config, &options).await.unwrap();
-    assert_eq!(report.blobs_checked, 1);
+    assert_eq!(report.blobs.checked, 1);
     assert!(report.corrupted_blobs.is_empty(), "{:?}", report.corrupted_blobs);
     assert!(report.orphaned_blobs.is_empty(), "{:?}", report.orphaned_blobs);
 

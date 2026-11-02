@@ -1,0 +1,42 @@
+{
+  "description": "npm's gypfile step adds node-gyp rebuild for a .gyp file the archive leaves out (fsevents@2.3.3). Accepted; the archive's verdict is served.",
+  "archive": {
+    "packageJson": {
+      "name": "widgets",
+      "version": "2.3.3",
+      "os": [
+        "darwin"
+      ]
+    },
+    "files": [
+      "package.json",
+      "widgets.node"
+    ]
+  },
+  "submitted": {
+    "name": "widgets",
+    "version": "2.3.3",
+    "os": [
+      "darwin"
+    ],
+    "gypfile": true,
+    "scripts": {
+      "install": "node-gyp rebuild"
+    }
+  },
+  "expected": {
+    "manifest": {
+      "name": "widgets",
+      "version": "2.3.3",
+      "os": [
+        "darwin"
+      ],
+      "hasInstallScript": false,
+      "hasShrinkwrap": false
+    },
+    "mismatched": [],
+    "tolerated": [
+      "scripts.install"
+    ]
+  }
+}
