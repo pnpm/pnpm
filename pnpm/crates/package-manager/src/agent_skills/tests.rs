@@ -93,7 +93,10 @@ fn records_unapproved_skills_as_pending() {
 
     let state = sync(root.path(), &lockfile, &config(&[], None), &[], None).unwrap();
 
-    assert_eq!(state, AgentSkillsState { pending: vec!["foo@1.0.0".to_string()], linked: vec![] });
+    assert_eq!(
+        state,
+        AgentSkillsState { pending: vec!["foo@1.0.0".to_string()], ..Default::default() },
+    );
     assert_eq!(fs::read_dir(root.path().join(".claude/skills")).unwrap().count(), 0);
 }
 
@@ -185,7 +188,7 @@ fn leaves_approved_skills_unlinked_without_a_dir() {
     let state = sync(root.path(), &lockfile, &config(&[("foo", true)], None), &[], None)
         .expect("sync without a target directory");
 
-    assert_eq!(state, AgentSkillsState::default());
+    assert_eq!(state, AgentSkillsState { has_unlinked_skills: true, ..Default::default() });
 }
 
 #[test]
@@ -789,7 +792,7 @@ fn cleanup_does_not_follow_a_recorded_directory_outside_the_workspace() {
 
     let state = sync(root.path(), &lockfile, &config, &state.linked, None).unwrap();
 
-    assert_eq!(state, AgentSkillsState::default());
+    assert_eq!(state, AgentSkillsState { has_unlinked_skills: true, ..Default::default() });
     assert_eq!(fs::read_to_string(ignore).unwrap(), before);
     assert!(fs::symlink_metadata(moved.join("skills/guide")).is_ok());
 }
@@ -797,19 +800,18 @@ fn cleanup_does_not_follow_a_recorded_directory_outside_the_workspace() {
 #[test]
 fn unused_approvals_do_not_invalidate_the_repeat_install() {
     for skills in [Vec::new(), vec!["guide"]] {
-        let (root, lockfile) = workspace(&[("foo", "1.0.0", &skills)]);
+        let (root, _) = workspace(&[("foo", "1.0.0", &skills)]);
         let mut config = config(&[("foo", true)], Some(&[".claude/skills"]));
         config.modules_dir = root.path().join("node_modules");
         config.install_state_dir = root.path().to_path_buf();
         fs::create_dir_all(root.path().join(".claude/skills")).unwrap();
-        fs::write(
-            root.path().join(Lockfile::CURRENT_FILE_NAME),
-            serde_saphyr::to_string(&lockfile).unwrap(),
-        )
-        .unwrap();
         pnpm_modules_yaml::write_modules_manifest::<pnpm_modules_yaml::Host>(
             &config.modules_dir,
-            pnpm_modules_yaml::Modules { included: ALL_GROUPS, ..Default::default() },
+            pnpm_modules_yaml::Modules {
+                included: ALL_GROUPS,
+                has_unlinked_skills: (!skills.is_empty()).then_some(true),
+                ..Default::default()
+            },
         )
         .unwrap();
 

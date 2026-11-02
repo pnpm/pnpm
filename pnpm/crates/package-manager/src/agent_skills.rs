@@ -24,8 +24,8 @@ pub(crate) fn agent_skill_targets_changed(config: &Config, workspace_root: &Path
         return false;
     };
     let linked = modules.linked_skills.unwrap_or_default();
-    targets::targets_changed(config, workspace_root, agent_skills_dir_from_env(), &linked)
-        && (!linked.is_empty() || installed::has_approved_agent_skills(config, workspace_root))
+    (!linked.is_empty() || modules.has_unlinked_skills == Some(true))
+        && targets::targets_changed(config, workspace_root, agent_skills_dir_from_env(), &linked)
 }
 
 mod discovery;
@@ -73,9 +73,32 @@ pub struct AgentSkillsState {
     pub pending: Vec<String>,
     /// The linked entries, relative to the workspace root, sorted.
     pub linked: Vec<String>,
+    /// Whether approved skills await a target directory.
+    pub has_unlinked_skills: bool,
 }
 
 impl AgentSkillsState {
+    pub(crate) fn update_modules(self, modules: &mut pnpm_modules_yaml::Modules) -> bool {
+        let pending = (!self.pending.is_empty()).then(|| {
+            self.pending
+                .into_iter()
+                .map(Into::into)
+                .collect()
+        });
+        let linked = (!self.linked.is_empty()).then_some(self.linked);
+        let unlinked = self.has_unlinked_skills.then_some(true);
+        if modules.pending_skills == pending
+            && modules.linked_skills == linked
+            && modules.has_unlinked_skills == unlinked
+        {
+            return false;
+        }
+        modules.pending_skills = pending;
+        modules.linked_skills = linked;
+        modules.has_unlinked_skills = unlinked;
+        true
+    }
+
     /// The keys `permissions` approves the pending packages under, sorted.
     #[must_use]
     pub fn pending_keys(&self) -> Vec<String> {
@@ -169,7 +192,11 @@ pub fn sync_agent_skills(
     materialize(input.workspace_root, input.linked, &desired, input.config.virtual_store_dir())?;
     update_gitignores(input.workspace_root, &dirs, input.linked, &desired)?;
     pending.sort();
-    Ok(AgentSkillsState { pending, linked: desired.into_keys().collect() })
+    Ok(AgentSkillsState {
+        pending,
+        linked: desired.into_keys().collect(),
+        has_unlinked_skills: !entries.is_empty() && dirs.is_empty(),
+    })
 }
 
 /// The entry name of every approved skill, mapped to the skill directory
