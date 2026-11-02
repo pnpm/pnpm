@@ -428,8 +428,7 @@ fn write_sequence<Item>(
 }
 
 /// `201 Created` for a committed publish, naming the generation that holds
-/// it and the publication it recorded, with each notice in an `npm-notice`
-/// header, which npm prints to the publisher.
+/// it and the publication it recorded, with its notices.
 pub(in super::super) fn publish_committed_response(receipt: &PublishReceipt) -> Response {
     let mut body = json!({ "ok": true, "success": true });
     if let Some(publication) = receipt.publication {
@@ -441,12 +440,19 @@ pub(in super::super) fn publish_committed_response(receipt: &PublishReceipt) -> 
     if let Some(generation) = &receipt.generation {
         builder = builder.header(crate::server::GENERATION_HEADER, generation.to_string());
     }
-    for notice in &receipt.notices {
+    let mut response = builder
+        .body(Body::from(body.to_string()))
+        .expect("static-shape response always builds");
+    add_npm_notices(&mut response, &receipt.notices);
+    response
+}
+
+/// Send each of `notices` in an `npm-notice` header, which npm prints to the
+/// publisher.
+pub(in super::super) fn add_npm_notices(response: &mut Response, notices: &[String]) {
+    for notice in notices {
         if let Ok(value) = header::HeaderValue::from_str(notice) {
-            builder = builder.header("npm-notice", value);
+            response.headers_mut().append("npm-notice", value);
         }
     }
-    builder
-        .body(Body::from(body.to_string()))
-        .expect("static-shape response always builds")
 }

@@ -1,6 +1,6 @@
 pub(super) use atomic::{
-    commit_publication, publication_name, publication_request, publish_committed_response,
-    replayed_outcome, single_catalog,
+    add_npm_notices, commit_publication, publication_name, publication_request,
+    publish_committed_response, replayed_outcome, single_catalog,
 };
 pub(super) use attachments::{
     StagedPublish, ValidatedPublish, stage_publish, validate_publish_doc,

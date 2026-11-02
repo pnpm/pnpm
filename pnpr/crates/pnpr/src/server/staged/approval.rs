@@ -4,6 +4,7 @@ use super::{
     commit_publishes, json, json_response, load_authorized_record, report_unrecorded,
     stage_publish, validate_publish_doc,
 };
+use crate::server::publishing::add_npm_notices;
 use axum::response::IntoResponse;
 use pnpr_storage::publish::now_iso;
 
@@ -138,7 +139,8 @@ pub(super) async fn approve_claimed(
         validate_publish_doc(state, identity, record.registry.as_deref(), name, incoming).await?;
 
     let _packument_guard = state.inner.locks.packages.lock(validated.name.as_str()).await;
-    let staged = stage_publish(state, validated, &now_iso(), Some(&target.org)).await?;
+    let mut staged = stage_publish(state, validated, &now_iso(), Some(&target.org)).await?;
+    let notices = std::mem::take(&mut staged.notices);
     // Nothing is visible yet, which is the last moment a rejection can still
     // take the stage back. Past the commit it cannot: the publish is served.
     if let Err(err) = still_claimed(state, stage_id, claim).await {
@@ -155,5 +157,7 @@ pub(super) async fn approve_claimed(
         tracing::warn!(error = %err, stage_id, "approved staged publish but its record cleanup failed");
     }
     report_unrecorded(outcome)?;
-    Ok(json_response(StatusCode::CREATED, &json!({ "ok": true })))
+    let mut response = json_response(StatusCode::CREATED, &json!({ "ok": true }));
+    add_npm_notices(&mut response, &notices);
+    Ok(response)
 }

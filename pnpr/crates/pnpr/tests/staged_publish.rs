@@ -7,7 +7,7 @@ use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode},
 };
-use npm::{npm_tgz, publish_doc, sha1_hex};
+use npm::{npm_tgz, npm_tgz_with, publish_doc, sha1_hex};
 use pnpr::{Config, MaxUsers, router};
 use pnpr_fixtures::MockConfigPresets;
 use pnpr_storage::layout::{local_blob_path, local_package_dir};
@@ -688,4 +688,37 @@ async fn a_failed_approval_releases_its_claim() {
             "attempt {attempt} must report the publish conflict, not a claim: {message}",
         );
     }
+}
+
+#[tokio::test]
+async fn approving_a_tolerated_difference_sends_its_notice() {
+    let tmp = TempDir::new().unwrap();
+    let app = router(static_config(tmp.path().to_path_buf()));
+    let token = add_user_and_get_token(app.clone(), "alice", "secret").await;
+    let tarball = npm_tgz_with(&json!({ "name": "gyp-pkg", "version": "1.0.0" }), b"");
+    let mut doc = publish_doc("gyp-pkg", "1.0.0", &tarball);
+    doc["versions"]["1.0.0"]["scripts"] = json!({ "install": "node-gyp rebuild" });
+    let stage_id = stage_package(app.clone(), "gyp-pkg", &doc, &token).await;
+
+    let approve = app
+        .oneshot(request(
+            "POST",
+            &format!("/npm/-/stage/{stage_id}/approve"),
+            Body::empty(),
+            Some(&token),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(approve.status(), StatusCode::CREATED);
+    let notice = approve
+        .headers()
+        .get("npm-notice")
+        .expect("npm-notice header");
+    assert!(
+        notice
+            .to_str()
+            .unwrap()
+            .contains("gyp-pkg@1.0.0"),
+        "{notice:?}",
+    );
 }
