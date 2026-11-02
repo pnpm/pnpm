@@ -2,6 +2,8 @@ pub mod journal;
 
 pub mod layout;
 
+pub mod metadata;
+
 pub mod publish;
 
 pub mod streaming;
@@ -64,7 +66,9 @@ use futures_util::{
     StreamExt,
     stream::{self, BoxStream},
 };
-use pnpr_config::{HostedStoreConfig, build_s3_store, normalize_key_prefix};
+use pnpr_config::{
+    HostedStoreConfig, MetadataBackend, StorageConfig, build_s3_store, normalize_key_prefix,
+};
 use pnpr_error::{RegistryError, Result};
 use pnpr_package_name::CanonicalPackageName;
 use std::{
@@ -145,6 +149,9 @@ pub struct Storage {
     /// organization; see [`Storage::read_tar_integrities`].
     tar_integrities: Arc<dyn HostedBackend>,
     tar_integrity_cache: Arc<tar_integrities::TarIntegrityCache>,
+    metadata_source: metadata::MetadataSource,
+    /// The metadata of `hosted`'s namespace.
+    metadata: Arc<dyn metadata::PackageMetadata>,
 }
 
 /// A partial blob read, including the full size needed for HTTP range headers.
@@ -217,7 +224,30 @@ impl Storage {
         };
         let tar_integrities = root.namespaced(tar_integrities::NAMESPACE);
         let hosted = namespace(&root, "", Ecosystem::Npm);
-        Ok(Self { root, hosted, cached, tar_integrities, tar_integrity_cache: Arc::default() })
+        let metadata_source = metadata::MetadataSource::Documents;
+        let metadata = metadata_source.view(&hosted, "", Ecosystem::Npm);
+        Ok(Self {
+            root,
+            hosted,
+            cached,
+            tar_integrities,
+            tar_integrity_cache: Arc::default(),
+            metadata_source,
+            metadata,
+        })
+    }
+
+    /// Build the [`Storage`] `config` describes, metadata backend included.
+    pub fn from_config(config: &StorageConfig) -> Result<Self> {
+        Self::new(&config.hosted_backend, config.hosted_dir.clone(), config.cache_dir.clone())?
+            .with_metadata(&config.metadata)
+    }
+
+    /// This storage with its metadata kept in `backend`.
+    pub fn with_metadata(mut self, backend: &MetadataBackend) -> Result<Self> {
+        self.metadata_source = metadata::MetadataSource::open(backend)?;
+        self.metadata = self.metadata_source.view(&self.hosted, "", Ecosystem::Npm);
+        Ok(self)
     }
 
     /// Inventory all regular files, including repositories with no document
@@ -242,7 +272,7 @@ impl Storage {
     }
 
     pub async fn hosted_package_names(&self) -> Result<Vec<String>> {
-        self.hosted.list_package_names().await
+        self.metadata.package_names().await
     }
 
     pub async fn hosted_package_blobs(
@@ -260,14 +290,15 @@ impl Storage {
         &self,
         name: &CanonicalPackageName,
     ) -> Result<Option<Vec<u8>>> {
-        self.hosted.read_document(name).await
+        let view = self.metadata.read_view(name).await?;
+        Ok(view.map(|view| view.bytes.to_vec()))
     }
 
     pub async fn read_hosted_document_for_update(
         &self,
         name: &CanonicalPackageName,
     ) -> Result<Option<HostedDocumentForUpdate>> {
-        self.hosted.read_document_for_update(name).await
+        self.metadata.read_for_update(name).await
     }
 
     pub async fn write_hosted_document_if_current(
@@ -276,47 +307,24 @@ impl Storage {
         bytes: &[u8],
         version: Option<&HostedDocumentVersion>,
     ) -> Result<DocumentWrite> {
-        self.hosted.write_document_if_current(name, bytes, version).await
+        self.metadata.write_if_current(name, bytes, version).await
     }
 
     /// Read the hosted document, transform it, and conditionally write it
     /// back under compare-and-swap, retrying on conflict with capped backoff.
-    ///
-    /// `build` receives the current hosted bytes (`None` when the document is
-    /// absent) and returns the bytes to write, or `Ok(None)` to abort as
-    /// [`DocumentUpdate::NotFound`]; a `build` error aborts without retrying.
-    /// After `retries` conflicts the write is surfaced as
-    /// [`RegistryError::DocumentWriteConflict`]. Both the dist-tag request
-    /// path and journal roll-forward go through here so their conflict handling
-    /// stays in one place.
+    /// Both the dist-tag request path and
+    /// journal roll-forward go through here so their conflict handling stays
+    /// in one place.
     pub async fn update_hosted_document_with_retry<Build>(
         &self,
         name: &CanonicalPackageName,
         retries: usize,
-        mut build: Build,
+        build: Build,
     ) -> Result<DocumentUpdate>
     where
         Build: FnMut(Option<&[u8]>) -> Result<Option<Vec<u8>>>,
     {
-        for attempt in 0..retries {
-            let existing = self.read_hosted_document_for_update(name).await?;
-            let (existing_bytes, version) = match existing {
-                Some(document) => (Some(document.bytes), Some(document.version)),
-                None => (None, None),
-            };
-            let Some(new_bytes) = build(existing_bytes.as_deref())? else {
-                return Ok(DocumentUpdate::NotFound);
-            };
-            match self.write_hosted_document_if_current(name, &new_bytes, version.as_ref()).await? {
-                DocumentWrite::Written => return Ok(DocumentUpdate::Written),
-                DocumentWrite::Conflict => {
-                    if attempt + 1 < retries {
-                        wait_after_document_write_conflict(attempt).await;
-                    }
-                }
-            }
-        }
-        Err(RegistryError::DocumentWriteConflict { package: name.as_str().to_string() })
+        metadata::update_with_retry(&*self.metadata, name, retries, build).await
     }
 
     /// Open a blob from the authoritative hosted store. Hosted
@@ -367,9 +375,11 @@ impl Storage {
         self.remove_hosted_blob(name, filename).await
     }
 
-    /// Remove the package from the hosted store.
+    /// Remove the package's metadata and archives from the hosted store.
     pub async fn remove_package(&self, name: &CanonicalPackageName) -> Result<bool> {
-        self.hosted.remove_package(name).await
+        let had_metadata = self.metadata.remove_package(name).await?;
+        let had_files = self.hosted.remove_package(name).await?;
+        Ok(had_metadata || had_files)
     }
 
     /// Promote a tmp blob written by the publish flow to its final

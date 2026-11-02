@@ -62,7 +62,7 @@ mod package_responses;
 use package_responses::{
     DistBlock, PackumentDists, TarballDist, declared_tarball_integrity, expected_tarball_dist,
     packument_bytes_response, packument_response, tarball_integrity_error, tarball_response,
-    tarball_stream_error, tarball_stream_error_for_package,
+    tarball_stream_error, tarball_stream_error_for_package, with_generation,
 };
 
 mod package_reads;
@@ -202,6 +202,12 @@ use std::{collections::HashSet, net::SocketAddr, sync::Arc, time::Duration};
 /// full document instead bloats the wire by 2–10× on packuments with
 /// long version histories.
 const ABBREVIATED_CONTENT_TYPE: &str = "application/vnd.npm.install-v1+json";
+
+/// The response header that carries the catalog generation a hosted package
+/// view was rendered from, or that a mutation committed, as
+/// `<catalog>:<generation>`. Only a metadata backend that tracks generations
+/// sends it.
+const GENERATION_HEADER: &str = "pnpr-generation";
 
 /// Cap tarballs at 100 MiB while pnpr has to spool them to disk for SRI
 /// verification. This bounds per-request temporary disk usage for

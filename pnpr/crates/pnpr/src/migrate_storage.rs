@@ -77,6 +77,7 @@ fn init_source_and_target_storage(
     let target_hosted_config = resolve_target_s3_config(config, options)?;
 
     let source = Storage::new(&HostedStoreConfig::Fs, source_dir, config.storage.cache_dir.clone())
+        .and_then(|source| source.with_metadata(&config.storage.metadata))
         .map_err(|err| miette::miette!("failed to initialize source storage: {err}"))?;
 
     let target = Storage::new(

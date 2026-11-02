@@ -53,6 +53,43 @@ pnpr refuses to start on a store written by a newer pnpr, or on one in the
 layout pnpr used before `layout.json` existed. A cache in another layout is
 emptied on startup and refilled on demand.
 
+## Metadata in SQLite {#sqlite-metadata}
+
+By default, each hosted package's metadata is a document in the hosted store,
+beside its archives. A `metadata` block can move the metadata of every hosted
+package into an embedded SQLite database instead:
+
+```yaml title="pnpr.yaml"
+storage: ./storage
+metadata:
+  backend: sqlite
+  # Optional. Defaults to <storage>/.metadata/metadata.sqlite.
+  # path: ./metadata.sqlite
+```
+
+Archives stay in the hosted store. The database holds every hosted package's
+metadata in every ecosystem. pnpr does not read the package documents of an
+existing store into it: switch an empty store, or republish.
+
+With SQLite metadata:
+
+- A published npm version's manifest cannot change. A write that would change
+  it fails with `409`. Deprecating or undeprecating a version, moving a
+  dist-tag, and unpublishing still work.
+- A dist-tag change rewrites only that tag, and pnpr keeps the history of
+  every move of a tag: when it moved, from which version to which, and who
+  moved it.
+- Every change to an org's packages advances that org's generation. A hosted
+  npm package response, and the response to a dist-tag change, carry it in a
+  `pnpr-generation` header as `<org>:<generation>`, with an empty org for
+  registries without one. Generations of different orgs are unrelated.
+- pnpr renders package documents from the database and caches them by
+  version, so a dist-tag change or a new release does not re-render the
+  versions that did not change.
+
+SQLite metadata serves one pnpr process. It cannot be combined with an `s3:`
+block. Back the database file up together with the hosted store.
+
 ## Backends
 
 By default both are local directories. Adding an `s3:` block moves the

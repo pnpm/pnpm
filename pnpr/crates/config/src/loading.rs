@@ -323,12 +323,14 @@ fn build_storage_config(
     base_dir: &Path,
 ) -> Result<super::StorageConfig, RegistryError> {
     let (hosted_dir, cache_dir, cache) = resolve_storage_paths(file, base_dir)?;
-    Ok(super::StorageConfig {
-        hosted_dir,
-        cache_dir,
-        cache,
-        hosted_backend: file.s3.take().map_or(HostedStoreConfig::Fs, HostedStoreConfig::S3),
-    })
+    let hosted_backend = file.s3.take().map_or(HostedStoreConfig::Fs, HostedStoreConfig::S3);
+    let metadata = crate::storage_config::resolve_metadata_backend(
+        file.metadata.as_ref(),
+        &hosted_dir,
+        base_dir,
+        &hosted_backend,
+    )?;
+    Ok(super::StorageConfig { hosted_dir, cache_dir, cache, hosted_backend, metadata })
 }
 
 pub(super) fn parse_config_file(raw: &str) -> Result<ConfigFile, RegistryError> {

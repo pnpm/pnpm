@@ -7207,6 +7207,7 @@ dependencies = [
  "pnpr-package-name",
  "pnpr-registry",
  "reqwest",
+ "rusqlite",
  "serde",
  "serde_json",
  "ssri",

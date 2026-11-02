@@ -80,11 +80,7 @@ impl AppInner {
         auth: AuthState,
         osv_index: Option<Arc<pnpr_osv::OsvIndex>>,
     ) -> pnpr_error::Result<Self> {
-        let storage = Storage::new(
-            &config.storage.hosted_backend,
-            config.storage.hosted_dir.clone(),
-            config.storage.cache_dir.clone(),
-        )?;
+        let storage = Storage::from_config(&config.storage)?;
         let builds = BuildServices::new(&config, &storage)?;
         let proxy = ProxyState::new(&config);
         let identity = IdentityServices::new(&config, auth)?;

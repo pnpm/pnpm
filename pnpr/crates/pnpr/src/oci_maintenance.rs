@@ -31,12 +31,7 @@ pub async fn collect_oci_blobs(
         .ok_or_else(|| RegistryError::BadRequest {
             reason: format!("{registry:?} is not a hosted registry"),
         })?;
-    let storage = Storage::new(
-        &config.storage.hosted_backend,
-        config.storage.hosted_dir.clone(),
-        config.storage.cache_dir.clone(),
-    )?
-    .for_hosted(&hosted.org, Ecosystem::Oci);
+    let storage = Storage::from_config(&config.storage)?.for_hosted(&hosted.org, Ecosystem::Oci);
     if dry_run {
         storage.check_hosted_layout().await?;
     } else {

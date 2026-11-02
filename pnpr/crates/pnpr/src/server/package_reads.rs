@@ -423,7 +423,7 @@ pub(super) async fn serve_hosted_packument(
     source: &str,
     name: &CanonicalPackageName,
     tarball_base: &str,
-    view: DistView<'_>,
+    view_options: DistView<'_>,
 ) -> Response {
     let org = match hosted_read_namespace(state, identity, source, name.as_str()) {
         Ok(org) => org,
@@ -432,21 +432,21 @@ pub(super) async fn serve_hosted_packument(
     let max_age = state.inner.config.http.packument_ttl.as_secs();
     // A hosted org has no upstream fallback: a package it does not host is a
     // definitive not-found. Reads come from the org's own storage namespace.
-    match state.inner.storage
+    let view = state.inner.storage
         .for_hosted(&org, pnpr_registry::Ecosystem::Npm)
-        .read_hosted_document(name)
-        .await
-    {
-        Ok(Some(bytes)) => match packument_response(
+        .read_hosted_package_view(name)
+        .await;
+    match view {
+        Ok(Some(view)) => match packument_response(
             name,
-            &bytes,
+            &view.bytes,
             tarball_base,
-            view,
+            view_options,
             state.inner.osv_index.as_ref(),
             headers,
             max_age,
         ) {
-            Ok(response) => response,
+            Ok(response) => super::with_generation(response, view.generation.as_ref()),
             Err(err) => err.into_response(),
         },
         Ok(None) => not_found(),
