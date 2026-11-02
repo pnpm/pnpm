@@ -108,7 +108,7 @@ async fn a_batch_is_one_publication() {
     let app = router(sqlite_config(tmp.path()));
     let token = token(&app).await;
     let batch = json!({
-        "publication": { "name": "v2.0.0" },
+        "name": "v2.0.0",
         "packages": [publish_doc("core", "2.0.0", b"core"), publish_doc("widgets", "2.0.0", b"widgets")],
     });
     let committed =

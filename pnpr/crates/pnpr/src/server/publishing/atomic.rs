@@ -30,24 +30,21 @@ pub(in super::super) struct PublishReceipt {
     pub(in super::super) publication: Option<u64>,
 }
 
-/// The idempotency claim of a publish request: who sent it, and the request
-/// it is a retry of when it is one. `None` for a caller with no stable
+/// The idempotency claim of a publish request: who sent it, the request it
+/// is a retry of when it is one, and the publication's `name`. `None` for a caller with no stable
 /// principal, or a store that keeps no outcomes.
 pub(in super::super) fn publication_request(
     state: &AppState,
     identity: &Identity,
     body: &Value,
     key: Option<&str>,
+    name: Option<&str>,
 ) -> Option<PublicationRequest> {
     state.inner.storage.sqlite_metadata()?;
     let principal = identity.username()?.to_string();
     let request_digest = request_digest(body);
     let idempotency_key = key.map_or_else(|| format!("request:{request_digest}"), str::to_string);
-    let name = body
-        .get("publication")
-        .and_then(|publication| publication.get("name"))
-        .and_then(Value::as_str)
-        .map(str::to_string);
+    let name = name.map(str::to_string);
     Some(PublicationRequest { principal, idempotency_key, request_digest, name })
 }
 

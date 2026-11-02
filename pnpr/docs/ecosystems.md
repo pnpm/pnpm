@@ -246,7 +246,7 @@ With [SQLite metadata](storage.md#sqlite-metadata) a batch is stronger:
   `Idempotency-Key` header, or the digest of the whole request serves as the
   key. Reusing a key for a different request answers `409`. pnpr keeps the
   outcome for 7 days.
-- The commit is recorded as a publication. A `"publication": {"name": "v2.0.0"}`
+- The commit is recorded as a publication. A top-level `"name": "v2.0.0"`
   field in the body names it, and the name must be unique within the org.
   See [publication endpoints](endpoints.md#publication-endpoints).
 
