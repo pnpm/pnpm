@@ -168,7 +168,7 @@ pub(super) fn active_manifest_is_standin(
 
 /// Record `--no-runtime` as the `runtime: false` setting the command line
 /// set, so `updateConfig` hooks read it and cannot override it.
-pub(super) fn record_no_runtime_flag(config: &mut Config) {
+pub(crate) fn record_no_runtime_flag(config: &mut Config) {
     config.skip_runtimes = true;
     config.explicit_settings.insert("runtime".to_string(), false.into());
     config.cli_settings.insert("runtime".to_string());

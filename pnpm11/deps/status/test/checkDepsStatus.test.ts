@@ -400,6 +400,7 @@ describe('checkDepsStatus - settings change detection', () => {
 
   it.each([
     ['dangerouslyAllowAllBuilds', undefined, true],
+    ['runtime', false, undefined],
     ['trustLockfile', true, undefined],
     ['virtualStoreDirMaxLength', 120, 10],
   ] as const)('returns upToDate: false when %s has changed', async (setting, recorded, current) => {
@@ -433,6 +434,7 @@ describe('checkDepsStatus - settings change detection', () => {
 
   it.each([
     ['dangerouslyAllowAllBuilds', false],
+    ['runtime', true],
     ['trustLockfile', false],
     ['virtualStoreDirMaxLength', process.platform === 'win32' ? 60 : 120],
   ] as const)('stays up to date when an unrecorded %s meets its default', async (setting, current) => {

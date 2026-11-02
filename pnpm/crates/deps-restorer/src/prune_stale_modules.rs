@@ -15,6 +15,7 @@
 //! like upstream's `pruneVirtualStore` gate.
 
 use crate::{
+    SkippedSnapshots,
     hoist::HoistedDependencies,
     prune_direct_deps::{
         PruneDirectDepsError, confined_modules_dir, is_real_dir, remove_direct_dep_link,
@@ -55,10 +56,10 @@ pub struct PruneStaleModules<'a> {
     /// cleanup is skipped without it.
     pub prior_hoisted_dependencies: Option<&'a HoistedDependencies>,
     pub wanted_hoisted_dependencies: Option<&'a HoistedDependencies>,
-    /// Dependency groups this install materializes; a direct dep whose
+    /// The direct dependencies this install links. A direct dep whose
     /// group is excluded is handled by
     /// [`crate::prune_direct_deps_excluded_by_groups`], not here.
-    pub included_groups: &'a [DependencyGroup],
+    pub linked: LinkedDirectDeps<'a>,
     /// `false` on a filtered install: the wanted lockfile then only
     /// covers the selected importers, so a global snapshot diff would
     /// misread every unselected importer's packages as orphans.
@@ -96,7 +97,7 @@ impl<'a> PruneStaleModules<'a> {
             else {
                 continue;
             };
-            let wanted_specs = direct_deps_of(wanted_snapshot, self.included_groups);
+            let wanted_specs = self.linked.of(wanted_snapshot);
             // Root is what the others dedupe *against*; it keeps every
             // link the wanted lockfile still records.
             let dedupe_against_root =
@@ -148,11 +149,37 @@ impl<'a> PruneStaleModules<'a> {
             self.wanted_lockfile.importers.get(".")
         })??;
         Some(
-            direct_deps_of(root_snapshot, self.included_groups)
+            direct_deps_of(root_snapshot, self.linked.included_groups)
                 .into_iter()
                 .map(|(alias, spec, _)| (alias, &spec.version))
                 .collect(),
         )
+    }
+}
+
+/// Which of an importer's direct dependencies an install links: those in
+/// its dependency groups that do not resolve to a skipped snapshot.
+#[derive(Debug, Clone, Copy)]
+pub struct LinkedDirectDeps<'a> {
+    pub included_groups: &'a [DependencyGroup],
+    /// The snapshots the install does not materialize. A link a previous
+    /// install created for one of them is stale.
+    pub skipped: &'a SkippedSnapshots,
+}
+
+impl<'a> LinkedDirectDeps<'a> {
+    fn of(
+        self,
+        snapshot: &'a ProjectSnapshot,
+    ) -> Vec<(&'a PkgName, &'a ResolvedDependencySpec, DependencyGroup)> {
+        direct_deps_of(snapshot, self.included_groups)
+            .into_iter()
+            .filter(|(alias, spec, _)| {
+                spec.version
+                    .resolved_key(alias)
+                    .is_none_or(|key| !self.skipped.contains(&key))
+            })
+            .collect()
     }
 }
 

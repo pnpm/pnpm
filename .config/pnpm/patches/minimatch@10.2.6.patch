@@ -1,0 +1,68 @@
+diff --git a/dist/commonjs/index.js b/dist/commonjs/index.js
+index 5a6983481b78583d75c89a17c5a8371b059171ff..f1e6834a88ac6ffe25a0dbf06a85a589577d16ca 100644
+--- a/dist/commonjs/index.js
++++ b/dist/commonjs/index.js
+@@ -453,6 +453,8 @@ class Minimatch {
+     // **/*/<rest> -> */**/<rest> <== not valid because ** doesn't follow
+     // this WOULD be allowed if ** did follow symlinks, or * didn't
+     firstPhasePreProcess(globParts) {
++        // each **/.. split doubles the patterns, so stop at the brace max
++        const { braceExpandMax = 100_000 } = this.options;
+         let didSomething = false;
+         do {
+             didSomething = false;
+@@ -480,7 +482,8 @@ class Minimatch {
+                         p === '..' ||
+                         !p2 ||
+                         p2 === '.' ||
+-                        p2 === '..') {
++                        p2 === '..' ||
++                        globParts.length >= braceExpandMax) {
+                         continue;
+                     }
+                     didSomething = true;
+@@ -537,6 +540,10 @@ class Minimatch {
+     // {<pre>/**/<rest>,<pre>/**/<p>/<rest>} -> <pre>/**/<rest>
+     // ^-- not valid because ** doens't follow symlinks
+     secondPhasePreProcess(globParts) {
++        // each pattern is compared to each other one, so skip this for
++        // large sets. The patterns match the same paths either way.
++        if (globParts.length > 1000)
++            return globParts;
+         for (let i = 0; i < globParts.length - 1; i++) {
+             for (let j = i + 1; j < globParts.length; j++) {
+                 const matched = this.partsMatch(globParts[i], globParts[j], !this.preserveMultipleSlashes);
+diff --git a/dist/esm/index.js b/dist/esm/index.js
+index a5e6fa88fdc6d6ec05d26ab4975718824cbc8bdc..82f1367a080a4d5ad3e0da0029eb3b0c8caa423f 100644
+--- a/dist/esm/index.js
++++ b/dist/esm/index.js
+@@ -444,6 +444,8 @@ export class Minimatch {
+     // **/*/<rest> -> */**/<rest> <== not valid because ** doesn't follow
+     // this WOULD be allowed if ** did follow symlinks, or * didn't
+     firstPhasePreProcess(globParts) {
++        // each **/.. split doubles the patterns, so stop at the brace max
++        const { braceExpandMax = 100_000 } = this.options;
+         let didSomething = false;
+         do {
+             didSomething = false;
+@@ -471,7 +473,8 @@ export class Minimatch {
+                         p === '..' ||
+                         !p2 ||
+                         p2 === '.' ||
+-                        p2 === '..') {
++                        p2 === '..' ||
++                        globParts.length >= braceExpandMax) {
+                         continue;
+                     }
+                     didSomething = true;
+@@ -528,6 +531,10 @@ export class Minimatch {
+     // {<pre>/**/<rest>,<pre>/**/<p>/<rest>} -> <pre>/**/<rest>
+     // ^-- not valid because ** doens't follow symlinks
+     secondPhasePreProcess(globParts) {
++        // each pattern is compared to each other one, so skip this for
++        // large sets. The patterns match the same paths either way.
++        if (globParts.length > 1000)
++            return globParts;
+         for (let i = 0; i < globParts.length - 1; i++) {
+             for (let j = i + 1; j < globParts.length; j++) {
+                 const matched = this.partsMatch(globParts[i], globParts[j], !this.preserveMultipleSlashes);

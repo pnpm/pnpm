@@ -330,6 +330,9 @@ pub struct WorkspaceStateSettings {
     /// every unscoped package again on each switch.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub registry_routes: Option<BTreeMap<String, String>>,
+    /// `runtime`, recorded only while it is off.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub runtime: Option<bool>,
     /// `skills.dirs`, recorded only when set. pnpm v11 has no such setting.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub skills_dirs: Option<Vec<String>>,

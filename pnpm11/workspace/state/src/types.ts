@@ -127,6 +127,8 @@ export const WORKSPACE_STATE_SETTING_KEYS = [
   'preferWorkspacePackages',
   'production',
   'publicHoistPattern',
+  // Turned back on, it links the runtime the last install skipped.
+  'runtime',
   // `node_modules` is linked from the store and virtual store it was
   // installed with, so a change to either must reach the install, which
   // recreates it. Recorded as resolved by `resolveStoreLocationSettings`.
@@ -147,7 +149,7 @@ export const WORKSPACE_STATE_SETTING_KEYS = [
 ] as const satisfies ReadonlyArray<keyof Config>
 
 /** Settings a state may leave out. Unset reads as the default. */
-type OptionalSettingKey = 'dangerouslyAllowAllBuilds' | 'virtualStoreDirMaxLength'
+type OptionalSettingKey = 'dangerouslyAllowAllBuilds' | 'runtime' | 'virtualStoreDirMaxLength'
 
 export type WorkspaceStateSettings = Pick<Config, Exclude<typeof WORKSPACE_STATE_SETTING_KEYS[number], OptionalSettingKey>> &
 Partial<Pick<Config, OptionalSettingKey>> & {

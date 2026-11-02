@@ -168,6 +168,26 @@ fn hardlink_reuses_a_store_entry_mode_check() {
     assert_eq!(super::inode(&src), super::inode(&second), "the store inode is shared");
 }
 
+/// pnpm/pnpm#17500: a mode the store verifier recorded is not read again
+/// before the first link. The entry's real mode differs from the recorded
+/// one, so a stat would make the link copy.
+#[test]
+#[cfg(unix)]
+fn hardlink_uses_the_mode_the_verifier_recorded() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let tmp = tempdir().unwrap();
+    let desired = pnpm_fs::file_mode::store_entry_mode(false, pnpm_fs::file_mode::current_umask());
+    let src = write_source(tmp.path(), STORE_ENTRY, b"data\n");
+    fs::set_permissions(&src, fs::Permissions::from_mode(desired ^ 0o001)).unwrap();
+    pnpm_fs::file_mode::record_verified_store_inode_mode(&src, desired);
+    let dst = tmp.path().join("dst.txt");
+    link_file::<SilentReporter>(&AtomicU8::new(0), PackageImportMethod::Hardlink, &src, &dst)
+        .expect("the store file is hardlinked");
+
+    assert_eq!(super::inode(&src), super::inode(&dst), "the store inode is shared");
+}
+
 /// pnpm/pnpm#16677: a group-writable store entry differs from the
 /// umask's mode only in group-write, which the store directory grants, so
 /// it is still hardlinked.
