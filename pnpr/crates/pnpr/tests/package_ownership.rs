@@ -675,7 +675,7 @@ async fn staged_publish_under_owners_rule_can_be_approved_by_maintainer() {
 }
 
 #[tokio::test]
-async fn packument_rewrite_failure_during_tombstone_write_restores_prior_packument() {
+async fn a_packument_rewrite_whose_tombstone_fails_leaves_the_packument_unchanged() {
     let (dir, config) = config_with_packages(
         "packages:\n  'fail-pkg':\n    access: $all\n    publish: $owners\n    unpublish: $owners\n",
         &[],
@@ -741,7 +741,8 @@ async fn packument_rewrite_failure_during_tombstone_write_restores_prior_packume
         res.status(),
     );
 
-    // Verify rollback restored the original packument so 1.1.0 is still present
+    // The tombstone is written first, so the rewrite never ran and 1.1.0 is
+    // still present
     let res = app
         .clone()
         .oneshot(authed_get("/npm/fail-pkg", &alice_token))

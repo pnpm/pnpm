@@ -22,7 +22,7 @@ pub struct PackageTombstone {
     pub unpublished_versions: Vec<String>,
 }
 
-fn tombstone_key(name: &CanonicalPackageName) -> String {
+pub(crate) fn tombstone_key(name: &CanonicalPackageName) -> String {
     format!("{}.json", crate::layout::package_segments(name.ecosystem(), name.as_str()).join("/"))
 }
 

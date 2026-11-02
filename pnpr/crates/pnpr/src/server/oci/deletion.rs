@@ -114,6 +114,7 @@ impl Request {
             key,
             &document.to_bytes(),
             snapshot.as_ref().map(|stored| &stored.version),
+            None,
         )
         .await?;
         if marked == DocumentWrite::Conflict {
@@ -131,7 +132,7 @@ async fn clear_deletion_mark(
     key: &CanonicalPackageName,
     digest: &Digest,
 ) -> Result<(), RegistryError> {
-    storage.update_hosted_document_with_retry(key, DOCUMENT_WRITE_RETRIES, |bytes| {
+    storage.update_hosted_document_with_retry(key, DOCUMENT_WRITE_RETRIES, None, |bytes| {
         let mut document = ImageDocument::parse(bytes.ok_or_else(|| RegistryError::Internal {
             reason: "OCI deletion document disappeared".to_string(),
         })?)?;

@@ -4,7 +4,37 @@ use super::{config, npm, packument, read, storage, write};
 use crate::{DocumentWrite, Storage, metadata::SqliteMetadata};
 use pnpr_error::RegistryError;
 use serde_json::json;
+use std::{
+    sync::{Arc, mpsc},
+    time::Duration,
+};
 use tempfile::TempDir;
+
+#[tokio::test]
+async fn a_read_completes_while_a_write_transaction_is_open() {
+    let tmp = TempDir::new().unwrap();
+    let storage = storage(&tmp);
+    write(&storage, "pkg", &packument("pkg", &["1.0.0"])).await;
+    // Hold the write connection inside an uncommitted transaction, the way a
+    // slow commit holds it.
+    let metadata = Arc::clone(storage.sqlite_metadata().unwrap());
+    let (held, wait_held) = mpsc::channel();
+    let (release, wait_release) = mpsc::channel::<()>();
+    let writer = std::thread::spawn(move || {
+        let connection = super::super::lock(&metadata.writer);
+        connection.execute_batch("BEGIN IMMEDIATE; DELETE FROM packages;").unwrap();
+        held.send(()).unwrap();
+        wait_release.recv().unwrap();
+        connection.execute_batch("ROLLBACK").unwrap();
+    });
+    wait_held.recv().unwrap();
+
+    let read = tokio::time::timeout(Duration::from_secs(10), read(&storage, "pkg")).await;
+    release.send(()).unwrap();
+    writer.join().unwrap();
+    let document = read.expect("a read does not wait for the write connection");
+    assert_eq!(document["versions"]["1.0.0"]["version"], "1.0.0", "the committed snapshot");
+}
 
 #[tokio::test]
 async fn concurrent_publishers_of_one_version_cannot_both_commit() {
@@ -16,8 +46,8 @@ async fn concurrent_publishers_of_one_version_cannot_both_commit() {
     let ours = serde_json::to_vec(&packument("pkg", &["1.0.0"])).unwrap();
     let theirs = serde_json::to_vec(&theirs).unwrap();
     let name = npm("pkg");
-    let left = first.write_hosted_document_if_current(&name, &ours, None);
-    let right = second.write_hosted_document_if_current(&name, &theirs, None);
+    let left = first.write_hosted_document_if_current(&name, &ours, None, None);
+    let right = second.write_hosted_document_if_current(&name, &theirs, None, None);
     let (left, right) = tokio::join!(left, right);
     let loser = match (left.unwrap(), right.unwrap()) {
         (DocumentWrite::Written, DocumentWrite::Conflict) => &theirs,
@@ -31,7 +61,8 @@ async fn concurrent_publishers_of_one_version_cannot_both_commit() {
         .unwrap()
         .unwrap();
     let retry =
-        second.write_hosted_document_if_current(&npm("pkg"), loser, Some(&current.version)).await;
+        second.write_hosted_document_if_current(&npm("pkg"), loser, Some(&current.version), None)
+            .await;
     assert!(matches!(retry, Err(RegistryError::VersionAlreadyPublished { .. })), "{retry:?}");
 }
 

@@ -75,11 +75,13 @@ impl<'conn> Commit<'conn> {
 
 /// Commit `bytes` as the document of `key` when the stored one is what
 /// `expected` names. A document that changes nothing commits nothing.
+/// `principal` is recorded with every tag the document moves.
 pub(super) fn write_document(
     connection: &mut Connection,
     key: &PackageKey,
     bytes: &[u8],
     expected: Expected,
+    principal: Option<&str>,
 ) -> Result<DocumentWrite> {
     let rows = match key.ecosystem {
         Ecosystem::Npm => Some(decompose(bytes)?),
@@ -91,7 +93,7 @@ pub(super) fn write_document(
         return Ok(DocumentWrite::Conflict);
     }
     let changed = match rows {
-        Some(rows) => apply_packument(&commit, current.as_ref(), rows)?,
+        Some(rows) => apply_packument(&commit, current.as_ref(), rows, principal)?,
         None => apply_whole_document(&commit, current.as_ref(), bytes)?,
     };
     if changed {
@@ -116,6 +118,7 @@ fn apply_packument(
     commit: &Commit<'_>,
     current: Option<&PackageRow>,
     rows: PackumentRows,
+    principal: Option<&str>,
 ) -> Result<bool> {
     let state = serde_json::to_vec(&rows.state)?;
     let mut changed = current.is_none_or(|row| row.state != state);
@@ -123,7 +126,7 @@ fn apply_packument(
         commit.write_state(&state)?;
     }
     changed |= apply_versions(commit, rows.versions)?;
-    changed |= apply_tags(commit, &rows.tags)?;
+    changed |= apply_tags(commit, &rows.tags, principal)?;
     Ok(changed)
 }
 
@@ -233,8 +236,16 @@ pub(super) fn input_digest(rows: &VersionRows) -> Result<String> {
     Ok(ssri::Integrity::from(input).to_string())
 }
 
+/// Remove a version, keeping its identity so it is never accepted again.
 fn delete_version(commit: &Commit<'_>, version: &str) -> Result<()> {
     let (catalog, ecosystem, name) = commit.key.params();
+    commit.transaction.execute(
+        "INSERT OR IGNORE INTO removed_versions (catalog, ecosystem, name, version, revision_key,
+                                                 generation)
+         SELECT catalog, ecosystem, name, version, revision_key, ?5 FROM versions
+         WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4",
+        params![catalog, ecosystem, name, version, to_column(commit.generation)],
+    )?;
     commit.transaction.execute(
         "DELETE FROM versions WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4",
         params![catalog, ecosystem, name, version],
@@ -243,21 +254,26 @@ fn delete_version(commit: &Commit<'_>, version: &str) -> Result<()> {
     Ok(())
 }
 
-/// Move every tag the document points elsewhere, recording each move.
-fn apply_tags(commit: &Commit<'_>, incoming: &BTreeMap<String, String>) -> Result<bool> {
+/// Move every tag the document points elsewhere, recording each move with
+/// `principal`.
+fn apply_tags(
+    commit: &Commit<'_>,
+    incoming: &BTreeMap<String, String>,
+    principal: Option<&str>,
+) -> Result<bool> {
     let stored = super::tags::stored_tags(&commit.transaction, commit.key)?;
     let mut changed = false;
     for (tag, target) in incoming {
         let previous = stored.get(tag).map(String::as_str);
         if previous != Some(target.as_str()) {
-            let change = TagMove { tag, previous, target: Some(target), principal: None };
+            let change = TagMove { tag, previous, target: Some(target), principal };
             record_tag_move(commit, &change)?;
             changed = true;
         }
     }
     for (tag, previous) in &stored {
         if !incoming.contains_key(tag) {
-            let change = TagMove { tag, previous: Some(previous), target: None, principal: None };
+            let change = TagMove { tag, previous: Some(previous), target: None, principal };
             record_tag_move(commit, &change)?;
             changed = true;
         }
@@ -265,11 +281,18 @@ fn apply_tags(commit: &Commit<'_>, incoming: &BTreeMap<String, String>) -> Resul
     Ok(changed)
 }
 
-/// Remove every row of the package except its tag history, under a new
-/// generation.
+/// Remove every row of the package except its tag history and the identities
+/// of its versions, which stay removed, under a new generation.
 pub(super) fn remove_package(connection: &mut Connection, key: &PackageKey) -> Result<bool> {
     let commit = Commit::begin(connection, key)?;
     let (catalog, ecosystem, name) = key.params();
+    commit.transaction.execute(
+        "INSERT OR IGNORE INTO removed_versions (catalog, ecosystem, name, version, revision_key,
+                                                 generation)
+         SELECT catalog, ecosystem, name, version, revision_key, ?4 FROM versions
+         WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3",
+        params![catalog, ecosystem, name, to_column(commit.generation)],
+    )?;
     let removed = commit.transaction.execute(
         "DELETE FROM packages WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3",
         params![catalog, ecosystem, name],

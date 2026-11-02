@@ -60,19 +60,26 @@ pub(super) fn packument(name: &str, versions: &[&str]) -> Value {
 }
 
 pub(super) async fn write(storage: &Storage, name: &str, document: &Value) -> DocumentWrite {
+    try_write(storage, name, document).await.unwrap()
+}
+
+pub(super) async fn try_write(
+    storage: &Storage,
+    name: &str,
+    document: &Value,
+) -> pnpr_error::Result<DocumentWrite> {
     let current = storage
         .read_hosted_document_for_update(&npm(name))
         .await
         .unwrap();
     let bytes = serde_json::to_vec(document).unwrap();
-    storage
-        .write_hosted_document_if_current(
-            &npm(name),
-            &bytes,
-            current.map(|doc| doc.version).as_ref(),
-        )
-        .await
-        .unwrap()
+    storage.write_hosted_document_if_current(
+        &npm(name),
+        &bytes,
+        current.map(|doc| doc.version).as_ref(),
+        None,
+    )
+    .await
 }
 
 pub(super) async fn read(storage: &Storage, name: &str) -> Value {
@@ -129,6 +136,7 @@ async fn an_accepted_version_cannot_change() {
             &npm("pkg"),
             &serde_json::to_vec(&changed).unwrap(),
             Some(&current.version),
+            None,
         )
         .await
         .unwrap_err();
@@ -183,17 +191,18 @@ async fn a_write_from_a_stale_read_conflicts() {
     write(&storage, "pkg", &packument("pkg", &["1.0.0", "2.0.0"])).await;
     let bytes = serde_json::to_vec(&packument("pkg", &["1.0.0", "3.0.0"])).unwrap();
     let outcome = storage
-        .write_hosted_document_if_current(&npm("pkg"), &bytes, Some(&stale.version))
+        .write_hosted_document_if_current(&npm("pkg"), &bytes, Some(&stale.version), None)
         .await
         .unwrap();
     assert_eq!(outcome, DocumentWrite::Conflict);
     let absent = storage
-        .write_hosted_document_if_current(&npm("pkg"), &bytes, None)
+        .write_hosted_document_if_current(&npm("pkg"), &bytes, None, None)
         .await
         .unwrap();
     assert_eq!(absent, DocumentWrite::Conflict);
     let any = Some(&HostedDocumentVersion::Unversioned);
-    let unconditional = storage.write_hosted_document_if_current(&npm("pkg"), &bytes, any).await;
+    let unconditional =
+        storage.write_hosted_document_if_current(&npm("pkg"), &bytes, any, None).await;
     assert_eq!(unconditional.unwrap(), DocumentWrite::Written);
 }
 
@@ -244,7 +253,11 @@ async fn a_deprecation_rerenders_one_fragment() {
 async fn tag_moves_are_recorded() {
     let tmp = TempDir::new().unwrap();
     let storage = storage(&tmp);
-    write(&storage, "pkg", &packument("pkg", &["1.0.0", "2.0.0"])).await;
+    let published = serde_json::to_vec(&packument("pkg", &["1.0.0", "2.0.0"])).unwrap();
+    storage
+        .write_hosted_document_if_current(&npm("pkg"), &published, None, Some("carol"))
+        .await
+        .unwrap();
     let set = TagChange { tag: "latest", target: Some("1.0.0"), principal: Some("alice") };
     storage
         .change_dist_tag(&npm("pkg"), set)
@@ -273,7 +286,7 @@ async fn tag_moves_are_recorded() {
     assert_eq!(
         moves,
         [
-            (None, Some("2.0.0"), None),
+            (None, Some("2.0.0"), Some("carol")),
             (Some("2.0.0"), Some("1.0.0"), Some("alice")),
             (Some("1.0.0"), None, Some("bob")),
         ],
@@ -316,11 +329,52 @@ async fn removing_versions_and_packages() {
             .unwrap()
             .is_empty(),
     );
-    // The server's tombstone keeps a removed version from being accepted
-    // again, so a reclaimed name is published with new versions.
+    // A reclaimed name is published with new versions.
     let republished = packument("pkg", &["3.0.0"]);
     write(&storage, "pkg", &republished).await;
     assert_eq!(read(&storage, "pkg").await, republished);
+}
+
+#[tokio::test]
+async fn a_removed_version_is_never_accepted_again() {
+    let tmp = TempDir::new().unwrap();
+    let storage = storage(&tmp);
+    write(&storage, "pkg", &packument("pkg", &["1.0.0", "2.0.0"])).await;
+    // Unpublishing one version, then the whole package.
+    write(&storage, "pkg", &packument("pkg", &["2.0.0"])).await;
+    let mut changed = packument("pkg", &["1.0.0", "2.0.0"]);
+    changed["versions"]["1.0.0"]["dist"]["integrity"] = json!("sha512-other");
+    let refused = try_write(&storage, "pkg", &changed).await;
+    assert!(
+        matches!(refused, Err(RegistryError::CannotRepublishUnpublishedVersion { ref version, .. }) if version == "1.0.0"),
+        "{refused:?}",
+    );
+    assert!(
+        storage
+            .remove_package(&npm("pkg"))
+            .await
+            .unwrap()
+    );
+    for version in ["1.0.0", "2.0.0"] {
+        let refused = try_write(&storage, "pkg", &packument("pkg", &[version])).await;
+        assert!(
+            matches!(refused, Err(RegistryError::CannotRepublishUnpublishedVersion { .. })),
+            "{version}: {refused:?}",
+        );
+    }
+    // The refused writes committed nothing, and a restarted store still
+    // refuses.
+    assert!(
+        storage
+            .read_hosted_document(&npm("pkg"))
+            .await
+            .unwrap()
+            .is_none()
+    );
+    drop(storage);
+    let restarted = self::storage(&tmp);
+    let refused = try_write(&restarted, "pkg", &packument("pkg", &["2.0.0"])).await;
+    assert!(matches!(refused, Err(RegistryError::CannotRepublishUnpublishedVersion { .. })));
 }
 
 #[tokio::test]
@@ -328,7 +382,7 @@ async fn another_ecosystem_stores_its_document_whole() {
     let tmp = TempDir::new().unwrap();
     let storage = storage(&tmp).for_hosted("org", Ecosystem::Cargo);
     let name = CanonicalPackageName::parse("serde", Ecosystem::Cargo).unwrap();
-    storage.write_hosted_document_if_current(&name, b"not json", None).await.unwrap();
+    storage.write_hosted_document_if_current(&name, b"not json", None, None).await.unwrap();
     assert_eq!(
         storage
             .read_hosted_document(&name)

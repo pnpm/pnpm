@@ -6,11 +6,13 @@
 //! touching them. Another ecosystem's document is stored whole. Reads render
 //! the packument from those rows through the fragment cache in [`render`].
 //!
-//! One connection serves every request, behind a mutex, and runs on the
-//! blocking pool. Writes take `BEGIN IMMEDIATE`, so commits are serialized and
-//! a compare-and-set reads the generation it replaces inside its own
-//! transaction. Rendering also runs under the mutex, so concurrent misses for
-//! one view render it once.
+//! Every operation runs on the blocking pool. Writes share one connection
+//! behind a mutex and take `BEGIN IMMEDIATE`, so commits are serialized and a
+//! compare-and-set reads the generation it replaces inside its own
+//! transaction. Reads use connections of their own, so a read never waits for
+//! a commit or for another read's render: in WAL mode each read transaction
+//! sees one committed snapshot while a write is in progress. The render
+//! caches are shared by every read connection.
 
 pub use cache::RenderStats;
 pub use tags::TagHistoryEntry;
@@ -30,19 +32,22 @@ use pnpr_error::{RegistryError, Result};
 use pnpr_package_name::{CanonicalPackageName, Ecosystem};
 use rusqlite::{Connection, OptionalExtension, Transaction};
 use std::{
-    path::Path,
-    sync::{Arc, Mutex, PoisonError},
+    path::{Path, PathBuf},
+    sync::{Arc, Mutex, MutexGuard, PoisonError},
 };
+
+/// Read connections kept open between reads. More concurrent reads open
+/// more, and close them when they are done.
+const IDLE_READERS: usize = 8;
 
 /// The metadata database of one hosted store.
 #[derive(Debug)]
 pub struct SqliteMetadata {
-    state: Mutex<DatabaseState>,
-}
-
-#[derive(Debug)]
-struct DatabaseState {
-    connection: Connection,
+    path: PathBuf,
+    /// The connection every write commits through.
+    writer: Mutex<Connection>,
+    /// Read connections not in use.
+    readers: Mutex<Vec<Connection>>,
     cache: cache::RenderCache,
 }
 
@@ -116,19 +121,23 @@ impl SqliteMetadata {
                 ),
             });
         }
-        let state = DatabaseState { connection, cache: cache::RenderCache::default() };
-        Ok(Self { state: Mutex::new(state) })
+        Ok(Self {
+            path: path.to_path_buf(),
+            writer: Mutex::new(connection),
+            readers: Mutex::new(Vec::new()),
+            cache: cache::RenderCache::default(),
+        })
     }
 
     /// What rendering has done since the database was opened.
     #[must_use]
     pub fn render_stats(&self) -> RenderStats {
-        self.lock().cache.stats()
+        self.cache.stats()
     }
 
     /// The current generation of `catalog`, `0` before its first commit.
     pub fn catalog_generation(&self, catalog: &str) -> Result<u64> {
-        Ok(catalog_generation(&self.lock().connection, catalog)?)
+        self.with_reader(|connection| Ok(catalog_generation(connection, catalog)?))
     }
 
     /// Every recorded move of `tag`, oldest first, including moves recorded
@@ -144,26 +153,58 @@ impl SqliteMetadata {
             ecosystem: name.ecosystem(),
             name: name.as_str().to_string(),
         };
-        tags::tag_history(&self.lock().connection, &key, tag)
+        self.with_reader(|connection| tags::tag_history(connection, &key, tag))
     }
 
     pub(super) fn view(self: &Arc<Self>, org: &str, ecosystem: Ecosystem) -> SqliteView {
         SqliteView { database: Arc::clone(self), catalog: org.to_string(), ecosystem }
     }
 
-    fn lock(&self) -> std::sync::MutexGuard<'_, DatabaseState> {
-        self.state.lock().unwrap_or_else(PoisonError::into_inner)
-    }
-
-    /// Run `operation` on the blocking pool with the connection.
-    async fn run<Output, Operation>(self: &Arc<Self>, operation: Operation) -> Result<Output>
+    /// Run `operation` on the blocking pool with the write connection.
+    async fn write<Output, Operation>(self: &Arc<Self>, operation: Operation) -> Result<Output>
     where
         Output: Send + 'static,
-        Operation: FnOnce(&mut DatabaseState) -> Result<Output> + Send + 'static,
+        Operation: FnOnce(&mut Connection) -> Result<Output> + Send + 'static,
     {
         let database = Arc::clone(self);
-        tokio::task::spawn_blocking(move || operation(&mut database.lock())).await?
+        tokio::task::spawn_blocking(move || operation(&mut lock(&database.writer))).await?
     }
+
+    /// Run `operation` on the blocking pool with a read connection.
+    async fn read<Output, Operation>(self: &Arc<Self>, operation: Operation) -> Result<Output>
+    where
+        Output: Send + 'static,
+        Operation: FnOnce(&mut Connection, &cache::RenderCache) -> Result<Output> + Send + 'static,
+    {
+        let database = Arc::clone(self);
+        tokio::task::spawn_blocking(move || {
+            database.with_reader(|connection| operation(connection, &database.cache))
+        })
+        .await?
+    }
+
+    /// Run `operation` with a read connection: an idle one, or a new one when
+    /// every one is in use.
+    fn with_reader<Output>(
+        &self,
+        operation: impl FnOnce(&mut Connection) -> Result<Output>,
+    ) -> Result<Output> {
+        let idle = lock(&self.readers).pop();
+        let mut connection = match idle {
+            Some(connection) => connection,
+            None => schema::open_reader(&self.path)?,
+        };
+        let output = operation(&mut connection);
+        let mut readers = lock(&self.readers);
+        if readers.len() < IDLE_READERS {
+            readers.push(connection);
+        }
+        output
+    }
+}
+
+fn lock<Value>(mutex: &Mutex<Value>) -> MutexGuard<'_, Value> {
+    mutex.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
 /// The current generation of `catalog`, `0` before its first commit.
@@ -217,7 +258,8 @@ impl SqliteView {
 impl PackageMetadata for SqliteView {
     async fn read_view(&self, name: &CanonicalPackageName) -> Result<Option<PackageView>> {
         let key = self.key(name);
-        self.database.run(move |state| render::read_view(state, &key)).await
+        self.database.read(move |connection, cache| render::read_view(connection, cache, &key))
+            .await
     }
 
     async fn read_for_update(
@@ -237,12 +279,15 @@ impl PackageMetadata for SqliteView {
         name: &CanonicalPackageName,
         bytes: &[u8],
         version: Option<&HostedDocumentVersion>,
+        principal: Option<&str>,
     ) -> Result<DocumentWrite> {
         let expected = Expected::from_version(version)?;
         let key = self.key(name);
         let bytes = bytes.to_vec();
-        self.database.run(move |state| {
-            commit::write_document(&mut state.connection, &key, &bytes, expected)
+        let principal = principal.map(str::to_string);
+        self.database.write(move |connection| {
+            let principal = principal.as_deref();
+            commit::write_document(connection, &key, &bytes, expected, principal)
         })
         .await
     }
@@ -254,18 +299,18 @@ impl PackageMetadata for SqliteView {
     ) -> Result<TagUpdate> {
         let key = self.key(name);
         let change = tags::OwnedTagChange::from(change);
-        self.database.run(move |state| tags::change_tag(&mut state.connection, &key, &change)).await
+        self.database.write(move |connection| tags::change_tag(connection, &key, &change)).await
     }
 
     async fn remove_package(&self, name: &CanonicalPackageName) -> Result<bool> {
         let key = self.key(name);
-        self.database.run(move |state| commit::remove_package(&mut state.connection, &key)).await
+        self.database.write(move |connection| commit::remove_package(connection, &key)).await
     }
 
     async fn package_names(&self) -> Result<Vec<String>> {
         let (catalog, ecosystem) = (self.catalog.clone(), self.ecosystem);
-        self.database.run(move |state| {
-            let mut statement = state.connection.prepare_cached(
+        self.database.read(move |connection, _| {
+            let mut statement = connection.prepare_cached(
                 "SELECT name FROM packages WHERE catalog = ?1 AND ecosystem = ?2 ORDER BY name",
             )?;
             let names = statement

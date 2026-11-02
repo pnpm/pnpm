@@ -37,19 +37,22 @@ pub(crate) async fn delete_package(
             Err(err) => return err.into_response(),
         };
 
+    // The tombstone is durable before anything is removed, so a removal that
+    // fails partway never leaves the name claimable by someone else.
+    let tombstone = Tombstone { identity, name: &name, maintainers, unpublished_versions };
+    let recorded = !tombstone.is_empty();
+    if recorded && let Err(err) = tombstone.write(&storage).await {
+        return err.into_response();
+    }
     let removed = match storage.remove_package(&name).await {
         Ok(removed) => removed,
         Err(err) => return err.into_response(),
     };
-    if let Err(err) = write_deletion_tombstone(
-        &storage,
-        identity,
-        &name,
-        removed,
-        maintainers,
-        unpublished_versions,
-    )
-    .await
+    // Archives with no document left nothing to collect; they still leave a
+    // tombstone behind.
+    if removed
+        && !recorded
+        && let Err(err) = tombstone.write(&storage).await
     {
         return err.into_response();
     }
@@ -107,25 +110,29 @@ fn collect_versions_from_value(val: &Value, versions: &mut Vec<String>) {
     }
 }
 
-async fn write_deletion_tombstone(
-    storage: &pnpr_storage::Storage,
-    identity: &Identity,
-    name: &CanonicalPackageName,
-    removed: bool,
+/// The tombstone a package deletion leaves.
+struct Tombstone<'a> {
+    identity: &'a Identity,
+    name: &'a CanonicalPackageName,
     maintainers: Vec<String>,
     unpublished_versions: Vec<String>,
-) -> Result<(), RegistryError> {
-    if !removed && maintainers.is_empty() && unpublished_versions.is_empty() {
-        return Ok(());
+}
+
+impl Tombstone<'_> {
+    fn is_empty(&self) -> bool {
+        self.maintainers.is_empty() && self.unpublished_versions.is_empty()
     }
-    let tombstone = PackageTombstone {
-        package: name.as_str().to_string(),
-        unpublished_by: identity.username().map(ToString::to_string),
-        unpublished_at: chrono::Utc::now().to_rfc3339(),
-        maintainers,
-        unpublished_versions,
-    };
-    storage.write_tombstone(&tombstone).await
+
+    async fn write(&self, storage: &pnpr_storage::Storage) -> Result<(), RegistryError> {
+        let tombstone = PackageTombstone {
+            package: self.name.as_str().to_string(),
+            unpublished_by: self.identity.username().map(ToString::to_string),
+            unpublished_at: chrono::Utc::now().to_rfc3339(),
+            maintainers: self.maintainers.clone(),
+            unpublished_versions: self.unpublished_versions.clone(),
+        };
+        storage.write_tombstone(&tombstone).await
+    }
 }
 
 pub(crate) async fn delete_tarball(

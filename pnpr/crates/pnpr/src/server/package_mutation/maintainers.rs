@@ -47,9 +47,9 @@ pub(super) async fn update_package_maintainers(
         Ok(bytes) => bytes,
         Err(err) => return RegistryError::Json(err).into_response(),
     };
+    let version = Some(&hosted_packument.version);
     let written =
-        storage.write_hosted_document_if_current(name, &bytes, Some(&hosted_packument.version))
-            .await;
+        storage.write_hosted_document_if_current(name, &bytes, version, identity.username()).await;
     match written {
         Ok(DocumentWrite::Written) => {
             log_maintainers_updated(identity, name, source);

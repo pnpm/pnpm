@@ -301,30 +301,36 @@ impl Storage {
         self.metadata.read_for_update(name).await
     }
 
+    /// Write `bytes` as the package's document while the stored one is still
+    /// at `version`. `principal` is who asked for the write; the metadata
+    /// store records it with every dist-tag the write moves.
     pub async fn write_hosted_document_if_current(
         &self,
         name: &CanonicalPackageName,
         bytes: &[u8],
         version: Option<&HostedDocumentVersion>,
+        principal: Option<&str>,
     ) -> Result<DocumentWrite> {
-        self.metadata.write_if_current(name, bytes, version).await
+        self.metadata.write_if_current(name, bytes, version, principal).await
     }
 
     /// Read the hosted document, transform it, and conditionally write it
     /// back under compare-and-swap, retrying on conflict with capped backoff.
     /// Both the dist-tag request path and
     /// journal roll-forward go through here so their conflict handling stays
-    /// in one place.
+    /// in one place. `principal` is recorded as for
+    /// [`Self::write_hosted_document_if_current`].
     pub async fn update_hosted_document_with_retry<Build>(
         &self,
         name: &CanonicalPackageName,
         retries: usize,
+        principal: Option<&str>,
         build: Build,
     ) -> Result<DocumentUpdate>
     where
         Build: FnMut(Option<&[u8]>) -> Result<Option<Vec<u8>>>,
     {
-        metadata::update_with_retry(&*self.metadata, name, retries, build).await
+        metadata::update_with_retry(&*self.metadata, name, retries, principal, build).await
     }
 
     /// Open a blob from the authoritative hosted store. Hosted

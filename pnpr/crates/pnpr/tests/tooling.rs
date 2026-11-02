@@ -1,3 +1,4 @@
+use pnpr_config::{HostedStoreConfig, MetadataBackend, default_metadata_path};
 use std::path::Path;
 use tempfile::TempDir;
 
@@ -403,6 +404,71 @@ async fn test_migrate_storage_non_npm_package() {
     assert_eq!(report.packages_migrated, 1);
     assert_eq!(report.blobs_transferred, 1);
     assert!(report.dry_run);
+}
+
+/// Write a one-version npm packument of each of `names` into `storage`.
+async fn seed_packuments(storage: &pnpr_storage::Storage, names: &[&str]) {
+    for name in names {
+        let doc = serde_json::json!({
+            "name": name,
+            "dist-tags": { "latest": "1.0.0" },
+            "versions": {
+                "1.0.0": {
+                    "name": name,
+                    "version": "1.0.0",
+                    "dist": { "integrity": "sha512-AAAA", "tarball": "t.tgz" },
+                },
+            },
+        });
+        let name = pnpr_package_name::CanonicalPackageName::parse(name, Ecosystem::Npm).unwrap();
+        let bytes = serde_json::to_vec(&doc).unwrap();
+        storage.write_hosted_document_if_current(&name, &bytes, None, None).await.unwrap();
+    }
+}
+
+#[tokio::test]
+async fn test_migrate_storage_from_reads_the_source_stores_own_metadata() {
+    let dir = TempDir::new().unwrap();
+    let (mut config, _cfg_file) = create_test_config(dir.path());
+    let configured = default_metadata_path(&config.storage.hosted_dir);
+    config.storage.metadata = MetadataBackend::Sqlite(configured);
+    write_local_layout_marker(&config.storage.hosted_dir).unwrap();
+    let storage = pnpr_storage::Storage::from_config(&config.storage).unwrap();
+    seed_packuments(&storage, &["configured-a", "configured-b"]).await;
+
+    // A store that keeps its metadata in package documents.
+    let documents = dir.path().join("documents-store");
+    std::fs::create_dir_all(&documents).unwrap();
+    write_local_layout_marker(&documents).unwrap();
+    seed_file(
+        local_document_path(&documents, "", Ecosystem::Npm, "doc-pkg"),
+        br#"{"name":"doc-pkg","versions":{}}"#,
+    );
+    // A store with a database of its own at the default path.
+    let sqlite = dir.path().join("sqlite-store");
+    std::fs::create_dir_all(&sqlite).unwrap();
+    write_local_layout_marker(&sqlite).unwrap();
+    let source = pnpr_storage::Storage::new(
+        &HostedStoreConfig::Fs,
+        sqlite.clone(),
+        config.storage.cache_dir.clone(),
+    )
+    .unwrap()
+    .with_metadata(&MetadataBackend::Sqlite(default_metadata_path(&sqlite)))
+    .unwrap();
+    seed_packuments(&source, &["sql-a", "sql-b", "sql-c"]).await;
+
+    for (from, packages) in [(None, 2), (Some(documents), 1), (Some(sqlite), 3)] {
+        let options = MigrateStorageOptions {
+            from: from.clone(),
+            to_bucket: Some("mock-bucket".to_string()),
+            to_region: Some("us-east-1".to_string()),
+            dry_run: true,
+            ..MigrateStorageOptions::default()
+        };
+        let report = migrate_local_to_s3(&config, &options).await.unwrap();
+        assert_eq!(report.packages_migrated, packages, "from {from:?}");
+    }
 }
 
 #[tokio::test]

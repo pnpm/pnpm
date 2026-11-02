@@ -132,7 +132,7 @@ async fn nested_names_are_stored_as_siblings() {
     let blobs_repo =
         CanonicalPackageName::parse("acme/blobs", pnpr_package_name::Ecosystem::Oci).unwrap();
     for name in [&parent, &child, &top, &blobs_repo] {
-        storage.write_hosted_document_if_current(name, b"{}", None).await.unwrap();
+        storage.write_hosted_document_if_current(name, b"{}", None, None).await.unwrap();
     }
     let slot = storage.reserve_hosted_blob(&top, "sha256-top").await.unwrap();
     fs::write(&slot.tmp_path, b"top-layer").await.unwrap();
@@ -158,13 +158,13 @@ async fn packages_documents_and_blobs_have_one_path_each() {
     let tmp = TempDir::new().unwrap();
     let storage = storage_in(&tmp);
     let name = pkg("@scope/App");
-    storage.write_hosted_document_if_current(&name, b"{}", None).await.unwrap();
+    storage.write_hosted_document_if_current(&name, b"{}", None, None).await.unwrap();
     let slot = storage.reserve_hosted_blob(&name, "App-1.0.0.tgz").await.unwrap();
     fs::write(&slot.tmp_path, b"tarball").await.unwrap();
     storage.finalize_blob_slot(slot).await.unwrap();
     storage
         .for_hosted("npm~internal", pnpr_package_name::Ecosystem::Npm)
-        .write_hosted_document_if_current(&name, b"{}", None)
+        .write_hosted_document_if_current(&name, b"{}", None, None)
         .await
         .unwrap();
 
@@ -184,10 +184,10 @@ async fn an_org_named_like_a_package_is_its_own_namespace() {
     let storage = storage_in(&tmp);
     let org = storage.for_hosted("acme", pnpr_package_name::Ecosystem::Npm);
     storage
-        .write_hosted_document_if_current(&pkg("acme"), b"{}", None)
+        .write_hosted_document_if_current(&pkg("acme"), b"{}", None, None)
         .await
         .unwrap();
-    org.write_hosted_document_if_current(&pkg("tool"), b"{}", None).await
+    org.write_hosted_document_if_current(&pkg("tool"), b"{}", None, None).await
         .unwrap();
     assert_eq!(storage.hosted_package_names().await.unwrap(), ["acme"]);
     storage
@@ -470,7 +470,7 @@ async fn symlinks_in_the_packages_directory_are_not_followed() {
     fs::write(outside.join("document.json"), b"{}").await.unwrap();
     fs::write(outside.join("blobs/sha256-aa"), b"keep").await.unwrap();
     storage
-        .write_hosted_document_if_current(&pkg("real"), b"{}", None)
+        .write_hosted_document_if_current(&pkg("real"), b"{}", None, None)
         .await
         .unwrap();
     let scopes = tmp.path().join("storage/default/npm/packages");
@@ -487,7 +487,7 @@ async fn symlinks_in_the_packages_directory_are_not_followed() {
         .await
         .unwrap();
     storage
-        .write_hosted_document_if_current(&pkg("other"), b"{}", None)
+        .write_hosted_document_if_current(&pkg("other"), b"{}", None, None)
         .await
         .unwrap();
     fs::symlink(outside.join("blobs"), packages.join("other/blobs")).await.unwrap();
@@ -508,7 +508,7 @@ async fn a_blob_being_staged_is_not_listed() {
     let tmp = TempDir::new().unwrap();
     let storage = storage_in(&tmp);
     let name = pkg("left-pad");
-    storage.write_hosted_document_if_current(&name, b"{}", None).await.unwrap();
+    storage.write_hosted_document_if_current(&name, b"{}", None, None).await.unwrap();
     let slot = storage.reserve_hosted_blob(&name, "left-pad-1.0.0.tgz").await.unwrap();
     fs::write(&slot.tmp_path, b"tarball").await.unwrap();
     let files: Vec<_> = storage
@@ -605,7 +605,10 @@ async fn multi_component_and_max_length_oci_repositories_round_trip_on_local_sto
         let name = CanonicalPackageName::parse(repo, pnpr_package_name::Ecosystem::Oci).unwrap();
         let doc = format!(r#"{{"repository":"{repo}"}}"#);
         assert_eq!(
-            storage.write_hosted_document_if_current(&name, doc.as_bytes(), None).await.unwrap(),
+            storage
+                .write_hosted_document_if_current(&name, doc.as_bytes(), None, None)
+                .await
+                .unwrap(),
             DocumentWrite::Written,
         );
         let slot = storage.reserve_hosted_blob(&name, "sha256-deadbeef").await.unwrap();

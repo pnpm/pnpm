@@ -90,12 +90,14 @@ pub(crate) trait PackageMetadata: fmt::Debug + Send + Sync {
 
     /// Commit `bytes` as the package's document while the stored one is still
     /// at `version`: absent for `None`, any for
-    /// [`HostedDocumentVersion::Unversioned`].
+    /// [`HostedDocumentVersion::Unversioned`]. `principal` is who asked for
+    /// the write, recorded with every tag it moves.
     async fn write_if_current(
         &self,
         name: &CanonicalPackageName,
         bytes: &[u8],
         version: Option<&HostedDocumentVersion>,
+        principal: Option<&str>,
     ) -> Result<DocumentWrite>;
 
     async fn change_tag(

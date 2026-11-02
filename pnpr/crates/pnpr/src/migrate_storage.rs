@@ -1,9 +1,9 @@
 use axum::body::to_bytes;
 use miette::IntoDiagnostic as _;
-use pnpr_config::{Config, HostedStoreConfig, S3Settings};
+use pnpr_config::{Config, HostedStoreConfig, MetadataBackend, S3Settings, default_metadata_path};
 use pnpr_package_name::{CanonicalPackageName, Ecosystem};
 use pnpr_storage::Storage;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tokio::fs;
 
 #[derive(Debug, Default)]
@@ -76,8 +76,9 @@ fn init_source_and_target_storage(
 
     let target_hosted_config = resolve_target_s3_config(config, options)?;
 
+    let source_metadata = source_metadata(config, options.from.as_deref());
     let source = Storage::new(&HostedStoreConfig::Fs, source_dir, config.storage.cache_dir.clone())
-        .and_then(|source| source.with_metadata(&config.storage.metadata))
+        .and_then(|source| source.with_metadata(&source_metadata))
         .map_err(|err| miette::miette!("failed to initialize source storage: {err}"))?;
 
     let target = Storage::new(
@@ -88,6 +89,22 @@ fn init_source_and_target_storage(
     .map_err(|err| miette::miette!("failed to initialize target S3 storage: {err}"))?;
 
     Ok((source, target))
+}
+
+/// Where the source store keeps its metadata. The configured backend
+/// describes the configured store; another `--from` store is read by its own
+/// layout: from the `SQLite` database at its default path when it has one,
+/// otherwise from its package documents.
+fn source_metadata(config: &Config, from: Option<&Path>) -> MetadataBackend {
+    let same_dir = |dir: &Path| {
+        let canonical = |path: &Path| std::fs::canonicalize(path).ok();
+        canonical(dir).is_some_and(|dir| canonical(&config.storage.hosted_dir) == Some(dir))
+    };
+    let Some(from) = from.filter(|from| !same_dir(from)) else {
+        return config.storage.metadata.clone();
+    };
+    let database = default_metadata_path(from);
+    if database.is_file() { MetadataBackend::Sqlite(database) } else { MetadataBackend::Documents }
 }
 
 fn resolve_target_s3_config(
@@ -134,7 +151,7 @@ async fn migrate_package(
     if let Some(bytes) = doc_bytes {
         if !options.dry_run {
             target
-                .write_hosted_document_if_current(&canonical, &bytes, None)
+                .write_hosted_document_if_current(&canonical, &bytes, None, None)
                 .await
                 .map_err(|err| miette::miette!("failed to write document to target: {err}"))?;
         }

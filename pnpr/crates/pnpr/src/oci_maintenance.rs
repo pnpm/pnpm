@@ -189,6 +189,7 @@ async fn finish_pending_deletions(
         storage.update_hosted_document_with_retry(
             &name,
             pnpr_storage::DOCUMENT_WRITE_RETRIES,
+            None,
             |_| Ok(Some(document.to_bytes())),
         )
         .await?;

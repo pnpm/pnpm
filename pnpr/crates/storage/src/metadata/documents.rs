@@ -5,11 +5,12 @@ use crate::{
     DOCUMENT_WRITE_RETRIES, DocumentUpdate, DocumentWrite, HostedBackend, HostedDocumentForUpdate,
     HostedDocumentVersion,
     publish::{PACKUMENT_FORMAT_VERSION, now_iso},
+    tombstones::{PackageTombstone, TOMBSTONES_NAMESPACE, tombstone_key},
     wait_after_document_write_conflict,
 };
 use async_trait::async_trait;
 use pnpr_error::{RegistryError, Result};
-use pnpr_package_name::CanonicalPackageName;
+use pnpr_package_name::{CanonicalPackageName, Ecosystem};
 use serde_json::{Map, Value};
 use std::sync::Arc;
 
@@ -22,6 +23,53 @@ impl DocumentMetadata {
     pub(super) fn new(hosted: Arc<dyn HostedBackend>) -> Self {
         Self { hosted }
     }
+
+    /// Refuse a packument that lists a version the package's tombstone
+    /// records as removed, unless the stored packument still lists it: every
+    /// write path, startup recovery of a publish included, keeps a removed
+    /// version from coming back.
+    async fn refuse_removed_versions(
+        &self,
+        name: &CanonicalPackageName,
+        bytes: &[u8],
+    ) -> Result<()> {
+        let tombstone = self.hosted.read_record(TOMBSTONES_NAMESPACE, &tombstone_key(name)).await?;
+        let Some(tombstone) = tombstone else { return Ok(()) };
+        let tombstone: PackageTombstone = serde_json::from_slice(&tombstone)?;
+        let Ok(incoming) = serde_json::from_slice::<Value>(bytes) else { return Ok(()) };
+        let removed: Vec<&String> = listed_versions(&incoming)
+            .filter(|version| tombstone.unpublished_versions.contains(version))
+            .collect();
+        if removed.is_empty() {
+            return Ok(());
+        }
+        let stored = self.hosted.read_document(name).await?;
+        let stored: Option<Value> = stored.and_then(|bytes| serde_json::from_slice(&bytes).ok());
+        let still_listed = |version: &String| {
+            stored
+                .as_ref()
+                .is_some_and(|stored| listed_versions(stored).any(|listed| listed == version))
+        };
+        match removed
+            .into_iter()
+            .find(|version| !still_listed(version))
+        {
+            Some(version) => Err(RegistryError::CannotRepublishUnpublishedVersion {
+                package: name.as_str().to_string(),
+                version: version.clone(),
+            }),
+            None => Ok(()),
+        }
+    }
+}
+
+/// The versions a packument lists.
+fn listed_versions(packument: &Value) -> impl Iterator<Item = &String> {
+    packument
+        .get("versions")
+        .and_then(Value::as_object)
+        .into_iter()
+        .flat_map(Map::keys)
 }
 
 #[async_trait]
@@ -43,7 +91,11 @@ impl PackageMetadata for DocumentMetadata {
         name: &CanonicalPackageName,
         bytes: &[u8],
         version: Option<&HostedDocumentVersion>,
+        _principal: Option<&str>,
     ) -> Result<DocumentWrite> {
+        if name.ecosystem() == Ecosystem::Npm {
+            self.refuse_removed_versions(name, bytes).await?;
+        }
         self.hosted.write_document_if_current(name, bytes, version).await
     }
 
@@ -53,10 +105,11 @@ impl PackageMetadata for DocumentMetadata {
         change: TagChange<'_>,
     ) -> Result<TagUpdate> {
         let mut moved = false;
-        let update = update_with_retry(self, name, DOCUMENT_WRITE_RETRIES, |existing| {
-            retag_packument(existing, change, &mut moved)
-        })
-        .await?;
+        let update =
+            update_with_retry(self, name, DOCUMENT_WRITE_RETRIES, change.principal, |existing| {
+                retag_packument(existing, change, &mut moved)
+            })
+            .await?;
         Ok(match update {
             DocumentUpdate::Written => TagUpdate::Committed { generation: None, moved },
             DocumentUpdate::NotFound => TagUpdate::NotFound,
@@ -84,6 +137,7 @@ pub(crate) async fn update_with_retry<Build>(
     metadata: &dyn PackageMetadata,
     name: &CanonicalPackageName,
     retries: usize,
+    principal: Option<&str>,
     mut build: Build,
 ) -> Result<DocumentUpdate>
 where
@@ -97,7 +151,7 @@ where
         let Some(new_bytes) = build(existing.as_deref())? else {
             return Ok(DocumentUpdate::NotFound);
         };
-        match metadata.write_if_current(name, &new_bytes, version.as_ref()).await? {
+        match metadata.write_if_current(name, &new_bytes, version.as_ref(), principal).await? {
             DocumentWrite::Written => return Ok(DocumentUpdate::Written),
             DocumentWrite::Conflict if attempt + 1 < retries => {
                 wait_after_document_write_conflict(attempt).await;

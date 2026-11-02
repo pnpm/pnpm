@@ -76,9 +76,17 @@ With SQLite metadata:
 - A published npm version's manifest cannot change. A write that would change
   it fails with `409`. Deprecating or undeprecating a version, moving a
   dist-tag, and unpublishing still work.
+- The database keeps every unpublished version, including the versions of an
+  unpublished package, and refuses to accept one again with `403`, even when
+  the package's tombstone is gone. A publish interrupted by a crash, whose
+  package was unpublished before pnpr restarted, is refused the same way:
+  startup stops and names the version. Remove that transaction from the
+  publish journal's `.journal` directory to discard the publish.
 - A dist-tag change rewrites only that tag, and pnpr keeps the history of
   every move of a tag: when it moved, from which version to which, and who
-  moved it.
+  moved it. A publish, a document update, and a dist-tag change each record
+  the user who made them. A publish that pnpr finishes at startup, after a
+  crash interrupted it, records its original publisher.
 - Every change to an org's packages advances that org's generation. A hosted
   npm package response, and the response to a dist-tag change, carry it in a
   `pnpr-generation` header as `<org>:<generation>`, with an empty org for
@@ -87,8 +95,9 @@ With SQLite metadata:
   version, so a dist-tag change or a new release does not re-render the
   versions that did not change.
 
-SQLite metadata serves one pnpr process. It cannot be combined with an `s3:`
-block. Back the database file up together with the hosted store.
+SQLite metadata serves one pnpr process. Reads use their own database
+connections, so a read never waits for a write. It cannot be combined with an
+`s3:` block. Back the database file up together with the hosted store.
 
 ## Backends
 

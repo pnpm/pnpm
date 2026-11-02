@@ -4,10 +4,11 @@
 //! mutable package state, and the assembled view is cached at the package's
 //! generation. Every read checks that generation inside its own read
 //! transaction, so a cached view is served only while it is current: a lost
-//! invalidation cannot pin an old view.
+//! invalidation cannot pin an old view. Reads on different connections share
+//! the caches; two that miss one view at once may both render it.
 
 use super::{
-    DatabaseState, PackageKey,
+    PackageKey,
     cache::{FragmentKey, RENDERER_VERSION, RenderCache, Representation, ViewKey},
     commit::{PackageRow, package_row, parse_json, parse_optional_json},
     packument::{
@@ -24,10 +25,10 @@ use serde_json::{Map, Value};
 use std::{collections::BTreeMap, sync::Arc};
 
 pub(super) fn read_view(
-    state: &mut DatabaseState,
+    connection: &mut Connection,
+    cache: &RenderCache,
     key: &PackageKey,
 ) -> Result<Option<PackageView>> {
-    let DatabaseState { connection, cache } = state;
     let snapshot = connection.transaction()?;
     let Some(package) = package_row(&snapshot, key)? else { return Ok(None) };
     let view_key = ViewKey { package: key.clone(), representation: Representation::Full };
@@ -108,11 +109,7 @@ fn fragment_columns(connection: &Connection, key: &FragmentKey) -> Result<[Optio
     Ok(columns)
 }
 
-fn fragment(
-    connection: &Connection,
-    cache: &mut RenderCache,
-    key: &FragmentKey,
-) -> Result<Arc<str>> {
+fn fragment(connection: &Connection, cache: &RenderCache, key: &FragmentKey) -> Result<Arc<str>> {
     if let Some(fragment) = cache.fragment(key) {
         return Ok(fragment);
     }
@@ -131,7 +128,7 @@ struct Assembled {
 
 fn assemble_packument(
     connection: &Connection,
-    cache: &mut RenderCache,
+    cache: &RenderCache,
     key: &PackageKey,
     package: &PackageRow,
 ) -> Result<Vec<u8>> {

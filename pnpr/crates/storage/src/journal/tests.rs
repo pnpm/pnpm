@@ -6,7 +6,7 @@ use super::{
 };
 use crate::{BlobFinalize, Storage, publish::merge_journaled_packument};
 use object_store::{ObjectStore, memory::InMemory};
-use pnpr_config::HostedStoreConfig;
+use pnpr_config::{HostedStoreConfig, MetadataBackend};
 use pnpr_error::{RegistryError, Result};
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_registry::Ecosystem;
@@ -109,6 +109,7 @@ fn npm_publish<'publish>(
         document: packument,
         base_version: None,
         slots: &[],
+        principal: None,
     }
 }
 
@@ -486,4 +487,116 @@ async fn recovery_drops_version_when_tmp_blob_and_hosted_blob_are_missing() {
             .unwrap()
             .is_none(),
     );
+}
+
+/// A filesystem store with its metadata in `metadata`.
+fn fs_storage(tmp: &std::path::Path, metadata: &MetadataBackend) -> Storage {
+    Storage::new(&HostedStoreConfig::Fs, tmp.join("hosted"), tmp.join("cache"))
+        .unwrap()
+        .with_metadata(metadata)
+        .unwrap()
+}
+
+fn removed_pkg_packument(versions: &[&str]) -> Vec<u8> {
+    let manifests: serde_json::Map<String, serde_json::Value> = versions
+        .iter()
+        .map(|version| {
+            let manifest = json!({
+                "name": "removed-pkg",
+                "version": version,
+                "dist": { "integrity": format!("sha512-{version}"), "tarball": "t.tgz" },
+            });
+            ((*version).to_string(), manifest)
+        })
+        .collect();
+    serde_json::to_vec(&json!({
+        "name": "removed-pkg",
+        "dist-tags": { "latest": versions.last().copied().unwrap_or_default() },
+        "versions": manifests,
+    }))
+    .unwrap()
+}
+
+#[tokio::test]
+async fn recovery_does_not_bring_back_a_removed_version() {
+    let tmp = tempdir().unwrap();
+    let sqlite = MetadataBackend::Sqlite(tmp.path().join("metadata.sqlite"));
+    for (index, metadata) in [MetadataBackend::Documents, sqlite].into_iter().enumerate() {
+        let root = tmp.path().join(index.to_string());
+        let storage = fs_storage(&root, &metadata);
+        let name =
+            CanonicalPackageName::parse("removed-pkg", pnpr_package_name::Ecosystem::Npm).unwrap();
+        let published = removed_pkg_packument(&["1.0.0"]);
+        storage.write_hosted_document_if_current(&name, &published, None, None).await.unwrap();
+        // A publish of 2.0.0 computed from the stored 1.0.0, sealed but not
+        // applied before the server stopped.
+        let journaled = removed_pkg_packument(&["1.0.0", "2.0.0"]);
+        storage
+            .publish_journal()
+            .seal(&[npm_publish(&name, &journaled)])
+            .await
+            .unwrap();
+        // The package is unpublished in the meantime, as the server does it.
+        storage
+            .write_tombstone(&crate::PackageTombstone {
+                package: name.as_str().to_string(),
+                unpublished_by: None,
+                unpublished_at: "2026-07-01T00:00:00.000Z".to_string(),
+                maintainers: Vec::new(),
+                unpublished_versions: vec!["1.0.0".to_string()],
+            })
+            .await
+            .unwrap();
+        assert!(storage.remove_package(&name).await.unwrap());
+
+        let recovered = storage.publish_journal().recover(&storage, &NpmDocuments).await;
+        assert!(
+            matches!(
+                recovered,
+                Err(RegistryError::CannotRepublishUnpublishedVersion { ref version, .. })
+                    if version == "1.0.0"
+            ),
+            "{metadata:?}: {recovered:?}",
+        );
+        assert!(
+            storage
+                .read_hosted_document(&name)
+                .await
+                .unwrap()
+                .is_none(),
+            "{metadata:?}",
+        );
+    }
+}
+
+#[tokio::test]
+async fn recovery_records_the_publisher_with_the_tags_it_moves() {
+    let tmp = tempdir().unwrap();
+    let storage = fs_storage(tmp.path(), &MetadataBackend::Sqlite(tmp.path().join("m.sqlite")));
+    let name =
+        CanonicalPackageName::parse("removed-pkg", pnpr_package_name::Ecosystem::Npm).unwrap();
+    let journaled = removed_pkg_packument(&["1.0.0"]);
+    let entry = JournaledPublish { principal: Some("carol"), ..npm_publish(&name, &journaled) };
+    storage
+        .publish_journal()
+        .seal(&[entry])
+        .await
+        .unwrap();
+
+    storage
+        .publish_journal()
+        .recover(&storage, &NpmDocuments)
+        .await
+        .unwrap();
+
+    let history = storage
+        .sqlite_metadata()
+        .unwrap()
+        .tag_history(&name, "", "latest")
+        .unwrap();
+    let principals: Vec<_> = history
+        .iter()
+        .map(|entry| entry.principal.as_deref())
+        .collect();
+    assert_eq!(principals, [Some("carol")]);
 }

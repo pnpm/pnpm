@@ -4,7 +4,7 @@ use super::PackageKey;
 use std::{
     collections::{HashMap, VecDeque},
     hash::Hash,
-    sync::Arc,
+    sync::{Arc, Mutex, MutexGuard, PoisonError},
 };
 
 /// Bytes of rendered version fragments kept in memory.
@@ -24,10 +24,10 @@ pub(super) enum Representation {
 }
 
 /// Everything a rendered version fragment depends on. A version and revision
-/// always name the same bytes, since an unpublished version is tombstoned and
-/// never accepted again, so the key needs no generation of its own. A tag
-/// change touches none of it; a deprecation changes `annotation_generation`
-/// of one version.
+/// always name the same bytes, since the store keeps the identity of a removed
+/// version and never accepts it again, so the key needs no generation of its
+/// own. A tag change touches none of it; a deprecation changes
+/// `annotation_generation` of one version.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(super) struct FragmentKey {
     pub(super) package: PackageKey,
@@ -60,47 +60,70 @@ pub struct RenderStats {
     pub views_reused: u64,
 }
 
+/// The caches every read connection shares. Each call holds the lock only
+/// for the lookup or insert, never while rows are read or rendered.
 #[derive(Debug, Default)]
 pub(super) struct RenderCache {
+    caches: Mutex<Caches>,
+}
+
+#[derive(Debug, Default)]
+struct Caches {
     fragments: BoundedCache<FragmentKey, Arc<str>>,
     views: BoundedCache<ViewKey, (u64, Arc<[u8]>)>,
     stats: RenderStats,
 }
 
 impl RenderCache {
-    pub(super) fn stats(&self) -> RenderStats {
-        self.stats
+    fn lock(&self) -> MutexGuard<'_, Caches> {
+        self.caches.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
-    pub(super) fn fragment(&mut self, key: &FragmentKey) -> Option<Arc<str>> {
-        let found = self.fragments.get(key).cloned();
+    pub(super) fn stats(&self) -> RenderStats {
+        self.lock().stats
+    }
+
+    pub(super) fn fragment(&self, key: &FragmentKey) -> Option<Arc<str>> {
+        let mut caches = self.lock();
+        let found = caches.fragments.get(key).cloned();
         if found.is_some() {
-            self.stats.fragments_reused += 1;
+            caches.stats.fragments_reused += 1;
         }
         found
     }
 
-    pub(super) fn store_fragment(&mut self, key: FragmentKey, fragment: Arc<str>) {
-        self.stats.fragments_rendered += 1;
+    pub(super) fn store_fragment(&self, key: FragmentKey, fragment: Arc<str>) {
+        let mut caches = self.lock();
+        caches.stats.fragments_rendered += 1;
         let weight = fragment.len();
-        self.fragments.insert(key, fragment, weight, FRAGMENT_BUDGET);
+        caches.fragments.insert(key, fragment, weight, FRAGMENT_BUDGET);
     }
 
     /// The view of `key` when the cache holds it at `generation`.
-    pub(super) fn view(&mut self, key: &ViewKey, generation: u64) -> Option<Arc<[u8]>> {
-        let (cached, bytes) = self.views.get(key)?;
+    pub(super) fn view(&self, key: &ViewKey, generation: u64) -> Option<Arc<[u8]>> {
+        let mut caches = self.lock();
+        let (cached, bytes) = caches.views.get(key)?;
         if *cached != generation {
             return None;
         }
         let bytes = Arc::clone(bytes);
-        self.stats.views_reused += 1;
+        caches.stats.views_reused += 1;
         Some(bytes)
     }
 
-    pub(super) fn store_view(&mut self, key: ViewKey, generation: u64, bytes: Arc<[u8]>) {
-        self.stats.views_assembled += 1;
+    /// Cache the view of `key` rendered at `generation`, unless a read of a
+    /// later snapshot already cached a newer one.
+    pub(super) fn store_view(&self, key: ViewKey, generation: u64, bytes: Arc<[u8]>) {
+        let mut caches = self.lock();
+        caches.stats.views_assembled += 1;
+        if caches.views
+            .get(&key)
+            .is_some_and(|(cached, _)| *cached > generation)
+        {
+            return;
+        }
         let weight = bytes.len();
-        self.views.insert(key, (generation, bytes), weight, VIEW_BUDGET);
+        caches.views.insert(key, (generation, bytes), weight, VIEW_BUDGET);
     }
 }
 

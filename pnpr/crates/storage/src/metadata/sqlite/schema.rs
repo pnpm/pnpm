@@ -7,6 +7,7 @@
 //! revision protocol.
 
 use rusqlite::{Connection, OptionalExtension};
+use std::path::Path;
 
 /// The layout this pnpr reads. pnpr is pre-1.0: a change to the layout
 /// replaces it in place rather than migrating.
@@ -106,6 +107,20 @@ CREATE TABLE IF NOT EXISTS tag_history (
     PRIMARY KEY (catalog, ecosystem, name, tag, generation)
 ) STRICT, WITHOUT ROWID;
 
+-- Insert-only: the identity of every version removed from a package, by
+-- unpublishing it or the whole package. Kept when the package is removed, so
+-- a removed version is never accepted again and a version and revision always
+-- name the same bytes.
+CREATE TABLE IF NOT EXISTS removed_versions (
+    catalog TEXT NOT NULL,
+    ecosystem TEXT NOT NULL,
+    name TEXT NOT NULL,
+    version TEXT NOT NULL,
+    revision_key TEXT NOT NULL,
+    generation INTEGER NOT NULL,
+    PRIMARY KEY (catalog, ecosystem, name, version, revision_key)
+) STRICT, WITHOUT ROWID;
+
 -- Mutable annotations of a version. `deprecated` is its JSON value.
 -- `generation` is the generation that last changed the row.
 CREATE TABLE IF NOT EXISTS annotations (
@@ -132,6 +147,16 @@ pub(super) fn prepare(connection: &Connection) -> rusqlite::Result<()> {
         connection.execute("INSERT INTO schema_version (version) VALUES (?1)", [SCHEMA_VERSION])?;
     }
     Ok(())
+}
+
+/// Open a connection that only reads the database at `path`. The database is
+/// in WAL mode already, so its reads see committed snapshots and never wait
+/// for a writer.
+pub(super) fn open_reader(path: &Path) -> rusqlite::Result<Connection> {
+    let connection = Connection::open(path)?;
+    connection.pragma_update(None, "query_only", "ON")?;
+    connection.busy_timeout(std::time::Duration::from_secs(5))?;
+    Ok(connection)
 }
 
 /// The schema version stored in the database, `None` in a new one.

@@ -6,9 +6,6 @@ mod immutability;
 mod maintainers;
 mod unpublish;
 
-#[cfg(test)]
-mod tests;
-
 use axum::{
     body::Body,
     http::{StatusCode, header},
@@ -138,21 +135,6 @@ fn prepare_packument_rewrite(
     Ok((hosted, removed))
 }
 
-async fn rollback_hosted_packument(
-    storage: &pnpr_storage::Storage,
-    name: &CanonicalPackageName,
-    written_bytes: &[u8],
-    fallback_bytes: &[u8],
-) {
-    if let Ok(Some(current)) = storage.read_hosted_document_for_update(name).await
-        && current.bytes == written_bytes
-    {
-        let _ =
-            storage.write_hosted_document_if_current(name, fallback_bytes, Some(&current.version))
-                .await;
-    }
-}
-
 /// Serialize against other same-package writers so the rewrite cannot
 /// interleave with a concurrent publish or dist-tag merge.
 async fn rewrite_packument(
@@ -179,17 +161,18 @@ async fn rewrite_packument(
         Ok(bytes) => bytes,
         Err(err) => return RegistryError::Json(err).into_response(),
     };
-    match storage.write_hosted_document_if_current(name, &bytes, Some(&hosted_packument.version))
-        .await
+    // The tombstone names the removed versions before the rewrite removes
+    // them: the metadata store may refuse a removed version for good, so a
+    // rewrite could not be undone if recording them failed after it.
+    if let Err(err) =
+        record_removed_versions_in_tombstone(storage, identity, name, &hosted, &removed).await
+    {
+        return err.into_response();
+    }
+    let version = Some(&hosted_packument.version);
+    match storage.write_hosted_document_if_current(name, &bytes, version, identity.username()).await
     {
         Ok(DocumentWrite::Written) => {
-            if let Err(err) =
-                record_removed_versions_in_tombstone(storage, identity, name, &hosted, &removed)
-                    .await
-            {
-                rollback_hosted_packument(storage, name, &bytes, &hosted_packument.bytes).await;
-                return err.into_response();
-            }
             remove_unpublished_blobs(storage, name, &removed).await;
             log_packument_update(identity, name, source);
             ok_created()
