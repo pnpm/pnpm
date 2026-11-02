@@ -15,6 +15,7 @@ mod attachments;
 mod manifest;
 mod notes;
 mod tombstones;
+mod verification;
 
 use std::collections::{BTreeSet, HashSet};
 

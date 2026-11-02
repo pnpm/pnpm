@@ -37,6 +37,9 @@ pub(in super::super) struct PublishReceipt {
     pub(in super::super) generation: Option<Generation>,
     /// The publication the commit recorded.
     pub(in super::super) publication: Option<u64>,
+    /// What the publisher should hear about a version accepted with a
+    /// difference, sent back as `npm-notice` response headers.
+    pub(in super::super) notices: Vec<String>,
 }
 
 /// The idempotency claim of a publish request: who sent it, the request it
@@ -107,6 +110,7 @@ pub(in super::super) async fn replayed_outcome(
     let receipt = PublishReceipt {
         generation: Some(Generation { catalog: outcome.catalog, value: outcome.generation }),
         publication: outcome.publication,
+        notices: Vec::new(),
     };
     Ok(Some(publish_committed_response(&receipt)))
 }
@@ -119,9 +123,13 @@ pub(in super::super) async fn commit_publication(
     notes: PublishNotes,
     request: Option<PublicationRequest>,
 ) -> Result<PublishReceipt, RegistryError> {
+    let notices = staged
+        .iter_mut()
+        .flat_map(|stage| std::mem::take(&mut stage.notices))
+        .collect();
     let Some(database) = state.inner.storage.sqlite_metadata().cloned() else {
         report_unrecorded(super::commit_through_journal(state, staged).await?)?;
-        return Ok(PublishReceipt::default());
+        return Ok(PublishReceipt { notices, ..PublishReceipt::default() });
     };
     let orgs = staged
         .iter()
@@ -155,7 +163,11 @@ pub(in super::super) async fn commit_publication(
                 return Err(err);
             }
         };
-    Ok(PublishReceipt { generation: Some(commit.generation), publication: commit.publication })
+    Ok(PublishReceipt {
+        generation: Some(commit.generation),
+        publication: commit.publication,
+        notices,
+    })
 }
 
 /// The one organization every package of a publish belongs to. A
@@ -396,7 +408,8 @@ fn write_sequence<Item>(
 }
 
 /// `201 Created` for a committed publish, naming the generation that holds
-/// it and the publication it recorded.
+/// it and the publication it recorded, with each notice in an `npm-notice`
+/// header, which npm prints to the publisher.
 pub(in super::super) fn publish_committed_response(receipt: &PublishReceipt) -> Response {
     let mut body = json!({ "ok": true, "success": true });
     if let Some(publication) = receipt.publication {
@@ -407,6 +420,11 @@ pub(in super::super) fn publish_committed_response(receipt: &PublishReceipt) -> 
         .header(header::CONTENT_TYPE, "application/json");
     if let Some(generation) = &receipt.generation {
         builder = builder.header(crate::server::GENERATION_HEADER, generation.to_string());
+    }
+    for notice in &receipt.notices {
+        if let Ok(value) = header::HeaderValue::from_str(notice) {
+            builder = builder.header("npm-notice", value);
+        }
     }
     builder
         .body(Body::from(body.to_string()))

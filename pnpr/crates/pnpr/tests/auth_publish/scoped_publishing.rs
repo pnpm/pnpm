@@ -1,6 +1,6 @@
 use super::{
     BASE64, Body, Request, ServiceExt, StatusCode, TempDir, Value, add_user_and_get_token,
-    body_bytes, body_json, json, publish_doc, router, sha1_hex, sri_sha512, static_config,
+    body_bytes, body_json, json, npm_tgz, publish_doc, router, sha1_hex, sri_sha512, static_config,
     static_config_with_packages,
 };
 use base64::Engine;
@@ -20,7 +20,7 @@ async fn publish_accepts_libnpmpublish_scoped_attachment_filename() {
     let app = router(static_config(storage.clone()));
     let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
 
-    let bytes = b"libnpmpublish-form";
+    let bytes = &npm_tgz("@pnpmtest/lib-pub-form", "1.0.0", b"libnpmpublish-form");
     let pkg = "@pnpmtest/lib-pub-form";
     let version = "1.0.0";
     // _attachments key is the FULL scoped name + version, NOT the basename.
@@ -70,7 +70,7 @@ async fn publish_accepts_libnpmpublish_scoped_attachment_filename() {
         "lib-pub-form-1.0.0.tgz",
     );
     assert!(on_disk.exists(), "tarball should be persisted at canonical path");
-    assert_eq!(std::fs::read(&on_disk).unwrap(), bytes);
+    assert_eq!(std::fs::read(&on_disk).unwrap(), *bytes);
 
     // And it serves back via the spec URL form.
     let served = app
@@ -83,7 +83,7 @@ async fn publish_accepts_libnpmpublish_scoped_attachment_filename() {
         .unwrap();
     assert_eq!(served.status(), StatusCode::OK);
     let served_bytes = body_bytes(served.into_body()).await;
-    assert_eq!(served_bytes, bytes);
+    assert_eq!(served_bytes, *bytes);
 }
 
 #[tokio::test]
@@ -155,7 +155,7 @@ async fn unpublish_partial_writes_modified_packument() {
     // corrupt a published version's integrity.
     assert_eq!(
         served["versions"]["2.0.0"]["dist"]["integrity"],
-        json!(sri_sha512(b"2.0.0")),
+        json!(sri_sha512(&npm_tgz("unpub-partial", "2.0.0", b"2.0.0"))),
         "the original published integrity must be restored, unchanged",
     );
 

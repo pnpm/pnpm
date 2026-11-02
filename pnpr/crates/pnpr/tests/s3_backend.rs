@@ -10,7 +10,7 @@ use axum::{
     http::{Request, StatusCode},
 };
 use futures_util::StreamExt;
-use npm::{publish_doc, sri_sha512};
+use npm::{npm_tgz, publish_doc, sri_sha512};
 use object_store::{ObjectStore, ObjectStoreExt, memory::InMemory, path::Path as ObjectPath};
 use pnpr::{Config, HostedStoreConfig, MaxUsers, router};
 use pnpr_fixtures::MockConfigPresets;
@@ -43,7 +43,7 @@ async fn publishes_to_and_serves_from_the_object_store() {
     let app = router(s3_config(storage.clone(), Arc::clone(&store)));
     let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
 
-    let bytes = b"fake-tarball-bytes";
+    let bytes = &npm_tgz("mypkg", "1.0.0", b"fake-tarball-bytes");
     let body = publish_doc("mypkg", "1.0.0", bytes);
     let request = Request::put("/npm/mypkg")
         .header("content-type", "application/json")
@@ -92,7 +92,7 @@ async fn publishes_to_and_serves_from_the_object_store() {
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
-    assert_eq!(body_bytes(response.into_body()).await, bytes);
+    assert_eq!(body_bytes(response.into_body()).await, *bytes);
 }
 
 /// Another writer in the bucket can own the tarball key a publish is about to
