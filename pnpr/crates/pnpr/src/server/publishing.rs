@@ -241,6 +241,7 @@ pub(super) async fn commit_publishes(
             document: &stage.document,
             base_version: stage.base_version.as_ref(),
             slots: &stage.slots,
+            principal: stage.publisher.as_deref(),
         })
         .collect();
     state.inner.storage

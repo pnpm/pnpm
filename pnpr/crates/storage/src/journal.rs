@@ -87,6 +87,8 @@ pub struct JournaledPublish<'publish> {
     /// commit writes `document` as it is; otherwise it merges.
     pub base_version: Option<&'publish HostedDocumentVersion>,
     pub slots: &'publish [BlobSlot],
+    /// Who published it, recorded with every dist-tag the document moves.
+    pub principal: Option<&'publish str>,
 }
 
 /// One hosted document to bring up to date as a transaction is applied.
@@ -396,6 +398,7 @@ impl SealedTxn {
                 &target.name,
                 &journaled,
                 base_version.as_ref(),
+                package.principal.as_deref(),
             )
             .await?;
             if matches!(write, DocumentWrite::Written) {
@@ -407,6 +410,7 @@ impl SealedTxn {
         let update = target.store.update_hosted_document_with_retry(
             &target.name,
             COMMIT_DOCUMENT_WRITE_RETRIES,
+            package.principal.as_deref(),
             |existing| {
                 documents.merge(DocumentMerge {
                     ecosystem: package.ecosystem,
@@ -482,11 +486,7 @@ pub async fn recover_publish_journal(
     config: &Config,
     documents: &dyn HostedDocuments,
 ) -> Result<()> {
-    let storage = Storage::new(
-        &config.storage.hosted_backend,
-        config.storage.hosted_dir.clone(),
-        config.storage.cache_dir.clone(),
-    )?;
+    let storage = Storage::from_config(&config.storage)?;
     storage.publish_journal().recover(&storage, documents).await
 }
 

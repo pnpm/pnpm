@@ -19,6 +19,7 @@ pub(super) async fn write_transaction(dir: &Path, packages: &[JournaledPublish<'
             name: package.name.as_str().to_string(),
             ecosystem: package.ecosystem,
             org: package.org.map(str::to_string),
+            principal: package.principal.map(str::to_string),
             document_file,
             blobs: package.slots
                 .iter()

@@ -26,11 +26,7 @@ pub(super) fn load_active_osv_index(
 /// that builds a router directly should call it itself on startup, before
 /// serving requests.
 pub async fn recover_publish_journal(config: &Config) -> pnpr_error::Result<()> {
-    let storage = Storage::new(
-        &config.storage.hosted_backend,
-        config.storage.hosted_dir.clone(),
-        config.storage.cache_dir.clone(),
-    )?;
+    let storage = Storage::from_config(&config.storage)?;
     storage.ensure_hosted_layout().await?;
     storage.reset_cache_from_other_layout().await?;
     pnpr_storage::journal::recover_publish_journal(config, &RegistryDocuments).await
@@ -43,11 +39,7 @@ async fn sweep_abandoned_uploads(config: &Config) -> pnpr_error::Result<()> {
     if !config.routing.registries.has_ecosystem(Ecosystem::Oci) {
         return Ok(());
     }
-    let storage = Storage::new(
-        &config.storage.hosted_backend,
-        config.storage.hosted_dir.clone(),
-        config.storage.cache_dir.clone(),
-    )?;
+    let storage = Storage::from_config(&config.storage)?;
     // Shared sessions live in their hosted namespace. Local scratch can be
     // shared by those namespaces and is safe to sweep more than once.
     let mut namespaces: Vec<&str> = config.routing.hosted

@@ -300,7 +300,7 @@ async fn referrers_backfill_preexisting_manifests_on_both_backends() {
         .unwrap();
         strip_referrer_metadata(&mut document, 1);
         storage
-            .update_hosted_document_with_retry(&key, 1, |_| {
+            .update_hosted_document_with_retry(&key, 1, None, |_| {
                 Ok(Some(serde_json::to_vec(&document).unwrap()))
             })
             .await
@@ -392,7 +392,7 @@ async fn referrer_migration_does_not_block_writers_or_restore_deleted_manifests(
     .unwrap();
     strip_referrer_metadata(&mut document, 1);
     storage
-        .update_hosted_document_with_retry(&key, 1, |_| {
+        .update_hosted_document_with_retry(&key, 1, None, |_| {
             Ok(Some(serde_json::to_vec(&document).unwrap()))
         })
         .await

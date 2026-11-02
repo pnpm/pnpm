@@ -106,6 +106,7 @@ impl Request {
         let outcome = repo.storage.update_hosted_document_with_retry(
             &repo.key,
             DOCUMENT_WRITE_RETRIES,
+            None,
             |existing| remove_manifest_or_tag(existing, &repo.key, reference),
         )
         .await;

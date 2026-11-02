@@ -236,6 +236,9 @@ pub(super) struct ConfigFile {
     /// S3-compatible object store instead of `storage`.
     #[serde(default)]
     pub(super) s3: Option<S3Settings>,
+    /// pnpr-only block: where the hosted packages' metadata lives.
+    #[serde(default)]
+    pub(super) metadata: Option<crate::storage_config::MetadataFile>,
     /// pnpr-only block: back the auth record stores (users + tokens)
     /// with a shared SQL database.
     #[serde(default)]

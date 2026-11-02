@@ -22,6 +22,11 @@ pub(super) struct ManifestPackage {
     /// back-compat with journals written before org registries existed.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(super) org: Option<String>,
+    /// Who published the package, recorded with every dist-tag its document
+    /// moves when the transaction is applied, at request time or by startup
+    /// recovery.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(super) principal: Option<String>,
     /// File inside the transaction directory holding the computed
     /// document bytes.
     pub(super) document_file: String,

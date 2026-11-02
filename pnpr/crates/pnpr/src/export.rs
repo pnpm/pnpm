@@ -51,12 +51,8 @@ pub async fn export_storage(
 
 /// The configured hosted store, once its layout is one this pnpr reads.
 pub(crate) async fn open_hosted_storage(config: &Config) -> miette::Result<Storage> {
-    let storage = Storage::new(
-        &config.storage.hosted_backend,
-        config.storage.hosted_dir.clone(),
-        config.storage.cache_dir.clone(),
-    )
-    .map_err(|err| miette::miette!("failed to initialize storage: {err}"))?;
+    let storage = Storage::from_config(&config.storage)
+        .map_err(|err| miette::miette!("failed to initialize storage: {err}"))?;
     storage
         .check_hosted_layout()
         .await

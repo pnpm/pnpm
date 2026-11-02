@@ -170,6 +170,8 @@ pub(in super::super) struct StagedPublish {
     /// flat (path-less) hosted store. Threaded into the commit and journal so
     /// the write — and any crash recovery — lands in the right org.
     pub(in super::super) org: Option<String>,
+    /// Who published it, recorded with every dist-tag the document moves.
+    pub(in super::super) publisher: Option<String>,
 }
 
 /// Merge the incoming packument with the on-disk / upstream state
@@ -191,6 +193,7 @@ pub(in super::super) async fn stage_publish(
     )?;
 
     check_staged_tombstone(state, &storage, &doc, hosted.is_some()).await?;
+    let publisher = doc.publisher.username().map(str::to_string);
     let ValidatedPublish {
         name,
         mut incoming,
@@ -223,6 +226,7 @@ pub(in super::super) async fn stage_publish(
         base_version,
         slots: written.slots,
         org: org.map(str::to_string),
+        publisher,
     })
 }
 

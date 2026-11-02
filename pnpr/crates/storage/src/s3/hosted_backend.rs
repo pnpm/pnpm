@@ -67,6 +67,9 @@ impl HostedBackend for S3Store {
         let version = match version {
             Some(HostedDocumentVersion::ObjectVersion(version)) => Some(version),
             Some(HostedDocumentVersion::Unversioned) | None => None,
+            // The object store never hands one out, so the document it names
+            // is not the one stored here.
+            Some(HostedDocumentVersion::Generation(_)) => return Ok(DocumentWrite::Conflict),
         };
         if S3Store::write_document_if_current(self, name, bytes, version).await? {
             Ok(DocumentWrite::Written)

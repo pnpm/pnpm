@@ -55,7 +55,7 @@ async fn referrer_pages_bound_migration_and_keep_filter_and_registry() {
         .unwrap();
         strip_referrer_metadata(&mut document, 35);
         storage
-            .update_hosted_document_with_retry(&key, 1, |_| {
+            .update_hosted_document_with_retry(&key, 1, None, |_| {
                 Ok(Some(serde_json::to_vec(&document).unwrap()))
             })
             .await

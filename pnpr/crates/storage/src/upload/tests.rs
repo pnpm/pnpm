@@ -114,7 +114,7 @@ async fn a_multi_component_repository_name_is_listed() {
 
     for name in ["acme/app", "acme/team/tool", "alpine"] {
         storage
-            .write_hosted_document_if_current(&image(name), b"{}", None)
+            .write_hosted_document_if_current(&image(name), b"{}", None, None)
             .await
             .unwrap();
     }
@@ -130,7 +130,7 @@ async fn an_in_progress_upload_is_not_a_repository() {
     let storage = storage_in(&tmp);
 
     storage
-        .write_hosted_document_if_current(&image("acme/app"), b"{}", None)
+        .write_hosted_document_if_current(&image("acme/app"), b"{}", None, None)
         .await
         .unwrap();
     storage
@@ -148,7 +148,7 @@ async fn a_package_nested_under_another_is_listed() {
 
     for name in ["acme/app", "acme/app/tool"] {
         storage
-            .write_hosted_document_if_current(&image(name), b"{}", None)
+            .write_hosted_document_if_current(&image(name), b"{}", None, None)
             .await
             .unwrap();
     }
@@ -161,7 +161,7 @@ async fn files_inside_a_package_directory_are_not_mistaken_for_packages() {
     let tmp = TempDir::new().unwrap();
     let storage = storage_in(&tmp);
     let name = image("alpine");
-    storage.write_hosted_document_if_current(&name, b"{}", None).await.unwrap();
+    storage.write_hosted_document_if_current(&name, b"{}", None, None).await.unwrap();
     let slot = storage.reserve_hosted_blob(&name, "sha256-abc").await.unwrap();
     tokio::fs::write(&slot.tmp_path, b"layer").await.unwrap();
     storage.finalize_blob_slot(slot).await.unwrap();
@@ -232,7 +232,7 @@ async fn a_blob_finalized_before_any_document_does_not_break_the_listing() {
     storage.finalize_blob_slot(slot).await.unwrap();
 
     storage
-        .write_hosted_document_if_current(&image("acme/complete"), b"{}", None)
+        .write_hosted_document_if_current(&image("acme/complete"), b"{}", None, None)
         .await
         .unwrap();
 
@@ -254,7 +254,7 @@ async fn an_unmanifested_package_does_not_have_its_blobs_walked() {
         storage.finalize_blob_slot(slot).await.unwrap();
     }
     storage
-        .write_hosted_document_if_current(&image("acme/complete"), b"{}", None)
+        .write_hosted_document_if_current(&image("acme/complete"), b"{}", None, None)
         .await
         .unwrap();
 
@@ -405,10 +405,14 @@ fn replicas() -> (Storage, Storage, TempDir, TempDir) {
                 "images/".into(),
                 temp.path().join("scratch"),
             ));
+        let namespace = crate::namespace(&hosted, "", Ecosystem::Oci);
+        let metadata_source = crate::metadata::MetadataSource::Documents;
         Storage {
             tar_integrities: hosted.namespaced(crate::tar_integrities::NAMESPACE),
             tar_integrity_cache: std::sync::Arc::default(),
-            hosted: crate::namespace(&hosted, "", Ecosystem::Oci),
+            metadata: metadata_source.view(&namespace, "", Ecosystem::Oci),
+            metadata_source,
+            hosted: namespace,
             root: hosted,
             cached: crate::Store::new(temp.path().join("cache")),
         }

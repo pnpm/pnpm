@@ -115,7 +115,7 @@ pnpr migrate-storage --to-bucket my-bucket --verify
 
 | Flag | Description |
 | --- | --- |
-| `--from <dir>` | Source hosted storage directory. Defaults to the configured [`storage`](configuration.md#storage-and-cache) directory (`--storage`). |
+| `--from <dir>` | Source hosted storage directory. Defaults to the configured [`storage`](configuration.md#storage-and-cache) directory (`--storage`). Another directory's package metadata is read from its own SQLite database at `<dir>/.metadata/metadata.sqlite` when it has one, and from its package documents otherwise. |
 | `--to-bucket <name>` | Destination S3 bucket name. |
 | `--to-region <region>` | Destination S3 AWS region (e.g. `us-east-1`). |
 | `--to-endpoint <url>` | Custom S3 endpoint URL (for MinIO, Cloudflare R2, etc.). |

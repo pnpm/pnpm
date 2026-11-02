@@ -50,7 +50,7 @@ async fn retained_image(storage: &Storage, repository: &CanonicalPackageName) ->
         media_type: media_type::OCI_IMAGE_MANIFEST.into(),
     });
     storage
-        .write_hosted_document_if_current(repository, &document.to_bytes(), None)
+        .write_hosted_document_if_current(repository, &document.to_bytes(), None, None)
         .await
         .unwrap();
     (manifest, layer)
@@ -151,7 +151,7 @@ async fn index_keeps_children_removed_from_the_document_and_their_layers() {
         media_type: media_type::OCI_IMAGE_INDEX.into(),
     });
     storage
-        .write_hosted_document_if_current(&repository, &document.to_bytes(), None)
+        .write_hosted_document_if_current(&repository, &document.to_bytes(), None, None)
         .await
         .unwrap();
     assert_eq!(
@@ -189,7 +189,7 @@ async fn collection_uses_the_stored_media_type_for_header_only_manifests() {
         media_type: media_type::OCI_IMAGE_MANIFEST.into(),
     });
     storage
-        .write_hosted_document_if_current(&repository, &document.to_bytes(), None)
+        .write_hosted_document_if_current(&repository, &document.to_bytes(), None, None)
         .await
         .unwrap();
     assert_eq!(
@@ -210,7 +210,7 @@ async fn a_document_without_any_blob_files_still_blocks_collection_when_corrupt(
         media_type: media_type::OCI_IMAGE_MANIFEST.into(),
     });
     storage
-        .write_hosted_document_if_current(&repository, &document.to_bytes(), None)
+        .write_hosted_document_if_current(&repository, &document.to_bytes(), None, None)
         .await
         .unwrap();
     let orphan = blob(&storage, &name("aaa"), b"orphan").await;
@@ -270,7 +270,7 @@ async fn offline_collection_finishes_interrupted_explicit_deletion() {
     document.generation = 1;
     document.deleting_blob = Some(digest.clone());
     storage
-        .write_hosted_document_if_current(&repository, &document.to_bytes(), None)
+        .write_hosted_document_if_current(&repository, &document.to_bytes(), None, None)
         .await
         .unwrap();
     assert_eq!(
