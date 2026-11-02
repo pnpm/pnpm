@@ -1,4 +1,4 @@
-use super::with_selected_variant_snapshots;
+use super::{has_variant_snapshots, with_selected_variant_snapshots};
 use pnpm_lockfile::{Lockfile, PlatformSelector};
 use pretty_assertions::assert_eq;
 
@@ -66,4 +66,25 @@ fn the_selected_variant_snapshot_replaces_the_versions() {
     assert_eq!(dependency_names(&linux), ["libvips", "semver"]);
     let darwin = with_selected_variant_snapshots(&lockfile, &host("darwin")).unwrap();
     assert_eq!(dependency_names(&darwin), ["semver"]);
+}
+
+#[test]
+fn a_file_dependency_in_a_directory_named_variants_is_no_variant_snapshot() {
+    let lockfile = "lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      local:
+        specifier: file:../variants/local
+        version: file:../variants/local
+packages:
+  local@file:../variants/local:
+    resolution: {directory: ../variants/local, type: directory}
+snapshots:
+  local@file:../variants/local: {}
+";
+    let lockfile =
+        Lockfile::parse(lockfile, std::path::Path::new("pnpm-lock.yaml")).unwrap().unwrap();
+    assert!(!has_variant_snapshots(&lockfile));
+    assert!(with_selected_variant_snapshots(&lockfile, &host("linux")).is_none());
 }

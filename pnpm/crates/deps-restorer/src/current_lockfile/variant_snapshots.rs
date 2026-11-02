@@ -76,18 +76,26 @@ pub fn has_variant_snapshots(lockfile: &Lockfile) -> bool {
 }
 
 fn is_variant_key(key: &PackageKey) -> bool {
-    key.to_string().contains(VARIANT_SEGMENT)
+    split_variant_key(key).is_some()
 }
 
 /// `<name>@<version>/variants/<tag>(<peers>)` as the version's own key,
-/// `<name>@<version>(<peers>)`, and the tag.
+/// `<name>@<version>(<peers>)`, and the tag. Only a registry version has
+/// variants, so the part before `/variants/` must end in a semver version: a
+/// `file:` path or a URL that happens to hold `/variants/` is no variant key.
 fn split_variant_key(key: &PackageKey) -> Option<(PackageKey, String)> {
     let key = key.to_string();
     let start = key.find(VARIANT_SEGMENT)?;
+    let (_, version) = key[1..start].rsplit_once('@')?;
+    node_semver::Version::parse(version).ok()?;
     let rest = &key[start + VARIANT_SEGMENT.len()..];
     let end = rest.find('(').unwrap_or(rest.len());
+    let tag = &rest[..end];
+    if tag.is_empty() || tag.contains('/') {
+        return None;
+    }
     let base = format!("{}{}", &key[..start], &rest[end..]);
-    Some((base.parse().ok()?, rest[..end].to_string()))
+    Some((base.parse().ok()?, tag.to_string()))
 }
 
 #[cfg(test)]
