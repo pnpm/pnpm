@@ -9,26 +9,10 @@ use pnpr_error::{RegistryError, Result};
 use rusqlite::{OptionalExtension, params};
 use serde_json::Value;
 
-/// Insert the rows of a version the store has not accepted yet. A version
-/// removed from the package before is refused: its identity named other bytes
-/// once, and a cached fragment may still hold them.
+/// Insert the rows of a version the store has not accepted yet.
 pub(super) fn insert_version(commit: &Commit<'_>, version: &str, rows: &VersionRows) -> Result<()> {
+    refuse_removed(commit, version)?;
     let (catalog, ecosystem, name) = commit.key.params();
-    let removed = commit.transaction
-        .query_row(
-            "SELECT 1 FROM removed_versions
-             WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4
-               AND revision_key = ?5",
-            params![catalog, ecosystem, name, version, ORDINARY],
-            |_| Ok(()),
-        )
-        .optional()?;
-    if removed.is_some() {
-        return Err(RegistryError::CannotRepublishUnpublishedVersion {
-            package: name.to_string(),
-            version: version.to_string(),
-        });
-    }
     commit.transaction.execute(
         "INSERT INTO versions (catalog, ecosystem, name, version, revision_key, integrity,
                                published_at)
@@ -54,6 +38,28 @@ pub(super) fn insert_version(commit: &Commit<'_>, version: &str, rows: &VersionR
     )?;
     insert_readme(commit, version, &rows.readme)?;
     write_deprecation(commit, version, rows.deprecated.as_ref())
+}
+
+/// Refuse a version removed from the package before: its identity named
+/// other bytes once, and a cached fragment may still hold them.
+fn refuse_removed(commit: &Commit<'_>, version: &str) -> Result<()> {
+    let (catalog, ecosystem, name) = commit.key.params();
+    let removed = commit.transaction
+        .query_row(
+            "SELECT 1 FROM removed_versions
+             WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4
+               AND revision_key = ?5",
+            params![catalog, ecosystem, name, version, ORDINARY],
+            |_| Ok(()),
+        )
+        .optional()?;
+    match removed {
+        Some(()) => Err(RegistryError::CannotRepublishUnpublishedVersion {
+            package: name.to_string(),
+            version: version.to_string(),
+        }),
+        None => Ok(()),
+    }
 }
 
 fn insert_readme(commit: &Commit<'_>, version: &str, readme: &Readme) -> Result<()> {

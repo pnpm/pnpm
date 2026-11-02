@@ -353,7 +353,7 @@ async fn a_removed_version_is_never_accepted_again() {
         storage
             .remove_package(&npm("pkg"))
             .await
-            .unwrap()
+            .unwrap(),
     );
     for version in ["1.0.0", "2.0.0"] {
         let refused = try_write(&storage, "pkg", &packument("pkg", &[version])).await;
@@ -369,7 +369,7 @@ async fn a_removed_version_is_never_accepted_again() {
             .read_hosted_document(&npm("pkg"))
             .await
             .unwrap()
-            .is_none()
+            .is_none(),
     );
     drop(storage);
     let restarted = self::storage(&tmp);
