@@ -120,7 +120,7 @@ fn a_version_left_out_of_a_split_document_is_read_from_its_release_record() {
     // could still gain facts about it, and pnpm does not keep it.
     assert!(
         !cache_dir.join("v12/metadata-pnpr-records").exists(),
-        "the release record is not kept"
+        "the release record is not kept",
     );
     assert!(cache_dir.join("v12/metadata-pnpr").exists());
     drop((root, npmrc_info));
