@@ -21,7 +21,7 @@ async fn add_cached_checksum(store: &StoreDir, files: &mut pnpm_fs::CasPaths, ch
 async fn repairs_a_corrupted_cached_checksum() {
     let temp = tempfile::tempdir().unwrap();
     let store = StoreDir::from(temp.path().join("store"));
-    let (source, _) = store.write_cas_file(b"pub fn demo() {}", false).unwrap();
+    let source = store.write_cas_file(b"pub fn demo() {}", false).unwrap().file;
     let mut files = HashMap::from([("src/lib.rs".to_string(), source)]);
     let checksum = "a".repeat(64);
     add_cached_checksum(&store, &mut files, &checksum).await;
@@ -39,12 +39,12 @@ async fn repairs_a_corrupted_cached_checksum() {
 async fn invalidates_checksums_when_verified_files_change() {
     let temp = tempfile::tempdir().unwrap();
     let store = StoreDir::from(temp.path().join("store"));
-    let (source, _) = store.write_cas_file(b"first", false).unwrap();
+    let source = store.write_cas_file(b"first", false).unwrap().file;
     let mut files = HashMap::from([("src/lib.rs".to_string(), source)]);
     let checksum = "a".repeat(64);
     add_cached_checksum(&store, &mut files, &checksum).await;
     let first = files[CARGO_CHECKSUM_FILE].clone();
-    let (source, _) = store.write_cas_file(b"second", false).unwrap();
+    let source = store.write_cas_file(b"second", false).unwrap().file;
     files.insert("src/lib.rs".to_string(), source);
 
     add_cached_checksum(&store, &mut files, &checksum).await;
@@ -59,7 +59,7 @@ async fn invalidates_checksums_when_verified_files_change() {
 async fn invalidates_checksums_when_the_archive_changes() {
     let temp = tempfile::tempdir().unwrap();
     let store = StoreDir::from(temp.path().join("store"));
-    let (source, _) = store.write_cas_file(b"unchanged", false).unwrap();
+    let source = store.write_cas_file(b"unchanged", false).unwrap().file;
     let mut files = HashMap::from([("src/lib.rs".to_string(), source)]);
     add_cached_checksum(&store, &mut files, &"a".repeat(64)).await;
     let first = files[CARGO_CHECKSUM_FILE].clone();
@@ -76,7 +76,7 @@ async fn invalidates_checksums_when_the_archive_changes() {
 async fn reuses_a_persisted_checksum() {
     let temp = tempfile::tempdir().unwrap();
     let store = StoreDir::from(temp.path().join("store"));
-    let (source, _) = store.write_cas_file(b"pub fn demo() {}", false).unwrap();
+    let source = store.write_cas_file(b"pub fn demo() {}", false).unwrap().file;
     let mut files = HashMap::from([("src/lib.rs".to_string(), source)]);
     let checksum = "a".repeat(64);
     let key = checksum_cache_key(&files, &checksum);
@@ -104,7 +104,7 @@ async fn reuses_a_persisted_checksum() {
 async fn invalidates_checksums_when_files_are_renamed() {
     let temp = tempfile::tempdir().unwrap();
     let store = StoreDir::from(temp.path().join("store"));
-    let (source, _) = store.write_cas_file(b"unchanged", false).unwrap();
+    let source = store.write_cas_file(b"unchanged", false).unwrap().file;
     let mut files = HashMap::from([("src/lib.rs".to_string(), source)]);
     let checksum = "a".repeat(64);
     add_cached_checksum(&store, &mut files, &checksum).await;

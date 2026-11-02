@@ -15,9 +15,9 @@ pub use extract::{
 pub(crate) use extract::{
     STREAM_ENTRY_BUFFER_MAX, STREAM_EXTRACT_COMPRESSED_THRESHOLD,
     STREAM_EXTRACT_DURING_DOWNLOAD_THRESHOLD, allocate_tarball_buffer, apply_append_manifest,
-    apply_placeholder_manifest, body_chunk_channel, clean_archive_entry_path, decompress_gzip,
-    extract_archive_bytes, extract_resource_stream, is_eager_decode_limit_exceeded,
-    oversized_manifest_error, tar_entry_payload,
+    apply_placeholder_manifest, body_chunk_channel, checked_now, clean_archive_entry_path,
+    decompress_gzip, extract_archive_bytes, extract_resource_stream,
+    is_eager_decode_limit_exceeded, oversized_manifest_error, tar_entry_payload,
 };
 pub use fetch_for_resolution::{
     FetchTarballForResolution, NotModifiedResponse, ResolutionStore, ResolvedTarball,

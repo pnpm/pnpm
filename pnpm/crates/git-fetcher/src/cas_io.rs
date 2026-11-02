@@ -115,25 +115,15 @@ pub(crate) fn import_into_cas(
         // round-trips through pacquet's read side at
         // `cas_file_path_by_mode` exactly like a tarball entry would.
         let bytes = fs::read(&source).map_err(GitFetcherError::Io)?;
-        let size = bytes.len() as u64;
-        let executable = is_executable(mode);
-        let (cas_path, hash) =
-            store_dir.write_cas_file(&bytes, executable).map_err(map_write_cas)?;
-        cas_paths.insert(rel.clone(), cas_path);
-        files_index.insert(
-            rel.clone(),
-            CafsFileInfo {
-                digest: format!("{hash:x}"),
-                mode,
-                size,
-                // `None` matches `add_files_from_dir`: the first
-                // integrity-check pass populates this. Staying
-                // consistent with the existing CAFS write path means
-                // the warm prefetch's verify logic exercises the
-                // same code path it does for tarball entries.
-                checked_at: None,
-            },
-        );
+        let written = store_dir
+            .write_cas_file(&bytes, is_executable(mode))
+            .map_err(map_write_cas)?;
+        // `checked_at: None` matches `add_files_from_dir`: the first
+        // integrity-check pass populates it, so the warm prefetch's
+        // verify logic exercises the same code path it does for
+        // tarball entries.
+        files_index.insert(rel.clone(), written.index_entry(mode, None));
+        cas_paths.insert(rel.clone(), written.file);
     }
     Ok(ImportedFiles { cas_paths, files_index })
 }

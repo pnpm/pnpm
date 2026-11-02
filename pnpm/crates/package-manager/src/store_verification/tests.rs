@@ -36,7 +36,7 @@ fn store_with_rows(present: usize) -> (TempDir, &'static StoreDir, Vec<String>, 
     let present_keys = (0..present)
         .map(|n| {
             let content = format!("hello-{n}");
-            let (_, hash) = store_dir.write_cas_file(content.as_bytes(), false).unwrap();
+            let hash = store_dir.write_cas_file(content.as_bytes(), false).unwrap().hash;
             let key = store_index_key(&format!("sha512-{n:04}"), &format!("present-{n}@1.0.0"));
             index
                 .set(&key, &row(format!("{hash:x}"), content.len() as u64))
