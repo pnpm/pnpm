@@ -2,7 +2,7 @@
 
 use super::{
     PackageKey,
-    adapter::{Connection, params},
+    adapter::Connection,
     batch::Batch,
     commit::{Commit, PackageRow, package_row},
     packument::TIME,

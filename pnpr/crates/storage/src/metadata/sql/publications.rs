@@ -6,7 +6,7 @@
 
 use super::{
     PackageKey,
-    adapter::{Connection, Row, params},
+    adapter::{Connection, Row},
     batch::Batch,
     to_column, to_generation,
 };

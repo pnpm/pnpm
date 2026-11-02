@@ -6,10 +6,7 @@
 //! constraint. `revision_key` is `ordinary` for a version outside the registry
 //! revision protocol.
 
-use super::{
-    adapter::{Connection, params},
-    batch::WriteTransaction,
-};
+use super::{adapter::Connection, batch::WriteTransaction};
 use pnpr_error::Result;
 
 /// The layout this pnpr reads. pnpr is pre-1.0: a change to the layout

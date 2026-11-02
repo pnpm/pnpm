@@ -2,11 +2,7 @@
 //! next generation.
 
 use super::{
-    PackageKey,
-    adapter::{Connection, params},
-    advance_catalog, catalog_generation,
-    commit::Commit,
-    to_column,
+    PackageKey, adapter::Connection, advance_catalog, catalog_generation, commit::Commit, to_column,
 };
 use pnpr_error::Result;
 use std::ops::Deref;

@@ -17,10 +17,13 @@
 //! conflict runs again from the start. A read runs in one read transaction,
 //! one committed snapshot. The render caches are shared by every read.
 
+pub(crate) mod adapter;
+
 pub use cache::RenderStats;
 pub use tags::TagHistoryEntry;
 
-pub(crate) mod adapter;
+#[macro_use]
+mod params;
 mod batch;
 mod cache;
 mod commit;
@@ -39,7 +42,7 @@ use super::{
     PublicationCommit, PublicationRequest, PublishNotes, RecordedOutcome, TagChange, TagUpdate,
 };
 use crate::{DocumentWrite, HostedDocumentForUpdate, HostedDocumentVersion};
-use adapter::{Adapter, Connection, ReadSource, params};
+use adapter::{Adapter, Connection, ReadSource};
 use async_trait::async_trait;
 use pnpr_error::{RegistryError, Result};
 use pnpr_package_name::{CanonicalPackageName, Ecosystem};

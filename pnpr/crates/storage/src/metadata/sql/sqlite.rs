@@ -92,7 +92,7 @@ impl Adapter for SqliteAdapter {
         matches!(
             error,
             RegistryError::Sqlite(rusqlite::Error::SqliteFailure(failure, _))
-                if matches!(failure.code, ErrorCode::DatabaseBusy | ErrorCode::DatabaseLocked)
+                if matches!(failure.code, ErrorCode::DatabaseBusy | ErrorCode::DatabaseLocked),
         )
     }
 }

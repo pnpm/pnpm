@@ -1,7 +1,6 @@
 //! The insert-only rows of an accepted version, and its deprecation.
 
 use super::{
-    adapter::params,
     commit::Commit,
     packument::{ORDINARY, Readme, VersionRows},
     to_column,

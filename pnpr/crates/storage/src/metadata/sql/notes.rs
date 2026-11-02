@@ -6,7 +6,7 @@
 
 use super::{
     Freshness, PackageKey,
-    adapter::{Connection, Row, params},
+    adapter::{Connection, Row},
     batch::{Batch, WriteTransaction},
     commit::package_row,
 };

@@ -136,17 +136,8 @@ impl<Inner: ToParam + ?Sized> ToParam for &Inner {
     }
 }
 
-/// The parameters of a statement, each bound by reference.
-macro_rules! params {
-    ($($param:expr),* $(,)?) => {
-        &[$($crate::metadata::sql::adapter::ToParam::to_param(&$param)),*]
-            as &[$crate::metadata::sql::adapter::Param<'_>]
-    };
-}
-pub(crate) use params;
-
 /// A value a statement returned.
-#[derive(Debug, Clone, Default, PartialEq)]
+#[derive(Debug, Default, Clone, PartialEq)]
 pub(crate) enum Value {
     #[default]
     Null,

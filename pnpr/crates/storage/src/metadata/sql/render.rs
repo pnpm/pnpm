@@ -9,7 +9,7 @@
 
 use super::{
     PackageKey,
-    adapter::{Connection, params},
+    adapter::Connection,
     cache::{FragmentKey, RENDERER_VERSION, RenderCache, Representation, ViewKey},
     commit::{PackageRow, package_row, parse_json, parse_optional_json},
     packument::{

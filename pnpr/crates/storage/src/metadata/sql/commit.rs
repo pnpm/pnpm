@@ -3,7 +3,7 @@
 
 use super::{
     Expected, PackageKey,
-    adapter::{Connection, params},
+    adapter::Connection,
     batch::Batch,
     packument::{Interpretation, ORDINARY, PackumentRows, Readme, VersionRows, decompose},
     tags::{TagMove, record_tag_move},
@@ -267,7 +267,7 @@ fn delete_version(commit: &Commit<'_>, version: &str) -> Result<()> {
         commit.transaction.execute(
             &format!(
                 "DELETE FROM {table}
-                 WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4"
+                 WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4",
             ),
             params![catalog, ecosystem, name, version],
         )?;
