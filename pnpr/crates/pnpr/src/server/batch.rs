@@ -45,7 +45,7 @@ use pnpr_error::RegistryError;
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_pypi::Upload;
 use pnpr_registry::Ecosystem;
-use pnpr_storage::publish::now_iso;
+use pnpr_storage::{metadata::PublicationRequest, publish::now_iso};
 use serde::Deserialize;
 use serde_json::Value;
 use std::collections::HashSet;
@@ -162,13 +162,9 @@ async fn publish_batch(
     let packages = take_packages(&mut incoming)?;
     let validated = validate_batch_entries(state, identity, packages).await?;
     // Every entry is authorized above, so a retry gets the outcome of the
-    // request it repeats only while its caller may still make it. A request
-    // exists only with SQLite metadata, whose publish targets one catalog.
-    if request.is_some() {
-        let catalog = single_catalog(validated.iter().map(ValidatedEntry::org))?;
-        if let Some(replayed) = replayed_outcome(state, &catalog, request.as_ref()).await? {
-            return Ok(replayed);
-        }
+    // request it repeats only while its caller may still make it.
+    if let Some(replayed) = replayed_batch(state, request.as_ref(), &validated).await? {
+        return Ok(replayed);
     }
 
     // Hold every affected package's lock across the whole stage-and-commit,
@@ -183,6 +179,21 @@ async fn publish_batch(
     let staged = stage_entries(state, validated).await?;
     let receipt = commit_publication(state, staged, request).await?;
     Ok(publish_committed_response(&receipt))
+}
+
+/// The recorded outcome of the batch `request` repeats, in the one catalog
+/// its entries target. A request exists only with `SQLite` metadata, whose
+/// publish targets one catalog.
+async fn replayed_batch(
+    state: &AppState,
+    request: Option<&PublicationRequest>,
+    validated: &[ValidatedEntry],
+) -> Result<Option<Response>, RegistryError> {
+    if request.is_none() {
+        return Ok(None);
+    }
+    let catalog = single_catalog(validated.iter().map(ValidatedEntry::org))?;
+    replayed_outcome(state, &catalog, request).await
 }
 
 /// Stage every entry, removing what was staged when one fails.
