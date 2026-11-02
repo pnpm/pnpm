@@ -69,19 +69,18 @@ impl Purl {
     }
 
     /// The PURL of an OCI image a tag points at: the last segment of the
-    /// repository, lowercased, as the name, and the manifest digest as the
-    /// version, with the repository URL and the tag as qualifiers.
-    pub fn oci_tag(
-        repository_url: &str,
-        manifest_digest: &str,
-        tag: &str,
-    ) -> Result<Self, PurlError> {
-        let name = repository_url
+    /// repository, lowercased, as the name, the manifest digest as the
+    /// version, and the tag as the only qualifier, such as
+    /// `pkg:oci/app@sha256:<digest>?tag=1.0` for `acme/app`. It has no
+    /// `repository_url` qualifier: the host depends on how the registry is
+    /// reached, and the record's `repository` field locates the image.
+    pub fn oci_tag(repository: &str, manifest_digest: &str, tag: &str) -> Result<Self, PurlError> {
+        let name = repository
             .trim_end_matches('/')
             .rsplit('/')
             .next()
             .unwrap_or_default();
-        let qualifiers = [("repository_url", repository_url), ("tag", tag)];
+        let qualifiers = [("tag", tag)];
         Purl::build("oci", None, &name.to_lowercase(), &manifest_digest.to_lowercase(), &qualifiers)
     }
 

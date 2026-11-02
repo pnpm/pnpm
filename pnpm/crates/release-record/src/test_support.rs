@@ -157,6 +157,6 @@ pub const NPM_RECORD: &str = r#"{
 }
 "#;
 
-pub const OCI_RECORD: &str = r#"{"schema":"pnpr-release-record/1","repository":"acme/app","tag":"1.0","revision":3,"interpretation":"oci-tag/1","purl":"pkg:oci/app@sha256:0123?repository_url=registry.example%2Foci%2Facme%2Fapp&tag=1.0"}"#;
+pub const OCI_RECORD: &str = r#"{"schema":"pnpr-release-record/1","repository":"acme/app","tag":"1.0","revision":3,"interpretation":"oci-tag/1","purl":"pkg:oci/app@sha256:0123?tag=1.0"}"#;
 
 pub const OCI_TOMBSTONE: &str = r#"{"schema":"pnpr-release-record/1","repository":"acme/app","tag":"1.0","revision":4,"interpretation":"oci-tag/1","purl":null}"#;

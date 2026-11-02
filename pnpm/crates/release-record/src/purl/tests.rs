@@ -46,14 +46,16 @@ fn builds_pypi_purls_for_one_distribution_file() {
 #[test]
 fn builds_oci_purls_for_a_tag_binding() {
     assert_eq!(
-        Purl::oci_tag("ghcr.io/debian", "sha256:244fd47e07d10", "bullseye").unwrap().as_str(),
-        "pkg:oci/debian@sha256:244fd47e07d10?repository_url=ghcr.io%2Fdebian&tag=bullseye",
+        Purl::oci_tag("acme/app", "sha256:244fd47e07d10", "1.0").unwrap().as_str(),
+        "pkg:oci/app@sha256:244fd47e07d10?tag=1.0",
     );
     assert_eq!(
-        Purl::oci_tag("gcr.io/distroless/static", "SHA256:244FD47E07D10", "latest")
-            .unwrap()
-            .as_str(),
-        "pkg:oci/static@sha256:244fd47e07d10?repository_url=gcr.io%2Fdistroless%2Fstatic&tag=latest",
+        Purl::oci_tag("distroless/Static", "SHA256:244FD47E07D10", "latest").unwrap().as_str(),
+        "pkg:oci/static@sha256:244fd47e07d10?tag=latest",
+    );
+    assert_eq!(
+        Purl::oci_tag("debian", "sha256:244fd47e07d10", "bullseye").unwrap().as_str(),
+        "pkg:oci/debian@sha256:244fd47e07d10?tag=bullseye",
     );
 }
 
