@@ -11,7 +11,7 @@ use std::path::Path;
 
 /// The layout this pnpr reads. pnpr is pre-1.0: a change to the layout
 /// replaces it in place rather than migrating.
-pub(super) const SCHEMA_VERSION: i64 = 1;
+pub(super) const SCHEMA_VERSION: i64 = 2;
 
 const TABLES: &str = "
 CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL) STRICT;
@@ -53,7 +53,11 @@ CREATE TABLE IF NOT EXISTS versions (
 ) STRICT, WITHOUT ROWID;
 
 -- Insert-only: the manifest accepted for a version under an interpretation
--- profile, and the digest of its input.
+-- profile. `inputs` is a JSON object of the digests of the raw inputs the
+-- profile derived it from, such as the archive's package.json; it is empty
+-- for the `submitted` profile, whose input is the manifest itself.
+-- `accepted_digest` covers the manifest, README, profile, and inputs, which a
+-- restatement of the version must match.
 CREATE TABLE IF NOT EXISTS accepted_manifests (
     catalog TEXT NOT NULL,
     ecosystem TEXT NOT NULL,
@@ -62,7 +66,8 @@ CREATE TABLE IF NOT EXISTS accepted_manifests (
     revision_key TEXT NOT NULL,
     profile TEXT NOT NULL,
     manifest TEXT NOT NULL,
-    input_digest TEXT NOT NULL,
+    inputs TEXT NOT NULL,
+    accepted_digest TEXT NOT NULL,
     PRIMARY KEY (catalog, ecosystem, name, version, revision_key, profile),
     FOREIGN KEY (catalog, ecosystem, name, version, revision_key)
         REFERENCES versions (catalog, ecosystem, name, version, revision_key) ON DELETE CASCADE

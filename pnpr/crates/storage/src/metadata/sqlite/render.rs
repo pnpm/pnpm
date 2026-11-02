@@ -12,7 +12,8 @@ use super::{
     cache::{FragmentKey, RENDERER_VERSION, RenderCache, Representation, ViewKey},
     commit::{PackageRow, package_row, parse_json, parse_optional_json},
     packument::{
-        DEPRECATED, ORDINARY, README, README_FILENAME, SUBMITTED_PROFILE, TAGS, TIME, VERSIONS,
+        ARCHIVE_MANIFEST, DEPRECATED, Interpretation, ORDINARY, README, README_FILENAME, TAGS,
+        TIME, VERSIONS,
     },
     tags::stored_tags,
     to_generation,
@@ -54,8 +55,9 @@ struct VersionEntry {
 
 fn version_entries(connection: &Connection, key: &PackageKey) -> Result<Vec<VersionEntry>> {
     let mut statement = connection.prepare_cached(
-        "SELECT v.version, v.published_at, a.generation
+        "SELECT v.version, v.published_at, a.generation, m.profile
          FROM versions v
+         JOIN accepted_manifests m USING (catalog, ecosystem, name, version, revision_key)
          LEFT JOIN annotations a USING (catalog, ecosystem, name, version)
          WHERE v.catalog = ?1 AND v.ecosystem = ?2 AND v.name = ?3 AND v.revision_key = ?4
          ORDER BY v.version",
@@ -67,7 +69,7 @@ fn version_entries(connection: &Connection, key: &PackageKey) -> Result<Vec<Vers
             package: key.clone(),
             version: version.clone(),
             revision_key: ORDINARY.to_string(),
-            profile: SUBMITTED_PROFILE,
+            profile: row.get(3)?,
             representation: Representation::Full,
             renderer: RENDERER_VERSION,
             annotation_generation: row.get::<_, Option<i64>>(2)?.map(to_generation),
@@ -77,10 +79,18 @@ fn version_entries(connection: &Connection, key: &PackageKey) -> Result<Vec<Vers
     Ok(entries.collect::<rusqlite::Result<_>>()?)
 }
 
-/// Render one version's manifest with its README and deprecation.
+/// Render one version's manifest with its interpretation, README, and
+/// deprecation.
 fn render_fragment(connection: &Connection, key: &FragmentKey) -> Result<Arc<str>> {
-    let [manifest, fields @ ..] = fragment_columns(connection, key)?;
+    let [manifest, inputs, fields @ ..] = fragment_columns(connection, key)?;
     let mut fragment: Map<String, Value> = parse_json(manifest.as_deref().unwrap_or("{}"))?;
+    let interpretation = Interpretation {
+        profile: key.profile.clone(),
+        inputs: parse_json(inputs.as_deref().unwrap_or("{}"))?,
+    };
+    if let Some(record) = interpretation.record() {
+        fragment.insert(ARCHIVE_MANIFEST.to_string(), record);
+    }
     for (field, value) in [README, README_FILENAME, DEPRECATED].into_iter().zip(fields) {
         if let Some(value) = parse_optional_json(value.as_deref())? {
             fragment.insert(field.to_string(), value);
@@ -89,13 +99,13 @@ fn render_fragment(connection: &Connection, key: &FragmentKey) -> Result<Arc<str
     Ok(serde_json::to_string(&fragment)?.into())
 }
 
-/// The manifest, README, README filename, and deprecation of a version, as
-/// stored.
-fn fragment_columns(connection: &Connection, key: &FragmentKey) -> Result<[Option<String>; 4]> {
+/// The manifest, interpretation inputs, README, README filename, and
+/// deprecation of a version, as stored.
+fn fragment_columns(connection: &Connection, key: &FragmentKey) -> Result<[Option<String>; 5]> {
     let (catalog, ecosystem, name) = key.package.params();
     let columns = connection
         .prepare_cached(
-            "SELECT m.manifest, r.readme, r.readme_filename, a.deprecated
+            "SELECT m.manifest, m.inputs, r.readme, r.readme_filename, a.deprecated
              FROM accepted_manifests m
              LEFT JOIN readmes r USING (catalog, ecosystem, name, version, revision_key)
              LEFT JOIN annotations a USING (catalog, ecosystem, name, version)
@@ -104,7 +114,7 @@ fn fragment_columns(connection: &Connection, key: &FragmentKey) -> Result<[Optio
         )?
         .query_row(
             params![catalog, ecosystem, name, key.version, key.revision_key, key.profile],
-            |row| Ok([row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?]),
+            |row| Ok([row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?]),
         )?;
     Ok(columns)
 }

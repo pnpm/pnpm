@@ -15,10 +15,15 @@ pub(super) const TIME: &str = "time";
 pub(super) const DEPRECATED: &str = "deprecated";
 pub(super) const README: &str = "readme";
 pub(super) const README_FILENAME: &str = "readmeFilename";
+/// The field of a version that records the interpretation profile its
+/// manifest was accepted under and the digests of that profile's inputs.
+pub(super) const ARCHIVE_MANIFEST: &str = "_archiveManifest";
+const PROFILE: &str = "profile";
 
 /// The revision key of a version outside the registry revision protocol.
 pub(super) const ORDINARY: &str = "ordinary";
-/// The interpretation profile of a manifest as the publish request stated it.
+/// The interpretation profile of a manifest as the publish request stated it,
+/// for a version that records no other.
 pub(super) const SUBMITTED_PROFILE: &str = "submitted";
 
 #[derive(Debug)]
@@ -32,11 +37,58 @@ pub(super) struct PackumentRows {
 
 #[derive(Debug, Clone, PartialEq)]
 pub(super) struct VersionRows {
-    /// The manifest without its README and deprecation.
+    /// The manifest without its README, deprecation, and interpretation.
     pub(super) manifest: Map<String, Value>,
+    pub(super) interpretation: Interpretation,
     pub(super) published_at: Option<String>,
     pub(super) readme: Readme,
     pub(super) deprecated: Option<Value>,
+}
+
+/// The interpretation profile a manifest was accepted under, and the digests
+/// of the raw inputs the profile derived it from.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub(super) struct Interpretation {
+    pub(super) profile: String,
+    /// A JSON object of input digests; empty for [`SUBMITTED_PROFILE`],
+    /// whose input is the manifest itself.
+    pub(super) inputs: Map<String, Value>,
+}
+
+impl Interpretation {
+    fn submitted() -> Self {
+        Self { profile: SUBMITTED_PROFILE.to_string(), inputs: Map::new() }
+    }
+
+    /// Take the interpretation out of a version's `_archiveManifest` record.
+    fn from_record(version: &str, record: Option<Value>) -> Result<Self> {
+        let Some(record) = record else { return Ok(Self::submitted()) };
+        let invalid = || {
+            bad_request(&format!(
+                "`{ARCHIVE_MANIFEST}` of version {version:?} must be an object naming a profile",
+            ))
+        };
+        let Value::Object(mut inputs) = record else { return Err(invalid()) };
+        let Some(Value::String(profile)) = inputs.shift_remove(PROFILE) else {
+            return Err(invalid());
+        };
+        if profile == SUBMITTED_PROFILE || !inputs.values().all(Value::is_string) {
+            return Err(invalid());
+        }
+        Ok(Self { profile, inputs })
+    }
+
+    /// The `_archiveManifest` record a rendered version carries, `None` for
+    /// [`SUBMITTED_PROFILE`].
+    pub(super) fn record(&self) -> Option<Value> {
+        if self.profile == SUBMITTED_PROFILE {
+            return None;
+        }
+        let mut record = Map::new();
+        record.insert(PROFILE.to_string(), Value::String(self.profile.clone()));
+        record.extend(self.inputs.clone());
+        Some(Value::Object(record))
+    }
 }
 
 #[derive(Debug, Default, Clone, PartialEq)]
@@ -105,19 +157,24 @@ fn take_versions(state: &mut Map<String, Value>) -> Result<BTreeMap<String, Vers
     versions
         .into_iter()
         .map(|(version, manifest)| match manifest {
-            Value::Object(manifest) => Ok((version, version_rows(manifest))),
+            Value::Object(manifest) => {
+                let rows = version_rows(&version, manifest)?;
+                Ok((version, rows))
+            }
             _ => Err(bad_request(&format!("version {version:?} must be an object"))),
         })
         .collect()
 }
 
-fn version_rows(mut manifest: Map<String, Value>) -> VersionRows {
+fn version_rows(version: &str, mut manifest: Map<String, Value>) -> Result<VersionRows> {
+    let interpretation =
+        Interpretation::from_record(version, manifest.shift_remove(ARCHIVE_MANIFEST))?;
     let deprecated = manifest.shift_remove(DEPRECATED);
     let readme = Readme {
         text: manifest.shift_remove(README),
         filename: manifest.shift_remove(README_FILENAME),
     };
-    VersionRows { manifest, published_at: None, readme, deprecated }
+    Ok(VersionRows { manifest, interpretation, published_at: None, readme, deprecated })
 }
 
 fn bad_request(reason: &str) -> RegistryError {

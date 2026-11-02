@@ -76,6 +76,10 @@ With SQLite metadata:
 - A published npm version's manifest cannot change. A write that would change
   it fails with `409`. Deprecating or undeprecating a version, moving a
   dist-tag, and unpublishing still work.
+- A version is stored as the manifest
+  [accepted from its archive](endpoints.md#publish-time-manifest-verification),
+  under the interpretation profile it was accepted under and with the digests
+  of the archive's `package.json` and `npm-shrinkwrap.json`.
 - The database keeps every unpublished version, including the versions of an
   unpublished package, and refuses to accept one again with `403`, even when
   the package's tombstone is gone. A publish interrupted by a crash, whose

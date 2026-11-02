@@ -147,6 +147,74 @@ async fn an_accepted_version_cannot_change() {
 }
 
 #[tokio::test]
+async fn an_archive_manifest_record_is_the_accepted_interpretation() {
+    let tmp = TempDir::new().unwrap();
+    let storage = storage(&tmp);
+    let mut document = packument("pkg", &["1.0.0", "1.1.0"]);
+    let record = json!({
+        "profile": "npm-install-manifest/1",
+        "packageJson": "sha512-manifest",
+        "npmShrinkwrap": "sha512-shrinkwrap",
+    });
+    document["versions"]["1.1.0"]["_archiveManifest"] = record.clone();
+    write(&storage, "pkg", &document).await;
+
+    let connection = rusqlite::Connection::open(tmp.path().join("metadata.sqlite")).unwrap();
+    let rows: Vec<(String, String, String, String)> = connection
+        .prepare(
+            "SELECT version, profile, inputs, manifest FROM accepted_manifests ORDER BY version",
+        )
+        .unwrap()
+        .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)))
+        .unwrap()
+        .collect::<Result<_, _>>()
+        .unwrap();
+    let [(_, unverified_profile, unverified_inputs, _), (_, profile, inputs, manifest)] =
+        rows.as_slice()
+    else {
+        panic!("two accepted manifests: {rows:?}");
+    };
+    assert_eq!((unverified_profile.as_str(), unverified_inputs.as_str()), ("submitted", "{}"));
+    assert_eq!(profile, "npm-install-manifest/1");
+    assert_eq!(
+        serde_json::from_str::<Value>(inputs).unwrap(),
+        json!({ "packageJson": "sha512-manifest", "npmShrinkwrap": "sha512-shrinkwrap" }),
+    );
+    assert!(!manifest.contains("_archiveManifest"), "{manifest}");
+    assert_eq!(read(&storage, "pkg").await, document);
+
+    let mut changed = document.clone();
+    changed["versions"]["1.1.0"]["_archiveManifest"]["packageJson"] = json!("sha512-other");
+    let err = try_write(&storage, "pkg", &changed).await.unwrap_err();
+    assert!(matches!(err, RegistryError::VersionAlreadyPublished { .. }), "{err:?}");
+    let mut dropped = document.clone();
+    dropped["versions"]["1.1.0"]
+        .as_object_mut()
+        .unwrap()
+        .shift_remove("_archiveManifest");
+    let err = try_write(&storage, "pkg", &dropped).await.unwrap_err();
+    assert!(matches!(err, RegistryError::VersionAlreadyPublished { .. }), "{err:?}");
+}
+
+#[tokio::test]
+async fn an_archive_manifest_record_must_name_a_profile() {
+    let tmp = TempDir::new().unwrap();
+    let storage = storage(&tmp);
+    for record in [
+        json!("npm-install-manifest/1"),
+        json!({ "packageJson": "sha512-a" }),
+        json!({
+            "profile": "submitted"
+        }),
+    ] {
+        let mut document = packument("pkg", &["1.0.0"]);
+        document["versions"]["1.0.0"]["_archiveManifest"] = record;
+        let err = try_write(&storage, "pkg", &document).await.unwrap_err();
+        assert!(matches!(err, RegistryError::BadRequest { .. }), "{err:?}");
+    }
+}
+
+#[tokio::test]
 async fn an_identical_write_commits_no_generation() {
     let tmp = TempDir::new().unwrap();
     let storage = storage(&tmp);

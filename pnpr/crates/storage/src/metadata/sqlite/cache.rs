@@ -33,7 +33,8 @@ pub(super) struct FragmentKey {
     pub(super) package: PackageKey,
     pub(super) version: String,
     pub(super) revision_key: String,
-    pub(super) profile: &'static str,
+    /// The interpretation profile the version was accepted under.
+    pub(super) profile: String,
     pub(super) representation: Representation,
     pub(super) renderer: u32,
     /// The generation of the version's annotations, for a representation
