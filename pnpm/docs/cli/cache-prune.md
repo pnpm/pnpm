@@ -17,7 +17,7 @@ Deletes the registry metadata cache directories that this version of pnpm can no
 pnpm cache prune
 ```
 
-pnpm keeps registry metadata in three roots, `v12/metadata`, `v12/metadata-full` and `v12/metadata-full-filtered`, with one directory per registry named after the registry's full URL. `cache prune` removes:
+pnpm keeps registry metadata in the roots `v12/metadata`, `v12/metadata-full`, `v12/metadata-full-filtered`, `v12/metadata-pnpr` and `v12/metadata-pnpr-records`, with one directory per registry named after the registry's full URL. `cache prune` removes:
 
 - every directory under `v11/metadata`, `v11/metadata-full`, `v11/metadata-full-filtered` and `v11/metadata-private`, which older pnpm versions use;
 - the directories under the `v12/` roots that are named after the registry's host alone, which this version cannot read.
