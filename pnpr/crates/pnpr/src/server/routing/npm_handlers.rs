@@ -5,9 +5,9 @@ use super::{
     IntoResponse, MAX_PUBLISH_BODY_BYTES, Path, RawQuery, RegistrySource, Response, State,
     StatusCode, TargetRegistry, authorize_package, caller_scoped, check_publish_tombstone,
     delete_package, delete_tarball, get_dist_tags, hosted_storage, not_found, private_no_cache,
-    publish_package, remove_dist_tag, replay_denied_publish, resolve_write_target,
-    serve_package_tarball, serve_packument, serve_search, serve_tarball, serve_version_manifest,
-    set_dist_tag, split_package_identifier, update_packument,
+    publish_package, remove_dist_tag, resolve_write_target, serve_package_tarball, serve_packument,
+    serve_search, serve_tarball, serve_version_manifest, set_dist_tag, split_package_identifier,
+    update_packument,
 };
 
 // --------------------------------------------------------------------
@@ -260,7 +260,7 @@ pub(super) async fn put_package(
     if let Err(rejection) =
         preauthorize_publish(&state, &identity, registry.as_deref(), &path.name).await
     {
-        return replay_denied_publish(&state, &identity, &path.name, body, rejection).await;
+        return rejection;
     }
     let body_bytes = match collect_publish_body(&state, body).await {
         Ok(bytes) => bytes,
@@ -286,7 +286,7 @@ pub(super) async fn put_scoped_package(
     if let Err(rejection) =
         preauthorize_publish(&state, &identity, registry.as_deref(), &full).await
     {
-        return replay_denied_publish(&state, &identity, &full, body, rejection).await;
+        return rejection;
     }
     let body_bytes = match collect_publish_body(&state, body).await {
         Ok(bytes) => bytes,

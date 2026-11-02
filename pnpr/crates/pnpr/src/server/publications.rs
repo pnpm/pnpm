@@ -90,7 +90,7 @@ fn respond(
 
 /// The publication with only the members `identity` may read, or `None` when
 /// it may read none of them.
-pub(super) fn visible(
+fn visible(
     state: &AppState,
     identity: &Identity,
     mut publication: Publication,
@@ -98,14 +98,6 @@ pub(super) fn visible(
     let catalog = publication.catalog.clone();
     publication.members.retain(|member| may_read(state, identity, &catalog, member));
     (!publication.members.is_empty()).then_some(publication)
-}
-
-/// Whether a hosted registry of `catalog` admits `identity` to the registry
-/// itself, for an outcome that recorded no publication to check members of.
-pub(super) fn may_read_catalog(state: &AppState, identity: &Identity, catalog: &str) -> bool {
-    state.inner.config.routing.hosted
-        .values()
-        .any(|hosted| hosted.org == catalog && hosted.rules.default_access_admits(identity))
 }
 
 /// Whether a hosted registry of `catalog` and the member's ecosystem lets

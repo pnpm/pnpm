@@ -99,6 +99,9 @@ async fn a_retried_publish_gets_its_recorded_outcome() {
     let retry = send(&app, "PUT", "/npm/retried", &token, Some(&doc)).await;
     assert_eq!(retry.status, StatusCode::CREATED);
     assert_eq!(retry.generation, first.generation);
+    assert_eq!(retry.body["publication"], 1);
+    let second = send(&app, "GET", "/-/publications/-/2", &token, None).await;
+    assert_eq!(second.status, StatusCode::NOT_FOUND, "a replay commits no new publication");
 
     let other_archive = publish_doc("retried", "1.0.0", b"other bytes");
     let conflict = send(&app, "PUT", "/npm/retried", &token, Some(&other_archive)).await;
@@ -112,28 +115,22 @@ async fn a_retried_publish_gets_its_recorded_outcome() {
     assert_eq!(retagged.status, StatusCode::CONFLICT);
 }
 
-/// Leave `bob` alone allowed to publish, or with `revoke_read`, to read.
-fn only_bob(rules: &PackageRules, revoke_read: bool) {
+/// Leave `bob` alone allowed to publish.
+fn only_bob_publishes(rules: &PackageRules) {
     let bob = AccessList::from_tokens(["bob"]);
-    let lists = if revoke_read {
-        RuleOverride { access: Some(bob.clone()), ..RuleOverride::default() }
-    } else {
-        RuleOverride { publish: Some(bob.clone()), ..RuleOverride::default() }
-    };
+    let lists = RuleOverride { publish: Some(bob.clone()), ..RuleOverride::default() };
     let table = rules.snapshot();
     let overrides = table
         .rules()
         .iter()
         .map(|rule| (rule.pattern.clone(), lists.clone()))
         .collect();
-    let changed = table
-        .with_overrides(revoke_read.then(|| bob.clone()), overrides)
-        .unwrap();
-    rules.replace(if revoke_read { changed } else { changed.with_default_publish(bob) });
+    let changed = table.with_overrides(None, overrides).unwrap();
+    rules.replace(changed.with_default_publish(bob));
 }
 
 #[tokio::test]
-async fn a_recorded_outcome_needs_read_access_but_not_publish_permission() {
+async fn a_retry_needs_current_publish_permission() {
     let tmp = TempDir::new().unwrap();
     let config = sqlite_config(tmp.path());
     let rules = config.routing.hosted["local"].rules.clone();
@@ -142,16 +139,23 @@ async fn a_recorded_outcome_needs_read_access_but_not_publish_permission() {
     let doc = publish_doc("revoked", "1.0.0", b"bytes");
     let first = send(&app, "PUT", "/npm/revoked", &token, Some(&doc)).await;
     assert_eq!(first.status, StatusCode::CREATED);
+    let batch = json!({ "packages": [publish_doc("batched", "1.0.0", b"batched")] });
+    let committed =
+        send_with_key(&app, "PUT", "/-/pnpr/v0/publish", &token, Some(&batch), Some("k1")).await;
+    assert_eq!(committed.status, StatusCode::CREATED);
 
-    only_bob(&rules, false);
+    only_bob_publishes(&rules);
     let retry = send(&app, "PUT", "/npm/revoked", &token, Some(&doc)).await;
-    assert_eq!((retry.status, retry.generation), (StatusCode::CREATED, first.generation));
+    assert_eq!((retry.status, retry.generation), (StatusCode::FORBIDDEN, None));
+    assert_eq!(retry.body.get("publication"), None);
+    let batch_retry =
+        send_with_key(&app, "PUT", "/-/pnpr/v0/publish", &token, Some(&batch), Some("k1")).await;
+    assert_eq!((batch_retry.status, batch_retry.generation), (StatusCode::FORBIDDEN, None));
 
-    only_bob(&rules, true);
-    let unreadable = send(&app, "PUT", "/npm/revoked", &token, Some(&doc)).await;
-    assert_ne!(unreadable.status, StatusCode::CREATED);
-    assert_eq!(unreadable.generation, None);
-    assert_eq!(unreadable.body.get("publication"), None);
+    // The outcome is still there to read.
+    let publication =
+        send(&app, "GET", "/-/publications/-?member=npm:revoked@1.0.0", &token, None).await;
+    assert_eq!((publication.status, &publication.body["id"]), (StatusCode::OK, &json!(1)));
 }
 
 #[tokio::test]

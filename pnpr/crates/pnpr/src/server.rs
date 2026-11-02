@@ -154,7 +154,7 @@ use self::{
     },
     publishing::{
         PublishTarget, check_publish_tombstone, commit_publishes, publish_package,
-        replay_denied_publish, resolve_publish_target_for, stage_publish, validate_publish_doc,
+        resolve_publish_target_for, stage_publish, validate_publish_doc,
     },
     routing::{metrics_listener_router, router_with_auth_and_osv, state_and_router},
 };

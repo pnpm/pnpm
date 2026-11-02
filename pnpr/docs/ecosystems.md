@@ -245,8 +245,9 @@ With [SQLite metadata](storage.md#sqlite-metadata) a batch is stronger:
 - A retry gets the original response back. A client sends an
   `Idempotency-Key` header, or the digest of the whole request serves as the
   key. Reusing a key for a different request answers `409`. pnpr keeps the
-  outcome for 7 days. Getting it back needs no current publish permission,
-  only read access to what the request published.
+  outcome for 7 days. A retry needs current publish permission like any
+  publish. A caller whose permission was revoked since gets `403` and can
+  read the outcome from the publication or the package.
 - The commit is recorded as a publication. A top-level `"name": "v2.0.0"`
   field in the body names it. The name must be unique within the org and
   must not be a decimal number, which would read as a publication id.

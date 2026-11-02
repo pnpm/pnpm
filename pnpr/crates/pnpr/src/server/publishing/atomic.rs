@@ -6,15 +6,11 @@
 //! The request's outcome commits with it. A retry of the same request by the
 //! same principal gets that outcome back instead of a conflict, whether or not
 //! the client sent an idempotency key: without one, the digest of the whole
-//! request is the key. Getting an outcome back is a read: it needs no
-//! current publish permission, only that the principal may still read what
-//! the request published.
+//! request is the key. A retry is authorized against current permissions
+//! like any publish before its outcome is looked up.
 
 use super::{RegistryError, StagedPublish, Value, report_unrecorded};
-use crate::server::{
-    AppState, Identity,
-    publications::{may_read_catalog, visible},
-};
+use crate::server::{AppState, Identity};
 use axum::{
     body::Body,
     http::{StatusCode, header},
@@ -73,13 +69,9 @@ pub(in super::super) fn publication_name(body: &Value) -> Result<Option<&str>, R
 }
 
 /// The response a retry of an already committed request gets: the outcome
-/// that request recorded. Like any status query, it is returned only while
-/// `identity` may read the publication it recorded; current publish
-/// permission is not required, so a permission revoked after the commit does
-/// not hide the result.
+/// that request recorded. The caller authorizes the retry as a publish first.
 pub(in super::super) async fn replayed_outcome(
     state: &AppState,
-    identity: &Identity,
     request: Option<&PublicationRequest>,
 ) -> Result<Option<Response>, RegistryError> {
     let (Some(request), Some(database)) = (request, state.inner.storage.sqlite_metadata()) else {
@@ -94,17 +86,6 @@ pub(in super::super) async fn replayed_outcome(
     else {
         return Ok(None);
     };
-    let readable = match outcome.publication {
-        Some(id) => database
-            .publication(&outcome.catalog, &id.to_string())
-            .await?
-            .and_then(|publication| visible(state, identity, publication))
-            .is_some(),
-        None => may_read_catalog(state, identity, &outcome.catalog),
-    };
-    if !readable {
-        return Ok(None);
-    }
     let receipt = PublishReceipt {
         generation: Some(Generation { catalog: outcome.catalog, value: outcome.generation }),
         publication: outcome.publication,
