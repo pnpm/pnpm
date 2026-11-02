@@ -7,7 +7,7 @@ use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode},
 };
-use npm::{publish_doc, sha1_hex};
+use npm::{npm_tgz, publish_doc, sha1_hex};
 use pnpr::{Config, MaxUsers, router};
 use pnpr_fixtures::MockConfigPresets;
 use pnpr_storage::layout::{local_blob_path, local_package_dir};
@@ -104,7 +104,7 @@ async fn staged_publish_is_held_back_until_approved() {
     let app = router(static_config(storage.clone()));
     let token = add_user_and_get_token(app.clone(), "alice", "secret").await;
 
-    let tarball = b"staged-tarball";
+    let tarball = &npm_tgz("staged-pkg", "1.0.0", b"staged-tarball");
     let doc = publish_doc("staged-pkg", "1.0.0", tarball);
     let stage_id = stage_package(app.clone(), "staged-pkg", &doc, &token).await;
     assert!(is_uuid(&stage_id), "stage id must be a UUID: {stage_id}");
@@ -160,7 +160,7 @@ async fn staged_publish_is_held_back_until_approved() {
         .await
         .unwrap();
     assert_eq!(download.status(), StatusCode::OK);
-    assert_eq!(body_bytes(download.into_body()).await, tarball);
+    assert_eq!(body_bytes(download.into_body()).await, *tarball);
 
     // Approve: the package becomes installable and the record disappears.
     let approve = app
@@ -191,7 +191,7 @@ async fn staged_publish_is_held_back_until_approved() {
         "staged-pkg-1.0.0.tgz",
     ))
     .expect("tarball promoted on approval");
-    assert_eq!(on_disk, tarball);
+    assert_eq!(on_disk, *tarball);
 
     let list = app
         .clone()
@@ -253,7 +253,7 @@ async fn staging_supports_scoped_packages() {
     let app = router(static_config(storage.clone()));
     let token = add_user_and_get_token(app.clone(), "alice", "secret").await;
 
-    let tarball = b"scoped-bytes";
+    let tarball = &npm_tgz("@scope/staged", "2.0.0", b"scoped-bytes");
     let doc = publish_doc("@scope/staged", "2.0.0", tarball);
     let stage_id = stage_package(app.clone(), "@scope/staged", &doc, &token).await;
 
@@ -290,7 +290,7 @@ async fn staging_supports_scoped_packages() {
         "staged-2.0.0.tgz",
     ))
     .expect("scoped tarball promoted on approval");
-    assert_eq!(on_disk, tarball);
+    assert_eq!(on_disk, *tarball);
 }
 
 #[tokio::test]

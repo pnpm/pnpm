@@ -75,6 +75,7 @@ impl RegistryError {
                 Some("cannot_republish_unpublished_version")
             }
             RegistryError::EmptyMaintainers { .. } => Some("empty_maintainers"),
+            RegistryError::ManifestMismatch { .. } => Some("manifest_mismatch"),
             _ => None,
         }
     }
@@ -202,6 +203,7 @@ impl RegistryError {
             | RegistryError::InvalidConfig { .. }
             | RegistryError::InvalidAttachment { .. }
             | RegistryError::EmptyMaintainers { .. }
+            | RegistryError::ManifestMismatch { .. }
             | RegistryError::BadRequest { .. } => Some(StatusCode::BAD_REQUEST),
             RegistryError::NotFound => Some(StatusCode::NOT_FOUND),
             RegistryError::PreconditionFailed { .. } => Some(StatusCode::PRECONDITION_FAILED),

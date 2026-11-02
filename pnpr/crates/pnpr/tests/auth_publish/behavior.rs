@@ -1,6 +1,6 @@
 use super::{
     Body, Config, Request, ServiceExt, StatusCode, TempDir, Value, add_user_and_get_token,
-    body_bytes, body_json, common, json, publish_doc, router, sri_sha512, static_config,
+    body_bytes, body_json, common, json, npm_tgz, publish_doc, router, sri_sha512, static_config,
 };
 use pnpr_fixtures::MockConfigPresets;
 use pnpr_storage::layout::local_document_path;
@@ -106,7 +106,10 @@ async fn deprecating_an_existing_version_without_an_attachment_is_allowed() {
     let hosted = body_json(get.into_body()).await;
     let hosted_dist = hosted["versions"]["1.0.0"]["dist"].clone();
     // Baseline so the dist-preservation assertion below isn't vacuous.
-    assert_eq!(hosted_dist["integrity"].as_str(), Some(sri_sha512(b"original").as_str()));
+    assert_eq!(
+        hosted_dist["integrity"].as_str(),
+        Some(sri_sha512(&npm_tgz("mypkg", "1.0.0", b"original")).as_str()),
+    );
     let body = json!({
         "_id": "mypkg",
         "name": "mypkg",
@@ -295,7 +298,7 @@ async fn hosted_tarball_is_preferred_over_a_cached_copy() {
     let app = router(static_config(storage.clone()));
     let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
 
-    let hosted_bytes = b"hosted-bytes";
+    let hosted_bytes = &npm_tgz("pref-pkg", "1.0.0", b"hosted-bytes");
     let body = publish_doc("pref-pkg", "1.0.0", hosted_bytes);
     let request = Request::put("/npm/pref-pkg")
         .header("content-type", "application/json")
@@ -325,7 +328,7 @@ async fn hosted_tarball_is_preferred_over_a_cached_copy() {
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
-    assert_eq!(body_bytes(response.into_body()).await, hosted_bytes);
+    assert_eq!(body_bytes(response.into_body()).await, *hosted_bytes);
 }
 
 #[tokio::test]

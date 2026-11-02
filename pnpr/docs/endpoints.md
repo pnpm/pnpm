@@ -277,6 +277,57 @@ against the fresh packument, and reports `409` only if it keeps losing. Either
 way no writer's update is silently discarded. See
 [Storage backends](storage.md#concurrent-writers).
 
+### Publish-time manifest verification
+
+An npm publish document carries each version's metadata beside its archive,
+and nothing in the npm protocol requires the two to agree. pnpr verifies every
+published `.tgz` against the metadata submitted for it, under the
+`npm-install-manifest/1` interpretation profile:
+
+1. The `.tgz` must decode in full to a tar within the decode limit, and the tar
+   must name its manifest unambiguously. An entry path that escapes the package
+   root, a second entry that an installer would extract to `package.json` (or to
+   `npm-shrinkwrap.json`), including one that differs only in case, a manifest
+   that is a link, more than 200,000 entries, and a missing `package.json` are
+   each a `400`.
+2. pnpr derives the install-critical fields from the archive's `package.json`
+   and from the submitted version metadata, normalizes both the way npm's
+   publish-time `prepare()` and npm 9's `normalize-package-data` rewrite a
+   manifest, and compares them. The fields are `name`, `version`,
+   `dependencies`, `optionalDependencies`, `peerDependencies`,
+   `peerDependenciesMeta`, `bundleDependencies`, `os`, `cpu`, `libc`,
+   `engines`, `bin` (with `directories.bin` expanded into it), and the
+   `preinstall`, `install`, and `postinstall` scripts, including the
+   `node-gyp rebuild` an installer runs for a root `binding.gyp`. The archive's
+   `name` and `version` must also name the package and version being
+   published. Any difference rejects the publish with a `400` whose message
+   names the package, the version, and each differing field.
+3. One difference is accepted: a submitted `scripts.install: "node-gyp
+   rebuild"` that the archive cannot run, because it has no root `binding.gyp`
+   or sets `gypfile: false`, while every other lifecycle script agrees. npm adds
+   that script whenever any `*.gyp` file is in the source directory, even one
+   the archive leaves out. The publish succeeds, the response carries an
+   `npm-notice` header that npm prints to the publisher, and the script is not
+   served.
+
+The stored version's install-critical fields are then the ones derived from
+the archive, and it always carries `hasInstallScript` and `_hasShrinkwrap`.
+Fields outside the profile, such as `description` or `repository`, are kept as
+submitted. `_archiveManifest` records the profile and the SHA-512 digests of the
+archive's exact `package.json` and `npm-shrinkwrap.json` bytes:
+
+```json
+"_archiveManifest": {
+  "profile": "npm-install-manifest/1",
+  "packageJson": "sha512-...",
+  "npmShrinkwrap": "sha512-..."
+}
+```
+
+A staged publish is verified when it is approved. Versions published before
+pnpr verified manifests are not rewritten; [`pnpr verify`](cli.md#verify)
+re-derives them from their stored archives and reports each disagreement.
+
 ## Staged publishing endpoints
 
 These implement the server half of [`pnpm stage`](https://pnpm.io/cli/stage), npm's

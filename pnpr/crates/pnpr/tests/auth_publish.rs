@@ -13,6 +13,9 @@ mod behavior;
 #[path = "auth_publish/authentication.rs"]
 mod authentication;
 
+#[path = "auth_publish/manifest_verification.rs"]
+mod manifest_verification;
+
 use crate::{npm, storage as common};
 
 use axum::{
@@ -20,7 +23,7 @@ use axum::{
     http::{Request, StatusCode},
 };
 use base64::engine::general_purpose::STANDARD as BASE64;
-use npm::{publish_doc, sha1_hex, sri_sha512};
+use npm::{npm_tgz, npm_tgz_with, publish_doc, sha1_hex, sri_sha512};
 use pnpr::{Config, MaxUsers, router};
 use pnpr_fixtures::MockConfigPresets;
 use serde_json::{Value, json};

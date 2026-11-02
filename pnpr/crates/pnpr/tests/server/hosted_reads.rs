@@ -192,7 +192,7 @@ async fn publish_to_hosted_round_trips_in_its_own_namespace() {
     let token = issue_token(&auth, "alice").await;
     let app = router_with_auth(config, auth);
 
-    let tarball = b"acme-widget-1.0.0-bytes";
+    let tarball = &crate::npm::npm_tgz("@acme/widget", "1.0.0", b"acme-widget-1.0.0-bytes");
     let body = json!({
         "name": "@acme/widget",
         "dist-tags": { "latest": "1.0.0" },
@@ -284,7 +284,7 @@ async fn publish_to_hosted_round_trips_in_its_own_namespace() {
         .await
         .unwrap();
     assert_eq!(tar.status(), StatusCode::OK);
-    assert_eq!(body_bytes(tar.into_body()).await, tarball);
+    assert_eq!(body_bytes(tar.into_body()).await, *tarball);
 
     // A publish routed to an upstream is rejected — a write can never land on
     // an upstream registry.
@@ -332,7 +332,7 @@ async fn hosted_registry_patterns_bound_publish_and_reads_on_every_path() {
     let app = router_with_auth(config, auth);
 
     let publish_body = |pkg: &str| {
-        let tarball = b"typo-bytes";
+        let tarball = &crate::npm::npm_tgz(pkg, "1.0.0", b"typo-bytes");
         let bare = pkg.rsplit('/').next().unwrap();
         json!({
             "name": pkg,
@@ -527,7 +527,7 @@ async fn private_hosted_registry_denies_writes_from_non_members() {
     let outsider = issue_token(&auth, "mallory").await;
     let app = router_with_auth(config, auth);
 
-    let tarball = b"corp-tool-1.0.0-bytes";
+    let tarball = &crate::npm::npm_tgz("@corp/tool", "1.0.0", b"corp-tool-1.0.0-bytes");
     let publish_body = json!({
         "name": "@corp/tool",
         "dist-tags": { "latest": "1.0.0" },

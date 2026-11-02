@@ -53,7 +53,7 @@ pub(super) async fn serve_ecosystem_publish(
     body: Bytes,
 ) -> Response {
     match publish_batch(&state, &identity, body).await {
-        Ok(()) => publish_created_response(),
+        Ok(notices) => publish_created_response(&notices),
         Err(err) => err.into_response(),
     }
 }
@@ -133,7 +133,7 @@ async fn publish_batch(
     state: &AppState,
     identity: &Identity,
     body: Bytes,
-) -> Result<(), RegistryError> {
+) -> Result<Vec<String>, RegistryError> {
     let mut incoming: Value = serde_json::from_slice(&body).map_err(|err| malformed_body(&err))?;
     // The parsed body holds everything the entries need, and the payloads are
     // decoded out of it below: keep only one copy of a body that may run to
@@ -177,7 +177,12 @@ async fn publish_batch(
             }
         }
     }
-    report_unrecorded(commit_publishes(state, staged).await?)
+    let notices = staged
+        .iter()
+        .flat_map(|stage| stage.notices.iter().cloned())
+        .collect();
+    report_unrecorded(commit_publishes(state, staged).await?)?;
+    Ok(notices)
 }
 
 /// Validate every entry of a batch, refusing a package named twice.

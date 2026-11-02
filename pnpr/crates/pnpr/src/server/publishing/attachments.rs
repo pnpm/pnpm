@@ -8,6 +8,7 @@ use super::{
     },
     resolve_write_target, stream_decode_verify_and_write, tar_integrity_of, tgz_integrity_key,
     tombstones::{check_publish_tombstone, check_staged_tombstone},
+    verification::{read_archive, verify_published_manifests},
     write_sigstore_bundle,
 };
 use std::sync::Arc;
@@ -170,6 +171,9 @@ pub(in super::super) struct StagedPublish {
     /// flat (path-less) hosted store. Threaded into the commit and journal so
     /// the write — and any crash recovery — lands in the right org.
     pub(in super::super) org: Option<String>,
+    /// What the publisher should hear about a publish that was accepted with
+    /// a difference, sent back as `npm-notice` response headers.
+    pub(in super::super) notices: Vec<String>,
 }
 
 /// Merge the incoming packument with the on-disk / upstream state
@@ -202,7 +206,7 @@ pub(in super::super) async fn stage_publish(
 
     check_publishable_versions(&name, &incoming, hosted.as_ref(), &prepared)?;
 
-    let merged = prepare_staged_document(&name, hosted.as_ref(), &incoming, &prepared, now_iso);
+    let mut merged = prepare_staged_document(&name, hosted.as_ref(), &incoming, &prepared, now_iso);
     // `incoming` is no longer needed; drop it so the base64 strings
     // inside go away as soon as `prepared` (which owns each one) is
     // drained below.
@@ -215,6 +219,13 @@ pub(in super::super) async fn stage_publish(
     let written =
         write_attachment_slots(&storage, &name, prepared, tarballs, &state.inner.proxy.tar_decodes)
             .await?;
+    let notices = match verify_published_manifests(&name, &mut merged, &written.tars) {
+        Ok(notices) => notices,
+        Err(err) => {
+            cleanup_tmp_slots(written.slots).await;
+            return Err(err);
+        }
+    };
     let document = serialize_staged_document(merged, &written.tars);
     Ok(StagedPublish {
         name,
@@ -223,6 +234,7 @@ pub(in super::super) async fn stage_publish(
         base_version,
         slots: written.slots,
         org: org.map(str::to_string),
+        notices,
     })
 }
 
@@ -237,6 +249,17 @@ pub(super) struct WrittenAttachments {
 pub(super) struct PublishedTar {
     pub(super) version: String,
     pub(super) inspection: pnpm_tarball::TarInspection,
+    /// What the tar holds that the version's manifest is derived from.
+    pub(super) archive: pnpm_tarball::PublicationArchive,
+}
+
+/// What a published `.tgz` decodes to: the key its tar integrity is recorded
+/// under, the tar's integrity and metadata, and its manifest inputs.
+pub(super) struct TarDerivation {
+    tgz_integrity: Option<String>,
+    integrity: Integrity,
+    inspection: pnpm_tarball::TarInspection,
+    archive: pnpm_tarball::PublicationArchive,
 }
 
 /// Write every attachment into its reserved blob slot. A failure removes
@@ -299,14 +322,16 @@ pub(super) async fn write_attachment_slot(
             return Err(RegistryError::Io(std::io::Error::other(join_err.to_string())));
         }
     };
-    let Some((tgz_integrity, integrity, inspection)) = derived else { return Ok((slot, None)) };
-    let recorded =
-        record_published_tar(storage, name, &tgz_integrity, &integrity, &inspection, stores_tar);
-    if let Err(err) = recorded.await {
-        let _ = tokio::fs::remove_file(&slot.tmp_path).await;
-        return Err(err);
+    let Some(derived) = derived else { return Ok((slot, None)) };
+    if let Some(tgz_integrity) = &derived.tgz_integrity {
+        let recorded = record_published_tar(storage, name, tgz_integrity, &derived, stores_tar);
+        if let Err(err) = recorded.await {
+            let _ = tokio::fs::remove_file(&slot.tmp_path).await;
+            return Err(err);
+        }
     }
-    Ok((slot, Some(PublishedTar { version: prepared.version, inspection })))
+    let TarDerivation { inspection, archive, .. } = derived;
+    Ok((slot, Some(PublishedTar { version: prepared.version, inspection, archive })))
 }
 
 /// Record the tar a published `.tgz` decodes to. A failure only warns: a tar
@@ -317,12 +342,12 @@ async fn record_published_tar(
     storage: &Storage,
     name: &CanonicalPackageName,
     tgz_integrity: &str,
-    integrity: &Integrity,
-    inspection: &pnpm_tarball::TarInspection,
+    derived: &TarDerivation,
     stores_tar: bool,
 ) -> Result<(), RegistryError> {
+    let inspection = &derived.inspection;
     let derived = pnpr_storage::DerivedTar::new(
-        integrity.to_string(),
+        derived.integrity.to_string(),
         inspection.requires_build,
         inspection.file_count,
         inspection.unpacked_size,
@@ -363,10 +388,7 @@ async fn write_under_permit(
     dist: Value,
     paths: AttachmentPaths,
     decodes: &Arc<Semaphore>,
-) -> Result<
-    Result<Option<(String, Integrity, pnpm_tarball::TarInspection)>, RegistryError>,
-    tokio::task::JoinError,
-> {
+) -> Result<Result<Option<TarDerivation>, RegistryError>, tokio::task::JoinError> {
     let permit = match kind {
         AttachmentKind::Tarball => Some(
             Arc::clone(decodes)
@@ -382,9 +404,11 @@ async fn write_under_permit(
             write_and_derive_tar(&attachment, kind, &dist, &paths.attachment, permit.as_ref());
         let Some(tar_path) = &paths.tar else { return derived };
         let stored = derived.and_then(|derived| {
-            let derived = derived.ok_or_else(|| RegistryError::BadRequest {
-                reason: format!("{} does not decode to a tar", attachment.filename),
-            })?;
+            let derived = derived
+                .filter(|derived| derived.tgz_integrity.is_some())
+                .ok_or_else(|| RegistryError::BadRequest {
+                    reason: format!("{} does not decode to a tar", attachment.filename),
+                })?;
             encode_stored_tar(&paths.attachment, tar_path)?;
             Ok(Some(derived))
         });
@@ -394,24 +418,30 @@ async fn write_under_permit(
     .await
 }
 
-/// Write the attachment to `tmp_path`, and for a `.tgz` return its integrity
-/// key, the integrity of the tar it decodes to, and its tar metadata.
-/// `_decode` is held until the tar is hashed.
+/// Write the attachment to `tmp_path`, and for a `.tgz` derive what it
+/// decodes to. A `.tgz` that does not decode in full to a tar, or whose tar
+/// does not name its manifest unambiguously, fails with a 400: its manifest
+/// cannot be verified. `_decode` is held until the tar is read.
 fn write_and_derive_tar(
     attachment: &PendingAttachment,
     kind: AttachmentKind,
     dist: &Value,
     tmp_path: &std::path::Path,
     _decode: Option<&OwnedSemaphorePermit>,
-) -> Result<Option<(String, Integrity, pnpm_tarball::TarInspection)>, RegistryError> {
+) -> Result<Option<TarDerivation>, RegistryError> {
     decode_and_write_attachment(attachment, kind, dist, tmp_path)?;
     if kind != AttachmentKind::Tarball {
         return Ok(None);
     }
-    let Some(tgz_integrity) = dist.as_object().and_then(tgz_integrity_key) else { return Ok(None) };
     let tgz = std::fs::File::open(tmp_path)?;
-    Ok(tar_integrity_of(std::io::BufReader::new(tgz))
-        .map(|(tar, inspection)| (tgz_integrity, tar, inspection)))
+    let (integrity, inspection) = tar_integrity_of(std::io::BufReader::new(tgz))
+        .ok_or_else(|| RegistryError::InvalidAttachment {
+            filename: attachment.filename.clone(),
+            reason: "it does not decode to a tar within the decode limit".to_string(),
+        })?;
+    let archive = read_archive(tmp_path, &attachment.filename)?;
+    let tgz_integrity = dist.as_object().and_then(tgz_integrity_key);
+    Ok(Some(TarDerivation { tgz_integrity, integrity, inspection, archive }))
 }
 
 /// Compress the tar the verified `.tgz` at `tgz_path` decodes to into

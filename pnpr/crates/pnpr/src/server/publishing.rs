@@ -6,6 +6,7 @@ pub(super) use tombstones::check_publish_tombstone;
 mod attachments;
 mod manifest;
 mod tombstones;
+mod verification;
 
 use std::collections::{BTreeSet, HashSet};
 
@@ -213,8 +214,9 @@ pub(super) async fn publish_package(
         Ok(staged) => staged,
         Err(err) => return err.into_response(),
     };
+    let notices = staged.notices.clone();
     match commit_publishes(state, vec![staged]).await.and_then(report_unrecorded) {
-        Ok(()) => publish_created_response(),
+        Ok(()) => publish_created_response(&notices),
         Err(err) => err.into_response(),
     }
 }
@@ -270,12 +272,20 @@ pub(super) fn report_unrecorded(outcome: CommitOutcome) -> Result<(), RegistryEr
     Err(RegistryError::PublishNotRecorded { packages })
 }
 
-pub(super) fn publish_created_response() -> Response {
+/// The response to an accepted publish, with each of `notices` in an
+/// `npm-notice` header, which npm prints to the publisher.
+pub(super) fn publish_created_response(notices: &[String]) -> Response {
     let body = json!({ "ok": true, "success": true });
     let bytes = serde_json::to_vec(&body).expect("static-shape JSON serializes");
-    Response::builder()
+    let mut builder = Response::builder()
         .status(StatusCode::CREATED)
-        .header(header::CONTENT_TYPE, "application/json")
+        .header(header::CONTENT_TYPE, "application/json");
+    for notice in notices {
+        if let Ok(value) = header::HeaderValue::from_str(notice) {
+            builder = builder.header("npm-notice", value);
+        }
+    }
+    builder
         .body(Body::from(bytes))
         .expect("static-shape response always builds")
 }
