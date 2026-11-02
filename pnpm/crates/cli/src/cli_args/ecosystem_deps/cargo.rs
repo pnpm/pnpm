@@ -6,7 +6,8 @@ use super::{
         select_locked_version,
     },
     cargo_selection::{
-        SelectedCargoDep, SelectedCargoTarget, admits_enabled_features, select_cargo_deps_to_update,
+        SelectedCargoDep, SelectedCargoTarget, admits_enabled_features, is_held_as_downgrade,
+        is_held_by_patch, select_cargo_deps_to_update, target_requirement,
     },
     cargo_workspace_scope::{CargoWorkspaceScope, resolve_cargo_workspace_scope},
     selectors::CargoUpdateSelector,
@@ -28,7 +29,7 @@ use pnpm_install_coordinator::{InstallPlan, InstallTask};
 use pnpm_matcher::Matcher;
 use pnpm_network::ThrottledClient;
 use pnpm_reporter::Reporter;
-use semver::{Version, VersionReq};
+use semver::Version;
 use std::{
     collections::{BTreeMap, HashMap},
     fs,
@@ -280,8 +281,7 @@ async fn execute_cargo_update<Reporter: self::Reporter + 'static>(
 type ManifestEdit = (PathBuf, &'static str, String, String);
 
 /// The manifest edits that stage the update for Cargo and the ones saved
-/// after it. A dependency not updated is pinned to its locked version while
-/// Cargo resolves.
+/// after it.
 async fn build_cargo_update_edits<Reporter: self::Reporter>(
     scope: &CargoWorkspaceScope,
     selected: &[SelectedCargoDep<'_>],
@@ -294,7 +294,11 @@ async fn build_cargo_update_edits<Reporter: self::Reporter>(
     let mut finalized = Vec::new();
     let mut updated = Vec::new();
     for selection in selected {
-        let target = SelectedCargoTarget { selection, scope };
+        let target = SelectedCargoTarget {
+            selection,
+            scope,
+            locked: select_locked_version(&locked, selection.dep),
+        };
         let Some((staged_edit, final_edit)) =
             resolve_selected_cargo_edit::<Reporter>(&target, &auth_headers, context, options)
                 .await?
@@ -305,25 +309,40 @@ async fn build_cargo_update_edits<Reporter: self::Reporter>(
         finalized.push(final_edit);
         updated.push(selection.dep);
     }
-    for dep in &scope.declared {
-        if updated.iter().any(|sel| same_declared_dep(sel, dep)) {
-            continue;
-        }
-        if let Some(locked_ver) = select_locked_version(&locked, dep) {
-            staged.push((
+    staged.extend(pin_unchanged_deps(scope, &locked, &updated));
+    Ok((staged, finalized))
+}
+
+/// The edits that pin each dependency the update leaves alone to its
+/// locked version while Cargo resolves. A crate `[patch.crates-io]`
+/// replaces is left as declared: that requirement is what selects the
+/// replacement, and its `Cargo.lock` entry is not a registry version.
+fn pin_unchanged_deps(
+    scope: &CargoWorkspaceScope,
+    locked: &HashMap<String, Vec<Version>>,
+    updated: &[&DeclaredCargoDep],
+) -> Vec<ManifestEdit> {
+    scope.declared
+        .iter()
+        .filter(|dep| {
+            !scope.is_patched(&dep.package_name)
+                && !updated.iter().any(|sel| same_declared_dep(sel, dep))
+        })
+        .filter_map(|dep| {
+            let locked_ver = select_locked_version(locked, dep)?;
+            Some((
                 dep.manifest_path.clone(),
                 dep.table,
                 dep.alias.clone(),
                 format!("={locked_ver}"),
-            ));
-        }
-    }
-    Ok((staged, finalized))
+            ))
+        })
+        .collect()
 }
 
 /// The edits that move a selected dependency to its target version, or
-/// `None` when that version lacks a feature the workspace enables on it and
-/// the command line does not name the crate.
+/// `None` when the dependency keeps its version: see [`is_held_by_patch`],
+/// [`is_held_as_downgrade`], and [`admits_enabled_features`].
 async fn resolve_selected_cargo_edit<Reporter: self::Reporter>(
     target: &SelectedCargoTarget<'_>,
     auth_headers: &pnpm_network::AuthHeaders,
@@ -332,11 +351,10 @@ async fn resolve_selected_cargo_edit<Reporter: self::Reporter>(
 ) -> Result<Option<(ManifestEdit, ManifestEdit)>> {
     let dep = target.selection.dep;
     let explicit_spec = target.selection.explicit_spec;
-    let target_req = match explicit_spec {
-        Some(spec) => Some(VersionReq::parse(spec).into_diagnostic()?),
-        None if options.step.latest => None,
-        None => Some(dep.version_req.clone()),
-    };
+    if is_held_by_patch::<Reporter>(target) {
+        return Ok(None);
+    }
+    let target_req = target_requirement(target, options.step.latest)?;
     let index_file = fetch_crate_index_file(
         context.config,
         auth_headers,
@@ -351,7 +369,9 @@ async fn resolve_selected_cargo_edit<Reporter: self::Reporter>(
     )
     .wrap_err_with(|| format!("select a matching version of crate {}", dep.package_name))?
     .ok_or_else(|| miette::miette!("no matching version found for crate {}", dep.package_name))?;
-    if !admits_enabled_features::<Reporter>(target, &index_file, &resolved)? {
+    if is_held_as_downgrade::<Reporter>(target, &resolved)
+        || !admits_enabled_features::<Reporter>(target, &index_file, &resolved)?
+    {
         return Ok(None);
     }
     let saved_spec = format_cargo_saved_spec(
@@ -385,3 +405,6 @@ fn restore_cargo_manifests(originals: &BTreeMap<PathBuf, String>) -> Result<()> 
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests;
