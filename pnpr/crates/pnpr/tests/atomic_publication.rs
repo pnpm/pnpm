@@ -13,6 +13,8 @@ use pnpr::{Config, MaxUsers, router};
 use pnpr_config::MetadataBackend;
 use pnpr_fixtures::MockConfigPresets;
 use pnpr_policy::{AccessList, PackageRules, RuleOverride};
+use pnpr_registry::PackagePattern;
+use pnpr_storage::{Ecosystem, layout::local_blob_path};
 use serde_json::{Value, json};
 use std::{
     net::{Ipv4Addr, SocketAddr, SocketAddrV4},
@@ -75,8 +77,13 @@ async fn send_with_key(
 }
 
 async fn token(app: &Router) -> String {
-    let body = json!({ "name": "alice", "password": "secret", "type": "user", "roles": [] });
-    let answer = send(app, "PUT", "/-/user/org.couchdb.user:alice", "-", Some(&body)).await;
+    token_of(app, "alice").await
+}
+
+async fn token_of(app: &Router, user: &str) -> String {
+    let body = json!({ "name": user, "password": "secret", "type": "user", "roles": [] });
+    let path = format!("/-/user/org.couchdb.user:{user}");
+    let answer = send(app, "PUT", &path, "-", Some(&body)).await;
     assert_eq!(answer.status, StatusCode::CREATED);
     answer.body["token"]
         .as_str()
@@ -211,4 +218,66 @@ async fn a_batch_is_one_publication() {
     assert_eq!(reused.status, StatusCode::CONFLICT);
     let gadgets = send(&app, "GET", "/npm/gadgets", &token, None).await;
     assert_eq!(gadgets.status, StatusCode::NOT_FOUND);
+    // The refused commit took the archive it had promoted with it.
+    let archive = local_blob_path(tmp.path(), "", Ecosystem::Npm, "gadgets", "gadgets-1.0.0.tgz");
+    assert!(!archive.exists());
+}
+
+#[tokio::test]
+async fn a_publication_name_is_bounded() {
+    let tmp = TempDir::new().unwrap();
+    let app = router(sqlite_config(tmp.path()));
+    let token = token(&app).await;
+    let batch =
+        json!({ "name": "n".repeat(215), "packages": [publish_doc("named", "1.0.0", b"bytes")] });
+    let refused = send(&app, "PUT", "/-/pnpr/v0/publish", &token, Some(&batch)).await;
+    assert_eq!(refused.status, StatusCode::BAD_REQUEST);
+    let named = send(&app, "GET", "/npm/named", &token, None).await;
+    assert_eq!(named.status, StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn a_member_lookup_hides_a_package_the_caller_cannot_read() {
+    let tmp = TempDir::new().unwrap();
+    let config = sqlite_config(tmp.path());
+    let rules = config.routing.hosted["local"].rules.clone();
+    let app = router(config);
+    let alice = token(&app).await;
+    let bob = token_of(&app, "bob").await;
+    let batch = json!({
+        "packages": [
+            publish_doc("@private/hidden", "1.0.0", b"hidden"),
+            publish_doc("@foo/open", "1.0.0", b"open"),
+        ],
+    });
+    let committed = send(&app, "PUT", "/-/pnpr/v0/publish", &bob, Some(&batch)).await;
+    assert_eq!(committed.status, StatusCode::CREATED, "{}", committed.text);
+    only_bob_reads(&rules, "@private/*");
+
+    let hidden =
+        send(&app, "GET", "/-/publications/-?member=npm:@private/hidden@1.0.0", &alice, None).await;
+    assert_eq!(hidden.status, StatusCode::NOT_FOUND);
+    let open =
+        send(&app, "GET", "/-/publications/-?member=npm:@foo/open@1.0.0", &alice, None).await;
+    assert_eq!(open.status, StatusCode::OK);
+    assert_eq!(open.body["members"].as_array().map(Vec::len), Some(1));
+    let shown =
+        send(&app, "GET", "/-/publications/-?member=npm:@private/hidden@1.0.0", &bob, None).await;
+    assert_eq!(shown.body["members"].as_array().map(Vec::len), Some(2));
+
+    let crate_member =
+        send(&app, "GET", "/-/publications/-?member=cargo:serde@1.0.0", &bob, None).await;
+    assert_eq!(crate_member.status, StatusCode::BAD_REQUEST);
+}
+
+/// Leave `bob` alone allowed to read the packages of `pattern`.
+fn only_bob_reads(rules: &PackageRules, pattern: &str) {
+    let pattern = PackagePattern::parse(pattern, Ecosystem::Npm).unwrap();
+    let lists =
+        RuleOverride { access: Some(AccessList::from_tokens(["bob"])), ..RuleOverride::default() };
+    let changed = rules
+        .snapshot()
+        .with_overrides(None, vec![(pattern, lists)])
+        .unwrap();
+    rules.replace(changed);
 }

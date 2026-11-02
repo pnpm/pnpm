@@ -70,3 +70,13 @@ fn sha512(bytes: &[u8]) -> ssri::Integrity {
     opts.input(bytes);
     opts.result()
 }
+
+#[test]
+fn a_request_digest_hashes_the_canonical_json() {
+    let body = json!({ "b": 1, "a": [{ "d": 2, "c": r#"x""# }], "e": null });
+    let reordered = json!({ "e": null, "a": [{ "c": r#"x""#, "d": 2 }], "b": 1 });
+    let digest = super::atomic::request_digest(&body);
+    assert_eq!(digest, super::atomic::request_digest(&reordered));
+    let canonical = br#"{"a":[{"c":"x\"","d":2}],"b":1,"e":null}"#;
+    assert_eq!(digest, ssri::Integrity::from(canonical).to_string());
+}

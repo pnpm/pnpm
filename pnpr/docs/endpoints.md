@@ -166,7 +166,7 @@ generation it committed. `<org>` is `-` for registries without an `org`.
 | Method | Path | Description |
 | --- | --- | --- |
 | `GET` | `/-/publications/<org>/<id-or-name>` | The publication, with the members the caller may read: ecosystem, name, version, and artifact (an npm archive's integrity, or another ecosystem's file name). `404` when the caller may read none of them. |
-| `GET` | `/-/publications/<org>?member=<ecosystem>:<name>@<version>` | The publication that introduced that version. |
+| `GET` | `/-/publications/<org>?member=npm:<name>@<version>` | The publication that introduced that npm version. `404` when the caller may not read the package. Members of other ecosystems record no version, so they cannot be looked up this way. |
 
 ### Pipeline run endpoints
 

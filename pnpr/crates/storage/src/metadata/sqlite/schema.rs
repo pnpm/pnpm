@@ -148,6 +148,9 @@ CREATE TABLE IF NOT EXISTS publications (
     committed_at TEXT NOT NULL,
     PRIMARY KEY (catalog, id)
 ) STRICT;
+-- The versions a commit accepted, which are its publication's members.
+CREATE INDEX IF NOT EXISTS versions_by_accepted_generation
+    ON versions (catalog, accepted_generation);
 CREATE UNIQUE INDEX IF NOT EXISTS publications_by_name
     ON publications (catalog, name) WHERE name IS NOT NULL;
 
@@ -163,6 +166,8 @@ CREATE TABLE IF NOT EXISTS publication_members (
     PRIMARY KEY (catalog, ecosystem, name, version, artifact),
     FOREIGN KEY (catalog, publication) REFERENCES publications (catalog, id)
 ) STRICT, WITHOUT ROWID;
+CREATE INDEX IF NOT EXISTS publication_members_by_publication
+    ON publication_members (catalog, publication);
 
 -- The outcome of a committed publication request, keyed by the principal
 -- that sent it and its idempotency key, for the request's retries.

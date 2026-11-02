@@ -124,6 +124,11 @@ impl CratePublication {
         &self.key
     }
 
+    /// The organization whose catalog the crate is published into.
+    pub(in super::super) fn org(&self) -> &str {
+        &self.org
+    }
+
     /// The one-version document this publish contributes, which merges into
     /// whatever the registry already holds for the crate.
     pub(super) fn document(&self) -> CrateDocument {

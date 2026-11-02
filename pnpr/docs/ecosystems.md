@@ -249,8 +249,9 @@ With [SQLite metadata](storage.md#sqlite-metadata) a batch is stronger:
   publish. A caller whose permission was revoked since gets `403` and can
   read the outcome from the publication or the package.
 - The commit is recorded as a publication. A top-level `"name": "v2.0.0"`
-  field in the body names it. The name must be unique within the org and
-  must not be a decimal number, which would read as a publication id.
+  field in the body names it. The name must be unique within the org, at most
+  214 bytes long, and not a decimal number, which would read as a publication
+  id.
   See [publication endpoints](endpoints.md#publication-endpoints).
 
 An [image manifest](container-images.md) whose layers are already uploaded can

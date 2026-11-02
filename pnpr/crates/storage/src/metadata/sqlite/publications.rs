@@ -23,10 +23,12 @@ fn retention_cutoff() -> i64 {
     now_secs() - i64::try_from(OUTCOME_RETENTION.as_secs()).unwrap_or(i64::MAX)
 }
 
-/// The recorded outcome of `principal`'s request under `key`, in any catalog,
-/// when it is still retained and its request had `digest`.
+/// The recorded outcome of `principal`'s request under `key` in `catalog`,
+/// when it is still retained and its request had `digest`. The same request
+/// sent to another catalog is another publish.
 pub(super) fn recorded_outcome(
     connection: &Connection,
+    catalog: &str,
     principal: &str,
     key: &str,
     digest: &str,
@@ -34,9 +36,9 @@ pub(super) fn recorded_outcome(
     let outcome = connection
         .query_row(
             "SELECT catalog, generation, publication FROM publication_outcomes
-             WHERE principal = ?1 AND idempotency_key = ?2 AND request_digest = ?3
-               AND committed_at >= ?4",
-            params![principal, key, digest, retention_cutoff()],
+             WHERE catalog = ?1 AND principal = ?2 AND idempotency_key = ?3
+               AND request_digest = ?4 AND committed_at >= ?5",
+            params![catalog, principal, key, digest, retention_cutoff()],
             |row| {
                 Ok(RecordedOutcome {
                     catalog: row.get(0)?,

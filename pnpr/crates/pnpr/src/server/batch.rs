@@ -28,8 +28,8 @@ use super::{
     oci::{OciPublication, authorize_publication},
     publishing::{
         StagedPublish, cleanup_tmp_slots, commit_publication, publication_name,
-        publication_request, publish_committed_response, replayed_outcome, stage_publish,
-        validate_publish_doc,
+        publication_request, publish_committed_response, replayed_outcome, single_catalog,
+        stage_publish, validate_publish_doc,
     },
     pypi::{PypiPublication, authorize_upload, verify_upload},
 };
@@ -117,6 +117,16 @@ impl ValidatedEntry {
         }
     }
 
+    /// The organization whose catalog the entry is published into.
+    fn org(&self) -> &str {
+        match self {
+            ValidatedEntry::Npm(_, org) => org,
+            ValidatedEntry::Cargo(publication) => publication.org(),
+            ValidatedEntry::Pypi(publication) => publication.org(),
+            ValidatedEntry::Oci(publication) => publication.org(),
+        }
+    }
+
     fn key(&self) -> &CanonicalPackageName {
         match self {
             ValidatedEntry::Npm(doc, _) => &doc.name,
@@ -152,9 +162,13 @@ async fn publish_batch(
     let packages = take_packages(&mut incoming)?;
     let validated = validate_batch_entries(state, identity, packages).await?;
     // Every entry is authorized above, so a retry gets the outcome of the
-    // request it repeats only while its caller may still make it.
-    if let Some(replayed) = replayed_outcome(state, request.as_ref()).await? {
-        return Ok(replayed);
+    // request it repeats only while its caller may still make it. A request
+    // exists only with SQLite metadata, whose publish targets one catalog.
+    if request.is_some() {
+        let catalog = single_catalog(validated.iter().map(ValidatedEntry::org))?;
+        if let Some(replayed) = replayed_outcome(state, &catalog, request.as_ref()).await? {
+            return Ok(replayed);
+        }
     }
 
     // Hold every affected package's lock across the whole stage-and-commit,

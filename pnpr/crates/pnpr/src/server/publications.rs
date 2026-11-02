@@ -55,6 +55,24 @@ pub(super) async fn serve_member_publication(
         }
         .into_response();
     };
+    // Only npm members carry the version they were published as.
+    if name.ecosystem() != Ecosystem::Npm {
+        return RegistryError::BadRequest {
+            reason: "`member` looks up npm package versions only".to_string(),
+        }
+        .into_response();
+    }
+    // A package the caller may not read answers like one that does not
+    // exist, whatever else its publication holds.
+    let queried = ArtifactMember {
+        ecosystem: name.ecosystem(),
+        name: name.as_str().to_string(),
+        version: version.to_string(),
+        artifact: String::new(),
+    };
+    if !may_read(&state, &identity, catalog, &queried) {
+        return private_no_cache(not_found());
+    }
     let found = database.initial_publication(&name, catalog, version).await;
     private_no_cache(respond(&state, &identity, found))
 }

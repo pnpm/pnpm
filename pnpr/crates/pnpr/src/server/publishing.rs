@@ -1,6 +1,6 @@
 pub(super) use atomic::{
     commit_publication, publication_name, publication_request, publish_committed_response,
-    replayed_outcome,
+    replayed_outcome, single_catalog,
 };
 pub(super) use attachments::{
     StagedPublish, ValidatedPublish, stage_publish, validate_publish_doc,
@@ -207,7 +207,7 @@ pub(super) async fn publish_package(
         };
     // A retry is authorized like any publish, so only a caller still allowed
     // to make it gets the outcome of the request it repeats.
-    match replayed_outcome(state, request.as_ref()).await {
+    match replayed_outcome(state, &target.org, request.as_ref()).await {
         Ok(Some(replayed)) => return replayed,
         Ok(None) => {}
         Err(err) => return err.into_response(),

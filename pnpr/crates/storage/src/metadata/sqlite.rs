@@ -180,17 +180,28 @@ impl SqliteMetadata {
         .await
     }
 
-    /// The retained outcome of `principal`'s request under `key` whose
-    /// digest is `digest`, in whichever catalog it committed.
+    /// The retained outcome of `request` in `catalog`, when an identical
+    /// request committed there.
     pub async fn recorded_outcome(
         self: &Arc<Self>,
-        principal: &str,
-        key: &str,
-        digest: &str,
+        catalog: &str,
+        request: &PublicationRequest,
     ) -> Result<Option<RecordedOutcome>> {
-        let (principal, key, digest) = (principal.to_string(), key.to_string(), digest.to_string());
+        let (catalog, request) = (catalog.to_string(), request.clone());
         self.read(move |connection, _| {
-            publications::recorded_outcome(connection, &principal, &key, &digest)
+            let PublicationRequest {
+                principal,
+                idempotency_key,
+                request_digest,
+                ..
+            } = &request;
+            publications::recorded_outcome(
+                connection,
+                &catalog,
+                principal,
+                idempotency_key,
+                request_digest,
+            )
         })
         .await
     }

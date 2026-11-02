@@ -81,6 +81,11 @@ impl OciPublication {
         &self.key
     }
 
+    /// The organization whose catalog the image is published into.
+    pub(in crate::server) fn org(&self) -> &str {
+        &self.org
+    }
+
     pub(super) fn subject(&self) -> Option<Digest> {
         self.manifest.referrer_metadata().subject
     }

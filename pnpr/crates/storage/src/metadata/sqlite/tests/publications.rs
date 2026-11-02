@@ -80,15 +80,19 @@ async fn a_retried_request_gets_its_recorded_outcome() {
         .unwrap();
     assert!(retry.replayed);
     assert_eq!((retry.generation, retry.publication), (first.generation, first.publication));
-    let recorded = database.recorded_outcome("alice", "request:digest", "digest").await.unwrap();
+    let recorded = database
+        .recorded_outcome("acme", &request("digest", None))
+        .await
+        .unwrap();
     assert_eq!(recorded.map(|outcome| outcome.generation), Some(1));
-    assert!(
-        database
-            .recorded_outcome("bob", "request:digest", "digest")
-            .await
-            .unwrap()
-            .is_none(),
-    );
+    let mut by_bob = request("digest", None);
+    by_bob.principal = "bob".to_string();
+    // Another principal, or the same request sent to another catalog, is a
+    // publish of its own.
+    for (catalog, other) in [("acme", by_bob), ("other", request("digest", None))] {
+        let found = database.recorded_outcome(catalog, &other).await.unwrap();
+        assert!(found.is_none(), "{catalog}");
+    }
 
     let mut reused = request("other", None);
     reused.idempotency_key = "request:digest".to_string();
@@ -216,4 +220,43 @@ async fn a_publication_cannot_bring_back_a_removed_version() {
             .unwrap()
             .is_none(),
     );
+}
+
+#[tokio::test]
+async fn competing_publications_of_one_version_commit_once() {
+    let tmp = TempDir::new().unwrap();
+    // Two stores over one database: two writers that share no in-process lock.
+    let (first, second) = (storage(&tmp), storage(&tmp));
+    let mut theirs = packument("core", &["1.0.0"]);
+    theirs["versions"]["1.0.0"]["dist"]["integrity"] = json!("sha512-theirs");
+    let ours = vec![
+        document("core", &packument("core", &["1.0.0"])),
+        document("extra", &packument("extra", &["1.0.0"])),
+    ];
+    let theirs = vec![document("core", &theirs)];
+    let left = commit(first.sqlite_metadata().unwrap(), ours, request("ours", None));
+    let right = commit(second.sqlite_metadata().unwrap(), theirs, request("theirs", None));
+    let (left, right) = tokio::join!(left, right);
+    let winner = match (left, right) {
+        (Ok(won), Err(RegistryError::DocumentWriteConflict { .. })) => {
+            assert!(read(&first.for_hosted("acme", Ecosystem::Npm), "extra").await.is_object());
+            won
+        }
+        (Err(RegistryError::DocumentWriteConflict { .. }), Ok(won)) => {
+            // The losing batch committed none of its members.
+            let extra = first
+                .for_hosted("acme", Ecosystem::Npm)
+                .read_hosted_document(&npm("extra"))
+                .await
+                .unwrap();
+            assert!(extra.is_none());
+            won
+        }
+        outcomes => panic!("exactly one publication commits, got {outcomes:?}"),
+    };
+    assert_eq!(winner.generation.value, 1);
+    let database = first.sqlite_metadata().unwrap();
+    assert_eq!(database.catalog_generation("acme").unwrap(), 1);
+    let second_publication = database.publication("acme", "2").await.unwrap();
+    assert!(second_publication.is_none());
 }

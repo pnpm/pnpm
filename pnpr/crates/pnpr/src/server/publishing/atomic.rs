@@ -17,10 +17,12 @@ use axum::{
     response::Response,
 };
 use pnpr_storage::{
-    BlobFinalize,
+    BlobFinalize, BlobSlot,
     metadata::{ArtifactMember, BatchDocument, Generation, PublicationRequest},
 };
-use serde_json::{Map, json};
+use serde_json::json;
+use ssri::{Algorithm, IntegrityOpts};
+use std::io::{self, Write as _};
 
 /// What a publish committed, as its response reports it.
 #[derive(Debug, Default)]
@@ -49,11 +51,21 @@ pub(in super::super) fn publication_request(
     Some(PublicationRequest { principal, idempotency_key, request_digest, name })
 }
 
+/// The longest publication name, in bytes: the longest npm package name.
+const MAX_PUBLICATION_NAME: usize = 214;
+
 /// The publication name a batch body gives in its top-level `name`. A name
 /// is never a decimal number, so `/-/publications/<org>/<id-or-name>` reads
 /// a segment as one or the other.
 pub(in super::super) fn publication_name(body: &Value) -> Result<Option<&str>, RegistryError> {
     let name = body.get("name").and_then(Value::as_str);
+    if let Some(name) = name
+        && name.len() > MAX_PUBLICATION_NAME
+    {
+        return Err(RegistryError::BadRequest {
+            reason: format!("a publication name is at most {MAX_PUBLICATION_NAME} bytes long"),
+        });
+    }
     if let Some(name) = name
         && !name.is_empty()
         && name.bytes().all(|byte| byte.is_ascii_digit())
@@ -69,21 +81,17 @@ pub(in super::super) fn publication_name(body: &Value) -> Result<Option<&str>, R
 }
 
 /// The response a retry of an already committed request gets: the outcome
-/// that request recorded. The caller authorizes the retry as a publish first.
+/// that request recorded in `catalog`, the one the retry targets. The caller
+/// authorizes the retry as a publish first.
 pub(in super::super) async fn replayed_outcome(
     state: &AppState,
+    catalog: &str,
     request: Option<&PublicationRequest>,
 ) -> Result<Option<Response>, RegistryError> {
     let (Some(request), Some(database)) = (request, state.inner.storage.sqlite_metadata()) else {
         return Ok(None);
     };
-    let Some(outcome) = database.recorded_outcome(
-        &request.principal,
-        &request.idempotency_key,
-        &request.request_digest,
-    )
-    .await?
-    else {
+    let Some(outcome) = database.recorded_outcome(catalog, request).await? else {
         return Ok(None);
     };
     let receipt = PublishReceipt {
@@ -104,8 +112,13 @@ pub(in super::super) async fn commit_publication(
         report_unrecorded(super::commit_through_journal(state, staged).await?)?;
         return Ok(PublishReceipt::default());
     };
-    let catalog = single_catalog(&staged)?;
-    let artifacts = promote_archives(state, &mut staged).await?;
+    let catalog = single_catalog(
+        staged
+            .iter()
+            .map(|stage| stage.org.as_deref().unwrap_or_default()),
+    )?;
+    let promoted = promote_archives(state, &mut staged).await?;
+    let artifacts = promoted.artifacts.clone();
     let documents = staged
         .into_iter()
         .map(|stage| BatchDocument {
@@ -116,16 +129,21 @@ pub(in super::super) async fn commit_publication(
             principal: stage.publisher,
         })
         .collect();
-    let commit = database.commit_publication(&catalog, documents, artifacts, request).await?;
+    let commit = match database.commit_publication(&catalog, documents, artifacts, request).await {
+        Ok(commit) => commit,
+        Err(err) => {
+            promoted.remove_written(state).await;
+            return Err(err);
+        }
+    };
     Ok(PublishReceipt { generation: Some(commit.generation), publication: commit.publication })
 }
 
-/// The one organization every staged package belongs to. A transaction never
-/// spans organizations.
-fn single_catalog(staged: &[StagedPublish]) -> Result<String, RegistryError> {
-    let mut orgs = staged
-        .iter()
-        .map(|stage| stage.org.as_deref().unwrap_or_default());
+/// The one organization every package of a publish belongs to. A
+/// transaction never spans organizations.
+pub(in super::super) fn single_catalog<'org>(
+    mut orgs: impl Iterator<Item = &'org str>,
+) -> Result<String, RegistryError> {
     let first = orgs.next().unwrap_or_default();
     if orgs.any(|org| org != first) {
         return Err(RegistryError::BadRequest {
@@ -136,17 +154,39 @@ fn single_catalog(staged: &[StagedPublish]) -> Result<String, RegistryError> {
     Ok(first.to_string())
 }
 
-/// Promote every staged archive before the metadata commit that references
-/// it. A slot another writer holds with other bytes fails the whole publish,
-/// so the commit never records part of it. Returns the archives of other
-/// ecosystems than npm, whose publication members the metadata cannot
-/// derive.
-async fn promote_archives(
-    state: &AppState,
+/// The archives a publish promoted before its metadata commit.
+#[derive(Default)]
+struct Promoted {
+    /// The archives of other ecosystems than npm, whose publication members
+    /// the metadata cannot derive.
+    artifacts: Vec<ArtifactMember>,
+    /// The archives this publish wrote, rather than found in place.
+    written:
+        Vec<(String, pnpr_registry::Ecosystem, pnpr_package_name::CanonicalPackageName, String)>,
+}
+
+impl Promoted {
+    /// Remove the archives this publish wrote, after its commit was refused,
+    /// so no archive outlives the metadata that would have referenced it.
+    /// The caller holds every package's lock, so no other publish has
+    /// committed one of them since. An archive found in place belongs to an
+    /// earlier commit and stays.
+    async fn remove_written(&self, state: &AppState) {
+        for (org, ecosystem, name, filename) in &self.written {
+            let storage = state.inner.storage.for_hosted(org, *ecosystem);
+            if let Err(err) = storage.remove_hosted_blob(name, filename).await {
+                tracing::warn!(package = %name.as_str(), %filename, %err, "refused publish left its archive");
+            }
+        }
+    }
+}
+
+/// Every staged blob slot with the org, ecosystem and package it belongs to,
+/// last first, so popping them promotes in staging order.
+fn take_slots(
     staged: &mut [StagedPublish],
-) -> Result<Vec<ArtifactMember>, RegistryError> {
-    let mut artifacts = Vec::new();
-    let mut pending: Vec<_> = staged
+) -> Vec<((String, pnpr_registry::Ecosystem, pnpr_package_name::CanonicalPackageName), BlobSlot)> {
+    let mut slots: Vec<_> = staged
         .iter_mut()
         .flat_map(|stage| {
             let owner =
@@ -156,31 +196,51 @@ async fn promote_archives(
                 .map(move |slot| (owner.clone(), slot))
         })
         .collect();
-    pending.reverse();
+    slots.reverse();
+    slots
+}
+
+/// Promote every staged archive before the metadata commit that references
+/// it. A slot another writer holds with other bytes fails the whole publish,
+/// so the commit never records part of it, and the archives this publish
+/// already wrote are removed again.
+async fn promote_archives(
+    state: &AppState,
+    staged: &mut [StagedPublish],
+) -> Result<Promoted, RegistryError> {
+    let mut promoted = Promoted::default();
+    let mut pending = take_slots(staged);
     while let Some(((org, ecosystem, name), slot)) = pending.pop() {
         let filename = slot.filename().to_string();
         let tmp_path = slot.tmp_path.clone();
-        let promoted =
+        let finalized =
             state.inner.storage.for_hosted(&org, ecosystem).finalize_blob_slot(slot).await;
-        if !matches!(promoted, Ok(BlobFinalize::Written | BlobFinalize::AlreadyIdentical)) {
-            let _ = tokio::fs::remove_file(&tmp_path).await;
-            super::cleanup_tmp_slots(
-                pending
-                    .into_iter()
-                    .map(|(_, slot)| slot)
-                    .collect(),
-            )
-            .await;
-            promoted?;
-            return Err(RegistryError::PublishNotRecorded {
-                packages: format!("{ecosystem} {}", name.as_str()),
-            });
+        match finalized {
+            Ok(BlobFinalize::Written) => {
+                promoted.written.push((org, ecosystem, name.clone(), filename.clone()));
+            }
+            Ok(BlobFinalize::AlreadyIdentical) => {}
+            outcome => {
+                let _ = tokio::fs::remove_file(&tmp_path).await;
+                super::cleanup_tmp_slots(
+                    pending
+                        .into_iter()
+                        .map(|(_, slot)| slot)
+                        .collect(),
+                )
+                .await;
+                promoted.remove_written(state).await;
+                outcome?;
+                return Err(RegistryError::PublishNotRecorded {
+                    packages: format!("{ecosystem} {}", name.as_str()),
+                });
+            }
         }
         if ecosystem != pnpr_registry::Ecosystem::Npm {
-            artifacts.push(artifact_member(ecosystem, &name, filename));
+            promoted.artifacts.push(artifact_member(ecosystem, &name, filename));
         }
     }
-    Ok(artifacts)
+    Ok(promoted)
 }
 
 /// A publication member for an archive whose version the metadata does not
@@ -193,26 +253,62 @@ fn artifact_member(
     ArtifactMember { ecosystem, name: name.as_str().to_string(), version: String::new(), artifact }
 }
 
-/// The digest of a request, independent of the order of its object keys.
-fn request_digest(body: &Value) -> String {
-    let canonical = serde_json::to_vec(&canonical(body)).unwrap_or_default();
-    ssri::Integrity::from(canonical).to_string()
+/// The digest of a request, independent of the order of its object keys. The
+/// canonical JSON streams into the hasher, so a body that runs to the
+/// request limit is never copied.
+pub(super) fn request_digest(body: &Value) -> String {
+    let mut hasher = Hasher(IntegrityOpts::new().algorithm(Algorithm::Sha256));
+    // Writing into the hasher cannot fail.
+    let _ = write_canonical(&mut hasher, body);
+    hasher.0.result().to_string()
 }
 
-fn canonical(value: &Value) -> Value {
+/// Feeds what is written to it into a digest.
+struct Hasher(IntegrityOpts);
+
+impl io::Write for Hasher {
+    fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+        self.0.input(bytes);
+        Ok(bytes.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
+/// Write `value` as compact JSON with every object's keys sorted.
+fn write_canonical(out: &mut Hasher, value: &Value) -> io::Result<()> {
     match value {
         Value::Object(fields) => {
             let mut sorted: Vec<_> = fields.iter().collect();
             sorted.sort_by(|left, right| left.0.cmp(right.0));
-            let fields: Map<String, Value> = sorted
-                .into_iter()
-                .map(|(key, value)| (key.clone(), canonical(value)))
-                .collect();
-            Value::Object(fields)
+            write_sequence(out, (b"{", b"}"), sorted, |out, (key, field)| {
+                serde_json::to_writer(&mut *out, key)?;
+                out.write_all(b":")?;
+                write_canonical(out, field)
+            })
         }
-        Value::Array(items) => Value::Array(items.iter().map(canonical).collect()),
-        other => other.clone(),
+        Value::Array(items) => write_sequence(out, (b"[", b"]"), items, write_canonical),
+        scalar => Ok(serde_json::to_writer(out, scalar)?),
     }
+}
+
+/// Write `items` between `brackets`, separated by commas.
+fn write_sequence<Item>(
+    out: &mut Hasher,
+    brackets: (&[u8], &[u8]),
+    items: impl IntoIterator<Item = Item>,
+    mut write_item: impl FnMut(&mut Hasher, Item) -> io::Result<()>,
+) -> io::Result<()> {
+    out.write_all(brackets.0)?;
+    for (index, item) in items.into_iter().enumerate() {
+        if index > 0 {
+            out.write_all(b",")?;
+        }
+        write_item(out, item)?;
+    }
+    out.write_all(brackets.1)
 }
 
 /// `201 Created` for a committed publish, naming the generation that holds
