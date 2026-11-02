@@ -14,6 +14,10 @@ use crate::{
         Ledger, PackageConsumption, append_to_ledger, build_consumption_index,
         normalize_project_dir,
     },
+    notes::{ComposedNotes, compose_release_notes},
+    parked_publication::{
+        read_parked_publications, remove_parked_publication, write_parked_publication,
+    },
     pending::{remove_pending_changelog, write_pending_changelog},
     plan::{
         PlannedRelease, ProjectRefIndex, ReleasePlan, WorkspaceProject, index_project_refs,
@@ -47,6 +51,11 @@ pub struct AppliedRelease {
 ///
 /// A private project is never published, so no tarball can ever carry its
 /// prose: its releases use `repository` storage whatever is configured.
+///
+/// `notes_dirs` are the releases bound for a registry that stores release
+/// notes. In `registry` storage they form one publication: their parked
+/// sections are their version notes, and the publication's name and note
+/// are parked beside them.
 pub fn apply_release_plan(
     plan: &ReleasePlan,
     workspace_dir: &Path,
@@ -54,19 +63,28 @@ pub fn apply_release_plan(
     all_intents: &[ChangeIntent],
     versioning: Option<&VersioningSettings>,
     confirmed_published: &HashSet<String>,
+    notes_dirs: &HashSet<String>,
 ) -> Result<Vec<AppliedRelease>, VersioningError> {
     let storage = ReleaseStorage {
         configured: changelog_storage(versioning),
         private_dirs: private_project_dirs(projects, workspace_dir),
     };
+    let refs = index_project_refs(projects, workspace_dir);
 
     let applied = write_new_versions(plan)?;
+    let notes = storage.compose_notes(plan, notes_dirs, &refs, versioning);
     for release in &plan.releases {
-        write_changelog_section(release, workspace_dir, storage.of(&release.dir))?;
+        let section = notes.version_notes
+            .get(&release.dir)
+            .cloned()
+            .unwrap_or_else(|| compose_changelog_section(release));
+        write_changelog_section(release, workspace_dir, storage.of(&release.dir), &section)?;
+    }
+    if let Some(publication) = &notes.publication {
+        write_parked_publication(workspace_dir, publication)?;
     }
 
     let ledger = append_to_ledger(workspace_dir, &ledger_entries(plan))?;
-    let refs = index_project_refs(projects, workspace_dir);
     remove_consumed_intents(
         all_intents,
         &refs,
@@ -83,6 +101,7 @@ pub fn apply_release_plan(
                 remove_pending_changelog(workspace_dir, name, version)?;
             }
         }
+        collect_parked_publications(workspace_dir, confirmed_published)?;
     }
 
     Ok(applied)
@@ -99,6 +118,40 @@ impl ReleaseStorage {
     fn of(&self, dir: &str) -> ChangelogStorage {
         if self.private_dirs.contains(dir) { ChangelogStorage::Repository } else { self.configured }
     }
+
+    /// The notes of the releases in `notes_dirs` that use `registry`
+    /// storage.
+    fn compose_notes(
+        &self,
+        plan: &ReleasePlan,
+        notes_dirs: &HashSet<String>,
+        refs: &ProjectRefIndex,
+        versioning: Option<&VersioningSettings>,
+    ) -> ComposedNotes {
+        let members = notes_dirs
+            .iter()
+            .filter(|dir| self.of(dir) == ChangelogStorage::Registry)
+            .cloned()
+            .collect();
+        compose_release_notes(plan, &members, refs, versioning)
+    }
+}
+
+/// A parked publication has served its purpose once every member is
+/// confirmed, since the confirmation covers the publication note.
+fn collect_parked_publications(
+    workspace_dir: &Path,
+    confirmed_published: &HashSet<String>,
+) -> Result<(), VersioningError> {
+    for publication in read_parked_publications(workspace_dir)? {
+        if publication.members
+            .iter()
+            .all(|member| confirmed_published.contains(member))
+        {
+            remove_parked_publication(workspace_dir, &publication)?;
+        }
+    }
+    Ok(())
 }
 
 /// Stamp every released manifest with its new version.
@@ -126,14 +179,14 @@ fn write_changelog_section(
     release: &PlannedRelease,
     workspace_dir: &Path,
     storage: ChangelogStorage,
+    section: &str,
 ) -> Result<(), VersioningError> {
-    let section = compose_changelog_section(release);
     match storage {
         ChangelogStorage::Repository => {
-            prepend_changelog_section(&release.root_dir, &release.name, &section)
+            prepend_changelog_section(&release.root_dir, &release.name, section)
         }
         ChangelogStorage::Registry => {
-            write_pending_changelog(workspace_dir, &release.name, &release.version.next, &section)
+            write_pending_changelog(workspace_dir, &release.name, &release.version.next, section)
         }
     }
 }

@@ -33,6 +33,7 @@ use crate::{
     publish_summary::{PackedPkgInfo, PublishSummary, create_publish_summary},
     publish_wait::{PublishWaitError, wait_for_published_packages},
     registry_config_keys::NormalizedRegistryUrl,
+    release_notes::ReleaseNotesTarget,
 };
 
 /// The packed package handed to [`publish_packed_pkg`]: the manifest that was
@@ -44,6 +45,8 @@ pub struct PackedPkg<'a> {
     pub tarball_path: &'a str,
     pub contents: &'a [String],
     pub unpacked_size: u64,
+    /// The version note, sent only to a registry that stores notes.
+    pub notes: Option<&'a str>,
 }
 
 impl PackedPkg<'_> {
@@ -68,6 +71,7 @@ pub struct PublishPackedPkgOptions {
     pub stage: bool,
     pub wait_timeout: std::time::Duration,
     pub registry: PublishRegistryOptions,
+    pub release_notes: ReleaseNotesTarget,
 }
 
 impl PublishPackedPkgOptions {
@@ -209,6 +213,7 @@ where
         &resolved.default_tag,
         &DistHashes { integrity: &summary.integrity, shasum: &summary.shasum },
     )?;
+    opts.release_notes.attach_version_notes(&mut document, pkg.notes, &resolved.registry);
 
     if resolved.provenance == Some(true) {
         attach_provenance::<Sys, Reporter>(&mut document, name, version, pkg, &opts.registry.http)

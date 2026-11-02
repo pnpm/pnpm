@@ -42,6 +42,14 @@ pnpm view express@4.18.0
 
 When no package name is provided, `pnpm view` searches upward for the nearest project manifest (`package.json`, `package.yaml`, or `package.json5`) and uses its `name` field. If the manifest exists but has no `name`, the command fails. To select fields, name the package: the first argument is always the package, so `pnpm view version` looks up a package named `version`.
 
+Show the release notes of a version, and of the release that published it, from a registry that stores them, such as [pnpr](https://github.com/pnpm/pnpm/tree/main/pnpr):
+
+```sh
+pnpm view express@4.18.0 releaseNotes
+```
+
+pnpm prints notes as plain text. It removes control and bidirectional override characters and shows each link's target next to its text.
+
 ## Options
 
 ### --json

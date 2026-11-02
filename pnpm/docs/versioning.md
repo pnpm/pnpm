@@ -112,6 +112,18 @@ By default (`versioning.changelog.storage: registry`) no `CHANGELOG.md` is commi
 
 Set `versioning.changelog.storage: repository` to keep committed `CHANGELOG.md` files in every package instead.
 
+### Release notes on pnpr
+
+When a package publishes to a registry declared with [`serverType: pnpr`](./registries.md#servertype), `registry` storage stores its section as the version's release notes instead of packing it into the tarball. The packages of a release plan that publish to such a registry form one release:
+
+- An intent that names only one of them goes into that package's notes.
+- An intent that names several of them goes once into the notes of the release, with the packages it applies to.
+- An intent that also names a package outside the release stays in the notes of every package it names.
+
+The release is named `v<version>` after the version of its [epic](#epics) lead, or of its one fixed group. [`pnpm publish -r --batch`](./cli/publish.md#--batch) sends the whole release in one request. `--release-notes` adds a summary above the notes of the release, and `--publication-name` names it.
+
+Nothing is packed into or fetched from a tarball. A later `pnpm version -r` deletes consumed intents once the registry holds the notes composed from them: each note either still contains that text, or was created from it, which the registry proves with the note's initial digest after an edit.
+
 Private packages are never published, so no tarball could carry their changelog. Their releases always use `repository` storage, whatever is configured: the section is prepended to the package's committed `CHANGELOG.md`, and the release counts as consumed without a registry confirmation. An intent file that also names other projects is still deleted only once all of them have released.
 
 ## The ledger

@@ -4858,6 +4858,7 @@ dependencies = [
  "pnpm-python-installer",
  "pnpm-python-resolver",
  "pnpm-registry",
+ "pnpm-release-notes",
  "pnpm-reporter",
  "pnpm-resolving-default-resolver",
  "pnpm-resolving-deps-resolver",
@@ -6274,6 +6275,21 @@ dependencies = [
  "sysinfo",
  "tokio",
  "walkdir",
+]
+
+[[package]]
+name = "pnpm-release-notes"
+version = "0.0.1"
+dependencies = [
+ "base64 0.23.1",
+ "derive_more",
+ "miette 7.6.0",
+ "node-semver",
+ "pnpm-text-sanitize",
+ "pretty_assertions",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
 ]
 
 [[package]]

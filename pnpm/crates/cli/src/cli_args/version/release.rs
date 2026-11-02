@@ -50,6 +50,7 @@ struct PlannedWorkspaceRelease {
     projects: Vec<pnpm_versioning::WorkspaceProject>,
     intents: Vec<pnpm_versioning::ChangeIntent>,
     published_names: HashMap<String, String>,
+    notes_registries: HashMap<String, String>,
     unfiltered: bool,
 }
 
@@ -59,6 +60,7 @@ struct WorkspaceReleaseInputs {
     workspace_projects: Vec<pnpm_workspace::Project>,
     projects: Vec<pnpm_versioning::WorkspaceProject>,
     published_names: HashMap<String, String>,
+    notes_registries: HashMap<String, String>,
 }
 
 async fn plan_workspace_release(
@@ -75,6 +77,7 @@ async fn plan_workspace_release(
         projects: inputs.projects,
         intents: inputs.intents,
         published_names: inputs.published_names,
+        notes_registries: inputs.notes_registries,
         unfiltered: filter.is_none(),
     })
 }
@@ -121,12 +124,14 @@ fn workspace_release_inputs(
     let (projects, _) = discover_workspace_projects(workspace_dir, config)?;
     let engine_projects = to_engine_projects(&projects);
     let published_names = changelog::published_names(&projects);
+    let notes_registries = changelog::notes_registries_by_name(config, &projects);
     Ok(WorkspaceReleaseInputs {
         intents,
         ledger,
         workspace_projects: projects,
         projects: engine_projects,
         published_names,
+        notes_registries,
     })
 }
 
@@ -136,7 +141,22 @@ impl PlannedWorkspaceRelease {
         config: &Config,
         workspace_dir: &Path,
     ) -> miette::Result<HashSet<String>> {
-        confirmed_published_versions(config, workspace_dir, &self.published_names).await
+        confirmed_published_versions(
+            config,
+            workspace_dir,
+            &self.published_names,
+            &self.notes_registries,
+        )
+        .await
+    }
+
+    /// The releases bound for a registry that stores release notes.
+    fn notes_dirs(&self) -> HashSet<String> {
+        self.plan.releases
+            .iter()
+            .filter(|release| self.notes_registries.contains_key(&release.name))
+            .map(|release| release.dir.clone())
+            .collect()
     }
 
     pub(super) async fn apply(
@@ -161,6 +181,7 @@ impl PlannedWorkspaceRelease {
                     &self.intents,
                     Some(&config.versioning),
                     &confirmed,
+                    &HashSet::new(),
                 )?;
             }
             args.report_no_pending_changes();
@@ -172,6 +193,7 @@ impl PlannedWorkspaceRelease {
         }
 
         let confirmed = self.confirmed_published_versions(config, workspace_dir).await?;
+        let notes_dirs = self.notes_dirs();
         let Self {
             plan,
             projects: engine_projects,
@@ -185,6 +207,7 @@ impl PlannedWorkspaceRelease {
             &intents,
             Some(&config.versioning),
             &confirmed,
+            &notes_dirs,
         )?;
 
         args.report_applied_releases(&applied);

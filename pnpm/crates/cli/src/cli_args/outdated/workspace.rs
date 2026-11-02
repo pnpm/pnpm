@@ -2,7 +2,7 @@ use super::{
     Arc, Config, DependencyGroup, HashMap, IntoDiagnostic, Lockfile, OutdatedArgs, OutdatedFilters,
     OutdatedOutcome, OutdatedPackage, OutdatedQuery, OutdatedRun, PackageManifest, PathBuf,
     Reporter, State, collect_outdated, collect_outdated_for_importer_in_run,
-    discover_workspace_projects, github_actions, sort_outdated, sort_workspace_outdated,
+    discover_workspace_projects, github_actions, sort_workspace_outdated,
 };
 use crate::cli_args::ecosystem_deps::{
     EcosystemFilterKind, collect_ecosystem_outdated, declared_ecosystem_dep_names,
@@ -300,7 +300,7 @@ impl OutdatedArgs {
         );
 
         sort_workspace_outdated(&mut outdated);
-        self.write_recursive_rendered(&outdated)?;
+        self.write_recursive_rendered(config, &outdated).await?;
 
         Ok(if outdated.is_empty() { OutdatedOutcome::UpToDate } else { OutdatedOutcome::Outdated })
     }
@@ -360,9 +360,6 @@ impl OutdatedArgs {
             );
         }
 
-        sort_outdated(&mut outdated, self.output.sort_by);
-        self.write_rendered(&outdated)?;
-
-        Ok(if outdated.is_empty() { OutdatedOutcome::UpToDate } else { OutdatedOutcome::Outdated })
+        self.report_outdated(config, &mut outdated).await
     }
 }

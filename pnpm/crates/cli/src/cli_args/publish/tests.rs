@@ -41,6 +41,11 @@ fn publish_flags() -> PublishFlags {
             no_embed_readme: false,
             skip_manifest_obfuscation: false,
             no_skip_manifest_obfuscation: false,
+            notes: super::arguments::PublishNotesArgs {
+                release_notes: None,
+                no_release_notes: false,
+                publication_name: None,
+            },
         },
         git: crate::cli_args::publish::PublishGitArgs {
             publish_branch: None,
@@ -225,7 +230,14 @@ async fn publish_directory_errors_when_no_manifest_is_present() {
     let network = PublishNetwork { client: &client, auth_headers: &auth_headers };
 
     let err = args
-        .publish_directory::<SilentReporter>(dir.path(), &config, &opts, &network, &[], None)
+        .publish_directory::<SilentReporter>(
+            dir.path(),
+            &config,
+            &opts,
+            &network,
+            &[],
+            super::PublishScope::Single { summary: None },
+        )
         .await
         .expect_err("an empty directory has no package.json")
         .error;

@@ -12,6 +12,7 @@ pub(crate) fn prompt_for_choices(
                 short: value.clone(),
                 value: value.clone(),
                 name: label.clone(),
+                description: None,
             })
         })
         .collect();

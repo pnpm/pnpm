@@ -20,6 +20,7 @@ use crate::{
         },
         install::resolve_bool_override,
         recursive::discover_workspace_projects,
+        release_notes::UpgradeNotes,
         sanitize::sanitize_inline,
     },
 };
@@ -140,6 +141,10 @@ pub struct OutdatedOutputArgs {
     /// sorts by the size of the version change, then by name.
     #[clap(long, value_enum)]
     pub sort_by: Option<SortBy>,
+    /// Print the release notes between the current and the latest version
+    /// of each package, from registries declared with `serverType: pnpr`.
+    #[clap(long)]
+    pub notes: bool,
 }
 
 /// Sort order for the outdated report.
@@ -190,7 +195,7 @@ impl OutdatedArgs {
             .into_iter()
             .map(OutdatedPackage::from),
         );
-        self.report_outdated(&mut outdated)
+        self.report_outdated(config, &mut outdated).await
     }
 
     async fn collect_single_project_outdated(
@@ -221,9 +226,15 @@ impl OutdatedArgs {
         .await
     }
 
-    fn report_outdated(&self, outdated: &mut [OutdatedPackage]) -> miette::Result<OutdatedOutcome> {
+    pub(super) async fn report_outdated(
+        &self,
+        config: &Config,
+        outdated: &mut [OutdatedPackage],
+    ) -> miette::Result<OutdatedOutcome> {
         sort_outdated(outdated, self.output.sort_by);
-        self.write_rendered(outdated)?;
+        let packages: Vec<&OutdatedPackage> = outdated.iter().collect();
+        let notes = self.release_notes(config, &packages).await?;
+        self.write_rendered(outdated, &notes)?;
 
         Ok(if outdated.is_empty() { OutdatedOutcome::UpToDate } else { OutdatedOutcome::Outdated })
     }
@@ -236,22 +247,38 @@ impl OutdatedArgs {
             .collect()
     }
 
-    pub(super) fn write_rendered(&self, outdated: &[OutdatedPackage]) -> miette::Result<()> {
-        let output = match self.resolve_format() {
+    fn write_rendered(
+        &self,
+        outdated: &[OutdatedPackage],
+        notes: &[Option<UpgradeNotes>],
+    ) -> miette::Result<()> {
+        let format = self.resolve_format();
+        let output = match format {
             OutdatedFormat::Table => render_table(outdated, self.output.long),
             OutdatedFormat::List => render_list(outdated, self.output.long),
             OutdatedFormat::Json => render_json(outdated, self.output.long),
         };
-        write_output(&output)
+        let packages: Vec<&OutdatedPackage> = outdated.iter().collect();
+        write_output(&notes::with_notes(output, format, &packages, notes))
     }
 
-    fn write_recursive_rendered(&self, outdated: &[OutdatedInWorkspace]) -> miette::Result<()> {
-        let output = match self.resolve_format() {
+    async fn write_recursive_rendered(
+        &self,
+        config: &Config,
+        outdated: &[OutdatedInWorkspace],
+    ) -> miette::Result<()> {
+        let format = self.resolve_format();
+        let output = match format {
             OutdatedFormat::Table => render_recursive_table(outdated, self.output.long),
             OutdatedFormat::List => render_recursive_list(outdated, self.output.long),
             OutdatedFormat::Json => render_recursive_json(outdated, self.output.long),
         };
-        write_output(&output)
+        let packages: Vec<&OutdatedPackage> = outdated
+            .iter()
+            .map(|entry| &entry.package)
+            .collect();
+        let notes = self.release_notes(config, &packages).await?;
+        write_output(&notes::with_notes(output, format, &packages, &notes))
     }
 
     pub(super) fn target_version(&self) -> TargetVersion {
@@ -335,6 +362,7 @@ impl OutdatedArgs {
 }
 
 mod filters;
+mod notes;
 #[cfg(test)]
 mod tests;
 
