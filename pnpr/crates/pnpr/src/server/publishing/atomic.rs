@@ -65,7 +65,7 @@ pub(in super::super) fn publication_name(body: &Value) -> Result<Option<&str>, R
         return Err(RegistryError::BadRequest {
             reason: format!(
                 "publication name {name:?} must not be a decimal number, which names a \
-                 publication by id"
+                 publication by id",
             ),
         });
     }
