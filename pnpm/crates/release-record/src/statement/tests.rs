@@ -183,3 +183,27 @@ fn rejects_an_acceptance_under_another_profile() {
         .unwrap_err();
     assert!(matches!(error, StatementError::InterpretationMismatch { .. }), "{error}");
 }
+
+#[test]
+fn a_publication_names_its_workload_and_approver_consistently() {
+    let record = npm_record();
+    let workload = json!({ "issuer": "https://issuer.example", "subject": "repo:example/widgets" });
+    let valid = [
+        json!({ "principalKind": "oidc-workload", "workload": workload, "staged": false }),
+        json!({ "principalKind": "user-token", "staged": true, "approver": "token:maintainer" }),
+        json!({ "principalKind": "interactive-session", "staged": false }),
+    ];
+    for predicate in valid {
+        Statement::about(&record, PredicateType::Publication, predicate).unwrap();
+    }
+    let invalid = [
+        json!({ "principalKind": "oidc-workload", "staged": false }),
+        json!({ "principalKind": "user-token", "workload": workload, "staged": false }),
+        json!({ "principalKind": "user-token", "staged": false, "approver": "token:maintainer" }),
+    ];
+    for predicate in invalid {
+        let error =
+            Statement::about(&record, PredicateType::Publication, predicate.clone()).unwrap_err();
+        assert!(matches!(error, StatementError::InvalidPublication { .. }), "{predicate}: {error}");
+    }
+}

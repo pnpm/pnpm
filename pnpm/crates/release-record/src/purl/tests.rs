@@ -88,6 +88,8 @@ fn accepts_canonical_purls() {
 #[test]
 fn rejects_other_spellings_of_a_purl() {
     for text in [
+        "garbage",
+        "pkg:/widgets@1.2.0",
         "pkg:npm/",
         "pkg:npm/@example/widgets@1.2.0",
         "pkg:npm/%40example/widgets@1.2.0-beta.1+build.5",

@@ -116,6 +116,24 @@ fn rejects_entries_that_would_not_parse_back() {
 }
 
 #[test]
+fn log_entries_describe_the_identity_their_profile_names() {
+    let mut oci_as_crate = oci_key(1);
+    oci_as_crate.profile = Profile::CARGO_INDEX_ENTRY.parse().unwrap();
+    let mut npm_as_oci = npm_key(0);
+    npm_as_oci.profile = Profile::OCI_TAG.parse().unwrap();
+    let mut npm_as_crate = npm_key(0);
+    npm_as_crate.profile = Profile::CARGO_INDEX_ENTRY.parse().unwrap();
+    npm_as_crate.revision = None;
+    for key in [oci_as_crate, npm_as_oci, npm_as_crate] {
+        let error = LogEntry::new(key.clone(), RecordDigest::of(b"")).unwrap_err();
+        assert!(matches!(error, LogEntryError::ProfileMismatch { .. }), "{key:?}: {error}");
+    }
+    let mut future_oci = oci_key(1);
+    future_oci.profile = "oci-tag/2".parse().unwrap();
+    LogEntry::new(future_oci, RecordDigest::of(b"")).unwrap();
+}
+
+#[test]
 fn log_entries_name_a_package_by_its_canonical_purl() {
     let mut key = npm_key(0);
     key.identity = RecordIdentity::Package(Purl::from_string_unchecked(

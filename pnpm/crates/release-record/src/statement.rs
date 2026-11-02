@@ -82,6 +82,11 @@ pub enum StatementError {
         predicate_type: &'static str,
         error: serde_json::Error,
     },
+    #[display("invalid publication predicate: {reason}")]
+    InvalidPublication {
+        #[error(not(source))]
+        reason: &'static str,
+    },
     #[display("acceptance statement claims profile {actual}, but the record is {expected}")]
     InterpretationMismatch {
         #[error(not(source))]
@@ -156,6 +161,21 @@ pub fn verify_statement(
     Ok(statement)
 }
 
+/// Checks that a publication names its workload exactly when an OIDC
+/// workload published, and an approver only for a staged version.
+fn check_publication(publication: &PublicationPredicate) -> Result<(), StatementError> {
+    let is_workload = publication.principal_kind == PrincipalKind::OidcWorkload;
+    if is_workload != publication.workload.is_some() {
+        let reason = "a workload is named exactly when an OIDC workload published";
+        return Err(StatementError::InvalidPublication { reason });
+    }
+    if publication.approver.is_some() && !publication.staged {
+        let reason = "only a staged version has an approver";
+        return Err(StatementError::InvalidPublication { reason });
+    }
+    Ok(())
+}
+
 fn check_predicate(
     record: &StoredRecord,
     predicate_type: PredicateType,
@@ -172,7 +192,8 @@ fn check_predicate(
             }
         }
         PredicateType::Publication => {
-            PublicationPredicate::deserialize(predicate).map_err(invalid)?;
+            let publication = PublicationPredicate::deserialize(predicate).map_err(invalid)?;
+            check_publication(&publication)?;
         }
         PredicateType::TagBinding => {
             TagBindingPredicate::deserialize(predicate).map_err(invalid)?;

@@ -49,28 +49,46 @@ pub enum LogEntryError {
         profile: Profile,
     },
     Purl(PurlError),
+    #[display("a {profile} log entry does not describe this kind of identity")]
+    ProfileMismatch {
+        #[error(not(source))]
+        profile: Profile,
+    },
     #[display("malformed log entry")]
     Malformed,
 }
 
 impl LogEntry {
-    /// The entry that commits to `digest` for the record `key`. An OCI tag
-    /// entry, and an entry of a known profile with revisions, needs a
-    /// revision; an entry of a known profile without revisions has none.
+    /// The entry that commits to `digest` for the record `key`. A known
+    /// profile must describe the key's kind of identity, and a package's PURL
+    /// must be of the profile's type. An OCI tag entry, and an entry of a
+    /// known profile with revisions, needs a revision; an entry of a known
+    /// profile without revisions has none.
     pub fn new(key: RecordKey, digest: RecordDigest) -> Result<Self, LogEntryError> {
+        let profile = || key.profile.clone();
+        let is_known = key.profile.purl_type().is_some();
         let needs_revision = match &key.identity {
             RecordIdentity::Package(purl) => {
                 check_field("purl", purl.as_str())?;
                 purl.check_canonical().map_err(LogEntryError::Purl)?;
+                let is_package_profile = !key.profile.is_oci_tag()
+                    && key.profile
+                        .purl_type()
+                        .is_none_or(|expected| expected == purl.purl_type());
+                if !is_package_profile {
+                    return Err(LogEntryError::ProfileMismatch { profile: profile() });
+                }
                 key.profile.has_revisions()
             }
             RecordIdentity::OciTag { repository, tag } => {
                 check_field("repository", repository)?;
                 check_field("tag", tag)?;
+                if is_known && !key.profile.is_oci_tag() {
+                    return Err(LogEntryError::ProfileMismatch { profile: profile() });
+                }
                 Some(true)
             }
         };
-        let profile = || key.profile.clone();
         match (needs_revision, key.revision) {
             (Some(true), None) => Err(LogEntryError::MissingRevision { profile: profile() }),
             (Some(false), Some(_)) => Err(LogEntryError::UnexpectedRevision { profile: profile() }),

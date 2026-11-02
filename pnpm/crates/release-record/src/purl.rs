@@ -105,9 +105,13 @@ impl Purl {
     /// Checks that an `npm`, `cargo`, or `pypi` PURL is exactly the one
     /// [`Purl::npm`], [`Purl::cargo`], or [`Purl::pypi_file`] builds from its
     /// components, so one release has one spelling. A `pypi` PURL must name
-    /// its file. PURLs of other types are not checked.
+    /// its file. Text that is not a `pkg:<type>/` PURL is refused; PURLs of
+    /// other types are not checked further.
     pub fn check_canonical(&self) -> Result<(), PurlError> {
         let non_canonical = || PurlError::NonCanonical { purl: self.0.clone() };
+        if !self.0.starts_with("pkg:") || self.purl_type().is_empty() {
+            return Err(non_canonical());
+        }
         let rebuilt = match self.purl_type() {
             "npm" | "cargo" | "pypi" => self.rebuild().ok_or_else(non_canonical)?,
             _ => return Ok(()),
