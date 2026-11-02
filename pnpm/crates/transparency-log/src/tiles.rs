@@ -57,14 +57,17 @@ impl TilePath {
     }
 
     /// The [`tlog_tiles`] tile this hash tile path names, for reading hashes
-    /// through [`tlog_tiles::TileHashReader`].
+    /// through [`tlog_tiles::TileHashReader`]. `None` for an entry bundle, or
+    /// for a level or width outside what tlog-tiles allows.
     #[must_use]
     pub fn to_tile(self) -> Option<Tile> {
         match self {
-            TilePath::Hashes { level, index, width } => {
+            TilePath::Hashes { level, index, width }
+                if level <= MAX_LEVEL && (1..=TILE_WIDTH).contains(&width) =>
+            {
                 Some(Tile::new(TILE_HEIGHT, level, index, width, false))
             }
-            TilePath::Entries { .. } => None,
+            TilePath::Hashes { .. } | TilePath::Entries { .. } => None,
         }
     }
 

@@ -143,16 +143,24 @@ pub fn advance(
     candidate: TreeHead,
     proof: &[Hash],
 ) -> Result<TreeHead, LogError> {
+    check_empty_tree(&candidate)?;
     let Some(kept) = kept else { return Ok(candidate) };
+    check_empty_tree(&kept)?;
     let (old, new) = if candidate.size < kept.size { (candidate, kept) } else { (kept, candidate) };
     if old.size > 0 {
         verify_consistency(proof, &old, &new)?;
     } else if old.origin != new.origin {
         return Err(LogError::DifferentLogs { old: old.origin, new: new.origin });
-    } else if old.hash != EMPTY_HASH {
-        return Err(LogError::InvalidProof);
     }
     Ok(new)
+}
+
+/// Rejects a tree head of no entries whose hash is not the empty tree's.
+fn check_empty_tree(tree_head: &TreeHead) -> Result<(), LogError> {
+    if tree_head.size == 0 && tree_head.hash != EMPTY_HASH {
+        return Err(LogError::InvalidProof);
+    }
+    Ok(())
 }
 
 fn check_proof_length(proof: &[Hash]) -> Result<(), LogError> {

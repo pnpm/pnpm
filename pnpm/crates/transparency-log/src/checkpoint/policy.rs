@@ -15,7 +15,8 @@ pub struct KeySet {
 }
 
 impl KeySet {
-    /// A set of distinct `keys` of which `threshold` must sign.
+    /// A set of distinct `keys` of which `threshold` must sign. Keys must
+    /// differ in both their `<name>+<key hash>` and their public key.
     pub fn new(keys: Vec<VerifierKey>, threshold: usize) -> Result<Self, PolicyError> {
         if threshold > keys.len() {
             return Err(PolicyError::ThresholdExceedsKeys { threshold, keys: keys.len() });
@@ -26,6 +27,15 @@ impl KeySet {
             .find(|key| !seen.insert(key.key_name()))
         {
             return Err(PolicyError::DuplicateKey { key: duplicate.key_name() });
+        }
+        // An Ed25519 cosignature does not commit to the cosigner name, so one
+        // public key listed under two names would count twice.
+        let mut seen = HashSet::new();
+        if let Some(reused) = keys
+            .iter()
+            .find(|key| !seen.insert(key.public_key().to_bytes()))
+        {
+            return Err(PolicyError::ReusedPublicKey { key: reused.key_name() });
         }
         Ok(KeySet { keys, threshold })
     }
@@ -68,6 +78,11 @@ pub enum PolicyError {
         #[error(not(source))]
         key: String,
     },
+    #[display("note key {key} reuses the public key of another policy key")]
+    ReusedPublicKey {
+        #[error(not(source))]
+        key: String,
+    },
     #[display("a log needs at least one checkpoint signature")]
     NoLogSignatures,
     #[display("log key {key} must be an Ed25519 note key named after the log")]
@@ -95,9 +110,10 @@ impl CheckpointPolicy {
     /// A policy for the log named `origin`.
     ///
     /// Every log key must be an Ed25519 note key named `origin`, and every
-    /// witness key an Ed25519 cosignature key. A policy with no witnesses
-    /// detects a rewrite of the history a client has seen, but not a log that
-    /// shows different clients different histories.
+    /// witness key an Ed25519 cosignature key whose public key is not one of
+    /// the log's. A policy with no witnesses detects a rewrite of the history
+    /// a client has seen, but not a log that shows different clients different
+    /// histories.
     pub fn new(origin: &str, log_keys: KeySet, witnesses: KeySet) -> Result<Self, PolicyError> {
         if log_keys.threshold == 0 {
             return Err(PolicyError::NoLogSignatures);
@@ -116,6 +132,16 @@ impl CheckpointPolicy {
             .find(|key| !is_witness_key(key))
         {
             return Err(PolicyError::InvalidWitnessKey { key: key.key_name() });
+        }
+        let log_public_keys: HashSet<_> = log_keys.keys
+            .iter()
+            .map(|key| key.public_key().to_bytes())
+            .collect();
+        if let Some(key) = witnesses.keys
+            .iter()
+            .find(|key| log_public_keys.contains(&key.public_key().to_bytes()))
+        {
+            return Err(PolicyError::ReusedPublicKey { key: key.key_name() });
         }
         Ok(CheckpointPolicy { origin: origin.to_owned(), log_keys, witnesses })
     }

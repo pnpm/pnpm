@@ -42,11 +42,11 @@ pub fn decode_bundle(mut bundle: &[u8]) -> Result<Vec<&[u8]>, BundleError> {
         let (size, rest) = bundle.split_first_chunk::<2>().ok_or(BundleError::Truncated)?;
         let size = usize::from(u16::from_be_bytes(*size));
         let (entry, rest) = rest.split_at_checked(size).ok_or(BundleError::Truncated)?;
+        if entries.len() == TILE_WIDTH as usize {
+            return Err(BundleError::TooManyEntries);
+        }
         entries.push(entry);
         bundle = rest;
-    }
-    if entries.len() > TILE_WIDTH as usize {
-        return Err(BundleError::TooManyEntries);
     }
     Ok(entries)
 }

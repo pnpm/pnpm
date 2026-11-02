@@ -82,3 +82,10 @@ fn converts_hash_tiles_to_and_from_tlog_tiles() {
     assert_eq!(TilePath::Entries { index: 5, width: 9 }.to_tile(), None);
     assert_eq!(TilePath::of_tile(&Tile::new(2, 0, 0, 1, false)), None);
 }
+
+#[test]
+fn does_not_convert_hash_tiles_outside_tlog_tiles_bounds() {
+    for (level, width) in [(64, 1), (0, 0), (0, 257)] {
+        assert_eq!(TilePath::Hashes { level, index: 0, width }.to_tile(), None);
+    }
+}

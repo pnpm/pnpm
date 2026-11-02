@@ -186,8 +186,14 @@ fn advance_keeps_the_larger_consistent_tree_head() {
     let empty = TreeHead { size: 0, hash: tlog_tiles::EMPTY_HASH, ..large.clone() };
     assert_eq!(advance(Some(empty.clone()), large.clone(), &[]).unwrap(), large);
     assert_eq!(advance(Some(large.clone()), empty.clone(), &[]).unwrap(), large);
-    let not_empty = TreeHead { hash: Hash([2; 32]), ..empty };
-    assert!(matches!(advance(Some(large), not_empty, &[]), Err(LogError::InvalidProof)));
+    let not_empty = TreeHead { hash: Hash([2; 32]), ..empty.clone() };
+    assert!(matches!(advance(Some(large), not_empty.clone(), &[]), Err(LogError::InvalidProof)));
+    assert!(matches!(
+        advance(Some(empty.clone()), not_empty.clone(), &[]),
+        Err(LogError::InvalidProof),
+    ));
+    assert!(matches!(advance(Some(not_empty.clone()), empty, &[]), Err(LogError::InvalidProof)));
+    assert!(matches!(advance(None, not_empty, &[]), Err(LogError::InvalidProof)));
 }
 
 #[test]

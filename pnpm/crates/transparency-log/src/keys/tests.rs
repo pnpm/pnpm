@@ -53,6 +53,12 @@ fn rejects_go_bad_keys() {
 }
 
 #[test]
+fn rejects_an_uppercase_key_hash() {
+    let uppercase = PETER_VERIFIER_KEY.replace("c74f20a3", "C74F20A3");
+    assert_eq!(uppercase.parse::<VerifierKey>(), Err(KeyError::Malformed));
+}
+
+#[test]
 fn reads_a_go_private_key_and_signs_as_go_does() {
     let signer = NoteSigner::from_private_key(PETER_PRIVATE_KEY).unwrap();
     assert_eq!(signer.verifier_key().to_string(), PETER_VERIFIER_KEY);
@@ -74,6 +80,13 @@ fn rejects_every_truncation_of_a_private_key() {
         let slice = std::str::from_utf8(&bytes[..end]).unwrap();
         assert!(NoteSigner::from_private_key(slice).is_err(), "accepted {slice:?}");
     }
+}
+
+#[test]
+fn rejects_a_private_key_of_the_wrong_length() {
+    let short_seed = STANDARD.encode([&[0x01_u8][..], &[7; 31]].concat());
+    let text = format!("PRIVATE+KEY+PeterNeumann+c74f20a3+{short_seed}");
+    assert_eq!(NoteSigner::from_private_key(&text).unwrap_err(), KeyError::InvalidPrivateKey);
 }
 
 #[test]

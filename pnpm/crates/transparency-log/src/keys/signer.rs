@@ -150,6 +150,6 @@ fn decode_seed(decoded: &[u8]) -> Result<SigningKey, KeyError> {
     if signature_type != KeyAlgorithm::Ed25519.signature_type() {
         return Err(KeyError::UnsupportedType { signature_type });
     }
-    let seed: &[u8; 32] = seed.try_into().map_err(|_| KeyError::InvalidPublicKey)?;
+    let seed: &[u8; 32] = seed.try_into().map_err(|_| KeyError::InvalidPrivateKey)?;
     Ok(SigningKey::from_bytes(seed))
 }

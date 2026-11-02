@@ -59,6 +59,8 @@ pub enum KeyError {
     UnsupportedType { signature_type: u8 },
     #[display("invalid Ed25519 public key")]
     InvalidPublicKey,
+    #[display("invalid Ed25519 private key")]
+    InvalidPrivateKey,
     #[display("note key hash does not match its name and key")]
     KeyHashMismatch,
 }
@@ -156,8 +158,11 @@ impl FromStr for VerifierKey {
     }
 }
 
+/// Parses the key hash, which signed-note writes as eight lowercase hex
+/// digits, so that a key has a single text form.
 fn parse_key_hash(key_hash: &str) -> Result<u32, KeyError> {
-    if key_hash.len() != 8 || !key_hash.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+    let is_lower_hex = |byte: u8| matches!(byte, b'0'..=b'9' | b'a'..=b'f');
+    if key_hash.len() != 8 || !key_hash.bytes().all(is_lower_hex) {
         return Err(KeyError::Malformed);
     }
     u32::from_str_radix(key_hash, 16).map_err(|_| KeyError::Malformed)

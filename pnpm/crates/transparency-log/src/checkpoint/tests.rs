@@ -210,6 +210,31 @@ fn validates_key_sets_and_policies() {
         KeySet::new(vec![key.clone(), key.clone()], 1),
         Err(PolicyError::DuplicateKey { key: key.key_name() }),
     );
+    let same_key_as_ci = Cosigner::new("witness.example/ci", SigningKey::from_bytes(&[2; 32]))
+        .unwrap()
+        .verifier_key()
+        .clone();
+    let same_key_as_mirror =
+        Cosigner::new("witness.example/mirror", SigningKey::from_bytes(&[2; 32]))
+            .unwrap()
+            .verifier_key()
+            .clone();
+    assert_eq!(
+        KeySet::new(vec![same_key_as_ci, same_key_as_mirror.clone()], 2),
+        Err(PolicyError::ReusedPublicKey { key: same_key_as_mirror.key_name() }),
+    );
+    let log_as_witness = Cosigner::new("witness.example/log", SigningKey::from_bytes(&[1; 32]))
+        .unwrap()
+        .verifier_key()
+        .clone();
+    assert_eq!(
+        CheckpointPolicy::new(
+            "log.example",
+            KeySet::new(vec![key.clone()], 1).unwrap(),
+            KeySet::new(vec![log_as_witness.clone()], 1).unwrap(),
+        ),
+        Err(PolicyError::ReusedPublicKey { key: log_as_witness.key_name() }),
+    );
     let log_keys = KeySet::new(vec![key.clone()], 1).unwrap();
     assert_eq!(
         CheckpointPolicy::new(
