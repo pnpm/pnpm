@@ -35,7 +35,9 @@ CREATE TABLE IF NOT EXISTS packages (
     PRIMARY KEY (catalog, ecosystem, name)
 ) STRICT, WITHOUT ROWID;
 
--- Insert-only: a version's artifact integrity.
+-- Insert-only: a version's artifact integrity. `accepted_generation` is the
+-- catalog generation that accepted it, which is the id of the version's
+-- initial publication.
 CREATE TABLE IF NOT EXISTS versions (
     catalog TEXT NOT NULL,
     ecosystem TEXT NOT NULL,
@@ -44,6 +46,7 @@ CREATE TABLE IF NOT EXISTS versions (
     revision_key TEXT NOT NULL,
     integrity TEXT NOT NULL,
     published_at TEXT,
+    accepted_generation INTEGER NOT NULL,
     PRIMARY KEY (catalog, ecosystem, name, version, revision_key),
     FOREIGN KEY (catalog, ecosystem, name)
         REFERENCES packages (catalog, ecosystem, name) ON DELETE CASCADE

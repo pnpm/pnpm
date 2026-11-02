@@ -27,8 +27,9 @@ use super::{
     cargo::{CratePublication, authorize_crate_publish, verify_crate_archive},
     oci::{OciPublication, authorize_publication},
     publishing::{
-        StagedPublish, cleanup_tmp_slots, commit_publication, publication_request,
-        publish_committed_response, replayed_outcome, stage_publish, validate_publish_doc,
+        StagedPublish, cleanup_tmp_slots, commit_publication, publication_name,
+        publication_request, publish_committed_response, replayed_outcome, stage_publish,
+        validate_publish_doc,
     },
     pypi::{PypiPublication, authorize_upload, verify_upload},
 };
@@ -146,9 +147,9 @@ async fn publish_batch(
     // decoded out of it below: keep only one copy of a body that may run to
     // the request limit.
     drop(body);
-    let name = incoming.get("name").and_then(Value::as_str);
+    let name = publication_name(&incoming)?;
     let request = publication_request(state, identity, &incoming, key, name);
-    if let Some(replayed) = replayed_outcome(state, request.as_ref()).await? {
+    if let Some(replayed) = replayed_outcome(state, identity, request.as_ref()).await? {
         return Ok(replayed);
     }
     let packages = take_packages(&mut incoming)?;

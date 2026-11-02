@@ -1,9 +1,7 @@
 //! Atomic publications, their recorded outcomes, and publication lookups.
 
 use super::{npm, packument, read, storage, write};
-use crate::metadata::{
-    BatchDocument, PublicationCommit, PublicationOrigin, PublicationRequest, SqliteMetadata,
-};
+use crate::metadata::{BatchDocument, PublicationCommit, PublicationRequest, SqliteMetadata};
 use pnpr_error::RegistryError;
 use pnpr_package_name::Ecosystem;
 use serde_json::{Value, json};
@@ -134,21 +132,32 @@ async fn publications_are_found_by_id_name_and_member() {
 }
 
 #[tokio::test]
-async fn a_version_from_outside_any_publication_gets_an_imported_one() {
+async fn a_version_written_outside_a_publish_request_gets_a_publication() {
     let tmp = TempDir::new().unwrap();
     let storage = storage(&tmp);
-    write(&storage, "legacy", &packument("legacy", &["1.0.0"])).await;
+    write(&storage, "plain", &packument("plain", &["1.0.0"])).await;
+    write(&storage, "plain", &packument("plain", &["1.0.0", "1.1.0"])).await;
     let database = storage.sqlite_metadata().unwrap();
-    let imported = database
-        .initial_publication(&npm("legacy"), "", "1.0.0")
+    let first = database
+        .initial_publication(&npm("plain"), "", "1.0.0")
         .await
         .unwrap()
         .unwrap();
-    assert_eq!(imported.origin, PublicationOrigin::Imported);
-    assert_eq!(imported.publisher, None);
+    assert_eq!((first.id, first.publisher), (1, None));
+    let second = database
+        .initial_publication(&npm("plain"), "", "1.1.0")
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(second.id, 2);
+    let versions: Vec<&str> = second.members
+        .iter()
+        .map(|member| member.version.as_str())
+        .collect();
+    assert_eq!(versions, ["1.1.0"]);
     assert!(
         database
-            .initial_publication(&npm("legacy"), "", "9.9.9")
+            .initial_publication(&npm("plain"), "", "9.9.9")
             .await
             .unwrap()
             .is_none(),

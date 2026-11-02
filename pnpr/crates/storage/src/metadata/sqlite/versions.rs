@@ -15,9 +15,18 @@ pub(super) fn insert_version(commit: &Commit<'_>, version: &str, rows: &VersionR
     let (catalog, ecosystem, name) = commit.key.params();
     commit.transaction.execute(
         "INSERT INTO versions (catalog, ecosystem, name, version, revision_key, integrity,
-                               published_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-        params![catalog, ecosystem, name, version, ORDINARY, rows.integrity(), rows.published_at],
+                               published_at, accepted_generation)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+        params![
+            catalog,
+            ecosystem,
+            name,
+            version,
+            ORDINARY,
+            rows.integrity(),
+            rows.published_at,
+            to_column(commit.generation),
+        ],
     )?;
     let manifest = serde_json::to_string(&rows.manifest)?;
     let input_digest = super::commit::input_digest(rows)?;

@@ -16,8 +16,8 @@ pub(crate) mod sqlite;
 
 pub(crate) use documents::update_with_retry;
 pub use publication::{
-    ArtifactMember, BatchDocument, Publication, PublicationCommit, PublicationOrigin,
-    PublicationRequest, RecordedOutcome,
+    ArtifactMember, BatchDocument, Publication, PublicationCommit, PublicationRequest,
+    RecordedOutcome,
 };
 pub use sqlite::{RenderStats, SqliteMetadata, TagHistoryEntry};
 

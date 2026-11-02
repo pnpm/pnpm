@@ -18,7 +18,7 @@ use axum::{
 use pnpr_error::RegistryError;
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_registry::Ecosystem;
-use pnpr_storage::metadata::{ArtifactMember, Publication, PublicationOrigin};
+use pnpr_storage::metadata::{ArtifactMember, Publication};
 use serde::Deserialize;
 use serde_json::{Value, json};
 
@@ -90,7 +90,7 @@ fn respond(
 
 /// The publication with only the members `identity` may read, or `None` when
 /// it may read none of them.
-fn visible(
+pub(super) fn visible(
     state: &AppState,
     identity: &Identity,
     mut publication: Publication,
@@ -98,6 +98,14 @@ fn visible(
     let catalog = publication.catalog.clone();
     publication.members.retain(|member| may_read(state, identity, &catalog, member));
     (!publication.members.is_empty()).then_some(publication)
+}
+
+/// Whether a hosted registry of `catalog` admits `identity` to the registry
+/// itself, for an outcome that recorded no publication to check members of.
+pub(super) fn may_read_catalog(state: &AppState, identity: &Identity, catalog: &str) -> bool {
+    state.inner.config.routing.hosted
+        .values()
+        .any(|hosted| hosted.org == catalog && hosted.rules.default_access_admits(identity))
 }
 
 /// Whether a hosted registry of `catalog` and the member's ecosystem lets
@@ -128,15 +136,10 @@ fn publication_json(publication: &Publication) -> Value {
             })
         })
         .collect();
-    let origin = match publication.origin {
-        PublicationOrigin::Published => "published",
-        PublicationOrigin::Imported => "imported",
-    };
     json!({
         "id": publication.id,
         "org": publication.catalog,
         "name": publication.name,
-        "origin": origin,
         "publisher": publication.publisher,
         "committedAt": publication.committed_at,
         "members": members,

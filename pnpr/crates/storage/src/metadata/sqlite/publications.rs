@@ -5,9 +5,7 @@
 //! and orders publications with every other commit.
 
 use super::{PackageKey, batch::Batch, to_column, to_generation};
-use crate::metadata::{
-    ArtifactMember, Publication, PublicationOrigin, PublicationRequest, RecordedOutcome,
-};
+use crate::metadata::{ArtifactMember, Publication, PublicationRequest, RecordedOutcome};
 use pnpr_error::{RegistryError, Result};
 use pnpr_package_name::Ecosystem;
 use rusqlite::{Connection, OptionalExtension, ffi, params};
@@ -209,19 +207,21 @@ fn insert_publication(
     Ok(())
 }
 
-/// The publication `id_or_name` names in `catalog`.
+/// The publication `id_or_name` names in `catalog`: a decimal number is an
+/// id, since a publication name never is one, and anything else a name.
 pub(super) fn publication(
     connection: &Connection,
     catalog: &str,
     id_or_name: &str,
 ) -> Result<Option<Publication>> {
-    let by_id = id_or_name.parse::<i64>().ok();
+    let decimal = !id_or_name.is_empty() && id_or_name.bytes().all(|byte| byte.is_ascii_digit());
+    let (by_id, by_name) =
+        if decimal { (id_or_name.parse::<i64>().ok(), None) } else { (None, Some(id_or_name)) };
     let row = connection
         .query_row(
             "SELECT id, name, principal, committed_at FROM publications
-             WHERE catalog = ?1 AND (id = ?2 OR name = ?3)
-             ORDER BY id = ?2 DESC LIMIT 1",
-            params![catalog, by_id, id_or_name],
+             WHERE catalog = ?1 AND (id = ?2 OR name = ?3)",
+            params![catalog, by_id, by_name],
             |row| {
                 Ok(Publication {
                     catalog: catalog.to_string(),
@@ -229,7 +229,6 @@ pub(super) fn publication(
                     name: row.get(1)?,
                     publisher: row.get(2)?,
                     committed_at: row.get(3)?,
-                    origin: PublicationOrigin::Published,
                     members: Vec::new(),
                 })
             },
@@ -250,9 +249,7 @@ fn with_members(connection: &Connection, mut publication: Publication) -> Result
     Ok(publication)
 }
 
-/// The publication that introduced `version` of `key`. A version accepted
-/// before publications were recorded gets a synthetic one, marked
-/// [`PublicationOrigin::Imported`].
+/// The publication that introduced `version` of `key`.
 pub(super) fn initial_publication(
     connection: &Connection,
     key: &PackageKey,
@@ -265,48 +262,5 @@ pub(super) fn initial_publication(
         params![catalog, ecosystem, name, version],
         |row| row.get(0),
     )?;
-    match id {
-        Some(id) => publication(connection, catalog, &id.to_string()),
-        None => imported_publication(connection, key, version),
-    }
-}
-
-/// A synthetic publication for a version accepted outside any recorded one.
-/// Its publisher is unknown and it proves nothing about how the version
-/// arrived.
-fn imported_publication(
-    connection: &Connection,
-    key: &PackageKey,
-    version: &str,
-) -> Result<Option<Publication>> {
-    let (catalog, ecosystem, name) = key.params();
-    let found = connection
-        .query_row(
-            "SELECT accepted_generation, integrity, published_at FROM versions
-             WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4
-             ORDER BY accepted_generation LIMIT 1",
-            params![catalog, ecosystem, name, version],
-            |row| {
-                Ok((
-                    to_generation(row.get(0)?),
-                    row.get::<_, String>(1)?,
-                    row.get::<_, Option<String>>(2)?,
-                ))
-            },
-        )
-        .optional()?;
-    Ok(found.map(|(id, artifact, published_at)| Publication {
-        catalog: catalog.to_string(),
-        id,
-        name: None,
-        publisher: None,
-        committed_at: published_at.unwrap_or_default(),
-        origin: PublicationOrigin::Imported,
-        members: vec![ArtifactMember {
-            ecosystem: key.ecosystem,
-            name: name.to_string(),
-            version: version.to_string(),
-            artifact,
-        }],
-    }))
+    id.map_or(Ok(None), |id| publication(connection, catalog, &id.to_string()))
 }

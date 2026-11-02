@@ -64,26 +64,14 @@ pub struct PublicationCommit {
     pub replayed: bool,
 }
 
-/// How a publication came to be recorded.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PublicationOrigin {
-    /// A commit recorded it.
-    Published,
-    /// Synthesized for a version accepted outside any recorded publication.
-    /// It is a best-known link, not evidence of how the version arrived.
-    Imported,
-}
-
 /// A committed publication.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Publication {
     pub catalog: String,
-    /// The generation that committed it; for an imported one, the generation
-    /// that accepted its version.
+    /// The generation that committed it.
     pub id: u64,
     pub name: Option<String>,
     pub publisher: Option<String>,
     pub committed_at: String,
-    pub origin: PublicationOrigin,
     pub members: Vec<ArtifactMember>,
 }

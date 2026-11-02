@@ -1,5 +1,6 @@
 pub(super) use atomic::{
-    commit_publication, publication_request, publish_committed_response, replayed_outcome,
+    commit_publication, publication_name, publication_request, publish_committed_response,
+    replayed_outcome,
 };
 pub(super) use attachments::{
     StagedPublish, ValidatedPublish, stage_publish, validate_publish_doc,
@@ -158,6 +159,40 @@ pub(super) fn registry_visible_to_caller(
     }
 }
 
+/// Answer a publish its caller may no longer make with the outcome of the
+/// same request when it already committed, since getting that back is a
+/// read, and with `rejection` otherwise. Only a stable principal of a store
+/// that records outcomes has its body read.
+pub(super) async fn replay_denied_publish(
+    state: &AppState,
+    identity: &Identity,
+    raw_name: &str,
+    body: axum::body::Body,
+    rejection: Response,
+) -> Response {
+    if identity.username().is_none() || state.inner.storage.sqlite_metadata().is_none() {
+        return rejection;
+    }
+    let collected = {
+        let _permit = state.inner.locks.publish_concurrency.acquire().await;
+        axum::body::to_bytes(body, crate::server::MAX_PUBLISH_BODY_BYTES).await
+    };
+    let Ok(incoming) = collected
+        .map_err(drop)
+        .and_then(|bytes| serde_json::from_slice::<Value>(&bytes).map_err(drop))
+    else {
+        return rejection;
+    };
+    if incoming.get("name").and_then(Value::as_str) != Some(raw_name) {
+        return rejection;
+    }
+    let request = publication_request(state, identity, &incoming, None, None);
+    match replayed_outcome(state, identity, request.as_ref()).await {
+        Ok(Some(replayed)) => replayed,
+        Ok(None) | Err(_) => rejection,
+    }
+}
+
 /// `PUT /:pkg` (path-less) or `PUT /~<name>/:pkg` — publish a new version (or
 /// republish). Body is the full packument with `_attachments` carrying the
 /// tarball bytes base64-encoded.
@@ -195,7 +230,7 @@ pub(super) async fn publish_package(
     }
 
     let request = publication_request(state, identity, &incoming, None, None);
-    match replayed_outcome(state, request.as_ref()).await {
+    match replayed_outcome(state, identity, request.as_ref()).await {
         Ok(Some(replayed)) => return replayed,
         Ok(None) => {}
         Err(err) => return err.into_response(),

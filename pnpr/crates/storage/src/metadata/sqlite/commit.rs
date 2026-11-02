@@ -96,6 +96,9 @@ pub(super) fn write_document(
     };
     if changed {
         batch.touch(key);
+        // A version accepted outside a publish request still gets its
+        // initial publication, with no publisher.
+        super::publications::record(&batch, None, &[])?;
     }
     batch.finish()?;
     Ok(DocumentWrite::Written)
