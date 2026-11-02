@@ -59,6 +59,11 @@ pub enum PublicationArchiveError {
     UnsafePath(#[error(not(source))] String),
     #[display("archive entry {_0:?} makes the package's {_1} ambiguous")]
     AmbiguousManifest(#[error(not(source))] String, #[error(not(source))] &'static str),
+    #[display(
+        "the archive's global PAX header sets {_0:?}, which some installers apply to every \
+         later entry"
+    )]
+    GlobalHeaderOverride(#[error(not(source))] String),
     #[display("the archive has no package.json")]
     MissingManifest,
     #[display("the archive holds more than {MAX_PUBLICATION_ARCHIVE_ENTRIES} entries")]
@@ -126,6 +131,9 @@ impl PublicationScan {
             .to_string_lossy()
             .into_owned();
         let entry_type = entry.header().entry_type();
+        if entry_type.is_pax_global_extensions() {
+            refuse_global_overrides(entry)?;
+        }
         if !entry_type.is_file() {
             return refuse_special_manifest(&raw, entry_type);
         }
@@ -200,6 +208,35 @@ impl PublicationScan {
             files: self.files,
         })
     }
+}
+
+/// The global PAX keys that change where or what a later entry is. node-tar
+/// applies a global `size` and `linkpath` to every later entry, while this
+/// scan, like the installer here, ignores global headers. An archive that
+/// sets one would read differently to the two.
+const GLOBAL_OVERRIDES: &[&str] = &["size", "path", "linkpath"];
+
+/// Refuse a global PAX header that sets any of [`GLOBAL_OVERRIDES`]. Other
+/// global keys, such as the `comment` `git archive` writes, are accepted.
+fn refuse_global_overrides(
+    entry: &mut tar::Entry<'_, impl Read>,
+) -> Result<(), PublicationArchiveError> {
+    if entry.size() > MAX_METADATA_BYTES {
+        return Err(unreadable(&std::io::Error::other(format!(
+            "a global PAX header exceeds {MAX_METADATA_BYTES} bytes",
+        ))));
+    }
+    let Some(extensions) = entry.pax_extensions().map_err(|err| unreadable(&err))? else {
+        return Ok(());
+    };
+    for extension in extensions {
+        let extension = extension.map_err(|err| unreadable(&err))?;
+        let key = extension.key().unwrap_or_default();
+        if GLOBAL_OVERRIDES.contains(&key) {
+            return Err(PublicationArchiveError::GlobalHeaderOverride(key.to_string()));
+        }
+    }
+    Ok(())
 }
 
 /// Which root document `path` names when compared without regard to case, or

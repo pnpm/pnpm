@@ -134,6 +134,41 @@ fn accepts_a_root_directory_entry() {
     read_publication_archive(builder.into_inner().unwrap().as_slice()).unwrap();
 }
 
+fn global_header_tar(records: &[u8]) -> Vec<u8> {
+    let mut builder = tar::Builder::new(Vec::new());
+    let mut global = tar::Header::new_ustar();
+    global.set_entry_type(tar::EntryType::XGlobalHeader);
+    global.set_size(records.len() as u64);
+    global.set_mode(0o644);
+    builder.append_data(&mut global, "pax_global_header", records).unwrap();
+    let mut manifest = tar::Header::new_ustar();
+    manifest.set_size(2);
+    manifest.set_mode(0o644);
+    builder
+        .append_data(&mut manifest, "package/package.json", &b"{}"[..])
+        .unwrap();
+    builder.into_inner().unwrap()
+}
+
+#[test]
+fn refuses_a_global_header_that_overrides_entry_sizes_or_paths() {
+    for records in [&b"11 size=10\n"[..], b"21 path=package/x.js\n", b"17 linkpath=/etc\n"] {
+        let tar = global_header_tar(records);
+        let error = read_publication_archive(tar.as_slice()).unwrap_err();
+        assert!(
+            matches!(error, PublicationArchiveError::GlobalHeaderOverride(_)),
+            "{}: {error}",
+            String::from_utf8_lossy(records),
+        );
+    }
+}
+
+#[test]
+fn accepts_the_comment_git_archive_writes_in_a_global_header() {
+    let tar = global_header_tar(b"52 comment=0123456789abcdef0123456789abcdef01234567\n");
+    read_publication_archive(tar.as_slice()).unwrap();
+}
+
 #[test]
 fn refuses_data_after_the_end_of_archive_marker() {
     let mut tar = tar_of(&[("package/package.json", b"{}")]);
