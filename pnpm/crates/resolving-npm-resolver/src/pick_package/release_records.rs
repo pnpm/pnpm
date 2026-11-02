@@ -52,9 +52,11 @@ pub(super) async fn with_release_record<Cache: PackageMetaCache>(
     picked.deprecated.clone_from(&version.deprecated);
     picked.npm_user.clone_from(&version.npm_user);
     picked.dist.attestations.clone_from(&version.dist.attestations);
-    if version.dist.revision.is_some() {
-        picked.dist.revision = Some(serde_json::Value::from(revision));
-    }
+    // The record's address names its revision, whatever the record says: a
+    // revision-aware version installs that revision's tar, any other version
+    // its canonical tarball.
+    picked.dist.revision =
+        version.dist.revision.is_some().then(|| serde_json::Value::from(revision));
     Ok(Arc::new(picked))
 }
 
@@ -67,10 +69,12 @@ fn record_revision(
 ) -> Option<u64> {
     let entry = version.dist.install_v2_entry()?;
     let selected = version.dist.revision.as_ref().and_then(serde_json::Value::as_u64);
-    if let Some(RegistryRevisionSelector::Valid(requested)) = requested
-        && selected.is_some_and(|selected| selected != *requested)
-    {
-        return Some(*requested);
+    if let Some(RegistryRevisionSelector::Valid(requested)) = requested {
+        match selected {
+            Some(selected) if selected != *requested => return Some(*requested),
+            None if *requested != 0 => return None,
+            _ => {}
+        }
     }
     (entry == InstallV2Entry::External).then(|| selected.unwrap_or(0))
 }
@@ -107,11 +111,11 @@ struct RecordFetch<'ctx, Cache: PackageMetaCache> {
 impl<Cache: PackageMetaCache> RecordFetch<'_, Cache> {
     async fn run(&self) -> Result<Arc<PackageVersion>, String> {
         let path = self.disk_path();
-        if let Some(record) = path
-            .as_deref()
-            .and_then(|path| std::fs::read(path).ok())
-            .and_then(|body| self.parse(&body).ok())
-        {
+        let cached = match path.as_deref() {
+            Some(path) => tokio::fs::read(path).await.ok(),
+            None => None,
+        };
+        if let Some(record) = cached.and_then(|body| self.parse(&body).ok()) {
             return Ok(record);
         }
         if self.ctx.cache_policy.network.forbids_registry() {
@@ -142,8 +146,9 @@ impl<Cache: PackageMetaCache> RecordFetch<'_, Cache> {
 
     /// The record's body, and whether it may be kept on disk with no
     /// expiry: pnpr serves a record `immutable` once it has derived every
-    /// fact about the archive, and `private` to a caller-gated package's
-    /// callers, whose records are kept in their own metadata scope.
+    /// fact about the archive. A caller-gated package's records are
+    /// `private, no-store`, so they are read once per install and never
+    /// kept.
     async fn download(&self) -> Result<(Vec<u8>, bool), ResolveError> {
         let http = self.ctx.metadata.http;
         let name = &self.version.name;
@@ -165,7 +170,7 @@ impl<Cache: PackageMetaCache> RecordFetch<'_, Cache> {
                 value
                     .split(',')
                     .map(str::trim)
-                    .any(|directive| directive == "immutable" || directive == "private")
+                    .any(|directive| directive == "immutable")
             });
         let body = read_limited_body(response, RELEASE_RECORD_BODY_LIMIT).await?;
         if body.truncated {

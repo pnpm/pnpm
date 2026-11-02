@@ -226,6 +226,8 @@ fn the_record_a_pick_needs() {
     assert_eq!(record_revision(&ordinary, Some(&RegistryRevisionSelector::Valid(1))), None);
     let ordinary_external = listed("acme", InstallV2Entry::External, &json!({}));
     assert_eq!(record_revision(&ordinary_external, None), Some(0));
+    let another = RegistryRevisionSelector::Valid(1);
+    assert_eq!(record_revision(&ordinary_external, Some(&another)), None);
 }
 
 #[tokio::test]
@@ -263,4 +265,43 @@ async fn an_oversized_record_is_refused() {
     let picked = listed("acme", InstallV2Entry::External, &json!({}));
     let error = with_release_record(&ctx, &registry, picked, None).await.expect_err("refused");
     assert!(error.to_string().contains("larger than"), "{error}");
+}
+
+#[tokio::test]
+async fn a_caller_gated_record_is_not_kept_on_disk() {
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/acme/1.0.0+r0")
+        .with_header("cache-control", "private, no-store")
+        .with_body(record("acme", "1.0.0"))
+        .expect(2)
+        .create_async()
+        .await;
+    let registry = format!("{}/", server.url());
+    let cache_dir = tempfile::tempdir().expect("cache dir");
+    for _ in 0..2 {
+        let install = Install::new(&registry, true);
+        let picked = listed("acme", InstallV2Entry::External, &json!({}));
+        let ctx = install.ctx(Some(cache_dir.path()), NetworkPolicy::default());
+        with_release_record(&ctx, &registry, picked, None).await.expect("fetched");
+    }
+    mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn the_record_address_decides_the_revision() {
+    let mut server = mockito::Server::new_async().await;
+    let mut body: Value = serde_json::from_str(&record("acme", "1.0.0")).expect("record");
+    body["revision"] = json!(5);
+    let _mock = server
+        .mock("GET", "/acme/1.0.0+r0")
+        .with_body(body.to_string())
+        .create_async()
+        .await;
+    let registry = format!("{}/", server.url());
+    let install = Install::new(&registry, true);
+    let ctx = install.ctx(None, NetworkPolicy::default());
+    let picked = listed("acme", InstallV2Entry::External, &json!({}));
+    let picked = with_release_record(&ctx, &registry, picked, None).await.expect("read");
+    assert_eq!(picked.dist.revision, None);
 }
