@@ -339,7 +339,8 @@ pub struct PlatformSelector {
 ///
 /// Iterates `variants` in declaration order and returns the first
 /// [`PlatformAssetResolution`] whose `targets[]` contains an `(os, cpu,
-/// libc?)` triple matching `selector`.
+/// libc?)` triple matching `selector`, whose version floors and ABI, if it
+/// has any, the host meets.
 #[must_use]
 pub fn select_platform_variant<'a>(
     variants: &'a [PlatformAssetResolution],
@@ -354,6 +355,9 @@ pub fn select_platform_variant<'a>(
                     target.os == selector.os
                         && target.cpu == selector.cpu
                         && libc_matches(target.libc.as_deref(), selector.libc.as_deref())
+                        && target
+                            .platform()
+                            .is_some_and(|platform| platform.meets_host_floors(&selector.host()))
                 })
         })
 }

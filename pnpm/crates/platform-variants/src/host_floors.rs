@@ -50,18 +50,19 @@ fn probe_macos_version() -> Option<Floor> {
     if !cfg!(target_os = "macos") {
         return None;
     }
-    let output = crate::process::Command::new("sw_vers")
+    // By its system path: what `PATH` names first does not get to answer.
+    let output = crate::process::Command::new("/usr/bin/sw_vers")
         .arg("-productVersion")
         .output()
         .ok()?;
     let version = std::str::from_utf8(&output.stdout).ok()?.trim();
     let mut parts = version.split('.');
-    Some(Floor {
-        major: parts.next()?.parse().ok()?,
-        minor: parts
-            .next()
-            .map_or(Some(0), |minor| minor.parse().ok())?,
-    })
+    let major = parts.next()?.parse().ok()?;
+    let minor = match parts.next() {
+        Some(minor) => minor.parse().ok()?,
+        None => 0,
+    };
+    Some(Floor { major, minor })
 }
 
 #[cfg(test)]

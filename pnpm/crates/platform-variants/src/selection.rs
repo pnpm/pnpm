@@ -97,6 +97,18 @@ impl Platform {
                 ))
     }
 
+    /// Whether `host` meets this platform's version floors and ABI for
+    /// linking, whatever its OS, CPU, and C library. A platform without
+    /// them always does.
+    #[must_use]
+    pub fn meets_host_floors(&self, host: &Host) -> bool {
+        !self.has_floor()
+            || self.meets_floors(
+                &host.floors.unwrap_or_else(super::host_floors::detect),
+                Purpose::Link,
+            )
+    }
+
     fn has_floor(&self) -> bool {
         self.libc_version.is_some()
             || self.os_version.is_some()
