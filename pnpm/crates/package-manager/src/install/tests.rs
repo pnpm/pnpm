@@ -293,6 +293,7 @@ async fn run_purge_regression_install_with_lockfile(
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
             dedicated: None,
+            discovered_workspace: None,
         },
     }
     .run::<SilentReporter>()
@@ -381,6 +382,7 @@ async fn install_then_go_offline() -> (tempfile::TempDir, &'static Config, Packa
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
             dedicated: None,
+            discovered_workspace: None,
         },
     }
     .run::<SilentReporter>()
@@ -497,6 +499,7 @@ async fn fresh_lockfile_only_with_overrides(
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
             dedicated: None,
+            discovered_workspace: None,
         },
     }
     .run::<SilentReporter>()
@@ -598,6 +601,7 @@ async fn fresh_lockfile_only_with_compatibility_db(
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
             dedicated: None,
+            discovered_workspace: None,
         },
     }
     .run::<SilentReporter>()
@@ -702,6 +706,7 @@ async fn install_with_pnpmfile_reporter<Reporter: self::Reporter + 'static>(
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
             dedicated: None,
+            discovered_workspace: None,
         },
     }
     .run::<Reporter>()
@@ -804,6 +809,7 @@ async fn install_workspace_member_with_pnpmfile(
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
             dedicated: None,
+            discovered_workspace: None,
         },
     }
     .run::<SilentReporter>()

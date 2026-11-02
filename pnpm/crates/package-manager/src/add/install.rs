@@ -95,7 +95,13 @@ pub(super) fn selected_add_seed(
                 .extend(selectors);
         }
     }
-    AddSeed { seed_policies, preferred_versions_override, catalogs_override }
+    AddSeed {
+        seed_policies,
+        preferred_versions_override,
+        catalogs_override,
+        // The selection carries the projects, so the install walks none.
+        workspace: None,
+    }
 }
 /// Prefer the version an explicit specifier picked, since the saved range can
 /// admit newer ones, and withhold the pin the importer holds at another
@@ -207,6 +213,7 @@ pub(super) struct AddSeed {
     pub(super) seed_policies: BTreeMap<String, ImporterUpdateSeedPolicy>,
     pub(super) preferred_versions_override: PreferredVersions,
     pub(super) catalogs_override: Option<Catalogs>,
+    pub(super) workspace: Option<crate::DiscoveredWorkspace>,
 }
 /// `dependency_groups` names the manifest group the new
 /// package is saved into ([`prepare_manifest`](crate::add::manifest::prepare_manifest)), not an
@@ -261,6 +268,7 @@ pub(super) fn add_install<'i>(
     install.context.lockfile_path = add.lockfile.path;
     install.projects.supported_architectures = owned.supported_architectures;
     install.projects.catalogs_override = seed.catalogs_override;
+    install.projects.discovered_workspace = seed.workspace;
     install
 }
 /// Update targets that no selector scoped to a version line: a `catalog:`

@@ -16,7 +16,7 @@ mod protocol_selector;
 mod range_fallback;
 
 mod workspace_specifier;
-use workspace_specifier::workspace_packages_for_add;
+use workspace_specifier::workspace_projects_for_add;
 
 mod registry;
 
@@ -28,7 +28,9 @@ mod finish;
 use finish::{finish_selected_add, finish_single_add};
 
 mod manifest;
-use manifest::{catalog_version_requests, prepare_selected_add, prepare_single_add};
+use manifest::{
+    SingleAddPreparation, catalog_version_requests, prepare_selected_add, prepare_single_add,
+};
 
 mod source;
 
@@ -218,7 +220,8 @@ where
     pub async fn run<Reporter: self::Reporter + 'static>(self) -> Result<(), AddError> {
         let (add, owned, manifest) = self.split();
         begin::<Reporter>(add, &owned);
-        let (catalog_ctx, prepared) = prepare_single_add::<Reporter>(add, &owned, manifest).await?;
+        let SingleAddPreparation { catalog_ctx, prepared, workspace } =
+            prepare_single_add::<Reporter>(add, &owned, manifest).await?;
         let (mut dropped_pins, mut preferred_versions_override) = catalog_version_requests(
             add.package_names,
             manifest,
@@ -250,6 +253,7 @@ where
                     catalog_ctx.catalogs,
                     &prepared.updated_catalogs,
                 ),
+                workspace,
             },
         )
         .run::<Reporter>()

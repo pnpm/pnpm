@@ -106,6 +106,7 @@ async fn stale_lockfile_under_no_flag_falls_through_to_fresh_resolve() {
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
             dedicated: None,
+            discovered_workspace: None,
         },
     }
     .run::<SilentReporter>()
@@ -402,6 +403,7 @@ pub(super) async fn optimistic_repeat_install_does_not_short_circuit_when_lockfi
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
             dedicated: None,
+            discovered_workspace: None,
         },
     }
     .run::<RecordingReporter>()
@@ -497,6 +499,7 @@ async fn fresh_install_records_lockfile_verification_for_mtime_bypassed_noop() {
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
             dedicated: None,
+            discovered_workspace: None,
         },
     }
     .run::<SilentReporter>()
@@ -582,6 +585,7 @@ async fn fresh_install_records_lockfile_verification_for_mtime_bypassed_noop() {
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
             dedicated: None,
+            discovered_workspace: None,
         },
     }
     .run::<RecordingReporter>()
@@ -693,6 +697,7 @@ async fn optimistic_repeat_install_restores_missing_lockfile_offline() {
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
             dedicated: None,
+            discovered_workspace: None,
         },
     }
     .run::<RecordingReporter>()

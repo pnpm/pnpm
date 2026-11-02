@@ -35,6 +35,7 @@ impl FetchArgs {
             lockfile,
             resolved_packages,
             dedicated: _,
+            discovered_workspace: _,
         } = &state;
 
         let has_both = self.prod == self.dev;

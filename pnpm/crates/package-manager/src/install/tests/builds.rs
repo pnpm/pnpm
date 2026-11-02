@@ -229,6 +229,7 @@ async fn fresh_install_uses_final_peer_suffix_for_transitive_pending_peer() {
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
             dedicated: None,
+            discovered_workspace: None,
         },
     }
     .run::<SilentReporter>()

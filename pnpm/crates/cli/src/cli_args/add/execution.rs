@@ -146,6 +146,7 @@ where
         lockfile,
         resolved_packages,
         dedicated: _,
+        discovered_workspace: _,
     } = &mut state;
     let lockfile = command_lockfile(lockfile, &lockfile_path)?;
 

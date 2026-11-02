@@ -21,7 +21,7 @@ pub(crate) use run::hook_one_manifest;
 pub use run::{InstallExecution, InstallLockfilePolicy, ResolutionInputs};
 pub(crate) use workspace_state::{
     CarriedSettings, StateProjects, StateWrite, configured_or_discovered_workspace_dir,
-    lockfile_root_dir, recorded_workspace_state, registry_keys_current,
+    lockfile_root_dir, recorded_workspace_state, registry_keys_current, replace_project_manifest,
     update_workspace_state_or_warn, workspace_packages_for_freshness,
 };
 pub use workspace_state::{
@@ -417,14 +417,11 @@ pub struct DedicatedProjectInstall {
     /// installs of the workspace projects it depends on produce. `None`
     /// waits for nothing.
     pub dependencies_installed: Option<WorkspaceDependenciesInstalled>,
-    /// The workspace the command already discovered, which the install
-    /// reads instead of walking the workspace itself. `None` walks it.
-    pub workspace: Option<DiscoveredWorkspace>,
 }
 
 /// Every project of a workspace and the workspace-package index built from
-/// them, discovered once for all the per-project installs of a command. The
-/// index is built the first time an install asks for it.
+/// them, discovered once by the command for the installs it runs. The index
+/// is built the first time an install asks for it.
 #[derive(Clone)]
 pub struct DiscoveredWorkspace {
     projects: Arc<[pnpm_workspace::Project]>,
@@ -507,6 +504,9 @@ pub struct InstallProjects<DependencyGroupList> {
     /// Set when this install is one project's among several a command runs
     /// in a workspace whose projects keep their own lockfiles.
     pub dedicated: Option<DedicatedProjectInstall>,
+    /// The workspace the command already discovered, which the install
+    /// reads instead of walking the workspace itself. `None` walks it.
+    pub discovered_workspace: Option<DiscoveredWorkspace>,
 }
 
 struct InstallRunOptions<'install, 'selection> {

@@ -169,6 +169,7 @@ where
                     pnpmfile_hook_override: self.projects.pnpmfile_hook_override,
                     workspace_projects_override: self.projects.workspace_projects_override,
                     dedicated: self.projects.dedicated,
+                    discovered_workspace: self.projects.discovered_workspace,
                 },
                 resolution: self.resolution,
             },
