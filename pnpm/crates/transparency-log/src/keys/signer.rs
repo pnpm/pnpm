@@ -2,6 +2,7 @@ use super::{KeyAlgorithm, KeyError, VerifierKey};
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use ed25519_dalek::{SignatureError, Signer as _, SigningKey};
 use std::fmt;
+use zeroize::Zeroizing;
 
 /// Signs notes, such as a log's checkpoints, with an Ed25519 key.
 pub struct NoteSigner {
@@ -26,7 +27,8 @@ impl NoteSigner {
         else {
             return Err(KeyError::Malformed);
         };
-        let decoded = STANDARD.decode(encoded).map_err(|_| KeyError::Malformed)?;
+        // Wiped on drop, as `SigningKey` wipes its own copy of the seed.
+        let decoded = Zeroizing::new(STANDARD.decode(encoded).map_err(|_| KeyError::Malformed)?);
         let signing_key = decode_seed(&decoded)?;
         let signer = NoteSigner::new(name, signing_key)?;
         if format!("{:08x}", signer.key.key_id()) != key_hash {

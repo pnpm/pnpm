@@ -16,6 +16,7 @@ derive_more = { workspace = true }
 ed25519-dalek = { workspace = true }
 signed_note = { workspace = true }
 tlog_tiles = { workspace = true }
+zeroize = { workspace = true }
 
 [dev-dependencies]
 pretty_assertions = { workspace = true }

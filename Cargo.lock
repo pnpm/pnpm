@@ -6677,6 +6677,7 @@ dependencies = [
  "serde_json",
  "signed_note",
  "tlog_tiles",
+ "zeroize",
 ]
 
 [[package]]
