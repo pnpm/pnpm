@@ -32,9 +32,10 @@ pub(super) fn read_archive(
 }
 
 /// Verify every version `tars` publishes against the version metadata
-/// submitted in `document`, and replace that metadata's install-critical
-/// fields with the ones derived from the archive. Returns a notice for each
-/// difference the profile accepts, for the publisher.
+/// submitted in `document`, refusing a tarball whose version has none, and
+/// replace that metadata's install-critical fields with the ones derived from
+/// the archive. Returns a notice for each difference the profile accepts, for
+/// the publisher.
 pub(super) fn verify_published_manifests(
     name: &CanonicalPackageName,
     document: &mut Value,
@@ -47,7 +48,15 @@ pub(super) fn verify_published_manifests(
             .and_then(|versions| versions.get_mut(&tar.version))
             .and_then(Value::as_object_mut)
         else {
-            continue;
+            // Staging already refuses a tarball with no version metadata;
+            // refusing it here too keeps an unverified archive out.
+            return Err(RegistryError::BadRequest {
+                reason: format!(
+                    "cannot publish the tarball of {}@{} without version metadata",
+                    name.as_str(),
+                    tar.version,
+                ),
+            });
         };
         notices.extend(verify_version(name, &tar.version, version, &tar.archive)?);
     }
