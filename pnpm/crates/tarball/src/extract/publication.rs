@@ -5,8 +5,9 @@
 //! reader refuses any archive in which that choice is not clear-cut: an entry
 //! path that escapes the package root, two entries that an installer would
 //! extract to the same manifest (on a case-insensitive file system too), a
-//! manifest that is not a regular file, or more entries than
-//! [`MAX_PUBLICATION_ARCHIVE_ENTRIES`]. The caller bounds the decoded size.
+//! manifest that is not a regular file, more entries than
+//! [`MAX_PUBLICATION_ARCHIVE_ENTRIES`], or file paths longer in total than
+//! [`MAX_PUBLICATION_PATH_BYTES`]. The caller bounds the decoded size.
 
 use super::clean_archive_entry_path;
 use derive_more::{Display, Error};
@@ -15,6 +16,11 @@ use std::{collections::BTreeSet, io::Read};
 
 /// The most entries a published archive may hold.
 pub const MAX_PUBLICATION_ARCHIVE_ENTRIES: u64 = 200_000;
+
+/// The most bytes the file paths of a published archive may add up to. The
+/// paths are kept in memory, and a long path costs a tar stream little once
+/// compressed.
+pub const MAX_PUBLICATION_PATH_BYTES: usize = 32 * 1024 * 1024;
 
 /// The largest `package.json` a published archive may hold.
 pub const MAX_PUBLICATION_MANIFEST_BYTES: u64 = 4 * 1024 * 1024;
@@ -57,20 +63,30 @@ pub enum PublicationArchiveError {
     MissingManifest,
     #[display("the archive holds more than {MAX_PUBLICATION_ARCHIVE_ENTRIES} entries")]
     TooManyEntries,
+    #[display("the archive's file paths exceed {MAX_PUBLICATION_PATH_BYTES} bytes in total")]
+    OversizedPaths,
     #[display("the archive's package.json exceeds {MAX_PUBLICATION_MANIFEST_BYTES} bytes")]
     OversizedManifest,
 }
 
 /// Read `tar`, an uncompressed tar stream, for what its manifest is derived
 /// from. Refuses an unsafe entry path, an ambiguous or linked manifest,
-/// more than [`MAX_PUBLICATION_ARCHIVE_ENTRIES`] entries, and a missing or
-/// oversized `package.json`.
+/// more than [`MAX_PUBLICATION_ARCHIVE_ENTRIES`] entries, file paths longer
+/// in total than [`MAX_PUBLICATION_PATH_BYTES`], and a missing or oversized
+/// `package.json`.
 pub fn read_publication_archive(
     tar: impl Read,
 ) -> Result<PublicationArchive, PublicationArchiveError> {
+    read_publication_archive_within(tar, MAX_PUBLICATION_PATH_BYTES)
+}
+
+fn read_publication_archive_within(
+    tar: impl Read,
+    path_bytes_limit: usize,
+) -> Result<PublicationArchive, PublicationArchiveError> {
     let mut archive = tar::Archive::new(tar);
     archive.set_max_metadata_size(Some(MAX_METADATA_BYTES));
-    let mut scan = PublicationScan::default();
+    let mut scan = PublicationScan { path_bytes_left: path_bytes_limit, ..Default::default() };
     let entries = archive.entries().map_err(|err| unreadable(&err))?;
     for (index, entry) in entries.enumerate() {
         if index as u64 >= MAX_PUBLICATION_ARCHIVE_ENTRIES {
@@ -91,6 +107,8 @@ struct PublicationScan {
     shrinkwrap: Option<Integrity>,
     binding_gyp: bool,
     files: BTreeSet<String>,
+    /// What the paths kept in `files` may still add up to.
+    path_bytes_left: usize,
 }
 
 impl PublicationScan {
@@ -116,6 +134,9 @@ impl PublicationScan {
             None => {}
         }
         self.binding_gyp |= path == pnpm_package_manifest::BINDING_GYP;
+        self.path_bytes_left = self.path_bytes_left
+            .checked_sub(path.len())
+            .ok_or(PublicationArchiveError::OversizedPaths)?;
         self.files.insert(path);
         Ok(())
     }

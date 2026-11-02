@@ -1,4 +1,4 @@
-use super::{PublicationArchiveError, read_publication_archive};
+use super::{PublicationArchiveError, read_publication_archive, read_publication_archive_within};
 use pretty_assertions::assert_eq;
 use std::collections::BTreeSet;
 
@@ -101,4 +101,15 @@ fn refuses_bytes_that_are_not_a_tar() {
         ),
         "{error}",
     );
+}
+
+#[test]
+fn refuses_file_paths_longer_in_total_than_the_limit() {
+    let tar = tar_of(&[("package/package.json", b"{}"), ("package/lib/a.js", b"")]);
+    // "package.json" and "lib/a.js": 20 bytes.
+    read_publication_archive_within(tar.as_slice(), 20).unwrap();
+    assert!(matches!(
+        read_publication_archive_within(tar.as_slice(), 19),
+        Err(PublicationArchiveError::OversizedPaths),
+    ));
 }
