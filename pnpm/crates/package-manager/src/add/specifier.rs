@@ -243,10 +243,8 @@ async fn registry_save_specifier(
             if let Some(specifier) = cataloged_specifier(package_name, inputs) {
                 return Ok(specifier.into());
             }
-            if let Some(specifier) =
-                fallback_registry_save_specifier(package_name, manifest, inputs).await?
-            {
-                return Ok(specifier);
+            if let Some(range) = add_range_fallback(package_name, manifest, inputs)? {
+                return resolve_fallback_range(package_name, &range, manifest, inputs).await;
             }
             match inputs.add.config.default_tag() {
                 // The default tag keeps the shared picker every plain add uses.
@@ -261,27 +259,24 @@ async fn registry_save_specifier(
         }
     }
 }
-/// The [`add_range_fallback`] range resolved and re-rendered in the
-/// configured range style, or `None` when there is no such range.
-pub(super) async fn fallback_registry_save_specifier(
+/// A fallback `range` resolved and re-rendered in the configured range
+/// style.
+pub(super) async fn resolve_fallback_range(
     package_name: &str,
+    range: &str,
     manifest: &PackageManifest,
     inputs: &AddResolveInputs<'_, '_>,
-) -> Result<Option<SaveSpecifier>, AddError> {
-    let Some(specifier) = add_range_fallback(package_name, manifest, inputs)? else {
-        return Ok(None);
-    };
+) -> Result<SaveSpecifier, AddError> {
     let mut resolved =
-        explicit_registry_save_specifier(package_name, &specifier, None, manifest, inputs).await?;
+        explicit_registry_save_specifier(package_name, range, None, manifest, inputs).await?;
     if let Some(picked) = &resolved.picked {
         let version = picked.version.parse().expect("picked versions are valid");
-        let previous_specifier =
-            match pnpm_resolving_npm_resolver::infer_range_spec_style(&specifier) {
-                Some(
-                    pnpm_registry::RangeSpecStyle::Patch | pnpm_registry::RangeSpecStyle::Exact,
-                ) => None,
-                _ => Some(specifier.as_str()),
-            };
+        let previous_specifier = match pnpm_resolving_npm_resolver::infer_range_spec_style(range) {
+            Some(pnpm_registry::RangeSpecStyle::Patch | pnpm_registry::RangeSpecStyle::Exact) => {
+                None
+            }
+            _ => Some(range),
+        };
         resolved.specifier = pnpm_resolving_npm_resolver::calc_version_range(
             &version,
             previous_specifier,
@@ -289,7 +284,7 @@ pub(super) async fn fallback_registry_save_specifier(
             inputs.add.range_spec_style,
         );
     }
-    Ok(Some(resolved))
+    Ok(resolved)
 }
 /// [`registry_save_specifier`] for a registry selector that names `spec`.
 pub(super) async fn explicit_registry_save_specifier(
@@ -328,13 +323,27 @@ impl From<String> for SaveSpecifier {
 /// The `catalog:` reference for a dependency the catalog already lists, or
 /// `None` when it lists no entry for it.
 fn cataloged_specifier(package_name: &str, inputs: &AddResolveInputs<'_, '_>) -> Option<String> {
-    let catalog_name = crate::per_dep_catalog_name(None, inputs.owned.save_catalog_name.as_deref());
-    inputs.catalogs.get(catalog_name)?.get(package_name)?;
+    let catalog_name = listing_catalog_name(
+        package_name,
+        inputs.catalogs,
+        inputs.owned.save_catalog_name.as_deref(),
+    )?;
     Some(if catalog_name == pnpm_catalogs_types::DEFAULT_CATALOG_NAME {
         "catalog:".to_string()
     } else {
         format!("catalog:{catalog_name}")
     })
+}
+
+/// The catalog `pnpm add` saves to, when it lists `package_name`.
+pub(super) fn listing_catalog_name<'a>(
+    package_name: &str,
+    catalogs: &Catalogs,
+    save_catalog_name: Option<&'a str>,
+) -> Option<&'a str> {
+    let catalog_name = crate::per_dep_catalog_name(None, save_catalog_name);
+    catalogs.get(catalog_name)?.get(package_name)?;
+    Some(catalog_name)
 }
 
 pub(super) async fn resolve_node_runtime_specifier(

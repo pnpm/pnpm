@@ -84,9 +84,20 @@ async fn add_npm_selector_with_ranges(
             .to_string(),
         )
         .unwrap();
+    }
+    if workspace_range.is_some() || override_range.is_some() {
         std::fs::write(
             dir.path().join("pnpm-workspace.yaml"),
             "packages:\n  - project\n  - sibling\n",
+        )
+        .unwrap();
+    }
+    if override_range.is_some() {
+        let vendored_root = dir.path().join("vendor/foo");
+        std::fs::create_dir_all(&vendored_root).unwrap();
+        std::fs::write(
+            vendored_root.join("package.json"),
+            json!({ "name": "foo", "version": "1.0.0" }).to_string(),
         )
         .unwrap();
     }
@@ -117,7 +128,7 @@ async fn add_npm_selector_with_ranges(
     config.install_state_dir = virtual_store_dir;
     config.registry = registry_url;
     config.minimum_release_age = None;
-    if workspace_range.is_some() {
+    if workspace_range.is_some() || override_range.is_some() {
         config.workspace_dir = Some(dir.path().to_path_buf());
     }
     if let Some(override_range) = override_range {

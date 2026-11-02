@@ -121,6 +121,20 @@ async fn add_prefers_a_workspace_declared_range_over_a_matching_override() {
     );
 }
 #[tokio::test]
+async fn add_ignores_an_override_of_the_target_of_an_npm_alias() {
+    assert_eq!(
+        add_npm_selector_with_ranges("alias@npm:foo", None, Some("~1.0.0")).await,
+        Some("npm:foo@^1.0.0".to_string()),
+    );
+}
+#[tokio::test]
+async fn add_rebases_a_relative_override_path_onto_the_project() {
+    assert_eq!(
+        add_npm_selector_with_ranges("foo", None, Some("link:./vendor/foo")).await,
+        Some("link:../vendor/foo".to_string()),
+    );
+}
+#[tokio::test]
 async fn add_uses_a_matching_override_before_the_default_tag() {
     assert_eq!(
         add_npm_selector_with_ranges("foo", None, Some("~1.0.0")).await,

@@ -1,4 +1,4 @@
-use super::{versionless_manifest_key, workspace_declared_specifier};
+use super::{VersionlessSelector, workspace_declared_specifier};
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_resolving_resolver_base::{WorkspacePackage, WorkspacePackages};
 use serde_json::{Value, json};
@@ -72,9 +72,13 @@ fn ignores_peer_dependencies() {
 
 #[test]
 fn keys_a_versionless_selector_by_its_manifest_name() {
-    assert_eq!(versionless_manifest_key("foo"), Some("foo".to_string()));
-    assert_eq!(versionless_manifest_key("npm:foo"), Some("foo".to_string()));
-    assert_eq!(versionless_manifest_key("alias@npm:foo"), Some("alias".to_string()));
-    assert_eq!(versionless_manifest_key("foo@^1.0.0"), None);
-    assert_eq!(versionless_manifest_key("alias@npm:foo@^1.0.0"), None);
+    let registry = |name: &str| Some(VersionlessSelector::Registry(name.to_string()));
+    assert_eq!(VersionlessSelector::parse("foo"), registry("foo"));
+    assert_eq!(VersionlessSelector::parse("npm:foo"), registry("foo"));
+    assert_eq!(
+        VersionlessSelector::parse("alias@npm:foo"),
+        Some(VersionlessSelector::NpmAlias("alias".to_string())),
+    );
+    assert_eq!(VersionlessSelector::parse("foo@^1.0.0"), None);
+    assert_eq!(VersionlessSelector::parse("alias@npm:foo@^1.0.0"), None);
 }

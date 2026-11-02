@@ -43,7 +43,12 @@ pub(super) async fn prepare_single_add<Reporter: self::Reporter>(
     let catalog_ctx = read_catalog_ctx(manifest, add.config)?;
     let workspace_packages = (add.config.link_workspace_packages.enabled_at_depth(0)
         || add.config.save_workspace_protocol != SaveWorkspaceProtocol::Rolling
-        || super::range_fallback::needs_workspace_range_fallback(add, manifest))
+        || super::range_fallback::needs_workspace_range_fallback(
+            add,
+            owned.save_catalog_name.as_deref(),
+            &catalog_ctx.catalogs,
+            manifest,
+        ))
     .then(|| workspace_packages_for_add(add.config))
     .flatten();
     let git_source_cache = Arc::new(pnpm_git_fetcher::GitSourceCache::default());
