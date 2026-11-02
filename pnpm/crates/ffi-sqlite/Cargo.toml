@@ -1,0 +1,17 @@
+[package]
+name = "pnpm-ffi-sqlite"
+description = "Safe abstractions over the SQLite build-configuration query pnpm makes"
+version = "0.0.1"
+publish = false
+authors.workspace = true
+edition.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+rusqlite = { workspace = true }
+
+[lints]
+workspace = true

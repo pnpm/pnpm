@@ -31,12 +31,12 @@ pub fn try_lock_file(file: &File, mode: LockMode) -> Result<(), TryLockError> {
 
 #[cfg(target_os = "android")]
 pub fn lock_file(file: &File, mode: LockMode) -> io::Result<()> {
-    flock(file, flock_operation(mode))
+    pnpm_ffi_fs::lock_file(file, advisory_lock(mode), pnpm_ffi_fs::Blocking::Yes)
 }
 
 #[cfg(target_os = "android")]
 pub fn try_lock_file(file: &File, mode: LockMode) -> Result<(), TryLockError> {
-    flock(file, flock_operation(mode) | libc::LOCK_NB)
+    pnpm_ffi_fs::lock_file(file, advisory_lock(mode), pnpm_ffi_fs::Blocking::No)
         .map_err(|error| {
             if error.kind() == io::ErrorKind::WouldBlock {
                 TryLockError::WouldBlock
@@ -47,22 +47,10 @@ pub fn try_lock_file(file: &File, mode: LockMode) -> Result<(), TryLockError> {
 }
 
 #[cfg(target_os = "android")]
-fn flock_operation(mode: LockMode) -> libc::c_int {
+fn advisory_lock(mode: LockMode) -> pnpm_ffi_fs::AdvisoryLock {
     match mode {
-        LockMode::Exclusive => libc::LOCK_EX,
-        LockMode::Shared => libc::LOCK_SH,
-    }
-}
-
-#[cfg(target_os = "android")]
-fn flock(file: &File, operation: libc::c_int) -> io::Result<()> {
-    use std::os::fd::AsRawFd as _;
-
-    // SAFETY: `file` owns an open descriptor for the duration of the call.
-    if unsafe { libc::flock(file.as_raw_fd(), operation) } == 0 {
-        Ok(())
-    } else {
-        Err(io::Error::last_os_error())
+        LockMode::Exclusive => pnpm_ffi_fs::AdvisoryLock::Exclusive,
+        LockMode::Shared => pnpm_ffi_fs::AdvisoryLock::Shared,
     }
 }
 

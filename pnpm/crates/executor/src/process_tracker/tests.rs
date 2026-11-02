@@ -7,7 +7,6 @@ use std::{
     io::{BufRead, BufReader, Read},
     os::unix::{fs::symlink, process::CommandExt},
     process::{self, Child, Command, Stdio},
-    ptr,
     sync::mpsc,
     thread::{self, sleep},
     time::{Duration, Instant},
@@ -26,9 +25,9 @@ fn foreground_children_share_the_terminal_process_group_only_at_a_terminal() {
     let mut child = spawn_child(&mut command, Some(&tracker)).expect("spawn child");
     let child_pid = i32::try_from(child.child_mut().id()).expect("child PID fits i32");
 
-    // SAFETY: both calls only query process-group IDs for this process
-    // and the live child spawned immediately above.
-    let (parent_group, child_group) = unsafe { (libc::getpgrp(), libc::getpgid(child_pid)) };
+    let group_of = |pid: u32| pnpm_ffi_signal::process_group_of(pid).expect("the process is live");
+    let (parent_group, child_group) =
+        (group_of(std::process::id()), group_of(child.child_mut().id()));
     if crate::interrupt::has_controlling_terminal() {
         assert_eq!(child_group, parent_group, "at a terminal the child shares the group");
     } else {
@@ -110,12 +109,11 @@ fn a_replaced_watchdog_takes_over_the_groups_of_the_one_that_died() {
         "`sh` is available",
     );
     let [dead] = watchdogs()[..] else { panic!("expected one watchdog") };
-    // SAFETY: `dead` is this process's own child, the watchdog started
-    // above; it is killed and reaped here before its pipe is written again.
-    unsafe {
-        libc::kill(dead, libc::SIGKILL);
-        libc::waitpid(dead, ptr::null_mut(), 0);
-    }
+    // The watchdog started above is this process's own child, so it can be
+    // killed and reaped here before its pipe is written again.
+    let dead = u32::try_from(dead).expect("the watchdog's pid fits u32");
+    pnpm_ffi_signal::signal_target(pnpm_ffi_signal::Target::Process(dead), libc::SIGKILL);
+    assert!(pnpm_ffi_signal::reap(dead), "reap the watchdog");
 
     assert!(
         watch
@@ -473,12 +471,5 @@ fn the_group_of_a_reaped_child_stays_cancellable_while_its_waiter_waits() {
 
 /// Whether `pid` has exited, reaped or not.
 fn is_gone(pid: i32) -> bool {
-    // SAFETY: signal 0 only probes the process the test recorded.
-    let exists = unsafe { libc::kill(pid, 0) == 0 };
-    let zombie = fs::read_to_string(format!("/proc/{pid}/stat"))
-        .is_ok_and(|stat| {
-            stat.rsplit_once(") ")
-                .is_some_and(|(_, rest)| rest.starts_with('Z'))
-        });
-    !exists || zombie
+    !pnpm_testing_utils::process_liveness::is_running(pid)
 }

@@ -43,6 +43,7 @@ mod leading_separator;
 mod package_specifier;
 mod parse_boundary;
 mod path_env;
+mod pinned_dispatch;
 mod pm_prefix;
 mod renamed_options;
 mod shim_dispatch;
@@ -90,12 +91,15 @@ pub fn main() -> ExitCode {
     let argv: Vec<OsString> = std::env::args_os().collect();
     let launch = shim_dispatch::ShimLaunch::detect(&argv);
     let argv = if launch.is_shim() { argv } else { argv_with_alias_subcommand(argv) };
-    // Load `--env-file` variables here, on the main thread before the
-    // startup thread below exists: `std::env::set_var` must not run once
-    // another thread is alive (see `env_file`). A shim launch is exempt:
-    // its arguments belong to the shim target and travel there untouched.
+    // Claimed here, before anything spawns, because the startup path has
+    // to change the environment and only a single-threaded process may.
+    let single_threaded = pnpm_ffi_process::SingleThreaded::claim()
+        .expect("the CLI claims the single-threaded witness once, at startup");
+    // Load `--env-file` variables here, before the startup thread below
+    // exists (see `env_file`). A shim launch is exempt: its arguments
+    // belong to the shim target and travel there untouched.
     if !launch.is_shim()
-        && let Err(error) = env_file::load_from_argv(&argv)
+        && let Err(error) = env_file::load_from_argv(&argv, &single_threaded)
     {
         report_fatal_error(&error);
         return ExitCode::FAILURE;
@@ -103,7 +107,7 @@ pub fn main() -> ExitCode {
     // Tracing reads `TRACE`/`TRACE_FORMAT`, which the files above may
     // define, so it starts only after the load.
     enable_tracing_by_env();
-    let result = run_on_big_stack(|| run_cli(&launch, &argv));
+    let result = run_on_big_stack(|| run_cli(&launch, &argv, single_threaded));
     match result.and_then(|()| flush_stdout()) {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
@@ -170,7 +174,11 @@ fn is_reported_error(error: &miette::Report) -> bool {
 }
 
 /// Parse and execute the CLI, including shim dispatch and startup fast paths.
-fn run_cli(launch: &shim_dispatch::ShimLaunch, argv: &[OsString]) -> miette::Result<()> {
+fn run_cli(
+    launch: &shim_dispatch::ShimLaunch,
+    argv: &[OsString],
+    single_threaded: pnpm_ffi_process::SingleThreaded,
+) -> miette::Result<()> {
     let argv = argv.to_vec();
     if let Some(exit_code) = launch.dispatch(&argv) {
         // The shim dispatcher propagates the dispatched command's exit status.
@@ -182,7 +190,7 @@ fn run_cli(launch: &shim_dispatch::ShimLaunch, argv: &[OsString]) -> miette::Res
         .collect();
     let (argv_with_alias, builtin_command_forced) = pm_prefix::strip_prefix(argv);
     let (config_overrides, argv) = ConfigOverrides::extract(argv_with_alias);
-    let argv = with_current::rewrite(argv)?;
+    let argv = with_current::rewrite(argv, single_threaded)?;
     pnpm_default_reporter::set_package_version(pnpm_config::PNPM_VERSION);
     let (command, argv) = prepare_cli_argv(argv);
     let Some(mut args) = parse_or_answer(command, &argv, &child_argv, &config_overrides)? else {
@@ -192,7 +200,7 @@ fn run_cli(launch: &shim_dispatch::ShimLaunch, argv: &[OsString]) -> miette::Res
     let mut invocation = Invocation::from_argv(&argv, EntryPoint::Command);
     invocation.paths = args.paths.clone();
     let mut preloaded_config = None;
-    if dispatched_to_pinned_pnpm(
+    if pinned_dispatch::dispatched_to_pinned_pnpm(
         &invocation,
         &config_overrides,
         &child_argv,
@@ -223,7 +231,11 @@ fn parse_or_answer(
             print_version(argv, child_argv, config_overrides).map(|()| None)
         }
         Err(err) if err.kind() == clap::error::ErrorKind::UnknownArgument => {
-            if dispatched_unparsed_to_pinned_pnpm(argv, child_argv, config_overrides)? {
+            if pinned_dispatch::dispatched_unparsed_to_pinned_pnpm(
+                argv,
+                child_argv,
+                config_overrides,
+            )? {
                 return Ok(None);
             }
             err.exit()
@@ -269,83 +281,11 @@ fn print_version(
     // The version is the command's output, so every warning the checks
     // below raise belongs on stderr, leaving stdout a bare version string.
     pnpm_default_reporter::use_stderr();
-    if pinned_pnpm_printed_the_version(argv, child_argv, config_overrides)? {
+    if pinned_dispatch::pinned_pnpm_printed_the_version(argv, child_argv, config_overrides)? {
         return Ok(());
     }
     pnpm_diagnostics::println!("{}", pnpm_config::PNPM_VERSION);
     Ok(())
-}
-
-/// Whether the pinned pnpm answered `--version` for this one. Installing
-/// that pnpm, and recording the pin, both write, and a sandbox with a
-/// read-only home has nowhere to write — printing a version has to work
-/// there too, so the failure is reported and the running version answers.
-/// The checks themselves still fail the command: a project pinned to
-/// another package manager is not something a version string can stand in
-/// for.
-fn pinned_pnpm_printed_the_version(
-    argv: &[OsString],
-    child_argv: &[OsString],
-    config_overrides: &ConfigOverrides,
-) -> miette::Result<bool> {
-    let Some(plan) =
-        cli_args::pre_command::pre_command_plan_for_version_flag(argv, config_overrides)?
-    else {
-        return Ok(false);
-    };
-    block_on_runtime("pacquet-pre-command", cli_args::pre_command::execute_plan(plan, child_argv))
-        .or_else(|error| {
-            cli_args::pre_command::warn_pinned_pnpm_unusable(&error);
-            Ok(false)
-        })
-}
-
-/// Whether the pnpm the project pins took the command. When it did, it has
-/// already run to completion and this process has nothing left to do.
-fn dispatched_to_pinned_pnpm(
-    invocation: &cli_args::pre_command::Invocation,
-    config_overrides: &ConfigOverrides,
-    child_argv: &[OsString],
-    preloaded_config: &mut Option<Result<pnpm_config::Config, pnpm_config::ConfigLoadFailure>>,
-) -> miette::Result<bool> {
-    let outcome = cli_args::pre_command::pre_command_plan(invocation, config_overrides)?;
-    *preloaded_config = outcome.preloaded_config;
-    let Some(plan) = outcome.plan else {
-        return Ok(false);
-    };
-    match block_on_runtime(
-        "pacquet-pre-command",
-        cli_args::pre_command::execute_plan_reusing_config(plan, child_argv),
-    )? {
-        cli_args::pre_command::PlanExecution::Switched => Ok(true),
-        cli_args::pre_command::PlanExecution::Continue(config) => {
-            if let Some(config) = *config {
-                *preloaded_config = Some(Ok(config));
-            }
-            Ok(false)
-        }
-    }
-}
-
-/// Whether the pnpm the project pins took a command line this one rejected.
-/// A newer or older pnpm may accept an option this one does not know.
-fn dispatched_unparsed_to_pinned_pnpm(
-    argv: &[OsString],
-    child_argv: &[OsString],
-    config_overrides: &ConfigOverrides,
-) -> miette::Result<bool> {
-    let plan = cli_args::pre_command::switch_plan_for_unparsed_argv(argv, config_overrides)?;
-    execute_pre_command_plan(plan, child_argv)
-}
-
-fn execute_pre_command_plan(
-    plan: Option<cli_args::pre_command::PreCommandPlan>,
-    child_argv: &[OsString],
-) -> miette::Result<bool> {
-    let Some(plan) = plan else {
-        return Ok(false);
-    };
-    block_on_runtime("pacquet-pre-command", cli_args::pre_command::execute_plan(plan, child_argv))
 }
 
 /// Stack size for the thread the command runs on. Generous headroom over

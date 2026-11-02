@@ -170,7 +170,8 @@ fn strip_flags_keeps_everything_else() {
 #[test]
 fn load_fails_loudly_on_a_missing_file() {
     let missing = PathBuf::from("pacquet-env-file-test-does-not-exist.env");
-    let error = load(std::slice::from_ref(&missing)).expect_err("missing file must fail");
+    let error =
+        load(std::slice::from_ref(&missing), &mut |_, _| ()).expect_err("missing file must fail");
     let message = format!("{error:?}");
     assert!(
         message.contains("pacquet-env-file-test-does-not-exist.env"),
