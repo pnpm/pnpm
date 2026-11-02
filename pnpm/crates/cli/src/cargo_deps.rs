@@ -38,7 +38,7 @@ use serde::{Deserialize, Serialize};
 use sparse_registry::{fetch_sparse_index, registry_download_config};
 use ssri::{Algorithm, Integrity};
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap},
+    collections::{BTreeMap, BTreeSet},
     fs, io,
     path::{Path, PathBuf},
     str::FromStr,

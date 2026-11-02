@@ -16,7 +16,6 @@ use pnpm_store_dir::{
 };
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
-    path::PathBuf,
     sync::Arc,
 };
 
@@ -253,23 +252,34 @@ pub(super) async fn stage_artifact(
     context: &ResolvedArtifactContext<'_>,
     input_key: &str,
     artifact: &pnpm_pnpr_client::VerifiedArtifact,
-    base: &HashMap<String, PathBuf>,
+    base: &pnpm_fs::CasPaths,
 ) -> Result<StagedArtifact, (String, bool)> {
     let mut downloaded = HashMap::<String, Vec<u8>>::new();
-    let mut stored = HashMap::<(String, u32), PathBuf>::new();
+    let mut stored = HashMap::<(String, u32), pnpm_fs::StoreFile>::new();
     let mut added = HashMap::<String, CafsFileInfo>::new();
+    let mut staged_modes = HashMap::<String, u32>::new();
     for file in &artifact.payload.manifest.added {
-        let (_, info) =
+        let (blob, info) =
             stage_artifact_blob(context, artifact, file, &mut stored, &mut downloaded).await?;
+        if let Some(mode) = blob.mode() {
+            staged_modes.insert(file.path.clone(), mode);
+        }
         added.insert(file.path.clone(), info);
     }
     let diff = remote_diff(context, artifact, added);
     // The same derivation a persisted row goes through, so a symlink the
     // artifact records is restored under the same rules or not at all.
-    let overlay = side_effects_overlay(&context.config.store_dir, input_key, &diff, base)
+    let mut overlay = side_effects_overlay(&context.config.store_dir, input_key, &diff, base)
         .ok_or_else(|| {
             ("the artifact records an entry that cannot be restored".to_string(), true)
         })?;
+    // Every snapshot of the group gets its own copy of the overlay, so the
+    // modes staging read go in before it is copied.
+    for (name, mode) in staged_modes {
+        if let Some(file) = overlay.files.get_mut(&name) {
+            file.set_mode(mode);
+        }
+    }
     Ok(StagedArtifact { overlay, diff })
 }
 pub(super) fn remote_diff(
@@ -348,9 +358,9 @@ pub(super) async fn stage_artifact_blob(
     context: &ResolvedArtifactContext<'_>,
     artifact: &pnpm_pnpr_client::VerifiedArtifact,
     file: &ArtifactFile,
-    stored: &mut HashMap<(String, u32), PathBuf>,
+    stored: &mut HashMap<(String, u32), pnpm_fs::StoreFile>,
     downloaded: &mut HashMap<String, Vec<u8>>,
-) -> Result<(PathBuf, CafsFileInfo), (String, bool)> {
+) -> Result<(pnpm_fs::StoreFile, CafsFileInfo), (String, bool)> {
     let storage_key = (file.integrity.clone(), file.mode);
     let digest = blob_id(&file.integrity).map_err(|error| (error.to_string(), true))?;
     let info = |digest: String| CafsFileInfo {
@@ -359,22 +369,22 @@ pub(super) async fn stage_artifact_blob(
         size: file.size,
         checked_at: None,
     };
-    if let Some(path) = stored.get(&storage_key) {
-        return Ok((path.clone(), info(digest)));
+    if let Some(blob) = stored.get(&storage_key) {
+        return Ok((blob.clone(), info(digest)));
     }
     if !downloaded.contains_key(&file.integrity) {
-        if let Some(path) = stored_blob_path(context.config, file, &digest).await? {
-            stored.insert(storage_key, path.clone());
-            return Ok((path, info(digest)));
+        if let Some(blob) = stored_blob(context.config, file, &digest).await? {
+            stored.insert(storage_key, blob.clone());
+            return Ok((blob, info(digest)));
         }
         let bytes = download_artifact_file(context, artifact, file).await?;
         downloaded.insert(file.integrity.clone(), bytes);
     }
-    let (path, _) = context.config.store_dir
+    let (blob, _) = context.config.store_dir
         .write_cas_file(&downloaded[&file.integrity], pnpm_fs::file_mode::is_executable(file.mode))
         .map_err(|error| (error.to_string(), false))?;
-    stored.insert(storage_key, path.clone());
-    Ok((path, info(digest)))
+    stored.insert(storage_key, blob.clone());
+    Ok((blob, info(digest)))
 }
 pub(super) async fn download_artifact_file(
     context: &ResolvedArtifactContext<'_>,
@@ -406,22 +416,26 @@ pub(super) async fn download_artifact_file(
 /// store by `is_executable`, so they cannot disagree about where a mode
 /// belongs. The manifest only carries 0o644 and 0o755 today, but the
 /// agreement must not rest on that.
-pub(super) async fn stored_blob_path(
+pub(super) async fn stored_blob(
     config: &Config,
     file: &ArtifactFile,
     digest: &str,
-) -> Result<Option<PathBuf>, (String, bool)> {
+) -> Result<Option<pnpm_fs::StoreFile>, (String, bool)> {
     let Some(path) = config.store_dir.cas_file_path_by_mode(digest, file.mode) else {
         return Ok(None);
     };
     if !store_holds(&path, digest).await.map_err(|error| (error, false))? {
         return Ok(None);
     }
-    if !tokio::fs::metadata(&path).await.is_ok_and(|metadata| metadata.len() == file.size) {
+    let metadata = tokio::fs::metadata(&path).await
+        .ok()
+        .filter(|metadata| metadata.len() == file.size);
+    let Some(metadata) = metadata else {
         return Err((
             "stored shared artifact blob does not match its declared size".to_string(),
             true,
         ));
-    }
-    Ok(Some(path))
+    };
+    let mode = pnpm_fs::file_mode::metadata_mode(&metadata);
+    Ok(Some(pnpm_fs::StoreFile::with_mode(path, mode)))
 }

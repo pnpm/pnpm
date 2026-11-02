@@ -6,10 +6,10 @@ use super::{
 mod swap;
 use crate::import_into_fresh_target;
 use pnpm_config::PackageImportMethod;
-use pnpm_fs::{FsRemoveDirent, FsRename, Host, rename_even_across_devices};
+use pnpm_fs::{FsRemoveDirent, FsRename, Host, StoreFile, rename_even_across_devices};
 use pnpm_reporter::Reporter;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashSet,
     ffi::OsString,
     fs, io,
     path::{Path, PathBuf},
@@ -28,19 +28,19 @@ use std::{
 pub(super) fn import_atomic<Reporter: self::Reporter>(
     logged_methods: &AtomicU8,
     import_method: PackageImportMethod,
-    store_path: &Path,
+    source: &StoreFile,
     target: &Path,
 ) -> Result<(), ImportIndexedDirError> {
     let temp = pick_stage_path(target);
     if let Err(error) =
-        import_into_fresh_target::<Reporter>(logged_methods, import_method, store_path, &temp)
+        import_into_fresh_target::<Reporter>(logged_methods, import_method, source, &temp)
     {
         let _ = fs::remove_file(&temp);
         return Err(ImportIndexedDirError::LinkFile(error));
     }
     match pnpm_fs::rename_with_retry(&temp, target) {
         Ok(()) => Ok(()),
-        Err(_) if file_matches_store_entry(target, store_path) => {
+        Err(_) if file_matches_store_entry(target, &source.path) => {
             let _ = fs::remove_file(&temp);
             Ok(())
         }
@@ -61,7 +61,7 @@ pub(super) fn stage_and_swap<Reporter: self::Reporter>(
     logged_methods: &AtomicU8,
     import_method: PackageImportMethod,
     dir_path: &Path,
-    cas_paths: &HashMap<String, PathBuf>,
+    cas_paths: &pnpm_fs::CasPaths,
     target: SwapTarget,
     opts: ImportIndexedDirOpts<'_>,
 ) -> Result<(), ImportIndexedDirError> {
@@ -122,7 +122,7 @@ fn populate_staging_dir<Reporter: self::Reporter>(
     import_method: PackageImportMethod,
     paths: &StagePaths,
     dir_path: &Path,
-    cas_paths: &HashMap<String, PathBuf>,
+    cas_paths: &pnpm_fs::CasPaths,
     symlink_targets: Option<SymlinkTargets>,
 ) -> Result<(), ImportIndexedDirError> {
     if let Err(error) = populate_dir::<Reporter>(
@@ -145,7 +145,7 @@ fn populate_staging_dir<Reporter: self::Reporter>(
 fn completed_or_non_dir_target(
     stage: &Path,
     dir_path: &Path,
-    cas_paths: &HashMap<String, PathBuf>,
+    cas_paths: &pnpm_fs::CasPaths,
 ) -> Result<bool, ImportIndexedDirError> {
     let keep_existing = match existing_dirent_kind(dir_path) {
         Ok(Some(file_type)) => !file_type.is_dir() || marker_present(dir_path, cas_paths),

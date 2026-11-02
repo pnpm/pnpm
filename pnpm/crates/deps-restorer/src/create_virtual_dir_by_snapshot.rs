@@ -42,7 +42,7 @@ pub struct CreateVirtualDirBySnapshot<'a> {
     /// [`VirtualStoreLayout::slot_dir`] lookup. See
     /// [`crate::VirtualStoreLayout`] for how it's built.
     pub layout: &'a VirtualStoreLayout,
-    pub cas_paths: &'a HashMap<String, PathBuf>,
+    pub cas_paths: &'a pnpm_fs::CasPaths,
     /// Stable identifier for the package, e.g. `"{name}@{version}"`.
     /// Currently unused by `imported` (whose payload doesn't carry
     /// `packageId`) but kept here so future progress channels (e.g.
@@ -193,7 +193,7 @@ impl CreateVirtualDirBySnapshot<'_> {
     fn import_slot<Reporter: self::Reporter>(
         &self,
         save_path: &Path,
-        cas_paths: &HashMap<String, PathBuf>,
+        cas_paths: &pnpm_fs::CasPaths,
         interrupted_build: bool,
     ) -> Result<(), CreateVirtualDirError> {
         // An interrupted build and a forced import both re-import with
@@ -357,18 +357,18 @@ fn create_slot_dirs(
 /// [`slot_carries_overlay`](crate::build_modules::slot_carries_overlay) would read the re-imported files as a
 /// cache hit and skip the rebuild.
 fn cas_paths_with_build_marker(
-    cas_paths: &HashMap<String, PathBuf>,
+    cas_paths: &pnpm_fs::CasPaths,
     save_path: &Path,
     needs_build_marker_source: Option<&Path>,
     forced: (bool, bool),
-) -> Option<HashMap<String, PathBuf>> {
+) -> Option<pnpm_fs::CasPaths> {
     let (interrupted_build, force_import) = forced;
     let source = needs_build_marker_source?;
     if !interrupted_build && !force_import && marker_present(save_path, cas_paths) {
         return None;
     }
     let mut paths = cas_paths.clone();
-    paths.insert(NEEDS_BUILD_MARKER.to_string(), source.to_path_buf());
+    paths.insert(NEEDS_BUILD_MARKER.to_string(), pnpm_fs::StoreFile::new(source.to_path_buf()));
     Some(paths)
 }
 

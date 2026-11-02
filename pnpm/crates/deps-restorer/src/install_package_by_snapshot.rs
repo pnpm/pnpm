@@ -20,7 +20,7 @@ use pnpm_lockfile::PlatformSelector;
 use pnpm_package_manifest::PackageBin;
 use pnpm_tarball::TarballError;
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::BTreeMap,
     path::PathBuf,
     sync::{Arc, LazyLock},
 };
@@ -212,7 +212,7 @@ pub enum InstallPackageBySnapshotError {
 /// What installing one package produced.
 #[derive(Debug)]
 pub struct InstalledPackage {
-    pub cas_paths: HashMap<String, PathBuf>,
+    pub cas_paths: pnpm_fs::CasPaths,
     /// Bundled `package.json` captured during tarball extraction or store-index
     /// load.
     pub manifest: Option<Arc<serde_json::Value>>,

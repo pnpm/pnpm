@@ -15,7 +15,7 @@ pub(super) struct SlotLink<'a> {
     pub source: crate::SlotImportSource<'a>,
     pub(super) snapshot_key: &'a PackageKey,
     pub(super) snapshot: &'a SnapshotEntry,
-    pub(super) cas_paths: &'a HashMap<String, PathBuf>,
+    pub(super) cas_paths: &'a pnpm_fs::CasPaths,
     pub(super) warm_cache_key: Option<&'a str>,
     /// Whether the directory-clone cache may serve this slot — see
     /// [`dir_clone_cacheable`].

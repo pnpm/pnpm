@@ -45,7 +45,7 @@ async fn git_archive_manifests_are_cached_by_subdirectory() {
         let path = dir.path().join(format!("{name}.json"));
         std::fs::write(&path, json!({"name": name, "dependencies": {name: "1.0.0"}}).to_string())
             .unwrap();
-        files.insert(format!("packages/{name}/package.json"), path);
+        files.insert(format!("packages/{name}/package.json"), path.into());
     }
     resolver.ctx.mem_cache.insert(
         package_mem_cache_key(url, Some(&integrity.parse().unwrap()), false),

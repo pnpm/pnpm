@@ -14,11 +14,7 @@ use pnpm_lockfile::{
 use pnpm_package_manifest::PackageBin;
 use pnpm_reporter::{LogEvent, LogLevel, ProgressLog, ProgressMessage, Reporter};
 use pnpm_tarball::{CachedCasPaths, IngestTarballToStore, MemCache, TarballError};
-use std::{
-    collections::{BTreeMap, HashMap},
-    path::{Path, PathBuf},
-    sync::Arc,
-};
+use std::{collections::BTreeMap, path::Path, sync::Arc};
 
 /// The per-call inputs of [`InstallPackageBySnapshot::tarball_cas_paths`],
 /// alongside the install-scoped ones it reads off `self`.
@@ -27,7 +23,7 @@ use std::{
 /// it fetched, neither when no fetcher is configured.
 pub(super) struct CustomFetched {
     resolution: Option<LockfileResolution>,
-    cas_paths: Option<HashMap<String, PathBuf>>,
+    cas_paths: Option<pnpm_fs::CasPaths>,
     /// See [`crate::SlotImportSource::source_exists`].
     source_exists: bool,
 }
@@ -67,7 +63,7 @@ pub(super) struct ExtractedPackageMetadata {
 }
 
 impl ExtractedPackageMetadata {
-    fn from_cached_cas_paths(cached: CachedCasPaths) -> (HashMap<String, PathBuf>, Self) {
+    fn from_cached_cas_paths(cached: CachedCasPaths) -> (pnpm_fs::CasPaths, Self) {
         (
             cached.files,
             Self {
@@ -92,7 +88,7 @@ pub(super) async fn download_tarball<Reporter: self::Reporter>(
     download: IngestTarballToStore<'_>,
     tarball_mem_cache: Option<&MemCache>,
     revision_addressed: bool,
-) -> Result<(HashMap<String, PathBuf>, ExtractedPackageMetadata), TarballError> {
+) -> Result<(pnpm_fs::CasPaths, ExtractedPackageMetadata), TarballError> {
     let Some(mem_cache) = tarball_mem_cache else {
         return download
             .run_cached_without_mem_cache::<Reporter>(revision_addressed)
@@ -126,11 +122,11 @@ pub(super) fn fetch_directory_resolution(
     workspace_root: &Path,
     dir_resolution: &DirectoryResolution,
     files: CopyFiles,
-) -> Result<(HashMap<String, PathBuf>, bool), InstallPackageBySnapshotError> {
+) -> Result<(pnpm_fs::CasPaths, bool), InstallPackageBySnapshotError> {
     let output =
         walk_directory(&lexical_normalize(&workspace_root.join(&dir_resolution.directory)), files)
             .map_err(InstallPackageBySnapshotError::DirectoryFetch)?;
-    Ok((output.files_map, output.exists))
+    Ok((pnpm_fs::cas_paths_from_paths(output.files_map), output.exists))
 }
 
 /// The directory fetch every directory resolution goes through.
@@ -281,10 +277,8 @@ impl InstallPackageBySnapshot<'_> {
     async fn fetch_cas_paths<Reporter: self::Reporter>(
         &self,
         fetch: SnapshotFetch<'_>,
-    ) -> Result<
-        (HashMap<String, PathBuf>, ExtractedPackageMetadata, bool),
-        InstallPackageBySnapshotError,
-    > {
+    ) -> Result<(pnpm_fs::CasPaths, ExtractedPackageMetadata, bool), InstallPackageBySnapshotError>
+    {
         let config = self.ctx.config;
         // Named local so both git fetchers can borrow it across their
         // `.await` without depending on temporary-lifetime extension.
@@ -353,8 +347,7 @@ impl InstallPackageBySnapshot<'_> {
         &self,
         fetch: &SnapshotFetch<'_>,
         allow_build: &(impl Fn(&str) -> Option<bool> + Send + Sync),
-    ) -> Result<(HashMap<String, PathBuf>, ExtractedPackageMetadata), InstallPackageBySnapshotError>
-    {
+    ) -> Result<(pnpm_fs::CasPaths, ExtractedPackageMetadata), InstallPackageBySnapshotError> {
         self.tarball_cas_paths::<Reporter>(TarballFetch {
             download: fetch.download,
             resolution: fetch.resolution,
@@ -380,7 +373,7 @@ impl InstallPackageBySnapshot<'_> {
     fn link_slot<Reporter: self::Reporter>(
         &self,
         slot: SlotLink<'_>,
-        cas_paths: &HashMap<String, PathBuf>,
+        cas_paths: &pnpm_fs::CasPaths,
     ) -> Result<(), InstallPackageBySnapshotError> {
         let config = self.ctx.config;
         if self.defer_link

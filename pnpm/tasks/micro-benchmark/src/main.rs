@@ -161,7 +161,7 @@ async fn ingest_benchmark_package(
     package: &BatchPackage,
     http_client: &ThrottledClient,
     store_dir: &'static StoreDir,
-) -> Result<std::collections::HashMap<String, std::path::PathBuf>, pnpm_tarball::TarballError> {
+) -> Result<pnpm_store_dir::FilesMap, pnpm_tarball::TarballError> {
     let auth_headers = AuthHeaders::default();
     IngestTarballToStore {
         fetching: pnpm_tarball::ArchiveFetchOptions {

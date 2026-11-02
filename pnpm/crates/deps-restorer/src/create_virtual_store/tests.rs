@@ -201,7 +201,7 @@ impl SeededStoreInstall {
                 metadata_with_integrity(DUMMY_SHA512),
             )]),
             package_key,
-            body_blob: body_blob.expect("index.js blob"),
+            body_blob: body_blob.expect("index.js blob").path,
         }
     }
 
@@ -407,7 +407,7 @@ fn directory_metadata(directory: &str) -> PackageMetadata {
 fn slot_link<'a>(
     snapshot_key: &'a PackageKey,
     snapshot: &'a SnapshotEntry,
-    cas_paths: &'a HashMap<String, std::path::PathBuf>,
+    cas_paths: &'a pnpm_fs::CasPaths,
     removed_aliases: &'a [PkgName],
 ) -> crate::create_virtual_store::slot_linking::SlotLink<'a> {
     crate::create_virtual_store::slot_linking::SlotLink {

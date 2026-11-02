@@ -117,10 +117,13 @@ pub(super) fn manifest_matches_diff(manifest: &ArtifactManifest, diff: &SideEffe
             .iter()
             .all(|path| manifest.deleted.contains(path))
 }
+/// Whether every blob `diff` adds is still in the store with its recorded
+/// size. Records the mode it reads for each added file on `overlay`, which
+/// every import of the overlay then uses (pnpm/pnpm#17543).
 pub(super) async fn stored_remote_side_effects_blobs_are_valid(
     store_dir: &StoreDir,
     diff: &SideEffectsDiff,
-    overlay: &SideEffectsOverlay,
+    overlay: &mut SideEffectsOverlay,
 ) -> Result<bool, String> {
     for (file_path, info) in diff.added.iter().flatten() {
         let Some(path) = overlay_blob_path(store_dir, overlay, file_path, info) else {
@@ -133,6 +136,10 @@ pub(super) async fn stored_remote_side_effects_blobs_are_valid(
             .map_err(|error| format!("failed to inspect {}: {error}", path.display()))?;
         if metadata.len() != info.size {
             return Ok(false);
+        }
+        let mode = pnpm_fs::file_mode::metadata_mode(&metadata);
+        if let (Some(file), Some(mode)) = (overlay.files.get_mut(file_path), mode) {
+            file.set_mode(mode);
         }
     }
     Ok(true)
@@ -151,7 +158,7 @@ fn overlay_blob_path(
             .then(|| store_dir.cas_file_path_by_mode(&info.digest, info.mode))
             .flatten()
     } else {
-        overlay.files.get(file_path).cloned()
+        overlay.files.get(file_path).map(|file| file.path.clone())
     }
 }
 pub(super) fn quarantine_remote_side_effects(

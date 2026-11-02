@@ -56,7 +56,7 @@ fn an_artifact_digest_addresses_the_file_the_store_wrote() {
         let located = store_dir
             .cas_file_path_by_mode(&digest, mode)
             .expect("an artifact digest must address a CAS path");
-        assert_eq!(located, written, "mode {mode:o}");
+        assert_eq!(located, written.path, "mode {mode:o}");
         assert!(located.is_file(), "mode {mode:o}");
         located_by_mode.push((mode, located));
     }
@@ -162,12 +162,12 @@ async fn a_persisted_symlink_entry_is_valid_while_its_target_blob_is_stored() {
         deleted: None,
         remote_origin: None,
     };
-    let overlay = SideEffectsOverlay {
+    let mut overlay = SideEffectsOverlay {
         files: HashMap::new(),
         symlinks: HashMap::from([(link, "addon.node".to_string())]),
     };
     assert!(
-        super::stored_remote_side_effects_blobs_are_valid(&store_dir, &diff, &overlay)
+        super::stored_remote_side_effects_blobs_are_valid(&store_dir, &diff, &mut overlay)
             .await
             .unwrap(),
     );
@@ -175,7 +175,7 @@ async fn a_persisted_symlink_entry_is_valid_while_its_target_blob_is_stored() {
         !super::stored_remote_side_effects_blobs_are_valid(
             &store_dir,
             &diff,
-            &SideEffectsOverlay::default(),
+            &mut SideEffectsOverlay::default(),
         )
         .await
         .unwrap(),
@@ -184,10 +184,51 @@ async fn a_persisted_symlink_entry_is_valid_while_its_target_blob_is_stored() {
 
     std::fs::remove_file(&path).unwrap();
     assert!(
-        !super::stored_remote_side_effects_blobs_are_valid(&store_dir, &diff, &overlay)
+        !super::stored_remote_side_effects_blobs_are_valid(&store_dir, &diff, &mut overlay)
             .await
             .unwrap(),
     );
+}
+
+/// pnpm/pnpm#17543: each peer snapshot gets its own copy of a persisted
+/// overlay, so the check that stats its blobs records their modes on it.
+#[tokio::test]
+#[cfg(unix)]
+async fn checking_a_persisted_overlay_records_the_modes_it_read() {
+    use pnpm_store_dir::{CafsFileInfo, SideEffectsDiff, SideEffectsOverlay};
+    use std::os::unix::fs::MetadataExt;
+
+    let store = tempfile::tempdir().unwrap();
+    let store_dir = pnpm_store_dir::StoreDir::new(store.path());
+    let built = b"built output";
+    let (blob, hash) = store_dir.write_cas_file(built, false).unwrap();
+    let name = "build/out.js".to_string();
+    let diff = SideEffectsDiff {
+        added: Some(HashMap::from([(
+            name.clone(),
+            CafsFileInfo {
+                checked_at: None,
+                digest: format!("{hash:x}"),
+                mode: 0o644,
+                size: built.len() as u64,
+            },
+        )])),
+        deleted: None,
+        remote_origin: None,
+    };
+    let mut overlay = SideEffectsOverlay {
+        files: HashMap::from([(name.clone(), pnpm_fs::StoreFile::new(blob.path.clone()))]),
+        symlinks: HashMap::new(),
+    };
+
+    assert!(
+        super::stored_remote_side_effects_blobs_are_valid(&store_dir, &diff, &mut overlay)
+            .await
+            .unwrap(),
+    );
+
+    let on_disk = std::fs::metadata(&blob.path).unwrap().mode();
+    assert_eq!(overlay.files[&name].mode(), Some(on_disk));
 }
 
 /// A restore only happens where the remote cache applies at all. Unsupported
@@ -219,10 +260,7 @@ mod restore {
     };
     use pnpm_testing_utils::turborepo_cache::TurborepoCache;
     use sha2::{Digest as _, Sha512};
-    use std::{
-        collections::{BTreeMap, HashMap, HashSet},
-        path::PathBuf,
-    };
+    use std::collections::{BTreeMap, HashMap, HashSet};
 
     const PACKAGE: &str = "native-addon";
     const SNAPSHOT: &str = "native-addon@1.0.0";
@@ -488,14 +526,27 @@ mod restore {
 
     /// Restore against a server that offers the built file, asserting that
     /// the blob endpoint was hit exactly `expected_downloads` times, and
-    /// return the path the resulting overlay maps the built file to.
-    async fn restore(store_dir: &StoreDir, expected_downloads: usize) -> PathBuf {
+    /// return the file the resulting overlay maps the built file to.
+    async fn restore(store_dir: &StoreDir, expected_downloads: usize) -> pnpm_fs::StoreFile {
         let side_effects =
             apply(store_dir, built_manifest(), built_blobs(), expected_downloads).await;
         restored_overlay(&side_effects).files
             .get(BUILT_FILE)
             .expect("the built file must be in the overlay")
             .clone()
+    }
+
+    /// pnpm/pnpm#17543: every snapshot of the group gets a copy of the
+    /// overlay, so the mode staging read must already be on it.
+    fn assert_restored_mode_is_known(restored: &pnpm_fs::StoreFile) {
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::MetadataExt;
+            let on_disk = std::fs::metadata(&restored.path).expect("stat restored").mode();
+            assert_eq!(restored.mode().map(|mode| mode & 0o777), Some(on_disk & 0o777));
+        }
+        #[cfg(not(unix))]
+        let _ = restored;
     }
 
     /// The one overlay a restore recorded for the fixture snapshot.
@@ -684,8 +735,9 @@ mod restore {
         let (written, _) = store_dir
             .write_cas_file(built_bytes(), true)
             .expect("re-writing the same bytes names the same path");
-        assert_eq!(restored, written);
-        assert_eq!(std::fs::read(&restored).expect("read restored"), built_bytes());
+        assert_eq!(restored.path, written.path);
+        assert_eq!(std::fs::read(&restored.path).expect("read restored"), built_bytes());
+        assert_restored_mode_is_known(&restored);
     }
 
     /// Same restore, same server as its sibling above; only the seeded store
@@ -713,7 +765,8 @@ mod restore {
 
         let restored = restore(&store_dir, 0).await;
 
-        assert_eq!(restored, seeded);
+        assert_eq!(restored.path, seeded.path);
+        assert_restored_mode_is_known(&restored);
     }
 
     /// The restore above, served by a server that speaks the Turborepo Remote

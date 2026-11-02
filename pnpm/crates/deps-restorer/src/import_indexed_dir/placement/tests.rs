@@ -32,8 +32,10 @@ fn exact_import_match_rejects_extra_files() {
     fs::write(&source, b"content").unwrap();
     fs::copy(&manifest, target.join("package.json")).unwrap();
     fs::copy(&source, target.join("index.js")).unwrap();
-    let cas_paths =
-        HashMap::from([("package.json".to_string(), manifest), ("index.js".to_string(), source)]);
+    let cas_paths = HashMap::from([
+        ("package.json".to_string(), manifest.into()),
+        ("index.js".to_string(), source.into()),
+    ]);
 
     assert!(all_imported_entries_match_exactly(&target, &cas_paths, false));
     let stale_file = target.join("stale.js");
@@ -62,7 +64,7 @@ fn exact_import_match_rejects_different_file_modes() {
     let manifest = store.join("package.json");
     fs::write(&manifest, b"{}").unwrap();
     fs::copy(&manifest, target.join("package.json")).unwrap();
-    let cas_paths = HashMap::from([("package.json".to_string(), manifest)]);
+    let cas_paths = HashMap::from([("package.json".to_string(), manifest.into())]);
 
     assert!(all_imported_entries_match_exactly(&target, &cas_paths, false));
     fs::set_permissions(target.join("package.json"), fs::Permissions::from_mode(0o700)).unwrap();
@@ -86,7 +88,7 @@ fn exact_import_match_accepts_linkable_cafs_hardlink_modes() {
     let linkable_mode = expected_mode ^ 0o020;
     fs::set_permissions(&source, fs::Permissions::from_mode(linkable_mode)).unwrap();
     fs::hard_link(&source, target.join("package.json")).unwrap();
-    let cas_paths = HashMap::from([("package.json".to_string(), source)]);
+    let cas_paths = HashMap::from([("package.json".to_string(), source.into())]);
 
     assert!(all_imported_entries_match_exactly(&target, &cas_paths, false));
 }
@@ -137,17 +139,17 @@ fn a_directory_has_one_writer_at_a_time() {
     let root = tempdir().unwrap();
     let store = root.path().join("store");
     fs::create_dir(&store).unwrap();
-    let mut cas_paths: HashMap<String, PathBuf> = HashMap::new();
+    let mut cas_paths = pnpm_fs::CasPaths::new();
     for directory in ["lib", "lib/esm"] {
         for index in 0..200 {
             let store_path = store.join(format!("{}-{index}", directory.replace('/', "-")));
             fs::write(&store_path, b"payload").unwrap();
-            cas_paths.insert(format!("{directory}/{index}.js"), store_path);
+            cas_paths.insert(format!("{directory}/{index}.js"), store_path.into());
         }
     }
     let manifest = store.join("package.json");
     fs::write(&manifest, b"{}").unwrap();
-    cas_paths.insert("package.json".to_string(), manifest);
+    cas_paths.insert("package.json".to_string(), manifest.into());
     let target = root.path().join("pkg");
 
     populate_dir::<SilentReporter>(
@@ -170,10 +172,10 @@ fn a_directory_has_one_writer_at_a_time() {
 
 #[test]
 fn the_cargo_checksum_manifest_is_the_marker_of_a_vendored_crate() {
-    let cas_paths = |entries: &[&str]| -> HashMap<String, PathBuf> {
+    let cas_paths = |entries: &[&str]| -> pnpm_fs::CasPaths {
         entries
             .iter()
-            .map(|entry| (entry.to_string(), PathBuf::from("store").join(entry)))
+            .map(|entry| (entry.to_string(), PathBuf::from("store").join(entry).into()))
             .collect()
     };
 
@@ -191,10 +193,10 @@ fn the_cargo_checksum_manifest_is_the_marker_of_a_vendored_crate() {
 
 #[test]
 fn entries_are_grouped_by_the_directory_they_land_in() {
-    let cas_paths: HashMap<String, PathBuf> =
+    let cas_paths: pnpm_fs::CasPaths =
         ["package.json", "README.md", "lib/index.js", "lib/util.js", "lib/esm/index.js"]
             .into_iter()
-            .map(|entry| (entry.to_string(), PathBuf::from("store").join(entry)))
+            .map(|entry| (entry.to_string(), PathBuf::from("store").join(entry).into()))
             .collect();
 
     let groups: BTreeSet<BTreeSet<&str>> = entries_by_target_dir(&cas_paths, Some("package.json"))
@@ -203,7 +205,7 @@ fn entries_are_grouped_by_the_directory_they_land_in() {
             entries
                 .iter()
                 .map(|(entry, store_path)| {
-                    assert_eq!(*store_path, cas_paths[*entry]);
+                    assert_eq!(*store_path, &cas_paths[*entry]);
                     *entry
                 })
                 .collect()

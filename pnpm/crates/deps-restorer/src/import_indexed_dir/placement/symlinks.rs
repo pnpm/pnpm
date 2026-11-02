@@ -4,10 +4,10 @@ use super::{
     ImportIndexedDirError, Placement, SymlinkTargets, clear_dir_blocking_file,
     file_matches_store_entry,
 };
-use pnpm_fs::{Host, SymlinkPlacement, SymlinkPlacementContext};
+use pnpm_fs::{Host, StoreFile, SymlinkPlacement, SymlinkPlacementContext};
 use std::{
     borrow::Cow,
-    collections::{HashMap, HashSet},
+    collections::HashSet,
     fs,
     path::{Path, PathBuf},
 };
@@ -30,7 +30,7 @@ pub(super) struct SymlinkRoots<'a> {
 /// Every key of `cas_paths` and each directory above it, the package root
 /// included as `""`.
 pub(in crate::import_indexed_dir) fn imported_paths(
-    cas_paths: &HashMap<String, PathBuf>,
+    cas_paths: &pnpm_fs::CasPaths,
 ) -> HashSet<&str> {
     pnpm_fs::selected_paths_and_ancestors(cas_paths.keys().map(String::as_str))
 }
@@ -47,22 +47,23 @@ pub(in crate::import_indexed_dir) fn is_symlink(path: &Path) -> bool {
 /// as a regular file.
 pub(super) fn place_symlink_or_resolve_file<'a>(
     placement: Placement,
-    store_path: &'a Path,
+    source: &'a StoreFile,
     target: &Path,
     symlinks: Option<SymlinkRoots<'_>>,
-) -> Result<Option<Cow<'a, Path>>, ImportIndexedDirError> {
+) -> Result<Option<Cow<'a, StoreFile>>, ImportIndexedDirError> {
     let Some(roots) = symlinks else {
-        return Ok(Some(Cow::Borrowed(store_path)));
+        return Ok(Some(Cow::Borrowed(source)));
     };
+    let store_path = source.path.as_path();
     if !is_symlink(store_path) {
-        return Ok(Some(Cow::Borrowed(store_path)));
+        return Ok(Some(Cow::Borrowed(source)));
     }
     if place_symlink_entry(placement, store_path, target, roots)? {
         return Ok(None);
     }
     let resolved =
         fs::canonicalize(store_path).map_err(|error| import_link_error(store_path, target, error))?;
-    Ok(Some(Cow::Owned(resolved)))
+    Ok(Some(Cow::Owned(StoreFile::new(resolved))))
 }
 
 /// Recreate the symlink at `store_path` as `target`, reporting whether the

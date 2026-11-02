@@ -3,7 +3,7 @@ pub use pnpm_fs::FsHardLink;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_config::PackageImportMethod;
-use pnpm_fs::{FsReflink, Host, is_cross_device};
+use pnpm_fs::{FsReflink, Host, StoreFile, is_cross_device};
 use pnpm_reporter::{
     LogEvent, LogLevel, PackageImportMethod as WireImportMethod, PackageImportMethodLog, Reporter,
 };
@@ -170,7 +170,7 @@ pub(crate) fn log_method_once<Reporter: self::Reporter>(
 pub fn link_file<Reporter: self::Reporter>(
     logged: &AtomicU8,
     method: PackageImportMethod,
-    source_file: &Path,
+    source_file: &StoreFile,
     target_link: &Path,
 ) -> Result<(), LinkFileError> {
     // Single `stat` short-circuit. If the target resolves to a live
@@ -216,7 +216,7 @@ pub fn link_file<Reporter: self::Reporter>(
 pub fn import_into_fresh_target<Reporter: self::Reporter>(
     logged: &AtomicU8,
     method: PackageImportMethod,
-    source_file: &Path,
+    source_file: &StoreFile,
     target_link: &Path,
 ) -> Result<(), LinkFileError> {
     // Hardlinking a file from the store into `node_modules` means any
@@ -273,9 +273,10 @@ fn replace_shared_inode_with_copy(source_file: &Path, target_link: &Path) -> io:
 
 fn recover_from_concurrent_import(
     error: io::Error,
-    source_file: &Path,
+    source: &StoreFile,
     target_link: &Path,
 ) -> Result<(), LinkFileError> {
+    let source_file = source.path.as_path();
     let import_error = |error| LinkFileError::Import {
         from: source_file.to_path_buf(),
         to: target_link.to_path_buf(),
@@ -288,7 +289,7 @@ fn recover_from_concurrent_import(
         return Ok(());
     }
     if same_inode(source_file, target_link) {
-        if source_has_desired_mode(source_file).map_err(import_error)? {
+        if source_has_desired_mode(source).map_err(import_error)? {
             return Ok(());
         }
         return replace_shared_inode_with_copy(source_file, target_link).map_err(import_error);
@@ -339,15 +340,16 @@ impl ImportState {
         &self,
         method: PackageImportMethod,
         logged: &AtomicU8,
-        source_file: &Path,
+        source: &StoreFile,
         target_link: &Path,
     ) -> io::Result<WireImportMethod> {
+        let source_file = source.path.as_path();
         match method {
             PackageImportMethod::Auto => {
-                auto_link::<Reporter, Sys>(logged, &self.auto, source_file, target_link)
+                auto_link::<Reporter, Sys>(logged, &self.auto, source, target_link)
             }
             PackageImportMethod::Hardlink => {
-                hardlink_file::<Reporter, Sys>(logged, source_file, target_link)
+                hardlink_file::<Reporter, Sys>(logged, source, target_link)
             }
             PackageImportMethod::Clone => clone_file::<Sys>(source_file, target_link)
                 .inspect(|()| {
@@ -377,9 +379,10 @@ impl Default for ImportState {
 
 fn hardlink_file<Reporter: self::Reporter, Sys: FsHardLink>(
     logged: &AtomicU8,
-    source_file: &Path,
+    source: &StoreFile,
     target_link: &Path,
 ) -> io::Result<WireImportMethod> {
+    let source_file = source.path.as_path();
     // pnpm's explicit `hardlink` method uses `hardlinkPkg(linkOrCopy)`,
     // which copies on any link failure other than `EEXIST`. Only
     // `EXDEV` copies here: a store on a different device from
@@ -397,7 +400,7 @@ fn hardlink_file<Reporter: self::Reporter, Sys: FsHardLink>(
     // A mode that does not match the current umask cannot be fixed on the
     // store inode every name shares, so the file is copied at the
     // [`desired_mode`] instead (pnpm/pnpm#3807).
-    if source_has_desired_mode(source_file)? {
+    if source_has_desired_mode(source)? {
         match Sys::hard_link(source_file, target_link) {
             Ok(()) => {
                 log_method_once::<Reporter>(logged, WireImportMethod::Hardlink);
@@ -424,7 +427,7 @@ fn hardlink_file<Reporter: self::Reporter, Sys: FsHardLink>(
 fn try_import<Reporter: self::Reporter, Sys: FsHardLink + FsReflink>(
     method: PackageImportMethod,
     logged: &AtomicU8,
-    source_file: &Path,
+    source_file: &StoreFile,
     target_link: &Path,
 ) -> io::Result<WireImportMethod> {
     static STATE: ImportState = ImportState::new();
@@ -535,9 +538,10 @@ fn copy_and_log<Reporter: self::Reporter>(
 fn auto_link<Reporter: self::Reporter, Sys: FsHardLink + FsReflink>(
     logged: &AtomicU8,
     state: &AtomicU8,
-    source: &Path,
+    source_file: &StoreFile,
     target: &Path,
 ) -> io::Result<WireImportMethod> {
+    let source = source_file.path.as_path();
     loop {
         match state.load(Ordering::Relaxed) {
             LINK_STATE_CLONE => {
@@ -547,7 +551,7 @@ fn auto_link<Reporter: self::Reporter, Sys: FsHardLink + FsReflink>(
                 downgrade_auto_tier(state, LINK_STATE_CLONE);
             }
             LINK_STATE_HARDLINK => {
-                if let Some(method) = hardlink_tier::<Reporter, Sys>(logged, source, target)? {
+                if let Some(method) = hardlink_tier::<Reporter, Sys>(logged, source_file, target)? {
                     return Ok(method);
                 }
                 downgrade_auto_tier(state, LINK_STATE_HARDLINK);
@@ -591,10 +595,11 @@ fn clone_tier<Reporter: self::Reporter, Sys: FsReflink>(
 /// files whose mode does match (pnpm/pnpm#3807).
 fn hardlink_tier<Reporter: self::Reporter, Sys: FsHardLink>(
     logged: &AtomicU8,
-    source: &Path,
+    source_file: &StoreFile,
     target: &Path,
 ) -> io::Result<Option<WireImportMethod>> {
-    if source_has_desired_mode(source)? {
+    let source = source_file.path.as_path();
+    if source_has_desired_mode(source_file)? {
         match Sys::hard_link(source, target) {
             Ok(()) => {
                 log_method_once::<Reporter>(logged, WireImportMethod::Hardlink);

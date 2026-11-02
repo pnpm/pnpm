@@ -67,14 +67,14 @@ fn plant_cas_file(
     pkg_id: &str,
     rel_path: &str,
     contents: &[u8],
-) -> HashMap<String, PathBuf> {
+) -> pnpm_fs::CasPaths {
     let pkg_dir = cas_root.join(pkg_id);
     let file_path = pkg_dir.join(rel_path);
     fs::create_dir_all(file_path.parent().expect("file has parent"))
         .expect("create CAS file parent");
     fs::write(&file_path, contents).expect("write CAS file");
-    let mut paths = HashMap::new();
-    paths.insert(rel_path.to_string(), file_path);
+    let mut paths = pnpm_fs::CasPaths::new();
+    paths.insert(rel_path.to_string(), file_path.into());
     paths
 }
 
@@ -196,7 +196,7 @@ fn isolated_mutable_source_is_not_hard_linked() {
     std::os::unix::fs::symlink("index.js", &link).expect("link to source file");
     #[cfg(windows)]
     std::os::windows::fs::symlink_file("index.js", &link).expect("link to source file");
-    Arc::make_mut(&mut files.cas_paths).insert("link.js".to_string(), link);
+    Arc::make_mut(&mut files.cas_paths).insert("link.js".to_string(), link.into());
 
     let logged = AtomicU8::new(0);
     let opts = LinkHoistedModulesOpts {

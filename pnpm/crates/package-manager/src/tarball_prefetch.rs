@@ -51,7 +51,7 @@ use pnpm_tarball::{
     IngestTarballToStore, MemCache, RetryOpts, SharedReportedProgressKeys, TarballError,
 };
 use ssri::Integrity;
-use std::{collections::HashMap, path::PathBuf, sync::Arc};
+use std::{collections::HashMap, sync::Arc};
 use tokio::task::JoinSet;
 
 fn resolved(package_id: String, requester: String) -> ProgressMessage {
@@ -108,7 +108,7 @@ pub(crate) fn spawn_tarball_download(download: TarballDownload) {
 
 async fn run_tarball_download<Reporter: self::Reporter>(
     download: TarballDownload,
-) -> Result<Arc<HashMap<String, PathBuf>>, TarballError> {
+) -> Result<Arc<pnpm_fs::CasPaths>, TarballError> {
     let ingest = IngestTarballToStore {
         fetching: download.fetching.options(),
         package: pnpm_tarball::TarballPackage {
@@ -386,7 +386,7 @@ impl TarballPrefetcher {
     fn spawn_fetches<Reporter: self::Reporter + 'static>(
         &self,
         missing: Vec<PendingPrefetch>,
-    ) -> JoinSet<Result<Arc<HashMap<String, PathBuf>>, TarballError>> {
+    ) -> JoinSet<Result<Arc<pnpm_fs::CasPaths>, TarballError>> {
         let progress_reported = SharedReportedProgressKeys::default();
         let mut downloads = JoinSet::new();
         for entry in missing {

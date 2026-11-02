@@ -24,7 +24,7 @@ use std::collections::BTreeMap;
 
 use super::{
     Cow, Cursor, HashMap, IgnoreEntryFilter, IntoParallelRefIterator, MAX_UNTRUSTED_PREALLOC_BYTES,
-    ParallelIterator, PathBuf, Read, TarballError, UNIX_EPOCH, cas_write_pool,
+    ParallelIterator, Read, TarballError, UNIX_EPOCH, cas_write_pool,
 };
 use pnpm_fs::file_mode;
 use pnpm_package_manifest::{
@@ -101,7 +101,7 @@ pub(crate) fn extract_archive_bytes(
 /// The output of [`extract_archive_bytes`]. `tar` is `None` for a tar
 /// resource, which is its own tar.
 pub(crate) struct ExtractedArchiveBytes {
-    pub(crate) files: HashMap<String, PathBuf>,
+    pub(crate) files: pnpm_fs::CasPaths,
     pub(crate) index: PackageFilesIndex,
     pub(crate) bins: Option<BTreeMap<String, PackageBin>>,
     pub(crate) tar: Option<Result<Integrity, TarballError>>,
@@ -128,7 +128,7 @@ pub(crate) struct PendingFile<'a> {
 pub(crate) fn write_cas_entry(
     store_dir: &StoreDir,
     file: &PendingFile<'_>,
-) -> Result<(String, PathBuf, CafsFileInfo), TarballError> {
+) -> Result<(String, pnpm_fs::StoreFile, CafsFileInfo), TarballError> {
     let (file_path, file_hash) = store_dir
         .write_cas_file(&file.data, file.executable)
         .map_err(TarballError::WriteCasFile)?;
@@ -149,7 +149,7 @@ pub(crate) fn cafs_file_info(file_hash: &FileHash, mode: u32, size: u64) -> Cafs
 }
 
 pub(crate) type ExtractedEntries =
-    (HashMap<String, PathBuf>, PackageFilesIndex, Option<BTreeMap<String, PackageBin>>);
+    (pnpm_fs::CasPaths, PackageFilesIndex, Option<BTreeMap<String, PackageBin>>);
 
 /// Walk decompressed tar bytes, writing each regular-file entry into
 /// the CAFS and returning the `{in-tarball path → CAFS path}` map plus
@@ -264,15 +264,16 @@ fn resolve_pending_bins(
 fn write_pending_files(
     store_dir: &StoreDir,
     pending: &[PendingFile<'_>],
-) -> Result<Vec<(String, PathBuf, CafsFileInfo)>, TarballError> {
+) -> Result<Vec<(String, pnpm_fs::StoreFile, CafsFileInfo)>, TarballError> {
     const PARALLEL_EXTRACT_THRESHOLD: usize = 32;
     if pending.len() >= PARALLEL_EXTRACT_THRESHOLD {
-        let write_all = || -> Result<Vec<(String, PathBuf, CafsFileInfo)>, TarballError> {
-            pending
-                .par_iter()
-                .map(|file| write_cas_entry(store_dir, file))
-                .collect()
-        };
+        let write_all =
+            || -> Result<Vec<(String, pnpm_fs::StoreFile, CafsFileInfo)>, TarballError> {
+                pending
+                    .par_iter()
+                    .map(|file| write_cas_entry(store_dir, file))
+                    .collect()
+            };
         match cas_write_pool() {
             Some(pool) => pool.install(write_all),
             None => write_all(),
@@ -289,11 +290,11 @@ fn write_pending_files(
 /// preserves entry order, so a tarball with duplicate paths keeps the
 /// last entry — matching pnpm's last-wins `filesIndex.set`.
 fn assemble_extract_output(
-    written: Vec<(String, PathBuf, CafsFileInfo)>,
+    written: Vec<(String, pnpm_fs::StoreFile, CafsFileInfo)>,
     manifest: Option<serde_json::Value>,
     requires_build: bool,
-) -> (HashMap<String, PathBuf>, PackageFilesIndex) {
-    let mut cas_paths = HashMap::<String, PathBuf>::with_capacity(written.len());
+) -> (pnpm_fs::CasPaths, PackageFilesIndex) {
+    let mut cas_paths = pnpm_fs::CasPaths::with_capacity(written.len());
     let mut files = HashMap::with_capacity(written.len());
     for (path, file_path, info) in written {
         if let Some(previous) = cas_paths.insert(path.clone(), file_path) {

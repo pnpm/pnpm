@@ -12,7 +12,7 @@ use pnpm_store_dir::{SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreIn
 use pnpm_tarball::{
     IgnoreEntryFilter, IngestTarballToStore, IngestZipArchiveToStore, PrefetchedCasPaths,
 };
-use std::{collections::HashMap, path::PathBuf, sync::Arc};
+use std::sync::Arc;
 
 /// The archive a `Variations` resolution offers for this host.
 ///
@@ -237,7 +237,7 @@ pub(super) async fn fetch_binary_resolution_to_cas<Reporter: self::Reporter>(
     package_key: &PackageKey,
     requester: &str,
     ignore_file_pattern: Option<Arc<IgnoreEntryFilter>>,
-) -> Result<HashMap<String, PathBuf>, InstallPackageBySnapshotError> {
+) -> Result<pnpm_fs::CasPaths, InstallPackageBySnapshotError> {
     let package_id = package_key.pkg_id();
 
     // Synthesize the `package.json` runtime archives (Node.js / Bun /
@@ -284,7 +284,7 @@ pub(super) struct BinaryArchiveFetch<'a> {
 impl BinaryArchiveFetch<'_> {
     async fn tarball<Reporter: self::Reporter>(
         self,
-    ) -> Result<HashMap<String, PathBuf>, InstallPackageBySnapshotError> {
+    ) -> Result<pnpm_fs::CasPaths, InstallPackageBySnapshotError> {
         IngestTarballToStore {
             fetching: pnpm_tarball::ArchiveFetchOptions {
                 http_client: self.http_client,
@@ -328,7 +328,7 @@ impl BinaryArchiveFetch<'_> {
     }
     async fn zip<Reporter: self::Reporter>(
         self,
-    ) -> Result<HashMap<String, PathBuf>, InstallPackageBySnapshotError> {
+    ) -> Result<pnpm_fs::CasPaths, InstallPackageBySnapshotError> {
         IngestZipArchiveToStore {
             fetching: pnpm_tarball::ArchiveFetchOptions {
                 http_client: self.http_client,

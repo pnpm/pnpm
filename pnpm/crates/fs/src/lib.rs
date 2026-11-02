@@ -46,6 +46,7 @@ pub use retry::{
 pub use secure_temp_lock::{
     open_secure_lock_file, secure_temp_lock_dir, secure_user_lock_dir, secure_user_lock_file_path,
 };
+pub use store_file::{CasPaths, StoreFile, cas_paths_from_paths};
 pub use symlink_dir::*;
 pub use sync_file::sync_file;
 pub use umask_named_tempfile::{named_tempfile_with_mode_in, umask_named_tempfile_in};
@@ -84,6 +85,7 @@ mod rename_even_across_devices;
 mod rename_to_free_name;
 mod retry;
 mod secure_temp_lock;
+mod store_file;
 mod symlink_dir;
 mod sync_file;
 mod umask_named_tempfile;
