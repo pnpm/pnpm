@@ -46,6 +46,8 @@ interface CopySymlinkWindowsOptions {
 
 function copyInternalSymlinkWindows (opts: CopySymlinkWindowsOptions): boolean {
   const { dest, links, resolved, src, target } = opts
+  // A missing target is linked as a directory: under `internal` it is typically
+  // a directory the deploy installs, such as `node_modules/<pkg>`.
   const isDir = targetKind(src) !== 'other'
   try {
     fs.symlinkSync(target, dest, isDir ? 'dir' : 'file')
@@ -67,10 +69,6 @@ function realpathOrSelf (file: string): string {
   }
 }
 
-/**
- * A missing target is linked as a directory: under `internal` it is typically
- * a directory the deploy installs, such as `node_modules/<pkg>`.
- */
 function targetKind (file: string): 'directory' | 'missing' | 'other' {
   try {
     return fs.statSync(file).isDirectory() ? 'directory' : 'other'
