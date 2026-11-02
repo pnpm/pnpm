@@ -58,11 +58,15 @@ fn parse_dist_revision(picked: &PackageVersion) -> Result<Option<TarballRevision
 pub(super) fn select_package_revision<'a>(
     picked: &'a PackageVersion,
     spec: &RegistryPackageSpec,
-    registry: &str,
+    (registry, server_type): (&str, Option<pnpm_lockfile::RegistryServerType>),
 ) -> Result<Cow<'a, PackageVersion>, ResolveError> {
     // pnpr's own document marks the revision without a history or a URL: the
     // URL is rebuilt from it, and other revisions are in release records.
-    if picked.dist.install_v2_entry().is_none() {
+    // Only a registry declared `serverType: pnpr` is read in that format, so
+    // the marker is honored for no other.
+    let from_pnpr_document = server_type == Some(pnpm_lockfile::RegistryServerType::Pnpr)
+        && picked.dist.install_v2_entry().is_some();
+    if !from_pnpr_document {
         validate_current_package_revision(picked, registry)?;
     }
     let Some(selector) = spec.revision.as_ref() else {

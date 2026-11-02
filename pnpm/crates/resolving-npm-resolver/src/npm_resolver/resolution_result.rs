@@ -52,7 +52,11 @@ pub(crate) struct ResolvedSpecifier<'a> {
 pub(crate) fn build_resolve_result(
     args: BuildResolveResult<'_>,
 ) -> Result<ResolveResult, ResolveError> {
-    let picked = select_package_revision(args.picked, args.specifier.spec, args.registry.registry)?;
+    let picked = select_package_revision(
+        args.picked,
+        args.specifier.spec,
+        (args.registry.registry, args.registry.server_type),
+    )?;
     let picked = picked.as_ref();
     let pkg_name =
         PkgName::parse(picked.name.as_str()).map_err(|err| Box::new(err) as ResolveError)?;

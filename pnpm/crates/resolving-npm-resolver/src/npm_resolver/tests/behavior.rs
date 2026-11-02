@@ -437,14 +437,43 @@ async fn an_unmarked_revision_url_answers_only_for_its_own_revision() {
             ..WantedDependency::default()
         };
         let result = resolver.resolve(&wanted, &ResolveOptions::default()).await;
-        match result {
-            Ok(_) => assert!(satisfied, "{specifier} must not resolve"),
-            Err(error) => {
-                assert!(!satisfied, "{specifier}: {error}");
-                assert!(error.downcast_ref::<NoMatchingRevisionError>().is_some());
-            }
+        if satisfied {
+            let resolved = result.expect("the selected revision resolves");
+            let resolved = format!("{:?}", resolved.expect("a resolved package"));
+            assert!(resolved.contains("acme@1.0.0+r1"), "{resolved}");
+        } else {
+            let error = result.expect_err("another revision does not resolve");
+            assert!(error.downcast_ref::<NoMatchingRevisionError>().is_some(), "{error}");
         }
     }
+}
+
+/// Only pnpr's own document, read from a registry declared
+/// `serverType: pnpr`, may leave out a revision's history: another
+/// registry's version is validated, whatever its `dist.pnpr` claims.
+#[tokio::test]
+async fn an_undeclared_registry_cannot_skip_revision_validation() {
+    let mut server = mockito::Server::new_async().await;
+    let registry = format!("{}/", server.url());
+    let tarball = format!("{registry}acme@1.0.0+r1");
+    let mut body: serde_json::Value =
+        serde_json::from_str(&revision_package_body(&tarball, &json!(1))).unwrap();
+    let dist = body["versions"]["1.0.0"]["dist"].as_object_mut().unwrap();
+    dist.remove("revisions");
+    dist.insert("pnpr".into(), json!({ "installV2": "complete" }));
+    server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(body.to_string())
+        .create_async()
+        .await;
+    let (resolver, _tempdir) = build_resolver(&registry);
+    let wanted =
+        WantedDependency { alias: Some("acme".to_string()), ..WantedDependency::default() };
+
+    let result = resolver.resolve(&wanted, &ResolveOptions::default()).await;
+
+    assert!(result.is_err(), "a revision without its history must fail; got {result:?}");
 }
 
 #[tokio::test]
