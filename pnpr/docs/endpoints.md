@@ -390,9 +390,11 @@ published `.tgz` against the metadata submitted for it, under the
    root, a second entry that an installer would extract to `package.json` (or to
    `npm-shrinkwrap.json`), including one that differs only in case, a manifest
    that is a link, an entry of any type whose path escapes the package root,
-   data after the end-of-archive marker, a global PAX header that sets `size`,
-   `path`, or `linkpath`, more than 200,000 entries, file paths that add up to
-   more than 32 MiB, and a missing `package.json` are each a `400`.
+   non-zero or excessive data after the end-of-archive marker, a global PAX
+   header that sets `size`, `path`, or `linkpath`, more than 200,000 entries,
+   file paths that add up to more than 32 MiB, and a missing `package.json` are
+   each a `400`. Zero padding after the marker, as tar writers add, is
+   accepted.
 2. pnpr derives the install-critical fields from the archive's `package.json`
    and from the submitted version metadata, normalizes both the way npm's
    publish-time `prepare()` and npm 9's `normalize-package-data` rewrite a
