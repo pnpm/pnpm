@@ -205,7 +205,7 @@ fn a_publication_confirmed_over_several_runs_is_collected() {
     let projects = apply_with_notes(dir, &VersioningSettings::default());
     let empty_plan = crate::plan::ReleasePlan::default();
     let no_notes = ReleaseNotesOptions::default();
-    let mut collect = |confirmed: &[&str]| {
+    let collect = |confirmed: &[&str]| {
         let intents = read_change_intents(dir).expect("intents read");
         let confirmed: HashSet<String> = confirmed
             .iter()
