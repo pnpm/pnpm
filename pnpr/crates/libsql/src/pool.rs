@@ -39,8 +39,7 @@ pub async fn first_row<Output>(
 /// fresh one.
 ///
 /// Reads and writes are bounded differently, because cancelling a write after
-/// it reached the database leaves its outcome unknown (see
-/// [`with_deadline`]). [`Self::read`] runs under the deadline end to end.
+/// it reached the database leaves its outcome unknown. [`Self::read`] runs under the deadline end to end.
 /// [`Self::write`] is bounded only while it gets a connection, before anything
 /// is sent, and then runs to completion. Opening a connection can block (an
 /// embedded replica waits for its background sync), so it runs on the
