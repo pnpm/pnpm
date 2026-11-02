@@ -121,41 +121,15 @@ impl Purl {
     /// The PURL its type's builder makes from this PURL's decoded
     /// components, or `None` if they do not parse or do not build.
     fn rebuild(&self) -> Option<Self> {
-        let decode = |text: &str| {
-            Some(
-                percent_decode_str(text)
-                    .decode_utf8()
-                    .ok()?
-                    .into_owned(),
-            )
-        };
-        let (purl_type, rest) = self.0.strip_prefix("pkg:")?.split_once('/')?;
-        let (rest, qualifiers) = rest
-            .split_once('?')
-            .unwrap_or((rest, ""));
-        let (path, version) = rest.rsplit_once('@')?;
-        let (namespace, name) = match path.rsplit_once('/') {
-            Some((namespace, name)) => (Some(decode(namespace)?), decode(name)?),
-            None => (None, decode(path)?),
-        };
-        let version = decode(version)?;
-        let qualifiers: Vec<(&str, String)> = qualifiers
-            .split('&')
-            .filter(|pair| !pair.is_empty())
-            .map(|pair| {
-                let (key, value) = pair.split_once('=')?;
-                Some((key, decode(value)?))
-            })
-            .collect::<Option<_>>()?;
-        match (purl_type, namespace) {
-            ("npm", Some(scope)) => Purl::npm(&format!("{scope}/{name}"), &version).ok(),
-            ("npm", None) => Purl::npm(&name, &version).ok(),
-            ("cargo", None) => Purl::cargo(&name, &version).ok(),
+        let parts = Components::parse(&self.0)?;
+        let (name, version) = (parts.name.as_str(), parts.version.as_str());
+        match (parts.purl_type, parts.namespace.as_deref()) {
+            ("npm", Some(scope)) => Purl::npm(&format!("{scope}/{name}"), version).ok(),
+            ("npm", None) => Purl::npm(name, version).ok(),
+            ("cargo", None) => Purl::cargo(name, version).ok(),
             ("pypi", None) => {
-                let (_, file_name) = qualifiers
-                    .iter()
-                    .find(|(key, _)| *key == "file_name")?;
-                Purl::pypi_file(&name, &version, file_name).ok()
+                let file_name = parts.qualifier("file_name")?;
+                Purl::pypi_file(name, version, file_name).ok()
             }
             _ => None,
         }
@@ -201,6 +175,54 @@ impl fmt::Display for Purl {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str(&self.0)
     }
+}
+
+/// The percent-decoded components of a PURL.
+struct Components<'a> {
+    purl_type: &'a str,
+    namespace: Option<String>,
+    name: String,
+    version: String,
+    qualifiers: Vec<(&'a str, String)>,
+}
+
+impl<'a> Components<'a> {
+    fn parse(text: &'a str) -> Option<Self> {
+        let (purl_type, rest) = text.strip_prefix("pkg:")?.split_once('/')?;
+        let (rest, qualifiers) = rest
+            .split_once('?')
+            .unwrap_or((rest, ""));
+        let (path, version) = rest.rsplit_once('@')?;
+        let (namespace, name) = match path.rsplit_once('/') {
+            Some((namespace, name)) => (Some(decode(namespace)?), decode(name)?),
+            None => (None, decode(path)?),
+        };
+        let qualifiers = qualifiers
+            .split('&')
+            .filter(|pair| !pair.is_empty())
+            .map(|pair| {
+                let (key, value) = pair.split_once('=')?;
+                Some((key, decode(value)?))
+            })
+            .collect::<Option<_>>()?;
+        Some(Components { purl_type, namespace, name, version: decode(version)?, qualifiers })
+    }
+
+    fn qualifier(&self, key: &str) -> Option<&str> {
+        self.qualifiers
+            .iter()
+            .find(|(found, _)| *found == key)
+            .map(|(_, value)| value.as_str())
+    }
+}
+
+fn decode(text: &str) -> Option<String> {
+    Some(
+        percent_decode_str(text)
+            .decode_utf8()
+            .ok()?
+            .into_owned(),
+    )
 }
 
 fn encode(component: &str) -> String {

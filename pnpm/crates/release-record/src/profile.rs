@@ -10,7 +10,7 @@ use std::{fmt, str::FromStr};
 /// A correction to a derivation is a new profile; records are never
 /// re-derived under the profile they were accepted with. A client supports a
 /// set of profiles and treats any other as a capability error.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Into, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Into)]
 #[serde(try_from = "String", into = "String")]
 pub struct Profile(String);
 
