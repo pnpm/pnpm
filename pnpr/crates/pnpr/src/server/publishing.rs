@@ -1,3 +1,5 @@
+pub(super) mod variants;
+
 pub(super) use attachments::{
     StagedPublish, ValidatedPublish, stage_publish, validate_publish_doc,
 };
