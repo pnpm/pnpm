@@ -819,6 +819,7 @@ test('a workspace dependency carries the registry prefix of its target', async (
       'exact-a': 'workspace:dep-a@1.2.3',
       'dep-b': 'workspace:2.3.4',
       'range-b': 'workspace:dep-b@^2.0.0',
+      '@local/dep': 'workspace:dep-a@*',
     },
     optionalDependencies: {
       'optional-a': 'catalog:',
@@ -839,6 +840,7 @@ test('a workspace dependency carries the registry prefix of its target', async (
     'exact-a': 'work:dep-a@1.2.3',
     'dep-b': 'work:2.3.4',
     'range-b': 'work:dep-b@^2.0.0',
+    '@local/dep': 'work:dep-a@1.2.3',
   })
   expect(exported.optionalDependencies).toStrictEqual({
     'optional-a': 'work:dep-a@^1.2.3',

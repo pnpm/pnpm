@@ -471,6 +471,7 @@ fn workspace_dep_carries_the_registry_prefix_of_its_target() {
     assert_eq!(rewrite("alias", "workspace:dep-b@*"), "work:dep-b@2.3.4");
     assert_eq!(rewrite("alias", "workspace:dep-b@^"), "work:dep-b@^2.3.4");
     assert_eq!(rewrite("alias", "workspace:dep-b@2.3.4"), "work:dep-b@2.3.4");
+    assert_eq!(rewrite("@local/dep", "workspace:dep-a@*"), "work:dep-a@1.2.3");
 }
 
 /// The installed copy decides the version, the workspace package of its name

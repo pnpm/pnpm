@@ -24,6 +24,10 @@ pub(super) async fn read_stage_approval_order(
     for item in items {
         projects.push(staged_project(context, item, &mut stage_id_by_package_version).await?);
     }
+    Ok(order_staged_projects(&projects))
+}
+
+pub(super) fn order_staged_projects(projects: &[Project]) -> StageApprovalOrder {
     let graph = create_projects_graph(
         projects
             .iter()
@@ -35,7 +39,7 @@ pub(super) async fn read_stage_approval_order(
         },
     )
     .graph;
-    Ok(approval_order(&graph))
+    approval_order(&graph)
 }
 
 /// The stage's package as a workspace project, refusing a second stage of
@@ -155,12 +159,23 @@ pub(super) fn manifest_for_graph(
             let Some(spec) = spec.as_str() else {
                 continue;
             };
-            let (name, spec) = dependency_for_graph(name, spec, registry_prefixes)?;
-            normalized.insert(name, Value::String(spec));
+            let spec = spec_for_graph(name, spec, registry_prefixes)?;
+            normalized.insert(name.clone(), Value::String(spec));
         }
         manifest[field] = Value::Object(normalized);
     }
     Ok(manifest)
+}
+
+/// A dependency on another package stays under its own key as an `npm:`
+/// alias, so dependencies on two versions of one package both become edges.
+fn spec_for_graph(
+    name: &str,
+    spec: &str,
+    registry_prefixes: &HashSet<String>,
+) -> miette::Result<String> {
+    let (target, spec) = dependency_for_graph(name, spec, registry_prefixes)?;
+    Ok(if target == name { spec } else { format!("npm:{target}@{spec}") })
 }
 
 /// The package and range a registry dependency names, so a staged package

@@ -133,12 +133,20 @@ function manifestForGraph (manifest: TarballManifest, registryPrefixes: Readonly
     const normalized: Record<string, string> = {}
     for (const [name, spec] of Object.entries(dependencies)) {
       if (typeof spec !== 'string') continue
-      const parsed = parseRegistryDependency(name, spec, registryPrefixes)
-      normalized[parsed.name] = parsed.spec
+      normalized[name] = specForGraph(name, spec, registryPrefixes)
     }
     graphManifest[field] = normalized
   }
   return graphManifest
+}
+
+/**
+ * A dependency on another package stays under its own key as an `npm:`
+ * alias, so dependencies on two versions of one package both become edges.
+ */
+function specForGraph (name: string, spec: string, registryPrefixes: ReadonlySet<string>): string {
+  const target = parseRegistryDependency(name, spec, registryPrefixes)
+  return target.name === name ? target.spec : `npm:${target.name}@${target.spec}`
 }
 
 /**

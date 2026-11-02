@@ -458,6 +458,28 @@ fn named_registry_with_scoped_alias_parses_version_selectors() {
 }
 
 #[test]
+fn named_registry_with_scoped_alias_parses_an_unscoped_target() {
+    let work = HashSet::from(["work".to_string()]);
+    for (input, fetch_spec, spec_type) in [
+        ("work:dep-a@1.2.3", "1.2.3", RegistryPackageSpecType::Version),
+        ("work:dep-a@^1.2.3", "^1.2.3", RegistryPackageSpecType::Range),
+        ("work:dep-a@next", "next", RegistryPackageSpecType::Tag),
+    ] {
+        let spec = parse_named_registry_specifier_to_registry_package_spec(
+            input,
+            &work,
+            Some("@local/dep"),
+            "latest",
+        )
+        .unwrap()
+        .unwrap();
+        assert_eq!(spec.spec.name, "dep-a");
+        assert_eq!(spec.spec.fetch_spec, fetch_spec);
+        assert_eq!(spec.spec.spec_type, spec_type);
+    }
+}
+
+#[test]
 fn named_registry_with_any_version_body_uses_the_alias_as_name() {
     let gh = gh_aliases();
     for body in ["", "   ", "^1.0.0 || "] {
