@@ -37,8 +37,9 @@
 pub use errors::PickPackageError;
 pub use mirror_persistence::{MirrorPersistError, persist_meta_to_mirror};
 pub use options::{
-    MetadataCachePolicy, MetadataPickRequest, MetadataRequestContext, PackagePickPolicy,
-    PickPackageContext, PickPackageOptions,
+    MAX_PNPR_FORMAT_RELEASE_AGE_MINUTES, MetadataCachePolicy, MetadataPickRequest,
+    MetadataRequestContext, PackagePickPolicy, PickPackageContext, PickPackageOptions,
+    PnprFormatPolicy,
 };
 
 pub(crate) use mirror_persistence::{SkippedTimeCheck, warn_missing_time_once};
@@ -68,6 +69,7 @@ mod mirror_persistence;
 use mirror_persistence::{get_file_mtime, metadata_cache_key, validate_package_name};
 
 mod release_age_upgrade;
+mod release_records;
 mod route;
 use release_age_upgrade::{UpgradeOutcome, maybe_upgrade_abbreviated_meta_for_release_age};
 use route::DiskFirst;
@@ -131,6 +133,62 @@ pub struct PickPackageResult {
 ///    after the maturity cutoff, reuse it before attempting another
 ///    conditional fetch.
 pub async fn pick_package<Cache: PackageMetaCache>(
+    ctx: &PickPackageContext<'_, Cache>,
+    spec: &RegistryPackageSpec,
+    opts: &PickPackageOptions<'_>,
+) -> Result<PickPackageResult, PickPackageError> {
+    check_pnpr_format_release_age(ctx, opts.registry)?;
+    let result = pick_from_metadata(ctx, spec, opts).await?;
+    let picked_package = match result.picked_package {
+        Some(version) => Some(
+            release_records::with_release_record(
+                ctx,
+                opts.registry,
+                version,
+                spec.revision.as_ref(),
+            )
+            .await?,
+        ),
+        None => None,
+    };
+    Ok(PickPackageResult { picked_package, ..result })
+}
+
+/// Whether `registry` is declared `serverType: pnpr`, so its abbreviated
+/// metadata is read in pnpr's own format.
+pub(crate) fn serves_pnpr_format<Cache: PackageMetaCache>(
+    ctx: &PickPackageContext<'_, Cache>,
+    registry: &str,
+) -> bool {
+    ctx.pnpr_format.is_some_and(|policy| {
+        pnpm_lockfile::registry_server_type(policy.registry_options, registry)
+            == Some(pnpm_lockfile::RegistryServerType::Pnpr)
+    })
+}
+
+/// Refuse a `minimumReleaseAge` that pnpr's own package document cannot
+/// answer for, before reading one from `registry`.
+fn check_pnpr_format_release_age<Cache: PackageMetaCache>(
+    ctx: &PickPackageContext<'_, Cache>,
+    registry: &str,
+) -> Result<(), PickPackageError> {
+    let minutes = ctx.pnpr_format.and_then(|policy| policy.minimum_release_age);
+    match minutes {
+        Some(minutes)
+            if minutes > MAX_PNPR_FORMAT_RELEASE_AGE_MINUTES
+                && serves_pnpr_format(ctx, registry) =>
+        {
+            Err(PickPackageError::UnsupportedMinimumReleaseAge {
+                minutes,
+                registry: pnpm_network::redact_url_for_display(registry),
+            })
+        }
+        _ => Ok(()),
+    }
+}
+
+/// [`pick_package`] before the picked version's release record is read.
+async fn pick_from_metadata<Cache: PackageMetaCache>(
     ctx: &PickPackageContext<'_, Cache>,
     spec: &RegistryPackageSpec,
     opts: &PickPackageOptions<'_>,

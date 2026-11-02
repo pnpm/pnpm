@@ -347,8 +347,6 @@ async fn incomplete_revision_metadata_is_rejected() {
     for (case, edit) in [
         ("history without a selected revision", "remove-revision"),
         ("selected revision without revision 0", "remove-original"),
-        ("revision URL without revision metadata", "remove-both"),
-        ("revision URL of another revision without revision metadata", "remove-both-mismatched"),
     ] {
         let mut server = mockito::Server::new_async().await;
         let registry = format!("{}/", server.url());
@@ -366,15 +364,6 @@ async fn incomplete_revision_metadata_is_rejected() {
                     .unwrap()
                     .remove(0);
             }
-            "remove-both" => {
-                dist.remove("revision");
-                dist.remove("revisions");
-            }
-            "remove-both-mismatched" => {
-                dist.remove("revision");
-                dist.remove("revisions");
-                dist.insert("tarball".to_string(), json!(format!("{registry}other@1.0.0+r9")));
-            }
             _ => unreachable!(),
         }
         server
@@ -390,6 +379,71 @@ async fn incomplete_revision_metadata_is_rejected() {
         let result = resolver.resolve(&wanted, &ResolveOptions::default()).await;
 
         assert!(result.is_err(), "{case} must fail the resolve; got {result:?}");
+    }
+}
+
+/// npm's documents served by pnpr give the selected revision only by its
+/// tarball URL and integrity, which pnpm records as an ordinary tarball.
+#[tokio::test]
+async fn a_revision_url_without_revision_metadata_is_an_ordinary_tarball() {
+    let mut server = mockito::Server::new_async().await;
+    let registry = format!("{}/", server.url());
+    let tarball = format!("{registry}acme@1.0.0+r1");
+    let mut body: serde_json::Value =
+        serde_json::from_str(&revision_package_body(&tarball, &json!(1))).unwrap();
+    let dist = body["versions"]["1.0.0"]["dist"].as_object_mut().unwrap();
+    dist.remove("revision");
+    dist.remove("revisions");
+    server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(body.to_string())
+        .create_async()
+        .await;
+    let (resolver, _tempdir) = build_resolver(&registry);
+    let wanted =
+        WantedDependency { alias: Some("acme".to_string()), ..WantedDependency::default() };
+
+    let result = resolver.resolve(&wanted, &ResolveOptions::default()).await;
+
+    let resolved = format!("{result:?}");
+    assert!(result.is_ok(), "{resolved}");
+    assert!(resolved.contains("acme@1.0.0+r1"), "{resolved}");
+}
+
+/// An unmarked revision URL answers only for its own revision: a `+r0`
+/// override cannot be satisfied by npm's document of the selected `+r1`.
+#[tokio::test]
+async fn an_unmarked_revision_url_answers_only_for_its_own_revision() {
+    for (specifier, satisfied) in [("1.0.0+r1", true), ("1.0.0+r0", false)] {
+        let mut server = mockito::Server::new_async().await;
+        let registry = format!("{}/", server.url());
+        let tarball = format!("{registry}acme@1.0.0+r1");
+        let mut body: serde_json::Value =
+            serde_json::from_str(&revision_package_body(&tarball, &json!(1))).unwrap();
+        let dist = body["versions"]["1.0.0"]["dist"].as_object_mut().unwrap();
+        dist.remove("revision");
+        dist.remove("revisions");
+        server
+            .mock("GET", "/acme")
+            .with_status(200)
+            .with_body(body.to_string())
+            .create_async()
+            .await;
+        let (resolver, _tempdir) = build_resolver(&registry);
+        let wanted = WantedDependency {
+            alias: Some("acme".to_string()),
+            bare_specifier: Some(specifier.to_string()),
+            ..WantedDependency::default()
+        };
+        let result = resolver.resolve(&wanted, &ResolveOptions::default()).await;
+        match result {
+            Ok(_) => assert!(satisfied, "{specifier} must not resolve"),
+            Err(error) => {
+                assert!(!satisfied, "{specifier}: {error}");
+                assert!(error.downcast_ref::<NoMatchingRevisionError>().is_some());
+            }
+        }
     }
 }
 

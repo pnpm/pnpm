@@ -192,6 +192,7 @@ fn create_configured_named_registry_resolver(
             needs_full_metadata_for: Some(Arc::clone(&policy.needs_full_metadata_for)),
             filter_metadata: policy.filter_metadata,
             registry_options_by_url: Arc::clone(&npm.format.registry_options_by_url),
+            minimum_release_age: npm.format.minimum_release_age,
         },
         cache_policy: npm.cache_policy,
         store_view: offline_store_view(config),
@@ -237,6 +238,7 @@ fn create_configured_npm_resolver(
             needs_full_metadata_for: Some(Arc::clone(&policy.needs_full_metadata_for)),
             filter_metadata: policy.filter_metadata,
             registry_options_by_url: Arc::new(config.registry_options_by_url.clone()),
+            minimum_release_age: config.resolved_minimum_release_age(),
         },
         cache_policy: pnpm_resolving_npm_resolver::MetadataCachePolicy {
             network: config.network_policy(),
@@ -269,6 +271,10 @@ pub(crate) fn pick_package_context<'a>(
     store_view: Option<&'a OfflineStoreView>,
 ) -> PickPackageContext<'a, InMemoryPackageMetaCache> {
     PickPackageContext {
+        pnpr_format: Some(pnpm_resolving_npm_resolver::PnprFormatPolicy {
+            registry_options: &config.registry_options_by_url,
+            minimum_release_age: config.resolved_minimum_release_age(),
+        }),
         full_metadata: policy.full_metadata,
         needs_full_metadata_for: Some(policy.needs_full_metadata_for.as_ref()),
         filter_metadata: policy.filter_metadata,

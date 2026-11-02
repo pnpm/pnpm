@@ -32,6 +32,7 @@ async fn read_only_cache_dir_does_not_fail_filtered_metadata() {
     let http_client = ThrottledClient::default();
     let auth_headers = AuthHeaders::default();
     let opts = FetchFullMetadataCachedOptions {
+        pnpr_format: false,
         registry: &registry,
         cache_dir: Some(cache.path()),
         full_metadata: true,

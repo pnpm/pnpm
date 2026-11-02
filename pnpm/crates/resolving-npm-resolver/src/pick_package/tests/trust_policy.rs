@@ -26,6 +26,7 @@ async fn normal_range_fetches_when_trust_policy_is_active() {
     let meta_cache = InMemoryPackageMetaCache::default();
     let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
+        pnpr_format: None,
         full_metadata: false,
         needs_full_metadata_for: None,
         filter_metadata: false,
@@ -92,6 +93,7 @@ async fn abbreviated_packument_without_time_upgrades_to_full_when_trust_policy_i
     let fetch_locker = shared_packument_fetch_locker();
     let needs_full_metadata_for = |_: &str, _optional: bool| false;
     let ctx = PickPackageContext {
+        pnpr_format: None,
         full_metadata: false,
         needs_full_metadata_for: Some(&needs_full_metadata_for),
         filter_metadata: false,

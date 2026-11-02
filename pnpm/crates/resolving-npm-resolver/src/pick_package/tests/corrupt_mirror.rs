@@ -50,6 +50,7 @@ async fn offline_over_a_damaged_mirror_fragment_errors() {
     let meta_cache = InMemoryPackageMetaCache::default();
     let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
+        pnpr_format: None,
         full_metadata: false,
         needs_full_metadata_for: None,
         filter_metadata: false,
@@ -116,6 +117,7 @@ async fn a_damaged_fragment_behind_a_304_is_replaced_by_a_bypassing_refetch() {
     let meta_cache = InMemoryPackageMetaCache::default();
     let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
+        pnpr_format: None,
         full_metadata: false,
         needs_full_metadata_for: None,
         filter_metadata: false,
@@ -199,6 +201,7 @@ async fn a_registry_version_of_the_wrong_shape_is_skipped_without_a_refetch() {
     let meta_cache = InMemoryPackageMetaCache::default();
     let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
+        pnpr_format: None,
         full_metadata: false,
         needs_full_metadata_for: None,
         filter_metadata: false,

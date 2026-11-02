@@ -40,6 +40,18 @@ pub(crate) const ACCEPT_FULL_DOC: &str = "application/json; q=1.0, */*";
 pub(crate) const ACCEPT_ABBREVIATED_DOC: &str =
     "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*";
 
+/// Accept header for pnpr's own package document, sent only to a registry
+/// declared `serverType: pnpr`.
+pub(crate) const ACCEPT_PNPR_DOC: &str = "application/vnd.pnpr.install-v2+json; q=1.0, \
+     application/vnd.npm.install-v1+json; q=0.9, application/json; q=0.8, */*";
+
+/// Content type of pnpr's own package document, which may leave a version's
+/// manifest in its release record.
+const INSTALL_V2_CONTENT_TYPE: &str = "application/vnd.pnpr.install-v2+json";
+
+/// The response header with which pnpr identifies its package documents.
+const PNPR_REGISTRY_HEADER: &str = "pnpr-registry";
+
 /// Content type of an abbreviated (install-oriented) packument. A
 /// spec-compliant registry echoes this in the response `Content-Type` when it
 /// honors the abbreviated `Accept` header. Its absence signals that the
@@ -89,8 +101,39 @@ pub(crate) fn is_abbreviated_content_type(headers: &header::HeaderMap) -> bool {
         .and_then(|value| value.to_str().ok())
         .is_some_and(|value| {
             let media_type = value.split_once(';').map_or(value, |(media_type, _)| media_type);
-            media_type.trim().eq_ignore_ascii_case(ABBREVIATED_META_CONTENT_TYPE)
+            let media_type = media_type.trim();
+            media_type.eq_ignore_ascii_case(ABBREVIATED_META_CONTENT_TYPE)
+                || media_type.eq_ignore_ascii_case(INSTALL_V2_CONTENT_TYPE)
         })
+}
+
+/// A metadata body, in npm's format or, when `install_v2`, in pnpr's own.
+fn parse_metadata(body: &str, install_v2: bool) -> serde_json::Result<Package> {
+    if install_v2 { pnpm_registry::parse_install_v2(body) } else { serde_json::from_str(body) }
+}
+
+/// Whether the response is pnpr's own package document.
+fn is_install_v2_content_type(headers: &header::HeaderMap) -> bool {
+    headers
+        .get(header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.split(';').next())
+        .is_some_and(|media_type| media_type.trim().eq_ignore_ascii_case(INSTALL_V2_CONTENT_TYPE))
+}
+
+/// Warn, once per registry, that `registry` sent a package document with
+/// [`PNPR_REGISTRY_HEADER`] although it is not declared `serverType: pnpr`:
+/// the install works from npm's documents, without what only pnpr's carry.
+fn warn_about_undeclared_pnpr(http_client: &ThrottledClient, registry: &str) {
+    static WARNED: std::sync::LazyLock<std::sync::Mutex<indexmap::IndexSet<String>>> =
+        std::sync::LazyLock::new(Default::default);
+    if !crate::warn_once::first_warning(&WARNED, registry.to_string(), 64) {
+        return;
+    }
+    http_client.warn(&format!(
+        "The registry {} is a pnpr registry. Declare it with \"serverType: pnpr\" under \"registries\" in pnpm-workspace.yaml to install its revisions and the facts it records about each package's archives.",
+        redact_url_for_display(registry),
+    ));
 }
 
 /// Options bundle for [`fetch_full_metadata`]. The cached variant
@@ -320,7 +363,7 @@ async fn one_metadata_attempt(
     let (client, response) = send_metadata_request(&MetadataRequestOptions {
         pkg_name,
         url,
-        accept: kind.accept(),
+        accept: kind.accept(false),
         priority: pnpm_network::UNPRIORITIZED,
         etag: opts.etag,
         modified: opts.modified,
@@ -333,7 +376,14 @@ async fn one_metadata_attempt(
     }
     let normalize = normalizes_to_abbreviated(kind, response.headers());
     let meta = decode_metadata_response(
-        MetadataResponse { client, response, url, http_client: opts.http.http_client },
+        MetadataResponse {
+            client,
+            response,
+            url,
+            registry: opts.registry,
+            asked_install_v2: false,
+            http_client: opts.http.http_client,
+        },
         normalize,
         Ok,
     )
@@ -346,6 +396,10 @@ pub(crate) struct MetadataResponse<'a> {
     pub client: ThrottledClientGuard<'a>,
     pub response: Response,
     pub url: &'a str,
+    pub registry: &'a str,
+    /// Whether the request offered pnpr's own format, so a response in it is
+    /// read as one. An unsolicited one is not.
+    pub asked_install_v2: bool,
     pub http_client: &'a ThrottledClient,
 }
 
@@ -364,8 +418,19 @@ pub(crate) async fn decode_metadata_response<Output: Send + 'static>(
     normalize_to_abbreviated: bool,
     finish: impl FnOnce(Package) -> Result<Output, FetchMetadataError> + Send + 'static,
 ) -> Result<Output, FetchMetadataError> {
-    let MetadataResponse { client, response, url, http_client } = response;
+    let MetadataResponse {
+        client,
+        response,
+        url,
+        registry,
+        asked_install_v2,
+        http_client,
+    } = response;
     let started_at = client.acquired_at();
+    let install_v2 = asked_install_v2 && is_install_v2_content_type(response.headers());
+    if !asked_install_v2 && response.headers().contains_key(PNPR_REGISTRY_HEADER) {
+        warn_about_undeclared_pnpr(http_client, registry);
+    }
     let response = response
         .error_for_status()
         .map_err(|error| FetchMetadataError::Network {
@@ -386,7 +451,7 @@ pub(crate) async fn decode_metadata_response<Output: Send + 'static>(
     let task_url = url.to_string();
     let (output, elapsed) = run_decode(move || {
         let raw_body = raw_body.into_text();
-        let mut meta = serde_json::from_str::<Package>(&raw_body)
+        let mut meta = parse_metadata(&raw_body, install_v2)
             .map_err(|error| FetchMetadataError::Decode {
                 url: redact_url_credentials(&task_url),
                 error,

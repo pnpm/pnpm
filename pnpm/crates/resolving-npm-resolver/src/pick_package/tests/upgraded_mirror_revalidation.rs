@@ -193,6 +193,7 @@ async fn install_ignoring_missing_time(
         let meta_cache = InMemoryPackageMetaCache::default();
         let fetch_locker = shared_packument_fetch_locker();
         let ctx = PickPackageContext {
+            pnpr_format: None,
             full_metadata: false,
             needs_full_metadata_for: None,
             filter_metadata: false,
@@ -268,6 +269,7 @@ async fn upgrade_then_revalidate(
         let meta_cache = InMemoryPackageMetaCache::default();
         let fetch_locker = shared_packument_fetch_locker();
         let ctx = PickPackageContext {
+            pnpr_format: None,
             full_metadata: false,
             needs_full_metadata_for: None,
             filter_metadata: false,

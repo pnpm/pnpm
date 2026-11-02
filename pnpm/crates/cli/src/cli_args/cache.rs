@@ -5,8 +5,8 @@ use pnpm_config::{Config, ResolutionMode};
 use pnpm_fs::lexical_normalize;
 use pnpm_resolving_npm_resolver::mirror::{
     ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, LEGACY_META_DIRS,
-    LEGACY_PRIVATE_META_ROOT, decode_registry_name, get_registry_name, is_unreadable_registry_key,
-    load_meta,
+    LEGACY_PRIVATE_META_ROOT, PNPR_META_DIR, RELEASE_RECORDS_DIR, decode_registry_name,
+    get_registry_name, is_unreadable_registry_key, load_meta,
 };
 use pnpm_store_dir::StoreIndex;
 use serde_json::json;
@@ -43,9 +43,17 @@ pub enum CacheCommand {
     },
 }
 
+/// Every metadata root this version of pnpm reads and writes.
+const META_DIRS: [&str; 4] =
+    [ABBREVIATED_META_DIR, FULL_META_DIR, FULL_FILTERED_META_DIR, PNPR_META_DIR];
+
 impl CacheCommand {
     fn meta_dir(config: &Config) -> &'static str {
-        if config.resolution_mode == ResolutionMode::TimeBased
+        let server_type =
+            pnpm_lockfile::registry_server_type(&config.registry_options_by_url, &config.registry);
+        if server_type == Some(pnpm_lockfile::RegistryServerType::Pnpr) {
+            PNPR_META_DIR
+        } else if config.resolution_mode == ResolutionMode::TimeBased
             && !config.registry_supports_time_field
         {
             FULL_FILTERED_META_DIR
@@ -218,7 +226,7 @@ impl CacheCommand {
     /// mode reads.
     fn delete(config: &Config, packages: &[String]) -> miette::Result<()> {
         let mut deleted: Vec<String> = Vec::new();
-        for meta_dir in [ABBREVIATED_META_DIR, FULL_META_DIR, FULL_FILTERED_META_DIR] {
+        for meta_dir in META_DIRS {
             let dir = config.cache_dir.join(meta_dir);
             if !dir.exists() {
                 continue;
@@ -229,12 +237,42 @@ impl CacheCommand {
             }
             deleted.extend(meta_files);
         }
+        deleted.extend(Self::delete_release_records(config, packages)?);
         deleted.sort();
         deleted.dedup();
         if !deleted.is_empty() {
             pnpm_diagnostics::println!("{}", deleted.join("\n"));
         }
         Ok(())
+    }
+
+    /// Delete the cached release records of `packages` from the configured
+    /// registry, each listed as `<package>/<version>+r<revision>.json`.
+    fn delete_release_records(config: &Config, packages: &[String]) -> miette::Result<Vec<String>> {
+        let dir = config.cache_dir.join(RELEASE_RECORDS_DIR);
+        if !dir.exists() {
+            return Ok(Vec::new());
+        }
+        let registry_prefix = Self::registry_prefix(config)?;
+        let patterns = if packages.is_empty() {
+            vec![format!("{registry_prefix}/**/*.json")]
+        } else {
+            packages
+                .iter()
+                .map(|pkg| {
+                    Self::reject_path_traversal(pkg)?;
+                    Ok(format!("{registry_prefix}/{pkg}/*.json"))
+                })
+                .collect::<miette::Result<Vec<_>>>()?
+        };
+        let mut deleted = Vec::new();
+        for pattern in patterns {
+            for (relative, full_path) in walk_metadata_files(&dir, &pattern)? {
+                fs::remove_file(full_path).into_diagnostic()?;
+                deleted.push(relative);
+            }
+        }
+        Ok(deleted)
     }
 
     /// Remove the mirror directories left behind by an older pnpm: every
@@ -260,7 +298,10 @@ impl CacheCommand {
         let mut outcome = PruneOutcome::default();
         match dunce::canonicalize(&config.cache_dir) {
             Ok(cache_dir) => {
-                for meta_dir in [ABBREVIATED_META_DIR, FULL_META_DIR, FULL_FILTERED_META_DIR] {
+                for meta_dir in META_DIRS
+                    .into_iter()
+                    .chain([RELEASE_RECORDS_DIR])
+                {
                     outcome.prune_root(&cache_dir, meta_dir, is_unreadable_registry_key, dry_run);
                 }
                 for meta_dir in LEGACY_META_DIRS
