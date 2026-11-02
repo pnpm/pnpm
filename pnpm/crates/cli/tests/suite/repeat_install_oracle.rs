@@ -89,6 +89,9 @@ enum AllowedRefusal {
     /// every selection, the ones it leaves as they are included
     /// (pnpm/tasks#219).
     Run,
+    /// A workspace project's version bump may refuse both gates, even when
+    /// nothing can resolve to the project (pnpm/tasks#246).
+    Both,
 }
 
 struct Scenario {
@@ -158,18 +161,7 @@ impl Scenario {
         Args: IntoIterator<Item = Arg>,
         Arg: AsRef<OsStr>,
     {
-        if let Some(bundle) = v11_bundle {
-            return self.fixture.v11_command_at(bundle, cwd, args);
-        }
-        pacquet_in(cwd)
-            .without_ambient_pnpm_config()
-            .current_dir(cwd)
-            .env("PNPM_CONFIG_REGISTRY", self.fixture.registry.mock_instance.url())
-            .env("XDG_CONFIG_HOME", self.fixture.workspace.with_file_name("xdg-config"))
-            .arg("--reporter=ndjson")
-            .args(args)
-            .output()
-            .expect("run pnpm")
+        pnpm_at(&self.fixture, v11_bundle, cwd, args)
     }
 
     fn command_at<Args, Arg>(&self, cwd: &Path, args: Args) -> Output
@@ -177,15 +169,7 @@ impl Scenario {
         Args: IntoIterator<Item = Arg>,
         Arg: AsRef<OsStr>,
     {
-        match &self.driver {
-            Driver::V12 => self.command_at_with(None, cwd, args),
-            Driver::V11(bundle) => self.command_at_with(Some(bundle), cwd, args),
-            Driver::Mixed { bundle, next_v11 } => {
-                let use_v11 = next_v11.get();
-                next_v11.set(!use_v11);
-                self.command_at_with(use_v11.then_some(bundle.as_os_str()), cwd, args)
-            }
-        }
+        driver_command_at(&self.driver, &self.fixture, cwd, args)
     }
 
     fn workspace(&self) -> &Path {
@@ -284,15 +268,7 @@ impl Scenario {
             self.workspace(),
             ["install", "--no-frozen-lockfile"].iter().chain(args),
         );
-        assert_success(&output);
-        let records = ndjson_records(&output);
-        let up_to_date = records
-            .iter()
-            .any(|record| record["message"] == "Already up to date");
-        let staged = records
-            .iter()
-            .any(|record| record["name"] == "pnpm:stage");
-        up_to_date && !staged
+        took_install_fast_path(&output)
     }
 
     /// Run `node -e ""` through `exec` for `selection` under
@@ -416,13 +392,6 @@ impl Scenario {
         workspace: &Path,
         projects: &[&str],
     ) -> BTreeMap<String, [Option<ProjectLockfileEntry>; 2]> {
-        let entry = |lockfile: PathBuf, importer_id: &str| {
-            let mut lockfile = lockfile.is_file().then(|| read_lockfile(&lockfile))?;
-            lockfile.importers.retain(|id, _| id == importer_id);
-            let importer = lockfile.importers.get(importer_id)?.clone();
-            prune_unreachable_packages(&mut lockfile);
-            Some((importer, lockfile.snapshots))
-        };
         projects
             .iter()
             .map(|project| {
@@ -431,9 +400,7 @@ impl Scenario {
                 } else {
                     (workspace.join("packages").join(project), ".".into())
                 };
-                let wanted = entry(dir.join("pnpm-lock.yaml"), &importer_id);
-                let current = entry(dir.join("node_modules/.pnpm/lock.yaml"), &importer_id);
-                ((*project).to_string(), [wanted, current])
+                ((*project).to_string(), lockfile_entries(&dir, &importer_id))
             })
             .collect()
     }
@@ -498,7 +465,7 @@ impl Scenario {
             self.driver,
         );
         assert!(
-            passed || !current || allowed == AllowedRefusal::Run,
+            passed || !current || matches!(allowed, AllowedRefusal::Run | AllowedRefusal::Both),
             "{:?} ({:?}): the run gate for {selection:?} refused, but a clean install changes nothing \
              for it",
             self.layout,
@@ -528,7 +495,7 @@ impl Scenario {
                 self.layout,
                 self.driver,
             );
-        } else if allowed != AllowedRefusal::Install && offered {
+        } else if matches!(allowed, AllowedRefusal::None | AllowedRefusal::Run) && offered {
             assert_ne!(
                 self.snapshot(),
                 before,
@@ -657,6 +624,80 @@ impl Scenario {
             );
         }
     }
+}
+
+/// `pnpm` at `cwd`: the v11 bundle when one is given, v12 otherwise.
+fn pnpm_at<Args, Arg>(
+    fixture: &WorkspaceFixture,
+    v11_bundle: Option<&OsStr>,
+    cwd: &Path,
+    args: Args,
+) -> Output
+where
+    Args: IntoIterator<Item = Arg>,
+    Arg: AsRef<OsStr>,
+{
+    if let Some(bundle) = v11_bundle {
+        return fixture.v11_command_at(bundle, cwd, args);
+    }
+    pacquet_in(cwd)
+        .without_ambient_pnpm_config()
+        .current_dir(cwd)
+        .env("PNPM_CONFIG_REGISTRY", fixture.registry.mock_instance.url())
+        .env("XDG_CONFIG_HOME", fixture.workspace.with_file_name("xdg-config"))
+        .arg("--reporter=ndjson")
+        .args(args)
+        .output()
+        .expect("run pnpm")
+}
+
+/// `pnpm` at `cwd` through the CLI `driver` picks next.
+fn driver_command_at<Args, Arg>(
+    driver: &Driver,
+    fixture: &WorkspaceFixture,
+    cwd: &Path,
+    args: Args,
+) -> Output
+where
+    Args: IntoIterator<Item = Arg>,
+    Arg: AsRef<OsStr>,
+{
+    match driver {
+        Driver::V12 => pnpm_at(fixture, None, cwd, args),
+        Driver::V11(bundle) => pnpm_at(fixture, Some(bundle), cwd, args),
+        Driver::Mixed { bundle, next_v11 } => {
+            let use_v11 = next_v11.get();
+            next_v11.set(!use_v11);
+            pnpm_at(fixture, use_v11.then_some(bundle.as_os_str()), cwd, args)
+        }
+    }
+}
+
+/// Whether a successful `pnpm install` took the fast path: it said "Already
+/// up to date" without starting a resolution or an import.
+fn took_install_fast_path(output: &Output) -> bool {
+    assert_success(output);
+    let records = ndjson_records(output);
+    let up_to_date = records
+        .iter()
+        .any(|record| record["message"] == "Already up to date");
+    let staged = records
+        .iter()
+        .any(|record| record["name"] == "pnpm:stage");
+    up_to_date && !staged
+}
+
+/// What the wanted and the current lockfile under `dir` record for
+/// `importer_id`.
+fn lockfile_entries(dir: &Path, importer_id: &str) -> [Option<ProjectLockfileEntry>; 2] {
+    let entry = |lockfile: PathBuf| {
+        let mut lockfile = lockfile.is_file().then(|| read_lockfile(&lockfile))?;
+        lockfile.importers.retain(|id, _| id == importer_id);
+        let importer = lockfile.importers.get(importer_id)?.clone();
+        prune_unreachable_packages(&mut lockfile);
+        Some((importer, lockfile.snapshots))
+    };
+    [entry(dir.join("pnpm-lock.yaml")), entry(dir.join("node_modules/.pnpm/lock.yaml"))]
 }
 
 /// The directories whose `node_modules` an install links: the root and every
@@ -1178,6 +1219,27 @@ fn a_scope_route_moved(layout: Layout) {
     }
 }
 
+/// Edits to `b` that change none of its dependencies, each kept by the next.
+fn manifest_edits_that_change_no_dependency(layout: Layout) {
+    let mut scenario = Scenario::new(layout);
+    scenario.install(&[]);
+    let mut manifest = json!({
+        "dependencies": { "@pnpm.e2e/pkg-with-1-dep": "100.0.0" },
+        "devDependencies": { "@pnpm.e2e/bar": "100.0.0" },
+    });
+    for (field, value, allowed) in [
+        ("description", json!("edited"), AllowedRefusal::None),
+        ("scripts", json!({ "build": r#"node -e """# }), AllowedRefusal::None),
+        ("version", json!("1.0.1"), AllowedRefusal::Both),
+    ] {
+        manifest[field] = value;
+        scenario.write_manifest("b", manifest.clone());
+        scenario.check_gates_allowing(allowed);
+    }
+}
+
+mod lone_project;
+
 macro_rules! matrix {
     ($($module:ident: $layout:expr,)*) => {
         $(
@@ -1210,6 +1272,7 @@ macro_rules! matrix {
                     dedupe_peers_toggled,
                     a_workspace_bin_renamed,
                     a_scope_route_moved,
+                    manifest_edits_that_change_no_dependency,
                 );
             }
         )*
