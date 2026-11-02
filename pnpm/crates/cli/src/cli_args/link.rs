@@ -78,10 +78,14 @@ fn already_declared(manifest: &PackageManifest, name: &str) -> bool {
 }
 
 impl LinkArgs {
+    /// `cli_dir` is the directory the command runs in. Relative package
+    /// paths are resolved against it, as a shell would, rather than against
+    /// the directory of the nearest `package.json`.
     pub async fn run<Reporter: self::Reporter + 'static>(
         self,
         config: &'static mut Config,
         manifest_path: PathBuf,
+        cli_dir: &Path,
     ) -> miette::Result<()> {
         self.validate_package_paths()?;
 
@@ -98,7 +102,7 @@ impl LinkArgs {
 
         let mut new_overrides = IndexMap::<String, String>::new();
         for path_str in &self.package_paths {
-            let (target_dir, package_name, target_manifest) = link_target(&manifest_dir, path_str)?;
+            let (target_dir, package_name, target_manifest) = link_target(cli_dir, path_str)?;
 
             if !already_declared(&manifest, &package_name) {
                 manifest
@@ -177,12 +181,12 @@ async fn install_linked<Reporter: self::Reporter + 'static>(state: &State) -> mi
 
 /// The linked package's directory, the name it is declared under, and its manifest.
 fn link_target(
-    manifest_dir: &Path,
+    cli_dir: &Path,
     path_str: &str,
 ) -> miette::Result<(PathBuf, String, PackageManifest)> {
     let target_path = PathBuf::from(path_str);
     let target_dir =
-        if target_path.is_absolute() { target_path } else { manifest_dir.join(&target_path) };
+        if target_path.is_absolute() { target_path } else { cli_dir.join(&target_path) };
     let target_manifest_path = pnpm_workspace::project_manifest_path(&target_dir);
     let dir_display = target_dir.display();
     let target_manifest = PackageManifest::from_path(target_manifest_path)
