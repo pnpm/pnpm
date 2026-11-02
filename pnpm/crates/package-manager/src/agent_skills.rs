@@ -180,13 +180,13 @@ pub fn sync_agent_skills(
             None => pending.push(source.dep_path),
         }
     }
-    let entries = link_entries(&approved)?;
-    let dirs = if entries.is_empty() {
+    let dirs = if approved.is_empty() {
         Vec::new()
     } else {
         targets::target_dirs(input.config, input.workspace_root, input.agent_dir)
             .map_err(|(path, source)| AgentSkillsError::Io { path, source })?
     };
+    let entries = if dirs.is_empty() { BTreeMap::new() } else { link_entries(&approved)? };
     let desired = desired_entries(input.workspace_root, &dirs, &entries);
     prune(input.workspace_root, input.linked, &desired.keys().cloned().collect())?;
     materialize(input.workspace_root, input.linked, &desired, input.config.virtual_store_dir())?;
@@ -195,7 +195,7 @@ pub fn sync_agent_skills(
     Ok(AgentSkillsState {
         pending,
         linked: desired.into_keys().collect(),
-        has_unlinked_skills: !entries.is_empty() && dirs.is_empty(),
+        has_unlinked_skills: !approved.is_empty() && dirs.is_empty(),
     })
 }
 

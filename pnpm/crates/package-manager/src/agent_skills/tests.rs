@@ -818,3 +818,15 @@ fn unused_approvals_do_not_invalidate_the_repeat_install() {
         assert_eq!(super::agent_skill_targets_changed(&config, root.path()), !skills.is_empty());
     }
 }
+
+#[test]
+fn duplicate_skill_names_without_a_target_do_not_fail_the_install() {
+    let (root, lockfile) = workspace(&[("foo", "1.0.0", &["guide"]), ("bar", "1.0.0", &["guide"])]);
+    let config = config(&[("foo", true), ("bar", true)], None);
+    let state = sync(root.path(), &lockfile, &config, &[], None).unwrap();
+    assert_eq!(state, AgentSkillsState { has_unlinked_skills: true, ..Default::default() });
+
+    fs::create_dir_all(root.path().join(".claude/skills")).unwrap();
+    let error = sync(root.path(), &lockfile, &config, &[], None).unwrap_err();
+    assert!(matches!(error, AgentSkillsError::NameCollision { .. }));
+}
