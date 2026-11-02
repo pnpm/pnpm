@@ -1,6 +1,6 @@
 use super::{
     ResolveRequest, RouteContext, StatusCode, registry_config, reject_off_allowlist_fetches,
-    reject_unsafe_publish_directories, reject_unusable_resolve,
+    reject_unaccepted_lockfile_format, reject_unsafe_publish_directories, reject_unusable_resolve,
 };
 
 #[test]
@@ -108,4 +108,58 @@ fn reject_incompatible_lockfile_format_refuses_unsupported_versions() {
     }))
     .expect("request parses");
     assert!(reject_unusable_resolve(&compatible, &context).is_none());
+
+    let compatible = serde_json::from_value::<ResolveRequest>(serde_json::json!({
+        "acceptedLockfileFormats": ["13.0"]
+    }))
+    .expect("request parses");
+    assert!(reject_unusable_resolve(&compatible, &context).is_none());
+}
+
+#[test]
+fn rejects_a_resolved_format_the_client_did_not_accept() {
+    let lockfile: pnpm_lockfile::Lockfile =
+        serde_saphyr::from_str("lockfileVersion: '13.0'\nimporters: {}\n")
+            .expect("format 13 lockfile parses");
+    let legacy = serde_json::from_value::<ResolveRequest>(serde_json::json!({
+        "acceptedLockfileFormats": ["9.0"]
+    }))
+    .expect("request parses");
+    let response = reject_unaccepted_lockfile_format(&legacy, &lockfile)
+        .expect("unaccepted format is rejected");
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+
+    let unmarked_variants: pnpm_lockfile::Lockfile = serde_saphyr::from_str(
+        "lockfileVersion: '9.0'\nimporters: {}\npackages:\n  foo@1.0.0:\n    resolution:\n      type: variations\n      variants: []\n",
+    )
+    .expect("unmarked variations lockfile parses");
+    assert!(reject_unaccepted_lockfile_format(&legacy, &unmarked_variants).is_some());
+
+    let capable = serde_json::from_value::<ResolveRequest>(serde_json::json!({
+        "acceptedLockfileFormats": ["9.0", "13.0"]
+    }))
+    .expect("request parses");
+    assert!(reject_unaccepted_lockfile_format(&capable, &lockfile).is_none());
+
+    let incompatible = serde_json::from_value::<ResolveRequest>(serde_json::json!({
+        "acceptedLockfileFormats": ["13.0"]
+    }))
+    .expect("request parses");
+    let standard: pnpm_lockfile::Lockfile =
+        serde_saphyr::from_str("lockfileVersion: '9.0'\nimporters: {}\n")
+            .expect("format 9 lockfile parses");
+    assert!(reject_unaccepted_lockfile_format(&incompatible, &standard).is_some());
+
+    let compatible_12 = serde_json::from_value::<ResolveRequest>(serde_json::json!({
+        "acceptedLockfileFormats": ["12.0"]
+    }))
+    .expect("request parses");
+    let lockfile_12: pnpm_lockfile::Lockfile =
+        serde_saphyr::from_str("lockfileVersion: '12.0'\nimporters: {}\n")
+            .expect("format 12 lockfile parses");
+    assert!(reject_unaccepted_lockfile_format(&compatible_12, &lockfile_12).is_none());
+
+    let legacy = serde_json::from_value::<ResolveRequest>(serde_json::json!({}))
+        .expect("legacy request parses");
+    assert!(reject_unaccepted_lockfile_format(&legacy, &lockfile_12).is_none());
 }

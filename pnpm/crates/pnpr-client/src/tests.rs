@@ -112,6 +112,7 @@ async fn the_resolve_request_carries_the_catalogs_and_the_whole_policy() {
             "trustPolicyExclude": ["legacy-pkg"],
             "trustPolicyIgnoreAfter": 43200,
             "trustLockfile": true,
+            "acceptedLockfileFormats": ["9.0", "12.0", "13.0"],
             "updatePatches": true,
         })))
         .with_header(PROJECT_TRANSFORMS_HEADER, PROJECT_TRANSFORMS_VERSION)
@@ -299,6 +300,11 @@ fn resolve_projects_options() -> ResolveProjectsOptions {
             update_patches: true,
             ignore_manifest_check: false,
             trust_lockfile: true,
+            accepted_lockfile_formats: vec![
+                "9.0".to_string(),
+                "12.0".to_string(),
+                "13.0".to_string(),
+            ],
         },
         verification: crate::VerificationPolicy {
             minimum_release_age: Some(1440),

@@ -25,7 +25,7 @@ use miette::Diagnostic;
 use pnpm_catalogs_protocol_parser::parse_catalog_protocol;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_lockfile::{
-    CatalogSnapshots, ComVer, Lockfile, LockfileFormError, LockfileVersion,
+    CatalogSnapshots, ComVer, Lockfile, LockfileFormError, LockfileResolution, LockfileVersion,
     ParseImporterDepVersionError, ParsePkgNameSuffixError, ParsePkgVerPeerError, ProjectSnapshot,
     ResolvedCatalogEntry,
 };
@@ -164,10 +164,16 @@ pub fn dependencies_graph_to_lockfile(
         compute_corrected_optional(&opts.importers, opts.graph, opts.settings.auto_install_peers);
     let (packages, snapshots) =
         build_packages_and_snapshots(opts.graph, &optional_overrides, &opts.metadata_sources)?;
+    let has_variations = packages
+        .values()
+        .any(|metadata| matches!(&metadata.resolution, LockfileResolution::Variations(_)));
     let importers = build_importers(&opts)?;
     let mut lockfile = Lockfile {
-        lockfile_version: LockfileVersion::<9>::try_from(ComVer::new(9, 0))
-            .expect("the generated lockfile version is supported"),
+        lockfile_version: LockfileVersion::<9>::try_from(ComVer::new(
+            if has_variations { 13 } else { 9 },
+            0,
+        ))
+        .expect("the generated lockfile version is supported"),
         settings: Some(opts.settings),
         catalogs: build_catalog_snapshots(&importers, opts.catalogs),
         overrides: opts.manifest_settings.overrides.filter(|map| !map.is_empty()),

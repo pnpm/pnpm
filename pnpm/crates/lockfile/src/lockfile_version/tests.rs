@@ -18,6 +18,7 @@ fn compatible() {
     case!(9, "9.0" => ComVer { major: 9, minor: 0 });
     case!(9, "9.1" => ComVer { major: 9, minor: 1 });
     case!(9, "12.0" => ComVer { major: 12, minor: 0 });
+    case!(9, "13.0" => ComVer { major: 13, minor: 0 });
     case!(6, "6.0" => ComVer { major: 6, minor: 0 });
 }
 

@@ -281,6 +281,11 @@ fn options(
             update_patches: false,
             ignore_manifest_check: false,
             trust_lockfile: false,
+            accepted_lockfile_formats: vec![
+                "9.0".to_string(),
+                "12.0".to_string(),
+                "13.0".to_string(),
+            ],
         },
         verification: pnpm_pnpr_client::VerificationPolicy {
             minimum_release_age: None,

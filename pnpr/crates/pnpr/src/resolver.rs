@@ -101,8 +101,8 @@ use self::{
     cache::{CachedResolution, cached_resolution, resolution_cache_key, store_resolution},
     protocol::{EcosystemProbe, ResolveRequest},
     request_validation::{
-        reject_incompatible_lockfile_format, reject_inline_url_auth, reject_invalid_patch_hashes,
-        reject_invalid_registries, reject_off_allowlist_fetches, reject_unsafe_publish_directories,
+        lockfile_format_is_accepted, reject_inline_url_auth, reject_invalid_registries,
+        reject_off_allowlist_fetches, reject_unaccepted_lockfile_format, reject_unusable_resolve,
     },
     verdict_cache::VerdictCache,
     wire::{
@@ -452,16 +452,6 @@ async fn verify_request_lockfile(
     }
 }
 
-/// The request-level refusals a resolve is held to before any fetch.
-fn reject_unusable_resolve(request: &ResolveRequest, context: &RouteContext) -> Option<Response> {
-    reject_invalid_registries(request)
-        .or_else(|| reject_invalid_patch_hashes(request))
-        .or_else(|| reject_inline_url_auth(request))
-        .or_else(|| reject_unsafe_publish_directories(request))
-        .or_else(|| reject_off_allowlist_fetches(request, context))
-        .or_else(|| reject_incompatible_lockfile_format(request))
-}
-
 /// A verified frozen lockfile is the whole answer: no incremental tree walk
 /// runs. Its tarballs are still announced as `package` frames when the
 /// verification fan-out just fetched their metadata — the sizes let the client
@@ -510,6 +500,9 @@ fn cached_resolution_response(
         &runtime.route_context,
         identity,
     )?;
+    if let Some(response) = reject_unaccepted_lockfile_format(request, &lockfile) {
+        return Some(response);
+    }
     let applied = protocol::AppliedPolicies::from_request(request);
     Some(ndjson_single_frame(&done_frame(&lockfile, Some(&applied))))
 }

@@ -254,6 +254,18 @@ pub(super) fn reject_inline_url_auth(request: &ResolveRequest) -> Option<Respons
     })
 }
 
+pub(super) fn reject_unusable_resolve(
+    request: &ResolveRequest,
+    context: &RouteContext,
+) -> Option<Response> {
+    reject_invalid_registries(request)
+        .or_else(|| reject_invalid_patch_hashes(request))
+        .or_else(|| reject_inline_url_auth(request))
+        .or_else(|| reject_unsafe_publish_directories(request))
+        .or_else(|| reject_off_allowlist_fetches(request, context))
+        .or_else(|| reject_incompatible_lockfile_format(request))
+}
+
 fn extend_package_extension_specs<'a>(request: &'a ResolveRequest, specs: &mut Vec<&'a str>) {
     let Some(extensions) = request.package_extensions.as_ref() else {
         return;
@@ -284,16 +296,70 @@ fn overrides_have_inline_url_auth(value: &serde_json::Value) -> bool {
 }
 
 pub(super) fn reject_incompatible_lockfile_format(request: &ResolveRequest) -> Option<Response> {
-    let formats = request.accepted_lockfile_formats.as_ref()?;
-    if !formats
-        .iter()
-        .any(|format| format == "9.0" || format == "9")
+    if let Some(formats) = request.accepted_lockfile_formats.as_ref()
+        && !formats
+            .iter()
+            .any(|format| format == "9.0" || format == "9" || format == "13.0" || format == "13")
     {
         return Some(json_error_with_code(
             StatusCode::BAD_REQUEST,
-            "incompatible lockfile format: server supports format 9.0",
+            "incompatible lockfile format: server supports formats 9.0 and 13.0",
             Some("ERR_PNPR_INCOMPATIBLE_LOCKFILE_FORMAT"),
         ));
     }
-    None
+    request.lockfile
+        .as_ref()
+        .and_then(|lockfile| reject_unaccepted_lockfile_format(request, lockfile))
+}
+
+pub(super) fn reject_unaccepted_lockfile_format(
+    request: &ResolveRequest,
+    lockfile: &pnpm_lockfile::Lockfile,
+) -> Option<Response> {
+    if lockfile_format_is_accepted(request, lockfile) {
+        return None;
+    }
+    Some(json_error_with_code(
+        StatusCode::BAD_REQUEST,
+        "incompatible lockfile format: the resolved lockfile is not in the formats this client accepts",
+        Some("ERR_PNPR_INCOMPATIBLE_LOCKFILE_FORMAT"),
+    ))
+}
+
+pub(super) fn lockfile_format_is_accepted(
+    request: &ResolveRequest,
+    lockfile: &pnpm_lockfile::Lockfile,
+) -> bool {
+    let requires_format_13 = lockfile.lockfile_version.major == 13
+        || lockfile.packages
+            .as_ref()
+            .is_some_and(|packages| {
+                packages
+                    .values()
+                    .any(|metadata| {
+                        matches!(&metadata.resolution, LockfileResolution::Variations(_))
+                    })
+            });
+    let required_format = if requires_format_13 {
+        "13"
+    } else if lockfile.lockfile_version.major == 12 {
+        "12"
+    } else {
+        "9"
+    };
+    request.accepted_lockfile_formats
+        .as_ref()
+        .map_or_else(
+            || required_format != "13",
+            |formats| {
+                formats
+                    .iter()
+                    .any(|format| {
+                        matches!(
+                            (required_format, format.as_str()),
+                            ("13", "13" | "13.0") | ("12", "12" | "12.0") | ("9", "9" | "9.0"),
+                        )
+                    })
+            },
+        )
 }

@@ -2,8 +2,8 @@ use super::{
     Arc, AuthHeaders, CachedResolution, Duration, Footprint, HashMap, Lockfile, Mutex, OsvIndex,
     PackageVersionGuard, PacquetConfig, ResolveRequest, Resolver, Response, StoreCandidate,
     StreamObserver, TarballRouter, ThrottledClient, done_frame, error_frame_with_code,
-    ndjson_stream_response, osv_violations_for_lockfile, resolve, store_resolution_candidate,
-    violations_frame,
+    lockfile_format_is_accepted, ndjson_stream_response, osv_violations_for_lockfile, resolve,
+    store_resolution_candidate, violations_frame,
 };
 
 /// What one streamed resolve carries out of the request handling.
@@ -82,6 +82,9 @@ pub(super) async fn stream_resolution(task: StreamedResolve) {
             return;
         }
     };
+    if reject_unaccepted_lockfile_format(&task.inputs.request, &lockfile, tx) {
+        return;
+    }
     if let Some(violations) = task.osv_violations(&lockfile) {
         let _ = tx.send(violations);
         return;
@@ -98,6 +101,21 @@ pub(super) async fn stream_resolution(task: StreamedResolve) {
     }
     let applied_policies = super::protocol::AppliedPolicies::from_request(&task.inputs.request);
     let _ = tx.send(done_frame(&lockfile, Some(&applied_policies)));
+}
+
+fn reject_unaccepted_lockfile_format(
+    request: &ResolveRequest,
+    lockfile: &Lockfile,
+    tx: &tokio::sync::mpsc::UnboundedSender<Vec<u8>>,
+) -> bool {
+    if lockfile_format_is_accepted(request, lockfile) {
+        return false;
+    }
+    let _ = tx.send(error_frame_with_code(
+        "the resolved lockfile is not in the formats this client accepts",
+        Some("ERR_PNPR_INCOMPATIBLE_LOCKFILE_FORMAT"),
+    ));
+    true
 }
 
 impl StreamedResolve {

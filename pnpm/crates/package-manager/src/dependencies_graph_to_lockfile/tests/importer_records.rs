@@ -78,6 +78,7 @@ fn dev_and_optional_direct_deps_split_into_distinct_importer_sections() {
     let lockfile = dependencies_graph_to_lockfile(single_importer_opts(
         &manifest, &graph, direct, false, false, None, None,
     ));
+    assert_eq!(lockfile.lockfile_version.to_string(), "9.0");
 
     let importer = lockfile.root_project().expect("root importer");
     assert!(importer.dependencies.is_none(), "no prod deps declared");
@@ -149,6 +150,7 @@ fn runtime_dependency_strips_importer_prefix_and_records_package_version() {
     let lockfile = dependencies_graph_to_lockfile(single_importer_opts(
         &manifest, &graph, direct, false, false, None, None,
     ));
+    assert_eq!(lockfile.lockfile_version.to_string(), "13.0");
 
     let importer = lockfile.root_project().expect("root importer");
     let entry = importer.dependencies

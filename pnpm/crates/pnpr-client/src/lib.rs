@@ -176,6 +176,7 @@ pub struct LockfileReuseOptions {
     /// skips verifying the input lockfile (it still reuses it for
     /// resolution), mirroring the local `--trust-lockfile` opt-out.
     pub trust_lockfile: bool,
+    pub accepted_lockfile_formats: Vec<String>,
 }
 
 #[derive(Clone, Serialize)]
