@@ -38,6 +38,58 @@ impl AllowBuild {
     }
 }
 
+/// The value of a `permissions.<pkg>.skills` entry: whether pnpm links
+/// every skill the package ships, or only the chosen ones.
+///
+/// Unlike [`AllowBuild`], there is no undecided placeholder: pnpm only
+/// writes skills decisions it has read, and a value that names neither a
+/// boolean nor a list is a settings error, not a scaffold to fill.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum SkillsPermission {
+    /// Link every skill the package ships, wherever discovery finds one.
+    All(bool),
+    /// Link exactly the named skill directories. A skill the list does not
+    /// name is left unlinked and is never offered for approval again: the
+    /// list is the decision.
+    Chosen(Vec<String>),
+}
+
+impl SkillsPermission {
+    /// Whether this entry links a skill named `skill`. Always decidable:
+    /// skills decisions have no placeholder form.
+    #[must_use]
+    pub fn links_skill(&self, skill: &str) -> bool {
+        match self {
+            SkillsPermission::All(true) => true,
+            SkillsPermission::All(false) => false,
+            SkillsPermission::Chosen(chosen) => chosen.iter().any(|name| name == skill),
+        }
+    }
+
+    /// The all-or-nothing decision for the package, or `None` when the
+    /// entry names a chosen list and decisions must be per skill.
+    #[must_use]
+    pub fn as_all(&self) -> Option<bool> {
+        match self {
+            SkillsPermission::All(allowed) => Some(*allowed),
+            SkillsPermission::Chosen(_) => None,
+        }
+    }
+
+    /// Whether this entry links at least one skill, however many the
+    /// package ships. A call site that reads nothing but this cannot decide
+    /// a chosen entry's per-skill questions.
+    #[must_use]
+    pub fn links_any(&self) -> bool {
+        match self {
+            SkillsPermission::All(true) => true,
+            SkillsPermission::All(false) => false,
+            SkillsPermission::Chosen(chosen) => !chosen.is_empty(),
+        }
+    }
+}
+
 /// Reduce a parsed `allowBuilds` map to the entries that drive the build
 /// policy, dropping the ones still awaiting a decision.
 #[must_use]

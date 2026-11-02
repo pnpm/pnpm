@@ -1,6 +1,6 @@
 //! The `# pnpm` block of each agent skill directory's `.gitignore`.
 
-use super::{AgentSkillsError, is_within_workspace};
+use super::{AgentSkillsError, links::is_within_workspace};
 use std::{
     collections::{BTreeMap, BTreeSet},
     fs, io,

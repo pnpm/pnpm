@@ -6,15 +6,17 @@ use derive_more::{Display, Error};
 #[cfg(not(target_family = "wasm"))]
 use dialoguer::{Confirm, MultiSelect};
 use miette::{Context, Diagnostic, IntoDiagnostic};
-use pnpm_config::{Config, PermissionCapability, WorkspaceSettings};
+use pnpm_config::{Config, WorkspaceSettings};
 use pnpm_modules_yaml::{Host, write_modules_manifest};
-use pnpm_package_manager::{allow_build_key_from_ignored_build, parse_allow_build_selector};
+use pnpm_package_manager::{
+    allow_build_key_from_ignored_build, parse_allow_build_selector, short_package_label,
+};
 use pnpm_reporter::{Reporter, emit_global_warning};
-use pnpm_workspace_manifest_writer::set_permissions;
+use pnpm_workspace_manifest_writer::{PermissionValue, set_permissions};
 #[cfg(not(target_family = "wasm"))]
 use std::io::IsTerminal;
 use std::{
-    collections::{BTreeMap, HashSet},
+    collections::{BTreeMap, BTreeSet, HashSet},
     path::Path,
 };
 #[cfg(target_family = "wasm")]
@@ -152,7 +154,7 @@ impl ApproveBuildsArgs {
 
         // Only the interactive path asks for confirmation: named
         // packages and `--all` are the answer already.
-        if !all && packages.is_empty() && !confirm_selected_builds(&build_packages)? {
+        if !all && packages.is_empty() && !confirm_selected_builds(&build_packages, pending)? {
             return Ok(None);
         }
 
@@ -188,12 +190,12 @@ fn named_decisions(approved: &[String], denied: &[String]) -> BTreeMap<String, b
 
 /// Whether the interactive run may proceed. An empty selection needs no
 /// confirmation — it denies every pending package.
-fn confirm_selected_builds(build_packages: &[String]) -> miette::Result<bool> {
+fn confirm_selected_builds(build_packages: &[String], pending: &[String]) -> miette::Result<bool> {
     if build_packages.is_empty() {
         pnpm_diagnostics::println!("All packages were added to allowBuilds with value false.");
         return Ok(true);
     }
-    confirm_builds(build_packages)
+    confirm(&confirm_builds_prompt(build_packages, pending))
 }
 
 pub(crate) fn write_approval_settings(
@@ -204,7 +206,7 @@ pub(crate) fn write_approval_settings(
         settings_dir,
         decision.decisions
             .iter()
-            .map(|(pkg, &value)| (pkg.as_str(), PermissionCapability::Build, value)),
+            .map(|(pkg, &value)| (pkg.as_str(), PermissionValue::Build(value))),
     )
     .into_diagnostic()
 }
@@ -261,15 +263,49 @@ pub(crate) fn partition_params(
     partition
 }
 
+/// Given package keys, format each into a short label, appending
+/// `[{key}]` if the short label collides with another key's. A key given
+/// twice is one key.
+pub(crate) fn disambiguated_labels<'a>(
+    keys: impl IntoIterator<Item = &'a str>,
+) -> BTreeMap<&'a str, String> {
+    let items: BTreeSet<&'a str> = keys.into_iter().collect();
+    let mut counts = std::collections::BTreeMap::<String, usize>::new();
+    for &key in &items {
+        *counts
+            .entry(short_package_label(key))
+            .or_default() += 1;
+    }
+    items
+        .into_iter()
+        .map(|key| {
+            let base = short_package_label(key);
+            let label = if counts.get(&base).copied().unwrap_or(0) > 1 {
+                format!("{base} [{key}]")
+            } else {
+                base
+            };
+            (key, label)
+        })
+        .collect()
+}
+
+/// Turn `keys` into `(key, label)` choices for a checkbox prompt,
+/// keeping choices with colliding short labels distinguishable by
+/// appending their approval key.
+pub(crate) fn build_choices(keys: &[String]) -> Vec<(String, String)> {
+    let labels = disambiguated_labels(keys.iter().map(String::as_str));
+    keys.iter()
+        .map(|key| (key.clone(), labels[key.as_str()].clone()))
+        .collect()
+}
+
 /// Show the checkbox prompt and return the chosen package names, or `None`
 /// when the prompt is interrupted.
 fn prompt_for_builds(
     automatically_ignored_builds: &[String],
 ) -> miette::Result<Option<Vec<String>>> {
-    let choices: Vec<(String, String)> = sort_unique(automatically_ignored_builds.to_vec())
-        .into_iter()
-        .map(|name| (name.clone(), name))
-        .collect();
+    let choices = build_choices(&sort_unique(automatically_ignored_builds.to_vec()));
     prompt_for_choices("Choose which packages to build", &choices)
 }
 
@@ -300,12 +336,23 @@ pub(crate) fn prompt_for_choices(
     }
 }
 
-/// Ask the user to confirm building `build_packages`.
-fn confirm_builds(build_packages: &[String]) -> miette::Result<bool> {
-    confirm(&format!(
-        "The next packages will now be built: {}.\nDo you approve?",
-        build_packages.join(", "),
-    ))
+/// The confirmation prompt text for building `build_packages`, labelled
+/// as the checkbox prompt over `pending` labelled them.
+pub(crate) fn confirm_builds_prompt(build_packages: &[String], pending: &[String]) -> String {
+    let labels = disambiguated_labels(pending.iter().map(String::as_str));
+    format!(
+        "Build {}?",
+        build_packages
+            .iter()
+            .map(|key| {
+                labels
+                    .get(key.as_str())
+                    .cloned()
+                    .unwrap_or_else(|| short_package_label(key))
+            })
+            .collect::<Vec<_>>()
+            .join(", "),
+    )
 }
 
 /// Ask a yes/no question that defaults to "no", matching pnpm's
@@ -419,6 +466,10 @@ pub(crate) fn config_with_install_approvals(
     {
         cfg.allow_builds.extend(settings.decided_build_approvals().unwrap_or_default());
         cfg.allow_skills.extend(settings.decided_skill_approvals().unwrap_or_default());
+        // The approval run may have just written `skills.dirs`.
+        if let Some(dirs) = settings.skills.and_then(|skills| skills.dirs) {
+            cfg.skills_dirs = Some(dirs);
+        }
     }
     Ok(Config::leak(cfg))
 }

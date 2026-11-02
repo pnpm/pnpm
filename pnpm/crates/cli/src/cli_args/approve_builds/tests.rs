@@ -82,3 +82,73 @@ fn rejects_positional_arguments_with_all() {
 fn sort_unique_dedupes_and_sorts() {
     assert_eq!(sort_unique(params(&["b", "a", "b"])), vec!["a".to_string(), "b".to_string()]);
 }
+
+/// The approval run records `skills.dirs` into the manifest after its
+/// config was loaded, so the overlay must carry the freshly written
+/// value into the linking step.
+#[test]
+fn overlays_the_manifests_skills_dirs() {
+    let dir = tempfile::TempDir::new().expect("create temp dir");
+    std::fs::write(
+        dir.path().join("pnpm-workspace.yaml"),
+        "permissions:\n  '@pnpm.e2e/with-agent-skills':\n    skills: true\nskills:\n  dirs:\n    - .claude/skills\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+
+    let approved =
+        super::config_with_install_approvals(&pnpm_config::Config::default(), dir.path())
+            .expect("lay the approvals over the config");
+
+    assert_eq!(approved.skills_dirs.as_deref(), Some([".claude/skills".to_string()].as_slice()));
+    assert_eq!(
+        approved.allow_skills.get("@pnpm.e2e/with-agent-skills").cloned(),
+        Some(pnpm_config::SkillsPermission::All(true)),
+    );
+}
+
+#[test]
+fn confirm_builds_prompt_formats_short_labels() {
+    assert_eq!(
+        super::confirm_builds_prompt(
+            &["esbuild@0.25.0".to_string(), "sharp".to_string()],
+            &["esbuild@0.25.0".to_string(), "sharp".to_string()],
+        ),
+        "Build esbuild, sharp?",
+    );
+}
+
+#[test]
+fn confirm_builds_prompt_keeps_colliding_labels_distinguishable() {
+    let pending = [
+        "foo@https://codeload.github.com/org1/foo/tar.gz/1".to_string(),
+        "foo@https://codeload.github.com/org2/foo/tar.gz/2".to_string(),
+    ];
+    assert_eq!(
+        super::confirm_builds_prompt(&pending[..1], &pending),
+        "Build foo (git) [foo@https://codeload.github.com/org1/foo/tar.gz/1]?",
+    );
+}
+
+#[test]
+fn build_choices_distinguishes_colliding_labels() {
+    let keys = vec![
+        "foo@https://codeload.github.com/org1/foo/tar.gz/1".to_string(),
+        "foo@https://codeload.github.com/org2/foo/tar.gz/2".to_string(),
+        "bar@1.0.0".to_string(),
+    ];
+    let choices = super::build_choices(&keys);
+    assert_eq!(
+        choices,
+        vec![
+            (
+                "foo@https://codeload.github.com/org1/foo/tar.gz/1".to_string(),
+                "foo (git) [foo@https://codeload.github.com/org1/foo/tar.gz/1]".to_string(),
+            ),
+            (
+                "foo@https://codeload.github.com/org2/foo/tar.gz/2".to_string(),
+                "foo (git) [foo@https://codeload.github.com/org2/foo/tar.gz/2]".to_string(),
+            ),
+            ("bar@1.0.0".to_string(), "bar".to_string()),
+        ],
+    );
+}

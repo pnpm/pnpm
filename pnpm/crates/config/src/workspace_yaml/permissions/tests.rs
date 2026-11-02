@@ -1,4 +1,4 @@
-use crate::{AllowBuild, Config, NAMED_UNRECOGNIZED_SETTINGS, WorkspaceSettings};
+use crate::{AllowBuild, Config, NAMED_UNRECOGNIZED_SETTINGS, SkillsPermission, WorkspaceSettings};
 use pretty_assertions::assert_eq;
 use std::{collections::HashMap, path::Path};
 
@@ -25,13 +25,70 @@ fn folds_build_permissions_into_allow_builds() {
             ("drizzle-kit".to_string(), false),
         ]),
     );
-    assert_eq!(config.allow_skills, HashMap::from([("drizzle-kit".to_string(), true)]));
+    assert_eq!(
+        config.allow_skills,
+        HashMap::from([("drizzle-kit".to_string(), SkillsPermission::All(true))]),
+    );
+}
+
+#[test]
+fn skill_choices_are_recorded_as_chosen() {
+    let config = applied("permissions:\n  drizzle-kit:\n    skills: [guide, migrate]\n");
+    assert_eq!(
+        config.allow_skills,
+        HashMap::from([(
+            "drizzle-kit".to_string(),
+            SkillsPermission::Chosen(vec!["guide".to_string(), "migrate".to_string()]),
+        )]),
+    );
+    let denied = applied("permissions:\n  drizzle-kit:\n    skills: false\n");
+    assert_eq!(
+        denied.allow_skills,
+        HashMap::from([("drizzle-kit".to_string(), SkillsPermission::All(false))]),
+    );
 }
 
 #[test]
 fn undecided_permissions_decide_nothing() {
     let config = applied("permissions:\n  esbuild:\n    build: set this to true or false\n");
     assert_eq!(config.allow_builds, HashMap::new());
+}
+
+#[test]
+fn skills_permission_queries() {
+    let all_true = SkillsPermission::All(true);
+    assert_eq!(all_true.as_all(), Some(true));
+    assert!(all_true.links_any());
+    assert!(all_true.links_skill("guide"));
+
+    let all_false = SkillsPermission::All(false);
+    assert_eq!(all_false.as_all(), Some(false));
+    assert!(!all_false.links_any());
+    assert!(!all_false.links_skill("guide"));
+
+    let chosen = SkillsPermission::Chosen(vec!["guide".to_string()]);
+    assert_eq!(chosen.as_all(), None);
+    assert!(chosen.links_any());
+    assert!(chosen.links_skill("guide"));
+    assert!(!chosen.links_skill("migrate"));
+
+    let empty_chosen = SkillsPermission::Chosen(Vec::new());
+    assert!(!empty_chosen.links_any());
+}
+
+#[test]
+fn resolved_settings_maps_allow_skills() {
+    let mut config = Config::default();
+    config.allow_skills.insert(
+        "drizzle-kit".to_string(),
+        SkillsPermission::Chosen(vec!["guide".to_string()]),
+    );
+    let resolved = WorkspaceSettings::from_resolved(&config);
+    let permissions = resolved.permissions.unwrap();
+    assert_eq!(
+        permissions.get("drizzle-kit").and_then(|entry| entry.skills.clone()),
+        Some(SkillsPermission::Chosen(vec!["guide".to_string()])),
+    );
 }
 
 #[test]

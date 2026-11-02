@@ -14,7 +14,8 @@ pub use sections::{
     DEFAULT_PYTHON_DOWNLOAD_URL, DEFAULT_RUST_DIST_SERVER, LockfileSetting, PackageExtension,
     PeerDependencyMeta, PeerDependencyRules, PnpmfileSetting, PythonSettings, RemoteCacheSettings,
     RemoteSideEffectsCacheSettings, SideEffectsCacheSetting, SideEffectsCacheSettings,
-    TaskSettings, Tool, ToolSettings, UpdateConfig, UpdateSettings, decided_allow_builds,
+    SkillsPermission, TaskSettings, Tool, ToolSettings, UpdateConfig, UpdateSettings,
+    decided_allow_builds,
 };
 pub use settings::{MacosBackupSettings, NodePackageMapSettings, WorkspaceSettings};
 

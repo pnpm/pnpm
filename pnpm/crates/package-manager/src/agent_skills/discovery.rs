@@ -1,15 +1,26 @@
 use super::SyncAgentSkills;
 use crate::{
-    allow_build_key_from_ignored_build, importer_root_dir, normalize_build_dep_path,
-    selected_groups,
+    allow_build_key_from_ignored_build, importer_root_dir, is_git_hosted_dep_path,
+    normalize_build_dep_path, selected_groups,
 };
 use pnpm_config::NodeLinker;
 use pnpm_deps_restorer::parse_name_version_from_key;
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{BTreeMap, HashMap, HashSet},
     fs,
     path::{Path, PathBuf},
 };
+
+/// A skill directory a package ships.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct Skill {
+    /// The name of the directory holding `SKILL.md`, the last part of the
+    /// entry names.
+    pub(super) name: String,
+
+    /// The skill directory relative to the package's `skills` directory.
+    pub(super) dir: PathBuf,
+}
 
 /// A direct dependency that ships agent skills.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -18,10 +29,12 @@ pub(super) struct SkillSource {
     pub(super) dep_path: String,
     /// The key that approves the package in `permissions`.
     pub(super) approval_key: String,
+    /// The package part of the entry names.
+    pub(super) link_segment: String,
     /// The package directory, with symlinks resolved when it ships skills.
     pub(super) package_dir: PathBuf,
-    /// The names of the skill directories, sorted.
-    pub(super) skills: Vec<String>,
+    /// The skills it ships, sorted.
+    pub(super) skills: Vec<Skill>,
 }
 
 /// The direct dependencies of every importer that ship skills.
@@ -47,7 +60,7 @@ pub(super) fn discover_skill_sources(input: &SyncAgentSkills<'_>) -> Vec<SkillSo
             else {
                 continue;
             };
-            keep_highest(&mut by_key, skill_source(skills, &resolved));
+            keep_highest(&mut by_key, skill_source(skills, &resolved, &alias));
         }
     }
     by_key
@@ -150,7 +163,7 @@ fn probe_key(importer_id: &str, resolved: &str) -> String {
 /// The skills a package directory ships, with the directory resolved when
 /// there are any. `None` when the directory has skills but cannot be
 /// resolved.
-type ShippedSkills = Option<(Vec<String>, PathBuf)>;
+type ShippedSkills = Option<(Vec<Skill>, PathBuf)>;
 
 /// What probing one importer's directory of a package found.
 enum Probe {
@@ -182,9 +195,11 @@ fn cached_skills(
 
 /// Most packages ship no skills, so the directory is resolved only for the
 /// ones that do. A skill directory that resolves outside the package is
-/// not the package's skill.
+/// not the package's skill. A name several categories ship, compared
+/// ignoring case, is kept once, at its first directory: approvals and
+/// links name a skill by its name alone.
 fn probe_package(dir: &Path) -> Probe {
-    let candidates = skill_names(dir);
+    let candidates = skills(dir);
     if candidates.is_empty() {
         return if dir.is_dir() {
             Probe::Found(Some((candidates, dir.to_path_buf())))
@@ -193,20 +208,45 @@ fn probe_package(dir: &Path) -> Probe {
         };
     }
     let Ok(package_dir) = fs::canonicalize(dir) else { return Probe::Found(None) };
-    let skills = candidates
+    let mut seen = HashSet::new();
+    let shipped = candidates
         .into_iter()
         .filter(|skill| {
-            fs::canonicalize(package_dir.join("skills").join(skill))
+            fs::canonicalize(package_dir.join("skills").join(&skill.dir))
                 .is_ok_and(|resolved| resolved.starts_with(&package_dir))
         })
+        .filter(|skill| seen.insert(skill.name.to_lowercase()))
         .collect();
-    Probe::Found(Some((skills, package_dir)))
+    Probe::Found(Some((shipped, package_dir)))
 }
 
-fn skill_source((skills, package_dir): (Vec<String>, PathBuf), dep_path: &str) -> SkillSource {
+fn skill_source(
+    (skills, package_dir): (Vec<Skill>, PathBuf),
+    dep_path: &str,
+    alias: &str,
+) -> SkillSource {
     let dep_path = normalize_build_dep_path(dep_path);
     let approval_key = allow_build_key_from_ignored_build(&dep_path);
-    SkillSource { dep_path, approval_key, package_dir, skills }
+    // The name ends at the first `@` past a scope: a git URL such as
+    // `git+ssh://git@host/...` holds another one.
+    let name = dep_path
+        .get(1..)
+        .and_then(|rest| rest.find('@'))
+        .map_or(dep_path.as_str(), |at| &dep_path[..=at]);
+    // A registry or git package has a unique name. A tarball or a local
+    // directory does not, so it takes the name the project gave it.
+    let link_segment = if approval_key == name || is_git_hosted_dep_path(&dep_path) {
+        name.to_string()
+    } else {
+        alias.to_string()
+    };
+    SkillSource {
+        skills,
+        dep_path,
+        approval_key,
+        link_segment: link_segment.replace('/', "+"),
+        package_dir,
+    }
 }
 
 /// Record `source` under its approval key unless a source already kept
@@ -238,19 +278,52 @@ fn supersedes(candidate: &SkillSource, kept: &SkillSource) -> bool {
         .is_gt()
 }
 
-/// The skills directly under `<package_dir>/skills`: the subdirectories
-/// that hold a `SKILL.md`. A name that cannot be a line of a `.gitignore`
-/// or that is hidden is not a skill's.
-fn skill_names(package_dir: &Path) -> Vec<String> {
-    let Ok(entries) = fs::read_dir(package_dir.join("skills")) else { return Vec::new() };
-    let mut names: Vec<String> = entries
-        .filter_map(Result::ok)
-        .filter(|entry| entry.path().join("SKILL.md").is_file())
-        .filter_map(|entry| entry.file_name().into_string().ok())
-        .filter(|name| !name.starts_with('.') && !name.chars().any(char::is_control))
-        .collect();
-    names.sort();
-    names
+/// How many levels of directories below `skills` are searched for skills.
+/// Category directories let a package group its skills, as
+/// `skills/engineering/implement/SKILL.md` does.
+const MAX_SKILL_DIR_DEPTH: usize = 3;
+
+/// [`find_skills`] over the package's `skills` directory, sorted by
+/// directory.
+fn skills(package_dir: &Path) -> Vec<Skill> {
+    let root = package_dir.join("skills");
+    let mut found = find_skills(&root, Path::new(""), 1);
+    found.sort_by(|left, right| left.dir.cmp(&right.dir));
+    found
+}
+
+fn find_skills(dir: &Path, relative: &Path, depth: usize) -> Vec<Skill> {
+    let Ok(entries) = fs::read_dir(dir) else { return Vec::new() };
+    let mut found = Vec::new();
+    for entry in entries.filter_map(Result::ok) {
+        collect_skill_entry(&entry, relative, depth, &mut found);
+    }
+    found
+}
+
+fn collect_skill_entry(
+    entry: &fs::DirEntry,
+    relative: &Path,
+    depth: usize,
+    found: &mut Vec<Skill>,
+) {
+    let Ok(name) = entry.file_name().into_string() else { return };
+    if name.starts_with('.') || name.chars().any(char::is_control) {
+        return;
+    }
+    let Ok(file_type) = entry.file_type() else { return };
+    let path = entry.path();
+    if !file_type.is_dir() && !path.is_dir() {
+        return;
+    }
+    let dir_relative = relative.join(&name);
+    if path.join("SKILL.md").is_file() {
+        found.push(Skill { name, dir: dir_relative });
+    } else if depth < MAX_SKILL_DIR_DEPTH
+        && pnpm_fs::is_symlink_or_junction(&path).is_ok_and(|symlink| !symlink)
+    {
+        found.extend(find_skills(&path, &dir_relative, depth + 1));
+    }
 }
 
 #[cfg(test)]
