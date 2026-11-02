@@ -88,6 +88,7 @@ fn asset_resolution(
         os: parsed.platform,
         cpu: parsed.arch,
         libc: parsed.musl.then(|| "musl".to_string()),
+        ..PlatformAssetTarget::default()
     };
     Ok(PlatformAssetResolution {
         resolution: LockfileResolution::Binary(binary),

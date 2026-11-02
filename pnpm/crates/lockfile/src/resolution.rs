@@ -1,5 +1,6 @@
 pub use git_hosted::is_git_hosted_tarball_url;
 pub use pnpm_crypto_hash::has_complete_sha512_digest;
+pub use pnpm_platform_variants::{AmbiguousSelection, HostFloors};
 pub use registry::{
     DeclaredRegistryPrefixes, RegistryContext, RegistryOptions, RegistryServerType,
     TarballUrlOptions, normalized_registry_key, npm_tarball_url, pick_registry_for_package,
@@ -9,6 +10,7 @@ pub use revision_url::{
     is_on_revision_tarball_route, is_revision_registry_tarball_url, revision_registry_tarball_path,
     revision_registry_tarball_url,
 };
+pub use variants::{PlatformAssetTarget, SelectedVariant, variant_registry_tarball_url};
 
 use crate::IntegrityTarget;
 use derive_more::{Display, Error, From, Into, TryInto};
@@ -208,22 +210,6 @@ pub struct BinaryResolution {
     pub prefix: Option<String>,
 }
 
-/// One `(os, cpu, libc?)` triple a [`PlatformAssetResolution`] covers.
-///
-/// `libc` is only written for musl-built variants; glibc is the
-/// implicit default on Linux and the field is omitted everywhere
-/// else. `Option<String>` (rather than `Option<Libc>` enum) keeps
-/// future libc values future-compatible without a churning serde
-/// migration if a new one lands.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields, rename_all = "camelCase")]
-pub struct PlatformAssetTarget {
-    pub os: String,
-    pub cpu: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub libc: Option<String>,
-}
-
 /// One variant of a [`VariationsResolution`]: an inner [`LockfileResolution`]
 /// paired with the host triples it covers.
 ///
@@ -255,6 +241,16 @@ pub struct PlatformAssetResolution {
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct VariationsResolution {
     pub variants: Vec<PlatformAssetResolution>,
+    /// The archive a host no variant matches installs: a registry package's
+    /// primary archive. Absent for runtimes, which fail on such a host, and
+    /// for a package version without a primary.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fallback: Option<Box<LockfileResolution>>,
+    /// The registry revision of a package's archives: each variant is at
+    /// `<registry>/<name>@<version>+r<revision>/variants/<tag>`. Absent for
+    /// a version that is not revision-aware, and for runtimes.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub revision: Option<u64>,
 }
 
 /// The `type` tag of a [`CustomResolution`]. Any tag other than the
@@ -331,6 +327,11 @@ pub struct PlatformSelector {
     pub os: String,
     pub cpu: String,
     pub libc: Option<String>,
+    /// The versions a package variant's floors and ABI are matched
+    /// against: `None` for the running host, probed only when a variant has
+    /// a floor or ABI, and known values for another platform. Runtimes do
+    /// not read them.
+    pub floors: Option<pnpm_platform_variants::HostFloors>,
 }
 
 /// Pick the variant whose target list contains the host triple, or
@@ -461,6 +462,9 @@ impl LockfileResolution {
         version: &str,
         opts: LockfileFormOptions<'_>,
     ) -> Result<LockfileResolution, LockfileFormError> {
+        if let LockfileResolution::Variations(variations) = self {
+            return variations.to_lockfile_form(name, version, opts).map(LockfileResolution::from);
+        }
         let LockfileResolution::Tarball(tarball) = self else { return Ok(self.clone()) };
         let Some(integrity) = tarball.integrity.as_ref() else {
             return if tarball.revision.is_some() {
@@ -625,6 +629,7 @@ mod tests;
 
 mod registry;
 mod revision_url;
+mod variants;
 
 use registry::is_canonical_registry_tarball_url;
 

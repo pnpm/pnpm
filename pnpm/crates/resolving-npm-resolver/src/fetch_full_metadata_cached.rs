@@ -29,8 +29,8 @@ use crate::{
     },
     metadata_cache_policy::{DocumentKind, MirrorWrite},
     mirror::{
-        ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, MetaHeaders, clear_meta,
-        find_legacy_pkg_mirror, get_pkg_mirror_path, load_meta, load_meta_async,
+        ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, MetaHeaders, PNPR_META_DIR,
+        clear_meta, find_legacy_pkg_mirror, get_pkg_mirror_path, load_meta, load_meta_async,
         load_meta_headers_async, save_meta_indexed_with_headers, save_meta_ndjson_with_headers,
         scoped_meta_dir,
     },
@@ -55,6 +55,10 @@ pub struct FetchFullMetadataCachedOptions<'a> {
     /// When full metadata is requested, use pnpm's filtered metadata
     /// mirror and persist the filtered packument shape.
     pub filter_metadata: bool,
+    /// Ask for pnpr's own package document instead of the abbreviated one,
+    /// and keep it in [`PNPR_META_DIR`]. Set for a registry declared
+    /// `serverType: pnpr`; ignored when full metadata is requested.
+    pub pnpr_format: bool,
     /// When true, use only the on-disk metadata mirror and never reach
     /// the registry.
     pub offline: bool,
@@ -312,7 +316,7 @@ impl FetchAttempt<'_> {
         MetadataRequestOptions {
             pkg_name: self.pkg_name,
             url: self.url,
-            accept: self.kind.accept(),
+            accept: self.kind.accept(opts.pnpr_format),
             priority: opts.priority,
             etag: revalidation.etag,
             modified: revalidation.modified,
@@ -340,6 +344,8 @@ fn mirror_path_for(
 ) -> Option<PathBuf> {
     let base_meta_dir = if opts.full_metadata {
         if opts.filter_metadata { FULL_FILTERED_META_DIR } else { FULL_META_DIR }
+    } else if opts.pnpr_format {
+        PNPR_META_DIR
     } else {
         ABBREVIATED_META_DIR
     };

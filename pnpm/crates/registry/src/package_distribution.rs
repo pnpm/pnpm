@@ -92,6 +92,42 @@ pub struct PnprDistribution {
         skip_serializing_if = "Option::is_none"
     )]
     pub bins: Option<BTreeMap<String, PackageBin>>,
+    /// Platform variants of the version: archives the installer links in
+    /// place of the primary on a matching host.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub variants: Option<Vec<PnprVariant>>,
+    /// `"external"` when a split packument left this version's dist facts
+    /// (integrities, sizes, bins) in its immutable version document.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub details: Option<String>,
+}
+
+impl PackageDistribution {
+    /// Whether the version's details are in its version document rather than
+    /// in the packument that listed it.
+    #[must_use]
+    pub fn is_external(&self) -> bool {
+        self.pnpr.as_ref().and_then(|pnpr| pnpr.details.as_deref()) == Some("external")
+    }
+}
+
+/// One platform variant under `dist.pnpr.variants`.
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PnprVariant {
+    pub tag: String,
+    /// The platforms the variant runs on, in the structured form of
+    /// `pnpm_platform_variants::Platform`. Kept as JSON so that a platform
+    /// with a field this client does not know makes only its variant
+    /// unselectable, not the version unreadable.
+    pub platforms: Vec<serde_json::Value>,
+    /// Absent from a split packument, which keeps it in the version document.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub integrity: String,
+    /// The fields of the variant's manifest that differ from the version's;
+    /// each replaces the version's field, and `null` removes it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub manifest: Option<serde_json::Map<String, serde_json::Value>>,
 }
 
 /// Container for the attestation evidence a version exposes on its

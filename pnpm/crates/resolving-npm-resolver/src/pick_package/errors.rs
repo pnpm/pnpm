@@ -61,6 +61,16 @@ pub enum PickPackageError {
     /// [`crate::fetch_full_metadata_cached()`].
     #[diagnostic(transparent)]
     Fetch(FetchMetadataError),
+    /// `ERR_PNPM_VERSION_DOCUMENT`: a split packument left the picked
+    /// version in its version document, and that could not be read.
+    #[display("Failed to read the version document {url}: {error}")]
+    #[diagnostic(code(ERR_PNPM_VERSION_DOCUMENT))]
+    VersionDocument {
+        #[error(not(source))]
+        url: String,
+        #[error(not(source))]
+        error: String,
+    },
 }
 
 impl From<PickPackageFromMetaError> for PickPackageError {

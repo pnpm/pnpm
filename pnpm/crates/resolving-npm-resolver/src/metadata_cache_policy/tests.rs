@@ -73,9 +73,11 @@ fn document_kind_follows_the_mirror_slot_and_its_stored_tags() {
 
 #[test]
 fn only_the_abbreviated_document_is_requested_as_abbreviated() {
-    assert_eq!(DocumentKind::Abbreviated.accept(), ACCEPT_ABBREVIATED_DOC);
-    assert_eq!(DocumentKind::Full.accept(), ACCEPT_FULL_DOC);
-    assert_eq!(DocumentKind::FullInAbbreviatedMirror.accept(), ACCEPT_FULL_DOC);
+    assert_eq!(DocumentKind::Abbreviated.accept(false), ACCEPT_ABBREVIATED_DOC);
+    assert_eq!(DocumentKind::Abbreviated.accept(true), crate::fetch_full_metadata::ACCEPT_PNPR_DOC);
+    assert_eq!(DocumentKind::Full.accept(true), ACCEPT_FULL_DOC);
+    assert_eq!(DocumentKind::Full.accept(false), ACCEPT_FULL_DOC);
+    assert_eq!(DocumentKind::FullInAbbreviatedMirror.accept(false), ACCEPT_FULL_DOC);
 }
 
 #[test]

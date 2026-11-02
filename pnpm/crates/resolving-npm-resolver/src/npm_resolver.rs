@@ -20,6 +20,7 @@ pub use resolution_result::normalize_tarball_url;
 pub(crate) use resolution_result::{RegistryResolutionSource, ResolvedSpecifier, dist_integrity};
 
 pub(crate) use package_revision::validate_revision_selector;
+pub(crate) use version_document::with_version_document;
 
 pub(crate) use guarded_pick::{
     PickFromRegistryOptions, PickedFromRegistry, RegistryPick, pick_from_registry_with_guard,
@@ -28,8 +29,10 @@ pub(crate) use guarded_pick::{
 
 pub(crate) use workspace_pick::{no_matching_version, swallowed_as_no_latest};
 
+mod platform_variants;
 mod release_policy;
 mod resolution_result;
+mod version_document;
 use release_policy::latest_allowed_by_policy;
 use resolution_result::{
     calculated_specifier, is_not_found_error, registry_response_status, trust_check_for_pick,
@@ -375,6 +378,7 @@ impl<Cache: PackageMetaCache> RegistryMetadataClient<Cache> {
         store_view: Option<&'a OfflineStoreView>,
     ) -> PickPackageContext<'a, Cache> {
         PickPackageContext {
+            registry_options: Some(&format.registry_options_by_url),
             full_metadata: format.full_metadata,
             needs_full_metadata_for: format.needs_full_metadata_for.as_deref(),
             filter_metadata: format.filter_metadata,

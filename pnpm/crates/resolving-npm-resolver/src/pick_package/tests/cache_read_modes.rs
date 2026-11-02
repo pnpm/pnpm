@@ -25,6 +25,7 @@ async fn filtered_full_metadata_reads_pnpm_jsonl_mirror_for_lowest_pick() {
     let meta_cache = InMemoryPackageMetaCache::default();
     let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
+        registry_options: None,
         full_metadata: true,
         needs_full_metadata_for: None,
         filter_metadata: true,
@@ -74,6 +75,7 @@ async fn warm_in_memory_cache_skips_network() {
     meta_cache.set(format!("{registry}\x00acme"), std::sync::Arc::new(preloaded));
 
     let ctx = PickPackageContext {
+        registry_options: None,
         full_metadata: false,
         needs_full_metadata_for: None,
         filter_metadata: false,
@@ -122,6 +124,7 @@ async fn normal_range_fetches_when_cached_meta_is_missing_lockfile_version() {
     let meta_cache = InMemoryPackageMetaCache::default();
     let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
+        registry_options: None,
         full_metadata: false,
         needs_full_metadata_for: None,
         filter_metadata: false,
@@ -180,6 +183,7 @@ async fn offline_with_mirror_picks_from_disk() {
     let meta_cache = InMemoryPackageMetaCache::default();
     let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
+        registry_options: None,
         full_metadata: false,
         needs_full_metadata_for: None,
         filter_metadata: false,
@@ -216,6 +220,7 @@ async fn offline_without_mirror_errors() {
     let meta_cache = InMemoryPackageMetaCache::default();
     let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
+        registry_options: None,
         full_metadata: false,
         needs_full_metadata_for: None,
         filter_metadata: false,
@@ -258,6 +263,7 @@ async fn offline_without_mirror_names_the_legacy_mirror_when_it_predates_the_ren
     let meta_cache = InMemoryPackageMetaCache::default();
     let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
+        registry_options: None,
         full_metadata: false,
         needs_full_metadata_for: None,
         filter_metadata: false,
@@ -318,6 +324,7 @@ async fn offline_promotes_disk_loaded_packument_into_memory_cache() {
     let meta_cache = InMemoryPackageMetaCache::default();
     let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
+        registry_options: None,
         full_metadata: false,
         needs_full_metadata_for: None,
         filter_metadata: false,
@@ -378,6 +385,7 @@ async fn prefer_offline_promotes_disk_loaded_packument_into_memory_cache() {
     let meta_cache = InMemoryPackageMetaCache::default();
     let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
+        registry_options: None,
         full_metadata: false,
         needs_full_metadata_for: None,
         filter_metadata: false,
@@ -443,6 +451,7 @@ async fn stale_disk_promoted_entry_falls_back_to_registry_under_prefer_offline()
     let meta_cache = InMemoryPackageMetaCache::default();
     let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
+        registry_options: None,
         full_metadata: false,
         needs_full_metadata_for: None,
         filter_metadata: false,
@@ -502,6 +511,7 @@ async fn version_spec_with_mirror_takes_fast_path() {
     let meta_cache = InMemoryPackageMetaCache::default();
     let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
+        registry_options: None,
         full_metadata: false,
         needs_full_metadata_for: None,
         filter_metadata: false,
@@ -570,6 +580,7 @@ async fn version_spec_missing_in_mirror_fetches() {
     let meta_cache = InMemoryPackageMetaCache::default();
     let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
+        registry_options: None,
         full_metadata: false,
         needs_full_metadata_for: None,
         filter_metadata: false,
@@ -615,6 +626,7 @@ async fn dry_run_skips_in_memory_cache() {
     let meta_cache = InMemoryPackageMetaCache::default();
     let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
+        registry_options: None,
         full_metadata: false,
         needs_full_metadata_for: None,
         filter_metadata: false,
@@ -708,6 +720,7 @@ async fn in_memory_cache_does_not_leak_across_registries() {
     let meta_cache = InMemoryPackageMetaCache::default();
     let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
+        registry_options: None,
         full_metadata: false,
         needs_full_metadata_for: None,
         filter_metadata: false,
@@ -771,6 +784,7 @@ async fn default_pick_targets_abbreviated_endpoint_and_mirror() {
     let meta_cache = InMemoryPackageMetaCache::default();
     let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
+        registry_options: None,
         full_metadata: false,
         needs_full_metadata_for: None,
         filter_metadata: false,
@@ -807,6 +821,72 @@ async fn default_pick_targets_abbreviated_endpoint_and_mirror() {
 }
 
 #[tokio::test]
+async fn a_pnpr_registry_is_asked_for_pnprs_format_and_mirrored_apart() {
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/acme")
+        .match_header("accept", crate::fetch_full_metadata::ACCEPT_PNPR_DOC)
+        .with_status(200)
+        .with_header("content-type", "application/vnd.pnpr.install-v2+json")
+        .with_body(
+            r#"{ "name": "acme", "distTags": { "latest": "1.0.0" }, "versions": { "1.0.0": { "integrity": "sha512-a", "manifest": {} } } }"#,
+        )
+        .expect(1)
+        .create_async()
+        .await;
+
+    let cache_dir = TempDir::new().expect("tempdir");
+    let registry = format!("{}/", server.url());
+    let registry_options = std::collections::BTreeMap::from([(
+        registry.clone(),
+        pnpm_lockfile::RegistryOptions {
+            server_type: Some(pnpm_lockfile::RegistryServerType::Pnpr),
+            ..Default::default()
+        },
+    )]);
+    let http_client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let meta_cache = InMemoryPackageMetaCache::default();
+    let fetch_locker = shared_packument_fetch_locker();
+    let ctx = PickPackageContext {
+        registry_options: Some(&registry_options),
+        full_metadata: false,
+        needs_full_metadata_for: None,
+        filter_metadata: false,
+        cache_policy: crate::MetadataCachePolicy {
+            network: pnpm_config::NetworkPolicy::Online,
+            ignore_missing_time_field: false,
+        },
+        store_view: None,
+        metadata: crate::MetadataRequestContext {
+            meta_cache: &meta_cache,
+            fetch_locker: &fetch_locker,
+            cache_dir: Some(cache_dir.path()),
+            http: crate::MetadataHttpClient {
+                http_client: &http_client,
+                auth_headers: &auth_headers,
+                retry_opts: RetryOpts::default(),
+            },
+        },
+    };
+
+    let result = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &default_opts(&registry))
+        .await
+        .expect("ok");
+    assert_eq!(result.picked_package.expect("picked").version.to_string(), "1.0.0");
+    mock.assert_async().await;
+
+    let pnpr_path =
+        get_pkg_mirror_path(cache_dir.path(), crate::mirror::PNPR_META_DIR, &registry, "acme")
+            .expect("path");
+    assert!(pnpr_path.exists(), "pnpr's document is mirrored apart");
+    let abbrev_path =
+        get_pkg_mirror_path(cache_dir.path(), ABBREVIATED_META_DIR, &registry, "acme")
+            .expect("path");
+    assert!(!abbrev_path.exists(), "npm's abbreviated mirror is left alone");
+}
+
+#[tokio::test]
 async fn optional_opt_forces_full_metadata_endpoint() {
     let mut server = mockito::Server::new_async().await;
     let package_body = PACKAGE_BODY.replacen(
@@ -830,6 +910,7 @@ async fn optional_opt_forces_full_metadata_endpoint() {
     let meta_cache = InMemoryPackageMetaCache::default();
     let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
+        registry_options: None,
         full_metadata: false,
         needs_full_metadata_for: None,
         filter_metadata: false,

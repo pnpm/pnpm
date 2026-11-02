@@ -269,6 +269,7 @@ pub(crate) fn pick_package_context<'a>(
     store_view: Option<&'a OfflineStoreView>,
 ) -> PickPackageContext<'a, InMemoryPackageMetaCache> {
     PickPackageContext {
+        registry_options: None,
         full_metadata: policy.full_metadata,
         needs_full_metadata_for: Some(policy.needs_full_metadata_for.as_ref()),
         filter_metadata: policy.filter_metadata,

@@ -7,9 +7,11 @@ use super::{
 
 /// The tarball's revision, when the registry serves one: it must pair
 /// with a `<registry>/<name>@<version>+r<revision>` URL and complete sha512
-/// integrity, and a URL on the revision route must carry a revision.
+/// integrity. A revision URL without a revision is an ordinary tarball URL:
+/// npm's documents served by pnpr give the selected revision that way.
 pub(super) fn tarball_revision(
     picked: &PackageVersion,
+    tarball: &str,
     integrity: Option<&Integrity>,
     registry: &str,
 ) -> Result<Option<TarballRevision>, ResolveError> {
@@ -19,7 +21,7 @@ pub(super) fn tarball_revision(
         .is_some_and(|(revision, integrity)| {
             has_complete_sha512_digest(integrity)
                 && is_revision_registry_tarball_url(
-                    &picked.dist.tarball,
+                    tarball,
                     &picked.name,
                     &picked.version.to_string(),
                     revision,
@@ -28,15 +30,9 @@ pub(super) fn tarball_revision(
         });
     match (revision, revision_addressed) {
         (Some(_), false) => Err(Box::new(InvalidTarballRevisionMetadataError::new(
-            &picked.dist.tarball,
+            tarball,
             "the URL does not match its revision, complete sha512 integrity, and registry",
         ))),
-        (None, _) if is_on_revision_tarball_route(&picked.dist.tarball, registry) => {
-            Err(Box::new(InvalidTarballRevisionMetadataError::new(
-                &picked.dist.tarball,
-                "the URL is on the registry's revision route but has no revision",
-            )))
-        }
         _ => Ok(revision),
     }
 }
@@ -64,7 +60,13 @@ pub(super) fn select_package_revision<'a>(
     spec: &RegistryPackageSpec,
     registry: &str,
 ) -> Result<Cow<'a, PackageVersion>, ResolveError> {
-    validate_current_package_revision(picked, registry)?;
+    // pnpr's own document marks the revision without a history or a URL: the
+    // URL is rebuilt from it, and other revisions are in release records.
+    let from_pnpr_document =
+        picked.dist.revisions.is_none() && picked.dist.tarball.is_empty();
+    if !from_pnpr_document {
+        validate_current_package_revision(picked, registry)?;
+    }
     let Some(selector) = spec.revision.as_ref() else {
         return Ok(Cow::Borrowed(picked));
     };
@@ -82,9 +84,11 @@ pub(super) fn select_package_revision<'a>(
         }) as ResolveError
     };
     // A version outside the revision protocol answers only for revision 0,
-    // which leaves its ordinary resolution unchanged.
+    // which leaves its ordinary resolution unchanged. A version from pnpr's
+    // own document has no history: a requested revision was already read
+    // from its release record.
     if picked.dist.revisions.is_none() {
-        if requested == 0 {
+        if answers_for_revision(picked, requested, registry) {
             return Ok(Cow::Borrowed(picked));
         }
         return Err(no_matching_revision());
@@ -127,6 +131,28 @@ pub(super) fn apply_revision_record<'a>(
     serde_json::from_value(selected)
         .map(Cow::Owned)
         .map_err(|error| malformed_revision_history(picked, error.to_string()))
+}
+
+/// Whether a version without a revision history is `requested`: its marked
+/// revision, else the revision its tarball URL names, else the original. npm's
+/// documents served by pnpr give the selected revision only by its URL.
+fn answers_for_revision(picked: &PackageVersion, requested: u64, registry: &str) -> bool {
+    if let Some(current) = picked.dist.revision.as_ref() {
+        return current.as_u64() == Some(requested);
+    }
+    if !is_on_revision_tarball_route(&picked.dist.tarball, registry) {
+        return requested == 0;
+    }
+    TarballRevision::try_from(requested)
+        .is_ok_and(|requested| {
+            is_revision_registry_tarball_url(
+                &picked.dist.tarball,
+                &picked.name,
+                &picked.version.to_string(),
+                requested,
+                registry,
+            )
+        })
 }
 
 pub(crate) fn validate_revision_selector(spec: &RegistryPackageSpec) -> Result<(), ResolveError> {

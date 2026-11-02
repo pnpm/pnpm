@@ -62,7 +62,12 @@ fn binary_resolution(url: &str) -> LockfileResolution {
 }
 
 fn target(os: &str, cpu: &str, libc: Option<&str>) -> PlatformAssetTarget {
-    PlatformAssetTarget { os: os.to_string(), cpu: cpu.to_string(), libc: libc.map(str::to_string) }
+    PlatformAssetTarget {
+        os: os.to_string(),
+        cpu: cpu.to_string(),
+        libc: libc.map(str::to_string),
+        ..PlatformAssetTarget::default()
+    }
 }
 
 fn variant(url: &str, targets: Vec<PlatformAssetTarget>) -> PlatformAssetResolution {
@@ -70,7 +75,12 @@ fn variant(url: &str, targets: Vec<PlatformAssetTarget>) -> PlatformAssetResolut
 }
 
 fn selector(os: &str, cpu: &str, libc: Option<&str>) -> PlatformSelector {
-    PlatformSelector { os: os.to_string(), cpu: cpu.to_string(), libc: libc.map(str::to_string) }
+    PlatformSelector {
+        os: os.to_string(),
+        cpu: cpu.to_string(),
+        libc: libc.map(str::to_string),
+        floors: None,
+    }
 }
 
 const SHA512: &str = "sha512-gf6ZldcfCDyNXPRiW3lQjEP1Z9rrUM/4Cn7BZbv3SdTA82zxWRP8OmLwvGR974uuENhGCFgFdN11z3n1Ofpprg==";
@@ -111,6 +121,8 @@ mod lockfile_deserialize_tarball_resolution;
 mod lockfile_deserialize_rejects_malformed_builtin;
 
 mod behavior;
+
+mod variant_selection;
 
 mod streaming;
 

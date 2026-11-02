@@ -19,6 +19,13 @@ pub struct PickPackageContext<'a, Cache: PackageMetaCache> {
     /// the others do. The mirror path and cache key below are already keyed by
     /// registry, so two registries may disagree within one install.
     pub needs_full_metadata_for: Option<&'a pnpm_config::NeedsFullMetadataFn>,
+    /// The declared per-registry settings, keyed like
+    /// `Config::registry_options_by_url`. A registry declared
+    /// `serverType: pnpr` is asked for pnpr's own package document, which is
+    /// cached apart from npm's documents. `None` asks every registry for
+    /// npm's documents.
+    pub registry_options:
+        Option<&'a std::collections::BTreeMap<String, pnpm_lockfile::RegistryOptions>>,
     /// When full metadata is forced, use pnpm's filtered full-metadata
     /// mirror and filtered packument shape.
     pub filter_metadata: bool,

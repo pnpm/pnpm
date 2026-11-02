@@ -156,6 +156,15 @@ impl Clone for VersionSlot {
 }
 
 impl VersionSlot {
+    fn from_raw(raw: Box<RawValue>) -> Self {
+        VersionSlot {
+            source: FragmentSource::Raw(Arc::from(raw)),
+            parsed: OnceLock::new(),
+            deprecated: OnceLock::new(),
+            trust: OnceLock::new(),
+        }
+    }
+
     fn from_parsed(manifest: PackageVersion) -> Self {
         VersionSlot {
             source: FragmentSource::None,
@@ -419,6 +428,18 @@ impl PackageVersions {
         Some(&self.slots[index].1)
     }
 
+    /// Add versions from their JSON fragments. A version already listed
+    /// keeps its fragment.
+    pub fn extend_raw(&mut self, fragments: impl IntoIterator<Item = (String, Box<RawValue>)>) {
+        let added: Vec<_> = fragments
+            .into_iter()
+            .filter(|(version, _)| self.slot(version).is_none())
+            .map(|(version, raw)| (version, VersionSlot::from_raw(raw)))
+            .collect();
+        self.slots.extend(added);
+        self.slots.sort_unstable_by(|left, right| left.0.cmp(&right.0));
+    }
+
     fn from_slots(mut slots: Vec<(String, VersionSlot)>) -> Self {
         if !slots.is_sorted_by(|left, right| left.0 <= right.0) {
             slots.sort_unstable_by(|left, right| left.0.cmp(&right.0));
@@ -452,17 +473,7 @@ impl<'de> Deserialize<'de> for PackageVersions {
         Ok(PackageVersions::from_slots(
             raw_map
                 .into_iter()
-                .map(|(version, raw)| {
-                    (
-                        version,
-                        VersionSlot {
-                            source: FragmentSource::Raw(Arc::from(raw)),
-                            parsed: OnceLock::new(),
-                            deprecated: OnceLock::new(),
-                            trust: OnceLock::new(),
-                        },
-                    )
-                })
+                .map(|(version, raw)| (version, VersionSlot::from_raw(raw)))
                 .collect(),
         ))
     }

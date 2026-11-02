@@ -15,6 +15,7 @@ pnpm-package-name = { workspace = true }
 pnpm-config = { workspace = true }
 pnpm-deps-path = { workspace = true }
 pnpm-lockfile = { workspace = true }
+pnpm-platform-variants = { workspace = true }
 pnpm-network = { workspace = true }
 pnpm-registry = { workspace = true }
 pnpm-resolving-jsr-specifier-parser = { workspace = true }

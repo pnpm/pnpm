@@ -7,7 +7,7 @@ extern crate pnpm_http as reqwest;
 
 pub use package::{DerivedPackuments, Package};
 pub use package_distribution::{
-    AttestationsDist, PackageDistribution, PnprDistribution, ProvenanceMeta,
+    AttestationsDist, PackageDistribution, PnprDistribution, PnprVariant, ProvenanceMeta,
 };
 pub use package_tag::PackageTag;
 pub use package_version::{
@@ -16,6 +16,7 @@ pub use package_version::{
 };
 pub use package_versions::{MirrorFile, PackageVersions, read_exact_at};
 pub use range_spec_style::{RangeSpecGranularity, RangeSpecStyle};
+pub use split_index::{parse_install_v2, parse_release_record};
 
 mod package;
 mod package_distribution;
@@ -23,6 +24,7 @@ mod package_tag;
 mod package_version;
 mod package_versions;
 mod range_spec_style;
+mod split_index;
 mod wire_tolerance;
 
 use derive_more::{Display, Error, From};

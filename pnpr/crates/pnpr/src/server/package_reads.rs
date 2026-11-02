@@ -3,9 +3,9 @@ use super::{
     RegistryError, Resolved, Response, Value, addressed_registry, authorize, caller_scoped,
     describe_tar, dist_view, ensure_osv_allowed, extract_upstream_version_manifest,
     extract_version_manifest, is_osv_vulnerable_packument_version, is_tar_registry, not_found,
-    packument_bytes_response, packument_response, read_source_packument, registry_endpoint,
-    resolve_version_or_tag, serve_packument_via_upstream, serve_tarball_via_upstream,
-    tar_integrities_of, tarball_response,
+    packument_response, publishing::variants::describe_version_variants, read_source_packument,
+    registry_endpoint, resolve_version_or_tag, serve_packument_via_upstream,
+    serve_tarball_via_upstream, tar_integrities_of, tarball_response,
 };
 use axum::response::IntoResponse;
 
@@ -40,22 +40,23 @@ pub(super) async fn serve_version_manifest(
         return not_found();
     };
     let base = registry_endpoint(state, Ecosystem::Npm, registry);
+    let address = super::split_packuments::record_address(version_or_tag);
     let response =
-        serve_registry_version_manifest(state, identity, &target, raw_name, version_or_tag, &base)
-            .await;
+        serve_registry_version_manifest(state, identity, &target, raw_name, address, &base).await;
     caller_scoped(state, Ecosystem::Npm, registry, Some(raw_name), response)
 }
 
 /// Serve a single version's manifest (`GET <base>/<pkg>/<version-or-tag>`)
 /// through the registry graph. Resolves the package to its one concrete origin,
 /// loads that origin's packument, and extracts the requested version with its
-/// `dist.tarball` rewritten onto the same origin's base.
+/// `dist.tarball` rewritten onto the same origin's base. A revision in the
+/// address asks for that revision's release record.
 pub(super) async fn serve_registry_version_manifest(
     state: &AppState,
     identity: &Identity,
     registry: &str,
     raw_name: &str,
-    version_or_tag: &str,
+    (version_or_tag, revision): (&str, Option<u64>),
     tarball_base: &str,
 ) -> Response {
     let (name, resolved_source, packument) =
@@ -84,10 +85,12 @@ pub(super) async fn serve_registry_version_manifest(
     if let Some(table) = view.tar_integrities {
         describe_tar(&mut manifest, table, view.tar_registry);
     }
-    match serde_json::to_vec(&manifest) {
-        Ok(body) => packument_bytes_response(body, "application/json", None),
-        Err(err) => RegistryError::Json(err).into_response(),
+    // A release record is part of pnpr's own format, so it describes the
+    // variants; npm's version document does not.
+    if revision.is_some() {
+        describe_version_variants(&mut manifest);
     }
+    super::split_packuments::version_document_response(manifest, revision)
 }
 
 /// The packument a version-manifest request reads, with the source it
