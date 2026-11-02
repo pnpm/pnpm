@@ -113,6 +113,7 @@ async fn assert_cache_loss_after_304_recovers(
     let http_client = ThrottledClient::default();
     let auth_headers = AuthHeaders::default();
     let opts = FetchFullMetadataCachedOptions {
+        pnpr_format: false,
         registry: &registry,
         cache_dir: Some(cache.path()),
         full_metadata,

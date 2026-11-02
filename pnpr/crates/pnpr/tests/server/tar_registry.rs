@@ -53,6 +53,30 @@ async fn get(
         .unwrap()
 }
 
+/// A version's entry in pnpr's own package document.
+async fn pnpr_entry(app: &axum::Router, uri: &str, version: &str) -> serde_json::Value {
+    let request = Request::get(uri)
+        .header(header::ACCEPT, "application/vnd.pnpr.install-v2+json")
+        .body(Body::empty())
+        .unwrap();
+    let response = app
+        .clone()
+        .oneshot(request)
+        .await
+        .unwrap();
+    body_json(response.into_body()).await["versions"][version].clone()
+}
+
+/// pnpr's facts about an archive in an entry or release record, which npm's
+/// documents do not carry.
+fn pnpr_facts(entry: &serde_json::Value) -> serde_json::Value {
+    let facts = ["requiresBuild", "bins", "variants"]
+        .into_iter()
+        .filter_map(|field| Some((field.to_string(), entry.get(field)?.clone())))
+        .collect::<serde_json::Map<_, _>>();
+    serde_json::Value::Object(facts)
+}
+
 #[tokio::test]
 async fn a_tar_registry_describes_and_serves_the_tar_of_a_hosted_tgz() {
     let tmp = TempDir::new().unwrap();
@@ -80,7 +104,10 @@ async fn a_tar_registry_describes_and_serves_the_tar_of_a_hosted_tgz() {
     assert_eq!(dist["integrity"], sha512_integrity(&tar));
     assert_eq!(dist["fileCount"], serde_json::json!(1));
     assert_eq!(dist["unpackedSize"], serde_json::json!(41));
-    assert_eq!(dist["pnpr"]["requiresBuild"], serde_json::json!(false));
+    assert!(dist.get("pnpr").is_none(), "npm's documents carry no pnpr facts");
+    let entry = pnpr_entry(&app, "/npm/~zstd/@acme%2Fwidget", "1.0.0").await;
+    assert_eq!(entry["requiresBuild"], serde_json::json!(false));
+    assert_eq!(entry["integrity"], sha512_integrity(&tar));
     for omitted in ["tarball", "shasum", "signatures"] {
         assert!(dist.get(omitted).is_none(), "a tar registry omits dist.{omitted}");
     }
@@ -105,10 +132,9 @@ async fn a_tar_registry_describes_and_serves_the_tar_of_a_hosted_tgz() {
     assert_eq!(packument["versions"]["1.0.0"]["dist"]["integrity"], sha512_integrity(&tgz));
     assert_eq!(packument["versions"]["1.0.0"]["dist"]["fileCount"], serde_json::json!(1));
     assert_eq!(packument["versions"]["1.0.0"]["dist"]["unpackedSize"], serde_json::json!(41));
-    assert_eq!(
-        packument["versions"]["1.0.0"]["dist"]["pnpr"]["requiresBuild"],
-        serde_json::json!(false),
-    );
+    assert!(packument["versions"]["1.0.0"]["dist"].get("pnpr").is_none());
+    let entry = pnpr_entry(&app, "/npm/@acme%2Fwidget", "1.0.0").await;
+    assert_eq!(entry["requiresBuild"], serde_json::json!(false));
 }
 
 #[tokio::test]
@@ -508,14 +534,20 @@ async fn every_document_and_route_form_of_a_tar_registry_describes_the_tar() {
 
     let version =
         body_json(get(&app, "/npm/~zstd/@acme%2Fwidget/1.0.0", None).await.into_body()).await;
-    dbg!(&version["dist"]);
     assert_eq!(version["dist"]["integrity"], sha512_integrity(&tar));
-    assert_eq!(version["dist"]["pnpr"]["requiresBuild"], serde_json::json!(false));
+    assert!(version["dist"].get("pnpr").is_none());
     assert!(version["dist"].get("tarball").is_none());
+    let record =
+        body_json(get(&app, "/npm/~zstd/@acme%2Fwidget/1.0.0+r0", None).await.into_body()).await;
+    assert_eq!(record["integrity"], sha512_integrity(&tar));
+    assert_eq!(record["requiresBuild"], serde_json::json!(false));
 
     let tgz_version =
         body_json(get(&app, "/npm/@acme%2Fwidget/1.0.0", None).await.into_body()).await;
-    assert_eq!(tgz_version["dist"]["pnpr"]["requiresBuild"], serde_json::json!(false));
+    assert!(tgz_version["dist"].get("pnpr").is_none());
+    let tgz_record =
+        body_json(get(&app, "/npm/@acme%2Fwidget/1.0.0+r0", None).await.into_body()).await;
+    assert_eq!(tgz_record["requiresBuild"], serde_json::json!(false));
 
     let abbreviated = app
         .clone()
@@ -529,9 +561,8 @@ async fn every_document_and_route_form_of_a_tar_registry_describes_the_tar() {
         .unwrap();
     let abbreviated = body_json(abbreviated.into_body()).await;
     let dist = &abbreviated["versions"]["1.0.0"]["dist"];
-    dbg!(dist);
     assert_eq!(dist["integrity"], sha512_integrity(&tar));
-    assert_eq!(dist["pnpr"]["requiresBuild"], serde_json::json!(false));
+    assert!(dist.get("pnpr").is_none());
     assert!(dist.get("tarball").is_none());
 
     let tgz_abbreviated = app
@@ -545,10 +576,7 @@ async fn every_document_and_route_form_of_a_tar_registry_describes_the_tar() {
         .await
         .unwrap();
     let tgz_abbreviated = body_json(tgz_abbreviated.into_body()).await;
-    assert_eq!(
-        tgz_abbreviated["versions"]["1.0.0"]["dist"]["pnpr"]["requiresBuild"],
-        serde_json::json!(false),
-    );
+    assert!(tgz_abbreviated["versions"]["1.0.0"]["dist"].get("pnpr").is_none());
 
     let encoded = get(&app, "/npm/~zstd/@acme%2Fwidget@1.0.0", None).await;
     assert_eq!(encoded.status(), StatusCode::OK);
@@ -639,11 +667,13 @@ async fn spoofed_dist_pnpr_is_stripped_and_replaced_by_tar_verified_requires_bui
     let dist = &packument["versions"]["1.0.0"]["dist"];
     assert_eq!(dist["fileCount"], serde_json::json!(2));
     assert_eq!(dist["unpackedSize"], serde_json::json!(43));
-    assert_eq!(dist["pnpr"], serde_json::json!({ "requiresBuild": true }));
+    assert!(dist.get("pnpr").is_none());
+    let entry = pnpr_entry(&app, "/npm/@acme%2Fnative", "1.0.0").await;
+    assert_eq!(pnpr_facts(&entry), serde_json::json!({ "requiresBuild": true }));
 
-    // Round-tripping the served packument (which carries `dist.pnpr`) through
-    // the partial-unpublish `PUT /:pkg/-rev/:rev` endpoint must strip
-    // `dist.pnpr` rather than rejecting it as an extra immutable `dist` field.
+    // Round-tripping the served packument through the partial-unpublish
+    // `PUT /:pkg/-rev/:rev` endpoint must succeed, and a `dist.pnpr` sent
+    // back is stripped rather than rejected as an extra immutable field.
     let rewrite = app
         .clone()
         .oneshot(
@@ -678,7 +708,9 @@ async fn spoofed_dist_pnpr_is_stripped_and_replaced_by_tar_verified_requires_bui
     let after_dist = &after["versions"]["1.0.0"]["dist"];
     assert_eq!(after_dist["fileCount"], serde_json::json!(2));
     assert_eq!(after_dist["unpackedSize"], serde_json::json!(43));
-    assert_eq!(after_dist["pnpr"], serde_json::json!({ "requiresBuild": true }));
+    assert!(after_dist.get("pnpr").is_none());
+    let after_entry = pnpr_entry(&app, "/npm/@acme%2Fnative", "1.0.0").await;
+    assert_eq!(pnpr_facts(&after_entry), serde_json::json!({ "requiresBuild": true }));
 
     // Simulate a legacy hosted packument on disk that was published before
     // `fileCount`/`unpackedSize` were persisted in `package.json`, while
@@ -758,11 +790,13 @@ async fn published_tar_surfaces_precalculated_bins_and_shebang_runtimes_in_dist_
     });
 
     let packument = body_json(get(&app, "/npm/@acme%2Fcli", None).await.into_body()).await;
-    assert_eq!(packument["versions"]["1.0.0"]["dist"]["pnpr"], expected_pnpr);
+    assert!(packument["versions"]["1.0.0"]["dist"].get("pnpr").is_none());
+    let entry = pnpr_entry(&app, "/npm/@acme%2Fcli", "1.0.0").await;
+    assert_eq!(pnpr_facts(&entry), expected_pnpr);
 
-    let version =
-        body_json(get(&app, "/npm/~zstd/@acme%2Fcli/1.0.0", None).await.into_body()).await;
-    assert_eq!(version["dist"]["pnpr"], expected_pnpr);
+    let record =
+        body_json(get(&app, "/npm/~zstd/@acme%2Fcli/1.0.0+r0", None).await.into_body()).await;
+    assert_eq!(pnpr_facts(&record), expected_pnpr);
 }
 
 #[tokio::test]
@@ -798,9 +832,6 @@ async fn pathological_bin_counts_omit_dist_pnpr_bins_and_preserve_requires_build
         .unwrap();
     assert_eq!(publish.status(), StatusCode::CREATED);
 
-    let packument = body_json(get(&app, "/npm/@acme%2Fmany-bins", None).await.into_body()).await;
-    assert_eq!(
-        packument["versions"]["1.0.0"]["dist"]["pnpr"],
-        serde_json::json!({ "requiresBuild": false }),
-    );
+    let entry = pnpr_entry(&app, "/npm/@acme%2Fmany-bins", "1.0.0").await;
+    assert_eq!(pnpr_facts(&entry), serde_json::json!({ "requiresBuild": false }));
 }

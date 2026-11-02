@@ -8,8 +8,8 @@ use pnpm_registry::Package;
 
 use crate::{
     mirror::{
-        ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, get_pkg_mirror_path,
-        scoped_meta_dir,
+        ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, PNPR_META_DIR,
+        get_pkg_mirror_path, scoped_meta_dir,
     },
     pick_package_from_meta::RegistryPackageSpec,
     registry_url::to_registry_url,
@@ -119,6 +119,8 @@ impl<'a> PickState<'a> {
         let use_filtered_full_metadata = full_metadata && ctx.filter_metadata;
         let base_meta_dir = if full_metadata {
             if use_filtered_full_metadata { FULL_FILTERED_META_DIR } else { FULL_META_DIR }
+        } else if super::serves_pnpr_format(ctx, opts.registry) {
+            PNPR_META_DIR
         } else {
             ABBREVIATED_META_DIR
         };

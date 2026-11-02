@@ -86,6 +86,9 @@ pub struct PackumentFetchState {
     /// than a bare flag keeps the answer tied to what was revalidated, so a
     /// newer response under the same key is checked on its own.
     pub(super) release_age_upgrade_checked: DashMap<String, Arc<Package>>,
+    /// The release records the install read, by URL (see
+    /// [`super::release_records`]).
+    pub(super) release_records: super::release_records::ReleaseRecords,
 }
 
 impl PackumentFetchState {

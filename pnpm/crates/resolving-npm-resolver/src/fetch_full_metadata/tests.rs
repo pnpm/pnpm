@@ -140,7 +140,7 @@ async fn time_queued_for_a_permit_does_not_count_as_a_slow_request() {
 /// the same media type the response detection recognizes.
 #[test]
 fn accept_header_offers_the_detected_abbreviated_media_type() {
-    assert!(ACCEPT_ABBREVIATED_DOC.starts_with(ABBREVIATED_META_CONTENT_TYPE));
+    assert!(ACCEPT_ABBREVIATED_DOC.contains(ABBREVIATED_META_CONTENT_TYPE));
 }
 
 /// Unwrap a [`FetchFullMetadataOutcome::Modified`], panicking on

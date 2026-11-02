@@ -16,6 +16,7 @@ pub use hosted::{HostedConfig, Management};
 pub use ip_network::{IpNetwork, parse_trusted_proxies};
 pub use logging::{LogConfig, LogFormat, LogLevel};
 pub use metrics::MetricsConfig;
+pub use package_documents::PackageDocumentsConfig;
 pub use pnpr_policy::{TeamDirectory, Teams};
 pub use s3::{HostedStoreConfig, S3Settings, build_s3_store, normalize_key_prefix};
 pub use scim::ScimConfig;
@@ -55,6 +56,9 @@ mod logging;
 use logging::build_log_config;
 
 mod metrics;
+
+mod package_documents;
+use package_documents::{PackageDocumentsFile, build_package_documents_config};
 
 mod registry_graph;
 use registry_graph::{
@@ -210,6 +214,8 @@ pub struct HttpConfig {
     pub request_timeout: Option<Duration>,
     /// Who may scrape Prometheus metrics. `None` serves none.
     pub metrics: Option<MetricsConfig>,
+    /// How pnpr's own package document is served.
+    pub package_documents: PackageDocumentsConfig,
 }
 
 impl HttpConfig {

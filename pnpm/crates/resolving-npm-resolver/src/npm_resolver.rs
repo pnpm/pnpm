@@ -178,6 +178,10 @@ pub struct RegistryMetadataFormat {
     /// `Config::registry_options_by_url`. A version without `dist.tarball`
     /// gets its URL rebuilt in the layout its registry declares.
     pub registry_options_by_url: Arc<BTreeMap<String, RegistryOptions>>,
+    /// The effective `minimumReleaseAge`, in minutes, checked against what
+    /// pnpr's own package document supports (see
+    /// [`crate::PnprFormatPolicy`]).
+    pub minimum_release_age: Option<u64>,
 }
 
 impl<Cache: PackageMetaCache + 'static> Resolver for NpmResolver<Cache> {
@@ -375,6 +379,10 @@ impl<Cache: PackageMetaCache> RegistryMetadataClient<Cache> {
         store_view: Option<&'a OfflineStoreView>,
     ) -> PickPackageContext<'a, Cache> {
         PickPackageContext {
+            pnpr_format: Some(crate::PnprFormatPolicy {
+                registry_options: &format.registry_options_by_url,
+                minimum_release_age: format.minimum_release_age,
+            }),
             full_metadata: format.full_metadata,
             needs_full_metadata_for: format.needs_full_metadata_for.as_deref(),
             filter_metadata: format.filter_metadata,
