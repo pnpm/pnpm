@@ -3,8 +3,8 @@ use pnpm_lockfile::{LockfileResolution, RegistryServerType, TarballResolution};
 use pnpm_registry::PackageVersion;
 use serde_json::json;
 
-const PRIMARY: &str = "sha512-41Cifkg6e8TylSpdtTpeLVMqvSBEVzTttHvERD741+pnZ8ANv0004MRL43QKPDlK9cGvNp6NZWZUBlbGXYxxng==";
-const VARIANT: &str = "sha512-AAAAkg6e8TylSpdtTpeLVMqvSBEVzTttHvERD741+pnZ8ANv0004MRL43QKPDlK9cGvNp6NZWZUBlbGXYxxng==";
+const PRIMARY: &str = "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==";
+const VARIANT: &str = "sha512-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB==";
 const REGISTRY: &str = "https://registry.example/";
 
 fn source() -> RegistryResolutionSource<'static> {
