@@ -118,6 +118,7 @@ impl ProjectScriptRunner<'_> {
                 modules_dir_name: self.config.modules_dir_name(),
                 extend_node_path: self.config.extend_node_path,
                 ignored_directories: self.config.managed_directories(),
+                link_options: self.link_options.clone(),
             },
         })
         .map_err(InstallError::SyncInjectedDeps)

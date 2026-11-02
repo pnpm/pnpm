@@ -13,6 +13,9 @@ pub struct LinkBinsOptions {
     /// shim. Inert on Windows, where bins always get shims. The node
     /// runtime binary is symlinked regardless of this setting.
     pub prefer_symlinked_executables: bool,
+    /// On Unix, keep shell shims while executing a sibling alias symlink so
+    /// Node sees the command name in `process.argv[1]`.
+    pub preserve_bin_name: bool,
     /// Bins written inside this directory name the paths inside it relative
     /// to themselves: the shim target marker, the shim `NODE_PATH` entries,
     /// and the node runtime symlink. `None` writes absolute paths. Inert on

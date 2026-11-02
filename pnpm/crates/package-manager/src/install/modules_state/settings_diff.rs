@@ -1,6 +1,6 @@
 use super::{
     super::{Config, InstallError, LayoutVersion, NodeLinker, Path},
-    map_node_linker, normalized_pattern,
+    map_node_linker, normalized_pattern, preserve_bin_name_diff,
 };
 use pnpm_modules_yaml::NodeLinker as ModulesNodeLinker;
 
@@ -41,6 +41,9 @@ fn check_modules_settings_diff(
 ) -> Result<(), InstallError> {
     if modules.virtual_store_dir_max_length != config.virtual_store_dir_max_length {
         return Err(InstallError::VirtualStoreDirMaxLengthDiff);
+    }
+    if preserve_bin_name_diff(modules, config) {
+        return Err(InstallError::PreserveBinNameDiff);
     }
     // A `virtualStoreOnly` install (`pnpm fetch`) records empty hoist
     // patterns; the follow-up install completes the linking.

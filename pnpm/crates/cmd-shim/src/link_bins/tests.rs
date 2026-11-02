@@ -1,6 +1,7 @@
 use super::{
-    BinOrigin, LinkBinsError, LinkBinsOptions, PackageBinSource, ShimTargetCache, link_bins,
-    link_bins_of_packages, link_bins_of_packages_cached, remove_bin,
+    BinOrigin, LinkBinsError, LinkBinsOptions, PackageBinSource, ShimTargetCache,
+    bin_layout_fingerprint, link_bins, link_bins_of_packages, link_bins_of_packages_cached,
+    remove_bin,
 };
 #[cfg(unix)]
 use crate::shim::is_sh_shim_hardened;
@@ -20,6 +21,34 @@ use std::{
     sync::Arc,
 };
 use tempfile::tempdir;
+
+#[test]
+fn bin_layout_fingerprint_ignores_cache_local_paths() {
+    let one = std::env::temp_dir().join("one");
+    let two = std::env::temp_dir().join("two");
+    let first = LinkBinsOptions {
+        extra_node_paths: vec![
+            one.join("node_modules")
+                .to_string_lossy()
+                .into_owned(),
+        ],
+        relocatable_root: Some(one.clone()),
+        installed_modules_dir: Some(one.join("node_modules")),
+        ..LinkBinsOptions::default()
+    };
+    let second = LinkBinsOptions {
+        extra_node_paths: vec![
+            two.join("node_modules")
+                .to_string_lossy()
+                .into_owned(),
+        ],
+        relocatable_root: Some(two.clone()),
+        installed_modules_dir: Some(two.join("node_modules")),
+        ..LinkBinsOptions::default()
+    };
+
+    assert_eq!(bin_layout_fingerprint(&first), bin_layout_fingerprint(&second));
+}
 
 #[cfg(windows)]
 mod windows_native;

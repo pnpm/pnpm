@@ -353,6 +353,7 @@ Every setting is listed below, grouped by topic. Follow a setting to read its do
 * [useStderr](./settings/other.md#usestderr)
 * [updateNotifier](./settings/other.md#updatenotifier)
 * [preferSymlinkedExecutables](./settings/other.md#prefersymlinkedexecutables)
+* [preserveBinName](./settings/other.md#preservebinname)
 * [ignoreCompatibilityDb](./settings/other.md#ignorecompatibilitydb)
 * [resolutionMode](./settings/other.md#resolutionmode)
 * [registrySupportsTimeField](./settings/other.md#registrysupportstimefield)

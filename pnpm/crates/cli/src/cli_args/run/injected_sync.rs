@@ -87,6 +87,7 @@ fn injected_sync_opts<'a>(
             modules_dir_name: ctx.config.modules_dir_name(),
             extend_node_path: ctx.config.extend_node_path,
             ignored_directories: ctx.config.managed_directories(),
+            link_options: pnpm_deps_restorer::shim_link_options(ctx.config, ctx.config.node_linker),
         },
     }
 }

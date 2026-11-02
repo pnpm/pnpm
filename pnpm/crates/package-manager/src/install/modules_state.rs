@@ -38,9 +38,21 @@ pub(super) fn map_node_linker(linker: NodeLinker) -> ModulesNodeLinker {
     }
 }
 
+fn preserve_bin_name_enabled(config: &Config) -> bool {
+    cfg!(unix) && config.preserve_bin_name
+}
+
+pub(super) fn preserve_bin_name_diff(
+    modules: &pnpm_modules_yaml::ModulesLayout,
+    config: &Config,
+) -> bool {
+    modules.preserve_bin_name.unwrap_or(false) != preserve_bin_name_enabled(config)
+}
+
 /// Whether a parsed `.modules.yaml` records the same layout settings
 /// (`nodeLinker`, hoist patterns, store / virtual-store paths,
-/// `virtualStoreDirMaxLength`, included dep groups, layout version) the
+/// `virtualStoreDirMaxLength`, `preserveBinName`, included dep groups,
+/// layout version) the
 /// current install would produce. A mismatch disqualifies the no-op
 /// short-circuit.
 ///
@@ -211,6 +223,7 @@ pub(crate) fn modules_layout_consistent_with(
                 == normalized_pattern(config.public_hoist_pattern.as_deref()));
     modules.layout_version == Some(LayoutVersion)
         && modules.node_linker == Some(map_node_linker(node_linker))
+        && !preserve_bin_name_diff(modules, config)
         && hoist_patterns_match
         && modules.virtual_store_dir_max_length == config.virtual_store_dir_max_length
         && same_path(Path::new(&modules.store_dir), config.store_dir.root())
@@ -393,6 +406,7 @@ pub(super) fn build_modules_manifest(
         package_manager: format!("pnpm@{PNPM_VERSION}"),
         pending_builds,
         public_hoist_pattern: config.public_hoist_pattern.clone(),
+        preserve_bin_name: preserve_bin_name_enabled(config).then_some(true),
         // RFC 1123 / `toUTCString()` format. The caller decides whether
         // this is a fresh timestamp (a prune ran or first install) or the
         // preserved prior value.
@@ -410,18 +424,7 @@ pub(super) fn build_modules_manifest(
             .to_string_lossy()
             .into_owned(),
         virtual_store_dir_max_length: config.virtual_store_dir_max_length,
-        // The build-approval set this install ran under. A GVS install
-        // hashes engine-specific slots for allowed builders, so the
-        // recorded set is what a later install diffs against to decide
-        // whether its slots need re-linking.
-        allow_builds: Some(
-            config.allow_builds
-                .iter()
-                .map(|(spec, allowed)| {
-                    (spec.clone(), pnpm_modules_yaml::AllowBuildValue::Bool(*allowed))
-                })
-                .collect(),
-        ),
+        allow_builds: Some(allow_build_values(config)),
         virtual_store_only: config.virtual_store_only.then_some(true),
         ..Default::default()
     }
@@ -456,6 +459,19 @@ pub(super) fn keep_recorded_layout(
     if recorded.virtual_store_dir_max_length != 0 {
         next.virtual_store_dir_max_length = recorded.virtual_store_dir_max_length;
     }
+    // An unset `preserveBinName` records the default layout, not a missing value.
+    next.preserve_bin_name = recorded.preserve_bin_name;
+}
+
+/// The build-approval set this install ran under, in the manifest's shape.
+/// A GVS install hashes engine-specific slots for allowed builders, so the
+/// recorded set is what a later install diffs against to decide whether its
+/// slots need re-linking.
+fn allow_build_values(config: &Config) -> BTreeMap<String, pnpm_modules_yaml::AllowBuildValue> {
+    config.allow_builds
+        .iter()
+        .map(|(spec, allowed)| (spec.clone(), pnpm_modules_yaml::AllowBuildValue::Bool(*allowed)))
+        .collect()
 }
 
 /// Drop `settled` from the `pendingBuilds` the install just wrote, now

@@ -104,6 +104,7 @@ pub(super) fn is_pnpm_owned_entry(
     modules_manifest: Option<&pnpm_modules_yaml::ModulesLayout>,
 ) -> bool {
     file_name == ".bin"
+        || file_name == ".bin-symlinks"
         || file_name == ".modules.yaml"
         || config.install_state_dir
             .file_name()

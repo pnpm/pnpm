@@ -99,7 +99,7 @@ fn workspace_link_options(opts: &SyncBinLinks<'_>) -> LinkBinsOptions {
         project_modules_dir_name: (opts.settings.extend_node_path
             && opts.settings.modules_dir_name != "node_modules")
             .then(|| opts.settings.modules_dir_name.to_owned()),
-        ..LinkBinsOptions::default()
+        ..opts.settings.link_options.clone()
     }
 }
 

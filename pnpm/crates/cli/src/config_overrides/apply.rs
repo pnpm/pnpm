@@ -227,6 +227,7 @@ impl ConfigOverrides {
             offline => "offline",
             prefer_frozen_lockfile => "preferFrozenLockfile",
             prefer_offline => "preferOffline",
+            preserve_bin_name => "preserveBinName",
             prune_direct_dependencies => "pruneDirectDependencies",
         );
         // `--config.node-package-map-mode` reaches the config through

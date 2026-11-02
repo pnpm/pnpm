@@ -164,6 +164,7 @@ const SETTINGS_OF_OTHER_PNPM_VERSIONS: Record<string, string> = {
   permissions: 'pnpm v12',
   pipelineBase: 'pnpm v12',
   pipelines: 'pnpm v12',
+  preserveBinName: 'pnpm v12',
   publishWaitTimeout: 'pnpm v12',
   python: 'pnpm v12',
   remoteCache: 'pnpm v12',

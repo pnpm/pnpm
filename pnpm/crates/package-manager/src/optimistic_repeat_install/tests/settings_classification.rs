@@ -217,6 +217,10 @@ const CLASSIFICATION: &[(&str, Reach)] = &[
     ("prefer_offline", NotAnInput(NETWORK)),
     ("prefer_symlinked_executables", NotAnInput("a full install leaves the bins it linked")),
     ("prefer_workspace_packages", Recorded { key: "preferWorkspacePackages", change: |config| config.prefer_workspace_packages = !config.prefer_workspace_packages }),
+    #[cfg(unix)]
+    ("preserve_bin_name", Recorded { key: "preserveBinName", change: |config| config.preserve_bin_name = !config.preserve_bin_name }),
+    #[cfg(not(unix))]
+    ("preserve_bin_name", NotAnInput("bins are linked without aliases on Windows")),
     ("progress", NotAnInput(CLI_ONLY)),
     ("provenance", NotAnInput(OTHER_COMMAND)),
     ("proxy", NotAnInput(NETWORK)),
