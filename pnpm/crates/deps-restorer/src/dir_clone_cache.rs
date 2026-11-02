@@ -191,7 +191,7 @@ impl<'install> DirCloneCache<'install> {
         import_method: PackageImportMethod,
         package_key: &PackageKey,
         save_path: &Path,
-        cas_paths: &HashMap<String, PathBuf>,
+        cas_paths: &pnpm_fs::CasPaths,
     ) -> bool {
         if self.disabled.load(Ordering::Relaxed) {
             return false;
@@ -250,7 +250,7 @@ impl<'install> DirCloneCache<'install> {
         import_method: PackageImportMethod,
         package_key: &PackageKey,
         canonical: &Path,
-        cas_paths: &HashMap<String, PathBuf>,
+        cas_paths: &pnpm_fs::CasPaths,
     ) -> bool {
         if self.frozen_store {
             return marker_present(canonical, cas_paths);

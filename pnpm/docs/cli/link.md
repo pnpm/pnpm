@@ -15,7 +15,7 @@ pnpm link <dir>...
 
 ### `pnpm link <dir>...`
 
-Links the package from each `<dir>` directory to `node_modules` of the package from where you're executing this command. `<dir>` must be a relative or absolute path. Passing a package name, or no argument, fails with `ERR_PNPM_LINK_BAD_PARAMS`.
+Links the package from each `<dir>` directory to `node_modules` of the package from where you're executing this command. `<dir>` must be a relative or absolute path. A relative path is resolved against the directory you run the command in. Passing a package name, or no argument, fails with `ERR_PNPM_LINK_BAD_PARAMS`.
 
 > For example, if you are inside `~/projects/foo` and you execute `pnpm link ../bar`, then a link to `bar` will be created in `foo/node_modules/bar`.
 

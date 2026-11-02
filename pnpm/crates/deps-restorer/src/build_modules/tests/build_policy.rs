@@ -787,8 +787,8 @@ fn using_side_effects_cache_skips_rebuild() {
     overlay.insert(
         expected_cache_key,
         std::collections::HashMap::from([
-            ("package.json".to_string(), pkg_dir.join("package.json")),
-            ("generated-by-postinstall.js".to_string(), side_effect_blob),
+            ("package.json".to_string(), pkg_dir.join("package.json").into()),
+            ("generated-by-postinstall.js".to_string(), side_effect_blob.into()),
         ])
         .into(),
     );
@@ -938,9 +938,15 @@ fn corrupt_side_effects_cache_falls_back_to_rebuild() {
     // The overlay points `generated.txt` at a CAS path that doesn't
     // exist, so `materialize_side_effects` fails — standing in for a
     // store whose side-effects blob went missing.
-    let overlay = std::collections::HashMap::from([
-        ("package.json".to_string(), pkg_dir.join("package.json")),
-        ("generated.txt".to_string(), virtual_store_dir.path().join("missing-cas-blob")),
+    let overlay = pnpm_fs::CasPaths::from([
+        ("package.json".to_string(), pkg_dir.join("package.json").into()),
+        (
+            "generated.txt".to_string(),
+            virtual_store_dir
+                .path()
+                .join("missing-cas-blob")
+                .into(),
+        ),
     ]);
     let mut side_effects_maps = std::collections::HashMap::new();
     side_effects_maps.insert(

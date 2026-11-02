@@ -42,7 +42,7 @@ use serde_json::Value;
 use std::{
     collections::HashMap,
     env, fs,
-    path::{Path, PathBuf},
+    path::Path,
     sync::{Arc, LazyLock},
 };
 
@@ -77,7 +77,7 @@ pub struct GitFetcher<'a> {
 pub struct GitFetchOutput {
     /// Relative-path → CAS-path map. Keys use forward slashes regardless
     /// of host platform.
-    pub cas_paths: HashMap<String, PathBuf>,
+    pub cas_paths: pnpm_fs::CasPaths,
     /// `shouldBeBuilt` from `prepare_package`. The caller routes this
     /// into the `built` dimension of [`pnpm_store_dir::pick_store_index_key`].
     pub built: bool,
@@ -204,7 +204,7 @@ pub(crate) fn queue_files_index(
     writer: Option<&Arc<StoreIndexWriter>>,
     files_index_file: &str,
     files: HashMap<String, CafsFileInfo>,
-    cas_paths: &HashMap<String, PathBuf>,
+    cas_paths: &pnpm_fs::CasPaths,
     requires_prepare: bool,
 ) {
     if let Some(writer) = writer {

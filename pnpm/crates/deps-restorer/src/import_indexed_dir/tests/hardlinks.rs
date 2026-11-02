@@ -1,7 +1,7 @@
 use super::{super::import_indexed_dir, ImportIndexedDirOpts, cas_map, write_source};
 use pnpm_config::PackageImportMethod;
 use pnpm_reporter::SilentReporter;
-use std::{collections::HashMap, fs, path::PathBuf, sync::atomic::AtomicU8};
+use std::{fs, sync::atomic::AtomicU8};
 use tempfile::tempdir;
 
 const REUSE: ImportIndexedDirOpts<'static> = ImportIndexedDirOpts {
@@ -163,7 +163,7 @@ fn injected_refresh_adds_and_removes_source_entries() {
     let source = tmp.path().join("source");
     let target = tmp.path().join("target");
     let mut files = cas_map(&[("package.json", write_source(&source, "package.json", b"{}"))]);
-    let import = |files: &HashMap<String, PathBuf>| {
+    let import = |files: &pnpm_fs::CasPaths| {
         import_indexed_dir::<SilentReporter>(
             &AtomicU8::new(0),
             PackageImportMethod::Hardlink,
@@ -174,7 +174,7 @@ fn injected_refresh_adds_and_removes_source_entries() {
         .unwrap();
     };
     import(&files);
-    files.insert("lib/added.js".into(), write_source(&source, "lib/added.js", b"added"));
+    files.insert("lib/added.js".into(), write_source(&source, "lib/added.js", b"added").into());
     import(&files);
     assert_eq!(fs::read(target.join("lib/added.js")).unwrap(), b"added");
     files.remove("lib/added.js");

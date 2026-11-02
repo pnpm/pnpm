@@ -250,9 +250,13 @@ fn create_temp_file_in_shard(shard: &Path) -> Result<(PathBuf, fs::File), StoreI
             if error.kind() == io::ErrorKind::NotFound =>
         {
             ensure_parent_dir(shard).map_err(to_error)?;
-            create_exclusive_temp_file(shard, TEMP_FILE_PREFIX, None).map_err(to_error)
+            create_exclusive_temp_file(shard, TEMP_FILE_PREFIX, None)
+                .map(|(path, file, _)| (path, file))
+                .map_err(to_error)
         }
-        result => result.map_err(to_error),
+        result => result
+            .map(|(path, file, _)| (path, file))
+            .map_err(to_error),
     }
 }
 

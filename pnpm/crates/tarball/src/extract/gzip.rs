@@ -1,7 +1,7 @@
 use super::{
-    BTreeMap, HashMap, IgnoreEntryFilter, MAX_UNTRUSTED_PREALLOC_BYTES, PackageBin,
-    PackageFilesIndex, PathBuf, StoreDir, TarLimits, TarballError,
-    extract_tarball_entries_with_bins, stream_extract_gzipped_tarball_with_tar,
+    BTreeMap, IgnoreEntryFilter, MAX_UNTRUSTED_PREALLOC_BYTES, PackageBin, PackageFilesIndex,
+    StoreDir, TarLimits, TarballError, extract_tarball_entries_with_bins,
+    stream_extract_gzipped_tarball_with_tar,
 };
 use ssri::Integrity;
 use tracing::instrument;
@@ -190,7 +190,7 @@ pub(crate) fn extract_gzipped_tarball_with_tar(
 
 /// The CAFS files, the store row, precalculated bins, and the outcome of hashing the decoded tar.
 pub(crate) type GzipExtraction = (
-    HashMap<String, PathBuf>,
+    pnpm_fs::CasPaths,
     PackageFilesIndex,
     Option<BTreeMap<String, PackageBin>>,
     Result<Integrity, TarballError>,

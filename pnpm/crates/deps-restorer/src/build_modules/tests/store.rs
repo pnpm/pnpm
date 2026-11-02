@@ -112,9 +112,12 @@ fn materialization_failure_on_incomplete_slot_is_fatal() {
         },
     );
     // Overlay points at a non-existent CAS blob, so materialization fails.
-    let overlay = std::collections::HashMap::from([(
+    let overlay = pnpm_fs::CasPaths::from([(
         "generated.txt".to_string(),
-        virtual_store_dir.path().join("missing-cas-blob"),
+        virtual_store_dir
+            .path()
+            .join("missing-cas-blob")
+            .into(),
     )]);
     let mut side_effects_maps = std::collections::HashMap::new();
     side_effects_maps.insert(

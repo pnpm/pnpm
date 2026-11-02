@@ -20,7 +20,6 @@ use miette::Diagnostic;
 use pnpm_config::PackageImportMethod;
 use pnpm_reporter::Reporter;
 use std::{
-    collections::HashMap,
     ffi::OsString,
     fs, io,
     path::{Path, PathBuf},
@@ -190,7 +189,7 @@ pub fn import_indexed_dir<Reporter: self::Reporter>(
     logged_methods: &AtomicU8,
     import_method: PackageImportMethod,
     dir_path: &Path,
-    cas_paths: &HashMap<String, PathBuf>,
+    cas_paths: &pnpm_fs::CasPaths,
     opts: ImportIndexedDirOpts,
 ) -> Result<(), ImportIndexedDirError> {
     let result = import_indexed_dir_once::<Reporter>(
@@ -222,7 +221,7 @@ fn import_indexed_dir_once<Reporter: self::Reporter>(
     logged_methods: &AtomicU8,
     import_method: PackageImportMethod,
     dir_path: &Path,
-    cas_paths: &HashMap<String, PathBuf>,
+    cas_paths: &pnpm_fs::CasPaths,
     opts: ImportIndexedDirOpts,
     repair_sanitized: bool,
 ) -> Result<(), ImportIndexedDirError> {
@@ -292,7 +291,7 @@ fn force_import_existing_dir<Reporter: self::Reporter>(
     logged_methods: &AtomicU8,
     import_method: PackageImportMethod,
     dir_path: &Path,
-    cas_paths: &HashMap<String, PathBuf>,
+    cas_paths: &pnpm_fs::CasPaths,
     file_type: fs::FileType,
     opts: ImportIndexedDirOpts,
 ) -> Result<(), ImportIndexedDirError> {
@@ -355,7 +354,7 @@ pub(super) fn import_into_shared_dir<Reporter: self::Reporter>(
     logged_methods: &AtomicU8,
     import_method: PackageImportMethod,
     dir_path: &Path,
-    cas_paths: &HashMap<String, PathBuf>,
+    cas_paths: &pnpm_fs::CasPaths,
     symlink_targets: Option<SymlinkTargets>,
 ) -> Result<(), ImportIndexedDirError> {
     if claim_dir(dir_path)? {
@@ -405,7 +404,7 @@ fn repair_existing_dir<Reporter: self::Reporter>(
     logged_methods: &AtomicU8,
     import_method: PackageImportMethod,
     dir_path: &Path,
-    cas_paths: &HashMap<String, PathBuf>,
+    cas_paths: &pnpm_fs::CasPaths,
     opts: ImportIndexedDirOpts,
     repair_sanitized: bool,
 ) -> Result<(), ImportIndexedDirError> {

@@ -3,7 +3,7 @@
 //! By the time control reaches this fetcher, `pnpm-tarball` has
 //! already downloaded the tarball, verified its integrity, and
 //! imported its file set into the CAS — the dispatcher hands us the
-//! resulting `HashMap<String, PathBuf>` mapping relative paths to CAS
+//! resulting `pnpm_fs::CasPaths` mapping relative paths to CAS
 //! file paths. From there we materialize the files into a writable
 //! temp dir, run `preparePackage` to (potentially) execute the dep's
 //! build scripts, run a packlist over the prepared tree, and
@@ -25,7 +25,6 @@ use crate::{
     prepare_package::{AllowBuildRef, PreparePackageOptions, PreparedPackage, prepare_package},
 };
 use pnpm_reporter::Reporter;
-use std::{collections::HashMap, path::PathBuf};
 
 /// One-shot fetcher for a single git-hosted tarball resolution.
 ///
@@ -40,7 +39,7 @@ pub struct GitHostedTarballFetcher<'a> {
     pub store: crate::GitStoreContext<'a>,
     /// Raw tarball files already in the CAS. Keys are forward-slash
     /// relative paths, values are absolute CAS paths.
-    pub cas_paths: HashMap<String, PathBuf>,
+    pub cas_paths: pnpm_fs::CasPaths,
     /// `path` field from the resolution. Git-hosted tarball
     /// resolutions can include a sub-path to pack only one directory
     /// of the extracted tree (matches the git fetcher's `path`).

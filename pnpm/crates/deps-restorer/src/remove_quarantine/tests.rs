@@ -115,8 +115,8 @@ fn sweep_targets_only_native_binaries_under_dir() {
     set_quarantine(&script);
 
     let cas_paths = HashMap::from([
-        ("lib/addon.node".to_string(), native.clone()),
-        ("index.js".to_string(), script.clone()),
+        ("lib/addon.node".to_string(), native.clone().into()),
+        ("index.js".to_string(), script.clone().into()),
     ]);
     remove_quarantine_from_native_binaries(dir.path(), &cas_paths);
 

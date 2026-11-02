@@ -7,7 +7,6 @@ use pnpm_reporter::Reporter;
 use std::{
     collections::{HashMap, HashSet},
     fmt, fs,
-    path::PathBuf,
 };
 
 /// Projects only pristine, immutable snapshots into fresh hoisted destinations.
@@ -67,7 +66,7 @@ impl<'a> HoistedDirCloneCache<'a> {
         &self,
         node: &DependenciesGraphNode,
         import: crate::PackageImportOptions<'_>,
-        cas_paths: &HashMap<String, PathBuf>,
+        cas_paths: &pnpm_fs::CasPaths,
     ) -> bool {
         if node.present || node.package.patch.is_some() || node.package.has_bundled_dependencies {
             return false;
@@ -96,7 +95,7 @@ impl<'a> HoistedDirCloneCache<'a> {
 /// the hoisted importer merges such a directory with the nested
 /// packages the walker places inside it (`keep_modules_dir`) — which a
 /// clone of the canonical slot cannot reproduce.
-fn ships_bundled_modules(cas_paths: &HashMap<String, PathBuf>) -> bool {
+fn ships_bundled_modules(cas_paths: &pnpm_fs::CasPaths) -> bool {
     cas_paths
         .keys()
         .any(|path| {

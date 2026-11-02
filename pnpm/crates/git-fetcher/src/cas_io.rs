@@ -16,7 +16,7 @@ use std::{
 /// [`pnpm_store_dir::PackageFilesIndex::files`] payload the warm
 /// prefetch on a future install reads to skip re-fetching.
 pub(crate) struct ImportedFiles {
-    pub cas_paths: HashMap<String, PathBuf>,
+    pub cas_paths: pnpm_fs::CasPaths,
     pub files_index: HashMap<String, CafsFileInfo>,
 }
 
@@ -66,10 +66,10 @@ fn join_checked(root: &Path, rel: &str) -> Result<PathBuf, GitFetcherError> {
 /// the prepare phase needs raw filesystem semantics for scripts to
 /// run.
 pub(crate) fn materialize_into(
-    cas_paths: &HashMap<String, PathBuf>,
+    cas_paths: &pnpm_fs::CasPaths,
     target_dir: &Path,
 ) -> Result<(), GitFetcherError> {
-    for (rel, cas_path) in cas_paths {
+    for (rel, pnpm_fs::StoreFile { path: cas_path, .. }) in cas_paths {
         // `rel` uses forward slashes regardless of host platform.
         // `Path::components()` (called inside `join_checked`)
         // recognises both `/` and `\` as separators on Windows, so we
@@ -169,10 +169,10 @@ fn file_mode_from(_meta: &fs::Metadata) -> u32 {
 /// `size` still requires a `fs::metadata` stat, but that's two syscalls
 /// per file rather than a full read + sha512.
 pub(crate) fn synthesize_files_index(
-    cas_paths: &HashMap<String, PathBuf>,
+    cas_paths: &pnpm_fs::CasPaths,
 ) -> Result<HashMap<String, CafsFileInfo>, GitFetcherError> {
     let mut out = HashMap::with_capacity(cas_paths.len());
-    for (rel, cas_path) in cas_paths {
+    for (rel, pnpm_fs::StoreFile { path: cas_path, .. }) in cas_paths {
         let digest = cas_path_digest(cas_path)
             .ok_or_else(|| {
                 GitFetcherError::Io(io::Error::new(

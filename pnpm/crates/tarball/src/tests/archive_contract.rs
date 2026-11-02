@@ -1,4 +1,4 @@
-use super::{build_zip, fast_retry_opts, gzipped_tar, tempdir_with_leaked_path};
+use super::{build_zip, fast_retry_opts, gzipped_tar, store_paths, tempdir_with_leaked_path};
 use crate::{ArchiveStoreProjection, IngestTarballToStore, IngestZipArchiveToStore, TarballError};
 use pnpm_fs::EnsureFileError;
 use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient};
@@ -6,7 +6,6 @@ use pnpm_reporter::{LogEvent, Reporter, SilentReporter};
 use pnpm_store_dir::{StoreIndex, StoreIndexWriter, WriteCasFileError};
 use ssri::Integrity;
 use std::{
-    collections::HashMap,
     path::PathBuf,
     sync::{Arc, Mutex},
 };
@@ -333,7 +332,7 @@ impl Container {
     async fn ingest(
         self,
         input: &IngestTarballToStore<'_>,
-    ) -> Result<HashMap<String, PathBuf>, TarballError> {
+    ) -> Result<pnpm_fs::CasPaths, TarballError> {
         match self {
             Self::TarGz => input.run_without_mem_cache::<SilentReporter>().await,
             Self::Zip => zip_ingestion(input).run_without_mem_cache::<SilentReporter>().await,
@@ -372,7 +371,7 @@ fn zip_ingestion<'a>(input: &'a IngestTarballToStore<'a>) -> IngestZipArchiveToS
 async fn assert_buffered_cache(
     container: Container,
     input: &IngestTarballToStore<'_>,
-    paths: &HashMap<String, PathBuf>,
+    paths: &pnpm_fs::CasPaths,
 ) {
     if !matches!(container, Container::Zip) {
         return;
@@ -381,7 +380,7 @@ async fn assert_buffered_cache(
         .run_with_buffer::<SilentReporter>(b"not a ZIP".to_vec())
         .await
         .unwrap();
-    assert_eq!(&cached, paths);
+    assert_eq!(store_paths(&cached), store_paths(paths));
 }
 
 #[tokio::test]
@@ -455,7 +454,8 @@ async fn formats_share_projection_offline_replay_and_missing_blob_validation() {
             input.store.index = StoreIndex::shared_readonly_in(store);
             assert_buffered_cache(container, &input, &paths).await;
             input.fetching.offline = true;
-            assert_eq!(container.ingest(&input).await.unwrap(), paths);
+            let replayed = container.ingest(&input).await.unwrap();
+            assert_eq!(store_paths(&replayed), store_paths(&paths));
 
             std::fs::remove_file(&paths["data.txt"]).unwrap();
             input.store.verified_files_cache = Arc::default();

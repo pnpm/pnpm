@@ -5,13 +5,13 @@
 //! entirely when the caller opted out of integrity verification.
 pub use package_dir_matches_index::package_dir_matches_index;
 
-pub use pending_files_check::PendingFilesCheck;
+pub use pending_files_check::{PendingFilesCheck, VerifiedModes};
 
 use crate::{
     CafsFileInfo, PackageFilesIndex, SideEffectsDiff, SideEffectsOverlay, StoreDir,
     symlinks::{read_recorded_symlink_target, writes_below_a_symlink},
 };
-use dashmap::DashSet;
+use dashmap::DashMap;
 use sha2::{Digest, Sha512};
 use std::{
     collections::HashMap,
@@ -119,18 +119,19 @@ impl VerifiedFileIntegrity {
     }
 }
 
-/// Set of CAFS paths whose on-disk integrity has already been verified
-/// during the current install. The caller threads one cache through
+/// CAFS paths whose on-disk integrity has already been verified during
+/// the current install, with the mode the check read (`None` where the
+/// platform has no POSIX mode). The caller threads one cache through
 /// every [`check_pkg_files_integrity`] invocation so a CAFS blob that
 /// has already been verified by package A doesn't get stat'd /
 /// re-hashed again by package B.
 ///
 /// Concurrent: the install fans [`check_pkg_files_integrity`] calls out
 /// across tokio's blocking pool, so the cache must tolerate parallel
-/// readers and writers. `DashSet` gives us that without any external
+/// readers and writers. `DashMap` gives us that without any external
 /// locking. Race-window duplicate verifies are benign (the `verify_file`
 /// path is idempotent) and rare in practice.
-pub type VerifiedFilesCache = DashSet<PathBuf>;
+pub type VerifiedFilesCache = DashMap<PathBuf, Option<u32>>;
 
 /// Shared handle to a [`VerifiedFilesCache`] — what every install-scope
 /// caller passes around. `Arc` so the same cache survives across the
@@ -141,7 +142,7 @@ pub type VerifiedFilesCache = DashSet<PathBuf>;
 pub type SharedVerifiedFilesCache = Arc<VerifiedFilesCache>;
 
 /// `in-tarball filename` → `CAFS path`.
-pub type FilesMap = HashMap<String, PathBuf>;
+pub type FilesMap = pnpm_fs::CasPaths;
 
 /// Result of a `PackageFilesIndex`-row verification pass.
 ///
@@ -192,8 +193,22 @@ pub fn check_pkg_files_integrity(
     verified_files_cache: &VerifiedFilesCache,
 ) -> VerifyResult {
     let (mut result, pending) = defer_pkg_files_integrity(store_dir, entry);
-    result.passed = pending.verify(store_dir, verified_files_cache) && result.passed;
+    match pending.verify(store_dir, verified_files_cache) {
+        Some(modes) => result.apply_modes(&modes),
+        None => result.passed = false,
+    }
     result
+}
+
+impl VerifyResult {
+    /// Hand the modes the files check read to the importer, through the
+    /// base map and every side-effects overlay that shares its paths.
+    pub fn apply_modes(&mut self, modes: &VerifiedModes) {
+        modes.apply(&mut self.files_map);
+        for overlay in self.side_effects_maps.iter_mut().flat_map(HashMap::values_mut) {
+            modes.apply(&mut overlay.files);
+        }
+    }
 }
 
 /// The maps of [`build_file_maps_from_index`] together with the files
@@ -229,7 +244,7 @@ pub fn defer_pkg_files_integrity(
             passed = false;
             continue;
         };
-        files_map.insert(filename.clone(), path);
+        files_map.insert(filename.clone(), pnpm_fs::StoreFile::new(path));
     }
     let side_effects_maps = build_side_effects_maps(store_dir, side_effects.as_ref(), &files_map);
     let result = VerifyResult {
@@ -290,7 +305,7 @@ pub fn side_effects_overlay(
         if info.is_symlink() {
             symlinks.insert(filename.clone(), overlay_symlink_target(cache_key, filename, &path)?);
         } else {
-            files.insert(filename.clone(), path);
+            files.insert(filename.clone(), pnpm_fs::StoreFile::new(path));
         }
     }
     // Promote `deleted` to a `HashSet` once per cache key so
@@ -301,12 +316,12 @@ pub fn side_effects_overlay(
         .flatten()
         .cloned()
         .collect();
-    for (filename, path) in base_files {
+    for (filename, file) in base_files {
         if !deleted_set.contains(filename)
             && !files.contains_key(filename)
             && !symlinks.contains_key(filename)
         {
-            files.insert(filename.clone(), path.clone());
+            files.insert(filename.clone(), file.clone());
         }
     }
     restorable_overlay(cache_key, SideEffectsOverlay { files, symlinks })
@@ -401,9 +416,9 @@ fn is_safe_overlay_path(filename: &str) -> bool {
         .all(|component| matches!(component, Component::Normal(_) | Component::CurDir))
 }
 
-/// `true` when the on-disk file is either unmodified since the last
+/// `Some` when the on-disk file is either unmodified since the last
 /// verified check or modified but still content-hashes to the stored
-/// digest.
+/// digest, carrying the mode the check read (`None` off Unix).
 ///
 /// `filename` is the in-tarball path the caller is trying to reuse; it
 /// doesn't affect behaviour, only the `debug!` log when verification
@@ -428,7 +443,12 @@ fn is_safe_overlay_path(filename: &str) -> bool {
 /// is exactly why a failed verification must never unlink a file:
 /// another *process* sharing the store may be importing from it — see
 /// [`scrub_directory_at_cafs_path`].
-fn verify_file(path: &Path, filename: &str, info: &CafsFileInfo, algo: &str) -> bool {
+fn verify_file(
+    path: &Path,
+    filename: &str,
+    info: &CafsFileInfo,
+    algo: &str,
+) -> Option<Option<u32>> {
     let Some((is_modified, metadata)) = check_file(path, info.checked_at) else {
         tracing::debug!(
             target: "pacquet::store_index",
@@ -436,39 +456,20 @@ fn verify_file(path: &Path, filename: &str, info: &CafsFileInfo, algo: &str) -> 
             ?path,
             "CAFS file missing or unreadable; re-fetching",
         );
-        pnpm_fs::file_mode::forget_store_inode_mode(path);
-        return false;
+        return None;
     };
     if !is_modified {
-        record_verified_mode(path, &metadata);
-        return true;
+        return Some(pnpm_fs::file_mode::metadata_mode(&metadata));
     }
-
-    let passed = verify_modified_file(path, filename, info, algo);
-    if !passed {
-        // The re-fetch may land a new inode with this process's mode, so a
-        // mode recorded before must not reach the importer.
-        pnpm_fs::file_mode::forget_store_inode_mode(path);
-    }
-    passed
+    verify_modified_file(path, filename, info, algo)
 }
 
-/// Hand the mode of a blob that passed verification to the importer, which
-/// would otherwise `stat` it again before every hardlink to decide whether
-/// the inode can be shared (pnpm/pnpm#17500). Another process changing the
-/// blob's mode before the link is a usage error, not guarded against (see
-/// `source_has_desired_mode` in pnpm-deps-restorer).
-fn record_verified_mode(path: &Path, metadata: &fs::Metadata) {
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::MetadataExt;
-        pnpm_fs::file_mode::record_verified_store_inode_mode(path, metadata.mode());
-    }
-    #[cfg(not(unix))]
-    let _ = (path, metadata);
-}
-
-fn verify_modified_file(path: &Path, filename: &str, info: &CafsFileInfo, algo: &str) -> bool {
+fn verify_modified_file(
+    path: &Path,
+    filename: &str,
+    info: &CafsFileInfo,
+    algo: &str,
+) -> Option<Option<u32>> {
     let lock = pnpm_fs::cas_write_lock(path);
     let _guard = lock.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
 
@@ -485,14 +486,13 @@ fn verify_modified_file(path: &Path, filename: &str, info: &CafsFileInfo, algo: 
             ?path,
             "CAFS file disappeared between fast-path stat and lock acquisition; re-fetching",
         );
-        return false;
+        return None;
     };
     if !is_modified {
         // Writer completed and the result happens to match
         // `checked_at` (uncommon but possible if `checked_at` was
         // updated very recently). Trust the cache, no further work.
-        record_verified_mode(path, &metadata);
-        return true;
+        return Some(pnpm_fs::file_mode::metadata_mode(&metadata));
     }
     if metadata.len() != info.size {
         // Wrong size → content definitely changed. Report the miss so
@@ -507,21 +507,19 @@ fn verify_modified_file(path: &Path, filename: &str, info: &CafsFileInfo, algo: 
             "CAFS file size mismatch; re-fetching",
         );
         scrub_directory_at_cafs_path(path);
-        return false;
+        return None;
     }
-    let passed = verify_file_integrity(path, &info.digest, algo);
-    if passed {
-        record_verified_mode(path, &metadata);
-    } else {
-        tracing::debug!(
-            target: "pacquet::store_index",
-            ?filename,
-            ?path,
-            "CAFS file digest mismatch, read failure, or unknown algo; re-fetching",
-        );
-        scrub_directory_at_cafs_path(path);
+    if verify_file_integrity(path, &info.digest, algo) {
+        return Some(pnpm_fs::file_mode::metadata_mode(&metadata));
     }
-    passed
+    tracing::debug!(
+        target: "pacquet::store_index",
+        ?filename,
+        ?path,
+        "CAFS file digest mismatch, read failure, or unknown algo; re-fetching",
+    );
+    scrub_directory_at_cafs_path(path);
+    None
 }
 
 /// Remove a *directory* squatting at a CAFS blob path so the

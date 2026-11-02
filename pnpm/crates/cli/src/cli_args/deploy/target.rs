@@ -245,7 +245,7 @@ pub(super) fn copy_project(src: &Path, dest: &Path, files: CopyFiles) -> miette:
         &logged_methods,
         PackageImportMethod::CloneOrCopy,
         dest,
-        &output.files_map,
+        &pnpm_fs::cas_paths_from_paths(output.files_map),
         ImportIndexedDirOpts {
             force: true,
             symlink_targets: Some(pnpm_deps_restorer::SymlinkTargets::Internal),

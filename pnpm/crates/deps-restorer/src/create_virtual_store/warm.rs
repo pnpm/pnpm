@@ -16,7 +16,7 @@ use pnpm_tarball::PrefetchResult;
 use std::{
     borrow::Cow,
     collections::{HashMap, HashSet},
-    path::{Path, PathBuf},
+    path::Path,
     sync::Arc,
 };
 
@@ -96,7 +96,7 @@ pub(super) fn cached_git_prepare_allowed(
 pub(super) fn cached_git_manifest<'a>(
     prefetch: &'a PrefetchResult,
     key: &str,
-    cas_paths: &HashMap<String, PathBuf>,
+    cas_paths: &pnpm_fs::CasPaths,
 ) -> Option<Cow<'a, serde_json::Value>> {
     if let Some(manifest) = prefetch.manifests.get(key) {
         return Some(Cow::Borrowed(manifest.as_ref()));

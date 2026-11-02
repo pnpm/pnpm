@@ -9,7 +9,7 @@ pub(crate) use cached_rows::{load_cached_cas_paths, load_legacy_synthesized_cas_
 
 use super::{
     Arc, ArchiveStoreProjection, HashMap, IntoParallelIterator, PackageContentCheck,
-    ParallelIterator, PathBuf, TarballError,
+    ParallelIterator, TarballError,
 };
 use pnpm_package_manifest::{
     requires_build_from_cas_paths, requires_build_from_files,
@@ -18,7 +18,7 @@ use pnpm_package_manifest::{
 use pnpm_reporter::{GlobalLog, LogEvent, LogLevel};
 use pnpm_store_dir::{
     PackageFilesIndex, PendingFilesCheck, PkgContentMismatch, SharedReadonlyStoreIndex,
-    SharedVerifiedFilesCache, StoreDir,
+    SharedVerifiedFilesCache, StoreDir, VerifiedModes,
 };
 
 /// Pre-fetched cas-paths map shared across all per-snapshot futures.
@@ -27,9 +27,9 @@ use pnpm_store_dir::{
 ///
 /// Values are `Arc`-wrapped so the cold-batch fallback can hand a hit
 /// back as a cheap pointer-clone rather than memcpy-ing the whole
-/// per-file map (each entry is a `HashMap<String, PathBuf>` with up
+/// per-file map (each entry is a `pnpm_fs::CasPaths` with up
 /// to ~hundred entries, so the deep clone is a hot-path cost).
-pub type PrefetchedCasPaths = HashMap<String, Arc<HashMap<String, PathBuf>>>;
+pub type PrefetchedCasPaths = HashMap<String, Arc<pnpm_fs::CasPaths>>;
 
 /// Bundled package manifests recovered from the `SQLite` store index,
 /// keyed by the same `<integrity>\t<pkg_id>` string [`PrefetchedCasPaths`]
@@ -160,12 +160,20 @@ impl PrefetchResult {
             .into_iter()
             .filter_map(|cache_key| self.pending_checks.remove_entry(cache_key))
             .collect();
-        let failed: Vec<String> = checks
+        let checked: Vec<(String, Option<VerifiedModes>)> = checks
             .into_par_iter()
-            .filter_map(|(cache_key, check)| {
-                (!check.verify(store_dir, verified_files_cache)).then_some(cache_key)
+            .map(|(cache_key, check)| {
+                let modes = check.verify(store_dir, verified_files_cache);
+                (cache_key, modes)
             })
             .collect();
+        let mut failed = Vec::new();
+        for (cache_key, modes) in checked {
+            match modes {
+                Some(modes) => self.apply_modes(&cache_key, &modes),
+                None => failed.push(cache_key),
+            }
+        }
         for cache_key in &failed {
             tracing::debug!(
                 target: "pacquet::download",
@@ -175,6 +183,19 @@ impl PrefetchResult {
             self.remove_row(cache_key);
         }
         failed.len()
+    }
+
+    /// Hand the modes a row's files check read to the importer, through
+    /// the row's files and every side-effects overlay that shares them.
+    fn apply_modes(&mut self, cache_key: &str, modes: &VerifiedModes) {
+        if let Some(files) = self.cas_paths.get_mut(cache_key) {
+            modes.apply(Arc::make_mut(files));
+        }
+        if let Some(overlays) = self.side_effects_maps.get_mut(cache_key) {
+            for overlay in Arc::make_mut(overlays).values_mut() {
+                modes.apply(&mut overlay.files);
+            }
+        }
     }
 
     /// Drop every row whose key `keep` rejects, along with its pending
@@ -355,7 +376,7 @@ fn resolve_row_requires_build(
     stored: Option<bool>,
     stored_requires_prepare: Option<bool>,
     manifest: Option<&serde_json::Value>,
-    cas_paths: &HashMap<String, PathBuf>,
+    cas_paths: &pnpm_fs::CasPaths,
 ) -> bool {
     if stored_requires_prepare.is_some() && manifest.is_none() {
         return requires_build_from_cas_paths(cas_paths);
