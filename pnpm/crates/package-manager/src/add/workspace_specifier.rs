@@ -8,8 +8,8 @@ use pnpm_resolving_resolver_base::WorkspacePackages;
 use pnpm_workspace_range_resolver::resolve_workspace_range;
 use pnpm_workspace_spec::WorkspaceSpec;
 
-/// Walk the projects of the workspace `project_dir` belongs to, or `None`
-/// when there is no workspace or it cannot be enumerated.
+/// Walk the projects of the workspace `manifest` belongs to, or `None` when
+/// there is no workspace or it cannot be enumerated.
 ///
 /// A failure to walk the workspace is not this function's problem to
 /// report — the install that follows the manifest write walks it again and
@@ -17,8 +17,9 @@ use pnpm_workspace_spec::WorkspaceSpec;
 /// workspace packages", which only costs the pinned form its version.
 pub(super) fn workspace_projects_for_add(
     config: &Config,
-    project_dir: &std::path::Path,
+    manifest: &pnpm_package_manifest::PackageManifest,
 ) -> Option<Vec<pnpm_workspace::Project>> {
+    let project_dir = manifest.path().parent()?;
     let workspace_dir =
         crate::install::configured_or_discovered_workspace_dir(config, project_dir).ok()??;
     let manifest = pnpm_workspace::read_workspace_manifest(&workspace_dir).ok()??;
