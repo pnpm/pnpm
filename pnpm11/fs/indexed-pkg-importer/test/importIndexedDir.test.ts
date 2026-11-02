@@ -696,6 +696,21 @@ test('overwriteDirSync() keeps the displaced directory on disk if both swap and 
   expect(fs.readFileSync(path.join(movedAsidePath!, 'package.json'), 'utf8')).toBe('{"name":"old"}')
 })
 
+test('importIndexedDir() omits a dangling link under the imported policy', () => {
+  const tmp = tempDir()
+  const src = path.join(tmp, 'src')
+  const dest = path.join(tmp, 'dest')
+  fs.mkdirSync(src)
+  fs.writeFileSync(path.join(src, 'package.json'), '{}')
+  fs.symlinkSync(path.join('node_modules', 'missing'), path.join(src, 'dangling-link'), 'dir')
+  importIndexedDir({ importFile: fs.copyFileSync, importFileAtomic: fs.copyFileSync }, dest, new Map([
+    ['package.json', path.join(src, 'package.json')],
+    ['dangling-link', path.join(src, 'dangling-link')],
+  ]), { resolvedFrom: 'local-dir', symlinkTargets: 'imported' })
+  expect(fs.readFileSync(path.join(dest, 'package.json'), 'utf8')).toBe('{}')
+  expect(() => fs.lstatSync(path.join(dest, 'dangling-link'))).toThrow(expect.objectContaining({ code: 'ENOENT' }))
+})
+
 test.each([false, true])('importIndexedDir() keeps internal directory links to unselected targets and copies file links (occupied=%s)', (occupied) => {
   const tmp = tempDir()
   const src = path.join(tmp, 'src')
