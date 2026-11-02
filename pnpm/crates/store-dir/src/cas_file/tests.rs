@@ -359,21 +359,29 @@ fn cas_file_path_by_mode_rejects_invalid_hex() {
     assert!(store_dir.cas_file_path_by_mode("abcdef", 0o755).is_some());
 }
 
-/// pnpm/pnpm#17543: a write that finds the blob already present reports
-/// the mode it read while comparing, so the importer does not `stat` the
-/// blob again. A write that places a new inode reports none.
+/// pnpm/pnpm#17543: every write reports the blob's mode, which it read
+/// anyway, so the importer does not `stat` the blob again: the mode of a
+/// blob found already present, or of the inode the write created.
 #[test]
 #[cfg(unix)]
-fn a_write_that_keeps_an_existing_blob_reports_its_mode() {
-    use std::os::unix::fs::PermissionsExt;
+fn a_cas_write_reports_the_mode_of_the_blob() {
+    use std::os::unix::fs::{MetadataExt, PermissionsExt};
     use tempfile::tempdir;
 
     let dir = tempdir().unwrap();
     let store_dir = StoreDir::new(dir.path());
-    let content = b"written twice";
+    let on_disk_mode =
+        |file: &pnpm_fs::StoreFile| std::fs::metadata(&file.path).unwrap().mode() & 0o777;
 
+    let content = b"written twice";
     let (first, _) = store_dir.write_cas_file(content, false).unwrap();
-    assert_eq!(first.mode, None);
+    assert_eq!(first.mode, Some(on_disk_mode(&first)));
+    let streamed_content = b"streamed once";
+    let (first_streamed, _, _) = store_dir
+        .write_cas_file_from_reader(&mut streamed_content.as_slice(), true, None)
+        .unwrap();
+    assert_eq!(first_streamed.mode, Some(on_disk_mode(&first_streamed)));
+
     std::fs::set_permissions(&first.path, std::fs::Permissions::from_mode(0o640)).unwrap();
     let (buffered, _) = store_dir.write_cas_file(content, false).unwrap();
     let (streamed, _, _) = store_dir

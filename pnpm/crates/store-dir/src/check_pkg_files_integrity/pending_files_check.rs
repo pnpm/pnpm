@@ -63,9 +63,10 @@ impl PendingFilesCheck {
                     .map(check)
                     .collect()
             };
-        let mut modes = HashMap::with_capacity(checked.len());
-        for (path, mode) in checked.into_iter().collect::<Option<Vec<_>>>()? {
-            if let Some(mode) = mode {
+        // Off Unix no check reads a mode, so the map stays empty.
+        let mut modes = HashMap::with_capacity(if cfg!(unix) { checked.len() } else { 0 });
+        for file in checked {
+            if let (path, Some(mode)) = file? {
                 modes.insert(path, mode);
             }
         }

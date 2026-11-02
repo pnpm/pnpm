@@ -90,9 +90,12 @@ async fn reuses_a_persisted_checksum() {
         writer: &writer,
         verified_files: &SharedVerifiedFilesCache::default(),
     }
-    .read(&key);
+    .read(&key)
+    .expect("the checksum projection is cached");
 
-    assert_eq!(cached, Some(files[CARGO_CHECKSUM_FILE].path.clone()));
+    assert_eq!(cached.path, files[CARGO_CHECKSUM_FILE].path);
+    #[cfg(unix)]
+    assert!(cached.mode.is_some(), "a cache hit keeps the mode its integrity check read");
     drop(writer);
     StoreIndexWriter::drain(task, "").await;
 }

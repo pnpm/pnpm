@@ -531,6 +531,66 @@ async fn prefetch_cas_paths_deferred_check_drops_a_row_only_when_verified() {
     drop(store_dir);
 }
 
+/// pnpm/pnpm#17543: a deferred row that passes `verify_rows` hands the
+/// modes its check read to its files and to its side-effects overlays.
+#[tokio::test]
+#[cfg(unix)]
+async fn verify_rows_hands_verified_modes_to_the_row_and_its_overlays() {
+    let (store_dir, store_path) = tempdir_with_leaked_path();
+    let content = b"{\"name\":\"fake\"}";
+    let (_, hash) = store_path.write_cas_file(content, false).unwrap();
+    let pkg_integrity = integrity(
+        "sha512-q/IXcMGuF8v7ZLf/JeYfE/pB4Wg1yxT6jXJz8JxRK7a4mJSXV1QKMXDPfZkvMHTZpYxWBDoJiXtptDWFnoCA2w==",
+    );
+    let index_key = store_index_key(&pkg_integrity.to_string(), "fake@1.0.0");
+    let info = CafsFileInfo {
+        digest: format!("{hash:x}"),
+        mode: 0o644,
+        size: content.len() as u64,
+        checked_at: None,
+    };
+    let entry = PackageFilesIndex {
+        manifest: None,
+        requires_build: Some(false),
+        requires_prepare: None,
+        algo: "sha512".to_string(),
+        files: HashMap::from([("package.json".to_string(), info)]),
+        side_effects: Some(HashMap::from([(
+            "k1".to_string(),
+            pnpm_store_dir::SideEffectsDiff {
+                added: None,
+                deleted: Some(vec!["README.md".to_string()]),
+                remote_origin: None,
+            },
+        )])),
+        remote_side_effects_quarantine: None,
+        tar_integrity: None,
+    };
+    let index = StoreIndex::open_in(store_path).unwrap();
+    index.set(&index_key, &entry).unwrap();
+    drop(index);
+
+    let verified_files_cache = SharedVerifiedFilesCache::default();
+    let mut prefetched = prefetch_cas_paths(
+        StoreIndex::shared_readonly_in(store_path),
+        store_path,
+        vec![index_key.clone()],
+        PrefetchIntegrityCheck::Deferred,
+        SharedVerifiedFilesCache::clone(&verified_files_cache),
+    )
+    .await;
+    assert_eq!(prefetched.cas_paths[&index_key]["package.json"].mode, None);
+
+    let failed = prefetched.verify_rows([index_key.as_str()], store_path, &verified_files_cache);
+
+    assert_eq!(failed, 0);
+    let mode = prefetched.cas_paths[&index_key]["package.json"].mode;
+    assert!(mode.is_some(), "a passed check hands its mode to the row");
+    let overlay = &prefetched.side_effects_maps[&index_key]["k1"];
+    assert_eq!(overlay.files["package.json"].mode, mode);
+    drop(store_dir);
+}
+
 /// If the index row points at a CAFS blob that no longer exists on
 /// disk (pruned out-of-band, say), the cache lookup must reject the
 /// entry and fall through to a download. We don't want to do the

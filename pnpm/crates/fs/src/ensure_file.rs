@@ -166,8 +166,9 @@ pub fn ensure_file(
 /// bytes as-is (`.pnp.cjs`, the package map) must keep [`ensure_file`]'s
 /// atomic rename.
 ///
-/// Returns the mode of an existing file kept as the blob, which this call
-/// read anyway; `None` when it placed a new inode or off Unix.
+/// Returns the blob's mode, which this call reads anyway: the mode of an
+/// existing file it kept, or of the new inode it created. `None` off Unix
+/// or when the mode could not be read.
 pub fn ensure_cas_file(
     file_path: &Path,
     content: &[u8],
@@ -218,14 +219,16 @@ fn ensure(
     match creation.open(file_path) {
         Ok(mut file) => {
             #[cfg(unix)]
-            creation
+            let created_mode = creation
                 .grant(&file)
                 .map_err(|error| EnsureFileError::WriteFile {
                     file_path: file_path.to_path_buf(),
                     error,
                 })?;
+            #[cfg(not(unix))]
+            let created_mode = None;
             file.write_all(content)
-                .map(|()| None)
+                .map(|()| created_mode)
                 .map_err(|error| EnsureFileError::WriteFile {
                     file_path: file_path.to_path_buf(),
                     error,
@@ -312,7 +315,7 @@ fn verify_or_rewrite(
     mode: Option<u32>,
     repair: Repair,
 ) -> Result<Option<u32>, EnsureFileError> {
-    let rewrite = || write_atomic(file_path, content, mode).map(|()| None);
+    let rewrite = || write_atomic(file_path, content, mode);
     let read_error =
         |error| EnsureFileError::ReadFile { file_path: file_path.to_path_buf(), error };
     let meta = match fs::symlink_metadata(file_path) {
@@ -326,9 +329,7 @@ fn verify_or_rewrite(
     let existing_mode = crate::file_mode::metadata_mode(&meta);
     match bytes_match(file_path, content, &meta) {
         Ok(true) => Ok(existing_mode),
-        // A repair in place keeps the inode, and with it the mode just read.
-        Ok(false) => repair_file(file_path, content, mode, repair)
-            .map(|in_place| if in_place { existing_mode } else { None }),
+        Ok(false) => repair_file(file_path, content, mode, repair, existing_mode),
         Err(error) if error.kind() == io::ErrorKind::NotFound => rewrite(),
         Err(error) => Err(read_error(error)),
     }
@@ -346,18 +347,20 @@ fn bytes_match(file_path: &Path, content: &[u8], meta: &fs::Metadata) -> io::Res
 }
 
 /// Repair a corrupt regular file at `file_path` per the caller's
-/// strategy. `true` when it was repaired in place, keeping its inode.
+/// strategy. Returns the repaired file's mode: `existing_mode` when it
+/// was repaired in place, keeping its inode, or the new inode's mode.
 fn repair_file(
     file_path: &Path,
     content: &[u8],
     mode: Option<u32>,
     repair: Repair,
-) -> Result<bool, EnsureFileError> {
+    existing_mode: Option<u32>,
+) -> Result<Option<u32>, EnsureFileError> {
     let mut source = content;
     let repaired = matches!(repair, Repair::InPlace)
         && overwrite_file_in_place(file_path, &mut source)
         && file_equals_bytes(file_path, content).unwrap_or(false);
-    if repaired { Ok(true) } else { write_atomic(file_path, content, mode).map(|()| false) }
+    if repaired { Ok(existing_mode) } else { write_atomic(file_path, content, mode) }
 }
 
 /// Stream `file_path` and byte-compare against `content` without
@@ -416,17 +419,20 @@ fn file_equals_bytes(file_path: &Path, content: &[u8]) -> io::Result<bool> {
 /// `WriteFile`. On any failure the partially-created temp file is
 /// removed best-effort so stale files don't leak into the store
 /// shard.
+///
+/// Returns the new file's mode as [`create_exclusive_temp_file`] does.
 fn write_atomic(
     file_path: &Path,
     content: &[u8],
     mode: Option<u32>,
-) -> Result<(), EnsureFileError> {
+) -> Result<Option<u32>, EnsureFileError> {
     let parent = file_path.parent().unwrap_or_else(|| Path::new("."));
     let name = file_path
         .file_name()
         .map(|file_name| file_name.to_string_lossy().into_owned())
         .unwrap_or_default();
-    let (tmp_path, mut file) = create_exclusive_temp_file(parent, &strip_dash_suffix(&name), mode)?;
+    let (tmp_path, mut file, created_mode) =
+        create_exclusive_temp_file(parent, &strip_dash_suffix(&name), mode)?;
 
     if let Err(error) = file.write_all(content) {
         drop(file);
@@ -447,7 +453,7 @@ fn write_atomic(
             error,
         });
     }
-    Ok(())
+    Ok(created_mode)
 }
 
 /// Create a uniquely-named file inside `dir` with `O_CREAT | O_EXCL`
@@ -466,11 +472,14 @@ fn write_atomic(
 ///
 /// The caller owns the file's lifecycle: rename it into place on
 /// success, remove it on failure.
+///
+/// Also returns the file's permission bits, which the create reads
+/// anyway on Unix; `None` when it did not read them.
 pub fn create_exclusive_temp_file(
     dir: &Path,
     base: &str,
     mode: Option<u32>,
-) -> Result<(PathBuf, File), EnsureFileError> {
+) -> Result<(PathBuf, File, Option<u32>), EnsureFileError> {
     /// Retries after `AlreadyExists` on the temp path. Sixteen fresh
     /// counter values is plenty — under benign conditions we never
     /// collide; under shared-store-across-containers the chance of
@@ -486,12 +495,17 @@ pub fn create_exclusive_temp_file(
         match creation.open(&tmp_path) {
             Ok(file) => {
                 #[cfg(unix)]
-                if let Err(error) = creation.grant(&file) {
-                    drop(file);
-                    let _ = fs::remove_file(&tmp_path);
-                    return Err(EnsureFileError::CreateFile { file_path: tmp_path, error });
-                }
-                return Ok((tmp_path, file));
+                let created_mode = match creation.grant(&file) {
+                    Ok(created_mode) => created_mode,
+                    Err(error) => {
+                        drop(file);
+                        let _ = fs::remove_file(&tmp_path);
+                        return Err(EnsureFileError::CreateFile { file_path: tmp_path, error });
+                    }
+                };
+                #[cfg(not(unix))]
+                let created_mode = None;
+                return Ok((tmp_path, file, created_mode));
             }
             Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
                 // Stale temp file or adversarial / concurrent pre-seed.

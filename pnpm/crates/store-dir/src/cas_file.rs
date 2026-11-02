@@ -84,8 +84,8 @@ pub enum WriteCasFileFromReaderError {
 impl StoreDir {
     /// Write a file from an npm package to the store directory.
     ///
-    /// The returned [`StoreFile`] carries the mode of a blob that was
-    /// already present (see [`ensure_cas_file`]).
+    /// The returned [`StoreFile`] carries the blob's mode (see
+    /// [`ensure_cas_file`]).
     pub fn write_cas_file(
         &self,
         buffer: &[u8],
@@ -97,9 +97,9 @@ impl StoreDir {
 
         self.ensure_shard_dir(&file_path, file_hash[0])?;
 
-        let existing_mode =
+        let blob_mode =
             ensure_cas_file(&file_path, buffer, mode).map_err(WriteCasFileError::WriteFile)?;
-        Ok((StoreFile::with_mode(file_path, existing_mode), file_hash))
+        Ok((StoreFile::with_mode(file_path, blob_mode), file_hash))
     }
 
     /// Stream a file from an npm package into the store directory
@@ -114,9 +114,9 @@ impl StoreDir {
     /// memory is one fixed copy buffer regardless of file size.
     ///
     /// Returns the CAS file, the content hash, and the streamed byte
-    /// count. The CAS file carries the mode of a blob that was already
-    /// present, as with [`StoreDir::write_cas_file`]. A reader that yields the same bytes as a `buffer` handed
-    /// to [`StoreDir::write_cas_file`] lands at the same path with the
+    /// count. The CAS file carries the blob's mode, as with
+    /// [`StoreDir::write_cas_file`]. A reader that yields the same bytes
+    /// as a `buffer` handed to [`StoreDir::write_cas_file`] lands at the same path with the
     /// same guarantees: an existing regular file at the target is kept
     /// as the live entry only after a byte-compare against the streamed
     /// content, a corrupt regular file is repaired in place so its
@@ -137,7 +137,7 @@ impl StoreDir {
         let files_dir = self.files_dir();
         ensure_parent_dir(files_dir).map_err(write_cas_error)?;
         let mode = executable.then_some(EXEC_MODE);
-        let (tmp_path, file) =
+        let (tmp_path, file, tmp_mode) =
             create_exclusive_temp_file(files_dir, "stream", mode).map_err(write_cas_error)?;
 
         let streamed = stream_into_temp_file(reader, file, &tmp_path, expected_size);
@@ -155,8 +155,8 @@ impl StoreDir {
             return Err(WriteCasFileFromReaderError::Write(error));
         }
 
-        let existing_mode = commit_streamed_temp_file(&tmp_path, &file_path, size)?;
-        Ok((StoreFile::with_mode(file_path, existing_mode), file_hash, size))
+        let blob_mode = commit_streamed_temp_file(&tmp_path, tmp_mode, &file_path, size)?;
+        Ok((StoreFile::with_mode(file_path, blob_mode), file_hash, size))
     }
 
     /// Ensure the shard directory (`files/XX/`) exists.
@@ -184,10 +184,11 @@ fn write_cas_error(error: EnsureFileError) -> WriteCasFileFromReaderError {
 /// repaired in place. Anything else (missing or torn blob, symlink or
 /// other non-regular dirent, refused in-place write) is atomically
 /// replaced by the rename, which is self-healing in every such state.
-/// The mode of the existing blob it kept, `None` when it renamed the
-/// temp file into place.
+/// Returns the blob's mode: the existing blob's when it kept it, or
+/// `tmp_mode` when it renamed the temp file into place.
 fn commit_streamed_temp_file(
     tmp_path: &Path,
+    tmp_mode: Option<u32>,
     file_path: &Path,
     size: u64,
 ) -> Result<Option<u32>, WriteCasFileFromReaderError> {
@@ -217,7 +218,7 @@ fn commit_streamed_temp_file(
             error,
         }));
     }
-    Ok(None)
+    Ok(tmp_mode)
 }
 
 /// Overwrite the corrupt regular file at `file_path` in place with the

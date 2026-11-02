@@ -9,10 +9,9 @@ use std::{
 /// the on-disk mode of its inode.
 ///
 /// `mode` is filled by whoever read the inode's metadata anyway: the store
-/// integrity check, or the store writer that found the blob already
-/// present. The importer decides whether a store inode can be hardlinked
-/// from it and reads the mode from disk only when it is `None`
-/// (pnpm/pnpm#17543).
+/// integrity check, or the store writer. The importer decides whether a
+/// store inode can be hardlinked from it and reads the mode from disk only
+/// when it is `None` (pnpm/pnpm#17543).
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct StoreFile {
     pub path: PathBuf,

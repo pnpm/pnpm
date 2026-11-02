@@ -232,9 +232,9 @@ fn create_exclusive_temp_file_yields_distinct_open_files() {
     use std::io::Write;
 
     let tmp = tempdir().unwrap();
-    let (path_a, mut file_a) =
+    let (path_a, mut file_a, _) =
         create_exclusive_temp_file(tmp.path(), "stream", None).expect("first temp file");
-    let (path_b, _file_b) =
+    let (path_b, _file_b, _) =
         create_exclusive_temp_file(tmp.path(), "stream", None).expect("second temp file");
 
     assert_ne!(path_a, path_b);
