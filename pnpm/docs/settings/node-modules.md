@@ -182,9 +182,9 @@ cloning; on macOS and Windows it tries cloning before hardlinking.
 
 A package that a lifecycle script or a patch will still write must not share files with the store, so pnpm imports it with `clone-or-copy` when this setting is `auto`, `hardlink`, or `clone`. With `copy`, such a package is copied like every other package.
 
-Cloning is the safest way to write packages to `node_modules`. When cloning is used, you may edit files in your `node_modules` and they will not be modified in the central content-addressable store.
+Cloning, like copying, keeps `node_modules` separate from the store. You may edit files in your `node_modules` and they will not be modified in the central content-addressable store. Unlike a copy, a clone shares its data with the store file until one of them is written, so its contents take no extra disk space.
 
-Unfortunately, not all file systems support cloning. For better security on Linux, we recommend using a copy-on-write (CoW) file system (for instance, btrfs instead of ext4) and setting `packageImportMethod` to `clone`, since [`auto` tries hardlinking first on Linux](#what-auto-tries-first).
+Not all file systems support cloning. To clone on Linux, use a copy-on-write (CoW) file system, for instance btrfs instead of ext4, and set `packageImportMethod` to `clone`. On Linux, [`auto` tries hardlinking first](#what-auto-tries-first).
 
 #### What `auto` tries first
 
