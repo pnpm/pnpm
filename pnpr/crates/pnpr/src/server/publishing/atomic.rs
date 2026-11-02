@@ -16,13 +16,18 @@ use axum::{
     http::{StatusCode, header},
     response::Response,
 };
+use futures_util::StreamExt as _;
 use pnpr_storage::{
     BlobFinalize, BlobSlot, Storage,
     metadata::{ArtifactMember, BatchDocument, Generation, PublicationRequest},
 };
 use serde_json::json;
 use ssri::{Algorithm, IntegrityOpts};
-use std::io::{self, Write as _};
+use std::{
+    io::{self, Write as _},
+    path::Path,
+};
+use tokio::io::AsyncReadExt as _;
 
 /// What a publish committed, as its response reports it.
 #[derive(Debug, Default)]
@@ -264,17 +269,45 @@ async fn promote_one(
     name: &pnpr_package_name::CanonicalPackageName,
     slot: BlobSlot,
 ) -> Result<BlobFinalize, RegistryError> {
-    let Some((existing, _)) = storage.open_hosted_blob(name, slot.filename()).await? else {
+    let Some((existing, length)) = storage.open_hosted_blob(name, slot.filename()).await? else {
         return storage.finalize_blob_slot(slot).await;
     };
-    let existing = axum::body::to_bytes(existing, usize::MAX).await
-        .map_err(|err| RegistryError::Internal { reason: format!("reading an archive: {err}") })?;
-    let staged = tokio::fs::read(&slot.tmp_path).await?;
-    if existing.as_ref() == staged.as_slice() {
-        let _ = tokio::fs::remove_file(&slot.tmp_path).await;
-        return Ok(BlobFinalize::AlreadyIdentical);
+    if !same_bytes(existing, length, &slot.tmp_path).await? {
+        return Ok(BlobFinalize::Conflict);
     }
-    Ok(BlobFinalize::Conflict)
+    let _ = tokio::fs::remove_file(&slot.tmp_path).await;
+    Ok(BlobFinalize::AlreadyIdentical)
+}
+
+/// Bytes compared at a time, so comparing never holds a whole archive.
+const COMPARE_CHUNK: usize = 64 * 1024;
+
+/// Whether the archive `existing` streams holds the bytes of the file at
+/// `staged`, read a bounded chunk at a time.
+pub(super) async fn same_bytes(
+    existing: axum::body::Body,
+    length: Option<u64>,
+    staged: &Path,
+) -> Result<bool, RegistryError> {
+    let mut file = tokio::fs::File::open(staged).await?;
+    let staged_length = file.metadata().await?.len();
+    if length.is_some_and(|length| length != staged_length) {
+        return Ok(false);
+    }
+    let mut buffer = vec![0; COMPARE_CHUNK];
+    let mut chunks = existing.into_data_stream();
+    while let Some(chunk) = chunks.next().await {
+        let chunk = chunk.map_err(|err| RegistryError::Internal {
+            reason: format!("reading an archive: {err}"),
+        })?;
+        for part in chunk.chunks(COMPARE_CHUNK) {
+            let read = &mut buffer[..part.len()];
+            if file.read_exact(read).await.is_err() || read != part {
+                return Ok(false);
+            }
+        }
+    }
+    Ok(file.read(&mut buffer[..1]).await? == 0)
 }
 
 /// A publication member for an archive whose version the metadata does not
