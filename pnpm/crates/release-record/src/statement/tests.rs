@@ -15,6 +15,10 @@ fn npm_record() -> StoredRecord {
     StoredRecord::parse(NPM_RECORD.as_bytes().to_vec()).unwrap()
 }
 
+fn acceptance() -> serde_json::Value {
+    json!({ "interpretation": "npm-install-manifest/1" })
+}
+
 fn statement_keys() -> KeySet {
     KeySet::new(vec![registry().statements.verifier_key().clone()], 1).unwrap()
 }
@@ -55,7 +59,7 @@ fn verifies_a_statement_signed_by_another_implementation() {
 #[test]
 fn rejects_a_statement_about_other_bytes() {
     let record = npm_record();
-    let statement = Statement::about(&record, PredicateType::Acceptance, json!({})).unwrap();
+    let statement = Statement::about(&record, PredicateType::Acceptance, acceptance()).unwrap();
     let envelope = statement.sign(&[&registry().statements]);
     let reformatted =
         StoredRecord::parse(NPM_RECORD.replace("\n  ", "\n    ").into_bytes()).unwrap();
@@ -68,7 +72,7 @@ fn rejects_a_statement_about_other_bytes() {
 #[test]
 fn rejects_a_statement_claiming_something_else() {
     let record = npm_record();
-    let statement = Statement::about(&record, PredicateType::Acceptance, json!({})).unwrap();
+    let statement = Statement::about(&record, PredicateType::Acceptance, acceptance()).unwrap();
     let envelope = statement.sign(&[&registry().statements]);
     let error = verify_statement(&envelope, &statement_keys(), &record, PredicateType::Publication)
         .unwrap_err();
@@ -78,7 +82,7 @@ fn rejects_a_statement_claiming_something_else() {
 #[test]
 fn rejects_a_statement_from_an_untrusted_key() {
     let record = npm_record();
-    let statement = Statement::about(&record, PredicateType::Acceptance, json!({})).unwrap();
+    let statement = Statement::about(&record, PredicateType::Acceptance, acceptance()).unwrap();
     let envelope = statement.sign(&[&registry().log]);
     let error = verify_statement(&envelope, &statement_keys(), &record, PredicateType::Acceptance)
         .unwrap_err();
@@ -142,4 +146,40 @@ fn serializes_a_publication_predicate_around_the_publication_record() {
     let round_trip = serde_json::to_value(&predicate).unwrap();
     assert_eq!(round_trip["publication"], "01J0000000000000000000000");
     assert!(round_trip.get("approver").is_none());
+}
+
+#[test]
+fn rejects_a_predicate_without_the_form_of_its_type() {
+    let record = npm_record();
+    for predicate in [json!(null), json!({}), json!({ "interpretation": "not a profile" })] {
+        let error =
+            Statement::about(&record, PredicateType::Acceptance, predicate.clone()).unwrap_err();
+        assert!(matches!(error, StatementError::Predicate { .. }), "{predicate}: {error}");
+    }
+    let mut statement = Statement::about(&record, PredicateType::Acceptance, acceptance()).unwrap();
+    statement.predicate = json!(null);
+    let envelope = statement.sign(&[&registry().statements]);
+    let error = verify_statement(&envelope, &statement_keys(), &record, PredicateType::Acceptance)
+        .unwrap_err();
+    assert!(matches!(error, StatementError::Predicate { .. }), "{error}");
+
+    let tombstone = StoredRecord::parse(OCI_TOMBSTONE.as_bytes().to_vec()).unwrap();
+    let error =
+        Statement::about(&tombstone, PredicateType::TagBinding, json!({ "action": "moved" }))
+            .unwrap_err();
+    assert!(matches!(error, StatementError::Predicate { .. }), "{error}");
+}
+
+#[test]
+fn rejects_an_acceptance_under_another_profile() {
+    let record = npm_record();
+    let other = json!({ "interpretation": "npm-install-manifest/2" });
+    let error = Statement::about(&record, PredicateType::Acceptance, other.clone()).unwrap_err();
+    assert!(matches!(error, StatementError::InterpretationMismatch { .. }), "{error}");
+    let mut statement = Statement::about(&record, PredicateType::Acceptance, acceptance()).unwrap();
+    statement.predicate = other;
+    let envelope = statement.sign(&[&registry().statements]);
+    let error = verify_statement(&envelope, &statement_keys(), &record, PredicateType::Acceptance)
+        .unwrap_err();
+    assert!(matches!(error, StatementError::InterpretationMismatch { .. }), "{error}");
 }

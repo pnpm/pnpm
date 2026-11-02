@@ -158,26 +158,37 @@ pub struct CacheKey {
 
 impl CacheKey {
     /// A file-name-safe digest of the key: the lowercase hex SHA-256 of its
-    /// fields, each prefixed with its length.
+    /// fields, each absent field written as a zero byte and each present one
+    /// as a one byte, its length, and its text, so no two keys share one.
     #[must_use]
     pub fn file_name(&self) -> String {
-        let (identity, tag) = match &self.record.identity {
-            RecordIdentity::Package(purl) => (purl.as_str(), ""),
-            RecordIdentity::OciTag { repository, tag } => (repository.as_str(), tag.as_str()),
+        let (kind, identity, tag) = match &self.record.identity {
+            RecordIdentity::Package(purl) => ("package", purl.as_str(), None),
+            RecordIdentity::OciTag { repository, tag } => {
+                ("oci-tag", repository.as_str(), Some(tag.as_str()))
+            }
         };
+        let authority = self.authority.to_string();
         let revision = self.record.revision.map(|revision| revision.to_string());
         let fields = [
-            &self.authority.to_string(),
-            identity,
+            Some(authority.as_str()),
+            Some(kind),
+            Some(identity),
             tag,
-            revision.as_deref().unwrap_or("-"),
-            self.record.profile.as_str(),
-            self.principal.as_deref().unwrap_or("-"),
+            revision.as_deref(),
+            Some(self.record.profile.as_str()),
+            self.principal.as_deref(),
         ];
         let mut hasher = Sha256::new();
         for field in fields {
-            hasher.update((field.len() as u64).to_be_bytes());
-            hasher.update(field);
+            match field {
+                None => hasher.update([0]),
+                Some(field) => {
+                    hasher.update([1]);
+                    hasher.update((field.len() as u64).to_be_bytes());
+                    hasher.update(field);
+                }
+            }
         }
         lowercase_hex(&hasher.finalize())
     }

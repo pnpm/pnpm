@@ -1,6 +1,6 @@
 //! Interpretation profiles: the rules a record's metadata was derived under.
 
-use derive_more::{Display, Error};
+use derive_more::{Display, Error, Into};
 use serde::{Deserialize, Serialize};
 use std::{fmt, str::FromStr};
 
@@ -10,7 +10,7 @@ use std::{fmt, str::FromStr};
 /// A correction to a derivation is a new profile; records are never
 /// re-derived under the profile they were accepted with. A client supports a
 /// set of profiles and treats any other as a capability error.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Into, Serialize, Deserialize)]
 #[serde(try_from = "String", into = "String")]
 pub struct Profile(String);
 
@@ -101,12 +101,6 @@ impl TryFrom<String> for Profile {
             Some((name, version)) if is_part(name) && is_part(version),
         );
         if is_profile { Ok(Profile(text)) } else { Err(ProfileError { text }) }
-    }
-}
-
-impl From<Profile> for String {
-    fn from(profile: Profile) -> Self {
-        profile.0
     }
 }
 

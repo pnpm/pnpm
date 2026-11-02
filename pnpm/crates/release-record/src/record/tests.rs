@@ -62,6 +62,9 @@ fn rejects_records_that_do_not_match_their_profile() {
         matches!(&error, RecordError::WrongPurlType { purl_type, .. } if purl_type == "cargo"),
         "{error}",
     );
+    let unencoded = NPM_RECORD.replace("pkg:npm/%40example", "pkg:npm/@example");
+    let error = StoredRecord::parse(unencoded.into_bytes()).unwrap_err();
+    assert!(matches!(error, RecordError::Purl(_)), "{error}");
     let schema = NPM_RECORD.replace("pnpr-release-record/1", "pnpr-release-record/2");
     let error = StoredRecord::parse(schema.into_bytes()).unwrap_err();
     assert!(matches!(error, RecordError::UnsupportedSchema { .. }), "{error}");

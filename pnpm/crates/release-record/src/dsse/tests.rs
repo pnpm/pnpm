@@ -67,9 +67,9 @@ fn ignores_a_signature_whose_keyid_names_another_key() {
     let keys = KeySet::new(vec![one.verifier_key().clone()], 1).unwrap();
     let mut envelope = Envelope::sign("text/plain", b"body", &[&one]);
     envelope.signatures[0].keyid = two.verifier_key().key_name();
-    assert!(envelope.verify(&keys).is_err());
+    assert_eq!(envelope.verify(&keys), Err(DsseError::Threshold { found: 0, required: 1 }));
     envelope.signatures[0].keyid = String::new();
-    assert!(envelope.verify(&keys).is_ok());
+    envelope.verify(&keys).unwrap();
 }
 
 #[test]
@@ -89,7 +89,8 @@ fn rejects_cosignature_keys_and_bad_encodings() {
     let keys = KeySet::new(vec![witness.verifier_key().clone()], 1).unwrap();
     let (one, ..) = signers();
     let envelope = Envelope::sign("text/plain", b"body", &[&one]);
-    assert!(matches!(envelope.verify(&keys), Err(DsseError::InvalidKey { .. })));
+    let result = envelope.verify(&keys);
+    assert!(matches!(result, Err(DsseError::InvalidKey { .. })), "{result:?}");
 
     let keys = KeySet::new(vec![one.verifier_key().clone()], 1).unwrap();
     let mut garbled = envelope;

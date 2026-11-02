@@ -4,7 +4,7 @@ use crate::{
     digest::RecordDigest,
     identity::{LogEntry, LogEntryError, RecordIdentity, RecordKey},
     profile::Profile,
-    purl::Purl,
+    purl::{Purl, PurlError},
 };
 use derive_more::{Display, Error};
 use serde::{Deserialize, Deserializer};
@@ -56,6 +56,7 @@ pub enum RecordError {
         #[error(not(source))]
         purl: String,
     },
+    Purl(PurlError),
     #[display("{profile} record has a {purl_type} package URL")]
     WrongPurlType {
         #[error(not(source))]
@@ -97,12 +98,8 @@ impl StoredRecord {
     /// requires; an OCI tag record must name its repository, tag, and
     /// revision, and has a `purl` that is `null` for a tombstone.
     pub fn parse(bytes: Vec<u8>) -> Result<Self, RecordError> {
-        let core: Core = serde_json::from_slice(&bytes).map_err(RecordError::Json)?;
-        if core.schema != RECORD_SCHEMA {
-            return Err(RecordError::UnsupportedSchema { schema: core.schema });
-        }
-        let (key, image) = record_key(core)?;
-        Ok(StoredRecord { digest: RecordDigest::of(&bytes), bytes, key, image })
+        let digest = RecordDigest::of(&bytes);
+        StoredRecord::parse_with_digest(bytes, digest)
     }
 
     /// Reads a record whose digest a lockfile or log entry already names,
@@ -112,7 +109,16 @@ impl StoredRecord {
         if actual != expected {
             return Err(RecordError::DigestMismatch { expected, actual });
         }
-        StoredRecord::parse(bytes)
+        StoredRecord::parse_with_digest(bytes, actual)
+    }
+
+    fn parse_with_digest(bytes: Vec<u8>, digest: RecordDigest) -> Result<Self, RecordError> {
+        let core: Core = serde_json::from_slice(&bytes).map_err(RecordError::Json)?;
+        if core.schema != RECORD_SCHEMA {
+            return Err(RecordError::UnsupportedSchema { schema: core.schema });
+        }
+        let (key, image) = record_key(core)?;
+        Ok(StoredRecord { bytes, digest, key, image })
     }
 
     /// The record's bytes.
@@ -175,6 +181,7 @@ fn record_key(core: Core) -> Result<(RecordKey, Option<Purl>), RecordError> {
         let purl_type = purl.purl_type().to_owned();
         return Err(RecordError::WrongPurlType { profile, purl_type });
     }
+    purl.check_canonical().map_err(RecordError::Purl)?;
     let identity = RecordIdentity::Package(purl);
     Ok((RecordKey { identity, revision: core.revision, profile }, None))
 }

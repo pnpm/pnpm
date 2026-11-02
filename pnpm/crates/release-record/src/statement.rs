@@ -7,6 +7,7 @@ mod predicate;
 
 use crate::{
     dsse::{DsseError, Envelope, IN_TOTO_PAYLOAD_TYPE},
+    profile::Profile,
     record::StoredRecord,
 };
 use derive_more::{Display, Error};
@@ -75,6 +76,19 @@ pub enum StatementError {
         #[error(not(source))]
         profile: String,
     },
+    #[display("invalid {predicate_type} predicate: {error}")]
+    Predicate {
+        #[error(not(source))]
+        predicate_type: &'static str,
+        error: serde_json::Error,
+    },
+    #[display("acceptance statement claims profile {actual}, but the record is {expected}")]
+    InterpretationMismatch {
+        #[error(not(source))]
+        expected: Profile,
+        #[error(not(source))]
+        actual: Profile,
+    },
     #[display("statement subject is not the record {name}")]
     SubjectMismatch {
         #[error(not(source))]
@@ -84,13 +98,15 @@ pub enum StatementError {
 
 impl Statement {
     /// A statement claiming `predicate_type` about `record`, by its name and
-    /// SHA-512.
+    /// SHA-512. The predicate must have the form of its type, and an
+    /// acceptance predicate must name the record's profile.
     pub fn about(
         record: &StoredRecord,
         predicate_type: PredicateType,
         predicate: Value,
     ) -> Result<Self, StatementError> {
         check_applicable(record, predicate_type)?;
+        check_predicate(record, predicate_type, &predicate)?;
         Ok(Statement {
             statement_type: STATEMENT_TYPE.to_owned(),
             subject: vec![subject_of(record)],
@@ -108,7 +124,9 @@ impl Statement {
 }
 
 /// Verifies `envelope` as a statement claiming `predicate_type` about
-/// `record`, signed by the threshold of the registry's statement `keys`.
+/// `record`, signed by the threshold of the registry's statement `keys`. The
+/// predicate must have the form of its type, and an acceptance predicate
+/// must name the record's profile.
 pub fn verify_statement(
     envelope: &Envelope,
     keys: &KeySet,
@@ -134,7 +152,33 @@ pub fn verify_statement(
     if !statement.subject.iter().any(|subject| names_record(subject, &expected)) {
         return Err(StatementError::SubjectMismatch { name: expected.name });
     }
+    check_predicate(record, predicate_type, &statement.predicate)?;
     Ok(statement)
+}
+
+fn check_predicate(
+    record: &StoredRecord,
+    predicate_type: PredicateType,
+    predicate: &Value,
+) -> Result<(), StatementError> {
+    let invalid = |error| StatementError::Predicate { predicate_type: predicate_type.uri(), error };
+    match predicate_type {
+        PredicateType::Acceptance => {
+            let acceptance = AcceptancePredicate::deserialize(predicate).map_err(invalid)?;
+            let expected = &record.key().profile;
+            if &acceptance.interpretation != expected {
+                let (expected, actual) = (expected.clone(), acceptance.interpretation);
+                return Err(StatementError::InterpretationMismatch { expected, actual });
+            }
+        }
+        PredicateType::Publication => {
+            PublicationPredicate::deserialize(predicate).map_err(invalid)?;
+        }
+        PredicateType::TagBinding => {
+            TagBindingPredicate::deserialize(predicate).map_err(invalid)?;
+        }
+    }
+    Ok(())
 }
 
 fn subject_of(record: &StoredRecord) -> Subject {

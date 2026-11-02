@@ -70,3 +70,43 @@ fn reports_its_type() {
     assert_eq!(Purl::npm("@a/b", "1.0.0").unwrap().purl_type(), "npm");
     assert_eq!(Purl::from_string_unchecked("pkg:cargo/x@1".to_owned()).purl_type(), "cargo");
 }
+
+#[test]
+fn accepts_canonical_purls() {
+    for purl in [
+        Purl::npm("@example/widgets", "1.2.0-beta.1+build.5").unwrap(),
+        Purl::npm("foobar", "12.3.1").unwrap(),
+        Purl::cargo("serde", "1.0.210").unwrap(),
+        Purl::pypi_file("Django_Package", "1.11.1.dev1", "Django_Package-1.11.1.dev1.tar.gz")
+            .unwrap(),
+        Purl::from_string_unchecked("pkg:gem/rails@7.1.0".to_owned()),
+    ] {
+        purl.check_canonical().unwrap();
+    }
+}
+
+#[test]
+fn rejects_other_spellings_of_a_purl() {
+    for text in [
+        "pkg:npm/",
+        "pkg:npm/@example/widgets@1.2.0",
+        "pkg:npm/%40example/widgets@1.2.0-beta.1+build.5",
+        "pkg:npm/%2540example/widgets@1.2.0",
+        "pkg:npm/example/widgets@1.2.0",
+        "pkg:npm/widgets",
+        "pkg:npm/widgets@1.2.0?arch=x64",
+        "pkg:npm/%77idgets@1.2.0",
+        "pkg:cargo/serde@1.0.210#src",
+        "pkg:cargo/ns/serde@1.0.210",
+        "pkg:pypi/Django@1.11.1?file_name=Django-1.11.1.tar.gz",
+        "pkg:pypi/django@1.11.1",
+        "pkg:pypi/django@1.11.1?file_name=a.whl&arch=x86_64",
+    ] {
+        let purl = Purl::from_string_unchecked(text.to_owned());
+        assert_eq!(
+            purl.check_canonical(),
+            Err(PurlError::NonCanonical { purl: text.to_owned() }),
+            "{text}",
+        );
+    }
+}

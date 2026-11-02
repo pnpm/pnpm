@@ -84,13 +84,15 @@ fn verifies_a_target_through_the_whole_chain() {
     let first_root = fixture.root(1, FUTURE);
     let mut repository = TrustedRepository::new(&first_root, digest(&first_root)).unwrap();
     load(&mut repository, &fixture.top_level(1, FUTURE)).unwrap();
-    repository.verify_target("pnpr-log-policy.json", POLICY).unwrap();
+    repository
+        .verify_target("pnpr-log-policy.json", POLICY, now())
+        .unwrap();
     assert!(matches!(
-        repository.verify_target("pnpr-log-policy.json", b"{\"schema\":\"forged\"}"),
+        repository.verify_target("pnpr-log-policy.json", b"{\"schema\":\"forged\"}", now()),
         Err(TufError::FileMismatch { .. }),
     ));
     assert!(matches!(
-        repository.verify_target("other.json", POLICY),
+        repository.verify_target("other.json", POLICY, now()),
         Err(TufError::MissingTarget { .. })
     ));
     assert_eq!(
@@ -150,12 +152,56 @@ fn rotates_root_keys_only_with_both_thresholds() {
     );
     repository.update_root(&both).unwrap();
     assert_eq!(repository.root_version(), 2);
-    assert_eq!(repository.root_bytes(), both);
+    assert_eq!(repository.roots(), [first_root.clone(), both]);
 
     let skipped = rotated.root(4, FUTURE);
     assert!(matches!(
         repository.update_root(&skipped),
         Err(TufError::RootVersion { expected: 3, actual: 4 })
+    ));
+
+    let resumed = TrustedRepository::resume(
+        digest(&first_root),
+        repository.roots(),
+        TrustedVersions::default(),
+    )
+    .unwrap();
+    assert_eq!(resumed.root_version(), 2);
+}
+
+#[test]
+fn resumes_only_a_root_chain_from_the_pinned_first_root() {
+    let fixture = Fixture::new();
+    let first_root = fixture.root(1, FUTURE);
+    let attacker = Fixture { root_keys: vec![key(21), key(22)], ..Fixture::new() };
+    let versions = TrustedVersions { timestamp: Some(5), snapshot: Some(5), targets: Some(5) };
+    let resume =
+        |roots: &[&Vec<u8>]| TrustedRepository::resume(digest(&first_root), roots, versions);
+
+    let self_signed = attacker.root(1, FUTURE);
+    assert!(matches!(resume(&[&self_signed]), Err(TufError::RootDigestMismatch)));
+    let unrelated_next = attacker.root(2, FUTURE);
+    assert!(matches!(
+        resume(&[&first_root, &unrelated_next]),
+        Err(TufError::Threshold { role: "root", .. }),
+    ));
+    let repository = resume(&[&first_root]).unwrap();
+    assert_eq!(repository.versions(), versions);
+}
+
+#[test]
+fn refuses_a_target_once_its_metadata_expired() {
+    let fixture = Fixture::new();
+    let first_root = fixture.root(1, FUTURE);
+    let mut repository = TrustedRepository::new(&first_root, digest(&first_root)).unwrap();
+    load(&mut repository, &fixture.top_level(1, "2026-11-02T00:00:00Z")).unwrap();
+    repository
+        .verify_target("pnpr-log-policy.json", POLICY, now())
+        .unwrap();
+    let later = "2026-11-03T00:00:00Z".parse().unwrap();
+    assert!(matches!(
+        repository.verify_target("pnpr-log-policy.json", POLICY, later),
+        Err(TufError::Expired { role: "timestamp" }),
     ));
 }
 
@@ -174,7 +220,9 @@ fn a_fresh_client_follows_a_timestamp_key_rotation_and_refuses_the_old_key() {
         Err(TufError::Threshold { role: "timestamp", found: 0, required: 1 }),
     ));
     load(&mut repository, &rotated.top_level(1, FUTURE)).unwrap();
-    repository.verify_target("pnpr-log-policy.json", POLICY).unwrap();
+    repository
+        .verify_target("pnpr-log-policy.json", POLICY, now())
+        .unwrap();
 }
 
 #[test]
@@ -183,7 +231,7 @@ fn rotating_the_timestamp_key_clears_trusted_versions() {
     let first_root = fixture.root(1, FUTURE);
     let versions = TrustedVersions { timestamp: Some(9), snapshot: Some(9), targets: Some(9) };
     let mut repository =
-        TrustedRepository::resume(digest(&first_root), &first_root, versions).unwrap();
+        TrustedRepository::resume(digest(&first_root), &[&first_root], versions).unwrap();
     let rotated = Fixture { timestamp_key: key(13), ..Fixture::new() };
     repository
         .update_root(&rotated.root(2, FUTURE))
@@ -198,7 +246,7 @@ fn changing_the_key_behind_a_timestamp_key_id_clears_trusted_versions() {
     let first_root = fixture.root(1, FUTURE);
     let versions = TrustedVersions { timestamp: Some(9), snapshot: Some(9), targets: Some(9) };
     let mut repository =
-        TrustedRepository::resume(digest(&first_root), &first_root, versions).unwrap();
+        TrustedRepository::resume(digest(&first_root), &[&first_root], versions).unwrap();
     let mut next = root(2, FUTURE, &fixture.role_keys());
     let timestamp_id = key_id(&fixture.timestamp_key);
     next["keys"][&timestamp_id]["keyval"]["public"] =
@@ -282,8 +330,9 @@ fn rejects_expired_metadata() {
 fn rejects_rollbacks_against_persisted_versions() {
     let fixture = Fixture::new();
     let first_root = fixture.root(1, FUTURE);
-    let resume =
-        |versions| TrustedRepository::resume(digest(&first_root), &first_root, versions).unwrap();
+    let resume = |versions| {
+        TrustedRepository::resume(digest(&first_root), &[&first_root], versions).unwrap()
+    };
     let [timestamp, snapshot, _] = fixture.top_level(3, FUTURE);
 
     let mut repository =
@@ -337,7 +386,7 @@ fn rejects_metadata_that_does_not_match_its_listing() {
         .unwrap();
     assert!(matches!(
         repository.update_targets(&targets, now()),
-        Err(TufError::FileMismatch { .. } | TufError::VersionMismatch { .. }),
+        Err(TufError::VersionMismatch { role: "targets", expected: 3, actual: 2 }),
     ));
 }
 
@@ -358,14 +407,14 @@ fn a_new_timestamp_requires_the_snapshot_and_targets_again() {
         .update_timestamp(&timestamp, now())
         .unwrap();
     assert!(matches!(
-        repository.verify_target("pnpr-log-policy.json", POLICY),
+        repository.verify_target("pnpr-log-policy.json", POLICY, now()),
         Err(TufError::NotLoaded { role: "targets" }),
     ));
     repository
         .update_snapshot(&snapshot, now())
         .unwrap();
     assert!(matches!(
-        repository.verify_target("pnpr-log-policy.json", POLICY),
+        repository.verify_target("pnpr-log-policy.json", POLICY, now()),
         Err(TufError::NotLoaded { role: "targets" }),
     ));
 }
@@ -385,7 +434,7 @@ fn requires_roles_in_order() {
         Err(TufError::NotLoaded { role: "snapshot" })
     ));
     assert!(matches!(
-        repository.verify_target("x", b""),
+        repository.verify_target("x", b"", now()),
         Err(TufError::NotLoaded { role: "targets" })
     ));
 }

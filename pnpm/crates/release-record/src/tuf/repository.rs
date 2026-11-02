@@ -3,7 +3,7 @@ use super::{
     metadata::{
         FileList, MetaFile, RoleMetadata, Root, Signed, Snapshot, Targets, Timestamp, parse,
     },
-    role::{check_file, verify_role},
+    role::{HashRequirement, check_file, verify_role},
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -28,7 +28,7 @@ pub struct TrustedVersions {
 pub struct TrustedRepository {
     first_root_digest: [u8; 32],
     root: Signed<Root>,
-    root_bytes: Vec<u8>,
+    roots: Vec<Vec<u8>>,
     versions: TrustedVersions,
     timestamp: Option<Timestamp>,
     snapshot: Option<Snapshot>,
@@ -42,33 +42,41 @@ impl TrustedRepository {
         if <[u8; 32]>::from(Sha256::digest(first_root)) != first_root_digest {
             return Err(TufError::RootDigestMismatch);
         }
-        let repository =
-            TrustedRepository::resume(first_root_digest, first_root, TrustedVersions::default())?;
-        let version = repository.root.body.header.version;
+        let root = parse::<Root>(first_root)?;
+        verify_role(&root.body, Root::ROLE, &root)?;
+        let version = root.body.header.version;
         if version != 1 {
             return Err(TufError::RootVersion { expected: 1, actual: version });
         }
-        Ok(repository)
-    }
-
-    /// Resumes from a root this client verified earlier and the versions it
-    /// persisted with it.
-    pub fn resume(
-        first_root_digest: [u8; 32],
-        trusted_root: &[u8],
-        versions: TrustedVersions,
-    ) -> Result<Self, TufError> {
-        let root = parse::<Root>(trusted_root)?;
-        verify_role(&root.body, Root::ROLE, &root)?;
         Ok(TrustedRepository {
             first_root_digest,
             root,
-            root_bytes: trusted_root.to_vec(),
-            versions,
+            roots: vec![first_root.to_vec()],
+            versions: TrustedVersions::default(),
             timestamp: None,
             snapshot: None,
             targets: None,
         })
+    }
+
+    /// Resumes from the root versions this client verified earlier, every one
+    /// from the first, and the versions it persisted with them.
+    ///
+    /// The chain is verified again from the pinned first root, each version
+    /// signed by the thresholds of the one before it and of itself, so a
+    /// replaced cache cannot substitute a root that only signs itself.
+    pub fn resume<Bytes: AsRef<[u8]>>(
+        first_root_digest: [u8; 32],
+        roots: &[Bytes],
+        versions: TrustedVersions,
+    ) -> Result<Self, TufError> {
+        let (first, later) = roots.split_first().ok_or(TufError::RootDigestMismatch)?;
+        let mut repository = TrustedRepository::new(first.as_ref(), first_root_digest)?;
+        for root in later {
+            repository.update_root(root.as_ref())?;
+        }
+        repository.versions = versions;
+        Ok(repository)
     }
 
     /// Moves to the next root version, which must be signed by the threshold
@@ -88,7 +96,7 @@ impl TrustedRepository {
             self.versions = TrustedVersions::default();
         }
         self.root = next;
-        self.root_bytes = next_root.to_vec();
+        self.roots.push(next_root.to_vec());
         (self.timestamp, self.snapshot, self.targets) = (None, None, None);
         Ok(())
     }
@@ -118,7 +126,13 @@ impl TrustedRepository {
             .as_ref()
             .ok_or(TufError::NotLoaded { role: Timestamp::ROLE })?;
         let listing = listed(&timestamp.0, Timestamp::ROLE, "snapshot.json")?;
-        check_file("snapshot.json", bytes, listing.length, &listing.hashes, false)?;
+        check_file(
+            "snapshot.json",
+            bytes,
+            listing.length,
+            &listing.hashes,
+            HashRequirement::Optional,
+        )?;
         let snapshot = parse::<Snapshot>(bytes)?;
         verify_role(&self.root.body, Snapshot::ROLE, &snapshot)?;
         check_version(Snapshot::ROLE, listing.version, snapshot.body.0.header.version)?;
@@ -138,7 +152,13 @@ impl TrustedRepository {
             .as_ref()
             .ok_or(TufError::NotLoaded { role: Snapshot::ROLE })?;
         let listing = listed(&snapshot.0, Snapshot::ROLE, "targets.json")?;
-        check_file("targets.json", bytes, listing.length, &listing.hashes, false)?;
+        check_file(
+            "targets.json",
+            bytes,
+            listing.length,
+            &listing.hashes,
+            HashRequirement::Optional,
+        )?;
         let targets = parse::<Targets>(bytes)?;
         verify_role(&self.root.body, Targets::ROLE, &targets)?;
         check_version(Targets::ROLE, listing.version, targets.body.header.version)?;
@@ -148,15 +168,29 @@ impl TrustedRepository {
     }
 
     /// Verifies a target's bytes against the length and hashes the trusted
-    /// targets metadata lists for `path`.
-    pub fn verify_target(&self, path: &str, bytes: &[u8]) -> Result<(), TufError> {
+    /// targets metadata lists for `path`. Fails if the root, timestamp,
+    /// snapshot, or targets metadata has expired since it was loaded.
+    pub fn verify_target(
+        &self,
+        path: &str,
+        bytes: &[u8],
+        now: DateTime<Utc>,
+    ) -> Result<(), TufError> {
         let targets = self.targets
             .as_ref()
             .ok_or(TufError::NotLoaded { role: Targets::ROLE })?;
+        let (timestamp, snapshot) = (self.timestamp.as_ref(), self.snapshot.as_ref());
+        let (Some(timestamp), Some(snapshot)) = (timestamp, snapshot) else {
+            return Err(TufError::NotLoaded { role: Snapshot::ROLE });
+        };
+        self.root.body.header.check_expiry(Root::ROLE, now)?;
+        timestamp.0.header.check_expiry(Timestamp::ROLE, now)?;
+        snapshot.0.header.check_expiry(Snapshot::ROLE, now)?;
+        targets.header.check_expiry(Targets::ROLE, now)?;
         let target = targets.targets
             .get(path)
             .ok_or_else(|| TufError::MissingTarget { path: path.to_owned() })?;
-        check_file(path, bytes, Some(target.length), &target.hashes, true)
+        check_file(path, bytes, Some(target.length), &target.hashes, HashRequirement::Required)
     }
 
     /// The SHA-256 of the first root version this repository is pinned to.
@@ -165,10 +199,11 @@ impl TrustedRepository {
         &self.first_root_digest
     }
 
-    /// The bytes of the trusted root, to persist for [`TrustedRepository::resume`].
+    /// Every trusted root version from the first, to persist for
+    /// [`TrustedRepository::resume`].
     #[must_use]
-    pub fn root_bytes(&self) -> &[u8] {
-        &self.root_bytes
+    pub fn roots(&self) -> &[Vec<u8>] {
+        &self.roots
     }
 
     /// The trusted root's version.

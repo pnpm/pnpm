@@ -47,15 +47,24 @@ fn signer(key: &Key, message: &[u8], signature: &RawSignature) -> Option<[u8; 32
     Some(public_key.to_bytes())
 }
 
+/// Whether a listed file must carry at least one SHA-256 or SHA-512 hash.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum HashRequirement {
+    /// A target, which TUF always lists with hashes.
+    Required,
+    /// Snapshot or targets metadata, which may be listed by version alone.
+    Optional,
+}
+
 /// Fails unless `bytes` has the listed length, if any, and every listed
-/// SHA-256 and SHA-512 hash. With `require_hash`, at least one of those
-/// hashes must be listed.
+/// SHA-256 and SHA-512 hash, of which `requirement` says whether at least
+/// one must be listed.
 pub(super) fn check_file(
     file: &str,
     bytes: &[u8],
     length: Option<u64>,
     hashes: &BTreeMap<String, String>,
-    require_hash: bool,
+    requirement: HashRequirement,
 ) -> Result<(), TufError> {
     let mismatch = || TufError::FileMismatch { file: file.to_owned() };
     if length.is_some_and(|length| length != bytes.len() as u64) {
@@ -73,10 +82,10 @@ pub(super) fn check_file(
         }
         checked += 1;
     }
-    if require_hash && checked == 0 {
-        return Err(TufError::NoSupportedHash { file: file.to_owned() });
+    match (requirement, checked) {
+        (HashRequirement::Required, 0) => Err(TufError::NoSupportedHash { file: file.to_owned() }),
+        (HashRequirement::Required | HashRequirement::Optional, _) => Ok(()),
     }
-    Ok(())
 }
 
 fn decode_hex(text: &str) -> Option<Vec<u8>> {

@@ -3,7 +3,7 @@
 //! PURL" describes, with each type's normalization.
 
 use derive_more::{Display, Error};
-use percent_encoding::{AsciiSet, NON_ALPHANUMERIC, utf8_percent_encode};
+use percent_encoding::{AsciiSet, NON_ALPHANUMERIC, percent_decode_str, utf8_percent_encode};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
@@ -33,6 +33,11 @@ pub enum PurlError {
     InvalidNpmName {
         #[error(not(source))]
         name: String,
+    },
+    #[display("not the canonical package URL of its type: {purl}")]
+    NonCanonical {
+        #[error(not(source))]
+        purl: String,
     },
 }
 
@@ -95,6 +100,65 @@ impl Purl {
     pub fn purl_type(&self) -> &str {
         let rest = self.0.strip_prefix("pkg:").unwrap_or_default();
         rest.split_once('/').map_or(rest, |(purl_type, _)| purl_type)
+    }
+
+    /// Checks that an `npm`, `cargo`, or `pypi` PURL is exactly the one
+    /// [`Purl::npm`], [`Purl::cargo`], or [`Purl::pypi_file`] builds from its
+    /// components, so one release has one spelling. A `pypi` PURL must name
+    /// its file. PURLs of other types are not checked.
+    pub fn check_canonical(&self) -> Result<(), PurlError> {
+        let non_canonical = || PurlError::NonCanonical { purl: self.0.clone() };
+        let rebuilt = match self.purl_type() {
+            "npm" | "cargo" | "pypi" => self.rebuild().ok_or_else(non_canonical)?,
+            _ => return Ok(()),
+        };
+        if rebuilt != *self {
+            return Err(non_canonical());
+        }
+        Ok(())
+    }
+
+    /// The PURL its type's builder makes from this PURL's decoded
+    /// components, or `None` if they do not parse or do not build.
+    fn rebuild(&self) -> Option<Self> {
+        let decode = |text: &str| {
+            Some(
+                percent_decode_str(text)
+                    .decode_utf8()
+                    .ok()?
+                    .into_owned(),
+            )
+        };
+        let (purl_type, rest) = self.0.strip_prefix("pkg:")?.split_once('/')?;
+        let (rest, qualifiers) = rest
+            .split_once('?')
+            .unwrap_or((rest, ""));
+        let (path, version) = rest.rsplit_once('@')?;
+        let (namespace, name) = match path.rsplit_once('/') {
+            Some((namespace, name)) => (Some(decode(namespace)?), decode(name)?),
+            None => (None, decode(path)?),
+        };
+        let version = decode(version)?;
+        let qualifiers: Vec<(&str, String)> = qualifiers
+            .split('&')
+            .filter(|pair| !pair.is_empty())
+            .map(|pair| {
+                let (key, value) = pair.split_once('=')?;
+                Some((key, decode(value)?))
+            })
+            .collect::<Option<_>>()?;
+        match (purl_type, namespace) {
+            ("npm", Some(scope)) => Purl::npm(&format!("{scope}/{name}"), &version).ok(),
+            ("npm", None) => Purl::npm(&name, &version).ok(),
+            ("cargo", None) => Purl::cargo(&name, &version).ok(),
+            ("pypi", None) => {
+                let (_, file_name) = qualifiers
+                    .iter()
+                    .find(|(key, _)| *key == "file_name")?;
+                Purl::pypi_file(&name, &version, file_name).ok()
+            }
+            _ => None,
+        }
     }
 
     /// Wraps an existing PURL, such as one read from a record, without

@@ -112,7 +112,7 @@ fn authenticates_the_policy_through_tuf() {
     repository.update_snapshot(&snapshot, now).unwrap();
     repository.update_targets(&targets, now).unwrap();
 
-    let policy = LogPolicy::from_repository(&repository, &policy_bytes).unwrap();
+    let policy = LogPolicy::from_repository(&repository, &policy_bytes, now).unwrap();
     assert_eq!(policy.authority().first_root_digest(), &first_root_digest);
     assert!(
         policy
@@ -123,7 +123,7 @@ fn authenticates_the_policy_through_tuf() {
 
     let tampered = policy_document(&registry, 0);
     assert!(matches!(
-        LogPolicy::from_repository(&repository, &tampered),
+        LogPolicy::from_repository(&repository, &tampered, now),
         Err(LogPolicyError::Tuf(_))
     ));
 }

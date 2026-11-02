@@ -1,5 +1,9 @@
 use super::{RecordIdentity, RecordKey};
-use crate::{digest::RecordDigest, profile::Profile, purl::Purl};
+use crate::{
+    digest::RecordDigest,
+    profile::Profile,
+    purl::{Purl, PurlError},
+};
 use derive_more::{Display, Error};
 use std::collections::{HashMap, hash_map::Entry};
 
@@ -44,6 +48,7 @@ pub enum LogEntryError {
         #[error(not(source))]
         profile: Profile,
     },
+    Purl(PurlError),
     #[display("malformed log entry")]
     Malformed,
 }
@@ -56,6 +61,7 @@ impl LogEntry {
         let needs_revision = match &key.identity {
             RecordIdentity::Package(purl) => {
                 check_field("purl", purl.as_str())?;
+                purl.check_canonical().map_err(LogEntryError::Purl)?;
                 key.profile.has_revisions()
             }
             RecordIdentity::OciTag { repository, tag } => {

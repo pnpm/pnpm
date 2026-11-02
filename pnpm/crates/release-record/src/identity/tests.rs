@@ -116,6 +116,16 @@ fn rejects_entries_that_would_not_parse_back() {
 }
 
 #[test]
+fn log_entries_name_a_package_by_its_canonical_purl() {
+    let mut key = npm_key(0);
+    key.identity = RecordIdentity::Package(Purl::from_string_unchecked(
+        "pkg:npm/@example/widgets@1.2.0".to_owned(),
+    ));
+    let error = LogEntry::new(key, RecordDigest::of(b"")).unwrap_err();
+    assert!(matches!(error, LogEntryError::Purl(_)), "{error}");
+}
+
+#[test]
 fn log_entries_carry_a_revision_exactly_when_their_profile_has_revisions() {
     let mut npm = npm_key(0);
     npm.revision = None;
@@ -195,6 +205,8 @@ fn cache_keys_separate_authorities_profiles_and_principals() {
     assert_ne!(base, key(&second, npm_key(0), None));
     assert_ne!(base, key(&first, npm_key(1), None));
     assert_ne!(base, key(&first, npm_key(0), Some("token:ci-publisher")));
+    assert_ne!(base, key(&first, npm_key(0), Some("-")));
+    assert_ne!(base, key(&first, npm_key(0), Some("")));
     let mut other_profile = npm_key(0);
     other_profile.profile = "npm-install-manifest/2".parse().unwrap();
     assert_ne!(base, key(&first, other_profile, None));
