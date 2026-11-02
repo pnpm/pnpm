@@ -1,7 +1,7 @@
 use super::{
     AccessSpec, ByteSize, Deserialize, Ecosystem, IndexMap, Interval, LogConfig, LogFormat,
-    LogLevel, Management, MetricsConfig, OciConfig, PackageAccess, PathBuf, S3Settings, ScimConfig,
-    TarballFormat, UpstreamAuthFile, default_storage_string, oidc,
+    LogLevel, Management, MetricsConfig, OciConfig, PackageAccess, PackageDocumentsFile, PathBuf,
+    S3Settings, ScimConfig, TarballFormat, UpstreamAuthFile, default_storage_string, oidc,
 };
 
 /// Disk shape of the `routes:` block.
@@ -220,6 +220,9 @@ pub(super) struct ConfigFile {
     /// Duration before a cached packument is considered stale and refetched.
     #[serde(default)]
     pub(super) packument_ttl: Option<Interval>,
+    /// pnpr-only: how pnpr's own package document is served.
+    #[serde(default)]
+    pub(super) package_documents: Option<PackageDocumentsFile>,
     /// pnpr-only browser access policy. Cross-origin access stays disabled
     /// when this block is absent or its allowlist is empty.
     #[serde(default)]

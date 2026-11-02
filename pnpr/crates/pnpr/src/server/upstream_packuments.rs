@@ -293,15 +293,7 @@ pub(super) async fn serve_packument_via_upstream(
         Ok(None) => return not_found(),
         Err(err) => return err.into_response(),
     };
-    match packument_response(
-        name,
-        &bytes,
-        tarball_base,
-        view,
-        state.inner.osv_index.as_ref(),
-        headers,
-        ttl.as_secs(),
-    ) {
+    match packument_response(name, &bytes, tarball_base, view, state, headers, ttl.as_secs()) {
         Ok(response) => response,
         Err(err) => err.into_response(),
     }

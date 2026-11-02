@@ -304,6 +304,7 @@ fn build_http_config(
         trusted_proxy_header,
         request_timeout,
         metrics: build_metrics_config(file, listen)?,
+        package_documents: super::build_package_documents_config(file.package_documents.take())?,
     })
 }
 

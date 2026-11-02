@@ -57,6 +57,7 @@ pub use registry_key::{
     EncodeRegistryError, decode_registry_name, encode_pkg_name, get_legacy_registry_name,
     get_registry_name, is_unreadable_registry_key,
 };
+pub use release_records::{RELEASE_RECORDS_DIR, release_record_path};
 
 mod read_records;
 use read_records::{held_mirror_file_cap, load_meta_with_hold_cap};
@@ -66,6 +67,8 @@ mod registry_key;
 mod headers;
 
 mod legacy;
+
+mod release_records;
 
 use std::{
     collections::HashMap,
@@ -90,6 +93,12 @@ use sha2::{Digest, Sha256};
 
 /// Mirror directory for the **abbreviated** metadata cache.
 pub const ABBREVIATED_META_DIR: &str = "v12/metadata";
+
+/// Mirror directory for pnpr's own package documents, read from registries
+/// declared `serverType: pnpr`. They are kept apart from npm's documents, so
+/// a pnpm release that predates the format and shares the cache never reads
+/// one.
+pub const PNPR_META_DIR: &str = "v12/metadata-pnpr";
 
 /// Mirror directory for the **full** metadata cache.
 pub const FULL_META_DIR: &str = "v12/metadata-full";

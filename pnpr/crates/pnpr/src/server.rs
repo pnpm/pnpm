@@ -42,8 +42,8 @@ use osv_filtering::{
 
 mod tar_registry;
 use tar_registry::{
-    DistView, describe_tar, describe_tars, dist_view, is_tar_registry, restore_tgz_integrities,
-    split_package_identifier, tar_integrities_of, tgz_integrity_key,
+    DistView, describe_tar, describe_tars, dist_view, has_settled_tar_facts, is_tar_registry,
+    restore_tgz_integrities, split_package_identifier, tar_integrities_of, tgz_integrity_key,
 };
 
 mod tar_responses;
@@ -59,6 +59,7 @@ mod tar_variants;
 use tar_variants::{TarCopy, TarVariantQueue, open_variant};
 
 mod package_responses;
+mod split_packuments;
 use package_responses::{
     DistBlock, PackumentDists, TarballDist, declared_tarball_integrity, expected_tarball_dist,
     packument_bytes_response, packument_response, tarball_integrity_error, tarball_response,

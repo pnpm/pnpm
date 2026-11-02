@@ -19,6 +19,9 @@ pub struct PickPackageContext<'a, Cache: PackageMetaCache> {
     /// the others do. The mirror path and cache key below are already keyed by
     /// registry, so two registries may disagree within one install.
     pub needs_full_metadata_for: Option<&'a pnpm_config::NeedsFullMetadataFn>,
+    /// Which registries are asked for pnpr's own package document. `None`
+    /// asks every registry for npm's documents.
+    pub pnpr_format: Option<PnprFormatPolicy<'a>>,
     /// When full metadata is forced, use pnpm's filtered full-metadata
     /// mirror and filtered packument shape.
     pub filter_metadata: bool,
@@ -29,6 +32,24 @@ pub struct PickPackageContext<'a, Cache: PackageMetaCache> {
     pub store_view: Option<&'a crate::OfflineStoreView>,
     pub metadata: MetadataRequestContext<'a, Cache>,
 }
+
+/// What a pick needs to read pnpr's own package document.
+#[derive(Debug, Clone, Copy)]
+pub struct PnprFormatPolicy<'a> {
+    /// The declared per-registry settings, keyed like
+    /// `Config::registry_options_by_url`. A registry declared
+    /// `serverType: pnpr` is asked for pnpr's own package document, which is
+    /// cached apart from npm's documents.
+    pub registry_options: &'a std::collections::BTreeMap<String, pnpm_lockfile::RegistryOptions>,
+    /// The effective `minimumReleaseAge`, in minutes. The document supports
+    /// at most [`MAX_PNPR_FORMAT_RELEASE_AGE_MINUTES`].
+    pub minimum_release_age: Option<u64>,
+}
+
+/// The longest `minimumReleaseAge` pnpr's own package document supports: an
+/// entry without a publish time is only known to be at least 30 days older
+/// than the package's last publish.
+pub const MAX_PNPR_FORMAT_RELEASE_AGE_MINUTES: u64 = 30 * 24 * 60;
 
 pub struct MetadataRequestContext<'a, Cache: PackageMetaCache> {
     pub meta_cache: &'a Cache,

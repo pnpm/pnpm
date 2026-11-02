@@ -52,7 +52,11 @@ pub(crate) struct ResolvedSpecifier<'a> {
 pub(crate) fn build_resolve_result(
     args: BuildResolveResult<'_>,
 ) -> Result<ResolveResult, ResolveError> {
-    let picked = select_package_revision(args.picked, args.specifier.spec, args.registry.registry)?;
+    let picked = select_package_revision(
+        args.picked,
+        args.specifier.spec,
+        (args.registry.registry, args.registry.server_type),
+    )?;
     let picked = picked.as_ref();
     let pkg_name =
         PkgName::parse(picked.name.as_str()).map_err(|err| Box::new(err) as ResolveError)?;
@@ -350,22 +354,12 @@ pub(super) fn picked_tarball_resolution(
     source: &RegistryResolutionSource<'_>,
 ) -> Result<(LockfileResolution, Option<TarballRevision>), ResolveError> {
     let integrity = dist_integrity(&picked.dist)?;
-    let revision = tarball_revision(picked, integrity.as_ref(), source.registry)?;
     let tarball = if picked.dist.tarball.is_empty() {
-        if source.server_type.is_none() {
-            return Err(Box::new(MissingTarballUrlError {
-                package: format!("{}@{}", picked.name, picked.version),
-                registry: redact_and_sanitize(source.registry),
-            }) as ResolveError);
-        }
-        npm_tarball_url(
-            &picked.name,
-            &picked.version.to_string(),
-            TarballUrlOptions { registry: source.registry, server_type: source.server_type },
-        )
+        rebuilt_tarball_url(picked, source)?
     } else {
         normalize_tarball_url(&picked.dist.tarball)
     };
+    let revision = tarball_revision(picked, &tarball, integrity.as_ref(), source.registry)?;
     let resolution = LockfileResolution::Tarball(TarballResolution {
         tarball,
         integrity,
@@ -374,6 +368,42 @@ pub(super) fn picked_tarball_resolution(
         path: None,
     });
     Ok((resolution, revision))
+}
+
+/// The URL of a version whose metadata names none, in the layout its
+/// registry declares. pnpr's own document marks a revision-aware version with
+/// its `revision`, whose tar is at `<name>@<version>+r<revision>`.
+fn rebuilt_tarball_url(
+    picked: &PackageVersion,
+    source: &RegistryResolutionSource<'_>,
+) -> Result<String, ResolveError> {
+    if source.server_type.is_none() {
+        return Err(Box::new(MissingTarballUrlError {
+            package: format!("{}@{}", picked.name, picked.version),
+            registry: redact_and_sanitize(source.registry),
+        }) as ResolveError);
+    }
+    let version = picked.version.to_string();
+    let revision = picked.dist.revision
+        .as_ref()
+        .and_then(serde_json::Value::as_u64)
+        .and_then(|revision| TarballRevision::try_from(revision).ok());
+    if source.server_type == Some(pnpm_lockfile::RegistryServerType::Pnpr)
+        && let Some(revision) = revision
+        && let Some(url) = pnpm_lockfile::revision_registry_tarball_url(
+            &picked.name,
+            &version,
+            revision,
+            source.registry,
+        )
+    {
+        return Ok(url);
+    }
+    Ok(npm_tarball_url(
+        &picked.name,
+        &version,
+        TarballUrlOptions { registry: source.registry, server_type: source.server_type },
+    ))
 }
 
 impl BuildResolveResult<'_> {

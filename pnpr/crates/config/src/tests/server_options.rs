@@ -412,3 +412,42 @@ fn request_timeout_defaults_and_overrides() {
         "expected InvalidConfig with requestTimeout, got {err:?}",
     );
 }
+
+#[test]
+fn package_documents_default_to_a_64_kib_threshold_and_a_30_day_window() {
+    let config = Config::from_yaml_str("", Path::new("/config"), listen(), None).unwrap();
+    assert_eq!(config.http.package_documents, crate::PackageDocumentsConfig::default());
+    assert_eq!(config.http.package_documents.split_threshold, 64 * 1024);
+    assert_eq!(
+        config.http.package_documents.publish_time_window,
+        std::time::Duration::from_hours(30 * 24),
+    );
+}
+
+#[test]
+fn package_documents_accept_a_threshold_and_a_longer_window() {
+    let config = Config::from_yaml_str(
+        "packageDocuments:\n  splitThreshold: 1MiB\n  publishTimeWindow: 60d\n",
+        Path::new("/config"),
+        listen(),
+        None,
+    )
+    .unwrap();
+    assert_eq!(config.http.package_documents.split_threshold, 1024 * 1024);
+    assert_eq!(
+        config.http.package_documents.publish_time_window,
+        std::time::Duration::from_hours(60 * 24),
+    );
+}
+
+#[test]
+fn package_documents_reject_a_window_shorter_than_30_days() {
+    for yaml in [
+        "packageDocuments:\n  publishTimeWindow: 29d\n",
+        "packageDocuments:\n  publishTimeWindow: soon\n",
+        "packageDocuments:\n  splitThreshold: big\n",
+    ] {
+        let result = Config::from_yaml_str(yaml, Path::new("/config"), listen(), None);
+        assert!(matches!(result, Err(RegistryError::InvalidConfig { .. })), "accepted {yaml:?}");
+    }
+}

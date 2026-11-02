@@ -1,11 +1,10 @@
 use super::{
     Action, AppState, CanonicalPackageName, ConcreteKind, DistView, Ecosystem, HeaderMap, Identity,
     RegistryError, Resolved, Response, Value, addressed_registry, authorize, caller_scoped,
-    describe_tar, dist_view, ensure_osv_allowed, extract_upstream_version_manifest,
-    extract_version_manifest, is_osv_vulnerable_packument_version, is_tar_registry, not_found,
-    packument_bytes_response, packument_response, read_source_packument, registry_endpoint,
-    resolve_version_or_tag, serve_packument_via_upstream, serve_tarball_via_upstream,
-    tar_integrities_of, tarball_response,
+    dist_view, ensure_osv_allowed, extract_upstream_version_manifest, extract_version_manifest,
+    is_osv_vulnerable_packument_version, is_tar_registry, not_found, packument_response,
+    read_source_packument, registry_endpoint, resolve_version_or_tag, serve_packument_via_upstream,
+    serve_tarball_via_upstream, tar_integrities_of, tarball_response,
 };
 use axum::response::IntoResponse;
 
@@ -40,22 +39,23 @@ pub(super) async fn serve_version_manifest(
         return not_found();
     };
     let base = registry_endpoint(state, Ecosystem::Npm, registry);
+    let address = super::split_packuments::record_address(version_or_tag);
     let response =
-        serve_registry_version_manifest(state, identity, &target, raw_name, version_or_tag, &base)
-            .await;
+        serve_registry_version_manifest(state, identity, &target, raw_name, address, &base).await;
     caller_scoped(state, Ecosystem::Npm, registry, Some(raw_name), response)
 }
 
 /// Serve a single version's manifest (`GET <base>/<pkg>/<version-or-tag>`)
 /// through the registry graph. Resolves the package to its one concrete origin,
 /// loads that origin's packument, and extracts the requested version with its
-/// `dist.tarball` rewritten onto the same origin's base.
+/// `dist.tarball` rewritten onto the same origin's base. A revision in the
+/// address asks for that revision's release record.
 pub(super) async fn serve_registry_version_manifest(
     state: &AppState,
     identity: &Identity,
     registry: &str,
     raw_name: &str,
-    version_or_tag: &str,
+    (version_or_tag, revision): (&str, Option<u64>),
     tarball_base: &str,
 ) -> Response {
     let (name, resolved_source, packument) =
@@ -78,16 +78,19 @@ pub(super) async fn serve_registry_version_manifest(
         ),
         None => extract_version_manifest(&packument, &name, version_or_tag, tarball_base),
     };
-    let Some(mut manifest) = manifest else {
+    let Some(manifest) = manifest.filter(|manifest| addresses(manifest, version_or_tag, revision))
+    else {
         return not_found();
     };
-    if let Some(table) = view.tar_integrities {
-        describe_tar(&mut manifest, table, view.tar_registry);
-    }
-    match serde_json::to_vec(&manifest) {
-        Ok(body) => packument_bytes_response(body, "application/json", None),
-        Err(err) => RegistryError::Json(err).into_response(),
-    }
+    let tars = view.tar_integrities.map(|table| (table, view.tar_registry));
+    super::split_packuments::version_document_response(manifest, revision, tars)
+}
+
+/// Whether a request for `version_or_tag` may be answered with `manifest`. A
+/// release record is addressed by an exact version: a dist-tag moves, and the
+/// record never changes.
+fn addresses(manifest: &Value, version_or_tag: &str, revision: Option<u64>) -> bool {
+    revision.is_none() || manifest.get("version").and_then(Value::as_str) == Some(version_or_tag)
 }
 
 /// The packument a version-manifest request reads, with the source it
@@ -442,7 +445,7 @@ pub(super) async fn serve_hosted_packument(
             &view.bytes,
             tarball_base,
             view_options,
-            state.inner.osv_index.as_ref(),
+            state,
             headers,
             max_age,
         ) {

@@ -172,6 +172,22 @@ pub fn static_serve_config(listen: SocketAddr, storage: PathBuf) -> Config {
     )
 }
 
+fn http_config(listen: SocketAddr) -> pnpr_config::HttpConfig {
+    pnpr_config::HttpConfig {
+        listen,
+        public_url: format!("http://{listen}"),
+        cors: CorsConfig::default(),
+        ui: UiConfig::default(),
+        oci: OciConfig::default(),
+        packument_ttl: Config::DEFAULT_PACKUMENT_TTL,
+        trusted_proxies: Vec::new(),
+        trusted_proxy_header: TrustedProxyHeader::default(),
+        request_timeout: Some(pnpr_config::HttpConfig::DEFAULT_REQUEST_TIMEOUT),
+        metrics: None,
+        package_documents: pnpr_config::PackageDocumentsConfig::default(),
+    }
+}
+
 /// A hosted store and cache on local disk under `storage`.
 fn local_storage(storage: PathBuf) -> pnpr_config::StorageConfig {
     pnpr_config::StorageConfig {
@@ -197,18 +213,7 @@ fn with_routing(
         cache_secret,
         oci_secret,
         has_configured_secret: false,
-        http: pnpr_config::HttpConfig {
-            listen,
-            public_url: format!("http://{listen}"),
-            cors: CorsConfig::default(),
-            ui: UiConfig::default(),
-            oci: OciConfig::default(),
-            packument_ttl: Config::DEFAULT_PACKUMENT_TTL,
-            trusted_proxies: Vec::new(),
-            trusted_proxy_header: TrustedProxyHeader::default(),
-            request_timeout: Some(pnpr_config::HttpConfig::DEFAULT_REQUEST_TIMEOUT),
-            metrics: None,
-        },
+        http: http_config(listen),
         storage: local_storage(storage),
         identity: pnpr_config::IdentityConfig {
             auth: AuthConfig::default(),

@@ -116,6 +116,7 @@ fn build_resolver_with_registries(
             needs_full_metadata_for: None,
             filter_metadata: false,
             registry_options_by_url: std::sync::Arc::default(),
+            minimum_release_age: None,
         },
         cache_policy: crate::MetadataCachePolicy {
             network: pnpm_config::NetworkPolicy::Online,

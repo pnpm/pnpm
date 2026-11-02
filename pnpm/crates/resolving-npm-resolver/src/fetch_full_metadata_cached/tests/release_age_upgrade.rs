@@ -45,6 +45,7 @@ impl AbbreviatedMirror {
 
     fn opts(&self) -> FetchFullMetadataCachedOptions<'_> {
         FetchFullMetadataCachedOptions {
+            pnpr_format: false,
             registry: &self.registry,
             cache_dir: Some(self.cache.path()),
             full_metadata: false,
