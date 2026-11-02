@@ -1,7 +1,7 @@
 use super::leaked_offline_config;
 use crate::install_package_by_snapshot::{
     InstallPackageBySnapshotError,
-    runtime::{VariantFetch, variant_for_host},
+    variant_fetch::{ArchiveSource, VariantFetch, variant_for_host},
 };
 use pnpm_lockfile::{
     BinaryArchive, BinaryResolution, BinarySpec, DirectoryResolution, LockfileResolution,
@@ -74,7 +74,7 @@ fn a_registry_variant_is_fetched_from_its_route_and_the_primary_as_a_fallback() 
     let key: PackageKey = "fast-thing@1.0.0".parse().expect("parse key");
     let variations = variations(registry(), Some(registry()), None);
 
-    let VariantFetch::Tarball { resolution, variant } =
+    let VariantFetch::Tarball { resolution, source } =
         variant_for_host(&variations, &key, &linux_x64(), config).expect("selected")
     else {
         panic!("a registry variant is a tarball");
@@ -83,7 +83,7 @@ fn a_registry_variant_is_fetched_from_its_route_and_the_primary_as_a_fallback() 
         panic!("the variant's route is rebuilt from the tag its targets give");
     };
     assert_eq!(tarball.tarball, "https://registry.example/fast-thing@1.0.0/variants/linux-x64");
-    assert!(variant);
+    assert_eq!(source, ArchiveSource::Variant);
 
     let darwin = PlatformSelector {
         os: "darwin".to_string(),
@@ -91,13 +91,13 @@ fn a_registry_variant_is_fetched_from_its_route_and_the_primary_as_a_fallback() 
         libc: None,
         floors: None,
     };
-    let VariantFetch::Tarball { resolution, variant } =
+    let VariantFetch::Tarball { resolution, source } =
         variant_for_host(&variations, &key, &darwin, config).expect("selected")
     else {
         panic!("the primary is a tarball");
     };
     assert_eq!(resolution, registry());
-    assert!(!variant);
+    assert_eq!(source, ArchiveSource::Primary);
 }
 
 #[test]

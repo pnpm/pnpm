@@ -125,7 +125,7 @@ impl PlatformAssetResolution {
 }
 
 impl PlatformSelector {
-    fn host(&self) -> Host {
+    pub(crate) fn host(&self) -> Host {
         Host {
             os: self.os.clone(),
             cpu: self.cpu.clone(),
@@ -173,6 +173,31 @@ impl VariationsResolution {
             .or_else(|| self.fallback.as_deref().map(SelectedVariant::Fallback)))
     }
 
+    /// `variant` in the integrity-only registry form when its tarball sits on
+    /// its registry route, else as it is.
+    fn registry_variant(
+        &self,
+        variant: &PlatformAssetResolution,
+        (name, version): (&str, &str),
+        opts: LockfileFormOptions<'_>,
+    ) -> PlatformAssetResolution {
+        let mut variant = variant.clone();
+        if let LockfileResolution::Tarball(tarball) = &variant.resolution
+            && let Some(integrity) = &tarball.integrity
+            && let Some(tag) = variant.variant_tag()
+            && !opts.include_tarball_url
+            && variant_registry_tarball_url(name, version, &tag, self.revision, opts.registry)
+                .as_deref()
+                == Some(tarball.tarball.as_str())
+        {
+            variant.resolution = LockfileResolution::Registry(RegistryResolution {
+                integrity: integrity.clone(),
+                revision: None,
+            });
+        }
+        variant
+    }
+
     /// Write each package variant whose tarball sits on its registry route,
     /// and the fallback, in the integrity-only registry form.
     pub(super) fn to_lockfile_form(
@@ -183,29 +208,7 @@ impl VariationsResolution {
     ) -> Result<VariationsResolution, LockfileFormError> {
         let variants = self.variants
             .iter()
-            .map(|variant| {
-                let mut variant = variant.clone();
-                if let LockfileResolution::Tarball(tarball) = &variant.resolution
-                    && let Some(integrity) = &tarball.integrity
-                    && let Some(tag) = variant.variant_tag()
-                    && !opts.include_tarball_url
-                    && variant_registry_tarball_url(
-                        name,
-                        version,
-                        &tag,
-                        self.revision,
-                        opts.registry,
-                    )
-                    .as_deref()
-                        == Some(tarball.tarball.as_str())
-                {
-                    variant.resolution = LockfileResolution::Registry(RegistryResolution {
-                        integrity: integrity.clone(),
-                        revision: None,
-                    });
-                }
-                variant
-            })
+            .map(|variant| self.registry_variant(variant, (name, version), opts))
             .collect();
         let fallback = match &self.fallback {
             Some(fallback) => Some(Box::new(fallback.to_lockfile_form(name, version, opts)?)),

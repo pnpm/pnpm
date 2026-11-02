@@ -2,7 +2,7 @@ mod sources;
 
 use super::{
     InstallPackageBySnapshot, InstallPackageBySnapshotError, InstalledPackage,
-    runtime::{VariantFetch, variant_for_host},
+    variant_fetch::{ArchiveSource, VariantFetch, variant_for_host},
 };
 use crate::{CreateVirtualDirBySnapshot, create_virtual_store::requires_build_from_cas_paths};
 use pnpm_config::NodeLinker;
@@ -54,9 +54,10 @@ pub(super) struct TarballFetch<'a, AllowBuild> {
     package_key: &'a PackageKey,
     package_id: &'a str,
     allow_build: &'a AllowBuild,
-    /// A package platform variant, served like a revision: verified against
-    /// its tar's digest, without redirects.
-    variant: bool,
+    /// Which archive of the version this is: a platform variant is served
+    /// like a revision, verified against its tar's digest, without
+    /// redirects.
+    source: ArchiveSource,
 }
 
 #[derive(Debug, Default)]
@@ -298,14 +299,14 @@ impl InstallPackageBySnapshot<'_> {
             self.runtime_platform_selector,
             self.ctx.config,
         )?;
-        let (resolution, variant) = match selected {
+        let (resolution, source) = match selected {
             VariantFetch::Binary(binary) => {
                 return self
                     .fetch_binary::<Reporter>(binary, fetch.package_key)
                     .await
                     .map(|cas_paths| (Arc::new(cas_paths), ExtractedPackageMetadata::default()));
             }
-            VariantFetch::Tarball { resolution, variant } => (resolution, variant),
+            VariantFetch::Tarball { resolution, source } => (resolution, source),
         };
         self.tarball_cas_paths::<Reporter>(TarballFetch {
             download: fetch.download,
@@ -313,7 +314,7 @@ impl InstallPackageBySnapshot<'_> {
             package_key: fetch.package_key,
             package_id: fetch.package_id,
             allow_build,
-            variant,
+            source,
         })
         .await
     }
@@ -394,7 +395,7 @@ impl InstallPackageBySnapshot<'_> {
             package_key: fetch.package_key,
             package_id: fetch.package_id,
             allow_build,
-            variant: false,
+            source: ArchiveSource::Primary,
         })
         .await
     }

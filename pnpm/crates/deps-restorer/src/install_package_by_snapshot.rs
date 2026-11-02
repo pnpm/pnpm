@@ -11,6 +11,8 @@ mod runtime;
 
 mod tarball_resolution;
 
+mod variant_fetch;
+
 use crate::CreateVirtualDirError;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
