@@ -126,13 +126,13 @@ pub(super) fn wanted_lockfile_file_has_content(workspace_root: &Path, config: &C
 pub(super) fn project_structure_matches(
     state: &WorkspaceState,
     project_manifests: &[(PathBuf, &PackageManifest)],
-    link_workspace_packages: LinkWorkspacePackages,
+    config: &Config,
 ) -> bool {
     if state.projects.len() != project_manifests.len() {
         return false;
     }
-    let compare_versions =
-        project_manifests.len() > 1 || link_workspace_packages == LinkWorkspacePackages::Deep;
+    let compare_versions = project_manifests.len() > 1
+        || config.link_workspace_packages == LinkWorkspacePackages::Deep;
     project_manifests
         .iter()
         .all(|(root_dir, manifest)| {

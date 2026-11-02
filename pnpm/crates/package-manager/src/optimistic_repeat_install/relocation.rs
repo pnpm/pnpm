@@ -3,14 +3,14 @@
 //! tree still works where it is now.
 
 use super::{
-    Host, Lockfile, OptimisticRepeatInstallCheck, PackageManifest, Path, PathBuf, WorkspaceState,
+    Config, Host, Lockfile, OptimisticRepeatInstallCheck, PackageManifest, Path, PathBuf,
+    WorkspaceState,
     current_lockfile::assert_loaded_current_lockfile_records,
     current_pnpmfiles,
     freshness::{InputDrift, validation_now},
     manifest_agreement::check_projects_content,
     project_structure_matches,
 };
-use pnpm_config::LinkWorkspacePackages;
 use std::{collections::BTreeSet, path::Component};
 
 /// `state` re-keyed onto `workspace_root` when it records these same
@@ -21,7 +21,7 @@ pub(super) fn relocated_state(
     state: &WorkspaceState,
     workspace_root: &Path,
     project_manifests: &[(PathBuf, &PackageManifest)],
-    link_workspace_packages: LinkWorkspacePackages,
+    config: &Config,
 ) -> Option<WorkspaceState> {
     if !recorded_elsewhere(state, project_manifests) {
         return None;
@@ -41,8 +41,7 @@ pub(super) fn relocated_state(
         .collect();
     // The validation records name the files where they were.
     let relocated = WorkspaceState { projects, pnpmfiles, validation: None, ..state.clone() };
-    project_structure_matches(&relocated, project_manifests, link_workspace_packages)
-        .then_some(relocated)
+    project_structure_matches(&relocated, project_manifests, config).then_some(relocated)
 }
 
 /// Whether no current project dir is a key of `state`.

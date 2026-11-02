@@ -80,7 +80,7 @@ pub fn check_deps_status_before_run(
         state,
         check.workspace_root,
         check.project_manifests.as_slice(),
-        check.config.link_workspace_packages,
+        check.config,
     );
     let moved = relocated.is_some();
     let state = relocated.as_ref().unwrap_or(state);

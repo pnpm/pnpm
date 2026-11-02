@@ -1,5 +1,5 @@
 use super::relocated_state;
-use pnpm_config::LinkWorkspacePackages;
+use pnpm_config::Config;
 use pnpm_package_manifest::PackageManifest;
 use pnpm_workspace_state::{ProjectEntry, WorkspaceState};
 use std::path::{Path, PathBuf};
@@ -31,7 +31,7 @@ fn relocated_onto(
         .cloned()
         .zip(&manifests)
         .collect();
-    relocated_state(state, workspace_root, &project_manifests, LinkWorkspacePackages::Off)
+    relocated_state(state, workspace_root, &project_manifests, &Config::new())
 }
 
 fn path_string(path: &Path) -> String {

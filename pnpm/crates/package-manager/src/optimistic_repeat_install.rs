@@ -194,7 +194,7 @@ pub(crate) fn check_optimistic_repeat_install_with_state(
         &state,
         check.workspace_root,
         check.project_manifests.as_slice(),
-        check.config.link_workspace_packages,
+        check.config,
     )
     .map_or((state, false), |relocated| (relocated, true));
     let policy = GatePolicy {

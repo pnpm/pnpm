@@ -255,11 +255,7 @@ fn check_settings_and_workspace_freshness(
     if !catalogs_cache_matches(state.settings.catalogs.as_ref(), catalogs) {
         return Err(Stale::CatalogsCache);
     }
-    if !project_structure_matches(
-        state,
-        project_manifests.as_slice(),
-        config.link_workspace_packages,
-    ) {
+    if !project_structure_matches(state, project_manifests.as_slice(), config) {
         return Err(Stale::ProjectStructure);
     }
     check_held_modules_dirs(check, state, policy, scope)
