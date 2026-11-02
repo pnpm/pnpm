@@ -378,7 +378,7 @@ against the fresh packument, and reports `409` only if it keeps losing. Either
 way no writer's update is silently discarded. See
 [Storage backends](storage.md#concurrent-writers).
 
-### Publish-time manifest verification
+### Publish-time manifest verification {#publish-time-manifest-verification}
 
 An npm publish document carries each version's metadata beside its archive,
 and nothing in the npm protocol requires the two to agree. pnpr verifies every
@@ -389,8 +389,8 @@ published `.tgz` against the metadata submitted for it, under the
    must name its manifest unambiguously. An entry path that escapes the package
    root, a second entry that an installer would extract to `package.json` (or to
    `npm-shrinkwrap.json`), including one that differs only in case, a manifest
-   that is a link, more than 200,000 entries, and a missing `package.json` are
-   each a `400`.
+   that is a link, more than 200,000 entries, file paths that add up to more
+   than 32 MiB, and a missing `package.json` are each a `400`.
 2. pnpr derives the install-critical fields from the archive's `package.json`
    and from the submitted version metadata, normalizes both the way npm's
    publish-time `prepare()` and npm 9's `normalize-package-data` rewrite a
