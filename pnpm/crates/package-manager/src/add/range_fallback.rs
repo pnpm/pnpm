@@ -1,5 +1,6 @@
 use super::{
     AddError, AddOptions, AddResolveInputs,
+    protocol_selector::ProtocolSelector,
     registry::{package_registry, parse_explicit_registry_spec},
 };
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
@@ -7,35 +8,29 @@ use pnpm_resolving_resolver_base::WorkspacePackages;
 use serde_json::Value;
 use std::path::Path;
 
+/// Whether some selector names no version for a dependency the manifest
+/// does not declare yet, so [`add_range_fallback`] needs the workspace
+/// packages.
 pub(super) fn needs_workspace_range_fallback(
     add: AddOptions<'_>,
     manifest: &PackageManifest,
 ) -> bool {
     add.package_names
         .iter()
-        .any(|selector| {
-            package_name_for_versionless_selector(selector)
-                .is_some_and(|name| super::specifier::declared_specifier(manifest, &name).is_none())
-        })
+        .filter_map(|selector| versionless_manifest_key(selector))
+        .any(|key| super::specifier::declared_specifier(manifest, &key).is_none())
 }
 
-fn package_name_for_versionless_selector(selector: &str) -> Option<String> {
+/// The manifest key of a selector that names no version: `foo`, `npm:foo`,
+/// or `alias@npm:foo`.
+fn versionless_manifest_key(selector: &str) -> Option<String> {
     let parsed = pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency(selector);
-    let target = parsed.bare_specifier.as_deref().unwrap_or(selector);
-    if parsed.bare_specifier.as_deref().is_none_or(str::is_empty)
-        && let Some(alias) = parsed.alias
-    {
-        return Some(alias);
-    }
-    let protocol_target = target
-        .strip_prefix("npm:")
-        .map(|_| target)
-        .unwrap_or(selector);
-    match super::specifier::ProtocolSelector::parse(protocol_target).ok().flatten()? {
-        super::specifier::ProtocolSelector::Npm { name, spec }
-            if spec.as_deref().is_none_or(str::is_empty) =>
-        {
-            Some(name)
+    let Some(specifier) = parsed.bare_specifier.filter(|specifier| !specifier.is_empty()) else {
+        return parsed.alias;
+    };
+    match ProtocolSelector::parse(&specifier).ok().flatten()? {
+        ProtocolSelector::Npm { name, spec } if spec.as_deref().is_none_or(str::is_empty) => {
+            Some(parsed.alias.unwrap_or(name))
         }
         _ => None,
     }
@@ -46,9 +41,10 @@ pub(super) fn add_range_fallback(
     manifest: &PackageManifest,
     inputs: &AddResolveInputs<'_, '_>,
 ) -> Result<Option<String>, AddError> {
-    let workspace_specifier = workspace_registry_specifier(package_name, inputs);
-    let declared = workspace_specifier.as_deref().unwrap_or("*");
-    Ok(override_specifier(package_name, declared, manifest, inputs)?.or(workspace_specifier))
+    if let Some(specifier) = workspace_registry_specifier(package_name, inputs) {
+        return Ok(Some(specifier));
+    }
+    override_specifier(package_name, manifest, inputs)
 }
 
 fn workspace_registry_specifier(
@@ -62,9 +58,9 @@ fn workspace_registry_specifier(
         })
 }
 
+/// The specifier the overrides rewrite an unconstrained `package_name` to.
 fn override_specifier(
     package_name: &str,
-    declared: &str,
     manifest: &PackageManifest,
     inputs: &AddResolveInputs<'_, '_>,
 ) -> Result<Option<String>, AddError> {
@@ -77,12 +73,11 @@ fn override_specifier(
     let parsed =
         pnpm_config_parse_overrides::parse_overrides_iter(overrides.iter(), inputs.catalogs)
             .map_err(|error| AddError::Install(crate::InstallError::InvalidOverrides(error)))?;
-    Ok(overridden_specifier(package_name, declared, manifest, inputs, &parsed))
+    Ok(overridden_specifier(package_name, manifest, inputs, &parsed))
 }
 
 fn overridden_specifier(
     package_name: &str,
-    declared: &str,
     manifest: &PackageManifest,
     inputs: &AddResolveInputs<'_, '_>,
     parsed: &[pnpm_config_parse_overrides::VersionOverride],
@@ -98,39 +93,48 @@ fn overridden_specifier(
         .copied()
         .unwrap_or(DependencyGroup::Prod);
     let group_name: &str = group.into();
+    const DECLARED: &str = "*";
     let mut candidate = manifest.value().clone();
-    candidate[group_name][package_name] = Value::String(declared.to_string());
+    candidate[group_name][package_name] = Value::String(DECLARED.to_string());
     overrider.apply_to_value(&mut candidate, Some(root_dir));
     candidate
         .get(group_name)
         .and_then(|dependencies| dependencies.get(package_name))
         .and_then(Value::as_str)
-        .filter(|specifier| *specifier != declared)
+        .filter(|specifier| *specifier != DECLARED)
         .map(ToString::to_string)
 }
 
+/// The one specifier every workspace project that declares `package_name`
+/// agrees on. `None` when the projects disagree or one of them uses a
+/// protocol.
 fn workspace_declared_specifier(
     package_name: &str,
     workspace_packages: Option<&WorkspacePackages>,
 ) -> Option<String> {
-    workspace_packages?
-        .values()
-        .flat_map(|packages| packages.values())
-        .find_map(|package| {
-            [
-                DependencyGroup::Optional,
-                DependencyGroup::Prod,
-                DependencyGroup::Dev,
-                DependencyGroup::Peer,
-            ]
-            .into_iter()
-            .find_map(|group| {
-                package.manifest
-                    .get::<&str>(group.into())?
-                    .get(package_name)?
-                    .as_str()
-                    .map(ToString::to_string)
-            })
+    let mut agreed: Option<&str> = None;
+    for package in workspace_packages?.values().flat_map(|packages| packages.values()) {
+        let Some(specifier) = project_specifier(&package.manifest, package_name) else {
+            continue;
+        };
+        if specifier.contains(':') || agreed.is_some_and(|agreed| agreed != specifier) {
+            return None;
+        }
+        agreed = Some(specifier);
+    }
+    agreed.map(ToString::to_string)
+}
+
+/// The specifier a project's own dependencies declare for `package_name`,
+/// read in the precedence a dependency declared in several groups resolves by.
+fn project_specifier<'a>(manifest: &'a Value, package_name: &str) -> Option<&'a str> {
+    [DependencyGroup::Optional, DependencyGroup::Prod, DependencyGroup::Dev]
+        .into_iter()
+        .find_map(|group| {
+            manifest
+                .get::<&str>(group.into())?
+                .get(package_name)?
+                .as_str()
         })
 }
 

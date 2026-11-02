@@ -181,8 +181,10 @@ pub(super) fn declared_specifier(manifest: &PackageManifest, package_name: &str)
 ///   `catalog:` reference — naming no version asks for whatever the
 ///   workspace agreed on, which is the entry, not the `latest` range
 ///   it happens to resolve to today;
-/// - any other brand-new dependency fetches and pins the range of the
-///   configured `tag`, `latest` by default.
+/// - any other brand-new dependency takes the range the workspace
+///   projects agree on, or the one a matching override sets
+///   ([`add_range_fallback`]), and otherwise fetches and pins the range of
+///   the configured `tag`, `latest` by default.
 pub(super) async fn bare_save_specifier(
     package_selector: &str,
     selector: &AddSelector,
@@ -259,6 +261,8 @@ async fn registry_save_specifier(
         }
     }
 }
+/// The [`add_range_fallback`] range resolved and re-rendered in the
+/// configured range style, or `None` when there is no such range.
 pub(super) async fn fallback_registry_save_specifier(
     package_name: &str,
     manifest: &PackageManifest,

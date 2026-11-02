@@ -114,6 +114,13 @@ async fn add_uses_a_workspace_declared_range_for_an_npm_alias() {
     );
 }
 #[tokio::test]
+async fn add_prefers_a_workspace_declared_range_over_a_matching_override() {
+    assert_eq!(
+        add_npm_selector_with_ranges("foo", Some("~1.0.0"), Some("^1.0.0")).await,
+        Some("~1.0.0".to_string()),
+    );
+}
+#[tokio::test]
 async fn add_uses_a_matching_override_before_the_default_tag() {
     assert_eq!(
         add_npm_selector_with_ranges("foo", None, Some("~1.0.0")).await,
