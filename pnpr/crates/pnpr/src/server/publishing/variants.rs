@@ -30,7 +30,7 @@ use super::{
 use pnpr_error::RegistryError;
 use pnpr_package_name::CanonicalPackageName;
 use serde_json::{Map, Value, json};
-use std::{collections::BTreeMap, io::Read};
+use std::collections::BTreeMap;
 
 /// The field a publish body declares variants in.
 const DECLARATION_FIELD: &str = "pnprVariants";
@@ -90,15 +90,15 @@ pub(in super::super) fn parse_variant_attachment(
 ) -> Option<Result<(String, String, String), RegistryError>> {
     let stem = filename.strip_suffix(".tgz")?;
     let (primary_stem, label) = stem.rsplit_once('~')?;
+    // A package name may hold `~` itself: unless what precedes the last `~`
+    // is this package's tarball, the attachment is the package's own.
+    let (_, version) = name
+        .parse_tarball_name(&format!("{primary_stem}.tgz"))
+        .ok()?;
     if !is_valid_label(label) {
         return Some(Err(bad_request(format!("invalid variant label in {filename:?}"))));
     }
-    Some(
-        name.parse_tarball_name(&format!("{primary_stem}.tgz"))
-            .map(|(_, version)| {
-                (variant_blob_name(name, &version, label), version, label.to_string())
-            }),
-    )
+    Some(Ok((variant_blob_name(name, &version, label), version, label.to_string())))
 }
 
 /// The blob a hosted variant's `.tgz` is stored in.
@@ -183,18 +183,14 @@ pub(super) async fn keep_undecoded(
     Err(bad_request(format!("{canonical} does not decode to a tar")))
 }
 
-/// What a variant's `.tgz`, written to `path`, derived; `None` for any other
-/// attachment.
+/// What a variant's `.tgz` derived, with the root `package.json` its tar
+/// scan read as extraction reads it; `None` for any other attachment.
 pub(super) fn variant_tar(
     label: Option<String>,
     integrity: &Integrity,
-    path: &std::path::Path,
+    manifest: Option<Value>,
 ) -> Option<VariantTar> {
-    label.map(|label| VariantTar {
-        label,
-        tar_integrity: integrity.to_string(),
-        manifest: read_tgz_manifest(path),
-    })
+    label.map(|label| VariantTar { label, tar_integrity: integrity.to_string(), manifest })
 }
 
 /// Split a variant's tar from the tars of primary `.tgz` files.
@@ -207,25 +203,6 @@ pub(super) fn split_variant(tar: PublishedTar) -> Result<PublishedVariant, Publi
         } => Ok(PublishedVariant { version, tar, inspection }),
         tar => Err(tar),
     }
-}
-
-/// Read `package.json` from a `.tgz`.
-fn read_tgz_manifest(path: &std::path::Path) -> Option<Value> {
-    let file = std::fs::File::open(path).ok()?;
-    let decoder = flate2::read::MultiGzDecoder::new(std::io::BufReader::new(file));
-    let mut archive = tar::Archive::new(decoder);
-    for entry in archive.entries().ok()? {
-        let mut entry = entry.ok()?;
-        let path = entry.path().ok()?.into_owned();
-        let mut components = path.components();
-        components.next();
-        if components.as_path() == std::path::Path::new("package.json") {
-            let mut bytes = Vec::new();
-            entry.read_to_end(&mut bytes).ok()?;
-            return serde_json::from_slice(&bytes).ok();
-        }
-    }
-    None
 }
 
 /// Record the written variants on the merged document (see

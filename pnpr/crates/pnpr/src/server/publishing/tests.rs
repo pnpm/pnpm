@@ -123,3 +123,17 @@ fn a_python_version_note_is_keyed_by_the_normalized_version() {
     assert_eq!(note.version, "1.0");
     assert!(entry.get("notes").is_none());
 }
+
+#[test]
+fn a_tilde_in_the_package_name_does_not_make_a_variant_attachment() {
+    let name = CanonicalPackageName::parse("a~b", Ecosystem::Npm).unwrap();
+    assert!(super::variants::parse_variant_attachment(&name, "a~b-1.0.0.tgz").is_none());
+    let (blob, version, label) =
+        super::variants::parse_variant_attachment(&name, "a~b-1.0.0~musl.tgz")
+            .expect("a variant attachment")
+            .expect("a valid label");
+    assert_eq!(
+        (blob.as_str(), version.as_str(), label.as_str()),
+        ("a~b-1.0.0~musl.tgz", "1.0.0", "musl"),
+    );
+}

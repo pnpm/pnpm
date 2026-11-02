@@ -41,6 +41,14 @@ pub(in super::super) fn tar_integrity_of(
     tar_integrity_within(tgz, MAX_DECODED_TAR_BYTES)
 }
 
+/// [`tar_integrity_of`], with the root `package.json` the inspection parsed,
+/// read as extraction reads it.
+pub(in super::super) fn tar_integrity_and_manifest_of(
+    tgz: impl Read,
+) -> Option<(Integrity, pnpm_tarball::TarInspection, Option<serde_json::Value>)> {
+    hash_and_inspect_within(flate2::read::MultiGzDecoder::new(tgz), MAX_DECODED_TAR_BYTES)
+}
+
 /// Compute the integrity of the tar a stored tar resource holds: the tar
 /// itself, or with `gzip`, its gzip encoding. `None` when a gzip encoding does
 /// not decode in full, or the tar is larger than any `.tgz` may decode to.
@@ -89,17 +97,24 @@ impl<Reader: Read> Read for HashingTarReader<Reader> {
 }
 
 fn hash_within(tar: impl Read, limit: u64) -> Option<(Integrity, pnpm_tarball::TarInspection)> {
+    hash_and_inspect_within(tar, limit).map(|(integrity, inspection, _)| (integrity, inspection))
+}
+
+fn hash_and_inspect_within(
+    tar: impl Read,
+    limit: u64,
+) -> Option<(Integrity, pnpm_tarball::TarInspection, Option<serde_json::Value>)> {
     let mut reader = HashingTarReader {
         decoder: tar.take(limit.saturating_add(1)),
         decoded: 0,
         hasher: IntegrityOpts::new().algorithm(Algorithm::Sha512),
         failed: false,
     };
-    let inspection = pnpm_tarball::inspect_tar(&mut reader);
+    let (inspection, manifest) = pnpm_tarball::inspect_tar_with_manifest(&mut reader);
     if reader.failed || !drain_tar(&mut reader) || reader.decoded > limit {
         return None;
     }
-    Some((reader.hasher.result(), inspection))
+    Some((reader.hasher.result(), inspection, manifest))
 }
 
 fn drain_tar(reader: &mut impl Read) -> bool {

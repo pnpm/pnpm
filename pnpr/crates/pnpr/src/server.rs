@@ -49,7 +49,8 @@ use tar_registry::{
 mod tar_responses;
 use tar_responses::{
     CachedTgz, MAX_CONCURRENT_TAR_DECODES, TarSource, TgzTrust, stored_tar_response,
-    tar_decode_limit, tar_integrity_of, tar_integrity_within, tar_resource_integrity, tar_response,
+    tar_decode_limit, tar_integrity_and_manifest_of, tar_integrity_within, tar_resource_integrity,
+    tar_response,
 };
 
 mod version_tarballs;

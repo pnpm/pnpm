@@ -269,3 +269,62 @@ async fn variants_are_served_from_sqlite_metadata() {
         assert_eq!(body_bytes(response.into_body()).await, musl_tar, "{uri}");
     }
 }
+
+/// A variant is checked against the `package.json` a client installs: the
+/// last root manifest in the archive, not the first.
+#[tokio::test]
+async fn a_variant_is_checked_against_the_manifest_clients_install() {
+    let (_tmp, app, token) = setup().await;
+    let (_, primary) = archive(&primary_manifest(), "primary");
+    let declared = serde_json::to_vec(&variant_manifest(&["linux-x64"], &json!({}))).unwrap();
+    let installed = serde_json::to_vec(&primary_manifest()).unwrap();
+    let tgz = gzip(&tar_of(&[
+        ("package/package.json", declared.as_slice()),
+        ("package/index.js", b"variant".as_slice()),
+        ("package/package.json", installed.as_slice()),
+    ]));
+    let response = app
+        .clone()
+        .oneshot(publish_request(&primary, &[("a", &tgz)], &token))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    let reason = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
+    assert!(reason.contains("variant"), "{reason}");
+}
+
+/// npm's documents leave the stored variants out, and a deprecation writes
+/// one of them back: the store keeps the variants of every version it
+/// retains.
+#[tokio::test]
+async fn a_rewrite_from_npms_document_keeps_the_variants() {
+    let (_tmp, app, token) = setup().await;
+    let (_, primary) = archive(&primary_manifest(), "primary");
+    let (musl_tar, musl_tgz) = archive(&variant_manifest(&["linux-x64-musl"], &json!({})), "musl");
+    let response = app
+        .clone()
+        .oneshot(publish_request(&primary, &[("musl", &musl_tgz)], &token))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED);
+
+    let mut document =
+        body_json(get(&app, "/npm/~acme/@acme%2Ffast", None).await.into_body()).await;
+    assert!(document["versions"]["1.0.0"].get("_pnprVariants").is_none());
+    document["versions"]["1.0.0"]["deprecated"] = json!("use 2");
+    let rewrite = Request::put("/npm/~acme/@acme%2Ffast/-rev/1")
+        .header("content-type", "application/json")
+        .header(header::AUTHORIZATION, format!("Bearer {token}"))
+        .body(Body::from(serde_json::to_vec(&document).unwrap()))
+        .unwrap();
+    let response = app
+        .clone()
+        .oneshot(rewrite)
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED);
+
+    let response = get(&app, "/npm/~main/@acme/fast@1.0.0/variants/linux-x64-musl", None).await;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(body_bytes(response.into_body()).await, musl_tar);
+}
