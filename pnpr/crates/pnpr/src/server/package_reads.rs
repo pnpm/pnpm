@@ -446,26 +446,12 @@ pub(super) async fn serve_hosted_packument(
             headers,
             max_age,
         ) {
-            Ok(response) => with_generation(response, view.generation.as_ref()),
+            Ok(response) => super::with_generation(response, view.generation.as_ref()),
             Err(err) => err.into_response(),
         },
         Ok(None) => not_found(),
         Err(err) => err.into_response(),
     }
-}
-
-/// `response` with the generation its package view was rendered from.
-fn with_generation(
-    mut response: Response,
-    generation: Option<&pnpr_storage::metadata::Generation>,
-) -> Response {
-    let value = generation.and_then(|generation| {
-        axum::http::HeaderValue::from_str(&generation.to_string()).ok()
-    });
-    if let Some(value) = value {
-        response.headers_mut().insert(super::GENERATION_HEADER, value);
-    }
-    response
 }
 
 pub(super) async fn serve_hosted_tarball(

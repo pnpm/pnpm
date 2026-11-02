@@ -146,7 +146,7 @@ fn stored_versions(commit: &Commit<'_>) -> Result<BTreeMap<String, StoredVersion
     let mut rows = statement.query(params![catalog, ecosystem, name, ORDINARY, SUBMITTED_PROFILE])?;
     let mut stored = BTreeMap::new();
     while let Some(row) = rows.next()? {
-        let deprecated = parse_optional_json(row.get(2)?)?;
+        let deprecated = parse_optional_json(row.get::<_, Option<String>>(2)?.as_deref())?;
         stored.insert(row.get(0)?, StoredVersion { input_digest: row.get(1)?, deprecated });
     }
     Ok(stored)
@@ -211,10 +211,18 @@ fn accepted_rows(commit: &Commit<'_>, version: &str) -> Result<(Map<String, Valu
          WHERE m.catalog = ?1 AND m.ecosystem = ?2 AND m.name = ?3 AND m.version = ?4
            AND m.revision_key = ?5 AND m.profile = ?6",
         params![catalog, ecosystem, name, version, ORDINARY, SUBMITTED_PROFILE],
-        |row| Ok((row.get::<_, String>(0)?, row.get(1)?, row.get(2)?)),
+        |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, Option<String>>(1)?,
+                row.get::<_, Option<String>>(2)?,
+            ))
+        },
     )?;
-    let readme =
-        Readme { text: parse_optional_json(text)?, filename: parse_optional_json(filename)? };
+    let readme = Readme {
+        text: parse_optional_json(text.as_deref())?,
+        filename: parse_optional_json(filename.as_deref())?,
+    };
     Ok((parse_json(&manifest)?, readme))
 }
 
@@ -278,8 +286,6 @@ pub(super) fn parse_json<Parsed: serde::de::DeserializeOwned>(text: &str) -> Res
     Ok(serde_json::from_str(text)?)
 }
 
-pub(super) fn parse_optional_json(text: Option<String>) -> Result<Option<Value>> {
-    text.as_deref()
-        .map(parse_json)
-        .transpose()
+pub(super) fn parse_optional_json(text: Option<&str>) -> Result<Option<Value>> {
+    text.map(parse_json).transpose()
 }

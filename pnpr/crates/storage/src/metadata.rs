@@ -1,21 +1,23 @@
 //! The hosted packages' metadata, split from their archives.
 //!
-//! [`PackageMetadata`] is the domain interface the registry's handlers reach
+//! `PackageMetadata` is the domain interface the registry's handlers reach
 //! through [`Storage`]: reading a package view, committing a package document,
 //! changing a tag, removing a package. Archives and the records beside them
-//! stay in the [`crate::HostedBackend`]; a metadata backend owns only what a
-//! package's document says about them.
+//! stay in the hosted backend; a metadata backend owns only what a package's
+//! document says about them.
 //!
-//! - [`documents`] keeps one document per package in the hosted store, beside
-//!   its archives.
-//! - [`sqlite`] keeps accepted versions, tags, deprecations, and package state
-//!   as rows of an embedded database and renders documents from them.
+//! - The documents backend keeps one document per package in the hosted
+//!   store, beside its archives.
+//! - [`SqliteMetadata`] keeps accepted versions, tags, deprecations, and
+//!   package state as rows of an embedded database and renders documents from
+//!   them.
 
-mod documents;
 pub(crate) mod sqlite;
 
 pub(crate) use documents::update_with_retry;
-pub use sqlite::{RenderStats, SqliteMetadata};
+pub use sqlite::{RenderStats, SqliteMetadata, TagHistoryEntry};
+
+mod documents;
 
 use crate::{
     DocumentWrite, HostedBackend, HostedDocumentForUpdate, HostedDocumentVersion, Storage,

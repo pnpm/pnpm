@@ -166,7 +166,7 @@ async fn generations_advance_per_catalog() {
             .read_hosted_document(&npm("other"))
             .await
             .unwrap()
-            .is_none()
+            .is_none(),
     );
 }
 
@@ -276,7 +276,7 @@ async fn tag_moves_are_recorded() {
             (None, Some("2.0.0"), None),
             (Some("2.0.0"), Some("1.0.0"), Some("alice")),
             (Some("1.0.0"), None, Some("bob")),
-        ]
+        ],
     );
     let generation = Some(Generation { catalog: String::new(), value: 2 });
     assert_eq!(unchanged, TagUpdate::Committed { generation, moved: false });
@@ -300,21 +300,21 @@ async fn removing_versions_and_packages() {
         storage
             .remove_package(&npm("pkg"))
             .await
-            .unwrap()
+            .unwrap(),
     );
     assert!(
         storage
             .read_hosted_document(&npm("pkg"))
             .await
             .unwrap()
-            .is_none()
+            .is_none(),
     );
     assert!(
         storage
             .hosted_package_names()
             .await
             .unwrap()
-            .is_empty()
+            .is_empty(),
     );
     let mut republished = packument("pkg", &["1.0.0"]);
     republished["versions"]["1.0.0"]["description"] = json!("a different manifest");
@@ -334,7 +334,7 @@ async fn another_ecosystem_stores_its_document_whole() {
             .await
             .unwrap()
             .unwrap(),
-        b"not json"
+        b"not json",
     );
     let tag = TagChange { tag: "latest", target: Some("1.0.0"), principal: None };
     assert_eq!(storage.change_dist_tag(&name, tag).await.unwrap(), TagUpdate::NotFound);

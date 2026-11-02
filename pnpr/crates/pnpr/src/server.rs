@@ -62,7 +62,7 @@ mod package_responses;
 use package_responses::{
     DistBlock, PackumentDists, TarballDist, declared_tarball_integrity, expected_tarball_dist,
     packument_bytes_response, packument_response, tarball_integrity_error, tarball_response,
-    tarball_stream_error, tarball_stream_error_for_package,
+    tarball_stream_error, tarball_stream_error_for_package, with_generation,
 };
 
 mod package_reads;
