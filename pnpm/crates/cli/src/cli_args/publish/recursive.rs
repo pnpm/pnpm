@@ -5,7 +5,7 @@
 //! publishes the rest in dependency order, optionally
 //! writing `pnpm-publish-summary.json`.
 
-use super::{PublishArgs, PublishScope};
+use super::{PublishArgs, PublishScope, notes::check_packed_members};
 use crate::cli_args::{
     changelog::published_name,
     recursive::{
@@ -86,7 +86,7 @@ impl PublishArgs {
             pkg.notes = self.version_notes::<Reporter>(ctx.config, &pkg.notes_package(), scope)?;
             packed.push(pkg);
         }
-        Self::check_publication_registry(ctx.config, &ctx.opts.release_notes.publication, &packed)?;
+        check_packed_members(ctx.config, &ctx.opts.release_notes.publication, &packed)?;
         let packages = packed
             .iter()
             .map(|pkg| pkg.packed_pkg())
