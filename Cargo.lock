@@ -6277,6 +6277,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "pnpm-release-record"
+version = "0.0.1"
+dependencies = [
+ "base64 0.23.1",
+ "chrono",
+ "derive_more",
+ "ed25519-dalek",
+ "percent-encoding",
+ "pnpm-transparency-log",
+ "pretty_assertions",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "signed_note",
+]
+
+[[package]]
 name = "pnpm-reporter"
 version = "0.0.1"
 dependencies = [

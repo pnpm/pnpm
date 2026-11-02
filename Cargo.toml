@@ -42,6 +42,7 @@ pnpm-tarball = { path = "pnpm/crates/tarball" }
 pnpm-testing-utils = { path = "pnpm/crates/testing-utils" }
 pnpm-text-sanitize = { path = "pnpm/crates/text-sanitize" }
 pnpm-text-section = { path = "pnpm/crates/text-section" }
+pnpm-release-record = { path = "pnpm/crates/release-record" }
 pnpm-transparency-log = { path = "pnpm/crates/transparency-log" }
 pnpm-pack = { path = "pnpm/crates/pack" }
 pnpm-publish = { path = "pnpm/crates/publish" }
