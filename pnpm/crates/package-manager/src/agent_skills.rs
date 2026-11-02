@@ -25,6 +25,7 @@ pub(crate) fn agent_skill_targets_changed(config: &Config, workspace_root: &Path
     };
     let linked = modules.linked_skills.unwrap_or_default();
     targets::targets_changed(config, workspace_root, agent_skills_dir_from_env(), &linked)
+        && (!linked.is_empty() || installed::has_approved_agent_skills(config, workspace_root))
 }
 
 mod discovery;

@@ -90,3 +90,29 @@ pub(crate) fn resync_agent_skills_at(
         .map_err(ResyncAgentSkillsError::WriteModules)?;
     Ok(pending_keys)
 }
+
+pub(super) fn has_approved_agent_skills(config: &Config, workspace_root: &Path) -> bool {
+    let Ok(Some(modules)) = pnpm_modules_yaml::read_modules_manifest::<Host>(&config.modules_dir)
+    else {
+        return true;
+    };
+    let Ok(Some(lockfile)) =
+        Lockfile::load_current_from_install_state_dir(&config.install_state_dir)
+    else {
+        return true;
+    };
+    let Ok(policy) = crate::AllowBuildPolicy::from_approvals(&config.allow_skills, false) else {
+        return true;
+    };
+    super::discovery::discover_skill_sources(&SyncAgentSkills {
+        config,
+        workspace_root,
+        lockfile: &lockfile,
+        included: modules.included,
+        linked: &[],
+        agent_dir: None,
+        hoisted_locations: modules.hoisted_locations.as_ref(),
+    })
+    .iter()
+    .any(|source| policy.check(&source.dep_path) == Some(true))
+}

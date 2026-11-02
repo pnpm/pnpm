@@ -793,3 +793,26 @@ fn cleanup_does_not_follow_a_recorded_directory_outside_the_workspace() {
     assert_eq!(fs::read_to_string(ignore).unwrap(), before);
     assert!(fs::symlink_metadata(moved.join("skills/guide")).is_ok());
 }
+
+#[test]
+fn unused_approvals_do_not_invalidate_the_repeat_install() {
+    for skills in [Vec::new(), vec!["guide"]] {
+        let (root, lockfile) = workspace(&[("foo", "1.0.0", &skills)]);
+        let mut config = config(&[("foo", true)], Some(&[".claude/skills"]));
+        config.modules_dir = root.path().join("node_modules");
+        config.install_state_dir = root.path().to_path_buf();
+        fs::create_dir_all(root.path().join(".claude/skills")).unwrap();
+        fs::write(
+            root.path().join(Lockfile::CURRENT_FILE_NAME),
+            serde_saphyr::to_string(&lockfile).unwrap(),
+        )
+        .unwrap();
+        pnpm_modules_yaml::write_modules_manifest::<pnpm_modules_yaml::Host>(
+            &config.modules_dir,
+            pnpm_modules_yaml::Modules { included: ALL_GROUPS, ..Default::default() },
+        )
+        .unwrap();
+
+        assert_eq!(super::agent_skill_targets_changed(&config, root.path()), !skills.is_empty());
+    }
+}
