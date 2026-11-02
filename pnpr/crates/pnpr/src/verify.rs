@@ -1,3 +1,8 @@
+pub use report::{BlobTotals, VerifyReport, format_verify_report};
+
+mod manifests;
+mod report;
+
 use axum::body::to_bytes;
 use futures_util::StreamExt as _;
 use miette::IntoDiagnostic as _;
@@ -12,18 +17,6 @@ pub struct VerifyOptions {
     pub check_hashes: bool,
     pub prune_orphans: bool,
     pub min_age_secs: u64,
-}
-
-#[derive(Debug, Default)]
-pub struct VerifyReport {
-    pub packages_checked: usize,
-    pub versions_checked: usize,
-    pub blobs_checked: usize,
-    pub bytes_verified: u64,
-    pub missing_blobs: Vec<String>,
-    pub corrupted_blobs: Vec<String>,
-    pub orphaned_blobs: Vec<String>,
-    pub prune_failures: Vec<String>,
 }
 
 struct VerifyContext<'a> {
@@ -135,8 +128,12 @@ async fn verify_version_tarball(
     if let Some(bytes) = read_blob(ctx, canonical, filename).await? {
         if ctx.options.check_hashes {
             check_hash_mismatch(pkg_name, ver, filename, &bytes, dist, ctx.report);
+            let tar = flate2::read::MultiGzDecoder::new(bytes.as_ref());
+            ctx.report.manifest_disagreements.extend(manifests::manifest_disagreement(
+                pkg_name, ver, ver_val, tar,
+            ));
         }
-    } else if !verify_stored_tar(ctx, canonical, ver, dist).await? {
+    } else if !verify_stored_tar(ctx, canonical, ver, ver_val).await? {
         ctx.report.missing_blobs.push(format!("{pkg_name}@{ver}: {filename}"));
     }
     Ok(())
@@ -148,15 +145,22 @@ async fn verify_stored_tar(
     ctx: &mut VerifyContext<'_>,
     canonical: &CanonicalPackageName,
     ver: &str,
-    dist: &serde_json::Map<String, Value>,
+    ver_val: &Value,
 ) -> miette::Result<bool> {
     let tar = canonical.tar_name_for_version(ver);
     let Some(bytes) = read_blob(ctx, canonical, &tar).await? else { return Ok(false) };
-    if ctx.options.check_hashes
-        && let Some(problem) = stored_tar_problem(ctx.storage, canonical, &bytes, dist).await?
-    {
-        let pkg_name = canonical.as_str();
+    if !ctx.options.check_hashes {
+        return Ok(true);
+    }
+    let pkg_name = canonical.as_str();
+    let dist = ver_val.get("dist").and_then(Value::as_object);
+    let dist = dist.cloned().unwrap_or_default();
+    if let Some(problem) = stored_tar_problem(ctx.storage, canonical, &bytes, &dist).await? {
         ctx.report.corrupted_blobs.push(format!("{pkg_name}@{ver}: {tar} ({problem})"));
+    } else if let Ok(decoded) = zstd::stream::read::Decoder::new(bytes.as_ref()) {
+        ctx.report.manifest_disagreements.extend(manifests::manifest_disagreement(
+            pkg_name, ver, ver_val, decoded,
+        ));
     }
     Ok(true)
 }
@@ -203,8 +207,8 @@ async fn read_blob(
         .map_err(|err| miette::miette!("error opening blob for '{}': {err}", canonical.as_str()))?;
     let Some((body, _)) = opened else { return Ok(None) };
     let bytes = to_bytes(body, usize::MAX).await.into_diagnostic()?;
-    ctx.report.blobs_checked += 1;
-    ctx.report.bytes_verified += bytes.len() as u64;
+    ctx.report.blobs.checked += 1;
+    ctx.report.blobs.bytes += bytes.len() as u64;
     Ok(Some(bytes))
 }
 
@@ -401,37 +405,4 @@ fn verify_blob_integrity(bytes: &[u8], integrity_str: &str) -> bool {
 fn verify_blob_shasum(bytes: &[u8], expected_hex: &str) -> bool {
     ssri::Integrity::from_hex(expected_hex, ssri::Algorithm::Sha1)
         .is_ok_and(|expected| expected.check(bytes).is_ok())
-}
-
-#[must_use]
-pub fn format_verify_report(report: &VerifyReport) -> String {
-    use std::fmt::Write as _;
-    let mut out = String::new();
-    out.push_str("Storage verification completed:\n");
-    let _ = writeln!(out, "  Packages checked: {}", report.packages_checked);
-    let _ = writeln!(out, "  Versions checked: {}", report.versions_checked);
-    let _ = writeln!(
-        out,
-        "  Blobs verified: {} ({} bytes)",
-        report.blobs_checked, report.bytes_verified,
-    );
-    let _ = writeln!(out, "  Missing blobs: {}", report.missing_blobs.len());
-    for missing in &report.missing_blobs {
-        let _ = writeln!(out, "    - MISSING: {missing}");
-    }
-    let _ = writeln!(out, "  Corrupted blobs: {}", report.corrupted_blobs.len());
-    for corrupt in &report.corrupted_blobs {
-        let _ = writeln!(out, "    - CORRUPTED: {corrupt}");
-    }
-    let _ = writeln!(out, "  Orphaned blobs: {}", report.orphaned_blobs.len());
-    for orphan in &report.orphaned_blobs {
-        let _ = writeln!(out, "    - ORPHANED: {orphan}");
-    }
-    if !report.prune_failures.is_empty() {
-        let _ = writeln!(out, "  Prune failures: {}", report.prune_failures.len());
-        for failure in &report.prune_failures {
-            let _ = writeln!(out, "    - PRUNE FAILED: {failure}");
-        }
-    }
-    out
 }
