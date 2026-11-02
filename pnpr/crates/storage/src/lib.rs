@@ -311,8 +311,8 @@ impl Storage {
     }
 
     /// Read the hosted document, transform it, and conditionally write it
-    /// back under compare-and-swap, retrying on conflict with capped backoff;
-    /// see [`metadata::update_with_retry`]. Both the dist-tag request path and
+    /// back under compare-and-swap, retrying on conflict with capped backoff.
+    /// Both the dist-tag request path and
     /// journal roll-forward go through here so their conflict handling stays
     /// in one place.
     pub async fn update_hosted_document_with_retry<Build>(

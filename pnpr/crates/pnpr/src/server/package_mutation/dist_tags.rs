@@ -169,8 +169,8 @@ async fn update_dist_tag(
 fn log_tag_change(identity: &Identity, request: &TagRequest<'_>, outcome: &TagOutcome) {
     let actor = identity.username().unwrap_or("-");
     let source = &outcome.source;
-    match &outcome.version {
-        Some(version) => tracing::info!(
+    if let Some(version) = &outcome.version {
+        tracing::info!(
             target: "pnpr::audit",
             action = "package.dist_tag_set",
             actor = %actor,
@@ -179,8 +179,9 @@ fn log_tag_change(identity: &Identity, request: &TagRequest<'_>, outcome: &TagOu
             version = %version,
             registry = %source,
             "package dist-tag set",
-        ),
-        None => tracing::info!(
+        );
+    } else {
+        tracing::info!(
             target: "pnpr::audit",
             action = "package.dist_tag_remove",
             actor = %actor,
@@ -188,7 +189,7 @@ fn log_tag_change(identity: &Identity, request: &TagRequest<'_>, outcome: &TagOu
             tag = %request.tag,
             registry = %source,
             "package dist-tag removed",
-        ),
+        );
     }
 }
 

@@ -172,6 +172,17 @@ pub fn static_serve_config(listen: SocketAddr, storage: PathBuf) -> Config {
     )
 }
 
+/// A hosted store and cache on local disk under `storage`.
+fn local_storage(storage: PathBuf) -> pnpr_config::StorageConfig {
+    pnpr_config::StorageConfig {
+        cache_dir: default_cache_dir(&storage),
+        cache: pnpr_config::CacheConfig::default(),
+        hosted_dir: storage,
+        hosted_backend: HostedStoreConfig::Fs,
+        metadata: pnpr_config::MetadataBackend::Documents,
+    }
+}
+
 fn with_routing(
     listen: SocketAddr,
     storage: PathBuf,
@@ -198,13 +209,7 @@ fn with_routing(
             request_timeout: Some(pnpr_config::HttpConfig::DEFAULT_REQUEST_TIMEOUT),
             metrics: None,
         },
-        storage: pnpr_config::StorageConfig {
-            cache_dir: default_cache_dir(&storage),
-            cache: pnpr_config::CacheConfig::default(),
-            hosted_dir: storage,
-            hosted_backend: HostedStoreConfig::Fs,
-            metadata: pnpr_config::MetadataBackend::Documents,
-        },
+        storage: local_storage(storage),
         identity: pnpr_config::IdentityConfig {
             auth: AuthConfig::default(),
             backend: BackendConfig::Local,

@@ -12,6 +12,9 @@
 //! transaction. Rendering also runs under the mutex, so concurrent misses for
 //! one view render it once.
 
+pub use cache::RenderStats;
+pub use tags::TagHistoryEntry;
+
 mod cache;
 mod commit;
 mod packument;
@@ -19,9 +22,6 @@ mod render;
 mod schema;
 mod tags;
 mod versions;
-
-pub use cache::RenderStats;
-pub use tags::TagHistoryEntry;
 
 use super::{Generation, PackageMetadata, PackageView, TagChange, TagUpdate};
 use crate::{DocumentWrite, HostedDocumentForUpdate, HostedDocumentVersion};

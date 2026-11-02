@@ -367,3 +367,17 @@ pub(super) fn tarball_response(body: Body, content_length: Option<u64>) -> Respo
     }
     builder.body(body).expect("static-shape response always builds")
 }
+
+/// `response` with the generation its package view was rendered from.
+pub(super) fn with_generation(
+    mut response: Response,
+    generation: Option<&pnpr_storage::metadata::Generation>,
+) -> Response {
+    let value = generation.and_then(|generation| {
+        axum::http::HeaderValue::from_str(&generation.to_string()).ok()
+    });
+    if let Some(value) = value {
+        response.headers_mut().insert(super::GENERATION_HEADER, value);
+    }
+    response
+}

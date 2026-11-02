@@ -16,10 +16,9 @@ async fn concurrent_publishers_of_one_version_cannot_both_commit() {
     let ours = serde_json::to_vec(&packument("pkg", &["1.0.0"])).unwrap();
     let theirs = serde_json::to_vec(&theirs).unwrap();
     let name = npm("pkg");
-    let (left, right) = tokio::join!(
-        first.write_hosted_document_if_current(&name, &ours, None),
-        second.write_hosted_document_if_current(&name, &theirs, None),
-    );
+    let left = first.write_hosted_document_if_current(&name, &ours, None);
+    let right = second.write_hosted_document_if_current(&name, &theirs, None);
+    let (left, right) = tokio::join!(left, right);
     let loser = match (left.unwrap(), right.unwrap()) {
         (DocumentWrite::Written, DocumentWrite::Conflict) => &theirs,
         (DocumentWrite::Conflict, DocumentWrite::Written) => &ours,
@@ -89,7 +88,7 @@ async fn a_transaction_cut_off_before_commit_leaves_nothing() {
             .read_hosted_document(&npm("pkg"))
             .await
             .unwrap()
-            .is_none()
+            .is_none(),
     );
     assert_eq!(
         storage
@@ -97,7 +96,7 @@ async fn a_transaction_cut_off_before_commit_leaves_nothing() {
             .unwrap()
             .catalog_generation("")
             .unwrap(),
-        0
+        0,
     );
 }
 

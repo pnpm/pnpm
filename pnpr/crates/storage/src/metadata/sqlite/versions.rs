@@ -2,7 +2,7 @@
 
 use super::{
     commit::Commit,
-    packument::{ORDINARY, SUBMITTED_PROFILE, VersionRows},
+    packument::{ORDINARY, Readme, SUBMITTED_PROFILE, VersionRows},
     to_column,
 };
 use pnpr_error::Result;
@@ -25,7 +25,7 @@ pub(super) fn insert_version(commit: &Commit<'_>, version: &str, rows: &VersionR
             ORDINARY,
             rows.integrity(),
             rows.published_at,
-            generation
+            generation,
         ],
     )?;
     let manifest = serde_json::to_string(&rows.manifest)?;
@@ -42,26 +42,33 @@ pub(super) fn insert_version(commit: &Commit<'_>, version: &str, rows: &VersionR
             ORDINARY,
             SUBMITTED_PROFILE,
             manifest,
-            input_digest
+            input_digest,
         ],
     )?;
-    if !rows.readme.is_empty() {
-        commit.transaction.execute(
-            "INSERT INTO readmes (catalog, ecosystem, name, version, revision_key, readme,
-                                  readme_filename)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-            params![
-                catalog,
-                ecosystem,
-                name,
-                version,
-                ORDINARY,
-                json_text(rows.readme.text.as_ref())?,
-                json_text(rows.readme.filename.as_ref())?,
-            ],
-        )?;
-    }
+    insert_readme(commit, version, &rows.readme)?;
     write_deprecation(commit, version, rows.deprecated.as_ref())
+}
+
+fn insert_readme(commit: &Commit<'_>, version: &str, readme: &Readme) -> Result<()> {
+    if readme.is_empty() {
+        return Ok(());
+    }
+    let (catalog, ecosystem, name) = commit.key.params();
+    commit.transaction.execute(
+        "INSERT INTO readmes (catalog, ecosystem, name, version, revision_key, readme,
+                              readme_filename)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        params![
+            catalog,
+            ecosystem,
+            name,
+            version,
+            ORDINARY,
+            json_text(readme.text.as_ref())?,
+            json_text(readme.filename.as_ref())?,
+        ],
+    )?;
+    Ok(())
 }
 
 /// Set or clear a version's deprecation under the commit's generation.

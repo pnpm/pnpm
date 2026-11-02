@@ -31,18 +31,15 @@ pub(super) fn read_view(
     let snapshot = connection.transaction()?;
     let Some(package) = package_row(&snapshot, key)? else { return Ok(None) };
     let view_key = ViewKey { package: key.clone(), representation: Representation::Full };
-    let bytes = match cache.view(&view_key, package.generation) {
-        Some(bytes) => bytes,
-        None => {
-            let bytes: Arc<[u8]> = match key.ecosystem {
-                Ecosystem::Npm => assemble_packument(&snapshot, cache, key, &package)?.into(),
-                Ecosystem::Cargo | Ecosystem::Pypi | Ecosystem::Oci => {
-                    package.state.into()
-                }
-            };
-            cache.store_view(view_key, package.generation, Arc::clone(&bytes));
-            bytes
-        }
+    let bytes = if let Some(bytes) = cache.view(&view_key, package.generation) {
+        bytes
+    } else {
+        let bytes: Arc<[u8]> = match key.ecosystem {
+            Ecosystem::Npm => assemble_packument(&snapshot, cache, key, &package)?.into(),
+            Ecosystem::Cargo | Ecosystem::Pypi | Ecosystem::Oci => package.state.into(),
+        };
+        cache.store_view(view_key, package.generation, Arc::clone(&bytes));
+        bytes
     };
     Ok(Some(PackageView { bytes, generation: Some(key.generation(package.generation)) }))
 }
@@ -82,8 +79,21 @@ fn version_entries(connection: &Connection, key: &PackageKey) -> Result<Vec<Vers
 
 /// Render one version's manifest with its README and deprecation.
 fn render_fragment(connection: &Connection, key: &FragmentKey) -> Result<Arc<str>> {
+    let [manifest, fields @ ..] = fragment_columns(connection, key)?;
+    let mut fragment: Map<String, Value> = parse_json(manifest.as_deref().unwrap_or("{}"))?;
+    for (field, value) in [README, README_FILENAME, DEPRECATED].into_iter().zip(fields) {
+        if let Some(value) = parse_optional_json(value.as_deref())? {
+            fragment.insert(field.to_string(), value);
+        }
+    }
+    Ok(serde_json::to_string(&fragment)?.into())
+}
+
+/// The manifest, README, README filename, and deprecation of a version, as
+/// stored.
+fn fragment_columns(connection: &Connection, key: &FragmentKey) -> Result<[Option<String>; 4]> {
     let (catalog, ecosystem, name) = key.package.params();
-    let (manifest, readme, readme_filename, deprecated) = connection
+    let columns = connection
         .prepare_cached(
             "SELECT m.manifest, r.readme, r.readme_filename, a.deprecated
              FROM accepted_manifests m
@@ -94,17 +104,9 @@ fn render_fragment(connection: &Connection, key: &FragmentKey) -> Result<Arc<str
         )?
         .query_row(
             params![catalog, ecosystem, name, key.version, key.revision_key, key.profile],
-            |row| Ok((row.get::<_, String>(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            |row| Ok([row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?]),
         )?;
-    let mut fragment: Map<String, Value> = parse_json(&manifest)?;
-    for (field, value) in
-        [(README, readme), (README_FILENAME, readme_filename), (DEPRECATED, deprecated)]
-    {
-        if let Some(value) = parse_optional_json(value)? {
-            fragment.insert(field.to_string(), value);
-        }
-    }
-    Ok(serde_json::to_string(&fragment)?.into())
+    Ok(columns)
 }
 
 fn fragment(
