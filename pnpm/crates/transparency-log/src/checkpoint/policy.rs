@@ -47,7 +47,8 @@ impl KeySet {
         KeySet { keys: Vec::new(), threshold: 0 }
     }
 
-    /// The keys.
+    /// The keys whose signatures count toward the threshold, in the order
+    /// they were given.
     #[must_use]
     pub fn keys(&self) -> &[VerifierKey] {
         &self.keys
@@ -111,9 +112,13 @@ impl CheckpointPolicy {
     ///
     /// Every log key must be an Ed25519 note key named `origin`, and every
     /// witness key an Ed25519 cosignature key whose public key is not one of
-    /// the log's. A policy with no witnesses detects a rewrite of the history
-    /// a client has seen, but not a log that shows different clients different
-    /// histories.
+    /// the log's.
+    ///
+    /// Verifying a checkpoint does not by itself detect a rewritten history:
+    /// a client must also keep the latest tree head it verified and check
+    /// each new one against it with [`advance`](crate::proof::advance). With
+    /// no witnesses, that detects a rewrite of the history the client has
+    /// seen, but not a log that shows different clients different histories.
     pub fn new(origin: &str, log_keys: KeySet, witnesses: KeySet) -> Result<Self, PolicyError> {
         if log_keys.threshold == 0 {
             return Err(PolicyError::NoLogSignatures);

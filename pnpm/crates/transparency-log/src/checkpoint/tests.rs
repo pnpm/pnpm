@@ -94,7 +94,12 @@ fn rejects_a_checkpoint_without_the_log_signature() {
         policy.verify(WITNESSED_CHECKPOINT),
         Err(CheckpointError::LogSignatures { found: 0, required: 1 }),
     );
-    assert!(CheckpointPolicy::new("other.example/log", log_keys, KeySet::empty()).is_err());
+    assert_eq!(
+        CheckpointPolicy::new("other.example/log", log_keys, KeySet::empty()),
+        Err(PolicyError::InvalidLogKey {
+            key: "log2025-alpha3.rekor.sigstage.dev+d3d3a70c".to_owned(),
+        }),
+    );
 }
 
 fn tree_head(origin: &str, size: u64) -> TreeHead {
