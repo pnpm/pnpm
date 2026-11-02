@@ -139,7 +139,7 @@ impl Replica {
         lock(&self.synced).is_some_and(|synced| synced.elapsed() <= self.bound)
     }
 
-    /// Note that the primary holds a write the replica has not pulled.
+    /// Record that the primary holds a write the replica has not pulled.
     fn mark_stale(&self) {
         *lock(&self.synced) = None;
     }
