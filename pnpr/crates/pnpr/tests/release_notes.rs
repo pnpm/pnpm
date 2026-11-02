@@ -165,6 +165,7 @@ async fn a_publication_note_is_reached_from_each_member() {
         .json();
     assert_eq!(listing["notes"][0]["version"], "1.0.0");
     assert_eq!(listing["notes"][0]["publication"]["name"], "v1.0.0");
+    assert_eq!(listing["notes"][0]["publication"]["url"], "/-/publications/-/1/notes");
     assert!(listing["notes"][0].get("text").is_none());
     let scoped = send(&app, "GET", "/npm/@acme/core/-/notes", None, Body::empty())
         .await

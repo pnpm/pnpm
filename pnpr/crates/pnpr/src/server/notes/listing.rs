@@ -137,6 +137,7 @@ fn entry_json(version: &str, note: Option<&Note>, link: Option<&PublicationLink>
             "id": link.id.to_string(),
             "name": link.name,
             "initialDigest": link.initial_digest,
+            "url": link.notes_path(),
         });
         entry.insert("publication".to_string(), reference);
     }

@@ -48,6 +48,14 @@ pub(in crate::server) struct PublicationLink {
     pub(in crate::server) public: bool,
 }
 
+impl PublicationLink {
+    /// The absolute path of the publication's note on this server.
+    pub(in crate::server) fn notes_path(&self) -> String {
+        let org = if self.org.is_empty() { "-" } else { &self.org };
+        format!("/-/publications/{org}/{}/notes", self.id)
+    }
+}
+
 /// `200` with the version's note, `204` when only its publication has one,
 /// `404` otherwise. A version published with a note keeps its initial digest
 /// header after the note is edited or deleted.
@@ -73,8 +81,7 @@ pub(super) fn version_note_response(
 }
 
 fn insert_publication_link(headers: &mut axum::http::HeaderMap, link: &PublicationLink) {
-    let org = if link.org.is_empty() { "-" } else { &link.org };
-    let target = format!(r#"</-/publications/{org}/{}/notes>; rel="publication-notes""#, link.id);
+    let target = format!(r#"<{}>; rel="publication-notes""#, link.notes_path());
     insert(headers, header::LINK.as_str(), &target);
     if let Some(name) = &link.name {
         insert(headers, "pnpr-publication-name", name);
