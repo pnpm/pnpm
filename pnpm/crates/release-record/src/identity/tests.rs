@@ -108,7 +108,39 @@ fn rejects_entries_that_would_not_parse_back() {
     );
     let mut key = oci_key(1);
     key.revision = None;
-    assert_eq!(LogEntry::new(key, RecordDigest::of(b"")), Err(LogEntryError::MissingRevision));
+    let oci = Profile::OCI_TAG.parse().unwrap();
+    assert_eq!(
+        LogEntry::new(key, RecordDigest::of(b"")),
+        Err(LogEntryError::MissingRevision { profile: oci }),
+    );
+}
+
+#[test]
+fn log_entries_carry_a_revision_exactly_when_their_profile_has_revisions() {
+    let mut npm = npm_key(0);
+    npm.revision = None;
+    assert_eq!(
+        LogEntry::new(npm, RecordDigest::of(b"")),
+        Err(LogEntryError::MissingRevision {
+            profile: Profile::NPM_INSTALL_MANIFEST.parse().unwrap()
+        }),
+    );
+    let cargo = RecordKey {
+        identity: RecordIdentity::Package(Purl::cargo("serde", "1.0.210").unwrap()),
+        revision: Some(0),
+        profile: Profile::CARGO_INDEX_ENTRY.parse().unwrap(),
+    };
+    assert_eq!(
+        LogEntry::new(cargo.clone(), RecordDigest::of(b"")),
+        Err(LogEntryError::UnexpectedRevision { profile: cargo.profile.clone() }),
+    );
+    LogEntry::new(RecordKey { revision: None, ..cargo }, RecordDigest::of(b"")).unwrap();
+    let mut future = npm_key(0);
+    future.profile = "npm-install-manifest/2".parse().unwrap();
+    for revision in [None, Some(0)] {
+        let key = RecordKey { revision, ..future.clone() };
+        LogEntry::new(key, RecordDigest::of(b"")).unwrap();
+    }
 }
 
 #[test]

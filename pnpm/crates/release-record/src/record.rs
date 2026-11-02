@@ -44,6 +44,18 @@ pub enum RecordError {
         #[error(not(source))]
         field: &'static str,
     },
+    #[display("{profile} record has {field}, which its profile does not")]
+    UnexpectedField {
+        #[error(not(source))]
+        profile: Profile,
+        #[error(not(source))]
+        field: &'static str,
+    },
+    #[display("OCI tag record's package URL {purl} is not the image of its repository and tag")]
+    ImageMismatch {
+        #[error(not(source))]
+        purl: String,
+    },
     #[display("{profile} record has a {purl_type} package URL")]
     WrongPurlType {
         #[error(not(source))]
@@ -142,8 +154,18 @@ fn record_key(core: Core) -> Result<(RecordKey, Option<Purl>), RecordError> {
         let tag = core.tag.ok_or_else(|| missing("tag"))?;
         let revision = core.revision.ok_or_else(|| missing("revision"))?;
         let image = core.purl.ok_or_else(|| missing("purl"))?;
+        if let Some(image) = &image {
+            check_image(image, &repository, &tag)?;
+        }
         let identity = RecordIdentity::OciTag { repository, tag };
         return Ok((RecordKey { identity, revision: Some(revision), profile }, image));
+    }
+    match (profile.has_revisions(), core.revision) {
+        (Some(true), None) => return Err(missing("revision")),
+        (Some(false), Some(_)) => {
+            return Err(RecordError::UnexpectedField { profile, field: "revision" });
+        }
+        _ => {}
     }
     let purl = core.purl.flatten().ok_or_else(|| missing("purl"))?;
     if profile
@@ -155,6 +177,23 @@ fn record_key(core: Core) -> Result<(RecordKey, Option<Purl>), RecordError> {
     }
     let identity = RecordIdentity::Package(purl);
     Ok((RecordKey { identity, revision: core.revision, profile }, None))
+}
+
+/// Checks that an OCI tag record's `purl` is the one [`Purl::oci_tag`]
+/// builds from its repository, its tag, and the manifest digest it names, so
+/// the image cannot disagree with the tag the record binds.
+fn check_image(image: &Purl, repository: &str, tag: &str) -> Result<(), RecordError> {
+    let mismatch = || RecordError::ImageMismatch { purl: image.to_string() };
+    let digest = image
+        .as_str()
+        .split_once('@')
+        .and_then(|(_, rest)| rest.split('?').next())
+        .ok_or_else(mismatch)?;
+    let expected = Purl::oci_tag(repository, digest, tag).map_err(|_| mismatch())?;
+    if &expected != image {
+        return Err(mismatch());
+    }
+    Ok(())
 }
 
 #[cfg(test)]

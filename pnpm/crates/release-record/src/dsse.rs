@@ -53,7 +53,7 @@ pub struct VerifiedPayload {
 #[derive(Debug, Display, Error, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum DsseError {
-    #[display("envelope payload or signature is not base64")]
+    #[display("envelope payload is not base64")]
     Encoding,
     #[display("envelope has {found} valid signatures from distinct keys, {required} required")]
     Threshold { found: usize, required: usize },
@@ -95,7 +95,7 @@ impl Envelope {
 
     /// Verifies the envelope against `keys`: at least the set's threshold of
     /// distinct keys must have signed it. Signatures from other keys, and
-    /// signatures that do not verify, are ignored.
+    /// signatures that do not decode or verify, are ignored.
     pub fn verify(&self, keys: &KeySet) -> Result<VerifiedPayload, DsseError> {
         if let Some(key) = keys
             .keys()
@@ -108,7 +108,7 @@ impl Envelope {
         let message = pae(&self.payload_type, &body);
         let mut accepted = HashSet::new();
         for signature in &self.signatures {
-            let sig = decode(&signature.sig)?;
+            let Ok(sig) = decode(&signature.sig) else { continue };
             let signer = keys
                 .keys()
                 .iter()

@@ -9,7 +9,8 @@ use sha2::{Digest as _, Sha256, Sha512};
 use std::collections::{BTreeMap, HashSet};
 
 /// Fails unless `metadata` carries valid signatures from the threshold of
-/// distinct keys that `root` assigns to `role`.
+/// distinct keys that `root` assigns to `role`. Keys are told apart by their
+/// public key, so one key listed under two key IDs counts once.
 pub(super) fn verify_role<Body>(
     root: &Root,
     role: &'static str,
@@ -19,13 +20,10 @@ pub(super) fn verify_role<Body>(
         .get(role)
         .ok_or(TufError::MissingRole { role })?;
     let message = canonical::encode(&metadata.value)?;
-    let signers: HashSet<&str> = metadata.signatures
+    let signers: HashSet<[u8; 32]> = metadata.signatures
         .iter()
         .filter(|signature| role_keys.keyids.contains(&signature.keyid))
-        .filter(|signature| {
-            root.keys.get(&signature.keyid).is_some_and(|key| signs(key, &message, signature))
-        })
-        .map(|signature| signature.keyid.as_str())
+        .filter_map(|signature| signer(root.keys.get(&signature.keyid)?, &message, signature))
         .collect();
     let required = role_keys.threshold;
     if required == 0 || (signers.len() as u64) < required {
@@ -34,21 +32,19 @@ pub(super) fn verify_role<Body>(
     Ok(())
 }
 
-/// Whether `signature` is an Ed25519 signature of `message` by `key`.
-fn signs(key: &Key, message: &[u8], signature: &RawSignature) -> bool {
+/// The public key of `key`, if `signature` is its Ed25519 signature of
+/// `message`.
+fn signer(key: &Key, message: &[u8], signature: &RawSignature) -> Option<[u8; 32]> {
     if key.keytype != "ed25519" || key.scheme != "ed25519" {
-        return false;
+        return None;
     }
     let public_key = decode_hex(&key.keyval.public)
         .and_then(|bytes| <[u8; 32]>::try_from(bytes).ok())
         .and_then(|bytes| VerifyingKey::from_bytes(&bytes).ok());
     let signature = decode_hex(&signature.sig).and_then(|bytes| Signature::from_slice(&bytes).ok());
-    match (public_key, signature) {
-        (Some(public_key), Some(signature)) => {
-            public_key.verify_strict(message, &signature).is_ok()
-        }
-        _ => false,
-    }
+    let (public_key, signature) = (public_key?, signature?);
+    public_key.verify_strict(message, &signature).ok()?;
+    Some(public_key.to_bytes())
 }
 
 /// Fails unless `bytes` has the listed length, if any, and every listed

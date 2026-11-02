@@ -8,7 +8,7 @@ use super::{
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest as _, Sha256};
-use std::fmt;
+use std::{collections::BTreeSet, fmt};
 
 /// The versions a client trusted last, persisted between runs so that a
 /// repository cannot roll metadata back.
@@ -83,8 +83,7 @@ impl TrustedRepository {
         if next.body.header.version != expected {
             return Err(TufError::RootVersion { expected, actual: next.body.header.version });
         }
-        let rotated =
-            |role: &str| self.root.body.roles.get(role) != next.body.roles.get(role);
+        let rotated = |role: &str| role_keys(&self.root.body, role) != role_keys(&next.body, role);
         if rotated(Timestamp::ROLE) || rotated(Snapshot::ROLE) {
             self.versions = TrustedVersions::default();
         }
@@ -203,6 +202,17 @@ fn listed<'a>(
     list.meta
         .get(file)
         .ok_or(TufError::MissingMeta { role, file })
+}
+
+/// The threshold and public keys `root` assigns to `role`, so a key ID that
+/// is kept while its key changes still counts as a rotation.
+fn role_keys<'a>(root: &'a Root, role: &str) -> Option<(u64, BTreeSet<&'a str>)> {
+    let role_keys = root.roles.get(role)?;
+    let keys = role_keys.keyids
+        .iter()
+        .map(|keyid| root.keys.get(keyid).map_or("", |key| key.keyval.public.as_str()))
+        .collect();
+    Some((role_keys.threshold, keys))
 }
 
 fn check_rollback(role: &'static str, trusted: Option<u64>, offered: u64) -> Result<(), TufError> {

@@ -4,7 +4,7 @@ use crate::{
     identity::RecordIdentity,
     test_support::{NPM_RECORD, OCI_RECORD, OCI_TOMBSTONE},
 };
-use pretty_assertions::assert_eq;
+use pretty_assertions::{assert_eq, assert_ne};
 
 #[test]
 fn reads_the_core_of_an_npm_record() {
@@ -65,6 +65,34 @@ fn rejects_records_that_do_not_match_their_profile() {
     let schema = NPM_RECORD.replace("pnpr-release-record/1", "pnpr-release-record/2");
     let error = StoredRecord::parse(schema.into_bytes()).unwrap_err();
     assert!(matches!(error, RecordError::UnsupportedSchema { .. }), "{error}");
+}
+
+#[test]
+fn a_record_has_a_revision_exactly_when_its_profile_does() {
+    let no_revision = NPM_RECORD.replace(r#""revision": 0,"#, "");
+    assert_ne!(no_revision, NPM_RECORD);
+    let error = StoredRecord::parse(no_revision.into_bytes()).unwrap_err();
+    assert!(matches!(error, RecordError::MissingField { field: "revision", .. }), "{error}");
+    let cargo = NPM_RECORD
+        .replace("pkg:npm/%40example/widgets", "pkg:cargo/widgets")
+        .replace("npm-install-manifest/1", "cargo-index-entry/1");
+    let error = StoredRecord::parse(cargo.into_bytes()).unwrap_err();
+    assert!(matches!(error, RecordError::UnexpectedField { field: "revision", .. }), "{error}");
+}
+
+#[test]
+fn an_oci_tag_record_points_at_an_image_of_its_own_repository_and_tag() {
+    for purl in [
+        "pkg:oci/other@sha256:0123?tag=1.0",
+        "pkg:oci/app@sha256:0123?tag=2.0",
+        "pkg:oci/app@sha256:0123",
+        "pkg:oci/app@sha256:0123?repository_url=example.com/acme/app&tag=1.0",
+        "pkg:npm/app@sha256:0123?tag=1.0",
+    ] {
+        let record = OCI_RECORD.replace("pkg:oci/app@sha256:0123?tag=1.0", purl);
+        let error = StoredRecord::parse(record.into_bytes()).unwrap_err();
+        assert!(matches!(error, RecordError::ImageMismatch { .. }), "{purl}: {error}");
+    }
 }
 
 #[test]

@@ -1,5 +1,5 @@
 use super::{RecordIdentity, RecordKey};
-use crate::{digest::RecordDigest, purl::Purl};
+use crate::{digest::RecordDigest, profile::Profile, purl::Purl};
 use derive_more::{Display, Error};
 use std::collections::{HashMap, hash_map::Entry};
 
@@ -34,24 +34,42 @@ pub enum LogEntryError {
         #[error(not(source))]
         field: &'static str,
     },
-    #[display("an OCI tag log entry needs a revision")]
-    MissingRevision,
+    #[display("a {profile} log entry needs a revision")]
+    MissingRevision {
+        #[error(not(source))]
+        profile: Profile,
+    },
+    #[display("a {profile} log entry has no revision")]
+    UnexpectedRevision {
+        #[error(not(source))]
+        profile: Profile,
+    },
     #[display("malformed log entry")]
     Malformed,
 }
 
 impl LogEntry {
-    /// The entry that commits to `digest` for the record `key`.
+    /// The entry that commits to `digest` for the record `key`. An OCI tag
+    /// entry, and an entry of a known profile with revisions, needs a
+    /// revision; an entry of a known profile without revisions has none.
     pub fn new(key: RecordKey, digest: RecordDigest) -> Result<Self, LogEntryError> {
-        match &key.identity {
-            RecordIdentity::Package(purl) => check_field("purl", purl.as_str())?,
+        let needs_revision = match &key.identity {
+            RecordIdentity::Package(purl) => {
+                check_field("purl", purl.as_str())?;
+                key.profile.has_revisions()
+            }
             RecordIdentity::OciTag { repository, tag } => {
                 check_field("repository", repository)?;
                 check_field("tag", tag)?;
-                key.revision.ok_or(LogEntryError::MissingRevision)?;
+                Some(true)
             }
+        };
+        let profile = || key.profile.clone();
+        match (needs_revision, key.revision) {
+            (Some(true), None) => Err(LogEntryError::MissingRevision { profile: profile() }),
+            (Some(false), Some(_)) => Err(LogEntryError::UnexpectedRevision { profile: profile() }),
+            _ => Ok(LogEntry { key, digest }),
         }
-        Ok(LogEntry { key, digest })
     }
 
     /// The record's key.

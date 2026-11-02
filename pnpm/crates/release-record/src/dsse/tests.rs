@@ -1,4 +1,4 @@
-use super::{DsseError, Envelope, IN_TOTO_PAYLOAD_TYPE, pae};
+use super::{DsseError, Envelope, EnvelopeSignature, IN_TOTO_PAYLOAD_TYPE, pae};
 use crate::test_support::{key, registry};
 use pnpm_transparency_log::{Cosigner, KeySet, NoteSigner, VerifierKey};
 use pretty_assertions::assert_eq;
@@ -70,6 +70,17 @@ fn ignores_a_signature_whose_keyid_names_another_key() {
     assert!(envelope.verify(&keys).is_err());
     envelope.signatures[0].keyid = String::new();
     assert!(envelope.verify(&keys).is_ok());
+}
+
+#[test]
+fn ignores_a_signature_that_is_not_base64() {
+    let (one, ..) = signers();
+    let keys = KeySet::new(vec![one.verifier_key().clone()], 1).unwrap();
+    let mut envelope = Envelope::sign("text/plain", b"body", &[&one]);
+    let garbled =
+        EnvelopeSignature { keyid: "other.example+00000000".to_owned(), sig: "!".to_owned() };
+    envelope.signatures.insert(0, garbled);
+    envelope.verify(&keys).unwrap();
 }
 
 #[test]

@@ -47,6 +47,18 @@ impl Profile {
         self.0 == Profile::OCI_TAG
     }
 
+    /// Whether the records of a known profile carry a registry revision:
+    /// npm versions and OCI tags do, crates and Python files do not. `None`
+    /// for a profile this crate does not know.
+    #[must_use]
+    pub fn has_revisions(&self) -> Option<bool> {
+        match self.0.as_str() {
+            Profile::NPM_INSTALL_MANIFEST | Profile::OCI_TAG => Some(true),
+            Profile::CARGO_INDEX_ENTRY | Profile::PYTHON_CORE_METADATA => Some(false),
+            _ => None,
+        }
+    }
+
     /// The Package URL type the records of a known profile describe.
     #[must_use]
     pub fn purl_type(&self) -> Option<&'static str> {

@@ -3,7 +3,9 @@ use super::{
     metadata::{Root, Snapshot, Targets, Timestamp, parse},
     role::verify_role,
 };
-use crate::test_support::{FUTURE, PAST, RoleKeys, key, root, sign, snapshot, targets, timestamp};
+use crate::test_support::{
+    FUTURE, PAST, RoleKeys, hex, key, key_id, root, sign, snapshot, targets, timestamp,
+};
 use chrono::{DateTime, Utc};
 use ed25519_dalek::SigningKey;
 use pretty_assertions::assert_eq;
@@ -188,6 +190,52 @@ fn rotating_the_timestamp_key_clears_trusted_versions() {
         .unwrap();
     assert_eq!(repository.versions(), TrustedVersions::default());
     load(&mut repository, &rotated.top_level(1, FUTURE)).unwrap();
+}
+
+#[test]
+fn changing_the_key_behind_a_timestamp_key_id_clears_trusted_versions() {
+    let fixture = Fixture::new();
+    let first_root = fixture.root(1, FUTURE);
+    let versions = TrustedVersions { timestamp: Some(9), snapshot: Some(9), targets: Some(9) };
+    let mut repository =
+        TrustedRepository::resume(digest(&first_root), &first_root, versions).unwrap();
+    let mut next = root(2, FUTURE, &fixture.role_keys());
+    let timestamp_id = key_id(&fixture.timestamp_key);
+    next["keys"][&timestamp_id]["keyval"]["public"] =
+        json!(hex(key(13).verifying_key().as_bytes()));
+    let signers: Vec<&SigningKey> = fixture.root_keys.iter().collect();
+    repository
+        .update_root(&sign(&next, &signers))
+        .unwrap();
+    assert_eq!(repository.versions(), TrustedVersions::default());
+}
+
+#[test]
+fn counts_one_key_listed_under_two_key_ids_once() {
+    let fixture = Fixture::new();
+    let timestamp_id = key_id(&fixture.timestamp_key);
+    let mut first = root(1, FUTURE, &fixture.role_keys());
+    first["keys"]["alias"] = first["keys"][&timestamp_id].clone();
+    first["roles"]["timestamp"] = json!({ "keyids": [timestamp_id, "alias"], "threshold": 2 });
+    let signers: Vec<&SigningKey> = fixture.root_keys.iter().collect();
+    let first_root = sign(&first, &signers);
+    let mut repository = TrustedRepository::new(&first_root, digest(&first_root)).unwrap();
+
+    let [timestamp, ..] = fixture.top_level(1, FUTURE);
+    let mut timestamp: serde_json::Value = serde_json::from_slice(&timestamp).unwrap();
+    let mut aliased = timestamp["signatures"][0].clone();
+    aliased["keyid"] = json!("alias");
+    timestamp["signatures"]
+        .as_array_mut()
+        .unwrap()
+        .push(aliased);
+    let error = repository
+        .update_timestamp(&serde_json::to_vec(&timestamp).unwrap(), now())
+        .unwrap_err();
+    assert!(
+        matches!(error, TufError::Threshold { role: "timestamp", found: 1, required: 2 }),
+        "{error}",
+    );
 }
 
 #[test]
