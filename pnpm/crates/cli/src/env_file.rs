@@ -56,11 +56,11 @@ pub enum EnvFileError {
 /// already defines are left untouched.
 fn load<PathItem: AsRef<Path>>(
     paths: &[PathItem],
-    set: &mut impl FnMut(&str, &str),
+    mut set: impl FnMut(&str, &str),
 ) -> miette::Result<()> {
     let mut loaded_keys = HashSet::new();
     for path in paths {
-        load_one(path.as_ref(), &mut loaded_keys, set)?;
+        load_one(path.as_ref(), &mut loaded_keys, &mut set)?;
     }
     Ok(())
 }
@@ -76,7 +76,7 @@ pub fn load_from_argv(
     argv: &[OsString],
     single_threaded: &pnpm_ffi_process::SingleThreaded,
 ) -> miette::Result<()> {
-    load(&scan(argv).0, &mut |name: &str, value: &str| {
+    load(&scan(argv).0, |name: &str, value: &str| {
         single_threaded.set_var(name, value);
     })
 }
