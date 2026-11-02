@@ -13,15 +13,19 @@ use pnpm_registry::PnprVariant;
 /// the fallback for a host no variant matches. The variants are written in
 /// the byte order of their tags: the installer ranks them for the host, so
 /// their order chooses nothing and only has to be the same everywhere.
+/// Variants are read only from pnpr's document: npm's documents describe
+/// the version as npm clients read it.
 pub(super) fn with_platform_variants(
     resolution: LockfileResolution,
     picked: &PackageVersion,
     source: &RegistryResolutionSource<'_>,
     revision: Option<TarballRevision>,
 ) -> Result<LockfileResolution, ResolveError> {
-    let Some(variants) = picked.dist.pnpr.as_ref().and_then(|pnpr| pnpr.variants.as_ref()) else {
-        return Ok(resolution);
-    };
+    let variants = picked.dist.pnpr
+        .as_ref()
+        .filter(|pnpr| pnpr.install_v2.is_some())
+        .and_then(|pnpr| pnpr.variants.as_ref());
+    let Some(variants) = variants else { return Ok(resolution) };
     let revision = revision.map(TarballRevision::get);
     let mut selectable = Vec::with_capacity(variants.len());
     for variant in variants {
@@ -97,3 +101,6 @@ fn variant_resolution(
             .collect(),
     })
 }
+
+#[cfg(test)]
+mod tests;
