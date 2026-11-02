@@ -300,6 +300,29 @@ fn timestamp_without_hashes(snapshot_bytes: &[u8]) -> serde_json::Value {
 }
 
 #[test]
+fn a_new_timestamp_requires_the_snapshot_and_targets_again() {
+    let fixture = Fixture::new();
+    let first_root = fixture.root(1, FUTURE);
+    let mut repository = TrustedRepository::new(&first_root, digest(&first_root)).unwrap();
+    load(&mut repository, &fixture.top_level(1, FUTURE)).unwrap();
+    let [timestamp, snapshot, _] = fixture.top_level(2, FUTURE);
+    repository
+        .update_timestamp(&timestamp, now())
+        .unwrap();
+    assert!(matches!(
+        repository.verify_target("pnpr-log-policy.json", POLICY),
+        Err(TufError::NotLoaded { role: "targets" }),
+    ));
+    repository
+        .update_snapshot(&snapshot, now())
+        .unwrap();
+    assert!(matches!(
+        repository.verify_target("pnpr-log-policy.json", POLICY),
+        Err(TufError::NotLoaded { role: "targets" }),
+    ));
+}
+
+#[test]
 fn requires_roles_in_order() {
     let fixture = Fixture::new();
     let first_root = fixture.root(1, FUTURE);

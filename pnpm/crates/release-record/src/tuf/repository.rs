@@ -95,7 +95,8 @@ impl TrustedRepository {
     }
 
     /// Verifies timestamp metadata after the last root update. Fails if the
-    /// trusted root itself expired, which stops a freeze attack.
+    /// trusted root itself expired, which stops a freeze attack. The trusted
+    /// snapshot and targets must then be verified again against it.
     pub fn update_timestamp(&mut self, bytes: &[u8], now: DateTime<Utc>) -> Result<(), TufError> {
         self.root.body.header.check_expiry(Root::ROLE, now)?;
         let timestamp = parse::<Timestamp>(bytes)?;
@@ -107,10 +108,12 @@ impl TrustedRepository {
         timestamp.body.0.header.check_expiry(Timestamp::ROLE, now)?;
         self.versions.timestamp = Some(version);
         self.timestamp = Some(timestamp.body);
+        (self.snapshot, self.targets) = (None, None);
         Ok(())
     }
 
-    /// Verifies snapshot metadata against the trusted timestamp.
+    /// Verifies snapshot metadata against the trusted timestamp. The trusted
+    /// targets must then be verified again against it.
     pub fn update_snapshot(&mut self, bytes: &[u8], now: DateTime<Utc>) -> Result<(), TufError> {
         let timestamp = self.timestamp
             .as_ref()
@@ -126,6 +129,7 @@ impl TrustedRepository {
         self.versions.snapshot = Some(listing.version);
         self.versions.targets = Some(targets.version);
         self.snapshot = Some(snapshot.body);
+        self.targets = None;
         Ok(())
     }
 
