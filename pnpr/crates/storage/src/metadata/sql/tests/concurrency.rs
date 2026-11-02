@@ -1,7 +1,7 @@
 //! Concurrent writers, restarts, and lost commits.
 
 use super::{config, npm, packument, read, storage, write};
-use crate::{DocumentWrite, Storage, metadata::SqliteMetadata};
+use crate::{DocumentWrite, Storage, metadata::SqlMetadata};
 use pnpr_error::RegistryError;
 use serde_json::json;
 use std::{
@@ -17,15 +17,19 @@ async fn a_read_completes_while_a_write_transaction_is_open() {
     write(&storage, "pkg", &packument("pkg", &["1.0.0"])).await;
     // Hold the write connection inside an uncommitted transaction, the way a
     // slow commit holds it.
-    let metadata = Arc::clone(storage.sqlite_metadata().unwrap());
+    let metadata = Arc::clone(storage.sql_metadata().unwrap());
     let (held, wait_held) = mpsc::channel();
     let (release, wait_release) = mpsc::channel::<()>();
     let writer = std::thread::spawn(move || {
-        let connection = super::super::lock(&metadata.writer);
-        connection.execute_batch("BEGIN IMMEDIATE; DELETE FROM packages;").unwrap();
-        held.send(()).unwrap();
-        wait_release.recv().unwrap();
-        connection.execute_batch("ROLLBACK").unwrap();
+        metadata.adapter
+            .write(&mut |connection| {
+                connection.begin_write()?;
+                connection.execute_batch("DELETE FROM packages")?;
+                held.send(()).unwrap();
+                wait_release.recv().unwrap();
+                connection.execute_batch("ROLLBACK")
+            })
+            .unwrap();
     });
     wait_held.recv().unwrap();
 
@@ -90,7 +94,7 @@ async fn a_commit_survives_a_restart_and_its_retry_changes_nothing() {
     // server: the commit is there, and the identical retry is a no-op.
     let restarted = storage(&tmp);
     assert_eq!(read(&restarted, "pkg").await, document);
-    let metadata = restarted.sqlite_metadata().unwrap();
+    let metadata = restarted.sql_metadata().unwrap();
     let before = metadata.catalog_generation("").unwrap();
     assert_eq!(write(&restarted, "pkg", &document).await, DocumentWrite::Written);
     assert_eq!(metadata.catalog_generation("").unwrap(), before);
@@ -100,7 +104,7 @@ async fn a_commit_survives_a_restart_and_its_retry_changes_nothing() {
 async fn a_transaction_cut_off_before_commit_leaves_nothing() {
     let tmp = TempDir::new().unwrap();
     let path = tmp.path().join("metadata.sqlite");
-    drop(SqliteMetadata::open(&path).unwrap());
+    drop(SqlMetadata::open_sqlite(&path).unwrap());
     {
         let connection = rusqlite::Connection::open(&path).unwrap();
         connection.execute_batch("BEGIN IMMEDIATE").unwrap();
@@ -123,7 +127,7 @@ async fn a_transaction_cut_off_before_commit_leaves_nothing() {
     );
     assert_eq!(
         storage
-            .sqlite_metadata()
+            .sql_metadata()
             .unwrap()
             .catalog_generation("")
             .unwrap(),
@@ -135,11 +139,24 @@ async fn a_transaction_cut_off_before_commit_leaves_nothing() {
 fn a_database_of_another_schema_is_refused() {
     let tmp = TempDir::new().unwrap();
     let path = tmp.path().join("metadata.sqlite");
-    drop(SqliteMetadata::open(&path).unwrap());
+    drop(SqlMetadata::open_sqlite(&path).unwrap());
     let connection = rusqlite::Connection::open(&path).unwrap();
     connection
         .execute("UPDATE schema_version SET version = 999", [])
         .unwrap();
-    let err = SqliteMetadata::open(&path).unwrap_err();
+    let err = SqlMetadata::open_sqlite(&path).unwrap_err();
     assert!(matches!(err, RegistryError::StorageUnavailable { .. }), "{err:?}");
+}
+
+#[test]
+fn a_busy_database_is_a_conflict_that_a_rerun_may_clear() {
+    use super::super::{adapter::Adapter, sqlite::SqliteAdapter};
+    let tmp = TempDir::new().unwrap();
+    let adapter = SqliteAdapter::open(&tmp.path().join("metadata.sqlite")).unwrap();
+    let failure = |code| {
+        RegistryError::Sqlite(rusqlite::Error::SqliteFailure(rusqlite::ffi::Error::new(code), None))
+    };
+    assert!(adapter.is_retryable(&failure(rusqlite::ffi::SQLITE_BUSY)));
+    assert!(adapter.is_retryable(&failure(rusqlite::ffi::SQLITE_LOCKED)));
+    assert!(!adapter.is_retryable(&failure(rusqlite::ffi::SQLITE_CONSTRAINT)));
 }

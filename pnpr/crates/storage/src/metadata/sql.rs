@@ -1,4 +1,4 @@
-//! Metadata in an embedded `SQLite` database.
+//! Metadata in a SQL database.
 //!
 //! An npm packument is stored as rows: one per accepted version manifest,
 //! README, tag, deprecation, and the package-level fields. A version's rows
@@ -6,17 +6,21 @@
 //! touching them. Another ecosystem's document is stored whole. Reads render
 //! the packument from those rows through the fragment cache in [`render`].
 //!
-//! Every operation runs on the blocking pool. Writes share one connection
-//! behind a mutex and take `BEGIN IMMEDIATE`, so commits are serialized and a
-//! compare-and-set reads the generation it replaces inside its own
-//! transaction. Reads use connections of their own, so a read never waits for
-//! a commit or for another read's render: in WAL mode each read transaction
-//! sees one committed snapshot while a write is in progress. The render
-//! caches are shared by every read connection.
+//! The schema, the queries, and the rules they enforce are shared by every
+//! database. What differs between databases is behind [`adapter::Adapter`]:
+//! [`sqlite::SqliteAdapter`] keeps the database in one embedded file.
+//!
+//! Every operation runs on the blocking pool. A write runs in one
+//! transaction that holds the database's write lock from its start, so
+//! commits are serialized and a compare-and-set reads the generation it
+//! replaces inside its own transaction. A write the adapter refused for a
+//! conflict runs again from the start. A read runs in one read transaction,
+//! one committed snapshot. The render caches are shared by every read.
 
 pub use cache::RenderStats;
 pub use tags::TagHistoryEntry;
 
+pub(crate) mod adapter;
 mod batch;
 mod cache;
 mod commit;
@@ -26,6 +30,7 @@ mod publications;
 mod publish;
 mod render;
 mod schema;
+mod sqlite;
 mod tags;
 mod versions;
 
@@ -34,28 +39,43 @@ use super::{
     PublicationCommit, PublicationRequest, PublishNotes, RecordedOutcome, TagChange, TagUpdate,
 };
 use crate::{DocumentWrite, HostedDocumentForUpdate, HostedDocumentVersion};
+use adapter::{Adapter, Connection, ReadSource, params};
 use async_trait::async_trait;
 use pnpr_error::{RegistryError, Result};
 use pnpr_package_name::{CanonicalPackageName, Ecosystem};
-use rusqlite::{Connection, OptionalExtension, Transaction};
-use std::{
-    path::{Path, PathBuf},
-    sync::{Arc, Mutex, MutexGuard, PoisonError},
-};
+use std::{path::Path, sync::Arc, time::Duration};
 
-/// Read connections kept open between reads. More concurrent reads open
-/// more, and close them when they are done.
-const IDLE_READERS: usize = 8;
+/// How many times a write runs before a conflict it keeps meeting fails it.
+const WRITE_ATTEMPTS: u32 = 4;
+
+/// The wait before the first rerun of a write that met a conflict, doubled
+/// per rerun.
+const FIRST_RETRY_DELAY: Duration = Duration::from_millis(10);
 
 /// The metadata database of one hosted store.
 #[derive(Debug)]
-pub struct SqliteMetadata {
-    path: PathBuf,
-    /// The connection every write commits through.
-    writer: Mutex<Connection>,
-    /// Read connections not in use.
-    readers: Mutex<Vec<Connection>>,
+pub struct SqlMetadata {
+    adapter: Box<dyn Adapter>,
     cache: cache::RenderCache,
+}
+
+/// How current a read must be.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Freshness {
+    /// What the last commit left: a read that decides a write, or that
+    /// answers a retry of one.
+    Current,
+    /// A view a replica may serve while it is within its freshness bound.
+    Bounded,
+}
+
+impl Freshness {
+    fn source(self) -> ReadSource {
+        match self {
+            Self::Current => ReadSource::Primary,
+            Self::Bounded => ReadSource::Replica,
+        }
+    }
 }
 
 /// Which package a statement addresses.
@@ -91,7 +111,7 @@ impl Expected {
             Some(HostedDocumentVersion::Generation(value)) => Ok(Self::Generation(*value)),
             Some(HostedDocumentVersion::Unversioned) => Ok(Self::Any),
             Some(HostedDocumentVersion::ObjectVersion(_)) => Err(RegistryError::Internal {
-                reason: "an object-store document version reached the SQLite metadata store"
+                reason: "an object-store document version reached the SQL metadata store"
                     .to_string(),
             }),
         }
@@ -106,34 +126,38 @@ impl Expected {
     }
 }
 
-impl SqliteMetadata {
-    /// Open the database at `path`, creating it and its directory if needed.
+impl SqlMetadata {
+    /// Open the `SQLite` database at `path`, creating it and its directory if
+    /// needed.
     ///
     /// # Errors
     ///
     /// The database cannot be opened, or was written by another pnpr layout.
-    pub fn open(path: &Path) -> Result<Self> {
-        if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent)?;
-        }
-        let connection = Connection::open(path)?;
-        schema::prepare(&connection)?;
-        let stored = schema::stored_version(&connection)?;
+    pub fn open_sqlite(path: &Path) -> Result<Self> {
+        let adapter = sqlite::SqliteAdapter::open(path)?;
+        let database = path.display().to_string();
+        Self::with_adapter(Box::new(adapter), &database)
+    }
+
+    /// The metadata kept by `adapter`, whose schema is created here when the
+    /// database is new. `database` names it in errors.
+    fn with_adapter(adapter: Box<dyn Adapter>, database: &str) -> Result<Self> {
+        let mut prepared = None;
+        adapter.write(&mut |connection| {
+            prepared = Some(schema::prepare(connection)?);
+            Ok(())
+        })?;
+        let stored = prepared.flatten();
         if stored != Some(schema::SCHEMA_VERSION) {
             return Err(RegistryError::StorageUnavailable {
                 reason: format!(
-                    "the metadata database {} uses schema {stored:?}; this pnpr reads schema {}",
-                    path.display(),
+                    "the metadata database {database} uses schema {stored:?}; this pnpr reads \
+                     schema {}",
                     schema::SCHEMA_VERSION,
                 ),
             });
         }
-        Ok(Self {
-            path: path.to_path_buf(),
-            writer: Mutex::new(connection),
-            readers: Mutex::new(Vec::new()),
-            cache: cache::RenderCache::default(),
-        })
+        Ok(Self { adapter, cache: cache::RenderCache::default() })
     }
 
     /// What rendering has done since the database was opened.
@@ -144,7 +168,7 @@ impl SqliteMetadata {
 
     /// The current generation of `catalog`, `0` before its first commit.
     pub fn catalog_generation(&self, catalog: &str) -> Result<u64> {
-        self.with_reader(|connection| Ok(catalog_generation(connection, catalog)?))
+        self.run_read(Freshness::Current, |connection, _| catalog_generation(connection, catalog))
     }
 
     /// Every recorded move of `tag`, oldest first, including moves recorded
@@ -160,7 +184,7 @@ impl SqliteMetadata {
             ecosystem: name.ecosystem(),
             name: name.as_str().to_string(),
         };
-        self.with_reader(|connection| tags::tag_history(connection, &key, tag))
+        self.run_read(Freshness::Bounded, |connection, _| tags::tag_history(connection, &key, tag))
     }
 
     /// Commit `documents` of `catalog` as one publication, under one new
@@ -192,7 +216,7 @@ impl SqliteMetadata {
         request: &PublicationRequest,
     ) -> Result<Option<RecordedOutcome>> {
         let (catalog, request) = (catalog.to_string(), request.clone());
-        self.read(move |connection, _| {
+        self.read(Freshness::Current, move |connection, _| {
             let PublicationRequest {
                 principal,
                 idempotency_key,
@@ -217,8 +241,10 @@ impl SqliteMetadata {
         id_or_name: &str,
     ) -> Result<Option<Publication>> {
         let (catalog, id_or_name) = (catalog.to_string(), id_or_name.to_string());
-        self.read(move |connection, _| publications::publication(connection, &catalog, &id_or_name))
-            .await
+        self.read(Freshness::Bounded, move |connection, _| {
+            publications::publication(connection, &catalog, &id_or_name)
+        })
+        .await
     }
 
     /// The publication that introduced `version` of `name` in `org`.
@@ -234,79 +260,108 @@ impl SqliteMetadata {
             name: name.as_str().to_string(),
         };
         let version = version.to_string();
-        self.read(move |connection, _| {
+        self.read(Freshness::Bounded, move |connection, _| {
             publications::initial_publication(connection, &key, &version)
         })
         .await
     }
 
-    pub(super) fn view(self: &Arc<Self>, org: &str, ecosystem: Ecosystem) -> SqliteView {
-        SqliteView { database: Arc::clone(self), catalog: org.to_string(), ecosystem }
+    pub(super) fn view(self: &Arc<Self>, org: &str, ecosystem: Ecosystem) -> SqlView {
+        SqlView { database: Arc::clone(self), catalog: org.to_string(), ecosystem }
     }
 
-    /// Run `operation` on the blocking pool with the write connection.
+    /// Run the write `operation` on the blocking pool.
     async fn write<Output, Operation>(self: &Arc<Self>, operation: Operation) -> Result<Output>
     where
         Output: Send + 'static,
-        Operation: FnOnce(&mut Connection) -> Result<Output> + Send + 'static,
+        Operation: FnMut(&dyn Connection) -> Result<Output> + Send + 'static,
     {
         let database = Arc::clone(self);
-        tokio::task::spawn_blocking(move || operation(&mut lock(&database.writer))).await?
+        tokio::task::spawn_blocking(move || database.run_write(operation)).await?
     }
 
-    /// Run `operation` on the blocking pool with a read connection.
-    async fn read<Output, Operation>(self: &Arc<Self>, operation: Operation) -> Result<Output>
+    /// Run `operation` on the blocking pool in a read transaction that meets
+    /// `freshness`.
+    async fn read<Output, Operation>(
+        self: &Arc<Self>,
+        freshness: Freshness,
+        operation: Operation,
+    ) -> Result<Output>
     where
         Output: Send + 'static,
-        Operation: FnOnce(&mut Connection, &cache::RenderCache) -> Result<Output> + Send + 'static,
+        Operation: FnOnce(&dyn Connection, &cache::RenderCache) -> Result<Output> + Send + 'static,
     {
         let database = Arc::clone(self);
-        tokio::task::spawn_blocking(move || {
-            database.with_reader(|connection| operation(connection, &database.cache))
-        })
-        .await?
+        tokio::task::spawn_blocking(move || database.run_read(freshness, operation)).await?
     }
 
-    /// Run `operation` with a read connection: an idle one, or a new one when
-    /// every one is in use.
-    fn with_reader<Output>(
+    /// Run the write `operation`, again from its start while the adapter
+    /// reports a conflict it may clear.
+    fn run_write<Output>(
         &self,
-        operation: impl FnOnce(&mut Connection) -> Result<Output>,
+        mut operation: impl FnMut(&dyn Connection) -> Result<Output>,
     ) -> Result<Output> {
-        let idle = lock(&self.readers).pop();
-        let mut connection = match idle {
-            Some(connection) => connection,
-            None => schema::open_reader(&self.path)?,
-        };
-        let output = operation(&mut connection);
-        let mut readers = lock(&self.readers);
-        if readers.len() < IDLE_READERS {
-            readers.push(connection);
+        let mut delay = FIRST_RETRY_DELAY;
+        let mut attempt = 1;
+        loop {
+            let mut output = None;
+            let result = self.adapter.write(&mut |connection| {
+                output = Some(operation(connection)?);
+                Ok(())
+            });
+            match (result, output) {
+                (Ok(()), Some(output)) => return Ok(output),
+                (Err(error), _)
+                    if attempt < WRITE_ATTEMPTS && self.adapter.is_retryable(&error) =>
+                {
+                    std::thread::sleep(delay);
+                    delay *= 2;
+                    attempt += 1;
+                }
+                (Err(error), _) => return Err(error),
+                (Ok(()), None) => unreachable!("a write that succeeded produced its output"),
+            }
         }
-        output
     }
-}
 
-fn lock<Value>(mutex: &Mutex<Value>) -> MutexGuard<'_, Value> {
-    mutex.lock().unwrap_or_else(PoisonError::into_inner)
+    /// Run `operation` in one read transaction that meets `freshness`.
+    fn run_read<Output>(
+        &self,
+        freshness: Freshness,
+        operation: impl FnOnce(&dyn Connection, &cache::RenderCache) -> Result<Output>,
+    ) -> Result<Output> {
+        let mut operation = Some(operation);
+        let mut output = None;
+        self.adapter.read(freshness.source(), &mut |connection| {
+            let operation = operation.take().expect("an adapter runs a read once");
+            connection.begin_read()?;
+            let result = operation(connection, &self.cache);
+            let ended =
+                connection.execute_batch(if result.is_ok() { "COMMIT" } else { "ROLLBACK" });
+            output = Some(result?);
+            ended
+        })?;
+        output.ok_or_else(|| RegistryError::Internal {
+            reason: "a metadata read did not run".to_string(),
+        })
+    }
 }
 
 /// The current generation of `catalog`, `0` before its first commit.
-fn catalog_generation(connection: &Connection, catalog: &str) -> rusqlite::Result<u64> {
-    let value: Option<i64> = connection
-        .query_row("SELECT generation FROM catalogs WHERE catalog = ?1", [catalog], |row| {
-            row.get(0)
-        })
-        .optional()?;
-    Ok(value.map_or(0, to_generation))
+fn catalog_generation(connection: &dyn Connection, catalog: &str) -> Result<u64> {
+    let row = connection.query_optional(
+        "SELECT generation FROM catalogs WHERE catalog = ?1",
+        params![catalog],
+    )?;
+    row.map_or(Ok(0), |mut row| Ok(to_generation(row.get(0)?)))
 }
 
 /// Record `generation` as `catalog`'s current one.
-fn advance_catalog(transaction: &Transaction<'_>, catalog: &str, generation: u64) -> Result<()> {
-    transaction.execute(
+fn advance_catalog(connection: &dyn Connection, catalog: &str, generation: u64) -> Result<()> {
+    connection.execute(
         "INSERT INTO catalogs (catalog, generation) VALUES (?1, ?2)
          ON CONFLICT (catalog) DO UPDATE SET generation = excluded.generation",
-        rusqlite::params![catalog, to_column(generation)],
+        params![catalog, to_column(generation)],
     )?;
     Ok(())
 }
@@ -322,13 +377,13 @@ fn to_column(generation: u64) -> i64 {
 
 /// The metadata of one `(catalog, ecosystem)` namespace.
 #[derive(Debug)]
-pub(super) struct SqliteView {
-    database: Arc<SqliteMetadata>,
+pub(super) struct SqlView {
+    database: Arc<SqlMetadata>,
     catalog: String,
     ecosystem: Ecosystem,
 }
 
-impl SqliteView {
+impl SqlView {
     fn key(&self, name: &CanonicalPackageName) -> PackageKey {
         PackageKey {
             catalog: self.catalog.clone(),
@@ -336,21 +391,33 @@ impl SqliteView {
             name: name.as_str().to_string(),
         }
     }
+
+    async fn read_view_with(
+        &self,
+        name: &CanonicalPackageName,
+        freshness: Freshness,
+    ) -> Result<Option<PackageView>> {
+        let key = self.key(name);
+        self.database.read(freshness, move |connection, cache| {
+            render::read_view(connection, cache, &key)
+        })
+        .await
+    }
 }
 
 #[async_trait]
-impl PackageMetadata for SqliteView {
+impl PackageMetadata for SqlView {
     async fn read_view(&self, name: &CanonicalPackageName) -> Result<Option<PackageView>> {
-        let key = self.key(name);
-        self.database.read(move |connection, cache| render::read_view(connection, cache, &key))
-            .await
+        self.read_view_with(name, Freshness::Bounded).await
     }
 
     async fn read_for_update(
         &self,
         name: &CanonicalPackageName,
     ) -> Result<Option<HostedDocumentForUpdate>> {
-        let Some(view) = self.read_view(name).await? else { return Ok(None) };
+        let Some(view) = self.read_view_with(name, Freshness::Current).await? else {
+            return Ok(None);
+        };
         let generation = view.generation.map_or(0, |generation| generation.value);
         Ok(Some(HostedDocumentForUpdate {
             bytes: view.bytes.to_vec(),
@@ -393,14 +460,15 @@ impl PackageMetadata for SqliteView {
 
     async fn package_names(&self) -> Result<Vec<String>> {
         let (catalog, ecosystem) = (self.catalog.clone(), self.ecosystem);
-        self.database.read(move |connection, _| {
-            let mut statement = connection.prepare_cached(
-                "SELECT name FROM packages WHERE catalog = ?1 AND ecosystem = ?2 ORDER BY name",
-            )?;
-            let names = statement
-                .query_map((&catalog, ecosystem.as_str()), |row| row.get(0))?
-                .collect::<rusqlite::Result<Vec<String>>>()?;
-            Ok(names)
+        self.database.read(Freshness::Bounded, move |connection, _| {
+            connection
+                .query(
+                    "SELECT name FROM packages WHERE catalog = ?1 AND ecosystem = ?2 ORDER BY name",
+                    params![catalog, ecosystem.as_str()],
+                )?
+                .into_iter()
+                .map(|mut row| row.get(0))
+                .collect()
         })
         .await
     }

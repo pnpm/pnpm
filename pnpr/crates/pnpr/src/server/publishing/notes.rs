@@ -113,7 +113,7 @@ pub(in super::super) fn check_note_storage(
     notes: &PublishNotes,
 ) -> Result<(), RegistryError> {
     let has_notes = notes.publication.is_some() || !notes.versions.is_empty();
-    if has_notes && state.inner.storage.sqlite_metadata().is_none() {
+    if has_notes && state.inner.storage.sql_metadata().is_none() {
         return Err(RegistryError::BadRequest {
             reason: "release notes need `metadata: { backend: sqlite }`".to_string(),
         });

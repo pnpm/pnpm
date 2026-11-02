@@ -590,7 +590,7 @@ async fn recovery_records_the_publisher_with_the_tags_it_moves() {
         .unwrap();
 
     let history = storage
-        .sqlite_metadata()
+        .sql_metadata()
         .unwrap()
         .tag_history(&name, "", "latest")
         .unwrap();

@@ -3,6 +3,7 @@
 
 use super::{
     Expected, PackageKey,
+    adapter::{Connection, params},
     batch::Batch,
     packument::{Interpretation, ORDINARY, PackumentRows, Readme, VersionRows, decompose},
     tags::{TagMove, record_tag_move},
@@ -11,7 +12,6 @@ use super::{
 use crate::DocumentWrite;
 use pnpr_error::{RegistryError, Result};
 use pnpr_package_name::Ecosystem;
-use rusqlite::{Connection, OptionalExtension, Transaction, params};
 use serde_json::{Map, Value};
 use std::collections::BTreeMap;
 
@@ -22,22 +22,22 @@ pub(super) struct PackageRow {
 }
 
 pub(super) fn package_row(
-    connection: &Connection,
+    connection: &dyn Connection,
     key: &PackageKey,
-) -> rusqlite::Result<Option<PackageRow>> {
-    connection
-        .query_row(
-            "SELECT generation, state FROM packages
-             WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3",
-            key.params(),
-            |row| Ok(PackageRow { generation: to_generation(row.get(0)?), state: row.get(1)? }),
-        )
-        .optional()
+) -> Result<Option<PackageRow>> {
+    let (catalog, ecosystem, name) = key.params();
+    let row = connection.query_optional(
+        "SELECT generation, state FROM packages
+         WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3",
+        params![catalog, ecosystem, name],
+    )?;
+    row.map(|mut row| Ok(PackageRow { generation: to_generation(row.get(0)?), state: row.get(1)? }))
+        .transpose()
 }
 
 /// One package's writes within a [`Batch`], under the batch's generation.
 pub(super) struct Commit<'batch> {
-    pub(super) transaction: &'batch Transaction<'batch>,
+    pub(super) transaction: &'batch dyn Connection,
     pub(super) key: &'batch PackageKey,
     pub(super) generation: u64,
 }
@@ -84,7 +84,7 @@ impl Commit<'_> {
 /// document that changes nothing commits nothing. `principal` is recorded
 /// with every tag the document moves.
 pub(super) fn write_document(
-    connection: &mut Connection,
+    connection: &dyn Connection,
     key: &PackageKey,
     bytes: &[u8],
     expected: Expected,
@@ -141,18 +141,18 @@ struct StoredVersion {
 /// Each accepted version's digest and deprecation. A version has one
 /// accepted manifest, under the profile it was accepted under.
 fn stored_versions(commit: &Commit<'_>) -> Result<BTreeMap<String, StoredVersion>> {
-    let mut statement = commit.transaction.prepare_cached(
+    let (catalog, ecosystem, name) = commit.key.params();
+    let rows = commit.transaction.query(
         "SELECT v.version, m.accepted_digest, a.deprecated
          FROM versions v
          JOIN accepted_manifests m USING (catalog, ecosystem, name, version, revision_key)
          LEFT JOIN annotations a USING (catalog, ecosystem, name, version)
          WHERE v.catalog = ?1 AND v.ecosystem = ?2 AND v.name = ?3 AND v.revision_key = ?4",
+        params![catalog, ecosystem, name, ORDINARY],
     )?;
-    let (catalog, ecosystem, name) = commit.key.params();
-    let mut rows = statement.query(params![catalog, ecosystem, name, ORDINARY])?;
     let mut stored = BTreeMap::new();
-    while let Some(row) = rows.next()? {
-        let deprecated = parse_optional_json(row.get::<_, Option<String>>(2)?.as_deref())?;
+    for mut row in rows {
+        let deprecated = parse_optional_json(row.get::<Option<String>>(2)?.as_deref())?;
         stored.insert(row.get(0)?, StoredVersion { accepted_digest: row.get(1)?, deprecated });
     }
     Ok(stored)
@@ -220,23 +220,19 @@ struct AcceptedRows {
 /// order.
 fn accepted_rows(commit: &Commit<'_>, version: &str) -> Result<AcceptedRows> {
     let (catalog, ecosystem, name) = commit.key.params();
-    let (manifest, text, filename, profile, inputs) = commit.transaction.query_row(
+    let mut row = commit.transaction.query_one(
         "SELECT m.manifest, r.readme, r.readme_filename, m.profile, m.inputs
          FROM accepted_manifests m
          LEFT JOIN readmes r USING (catalog, ecosystem, name, version, revision_key)
          WHERE m.catalog = ?1 AND m.ecosystem = ?2 AND m.name = ?3 AND m.version = ?4
            AND m.revision_key = ?5",
         params![catalog, ecosystem, name, version, ORDINARY],
-        |row| {
-            Ok((
-                row.get::<_, String>(0)?,
-                row.get::<_, Option<String>>(1)?,
-                row.get::<_, Option<String>>(2)?,
-                row.get::<_, String>(3)?,
-                row.get::<_, String>(4)?,
-            ))
-        },
     )?;
+    let manifest: String = row.get(0)?;
+    let text: Option<String> = row.get(1)?;
+    let filename: Option<String> = row.get(2)?;
+    let profile: String = row.get(3)?;
+    let inputs: String = row.get(4)?;
     let readme = Readme {
         text: parse_optional_json(text.as_deref())?,
         filename: parse_optional_json(filename.as_deref())?,
@@ -261,19 +257,32 @@ pub(super) fn accepted_digest(rows: &VersionRows) -> Result<String> {
 fn delete_version(commit: &Commit<'_>, version: &str) -> Result<()> {
     let (catalog, ecosystem, name) = commit.key.params();
     commit.transaction.execute(
-        "INSERT OR IGNORE INTO removed_versions (catalog, ecosystem, name, version, revision_key,
-                                                 generation)
+        "INSERT INTO removed_versions (catalog, ecosystem, name, version, revision_key, generation)
          SELECT catalog, ecosystem, name, version, revision_key, ?5 FROM versions
-         WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4",
+         WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4
+         ON CONFLICT DO NOTHING",
         params![catalog, ecosystem, name, version, to_column(commit.generation)],
     )?;
-    commit.transaction.execute(
-        "DELETE FROM versions WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4",
-        params![catalog, ecosystem, name, version],
-    )?;
-    super::versions::write_deprecation(commit, version, None)?;
+    for table in VERSION_TABLES {
+        commit.transaction.execute(
+            &format!(
+                "DELETE FROM {table}
+                 WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4"
+            ),
+            params![catalog, ecosystem, name, version],
+        )?;
+    }
     Ok(())
 }
+
+/// The tables holding a version's rows, each before the tables its rows
+/// reference.
+const VERSION_TABLES: [&str; 4] = ["accepted_manifests", "readmes", "annotations", "versions"];
+
+/// The tables holding a package's rows other than its history, each before
+/// the tables its rows reference.
+const PACKAGE_TABLES: [&str; 6] =
+    ["accepted_manifests", "readmes", "annotations", "versions", "tags", "packages"];
 
 /// Move every tag the document points elsewhere, recording each move with
 /// `principal`.
@@ -304,22 +313,25 @@ fn apply_tags(
 
 /// Remove every row of the package except its tag history and the identities
 /// of its versions, which stay removed, under a new generation.
-pub(super) fn remove_package(connection: &mut Connection, key: &PackageKey) -> Result<bool> {
+pub(super) fn remove_package(connection: &dyn Connection, key: &PackageKey) -> Result<bool> {
     let mut batch = Batch::begin(connection, &key.catalog)?;
     let (catalog, ecosystem, name) = key.params();
     batch.transaction().execute(
-        "INSERT OR IGNORE INTO removed_versions (catalog, ecosystem, name, version, revision_key,
-                                                 generation)
+        "INSERT INTO removed_versions (catalog, ecosystem, name, version, revision_key, generation)
          SELECT catalog, ecosystem, name, version, revision_key, ?4 FROM versions
-         WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3",
+         WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3
+         ON CONFLICT DO NOTHING",
         params![catalog, ecosystem, name, to_column(batch.generation())],
     )?;
-    let removed = batch
-        .transaction()
-        .execute(
-            "DELETE FROM packages WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3",
-            params![catalog, ecosystem, name],
-        )?;
+    let mut removed = 0;
+    for table in PACKAGE_TABLES {
+        removed = batch
+            .transaction()
+            .execute(
+                &format!("DELETE FROM {table} WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3"),
+                params![catalog, ecosystem, name],
+            )?;
+    }
     if removed == 0 {
         return Ok(false);
     }

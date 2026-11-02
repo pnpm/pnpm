@@ -8,11 +8,10 @@
 //!
 //! - The documents backend keeps one document per package in the hosted
 //!   store, beside its archives.
-//! - [`SqliteMetadata`] keeps accepted versions, tags, deprecations, and
-//!   package state as rows of an embedded database and renders documents from
-//!   them.
+//! - [`SqlMetadata`] keeps accepted versions, tags, deprecations, and package
+//!   state as rows of a SQL database and renders documents from them.
 
-pub(crate) mod sqlite;
+pub(crate) mod sql;
 
 pub(crate) use documents::update_with_retry;
 pub use notes::{
@@ -22,7 +21,7 @@ pub use publication::{
     ArtifactMember, BatchDocument, Publication, PublicationCommit, PublicationRequest,
     RecordedOutcome,
 };
-pub use sqlite::{RenderStats, SqliteMetadata, TagHistoryEntry};
+pub use sql::{RenderStats, SqlMetadata, TagHistoryEntry};
 
 mod documents;
 mod notes;
@@ -133,7 +132,7 @@ pub(crate) trait PackageMetadata: fmt::Debug + Send + Sync {
 #[derive(Debug, Clone)]
 pub(crate) enum MetadataSource {
     Documents,
-    Sqlite(Arc<SqliteMetadata>),
+    Sql(Arc<SqlMetadata>),
 }
 
 impl MetadataSource {
@@ -141,7 +140,7 @@ impl MetadataSource {
         match backend {
             MetadataBackend::Documents => Ok(Self::Documents),
             MetadataBackend::Sqlite(path) => {
-                Ok(Self::Sqlite(Arc::new(SqliteMetadata::open(path)?)))
+                Ok(Self::Sql(Arc::new(SqlMetadata::open_sqlite(path)?)))
             }
         }
     }
@@ -155,7 +154,7 @@ impl MetadataSource {
     ) -> Arc<dyn PackageMetadata> {
         match self {
             Self::Documents => Arc::new(documents::DocumentMetadata::new(Arc::clone(hosted))),
-            Self::Sqlite(database) => Arc::new(database.view(org, ecosystem)),
+            Self::Sql(database) => Arc::new(database.view(org, ecosystem)),
         }
     }
 }
@@ -178,12 +177,12 @@ impl Storage {
         self.metadata.change_tag(name, change).await
     }
 
-    /// The `SQLite` metadata database, when this storage keeps its metadata
-    /// in one.
+    /// The SQL metadata database, when this storage keeps its metadata in
+    /// one.
     #[must_use]
-    pub fn sqlite_metadata(&self) -> Option<&Arc<SqliteMetadata>> {
+    pub fn sql_metadata(&self) -> Option<&Arc<SqlMetadata>> {
         match &self.metadata_source {
-            MetadataSource::Sqlite(database) => Some(database),
+            MetadataSource::Sql(database) => Some(database),
             MetadataSource::Documents => None,
         }
     }

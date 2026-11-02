@@ -2,13 +2,14 @@
 //!
 //! An npm packument is assembled from cached per-version fragments and the
 //! mutable package state, and the assembled view is cached at the package's
-//! generation. Every read checks that generation inside its own read
-//! transaction, so a cached view is served only while it is current: a lost
-//! invalidation cannot pin an old view. Reads on different connections share
+//! generation. Every read checks that generation inside its read transaction,
+//! so a cached view is served only while it is current: a lost invalidation
+//! cannot pin an old view. Reads on different connections share
 //! the caches; two that miss one view at once may both render it.
 
 use super::{
     PackageKey,
+    adapter::{Connection, params},
     cache::{FragmentKey, RENDERER_VERSION, RenderCache, Representation, ViewKey},
     commit::{PackageRow, package_row, parse_json, parse_optional_json},
     packument::{
@@ -20,23 +21,21 @@ use super::{
 use crate::metadata::{ARCHIVE_MANIFEST_FIELD, PackageView};
 use pnpr_error::Result;
 use pnpr_package_name::Ecosystem;
-use rusqlite::{Connection, params};
 use serde_json::{Map, Value};
 use std::{collections::BTreeMap, sync::Arc};
 
 pub(super) fn read_view(
-    connection: &mut Connection,
+    snapshot: &dyn Connection,
     cache: &RenderCache,
     key: &PackageKey,
 ) -> Result<Option<PackageView>> {
-    let snapshot = connection.transaction()?;
-    let Some(package) = package_row(&snapshot, key)? else { return Ok(None) };
+    let Some(package) = package_row(snapshot, key)? else { return Ok(None) };
     let view_key = ViewKey { package: key.clone(), representation: Representation::Full };
     let bytes = if let Some(bytes) = cache.view(&view_key, package.generation) {
         bytes
     } else {
         let bytes: Arc<[u8]> = match key.ecosystem {
-            Ecosystem::Npm => assemble_packument(&snapshot, cache, key, &package)?.into(),
+            Ecosystem::Npm => assemble_packument(snapshot, cache, key, &package)?.into(),
             Ecosystem::Cargo | Ecosystem::Pypi | Ecosystem::Oci => package.state.into(),
         };
         cache.store_view(view_key, package.generation, Arc::clone(&bytes));
@@ -52,35 +51,37 @@ struct VersionEntry {
     fragment: FragmentKey,
 }
 
-fn version_entries(connection: &Connection, key: &PackageKey) -> Result<Vec<VersionEntry>> {
-    let mut statement = connection.prepare_cached(
+fn version_entries(connection: &dyn Connection, key: &PackageKey) -> Result<Vec<VersionEntry>> {
+    let (catalog, ecosystem, name) = key.params();
+    let rows = connection.query(
         "SELECT v.version, v.published_at, a.generation, m.profile
          FROM versions v
          JOIN accepted_manifests m USING (catalog, ecosystem, name, version, revision_key)
          LEFT JOIN annotations a USING (catalog, ecosystem, name, version)
          WHERE v.catalog = ?1 AND v.ecosystem = ?2 AND v.name = ?3 AND v.revision_key = ?4
          ORDER BY v.version",
+        params![catalog, ecosystem, name, ORDINARY],
     )?;
-    let (catalog, ecosystem, name) = key.params();
-    let entries = statement.query_map(params![catalog, ecosystem, name, ORDINARY], |row| {
-        let version: String = row.get(0)?;
-        let fragment = FragmentKey {
-            package: key.clone(),
-            version: version.clone(),
-            revision_key: ORDINARY.to_string(),
-            profile: row.get(3)?,
-            representation: Representation::Full,
-            renderer: RENDERER_VERSION,
-            annotation_generation: row.get::<_, Option<i64>>(2)?.map(to_generation),
-        };
-        Ok(VersionEntry { version, published_at: row.get(1)?, fragment })
-    })?;
-    Ok(entries.collect::<rusqlite::Result<_>>()?)
+    rows.into_iter()
+        .map(|mut row| {
+            let version: String = row.get(0)?;
+            let fragment = FragmentKey {
+                package: key.clone(),
+                version: version.clone(),
+                revision_key: ORDINARY.to_string(),
+                profile: row.get(3)?,
+                representation: Representation::Full,
+                renderer: RENDERER_VERSION,
+                annotation_generation: row.get::<Option<i64>>(2)?.map(to_generation),
+            };
+            Ok(VersionEntry { version, published_at: row.get(1)?, fragment })
+        })
+        .collect()
 }
 
 /// Render one version's manifest with its interpretation, README, and
 /// deprecation.
-fn render_fragment(connection: &Connection, key: &FragmentKey) -> Result<Arc<str>> {
+fn render_fragment(connection: &dyn Connection, key: &FragmentKey) -> Result<Arc<str>> {
     let [manifest, inputs, fields @ ..] = fragment_columns(connection, key)?;
     let mut fragment: Map<String, Value> = parse_json(manifest.as_deref().unwrap_or("{}"))?;
     let interpretation = Interpretation {
@@ -100,25 +101,25 @@ fn render_fragment(connection: &Connection, key: &FragmentKey) -> Result<Arc<str
 
 /// The manifest, interpretation inputs, README, README filename, and
 /// deprecation of a version, as stored.
-fn fragment_columns(connection: &Connection, key: &FragmentKey) -> Result<[Option<String>; 5]> {
+fn fragment_columns(connection: &dyn Connection, key: &FragmentKey) -> Result<[Option<String>; 5]> {
     let (catalog, ecosystem, name) = key.package.params();
-    let columns = connection
-        .prepare_cached(
-            "SELECT m.manifest, m.inputs, r.readme, r.readme_filename, a.deprecated
-             FROM accepted_manifests m
-             LEFT JOIN readmes r USING (catalog, ecosystem, name, version, revision_key)
-             LEFT JOIN annotations a USING (catalog, ecosystem, name, version)
-             WHERE m.catalog = ?1 AND m.ecosystem = ?2 AND m.name = ?3 AND m.version = ?4
-               AND m.revision_key = ?5 AND m.profile = ?6",
-        )?
-        .query_row(
-            params![catalog, ecosystem, name, key.version, key.revision_key, key.profile],
-            |row| Ok([row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?]),
-        )?;
-    Ok(columns)
+    let mut row = connection.query_one(
+        "SELECT m.manifest, m.inputs, r.readme, r.readme_filename, a.deprecated
+         FROM accepted_manifests m
+         LEFT JOIN readmes r USING (catalog, ecosystem, name, version, revision_key)
+         LEFT JOIN annotations a USING (catalog, ecosystem, name, version)
+         WHERE m.catalog = ?1 AND m.ecosystem = ?2 AND m.name = ?3 AND m.version = ?4
+           AND m.revision_key = ?5 AND m.profile = ?6",
+        params![catalog, ecosystem, name, key.version, key.revision_key, key.profile],
+    )?;
+    Ok([row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?])
 }
 
-fn fragment(connection: &Connection, cache: &RenderCache, key: &FragmentKey) -> Result<Arc<str>> {
+fn fragment(
+    connection: &dyn Connection,
+    cache: &RenderCache,
+    key: &FragmentKey,
+) -> Result<Arc<str>> {
     if let Some(fragment) = cache.fragment(key) {
         return Ok(fragment);
     }
@@ -136,7 +137,7 @@ struct Assembled {
 }
 
 fn assemble_packument(
-    connection: &Connection,
+    connection: &dyn Connection,
     cache: &RenderCache,
     key: &PackageKey,
     package: &PackageRow,

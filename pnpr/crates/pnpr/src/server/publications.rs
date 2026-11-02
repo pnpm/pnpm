@@ -21,7 +21,7 @@ use axum::{
 use pnpr_error::RegistryError;
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_registry::{Ecosystem, Resolved};
-use pnpr_storage::metadata::{ArtifactMember, Note, NoteChange, Publication, SqliteMetadata};
+use pnpr_storage::metadata::{ArtifactMember, Note, NoteChange, Publication, SqlMetadata};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use std::sync::Arc;
@@ -35,7 +35,7 @@ pub(super) async fn serve_publication(
     Path((org, id_or_name)): Path<(String, String)>,
 ) -> Response {
     let catalog = catalog_of(&org);
-    let Some(database) = state.inner.storage.sqlite_metadata() else { return not_found() };
+    let Some(database) = state.inner.storage.sql_metadata() else { return not_found() };
     let found = database.publication(catalog, &id_or_name).await;
     private_no_cache(respond(&state, &identity, found))
 }
@@ -52,7 +52,7 @@ pub(super) async fn serve_member_publication(
     Query(query): Query<MemberQuery>,
 ) -> Response {
     let catalog = catalog_of(&org);
-    let Some(database) = state.inner.storage.sqlite_metadata() else { return not_found() };
+    let Some(database) = state.inner.storage.sql_metadata() else { return not_found() };
     let Some((name, version)) = parse_member(&query.member) else {
         return RegistryError::BadRequest {
             reason: "`member` must be <ecosystem>:<name>@<version>".to_string(),
@@ -192,7 +192,7 @@ pub(super) fn anonymously_readable(
 pub(super) async fn readable_publication_note(
     state: &AppState,
     identity: &Identity,
-    database: &Arc<SqliteMetadata>,
+    database: &Arc<SqlMetadata>,
     publication: Publication,
 ) -> Result<PublicationNoteLink, RegistryError> {
     let note = database.publication_note(&publication.catalog, publication.id).await?;
@@ -252,7 +252,7 @@ pub(super) async fn serve_publication_note(
         Ok(request) => request,
         Err(response) => return response,
     };
-    let Some(database) = state.inner.storage.sqlite_metadata().cloned() else { return not_found() };
+    let Some(database) = state.inner.storage.sql_metadata().cloned() else { return not_found() };
     let publication = match database.publication(catalog_of(&org), &id_or_name).await {
         Ok(Some(publication)) if reads_every_member(&state, &identity, &publication) => publication,
         Ok(_) => return not_found(),
@@ -272,7 +272,7 @@ pub(super) async fn serve_publication_note(
 
 async fn read_publication_note(
     state: &AppState,
-    database: &Arc<SqliteMetadata>,
+    database: &Arc<SqlMetadata>,
     publication: &Publication,
 ) -> Result<Response, RegistryError> {
     let note = database.publication_note(&publication.catalog, publication.id).await?;
@@ -292,7 +292,7 @@ async fn read_publication_note(
 async fn change_publication_note(
     state: &AppState,
     identity: &Identity,
-    database: &Arc<SqliteMetadata>,
+    database: &Arc<SqlMetadata>,
     publication: &Publication,
     text: Option<String>,
 ) -> Result<Response, RegistryError> {

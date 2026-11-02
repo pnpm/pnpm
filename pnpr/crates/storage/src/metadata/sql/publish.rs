@@ -1,18 +1,17 @@
 //! Committing a publication: every document of a request in one transaction
 //! of its catalog, with the request's outcome.
 
-use super::{Expected, PackageKey, batch::Batch, notes, publications};
+use super::{Expected, PackageKey, adapter::Connection, batch::Batch, notes, publications};
 use crate::metadata::{
     ArtifactMember, BatchDocument, Generation, PublicationCommit, PublicationRequest, PublishNotes,
 };
 use pnpr_error::{RegistryError, Result};
-use rusqlite::Connection;
 
 /// Commit every document under one new generation of `catalog`, or none of
 /// them. A request whose identical twin already committed gets that commit's
 /// outcome back and commits nothing.
 pub(super) fn commit_publication(
-    connection: &mut Connection,
+    connection: &dyn Connection,
     catalog: &str,
     documents: &[BatchDocument],
     artifacts: &[ArtifactMember],
