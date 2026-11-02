@@ -91,7 +91,7 @@ impl PublishArgs {
     }
 
     /// Check the version note of every package in `to_publish` against the
-    /// registry's content rules, so a note that breaks them stops a
+    /// registry's content rules, so a note breaking them stops a
     /// recursive publish before its first upload rather than halfway
     /// through.
     pub(super) fn check_version_notes(
@@ -177,10 +177,10 @@ impl PublishArgs {
         }
         let parked = parked_publication(config, members)?;
         let summary = self.release_notes_text(dir)?;
-        let versioned = parked.is_some()
-            || members
-                .iter()
-                .any(|manifest| parked_version_note(config, manifest).is_some());
+        let mut versioned = parked.is_some();
+        for manifest in members {
+            versioned |= parked_version_note(config, manifest)?.is_some();
+        }
         if summary.is_some() && versioned {
             return Err(summary_belongs_to_versioning());
         }
@@ -249,7 +249,7 @@ fn version_note_source(
     package: &NotesPackage<'_>,
     summary: Option<&str>,
 ) -> miette::Result<Option<(String, NoteSource)>> {
-    let parked = parked_version_note(config, package.source_manifest);
+    let parked = parked_version_note(config, package.source_manifest)?;
     Ok(match (summary, parked) {
         (Some(_), Some(_)) => return Err(summary_belongs_to_versioning()),
         (Some(summary), None) => Some((summary.to_owned(), NoteSource::Option)),
@@ -270,18 +270,23 @@ fn summary_belongs_to_versioning() -> miette::Report {
 }
 
 /// The version note `pnpm version -r` parked for the package, empty when it
-/// composed none. `None` outside `registry` changelog storage.
-fn parked_version_note(config: &Config, manifest: &Value) -> Option<String> {
-    let workspace_dir = config.workspace_dir.as_deref()?;
+/// composed none. `None` outside `registry` changelog storage. Failing to
+/// read a parked file is an error, never an absent note, so no other source
+/// takes its place.
+fn parked_version_note(config: &Config, manifest: &Value) -> miette::Result<Option<String>> {
+    let Some(workspace_dir) = config.workspace_dir.as_deref() else {
+        return Ok(None);
+    };
     if changelog_storage(Some(&config.versioning)) != ChangelogStorage::Registry {
-        return None;
+        return Ok(None);
     }
-    let name = manifest.get("name")?.as_str()?;
-    let version = manifest.get("version")?.as_str()?;
-    pnpm_versioning::read_pending_changelog(workspace_dir, name, version)
-        .ok()
-        .flatten()
-        .map(|note| normalize_line_endings(&note))
+    let name = manifest.get("name").and_then(Value::as_str);
+    let version = manifest.get("version").and_then(Value::as_str);
+    let (Some(name), Some(version)) = (name, version) else {
+        return Ok(None);
+    };
+    let note = pnpm_versioning::read_pending_changelog(workspace_dir, name, version)?;
+    Ok(note.map(|note| normalize_line_endings(&note)))
 }
 
 fn changelog_note(dir: &Path, manifest: &Value) -> Option<String> {

@@ -288,3 +288,28 @@ fn version_refuses_a_summary_for_private_releases_only() {
     assert_eq!(intent_files(&workspace), ["only-a.md", "shared.md"]);
     drop(root);
 }
+
+#[test]
+fn publish_fails_when_a_parked_note_cannot_be_read() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let mut server = mockito::Server::new();
+    let registry = format!("{}/", server.url());
+    write_workspace(&workspace, &registry);
+    run(pnpm(&workspace).with_args(["version", "-r", "--no-git-checks"]));
+    let parked = workspace.join(".changeset/changelogs/a@1.1.0.md");
+    fs::remove_file(&parked).expect("remove the parked note");
+    fs::create_dir(&parked).expect("put an unreadable entry in its place");
+    let upload = server
+        .mock("PUT", Matcher::Any)
+        .expect(0)
+        .create();
+
+    let output = pnpm(&workspace)
+        .with_args(["-r", "publish", "--batch", "--force", "--no-git-checks"])
+        .output()
+        .expect("run pnpm publish");
+
+    assert!(!output.status.success(), "the composed note is not replaced by another source");
+    upload.assert();
+    drop(root);
+}
