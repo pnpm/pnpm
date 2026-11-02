@@ -147,12 +147,12 @@ impl PublishArgs {
         let Some(pkg) = moved else {
             return Ok(());
         };
+        let package = package_id(&pkg.source_manifest);
         Err(miette::miette!(
             code = "ERR_PNPM_RELEASE_NOTES_REGISTRY_CHANGED",
             help =
                 "Set the registry in the workspace manifest rather than in a beforePacking hook.",
-            "Packing moved {} to another registry than the release notes of its release were composed for",
-            package_id(&pkg.source_manifest),
+            "Packing moved {package} to another registry than the release notes of its release were composed for",
         ))
     }
 
