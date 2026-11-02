@@ -19,6 +19,8 @@ Links package from `<dir>` directory to `node_modules` of package from where you
 
 > For example, if you are inside `~/projects/foo` and you execute `pnpm link ../bar`, then a link to `bar` will be created in `foo/node_modules/bar`.
 
+If the package is not declared in the `package.json` of the current project yet, a `link:` dependency is added to it. The [`overrides`](../settings/dependency-resolution.md#overrides) entry for the link is written to the root `pnpm-workspace.yaml`, so the link applies throughout the workspace.
+
 :::note Breaking changes in v11
 
 `pnpm link` no longer resolves packages from the global store. Only relative or absolute paths are accepted (use `pnpm link ./foo` instead of `pnpm link foo`).
