@@ -68,6 +68,8 @@ pnpr config check
 
 Audits hosted package documents (`package.json`) against stored blobs. Inspects declared versions, resolves referenced tarballs and attestation blobs, checks for missing or corrupted files, and discovers orphaned blobs not referenced by any version.
 
+Unless `--skip-hashes` is given, it also re-derives each npm version's install-critical fields from the `package.json` in its stored archive, as [publish-time manifest verification](endpoints.md#publish-time-manifest-verification) does, and lists every version whose stored metadata disagrees under `Manifest disagreements`. A version published before pnpr verified manifests can disagree. Disagreements are reported for the operator to act on and do not fail the command.
+
 ```sh
 # Full checksum verification (SHA-1 and Subresource Integrity)
 pnpr verify
@@ -84,7 +86,7 @@ pnpr verify --prune-orphans --min-age 0
 
 | Flag | Description |
 | --- | --- |
-| `--skip-hashes` | Skip recomputing and verifying tarball checksums (cryptographic hashes are verified by default). |
+| `--skip-hashes` | Skip recomputing and verifying tarball checksums (cryptographic hashes are verified by default), and skip re-deriving manifests. |
 | `--prune-orphans` | Automatically delete orphaned blobs not referenced by any hosted package version. Recommended when registry writers are stopped. |
 | `--min-age <interval>` | Minimum age before an unreferenced blob is considered for pruning (e.g. `1d`, `86400s`, or bare seconds; defaults to `1d`). |
 
