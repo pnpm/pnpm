@@ -318,8 +318,32 @@ fn package_key(name: &CanonicalPackageName, org: &str) -> PackageKey {
 }
 
 impl super::SqliteMetadata {
-    /// The initial publication of every version of `name` in `org` that has
-    /// one recorded, as `(version, publication id)`.
+    /// Whether `version` of `name` in `org` is accepted and not removed.
+    pub async fn has_version(
+        self: &std::sync::Arc<Self>,
+        name: &CanonicalPackageName,
+        org: &str,
+        version: &str,
+    ) -> Result<bool> {
+        let (key, version) = (package_key(name, org), version.to_string());
+        self.read(move |connection, _| {
+            let (catalog, ecosystem, name) = key.params();
+            let found = connection
+                .query_row(
+                    "SELECT 1 FROM versions
+                     WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4",
+                    rusqlite::params![catalog, ecosystem, name, version],
+                    |_| Ok(()),
+                )
+                .optional()?;
+            Ok(found.is_some())
+        })
+        .await
+    }
+
+    /// The initial publication of every current version of `name` in `org`
+    /// that has one recorded, as `(version, publication id)`. A removed
+    /// version's publication stays recorded but is not listed.
     pub async fn package_publications(
         self: &std::sync::Arc<Self>,
         name: &CanonicalPackageName,
@@ -328,8 +352,13 @@ impl super::SqliteMetadata {
         let key = package_key(name, org);
         self.read(move |connection, _| {
             let mut statement = connection.prepare_cached(
-                "SELECT version, MIN(publication) FROM publication_members
-                 WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 GROUP BY version",
+                "SELECT m.version, MIN(m.publication) FROM publication_members m
+                 WHERE m.catalog = ?1 AND m.ecosystem = ?2 AND m.name = ?3
+                   AND EXISTS (
+                     SELECT 1 FROM versions v WHERE v.catalog = m.catalog
+                       AND v.ecosystem = m.ecosystem AND v.name = m.name
+                       AND v.version = m.version)
+                 GROUP BY m.version",
             )?;
             let rows = statement
                 .query_map(key.params(), |row| {

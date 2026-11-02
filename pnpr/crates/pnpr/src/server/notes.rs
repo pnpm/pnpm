@@ -98,6 +98,11 @@ async fn read_version_note(
 ) -> Result<Response, RegistryError> {
     let version = resolve_tag(state, notes, version_or_tag).await?;
     let NotesTarget { database, name, target } = notes;
+    // A removed version keeps its note and publication on record, but no
+    // longer serves them.
+    if !database.has_version(name, &target.org, &version).await? {
+        return Err(RegistryError::NotFound);
+    }
     let note = database.version_note(name, &target.org, &version).await?;
     let publication = database.initial_publication(name, &target.org, &version).await?;
     let link = match publication {

@@ -208,3 +208,40 @@ async fn a_publication_note_url_keeps_the_public_url_path_prefix() {
         .json();
     assert_eq!(listing["notes"][0]["publication"]["url"], "/registry/-/publications/-/1/notes");
 }
+
+#[tokio::test]
+async fn an_unpublished_version_serves_no_note() {
+    let tmp = TempDir::new().unwrap();
+    let app = app(&tmp);
+    let token = token(&app).await;
+    for version in ["1.0.0", "1.1.0"] {
+        let doc = with_notes(publish_doc("pruned", version, version.as_bytes()), "- note\n");
+        let published = send(&app, "PUT", "/npm/pruned", Some(&token), json_body(&doc)).await;
+        assert_eq!(published.status, StatusCode::CREATED);
+    }
+    let mut packument = send(&app, "GET", "/npm/pruned", Some(&token), Body::empty())
+        .await
+        .json();
+    packument["versions"]
+        .as_object_mut()
+        .unwrap()
+        .remove("1.0.0");
+    let rewritten =
+        send(&app, "PUT", "/npm/pruned/-rev/1", Some(&token), json_body(&packument)).await;
+    assert_eq!(rewritten.status, StatusCode::CREATED, "{}", rewritten.text());
+
+    let removed = send(&app, "GET", "/npm/pruned/1.0.0/notes", None, Body::empty()).await;
+    assert_eq!(removed.status, StatusCode::NOT_FOUND);
+    let kept = send(&app, "GET", "/npm/pruned/1.1.0/notes", None, Body::empty()).await;
+    assert_eq!(kept.status, StatusCode::OK);
+    let listing = send(&app, "GET", "/npm/pruned/-/notes", None, Body::empty())
+        .await
+        .json();
+    let versions: Vec<&str> = listing["notes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|entry| entry["version"].as_str().unwrap())
+        .collect();
+    assert_eq!(versions, ["1.1.0"]);
+}

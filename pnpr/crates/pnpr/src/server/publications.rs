@@ -304,8 +304,8 @@ async fn change_publication_note(
     Ok(axum::http::StatusCode::NO_CONTENT.into_response())
 }
 
-/// Check the `publish` rule of a hosted registry of `catalog` that serves
-/// the member's package.
+/// Check the `publish` rule of the hosted registry of `catalog` that serves
+/// the member's package: one of its ecosystem whose namespace claims it.
 async fn authorize_member_publish(
     state: &AppState,
     identity: &Identity,
@@ -317,7 +317,11 @@ async fn authorize_member_publish(
         .iter()
         .find_map(|(source, hosted)| {
             (hosted.org == catalog
-                && routing.registries.ecosystem(source) == Some(member.ecosystem))
+                && routing.registries.ecosystem(source) == Some(member.ecosystem)
+                && matches!(
+                    routing.registries.resolve(source, member.ecosystem, &member.name),
+                    Resolved::Concrete { registry, .. } if registry == source,
+                ))
             .then(|| source.clone())
         });
     let Some(source) = source else { return Err(RegistryError::NotFound) };
