@@ -9,7 +9,11 @@
 //! lives in [`recursive`].
 
 pub use arguments::{PublishGitArgs, PublishManifestArgs, PublishOutputArgs, PublishRegistryArgs};
+mod notes;
 mod options;
+mod scope;
+
+use scope::PublishScope;
 mod recursive;
 mod wait;
 
@@ -86,6 +90,7 @@ struct PackedDirectory {
     tarball_path: String,
     contents: Vec<String>,
     unpacked_size: u64,
+    notes: Option<String>,
 }
 
 impl PackedDirectory {
@@ -96,6 +101,7 @@ impl PackedDirectory {
             tarball_path: &self.tarball_path,
             contents: &self.contents,
             unpacked_size: self.unpacked_size,
+            notes: self.notes.as_deref(),
         }
     }
 }
@@ -177,36 +183,48 @@ impl PublishArgs {
                 self.run_recursive::<Reporter>(dir, config, stage, &before_packing_hooks).await?;
             return Ok(PublishedPackages::Recursive(published));
         }
+        let summary =
+            self.publish_single::<Reporter>(dir, config, stage, &before_packing_hooks).await?;
+        Ok(PublishedPackages::Single(Box::new(summary)))
+    }
 
+    /// Publish one package: a prebuilt tarball, or the project directory.
+    async fn publish_single<Reporter: self::Reporter>(
+        &self,
+        dir: &Path,
+        config: &Config,
+        stage: bool,
+        before_packing_hooks: &[Arc<dyn PnpmfileHooks>],
+    ) -> miette::Result<PublishSummary> {
         let otp = resolve_otp_from_env::<Host>(self.flags.registry.otp.clone());
         let opts = self.publish_options(config, otp, stage);
         let http_client = build_publish_client(config)?;
         let network = PublishNetwork { client: &http_client, auth_headers: &config.auth_headers };
+        let notes_summary = self.release_notes_text(dir)?;
+        let scope = PublishScope::Single { summary: notes_summary.as_deref() };
 
-        let summary =
-            if let Some(package) = self.package.as_deref().filter(|path| is_tarball_path(path)) {
-                self.publish_tarball::<Reporter>(package, &opts, &network).await?
-            } else {
-                // Resolved against the command directory so every path the
-                // pack derives from it — the re-anchored `file:` / `link:`
-                // catalog entries among them — can be related to the
-                // absolute workspace directory. `join` keeps an absolute
-                // argument as it is.
-                let project_dir = self.package
-                    .as_deref()
-                    .map_or_else(|| dir.to_path_buf(), |path| dir.join(path));
-                self.publish_directory::<Reporter>(
-                    &project_dir,
-                    config,
-                    &opts,
-                    &network,
-                    &before_packing_hooks,
-                    None,
-                )
-                .await
-                .map_err(|failure| failure.error)?
-            };
-        Ok(PublishedPackages::Single(Box::new(summary)))
+        if let Some(package) = self.package.as_deref().filter(|path| is_tarball_path(path)) {
+            self.publish_tarball::<Reporter>(package, config, &opts, &network, scope).await
+        } else {
+            // Resolved against the command directory so every path the
+            // pack derives from it — the re-anchored `file:` / `link:`
+            // catalog entries among them — can be related to the
+            // absolute workspace directory. `join` keeps an absolute
+            // argument as it is.
+            let project_dir = self.package
+                .as_deref()
+                .map_or_else(|| dir.to_path_buf(), |path| dir.join(path));
+            self.publish_directory::<Reporter>(
+                &project_dir,
+                config,
+                &opts,
+                &network,
+                before_packing_hooks,
+                scope,
+            )
+            .await
+            .map_err(|failure| failure.error)
+        }
     }
 
     /// Publish a pre-built tarball: extract its manifest and hand the bytes
@@ -214,13 +232,17 @@ impl PublishArgs {
     async fn publish_tarball<Reporter: self::Reporter>(
         &self,
         tarball_path: &str,
+        config: &Config,
         opts: &PublishPackedPkgOptions,
         network: &PublishNetwork<'_>,
+        scope: PublishScope<'_>,
     ) -> miette::Result<PublishSummary> {
         let manifest = extract_publish_manifest_from_packed(tarball_path)?;
         let tarball_data = std::fs::read(tarball_path)
             .into_diagnostic()
             .wrap_err_with(|| format!("read tarball {tarball_path}"))?;
+        let notes =
+            self.tarball_notes::<Reporter>(config, &manifest, &tarball_data, scope.summary())?;
         publish_packed_pkg::<Host, Reporter>(
             &PackedPkg {
                 published_manifest: &manifest,
@@ -228,6 +250,7 @@ impl PublishArgs {
                 tarball_path,
                 contents: &[],
                 unpacked_size: 0,
+                notes: notes.as_deref(),
             },
             opts,
             network,
@@ -246,15 +269,12 @@ impl PublishArgs {
         opts: &PublishPackedPkgOptions,
         network: &PublishNetwork<'_>,
         before_packing_hooks: &[Arc<dyn PnpmfileHooks>],
-        workspace_packages: Option<&Arc<HashMap<String, WorkspacePackageManifest>>>,
+        scope: PublishScope<'_>,
     ) -> Result<PublishSummary, PublishFailure<miette::Report>> {
-        let packed = self.pack_directory::<Reporter>(
-            project_dir,
-            config,
-            before_packing_hooks,
-            workspace_packages,
-        )
-        .await?;
+        let mut packed =
+            self.pack_directory::<Reporter>(project_dir, config, before_packing_hooks, scope)
+                .await?;
+        packed.notes = self.version_notes::<Reporter>(config, &packed.notes_package(), scope)?;
         let summary = publish_packed_pkg::<Host, Reporter>(&packed.packed_pkg(), opts, network)
             .await
             .map_err(|failure| PublishFailure {
@@ -275,7 +295,7 @@ impl PublishArgs {
         project_dir: &Path,
         config: &Config,
         before_packing_hooks: &[Arc<dyn PnpmfileHooks>],
-        workspace_packages: Option<&Arc<HashMap<String, WorkspacePackageManifest>>>,
+        scope: PublishScope<'_>,
     ) -> miette::Result<PackedDirectory> {
         let manifest = pnpm_package_manifest::safe_read_project_manifest_from_dir(project_dir)
             .into_diagnostic()
@@ -303,13 +323,12 @@ impl PublishArgs {
             config,
             pack_destination.path(),
             before_packing_hooks,
-            workspace_packages,
+            scope.workspace_packages(),
         )
         .await?;
         let tarball_data = std::fs::read(&pack_result.tarball_path)
             .into_diagnostic()
             .wrap_err("read packed tarball")?;
-        drop(pack_destination);
 
         Ok(PackedDirectory {
             project_dir: project_dir.to_path_buf(),
@@ -319,6 +338,7 @@ impl PublishArgs {
             tarball_path: pack_result.tarball_path,
             contents: pack_result.contents,
             unpacked_size: pack_result.unpacked_size,
+            notes: None,
         })
     }
 

@@ -51,6 +51,7 @@ pub use registry_config_keys::{
     NormalizedRegistryUrl, RegistryConfigKey, SupportedRegistryUrlInfo, all_registry_config_keys,
     parse_supported_registry_url,
 };
+pub use release_notes::{PublicationNotes, ReleaseNotesTarget};
 
 mod batch_publish;
 mod capabilities;
@@ -69,3 +70,4 @@ mod publish_packed_pkg;
 mod publish_summary;
 mod publish_wait;
 mod registry_config_keys;
+mod release_notes;

@@ -74,6 +74,7 @@ pub mod publish;
 pub mod rebuild;
 pub mod recursive;
 pub mod registry_client;
+pub(crate) mod release_notes;
 pub mod remove;
 pub mod repo;
 pub(crate) mod reporter;

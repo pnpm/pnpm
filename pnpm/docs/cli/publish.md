@@ -105,6 +105,25 @@ group is fine, and mismatched credentials for one registry are rejected *before*
 anything is published, rather than after part of the release went out. The
 `publish` and `postpublish` scripts run after each completed group.
 
+### --release-notes &lt;file|text\>
+
+Release notes to send to a registry declared with [`serverType: pnpr`](../registries.md#servertype). The value is read as a file when one exists at that path, and used as the notes text otherwise. Publishing one package, the notes are its version notes. Publishing several packages with `--batch`, they are the notes of the whole release.
+
+Without this option, pnpm sends each package's notes for the version it publishes:
+
+- In a workspace that uses [pnpm's versioning](../versioning.md#release-notes-on-pnpr), the notes composed from its change intents.
+- Otherwise, the section of the package's `CHANGELOG.md` under the heading of the version, as changesets (`## 1.4.0`) and Keep a Changelog (`## [1.4.0] - 2026-10-28`) write it.
+
+pnpm prints where each package's notes came from. Notes are at most 64 KiB and may not contain control characters other than line feed and tab, or bidirectional override characters. pnpm checks this before anything is uploaded. Registries not declared with `serverType: pnpr` receive no notes.
+
+### --no-release-notes
+
+Send no release notes.
+
+### --publication-name &lt;name\>
+
+The name of the release that `--batch` publishes to a registry declared with `serverType: pnpr`, such as `v12.0.0`. It may contain letters, digits, `.`, `_`, `+`, and `-`. In a workspace that uses pnpm's versioning, the release is named after the version of its epic lead or its one fixed group by default.
+
 ### --skip-manifest-obfuscation
 
 Keep the original `packageManager` field and publish lifecycle scripts in the published manifest instead of stripping them. The `pnpm` field is still omitted, except for `pnpm.config`.

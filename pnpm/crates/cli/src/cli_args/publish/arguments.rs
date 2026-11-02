@@ -40,6 +40,8 @@ pub struct PublishManifestArgs {
         overrides_with = "skip_manifest_obfuscation"
     )]
     pub no_skip_manifest_obfuscation: bool,
+    #[clap(flatten)]
+    pub notes: PublishNotesArgs,
 }
 
 #[derive(Debug, Clone, clap::Args)]
@@ -62,4 +64,22 @@ pub struct PublishOutputArgs {
     /// packages that were published.
     #[clap(long = "report-summary")]
     pub report_summary: bool,
+}
+
+#[derive(Debug, Clone, clap::Args)]
+pub struct PublishNotesArgs {
+    /// Release notes to send to a registry declared with `serverType: pnpr`:
+    /// a file, or the text itself. Publishing one package, they are its
+    /// version notes. Publishing several with `--batch`, they are the notes
+    /// of the whole release.
+    #[clap(long = "release-notes", value_name = "FILE|TEXT")]
+    pub release_notes: Option<String>,
+    /// Send no release notes, not even those read from `CHANGELOG.md` or
+    /// change intents.
+    #[clap(long = "no-release-notes", conflicts_with = "release_notes")]
+    pub no_release_notes: bool,
+    /// The name of the release that `--batch` publishes to a registry
+    /// declared with `serverType: pnpr`, such as `v12.0.0`.
+    #[clap(long = "publication-name", value_name = "NAME")]
+    pub publication_name: Option<String>,
 }

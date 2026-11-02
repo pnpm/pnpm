@@ -28,6 +28,9 @@ pub(crate) struct CheckboxChoice<Value> {
     /// How the confirmed answer names the choice.
     pub short: String,
     pub value: Value,
+    /// Shown below the list while the cursor is on the choice, like
+    /// `@inquirer/checkbox`'s choice `description`.
+    pub description: Option<String>,
 }
 
 /// The glyphs and highlighting of a [`CheckboxPrompt`].
@@ -92,6 +95,8 @@ const MIN_PAGE_SIZE: usize = 7;
 /// The lines of a frame that are not the list: the message and the
 /// help line, with room for a wrapped message and the error line.
 const FRAME_OVERHEAD: usize = 6;
+/// The most lines of an item's description a frame shows.
+const MAX_DESCRIPTION_LINES: usize = 12;
 
 impl<Value> CheckboxPrompt<Value> {
     pub(crate) fn new(message: impl Into<String>, items: Vec<CheckboxItem<Value>>) -> Self {
@@ -282,6 +287,7 @@ impl<Value> CheckboxPrompt<Value> {
         let message = stdout_styled(&self.message, |text| text.bold().to_string());
         let mut lines = vec![format!("{prefix} {message}")];
         lines.extend(self.render_page());
+        lines.extend(self.render_description());
         lines.push(" ".to_string());
         if let Some(error) = self.error {
             let error = format!("> {error}");
@@ -292,6 +298,31 @@ impl<Value> CheckboxPrompt<Value> {
         #[cfg(any(target_family = "wasm", test))]
         lines.push(self.render_host_help_line());
         lines.join("\n").trim_end().to_string()
+    }
+
+    /// The active item's description, cut to [`MAX_DESCRIPTION_LINES`] so
+    /// the frame stays on screen.
+    fn render_description(&self) -> Vec<String> {
+        let Some(CheckboxItem::Choice(CheckboxChoice { description: Some(description), .. })) =
+            self.items.get(self.viewport.active)
+        else {
+            return Vec::new();
+        };
+        let lines: Vec<&str> = description.lines().collect();
+        let mut rendered = vec![String::new()];
+        rendered.extend(
+            lines
+                .iter()
+                .take(MAX_DESCRIPTION_LINES)
+                .map(|line| format!(" {line}")),
+        );
+        if lines.len() > MAX_DESCRIPTION_LINES {
+            let more = lines.len() - MAX_DESCRIPTION_LINES;
+            rendered.push(stdout_styled(&format!(" … {more} more lines"), |text| {
+                text.dimmed().to_string()
+            }));
+        }
+        rendered
     }
 
     fn render_page(&self) -> Vec<String> {

@@ -6,9 +6,12 @@
 //! field arguments, only those fields are printed; otherwise a formatted
 //! summary (or, with `--json`, the whole assembled info object) is shown.
 
-use crate::cli_args::registry_client::{
-    build_registry_client, package_endpoint_url, resolve_registries_with_override,
-    resolve_target_registry_for_package,
+use crate::cli_args::{
+    registry_client::{
+        build_registry_client, package_endpoint_url, resolve_registries_with_override,
+        resolve_target_registry_for_package,
+    },
+    release_notes::{NotesReader, render_upgrade_notes, upgrade_notes_json},
 };
 use chrono::{DateTime, Utc};
 use clap::Args;
@@ -95,7 +98,16 @@ impl ViewArgs {
 
         let (meta, picked) =
             fetch_package_metadata(config, self.registry.as_deref(), &package_spec, "view").await?;
-        let info = assemble_info(&meta, &picked);
+        let mut info = assemble_info(&meta, &picked);
+        if fields
+            .iter()
+            .any(|field| field == RELEASE_NOTES_FIELD)
+        {
+            let notes = self.release_notes(config, &meta.name, &picked.version.to_string()).await?;
+            if let Value::Object(info) = &mut info {
+                info.insert(RELEASE_NOTES_FIELD.to_owned(), notes);
+            }
+        }
 
         if !fields.is_empty() {
             return Ok(render_fields(&info, fields, self.json));
@@ -104,6 +116,33 @@ impl ViewArgs {
             return Ok(to_pretty(&info));
         }
         Ok(render_summary(&info))
+    }
+}
+
+/// The field that reads the version's release notes from the registry
+/// rather than from its metadata.
+const RELEASE_NOTES_FIELD: &str = "releaseNotes";
+
+impl ViewArgs {
+    /// The version's note and its publication's: rendered text, or the
+    /// structured notes under `--json`. `null` when there are none.
+    async fn release_notes(
+        &self,
+        config: &Config,
+        name: &str,
+        version: &str,
+    ) -> miette::Result<Value> {
+        let registries = resolve_registries_with_override(config, self.registry.as_deref());
+        let registry =
+            resolve_target_registry_for_package(&registries, self.registry.as_deref(), name, None);
+        let client = build_registry_client(config)?;
+        let notes =
+            NotesReader::new(&client, config).version_notes(&registry, name, version).await?;
+        Ok(match (notes.is_empty(), self.json) {
+            (true, _) => Value::Null,
+            (false, true) => upgrade_notes_json(&notes),
+            (false, false) => Value::String(render_upgrade_notes(&notes)),
+        })
     }
 }
 

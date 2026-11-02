@@ -166,7 +166,7 @@ fn group_packed_pkg(
         crate::publish_options::publish_config_registry(manifest, name),
     )?;
     let summary = package.summary();
-    let document = build_publish_document(
+    let mut document = build_publish_document(
         manifest,
         package.tarball_data,
         &registry,
@@ -174,6 +174,7 @@ fn group_packed_pkg(
         &opts.registry.tag,
         &DistHashes { integrity: &summary.integrity, shasum: &summary.shasum },
     )?;
+    opts.release_notes.attach_version_notes(&mut document, package.notes, &registry);
     let summary_index = summaries.len();
     summaries.push(summary);
 
@@ -205,7 +206,7 @@ async fn put_batch<Reporter: self::Reporter>(
 ) -> Result<(), BatchPublishError> {
     let put_url = join_registry(&group.registry, BATCH_PUBLISH_ENDPOINT)?;
     let body = bytes::Bytes::from(
-        serde_json::to_vec(&serde_json::json!({ "packages": group.documents }))
+        serde_json::to_vec(&opts.release_notes.batch_body(&group.registry, &group.documents))
             .expect("serialize batch publish documents"),
     );
     let response = publish_with_otp_handling::<WebAuthHost, Reporter>(

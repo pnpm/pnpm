@@ -1,7 +1,7 @@
 mod named_registry;
 
 use super::{
-    InteractiveUpdateProject, PromptRow, PromptStyle, UpdatePrompt, collect_choices,
+    ChoiceNotes, InteractiveUpdateProject, PromptRow, PromptStyle, UpdatePrompt, collect_choices,
     dependencies_prompt_message,
 };
 use crate::{checkbox_prompt::KeyOutcome, cli_args::update::UpdateArgs};
@@ -998,7 +998,8 @@ fn prompt_rows() -> Vec<PromptRow> {
 
 #[test]
 fn the_dependencies_prompt_uses_pnpm_theme_and_requires_a_choice() {
-    let mut prompt = PromptStyle::Dependencies.checkbox_prompt("Choose", &prompt_rows());
+    let mut prompt =
+        PromptStyle::Dependencies.checkbox_prompt("Choose", &prompt_rows(), &ChoiceNotes::new());
 
     let frame = console::strip_ansi_codes(&prompt.render_frame()).into_owned();
     assert!(frame.contains("\n ── dependencies ──\n❯○ foo 1.0.0 ❯ 2.0.0\n"), "{frame}");
@@ -1007,7 +1008,8 @@ fn the_dependencies_prompt_uses_pnpm_theme_and_requires_a_choice() {
 
 #[test]
 fn the_global_groups_prompt_uses_the_default_theme_and_allows_no_choice() {
-    let mut prompt = PromptStyle::GlobalGroups.checkbox_prompt("Choose", &prompt_rows());
+    let mut prompt =
+        PromptStyle::GlobalGroups.checkbox_prompt("Choose", &prompt_rows(), &ChoiceNotes::new());
 
     let frame = console::strip_ansi_codes(&prompt.render_frame()).into_owned();
     assert!(frame.contains("\n❯◯ foo 1.0.0 ❯ 2.0.0\n"), "{frame}");

@@ -12,6 +12,7 @@ fn choice(value: &'static str) -> CheckboxItem<&'static str> {
         name: format!("{value} 1.0.0 ❯ 2.0.0"),
         short: value.to_string(),
         value,
+        description: None,
     })
 }
 
@@ -228,4 +229,27 @@ fn a_prompt_without_choices_cannot_run() {
 
     let error = prompt.interact().expect_err("no choice to make");
     assert_eq!(error.kind(), std::io::ErrorKind::InvalidInput);
+}
+
+#[test]
+fn shows_the_active_choice_description_cut_to_a_page() {
+    let description = (1..=14)
+        .map(|line| format!("line {line}"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let described = CheckboxItem::Choice(CheckboxChoice {
+        name: "b".to_string(),
+        short: "b".to_string(),
+        value: "b",
+        description: Some(description),
+    });
+    let mut prompt = CheckboxPrompt::new("Pick", vec![choice("a"), described]);
+    assert!(!prompt.render_frame().contains("line 1"));
+
+    prompt.handle_key(&Key::ArrowDown);
+    let frame = prompt.render_frame();
+
+    assert!(frame.contains(" line 12"), "{frame}");
+    assert!(!frame.contains("line 13"), "{frame}");
+    assert!(frame.contains("2 more lines"), "{frame}");
 }
