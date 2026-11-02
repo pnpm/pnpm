@@ -157,18 +157,23 @@ async fn info(State(primary): State<Arc<Primary>>) -> Json<JsonValue> {
 }
 
 async fn export(State(primary): State<Arc<Primary>>) -> Vec<u8> {
-    let mut checkpoint = primary.conn
-        .query("PRAGMA wal_checkpoint(TRUNCATE)", ())
-        .await
-        .unwrap();
-    while checkpoint
-        .next()
-        .await
-        .unwrap()
-        .is_some()
-    {}
+    // Another stream's open transaction locks the checkpoint out until it
+    // ends.
+    let mut attempts = 0;
+    while let Err(error) = checkpoint(&primary.conn).await {
+        attempts += 1;
+        assert!(attempts < 500, "the primary's WAL never checkpointed: {error}");
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
     primary.exports.fetch_add(1, Ordering::SeqCst);
     std::fs::read(&primary.path).unwrap()
+}
+
+/// Move the whole WAL into the database file, so the file is the export.
+async fn checkpoint(conn: &Connection) -> libsql::Result<()> {
+    let mut rows = conn.query("PRAGMA wal_checkpoint(TRUNCATE)", ()).await?;
+    while rows.next().await?.is_some() {}
+    Ok(())
 }
 
 /// WAL frames `[start, end)` of `generation`, or the generation to move to.
