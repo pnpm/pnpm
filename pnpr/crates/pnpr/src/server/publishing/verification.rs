@@ -67,7 +67,7 @@ fn verify_version(
         files: &archive.files,
     };
     let derived = InstallManifest::derive(&manifest, facts);
-    let submitted = InstallManifest::derive(&Value::Object(version.clone()), facts);
+    let submitted = derive_submitted(version, facts);
     let mut comparison = submitted.compare(&derived);
     check_slot(name, version_key, &derived, &mut comparison);
     if !comparison.is_accepted() {
@@ -81,6 +81,17 @@ fn verify_version(
     derived.write_to_version(version);
     version.insert(ARCHIVE_MANIFEST_FIELD.to_string(), archive_manifest_record(archive));
     Ok(tolerated_notice(name, version_key, &comparison))
+}
+
+/// Derive the submitted version's install-critical fields. The version is
+/// moved out and back rather than cloned, since it carries its README.
+fn derive_submitted(version: &mut Map<String, Value>, facts: ArchiveFacts<'_>) -> InstallManifest {
+    let submitted = Value::Object(std::mem::take(version));
+    let derived = InstallManifest::derive(&submitted, facts);
+    if let Value::Object(submitted) = submitted {
+        *version = submitted;
+    }
+    derived
 }
 
 fn parse_archive_manifest(
