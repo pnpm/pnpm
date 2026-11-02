@@ -55,13 +55,31 @@ pub(super) fn abbreviate_versions(versions: &serde_json::Map<String, Value>) -> 
     let mut abbreviated = serde_json::Map::with_capacity(versions.len());
     for (version_id, version_value) in versions {
         let Some(version_obj) = version_value.as_object() else { continue };
-        let mut trimmed = serde_json::Map::new();
-        copy_fields(&mut trimmed, version_obj, ABBREVIATED_VERSION_FIELDS);
-        trim_dist_fields(&mut trimmed);
-        copy_npm_user(&mut trimmed, version_obj);
-        abbreviated.insert(version_id.clone(), Value::Object(trimmed));
+        abbreviated.insert(
+            version_id.clone(),
+            Value::Object(abbreviate_version_object(version_obj)),
+        );
     }
     Value::Object(abbreviated)
+}
+
+/// One version manifest cut down to the abbreviated form's fields, as the
+/// abbreviated packument would list it.
+#[must_use]
+pub fn abbreviate_version(manifest: &Value) -> Value {
+    manifest
+        .as_object()
+        .map_or(Value::Null, |version_obj| Value::Object(abbreviate_version_object(version_obj)))
+}
+
+fn abbreviate_version_object(
+    version_obj: &serde_json::Map<String, Value>,
+) -> serde_json::Map<String, Value> {
+    let mut trimmed = serde_json::Map::new();
+    copy_fields(&mut trimmed, version_obj, ABBREVIATED_VERSION_FIELDS);
+    trim_dist_fields(&mut trimmed);
+    copy_npm_user(&mut trimmed, version_obj);
+    trimmed
 }
 
 /// Copy whichever of `fields` the source carries.

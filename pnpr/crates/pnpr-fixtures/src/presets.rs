@@ -208,6 +208,7 @@ fn with_routing(
             trusted_proxy_header: TrustedProxyHeader::default(),
             request_timeout: Some(pnpr_config::HttpConfig::DEFAULT_REQUEST_TIMEOUT),
             metrics: None,
+            package_documents: pnpr_config::PackageDocumentsConfig::default(),
         },
         storage: local_storage(storage),
         identity: pnpr_config::IdentityConfig {

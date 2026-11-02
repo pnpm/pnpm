@@ -59,6 +59,7 @@ mod tar_variants;
 use tar_variants::{TarCopy, TarVariantQueue, open_variant};
 
 mod package_responses;
+mod split_packuments;
 use package_responses::{
     DistBlock, PackumentDists, TarballDist, declared_tarball_integrity, expected_tarball_dist,
     packument_bytes_response, packument_response, tarball_integrity_error, tarball_response,
