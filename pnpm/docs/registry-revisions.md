@@ -63,6 +63,12 @@ revision with its own integrity, `<name>@<version>+r<revision>` URL, and
 manifest. It always holds revision 0. A version without either field is an
 ordinary version outside the revision protocol.
 
+A pnpr server gives these fields only in its own package document, which pnpm
+reads from a registry declared [`serverType: pnpr`](./registries.md#servertype).
+npm's documents served by pnpr give the selected revision as npm clients read
+any version, by its `<name>@<version>+r<revision>` URL and integrity, so an
+undeclared pnpr can install the selected revision but not pin another one.
+
 pnpm validates all of that during resolution:
 
 * the URL must sit on the selected registry's `<name>@<version>+r<revision>`

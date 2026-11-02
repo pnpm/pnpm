@@ -343,6 +343,8 @@ For example, the following setting ensures that only packages released at least 
 minimumReleaseAge: 1440
 ```
 
+A registry declared [`serverType: pnpr`](../registries.md#servertype) supports a `minimumReleaseAge` of at most 43200 minutes (30 days).
+
 ### minimumReleaseAgeExclude
 
 * Default: **undefined**
