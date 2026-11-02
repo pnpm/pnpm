@@ -92,8 +92,8 @@ fn verify_version(
     Ok(tolerated_notice(name, version_key, &comparison))
 }
 
-/// Derive the submitted version's install-critical fields. The version is
-/// moved out and back rather than cloned, since it carries its README.
+/// Derive the install-critical fields of the submitted `version`, which is
+/// left as it was.
 fn derive_submitted(version: &mut Map<String, Value>, facts: ArchiveFacts<'_>) -> InstallManifest {
     let submitted = Value::Object(std::mem::take(version));
     let derived = InstallManifest::derive(&submitted, facts);

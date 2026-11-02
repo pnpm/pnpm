@@ -314,11 +314,11 @@ pub(super) async fn write_attachment_slots(
 }
 
 /// Stream-decode, verify and write one tarball into a reserved slot, and
-/// derive the tar a `.tgz` decodes to. A mismatch, or a missing integrity
-/// field, fails with a 400. A `.tgz` that does not decode in full has no tar
-/// and is published without one, except under [`TarballStorage::Tar`], which
-/// stores the tar in the slot and fails such a `.tgz` with a 400. A tarball
-/// holds a permit from `decodes` until its tar is hashed.
+/// derive the tar a `.tgz` decodes to and the manifest inputs it holds. A
+/// mismatch, a missing integrity field, or a `.tgz` that does not decode in
+/// full to a readable package archive fails with a 400. Under
+/// [`TarballStorage::Tar`] the slot holds the tar. A tarball holds a permit
+/// from `decodes` until its tar is read.
 pub(super) async fn write_attachment_slot(
     storage: &Storage,
     name: &CanonicalPackageName,
