@@ -28,12 +28,7 @@ path = "tests/suite.rs"
 
 [features]
 default = ["backend-libsql"]
-backend-libsql = [
-  "dep:libsql",
-  "pnpr-error/backend-libsql",
-  "pnpr-auth/backend-libsql",
-  "pnpr-storage/backend-libsql",
-]
+backend-libsql = ["dep:libsql", "pnpr-error/backend-libsql", "pnpr-auth/backend-libsql", "pnpr-storage/backend-libsql"]
 backend-mysql = ["dep:sqlx", "sqlx/mysql", "pnpr-error/backend-mysql", "pnpr-auth/backend-mysql"]
 backend-postgres = ["dep:sqlx", "sqlx/postgres", "pnpr-error/backend-postgres", "pnpr-auth/backend-postgres"]
 
