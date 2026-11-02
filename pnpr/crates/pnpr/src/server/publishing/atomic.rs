@@ -447,10 +447,20 @@ pub(in super::super) fn publish_committed_response(receipt: &PublishReceipt) -> 
     response
 }
 
-/// Send each of `notices` in an `npm-notice` header, which npm prints to the
-/// publisher.
+/// The most `npm-notice` headers one response carries, so a publish of many
+/// versions cannot grow its headers past what a proxy or client accepts.
+const MAX_NPM_NOTICES: usize = 16;
+
+/// Send `notices` in `npm-notice` headers, which npm prints to the
+/// publisher: the first [`MAX_NPM_NOTICES`], and a count of the rest.
 pub(in super::super) fn add_npm_notices(response: &mut Response, notices: &[String]) {
-    for notice in notices {
+    let rest = notices.len().saturating_sub(MAX_NPM_NOTICES);
+    let summary = (rest > 0).then(|| format!("{rest} more versions were accepted with a notice"));
+    for notice in notices
+        .iter()
+        .take(MAX_NPM_NOTICES)
+        .chain(summary.as_ref())
+    {
         if let Ok(value) = header::HeaderValue::from_str(notice) {
             response.headers_mut().append("npm-notice", value);
         }

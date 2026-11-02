@@ -132,3 +132,21 @@ fn a_python_version_note_is_keyed_by_the_normalized_version() {
     assert_eq!(note.version, "1.0");
     assert!(entry.get("notes").is_none());
 }
+
+#[test]
+fn a_response_carries_a_bounded_number_of_notices() {
+    let notices: Vec<String> = (0..20)
+        .map(|index| format!("notice {index}"))
+        .collect();
+    let mut response = axum::response::Response::new(axum::body::Body::empty());
+    super::add_npm_notices(&mut response, &notices);
+    let sent: Vec<&str> = response
+        .headers()
+        .get_all("npm-notice")
+        .iter()
+        .map(|value| value.to_str().unwrap())
+        .collect();
+    assert_eq!(sent.len(), 17);
+    assert_eq!(sent[15], "notice 15");
+    assert_eq!(sent[16], "4 more versions were accepted with a notice");
+}
