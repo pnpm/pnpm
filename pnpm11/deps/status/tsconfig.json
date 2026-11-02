@@ -67,6 +67,9 @@
       "path": "../../workspace/projects-reader"
     },
     {
+      "path": "../../workspace/spec-parser"
+    },
+    {
       "path": "../../workspace/state"
     },
     {

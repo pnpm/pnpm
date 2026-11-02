@@ -1,29 +1,94 @@
+import type { Catalogs } from '@pnpm/catalogs.types'
+import { WorkspaceSpec } from '@pnpm/workspace.spec-parser'
 import { importerIdOf, projectBinsDigest } from '@pnpm/workspace.state'
 import { equals, filter } from 'ramda'
 
 import type { WorkspaceDepsStatusContext } from './checkWorkspaceDepsStatus.js'
 
-export function findWorkspaceStructureIssue ({ allProjects, opts, workspaceState }: WorkspaceDepsStatusContext): string | undefined {
+export function findWorkspaceStructureIssue (ctx: WorkspaceDepsStatusContext): string | undefined {
+  const { allProjects, opts, workspaceState } = ctx
   if (!equals(
     filter(value => value != null, workspaceState.settings.catalogs ?? {}),
     filter(value => value != null, opts.catalogs ?? {})
   )) {
     return 'Catalogs cache outdated'
   }
-  // A version decides only how dependencies resolve to the project. A lone
-  // project's version matters only when a transitive dependency may resolve to it.
-  const compareVersions = allProjects.length > 1 || opts.linkWorkspacePackages === 'deep'
-  if (allProjects.length !== Object.keys(workspaceState.projects).length ||
-    !allProjects.every((currentProject) => {
-      const prevProject = workspaceState.projects[currentProject.rootDir]
-      if (!prevProject) return false
-      return prevProject.name === currentProject.manifest.name &&
-        (!compareVersions || (prevProject.version ?? '0.0.0') === (currentProject.manifest.version ?? '0.0.0'))
-    })
-  ) {
-    return 'The workspace structure has changed since last install'
+  if (allProjects.length !== Object.keys(workspaceState.projects).length) {
+    return WORKSPACE_STRUCTURE_CHANGED
+  }
+  const resolvesByVersion = createResolvableProjectsFilter(ctx)
+  if (!allProjects.every((currentProject) => {
+    const prevProject = workspaceState.projects[currentProject.rootDir]
+    if (!prevProject) return false
+    return prevProject.name === currentProject.manifest.name &&
+      (!resolvesByVersion(currentProject.manifest.name) ||
+        (prevProject.version ?? '0.0.0') === (currentProject.manifest.version ?? '0.0.0'))
+  })) {
+    return WORKSPACE_STRUCTURE_CHANGED
   }
   return undefined
+}
+
+const WORKSPACE_STRUCTURE_CHANGED = 'The workspace structure has changed since last install'
+
+/**
+ * Whether a dependency may resolve to the workspace project of this name by
+ * its version. A version decides only how dependencies resolve to the
+ * project, so only these versions are compared. It errs toward `true`: a
+ * version it wrongly ignores lets scripts run against a stale `node_modules`.
+ */
+function createResolvableProjectsFilter ({ allProjects, opts, workspaceState }: WorkspaceDepsStatusContext): (name: string | undefined) => boolean {
+  // Under deep linking any transitive dependency may resolve to a project.
+  if (opts.linkWorkspacePackages === 'deep') return () => true
+  // Otherwise no dependency resolves to a lone project.
+  if (allProjects.length === 1) return () => false
+  // A pnpmfile hook may add a dependency on any project.
+  if (workspaceState.pnpmfiles.length > 0) return () => true
+  const dependedNames = collectDependedNames(allProjects, opts.catalogs)
+  const settingTexts = collectSettingTexts(opts)
+  return (name) => name != null &&
+    (dependedNames.has(name) || settingTexts.some((text) => text.includes(name)))
+}
+
+const DEPENDENCY_FIELDS = ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies'] as const
+
+/**
+ * The package names the projects' dependencies and the catalog entries name,
+ * through an `npm:` or `workspace:` alias where there is one.
+ */
+function collectDependedNames (allProjects: WorkspaceDepsStatusContext['allProjects'], catalogs: Catalogs | undefined): Set<string> {
+  const entries = [
+    ...allProjects.flatMap(({ manifest }) => DEPENDENCY_FIELDS.flatMap((field) => Object.entries(manifest[field] ?? {}))),
+    ...Object.values(catalogs ?? {}).flatMap((catalog) => Object.entries(catalog ?? {})),
+  ]
+  return new Set(entries.map(([alias, spec]) => dependedName(alias, spec)))
+}
+
+function dependedName (alias: string, spec: string | undefined): string {
+  if (spec == null) return alias
+  const workspaceSpec = WorkspaceSpec.parse(spec)
+  if (workspaceSpec != null) return workspaceSpec.alias ?? alias
+  if (!spec.startsWith('npm:')) return alias
+  const target = spec.slice('npm:'.length)
+  const versionSeparator = target.lastIndexOf('@')
+  return versionSeparator >= 1 ? target.slice(0, versionSeparator) : target
+}
+
+/**
+ * The selectors and values of the overrides, the package extensions, and the
+ * patches. Each may select a project by its version or point a dependency at
+ * it, and a substring match on them is the cheapest test that never misses one.
+ */
+function collectSettingTexts ({ overrides, packageExtensions, patchedDependencies }: WorkspaceDepsStatusContext['opts']): string[] {
+  return [
+    ...Object.entries(overrides ?? {}).flat(),
+    ...Object.entries(packageExtensions ?? {}).flatMap(([selector, extension]) => [
+      selector,
+      ...[extension.dependencies, extension.optionalDependencies, extension.peerDependencies]
+        .flatMap((dependencies) => Object.entries(dependencies ?? {}).flat()),
+    ]),
+    ...Object.keys(patchedDependencies ?? {}),
+  ]
 }
 
 /**

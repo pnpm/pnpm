@@ -3,7 +3,7 @@
 //! tree still works where it is now.
 
 use super::{
-    Config, Host, Lockfile, OptimisticRepeatInstallCheck, PackageManifest, Path, PathBuf,
+    Catalogs, Config, Host, Lockfile, OptimisticRepeatInstallCheck, PackageManifest, Path, PathBuf,
     WorkspaceState,
     current_lockfile::assert_loaded_current_lockfile_records,
     current_pnpmfiles,
@@ -22,6 +22,7 @@ pub(super) fn relocated_state(
     workspace_root: &Path,
     project_manifests: &[(PathBuf, &PackageManifest)],
     config: &Config,
+    catalogs: &Catalogs,
 ) -> Option<WorkspaceState> {
     if !recorded_elsewhere(state, project_manifests) {
         return None;
@@ -41,7 +42,7 @@ pub(super) fn relocated_state(
         .collect();
     // The validation records name the files where they were.
     let relocated = WorkspaceState { projects, pnpmfiles, validation: None, ..state.clone() };
-    project_structure_matches(&relocated, project_manifests, config).then_some(relocated)
+    project_structure_matches(&relocated, project_manifests, config, catalogs).then_some(relocated)
 }
 
 /// Whether no current project dir is a key of `state`.

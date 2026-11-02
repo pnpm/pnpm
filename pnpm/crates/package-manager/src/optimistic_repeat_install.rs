@@ -47,6 +47,7 @@ pub(crate) use timestamps::{
 mod current_lockfile;
 mod manifest_source;
 mod modules_dirs;
+mod project_structure;
 mod relocation;
 mod settle;
 use freshness::{
@@ -56,9 +57,8 @@ use modules_dirs::{
     SelectedReach, direct_dependency_link_dangling, first_project_missing_modules_dir,
     first_selected_project_missing_modules_dir, reached_project_dirs,
 };
-use settle::{
-    current_lockfile_file_has_content, project_structure_matches, wanted_lockfile_file_has_content,
-};
+use project_structure::project_structure_matches;
+use settle::{current_lockfile_file_has_content, wanted_lockfile_file_has_content};
 
 use std::{
     collections::HashSet,
@@ -195,6 +195,7 @@ pub(crate) fn check_optimistic_repeat_install_with_state(
         check.workspace_root,
         check.project_manifests.as_slice(),
         check.config,
+        check.catalogs,
     )
     .map_or((state, false), |relocated| (relocated, true));
     let policy = GatePolicy {

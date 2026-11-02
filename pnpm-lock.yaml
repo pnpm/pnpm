@@ -4157,6 +4157,9 @@ importers:
       '@pnpm/workspace.projects-reader':
         specifier: workspace:*
         version: link:../../workspace/projects-reader
+      '@pnpm/workspace.spec-parser':
+        specifier: workspace:*
+        version: link:../../workspace/spec-parser
       '@pnpm/workspace.state':
         specifier: workspace:*
         version: link:../../workspace/state
