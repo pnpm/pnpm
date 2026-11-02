@@ -6664,6 +6664,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "pnpm-transparency-log"
+version = "0.0.1"
+dependencies = [
+ "base64 0.23.1",
+ "derive_more",
+ "ed25519-dalek",
+ "pretty_assertions",
+ "serde",
+ "serde_json",
+ "signed_note",
+ "tlog_tiles",
+]
+
+[[package]]
 name = "pnpm-versioning"
 version = "0.0.1"
 dependencies = [
@@ -8545,6 +8559,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "signed_note"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "aee127accd55881df0c941dc799efc824cb506c38df4a95fd30c307f3bc96504"
+dependencies = [
+ "base64 0.21.7",
+ "ed25519-dalek",
+ "rand_core 0.6.4",
+ "sha2 0.10.9",
+ "signature 2.2.0",
+ "thiserror 1.0.69",
+]
+
+[[package]]
 name = "sigstore-bundle"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9493,6 +9521,20 @@ name = "tinyvec_macros"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
+
+[[package]]
+name = "tlog_tiles"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7e403c85c5336d8f18b08330749b706a9179265d7d4b111ab90a35d2a51d0e0b"
+dependencies = [
+ "base64 0.21.7",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "thiserror 1.0.69",
+ "url",
+]
 
 [[package]]
 name = "tls_codec"
