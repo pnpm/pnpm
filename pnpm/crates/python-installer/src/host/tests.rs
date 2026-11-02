@@ -38,6 +38,7 @@ fn unsupported_reflinks_fall_back_to_private_copies_and_report_copy_errors() {
         destination: temporary.path().join("destination"),
         executable: false,
         device: 0,
+        mode: None,
     };
     fs::write(&file.source, "unchanged").unwrap();
     file.import::<Unsupported>(
@@ -68,6 +69,7 @@ fn missing_reflink_sources_do_not_trigger_copy_fallback() {
         destination: temporary.path().join("destination"),
         executable: false,
         device: 0,
+        mode: None,
     };
     fs::write(&file.source, "unchanged").unwrap();
     let error = file
@@ -89,6 +91,7 @@ fn existing_reflink_targets_are_not_overwritten_by_copy_fallback() {
         destination: temporary.path().join("destination"),
         executable: false,
         device: 0,
+        mode: None,
     };
     fs::write(&file.source, "source").unwrap();
     fs::write(&file.destination, "private").unwrap();
@@ -129,6 +132,7 @@ fn explicit_clone_does_not_fall_back_to_copy() {
         destination: temporary.path().join("destination"),
         executable: false,
         device: 0,
+        mode: None,
     };
     fs::write(&file.source, "unchanged").unwrap();
     let error = file

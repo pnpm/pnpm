@@ -95,7 +95,7 @@ async fn reuses_a_persisted_checksum() {
 
     assert_eq!(cached.path, files[CARGO_CHECKSUM_FILE].path);
     #[cfg(unix)]
-    assert!(cached.mode.is_some(), "a cache hit keeps the mode its integrity check read");
+    assert!(cached.mode().is_some(), "a cache hit keeps the mode its integrity check read");
     drop(writer);
     StoreIndexWriter::drain(task, "").await;
 }

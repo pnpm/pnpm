@@ -251,7 +251,7 @@ class Environment:
         executable = bool(metadata.st_mode & 0o111)
         if self.defer_files:
             digest = hash_file(source)
-            self.imports.append({"source": str(source), "destination": str(destination), "executable": executable, "device": metadata.st_dev})
+            self.imports.append({"source": str(source), "destination": str(destination), "executable": executable, "device": metadata.st_dev, "mode": metadata.st_mode})
         else:
             with destination.open("wb") as output:
                 digest = hash_file(source, output)

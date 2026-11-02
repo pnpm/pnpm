@@ -219,10 +219,7 @@ mod restore {
     };
     use pnpm_testing_utils::turborepo_cache::TurborepoCache;
     use sha2::{Digest as _, Sha512};
-    use std::{
-        collections::{BTreeMap, HashMap, HashSet},
-        path::PathBuf,
-    };
+    use std::collections::{BTreeMap, HashMap, HashSet};
 
     const PACKAGE: &str = "native-addon";
     const SNAPSHOT: &str = "native-addon@1.0.0";
@@ -488,15 +485,27 @@ mod restore {
 
     /// Restore against a server that offers the built file, asserting that
     /// the blob endpoint was hit exactly `expected_downloads` times, and
-    /// return the path the resulting overlay maps the built file to.
-    async fn restore(store_dir: &StoreDir, expected_downloads: usize) -> PathBuf {
+    /// return the file the resulting overlay maps the built file to.
+    async fn restore(store_dir: &StoreDir, expected_downloads: usize) -> pnpm_fs::StoreFile {
         let side_effects =
             apply(store_dir, built_manifest(), built_blobs(), expected_downloads).await;
         restored_overlay(&side_effects).files
             .get(BUILT_FILE)
             .expect("the built file must be in the overlay")
-            .path
             .clone()
+    }
+
+    /// pnpm/pnpm#17543: every snapshot of the group gets a copy of the
+    /// overlay, so the mode staging read must already be on it.
+    fn assert_restored_mode_is_known(restored: &pnpm_fs::StoreFile) {
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::MetadataExt;
+            let on_disk = std::fs::metadata(&restored.path).expect("stat restored").mode();
+            assert_eq!(restored.mode().map(|mode| mode & 0o777), Some(on_disk & 0o777));
+        }
+        #[cfg(not(unix))]
+        let _ = restored;
     }
 
     /// The one overlay a restore recorded for the fixture snapshot.
@@ -685,8 +694,9 @@ mod restore {
         let (written, _) = store_dir
             .write_cas_file(built_bytes(), true)
             .expect("re-writing the same bytes names the same path");
-        assert_eq!(restored, written.path);
-        assert_eq!(std::fs::read(&restored).expect("read restored"), built_bytes());
+        assert_eq!(restored.path, written.path);
+        assert_eq!(std::fs::read(&restored.path).expect("read restored"), built_bytes());
+        assert_restored_mode_is_known(&restored);
     }
 
     /// Same restore, same server as its sibling above; only the seeded store
@@ -714,7 +724,8 @@ mod restore {
 
         let restored = restore(&store_dir, 0).await;
 
-        assert_eq!(restored, seeded.path);
+        assert_eq!(restored.path, seeded.path);
+        assert_restored_mode_is_known(&restored);
     }
 
     /// The restore above, served by a server that speaks the Turborepo Remote

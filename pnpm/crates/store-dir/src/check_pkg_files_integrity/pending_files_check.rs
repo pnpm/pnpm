@@ -22,7 +22,7 @@ impl VerifiedModes {
         }
         for file in files.values_mut() {
             if let Some(mode) = self.0.get(&file.path) {
-                file.mode = Some(*mode);
+                file.set_mode(*mode);
             }
         }
     }

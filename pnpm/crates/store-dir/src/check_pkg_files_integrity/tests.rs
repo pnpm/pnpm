@@ -142,7 +142,12 @@ fn careful_path_hands_the_mode_of_a_verified_file_to_the_files_map() {
     let result = check_pkg_files_integrity(&store_dir, entry, &VerifiedFilesCache::new());
 
     assert!(result.passed);
-    assert_eq!(result.files_map["index.js"].mode.map(|mode| mode & 0o7777), Some(0o640));
+    assert_eq!(
+        result.files_map["index.js"]
+            .mode()
+            .map(|mode| mode & 0o7777),
+        Some(0o640),
+    );
 }
 
 /// A blob an earlier row verified is trusted from the cache without a
@@ -173,7 +178,12 @@ fn a_cached_file_hands_its_verified_mode_to_a_later_row() {
     let result = check_pkg_files_integrity(&store_dir, row("LICENSE.md"), &cache);
 
     assert!(result.passed);
-    assert_eq!(result.files_map["LICENSE.md"].mode.map(|mode| mode & 0o7777), Some(0o640));
+    assert_eq!(
+        result.files_map["LICENSE.md"]
+            .mode()
+            .map(|mode| mode & 0o7777),
+        Some(0o640),
+    );
 }
 
 /// A side-effects overlay shares the base files' store paths, so it gets
@@ -216,9 +226,9 @@ fn careful_path_hands_verified_modes_to_side_effects_overlays() {
 
     assert!(result.passed);
     let overlay = &result.side_effects_maps.as_ref().unwrap()["k1"];
-    assert_eq!(overlay.files["a.js"].mode, result.files_map["a.js"].mode);
-    assert!(overlay.files["a.js"].mode.is_some());
-    assert_eq!(overlay.files["built.js"].mode, None);
+    assert_eq!(overlay.files["a.js"].mode(), result.files_map["a.js"].mode());
+    assert!(overlay.files["a.js"].mode().is_some());
+    assert_eq!(overlay.files["built.js"].mode(), None);
 }
 
 #[test]

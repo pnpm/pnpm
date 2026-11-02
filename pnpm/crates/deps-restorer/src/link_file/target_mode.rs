@@ -38,9 +38,8 @@ fn desired_mode(source_file: &Path) -> Option<u32> {
 /// copy instead; a reflink that copied the same mode onto the target is
 /// aligned instead.
 ///
-/// Uses the mode the install already read for this file (see
-/// [`StoreFile::mode`]) and reads it from disk only when there is none
-/// (pnpm/pnpm#17543).
+/// Uses the mode the install already read for this file and reads it from
+/// disk only when there is none (see [`StoreFile::mode_or_read`]).
 ///
 /// Another process changing a store entry's mode during an install (a
 /// `chmod` of the store, a backup restore, a concurrent install linking
@@ -50,10 +49,7 @@ fn desired_mode(source_file: &Path) -> Option<u32> {
 #[cfg(any(unix, target_os = "wasi"))]
 pub(super) fn source_has_desired_mode(source: &StoreFile) -> io::Result<bool> {
     let Some(desired) = desired_mode(&source.path) else { return Ok(true) };
-    let mode = match source.mode {
-        Some(mode) => mode,
-        None => source_mode(&source.path)?,
-    };
+    let mode = source.mode_or_read(source_mode)?;
     Ok(pnpm_fs::file_mode::store_inode_mode_is_linkable(mode, desired))
 }
 

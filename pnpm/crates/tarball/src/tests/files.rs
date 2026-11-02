@@ -579,15 +579,15 @@ async fn verify_rows_hands_verified_modes_to_the_row_and_its_overlays() {
         SharedVerifiedFilesCache::clone(&verified_files_cache),
     )
     .await;
-    assert_eq!(prefetched.cas_paths[&index_key]["package.json"].mode, None);
+    assert_eq!(prefetched.cas_paths[&index_key]["package.json"].mode(), None);
 
     let failed = prefetched.verify_rows([index_key.as_str()], store_path, &verified_files_cache);
 
     assert_eq!(failed, 0);
-    let mode = prefetched.cas_paths[&index_key]["package.json"].mode;
+    let mode = prefetched.cas_paths[&index_key]["package.json"].mode();
     assert!(mode.is_some(), "a passed check hands its mode to the row");
     let overlay = &prefetched.side_effects_maps[&index_key]["k1"];
-    assert_eq!(overlay.files["package.json"].mode, mode);
+    assert_eq!(overlay.files["package.json"].mode(), mode);
     drop(store_dir);
 }
 

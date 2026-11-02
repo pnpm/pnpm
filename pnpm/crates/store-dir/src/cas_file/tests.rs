@@ -375,12 +375,12 @@ fn a_cas_write_reports_the_mode_of_the_blob() {
 
     let content = b"written twice";
     let (first, _) = store_dir.write_cas_file(content, false).unwrap();
-    assert_eq!(first.mode, Some(on_disk_mode(&first)));
+    assert_eq!(first.mode(), Some(on_disk_mode(&first)));
     let streamed_content = b"streamed once";
     let (first_streamed, _, _) = store_dir
         .write_cas_file_from_reader(&mut streamed_content.as_slice(), true, None)
         .unwrap();
-    assert_eq!(first_streamed.mode, Some(on_disk_mode(&first_streamed)));
+    assert_eq!(first_streamed.mode(), Some(on_disk_mode(&first_streamed)));
 
     std::fs::set_permissions(&first.path, std::fs::Permissions::from_mode(0o640)).unwrap();
     let (buffered, _) = store_dir.write_cas_file(content, false).unwrap();
@@ -388,6 +388,16 @@ fn a_cas_write_reports_the_mode_of_the_blob() {
         .write_cas_file_from_reader(&mut content.as_slice(), false, Some(content.len() as u64))
         .unwrap();
 
-    assert_eq!(buffered.mode.map(|mode| mode & 0o7777), Some(0o640));
-    assert_eq!(streamed.mode.map(|mode| mode & 0o7777), Some(0o640));
+    assert_eq!(
+        buffered
+            .mode()
+            .map(|mode| mode & 0o7777),
+        Some(0o640),
+    );
+    assert_eq!(
+        streamed
+            .mode()
+            .map(|mode| mode & 0o7777),
+        Some(0o640),
+    );
 }
