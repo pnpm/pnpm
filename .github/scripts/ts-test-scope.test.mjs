@@ -73,7 +73,8 @@ test('TS gate includes the registry sources and fixtures used by the v11 tests',
   const workflow = readFileSync(new URL('../workflows/ci.yml', import.meta.url), 'utf8')
   const filters = workflow.split('            ts:\n')[1].split('            changesets:\n')[0]
   const patterns = filters.split('\n').map(line => line.match(/- '([^']+)'/)?.[1]).filter(Boolean)
-  for (const pattern of ['pnpm11/**', 'pnpr/**', '.github/workflows/build-pnpr.yml']) {
+  assert.ok(workflow.includes('predicate-quantifier: some-with-excludes'), 'the pnpr/docs exclusion needs some-with-excludes')
+  for (const pattern of ['!pnpr/docs/**', 'pnpm11/**', 'pnpr/**', '.github/workflows/build-pnpr.yml']) {
     assert.ok(patterns.includes(pattern), `required TS test input: ${pattern}`)
   }
 })

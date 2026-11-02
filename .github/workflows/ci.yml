@@ -50,10 +50,13 @@ jobs:
         if: github.event_name != 'merge_group'
         id: filter
         with:
+          predicate-quantifier: some-with-excludes
           # The TypeScript pnpm stack lives under pnpm11/, plus the
           # pnpr registry its tests use and workspace-root build/lint/test tooling.
           filters: |
             ts:
+              # Matches the pnpr/docs/ exemption in ts-test-scope.mjs.
+              - '!pnpr/docs/**'
               - 'pnpm11/**'
               - 'pnpr/**'
               - '.meta-updater/**'
