@@ -1,0 +1,56 @@
+{
+  "description": "os, cpu, and libc compare as sets; a single string is a list of one.",
+  "archive": {
+    "packageJson": {
+      "name": "widgets",
+      "version": "1.0.0",
+      "os": "linux",
+      "cpu": [
+        "x64",
+        "arm64"
+      ],
+      "libc": [
+        "glibc"
+      ]
+    },
+    "files": [
+      "package.json"
+    ]
+  },
+  "submitted": {
+    "name": "widgets",
+    "version": "1.0.0",
+    "os": [
+      "linux"
+    ],
+    "cpu": [
+      "arm64",
+      "x64"
+    ],
+    "libc": [
+      "musl"
+    ]
+  },
+  "expected": {
+    "manifest": {
+      "name": "widgets",
+      "version": "1.0.0",
+      "os": [
+        "linux"
+      ],
+      "cpu": [
+        "arm64",
+        "x64"
+      ],
+      "libc": [
+        "glibc"
+      ],
+      "hasInstallScript": false,
+      "hasShrinkwrap": false
+    },
+    "mismatched": [
+      "libc"
+    ],
+    "tolerated": []
+  }
+}

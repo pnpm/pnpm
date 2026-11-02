@@ -1,0 +1,47 @@
+{
+  "description": "npm expands bundleDependencies: true to the names in dependencies.",
+  "archive": {
+    "packageJson": {
+      "name": "widgets",
+      "version": "1.0.0",
+      "dependencies": {
+        "helper": "^1.0.0",
+        "other": "^2.0.0"
+      },
+      "bundleDependencies": true
+    },
+    "files": [
+      "package.json"
+    ]
+  },
+  "submitted": {
+    "name": "widgets",
+    "version": "1.0.0",
+    "dependencies": {
+      "helper": "^1.0.0",
+      "other": "^2.0.0"
+    },
+    "bundledDependencies": [
+      "other",
+      "helper"
+    ]
+  },
+  "expected": {
+    "manifest": {
+      "name": "widgets",
+      "version": "1.0.0",
+      "dependencies": {
+        "helper": "^1.0.0",
+        "other": "^2.0.0"
+      },
+      "bundleDependencies": [
+        "helper",
+        "other"
+      ],
+      "hasInstallScript": false,
+      "hasShrinkwrap": false
+    },
+    "mismatched": [],
+    "tolerated": []
+  }
+}
