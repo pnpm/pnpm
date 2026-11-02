@@ -100,6 +100,9 @@ impl Platform {
             node_abi: parts.take(parse_node_abi)?,
             wasm32: false,
         };
+        if platform.napi.is_some() && platform.node_abi.is_some() {
+            return Err(parts.rejects("names both an N-API floor and an ABI"));
+        }
         match parts.parts.next() {
             Some(_) => Err(parts.rejects("has an unknown or misplaced part")),
             None => Ok(platform),

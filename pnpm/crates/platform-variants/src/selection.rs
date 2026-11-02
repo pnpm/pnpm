@@ -37,19 +37,34 @@ pub struct HostFloors {
     pub node_abi: Option<NodeAbi>,
 }
 
-/// Whether a host meets `floor`. A floor the host's value is unknown for
-/// matches, so a platform listed in `supportedArchitectures` without
-/// versions fetches its variants.
-fn meets<Value: Ord>(floor: Option<Value>, host: Option<Value>) -> bool {
+/// Why a platform is matched against a host.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Purpose {
+    /// Choosing the archive to link: a floor or ABI whose host value is
+    /// unknown is not met, since linking an archive the host may not run is
+    /// worse than linking the primary.
+    Link,
+    /// Choosing the archives to fetch for a platform other than the host,
+    /// such as one named in `supportedArchitectures`: a floor or ABI whose
+    /// value that platform does not state is met, since an extra archive only
+    /// costs disk and a missing one makes an offline install fail.
+    Fetch,
+}
+
+/// Whether a host meets `floor`, given whether an unknown host value counts.
+fn meets<Value: Ord>(floor: Option<Value>, host: Option<Value>, purpose: Purpose) -> bool {
     match (floor, host) {
+        (None, _) => true,
         (Some(floor), Some(host)) => host >= floor,
-        _ => true,
+        (Some(_), None) => purpose == Purpose::Fetch,
     }
 }
 
 impl Platform {
-    /// The number of fields a host matches when it matches this platform.
-    fn field_count(&self) -> usize {
+    /// The number of explicit constraints a host matches when it matches
+    /// this platform: `os`, `cpu`, Linux `libc` (glibc included), each floor,
+    /// and the ABI constraint once.
+    fn constraint_count(&self) -> usize {
         if self.wasm32 {
             return 1;
         }
@@ -57,14 +72,18 @@ impl Platform {
         2 + usize::from(libc)
             + usize::from(self.libc_version.is_some())
             + usize::from(self.os_version.is_some())
-            + usize::from(self.napi.is_some())
-            + usize::from(self.node_abi.is_some())
+            + usize::from(self.napi.is_some() || self.node_abi.is_some())
     }
 
-    /// Whether `host` runs this platform. An unknown ABI does not match,
-    /// since loading the wrong one fails.
+    /// Whether `host` runs this platform, for choosing the archive to link.
     #[must_use]
     pub fn matches(&self, host: &Host) -> bool {
+        self.matches_for(host, Purpose::Link)
+    }
+
+    /// Whether this platform matches `host` for `purpose`.
+    #[must_use]
+    pub fn matches_for(&self, host: &Host, purpose: Purpose) -> bool {
         if self.wasm32 {
             return true;
         }
@@ -72,7 +91,10 @@ impl Platform {
             && self.cpu.as_deref() == Some(host.cpu.as_str())
             && self.effective_libc() == host.effective_libc()
             && (!self.has_floor()
-                || self.meets_floors(&host.floors.unwrap_or_else(super::host_floors::detect)))
+                || self.meets_floors(
+                    &host.floors.unwrap_or_else(super::host_floors::detect),
+                    purpose,
+                ))
     }
 
     fn has_floor(&self) -> bool {
@@ -82,22 +104,32 @@ impl Platform {
             || self.node_abi.is_some()
     }
 
-    fn meets_floors(&self, floors: &HostFloors) -> bool {
-        meets(self.libc_version, floors.libc_version)
-            && meets(self.os_version, floors.os_version)
-            && meets(self.napi, floors.napi)
-            && self.node_abi.is_none_or(|abi| floors.node_abi == Some(abi))
+    fn meets_floors(&self, floors: &HostFloors, purpose: Purpose) -> bool {
+        meets(self.libc_version, floors.libc_version, purpose)
+            && meets(self.os_version, floors.os_version, purpose)
+            && meets(self.napi, floors.napi, purpose)
+            && self.node_abi.is_none_or(|abi| match floors.node_abi {
+                Some(host) => host == abi,
+                None => purpose == Purpose::Fetch,
+            })
     }
 
-    /// How well this platform fits a host it matches: more matched fields,
-    /// then the highest glibc, OS, and N-API floors. `wasm32` ranks last.
+    /// How well this platform fits a host it matches: native above `wasm32`,
+    /// then more explicit constraints, then the highest glibc and OS floors,
+    /// then an exact ABI above an N-API floor above no ABI constraint, and the
+    /// highest N-API floor.
     fn rank(&self) -> Rank {
+        let abi = match (self.node_abi, self.napi) {
+            (Some(_), _) => (2, 0),
+            (None, Some(napi)) => (1, napi),
+            (None, None) => (0, 0),
+        };
         Rank {
             native: !self.wasm32,
-            fields: self.field_count(),
+            constraints: self.constraint_count(),
             libc_version: self.libc_version,
             os_version: self.os_version,
-            napi: self.napi,
+            abi,
         }
     }
 }
@@ -105,10 +137,11 @@ impl Platform {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 struct Rank {
     native: bool,
-    fields: usize,
+    constraints: usize,
     libc_version: Option<Floor>,
     os_version: Option<Floor>,
-    napi: Option<u32>,
+    /// An exact `nodeAbi` (2), an N-API floor (1, with the floor), or none.
+    abi: (u8, u32),
 }
 
 /// Two variants fit a host equally well. Publication rejects versions where
@@ -153,19 +186,4 @@ where
         (Some((_, first)), Some(second)) => Err(AmbiguousSelection { first, second }),
         (best, _) => Ok(best.map(|(_, index)| index)),
     }
-}
-
-/// The variants' order in the lockfile: native before `wasm32`, then by the
-/// rank of each variant's best platform, highest first.
-#[must_use]
-pub fn selection_order(variants: &[&[Platform]]) -> Vec<usize> {
-    let best = |platforms: &[Platform]| {
-        platforms
-            .iter()
-            .map(Platform::rank)
-            .max()
-    };
-    let mut order: Vec<usize> = (0..variants.len()).collect();
-    order.sort_by(|&a, &b| best(variants[b]).cmp(&best(variants[a])));
-    order
 }

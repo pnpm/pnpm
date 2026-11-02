@@ -5,13 +5,14 @@ use super::{
 use pnpm_lockfile::{
     PlatformAssetResolution, PlatformAssetTarget, TarballRevision, VariationsResolution,
 };
-use pnpm_platform_variants::{Platform, selection_order};
+use pnpm_platform_variants::{Platform, variant_tag};
 use pnpm_registry::PnprVariant;
 
 /// Wrap the primary `resolution` in a `variations` resolution when pnpr's
 /// document lists platform variants for the version. The primary becomes
-/// the fallback for a host no variant matches. The variants are ordered by
-/// the selection rule, best first.
+/// the fallback for a host no variant matches. The variants are written in
+/// the byte order of their tags: the installer ranks them for the host, so
+/// their order chooses nothing and only has to be the same everywhere.
 pub(super) fn with_platform_variants(
     resolution: LockfileResolution,
     picked: &PackageVersion,
@@ -34,19 +35,9 @@ pub(super) fn with_platform_variants(
     if selectable.is_empty() {
         return Ok(resolution);
     }
-    let order = selection_order(
-        &selectable
-            .iter()
-            .map(|(_, platforms)| platforms.as_slice())
-            .collect::<Vec<_>>(),
-    );
-    let mut slots: Vec<_> = selectable
+    selectable.sort_by_cached_key(|(_, platforms)| variant_tag(platforms).unwrap_or_default());
+    let variants = selectable
         .into_iter()
-        .map(Some)
-        .collect();
-    let variants = order
-        .into_iter()
-        .filter_map(|index| slots[index].take())
         .map(|(variant, _)| variant)
         .collect();
     Ok(LockfileResolution::Variations(VariationsResolution {

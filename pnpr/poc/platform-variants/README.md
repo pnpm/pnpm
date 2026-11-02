@@ -45,16 +45,21 @@ pnpr:
 pnpm:
 
 - The npm resolver turns pnpr's `variants` into a `variations` resolution
-  with the primary as `fallback`, ordered best first. The lockfile stores no
+  with the primary as `fallback`, in the byte order of the variants' tags,
+  since the installer ranks them for the host. The lockfile stores no
   tag: pnpm derives it from each variant's `targets`, which carry the floor
   and ABI fields. A revision-aware version records `revision` on the
   `variations` resolution, and its variants are fetched from their `+r<N>`
   route. A variant with a platform field pnpm does not know is left out.
-- A package's variant is selected by the RFC's rule: more matched fields,
-  then the highest glibc, OS, and N-API floors, then `wasm32`, then the
-  primary; two variants that fit equally well fail the install. pnpm
-  probes the host's glibc, macOS, N-API, and ABI versions once. Runtimes
-  (Node.js, Bun, Deno) keep their first-match selection.
+- A package's variant is selected by the RFC's rule, comparing each
+  variant's best matching target: native above `wasm32`, then more explicit
+  constraints, then the highest glibc and OS floors, then an exact Node.js ABI
+  above an N-API floor, and the highest N-API floor; the primary only when no
+  variant matches. Two variants that fit equally well fail the install. A
+  floor or ABI pnpm cannot read for the host is not met, so the primary is
+  linked instead. pnpm probes the host's glibc, macOS, N-API, and ABI versions
+  only when a variant has such a field. Runtimes (Node.js, Bun, Deno) keep
+  their first-match selection.
 - Every archive's dependencies are resolved on every machine. The version's
   snapshot keeps those its primary declares, and a variant whose resolved
   snapshot differs gets `<name>@<version>/variants/<tag>(<peers>)`. Before

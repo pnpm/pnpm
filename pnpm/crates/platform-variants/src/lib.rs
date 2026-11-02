@@ -8,7 +8,7 @@
 //! with [`select`].
 
 pub use manifests::variant_manifests;
-pub use selection::{AmbiguousSelection, Host, HostFloors, select, selection_order};
+pub use selection::{AmbiguousSelection, Host, HostFloors, Purpose, select};
 pub use tag::{is_valid_variant_tag, variant_tag};
 
 mod host_floors;

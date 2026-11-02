@@ -1,5 +1,5 @@
 use super::{
-    AmbiguousSelection, Floor, Host, HostFloors, Libc, NodeAbi, Platform, select,
+    AmbiguousSelection, Floor, Host, HostFloors, Libc, NodeAbi, Platform, Purpose, select,
     variant_manifests, variant_tag,
 };
 use pretty_assertions::assert_eq;
@@ -30,6 +30,7 @@ fn canonical_tags_round_trip() {
         "linux-arm64-node127",
         "darwin-arm64-macos_11_0",
         "win32-x64-windows_10_0-electron130",
+        "linux-x64-napi8",
         "freebsd-x64",
         "wasm32",
     ] {
@@ -66,6 +67,7 @@ fn rejects_non_canonical_tags() {
         "linux-x64-napi8-musl",
         "linux-X64",
         "linux-x64-",
+        "linux-x64-napi8-node127",
     ] {
         assert!(Platform::parse_tag(value).is_err(), "{value} parsed");
     }
@@ -151,4 +153,44 @@ fn variant_manifests_apply_each_difference() {
     assert_eq!(variants[0].0, "linux-x64");
     assert_eq!(variants[0].1["dependencies"], serde_json::json!({ "a": "1", "b": "2" }));
     assert!(variants[0].1.get("engines").is_none());
+}
+
+#[test]
+fn an_exact_abi_ranks_above_an_napi_floor() {
+    let napi = [tag("linux-x64-napi8")];
+    let abi = [tag("linux-x64-node127")];
+    let variants: [&[Platform]; 2] = [&napi, &abi];
+    let mut host = linux_host(None, None, Some(10));
+    host.floors.as_mut().unwrap().node_abi = Some(NodeAbi::Node(127));
+    assert_eq!(select(variants, &host), Ok(Some(1)));
+}
+
+#[test]
+fn an_unknown_floor_is_not_met_for_linking_but_is_for_fetching() {
+    let floored = tag("linux-x64-manylinux_2_28");
+    let unknown = linux_host(None, None, None);
+    assert!(!floored.matches(&unknown));
+    assert!(floored.matches_for(&unknown, Purpose::Fetch));
+    let variants: [&[Platform]; 1] = [&[floored]];
+    assert_eq!(select(variants, &unknown), Ok(None));
+}
+
+#[test]
+fn the_rfc_counterexample_ranks_per_host() {
+    // A covers linux-x64 and darwin-arm64-napi9; B covers linux-x64-napi8 and
+    // darwin-arm64. No single order of A and B picks right on both hosts.
+    let variant_a = [tag("linux-x64"), tag("darwin-arm64-napi9")];
+    let variant_b = [tag("linux-x64-napi8"), tag("darwin-arm64")];
+    let linux = linux_host(None, None, Some(9));
+    let darwin = Host {
+        os: "darwin".into(),
+        cpu: "arm64".into(),
+        libc: None,
+        floors: Some(HostFloors { napi: Some(9), ..HostFloors::default() }),
+    };
+    for variants in [[&variant_a[..], &variant_b[..]], [&variant_b[..], &variant_a[..]]] {
+        let b_index = usize::from(variants[0] != &variant_b[..]);
+        assert_eq!(select(variants, &linux), Ok(Some(b_index)));
+        assert_eq!(select(variants, &darwin), Ok(Some(1 - b_index)));
+    }
 }
