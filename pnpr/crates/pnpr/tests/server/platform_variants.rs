@@ -53,6 +53,16 @@ fn variant_manifest(platforms: &[&str], extra: &Value) -> Value {
 
 /// A publish of the primary and `variants`, each `(label, .tgz)`.
 fn publish_request(primary: &[u8], variants: &[(&str, &[u8])], token: &str) -> Request<Body> {
+    publish_request_with(Some(primary), variants, token)
+}
+
+/// [`publish_request`], with the primary attached only when given: the
+/// version's manifest still names the primary's integrity.
+fn publish_request_with(
+    primary: Option<&[u8]>,
+    variants: &[(&str, &[u8])],
+    token: &str,
+) -> Request<Body> {
     use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 
     let attachment = |data: &[u8]| {
@@ -63,7 +73,11 @@ fn publish_request(primary: &[u8], variants: &[(&str, &[u8])], token: &str) -> R
         })
     };
     let mut attachments = serde_json::Map::new();
-    attachments.insert("@acme/fast-1.0.0.tgz".into(), attachment(primary));
+    let (_, default_primary) = archive(&primary_manifest(), "primary");
+    let integrity = sha512_integrity(primary.unwrap_or(&default_primary));
+    if let Some(primary) = primary {
+        attachments.insert("@acme/fast-1.0.0.tgz".into(), attachment(primary));
+    }
     let mut references = serde_json::Map::new();
     for (label, tgz) in variants {
         attachments.insert(format!("@acme/fast-1.0.0~{label}.tgz"), attachment(tgz));
@@ -72,7 +86,7 @@ fn publish_request(primary: &[u8], variants: &[(&str, &[u8])], token: &str) -> R
     let mut manifest = primary_manifest();
     manifest["dist"] = json!({
         "tarball": "http://example.test/@acme/fast/-/fast-1.0.0.tgz",
-        "integrity": sha512_integrity(primary),
+        "integrity": integrity,
     });
     manifest["pnprVariants"] = Value::Object(references);
     let body = json!({
@@ -270,8 +284,8 @@ async fn variants_are_served_from_sqlite_metadata() {
     }
 }
 
-/// A variant is checked against the `package.json` a client installs: the
-/// last root manifest in the archive, not the first.
+/// An archive with two root manifests is refused: a variant is checked
+/// against the one `package.json` a client installs.
 #[tokio::test]
 async fn a_variant_is_checked_against_the_manifest_clients_install() {
     let (_tmp, app, token) = setup().await;
@@ -290,7 +304,7 @@ async fn a_variant_is_checked_against_the_manifest_clients_install() {
         .unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
     let reason = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
-    assert!(reason.contains("variant"), "{reason}");
+    assert!(reason.contains("ambiguous"), "{reason}");
 }
 
 /// npm's documents leave the stored variants out, and a deprecation writes
@@ -327,4 +341,56 @@ async fn a_rewrite_from_npms_document_keeps_the_variants() {
     let response = get(&app, "/npm/~main/@acme/fast@1.0.0/variants/linux-x64-musl", None).await;
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(body_bytes(response.into_body()).await, musl_tar);
+}
+
+/// The variant set is part of the immutable version: variants come only
+/// with their version's primary archive, whose own manifest has to describe
+/// the published version.
+#[tokio::test]
+async fn variants_come_only_with_a_primary_archive_they_agree_with() {
+    let (_tmp, app, token) = setup().await;
+    let (_, primary) = archive(&primary_manifest(), "primary");
+    let response = app
+        .clone()
+        .oneshot(publish_request(&primary, &[], &token))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED);
+    let (_, musl) = archive(&variant_manifest(&["linux-x64-musl"], &json!({})), "musl");
+    let response = app
+        .clone()
+        .oneshot(publish_request_with(None, &[("musl", &musl)], &token))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST, "variants for a hosted version");
+    let reason = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
+    assert!(reason.contains("only with its primary archive"), "{reason}");
+
+    let (_tmp, app, token) = setup().await;
+    let mut peers = primary_manifest();
+    peers["peerDependencies"] = json!({ "react": "*" });
+    let (_, primary) = archive(&peers, "primary");
+    let response = app
+        .clone()
+        .oneshot(publish_request(&primary, &[("musl", &musl)], &token))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    let reason = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
+    assert!(reason.contains("peerDependencies"), "{reason}");
+
+    let (_tmp, app, token) = setup().await;
+    for (field, value) in [("version", "2.0.0"), ("name", "@acme/other")] {
+        let mut renamed = primary_manifest();
+        renamed[field] = json!(value);
+        let (_, primary) = archive(&renamed, "primary");
+        let response = app
+            .clone()
+            .oneshot(publish_request(&primary, &[("musl", &musl)], &token))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST, "{field}");
+        let reason = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
+        assert!(reason.contains(field), "{field}: {reason}");
+    }
 }

@@ -9,8 +9,9 @@ use super::{
     resolve_write_target,
     tombstones::{check_publish_tombstone, check_staged_tombstone},
     variants::{self, Declarations, PublishedVariant, VariantTar},
+    verification::verify_published_manifests,
 };
-use slot_writes::{AttachmentPaths, DerivedTgz, write_under_permit};
+use slot_writes::{AttachmentPaths, write_under_permit};
 use std::sync::Arc;
 use tokio::sync::Semaphore;
 
@@ -94,8 +95,8 @@ pub(in super::super) async fn validate_publish_doc(
     check_publish_tombstone(state, identity, &storage, &name).await?;
 
     let attachments = extract_attachments(&mut incoming)?;
-    record_publisher(&mut incoming, identity);
     let variants = variants::take_declarations(&mut incoming)?;
+    record_publisher(&mut incoming, identity);
 
     // Validate attachment filenames against the package and parse their
     // canonical storage filename, matching version, and payload kind.
@@ -198,6 +199,9 @@ pub(in super::super) struct StagedPublish {
     pub(in super::super) org: Option<String>,
     /// Who published it, recorded with every dist-tag the document moves.
     pub(in super::super) publisher: Option<String>,
+    /// What the publisher should hear about a publish that was accepted with
+    /// a difference, sent back as `npm-notice` response headers.
+    pub(in super::super) notices: Vec<String>,
 }
 
 /// Merge the incoming packument with the on-disk / upstream state
@@ -232,7 +236,7 @@ pub(in super::super) async fn stage_publish(
 
     check_publishable_versions(&name, &incoming, hosted.as_ref(), &prepared)?;
 
-    let mut merged = prepare_staged_document(&name, hosted.as_ref(), &incoming, &prepared, now_iso);
+    let merged = prepare_staged_document(&name, hosted.as_ref(), &incoming, &prepared, now_iso);
     // `incoming` is no longer needed; drop it so the base64 strings
     // inside go away as soon as `prepared` (which owns each one) is
     // drained below.
@@ -245,17 +249,50 @@ pub(in super::super) async fn stage_publish(
     let written =
         write_attachment_slots(&storage, &name, prepared, tarballs, &state.inner.proxy.tar_decodes)
             .await?;
-    let written = variants::attach_written_variants(&mut merged, &variants, written).await?;
-    let document = serialize_staged_document(merged, &written.tars);
+    let verified = verified_document(&name, (merged, &variants), written).await?;
     Ok(StagedPublish {
         name,
         ecosystem: Ecosystem::Npm,
-        document,
+        document: verified.document,
         base_version,
-        slots: written.slots,
+        slots: verified.slots,
         org: org.map(str::to_string),
         publisher,
+        notices: verified.notices,
     })
+}
+
+/// A publish document whose archives agree with its version metadata.
+struct VerifiedDocument {
+    document: Vec<u8>,
+    slots: Vec<pnpr_storage::BlobSlot>,
+    notices: Vec<String>,
+}
+
+/// Verify every archive `written` holds against the version metadata in
+/// `merged`, record the verified variants `declared` on it, and serialize
+/// the verified document. A refused archive removes the written slots.
+async fn verified_document(
+    name: &CanonicalPackageName,
+    (mut merged, declared): (Value, &Declarations),
+    written: WrittenAttachments,
+) -> Result<VerifiedDocument, RegistryError> {
+    let verified = verify_published_manifests(name, &mut merged, &written.tars)
+        .and_then(|notices| {
+            variants::attach_variants(&mut merged, declared, &written.variants, &written.tars)?;
+            Ok(notices)
+        });
+    match verified {
+        Ok(notices) => Ok(VerifiedDocument {
+            document: serialize_staged_document(merged, &written.tars),
+            slots: written.slots,
+            notices,
+        }),
+        Err(err) => {
+            cleanup_tmp_slots(written.slots).await;
+            Err(err)
+        }
+    }
 }
 
 /// The blob slots a publish wrote, and the tar each of its `.tgz` files
@@ -270,8 +307,19 @@ pub(super) struct WrittenAttachments {
 pub(super) struct PublishedTar {
     pub(super) version: String,
     pub(super) inspection: pnpm_tarball::TarInspection,
+    /// What the tar holds that the version's manifest is derived from.
+    pub(super) archive: pnpm_tarball::PublicationArchive,
     /// Set for a platform variant's `.tgz`.
     pub(super) variant: Option<VariantTar>,
+}
+
+/// What a published `.tgz` decodes to: the key its tar integrity is recorded
+/// under, the tar's integrity and metadata, and its manifest inputs.
+pub(super) struct TarDerivation {
+    tgz_integrity: Option<String>,
+    integrity: Integrity,
+    inspection: pnpm_tarball::TarInspection,
+    archive: pnpm_tarball::PublicationArchive,
 }
 
 /// Write every attachment into its reserved blob slot. A failure removes
@@ -308,11 +356,11 @@ pub(super) async fn write_attachment_slots(
 }
 
 /// Stream-decode, verify and write one tarball into a reserved slot, and
-/// derive the tar a `.tgz` decodes to. A mismatch, or a missing integrity
-/// field, fails with a 400. A `.tgz` that does not decode in full has no tar
-/// and is published without one, except under [`TarballStorage::Tar`], which
-/// stores the tar in the slot and fails such a `.tgz` with a 400. A tarball
-/// holds a permit from `decodes` until its tar is hashed.
+/// derive the tar a `.tgz` decodes to and the manifest inputs it holds. A
+/// mismatch, a missing integrity field, or a `.tgz` that does not decode in
+/// full to a readable package archive fails with a 400. Under
+/// [`TarballStorage::Tar`] the slot holds the tar. A tarball holds a permit
+/// from `decodes` until its tar is read.
 pub(super) async fn write_attachment_slot(
     storage: &Storage,
     name: &CanonicalPackageName,
@@ -341,20 +389,27 @@ pub(super) async fn write_attachment_slot(
             return Err(RegistryError::Io(std::io::Error::other(join_err.to_string())));
         }
     };
-    let Some(derived) = derived else {
-        let slot = variants::keep_undecoded(slot, prepared.kind, &prepared.canonical).await?;
-        return Ok((slot, None));
-    };
-    if let Err(err) = record_published_tar(storage, name, &derived, stores_tar).await {
-        let _ = tokio::fs::remove_file(&slot.tmp_path).await;
-        return Err(err);
+    let Some(derived) = derived else { return Ok((slot, None)) };
+    if let Some(tgz_integrity) = &derived.tgz_integrity {
+        let recorded = record_published_tar(storage, name, tgz_integrity, &derived, stores_tar);
+        if let Err(err) = recorded.await {
+            let _ = tokio::fs::remove_file(&slot.tmp_path).await;
+            return Err(err);
+        }
     }
-    let variant =
-        variants::variant_tar(prepared.variant_label, &derived.integrity, derived.manifest);
-    Ok((
-        slot,
-        Some(PublishedTar { version: prepared.version, inspection: derived.inspection, variant }),
-    ))
+    Ok((slot, Some(PublishedTar::of(prepared.version, prepared.variant_label, derived))))
+}
+
+impl PublishedTar {
+    /// The tar `derived` describes, a platform variant's when the attachment
+    /// has a variant label.
+    fn of(version: String, variant_label: Option<String>, derived: TarDerivation) -> Self {
+        let variant = variant_label.map(|label| {
+            variants::variant_tar(label, &derived.integrity, &derived.archive)
+        });
+        let TarDerivation { inspection, archive, .. } = derived;
+        PublishedTar { version, inspection, archive, variant }
+    }
 }
 
 /// Record the tar a published `.tgz` decodes to. A failure only warns: a tar
@@ -364,18 +419,19 @@ pub(super) async fn write_attachment_slot(
 async fn record_published_tar(
     storage: &Storage,
     name: &CanonicalPackageName,
-    tgz: &DerivedTgz,
+    tgz_integrity: &str,
+    derived: &TarDerivation,
     stores_tar: bool,
 ) -> Result<(), RegistryError> {
-    let inspection = &tgz.inspection;
+    let inspection = &derived.inspection;
     let derived = pnpr_storage::DerivedTar::new(
-        tgz.integrity.to_string(),
+        derived.integrity.to_string(),
         inspection.requires_build,
         inspection.file_count,
         inspection.unpacked_size,
     )
     .with_bins(inspection.bins.clone());
-    let Err(err) = storage.record_tar_integrity(name, &tgz.tgz_integrity, derived).await else {
+    let Err(err) = storage.record_tar_integrity(name, tgz_integrity, derived).await else {
         return Ok(());
     };
     tracing::warn!(?err, package = %name.as_str(), "recording a tar integrity failed");

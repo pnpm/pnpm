@@ -5,7 +5,8 @@
 use std::collections::HashMap;
 
 use pnpm_lockfile::{
-    Lockfile, LockfileResolution, PackageKey, PlatformSelector, SelectedVariant, SnapshotEntry,
+    Lockfile, LockfileResolution, PackageKey, PlatformSelector, Prefix, SelectedVariant,
+    SnapshotEntry, VersionPart,
 };
 
 const VARIANT_SEGMENT: &str = "/variants/";
@@ -81,21 +82,29 @@ fn is_variant_key(key: &PackageKey) -> bool {
 
 /// `<name>@<version>/variants/<tag>(<peers>)` as the version's own key,
 /// `<name>@<version>(<peers>)`, and the tag. Only a registry version has
-/// variants, so the part before `/variants/` must end in a semver version: a
-/// `file:` path or a URL that happens to hold `/variants/` is no variant key.
+/// variants, so the version's own key must name a semver version, from the
+/// default registry or a named one: a `file:` path, a URL, or a runtime
+/// that happens to hold `/variants/` is no variant key.
 fn split_variant_key(key: &PackageKey) -> Option<(PackageKey, String)> {
     let key = key.to_string();
     let start = key.find(VARIANT_SEGMENT)?;
-    let (_, version) = key[1..start].rsplit_once('@')?;
-    node_semver::Version::parse(version).ok()?;
+    // The variant part comes before any peer suffix: a `/variants/` inside
+    // one belongs to a peer's version.
+    if key[..start].contains('(') {
+        return None;
+    }
     let rest = &key[start + VARIANT_SEGMENT.len()..];
     let end = rest.find('(').unwrap_or(rest.len());
     let tag = &rest[..end];
     if tag.is_empty() || tag.contains('/') {
         return None;
     }
-    let base = format!("{}{}", &key[..start], &rest[end..]);
-    Some((base.parse().ok()?, tag.to_string()))
+    let base: PackageKey = format!("{}{}", &key[..start], &rest[end..]).parse().ok()?;
+    let registry_version = matches!(
+        base.suffix.version(),
+        VersionPart::Semver(_) | VersionPart::RegistryQualified { .. },
+    );
+    (registry_version && base.suffix.prefix() == Prefix::None).then(|| (base, tag.to_string()))
 }
 
 #[cfg(test)]

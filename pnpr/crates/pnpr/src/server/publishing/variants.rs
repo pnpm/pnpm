@@ -18,14 +18,14 @@
 //! publication.
 
 pub(super) use declarations::take_declarations;
+pub(super) use verification::attach_variants;
 
 mod declarations;
 mod verification;
 
 use super::{
     Integrity, PendingAttachment,
-    attachments::{AttachmentKind, PreparedAttachment, PublishedTar, WrittenAttachments},
-    cleanup_tmp_slots,
+    attachments::{AttachmentKind, PreparedAttachment, PublishedTar},
 };
 use pnpr_error::RegistryError;
 use pnpr_package_name::CanonicalPackageName;
@@ -169,28 +169,33 @@ fn attachment_dist(
         })
 }
 
-/// Keep the slot of a `.tgz` that does not decode to a tar. A variant must
-/// decode, so its slot is removed and the publish fails.
-pub(super) async fn keep_undecoded(
-    slot: pnpr_storage::BlobSlot,
-    kind: AttachmentKind,
-    canonical: &str,
-) -> Result<pnpr_storage::BlobSlot, RegistryError> {
-    if kind != AttachmentKind::Variant {
-        return Ok(slot);
-    }
-    let _ = tokio::fs::remove_file(&slot.tmp_path).await;
-    Err(bad_request(format!("{canonical} does not decode to a tar")))
-}
-
-/// What a variant's `.tgz` derived, with the root `package.json` its tar
-/// scan read as extraction reads it; `None` for any other attachment.
+/// What a variant's `.tgz` derived, with the root `package.json` an
+/// installer selects from its archive, its install-critical fields
+/// normalized as the version's are, so the two compare field for field.
 pub(super) fn variant_tar(
-    label: Option<String>,
+    label: String,
     integrity: &Integrity,
-    manifest: Option<Value>,
-) -> Option<VariantTar> {
-    label.map(|label| VariantTar { label, tar_integrity: integrity.to_string(), manifest })
+    archive: &pnpm_tarball::PublicationArchive,
+) -> VariantTar {
+    let manifest = pnpm_package_manifest::parse_manifest_bytes(&archive.manifest)
+        .ok()
+        .and_then(|manifest| match manifest {
+            Value::Object(mut fields) => {
+                let facts = pnpm_package_manifest::ArchiveFacts {
+                    binding_gyp: archive.binding_gyp,
+                    has_shrinkwrap: archive.shrinkwrap_integrity.is_some(),
+                    files: &archive.files,
+                };
+                let derived = pnpm_package_manifest::InstallManifest::derive(
+                    &Value::Object(fields.clone()),
+                    facts,
+                );
+                derived.write_to_version(&mut fields);
+                Some(Value::Object(fields))
+            }
+            _ => None,
+        });
+    VariantTar { label, tar_integrity: integrity.to_string(), manifest }
 }
 
 /// Split a variant's tar from the tars of primary `.tgz` files.
@@ -200,24 +205,10 @@ pub(super) fn split_variant(tar: PublishedTar) -> Result<PublishedVariant, Publi
             version,
             inspection,
             variant: Some(tar),
+            ..
         } => Ok(PublishedVariant { version, tar, inspection }),
         tar => Err(tar),
     }
-}
-
-/// Record the written variants on the merged document (see
-/// [`verification::attach_variants`]). A failure removes every written slot.
-pub(super) async fn attach_written_variants(
-    merged: &mut Value,
-    declared: &Declarations,
-    mut written: WrittenAttachments,
-) -> Result<WrittenAttachments, RegistryError> {
-    let published = std::mem::take(&mut written.variants);
-    if let Err(err) = verification::attach_variants(merged, declared, &published) {
-        cleanup_tmp_slots(written.slots).await;
-        return Err(err);
-    }
-    Ok(written)
 }
 
 /// Move each version's stored variants into `dist.pnpr.variants`, where

@@ -1,12 +1,12 @@
-//! Writing an attachment into its blob slot, and deriving the tar a `.tgz`
+//! Writing an attachment into its blob slot, and deriving what a `.tgz`
 //! decodes to while a decode permit is held.
 
 use super::{
     super::{
-        stream_decode_verify_and_write, tar_integrity_and_manifest_of, tgz_integrity_key,
-        write_sigstore_bundle,
+        stream_decode_verify_and_write, tar_integrity_of, tgz_integrity_key,
+        verification::read_archive, write_sigstore_bundle,
     },
-    AttachmentKind, Integrity, PendingAttachment, RegistryError, Value,
+    AttachmentKind, PendingAttachment, RegistryError, TarDerivation, Value,
 };
 use std::sync::Arc;
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
@@ -39,7 +39,7 @@ pub(super) async fn write_under_permit(
     dist: Value,
     paths: AttachmentPaths,
     decodes: &Arc<Semaphore>,
-) -> Result<Result<Option<DerivedTgz>, RegistryError>, tokio::task::JoinError> {
+) -> Result<Result<Option<TarDerivation>, RegistryError>, tokio::task::JoinError> {
     let permit = match kind {
         AttachmentKind::Tarball | AttachmentKind::Variant => Some(
             Arc::clone(decodes)
@@ -55,9 +55,11 @@ pub(super) async fn write_under_permit(
             write_and_derive_tar(&attachment, kind, &dist, &paths.attachment, permit.as_ref());
         let Some(tar_path) = &paths.tar else { return derived };
         let stored = derived.and_then(|derived| {
-            let derived = derived.ok_or_else(|| RegistryError::BadRequest {
-                reason: format!("{} does not decode to a tar", attachment.filename),
-            })?;
+            let derived = derived
+                .filter(|derived| derived.tgz_integrity.is_some())
+                .ok_or_else(|| RegistryError::BadRequest {
+                    reason: format!("{} does not decode to a tar", attachment.filename),
+                })?;
             encode_stored_tar(&paths.attachment, tar_path)?;
             Ok(Some(derived))
         });
@@ -67,46 +69,34 @@ pub(super) async fn write_under_permit(
     .await
 }
 
-/// What a published `.tgz` derives.
-pub(super) struct DerivedTgz {
-    /// The `.tgz` integrity, as the tar-integrity table keys it.
-    pub(super) tgz_integrity: String,
-    /// The integrity of the tar it decodes to.
-    pub(super) integrity: Integrity,
-    pub(super) inspection: pnpm_tarball::TarInspection,
-    /// Its root `package.json`, read as extraction reads it.
-    pub(super) manifest: Option<Value>,
-}
-
-/// Write the attachment to `tmp_path`, and for a `.tgz` return what it
-/// derives. `_decode` is held until the tar is hashed and inspected.
+/// Write the attachment to `tmp_path`, and for a `.tgz` derive what it
+/// decodes to. A `.tgz` that does not decode in full to a tar, or whose tar
+/// does not name its manifest unambiguously, fails with a 400: its manifest
+/// cannot be verified. `_decode` is held until the tar is read.
 fn write_and_derive_tar(
     attachment: &PendingAttachment,
     kind: AttachmentKind,
     dist: &Value,
     tmp_path: &std::path::Path,
     _decode: Option<&OwnedSemaphorePermit>,
-) -> Result<Option<DerivedTgz>, RegistryError> {
+) -> Result<Option<TarDerivation>, RegistryError> {
     decode_and_write_attachment(attachment, kind, dist, tmp_path)?;
     if kind == AttachmentKind::Sigstore {
         return Ok(None);
     }
-    let Some(tgz_integrity) = dist.as_object().and_then(tgz_integrity_key) else {
-        return Ok(None);
-    };
     let tgz = std::fs::File::open(tmp_path)?;
-    Ok(tar_integrity_and_manifest_of(std::io::BufReader::new(tgz))
-        .map(|(integrity, inspection, manifest)| DerivedTgz {
-            tgz_integrity,
-            integrity,
-            inspection,
-            manifest,
-        }))
+    let (integrity, inspection) = tar_integrity_of(std::io::BufReader::new(tgz))
+        .ok_or_else(|| RegistryError::InvalidAttachment {
+            filename: attachment.filename.clone(),
+            reason: "it does not decode to a tar within the decode limit".to_string(),
+        })?;
+    let archive = read_archive(tmp_path, &attachment.filename)?;
+    let tgz_integrity = dist.as_object().and_then(tgz_integrity_key);
+    Ok(Some(TarDerivation { tgz_integrity, integrity, inspection, archive }))
 }
 
 /// Compress the tar the verified `.tgz` at `tgz_path` decodes to into
-/// `tar_path`. [`tar_integrity_and_manifest_of`] already decoded it within
-/// the limit.
+/// `tar_path`. [`tar_integrity_of`] already decoded it within the limit.
 fn encode_stored_tar(
     tgz_path: &std::path::Path,
     tar_path: &std::path::Path,

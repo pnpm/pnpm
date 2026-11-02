@@ -2,8 +2,8 @@
 //! pnpr's document says about each one.
 
 use super::{
-    Declarations, LABEL_FIELD, Map, PublishedVariant, RegistryError, STORED_FIELD, Value,
-    VariantDeclaration, bad_request,
+    Declarations, LABEL_FIELD, Map, PublishedTar, PublishedVariant, RegistryError, STORED_FIELD,
+    Value, VariantDeclaration, bad_request,
 };
 use pnpm_platform_variants::{Platform, variant_tag};
 use std::collections::HashMap;
@@ -21,10 +21,11 @@ const IDENTITY_FIELDS: &[&str] = &["name", "version", "deprecated", "_npmUser", 
 
 /// Check every published variant against its version and record the verified
 /// variants on the merged document.
-pub(super) fn attach_variants(
+pub(in super::super) fn attach_variants(
     merged: &mut Value,
     declared: &Declarations,
     published: &[PublishedVariant],
+    primaries: &[PublishedTar],
 ) -> Result<(), RegistryError> {
     for (version, variants) in declared {
         let pointer = format!("/versions/{}", escape_pointer(version));
@@ -34,17 +35,61 @@ pub(super) fn attach_variants(
             .ok_or_else(|| {
                 bad_request(format!("variants declared for unknown version {version}"))
             })?;
-        if primary.get("variant").is_some() {
-            return Err(bad_request(format!(
-                "the primary archive of {version} declares a variant",
-            )));
-        }
+        let name = merged
+            .get("name")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        check_primary_archive((name, version), &primary, primaries)?;
         let stored = stored_variants(version, variants, &primary, published)?;
         if let Some(manifest) = merged.pointer_mut(&pointer).and_then(Value::as_object_mut) {
             manifest.insert(STORED_FIELD.to_string(), Value::Array(stored));
         }
     }
     Ok(())
+}
+
+/// Check the primary archive a version's variants are published with. The
+/// variant set is part of the immutable version, so variants come only with
+/// their version's primary archive, never for a version already hosted. The
+/// archive's own manifest, which clients install, must name the published
+/// package and version, agree with the version's on what every archive
+/// shares, and declare no variant.
+fn check_primary_archive(
+    (name, version): (&str, &str),
+    primary: &Value,
+    primaries: &[PublishedTar],
+) -> Result<(), RegistryError> {
+    let Some(archive) = primaries
+        .iter()
+        .find(|tar| tar.version == version)
+    else {
+        return Err(bad_request(format!(
+            "variants of {version} are published only with its primary archive",
+        )));
+    };
+    let manifest = pnpm_package_manifest::parse_manifest_bytes(&archive.archive.manifest)
+        .ok()
+        .filter(Value::is_object)
+        .ok_or_else(|| {
+            bad_request(format!("the primary archive of {version} has no package.json"))
+        })?;
+    let manifest = &manifest;
+    let identity = [("name", name), ("version", version)];
+    if let Some((field, _)) = identity
+        .into_iter()
+        .find(|(field, expected)| manifest.get(field).and_then(Value::as_str) != Some(expected))
+    {
+        return Err(bad_request(format!(
+            "the primary archive of {version} names another {field} than the published one",
+        )));
+    }
+    if primary.get("variant").is_some() || manifest.get("variant").is_some() {
+        return Err(bad_request(format!("the primary archive of {version} declares a variant")));
+    }
+    match primary_difference(manifest, primary) {
+        Some(reason) => Err(bad_request(format!("the primary archive of {version}: {reason}"))),
+        None => Ok(()),
+    }
 }
 
 /// What the stored version keeps of each of its verified variants. Two

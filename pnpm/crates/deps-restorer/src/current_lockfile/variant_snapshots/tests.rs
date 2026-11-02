@@ -1,4 +1,4 @@
-use super::{has_variant_snapshots, with_selected_variant_snapshots};
+use super::{has_variant_snapshots, split_variant_key, with_selected_variant_snapshots};
 use pnpm_lockfile::{Lockfile, PlatformSelector};
 use pretty_assertions::assert_eq;
 
@@ -87,4 +87,22 @@ snapshots:
         Lockfile::parse(lockfile, std::path::Path::new("pnpm-lock.yaml")).unwrap().unwrap();
     assert!(!has_variant_snapshots(&lockfile));
     assert!(with_selected_variant_snapshots(&lockfile, &host("linux")).is_none());
+}
+
+#[test]
+fn variant_keys_are_split_after_the_name_and_a_named_registry() {
+    let split = |key: &str| {
+        split_variant_key(&key.parse().unwrap()).map(|(base, tag)| (base.to_string(), tag))
+    };
+    assert_eq!(
+        split("@img/sharp@0.35.0/variants/linux-x64(react@18.3.1)"),
+        Some(("@img/sharp@0.35.0(react@18.3.1)".to_string(), "linux-x64".to_string())),
+    );
+    assert_eq!(
+        split("sharp@npmjs:0.35.0/variants/linux-x64"),
+        Some(("sharp@npmjs:0.35.0".to_string(), "linux-x64".to_string())),
+    );
+    assert_eq!(split("local@file:../variants/local"), None);
+    assert_eq!(split("local@file:1.2.3/variants/local"), None);
+    assert_eq!(split("foo@1.0.0(file:../variants/local)(z@1.0.0)"), None);
 }
