@@ -670,6 +670,50 @@ describe('stage command against the registry mock', () => {
     }
   })
 
+  test('stage approve keeps the edges to two versions of one package depended on under different names', async () => {
+    const items = [
+      { id: STAGE_ID, packageName: '@pnpmtest/stage-dependent', version: '1.0.0' },
+      { id: SECOND_STAGE_ID, packageName: '@pnpmtest/stage-dependency', version: '1.0.0' },
+      { id: THIRD_STAGE_ID, packageName: '@pnpmtest/stage-dependency', version: '2.0.0' },
+    ]
+    const tarballs = await createStageTarballs(items, {
+      [STAGE_ID]: {
+        dependencies: {
+          '@pnpmtest/stage-dependency': '1.0.0',
+          'dependency-v2': 'work:@pnpmtest/stage-dependency@2.0.0',
+        },
+      },
+    })
+    const approveAttempts: string[] = []
+    const registry = await createRegistry((request) => {
+      const stageReadResponse = respondToStageRead(request, { items, tarballs })
+      if (stageReadResponse) return stageReadResponse
+      const stageId = approvedStageId(request)
+      if (stageId === SECOND_STAGE_ID) {
+        approveAttempts.push(stageId)
+        return { status: 409, body: { error: 'version already exists' } }
+      }
+      if (stageId) {
+        approveAttempts.push(stageId)
+        return { status: 201, body: { ok: true } }
+      }
+      return { status: 404, body: { error: 'not found' } }
+    })
+    try {
+      const result = await stage.handler({
+        ...stageOpts(registry.url),
+        registriesByPrefix: { work: registry.url },
+        cliOptions: { otp: '123456' },
+        otp: '123456',
+      }, ['approve', STAGE_ID, SECOND_STAGE_ID, THIRD_STAGE_ID])
+      expect(result).toStrictEqual({ exitCode: 1, output: 'Approved 1 of 3 staged packages.' })
+      expect(approveAttempts).toContain(THIRD_STAGE_ID)
+      expect(approveAttempts).not.toContain(STAGE_ID)
+    } finally {
+      await registry.close()
+    }
+  })
+
   test('stage approve does not bind an npm alias tag to a selected version', async () => {
     const items = [
       { id: STAGE_ID, packageName: '@pnpmtest/stage-dependent', version: '1.0.0' },

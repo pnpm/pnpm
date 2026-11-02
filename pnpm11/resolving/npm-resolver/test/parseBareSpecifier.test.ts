@@ -249,6 +249,24 @@ describe('parseNamedRegistrySpecifierToRegistryPackageSpec', () => {
     })
   })
 
+  test('parses an unscoped <name>@<version_selector> body paired with a scoped alias', () => {
+    const work = new Set(['work'])
+    expect(parseNamedRegistrySpecifierToRegistryPackageSpec('work:dep-a@1.2.3', work, '@local/dep', DEFAULT_TAG)).toMatchObject({
+      name: 'dep-a',
+      fetchSpec: '1.2.3',
+      type: 'version',
+    })
+    expect(parseNamedRegistrySpecifierToRegistryPackageSpec('work:dep-a@^1.2.3', work, '@local/dep', DEFAULT_TAG)).toMatchObject({
+      name: 'dep-a',
+      type: 'range',
+    })
+    expect(parseNamedRegistrySpecifierToRegistryPackageSpec('work:dep-a@next', work, '@local/dep', DEFAULT_TAG)).toMatchObject({
+      name: 'dep-a',
+      fetchSpec: 'next',
+      type: 'tag',
+    })
+  })
+
   test('matches any alias in the configured set and reports it back to the caller', () => {
     expect(parseNamedRegistrySpecifierToRegistryPackageSpec('work:@acme/foo@^1.0.0', new Set(['gh', 'work']), undefined, DEFAULT_TAG)).toStrictEqual({
       name: '@acme/foo',

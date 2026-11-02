@@ -2,10 +2,17 @@ use super::{
     StageApprovalItem, StageError, parse_stage_ids, sort_items_for_approval,
     unavailable_dependencies,
 };
-use crate::cli_args::stage::approve::ordering::{StageApprovalOrder, manifest_for_graph};
+use crate::cli_args::stage::approve::ordering::{
+    StageApprovalOrder, manifest_for_graph, order_staged_projects,
+};
+use pnpm_package_manifest::PackageManifest;
+use pnpm_workspace::Project;
 use pretty_assertions::assert_eq;
 use serde_json::json;
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    path::PathBuf,
+};
 
 fn item(id: &str, package_name: Option<&str>, version: Option<&str>) -> StageApprovalItem {
     StageApprovalItem {
@@ -98,7 +105,7 @@ fn a_dependent_of_an_unpublished_package_is_blocked() {
 }
 
 #[test]
-fn published_npm_aliases_are_resolved_to_their_real_package_names() {
+fn published_npm_aliases_keep_their_key_and_name_their_real_package() {
     let manifest = manifest_for_graph(
         json!({
             "name": "dependent",
@@ -108,7 +115,7 @@ fn published_npm_aliases_are_resolved_to_their_real_package_names() {
         &HashSet::new(),
     )
     .expect("normalize manifest");
-    assert_eq!(manifest["dependencies"], json!({ "dependency": "^1.0.0" }));
+    assert_eq!(manifest["dependencies"], json!({ "local-name": "npm:dependency@^1.0.0" }));
 }
 
 #[test]
@@ -136,7 +143,7 @@ fn npm_alias_ranges_with_an_empty_set_match_every_version() {
         &HashSet::new(),
     )
     .expect("normalize manifest");
-    assert_eq!(manifest["dependencies"], json!({ "dependency": "*" }));
+    assert_eq!(manifest["dependencies"], json!({ "local-name": "npm:dependency@*" }));
 }
 
 #[test]
@@ -156,8 +163,56 @@ fn registry_prefixed_dependencies_are_resolved_to_their_package_and_range() {
     .expect("normalize manifest");
     assert_eq!(
         manifest["dependencies"],
-        json!({ "dependency": "1.0.0", "other": "^2.0.0", "tagged": "work:latest" }),
+        json!({
+            "dependency": "1.0.0",
+            "local-name": "npm:other@^2.0.0",
+            "tagged": "work:latest",
+        }),
     );
+}
+
+fn staged_project(stage_id: &str, manifest: serde_json::Value) -> Project {
+    let root_dir = PathBuf::from(stage_id);
+    let manifest =
+        manifest_for_graph(manifest, &HashSet::from(["work".to_owned()])).expect("normalize");
+    Project {
+        manifest: PackageManifest::from_value(root_dir.join("package.json"), manifest),
+        root_dir,
+        dependency_manifest: None,
+    }
+}
+
+#[test]
+fn dependencies_on_two_versions_of_one_package_both_order_and_block_the_dependent() {
+    let order = order_staged_projects(&[
+        staged_project(
+            "id-dependent",
+            json!({
+                "name": "dependent",
+                "version": "1.0.0",
+                "dependencies": { "dependency": "1.0.0", "dependency-v2": "work:dependency@2.0.0" },
+            }),
+        ),
+        staged_project("id-v1", json!({ "name": "dependency", "version": "1.0.0" })),
+        staged_project("id-v2", json!({ "name": "dependency", "version": "2.0.0" })),
+    ]);
+    let mut dependencies = order.dependency_stage_ids["id-dependent"].clone();
+    dependencies.sort();
+    assert_eq!(dependencies, ["id-v1", "id-v2"]);
+    let sorted = sort_items_for_approval(
+        vec![
+            item("id-dependent", None, None),
+            item("id-v1", None, None),
+            item("id-v2", None, None),
+        ],
+        &order,
+    );
+    assert_eq!(sorted.last().map(|item| item.id.as_str()), Some("id-dependent"));
+    let dependent = item("id-dependent", Some("dependent"), Some("1.0.0"));
+    for unpublished in ["id-v1", "id-v2"] {
+        let unpublished = HashSet::from([unpublished.to_owned()]);
+        assert_eq!(unavailable_dependencies(&dependent, &unpublished, &order), ["dependency"]);
+    }
 }
 
 #[test]

@@ -225,10 +225,11 @@ function splitNamedRegistryBody (body: string, packageAlias: string | undefined)
     // `<alias>:@<owner>/<name>[@<version_selector>]` — scoped package.
     return splitPackageNameAndSelector(body)
   }
-  if (packageAlias?.startsWith('@')) {
+  if (packageAlias?.startsWith('@') && !body.includes('@')) {
     // `<alias>:<tag>` paired with a scoped alias — body is a version
     // selector (tag/dist-tag). Mirrors GitHub Packages, where the package
-    // is always scoped and a bare body is a tag.
+    // is always scoped and a bare body is a tag. A tag cannot hold `@`, so
+    // a body with one names its own package.
     return { pkgName: packageAlias, versionSelector: body }
   }
   // `<alias>:<name>[@<version_selector>]` — unscoped package in body.

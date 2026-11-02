@@ -277,8 +277,10 @@ fn split_named_registry_body(
     }
     // `<alias>:<tag>` paired with a scoped alias — body is a version
     // selector (tag/dist-tag). Mirrors GitHub Packages, where the package is
-    // always scoped and a bare body is a tag.
-    if let Some(alias) = package_alias.filter(|alias| alias.starts_with('@')) {
+    // always scoped and a bare body is a tag. A tag cannot hold `@`, so a body
+    // with one names its own package.
+    if let Some(alias) = package_alias.filter(|alias| alias.starts_with('@') && !body.contains('@'))
+    {
         return Some((alias.to_string(), Some(body.to_string())));
     }
     // `<alias>:<name>[@<version_selector>]` — unscoped package in body.
