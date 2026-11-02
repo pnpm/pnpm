@@ -138,6 +138,7 @@ async fn a_cached_record_is_read_offline() {
     let mut server = mockito::Server::new_async().await;
     let mock = server
         .mock("GET", "/acme/1.0.0+r0")
+        .with_header("cache-control", "public, max-age=31536000, immutable")
         .with_body(record("acme", "1.0.0"))
         .expect(1)
         .create_async()
@@ -225,4 +226,41 @@ fn the_record_a_pick_needs() {
     assert_eq!(record_revision(&ordinary, Some(&RegistryRevisionSelector::Valid(1))), None);
     let ordinary_external = listed("acme", InstallV2Entry::External, &json!({}));
     assert_eq!(record_revision(&ordinary_external, None), Some(0));
+}
+
+#[tokio::test]
+async fn a_record_that_may_still_change_is_not_kept_on_disk() {
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/acme/1.0.0+r0")
+        .with_body(record("acme", "1.0.0"))
+        .expect(2)
+        .create_async()
+        .await;
+    let registry = format!("{}/", server.url());
+    let cache_dir = tempfile::tempdir().expect("cache dir");
+    // Two installs: a record pnpr does not serve as immutable is read again.
+    for _ in 0..2 {
+        let install = Install::new(&registry, true);
+        let picked = listed("acme", InstallV2Entry::External, &json!({}));
+        let ctx = install.ctx(Some(cache_dir.path()), NetworkPolicy::default());
+        with_release_record(&ctx, &registry, picked, None).await.expect("fetched");
+    }
+    mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn an_oversized_record_is_refused() {
+    let mut server = mockito::Server::new_async().await;
+    let _mock = server
+        .mock("GET", "/acme/1.0.0+r0")
+        .with_body(vec![b' '; super::RELEASE_RECORD_BODY_LIMIT + 1])
+        .create_async()
+        .await;
+    let registry = format!("{}/", server.url());
+    let install = Install::new(&registry, true);
+    let ctx = install.ctx(None, NetworkPolicy::default());
+    let picked = listed("acme", InstallV2Entry::External, &json!({}));
+    let error = with_release_record(&ctx, &registry, picked, None).await.expect_err("refused");
+    assert!(error.to_string().contains("larger than"), "{error}");
 }

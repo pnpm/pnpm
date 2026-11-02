@@ -116,7 +116,12 @@ fn a_version_left_out_of_a_split_document_is_read_from_its_release_record() {
     assert!(lockfile.contains("split-pkg@1.0.0:"), "{lockfile}");
     assert!(lockfile.contains("integrity: sha512-"), "{lockfile}");
     let cache_dir = &npmrc_info.cache_dir;
-    assert!(cache_dir.join("v12/metadata-pnpr-records").exists(), "the release record is cached");
+    // pnpr read the record before it verified the archive, so the record
+    // could still gain facts about it, and pnpm does not keep it.
+    assert!(
+        !cache_dir.join("v12/metadata-pnpr-records").exists(),
+        "the release record is not kept"
+    );
     assert!(cache_dir.join("v12/metadata-pnpr").exists());
     drop((root, npmrc_info));
 }

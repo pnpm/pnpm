@@ -9,7 +9,7 @@
 
 use std::{path::PathBuf, sync::Arc};
 
-use pnpm_network::send_with_retry;
+use pnpm_network::{read_limited_body, send_with_retry};
 use pnpm_registry::{InstallV2Entry, PackageVersion};
 use pnpm_resolving_resolver_base::ResolveError;
 use reqwest::header;
@@ -21,6 +21,11 @@ use crate::{
     mirror::{RELEASE_RECORDS_DIR, release_record_path, save_meta, scoped_meta_dir},
     registry_url::to_registry_url,
 };
+
+/// The largest release record read: one version's manifest and the facts
+/// about its archives, far below this, so a larger body is refused rather than
+/// buffered.
+const RELEASE_RECORD_BODY_LIMIT: usize = 8 * 1024 * 1024;
 
 /// The in-flight and fetched records of one install, keyed by URL.
 pub(super) type ReleaseRecords = dashmap::DashMap<String, Arc<OnceCell<Arc<PackageVersion>>>>;
@@ -114,9 +119,9 @@ impl<Cache: PackageMetaCache> RecordFetch<'_, Cache> {
                 "it is not in the metadata cache, and the registry may not be reached".into()
             );
         }
-        let body = self.download().await.map_err(|error| error.to_string())?;
+        let (body, lasting) = self.download().await.map_err(|error| error.to_string())?;
         let record = self.parse(&body)?;
-        if let Some(path) = path {
+        if let Some(path) = path.filter(|_| lasting) {
             // A record that fails to persist is fetched again next time.
             let _ = save_meta(&path, &body);
         }
@@ -135,7 +140,11 @@ impl<Cache: PackageMetaCache> RecordFetch<'_, Cache> {
         release_record_path(cache_dir, &meta_dir, self.registry, &self.version.name, address).ok()
     }
 
-    async fn download(&self) -> Result<Vec<u8>, ResolveError> {
+    /// The record's body, and whether it may be kept on disk with no
+    /// expiry: pnpr serves a record `immutable` once it has derived every
+    /// fact about the archive, and `private` to a caller-gated package's
+    /// callers, whose records are kept in their own metadata scope.
+    async fn download(&self) -> Result<(Vec<u8>, bool), ResolveError> {
         let http = self.ctx.metadata.http;
         let name = &self.version.name;
         let (_guard, response) =
@@ -147,11 +156,22 @@ impl<Cache: PackageMetaCache> RecordFetch<'_, Cache> {
                 }
             })
             .await?;
-        Ok(response
-            .error_for_status()?
-            .bytes()
-            .await?
-            .to_vec())
+        let response = response.error_for_status()?;
+        let lasting = response
+            .headers()
+            .get(header::CACHE_CONTROL)
+            .and_then(|value| value.to_str().ok())
+            .is_some_and(|value| {
+                value
+                    .split(',')
+                    .map(str::trim)
+                    .any(|directive| directive == "immutable" || directive == "private")
+            });
+        let body = read_limited_body(response, RELEASE_RECORD_BODY_LIMIT).await?;
+        if body.truncated {
+            return Err(format!("it is larger than {RELEASE_RECORD_BODY_LIMIT} bytes").into());
+        }
+        Ok((body.bytes, lasting))
     }
 
     /// The record in `body`, checked to name the picked version.
