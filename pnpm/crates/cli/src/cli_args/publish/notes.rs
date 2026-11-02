@@ -16,7 +16,7 @@ use miette::Context;
 use pnpm_config::Config;
 use pnpm_publish::{PublicationNotes, ReleaseNotesTarget};
 use pnpm_release_notes::{
-    find_changelog_section, is_publication_segment, normalize_line_endings, validate_note,
+    find_changelog_section, is_publication_name, normalize_line_endings, validate_note,
 };
 use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
 use pnpm_versioning::{ChangelogStorage, changelog_storage, read_parked_publications};
@@ -306,12 +306,12 @@ fn package_id(manifest: &Value) -> String {
 }
 
 fn validate_publication_name(name: &str) -> miette::Result<()> {
-    if is_publication_segment(name) {
+    if is_publication_name(name) {
         return Ok(());
     }
     Err(miette::miette!(
         code = "ERR_PNPM_INVALID_PUBLICATION_NAME",
-        help = r#"A publication name may contain letters, digits, ".", "_", "+", and "-"."#,
+        help = r#"A publication name may contain letters, digits, ".", "_", "+", and "-", is at most 214 bytes long, and is not a number, which names a publication by its identifier."#,
         "Invalid publication name: {name:?}",
     ))
 }

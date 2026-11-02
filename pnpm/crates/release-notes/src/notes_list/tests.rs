@@ -1,4 +1,7 @@
-use super::{NotesList, is_in_upgrade_range, is_publication_segment};
+use super::{
+    MAX_PUBLICATION_NAME_BYTES, NotesList, is_in_upgrade_range, is_publication_name,
+    is_publication_segment,
+};
 use node_semver::Version;
 use pretty_assertions::assert_eq;
 
@@ -66,4 +69,13 @@ fn a_publication_segment_is_one_path_segment() {
     for value in ["..", ".", "ex/ample", "a%2fb", ""] {
         assert!(!is_publication_segment(value), "{value}");
     }
+}
+
+#[test]
+fn a_publication_name_is_no_identifier_and_fits_the_limit() {
+    assert!(is_publication_name("v12.0.0"));
+    assert!(is_publication_name("2026.11"));
+    assert!(!is_publication_name("12"), "a decimal number names a publication by id");
+    assert!(!is_publication_name(&"a".repeat(MAX_PUBLICATION_NAME_BYTES + 1)));
+    assert!(!is_publication_name("ex/ample"));
 }

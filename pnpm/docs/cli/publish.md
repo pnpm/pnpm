@@ -124,7 +124,7 @@ Send no release notes.
 
 ### --publication-name &lt;name\>
 
-The name of the release that `--batch` publishes to a registry declared with `serverType: pnpr`, such as `v12.0.0`. It may contain letters, digits, `.`, `_`, `+`, and `-`. In a workspace that uses pnpm's versioning, the release is named after the version of its epic lead or its one fixed group by default.
+The name of the release that `--batch` publishes to a registry declared with `serverType: pnpr`, such as `v12.0.0`. It may contain letters, digits, `.`, `_`, `+`, and `-`, is at most 214 bytes long, and is not a number, since a number names a release by its identifier. In a workspace that uses pnpm's versioning, the release is named after the version of its epic lead or its one fixed group by default.
 
 ### --skip-manifest-obfuscation
 

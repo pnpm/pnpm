@@ -59,6 +59,20 @@ pub fn is_publication_segment(value: &str) -> bool {
             .all(|character| character.is_ascii_alphanumeric() || "._+-".contains(character))
 }
 
+/// The longest publication name a registry accepts, in bytes: the longest
+/// npm package name.
+pub const MAX_PUBLICATION_NAME_BYTES: usize = 214;
+
+/// Whether `value` can name a publication: a publication segment of at most
+/// [`MAX_PUBLICATION_NAME_BYTES`] that is not a decimal number, since names
+/// share one namespace with the identifiers a registry assigns.
+#[must_use]
+pub fn is_publication_name(value: &str) -> bool {
+    is_publication_segment(value)
+        && value.len() <= MAX_PUBLICATION_NAME_BYTES
+        && !value.bytes().all(|byte| byte.is_ascii_digit())
+}
+
 /// Whether an upgrade from `installed` to `target` passes `version`:
 /// `installed < version <= target`, with prereleases only when `target` is
 /// one, so an upgrade between stable versions does not list the betas in

@@ -13,7 +13,8 @@ pub use content::{MAX_NOTE_BYTES, NoteContentError, normalize_line_endings, vali
 pub use digest::note_digest;
 pub use display::render_note;
 pub use notes_list::{
-    NoteEntry, NotesList, PublicationRef, is_in_upgrade_range, is_publication_segment,
+    NoteEntry, NotesList, PublicationRef, is_in_upgrade_range, is_publication_name,
+    is_publication_segment,
 };
 
 mod changelog_section;
