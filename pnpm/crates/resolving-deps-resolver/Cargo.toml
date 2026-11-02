@@ -22,6 +22,7 @@ pnpm-fs = { workspace = true }
 pnpm-hooks = { workspace = true }
 pnpm-local-spec = { workspace = true }
 pnpm-lockfile = { workspace = true }
+pnpm-platform-variants = { workspace = true }
 pnpm-package-manifest = { workspace = true }
 pnpm-patching = { workspace = true }
 pnpm-resolving-npm-resolver = { workspace = true }

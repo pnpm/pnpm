@@ -8,7 +8,8 @@ extern crate pnpm_http as reqwest;
 pub use install_v2::{parse_install_v2, parse_release_record};
 pub use package::{DerivedPackuments, Package};
 pub use package_distribution::{
-    AttestationsDist, InstallV2Entry, PackageDistribution, PnprDistribution, ProvenanceMeta,
+    AttestationsDist, InstallV2Entry, PackageDistribution, PnprDistribution, PnprVariant,
+    ProvenanceMeta,
 };
 pub use package_tag::PackageTag;
 pub use package_version::{
