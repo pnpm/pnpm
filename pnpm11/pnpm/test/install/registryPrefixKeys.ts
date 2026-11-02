@@ -158,6 +158,58 @@ test('entries keyed by another prefix of the registry are re-keyed', async () =>
   expect(importerEntry(lockfile, PARENT)).toStrictEqual({ specifier: 'zeta:100.0.0', version: 'work:100.0.0' })
 })
 
+// https://github.com/pnpm/pnpm/issues/17575
+test('pointing the built-in npmjs alias at the default registry keeps plain keys', async () => {
+  setup({ [PARENT]: '100.0.0' }, {
+    registries: { [REGISTRY]: { scopes: ['@'], prefix: 'npmjs' } },
+  })
+
+  await execPnpm(['install'])
+
+  assertSingleChildCopy('@pnpm.e2e/foo@100.1.0')
+  const lockfile = readLockfile()
+  expect(packageKeys(lockfile, PARENT)).toStrictEqual(['@pnpm.e2e/foobar@100.0.0'])
+  expect(importerEntry(lockfile, PARENT)).toStrictEqual({ specifier: '100.0.0', version: '100.0.0' })
+})
+
+test('an updateConfig hook that points the built-in npmjs alias at the default registry keeps plain keys', async () => {
+  setup({ [PARENT]: '100.0.0' }, {})
+  fs.writeFileSync('.pnpmfile.cjs', `
+    module.exports = {
+      hooks: {
+        updateConfig (config) {
+          return { ...config, registriesByPrefix: { ...config.registriesByPrefix, npmjs: config.registry } }
+        },
+      },
+    }
+  `)
+
+  await execPnpm(['install'])
+
+  assertSingleChildCopy('@pnpm.e2e/foo@100.1.0')
+  expect(packageKeys(readLockfile(), PARENT)).toStrictEqual(['@pnpm.e2e/foobar@100.0.0'])
+})
+
+// The key alone cannot tell such an entry from one a `npmjs:` specifier
+// minted, so only an install that resolves re-keys it.
+test('a resolving install re-keys plain ranges qualified by a built-in alias', async () => {
+  setup({ [PARENT]: '100.0.0' }, { namedRegistries: { work: REGISTRY } })
+  await execPnpm(['install'])
+  expect(packageKeys(readLockfile(), PARENT)).toStrictEqual(['@pnpm.e2e/foobar@work:100.0.0'])
+
+  for (const file of ['pnpm-workspace.yaml', WANTED_LOCKFILE]) {
+    fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replaceAll('work:', 'npmjs:'))
+  }
+  fs.rmSync('node_modules', { recursive: true })
+  writeDependencies({ [PARENT]: '100.0.0', 'is-positive': '1.0.0' })
+  await execPnpm(['install'])
+
+  assertSingleChildCopy('@pnpm.e2e/foo@100.1.0')
+  const lockfile = readLockfile()
+  expect(packageKeys(lockfile, PARENT)).toStrictEqual(['@pnpm.e2e/foobar@100.0.0'])
+  expect(importerEntry(lockfile, PARENT)).toStrictEqual({ specifier: '100.0.0', version: '100.0.0' })
+})
+
 /**
  * Rewrites the lockfile to the shape written before plain ranges were keyed
  * by their registry: the child duplicated under a plain key, which the

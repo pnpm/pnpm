@@ -1,3 +1,4 @@
+import { BUILTIN_REGISTRIES_BY_PREFIX } from '@pnpm/constants'
 import type { RegistriesByPrefix, RegistriesByScope } from '@pnpm/types'
 
 export function pickRegistryForPackage (registriesByScope: RegistriesByScope, packageName: string, bareSpecifier?: string): string {
@@ -81,8 +82,9 @@ export function isSameRegistry (left: string, right: string): boolean {
  *
  * Only a prefix the project declares qualifies keys, through
  * `registries.<url>.prefix` or `namedRegistries`: `declaredRegistriesByPrefix`
- * is that map as the user wrote it, without the built-in aliases, which
- * qualify only the specifiers that spell them. When several declared prefixes
+ * is that map as the user wrote it, without the built-in aliases. A built-in
+ * alias qualifies only the specifiers that spell it, even when the user
+ * re-points it, typically at an npm mirror. When several declared prefixes
  * name one registry, the lexicographically smallest one is picked. A prefix
  * whose URL does not parse names no registry.
  */
@@ -102,6 +104,7 @@ function getDeclaredPrefixByRegistry (declaredRegistriesByPrefix: Record<string,
   if (prefixByRegistry != null) return prefixByRegistry
   const smallestPrefixByRegistry = new Map<string, string>()
   for (const [prefix, registry] of Object.entries(declaredRegistriesByPrefix)) {
+    if (Object.hasOwn(BUILTIN_REGISTRIES_BY_PREFIX, prefix)) continue
     const registryKey = normalizeRegistryKey(registry)
     if (registryKey == null) continue
     const smallest = smallestPrefixByRegistry.get(registryKey)

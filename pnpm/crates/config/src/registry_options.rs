@@ -343,9 +343,21 @@ impl Config {
     /// The prefixes the project declares, which qualify the lockfile keys of
     /// the packages resolved from their registries. See
     /// [`DeclaredRegistryPrefixes`].
+    ///
+    /// A [`BUILTIN_REGISTRIES_BY_PREFIX`] name the project sets is not among
+    /// them: setting it re-points the alias, typically at an npm mirror, and the
+    /// alias still qualifies only the specifiers that spell it.
     #[must_use]
     pub fn declared_registry_prefixes(&self) -> DeclaredRegistryPrefixes {
-        DeclaredRegistryPrefixes::new(&self.registries_by_prefix)
+        DeclaredRegistryPrefixes::new(
+            self.registries_by_prefix
+                .iter()
+                .filter(|(prefix, _)| {
+                    !BUILTIN_REGISTRIES_BY_PREFIX
+                        .iter()
+                        .any(|(builtin, _)| builtin == prefix)
+                }),
+        )
     }
 
     /// How a package's registry is decided and what it serves, for the

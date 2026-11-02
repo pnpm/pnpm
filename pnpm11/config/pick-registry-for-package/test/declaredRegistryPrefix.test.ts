@@ -36,7 +36,16 @@ test('pickDeclaredRegistryPrefix() picks the lexicographically smallest of sever
 
 test('pickDeclaredRegistryPrefix() does not treat the built-in aliases as declared', () => {
   expect(pickDeclaredRegistryPrefix({}, 'https://registry.npmjs.org/')).toBeUndefined()
-  expect(pickDeclaredRegistryPrefix({ npmjs: 'https://registry.npmjs.org/' }, 'https://registry.npmjs.org/')).toBe('npmjs')
+  expect(pickDeclaredRegistryPrefix({ npmjs: 'https://registry.npmjs.org/' }, 'https://registry.npmjs.org/')).toBeUndefined()
+})
+
+// https://github.com/pnpm/pnpm/issues/17575
+test('pickDeclaredRegistryPrefix() does not treat a re-pointed built-in alias as declared', () => {
+  expect(pickDeclaredRegistryPrefix({ npmjs: 'https://mirror.example.com/' }, 'https://mirror.example.com/')).toBeUndefined()
+  expect(pickDeclaredRegistryPrefix({
+    npmjs: 'https://mirror.example.com/',
+    work: 'https://mirror.example.com/',
+  }, 'https://mirror.example.com/')).toBe('work')
 })
 
 test('pickDeclaredRegistryPrefix() ignores a prefix whose URL does not parse', () => {

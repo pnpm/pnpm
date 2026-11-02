@@ -605,3 +605,66 @@ fn frozen_reinstall_accepts_a_registry_qualified_child_of_a_local_directory_depe
 
     drop((root, anchor));
 }
+
+/// Pointing the built-in `npmjs` alias at the default registry, as a
+/// proxy setup does, keeps plain keys.
+/// <https://github.com/pnpm/pnpm/issues/17575>
+#[test]
+fn a_re_pointed_builtin_alias_keeps_plain_keys() {
+    let (root, workspace, anchor) = setup();
+    let registry = anchor.mock_instance.url();
+    append_workspace_yaml_key(
+        &workspace,
+        "registries",
+        format!("{{ '{registry}': {{ scopes: ['@'], prefix: npmjs }} }}"),
+    );
+    write_manifest(&workspace, r#"{ "@pnpm.e2e/foobar": "100.0.0" }"#);
+
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    assert_single_child_copy(&workspace, "@pnpm.e2e/foo@100.1.0");
+    let lockfile = lockfile(&workspace);
+    assert_eq!(package_keys(&lockfile, PARENT), ["@pnpm.e2e/foobar@100.0.0"]);
+    assert_eq!(importer_entry(&lockfile, PARENT), ("100.0.0".to_string(), "100.0.0".to_string()),);
+
+    drop((root, anchor));
+}
+
+/// A lockfile whose plain ranges were keyed by a re-pointed built-in alias
+/// gets its plain keys back once a manifest change makes the install
+/// resolve. The key alone cannot tell such an entry from one a `npmjs:`
+/// specifier minted, so an install with nothing to resolve keeps it.
+#[test]
+fn a_resolving_install_re_keys_plain_ranges_qualified_by_a_builtin_alias() {
+    let (root, workspace, anchor) = setup();
+    let registry = anchor.mock_instance.url();
+    let workspace_yaml = workspace.join("pnpm-workspace.yaml");
+    append_workspace_yaml_key(&workspace, "namedRegistries", format!("{{ work: '{registry}' }}"));
+    write_manifest(&workspace, r#"{ "@pnpm.e2e/foobar": "100.0.0" }"#);
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    assert_eq!(package_keys(&lockfile(&workspace), PARENT), ["@pnpm.e2e/foobar@work:100.0.0"]);
+
+    for path in [&workspace_yaml, &workspace.join(Lockfile::FILE_NAME)] {
+        let rewritten = fs::read_to_string(path).expect("read file").replace("work:", "npmjs:");
+        fs::write(path, rewritten).expect("write file");
+    }
+    fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+    write_manifest(&workspace, r#"{ "@pnpm.e2e/foobar": "100.0.0", "is-positive": "1.0.0" }"#);
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    assert_single_child_copy(&workspace, "@pnpm.e2e/foo@100.1.0");
+    let lockfile = lockfile(&workspace);
+    assert_eq!(package_keys(&lockfile, PARENT), ["@pnpm.e2e/foobar@100.0.0"]);
+    assert_eq!(importer_entry(&lockfile, PARENT), ("100.0.0".to_string(), "100.0.0".to_string()),);
+
+    drop((root, anchor));
+}
