@@ -11,14 +11,16 @@ use std::collections::BTreeMap;
 /// extraction recorded.
 #[derive(Debug, Clone)]
 pub struct CachedCasPaths {
-    pub files: pnpm_fs::CasPaths,
+    /// Shared with the prefetch and the in-memory tarball cache, so every
+    /// snapshot of the package imports from one map.
+    pub files: Arc<pnpm_fs::CasPaths>,
     pub manifest: Option<serde_json::Value>,
     pub requires_build: Option<bool>,
     pub bins: Option<Arc<BTreeMap<String, PackageBin>>>,
 }
 
 impl CachedCasPaths {
-    pub(crate) fn files_only(files: pnpm_fs::CasPaths) -> Self {
+    pub(crate) fn files_only(files: Arc<pnpm_fs::CasPaths>) -> Self {
         Self { files, manifest: None, requires_build: None, bins: None }
     }
 }
@@ -124,7 +126,7 @@ fn cached_row_paths<Reporter: crate::Reporter>(
                 }));
             }
             Ok(Some(CachedCasPaths {
-                files: cas_paths,
+                files: Arc::new(cas_paths),
                 manifest,
                 requires_build: Some(requires_build),
                 bins,
@@ -257,7 +259,7 @@ pub(crate) async fn load_legacy_synthesized_cas_paths<Reporter: crate::Reporter>
         );
         return Ok(None);
     }
-    Ok(Some(cached.files))
+    Ok(Some(Arc::unwrap_or_clone(cached.files)))
 }
 
 /// Read every requested row's undecoded bytes, holding the store-index

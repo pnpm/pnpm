@@ -141,7 +141,7 @@ pub(super) fn warm_shared_base_cas_paths(
     let Some(shared_packages) = shared_packages else { return base_cas_paths };
     for (snapshot_key, _, cas_paths, _, _) in warm {
         if shared_packages.contains(snapshot_key.name.to_string().as_str()) {
-            base_cas_paths.insert((*snapshot_key).clone(), (***cas_paths).clone());
+            base_cas_paths.insert((*snapshot_key).clone(), Arc::clone(cas_paths));
         }
     }
     base_cas_paths

@@ -11,7 +11,7 @@
 pub use pnpm_shared_artifact_protocol::{SYMLINK_MODE, is_symlink_mode};
 
 use crate::{CafsFileInfo, FilesMap};
-use std::{collections::HashMap, fs, io, path::Path};
+use std::{collections::HashMap, fs, io, path::Path, sync::Arc};
 
 /// The target the side-effects cache records for a symlink at `link_path`,
 /// or `None` when the link cannot be recorded.
@@ -104,13 +104,15 @@ pub(crate) fn writes_below_a_symlink<'a>(
 /// dropped so the package is built instead.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct SideEffectsOverlay {
-    pub files: FilesMap,
+    /// Shared by every snapshot the overlay is recorded for, so a mode one
+    /// import reads reaches the rest.
+    pub files: Arc<FilesMap>,
     pub symlinks: HashMap<String, String>,
 }
 
 impl From<FilesMap> for SideEffectsOverlay {
     fn from(files: FilesMap) -> Self {
-        SideEffectsOverlay { files, symlinks: HashMap::new() }
+        SideEffectsOverlay { files: Arc::new(files), symlinks: HashMap::new() }
     }
 }
 

@@ -212,7 +212,9 @@ pub enum InstallPackageBySnapshotError {
 /// What installing one package produced.
 #[derive(Debug)]
 pub struct InstalledPackage {
-    pub cas_paths: pnpm_fs::CasPaths,
+    /// Shared with every snapshot that fetched the same package through
+    /// the in-memory tarball cache or the prefetch.
+    pub cas_paths: Arc<pnpm_fs::CasPaths>,
     /// Bundled `package.json` captured during tarball extraction or store-index
     /// load.
     pub manifest: Option<Arc<serde_json::Value>>,

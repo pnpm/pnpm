@@ -62,8 +62,17 @@ pub(super) struct ExtractedPackageMetadata {
     pub bins: Option<Arc<BTreeMap<String, PackageBin>>>,
 }
 
+/// A package's CAS paths, the metadata its archive carried, and whether
+/// its source existed. See [`crate::SlotImportSource::source_exists`].
+type FetchedCasPaths = (Arc<pnpm_fs::CasPaths>, ExtractedPackageMetadata, bool);
+
+/// A fetch whose source carries no archive metadata.
+fn without_metadata(cas_paths: pnpm_fs::CasPaths, source_exists: bool) -> FetchedCasPaths {
+    (Arc::new(cas_paths), ExtractedPackageMetadata::default(), source_exists)
+}
+
 impl ExtractedPackageMetadata {
-    fn from_cached_cas_paths(cached: CachedCasPaths) -> (pnpm_fs::CasPaths, Self) {
+    fn from_cached_cas_paths(cached: CachedCasPaths) -> (Arc<pnpm_fs::CasPaths>, Self) {
         (
             cached.files,
             Self {
@@ -76,9 +85,7 @@ impl ExtractedPackageMetadata {
 }
 
 /// Reuse an in-flight or completed background download through the
-/// shared mem cache when one is given; otherwise fetch standalone. The
-/// owned `HashMap` is cloned out of the shared `Arc` so the rest of the
-/// pass keeps its by-value contract.
+/// shared mem cache when one is given; otherwise fetch standalone.
 ///
 /// Registry resolutions reuse background downloads. Commit-addressed git archives
 /// reuse the raw extraction from manifest recovery and still run prepare and
@@ -88,7 +95,7 @@ pub(super) async fn download_tarball<Reporter: self::Reporter>(
     download: IngestTarballToStore<'_>,
     tarball_mem_cache: Option<&MemCache>,
     revision_addressed: bool,
-) -> Result<(pnpm_fs::CasPaths, ExtractedPackageMetadata), TarballError> {
+) -> Result<(Arc<pnpm_fs::CasPaths>, ExtractedPackageMetadata), TarballError> {
     let Some(mem_cache) = tarball_mem_cache else {
         return download
             .run_cached_without_mem_cache::<Reporter>(revision_addressed)
@@ -101,7 +108,7 @@ pub(super) async fn download_tarball<Reporter: self::Reporter>(
         download.clone().run_cached_with_mem_cache::<Reporter>(mem_cache, revision_addressed).await;
     match result {
         Ok(cached) => Ok((
-            (*cached.files).clone(),
+            Arc::clone(&cached.files),
             ExtractedPackageMetadata {
                 manifest: cached.manifest.clone().map(Arc::new),
                 requires_build: cached.requires_build,
@@ -194,7 +201,7 @@ impl InstallPackageBySnapshot<'_> {
         // lockfile entry says otherwise.
         let source_is_mutable = matches!(resolution, LockfileResolution::Directory(_));
         let (cas_paths, extracted, source_exists) = match custom.cas_paths {
-            Some(paths) => (paths, ExtractedPackageMetadata::default(), custom.source_exists),
+            Some(paths) => without_metadata(paths, custom.source_exists),
             None => {
                 self.fetch_cas_paths::<Reporter>(SnapshotFetch {
                     package_key,
@@ -277,8 +284,7 @@ impl InstallPackageBySnapshot<'_> {
     async fn fetch_cas_paths<Reporter: self::Reporter>(
         &self,
         fetch: SnapshotFetch<'_>,
-    ) -> Result<(pnpm_fs::CasPaths, ExtractedPackageMetadata, bool), InstallPackageBySnapshotError>
-    {
+    ) -> Result<FetchedCasPaths, InstallPackageBySnapshotError> {
         let config = self.ctx.config;
         // Named local so both git fetchers can borrow it across their
         // `.await` without depending on temporary-lifetime extension.
@@ -306,7 +312,7 @@ impl InstallPackageBySnapshot<'_> {
                     dir_resolution,
                     CopyFiles::from_deploy_all_files(config.deploy_all_files),
                 )
-                .map(|(cas_paths, exists)| (cas_paths, ExtractedPackageMetadata::default(), exists))
+                .map(|(cas_paths, exists)| without_metadata(cas_paths, exists))
             }
             // Runtime artifacts (Node.js / Bun / Deno) — `Binary`
             // and `Variations` carry a `BinaryResolution` describing
@@ -316,7 +322,7 @@ impl InstallPackageBySnapshot<'_> {
             // `BinaryResolution` extractor.
             LockfileResolution::Binary(binary) => {
                 self.fetch_binary::<Reporter>(binary, fetch.package_key).await
-                    .map(|cas_paths| (cas_paths, ExtractedPackageMetadata::default(), true))
+                    .map(|cas_paths| without_metadata(cas_paths, true))
             }
             LockfileResolution::Variations(variations) => self
                 .fetch_binary::<Reporter>(
@@ -328,11 +334,11 @@ impl InstallPackageBySnapshot<'_> {
                     fetch.package_key,
                 )
                 .await
-                .map(|cas_paths| (cas_paths, ExtractedPackageMetadata::default(), true)),
+                .map(|cas_paths| without_metadata(cas_paths, true)),
             LockfileResolution::Git(git_resolution) => self
                 .fetch_git::<Reporter>(&fetch, git_resolution, &allow_build)
                 .await
-                .map(|cas_paths| (cas_paths, ExtractedPackageMetadata::default(), true)),
+                .map(|cas_paths| without_metadata(cas_paths, true)),
             // A custom-typed resolution cannot be materialized without
             // a custom fetcher that claims it.
             LockfileResolution::Custom(custom) => {
@@ -347,7 +353,8 @@ impl InstallPackageBySnapshot<'_> {
         &self,
         fetch: &SnapshotFetch<'_>,
         allow_build: &(impl Fn(&str) -> Option<bool> + Send + Sync),
-    ) -> Result<(pnpm_fs::CasPaths, ExtractedPackageMetadata), InstallPackageBySnapshotError> {
+    ) -> Result<(Arc<pnpm_fs::CasPaths>, ExtractedPackageMetadata), InstallPackageBySnapshotError>
+    {
         self.tarball_cas_paths::<Reporter>(TarballFetch {
             download: fetch.download,
             resolution: fetch.resolution,

@@ -422,7 +422,7 @@ impl<'a> IngestTarballToStore<'a> {
                     cache_lock,
                     notify,
                     CachedTarball {
-                        files: Arc::new(loaded.files),
+                        files: loaded.files,
                         manifest: loaded.manifest,
                         requires_build: loaded.requires_build,
                         bins: loaded.bins,
@@ -465,7 +465,7 @@ impl<'a> IngestTarballToStore<'a> {
     pub async fn run_without_mem_cache<Reporter: self::Reporter>(
         &self,
     ) -> Result<pnpm_fs::CasPaths, TarballError> {
-        self.load_or_fetch::<Reporter>(false).await.map(|cached| cached.files)
+        self.load_or_fetch::<Reporter>(false).await.map(|cached| Arc::unwrap_or_clone(cached.files))
     }
 
     /// Execute a registry revision fetch without the in-memory cache.
@@ -473,7 +473,7 @@ impl<'a> IngestTarballToStore<'a> {
     pub async fn run_revision_addressed_without_mem_cache<Reporter: self::Reporter>(
         &self,
     ) -> Result<pnpm_fs::CasPaths, TarballError> {
-        self.load_or_fetch::<Reporter>(true).await.map(|cached| cached.files)
+        self.load_or_fetch::<Reporter>(true).await.map(|cached| Arc::unwrap_or_clone(cached.files))
     }
 
     /// Fetch without cache reuse, indexing unpinned archives by computed integrity.

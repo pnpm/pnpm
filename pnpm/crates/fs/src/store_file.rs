@@ -43,9 +43,10 @@ impl StoreFile {
         self.mode.get().copied()
     }
 
-    /// Record a mode read for this file, replacing any earlier one.
-    pub fn set_mode(&mut self, mode: u32) {
-        self.mode = OnceLock::from(mode);
+    /// Record a mode read for this file. The first mode recorded is kept,
+    /// so every import sharing this value sees the same one.
+    pub fn record_mode(&self, mode: u32) {
+        let _ = self.mode.set(mode);
     }
 
     /// The known mode, or the one `read` returns for [`Self::path`], which

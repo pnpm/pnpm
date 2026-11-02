@@ -36,7 +36,7 @@ use std::{
     sync::Arc,
 };
 
-pub(crate) type BaseCasPaths = HashMap<PackageKey, pnpm_fs::CasPaths>;
+pub(crate) type BaseCasPaths = HashMap<PackageKey, Arc<pnpm_fs::CasPaths>>;
 
 pub struct SharedSideEffectsPublisher {
     signer: ArtifactSigner,

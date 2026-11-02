@@ -501,7 +501,7 @@ impl IngestZipArchiveToStore<'_> {
     ) -> Result<pnpm_fs::CasPaths, TarballError> {
         let ingestion = self.ingestion();
         if let Some(cached) = ingestion.load_cache::<Reporter>().await? {
-            return Ok(cached.files);
+            return Ok(Arc::unwrap_or_clone(cached.files));
         }
         let paths = ingestion.ingest_zip_buffer(buffer).await?;
         crate::download::emit_progress_fetched::<Reporter>(self.package.id, self.requester, None);
