@@ -172,6 +172,9 @@ pub enum HostedDocumentVersion {
     /// construction, so there is nothing to compare against.
     Unversioned,
     ObjectVersion(UpdateVersion),
+    /// The catalog generation that last changed the package, from a
+    /// metadata backend that tracks generations.
+    Generation(u64),
 }
 
 /// Outcome of promoting a staged blob into the hosted store.

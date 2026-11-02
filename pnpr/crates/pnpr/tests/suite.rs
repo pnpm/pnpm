@@ -39,6 +39,7 @@ mod rule_administration;
 mod s3_backend;
 mod scim;
 mod server;
+mod sql_metadata;
 mod staged_publish;
 mod team_administration;
 mod team_package_access;

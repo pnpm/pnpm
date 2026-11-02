@@ -203,6 +203,12 @@ use std::{collections::HashSet, net::SocketAddr, sync::Arc, time::Duration};
 /// long version histories.
 const ABBREVIATED_CONTENT_TYPE: &str = "application/vnd.npm.install-v1+json";
 
+/// The response header that carries the catalog generation a hosted package
+/// view was rendered from, or that a mutation committed, as
+/// `<catalog>:<generation>`. Only a metadata backend that tracks generations
+/// sends it.
+const GENERATION_HEADER: &str = "pnpr-generation";
+
 /// Cap tarballs at 100 MiB while pnpr has to spool them to disk for SRI
 /// verification. This bounds per-request temporary disk usage for
 /// chunked or malicious upstream bodies.

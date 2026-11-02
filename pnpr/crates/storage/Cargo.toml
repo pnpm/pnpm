@@ -26,6 +26,7 @@ getrandom = { workspace = true }
 object_store = { workspace = true }
 percent-encoding = { workspace = true }
 reqwest = { workspace = true }
+rusqlite = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 ssri = { workspace = true }

@@ -405,10 +405,14 @@ fn replicas() -> (Storage, Storage, TempDir, TempDir) {
                 "images/".into(),
                 temp.path().join("scratch"),
             ));
+        let namespace = crate::namespace(&hosted, "", Ecosystem::Oci);
+        let metadata_source = crate::metadata::MetadataSource::Documents;
         Storage {
             tar_integrities: hosted.namespaced(crate::tar_integrities::NAMESPACE),
             tar_integrity_cache: std::sync::Arc::default(),
-            hosted: crate::namespace(&hosted, "", Ecosystem::Oci),
+            metadata: metadata_source.view(&namespace, "", Ecosystem::Oci),
+            metadata_source,
+            hosted: namespace,
             root: hosted,
             cached: crate::Store::new(temp.path().join("cache")),
         }

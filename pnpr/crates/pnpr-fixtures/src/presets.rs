@@ -203,6 +203,7 @@ fn with_routing(
             cache: pnpr_config::CacheConfig::default(),
             hosted_dir: storage,
             hosted_backend: HostedStoreConfig::Fs,
+            metadata: pnpr_config::MetadataBackend::Documents,
         },
         identity: pnpr_config::IdentityConfig {
             auth: AuthConfig::default(),

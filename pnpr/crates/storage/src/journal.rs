@@ -482,11 +482,7 @@ pub async fn recover_publish_journal(
     config: &Config,
     documents: &dyn HostedDocuments,
 ) -> Result<()> {
-    let storage = Storage::new(
-        &config.storage.hosted_backend,
-        config.storage.hosted_dir.clone(),
-        config.storage.cache_dir.clone(),
-    )?;
+    let storage = Storage::from_config(&config.storage)?;
     storage.publish_journal().recover(&storage, documents).await
 }
 

@@ -20,7 +20,9 @@ pub use pnpr_policy::{TeamDirectory, Teams};
 pub use s3::{HostedStoreConfig, S3Settings, build_s3_store, normalize_key_prefix};
 pub use scim::ScimConfig;
 pub use secrets::{MIN_RESOLUTION_SECRET_LEN, derive_subkey, random_secret, resolution_secret};
-pub use storage_config::{CacheConfig, StorageConfig, default_cache_dir};
+pub use storage_config::{
+    CacheConfig, MetadataBackend, StorageConfig, default_cache_dir, default_metadata_path,
+};
 pub use trusted_proxy_header::TrustedProxyHeader;
 pub use upstream::{RedactedHeaders, UpstreamConfig, UpstreamRequestPolicy, parse_interval};
 pub use web_ui::UiConfig;
