@@ -162,15 +162,15 @@ pub fn verify_statement(
 }
 
 /// Checks that a publication names its workload exactly when an OIDC
-/// workload published, and an approver only for a staged version.
+/// workload published, and its approver exactly when it was staged.
 fn check_publication(publication: &PublicationPredicate) -> Result<(), StatementError> {
     let is_workload = publication.principal_kind == PrincipalKind::OidcWorkload;
     if is_workload != publication.workload.is_some() {
         let reason = "a workload is named exactly when an OIDC workload published";
         return Err(StatementError::InvalidPublication { reason });
     }
-    if publication.approver.is_some() && !publication.staged {
-        let reason = "only a staged version has an approver";
+    if publication.approver.is_some() != publication.staged {
+        let reason = "an approver is named exactly when the version was staged";
         return Err(StatementError::InvalidPublication { reason });
     }
     Ok(())

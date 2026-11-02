@@ -109,7 +109,11 @@ impl Purl {
     /// other types are not checked further.
     pub fn check_canonical(&self) -> Result<(), PurlError> {
         let non_canonical = || PurlError::NonCanonical { purl: self.0.clone() };
-        if !self.0.starts_with("pkg:") || self.purl_type().is_empty() {
+        let purl_type = self.0
+            .strip_prefix("pkg:")
+            .and_then(|rest| rest.split_once('/'))
+            .map(|(purl_type, _)| purl_type);
+        if purl_type.is_none_or(str::is_empty) {
             return Err(non_canonical());
         }
         let rebuilt = match self.purl_type() {

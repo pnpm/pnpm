@@ -200,10 +200,19 @@ fn a_publication_names_its_workload_and_approver_consistently() {
         json!({ "principalKind": "oidc-workload", "staged": false }),
         json!({ "principalKind": "user-token", "workload": workload, "staged": false }),
         json!({ "principalKind": "user-token", "staged": false, "approver": "token:maintainer" }),
+        json!({ "principalKind": "user-token", "staged": true }),
     ];
     for predicate in invalid {
         let error =
             Statement::about(&record, PredicateType::Publication, predicate.clone()).unwrap_err();
         assert!(matches!(error, StatementError::InvalidPublication { .. }), "{predicate}: {error}");
     }
+
+    let valid = json!({ "principalKind": "interactive-session", "staged": false });
+    let mut statement = Statement::about(&record, PredicateType::Publication, valid).unwrap();
+    statement.predicate = json!({ "principalKind": "oidc-workload", "staged": false });
+    let envelope = statement.sign(&[&registry().statements]);
+    let error = verify_statement(&envelope, &statement_keys(), &record, PredicateType::Publication)
+        .unwrap_err();
+    assert!(matches!(error, StatementError::InvalidPublication { .. }), "{error}");
 }
