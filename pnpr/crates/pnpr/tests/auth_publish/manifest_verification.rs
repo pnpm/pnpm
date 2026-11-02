@@ -271,6 +271,19 @@ async fn a_version_is_published_without_build_metadata() {
 }
 
 #[tokio::test]
+async fn submitted_build_metadata_is_not_served() {
+    let (_tmp, app, token) = setup().await;
+    let archive = json!({ "name": "widgets", "version": "1.0.0" });
+    let mut doc = publish_doc("widgets", "1.0.0", &manifest_tgz(&archive, &[]));
+    doc["versions"]["1.0.0"]["version"] = json!("1.0.0+r1");
+
+    let response = publish(&app, &token, "widgets", &doc).await;
+    assert_eq!(response.status(), StatusCode::CREATED);
+    let served = served_version(&app, "widgets", "1.0.0").await;
+    assert_eq!(served["version"], json!("1.0.0"));
+}
+
+#[tokio::test]
 async fn a_version_with_build_metadata_cannot_be_published() {
     let (_tmp, app, token) = setup().await;
     // `+rN` is the build metadata pnpm reserves for registry revisions, so a

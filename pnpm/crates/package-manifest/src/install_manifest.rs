@@ -120,12 +120,12 @@ impl InstallManifest {
     }
 
     /// Make `version`, one version of a packument, state these fields: each
-    /// install-critical field is replaced with the derived one, or removed when
-    /// the derived manifest leaves it out. `name`, `version`, and every field
-    /// outside the profile are kept. `hasInstallScript` and `_hasShrinkwrap`
-    /// are always written.
+    /// install-critical field, `name` and `version` included, is replaced with
+    /// the derived one, or removed when the derived manifest leaves it out.
+    /// Every field outside the profile is kept. `hasInstallScript` and
+    /// `_hasShrinkwrap` are always written.
     pub fn write_to_version(&self, version: &mut Map<String, Value>) {
-        for &field in &INSTALL_MANIFEST_FIELDS[2..] {
+        for &field in INSTALL_MANIFEST_FIELDS {
             if matches!(field, "scripts" | "hasInstallScript" | "hasShrinkwrap") {
                 continue;
             }

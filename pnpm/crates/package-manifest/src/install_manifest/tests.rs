@@ -92,8 +92,8 @@ fn write_to_version_replaces_install_critical_fields_only() {
     });
     let derived = InstallManifest::derive(&archive, facts);
     let mut version = json!({
-        "name": "widgets",
-        "version": "1.0.0",
+        "name": " widgets ",
+        "version": "v1.0.0+abc",
         "description": "kept",
         "gypfile": true,
         "bin": { "widgets": "cli.js" },
