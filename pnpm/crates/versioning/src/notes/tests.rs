@@ -4,7 +4,7 @@ use indexmap::IndexMap;
 use pretty_assertions::assert_eq;
 
 use crate::{
-    apply::apply_release_plan,
+    apply::{ReleaseNotesOptions, apply_release_plan},
     intents::{IntentBumpType, read_change_intents, write_change_intent},
     ledger::read_ledger,
     parked_publication::{ParkedPublication, read_parked_publications},
@@ -44,6 +44,17 @@ fn intent(dir: &Path, releases: &[(&str, IntentBumpType)], summary: &str) {
 /// Plans and applies the pending intents of a workspace of `a`, `b`, and
 /// `c`, where `a` and `b` are bound for a registry that stores notes.
 fn apply_with_notes(dir: &Path, versioning: &VersioningSettings) -> Vec<WorkspaceProject> {
+    apply_with_summary(dir, versioning, 2, None)
+}
+
+/// [`apply_with_notes`] with the first `bound` projects bound for the
+/// registry and `summary` given to `pnpm version -r --release-notes`.
+fn apply_with_summary(
+    dir: &Path,
+    versioning: &VersioningSettings,
+    bound: usize,
+    summary: Option<&str>,
+) -> Vec<WorkspaceProject> {
     let projects = make_workspace(dir, &["a", "b", "c"]);
     let intents = read_change_intents(dir).expect("intents read");
     let ledger = read_ledger(dir).expect("ledger reads");
@@ -56,20 +67,15 @@ fn apply_with_notes(dir: &Path, versioning: &VersioningSettings) -> Vec<Workspac
         &AssembleReleasePlanOptions::default(),
     )
     .expect("plan assembles");
-    let notes_dirs: HashSet<String> = projects[..2]
-        .iter()
-        .map(|project| to_project_dir(dir, &project.root_dir))
-        .collect();
-    apply_release_plan(
-        &plan,
-        dir,
-        &projects,
-        &intents,
-        Some(versioning),
-        &HashSet::new(),
-        &notes_dirs,
-    )
-    .expect("plan applies");
+    let notes = ReleaseNotesOptions {
+        dirs: projects[..bound]
+            .iter()
+            .map(|project| to_project_dir(dir, &project.root_dir))
+            .collect(),
+        summary: summary.map(str::to_owned),
+    };
+    apply_release_plan(&plan, dir, &projects, &intents, Some(versioning), &HashSet::new(), &notes)
+        .expect("plan applies");
     projects
 }
 
@@ -136,9 +142,57 @@ fn a_confirmed_publication_is_collected() {
     let intents = read_change_intents(dir).expect("intents read");
     let confirmed: HashSet<String> = ["a@1.1.0".to_string(), "b@1.1.0".to_string()].into();
     let empty_plan = crate::plan::ReleasePlan::default();
-    apply_release_plan(&empty_plan, dir, &projects, &intents, None, &confirmed, &HashSet::new())
+    let no_notes = ReleaseNotesOptions::default();
+    apply_release_plan(&empty_plan, dir, &projects, &intents, None, &confirmed, &no_notes)
         .expect("collection applies");
 
     assert_eq!(read_parked_publications(dir).expect("publications read"), Vec::new());
     assert_eq!(read_change_intents(dir).expect("intents read").len(), 0);
+}
+
+#[test]
+fn a_summary_goes_above_the_composed_publication_note() {
+    let workspace = tempfile::tempdir().expect("temp workspace");
+    let dir = workspace.path();
+    intent(dir, &[("a", IntentBumpType::Minor)], "Only a.");
+    intent(dir, &[("a", IntentBumpType::Minor), ("b", IntentBumpType::Minor)], "Both.");
+    apply_with_summary(dir, &VersioningSettings::default(), 2, Some("## Highlights\n\n"));
+
+    assert_eq!(parked(dir, "a", "1.1.0"), "### Minor Changes\n\n- Only a.\n");
+    let publications = read_parked_publications(dir).expect("publications read");
+    assert_eq!(
+        publications[0].notes,
+        "## Highlights\n\n### Minor Changes\n\n- Both.\n\n  Packages: `a@1.1.0`, `b@1.1.0`\n",
+    );
+}
+
+#[test]
+fn a_summary_alone_makes_the_publication_note() {
+    let workspace = tempfile::tempdir().expect("temp workspace");
+    let dir = workspace.path();
+    intent(dir, &[("a", IntentBumpType::Minor)], "Only a.");
+    intent(dir, &[("b", IntentBumpType::Patch)], "Only b.");
+    apply_with_summary(dir, &VersioningSettings::default(), 2, Some("Highlights."));
+
+    assert_eq!(parked(dir, "a", "1.1.0"), "### Minor Changes\n\n- Only a.\n");
+    let publications = read_parked_publications(dir).expect("publications read");
+    assert_eq!(
+        publications,
+        vec![ParkedPublication {
+            name: None,
+            members: vec!["a@1.1.0".to_string(), "b@1.0.1".to_string()],
+            notes: "Highlights.\n".to_string(),
+        }],
+    );
+}
+
+#[test]
+fn a_summary_goes_above_the_version_note_of_a_single_package_release() {
+    let workspace = tempfile::tempdir().expect("temp workspace");
+    let dir = workspace.path();
+    intent(dir, &[("a", IntentBumpType::Minor)], "Only a.");
+    apply_with_summary(dir, &VersioningSettings::default(), 1, Some("Highlights."));
+
+    assert_eq!(parked(dir, "a", "1.1.0"), "Highlights.\n\n### Minor Changes\n\n- Only a.\n");
+    assert_eq!(read_parked_publications(dir).expect("publications read"), Vec::new());
 }

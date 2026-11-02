@@ -3,7 +3,7 @@ use std::{collections::HashSet, fs, path::Path};
 use indexmap::IndexMap;
 use pretty_assertions::assert_eq;
 
-use super::apply_release_plan;
+use super::{ReleaseNotesOptions, apply_release_plan};
 use crate::{
     changelog::prepend_changelog_section,
     intents::{IntentBumpType, read_change_intents, write_change_intent},
@@ -115,7 +115,7 @@ fn apply_bumps_manifests_writes_changelogs_records_the_ledger_and_deletes_consum
         &intents,
         Some(&repository()),
         &HashSet::new(),
-        &HashSet::new(),
+        &ReleaseNotesOptions::default(),
     )
     .expect("plan applies");
     let mut applied_names: Vec<String> = applied
@@ -181,7 +181,7 @@ fn intent_files_consumed_only_by_lane_prereleases_survive_until_graduation() {
         &intents,
         Some(&versioning),
         &HashSet::new(),
-        &HashSet::new(),
+        &ReleaseNotesOptions::default(),
     )
     .expect("plan applies");
 
@@ -216,7 +216,7 @@ fn intent_files_consumed_only_by_lane_prereleases_survive_until_graduation() {
         &intents,
         Some(&repository()),
         &HashSet::new(),
-        &HashSet::new(),
+        &ReleaseNotesOptions::default(),
     )
     .expect("plan applies");
 
@@ -251,7 +251,7 @@ fn a_none_only_intent_is_garbage_collected_by_a_run_with_an_empty_plan() {
         &intents,
         None,
         &HashSet::new(),
-        &HashSet::new(),
+        &ReleaseNotesOptions::default(),
     )
     .expect("plan applies");
     assert_eq!(read_change_intents(workspace.dir.path()).expect("intents read").len(), 0);
@@ -283,7 +283,7 @@ fn registry_storage_parks_the_section_and_defers_intent_gc() {
         &intents,
         None,
         &HashSet::new(),
-        &HashSet::new(),
+        &ReleaseNotesOptions::default(),
     )
     .expect("plan applies");
 
@@ -321,7 +321,7 @@ fn registry_storage_commits_a_private_project_section_and_collects_its_intent() 
         &intents,
         None,
         &HashSet::new(),
-        &HashSet::new(),
+        &ReleaseNotesOptions::default(),
     )
     .expect("plan applies");
 
@@ -358,7 +358,7 @@ fn registry_storage_collects_an_intent_and_its_section_once_confirmed() {
         &first_intents,
         None,
         &HashSet::new(),
-        &HashSet::new(),
+        &ReleaseNotesOptions::default(),
     )
     .expect("plan applies");
 
@@ -390,7 +390,7 @@ fn registry_storage_collects_an_intent_and_its_section_once_confirmed() {
         &intents,
         None,
         &confirmed,
-        &HashSet::new(),
+        &ReleaseNotesOptions::default(),
     )
     .expect("plan applies");
 
@@ -425,7 +425,7 @@ fn registry_storage_collects_a_dependency_only_release_section_when_confirmed() 
         &first_intents,
         None,
         &HashSet::new(),
-        &HashSet::new(),
+        &ReleaseNotesOptions::default(),
     )
     .expect("plan applies");
 
@@ -485,7 +485,7 @@ fn registry_storage_collects_a_dependency_only_release_section_when_confirmed() 
         &intents,
         None,
         &confirmed,
-        &HashSet::new(),
+        &ReleaseNotesOptions::default(),
     )
     .expect("plan applies");
 
@@ -526,7 +526,7 @@ fn registry_storage_keeps_an_intent_whose_release_is_not_confirmed() {
         &first_intents,
         None,
         &HashSet::new(),
-        &HashSet::new(),
+        &ReleaseNotesOptions::default(),
     )
     .expect("plan applies");
 
@@ -555,7 +555,7 @@ fn registry_storage_keeps_an_intent_whose_release_is_not_confirmed() {
         &intents,
         None,
         &HashSet::new(),
-        &HashSet::new(),
+        &ReleaseNotesOptions::default(),
     )
     .expect("plan applies");
 
@@ -611,7 +611,7 @@ fn apply_updates_the_selected_json5_manifest_without_creating_json() {
         &intents,
         Some(&repository()),
         &HashSet::new(),
-        &HashSet::new(),
+        &ReleaseNotesOptions::default(),
     )
     .expect("plan applies");
 
@@ -669,7 +669,7 @@ fn apply_bumps_package_yaml_manifest() {
         &intents,
         Some(&repository()),
         &HashSet::new(),
-        &HashSet::new(),
+        &ReleaseNotesOptions::default(),
     )
     .expect("plan applies");
 

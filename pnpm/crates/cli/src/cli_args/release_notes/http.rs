@@ -118,13 +118,19 @@ impl NotesHttp<'_> {
     }
 }
 
-/// The URL of a publication's note, from the server root of `registry`.
+/// The URL of a publication's note: its `url`, an absolute path on the
+/// server, resolved against `registry`. `None` when the entry has none or it
+/// points to another origin, since the note is read with the registry's
+/// credentials.
 pub(super) fn publication_url(registry: &str, publication: &PublicationRef) -> Option<String> {
-    let path = publication.notes_path()?;
-    Url::parse(registry)
-        .and_then(|registry| registry.join(&format!("/{path}")))
-        .ok()
-        .map(String::from)
+    let base = Url::parse(registry).ok()?;
+    same_origin_url(&base, publication.url.as_deref()?)
+}
+
+/// `reference` resolved against `base`, when it stays on `base`'s origin.
+fn same_origin_url(base: &Url, reference: &str) -> Option<String> {
+    let url = base.join(reference).ok()?;
+    (url.origin() == base.origin()).then(|| url.into())
 }
 
 fn join(registry: &str, path: &str) -> miette::Result<String> {
@@ -155,9 +161,8 @@ fn publication_link(request_url: &str, headers: &HeaderMap) -> Option<Publicatio
         .strip_prefix('<')?
         .split('>')
         .next()?;
-    let url = base.join(reference).ok()?;
-    (url.origin() == base.origin()).then(|| PublicationLink {
-        url: url.into(),
+    Some(PublicationLink {
+        url: same_origin_url(&base, reference)?,
         name: header(headers, "pnpr-publication-name"),
         initial_digest: header(headers, "pnpr-publication-initial-digest"),
     })

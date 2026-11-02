@@ -48,6 +48,13 @@ pub struct VersionArgs {
     /// Show information in JSON format.
     #[clap(long)]
     pub json: bool,
+    /// With the bare `pnpm version -r`: a summary of the release, a file or
+    /// the text itself. It goes above the release notes composed from the
+    /// change intents for a registry declared `serverType: pnpr`: the
+    /// publication's note, or the package's version note when the release
+    /// has one package.
+    #[clap(long = "release-notes", value_name = "FILE|TEXT")]
+    pub release_notes: Option<String>,
     #[clap(flatten)]
     pub git: VersionGitArgs,
 }
@@ -127,6 +134,18 @@ enum VersionError {
     #[display("Working tree is not clean. Commit or stash your changes.")]
     #[diagnostic(code(ERR_PNPM_UNCLEAN_WORKING_TREE))]
     UncleanWorkingTree,
+
+    #[display(
+        r#"--release-notes is only supported by the bare "pnpm version -r", which composes release notes from change intents"#
+    )]
+    #[diagnostic(code(ERR_PNPM_RELEASE_NOTES_WITHOUT_INTENTS))]
+    ReleaseNotesWithoutIntents,
+
+    #[display(
+        "--release-notes has no release notes to go into: no release of this plan is bound for a registry declared with serverType: pnpr in registry changelog storage"
+    )]
+    #[diagnostic(code(ERR_PNPM_RELEASE_NOTES_WITHOUT_REGISTRY))]
+    ReleaseNotesWithoutRegistry,
 }
 
 impl VersionArgs {
@@ -137,7 +156,10 @@ impl VersionArgs {
         recursive: bool,
     ) -> miette::Result<()> {
         match self.params.first().map(String::as_str) {
-            None if recursive => self.release_from_intents(config).await,
+            None if recursive => self.release_from_intents(config, dir).await,
+            _ if self.release_notes.is_some() => {
+                Err(VersionError::ReleaseNotesWithoutIntents.into())
+            }
             None => Err(VersionError::MissingBump.into()),
             Some(_) => self.npm_style_bump::<Reporter>(config, dir, recursive),
         }

@@ -1,4 +1,4 @@
-use super::{NotesList, PublicationRef, is_in_upgrade_range};
+use super::{NotesList, is_in_upgrade_range, is_publication_segment};
 use node_semver::Version;
 use pretty_assertions::assert_eq;
 
@@ -37,7 +37,12 @@ fn parses_the_rfc_example_document() {
               "modified": "2026-10-28T09:12:44Z",
               "text": "- `install` reads lockfiles from 11.x.\n",
               "initialDigest": "sha256-47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=",
-              "publication": { "org": "example", "id": "9f2c41", "name": "v12.0.0" }
+              "publication": {
+                "org": "example",
+                "id": "9f2c41",
+                "name": "v12.0.0",
+                "url": "/-/publications/example/9f2c41/notes"
+              }
             },
             { "version": "11.4.0", "modified": "2026-09-30T17:01:02Z" }
           ],
@@ -49,18 +54,16 @@ fn parses_the_rfc_example_document() {
     assert_eq!(
         list.notes[0].publication
             .as_ref()
-            .and_then(PublicationRef::notes_path)
-            .as_deref(),
-        Some("-/publications/example/9f2c41/notes"),
+            .and_then(|publication| publication.url.as_deref()),
+        Some("/-/publications/example/9f2c41/notes"),
     );
     assert_eq!(list.notes[1].text, None);
 }
 
 #[test]
-fn refuses_a_publication_path_that_is_not_one_segment() {
-    for (org, id) in [("example", ".."), ("ex/ample", "1"), ("example", "a%2fb"), ("", "1")] {
-        let publication =
-            PublicationRef { org: org.into(), id: id.into(), name: None, initial_digest: None };
-        assert_eq!(publication.notes_path(), None, "{org}/{id}");
+fn a_publication_segment_is_one_path_segment() {
+    assert!(is_publication_segment("v12.0.0+build_1-rc"));
+    for value in ["..", ".", "ex/ample", "a%2fb", ""] {
+        assert!(!is_publication_segment(value), "{value}");
     }
 }

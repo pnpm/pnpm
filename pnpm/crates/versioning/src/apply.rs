@@ -52,7 +52,7 @@ pub struct AppliedRelease {
 /// A private project is never published, so no tarball can ever carry its
 /// prose: its releases use `repository` storage whatever is configured.
 ///
-/// `notes_dirs` are the releases bound for a registry that stores release
+/// `notes.dirs` are the releases bound for a registry that stores release
 /// notes. In `registry` storage they form one publication: their parked
 /// sections are their version notes, and the publication's name and note
 /// are parked beside them.
@@ -63,7 +63,7 @@ pub fn apply_release_plan(
     all_intents: &[ChangeIntent],
     versioning: Option<&VersioningSettings>,
     confirmed_published: &HashSet<String>,
-    notes_dirs: &HashSet<String>,
+    notes: &ReleaseNotesOptions,
 ) -> Result<Vec<AppliedRelease>, VersioningError> {
     let storage = ReleaseStorage {
         configured: changelog_storage(versioning),
@@ -72,7 +72,7 @@ pub fn apply_release_plan(
     let refs = index_project_refs(projects, workspace_dir);
 
     let applied = write_new_versions(plan)?;
-    let notes = storage.compose_notes(plan, notes_dirs, &refs, versioning);
+    let notes = storage.compose_notes(plan, notes, &refs, versioning);
     for release in &plan.releases {
         let section = notes.version_notes
             .get(&release.dir)
@@ -119,22 +119,34 @@ impl ReleaseStorage {
         if self.private_dirs.contains(dir) { ChangelogStorage::Repository } else { self.configured }
     }
 
-    /// The notes of the releases in `notes_dirs` that use `registry`
+    /// The notes of the releases in `notes.dirs` that use `registry`
     /// storage.
     fn compose_notes(
         &self,
         plan: &ReleasePlan,
-        notes_dirs: &HashSet<String>,
+        notes: &ReleaseNotesOptions,
         refs: &ProjectRefIndex,
         versioning: Option<&VersioningSettings>,
     ) -> ComposedNotes {
-        let members = notes_dirs
+        let members = notes.dirs
             .iter()
             .filter(|dir| self.of(dir) == ChangelogStorage::Registry)
             .cloned()
             .collect();
-        compose_release_notes(plan, &members, refs, versioning)
+        compose_release_notes(plan, &members, refs, versioning, notes.summary.as_deref())
     }
+}
+
+/// The release notes `pnpm version -r` composes for a registry that stores
+/// them.
+#[derive(Debug, Default)]
+pub struct ReleaseNotesOptions {
+    /// The releases bound for such a registry, by workspace-relative dir.
+    pub dirs: HashSet<String>,
+    /// A summary written by hand. It goes above the composed text of the
+    /// publication note, or of the version note when the publication has
+    /// one member.
+    pub summary: Option<String>,
 }
 
 /// A parked publication has served its purpose once every member is

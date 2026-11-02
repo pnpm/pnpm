@@ -39,17 +39,12 @@ pub struct PublicationRef {
     pub name: Option<String>,
     #[serde(default)]
     pub initial_digest: Option<String>,
-}
-
-impl PublicationRef {
-    /// The note's path from the server root, or `None` when the registry
-    /// sent an `org` or `id` that is not a single path segment.
-    #[must_use]
-    pub fn notes_path(&self) -> Option<String> {
-        (is_publication_segment(&self.org) && is_publication_segment(&self.id)).then(|| {
-            format!("-/publications/{}/{}/notes", self.org, self.id)
-        })
-    }
+    /// The publication note's URL, an absolute path on the server, as the
+    /// `Link` header of the version route gives it. A client resolves it
+    /// against the registry URL rather than deriving it from `org` and
+    /// `id`, which would miss a pnpr served under a path prefix.
+    #[serde(default)]
+    pub url: Option<String>,
 }
 
 /// Whether `value` can be a publication `<org>`, identifier, or name: one

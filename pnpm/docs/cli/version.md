@@ -104,3 +104,7 @@ Apply the version bump to every package in the workspace (optionally narrowed wi
 ### --json
 
 Output the list of bumped packages in JSON format.
+
+### --release-notes &lt;file|text\>
+
+With the bare `pnpm version -r`, a summary of the release, written by hand, for a registry declared with [`serverType: pnpr`](../registries.md#servertype). The value is read as a file when one exists at that path, and used as the text otherwise. The summary goes above the [release notes composed from the change intents](../versioning.md#release-notes-on-pnpr): the notes of the whole release, or the package's own notes when the release has one package. `pnpm publish` then sends them as they were composed. The command fails when no release of the plan publishes to such a registry.

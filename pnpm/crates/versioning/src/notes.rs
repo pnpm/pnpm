@@ -9,6 +9,10 @@
 //! - an intent that also names a package outside the publication stays in
 //!   the version note of every member it names, since that package's
 //!   readers never see the publication note.
+//!
+//! A summary written by hand goes above the composed text of the
+//! publication note, or of the version note when the publication has one
+//! member, since that publication has nothing else in it.
 
 use std::collections::{HashMap, HashSet};
 
@@ -29,29 +33,43 @@ pub(crate) struct ComposedNotes {
 }
 
 /// Compose the notes of the releases of `plan` whose dirs are in
-/// `member_dirs`.
+/// `member_dirs`, with `summary` above the composed text of the publication
+/// note, or of the version note of a single member.
 pub(crate) fn compose_release_notes(
     plan: &ReleasePlan,
     member_dirs: &HashSet<String>,
     refs: &ProjectRefIndex,
     versioning: Option<&VersioningSettings>,
+    summary: Option<&str>,
 ) -> ComposedNotes {
     let members: Vec<&PlannedRelease> = plan.releases
         .iter()
         .filter(|release| member_dirs.contains(&release.dir))
         .collect();
     let placement = IntentPlacement { members: &members, member_dirs, refs };
+    let single_member = members.len() == 1;
     let version_notes = members
         .iter()
-        .map(|release| (release.dir.clone(), placement.version_note(release)))
+        .map(|release| {
+            let note = placement.version_note(release);
+            let note = match summary {
+                Some(summary) if single_member => with_summary(summary, &note),
+                _ => note,
+            };
+            (release.dir.clone(), note)
+        })
         .collect();
+    let publication_note = placement.publication_note();
     let publication = ParkedPublication {
         name: publication_name(&members, refs, versioning),
         members: members
             .iter()
             .map(|release| format!("{}@{}", release.name, release.version.next))
             .collect(),
-        notes: placement.publication_note(),
+        notes: match summary {
+            Some(summary) if !single_member => with_summary(summary, &publication_note),
+            _ => publication_note,
+        },
     };
     let has_content = publication.name.is_some() || !publication.notes.is_empty();
     ComposedNotes { version_notes, publication: has_content.then_some(publication) }
@@ -128,6 +146,15 @@ impl IntentPlacement<'_> {
         }
         render_by_bump(&entries)
     }
+}
+
+/// `summary` above `composed`, separated by a blank line.
+fn with_summary(summary: &str, composed: &str) -> String {
+    let summary = summary.trim_end();
+    if summary.is_empty() {
+        return composed.to_owned();
+    }
+    if composed.is_empty() { format!("{summary}\n") } else { format!("{summary}\n\n{composed}") }
 }
 
 fn publication_entry(intent: &ChangeIntent, applies_to: &[&PlannedRelease]) -> String {

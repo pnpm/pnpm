@@ -1,7 +1,7 @@
 //! Release notes on a registry declared `serverType: pnpr`: which registries
 //! store them, and reading them for the commands that offer an upgrade. The
 //! routes are those of the release-notes RFC
-//! (<https://github.com/pnpm/rfcs/blob/057a5cb08f430a1824c082ed525bea13520bb4dd/pnpr/text/0000-release-notes.md>).
+//! (<https://github.com/pnpm/rfcs/blob/12e86ef2bb6d942aaa3adec4e7ec42df22b7d763/pnpr/text/0000-release-notes.md>).
 
 pub(crate) mod reader;
 
@@ -13,10 +13,25 @@ mod confirm;
 mod http;
 mod render;
 
+use miette::{Context, IntoDiagnostic};
 use pnpm_config::Config;
 use pnpm_lockfile::RegistryServerType;
 use pnpm_network::normalize_registry_url;
-use std::collections::HashSet;
+use pnpm_release_notes::normalize_line_endings;
+use std::{collections::HashSet, path::Path};
+
+/// The text a `--release-notes` value gives: the file it names, relative to
+/// `dir`, or else the value itself, with its line endings normalized.
+pub(crate) fn read_release_notes_arg(dir: &Path, value: &str) -> miette::Result<String> {
+    let path = dir.join(value);
+    if !path.is_file() {
+        return Ok(normalize_line_endings(value));
+    }
+    let text = std::fs::read_to_string(&path)
+        .into_diagnostic()
+        .wrap_err_with(|| format!("read the release notes file {value}"))?;
+    Ok(normalize_line_endings(&text))
+}
 
 /// The normalized URLs of the registries declared `serverType: pnpr`, the
 /// only ones pnpm sends release notes to and reads them from.

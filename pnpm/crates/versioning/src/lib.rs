@@ -11,7 +11,7 @@
 //! See the native monorepo versioning RFC:
 //! <https://github.com/pnpm/rfcs/pull/18>.
 
-pub use apply::{AppliedRelease, apply_release_plan};
+pub use apply::{AppliedRelease, ReleaseNotesOptions, apply_release_plan};
 pub use changelog::{compose_changelog_section, prepend_changelog_section, render_changelog};
 pub use error::VersioningError;
 pub use intents::{

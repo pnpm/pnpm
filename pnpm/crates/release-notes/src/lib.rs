@@ -6,7 +6,7 @@
 //! range a reader filters it to, and rendering a note for the terminal.
 //!
 //! See the release-notes RFC:
-//! <https://github.com/pnpm/rfcs/blob/057a5cb08f430a1824c082ed525bea13520bb4dd/pnpr/text/0000-release-notes.md>.
+//! <https://github.com/pnpm/rfcs/blob/12e86ef2bb6d942aaa3adec4e7ec42df22b7d763/pnpr/text/0000-release-notes.md>.
 
 pub use changelog_section::find_changelog_section;
 pub use content::{MAX_NOTE_BYTES, NoteContentError, normalize_line_endings, validate_note};

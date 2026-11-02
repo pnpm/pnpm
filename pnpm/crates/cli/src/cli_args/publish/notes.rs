@@ -2,16 +2,17 @@
 //! `serverType: pnpr`: a version note per package and, for a batch, the
 //! publication's name and note. In a workspace that versions with pnpm in
 //! `registry` changelog storage they come from the notes `pnpm version -r`
-//! composed from the change intents; elsewhere a package's version note is
-//! its `CHANGELOG.md` section for the version.
+//! composed from the change intents, with any summary written by hand
+//! already in them; elsewhere a package's version note is its
+//! `CHANGELOG.md` section for the version, or `--release-notes`.
 
 use super::{PackedDirectory, PublishArgs, PublishScope};
 use crate::cli_args::{
     changelog::published_name,
-    release_notes::{notes_registries, notes_registry_of_manifest},
+    release_notes::{notes_registries, notes_registry_of_manifest, read_release_notes_arg},
 };
 use derive_more::Display;
-use miette::{Context, IntoDiagnostic};
+use miette::Context;
 use pnpm_config::Config;
 use pnpm_publish::{PublicationNotes, ReleaseNotesTarget};
 use pnpm_release_notes::{
@@ -32,8 +33,6 @@ enum NoteSource {
     Option,
     #[display("change intents")]
     ChangeIntents,
-    #[display("--release-notes and change intents")]
-    OptionAndChangeIntents,
     #[display("CHANGELOG.md")]
     Changelog,
 }
@@ -99,23 +98,15 @@ impl PublishArgs {
         ReleaseNotesTarget { registries: notes_registries(config), ..ReleaseNotesTarget::default() }
     }
 
-    /// The text of `--release-notes`: the file it names, relative to `dir`,
-    /// or else the text itself.
+    /// The text of `--release-notes`.
     pub(super) fn release_notes_text(&self, dir: &Path) -> miette::Result<Option<String>> {
-        let Some(value) = &self.flags.manifest.notes.release_notes else {
-            return Ok(None);
-        };
         if self.flags.manifest.notes.no_release_notes {
             return Ok(None);
         }
-        let path = dir.join(value);
-        if !path.is_file() {
-            return Ok(Some(normalize_line_endings(value)));
-        }
-        let text = std::fs::read_to_string(&path)
-            .into_diagnostic()
-            .wrap_err_with(|| format!("read the release notes file {value}"))?;
-        Ok(Some(normalize_line_endings(&text)))
+        self.flags.manifest.notes.release_notes
+            .as_deref()
+            .map(|value| read_release_notes_arg(dir, value))
+            .transpose()
     }
 
     /// The version note of a package bound for a registry that stores notes,
@@ -132,7 +123,7 @@ impl PublishArgs {
         {
             return Ok(None);
         }
-        let Some((text, source)) = version_note_source(config, package, scope.summary()) else {
+        let Some((text, source)) = version_note_source(config, package, scope.summary())? else {
             return Ok(None);
         };
         let id = package_id(package.published_manifest);
@@ -152,6 +143,13 @@ impl PublishArgs {
         }
         let parked = parked_publication(config, members)?;
         let summary = self.release_notes_text(dir)?;
+        let versioned = parked.is_some()
+            || members
+                .iter()
+                .any(|manifest| parked_version_note(config, manifest).is_some());
+        if summary.is_some() && versioned {
+            return Err(summary_belongs_to_versioning());
+        }
         let name = self.flags.manifest.notes.publication_name
             .clone()
             .or_else(|| parked.as_ref().and_then(|publication| publication.name.clone()));
@@ -161,14 +159,9 @@ impl PublishArgs {
         let composed = parked
             .map(|publication| publication.notes)
             .filter(|notes| !notes.is_empty());
-        let notes = match (summary, composed) {
-            (Some(summary), Some(composed)) => {
-                Some((join_notes(&summary, &composed), NoteSource::OptionAndChangeIntents))
-            }
-            (Some(summary), None) => Some((summary, NoteSource::Option)),
-            (None, Some(composed)) => Some((composed, NoteSource::ChangeIntents)),
-            (None, None) => None,
-        };
+        let notes = summary
+            .map(|summary| (summary, NoteSource::Option))
+            .or_else(|| composed.map(|composed| (composed, NoteSource::ChangeIntents)));
         let notes = notes
             .map(|(text, source)| checked_note::<Reporter>(&text, "the publication", source))
             .transpose()?;
@@ -208,21 +201,33 @@ fn tarball_changelog_note(manifest: &Value, tarball: &[u8]) -> Option<String> {
     find_changelog_section(&normalize_line_endings(&changelog), version)
 }
 
+/// The version note of `package`: the one `pnpm version -r` composed, or
+/// else `--release-notes` (`summary`), or else its `CHANGELOG.md` section.
+/// A summary for a composed note belongs to `pnpm version -r`, which put it
+/// in the note already.
 fn version_note_source(
     config: &Config,
     package: &NotesPackage<'_>,
     summary: Option<&str>,
-) -> Option<(String, NoteSource)> {
+) -> miette::Result<Option<(String, NoteSource)>> {
     let parked = parked_version_note(config, package.source_manifest);
-    match (summary, parked) {
-        (Some(summary), Some(parked)) if !parked.is_empty() => {
-            Some((join_notes(summary, &parked), NoteSource::OptionAndChangeIntents))
-        }
-        (Some(summary), _) => Some((summary.to_owned(), NoteSource::Option)),
+    Ok(match (summary, parked) {
+        (Some(_), Some(_)) => return Err(summary_belongs_to_versioning()),
+        (Some(summary), None) => Some((summary.to_owned(), NoteSource::Option)),
         (None, Some(parked)) => (!parked.is_empty()).then_some((parked, NoteSource::ChangeIntents)),
         (None, None) => changelog_note(package.dir, package.published_manifest)
             .map(|text| (text, NoteSource::Changelog)),
-    }
+    })
+}
+
+/// `pnpm version -r` composes every note of a release it versioned, so the
+/// digest it later checks covers the summary too.
+fn summary_belongs_to_versioning() -> miette::Report {
+    miette::miette!(
+        code = "ERR_PNPM_RELEASE_NOTES_FROM_VERSIONING",
+        help = r#"Give the summary to "pnpm version -r --release-notes", which composes it into the notes it parks for "pnpm publish"."#,
+        r#"--release-notes cannot be given to "pnpm publish" for a release whose notes "pnpm version -r" composed"#,
+    )
 }
 
 /// The version note `pnpm version -r` parked for the package, empty when it
@@ -269,10 +274,6 @@ fn parked_publication(
                 .iter()
                 .all(|member| keys.contains(member))
         }))
-}
-
-fn join_notes(summary: &str, composed: &str) -> String {
-    format!("{}\n\n{composed}", summary.trim_end())
 }
 
 /// `note` after the registry's content rules, reported with its source.

@@ -10,16 +10,27 @@ fn version(text: &str) -> Version {
 }
 
 fn publication(id: &str) -> serde_json::Value {
-    json!({ "org": "example", "id": id, "name": format!("release-{id}") })
+    json!({
+        "org": "example",
+        "id": id,
+        "name": format!("release-{id}"),
+        "url": format!("/-/publications/example/{id}/notes"),
+    })
 }
 
 /// Reads `pkg`'s notes for an upgrade from 1.0.0 to `target`.
 async fn upgrade_notes(server: &mockito::Server, target: &str) -> String {
+    upgrade_notes_from(&format!("{}/", server.url()), target).await
+}
+
+/// Reads `pkg`'s notes from `registry` for an upgrade from 1.0.0 to
+/// `target`.
+async fn upgrade_notes_from(registry: &str, target: &str) -> String {
     let config = Config::default();
     let client = ThrottledClient::default();
     let reader = NotesReader::new(&client, &config);
     let notes = reader
-        .upgrade_notes(&format!("{}/", server.url()), "pkg", &version("1.0.0"), &version(target))
+        .upgrade_notes(registry, "pkg", &version("1.0.0"), &version(target))
         .await
         .expect("notes read");
     render_upgrade_notes(&notes)
@@ -156,4 +167,50 @@ async fn a_publication_link_to_another_origin_is_not_followed() {
         .expect("notes read");
 
     assert_eq!(render_upgrade_notes(&notes), "1.1.0:\n  note");
+}
+
+#[tokio::test]
+async fn a_publication_is_read_from_its_url_under_a_path_prefix() {
+    let mut server = mockito::Server::new_async().await;
+    let list = json!({ "notes": [{
+        "version": "1.1.0",
+        "publication": {
+            "org": "example",
+            "id": "p1",
+            "url": "/registry/-/publications/example/p1/notes",
+        },
+    }] });
+    let _list = server
+        .mock("GET", "/registry/npm/pkg/-/notes")
+        .with_body(list.to_string())
+        .create_async()
+        .await;
+    let p1 = server
+        .mock("GET", "/registry/-/publications/example/p1/notes")
+        .with_body("under a prefix")
+        .expect(1)
+        .create_async()
+        .await;
+
+    let rendered = upgrade_notes_from(&format!("{}/registry/npm/", server.url()), "1.1.0").await;
+
+    p1.assert_async().await;
+    assert_eq!(rendered, "Release notes of the publication:\n  under a prefix");
+}
+
+#[tokio::test]
+async fn a_publication_url_on_another_origin_is_not_read() {
+    let mut server = mockito::Server::new_async().await;
+    let list = json!({ "notes": [{
+        "version": "1.1.0",
+        "text": "note",
+        "publication": { "org": "example", "id": "p1", "url": "https://elsewhere.example/notes" },
+    }] });
+    let _list = server
+        .mock("GET", "/pkg/-/notes")
+        .with_body(list.to_string())
+        .create_async()
+        .await;
+
+    assert_eq!(upgrade_notes(&server, "1.1.0").await, "1.1.0:\n  note");
 }

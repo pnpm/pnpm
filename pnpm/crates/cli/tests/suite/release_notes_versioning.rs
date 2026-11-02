@@ -148,3 +148,90 @@ fn versioning_composes_sends_and_collects_release_notes() {
     );
     drop(root);
 }
+
+#[test]
+fn a_summary_given_to_version_goes_above_the_publication_note() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let mut server = mockito::Server::new();
+    let registry = format!("{}/", server.url());
+    write_workspace(&workspace, &registry);
+    fs::write(workspace.join("summary.md"), "## Highlights\r\n").expect("write summary");
+
+    run(pnpm(&workspace)
+        .with_args(["version", "-r", "--no-git-checks", "--release-notes", "summary.md"]));
+    let publication_note = format!("## Highlights\n\n{PUBLICATION_NOTE}");
+    let parked = workspace.join(".changeset/changelogs");
+    assert_eq!(fs::read_to_string(parked.join("a@1.1.0.md")).expect("a note"), VERSION_NOTE_A);
+
+    // `pnpm publish` sends the composed note as it is and takes no summary
+    // of its own for it.
+    let refused = pnpm(&workspace)
+        .with_args(["-r", "publish", "--batch", "--force", "--no-git-checks"])
+        .with_args(["--release-notes", "Another summary."])
+        .output()
+        .expect("run pnpm publish");
+    assert!(!refused.status.success());
+    let stderr = String::from_utf8_lossy(&refused.stderr);
+    assert!(stderr.contains("ERR_PNPM_RELEASE_NOTES_FROM_VERSIONING"), "{stderr}");
+
+    let batch = server
+        .mock("PUT", "/-/pnpr/v0/publish")
+        .match_body(Matcher::PartialJson(json!({
+            "name": "v1.1.0",
+            "notes": publication_note,
+            "packages": [{ "name": "a", "notes": VERSION_NOTE_A }, { "name": "b" }],
+        })))
+        .with_status(201)
+        .with_body(r#"{"ok":true}"#)
+        .expect(1)
+        .create();
+    run(pnpm(&workspace).with_args(["-r", "publish", "--batch", "--force", "--no-git-checks"]));
+    batch.assert();
+
+    // The intent check verifies the digest of the note with its summary.
+    let link = r#"</-/publications/example/1/notes>; rel="publication-notes""#;
+    let digest = note_digest(&publication_note);
+    let _note_a = server
+        .mock("GET", "/a/1.1.0/notes")
+        .with_header("link", link)
+        .with_header("pnpr-publication-initial-digest", &digest)
+        .with_header("pnpr-note-initial-digest", &note_digest(VERSION_NOTE_A))
+        .with_body(VERSION_NOTE_A)
+        .create();
+    let _note_b = server
+        .mock("GET", "/b/1.1.0/notes")
+        .with_status(204)
+        .with_header("link", link)
+        .with_header("pnpr-publication-initial-digest", &digest)
+        .create();
+    run(pnpm(&workspace).with_args(["version", "-r", "--no-git-checks"]));
+    assert_eq!(intent_files(&workspace), Vec::<String>::new());
+    drop(root);
+}
+
+#[test]
+fn version_refuses_a_summary_with_nowhere_to_go() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let registry = "https://registry.example/";
+    write_workspace(&workspace, registry);
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\nversioning:\n  fixed:\n    - [a, b]\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+
+    for args in [
+        &["version", "-r", "--no-git-checks", "--release-notes", "Summary."][..],
+        &["version", "patch", "--no-git-checks", "--release-notes", "Summary."][..],
+    ] {
+        let output = pnpm(&workspace)
+            .with_args(args)
+            .output()
+            .expect("run pnpm version");
+        assert!(!output.status.success(), "{args:?}");
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(stderr.contains("ERR_PNPM_RELEASE_NOTES_WITHOUT_"), "{args:?}: {stderr}");
+    }
+    assert_eq!(intent_files(&workspace), ["only-a.md", "shared.md"]);
+    drop(root);
+}
