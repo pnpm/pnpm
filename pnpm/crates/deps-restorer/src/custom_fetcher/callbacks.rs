@@ -114,7 +114,7 @@ async fn run_callback<Reporter: self::Reporter>(
             .await
             .map_err(|error| error.fetch_error_details())?;
     let result = serde_json::json!({
-        "filesMap": tarball.files_map,
+        "filesMap": tarball.files_map.iter().map(|(filename, file)| (filename, &file.path)).collect::<HashMap<_, _>>(),
         "integrity": tarball.integrity.to_string(),
         "manifest": tarball.manifest,
         "requiresBuild": tarball.requires_build,

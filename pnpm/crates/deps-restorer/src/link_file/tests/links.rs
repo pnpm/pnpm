@@ -13,6 +13,7 @@ use super::{
     EaccesHardLink, EaccesLinks, EpermHardLink, EpermReflink, inode,
 };
 use pnpm_config::PackageImportMethod;
+use pnpm_fs::StoreFile;
 use pnpm_reporter::SilentReporter;
 use pretty_assertions::assert_eq;
 use std::{
@@ -61,7 +62,8 @@ fn not_found_with_a_dangling_symlink_at_either_path_propagates() {
     let src = write_source(tmp.path(), "1b59d9", b"data\n");
     let dst = write_source(tmp.path(), "dst", b"data\n");
 
-    for (src, dst) in [(src, dangling("dangling-dst")), (dangling("dangling-src"), dst)] {
+    for (src, dst) in [(src, dangling("dangling-dst")), (dangling("dangling-src").into(), dst.path)]
+    {
         let error =
             recover_from_concurrent_import(io::Error::from(io::ErrorKind::NotFound), &src, &dst)
                 .expect_err("a dangling symlink is corruption, not a concurrent writer");
@@ -101,7 +103,7 @@ fn hardlink_shares_contents_with_source() {
 #[test]
 fn explicit_hardlink_surfaces_errors() {
     let tmp = tempdir().unwrap();
-    let src = tmp.path().join("does-not-exist");
+    let src = StoreFile::new(tmp.path().join("does-not-exist"));
     let dst = tmp.path().join("dst.txt");
 
     let err =
@@ -165,7 +167,7 @@ fn live_symlink_short_circuits() {
 fn auto_hardlink_tier_call_errors_propagate() {
     let state = AtomicU8::new(LINK_STATE_HARDLINK);
     let tmp = tempdir().unwrap();
-    let src = tmp.path().join("does-not-exist");
+    let src = StoreFile::new(tmp.path().join("does-not-exist"));
     let dst = tmp.path().join("dst");
 
     let err = auto_link::<SilentReporter, Host>(&AtomicU8::new(0), &state, &src, &dst)

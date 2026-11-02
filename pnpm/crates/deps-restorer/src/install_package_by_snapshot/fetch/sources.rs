@@ -13,7 +13,6 @@ use pnpm_lockfile::{BinaryResolution, LockfileResolution, PackageKey, PackageMet
 use pnpm_reporter::Reporter;
 use pnpm_store_dir::git_hosted_store_index_key;
 use pnpm_tarball::IngestTarballToStore;
-use std::{collections::HashMap, path::PathBuf};
 
 fn is_revision_addressed(resolution: &LockfileResolution) -> bool {
     match resolution {
@@ -57,7 +56,7 @@ impl InstallPackageBySnapshot<'_> {
             CustomFetchOutcome::Walked { directory, .. } => CustomFetched {
                 resolution: Some(directory.resolution()),
                 source_exists: directory.exists,
-                cas_paths: Some(directory.files_map),
+                cas_paths: Some(pnpm_fs::cas_paths_from_paths(directory.files_map)),
             },
             CustomFetchOutcome::Fetched { resolution, tarball } => {
                 let cas_paths = self.prepare_custom_tarball::<Reporter>(
@@ -76,8 +75,8 @@ impl InstallPackageBySnapshot<'_> {
     async fn prepare_custom_tarball<Reporter: self::Reporter>(
         &self,
         fetch: SnapshotFetch<'_>,
-        cas_paths: HashMap<String, PathBuf>,
-    ) -> Result<HashMap<String, PathBuf>, InstallPackageBySnapshotError> {
+        cas_paths: pnpm_fs::CasPaths,
+    ) -> Result<pnpm_fs::CasPaths, InstallPackageBySnapshotError> {
         let LockfileResolution::Tarball(tarball) = fetch.resolution else { return Ok(cas_paths) };
         if !tarball.is_git_hosted() {
             return Ok(cas_paths);
@@ -101,7 +100,7 @@ impl InstallPackageBySnapshot<'_> {
         &self,
         binary: &BinaryResolution,
         package_key: &PackageKey,
-    ) -> Result<HashMap<String, PathBuf>, InstallPackageBySnapshotError> {
+    ) -> Result<pnpm_fs::CasPaths, InstallPackageBySnapshotError> {
         fetch_binary_resolution_to_cas::<Reporter>(
             binary,
             self.fetching.http_client,
@@ -121,7 +120,7 @@ impl InstallPackageBySnapshot<'_> {
         fetch: &SnapshotFetch<'_>,
         git_resolution: &pnpm_lockfile::GitResolution,
         allow_build: &(impl Fn(&str) -> Option<bool> + Send + Sync),
-    ) -> Result<HashMap<String, PathBuf>, InstallPackageBySnapshotError> {
+    ) -> Result<pnpm_fs::CasPaths, InstallPackageBySnapshotError> {
         let config = self.ctx.config;
         let built = !config.ignore_scripts
             && allow_build(&fetch.package_key.without_peer().to_string()) != Some(false);
@@ -162,8 +161,7 @@ impl InstallPackageBySnapshot<'_> {
     pub(super) async fn tarball_cas_paths<Reporter: self::Reporter>(
         &self,
         fetch: TarballFetch<'_, impl Fn(&str) -> Option<bool> + Send + Sync>,
-    ) -> Result<(HashMap<String, PathBuf>, ExtractedPackageMetadata), InstallPackageBySnapshotError>
-    {
+    ) -> Result<(pnpm_fs::CasPaths, ExtractedPackageMetadata), InstallPackageBySnapshotError> {
         let config = self.ctx.config;
         let revision_addressed = is_revision_addressed(fetch.resolution);
         let (tarball_url, integrity) =
@@ -210,8 +208,8 @@ impl InstallPackageBySnapshot<'_> {
         &self,
         fetch: &TarballFetch<'_, impl Fn(&str) -> Option<bool> + Send + Sync>,
         tarball: &pnpm_lockfile::TarballResolution,
-        cas_paths: HashMap<String, PathBuf>,
-    ) -> Result<HashMap<String, PathBuf>, InstallPackageBySnapshotError> {
+        cas_paths: pnpm_fs::CasPaths,
+    ) -> Result<pnpm_fs::CasPaths, InstallPackageBySnapshotError> {
         let config = self.ctx.config;
         let files_index_file = git_hosted_store_index_key(
             fetch.package_id,

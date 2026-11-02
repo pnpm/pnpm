@@ -5,7 +5,7 @@ use crate::{
 };
 use pnpm_reporter::SilentReporter;
 use pnpm_store_dir::{StoreDir, StoreIndex, StoreIndexWriter};
-use std::{collections::HashMap, fs, path::PathBuf, sync::Arc};
+use std::{collections::HashMap, fs, sync::Arc};
 use tempfile::tempdir;
 
 fn deny_all_builds<'a>() -> AllowBuildRef<'a> {
@@ -19,7 +19,7 @@ fn allow_all_builds<'a>() -> AllowBuildRef<'a> {
 /// Build the `cas_paths` map the dispatcher would hand the fetcher
 /// after `IngestTarballToStore` finishes: a fresh `StoreDir`, a few
 /// files written via `write_cas_file`, and a `path → cas_path` map.
-fn write_to_cas(store_dir: &StoreDir, files: &[(&str, &[u8], bool)]) -> HashMap<String, PathBuf> {
+fn write_to_cas(store_dir: &StoreDir, files: &[(&str, &[u8], bool)]) -> pnpm_fs::CasPaths {
     let mut out = HashMap::new();
     for &(rel, bytes, executable) in files {
         let (cas_path, _hash) = store_dir.write_cas_file(bytes, executable).unwrap();
@@ -579,7 +579,10 @@ async fn fast_path_queues_synthesized_index_row() {
     assert_eq!(bin_entry.mode & 0o111, 0o111, "executable bit must survive the synthesis");
     let resolved =
         store_dir.cas_file_path_by_mode(&bin_entry.digest, bin_entry.mode).expect("valid digest");
-    assert_eq!(resolved, bin_cas_path, "synthesized digest must round-trip to the input CAS path");
+    assert_eq!(
+        resolved, bin_cas_path.path,
+        "synthesized digest must round-trip to the input CAS path",
+    );
 }
 
 /// Sub-path resolutions never qualify for the fast path: even when

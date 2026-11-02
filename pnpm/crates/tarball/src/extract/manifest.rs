@@ -6,8 +6,8 @@ use pnpm_package_manifest::{
 };
 
 use super::{
-    BuildTriggers, CafsFileInfo, HashMap, PackageFilesIndex, PathBuf, StoreDir, TarballError,
-    UNIX_EPOCH, parse_manifest_bytes,
+    BuildTriggers, CafsFileInfo, HashMap, PackageFilesIndex, StoreDir, TarballError, UNIX_EPOCH,
+    parse_manifest_bytes,
 };
 
 /// Reads a TAR entry that must fit in memory, rejecting oversized payloads
@@ -48,7 +48,7 @@ pub fn read_buffered_tar_entry(
 pub(crate) fn apply_append_manifest(
     store_dir: &StoreDir,
     manifest_bytes: &[u8],
-    cas_paths: &mut HashMap<String, PathBuf>,
+    cas_paths: &mut pnpm_fs::CasPaths,
     pkg_files_idx: &mut PackageFilesIndex,
 ) -> Result<(), TarballError> {
     if !write_synthesized_package_json(store_dir, manifest_bytes, cas_paths, pkg_files_idx)? {
@@ -80,7 +80,7 @@ pub(crate) fn apply_append_manifest(
 /// takes precedence.
 pub(crate) fn apply_placeholder_manifest(
     store_dir: &StoreDir,
-    cas_paths: &mut HashMap<String, PathBuf>,
+    cas_paths: &mut pnpm_fs::CasPaths,
     pkg_files_idx: &mut PackageFilesIndex,
 ) -> Result<(), TarballError> {
     write_synthesized_package_json(store_dir, PLACEHOLDER_PACKAGE_JSON, cas_paths, pkg_files_idx)?;
@@ -102,7 +102,7 @@ pub(crate) const PLACEHOLDER_PACKAGE_JSON: &[u8] = br#"{"_pnpmPlaceholder":"This
 pub(crate) fn write_synthesized_package_json(
     store_dir: &StoreDir,
     bytes: &[u8],
-    cas_paths: &mut HashMap<String, PathBuf>,
+    cas_paths: &mut pnpm_fs::CasPaths,
     pkg_files_idx: &mut PackageFilesIndex,
 ) -> Result<bool, TarballError> {
     if pkg_files_idx.files.contains_key("package.json") {

@@ -489,6 +489,7 @@ fn create_new_index_with_inherited_mode(
     };
     creation
         .grant(&file)
+        .map(drop)
         .map_err(|error| {
             // A database left without its inherited mode would be taken as
             // complete by the next open, which skips the grant for an existing file.

@@ -175,7 +175,7 @@ pub type IgnoreEntryFilter = dyn Fn(&str) -> bool + Send + Sync;
 /// parks on the same slot for the manifest.
 #[derive(Debug, Clone)]
 pub struct CachedTarball {
-    pub files: Arc<HashMap<String, PathBuf>>,
+    pub files: Arc<pnpm_fs::CasPaths>,
     pub manifest: Option<serde_json::Value>,
     pub requires_build: Option<bool>,
     pub bins: Option<Arc<BTreeMap<String, PackageBin>>>,
@@ -185,12 +185,12 @@ impl CachedTarball {
     /// A settled slot that carries only the CAS map, for callers that
     /// reconstructed the files without a bundled manifest.
     #[must_use]
-    pub fn from_files(files: HashMap<String, PathBuf>) -> Arc<Self> {
+    pub fn from_files(files: pnpm_fs::CasPaths) -> Arc<Self> {
         Self::from_files_arc(Arc::new(files))
     }
 
     #[must_use]
-    pub fn from_files_arc(files: Arc<HashMap<String, PathBuf>>) -> Arc<Self> {
+    pub fn from_files_arc(files: Arc<pnpm_fs::CasPaths>) -> Arc<Self> {
         Arc::new(Self { files, manifest: None, requires_build: None, bins: None })
     }
 
@@ -266,7 +266,7 @@ pub struct FetchedTarball {
     pub integrity: Integrity,
     /// See [`ArchiveIntegrity::tar`].
     pub tar_integrity: Option<Integrity>,
-    pub files_map: HashMap<String, PathBuf>,
+    pub files_map: pnpm_fs::CasPaths,
     pub manifest: Option<serde_json::Value>,
     pub requires_build: bool,
     pub bins: Option<Arc<BTreeMap<String, PackageBin>>>,
@@ -289,7 +289,7 @@ impl<'a> IngestTarballToStore<'a> {
     pub async fn run_with_mem_cache<Reporter: self::Reporter>(
         self,
         mem_cache: &'a MemCache,
-    ) -> Result<Arc<HashMap<String, PathBuf>>, TarballError> {
+    ) -> Result<Arc<pnpm_fs::CasPaths>, TarballError> {
         self.run_with_mem_cache_inner::<Reporter>(mem_cache, false).await
             .map(|cached| Arc::clone(&cached.files))
     }
@@ -299,7 +299,7 @@ impl<'a> IngestTarballToStore<'a> {
     pub async fn run_revision_addressed_with_mem_cache<Reporter: self::Reporter>(
         self,
         mem_cache: &'a MemCache,
-    ) -> Result<Arc<HashMap<String, PathBuf>>, TarballError> {
+    ) -> Result<Arc<pnpm_fs::CasPaths>, TarballError> {
         self.run_with_mem_cache_inner::<Reporter>(mem_cache, true).await
             .map(|cached| Arc::clone(&cached.files))
     }
@@ -368,7 +368,7 @@ impl<'a> IngestTarballToStore<'a> {
         &self,
         mem_cache: &'a MemCache,
         mem_cache_key: String,
-        cas_paths: &Arc<HashMap<String, PathBuf>>,
+        cas_paths: &Arc<pnpm_fs::CasPaths>,
         progress_key: Option<(&SharedReportedProgressKeys, &str)>,
     ) -> Arc<CachedTarball> {
         tracing::info!(
@@ -464,7 +464,7 @@ impl<'a> IngestTarballToStore<'a> {
     /// Execute the subroutine without an in-memory cache.
     pub async fn run_without_mem_cache<Reporter: self::Reporter>(
         &self,
-    ) -> Result<HashMap<String, PathBuf>, TarballError> {
+    ) -> Result<pnpm_fs::CasPaths, TarballError> {
         self.load_or_fetch::<Reporter>(false).await.map(|cached| cached.files)
     }
 
@@ -472,7 +472,7 @@ impl<'a> IngestTarballToStore<'a> {
     /// The network path performs exactly one GET and rejects redirects.
     pub async fn run_revision_addressed_without_mem_cache<Reporter: self::Reporter>(
         &self,
-    ) -> Result<HashMap<String, PathBuf>, TarballError> {
+    ) -> Result<pnpm_fs::CasPaths, TarballError> {
         self.load_or_fetch::<Reporter>(true).await.map(|cached| cached.files)
     }
 

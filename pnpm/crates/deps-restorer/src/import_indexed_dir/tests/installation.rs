@@ -5,12 +5,7 @@ use super::{
 use pnpm_config::PackageImportMethod;
 use pnpm_reporter::SilentReporter;
 use pretty_assertions::assert_eq;
-use std::{
-    collections::HashMap,
-    fs,
-    path::{Path, PathBuf},
-    sync::atomic::AtomicU8,
-};
+use std::{fs, path::Path, sync::atomic::AtomicU8};
 use tempfile::tempdir;
 
 #[cfg(windows)]
@@ -333,8 +328,8 @@ fn concurrent_forced_and_non_forced_imports_into_the_same_target_succeed() {
 
 fn assert_concurrent_forced_and_non_forced_imports_converge(
     target: &Path,
-    non_forced_cas: &HashMap<String, PathBuf>,
-    forced_cas: &HashMap<String, PathBuf>,
+    non_forced_cas: &pnpm_fs::CasPaths,
+    forced_cas: &pnpm_fs::CasPaths,
 ) {
     let cases = [
         (non_forced_cas, false),

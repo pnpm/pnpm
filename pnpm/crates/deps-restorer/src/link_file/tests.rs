@@ -9,16 +9,14 @@ mod installation;
 #[cfg(unix)]
 use super::Host;
 use super::{FsHardLink, FsReflink};
-use std::{
-    fs, io,
-    path::{Path, PathBuf},
-};
+use pnpm_fs::StoreFile;
+use std::{fs, io, path::Path};
 
-fn write_source(dir: &Path, name: &str, contents: &[u8]) -> PathBuf {
+fn write_source(dir: &Path, name: &str, contents: &[u8]) -> StoreFile {
     let path = dir.join(name);
     fs::create_dir_all(path.parent().unwrap()).expect("create source parent");
     fs::write(&path, contents).expect("write source file");
-    path
+    StoreFile::new(path)
 }
 
 /// A non-executable store entry, relative to the store directory.

@@ -44,6 +44,14 @@ use std::{
 };
 use tempfile::{TempDir, tempdir};
 
+/// The store file each name maps to, without the modes the install read.
+fn store_paths(files: &pnpm_fs::CasPaths) -> HashMap<&str, &Path> {
+    files
+        .iter()
+        .map(|(name, file)| (name.as_str(), file.path.as_path()))
+        .collect()
+}
+
 fn integrity(integrity_str: &str) -> Integrity {
     integrity_str.parse().expect("parse integrity string")
 }
@@ -53,7 +61,7 @@ fn extract_tarball_entries(
     limits: TarLimits,
     store_dir: &StoreDir,
     ignore_file_pattern: Option<&IgnoreEntryFilter>,
-) -> Result<(HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
+) -> Result<(pnpm_fs::CasPaths, PackageFilesIndex), TarballError> {
     let (files, index, _) =
         extract_tarball_entries_with_bins(tar_data, limits, store_dir, ignore_file_pattern)?;
     Ok((files, index))
@@ -78,7 +86,7 @@ async fn fetch_and_extract_with_retry<TestReporter: Reporter>(
     ignore_file_pattern: Option<Arc<IgnoreEntryFilter>>,
     progress_key: Option<(&SharedReportedProgressKeys, &str)>,
     revision_addressed: bool,
-) -> Result<(ArchiveIntegrity, HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
+) -> Result<(ArchiveIntegrity, pnpm_fs::CasPaths, PackageFilesIndex), TarballError> {
     let (integrity, files, index, _) = fetch_and_extract_archive_with_retry::<TestReporter>(
         http_client,
         package_url,
@@ -503,7 +511,7 @@ fn extract_gzipped_tarball(
     limits: crate::TarLimits,
     store_dir: &pnpm_store_dir::StoreDir,
     ignore_file_pattern: Option<&crate::IgnoreEntryFilter>,
-) -> Result<(HashMap<String, PathBuf>, pnpm_store_dir::PackageFilesIndex), TarballError> {
+) -> Result<(pnpm_fs::CasPaths, pnpm_store_dir::PackageFilesIndex), TarballError> {
     extract_gzipped_tarball_with_tar(gz_data, unpacked_size, limits, store_dir, ignore_file_pattern)
         .map(|(files, index, _, _)| (files, index))
 }
@@ -514,7 +522,7 @@ fn stream_extract_gzipped_tarball(
     limits: crate::TarLimits,
     store_dir: &pnpm_store_dir::StoreDir,
     ignore_file_pattern: Option<&crate::IgnoreEntryFilter>,
-) -> Result<(HashMap<String, PathBuf>, pnpm_store_dir::PackageFilesIndex), TarballError> {
+) -> Result<(pnpm_fs::CasPaths, pnpm_store_dir::PackageFilesIndex), TarballError> {
     stream_extract_gzipped_tarball_with_tar(gz_data, limits, store_dir, ignore_file_pattern)
         .map(|(files, index, _, _)| (files, index))
 }

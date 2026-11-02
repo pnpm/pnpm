@@ -1,7 +1,7 @@
 use super::{
     Arc, AuthHeaders, BodyProgress, BodyVerification, BufferBody, Buffered, BufferedArchive,
-    FetchingProgressLog, FetchingProgressMessage, HashMap, IgnoreEntryFilter, LogEvent, LogLevel,
-    NetworkError, PackageFilesIndex, Path, PathBuf, Reporter, SemaphorePermit, StoreDir, Stream,
+    FetchingProgressLog, FetchingProgressMessage, IgnoreEntryFilter, LogEvent, LogLevel,
+    NetworkError, PackageFilesIndex, Path, Reporter, SemaphorePermit, StoreDir, Stream,
     TarballError, ThrottledClient, buffer_body, extract_body_while_downloading,
     extract_tarball_buffer, local_file_tarball_path, open_local_tarball, read_local_tarball_buffer,
     streaming_extract_semaphore, streams_while_downloading,
@@ -122,7 +122,7 @@ async fn fetch_remote<Reporter: self::Reporter>(
 
 pub(crate) struct ExtractedArchive {
     pub integrity: crate::ArchiveIntegrity,
-    pub files: HashMap<String, PathBuf>,
+    pub files: pnpm_fs::CasPaths,
     pub index: PackageFilesIndex,
     pub bins: Option<BTreeMap<String, PackageBin>>,
     pub meta: crate::archive_request::ArchiveResponseMeta,

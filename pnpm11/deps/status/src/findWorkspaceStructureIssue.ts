@@ -10,11 +10,15 @@ export function findWorkspaceStructureIssue ({ allProjects, opts, workspaceState
   )) {
     return 'Catalogs cache outdated'
   }
+  // A version decides only how dependencies resolve to the project. A lone
+  // project's version matters only when a transitive dependency may resolve to it.
+  const compareVersions = allProjects.length > 1 || opts.linkWorkspacePackages === 'deep'
   if (allProjects.length !== Object.keys(workspaceState.projects).length ||
     !allProjects.every((currentProject) => {
       const prevProject = workspaceState.projects[currentProject.rootDir]
       if (!prevProject) return false
-      return prevProject.name === currentProject.manifest.name && (prevProject.version ?? '0.0.0') === (currentProject.manifest.version ?? '0.0.0')
+      return prevProject.name === currentProject.manifest.name &&
+        (!compareVersions || (prevProject.version ?? '0.0.0') === (currentProject.manifest.version ?? '0.0.0'))
     })
   ) {
     return 'The workspace structure has changed since last install'

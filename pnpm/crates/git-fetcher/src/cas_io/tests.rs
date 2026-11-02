@@ -138,7 +138,7 @@ fn synthesize_files_index_errors_on_malformed_cas_path() {
     let tmp = tempdir().unwrap();
     let scratch = tmp.path().join("scratch.txt");
     std::fs::write(&scratch, b"x").unwrap();
-    bad.insert("scratch.txt".to_string(), scratch);
+    bad.insert("scratch.txt".to_string(), scratch.into());
 
     let err = synthesize_files_index(&bad).unwrap_err();
     match err {

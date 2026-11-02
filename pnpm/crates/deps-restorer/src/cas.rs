@@ -129,7 +129,7 @@ fn package_files(inputs: &LinkPhaseInputs<'_>, id: &str) -> io::Result<BTreeMap<
     paths.cas_paths
         .iter()
         .map(|(name, path)| {
-            let relative = path
+            let relative = path.path
                 .strip_prefix(&files_dir)
                 .map_err(|_| {
                     io::Error::other(format!(

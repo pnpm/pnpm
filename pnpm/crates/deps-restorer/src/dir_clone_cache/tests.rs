@@ -106,9 +106,9 @@ mod macos {
         let lib_blob = store.join("lib-blob");
         fs::write(&manifest_blob, br#"{"name":"foo"}"#).expect("write manifest blob");
         fs::write(&lib_blob, b"module.exports = 1").expect("write lib blob");
-        let cas_paths: HashMap<String, PathBuf> = HashMap::from([
-            ("package.json".to_string(), manifest_blob),
-            ("lib/index.js".to_string(), lib_blob.clone()),
+        let cas_paths: pnpm_fs::CasPaths = HashMap::from([
+            ("package.json".to_string(), manifest_blob.into()),
+            ("lib/index.js".to_string(), lib_blob.clone().into()),
         ]);
 
         let key: PackageKey = "foo@1.0.0".parse().expect("valid snapshot key");

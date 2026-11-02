@@ -189,6 +189,27 @@ test('no dependencies', async () => {
   }
 })
 
+// https://github.com/pnpm/pnpm/issues/17560
+test('a version bump of the project runs the script without an install', async () => {
+  const manifest: ProjectManifest = {
+    name: 'root',
+    version: '1.0.0',
+    private: true,
+    scripts: {
+      start: 'echo hello from script',
+    },
+  }
+
+  const project = prepare(manifest)
+  writeYamlFileSync('pnpm-workspace.yaml', { verifyDepsBeforeRun: 'error' })
+  await execPnpm(['install'])
+
+  project.writePackageJson({ ...manifest, version: '1.0.1' })
+
+  const { stdout } = execPnpmSync([...CONFIG, 'start'], { expectSuccess: true })
+  expect(stdout.toString()).toContain('hello from script')
+})
+
 test('nested `pnpm run` should not check for mutated manifest', async () => {
   const manifest: ProjectManifest = {
     name: 'root',
