@@ -162,6 +162,37 @@ CREATE TABLE IF NOT EXISTS publication_outcomes (
 ) STRICT, WITHOUT ROWID;
 CREATE INDEX IF NOT EXISTS publication_outcomes_by_key
     ON publication_outcomes (principal, idempotency_key);
+
+-- Release notes of a package version (`kind` = 'version', `subject` = the
+-- version) or of a publication (`kind` = 'publication', `ecosystem` and
+-- `name` empty, `subject` = its id). `text` is NULL once deleted.
+-- `initial_digest` is the digest of the text published with the subject.
+CREATE TABLE IF NOT EXISTS notes (
+    catalog TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    ecosystem TEXT NOT NULL,
+    name TEXT NOT NULL,
+    subject TEXT NOT NULL,
+    text TEXT,
+    modified_at TEXT NOT NULL,
+    principal TEXT,
+    initial_digest TEXT,
+    PRIMARY KEY (catalog, kind, ecosystem, name, subject)
+) STRICT, WITHOUT ROWID;
+
+-- Insert-only: every change of a note, with the text it replaced, so an
+-- accidental or unauthorized edit can be restored.
+CREATE TABLE IF NOT EXISTS note_history (
+    catalog TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    ecosystem TEXT NOT NULL,
+    name TEXT NOT NULL,
+    subject TEXT NOT NULL,
+    changed_at TEXT NOT NULL,
+    principal TEXT,
+    previous TEXT,
+    next TEXT
+) STRICT;
 ";
 
 /// Configure a connection and create the tables it needs.

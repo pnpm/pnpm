@@ -35,6 +35,7 @@ mod provenance;
 mod pypi_registry;
 mod pypi_resolve;
 mod registry_mock;
+mod release_notes;
 mod reserved_usernames;
 mod rule_administration;
 mod s3_backend;

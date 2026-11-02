@@ -168,6 +168,26 @@ generation it committed. `<org>` is `-` for registries without an `org`.
 | `GET` | `/-/publications/<org>/<id-or-name>` | The publication, with the members the caller may read: ecosystem, name, version, and artifact (an npm archive's integrity, or another ecosystem's file name). `404` when the caller may read none of them. |
 | `GET` | `/-/publications/<org>?member=<ecosystem>:<name>@<version>` | The publication that introduced that version. A version published before publications were recorded gets one with `"origin": "imported"` and no publisher. |
 
+### Release note endpoints {#release-note-endpoints}
+
+Served when the hosted metadata lives in [SQLite](storage.md#sqlite-metadata).
+A note is Markdown of at most 64 KiB, with no control characters other than
+line feed and tab, no carriage returns, and no bidirectional overrides. A
+publish can send notes with it (see
+[One publish for a workspace that spans ecosystems](ecosystems.md#one-publish-for-a-workspace-that-spans-ecosystems)),
+and a single npm publish document can carry its version note in a top-level
+`notes` field.
+
+| Method | Path | Description |
+| --- | --- | --- |
+| `GET` | `/npm/<name>/<version>/notes` | The version's note as `text/markdown`. `<version>` may be a dist-tag. `204` when only the version's publication has a note, with a `Link: <…>; rel="publication-notes"` header. A version published with a note carries `PNPR-Note-Initial-Digest`, the digest of the text it was published with, even after an edit or deletion. |
+| `PUT`, `DELETE` | `/npm/<name>/<version>/notes` | Replace or delete the version's note. Requires the package's `publish` rule. |
+| `GET` | `/npm/<name>/-/notes` | Every note of the package as JSON, newest version first, at most 100 entries and 1 MiB, with `"truncated": true` when more exist. |
+| `GET`, `PUT`, `DELETE` | `/-/publications/<org>/<id-or-name>/notes` | The publication's note. Reading needs read access to every member, writing needs every member's `publish` rule. |
+
+A response that anyone may read is cached `public, max-age=300`. Any other is
+`private, no-store`. pnpr keeps every earlier text of a note for recovery.
+
 ### Pipeline run endpoints
 
 Added in: v0.1.0-alpha.11

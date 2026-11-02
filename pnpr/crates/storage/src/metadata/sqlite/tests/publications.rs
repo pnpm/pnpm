@@ -2,7 +2,8 @@
 
 use super::{npm, packument, read, storage, write};
 use crate::metadata::{
-    BatchDocument, PublicationCommit, PublicationOrigin, PublicationRequest, SqliteMetadata,
+    BatchDocument, PublicationCommit, PublicationOrigin, PublicationRequest, PublishNotes,
+    SqliteMetadata,
 };
 use pnpr_error::RegistryError;
 use pnpr_package_name::Ecosystem;
@@ -33,7 +34,14 @@ async fn commit(
     documents: Vec<BatchDocument>,
     request: PublicationRequest,
 ) -> Result<PublicationCommit, RegistryError> {
-    database.commit_publication("acme", documents, Vec::new(), Some(request)).await
+    database.commit_publication(
+        "acme",
+        documents,
+        Vec::new(),
+        PublishNotes::default(),
+        Some(request),
+    )
+    .await
 }
 
 #[tokio::test]

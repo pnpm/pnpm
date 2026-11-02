@@ -114,6 +114,7 @@ mod health;
 use health::shutdown_signal;
 mod managed_state;
 mod metrics;
+mod notes;
 mod oci;
 mod oidc;
 mod oidc_groups;

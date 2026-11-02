@@ -15,6 +15,9 @@
 pub(crate) mod sqlite;
 
 pub(crate) use documents::update_with_retry;
+pub use notes::{
+    MAX_NOTE_BYTES, Note, NoteChange, PublishNotes, VersionNote, note_digest, validate_note,
+};
 pub use publication::{
     ArtifactMember, BatchDocument, Publication, PublicationCommit, PublicationOrigin,
     PublicationRequest, RecordedOutcome,
@@ -22,6 +25,7 @@ pub use publication::{
 pub use sqlite::{RenderStats, SqliteMetadata, TagHistoryEntry};
 
 mod documents;
+mod notes;
 mod publication;
 
 use crate::{

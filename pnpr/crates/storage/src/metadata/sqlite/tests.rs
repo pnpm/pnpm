@@ -1,6 +1,7 @@
 //! Conformance tests of the `SQLite` metadata backend.
 
 mod concurrency;
+mod notes;
 mod publications;
 
 use crate::{
