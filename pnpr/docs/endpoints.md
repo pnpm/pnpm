@@ -425,9 +425,7 @@ archive's exact `package.json` and `npm-shrinkwrap.json` bytes:
 }
 ```
 
-A staged publish is verified when it is approved. Versions published before
-pnpr verified manifests are not rewritten; [`pnpr verify`](cli.md#verify)
-re-derives them from their stored archives and reports each disagreement.
+A staged publish is verified when it is approved.
 
 ## Staged publishing endpoints
 
