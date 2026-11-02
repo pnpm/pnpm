@@ -773,3 +773,23 @@ fn unrecorded_links_to_other_skills_or_outside_the_virtual_store_remain_occupied
         assert_eq!(link_target(&link), link_target(&target));
     }
 }
+
+#[test]
+fn cleanup_does_not_follow_a_recorded_directory_outside_the_workspace() {
+    let (root, lockfile) = workspace(&[("foo", "1.0.0", &["guide"])]);
+    fs::create_dir_all(root.path().join(".claude/skills")).unwrap();
+    let config = config(&[("foo", true)], None);
+    let state = sync(root.path(), &lockfile, &config, &[], None).unwrap();
+    let external = tempfile::tempdir().unwrap();
+    let moved = external.path().join("claude");
+    fs::rename(root.path().join(".claude"), &moved).unwrap();
+    pnpm_fs::symlink_dir(&moved, &root.path().join(".claude")).unwrap();
+    let ignore = moved.join("skills/.gitignore");
+    let before = fs::read_to_string(&ignore).unwrap();
+
+    let state = sync(root.path(), &lockfile, &config, &state.linked, None).unwrap();
+
+    assert_eq!(state, AgentSkillsState::default());
+    assert_eq!(fs::read_to_string(ignore).unwrap(), before);
+    assert!(fs::symlink_metadata(moved.join("skills/guide")).is_ok());
+}

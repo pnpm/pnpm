@@ -222,6 +222,17 @@ fn an_approved_skill_without_a_directory_does_not_fail_the_install() {
         .success();
     assert!(!workspace.join(".claude").exists());
     assert_eq!(pending_skills(&workspace), None);
+    fs::create_dir_all(workspace.join(".claude/skills")).expect("create agent directory");
+    pnpm(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    assert!(
+        workspace
+            .join(LINK)
+            .join("SKILL.md")
+            .is_file(),
+    );
     drop(harness);
 }
 

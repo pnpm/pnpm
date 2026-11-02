@@ -24,8 +24,7 @@ pub(crate) fn agent_skill_targets_changed(config: &Config, workspace_root: &Path
         return false;
     };
     let linked = modules.linked_skills.unwrap_or_default();
-    !linked.is_empty()
-        && targets::targets_changed(config, workspace_root, agent_skills_dir_from_env(), &linked)
+    targets::targets_changed(config, workspace_root, agent_skills_dir_from_env(), &linked)
 }
 
 mod discovery;
@@ -226,7 +225,7 @@ fn prune(
     for entry in linked
         .iter()
         .filter(|entry| !keep.contains(*entry))
-        .filter(|entry| is_within_workspace(entry))
+        .filter(|entry| recorded_parent_is_within_workspace(workspace_root, entry))
     {
         let path = workspace_root.join(entry);
         if links_to_a_package_skill(&path) {
@@ -234,6 +233,16 @@ fn prune(
         }
     }
     Ok(())
+}
+
+fn recorded_parent_is_within_workspace(workspace_root: &Path, entry: &str) -> bool {
+    if !is_within_workspace(entry) {
+        return false;
+    }
+    let Some(parent) = Path::new(entry).parent() else { return false };
+    let Ok(root) = dunce::canonicalize(workspace_root) else { return false };
+    let Ok(parent) = dunce::canonicalize(workspace_root.join(parent)) else { return false };
+    pnpm_fs::is_subdir(&root, &parent)
 }
 
 /// `.modules.yaml` is not trusted to name only pnpm's entries, so pnpm
