@@ -66,6 +66,16 @@ async fn add_npm_selector_with_ranges(
     workspace_range: Option<&str>,
     override_range: Option<&str>,
 ) -> Option<String> {
+    add_npm_selector_in_workspace(selector, (workspace_range, override_range), true).await
+}
+
+/// `configure_workspace_dir: false` leaves `Config::workspace_dir` unset, so
+/// the add has to discover the workspace it runs in.
+async fn add_npm_selector_in_workspace(
+    selector: &str,
+    (workspace_range, override_range): (Option<&str>, Option<&str>),
+    configure_workspace_dir: bool,
+) -> Option<String> {
     let dir = tempdir().unwrap();
     let project_root = dir.path().join("project");
     let modules_dir = project_root.join("node_modules");
@@ -128,7 +138,7 @@ async fn add_npm_selector_with_ranges(
     config.install_state_dir = virtual_store_dir;
     config.registry = registry_url;
     config.minimum_release_age = None;
-    if workspace_range.is_some() || override_range.is_some() {
+    if configure_workspace_dir && (workspace_range.is_some() || override_range.is_some()) {
         config.workspace_dir = Some(dir.path().to_path_buf());
     }
     if let Some(override_range) = override_range {

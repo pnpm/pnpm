@@ -8,18 +8,22 @@ use pnpm_resolving_resolver_base::WorkspacePackages;
 use pnpm_workspace_range_resolver::resolve_workspace_range;
 use pnpm_workspace_spec::WorkspaceSpec;
 
-/// Walk the workspace projects, or `None` when there is no workspace or it
-/// cannot be enumerated.
+/// Walk the projects of the workspace `project_dir` belongs to, or `None`
+/// when there is no workspace or it cannot be enumerated.
 ///
 /// A failure to walk the workspace is not this function's problem to
 /// report — the install that follows the manifest write walks it again and
 /// surfaces the error with far more context — so it degrades to "no
 /// workspace packages", which only costs the pinned form its version.
-pub(super) fn workspace_projects_for_add(config: &Config) -> Option<Vec<pnpm_workspace::Project>> {
-    let workspace_dir = config.workspace_dir.as_ref()?;
-    let manifest = pnpm_workspace::read_workspace_manifest(workspace_dir).ok()??;
+pub(super) fn workspace_projects_for_add(
+    config: &Config,
+    project_dir: &std::path::Path,
+) -> Option<Vec<pnpm_workspace::Project>> {
+    let workspace_dir =
+        crate::install::configured_or_discovered_workspace_dir(config, project_dir).ok()??;
+    let manifest = pnpm_workspace::read_workspace_manifest(&workspace_dir).ok()??;
     pnpm_workspace::find_workspace_projects(
-        workspace_dir,
+        &workspace_dir,
         &pnpm_workspace::FindWorkspaceProjectsOpts {
             patterns: Some(pnpm_workspace::workspace_package_patterns(&manifest)),
             ignored_directories: config.managed_directories(),

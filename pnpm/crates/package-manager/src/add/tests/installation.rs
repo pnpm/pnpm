@@ -100,6 +100,13 @@ async fn add_uses_a_workspace_declared_range_before_the_default_tag() {
     );
 }
 #[tokio::test]
+async fn add_uses_the_range_of_a_workspace_it_discovers() {
+    assert_eq!(
+        super::add_npm_selector_in_workspace("foo", (Some("~1.0.0"), None), false).await,
+        Some("~1.0.0".to_string()),
+    );
+}
+#[tokio::test]
 async fn add_uses_a_workspace_declared_range_for_an_npm_protocol_selector() {
     assert_eq!(
         add_npm_selector_with_ranges("npm:foo", Some("~1.0.0"), None).await,

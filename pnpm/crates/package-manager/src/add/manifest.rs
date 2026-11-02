@@ -94,7 +94,13 @@ fn walk_workspace_for_add(
             catalogs,
             manifest,
         ))
-    .then(|| workspace_projects_for_add(add.config))
+    .then(|| {
+        let project_dir = manifest
+            .path()
+            .parent()
+            .expect("manifest path always has a parent dir");
+        workspace_projects_for_add(add.config, project_dir)
+    })
     .flatten()
 }
 
