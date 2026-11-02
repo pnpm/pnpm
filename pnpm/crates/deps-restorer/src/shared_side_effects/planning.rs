@@ -239,7 +239,7 @@ pub(super) async fn reuse_persisted_overlay(
     persisted_remote: &mut HashMap<(PackageKey, String), SideEffectsOverlay>,
     side_effects_maps_by_snapshot: &mut SideEffectsMapsBySnapshot,
 ) -> bool {
-    let Some(overlay) =
+    let Some(mut overlay) =
         persisted_remote.remove(&(snapshot_key.clone(), local_cache_key.to_owned()))
     else {
         return false;
@@ -248,7 +248,9 @@ pub(super) async fn reuse_persisted_overlay(
     let Some(diff) = diff else {
         return false;
     };
-    match stored_remote_side_effects_blobs_are_valid(&plan.config.store_dir, diff, &overlay).await {
+    match stored_remote_side_effects_blobs_are_valid(&plan.config.store_dir, diff, &mut overlay)
+        .await
+    {
         Ok(true) => {
             insert_side_effects_map(
                 side_effects_maps_by_snapshot,

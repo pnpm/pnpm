@@ -40,7 +40,7 @@ async fn a_package_that_requires_a_build_is_left_to_the_link_phase() {
     ] {
         let package_json = dir.path().join(format!("{name}.json"));
         std::fs::write(&package_json, manifest).unwrap();
-        let files = HashMap::from([("package.json".to_string(), package_json)]);
+        let files = HashMap::from([("package.json".to_string(), package_json.into())]);
         let package = finalized_package(name, "1.0.0");
         let LockfileResolution::Tarball(tarball) = &package.result.resolution else {
             unreachable!()
@@ -83,7 +83,7 @@ async fn pnpr_requires_build_hint_skips_scheduling_and_never_bypasses_tarball_ve
         r#"{"name":"forged","version":"1.0.0","scripts":{"postinstall":"node x.js"}}"#,
     )
     .unwrap();
-    let files = HashMap::from([("package.json".to_string(), package_json)]);
+    let files = HashMap::from([("package.json".to_string(), package_json.into())]);
     let forged = finalized_package_with_requires_build("forged", "1.0.0", Some(false));
     let LockfileResolution::Tarball(tarball) = &forged.result.resolution else { unreachable!() };
     mem_cache.insert(
@@ -96,7 +96,7 @@ async fn pnpr_requires_build_hint_skips_scheduling_and_never_bypasses_tarball_ve
     // `import_slot` uses that in-memory verdict without re-reading `package.json`.
     let plain_json = dir.path().join("plain.json");
     std::fs::write(&plain_json, r#"{"name":"plain","version":"1.0.0"}"#).unwrap();
-    let plain_files = Arc::new(HashMap::from([("package.json".to_string(), plain_json)]));
+    let plain_files = Arc::new(HashMap::from([("package.json".to_string(), plain_json.into())]));
     let plain = finalized_package_with_requires_build("plain", "1.0.0", Some(false));
     let LockfileResolution::Tarball(plain_tarball) = &plain.result.resolution else {
         unreachable!()

@@ -10,8 +10,8 @@ pub use progress::download_priority;
 pub(crate) use progress::{emit_progress_fetched, emit_progress_found_in_store};
 
 use super::{
-    Arc, Duration, HashMap, IgnoreEntryFilter, Instant, MAX_UNTRUSTED_PREALLOC_BYTES, NetworkError,
-    Path, PathBuf, STREAM_EXTRACT_COMPRESSED_THRESHOLD, STREAM_EXTRACT_DURING_DOWNLOAD_THRESHOLD,
+    Arc, Duration, IgnoreEntryFilter, Instant, MAX_UNTRUSTED_PREALLOC_BYTES, NetworkError, Path,
+    STREAM_EXTRACT_COMPRESSED_THRESHOLD, STREAM_EXTRACT_DURING_DOWNLOAD_THRESHOLD,
     SharedReportedProgressKeys, TarLimits, TarballError, VerifyChecksumError,
     allocate_tarball_buffer, body_chunk_channel,
     content_coding::ContentCoding,

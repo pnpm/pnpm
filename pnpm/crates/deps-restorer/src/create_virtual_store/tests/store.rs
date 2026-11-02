@@ -72,8 +72,8 @@ impl ColdMemCacheBatch {
             fs::write(&index_path, "module.exports = true\n").expect("write package body");
 
             let cas_paths = HashMap::from([
-                ("package.json".to_string(), manifest_path),
-                ("index.js".to_string(), index_path),
+                ("package.json".to_string(), manifest_path.into()),
+                ("index.js".to_string(), index_path.into()),
             ]);
             let bins = Some(Arc::new(std::collections::BTreeMap::from([(
                 package_name.clone(),
@@ -409,7 +409,7 @@ async fn gvs_link_pass_materializes_shared_slot_once() {
         let manifest_path = source_dir.join("package.json");
         fs::write(&manifest_path, format!(r#"{{"name":"{package_name}","version":"1.0.0"}}"#))
             .expect("write package manifest");
-        let cas_paths = HashMap::from([("package.json".to_string(), manifest_path)]);
+        let cas_paths = HashMap::from([("package.json".to_string(), manifest_path.into())]);
         mem_cache.insert(
             package_mem_cache_key(
                 &format!("https://registry.test/{package_name}/-/{package_name}-1.0.0.tgz"),

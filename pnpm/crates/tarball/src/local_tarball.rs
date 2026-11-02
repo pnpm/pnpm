@@ -4,7 +4,7 @@
 //! local archive without going through the store.
 
 use super::{
-    Cursor, HashMap, MAX_UNTRUSTED_PREALLOC_BYTES, Path, PathBuf, Read, TarballError,
+    Cursor, MAX_UNTRUSTED_PREALLOC_BYTES, Path, PathBuf, Read, TarballError,
     allocate_tarball_buffer, clean_archive_entry_path, decompress_gzip, io,
     is_eager_decode_limit_exceeded, oversized_manifest_error, post_download_semaphore,
     tar_entry_payload, verify_tarball_integrity,
@@ -166,18 +166,18 @@ pub(crate) fn is_unc_like_file_payload(path: &str) -> bool {
 /// bundled-manifest subset. Missing or unparsable JSON is `None` so
 /// the caller can degrade rather than fail the resolve.
 pub async fn read_cas_package_json(
-    cas_paths: &HashMap<String, PathBuf>,
+    cas_paths: &pnpm_fs::CasPaths,
     relative_path: &str,
 ) -> Result<Option<serde_json::Value>, TarballError> {
     let Some(cas_path) = cas_paths.get(relative_path) else { return Ok(None) };
     let file_size = tokio::fs::metadata(cas_path).await
-        .map_err(|source| TarballError::ReadLocalTarball { path: cas_path.clone(), source })?
+        .map_err(|source| TarballError::ReadLocalTarball { path: cas_path.path.clone(), source })?
         .len();
     if file_size > MAX_UNTRUSTED_PREALLOC_BYTES as u64 {
         return Err(oversized_manifest_error(file_size));
     }
     let bytes = tokio::fs::read(cas_path).await
-        .map_err(|source| TarballError::ReadLocalTarball { path: cas_path.clone(), source })?;
+        .map_err(|source| TarballError::ReadLocalTarball { path: cas_path.path.clone(), source })?;
     match parse_manifest_bytes(&bytes) {
         Ok(parsed) => Ok(normalize_bundled_manifest(&parsed)),
         Err(error) => {
@@ -200,7 +200,7 @@ pub async fn read_cas_package_json(
 /// best-effort contract — the caller degrades rather than failing the
 /// resolve.
 pub async fn read_subdir_manifest(
-    cas_paths: &HashMap<String, PathBuf>,
+    cas_paths: &pnpm_fs::CasPaths,
     subdir: &str,
 ) -> Result<Option<serde_json::Value>, TarballError> {
     // `cas_paths` is keyed by the archive-relative path left after the

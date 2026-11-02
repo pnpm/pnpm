@@ -3,7 +3,7 @@ use super::{
     PackageFilesIndex, PathBuf, PrefetchIntegrityCheck, PrefetchedCasPaths,
     SharedReportedProgressKeys, SharedVerifiedFilesCache, SilentReporter, StoreIndex,
     StoreIndexWriter, TarballError, UNREACHABLE_URL, assert_eq, fast_fail_client, gzipped_tar,
-    integrity, prefetch_cas_paths, store_index_cache_key, store_index_key, tempdir,
+    integrity, prefetch_cas_paths, store_index_cache_key, store_index_key, store_paths, tempdir,
     tempdir_with_leaked_path, test_retry_opts,
 };
 
@@ -105,8 +105,8 @@ async fn reuses_cached_cas_paths_when_index_entry_is_live() {
         .expect("cache hit should succeed without network");
 
     assert_eq!(cas_paths.len(), 2);
-    assert_eq!(cas_paths.get("package.json"), Some(&pkg_json_path));
-    assert_eq!(cas_paths.get("bin/cli.js"), Some(&bin_path));
+    assert_eq!(store_paths(&cas_paths).get("package.json"), Some(&pkg_json_path.path.as_path()));
+    assert_eq!(store_paths(&cas_paths).get("bin/cli.js"), Some(&bin_path.path.as_path()));
     assert!(
         progress_reported.contains(&index_key),
         "a store cache hit must record its progress key; got {progress_reported:?}",
@@ -138,9 +138,9 @@ async fn reuses_prefetched_cas_paths_when_provided() {
     // verbatim by the prefetched short-circuit. They don't need to
     // resolve to anything on disk because no integrity check runs
     // on this path.
-    let mut files: HashMap<String, PathBuf> = HashMap::new();
-    files.insert("package.json".to_string(), PathBuf::from("/synthetic/package.json"));
-    files.insert("bin/cli.js".to_string(), PathBuf::from("/synthetic/bin/cli.js"));
+    let mut files: pnpm_fs::CasPaths = HashMap::new();
+    files.insert("package.json".to_string(), PathBuf::from("/synthetic/package.json").into());
+    files.insert("bin/cli.js".to_string(), PathBuf::from("/synthetic/bin/cli.js").into());
     let mut prefetched: PrefetchedCasPaths = HashMap::new();
     prefetched.insert(cache_key, Arc::new(files.clone()));
 
@@ -245,7 +245,7 @@ async fn prefetch_cas_paths_returns_hits_for_live_index_rows() {
     .await;
 
     let map = prefetched.cas_paths.get(&index_key).expect("hit");
-    assert_eq!(map.get("package.json"), Some(&pkg_json_path));
+    assert_eq!(map.get("package.json").map(|file| &file.path), Some(&pkg_json_path.path));
     assert_eq!(prefetched.requires_build.get(&index_key), Some(&false));
     assert_eq!(prefetched.requires_prepare.get(&index_key), Some(&true));
     drop(store_dir);
@@ -298,7 +298,7 @@ async fn prefetch_cas_paths_recomputes_requires_build_for_legacy_rows() {
     .await;
 
     let map = prefetched.cas_paths.get(&index_key).expect("hit");
-    assert_eq!(map.get("package.json"), Some(&pkg_json_path));
+    assert_eq!(map.get("package.json").map(|file| &file.path), Some(&pkg_json_path.path));
     assert_eq!(prefetched.requires_build.get(&index_key), Some(&true));
     drop(store_dir);
 }
@@ -528,6 +528,66 @@ async fn prefetch_cas_paths_deferred_check_drops_a_row_only_when_verified() {
     assert!(prefetched.cas_paths.contains_key(&unasked_key), "rows nobody asked about stay");
     assert!(prefetched.pending_checks.contains_key(&unasked_key));
     assert!(!prefetched.pending_checks.contains_key(&gone_key));
+    drop(store_dir);
+}
+
+/// pnpm/pnpm#17543: a deferred row that passes `verify_rows` hands the
+/// modes its check read to its files and to its side-effects overlays.
+#[tokio::test]
+#[cfg(unix)]
+async fn verify_rows_hands_verified_modes_to_the_row_and_its_overlays() {
+    let (store_dir, store_path) = tempdir_with_leaked_path();
+    let content = b"{\"name\":\"fake\"}";
+    let (_, hash) = store_path.write_cas_file(content, false).unwrap();
+    let pkg_integrity = integrity(
+        "sha512-q/IXcMGuF8v7ZLf/JeYfE/pB4Wg1yxT6jXJz8JxRK7a4mJSXV1QKMXDPfZkvMHTZpYxWBDoJiXtptDWFnoCA2w==",
+    );
+    let index_key = store_index_key(&pkg_integrity.to_string(), "fake@1.0.0");
+    let info = CafsFileInfo {
+        digest: format!("{hash:x}"),
+        mode: 0o644,
+        size: content.len() as u64,
+        checked_at: None,
+    };
+    let entry = PackageFilesIndex {
+        manifest: None,
+        requires_build: Some(false),
+        requires_prepare: None,
+        algo: "sha512".to_string(),
+        files: HashMap::from([("package.json".to_string(), info)]),
+        side_effects: Some(HashMap::from([(
+            "k1".to_string(),
+            pnpm_store_dir::SideEffectsDiff {
+                added: None,
+                deleted: Some(vec!["README.md".to_string()]),
+                remote_origin: None,
+            },
+        )])),
+        remote_side_effects_quarantine: None,
+        tar_integrity: None,
+    };
+    let index = StoreIndex::open_in(store_path).unwrap();
+    index.set(&index_key, &entry).unwrap();
+    drop(index);
+
+    let verified_files_cache = SharedVerifiedFilesCache::default();
+    let mut prefetched = prefetch_cas_paths(
+        StoreIndex::shared_readonly_in(store_path),
+        store_path,
+        vec![index_key.clone()],
+        PrefetchIntegrityCheck::Deferred,
+        SharedVerifiedFilesCache::clone(&verified_files_cache),
+    )
+    .await;
+    assert_eq!(prefetched.cas_paths[&index_key]["package.json"].mode(), None);
+
+    let failed = prefetched.verify_rows([index_key.as_str()], store_path, &verified_files_cache);
+
+    assert_eq!(failed, 0);
+    let mode = prefetched.cas_paths[&index_key]["package.json"].mode();
+    assert!(mode.is_some(), "a passed check hands its mode to the row");
+    let overlay = &prefetched.side_effects_maps[&index_key]["k1"];
+    assert_eq!(overlay.files["package.json"].mode(), mode);
     drop(store_dir);
 }
 

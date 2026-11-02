@@ -2,7 +2,7 @@ use crate::{FileHash, StoreDir};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_fs::{
-    EnsureFileError, cas_write_lock, create_exclusive_temp_file, ensure_cas_file,
+    EnsureFileError, StoreFile, cas_write_lock, create_exclusive_temp_file, ensure_cas_file,
     ensure_parent_dir,
     file_mode::{EXEC_MODE, is_executable},
     overwrite_file_in_place, rename_with_retry,
@@ -83,19 +83,23 @@ pub enum WriteCasFileFromReaderError {
 
 impl StoreDir {
     /// Write a file from an npm package to the store directory.
+    ///
+    /// The returned [`StoreFile`] carries the blob's mode (see
+    /// [`ensure_cas_file`]).
     pub fn write_cas_file(
         &self,
         buffer: &[u8],
         executable: bool,
-    ) -> Result<(PathBuf, FileHash), WriteCasFileError> {
+    ) -> Result<(StoreFile, FileHash), WriteCasFileError> {
         let file_hash = Sha512::digest(buffer);
         let file_path = self.cas_file_path(file_hash, executable);
         let mode = executable.then_some(EXEC_MODE);
 
         self.ensure_shard_dir(&file_path, file_hash[0])?;
 
-        ensure_cas_file(&file_path, buffer, mode).map_err(WriteCasFileError::WriteFile)?;
-        Ok((file_path, file_hash))
+        let blob_mode =
+            ensure_cas_file(&file_path, buffer, mode).map_err(WriteCasFileError::WriteFile)?;
+        Ok((StoreFile::with_mode(file_path, blob_mode), file_hash))
     }
 
     /// Stream a file from an npm package into the store directory
@@ -109,9 +113,10 @@ impl StoreDir {
     /// file is renamed to its content-addressed path at the end. Peak
     /// memory is one fixed copy buffer regardless of file size.
     ///
-    /// Returns the CAS path, the content hash, and the streamed byte
-    /// count. A reader that yields the same bytes as a `buffer` handed
-    /// to [`StoreDir::write_cas_file`] lands at the same path with the
+    /// Returns the CAS file, the content hash, and the streamed byte
+    /// count. The CAS file carries the blob's mode, as with
+    /// [`StoreDir::write_cas_file`]. A reader that yields the same bytes
+    /// as a `buffer` handed to [`StoreDir::write_cas_file`] lands at the same path with the
     /// same guarantees: an existing regular file at the target is kept
     /// as the live entry only after a byte-compare against the streamed
     /// content, a corrupt regular file is repaired in place so its
@@ -128,11 +133,11 @@ impl StoreDir {
         reader: &mut dyn Read,
         executable: bool,
         expected_size: Option<u64>,
-    ) -> Result<(PathBuf, FileHash, u64), WriteCasFileFromReaderError> {
+    ) -> Result<(StoreFile, FileHash, u64), WriteCasFileFromReaderError> {
         let files_dir = self.files_dir();
         ensure_parent_dir(files_dir).map_err(write_cas_error)?;
         let mode = executable.then_some(EXEC_MODE);
-        let (tmp_path, file) =
+        let (tmp_path, file, tmp_mode) =
             create_exclusive_temp_file(files_dir, "stream", mode).map_err(write_cas_error)?;
 
         let streamed = stream_into_temp_file(reader, file, &tmp_path, expected_size);
@@ -150,8 +155,8 @@ impl StoreDir {
             return Err(WriteCasFileFromReaderError::Write(error));
         }
 
-        commit_streamed_temp_file(&tmp_path, &file_path, size)?;
-        Ok((file_path, file_hash, size))
+        let blob_mode = commit_streamed_temp_file(&tmp_path, tmp_mode, &file_path, size)?;
+        Ok((StoreFile::with_mode(file_path, blob_mode), file_hash, size))
     }
 
     /// Ensure the shard directory (`files/XX/`) exists.
@@ -179,11 +184,14 @@ fn write_cas_error(error: EnsureFileError) -> WriteCasFileFromReaderError {
 /// repaired in place. Anything else (missing or torn blob, symlink or
 /// other non-regular dirent, refused in-place write) is atomically
 /// replaced by the rename, which is self-healing in every such state.
+/// Returns the blob's mode: the existing blob's when it kept it, or
+/// `tmp_mode` when it renamed the temp file into place.
 fn commit_streamed_temp_file(
     tmp_path: &Path,
+    tmp_mode: Option<u32>,
     file_path: &Path,
     size: u64,
-) -> Result<(), WriteCasFileFromReaderError> {
+) -> Result<Option<u32>, WriteCasFileFromReaderError> {
     // Serialize with buffer-based writers ([`ensure_cas_file`]) and
     // verifiers of the same path, per [`cas_write_lock`]'s
     // coordination contract.
@@ -200,7 +208,7 @@ fn commit_streamed_temp_file(
         && files_have_equal_contents(tmp_path, file_path);
     if existing_is_live || (existing_is_regular && repair_in_place(tmp_path, file_path)) {
         let _ = fs::remove_file(tmp_path);
-        return Ok(());
+        return Ok(existing_meta.as_ref().and_then(pnpm_fs::file_mode::metadata_mode));
     }
     if let Err(error) = rename_with_retry(tmp_path, file_path) {
         let _ = fs::remove_file(tmp_path);
@@ -210,7 +218,7 @@ fn commit_streamed_temp_file(
             error,
         }));
     }
-    Ok(())
+    Ok(tmp_mode)
 }
 
 /// Overwrite the corrupt regular file at `file_path` in place with the

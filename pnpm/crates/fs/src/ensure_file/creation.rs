@@ -51,7 +51,7 @@ impl<'parent> FileCreation<'parent> {
 
     #[cfg(unix)]
     #[inline]
-    pub(super) fn grant(&self, file: &File) -> io::Result<()> {
+    pub(super) fn grant(&self, file: &File) -> io::Result<Option<u32>> {
         self.mode.grant(file)
     }
 }

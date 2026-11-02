@@ -185,7 +185,7 @@ async fn pinned_resolution_read_recovers_manifest_from_a_files_only_slot() {
     )
     .expect("write cas package.json");
     let mut files = HashMap::new();
-    files.insert("package.json".to_string(), cas_file);
+    files.insert("package.json".to_string(), cas_file.into());
     mem_cache.insert(
         package_mem_cache_key(&url, Some(&pkg_integrity), false),
         Arc::new(RwLock::new(CacheValue::Available(CachedTarball::from_files(files)))),
@@ -228,7 +228,7 @@ async fn files_only_slot_rejects_an_oversized_cached_package_json() {
     file.set_len(MAX_UNTRUSTED_PREALLOC_BYTES as u64 + 1)
         .expect("set oversized length");
     let mut files = HashMap::new();
-    files.insert("package.json".to_string(), cas_file);
+    files.insert("package.json".to_string(), cas_file.into());
     mem_cache.insert(
         package_mem_cache_key(&url, Some(&pkg_integrity), false),
         Arc::new(RwLock::new(CacheValue::Available(CachedTarball::from_files(files)))),

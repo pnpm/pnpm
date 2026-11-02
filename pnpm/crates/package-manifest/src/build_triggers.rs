@@ -1,10 +1,6 @@
 use crate::{is_truthy, parse_manifest, safe_read_package_json_from_dir};
 use serde_json::Value;
-use std::{
-    collections::HashMap,
-    fs,
-    path::{Path, PathBuf},
-};
+use std::{collections::HashMap, fs, path::Path};
 
 /// The file a package ships to have `node-gyp` build it.
 pub const BINDING_GYP: &str = "binding.gyp";
@@ -165,7 +161,9 @@ where
 /// opted out with `gypfile: false`) or `.hooks/` entry, or an install
 /// script in its `package.json`.
 #[must_use]
-pub fn requires_build_from_cas_paths(cas_paths: &HashMap<String, PathBuf>) -> bool {
+pub fn requires_build_from_cas_paths<CasPath: AsRef<Path>>(
+    cas_paths: &HashMap<String, CasPath>,
+) -> bool {
     requires_build_from_files(
         read_package_json_from_cas_paths(cas_paths).as_ref(),
         cas_paths.keys(),
@@ -175,7 +173,9 @@ pub fn requires_build_from_cas_paths(cas_paths: &HashMap<String, PathBuf>) -> bo
 /// The package's `package.json`, read from the store file `cas_paths` maps it
 /// to. `None` when the package has none, or it cannot be read or parsed.
 #[must_use]
-pub fn read_package_json_from_cas_paths(cas_paths: &HashMap<String, PathBuf>) -> Option<Value> {
+pub fn read_package_json_from_cas_paths<CasPath: AsRef<Path>>(
+    cas_paths: &HashMap<String, CasPath>,
+) -> Option<Value> {
     let contents = fs::read_to_string(cas_paths.get("package.json")?).ok()?;
     parse_manifest(&contents).ok()
 }

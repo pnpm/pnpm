@@ -275,7 +275,10 @@ impl<'a> Registry<'a> {
             .ok_or_else(|| miette::miette!("Python package {name} {version} is not a wheel"))?;
         validate_wheel_identity(wheel, &self.resolution.target.tags, name, version)?;
         let files = self.ingest_wheel::<Reporter>(wheel, buffer).await?;
-        let files: BTreeMap<_, _> = files.into_iter().collect();
+        let files: BTreeMap<_, _> = files
+            .into_iter()
+            .map(|(name, file)| (name, file.path))
+            .collect();
         let metadata = host::inspect(&self.interpreter.executable, &files).await?;
         validate_wheel_metadata(&metadata, name, version)?;
         Ok(Wheel {
@@ -289,7 +292,7 @@ impl<'a> Registry<'a> {
         &self,
         wheel: &LockedWheel,
         buffer: Option<Vec<u8>>,
-    ) -> Result<std::collections::HashMap<String, std::path::PathBuf>> {
+    ) -> Result<pnpm_fs::CasPaths> {
         let integrity = wheel.integrity()?;
         let package_id = format!("python:{}", wheel.name);
         let ingestion = IngestZipArchiveToStore {

@@ -3,13 +3,8 @@ pub use directory::grant_inherited_dir_mode;
 pub use directory::{
     create_dir_all_inheriting_mode, inherited_dir_bits, nearest_existing_ancestor,
 };
-pub use observed_store_modes::{
-    forget_store_inode_mode, observed_store_inode_mode, record_store_inode_mode,
-    record_verified_store_inode_mode,
-};
 
 mod directory;
-mod observed_store_modes;
 #[cfg(unix)]
 use directory::is_unchangeable;
 
@@ -17,6 +12,21 @@ use directory::is_unchangeable;
 use pipe_trait::Pipe;
 
 use std::{io, path::Path};
+
+/// The POSIX mode `metadata` carries, or `None` off Unix.
+#[must_use]
+pub fn metadata_mode(metadata: &std::fs::Metadata) -> Option<u32> {
+    #[cfg(unix)]
+    return {
+        use std::os::unix::fs::MetadataExt;
+        Some(metadata.mode())
+    };
+    #[cfg(not(unix))]
+    {
+        let _ = metadata;
+        None
+    }
+}
 
 /// Bit mask to filter executable bits (`--x--x--x`).
 pub const EXEC_MASK: u32 = 0b001_001_001;
@@ -386,10 +396,12 @@ impl UnixCreationMode {
     }
 
     /// Add the post-create bits to a file opened with [`Self::apply_to`].
-    pub fn grant(&self, file: &std::fs::File) -> io::Result<()> {
+    /// Returns the file's permission bits as [`grant_mode_bits`] does,
+    /// `None` when there is nothing to grant.
+    pub fn grant(&self, file: &std::fs::File) -> io::Result<Option<u32>> {
         match self.grant_mode {
             Some(wanted) => grant_mode_bits(file, wanted),
-            None => Ok(()),
+            None => Ok(None),
         }
     }
 }
@@ -398,21 +410,25 @@ impl UnixCreationMode {
 /// wider than the directory mode survives. `EPERM`, `EACCES`, and `EROFS`
 /// are ignored: the file is already usable by its creator, and a store entry
 /// this process does not own must not fail the install.
+///
+/// Returns the file's permission bits afterwards, `None` when they could
+/// not be read.
 #[cfg(unix)]
-pub fn grant_mode_bits(file: &std::fs::File, wanted: u32) -> io::Result<()> {
+pub fn grant_mode_bits(file: &std::fs::File, wanted: u32) -> io::Result<Option<u32>> {
     use std::{fs::Permissions, os::unix::fs::PermissionsExt};
     let current = match file.metadata() {
         Ok(meta) => meta.permissions().mode() & 0o777,
-        Err(error) if is_unchangeable(&error) => return Ok(()),
+        Err(error) if is_unchangeable(&error) => return Ok(None),
         Err(error) => return Err(error),
     };
     let merged = current | (wanted & 0o777);
     if merged == current {
-        return Ok(());
+        return Ok(Some(current));
     }
     match file.set_permissions(Permissions::from_mode(merged)) {
-        Err(error) if is_unchangeable(&error) => Ok(()),
-        other => other,
+        Ok(()) => Ok(Some(merged)),
+        Err(error) if is_unchangeable(&error) => Ok(Some(current)),
+        Err(error) => Err(error),
     }
 }
 

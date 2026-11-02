@@ -248,7 +248,7 @@ async fn cold_batch_falls_back_when_prefetch_failed() {
 #[tokio::test]
 async fn custom_fetcher_delegate_rewrites_the_resolution() {
     use pnpm_tarball::{CacheValue, CachedTarball, MemCache, package_mem_cache_key};
-    use std::{collections::HashMap, path::PathBuf, sync::Arc};
+    use std::{collections::HashMap, sync::Arc};
 
     let store_tmp = tempfile::tempdir().expect("tempdir");
     let config = leaked_offline_config("https://registry.test", store_tmp.path());
@@ -262,8 +262,8 @@ async fn custom_fetcher_delegate_rewrites_the_resolution() {
         path: None,
     });
 
-    let seeded: HashMap<String, PathBuf> =
-        HashMap::from([("package.json".to_string(), store_tmp.path().join("blob"))]);
+    let seeded: pnpm_fs::CasPaths =
+        HashMap::from([("package.json".to_string(), store_tmp.path().join("blob").into())]);
     let mem_cache = Arc::new(MemCache::default());
     mem_cache.insert(
         package_mem_cache_key(
@@ -302,14 +302,14 @@ async fn custom_fetcher_delegate_rewrites_the_resolution() {
 #[tokio::test]
 async fn custom_fetcher_declining_falls_through_to_the_original_resolution() {
     use pnpm_tarball::{CacheValue, CachedTarball, MemCache, package_mem_cache_key};
-    use std::{collections::HashMap, path::PathBuf, sync::Arc};
+    use std::{collections::HashMap, sync::Arc};
 
     let store_tmp = tempfile::tempdir().expect("tempdir");
     let config = leaked_offline_config("https://registry.test", store_tmp.path());
     let metadata = registry_metadata();
 
-    let seeded: HashMap<String, PathBuf> =
-        HashMap::from([("package.json".to_string(), store_tmp.path().join("blob"))]);
+    let seeded: pnpm_fs::CasPaths =
+        HashMap::from([("package.json".to_string(), store_tmp.path().join("blob").into())]);
     let mem_cache = Arc::new(MemCache::default());
     mem_cache.insert(
         package_mem_cache_key(
@@ -433,14 +433,14 @@ async fn custom_fetcher_custom_typed_delegate_is_rejected() {
 #[tokio::test]
 async fn custom_typed_resolution_installs_via_delegating_fetcher() {
     use pnpm_tarball::{CacheValue, CachedTarball, MemCache, package_mem_cache_key};
-    use std::{collections::HashMap, path::PathBuf, sync::Arc};
+    use std::{collections::HashMap, sync::Arc};
 
     let store_tmp = tempfile::tempdir().expect("tempdir");
     let config = leaked_offline_config("https://registry.test", store_tmp.path());
     let metadata = custom_resolution_metadata("@my-org/custom");
 
-    let seeded: HashMap<String, PathBuf> =
-        HashMap::from([("package.json".to_string(), store_tmp.path().join("blob"))]);
+    let seeded: pnpm_fs::CasPaths =
+        HashMap::from([("package.json".to_string(), store_tmp.path().join("blob").into())]);
     let mem_cache = Arc::new(MemCache::default());
     mem_cache.insert(
         package_mem_cache_key(
@@ -587,7 +587,7 @@ async fn git_subdirectory_install_reuses_raw_archive_cache() {
         "https://codeload.github.com/example/repo/tar.gz/0123456789abcdef0123456789abcdef01234567";
     let manifest = dir.path().join("package.json");
     std::fs::write(&manifest, r#"{"name":"foo","version":"1.0.0"}"#).unwrap();
-    let files = HashMap::from([("packages/foo/package.json".to_string(), manifest)]);
+    let files = HashMap::from([("packages/foo/package.json".to_string(), manifest.into())]);
     let cache = Arc::new(MemCache::default());
     cache.insert(
         package_mem_cache_key(url, None, false),

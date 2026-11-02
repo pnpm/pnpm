@@ -286,7 +286,7 @@ impl WritePackageForPatch<'_> {
         package: pnpm_tarball::TarballPackage<'_>,
         store_index: Option<pnpm_store_dir::SharedReadonlyStoreIndex>,
         store_index_writer: &Arc<StoreIndexWriter>,
-    ) -> Result<Arc<std::collections::HashMap<String, PathBuf>>, WritePackageForPatchError> {
+    ) -> Result<Arc<pnpm_fs::CasPaths>, WritePackageForPatchError> {
         IngestTarballToStore {
             fetching: pnpm_tarball::ArchiveFetchOptions {
                 http_client: self.http_client,
@@ -327,10 +327,10 @@ impl WritePackageForPatch<'_> {
 async fn git_hosted_cas_paths<Reporter: self::Reporter>(
     config: &Config,
     resolution: &LockfileResolution,
-    cas_paths: std::collections::HashMap<String, std::path::PathBuf>,
+    cas_paths: pnpm_fs::CasPaths,
     package_id: &str,
     store_index_writer: &Arc<StoreIndexWriter>,
-) -> Result<std::collections::HashMap<String, std::path::PathBuf>, WritePackageForPatchError> {
+) -> Result<pnpm_fs::CasPaths, WritePackageForPatchError> {
     let LockfileResolution::Tarball(tarball) = resolution else { return Ok(cas_paths) };
     if git_tarball_url(resolution).is_none() {
         return Ok(cas_paths);

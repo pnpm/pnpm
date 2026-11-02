@@ -33,11 +33,10 @@ use pnpm_pnpr_client::{
 use pnpm_store_dir::{CafsFileInfo, StoreIndexWriter};
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
-    path::PathBuf,
     sync::Arc,
 };
 
-pub(crate) type BaseCasPaths = HashMap<PackageKey, HashMap<String, PathBuf>>;
+pub(crate) type BaseCasPaths = HashMap<PackageKey, pnpm_fs::CasPaths>;
 
 pub struct SharedSideEffectsPublisher {
     signer: ArtifactSigner,

@@ -158,7 +158,7 @@ fn local_tarball_imports_updated_content_despite_an_existing_canonical() {
         PackageImportMethod::Clone,
         &key,
         &first,
-        &HashMap::from([("index.js".to_string(), original)])
+        &HashMap::from([("index.js".to_string(), original.into())])
     ));
     let flags = HashMap::from([(key, false)]);
     let cache = HoistedDirCloneCache::new(Some(&cache), Some(&packages), None, Some(&flags), false)
@@ -173,7 +173,7 @@ fn local_tarball_imports_updated_content_despite_an_existing_canonical() {
     fs::write(&updated, b"updated").expect("updated CAS");
     let cas_index = HashMap::from([(
         node.package.pkg_id_with_patch_hash.clone(),
-        Arc::new(HashMap::from([("index.js".to_string(), updated)])).into(),
+        Arc::new(HashMap::from([("index.js".to_string(), updated.into())])).into(),
     )]);
     let opts = LinkHoistedModulesOpts {
         dir_clone_cache: Some(&cache),
@@ -205,7 +205,7 @@ fn cloned_hoisted_aliases_reuse_canonical_content_and_remain_independent() {
                 .expect("cache");
         let blob = temp.path().join("manifest");
         fs::write(&blob, b"original").expect("CAS");
-        let cas = HashMap::from([("package.json".to_string(), blob.clone())]);
+        let cas = HashMap::from([("package.json".to_string(), blob.clone().into())]);
         let logged = AtomicU8::new(0);
         let first = make_node(
             alias,
@@ -250,7 +250,7 @@ fn node_guards_decline_patches_bundles_and_present_targets() {
     let logged = AtomicU8::new(0);
     let blob = temp.path().join("manifest");
     fs::write(&blob, b"original").expect("CAS");
-    let cas = HashMap::from([("package.json".to_string(), blob.clone())]);
+    let cas = HashMap::from([("package.json".to_string(), blob.clone().into())]);
     let control =
         make_node("foo", "foo@1.0.0", "foo@1.0.0", temp.path().join("control/node_modules/foo"));
     assert!(cache.try_import::<SilentReporter>(&control, import(&logged), &cas));
@@ -264,7 +264,7 @@ fn node_guards_decline_patches_bundles_and_present_targets() {
     assert!(!cache.try_import::<SilentReporter>(&node, import(&logged), &cas));
     node.package.has_bundled_dependencies = false;
     let mut bundled = cas.clone();
-    bundled.insert("node_modules/undeclared/index.js".to_string(), blob);
+    bundled.insert("node_modules/undeclared/index.js".to_string(), blob.into());
     assert!(!cache.try_import::<SilentReporter>(&node, import(&logged), &bundled));
     assert!(!node.dir.exists());
     assert!(cache.try_import::<SilentReporter>(&node, import(&logged), &cas));
@@ -285,7 +285,7 @@ fn occupied_hoisted_parent_falls_back_without_losing_nested_dependencies() {
         make_node("foo", "foo@1.0.0", "foo@1.0.0", temp.path().join("project/node_modules/foo"));
     let blob = temp.path().join("manifest");
     fs::write(&blob, b"original").expect("CAS");
-    let cas = HashMap::from([("package.json".to_string(), blob)]);
+    let cas = HashMap::from([("package.json".to_string(), blob.into())]);
     let nested = node.dir.join("node_modules/child/index.js");
     fs::create_dir_all(nested.parent().expect("nested parent")).expect("nested directory");
     fs::write(&nested, b"nested dependency").expect("nested file");

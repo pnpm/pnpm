@@ -1,13 +1,13 @@
 use super::all_files_match;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashSet,
     io,
     path::{Path, PathBuf},
 };
 
 pub(in crate::import_indexed_dir) fn all_imported_entries_match_exactly(
     dir_path: &Path,
-    cas_paths: &HashMap<String, PathBuf>,
+    cas_paths: &pnpm_fs::CasPaths,
     preserve_node_modules: bool,
 ) -> bool {
     if !all_files_match(dir_path, cas_paths) {

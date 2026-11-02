@@ -194,6 +194,13 @@ fn decode_fetch_outcome(
     })
 }
 
+fn same_paths(files: &pnpm_fs::CasPaths, paths: &HashMap<String, PathBuf>) -> bool {
+    files.len() == paths.len()
+        && files
+            .iter()
+            .all(|(filename, file)| paths.get(filename) == Some(&file.path))
+}
+
 /// The archive pacquet hashed itself that carries the files the hook
 /// returned. A hook may only hand back files a native fetch verified,
 /// and every verified archive matching those files must agree on the
@@ -206,7 +213,7 @@ fn verified_tarball(
     let mut matches = verified
         .into_iter()
         .filter(|verified: &Arc<FetchedTarball>| {
-            verified.files_map == returned.files_map
+            same_paths(&verified.files_map, &returned.files_map)
                 && returned.integrity
                     .as_ref()
                     .is_none_or(|integrity| integrity == &verified.integrity.to_string())

@@ -15,11 +15,7 @@ use pnpm_package_manifest::PackageBin;
 use pnpm_reporter::Reporter;
 use pnpm_store_dir::{PackageFilesIndex, StoreDir, StoreIndexWriter, store_index_key};
 use ssri::Integrity;
-use std::{
-    collections::{BTreeMap, HashMap},
-    path::PathBuf,
-    sync::Arc,
-};
+use std::{collections::BTreeMap, sync::Arc};
 use tokio::sync::{Notify, RwLock};
 
 /// Outcome of [`FetchTarballForResolution::run`]: the sha512 integrity
@@ -117,7 +113,7 @@ pub struct ResolutionStore {
 
 struct ExtractedTarball {
     integrity: ArchiveIntegrity,
-    files: Arc<HashMap<String, PathBuf>>,
+    files: Arc<pnpm_fs::CasPaths>,
     /// Manifest the caller asked for: the archive root, or a subdirectory.
     manifest: Option<serde_json::Value>,
     /// Archive-root bundled subset. The mem-cache slot is keyed by the
