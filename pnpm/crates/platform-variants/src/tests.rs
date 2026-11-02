@@ -153,6 +153,7 @@ fn variant_manifests_apply_each_difference() {
     assert_eq!(variants[0].0, "linux-x64");
     assert_eq!(variants[0].1["dependencies"], serde_json::json!({ "a": "1", "b": "2" }));
     assert!(variants[0].1.get("engines").is_none());
+    assert!(variants[0].1.get("dist").is_none(), "the version's variant list is not copied");
 }
 
 #[test]
