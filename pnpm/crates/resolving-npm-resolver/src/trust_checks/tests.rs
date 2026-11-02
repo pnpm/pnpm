@@ -612,3 +612,25 @@ mod get_trust_evidence_compact {
         );
     }
 }
+
+/// pnpr's own package document gives every version published before its
+/// publish-time window the same time, `timesSince`.
+#[test]
+fn versions_published_at_the_same_time_are_ordered_by_semver() {
+    let document = serde_json::json!({
+        "name": "acme",
+        "distTags": { "latest": "2.0.0" },
+        "timesSince": "2025-01-01T00:00:00.000Z",
+        "versions": {
+            "1.0.0": { "trust": "trustedPublisher", "manifest": {} },
+            "1.1.0": { "manifest": {} },
+            "2.0.0": { "time": "2025-03-01T00:00:00.000Z", "trust": "trustedPublisher", "manifest": {} },
+        },
+    });
+    let meta = pnpm_registry::parse_install_v2(&document.to_string()).expect("parse");
+    let err = fail_if_trust_downgraded(&meta, "1.1.0", &TrustCheckOptions::default())
+        .expect_err("an older version without evidence is a downgrade");
+    assert!(matches!(err, TrustViolation::TrustDowngrade { .. }), "got {err:?}");
+    fail_if_trust_downgraded(&meta, "1.0.0", &TrustCheckOptions::default())
+        .expect("a later version published at the same time is not earlier");
+}
