@@ -74,19 +74,9 @@ pub(crate) fn resync_agent_skills_at(
     })
     .map_err(ResyncAgentSkillsError::Sync)?;
     let pending_keys = state.pending_keys();
-    let pending_skills = (!state.pending.is_empty()).then(|| {
-        state.pending
-            .into_iter()
-            .map(Into::into)
-            .collect()
-    });
-    let linked_skills = (!state.linked.is_empty()).then_some(state.linked);
-    if modules.pending_skills == pending_skills && modules.linked_skills == linked_skills {
-        return Ok(pending_keys);
+    if state.update_modules(&mut modules) {
+        pnpm_modules_yaml::write_modules_manifest::<Host>(&config.modules_dir, modules)
+            .map_err(ResyncAgentSkillsError::WriteModules)?;
     }
-    modules.pending_skills = pending_skills;
-    modules.linked_skills = linked_skills;
-    pnpm_modules_yaml::write_modules_manifest::<Host>(&config.modules_dir, modules)
-        .map_err(ResyncAgentSkillsError::WriteModules)?;
     Ok(pending_keys)
 }

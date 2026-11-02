@@ -93,7 +93,10 @@ fn records_unapproved_skills_as_pending() {
 
     let state = sync(root.path(), &lockfile, &config(&[], None), &[], None).unwrap();
 
-    assert_eq!(state, AgentSkillsState { pending: vec!["foo@1.0.0".to_string()], linked: vec![] });
+    assert_eq!(
+        state,
+        AgentSkillsState { pending: vec!["foo@1.0.0".to_string()], ..Default::default() },
+    );
     assert_eq!(fs::read_dir(root.path().join(".claude/skills")).unwrap().count(), 0);
 }
 
@@ -179,13 +182,13 @@ fn explicit_dirs_replace_detection() {
 }
 
 #[test]
-fn fails_when_an_approved_skill_has_no_dir() {
+fn leaves_approved_skills_unlinked_without_a_dir() {
     let (root, lockfile) = workspace(&[("foo", "1.0.0", &["guide"])]);
 
-    let error = sync(root.path(), &lockfile, &config(&[("foo", true)], None), &[], None)
-        .expect_err("an approved skill must be linked somewhere");
+    let state = sync(root.path(), &lockfile, &config(&[("foo", true)], None), &[], None)
+        .expect("sync without a target directory");
 
-    assert!(matches!(error, AgentSkillsError::NoTargetDir { ref packages } if packages == "foo"));
+    assert_eq!(state, AgentSkillsState { has_unlinked_skills: true, ..Default::default() });
 }
 
 #[test]
@@ -772,4 +775,58 @@ fn unrecorded_links_to_other_skills_or_outside_the_virtual_store_remain_occupied
         assert!(matches!(error, AgentSkillsError::Occupied { .. }), "{other}: {error:?}");
         assert_eq!(link_target(&link), link_target(&target));
     }
+}
+
+#[test]
+fn cleanup_does_not_follow_a_recorded_directory_outside_the_workspace() {
+    let (root, lockfile) = workspace(&[("foo", "1.0.0", &["guide"])]);
+    fs::create_dir_all(root.path().join(".claude/skills")).unwrap();
+    let config = config(&[("foo", true)], None);
+    let state = sync(root.path(), &lockfile, &config, &[], None).unwrap();
+    let external = tempfile::tempdir().unwrap();
+    let moved = external.path().join("claude");
+    fs::rename(root.path().join(".claude"), &moved).unwrap();
+    pnpm_fs::symlink_dir(&moved, &root.path().join(".claude")).unwrap();
+    let ignore = moved.join("skills/.gitignore");
+    let before = fs::read_to_string(&ignore).unwrap();
+
+    let state = sync(root.path(), &lockfile, &config, &state.linked, None).unwrap();
+
+    assert_eq!(state, AgentSkillsState { has_unlinked_skills: true, ..Default::default() });
+    assert_eq!(fs::read_to_string(ignore).unwrap(), before);
+    assert!(fs::symlink_metadata(moved.join("skills/guide")).is_ok());
+}
+
+#[test]
+fn unused_approvals_do_not_invalidate_the_repeat_install() {
+    for skills in [Vec::new(), vec!["guide"]] {
+        let (root, _) = workspace(&[("foo", "1.0.0", &skills)]);
+        let mut config = config(&[("foo", true)], Some(&[".claude/skills"]));
+        config.modules_dir = root.path().join("node_modules");
+        config.install_state_dir = root.path().to_path_buf();
+        fs::create_dir_all(root.path().join(".claude/skills")).unwrap();
+        pnpm_modules_yaml::write_modules_manifest::<pnpm_modules_yaml::Host>(
+            &config.modules_dir,
+            pnpm_modules_yaml::Modules {
+                included: ALL_GROUPS,
+                has_unlinked_skills: (!skills.is_empty()).then_some(true),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+
+        assert_eq!(super::agent_skill_targets_changed(&config, root.path()), !skills.is_empty());
+    }
+}
+
+#[test]
+fn duplicate_skill_names_without_a_target_do_not_fail_the_install() {
+    let (root, lockfile) = workspace(&[("foo", "1.0.0", &["guide"]), ("bar", "1.0.0", &["guide"])]);
+    let config = config(&[("foo", true), ("bar", true)], None);
+    let state = sync(root.path(), &lockfile, &config, &[], None).unwrap();
+    assert_eq!(state, AgentSkillsState { has_unlinked_skills: true, ..Default::default() });
+
+    fs::create_dir_all(root.path().join(".claude/skills")).unwrap();
+    let error = sync(root.path(), &lockfile, &config, &[], None).unwrap_err();
+    assert!(matches!(error, AgentSkillsError::NameCollision { .. }));
 }

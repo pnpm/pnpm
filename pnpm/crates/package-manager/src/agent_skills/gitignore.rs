@@ -1,6 +1,6 @@
 //! The `# pnpm` block of each agent skill directory's `.gitignore`.
 
-use super::{AgentSkillsError, is_within_workspace};
+use super::{AgentSkillsError, recorded_parent_is_within_workspace};
 use std::{
     collections::{BTreeMap, BTreeSet},
     fs, io,
@@ -28,7 +28,9 @@ pub(super) fn update_gitignores(
         .iter()
         .map(|dir| (dir.clone(), BTreeSet::new()))
         .collect();
-    for entry in linked.iter().filter(|entry| is_within_workspace(entry)) {
+    for entry in
+        linked.iter().filter(|entry| recorded_parent_is_within_workspace(workspace_root, entry))
+    {
         if let Some(dir) = Path::new(entry).parent() {
             by_dir
                 .entry(workspace_root.join(dir))

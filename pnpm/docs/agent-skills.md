@@ -73,6 +73,6 @@ pnpm rewrites the block on every install and leaves the other lines of the file 
 
 pnpm removes a link once the package is removed, the approval is revoked, or the package no longer ships the skill. It never replaces or removes an entry it did not create, and fails if one is in the way. The install also fails if two approved packages ship a skill of the same name.
 
-If a skill is approved but there is no directory to link it into, the install fails.
+If a skill is approved but there is no directory to link it into, pnpm installs dependencies without linking the skill.
 
 Global installs, `pnpm dlx`, and `pnpm deploy` do not link skills.

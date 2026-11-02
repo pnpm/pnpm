@@ -24,7 +24,7 @@ pub(crate) fn agent_skill_targets_changed(config: &Config, workspace_root: &Path
         return false;
     };
     let linked = modules.linked_skills.unwrap_or_default();
-    !linked.is_empty()
+    (!linked.is_empty() || modules.has_unlinked_skills == Some(true))
         && targets::targets_changed(config, workspace_root, agent_skills_dir_from_env(), &linked)
 }
 
@@ -73,9 +73,32 @@ pub struct AgentSkillsState {
     pub pending: Vec<String>,
     /// The linked entries, relative to the workspace root, sorted.
     pub linked: Vec<String>,
+    /// Whether approved skills await a target directory.
+    pub has_unlinked_skills: bool,
 }
 
 impl AgentSkillsState {
+    pub(crate) fn update_modules(self, modules: &mut pnpm_modules_yaml::Modules) -> bool {
+        let pending = (!self.pending.is_empty()).then(|| {
+            self.pending
+                .into_iter()
+                .map(Into::into)
+                .collect()
+        });
+        let linked = (!self.linked.is_empty()).then_some(self.linked);
+        let unlinked = self.has_unlinked_skills.then_some(true);
+        if modules.pending_skills == pending
+            && modules.linked_skills == linked
+            && modules.has_unlinked_skills == unlinked
+        {
+            return false;
+        }
+        modules.pending_skills = pending;
+        modules.linked_skills = linked;
+        modules.has_unlinked_skills = unlinked;
+        true
+    }
+
     /// The keys `permissions` approves the pending packages under, sorted.
     #[must_use]
     pub fn pending_keys(&self) -> Vec<String> {
@@ -103,18 +126,6 @@ pub(crate) fn report_pending_skills<Reporter: pnpm_reporter::Reporter>(package_n
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
 pub enum AgentSkillsError {
-    #[display("There is no agent skill directory to link the approved skills of {packages} into")]
-    #[diagnostic(
-        code(ERR_PNPM_NO_AGENT_SKILLS_DIR),
-        help(
-            "Name the directories in pnpm-workspace.yaml, for example:\nskills:\n  dirs:\n    - .claude/skills"
-        )
-    )]
-    NoTargetDir {
-        #[error(not(source))]
-        packages: String,
-    },
-
     #[display("The agent skills of {first} and {second} would both be linked as {name}")]
     #[diagnostic(
         code(ERR_PNPM_AGENT_SKILL_NAME_COLLISION),
@@ -169,32 +180,23 @@ pub fn sync_agent_skills(
             None => pending.push(source.dep_path),
         }
     }
-    let entries = link_entries(&approved)?;
-    let dirs = if entries.is_empty() {
+    let dirs = if approved.is_empty() {
         Vec::new()
     } else {
         targets::target_dirs(input.config, input.workspace_root, input.agent_dir)
             .map_err(|(path, source)| AgentSkillsError::Io { path, source })?
     };
-    if !entries.is_empty() && dirs.is_empty() {
-        return Err(AgentSkillsError::NoTargetDir { packages: package_list(&approved) });
-    }
+    let entries = if dirs.is_empty() { BTreeMap::new() } else { link_entries(&approved)? };
     let desired = desired_entries(input.workspace_root, &dirs, &entries);
     prune(input.workspace_root, input.linked, &desired.keys().cloned().collect())?;
     materialize(input.workspace_root, input.linked, &desired, input.config.virtual_store_dir())?;
     update_gitignores(input.workspace_root, &dirs, input.linked, &desired)?;
     pending.sort();
-    Ok(AgentSkillsState { pending, linked: desired.into_keys().collect() })
-}
-
-fn package_list(sources: &[SkillSource]) -> String {
-    sources
-        .iter()
-        .map(|source| source.approval_key.as_str())
-        .collect::<BTreeSet<_>>()
-        .into_iter()
-        .collect::<Vec<_>>()
-        .join(", ")
+    Ok(AgentSkillsState {
+        pending,
+        linked: desired.into_keys().collect(),
+        has_unlinked_skills: !approved.is_empty() && dirs.is_empty(),
+    })
 }
 
 /// The entry name of every approved skill, mapped to the skill directory
@@ -251,7 +253,7 @@ fn prune(
     for entry in linked
         .iter()
         .filter(|entry| !keep.contains(*entry))
-        .filter(|entry| is_within_workspace(entry))
+        .filter(|entry| recorded_parent_is_within_workspace(workspace_root, entry))
     {
         let path = workspace_root.join(entry);
         if links_to_a_package_skill(&path) {
@@ -259,6 +261,16 @@ fn prune(
         }
     }
     Ok(())
+}
+
+fn recorded_parent_is_within_workspace(workspace_root: &Path, entry: &str) -> bool {
+    if !is_within_workspace(entry) {
+        return false;
+    }
+    let Some(parent) = Path::new(entry).parent() else { return false };
+    let Ok(root) = dunce::canonicalize(workspace_root) else { return false };
+    let Ok(parent) = dunce::canonicalize(workspace_root.join(parent)) else { return false };
+    pnpm_fs::is_subdir(&root, &parent)
 }
 
 /// `.modules.yaml` is not trusted to name only pnpm's entries, so pnpm
