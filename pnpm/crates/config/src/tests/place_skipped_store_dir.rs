@@ -50,3 +50,23 @@ fn a_store_the_load_placed_stays() {
 
     assert_eq!(config.store_dir, StoreDir::new("/home-volume/pnpm/store"));
 }
+
+#[test]
+fn workspace_members_use_the_workspace_store() {
+    let tmp = tempdir().expect("create tempdir");
+    let workspace = dunce::canonicalize(tmp.path()).expect("canonicalize tempdir").join("mount");
+    let member = workspace.join("packages/app");
+    fs::create_dir_all(&member).expect("create workspace member");
+    let expected = StoreDir::new(workspace.join("node_modules/.pnpm-store"));
+
+    for shared_workspace_lockfile in [true, false] {
+        for dir in [&workspace, &member] {
+            let mut config = unplaced_config();
+            config.workspace_dir = Some(workspace.clone());
+            config.shared_workspace_lockfile = shared_workspace_lockfile;
+            config.place_skipped_store_dir::<MountVolume>(dir);
+
+            assert_eq!(config.store_dir, expected);
+        }
+    }
+}
