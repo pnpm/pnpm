@@ -30,10 +30,11 @@ import { handleIgnoredBuilds } from './handleIgnoredBuilds.js'
 import type { InstallDepsOptions } from './installDeps.js'
 import { type PolicyHandlersPlan, setupPolicyHandlers } from './policyHandlers.js'
 import {
+  addIgnorePatterns,
   createMatcher,
   failOnVersionsOfIndirectUpdateSpecs,
-  makeIgnorePatterns,
   matchDependencies,
+  selectsOnlyIgnoredDependencies,
   type UpdateDepsMatcher,
 } from './recursive.js'
 import { keptCatalogsForPrune, resolvedPackageVersionsForPrune } from './resolvedPackageVersionsForPrune.js'
@@ -179,13 +180,16 @@ function selectUpdateTargets (ctx: SingleProjectInstallContext, params: string[]
   if (updateMatch == null) {
     return { params: updateSpecs, updatePackageManifest: opts.updatePackageManifest }
   }
+  const ignoredSelection = { params, ignoredDependencies: opts.updateConfig?.ignoreDependencies }
+  if (opts.depth === 0 && selectsOnlyIgnoredDependencies(ignoredSelection, [ctx.manifest], ctx.includeDirect)) {
+    return undefined
+  }
   return matchDirectUpdateTargets(ctx, updateSpecs, updateMatch)
 }
 
 function selectUpdateSpecs (opts: InstallDepsOptions, params: string[]): string[] {
-  if (!opts.update || params.length > 0) return params
-  const ignoreDeps = opts.updateConfig?.ignoreDependencies
-  return ignoreDeps?.length ? makeIgnorePatterns(ignoreDeps) : params
+  if (!opts.update) return params
+  return addIgnorePatterns(params, opts.updateConfig?.ignoreDependencies)
 }
 
 function matchDirectUpdateTargets (

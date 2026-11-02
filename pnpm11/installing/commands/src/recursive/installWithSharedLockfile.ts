@@ -37,6 +37,7 @@ export async function installWithSharedLockfile (ctx: RecursiveContext): Promise
   if (importers.length === 0) return { passed: true, installedProjectDirs: [] }
   const mutatedImporters = await createMutatedImporters(ctx, importers)
   if ((mutatedImporters.length === 0) && ctx.cmdFullName === 'update' && ctx.opts.depth === 0) {
+    if (ctx.selectsOnlyIgnoredDependencies) return { passed: true, installedProjectDirs: [] }
     throw createNoPackageInDependenciesError()
   }
   includeUnselectedWorkspaceRoot(ctx, mutatedImporters)

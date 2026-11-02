@@ -5,7 +5,7 @@ pub(crate) mod selectors;
 pub(crate) mod standalone;
 
 pub(crate) use selectors::{
-    EcosystemFilterKind, patterns_for_ecosystem, validate_ecosystem_selectors,
+    EcosystemFilterKind, excludes_only, patterns_for_ecosystem, validate_ecosystem_selectors,
 };
 pub(crate) use standalone::{
     select_recursive_and_standalone_projects, select_standalone_ecosystem_dirs,
@@ -16,7 +16,7 @@ use crate::{
     ecosystem_install::InstallContext,
 };
 use cargo::{
-    CargoUpdateOptions, collect_cargo_outdated, has_cargo_lockfile, update_cargo_project,
+    CargoUpdateOptions, collect_cargo_outdated, has_cargo_lockfile, update_cargo_projects,
     validate_explicit_cargo_requests,
 };
 use cargo_manifest_ops::{cargo_project_name, declared_cargo_deps, has_matching_cargo_deps};
@@ -32,7 +32,9 @@ use python::{
     has_matching_python_deps, has_python_lockfile, python_project_name, update_python_project,
     validate_explicit_python_requests,
 };
-use selectors::{is_cargo_prefixed, is_python_prefixed, parse_update_selectors};
+use selectors::{
+    is_cargo_prefixed, is_python_prefixed, parse_update_selectors, updates_all_except_exclusions,
+};
 use std::{
     collections::HashSet,
     path::{Path, PathBuf},
@@ -53,6 +55,15 @@ pub(crate) struct EcosystemUpdateStepOptions<'a> {
 pub(crate) struct EcosystemUpdateOutcome {
     pub(crate) updated_any: bool,
     pub(crate) remaining_node_selectors: Vec<String>,
+}
+
+struct EcosystemUpdateContext<'a, 'options> {
+    config: &'static Config,
+    http_client: &'a Arc<ThrottledClient>,
+    options: &'a EcosystemUpdateStepOptions<'options>,
+    parsed: &'a selectors::ParsedUpdateSelectors,
+    bare_matcher: Option<&'a Matcher>,
+    restrict_to_selectors: bool,
 }
 
 pub(crate) fn requires_ecosystem_lockfile(
@@ -244,27 +255,64 @@ async fn run_ecosystem_updates_on_targets<Reporter: self::Reporter + 'static>(
     let restrict = !options.selectors.is_empty();
     let bare_matcher =
         (!parsed.bare_patterns.is_empty()).then(|| create_matcher(&parsed.bare_patterns));
-    let mut updated_any = false;
-    for project_dir in target_dirs {
-        let context = InstallContext {
+    let updated_any = update_ecosystem_targets::<Reporter>(
+        target_dirs,
+        EcosystemUpdateContext {
             config,
-            http_client: Arc::clone(http_client),
-            lockfile_only: options.lockfile_only,
-            frozen_lockfile: false,
-        };
-        updated_any |= update_project_ecosystems::<Reporter>(
-            project_dir,
-            context,
-            &options,
-            &parsed,
-            bare_matcher.as_ref(),
-            restrict,
-        )
-        .await?;
-    }
+            http_client,
+            options: &options,
+            parsed: &parsed,
+            bare_matcher: bare_matcher.as_ref(),
+            restrict_to_selectors: restrict,
+        },
+    )
+    .await?;
     let remaining_node_selectors =
         filter_remaining_node_selectors(target_dirs, manifests, config, &parsed.node_selectors)?;
     Ok(EcosystemUpdateOutcome { updated_any, remaining_node_selectors })
+}
+
+async fn update_ecosystem_targets<Reporter: self::Reporter + 'static>(
+    target_dirs: &[PathBuf],
+    run: EcosystemUpdateContext<'_, '_>,
+) -> Result<bool> {
+    let cargo_opts = CargoUpdateOptions {
+        requests: &run.parsed.cargo_requests,
+        exclusions: &run.parsed.cargo_exclusions,
+        update_all_except_exclusions: updates_all_except_exclusions(
+            run.options.selectors,
+            run.parsed,
+        ),
+        bare_matcher: run.bare_matcher,
+        restrict_to_selectors: run.restrict_to_selectors,
+        step: run.options,
+    };
+    let install_context = InstallContext {
+        config: run.config,
+        http_client: Arc::clone(run.http_client),
+        lockfile_only: run.options.lockfile_only,
+        frozen_lockfile: false,
+    };
+    let mut updated =
+        update_cargo_projects::<Reporter>(target_dirs, install_context, &cargo_opts).await?;
+    for project_dir in target_dirs {
+        let context = InstallContext {
+            config: run.config,
+            http_client: Arc::clone(run.http_client),
+            lockfile_only: run.options.lockfile_only,
+            frozen_lockfile: false,
+        };
+        updated |= update_project_ecosystems::<Reporter>(
+            project_dir,
+            context,
+            run.options,
+            run.parsed,
+            run.bare_matcher,
+            run.restrict_to_selectors,
+        )
+        .await?;
+    }
+    Ok(updated)
 }
 
 fn validate_explicit_requests(
@@ -293,22 +341,16 @@ async fn update_project_ecosystems<Reporter: self::Reporter + 'static>(
     bare_matcher: Option<&Matcher>,
     restrict_to_selectors: bool,
 ) -> Result<bool> {
-    let cargo_opts = CargoUpdateOptions {
-        requests: &parsed.cargo_requests,
-        bare_matcher,
-        restrict_to_selectors,
-        step: options,
-    };
-    let cargo_updated =
-        update_cargo_project::<Reporter>(project_dir, context.clone(), &cargo_opts).await?;
     let py_opts = PythonUpdateOptions {
         requests: &parsed.python_requests,
+        exclusions: &parsed.python_exclusions,
+        update_all_except_exclusions: updates_all_except_exclusions(options.selectors, parsed),
         bare_matcher,
         restrict_to_selectors,
         step: options,
     };
     let py_updated = update_python_project::<Reporter>(project_dir, context, &py_opts).await?;
-    Ok(cargo_updated || py_updated)
+    Ok(py_updated)
 }
 
 fn filter_remaining_node_selectors(
