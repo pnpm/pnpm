@@ -196,7 +196,11 @@ async fn an_unpublished_version_is_refused_even_without_its_tombstone() {
     let (status, ..) = send(&app, request("DELETE", "/npm/sql-pkg/-rev/1", &token, None)).await;
     assert_eq!(status, StatusCode::CREATED);
     std::fs::remove_file(tombstone_path(tmp.path())).unwrap();
-    assert_eq!(publish(&app, &token, "1.1.0").await, StatusCode::FORBIDDEN);
+    // Other bytes than the first publish of 1.1.0, so the request is not a
+    // replay of that one.
+    let republished = publish_doc("sql-pkg", "1.1.0", b"other");
+    let (status, ..) = send(&app, request("PUT", "/npm/sql-pkg", &token, Some(&republished))).await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
     assert_eq!(publish(&app, &token, "2.0.0").await, StatusCode::CREATED);
 }
 

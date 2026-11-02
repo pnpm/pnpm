@@ -175,13 +175,7 @@ impl SqliteMetadata {
         let catalog = catalog.to_string();
         self.write(move |connection| {
             let request = request.as_ref();
-            publish::commit_publication(
-                connection,
-                &catalog,
-                &documents,
-                &artifacts,
-                request,
-            )
+            publish::commit_publication(connection, &catalog, &documents, &artifacts, request)
         })
         .await
     }
@@ -225,8 +219,10 @@ impl SqliteMetadata {
             name: name.as_str().to_string(),
         };
         let version = version.to_string();
-        self.read(move |connection, _| publications::initial_publication(connection, &key, &version))
-            .await
+        self.read(move |connection, _| {
+            publications::initial_publication(connection, &key, &version)
+        })
+        .await
     }
 
     pub(super) fn view(self: &Arc<Self>, org: &str, ecosystem: Ecosystem) -> SqliteView {

@@ -295,10 +295,12 @@ pub(super) fn remove_package(connection: &mut Connection, key: &PackageKey) -> R
          WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3",
         params![catalog, ecosystem, name, to_column(batch.generation())],
     )?;
-    let removed = batch.transaction().execute(
-        "DELETE FROM packages WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3",
-        params![catalog, ecosystem, name],
-    )?;
+    let removed = batch
+        .transaction()
+        .execute(
+            "DELETE FROM packages WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3",
+            params![catalog, ecosystem, name],
+        )?;
     if removed == 0 {
         return Ok(false);
     }
