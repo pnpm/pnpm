@@ -17,7 +17,8 @@ mod responses;
 
 use super::{
     Action, AppState, Identity, RegistrySource, WriteTarget, authorize_package, not_found,
-    publications::readable_publication_note, resolve_write_target,
+    publications::{PublicationNoteLink, readable_publication_note},
+    resolve_write_target,
 };
 use axum::response::{IntoResponse, Response};
 use pnpr_error::RegistryError;
@@ -105,13 +106,17 @@ async fn read_version_note(
     }
     let note = database.version_note(name, &target.org, &version).await?;
     let publication = database.initial_publication(name, &target.org, &version).await?;
-    let link = match publication {
-        Some(publication) => readable_publication_note(state, identity, database, publication)
-            .await?
-            .map(PublicationLink::from),
-        None => None,
+    let access = match publication {
+        Some(publication) => {
+            readable_publication_note(state, identity, database, publication).await?
+        }
+        None => PublicationNoteLink { link: None, withheld: false },
     };
-    let public = super::publications::anonymously_readable(state, &target.source, name);
+    let link = access.link;
+    // A response that leaves out a note the caller may not read differs from
+    // what another caller gets, so no shared cache may keep it.
+    let public =
+        !access.withheld && super::publications::anonymously_readable(state, &target.source, name);
     Ok(version_note_response(
         note.as_ref(),
         link.as_ref(),

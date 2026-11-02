@@ -6,7 +6,8 @@ use super::{
     responses::{PublicationLink, with_cache_rules},
 };
 use crate::server::{
-    AppState, Identity, PublishTarget, publications::readable_publication_note,
+    AppState, Identity, PublishTarget,
+    publications::{PublicationNoteLink, readable_publication_note},
     resolve_publish_target_for, routes_to_upstream,
 };
 use axum::{
@@ -86,6 +87,9 @@ async fn package_notes(
         }
     }
     listing.truncated |= more;
+    // A note left out because the caller may not read it makes the document
+    // differ between callers, so no shared cache may keep it.
+    listing.public &= !links.values().any(|link: &PublicationNoteLink| link.withheld);
     Ok(listing.into_response())
 }
 
@@ -139,7 +143,7 @@ impl Candidates {
         state: &AppState,
         identity: &Identity,
         notes: &NotesTarget,
-        links: &mut BTreeMap<u64, Option<PublicationLink>>,
+        links: &mut BTreeMap<u64, PublicationNoteLink>,
         version: &str,
     ) -> Result<Option<(Value, bool)>, RegistryError> {
         let note = if self.noted.contains(version) {
@@ -150,7 +154,9 @@ impl Candidates {
         // A note added later and then deleted names nothing.
         let note = note.filter(|note| note.text.is_some() || note.initial_digest.is_some());
         let link = match self.published.get(version) {
-            Some(&id) => publication_link(state, identity, notes, links, id).await?,
+            Some(&id) => {
+                publication_link(state, identity, notes, links, id).await?.link
+            }
             None => None,
         };
         if note.is_none() && link.is_none() {
@@ -167,19 +173,17 @@ async fn publication_link(
     state: &AppState,
     identity: &Identity,
     notes: &NotesTarget,
-    links: &mut BTreeMap<u64, Option<PublicationLink>>,
+    links: &mut BTreeMap<u64, PublicationNoteLink>,
     id: u64,
-) -> Result<Option<PublicationLink>, RegistryError> {
+) -> Result<PublicationNoteLink, RegistryError> {
     if let Some(link) = links.get(&id) {
         return Ok(link.clone());
     }
     let link = match notes.database.publication(&notes.target.org, &id.to_string()).await? {
         Some(publication) => {
-            readable_publication_note(state, identity, &notes.database, publication)
-                .await?
-                .map(PublicationLink::from)
+            readable_publication_note(state, identity, &notes.database, publication).await?
         }
-        None => None,
+        None => PublicationNoteLink { link: None, withheld: false },
     };
     links.insert(id, link.clone());
     Ok(link)

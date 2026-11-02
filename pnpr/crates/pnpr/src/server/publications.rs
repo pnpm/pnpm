@@ -185,23 +185,35 @@ pub(super) fn anonymously_readable(
     )
 }
 
-/// The note of `publication` as a version's response references it: present
+/// The note of `publication` as a version's response references it: linked
 /// when the publication has a note, or was published with one, and
-/// `identity` may read every member.
+/// `identity` may read every member; withheld when it has one the caller may
+/// not read.
 pub(super) async fn readable_publication_note(
     state: &AppState,
     identity: &Identity,
     database: &Arc<SqliteMetadata>,
     publication: Publication,
-) -> Result<Option<ReadablePublicationNote>, RegistryError> {
-    if !reads_every_member(state, identity, &publication) {
-        return Ok(None);
-    }
+) -> Result<PublicationNoteLink, RegistryError> {
     let Some(note) = database.publication_note(&publication.catalog, publication.id).await? else {
-        return Ok(None);
+        return Ok(PublicationNoteLink { link: None, withheld: false });
     };
+    if !reads_every_member(state, identity, &publication) {
+        return Ok(PublicationNoteLink { link: None, withheld: true });
+    }
     let public = reads_every_member(state, &Identity::Anonymous, &publication);
-    Ok(Some(ReadablePublicationNote { publication, note, public }))
+    let readable = ReadablePublicationNote { publication, note, public };
+    Ok(PublicationNoteLink { link: Some(readable.into()), withheld: false })
+}
+
+/// What a response may say about a publication's note.
+#[derive(Clone)]
+pub(super) struct PublicationNoteLink {
+    /// The link to the note, when there is one the caller may read.
+    pub(super) link: Option<super::notes::PublicationLink>,
+    /// The publication has a note the caller may not read, so a response
+    /// without the link is not what every caller gets.
+    pub(super) withheld: bool,
 }
 
 /// A publication note the caller may read.

@@ -339,3 +339,31 @@ async fn a_note_added_and_deleted_after_publishing_is_not_listed() {
         .json();
     assert_eq!(listing, json!({ "notes": [] }));
 }
+
+#[tokio::test]
+async fn a_response_that_withholds_a_publication_note_is_not_shared() {
+    let tmp = TempDir::new().unwrap();
+    let app = app(&tmp);
+    let token = token(&app).await;
+    // Only signed-in callers may read `@private/*`, so an anonymous caller
+    // may not read every member of the publication.
+    let batch = json!({
+        "notes": "## The release\n",
+        "packages": [
+            publish_doc("@private/inner", "1.0.0", b"inner"),
+            with_notes(publish_doc("@foo/outer", "1.0.0", b"outer"), "outer changes\n"),
+        ],
+    });
+    let published = send(&app, "PUT", "/-/pnpr/v0/publish", Some(&token), json_body(&batch)).await;
+    assert_eq!(published.status, StatusCode::CREATED, "{}", published.text());
+
+    for path in ["/npm/@foo/outer/1.0.0/notes", "/npm/@foo/outer/-/notes"] {
+        let anonymous = send(&app, "GET", path, None, Body::empty()).await;
+        assert_eq!(anonymous.status, StatusCode::OK, "{path}");
+        assert_eq!(anonymous.header("cache-control"), Some("private, no-store"), "{path}");
+        let signed_in = send(&app, "GET", path, Some(&token), Body::empty()).await;
+        assert_eq!(signed_in.header("cache-control"), Some("private, no-store"), "{path}");
+    }
+    let anonymous = send(&app, "GET", "/npm/@foo/outer/1.0.0/notes", None, Body::empty()).await;
+    assert_eq!(anonymous.header("link"), None);
+}
