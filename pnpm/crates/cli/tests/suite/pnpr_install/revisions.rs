@@ -1,6 +1,6 @@
 use super::{
-    AddMockedRegistry, CommandExtra, CommandTempCwd, Ecosystem, configure_pnpr_auth, fs,
-    pacquet_at, point_npmrc_registry_at, revision_fixture_tarball,
+    AddMockedRegistry, CommandExtra, CommandTempCwd, Ecosystem, configure_pnpr_auth,
+    declare_pnpr_registries, fs, pacquet_at, point_npmrc_registry_at, revision_fixture_tarball,
     revision_fixture_tarball_with_value, revision_packument, start_pnpr, start_pnpr_registry,
 };
 use assert_cmd::assert::OutputAssertExt;
@@ -38,6 +38,7 @@ fn revision_install_and_frozen_reinstall_work_through_pnpr() {
         ..
     } = npmrc_info;
     point_npmrc_registry_at(&npmrc_path, &registry);
+    declare_pnpr_registries(&workspace, &[&registry]);
     fs::write(
         workspace.join("package.json"),
         serde_json::json!({ "dependencies": { "revision-pkg": "1.0.0" } }).to_string(),
@@ -100,6 +101,7 @@ fn a_selected_revision_zero_is_recorded_and_fetched_by_revision() {
         ..
     } = npmrc_info;
     point_npmrc_registry_at(&npmrc_path, &registry);
+    declare_pnpr_registries(&workspace, &[&registry]);
     fs::write(
         workspace.join("package.json"),
         serde_json::json!({ "dependencies": { "revision-pkg": "1.0.0" } }).to_string(),
@@ -171,6 +173,7 @@ fn update_patches_refreshes_a_pnpr_revision_without_changing_the_version() {
     } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { npmrc_path, mock_instance, .. } = npmrc_info;
     point_npmrc_registry_at(&npmrc_path, &first_registry);
+    declare_pnpr_registries(&workspace, &[&first_registry, &second_registry]);
     let manifest = serde_json::json!({ "dependencies": { "revision-pkg": "^1.0.0" } });
     fs::write(workspace.join("package.json"), manifest.to_string()).expect("write package.json");
 

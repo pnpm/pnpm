@@ -126,6 +126,7 @@ fn build_npm_resolver(
             needs_full_metadata_for: None,
             filter_metadata,
             registry_options_by_url: std::sync::Arc::new(config.registry_options_by_url.clone()),
+            minimum_release_age: config.resolved_minimum_release_age(),
         },
         cache_policy: pnpm_resolving_npm_resolver::MetadataCachePolicy {
             network: config.network_policy(),
@@ -191,6 +192,7 @@ fn build_named_registry_resolver(
             needs_full_metadata_for: None,
             filter_metadata,
             registry_options_by_url: std::sync::Arc::new(config.registry_options_by_url.clone()),
+            minimum_release_age: config.resolved_minimum_release_age(),
         },
         cache_policy: pnpm_resolving_npm_resolver::MetadataCachePolicy {
             network: config.network_policy(),

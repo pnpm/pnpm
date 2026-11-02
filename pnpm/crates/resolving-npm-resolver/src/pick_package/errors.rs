@@ -61,6 +61,32 @@ pub enum PickPackageError {
     /// [`crate::fetch_full_metadata_cached()`].
     #[diagnostic(transparent)]
     Fetch(FetchMetadataError),
+    /// `ERR_PNPM_UNSUPPORTED_MINIMUM_RELEASE_AGE`: `minimumReleaseAge` is
+    /// longer than pnpr's own package document supports
+    /// ([`super::MAX_PNPR_FORMAT_RELEASE_AGE_MINUTES`]).
+    #[display(
+        "minimumReleaseAge is {minutes} minutes, but {registry} is declared with serverType: pnpr, whose package documents support a minimumReleaseAge of at most 43200 minutes (30 days)"
+    )]
+    #[diagnostic(
+        code(ERR_PNPM_UNSUPPORTED_MINIMUM_RELEASE_AGE),
+        help("Set minimumReleaseAge to 43200 or less.")
+    )]
+    UnsupportedMinimumReleaseAge {
+        #[error(not(source))]
+        minutes: u64,
+        #[error(not(source))]
+        registry: String,
+    },
+    /// `ERR_PNPM_RELEASE_RECORD`: the picked version's release record, which
+    /// pnpr's package document left it to, could not be read.
+    #[display("Failed to read the release record {url}: {error}")]
+    #[diagnostic(code(ERR_PNPM_RELEASE_RECORD))]
+    ReleaseRecord {
+        #[error(not(source))]
+        url: String,
+        #[error(not(source))]
+        error: String,
+    },
 }
 
 impl From<PickPackageFromMetaError> for PickPackageError {

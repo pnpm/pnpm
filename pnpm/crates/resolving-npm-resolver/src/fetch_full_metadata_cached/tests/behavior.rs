@@ -32,6 +32,7 @@ async fn a_full_doc_served_for_an_abbreviated_request_is_normalized_before_cachi
     let http_client = ThrottledClient::default();
     let auth_headers = AuthHeaders::default();
     let opts = FetchFullMetadataCachedOptions {
+        pnpr_format: false,
         registry: &registry,
         cache_dir: Some(cache.path()),
         full_metadata: false,
@@ -101,6 +102,7 @@ async fn time_queued_for_a_permit_does_not_count_as_a_slow_request() {
     http_client.set_warning_handler(record_warning);
     let auth_headers = AuthHeaders::default();
     let opts = FetchFullMetadataCachedOptions {
+        pnpr_format: false,
         registry: &registry,
         cache_dir: Some(cache.path()),
         full_metadata: false,

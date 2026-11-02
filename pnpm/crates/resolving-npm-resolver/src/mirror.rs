@@ -67,6 +67,9 @@ mod headers;
 
 mod legacy;
 
+mod release_records;
+pub use release_records::{RELEASE_RECORDS_DIR, release_record_path};
+
 use std::{
     collections::HashMap,
     fmt::Write as _,
@@ -90,6 +93,12 @@ use sha2::{Digest, Sha256};
 
 /// Mirror directory for the **abbreviated** metadata cache.
 pub const ABBREVIATED_META_DIR: &str = "v12/metadata";
+
+/// Mirror directory for pnpr's own package documents, read from registries
+/// declared `serverType: pnpr`. They are kept apart from npm's documents, so
+/// a pnpm release that predates the format and shares the cache never reads
+/// one.
+pub const PNPR_META_DIR: &str = "v12/metadata-pnpr";
 
 /// Mirror directory for the **full** metadata cache.
 pub const FULL_META_DIR: &str = "v12/metadata-full";
