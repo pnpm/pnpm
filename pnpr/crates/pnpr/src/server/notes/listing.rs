@@ -23,7 +23,7 @@ use std::collections::{BTreeMap, BTreeSet};
 const MAX_ENTRIES: usize = 100;
 /// Most bytes of serialized entries the document holds.
 const MAX_BYTES: usize = 1024 * 1024;
-/// Most versions the listing examines for one document.
+/// Most versions the listing examines for one document: the newest ones.
 const MAX_CANDIDATES: usize = 4 * MAX_ENTRIES;
 
 pub(in crate::server) async fn serve_package_notes(
@@ -72,17 +72,10 @@ async fn package_notes(
         crate::server::publications::anonymously_readable(state, &notes.target.source, &notes.name);
     let mut listing = Listing { public: package_public, ..Listing::default() };
     let mut links = BTreeMap::new();
-    for (examined, version) in candidates
-        .newest_first()
-        .into_iter()
-        .enumerate()
-    {
-        // Entries the caller may not read are skipped; stop looking long
-        // before a package's whole history is examined.
-        if examined == MAX_CANDIDATES {
-            listing.truncated = true;
-            break;
-        }
+    // Entries the caller may not read are skipped, so only the newest
+    // candidates are examined, long before a package's whole history.
+    let (newest, more) = candidates.newest();
+    for version in newest {
         let Some((entry, public)) =
             candidates.entry(state, identity, notes, &mut links, version).await?
         else {
@@ -92,6 +85,7 @@ async fn package_notes(
             break;
         }
     }
+    listing.truncated |= more;
     Ok(listing.into_response())
 }
 
@@ -111,14 +105,31 @@ impl Candidates {
         Ok(Self { noted: noted.into_iter().collect(), published: published.into_iter().collect() })
     }
 
-    fn newest_first(&self) -> Vec<&String> {
-        let mut versions: Vec<&String> = self.noted
+    /// The newest [`MAX_CANDIDATES`] versions, newest first, and whether
+    /// older ones were left out. Each version is parsed once, and only the
+    /// selected ones are sorted.
+    fn newest(&self) -> (Vec<&String>, bool) {
+        let versions: BTreeSet<&String> = self.noted
             .iter()
             .chain(self.published.keys())
             .collect();
-        versions.sort_by(|left, right| newest_first(left, right));
-        versions.dedup();
-        versions
+        let mut keyed: Vec<(Option<node_semver::Version>, &String)> = versions
+            .into_iter()
+            .map(|version| (node_semver::Version::parse(version).ok(), version))
+            .collect();
+        let more = keyed.len() > MAX_CANDIDATES;
+        if more {
+            keyed.select_nth_unstable_by(MAX_CANDIDATES - 1, newest_first);
+            keyed.truncate(MAX_CANDIDATES);
+        }
+        keyed.sort_by(newest_first);
+        (
+            keyed
+                .into_iter()
+                .map(|(_, version)| version)
+                .collect(),
+            more,
+        )
     }
 
     /// The entry of `version`, and whether anyone may read it; `None` when
@@ -239,12 +250,19 @@ fn entry_json(
     (Value::Object(entry), link.is_none_or(|link| link.public))
 }
 
-/// Order versions newest first: by semver, then any that are not semver.
-fn newest_first(left: &str, right: &str) -> std::cmp::Ordering {
-    match (node_semver::Version::parse(left), node_semver::Version::parse(right)) {
-        (Ok(left), Ok(right)) => right.cmp(&left),
-        (Ok(_), Err(_)) => std::cmp::Ordering::Less,
-        (Err(_), Ok(_)) => std::cmp::Ordering::Greater,
-        (Err(_), Err(_)) => right.cmp(left),
+/// Order parsed versions newest first: by semver, then any that are not
+/// semver.
+fn newest_first(
+    (left_semver, left): &(Option<node_semver::Version>, &String),
+    (right_semver, right): &(Option<node_semver::Version>, &String),
+) -> std::cmp::Ordering {
+    match (left_semver, right_semver) {
+        (Some(left), Some(right)) => right.cmp(left),
+        (Some(_), None) => std::cmp::Ordering::Less,
+        (None, Some(_)) => std::cmp::Ordering::Greater,
+        (None, None) => right.cmp(left),
     }
 }
+
+#[cfg(test)]
+mod tests;
