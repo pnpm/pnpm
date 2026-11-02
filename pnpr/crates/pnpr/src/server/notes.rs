@@ -107,7 +107,12 @@ async fn read_version_note(
         None => None,
     };
     let public = super::publications::anonymously_readable(state, &target.org, name);
-    Ok(version_note_response(note.as_ref(), link.as_ref(), public))
+    Ok(version_note_response(
+        note.as_ref(),
+        link.as_ref(),
+        public,
+        &state.inner.config.http.public_url,
+    ))
 }
 
 /// The version a dist-tag names, or `version_or_tag` itself.

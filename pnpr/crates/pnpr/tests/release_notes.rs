@@ -18,9 +18,14 @@ use tempfile::TempDir;
 use tower::ServiceExt;
 
 fn app(tmp: &TempDir) -> Router {
+    app_at(tmp, "http://example.test")
+}
+
+/// A registry clients reach at `public_url`.
+fn app_at(tmp: &TempDir, public_url: &str) -> Router {
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
     let mut config = Config::static_serve(listen, tmp.path().to_path_buf());
-    config.http.public_url = "http://example.test".to_string();
+    config.http.public_url = public_url.to_string();
     config.identity.auth.htpasswd.max_users = MaxUsers::Unlimited;
     config.storage.metadata = MetadataBackend::Sqlite(tmp.path().join("metadata.sqlite"));
     router(config)
@@ -177,4 +182,29 @@ async fn a_publication_note_is_reached_from_each_member() {
     assert_eq!(edit.status, StatusCode::NO_CONTENT);
     let release = send(&app, "GET", "/-/publications/-/v1.0.0/notes", None, Body::empty()).await;
     assert_eq!(release.text(), "edited\n");
+}
+
+#[tokio::test]
+async fn a_publication_note_url_keeps_the_public_url_path_prefix() {
+    let tmp = TempDir::new().unwrap();
+    // A reverse proxy serves pnpr under `/registry/` and strips the prefix.
+    let app = app_at(&tmp, "https://example.test/registry/");
+    let token = token(&app).await;
+    let batch = json!({
+        "name": "v1.0.0",
+        "notes": "## The release\n",
+        "packages": [publish_doc("widgets", "1.0.0", b"widgets")],
+    });
+    let published = send(&app, "PUT", "/-/pnpr/v0/publish", Some(&token), json_body(&batch)).await;
+    assert_eq!(published.status, StatusCode::CREATED);
+
+    let widgets = send(&app, "GET", "/npm/widgets/1.0.0/notes", None, Body::empty()).await;
+    assert_eq!(
+        widgets.header("link"),
+        Some(r#"</registry/-/publications/-/1/notes>; rel="publication-notes""#),
+    );
+    let listing = send(&app, "GET", "/npm/widgets/-/notes", None, Body::empty())
+        .await
+        .json();
+    assert_eq!(listing["notes"][0]["publication"]["url"], "/registry/-/publications/-/1/notes");
 }

@@ -49,11 +49,24 @@ pub(in crate::server) struct PublicationLink {
 }
 
 impl PublicationLink {
-    /// The absolute path of the publication's note on this server.
-    pub(in crate::server) fn notes_path(&self) -> String {
+    /// The absolute path of the publication's note on this server, under the
+    /// path prefix of `public_url`.
+    pub(in crate::server) fn notes_path(&self, public_url: &str) -> String {
         let org = if self.org.is_empty() { "-" } else { &self.org };
-        format!("/-/publications/{org}/{}/notes", self.id)
+        format!("{}/-/publications/{org}/{}/notes", path_prefix(public_url), self.id)
     }
+}
+
+/// The path `public_url` serves pnpr under, without a trailing slash: empty
+/// at the root of its host.
+fn path_prefix(public_url: &str) -> String {
+    url::Url::parse(public_url)
+        .map(|url| {
+            url.path()
+                .trim_end_matches('/')
+                .to_string()
+        })
+        .unwrap_or_default()
 }
 
 /// `200` with the version's note, `204` when only its publication has one,
@@ -63,6 +76,7 @@ pub(super) fn version_note_response(
     note: Option<&Note>,
     link: Option<&PublicationLink>,
     public: bool,
+    public_url: &str,
 ) -> Response {
     let text = note.and_then(|note| note.text.as_deref());
     let mut response = match (text, link) {
@@ -75,13 +89,17 @@ pub(super) fn version_note_response(
         insert(headers, "pnpr-note-initial-digest", digest);
     }
     if let Some(link) = link {
-        insert_publication_link(headers, link);
+        insert_publication_link(headers, link, public_url);
     }
     with_cache_rules(response, public && link.is_none_or(|link| link.public))
 }
 
-fn insert_publication_link(headers: &mut axum::http::HeaderMap, link: &PublicationLink) {
-    let target = format!(r#"<{}>; rel="publication-notes""#, link.notes_path());
+fn insert_publication_link(
+    headers: &mut axum::http::HeaderMap,
+    link: &PublicationLink,
+    public_url: &str,
+) {
+    let target = format!(r#"<{}>; rel="publication-notes""#, link.notes_path(public_url));
     insert(headers, header::LINK.as_str(), &target);
     if let Some(name) = &link.name {
         insert(headers, "pnpr-publication-name", name);

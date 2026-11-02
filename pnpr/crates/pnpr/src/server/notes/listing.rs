@@ -65,18 +65,19 @@ async fn package_notes(
     }
     let package_public =
         crate::server::publications::anonymously_readable(state, &target.org, name);
-    Ok(listing_response(versions, package_public))
+    Ok(listing_response(versions, package_public, &state.inner.config.http.public_url))
 }
 
 fn listing_response(
     versions: BTreeMap<String, (Option<Note>, Option<PublicationLink>)>,
     package_public: bool,
+    public_url: &str,
 ) -> Response {
     let mut ordered: Vec<_> = versions.into_iter().collect();
     ordered.sort_by(|(left, _), (right, _)| newest_first(left, right));
     let mut listing = Listing { public: package_public, ..Listing::default() };
     for (version, (note, link)) in ordered {
-        let (entry, entry_public) = entry_json(&version, note.as_ref(), link.as_ref());
+        let (entry, entry_public) = entry_json(&version, note.as_ref(), link.as_ref(), public_url);
         if !listing.push(entry, entry_public) {
             break;
         }
@@ -118,7 +119,12 @@ impl Listing {
 }
 
 /// A version's entry, and whether it holds only what anyone may read.
-fn entry_json(version: &str, note: Option<&Note>, link: Option<&PublicationLink>) -> (Value, bool) {
+fn entry_json(
+    version: &str,
+    note: Option<&Note>,
+    link: Option<&PublicationLink>,
+    public_url: &str,
+) -> (Value, bool) {
     let mut entry = Map::new();
     entry.insert("version".to_string(), json!(version));
     if let Some(note) = note {
@@ -137,7 +143,7 @@ fn entry_json(version: &str, note: Option<&Note>, link: Option<&PublicationLink>
             "id": link.id.to_string(),
             "name": link.name,
             "initialDigest": link.initial_digest,
-            "url": link.notes_path(),
+            "url": link.notes_path(public_url),
         });
         entry.insert("publication".to_string(), reference);
     }
