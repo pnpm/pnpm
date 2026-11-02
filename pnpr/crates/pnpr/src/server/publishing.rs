@@ -194,7 +194,7 @@ pub(super) async fn publish_package(
         .into_response();
     }
 
-    let request = publication_request(state, identity, &incoming, None);
+    let request = publication_request(state, identity, &incoming, None, None);
     match replayed_outcome(state, request.as_ref()).await {
         Ok(Some(replayed)) => return replayed,
         Ok(None) => {}

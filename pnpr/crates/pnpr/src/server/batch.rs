@@ -146,7 +146,8 @@ async fn publish_batch(
     // decoded out of it below: keep only one copy of a body that may run to
     // the request limit.
     drop(body);
-    let request = publication_request(state, identity, &incoming, key);
+    let name = incoming.get("name").and_then(Value::as_str);
+    let request = publication_request(state, identity, &incoming, key, name);
     if let Some(replayed) = replayed_outcome(state, request.as_ref()).await? {
         return Ok(replayed);
     }
