@@ -5,10 +5,11 @@
 //! (`ecosystem` and `name` empty, `subject` = its id).
 
 use super::{
-    Freshness, PackageKey,
+    PackageKey,
     adapter::{Connection, Row},
     batch::{Batch, WriteTransaction},
     commit::package_row,
+    transactions::Freshness,
 };
 use crate::{
     metadata::{Note, NoteChange, PublishNotes, VersionNote, note_digest, validate_note},
@@ -271,7 +272,10 @@ impl super::SqlMetadata {
         version: &str,
     ) -> Result<Option<Note>> {
         let subject = NoteSubject::version(&package_key(name, org), version);
-        self.read(Freshness::Bounded, move |connection, _| read_note(connection, &subject)).await
+        self.read(org.to_string(), Freshness::Bounded, move |connection, _| {
+            read_note(connection, &subject)
+        })
+        .await
     }
 
     /// The current versions of `name` in `org` whose note holds text or the
@@ -283,7 +287,7 @@ impl super::SqlMetadata {
         org: &str,
     ) -> Result<Vec<String>> {
         let key = package_key(name, org);
-        self.read(Freshness::Bounded, move |connection, _| {
+        self.read(org.to_string(), Freshness::Bounded, move |connection, _| {
             let (catalog, ecosystem, name) = key.params();
             connection
                 .query(
@@ -313,7 +317,7 @@ impl super::SqlMetadata {
         change: NoteChange,
     ) -> Result<bool> {
         let subject = NoteSubject::version(&package_key(name, org), version);
-        self.write(move |connection| {
+        self.write(org.to_string(), move |connection| {
             change_note(connection, &subject, change.text.as_deref(), &change.principal)
         })
         .await
@@ -326,7 +330,10 @@ impl super::SqlMetadata {
         id: u64,
     ) -> Result<Option<Note>> {
         let subject = NoteSubject::publication(org, id);
-        self.read(Freshness::Bounded, move |connection, _| read_note(connection, &subject)).await
+        self.read(org.to_string(), Freshness::Bounded, move |connection, _| {
+            read_note(connection, &subject)
+        })
+        .await
     }
 
     /// Replace the note of publication `id`, or delete it with `None`.
@@ -338,7 +345,7 @@ impl super::SqlMetadata {
         change: NoteChange,
     ) -> Result<bool> {
         let subject = NoteSubject::publication(org, id);
-        self.write(move |connection| {
+        self.write(org.to_string(), move |connection| {
             change_note(connection, &subject, change.text.as_deref(), &change.principal)
         })
         .await
@@ -362,7 +369,7 @@ impl super::SqlMetadata {
         version: &str,
     ) -> Result<bool> {
         let (key, version) = (package_key(name, org), version.to_string());
-        self.read(Freshness::Bounded, move |connection, _| {
+        self.read(org.to_string(), Freshness::Bounded, move |connection, _| {
             let (catalog, ecosystem, name) = key.params();
             let found = connection.query_optional(
                 "SELECT 1 FROM versions
@@ -384,7 +391,7 @@ impl super::SqlMetadata {
         org: &str,
     ) -> Result<Vec<(String, u64)>> {
         let key = package_key(name, org);
-        self.read(Freshness::Bounded, move |connection, _| {
+        self.read(org.to_string(), Freshness::Bounded, move |connection, _| {
             let (catalog, ecosystem, name) = key.params();
             let rows = connection.query(
                 "SELECT p.version, p.publication FROM (

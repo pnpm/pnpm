@@ -7104,6 +7104,7 @@ name = "pnpr-libsql"
 version = "0.0.1"
 dependencies = [
  "axum 0.8.9",
+ "base64 0.23.1",
  "http 0.2.12",
  "hyper 0.14.32",
  "libsql",
@@ -7267,6 +7268,7 @@ dependencies = [
  "futures-util",
  "getrandom 0.4.3",
  "libc",
+ "libsql",
  "object_store",
  "percent-encoding",
  "pnpm-crypto-hash",
@@ -7274,6 +7276,7 @@ dependencies = [
  "pnpm-package-manifest",
  "pnpr-config",
  "pnpr-error",
+ "pnpr-libsql",
  "pnpr-package-name",
  "pnpr-registry",
  "reqwest",

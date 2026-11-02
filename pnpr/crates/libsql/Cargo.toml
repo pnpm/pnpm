@@ -13,13 +13,14 @@ repository.workspace = true
 [features]
 # A local primary that serves libSQL's sync protocol, for tests of an embedded
 # replica.
-testing = ["dep:axum", "dep:serde_json"]
+testing = ["dep:axum", "dep:base64", "dep:serde_json"]
 
 [dependencies]
 pnpm-network = { workspace = true }
 pnpr-config = { workspace = true }
 pnpr-error = { workspace = true, features = ["backend-libsql"] }
 axum = { workspace = true, optional = true }
+base64 = { workspace = true, optional = true }
 http-0-2 = { workspace = true }
 hyper-0-14 = { workspace = true }
 libsql = { workspace = true }
@@ -33,6 +34,7 @@ tracing = { workspace = true }
 
 [dev-dependencies]
 axum = { workspace = true, features = ["json"] }
+base64 = { workspace = true }
 serde_json = { workspace = true }
 tempfile = { workspace = true }
 tokio = { workspace = true }

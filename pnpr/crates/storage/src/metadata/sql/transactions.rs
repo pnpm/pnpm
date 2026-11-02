@@ -1,0 +1,214 @@
+//! How an operation runs: a write in a transaction that runs again after a
+//! conflict, and a read in a transaction on a source that meets its
+//! freshness.
+
+use super::{
+    SqlMetadata,
+    adapter::{Connection, ReadSource},
+    cache::RenderCache,
+    catalog_generation,
+};
+use pnpr_error::{RegistryError, Result};
+use std::{
+    sync::{Arc, PoisonError},
+    time::Duration,
+};
+
+/// How many times a write runs before a conflict it keeps meeting fails it.
+const WRITE_ATTEMPTS: u32 = 4;
+
+/// The wait before the first rerun of a write that met a conflict, doubled
+/// per rerun.
+const FIRST_RETRY_DELAY: Duration = Duration::from_millis(10);
+
+/// How current a read must be.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum Freshness {
+    /// What the last commit left: a read that decides a write, answers a
+    /// retry of one, or authorizes one.
+    Current,
+    /// A view a replica may serve while it is within its freshness bound.
+    Bounded,
+    /// A view at this catalog generation or later, such as one a client
+    /// sent as the minimum it has seen.
+    AtLeast(u64),
+}
+
+impl SqlMetadata {
+    /// Run the write `operation`, which writes `catalog`, on the blocking
+    /// pool.
+    pub(super) async fn write<Output, Operation>(
+        self: &Arc<Self>,
+        catalog: String,
+        operation: Operation,
+    ) -> Result<Output>
+    where
+        Output: Send + 'static,
+        Operation: FnMut(&dyn Connection) -> Result<Output> + Send + 'static,
+    {
+        let database = Arc::clone(self);
+        tokio::task::spawn_blocking(move || database.run_write(&catalog, operation)).await?
+    }
+
+    /// Run `operation`, which reads `catalog`, on the blocking pool in a read
+    /// transaction that meets `freshness`.
+    pub(super) async fn read<Output, Operation>(
+        self: &Arc<Self>,
+        catalog: String,
+        freshness: Freshness,
+        operation: Operation,
+    ) -> Result<Output>
+    where
+        Output: Send + 'static,
+        Operation: FnMut(&dyn Connection, &RenderCache) -> Result<Output> + Send + 'static,
+    {
+        let database = Arc::clone(self);
+        tokio::task::spawn_blocking(move || database.run_read(&catalog, freshness, operation))
+            .await?
+    }
+
+    /// Run the write `operation`, again from its start while the adapter
+    /// reports a conflict it may clear. With a replica, remember the
+    /// generation `catalog` is at afterwards, which this process's later
+    /// reads of it must reach.
+    fn run_write<Output>(
+        &self,
+        catalog: &str,
+        mut operation: impl FnMut(&dyn Connection) -> Result<Output>,
+    ) -> Result<Output> {
+        self.ensure_schema()?;
+        let mut delay = FIRST_RETRY_DELAY;
+        let mut attempt = 1;
+        loop {
+            match self.write_once(catalog, &mut operation) {
+                Err(error) if attempt < WRITE_ATTEMPTS && self.adapter.is_retryable(&error) => {
+                    std::thread::sleep(delay);
+                    delay *= 2;
+                    attempt += 1;
+                }
+                result => return result,
+            }
+        }
+    }
+
+    /// Run the write `operation` once.
+    fn write_once<Output>(
+        &self,
+        catalog: &str,
+        operation: &mut impl FnMut(&dyn Connection) -> Result<Output>,
+    ) -> Result<Output> {
+        let track = self.adapter.has_replica();
+        let mut output = None;
+        let mut committed = None;
+        self.adapter.write(&mut |connection| {
+            output = Some(operation(connection)?);
+            if track {
+                committed = Some(catalog_generation(connection, catalog)?);
+            }
+            Ok(())
+        })?;
+        if let Some(generation) = committed {
+            self.remember_commit(catalog, generation);
+        }
+        output.ok_or_else(|| RegistryError::Internal {
+            reason: "a metadata write did not run".to_string(),
+        })
+    }
+
+    fn remember_commit(&self, catalog: &str, generation: u64) {
+        let mut committed = self.committed.lock().unwrap_or_else(PoisonError::into_inner);
+        let entry = committed.entry(catalog.to_string()).or_default();
+        *entry = (*entry).max(generation);
+    }
+
+    /// The generation a replica read of `catalog` must reach: what this
+    /// process committed there, and at least `minimum`.
+    fn required_generation(&self, catalog: &str, minimum: u64) -> u64 {
+        let committed = self.committed
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .get(catalog)
+            .copied()
+            .unwrap_or_default();
+        committed.max(minimum)
+    }
+
+    /// Run `operation`, which reads `catalog`, in one read transaction that
+    /// meets `freshness`.
+    fn run_read<Output>(
+        &self,
+        catalog: &str,
+        freshness: Freshness,
+        mut operation: impl FnMut(&dyn Connection, &RenderCache) -> Result<Output>,
+    ) -> Result<Output> {
+        self.ensure_schema()?;
+        let minimum = match freshness {
+            Freshness::Current => None,
+            Freshness::Bounded => Some(0),
+            Freshness::AtLeast(generation) => Some(generation),
+        };
+        let required = match minimum {
+            Some(minimum) if self.adapter.has_replica() => {
+                self.required_generation(catalog, minimum)
+            }
+            _ => return self.read_primary(&mut operation),
+        };
+        let behind = Some((catalog, required));
+        if let Some(output) = self.read_once(ReadSource::Replica, behind, &mut operation)? {
+            return Ok(output);
+        }
+        if self.adapter.sync_replica().is_ok()
+            && let Some(output) = self.read_once(ReadSource::Replica, behind, &mut operation)?
+        {
+            return Ok(output);
+        }
+        self.read_primary(&mut operation)
+    }
+
+    fn read_primary<Output>(
+        &self,
+        operation: &mut impl FnMut(&dyn Connection, &RenderCache) -> Result<Output>,
+    ) -> Result<Output> {
+        self.read_once(ReadSource::Primary, None, operation)?
+            .ok_or_else(|| RegistryError::Internal {
+                reason: "a metadata read of the primary did not run".to_string(),
+            })
+    }
+
+    /// Run `operation` once on `source` in one read transaction. `None` when
+    /// the source has not reached `required`, a catalog and the generation
+    /// it must be at, so the operation did not run.
+    fn read_once<Output>(
+        &self,
+        source: ReadSource,
+        required: Option<(&str, u64)>,
+        operation: &mut impl FnMut(&dyn Connection, &RenderCache) -> Result<Output>,
+    ) -> Result<Option<Output>> {
+        let mut output = None;
+        self.adapter.read(source, &mut |connection| {
+            connection.begin_read()?;
+            let result = self.read_if_reached(connection, required, operation);
+            let ended =
+                connection.execute_batch(if result.is_ok() { "COMMIT" } else { "ROLLBACK" });
+            output = result?;
+            ended
+        })?;
+        Ok(output)
+    }
+
+    /// Run `operation` on `connection` when it has reached `required`.
+    fn read_if_reached<Output>(
+        &self,
+        connection: &dyn Connection,
+        required: Option<(&str, u64)>,
+        operation: &mut impl FnMut(&dyn Connection, &RenderCache) -> Result<Output>,
+    ) -> Result<Option<Output>> {
+        if let Some((catalog, generation)) = required
+            && generation > 0
+            && catalog_generation(connection, catalog)? < generation
+        {
+            return Ok(None);
+        }
+        operation(connection, &self.cache).map(Some)
+    }
+}

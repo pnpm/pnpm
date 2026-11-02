@@ -1,6 +1,8 @@
 //! Conformance tests of the `SQLite` metadata backend.
 
 mod concurrency;
+#[cfg(feature = "backend-libsql")]
+mod libsql;
 mod notes;
 mod publications;
 
@@ -346,6 +348,7 @@ async fn tag_moves_are_recorded() {
         .sql_metadata()
         .unwrap()
         .tag_history(&npm("pkg"), "", "latest")
+        .await
         .unwrap();
     let moves: Vec<_> = history
         .iter()

@@ -161,7 +161,7 @@ fn validate_auth_secrets<Sys: EnvVar>(val: &serde_json::Value) -> Result<(), Reg
 }
 
 fn validate_database_secrets<Sys: EnvVar>(val: &serde_json::Value) -> Result<(), RegistryError> {
-    for prefix in ["/backend/libsql", "/auth/libsql", "/storage/database"] {
+    for prefix in ["/backend/libsql", "/auth/libsql", "/storage/database", "/metadata"] {
         for field in ["authToken", "auth_token"] {
             let ptr = format!("{prefix}/{field}");
             if let Some(token) = val.pointer(&ptr).and_then(serde_json::Value::as_str) {

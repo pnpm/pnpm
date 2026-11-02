@@ -397,7 +397,10 @@ pub(super) async fn is_package_owner(
         return Ok(false);
     };
     let storage = super::hosted_storage(state, org);
-    if let Some(bytes) = storage.read_hosted_document(&canonical).await? {
+    // An authorization check reads the current document, never a replica's
+    // copy that may predate a maintainer's removal.
+    if let Some(stored) = storage.read_hosted_document_for_update(&canonical).await? {
+        let bytes = stored.bytes;
         if let Ok(val) = serde_json::from_slice::<serde_json::Value>(&bytes)
             && let Some(maintainers) = val.get("maintainers").and_then(serde_json::Value::as_array)
         {

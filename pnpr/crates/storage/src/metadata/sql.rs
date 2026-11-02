@@ -8,7 +8,9 @@
 //!
 //! The schema, the queries, and the rules they enforce are shared by every
 //! database. What differs between databases is behind [`adapter::Adapter`]:
-//! [`sqlite::SqliteAdapter`] keeps the database in one embedded file.
+//! [`sqlite::SqliteAdapter`] keeps the database in one embedded file, and
+//! `libsql::LibsqlAdapter` in a libSQL primary, such as Turso, with an
+//! optional embedded replica.
 //!
 //! Every operation runs on the blocking pool. A write runs in one
 //! transaction that holds the database's write lock from its start, so
@@ -16,6 +18,12 @@
 //! replaces inside its own transaction. A write the adapter refused for a
 //! conflict runs again from the start. A read runs in one read transaction,
 //! one committed snapshot. The render caches are shared by every read.
+//!
+//! A read that may lag, a [`Freshness::Bounded`] one, goes to the replica
+//! when the adapter has one. It still never sees less than this process
+//! committed to its catalog, nor less than a generation the caller asks for:
+//! a replica found behind is synced, and read from the primary when the sync
+//! does not bring it far enough.
 
 pub(crate) mod adapter;
 
@@ -27,6 +35,8 @@ mod params;
 mod batch;
 mod cache;
 mod commit;
+#[cfg(feature = "backend-libsql")]
+mod libsql;
 mod notes;
 mod packument;
 mod publications;
@@ -35,50 +45,37 @@ mod render;
 mod schema;
 mod sqlite;
 mod tags;
+mod transactions;
 mod versions;
+mod view;
 
 use super::{
-    ArtifactMember, BatchDocument, Generation, PackageMetadata, PackageView, Publication,
-    PublicationCommit, PublicationRequest, PublishNotes, RecordedOutcome, TagChange, TagUpdate,
+    ArtifactMember, BatchDocument, Generation, Publication, PublicationCommit, PublicationRequest,
+    PublishNotes, RecordedOutcome,
 };
-use crate::{DocumentWrite, HostedDocumentForUpdate, HostedDocumentVersion};
-use adapter::{Adapter, Connection, ReadSource};
-use async_trait::async_trait;
+use crate::HostedDocumentVersion;
+use adapter::{Adapter, Connection};
 use pnpr_error::{RegistryError, Result};
 use pnpr_package_name::{CanonicalPackageName, Ecosystem};
-use std::{path::Path, sync::Arc, time::Duration};
-
-/// How many times a write runs before a conflict it keeps meeting fails it.
-const WRITE_ATTEMPTS: u32 = 4;
-
-/// The wait before the first rerun of a write that met a conflict, doubled
-/// per rerun.
-const FIRST_RETRY_DELAY: Duration = Duration::from_millis(10);
+use std::{
+    collections::HashMap,
+    path::Path,
+    sync::{Arc, Mutex, OnceLock},
+};
+use transactions::Freshness;
 
 /// The metadata database of one hosted store.
 #[derive(Debug)]
 pub struct SqlMetadata {
     adapter: Box<dyn Adapter>,
+    /// The database, as errors name it.
+    name: String,
+    /// Set once the schema is known to be the one this pnpr reads.
+    schema: OnceLock<()>,
     cache: cache::RenderCache,
-}
-
-/// How current a read must be.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Freshness {
-    /// What the last commit left: a read that decides a write, or that
-    /// answers a retry of one.
-    Current,
-    /// A view a replica may serve while it is within its freshness bound.
-    Bounded,
-}
-
-impl Freshness {
-    fn source(self) -> ReadSource {
-        match self {
-            Self::Current => ReadSource::Primary,
-            Self::Bounded => ReadSource::Replica,
-        }
-    }
+    /// The latest generation this process committed in each catalog, which
+    /// a replica read of that catalog must reach.
+    committed: Mutex<HashMap<String, u64>>,
 }
 
 /// Which package a statement addresses.
@@ -138,15 +135,40 @@ impl SqlMetadata {
     /// The database cannot be opened, or was written by another pnpr layout.
     pub fn open_sqlite(path: &Path) -> Result<Self> {
         let adapter = sqlite::SqliteAdapter::open(path)?;
-        let database = path.display().to_string();
-        Self::with_adapter(Box::new(adapter), &database)
+        let metadata = Self::with_adapter(Box::new(adapter), path.display().to_string());
+        metadata.ensure_schema()?;
+        Ok(metadata)
     }
 
-    /// The metadata kept by `adapter`, whose schema is created here when the
-    /// database is new. `database` names it in errors.
-    fn with_adapter(adapter: Box<dyn Adapter>, database: &str) -> Result<Self> {
+    /// The libSQL database `settings` name. It opens on first use.
+    #[cfg(feature = "backend-libsql")]
+    #[must_use]
+    pub fn open_libsql(settings: &pnpr_config::LibsqlSettings) -> Self {
+        let name = format!("{settings:?}");
+        Self::with_adapter(Box::new(libsql::LibsqlAdapter::new(settings.clone())), name)
+    }
+
+    /// The metadata kept by `adapter`. The schema is checked, and created in
+    /// a new database, before the first operation. `name` names the
+    /// database in errors.
+    fn with_adapter(adapter: Box<dyn Adapter>, name: String) -> Self {
+        Self {
+            adapter,
+            name,
+            schema: OnceLock::new(),
+            cache: cache::RenderCache::default(),
+            committed: Mutex::new(HashMap::new()),
+        }
+    }
+
+    /// Create the schema in a new database, and refuse one written by another
+    /// pnpr layout.
+    fn ensure_schema(&self) -> Result<()> {
+        if self.schema.get().is_some() {
+            return Ok(());
+        }
         let mut prepared = None;
-        adapter.write(&mut |connection| {
+        self.adapter.write(&mut |connection| {
             prepared = Some(schema::prepare(connection)?);
             Ok(())
         })?;
@@ -154,13 +176,16 @@ impl SqlMetadata {
         if stored != Some(schema::SCHEMA_VERSION) {
             return Err(RegistryError::StorageUnavailable {
                 reason: format!(
-                    "the metadata database {database} uses schema {stored:?}; this pnpr reads \
-                     schema {}",
+                    "the metadata database {} uses schema {stored:?}; this pnpr reads schema {}",
+                    self.name,
                     schema::SCHEMA_VERSION,
                 ),
             });
         }
-        Ok(Self { adapter, cache: cache::RenderCache::default() })
+        // A replica bootstrapped before the schema existed lacks its tables.
+        self.adapter.sync_replica()?;
+        let _ = self.schema.set(());
+        Ok(())
     }
 
     /// What rendering has done since the database was opened.
@@ -170,14 +195,18 @@ impl SqlMetadata {
     }
 
     /// The current generation of `catalog`, `0` before its first commit.
-    pub fn catalog_generation(&self, catalog: &str) -> Result<u64> {
-        self.run_read(Freshness::Current, |connection, _| catalog_generation(connection, catalog))
+    pub async fn catalog_generation(self: &Arc<Self>, catalog: &str) -> Result<u64> {
+        let catalog = catalog.to_string();
+        self.read(catalog.clone(), Freshness::Current, move |connection, _| {
+            catalog_generation(connection, &catalog)
+        })
+        .await
     }
 
     /// Every recorded move of `tag`, oldest first, including moves recorded
     /// before the package was removed.
-    pub fn tag_history(
-        &self,
+    pub async fn tag_history(
+        self: &Arc<Self>,
         name: &CanonicalPackageName,
         org: &str,
         tag: &str,
@@ -187,7 +216,11 @@ impl SqlMetadata {
             ecosystem: name.ecosystem(),
             name: name.as_str().to_string(),
         };
-        self.run_read(Freshness::Bounded, |connection, _| tags::tag_history(connection, &key, tag))
+        let tag = tag.to_string();
+        self.read(org.to_string(), Freshness::Bounded, move |connection, _| {
+            tags::tag_history(connection, &key, &tag)
+        })
+        .await
     }
 
     /// Commit `documents` of `catalog` as one publication, under one new
@@ -202,7 +235,7 @@ impl SqlMetadata {
         request: Option<PublicationRequest>,
     ) -> Result<PublicationCommit> {
         let catalog = catalog.to_string();
-        self.write(move |connection| {
+        self.write(catalog.clone(), move |connection| {
             let request = request.as_ref();
             publish::commit_publication(
                 connection, &catalog, &documents, &artifacts, &notes, request,
@@ -219,7 +252,7 @@ impl SqlMetadata {
         request: &PublicationRequest,
     ) -> Result<Option<RecordedOutcome>> {
         let (catalog, request) = (catalog.to_string(), request.clone());
-        self.read(Freshness::Current, move |connection, _| {
+        self.read(catalog.clone(), Freshness::Current, move |connection, _| {
             let PublicationRequest {
                 principal,
                 idempotency_key,
@@ -244,7 +277,7 @@ impl SqlMetadata {
         id_or_name: &str,
     ) -> Result<Option<Publication>> {
         let (catalog, id_or_name) = (catalog.to_string(), id_or_name.to_string());
-        self.read(Freshness::Bounded, move |connection, _| {
+        self.read(catalog.clone(), Freshness::Bounded, move |connection, _| {
             publications::publication(connection, &catalog, &id_or_name)
         })
         .await
@@ -263,90 +296,14 @@ impl SqlMetadata {
             name: name.as_str().to_string(),
         };
         let version = version.to_string();
-        self.read(Freshness::Bounded, move |connection, _| {
+        self.read(org.to_string(), Freshness::Bounded, move |connection, _| {
             publications::initial_publication(connection, &key, &version)
         })
         .await
     }
 
-    pub(super) fn view(self: &Arc<Self>, org: &str, ecosystem: Ecosystem) -> SqlView {
-        SqlView { database: Arc::clone(self), catalog: org.to_string(), ecosystem }
-    }
-
-    /// Run the write `operation` on the blocking pool.
-    async fn write<Output, Operation>(self: &Arc<Self>, operation: Operation) -> Result<Output>
-    where
-        Output: Send + 'static,
-        Operation: FnMut(&dyn Connection) -> Result<Output> + Send + 'static,
-    {
-        let database = Arc::clone(self);
-        tokio::task::spawn_blocking(move || database.run_write(operation)).await?
-    }
-
-    /// Run `operation` on the blocking pool in a read transaction that meets
-    /// `freshness`.
-    async fn read<Output, Operation>(
-        self: &Arc<Self>,
-        freshness: Freshness,
-        operation: Operation,
-    ) -> Result<Output>
-    where
-        Output: Send + 'static,
-        Operation: FnOnce(&dyn Connection, &cache::RenderCache) -> Result<Output> + Send + 'static,
-    {
-        let database = Arc::clone(self);
-        tokio::task::spawn_blocking(move || database.run_read(freshness, operation)).await?
-    }
-
-    /// Run the write `operation`, again from its start while the adapter
-    /// reports a conflict it may clear.
-    fn run_write<Output>(
-        &self,
-        mut operation: impl FnMut(&dyn Connection) -> Result<Output>,
-    ) -> Result<Output> {
-        let mut delay = FIRST_RETRY_DELAY;
-        let mut attempt = 1;
-        loop {
-            let mut output = None;
-            let result = self.adapter.write(&mut |connection| {
-                output = Some(operation(connection)?);
-                Ok(())
-            });
-            match (result, output) {
-                (Ok(()), Some(output)) => return Ok(output),
-                (Err(error), _)
-                    if attempt < WRITE_ATTEMPTS && self.adapter.is_retryable(&error) =>
-                {
-                    std::thread::sleep(delay);
-                    delay *= 2;
-                    attempt += 1;
-                }
-                (Err(error), _) => return Err(error),
-                (Ok(()), None) => unreachable!("a write that succeeded produced its output"),
-            }
-        }
-    }
-
-    /// Run `operation` in one read transaction that meets `freshness`.
-    fn run_read<Output>(
-        &self,
-        freshness: Freshness,
-        operation: impl FnOnce(&dyn Connection, &cache::RenderCache) -> Result<Output>,
-    ) -> Result<Output> {
-        let mut operation = Some(operation);
-        let mut output = None;
-        self.adapter.read(freshness.source(), &mut |connection| {
-            let operation = operation.take().expect("an adapter runs a read once");
-            connection.begin_read()?;
-            let result = operation(connection, &self.cache);
-            let ended =
-                connection.execute_batch(if result.is_ok() { "COMMIT" } else { "ROLLBACK" });
-            output = Some(result?);
-            ended
-        })?;
-        output.ok_or_else(|| RegistryError::Internal {
-            reason: "a metadata read did not run".to_string(),
-        })
+    pub(super) fn view(self: &Arc<Self>, org: &str, ecosystem: Ecosystem) -> view::SqlView {
+        view::SqlView { database: Arc::clone(self), catalog: org.to_string(), ecosystem }
     }
 }
 
@@ -376,105 +333,6 @@ fn to_generation(value: i64) -> u64 {
 
 fn to_column(generation: u64) -> i64 {
     i64::try_from(generation).unwrap_or(i64::MAX)
-}
-
-/// The metadata of one `(catalog, ecosystem)` namespace.
-#[derive(Debug)]
-pub(super) struct SqlView {
-    database: Arc<SqlMetadata>,
-    catalog: String,
-    ecosystem: Ecosystem,
-}
-
-impl SqlView {
-    fn key(&self, name: &CanonicalPackageName) -> PackageKey {
-        PackageKey {
-            catalog: self.catalog.clone(),
-            ecosystem: self.ecosystem,
-            name: name.as_str().to_string(),
-        }
-    }
-
-    async fn read_view_with(
-        &self,
-        name: &CanonicalPackageName,
-        freshness: Freshness,
-    ) -> Result<Option<PackageView>> {
-        let key = self.key(name);
-        self.database.read(freshness, move |connection, cache| {
-            render::read_view(connection, cache, &key)
-        })
-        .await
-    }
-}
-
-#[async_trait]
-impl PackageMetadata for SqlView {
-    async fn read_view(&self, name: &CanonicalPackageName) -> Result<Option<PackageView>> {
-        self.read_view_with(name, Freshness::Bounded).await
-    }
-
-    async fn read_for_update(
-        &self,
-        name: &CanonicalPackageName,
-    ) -> Result<Option<HostedDocumentForUpdate>> {
-        let Some(view) = self.read_view_with(name, Freshness::Current).await? else {
-            return Ok(None);
-        };
-        let generation = view.generation.map_or(0, |generation| generation.value);
-        Ok(Some(HostedDocumentForUpdate {
-            bytes: view.bytes.to_vec(),
-            version: HostedDocumentVersion::Generation(generation),
-        }))
-    }
-
-    async fn write_if_current(
-        &self,
-        name: &CanonicalPackageName,
-        bytes: &[u8],
-        version: Option<&HostedDocumentVersion>,
-        principal: Option<&str>,
-    ) -> Result<DocumentWrite> {
-        let expected = Expected::from_version(version)?;
-        let key = self.key(name);
-        let bytes = bytes.to_vec();
-        let principal = principal.map(str::to_string);
-        self.database.write(move |connection| {
-            let principal = principal.as_deref();
-            commit::write_document(connection, &key, &bytes, expected, principal)
-        })
-        .await
-    }
-
-    async fn change_tag(
-        &self,
-        name: &CanonicalPackageName,
-        change: TagChange<'_>,
-    ) -> Result<TagUpdate> {
-        let key = self.key(name);
-        let change = tags::OwnedTagChange::from(change);
-        self.database.write(move |connection| tags::change_tag(connection, &key, &change)).await
-    }
-
-    async fn remove_package(&self, name: &CanonicalPackageName) -> Result<bool> {
-        let key = self.key(name);
-        self.database.write(move |connection| commit::remove_package(connection, &key)).await
-    }
-
-    async fn package_names(&self) -> Result<Vec<String>> {
-        let (catalog, ecosystem) = (self.catalog.clone(), self.ecosystem);
-        self.database.read(Freshness::Bounded, move |connection, _| {
-            connection
-                .query(
-                    "SELECT name FROM packages WHERE catalog = ?1 AND ecosystem = ?2 ORDER BY name",
-                    params![catalog, ecosystem.as_str()],
-                )?
-                .into_iter()
-                .map(|mut row| row.get(0))
-                .collect()
-        })
-        .await
-    }
 }
 
 #[cfg(test)]

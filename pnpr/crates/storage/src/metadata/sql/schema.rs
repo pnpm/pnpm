@@ -225,7 +225,9 @@ CREATE TABLE IF NOT EXISTS note_history (
 /// database holds.
 pub(super) fn prepare(connection: &dyn Connection) -> Result<Option<i64>> {
     let transaction = WriteTransaction::begin(connection)?;
-    transaction.execute_batch(TABLES)?;
+    for statement in statements(TABLES) {
+        transaction.execute(&statement, params![])?;
+    }
     let stored = stored_version(&*transaction)?;
     if stored.is_none() {
         transaction.execute(
@@ -243,4 +245,21 @@ fn stored_version(connection: &dyn Connection) -> Result<Option<i64>> {
         .query_optional("SELECT version FROM schema_version", params![])?
         .map(|mut row| row.get(0))
         .transpose()
+}
+
+/// The statements of `script`, without its comments. Each runs on its own:
+/// a libSQL client re-renders the statements of a batch, and its rendering
+/// drops the comma between `STRICT` and `WITHOUT ROWID`.
+fn statements(script: &str) -> impl Iterator<Item = String> + '_ {
+    let code: String = script
+        .lines()
+        .filter(|line| !line.trim_start().starts_with("--"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    code.split(';')
+        .map(str::trim)
+        .filter(|statement| !statement.is_empty())
+        .map(str::to_string)
+        .collect::<Vec<_>>()
+        .into_iter()
 }

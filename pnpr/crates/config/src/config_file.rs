@@ -410,15 +410,15 @@ pub(super) struct BackendFile {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(super) struct LibsqlFile {
-    pub(super) url: String,
+    pub(crate) url: String,
     #[serde(default)]
-    pub(super) auth_token: Option<String>,
+    pub(crate) auth_token: Option<String>,
     #[serde(default)]
-    pub(super) replica_path: Option<PathBuf>,
+    pub(crate) replica_path: Option<PathBuf>,
     #[serde(default)]
-    pub(super) sync_interval: Option<Interval>,
+    pub(crate) sync_interval: Option<Interval>,
     #[serde(default)]
-    pub(super) max_connections: Option<u32>,
+    pub(crate) max_connections: Option<u32>,
 }
 
 #[derive(Debug, Deserialize)]

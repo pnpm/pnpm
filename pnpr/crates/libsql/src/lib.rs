@@ -12,7 +12,7 @@ extern crate pnpr_error;
 pub mod testing;
 
 pub use connector::{DialRetryGuard, LibsqlConnector};
-pub use pool::{ConnectionPool, first_row};
+pub use pool::{Checkout, ConnectionPool, first_row};
 
 mod connector;
 mod pool;

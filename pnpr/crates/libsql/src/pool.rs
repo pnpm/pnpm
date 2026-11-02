@@ -90,8 +90,8 @@ impl ConnectionPool {
         Pending: Future<Output = Result<Loaded>>,
     {
         with_deadline::<_, RegistryError>(self.timeout, self.timed_out, async {
-            let (slot, conn) = self.checkout().await?;
-            self.run_holding(slot, conn, operation).await
+            let checkout = self.take().await?;
+            checkout.run(operation).await
         })
         .await
     }
@@ -106,20 +106,26 @@ impl ConnectionPool {
         Operation: FnOnce(Connection) -> Pending,
         Pending: Future<Output = Result<Loaded>>,
     {
-        let (slot, conn) =
-            with_deadline::<_, RegistryError>(self.timeout, self.timed_out, self.checkout()).await?;
-        self.run_holding(slot, conn, operation).await
+        self.checkout().await?.run(operation).await
+    }
+
+    /// A connection to run statements on outside an async operation, such as
+    /// from a blocking thread. It fails with the pool's timeout error if no
+    /// connection frees up within the deadline. [`Checkout::release`] returns
+    /// the connection.
+    pub async fn checkout(&self) -> Result<Checkout<'_>> {
+        with_deadline::<_, RegistryError>(self.timeout, self.timed_out, self.take()).await
     }
 
     /// A slot and a connection to run one operation on.
-    async fn checkout(&self) -> Result<(SemaphorePermit<'_>, Connection)> {
+    async fn take(&self) -> Result<Checkout<'_>> {
         let slot = self.slots.acquire().await.expect("the pool never closes its semaphore");
         let pooled = self.idle
             .lock()
             .expect("idle connections lock")
             .pop();
         if let Some(conn) = pooled {
-            return Ok((slot, conn));
+            return Ok(Checkout { pool: self, _slot: slot, conn });
         }
         let open = Arc::clone(&self.opens)
             .acquire_owned()
@@ -132,27 +138,7 @@ impl ConnectionPool {
         })
         .await
         .expect("opening a libsql connection panicked")?;
-        Ok((slot, conn))
-    }
-
-    async fn run_holding<Loaded, Operation, Pending>(
-        &self,
-        _slot: SemaphorePermit<'_>,
-        conn: Connection,
-        operation: Operation,
-    ) -> Result<Loaded>
-    where
-        Operation: FnOnce(Connection) -> Pending,
-        Pending: Future<Output = Result<Loaded>>,
-    {
-        let result = operation(conn.clone()).await;
-        if result.is_ok() && conn.is_autocommit() {
-            self.idle
-                .lock()
-                .expect("idle connections lock")
-                .push(conn);
-        }
-        result
+        Ok(Checkout { pool: self, _slot: slot, conn })
     }
 
     /// How many connection opens are still running.
@@ -177,6 +163,42 @@ impl ConnectionPool {
             Ok(())
         })
         .await
+    }
+}
+
+/// A connection checked out of a [`ConnectionPool`], holding one of its
+/// slots until it is released or dropped.
+pub struct Checkout<'pool> {
+    pool: &'pool ConnectionPool,
+    _slot: SemaphorePermit<'pool>,
+    conn: Connection,
+}
+
+impl Checkout<'_> {
+    #[must_use]
+    pub fn connection(&self) -> &Connection {
+        &self.conn
+    }
+
+    /// Give the connection back to the pool when its work `succeeded` outside
+    /// a transaction, and close it otherwise.
+    pub fn release(self, succeeded: bool) {
+        if succeeded && self.conn.is_autocommit() {
+            self.pool.idle
+                .lock()
+                .expect("idle connections lock")
+                .push(self.conn);
+        }
+    }
+
+    async fn run<Loaded, Operation, Pending>(self, operation: Operation) -> Result<Loaded>
+    where
+        Operation: FnOnce(Connection) -> Pending,
+        Pending: Future<Output = Result<Loaded>>,
+    {
+        let result = operation(self.conn.clone()).await;
+        self.release(result.is_ok());
+        result
     }
 }
 

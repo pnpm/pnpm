@@ -94,6 +94,18 @@ pub enum TagUpdate {
 pub(crate) trait PackageMetadata: fmt::Debug + Send + Sync {
     async fn read_view(&self, name: &CanonicalPackageName) -> Result<Option<PackageView>>;
 
+    /// [`Self::read_view`] at catalog generation `generation` or later, such
+    /// as one a client has already seen. A backend without generations, or
+    /// whose reads are always current, reads the view as it is.
+    async fn read_view_at_least(
+        &self,
+        name: &CanonicalPackageName,
+        generation: u64,
+    ) -> Result<Option<PackageView>> {
+        let _ = generation;
+        self.read_view(name).await
+    }
+
     /// Read a document with the token [`Self::write_if_current`] needs to
     /// detect a concurrent writer.
     async fn read_for_update(
@@ -142,6 +154,7 @@ impl MetadataSource {
             MetadataBackend::Sqlite(path) => {
                 Ok(Self::Sql(Arc::new(SqlMetadata::open_sqlite(path)?)))
             }
+            MetadataBackend::Libsql(settings) => open_libsql(settings).map(Self::Sql),
         }
     }
 
@@ -159,6 +172,35 @@ impl MetadataSource {
     }
 }
 
+/// The libSQL metadata `settings` name, shared by every [`Storage`] of this
+/// process that names it. An embedded replica is a file one database handle
+/// keeps in sync, and what this process committed is tracked per handle.
+#[cfg(feature = "backend-libsql")]
+fn open_libsql(settings: &pnpr_config::LibsqlSettings) -> Result<Arc<SqlMetadata>> {
+    type Opened = Vec<(pnpr_config::LibsqlSettings, std::sync::Weak<SqlMetadata>)>;
+    static OPENED: std::sync::Mutex<Opened> = std::sync::Mutex::new(Vec::new());
+    let mut opened = OPENED.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    opened.retain(|(_, database)| database.strong_count() > 0);
+    if let Some(database) = opened
+        .iter()
+        .find(|(open, _)| open == settings)
+        .and_then(|(_, database)| database.upgrade())
+    {
+        return Ok(database);
+    }
+    let database = Arc::new(SqlMetadata::open_libsql(settings));
+    opened.push((settings.clone(), Arc::downgrade(&database)));
+    Ok(database)
+}
+
+#[cfg(not(feature = "backend-libsql"))]
+fn open_libsql(_settings: &pnpr_config::LibsqlSettings) -> Result<Arc<SqlMetadata>> {
+    Err(pnpr_error::RegistryError::InvalidConfig {
+        reason: "this pnpr was built without libSQL, so it cannot use a libSQL metadata URL"
+            .to_string(),
+    })
+}
+
 impl Storage {
     /// Read the package's document with the generation it was rendered from.
     pub async fn read_hosted_package_view(
@@ -166,6 +208,18 @@ impl Storage {
         name: &CanonicalPackageName,
     ) -> Result<Option<PackageView>> {
         self.metadata.read_view(name).await
+    }
+
+    /// [`Self::read_hosted_package_view`] at catalog generation `generation`
+    /// or later, such as the generation a client has already seen. With an
+    /// embedded replica behind it, the read waits for the replica to sync or
+    /// reads the primary.
+    pub async fn read_hosted_package_view_at_least(
+        &self,
+        name: &CanonicalPackageName,
+        generation: u64,
+    ) -> Result<Option<PackageView>> {
+        self.metadata.read_view_at_least(name, generation).await
     }
 
     /// Move or remove a dist-tag of a hosted package in one metadata commit.

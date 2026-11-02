@@ -78,6 +78,16 @@ pub(crate) trait Adapter: fmt::Debug + Send + Sync {
     /// Whether `error` refused a write transaction for a conflict with
     /// another writer, after which the whole transaction may run again.
     fn is_retryable(&self, error: &RegistryError) -> bool;
+
+    /// Whether [`ReadSource::Replica`] reads a copy that may lag the primary.
+    fn has_replica(&self) -> bool {
+        false
+    }
+
+    /// Bring the replica up to date with the primary.
+    fn sync_replica(&self) -> Result<()> {
+        Ok(())
+    }
 }
 
 /// A value bound to a statement's parameter.
