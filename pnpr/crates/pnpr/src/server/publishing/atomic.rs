@@ -447,22 +447,33 @@ pub(in super::super) fn publish_committed_response(receipt: &PublishReceipt) -> 
     response
 }
 
-/// The most `npm-notice` headers one response carries, so a publish of many
-/// versions cannot grow its headers past what a proxy or client accepts.
-const MAX_NPM_NOTICES: usize = 16;
+/// The most bytes of `npm-notice` values one response carries, so a publish
+/// of many versions, or of long names, cannot grow its headers past what a
+/// proxy or client accepts.
+const NPM_NOTICE_BYTES: usize = 2048;
 
 /// Send `notices` in `npm-notice` headers, which npm prints to the
-/// publisher: the first [`MAX_NPM_NOTICES`], and a count of the rest.
+/// publisher: those that fit in [`NPM_NOTICE_BYTES`], and a count of the
+/// rest.
 pub(in super::super) fn add_npm_notices(response: &mut Response, notices: &[String]) {
-    let rest = notices.len().saturating_sub(MAX_NPM_NOTICES);
-    let summary = (rest > 0).then(|| format!("{rest} more versions were accepted with a notice"));
-    for notice in notices
-        .iter()
-        .take(MAX_NPM_NOTICES)
-        .chain(summary.as_ref())
-    {
-        if let Ok(value) = header::HeaderValue::from_str(notice) {
-            response.headers_mut().append("npm-notice", value);
-        }
+    let mut budget = NPM_NOTICE_BYTES;
+    let mut sent = 0;
+    for notice in notices {
+        let Some(left) = budget.checked_sub(notice.len()) else { break };
+        let Ok(value) = header::HeaderValue::from_str(notice) else { break };
+        response.headers_mut().append("npm-notice", value);
+        budget = left;
+        sent += 1;
+    }
+    let rest = notices.len() - sent;
+    if rest > 0 {
+        let summary = format!("{rest} more versions were accepted with a notice");
+        response
+            .headers_mut()
+            .append(
+                "npm-notice",
+                header::HeaderValue::from_str(&summary)
+                    .expect("an ASCII summary is a header value"),
+            );
     }
 }

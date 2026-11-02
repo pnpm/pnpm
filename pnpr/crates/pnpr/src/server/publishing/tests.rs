@@ -134,9 +134,9 @@ fn a_python_version_note_is_keyed_by_the_normalized_version() {
 }
 
 #[test]
-fn a_response_carries_a_bounded_number_of_notices() {
+fn a_response_carries_a_bounded_size_of_notices() {
     let notices: Vec<String> = (0..20)
-        .map(|index| format!("notice {index}"))
+        .map(|index| format!("{index:03} {}", "x".repeat(196)))
         .collect();
     let mut response = axum::response::Response::new(axum::body::Body::empty());
     super::add_npm_notices(&mut response, &notices);
@@ -146,7 +146,13 @@ fn a_response_carries_a_bounded_number_of_notices() {
         .iter()
         .map(|value| value.to_str().unwrap())
         .collect();
-    assert_eq!(sent.len(), 17);
-    assert_eq!(sent[15], "notice 15");
-    assert_eq!(sent[16], "4 more versions were accepted with a notice");
+    // Ten 200-byte notices fit in 2048 bytes; the summary counts the rest.
+    assert_eq!(sent.len(), 11);
+    assert!(sent[9].starts_with("009 "));
+    assert_eq!(sent[10], "10 more versions were accepted with a notice");
+    let total: usize = sent
+        .iter()
+        .map(|value| value.len())
+        .sum();
+    assert!(total < 2048 + 64, "{total}");
 }
