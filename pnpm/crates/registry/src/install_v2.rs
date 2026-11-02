@@ -1,5 +1,5 @@
 //! pnpr's own package document, `application/vnd.pnpr.install-v2+json`
-//! ([split packuments](https://github.com/pnpm/rfcs/blob/main/pnpr/text/0000-split-packuments.md)).
+//! ([split packuments](https://github.com/pnpm/rfcs/blob/057a5cb08f430a1824c082ed525bea13520bb4dd/pnpr/text/0000-split-packuments.md)).
 //!
 //! Every version has an entry with what picking it reads and what may change
 //! after publication: its `deprecated` notice, `trust` rank, selected

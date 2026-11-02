@@ -56,7 +56,7 @@ pub(super) fn build_package_documents_config(
         Some(Interval(raw)) => parse_interval(&raw)
             .ok_or_else(|| {
                 invalid(format!(
-                    "packageDocuments.publishTimeWindow {raw:?} is not a valid interval"
+                    "packageDocuments.publishTimeWindow {raw:?} is not a valid interval",
                 ))
             })?,
         None => defaults.publish_time_window,

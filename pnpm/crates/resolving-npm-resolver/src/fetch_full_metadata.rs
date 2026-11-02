@@ -131,7 +131,7 @@ fn warn_about_undeclared_pnpr(http_client: &ThrottledClient, registry: &str) {
         return;
     }
     http_client.warn(&format!(
-        "The registry {} is a pnpr registry. Declare it with \"serverType: pnpr\" under \"registries\" in pnpm-workspace.yaml to install its revisions and the facts it records about each package's archives.",
+        r#"The registry {} is a pnpr registry. Declare it with "serverType: pnpr" under "registries" in pnpm-workspace.yaml to install its revisions and the facts it records about each package's archives."#,
         redact_url_for_display(registry),
     ));
 }
@@ -403,6 +403,19 @@ pub(crate) struct MetadataResponse<'a> {
     pub http_client: &'a ThrottledClient,
 }
 
+impl MetadataResponse<'_> {
+    /// Whether the body is pnpr's own package document: a response in that
+    /// format is read as one only when it was asked for. A registry that
+    /// identifies itself as pnpr without having been asked gets a warning.
+    fn is_install_v2(&self) -> bool {
+        let headers = self.response.headers();
+        if !self.asked_install_v2 && headers.contains_key(PNPR_REGISTRY_HEADER) {
+            warn_about_undeclared_pnpr(self.http_client, self.registry);
+        }
+        self.asked_install_v2 && is_install_v2_content_type(headers)
+    }
+}
+
 /// Read a metadata response's body, then parse it and hand it to `finish`
 /// off the reactor.
 ///
@@ -418,19 +431,11 @@ pub(crate) async fn decode_metadata_response<Output: Send + 'static>(
     normalize_to_abbreviated: bool,
     finish: impl FnOnce(Package) -> Result<Output, FetchMetadataError> + Send + 'static,
 ) -> Result<Output, FetchMetadataError> {
+    let install_v2 = response.is_install_v2();
     let MetadataResponse {
-        client,
-        response,
-        url,
-        registry,
-        asked_install_v2,
-        http_client,
+        client, response, url, http_client, ..
     } = response;
     let started_at = client.acquired_at();
-    let install_v2 = asked_install_v2 && is_install_v2_content_type(response.headers());
-    if !asked_install_v2 && response.headers().contains_key(PNPR_REGISTRY_HEADER) {
-        warn_about_undeclared_pnpr(http_client, registry);
-    }
     let response = response
         .error_for_status()
         .map_err(|error| FetchMetadataError::Network {

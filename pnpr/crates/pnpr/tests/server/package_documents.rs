@@ -24,7 +24,7 @@ async fn get(app: &axum::Router, uri: &str, accept: Option<&str>, token: Option<
         .unwrap()
 }
 
-fn header_of<'res>(response: &'res Response, name: impl header::AsHeaderName) -> Option<&'res str> {
+fn header_of(response: &Response, name: impl header::AsHeaderName) -> Option<&str> {
     response
         .headers()
         .get(name)

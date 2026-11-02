@@ -68,6 +68,15 @@ fn split_pkg_upstream() -> mockito::ServerGuard {
     upstream
 }
 
+/// Everything a command printed, on both streams.
+fn printed_by(output: &std::process::Output) -> String {
+    format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    )
+}
+
 /// A project depending on `split-pkg@1.0.0` from `registry`.
 fn project_on(registry: &str) -> CommandTempCwd<AddMockedRegistry> {
     let command = CommandTempCwd::init().add_mocked_registry();
@@ -131,8 +140,7 @@ fn an_undeclared_pnpr_installs_from_npms_documents_with_a_warning() {
         .get_output()
         .clone();
 
-    let printed = String::from_utf8_lossy(&output.stdout).into_owned()
-        + &String::from_utf8_lossy(&output.stderr);
+    let printed = printed_by(&output);
     assert!(printed.contains("is a pnpr registry"), "{printed}");
     assert!(workspace.join("node_modules/split-pkg/index.js").exists());
     assert!(!npmrc_info.cache_dir.join("v12/metadata-pnpr").exists());
@@ -163,8 +171,7 @@ fn a_minimum_release_age_longer_than_30_days_is_refused_for_a_pnpr_registry() {
         .get_output()
         .clone();
 
-    let printed = String::from_utf8_lossy(&output.stdout).into_owned()
-        + &String::from_utf8_lossy(&output.stderr);
+    let printed = printed_by(&output);
     assert!(printed.contains("ERR_PNPM_UNSUPPORTED_MINIMUM_RELEASE_AGE"), "{printed}");
     drop((root, npmrc_info));
 }

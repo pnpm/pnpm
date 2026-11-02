@@ -18,6 +18,8 @@ use std::{
 };
 use wax::walk::Entry;
 
+mod release_records;
+
 #[derive(Debug, Subcommand)]
 pub enum CacheCommand {
     /// Lists the available packages metadata cache. Supports filtering by glob.
@@ -89,7 +91,7 @@ impl CacheCommand {
     /// arguments straight into a glob; pacquet additionally guards against `..`
     /// segments so a crafted name can't match files outside the cache tree —
     /// `delete` removes whatever the glob resolves to.
-    fn reject_path_traversal(name: &str) -> miette::Result<()> {
+    pub(super) fn reject_path_traversal(name: &str) -> miette::Result<()> {
         if name.contains("..") {
             return Err(miette::miette!(
                 "Invalid package name '{name}': path traversal sequences are not allowed"
@@ -237,42 +239,13 @@ impl CacheCommand {
             }
             deleted.extend(meta_files);
         }
-        deleted.extend(Self::delete_release_records(config, packages)?);
+        deleted.extend(release_records::delete(config, &Self::registry_prefix(config)?, packages)?);
         deleted.sort();
         deleted.dedup();
         if !deleted.is_empty() {
             pnpm_diagnostics::println!("{}", deleted.join("\n"));
         }
         Ok(())
-    }
-
-    /// Delete the cached release records of `packages` from the configured
-    /// registry, each listed as `<package>/<version>+r<revision>.json`.
-    fn delete_release_records(config: &Config, packages: &[String]) -> miette::Result<Vec<String>> {
-        let dir = config.cache_dir.join(RELEASE_RECORDS_DIR);
-        if !dir.exists() {
-            return Ok(Vec::new());
-        }
-        let registry_prefix = Self::registry_prefix(config)?;
-        let patterns = if packages.is_empty() {
-            vec![format!("{registry_prefix}/**/*.json")]
-        } else {
-            packages
-                .iter()
-                .map(|pkg| {
-                    Self::reject_path_traversal(pkg)?;
-                    Ok(format!("{registry_prefix}/{pkg}/*.json"))
-                })
-                .collect::<miette::Result<Vec<_>>>()?
-        };
-        let mut deleted = Vec::new();
-        for pattern in patterns {
-            for (relative, full_path) in walk_metadata_files(&dir, &pattern)? {
-                fs::remove_file(full_path).into_diagnostic()?;
-                deleted.push(relative);
-            }
-        }
-        Ok(deleted)
     }
 
     /// Remove the mirror directories left behind by an older pnpm: every
