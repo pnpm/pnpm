@@ -13,6 +13,8 @@ extend-exclude = [
   "pnpm/crates/rust-toolchain/src/*.asc",
   "pnpm/crates/rust-toolchain/src/fixtures/*",
   "pnpm/tasks/micro-benchmark/fixtures/lodash.json",
+  # A DSSE envelope whose base64 payload is test data, not prose.
+  "pnpm/crates/release-record/tests/fixtures/python-dsse-envelope.txt",
 ]
 
 [default]
