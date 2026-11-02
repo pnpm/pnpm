@@ -348,7 +348,10 @@ jobs:
           # Prove a process that aborts under Node, as a test binary does,
           # leaves a dump when started through the runner: a configured
           # automatic debugger, for one, would take the crash instead.
-          node -e "require('node:child_process').spawnSync(process.argv[1], [process.argv[2]])" $runner $abortCheck
+          # Bounded, in case something keeps the aborted process open, such
+          # as a debugger dialog.
+          node -e 'const r = require(`node:child_process`).spawnSync(process.argv[1], [process.argv[2]], { stdio: `ignore`, timeout: 60000 }); if (r.error) { console.error(r.error.message); process.exit(1) }' $runner $abortCheck
+          if ($LASTEXITCODE -ne 0) { throw 'abort-check did not run to its end through the runner' }
           $deadline = (Get-Date).AddSeconds(30)
           while (-not (Get-ChildItem $dumps -Filter 'abort-check.exe.*.dmp') -and (Get-Date) -lt $deadline) {
             Start-Sleep -Seconds 1
