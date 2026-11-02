@@ -1,6 +1,6 @@
 use super::{
     NativeCallbacks, NativeFetcherResult, NativeFetcherSettings, Verified, callback_error,
-    callback_location, callback_lockfile_dir, fetch_location,
+    callback_location, callback_lockfile_dir, fetch_location, reject_locked_integrity,
 };
 use crate::install_package_by_snapshot::{
     archive_filter_for, fetch_binary_resolution_to_cas, running_pnpm_execpath,
@@ -75,6 +75,7 @@ pub(super) async fn fetch_git<Reporter: pnpm_reporter::Reporter>(
     let settings = native.settings.ok_or_else(|| {
         callback_error("git fetcher requires install settings", "ERR_PNPM_CUSTOM_FETCHER")
     })?;
+    reject_locked_integrity(native.download, "git")?;
     let resolution: GitResolution = deserialize_resolution(&callback.resolution)?;
     let package_id = package_resolution_id(callback, native.download);
     let package_name = package_name(callback)?;
@@ -116,6 +117,14 @@ pub(super) async fn fetch_binary<Reporter: pnpm_reporter::Reporter>(
     verified: &mut Verified,
 ) -> Result<Value, FetchErrorDetails> {
     let resolution: pnpm_lockfile::BinaryResolution = deserialize_resolution(&callback.resolution)?;
+    if let Some(locked) = native.download.package.integrity
+        && locked.matches(&resolution.integrity).is_none()
+    {
+        return Err(callback_error(
+            "The binary archive integrity does not match the locked archive integrity.",
+            "ERR_PNPM_TARBALL_INTEGRITY",
+        ));
+    }
     let name = package_name(callback)?;
     let version = callback.options
         .get("pkg")

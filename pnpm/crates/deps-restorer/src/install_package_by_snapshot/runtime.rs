@@ -330,7 +330,7 @@ pub fn binary_store_index_key(
 /// straight into the CAS, where they're addressed by the SHA-512 of their
 /// content; two runtime archives whose `(name, version, bin)`
 /// triple happens to match share the same blob.
-pub(crate) fn synthesize_runtime_manifest_bytes(
+pub(super) fn synthesize_runtime_manifest_bytes(
     package_key: &PackageKey,
     binary: &BinaryResolution,
 ) -> Result<Vec<u8>, InstallPackageBySnapshotError> {

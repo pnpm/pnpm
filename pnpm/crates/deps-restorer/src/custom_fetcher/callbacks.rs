@@ -198,7 +198,10 @@ async fn run_callback<Reporter: self::Reporter>(
 
 /// The paths of `files`, as a hook sees a files map.
 fn file_paths(files: &pnpm_fs::CasPaths) -> HashMap<&String, &PathBuf> {
-    files.iter().map(|(filename, file)| (filename, &file.path)).collect()
+    files
+        .iter()
+        .map(|(filename, file)| (filename, &file.path))
+        .collect()
 }
 
 fn callback_lockfile_dir<'a>(
@@ -211,19 +214,14 @@ fn callback_lockfile_dir<'a>(
         .map_or(native.lockfile_dir, Path::new)
 }
 
-/// `fetchers.directory`. A directory has no archive digest, so when the
-/// lockfile pins one the call itself rejects, which lets the hook catch it.
+/// `fetchers.directory`. A directory has no archive digest, see
+/// [`reject_locked_integrity`].
 fn walk_callback_directory(
     native: &NativeCallbacks<'_>,
     callback: &FetcherCallback,
     walked: &mut Vec<WalkedDirectory>,
 ) -> Result<Value, FetchErrorDetails> {
-    if native.download.package.integrity.is_some() {
-        return Err(callback_error(
-            r#"Cannot verify the locked archive integrity after delegating to resolution type "directory"."#,
-            "ERR_PNPM_TARBALL_INTEGRITY",
-        ));
-    }
+    reject_locked_integrity(native.download, "directory")?;
     // Like the TypeScript directory fetcher, read `directory` alone: a hook
     // often spreads its own resolution, which carries other fields.
     let Some(relative) = callback.resolution.get("directory").and_then(Value::as_str) else {
@@ -253,6 +251,23 @@ fn walk_callback_directory(
         exists: output.exists,
     });
     Ok(result)
+}
+
+/// Rejects a callback whose source carries no archive digest when the
+/// lockfile pins one, so the hook can catch it.
+fn reject_locked_integrity(
+    download: &IngestTarballToStore<'_>,
+    resolution_type: &str,
+) -> Result<(), FetchErrorDetails> {
+    if download.package.integrity.is_none() {
+        return Ok(());
+    }
+    Err(callback_error(
+        format!(
+            r#"Cannot verify the locked archive integrity after delegating to resolution type "{resolution_type}"."#,
+        ),
+        "ERR_PNPM_TARBALL_INTEGRITY",
+    ))
 }
 
 /// A fresh directory under the store's temp root, kept for the fetcher.
