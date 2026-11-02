@@ -41,6 +41,7 @@ async fn main() {
         pnpm_repository.as_deref(),
         args.selection.with_pnpm,
         args.network.registry,
+        args.count_syscalls,
     );
 
     let build_only = args.build.build_only;
@@ -211,6 +212,7 @@ fn verify_prerequisites(
     pnpm_repository: Option<&std::path::Path>,
     with_pnpm: bool,
     registry_mode: RegistryMode,
+    count_syscalls: bool,
 ) {
     let has_pacquet_target = targets
         .iter()
@@ -235,6 +237,9 @@ fn verify_prerequisites(
     verify::ensure_program("bash");
     verify::ensure_program("git");
     verify::ensure_program("hyperfine");
+    if count_syscalls {
+        verify::ensure_program("strace");
+    }
     if needs_pacquet_repo {
         verify::ensure_program("cargo");
     }

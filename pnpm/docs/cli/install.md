@@ -72,7 +72,7 @@ Install `optionalDependencies` even when the [`optional`](../settings/dependency
 
 ### --no-runtime
 
-Skip installing runtime entries (e.g. Node.js downloaded via [`devEngines.runtime`](../package_json.md#devenginesruntime)). The lockfile is left untouched, so frozen installs still validate; only the runtime fetch and bin-linking are skipped.
+Skip installing runtime entries (e.g. Node.js downloaded via [`devEngines.runtime`](../package_json.md#devenginesruntime)). The lockfile is left untouched, so frozen installs still validate; only the runtime fetch and bin-linking are skipped. A runtime that an earlier install linked is removed from `node_modules`.
 
 This is useful in CI matrices where the runtime is provisioned externally (e.g. via `pnpm runtime -g set node <version>`) before `pnpm install` runs.
 

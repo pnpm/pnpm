@@ -217,6 +217,9 @@
       "path": "../deps-installer"
     },
     {
+      "path": "../deps-resolver"
+    },
+    {
       "path": "../env-installer"
     },
     {

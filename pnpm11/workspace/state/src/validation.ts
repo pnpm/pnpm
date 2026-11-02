@@ -450,6 +450,7 @@ const SETTING_UNSET_EQUIVALENTS: Partial<Record<keyof WorkspaceStateSettings, un
   allowBuilds: {},
   dangerouslyAllowAllBuilds: false,
   enableGlobalVirtualStore: false,
+  runtime: true,
   trustLockfile: false,
   // The default of `virtualStoreDirMaxLength`.
   virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,

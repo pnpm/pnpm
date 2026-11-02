@@ -20,6 +20,13 @@ pub struct CliArgs {
     /// only for a diagnostic run, not a baseline.
     #[clap(long)]
     pub serve_timing: bool,
+    /// After the timed runs, run every benchmarked install twice more,
+    /// untimed, under `strace --follow-forks --summary-only`, starting from
+    /// the state a timed run starts from. Each run's per-syscall counts land
+    /// in `<target>/SYSCALL_COUNTS.<round>.txt`, so a comparison can gate on
+    /// filesystem work that wall time is too noisy to show.
+    #[clap(long)]
+    pub count_syscalls: bool,
     #[clap(flatten)]
     pub selection: crate::cli_args::BenchmarkSelection,
     #[clap(flatten)]

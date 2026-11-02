@@ -1000,7 +1000,10 @@ pnpmfileChecksum: sha256-C2XY6+pe0kqyHiBBFj5dX5DnhJzLAwdcic3kR7l3o5w=
 patchedDependencies:
   '@tybys/wasm-util@0.10.4': 055e4dc4f0d5875fa7a4fe053318a52f9018a9d1020af186bd2fc41987d7a665
   deepmerge@4.3.1: 6241e75cd0ebdeefbe93564d0f9a0da153bc6608add12970bd3c390910e7e4f4
+  glob@11.1.0: aa3a98d243db59427689bada80d8824e3e8b7cff11bf6007c528d70324791dd3
+  glob@13.0.6: 72f210f779f61d282638f78816d13beca24061ba9aaee58322aa0d4aebc6170f
   graceful-fs@4.2.11: 68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1
+  minimatch@10.2.6: c6ace05290f134922778ebb104c5c287aa2cd9095feb0e76cb93230ad45a5239
   normalize-registry-url@2.0.1: e80227ac379f28c9f982c0588f5dfbcd517912bdd3a5c77a75e944c328fd8932
   unrs-resolver@1.12.2: 9e44fe60fe5cd3ec628b4745dca0de2208757084e03808abb85a391117419bee
 
@@ -5827,6 +5830,9 @@ importers:
       '@pnpm/installing.deps-installer':
         specifier: workspace:*
         version: link:../deps-installer
+      '@pnpm/installing.deps-resolver':
+        specifier: workspace:*
+        version: link:../deps-resolver
       '@pnpm/installing.env-installer':
         specifier: workspace:*
         version: link:../env-installer
@@ -19058,7 +19064,7 @@ snapshots:
     dependencies:
       '@eslint/object-schema': 3.0.5
       debug: 4.4.3(supports-color@10.2.2)
-      minimatch: 10.2.6
+      minimatch: 10.2.6(patch_hash=c6ace05290f134922778ebb104c5c287aa2cd9095feb0e76cb93230ad45a5239)
     transitivePeerDependencies:
       - supports-color
 
@@ -19361,7 +19367,7 @@ snapshots:
       chalk: 4.1.2
       collect-v8-coverage: 1.0.3
       exit-x: 0.2.2
-      glob: 11.1.0
+      glob: 11.1.0(patch_hash=aa3a98d243db59427689bada80d8824e3e8b7cff11bf6007c528d70324791dd3)
       graceful-fs: 4.2.11(patch_hash=68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1)
       istanbul-lib-coverage: 3.2.2
       istanbul-lib-instrument: 6.0.3(@babel/types@7.29.11)(supports-color@10.2.2)
@@ -19712,7 +19718,7 @@ snapshots:
   '@npmcli/package-json@7.0.5':
     dependencies:
       '@npmcli/git': 7.0.2
-      glob: 13.0.6
+      glob: 13.0.6(patch_hash=72f210f779f61d282638f78816d13beca24061ba9aaee58322aa0d4aebc6170f)
       hosted-git-info: 9.0.3
       json-parse-even-better-errors: 5.0.0
       proc-log: 6.1.0
@@ -20949,7 +20955,7 @@ snapshots:
   '@tufjs/models@4.1.0':
     dependencies:
       '@tufjs/canonical-json': 2.0.0
-      minimatch: 10.2.6
+      minimatch: 10.2.6(patch_hash=c6ace05290f134922778ebb104c5c287aa2cd9095feb0e76cb93230ad45a5239)
 
   '@tybys/wasm-util@0.10.4(patch_hash=055e4dc4f0d5875fa7a4fe053318a52f9018a9d1020af186bd2fc41987d7a665)':
     dependencies:
@@ -21265,7 +21271,7 @@ snapshots:
       '@typescript-eslint/types': 8.72.1
       '@typescript-eslint/visitor-keys': 8.72.1
       debug: 4.4.3(supports-color@10.2.2)
-      minimatch: 10.2.6
+      minimatch: 10.2.6(patch_hash=c6ace05290f134922778ebb104c5c287aa2cd9095feb0e76cb93230ad45a5239)
       semver: 7.8.5
       tinyglobby: 0.2.17
       ts-api-utils: 2.5.0(typescript@6.0.3)
@@ -21864,7 +21870,7 @@ snapshots:
     dependencies:
       '@npmcli/fs': 4.0.0
       fs-minipass: 3.0.3
-      glob: 11.1.0
+      glob: 11.1.0(patch_hash=aa3a98d243db59427689bada80d8824e3e8b7cff11bf6007c528d70324791dd3)
       lru-cache: 10.4.3
       minipass: 7.1.3
       minipass-collect: 2.0.1
@@ -21879,7 +21885,7 @@ snapshots:
     dependencies:
       '@npmcli/fs': 5.0.0
       fs-minipass: 3.0.3
-      glob: 13.0.6
+      glob: 13.0.6(patch_hash=72f210f779f61d282638f78816d13beca24061ba9aaee58322aa0d4aebc6170f)
       lru-cache: 11.5.3
       minipass: 7.1.3
       minipass-collect: 2.0.1
@@ -22534,7 +22540,7 @@ snapshots:
       eslint: 10.13.0(jiti@2.7.0)(supports-color@10.2.2)
       eslint-import-context: 0.1.9(unrs-resolver@1.12.2(patch_hash=9e44fe60fe5cd3ec628b4745dca0de2208757084e03808abb85a391117419bee))
       is-glob: 4.0.3
-      minimatch: 10.2.6
+      minimatch: 10.2.6(patch_hash=c6ace05290f134922778ebb104c5c287aa2cd9095feb0e76cb93230ad45a5239)
       semver: 7.8.5
       stable-hash-x: 0.2.0
       unrs-resolver: 1.12.2(patch_hash=9e44fe60fe5cd3ec628b4745dca0de2208757084e03808abb85a391117419bee)
@@ -22631,7 +22637,7 @@ snapshots:
       imurmurhash: 0.1.4
       is-glob: 4.0.3
       json-stable-stringify-without-jsonify: 1.0.1
-      minimatch: 10.2.6
+      minimatch: 10.2.6(patch_hash=c6ace05290f134922778ebb104c5c287aa2cd9095feb0e76cb93230ad45a5239)
       natural-compare: 1.4.0
       optionator: 0.9.4
     optionalDependencies:
@@ -23060,18 +23066,18 @@ snapshots:
     dependencies:
       tslib: 2.8.1
 
-  glob@11.1.0:
+  glob@11.1.0(patch_hash=aa3a98d243db59427689bada80d8824e3e8b7cff11bf6007c528d70324791dd3):
     dependencies:
       foreground-child: 3.3.1
       jackspeak: 4.2.3
-      minimatch: 10.2.6
+      minimatch: 10.2.6(patch_hash=c6ace05290f134922778ebb104c5c287aa2cd9095feb0e76cb93230ad45a5239)
       minipass: 7.1.3
       package-json-from-dist: 1.0.1
       path-scurry: 2.0.2
 
-  glob@13.0.6:
+  glob@13.0.6(patch_hash=72f210f779f61d282638f78816d13beca24061ba9aaee58322aa0d4aebc6170f):
     dependencies:
-      minimatch: 10.2.6
+      minimatch: 10.2.6(patch_hash=c6ace05290f134922778ebb104c5c287aa2cd9095feb0e76cb93230ad45a5239)
       minipass: 7.1.3
       path-scurry: 2.0.2
 
@@ -23303,7 +23309,7 @@ snapshots:
 
   ignore-walk@8.0.0:
     dependencies:
-      minimatch: 10.2.6
+      minimatch: 10.2.6(patch_hash=c6ace05290f134922778ebb104c5c287aa2cd9095feb0e76cb93230ad45a5239)
 
   ignore@5.3.2: {}
 
@@ -23557,7 +23563,7 @@ snapshots:
       chalk: 4.1.2
       ci-info: 4.4.0
       deepmerge: 4.3.1(patch_hash=6241e75cd0ebdeefbe93564d0f9a0da153bc6608add12970bd3c390910e7e4f4)
-      glob: 11.1.0
+      glob: 11.1.0(patch_hash=aa3a98d243db59427689bada80d8824e3e8b7cff11bf6007c528d70324791dd3)
       graceful-fs: 4.2.11(patch_hash=68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1)
       jest-circus: 30.4.2(@babel/types@7.29.11)(supports-color@10.2.2)
       jest-docblock: 30.4.0
@@ -23790,7 +23796,7 @@ snapshots:
       chalk: 4.1.2
       cjs-module-lexer: 2.3.0
       collect-v8-coverage: 1.0.3
-      glob: 11.1.0
+      glob: 11.1.0(patch_hash=aa3a98d243db59427689bada80d8824e3e8b7cff11bf6007c528d70324791dd3)
       graceful-fs: 4.2.11(patch_hash=68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1)
       jest-haste-map: 30.4.1
       jest-message-util: 30.4.1
@@ -24436,7 +24442,7 @@ snapshots:
 
   min-indent@1.0.1: {}
 
-  minimatch@10.2.6:
+  minimatch@10.2.6(patch_hash=c6ace05290f134922778ebb104c5c287aa2cd9095feb0e76cb93230ad45a5239):
     dependencies:
       brace-expansion: 5.0.12
 
@@ -25313,7 +25319,7 @@ snapshots:
 
   rimraf@6.1.3:
     dependencies:
-      glob: 13.0.6
+      glob: 13.0.6(patch_hash=72f210f779f61d282638f78816d13beca24061ba9aaee58322aa0d4aebc6170f)
       package-json-from-dist: 1.0.1
 
   root-link-target@3.1.0:
@@ -25803,8 +25809,8 @@ snapshots:
   test-exclude@8.0.0:
     dependencies:
       '@istanbuljs/schema': 0.1.6
-      glob: 13.0.6
-      minimatch: 10.2.6
+      glob: 13.0.6(patch_hash=72f210f779f61d282638f78816d13beca24061ba9aaee58322aa0d4aebc6170f)
+      minimatch: 10.2.6(patch_hash=c6ace05290f134922778ebb104c5c287aa2cd9095feb0e76cb93230ad45a5239)
 
   text-decoder@1.2.7:
     dependencies:
