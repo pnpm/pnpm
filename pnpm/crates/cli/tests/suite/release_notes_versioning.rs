@@ -346,7 +346,110 @@ fn a_batch_refuses_a_hook_that_moves_a_composed_release_to_another_registry() {
 
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("ERR_PNPM_RELEASE_NOTES_REGISTRY_CHANGED"), "{stderr}");
+    assert!(stderr.contains("ERR_PNPM_RELEASE_NOTES_PACKAGE_CHANGED"), "{stderr}");
     upload.assert();
+    drop(root);
+}
+
+#[test]
+fn a_batch_refuses_a_hook_that_changes_a_composed_version() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let mut server = mockito::Server::new();
+    let registry = format!("{}/", server.url());
+    write_workspace(&workspace, &registry);
+    run(pnpm(&workspace).with_args(["version", "-r", "--no-git-checks"]));
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        r"module.exports = {
+  hooks: {
+    beforePacking (manifest) {
+      if (manifest.name === 'a') manifest.version = '9.9.9'
+      return manifest
+    },
+  },
+}
+",
+    )
+    .expect("write .pnpmfile.cjs");
+    let upload = server
+        .mock("PUT", Matcher::Any)
+        .expect(0)
+        .create();
+
+    let output = pnpm(&workspace)
+        .with_args(["-r", "publish", "--batch", "--force", "--no-git-checks"])
+        .output()
+        .expect("run pnpm publish");
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("ERR_PNPM_RELEASE_NOTES_PACKAGE_CHANGED"), "{stderr}");
+    upload.assert();
+    drop(root);
+}
+
+#[test]
+fn a_composed_publication_is_not_sent_to_another_registry_once_its_own_stores_no_notes() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let mut server = mockito::Server::new();
+    let registry = format!("{}/", server.url());
+    write_workspace(&workspace, &registry);
+    run(pnpm(&workspace).with_args(["version", "-r", "--no-git-checks"]));
+    let mut other = mockito::Server::new();
+    let other_registry = format!("{}/", other.url());
+    // The release's registry is no longer declared pnpr, and a new package
+    // publishes to another registry that is.
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        format!(
+            "packages:\n  - packages/*\nversioning:\n  fixed:\n    - [a, b]\nregistries:\n  '{other_registry}':\n    serverType: pnpr\n",
+        ),
+    )
+    .expect("write pnpm-workspace.yaml");
+    let dir = workspace.join("packages/c");
+    fs::create_dir_all(&dir).expect("create package dir");
+    fs::write(
+        dir.join("package.json"),
+        json!({ "name": "c", "version": "1.0.0", "publishConfig": { "registry": other_registry } })
+            .to_string(),
+    )
+    .expect("write package.json");
+    let _own = server
+        .mock("PUT", Matcher::Any)
+        .with_status(201)
+        .with_body(r#"{"ok":true}"#)
+        .create();
+    let _packuments = server
+        .mock("GET", Matcher::Any)
+        .with_status(404)
+        .create();
+    let _other_packuments = other
+        .mock("GET", Matcher::Any)
+        .with_status(404)
+        .create();
+    let elsewhere = other
+        .mock("PUT", "/-/pnpr/v0/publish")
+        .match_request(|request| {
+            let body: serde_json::Value =
+                serde_json::from_str(&request.utf8_lossy_body().expect("body")).expect("JSON");
+            body.get("name").is_none() && body.get("notes").is_none()
+        })
+        .with_status(201)
+        .with_body(r#"{"ok":true}"#)
+        .expect(1)
+        .create();
+
+    let output = pnpm(&workspace)
+        .with_args(["-r", "publish", "--batch", "--force", "--no-git-checks"])
+        .output()
+        .expect("run pnpm publish");
+
+    assert!(
+        output.status.success(),
+        "stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr),
+    );
+    elsewhere.assert();
     drop(root);
 }

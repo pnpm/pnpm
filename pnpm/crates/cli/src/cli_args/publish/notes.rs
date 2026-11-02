@@ -124,10 +124,11 @@ impl PublishArgs {
         Ok(())
     }
 
-    /// Refuse a batch whose packing moved a member of the composed
-    /// publication to another registry: the publication's name and note go
-    /// to the registry chosen before packing, and would otherwise be left
-    /// out.
+    /// Refuse a batch whose packing changed the registry, published name, or
+    /// version of a member of the composed publication: its name and note
+    /// go to the registry chosen before packing, and a later
+    /// `pnpm version -r` confirms the release under the identity it
+    /// composed.
     pub(super) fn check_publication_registry(
         config: &Config,
         publication: &PublicationNotes,
@@ -136,23 +137,24 @@ impl PublishArgs {
         let Some(registry) = publication.registry.as_deref() else {
             return Ok(());
         };
-        let moved = packed
+        let changed = packed
             .iter()
             .find(|pkg| {
                 notes_registry_of_manifest(config, &pkg.source_manifest).as_deref()
                     == Some(registry)
-                    && notes_registry_of_manifest(config, &pkg.published_manifest).as_deref()
+                    && (notes_registry_of_manifest(config, &pkg.published_manifest).as_deref()
                         != Some(registry)
+                        || published_identity(&pkg.published_manifest)
+                            != published_identity(&pkg.source_manifest))
             });
-        let Some(pkg) = moved else {
+        let Some(pkg) = changed else {
             return Ok(());
         };
         let package = package_id(&pkg.source_manifest);
         Err(miette::miette!(
-            code = "ERR_PNPM_RELEASE_NOTES_REGISTRY_CHANGED",
-            help =
-                "Set the registry in the workspace manifest rather than in a beforePacking hook.",
-            "Packing moved {package} to another registry than the release notes of its release were composed for",
+            code = "ERR_PNPM_RELEASE_NOTES_PACKAGE_CHANGED",
+            help = "Set the registry, name, and version in the workspace manifest rather than in a beforePacking hook.",
+            "Packing changed the registry, name, or version of {package}, which the release notes of its release were composed for",
         ))
     }
 
@@ -216,17 +218,26 @@ impl PublishArgs {
         if summary.is_some() && versioned {
             return Err(summary_belongs_to_versioning());
         }
+        let registry = parked
+            .as_ref()
+            .map(|publication| publication_registry(config, publication, members))
+            .transpose()?
+            .flatten();
+        if parked.is_some() && registry.is_none() {
+            // Its members no longer publish to a registry that stores notes,
+            // so the composed publication goes nowhere rather than to every
+            // such registry of the batch.
+            emit_warning::<Reporter>(
+                r#"The packages of the release that "pnpm version -r" composed release notes for no longer publish to a registry declared with serverType: pnpr. Its publication notes are not sent."#,
+            );
+            return Ok(PublicationNotes::default());
+        }
         let name = self.flags.manifest.notes.publication_name
             .clone()
             .or_else(|| parked.as_ref().and_then(|publication| publication.name.clone()));
         if let Some(name) = &name {
             validate_publication_name(name)?;
         }
-        let registry = parked
-            .as_ref()
-            .map(|publication| publication_registry(config, publication, members))
-            .transpose()?
-            .flatten();
         let composed = parked
             .map(|publication| publication.notes)
             .filter(|notes| !notes.is_empty());
@@ -445,6 +456,17 @@ fn package_id(manifest: &Value) -> String {
         .and_then(Value::as_str)
         .unwrap_or_default();
     format!("{name}@{version}")
+}
+
+/// The name and version a manifest publishes under: its `publishConfig.name`
+/// rename, and its version without build metadata, as packing writes them.
+fn published_identity(manifest: &Value) -> (Option<&str>, Option<&str>) {
+    let name = published_name(manifest).or_else(|| manifest.get("name").and_then(Value::as_str));
+    let version = manifest
+        .get("version")
+        .and_then(Value::as_str)
+        .map(|version| version.split_once('+').map_or(version, |(version, _)| version));
+    (name, version)
 }
 
 fn validate_publication_name(name: &str) -> miette::Result<()> {
