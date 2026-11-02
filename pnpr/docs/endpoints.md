@@ -157,6 +157,17 @@ These belong to no single ecosystem, so they sit on the server root.
 | `PUT` | `/-/pnpr/v0/publish` | [Publish packages of any ecosystem](ecosystems.md#one-publish-for-a-workspace-that-spans-ecosystems) in one journaled transaction. Advertised as `publish: [0]` in the handshake. |
 | `GET` | `/-/pnpr/v0/registries` | The [registry directory](discovery.md#the-registry-directory): the named registries, ecosystem endpoints, and routing order the caller may see. |
 
+### Publication endpoints {#publication-endpoints}
+
+Served when the hosted metadata lives in [SQLite](storage.md#sqlite-metadata).
+A publication is a commit that introduced packages. Its id is the org
+generation it committed. `<org>` is `-` for registries without an `org`.
+
+| Method | Path | Description |
+| --- | --- | --- |
+| `GET` | `/-/publications/<org>/<id-or-name>` | The publication, with the members the caller may read: ecosystem, name, version, and artifact (an npm archive's integrity, or another ecosystem's file name). `404` when the caller may read none of them. |
+| `GET` | `/-/publications/<org>?member=<ecosystem>:<name>@<version>` | The publication that introduced that version. A version published before publications were recorded gets one with `"origin": "imported"` and no publisher. |
+
 ### Pipeline run endpoints
 
 Added in: v0.1.0-alpha.11

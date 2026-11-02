@@ -236,6 +236,20 @@ the bytes that won the slot are someone else's published release and overwriting
 them would be the worse outcome. Republishing the batch after bumping the
 conflicting version completes the release.
 
+With [SQLite metadata](storage.md#sqlite-metadata) a batch is stronger:
+
+- It commits as one generation of its org, so a read sees the whole release or
+  none of it. Losing a write race fails the whole batch with `409`, and nothing
+  is published.
+- Every entry must belong to the same org. A batch that spans orgs is refused.
+- A retry gets the original response back. A client sends an
+  `Idempotency-Key` header, or the digest of the whole request serves as the
+  key. Reusing a key for a different request answers `409`. pnpr keeps the
+  outcome for 7 days.
+- The commit is recorded as a publication. A `"publication": {"name": "v2.0.0"}`
+  field in the body names it, and the name must be unique within the org.
+  See [publication endpoints](endpoints.md#publication-endpoints).
+
 An [image manifest](container-images.md) whose layers are already uploaded can
 ride along in the same batch. `GET /-/pnpr` advertises support as
 `publish: [0]`.

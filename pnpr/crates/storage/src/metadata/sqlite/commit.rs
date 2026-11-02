@@ -1,9 +1,9 @@
-//! Committing a package document: one transaction that writes only the rows
-//! the document changes and advances the catalog generation when it changes
-//! any.
+//! Committing a package document: writing only the rows the document
+//! changes.
 
 use super::{
-    Expected, PackageKey, advance_catalog, catalog_generation,
+    Expected, PackageKey,
+    batch::Batch,
     packument::{ORDINARY, PackumentRows, Readme, SUBMITTED_PROFILE, VersionRows, decompose},
     tags::{TagMove, record_tag_move},
     to_column, to_generation,
@@ -11,7 +11,7 @@ use super::{
 use crate::DocumentWrite;
 use pnpr_error::{RegistryError, Result};
 use pnpr_package_name::Ecosystem;
-use rusqlite::{Connection, OptionalExtension, Transaction, TransactionBehavior, params};
+use rusqlite::{Connection, OptionalExtension, Transaction, params};
 use serde_json::{Map, Value};
 use std::collections::BTreeMap;
 
@@ -35,32 +35,14 @@ pub(super) fn package_row(
         .optional()
 }
 
-/// A write transaction that commits under the catalog's next generation.
-pub(super) struct Commit<'conn> {
-    pub(super) transaction: Transaction<'conn>,
-    pub(super) key: &'conn PackageKey,
+/// One package's writes within a [`Batch`], under the batch's generation.
+pub(super) struct Commit<'batch> {
+    pub(super) transaction: &'batch Transaction<'batch>,
+    pub(super) key: &'batch PackageKey,
     pub(super) generation: u64,
 }
 
-impl<'conn> Commit<'conn> {
-    pub(super) fn begin(connection: &'conn mut Connection, key: &'conn PackageKey) -> Result<Self> {
-        let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
-        let generation = catalog_generation(&transaction, &key.catalog)? + 1;
-        Ok(Self { transaction, key, generation })
-    }
-
-    /// Make the commit's changes visible under its generation.
-    pub(super) fn finish(self) -> Result<()> {
-        let (catalog, ecosystem, name) = self.key.params();
-        self.transaction.execute(
-            "UPDATE packages SET generation = ?4 WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3",
-            params![catalog, ecosystem, name, to_column(self.generation)],
-        )?;
-        advance_catalog(&self.transaction, &self.key.catalog, self.generation)?;
-        self.transaction.commit()?;
-        Ok(())
-    }
-
+impl Commit<'_> {
     pub(super) fn write_state(&self, state: &[u8]) -> Result<()> {
         let (catalog, ecosystem, name) = self.key.params();
         self.transaction.execute(
@@ -71,11 +53,36 @@ impl<'conn> Commit<'conn> {
         )?;
         Ok(())
     }
+
+    /// Commit `bytes` as the package's document when the stored one is what
+    /// `expected` names. Reports whether the document changed any row, or
+    /// `None` on a compare-and-set conflict.
+    /// `principal` is recorded with every tag the document moves.
+    pub(super) fn write_document(
+        &self,
+        bytes: &[u8],
+        expected: Expected,
+        principal: Option<&str>,
+    ) -> Result<Option<bool>> {
+        let rows = match self.key.ecosystem {
+            Ecosystem::Npm => Some(decompose(bytes)?),
+            Ecosystem::Cargo | Ecosystem::Pypi | Ecosystem::Oci => None,
+        };
+        let current = package_row(self.transaction, self.key)?;
+        if !expected.admits(current.as_ref().map(|row| row.generation)) {
+            return Ok(None);
+        }
+        let changed = match rows {
+            Some(rows) => apply_packument(self, current.as_ref(), rows, principal)?,
+            None => apply_whole_document(self, current.as_ref(), bytes)?,
+        };
+        Ok(Some(changed))
+    }
 }
 
-/// Commit `bytes` as the document of `key` when the stored one is what
-/// `expected` names. A document that changes nothing commits nothing.
-/// `principal` is recorded with every tag the document moves.
+/// Commit `bytes` as the document of `key` in a transaction of its own. A
+/// document that changes nothing commits nothing. `principal` is recorded
+/// with every tag the document moves.
 pub(super) fn write_document(
     connection: &mut Connection,
     key: &PackageKey,
@@ -83,22 +90,14 @@ pub(super) fn write_document(
     expected: Expected,
     principal: Option<&str>,
 ) -> Result<DocumentWrite> {
-    let rows = match key.ecosystem {
-        Ecosystem::Npm => Some(decompose(bytes)?),
-        Ecosystem::Cargo | Ecosystem::Pypi | Ecosystem::Oci => None,
-    };
-    let commit = Commit::begin(connection, key)?;
-    let current = package_row(&commit.transaction, key)?;
-    if !expected.admits(current.as_ref().map(|row| row.generation)) {
+    let mut batch = Batch::begin(connection, &key.catalog)?;
+    let Some(changed) = batch.package(key).write_document(bytes, expected, principal)? else {
         return Ok(DocumentWrite::Conflict);
-    }
-    let changed = match rows {
-        Some(rows) => apply_packument(&commit, current.as_ref(), rows, principal)?,
-        None => apply_whole_document(&commit, current.as_ref(), bytes)?,
     };
     if changed {
-        commit.finish()?;
+        batch.touch(key);
     }
+    batch.finish()?;
     Ok(DocumentWrite::Written)
 }
 
@@ -261,7 +260,7 @@ fn apply_tags(
     incoming: &BTreeMap<String, String>,
     principal: Option<&str>,
 ) -> Result<bool> {
-    let stored = super::tags::stored_tags(&commit.transaction, commit.key)?;
+    let stored = super::tags::stored_tags(commit.transaction, commit.key)?;
     let mut changed = false;
     for (tag, target) in incoming {
         let previous = stored.get(tag).map(String::as_str);
@@ -284,24 +283,24 @@ fn apply_tags(
 /// Remove every row of the package except its tag history and the identities
 /// of its versions, which stay removed, under a new generation.
 pub(super) fn remove_package(connection: &mut Connection, key: &PackageKey) -> Result<bool> {
-    let commit = Commit::begin(connection, key)?;
+    let mut batch = Batch::begin(connection, &key.catalog)?;
     let (catalog, ecosystem, name) = key.params();
-    commit.transaction.execute(
+    batch.transaction().execute(
         "INSERT OR IGNORE INTO removed_versions (catalog, ecosystem, name, version, revision_key,
                                                  generation)
          SELECT catalog, ecosystem, name, version, revision_key, ?4 FROM versions
          WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3",
-        params![catalog, ecosystem, name, to_column(commit.generation)],
+        params![catalog, ecosystem, name, to_column(batch.generation())],
     )?;
-    let removed = commit.transaction.execute(
+    let removed = batch.transaction().execute(
         "DELETE FROM packages WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3",
         params![catalog, ecosystem, name],
     )?;
     if removed == 0 {
         return Ok(false);
     }
-    advance_catalog(&commit.transaction, &key.catalog, commit.generation)?;
-    commit.transaction.commit()?;
+    batch.touch(key);
+    batch.finish()?;
     Ok(true)
 }
 

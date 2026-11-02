@@ -17,6 +17,7 @@ mod tokens;
 
 mod access_log;
 mod admin_audit_log;
+mod atomic_publication;
 mod auth_persistence;
 mod auth_publish;
 mod auth_user_endpoints;
