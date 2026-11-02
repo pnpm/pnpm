@@ -42,6 +42,7 @@ pnpm-tarball = { path = "pnpm/crates/tarball" }
 pnpm-testing-utils = { path = "pnpm/crates/testing-utils" }
 pnpm-text-sanitize = { path = "pnpm/crates/text-sanitize" }
 pnpm-text-section = { path = "pnpm/crates/text-section" }
+pnpm-transparency-log = { path = "pnpm/crates/transparency-log" }
 pnpm-pack = { path = "pnpm/crates/pack" }
 pnpm-publish = { path = "pnpm/crates/publish" }
 pnpm-python-installer = { path = "pnpm/crates/python-installer" }
@@ -159,6 +160,7 @@ deno_task_shell = { version = "0.33.3" }
 derive_more = { version = "2.1.1", features = ["full"] }
 dialoguer = { version = "0.12.0", default-features = false }
 diffy = { version = "0.5.0" }
+ed25519-dalek = { version = "2.2.0", default-features = false, features = ["std", "zeroize"] }
 dunce = { version = "1.0.5" }
 home = { version = "0.5.12" }
 http = { version = "1.4.0" }
@@ -239,6 +241,10 @@ sqlx = { version = "0.8.6", default-features = false, features = ["runtime-tokio
 # 0.11 removes the LowerHex impl on Output; revisit after upstream/consumers catch up
 sha2 = { version = "0.10.9" }
 sigstore-sign = { version = "0.11.0" }
+# C2SP signed notes and tiled transparency logs, ported from Go's
+# `golang.org/x/mod/sumdb/note` and `sumdb/tlog`. Pure Rust, so the release
+# record verifier also builds for WebAssembly.
+signed_note = { version = "0.2.0" }
 smart-default = { version = "0.7.1" }
 spdx = { version = "0.13.4" }
 split-first-char = { version = "2.0.1" }
@@ -257,6 +263,7 @@ tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 # unification does not pull OS networking or process drivers into WASI builds.
 tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros", "fs", "io-util", "sync"] }
 toml = { version = "1.1.5" }
+tlog_tiles = { version = "0.2.0" }
 tokio-rustls = { version = "0.26.4", default-features = false, features = ["tls12"] }
 url = { version = "2.5.8" }
 walkdir = { version = "2.5.0" }
