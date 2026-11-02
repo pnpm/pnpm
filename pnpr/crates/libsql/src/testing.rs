@@ -12,7 +12,7 @@ use axum::{
     http::StatusCode,
     routing::{get, post},
 };
-use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+use base64::{Engine as _, engine::general_purpose::STANDARD_NO_PAD as BASE64};
 use libsql::{Builder, Connection, Database, Value};
 use serde_json::{Value as JsonValue, json};
 use std::{
@@ -387,7 +387,12 @@ fn hrana_arg(arg: &JsonValue) -> Value {
         ),
         Some("blob") => Value::Blob(
             BASE64
-                .decode(arg["base64"].as_str().unwrap())
+                .decode(
+                    arg["base64"]
+                        .as_str()
+                        .unwrap()
+                        .trim_end_matches('='),
+                )
                 .unwrap(),
         ),
         other => panic!("unsupported Hrana argument type {other:?}"),

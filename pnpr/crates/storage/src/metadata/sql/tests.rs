@@ -1,5 +1,10 @@
-//! Conformance tests of the `SQLite` metadata backend.
+//! Conformance tests of the SQL metadata backend. [`conformance!`] runs each
+//! test against every adapter: `SQLite`, a libSQL primary, and a libSQL
+//! primary read through an embedded replica of each instance that syncs only
+//! when it must.
 
+#[macro_use]
+mod conformance;
 mod concurrency;
 #[cfg(feature = "backend-libsql")]
 mod libsql;
@@ -14,7 +19,50 @@ use pnpr_config::{HostedStoreConfig, MetadataBackend, StorageConfig};
 use pnpr_error::RegistryError;
 use pnpr_package_name::{CanonicalPackageName, Ecosystem};
 use serde_json::{Value, json};
+#[cfg(feature = "backend-libsql")]
+use std::sync::atomic::{AtomicUsize, Ordering};
 use tempfile::TempDir;
+
+/// A metadata database under test. Every [`storage`] of it is another pnpr
+/// instance on the same database.
+pub(super) struct Db {
+    tmp: TempDir,
+    adapter: Adapter,
+    /// Instances opened so far, each with a replica of its own.
+    #[cfg(feature = "backend-libsql")]
+    instances: AtomicUsize,
+}
+
+enum Adapter {
+    Sqlite,
+    #[cfg(feature = "backend-libsql")]
+    Libsql {
+        server: libsql::Server,
+        /// Whether each instance reads through an embedded replica.
+        replica: bool,
+    },
+}
+
+impl Db {
+    pub(super) fn sqlite() -> Self {
+        Self::new(TempDir::new().unwrap(), Adapter::Sqlite)
+    }
+
+    #[cfg(feature = "backend-libsql")]
+    pub(super) async fn libsql(replica: bool) -> Self {
+        let server = libsql::server().await;
+        Self::new(TempDir::new().unwrap(), Adapter::Libsql { server, replica })
+    }
+
+    fn new(tmp: TempDir, adapter: Adapter) -> Self {
+        Self {
+            tmp,
+            adapter,
+            #[cfg(feature = "backend-libsql")]
+            instances: AtomicUsize::new(0),
+        }
+    }
+}
 
 pub(super) fn config(tmp: &TempDir) -> StorageConfig {
     StorageConfig {
@@ -26,8 +74,22 @@ pub(super) fn config(tmp: &TempDir) -> StorageConfig {
     }
 }
 
-pub(super) fn storage(tmp: &TempDir) -> Storage {
-    Storage::from_config(&config(tmp)).unwrap()
+/// Another pnpr instance on `db`, with a database handle of its own. A
+/// libSQL instance with a replica syncs it at startup, and afterwards only
+/// when a read must see more than it holds.
+pub(super) fn storage(db: &Db) -> Storage {
+    match &db.adapter {
+        Adapter::Sqlite => Storage::from_config(&config(&db.tmp)).unwrap(),
+        #[cfg(feature = "backend-libsql")]
+        Adapter::Libsql { server, replica } => {
+            let instance = db.instances.fetch_add(1, Ordering::SeqCst);
+            let replica = replica.then(|| format!("instance-{instance}"));
+            let config = config(&db.tmp);
+            Storage::new(&config.hosted_backend, config.hosted_dir, config.cache_dir)
+                .unwrap()
+                .with_sql_metadata(server.instance(replica.as_deref(), 3600))
+        }
+    }
 }
 
 pub(super) fn npm(name: &str) -> CanonicalPackageName {
@@ -95,7 +157,7 @@ pub(super) async fn read(storage: &Storage, name: &str) -> Value {
     serde_json::from_slice(&bytes).unwrap()
 }
 
-async fn generation(storage: &Storage, name: &str) -> Option<Generation> {
+pub(super) async fn generation(storage: &Storage, name: &str) -> Option<Generation> {
     storage
         .read_hosted_package_view(&npm(name))
         .await
@@ -110,10 +172,8 @@ fn stats(storage: &Storage) -> RenderStats {
         .render_stats()
 }
 
-#[tokio::test]
-async fn a_packument_reads_back_as_written() {
-    let tmp = TempDir::new().unwrap();
-    let storage = storage(&tmp);
+async fn a_packument_reads_back_as_written(db: Db) {
+    let storage = storage(&db);
     let mut document = packument("pkg", &["1.0.0", "1.1.0"]);
     document["versions"]["1.0.0"]["deprecated"] = json!("use 1.1.0");
     document["time"]["0.9.0"] = json!("2025-01-01T00:00:00.000Z");
@@ -122,10 +182,8 @@ async fn a_packument_reads_back_as_written() {
     assert_eq!(storage.hosted_package_names().await.unwrap(), vec!["pkg".to_string()]);
 }
 
-#[tokio::test]
-async fn an_accepted_version_cannot_change() {
-    let tmp = TempDir::new().unwrap();
-    let storage = storage(&tmp);
+async fn an_accepted_version_cannot_change(db: Db) {
+    let storage = storage(&db);
     let document = packument("pkg", &["1.0.0"]);
     write(&storage, "pkg", &document).await;
     let mut changed = document.clone();
@@ -148,10 +206,8 @@ async fn an_accepted_version_cannot_change() {
     assert_eq!(read(&storage, "pkg").await, document);
 }
 
-#[tokio::test]
-async fn an_archive_manifest_record_is_the_accepted_interpretation() {
-    let tmp = TempDir::new().unwrap();
-    let storage = storage(&tmp);
+async fn an_archive_manifest_record_is_the_accepted_interpretation(db: Db) {
+    let storage = storage(&db);
     let mut document = packument("pkg", &["1.0.0", "1.1.0"]);
     let record = json!({
         "profile": "npm-install-manifest/1",
@@ -161,16 +217,7 @@ async fn an_archive_manifest_record_is_the_accepted_interpretation() {
     document["versions"]["1.1.0"]["_archiveManifest"] = record.clone();
     write(&storage, "pkg", &document).await;
 
-    let connection = rusqlite::Connection::open(tmp.path().join("metadata.sqlite")).unwrap();
-    let rows: Vec<(String, String, String, String)> = connection
-        .prepare(
-            "SELECT version, profile, inputs, manifest FROM accepted_manifests ORDER BY version",
-        )
-        .unwrap()
-        .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)))
-        .unwrap()
-        .collect::<Result<_, _>>()
-        .unwrap();
+    let rows = accepted_manifests(&storage).await;
     let [(_, unverified_profile, unverified_inputs, _), (_, profile, inputs, manifest)] =
         rows.as_slice()
     else {
@@ -198,10 +245,8 @@ async fn an_archive_manifest_record_is_the_accepted_interpretation() {
     assert!(matches!(err, RegistryError::VersionAlreadyPublished { .. }), "{err:?}");
 }
 
-#[tokio::test]
-async fn an_archive_manifest_record_must_name_a_profile() {
-    let tmp = TempDir::new().unwrap();
-    let storage = storage(&tmp);
+async fn an_archive_manifest_record_must_name_a_profile(db: Db) {
+    let storage = storage(&db);
     for record in [
         json!("npm-install-manifest/1"),
         json!({ "packageJson": "sha512-a" }),
@@ -216,10 +261,34 @@ async fn an_archive_manifest_record_must_name_a_profile() {
     }
 }
 
-#[tokio::test]
-async fn an_identical_write_commits_no_generation() {
-    let tmp = TempDir::new().unwrap();
-    let storage = storage(&tmp);
+/// The version, profile, inputs, and manifest of each accepted manifest, as
+/// the primary holds them.
+async fn accepted_manifests(storage: &Storage) -> Vec<(String, String, String, String)> {
+    let metadata = std::sync::Arc::clone(storage.sql_metadata().unwrap());
+    tokio::task::spawn_blocking(move || {
+        let mut rows = Vec::new();
+        metadata.adapter
+            .write(&mut |connection| {
+                rows = connection
+                    .query(
+                        "SELECT version, profile, inputs, manifest FROM accepted_manifests
+                         ORDER BY version",
+                        &[],
+                    )?
+                    .into_iter()
+                    .map(|mut row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)))
+                    .collect::<pnpr_error::Result<_>>()?;
+                Ok(())
+            })
+            .unwrap();
+        rows
+    })
+    .await
+    .unwrap()
+}
+
+async fn an_identical_write_commits_no_generation(db: Db) {
+    let storage = storage(&db);
     let document = packument("pkg", &["1.0.0"]);
     write(&storage, "pkg", &document).await;
     let first = generation(&storage, "pkg").await;
@@ -227,10 +296,8 @@ async fn an_identical_write_commits_no_generation() {
     assert_eq!(generation(&storage, "pkg").await, first);
 }
 
-#[tokio::test]
-async fn generations_advance_per_catalog() {
-    let tmp = TempDir::new().unwrap();
-    let storage = storage(&tmp);
+async fn generations_advance_per_catalog(db: Db) {
+    let storage = storage(&db);
     let org_a = storage.for_hosted("org-a", Ecosystem::Npm);
     let org_b = storage.for_hosted("org-b", Ecosystem::Npm);
     write(&org_a, "one", &packument("one", &["1.0.0"])).await;
@@ -250,10 +317,8 @@ async fn generations_advance_per_catalog() {
     );
 }
 
-#[tokio::test]
-async fn a_write_from_a_stale_read_conflicts() {
-    let tmp = TempDir::new().unwrap();
-    let storage = storage(&tmp);
+async fn a_write_from_a_stale_read_conflicts(db: Db) {
+    let storage = storage(&db);
     write(&storage, "pkg", &packument("pkg", &["1.0.0"])).await;
     let stale = storage
         .read_hosted_document_for_update(&npm("pkg"))
@@ -278,10 +343,8 @@ async fn a_write_from_a_stale_read_conflicts() {
     assert_eq!(unconditional.unwrap(), DocumentWrite::Written);
 }
 
-#[tokio::test]
-async fn a_tag_change_reuses_every_fragment() {
-    let tmp = TempDir::new().unwrap();
-    let storage = storage(&tmp);
+async fn a_tag_change_reuses_every_fragment(db: Db) {
+    let storage = storage(&db);
     write(&storage, "pkg", &packument("pkg", &["1.0.0", "1.1.0", "2.0.0"])).await;
     read(&storage, "pkg").await;
     assert_eq!(stats(&storage).fragments_rendered, 3);
@@ -300,10 +363,8 @@ async fn a_tag_change_reuses_every_fragment() {
     assert_eq!(stats.views_assembled, 2, "{stats:?}");
 }
 
-#[tokio::test]
-async fn a_deprecation_rerenders_one_fragment() {
-    let tmp = TempDir::new().unwrap();
-    let storage = storage(&tmp);
+async fn a_deprecation_rerenders_one_fragment(db: Db) {
+    let storage = storage(&db);
     let mut document = packument("pkg", &["1.0.0", "2.0.0"]);
     write(&storage, "pkg", &document).await;
     read(&storage, "pkg").await;
@@ -321,10 +382,8 @@ async fn a_deprecation_rerenders_one_fragment() {
     assert!(read(&storage, "pkg").await["versions"]["1.0.0"].get("deprecated").is_none());
 }
 
-#[tokio::test]
-async fn tag_moves_are_recorded() {
-    let tmp = TempDir::new().unwrap();
-    let storage = storage(&tmp);
+async fn tag_moves_are_recorded(db: Db) {
+    let storage = storage(&db);
     let published = serde_json::to_vec(&packument("pkg", &["1.0.0", "2.0.0"])).unwrap();
     storage
         .write_hosted_document_if_current(&npm("pkg"), &published, None, Some("carol"))
@@ -373,10 +432,8 @@ async fn tag_moves_are_recorded() {
     assert_eq!(missing, TagUpdate::NotFound);
 }
 
-#[tokio::test]
-async fn removing_versions_and_packages() {
-    let tmp = TempDir::new().unwrap();
-    let storage = storage(&tmp);
+async fn removing_versions_and_packages(db: Db) {
+    let storage = storage(&db);
     write(&storage, "pkg", &packument("pkg", &["1.0.0", "2.0.0"])).await;
     write(&storage, "pkg", &packument("pkg", &["2.0.0"])).await;
     let document = read(&storage, "pkg").await;
@@ -408,10 +465,8 @@ async fn removing_versions_and_packages() {
     assert_eq!(read(&storage, "pkg").await, republished);
 }
 
-#[tokio::test]
-async fn a_removed_version_is_never_accepted_again() {
-    let tmp = TempDir::new().unwrap();
-    let storage = storage(&tmp);
+async fn a_removed_version_is_never_accepted_again(db: Db) {
+    let storage = storage(&db);
     write(&storage, "pkg", &packument("pkg", &["1.0.0", "2.0.0"])).await;
     // Unpublishing one version, then the whole package.
     write(&storage, "pkg", &packument("pkg", &["2.0.0"])).await;
@@ -445,15 +500,13 @@ async fn a_removed_version_is_never_accepted_again() {
             .is_none(),
     );
     drop(storage);
-    let restarted = self::storage(&tmp);
+    let restarted = self::storage(&db);
     let refused = try_write(&restarted, "pkg", &packument("pkg", &["2.0.0"])).await;
     assert!(matches!(refused, Err(RegistryError::CannotRepublishUnpublishedVersion { .. })));
 }
 
-#[tokio::test]
-async fn another_ecosystem_stores_its_document_whole() {
-    let tmp = TempDir::new().unwrap();
-    let storage = storage(&tmp).for_hosted("org", Ecosystem::Cargo);
+async fn another_ecosystem_stores_its_document_whole(db: Db) {
+    let storage = storage(&db).for_hosted("org", Ecosystem::Cargo);
     let name = CanonicalPackageName::parse("serde", Ecosystem::Cargo).unwrap();
     storage.write_hosted_document_if_current(&name, b"not json", None, None).await.unwrap();
     assert_eq!(
@@ -466,4 +519,20 @@ async fn another_ecosystem_stores_its_document_whole() {
     );
     let tag = TagChange { tag: "latest", target: Some("1.0.0"), principal: None };
     assert_eq!(storage.change_dist_tag(&name, tag).await.unwrap(), TagUpdate::NotFound);
+}
+
+conformance! {
+    a_packument_reads_back_as_written,
+    an_accepted_version_cannot_change,
+    an_identical_write_commits_no_generation,
+    generations_advance_per_catalog,
+    a_write_from_a_stale_read_conflicts,
+    a_tag_change_reuses_every_fragment,
+    a_deprecation_rerenders_one_fragment,
+    tag_moves_are_recorded,
+    removing_versions_and_packages,
+    a_removed_version_is_never_accepted_again,
+    an_archive_manifest_record_is_the_accepted_interpretation,
+    an_archive_manifest_record_must_name_a_profile,
+    another_ecosystem_stores_its_document_whole,
 }

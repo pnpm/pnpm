@@ -1,19 +1,16 @@
 //! Notes stored with a publication and changed after it.
 
-use super::{npm, packument, storage, write};
+use super::{Db, npm, packument, storage, write};
 use crate::metadata::{BatchDocument, NoteChange, PublishNotes, VersionNote, note_digest};
 use pnpr_error::RegistryError;
 use pnpr_package_name::Ecosystem;
-use tempfile::TempDir;
 
 fn change(text: Option<&str>) -> NoteChange {
     NoteChange { text: text.map(str::to_string), principal: "bob".to_string() }
 }
 
-#[tokio::test]
-async fn notes_published_with_a_release_keep_their_initial_digest() {
-    let tmp = TempDir::new().unwrap();
-    let storage = storage(&tmp);
+async fn notes_published_with_a_release_keep_their_initial_digest(db: Db) {
+    let storage = storage(&db);
     let database = storage.sql_metadata().unwrap();
     let document = BatchDocument {
         ecosystem: Ecosystem::Npm,
@@ -78,10 +75,8 @@ async fn notes_published_with_a_release_keep_their_initial_digest() {
     assert_eq!(deleted.initial_digest, Some(note_digest("first\n")));
 }
 
-#[tokio::test]
-async fn a_note_needs_its_subject_and_passes_the_content_rules() {
-    let tmp = TempDir::new().unwrap();
-    let storage = storage(&tmp);
+async fn a_note_needs_its_subject_and_passes_the_content_rules(db: Db) {
+    let storage = storage(&db);
     write(&storage, "pkg", &packument("pkg", &["1.0.0"])).await;
     let database = storage.sql_metadata().unwrap();
     assert!(
@@ -107,10 +102,8 @@ async fn a_note_needs_its_subject_and_passes_the_content_rules() {
     );
 }
 
-#[tokio::test]
-async fn a_publish_time_note_needs_a_version_the_commit_introduces() {
-    let tmp = TempDir::new().unwrap();
-    let storage = storage(&tmp);
+async fn a_publish_time_note_needs_a_version_the_commit_introduces(db: Db) {
+    let storage = storage(&db);
     write(&storage, "core", &packument("core", &["1.0.0"])).await;
     let database = storage.sql_metadata().unwrap();
     // The commit only moves a tag; 1.0.0 was introduced before it.
@@ -147,4 +140,10 @@ async fn a_publish_time_note_needs_a_version_the_commit_introduces() {
 
 async fn read_tags(storage: &crate::Storage) -> serde_json::Value {
     super::read(storage, "core").await["dist-tags"].clone()
+}
+
+conformance! {
+    notes_published_with_a_release_keep_their_initial_digest,
+    a_note_needs_its_subject_and_passes_the_content_rules,
+    a_publish_time_note_needs_a_version_the_commit_introduces,
 }
