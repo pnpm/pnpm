@@ -89,8 +89,8 @@ enum AllowedRefusal {
     /// every selection, the ones it leaves as they are included
     /// (pnpm/tasks#219).
     Run,
-    /// Both gates compare every project's version in a workspace, even one
-    /// that nothing can resolve to (pnpm/tasks#246).
+    /// A workspace project's version bump may refuse both gates, even when
+    /// nothing can resolve to the project (pnpm/tasks#246).
     Both,
 }
 
