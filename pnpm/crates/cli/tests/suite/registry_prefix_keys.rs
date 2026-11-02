@@ -628,7 +628,7 @@ fn a_re_pointed_builtin_alias_keeps_plain_keys() {
     assert_single_child_copy(&workspace, "@pnpm.e2e/foo@100.1.0");
     let lockfile = lockfile(&workspace);
     assert_eq!(package_keys(&lockfile, PARENT), ["@pnpm.e2e/foobar@100.0.0"]);
-    assert_eq!(importer_entry(&lockfile, PARENT), ("100.0.0".to_string(), "100.0.0".to_string()),);
+    assert_eq!(importer_entry(&lockfile, PARENT), ("100.0.0".to_string(), "100.0.0".to_string()));
 
     drop((root, anchor));
 }
@@ -664,7 +664,7 @@ fn a_resolving_install_re_keys_plain_ranges_qualified_by_a_builtin_alias() {
     assert_single_child_copy(&workspace, "@pnpm.e2e/foo@100.1.0");
     let lockfile = lockfile(&workspace);
     assert_eq!(package_keys(&lockfile, PARENT), ["@pnpm.e2e/foobar@100.0.0"]);
-    assert_eq!(importer_entry(&lockfile, PARENT), ("100.0.0".to_string(), "100.0.0".to_string()),);
+    assert_eq!(importer_entry(&lockfile, PARENT), ("100.0.0".to_string(), "100.0.0".to_string()));
 
     drop((root, anchor));
 }
