@@ -209,7 +209,7 @@ pub(in super::super) async fn stage_publish(
 
     check_publishable_versions(&name, &incoming, hosted.as_ref(), &prepared)?;
 
-    let mut merged = prepare_staged_document(&name, hosted.as_ref(), &incoming, &prepared, now_iso);
+    let merged = prepare_staged_document(&name, hosted.as_ref(), &incoming, &prepared, now_iso);
     // `incoming` is no longer needed; drop it so the base64 strings
     // inside go away as soon as `prepared` (which owns each one) is
     // drained below.
@@ -222,24 +222,45 @@ pub(in super::super) async fn stage_publish(
     let written =
         write_attachment_slots(&storage, &name, prepared, tarballs, &state.inner.proxy.tar_decodes)
             .await?;
-    let notices = match verify_published_manifests(&name, &mut merged, &written.tars) {
-        Ok(notices) => notices,
-        Err(err) => {
-            cleanup_tmp_slots(written.slots).await;
-            return Err(err);
-        }
-    };
-    let document = serialize_staged_document(merged, &written.tars);
+    let verified = verified_document(&name, merged, written).await?;
     Ok(StagedPublish {
         name,
         ecosystem: Ecosystem::Npm,
-        document,
+        document: verified.document,
         base_version,
-        slots: written.slots,
+        slots: verified.slots,
         org: org.map(str::to_string),
         publisher,
-        notices,
+        notices: verified.notices,
     })
+}
+
+/// A publish document whose archives agree with its version metadata.
+struct VerifiedDocument {
+    document: Vec<u8>,
+    slots: Vec<pnpr_storage::BlobSlot>,
+    notices: Vec<String>,
+}
+
+/// Verify every archive `written` holds against the version metadata in
+/// `merged`, and serialize the verified document. A refused archive removes
+/// the written slots.
+async fn verified_document(
+    name: &CanonicalPackageName,
+    mut merged: Value,
+    written: WrittenAttachments,
+) -> Result<VerifiedDocument, RegistryError> {
+    match verify_published_manifests(name, &mut merged, &written.tars) {
+        Ok(notices) => Ok(VerifiedDocument {
+            document: serialize_staged_document(merged, &written.tars),
+            slots: written.slots,
+            notices,
+        }),
+        Err(err) => {
+            cleanup_tmp_slots(written.slots).await;
+            Err(err)
+        }
+    }
 }
 
 /// The blob slots a publish wrote, and the tar each of its `.tgz` files

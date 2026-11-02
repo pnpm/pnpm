@@ -116,7 +116,8 @@ pub(in super::super) async fn replayed_outcome(
 }
 
 /// Commit `staged` in one transaction when the metadata lives in `SQLite`,
-/// through the publish journal otherwise.
+/// through the publish journal otherwise. The receipt carries the notices
+/// staging left for the publisher.
 pub(in super::super) async fn commit_publication(
     state: &AppState,
     mut staged: Vec<StagedPublish>,
@@ -127,9 +128,18 @@ pub(in super::super) async fn commit_publication(
         .iter_mut()
         .flat_map(|stage| std::mem::take(&mut stage.notices))
         .collect();
+    let receipt = commit_staged(state, staged, request).await?;
+    Ok(PublishReceipt { notices, ..receipt })
+}
+
+async fn commit_staged(
+    state: &AppState,
+    mut staged: Vec<StagedPublish>,
+    request: Option<PublicationRequest>,
+) -> Result<PublishReceipt, RegistryError> {
     let Some(database) = state.inner.storage.sqlite_metadata().cloned() else {
         report_unrecorded(super::commit_through_journal(state, staged).await?)?;
-        return Ok(PublishReceipt { notices, ..PublishReceipt::default() });
+        return Ok(PublishReceipt::default());
     };
     let orgs = staged
         .iter()
@@ -166,7 +176,7 @@ pub(in super::super) async fn commit_publication(
     Ok(PublishReceipt {
         generation: Some(commit.generation),
         publication: commit.publication,
-        notices,
+        notices: Vec::new(),
     })
 }
 
