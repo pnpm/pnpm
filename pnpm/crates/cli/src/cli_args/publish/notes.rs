@@ -180,15 +180,7 @@ impl PublishArgs {
         }
         let parked = parked_publication(config, members)?;
         let summary = self.release_notes_text(dir)?;
-        let mut versioned = parked.is_some();
-        for manifest in members {
-            // Only a package bound for a registry that stores notes sends a
-            // parked note.
-            if notes_registry_of_manifest(config, manifest).is_some() {
-                versioned |= parked_version_note(config, manifest)?.is_some();
-            }
-        }
-        if summary.is_some() && versioned {
+        if summary.is_some() && is_versioned(config, parked.as_ref(), members)? {
             return Err(summary_belongs_to_versioning());
         }
         let registry = parked
@@ -203,18 +195,10 @@ impl PublishArgs {
             emit_warning::<Reporter>(
                 r#"The packages of the release that "pnpm version -r" composed release notes for no longer publish to a registry declared with serverType: pnpr. Its publication notes are not sent."#,
             );
-            let name = self.flags.manifest.notes.publication_name.clone();
-            if let Some(name) = &name {
-                validate_publication_name(name)?;
-            }
+            let name = self.publication_name(None)?;
             return Ok(PublicationNotes { name, ..PublicationNotes::default() });
         }
-        let name = self.flags.manifest.notes.publication_name
-            .clone()
-            .or_else(|| parked.as_ref().and_then(|publication| publication.name.clone()));
-        if let Some(name) = &name {
-            validate_publication_name(name)?;
-        }
+        let name = self.publication_name(parked.as_ref())?;
         let composed = parked
             .map(|publication| publication.notes)
             .filter(|notes| !notes.is_empty());
@@ -229,6 +213,21 @@ impl PublishArgs {
 }
 
 impl PublishArgs {
+    /// `--publication-name`, or else the name `pnpm version -r` gave
+    /// `parked`, checked against the registry's naming rules.
+    fn publication_name(
+        &self,
+        parked: Option<&pnpm_versioning::ParkedPublication>,
+    ) -> miette::Result<Option<String>> {
+        let name = self.flags.manifest.notes.publication_name
+            .clone()
+            .or_else(|| parked.and_then(|publication| publication.name.clone()));
+        if let Some(name) = &name {
+            validate_publication_name(name)?;
+        }
+        Ok(name)
+    }
+
     /// The version note of a prebuilt tarball: `--release-notes`, or else
     /// the version's section of the `CHANGELOG.md` it packs.
     pub(super) fn tarball_notes<Reporter: self::Reporter>(
@@ -277,6 +276,27 @@ fn version_note_source(
         (None, None) => changelog_note(package.dir, package.published_manifest)
             .map(|text| (text, NoteSource::Changelog)),
     })
+}
+
+/// Whether `pnpm version -r` composed notes for this batch: a publication,
+/// or the version note of a package bound for a registry that stores
+/// notes.
+fn is_versioned(
+    config: &Config,
+    parked: Option<&pnpm_versioning::ParkedPublication>,
+    members: &[&Value],
+) -> miette::Result<bool> {
+    if parked.is_some() {
+        return Ok(true);
+    }
+    for manifest in members {
+        if notes_registry_of_manifest(config, manifest).is_some()
+            && parked_version_note(config, manifest)?.is_some()
+        {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
 /// `pnpm version -r` composes every note of a release it versioned, so the

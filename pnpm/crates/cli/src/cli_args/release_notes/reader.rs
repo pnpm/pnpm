@@ -144,9 +144,18 @@ impl<'a> NotesReader<'a> {
             })
             .collect();
         versions.sort_by(|left, right| right.cmp(left));
+        self.read_versions(registry, name, &versions).await
+    }
+
+    /// `<name>/<version>/notes` of each of `versions`, a chunk at a time, so
+    /// a long history does not put every read in flight at once.
+    async fn read_versions(
+        &self,
+        registry: &str,
+        name: &str,
+        versions: &[Version],
+    ) -> miette::Result<Vec<RangeEntry>> {
         let mut entries = Vec::new();
-        // A chunk at a time, so a long history does not put every read in
-        // flight at once.
         for chunk in versions.chunks(MAX_VERSION_READS) {
             let reads = chunk
                 .iter()
