@@ -26,10 +26,10 @@ use std::{collections::HashSet, path::Path};
 pub(crate) fn read_release_notes_arg(dir: &Path, value: &str) -> miette::Result<String> {
     let path = dir.join(value);
     if !path.is_file() {
+        let dir = dir.display();
         return Err(miette::miette!(
             code = "ERR_PNPM_RELEASE_NOTES_FILE_NOT_FOUND",
-            "The release notes file {value} was not found in {}",
-            dir.display(),
+            "The release notes file {value} was not found in {dir}",
         ));
     }
     let text = std::fs::read_to_string(&path)

@@ -335,7 +335,7 @@ fn several_parked_publications() -> miette::Report {
     miette::miette!(
         code = "ERR_PNPM_RELEASE_NOTES_SEVERAL_PUBLICATIONS",
         help = r#"Publish each release that "pnpm version -r" composed notes for with its own "pnpm publish -r --batch", selecting its packages with --filter."#,
-        "This batch publishes packages of several releases that \"pnpm version -r\" composed release notes for, and a batch is one release",
+        r#"This batch publishes packages of several releases that "pnpm version -r" composed release notes for, and a batch is one release"#,
     )
 }
 
@@ -343,7 +343,7 @@ fn partial_parked_publication(publication: &pnpm_versioning::ParkedPublication) 
     miette::miette!(
         code = "ERR_PNPM_RELEASE_NOTES_PARTIAL_PUBLICATION",
         help = format!("Publish {} together, in one batch.", publication.members.join(", "),),
-        "This batch publishes only part of a release that \"pnpm version -r\" composed release notes for",
+        r#"This batch publishes only part of a release that "pnpm version -r" composed release notes for"#,
     )
 }
 
