@@ -253,3 +253,13 @@ fn shows_the_active_choice_description_cut_to_a_page() {
     assert!(!frame.contains("line 13"), "{frame}");
     assert!(frame.contains("2 more lines"), "{frame}");
 }
+
+#[test]
+fn descriptions_take_rows_from_the_list_so_the_frame_fits() {
+    use super::layout_for;
+    assert_eq!(layout_for(Some(24), false), (18, 0));
+    assert_eq!(layout_for(Some(24), true), (9, 7));
+    assert_eq!(layout_for(Some(60), true), (40, 12));
+    let (page, description) = layout_for(Some(10), true);
+    assert!(page + description + 2 <= 10 - 6, "{page} + {description}");
+}

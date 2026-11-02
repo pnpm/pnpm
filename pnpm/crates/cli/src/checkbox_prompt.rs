@@ -79,6 +79,8 @@ struct PromptViewport {
     /// Lines of the list shown at once; `0` until the terminal is measured,
     /// which shows the whole list.
     page_size: usize,
+    /// Lines of the active item's description shown at once.
+    description_lines: usize,
 }
 
 /// What a key did, beyond changing the screen.
@@ -112,7 +114,12 @@ impl<Value> CheckboxPrompt<Value> {
             required: false,
             theme: CheckboxTheme::default(),
             error: None,
-            viewport: PromptViewport { active, top: 0, page_size: 0 },
+            viewport: PromptViewport {
+                active,
+                top: 0,
+                page_size: 0,
+                description_lines: MAX_DESCRIPTION_LINES,
+            },
             #[cfg(any(target_family = "wasm", test))]
             mode: wasm::Mode::Checkbox,
         }
@@ -153,7 +160,12 @@ impl<Value> CheckboxPrompt<Value> {
                 )
             })?;
         if self.viewport.page_size == 0 {
-            self.viewport.page_size = page_size_for(&term);
+            let has_descriptions = self.items
+                .iter()
+                .any(|item| matches!(item, CheckboxItem::Choice(choice) if choice.description.is_some()));
+            let rows = term.size_checked().map(|(rows, _)| usize::from(rows));
+            (self.viewport.page_size, self.viewport.description_lines) =
+                layout_for(rows, has_descriptions);
         }
         term.hide_cursor()?;
         let answer = self.interact_on(&term);
@@ -300,24 +312,25 @@ impl<Value> CheckboxPrompt<Value> {
         lines.join("\n").trim_end().to_string()
     }
 
-    /// The active item's description, cut to [`MAX_DESCRIPTION_LINES`] so
-    /// the frame stays on screen.
+    /// The active item's description, cut to the lines the terminal has
+    /// room for so the frame stays on screen.
     fn render_description(&self) -> Vec<String> {
         let Some(CheckboxItem::Choice(CheckboxChoice { description: Some(description), .. })) =
             self.items.get(self.viewport.active)
         else {
             return Vec::new();
         };
+        let shown = self.viewport.description_lines;
         let lines: Vec<&str> = description.lines().collect();
         let mut rendered = vec![String::new()];
         rendered.extend(
             lines
                 .iter()
-                .take(MAX_DESCRIPTION_LINES)
+                .take(shown)
                 .map(|line| format!(" {line}")),
         );
-        if lines.len() > MAX_DESCRIPTION_LINES {
-            let more = lines.len() - MAX_DESCRIPTION_LINES;
+        if lines.len() > shown {
+            let more = lines.len() - shown;
             rendered.push(stdout_styled(&format!(" … {more} more lines"), |text| {
                 text.dimmed().to_string()
             }));
@@ -406,13 +419,21 @@ fn render_help_line() -> String {
         .join(&stdout_styled(" • ", |text| text.dimmed().to_string()))
 }
 
-/// pnpm's `interactivePromptPageSize()`: the terminal height less the
-/// frame around the list.
-fn page_size_for(term: &Term) -> usize {
-    term.size_checked()
-        .map_or(MIN_PAGE_SIZE, |(rows, _)| {
-            usize::from(rows).saturating_sub(FRAME_OVERHEAD).max(MIN_PAGE_SIZE)
-        })
+/// The list's page size and the description lines shown on a terminal of
+/// `rows`. Without descriptions the page size is pnpm's
+/// `interactivePromptPageSize()`: the terminal height less the frame around
+/// the list. With them, the description gets up to half of the rest, with
+/// a line above it and one for what it leaves out, so the frame still fits.
+fn layout_for(rows: Option<usize>, has_descriptions: bool) -> (usize, usize) {
+    let Some(rows) = rows else {
+        return (MIN_PAGE_SIZE, MAX_DESCRIPTION_LINES);
+    };
+    let available = rows.saturating_sub(FRAME_OVERHEAD);
+    if !has_descriptions {
+        return (available.max(MIN_PAGE_SIZE), 0);
+    }
+    let reserved = (MAX_DESCRIPTION_LINES + 2).min(available / 2);
+    ((available - reserved).max(1), reserved.saturating_sub(2))
 }
 
 /// The terminal rows `frame` occupies once lines wider than the terminal

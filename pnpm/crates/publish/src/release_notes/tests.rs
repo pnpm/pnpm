@@ -9,6 +9,7 @@ fn target() -> ReleaseNotesTarget {
         publication: PublicationNotes {
             name: Some("v1.0.0".to_owned()),
             notes: Some("Release.".to_owned()),
+            registry: None,
         },
     }
 }
@@ -40,6 +41,18 @@ fn any_other_registry_gets_the_documents_without_notes() {
     target().attach_version_notes(&mut document, Some("Version."), &registry);
     let documents = [document];
     let body = serde_json::to_value(target().batch_body(&registry, &documents)).expect("body");
+
+    assert_eq!(body, json!({ "packages": [{ "name": "pkg" }] }));
+}
+
+#[test]
+fn a_publication_of_one_registry_is_not_sent_to_another() {
+    let mut target = target();
+    target.registries.insert("https://other.example/".to_owned());
+    target.publication.registry = Some("https://pnpr.example/npm/".to_owned());
+    let other = parse_supported_registry_url("https://other.example/").expect("URL").normalized_url;
+    let documents = [json!({ "name": "pkg" })];
+    let body = serde_json::to_value(target.batch_body(&other, &documents)).expect("body");
 
     assert_eq!(body, json!({ "packages": [{ "name": "pkg" }] }));
 }

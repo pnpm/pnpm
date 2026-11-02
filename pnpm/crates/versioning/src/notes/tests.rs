@@ -196,3 +196,28 @@ fn a_summary_goes_above_the_version_note_of_a_single_package_release() {
     assert_eq!(parked(dir, "a", "1.1.0"), "Highlights.\n\n### Minor Changes\n\n- Only a.\n");
     assert_eq!(read_parked_publications(dir).expect("publications read"), Vec::new());
 }
+
+#[test]
+fn a_publication_confirmed_over_several_runs_is_collected() {
+    let workspace = tempfile::tempdir().expect("temp workspace");
+    let dir = workspace.path();
+    intent(dir, &[("a", IntentBumpType::Minor), ("b", IntentBumpType::Minor)], "Both.");
+    let projects = apply_with_notes(dir, &VersioningSettings::default());
+    let empty_plan = crate::plan::ReleasePlan::default();
+    let no_notes = ReleaseNotesOptions::default();
+    let mut collect = |confirmed: &[&str]| {
+        let intents = read_change_intents(dir).expect("intents read");
+        let confirmed: HashSet<String> = confirmed
+            .iter()
+            .map(ToString::to_string)
+            .collect();
+        apply_release_plan(&empty_plan, dir, &projects, &intents, None, &confirmed, &no_notes)
+            .expect("collection applies");
+    };
+
+    collect(&["a@1.1.0"]);
+    assert_eq!(read_parked_publications(dir).expect("publications read").len(), 1);
+    collect(&["b@1.1.0"]);
+
+    assert_eq!(read_parked_publications(dir).expect("publications read"), Vec::new());
+}

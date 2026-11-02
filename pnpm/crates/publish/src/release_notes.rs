@@ -21,6 +21,11 @@ pub struct ReleaseNotesTarget {
 pub struct PublicationNotes {
     pub name: Option<String>,
     pub notes: Option<String>,
+    /// The normalized URL of the one registry whose batch the fields
+    /// describe, such as the registry of a release `pnpm version -r`
+    /// composed notes for. `None` sends them to every registry that stores
+    /// notes.
+    pub registry: Option<String>,
 }
 
 impl ReleaseNotesTarget {
@@ -52,7 +57,11 @@ impl ReleaseNotesTarget {
         registry: &NormalizedRegistryUrl,
         documents: &'a [Value],
     ) -> BatchBody<'a> {
-        let publication = self.stores_notes(registry).then_some(&self.publication);
+        let publication = (self.stores_notes(registry)
+            && self.publication.registry
+                .as_deref()
+                .is_none_or(|only| only == registry.as_str()))
+        .then_some(&self.publication);
         BatchBody {
             name: publication.and_then(|publication| publication.name.as_deref()),
             notes: publication.and_then(|publication| publication.notes.as_deref()),

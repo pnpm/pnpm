@@ -190,6 +190,11 @@ impl PublishArgs {
         if let Some(name) = &name {
             validate_publication_name(name)?;
         }
+        let registry = parked
+            .as_ref()
+            .map(|publication| publication_registry(config, publication, members))
+            .transpose()?
+            .flatten();
         let composed = parked
             .map(|publication| publication.notes)
             .filter(|notes| !notes.is_empty());
@@ -199,7 +204,7 @@ impl PublishArgs {
         let notes = notes
             .map(|(text, source)| checked_note::<Reporter>(&text, "the publication", source))
             .transpose()?;
-        Ok(PublicationNotes { name, notes })
+        Ok(PublicationNotes { name, notes, registry })
     }
 }
 
@@ -329,6 +334,35 @@ fn parked_publication(
         }
         _ => Err(several_parked_publications()),
     }
+}
+
+/// The one registry that stores notes the members of `publication` publish
+/// to: its name and note go in that registry's batch request alone.
+fn publication_registry(
+    config: &Config,
+    publication: &pnpm_versioning::ParkedPublication,
+    members: &[&Value],
+) -> miette::Result<Option<String>> {
+    let registries: HashSet<String> = members
+        .iter()
+        .filter(|manifest| {
+            let key = manifest
+                .get("name")
+                .and_then(Value::as_str)
+                .zip(manifest.get("version").and_then(Value::as_str))
+                .map(|(name, version)| format!("{name}@{version}"));
+            key.is_some_and(|key| publication.members.contains(&key))
+        })
+        .filter_map(|manifest| notes_registry_of_manifest(config, manifest))
+        .collect();
+    if registries.len() > 1 {
+        return Err(miette::miette!(
+            code = "ERR_PNPM_RELEASE_NOTES_SEVERAL_REGISTRIES",
+            help = "Publish the packages of one release to one registry.",
+            r#"The release that "pnpm version -r" composed release notes for publishes to several registries, and its notes go to one"#,
+        ));
+    }
+    Ok(registries.into_iter().next())
 }
 
 fn several_parked_publications() -> miette::Report {

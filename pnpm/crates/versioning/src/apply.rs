@@ -18,7 +18,7 @@ use crate::{
     parked_publication::{
         read_parked_publications, remove_parked_publication, write_parked_publication,
     },
-    pending::{remove_pending_changelog, write_pending_changelog},
+    pending::{pending_changelog_path, remove_pending_changelog, write_pending_changelog},
     plan::{
         PlannedRelease, ProjectRefIndex, ReleasePlan, WorkspaceProject, index_project_refs,
         private_project_dirs,
@@ -150,16 +150,23 @@ pub struct ReleaseNotesOptions {
 }
 
 /// A parked publication has served its purpose once every member is
-/// confirmed, since the confirmation covers the publication note.
+/// settled: confirmed now, since the confirmation covers the publication
+/// note, or by an earlier run that already collected its parked section
+/// and so cannot confirm it again.
 fn collect_parked_publications(
     workspace_dir: &Path,
     confirmed_published: &HashSet<String>,
 ) -> Result<(), VersioningError> {
+    let settled = |member: &String| {
+        confirmed_published.contains(member)
+            || member
+                .rsplit_once('@')
+                .is_some_and(|(name, version)| {
+                    !pending_changelog_path(workspace_dir, name, version).exists()
+                })
+    };
     for publication in read_parked_publications(workspace_dir)? {
-        if publication.members
-            .iter()
-            .all(|member| confirmed_published.contains(member))
-        {
+        if publication.members.iter().all(settled) {
             remove_parked_publication(workspace_dir, &publication)?;
         }
     }
