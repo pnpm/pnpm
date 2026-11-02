@@ -15,8 +15,8 @@ pub(crate) use limits::{
 pub use manifest::{TarInspection, inspect_tar, read_buffered_tar_entry, tar_requires_build};
 pub(crate) use manifest::{apply_append_manifest, apply_placeholder_manifest};
 pub use publication::{
-    MAX_PUBLICATION_ARCHIVE_ENTRIES, MAX_PUBLICATION_MANIFEST_BYTES, PublicationArchive,
-    PublicationArchiveError, read_publication_archive,
+    MAX_PUBLICATION_ARCHIVE_ENTRIES, MAX_PUBLICATION_MANIFEST_BYTES, MAX_PUBLICATION_PATH_BYTES,
+    PublicationArchive, PublicationArchiveError, read_publication_archive,
 };
 pub(crate) use streaming::{
     BodyChunkReceiver, BodyChunkSender, ExtractedResource, STREAM_ENTRY_BUFFER_MAX,
