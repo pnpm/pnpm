@@ -1,19 +1,25 @@
 use super::{EXEC_MASK, EXEC_MODE, cas_path_is_executable, is_cas_file_path, is_executable};
+use pnpm_ffi_fs::FileMode;
 use std::path::Path;
+
+/// A mode from its octal literal, so each case below still reads as one.
+fn mode(bits: u32) -> FileMode {
+    FileMode::from_mode(bits)
+}
 
 #[test]
 fn exec_constants_pin_pnpm_layout() {
     assert_eq!(EXEC_MASK, 0o111);
-    assert_eq!(EXEC_MODE, 0o755);
+    assert_eq!(EXEC_MODE.mode(), 0o755);
 }
 
 #[test]
 fn is_executable_matches_any_exec_bit() {
-    assert!(!is_executable(0o644));
-    assert!(is_executable(0o744));
-    assert!(is_executable(0o755));
-    assert!(is_executable(0o050));
-    assert!(is_executable(0o001));
+    assert!(!is_executable(mode(0o644)));
+    assert!(is_executable(mode(0o744)));
+    assert!(is_executable(mode(0o755)));
+    assert!(is_executable(mode(0o050)));
+    assert!(is_executable(mode(0o001)));
 }
 
 #[test]
@@ -55,7 +61,7 @@ fn set_path_permissions_refuses_symlinks() {
     fs::write(&target, "data").unwrap();
     fs::set_permissions(&target, fs::Permissions::from_mode(0o600)).unwrap();
     symlink(&target, &link).unwrap();
-    assert!(super::set_path_permissions(&link, 0o755).is_err());
+    assert!(super::set_path_permissions(&link, mode(0o755)).is_err());
     assert_eq!(
         fs::metadata(&target)
             .unwrap()
@@ -64,7 +70,7 @@ fn set_path_permissions_refuses_symlinks() {
             & 0o777,
         0o600,
     );
-    super::set_path_permissions(&target, 0o755).unwrap();
+    super::set_path_permissions(&target, mode(0o755)).unwrap();
     assert_eq!(
         fs::metadata(&target)
             .unwrap()
@@ -174,13 +180,13 @@ fn restore_exec_bit_does_not_widen_non_exec_suffix() {
 
 #[test]
 fn inherited_file_mode_copies_directory_rw_and_keeps_owner_access() {
-    assert_eq!(super::inherited_file_mode(0o2775, false) & 0o777, 0o664);
-    assert_eq!(super::inherited_file_mode(0o2775, true) & 0o777, 0o775);
-    assert_eq!(super::inherited_file_mode(0o755, false) & 0o777, 0o644);
-    assert_eq!(super::inherited_file_mode(0o700, false) & 0o777, 0o600);
-    assert_eq!(super::inherited_file_mode(0o2775, true) & 0o7000, 0);
-    assert_eq!(super::inherited_file_mode(0o1777, false) & 0o777, 0o664);
-    assert_eq!(super::inherited_file_mode(0o1777, true) & 0o777, 0o775);
+    assert_eq!(super::inherited_file_mode(mode(0o2775), false).mode() & 0o777, 0o664);
+    assert_eq!(super::inherited_file_mode(mode(0o2775), true).mode() & 0o777, 0o775);
+    assert_eq!(super::inherited_file_mode(mode(0o755), false).mode() & 0o777, 0o644);
+    assert_eq!(super::inherited_file_mode(mode(0o700), false).mode() & 0o777, 0o600);
+    assert_eq!(super::inherited_file_mode(mode(0o2775), true).mode() & 0o7000, 0);
+    assert_eq!(super::inherited_file_mode(mode(0o1777), false).mode() & 0o777, 0o664);
+    assert_eq!(super::inherited_file_mode(mode(0o1777), true).mode() & 0o777, 0o775);
 }
 
 /// pnpm/pnpm#16677: what a store write gives a file in a group- or
@@ -191,11 +197,12 @@ fn store_inode_mode_is_linkable_ignores_group_and_other_write() {
     use super::{store_entry_mode, store_inode_mode_is_linkable};
     for (dir_mode, umask) in [(0o777, 0o000), (0o1777, 0o000), (0o2775, 0o002), (0o2775, 0o022)] {
         for executable in [false, true] {
-            let mode = super::inherited_file_mode(dir_mode, executable);
+            let entry = super::inherited_file_mode(mode(dir_mode), executable);
             let desired = store_entry_mode(executable, umask);
             assert!(
-                store_inode_mode_is_linkable(mode, desired),
-                "a {mode:o} entry from a {dir_mode:o} directory is linkable under umask {umask:o}",
+                store_inode_mode_is_linkable(entry, desired),
+                "a {:o} entry from a {dir_mode:o} directory is linkable under umask {umask:o}",
+                entry.mode(),
             );
         }
     }
@@ -206,37 +213,37 @@ fn store_inode_mode_is_linkable_rejects_other_differences() {
     use super::{store_entry_mode, store_inode_mode_is_linkable};
     let plain_077 = store_entry_mode(false, 0o077);
     let exec_077 = store_entry_mode(true, 0o077);
-    assert!(!store_inode_mode_is_linkable(0o644, plain_077), "extra read bits");
-    assert!(!store_inode_mode_is_linkable(0o755, exec_077), "extra read and execute bits");
-    assert!(!store_inode_mode_is_linkable(0o646, plain_077), "extra other-write");
+    assert!(!store_inode_mode_is_linkable(mode(0o644), plain_077), "extra read bits");
+    assert!(!store_inode_mode_is_linkable(mode(0o755), exec_077), "extra read and execute bits");
+    assert!(!store_inode_mode_is_linkable(mode(0o646), plain_077), "extra other-write");
     assert!(
-        !store_inode_mode_is_linkable(0o666, store_entry_mode(false, 0o022)),
+        !store_inode_mode_is_linkable(mode(0o666), store_entry_mode(false, 0o022)),
         "extra other-write",
     );
     assert!(
-        !store_inode_mode_is_linkable(0o600, store_entry_mode(false, 0o022)),
+        !store_inode_mode_is_linkable(mode(0o600), store_entry_mode(false, 0o022)),
         "missing read bits",
     );
     assert!(
-        !store_inode_mode_is_linkable(0o644, store_entry_mode(true, 0o022)),
+        !store_inode_mode_is_linkable(mode(0o644), store_entry_mode(true, 0o022)),
         "missing execute bits",
     );
     assert!(
-        !store_inode_mode_is_linkable(0o755, store_entry_mode(false, 0o022)),
+        !store_inode_mode_is_linkable(mode(0o755), store_entry_mode(false, 0o022)),
         "extra execute bits",
     );
     assert!(
-        !store_inode_mode_is_linkable(0o444, store_entry_mode(false, 0o022)),
+        !store_inode_mode_is_linkable(mode(0o444), store_entry_mode(false, 0o022)),
         "missing owner write",
     );
 }
 
 #[test]
 fn inherited_dir_bits_carry_group_access_with_group_write() {
-    assert_eq!(super::inherited_dir_bits(0o2775), 0o2070);
-    assert_eq!(super::inherited_dir_bits(0o770), 0o070);
-    assert_eq!(super::inherited_dir_bits(0o2750), 0o2050);
-    assert_eq!(super::inherited_dir_bits(0o755), 0);
+    assert_eq!(super::inherited_dir_bits(mode(0o2775)).mode(), 0o2070);
+    assert_eq!(super::inherited_dir_bits(mode(0o770)).mode(), 0o070);
+    assert_eq!(super::inherited_dir_bits(mode(0o2750)).mode(), 0o2050);
+    assert_eq!(super::inherited_dir_bits(mode(0o755)).mode(), 0);
 }
 
 /// A restrictive umask leaves a new directory at `0o700`. Granting only
@@ -499,7 +506,7 @@ fn grant_inherited_dir_mode_accepts_relative_dot_template() {
             .permissions()
             .mode()
             & 0o7777,
-        0o700 | super::inherited_dir_bits(template_mode),
+        0o700 | super::inherited_dir_bits(mode(template_mode)).mode(),
     );
     assert_eq!(
         fs::metadata(".")
@@ -513,19 +520,19 @@ fn grant_inherited_dir_mode_accepts_relative_dot_template() {
 #[test]
 fn verifier_read_does_not_refill_a_forgotten_store_path() {
     let path = Path::new("/store/files/aa/verifier-read-after-forget");
-    super::record_verified_store_inode_mode(path, 0o644);
+    super::record_verified_store_inode_mode(path, mode(0o644));
     super::forget_store_inode_mode(path);
-    super::record_verified_store_inode_mode(path, 0o644);
+    super::record_verified_store_inode_mode(path, mode(0o644));
     assert_eq!(super::observed_store_inode_mode(path), None);
-    super::record_store_inode_mode(path, 0o600);
-    assert_eq!(super::observed_store_inode_mode(path), Some(0o600));
+    super::record_store_inode_mode(path, mode(0o600));
+    assert_eq!(super::observed_store_inode_mode(path), Some(mode(0o600)));
 }
 
 #[test]
 fn verifier_read_does_not_overwrite_a_fresh_stat() {
     let path = Path::new("/store/files/aa/verifier-read-after-fresh-stat");
     super::forget_store_inode_mode(path);
-    super::record_store_inode_mode(path, 0o600);
-    super::record_verified_store_inode_mode(path, 0o644);
-    assert_eq!(super::observed_store_inode_mode(path), Some(0o600));
+    super::record_store_inode_mode(path, mode(0o600));
+    super::record_verified_store_inode_mode(path, mode(0o644));
+    assert_eq!(super::observed_store_inode_mode(path), Some(mode(0o600)));
 }

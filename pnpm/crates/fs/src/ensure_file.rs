@@ -7,6 +7,7 @@ use creation::FileCreation;
 use crate::rename_with_retry;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
+use pnpm_ffi_fs::FileMode;
 use std::{
     fs::{self, File},
     hash::{BuildHasher, Hasher},
@@ -146,7 +147,7 @@ pub fn ensure_file(
     file_path: &Path,
     content: &[u8],
     #[cfg_attr(windows, allow(unused, reason = "POSIX mode bits are only applied on Unix"))]
-    mode: Option<u32>,
+    mode: Option<FileMode>,
 ) -> Result<(), EnsureFileError> {
     ensure(file_path, content, mode, Repair::Rename)
 }
@@ -169,7 +170,7 @@ pub fn ensure_cas_file(
     file_path: &Path,
     content: &[u8],
     #[cfg_attr(windows, allow(unused, reason = "POSIX mode bits are only applied on Unix"))]
-    mode: Option<u32>,
+    mode: Option<FileMode>,
 ) -> Result<(), EnsureFileError> {
     ensure(file_path, content, mode, Repair::InPlace)
 }
@@ -182,7 +183,7 @@ pub fn ensure_file_atomically(
     file_path: &Path,
     content: &[u8],
     #[cfg_attr(windows, allow(unused, reason = "POSIX mode bits are only applied on Unix"))]
-    mode: Option<u32>,
+    mode: Option<FileMode>,
 ) -> Result<(), EnsureFileError> {
     let lock = cas_write_lock(file_path);
     let _guard = lock.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
@@ -203,7 +204,7 @@ enum Repair {
 fn ensure(
     file_path: &Path,
     content: &[u8],
-    mode: Option<u32>,
+    mode: Option<FileMode>,
     repair: Repair,
 ) -> Result<(), EnsureFileError> {
     // See the "Process-local per-path mutex" bullet above and
@@ -305,7 +306,7 @@ static CAS_LOCK_STRIPES: [Mutex<()>; NUM_CAS_LOCK_STRIPES] =
 fn verify_or_rewrite(
     file_path: &Path,
     content: &[u8],
-    mode: Option<u32>,
+    mode: Option<FileMode>,
     repair: Repair,
 ) -> Result<(), EnsureFileError> {
     match fs::symlink_metadata(file_path) {
@@ -342,7 +343,7 @@ fn verify_or_rewrite(
 fn repair_file(
     file_path: &Path,
     content: &[u8],
-    mode: Option<u32>,
+    mode: Option<FileMode>,
     repair: Repair,
 ) -> Result<(), EnsureFileError> {
     let mut source = content;
@@ -411,7 +412,7 @@ fn file_equals_bytes(file_path: &Path, content: &[u8]) -> io::Result<bool> {
 fn write_atomic(
     file_path: &Path,
     content: &[u8],
-    mode: Option<u32>,
+    mode: Option<FileMode>,
 ) -> Result<(), EnsureFileError> {
     let parent = file_path.parent().unwrap_or_else(|| Path::new("."));
     let name = file_path
@@ -461,7 +462,7 @@ fn write_atomic(
 pub fn create_exclusive_temp_file(
     dir: &Path,
     base: &str,
-    mode: Option<u32>,
+    mode: Option<FileMode>,
 ) -> Result<(PathBuf, File), EnsureFileError> {
     /// Retries after `AlreadyExists` on the temp path. Sixteen fresh
     /// counter values is plenty — under benign conditions we never

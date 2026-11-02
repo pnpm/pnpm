@@ -9,7 +9,7 @@ use std::{io, path::Path};
 pub(super) fn desired_permissions(source_file: &Path) -> io::Result<pnpm_fs::CopyPermissions> {
     #[cfg(any(unix, target_os = "wasi"))]
     if let Some(mode) = desired_mode(source_file) {
-        return Ok(pnpm_fs::CopyPermissions::from_mode(mode));
+        return Ok(pnpm_fs::CopyPermissions::from_mode(mode.mode()));
     }
     pnpm_fs::copy_permissions(source_file)
 }
@@ -21,7 +21,7 @@ pub(super) fn desired_permissions(source_file: &Path) -> io::Result<pnpm_fs::Cop
 /// `None` for a file of a local-directory dependency, which keeps the
 /// mode its project gives it (see [`pnpm_fs::file_mode::is_cas_file_path`]).
 #[cfg(any(unix, target_os = "wasi"))]
-fn desired_mode(source_file: &Path) -> Option<u32> {
+fn desired_mode(source_file: &Path) -> Option<pnpm_fs::FileMode> {
     pnpm_fs::file_mode::is_cas_file_path(source_file)
         .then(|| {
             pnpm_fs::file_mode::store_entry_mode(
@@ -62,15 +62,16 @@ pub(super) fn source_has_desired_mode(source_file: &Path) -> io::Result<bool> {
     Ok(pnpm_fs::file_mode::store_inode_mode_is_linkable(mode, desired))
 }
 
+/// The mode the store entry at `source_file` carries right now. WASI reports
+/// it through the host rather than through metadata.
 #[cfg(unix)]
-fn source_mode(source_file: &Path) -> io::Result<u32> {
-    use std::os::unix::fs::MetadataExt;
-    Ok(fs::metadata(source_file)?.mode())
+fn source_mode(source_file: &Path) -> io::Result<pnpm_fs::FileMode> {
+    Ok(pnpm_fs::FileMode::from_permissions(&fs::metadata(source_file)?.permissions()))
 }
 
 #[cfg(target_os = "wasi")]
-fn source_mode(source_file: &Path) -> io::Result<u32> {
-    Ok(pnpm_fs::copy_permissions(source_file)?.mode())
+fn source_mode(source_file: &Path) -> io::Result<pnpm_fs::FileMode> {
+    Ok(pnpm_fs::FileMode::from_mode(pnpm_fs::copy_permissions(source_file)?.mode()))
 }
 
 /// Align a materialized `target_link` with the mode a fresh store write

@@ -143,8 +143,8 @@ fn careful_path_records_the_mode_of_a_verified_file() {
 
     assert!(result.passed);
     assert_eq!(
-        pnpm_fs::file_mode::observed_store_inode_mode(&path).map(|mode| mode & 0o7777),
-        Some(0o640),
+        pnpm_fs::file_mode::observed_store_inode_mode(&path),
+        Some(pnpm_fs::FileMode::from_mode(0o640)),
     );
 }
 

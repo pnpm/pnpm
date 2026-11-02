@@ -51,7 +51,10 @@ fn an_artifact_digest_addresses_the_file_the_store_wrote() {
     let mut located_by_mode = Vec::new();
     for mode in [0o755, 0o644, 0o744] {
         let (written, _) = store_dir
-            .write_cas_file(bytes, pnpm_fs::file_mode::is_executable(mode))
+            .write_cas_file(
+                bytes,
+                pnpm_fs::file_mode::is_executable(pnpm_fs::FileMode::from_mode(mode)),
+            )
             .unwrap();
         let located = store_dir
             .cas_file_path_by_mode(&digest, mode)
