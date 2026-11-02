@@ -20,7 +20,10 @@ use futures_util::StreamExt as _;
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_storage::{
     BlobFinalize, BlobSlot, Storage,
-    metadata::{ArtifactMember, BatchDocument, Generation, PublicationRequest, PublishNotes},
+    metadata::{
+        ArtifactMember, BatchDocument, Generation, PublicationCommit, PublicationRequest,
+        PublishNotes,
+    },
 };
 use serde_json::json;
 use ssri::{Algorithm, IntegrityOpts};
@@ -40,6 +43,16 @@ pub(in super::super) struct PublishReceipt {
     /// What the publisher should hear about a version accepted with a
     /// difference, sent back as `npm-notice` response headers.
     pub(in super::super) notices: Vec<String>,
+}
+
+impl From<PublicationCommit> for PublishReceipt {
+    fn from(commit: PublicationCommit) -> Self {
+        Self {
+            generation: Some(commit.generation),
+            publication: commit.publication,
+            notices: Vec::new(),
+        }
+    }
 }
 
 /// The idempotency claim of a publish request: who sent it, the request it
@@ -174,11 +187,7 @@ async fn commit_staged(
                 return Err(err);
             }
         };
-    Ok(PublishReceipt {
-        generation: Some(commit.generation),
-        publication: commit.publication,
-        notices: Vec::new(),
-    })
+    Ok(commit.into())
 }
 
 /// The one organization every package of a publish belongs to. A
