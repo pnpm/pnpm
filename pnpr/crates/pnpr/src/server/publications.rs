@@ -171,19 +171,18 @@ fn reads_every_member(state: &AppState, identity: &Identity, publication: &Publi
     publication.members.iter().all(|member| may_read(state, identity, &publication.catalog, member))
 }
 
-/// Whether anyone, signed in or not, may read `name` in `org`.
+/// Whether anyone, signed in or not, may read `name` through the hosted
+/// registry `source` the request was authorized against. Another registry
+/// of the same org that admits anonymous reads does not make it public.
 pub(super) fn anonymously_readable(
     state: &AppState,
-    org: &str,
+    source: &str,
     name: &CanonicalPackageName,
 ) -> bool {
-    let member = ArtifactMember {
-        ecosystem: name.ecosystem(),
-        name: name.as_str().to_string(),
-        version: String::new(),
-        artifact: String::new(),
-    };
-    may_read(state, &Identity::Anonymous, org, &member)
+    matches!(
+        hosted_gate(state, &Identity::Anonymous, source, name.as_str()),
+        HostedGate::Allowed(_),
+    )
 }
 
 /// The note of `publication` as a version's response references it: present

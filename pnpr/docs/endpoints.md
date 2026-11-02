@@ -187,7 +187,9 @@ and a single npm publish document can carry its version note in a top-level
 
 A response that anyone may read is cached `public, max-age=300`. Any other is
 `private, no-store`. pnpr keeps every earlier text of a note for recovery.
-An unpublished version's note is no longer served or listed.
+An unpublished version's note is no longer served or listed. A package that
+routes to an upstream registry has no notes: its list is empty, and a single
+note answers `404`.
 
 ### Pipeline run endpoints
 

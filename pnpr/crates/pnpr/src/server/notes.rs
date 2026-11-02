@@ -111,7 +111,7 @@ async fn read_version_note(
             .map(PublicationLink::from),
         None => None,
     };
-    let public = super::publications::anonymously_readable(state, &target.org, name);
+    let public = super::publications::anonymously_readable(state, &target.source, name);
     Ok(version_note_response(
         note.as_ref(),
         link.as_ref(),
@@ -120,13 +120,15 @@ async fn read_version_note(
     ))
 }
 
-/// The version a dist-tag names, or `version_or_tag` itself.
+/// The version a dist-tag names, or `version_or_tag` itself. A stored
+/// version wins over a dist-tag of the same spelling; a tag such as `v1.2.3`
+/// parses as semver but still names whatever version it points at.
 async fn resolve_tag(
     state: &AppState,
     notes: &NotesTarget,
     version_or_tag: &str,
 ) -> Result<String, RegistryError> {
-    if node_semver::Version::parse(version_or_tag).is_ok() {
+    if notes.database.has_version(&notes.name, &notes.target.org, version_or_tag).await? {
         return Ok(version_or_tag.to_string());
     }
     let storage = state.inner.storage.for_hosted(&notes.target.org, Ecosystem::Npm);

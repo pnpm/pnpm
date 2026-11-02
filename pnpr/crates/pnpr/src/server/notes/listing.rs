@@ -5,15 +5,19 @@ use super::{
     NotesTarget, notes_target,
     responses::{PublicationLink, with_cache_rules},
 };
-use crate::server::{AppState, Identity, publications::readable_publication_note};
+use crate::server::{
+    AppState, Identity, PublishTarget, publications::readable_publication_note,
+    resolve_publish_target_for, routes_to_upstream,
+};
 use axum::{
     Json,
     response::{IntoResponse, Response},
 };
 use pnpr_error::RegistryError;
+use pnpr_registry::Ecosystem;
 use pnpr_storage::metadata::Note;
 use serde_json::{Map, Value, json};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 /// Most entries the document lists.
 const MAX_ENTRIES: usize = 100;
@@ -26,6 +30,9 @@ pub(in crate::server) async fn serve_package_notes(
     registry: Option<&str>,
     raw_name: &str,
 ) -> Response {
+    if upstream_without_notes(state, identity, registry, raw_name) {
+        return with_cache_rules(Json(json!({ "notes": [] })).into_response(), false);
+    }
     let notes = match notes_target(state, identity, registry, raw_name, false).await {
         Ok(notes) => notes,
         Err(response) => return response,
@@ -36,53 +43,120 @@ pub(in crate::server) async fn serve_package_notes(
     }
 }
 
+/// Whether the package routes to an upstream registry the caller may read.
+/// An upstream such as npm's registry keeps no notes, so its packages list
+/// none. Forwarding to an upstream that is another pnpr is not done yet.
+fn upstream_without_notes(
+    state: &AppState,
+    identity: &Identity,
+    registry: Option<&str>,
+    raw_name: &str,
+) -> bool {
+    let target = resolve_publish_target_for(state, identity, registry, Ecosystem::Npm, raw_name);
+    matches!(target, PublishTarget::Reject(_))
+        && routes_to_upstream(state, registry, Ecosystem::Npm, raw_name)
+}
+
+/// Build the listing newest first, reading a version's note and resolving
+/// its publication only while the document still has room, so a package
+/// with a long history costs no more than the entries the document holds.
 async fn package_notes(
     state: &AppState,
     identity: &Identity,
     notes: &NotesTarget,
 ) -> Result<Response, RegistryError> {
-    let NotesTarget { database, name, target } = notes;
-    let mut versions: BTreeMap<String, (Option<Note>, Option<PublicationLink>)> = BTreeMap::new();
-    for (version, note) in database.package_notes(name, &target.org).await? {
-        versions.entry(version).or_default().0 = Some(note);
-    }
-    let mut links: BTreeMap<u64, Option<PublicationLink>> = BTreeMap::new();
-    for (version, id) in database.package_publications(name, &target.org).await? {
-        if let std::collections::btree_map::Entry::Vacant(vacant) = links.entry(id) {
-            let link = match database.publication(&target.org, &id.to_string()).await? {
-                Some(publication) => {
-                    readable_publication_note(state, identity, database, publication)
-                        .await?
-                        .map(PublicationLink::from)
-                }
-                None => None,
-            };
-            vacant.insert(link);
-        }
-        if let Some(Some(link)) = links.get(&id) {
-            versions.entry(version).or_default().1 = Some(link.clone());
-        }
-    }
+    let candidates = Candidates::load(notes).await?;
     let package_public =
-        crate::server::publications::anonymously_readable(state, &target.org, name);
-    Ok(listing_response(versions, package_public, &state.inner.config.http.public_url))
-}
-
-fn listing_response(
-    versions: BTreeMap<String, (Option<Note>, Option<PublicationLink>)>,
-    package_public: bool,
-    public_url: &str,
-) -> Response {
-    let mut ordered: Vec<_> = versions.into_iter().collect();
-    ordered.sort_by(|(left, _), (right, _)| newest_first(left, right));
+        crate::server::publications::anonymously_readable(state, &notes.target.source, &notes.name);
     let mut listing = Listing { public: package_public, ..Listing::default() };
-    for (version, (note, link)) in ordered {
-        let (entry, entry_public) = entry_json(&version, note.as_ref(), link.as_ref(), public_url);
-        if !listing.push(entry, entry_public) {
+    let mut links = BTreeMap::new();
+    for version in candidates.newest_first() {
+        let Some((entry, public)) =
+            candidates.entry(state, identity, notes, &mut links, version).await?
+        else {
+            continue;
+        };
+        if !listing.push(entry, public) {
             break;
         }
     }
-    listing.into_response()
+    Ok(listing.into_response())
+}
+
+/// The versions the listing may name, without their notes: those with a
+/// note, and those with a recorded publication.
+struct Candidates {
+    noted: BTreeSet<String>,
+    published: BTreeMap<String, u64>,
+}
+
+impl Candidates {
+    async fn load(notes: &NotesTarget) -> Result<Self, RegistryError> {
+        let NotesTarget { database, name, target } = notes;
+        let noted = database.noted_versions(name, &target.org).await?;
+        let published = database.package_publications(name, &target.org).await?;
+        Ok(Self { noted: noted.into_iter().collect(), published: published.into_iter().collect() })
+    }
+
+    fn newest_first(&self) -> Vec<&String> {
+        let mut versions: Vec<&String> = self.noted
+            .iter()
+            .chain(self.published.keys())
+            .collect();
+        versions.sort_by(|left, right| newest_first(left, right));
+        versions.dedup();
+        versions
+    }
+
+    /// The entry of `version`, and whether anyone may read it; `None` when
+    /// the caller may read nothing about it.
+    async fn entry(
+        &self,
+        state: &AppState,
+        identity: &Identity,
+        notes: &NotesTarget,
+        links: &mut BTreeMap<u64, Option<PublicationLink>>,
+        version: &str,
+    ) -> Result<Option<(Value, bool)>, RegistryError> {
+        let note = if self.noted.contains(version) {
+            notes.database.version_note(&notes.name, &notes.target.org, version).await?
+        } else {
+            None
+        };
+        let link = match self.published.get(version) {
+            Some(&id) => publication_link(state, identity, notes, links, id).await?,
+            None => None,
+        };
+        if note.is_none() && link.is_none() {
+            return Ok(None);
+        }
+        let public_url = &state.inner.config.http.public_url;
+        Ok(Some(entry_json(version, note.as_ref(), link.as_ref(), public_url)))
+    }
+}
+
+/// The link to publication `id`'s note when the caller may read it, looked
+/// up once per publication.
+async fn publication_link(
+    state: &AppState,
+    identity: &Identity,
+    notes: &NotesTarget,
+    links: &mut BTreeMap<u64, Option<PublicationLink>>,
+    id: u64,
+) -> Result<Option<PublicationLink>, RegistryError> {
+    if let Some(link) = links.get(&id) {
+        return Ok(link.clone());
+    }
+    let link = match notes.database.publication(&notes.target.org, &id.to_string()).await? {
+        Some(publication) => {
+            readable_publication_note(state, identity, &notes.database, publication)
+                .await?
+                .map(PublicationLink::from)
+        }
+        None => None,
+    };
+    links.insert(id, link.clone());
+    Ok(link)
 }
 
 /// The entries of the document, within its bounds.

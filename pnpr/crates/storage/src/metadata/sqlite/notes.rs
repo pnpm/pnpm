@@ -6,7 +6,7 @@
 
 use super::{PackageKey, batch::Batch, commit::package_row};
 use crate::{
-    metadata::{Note, NoteChange, PublishNotes, note_digest, validate_note},
+    metadata::{Note, NoteChange, PublishNotes, VersionNote, note_digest, validate_note},
     publish::now_iso,
 };
 use pnpr_error::{RegistryError, Result};
@@ -73,34 +73,6 @@ fn note_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Note> {
         principal: row.get(2)?,
         initial_digest: row.get(3)?,
     })
-}
-
-/// Every note of the package's current versions, keyed by version.
-pub(super) fn package_notes(
-    connection: &Connection,
-    key: &PackageKey,
-) -> Result<Vec<(String, Note)>> {
-    let mut statement = connection.prepare_cached(
-        "SELECT n.subject, n.text, n.modified_at, n.principal, n.initial_digest FROM notes n
-         WHERE n.catalog = ?1 AND n.kind = 'version' AND n.ecosystem = ?2 AND n.name = ?3
-           AND (n.ecosystem != 'npm' OR EXISTS (
-             SELECT 1 FROM versions v WHERE v.catalog = n.catalog AND v.ecosystem = n.ecosystem
-               AND v.name = n.name AND v.version = n.subject))",
-    )?;
-    let (catalog, ecosystem, name) = key.params();
-    let notes = statement
-        .query_map(params![catalog, ecosystem, name], |row| {
-            let version: String = row.get(0)?;
-            let note = Note {
-                text: row.get(1)?,
-                modified: row.get(2)?,
-                principal: row.get(3)?,
-                initial_digest: row.get(4)?,
-            };
-            Ok((version, note))
-        })?
-        .collect::<rusqlite::Result<Vec<_>>>()?;
-    Ok(notes)
 }
 
 /// Write or delete a note after its subject was published, recording the
@@ -205,8 +177,13 @@ fn write_note(
 }
 
 /// Store the notes a publish carries, in its transaction, each with the
-/// digest of the text it was published with. A version note for a version
-/// that already had one is refused: a later upload never replaces it.
+/// digest of the text it was published with. A note is published only with
+/// what it describes: a version note needs its version to be a member of
+/// the publication this commit records, and a publication note needs that
+/// publication. Anything else is refused, so a note never claims a
+/// publish-time digest for a version an earlier commit introduced. A version
+/// note for a version that already had one is refused too: a later upload
+/// never replaces it.
 pub(super) fn store_publish_notes(
     batch: &Batch<'_>,
     notes: &PublishNotes,
@@ -215,6 +192,7 @@ pub(super) fn store_publish_notes(
 ) -> Result<()> {
     for note in &notes.versions {
         validate_note(&note.text)?;
+        refuse_unpublished_subject(batch, note, publication)?;
         let key = PackageKey {
             catalog: batch.catalog().to_string(),
             ecosystem: note.ecosystem,
@@ -229,6 +207,47 @@ pub(super) fn store_publish_notes(
         reason: "a publication note needs a publish that introduces a version".to_string(),
     })?;
     store_initial(batch, &NoteSubject::publication(batch.catalog(), id), text, principal)
+}
+
+/// Refuse a version note whose version this commit's publication does not
+/// introduce. An npm member names its version; another ecosystem's member
+/// names its file, so its package stands for the version.
+fn refuse_unpublished_subject(
+    batch: &Batch<'_>,
+    note: &VersionNote,
+    publication: Option<u64>,
+) -> Result<()> {
+    let introduced = match publication {
+        Some(id) => batch
+            .transaction()
+            .query_row(
+                "SELECT 1 FROM publication_members
+                 WHERE catalog = ?1 AND publication = ?2 AND ecosystem = ?3 AND name = ?4
+                   AND (version = ?5 OR version = '')
+                 LIMIT 1",
+                params![
+                    batch.catalog(),
+                    super::to_column(id),
+                    note.ecosystem.as_str(),
+                    note.name,
+                    note.version,
+                ],
+                |_| Ok(()),
+            )
+            .optional()?
+            .is_some(),
+        None => false,
+    };
+    if introduced {
+        return Ok(());
+    }
+    Err(RegistryError::AdminConflict {
+        reason: format!(
+            "{}@{} is not published by this request, so it takes no publish-time note; edit its \
+             note instead",
+            note.name, note.version,
+        ),
+    })
 }
 
 fn store_initial(
@@ -257,14 +276,29 @@ impl super::SqliteMetadata {
         self.read(move |connection, _| read_note(connection, &subject)).await
     }
 
-    /// The notes of every current version of `name` in `org`.
-    pub async fn package_notes(
+    /// The current versions of `name` in `org` that have a note, without
+    /// their text.
+    pub async fn noted_versions(
         self: &std::sync::Arc<Self>,
         name: &CanonicalPackageName,
         org: &str,
-    ) -> Result<Vec<(String, Note)>> {
+    ) -> Result<Vec<String>> {
         let key = package_key(name, org);
-        self.read(move |connection, _| package_notes(connection, &key)).await
+        self.read(move |connection, _| {
+            let mut statement = connection.prepare_cached(
+                "SELECT n.subject FROM notes n
+                 WHERE n.catalog = ?1 AND n.kind = 'version' AND n.ecosystem = ?2 AND n.name = ?3
+                   AND (n.ecosystem != 'npm' OR EXISTS (
+                     SELECT 1 FROM versions v WHERE v.catalog = n.catalog
+                       AND v.ecosystem = n.ecosystem AND v.name = n.name
+                       AND v.version = n.subject))",
+            )?;
+            let versions = statement
+                .query_map(key.params(), |row| row.get(0))?
+                .collect::<rusqlite::Result<Vec<String>>>()?;
+            Ok(versions)
+        })
+        .await
     }
 
     /// Replace the note of `version`, or delete it with `None`. Answers

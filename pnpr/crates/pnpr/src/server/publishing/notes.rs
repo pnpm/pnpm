@@ -57,7 +57,11 @@ fn entry_version(entry: &Value, ecosystem: Ecosystem) -> Option<(String, String)
             let metadata = entry.get("metadata")?;
             Some((text(metadata.get("name"))?, text(metadata.get("vers"))?))
         }
-        Ecosystem::Pypi => Some((text(entry.get("name"))?, text(entry.get("version"))?)),
+        // The normalized version, as the published file records it.
+        Ecosystem::Pypi => {
+            let version = pnpr_pypi::normalize_version(&text(entry.get("version"))?).ok()?;
+            Some((text(entry.get("name"))?, version))
+        }
         Ecosystem::Oci => None,
     }
 }

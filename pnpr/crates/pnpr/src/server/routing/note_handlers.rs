@@ -37,7 +37,7 @@ pub(super) async fn three_segments(
     let names_a_note =
         path.version == NOTES && (!path.scope.starts_with('@') || path.scope.contains('/'));
     if !names_a_note {
-        if method != Method::GET {
+        if method != Method::GET && method != Method::HEAD {
             return not_found();
         }
         return get_scoped_version_manifest(state, caller, registry, Path(path)).await;

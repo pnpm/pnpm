@@ -44,6 +44,7 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{any, delete, get, post, put},
 };
+use pnpr_storage::metadata::MAX_NOTE_BYTES;
 use tower_http::cors::{AllowOrigin, CorsLayer};
 
 use pnpr_auth::AuthState;
@@ -277,7 +278,8 @@ fn registry_routes(state: &AppState, router: Router<AppState>) -> Router<AppStat
             "/-/publications/{org}/{publication}/notes",
             get(super::publications::serve_publication_note)
                 .put(super::publications::serve_publication_note)
-                .delete(super::publications::serve_publication_note),
+                .delete(super::publications::serve_publication_note)
+                .route_layer(DefaultBodyLimit::max(MAX_NOTE_BYTES)),
         );
     if registries.has_ecosystem(Ecosystem::Npm) {
         router = router.nest(&Ecosystem::Npm.base_path(), account_routes().merge(npm));
@@ -353,13 +355,15 @@ fn npm_package_routes(router: Router<AppState>, base: &str) -> Router<AppState> 
             &path("/{scope}/{name}/{version}"),
             get(note_handlers::three_segments)
                 .put(note_handlers::three_segments)
-                .delete(note_handlers::three_segments),
+                .delete(note_handlers::three_segments)
+                .route_layer(DefaultBodyLimit::max(MAX_NOTE_BYTES)),
         )
         .route(
             &path("/{scope}/{name}/{version}/notes"),
             get(note_handlers::scoped_version_note)
                 .put(note_handlers::scoped_version_note)
-                .delete(note_handlers::scoped_version_note),
+                .delete(note_handlers::scoped_version_note)
+                .route_layer(DefaultBodyLimit::max(MAX_NOTE_BYTES)),
         )
         .route(&path("/{name}/-/notes"), get(note_handlers::package_notes))
         .route(&path("/{scope}/{name}/-/notes"), get(note_handlers::scoped_package_notes))

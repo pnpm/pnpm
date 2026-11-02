@@ -112,3 +112,13 @@ async fn archives_compare_a_bounded_chunk_at_a_time() {
         assert_eq!(compared, same, "case {index}");
     }
 }
+
+#[test]
+fn a_python_version_note_is_keyed_by_the_normalized_version() {
+    let mut entry = json!({ "name": "demo", "version": "01.0", "notes": "- first\n" });
+    let note = super::notes::take_version_note(&mut entry, pnpr_registry::Ecosystem::Pypi)
+        .unwrap()
+        .unwrap();
+    assert_eq!(note.version, "1.0");
+    assert!(entry.get("notes").is_none());
+}

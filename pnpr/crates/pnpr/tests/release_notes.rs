@@ -245,3 +245,78 @@ async fn an_unpublished_version_serves_no_note() {
         .collect();
     assert_eq!(versions, ["1.1.0"]);
 }
+
+#[tokio::test]
+async fn a_version_spelled_dist_tag_names_the_version_it_points_at() {
+    let tmp = TempDir::new().unwrap();
+    let app = app(&tmp);
+    let token = token(&app).await;
+    let doc = with_notes(publish_doc("tagged", "1.0.0", b"bytes"), "- one\n");
+    let published = send(&app, "PUT", "/npm/tagged", Some(&token), json_body(&doc)).await;
+    assert_eq!(published.status, StatusCode::CREATED);
+    let tag = send(
+        &app,
+        "PUT",
+        "/npm/-/package/tagged/dist-tags/v9.9.9",
+        Some(&token),
+        Body::from(r#""1.0.0""#),
+    )
+    .await;
+    assert_eq!(tag.status, StatusCode::CREATED, "{}", tag.text());
+    let note = send(&app, "GET", "/npm/tagged/v9.9.9/notes", None, Body::empty()).await;
+    assert_eq!((note.status, note.text()), (StatusCode::OK, "- one\n"));
+}
+
+#[tokio::test]
+async fn a_publish_that_only_brings_notes_is_refused() {
+    let tmp = TempDir::new().unwrap();
+    let app = app(&tmp);
+    let token = token(&app).await;
+    let doc = publish_doc("quiet", "1.0.0", b"bytes");
+    let published = send(&app, "PUT", "/npm/quiet", Some(&token), json_body(&doc)).await;
+    assert_eq!(published.status, StatusCode::CREATED);
+    let noted = with_notes(doc, "- late\n");
+    let repeated = send(&app, "PUT", "/npm/quiet", Some(&token), json_body(&noted)).await;
+    assert_eq!(repeated.status, StatusCode::CONFLICT, "{}", repeated.text());
+    let note = send(&app, "GET", "/npm/quiet/1.0.0/notes", None, Body::empty()).await;
+    assert_eq!(note.status, StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn a_note_body_is_bounded_by_the_note_size() {
+    let tmp = TempDir::new().unwrap();
+    let app = app(&tmp);
+    let token = token(&app).await;
+    let doc = publish_doc("bounded", "1.0.0", b"bytes");
+    let published = send(&app, "PUT", "/npm/bounded", Some(&token), json_body(&doc)).await;
+    assert_eq!(published.status, StatusCode::CREATED);
+    let oversized = Body::from("x".repeat(1024 * 1024));
+    let refused = send(&app, "PUT", "/npm/bounded/1.0.0/notes", None, oversized).await;
+    assert_eq!(refused.status, StatusCode::PAYLOAD_TOO_LARGE);
+}
+
+#[tokio::test]
+async fn a_scoped_version_manifest_answers_head() {
+    let tmp = TempDir::new().unwrap();
+    let app = app(&tmp);
+    let token = token(&app).await;
+    let doc = publish_doc("@scope/headed", "1.0.0", b"bytes");
+    let published = send(&app, "PUT", "/npm/@scope%2fheaded", Some(&token), json_body(&doc)).await;
+    assert_eq!(published.status, StatusCode::CREATED, "{}", published.text());
+    let manifest = send(&app, "HEAD", "/npm/@scope/headed/1.0.0", None, Body::empty()).await;
+    assert_eq!(manifest.status, StatusCode::OK);
+}
+
+#[tokio::test]
+async fn a_package_of_an_upstream_lists_no_notes() {
+    let tmp = TempDir::new().unwrap();
+    let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
+    let mut config = Config::proxy(listen, tmp.path().to_path_buf());
+    config.storage.metadata = MetadataBackend::Sqlite(tmp.path().join("metadata.sqlite"));
+    let app = router(config);
+    let listing = send(&app, "GET", "/npm/lodash/-/notes", None, Body::empty()).await;
+    assert_eq!(listing.status, StatusCode::OK, "{}", listing.text());
+    assert_eq!(listing.json(), json!({ "notes": [] }));
+    let note = send(&app, "GET", "/npm/lodash/4.17.21/notes", None, Body::empty()).await;
+    assert_eq!(note.status, StatusCode::NOT_FOUND);
+}

@@ -119,6 +119,23 @@ pub(super) fn resolve_publish_target_for(
     }
 }
 
+/// Whether `package` routes to an upstream registry through the registry a
+/// request addresses.
+pub(super) fn routes_to_upstream(
+    state: &AppState,
+    registry: Option<&str>,
+    ecosystem: Ecosystem,
+    package: &str,
+) -> bool {
+    addressed_publish_target(state, registry, ecosystem)
+        .is_some_and(|(target, _)| {
+            matches!(
+                resolve_ecosystem_source(state, &target, ecosystem, package),
+                RegistrySource::Upstream(_),
+            )
+        })
+}
+
 /// The registry a publish addresses, with how to name it in a refusal.
 fn addressed_publish_target(
     state: &AppState,

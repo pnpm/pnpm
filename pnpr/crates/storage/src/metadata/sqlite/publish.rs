@@ -33,16 +33,17 @@ pub(super) fn commit_publication(
     for document in documents {
         write_member(&mut batch, document)?;
     }
+    let publisher = request
+        .map(|request| request.principal.as_str())
+        .or_else(|| documents.iter().find_map(|document| document.principal.as_deref()));
     let publication = if batch.changed_anything() {
-        let publisher = request
-            .map(|request| request.principal.as_str())
-            .or_else(|| documents.iter().find_map(|document| document.principal.as_deref()));
-        let publication = publications::record(&batch, request, publisher, artifacts)?;
-        notes::store_publish_notes(&batch, notes, publication, publisher)?;
-        publication
+        publications::record(&batch, request, publisher, artifacts)?
     } else {
         None
     };
+    // Notes are checked even when nothing changed, so a request that only
+    // brings notes is refused instead of dropping them.
+    notes::store_publish_notes(&batch, notes, publication, publisher)?;
     let value = batch.finish()?;
     let value = match value {
         Some(value) => value,
