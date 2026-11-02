@@ -187,16 +187,6 @@ pub struct TarInspection {
 /// Inspect a `.tar` stream in a single pass, recording regular-file counts
 /// and unpacked byte totals alongside the [`tar_requires_build`] verdict.
 pub fn inspect_tar(reader: impl std::io::Read) -> TarInspection {
-    inspect_tar_with_manifest(reader).0
-}
-
-/// [`inspect_tar`], with the root `package.json` the scan parsed: the last
-/// regular file whose cleaned path is `package.json`, as extraction keeps
-/// it. `None` when the archive has none, it fails to parse, or the scan
-/// fails.
-pub fn inspect_tar_with_manifest(
-    reader: impl std::io::Read,
-) -> (TarInspection, Option<serde_json::Value>) {
     inspect_tar_entries(reader).unwrap_or_default()
 }
 
@@ -320,23 +310,20 @@ impl TarScanState {
         }
     }
 
-    fn finish(self) -> (TarInspection, Option<serde_json::Value>) {
+    fn finish(self) -> TarInspection {
         let requires_build = (!self.manifest_parse_failed).then(|| self.triggers.requires_build());
         let bins =
             (requires_build == Some(false)).then(|| self.bins.finish(self.manifest.as_ref()));
-        let inspection = TarInspection {
+        TarInspection {
             requires_build,
             file_count: Some(self.file_count),
             unpacked_size: Some(self.unpacked_size),
             bins,
-        };
-        (inspection, self.manifest)
+        }
     }
 }
 
-fn inspect_tar_entries(
-    reader: impl std::io::Read,
-) -> Option<(TarInspection, Option<serde_json::Value>)> {
+fn inspect_tar_entries(reader: impl std::io::Read) -> Option<TarInspection> {
     let mut archive = tar::Archive::new(TarStreamReader { inner: reader, unexpected_eof: false });
     archive.set_max_metadata_size(Some(TAR_SCAN_MAX_METADATA_BYTES));
     let mut state = TarScanState::default();

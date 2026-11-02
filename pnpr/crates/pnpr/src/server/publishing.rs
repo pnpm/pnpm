@@ -1,8 +1,8 @@
 pub(super) mod variants;
 
 pub(super) use atomic::{
-    commit_publication, publication_name, publication_request, publish_committed_response,
-    replayed_outcome, single_catalog,
+    add_npm_notices, commit_publication, publication_name, publication_request,
+    publish_committed_response, replayed_outcome, single_catalog,
 };
 pub(super) use attachments::{
     StagedPublish, ValidatedPublish, stage_publish, validate_publish_doc,
@@ -17,6 +17,7 @@ mod attachments;
 mod manifest;
 mod notes;
 mod tombstones;
+mod verification;
 
 use std::collections::{BTreeSet, HashSet};
 
@@ -42,7 +43,7 @@ use super::{
     Action, AppState, HostedGate, RegistrySource, WriteTarget, authorize_package,
     authorized_upstream, default_registry_target, documents::RegistryDocuments, hosted_gate,
     hosted_storage, resolve_ecosystem_source, resolve_write_target, restore_tgz_integrities,
-    tar_integrity_and_manifest_of, tgz_integrity_key,
+    tar_integrity_of, tgz_integrity_key,
 };
 
 /// Where a publish of `package` writes, given an optional explicit `/~<name>/`.
