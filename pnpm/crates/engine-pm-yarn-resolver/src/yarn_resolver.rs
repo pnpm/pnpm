@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pnpm_lockfile::{LockfileResolution, VariationsResolution};
+use pnpm_lockfile::VariationsResolution;
 use pnpm_network::{ThrottledClient, redact_and_sanitize};
 use pnpm_resolving_resolver_base::{
     LatestInfo, LatestQuery, ResolveError, ResolveFuture, ResolveLatestFuture, ResolveOptions,
@@ -121,7 +121,7 @@ impl YarnResolver {
         });
         Ok(Some(ResolveResult {
             id: format!("yarn@runtime:{version}").into(),
-            resolution: LockfileResolution::Variations(VariationsResolution { variants }),
+            resolution: VariationsResolution::without_fallback(variants).into(),
             resolved_via: RESOLVED_VIA.to_string(),
             normalized_bare_specifier: Some(format!("{RUNTIME_PROTOCOL}{normalized_spec}")),
             alias: wanted_dependency.alias.clone(),

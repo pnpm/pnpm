@@ -6,7 +6,7 @@
 //! `revision`, and its publish `time` when it is after `timesSince`. An entry
 //! with a `manifest` is complete: beside the manifest, it has pnpr's facts
 //! about the archives (`integrity`, `fileCount`, `unpackedSize`,
-//! `requiresBuild`, `bins`). Any other entry's are in its release record,
+//! `requiresBuild`, `bins`, `variants`). Any other entry's are in its release record,
 //! `<registry><name>/<version>+r<revision>`.
 //!
 //! [`parse_install_v2`] turns the document into a [`Package`] where it is
@@ -88,7 +88,7 @@ pub fn parse_release_record(body: &[u8]) -> serde_json::Result<PackageVersion> {
 /// pnpr's facts about the archives, which pnpm keeps in `dist` and
 /// `dist.pnpr`.
 const DIST_FIELDS: [&str; 3] = ["integrity", "fileCount", "unpackedSize"];
-const PNPR_FIELDS: [&str; 2] = ["requiresBuild", "bins"];
+const PNPR_FIELDS: [&str; 3] = ["requiresBuild", "bins", "variants"];
 
 /// The version an entry or release record stands for, in npm's shape, with
 /// the deprecation, trust rank, and revision in npm's fields.

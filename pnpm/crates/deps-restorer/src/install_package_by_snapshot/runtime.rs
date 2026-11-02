@@ -2,8 +2,8 @@ use super::InstallPackageBySnapshotError;
 use pnpm_config::Config;
 use pnpm_graph_hasher::{host_arch, host_libc, host_platform};
 use pnpm_lockfile::{
-    BinaryArchive, BinaryResolution, BinarySpec, LockfileResolution, PackageKey, PlatformSelector,
-    select_platform_variant,
+    BinaryArchive, BinaryResolution, BinarySpec, HostFloors, LockfileResolution, PackageKey,
+    PlatformSelector, SelectedVariant,
 };
 use pnpm_network::ThrottledClient;
 use pnpm_package_is_installable::{SupportedArchitectures, SupportedPlatform};
@@ -14,58 +14,119 @@ use pnpm_tarball::{
 };
 use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
-/// The archive a `Variations` resolution offers for this host.
+/// How the archive a `variations` resolution selects is fetched.
+pub(super) enum VariantFetch<'a> {
+    /// A runtime archive (Node.js, Bun, Deno).
+    Binary(&'a BinaryResolution),
+    /// A registry package's archive. `variant` is `true` for a platform
+    /// variant, which is verified against its tar's digest and served
+    /// without redirects, and `false` for the primary archive.
+    Tarball { resolution: LockfileResolution, variant: bool },
+}
+
+/// The archive `variations` installs on `platform`: the first variant
+/// whose targets include it, or the fallback.
 ///
-/// A platform asset resolution is always atomic (`BinaryResolution`);
-/// pacquet's type widens to the full `LockfileResolution` for serde
-/// uniformity but [`select_platform_variant`]'s docs spell out that
-/// nested `Variations` would just route their picked variant's inner
-/// shape back through the resolution dispatcher (no infinite recursion,
-/// because this function does not call back into the variant selector).
-/// Only `Binary` is recognised; anything else is either a corrupt
-/// lockfile or a future shape pacquet hasn't learned about yet, so it is
-/// rejected loudly rather than silently routed through.
-pub(super) fn binary_variant_for_host<'a>(
+/// Runtimes and registry packages share this selection. The selected
+/// resolution's type decides how it is fetched: a `binary` archive goes
+/// through the runtime extractor, and a registry or tarball resolution
+/// through the package tarball fetcher, a variant's integrity-only entry
+/// at its registry route rebuilt from the package key and its `tag`.
+pub(super) fn variant_for_host<'a>(
     variations: &'a pnpm_lockfile::VariationsResolution,
     package_key: &PackageKey,
-    runtime_platform_selector: &pnpm_lockfile::PlatformSelector,
-) -> Result<&'a pnpm_lockfile::BinaryResolution, InstallPackageBySnapshotError> {
-    let Some(variant) = select_platform_variant(&variations.variants, runtime_platform_selector)
-    else {
+    platform: &PlatformSelector,
+    config: &Config,
+) -> Result<VariantFetch<'a>, InstallPackageBySnapshotError> {
+    let selected_target = || {
+        format!("os = `{}`, cpu = `{}`, libc = `{:?}`", platform.os, platform.cpu, platform.libc)
+    };
+    let selected = variations
+        .select(platform)
+        .map_err(|_| InstallPackageBySnapshotError::AmbiguousPlatformVariant {
+            package_key: package_key.to_string(),
+            selected_target: selected_target(),
+        })?;
+    let Some(selected) = selected else {
         return Err(InstallPackageBySnapshotError::NoMatchingPlatformVariant {
             package_key: package_key.to_string(),
-            selected_target: format!(
-                "os = `{}`, cpu = `{}`, libc = `{:?}`",
-                runtime_platform_selector.os,
-                runtime_platform_selector.cpu,
-                runtime_platform_selector.libc,
-            ),
+            selected_target: selected_target(),
             available_targets: render_variant_targets(&variations.variants),
         });
     };
-    let LockfileResolution::Binary(binary) = &variant.resolution else {
-        return Err(InstallPackageBySnapshotError::VariantHasNonBinaryResolution {
-            package_key: package_key.to_string(),
-            inner_kind: match &variant.resolution {
-                LockfileResolution::Tarball(_) => "tarball",
-                LockfileResolution::Registry(_) => "registry",
-                LockfileResolution::Directory(_) => "directory",
-                LockfileResolution::Git(_) => "git",
-                LockfileResolution::Variations(_) => "variations",
-                LockfileResolution::Custom(_) => "custom",
-                // Already matched above; reach is unreachable.
-                LockfileResolution::Binary(_) => "binary",
-            },
-        });
+    let variant = matches!(selected, SelectedVariant::Variant(_));
+    let resolution = match (selected, selected.resolution()) {
+        (_, LockfileResolution::Binary(binary)) => return Ok(VariantFetch::Binary(binary)),
+        (SelectedVariant::Variant(selected), LockfileResolution::Registry(registry)) => {
+            variant_registry_tarball(selected, registry, variations.revision, package_key, config)?
+        }
+        (_, resolution @ (LockfileResolution::Registry(_) | LockfileResolution::Tarball(_))) => {
+            resolution.clone()
+        }
+        (_, other) => {
+            return Err(InstallPackageBySnapshotError::UnsupportedVariantResolution {
+                package_key: package_key.to_string(),
+                inner_kind: resolution_kind(other),
+            });
+        }
     };
-    Ok(binary)
+    Ok(VariantFetch::Tarball { resolution, variant })
 }
+
+/// A registry package variant recorded integrity-only, at the registry
+/// route `<registry>/<name>@<version>[+r<revision>]/variants/<tag>`, its tag
+/// derived from its targets.
+fn variant_registry_tarball(
+    variant: &pnpm_lockfile::PlatformAssetResolution,
+    registry: &pnpm_lockfile::RegistryResolution,
+    revision: Option<u64>,
+    package_key: &PackageKey,
+    config: &Config,
+) -> Result<LockfileResolution, InstallPackageBySnapshotError> {
+    let invalid_tag = || {
+        super::tarball_resolution::invalid_tarball_revision(
+            package_key,
+            "has a registry variant without a valid tag",
+        )
+    };
+    let tag = variant.variant_tag().ok_or_else(invalid_tag)?;
+    let (registry_url, version) =
+        super::tarball_resolution::registry_and_version(package_key, config)?;
+    let tarball = pnpm_lockfile::variant_registry_tarball_url(
+        &package_key.name.to_string(),
+        &version,
+        &tag,
+        revision,
+        &registry_url,
+    )
+    .ok_or_else(invalid_tag)?;
+    Ok(LockfileResolution::Tarball(pnpm_lockfile::TarballResolution {
+        tarball,
+        integrity: Some(registry.integrity.clone()),
+        revision: None,
+        git_hosted: None,
+        path: None,
+    }))
+}
+
+fn resolution_kind(resolution: &LockfileResolution) -> &'static str {
+    match resolution {
+        LockfileResolution::Tarball(_) => "tarball",
+        LockfileResolution::Registry(_) => "registry",
+        LockfileResolution::Directory(_) => "directory",
+        LockfileResolution::Git(_) => "git",
+        LockfileResolution::Variations(_) => "variations",
+        LockfileResolution::Custom(_) => "custom",
+        LockfileResolution::Binary(_) => "binary",
+    }
+}
+
 /// Build the host's [`PlatformSelector`] for runtime-variant
 /// matching, from the host's os, cpu, and libc (the latter only on
 /// Linux).
 ///
 /// Translating `host_libc()`'s `"unknown"` to `None` lets
-/// [`select_platform_variant`]'s asymmetric libc rule apply
+/// [`select_platform_variant`](pnpm_lockfile::select_platform_variant)'s asymmetric libc rule apply
 /// consistently: `None` and `Some("glibc")` both require the
 /// variant to omit `libc`, and `Some("musl")` requires an exact
 /// match.
@@ -75,7 +136,12 @@ pub fn host_platform_selector() -> PlatformSelector {
         "unknown" => None,
         other => Some(other.to_string()),
     };
-    PlatformSelector { os: host_platform().to_string(), cpu: host_arch().to_string(), libc }
+    PlatformSelector {
+        os: host_platform().to_string(),
+        cpu: host_arch().to_string(),
+        libc,
+        floors: None,
+    }
 }
 /// Resolve the runtime archive selector from `supportedArchitectures`.
 ///
@@ -89,13 +155,20 @@ pub fn runtime_platform_selector(supported: Option<&SupportedArchitectures>) -> 
     let host = host_platform_selector();
     match supported {
         Some(SupportedArchitectures::Platforms(platforms)) => runtime_platform_of(platforms, host),
-        Some(SupportedArchitectures::Axes(axes)) => PlatformSelector {
-            os: pick_supported(axes.os.as_deref(), Some(&host.os)).unwrap_or(&host.os).to_string(),
-            cpu: pick_supported(axes.cpu.as_deref(), Some(&host.cpu))
-                .unwrap_or(&host.cpu)
-                .to_string(),
-            libc: pick_supported(axes.libc.as_deref(), host.libc.as_deref()).map(str::to_string),
-        },
+        Some(SupportedArchitectures::Axes(axes)) => with_host_floors(
+            PlatformSelector {
+                os: pick_supported(axes.os.as_deref(), Some(&host.os))
+                    .unwrap_or(&host.os)
+                    .to_string(),
+                cpu: pick_supported(axes.cpu.as_deref(), Some(&host.cpu))
+                    .unwrap_or(&host.cpu)
+                    .to_string(),
+                libc: pick_supported(axes.libc.as_deref(), host.libc.as_deref())
+                    .map(str::to_string),
+                floors: Some(HostFloors::default()),
+            },
+            &host,
+        ),
         None => host,
     }
 }
@@ -121,14 +194,30 @@ pub(super) fn runtime_platform_of(
             libc: named.libc
                 .as_ref()
                 .map(|libc| libc.name().to_string()),
+            floors: Some(HostFloors::default()),
         };
-        if selector == host {
+        if is_host(&selector, &host) {
             return host;
         }
         first.get_or_insert(selector);
     }
     first.unwrap_or(host)
 }
+/// Whether `selector` names the host's own platform.
+fn is_host(selector: &PlatformSelector, host: &PlatformSelector) -> bool {
+    selector.os == host.os && selector.cpu == host.cpu && selector.libc == host.libc
+}
+
+/// `selector` with the running host's floors, probed on demand, when it
+/// names the host's platform: another platform's versions are not known, so
+/// its floors all match.
+fn with_host_floors(mut selector: PlatformSelector, host: &PlatformSelector) -> PlatformSelector {
+    if is_host(&selector, host) {
+        selector.floors = host.floors;
+    }
+    selector
+}
+
 pub(super) fn pick_supported<'a>(
     requested: Option<&'a [String]>,
     host_value: Option<&'a str>,

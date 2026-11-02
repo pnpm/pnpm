@@ -62,10 +62,13 @@ fn variations_metadata() -> PackageMetadata {
             os: os.to_string(),
             cpu: "x64".to_string(),
             libc: libc.map(str::to_string),
+            ..PlatformAssetTarget::default()
         }],
     };
     PackageMetadata {
         resolution: LockfileResolution::Variations(VariationsResolution {
+            fallback: None,
+            revision: None,
             variants: vec![
                 variant("sha512-AAAA".parse().unwrap(), "linux", None),
                 variant("sha512-BBBB".parse().unwrap(), "linux", Some("musl")),
@@ -125,13 +128,20 @@ fn variation_input_keys_use_the_selected_platform_integrity() {
         os: "linux".to_string(),
         cpu: "x64".to_string(),
         libc: Some("glibc".to_string()),
+        floors: None,
     };
     let linux_musl = PlatformSelector {
         os: "linux".to_string(),
         cpu: "x64".to_string(),
         libc: Some("musl".to_string()),
+        floors: None,
     };
-    let darwin = PlatformSelector { os: "darwin".to_string(), cpu: "x64".to_string(), libc: None };
+    let darwin = PlatformSelector {
+        os: "darwin".to_string(),
+        cpu: "x64".to_string(),
+        libc: None,
+        floors: None,
+    };
 
     let input_key = |selector: &PlatformSelector| {
         let graph = build_deps_graph_for_platform(&snapshots, &packages, selector);

@@ -77,9 +77,9 @@ fn locked_node_opts(update: UpdateBehavior, update_checksums: bool) -> ResolveOp
                 id: "node@runtime:26.10.0".into(),
                 name: Some("node".to_string()),
                 version: Some("26.10.0".to_string()),
-                resolution: LockfileResolution::Variations(VariationsResolution {
-                    variants: Vec::new(),
-                }),
+                resolution: LockfileResolution::Variations(VariationsResolution::without_fallback(
+                    Vec::new(),
+                )),
                 published_at: None,
                 manifest: None,
             }),

@@ -363,6 +363,8 @@ pub(super) fn picked_tarball_resolution(
         git_hosted: None,
         path: None,
     });
+    let resolution =
+        super::platform_variants::with_platform_variants(resolution, picked, source, revision)?;
     Ok((resolution, revision))
 }
 
