@@ -1,5 +1,8 @@
 # Test registry-mock configuration for pnpm and pnpr test suites.
 storage: ./storage
+# The test harnesses seed and edit package documents on disk.
+metadata:
+  backend: documents
 secret: pnpm-registry-mock-secret-key-32
 
 auth:

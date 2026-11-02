@@ -58,6 +58,17 @@ pub(crate) struct MetadataFile {
     /// store keeps its metadata in [`default_metadata_path`].
     #[serde(default)]
     url: Option<String>,
+    /// `documents` keeps one document per package in a filesystem hosted
+    /// store, as an object-store hosted store without a URL does.
+    #[serde(default)]
+    backend: Option<DocumentsBackend>,
+}
+
+/// The one metadata backend named rather than given by URL.
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(rename_all = "lowercase")]
+enum DocumentsBackend {
+    Documents,
 }
 
 /// The default `SQLite` metadata database of a filesystem hosted store. The
@@ -75,6 +86,18 @@ pub(crate) fn resolve_metadata_backend(
 ) -> Result<MetadataBackend, RegistryError> {
     let invalid = |reason: String| RegistryError::InvalidConfig { reason };
     let on_fs = matches!(hosted, HostedStoreConfig::Fs);
+    if let Some(MetadataFile {
+        url,
+        backend: Some(DocumentsBackend::Documents),
+    }) = file
+    {
+        if url.is_some() {
+            return Err(
+                invalid("metadata names both a `url` and `backend: documents`".to_string()),
+            );
+        }
+        return Ok(MetadataBackend::Documents);
+    }
     let Some(url) = file.and_then(|file| file.url.as_deref()) else {
         return Ok(if on_fs {
             MetadataBackend::Sqlite(default_metadata_path(storage))

@@ -71,8 +71,9 @@ metadata in every ecosystem. pnpr does not read the package documents of an
 existing store into it: switch an empty store, or republish.
 
 With an `s3:` block and no `metadata` URL, each hosted package's metadata is a
-document in the bucket, beside its archives. None of the behavior below
-applies to it.
+document in the bucket, beside its archives. `backend: documents` in the
+`metadata` block keeps documents in a filesystem store too. None of the
+behavior below applies to documents.
 
 With SQLite metadata:
 
