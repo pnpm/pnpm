@@ -11,6 +11,10 @@ use std::{
 };
 use tokio::sync::OnceCell;
 
+/// The most `<name>/<version>/notes` reads one package has in flight past
+/// a truncated list.
+const MAX_VERSION_READS: usize = 8;
+
 /// The notes of an upgrade: version notes newest first, and the
 /// publication notes they came out of, each once.
 #[derive(Debug, Default)]
@@ -140,22 +144,22 @@ impl<'a> NotesReader<'a> {
             })
             .collect();
         versions.sort_by(|left, right| right.cmp(left));
-        let reads = versions
-            .iter()
-            .map(|version| {
-                let version = version.to_string();
-                async move {
+        let mut entries = Vec::new();
+        // A chunk at a time, so a long history does not put every read in
+        // flight at once.
+        for chunk in versions.chunks(MAX_VERSION_READS) {
+            let reads = chunk
+                .iter()
+                .map(|version| async move {
+                    let version = version.to_string();
                     let response = self.http.version_note(registry, name, &version).await?;
                     Ok::<_, miette::Report>(response.map(|response| {
                         version_range_entry(version, response)
                     }))
-                }
-            });
-        let responses = futures_util::future::try_join_all(reads).await?;
-        Ok(responses
-            .into_iter()
-            .flatten()
-            .collect())
+                });
+            entries.extend(futures_util::future::try_join_all(reads).await?.into_iter().flatten());
+        }
+        Ok(entries)
     }
 
     async fn with_publications(

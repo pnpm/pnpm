@@ -10,11 +10,11 @@ use pnpm_versioning::read_parked_publications;
 use serde_json::Value;
 use std::collections::HashSet;
 
-/// Refuse a batch whose packing moved a package into or out of the composed
-/// publication's registry, or changed the published name or version of a
-/// member: its name and note go to the registry chosen before packing, and
+/// Refuse a batch whose packing moved a member of the composed publication
+/// to another registry, or changed its published name or version: the
+/// publication's name and note go to the registry chosen before packing, and
 /// a later `pnpm version -r` confirms the release under the identity it
-/// composed.
+/// composed. Other packages of the batch may change as their hooks like.
 pub(in crate::cli_args::publish) fn check_packed_members(
     config: &Config,
     publication: &PublicationNotes,
@@ -23,18 +23,23 @@ pub(in crate::cli_args::publish) fn check_packed_members(
     let Some(registry) = publication.registry.as_deref() else {
         return Ok(());
     };
+    let sources: Vec<&Value> = packed
+        .iter()
+        .map(|pkg| &pkg.source_manifest)
+        .collect();
+    let Some(parked) = parked_publication(config, &sources)? else {
+        return Ok(());
+    };
     let changed = packed
         .iter()
         .find(|pkg| {
-            let before = notes_registry_of_manifest(config, &pkg.source_manifest);
-            let after = notes_registry_of_manifest(config, &pkg.published_manifest);
-            let was_member = before.as_deref() == Some(registry);
-            // Moving a package into the registry or out of it changes which
-            // batch request carries the publication.
-            was_member != (after.as_deref() == Some(registry))
-                || was_member
-                    && published_identity(&pkg.published_manifest)
-                        != published_identity(&pkg.source_manifest)
+            let is_member = release_key(&pkg.source_manifest)
+                .is_some_and(|key| parked.members.contains(&key));
+            is_member
+                && (notes_registry_of_manifest(config, &pkg.published_manifest).as_deref()
+                    != Some(registry)
+                    || published_identity(&pkg.published_manifest)
+                        != published_identity(&pkg.source_manifest))
         });
     let Some(pkg) = changed else {
         return Ok(());
@@ -45,6 +50,14 @@ pub(in crate::cli_args::publish) fn check_packed_members(
         help = "Set the registry, name, and version in the workspace manifest rather than in a beforePacking hook.",
         "Packing changed the registry, name, or version of {package}, which the release notes of its release were composed for",
     ))
+}
+
+/// The `package@version` a workspace manifest is keyed by in the ledger and
+/// in a parked publication.
+fn release_key(manifest: &Value) -> Option<String> {
+    let name = manifest.get("name")?.as_str()?;
+    let version = manifest.get("version")?.as_str()?;
+    Some(format!("{name}@{version}"))
 }
 
 /// The parked publication that `members` (manifests of the workspace)
@@ -107,12 +120,7 @@ pub(super) fn publication_registry(
     let registries: HashSet<Option<String>> = members
         .iter()
         .filter(|manifest| {
-            let key = manifest
-                .get("name")
-                .and_then(Value::as_str)
-                .zip(manifest.get("version").and_then(Value::as_str))
-                .map(|(name, version)| format!("{name}@{version}"));
-            key.is_some_and(|key| publication.members.contains(&key))
+            release_key(manifest).is_some_and(|key| publication.members.contains(&key))
         })
         .map(|manifest| notes_registry_of_manifest(config, manifest))
         .collect();

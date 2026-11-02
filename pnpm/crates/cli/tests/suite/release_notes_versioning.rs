@@ -489,7 +489,7 @@ fn a_batch_refuses_a_composed_release_split_across_registries() {
 }
 
 #[test]
-fn a_batch_refuses_a_hook_that_moves_a_package_into_a_composed_release_registry() {
+fn a_hook_may_change_a_package_outside_the_composed_release() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     let mut server = mockito::Server::new();
     let registry = format!("{}/", server.url());
@@ -497,48 +497,35 @@ fn a_batch_refuses_a_hook_that_moves_a_package_into_a_composed_release_registry(
     run(pnpm(&workspace).with_args(["version", "-r", "--no-git-checks"]));
     let dir = workspace.join("packages/c");
     fs::create_dir_all(&dir).expect("create package dir");
-    fs::write(
-        dir.join("package.json"),
-        json!({
-            "name": "c",
-            "version": "1.0.0",
-            "publishConfig": { "registry": "https://elsewhere.example/" },
-        })
-        .to_string(),
-    )
-    .expect("write package.json");
+    fs::write(dir.join("package.json"), json!({ "name": "c", "version": "1.0.0" }).to_string())
+        .expect("write package.json");
     fs::write(
         workspace.join(".pnpmfile.cjs"),
-        format!(
-            r"module.exports = {{
-  hooks: {{
-    beforePacking (manifest) {{
-      if (manifest.name === 'c') manifest.publishConfig = {{ registry: '{registry}' }}
+        r"module.exports = {
+  hooks: {
+    beforePacking (manifest) {
+      if (manifest.name === 'c') manifest.version = '1.0.1'
       return manifest
-    }},
-  }},
-}}
+    },
+  },
+}
 ",
-        ),
     )
     .expect("write .pnpmfile.cjs");
     let _packuments = server
         .mock("GET", Matcher::Any)
         .with_status(404)
         .create();
-    let upload = server
-        .mock("PUT", Matcher::Any)
-        .expect(0)
+    let batch = server
+        .mock("PUT", "/-/pnpr/v0/publish")
+        .match_body(Matcher::PartialJson(json!({ "name": "v1.1.0", "notes": PUBLICATION_NOTE })))
+        .with_status(201)
+        .with_body(r#"{"ok":true}"#)
+        .expect(1)
         .create();
 
-    let output = pnpm(&workspace)
-        .with_args(["-r", "publish", "--batch", "--force", "--no-git-checks"])
-        .output()
-        .expect("run pnpm publish");
+    run(pnpm(&workspace).with_args(["-r", "publish", "--batch", "--force", "--no-git-checks"]));
 
-    assert!(!output.status.success());
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("ERR_PNPM_RELEASE_NOTES_PACKAGE_CHANGED"), "{stderr}");
-    upload.assert();
+    batch.assert();
     drop(root);
 }

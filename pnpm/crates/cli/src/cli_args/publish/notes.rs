@@ -182,7 +182,11 @@ impl PublishArgs {
         let summary = self.release_notes_text(dir)?;
         let mut versioned = parked.is_some();
         for manifest in members {
-            versioned |= parked_version_note(config, manifest)?.is_some();
+            // Only a package bound for a registry that stores notes sends a
+            // parked note.
+            if notes_registry_of_manifest(config, manifest).is_some() {
+                versioned |= parked_version_note(config, manifest)?.is_some();
+            }
         }
         if summary.is_some() && versioned {
             return Err(summary_belongs_to_versioning());
@@ -199,7 +203,11 @@ impl PublishArgs {
             emit_warning::<Reporter>(
                 r#"The packages of the release that "pnpm version -r" composed release notes for no longer publish to a registry declared with serverType: pnpr. Its publication notes are not sent."#,
             );
-            return Ok(PublicationNotes::default());
+            let name = self.flags.manifest.notes.publication_name.clone();
+            if let Some(name) = &name {
+                validate_publication_name(name)?;
+            }
+            return Ok(PublicationNotes { name, ..PublicationNotes::default() });
         }
         let name = self.flags.manifest.notes.publication_name
             .clone()
