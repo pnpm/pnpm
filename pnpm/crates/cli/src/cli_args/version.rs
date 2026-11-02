@@ -47,12 +47,12 @@ pub struct VersionArgs {
     /// Show information in JSON format.
     #[clap(long)]
     pub json: bool,
-    /// With the bare `pnpm version -r`: a summary of the release, a file or
-    /// the text itself. It goes above the release notes composed from the
-    /// change intents for a registry declared `serverType: pnpr`: the
-    /// publication's note, or the package's version note when the release
-    /// has one package.
-    #[clap(long = "release-notes", value_name = "FILE|TEXT")]
+    /// With the bare `pnpm version -r`: a file with a summary of the
+    /// release. It goes above the release notes composed from the change
+    /// intents for a registry declared `serverType: pnpr`: the publication's
+    /// note, or the package's version note when the release has one
+    /// package.
+    #[clap(long = "release-notes", value_name = "FILE")]
     pub release_notes: Option<String>,
     #[clap(flatten)]
     pub git: VersionGitArgs,

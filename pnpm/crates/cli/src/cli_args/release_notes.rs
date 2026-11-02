@@ -20,12 +20,17 @@ use pnpm_network::normalize_registry_url;
 use pnpm_release_notes::normalize_line_endings;
 use std::{collections::HashSet, path::Path};
 
-/// The text a `--release-notes` value gives: the file it names, relative to
-/// `dir`, or else the value itself, with its line endings normalized.
+/// The text of the file a `--release-notes` value names, relative to `dir`,
+/// with its line endings normalized. A path that names no file is an error,
+/// never the text itself, so a mistyped path is not published as a note.
 pub(crate) fn read_release_notes_arg(dir: &Path, value: &str) -> miette::Result<String> {
     let path = dir.join(value);
     if !path.is_file() {
-        return Ok(normalize_line_endings(value));
+        return Err(miette::miette!(
+            code = "ERR_PNPM_RELEASE_NOTES_FILE_NOT_FOUND",
+            "The release notes file {value} was not found in {}",
+            dir.display(),
+        ));
     }
     let text = std::fs::read_to_string(&path)
         .into_diagnostic()

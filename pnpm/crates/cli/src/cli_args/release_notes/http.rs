@@ -89,6 +89,12 @@ impl NotesHttp<'_> {
         Ok(Some((text, header(&headers, "pnpr-note-initial-digest"))))
     }
 
+    /// The `Authorization` header a request for `url` on behalf of
+    /// `package` carries.
+    pub fn auth_header(&self, url: &str, package: &str) -> Option<String> {
+        auth_header_for_package(self.config, url, package)
+    }
+
     /// `GET url`: its headers and body, or `None` on a `404`. `204` has an
     /// empty body.
     async fn get(
@@ -98,7 +104,7 @@ impl NotesHttp<'_> {
         limit: usize,
     ) -> miette::Result<Option<(HeaderMap, Vec<u8>)>> {
         let guard = self.client.acquire_for_url(url).await;
-        let auth_header = auth_header_for_package(self.config, url, package);
+        let auth_header = self.auth_header(url, package);
         let response = apply_auth_and_otp(guard.get(url), auth_header.as_deref(), None)
             .send()
             .await

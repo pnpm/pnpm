@@ -29,7 +29,7 @@ fn markdown_headings(lines: &[&str]) -> Vec<(usize, usize)> {
         let trimmed = line.trim_start();
         if let Some(marker) = fence_marker(trimmed) {
             fence = match fence {
-                Some(open) if marker.starts_with(open) => None,
+                Some(open) if closes_fence(open, marker, trimmed) => None,
                 Some(open) => Some(open),
                 None => Some(marker),
             };
@@ -44,10 +44,24 @@ fn markdown_headings(lines: &[&str]) -> Vec<(usize, usize)> {
     headings
 }
 
+/// The run of backticks or tildes a fence line starts with: three or more.
 fn fence_marker(line: &str) -> Option<&str> {
-    ["```", "~~~"]
-        .into_iter()
-        .find(|marker| line.starts_with(marker))
+    let character = line
+        .chars()
+        .next()
+        .filter(|character| matches!(character, '`' | '~'))?;
+    let length = line
+        .chars()
+        .take_while(|&next| next == character)
+        .count();
+    (length >= 3).then(|| &line[..length])
+}
+
+/// Whether `line`, starting with fence `marker`, closes the fence `open`
+/// opened: the same character, at least as many of it, and nothing after
+/// but whitespace.
+fn closes_fence(open: &str, marker: &str, line: &str) -> bool {
+    marker.starts_with(open) && line[marker.len()..].trim().is_empty()
 }
 
 fn heading_level(line: &str) -> Option<usize> {

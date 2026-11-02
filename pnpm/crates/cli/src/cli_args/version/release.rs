@@ -156,6 +156,7 @@ impl PlannedWorkspaceRelease {
     fn notes_options(
         &self,
         config: &Config,
+        workspace_dir: &Path,
         summary: Option<String>,
     ) -> miette::Result<pnpm_versioning::ReleaseNotesOptions> {
         let dirs: HashSet<String> = self.plan.releases
@@ -163,7 +164,16 @@ impl PlannedWorkspaceRelease {
             .filter(|release| self.notes_registries.contains_key(&release.name))
             .map(|release| release.dir.clone())
             .collect();
-        let stores_notes = !dirs.is_empty()
+        // A private project is never published: its release keeps a
+        // committed changelog, and no note is composed for it.
+        let published = self.projects
+            .iter()
+            .filter(|project| !project.private)
+            .map(|project| pnpm_versioning::to_project_dir(workspace_dir, &project.root_dir))
+            .collect::<HashSet<String>>();
+        let stores_notes = dirs
+            .iter()
+            .any(|dir| published.contains(dir))
             && pnpm_versioning::changelog_storage(Some(&config.versioning))
                 == pnpm_versioning::ChangelogStorage::Registry;
         if summary.is_some() && !stores_notes {
@@ -205,7 +215,7 @@ impl PlannedWorkspaceRelease {
             return Ok(());
         }
 
-        let notes = self.notes_options(config, args.release_notes_summary(dir)?)?;
+        let notes = self.notes_options(config, workspace_dir, args.release_notes_summary(dir)?)?;
         let confirmed = self.confirmed_published_versions(config, workspace_dir).await?;
         let Self {
             plan,

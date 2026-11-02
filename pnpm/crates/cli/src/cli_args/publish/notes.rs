@@ -90,6 +90,40 @@ impl PublishArgs {
         Ok(())
     }
 
+    /// Check the version note of every package in `to_publish` against the
+    /// registry's content rules, so a note that breaks them stops a
+    /// recursive publish before its first upload rather than halfway
+    /// through.
+    pub(super) fn check_version_notes(
+        &self,
+        config: &Config,
+        graph: &pnpm_workspace_projects_filter::ProjectGraph<pnpm_workspace::GraphPkg<'_>>,
+        to_publish: &HashSet<PathBuf>,
+    ) -> miette::Result<()> {
+        if self.flags.manifest.notes.no_release_notes {
+            return Ok(());
+        }
+        for (root, node) in graph
+            .iter()
+            .filter(|(root, _)| to_publish.contains(*root))
+        {
+            let manifest = node.package.project.manifest.value();
+            if notes_registry_of_manifest(config, manifest).is_none() {
+                continue;
+            }
+            let package =
+                NotesPackage { dir: root, source_manifest: manifest, published_manifest: manifest };
+            if let Some((text, source)) = version_note_source(config, &package, None)? {
+                validate_note(&text)
+                    .map_err(miette::Report::new)
+                    .wrap_err_with(|| {
+                        format!("Release notes of {} from {source}", package_id(manifest))
+                    })?;
+            }
+        }
+        Ok(())
+    }
+
     /// Where the notes of this publish go.
     pub(super) fn release_notes_target(&self, config: &Config) -> ReleaseNotesTarget {
         if self.flags.manifest.notes.no_release_notes {
@@ -251,7 +285,11 @@ fn changelog_note(dir: &Path, manifest: &Value) -> Option<String> {
     find_changelog_section(&normalize_line_endings(&changelog), version)
 }
 
-/// The parked publication whose every member is among `members`.
+/// The parked publication that `members` (manifests of the workspace)
+/// publish. A batch is one publication, so it may publish the members of at
+/// most one parked publication, and all of them: otherwise a composed
+/// publication note would be lost or sent for a release it does not
+/// describe.
 fn parked_publication(
     config: &Config,
     members: &[&Value],
@@ -267,13 +305,46 @@ fn parked_publication(
             Some(format!("{name}@{version}"))
         })
         .collect();
-    Ok(read_parked_publications(workspace_dir)?
-        .into_iter()
-        .find(|publication| {
-            publication.members
+    let mut touched: Vec<pnpm_versioning::ParkedPublication> =
+        read_parked_publications(workspace_dir)?
+            .into_iter()
+            .filter(|publication| {
+                publication.members
+                    .iter()
+                    .any(|member| keys.contains(member))
+            })
+            .collect();
+    match touched.len() {
+        0 => Ok(None),
+        1 => {
+            let publication = touched.remove(0);
+            let whole = publication.members
                 .iter()
-                .all(|member| keys.contains(member))
-        }))
+                .all(|member| keys.contains(member));
+            if whole {
+                Ok(Some(publication))
+            } else {
+                Err(partial_parked_publication(&publication))
+            }
+        }
+        _ => Err(several_parked_publications()),
+    }
+}
+
+fn several_parked_publications() -> miette::Report {
+    miette::miette!(
+        code = "ERR_PNPM_RELEASE_NOTES_SEVERAL_PUBLICATIONS",
+        help = r#"Publish each release that "pnpm version -r" composed notes for with its own "pnpm publish -r --batch", selecting its packages with --filter."#,
+        "This batch publishes packages of several releases that \"pnpm version -r\" composed release notes for, and a batch is one release",
+    )
+}
+
+fn partial_parked_publication(publication: &pnpm_versioning::ParkedPublication) -> miette::Report {
+    miette::miette!(
+        code = "ERR_PNPM_RELEASE_NOTES_PARTIAL_PUBLICATION",
+        help = format!("Publish {} together, in one batch.", publication.members.join(", "),),
+        "This batch publishes only part of a release that \"pnpm version -r\" composed release notes for",
+    )
 }
 
 /// `note` after the registry's content rules, reported with its source.

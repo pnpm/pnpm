@@ -5,7 +5,11 @@ use node_semver::Version;
 use pnpm_config::Config;
 use pnpm_network::ThrottledClient;
 use pnpm_release_notes::{NoteEntry, NotesList, is_in_upgrade_range};
-use std::{collections::HashMap, sync::Mutex};
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+};
+use tokio::sync::OnceCell;
 
 /// The notes of an upgrade: version notes newest first, and the
 /// publication notes they came out of, each once.
@@ -36,12 +40,18 @@ impl UpgradeNotes {
     }
 }
 
-/// Reads notes for one command run. A publication note is fetched once,
-/// however many upgraded packages came out of it.
+/// Reads notes for one command run. A publication note is fetched once per
+/// credential it is read with, however many upgraded packages came out of
+/// it, even when they ask for it at the same time.
 pub(crate) struct NotesReader<'a> {
     http: NotesHttp<'a>,
-    publications: Mutex<HashMap<String, Option<String>>>,
+    publications: Mutex<HashMap<PublicationKey, Arc<OnceCell<Option<String>>>>>,
 }
+
+/// A publication note's URL and the `Authorization` header it is read with:
+/// a package scope can have credentials of its own, and what one credential
+/// may read says nothing about another.
+type PublicationKey = (String, Option<String>);
 
 /// A version in an upgrade's range, before its publication note is read.
 struct RangeEntry {
@@ -191,20 +201,21 @@ impl<'a> NotesReader<'a> {
     }
 
     async fn publication_text(&self, url: &str, package: &str) -> miette::Result<Option<String>> {
-        let cached = self.publications
-            .lock()
-            .expect("publication cache lock")
-            .get(url)
-            .cloned();
-        if let Some(text) = cached {
-            return Ok(text);
-        }
-        let text = self.http.publication_note(url, package).await?.map(|(text, _)| text);
-        self.publications
-            .lock()
-            .expect("publication cache lock")
-            .insert(url.to_owned(), text.clone());
-        Ok(text)
+        let key = (url.to_owned(), self.http.auth_header(url, package));
+        let cell = Arc::clone(
+            self.publications
+                .lock()
+                .expect("publication cache lock")
+                .entry(key)
+                .or_default(),
+        );
+        let text = cell.get_or_try_init(|| async {
+            Ok::<_, miette::Report>(
+                self.http.publication_note(url, package).await?.map(|(text, _)| text),
+            )
+        })
+        .await?;
+        Ok(text.clone())
     }
 }
 

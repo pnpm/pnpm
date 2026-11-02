@@ -68,11 +68,11 @@ pub struct PublishOutputArgs {
 
 #[derive(Debug, Clone, clap::Args)]
 pub struct PublishNotesArgs {
-    /// Release notes to send to a registry declared with `serverType: pnpr`:
-    /// a file, or the text itself. Publishing one package, they are its
-    /// version notes. Publishing several with `--batch`, they are the notes
-    /// of the whole release.
-    #[clap(long = "release-notes", value_name = "FILE|TEXT")]
+    /// A file of release notes to send to a registry declared with
+    /// `serverType: pnpr`. Publishing one package, they are its version
+    /// notes. Publishing several with `--batch`, they are the notes of the
+    /// whole release.
+    #[clap(long = "release-notes", value_name = "FILE")]
     pub release_notes: Option<String>,
     /// Send no release notes, not even those read from `CHANGELOG.md` or
     /// change intents.

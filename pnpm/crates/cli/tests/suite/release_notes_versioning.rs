@@ -167,7 +167,7 @@ fn a_summary_given_to_version_goes_above_the_publication_note() {
     // of its own for it.
     let refused = pnpm(&workspace)
         .with_args(["-r", "publish", "--batch", "--force", "--no-git-checks"])
-        .with_args(["--release-notes", "Another summary."])
+        .with_args(["--release-notes", "summary.md"])
         .output()
         .expect("run pnpm publish");
     assert!(!refused.status.success());
@@ -219,10 +219,11 @@ fn version_refuses_a_summary_with_nowhere_to_go() {
         "packages:\n  - packages/*\nversioning:\n  fixed:\n    - [a, b]\n",
     )
     .expect("write pnpm-workspace.yaml");
+    fs::write(workspace.join("summary.md"), "Summary.\n").expect("write summary");
 
     for args in [
-        &["version", "-r", "--no-git-checks", "--release-notes", "Summary."][..],
-        &["version", "patch", "--no-git-checks", "--release-notes", "Summary."][..],
+        &["version", "-r", "--no-git-checks", "--release-notes", "summary.md"][..],
+        &["version", "patch", "--no-git-checks", "--release-notes", "summary.md"][..],
     ] {
         let output = pnpm(&workspace)
             .with_args(args)
@@ -232,6 +233,58 @@ fn version_refuses_a_summary_with_nowhere_to_go() {
         let stderr = String::from_utf8_lossy(&output.stderr);
         assert!(stderr.contains("ERR_PNPM_RELEASE_NOTES_WITHOUT_"), "{args:?}: {stderr}");
     }
+    assert_eq!(intent_files(&workspace), ["only-a.md", "shared.md"]);
+    drop(root);
+}
+
+#[test]
+fn a_batch_publishes_a_composed_release_whole() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let mut server = mockito::Server::new();
+    let registry = format!("{}/", server.url());
+    write_workspace(&workspace, &registry);
+    run(pnpm(&workspace).with_args(["version", "-r", "--no-git-checks"]));
+    let upload = server
+        .mock("PUT", Matcher::Any)
+        .expect(0)
+        .create();
+
+    let output = pnpm(&workspace)
+        .with_args(["--filter", "a", "-r", "publish", "--batch", "--force", "--no-git-checks"])
+        .output()
+        .expect("run pnpm publish");
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("ERR_PNPM_RELEASE_NOTES_PARTIAL_PUBLICATION"), "{stderr}");
+    upload.assert();
+    drop(root);
+}
+
+#[test]
+fn version_refuses_a_summary_for_private_releases_only() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(&workspace, "https://registry.example/");
+    for name in ["a", "b"] {
+        fs::write(
+            workspace
+                .join("packages")
+                .join(name)
+                .join("package.json"),
+            json!({ "name": name, "version": "1.0.0", "private": true }).to_string(),
+        )
+        .expect("write package.json");
+    }
+    fs::write(workspace.join("summary.md"), "Summary.\n").expect("write summary");
+
+    let output = pnpm(&workspace)
+        .with_args(["version", "-r", "--no-git-checks", "--release-notes", "summary.md"])
+        .output()
+        .expect("run pnpm version");
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("ERR_PNPM_RELEASE_NOTES_WITHOUT_REGISTRY"), "{stderr}");
     assert_eq!(intent_files(&workspace), ["only-a.md", "shared.md"]);
     drop(root);
 }

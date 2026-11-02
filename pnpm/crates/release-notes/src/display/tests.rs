@@ -34,3 +34,22 @@ fn brackets_that_are_not_links_stay() {
 fn removes_control_and_bidirectional_override_characters() {
     assert_eq!(render_note("safe\u{1b}[2J\u{202E}text\n\tmore"), "safe[2Jtext\n\tmore");
 }
+
+#[test]
+fn many_unmatched_brackets_render_in_linear_time() {
+    let note = "[".repeat(200_000);
+    assert_eq!(render_note(&note), note);
+}
+
+#[test]
+fn deeply_nested_links_render_without_unbounded_recursion() {
+    let depth = 50_000;
+    let note = format!("{}x{}", "[".repeat(depth), "](u)".repeat(depth));
+    let rendered = render_note(&note);
+    assert!(rendered.ends_with("(u)"), "{}", &rendered[rendered.len() - 20..]);
+}
+
+#[test]
+fn nested_links_show_every_target() {
+    assert_eq!(render_note("[see [docs](d)](o)"), "see docs (d) (o)");
+}

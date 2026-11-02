@@ -50,7 +50,10 @@ pub fn write_parked_publication(
     let dir = publications_dir(workspace_dir);
     fs::create_dir_all(&dir).map_err(|source| VersioningError::Write { path: dir, source })?;
     let json = serde_json::to_string_pretty(publication).expect("serialize parked publication");
-    fs::write(&path, format!("{json}\n")).map_err(|source| VersioningError::Write { path, source })
+    // A torn file would not parse and be skipped, losing the publication's
+    // name and note, so it is replaced whole.
+    pnpm_fs::write_atomic(&path, format!("{json}\n").as_bytes())
+        .map_err(|source| VersioningError::Write { path, source })
 }
 
 /// Every parked publication. A file that does not parse is skipped, so a

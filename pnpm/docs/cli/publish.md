@@ -105,9 +105,9 @@ group is fine, and mismatched credentials for one registry are rejected *before*
 anything is published, rather than after part of the release went out. The
 `publish` and `postpublish` scripts run after each completed group.
 
-### --release-notes &lt;file|text\>
+### --release-notes &lt;file\>
 
-Release notes to send to a registry declared with [`serverType: pnpr`](../registries.md#servertype). The value is read as a file when one exists at that path, and used as the notes text otherwise. Publishing one package, the notes are its version notes. Publishing several packages with `--batch`, they are the notes of the whole release.
+A file of release notes to send to a registry declared with [`serverType: pnpr`](../registries.md#servertype). The publish fails when the file does not exist. Publishing one package, the notes are its version notes. Publishing several packages with `--batch`, they are the notes of the whole release.
 
 In a workspace that uses [pnpm's versioning](../versioning.md#release-notes-on-pnpr), give the summary to `pnpm version -r --release-notes` instead: `pnpm version -r` composes every note of the release, and `pnpm publish` fails with `ERR_PNPM_RELEASE_NOTES_FROM_VERSIONING` when `--release-notes` is given for packages it composed notes for.
 

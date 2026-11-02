@@ -93,8 +93,9 @@ fn publish_sends_no_notes_to_a_registry_not_declared_pnpr() {
     let mut server = mockito::Server::new();
     write_project(dir.path(), &format!("{}/", server.url()), false);
     let mock = expect_notes(&mut server, None);
+    fs::write(dir.path().join("notes.md"), "Ignored.\n").expect("write notes.md");
 
-    assert_success(&publish(dir.path(), &["--release-notes", "Ignored."]));
+    assert_success(&publish(dir.path(), &["--release-notes", "notes.md"]));
     mock.assert();
 }
 
@@ -111,13 +112,20 @@ fn release_notes_option_gives_the_version_note() {
 }
 
 #[test]
-fn release_notes_option_takes_text_and_no_release_notes_sends_none() {
+fn a_missing_release_notes_file_fails_and_no_release_notes_sends_none() {
     let dir = tempfile::tempdir().expect("project dir");
     let mut server = mockito::Server::new();
     write_project(dir.path(), &format!("{}/", server.url()), true);
-    let text = expect_notes(&mut server, Some("Written inline."));
-    assert_success(&publish(dir.path(), &["--release-notes", "Written inline."]));
-    text.assert();
+    let upload = server
+        .mock("PUT", "/notes-pkg")
+        .expect(0)
+        .create();
+    let mistyped = publish(dir.path(), &["--release-notes", "NOTES.md"]);
+    assert!(!mistyped.status.success(), "a mistyped path is not published as the note");
+    let stderr = String::from_utf8_lossy(&mistyped.stderr);
+    assert!(stderr.contains("ERR_PNPM_RELEASE_NOTES_FILE_NOT_FOUND"), "{stderr}");
+    upload.assert();
+    upload.remove();
 
     let none = expect_notes(&mut server, None);
     assert_success(&publish(dir.path(), &["--no-release-notes", "--force"]));
@@ -134,7 +142,8 @@ fn a_note_with_a_control_character_fails_before_uploading() {
         .expect(0)
         .create();
 
-    let output = publish(dir.path(), &["--release-notes", "clear \u{1b}[2J the screen"]);
+    fs::write(dir.path().join("notes.md"), "clear \u{1b}[2J the screen").expect("write notes.md");
+    let output = publish(dir.path(), &["--release-notes", "notes.md"]);
 
     assert!(!output.status.success(), "the publish must fail");
     upload.assert();
@@ -184,6 +193,49 @@ fn a_batch_sends_version_notes_and_the_publication() {
 
     assert_success(&output);
     batch.assert();
+    drop(root);
+}
+
+#[test]
+fn a_recursive_publish_checks_every_note_before_its_first_upload() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let mut server = mockito::Server::new();
+    let registry = format!("{}/", server.url());
+    fs::write(workspace.join(".npmrc"), format!("registry={registry}\n")).expect("write .npmrc");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        format!("packages:\n  - a\n  - b\nregistries:\n  '{registry}':\n    serverType: pnpr\n"),
+    )
+    .expect("write pnpm-workspace.yaml");
+    for (name, changelog) in [("a", "- Fine.\n"), ("b", "- Clears \u{1b}[2J the screen.\n")] {
+        let dir = workspace.join(name);
+        fs::create_dir_all(&dir).expect("create project dir");
+        fs::write(
+            dir.join("package.json"),
+            json!({ "name": name, "version": "2.0.0" }).to_string(),
+        )
+        .expect("write package.json");
+        fs::write(dir.join("CHANGELOG.md"), format!("## 2.0.0\n\n{changelog}"))
+            .expect("write CHANGELOG.md");
+    }
+    let _packuments = server
+        .mock("GET", Matcher::Regex("^/(a|b)$".into()))
+        .with_status(404)
+        .create();
+    let upload = server
+        .mock("PUT", Matcher::Any)
+        .expect(0)
+        .create();
+
+    let output = pnpm(&workspace)
+        .with_args(["-r", "publish", "--force", "--no-git-checks"])
+        .output()
+        .expect("spawn pnpm publish");
+
+    assert!(!output.status.success(), "the publish must fail");
+    upload.assert();
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("ERR_PNPM_RELEASE_NOTES_FORBIDDEN_CHARACTER"), "{stderr}");
     drop(root);
 }
 
@@ -259,5 +311,30 @@ fn view_prints_nothing_when_the_version_has_no_notes() {
         .expect("spawn pnpm view");
 
     assert_success(&output);
+    assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "");
+}
+
+#[test]
+fn view_reads_no_notes_from_a_registry_not_declared_pnpr() {
+    let dir = tempfile::tempdir().expect("project dir");
+    let mut server = mockito::Server::new();
+    write_project(dir.path(), &format!("{}/", server.url()), false);
+    let _packument = server
+        .mock("GET", "/notes-pkg")
+        .with_body(packument())
+        .create();
+    let notes = server
+        .mock("GET", "/notes-pkg/1.1.0/notes")
+        .with_status(405)
+        .expect(0)
+        .create();
+
+    let output = pnpm(dir.path())
+        .with_args(["view", "notes-pkg@1.1.0", "releaseNotes"])
+        .output()
+        .expect("spawn pnpm view");
+
+    assert_success(&output);
+    notes.assert();
     assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "");
 }

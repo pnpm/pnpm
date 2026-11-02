@@ -11,7 +11,7 @@ use crate::cli_args::{
         build_registry_client, package_endpoint_url, resolve_registries_with_override,
         resolve_target_registry_for_package,
     },
-    release_notes::{NotesReader, render_upgrade_notes, upgrade_notes_json},
+    release_notes::{NotesReader, render_upgrade_notes, stores_notes, upgrade_notes_json},
 };
 use chrono::{DateTime, Utc};
 use clap::Args;
@@ -125,7 +125,9 @@ const RELEASE_NOTES_FIELD: &str = "releaseNotes";
 
 impl ViewArgs {
     /// The version's note and its publication's: rendered text, or the
-    /// structured notes under `--json`. `null` when there are none.
+    /// structured notes under `--json`. `null` when there are none, or the
+    /// registry is not declared `serverType: pnpr`, which has no notes
+    /// routes.
     async fn release_notes(
         &self,
         config: &Config,
@@ -135,6 +137,9 @@ impl ViewArgs {
         let registries = resolve_registries_with_override(config, self.registry.as_deref());
         let registry =
             resolve_target_registry_for_package(&registries, self.registry.as_deref(), name, None);
+        if !stores_notes(config, &registry) {
+            return Ok(Value::Null);
+        }
         let client = build_registry_client(config)?;
         let notes =
             NotesReader::new(&client, config).version_notes(&registry, name, version).await?;

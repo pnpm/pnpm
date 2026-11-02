@@ -214,3 +214,92 @@ async fn a_publication_url_on_another_origin_is_not_read() {
 
     assert_eq!(upgrade_notes(&server, "1.1.0").await, "1.1.0:\n  note");
 }
+
+/// Serves `name`'s notes list: one version, 1.1.0, from publication `p1`.
+async fn serve_publication_member(server: &mut mockito::Server, name: &str) -> mockito::Mock {
+    let list = json!({ "notes": [{ "version": "1.1.0", "publication": publication("p1") }] });
+    server
+        .mock("GET", format!("/{name}/-/notes").as_str())
+        .with_body(list.to_string())
+        .create_async()
+        .await
+}
+
+async fn read_upgrades(reader: &NotesReader<'_>, registry: &str, names: &[&str]) -> Vec<String> {
+    let reads = names
+        .iter()
+        .map(|name| async move {
+            let notes = reader
+                .upgrade_notes(registry, name, &version("1.0.0"), &version("1.1.0"))
+                .await
+                .expect("notes read");
+            render_upgrade_notes(&notes)
+        });
+    futures_util::future::join_all(reads).await
+}
+
+#[tokio::test]
+async fn packages_read_a_shared_publication_note_once_even_at_the_same_time() {
+    let mut server = mockito::Server::new_async().await;
+    let _one = serve_publication_member(&mut server, "one").await;
+    let _two = serve_publication_member(&mut server, "two").await;
+    let p1 = server
+        .mock("GET", "/-/publications/example/p1/notes")
+        .with_body("shared")
+        .expect(1)
+        .create_async()
+        .await;
+    let config = Config::default();
+    let client = ThrottledClient::default();
+    let reader = NotesReader::new(&client, &config);
+
+    let rendered = read_upgrades(&reader, &format!("{}/", server.url()), &["one", "two"]).await;
+
+    p1.assert_async().await;
+    assert_eq!(rendered, vec!["Release release-p1:\n  shared"; 2]);
+}
+
+#[tokio::test]
+async fn a_publication_note_read_with_one_credential_is_not_reused_for_another() {
+    let mut server = mockito::Server::new_async().await;
+    let _scoped = serve_publication_member(&mut server, "@team/one").await;
+    let _unscoped = serve_publication_member(&mut server, "two").await;
+    let for_team = server
+        .mock("GET", "/-/publications/example/p1/notes")
+        .match_header("authorization", "Bearer team")
+        .with_body("for the team")
+        .expect(1)
+        .create_async()
+        .await;
+    let for_others = server
+        .mock("GET", "/-/publications/example/p1/notes")
+        .match_header("authorization", "Bearer default")
+        .with_status(404)
+        .expect(1)
+        .create_async()
+        .await;
+    let registry = format!("{}/", server.url());
+    let host = registry.trim_start_matches("http:");
+    let config = Config {
+        auth_headers: std::sync::Arc::new(pnpm_network::AuthHeaders::from_by_scope(
+            [(
+                host.to_string(),
+                [
+                    ("@".to_string(), "Bearer default".to_string()),
+                    ("@team".to_string(), "Bearer team".to_string()),
+                ]
+                .into(),
+            )]
+            .into(),
+        )),
+        ..Config::default()
+    };
+    let client = ThrottledClient::default();
+    let reader = NotesReader::new(&client, &config);
+
+    let rendered = read_upgrades(&reader, &registry, &["@team/one", "two"]).await;
+
+    for_team.assert_async().await;
+    for_others.assert_async().await;
+    assert_eq!(rendered, vec!["Release release-p1:\n  for the team".to_string(), String::new()]);
+}

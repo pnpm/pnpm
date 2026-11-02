@@ -72,3 +72,13 @@ fn a_version_prefix_does_not_match_a_longer_version() {
 fn accepts_a_v_prefix() {
     assert_eq!(find_changelog_section("## v2.0.0\n\n- two\n", "2.0.0").as_deref(), Some("- two\n"));
 }
+
+#[test]
+fn a_shorter_fence_does_not_close_a_longer_one() {
+    let changelog =
+        "## 1.4.0\n\n````md\n```\n## 1.3.0\n```\n````\n\n- Added.\n\n## 1.3.0\n\n- Older.\n";
+    assert_eq!(
+        find_changelog_section(changelog, "1.4.0").as_deref(),
+        Some("````md\n```\n## 1.3.0\n```\n````\n\n- Added.\n"),
+    );
+}

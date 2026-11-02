@@ -222,6 +222,7 @@ impl PublishArgs {
             self.write_summary(workspace_root, &[])?;
             return Err(error);
         }
+        self.check_version_notes(config, graph, &to_publish)?;
         self.attach_publication_notes::<Reporter>(&mut opts, graph, &to_publish, config, dir)?;
         Ok((opts, to_publish))
     }
