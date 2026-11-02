@@ -27,8 +27,9 @@ use super::{
     cargo::{CratePublication, authorize_crate_publish, verify_crate_archive},
     oci::{OciPublication, authorize_publication},
     publishing::{
-        StagedPublish, cleanup_tmp_slots, commit_publication, publication_request,
-        publish_committed_response, replayed_outcome, stage_publish, validate_publish_doc,
+        StagedPublish, check_note_storage, cleanup_tmp_slots, commit_publication,
+        publication_request, publish_committed_response, replayed_outcome, stage_publish,
+        take_note, take_version_note, validate_publish_doc,
     },
     pypi::{PypiPublication, authorize_upload, verify_upload},
 };
@@ -44,7 +45,7 @@ use pnpr_error::RegistryError;
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_pypi::Upload;
 use pnpr_registry::Ecosystem;
-use pnpr_storage::publish::now_iso;
+use pnpr_storage::{metadata::PublishNotes, publish::now_iso};
 use serde::Deserialize;
 use serde_json::Value;
 use std::collections::HashSet;
@@ -151,7 +152,8 @@ async fn publish_batch(
     if let Some(replayed) = replayed_outcome(state, request.as_ref()).await? {
         return Ok(replayed);
     }
-    let packages = take_packages(&mut incoming)?;
+    let mut packages = take_packages(&mut incoming)?;
+    let notes = batch_notes(state, &mut incoming, &mut packages)?;
     let validated = validate_batch_entries(state, identity, packages).await?;
 
     // Hold every affected package's lock across the whole stage-and-commit,
@@ -164,7 +166,7 @@ async fn publish_batch(
     let _guards = state.inner.locks.packages.lock_many(&names).await;
 
     let staged = stage_entries(state, validated).await?;
-    let receipt = commit_publication(state, staged, request).await?;
+    let receipt = commit_publication(state, staged, notes, request).await?;
     Ok(publish_committed_response(&receipt))
 }
 
@@ -187,6 +189,24 @@ async fn stage_entries(
         }
     }
     Ok(staged)
+}
+
+/// The publication note at the top of a batch body and the version note of
+/// each entry, taken out of the body.
+fn batch_notes(
+    state: &AppState,
+    incoming: &mut Value,
+    packages: &mut [Value],
+) -> Result<PublishNotes, RegistryError> {
+    let publication = take_note(incoming)?;
+    let mut versions = Vec::new();
+    for package in packages {
+        let ecosystem = entry_ecosystem(package)?;
+        versions.extend(take_version_note(package, ecosystem)?);
+    }
+    let notes = PublishNotes { publication, versions };
+    check_note_storage(state, &notes)?;
+    Ok(notes)
 }
 
 /// The `packages` array of a batch body, which must not be empty.

@@ -17,7 +17,7 @@ use axum::{
 };
 use pnpr_storage::{
     BlobFinalize,
-    metadata::{ArtifactMember, BatchDocument, Generation, PublicationRequest},
+    metadata::{ArtifactMember, BatchDocument, Generation, PublicationRequest, PublishNotes},
 };
 use serde_json::{Map, json};
 
@@ -77,6 +77,7 @@ pub(in super::super) async fn replayed_outcome(
 pub(in super::super) async fn commit_publication(
     state: &AppState,
     mut staged: Vec<StagedPublish>,
+    notes: PublishNotes,
     request: Option<PublicationRequest>,
 ) -> Result<PublishReceipt, RegistryError> {
     let Some(database) = state.inner.storage.sqlite_metadata().cloned() else {
@@ -94,7 +95,7 @@ pub(in super::super) async fn commit_publication(
             expected: stage.base_version,
         })
         .collect();
-    let commit = database.commit_publication(&catalog, documents, artifacts, request).await?;
+    let commit = database.commit_publication(&catalog, documents, artifacts, notes, request).await?;
     Ok(PublishReceipt { generation: Some(commit.generation), publication: commit.publication })
 }
 

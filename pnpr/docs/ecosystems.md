@@ -249,6 +249,11 @@ With [SQLite metadata](storage.md#sqlite-metadata) a batch is stronger:
 - The commit is recorded as a publication. A top-level `"name": "v2.0.0"`
   field in the body names it, and the name must be unique within the org.
   See [publication endpoints](endpoints.md#publication-endpoints).
+- A top-level `"notes"` field is the publication's release note, and a
+  `"notes"` field in an npm, Cargo, or Python entry is the note of the version
+  it publishes. pnpr stores them with the release. A note breaking the
+  [content rules](endpoints.md#release-note-endpoints) rejects the whole
+  batch.
 
 An [image manifest](container-images.md) whose layers are already uploaded can
 ride along in the same batch. `GET /-/pnpr` advertises support as

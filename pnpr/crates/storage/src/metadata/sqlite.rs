@@ -18,6 +18,7 @@ pub use tags::TagHistoryEntry;
 mod batch;
 mod cache;
 mod commit;
+mod notes;
 mod packument;
 mod publications;
 mod publish;
@@ -28,7 +29,7 @@ mod versions;
 
 use super::{
     ArtifactMember, BatchDocument, Generation, PackageMetadata, PackageView, Publication,
-    PublicationCommit, PublicationRequest, RecordedOutcome, TagChange, TagUpdate,
+    PublicationCommit, PublicationRequest, PublishNotes, RecordedOutcome, TagChange, TagUpdate,
 };
 use crate::{DocumentWrite, HostedDocumentForUpdate, HostedDocumentVersion};
 use async_trait::async_trait;
@@ -161,17 +162,15 @@ impl SqliteMetadata {
         catalog: &str,
         documents: Vec<BatchDocument>,
         artifacts: Vec<ArtifactMember>,
+        notes: PublishNotes,
         request: Option<PublicationRequest>,
     ) -> Result<PublicationCommit> {
         let catalog = catalog.to_string();
         self.run(move |state| {
             let request = request.as_ref();
+            let connection = &mut state.connection;
             publish::commit_publication(
-                &mut state.connection,
-                &catalog,
-                &documents,
-                &artifacts,
-                request,
+                connection, &catalog, &documents, &artifacts, &notes, request,
             )
         })
         .await

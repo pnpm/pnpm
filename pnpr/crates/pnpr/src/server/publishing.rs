@@ -4,11 +4,13 @@ pub(super) use atomic::{
 pub(super) use attachments::{
     StagedPublish, ValidatedPublish, stage_publish, validate_publish_doc,
 };
+pub(super) use notes::{check_note_storage, take_note, take_version_note};
 pub(super) use tombstones::check_publish_tombstone;
 
 mod atomic;
 mod attachments;
 mod manifest;
+mod notes;
 mod tombstones;
 
 use std::collections::{BTreeSet, HashSet};
@@ -24,6 +26,7 @@ use pnpr_registry::{Ecosystem, Registry};
 use pnpr_storage::{
     HostedDocumentVersion, Storage,
     journal::{CommitOutcome, JournaledPublish},
+    metadata::PublishNotes,
     publish::{
         PendingAttachment, extract_attachments, now_iso, stream_decode_verify_and_write,
         write_sigstore_bundle,
@@ -173,25 +176,12 @@ pub(super) async fn publish_package(
         Err(err) => return err.into_response(),
     };
 
-    let incoming: Value = match serde_json::from_slice(&body) {
+    let mut incoming: Value = match serde_json::from_slice(&body) {
         Ok(v) => v,
         Err(err) => return RegistryError::Json(err).into_response(),
     };
-
-    // Reject a publish whose body name disagrees with the URL.
-    // npm/verdaccio return 400 here too; without this check a
-    // misrouted PUT silently overwrites the wrong on-disk
-    // package.json with another package's manifest.
-    let body_name = incoming.get("name").and_then(Value::as_str);
-    if body_name.is_some_and(|body_name| body_name != name.as_str()) {
-        return RegistryError::BadRequest {
-            reason: format!(
-                "package in URL ({:?}) does not match body ({:?})",
-                name.as_str(),
-                body_name.unwrap_or(""),
-            ),
-        }
-        .into_response();
+    if let Err(err) = check_body_name(&name, &incoming) {
+        return err.into_response();
     }
 
     let request = publication_request(state, identity, &incoming, None, None);
@@ -200,6 +190,10 @@ pub(super) async fn publish_package(
         Ok(None) => {}
         Err(err) => return err.into_response(),
     }
+    let notes = match single_publish_notes(state, &mut incoming) {
+        Ok(notes) => notes,
+        Err(err) => return err.into_response(),
+    };
 
     // Routing, masking, and the publish rule all run inside
     // `validate_publish_doc`: the write resolves to a hosted registry (or
@@ -220,10 +214,38 @@ pub(super) async fn publish_package(
         Ok(staged) => staged,
         Err(err) => return err.into_response(),
     };
-    match commit_publication(state, vec![staged], request).await {
+    match commit_publication(state, vec![staged], notes, request).await {
         Ok(receipt) => publish_committed_response(&receipt),
         Err(err) => err.into_response(),
     }
+}
+
+/// Reject a publish whose body name disagrees with the URL. npm and verdaccio
+/// answer 400 here too; without this check a misrouted `PUT` would overwrite
+/// another package's document.
+fn check_body_name(name: &CanonicalPackageName, incoming: &Value) -> Result<(), RegistryError> {
+    let body_name = incoming.get("name").and_then(Value::as_str);
+    if body_name.is_none_or(|body_name| body_name == name.as_str()) {
+        return Ok(());
+    }
+    Err(RegistryError::BadRequest {
+        reason: format!(
+            "package in URL ({:?}) does not match body ({:?})",
+            name.as_str(),
+            body_name.unwrap_or(""),
+        ),
+    })
+}
+
+/// The version note at the top of a single npm publish document.
+fn single_publish_notes(
+    state: &AppState,
+    incoming: &mut Value,
+) -> Result<PublishNotes, RegistryError> {
+    let versions = take_version_note(incoming, Ecosystem::Npm)?.into_iter().collect();
+    let notes = PublishNotes { publication: None, versions };
+    check_note_storage(state, &notes)?;
+    Ok(notes)
 }
 
 /// Make every staged publish visible, as one journaled transaction: a crash
@@ -240,7 +262,7 @@ pub(super) async fn commit_publishes(
     staged: Vec<StagedPublish>,
 ) -> Result<CommitOutcome, RegistryError> {
     if state.inner.storage.sqlite_metadata().is_some() {
-        commit_publication(state, staged, None).await?;
+        commit_publication(state, staged, PublishNotes::default(), None).await?;
         return Ok(CommitOutcome::default());
     }
     commit_through_journal(state, staged).await
