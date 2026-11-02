@@ -158,13 +158,14 @@ pub(super) fn link_node_bin(
         _ => target_path.to_path_buf(),
     };
     remove_stale_bin(shim_path)?;
-    symlink(link_target, shim_path)
-        .or_else(|error| symlink_creation_succeeded(shim_path, target_path, error))
-        .map_err(|error| LinkBinsError::LinkNodeBin {
-            src: target_path.to_path_buf(),
-            dst: shim_path.to_path_buf(),
-            error,
-        })?;
+    symlink_tolerating_concurrent_writers(shim_path, target_path, relocatable_root, || {
+        symlink(&link_target, shim_path)
+    })
+    .map_err(|error| LinkBinsError::LinkNodeBin {
+        src: target_path.to_path_buf(),
+        dst: shim_path.to_path_buf(),
+        error,
+    })?;
     Ok(true)
 }
 
@@ -238,13 +239,14 @@ where
         None => target_path.to_path_buf(),
     };
     remove_stale_bin(shim_path)?;
-    symlink(&link_target, shim_path)
-        .or_else(|error| symlink_creation_succeeded(shim_path, target_path, error))
-        .map_err(|error| LinkBinsError::SymlinkBin {
-            src: target_path.to_path_buf(),
-            dst: shim_path.to_path_buf(),
-            error,
-        })?;
+    symlink_tolerating_concurrent_writers(shim_path, target_path, None, || {
+        symlink(&link_target, shim_path)
+    })
+    .map_err(|error| LinkBinsError::SymlinkBin {
+        src: target_path.to_path_buf(),
+        dst: shim_path.to_path_buf(),
+        error,
+    })?;
     if !target_path.exists() {
         // pnpm's `Failed to create bin at ...` globalWarn: the
         // symlink dangles until a later step materializes the
@@ -259,18 +261,42 @@ where
     Ok(true)
 }
 
+/// Run `create_link`, which symlinks `shim_path` to `target_path`, accepting
+/// a link that another install sharing the store created concurrently.
+///
+/// `AlreadyExists` is success when the occupant already satisfies
+/// [`symlink_already_points_at`]. When the occupant is gone, a third writer
+/// removed it between the conflict and the check, so the creation is retried.
+/// Any other occupant, and a conflict that outlives the retries, surface the
+/// creation's error.
 #[cfg(any(unix, target_os = "wasi"))]
-pub(super) fn symlink_creation_succeeded(
+pub(super) fn symlink_tolerating_concurrent_writers(
     shim_path: &Path,
     target_path: &Path,
-    error: io::Error,
-) -> Result<(), io::Error> {
-    if error.kind() == io::ErrorKind::AlreadyExists
-        && symlink_already_points_at(shim_path, target_path, None)
-    {
-        Ok(())
-    } else {
-        Err(error)
+    relocatable_root: Option<&Path>,
+    mut create_link: impl FnMut() -> io::Result<()>,
+) -> io::Result<()> {
+    const MAX_ATTEMPTS: usize = 4;
+    let mut attempt = 1;
+    loop {
+        let error = match create_link() {
+            Ok(()) => return Ok(()),
+            Err(error) => error,
+        };
+        if error.kind() != io::ErrorKind::AlreadyExists {
+            return Err(error);
+        }
+        if symlink_already_points_at(shim_path, target_path, relocatable_root) {
+            return Ok(());
+        }
+        let occupant_removed = matches!(
+            std::fs::symlink_metadata(shim_path),
+            Err(metadata_error) if metadata_error.kind() == io::ErrorKind::NotFound,
+        );
+        if !occupant_removed || attempt == MAX_ATTEMPTS {
+            return Err(error);
+        }
+        attempt += 1;
     }
 }
 

@@ -1,5 +1,5 @@
 #[cfg(unix)]
-use super::super::executable::symlink_creation_succeeded;
+use super::super::executable::symlink_tolerating_concurrent_writers;
 use super::{
     Arc, Host, LinkBinsOptions, PackageBinSource, Path, Value, create_dir_all, json,
     link_bins_of_packages, read_file, read_to_string, tempdir, write_file,
@@ -12,25 +12,30 @@ use crate::shim::generate_sh_shim;
 use std::fs::metadata;
 
 #[cfg(unix)]
+fn create_concurrent_link_fixture() -> (tempfile::TempDir, std::path::PathBuf, std::path::PathBuf) {
+    let tmp = tempdir().unwrap();
+    create_dir_all(tmp.path().join(".bin")).unwrap();
+    let target = tmp.path().join("package/cli.js");
+    create_dir_all(target.parent().unwrap()).unwrap();
+    write_file(&target, "cli").unwrap();
+    let shim = tmp.path().join(".bin/cli");
+    (tmp, target, shim)
+}
+
+#[cfg(unix)]
+fn already_exists() -> std::io::Result<()> {
+    Err(std::io::Error::from(std::io::ErrorKind::AlreadyExists))
+}
+
+#[cfg(unix)]
 #[test]
 fn concurrent_executable_symlink_creation_accepts_the_expected_target() {
     use std::os::unix::fs::symlink;
 
-    let tmp = tempdir().unwrap();
-    let bins = tmp.path().join(".bin");
-    create_dir_all(&bins).unwrap();
-    let target = tmp.path().join("package/cli.js");
-    create_dir_all(target.parent().unwrap()).unwrap();
-    write_file(&target, "cli").unwrap();
-    let shim = bins.join("cli");
+    let (_tmp, target, shim) = create_concurrent_link_fixture();
     symlink("../package/cli.js", &shim).unwrap();
 
-    symlink_creation_succeeded(
-        &shim,
-        &target,
-        std::io::Error::from(std::io::ErrorKind::AlreadyExists),
-    )
-    .unwrap();
+    symlink_tolerating_concurrent_writers(&shim, &target, None, already_exists).unwrap();
 
     assert_eq!(std::fs::read_link(shim).unwrap(), Path::new("../package/cli.js"));
 }
@@ -40,21 +45,69 @@ fn concurrent_executable_symlink_creation_accepts_the_expected_target() {
 fn concurrent_executable_symlink_creation_rejects_a_different_target() {
     use std::os::unix::fs::symlink;
 
-    let tmp = tempdir().unwrap();
-    let bins = tmp.path().join(".bin");
-    create_dir_all(&bins).unwrap();
-    let target = tmp.path().join("package/cli.js");
-    create_dir_all(target.parent().unwrap()).unwrap();
-    write_file(&target, "cli").unwrap();
-    let shim = bins.join("cli");
+    let (_tmp, target, shim) = create_concurrent_link_fixture();
     symlink("../package/other.js", &shim).unwrap();
 
-    let error = symlink_creation_succeeded(
-        &shim,
-        &target,
-        std::io::Error::from(std::io::ErrorKind::AlreadyExists),
-    )
+    let error =
+        symlink_tolerating_concurrent_writers(&shim, &target, None, already_exists).unwrap_err();
+
+    assert_eq!(error.kind(), std::io::ErrorKind::AlreadyExists);
+}
+
+/// A third writer removes the link between this writer's conflict and its
+/// check, so the creation must be retried rather than reported.
+#[cfg(unix)]
+#[test]
+fn concurrent_executable_symlink_creation_retries_after_the_link_is_removed() {
+    use std::os::unix::fs::symlink;
+
+    let (_tmp, target, shim) = create_concurrent_link_fixture();
+    let mut attempts = 0;
+
+    symlink_tolerating_concurrent_writers(&shim, &target, None, || {
+        attempts += 1;
+        if attempts == 1 { already_exists() } else { symlink("../package/cli.js", &shim) }
+    })
+    .unwrap();
+
+    assert_eq!(attempts, 2);
+    assert_eq!(std::fs::read_link(shim).unwrap(), Path::new("../package/cli.js"));
+}
+
+#[cfg(unix)]
+#[test]
+fn concurrent_executable_symlink_creation_stops_retrying() {
+    let (_tmp, target, shim) = create_concurrent_link_fixture();
+    let mut attempts = 0;
+
+    let error = symlink_tolerating_concurrent_writers(&shim, &target, None, || {
+        attempts += 1;
+        already_exists()
+    })
     .unwrap_err();
+
+    assert_eq!(error.kind(), std::io::ErrorKind::AlreadyExists);
+    assert_eq!(attempts, 4);
+}
+
+/// An absolute node link inside the relocatable root stops working when the
+/// root moves, so a concurrent writer's absolute link is not accepted there.
+#[cfg(unix)]
+#[test]
+fn concurrent_node_symlink_creation_rejects_an_absolute_link_in_a_relocatable_root() {
+    use std::os::unix::fs::symlink;
+
+    let tmp = tempdir().unwrap();
+    create_dir_all(tmp.path().join(".bin")).unwrap();
+    let target = tmp.path().join("runtime/bin/node");
+    create_dir_all(target.parent().unwrap()).unwrap();
+    write_file(&target, "node").unwrap();
+    let shim = tmp.path().join(".bin/node");
+    symlink(&target, &shim).unwrap();
+
+    let error =
+        symlink_tolerating_concurrent_writers(&shim, &target, Some(tmp.path()), already_exists)
+            .unwrap_err();
 
     assert_eq!(error.kind(), std::io::ErrorKind::AlreadyExists);
 }
