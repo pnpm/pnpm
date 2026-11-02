@@ -10,10 +10,10 @@ use pnpm_versioning::read_parked_publications;
 use serde_json::Value;
 use std::collections::HashSet;
 
-/// Refuse a batch whose packing changed the registry, published name, or
-/// version of a member of the composed publication: its name and note
-/// go to the registry chosen before packing, and a later
-/// `pnpm version -r` confirms the release under the identity it
+/// Refuse a batch whose packing moved a package into or out of the composed
+/// publication's registry, or changed the published name or version of a
+/// member: its name and note go to the registry chosen before packing, and
+/// a later `pnpm version -r` confirms the release under the identity it
 /// composed.
 pub(in crate::cli_args::publish) fn check_packed_members(
     config: &Config,
@@ -26,11 +26,15 @@ pub(in crate::cli_args::publish) fn check_packed_members(
     let changed = packed
         .iter()
         .find(|pkg| {
-            notes_registry_of_manifest(config, &pkg.source_manifest).as_deref() == Some(registry)
-                && (notes_registry_of_manifest(config, &pkg.published_manifest).as_deref()
-                    != Some(registry)
-                    || published_identity(&pkg.published_manifest)
-                        != published_identity(&pkg.source_manifest))
+            let before = notes_registry_of_manifest(config, &pkg.source_manifest);
+            let after = notes_registry_of_manifest(config, &pkg.published_manifest);
+            let was_member = before.as_deref() == Some(registry);
+            // Moving a package into the registry or out of it changes which
+            // batch request carries the publication.
+            was_member != (after.as_deref() == Some(registry))
+                || was_member
+                    && published_identity(&pkg.published_manifest)
+                        != published_identity(&pkg.source_manifest)
         });
     let Some(pkg) = changed else {
         return Ok(());
@@ -90,13 +94,17 @@ pub(super) fn parked_publication(
 }
 
 /// The one registry that stores notes the members of `publication` publish
-/// to: its name and note go in that registry's batch request alone.
+/// to: its name and note go in that registry's batch request alone. `None`
+/// when none of them publishes to such a registry any more. A release whose
+/// members publish to several registries, or only partly to one that stores
+/// notes, is refused, since its notes would describe packages published
+/// without them.
 pub(super) fn publication_registry(
     config: &Config,
     publication: &pnpm_versioning::ParkedPublication,
     members: &[&Value],
 ) -> miette::Result<Option<String>> {
-    let registries: HashSet<String> = members
+    let registries: HashSet<Option<String>> = members
         .iter()
         .filter(|manifest| {
             let key = manifest
@@ -106,16 +114,16 @@ pub(super) fn publication_registry(
                 .map(|(name, version)| format!("{name}@{version}"));
             key.is_some_and(|key| publication.members.contains(&key))
         })
-        .filter_map(|manifest| notes_registry_of_manifest(config, manifest))
+        .map(|manifest| notes_registry_of_manifest(config, manifest))
         .collect();
     if registries.len() > 1 {
         return Err(miette::miette!(
             code = "ERR_PNPM_RELEASE_NOTES_SEVERAL_REGISTRIES",
             help = "Publish the packages of one release to one registry.",
-            r#"The release that "pnpm version -r" composed release notes for publishes to several registries, and its notes go to one"#,
+            r#"The packages of the release that "pnpm version -r" composed release notes for publish to several registries, or only some of them to a registry declared with serverType: pnpr"#,
         ));
     }
-    Ok(registries.into_iter().next())
+    Ok(registries.into_iter().next().flatten())
 }
 
 fn several_parked_publications() -> miette::Report {
