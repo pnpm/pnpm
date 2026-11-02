@@ -1,6 +1,8 @@
-//! The connections the libsql backend runs its operations on.
+//! The connections a libSQL database's operations run on.
 
-use super::{Connection, Database, LibsqlError, RegistryError, Result, Row, with_auth_timeout};
+use crate::with_deadline;
+use libsql::{Connection, Database, Error as LibsqlError, Row};
+use pnpr_error::{RegistryError, Result};
 use std::{
     future::Future,
     sync::{Arc, Mutex},
@@ -12,7 +14,7 @@ use tokio::sync::{Semaphore, SemaphorePermit};
 /// A remote query's rows stream in one HTTP response, and a response left
 /// unread closes its connection, so the next query would open a new one. A
 /// local row reads the live statement, so `read` runs before the next step.
-pub(super) async fn first_row<Output>(
+pub async fn first_row<Output>(
     mut rows: libsql::Rows,
     read: impl FnOnce(&Row) -> Result<Output>,
 ) -> Result<Option<Output>> {
@@ -28,7 +30,7 @@ pub(super) async fn first_row<Output>(
 ///
 /// A remote connection is a stream on the server, and each response hands the
 /// client the token for its next request on that stream. An operation dropped
-/// while a request is in flight (a client that disconnected, an auth timeout)
+/// while a request is in flight (a client that disconnected, a deadline)
 /// never receives that token, so the stream rejects every later request. A
 /// failed operation can leave its stream in a state just as unknown, and one
 /// still inside a transaction would pull the next operation into it. A
@@ -38,12 +40,12 @@ pub(super) async fn first_row<Output>(
 ///
 /// Reads and writes are bounded differently, because cancelling a write after
 /// it reached the database leaves its outcome unknown (see
-/// [`with_auth_timeout`]). [`Self::read`] runs under the deadline end to end.
+/// [`with_deadline`]). [`Self::read`] runs under the deadline end to end.
 /// [`Self::write`] is bounded only while it gets a connection, before anything
 /// is sent, and then runs to completion. Opening a connection can block (an
 /// embedded replica waits for its background sync), so it runs on the
 /// blocking thread pool, where the deadline can still give up on it.
-pub(super) struct ConnectionPool {
+pub struct ConnectionPool {
     db: Arc<Database>,
     idle: Mutex<Vec<Connection>>,
     slots: Semaphore,
@@ -57,7 +59,7 @@ pub(super) struct ConnectionPool {
 impl ConnectionPool {
     /// A pool that runs at most `max_connections` operations at once, with
     /// `timeout` as the deadline [`Self::read`] and [`Self::write`] apply.
-    pub(super) fn new(db: Database, max_connections: usize, timeout: Duration) -> Self {
+    pub fn new(db: Database, max_connections: usize, timeout: Duration) -> Self {
         Self {
             db: Arc::new(db),
             idle: Mutex::new(Vec::new()),
@@ -73,15 +75,12 @@ impl ConnectionPool {
     ///
     /// `operation` must not use the pool itself: with every connection held
     /// by an operation waiting for another, the pool deadlocks.
-    pub(super) async fn read<Loaded, Operation, Pending>(
-        &self,
-        operation: Operation,
-    ) -> Result<Loaded>
+    pub async fn read<Loaded, Operation, Pending>(&self, operation: Operation) -> Result<Loaded>
     where
         Operation: FnOnce(Connection) -> Pending,
         Pending: Future<Output = Result<Loaded>>,
     {
-        with_auth_timeout::<_, RegistryError>(self.timeout, async {
+        with_deadline::<_, RegistryError>(self.timeout, async {
             let (slot, conn) = self.checkout().await?;
             self.run_holding(slot, conn, operation).await
         })
@@ -93,16 +92,12 @@ impl ConnectionPool {
     /// the deadline, and otherwise runs to completion.
     ///
     /// `operation` must not use the pool itself; see [`Self::read`].
-    pub(super) async fn write<Loaded, Operation, Pending>(
-        &self,
-        operation: Operation,
-    ) -> Result<Loaded>
+    pub async fn write<Loaded, Operation, Pending>(&self, operation: Operation) -> Result<Loaded>
     where
         Operation: FnOnce(Connection) -> Pending,
         Pending: Future<Output = Result<Loaded>>,
     {
-        let (slot, conn) =
-            with_auth_timeout::<_, RegistryError>(self.timeout, self.checkout()).await?;
+        let (slot, conn) = with_deadline::<_, RegistryError>(self.timeout, self.checkout()).await?;
         self.run_holding(slot, conn, operation).await
     }
 
@@ -152,12 +147,12 @@ impl ConnectionPool {
 
     /// How many connection opens are still running.
     #[cfg(test)]
-    pub(super) fn opens_in_flight(&self, max_connections: usize) -> usize {
+    pub(crate) fn opens_in_flight(&self, max_connections: usize) -> usize {
         max_connections - self.opens.available_permits()
     }
 
     /// An unpooled connection, for setup that runs before any operation.
-    pub(super) fn connect(&self) -> std::result::Result<Connection, LibsqlError> {
+    pub fn connect(&self) -> std::result::Result<Connection, LibsqlError> {
         self.db.connect()
     }
 
@@ -166,8 +161,8 @@ impl ConnectionPool {
     ///
     /// A pull only brings frames the primary already has, so cutting one short
     /// at the deadline loses nothing.
-    pub(super) async fn sync(&self) -> Result<()> {
-        with_auth_timeout::<_, LibsqlError>(self.timeout, async {
+    pub async fn sync(&self) -> Result<()> {
+        with_deadline::<_, LibsqlError>(self.timeout, async {
             self.db.sync().await?;
             Ok(())
         })

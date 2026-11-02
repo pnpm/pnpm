@@ -1,11 +1,16 @@
-use super::{ConnectionPool, RegistryError};
+use crate::{
+    LibsqlConnector,
+    pool::ConnectionPool,
+    testing::{SYNC_STALL, serve_primary},
+};
 use axum::{Json, Router, extract::State, http::StatusCode, routing::post};
 use libsql::{Builder, Database};
+use pnpr_error::RegistryError;
 use serde_json::{Value, json};
 use std::{
     collections::HashSet,
     fmt::Write as _,
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, atomic::Ordering},
     time::Duration,
 };
 
@@ -169,4 +174,44 @@ async fn cursor(
         writeln!(body, "{line}").unwrap();
     }
     Ok(body)
+}
+
+/// Opening a replica connection waits for a background sync in progress. A
+/// stalled sync must not hold an operation past its deadline, nor leave more
+/// blocked opens behind than the pool has connections.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_stalled_replica_sync_does_not_hold_operations_past_their_deadline() {
+    let directory = tempfile::tempdir().unwrap();
+    let (primary, address, server) = serve_primary(directory.path().join("primary.db")).await;
+    let url = format!("http://{address}");
+    let db = Builder::new_remote_replica(
+        directory.path().join("replica.db"),
+        url.clone(),
+        String::new(),
+    )
+    .connector(LibsqlConnector::for_url(&url, false).unwrap())
+    .read_your_writes(false)
+    .sync_interval(Duration::from_millis(200))
+    .build()
+    .await
+    .unwrap();
+    primary.sync_stall.enabled.store(true, Ordering::SeqCst);
+    tokio::time::timeout(Duration::from_secs(5), primary.sync_stall.started.notified())
+        .await
+        .expect("a background sync reaches the stalled primary");
+
+    let max_connections = 2;
+    let pool = ConnectionPool::new(db, max_connections, Duration::from_millis(300));
+    let started = std::time::Instant::now();
+    let read = || pool.read(|conn| async move { Ok(conn.query("SELECT 1", ()).await?) });
+    let (first, second, third, fourth, fifth) = (read(), read(), read(), read(), read());
+    let reads: [_; 5] = tokio::join!(first, second, third, fourth, fifth).into();
+    let elapsed = started.elapsed();
+    let in_flight = pool.opens_in_flight(max_connections);
+    server.abort();
+    for read in &reads {
+        assert!(matches!(read, Err(RegistryError::AuthDatabaseTimeout)), "{read:?}");
+    }
+    assert!(elapsed < SYNC_STALL / 2, "{elapsed:?}");
+    assert_eq!(in_flight, max_connections, "opens still blocked once every read timed out");
 }

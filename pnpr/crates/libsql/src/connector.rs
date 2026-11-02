@@ -42,7 +42,7 @@ const MAX_DIAL_RETRY_DELAY: Duration = Duration::from_secs(5);
 
 /// Dials `https://` URLs over TLS and `http://` URLs in plain text.
 #[derive(Clone)]
-pub(super) struct LibsqlConnector {
+pub struct LibsqlConnector {
     tcp: HttpConnector,
     /// `None` for an `http://` database, which then needs no trust store.
     tls: Option<TlsConnector>,
@@ -54,7 +54,7 @@ pub(super) struct LibsqlConnector {
 }
 
 /// Keeps its [`LibsqlConnector`] retrying timed-out dials until dropped.
-pub(super) struct DialRetryGuard(Arc<AtomicBool>);
+pub struct DialRetryGuard(Arc<AtomicBool>);
 
 impl Drop for DialRetryGuard {
     fn drop(&mut self) {
@@ -65,14 +65,14 @@ impl Drop for DialRetryGuard {
 impl LibsqlConnector {
     /// The connector for the database at `url`. libsql dials every URL
     /// other than `http://`, such as `libsql://`, over HTTPS.
-    pub(super) fn for_url(url: &str, carries_token: bool) -> Result<Self, LibsqlError> {
+    pub fn for_url(url: &str, carries_token: bool) -> Result<Self, LibsqlError> {
         let connector =
             if is_plain_http(url) { Self::with_tls(None) } else { Self::with_platform_roots()? };
         Ok(Self { carries_token, ..connector })
     }
 
     /// A connector that verifies servers against the platform trust store.
-    pub(super) fn with_platform_roots() -> Result<Self, LibsqlError> {
+    pub fn with_platform_roots() -> Result<Self, LibsqlError> {
         let provider = Arc::new(rustls::crypto::aws_lc_rs::default_provider());
         let config = ClientConfig::builder_with_provider(provider)
             .with_safe_default_protocol_versions()
@@ -82,7 +82,8 @@ impl LibsqlConnector {
         Ok(Self::new(config))
     }
 
-    pub(super) fn new(config: ClientConfig) -> Self {
+    #[must_use]
+    pub fn new(config: ClientConfig) -> Self {
         Self::with_tls(Some(TlsConnector::from(Arc::new(config))))
     }
 
@@ -97,7 +98,8 @@ impl LibsqlConnector {
     /// Retry every dial that times out, with backoff, until the guard drops.
     /// A timed-out dial sent nothing, so the retry is safe for any request.
     /// The caller bounds the wait with its own deadline.
-    pub(super) fn retry_timed_out_dials(&self) -> DialRetryGuard {
+    #[must_use]
+    pub fn retry_timed_out_dials(&self) -> DialRetryGuard {
         self.retries_timed_out_dials.store(true, Ordering::Relaxed);
         DialRetryGuard(Arc::clone(&self.retries_timed_out_dials))
     }
@@ -123,7 +125,7 @@ impl LibsqlConnector {
 }
 
 /// Whether libsql dials `url` without TLS. The scheme is case-insensitive.
-pub(super) fn is_plain_http(url: &str) -> bool {
+pub(crate) fn is_plain_http(url: &str) -> bool {
     url.get(.."http://".len())
         .is_some_and(|scheme| scheme.eq_ignore_ascii_case("http://"))
 }
@@ -181,7 +183,7 @@ where
         if !retries_timed_out_dials.load(Ordering::Relaxed) || !is_timeout(&*error) {
             return Err(error);
         }
-        tracing::warn!(host = uri.host(), %error, ?delay, "auth database dial timed out, retrying");
+        tracing::warn!(host = uri.host(), %error, ?delay, "libSQL database dial timed out, retrying");
         tokio::time::sleep(delay).await;
         delay = (delay * 2).min(MAX_DIAL_RETRY_DELAY);
     }
@@ -201,7 +203,7 @@ fn is_timeout(error: &(dyn StdError + 'static)) -> bool {
     false
 }
 
-pub(super) enum MaybeTlsStream {
+pub enum MaybeTlsStream {
     Plain(TcpStream),
     Tls(Box<TlsStream<TcpStream>>),
 }
