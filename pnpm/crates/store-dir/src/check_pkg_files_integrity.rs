@@ -462,7 +462,10 @@ fn record_verified_mode(path: &Path, metadata: &fs::Metadata) {
     #[cfg(unix)]
     {
         use std::os::unix::fs::MetadataExt;
-        pnpm_fs::file_mode::record_verified_store_inode_mode(path, metadata.mode());
+        pnpm_fs::file_mode::record_verified_store_inode_mode(
+            path,
+            pnpm_fs::FileMode::from_mode(metadata.mode()),
+        );
     }
     #[cfg(not(unix))]
     let _ = (path, metadata);

@@ -1,5 +1,6 @@
 //! The on-disk modes of store inodes this process has already read.
 
+use crate::FileMode;
 use dashmap::DashMap;
 use std::{
     path::{Path, PathBuf},
@@ -20,11 +21,12 @@ use std::{
 /// the store verifier that stats every blob and the importer that needs the
 /// mode sit in different crates, and every hop between them is on the hot
 /// path. It holds one entry per store blob the process touched.
-static OBSERVED_STORE_MODES: LazyLock<DashMap<PathBuf, Option<u32>>> = LazyLock::new(DashMap::new);
+static OBSERVED_STORE_MODES: LazyLock<DashMap<PathBuf, Option<FileMode>>> =
+    LazyLock::new(DashMap::new);
 
 /// Remember the mode a `stat` of `store_path` has just read, so a later
 /// [`observed_store_inode_mode`] answers without a `stat`.
-pub fn record_store_inode_mode(store_path: &Path, mode: u32) {
+pub fn record_store_inode_mode(store_path: &Path, mode: FileMode) {
     OBSERVED_STORE_MODES.insert(store_path.to_path_buf(), Some(mode));
 }
 
@@ -32,7 +34,7 @@ pub fn record_store_inode_mode(store_path: &Path, mode: u32) {
 /// path is already known. The verifier reads without the CAS write lock, so
 /// its read may predate another thread's [`forget_store_inode_mode`] or the
 /// fresh `stat` that followed it, and must not overwrite either.
-pub fn record_verified_store_inode_mode(store_path: &Path, mode: u32) {
+pub fn record_verified_store_inode_mode(store_path: &Path, mode: FileMode) {
     OBSERVED_STORE_MODES
         .entry(store_path.to_path_buf())
         .or_insert(Some(mode));
@@ -48,6 +50,6 @@ pub fn forget_store_inode_mode(store_path: &Path) {
 /// The mode last recorded for `store_path`, or `None` when this process has
 /// not read it yet or has forgotten it.
 #[must_use]
-pub fn observed_store_inode_mode(store_path: &Path) -> Option<u32> {
+pub fn observed_store_inode_mode(store_path: &Path) -> Option<FileMode> {
     OBSERVED_STORE_MODES.get(store_path).and_then(|entry| *entry)
 }
