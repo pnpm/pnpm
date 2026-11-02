@@ -53,7 +53,7 @@ struct VersionEntry {
 
 fn version_entries(connection: &Connection, key: &PackageKey) -> Result<Vec<VersionEntry>> {
     let mut statement = connection.prepare_cached(
-        "SELECT v.version, v.published_at, v.accepted_generation, a.generation
+        "SELECT v.version, v.published_at, a.generation
          FROM versions v
          LEFT JOIN annotations a USING (catalog, ecosystem, name, version)
          WHERE v.catalog = ?1 AND v.ecosystem = ?2 AND v.name = ?3 AND v.revision_key = ?4
@@ -66,11 +66,10 @@ fn version_entries(connection: &Connection, key: &PackageKey) -> Result<Vec<Vers
             package: key.clone(),
             version: version.clone(),
             revision_key: ORDINARY.to_string(),
-            accepted_generation: to_generation(row.get(2)?),
             profile: SUBMITTED_PROFILE,
             representation: Representation::Full,
             renderer: RENDERER_VERSION,
-            annotation_generation: row.get::<_, Option<i64>>(3)?.map(to_generation),
+            annotation_generation: row.get::<_, Option<i64>>(2)?.map(to_generation),
         };
         Ok(VersionEntry { version, published_at: row.get(1)?, fragment })
     })?;

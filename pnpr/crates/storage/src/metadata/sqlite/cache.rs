@@ -23,18 +23,21 @@ pub(super) enum Representation {
     Full,
 }
 
-/// Everything a rendered version fragment depends on. A tag change touches
-/// none of it; a deprecation changes `annotation_generation` of one version.
+/// Everything a rendered version fragment depends on. A version and revision
+/// always name the same bytes, since an unpublished version is tombstoned and
+/// never accepted again, so the key needs no generation of its own. A tag
+/// change touches none of it; a deprecation changes `annotation_generation`
+/// of one version.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(super) struct FragmentKey {
     pub(super) package: PackageKey,
     pub(super) version: String,
     pub(super) revision_key: String,
-    /// Tells a version apart from an earlier one removed and accepted again.
-    pub(super) accepted_generation: u64,
     pub(super) profile: &'static str,
     pub(super) representation: Representation,
     pub(super) renderer: u32,
+    /// The generation of the version's annotations, for a representation
+    /// that embeds them, as the full packument embeds a deprecation.
     pub(super) annotation_generation: Option<u64>,
 }
 

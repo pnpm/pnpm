@@ -12,21 +12,11 @@ use serde_json::Value;
 /// Insert the rows of a version the store has not accepted yet.
 pub(super) fn insert_version(commit: &Commit<'_>, version: &str, rows: &VersionRows) -> Result<()> {
     let (catalog, ecosystem, name) = commit.key.params();
-    let generation = to_column(commit.generation);
     commit.transaction.execute(
         "INSERT INTO versions (catalog, ecosystem, name, version, revision_key, integrity,
-                               published_at, accepted_generation)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-        params![
-            catalog,
-            ecosystem,
-            name,
-            version,
-            ORDINARY,
-            rows.integrity(),
-            rows.published_at,
-            generation,
-        ],
+                               published_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        params![catalog, ecosystem, name, version, ORDINARY, rows.integrity(), rows.published_at],
     )?;
     let manifest = serde_json::to_string(&rows.manifest)?;
     let input_digest = super::commit::input_digest(rows)?;

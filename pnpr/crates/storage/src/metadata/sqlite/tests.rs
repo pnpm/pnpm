@@ -316,8 +316,9 @@ async fn removing_versions_and_packages() {
             .unwrap()
             .is_empty(),
     );
-    let mut republished = packument("pkg", &["1.0.0"]);
-    republished["versions"]["1.0.0"]["description"] = json!("a different manifest");
+    // The server's tombstone keeps a removed version from being accepted
+    // again, so a reclaimed name is published with new versions.
+    let republished = packument("pkg", &["3.0.0"]);
     write(&storage, "pkg", &republished).await;
     assert_eq!(read(&storage, "pkg").await, republished);
 }
