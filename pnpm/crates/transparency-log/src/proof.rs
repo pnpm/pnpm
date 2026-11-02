@@ -18,6 +18,8 @@ pub enum LogError {
     Tlog(tlog_tiles::Error),
     #[display("log entry of {size} bytes exceeds the entry size limit")]
     EntryTooLarge { size: usize },
+    #[display("adding the entries would overflow the tree size")]
+    TreeSizeOverflow,
     #[display("tile is not a C2SP hash tile")]
     InvalidTile,
     #[display("entry {index} is not in a tree of {size} entries")]

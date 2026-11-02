@@ -208,3 +208,9 @@ fn rejects_entries_too_large_for_a_bundle() {
     let error = integrate(&MemoryStore::default(), 0, &[large]).unwrap_err();
     assert!(matches!(error, LogError::EntryTooLarge { size: 65_536 }), "{error}");
 }
+
+#[test]
+fn rejects_entries_past_the_largest_tree_size() {
+    let error = integrate(&MemoryStore::default(), u64::MAX, &[b"a"]).unwrap_err();
+    assert!(matches!(error, LogError::TreeSizeOverflow), "{error}");
+}

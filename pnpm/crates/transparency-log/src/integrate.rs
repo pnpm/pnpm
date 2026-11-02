@@ -60,13 +60,16 @@ pub fn integrate<Store: HashReader, Entry: AsRef<[u8]>>(
     {
         return Err(LogError::EntryTooLarge { size: entry.as_ref().len() });
     }
+    let size = u64::try_from(entries.len())
+        .ok()
+        .and_then(|count| tree_size.checked_add(count))
+        .ok_or(LogError::TreeSizeOverflow)?;
     let mut overlay = Overlay { store, pending: BTreeMap::new() };
-    for (index, entry) in (tree_size..).zip(entries) {
+    for (index, entry) in (tree_size..size).zip(entries) {
         let hashes = stored_hashes(index, entry.as_ref(), &overlay).map_err(LogError::from)?;
         let first = stored_hash_index(0, index);
         overlay.pending.extend((first..).zip(hashes));
     }
-    let size = tree_size + entries.len() as u64;
     let root = tree_hash(size, &overlay).map_err(LogError::from)?;
     let stored_hashes = overlay.pending
         .into_iter()

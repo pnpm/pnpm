@@ -112,10 +112,12 @@ fn cosignature_message_prefixes_the_checkpoint() {
 #[test]
 fn rejects_invalid_names() {
     let public_key = SigningKey::from_bytes(&[1; 32]).verifying_key();
-    for name in ["", "has space", "has+plus"] {
+    let too_long = "n".repeat(256);
+    for name in ["", "has space", "has+plus", "has\u{1}control", &too_long] {
         assert_eq!(
             VerifierKey::new(name, KeyAlgorithm::Ed25519, public_key),
             Err(KeyError::InvalidName),
         );
     }
+    VerifierKey::new(&"n".repeat(255), KeyAlgorithm::CosignatureV1, public_key).unwrap();
 }

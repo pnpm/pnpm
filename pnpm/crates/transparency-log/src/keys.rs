@@ -17,6 +17,10 @@ pub const ED25519_SIGNATURE_TYPE: u8 = 0x01;
 /// (`cosignature/v1`).
 pub const COSIGNATURE_V1_SIGNATURE_TYPE: u8 = 0x04;
 
+/// The longest key name, in bytes, that tlog-cosignature allows for a log
+/// origin or a cosigner name.
+pub const MAX_KEY_NAME_LENGTH: usize = 255;
+
 /// What a note key signs, which is the signature type byte its encoded key
 /// starts with.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -77,12 +81,22 @@ pub struct VerifierKey {
 
 impl VerifierKey {
     /// Builds the key a signer of `algorithm` named `name` verifies with.
+    ///
+    /// The name must be a valid signed-note key name of at most
+    /// [`MAX_KEY_NAME_LENGTH`] bytes with no control characters (below
+    /// U+0020), as tlog-cosignature requires of log origins and cosigner
+    /// names.
     pub fn new(
         name: &str,
         algorithm: KeyAlgorithm,
         public_key: VerifyingKey,
     ) -> Result<Self, KeyError> {
-        if !signed_note::is_key_name_valid(name) {
+        let is_valid_name = signed_note::is_key_name_valid(name)
+            && name.len() <= MAX_KEY_NAME_LENGTH
+            && !name
+                .chars()
+                .any(|character| character < ' ');
+        if !is_valid_name {
             return Err(KeyError::InvalidName);
         }
         let key_id = signed_note::key_id(name, &encode_key(algorithm, &public_key));
