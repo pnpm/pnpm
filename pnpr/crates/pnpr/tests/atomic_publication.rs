@@ -13,7 +13,7 @@ use pnpr::{Config, MaxUsers, router};
 use pnpr_config::MetadataBackend;
 use pnpr_fixtures::MockConfigPresets;
 use pnpr_policy::{AccessList, PackageRules, RuleOverride};
-use pnpr_registry::PackagePattern;
+use pnpr_registry::{PackagePattern, Registries, Registry};
 use pnpr_storage::{Ecosystem, layout::local_blob_path};
 use serde_json::{Value, json};
 use std::{
@@ -280,4 +280,61 @@ fn only_bob_reads(rules: &PackageRules, pattern: &str) {
         .with_overrides(None, vec![(pattern, lists)])
         .unwrap();
     rules.replace(changed);
+}
+
+#[tokio::test]
+async fn an_empty_publication_name_names_nothing() {
+    let tmp = TempDir::new().unwrap();
+    let app = router(sqlite_config(tmp.path()));
+    let token = token(&app).await;
+    for package in ["first", "second"] {
+        let batch = json!({ "name": "", "packages": [publish_doc(package, "1.0.0", b"bytes")] });
+        let committed = send(&app, "PUT", "/-/pnpr/v0/publish", &token, Some(&batch)).await;
+        assert_eq!(committed.status, StatusCode::CREATED, "{}", committed.text);
+    }
+    let publication = send(&app, "GET", "/-/publications/-/2", &token, None).await;
+    assert_eq!(publication.body["name"], Value::Null);
+}
+
+#[tokio::test]
+async fn concurrent_identical_publishes_get_one_outcome() {
+    let tmp = TempDir::new().unwrap();
+    let app = router(sqlite_config(tmp.path()));
+    let token = token(&app).await;
+    let doc = publish_doc("raced", "1.0.0", b"bytes");
+    let first = send(&app, "PUT", "/npm/raced", &token, Some(&doc));
+    let second = send(&app, "PUT", "/npm/raced", &token, Some(&doc));
+    let (first, second) = tokio::join!(first, second);
+    for answer in [&first, &second] {
+        assert_eq!(answer.status, StatusCode::CREATED, "{}", answer.text);
+    }
+    assert_eq!(first.generation, second.generation);
+}
+
+#[tokio::test]
+async fn a_member_lookup_answers_only_for_a_package_its_registry_still_claims() {
+    let tmp = TempDir::new().unwrap();
+    let app = router(sqlite_config(tmp.path()));
+    let token = token(&app).await;
+    let batch = json!({ "packages": [publish_doc("unclaimed", "1.0.0", b"bytes")] });
+    let committed = send(&app, "PUT", "/-/pnpr/v0/publish", &token, Some(&batch)).await;
+    assert_eq!(committed.status, StatusCode::CREATED);
+
+    // The same store, served by a registry whose namespace no longer covers
+    // the package.
+    let mut narrowed = sqlite_config(tmp.path());
+    let patterns = vec![PackagePattern::parse("@foo/*", Ecosystem::Npm).unwrap()];
+    let graph = [
+        ("local".to_string(), Registry::Hosted { patterns }),
+        ("main".to_string(), Registry::Router { sources: vec!["local".to_string()] }),
+    ];
+    narrowed.routing.registries =
+        Registries::new(graph.into_iter().collect(), Some("main".to_string()));
+    let narrowed = router(narrowed);
+    let token = self::token(&narrowed).await;
+    let member =
+        send(&narrowed, "GET", "/-/publications/-?member=npm:unclaimed@1.0.0", &token, None).await;
+    assert_eq!(member.status, StatusCode::NOT_FOUND);
+    let publication = send(&narrowed, "GET", "/-/publications/-/1", &token, None).await;
+    assert_eq!(publication.status, StatusCode::NOT_FOUND);
 }

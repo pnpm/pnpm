@@ -58,7 +58,11 @@ const MAX_PUBLICATION_NAME: usize = 214;
 /// is never a decimal number, so `/-/publications/<org>/<id-or-name>` reads
 /// a segment as one or the other.
 pub(in super::super) fn publication_name(body: &Value) -> Result<Option<&str>, RegistryError> {
-    let name = body.get("name").and_then(Value::as_str);
+    // An empty name names nothing.
+    let name = body
+        .get("name")
+        .and_then(Value::as_str)
+        .filter(|name| !name.is_empty());
     if let Some(name) = name
         && name.len() > MAX_PUBLICATION_NAME
     {
@@ -67,7 +71,6 @@ pub(in super::super) fn publication_name(body: &Value) -> Result<Option<&str>, R
         });
     }
     if let Some(name) = name
-        && !name.is_empty()
         && name.bytes().all(|byte| byte.is_ascii_digit())
     {
         return Err(RegistryError::BadRequest {
@@ -112,11 +115,18 @@ pub(in super::super) async fn commit_publication(
         report_unrecorded(super::commit_through_journal(state, staged).await?)?;
         return Ok(PublishReceipt::default());
     };
-    let catalog = single_catalog(
-        staged
-            .iter()
-            .map(|stage| stage.org.as_deref().unwrap_or_default()),
-    )?;
+    let orgs = staged
+        .iter()
+        .map(|stage| stage.org.as_deref().unwrap_or_default());
+    let catalog = match single_catalog(orgs) {
+        Ok(catalog) => catalog,
+        Err(err) => {
+            for stage in staged {
+                super::cleanup_tmp_slots(stage.slots).await;
+            }
+            return Err(err);
+        }
+    };
     let promoted = promote_archives(state, &mut staged).await?;
     let artifacts = promoted.artifacts.clone();
     let documents = staged

@@ -161,11 +161,6 @@ async fn publish_batch(
     let request = publication_request(state, identity, &incoming, key, name);
     let packages = take_packages(&mut incoming)?;
     let validated = validate_batch_entries(state, identity, packages).await?;
-    // Every entry is authorized above, so a retry gets the outcome of the
-    // request it repeats only while its caller may still make it.
-    if let Some(replayed) = replayed_batch(state, request.as_ref(), &validated).await? {
-        return Ok(replayed);
-    }
 
     // Hold every affected package's lock across the whole stage-and-commit,
     // so concurrent writers of any package in the batch serialize with us
@@ -175,6 +170,13 @@ async fn publish_batch(
         .map(|entry| entry.key().as_str())
         .collect();
     let _guards = state.inner.locks.packages.lock_many(&names).await;
+    // Every entry is authorized above, so a retry gets the outcome of the
+    // request it repeats only while its caller may still make it. It is looked
+    // up under the locks, so a retry that waited for the original sees its
+    // commit.
+    if let Some(replayed) = replayed_batch(state, request.as_ref(), &validated).await? {
+        return Ok(replayed);
+    }
 
     let staged = stage_entries(state, validated).await?;
     let receipt = commit_publication(state, staged, request).await?;

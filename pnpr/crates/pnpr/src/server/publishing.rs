@@ -205,19 +205,19 @@ pub(super) async fn publish_package(
             Ok(validated) => validated,
             Err(err) => return err.into_response(),
         };
-    // A retry is authorized like any publish, so only a caller still allowed
-    // to make it gets the outcome of the request it repeats.
-    match replayed_outcome(state, &target.org, request.as_ref()).await {
-        Ok(Some(replayed)) => return replayed,
-        Ok(None) => {}
-        Err(err) => return err.into_response(),
-    }
-
     // Serialize the read-merge-write against other writers of this same
     // package on this instance, so a concurrent publish can't read the
     // same `existing`, merge a different version, and overwrite ours.
     // Held until this function returns, past the packument write below.
     let _packument_guard = state.inner.locks.packages.lock(validated.name.as_str()).await;
+    // A retry is authorized like any publish, so only a caller still allowed
+    // to make it gets the outcome of the request it repeats. It is looked up
+    // under the lock, so a retry that waited for the original sees its commit.
+    match replayed_outcome(state, &target.org, request.as_ref()).await {
+        Ok(Some(replayed)) => return replayed,
+        Ok(None) => {}
+        Err(err) => return err.into_response(),
+    }
 
     let staged = match stage_publish(state, validated, &now_iso(), Some(&target.org)).await {
         Ok(staged) => staged,

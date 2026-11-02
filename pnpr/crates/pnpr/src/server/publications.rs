@@ -17,7 +17,7 @@ use axum::{
 };
 use pnpr_error::RegistryError;
 use pnpr_package_name::CanonicalPackageName;
-use pnpr_registry::Ecosystem;
+use pnpr_registry::{Ecosystem, Resolved};
 use pnpr_storage::metadata::{ArtifactMember, Publication};
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -118,8 +118,8 @@ fn visible(
     (!publication.members.is_empty()).then_some(publication)
 }
 
-/// Whether a hosted registry of `catalog` and the member's ecosystem lets
-/// `identity` read the member's package.
+/// Whether a hosted registry of `catalog` and the member's ecosystem claims
+/// the member's package and lets `identity` read it.
 fn may_read(state: &AppState, identity: &Identity, catalog: &str, member: &ArtifactMember) -> bool {
     let routing = &state.inner.config.routing;
     routing.hosted
@@ -127,6 +127,12 @@ fn may_read(state: &AppState, identity: &Identity, catalog: &str, member: &Artif
         .any(|(source, hosted)| {
             hosted.org == catalog
                 && routing.registries.ecosystem(source) == Some(member.ecosystem)
+                // The registry still claims the name: a package its
+                // namespace no longer covers is not served there.
+                && matches!(
+                    routing.registries.resolve(source, member.ecosystem, &member.name),
+                    Resolved::Concrete { registry, .. } if registry == source,
+                )
                 && matches!(
                     hosted_gate(state, identity, source, &member.name),
                     HostedGate::Allowed(org) if org == catalog,
