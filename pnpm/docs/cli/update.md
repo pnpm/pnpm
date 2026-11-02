@@ -190,6 +190,8 @@ The directory in which `pnpm-lock.yaml` is created. It cannot be combined with `
 
 Show outdated dependencies and select which ones to update.
 
+For a package from a registry declared with [`serverType: pnpr`](../registries.md#servertype), the release notes between the installed and the offered version are shown below the list while the package is under the cursor.
+
 Combined with `--global`, each [isolated install group](../global-packages.md#isolated-installations) is presented as one selectable item: packages that share a global installation update together as a unit.
 
 ### --no-save

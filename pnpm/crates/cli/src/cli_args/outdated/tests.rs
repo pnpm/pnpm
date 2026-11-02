@@ -2,9 +2,14 @@ use super::{
     OutdatedDependencyOptions, OutdatedInWorkspace, OutdatedPackage, render_json,
     render_recursive_json, render_recursive_table, sort_outdated, workspace::DependentProject,
 };
-use crate::cli_args::outdated::{
-    query::current_versions_from_importer,
-    render::{Change, DEPENDENTS_COLUMN_WIDTH, classify, render_dependents, render_latest},
+use crate::cli_args::{
+    outdated::{
+        OutdatedFormat,
+        notes::with_notes,
+        query::current_versions_from_importer,
+        render::{Change, DEPENDENTS_COLUMN_WIDTH, classify, render_dependents, render_latest},
+    },
+    release_notes::{UpgradeNotes, reader::VersionNote},
 };
 use node_semver::Version;
 use pnpm_lockfile::Lockfile;
@@ -417,4 +422,33 @@ fn recursive_json_preserves_multiple_entries_for_same_package() {
 
     assert!(value.get("is-positive@2.0.0").is_some());
     assert_eq!(value["is-positive@2.0.0"]["current"], "2.0.0");
+}
+
+#[test]
+fn notes_go_into_the_json_entry_of_their_package() {
+    let packages = [
+        pkg("a", "1.0.0", "2.0.0", DependencyGroup::Prod),
+        pkg("b", "1.0.0", "1.1.0", DependencyGroup::Prod),
+    ];
+    let refs: Vec<&OutdatedPackage> = packages.iter().collect();
+    let notes = [
+        None,
+        Some(UpgradeNotes {
+            versions: vec![VersionNote {
+                version: "1.1.0".into(),
+                text: Some("B.\u{1b}".into()),
+                publication: None,
+            }],
+            publications: Vec::new(),
+        }),
+    ];
+    let output =
+        with_notes(r#"{"a": {}, "b": {}}"#.to_owned(), OutdatedFormat::Json, &refs, &notes);
+    let report: serde_json::Value = serde_json::from_str(&output).expect("JSON");
+
+    assert_eq!(report["a"].get("releaseNotes"), None);
+    assert_eq!(report["b"]["releaseNotes"]["versions"][0]["notes"], "B.");
+
+    let text = with_notes("table".to_owned(), OutdatedFormat::Table, &refs, &notes);
+    assert_eq!(text, "table\n\nb 1.0.0 => 1.1.0\n  1.1.0:\n    B.");
 }

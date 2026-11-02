@@ -39,7 +39,7 @@ pub(crate) async fn select_global_package_groups<Reporter: self::Reporter>(
     let Some(selected_indices) = prompt.select(
         "Choose which global package groups to update (space to select, enter to confirm)",
         &rows,
-        PromptStyle::GlobalGroups,
+        (PromptStyle::GlobalGroups, &super::ChoiceNotes::new()),
     )?
     else {
         report_cancelled::<Reporter>();

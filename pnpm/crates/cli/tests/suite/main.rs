@@ -166,6 +166,8 @@ mod rebuild_recursive;
 mod registry_metadata_mismatch;
 mod registry_prefix_keys;
 mod registry_routes;
+mod release_notes;
+mod release_notes_versioning;
 mod relocated_install;
 mod remove;
 mod removed_overrides;

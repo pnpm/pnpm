@@ -5,7 +5,7 @@
 //! publishes the rest in dependency order, optionally
 //! writing `pnpm-publish-summary.json`.
 
-use super::PublishArgs;
+use super::{PublishArgs, PublishScope};
 use crate::cli_args::{
     changelog::published_name,
     recursive::{
@@ -79,13 +79,11 @@ impl PublishArgs {
     ) -> Result<Vec<PublishSummary>, RecursivePublishError> {
         let mut packed = Vec::with_capacity(ctx.to_publish.len());
         for root in order_publish_roots(ctx.project_dependencies, ctx.to_publish) {
-            let pkg = self.pack_directory::<Reporter>(
-                &root,
-                ctx.config,
-                ctx.before_packing_hooks,
-                Some(ctx.workspace_packages),
-            )
-            .await?;
+            let scope = PublishScope::Recursive { workspace_packages: ctx.workspace_packages };
+            let mut pkg =
+                self.pack_directory::<Reporter>(&root, ctx.config, ctx.before_packing_hooks, scope)
+                    .await?;
+            pkg.notes = self.version_notes::<Reporter>(ctx.config, &pkg.notes_package(), scope)?;
             packed.push(pkg);
         }
         let packages = packed
@@ -156,7 +154,7 @@ impl PublishArgs {
         }
 
         let (opts, to_publish) =
-            self.select_candidates::<Reporter>(graph, config, stage, workspace_root).await?;
+            self.select_candidates::<Reporter>(graph, config, stage, (dir, workspace_root)).await?;
 
         if to_publish.is_empty() {
             emit_info::<Reporter>("There are no new packages that should be published", dir);
@@ -208,9 +206,9 @@ impl PublishArgs {
         graph: &pnpm_workspace_projects_filter::ProjectGraph<pnpm_workspace::GraphPkg<'_>>,
         config: &Config,
         stage: bool,
-        workspace_root: &Path,
+        (dir, workspace_root): (&Path, &Path),
     ) -> miette::Result<(pnpm_publish::PublishPackedPkgOptions, HashSet<PathBuf>)> {
-        let opts = self.checked_recursive_publish_options(config, stage)?;
+        let mut opts = self.checked_recursive_publish_options(config, stage)?;
         // The candidate probes are metadata requests, so they don't get the
         // publish client's longer timeout.
         let http_client = build_registry_client(config)?;
@@ -224,6 +222,7 @@ impl PublishArgs {
             self.write_summary(workspace_root, &[])?;
             return Err(error);
         }
+        self.attach_publication_notes::<Reporter>(&mut opts, graph, &to_publish, config, dir)?;
         Ok((opts, to_publish))
     }
 
@@ -248,7 +247,7 @@ impl PublishArgs {
                     ctx.opts,
                     ctx.network,
                     ctx.before_packing_hooks,
-                    Some(ctx.workspace_packages),
+                    PublishScope::Recursive { workspace_packages: ctx.workspace_packages },
                 )
                 .await;
                 record_publish_outcome(published, first_error, result)
