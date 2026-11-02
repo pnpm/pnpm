@@ -606,33 +606,51 @@ fn deploy_preserves_links_to_dependencies_and_copies_file_links_to_unselected_ta
         fs::read_to_string(workspace.join(".next/node_modules/alias/index.cjs")).unwrap(),
         "module.exports = 42",
     );
-    for (mode, flags) in [("default", &[][..]), ("legacy", &["--legacy"][..])] {
-        let destination = root.path().join(mode);
-        let command = pacquet_cmd(&workspace)
-            .with_args(["--filter", "app", "deploy", "--prod", "--offline", "--ignore-scripts"]);
-        command
-            .with_args(flags)
-            .with_arg(&destination)
-            .assert()
-            .success();
-        for (name, target) in links {
-            assert_eq!(
-                fs::read_link(destination.join(".next").join(name)).unwrap(),
-                Path::new(target),
+    // A build restored without its `node_modules` leaves the aliases dangling.
+    for source_modules in ["installed", "removed"] {
+        if source_modules == "removed" {
+            fs::remove_dir_all(workspace.join("node_modules")).unwrap();
+        }
+        for (mode, flags) in [("default", &[][..]), ("legacy", &["--legacy"][..])] {
+            let destination = root
+                .path()
+                .join(format!("{mode}-{source_modules}"));
+            let command = pacquet_cmd(&workspace)
+                .with_args([
+                    "--filter",
+                    "app",
+                    "deploy",
+                    "--prod",
+                    "--offline",
+                    "--ignore-scripts",
+                ]);
+            command
+                .with_args(flags)
+                .with_arg(&destination)
+                .assert()
+                .success();
+            for (name, target) in links {
+                assert_eq!(
+                    fs::read_link(destination.join(".next").join(name)).unwrap(),
+                    Path::new(target),
+                );
+            }
+            let file_link = destination.join(".next/file-link");
+            assert!(fs::symlink_metadata(&file_link).unwrap().is_file());
+            assert_eq!(fs::read_to_string(&file_link).unwrap(), "omitted");
+            let dependency = destination.join(".next/node_modules/alias/index.cjs");
+            assert_eq!(fs::read_to_string(&dependency).unwrap(), "module.exports = 42");
+            assert!(
+                fs::canonicalize(&dependency)
+                    .unwrap()
+                    .starts_with(fs::canonicalize(&destination).unwrap()),
+                "{dependency:?} must resolve inside {destination:?}",
+            );
+            assert!(
+                !destination.join("omitted.txt").exists(),
+                "unselected target must stay omitted",
             );
         }
-        let file_link = destination.join(".next/file-link");
-        assert!(fs::symlink_metadata(&file_link).unwrap().is_file());
-        assert_eq!(fs::read_to_string(&file_link).unwrap(), "omitted");
-        let dependency = destination.join(".next/node_modules/alias/index.cjs");
-        assert_eq!(fs::read_to_string(&dependency).unwrap(), "module.exports = 42");
-        assert!(
-            fs::canonicalize(&dependency)
-                .unwrap()
-                .starts_with(fs::canonicalize(&destination).unwrap()),
-            "{dependency:?} must resolve inside {destination:?}",
-        );
-        assert!(!destination.join("omitted.txt").exists(), "unselected target must stay omitted");
     }
 }
 
