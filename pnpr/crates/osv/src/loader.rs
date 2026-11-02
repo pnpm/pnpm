@@ -25,7 +25,7 @@ pub(super) fn load_from_zip(path: &Path) -> Result<OsvIndex, RegistryError> {
             .map_err(|err| {
                 invalid_config(format!("failed to read OSV zip entry in {}: {err}", path.display()))
             })?;
-        if !entry.is_file() || !entry.name().ends_with(".json") {
+        if !entry.is_file() || !entry.name_raw().ends_with(b".json") {
             continue;
         }
         let (name, bytes) = read_zip_record(&mut entry)?;
@@ -70,13 +70,16 @@ pub(super) fn load_from_directory(path: &Path) -> Result<OsvIndex, RegistryError
 fn read_zip_record(
     entry: &mut zip::read::ZipFile<'_, File>,
 ) -> Result<(String, Vec<u8>), RegistryError> {
-    if entry.name().len() > MAX_OSV_NAME_BYTES {
+    if entry.name_raw().len() > MAX_OSV_NAME_BYTES {
         return Err(invalid_config(format!(
             "OSV zip entry name is {} bytes, over the {MAX_OSV_NAME_BYTES}-byte limit",
-            entry.name().len(),
+            entry.name_raw().len(),
         )));
     }
-    let name = entry.name().to_string();
+    let name = entry
+        .name()
+        .map_err(|err| invalid_config(format!("OSV zip entry name is not valid: {err}")))?
+        .into_owned();
     if entry.size() > MAX_OSV_RECORD_BYTES {
         return Err(invalid_config(format!(
             "OSV zip entry {name} is {} bytes, over the {MAX_OSV_RECORD_BYTES}-byte per-record limit",

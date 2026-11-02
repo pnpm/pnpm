@@ -389,10 +389,11 @@ async fn installs_wheel_with_mismatched_record_hashes() {
     let mut altered = ZipWriter::new(Cursor::new(Vec::new()));
     for index in 0..archive.len() {
         let mut entry = archive.by_index(index).unwrap();
+        let name = entry.name().unwrap().into_owned();
         altered
-            .start_file(entry.name(), SimpleFileOptions::default())
+            .start_file(name.as_str(), SimpleFileOptions::default())
             .unwrap();
-        if entry.name() == "alpha/__init__.py" {
+        if name == "alpha/__init__.py" {
             altered.write_all(b"TAMPERED = True\n").unwrap();
         } else {
             std::io::copy(&mut entry, &mut altered).unwrap();

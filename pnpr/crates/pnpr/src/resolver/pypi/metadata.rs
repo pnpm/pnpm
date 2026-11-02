@@ -98,7 +98,8 @@ pub(super) fn metadata_from_wheel(wheel: &[u8], filename: &str) -> Result<Vec<u8
                     .by_index(index)
                     .ok()?
                     .name()
-                    .to_string(),
+                    .ok()?
+                    .into_owned(),
             )
         })
         .find(|name| {
