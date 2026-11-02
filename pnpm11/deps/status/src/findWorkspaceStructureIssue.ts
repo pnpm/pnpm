@@ -16,17 +16,18 @@ export function findWorkspaceStructureIssue (ctx: WorkspaceDepsStatusContext): s
   if (allProjects.length !== Object.keys(workspaceState.projects).length) {
     return WORKSPACE_STRUCTURE_CHANGED
   }
-  const resolvesByVersion = createResolvableProjectsFilter(ctx)
-  if (!allProjects.every((currentProject) => {
-    const prevProject = workspaceState.projects[currentProject.rootDir]
-    if (!prevProject) return false
-    return prevProject.name === currentProject.manifest.name &&
-      (!resolvesByVersion(currentProject.manifest.name) ||
-        (prevProject.version ?? '0.0.0') === (currentProject.manifest.version ?? '0.0.0'))
+  if (!allProjects.every(({ rootDir, manifest }) => {
+    const prevProject = workspaceState.projects[rootDir]
+    return prevProject != null && prevProject.name === manifest.name
   })) {
     return WORKSPACE_STRUCTURE_CHANGED
   }
-  return undefined
+  const bumpedNames = allProjects
+    .filter(({ rootDir, manifest }) => (workspaceState.projects[rootDir].version ?? '0.0.0') !== (manifest.version ?? '0.0.0'))
+    .map(({ manifest }) => manifest.name)
+  if (bumpedNames.length === 0) return undefined
+  const resolvesByVersion = createResolvableProjectsFilter(ctx)
+  return bumpedNames.some(resolvesByVersion) ? WORKSPACE_STRUCTURE_CHANGED : undefined
 }
 
 const WORKSPACE_STRUCTURE_CHANGED = 'The workspace structure has changed since last install'

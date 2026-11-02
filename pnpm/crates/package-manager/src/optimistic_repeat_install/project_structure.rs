@@ -13,8 +13,8 @@ use std::collections::HashSet;
 /// `build_workspace_state` and pnpm both use it as the map key, so a
 /// renamed / removed / added project trips the check immediately.
 ///
-/// A version decides only how dependencies resolve to the project, so it is
-/// compared only for a project [`ResolvableProjects`] holds.
+/// A version decides only how dependencies resolve to the project, so a
+/// changed one counts only for a project [`ResolvableProjects`] holds.
 pub(super) fn project_structure_matches(
     state: &WorkspaceState,
     project_manifests: &[(PathBuf, &PackageManifest)],
@@ -24,19 +24,28 @@ pub(super) fn project_structure_matches(
     if state.projects.len() != project_manifests.len() {
         return false;
     }
+    let mut bumped_names = Vec::new();
+    for (root_dir, manifest) in project_manifests {
+        let Some(entry) = state.projects.get(root_dir.to_string_lossy().as_ref()) else {
+            return false;
+        };
+        let name = manifest_string_field(manifest, "name");
+        if entry.name != name {
+            return false;
+        }
+        if entry.version.as_deref().unwrap_or("0.0.0")
+            != manifest_string_field(manifest, "version").as_deref().unwrap_or("0.0.0")
+        {
+            bumped_names.push(name);
+        }
+    }
+    if bumped_names.is_empty() {
+        return true;
+    }
     let resolvable = ResolvableProjects::new(state, project_manifests, config, catalogs);
-    project_manifests
+    !bumped_names
         .iter()
-        .all(|(root_dir, manifest)| {
-            let Some(entry) = state.projects.get(root_dir.to_string_lossy().as_ref()) else {
-                return false;
-            };
-            let name = manifest_string_field(manifest, "name");
-            entry.name == name
-                && (!resolvable.holds(name.as_deref())
-                    || entry.version.as_deref().unwrap_or("0.0.0")
-                        == manifest_string_field(manifest, "version").as_deref().unwrap_or("0.0.0"))
-        })
+        .any(|name| resolvable.holds(name.as_deref()))
 }
 
 /// The workspace projects a dependency may resolve to by their version. It
