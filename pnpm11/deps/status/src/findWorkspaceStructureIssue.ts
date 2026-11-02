@@ -10,9 +10,9 @@ export function findWorkspaceStructureIssue ({ allProjects, opts, workspaceState
   )) {
     return 'Catalogs cache outdated'
   }
-  // A version decides only how other projects' dependencies resolve to the
-  // project, so a lone project's version is not compared.
-  const compareVersions = allProjects.length > 1
+  // A version decides only how dependencies resolve to the project. A lone
+  // project's version matters only when a transitive dependency may resolve to it.
+  const compareVersions = allProjects.length > 1 || opts.linkWorkspacePackages === 'deep'
   if (allProjects.length !== Object.keys(workspaceState.projects).length ||
     !allProjects.every((currentProject) => {
       const prevProject = workspaceState.projects[currentProject.rootDir]

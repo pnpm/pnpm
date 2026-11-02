@@ -119,17 +119,20 @@ pub(super) fn wanted_lockfile_file_has_content(workspace_root: &Path, config: &C
 /// `build_workspace_state` and pnpm both use it as the map key, so a
 /// renamed / removed / added project trips the check immediately.
 ///
-/// The version is compared only when the workspace has several projects. A
-/// version decides only how other projects' dependencies resolve to the
-/// project, and a lone project has no other projects.
+/// A version decides only how dependencies resolve to the project. The
+/// version of a lone project is compared only under
+/// [`LinkWorkspacePackages::Deep`], where a transitive dependency may resolve
+/// to it.
 pub(super) fn project_structure_matches(
     state: &WorkspaceState,
     project_manifests: &[(PathBuf, &PackageManifest)],
+    link_workspace_packages: LinkWorkspacePackages,
 ) -> bool {
     if state.projects.len() != project_manifests.len() {
         return false;
     }
-    let compare_versions = project_manifests.len() > 1;
+    let compare_versions =
+        project_manifests.len() > 1 || link_workspace_packages == LinkWorkspacePackages::Deep;
     project_manifests
         .iter()
         .all(|(root_dir, manifest)| {

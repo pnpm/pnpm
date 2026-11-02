@@ -18,6 +18,14 @@ test('a version bump of a lone project is not a structure change', () => {
   expect(findWorkspaceStructureIssue(context(allProjects))).toBeUndefined()
 })
 
+test('a version bump of a lone project is a structure change under deep workspace linking', () => {
+  const allProjects: ProjectsList = [
+    { rootDir: workspaceDir as ProjectRootDir, manifest: { name: 'root', version: '1.0.1' } },
+  ]
+  expect(findWorkspaceStructureIssue(context(allProjects, { linkWorkspacePackages: 'deep' })))
+    .toBe('The workspace structure has changed since last install')
+})
+
 test('a version bump in a workspace of several projects is a structure change', () => {
   const allProjects: ProjectsList = [
     { rootDir: workspaceDir as ProjectRootDir, manifest: { name: 'root', version: '1.0.0' } },
@@ -33,7 +41,10 @@ test('a rename of a lone project is a structure change', () => {
   expect(findWorkspaceStructureIssue(context(allProjects))).toBe('The workspace structure has changed since last install')
 })
 
-function context (allProjects: ProjectsList): WorkspaceDepsStatusContext {
+function context (
+  allProjects: ProjectsList,
+  opts: Partial<WorkspaceDepsStatusContext['opts']> = {}
+): WorkspaceDepsStatusContext {
   const recorded = {
     [workspaceDir]: { name: 'root', version: '1.0.0' },
     [pkgDir]: { name: 'a', version: '1.0.0' },
@@ -41,7 +52,7 @@ function context (allProjects: ProjectsList): WorkspaceDepsStatusContext {
   const projects = Object.fromEntries(allProjects.map(({ rootDir }) => [rootDir, recorded[rootDir]]))
   return {
     allProjects,
-    opts: {},
+    opts,
     workspaceDir,
     workspaceState: { projects, settings: {} },
   } as unknown as WorkspaceDepsStatusContext

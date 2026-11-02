@@ -295,17 +295,53 @@ fn install_and_run_refuse_a_changed_workspace_project_set() {
 /// [pnpm/pnpm#17560](https://github.com/pnpm/pnpm/issues/17560)
 #[test]
 fn install_and_run_accept_a_version_bump_of_a_lone_project() {
-    let (dir, config, _) =
-        setup_fresh_install(pnpm_config::NodeLinker::Isolated, "root", "1.0.0", "");
-    let manifest_path = dir.path().join("package.json");
-    fs::write(&manifest_path, r#"{"name":"root","version":"1.0.1"}"#).unwrap();
-    let manifest = PackageManifest::from_path(manifest_path).unwrap();
+    let (dir, config, manifest) =
+        bump_lone_project_version(pnpm_config::LinkWorkspacePackages::DirectOnly);
     let projects = [(dir.path().to_path_buf(), &manifest)];
+    let recorded = load_workspace_state(dir.path()).unwrap().unwrap();
 
     let decision = check(dir.path(), config, pnpm_config::NodeLinker::Isolated, &projects);
     assert_eq!(decision, Decision::UpToDate);
+    update_workspace_state(dir.path(), &recorded).unwrap();
     let status = workspace_deps_status(&dir, config, &projects);
     assert_eq!(status, RunDepsStatus::UpToDate);
+}
+/// Under `linkWorkspacePackages: deep` a transitive dependency may resolve to
+/// the lone project by its version.
+#[test]
+fn install_and_run_refuse_a_version_bump_of_a_lone_project_under_deep_linking() {
+    let (dir, config, manifest) =
+        bump_lone_project_version(pnpm_config::LinkWorkspacePackages::Deep);
+    let projects = [(dir.path().to_path_buf(), &manifest)];
+
+    let decision = check(dir.path(), config, pnpm_config::NodeLinker::Isolated, &projects);
+    assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("project list")));
+    let status = workspace_deps_status(&dir, config, &projects);
+    assert_eq!(
+        status,
+        RunDepsStatus::Outdated {
+            issue: "The workspace structure has changed since last install".to_string(),
+            install_args: Vec::new(),
+        },
+    );
+}
+/// A project installed as `root@1.0.0` whose manifest now says `1.0.1`. The
+/// new manifest is recorded as validated, so only the project-structure check
+/// can tell the two apart.
+fn bump_lone_project_version(
+    link_workspace_packages: pnpm_config::LinkWorkspacePackages,
+) -> (tempfile::TempDir, &'static Config, PackageManifest) {
+    let (dir, config, _) = setup_fresh_install_with_config(
+        pnpm_config::NodeLinker::Isolated,
+        "root",
+        "1.0.0",
+        "",
+        |config| config.link_workspace_packages = link_workspace_packages,
+    );
+    let manifest_path = dir.path().join("package.json");
+    fs::write(&manifest_path, r#"{"name":"root","version":"1.0.1"}"#).unwrap();
+    validate_existing_files(dir.path());
+    (dir, config, PackageManifest::from_path(manifest_path).unwrap())
 }
 /// Another project's dependency may resolve to a workspace project by its
 /// version, so a version bump in a workspace of several projects is drift.
