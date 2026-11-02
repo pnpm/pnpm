@@ -71,6 +71,8 @@ fn static_config_with_packages(dir: &TempDir, packages_block: &str) -> (Config, 
     let mut config =
         Config::from_yaml(&config_path, listen, Some("http://example.test".to_string())).unwrap();
     config.identity.auth.htpasswd.max_users = MaxUsers::Unlimited;
+    // These tests read and seed package documents on disk.
+    config.storage.metadata = pnpr_config::MetadataBackend::Documents;
     (config, storage)
 }
 
