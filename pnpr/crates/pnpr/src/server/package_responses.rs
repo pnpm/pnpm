@@ -260,9 +260,7 @@ impl Representation {
         if self == Representation::InstallV2 {
             let anchor = super::split_packuments::document_anchor(&doc).unwrap_or_else(Utc::now);
             let trimmed = abbreviate_packument(&doc, anchor);
-            let abbreviated_len = serde_json::to_vec(&trimmed)?.len();
-            let body =
-                super::split_packuments::install_v2_body(&trimmed, abbreviated_len, documents)?;
+            let body = super::split_packuments::install_v2_body(&trimmed, documents)?;
             return Ok((body, super::split_packuments::INSTALL_V2_CONTENT_TYPE));
         }
         super::split_packuments::without_pnpr_facts_in(&mut doc);

@@ -1,5 +1,5 @@
 use super::{
-    install_v2, likely_picks, record_address, release_records::release_record,
+    install_v2, install_v2_body, likely_picks, record_address, release_records::release_record,
     without_pnpr_facts_in,
 };
 use pnpr_config::PackageDocumentsConfig;
@@ -98,6 +98,55 @@ fn only_versions_inside_the_window_keep_their_publish_time() {
     assert_eq!(doc["versions"]["2.0.0"]["time"], json!("2025-12-20T00:00:00.000Z"));
     assert!(doc["versions"]["1.0.0"].get("time").is_none());
     assert_eq!(doc["versions"]["0.1.0"]["time"], Value::Null);
+}
+
+/// A package with twenty versions published a day apart, all inside the
+/// publish-time window of the last one.
+fn busy_month() -> Value {
+    let mut time = serde_json::Map::new();
+    let mut versions = serde_json::Map::new();
+    for day in 1..=20 {
+        let version = format!("1.0.{day}");
+        time.insert(version.clone(), json!(format!("2025-01-{day:02}T00:00:00.000Z")));
+        versions.insert(
+            version.clone(),
+            json!({ "dist": { "integrity": format!("sha512-{day}") } }),
+        );
+    }
+    json!({ "name": "acme", "dist-tags": { "latest": "1.0.20" }, "time": time, "versions": versions })
+}
+
+fn is_split(body: &[u8]) -> bool {
+    let doc: Value = serde_json::from_slice(body).expect("document");
+    doc["versions"]
+        .as_object()
+        .expect("versions")
+        .values()
+        .any(|entry| entry.get("manifest").is_none())
+}
+
+#[test]
+fn a_publish_after_a_long_gap_can_take_a_document_back_below_the_threshold() {
+    let before = busy_month();
+    let mut after = busy_month();
+    after["time"]["1.1.0"] = json!("2027-01-01T00:00:00.000Z");
+    after["versions"]["1.1.0"] = json!({ "dist": { "integrity": "sha512-new" } });
+    after["dist-tags"]["latest"] = json!("1.1.0");
+
+    let whole_after = serde_json::to_vec(&document(&after, false)).expect("serialize");
+    let config = PackageDocumentsConfig {
+        split_threshold: u64::try_from(whole_after.len()).expect("size"),
+        ..PackageDocumentsConfig::default()
+    };
+    let body_before = install_v2_body(&before, &config).expect("before");
+    let body_after = install_v2_body(&after, &config).expect("after");
+
+    assert!(is_split(&body_before), "twenty publish times keep the document above the threshold");
+    assert!(!is_split(&body_after), "the old publish times fell out of the window");
+    assert_eq!(body_after, whole_after);
+    let doc: Value = serde_json::from_slice(&body_after).expect("document");
+    assert_eq!(doc["timesSince"], json!("2026-12-02T00:00:00.000Z"));
+    assert!(doc["versions"]["1.0.20"].get("time").is_none());
 }
 
 #[test]

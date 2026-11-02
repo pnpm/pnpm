@@ -6,8 +6,8 @@
 //! after publication: its `deprecated` notice, `trust` rank, selected
 //! `revision`, and its publish `time` when it falls inside the publish-time
 //! window. An entry with a `manifest` is complete: beside the manifest it has
-//! pnpr's facts about the archives. When the abbreviated document is larger
-//! than the split threshold, only the [likely picks](likely_picks) keep their
+//! pnpr's facts about the archives. When the document with every manifest
+//! inline is larger than the split threshold, only the [likely picks](likely_picks) keep their
 //! manifest, and every other version's is in its release record (see
 //! [`release_records`]).
 //!
@@ -55,15 +55,22 @@ pub(super) fn document_anchor(packument: &Value) -> Option<DateTime<Utc>> {
     )
 }
 
-/// pnpr's document for an abbreviated packument whose serialized size is
-/// `abbreviated_len`.
+/// pnpr's document for an abbreviated packument, split when the document
+/// with every manifest inline is larger than the split threshold.
+///
+/// The decision is made from the document on every read and recorded
+/// nowhere, so it can go either way: a publish after a long gap can take a
+/// document back below the threshold, since advancing `timesSince` drops the
+/// publish times of the entries that fall out of the window.
 pub(super) fn install_v2_body(
     abbreviated: &Value,
-    abbreviated_len: usize,
     config: &PackageDocumentsConfig,
 ) -> serde_json::Result<Vec<u8>> {
-    let split = u64::try_from(abbreviated_len).is_ok_and(|len| len > config.split_threshold);
-    serde_json::to_vec(&install_v2(abbreviated, split, config))
+    let whole = serde_json::to_vec(&install_v2(abbreviated, false, config))?;
+    if u64::try_from(whole.len()).is_ok_and(|len| len <= config.split_threshold) {
+        return Ok(whole);
+    }
+    serde_json::to_vec(&install_v2(abbreviated, true, config))
 }
 
 /// pnpr's document for an abbreviated packument, with every manifest inline

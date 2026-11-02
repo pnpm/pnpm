@@ -5,9 +5,9 @@ use std::time::Duration;
 /// `application/vnd.pnpr.install-v2+json`, to clients that ask for it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PackageDocumentsConfig {
-    /// The size of a package's abbreviated document, in bytes of serialized
-    /// JSON, above which only the versions a resolution likely picks keep
-    /// their manifests inline. 64 KiB by default.
+    /// The size of a package's document with every manifest inline, in bytes
+    /// of serialized JSON, above which only the versions a resolution likely
+    /// picks keep their manifests inline. 64 KiB by default.
     pub split_threshold: u64,
     /// How far back from a package's last publish its versions keep their
     /// publish times. Never shorter than [`Self::MIN_PUBLISH_TIME_WINDOW`].
