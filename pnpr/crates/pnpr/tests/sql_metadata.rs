@@ -123,7 +123,8 @@ async fn a_restarted_registry_serves_and_unpublishes_from_sqlite() {
     let doc = publish_doc("sql-pkg", "1.0.0", b"bytes");
     let (status, ..) = send(&app, request("PUT", "/npm/sql-pkg", &token, Some(&doc))).await;
     assert_eq!(status, StatusCode::CREATED);
-    let (status, ..) = send(&app, request("PUT", "/npm/sql-pkg", &token, Some(&doc))).await;
+    let other = publish_doc("sql-pkg", "1.0.0", b"other bytes");
+    let (status, ..) = send(&app, request("PUT", "/npm/sql-pkg", &token, Some(&other))).await;
     assert_eq!(status, StatusCode::CONFLICT, "a version is published once");
 
     // A static registry keeps its accounts in memory, so the restarted one

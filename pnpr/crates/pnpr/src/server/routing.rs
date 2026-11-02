@@ -269,7 +269,9 @@ fn registry_routes(state: &AppState, router: Router<AppState>) -> Router<AppStat
     // rather than inside the npm surface.
     let mut router = router
         .route("/-/pnpr/v0/publish", put(batch::serve_ecosystem_publish))
-        .route("/-/pnpr/v0/registries", get(super::registry_directory::serve));
+        .route("/-/pnpr/v0/registries", get(super::registry_directory::serve))
+        .route("/-/publications/{org}", get(super::publications::serve_member_publication))
+        .route("/-/publications/{org}/{publication}", get(super::publications::serve_publication));
     if registries.has_ecosystem(Ecosystem::Npm) {
         router = router.nest(&Ecosystem::Npm.base_path(), account_routes().merge(npm));
     }

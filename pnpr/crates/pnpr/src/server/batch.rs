@@ -12,28 +12,30 @@
 //! whole or leaves nothing behind, and one interrupted by a crash is
 //! completed on the next startup rather than staying half-published.
 //!
-//! That is a guarantee about outcomes, not about what a reader sees while it
-//! happens: the transaction promotes and records one package at a time, so a
-//! read that lands mid-commit can see some of the release and not the rest.
-//!
-//! One thing that cannot be undone: a blob whose immutable slot another
-//! writer already owns. Its bytes are someone's published release, so the
-//! transaction records everything else and reports the package that lost,
-//! rather than unpublishing around it.
+//! With documents metadata that is a guarantee about outcomes, not about what
+//! a reader sees while it happens: the journal promotes and records one
+//! package at a time, so a read that lands mid-commit can see some of the
+//! release and not the rest. A blob whose immutable slot another writer
+//! already owns cannot be undone either, so the journal records everything
+//! else and reports the package that lost. With `SQLite` metadata the whole
+//! batch commits as one generation of its organization's catalog, or not at
+//! all, and a lost slot fails the batch before anything is recorded (see
+//! `publishing::atomic`).
 
 use super::{
     AppState, AuthedCaller, Identity,
     cargo::{CratePublication, authorize_crate_publish, verify_crate_archive},
     oci::{OciPublication, authorize_publication},
     publishing::{
-        StagedPublish, cleanup_tmp_slots, commit_publishes, publish_created_response,
-        report_unrecorded, stage_publish, validate_publish_doc,
+        StagedPublish, cleanup_tmp_slots, commit_publication, publication_request,
+        publish_committed_response, replayed_outcome, stage_publish, validate_publish_doc,
     },
     pypi::{PypiPublication, authorize_upload, verify_upload},
 };
 use axum::{
     body::Bytes,
     extract::State,
+    http::HeaderMap,
     response::{IntoResponse, Response},
 };
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
@@ -47,15 +49,19 @@ use serde::Deserialize;
 use serde_json::Value;
 use std::collections::HashSet;
 
+/// The request header naming a client's idempotency key for a publish.
+const IDEMPOTENCY_KEY: &str = "idempotency-key";
+
 pub(super) async fn serve_ecosystem_publish(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
+    headers: HeaderMap,
     body: Bytes,
 ) -> Response {
-    match publish_batch(&state, &identity, body).await {
-        Ok(()) => publish_created_response(),
-        Err(err) => err.into_response(),
-    }
+    let key = headers
+        .get(IDEMPOTENCY_KEY)
+        .and_then(|key| key.to_str().ok());
+    publish_batch(&state, &identity, key, body).await.unwrap_or_else(IntoResponse::into_response)
 }
 
 /// The `cargo publish` request body, as a batch entry carries it: the same
@@ -132,27 +138,20 @@ impl ValidatedEntry {
 async fn publish_batch(
     state: &AppState,
     identity: &Identity,
+    key: Option<&str>,
     body: Bytes,
-) -> Result<(), RegistryError> {
+) -> Result<Response, RegistryError> {
     let mut incoming: Value = serde_json::from_slice(&body).map_err(|err| malformed_body(&err))?;
     // The parsed body holds everything the entries need, and the payloads are
     // decoded out of it below: keep only one copy of a body that may run to
     // the request limit.
     drop(body);
-    let Some(Value::Array(packages)) = incoming
-        .as_object_mut()
-        .and_then(|body| body.remove("packages"))
-    else {
-        return Err(RegistryError::BadRequest {
-            reason: "body must be an object with a `packages` array".to_string(),
-        });
-    };
-    if packages.is_empty() {
-        return Err(RegistryError::BadRequest {
-            reason: "`packages` must not be empty".to_string(),
-        });
+    let name = incoming.get("name").and_then(Value::as_str);
+    let request = publication_request(state, identity, &incoming, key, name);
+    if let Some(replayed) = replayed_outcome(state, request.as_ref()).await? {
+        return Ok(replayed);
     }
-
+    let packages = take_packages(&mut incoming)?;
     let validated = validate_batch_entries(state, identity, packages).await?;
 
     // Hold every affected package's lock across the whole stage-and-commit,
@@ -164,6 +163,16 @@ async fn publish_batch(
         .collect();
     let _guards = state.inner.locks.packages.lock_many(&names).await;
 
+    let staged = stage_entries(state, validated).await?;
+    let receipt = commit_publication(state, staged, request).await?;
+    Ok(publish_committed_response(&receipt))
+}
+
+/// Stage every entry, removing what was staged when one fails.
+async fn stage_entries(
+    state: &AppState,
+    validated: Vec<ValidatedEntry>,
+) -> Result<Vec<StagedPublish>, RegistryError> {
     let now = now_iso();
     let mut staged: Vec<StagedPublish> = Vec::with_capacity(validated.len());
     for entry in validated {
@@ -177,7 +186,25 @@ async fn publish_batch(
             }
         }
     }
-    report_unrecorded(commit_publishes(state, staged).await?)
+    Ok(staged)
+}
+
+/// The `packages` array of a batch body, which must not be empty.
+fn take_packages(incoming: &mut Value) -> Result<Vec<Value>, RegistryError> {
+    let Some(Value::Array(packages)) = incoming
+        .as_object_mut()
+        .and_then(|body| body.remove("packages"))
+    else {
+        return Err(RegistryError::BadRequest {
+            reason: "body must be an object with a `packages` array".to_string(),
+        });
+    };
+    if packages.is_empty() {
+        return Err(RegistryError::BadRequest {
+            reason: "`packages` must not be empty".to_string(),
+        });
+    }
+    Ok(packages)
 }
 
 /// Validate every entry of a batch, refusing a package named twice.

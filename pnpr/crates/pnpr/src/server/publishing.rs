@@ -1,20 +1,20 @@
+pub(super) use atomic::{
+    commit_publication, publication_request, publish_committed_response, replayed_outcome,
+};
 pub(super) use attachments::{
     StagedPublish, ValidatedPublish, stage_publish, validate_publish_doc,
 };
 pub(super) use tombstones::check_publish_tombstone;
 
+mod atomic;
 mod attachments;
 mod manifest;
 mod tombstones;
 
 use std::collections::{BTreeSet, HashSet};
 
-use axum::{
-    body::Body,
-    http::{StatusCode, header},
-    response::{IntoResponse, Response},
-};
-use serde_json::{Value, json};
+use axum::response::{IntoResponse, Response};
+use serde_json::Value;
 use ssri::Integrity;
 
 use pnpr_error::RegistryError;
@@ -194,6 +194,13 @@ pub(super) async fn publish_package(
         .into_response();
     }
 
+    let request = publication_request(state, identity, &incoming, None, None);
+    match replayed_outcome(state, request.as_ref()).await {
+        Ok(Some(replayed)) => return replayed,
+        Ok(None) => {}
+        Err(err) => return err.into_response(),
+    }
+
     // Routing, masking, and the publish rule all run inside
     // `validate_publish_doc`: the write resolves to a hosted registry (or
     // fails closed), and that registry's `packages:` rules authorize it.
@@ -213,8 +220,8 @@ pub(super) async fn publish_package(
         Ok(staged) => staged,
         Err(err) => return err.into_response(),
     };
-    match commit_publishes(state, vec![staged]).await.and_then(report_unrecorded) {
-        Ok(()) => publish_created_response(),
+    match commit_publication(state, vec![staged], request).await {
+        Ok(receipt) => publish_committed_response(&receipt),
         Err(err) => err.into_response(),
     }
 }
@@ -229,6 +236,18 @@ pub(super) async fn publish_package(
 /// from the document the transaction writes, which keeps the store consistent
 /// with the blob that won; the caller reads that out of the outcome.
 pub(super) async fn commit_publishes(
+    state: &AppState,
+    staged: Vec<StagedPublish>,
+) -> Result<CommitOutcome, RegistryError> {
+    if state.inner.storage.sqlite_metadata().is_some() {
+        commit_publication(state, staged, None).await?;
+        return Ok(CommitOutcome::default());
+    }
+    commit_through_journal(state, staged).await
+}
+
+/// [`commit_publishes`] through the publish journal.
+async fn commit_through_journal(
     state: &AppState,
     staged: Vec<StagedPublish>,
 ) -> Result<CommitOutcome, RegistryError> {
@@ -268,16 +287,6 @@ pub(super) fn report_unrecorded(outcome: CommitOutcome) -> Result<(), RegistryEr
         .collect::<Vec<_>>()
         .join(", ");
     Err(RegistryError::PublishNotRecorded { packages })
-}
-
-pub(super) fn publish_created_response() -> Response {
-    let body = json!({ "ok": true, "success": true });
-    let bytes = serde_json::to_vec(&body).expect("static-shape JSON serializes");
-    Response::builder()
-        .status(StatusCode::CREATED)
-        .header(header::CONTENT_TYPE, "application/json")
-        .body(Body::from(bytes))
-        .expect("static-shape response always builds")
 }
 
 /// Remove every tmp tarball file that a partially-completed publish

@@ -118,6 +118,7 @@ mod oci;
 mod oidc;
 mod oidc_groups;
 mod package_mutation;
+mod publications;
 mod publishing;
 mod pypi;
 mod rate_limit;

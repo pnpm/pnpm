@@ -35,7 +35,9 @@ impl BlobSlot {
         Self { tmp_path, name, filename }
     }
 
-    pub(crate) fn filename(&self) -> &str {
+    /// The name the blob is stored under in its package.
+    #[must_use]
+    pub fn filename(&self) -> &str {
         &self.filename
     }
 }
