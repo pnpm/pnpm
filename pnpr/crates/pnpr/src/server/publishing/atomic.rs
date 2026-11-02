@@ -452,11 +452,15 @@ pub(in super::super) fn publish_committed_response(receipt: &PublishReceipt) -> 
 /// proxy or client accepts.
 const NPM_NOTICE_BYTES: usize = 2048;
 
+/// The bytes held back from [`NPM_NOTICE_BYTES`] for the summary of the
+/// notices that do not fit: its text with the longest count.
+const NPM_NOTICE_SUMMARY_BYTES: usize = 64;
+
 /// Send `notices` in `npm-notice` headers, which npm prints to the
-/// publisher: those that fit in [`NPM_NOTICE_BYTES`], and a count of the
+/// publisher: those that fit in [`NPM_NOTICE_BYTES`] beside a count of the
 /// rest.
 pub(in super::super) fn add_npm_notices(response: &mut Response, notices: &[String]) {
-    let mut budget = NPM_NOTICE_BYTES;
+    let mut budget = NPM_NOTICE_BYTES - NPM_NOTICE_SUMMARY_BYTES;
     let mut sent = 0;
     for notice in notices {
         let Some(left) = budget.checked_sub(notice.len()) else { break };

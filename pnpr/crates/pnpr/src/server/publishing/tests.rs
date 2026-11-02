@@ -146,13 +146,15 @@ fn a_response_carries_a_bounded_size_of_notices() {
         .iter()
         .map(|value| value.to_str().unwrap())
         .collect();
-    // Ten 200-byte notices fit in 2048 bytes; the summary counts the rest.
-    assert_eq!(sent.len(), 11);
-    assert!(sent[9].starts_with("009 "));
-    assert_eq!(sent[10], "10 more versions were accepted with a notice");
+    // Nine 200-byte notices fit beside the summary, which counts the rest.
+    assert_eq!(sent.len(), 10);
+    assert!(sent[8].starts_with("008 "));
+    assert_eq!(sent[9], "11 more versions were accepted with a notice");
     let total: usize = sent
         .iter()
         .map(|value| value.len())
         .sum();
-    assert!(total < 2048 + 64, "{total}");
+    assert!(total <= 2048, "{total}");
+    let longest_summary = format!("{} more versions were accepted with a notice", usize::MAX);
+    assert!(longest_summary.len() <= 64);
 }
