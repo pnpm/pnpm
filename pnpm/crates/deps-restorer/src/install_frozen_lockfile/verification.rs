@@ -71,7 +71,10 @@ pub(super) async fn load_custom_fetcher_session(
     if fetchers.is_empty() {
         return Ok(None);
     }
-    Ok(Some(Arc::new(crate::CustomFetcherSession::with_config(fetchers, config))))
+    Ok(Some(Arc::new(
+        crate::CustomFetcherSession::with_config(fetchers, config)
+            .map_err(InstallFrozenLockfileError::VersionPolicy)?,
+    )))
 }
 
 impl ConcurrentVerification<'_> {
