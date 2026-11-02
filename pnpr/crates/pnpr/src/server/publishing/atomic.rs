@@ -128,13 +128,14 @@ pub(in super::super) async fn commit_publication(
         .iter_mut()
         .flat_map(|stage| std::mem::take(&mut stage.notices))
         .collect();
-    let receipt = commit_staged(state, staged, request).await?;
+    let receipt = commit_staged(state, staged, notes, request).await?;
     Ok(PublishReceipt { notices, ..receipt })
 }
 
 async fn commit_staged(
     state: &AppState,
     mut staged: Vec<StagedPublish>,
+    notes: PublishNotes,
     request: Option<PublicationRequest>,
 ) -> Result<PublishReceipt, RegistryError> {
     let Some(database) = state.inner.storage.sqlite_metadata().cloned() else {
