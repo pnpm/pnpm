@@ -147,6 +147,9 @@ impl CliArgs {
             install_args.materialization.no_frozen_store,
             config.frozen_store,
         );
+        if install_args.materialization.no_runtime {
+            super::pipelines::record_no_runtime_flag(&mut config);
+        }
         config.progress = self.progress_enabled(config.progress);
         self.configure_reporter();
         if self.output.presentation.loglevel.is_none()

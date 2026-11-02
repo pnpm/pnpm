@@ -1,5 +1,5 @@
 pub(crate) use configuration::{
-    apply_install_cli_config, derive_config_root, warn_about_config_root,
+    apply_install_cli_config, derive_config_root, record_no_runtime_flag, warn_about_config_root,
 };
 pub(crate) use install::InstallPipeline;
 pub(in crate::cli_args) use install::run_dedicated_lockfile_workspace_install;
