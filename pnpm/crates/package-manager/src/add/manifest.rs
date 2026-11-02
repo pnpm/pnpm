@@ -41,16 +41,8 @@ pub(super) async fn prepare_single_add<Reporter: self::Reporter>(
 ) -> Result<SingleAddPreparation, AddError> {
     let resolution = AddResolution::new();
     let catalog_ctx = read_catalog_ctx(manifest, add.config)?;
-    let mut workspace_projects = (add.config.link_workspace_packages.enabled_at_depth(0)
-        || add.config.save_workspace_protocol != SaveWorkspaceProtocol::Rolling
-        || super::range_fallback::needs_workspace_range_fallback(
-            add,
-            owned.save_catalog_name.as_deref(),
-            &catalog_ctx.catalogs,
-            manifest,
-        ))
-    .then(|| workspace_projects_for_add(add.config))
-    .flatten();
+    let mut workspace_projects =
+        walk_workspace_for_add(add, owned, &catalog_ctx.catalogs, manifest);
     let workspace_packages =
         crate::install::build_workspace_packages_map(workspace_projects.as_deref());
     let git_source_cache = Arc::new(pnpm_git_fetcher::GitSourceCache::default());
@@ -84,11 +76,26 @@ pub(super) async fn prepare_single_add<Reporter: self::Reporter>(
     if let Some(projects) = &mut workspace_projects {
         crate::install::replace_project_manifest(projects, manifest);
     }
-    Ok(SingleAddPreparation {
-        catalog_ctx,
-        prepared,
-        workspace: workspace_projects.map(DiscoveredWorkspace::new),
-    })
+    let workspace = workspace_projects.map(DiscoveredWorkspace::new);
+    Ok(SingleAddPreparation { catalog_ctx, prepared, workspace })
+}
+/// The workspace projects, walked only when resolving the selectors reads them.
+fn walk_workspace_for_add(
+    add: AddOptions<'_>,
+    owned: &AddOwned,
+    catalogs: &Catalogs,
+    manifest: &PackageManifest,
+) -> Option<Vec<pnpm_workspace::Project>> {
+    (add.config.link_workspace_packages.enabled_at_depth(0)
+        || add.config.save_workspace_protocol != SaveWorkspaceProtocol::Rolling
+        || super::range_fallback::needs_workspace_range_fallback(
+            add,
+            owned.save_catalog_name.as_deref(),
+            catalogs,
+            manifest,
+        ))
+    .then(|| workspace_projects_for_add(add.config))
+    .flatten()
 }
 
 pub(super) fn catalog_version_requests(
