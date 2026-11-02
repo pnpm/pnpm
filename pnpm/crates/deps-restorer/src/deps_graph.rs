@@ -12,7 +12,7 @@ use indexmap::IndexMap;
 use pnpm_graph_hasher::{DepsGraphNode, HashEncoding, hash_object_with_encoding};
 use pnpm_lockfile::{
     LockfileResolution, PackageKey, PackageMetadata, PkgName, PlatformSelector, SnapshotDepRef,
-    SnapshotEntry, select_platform_variant,
+    SnapshotEntry,
 };
 use std::collections::HashMap;
 
@@ -121,9 +121,14 @@ fn full_pkg_id_for(
     // lockfiles used the `/<name>/<ver>` shape, but pacquet doesn't
     // parse those.)
     let pkg_id = pkg_key.to_string();
+    // A `variations` resolution is identified by the archive this
+    // platform selects: a variant, or the fallback.
     if let LockfileResolution::Variations(variations) = resolution
-        && let Some(variant) = select_platform_variant(&variations.variants, platform_selector)
-        && let Some(integrity) = variant.resolution.integrity()
+        && let Some(integrity) = variations
+            .select(platform_selector)
+            .ok()
+            .flatten()
+            .and_then(|selected| selected.resolution().integrity())
     {
         return format!("{pkg_id}:{integrity}");
     }

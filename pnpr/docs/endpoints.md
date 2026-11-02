@@ -183,6 +183,8 @@ are checked against the serving registry's matching
 | `GET` | `/@scope/{name}` | Scoped package packument. |
 | `GET` | `/{name}/{version-or-tag}` | Unscoped version manifest by exact version or dist-tag. |
 | `GET` | `/@scope/{name}/{version-or-tag}` | Scoped version manifest by exact version or dist-tag. |
+| `GET` | `/{name}@{version}/variants/{tag}` | Unscoped [platform variant](#platform-variants) tar. |
+| `GET` | `/@scope/{name}@{version}/variants/{tag}` | Scoped platform variant tar. |
 | `GET` | `/{name}/{version}+r{revision}` | Unscoped release record. See [pnpr's package document](#pnprs-package-document). |
 | `GET` | `/@scope/{name}/{version}+r{revision}` | Scoped release record. |
 | `GET` | `/{name}/-/{filename}` | Unscoped tarball. Not served by a [tar registry](configuration.md#tar-registries). |
@@ -331,6 +333,49 @@ a hosted registry.
 | `DELETE` | `/@scope/{name}/-/{filename}` | Remove a scoped tarball. Requires `unpublish`. Legacy `/@scope/{name}/-/{filename}/-rev/{rev}` is also accepted. |
 | `PUT` | `/-/package/{package}/dist-tags/{tag}` | Add or update a dist-tag. Body is a JSON string version, for example `"1.0.0"`. Requires `publish`. |
 | `DELETE` | `/-/package/{package}/dist-tags/{tag}` | Remove a dist-tag. Requires `publish`. |
+
+### Platform variants
+
+A hosted version can carry platform variants: archives that pnpm links in
+place of the version's own archive on the platforms they declare. Each variant
+is a complete package whose `package.json` has the version's `name` and
+`version` and declares its platforms as platform tags:
+
+```json
+{ "name": "fast-thing", "version": "1.4.0", "variant": { "platforms": ["linux-x64", "linux-x64-musl"] } }
+```
+
+A tag is `<os>-<cpu>`, then optionally `musl` or a glibc floor
+(`manylinux_2_28`), a macOS or Windows floor (`macos_11_0`, `windows_10_0`), an
+N-API floor (`napi8`) or a Node.js or Electron ABI (`node127`, `electron130`);
+or `wasm32`. Only the canonical form is accepted.
+
+The publish document references each variant under
+`versions[<version>].pnprVariants` as `{ "<label>": "<.tgz integrity>" }` and
+attaches it as `<basename>-<version>~<label>.tgz`. The label only pairs a
+reference with its attachment. All archives travel in the one publish body.
+pnpr rejects the version when a variant:
+
+- has another `name` or `version`, or other `peerDependencies` or
+  `peerDependenciesMeta`, than the version;
+- requires a build;
+- has no `variant` field, one that does not parse, or an `os`, `cpu`, or
+  `libc` field;
+- lists a platform another variant lists;
+- is referenced but not attached, or attached but not referenced.
+
+A variant may differ from the version in its files, dependencies, bundled
+dependencies, `bin`, `main`, `exports`, and `engines`. pnpr names each variant
+by its platforms' tags, sorted and joined with `+`, such as
+`linux-x64+linux-x64-musl`, and serves its tar at
+`/{name}@{version}/variants/{tag}`, and at
+`/{name}@{version}+r{revision}/variants/{tag}` while that revision is selected.
+
+Only [pnpr's package document](#pnprs-package-document) and release records
+list the variants, under `variants`: each with its `tag`, structured
+`platforms`, tar `integrity`, sizes, `bins`, and a `manifest` of the fields
+that differ from the version's (`null` for a removed field). npm's documents
+do not list them, so npm clients install the version's own archive.
 
 Publishing a version that already exists is a `409`. On the S3 backend, where
 several stateless replicas can write to one bucket, concurrent writers are

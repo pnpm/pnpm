@@ -90,6 +90,7 @@ impl InstallPackageBySnapshot<'_> {
                 package_key: fetch.package_key,
                 package_id: fetch.package_id,
                 allow_build: &allow_build,
+                variant: false,
             },
             tarball,
             cas_paths,
@@ -165,7 +166,7 @@ impl InstallPackageBySnapshot<'_> {
     ) -> Result<(HashMap<String, PathBuf>, ExtractedPackageMetadata), InstallPackageBySnapshotError>
     {
         let config = self.ctx.config;
-        let revision_addressed = is_revision_addressed(fetch.resolution);
+        let revision_addressed = is_revision_addressed(fetch.resolution) || fetch.variant;
         let (tarball_url, integrity) =
             tarball_url_and_integrity(fetch.resolution, fetch.package_key, config)?;
         let tarball_url = local_file_tarball_install_url(tarball_url, self.ctx.workspace_root);

@@ -5640,6 +5640,7 @@ dependencies = [
  "pnpm-fs",
  "pnpm-package-manifest",
  "pnpm-patching",
+ "pnpm-platform-variants",
  "pnpm-resolving-parse-wanted-dependency",
  "pnpm-tool-protocol",
  "pretty_assertions",
@@ -5985,6 +5986,7 @@ dependencies = [
  "pnpm-package-manifest",
  "pnpm-package-name",
  "pnpm-patching",
+ "pnpm-platform-variants",
  "pnpm-real-hoist",
  "pnpm-registry",
  "pnpm-reporter",
@@ -6074,6 +6076,18 @@ dependencies = [
  "sha2 0.10.9",
  "tempfile",
  "text-block-macros",
+]
+
+[[package]]
+name = "pnpm-platform-variants"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "pnpm-detect-libc",
+ "pnpm-process",
+ "pretty_assertions",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -6335,6 +6349,7 @@ dependencies = [
  "pnpm-package-manifest",
  "pnpm-package-name",
  "pnpm-patching",
+ "pnpm-platform-variants",
  "pnpm-resolving-jsr-specifier-parser",
  "pnpm-resolving-npm-resolver",
  "pnpm-resolving-parse-wanted-dependency",
@@ -6429,6 +6444,7 @@ dependencies = [
  "pnpm-lockfile",
  "pnpm-network",
  "pnpm-package-name",
+ "pnpm-platform-variants",
  "pnpm-registry",
  "pnpm-resolving-default-resolver",
  "pnpm-resolving-jsr-specifier-parser",
@@ -6885,6 +6901,7 @@ dependencies = [
  "pnpm-network",
  "pnpm-package-manager",
  "pnpm-package-manifest",
+ "pnpm-platform-variants",
  "pnpm-python-resolver",
  "pnpm-reporter",
  "pnpm-resolving-npm-resolver",

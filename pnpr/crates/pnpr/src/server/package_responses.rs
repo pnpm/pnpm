@@ -258,6 +258,7 @@ impl Representation {
         documents: &PackageDocumentsConfig,
     ) -> Result<(Vec<u8>, &'static str), RegistryError> {
         if self == Representation::InstallV2 {
+            super::publishing::variants::describe_variants(&mut doc);
             let anchor = super::split_packuments::document_anchor(&doc).unwrap_or_else(Utc::now);
             let trimmed = abbreviate_packument(&doc, anchor);
             let abbreviated_len = serde_json::to_vec(&trimmed)?.len();

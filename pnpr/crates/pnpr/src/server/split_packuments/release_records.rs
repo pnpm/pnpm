@@ -84,7 +84,7 @@ fn revision_record(manifest: &Value, revision: u64) -> Option<Value> {
 
 /// The revision a version's manifest is projected from: `0`, the original,
 /// unless the registry selected a replacement.
-fn selected_revision(manifest: &Value) -> u64 {
+pub(in super::super) fn selected_revision(manifest: &Value) -> u64 {
     manifest
         .pointer("/dist/revision")
         .and_then(Value::as_u64)
@@ -141,10 +141,13 @@ pub(super) fn release_record(manifest: &Value) -> Map<String, Value> {
 }
 
 /// Remove pnpr's extensions from a version manifest served in npm's format:
-/// pnpr's facts about the archives, and the revision protocol's marker and
-/// history. The selected revision's `tarball` and `integrity` stay, so npm
-/// clients install it.
+/// pnpr's facts about the archives, the variants it stores with a hosted
+/// version, and the revision protocol's marker and history. The selected
+/// revision's `tarball` and `integrity` stay, so npm clients install it.
 fn without_pnpr_facts(manifest: &mut Value) {
+    if let Some(fields) = manifest.as_object_mut() {
+        fields.remove(super::super::publishing::variants::STORED_FIELD);
+    }
     let dist = manifest.get_mut("dist").and_then(Value::as_object_mut);
     if let Some(dist) = dist {
         for field in ["pnpr", "revision", "revisions"] {
