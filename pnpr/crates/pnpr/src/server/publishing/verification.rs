@@ -9,15 +9,11 @@ use pnpm_package_manifest::{
 use pnpm_tarball::{PublicationArchive, read_publication_archive};
 use pnpr_error::RegistryError;
 use pnpr_package_name::CanonicalPackageName;
+use pnpr_storage::metadata::ARCHIVE_MANIFEST_FIELD;
 use serde_json::{Map, Value, json};
 use std::{io::Read, path::Path};
 
 use super::attachments::PublishedTar;
-
-/// The field of a stored version that records how its install-critical fields
-/// were derived: the interpretation profile, and the digests of the archive's
-/// `package.json` and `npm-shrinkwrap.json`.
-pub(in super::super) const ARCHIVE_MANIFEST_FIELD: &str = "_archiveManifest";
 
 /// Read the `.tgz` written to `tgz_path` for the manifest an installer would
 /// select, decoding no more than any `.tgz` may decode to.

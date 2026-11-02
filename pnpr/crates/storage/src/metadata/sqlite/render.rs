@@ -12,13 +12,12 @@ use super::{
     cache::{FragmentKey, RENDERER_VERSION, RenderCache, Representation, ViewKey},
     commit::{PackageRow, package_row, parse_json, parse_optional_json},
     packument::{
-        ARCHIVE_MANIFEST, DEPRECATED, Interpretation, ORDINARY, README, README_FILENAME, TAGS,
-        TIME, VERSIONS,
+        DEPRECATED, Interpretation, ORDINARY, README, README_FILENAME, TAGS, TIME, VERSIONS,
     },
     tags::stored_tags,
     to_generation,
 };
-use crate::metadata::PackageView;
+use crate::metadata::{ARCHIVE_MANIFEST_FIELD, PackageView};
 use pnpr_error::Result;
 use pnpr_package_name::Ecosystem;
 use rusqlite::{Connection, params};
@@ -89,7 +88,7 @@ fn render_fragment(connection: &Connection, key: &FragmentKey) -> Result<Arc<str
         inputs: parse_json(inputs.as_deref().unwrap_or("{}"))?,
     };
     if let Some(record) = interpretation.record() {
-        fragment.insert(ARCHIVE_MANIFEST.to_string(), record);
+        fragment.insert(ARCHIVE_MANIFEST_FIELD.to_string(), record);
     }
     for (field, value) in [README, README_FILENAME, DEPRECATED].into_iter().zip(fields) {
         if let Some(value) = parse_optional_json(value.as_deref())? {

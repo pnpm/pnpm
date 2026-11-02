@@ -37,6 +37,11 @@ use pnpr_error::Result;
 use pnpr_package_name::{CanonicalPackageName, Ecosystem};
 use std::{fmt, sync::Arc};
 
+/// The field of a stored npm version that records the interpretation profile
+/// its manifest was accepted under, as `profile`, and the digests of the raw
+/// inputs the profile derived it from.
+pub const ARCHIVE_MANIFEST_FIELD: &str = "_archiveManifest";
+
 /// A committed state of one hosted catalog: the organization namespace a
 /// package lives in. Every committed mutation advances its catalog's counter,
 /// so two generations of one catalog order its commits. Counters of different

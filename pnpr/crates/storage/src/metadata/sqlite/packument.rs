@@ -4,7 +4,7 @@
 //! `time` stay in [`PackumentRows::state`] as placeholders that mark where
 //! [`super::render`] puts them back.
 
-use crate::metadata::documents::check_format_version;
+use crate::metadata::{ARCHIVE_MANIFEST_FIELD, documents::check_format_version};
 use pnpr_error::{RegistryError, Result};
 use serde_json::{Map, Value};
 use std::collections::BTreeMap;
@@ -15,9 +15,7 @@ pub(super) const TIME: &str = "time";
 pub(super) const DEPRECATED: &str = "deprecated";
 pub(super) const README: &str = "readme";
 pub(super) const README_FILENAME: &str = "readmeFilename";
-/// The field of a version that records the interpretation profile its
-/// manifest was accepted under and the digests of that profile's inputs.
-pub(super) const ARCHIVE_MANIFEST: &str = "_archiveManifest";
+/// The key of the profile in an `_archiveManifest` record.
 const PROFILE: &str = "profile";
 
 /// The revision key of a version outside the registry revision protocol.
@@ -65,7 +63,7 @@ impl Interpretation {
         let Some(record) = record else { return Ok(Self::submitted()) };
         let invalid = || {
             bad_request(&format!(
-                "`{ARCHIVE_MANIFEST}` of version {version:?} must be an object naming a profile",
+                "`{ARCHIVE_MANIFEST_FIELD}` of version {version:?} must be an object naming a profile",
             ))
         };
         let Value::Object(mut inputs) = record else { return Err(invalid()) };
@@ -168,7 +166,7 @@ fn take_versions(state: &mut Map<String, Value>) -> Result<BTreeMap<String, Vers
 
 fn version_rows(version: &str, mut manifest: Map<String, Value>) -> Result<VersionRows> {
     let interpretation =
-        Interpretation::from_record(version, manifest.shift_remove(ARCHIVE_MANIFEST))?;
+        Interpretation::from_record(version, manifest.shift_remove(ARCHIVE_MANIFEST_FIELD))?;
     let deprecated = manifest.shift_remove(DEPRECATED);
     let readme = Readme {
         text: manifest.shift_remove(README),
