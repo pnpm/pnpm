@@ -257,3 +257,32 @@ async fn a_publisher_supplied_archive_record_is_replaced() {
     assert_eq!(served["_archiveManifest"]["profile"], "npm-install-manifest/1");
     assert_eq!(served["hasInstallScript"], false);
 }
+
+#[tokio::test]
+async fn a_version_is_published_without_build_metadata() {
+    let (_tmp, app, token) = setup().await;
+    let archive = json!({ "name": "widgets", "version": "1.0.0-canary.1+abc" });
+    let doc = publish_doc("widgets", "1.0.0-canary.1", &manifest_tgz(&archive, &[]));
+
+    let response = publish(&app, &token, "widgets", &doc).await;
+    assert_eq!(response.status(), StatusCode::CREATED);
+    let served = served_version(&app, "widgets", "1.0.0-canary.1").await;
+    assert_eq!(served["version"], json!("1.0.0-canary.1"));
+}
+
+#[tokio::test]
+async fn a_version_with_build_metadata_cannot_be_published() {
+    let (_tmp, app, token) = setup().await;
+    // `+rN` is the build metadata pnpm reserves for registry revisions, so a
+    // publisher must not be able to claim it, whatever the archive says.
+    for archive_version in ["1.0.0+r1", "1.0.0"] {
+        let archive = json!({ "name": "widgets", "version": archive_version });
+        let mut doc = publish_doc("widgets", "1.0.0+r1", &manifest_tgz(&archive, &[]));
+        doc["versions"]["1.0.0+r1"]["version"] = json!(archive_version);
+
+        let response = publish(&app, &token, "widgets", &doc).await;
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST, "archive {archive_version}");
+        let reason = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
+        assert!(reason.contains("version"), "{reason}");
+    }
+}

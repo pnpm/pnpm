@@ -401,6 +401,10 @@ published `.tgz` against the metadata submitted for it, under the
    `preinstall`, `install`, and `postinstall` scripts, including the
    `node-gyp rebuild` an installer runs for a root `binding.gyp`. The archive's
    `name` and `version` must also name the package and version being
+   published. A version compares without semver build metadata, and is
+   published without it, as npm publishes it: an archive version
+   `1.0.0-canary.1+abc` is published as `1.0.0-canary.1`, and a version with
+   build metadata, such as the `+r<N>` of a registry revision, cannot be
    published. Any difference rejects the publish with a `400` whose message
    names the package, the version, and each differing field.
 3. One difference is accepted: a submitted `scripts.install: "node-gyp

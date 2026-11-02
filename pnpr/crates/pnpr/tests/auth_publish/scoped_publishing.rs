@@ -489,31 +489,37 @@ async fn unpublish_tarball_via_version_route_url() {
         );
     }
 
-    // Reserved `+r<digits>` revision identifiers must not delete a hosted `.tgz` blob.
-    let body = publish_doc("unpub-rev", "1.0.0+r0", b"bytes");
-    let request = Request::put("/npm/unpub-rev")
-        .header("content-type", "application/json")
-        .header("Authorization", format!("Bearer {token}"))
-        .body(Body::from(serde_json::to_vec(&body).unwrap()))
-        .unwrap();
-    assert_eq!(
-        app.clone()
-            .oneshot(request)
-            .await
-            .unwrap()
-            .status(),
-        StatusCode::CREATED,
-    );
-    assert!(
+    // A version cannot be published with the reserved `+r<digits>` build
+    // metadata, and a reserved revision identifier must not delete the hosted
+    // `.tgz` blob of the version it names.
+    for (version, status) in [("1.0.0+r0", StatusCode::BAD_REQUEST), ("1.0.0", StatusCode::CREATED)]
+    {
+        let body = publish_doc("unpub-rev", version, b"bytes");
+        let request = Request::put("/npm/unpub-rev")
+            .header("content-type", "application/json")
+            .header("Authorization", format!("Bearer {token}"))
+            .body(Body::from(serde_json::to_vec(&body).unwrap()))
+            .unwrap();
+        assert_eq!(
+            app.clone()
+                .oneshot(request)
+                .await
+                .unwrap()
+                .status(),
+            status,
+            "{version}",
+        );
+    }
+    let hosted_blob = || {
         local_blob_path(
             &storage,
             "",
             pnpr_storage::Ecosystem::Npm,
             "unpub-rev",
-            "unpub-rev-1.0.0+r0.tgz"
+            "unpub-rev-1.0.0.tgz",
         )
-        .exists(),
-    );
+    };
+    assert!(hosted_blob().exists());
 
     let request = Request::delete("/npm/unpub-rev@1.0.0+r0/-rev/anything")
         .header("Authorization", format!("Bearer {token}"))
@@ -521,16 +527,7 @@ async fn unpublish_tarball_via_version_route_url() {
         .unwrap();
     let response = app.oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
-    assert!(
-        local_blob_path(
-            &storage,
-            "",
-            pnpr_storage::Ecosystem::Npm,
-            "unpub-rev",
-            "unpub-rev-1.0.0+r0.tgz"
-        )
-        .exists(),
-    );
+    assert!(hosted_blob().exists());
 }
 
 #[tokio::test]

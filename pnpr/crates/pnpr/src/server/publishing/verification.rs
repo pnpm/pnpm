@@ -104,18 +104,20 @@ fn parse_archive_manifest(
 }
 
 /// The archive must describe the slot it is published into: the package the
-/// URL names, and the version its attachment names, without build metadata.
+/// URL names, and the version its attachment names. The derived version has
+/// no build metadata, as npm publishes it, so a slot with build metadata never
+/// matches: a publisher can never claim the `+r<N>` that pnpm reserves for
+/// registry revisions.
 fn check_slot(
     name: &CanonicalPackageName,
     version_key: &str,
     derived: &InstallManifest,
     comparison: &mut ManifestComparison,
 ) {
-    let slot_version = version_key.split_once('+').map_or(version_key, |(version, _)| version);
     let fields = derived.fields();
     let field_is =
         |field: &str, expected: &str| fields.get(field).and_then(Value::as_str) == Some(expected);
-    for (field, expected) in [("name", name.as_str()), ("version", slot_version)] {
+    for (field, expected) in [("name", name.as_str()), ("version", version_key)] {
         if !field_is(field, expected)
             && !comparison.mismatched
                 .iter()
