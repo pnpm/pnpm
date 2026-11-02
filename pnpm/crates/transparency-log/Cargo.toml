@@ -1,0 +1,26 @@
+[package]
+name = "pnpm-transparency-log"
+description = "C2SP signed-note checkpoints, witness cosignatures, and tiled transparency log hashing and proofs"
+version = "0.0.1"
+publish = false
+authors.workspace = true
+edition.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+base64 = { workspace = true }
+derive_more = { workspace = true }
+ed25519-dalek = { workspace = true }
+signed_note = { workspace = true }
+tlog_tiles = { workspace = true }
+
+[dev-dependencies]
+pretty_assertions = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[lints]
+workspace = true
