@@ -45,6 +45,7 @@ async fn a_published_tarball_hashes_its_tar_under_a_decode_permit() {
         version: "1.0.0".to_string(),
         dist: json!({ "integrity": sha512(&tgz).to_string() }),
         kind: AttachmentKind::Tarball,
+        variant_label: None,
     };
     let decodes = Arc::new(tokio::sync::Semaphore::new(0));
     let write = write_attachment_slot(&storage, &name, prepared, TarballStorage::Tgz, &decodes);

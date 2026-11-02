@@ -68,6 +68,7 @@ pnpm-resolving-npm-resolver = { workspace = true }
 pnpm-resolving-resolver-base = { workspace = true }
 pnpm-store-dir = { workspace = true }
 pnpm-shared-artifact-protocol = { workspace = true }
+pnpm-platform-variants = { workspace = true }
 pnpm-tarball = { workspace = true }
 async-trait = { workspace = true }
 axum = { workspace = true, features = ["query"] }
@@ -107,6 +108,7 @@ tracing = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["json"] }
 url = { workspace = true }
 wax = { workspace = true }
+tar = { workspace = true }
 zip = { workspace = true }
 zstd = { workspace = true }
 

@@ -1,3 +1,5 @@
+pub(super) mod variants;
+
 pub(super) use atomic::{
     commit_publication, publication_name, publication_request, publish_committed_response,
     replayed_outcome, single_catalog,

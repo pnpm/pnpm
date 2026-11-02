@@ -7,12 +7,18 @@
 //! - `{base}/{name}/-/notes` and `{base}/@{scope}/{name}/-/notes` list a
 //!   package's notes; no tarball is named `notes`.
 
-use super::npm_handlers::{NamePath, ScopedVersionPath, get_scoped_version_manifest};
+use super::{
+    npm_handlers::{NamePath, ScopedVersionPath},
+    variant_handlers::get_scoped_version_manifest_or_variant,
+};
 use crate::server::{
     AppState, AuthedCaller, Path, Response, State, TargetRegistry, not_found,
     notes::{NoteRequest, read_note_body, serve_package_notes, serve_version_note},
 };
-use axum::{body::Bytes, http::Method};
+use axum::{
+    body::Bytes,
+    http::{HeaderMap, Method},
+};
 use serde::Deserialize;
 
 /// The final segment of a version note's path.
@@ -24,13 +30,15 @@ pub(super) struct ScopedNamePath {
     name: String,
 }
 
-/// `{base}/{a}/{b}/{c}`: a scoped version document, or an unscoped (or
+/// `{base}/{a}/{b}/{c}`: a scoped version document, an unscoped package's
+/// platform variant (`{name}@{version}/variants/{tag}`), or an unscoped (or
 /// `%2F`-encoded scoped) version's note.
 pub(super) async fn three_segments(
     state: State<AppState>,
     caller: AuthedCaller,
     registry: TargetRegistry,
     method: Method,
+    headers: HeaderMap,
     Path(path): Path<ScopedVersionPath>,
     body: Bytes,
 ) -> Response {
@@ -40,7 +48,14 @@ pub(super) async fn three_segments(
         if method != Method::GET && method != Method::HEAD {
             return not_found();
         }
-        return get_scoped_version_manifest(state, caller, registry, Path(path)).await;
+        return get_scoped_version_manifest_or_variant(
+            state,
+            caller,
+            registry,
+            headers,
+            Path(path),
+        )
+        .await;
     }
     version_note(&state, &caller, &registry, (&path.scope, &path.name), (&method, body)).await
 }
