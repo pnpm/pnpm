@@ -62,33 +62,18 @@ pub(super) fn document_anchor(packument: &Value) -> Option<DateTime<Utc>> {
 /// nowhere, so it can go either way: a publish after a long gap can take a
 /// document back below the threshold, since advancing `timesSince` drops the
 /// publish times of the entries that fall out of the window. The document is
-/// built once and measured without being written out.
+/// built once, and written again only when it is split.
 pub(super) fn install_v2_body(
     abbreviated: &Value,
     config: &PackageDocumentsConfig,
 ) -> serde_json::Result<Vec<u8>> {
     let mut document = install_v2(abbreviated, config);
-    if serialized_len(&document)? > config.split_threshold {
-        leave_out_unlikely_picks(&mut document, &likely_picks(abbreviated));
+    let whole = serde_json::to_vec(&document)?;
+    if u64::try_from(whole.len()).is_ok_and(|len| len <= config.split_threshold) {
+        return Ok(whole);
     }
+    leave_out_unlikely_picks(&mut document, &likely_picks(abbreviated));
     serde_json::to_vec(&document)
-}
-
-/// The size of `value` serialized as JSON, counted without being kept.
-fn serialized_len(value: &Value) -> serde_json::Result<u64> {
-    struct Counter(u64);
-    impl std::io::Write for Counter {
-        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
-            self.0 += bytes.len() as u64;
-            Ok(bytes.len())
-        }
-        fn flush(&mut self) -> std::io::Result<()> {
-            Ok(())
-        }
-    }
-    let mut counter = Counter(0);
-    serde_json::to_writer(&mut counter, value)?;
-    Ok(counter.0)
 }
 
 /// Leave every version's manifest and facts about its archives to its
