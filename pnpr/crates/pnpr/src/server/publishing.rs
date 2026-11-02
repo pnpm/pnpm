@@ -195,7 +195,7 @@ pub(super) async fn publish_package(
         .into_response();
     }
 
-    let request = publication_request(state, identity, &incoming, None, None);
+    let request = publication_request(state, identity, &incoming, None, None, Some(&name));
 
     // Routing, masking, and the publish rule all run inside
     // `validate_publish_doc`: the write resolves to a hosted registry (or

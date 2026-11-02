@@ -17,6 +17,7 @@ use axum::{
     response::Response,
 };
 use futures_util::StreamExt as _;
+use pnpr_package_name::CanonicalPackageName;
 use pnpr_storage::{
     BlobFinalize, BlobSlot, Storage,
     metadata::{ArtifactMember, BatchDocument, Generation, PublicationRequest},
@@ -47,10 +48,11 @@ pub(in super::super) fn publication_request(
     body: &Value,
     key: Option<&str>,
     name: Option<&str>,
+    target: Option<&CanonicalPackageName>,
 ) -> Option<PublicationRequest> {
     state.inner.storage.sqlite_metadata()?;
     let principal = identity.username()?.to_string();
-    let request_digest = request_digest(body);
+    let request_digest = request_digest(body, target.map(CanonicalPackageName::as_str));
     let idempotency_key = key.map_or_else(|| format!("request:{request_digest}"), str::to_string);
     let name = name.map(str::to_string);
     Some(PublicationRequest { principal, idempotency_key, request_digest, name })
@@ -176,8 +178,7 @@ struct Promoted {
     /// the metadata cannot derive.
     artifacts: Vec<ArtifactMember>,
     /// The archives this publish created.
-    written:
-        Vec<(String, pnpr_registry::Ecosystem, pnpr_package_name::CanonicalPackageName, String)>,
+    written: Vec<(String, pnpr_registry::Ecosystem, CanonicalPackageName, String)>,
 }
 
 impl Promoted {
@@ -266,7 +267,7 @@ async fn promote_archives(
 /// archive.
 async fn promote_one(
     storage: &Storage,
-    name: &pnpr_package_name::CanonicalPackageName,
+    name: &CanonicalPackageName,
     slot: BlobSlot,
 ) -> Result<BlobFinalize, RegistryError> {
     let Some((existing, length)) = storage.open_hosted_blob(name, slot.filename()).await? else {
@@ -314,20 +315,34 @@ pub(super) async fn same_bytes(
 /// tie it to.
 fn artifact_member(
     ecosystem: pnpr_registry::Ecosystem,
-    name: &pnpr_package_name::CanonicalPackageName,
+    name: &CanonicalPackageName,
     artifact: String,
 ) -> ArtifactMember {
     ArtifactMember { ecosystem, name: name.as_str().to_string(), version: String::new(), artifact }
 }
 
-/// The digest of a request, independent of the order of its object keys. The
-/// canonical JSON streams into the hasher, so a body that runs to the
-/// request limit is never copied.
-pub(super) fn request_digest(body: &Value) -> String {
+/// The digest of a request, independent of the order of its object keys:
+/// its body, and the package its URL names when the route names one, since
+/// the same body sent to another package is another publish. The canonical
+/// JSON streams into the hasher, so a body that runs to the request limit is
+/// never copied.
+pub(super) fn request_digest(body: &Value, target: Option<&str>) -> String {
     let mut hasher = Hasher(IntegrityOpts::new().algorithm(Algorithm::Sha256));
     // Writing into the hasher cannot fail.
-    let _ = write_canonical(&mut hasher, body);
+    let _ = match target {
+        None => write_canonical(&mut hasher, body),
+        Some(target) => write_targeted(&mut hasher, body, target),
+    };
     hasher.0.result().to_string()
+}
+
+/// `{"body":<body>,"target":<target>}`, canonical.
+fn write_targeted(out: &mut Hasher, body: &Value, target: &str) -> io::Result<()> {
+    out.write_all(br#"{"body":"#)?;
+    write_canonical(out, body)?;
+    out.write_all(br#","target":"#)?;
+    serde_json::to_writer(&mut *out, target)?;
+    out.write_all(b"}")
 }
 
 /// Feeds what is written to it into a digest.

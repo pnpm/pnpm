@@ -158,7 +158,7 @@ async fn publish_batch(
     // the request limit.
     drop(body);
     let name = publication_name(&incoming)?;
-    let request = publication_request(state, identity, &incoming, key, name);
+    let request = publication_request(state, identity, &incoming, key, name, None);
     let packages = take_packages(&mut incoming)?;
     let validated = validate_batch_entries(state, identity, packages).await?;
 

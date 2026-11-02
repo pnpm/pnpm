@@ -75,10 +75,16 @@ fn sha512(bytes: &[u8]) -> ssri::Integrity {
 fn a_request_digest_hashes_the_canonical_json() {
     let body = json!({ "b": 1, "a": [{ "d": 2, "c": r#"x""# }], "e": null });
     let reordered = json!({ "e": null, "a": [{ "c": r#"x""#, "d": 2 }], "b": 1 });
-    let digest = super::atomic::request_digest(&body);
-    assert_eq!(digest, super::atomic::request_digest(&reordered));
+    let digest = super::atomic::request_digest(&body, None);
+    assert_eq!(digest, super::atomic::request_digest(&reordered, None));
     let canonical = br#"{"a":[{"c":"x\"","d":2}],"b":1,"e":null}"#;
     assert_eq!(digest, ssri::Integrity::from(canonical).to_string());
+    // The same body sent to another package is another request.
+    let targeted = super::atomic::request_digest(&body, Some("pkg"));
+    assert_ne!(targeted, digest);
+    assert_ne!(targeted, super::atomic::request_digest(&body, Some("other")));
+    let canonical = br#"{"body":{"a":[{"c":"x\"","d":2}],"b":1,"e":null},"target":"pkg"}"#;
+    assert_eq!(targeted, ssri::Integrity::from(canonical).to_string());
 }
 
 #[tokio::test]
