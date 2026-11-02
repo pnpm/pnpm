@@ -70,6 +70,8 @@ pub struct FindWorkspaceProjectsOpts {
     /// entries may be absolute or relative to the workspace root, and
     /// entries that do not exist never match anything.
     pub ignored_directories: Vec<PathBuf>,
+    /// Suffixes matched against directory ancestors relative to the workspace root. A matched subtree is skipped unless its matching directory has a project manifest.
+    pub ignored_directory_suffixes: Vec<PathBuf>,
 }
 
 /// Error type of the public entry points.
@@ -143,6 +145,7 @@ pub fn find_workspace_projects_no_check(
         user_negations: &negations.user,
         subtree_negations: &negations.subtree,
         ignored_directories: &ignored_directories,
+        ignored_directory_suffixes: &opts.ignored_directory_suffixes,
     })?;
 
     for basename in PROJECT_MANIFEST_BASENAMES {
@@ -216,6 +219,7 @@ struct MergePatterns<'a> {
     user_negations: &'a wax::Any<'a>,
     subtree_negations: &'a wax::Any<'a>,
     ignored_directories: &'a [PathBuf],
+    ignored_directory_suffixes: &'a [PathBuf],
 }
 
 /// Expand every include pattern and union what they match.
@@ -300,6 +304,7 @@ fn collect_pattern_manifests(
                 merge.workspace_root,
                 merge.user_negations,
                 merge.ignored_directories,
+                merge.ignored_directory_suffixes,
                 &mut manifest_paths,
             )?;
             return Ok(manifest_paths);
@@ -310,6 +315,7 @@ fn collect_pattern_manifests(
                 merge.workspace_root,
                 merge.user_negations,
                 merge.ignored_directories,
+                merge.ignored_directory_suffixes,
                 &mut manifest_paths,
             );
             return Ok(manifest_paths);

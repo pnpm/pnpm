@@ -332,6 +332,7 @@ fn load_cleanup_projects(
     let opts = FindWorkspaceProjectsOpts {
         patterns: Some(workspace_package_patterns(&workspace_manifest)),
         ignored_directories: ignored_directories.to_vec(),
+        ignored_directory_suffixes: Vec::new(),
     };
     find_workspace_projects(workspace_dir, &opts)
         .map_err(WriteWorkspaceCatalogsError::FindWorkspaceProjects)

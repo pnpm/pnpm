@@ -14,7 +14,7 @@ impl EnvVar for Env {
 }
 
 fn read<Sys: EnvVar>(text: &str) -> Result<WorkspaceSettings, Box<serde_saphyr::Error>> {
-    read_readable_settings(text, parse_settings::<Sys, WorkspaceSettings>)
+    read_readable_settings(text, parse_settings::<Sys, WorkspaceSettings>, &[])
 }
 
 /// [`WorkspaceSettings::find_and_read`] over a file holding `text`, which
@@ -62,6 +62,37 @@ fn every_unreadable_setting_is_left_out() {
     assert_eq!(settings.node_linker, None);
     assert_eq!(settings.ignore_scripts, None);
     assert_eq!(settings.pm_on_fail, Some(PmOnFail::Warn));
+}
+
+#[test]
+fn load_at_reading_skips_unreadable_settings() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        "modulesDir: vendor\nvirtualStoreDirMaxLength: invalid\n",
+    )
+    .unwrap();
+
+    let settings =
+        WorkspaceSettings::load_at_reading(dir.path(), SettingsRead::Readable).unwrap().unwrap();
+
+    assert_eq!(settings.modules_dir.as_deref(), Some("vendor"));
+    assert_eq!(settings.virtual_store_dir_max_length, None);
+}
+
+#[test]
+fn required_modules_dir_settings_fail_while_unrelated_settings_are_skipped() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        "modulesDir: {vendor: true}\nvirtualStoreDirMaxLength: invalid\n",
+    )
+    .unwrap();
+
+    let error = WorkspaceSettings::load_at_reading(dir.path(), SettingsRead::RequiredModulesDir)
+        .unwrap_err();
+
+    assert!(error.to_string().contains("modulesDir"), "{error}");
 }
 
 #[test]

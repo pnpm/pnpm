@@ -1,5 +1,6 @@
 import path from 'node:path'
 
+import { envReplace } from '@pnpm/config.env-replace'
 import { type Config, createProjectModulesDirResolver } from '@pnpm/config.reader'
 import { LOCKFILE_VERSION, WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
 import { isError, PnpmError } from '@pnpm/error'
@@ -125,7 +126,7 @@ async function readInstalledLockfiles (projectDir: string): Promise<LockfileObje
  * set only on the command line, in the environment, or in the global config
  * is not seen.
  */
-async function readConfiguredModulesDir (projectDir: string): Promise<string> {
+export async function readConfiguredModulesDir (projectDir: string): Promise<string> {
   try {
     // `findWorkspaceDir` would also honor the workspace directory that the
     // environment of the prune sets, which names no registered project's
@@ -138,7 +139,7 @@ async function readConfiguredModulesDir (projectDir: string): Promise<string> {
     const lockfileDir = settings?.sharedWorkspaceLockfile === false ? settings.lockfileDir : workspaceDir
     const resolveModulesDir = createProjectModulesDirResolver({
       lockfileDir,
-      modulesDir: typeof settings?.modulesDir === 'string' ? settings.modulesDir : undefined,
+      modulesDir: typeof settings?.modulesDir === 'string' ? envReplace(settings.modulesDir, process.env) : undefined,
       packageConfigs: settings?.packageConfigs,
     })
     const projectName = lockfileDir != null || settings?.packageConfigs == null

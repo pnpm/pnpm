@@ -22,6 +22,7 @@ fn find_sorted_names(
                 .collect(),
         ),
         ignored_directories,
+        ignored_directory_suffixes: Vec::new(),
     };
     let mut names: Vec<String> = find_workspace_projects(root, &opts)
         .unwrap()
@@ -36,8 +37,63 @@ fn find_sorted_names(
                 .to_string()
         })
         .collect();
-    names.sort();
+    names.sort_unstable();
     names
+}
+
+#[test]
+fn skips_configured_modules_directories_during_broad_workspace_discovery() {
+    let tmp = TempDir::new().unwrap();
+    make_project(tmp.path(), ".", "root");
+    make_project(tmp.path(), "packages/real", "real");
+    make_project(tmp.path(), "packages/vendor", "vendor");
+    fs::create_dir_all(tmp.path().join("packages/real/vendor/installed")).unwrap();
+    fs::write(tmp.path().join("packages/real/vendor/installed/package.json"), "{").unwrap();
+    let opts = FindWorkspaceProjectsOpts {
+        patterns: Some(vec!["**".to_string()]),
+        ignored_directory_suffixes: vec![PathBuf::from("vendor")],
+        ..Default::default()
+    };
+
+    let projects = find_workspace_projects(tmp.path(), &opts).unwrap();
+    let mut names: Vec<_> = projects
+        .iter()
+        .map(|project| {
+            project.manifest
+                .value()
+                .get("name")
+                .unwrap()
+                .as_str()
+                .unwrap()
+        })
+        .collect();
+    names.sort_unstable();
+
+    assert_eq!(names, ["real", "root", "vendor"]);
+}
+
+#[test]
+fn skips_descendants_of_configured_modules_directories() {
+    let tmp = TempDir::new().unwrap();
+    make_project(tmp.path(), ".", "root");
+    fs::create_dir_all(tmp.path().join("packages/real/vendor/installed")).unwrap();
+    fs::write(tmp.path().join("packages/real/vendor/installed/package.json"), "{").unwrap();
+    let opts = FindWorkspaceProjectsOpts {
+        patterns: Some(vec!["packages/real/vendor/*".to_string()]),
+        ignored_directory_suffixes: vec![PathBuf::from("vendor")],
+        ..Default::default()
+    };
+
+    let projects = find_workspace_projects(tmp.path(), &opts).unwrap();
+
+    assert_eq!(projects.len(), 1);
+    assert_eq!(
+        projects[0].manifest
+            .value()
+            .get("name")
+            .unwrap(),
+        "root",
+    );
 }
 
 #[test]
@@ -243,6 +299,7 @@ fn a_managed_directory_is_never_a_workspace_project_dir() {
     let opts = FindWorkspaceProjectsOpts {
         patterns: Some(vec!["**".to_string()]),
         ignored_directories: vec![PathBuf::from("store")],
+        ignored_directory_suffixes: Vec::new(),
     };
 
     assert!(!is_workspace_project_dir(tmp.path(), &tmp.path().join("store/tool"), &opts).unwrap());

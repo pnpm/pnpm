@@ -3,7 +3,7 @@
 //! A package imported by copy or clone, such as a patched or built one, has
 //! no hard link to the store, so `store prune` needs this list to keep it.
 
-use pnpm_config::{PackageConfigsSetting, workspace_root_or};
+use pnpm_config::{PackageConfigsSetting, WorkspaceSettings, workspace_root_or};
 use pnpm_deps_restorer::{binary_store_index_key, store_index_key_for_resolution};
 use pnpm_fs::lexical_normalize;
 use pnpm_lockfile::{Lockfile, LockfileResolution, PackageKey};
@@ -13,10 +13,12 @@ use pnpm_store_dir::{
     CafsFileInfo, PackageFilesIndex, PruneError, StoreDir, StoreIndex, StoreIndexError,
     decode_package_files_index, get_registered_projects,
 };
-use pnpm_workspace::read_workspace_manifest_document;
-use serde::Deserialize;
+use pnpm_workspace::{
+    FindWorkspaceProjectsOpts, find_workspace_projects, read_workspace_manifest,
+    workspace_package_patterns,
+};
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet, hash_map::Entry},
     io, iter,
     path::{Path, PathBuf},
 };
@@ -50,6 +52,129 @@ pub(super) fn in_use_files(store_dir: &StoreDir) -> Result<HashSet<PathBuf>, Pru
         .flat_map(row_files)
         .filter_map(|file| store_dir.cas_file_path_by_mode(&file.digest, file.mode))
         .collect())
+}
+
+pub(super) fn registered_modules_dirs(
+    store_dir: &Path,
+    projects: &[PathBuf],
+) -> Result<Vec<PathBuf>, PruneError> {
+    let mut modules_dirs = HashSet::new();
+    let mut workspace_discoveries: HashMap<PathBuf, WorkspaceDiscovery> = HashMap::new();
+    let mut modules_dirs_by_project: HashMap<PathBuf, PathBuf> = HashMap::new();
+    for registered_project in projects {
+        let registered_project = lexical_normalize(registered_project);
+        let workspace_dir = workspace_root_or(&registered_project);
+        let workspace =
+            cached_workspace_discovery(&mut workspace_discoveries, &workspace_dir, store_dir)?;
+        for project in workspace.projects
+            .iter()
+            .chain(std::iter::once(&registered_project))
+        {
+            modules_dirs.insert(cached_configured_modules_dir(
+                project,
+                &mut modules_dirs_by_project,
+            )?);
+        }
+    }
+    Ok(modules_dirs.into_iter().collect())
+}
+
+fn cached_workspace_discovery<'cache>(
+    cache: &'cache mut HashMap<PathBuf, WorkspaceDiscovery>,
+    workspace_dir: &Path,
+    store_dir: &Path,
+) -> Result<&'cache WorkspaceDiscovery, PruneError> {
+    if let Entry::Vacant(entry) = cache.entry(workspace_dir.to_path_buf()) {
+        entry.insert(load_workspace_discovery(workspace_dir, store_dir)?);
+    }
+    Ok(cache.get(workspace_dir).expect("workspace discovery is cached"))
+}
+
+fn load_workspace_discovery(
+    workspace_dir: &Path,
+    store_dir: &Path,
+) -> Result<WorkspaceDiscovery, PruneError> {
+    let workspace_manifest = read_workspace_manifest(workspace_dir)
+        .map_err(|error| PruneError::InUseFiles(io::Error::other(error)))?;
+    let modules_dir_suffixes = workspace_modules_dir_suffixes(workspace_dir)?;
+    let projects = match workspace_manifest {
+        Some(manifest) => find_workspace_projects(
+            workspace_dir,
+            &FindWorkspaceProjectsOpts {
+                patterns: Some(workspace_package_patterns(&manifest)),
+                ignored_directories: vec![store_dir.to_path_buf()],
+                ignored_directory_suffixes: modules_dir_suffixes,
+            },
+        )
+        .map_err(|error| PruneError::InUseFiles(io::Error::other(error)))?
+        .into_iter()
+        .map(|project| project.root_dir)
+        .collect(),
+        None => Vec::new(),
+    };
+    Ok(WorkspaceDiscovery { projects })
+}
+
+fn cached_configured_modules_dir(
+    project: &Path,
+    cache: &mut HashMap<PathBuf, PathBuf>,
+) -> Result<PathBuf, PruneError> {
+    match cache.entry(project.to_path_buf()) {
+        Entry::Occupied(entry) => Ok(entry.get().clone()),
+        Entry::Vacant(entry) => {
+            let modules_dir = configured_modules_dir(project).map_err(PruneError::InUseFiles)?;
+            Ok(entry
+                .insert(project.join(modules_dir))
+                .clone())
+        }
+    }
+}
+
+struct WorkspaceDiscovery {
+    projects: Vec<PathBuf>,
+}
+
+fn workspace_modules_dir_suffixes(workspace_dir: &Path) -> Result<Vec<PathBuf>, PruneError> {
+    let Some(mut settings) =
+        WorkspaceSettings::load_at_reading(workspace_dir, pnpm_config::SettingsRead::Readable)
+            .map_err(|error| PruneError::InUseFiles(io::Error::other(error)))?
+    else {
+        return Ok(Vec::new());
+    };
+    settings.substitute_env_untrusted::<pnpm_config::Host>();
+    let mut modules_dirs: Vec<String> = settings.modules_dir.into_iter().collect();
+    let shares_one_lockfile = settings.shared_workspace_lockfile != Some(false)
+        || settings.lockfile_dir.is_some();
+    if !shares_one_lockfile && let Some(package_configs) = settings.package_configs {
+        modules_dirs.extend(
+            package_configs
+                .into_record()
+                .into_values()
+                .filter_map(|config| config.modules_dir),
+        );
+    }
+    Ok(modules_dirs
+        .iter()
+        .filter_map(|modules_dir| modules_dir_suffix(modules_dir))
+        .collect())
+}
+
+fn modules_dir_suffix(modules_dir: &str) -> Option<PathBuf> {
+    let path = Path::new(modules_dir);
+    if path.is_absolute() {
+        return None;
+    }
+    let mut suffix = PathBuf::new();
+    for component in path.components() {
+        match component {
+            std::path::Component::Normal(name) => suffix.push(name),
+            std::path::Component::CurDir => {}
+            std::path::Component::ParentDir
+            | std::path::Component::RootDir
+            | std::path::Component::Prefix(_) => return None,
+        }
+    }
+    (!suffix.as_os_str().is_empty()).then_some(suffix)
 }
 
 /// Fails on an undecodable row, which [`StoreIndex::get_many`] skips,
@@ -94,24 +219,16 @@ fn load_installed_lockfiles(project: &Path) -> io::Result<Vec<Lockfile>> {
 /// install. A `modulesDir` set only on the command line, in the
 /// environment, or in the global config is not seen.
 fn configured_modules_dir(project: &Path) -> io::Result<String> {
-    #[derive(Deserialize)]
-    #[serde(rename_all = "camelCase")]
-    struct ModulesDirSettings {
-        lockfile_dir: Option<String>,
-        modules_dir: Option<String>,
-        package_configs: Option<PackageConfigsSetting>,
-        shared_workspace_lockfile: Option<bool>,
-    }
-    let Some(document) =
-        read_workspace_manifest_document(&workspace_root_or(project)).map_err(io::Error::other)?
+    let workspace_dir = workspace_root_or(project);
+    let Some(mut settings) = WorkspaceSettings::load_at_reading(
+        &workspace_dir,
+        pnpm_config::SettingsRead::RequiredModulesDir,
+    )
+    .map_err(io::Error::other)?
     else {
         return Ok("node_modules".to_string());
     };
-    let Some(settings) = serde_saphyr::from_str::<Option<ModulesDirSettings>>(&document.text)
-        .map_err(|error| io::Error::other(format!("{}: {error}", document.path.display())))?
-    else {
-        return Ok("node_modules".to_string());
-    };
+    settings.substitute_env_untrusted::<pnpm_config::Host>();
     let shares_one_lockfile = settings.shared_workspace_lockfile != Some(false)
         || settings.lockfile_dir.is_some();
     let project_modules_dir = match settings.package_configs {

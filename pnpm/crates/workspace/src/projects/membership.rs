@@ -6,7 +6,10 @@ use super::{
     managed::{is_under_ignored_directory, resolve_ignored_directories},
     negations::compile_negations,
     split_include_patterns,
-    walk::{has_always_ignored_component, manifest_walk_ignores, split_parent_prefix},
+    walk::{
+        has_always_ignored_component, has_ignored_directory_suffix, manifest_walk_ignores,
+        split_parent_prefix,
+    },
 };
 use wax::{Glob, Program as _};
 
@@ -81,6 +84,7 @@ pub fn is_workspace_project_dir(
     let ignored_directories =
         resolve_ignored_directories(workspace_root, &opts.ignored_directories);
     if is_under_ignored_directory(dir, &ignored_directories)
+        || has_ignored_directory_suffix(dir, workspace_root, &opts.ignored_directory_suffixes)
         || has_always_ignored_component(relative_dir)
     {
         return Ok(false);

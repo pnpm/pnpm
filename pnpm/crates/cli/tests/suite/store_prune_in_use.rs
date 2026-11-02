@@ -114,6 +114,7 @@ fn blob_paths_of_rows(store_dir: &StoreDir, keys: &[String]) -> Vec<PathBuf> {
 fn prune(workspace: &Path) {
     let output = pacquet_at(workspace)
         .with_args(["store", "prune"])
+        .env_remove("PNPM_TASKS_230_MODULES_DIR")
         .output()
         .expect("run store prune");
     let stderr = String::from_utf8_lossy(&output.stderr);
@@ -287,6 +288,125 @@ fn store_prune_keeps_every_package_installed_by_copy_in_the_global_virtual_store
         |workspace| enable_gvs_in_workspace_yaml(workspace, ""),
         "node_modules/.pnpm/lock.yaml",
     );
+}
+
+#[test]
+fn store_prune_keeps_global_virtual_store_slots_from_a_custom_modules_dir() {
+    assert_prune_keeps_global_virtual_store_slots(|workspace| {
+        append_workspace_yaml(workspace, "modulesDir: pnpm_modules\n");
+        workspace.join("pnpm_modules")
+    });
+}
+
+#[test]
+fn store_prune_keeps_global_virtual_store_slots_from_package_configs_modules_dir() {
+    assert_prune_keeps_global_virtual_store_slots(|workspace| {
+        move_dependencies_to_a_project_with_its_own_lockfile(
+            workspace,
+            "packageConfigs:\n  project:\n    modulesDir: project_modules\n",
+        );
+        workspace.join("project/project_modules")
+    });
+}
+
+#[test]
+fn store_prune_keeps_global_virtual_store_slots_from_a_workspace_package_modules_dir() {
+    let CommandTempCwd {
+        root: _root, workspace, npmrc_info, ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry {
+        mock_instance: _mock_instance,
+        store_dir,
+        ..
+    } = npmrc_info;
+    write_manifest(&workspace);
+    append_workspace_yaml(
+        &workspace,
+        "packages: [\"**\"]\nmodulesDir: ${PNPM_TASKS_230_MODULES_DIR:-vendor}\n",
+    );
+    let project = workspace.join("project");
+    fs::create_dir_all(&project).expect("create workspace package");
+    fs::write(project.join("package.json"), serde_json::json!({"name": "project"}).to_string())
+        .expect("write workspace package manifest");
+    enable_gvs_in_workspace_yaml(&workspace, "");
+    pacquet_at(&workspace)
+        .with_args(["install", "--reporter=silent"])
+        .env_remove("PNPM_TASKS_230_MODULES_DIR")
+        .assert()
+        .success();
+    let store = StoreDir::new(store_dir);
+    let modules_dir = project.join("vendor");
+    let live_slot = add_global_virtual_store_prune_anchor(&workspace, &store, &modules_dir);
+    fs::create_dir_all(modules_dir.join("installed")).expect("create an installed package dir");
+    fs::write(modules_dir.join("installed/package.json"), "{")
+        .expect("write an invalid installed package manifest");
+    let vendor_project = workspace.join("packages/vendor");
+    let vendor_modules_dir = vendor_project.join("vendor");
+    fs::create_dir_all(&vendor_modules_dir).expect("create the vendor project modules dir");
+    fs::write(
+        vendor_project.join("package.json"),
+        serde_json::json!({"name": "vendor"}).to_string(),
+    )
+    .expect("write the vendor project manifest");
+    let same_named_slot = store.links().join("@/same-named/1.0.0/hash");
+    let same_named_package = same_named_slot.join("node_modules/same-named");
+    fs::create_dir_all(&same_named_package).expect("create the same-named store package");
+    pnpm_fs::symlink_dir(&same_named_package, &vendor_modules_dir.join("same-named"))
+        .expect("link the package from the vendor project modules dir");
+
+    prune(&workspace);
+
+    assert!(
+        live_slot.is_dir(),
+        "prune must keep the slot linked from a workspace package's configured modules dir",
+    );
+    assert!(
+        same_named_slot.is_dir(),
+        "prune must keep the slot linked from a workspace package named like modulesDir",
+    );
+}
+
+fn assert_prune_keeps_global_virtual_store_slots(configure: impl FnOnce(&Path) -> PathBuf) {
+    let CommandTempCwd {
+        root: _root, workspace, npmrc_info, ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry {
+        mock_instance: _mock_instance,
+        store_dir,
+        ..
+    } = npmrc_info;
+    write_manifest(&workspace);
+    let modules_dir = configure(&workspace);
+    enable_gvs_in_workspace_yaml(&workspace, "");
+    pacquet_at(&workspace)
+        .with_args(["install", "--reporter=silent"])
+        .assert()
+        .success();
+    let store = StoreDir::new(store_dir);
+    let live_slot = add_global_virtual_store_prune_anchor(&workspace, &store, &modules_dir);
+    prune(&workspace);
+
+    assert!(live_slot.is_dir(), "prune must keep the slot linked from the configured modules dir");
+}
+
+fn add_global_virtual_store_prune_anchor(
+    workspace: &Path,
+    store: &StoreDir,
+    modules_dir: &Path,
+) -> PathBuf {
+    let links = store.links();
+    let anchor_package = links.join("@/anchor/1.0.0/hash/node_modules/anchor");
+    let custom_package = links.join("@/custom/1.0.0/hash/node_modules/custom");
+    fs::create_dir_all(&anchor_package).expect("create the anchor package");
+    fs::create_dir_all(&custom_package).expect("create the custom package");
+    let project_modules = workspace.join("node_modules");
+    fs::create_dir_all(&project_modules).expect("create the default modules directory");
+    pnpm_fs::symlink_dir(&anchor_package, &project_modules.join("anchor"))
+        .expect("link the anchor package from the default modules directory");
+    fs::create_dir_all(modules_dir).expect("create the configured modules directory");
+    pnpm_fs::symlink_dir(&custom_package, &modules_dir.join("custom"))
+        .expect("link the custom package from the configured modules directory");
+    links.join("@/custom/1.0.0/hash")
 }
 
 fn assert_prune_keeps_every_package_installed_by_copy(
