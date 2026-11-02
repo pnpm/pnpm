@@ -128,6 +128,49 @@ fn round_trips_a_signed_and_cosigned_checkpoint() {
     );
 }
 
+/// `note` with its last signature line repeated.
+fn with_last_signature_repeated(note: &[u8]) -> Vec<u8> {
+    let text = std::str::from_utf8(note).unwrap();
+    let last = text
+        .trim_end_matches('\n')
+        .rsplit('\n')
+        .next()
+        .unwrap();
+    assert!(last.starts_with('\u{2014}'), "{last}");
+    format!("{text}{last}\n").into_bytes()
+}
+
+#[test]
+fn a_threshold_counts_distinct_keys_not_signature_lines() {
+    let origin = "registry.example/npm";
+    let log = NoteSigner::new(origin, SigningKey::from_bytes(&[1; 32])).unwrap();
+    let rotated = NoteSigner::new(origin, SigningKey::from_bytes(&[4; 32])).unwrap();
+    let ci = Cosigner::new("witness.example/ci", SigningKey::from_bytes(&[2; 32])).unwrap();
+    let mirror = Cosigner::new("witness.example/mirror", SigningKey::from_bytes(&[3; 32])).unwrap();
+    let both_logs = || {
+        KeySet::new(vec![log.verifier_key().clone(), rotated.verifier_key().clone()], 2).unwrap()
+    };
+    let one_log = || KeySet::new(vec![log.verifier_key().clone()], 1).unwrap();
+    let both_witnesses =
+        || KeySet::new(vec![ci.verifier_key().clone(), mirror.verifier_key().clone()], 2).unwrap();
+
+    let signed = sign_checkpoint(&tree_head(origin, 7), &[&log]).unwrap();
+    let policy = CheckpointPolicy::new(origin, both_logs(), KeySet::empty()).unwrap();
+    assert_eq!(
+        policy.verify(&with_last_signature_repeated(&signed)),
+        Err(CheckpointError::LogSignatures { found: 1, required: 2 }),
+    );
+    let rotating = sign_checkpoint(&tree_head(origin, 7), &[&log, &rotated]).unwrap();
+    policy.verify(&rotating).unwrap();
+
+    let cosigned = add_signatures(&signed, &[&ci.at(1_700_000_000)]).unwrap();
+    let policy = CheckpointPolicy::new(origin, one_log(), both_witnesses()).unwrap();
+    assert_eq!(
+        policy.verify(&with_last_signature_repeated(&cosigned)),
+        Err(CheckpointError::WitnessQuorum { found: 1, required: 2 }),
+    );
+}
+
 #[test]
 fn a_cosignature_does_not_count_as_a_log_signature() {
     let origin = "registry.example/npm";
