@@ -201,17 +201,6 @@ fn open_libsql(_settings: &pnpr_config::LibsqlSettings) -> Result<Arc<SqlMetadat
     })
 }
 
-#[cfg(all(test, feature = "backend-libsql"))]
-impl Storage {
-    /// This storage with its metadata kept in `database`, a handle of its
-    /// own rather than the one the process shares.
-    pub(crate) fn with_sql_metadata(mut self, database: Arc<SqlMetadata>) -> Self {
-        self.metadata_source = MetadataSource::Sql(database);
-        self.metadata = self.metadata_source.view(&self.hosted, "", Ecosystem::Npm);
-        self
-    }
-}
-
 impl Storage {
     /// Read the package's document with the generation it was rendered from.
     pub async fn read_hosted_package_view(

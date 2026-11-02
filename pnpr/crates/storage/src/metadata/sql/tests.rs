@@ -85,11 +85,23 @@ pub(super) fn storage(db: &Db) -> Storage {
             let instance = db.instances.fetch_add(1, Ordering::SeqCst);
             let replica = replica.then(|| format!("instance-{instance}"));
             let config = config(&db.tmp);
-            Storage::new(&config.hosted_backend, config.hosted_dir, config.cache_dir)
-                .unwrap()
-                .with_sql_metadata(server.instance(replica.as_deref(), 3600))
+            let storage =
+                Storage::new(&config.hosted_backend, config.hosted_dir, config.cache_dir).unwrap();
+            with_database(storage, server.instance(replica.as_deref(), 3600))
         }
     }
+}
+
+/// `storage` with its metadata kept in `database`, a handle of its own
+/// rather than the one the process shares.
+#[cfg(feature = "backend-libsql")]
+fn with_database(
+    mut storage: Storage,
+    database: std::sync::Arc<crate::metadata::SqlMetadata>,
+) -> Storage {
+    storage.metadata_source = crate::metadata::MetadataSource::Sql(database);
+    storage.metadata = storage.metadata_source.view(&storage.hosted, "", Ecosystem::Npm);
+    storage
 }
 
 pub(super) fn npm(name: &str) -> CanonicalPackageName {
