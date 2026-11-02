@@ -179,13 +179,13 @@ fn explicit_dirs_replace_detection() {
 }
 
 #[test]
-fn fails_when_an_approved_skill_has_no_dir() {
+fn leaves_approved_skills_unlinked_without_a_dir() {
     let (root, lockfile) = workspace(&[("foo", "1.0.0", &["guide"])]);
 
-    let error = sync(root.path(), &lockfile, &config(&[("foo", true)], None), &[], None)
-        .expect_err("an approved skill must be linked somewhere");
+    let state = sync(root.path(), &lockfile, &config(&[("foo", true)], None), &[], None)
+        .expect("sync without a target directory");
 
-    assert!(matches!(error, AgentSkillsError::NoTargetDir { ref packages } if packages == "foo"));
+    assert_eq!(state, AgentSkillsState::default());
 }
 
 #[test]

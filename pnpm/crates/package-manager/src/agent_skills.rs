@@ -103,18 +103,6 @@ pub(crate) fn report_pending_skills<Reporter: pnpm_reporter::Reporter>(package_n
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
 pub enum AgentSkillsError {
-    #[display("There is no agent skill directory to link the approved skills of {packages} into")]
-    #[diagnostic(
-        code(ERR_PNPM_NO_AGENT_SKILLS_DIR),
-        help(
-            "Name the directories in pnpm-workspace.yaml, for example:\nskills:\n  dirs:\n    - .claude/skills"
-        )
-    )]
-    NoTargetDir {
-        #[error(not(source))]
-        packages: String,
-    },
-
     #[display("The agent skills of {first} and {second} would both be linked as {name}")]
     #[diagnostic(
         code(ERR_PNPM_AGENT_SKILL_NAME_COLLISION),
@@ -176,25 +164,12 @@ pub fn sync_agent_skills(
         targets::target_dirs(input.config, input.workspace_root, input.agent_dir)
             .map_err(|(path, source)| AgentSkillsError::Io { path, source })?
     };
-    if !entries.is_empty() && dirs.is_empty() {
-        return Err(AgentSkillsError::NoTargetDir { packages: package_list(&approved) });
-    }
     let desired = desired_entries(input.workspace_root, &dirs, &entries);
     prune(input.workspace_root, input.linked, &desired.keys().cloned().collect())?;
     materialize(input.workspace_root, input.linked, &desired, input.config.virtual_store_dir())?;
     update_gitignores(input.workspace_root, &dirs, input.linked, &desired)?;
     pending.sort();
     Ok(AgentSkillsState { pending, linked: desired.into_keys().collect() })
-}
-
-fn package_list(sources: &[SkillSource]) -> String {
-    sources
-        .iter()
-        .map(|source| source.approval_key.as_str())
-        .collect::<BTreeSet<_>>()
-        .into_iter()
-        .collect::<Vec<_>>()
-        .join(", ")
 }
 
 /// The entry name of every approved skill, mapped to the skill directory

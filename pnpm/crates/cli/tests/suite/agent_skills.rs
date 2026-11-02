@@ -207,25 +207,21 @@ fn agents_named_by_the_environment_get_their_directories() {
 }
 
 #[test]
-fn an_approved_skill_without_a_directory_fails_the_install() {
+fn an_approved_skill_without_a_directory_does_not_fail_the_install() {
     let (harness, workspace) =
         project("permissions:\n  '@pnpm.e2e/with-agent-skills':\n    skills: true\n");
     fs::remove_dir_all(workspace.join(".claude")).expect("remove .claude");
 
-    let output = pnpm(&workspace)
+    pnpm(&workspace)
         .with_arg("install")
         .assert()
-        .failure()
-        .get_output()
-        .clone();
-
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(
-        stderr.contains("ERR_PNPM_NO_AGENT_SKILLS_DIR")
-            || stdout.contains("ERR_PNPM_NO_AGENT_SKILLS_DIR"),
-        "stdout: {stdout}\nstderr: {stderr}",
-    );
+        .success();
+    pnpm(&workspace)
+        .with_arg("ci")
+        .assert()
+        .success();
+    assert!(!workspace.join(".claude").exists());
+    assert_eq!(pending_skills(&workspace), None);
     drop(harness);
 }
 
