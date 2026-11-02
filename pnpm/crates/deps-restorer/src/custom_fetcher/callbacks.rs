@@ -44,14 +44,16 @@ impl NativeFetcherSettings {
     }
 }
 
+/// Cheap to clone: the session cache hands out a copy per hit.
 #[derive(Clone)]
 pub(crate) struct NativeFetcherResult {
-    pub(crate) files_map: pnpm_fs::CasPaths,
+    pub(crate) files_map: Arc<pnpm_fs::CasPaths>,
     pub(crate) integrity: Option<String>,
     pub(crate) local: bool,
-    pub(crate) manifest: Option<Value>,
+    pub(crate) manifest: Option<Arc<Value>>,
     pub(crate) requires_build: bool,
-    pub(crate) bins: Option<std::collections::BTreeMap<String, pnpm_package_manifest::PackageBin>>,
+    pub(crate) bins:
+        Option<Arc<std::collections::BTreeMap<String, pnpm_package_manifest::PackageBin>>>,
 }
 
 impl NativeFetcherResult {
@@ -73,7 +75,14 @@ impl NativeFetcherResult {
             .and_then(|manifest| {
                 pnpm_package_manifest::resolve_package_bins_from_cas_paths(manifest, &files_map)
             });
-        Self { files_map, integrity, local: false, manifest, requires_build, bins }
+        Self {
+            files_map: Arc::new(files_map),
+            integrity,
+            local: false,
+            manifest: manifest.map(Arc::new),
+            requires_build,
+            bins: bins.map(Arc::new),
+        }
     }
 }
 
@@ -164,23 +173,22 @@ async fn run_callback<Reporter: self::Reporter>(
         FetcherMethod::Directory => {
             return walk_callback_directory(native, callback, &mut verified.directories);
         }
-        FetcherMethod::GitHostedTarball | FetcherMethod::Git | FetcherMethod::Binary => {
-            return native::run_native_callback::<Reporter>(native, callback, verified).await;
-        }
         FetcherMethod::LocalTarball => true,
         FetcherMethod::RemoteTarball => false,
-    };
-    for option in ["ignoreFilePattern", "appendManifest"] {
-        if callback.options
-            .get(option)
-            .is_some_and(|value| !value.is_null())
-        {
-            return Err(callback_error(
-                format!("native custom-fetcher callbacks do not support {option}"),
-                "ERR_PNPM_UNSUPPORTED_FETCHER_OPTION",
-            ));
+        FetcherMethod::GitHostedTarball => {
+            reject_unsupported_options(callback)?;
+            return native::fetch_git_hosted_tarball::<Reporter>(native, callback, verified).await;
         }
-    }
+        FetcherMethod::Git => {
+            reject_unsupported_options(callback)?;
+            return native::fetch_git::<Reporter>(native, callback, verified).await;
+        }
+        FetcherMethod::Binary => {
+            reject_unsupported_options(callback)?;
+            return native::fetch_binary::<Reporter>(native, callback, verified).await;
+        }
+    };
+    reject_unsupported_options(callback)?;
     let location = callback_location(callback, download, expects_local_archive)?;
     let tarball =
         fetch_location::<Reporter>(download, location, callback_lockfile_dir(native, callback))
@@ -202,6 +210,23 @@ fn file_paths(files: &pnpm_fs::CasPaths) -> HashMap<&String, &PathBuf> {
         .iter()
         .map(|(filename, file)| (filename, &file.path))
         .collect()
+}
+
+/// The archive callbacks do not implement these options, so they reject
+/// rather than ignore them.
+fn reject_unsupported_options(callback: &FetcherCallback) -> Result<(), FetchErrorDetails> {
+    for option in ["ignoreFilePattern", "appendManifest"] {
+        if callback.options
+            .get(option)
+            .is_some_and(|value| !value.is_null())
+        {
+            return Err(callback_error(
+                format!("native custom-fetcher callbacks do not support {option}"),
+                "ERR_PNPM_UNSUPPORTED_FETCHER_OPTION",
+            ));
+        }
+    }
+    Ok(())
 }
 
 fn callback_lockfile_dir<'a>(

@@ -9,6 +9,7 @@ use pnpm_testing_utils::{
     command_env::CommandTestExt,
     diagnostics::assert_diagnostic_contains,
     fixtures::{minimal_tarball, sha512_integrity},
+    git_repo::GitRepoFixture,
 };
 use std::{fs, path::Path, process::Command};
 
@@ -746,6 +747,11 @@ fn custom_fetchers_cannot_replace_locked_integrity_or_return_unverified_files() 
             "locked archive integrity",
         ),
         (
+            "native callback given an unsupported option",
+            "return fetchers.binary(cafs, { url: resolution.tarball, integrity: resolution.integrity, bin: {}, archive: 'tarball' }, { ...opts, ignoreFilePattern: 'bin' });".to_string(),
+            "do not support ignorefilepattern",
+        ),
+        (
             "fabricated map",
             "return { filesMap: new Map([['package.json', path.join(__dirname, 'package.json')]]), requiresBuild: false };".to_string(),
             "not verified by a native tarball fetcher",
@@ -831,4 +837,35 @@ fn native_git_hosted_tarball_and_binary_fetchers_install_the_locked_archive() {
         original.assert();
         custom.assert();
     }
+}
+
+#[test]
+fn native_git_fetch_at_resolution_is_reused_by_the_install_pass() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let repo = GitRepoFixture::init(root.path(), "fetcher-pkg");
+    repo.write_file("package.json", r#"{"name":"fetcher-pkg","version":"1.0.0"}"#);
+    let commit = repo.commit("init");
+    let mut registry = mockito::Server::new();
+    let (metadata, original) = mock_fetcher_package(&mut registry, None);
+    configure_fetcher_project(&workspace, &registry.url(), Some("configured.cjs"));
+    let body = format!(
+        "fs.appendFileSync(path.join(__dirname, 'calls'), 'fetch\\n');\n    return fetchers.git(cafs, {{ repo: {repo}, commit: '{commit}' }}, opts);",
+        repo = serde_json::to_string(&repo.file_url()).unwrap(),
+    );
+    fs::write(workspace.join("configured.cjs"), fetcher_pnpmfile(&body))
+        .expect("write git fetcher");
+
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    let installed: serde_json::Value = serde_json::from_slice(
+        &fs::read(workspace.join("node_modules/fetcher-pkg/package.json"))
+            .expect("read installed package"),
+    )
+    .expect("parse installed package");
+    assert_eq!(installed["version"], "1.0.0");
+    assert_eq!(fs::read_to_string(workspace.join("calls")).expect("read fetcher trace"), "fetch\n");
+    metadata.assert();
+    original.assert();
 }

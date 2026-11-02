@@ -6,27 +6,12 @@ use crate::install_package_by_snapshot::{
     archive_filter_for, fetch_binary_resolution_to_cas, running_pnpm_execpath,
 };
 use pnpm_git_fetcher::{GitFetcher, GitHostedTarballFetcher, GitSource, GitStoreContext};
-use pnpm_hooks::{FetcherCallback, FetcherMethod};
+use pnpm_hooks::FetcherCallback;
 use pnpm_lockfile::{GitResolution, PackageKey, TarballResolution};
 use pnpm_store_dir::git_hosted_store_index_key;
-use pnpm_tarball::{FetchErrorDetails, FetchedTarball, IngestTarballToStore};
+use pnpm_tarball::{FetchErrorDetails, FetchedTarball};
 use serde_json::Value;
 use std::sync::Arc;
-
-pub(super) async fn run_native_callback<Reporter: pnpm_reporter::Reporter>(
-    native: &NativeCallbacks<'_>,
-    callback: &FetcherCallback,
-    verified: &mut Verified,
-) -> Result<Value, FetchErrorDetails> {
-    match callback.method {
-        FetcherMethod::GitHostedTarball => {
-            fetch_git_hosted_tarball::<Reporter>(native, callback, verified).await
-        }
-        FetcherMethod::Git => fetch_git::<Reporter>(native, callback, verified).await,
-        FetcherMethod::Binary => fetch_binary::<Reporter>(native, callback, verified).await,
-        _ => unreachable!(),
-    }
-}
 
 pub(super) async fn fetch_git_hosted_tarball<Reporter: pnpm_reporter::Reporter>(
     native: &NativeCallbacks<'_>,
@@ -39,12 +24,11 @@ pub(super) async fn fetch_git_hosted_tarball<Reporter: pnpm_reporter::Reporter>(
             "ERR_PNPM_CUSTOM_FETCHER",
         )
     })?;
-    let package_id = package_resolution_id(callback, native.download);
-    let package_name = package_name(callback)?;
+    let package_id = native.download.package.id;
     let (resolution, raw) = fetch_git_hosted_source::<Reporter>(native, callback).await?;
+    let integrity = raw.integrity.to_string();
     let allow_build = |dep_path: &str| settings.allow_build_policy.check(dep_path);
-    let files_index_file =
-        git_hosted_files_index_file(callback, settings, &package_name, &package_id, &allow_build);
+    let files_index_file = git_hosted_files_index_file(settings, package_id, &allow_build);
     let output = GitHostedTarballFetcher {
         scripts: prepare_script_options(settings),
         store: GitStoreContext {
@@ -52,16 +36,16 @@ pub(super) async fn fetch_git_hosted_tarball<Reporter: pnpm_reporter::Reporter>(
             index_writer: native.download.store.index_writer.as_ref(),
             files_index_file: &files_index_file,
         },
-        cas_paths: raw.files_map.clone(),
+        cas_paths: Arc::unwrap_or_clone(raw).files_map,
         path: resolution.path.as_deref(),
         allow_build: &allow_build,
-        package_id: &package_id,
+        package_id,
         requester: native.download.requester,
     }
     .run::<Reporter>()
     .await
     .map_err(|error| callback_error(error.to_string(), "ERR_PNPM_GIT_FETCH"))?;
-    let result = NativeFetcherResult::from_files(output.cas_paths, Some(raw.integrity.to_string()));
+    let result = NativeFetcherResult::from_files(output.cas_paths, Some(integrity));
     let value = result.value();
     verified.packages.push(result);
     Ok(value)
@@ -77,11 +61,10 @@ pub(super) async fn fetch_git<Reporter: pnpm_reporter::Reporter>(
     })?;
     reject_locked_integrity(native.download, "git")?;
     let resolution: GitResolution = deserialize_resolution(&callback.resolution)?;
-    let package_id = package_resolution_id(callback, native.download);
+    let package_id = native.download.package.id;
     let package_name = package_name(callback)?;
     let allow_build = |dep_path: &str| settings.allow_build_policy.check(dep_path);
-    let files_index_file =
-        git_hosted_files_index_file(callback, settings, &package_name, &package_id, &allow_build);
+    let files_index_file = git_hosted_files_index_file(settings, package_id, &allow_build);
     let output = GitFetcher {
         scripts: prepare_script_options(settings),
         source: GitSource {
@@ -98,7 +81,7 @@ pub(super) async fn fetch_git<Reporter: pnpm_reporter::Reporter>(
             files_index_file: &files_index_file,
         },
         allow_build: &allow_build,
-        package_id: &package_id,
+        package_id,
         package_name: &package_name,
         requester: native.download.requester,
     }
@@ -170,17 +153,6 @@ fn prepare_script_options(
     }
 }
 
-fn package_resolution_id(
-    callback: &FetcherCallback,
-    download: &IngestTarballToStore<'_>,
-) -> String {
-    callback.options
-        .get("pkgResolutionId")
-        .and_then(Value::as_str)
-        .map(ToString::to_string)
-        .unwrap_or_else(|| download.package.id.to_string())
-}
-
 fn package_name(callback: &FetcherCallback) -> Result<String, FetchErrorDetails> {
     callback.options
         .get("pkg")
@@ -222,20 +194,14 @@ async fn fetch_git_hosted_source<Reporter: pnpm_reporter::Reporter>(
     Ok((resolution, raw))
 }
 
+/// The key the prepared files are indexed under, derived as the install pass
+/// derives it. A key from the hook's options could name another package's
+/// raw-archive entry.
 fn git_hosted_files_index_file(
-    callback: &FetcherCallback,
     settings: &NativeFetcherSettings,
-    package_name: &str,
     package_id: &str,
     allow_build: &impl Fn(&str) -> Option<bool>,
 ) -> String {
-    callback.options
-        .get("filesIndexFile")
-        .and_then(Value::as_str)
-        .map(ToString::to_string)
-        .unwrap_or_else(|| {
-            let package_key = format!("{package_name}@{package_id}");
-            let built = !settings.ignore_scripts && allow_build(&package_key) != Some(false);
-            git_hosted_store_index_key(package_id, built)
-        })
+    let built = !settings.ignore_scripts && allow_build(package_id) != Some(false);
+    git_hosted_store_index_key(package_id, built)
 }

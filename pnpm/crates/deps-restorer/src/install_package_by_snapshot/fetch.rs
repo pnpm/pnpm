@@ -23,7 +23,7 @@ use std::{collections::BTreeMap, path::Path, sync::Arc};
 /// it fetched, neither when no fetcher is configured.
 pub(super) struct CustomFetched {
     resolution: Option<LockfileResolution>,
-    cas_paths: Option<pnpm_fs::CasPaths>,
+    cas_paths: Option<Arc<pnpm_fs::CasPaths>>,
     extracted: ExtractedPackageMetadata,
     /// See [`crate::SlotImportSource::source_exists`].
     source_exists: bool,
@@ -202,7 +202,7 @@ impl InstallPackageBySnapshot<'_> {
         // lockfile entry says otherwise.
         let source_is_mutable = matches!(resolution, LockfileResolution::Directory(_));
         let (cas_paths, extracted, source_exists) = match custom.cas_paths {
-            Some(paths) => (Arc::new(paths), custom.extracted, custom.source_exists),
+            Some(paths) => (paths, custom.extracted, custom.source_exists),
             None => {
                 self.fetch_cas_paths::<Reporter>(SnapshotFetch {
                     package_key,

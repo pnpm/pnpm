@@ -189,10 +189,9 @@ impl CustomFetcherSession {
         resolution: &LockfileResolution,
         package: &NativeFetcherResult,
     ) {
-        let integrity = package.integrity
-            .as_deref()
-            .and_then(|value| value.parse().ok());
-        let Some(identity) = fetch_identity(resolution, integrity.as_ref()) else { return };
+        let Some(identity) = fetch_identity(resolution, resolution.checkable_integrity()) else {
+            return;
+        };
         self.completed
             .lock()
             .unwrap()
@@ -218,15 +217,16 @@ impl CustomFetcherSession {
 }
 
 /// What a completed fetch of `resolution` is filed under besides its package
-/// id: the integrity its archive was checked against, or for a custom
-/// resolution, which carries none pacquet can check, the resolution itself.
+/// id: the integrity its archive was checked against, or the resolution
+/// itself for a custom resolution, which carries none pacquet can check, and
+/// for a resolution that pins none.
 fn fetch_identity(
     resolution: &LockfileResolution,
     integrity: Option<&Integrity>,
 ) -> Option<String> {
-    match resolution {
-        LockfileResolution::Custom(_) => serde_json::to_string(resolution).ok(),
-        _ => integrity.map(ToString::to_string),
+    match (resolution, integrity) {
+        (LockfileResolution::Custom(_), _) | (_, None) => serde_json::to_string(resolution).ok(),
+        (_, Some(integrity)) => Some(integrity.to_string()),
     }
 }
 

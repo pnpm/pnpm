@@ -37,7 +37,7 @@ impl CustomFetcherSession {
                 CustomFetchOutcome::FetchedFiles { resolution, package } => {
                     let resolution = recorded_resolution(original, resolution);
                     self.cache_package(download.package.id, &resolution, &package);
-                    return Ok(unarchived(original, resolution, package.manifest));
+                    return Ok(ResolvedTarballMetadata { resolution, manifest: package.manifest });
                 }
                 CustomFetchOutcome::Declined(resolution) => (resolution, None, None),
                 CustomFetchOutcome::Delegate { resolution, delegate } => {

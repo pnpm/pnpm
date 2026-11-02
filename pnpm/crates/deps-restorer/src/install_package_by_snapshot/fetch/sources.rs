@@ -40,7 +40,7 @@ fn custom_fetch_options(
         "readManifest": true,
         "filesIndexFile": pnpm_store_dir::pick_store_index_key(
             metadata.resolution.checkable_integrity().map(ToString::to_string).as_deref(),
-            false,
+            matches!(&metadata.resolution, LockfileResolution::Tarball(tarball) if tarball.is_git_hosted()),
             package_id,
             !config.ignore_scripts,
         ),
@@ -93,7 +93,7 @@ impl InstallPackageBySnapshot<'_> {
             CustomFetchOutcome::Walked { directory, .. } => Ok(CustomFetched {
                 resolution: Some(directory.resolution()),
                 source_exists: directory.exists,
-                cas_paths: Some(pnpm_fs::cas_paths_from_paths(directory.files_map)),
+                cas_paths: Some(Arc::new(pnpm_fs::cas_paths_from_paths(directory.files_map))),
                 extracted: ExtractedPackageMetadata::default(),
             }),
             CustomFetchOutcome::Fetched { resolution, tarball } => {
@@ -111,9 +111,9 @@ impl InstallPackageBySnapshot<'_> {
                 cas_paths: Some(package.files_map),
                 source_exists: true,
                 extracted: ExtractedPackageMetadata {
-                    manifest: package.manifest.map(Arc::new),
+                    manifest: package.manifest,
                     requires_build: Some(package.requires_build),
-                    bins: package.bins.map(Arc::new),
+                    bins: package.bins,
                 },
             }),
         }
@@ -134,7 +134,7 @@ impl InstallPackageBySnapshot<'_> {
         .await?;
         Ok(CustomFetched {
             resolution: Some(resolution),
-            cas_paths: Some(cas_paths),
+            cas_paths: Some(Arc::new(cas_paths)),
             source_exists: true,
             extracted: ExtractedPackageMetadata::default(),
         })
