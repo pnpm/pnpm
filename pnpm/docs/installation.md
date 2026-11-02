@@ -100,6 +100,18 @@ Before running the install script, you may optionally set an env variable `PNPM_
 curl -fsSL https://get.pnpm.io/install.sh | env PNPM_VERSION=<version> sh -
 ```
 
+### Installing without changing PATH
+
+By default, the install scripts add pnpm to `PATH` through your shell configuration file, or on Windows, your user environment variables. To leave those unchanged, set `PNPM_NO_MODIFY_PATH=1`. pnpm is still installed in `PNPM_HOME`, and the installer prints the `PNPM_HOME` and `PATH` lines for you to add. This needs pnpm 12.16.0 or newer.
+
+```sh
+curl -fsSL https://get.pnpm.io/install.sh | env PNPM_NO_MODIFY_PATH=1 sh -
+```
+
+```powershell
+$env:PNPM_NO_MODIFY_PATH='1'; Invoke-WebRequest https://get.pnpm.io/install.ps1 -UseBasicParsing | Invoke-Expression
+```
+
 ## Using npm
 
 ```sh
@@ -107,6 +119,8 @@ npx get-pnpm
 ```
 
 Node.js 22.13 or newer is needed to run this installer, but not to run pnpm afterwards.
+
+To install without changing `PATH`, run `npx get-pnpm --no-modify-path`. See [Installing without changing PATH](#installing-without-changing-path).
 
 You can also install the `pnpm` package globally with npm, which needs Node.js 18 or newer:
 
