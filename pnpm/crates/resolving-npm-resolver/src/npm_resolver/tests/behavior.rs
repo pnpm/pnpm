@@ -473,7 +473,8 @@ async fn an_undeclared_registry_cannot_skip_revision_validation() {
 
     let result = resolver.resolve(&wanted, &ResolveOptions::default()).await;
 
-    assert!(result.is_err(), "a revision without its history must fail; got {result:?}");
+    let error = result.expect_err("a revision without its history must fail");
+    assert!(error.downcast_ref::<MalformedRevisionHistoryError>().is_some(), "{error}");
 }
 
 #[tokio::test]
