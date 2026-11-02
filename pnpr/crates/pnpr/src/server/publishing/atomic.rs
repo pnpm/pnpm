@@ -17,7 +17,7 @@ use axum::{
     response::Response,
 };
 use pnpr_storage::{
-    BlobFinalize, BlobSlot,
+    BlobFinalize, BlobSlot, Storage,
     metadata::{ArtifactMember, BatchDocument, Generation, PublicationRequest},
 };
 use serde_json::json;
@@ -170,7 +170,7 @@ struct Promoted {
     /// The archives of other ecosystems than npm, whose publication members
     /// the metadata cannot derive.
     artifacts: Vec<ArtifactMember>,
-    /// The archives this publish created: none was in place before it.
+    /// The archives this publish created.
     written:
         Vec<(String, pnpr_registry::Ecosystem, pnpr_package_name::CanonicalPackageName, String)>,
 }
@@ -225,18 +225,12 @@ async fn promote_archives(
         let filename = slot.filename().to_string();
         let tmp_path = slot.tmp_path.clone();
         let storage = state.inner.storage.for_hosted(&org, ecosystem);
-        // A filesystem store reports every promotion as written, even over an
-        // archive an earlier commit placed. Only an archive that was not
-        // there before is this publish's own to remove; when that cannot be
-        // told, it is left in place.
-        let created = matches!(storage.open_hosted_blob(&name, &filename).await, Ok(None));
-        let finalized = storage.finalize_blob_slot(slot).await;
-        match finalized {
-            Ok(BlobFinalize::Written) if created => {
+        match promote_one(&storage, &name, slot).await {
+            Ok(BlobFinalize::Written) => {
                 promoted.written.push((org, ecosystem, name.clone(), filename.clone()));
             }
-            Ok(BlobFinalize::Written | BlobFinalize::AlreadyIdentical) => {}
-            outcome => {
+            Ok(BlobFinalize::AlreadyIdentical) => {}
+            outcome @ (Ok(BlobFinalize::Conflict) | Err(_)) => {
                 let _ = tokio::fs::remove_file(&tmp_path).await;
                 super::cleanup_tmp_slots(
                     pending
@@ -257,6 +251,30 @@ async fn promote_archives(
         }
     }
     Ok(promoted)
+}
+
+/// Promote one staged archive, never over an archive already in place: a
+/// filesystem store would rename over it and still report it written. An
+/// archive in place with the same bytes is already identical; with other
+/// bytes it is a conflict. Either way the staged file is left for the
+/// caller. `Written` therefore always means this publish created the
+/// archive.
+async fn promote_one(
+    storage: &Storage,
+    name: &pnpr_package_name::CanonicalPackageName,
+    slot: BlobSlot,
+) -> Result<BlobFinalize, RegistryError> {
+    let Some((existing, _)) = storage.open_hosted_blob(name, slot.filename()).await? else {
+        return storage.finalize_blob_slot(slot).await;
+    };
+    let existing = axum::body::to_bytes(existing, usize::MAX).await
+        .map_err(|err| RegistryError::Internal { reason: format!("reading an archive: {err}") })?;
+    let staged = tokio::fs::read(&slot.tmp_path).await?;
+    if existing.as_ref() == staged.as_slice() {
+        let _ = tokio::fs::remove_file(&slot.tmp_path).await;
+        return Ok(BlobFinalize::AlreadyIdentical);
+    }
+    Ok(BlobFinalize::Conflict)
 }
 
 /// A publication member for an archive whose version the metadata does not

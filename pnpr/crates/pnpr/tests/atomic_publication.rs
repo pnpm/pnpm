@@ -349,13 +349,18 @@ async fn a_refused_publish_keeps_an_archive_it_found_in_place() {
         send_with_key(&app, "PUT", "/-/pnpr/v0/publish", &token, Some(&batch), Some("k1")).await;
     assert_eq!(committed.status, StatusCode::CREATED);
 
-    // An archive already in place, which the refused publish promotes over.
-    let archive = local_blob_path(tmp.path(), "", Ecosystem::Npm, "placed", "placed-1.0.0.tgz");
-    std::fs::create_dir_all(archive.parent().unwrap()).unwrap();
-    std::fs::write(&archive, b"placed").unwrap();
-    let reused = json!({ "packages": [publish_doc("placed", "1.0.0", b"placed")] });
-    let refused =
-        send_with_key(&app, "PUT", "/-/pnpr/v0/publish", &token, Some(&reused), Some("k1")).await;
-    assert_eq!(refused.status, StatusCode::CONFLICT);
-    assert_eq!(std::fs::read(&archive).unwrap(), b"placed");
+    // An archive already in place: the same bytes the refused publish
+    // stages, and other bytes, which it must not promote over.
+    for (package, placed) in [("same", b"same".as_slice()), ("other", b"placed".as_slice())] {
+        let filename = format!("{package}-1.0.0.tgz");
+        let archive = local_blob_path(tmp.path(), "", Ecosystem::Npm, package, &filename);
+        std::fs::create_dir_all(archive.parent().unwrap()).unwrap();
+        std::fs::write(&archive, placed).unwrap();
+        let reused = json!({ "packages": [publish_doc(package, "1.0.0", package.as_bytes())] });
+        let refused =
+            send_with_key(&app, "PUT", "/-/pnpr/v0/publish", &token, Some(&reused), Some("k1"))
+                .await;
+        assert_eq!(refused.status, StatusCode::CONFLICT, "{package}");
+        assert_eq!(std::fs::read(&archive).unwrap(), placed, "{package}");
+    }
 }
