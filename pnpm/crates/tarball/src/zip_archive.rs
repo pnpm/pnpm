@@ -163,7 +163,7 @@ fn zip_entry_path(
     // below), but rejecting outright keeps the "no unsafe entry
     // accepted" contract intact for tooling that inspects the
     // error code.
-    let raw_name = entry.name().to_string();
+    let raw_name = String::from_utf8_lossy(entry.name_raw()).into_owned();
     let traversal = |entry_path: String| TarballError::PathTraversal {
         url: package_url.to_string(),
         entry_path,
