@@ -20,7 +20,7 @@ use futures_util::StreamExt as _;
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_storage::{
     BlobFinalize, BlobSlot, Storage,
-    metadata::{ArtifactMember, BatchDocument, Generation, PublicationRequest},
+    metadata::{ArtifactMember, BatchDocument, Generation, PublicationRequest, PublishNotes},
 };
 use serde_json::json;
 use ssri::{Algorithm, IntegrityOpts};
@@ -116,6 +116,7 @@ pub(in super::super) async fn replayed_outcome(
 pub(in super::super) async fn commit_publication(
     state: &AppState,
     mut staged: Vec<StagedPublish>,
+    notes: PublishNotes,
     request: Option<PublicationRequest>,
 ) -> Result<PublishReceipt, RegistryError> {
     let Some(database) = state.inner.storage.sqlite_metadata().cloned() else {
@@ -146,13 +147,14 @@ pub(in super::super) async fn commit_publication(
             principal: stage.publisher,
         })
         .collect();
-    let commit = match database.commit_publication(&catalog, documents, artifacts, request).await {
-        Ok(commit) => commit,
-        Err(err) => {
-            promoted.remove_written(state).await;
-            return Err(err);
-        }
-    };
+    let commit =
+        match database.commit_publication(&catalog, documents, artifacts, notes, request).await {
+            Ok(commit) => commit,
+            Err(err) => {
+                promoted.remove_written(state).await;
+                return Err(err);
+            }
+        };
     Ok(PublishReceipt { generation: Some(commit.generation), publication: commit.publication })
 }
 

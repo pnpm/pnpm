@@ -27,9 +27,10 @@ use super::{
     cargo::{CratePublication, authorize_crate_publish, verify_crate_archive},
     oci::{OciPublication, authorize_publication},
     publishing::{
-        StagedPublish, cleanup_tmp_slots, commit_publication, publication_name,
-        publication_request, publish_committed_response, replayed_outcome, single_catalog,
-        stage_publish, validate_publish_doc,
+        StagedPublish, check_note_storage, cleanup_tmp_slots, commit_publication, publication_name,
+        publication_request, publish_committed_response, refuse_notes_of_published_python_versions,
+        replayed_outcome, single_catalog, stage_publish, take_note, take_version_note,
+        validate_publish_doc,
     },
     pypi::{PypiPublication, authorize_upload, verify_upload},
 };
@@ -45,7 +46,10 @@ use pnpr_error::RegistryError;
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_pypi::Upload;
 use pnpr_registry::Ecosystem;
-use pnpr_storage::{metadata::PublicationRequest, publish::now_iso};
+use pnpr_storage::{
+    metadata::{PublicationRequest, PublishNotes},
+    publish::now_iso,
+};
 use serde::Deserialize;
 use serde_json::Value;
 use std::collections::HashSet;
@@ -159,7 +163,8 @@ async fn publish_batch(
     drop(body);
     let name = publication_name(&incoming)?;
     let request = publication_request(state, identity, &incoming, key, name, None);
-    let packages = take_packages(&mut incoming)?;
+    let mut packages = take_packages(&mut incoming)?;
+    let notes = batch_notes(state, &mut incoming, &mut packages)?;
     let validated = validate_batch_entries(state, identity, packages).await?;
 
     // Hold every affected package's lock across the whole stage-and-commit,
@@ -177,10 +182,25 @@ async fn publish_batch(
     if let Some(replayed) = replayed_batch(state, request.as_ref(), &validated).await? {
         return Ok(replayed);
     }
+    refuse_late_python_notes(state, &validated, &notes).await?;
 
     let staged = stage_entries(state, validated).await?;
-    let receipt = commit_publication(state, staged, request).await?;
+    let receipt = commit_publication(state, staged, notes, request).await?;
     Ok(publish_committed_response(&receipt))
+}
+
+/// Refuse the batch's notes for Python versions already published, in the
+/// one catalog its entries target.
+async fn refuse_late_python_notes(
+    state: &AppState,
+    validated: &[ValidatedEntry],
+    notes: &PublishNotes,
+) -> Result<(), RegistryError> {
+    if notes.versions.is_empty() {
+        return Ok(());
+    }
+    let catalog = single_catalog(validated.iter().map(ValidatedEntry::org))?;
+    refuse_notes_of_published_python_versions(state, &catalog, notes).await
 }
 
 /// The recorded outcome of the batch `request` repeats, in the one catalog
@@ -217,6 +237,24 @@ async fn stage_entries(
         }
     }
     Ok(staged)
+}
+
+/// The publication note at the top of a batch body and the version note of
+/// each entry, taken out of the body.
+fn batch_notes(
+    state: &AppState,
+    incoming: &mut Value,
+    packages: &mut [Value],
+) -> Result<PublishNotes, RegistryError> {
+    let publication = take_note(incoming)?;
+    let mut versions = Vec::new();
+    for package in packages {
+        let ecosystem = entry_ecosystem(package)?;
+        versions.extend(take_version_note(package, ecosystem)?);
+    }
+    let notes = PublishNotes { publication, versions };
+    check_note_storage(state, &notes)?;
+    Ok(notes)
 }
 
 /// The `packages` array of a batch body, which must not be empty.

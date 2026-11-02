@@ -1,9 +1,9 @@
 //! Committing a publication: every document of a request in one transaction
 //! of its catalog, with the request's outcome.
 
-use super::{Expected, PackageKey, batch::Batch, publications};
+use super::{Expected, PackageKey, batch::Batch, notes, publications};
 use crate::metadata::{
-    ArtifactMember, BatchDocument, Generation, PublicationCommit, PublicationRequest,
+    ArtifactMember, BatchDocument, Generation, PublicationCommit, PublicationRequest, PublishNotes,
 };
 use pnpr_error::{RegistryError, Result};
 use rusqlite::Connection;
@@ -16,6 +16,7 @@ pub(super) fn commit_publication(
     catalog: &str,
     documents: &[BatchDocument],
     artifacts: &[ArtifactMember],
+    notes: &PublishNotes,
     request: Option<&PublicationRequest>,
 ) -> Result<PublicationCommit> {
     let mut batch = Batch::begin(connection, catalog)?;
@@ -32,12 +33,17 @@ pub(super) fn commit_publication(
     for document in documents {
         write_member(&mut batch, document)?;
     }
+    let publisher = request
+        .map(|request| request.principal.as_str())
+        .or_else(|| documents.iter().find_map(|document| document.principal.as_deref()));
     let publication = if batch.changed_anything() {
-        let publisher = documents.iter().find_map(|document| document.principal.as_deref());
         publications::record(&batch, request, publisher, artifacts)?
     } else {
         None
     };
+    // Notes are checked even when nothing changed, so a request that only
+    // brings notes is refused instead of dropping them.
+    notes::store_publish_notes(&batch, notes, publication, publisher)?;
     let value = batch.finish()?;
     let value = match value {
         Some(value) => value,
