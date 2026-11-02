@@ -195,7 +195,10 @@ pub(super) async fn readable_publication_note(
     database: &Arc<SqliteMetadata>,
     publication: Publication,
 ) -> Result<PublicationNoteLink, RegistryError> {
-    let Some(note) = database.publication_note(&publication.catalog, publication.id).await? else {
+    let note = database.publication_note(&publication.catalog, publication.id).await?;
+    // A note added after publishing and then deleted names nothing.
+    let note = note.filter(|note| note.text.is_some() || note.initial_digest.is_some());
+    let Some(note) = note else {
         return Ok(PublicationNoteLink { link: None, withheld: false });
     };
     if !reads_every_member(state, identity, &publication) {

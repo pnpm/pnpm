@@ -367,3 +367,22 @@ async fn a_response_that_withholds_a_publication_note_is_not_shared() {
     let anonymous = send(&app, "GET", "/npm/@foo/outer/1.0.0/notes", None, Body::empty()).await;
     assert_eq!(anonymous.header("link"), None);
 }
+
+#[tokio::test]
+async fn a_publication_note_added_and_deleted_after_publishing_is_not_linked() {
+    let tmp = TempDir::new().unwrap();
+    let app = app(&tmp);
+    let token = token(&app).await;
+    let batch = json!({ "name": "v1", "packages": [publish_doc("unlinked", "1.0.0", b"bytes")] });
+    let published = send(&app, "PUT", "/-/pnpr/v0/publish", Some(&token), json_body(&batch)).await;
+    assert_eq!(published.status, StatusCode::CREATED);
+    let path = "/-/publications/-/v1/notes";
+    let added = send(&app, "PUT", path, Some(&token), Body::from("late\n")).await;
+    assert_eq!(added.status, StatusCode::NO_CONTENT);
+    let deleted = send(&app, "DELETE", path, Some(&token), Body::empty()).await;
+    assert_eq!(deleted.status, StatusCode::NO_CONTENT);
+
+    let note = send(&app, "GET", "/npm/unlinked/1.0.0/notes", None, Body::empty()).await;
+    assert_eq!(note.status, StatusCode::NOT_FOUND);
+    assert_eq!(note.header("link"), None);
+}
