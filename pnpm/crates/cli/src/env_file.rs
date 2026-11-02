@@ -54,13 +54,6 @@ pub enum EnvFileError {
 /// Load each file in order, handing every variable it defines to `set`.
 /// Later files override earlier files, and variables the environment
 /// already defines are left untouched.
-///
-/// `set` is called as each entry is parsed rather than once a file is
-/// read, because `dotenvy` resolves a `$VAR` against the environment
-/// first: a later file's reference to an earlier file's variable only
-/// sees it if the change has already landed. Taking `set` as a parameter
-/// is also what lets a test drive the load without changing the process
-/// environment.
 fn load<PathItem: AsRef<Path>>(
     paths: &[PathItem],
     set: &mut impl FnMut(&str, &str),
@@ -118,6 +111,9 @@ fn load_one(
         let id = env_key_id(key);
         if std::env::var_os(key).is_none() || loaded_keys.contains(&id) {
             loaded_keys.insert(id);
+            // Set per entry rather than per file: `dotenvy` resolves a
+            // `$VAR` against the environment, so a later file's reference to
+            // an earlier file's variable needs the change to have landed.
             set(key, value);
         }
     }
