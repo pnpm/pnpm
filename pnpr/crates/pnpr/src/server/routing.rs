@@ -22,11 +22,12 @@ use protocol_routes::{artifacts_routes, pipeline_routes, resolver_routes};
 mod team_handlers;
 use team_handlers::team_routes;
 
+mod note_handlers;
 mod npm_handlers;
 use npm_handlers::{
     delete_package_dist_tag, delete_scoped_package, get_package_dist_tags, get_packument,
-    get_packument_or_version_manifest, get_scoped_tarball, get_scoped_version_manifest, get_search,
-    get_tarball, put_package, put_package_dist_tag, put_packument_revision, put_scoped_package,
+    get_packument_or_version_manifest, get_scoped_tarball, get_search, get_tarball, put_package,
+    put_package_dist_tag, put_packument_revision, put_scoped_package,
     put_scoped_packument_revision, unpublish_package, unpublish_scoped_package,
     unpublish_scoped_tarball, unpublish_tarball,
 };
@@ -271,7 +272,13 @@ fn registry_routes(state: &AppState, router: Router<AppState>) -> Router<AppStat
         .route("/-/pnpr/v0/publish", put(batch::serve_ecosystem_publish))
         .route("/-/pnpr/v0/registries", get(super::registry_directory::serve))
         .route("/-/publications/{org}", get(super::publications::serve_member_publication))
-        .route("/-/publications/{org}/{publication}", get(super::publications::serve_publication));
+        .route("/-/publications/{org}/{publication}", get(super::publications::serve_publication))
+        .route(
+            "/-/publications/{org}/{publication}/notes",
+            get(super::publications::serve_publication_note)
+                .put(super::publications::serve_publication_note)
+                .delete(super::publications::serve_publication_note),
+        );
     if registries.has_ecosystem(Ecosystem::Npm) {
         router = router.nest(&Ecosystem::Npm.base_path(), account_routes().merge(npm));
     }
@@ -342,7 +349,20 @@ fn npm_package_routes(router: Router<AppState>, base: &str) -> Router<AppState> 
             &path("/{scope}/{name}/-rev/{rev}"),
             put(put_scoped_packument_revision).delete(unpublish_scoped_package),
         )
-        .route(&path("/{scope}/{name}/{version}"), get(get_scoped_version_manifest))
+        .route(
+            &path("/{scope}/{name}/{version}"),
+            get(note_handlers::three_segments)
+                .put(note_handlers::three_segments)
+                .delete(note_handlers::three_segments),
+        )
+        .route(
+            &path("/{scope}/{name}/{version}/notes"),
+            get(note_handlers::scoped_version_note)
+                .put(note_handlers::scoped_version_note)
+                .delete(note_handlers::scoped_version_note),
+        )
+        .route(&path("/{name}/-/notes"), get(note_handlers::package_notes))
+        .route(&path("/{scope}/{name}/-/notes"), get(note_handlers::scoped_package_notes))
         .route(
             &path("/{scope}/{name}/-/{filename}"),
             get(get_scoped_tarball).delete(unpublish_scoped_tarball),

@@ -1,7 +1,9 @@
 //! Atomic publications, their recorded outcomes, and publication lookups.
 
 use super::{npm, packument, read, storage, write};
-use crate::metadata::{BatchDocument, PublicationCommit, PublicationRequest, SqliteMetadata};
+use crate::metadata::{
+    BatchDocument, PublicationCommit, PublicationRequest, PublishNotes, SqliteMetadata,
+};
 use pnpr_error::RegistryError;
 use pnpr_package_name::Ecosystem;
 use serde_json::{Value, json};
@@ -32,7 +34,14 @@ async fn commit(
     documents: Vec<BatchDocument>,
     request: PublicationRequest,
 ) -> Result<PublicationCommit, RegistryError> {
-    database.commit_publication("acme", documents, Vec::new(), Some(request)).await
+    database.commit_publication(
+        "acme",
+        documents,
+        Vec::new(),
+        PublishNotes::default(),
+        Some(request),
+    )
+    .await
 }
 
 #[tokio::test]
@@ -179,7 +188,7 @@ async fn a_publication_without_a_request_records_its_publisher() {
     let mut core = document("core", &packument("core", &["1.0.0"]));
     core.principal = Some("carol".to_string());
     database
-        .commit_publication("acme", vec![core], Vec::new(), None)
+        .commit_publication("acme", vec![core], Vec::new(), PublishNotes::default(), None)
         .await
         .unwrap();
     let history = database

@@ -253,6 +253,11 @@ With [SQLite metadata](storage.md#sqlite-metadata) a batch is stronger:
   214 bytes long, and not a decimal number, which would read as a publication
   id.
   See [publication endpoints](endpoints.md#publication-endpoints).
+- A top-level `"notes"` field is the publication's release note, and a
+  `"notes"` field in an npm, Cargo, or Python entry is the note of the version
+  it publishes. pnpr stores them with the release, and a note that breaks the
+  [content rules](endpoints.md#release-note-endpoints) rejects the whole
+  batch.
 
 An [image manifest](container-images.md) whose layers are already uploaded can
 ride along in the same batch. `GET /-/pnpr` advertises support as
