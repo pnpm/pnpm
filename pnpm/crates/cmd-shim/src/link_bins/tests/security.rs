@@ -1,3 +1,5 @@
+#[cfg(unix)]
+use super::super::executable::symlink_creation_succeeded;
 use super::{
     Arc, Host, LinkBinsOptions, PackageBinSource, Path, Value, create_dir_all, json,
     link_bins_of_packages, read_file, read_to_string, tempdir, write_file,
@@ -8,6 +10,54 @@ use super::{is_sh_shim_hardened, is_shim_pointing_at};
 use crate::shim::generate_sh_shim;
 #[cfg(unix)]
 use std::fs::metadata;
+
+#[cfg(unix)]
+#[test]
+fn concurrent_executable_symlink_creation_accepts_the_expected_target() {
+    use std::os::unix::fs::symlink;
+
+    let tmp = tempdir().unwrap();
+    let bins = tmp.path().join(".bin");
+    create_dir_all(&bins).unwrap();
+    let target = tmp.path().join("package/cli.js");
+    create_dir_all(target.parent().unwrap()).unwrap();
+    write_file(&target, "cli").unwrap();
+    let shim = bins.join("cli");
+    symlink("../package/cli.js", &shim).unwrap();
+
+    symlink_creation_succeeded(
+        &shim,
+        &target,
+        std::io::Error::from(std::io::ErrorKind::AlreadyExists),
+    )
+    .unwrap();
+
+    assert_eq!(std::fs::read_link(shim).unwrap(), Path::new("../package/cli.js"));
+}
+
+#[cfg(unix)]
+#[test]
+fn concurrent_executable_symlink_creation_rejects_a_different_target() {
+    use std::os::unix::fs::symlink;
+
+    let tmp = tempdir().unwrap();
+    let bins = tmp.path().join(".bin");
+    create_dir_all(&bins).unwrap();
+    let target = tmp.path().join("package/cli.js");
+    create_dir_all(target.parent().unwrap()).unwrap();
+    write_file(&target, "cli").unwrap();
+    let shim = bins.join("cli");
+    symlink("../package/other.js", &shim).unwrap();
+
+    let error = symlink_creation_succeeded(
+        &shim,
+        &target,
+        std::io::Error::from(std::io::ErrorKind::AlreadyExists),
+    )
+    .unwrap_err();
+
+    assert_eq!(error.kind(), std::io::ErrorKind::AlreadyExists);
+}
 
 #[cfg(unix)]
 #[test]

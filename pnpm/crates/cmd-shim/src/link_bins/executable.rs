@@ -159,6 +159,7 @@ pub(super) fn link_node_bin(
     };
     remove_stale_bin(shim_path)?;
     symlink(link_target, shim_path)
+        .or_else(|error| symlink_creation_succeeded(shim_path, target_path, error))
         .map_err(|error| LinkBinsError::LinkNodeBin {
             src: target_path.to_path_buf(),
             dst: shim_path.to_path_buf(),
@@ -238,6 +239,7 @@ where
     };
     remove_stale_bin(shim_path)?;
     symlink(&link_target, shim_path)
+        .or_else(|error| symlink_creation_succeeded(shim_path, target_path, error))
         .map_err(|error| LinkBinsError::SymlinkBin {
             src: target_path.to_path_buf(),
             dst: shim_path.to_path_buf(),
@@ -255,6 +257,21 @@ where
         );
     }
     Ok(true)
+}
+
+#[cfg(any(unix, target_os = "wasi"))]
+pub(super) fn symlink_creation_succeeded(
+    shim_path: &Path,
+    target_path: &Path,
+    error: io::Error,
+) -> Result<(), io::Error> {
+    if error.kind() == io::ErrorKind::AlreadyExists
+        && symlink_already_points_at(shim_path, target_path, None)
+    {
+        Ok(())
+    } else {
+        Err(error)
+    }
 }
 
 #[cfg(windows)]
