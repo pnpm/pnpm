@@ -68,6 +68,7 @@ fn rejects_non_canonical_log_entries() {
         text.replace("pnpr-log-entry/1", "pnpr-log-entry/2"),
         text.trim_end().to_owned(),
         format!("{text}extra 1\n"),
+        text.replace('\n', "\r\n"),
         text.replace("profile", "profile "),
         text.replace(
             "revision 7\nprofile npm-install-manifest/1",
@@ -80,6 +81,18 @@ fn rejects_non_canonical_log_entries() {
             "{mangled:?}",
         );
     }
+}
+
+#[test]
+fn rejects_log_entries_that_are_not_utf8() {
+    let entry = LogEntry::new(npm_key(7), RecordDigest::of(b"record")).unwrap();
+    let mut bytes = entry.to_bytes();
+    let at = bytes
+        .iter()
+        .position(|&byte| byte == b'@')
+        .unwrap();
+    bytes[at] = 0xff;
+    assert_eq!(LogEntry::parse(&bytes), Err(LogEntryError::Malformed));
 }
 
 #[test]
