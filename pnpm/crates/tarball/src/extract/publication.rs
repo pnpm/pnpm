@@ -9,7 +9,7 @@
 //! [`MAX_PUBLICATION_ARCHIVE_ENTRIES`], or file paths longer in total than
 //! [`MAX_PUBLICATION_PATH_BYTES`]. The caller bounds the decoded size.
 
-use super::clean_archive_entry_path;
+use super::{archive_entry_segments, check_trailer, clean_archive_entry_path};
 use derive_more::{Display, Error};
 use ssri::{Algorithm, Integrity, IntegrityOpts};
 use std::{collections::BTreeSet, io::Read};
@@ -94,6 +94,10 @@ fn read_publication_archive_within(
         }
         scan.visit(&mut entry.map_err(|err| unreadable(&err))?)?;
     }
+    // An installer refuses data after the end-of-archive marker, so the
+    // archive is refused here too.
+    check_trailer(archive.into_inner())
+        .map_err(|err| PublicationArchiveError::Unreadable(err.to_string()))?;
     scan.finish()
 }
 
@@ -218,15 +222,20 @@ fn ambiguous_case(document: &'static str) -> &'static str {
     }
 }
 
-/// Refuse a link, device, or other non-regular entry that would land on a root
+/// Refuse a non-regular entry whose path escapes the package root, and a
+/// link, device, or other non-regular entry that would land on a root
 /// document: an installer reads the manifest through whatever it points to.
 fn refuse_special_manifest(
     raw: &str,
     entry_type: tar::EntryType,
 ) -> Result<(), PublicationArchiveError> {
+    if !raw.is_empty() && archive_entry_segments(raw).is_none() {
+        return Err(PublicationArchiveError::UnsafePath(raw.to_string()));
+    }
     if entry_type.is_dir() || entry_type.is_pax_global_extensions() {
         return Ok(());
     }
+    // Only the archive root itself, `.`, fails to clean here.
     let Ok(path) = clean_archive_entry_path(raw) else { return Ok(()) };
     match root_document(&path) {
         Some(document) => {

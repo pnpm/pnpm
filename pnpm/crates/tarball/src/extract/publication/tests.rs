@@ -85,6 +85,64 @@ fn refuses_an_entry_that_escapes_the_root() {
 }
 
 #[test]
+fn refuses_an_entry_that_escapes_the_root_through_backslashes() {
+    let tar = tar_of(&[("package/package.json", b"{}"), (r"package/..\..\evil.js", b"")]);
+    let error = read_publication_archive(tar.as_slice()).unwrap_err();
+    assert!(matches!(error, PublicationArchiveError::UnsafePath(_)), "{error}");
+}
+
+#[test]
+fn refuses_a_link_or_directory_that_escapes_the_root() {
+    for entry_type in [tar::EntryType::Symlink, tar::EntryType::Directory] {
+        let mut builder = tar::Builder::new(Vec::new());
+        let mut manifest = tar::Header::new_gnu();
+        manifest.set_size(2);
+        manifest.set_mode(0o644);
+        builder
+            .append_data(&mut manifest, "package/package.json", &b"{}"[..])
+            .unwrap();
+        let mut header = tar::Header::new_gnu();
+        header.set_entry_type(entry_type);
+        header.set_size(0);
+        let path = b"package/../../outside";
+        header.as_gnu_mut().unwrap().name[..path.len()].copy_from_slice(path);
+        header.set_cksum();
+        builder
+            .append(&header, &[][..])
+            .unwrap();
+        let tar = builder.into_inner().unwrap();
+        let error = read_publication_archive(tar.as_slice()).unwrap_err();
+        assert!(matches!(error, PublicationArchiveError::UnsafePath(_)), "{entry_type:?}: {error}");
+    }
+}
+
+#[test]
+fn accepts_a_root_directory_entry() {
+    let mut builder = tar::Builder::new(Vec::new());
+    let mut header = tar::Header::new_gnu();
+    header.set_entry_type(tar::EntryType::Directory);
+    header.set_size(0);
+    builder
+        .append_data(&mut header, "./", &[][..])
+        .unwrap();
+    let mut manifest = tar::Header::new_gnu();
+    manifest.set_size(2);
+    manifest.set_mode(0o644);
+    builder
+        .append_data(&mut manifest, "package/package.json", &b"{}"[..])
+        .unwrap();
+    read_publication_archive(builder.into_inner().unwrap().as_slice()).unwrap();
+}
+
+#[test]
+fn refuses_data_after_the_end_of_archive_marker() {
+    let mut tar = tar_of(&[("package/package.json", b"{}")]);
+    tar.extend_from_slice(b"trailing garbage");
+    let error = read_publication_archive(tar.as_slice()).unwrap_err();
+    assert!(matches!(error, PublicationArchiveError::Unreadable(_)), "{error}");
+}
+
+#[test]
 fn refuses_an_archive_without_a_manifest() {
     let tar = tar_of(&[("package/index.js", b"")]);
     let error = read_publication_archive(tar.as_slice()).unwrap_err();
