@@ -77,6 +77,8 @@ use package_reads::{
 mod revision_tarballs;
 use revision_tarballs::serve_revision_tarball;
 
+mod variant_tarballs;
+
 mod upstream_tarballs;
 use upstream_tarballs::{
     BackgroundTarScans, TarballOrigin, UpstreamTarball, cached_upstream_tarball,

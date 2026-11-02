@@ -719,12 +719,15 @@ fn build_has_bin_set_includes_resolutions_with_implicit_bin_metadata() {
         runtime_variations.clone(),
         metadata_with_resolution(
             LockfileResolution::Variations(VariationsResolution {
+                fallback: None,
+                revision: None,
                 variants: vec![PlatformAssetResolution {
                     resolution: LockfileResolution::Binary(dummy_binary_resolution()),
                     targets: vec![PlatformAssetTarget {
                         os: "linux".into(),
                         cpu: "x64".into(),
                         libc: Some("glibc".into()),
+                        ..PlatformAssetTarget::default()
                     }],
                 }],
             }),

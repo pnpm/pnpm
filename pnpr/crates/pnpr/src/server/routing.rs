@@ -32,6 +32,9 @@ use npm_handlers::{
     unpublish_scoped_tarball, unpublish_tarball,
 };
 
+mod variant_handlers;
+use variant_handlers::get_scoped_variant_tarball;
+
 mod observability;
 use observability::with_observability_layers;
 
@@ -367,6 +370,7 @@ fn npm_package_routes(router: Router<AppState>, base: &str) -> Router<AppState> 
         )
         .route(&path("/{name}/-/notes"), get(note_handlers::package_notes))
         .route(&path("/{scope}/{name}/-/notes"), get(note_handlers::scoped_package_notes))
+        .route(&path("/{scope}/{name}/variants/{tag}"), get(get_scoped_variant_tarball))
         .route(
             &path("/{scope}/{name}/-/{filename}"),
             get(get_scoped_tarball).delete(unpublish_scoped_tarball),

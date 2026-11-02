@@ -3,6 +3,7 @@ use super::{
         InstallPackageBySnapshot, InstallPackageBySnapshotError, PNPM_EXECPATH,
         runtime::{archive_filter_for, fetch_binary_resolution_to_cas},
         tarball_resolution::{local_file_tarball_install_url, tarball_url_and_integrity},
+        variant_fetch::ArchiveSource,
     },
     CustomFetched, ExtractedPackageMetadata, SnapshotFetch, TarballFetch, download_tarball,
 };
@@ -157,6 +158,7 @@ impl InstallPackageBySnapshot<'_> {
                 package_key: fetch.package_key,
                 package_id: fetch.package_id,
                 allow_build: &allow_build,
+                source: ArchiveSource::Primary,
             },
             tarball,
             cas_paths,
@@ -228,7 +230,8 @@ impl InstallPackageBySnapshot<'_> {
     ) -> Result<(Arc<pnpm_fs::CasPaths>, ExtractedPackageMetadata), InstallPackageBySnapshotError>
     {
         let config = self.ctx.config;
-        let revision_addressed = is_revision_addressed(fetch.resolution);
+        let revision_addressed =
+            is_revision_addressed(fetch.resolution) || fetch.source == ArchiveSource::Variant;
         let (tarball_url, integrity) =
             tarball_url_and_integrity(fetch.resolution, fetch.package_key, config)?;
         let tarball_url = local_file_tarball_install_url(tarball_url, self.ctx.workspace_root);

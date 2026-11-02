@@ -231,6 +231,7 @@ pub fn asset_variants(
             os: parsed.os,
             cpu: parsed.cpu,
             libc: (parsed.musl && has_glibc_build).then(|| "musl".to_string()),
+            ..PlatformAssetTarget::default()
         };
         variants.push(PlatformAssetResolution {
             resolution: LockfileResolution::Binary(binary),
