@@ -73,7 +73,7 @@ fn printed_by(output: &std::process::Output) -> String {
     format!(
         "{}{}",
         String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
+        String::from_utf8_lossy(&output.stderr),
     )
 }
 
