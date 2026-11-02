@@ -163,6 +163,16 @@ async fn publish_batch(
         .collect();
     let _guards = state.inner.locks.packages.lock_many(&names).await;
 
+    let staged = stage_entries(state, validated).await?;
+    let receipt = commit_publication(state, staged, request).await?;
+    Ok(publish_committed_response(&receipt))
+}
+
+/// Stage every entry, removing what was staged when one fails.
+async fn stage_entries(
+    state: &AppState,
+    validated: Vec<ValidatedEntry>,
+) -> Result<Vec<StagedPublish>, RegistryError> {
     let now = now_iso();
     let mut staged: Vec<StagedPublish> = Vec::with_capacity(validated.len());
     for entry in validated {
@@ -176,8 +186,7 @@ async fn publish_batch(
             }
         }
     }
-    let receipt = commit_publication(state, staged, request).await?;
-    Ok(publish_committed_response(&receipt))
+    Ok(staged)
 }
 
 /// The `packages` array of a batch body, which must not be empty.
