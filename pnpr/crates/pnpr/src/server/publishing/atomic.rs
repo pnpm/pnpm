@@ -170,17 +170,18 @@ struct Promoted {
     /// The archives of other ecosystems than npm, whose publication members
     /// the metadata cannot derive.
     artifacts: Vec<ArtifactMember>,
-    /// The archives this publish wrote, rather than found in place.
+    /// The archives this publish created: none was in place before it.
     written:
         Vec<(String, pnpr_registry::Ecosystem, pnpr_package_name::CanonicalPackageName, String)>,
 }
 
 impl Promoted {
-    /// Remove the archives this publish wrote, after its commit was refused,
-    /// so no archive outlives the metadata that would have referenced it.
-    /// The caller holds every package's lock, so no other publish has
-    /// committed one of them since. An archive found in place belongs to an
-    /// earlier commit and stays.
+    /// Remove the archives this publish created, after its commit was
+    /// refused, so no archive outlives the metadata that would have
+    /// referenced it. The caller holds every package's lock, and `SQLite`
+    /// metadata serves one pnpr process, so no other publish has committed
+    /// one of them since. An archive found in place belongs to an earlier
+    /// commit and stays.
     async fn remove_written(&self, state: &AppState) {
         for (org, ecosystem, name, filename) in &self.written {
             let storage = state.inner.storage.for_hosted(org, *ecosystem);
@@ -223,13 +224,18 @@ async fn promote_archives(
     while let Some(((org, ecosystem, name), slot)) = pending.pop() {
         let filename = slot.filename().to_string();
         let tmp_path = slot.tmp_path.clone();
-        let finalized =
-            state.inner.storage.for_hosted(&org, ecosystem).finalize_blob_slot(slot).await;
+        let storage = state.inner.storage.for_hosted(&org, ecosystem);
+        // A filesystem store reports every promotion as written, even over an
+        // archive an earlier commit placed. Only an archive that was not
+        // there before is this publish's own to remove; when that cannot be
+        // told, it is left in place.
+        let created = matches!(storage.open_hosted_blob(&name, &filename).await, Ok(None));
+        let finalized = storage.finalize_blob_slot(slot).await;
         match finalized {
-            Ok(BlobFinalize::Written) => {
+            Ok(BlobFinalize::Written) if created => {
                 promoted.written.push((org, ecosystem, name.clone(), filename.clone()));
             }
-            Ok(BlobFinalize::AlreadyIdentical) => {}
+            Ok(BlobFinalize::Written | BlobFinalize::AlreadyIdentical) => {}
             outcome => {
                 let _ = tokio::fs::remove_file(&tmp_path).await;
                 super::cleanup_tmp_slots(

@@ -338,3 +338,24 @@ async fn a_member_lookup_answers_only_for_a_package_its_registry_still_claims() 
     let publication = send(&narrowed, "GET", "/-/publications/-/1", &token, None).await;
     assert_eq!(publication.status, StatusCode::NOT_FOUND);
 }
+
+#[tokio::test]
+async fn a_refused_publish_keeps_an_archive_it_found_in_place() {
+    let tmp = TempDir::new().unwrap();
+    let app = router(sqlite_config(tmp.path()));
+    let token = token(&app).await;
+    let batch = json!({ "packages": [publish_doc("first", "1.0.0", b"first")] });
+    let committed =
+        send_with_key(&app, "PUT", "/-/pnpr/v0/publish", &token, Some(&batch), Some("k1")).await;
+    assert_eq!(committed.status, StatusCode::CREATED);
+
+    // An archive already in place, which the refused publish promotes over.
+    let archive = local_blob_path(tmp.path(), "", Ecosystem::Npm, "placed", "placed-1.0.0.tgz");
+    std::fs::create_dir_all(archive.parent().unwrap()).unwrap();
+    std::fs::write(&archive, b"placed").unwrap();
+    let reused = json!({ "packages": [publish_doc("placed", "1.0.0", b"placed")] });
+    let refused =
+        send_with_key(&app, "PUT", "/-/pnpr/v0/publish", &token, Some(&reused), Some("k1")).await;
+    assert_eq!(refused.status, StatusCode::CONFLICT);
+    assert_eq!(std::fs::read(&archive).unwrap(), b"placed");
+}
