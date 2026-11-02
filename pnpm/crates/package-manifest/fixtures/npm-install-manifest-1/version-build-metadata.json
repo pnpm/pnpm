@@ -1,0 +1,26 @@
+{
+  "description": "npm's version cleaning drops build metadata (lerna canary builds).",
+  "archive": {
+    "packageJson": {
+      "name": "widgets",
+      "version": "1.2.0-alpha.3+7f3a1c2"
+    },
+    "files": [
+      "package.json"
+    ]
+  },
+  "submitted": {
+    "name": "widgets",
+    "version": "1.2.0-alpha.3"
+  },
+  "expected": {
+    "manifest": {
+      "name": "widgets",
+      "version": "1.2.0-alpha.3",
+      "hasInstallScript": false,
+      "hasShrinkwrap": false
+    },
+    "mismatched": [],
+    "tolerated": []
+  }
+}

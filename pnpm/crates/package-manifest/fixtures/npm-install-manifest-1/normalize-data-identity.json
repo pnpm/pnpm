@@ -1,0 +1,26 @@
+{
+  "description": "npm's normalizeData step cleans a `v` prefix off the version and trims the name.",
+  "archive": {
+    "packageJson": {
+      "name": " widgets ",
+      "version": "v1.2.3"
+    },
+    "files": [
+      "package.json"
+    ]
+  },
+  "submitted": {
+    "name": "widgets",
+    "version": "1.2.3"
+  },
+  "expected": {
+    "manifest": {
+      "name": "widgets",
+      "version": "1.2.3",
+      "hasInstallScript": false,
+      "hasShrinkwrap": false
+    },
+    "mismatched": [],
+    "tolerated": []
+  }
+}

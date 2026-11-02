@@ -1,0 +1,33 @@
+{
+  "description": "A submitted gypfile: false hides the build a root binding.gyp makes the archive run.",
+  "archive": {
+    "packageJson": {
+      "name": "widgets",
+      "version": "1.0.0"
+    },
+    "files": [
+      "package.json",
+      "binding.gyp"
+    ]
+  },
+  "submitted": {
+    "name": "widgets",
+    "version": "1.0.0",
+    "gypfile": false
+  },
+  "expected": {
+    "manifest": {
+      "name": "widgets",
+      "version": "1.0.0",
+      "scripts": {
+        "install": "node-gyp rebuild"
+      },
+      "hasInstallScript": true,
+      "hasShrinkwrap": false
+    },
+    "mismatched": [
+      "scripts"
+    ],
+    "tolerated": []
+  }
+}
