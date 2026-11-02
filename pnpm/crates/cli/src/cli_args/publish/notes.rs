@@ -6,18 +6,16 @@
 //! already in them; elsewhere a package's version note is its
 //! `CHANGELOG.md` section for the version, or `--release-notes`.
 
-use super::{PackedDirectory, PublishArgs, PublishScope};
-use parked::{parked_publication, publication_registry};
-
 pub(super) use parked::check_packed_members;
 
-mod parked;
+use super::{PackedDirectory, PublishArgs, PublishScope};
 use crate::cli_args::{
     changelog::published_name,
     release_notes::{notes_registries, notes_registry_of_manifest, read_release_notes_arg},
 };
 use derive_more::Display;
 use miette::Context;
+use parked::{parked_publication, publication_registry};
 use pnpm_config::Config;
 use pnpm_publish::{PublicationNotes, ReleaseNotesTarget};
 use pnpm_release_notes::{
@@ -355,3 +353,5 @@ fn emit_warning<Reporter: self::Reporter>(message: &str) {
         message: message.to_owned(),
     }));
 }
+
+mod parked;
