@@ -227,3 +227,45 @@ async fn publication_rejects_variants_that_break_an_invariant() {
         assert!(reason.contains("variant"), "{case}: {reason}");
     }
 }
+
+/// With `SQLite` metadata, a publication commits atomically, and the stored
+/// variants survive the round trip through the database.
+#[tokio::test]
+async fn variants_are_served_from_sqlite_metadata() {
+    let tmp = TempDir::new().unwrap();
+    let auth = AuthState::in_memory();
+    let token = issue_token(&auth, "alice").await;
+    let mut config = acme_config(tmp.path().to_path_buf());
+    config.storage.metadata =
+        pnpr_config::MetadataBackend::Sqlite(tmp.path().join("metadata.sqlite"));
+    let app = router_with_auth(config, auth);
+    let (_, primary) = archive(&primary_manifest(), "primary");
+    let (musl_tar, musl_tgz) = archive(&variant_manifest(&["linux-x64-musl"], &json!({})), "musl");
+    let response = app
+        .clone()
+        .oneshot(publish_request(&primary, &[("musl", &musl_tgz)], &token))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED);
+
+    let document = body_json(
+        get(&app, "/npm/~main/@acme%2Ffast", Some("application/vnd.pnpr.install-v2+json"))
+            .await
+            .into_body(),
+    )
+    .await;
+    let variants = &document["versions"]["1.0.0"]["variants"];
+    assert_eq!(variants[0]["tag"], "linux-x64-musl");
+    assert_eq!(variants[0]["integrity"], sha512_integrity(&musl_tar));
+
+    // The scoped route, and the encoded name whose three segments it shares
+    // with a release note's route.
+    for uri in [
+        "/npm/~main/@acme/fast@1.0.0/variants/linux-x64-musl",
+        "/npm/~main/@acme%2Ffast@1.0.0/variants/linux-x64-musl",
+    ] {
+        let response = get(&app, uri, None).await;
+        assert_eq!(response.status(), StatusCode::OK, "{uri}");
+        assert_eq!(body_bytes(response.into_body()).await, musl_tar, "{uri}");
+    }
+}
