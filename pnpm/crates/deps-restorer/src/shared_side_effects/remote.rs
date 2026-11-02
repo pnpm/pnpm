@@ -378,9 +378,10 @@ pub(super) async fn stage_artifact_blob(
         let bytes = download_artifact_file(context, artifact, file).await?;
         downloaded.insert(file.integrity.clone(), bytes);
     }
-    let (blob, _) = context.config.store_dir
+    let blob = context.config.store_dir
         .write_cas_file(&downloaded[&file.integrity], pnpm_fs::file_mode::is_executable(file.mode))
-        .map_err(|error| (error.to_string(), false))?;
+        .map_err(|error| (error.to_string(), false))?
+        .file;
     stored.insert(storage_key, blob.clone());
     Ok((blob, info(digest)))
 }

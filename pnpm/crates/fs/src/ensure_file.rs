@@ -420,7 +420,7 @@ fn file_equals_bytes(file_path: &Path, content: &[u8]) -> io::Result<bool> {
 /// removed best-effort so stale files don't leak into the store
 /// shard.
 ///
-/// Returns the new file's mode as [`create_exclusive_temp_file`] does.
+/// Returns the new file's mode, read as [`TempFile::mode`] is.
 fn write_atomic(
     file_path: &Path,
     content: &[u8],
@@ -431,8 +431,11 @@ fn write_atomic(
         .file_name()
         .map(|file_name| file_name.to_string_lossy().into_owned())
         .unwrap_or_default();
-    let (tmp_path, mut file, created_mode) =
-        create_exclusive_temp_file(parent, &strip_dash_suffix(&name), mode)?;
+    let TempFile {
+        path: tmp_path,
+        mut file,
+        mode: created_mode,
+    } = create_exclusive_temp_file(parent, &strip_dash_suffix(&name), mode)?;
 
     if let Err(error) = file.write_all(content) {
         drop(file);
@@ -456,6 +459,15 @@ fn write_atomic(
     Ok(created_mode)
 }
 
+/// A file [`create_exclusive_temp_file`] created and opened.
+pub struct TempFile {
+    pub path: PathBuf,
+    pub file: File,
+    /// The file's permission bits, which the create reads anyway on Unix.
+    /// `None` when it did not read them.
+    pub mode: Option<u32>,
+}
+
 /// Create a uniquely-named file inside `dir` with `O_CREAT | O_EXCL`
 /// semantics, returning its path and open handle. The name is
 /// `{base}{pid}{counter}`: the counter is a process-local
@@ -472,14 +484,11 @@ fn write_atomic(
 ///
 /// The caller owns the file's lifecycle: rename it into place on
 /// success, remove it on failure.
-///
-/// Also returns the file's permission bits, which the create reads
-/// anyway on Unix; `None` when it did not read them.
 pub fn create_exclusive_temp_file(
     dir: &Path,
     base: &str,
     mode: Option<u32>,
-) -> Result<(PathBuf, File, Option<u32>), EnsureFileError> {
+) -> Result<TempFile, EnsureFileError> {
     /// Retries after `AlreadyExists` on the temp path. Sixteen fresh
     /// counter values is plenty — under benign conditions we never
     /// collide; under shared-store-across-containers the chance of
@@ -505,7 +514,7 @@ pub fn create_exclusive_temp_file(
                 };
                 #[cfg(not(unix))]
                 let created_mode = None;
-                return Ok((tmp_path, file, created_mode));
+                return Ok(TempFile { path: tmp_path, file, mode: created_mode });
             }
             Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
                 // Stale temp file or adversarial / concurrent pre-seed.

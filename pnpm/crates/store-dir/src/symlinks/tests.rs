@@ -61,8 +61,8 @@ fn index_with_links(
     (files, base, deleted): (&[&str], &[&str], &[&str]),
 ) -> PackageFilesIndex {
     let add = |content: &str, mode: u32| {
-        let (_path, hash) =
-            store_dir.write_cas_file(content.as_bytes(), false).expect("write CAFS file");
+        let hash =
+            store_dir.write_cas_file(content.as_bytes(), false).expect("write CAFS file").hash;
         CafsFileInfo {
             digest: format!("{hash:x}"),
             mode,

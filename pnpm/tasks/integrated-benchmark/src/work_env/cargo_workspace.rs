@@ -97,18 +97,13 @@ fn seed_crate(store_dir: &StoreDir, index: usize) -> (String, PackageFilesIndex)
 }
 
 fn write_cas_blob(store_dir: &StoreDir, contents: &[u8]) -> CafsFileInfo {
-    let (_, file_hash) =
+    let written =
         store_dir.write_cas_file(contents, false).expect("write cas file for cargo benchmark");
     let checked_at = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .expect("system clock after unix epoch")
         .as_millis() as u64;
-    CafsFileInfo {
-        digest: format!("{file_hash:x}"),
-        mode: 0o644,
-        size: contents.len() as u64,
-        checked_at: Some(checked_at),
-    }
+    written.index_entry(0o644, Some(checked_at))
 }
 
 fn cargo_lock_contents() -> String {

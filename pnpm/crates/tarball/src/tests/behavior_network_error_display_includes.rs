@@ -386,8 +386,8 @@ async fn synthesized_projection_reuses_only_a_matching_legacy_row_offline() {
     );
     let manifest = br#"{"name":"artifact","version":"1.0.0"}"#;
     let readme = b"legacy runtime archive";
-    let (_, manifest_hash) = store_path.write_cas_file(manifest, false).unwrap();
-    let (_, readme_hash) = store_path.write_cas_file(readme, false).unwrap();
+    let manifest_hash = store_path.write_cas_file(manifest, false).unwrap().hash;
+    let readme_hash = store_path.write_cas_file(readme, false).unwrap().hash;
     let legacy_key = store_index_key(&package_integrity.to_string(), package_id);
     StoreIndex::open_in(store_path)
         .unwrap()
@@ -484,7 +484,8 @@ async fn raw_archive_projection_skips_npm_identity_checks_on_store_hits() {
     let (store_dir, store_path) = tempdir_with_leaked_path();
     store_path.init().unwrap();
     let contents = b"raw artifact";
-    let (cas_path, file_hash) = store_path.write_cas_file(contents, false).unwrap();
+    let pnpm_store_dir::WrittenFile { file: cas_path, hash: file_hash, .. } =
+        store_path.write_cas_file(contents, false).unwrap();
     let integrity = integrity("sha256-q80k8iD1xuGM3a48ipTFD+P7KQnhs4e5Blnos+dQpJM=");
     let package_id = "crate:artifact@1.0.0";
     StoreIndex::open_in(store_path)

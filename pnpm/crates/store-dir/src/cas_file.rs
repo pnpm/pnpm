@@ -1,9 +1,9 @@
-use crate::{FileHash, StoreDir};
+use crate::{CafsFileInfo, FileHash, StoreDir};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_fs::{
-    EnsureFileError, StoreFile, cas_write_lock, create_exclusive_temp_file, ensure_cas_file,
-    ensure_parent_dir,
+    EnsureFileError, StoreFile, TempFile, cas_write_lock, create_exclusive_temp_file,
+    ensure_cas_file, ensure_parent_dir,
     file_mode::{EXEC_MODE, is_executable},
     overwrite_file_in_place, rename_with_retry,
 };
@@ -63,6 +63,26 @@ impl StoreDir {
     }
 }
 
+/// A file [`StoreDir::write_cas_file`] or
+/// [`StoreDir::write_cas_file_from_reader`] committed to the store.
+#[derive(Debug)]
+pub struct WrittenFile {
+    /// The blob, with its mode (see [`ensure_cas_file`]).
+    pub file: StoreFile,
+    pub hash: FileHash,
+    /// Byte count of the content.
+    pub size: u64,
+}
+
+impl WrittenFile {
+    /// The store index row for this file. `mode` is the mode the package
+    /// declares, which the index keeps even though the blob's path keeps
+    /// only its executable bit.
+    pub fn index_entry(&self, mode: u32, checked_at: Option<u64>) -> CafsFileInfo {
+        CafsFileInfo { digest: format!("{:x}", self.hash), mode, size: self.size, checked_at }
+    }
+}
+
 /// Error type of [`StoreDir::write_cas_file`].
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum WriteCasFileError {
@@ -83,14 +103,11 @@ pub enum WriteCasFileFromReaderError {
 
 impl StoreDir {
     /// Write a file from an npm package to the store directory.
-    ///
-    /// The returned [`StoreFile`] carries the blob's mode (see
-    /// [`ensure_cas_file`]).
     pub fn write_cas_file(
         &self,
         buffer: &[u8],
         executable: bool,
-    ) -> Result<(StoreFile, FileHash), WriteCasFileError> {
+    ) -> Result<WrittenFile, WriteCasFileError> {
         let file_hash = Sha512::digest(buffer);
         let file_path = self.cas_file_path(file_hash, executable);
         let mode = executable.then_some(EXEC_MODE);
@@ -99,7 +116,11 @@ impl StoreDir {
 
         let blob_mode =
             ensure_cas_file(&file_path, buffer, mode).map_err(WriteCasFileError::WriteFile)?;
-        Ok((StoreFile::with_mode(file_path, blob_mode), file_hash))
+        Ok(WrittenFile {
+            file: StoreFile::with_mode(file_path, blob_mode),
+            hash: file_hash,
+            size: buffer.len() as u64,
+        })
     }
 
     /// Stream a file from an npm package into the store directory
@@ -113,11 +134,9 @@ impl StoreDir {
     /// file is renamed to its content-addressed path at the end. Peak
     /// memory is one fixed copy buffer regardless of file size.
     ///
-    /// Returns the CAS file, the content hash, and the streamed byte
-    /// count. The CAS file carries the blob's mode, as with
-    /// [`StoreDir::write_cas_file`]. A reader that yields the same bytes
-    /// as a `buffer` handed to [`StoreDir::write_cas_file`] lands at the same path with the
-    /// same guarantees: an existing regular file at the target is kept
+    /// A reader that yields the same bytes as a `buffer` handed to
+    /// [`StoreDir::write_cas_file`] lands at the same path with the same
+    /// guarantees: an existing regular file at the target is kept
     /// as the live entry only after a byte-compare against the streamed
     /// content, a corrupt regular file is repaired in place so its
     /// inode — and every hard link to it — survives (pnpm/pnpm#3445),
@@ -133,12 +152,15 @@ impl StoreDir {
         reader: &mut dyn Read,
         executable: bool,
         expected_size: Option<u64>,
-    ) -> Result<(StoreFile, FileHash, u64), WriteCasFileFromReaderError> {
+    ) -> Result<WrittenFile, WriteCasFileFromReaderError> {
         let files_dir = self.files_dir();
         ensure_parent_dir(files_dir).map_err(write_cas_error)?;
         let mode = executable.then_some(EXEC_MODE);
-        let (tmp_path, file, tmp_mode) =
-            create_exclusive_temp_file(files_dir, "stream", mode).map_err(write_cas_error)?;
+        let TempFile {
+            path: tmp_path,
+            file,
+            mode: tmp_mode,
+        } = create_exclusive_temp_file(files_dir, "stream", mode).map_err(write_cas_error)?;
 
         let streamed = stream_into_temp_file(reader, file, &tmp_path, expected_size);
         let (file_hash, size) = match streamed {
@@ -156,7 +178,7 @@ impl StoreDir {
         }
 
         let blob_mode = commit_streamed_temp_file(&tmp_path, tmp_mode, &file_path, size)?;
-        Ok((StoreFile::with_mode(file_path, blob_mode), file_hash, size))
+        Ok(WrittenFile { file: StoreFile::with_mode(file_path, blob_mode), hash: file_hash, size })
     }
 
     /// Ensure the shard directory (`files/XX/`) exists.

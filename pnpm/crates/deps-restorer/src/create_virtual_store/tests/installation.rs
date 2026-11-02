@@ -54,9 +54,10 @@ async fn shared_store_context_materializes_a_warm_package() {
         ("package.json", br#"{"name":"from-shared-context","version":"1.0.0"}"#.as_slice()),
         ("index.js", b"module.exports = true\n".as_slice()),
     ] {
-        let (_, digest) = config.store_dir
+        let digest = config.store_dir
             .write_cas_file(content, false)
-            .expect("write package file to materialization store");
+            .expect("write package file to materialization store")
+            .hash;
         files.insert(
             path.to_string(),
             CafsFileInfo {

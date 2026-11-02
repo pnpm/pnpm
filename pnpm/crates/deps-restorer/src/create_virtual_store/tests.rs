@@ -142,8 +142,10 @@ impl SeededStoreInstall {
             ("package.json", br#"{"name":"seeded","version":"1.0.0"}"#.as_slice()),
             ("index.js", b"module.exports = true\n".as_slice()),
         ] {
-            let (blob, digest) =
-                config.store_dir.write_cas_file(content, false).expect("write package file");
+            let pnpm_store_dir::WrittenFile { file: blob, hash: digest, .. } = config
+                .store_dir
+                .write_cas_file(content, false)
+                .expect("write package file");
             if path == "index.js" {
                 body_blob = Some(blob);
             }
@@ -158,8 +160,8 @@ impl SeededStoreInstall {
             );
         }
         let side_effects = build_output.map(|content| {
-            let (_, digest) =
-                config.store_dir.write_cas_file(content, false).expect("write build output");
+            let digest =
+                config.store_dir.write_cas_file(content, false).expect("write build output").hash;
             let added = HashMap::from([(
                 "build/output.js".to_string(),
                 CafsFileInfo {

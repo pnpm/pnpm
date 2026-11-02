@@ -31,9 +31,7 @@ use pnpm_package_manifest::{
     BuildTriggers, PackageBin, ScriptRuntime, parse_manifest_bytes, parse_shebang_from_bytes,
     resolve_package_bins_with,
 };
-use pnpm_store_dir::{
-    CafsFileInfo, FileHash, PackageFilesIndex, StoreDir, WriteCasFileFromReaderError,
-};
+use pnpm_store_dir::{CafsFileInfo, PackageFilesIndex, StoreDir, WriteCasFileFromReaderError};
 use ssri::Integrity;
 use tar::Archive;
 
@@ -118,7 +116,6 @@ pub(crate) struct PendingFile<'a> {
     data: Cow<'a, [u8]>,
     executable: bool,
     mode: u32,
-    size: u64,
 }
 
 /// Hash one [`PendingFile`] into the content-addressed store and build
@@ -129,23 +126,23 @@ pub(crate) fn write_cas_entry(
     store_dir: &StoreDir,
     file: &PendingFile<'_>,
 ) -> Result<(String, pnpm_fs::StoreFile, CafsFileInfo), TarballError> {
-    let (file_path, file_hash) = store_dir
+    let written = store_dir
         .write_cas_file(&file.data, file.executable)
         .map_err(TarballError::WriteCasFile)?;
-    Ok((file.cleaned_path.clone(), file_path, cafs_file_info(&file_hash, file.mode, file.size)))
+    let info = written.index_entry(file.mode, checked_now());
+    Ok((file.cleaned_path.clone(), written.file, info))
 }
 
-/// Build the [`CafsFileInfo`] index row for a freshly written CAS file.
-pub(crate) fn cafs_file_info(file_hash: &FileHash, mode: u32, size: u64) -> CafsFileInfo {
-    // `as_millis()` returns `u128`; narrow to `u64` to match the store
-    // index schema (see `CafsFileInfo::checked_at`). Drop the timestamp
-    // if the clock reports something unrepresentable — `checkedAt` is
-    // optional and pnpm tolerates `None`.
-    let checked_at = UNIX_EPOCH
+/// The `checked_at` of an index row for a file written now: a freshly
+/// written blob holds the bytes its row describes.
+///
+/// `None` when the clock reports something a `u64` of milliseconds cannot
+/// hold. `checkedAt` is optional and pnpm tolerates `None`.
+pub(crate) fn checked_now() -> Option<u64> {
+    UNIX_EPOCH
         .elapsed()
         .ok()
-        .and_then(|elapsed| u64::try_from(elapsed.as_millis()).ok());
-    CafsFileInfo { digest: format!("{file_hash:x}"), mode, size, checked_at }
+        .and_then(|elapsed| u64::try_from(elapsed.as_millis()).ok())
 }
 
 pub(crate) type ExtractedEntries =
@@ -219,7 +216,6 @@ fn collect_pending_tar_entries<'a>(
             data: Cow::Borrowed(entry_data),
             executable: meta.executable,
             mode: meta.mode,
-            size: meta.size,
         });
     }
     budget.check_buffered_end(tar_data, archive.into_inner().position())?;
@@ -382,7 +378,6 @@ impl<'a> StreamingExtract<'a> {
             data: Cow::Owned(data),
             executable: meta.executable,
             mode: meta.mode,
-            size: meta.size,
         });
         if self.batch_bytes >= STREAM_BATCH_BUDGET_BYTES {
             self.flush()?;
@@ -401,7 +396,7 @@ impl<'a> StreamingExtract<'a> {
         // `Some(size)` makes the store writer reject a short stream
         // before anything is committed to a content-addressed path, so a
         // truncated archive leaves no orphan blob behind.
-        let (file_path, file_hash, streamed_size) = self.store_dir
+        let written = self.store_dir
             .write_cas_file_from_reader(
                 &mut (&head[..head_len]).chain(entry),
                 meta.executable,
@@ -411,11 +406,8 @@ impl<'a> StreamingExtract<'a> {
                 WriteCasFileFromReaderError::Read(error) => TarballError::ReadTarballEntries(error),
                 WriteCasFileFromReaderError::Write(error) => TarballError::WriteCasFile(error),
             })?;
-        self.written.push((
-            meta.cleaned_path,
-            file_path,
-            cafs_file_info(&file_hash, meta.mode, streamed_size),
-        ));
+        let info = written.index_entry(meta.mode, checked_now());
+        self.written.push((meta.cleaned_path, written.file, info));
         Ok(())
     }
 

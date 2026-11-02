@@ -413,7 +413,7 @@ fn write_zip_entry_to_cas_streams_a_truthful_oversized_entry() {
 
     let declared_size = STREAM_ENTRY_BUFFER_MAX + 1;
     let mut payload = std::io::repeat(b'x').take(declared_size);
-    let (file_path, _, size) = write_zip_entry_to_cas(
+    let pnpm_store_dir::WrittenFile { file: file_path, size, .. } = write_zip_entry_to_cas(
         &mut payload,
         declared_size,
         "https://example.test/runtime.zip",
