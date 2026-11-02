@@ -3,8 +3,7 @@ use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_fs::{
     EnsureFileError, FileMode, StoreFile, cas_write_lock, create_exclusive_temp_file,
-    ensure_cas_file,
-    ensure_parent_dir,
+    ensure_cas_file, ensure_parent_dir,
     file_mode::{EXEC_MODE, is_executable},
     overwrite_file_in_place, rename_with_retry,
 };
