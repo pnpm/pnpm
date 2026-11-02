@@ -2203,12 +2203,17 @@ testOnNonWindows.each([false, true])('deploy preserves links to dependencies and
   for (const [name, target] of links) fs.symlinkSync(target, path.join('.next', name))
   fs.symlinkSync('../omitted.txt', '.next/file-link')
   expect(fs.readFileSync('.next/node_modules/alias/index.cjs', 'utf8')).toBe('module.exports = 42')
-  await deploy.handler({ ...opts, forceLegacyDeploy, production: true, dev: false }, ['dist'])
-  for (const [name, target] of links) expect(fs.readlinkSync(path.join('dist/.next', name))).toBe(target)
-  expect(fs.lstatSync('dist/.next/file-link').isFile()).toBe(true)
-  expect(fs.readFileSync('dist/.next/file-link', 'utf8')).toBe('omitted')
-  const dependency = 'dist/.next/node_modules/alias/index.cjs'
-  expect(fs.readFileSync(dependency, 'utf8')).toBe('module.exports = 42')
-  expect(fs.realpathSync(dependency).startsWith(path.resolve('dist') + path.sep)).toBe(true)
-  expect(fs.existsSync('dist/omitted.txt')).toBe(false)
+  // A build restored without its node_modules leaves the aliases dangling.
+  for (const dist of ['dist-installed', 'dist-removed']) {
+    if (dist === 'dist-removed') fs.rmSync('node_modules', { recursive: true })
+    // eslint-disable-next-line no-await-in-loop -- the second deploy runs after node_modules is removed
+    await deploy.handler({ ...opts, forceLegacyDeploy, production: true, dev: false }, [dist])
+    for (const [name, target] of links) expect(fs.readlinkSync(path.join(dist, '.next', name))).toBe(target)
+    expect(fs.lstatSync(path.join(dist, '.next/file-link')).isFile()).toBe(true)
+    expect(fs.readFileSync(path.join(dist, '.next/file-link'), 'utf8')).toBe('omitted')
+    const dependency = path.join(dist, '.next/node_modules/alias/index.cjs')
+    expect(fs.readFileSync(dependency, 'utf8')).toBe('module.exports = 42')
+    expect(fs.realpathSync(dependency).startsWith(path.resolve(dist) + path.sep)).toBe(true)
+    expect(fs.existsSync(path.join(dist, 'omitted.txt'))).toBe(false)
+  }
 })

@@ -704,6 +704,7 @@ test.each([false, true])('importIndexedDir() keeps internal directory links to u
   fs.writeFileSync(path.join(src, 'omitted/file.txt'), 'content')
   fs.symlinkSync('omitted', path.join(src, 'directory-link'), 'dir')
   fs.symlinkSync('omitted/file.txt', path.join(src, 'file-link'), 'file')
+  fs.symlinkSync(path.join('node_modules', 'missing'), path.join(src, 'dangling-link'), 'dir')
   if (occupied) {
     fs.mkdirSync(dest)
     fs.writeFileSync(path.join(dest, 'file-link'), 'stale')
@@ -711,8 +712,10 @@ test.each([false, true])('importIndexedDir() keeps internal directory links to u
   importIndexedDir({ importFile: fs.copyFileSync, importFileAtomic: fs.copyFileSync }, dest, new Map([
     ['directory-link', path.join(src, 'directory-link')],
     ['file-link', path.join(src, 'file-link')],
+    ['dangling-link', path.join(src, 'dangling-link')],
   ]), { resolvedFrom: 'local-dir', symlinkTargets: 'internal' })
   expect(path.resolve(dest, fs.readlinkSync(path.join(dest, 'directory-link')))).toBe(path.join(dest, 'omitted'))
+  expect(path.resolve(dest, fs.readlinkSync(path.join(dest, 'dangling-link')))).toBe(path.join(dest, 'node_modules', 'missing'))
   expect(fs.lstatSync(path.join(dest, 'file-link')).isFile()).toBe(true)
   expect(fs.readFileSync(path.join(dest, 'file-link'), 'utf8')).toBe('content')
   expect(fs.existsSync(path.join(dest, 'omitted'))).toBe(false)
