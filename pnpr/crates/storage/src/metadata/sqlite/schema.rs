@@ -35,7 +35,9 @@ CREATE TABLE IF NOT EXISTS packages (
     PRIMARY KEY (catalog, ecosystem, name)
 ) STRICT, WITHOUT ROWID;
 
--- Insert-only: a version's artifact integrity.
+-- Insert-only: a version's artifact integrity. `accepted_generation` is the
+-- catalog generation that accepted it, which is the id of the version's
+-- initial publication.
 CREATE TABLE IF NOT EXISTS versions (
     catalog TEXT NOT NULL,
     ecosystem TEXT NOT NULL,
@@ -44,6 +46,7 @@ CREATE TABLE IF NOT EXISTS versions (
     revision_key TEXT NOT NULL,
     integrity TEXT NOT NULL,
     published_at TEXT,
+    accepted_generation INTEGER NOT NULL,
     PRIMARY KEY (catalog, ecosystem, name, version, revision_key),
     FOREIGN KEY (catalog, ecosystem, name)
         REFERENCES packages (catalog, ecosystem, name) ON DELETE CASCADE
@@ -134,6 +137,52 @@ CREATE TABLE IF NOT EXISTS annotations (
     FOREIGN KEY (catalog, ecosystem, name)
         REFERENCES packages (catalog, ecosystem, name) ON DELETE CASCADE
 ) STRICT, WITHOUT ROWID;
+
+-- A commit that introduced artifacts. `id` is the catalog generation it
+-- committed. `name` is the publisher's, unique within the catalog.
+CREATE TABLE IF NOT EXISTS publications (
+    catalog TEXT NOT NULL,
+    id INTEGER NOT NULL,
+    name TEXT,
+    principal TEXT,
+    committed_at TEXT NOT NULL,
+    PRIMARY KEY (catalog, id)
+) STRICT;
+-- The versions a commit accepted, which are its publication's members.
+CREATE INDEX IF NOT EXISTS versions_by_accepted_generation
+    ON versions (catalog, accepted_generation);
+CREATE UNIQUE INDEX IF NOT EXISTS publications_by_name
+    ON publications (catalog, name) WHERE name IS NOT NULL;
+
+-- Insert-only: each artifact belongs to the publication that introduced it.
+-- Kept when the package is removed.
+CREATE TABLE IF NOT EXISTS publication_members (
+    catalog TEXT NOT NULL,
+    publication INTEGER NOT NULL,
+    ecosystem TEXT NOT NULL,
+    name TEXT NOT NULL,
+    version TEXT NOT NULL,
+    artifact TEXT NOT NULL,
+    PRIMARY KEY (catalog, ecosystem, name, version, artifact),
+    FOREIGN KEY (catalog, publication) REFERENCES publications (catalog, id)
+) STRICT, WITHOUT ROWID;
+CREATE INDEX IF NOT EXISTS publication_members_by_publication
+    ON publication_members (catalog, publication);
+
+-- The outcome of a committed publication request, keyed by the principal
+-- that sent it and its idempotency key, for the request's retries.
+CREATE TABLE IF NOT EXISTS publication_outcomes (
+    catalog TEXT NOT NULL,
+    principal TEXT NOT NULL,
+    idempotency_key TEXT NOT NULL,
+    request_digest TEXT NOT NULL,
+    generation INTEGER NOT NULL,
+    publication INTEGER,
+    committed_at INTEGER NOT NULL,
+    PRIMARY KEY (catalog, principal, idempotency_key)
+) STRICT, WITHOUT ROWID;
+CREATE INDEX IF NOT EXISTS publication_outcomes_by_key
+    ON publication_outcomes (principal, idempotency_key);
 ";
 
 /// Configure a connection and create the tables it needs.

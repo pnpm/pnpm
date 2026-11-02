@@ -1,6 +1,7 @@
 //! Conformance tests of the `SQLite` metadata backend.
 
 mod concurrency;
+mod publications;
 
 use crate::{
     DocumentWrite, HostedDocumentVersion, Storage,

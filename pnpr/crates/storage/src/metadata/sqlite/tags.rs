@@ -2,7 +2,8 @@
 
 use super::{
     PackageKey,
-    commit::{Commit, package_row},
+    batch::Batch,
+    commit::{Commit, PackageRow, package_row},
     packument::TIME,
     to_column,
 };
@@ -100,15 +101,28 @@ pub(super) fn change_tag(
     if key.ecosystem != Ecosystem::Npm {
         return Ok(TagUpdate::NotFound);
     }
-    let commit = Commit::begin(connection, key)?;
-    let Some(package) = package_row(&commit.transaction, key)? else {
+    let mut batch = Batch::begin(connection, &key.catalog)?;
+    let Some(package) = package_row(batch.transaction(), key)? else {
         return Ok(TagUpdate::NotFound);
     };
-    let tags = stored_tags(&commit.transaction, key)?;
-    let previous = tags.get(&change.tag).map(String::as_str);
-    if previous == change.target.as_deref() {
+    if !move_tag(&batch.package(key), &package, change)? {
         let generation = Some(key.generation(package.generation));
         return Ok(TagUpdate::Committed { generation, moved: false });
+    }
+    batch.touch(key);
+    let generation = batch
+        .finish()?
+        .map(|value| key.generation(value));
+    Ok(TagUpdate::Committed { generation, moved: true })
+}
+
+/// Point a tag of the package where `change` says, reporting whether it
+/// pointed elsewhere.
+fn move_tag(commit: &Commit<'_>, package: &PackageRow, change: &OwnedTagChange) -> Result<bool> {
+    let tags = stored_tags(commit.transaction, commit.key)?;
+    let previous = tags.get(&change.tag).map(String::as_str);
+    if previous == change.target.as_deref() {
+        return Ok(false);
     }
     let tag_move = TagMove {
         tag: &change.tag,
@@ -116,11 +130,9 @@ pub(super) fn change_tag(
         target: change.target.as_deref(),
         principal: change.principal.as_deref(),
     };
-    record_tag_move(&commit, &tag_move)?;
+    record_tag_move(commit, &tag_move)?;
     commit.write_state(&stamp_modified(&package.state)?)?;
-    let generation = key.generation(commit.generation);
-    commit.finish()?;
-    Ok(TagUpdate::Committed { generation: Some(generation), moved: true })
+    Ok(true)
 }
 
 /// The package-level fields with `time.modified` set to now.

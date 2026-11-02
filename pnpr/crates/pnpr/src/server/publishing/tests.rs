@@ -70,3 +70,45 @@ fn sha512(bytes: &[u8]) -> ssri::Integrity {
     opts.input(bytes);
     opts.result()
 }
+
+#[test]
+fn a_request_digest_hashes_the_canonical_json() {
+    let body = json!({ "b": 1, "a": [{ "d": 2, "c": r#"x""# }], "e": null });
+    let reordered = json!({ "e": null, "a": [{ "c": r#"x""#, "d": 2 }], "b": 1 });
+    let digest = super::atomic::request_digest(&body, None);
+    assert_eq!(digest, super::atomic::request_digest(&reordered, None));
+    let canonical = br#"{"a":[{"c":"x\"","d":2}],"b":1,"e":null}"#;
+    assert_eq!(digest, ssri::Integrity::from(canonical).to_string());
+    // The same body sent to another package is another request.
+    let targeted = super::atomic::request_digest(&body, Some("pkg"));
+    assert_ne!(targeted, digest);
+    assert_ne!(targeted, super::atomic::request_digest(&body, Some("other")));
+    let canonical = br#"{"body":{"a":[{"c":"x\"","d":2}],"b":1,"e":null},"target":"pkg"}"#;
+    assert_eq!(targeted, ssri::Integrity::from(canonical).to_string());
+}
+
+#[tokio::test]
+async fn archives_compare_a_bounded_chunk_at_a_time() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let staged = tmp.path().join("staged");
+    // Longer than one comparison chunk, so the comparison spans several.
+    let bytes: Vec<u8> = (0..200_000u32)
+        .map(|index| (index % 251) as u8)
+        .collect();
+    std::fs::write(&staged, &bytes).unwrap();
+    let mut changed = bytes.clone();
+    changed[150_000] ^= 1;
+    let cases = [
+        (bytes.clone(), Some(bytes.len() as u64), true),
+        (bytes.clone(), None, true),
+        (changed, None, false),
+        (bytes[..100].to_vec(), None, false),
+        ([bytes.as_slice(), b"more"].concat(), None, false),
+        (bytes.clone(), Some(1), false),
+    ];
+    for (index, (existing, length, same)) in cases.into_iter().enumerate() {
+        let body = axum::body::Body::from(existing);
+        let compared = super::atomic::same_bytes(body, length, &staged).await.unwrap();
+        assert_eq!(compared, same, "case {index}");
+    }
+}

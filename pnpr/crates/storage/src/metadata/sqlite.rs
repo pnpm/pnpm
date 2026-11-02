@@ -17,15 +17,21 @@
 pub use cache::RenderStats;
 pub use tags::TagHistoryEntry;
 
+mod batch;
 mod cache;
 mod commit;
 mod packument;
+mod publications;
+mod publish;
 mod render;
 mod schema;
 mod tags;
 mod versions;
 
-use super::{Generation, PackageMetadata, PackageView, TagChange, TagUpdate};
+use super::{
+    ArtifactMember, BatchDocument, Generation, PackageMetadata, PackageView, Publication,
+    PublicationCommit, PublicationRequest, RecordedOutcome, TagChange, TagUpdate,
+};
 use crate::{DocumentWrite, HostedDocumentForUpdate, HostedDocumentVersion};
 use async_trait::async_trait;
 use pnpr_error::{RegistryError, Result};
@@ -154,6 +160,80 @@ impl SqliteMetadata {
             name: name.as_str().to_string(),
         };
         self.with_reader(|connection| tags::tag_history(connection, &key, tag))
+    }
+
+    /// Commit `documents` of `catalog` as one publication, under one new
+    /// generation, or none of them. `artifacts` are the members of other
+    /// ecosystems than npm, whose versions are recorded from the documents.
+    pub async fn commit_publication(
+        self: &Arc<Self>,
+        catalog: &str,
+        documents: Vec<BatchDocument>,
+        artifacts: Vec<ArtifactMember>,
+        request: Option<PublicationRequest>,
+    ) -> Result<PublicationCommit> {
+        let catalog = catalog.to_string();
+        self.write(move |connection| {
+            let request = request.as_ref();
+            publish::commit_publication(connection, &catalog, &documents, &artifacts, request)
+        })
+        .await
+    }
+
+    /// The retained outcome of `request` in `catalog`, when an identical
+    /// request committed there.
+    pub async fn recorded_outcome(
+        self: &Arc<Self>,
+        catalog: &str,
+        request: &PublicationRequest,
+    ) -> Result<Option<RecordedOutcome>> {
+        let (catalog, request) = (catalog.to_string(), request.clone());
+        self.read(move |connection, _| {
+            let PublicationRequest {
+                principal,
+                idempotency_key,
+                request_digest,
+                ..
+            } = &request;
+            publications::recorded_outcome(
+                connection,
+                &catalog,
+                principal,
+                idempotency_key,
+                request_digest,
+            )
+        })
+        .await
+    }
+
+    /// The publication of `catalog` with this id or name.
+    pub async fn publication(
+        self: &Arc<Self>,
+        catalog: &str,
+        id_or_name: &str,
+    ) -> Result<Option<Publication>> {
+        let (catalog, id_or_name) = (catalog.to_string(), id_or_name.to_string());
+        self.read(move |connection, _| publications::publication(connection, &catalog, &id_or_name))
+            .await
+    }
+
+    /// The publication that introduced `version` of `name` in `org`.
+    pub async fn initial_publication(
+        self: &Arc<Self>,
+        name: &CanonicalPackageName,
+        org: &str,
+        version: &str,
+    ) -> Result<Option<Publication>> {
+        let key = PackageKey {
+            catalog: org.to_string(),
+            ecosystem: name.ecosystem(),
+            name: name.as_str().to_string(),
+        };
+        let version = version.to_string();
+        self.read(move |connection, _| {
+            publications::initial_publication(connection, &key, &version)
+        })
+        .await
     }
 
     pub(super) fn view(self: &Arc<Self>, org: &str, ecosystem: Ecosystem) -> SqliteView {
