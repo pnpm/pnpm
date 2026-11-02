@@ -313,3 +313,40 @@ fn publish_fails_when_a_parked_note_cannot_be_read() {
     upload.assert();
     drop(root);
 }
+
+#[test]
+fn a_batch_refuses_a_hook_that_moves_a_composed_release_to_another_registry() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let mut server = mockito::Server::new();
+    let registry = format!("{}/", server.url());
+    write_workspace(&workspace, &registry);
+    run(pnpm(&workspace).with_args(["version", "-r", "--no-git-checks"]));
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        r"module.exports = {
+  hooks: {
+    beforePacking (manifest) {
+      if (manifest.name === 'b') manifest.publishConfig = { registry: 'https://elsewhere.example/' }
+      return manifest
+    },
+  },
+}
+",
+    )
+    .expect("write .pnpmfile.cjs");
+    let upload = server
+        .mock("PUT", Matcher::Any)
+        .expect(0)
+        .create();
+
+    let output = pnpm(&workspace)
+        .with_args(["-r", "publish", "--batch", "--force", "--no-git-checks"])
+        .output()
+        .expect("run pnpm publish");
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("ERR_PNPM_RELEASE_NOTES_REGISTRY_CHANGED"), "{stderr}");
+    upload.assert();
+    drop(root);
+}

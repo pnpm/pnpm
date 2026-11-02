@@ -124,6 +124,38 @@ impl PublishArgs {
         Ok(())
     }
 
+    /// Refuse a batch whose packing moved a member of the composed
+    /// publication to another registry: the publication's name and note go
+    /// to the registry chosen before packing, and would otherwise be left
+    /// out.
+    pub(super) fn check_publication_registry(
+        config: &Config,
+        publication: &PublicationNotes,
+        packed: &[PackedDirectory],
+    ) -> miette::Result<()> {
+        let Some(registry) = publication.registry.as_deref() else {
+            return Ok(());
+        };
+        let moved = packed
+            .iter()
+            .find(|pkg| {
+                notes_registry_of_manifest(config, &pkg.source_manifest).as_deref()
+                    == Some(registry)
+                    && notes_registry_of_manifest(config, &pkg.published_manifest).as_deref()
+                        != Some(registry)
+            });
+        let Some(pkg) = moved else {
+            return Ok(());
+        };
+        Err(miette::miette!(
+            code = "ERR_PNPM_RELEASE_NOTES_REGISTRY_CHANGED",
+            help =
+                "Set the registry in the workspace manifest rather than in a beforePacking hook.",
+            "Packing moved {} to another registry than the release notes of its release were composed for",
+            package_id(&pkg.source_manifest),
+        ))
+    }
+
     /// Where the notes of this publish go.
     pub(super) fn release_notes_target(&self, config: &Config) -> ReleaseNotesTarget {
         if self.flags.manifest.notes.no_release_notes {

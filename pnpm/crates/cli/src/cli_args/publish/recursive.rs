@@ -86,6 +86,7 @@ impl PublishArgs {
             pkg.notes = self.version_notes::<Reporter>(ctx.config, &pkg.notes_package(), scope)?;
             packed.push(pkg);
         }
+        Self::check_publication_registry(ctx.config, &ctx.opts.release_notes.publication, &packed)?;
         let packages = packed
             .iter()
             .map(|pkg| pkg.packed_pkg())
