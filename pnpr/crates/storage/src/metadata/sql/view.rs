@@ -79,7 +79,7 @@ impl PackageMetadata for SqlView {
         let key = self.key(name);
         let bytes = bytes.to_vec();
         let principal = principal.map(str::to_string);
-        self.database.write(self.catalog.clone(), move |connection| {
+        self.database.write(move |connection| {
             let principal = principal.as_deref();
             commit::write_document(connection, &key, &bytes, expected, principal)
         })
@@ -93,18 +93,12 @@ impl PackageMetadata for SqlView {
     ) -> Result<TagUpdate> {
         let key = self.key(name);
         let change = tags::OwnedTagChange::from(change);
-        self.database.write(self.catalog.clone(), move |connection| {
-            tags::change_tag(connection, &key, &change)
-        })
-        .await
+        self.database.write(move |connection| tags::change_tag(connection, &key, &change)).await
     }
 
     async fn remove_package(&self, name: &CanonicalPackageName) -> Result<bool> {
         let key = self.key(name);
-        self.database.write(self.catalog.clone(), move |connection| {
-            commit::remove_package(connection, &key)
-        })
-        .await
+        self.database.write(move |connection| commit::remove_package(connection, &key)).await
     }
 
     async fn package_names(&self) -> Result<Vec<String>> {

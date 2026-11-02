@@ -20,10 +20,9 @@
 //! one committed snapshot. The render caches are shared by every read.
 //!
 //! A read that may lag, a [`Freshness::Bounded`] one, goes to the replica
-//! when the adapter has one. It still never sees less than this process
-//! committed to its catalog, nor less than a generation the caller asks for:
-//! a replica found behind is synced, and read from the primary when the sync
-//! does not bring it far enough.
+//! when the adapter has one. A [`Freshness::AtLeast`] read there first checks
+//! the catalog's generation: a replica found behind is synced, and read from
+//! the primary when the sync does not bring it far enough.
 
 pub(crate) mod adapter;
 
@@ -58,9 +57,8 @@ use adapter::{Adapter, Connection};
 use pnpr_error::{RegistryError, Result};
 use pnpr_package_name::{CanonicalPackageName, Ecosystem};
 use std::{
-    collections::HashMap,
     path::Path,
-    sync::{Arc, Mutex, OnceLock},
+    sync::{Arc, OnceLock},
 };
 use transactions::Freshness;
 
@@ -73,9 +71,6 @@ pub struct SqlMetadata {
     /// Set once the schema is known to be the one this pnpr reads.
     schema: OnceLock<()>,
     cache: cache::RenderCache,
-    /// The latest generation this process committed in each catalog, which
-    /// a replica read of that catalog must reach.
-    committed: Mutex<HashMap<String, u64>>,
 }
 
 /// Which package a statement addresses.
@@ -152,13 +147,7 @@ impl SqlMetadata {
     /// a new database, before the first operation. `name` names the
     /// database in errors.
     fn with_adapter(adapter: Box<dyn Adapter>, name: String) -> Self {
-        Self {
-            adapter,
-            name,
-            schema: OnceLock::new(),
-            cache: cache::RenderCache::default(),
-            committed: Mutex::new(HashMap::new()),
-        }
+        Self { adapter, name, schema: OnceLock::new(), cache: cache::RenderCache::default() }
     }
 
     /// Create the schema in a new database, and refuse one written by another
@@ -235,7 +224,7 @@ impl SqlMetadata {
         request: Option<PublicationRequest>,
     ) -> Result<PublicationCommit> {
         let catalog = catalog.to_string();
-        self.write(catalog.clone(), move |connection| {
+        self.write(move |connection| {
             let request = request.as_ref();
             publish::commit_publication(
                 connection, &catalog, &documents, &artifacts, &notes, request,

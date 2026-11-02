@@ -5,7 +5,7 @@
 use super::{npm, packument};
 use crate::{
     DocumentWrite, HostedDocumentVersion,
-    metadata::{PackageMetadata, SqlMetadata},
+    metadata::{NoteChange, PackageMetadata, SqlMetadata},
 };
 use pnpr_config::LibsqlSettings;
 use pnpr_libsql::testing::{Primary, serve_primary};
@@ -173,6 +173,20 @@ async fn an_instance_reads_its_own_commits_from_its_replica() {
     publish(&*metadata, &["1.0.0", "2.0.0"]).await;
     assert_eq!(latest(&*metadata).await.as_deref(), Some("2.0.0"));
     assert_eq!(database.catalog_generation("").await.unwrap(), 2);
+    // A note edit advances no generation, and is still read back.
+    let change = NoteChange { text: Some("edited\n".to_string()), principal: "bob".to_string() };
+    assert!(
+        database
+            .set_version_note(&npm("pkg"), "", "2.0.0", change)
+            .await
+            .unwrap(),
+    );
+    let note = database
+        .version_note(&npm("pkg"), "", "2.0.0")
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(note.text.as_deref(), Some("edited\n"));
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]

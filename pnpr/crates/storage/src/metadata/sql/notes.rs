@@ -317,7 +317,7 @@ impl super::SqlMetadata {
         change: NoteChange,
     ) -> Result<bool> {
         let subject = NoteSubject::version(&package_key(name, org), version);
-        self.write(org.to_string(), move |connection| {
+        self.write(move |connection| {
             change_note(connection, &subject, change.text.as_deref(), &change.principal)
         })
         .await
@@ -345,7 +345,7 @@ impl super::SqlMetadata {
         change: NoteChange,
     ) -> Result<bool> {
         let subject = NoteSubject::publication(org, id);
-        self.write(org.to_string(), move |connection| {
+        self.write(move |connection| {
             change_note(connection, &subject, change.text.as_deref(), &change.principal)
         })
         .await

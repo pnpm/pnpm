@@ -9,10 +9,7 @@ use super::{
     catalog_generation,
 };
 use pnpr_error::{RegistryError, Result};
-use std::{
-    sync::{Arc, PoisonError},
-    time::Duration,
-};
+use std::{sync::Arc, time::Duration};
 
 /// How many times a write runs before a conflict it keeps meeting fails it.
 const WRITE_ATTEMPTS: u32 = 4;
@@ -35,11 +32,9 @@ pub(super) enum Freshness {
 }
 
 impl SqlMetadata {
-    /// Run the write `operation`, which writes `catalog`, on the blocking
-    /// pool.
+    /// Run the write `operation` on the blocking pool.
     pub(super) async fn write<Output, Operation>(
         self: &Arc<Self>,
-        catalog: String,
         operation: Operation,
     ) -> Result<Output>
     where
@@ -47,7 +42,7 @@ impl SqlMetadata {
         Operation: FnMut(&dyn Connection) -> Result<Output> + Send + 'static,
     {
         let database = Arc::clone(self);
-        tokio::task::spawn_blocking(move || database.run_write(&catalog, operation)).await?
+        tokio::task::spawn_blocking(move || database.run_write(operation)).await?
     }
 
     /// Run `operation`, which reads `catalog`, on the blocking pool in a read
@@ -68,19 +63,16 @@ impl SqlMetadata {
     }
 
     /// Run the write `operation`, again from its start while the adapter
-    /// reports a conflict it may clear. With a replica, remember the
-    /// generation `catalog` is at afterwards, which this process's later
-    /// reads of it must reach.
+    /// reports a conflict it may clear.
     fn run_write<Output>(
         &self,
-        catalog: &str,
         mut operation: impl FnMut(&dyn Connection) -> Result<Output>,
     ) -> Result<Output> {
         self.ensure_schema()?;
         let mut delay = FIRST_RETRY_DELAY;
         let mut attempt = 1;
         loop {
-            match self.write_once(catalog, &mut operation) {
+            match self.write_once(&mut operation) {
                 Err(error) if attempt < WRITE_ATTEMPTS && self.adapter.is_retryable(&error) => {
                     std::thread::sleep(delay);
                     delay *= 2;
@@ -94,43 +86,16 @@ impl SqlMetadata {
     /// Run the write `operation` once.
     fn write_once<Output>(
         &self,
-        catalog: &str,
         operation: &mut impl FnMut(&dyn Connection) -> Result<Output>,
     ) -> Result<Output> {
-        let track = self.adapter.has_replica();
         let mut output = None;
-        let mut committed = None;
         self.adapter.write(&mut |connection| {
             output = Some(operation(connection)?);
-            if track {
-                committed = Some(catalog_generation(connection, catalog)?);
-            }
             Ok(())
         })?;
-        if let Some(generation) = committed {
-            self.remember_commit(catalog, generation);
-        }
         output.ok_or_else(|| RegistryError::Internal {
             reason: "a metadata write did not run".to_string(),
         })
-    }
-
-    fn remember_commit(&self, catalog: &str, generation: u64) {
-        let mut committed = self.committed.lock().unwrap_or_else(PoisonError::into_inner);
-        let entry = committed.entry(catalog.to_string()).or_default();
-        *entry = (*entry).max(generation);
-    }
-
-    /// The generation a replica read of `catalog` must reach: what this
-    /// process committed there, and at least `minimum`.
-    fn required_generation(&self, catalog: &str, minimum: u64) -> u64 {
-        let committed = self.committed
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .get(catalog)
-            .copied()
-            .unwrap_or_default();
-        committed.max(minimum)
     }
 
     /// Run `operation`, which reads `catalog`, in one read transaction that
@@ -148,9 +113,7 @@ impl SqlMetadata {
             Freshness::AtLeast(generation) => Some(generation),
         };
         let required = match minimum {
-            Some(minimum) if self.adapter.has_replica() => {
-                self.required_generation(catalog, minimum)
-            }
+            Some(minimum) if self.adapter.has_replica() => minimum,
             _ => return self.read_primary(&mut operation),
         };
         let behind = Some((catalog, required));

@@ -5,8 +5,10 @@
 //!   time per process, so commits stay serialized as they are on one disk.
 //! - [`ReadSource::Primary`] reads the primary.
 //! - [`ReadSource::Replica`] reads the replica while its last sync is within
-//!   the sync interval. A replica past it syncs first, and a replica that
-//!   cannot sync, or that is not configured, leaves the read to the primary.
+//!   the sync interval and no write of this process came after it. Any other
+//!   replica syncs first, and a replica that cannot sync, or that is not
+//!   configured, leaves the read to the primary. So a process reads its own
+//!   writes, release notes included, which no generation tracks.
 //!
 //! The database opens on first use rather than at startup, since the shared
 //! layer is synchronous and opening reaches the network. Every statement runs
@@ -49,8 +51,9 @@ struct Replica {
     pool: ConnectionPool,
     /// How stale a read of the replica may be.
     bound: Duration,
-    /// When the replica last finished a sync.
-    synced: Mutex<Instant>,
+    /// When the replica last finished a sync; `None` once a write of this
+    /// process committed after it.
+    synced: Mutex<Option<Instant>>,
     /// Held by the sync in progress, so concurrent reads that find the
     /// replica stale wait for one sync.
     syncing: tokio::sync::Mutex<()>,
@@ -104,7 +107,7 @@ impl Opened {
             Some(Replica {
                 pool: ConnectionPool::new(db, max_connections, OPERATION_TIMEOUT, timed_out),
                 bound: Duration::from_secs(interval),
-                synced: Mutex::new(Instant::now()),
+                synced: Mutex::new(Some(Instant::now())),
                 syncing: tokio::sync::Mutex::new(()),
             })
         } else {
@@ -133,7 +136,12 @@ async fn keep_synced(opened: Weak<Opened>, interval: Duration) {
 
 impl Replica {
     fn is_fresh(&self) -> bool {
-        lock(&self.synced).elapsed() <= self.bound
+        lock(&self.synced).is_some_and(|synced| synced.elapsed() <= self.bound)
+    }
+
+    /// Note that the primary holds a write the replica has not pulled.
+    fn mark_stale(&self) {
+        *lock(&self.synced) = None;
     }
 
     /// Pull the primary's latest frames, unless a sync that finished while
@@ -141,11 +149,11 @@ impl Replica {
     async fn sync(&self) -> Result<()> {
         let requested = Instant::now();
         let _turn = self.syncing.lock().await;
-        if *lock(&self.synced) >= requested {
+        if lock(&self.synced).is_some_and(|synced| synced >= requested) {
             return Ok(());
         }
         self.pool.sync().await?;
-        *lock(&self.synced) = Instant::now();
+        *lock(&self.synced) = Some(Instant::now());
         Ok(())
     }
 }
@@ -156,7 +164,11 @@ impl Adapter for LibsqlAdapter {
         let opened = self.opened(&runtime)?;
         let _writer = lock(&self.writer);
         let checkout = runtime.block_on(opened.primary.checkout())?;
-        run(&runtime, checkout, false, operation)
+        let result = run(&runtime, checkout, false, operation);
+        if let Some(replica) = &opened.replica {
+            replica.mark_stale();
+        }
+        result
     }
 
     fn read(
