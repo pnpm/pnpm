@@ -61,21 +61,58 @@ pub(super) fn document_anchor(packument: &Value) -> Option<DateTime<Utc>> {
 /// The decision is made from the document on every read and recorded
 /// nowhere, so it can go either way: a publish after a long gap can take a
 /// document back below the threshold, since advancing `timesSince` drops the
-/// publish times of the entries that fall out of the window.
+/// publish times of the entries that fall out of the window. The document is
+/// built once and measured without being written out.
 pub(super) fn install_v2_body(
     abbreviated: &Value,
     config: &PackageDocumentsConfig,
 ) -> serde_json::Result<Vec<u8>> {
-    let whole = serde_json::to_vec(&install_v2(abbreviated, false, config))?;
-    if u64::try_from(whole.len()).is_ok_and(|len| len <= config.split_threshold) {
-        return Ok(whole);
+    let mut document = install_v2(abbreviated, config);
+    if serialized_len(&document)? > config.split_threshold {
+        leave_out_unlikely_picks(&mut document, &likely_picks(abbreviated));
     }
-    serde_json::to_vec(&install_v2(abbreviated, true, config))
+    serde_json::to_vec(&document)
 }
 
-/// pnpr's document for an abbreviated packument, with every manifest inline
-/// unless `split`, and then only those of the likely picks.
-fn install_v2(abbreviated: &Value, split: bool, config: &PackageDocumentsConfig) -> Value {
+/// The size of `value` serialized as JSON, counted without being kept.
+fn serialized_len(value: &Value) -> serde_json::Result<u64> {
+    struct Counter(u64);
+    impl std::io::Write for Counter {
+        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+            self.0 += bytes.len() as u64;
+            Ok(bytes.len())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+    let mut counter = Counter(0);
+    serde_json::to_writer(&mut counter, value)?;
+    Ok(counter.0)
+}
+
+/// Leave every version's manifest and facts about its archives to its
+/// release record, but those of the likely picks.
+fn leave_out_unlikely_picks(document: &mut Value, inline: &HashSet<String>) {
+    let entries = document.get_mut("versions").and_then(Value::as_object_mut);
+    for (version, entry) in entries.into_iter().flatten() {
+        if inline.contains(version) {
+            continue;
+        }
+        if let Some(entry) = entry.as_object_mut() {
+            for field in DIST_FIELDS
+                .iter()
+                .chain(&PNPR_FIELDS)
+                .chain(&["manifest"])
+            {
+                entry.remove(*field);
+            }
+        }
+    }
+}
+
+/// pnpr's document for an abbreviated packument, with every manifest inline.
+fn install_v2(abbreviated: &Value, config: &PackageDocumentsConfig) -> Value {
     let versions = object_field(abbreviated, "versions");
     let window = Duration::from_std(config.publish_time_window).ok();
     let times_since = last_publish(versions, object_field(abbreviated, "time"))
@@ -97,7 +134,7 @@ fn install_v2(abbreviated: &Value, split: bool, config: &PackageDocumentsConfig)
         let since = times_since.to_rfc3339_opts(SecondsFormat::Millis, true);
         doc.insert("timesSince".into(), Value::String(since));
     }
-    let entries = version_entries(abbreviated, split, times_since.as_ref());
+    let entries = version_entries(abbreviated, times_since.as_ref());
     doc.insert("versions".into(), Value::Object(entries));
     Value::Object(doc)
 }
@@ -111,25 +148,14 @@ fn object_field<'doc>(value: &'doc Value, name: &str) -> &'doc Map<String, Value
         .unwrap_or(&EMPTY)
 }
 
-/// Every version's entry, with its manifest unless `split` leaves it to the
-/// release record.
-fn version_entries(
-    abbreviated: &Value,
-    split: bool,
-    times_since: Option<&DateTime<Utc>>,
-) -> Map<String, Value> {
+/// Every version's entry, with its manifest.
+fn version_entries(abbreviated: &Value, times_since: Option<&DateTime<Utc>>) -> Map<String, Value> {
     let time = object_field(abbreviated, "time");
-    let inline = split.then(|| likely_picks(abbreviated));
     object_field(abbreviated, "versions")
         .iter()
         .map(|(version, manifest)| {
             let mut entry = version_entry(manifest, time.get(version), times_since);
-            if inline
-                .as_ref()
-                .is_none_or(|inline| inline.contains(version))
-            {
-                entry.extend(release_records::release_record(manifest));
-            }
+            entry.extend(release_records::release_record(manifest));
             (version.clone(), Value::Object(entry))
         })
         .collect()

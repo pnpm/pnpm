@@ -114,6 +114,9 @@ async fn a_release_record_names_its_version() {
     // A version outside the revision protocol has only its original.
     let missing = get(&app, "/npm/foo/1.0.0+r1", None, None).await;
     assert_eq!(missing.status(), StatusCode::NOT_FOUND);
+    // A dist-tag moves, so it addresses no release record.
+    let tagged = get(&app, "/npm/foo/latest+r0", None, None).await;
+    assert_eq!(tagged.status(), StatusCode::NOT_FOUND);
     // The version document without a revision stays npm's view of the
     // selected revision, with its usual caching.
     let selected = get(&app, "/npm/foo/1.0.0", None, None).await;

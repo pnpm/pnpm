@@ -1,6 +1,6 @@
 use super::{
-    install_v2, install_v2_body, likely_picks, record_address, release_records::release_record,
-    without_pnpr_facts_in,
+    install_v2, install_v2_body, leave_out_unlikely_picks, likely_picks, record_address,
+    release_records::release_record, without_pnpr_facts_in,
 };
 use pnpr_config::PackageDocumentsConfig;
 use serde_json::{Value, json};
@@ -47,7 +47,11 @@ fn packument() -> Value {
 }
 
 fn document(packument: &Value, split: bool) -> Value {
-    install_v2(packument, split, &PackageDocumentsConfig::default())
+    let mut document = install_v2(packument, &PackageDocumentsConfig::default());
+    if split {
+        leave_out_unlikely_picks(&mut document, &likely_picks(packument));
+    }
+    document
 }
 
 #[test]
@@ -155,7 +159,7 @@ fn a_longer_window_keeps_more_publish_times() {
         publish_time_window: Duration::from_hours(400 * 24),
         ..PackageDocumentsConfig::default()
     };
-    let doc = install_v2(&packument(), true, &config);
+    let doc = install_v2(&packument(), &config);
     assert_eq!(doc["timesSince"], json!("2024-11-27T00:00:00.000Z"));
     assert_eq!(doc["versions"]["1.0.0"]["time"], json!("2025-01-01T00:00:00.000Z"));
 }

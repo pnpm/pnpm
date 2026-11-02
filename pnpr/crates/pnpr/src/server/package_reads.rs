@@ -78,11 +78,19 @@ pub(super) async fn serve_registry_version_manifest(
         ),
         None => extract_version_manifest(&packument, &name, version_or_tag, tarball_base),
     };
-    let Some(manifest) = manifest else {
+    let Some(manifest) = manifest.filter(|manifest| addresses(manifest, version_or_tag, revision))
+    else {
         return not_found();
     };
     let tars = view.tar_integrities.map(|table| (table, view.tar_registry));
     super::split_packuments::version_document_response(manifest, revision, tars)
+}
+
+/// Whether a request for `version_or_tag` may be answered with `manifest`. A
+/// release record is addressed by an exact version: a dist-tag moves, and the
+/// record never changes.
+fn addresses(manifest: &Value, version_or_tag: &str, revision: Option<u64>) -> bool {
+    revision.is_none() || manifest.get("version").and_then(Value::as_str) == Some(version_or_tag)
 }
 
 /// The packument a version-manifest request reads, with the source it
