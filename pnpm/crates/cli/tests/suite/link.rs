@@ -311,6 +311,89 @@ fn link_refuses_invalid_target_name_without_writing() {
     drop((root, mock_instance));
 }
 
+/// A relative path is resolved against the directory the command runs in,
+/// not against the nearest `package.json` above it.
+#[test]
+fn link_resolves_relative_path_from_current_directory() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "test-project", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write package.json");
+    let tools_dir = workspace.join("tools");
+    let target_dir = tools_dir.join("lib");
+    fs::create_dir_all(&target_dir).expect("create target dir");
+    fs::write(
+        target_dir.join("package.json"),
+        serde_json::json!({ "name": "tools-lib", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write target package.json");
+
+    pacquet
+        .with_current_dir(&tools_dir)
+        .with_arg("link")
+        .with_arg("./lib")
+        .assert()
+        .success();
+
+    let manifest =
+        pnpm_package_manifest::PackageManifest::from_path(workspace.join("package.json"))
+            .expect("read manifest");
+    let deps = manifest.value()["dependencies"].as_object().expect("dependencies exist");
+    assert_eq!(deps["tools-lib"], "link:tools/lib");
+
+    drop((root, mock_instance));
+}
+
+/// `pnpm link .` in a directory without a `package.json` must not link the
+/// project above it into itself.
+#[test]
+fn link_dot_in_directory_without_manifest_does_not_link_parent_project() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let manifest = serde_json::json!({ "name": "test-project", "version": "1.0.0" }).to_string();
+    fs::write(workspace.join("package.json"), &manifest).expect("write package.json");
+    let read_workspace_yaml = || {
+        fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read pnpm-workspace.yaml")
+    };
+    let workspace_yaml = read_workspace_yaml();
+    let packages_dir = workspace.join("packages");
+    fs::create_dir_all(&packages_dir).expect("create packages dir");
+
+    let output = pacquet
+        .with_current_dir(&packages_dir)
+        .with_arg("link")
+        .with_arg(".")
+        .output()
+        .expect("spawn pacquet link");
+    assert!(!output.status.success(), "linking a directory without package.json must fail");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("No package.json found"), "stderr: {stderr}");
+    assert_eq!(
+        fs::read_to_string(workspace.join("package.json")).expect("read package.json"),
+        manifest,
+    );
+    assert_eq!(read_workspace_yaml(), workspace_yaml);
+
+    drop((root, mock_instance));
+}
+
 #[test]
 fn ln_alias_succeeds_with_valid_target() {
     let CommandTempCwd {

@@ -120,10 +120,11 @@ pub(in super::super) fn link<'a>(
 ) -> miette::Result<CommandFuture<'a>> {
     let config = (ctx.loaders.config)()?;
     let dir = ctx.locations.dir;
+    let cli_dir = ctx.locations.cli_dir.to_path_buf();
     let manifest_path = ctx.locations.manifest_path.to_path_buf();
     Ok(Box::pin(async move {
         apply_update_config(config, dir).await?;
-        args.run::<CliReporter>(config, manifest_path).await
+        args.run::<CliReporter>(config, manifest_path, &cli_dir).await
     }))
 }
 
