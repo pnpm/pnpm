@@ -111,7 +111,7 @@ async fn an_external_version_is_read_once_per_install_from_its_release_record() 
         assert!(
             picked.dependencies
                 .as_ref()
-                .is_some_and(|deps| deps.contains_key("dep"))
+                .is_some_and(|deps| deps.contains_key("dep")),
         );
     }
     mock.assert_async().await;

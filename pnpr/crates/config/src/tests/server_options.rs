@@ -416,7 +416,7 @@ fn request_timeout_defaults_and_overrides() {
 #[test]
 fn package_documents_default_to_a_64_kib_threshold_and_a_30_day_window() {
     let config = Config::from_yaml_str("", Path::new("/config"), listen(), None).unwrap();
-    assert_eq!(config.http.package_documents, crate::PackageDocumentsConfig::default(),);
+    assert_eq!(config.http.package_documents, crate::PackageDocumentsConfig::default());
     assert_eq!(config.http.package_documents.split_threshold, 64 * 1024);
     assert_eq!(
         config.http.package_documents.publish_time_window,

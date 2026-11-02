@@ -1,6 +1,6 @@
 //! pnpr's own package document, `application/vnd.pnpr.install-v2+json`,
 //! served only to clients that ask for it
-//! ([split packuments](https://github.com/pnpm/rfcs/blob/main/pnpr/text/0000-split-packuments.md)).
+//! ([split packuments](https://github.com/pnpm/rfcs/blob/057a5cb08f430a1824c082ed525bea13520bb4dd/pnpr/text/0000-split-packuments.md)).
 //!
 //! Every version has an entry with what picking it reads and what may change
 //! after publication: its `deprecated` notice, `trust` rank, selected
@@ -14,17 +14,17 @@
 //! The document is a function of the stored packument alone, never of the
 //! time it is served, so it changes only when the package does.
 
+pub(super) use release_records::{
+    record_address, version_document_response, without_pnpr_facts_in,
+};
+
 use axum::http::{HeaderMap, header};
 use chrono::{DateTime, Duration, NaiveDate, NaiveDateTime, SecondsFormat, Utc};
 use node_semver::Version;
 use pnpr_config::PackageDocumentsConfig;
 use serde_json::{Map, Value};
 use std::collections::{BTreeMap, HashSet};
-
 mod release_records;
-pub(super) use release_records::{
-    record_address, version_document_response, without_pnpr_facts_in,
-};
 
 /// The media type of pnpr's package document.
 pub(super) const INSTALL_V2_CONTENT_TYPE: &str = "application/vnd.pnpr.install-v2+json";

@@ -57,6 +57,7 @@ pub use registry_key::{
     EncodeRegistryError, decode_registry_name, encode_pkg_name, get_legacy_registry_name,
     get_registry_name, is_unreadable_registry_key,
 };
+pub use release_records::{RELEASE_RECORDS_DIR, release_record_path};
 
 mod read_records;
 use read_records::{held_mirror_file_cap, load_meta_with_hold_cap};
@@ -68,7 +69,6 @@ mod headers;
 mod legacy;
 
 mod release_records;
-pub use release_records::{RELEASE_RECORDS_DIR, release_record_path};
 
 use std::{
     collections::HashMap,

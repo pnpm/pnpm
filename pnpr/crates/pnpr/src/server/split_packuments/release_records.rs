@@ -34,15 +34,14 @@ pub(in super::super) fn version_document_response(
     mut manifest: Value,
     revision: Option<u64>,
 ) -> Response {
-    let document = match revision {
-        Some(revision) => match revision_record(&manifest, revision) {
-            Some(record) => record,
-            None => return super::super::not_found(),
-        },
-        None => {
-            without_pnpr_facts(&mut manifest);
-            manifest
-        }
+    let document = if let Some(revision) = revision {
+        let Some(record) = revision_record(&manifest, revision) else {
+            return super::super::not_found();
+        };
+        record
+    } else {
+        without_pnpr_facts(&mut manifest);
+        manifest
     };
     let body = match serde_json::to_vec(&document) {
         Ok(body) => body,
