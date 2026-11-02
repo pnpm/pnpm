@@ -571,6 +571,23 @@ Can be specified as an integer number of seconds (e.g. `10`) or with a duration 
 packumentTtl: 30s
 ```
 
+## `packageDocuments`
+
+How pnpr serves its own package document, which pnpm asks for from a registry
+declared [`serverType: pnpr`](https://pnpm.io/registries#servertype). See
+[pnpr's package document](endpoints.md#pnprs-package-document).
+
+```yaml title="pnpr.yaml"
+packageDocuments:
+  splitThreshold: 64KiB
+  publishTimeWindow: 30d
+```
+
+| Field | Meaning |
+| --- | --- |
+| `splitThreshold` | The size of a package's abbreviated document above which only the versions a resolution likely picks keep their manifests. Defaults to `64KiB`. |
+| `publishTimeWindow` | How far back from a package's last publish its versions keep their publish times. Defaults to `30d`, which is also the shortest window pnpr accepts. |
+
 ## Security limits and protections
 
 pnpr includes built-in protections against denial-of-service and brute-force attacks:

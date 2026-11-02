@@ -1,5 +1,7 @@
+use pnpr_config::PackageDocumentsConfig;
+
 use super::{
-    ABBREVIATED_CONTENT_TYPE, Arc, Body, CanonicalPackageName, DistView, HeaderMap, IndexMap,
+    ABBREVIATED_CONTENT_TYPE, AppState, Body, CanonicalPackageName, DistView, HeaderMap, IndexMap,
     Integrity, RegistryError, Response, StatusCode, Utc, Value, abbreviate_packument,
     describe_tars, filter_osv_vulnerable_versions, header, rewrite_tarball_urls,
     rewrite_upstream_tarball_urls, streaming, tarball_basename_for_package,
@@ -194,10 +196,11 @@ pub(super) fn packument_response(
     bytes: &[u8],
     tarball_base: &str,
     view: DistView<'_>,
-    osv_index: Option<&Arc<pnpr_osv::OsvIndex>>,
+    state: &AppState,
     headers: &HeaderMap,
     max_age: u64,
 ) -> Result<Response, RegistryError> {
+    let osv_index = state.inner.osv_index.as_ref();
     let mut doc: Value = serde_json::from_slice(bytes)?;
     filter_osv_vulnerable_versions(&mut doc, name, osv_index);
     match view.revision_registry {
@@ -209,23 +212,66 @@ pub(super) fn packument_response(
     if let Some(table) = view.tar_integrities {
         describe_tars(&mut doc, table, view.tar_registry);
     }
-    let abbreviated = wants_abbreviated(headers);
-    let (body, content_type) = if abbreviated {
-        let trimmed = abbreviate_packument(&doc, Utc::now());
-        (serde_json::to_vec(&trimmed)?, ABBREVIATED_CONTENT_TYPE)
-    } else {
-        (serde_json::to_vec(&doc)?, "application/json")
-    };
+    let representation = Representation::requested(headers);
+    let last_modified_source = packument_last_modified(&doc);
+    let documents = &state.inner.config.http.package_documents;
+    let (body, content_type) = representation.render(doc, documents)?;
+    let abbreviated = representation != Representation::Full;
     let etag = format!(r#""{}""#, super::ecosystem::sha256_hex(&body));
     // Per RFC 9110 Section 8.8.2, Last-Modified is omitted when the representation
     // is dynamically generated or subject to content negotiation (such as OSV
     // filtering or abbreviation) and can vary independently of modification time.
     let last_modified =
-        if osv_index.is_some() || abbreviated { None } else { packument_last_modified(&doc) };
+        if osv_index.is_some() || abbreviated { None } else { last_modified_source };
     if is_not_modified(headers, &etag, last_modified.as_deref()) {
         return Ok(packument_not_modified_response(&etag, last_modified, max_age));
     }
     Ok(packument_ok_response(body, content_type, &etag, last_modified, max_age))
+}
+
+/// The form of a package document a client asked for.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Representation {
+    Full,
+    Abbreviated,
+    /// pnpr's own format (see [`super::split_packuments`]).
+    InstallV2,
+}
+
+impl Representation {
+    fn requested(headers: &HeaderMap) -> Self {
+        if super::split_packuments::wants_install_v2(headers) {
+            Representation::InstallV2
+        } else if wants_abbreviated(headers) {
+            Representation::Abbreviated
+        } else {
+            Representation::Full
+        }
+    }
+
+    /// The document's body and content type. pnpr's facts about the archives
+    /// and the revision protocol's fields are only in pnpr's format: npm's
+    /// documents keep the versions as npm clients read them.
+    fn render(
+        self,
+        mut doc: Value,
+        documents: &PackageDocumentsConfig,
+    ) -> Result<(Vec<u8>, &'static str), RegistryError> {
+        if self == Representation::InstallV2 {
+            let anchor = super::split_packuments::document_anchor(&doc).unwrap_or_else(Utc::now);
+            let trimmed = abbreviate_packument(&doc, anchor);
+            let abbreviated_len = serde_json::to_vec(&trimmed)?.len();
+            let body =
+                super::split_packuments::install_v2_body(&trimmed, abbreviated_len, documents)?;
+            return Ok((body, super::split_packuments::INSTALL_V2_CONTENT_TYPE));
+        }
+        super::split_packuments::without_pnpr_facts_in(&mut doc);
+        if self == Representation::Abbreviated {
+            let trimmed = abbreviate_packument(&doc, Utc::now());
+            return Ok((serde_json::to_vec(&trimmed)?, ABBREVIATED_CONTENT_TYPE));
+        }
+        Ok((serde_json::to_vec(&doc)?, "application/json"))
+    }
 }
 
 fn is_not_modified(headers: &HeaderMap, etag: &str, last_modified: Option<&str>) -> bool {
@@ -281,6 +327,12 @@ fn if_modified_since_matches(if_modified_since: &str, last_modified: &str) -> bo
     lm_time <= ims_time
 }
 
+/// The response header that tells a client a package document comes from
+/// pnpr, so pnpm can warn about a registry not declared `serverType: pnpr`.
+/// Its value names no build, which would only help fingerprint the server.
+const PNPR_REGISTRY_HEADER: &str = "pnpr-registry";
+const PNPR_REGISTRY_HEADER_VALUE: &str = "1";
+
 fn packument_not_modified_response(
     etag: &str,
     last_modified: Option<String>,
@@ -290,7 +342,8 @@ fn packument_not_modified_response(
         .status(StatusCode::NOT_MODIFIED)
         .header(header::ETAG, etag)
         .header(header::VARY, "Accept")
-        .header(header::CACHE_CONTROL, format!("public, max-age={max_age}"));
+        .header(header::CACHE_CONTROL, format!("public, max-age={max_age}"))
+        .header(PNPR_REGISTRY_HEADER, PNPR_REGISTRY_HEADER_VALUE);
     if let Some(last_modified) = last_modified {
         builder = builder.header(header::LAST_MODIFIED, last_modified);
     }
@@ -311,7 +364,8 @@ fn packument_ok_response(
         .header(header::CONTENT_TYPE, content_type)
         .header(header::ETAG, etag)
         .header(header::VARY, "Accept")
-        .header(header::CACHE_CONTROL, format!("public, max-age={max_age}"));
+        .header(header::CACHE_CONTROL, format!("public, max-age={max_age}"))
+        .header(PNPR_REGISTRY_HEADER, PNPR_REGISTRY_HEADER_VALUE);
     if let Some(last_modified) = last_modified {
         builder = builder.header(header::LAST_MODIFIED, last_modified);
     }

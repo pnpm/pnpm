@@ -183,6 +183,8 @@ are checked against the serving registry's matching
 | `GET` | `/@scope/{name}` | Scoped package packument. |
 | `GET` | `/{name}/{version-or-tag}` | Unscoped version manifest by exact version or dist-tag. |
 | `GET` | `/@scope/{name}/{version-or-tag}` | Scoped version manifest by exact version or dist-tag. |
+| `GET` | `/{name}/{version}+r{revision}` | Unscoped release record. See [pnpr's package document](#pnprs-package-document). |
+| `GET` | `/@scope/{name}/{version}+r{revision}` | Scoped release record. |
 | `GET` | `/{name}/-/{filename}` | Unscoped tarball. Not served by a [tar registry](configuration.md#tar-registries). |
 | `GET` | `/@scope/{name}/-/{filename}` | Scoped tarball. Not served by a tar registry. |
 | `GET` | `/{name}@{version}` | Unscoped tarball by exact version: the `.tgz`, or on a tar registry the tar. |
@@ -194,7 +196,10 @@ are checked against the serving registry's matching
 | `GET` | `/-/org/{scope}/package` | Packages of one organization, on registries that enable discovery. Added in v0.1.0-alpha.11. |
 
 If the client sends `Accept: application/vnd.npm.install-v1+json`, pnpr
-returns npm's abbreviated install-v1 packument shape.
+returns npm's abbreviated install-v1 packument shape. If it sends
+`application/vnd.pnpr.install-v2+json`, pnpr returns
+[its own package document](#pnprs-package-document). Package documents carry a
+`pnpr-registry` response header.
 
 Packument responses emit strong `ETag` and `Vary: Accept` headers. Public
 packuments set `Cache-Control: public, max-age=<ttl>` based on upstream or
@@ -223,27 +228,86 @@ revision `0` serves the tar of the published `.tgz` once its tar integrity has
 been verified. Every 3xx fails a revision fetch on the client side, same-origin
 included.
 
-Package metadata keeps an upstream's revision fields only when they form a
-complete revision record: `dist.revision`, including `0` for the original, a
+pnpr keeps an upstream's revision fields only when they form a complete
+revision record: `dist.revision`, including `0` for the original, a
 `dist.tarball` on the `<name>@<version>+r<revision>` route, and a
 `dist.revisions` history that lists revision `0` once and the selected revision
 once. Such a version's `dist` omits `shasum` and `signatures`, which describe a
-`.tgz`, on either registry format. Any other version is served as ordinary
-metadata, without `revision` or `revisions`.
+`.tgz`, on either registry format. npm's documents give the selected revision
+by its `+r<revision>` tarball URL and its integrity, without `dist.revision`
+and `dist.revisions`. pnpr's own package document marks it with `revision`,
+and each revision in the history has its own release record.
 
 When pnpr has verified a version's tarball (at publish time, on first read, or
 while streaming and caching an upstream tarball), its full packument,
 abbreviated `application/vnd.npm.install-v1+json` packument, and single-version
-manifest include `dist.fileCount`, `dist.unpackedSize`,
-`dist.pnpr.requiresBuild` (`true` when the tarball's root
+manifest include `dist.fileCount` and `dist.unpackedSize`. pnpr's own package
+document and the version's release record also include `requiresBuild` (`true` when the tarball's root
 `package.json` declares `preinstall`, `install`, or `postinstall` under
 `scripts`, when the tarball contains a root `binding.gyp` and `package.json`
 does not set `gypfile: false`, or when it contains a `.hooks/` entry; `false`
 otherwise). When `requiresBuild` is `false` and the package declares
-executables via `bin` or `directories.bin`, they also include `dist.pnpr.bins`, mapping each
+executables via `bin` or `directories.bin`, they also include `bins`, mapping each
 command name to its normalized package-relative `path` and optional `prog` /
 `args` runtime. Any `dist.pnpr` field supplied by a publisher or an upstream
 packument is stripped and never trusted.
+
+### pnpr's package document
+
+A client that sends `Accept: application/vnd.pnpr.install-v2+json` gets pnpr's
+own package document, with `Content-Type: application/vnd.pnpr.install-v2+json`:
+
+```json
+{
+  "name": "fast-thing",
+  "distTags": { "latest": "2.1.0" },
+  "modified": "2026-10-01T10:00:00.000Z",
+  "timesSince": "2026-09-01T10:00:00.000Z",
+  "versions": {
+    "1.4.0": {},
+    "1.4.1": { "deprecated": "1.x is no longer maintained" },
+    "1.5.0": { "trust": "provenance", "revision": 2 },
+    "2.1.0": {
+      "time": "2026-10-01T10:00Z",
+      "integrity": "sha512-...",
+      "requiresBuild": false,
+      "manifest": { "dependencies": { "detect-libc": "^2.0.0" } }
+    }
+  }
+}
+```
+
+Each version's entry may have:
+
+- `time`: the publish time, only when the version was published at or after
+  `timesSince`, which is [`publishTimeWindow`](configuration.md#packagedocuments)
+  before the package's last publish. `null` when pnpr has no publish time.
+- `deprecated`, `trust` (`provenance`, `trustedPublisher`, or `stagedPublish`),
+  and `revision`, the selected revision of a revision-aware version.
+- `integrity`, `fileCount`, `unpackedSize`, `requiresBuild`, `bins`, and
+  `manifest`, the publisher's abbreviated manifest without `dist`, `name`,
+  `version`, and `deprecated`.
+
+Below [`splitThreshold`](configuration.md#packagedocuments), every entry has
+its `manifest`. Above it, only every dist-tag target and the highest release of
+each major version (of each minor version below 1.0) keep theirs. Every other
+version's manifest and facts are in its release record, at
+`/{name}/{version}+r{revision}`:
+
+```json
+{
+  "name": "fast-thing",
+  "version": "1.5.0",
+  "integrity": "sha512-...",
+  "manifest": { "dependencies": { "detect-libc": "^2.0.0" } }
+}
+```
+
+Revision `0` is the original artifact, also of a version without registry
+revisions. A release record never changes, so it is served with
+`Cache-Control: public, max-age=31536000, immutable`, or with
+`Cache-Control: private, no-store` for a package closed to anonymous callers.
+`/{name}/{version}` keeps serving the selected revision in npm's format.
 
 ## Registry write endpoints
 

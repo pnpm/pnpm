@@ -56,6 +56,22 @@ fn revision_version(
     } })
 }
 
+/// The response for `path` in pnpr's own format.
+async fn get_pnpr_format(app: &Router, path: &str, authorization: &str) -> Value {
+    let request = Request::get(path)
+        .header(header::AUTHORIZATION, authorization)
+        .header(header::ACCEPT, "application/vnd.pnpr.install-v2+json")
+        .body(Body::empty())
+        .unwrap();
+    let response = app
+        .clone()
+        .oneshot(request)
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK, "{path}");
+    serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap()
+}
+
 async fn get_with(
     app: &Router,
     path: &str,
@@ -107,11 +123,24 @@ async fn upstream_endpoint_preserves_and_serves_revision_tarballs() {
     assert_eq!(response.status(), StatusCode::OK);
     let body: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
     let dist = &body["versions"]["1.0.0"]["dist"];
-    assert_eq!(dist["revision"], 1);
+    // npm's document gives the selected revision as npm clients read it: its
+    // tarball and integrity, without the revision protocol's fields.
     assert_eq!(dist["tarball"], "http://example.test/npm/~npmjs/foo@1.0.0+r1");
-    for source_field in ["shasum", "signatures"] {
-        assert!(dist.get(source_field).is_none(), "a revision omits dist.{source_field}");
+    assert_eq!(dist["integrity"], sha512_integrity(&replacement));
+    for omitted in ["shasum", "signatures", "revision", "revisions"] {
+        assert!(dist.get(omitted).is_none(), "npm's document omits dist.{omitted}");
     }
+    let document = get_pnpr_format(&app, "/npm/~npmjs/foo", &authorization).await;
+    let entry = &document["versions"]["1.0.0"];
+    assert_eq!(entry["revision"], 1);
+    assert_eq!(entry["integrity"], sha512_integrity(&replacement));
+    assert!(entry.get("tarball").is_none() && entry.get("revisions").is_none());
+    // Each revision in the history has its release record.
+    let original_record = get_pnpr_format(&app, "/npm/~npmjs/foo/1.0.0+r0", &authorization).await;
+    assert_eq!(original_record["integrity"], sha512_integrity(&original));
+    assert_eq!(original_record["version"], "1.0.0");
+    let selected_record = get_pnpr_format(&app, "/npm/~npmjs/foo/1.0.0+r1", &authorization).await;
+    assert_eq!(selected_record["integrity"], sha512_integrity(&replacement));
 
     for path in ["/npm/~npmjs/foo@1.0.0+r1", "/npm/foo@1.0.0+r1"] {
         let response = get_with(&app, path, &authorization, None).await;
@@ -156,16 +185,16 @@ async fn upstream_revision_zero_is_projected_explicitly() {
     let response = get_with(&app, "/npm/~npmjs/foo", &authorization, None).await;
     let body: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
     let dist = &body["versions"]["1.0.0"]["dist"];
-    assert_eq!(dist["revision"], 0);
     assert_eq!(dist["integrity"], sha512_integrity(&original));
     assert_eq!(dist["tarball"], "http://example.test/npm/~npmjs/foo@1.0.0+r0");
-    assert_eq!(
-        dist["revisions"]
-            .as_array()
-            .unwrap()
-            .len(),
-        2,
-    );
+    assert!(dist.get("revision").is_none() && dist.get("revisions").is_none());
+    // pnpr's format marks the original explicitly, so a client builds the
+    // `+r0` URL its tar integrity belongs to.
+    let document = get_pnpr_format(&app, "/npm/~npmjs/foo", &authorization).await;
+    assert_eq!(document["versions"]["1.0.0"]["revision"], 0);
+    let replacement_record =
+        get_pnpr_format(&app, "/npm/~npmjs/foo/1.0.0+r1", &authorization).await;
+    assert_eq!(replacement_record["integrity"], sha512_integrity(&replacement));
 }
 
 #[tokio::test]
