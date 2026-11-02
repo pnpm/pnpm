@@ -17059,8 +17059,8 @@ packages:
     engines: {node: '>=20'}
     hasBin: true
 
-  pnpm@11.28.10:
-    resolution: {integrity: sha512-ZyIW8G4VwQm4VHHUnT++0X5vA+rSWN8Iwr9bSlwzMh6/v1lHa86BMl762has4Kx4VI/Qv816UTaek5GCo91Q5A==}
+  pnpm@11.28.9:
+    resolution: {integrity: sha512-NUIc6icg7KP1rXIrZ+jvGPTTzUdF7S/P6w3CiNTpQ3+tOHDZHuboPyaPD29+D2JyMxexlhe7Re5DMxcu9RFZ+A==}
     engines: {node: '>=22.13'}
     hasBin: true
 
@@ -20013,7 +20013,7 @@ snapshots:
     dependencies:
       command-exists: 1.2.9
       cross-spawn: 7.0.6
-      pnpm: 11.28.10
+      pnpm: 11.28.9
 
   '@pnpm/fetch@1001.0.0(@pnpm/logger@1001.0.1)(supports-color@10.2.2)':
     dependencies:
@@ -24982,7 +24982,7 @@ snapshots:
 
   playwright-core@1.64.1: {}
 
-  pnpm@11.28.10: {}
+  pnpm@11.28.9: {}
 
   powershell-utils@0.2.1: {}
 
