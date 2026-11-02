@@ -113,6 +113,7 @@ pub(in super::super) async fn commit_publication(
             name: stage.name.as_str().to_string(),
             bytes: stage.document,
             expected: stage.base_version,
+            principal: stage.publisher,
         })
         .collect();
     let commit = database.commit_publication(&catalog, documents, artifacts, request).await?;

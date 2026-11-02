@@ -14,6 +14,7 @@ fn document(name: &str, document: &Value) -> BatchDocument {
         name: name.to_string(),
         bytes: serde_json::to_vec(document).unwrap(),
         expected: None,
+        principal: Some("alice".to_string()),
     }
 }
 
@@ -159,6 +160,58 @@ async fn a_version_written_outside_a_publish_request_gets_a_publication() {
         database
             .initial_publication(&npm("plain"), "", "9.9.9")
             .await
+            .unwrap()
+            .is_none(),
+    );
+}
+
+#[tokio::test]
+async fn a_publication_without_a_request_records_its_publisher() {
+    let tmp = TempDir::new().unwrap();
+    let storage = storage(&tmp);
+    let database = storage.sqlite_metadata().unwrap();
+    // No request, as a staged publish's approval commits: the publisher still
+    // comes from the document.
+    let mut core = document("core", &packument("core", &["1.0.0"]));
+    core.principal = Some("carol".to_string());
+    database
+        .commit_publication("acme", vec![core], Vec::new(), None)
+        .await
+        .unwrap();
+    let history = database
+        .tag_history(&npm("core"), "acme", "latest")
+        .unwrap();
+    let principals: Vec<_> = history
+        .iter()
+        .map(|entry| entry.principal.as_deref())
+        .collect();
+    assert_eq!(principals, [Some("carol")]);
+    let publication = database
+        .initial_publication(&npm("core"), "acme", "1.0.0")
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(publication.publisher.as_deref(), Some("carol"));
+}
+
+#[tokio::test]
+async fn a_publication_cannot_bring_back_a_removed_version() {
+    let tmp = TempDir::new().unwrap();
+    let storage = storage(&tmp);
+    let database = storage.sqlite_metadata().unwrap();
+    let org = storage.for_hosted("acme", Ecosystem::Npm);
+    let batch = vec![document("core", &packument("core", &["1.0.0"]))];
+    commit(database, batch, request("one", None)).await.unwrap();
+    assert!(
+        org.remove_package(&npm("core")).await
+            .unwrap()
+    );
+
+    let batch = vec![document("core", &packument("core", &["1.0.0", "2.0.0"]))];
+    let err = commit(database, batch, request("two", None)).await.unwrap_err();
+    assert!(matches!(err, RegistryError::CannotRepublishUnpublishedVersion { .. }), "{err:?}");
+    assert!(
+        org.read_hosted_document(&npm("core")).await
             .unwrap()
             .is_none(),
     );

@@ -55,9 +55,9 @@ impl Commit<'_> {
     }
 
     /// Commit `bytes` as the package's document when the stored one is what
-    /// `expected` names. Reports whether the document changed any row, or
-    /// `None` on a compare-and-set conflict.
-    /// `principal` is recorded with every tag the document moves.
+    /// `expected` names, recording `principal` with every tag it moves.
+    /// Reports whether the document changed any row, or `None` on a
+    /// compare-and-set conflict.
     pub(super) fn write_document(
         &self,
         bytes: &[u8],
@@ -97,8 +97,8 @@ pub(super) fn write_document(
     if changed {
         batch.touch(key);
         // A version accepted outside a publish request still gets its
-        // initial publication, with no publisher.
-        super::publications::record(&batch, None, &[])?;
+        // initial publication, published by whoever wrote the document.
+        super::publications::record(&batch, None, principal, &[])?;
     }
     batch.finish()?;
     Ok(DocumentWrite::Written)

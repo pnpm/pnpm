@@ -84,10 +84,13 @@ pub(super) fn claim(
 }
 
 /// Record the publication the batch commits, when it introduced any
-/// artifact, and the request's outcome. Returns the publication's id.
+/// artifact, and the request's outcome. The request's principal is the
+/// publisher; without a request, `publisher` is. Returns the publication's
+/// id.
 pub(super) fn record(
     batch: &Batch<'_>,
     request: Option<&PublicationRequest>,
+    publisher: Option<&str>,
     artifacts: &[ArtifactMember],
 ) -> Result<Option<u64>> {
     let mut members = accepted_members(batch)?;
@@ -95,7 +98,8 @@ pub(super) fn record(
     let publication = if members.is_empty() {
         None
     } else {
-        insert_publication(batch, request, &members)?;
+        let publisher = request.map_or(publisher, |request| Some(request.principal.as_str()));
+        insert_publication(batch, request, publisher, &members)?;
         Some(batch.generation())
     };
     if let Some(request) = request {
@@ -167,11 +171,11 @@ fn member_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Option<ArtifactMember
 fn insert_publication(
     batch: &Batch<'_>,
     request: Option<&PublicationRequest>,
+    principal: Option<&str>,
     members: &[ArtifactMember],
 ) -> Result<()> {
     let id = to_column(batch.generation());
     let name = request.and_then(|request| request.name.as_deref());
-    let principal = request.map(|request| request.principal.as_str());
     let inserted = batch
         .transaction()
         .execute(

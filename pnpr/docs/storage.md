@@ -94,10 +94,11 @@ With SQLite metadata:
 - pnpr renders package documents from the database and caches them by
   version, so a dist-tag change or a new release does not re-render the
   versions that did not change.
-- A publish, including a [batch](ecosystems.md#one-publish-for-a-workspace-that-spans-ecosystems),
-  commits in one transaction, so a reader sees all of it or none of it. pnpr
-  uploads archives before that transaction. A retried publish gets its
-  original response instead of a `409`, and each publish is recorded as a
+- A reader sees all of a publish, including a
+  [batch](ecosystems.md#one-publish-for-a-workspace-that-spans-ecosystems), or
+  none of it. pnpr uploads the archives first and then commits the metadata in
+  one transaction. A retried publish gets its original response instead of a
+  `409`. Each publish is recorded as a
   [publication](endpoints.md#publication-endpoints).
 
 SQLite metadata serves one pnpr process. Reads use their own database

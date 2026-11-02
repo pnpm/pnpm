@@ -29,12 +29,12 @@ pub(super) fn commit_publication(
             replayed: true,
         });
     }
-    let principal = request.map(|request| request.principal.as_str());
     for document in documents {
-        write_member(&mut batch, document, principal)?;
+        write_member(&mut batch, document)?;
     }
     let publication = if batch.changed_anything() {
-        publications::record(&batch, request, artifacts)?
+        let publisher = documents.iter().find_map(|document| document.principal.as_deref());
+        publications::record(&batch, request, publisher, artifacts)?
     } else {
         None
     };
@@ -47,19 +47,14 @@ pub(super) fn commit_publication(
     Ok(PublicationCommit { generation, publication, replayed: false })
 }
 
-/// Write one document of the publication; `principal` is recorded with every
-/// tag it moves.
-fn write_member(
-    batch: &mut Batch<'_>,
-    document: &BatchDocument,
-    principal: Option<&str>,
-) -> Result<()> {
+fn write_member(batch: &mut Batch<'_>, document: &BatchDocument) -> Result<()> {
     let key = PackageKey {
         catalog: batch.catalog().to_string(),
         ecosystem: document.ecosystem,
         name: document.name.clone(),
     };
     let expected = Expected::from_version(document.expected.as_ref())?;
+    let principal = document.principal.as_deref();
     match batch.package(&key).write_document(&document.bytes, expected, principal)? {
         None => Err(RegistryError::DocumentWriteConflict { package: document.name.clone() }),
         Some(true) => {

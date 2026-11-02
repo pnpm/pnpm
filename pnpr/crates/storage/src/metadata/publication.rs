@@ -16,6 +16,9 @@ pub struct BatchDocument {
     /// The stored document `bytes` was computed from; `None` when there was
     /// none.
     pub expected: Option<HostedDocumentVersion>,
+    /// Who published the package, recorded with every dist-tag the document
+    /// moves.
+    pub principal: Option<String>,
 }
 
 /// An artifact a publication introduced.
