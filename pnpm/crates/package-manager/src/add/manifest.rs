@@ -42,9 +42,10 @@ pub(super) async fn prepare_single_add<Reporter: self::Reporter>(
     let resolution = AddResolution::new();
     let catalog_ctx = read_catalog_ctx(manifest, add.config)?;
     let workspace_packages = (add.config.link_workspace_packages.enabled_at_depth(0)
-        || add.config.save_workspace_protocol != SaveWorkspaceProtocol::Rolling)
-        .then(|| workspace_packages_for_add(add.config))
-        .flatten();
+        || add.config.save_workspace_protocol != SaveWorkspaceProtocol::Rolling
+        || super::range_fallback::needs_workspace_range_fallback(add, manifest))
+    .then(|| workspace_packages_for_add(add.config))
+    .flatten();
     let git_source_cache = Arc::new(pnpm_git_fetcher::GitSourceCache::default());
     let prepared = prepare_manifest::<Reporter>(
         manifest,
@@ -75,6 +76,7 @@ pub(super) async fn prepare_single_add<Reporter: self::Reporter>(
     .map_err(AddError::WriteWorkspaceManifest)?;
     Ok((catalog_ctx, prepared))
 }
+
 pub(super) fn catalog_version_requests(
     package_selectors: &[String],
     manifest: &PackageManifest,

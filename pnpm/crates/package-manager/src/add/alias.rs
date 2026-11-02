@@ -1,6 +1,9 @@
 use super::{
     AddError, AddResolveInputs,
-    specifier::{ProtocolSelector, SaveSpecifier, explicit_registry_save_specifier},
+    specifier::{
+        ProtocolSelector, SaveSpecifier, explicit_registry_save_specifier,
+        fallback_registry_save_specifier,
+    },
 };
 use pnpm_package_manifest::PackageManifest;
 
@@ -21,14 +24,23 @@ pub(super) async fn resolve_npm_alias_save_specifier(
     {
         return Ok(format!("npm:{name}@{previous_specifier}").into());
     }
-    let mut saved = explicit_registry_save_specifier(
-        name,
-        target_specifier.unwrap_or_else(|| inputs.add.config.default_tag()),
-        previous_specifier.as_deref(),
-        manifest,
-        inputs,
-    )
-    .await?;
+    let fallback = match target_specifier {
+        None => fallback_registry_save_specifier(name, manifest, inputs).await?,
+        Some(_) => None,
+    };
+    let mut saved = match fallback {
+        Some(saved) => saved,
+        None => {
+            explicit_registry_save_specifier(
+                name,
+                target_specifier.unwrap_or_else(|| inputs.add.config.default_tag()),
+                previous_specifier.as_deref(),
+                manifest,
+                inputs,
+            )
+            .await?
+        }
+    };
     saved.specifier = format!("npm:{name}@{}", saved.specifier);
     Ok(saved)
 }
