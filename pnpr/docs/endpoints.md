@@ -390,8 +390,9 @@ published `.tgz` against the metadata submitted for it, under the
    - an entry of any type whose path escapes the package root;
    - a second entry that an installer would extract to `package.json` or
      `npm-shrinkwrap.json`, including one that differs only in case;
-   - a `package.json` that is a link;
-   - a missing `package.json`, or one larger than 4 MiB;
+   - a `package.json` or `npm-shrinkwrap.json` that is a link;
+   - a missing `package.json`, one larger than 4 MiB, or one that is not a
+     JSON object;
    - non-zero data, or more than 10,752 bytes of zeros, after the
      end-of-archive marker;
    - a global PAX header that sets `size`, `path`, or `linkpath`;
