@@ -236,3 +236,70 @@ async fn an_unpublish_whose_archive_removal_fails_leaves_the_name_tombstoned() {
     let bob = token_of(&app, "bob").await;
     assert_eq!(publish(&app, &bob, "2.0.0").await, StatusCode::FORBIDDEN);
 }
+
+/// GET `path` with `accept`, as `token`: the status, the `Cache-Control`
+/// header, and the body as JSON.
+async fn get_json(
+    app: &Router,
+    path: &str,
+    accept: &str,
+    token: &str,
+) -> (StatusCode, Option<String>, Value) {
+    let mut request = request("GET", path, token, None);
+    request
+        .headers_mut()
+        .insert(header::ACCEPT, accept.parse().unwrap());
+    let response = app
+        .clone()
+        .oneshot(request)
+        .await
+        .unwrap();
+    let cache_control = response
+        .headers()
+        .get(header::CACHE_CONTROL)
+        .map(|value| value.to_str().unwrap().to_string());
+    let status = response.status();
+    let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    (status, cache_control, serde_json::from_slice(&body).unwrap())
+}
+
+#[tokio::test]
+async fn pnprs_package_document_and_release_records_render_from_sqlite() {
+    const INSTALL_V2: &str = "application/vnd.pnpr.install-v2+json";
+    let tmp = TempDir::new().unwrap();
+    let app = router(sqlite_config(tmp.path()));
+    let token = token(&app).await;
+    let (_, tgz) = crate::server::package_tar_and_tgz(r#"{"name":"sql-pkg","version":"1.0.0"}"#);
+    let doc = publish_doc("sql-pkg", "1.0.0", &tgz);
+    let (status, ..) = send(&app, request("PUT", "/npm/sql-pkg", &token, Some(&doc))).await;
+    assert_eq!(status, StatusCode::CREATED);
+
+    let (status, _, document) = get_json(&app, "/npm/sql-pkg", INSTALL_V2, &token).await;
+    assert_eq!(status, StatusCode::OK);
+    let entry = &document["versions"]["1.0.0"];
+    assert_eq!(entry["requiresBuild"], json!(false));
+    assert!(entry["manifest"].is_object(), "{entry}");
+
+    // pnpr derived every fact about the archive at publish, so the record is
+    // cached forever.
+    let record_path = "/npm/sql-pkg/1.0.0+r0";
+    let (status, cache_control, record) =
+        get_json(&app, record_path, "application/json", &token).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(cache_control.as_deref(), Some("public, max-age=31536000, immutable"));
+    assert_eq!(record["name"], "sql-pkg");
+    assert_eq!(record["version"], "1.0.0");
+    assert_eq!(record["integrity"], entry["integrity"]);
+    assert_eq!(record["requiresBuild"], json!(false));
+
+    // A deprecation changes the next document and leaves the record alone.
+    let (_, mut packument) = packument(&app, &token).await;
+    packument["versions"]["1.0.0"]["deprecated"] = json!("use 2.0.0");
+    let (status, ..) =
+        send(&app, request("PUT", "/npm/sql-pkg/-rev/1", &token, Some(&packument))).await;
+    assert_eq!(status, StatusCode::CREATED);
+    let (_, _, document) = get_json(&app, "/npm/sql-pkg", INSTALL_V2, &token).await;
+    assert_eq!(document["versions"]["1.0.0"]["deprecated"], "use 2.0.0");
+    let (_, _, unchanged) = get_json(&app, record_path, "application/json", &token).await;
+    assert_eq!(unchanged, record);
+}

@@ -298,7 +298,7 @@ fn gzip(bytes: &[u8]) -> Vec<u8> {
 
 /// A package tar holding `package/package.json` with `contents`, and its
 /// `.tgz`.
-fn package_tar_and_tgz(contents: &str) -> (Vec<u8>, Vec<u8>) {
+pub(crate) fn package_tar_and_tgz(contents: &str) -> (Vec<u8>, Vec<u8>) {
     let tar = tar_of(&[("package/package.json", contents.as_bytes())]);
     let tgz = gzip(&tar);
     (tar, tgz)

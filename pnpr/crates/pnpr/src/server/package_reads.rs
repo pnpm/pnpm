@@ -1,10 +1,10 @@
 use super::{
     Action, AppState, CanonicalPackageName, ConcreteKind, DistView, Ecosystem, HeaderMap, Identity,
     RegistryError, Resolved, Response, Value, addressed_registry, authorize, caller_scoped,
-    describe_tar, dist_view, ensure_osv_allowed, extract_upstream_version_manifest,
-    extract_version_manifest, is_osv_vulnerable_packument_version, is_tar_registry, not_found,
-    packument_response, read_source_packument, registry_endpoint, resolve_version_or_tag,
-    serve_packument_via_upstream, serve_tarball_via_upstream, tar_integrities_of, tarball_response,
+    dist_view, ensure_osv_allowed, extract_upstream_version_manifest, extract_version_manifest,
+    is_osv_vulnerable_packument_version, is_tar_registry, not_found, packument_response,
+    read_source_packument, registry_endpoint, resolve_version_or_tag, serve_packument_via_upstream,
+    serve_tarball_via_upstream, tar_integrities_of, tarball_response,
 };
 use axum::response::IntoResponse;
 
@@ -78,13 +78,11 @@ pub(super) async fn serve_registry_version_manifest(
         ),
         None => extract_version_manifest(&packument, &name, version_or_tag, tarball_base),
     };
-    let Some(mut manifest) = manifest else {
+    let Some(manifest) = manifest else {
         return not_found();
     };
-    if let Some(table) = view.tar_integrities {
-        describe_tar(&mut manifest, table, view.tar_registry);
-    }
-    super::split_packuments::version_document_response(manifest, revision)
+    let tars = view.tar_integrities.map(|table| (table, view.tar_registry));
+    super::split_packuments::version_document_response(manifest, revision, tars)
 }
 
 /// The packument a version-manifest request reads, with the source it

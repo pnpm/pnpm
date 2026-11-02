@@ -315,9 +315,12 @@ version's manifest and facts are in its release record, at
 ```
 
 Revision `0` is the original artifact, also of a version without registry
-revisions. A release record never changes, so it is served with
-`Cache-Control: public, max-age=31536000, immutable`, or with
-`Cache-Control: private, no-store` for a package closed to anonymous callers.
+revisions. A release record never changes once pnpr has verified the archive
+it describes, so from then on it is served with
+`Cache-Control: public, max-age=31536000, immutable`. Before that, it has no
+`Cache-Control` header, since verifying the archive can add `fileCount`,
+`unpackedSize`, `requiresBuild`, and `bins`. A package closed to anonymous
+callers gets `Cache-Control: private, no-store` for its records.
 `/{name}/{version}` keeps serving the selected revision in npm's format.
 
 ## Registry write endpoints

@@ -2,12 +2,17 @@
 //! version's archives and its manifest, which never change once accepted,
 //! and the npm-format views from which pnpr's facts are removed.
 
-use super::{DIST_FIELDS, PNPR_FIELDS};
+use super::{
+    super::{describe_tar, has_settled_tar_facts},
+    DIST_FIELDS, PNPR_FIELDS,
+};
 use axum::{
     http::{HeaderValue, header},
     response::{IntoResponse, Response},
 };
+use pnpr_storage::DerivedTar;
 use serde_json::{Map, Value};
+use std::collections::BTreeMap;
 
 /// A version document's address: `<version>+r<revision>` names one release
 /// record, which never changes. A bare version or a tag names whatever the
@@ -27,28 +32,41 @@ fn parse_revision(revision: &str) -> Option<u64> {
     canonical.then(|| revision.parse().ok())?
 }
 
+/// The derived tar metadata a version document is described with, and
+/// whether the registry serves tars.
+pub(in super::super) type TarFacts<'a> = Option<(&'a BTreeMap<String, DerivedTar>, bool)>;
+
 /// The response for a version's document. Addressed by `revision`, it is
-/// that revision's release record, cached forever. Otherwise it is npm's
-/// view of the selected revision, without pnpr's facts.
+/// that revision's release record. Otherwise it is npm's view of the
+/// selected revision, without pnpr's facts.
 pub(in super::super) fn version_document_response(
     mut manifest: Value,
     revision: Option<u64>,
+    tars: TarFacts<'_>,
 ) -> Response {
-    let document = if let Some(revision) = revision {
-        let Some(record) = revision_record(&manifest, revision) else {
-            return super::super::not_found();
-        };
-        record
-    } else {
-        without_pnpr_facts(&mut manifest);
-        manifest
+    if let Some(revision) = revision {
+        return release_record_response(&manifest, revision, tars);
+    }
+    if let Some((table, tar_registry)) = tars {
+        describe_tar(&mut manifest, table, tar_registry);
+    }
+    without_pnpr_facts(&mut manifest);
+    json_response(&manifest)
+}
+
+/// The release record of `revision`. It is cached forever only once pnpr
+/// has derived every fact about its archive: until then, a later read could
+/// add one.
+fn release_record_response(manifest: &Value, revision: u64, tars: TarFacts<'_>) -> Response {
+    let Some(mut source) = revision_source(manifest, revision) else {
+        return super::super::not_found();
     };
-    let body = match serde_json::to_vec(&document) {
-        Ok(body) => body,
-        Err(err) => return super::super::RegistryError::Json(err).into_response(),
-    };
-    let mut response = super::super::packument_bytes_response(body, "application/json", None);
-    if revision.is_some() {
+    let settled = tars.is_some_and(|(table, _)| has_settled_tar_facts(&source, table));
+    if let Some((table, tar_registry)) = tars {
+        describe_tar(&mut source, table, tar_registry);
+    }
+    let mut response = json_response(&named_record(manifest, &source));
+    if settled && response.status().is_success() {
         response
             .headers_mut()
             .insert(
@@ -59,27 +77,39 @@ pub(in super::super) fn version_document_response(
     response
 }
 
-/// The release record of `revision` of the version `manifest` describes:
-/// the selected revision's from the manifest itself, any other accepted
-/// revision's from the version's revision history. Revision 0 of a version
-/// outside the revision protocol is its only artifact.
-fn revision_record(manifest: &Value, revision: u64) -> Option<Value> {
-    if revision == selected_revision(manifest) {
-        return Some(named_record(manifest, manifest));
+fn json_response(document: &Value) -> Response {
+    match serde_json::to_vec(document) {
+        Ok(body) => super::super::packument_bytes_response(body, "application/json", None),
+        Err(err) => super::super::RegistryError::Json(err).into_response(),
     }
-    let entry = manifest
-        .pointer("/dist/revisions")?
+}
+
+/// The version manifest `revision`'s record is made of. A version with a
+/// revision history takes every revision's from its entry, so a record's
+/// bytes never depend on which revision is selected. A version outside the
+/// revision protocol has only its original, revision 0.
+fn revision_source(manifest: &Value, revision: u64) -> Option<Value> {
+    let Some(history) = manifest.pointer("/dist/revisions") else {
+        return (revision == selected_revision(manifest)).then(|| manifest.clone());
+    };
+    let entry = history
         .as_array()?
         .iter()
         .find(|entry| entry.get("revision").and_then(Value::as_u64) == Some(revision))?;
-    let mut fields = entry
-        .get("manifest")?
-        .as_object()?
-        .clone();
+    let mut fields = match entry.get("manifest") {
+        Some(Value::Object(fields)) => fields.clone(),
+        // An entry without a manifest of its own is described only by the
+        // selected revision's projection.
+        _ if revision == selected_revision(manifest) => manifest.as_object()?.clone(),
+        _ => return None,
+    };
+    // The revision marks the integrity as the tar's, which describing it
+    // keeps.
     let mut dist = Map::new();
     dist.insert("integrity".into(), entry.get("integrity")?.clone());
+    dist.insert("revision".into(), Value::from(revision));
     fields.insert("dist".into(), Value::Object(dist));
-    Some(named_record(manifest, &Value::Object(fields)))
+    Some(Value::Object(fields))
 }
 
 /// The revision a version's manifest is projected from: `0`, the original,

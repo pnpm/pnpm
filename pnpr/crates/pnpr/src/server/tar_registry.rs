@@ -113,6 +113,17 @@ pub(super) fn describe_tar(
     describe_tar_with_budget(version, table, tar_registry, &mut bins_budget);
 }
 
+/// Whether `table` holds every fact pnpr derives from the archive `version`'s
+/// `dist` names, so describing it again would add nothing.
+pub(super) fn has_settled_tar_facts(version: &Value, table: &BTreeMap<String, DerivedTar>) -> bool {
+    version
+        .get("dist")
+        .and_then(Value::as_object)
+        .and_then(tgz_integrity_key)
+        .and_then(|key| table.get(&key))
+        .is_some_and(DerivedTar::is_fully_scanned)
+}
+
 fn describe_tar_with_budget(
     version: &mut Value,
     table: &BTreeMap<String, DerivedTar>,

@@ -87,14 +87,16 @@ async fn the_document_does_not_change_as_time_passes() {
 }
 
 #[tokio::test]
-async fn a_release_record_is_immutable_and_names_its_version() {
+async fn a_release_record_names_its_version() {
     let upstream = upstream_with_foo().await;
     let tmp = TempDir::new().unwrap();
     let app = router(config_for(&upstream.url(), tmp.path().to_path_buf()));
 
     let response = get(&app, "/npm/foo/1.0.0+r0", None, None).await;
     assert_eq!(response.status(), StatusCode::OK);
-    assert_eq!(
+    // pnpr has not read the archive yet, so a later read could add what it
+    // derives from it: the record is not cached forever until then.
+    assert_ne!(
         header_of(&response, header::CACHE_CONTROL),
         Some("public, max-age=31536000, immutable"),
     );
