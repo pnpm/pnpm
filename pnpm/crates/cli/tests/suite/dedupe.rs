@@ -1246,6 +1246,32 @@ fn dedupe_check_detects_config_dependency_changes_when_root_is_unselected() {
 }
 
 #[test]
+fn dedupe_check_reports_config_dependency_changes_when_the_filter_selects_nothing() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    create_catalog_projects(&workspace);
+    write_catalog_workspace(&workspace, true, "1.0.0");
+    pacquet_at(&workspace)
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+    let workspace_path = workspace.join("pnpm-workspace.yaml");
+    let mut yaml = fs::read_to_string(&workspace_path).unwrap();
+    yaml.push_str("\nconfigDependencies:\n  '@pnpm.e2e/foo': 100.0.0\n");
+    fs::write(&workspace_path, yaml).unwrap();
+
+    let output = pacquet_at(&workspace)
+        .with_args(["dedupe", "--check", "-F", "no-such-project"])
+        .assert()
+        .failure()
+        .get_output()
+        .clone();
+    let stdout = String::from_utf8(output.stdout).expect("stdout is UTF-8");
+    assert!(stdout.contains("ERR_PNPM_DEDUPE_CHECK_ISSUES"), "stdout:\n{stdout}");
+    drop((root, npmrc_info));
+}
+
+#[test]
 fn dedupe_warm_full_run_counts_each_reused_package_once() {
     let CommandTempCwd {
         pacquet,

@@ -64,7 +64,16 @@ impl DedupePipeline {
             }
             InstallFamilyPlan::Shared(selection) => {
                 if selection.selected_dirs.is_empty() {
-                    return Ok(());
+                    if !self.args.check {
+                        return Ok(());
+                    }
+                    // Nothing was resolved, but config-dependency syncing may
+                    // have changed the lockfile.
+                    return dedupe::check_lockfile::<Reporter>(
+                        existing.as_deref(),
+                        None,
+                        &lockfile_path,
+                    );
                 }
                 let state =
                     State::init(self.manifest_path, cfg, false).wrap_err("initialize the state")?;
