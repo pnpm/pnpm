@@ -81,10 +81,18 @@ impl SqlMetadata {
         mut operation: impl FnMut(&dyn Connection) -> Result<Output>,
     ) -> Result<Output> {
         self.ensure_schema()?;
+        self.retry_conflicts(|| self.write_once(&mut operation))
+    }
+
+    /// Run `write`, again while the adapter reports a conflict it may clear.
+    pub(super) fn retry_conflicts<Output>(
+        &self,
+        mut write: impl FnMut() -> Result<Output>,
+    ) -> Result<Output> {
         let mut delay = FIRST_RETRY_DELAY;
         let mut attempt = 1;
         loop {
-            match self.write_once(&mut operation) {
+            match write() {
                 Err(error) if attempt < WRITE_ATTEMPTS && self.adapter.is_retryable(&error) => {
                     std::thread::sleep(delay);
                     delay *= 2;

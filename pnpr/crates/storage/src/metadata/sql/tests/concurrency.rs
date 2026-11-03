@@ -1,6 +1,6 @@
 //! Concurrent writers, restarts, and lost commits.
 
-use super::{Db, config, npm, packument, read, storage, write};
+use super::{Db, config, npm, packument, read, storage, try_write, write};
 use crate::{DocumentWrite, Storage, metadata::SqlMetadata};
 use pnpr_error::RegistryError;
 use serde_json::json;
@@ -36,6 +36,31 @@ async fn a_read_completes_while_a_write_transaction_is_open(db: Db) {
     writer.await.unwrap();
     let document = read.expect("a read does not wait for the write connection");
     assert_eq!(document["versions"]["1.0.0"]["version"], "1.0.0", "the committed snapshot");
+}
+
+async fn a_first_write_waits_out_another_instances_write(db: Db) {
+    write(&storage(&db), "pkg", &packument("pkg", &["1.0.0"])).await;
+    // Another instance holds the write lock past the test primary's 2 s busy
+    // timeout, and within `SQLite`'s.
+    let other = db.instance_adapter();
+    let (held, wait_held) = mpsc::channel();
+    let holder = tokio::task::spawn_blocking(move || {
+        other
+            .write(&mut |connection| {
+                connection.begin_write()?;
+                connection.query("SELECT 1", &[])?;
+                held.send(()).unwrap();
+                std::thread::sleep(Duration::from_millis(2500));
+                connection.execute_batch("ROLLBACK")
+            })
+            .unwrap();
+    });
+    wait_held.recv().unwrap();
+
+    // A new instance checks the schema in a write before its first write.
+    let written = try_write(&storage(&db), "pkg", &packument("pkg", &["1.0.0", "2.0.0"])).await;
+    holder.await.unwrap();
+    assert!(matches!(written, Ok(DocumentWrite::Written)), "{written:?}");
 }
 
 async fn concurrent_publishers_of_one_version_cannot_both_commit(db: Db) {
@@ -211,6 +236,7 @@ fn a_read_left_in_its_transaction_is_not_reused() {
 
 conformance! {
     a_read_completes_while_a_write_transaction_is_open,
+    a_first_write_waits_out_another_instances_write,
     concurrent_publishers_of_one_version_cannot_both_commit,
     a_cache_that_missed_an_invalidation_still_serves_the_current_view,
     a_commit_survives_a_restart_and_its_retry_changes_nothing,
