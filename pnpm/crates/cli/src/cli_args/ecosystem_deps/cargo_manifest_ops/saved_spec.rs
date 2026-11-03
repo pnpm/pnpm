@@ -91,7 +91,11 @@ fn existing_prefix(raw: &str) -> Option<&'static str> {
     {
         return Some(prefix);
     }
-    let is_bare_version = trimmed.starts_with(|first: char| first.is_ascii_digit())
-        && !trimmed.contains(['*', 'x', 'X']);
+    let version_core = trimmed
+        .split(['-', '+'])
+        .next()
+        .unwrap_or(trimmed);
+    let is_bare_version = version_core.starts_with(|first: char| first.is_ascii_digit())
+        && !version_core.contains(['*', 'x', 'X']);
     is_bare_version.then_some("")
 }

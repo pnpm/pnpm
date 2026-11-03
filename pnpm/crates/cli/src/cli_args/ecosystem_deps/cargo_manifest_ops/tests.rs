@@ -44,6 +44,7 @@ fn format_cargo_saved_spec_keeps_the_existing_operator() {
 
     assert_eq!(format_cargo_saved_spec("~1.3.1", &resolved, None), "~1.4.0");
     assert_eq!(format_cargo_saved_spec("1.3.1", &resolved, None), "1.4.0");
+    assert_eq!(format_cargo_saved_spec("1.3.0+exp", &resolved, None), "1.4.0");
     assert_eq!(format_cargo_saved_spec(">=1.3, <2", &resolved, None), ">=1.4.0, <2");
 }
 
