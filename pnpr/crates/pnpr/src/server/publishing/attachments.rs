@@ -14,7 +14,7 @@ use super::{
 use crate::server::staged_archives::claim_staged_archive;
 use slot_writes::{AttachmentPaths, write_under_permit};
 use std::sync::Arc;
-use tokio::sync::Semaphore;
+use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 
 mod slot_writes;
 
@@ -71,6 +71,14 @@ pub(in super::super) struct PreparedAttachment {
     pub(in super::super) kind: AttachmentKind,
     /// The attachment label of an [`AttachmentKind::Variant`].
     pub(in super::super) variant_label: Option<String>,
+}
+
+impl ValidatedPublish {
+    /// The integrities of the staged archives this publish's attachments
+    /// reference.
+    pub(in super::super) fn staged_integrities(&self) -> impl Iterator<Item = &str> {
+        self.prepared.iter().filter_map(|prepared| prepared.attachment.staged_integrity())
+    }
 }
 
 pub(in super::super) async fn validate_publish_doc(
@@ -404,7 +412,7 @@ pub(super) async fn write_attachment_slot(
 ) -> Result<(pnpr_storage::BlobSlot, Option<PublishedTar>), RegistryError> {
     // A staged archive is read before a slot is reserved: one that is missing
     // or expired fails the publish with nothing to clean up.
-    let staged = staged_bytes((storage, claimant), &prepared.attachment).await?;
+    let (staged, permit) = staged_bytes((storage, claimant), &prepared.attachment, decodes).await?;
     let stores_tar = tarballs == TarballStorage::Tar && prepared.kind == AttachmentKind::Tarball;
     let blob = if stores_tar {
         name.tar_name_for_version(&prepared.version)
@@ -418,7 +426,7 @@ pub(super) async fn write_attachment_slot(
         prepared.kind,
         prepared.dist,
         paths,
-        decodes,
+        (decodes, permit),
     )
     .await;
     let derived = match result {
@@ -444,15 +452,20 @@ pub(super) async fn write_attachment_slot(
 }
 
 /// The bytes of the staged archive `attachment` references, read from what
-/// `claimant` staged; `None` for an attachment carried inline.
+/// `claimant` staged, with the decode permit they were read under; `None`
+/// for an attachment carried inline. The permit is the one its tarball
+/// needs anyway, so publishes waiting for one do not each hold an archive in
+/// memory.
 async fn staged_bytes(
     (storage, claimant): (&Storage, Option<&str>),
     attachment: &PendingAttachment,
-) -> Result<Option<Vec<u8>>, RegistryError> {
-    let Some(integrity) = attachment.staged_integrity() else { return Ok(None) };
-    claim_staged_archive(storage, claimant, &attachment.filename, integrity)
-        .await
-        .map(Some)
+    decodes: &Arc<Semaphore>,
+) -> Result<(Option<Vec<u8>>, Option<OwnedSemaphorePermit>), RegistryError> {
+    let Some(integrity) = attachment.staged_integrity() else { return Ok((None, None)) };
+    let permit =
+        Arc::clone(decodes).acquire_owned().await.expect("the decode semaphore is never closed");
+    let bytes = claim_staged_archive(storage, claimant, &attachment.filename, integrity).await?;
+    Ok((Some(bytes), Some(permit)))
 }
 
 impl PublishedTar {

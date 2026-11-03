@@ -252,6 +252,26 @@ impl Storage {
         Ok(created)
     }
 
+    /// The size of `key`'s archive while a commit can claim it.
+    pub async fn claimable_staged_archive_size(
+        &self,
+        key: &StagedArchiveKey<'_>,
+    ) -> Result<Option<u64>> {
+        let record = self.read_staged_archive_record(key).await?;
+        Ok(record
+            .filter(|record| record.is_claimable(unix_now()))
+            .map(|record| record.size))
+    }
+
+    /// Remove `key`'s archive, once a commit has copied it into its package.
+    /// The archive goes first, so its record never outlives it.
+    pub async fn remove_staged_archive(&self, key: &StagedArchiveKey<'_>) -> Result<()> {
+        let namespace = key.namespace();
+        self.root.remove_record(&namespace, &key.archive()?).await?;
+        self.root.remove_record(&namespace, &key.record()?).await?;
+        Ok(())
+    }
+
     /// The bytes of `key`'s archive, while it is claimable. `None` when it was
     /// never staged by this principal, has not completed, or has expired.
     pub async fn read_staged_archive(&self, key: &StagedArchiveKey<'_>) -> Result<Option<Vec<u8>>> {

@@ -32,23 +32,25 @@ impl AttachmentPaths {
 }
 
 /// Run [`write_and_derive_tar`] on a blocking thread. A tarball waits for a
-/// permit from `decodes` first. `staged` holds the bytes of the staged
-/// archive the attachment references, when it references one.
+/// permit from `decodes` first, unless the caller `held` one already.
+/// `staged` holds the bytes of the staged archive the attachment
+/// references, when it references one.
 pub(super) async fn write_under_permit(
     (attachment, staged): (PendingAttachment, Option<Vec<u8>>),
     kind: AttachmentKind,
     dist: Value,
     paths: AttachmentPaths,
-    decodes: &Arc<Semaphore>,
+    (decodes, held): (&Arc<Semaphore>, Option<OwnedSemaphorePermit>),
 ) -> Result<Result<Option<TarDerivation>, RegistryError>, tokio::task::JoinError> {
-    let permit = match kind {
-        AttachmentKind::Tarball | AttachmentKind::Variant => Some(
+    let permit = match (kind, held) {
+        (AttachmentKind::Tarball | AttachmentKind::Variant, Some(permit)) => Some(permit),
+        (AttachmentKind::Tarball | AttachmentKind::Variant, None) => Some(
             Arc::clone(decodes)
                 .acquire_owned()
                 .await
                 .expect("the decode semaphore is never closed"),
         ),
-        AttachmentKind::Sigstore => None,
+        (AttachmentKind::Sigstore, _) => None,
     };
     tokio::task::spawn_blocking(move || {
         // The permit covers the encode too: it decodes the `.tgz` again.

@@ -256,7 +256,34 @@ async fn a_publish_takes_its_archive_from_the_publishers_staged_archives() {
             .await;
     assert_eq!(published.status, StatusCode::CREATED, "{}", published.text);
     let (status, tarball) = get(&app, "/npm/referenced/-/referenced-1.0.0.tgz", &alice).await;
-    assert_eq!((status, tarball), (StatusCode::OK, tgz));
+    assert_eq!((status, tarball), (StatusCode::OK, tgz.clone()));
+    // Claimed, so it no longer counts against the publisher.
+    let released = blob(&app, "HEAD", &staging_path(&sri_sha512(&tgz)), Some(&alice), None).await;
+    assert_eq!(released.status, StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn competing_publishes_each_take_their_own_staged_archive() {
+    let tmp = TempDir::new().unwrap();
+    let app = router(sqlite_config(tmp.path()));
+    let alice = token_of(&app, "alice").await;
+    let first = npm_tgz("first", "1.0.0", b"first");
+    let second = npm_tgz("second", "1.0.0", b"second");
+    stage(&app, &first, &alice).await;
+    stage(&app, &second, &alice).await;
+
+    let first_doc = staged_doc("first", "1.0.0", &first);
+    let second_doc = json!({ "packages": [staged_doc("second", "1.0.0", &second)] });
+    let single = send_json(&app, "PUT", "/npm/first", &alice, &first_doc);
+    let batch = send_json(&app, "PUT", "/-/pnpr/v0/publish", &alice, &second_doc);
+    let (single, batch) = tokio::join!(single, batch);
+    assert_eq!(single.status, StatusCode::CREATED, "{}", single.text);
+    assert_eq!(batch.status, StatusCode::CREATED, "{}", batch.text);
+
+    for (name, tgz) in [("first", &first), ("second", &second)] {
+        let path = format!("/npm/{name}/-/{name}-1.0.0.tgz");
+        assert_eq!(get(&app, &path, &alice).await, (StatusCode::OK, tgz.clone()));
+    }
 }
 
 #[tokio::test]

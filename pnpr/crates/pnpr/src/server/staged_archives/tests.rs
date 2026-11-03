@@ -1,5 +1,7 @@
-use super::{PrincipalUploads, archive_digest, names_owner, query_integrity};
+use super::{PrincipalUploads, StagedReferences, archive_digest, names_owner, query_integrity};
 use axum::http::Uri;
+use pnpr_config::HostedStoreConfig;
+use pnpr_storage::{StagedArchiveKey, Storage};
 use std::time::Duration;
 
 #[test]
@@ -44,4 +46,36 @@ async fn a_principal_without_uploads_leaves_no_entry() {
     let uploads = PrincipalUploads::default();
     drop(uploads.acquire("alice").await);
     assert!(uploads.0.lock().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn every_reference_to_a_staged_archive_counts_against_one_request() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let storage =
+        Storage::new(&HostedStoreConfig::Fs, tmp.path().join("storage"), tmp.path().join("cache"))
+            .unwrap();
+    let integrity = format!("sha512-{}==", "A".repeat(86));
+    let digest = archive_digest(&integrity).unwrap();
+    let key = StagedArchiveKey { principal: "alice", digest: &digest };
+    storage
+        .stage_archive(&key, vec![0; 10])
+        .await
+        .unwrap();
+
+    let twice = vec![integrity.as_str(); 2];
+    assert!(
+        StagedReferences::check_within(&storage, "alice", twice.clone(), 20)
+            .await
+            .is_ok(),
+    );
+    let thrice = vec![integrity.as_str(); 3];
+    let refused = StagedReferences::check_within(&storage, "alice", thrice, 20).await;
+    assert!(refused.is_err_and(|err| err.to_string().contains("30 bytes")));
+
+    // The commit gives what it claimed back.
+    let claimed = StagedReferences::check_within(&storage, "alice", twice, 20)
+        .await
+        .unwrap();
+    claimed.release(&storage).await;
+    assert_eq!(storage.staged_archive_count("alice").await.unwrap(), 0);
 }

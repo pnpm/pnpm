@@ -296,7 +296,9 @@ by putting its `integrity` in the attachment in place of `data`:
 ```
 
 pnpr reads the archive while it stages the publish and verifies it against
-the version's `dist` as it verifies an inline archive. An archive the publishing
+the version's `dist` as it verifies an inline archive, and removes the
+archives a publish claimed once it commits. One publish references at most
+2 GiB of staged archives, each reference counted. An archive the publishing
 account has not staged, or one that has expired, fails the whole publish with
 `400`, and nothing of it is published. A retry of a committed request gets the
 recorded outcome without reading its archives again, so it succeeds even after

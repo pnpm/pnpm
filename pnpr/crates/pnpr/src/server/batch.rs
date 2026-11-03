@@ -27,12 +27,13 @@ use super::{
     cargo::{CratePublication, authorize_crate_publish, verify_crate_archive},
     oci::{OciPublication, authorize_publication},
     publishing::{
-        StagedPublish, check_note_storage, cleanup_tmp_slots, commit_publication, publication_name,
-        publication_request, publish_committed_response, refuse_notes_of_published_python_versions,
-        replayed_outcome, single_catalog, stage_publish, take_note, take_version_note,
-        validate_publish_doc,
+        PublishReceipt, StagedPublish, check_note_storage, cleanup_tmp_slots, commit_publication,
+        publication_name, publication_request, publish_committed_response,
+        refuse_notes_of_published_python_versions, replayed_outcome, single_catalog, stage_publish,
+        take_note, take_version_note, validate_publish_doc,
     },
     pypi::{PypiPublication, authorize_upload, verify_upload},
+    staged_archives::StagedReferences,
 };
 use axum::{
     body::Bytes,
@@ -184,9 +185,31 @@ async fn publish_batch(
     }
     refuse_late_python_notes(state, &validated, &notes).await?;
 
+    let receipt = stage_and_commit(state, identity, validated, notes, request).await?;
+    Ok(publish_committed_response(&receipt))
+}
+
+/// Stage every entry and commit them as one publication, then give back the
+/// staged archives the npm entries claimed.
+async fn stage_and_commit(
+    state: &AppState,
+    identity: &Identity,
+    validated: Vec<ValidatedEntry>,
+    notes: PublishNotes,
+    request: Option<PublicationRequest>,
+) -> Result<PublishReceipt, RegistryError> {
+    let storage = &state.inner.storage;
+    let mut integrities: Vec<&str> = Vec::new();
+    for entry in &validated {
+        if let ValidatedEntry::Npm(doc, _) = entry {
+            integrities.extend(doc.staged_integrities());
+        }
+    }
+    let references = StagedReferences::check(storage, identity, integrities).await?;
     let staged = stage_entries(state, validated).await?;
     let receipt = commit_publication(state, staged, notes, request).await?;
-    Ok(publish_committed_response(&receipt))
+    references.release(storage).await;
+    Ok(receipt)
 }
 
 /// Refuse the batch's notes for Python versions already published, in the
