@@ -222,6 +222,11 @@ pub type PeerIssuesSink = Arc<
     >,
 >;
 
+/// Shared out-slot for [`Install::run_lockfile_check`]: the text the run would
+/// have written to the wanted lockfile. Left `None` when the run resolves no
+/// lockfile to write.
+pub type LockfileCheckSink = Arc<std::sync::Mutex<Option<String>>>;
+
 /// Shared out-slot for [`ResolutionInputs::deps_requiring_build_sink`]: the dep
 /// paths of every package this install put on disk whose files carry
 /// install scripts (`requiresBuild`), regardless of the allow-build
@@ -515,10 +520,10 @@ struct InstallRunOptions<'install, 'selection> {
     selection: Option<WorkspaceInstallSelection<'selection>>,
     root_manifest_as_workspace_root: bool,
     save: InstallSaveOptions,
-    /// pnpm's `lockfileCheck`: the caller restores the lockfile and diffs
-    /// it once the install returns, so the run must leave nothing else on
-    /// disk changed either. Only `pacquet dedupe --check` sets it.
-    lockfile_check: bool,
+    /// pnpm's `lockfileCheck`: the run hands the wanted lockfile to the sink
+    /// instead of writing it, and must leave nothing else on disk changed
+    /// either. Only `pacquet dedupe --check` sets it.
+    lockfile_check: Option<LockfileCheckSink>,
     /// Forces the interactive-prompt eligibility that is otherwise derived
     /// from the process environment, so tests can exercise both branches.
     prompt_eligibility_override: Option<bool>,
@@ -574,7 +579,7 @@ impl Default for InstallRunOptions<'_, '_> {
             selection: None,
             root_manifest_as_workspace_root: false,
             save: InstallSaveOptions { lockfile: true, workspace_state: true },
-            lockfile_check: false,
+            lockfile_check: None,
             prompt_eligibility_override: None,
             manifests: crate::install::InstallManifestOptions {
                 deploy_hook: false,

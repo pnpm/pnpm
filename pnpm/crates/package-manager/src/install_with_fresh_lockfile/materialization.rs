@@ -21,7 +21,7 @@ pub(super) struct MaterializationResources {
     node_version: Option<String>,
     early_host_detection: Option<pnpm_deps_restorer::materialization_plan::HostDetection>,
     deps_requiring_build_sink: Option<crate::DepsRequiringBuildSink>,
-    lockfile_verification_gate: Option<crate::LockfileVerificationGate>,
+    lockfile: super::WantedLockfileHandles,
     resolution_observer: Option<Arc<dyn crate::ResolutionObserver>>,
 }
 pub(super) struct MaterializationStores {
@@ -93,7 +93,7 @@ pub(super) fn finish_resolved_install<'a, Reporter: self::Reporter + 'static>(
                     node_version: owned.node_version,
                     early_host_detection: owned.early_host_detection,
                     deps_requiring_build_sink: owned.resolution.deps_requiring_build_sink,
-                    lockfile_verification_gate: owned.lockfile_verification_gate,
+                    lockfile: owned.lockfile,
                     resolution_observer: setup.completion_observer,
                 },
                 shape: setup.shape,
@@ -152,7 +152,7 @@ impl<Reporter: self::Reporter + 'static> FreshMaterialization<'_, Reporter> {
             .map_err(InstallWithFreshLockfileError::AllowBuildsPolicy)?;
         let built_lockfile = build_lockfile_phase::<Reporter>(
             self.install,
-            &mut self.resources.lockfile_verification_gate,
+            &mut self.resources.lockfile.verification_gate,
             std::mem::take(&mut self.resolved.graph.time),
             &self.resolved,
             LockfileViews {
@@ -188,6 +188,7 @@ impl<Reporter: self::Reporter + 'static> FreshMaterialization<'_, Reporter> {
                     dir: self.install.projects.lockfile_dir,
                     dry_run: self.install.execution.dry_run,
                     save: self.install.execution.save_lockfile,
+                    check_sink: self.resources.lockfile.check_sink.as_ref(),
                     hook: self.resolved.hooks.after_all_resolved_hook.as_ref(),
                     log: self.resolved.hooks.after_all_resolved_log,
                 },
@@ -325,7 +326,7 @@ impl<Reporter: self::Reporter + 'static> FreshMaterialization<'_, Reporter> {
                 projects: scope.on_disk_projects(built_lockfile, &self.resolved.importer_manifests),
             },
             &mut plan.skipped,
-            &mut self.resources.lockfile_verification_gate,
+            &mut self.resources.lockfile.verification_gate,
         )
         .await
     }

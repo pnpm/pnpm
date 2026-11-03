@@ -143,6 +143,9 @@ pub(crate) struct LockfilePersistenceOptions<'a> {
     pub dir: &'a Path,
     pub dry_run: bool,
     pub save: bool,
+    /// Receives the wanted lockfile's text in place of the file. See
+    /// [`crate::Install::run_lockfile_check`].
+    pub check_sink: Option<&'a crate::LockfileCheckSink>,
     pub hook: Option<&'a Arc<dyn pnpm_hooks::PnpmfileHooks>>,
     pub log: Option<pnpm_hooks::LogFn>,
 }

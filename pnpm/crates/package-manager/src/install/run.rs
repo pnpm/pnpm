@@ -79,12 +79,12 @@ where
         // The branch lockfiles become disposable only once the merge has
         // been written for good. An install that neither reads nor saves a
         // lockfile never merged them, and one that only reports what it
-        // would do has its lockfile taken back afterwards — deleting them
-        // in either case drops resolutions no file is left holding.
+        // would do never writes it — deleting them in either case drops
+        // resolutions no file is left holding.
         let merge_will_be_saved = self.context.config.merge_git_branch_lockfiles
             && self.context.config.lockfile
             && options.save.lockfile
-            && !options.lockfile_check
+            && options.lockfile_check.is_none()
             && !self.execution.dry_run;
         let branch_lockfiles_to_clean = merge_will_be_saved
             .then(|| {
@@ -138,14 +138,14 @@ where
     /// are persisted; the whole-workspace commands (`install`, `dedupe`)
     /// have only this run to do it. It reads the lockfile back from disk,
     /// so the gates of the branch-lockfile cleanup apply: a run that
-    /// leaves the lockfile untouched, has it restored afterwards, or only
-    /// reports gives it nothing new to see.
+    /// leaves the lockfile untouched or only reports gives it nothing new
+    /// to see.
     fn prunes_workspace_excludes(&self, options: &InstallRunOptions<'_, '_>) -> bool {
         self.lockfile_policy.excludes == PolicyExcludes::Persist
             && matches!(self.execution.mutation, ProjectMutation::InstallWorkspace)
             && self.context.config.lockfile
             && options.save.lockfile
-            && !options.lockfile_check
+            && options.lockfile_check.is_none()
             && !self.execution.dry_run
             && (self.context.config.minimum_release_age_exclude_prune
                 || self.context.config.trust_policy_exclude_prune)
@@ -257,7 +257,7 @@ impl InstallView<'_> {
     fn should_prune_catalogs(&self, options: &InstallRunOptions<'_, '_>) -> bool {
         self.context.config.catalog_prune
             && options.save.lockfile
-            && !options.lockfile_check
+            && options.lockfile_check.is_none()
             && !self.execution.dry_run
             && self.execution.mutation.is_full_install()
     }
