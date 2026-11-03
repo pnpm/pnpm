@@ -77,7 +77,8 @@ async fn marker(db: &Db) -> Vec<String> {
 
 /// Open the metadata of `db` and check its schema.
 async fn open(db: &Db) -> Result<()> {
-    let metadata = Arc::new(SqlMetadata::with_adapter(db.adapter(), "the test database".into()));
+    let metadata =
+        Arc::new(SqlMetadata::with_adapter(db.instance_adapter(), "the test database".into()));
     tokio::task::spawn_blocking(move || metadata.ensure_schema()).await.unwrap()
 }
 

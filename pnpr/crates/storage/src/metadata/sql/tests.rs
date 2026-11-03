@@ -70,6 +70,21 @@ impl Db {
         }
     }
 
+    /// The connection of another pnpr instance on the database. On libSQL
+    /// with replicas it reads through a replica of its own, as an instance
+    /// of [`storage`] does.
+    pub(super) fn instance_adapter(&self) -> Box<dyn super::adapter::Adapter> {
+        match &self.adapter {
+            #[cfg(feature = "backend-libsql")]
+            Adapter::Libsql { server, replica: true } => {
+                let instance = self.instances.fetch_add(1, Ordering::SeqCst);
+                let replica = format!("instance-{instance}");
+                Box::new(super::libsql::LibsqlAdapter::new(server.settings(Some(&replica), 3600)))
+            }
+            _ => self.adapter(),
+        }
+    }
+
     fn new(tmp: TempDir, adapter: Adapter) -> Self {
         Self {
             tmp,
