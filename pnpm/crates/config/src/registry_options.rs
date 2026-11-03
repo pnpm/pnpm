@@ -403,6 +403,7 @@ impl Config {
                         .iter()
                         .any(|(builtin, _)| builtin == prefix)
                 }),
+            &self.registry,
         )
     }
 }
