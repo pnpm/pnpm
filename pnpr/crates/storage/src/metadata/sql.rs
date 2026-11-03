@@ -180,9 +180,11 @@ impl SqlMetadata {
             return Ok(());
         }
         let mut refused = None;
-        self.adapter.write(&mut |connection| {
-            refused = schema::prepare(connection)?;
-            Ok(())
+        self.retry_conflicts(|| {
+            self.adapter.write(&mut |connection| {
+                refused = schema::prepare(connection)?;
+                Ok(())
+            })
         })?;
         if let Some(stored) = refused {
             return Err(RegistryError::Internal {
