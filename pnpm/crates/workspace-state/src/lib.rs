@@ -251,6 +251,10 @@ pub struct WorkspaceStateSettings {
     pub enable_global_virtual_store: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub exclude_links_from_lockfile: Option<bool>,
+    /// `extendNodePath`, recorded only while it is off. It decides the
+    /// `NODE_PATH` the bin shims set.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub extend_node_path: Option<bool>,
     /// The directory a configured `globalVirtualStoreDir` resolves to,
     /// recorded only when set, for the reason given on [`Self::store_dir`].
     /// pnpm v11 has no such setting.
