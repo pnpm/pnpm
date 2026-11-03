@@ -33,5 +33,6 @@ pub(super) fn state_unverified_by_changed_lockfile(
     }
     let mut unverified = state.clone();
     unverified.settings.registry_prefixes = None;
+    unverified.settings.default_registry = None;
     Ok(Some(unverified))
 }

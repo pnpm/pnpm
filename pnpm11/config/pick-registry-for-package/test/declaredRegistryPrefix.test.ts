@@ -67,3 +67,9 @@ test('pickAliasKeyPrefix() names the prefix the keys of the registry carry', () 
   const declared = registries({ work: 'https://npm.example.com/', zeta: 'https://npm.example.com/' })
   expect(pickAliasKeyPrefix(declared, { alias: 'zeta', name: 'foo', registry: 'https://npm.example.com/' })).toBe('work')
 })
+
+test('pickAliasKeyPrefix() names the smallest prefix of the default registry for a package routed elsewhere', () => {
+  const routed = registries({ zeta: DEFAULT, work: DEFAULT }, { '@corp': 'https://corp.example.com/' })
+  expect(pickAliasKeyPrefix(routed, { alias: 'zeta', name: '@corp/foo', registry: DEFAULT })).toBe('work')
+  expect(pickAliasKeyPrefix(routed, { alias: 'zeta', name: 'foo', registry: DEFAULT })).toBeUndefined()
+})

@@ -110,21 +110,25 @@ export function pickDeclaredRegistryPrefix (registries: KeyPrefixRegistries, reg
 
 /**
  * The prefix the lockfile key of `name`, resolved by an `<alias>:` specifier
- * from `registry`, carries: the declared prefix of `registry`, else none when
- * `registry` is the default registry and a plain range of `name` routes there
- * too, else `alias`. `undefined` is a plain key.
+ * from `registry`, carries. `undefined` is a plain key.
+ *
+ * A plain key reads as resolved from the registry a plain range of `name`
+ * routes to, so the key is plain when `registry` is both the default registry
+ * and that one. Otherwise it carries the smallest prefix declared for
+ * `registry`, the default registry included, or `alias` when none is.
  */
 export function pickAliasKeyPrefix (
   registries: KeyPrefixRegistries,
   { alias, name, registry }: { alias: string, name: string, registry: string }
 ): string | undefined {
-  const declared = pickDeclaredRegistryPrefix(registries, registry)
-  if (declared != null) return declared
   const defaultRegistry = registries.registriesByScope.default
   if (isSameRegistry(registry, defaultRegistry) && isSameRegistry(pickRegistryForPackage(registries.registriesByScope, name), defaultRegistry)) {
     return undefined
   }
-  return alias
+  const declared = registries.registriesByPrefix
+  const registryKey = normalizeRegistryKey(registry)
+  const declaredPrefix = declared == null || registryKey == null ? undefined : getDeclaredPrefixByRegistry(declared).get(registryKey)
+  return declaredPrefix ?? alias
 }
 
 function normalizeDefaultRegistry (defaultRegistry: string): string | undefined {

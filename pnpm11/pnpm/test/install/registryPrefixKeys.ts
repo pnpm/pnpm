@@ -246,6 +246,27 @@ test('an install re-keys qualified keys of default-registry packages without a m
   expect(rekeyed.snapshots?.[`${PARENT}@100.0.0`]?.dependencies?.[CHILD]).toBe('100.1.0')
 })
 
+// A state an older pnpm recorded with the prefixes, without the default
+// registry, vouches for keys that qualify the default registry's packages.
+test('a repeat install re-keys qualified keys of default-registry packages that an older pnpm verified', async () => {
+  setup({ [PARENT]: 'work:100.0.0', [CHILD]: 'work:^100.0.0' }, { registry: WORK_REGISTRY, namedRegistries: { work: REGISTRY } })
+  await execPnpm(['install'])
+  expect(packageKeys(readLockfile(), PARENT)).toStrictEqual(['@pnpm.e2e/foobar@work:100.0.0'])
+  const stateFile = 'node_modules/.pnpm-workspace-state-v1.json'
+  const state = JSON.parse(fs.readFileSync(stateFile, 'utf8'))
+  expect(state.settings.defaultRegistry).toBe(WORK_REGISTRY)
+  delete state.settings.defaultRegistry
+  fs.writeFileSync(stateFile, JSON.stringify(state, undefined, 2) + '\n')
+  writeYamlFileSync('pnpm-workspace.yaml', { registry: REGISTRY, namedRegistries: { work: REGISTRY } })
+
+  await execPnpm(['install'])
+
+  const rekeyed = readLockfile()
+  expect(packageKeys(rekeyed, PARENT)).toStrictEqual(['@pnpm.e2e/foobar@100.0.0'])
+  expect(packageKeys(rekeyed, CHILD)).toStrictEqual(['@pnpm.e2e/foo@100.1.0'])
+  expect(JSON.parse(fs.readFileSync(stateFile, 'utf8')).settings.defaultRegistry).toBe(REGISTRY)
+})
+
 /**
  * Rewrites the lockfile to the shape written before plain ranges were keyed
  * by their registry: the child duplicated under a plain key, which the

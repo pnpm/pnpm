@@ -517,8 +517,7 @@ fn refreshed_state(
             established_auto_dedupe: state.settings.auto_dedupe,
             // A gate that ignores `registryPrefixes` passes on a recorded
             // verification of other prefixes, which proves nothing about these.
-            registry_keys_verified: state.settings.registry_prefixes
-                == super::recorded_registry_prefixes(check.config),
+            registry_keys_verified: super::records_registry_keys_of(&state.settings, check.config),
             // Nothing resolved, so the lockfile's plain keys still come from
             // where the state says.
             registry_routes: state.settings.registry_routes.clone(),

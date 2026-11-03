@@ -302,8 +302,7 @@ pub struct DeclaredRegistryPrefixes {
 
 impl DeclaredRegistryPrefixes {
     /// From the declared `<prefix> → <registry URL>` map and the default
-    /// registry. A prefix whose URL does not parse, or that names the
-    /// default registry, qualifies nothing.
+    /// registry. A prefix whose URL does not parse qualifies nothing.
     pub fn new<Prefix: AsRef<str>, Registry: AsRef<str>>(
         declared: impl IntoIterator<Item = (Prefix, Registry)>,
         default_registry: &str,
@@ -314,9 +313,6 @@ impl DeclaredRegistryPrefixes {
             let Some(key) = normalized_registry_key(registry.as_ref()) else {
                 continue;
             };
-            if default_registry.as_ref() == Some(&key) {
-                continue;
-            }
             let prefix = prefix.as_ref();
             prefix_by_registry
                 .entry(key)
@@ -330,10 +326,24 @@ impl DeclaredRegistryPrefixes {
         Self { prefix_by_registry, default_registry }
     }
 
-    /// The prefix keys for packages resolved from `registry` carry.
+    /// The prefix keys for packages resolved from `registry` carry. `None`
+    /// for the default registry, whose packages keep plain keys.
     #[must_use]
     pub fn prefix_for(&self, registry: &str) -> Option<&str> {
         // Asked once per resolved edge, and most projects declare no prefix.
+        if self.prefix_by_registry.is_empty() {
+            return None;
+        }
+        let key = normalized_registry_key(registry)?;
+        if self.default_registry.as_ref() == Some(&key) {
+            return None;
+        }
+        self.prefix_by_registry.get(&key).map(String::as_str)
+    }
+
+    /// The smallest declared prefix of `registry`, the default registry
+    /// included.
+    fn declared_prefix(&self, registry: &str) -> Option<&str> {
         if self.prefix_by_registry.is_empty() {
             return None;
         }
@@ -347,8 +357,8 @@ impl DeclaredRegistryPrefixes {
     ///
     /// A plain key reads as resolved from `routed_registry`, so the key is
     /// plain when `registry` is both the default registry and
-    /// `routed_registry`. Otherwise it carries the prefix the keys of
-    /// `registry` carry, or `alias` when no declared prefix names it.
+    /// `routed_registry`. Otherwise it carries the smallest prefix declared
+    /// for `registry`, or `alias` when none is.
     #[must_use]
     pub fn alias_key_prefix<'a>(
         &'a self,
@@ -356,12 +366,10 @@ impl DeclaredRegistryPrefixes {
         registry: &str,
         routed_registry: &str,
     ) -> Option<&'a str> {
-        if let Some(prefix) = self.prefix_for(registry) {
-            return Some(prefix);
+        if self.is_default_registry(registry) && same_registry(registry, routed_registry) {
+            return None;
         }
-        let keeps_plain_key =
-            self.is_default_registry(registry) && same_registry(registry, routed_registry);
-        (!keeps_plain_key).then_some(alias)
+        Some(self.declared_prefix(registry).unwrap_or(alias))
     }
 
     fn is_default_registry(&self, registry: &str) -> bool {

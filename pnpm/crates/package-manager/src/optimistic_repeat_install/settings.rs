@@ -1,8 +1,8 @@
 //! Comparing the settings a previous install recorded against the current ones.
 
 pub(crate) use registry_prefixes::{
-    ResolvedImporters, recorded_registry_prefixes, recorded_registry_routes,
-    recorded_registry_routes_after_install,
+    ResolvedImporters, recorded_default_registry, recorded_registry_prefixes,
+    recorded_registry_routes, recorded_registry_routes_after_install, records_registry_keys_of,
 };
 
 mod agent_skills;
@@ -170,7 +170,8 @@ impl SettingsComparison<'_> {
         return_drift_if!(
             self,
             "registryPrefixes",
-            recorded.registry_prefixes != live.registry_prefixes,
+            recorded.registry_prefixes != live.registry_prefixes
+                || recorded.default_registry != live.default_registry,
         );
         return_drift_if!(self, "registryRoutes", recorded.registry_routes != live.registry_routes);
         None
@@ -386,6 +387,7 @@ fn current_policy_settings(config: &Config) -> WorkspaceStateSettings {
             config.resolved_minimum_release_age_strict().then_some(true)
         }),
         registry_prefixes: recorded_registry_prefixes(config),
+        default_registry: recorded_default_registry(config),
         registry_routes: Some(recorded_registry_routes(config)),
         side_effects_cache_exclude: config.side_effects_cache_exclude.clone(),
         // pnpm records the raw config value, which stays `undefined`

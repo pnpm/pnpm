@@ -63,8 +63,16 @@ fn several_prefixes_for_one_registry_resolve_to_the_smallest() {
 #[test]
 fn a_prefix_of_the_default_registry_qualifies_nothing() {
     let prefixes = declared(&[("npmjs", "https://REGISTRY.npmjs.org"), ("work", DEFAULT)]);
-    assert!(prefixes.is_empty());
     assert_eq!(prefixes.prefix_for(DEFAULT), None);
+    assert_eq!(prefixes.alias_key_prefix("work", DEFAULT, DEFAULT), None);
+}
+
+#[test]
+fn a_package_of_the_default_registry_routed_elsewhere_carries_its_smallest_prefix() {
+    let prefixes = declared(&[("zeta", DEFAULT), ("work", DEFAULT)]);
+    let corp = "https://corp.example.com/";
+    assert_eq!(prefixes.alias_key_prefix("zeta", DEFAULT, corp), Some("work"));
+    assert_eq!(prefixes.alias_key_prefix("npmjs", DEFAULT, corp), Some("work"));
 }
 
 #[test]

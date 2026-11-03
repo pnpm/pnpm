@@ -713,3 +713,36 @@ fn keys_qualified_by_a_prefix_of_the_default_registry_are_re_keyed() {
 
     drop((root, anchor));
 }
+
+/// Pointing `registry` at the URL a declared prefix names turns that
+/// registry's keys plain, so the repeat-install fast path does not keep the
+/// qualified keys an earlier install wrote.
+#[test]
+fn moving_the_default_registry_onto_a_prefix_re_keys_its_packages() {
+    let (root, workspace, anchor) = setup();
+    let registry = anchor.mock_instance.url();
+    let workspace_yaml = workspace.join("pnpm-workspace.yaml");
+    append_workspace_yaml_key(&workspace, "namedRegistries", format!("{{ work: '{registry}' }}"));
+    append_workspace_yaml_key(&workspace, "registries", format!("{{ '@pnpm.e2e': '{registry}' }}"));
+    write_manifest(&workspace, r#"{ "@pnpm.e2e/foobar": "work:100.0.0" }"#);
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    assert_single_child_copy(&workspace, "@pnpm.e2e/foo@work:100.1.0");
+
+    let moved = fs::read_to_string(&workspace_yaml)
+        .expect("read pnpm-workspace.yaml")
+        .replace(&default_registry(&anchor), registry);
+    fs::write(&workspace_yaml, moved).expect("write pnpm-workspace.yaml");
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let lockfile = lockfile(&workspace);
+    assert_eq!(package_keys(&lockfile, CHILD), ["@pnpm.e2e/foo@100.1.0"]);
+    assert_eq!(package_keys(&lockfile, PARENT), ["@pnpm.e2e/foobar@100.0.0"]);
+
+    drop((root, anchor));
+}
