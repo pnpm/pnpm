@@ -51,9 +51,8 @@ struct Replica {
     pool: ConnectionPool,
     /// How stale a read of the replica may be.
     bound: Duration,
-    /// When the replica last finished a sync; `None` once a write of this
-    /// process committed after it.
-    synced: Mutex<Option<Instant>>,
+    /// When the replica last finished a sync, and the writes since.
+    synced: Mutex<SyncState>,
     /// Held by the sync in progress, so concurrent reads that find the
     /// replica stale wait for one sync.
     syncing: tokio::sync::Mutex<()>,
@@ -107,7 +106,7 @@ impl Opened {
             Some(Replica {
                 pool: ConnectionPool::new(db, max_connections, OPERATION_TIMEOUT, timed_out),
                 bound: Duration::from_secs(interval),
-                synced: Mutex::new(Some(Instant::now())),
+                synced: Mutex::new(SyncState { synced: Some(Instant::now()), writes: 0 }),
                 syncing: tokio::sync::Mutex::new(()),
             })
         } else {
@@ -134,26 +133,70 @@ async fn keep_synced(opened: Weak<Opened>, interval: Duration) {
     }
 }
 
+/// What a replica's reads may rely on: when its last sync finished, unless a
+/// write of this process committed after it.
+#[derive(Debug, Default)]
+struct SyncState {
+    /// When the last sync that no write overtook finished; `None` once a
+    /// write of this process committed after it.
+    synced: Option<Instant>,
+    /// Writes of this process so far. A sync that a write overtook pulled a
+    /// snapshot that may predate it.
+    writes: u64,
+}
+
+impl SyncState {
+    fn is_fresh(&self, bound: Duration) -> bool {
+        self.synced.is_some_and(|synced| synced.elapsed() <= bound)
+    }
+
+    /// Whether a sync finished after `requested`.
+    fn synced_since(&self, requested: Instant) -> bool {
+        self.synced.is_some_and(|synced| synced >= requested)
+    }
+
+    /// Record that the primary holds a write the replica has not pulled.
+    fn mark_stale(&mut self) {
+        self.synced = None;
+        self.writes += 1;
+    }
+
+    /// The writes seen as a sync starts, for [`Self::finish_sync`].
+    fn start_sync(&self) -> u64 {
+        self.writes
+    }
+
+    /// Record a sync that started when [`Self::start_sync`] returned
+    /// `started` as finished now, unless a write came after its start.
+    fn finish_sync(&mut self, started: u64) {
+        if self.writes == started {
+            self.synced = Some(Instant::now());
+        }
+    }
+}
+
 impl Replica {
     fn is_fresh(&self) -> bool {
-        lock(&self.synced).is_some_and(|synced| synced.elapsed() <= self.bound)
+        lock(&self.synced).is_fresh(self.bound)
     }
 
     /// Record that the primary holds a write the replica has not pulled.
     fn mark_stale(&self) {
-        *lock(&self.synced) = None;
+        lock(&self.synced).mark_stale();
     }
 
     /// Pull the primary's latest frames, unless a sync that finished while
-    /// this one waited for its turn already did.
+    /// this one waited for its turn already did. A write of this process
+    /// that commits during the pull leaves the replica stale.
     async fn sync(&self) -> Result<()> {
         let requested = Instant::now();
         let _turn = self.syncing.lock().await;
-        if lock(&self.synced).is_some_and(|synced| synced >= requested) {
+        if lock(&self.synced).synced_since(requested) {
             return Ok(());
         }
+        let started = lock(&self.synced).start_sync();
         self.pool.sync().await?;
-        *lock(&self.synced) = Some(Instant::now());
+        lock(&self.synced).finish_sync(started);
         Ok(())
     }
 }
@@ -182,8 +225,10 @@ impl Adapter for LibsqlAdapter {
             (ReadSource::Replica, Some(replica)) => Some(replica),
             _ => None,
         };
+        // A sync that a write of this process overtook leaves the replica
+        // stale, and the read goes to the primary.
         let replica = replica.filter(|replica| {
-            replica.is_fresh() || runtime.block_on(replica.sync()).is_ok()
+            replica.is_fresh() || (runtime.block_on(replica.sync()).is_ok() && replica.is_fresh())
         });
         let (pool, local) = match replica {
             Some(replica) => (&replica.pool, true),
@@ -302,3 +347,6 @@ fn to_value(value: libsql::Value) -> Value {
         libsql::Value::Blob(value) => Value::Blob(value),
     }
 }
+
+#[cfg(test)]
+mod tests;
