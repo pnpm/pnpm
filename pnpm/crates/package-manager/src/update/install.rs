@@ -186,6 +186,7 @@ pub(super) fn update_install<'i>(
             pnpmfile_hook_override: read_package_hook.map(|(hook, _)| Arc::clone(hook)),
             workspace_projects_override: None,
             dedicated: None,
+            discovered_workspace: None,
         },
     }
 }

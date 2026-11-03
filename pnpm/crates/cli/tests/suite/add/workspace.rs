@@ -488,3 +488,65 @@ fn the_env_var_drives_the_saved_workspace_range() {
         drop(root);
     }
 }
+
+/// The install after `pnpm add` reuses the workspace projects the add walked,
+/// so they must carry the manifest the add rewrote: a sibling that injects the
+/// project gets the added dependency in its copy.
+#[test]
+fn add_reaches_the_injected_copy_of_the_project() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let mut workspace_yaml = std::fs::read_to_string(workspace.join("pnpm-workspace.yaml"))
+        .expect("read pnpm-workspace.yaml");
+    workspace_yaml.push_str("\npackages:\n  - 'packages/*'\ndedupeInjectedDeps: false\n");
+    std::fs::write(workspace.join("pnpm-workspace.yaml"), workspace_yaml)
+        .expect("write pnpm-workspace.yaml");
+    write_json(&workspace.join("package.json"), &serde_json::json!({ "name": "root" }));
+    let lib_dir = workspace.join("packages/lib");
+    for dir in [&workspace.join("packages/app"), &lib_dir] {
+        std::fs::create_dir_all(dir).expect("create the project directory");
+    }
+    write_json(
+        &workspace.join("packages/app/package.json"),
+        &serde_json::json!({
+            "name": "app",
+            "version": "1.0.0",
+            "dependencies": { "lib": "workspace:*" },
+            "dependenciesMeta": { "lib": { "injected": true } },
+        }),
+    );
+    write_json(
+        &lib_dir.join("package.json"),
+        &serde_json::json!({ "name": "lib", "version": "1.0.0" }),
+    );
+
+    Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(&lib_dir)
+        .with_args(["add", "@pnpm.e2e/foo", "--lockfile-only"])
+        .assert()
+        .success();
+
+    let lockfile = Lockfile::load_wanted_from_dir(&workspace)
+        .expect("read pnpm-lock.yaml")
+        .expect("pnpm-lock.yaml exists");
+    let injected_lib = lockfile.snapshots
+        .as_ref()
+        .and_then(|snapshots| {
+            snapshots
+                .iter()
+                .find(|(key, _)| key.to_string() == "lib@file:packages/lib")
+        })
+        .map(|(_, snapshot)| snapshot)
+        .expect("app's injected copy of lib");
+    let dependencies = injected_lib.dependencies
+        .as_ref()
+        .map(|dependencies| {
+            dependencies
+                .keys()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+        });
+    assert_eq!(dependencies, Some(vec!["@pnpm.e2e/foo".to_string()]));
+    drop((root, npmrc_info));
+}

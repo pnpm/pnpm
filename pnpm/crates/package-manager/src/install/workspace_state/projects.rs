@@ -79,6 +79,24 @@ pub(in super::super) fn build_selected_project_manifests_list<'a>(
     }
     manifests
 }
+/// Put `manifest` in place of the walked manifest of the project it belongs
+/// to, if `projects` lists that project.
+pub(crate) fn replace_project_manifest(
+    projects: &mut [pnpm_workspace::Project],
+    manifest: &PackageManifest,
+) {
+    let project_dir = manifest
+        .path()
+        .parent()
+        .expect("manifest path always has a parent dir");
+    let matcher = ProjectDirMatcher::new(project_dir);
+    if let Some(project) = projects
+        .iter_mut()
+        .find(|project| matcher.matches(&project.root_dir))
+    {
+        project.manifest = manifest.clone();
+    }
+}
 /// Matches workspace project roots against one fixed directory.
 ///
 /// Two paths can name the same project without being equal as strings —

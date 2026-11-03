@@ -54,6 +54,8 @@ pub struct State {
     /// Set when this state's install is one project's among several a
     /// command runs. See [`State::into_dedicated_project`].
     pub dedicated: Option<DedicatedProjectInstall>,
+    /// See [`InstallProjects::discovered_workspace`](pnpm_package_manager::InstallProjects::discovered_workspace).
+    pub discovered_workspace: Option<pnpm_package_manager::DiscoveredWorkspace>,
 }
 
 /// The wanted lockfile as a manifest-mutating command receives it: the
@@ -110,6 +112,7 @@ impl State {
             dependency_groups,
         );
         install.projects.dedicated.clone_from(&self.dedicated);
+        install.projects.discovered_workspace.clone_from(&self.discovered_workspace);
         install
     }
 
@@ -130,8 +133,8 @@ impl State {
             dedicated: Some(DedicatedProjectInstall {
                 caches: caches.install.clone(),
                 dependencies_installed,
-                workspace,
             }),
+            discovered_workspace: workspace,
             ..self
         }
     }
@@ -215,6 +218,7 @@ impl State {
             tarball_mem_cache: Arc::new(MemCache::new()),
             resolved_packages: ResolvedPackages::new(),
             dedicated: None,
+            discovered_workspace: None,
         })
     }
 

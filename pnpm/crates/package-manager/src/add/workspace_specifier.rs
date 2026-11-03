@@ -8,25 +8,29 @@ use pnpm_resolving_resolver_base::WorkspacePackages;
 use pnpm_workspace_range_resolver::resolve_workspace_range;
 use pnpm_workspace_spec::WorkspaceSpec;
 
-/// Index the workspace projects by name and version, or `None` when
+/// Walk the projects of the workspace `manifest` belongs to, or `None` when
 /// there is no workspace or it cannot be enumerated.
 ///
 /// A failure to walk the workspace is not this function's problem to
-/// report — the install that follows the manifest write surfaces it with
-/// far more context — so it degrades to "no workspace packages", which
-/// only costs the pinned form its version.
-pub(super) fn workspace_packages_for_add(config: &Config) -> Option<WorkspacePackages> {
-    let workspace_dir = config.workspace_dir.as_ref()?;
-    let manifest = pnpm_workspace::read_workspace_manifest(workspace_dir).ok()??;
-    let projects = pnpm_workspace::find_workspace_projects(
-        workspace_dir,
+/// report — the install that follows the manifest write walks it again and
+/// surfaces the error with far more context — so it degrades to "no
+/// workspace packages", which only costs the pinned form its version.
+pub(super) fn workspace_projects_for_add(
+    config: &Config,
+    manifest: &pnpm_package_manifest::PackageManifest,
+) -> Option<Vec<pnpm_workspace::Project>> {
+    let project_dir = manifest.path().parent()?;
+    let workspace_dir =
+        crate::install::configured_or_discovered_workspace_dir(config, project_dir).ok()??;
+    let manifest = pnpm_workspace::read_workspace_manifest(&workspace_dir).ok()??;
+    pnpm_workspace::find_workspace_projects(
+        &workspace_dir,
         &pnpm_workspace::FindWorkspaceProjectsOpts {
             patterns: Some(pnpm_workspace::workspace_package_patterns(&manifest)),
             ignored_directories: config.managed_directories(),
         },
     )
-    .ok()?;
-    crate::install::build_workspace_packages_map(Some(&projects))
+    .ok()
 }
 /// The `workspace:` specifier to save for `package_name`, or `None`
 /// when this add isn't a workspace dependency.

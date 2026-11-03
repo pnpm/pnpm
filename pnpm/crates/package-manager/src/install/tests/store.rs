@@ -95,6 +95,7 @@ async fn fresh_partial_install_preserves_optional_link_in_warm_gvs_slot() {
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
             dedicated: None,
+            discovered_workspace: None,
         },
     }
     .run::<SilentReporter>()
@@ -175,6 +176,7 @@ async fn fresh_partial_install_preserves_optional_link_in_warm_gvs_slot() {
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
             dedicated: None,
+            discovered_workspace: None,
         },
     }
     .run::<SilentReporter>()
@@ -295,6 +297,7 @@ async fn gvs_persists_global_virtual_store_dir_in_modules_yaml_and_context_log()
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
             dedicated: None,
+            discovered_workspace: None,
         },
     }
     .run::<RecordingReporter>()

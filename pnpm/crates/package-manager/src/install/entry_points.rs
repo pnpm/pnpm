@@ -57,6 +57,7 @@ where
                 pnpmfile_hook_override: None,
                 workspace_projects_override: None,
                 dedicated: None,
+                discovered_workspace: None,
             },
         }
     }
