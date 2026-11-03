@@ -65,6 +65,8 @@ Rust is now the primary language in this repository, so most contributions need 
 
    Install these from source rather than with `cargo binstall`. The prebuilt `cargo-dylint` binaries reference the `dylint_driver` crate at the path where they were built, so building the per-toolchain driver fails locally with an error that points at a nonexistent `.../dylint/driver` directory. A `cargo install` build resolves the driver against your local cargo registry and works.
 
+   Use dylint 6.3.0 or newer. Earlier releases clone rust-clippy's `master` branch, which rust-clippy renamed to `main`, so the driver build fails with `revspec 'master' not found` whenever the driver cache misses.
+
 `pnpm install` at the repository root installs the Rust dependencies alongside the JavaScript ones. It reads `Cargo.lock`, links the registry crates into `.pnpm/crates/crates-io` and the git-sourced ones into `.pnpm/crates/git`, and points Cargo at both through the source replacement block committed in `.cargo/config.toml`. `cargo build` and `cargo test` work as before, and `cargo metadata --locked --offline` confirms that every dependency resolves without network access.
 
 Every crate reaches the build this way, in CI as well as locally. Cargo resolves nothing from its own registry, so a cargo command needs an install behind it. Run `pnpm install` after a fresh clone, and again after any checkout that moves `Cargo.lock`, a `git bisect` step included. Until you do, `cargo build` fails with `failed to load source for dependency`. Add crates with `pnpm add`: `cargo add` resolves against the replaced source and cannot find a crate that is not already installed.
