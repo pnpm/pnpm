@@ -319,7 +319,8 @@ pub(super) fn tarball_cache_key(
     pkg_id: &str,
     ignore_scripts: bool,
 ) -> Result<SnapshotCacheKey, CreateVirtualStoreError> {
-    if tarball.integrity.is_none() && !unverified_fetch_is_allowed(&tarball.tarball) {
+    if resolution.checkable_integrity().is_none() && !unverified_fetch_is_allowed(&tarball.tarball)
+    {
         return Ok(SnapshotCacheKey { value: None, is_git_hosted: false });
     }
     Ok(SnapshotCacheKey {

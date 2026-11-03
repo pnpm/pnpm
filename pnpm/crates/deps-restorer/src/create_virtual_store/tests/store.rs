@@ -808,3 +808,69 @@ fn a_git_hosted_variations_fallback_key_is_a_git_hosted_archive() {
     let variant_key = pnpm_store_dir::store_index_key(&integrity, &package_id);
     assert!(!keys_git_hosted_archive(&resolution, &variant_key, &package_id));
 }
+/// The warm reuse of a git-hosted archive a `variations` resolution
+/// selects runs the build-permission check the fetch path runs: a package
+/// that needs preparing and that no policy allows is refused.
+#[test]
+fn warm_reuse_of_a_git_hosted_variations_fallback_checks_build_permission() {
+    use crate::{AllowBuildPolicy, create_virtual_store::warm::enforce_cached_git_prepare_policy};
+    use pnpm_lockfile::{
+        LockfileResolution, PlatformAssetResolution, PlatformAssetTarget, RegistryResolution,
+        VariationsResolution,
+    };
+    let pkg = key("foo", "1.0.0");
+    let mut metadata = git_hosted_tarball_metadata();
+    let fallback = metadata.resolution.clone();
+    metadata.resolution = LockfileResolution::Variations(VariationsResolution {
+        variants: vec![PlatformAssetResolution {
+            resolution: LockfileResolution::Registry(RegistryResolution {
+                integrity: format!("sha512-{}==", "B".repeat(86)).parse().expect("parse integrity"),
+                revision: None,
+            }),
+            targets: vec![PlatformAssetTarget {
+                os: "aix".to_string(),
+                cpu: "ppc64".to_string(),
+                ..Default::default()
+            }],
+        }],
+        fallback: Some(Box::new(fallback)),
+        revision: None,
+    });
+    let packages = HashMap::from([(pkg.clone(), metadata)]);
+    let git_key = pnpm_store_dir::git_hosted_store_index_key(&pkg.pkg_id(), true);
+    let mut prefetch = pnpm_tarball::PrefetchResult::default();
+    prefetch.cas_paths.insert(git_key.clone(), Arc::new(pnpm_fs::CasPaths::new()));
+    prefetch.requires_prepare.insert(git_key.clone(), true);
+    prefetch.manifests.insert(
+        git_key.clone(),
+        Arc::new(serde_json::json!({ "name": "foo", "version": "1.0.0" })),
+    );
+    let snapshot = SnapshotEntry::default();
+    let mut snapshots = [(&pkg, &snapshot, Some(git_key))];
+
+    let result = enforce_cached_git_prepare_policy(
+        &mut snapshots,
+        &packages,
+        &prefetch,
+        &AllowBuildPolicy::default(),
+        false,
+        true,
+    );
+    assert!(result.is_err(), "the warm path must refuse a build no policy allows: {result:?}");
+}
+/// An `integrity` with no hash pins nothing, so the fetch path refuses the
+/// tarball as it refuses one with no `integrity`, and it gets no warm key.
+#[test]
+fn snapshot_cache_key_for_a_tarball_with_an_empty_integrity_is_absent() {
+    let pkg = key("foo", "1.0.0");
+    let mut metadata = tarball_metadata_without_integrity();
+    let pnpm_lockfile::LockfileResolution::Tarball(tarball) = &mut metadata.resolution else {
+        panic!("the fixture is a tarball resolution");
+    };
+    tarball.integrity = Some(ssri::Integrity { hashes: Vec::new() });
+    let packages = HashMap::from([(pkg.clone(), metadata)]);
+
+    let received = snapshot_cache_key(&pkg, &packages, false, &host_platform_selector())
+        .expect("snapshot_cache_key must not error");
+    assert_eq!(received.value, None);
+}
