@@ -167,9 +167,24 @@ impl Lexer {
             self.skip_string();
         } else if word == "b" && self.peek(0) == Some('\'') {
             self.skip_char_or_lifetime();
+        } else if word == "r"
+            && self.peek(0) == Some('#')
+            && self.peek(1).is_some_and(is_ident_start)
+        {
+            self.raw_ident();
         } else {
             self.push(Token::Ident(word));
         }
+    }
+
+    /// Reads `name` after the `r#` of a raw identifier as a plain identifier.
+    fn raw_ident(&mut self) {
+        self.pos += 1;
+        let start = self.pos;
+        while self.peek(0).is_some_and(is_ident_continue) {
+            self.pos += 1;
+        }
+        self.push(Token::Ident(self.chars[start..self.pos].iter().collect()));
     }
 
     /// The number of `#` after a raw string prefix, when `word` is one.

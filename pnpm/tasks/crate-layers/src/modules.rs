@@ -62,9 +62,9 @@ impl CrateModules {
         let scan = scan(&lexed.tokens);
         let child_dir = child_dir(file);
         for child in &scan.children {
-            let Some((child_file, child_source)) = read_child(tree, &child_dir, child)? else {
-                continue;
-            };
+            let (child_file, child_source) = read_child(tree, &child_dir, child)?.ok_or_else(|| {
+                format!("{file} declares `mod {child};`, but neither {child_dir}/{child}.rs nor {child_dir}/{child}/mod.rs exists")
+            })?;
             let mut child_path = path.clone();
             child_path.push(child.clone());
             self.visit(tree, child_path, &child_file, &child_source)?;
@@ -185,13 +185,15 @@ fn scan(tokens: &[Token]) -> Scan {
 /// Reads the item or path at `pos` and returns where scanning continues.
 fn scan_at(tokens: &[Token], pos: usize, scan: &mut Scan) -> usize {
     let Token::Ident(word) = &tokens[pos] else { return pos + 1 };
-    if word == "use" {
+    // `use<'a>` in an `impl Trait + use<'a>` bound is not a `use` item.
+    if word == "use" && tokens.get(pos + 1) != Some(&Token::Punct('<')) {
         let (paths, next) = use_tree::parse(tokens, pos + 1);
         scan.imports.extend(paths);
         return next;
     }
     if word == "mod" {
-        if let Some(name) = declared_child(tokens, pos) {
+        let name = declared_child(tokens, pos);
+        if let Some(name) = name.filter(|name| !scan.children.contains(name)) {
             scan.children.push(name);
         }
         return pos + 1;
@@ -223,13 +225,31 @@ fn is_test_only(tokens: &[Token], item: usize) -> bool {
     while end > 0 && tokens[end - 1] == Token::Punct(']') {
         let Some(open) = matching_open_bracket(tokens, end - 1) else { return false };
         let attribute = &tokens[open..end];
-        let is_cfg = attribute.get(1) == Some(&Token::Ident("cfg".to_owned()));
-        if is_cfg && attribute.contains(&Token::Ident("test".to_owned())) {
+        if enables_only_tests(attribute) {
             return true;
         }
         end = open.saturating_sub(1);
     }
     false
+}
+
+/// Whether `attribute`, the tokens from `[` to `]`, is `cfg(test)` or a
+/// `cfg(all(…))` that requires `test`.
+fn enables_only_tests(attribute: &[Token]) -> bool {
+    let ident = |name: &str| Token::Ident(name.to_owned());
+    let is_cfg =
+        attribute.get(1) == Some(&ident("cfg")) && attribute.get(2) == Some(&Token::Punct('('));
+    let Some(condition) = attribute
+        .get(3..attribute.len().saturating_sub(2))
+        .filter(|_| is_cfg)
+    else {
+        return false;
+    };
+    let requires_test = condition.first() == Some(&ident("all"))
+        && condition.contains(&ident("test"))
+        && !condition.contains(&ident("not"))
+        && !condition.contains(&ident("any"));
+    condition == [ident("test")] || requires_test
 }
 
 fn skip_visibility_backwards(tokens: &[Token], item: usize) -> usize {
