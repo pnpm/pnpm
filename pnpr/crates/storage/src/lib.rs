@@ -28,6 +28,10 @@ pub use self::backend::{BlobFinalize, HostedDocumentForUpdate, HostedDocumentVer
 
 pub use registry_records::{RegistryRecord, SCIM_DIRECTORY};
 
+pub use staged_archives::{
+    STAGED_ARCHIVE_MAX_AGE, STAGED_ARCHIVE_RENEWAL_MARGIN, StagedArchiveKey,
+};
+
 pub use staged_records::PipelineRunKey;
 
 pub use tombstones::{PackageTombstone, TOMBSTONES_NAMESPACE};
@@ -45,6 +49,8 @@ mod layout_state;
 use layout_state::namespace;
 
 mod staged_records;
+
+mod staged_archives;
 
 mod registry_records;
 

@@ -44,6 +44,7 @@ mod server;
 mod sql_metadata;
 #[cfg(feature = "backend-libsql")]
 mod sql_round_trips;
+mod staged_archives;
 mod staged_publish;
 mod team_administration;
 mod team_package_access;
