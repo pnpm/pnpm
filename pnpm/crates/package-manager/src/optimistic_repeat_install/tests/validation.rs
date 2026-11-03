@@ -396,9 +396,9 @@ fn a_carried_manifest_file_needs_a_stat_its_own_recording_trusted() {
     let manifests = project_files(root, &[("a", r#"{"name":"a"}"#), ("b", r#"{"name":"b"}"#)]);
     let project_manifests = [(root.join("a"), &manifests[0]), (root.join("b"), &manifests[1])];
     let mut previous_validation = record_files(root, &project_manifests, &Vouched::All);
-    let b = previous_validation.manifest_files.get_mut("b").unwrap();
-    b.mtime_ns = previous_validation.recorded_at_ns;
-    b.ctime_ns = None;
+    let file_b = previous_validation.manifest_files.get_mut("b").unwrap();
+    file_b.mtime_ns = previous_validation.recorded_at_ns;
+    file_b.ctime_ns = None;
     let previous =
         WorkspaceState { validation: Some(previous_validation), ..WorkspaceState::default() };
     let only_a = HashSet::from([root.join("a")]);
