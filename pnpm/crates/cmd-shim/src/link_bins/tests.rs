@@ -43,6 +43,9 @@ mod workspace_settings;
 mod security;
 
 #[cfg(unix)]
+mod concurrent_links;
+
+#[cfg(unix)]
 mod relocatable;
 
 #[cfg(unix)]
