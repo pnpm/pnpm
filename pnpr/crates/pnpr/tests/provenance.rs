@@ -73,6 +73,31 @@ fn sample_sigstore_bundle(predicate_type: &str) -> Value {
     })
 }
 
+/// `bundle` with its statement naming `subjects`, each `(PURL, .tgz SRI)`.
+fn naming(bundle: &Value, subjects: &[(&str, &str)]) -> Value {
+    let mut bundle = bundle.clone();
+    let payload = bundle["dsseEnvelope"]["payload"].as_str().unwrap();
+    let mut statement: Value = serde_json::from_slice(&BASE64.decode(payload).unwrap()).unwrap();
+    statement["subject"] = subjects
+        .iter()
+        .map(|(purl, integrity)| {
+            let digest = BASE64
+                .decode(integrity.strip_prefix("sha512-").unwrap())
+                .unwrap();
+            let hex: String = digest
+                .iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect();
+            json!({ "name": purl, "digest": { "sha512": hex } })
+        })
+        .collect();
+    bundle["dsseEnvelope"]["payload"] =
+        json!(BASE64.encode(serde_json::to_vec(&statement).unwrap()));
+    bundle
+}
+
+/// A publish document of `tarball` with `sig_bundle` attached, its
+/// statement naming the published archive.
 fn doc_with_sigstore(
     name: &str,
     version: &str,
@@ -80,7 +105,16 @@ fn doc_with_sigstore(
     sig_filename: &str,
     sig_bundle: &Value,
 ) -> Value {
-    let mut doc = publish_doc(name, version, tarball);
+    let doc = publish_doc(name, version, tarball);
+    let integrity = doc["versions"][version]["dist"]["integrity"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let purl = format!("pkg:npm/{name}@{version}");
+    doc_with_bundle(doc, sig_filename, &naming(sig_bundle, &[(&purl, &integrity)]))
+}
+
+fn doc_with_bundle(mut doc: Value, sig_filename: &str, sig_bundle: &Value) -> Value {
     let attachments = doc["_attachments"].as_object_mut().expect("attachments object");
     let serialized = serde_json::to_vec(sig_bundle).unwrap();
     attachments.insert(
@@ -399,4 +433,43 @@ async fn duplicate_sigstore_attachments_are_rejected() {
     assert!(
         String::from_utf8_lossy(&bytes).contains("duplicate attachment for dup-sig-1.0.0.sigstore"),
     );
+}
+
+/// A statement that does not name the archive it is published with is
+/// refused, so no archive enters a version outside its provenance.
+#[tokio::test]
+async fn a_statement_must_name_the_published_archive() {
+    let tmp = TempDir::new().unwrap();
+    let auth = AuthState::in_memory();
+    let token = issue_token(&auth, "alice").await;
+    let app = router_with_auth(static_config(tmp.path().to_path_buf()), auth);
+
+    let bundle = sample_sigstore_bundle("https://slsa.dev/provenance/v1");
+    let doc = publish_doc("unnamed-sig", "1.0.0", b"tarball");
+    let other = publish_doc("unnamed-sig", "1.0.0", b"other bytes");
+    let other_integrity = other["versions"]["1.0.0"]["dist"]["integrity"].as_str().unwrap();
+    let integrity = doc["versions"]["1.0.0"]["dist"]["integrity"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    for (case, subjects) in [
+        ("no subject", vec![]),
+        ("other bytes", vec![("pkg:npm/unnamed-sig@1.0.0", other_integrity)]),
+        ("other name", vec![("pkg:npm/unnamed-sig@1.0.1", integrity.as_str())]),
+    ] {
+        let doc =
+            doc_with_bundle(doc.clone(), "unnamed-sig-1.0.0.sigstore", &naming(&bundle, &subjects));
+        let res = app
+            .clone()
+            .oneshot(put_publish("/npm/unnamed-sig", &token, &doc))
+            .await
+            .unwrap();
+        assert_eq!(res.status(), StatusCode::BAD_REQUEST, "{case}");
+        let bytes = to_bytes(res.into_body(), usize::MAX).await.unwrap();
+        assert!(
+            String::from_utf8_lossy(&bytes).contains("does not name pkg:npm/unnamed-sig@1.0.0"),
+            "{case}: {}",
+            String::from_utf8_lossy(&bytes),
+        );
+    }
 }

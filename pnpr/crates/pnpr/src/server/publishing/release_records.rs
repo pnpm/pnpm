@@ -81,13 +81,10 @@ fn accepted_record(
         .pointer(&format!("/{}/profile", pnpr_storage::metadata::ARCHIVE_MANIFEST_FIELD))
         .and_then(Value::as_str)
         .ok_or_else(|| missing(name, version, "an interpretation profile"))?;
-    let purl = Purl::npm(name.as_str(), version)
-        .map_err(|err| RegistryError::BadRequest {
-            reason: format!("{}@{version} has no package URL: {err}", name.as_str()),
-        })?;
+    let purl = version_purl(name, version)?;
     let mut source = manifest.clone();
     describe_archive(&mut source, tar);
-    add_variant_inputs(&mut source, version, variants);
+    add_variant_sources(&mut source, (name, version), variants)?;
     variants::describe_version_variants(&mut source);
     let mut record = Map::new();
     record.insert("schema".into(), Value::from(RECORD_SCHEMA));
@@ -117,9 +114,14 @@ fn describe_archive(manifest: &mut Value, tar: &PublishedTar) {
     super::super::describe_tar(manifest, &table, false);
 }
 
-/// Put each variant's inputs on its stored entry, which the record lists.
-fn add_variant_inputs(manifest: &mut Value, version: &str, published: &[PublishedVariant]) {
-    let Some(Value::Array(stored)) = manifest.get_mut(STORED_FIELD) else { return };
+/// Put each variant's `purl` and inputs on its stored entry, which the
+/// record lists.
+fn add_variant_sources(
+    manifest: &mut Value,
+    (name, version): (&CanonicalPackageName, &str),
+    published: &[PublishedVariant],
+) -> Result<(), RegistryError> {
+    let Some(Value::Array(stored)) = manifest.get_mut(STORED_FIELD) else { return Ok(()) };
     for entry in stored.iter_mut().filter_map(Value::as_object_mut) {
         let tag = entry.get("tag").and_then(Value::as_str);
         let Some(variant) = published
@@ -128,10 +130,41 @@ fn add_variant_inputs(manifest: &mut Value, version: &str, published: &[Publishe
         else {
             continue;
         };
-        let mut with_inputs = Map::new();
-        with_inputs.insert("inputs".into(), variant.tar.inputs.clone());
-        with_inputs.append(entry);
-        *entry = with_inputs;
+        let purl = variant_purl(name, version, &variant.tar.tag)?;
+        let mut sourced = Map::new();
+        sourced.insert("purl".into(), Value::from(purl.as_str()));
+        sourced.insert("inputs".into(), variant.tar.inputs.clone());
+        sourced.append(entry);
+        *entry = sourced;
+    }
+    Ok(())
+}
+
+/// The PURL a variant's archive is named by, in its release record and in
+/// the version's provenance statement.
+pub(super) fn variant_purl(
+    name: &CanonicalPackageName,
+    version: &str,
+    tag: &str,
+) -> Result<Purl, RegistryError> {
+    Purl::npm_variant(name.as_str(), version, tag).map_err(|err| no_purl(name, version, &err))
+}
+
+/// The PURL a version's primary archive is named by.
+pub(super) fn version_purl(
+    name: &CanonicalPackageName,
+    version: &str,
+) -> Result<Purl, RegistryError> {
+    Purl::npm(name.as_str(), version).map_err(|err| no_purl(name, version, &err))
+}
+
+fn no_purl(
+    name: &CanonicalPackageName,
+    version: &str,
+    err: &pnpm_release_record::PurlError,
+) -> RegistryError {
+    RegistryError::BadRequest {
+        reason: format!("{}@{version} has no package URL: {err}", name.as_str()),
     }
 }
 

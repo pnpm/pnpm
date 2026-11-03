@@ -47,6 +47,8 @@ pub(in super::super) type Declarations = BTreeMap<String, Vec<VariantDeclaration
 pub(in super::super) struct VariantTar {
     /// The tag that names the archive's attachment.
     pub(in super::super) tag: String,
+    /// The `.tgz` integrity as published.
+    pub(in super::super) tgz_integrity: Option<String>,
     pub(in super::super) tar_integrity: String,
     pub(in super::super) manifest: Option<Value>,
     /// The digests of the variant's `.tgz` and its `package.json`, which its
@@ -178,7 +180,13 @@ pub(super) fn variant_tar(
             _ => None,
         });
     let inputs = super::release_records::archive_inputs(tgz_integrity, archive);
-    VariantTar { tag, tar_integrity: integrity.to_string(), manifest, inputs }
+    VariantTar {
+        tag,
+        tgz_integrity: tgz_integrity.map(str::to_string),
+        tar_integrity: integrity.to_string(),
+        manifest,
+        inputs,
+    }
 }
 
 /// Split a variant's tar from the tars of primary `.tgz` files.

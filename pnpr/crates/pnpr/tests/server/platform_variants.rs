@@ -313,6 +313,7 @@ async fn variants_are_served_from_sqlite_metadata() {
         json!({ "kind": "tgz", "integrity": sha512_integrity(&musl_tgz) }),
     );
     assert_eq!(variant["inputs"]["packageJson"]["path"], "package/package.json");
+    assert_eq!(variant["purl"], "pkg:npm/%40acme/fast@1.0.0?variant=linux-x64-musl");
 
     // The scoped route, and the encoded name whose three segments it shares
     // with a release note's route.
@@ -660,4 +661,96 @@ async fn a_variant_that_cannot_be_stored_as_one_file_is_refused() {
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
     let reason = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
     assert!(reason.contains("too long together"), "{reason}");
+}
+
+/// `request` with a provenance statement naming `subjects`, each a PURL and
+/// the `.tgz` it names.
+async fn with_statement(request: Request<Body>, subjects: &[(&str, &[u8])]) -> Request<Body> {
+    use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+    use sha2::Digest as _;
+
+    let (parts, body) = request.into_parts();
+    let mut document: Value = serde_json::from_slice(&body_bytes(body).await).unwrap();
+    let subject: Vec<Value> = subjects
+        .iter()
+        .map(|(purl, tgz)| {
+            let hex: String = sha2::Sha512::digest(tgz)
+                .iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect();
+            json!({ "name": purl, "digest": { "sha512": hex } })
+        })
+        .collect();
+    let statement = json!({
+        "_type": "https://in-toto.io/Statement/v1",
+        "subject": subject,
+        "predicateType": "https://slsa.dev/provenance/v1",
+        "predicate": {},
+    });
+    let bundle = json!({
+        "mediaType": "application/vnd.dev.sigstore.bundle.v0.3+json",
+        "dsseEnvelope": {
+            "payload": BASE64.encode(statement.to_string()),
+            "payloadType": "application/vnd.in-toto+json",
+            "signatures": [],
+        },
+    })
+    .to_string();
+    document["_attachments"]["@acme/fast-1.0.0.sigstore"] = json!({
+        "content_type": "application/vnd.dev.sigstore.bundle.v0.3+json",
+        "data": bundle,
+        "length": bundle.len(),
+    });
+    Request::from_parts(parts, Body::from(serde_json::to_vec(&document).unwrap()))
+}
+
+/// The version's provenance statement names every archive it publishes, a
+/// variant's by its PURL with the `variant` qualifier and `+` as `%2B`.
+#[tokio::test]
+async fn a_statement_names_every_archive_of_the_version() {
+    let (_, primary) = archive(&primary_manifest(), "primary");
+    let (_, static_tgz) =
+        archive(&variant_manifest(&["linux-x64", "linux-x64-musl"], &json!({})), "static");
+    let variants: &[(&str, &[u8])] = &[("linux-x64+linux-x64-musl", &static_tgz)];
+    let primary_subject = ("pkg:npm/%40acme/fast@1.0.0", primary.as_slice());
+    let variant_subject =
+        ("pkg:npm/%40acme/fast@1.0.0?variant=linux-x64%2Blinux-x64-musl", static_tgz.as_slice());
+
+    for (case, subjects) in [
+        ("primary only", vec![primary_subject]),
+        (
+            "bare +",
+            vec![
+                primary_subject,
+                (
+                    "pkg:npm/%40acme/fast@1.0.0?variant=linux-x64+linux-x64-musl",
+                    static_tgz.as_slice(),
+                ),
+            ],
+        ),
+    ] {
+        let (_tmp, app, token) = setup().await;
+        let request = with_statement(publish_request(&primary, variants, &token), &subjects).await;
+        let response = app
+            .clone()
+            .oneshot(request)
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST, "{case}");
+        let reason = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
+        assert!(reason.contains("does not name pkg:npm/%40acme/fast@1.0.0?variant="), "{reason}");
+    }
+
+    let (_tmp, app, token) = setup().await;
+    let request = with_statement(
+        publish_request(&primary, variants, &token),
+        &[primary_subject, variant_subject],
+    )
+    .await;
+    let response = app
+        .clone()
+        .oneshot(request)
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED);
 }
