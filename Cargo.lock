@@ -6994,8 +6994,6 @@ dependencies = [
  "chrono",
  "futures-util",
  "getrandom 0.4.3",
- "http 0.2.12",
- "hyper 0.14.32",
  "libsql",
  "openidconnect",
  "p256 0.14.0",
@@ -7003,10 +7001,10 @@ dependencies = [
  "pnpm-testing-utils",
  "pnpr-config",
  "pnpr-error",
+ "pnpr-libsql",
  "reqwest",
  "rusqlite",
  "rustls",
- "rustls-platform-verifier",
  "serde",
  "serde_json",
  "sha2 0.10.9",
@@ -7014,7 +7012,6 @@ dependencies = [
  "ssri",
  "tempfile",
  "tokio",
- "tokio-rustls",
  "tower 0.4.13",
  "tower 0.5.3",
  "tracing",
@@ -7100,6 +7097,28 @@ dependencies = [
  "tar",
  "tempfile",
  "walkdir",
+]
+
+[[package]]
+name = "pnpr-libsql"
+version = "0.0.1"
+dependencies = [
+ "axum 0.8.9",
+ "http 0.2.12",
+ "hyper 0.14.32",
+ "libsql",
+ "pnpm-network",
+ "pnpr-config",
+ "pnpr-error",
+ "rustls",
+ "rustls-platform-verifier",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "tokio-rustls",
+ "tower 0.4.13",
+ "tower 0.5.3",
+ "tracing",
 ]
 
 [[package]]
