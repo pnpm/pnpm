@@ -13,7 +13,8 @@ use std::collections::BTreeMap;
 mod stand_ins;
 
 /// The manifest fields the repeat-install check reads: a top-level field
-/// whole, or only one key of an object field. A record keeps these, so a
+/// whole, only one key of an object field, or the parts of the peer fields
+/// the check reads. A record keeps these, so a
 /// manifest rebuilt from them answers the check the way the file does. Any
 /// other value stays out of the workspace state.
 const CHECKED_FIELDS: [(&str, Option<&str>); 10] = [
@@ -160,12 +161,45 @@ fn manifest_file(manifest: &PackageManifest, file_name: String, stat: FileStat) 
         .into_iter()
         .filter_map(|(field, key)| {
             let field_value = value.get(field)?;
-            let kept = match key {
-                None => field_value.clone(),
-                Some(key) => serde_json::json!({ key: field_value.get(key)? }),
+            let kept = match (field, key) {
+                (_, Some(key)) => serde_json::json!({ key: field_value.get(key)? }),
+                ("peerDependencies", None) => peer_names(field_value),
+                ("peerDependenciesMeta", None) => peer_optional_flags(field_value),
+                (_, None) => field_value.clone(),
             };
             Some((field.to_string(), kept))
         })
         .collect();
     ManifestFile { file_name, mtime_ns, ctime_ns, size, fields: Some(fields) }
+}
+
+/// The peer dependencies with each URL specifier replaced by `*`. The check
+/// reads a peer specifier only for the name it depends on, which a URL
+/// leaves to the alias, and a peer missing from the lockfile must not carry
+/// credentials into the state.
+fn peer_names(peers: &serde_json::Value) -> serde_json::Value {
+    let Some(peers) = peers.as_object() else { return peers.clone() };
+    peers
+        .iter()
+        .map(|(name, spec)| {
+            let url = spec
+                .as_str()
+                .is_some_and(|spec| spec.contains("://"));
+            (name.clone(), if url { serde_json::Value::from("*") } else { spec.clone() })
+        })
+        .collect::<serde_json::Map<_, _>>()
+        .into()
+}
+
+/// Each peer's `optional` flag, the only part of `peerDependenciesMeta` the
+/// check reads.
+fn peer_optional_flags(meta: &serde_json::Value) -> serde_json::Value {
+    let Some(meta) = meta.as_object() else { return serde_json::Value::Null };
+    meta.iter()
+        .filter_map(|(name, entry)| {
+            let optional = entry.get("optional")?.as_bool()?;
+            Some((name.clone(), serde_json::json!({ "optional": optional })))
+        })
+        .collect::<serde_json::Map<_, _>>()
+        .into()
 }

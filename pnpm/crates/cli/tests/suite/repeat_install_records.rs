@@ -102,16 +102,7 @@ fn a_check_on_the_files_records_missing_manifest_records() {
         .with_arg("install")
         .assert()
         .success();
-    let state_path = workspace.join("node_modules/.pnpm-workspace-state-v1.json");
-    let mut state: serde_json::Value =
-        serde_json::from_str(&fs::read_to_string(&state_path).expect("read the state"))
-            .expect("parse the state");
-    state["validation"]
-        .as_object_mut()
-        .expect("a validation record")
-        .remove("manifestFiles")
-        .expect("manifest records");
-    fs::write(&state_path, state.to_string()).expect("write the state");
+    remove_manifest_records(&workspace);
 
     let from_files = traced_install(&workspace, mock_instance.url());
     let from_records = traced_install(&workspace, mock_instance.url());
@@ -215,5 +206,100 @@ fn a_removed_workspace_link_is_relinked() {
     assert!(output.contains("the recorded manifests cannot decide"), "{output}");
     assert!(output.contains("a direct dependency link is missing"), "{output}");
     assert!(link.exists(), "{output}");
+    drop((root, mock_instance));
+}
+
+/// Strip the manifest records from the workspace state, as an older pnpm
+/// would have written it.
+fn remove_manifest_records(workspace: &Path) {
+    let state_path = workspace.join("node_modules/.pnpm-workspace-state-v1.json");
+    let mut state: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(&state_path).expect("read the state"))
+            .expect("parse the state");
+    state["validation"]
+        .as_object_mut()
+        .expect("a validation record")
+        .remove("manifestFiles")
+        .expect("manifest records");
+    fs::write(&state_path, state.to_string()).expect("write the state");
+}
+
+fn state_text(workspace: &Path) -> String {
+    fs::read_to_string(workspace.join("node_modules/.pnpm-workspace-state-v1.json"))
+        .expect("read the state")
+}
+
+/// A record of a manifest dated in the future is never trusted, so writing it
+/// would only repeat the write on the next run.
+#[test]
+fn a_future_dated_manifest_does_not_rewrite_the_state() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_workspace(&workspace);
+    pacquet
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_arg("install")
+        .assert()
+        .success();
+    pnpm_testing_utils::fs::set_mtime(
+        &workspace.join("packages/b/package.json"),
+        std::time::SystemTime::now() + std::time::Duration::from_hours(1),
+    );
+    let before = state_text(&workspace);
+
+    let output = traced_install(&workspace, mock_instance.url());
+
+    assert!(output.contains("Already up to date"), "{output}");
+    assert_eq!(state_text(&workspace), before);
+    drop((root, mock_instance));
+}
+
+/// The run gate leaves inputs such as local file dependencies unchecked, so
+/// only an install refreshes the manifest records.
+#[test]
+fn the_run_gate_leaves_missing_records_to_the_install() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_workspace(&workspace);
+    let workspace_yaml = workspace.join("pnpm-workspace.yaml");
+    let mut yaml = fs::read_to_string(&workspace_yaml).expect("read pnpm-workspace.yaml");
+    yaml.push_str("verifyDepsBeforeRun: install\n");
+    fs::write(&workspace_yaml, yaml).expect("write pnpm-workspace.yaml");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "root", "private": true, "scripts": { "noop": "node -e 0" } })
+            .to_string(),
+    )
+    .expect("write package.json");
+    pacquet
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_arg("install")
+        .assert()
+        .success();
+    remove_manifest_records(&workspace);
+
+    pacquet_in(&workspace)
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_args(["run", "noop"])
+        .assert()
+        .success();
+    assert!(!state_text(&workspace).contains("manifestFiles"), "the run gate refreshed records");
+
+    let from_files = traced_install(&workspace, mock_instance.url());
+    let from_records = traced_install(&workspace, mock_instance.url());
+    assert!(!from_files.contains(DECIDED_FROM_RECORDS), "{from_files}");
+    assert!(from_records.contains(DECIDED_FROM_RECORDS), "{from_records}");
     drop((root, mock_instance));
 }

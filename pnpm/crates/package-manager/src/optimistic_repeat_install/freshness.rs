@@ -335,27 +335,42 @@ fn settle_proven_tree(
     let vouched = drift.proven_dirs(&[]);
     if drift.lockfile_changed || restored {
         record_state(check, state, &vouched, policy);
-    } else if drift.rehashed || records_need_refresh_from_files(check, state) {
-        // A file changed in the same clock tick as this record is read again
-        // next time anyway, so writing it would only repeat the write then.
-        let new_state = refreshed_state(check, state, &vouched, validation_now(check), policy);
-        if new_state.validation.as_ref().is_some_and(trusts_every_file) {
-            write_state(check, &new_state, policy);
-        }
+    } else {
+        refresh_state(check, state, drift, policy, &vouched);
     }
     Ok(())
 }
 
-/// Whether a check on the manifest files should refresh the records the next
-/// check takes manifests from. A check on stand-ins writes nothing.
-fn records_need_refresh_from_files(
+/// Write the state again for a rehashed file, or for manifest records the
+/// next check cannot take manifests from. Only the install gate's check on
+/// the files refreshes records: the run gate leaves inputs unchecked, and a
+/// check on stand-ins writes nothing.
+///
+/// A file changed in the same clock tick as this record is read again next
+/// time anyway, so the state is written only when every file signature is
+/// trusted, and a refresh for the records alone only when it leaves records
+/// the next check can use.
+fn refresh_state(
     check: &OptimisticRepeatInstallCheck<'_>,
     state: &WorkspaceState,
-) -> bool {
-    !check.project_manifests.has_stand_ins()
-        && state.validation
-            .as_ref()
-            .is_some_and(|validation| records_need_refresh(check, validation))
+    drift: &InputDrift<'_>,
+    policy: &GatePolicy<'_>,
+    vouched: &HashSet<PathBuf>,
+) {
+    let records_stale = |state: &WorkspaceState| {
+        state.validation.as_ref().is_some_and(|validation| records_need_refresh(check, validation))
+    };
+    let refresh_records = matches!(policy.gate, Gate::Install)
+        && !check.project_manifests.has_stand_ins()
+        && records_stale(state);
+    if !drift.rehashed && !refresh_records {
+        return;
+    }
+    let new_state = refreshed_state(check, state, vouched, validation_now(check), policy);
+    let trusted = new_state.validation.as_ref().is_some_and(trusts_every_file);
+    if trusted && (drift.rehashed || !records_stale(&new_state)) {
+        write_state(check, &new_state, policy);
+    }
 }
 
 /// Apply the gate's [`NewerPatch`] policy to a patch whose content changed.

@@ -318,7 +318,7 @@ fn trust_recorded_stats(validation: &mut Validation) {
 fn a_write_records_each_vouched_manifest_file_with_the_fields_the_check_reads() {
     let dir = tempdir().unwrap();
     let root = dir.path();
-    let json = r#"{"name":"a","scripts":{"test":"x"},"dependencies":{"b":"workspace:*"},"peerDependencies":{"e":"*"},"bin":"cli.js","publishConfig":{"registry":"https://user:secret@example.com/","directory":"dist"}}"#;
+    let json = r#"{"name":"a","scripts":{"test":"x"},"dependencies":{"b":"workspace:*"},"peerDependencies":{"e":"https://user:secret@example.com/e.tgz","f":"^1"},"bin":"cli.js","publishConfig":{"registry":"https://user:secret@example.com/","directory":"dist"},"peerDependenciesMeta":{"e":{"optional":false,"note":"x"}},"devDependencies":{}}"#;
     let project_a = project_files(root, &[("a", json)]).remove(0);
     let validation = record_files(root, &[(root.join("a"), &project_a)], &Vouched::All);
     let file = &validation.manifest_files["a"];
@@ -329,7 +329,9 @@ fn a_write_records_each_vouched_manifest_file_with_the_fields_the_check_reads() 
         serde_json::json!({
             "name": "a",
             "dependencies": { "b": "workspace:*" },
-            "peerDependencies": { "e": "*" },
+            "devDependencies": {},
+            "peerDependencies": { "e": "*", "f": "^1" },
+            "peerDependenciesMeta": { "e": { "optional": false } },
             "bin": "cli.js",
             "publishConfig": { "directory": "dist" },
         }),
