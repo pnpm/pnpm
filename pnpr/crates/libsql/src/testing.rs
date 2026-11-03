@@ -5,6 +5,10 @@
 //! libsql database behind a mock of those routes that serves the frames of
 //! its own WAL.
 
+pub use plain_http::{EXECUTE_RESPONSE, PlainHttpServer, serve_plain_http};
+
+mod plain_http;
+
 use crate::{is_transaction_conflict, is_unique_violation};
 use axum::{
     Json, Router,
@@ -30,10 +34,6 @@ use std::{
 /// one generation per checkpoint.
 const WAL_HEADER_SIZE: usize = 32;
 const WAL_FRAME_SIZE: usize = 24 + 4096;
-
-mod plain_http;
-
-pub use plain_http::{EXECUTE_RESPONSE, PlainHttpServer, serve_plain_http};
 
 /// How long a stalled `/sync` takes to answer.
 pub const SYNC_STALL: Duration = Duration::from_secs(3);
