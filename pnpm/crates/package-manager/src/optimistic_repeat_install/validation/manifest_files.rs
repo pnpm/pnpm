@@ -30,11 +30,12 @@ const CHECKED_FIELDS: [(&str, Option<&str>); 10] = [
     ("publishConfig", Some("directory")),
 ];
 
-/// Whether a record in `validation` could not stand in for the manifest of a
-/// `vouched` project next time: it is missing or has no fields, or the
-/// manifest's file name or stat differs from it or is not trusted. A
-/// manifest that cannot be stat'd, or a write under `SOURCE_DATE_EPOCH`,
-/// would record nothing, so neither counts.
+/// Whether a write would give a `vouched` project a record the next check can
+/// use, where `validation` holds none: its record is missing or has no
+/// fields, or the manifest's file name or stat differs from it or is not
+/// trusted. A manifest that cannot be stat'd, cannot be recorded with
+/// fields, or has a stat a write now would not trust, does not count, and
+/// neither does a write under `SOURCE_DATE_EPOCH`, which records nothing.
 pub(crate) fn records_need_refresh(
     check: &crate::OptimisticRepeatInstallCheck<'_>,
     validation: &Validation,
@@ -43,18 +44,44 @@ pub(crate) fn records_need_refresh(
     if check.config.source_date_epoch.is_some() {
         return false;
     }
+    let mut filesystem_now_ns = None;
     check.project_manifests
         .iter()
         .filter(|(root_dir, _)| vouched.contains(root_dir))
         .any(|(root_dir, manifest)| {
             let Some(stat) = FileStat::at(manifest.path()) else { return false };
             let importer_id = importer_id_from_root_dir(check.workspace_root, root_dir);
-            let Some(file) = validation.manifest_files.get(&importer_id) else { return true };
-            file.fields.is_none()
-                || manifest.path().file_name() != Some(std::ffi::OsStr::new(&file.file_name))
-                || !stat.matches_stat(file.mtime_ns, file.ctime_ns, file.size)
-                || !stat_trusted(file.mtime_ns, file.ctime_ns, validation.recorded_at_ns)
+            let usable = validation.manifest_files
+                .get(&importer_id)
+                .is_some_and(|file| {
+                    file.fields.is_some()
+                        && manifest.path().file_name()
+                            == Some(std::ffi::OsStr::new(&file.file_name))
+                        && stat.matches_stat(file.mtime_ns, file.ctime_ns, file.size)
+                        && stat_trusted(file.mtime_ns, file.ctime_ns, validation.recorded_at_ns)
+                });
+            !usable && recordable(check, manifest, stat, &mut filesystem_now_ns)
         })
+}
+
+/// Whether a write now would record `manifest`, at `stat`, with fields and a
+/// trusted stat. `filesystem_now_ns` caches the filesystem clock probe.
+fn recordable(
+    check: &crate::OptimisticRepeatInstallCheck<'_>,
+    manifest: &PackageManifest,
+    stat: FileStat,
+    filesystem_now_ns: &mut Option<Option<i64>>,
+) -> bool {
+    if recorded_fields(manifest.value()).is_none() {
+        return false;
+    }
+    let now = *filesystem_now_ns.get_or_insert_with(|| {
+        crate::optimistic_repeat_install::filesystem_now_ns_in_modules(
+            &check.config.workspace_state_modules_dir(check.workspace_root),
+        )
+    });
+    let (mtime_ns, ctime_ns, _) = stat.parts();
+    now.is_some_and(|now| stat_trusted(mtime_ns, ctime_ns, now))
 }
 
 /// The manifest file of each project the write vouches for, keyed by importer
@@ -211,22 +238,17 @@ fn recorded_dependencies(dependencies: &serde_json::Value) -> Option<serde_json:
 ///
 /// - a specifier of a scheme the check does not read becomes `*`. The check
 ///   reads it only for the name it depends on, which the alias gives;
-/// - any other specifier that may hold a credential becomes `*` when it has
-///   no scheme, and `None` when its scheme is one the check reads;
+/// - any other specifier that may hold a credential gives `None`. Replacing
+///   it would change what the check reads, such as a local path;
 /// - everything else stays as written.
 fn recorded_specifier(spec: &str) -> Option<serde_json::Value> {
     let trimmed = spec.trim();
-    let (checked, rest) = match specifier_scheme(trimmed) {
-        Some(scheme) if CHECKED_SCHEMES.contains(&scheme.as_str()) => {
-            (true, &trimmed[scheme.len() + 1..])
-        }
+    let rest = match specifier_scheme(trimmed) {
+        Some(scheme) if CHECKED_SCHEMES.contains(&scheme.as_str()) => &trimmed[scheme.len() + 1..],
         Some(_) => return Some("*".into()),
-        None => (false, trimmed),
+        None => trimmed,
     };
-    if !may_hold_credential(rest) {
-        return Some(spec.into());
-    }
-    (!checked).then(|| "*".into())
+    (!may_hold_credential(rest)).then(|| spec.into())
 }
 
 /// Whether `text` may hold a credential: it has an `@` after a `:`, the

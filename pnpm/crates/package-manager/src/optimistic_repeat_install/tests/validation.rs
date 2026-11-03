@@ -361,6 +361,9 @@ fn a_credential_in_a_checked_specifier_leaves_the_record_without_fields() {
         "npm:b@^1 || https://user:token@example.com/b.tgz",
         "file://TOKEN@example.com/b.tgz",
         "file://us%3Aer@example.com/b.tgz",
+        "C:/vendor/@scope/lib",
+        "../../vendor/pkg:branch@v1",
+        "user@host:token@x",
     ] {
         let json = serde_json::json!({ "name": "a", "dependencies": { "b": spec } }).to_string();
         let project_a = project_files(root, &[("a", &json)]).remove(0);
