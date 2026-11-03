@@ -2,11 +2,12 @@ use super::InstallPackageBySnapshotError;
 use pnpm_graph_hasher::{host_arch, host_libc, host_platform};
 use pnpm_lockfile::{
     BinaryArchive, BinaryResolution, BinarySpec, HostFloors, PackageKey, PlatformSelector,
+    VariationsResolution,
 };
 use pnpm_package_is_installable::{SupportedArchitectures, SupportedPlatform};
 use pnpm_reporter::Reporter;
 use pnpm_tarball::{IgnoreEntryFilter, IngestTarballToStore, IngestZipArchiveToStore};
-use std::sync::Arc;
+use std::{borrow::Cow, sync::Arc};
 
 /// Build the host's [`PlatformSelector`] for runtime-variant
 /// matching, from the host's os, cpu, and libc (the latter only on
@@ -30,6 +31,23 @@ pub fn host_platform_selector() -> PlatformSelector {
         floors: None,
     }
 }
+/// The platform `variations` selects an archive for. A runtime's archives
+/// follow `configured`, the platform `supportedArchitectures` names. A
+/// registry package's follow the host, as the dependency graph the
+/// installer links does: fetching another platform's archive would pair it
+/// with the host variant's dependencies.
+#[must_use]
+pub fn variations_platform<'a>(
+    variations: &VariationsResolution,
+    configured: &'a PlatformSelector,
+) -> Cow<'a, PlatformSelector> {
+    if variations.is_runtime() {
+        Cow::Borrowed(configured)
+    } else {
+        Cow::Owned(host_platform_selector())
+    }
+}
+
 /// Resolve the runtime archive selector from `supportedArchitectures`.
 ///
 /// Exactly one archive is installed per runtime, so the host's own

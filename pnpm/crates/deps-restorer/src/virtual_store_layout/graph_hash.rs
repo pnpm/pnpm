@@ -336,7 +336,7 @@ pub(super) fn create_full_pkg_id(
 ) -> String {
     let resolution = match resolution {
         Some(LockfileResolution::Variations(variations)) => variations
-            .select(platform)
+            .select(&crate::install_package_by_snapshot::variations_platform(variations, platform))
             .ok()
             .flatten()
             .map(SelectedVariant::resolution)

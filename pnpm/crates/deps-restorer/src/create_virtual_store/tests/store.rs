@@ -692,3 +692,49 @@ fn group_slots_by_dir_is_identity_without_gvs() {
     assert_eq!(groups.len(), 2, "non-GVS slots are unique per key; nothing may merge");
     assert!(groups.iter().all(|group| group.duplicates.is_empty()));
 }
+/// A registry package's variants follow the host, whatever platform
+/// `supportedArchitectures` names: the dependency graph the installer
+/// links is the host variant's, so its archive must be too.
+#[test]
+fn snapshot_cache_key_for_package_variants_follows_the_host() {
+    use pnpm_lockfile::{
+        LockfileResolution, PlatformAssetResolution, PlatformAssetTarget, PlatformSelector,
+        RegistryResolution, VariationsResolution,
+    };
+    let host = host_platform_selector();
+    let registry = |digit: char| {
+        LockfileResolution::Registry(RegistryResolution {
+            integrity: format!("sha512-{}==", digit.to_string().repeat(86))
+                .parse()
+                .expect("parse integrity"),
+            revision: None,
+        })
+    };
+    let pkg = key("variations-pkg", "1.0.0");
+    let mut metadata = git_metadata();
+    metadata.resolution = LockfileResolution::Variations(VariationsResolution {
+        variants: vec![PlatformAssetResolution {
+            resolution: registry('B'),
+            targets: vec![PlatformAssetTarget {
+                os: host.os,
+                cpu: host.cpu,
+                libc: host.libc.filter(|libc| libc == "musl"),
+                ..Default::default()
+            }],
+        }],
+        fallback: Some(Box::new(registry('A'))),
+        revision: None,
+    });
+    let packages = HashMap::from([(pkg.clone(), metadata)]);
+    let configured = PlatformSelector {
+        os: "aix".to_string(),
+        cpu: "ppc64".to_string(),
+        libc: None,
+        floors: None,
+    };
+
+    let received = snapshot_cache_key(&pkg, &packages, false, &configured)
+        .expect("snapshot_cache_key must not error");
+    let value = received.value.expect("the host variant has a warm key");
+    assert!(value.starts_with(&format!("sha512-{}", "B".repeat(20))), "{value}");
+}

@@ -143,6 +143,15 @@ impl VariationsResolution {
         VariationsResolution { variants, fallback: None, revision: None }
     }
 
+    /// Whether these are a runtime's archives (Node.js, Bun, Deno), which
+    /// are `binary` resolutions, rather than a registry package's.
+    #[must_use]
+    pub fn is_runtime(&self) -> bool {
+        self.variants
+            .iter()
+            .any(|variant| matches!(variant.resolution, LockfileResolution::Binary(_)))
+    }
+
     /// Every archive some host can install: each variant's, then the
     /// fallback.
     pub fn resolutions(&self) -> impl Iterator<Item = &LockfileResolution> {
@@ -171,10 +180,7 @@ impl VariationsResolution {
         &self,
         platform: &PlatformSelector,
     ) -> Result<Option<SelectedVariant<'_>>, AmbiguousSelection> {
-        if self.variants
-            .iter()
-            .any(|variant| matches!(variant.resolution, LockfileResolution::Binary(_)))
-        {
+        if self.is_runtime() {
             return Ok(select_platform_variant(&self.variants, platform)
                 .map(SelectedVariant::Variant)
                 .or_else(|| self.fallback.as_deref().map(SelectedVariant::Fallback)));

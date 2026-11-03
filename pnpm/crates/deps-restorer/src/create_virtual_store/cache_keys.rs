@@ -276,8 +276,12 @@ pub(super) fn variant_cache_key(
     pkg_id: &str,
     built: bool,
 ) -> Result<SnapshotCacheKey, CreateVirtualStoreError> {
+    let platform = crate::install_package_by_snapshot::variations_platform(
+        variations,
+        runtime_platform_selector,
+    );
     let value = variations
-        .select(runtime_platform_selector)
+        .select(&platform)
         .ok()
         .flatten()
         .and_then(|selected| match selected.resolution() {

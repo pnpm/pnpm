@@ -300,12 +300,8 @@ impl InstallPackageBySnapshot<'_> {
         allow_build: &(impl Fn(&str) -> Option<bool> + Send + Sync),
     ) -> Result<(Arc<pnpm_fs::CasPaths>, ExtractedPackageMetadata), InstallPackageBySnapshotError>
     {
-        let selected = variant_for_host(
-            variations,
-            fetch.package_key,
-            self.runtime_platform_selector,
-            self.ctx.config,
-        )?;
+        let platform = super::variations_platform(variations, self.runtime_platform_selector);
+        let selected = variant_for_host(variations, fetch.package_key, &platform, self.ctx.config)?;
         let (resolution, source) = match selected {
             VariantFetch::Binary(binary) => {
                 return self

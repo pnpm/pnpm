@@ -654,8 +654,10 @@ mod tests;
 /// could describe a revision the suffixes did not come from.
 mod gvs_layout_cache;
 
-/// The platform `variations` resolutions select an archive for: the one
-/// `supportedArchitectures` names, or the host's.
+/// The platform a runtime's `variations` resolution selects an archive for:
+/// the one `supportedArchitectures` names, or the host's. A registry
+/// package's variants follow the host; see
+/// [`variations_platform`](crate::install_package_by_snapshot::variations_platform).
 pub(crate) fn selected_platform(config: &Config) -> PlatformSelector {
     crate::install_package_by_snapshot::runtime_platform_selector(
         config.supported_architectures.as_ref(),
