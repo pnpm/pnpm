@@ -31,6 +31,14 @@ fn immutable_uri_absolutizes_a_relative_path() {
     assert!(uri.ends_with("/relative-store/index.db?immutable=1"), "{uri}");
 }
 
+/// The rows `index`'s connection has changed since it opened.
+pub(super) fn total_changes(index: &StoreIndex) -> i64 {
+    index
+        .sqlite_conn()
+        .query_row("SELECT total_changes()", [], |row| row.get(0))
+        .unwrap()
+}
+
 pub(super) fn sample_index() -> PackageFilesIndex {
     let mut files = HashMap::new();
     files.insert(

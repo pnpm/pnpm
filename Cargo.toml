@@ -183,6 +183,11 @@ indexmap = { version = "2.14.0", features = ["serde"] }
 insta = { version = "1.47.2", features = ["yaml", "glob", "walkdir"] }
 itertools = { version = "0.15.0" }
 libsql = { version = "0.9.30", default-features = false, features = ["core", "remote", "replication", "sync"] }
+# rusqlite's API over libsql's own SQLite, used in place of `rusqlite` across
+# the workspace. pnpr links libsql's SQLite for its embedded replica, and a
+# second SQLite (rusqlite's bundled one, which pnpm-store-dir would bring)
+# defines the same symbols.
+libsql-rusqlite = { version = "0.9.30" }
 futures-util = { version = "0.3.32" }
 flate2 = { version = "1.1.9", default-features = false, features = ["zlib-rs"] }
 gethostname = { version = "1" }
@@ -228,7 +233,6 @@ rayon = { version = "1.12.0" }
 regex = { version = "1.12.3" }
 regress = { version = "0.12.0" }
 rmp-serde = { version = "1.3.0" }
-rusqlite = { version = "0.39.0", features = ["bundled"] }
 same-file = { version = "1.0.6" }
 security-framework = { version = "3.7.0" }
 security-framework-sys = { version = "2.17.0" }
@@ -307,6 +311,8 @@ tar = { path = "vendor/tar" }
 # <https://github.com/tursodatabase/libsql/pull/2261>, released in 0.10.0,
 # which stops closing every dropped local connection twice.
 libsql = { git = "https://github.com/pnpm/libsql", rev = "e2c44e616a1f8e1ec7ceeb61138a3c2c391c35a9" }
+# Must come from the same revision as `libsql`, so both share its SQLite.
+libsql-rusqlite = { git = "https://github.com/pnpm/libsql", rev = "e2c44e616a1f8e1ec7ceeb61138a3c2c391c35a9" }
 node-semver = { git = "https://github.com/pnpm/node-semver-rs", rev = "3d74d6b7f4de1de2006cf2f7663aac09de65b1f6" }
 # Adds the `nightly` feature. Drop once an upstream release carries it.
 # See <https://github.com/pnpm/pnpm/pull/16951>.

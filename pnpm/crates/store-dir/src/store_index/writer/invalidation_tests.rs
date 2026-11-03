@@ -1,7 +1,10 @@
 use super::{StoreIndexWriter, WriteMsg, apply_write_msg, flush_batch};
 use crate::{
     StoreDir, StoreIndex, UploadError,
-    store_index::{SideEffectsDiff, StoreIndexError, tests::sample_index},
+    store_index::{
+        SideEffectsDiff, StoreIndexError,
+        tests::{sample_index, total_changes},
+    },
     upload, upload_with_diff,
 };
 use std::{collections::HashMap, path::Path, sync::atomic::AtomicBool, time::Duration};
@@ -99,11 +102,11 @@ fn symlink_upload_missing_row_is_a_noop() {
             .sqlite_conn()
             .execute_batch("PRAGMA query_only=ON")
             .unwrap();
-        let writes = index.sqlite_conn().total_changes();
+        let writes = total_changes(&index);
         let (result, index) = run_upload(index, &store_dir, package.path(), with_diff);
         result.unwrap();
         assert!(index.get(KEY).unwrap().is_none());
-        assert_eq!(index.sqlite_conn().total_changes(), writes);
+        assert_eq!(total_changes(&index), writes);
     }
 }
 
@@ -126,11 +129,11 @@ fn symlink_upload_unchanged_row_needs_no_write() {
             .sqlite_conn()
             .execute_batch("PRAGMA query_only=ON")
             .unwrap();
-        let writes = index.sqlite_conn().total_changes();
+        let writes = total_changes(&index);
         let (result, index) = run_upload(index, &store_dir, package.path(), with_diff);
         result.unwrap();
         assert_eq!(index.get(KEY).unwrap().unwrap(), row);
-        assert_eq!(index.sqlite_conn().total_changes(), writes);
+        assert_eq!(total_changes(&index), writes);
     }
 }
 

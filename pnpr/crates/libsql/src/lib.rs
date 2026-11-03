@@ -2,12 +2,6 @@
 //! connector it dials with, the pool its operations run on, and an embedded
 //! replica that serves reads from a local file.
 
-// Load pnpr-error, and the rusqlite its `server` feature brings, before
-// libsql. The other order puts rusqlite's SQLite ahead of libsql's on the link
-// line, and a test build that unifies that feature then fails on duplicate
-// SQLite symbols. pnpr-auth and pnpr link in this order already.
-extern crate pnpr_error;
-
 #[cfg(any(test, feature = "testing"))]
 pub mod testing;
 

@@ -1,5 +1,8 @@
 use super::{WriteMsg, apply_write_msg, invalidate_side_effects};
-use crate::store_index::{SideEffectsDiff, StoreIndex, tests::sample_index};
+use crate::store_index::{
+    SideEffectsDiff, StoreIndex,
+    tests::{sample_index, total_changes},
+};
 use pretty_assertions::assert_eq;
 use std::collections::HashMap;
 use tempfile::tempdir;
@@ -21,11 +24,11 @@ fn side_effects_invalidation_does_not_queue_unchanged_rows() {
         row.side_effects = side_effects;
         index.set(key, &row).unwrap();
         let mut pending = HashMap::new();
-        let writes = index.sqlite_conn().total_changes();
+        let writes = total_changes(&index);
         invalidate_side_effects(&index, &mut pending, key, "test-engine").unwrap();
         dbg!(&row, &pending);
         assert!(pending.is_empty());
-        assert_eq!(index.sqlite_conn().total_changes(), writes);
+        assert_eq!(total_changes(&index), writes);
 
         row.requires_build = Some(true);
         let mut replacement = index.get(key).unwrap().unwrap();
