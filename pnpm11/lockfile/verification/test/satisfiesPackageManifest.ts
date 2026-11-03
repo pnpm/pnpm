@@ -545,3 +545,13 @@ test('satisfiesPackageManifest() checks a registry-qualified version against the
     detailedReason: 'The importer resolution is broken at dependency "@work/foo": version "2.0.0" doesn\'t satisfy range "^1.0.0"',
   })
 })
+
+test.each(['*', 'x', '>=0', '', '^1.0.0 || '])('satisfiesPackageManifest() accepts a prerelease resolved from %j', (range) => {
+  expect(satisfiesPackageManifest({}, {
+    dependencies: { 'only-pre': '1.0.0-alpha.0' },
+    specifiers: { 'only-pre': range },
+  }, {
+    ...DEFAULT_PKG_FIELDS,
+    dependencies: { 'only-pre': range },
+  })).toStrictEqual({ satisfies: true })
+})
