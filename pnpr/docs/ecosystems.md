@@ -298,8 +298,8 @@ by putting its `integrity` in the attachment in place of `data`:
 pnpr reads the archive while it stages the publish and verifies it against
 the version's `dist` as it verifies an inline archive. Once a publish commits,
 the archives it claimed stop counting against the account, and the next sweep
-removes them. One publish references at most 2 GiB of staged archives, each
-reference counted. An archive the publishing account has not staged, or one
+removes them. One publish names at most 256 staged archives and 2 GiB of
+them, each reference counted. An archive the publishing account has not staged, or one
 that has expired, fails the whole publish with `400`, and nothing of it is
 published. With [SQLite metadata](storage.md#sqlite-metadata), a retry of a
 committed request gets the recorded outcome without reading its archives
