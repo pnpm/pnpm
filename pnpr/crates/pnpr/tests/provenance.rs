@@ -110,7 +110,7 @@ fn doc_with_sigstore(
         .as_str()
         .unwrap()
         .to_string();
-    let purl = format!("pkg:npm/{name}@{version}");
+    let purl = format!("pkg:npm/{}@{version}", name.replacen('@', "%40", 1));
     doc_with_bundle(doc, sig_filename, &naming(sig_bundle, &[(&purl, &integrity)]))
 }
 
