@@ -176,6 +176,8 @@ pub struct LockfileReuseOptions {
     /// skips verifying the input lockfile (it still reuses it for
     /// resolution), mirroring the local `--trust-lockfile` opt-out.
     pub trust_lockfile: bool,
+    /// The lockfile formats the client reads, such as `9.0` and `13.0`.
+    /// pnpr refuses a result in any other format instead of downgrading it.
     pub accepted_lockfile_formats: Vec<String>,
 }
 
