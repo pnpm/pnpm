@@ -14,7 +14,7 @@
 //! Every method blocks. The shared layer calls them on the blocking pool.
 
 use pnpr_error::{RegistryError, Result};
-use std::fmt;
+use std::{fmt, time::Instant};
 
 /// The database a read runs on.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -84,9 +84,19 @@ pub(crate) trait Adapter: fmt::Debug + Send + Sync {
         false
     }
 
-    /// Bring the replica up to date with the primary.
-    fn sync_replica(&self) -> Result<()> {
+    /// Bring the replica up to date with the primary, unless a sync finished
+    /// after `since`. A replica that cannot sync is left
+    /// stale, so its reads sync first or go to the primary.
+    fn sync_replica(&self, since: Instant) -> Result<()> {
+        let _ = since;
         Ok(())
+    }
+
+    /// Whether `error` came from the database rather than from the
+    /// operation, so the same read may succeed on another source.
+    fn is_database_failure(&self, error: &RegistryError) -> bool {
+        let _ = error;
+        false
     }
 }
 

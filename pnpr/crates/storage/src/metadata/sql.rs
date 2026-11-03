@@ -58,7 +58,8 @@ use pnpr_error::{RegistryError, Result};
 use pnpr_package_name::{CanonicalPackageName, Ecosystem};
 use std::{
     path::Path,
-    sync::{Arc, OnceLock},
+    sync::{Arc, Mutex, OnceLock, PoisonError},
+    time::Instant,
 };
 use transactions::Freshness;
 
@@ -70,6 +71,9 @@ pub struct SqlMetadata {
     name: String,
     /// Set once the schema is known to be the one this pnpr reads.
     schema: OnceLock<()>,
+    /// Held while the schema is checked, so concurrent first operations
+    /// check it once.
+    schema_check: Mutex<()>,
     cache: cache::RenderCache,
 }
 
@@ -147,12 +151,22 @@ impl SqlMetadata {
     /// a new database, before the first operation. `name` names the
     /// database in errors.
     fn with_adapter(adapter: Box<dyn Adapter>, name: String) -> Self {
-        Self { adapter, name, schema: OnceLock::new(), cache: cache::RenderCache::default() }
+        Self {
+            adapter,
+            name,
+            schema: OnceLock::new(),
+            schema_check: Mutex::new(()),
+            cache: cache::RenderCache::default(),
+        }
     }
 
     /// Create the schema in a new database, and refuse one written by another
     /// pnpr layout.
     fn ensure_schema(&self) -> Result<()> {
+        if self.schema.get().is_some() {
+            return Ok(());
+        }
+        let _check = self.schema_check.lock().unwrap_or_else(PoisonError::into_inner);
         if self.schema.get().is_some() {
             return Ok(());
         }
@@ -171,9 +185,13 @@ impl SqlMetadata {
                 ),
             });
         }
-        // A replica bootstrapped before the schema existed lacks its tables.
-        self.adapter.sync_replica()?;
         let _ = self.schema.set(());
+        // A replica bootstrapped before the schema existed lacks its tables.
+        // One that cannot sync now is left stale, and its reads sync first or
+        // go to the primary.
+        if let Err(error) = self.adapter.sync_replica(Instant::now()) {
+            tracing::warn!(%error, "the metadata replica could not sync; reads use the primary");
+        }
         Ok(())
     }
 

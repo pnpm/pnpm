@@ -9,7 +9,10 @@ use super::{
     catalog_generation,
 };
 use pnpr_error::{RegistryError, Result};
-use std::{sync::Arc, time::Duration};
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 /// How many times a write runs before a conflict it keeps meeting fails it.
 const WRITE_ATTEMPTS: u32 = 4;
@@ -116,16 +119,35 @@ impl SqlMetadata {
             Some(minimum) if self.adapter.has_replica() => minimum,
             _ => return self.read_primary(&mut operation),
         };
+        let started = Instant::now();
         let behind = Some((catalog, required));
-        if let Some(output) = self.read_once(ReadSource::Replica, behind, &mut operation)? {
+        if let Some(output) = self.read_replica(behind, &mut operation)? {
             return Ok(output);
         }
-        if self.adapter.sync_replica().is_ok()
-            && let Some(output) = self.read_once(ReadSource::Replica, behind, &mut operation)?
+        // The replica is behind `required`. A sync the first read made
+        // already counts.
+        if self.adapter.sync_replica(started).is_ok()
+            && let Some(output) = self.read_replica(behind, &mut operation)?
         {
             return Ok(output);
         }
         self.read_primary(&mut operation)
+    }
+
+    /// Run `operation` on the replica once it has reached `required`. `None`
+    /// when it has not, or when the replica failed where the primary may not.
+    fn read_replica<Output>(
+        &self,
+        required: Option<(&str, u64)>,
+        operation: &mut impl FnMut(&dyn Connection, &RenderCache) -> Result<Output>,
+    ) -> Result<Option<Output>> {
+        match self.read_once(ReadSource::Replica, required, operation) {
+            Err(error) if self.adapter.is_database_failure(&error) => {
+                tracing::warn!(%error, "a metadata read of the replica failed; reading the primary");
+                Ok(None)
+            }
+            result => result,
+        }
     }
 
     fn read_primary<Output>(

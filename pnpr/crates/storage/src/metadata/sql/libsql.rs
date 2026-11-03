@@ -25,7 +25,8 @@ use std::{
 };
 use tokio::runtime::Handle;
 
-/// How long a read, or a write's wait for a connection, may take.
+/// How long a wait for a connection may take, and then a read's statements.
+/// A write's statements have no deadline.
 const OPERATION_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// How long opening the database may take, the replica's initial sync
@@ -126,7 +127,7 @@ async fn keep_synced(opened: Weak<Opened>, interval: Duration) {
         tokio::time::sleep(interval).await;
         let Some(opened) = opened.upgrade() else { return };
         if let Some(replica) = &opened.replica
-            && let Err(error) = replica.sync().await
+            && let Err(error) = replica.sync(Instant::now()).await
         {
             tracing::warn!(%error, "the metadata replica could not sync; reads use the primary");
         }
@@ -185,11 +186,11 @@ impl Replica {
         lock(&self.synced).mark_stale();
     }
 
-    /// Pull the primary's latest frames, unless a sync that finished while
-    /// this one waited for its turn already did. A write of this process
-    /// that commits during the pull leaves the replica stale.
-    async fn sync(&self) -> Result<()> {
-        let requested = Instant::now();
+    /// Pull the primary's latest frames, unless a sync finished after
+    /// `requested`, such as one that finished while this one waited for its
+    /// turn. A write of this process that commits during the pull leaves the
+    /// replica stale.
+    async fn sync(&self, requested: Instant) -> Result<()> {
         let _turn = self.syncing.lock().await;
         if lock(&self.synced).synced_since(requested) {
             return Ok(());
@@ -207,7 +208,9 @@ impl Adapter for LibsqlAdapter {
         let opened = self.opened(&runtime)?;
         let _writer = lock(&self.writer);
         let checkout = runtime.block_on(opened.primary.checkout())?;
-        let result = run(&runtime, checkout, false, operation);
+        // A write cut off after it reached the primary leaves its commit
+        // state unknown, so its statements run without a deadline.
+        let result = run(&runtime, checkout, false, None, operation);
         if let Some(replica) = &opened.replica {
             replica.mark_stale();
         }
@@ -228,14 +231,19 @@ impl Adapter for LibsqlAdapter {
         // A sync that a write of this process overtook leaves the replica
         // stale, and the read goes to the primary.
         let replica = replica.filter(|replica| {
-            replica.is_fresh() || (runtime.block_on(replica.sync()).is_ok() && replica.is_fresh())
+            replica.is_fresh()
+                || (runtime
+                    .block_on(replica.sync(Instant::now()))
+                    .is_ok()
+                    && replica.is_fresh())
         });
         let (pool, local) = match replica {
             Some(replica) => (&replica.pool, true),
             None => (&opened.primary, false),
         };
         let checkout = runtime.block_on(pool.checkout())?;
-        run(&runtime, checkout, local, operation)
+        let deadline = tokio::time::Instant::now() + OPERATION_TIMEOUT;
+        run(&runtime, checkout, local, Some(deadline), operation)
     }
 
     fn is_retryable(&self, error: &RegistryError) -> bool {
@@ -246,25 +254,33 @@ impl Adapter for LibsqlAdapter {
         self.settings.replica_path.is_some()
     }
 
-    fn sync_replica(&self) -> Result<()> {
+    fn sync_replica(&self, since: Instant) -> Result<()> {
         let runtime = Handle::current();
         let opened = self.opened(&runtime)?;
-        match &opened.replica {
-            Some(replica) => runtime.block_on(replica.sync()),
-            None => Ok(()),
+        let Some(replica) = &opened.replica else { return Ok(()) };
+        let synced = runtime.block_on(replica.sync(since));
+        if synced.is_err() {
+            replica.mark_stale();
         }
+        synced
+    }
+
+    fn is_database_failure(&self, error: &RegistryError) -> bool {
+        matches!(error, RegistryError::Libsql(_) | RegistryError::StorageUnavailable { .. })
     }
 }
 
 /// Run `operation` on the checked-out connection, which reads the local
-/// replica when `local`, and return the connection to its pool.
+/// replica when `local`, and return the connection to its pool. Its
+/// statements fail once `deadline` passes, and the connection is then closed.
 fn run(
     runtime: &Handle,
     checkout: Checkout<'_>,
     local: bool,
+    deadline: Option<tokio::time::Instant>,
     operation: &mut dyn FnMut(&dyn Connection) -> Result<()>,
 ) -> Result<()> {
-    let statements = Statements { runtime, conn: checkout.connection(), local };
+    let statements = Statements { runtime, conn: checkout.connection(), local, deadline };
     let result = operation(&statements);
     checkout.release(result.is_ok());
     result
@@ -287,16 +303,31 @@ struct Statements<'conn> {
     conn: &'conn libsql::Connection,
     /// Whether the connection reads the embedded replica.
     local: bool,
+    /// When a read's statements stop waiting for the database. A write's
+    /// have none.
+    deadline: Option<tokio::time::Instant>,
+}
+
+impl Statements<'_> {
+    /// Wait for `statement`, failing with [`timed_out`] past the deadline.
+    fn wait<Output>(&self, statement: impl Future<Output = Result<Output>>) -> Result<Output> {
+        match self.deadline {
+            Some(deadline) => self.runtime
+                .block_on(tokio::time::timeout_at(deadline, statement))
+                .unwrap_or_else(|_| Err(timed_out())),
+            None => self.runtime.block_on(statement),
+        }
+    }
 }
 
 impl Connection for Statements<'_> {
     fn execute(&self, sql: &str, params: &[Param<'_>]) -> Result<usize> {
-        let changed = self.runtime.block_on(self.conn.execute(sql, to_params(params)))?;
+        let changed = self.wait(async { Ok(self.conn.execute(sql, to_params(params)).await?) })?;
         Ok(usize::try_from(changed).unwrap_or(usize::MAX))
     }
 
     fn query(&self, sql: &str, params: &[Param<'_>]) -> Result<Vec<Row>> {
-        self.runtime.block_on(async {
+        self.wait(async {
             let mut rows = self.conn.query(sql, to_params(params)).await?;
             let columns = rows.column_count();
             let mut collected = Vec::new();
@@ -311,8 +342,10 @@ impl Connection for Statements<'_> {
     }
 
     fn execute_batch(&self, sql: &str) -> Result<()> {
-        self.runtime.block_on(self.conn.execute_batch(sql))?;
-        Ok(())
+        self.wait(async {
+            self.conn.execute_batch(sql).await?;
+            Ok(())
+        })
     }
 
     fn begin_write(&self) -> Result<()> {
