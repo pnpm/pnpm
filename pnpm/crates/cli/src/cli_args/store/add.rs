@@ -28,6 +28,18 @@ mod downloaded_tarball;
 #[diagnostic(code(ERR_PNPM_STORE_ADD_FAILURE))]
 pub struct StoreAddFailureError;
 
+/// `store add` exists to write to the store, which `frozenStore` opens
+/// read-only.
+#[derive(Debug, Display, Error, Diagnostic)]
+#[display(
+    "Cannot add packages to the store because frozenStore is enabled (the store is opened read-only)"
+)]
+#[diagnostic(
+    code(ERR_PNPM_FROZEN_STORE_WRITE),
+    help("Turn off frozenStore to add packages to the store.")
+)]
+pub struct FrozenStoreAddError;
+
 /// A specifier that resolved to something this command cannot put in the
 /// store.
 ///
@@ -88,16 +100,15 @@ pub(super) async fn run<Reporter: self::Reporter>(
     if packages.is_empty() {
         return Ok(());
     }
+    if config.frozen_store {
+        return Err(FrozenStoreAddError.into());
+    }
     Reporter::emit(&LogEvent::Global(GlobalLog {
         level: LogLevel::Debug,
         message: "Waiting for the store add operation lock".to_string(),
     }));
-    let _store_lock = if config.frozen_store {
-        config.store_dir.lock_for_frozen_use()
-    } else {
-        config.store_dir.lock_for_use()
-    }
-    .wrap_err("lock the store while adding packages")?;
+    let _store_lock =
+        config.store_dir.lock_for_use().wrap_err("lock the store while adding packages")?;
     Reporter::emit(&LogEvent::Global(GlobalLog {
         level: LogLevel::Debug,
         message: "Acquired the store add operation lock".to_string(),
@@ -122,14 +133,9 @@ async fn add_packages<Reporter: self::Reporter>(
         ..ResolveOptions::default()
     };
 
-    // Both halves honour `frozenStore`, so a read-only store root gains
-    // neither an `index.db` write nor its WAL / SHM sidecars.
-    let store_index = StoreIndex::open_shared(&config.store_dir, config.frozen_store).await;
-    let (store_index_writer, writer_task) = StoreIndexWriter::spawn_for(
-        &config.store_dir,
-        config.frozen_store,
-        config.store_index_format,
-    );
+    let store_index = StoreIndex::open_shared(&config.store_dir, false).await;
+    let (store_index_writer, writer_task) =
+        StoreIndexWriter::spawn_in_format(&config.store_dir, config.store_index_format);
     let verified_files_cache = SharedVerifiedFilesCache::default();
     let requester = dir.display().to_string();
 

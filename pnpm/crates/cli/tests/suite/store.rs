@@ -463,6 +463,23 @@ fn store_add_fetches_a_package_without_touching_the_project() {
     );
 }
 
+#[test]
+fn store_add_fails_without_touching_a_frozen_store() {
+    let CommandTempCwd {
+        pacquet, root: _root, npmrc_info, ..
+    } = CommandTempCwd::init().add_mocked_registry();
+
+    let output = pacquet
+        .with_args(["store", "add", "--frozen-store", "is-odd@3.0.1"])
+        .output()
+        .expect("run store add");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    eprintln!("STDERR:\n{stderr}");
+    assert!(!output.status.success());
+    assert!(stderr.contains("ERR_PNPM_FROZEN_STORE_WRITE"));
+    assert!(!npmrc_info.store_dir.exists(), "a frozen store must stay untouched");
+}
+
 /// The hash a lockfile entry pins a registry package's tarball by.
 #[derive(Clone, Copy, PartialEq)]
 enum PinnedHash {
