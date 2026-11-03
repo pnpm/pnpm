@@ -229,11 +229,21 @@ fn recorded_specifier(spec: &str) -> Option<serde_json::Value> {
     (!checked).then(|| "*".into())
 }
 
-/// Whether `text` has an `@` after a `:`, the shape of the `user:password@`
-/// part of a URL or of an SCP-style Git address.
+/// Whether `text` may hold a credential: it has an `@` after a `:`, the
+/// shape of a `user:password@` part or of an SCP-style Git address, or a
+/// URL authority with an `@`, the shape of a token given as the user name.
 fn may_hold_credential(text: &str) -> bool {
-    text.find(':')
-        .is_some_and(|colon| text[colon..].contains('@'))
+    let after_colon = text
+        .find(':')
+        .is_some_and(|colon| text[colon..].contains('@'));
+    let in_authority = text
+        .split_once("//")
+        .is_some_and(|(_, rest)| {
+            rest.split('/')
+                .next()
+                .is_some_and(|authority| authority.contains('@'))
+        });
+    after_colon || in_authority
 }
 
 /// The lowercased scheme `spec` starts with, such as `https` or `git+ssh`.
