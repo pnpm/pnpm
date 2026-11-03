@@ -474,8 +474,8 @@ async fn update_packument_rejects_seeding_a_package_with_no_published_packument(
     );
 
     assert!(
-        !pnpr_fixtures::read_hosted_document(&storage, "", pnpr_storage::Ecosystem::Npm, "ghost")
-            .is_some()
+        pnpr_fixtures::read_hosted_document(&storage, "", pnpr_storage::Ecosystem::Npm, "ghost")
+            .is_none(),
     );
 }
 
@@ -718,8 +718,8 @@ async fn publish_rejects_integrity_mismatch_and_leaves_no_artifacts() {
 
     // Neither the packument nor the tarball should have been written.
     assert!(
-        !pnpr_fixtures::read_hosted_document(&storage, "", pnpr_storage::Ecosystem::Npm, "bad-pkg")
-            .is_some(),
+        pnpr_fixtures::read_hosted_document(&storage, "", pnpr_storage::Ecosystem::Npm, "bad-pkg")
+            .is_none(),
         "packument must not be written when integrity check fails",
     );
     assert!(
@@ -760,13 +760,13 @@ async fn publish_rejects_shasum_mismatch() {
         "shasum mismatch must surface EINTEGRITY: {body_text}",
     );
     assert!(
-        !pnpr_fixtures::read_hosted_document(
+        pnpr_fixtures::read_hosted_document(
             &storage,
             "",
             pnpr_storage::Ecosystem::Npm,
             "shasum-pkg"
         )
-        .is_some(),
+        .is_none(),
     );
 }
 
@@ -797,13 +797,13 @@ async fn publish_rejects_missing_integrity_field() {
         "missing integrity must surface a clear EINTEGRITY message: {body_text}",
     );
     assert!(
-        !pnpr_fixtures::read_hosted_document(
+        pnpr_fixtures::read_hosted_document(
             &storage,
             "",
             pnpr_storage::Ecosystem::Npm,
             "no-int-pkg"
         )
-        .is_some(),
+        .is_none(),
     );
 }
 
@@ -969,7 +969,7 @@ async fn publish_supports_scoped_packages() {
             pnpr_storage::Ecosystem::Npm,
             "@scope/pkg"
         )
-        .is_some()
+        .is_some(),
     );
     assert!(
         local_blob_path(&storage, "", pnpr_storage::Ecosystem::Npm, "@scope/pkg", "pkg-1.0.0.tgz")

@@ -371,7 +371,7 @@ async fn unpublish_package_without_rev_suffix() {
         );
         assert!(
             pnpr_fixtures::read_hosted_document(&storage, "", pnpr_storage::Ecosystem::Npm, pkg)
-                .is_some()
+                .is_some(),
         );
 
         let delete = Request::delete(path)

@@ -1,11 +1,14 @@
 pub mod presets;
+pub use metadata::{
+    deprecate_version, read_hosted_document, read_packument, remove_version, set_dist_tag,
+    write_hosted_document, write_packuments,
+};
 pub use presets::{
     MockConfigPresets, REGISTRY_MOCK_LOCAL_PATTERNS, TAR_REGISTRY, proxy_config,
     registry_mock_graph, registry_mock_rules, static_serve_config, with_tar_registry,
 };
 
 mod metadata;
-pub use metadata::{read_hosted_document, read_packument, write_hosted_document, write_packuments};
 mod tarball;
 use tarball::{build_tarball, fixture_files};
 
@@ -113,85 +116,11 @@ pub fn build_storage_at_with_edits(
     build_storage(packages, out, substitutions, removed_fields);
 }
 
-/// Point `tag` at `version` in a built storage tree — the fixture-side
-/// equivalent of the JS harness's `addDistTag`, and the only way to give a
-/// package a `latest` other than its highest published version.
-///
-/// `time.modified` moves with the tag, the same as pnpr's own
-/// `PUT /-/package/:pkg/dist-tags/:tag` — it is what the served
-/// `Last-Modified` is derived from.
-///
-/// Only call this on a tree the test owns, never on the process-global
-/// storage every other test reads — see [`build_storage_at`].
-pub fn set_dist_tag(storage: &Path, package: &str, version: &str, tag: &str) {
-    let packument = metadata::read_packument(storage, package);
-    assert!(
-        packument
-            .get("versions")
-            .and_then(Value::as_object)
-            .is_some_and(|versions| versions.contains_key(version)),
-        "{package} has no fixture version {version} to tag as {tag}",
-    );
-    metadata::move_tag(storage, package, version, tag);
-}
-
-/// Deprecate `package@version` with `message` in a built storage tree.
-///
-/// Only call this on a tree the test owns, as with [`set_dist_tag`].
-pub fn deprecate_version(storage: &Path, package: &str, version: &str, message: &str) {
-    metadata::edit_packument(storage, package, |packument_object| {
-        packument_object
-            .get_mut("versions")
-            .and_then(|versions| versions.get_mut(version))
-            .and_then(Value::as_object_mut)
-            .unwrap_or_else(|| panic!("{package} has no fixture version {version}"))
-            .insert("deprecated".to_string(), json!(message));
-    });
-}
-
-/// Drop `version` from the registry metadata of `package` in a built storage
-/// tree, so the registry serves the package as one that never published it. A
-/// `dist-tags` entry naming it moves to the highest version left. The tarball
-/// stays, which no resolution reaches.
-///
-/// Only call this on a tree the test owns, as with [`set_dist_tag`].
-pub fn remove_version(storage: &Path, package: &str, version: &str) {
-    metadata::edit_packument(storage, package, |packument_object| {
-        let versions = packument_object
-            .get_mut("versions")
-            .and_then(Value::as_object_mut)
-            .unwrap_or_else(|| panic!("{package} has fixture versions"));
-        assert!(versions.remove(version).is_some(), "{package} has no fixture version {version}");
-        let highest = versions
-            .keys()
-            .filter_map(|left| left.parse::<Version>().ok())
-            .max()
-            .unwrap_or_else(|| panic!("{package} keeps a version after removing {version}"))
-            .to_string();
-        move_dist_tags(packument_object, version, &highest);
-        if let Some(time) = packument_object.get_mut("time").and_then(Value::as_object_mut) {
-            time.remove(version);
-        }
-    });
-}
-
 /// Where a built storage tree holds the tarball of `package@version`.
 #[must_use]
 pub fn tarball_path(storage: &Path, package: &str, version: &str) -> PathBuf {
     let file = format!("{}-{version}.tgz", tarball_basename(package));
     local_blob_path(storage, "", Ecosystem::Npm, package, &file)
-}
-
-/// Point every `dist-tags` entry naming `from` at `to`.
-fn move_dist_tags(packument_object: &mut Map<String, Value>, from: &str, to: &str) {
-    let Some(tags) = packument_object.get_mut("dist-tags").and_then(Value::as_object_mut) else {
-        return;
-    };
-    for tag in tags.values_mut() {
-        if tag.as_str() == Some(from) {
-            *tag = json!(to);
-        }
-    }
 }
 
 fn workspace_root() -> PathBuf {

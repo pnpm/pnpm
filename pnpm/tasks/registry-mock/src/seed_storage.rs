@@ -46,33 +46,32 @@ pub fn seed_runtime_storage() -> io::Result<usize> {
             .path()
             .strip_prefix(src)
             .expect("entry under src");
-        let dest_path = dest.join(rel);
-        if rel == database {
-            if replace_database(entry.path(), &dest_path)? {
-                seeded += 1;
-            }
-            continue;
-        }
-        // The database's write-ahead log and shared memory belong to
-        // whichever pnpr has the fixture database open.
-        if rel.parent() == database.parent() {
-            continue;
-        }
-        if let Some(parent) = dest_path.parent() {
-            fs::create_dir_all(parent)?;
-        }
-        // We don't pre-check `dest_path.exists()` — a TOCTOU window
-        // is wide enough on a shared CI worker (two pacquet
-        // processes racing past `GuardFile`) that the existence
-        // check could pass and then `hard_link` still trip
-        // `AlreadyExists`. Treat that as success directly inside
-        // `link_or_copy`.
-        match link_or_copy(entry.path(), &dest_path)? {
-            LinkOutcome::Created => seeded += 1,
-            LinkOutcome::AlreadyExists => {}
+        if seed_file(entry.path(), rel, &dest.join(rel), &database)? {
+            seeded += 1;
         }
     }
     Ok(seeded)
+}
+
+/// Seed the fixture file at `src`, at `rel` in the fixture storage, to
+/// `dest`, and report whether it was new there.
+fn seed_file(src: &Path, rel: &Path, dest: &Path, database: &Path) -> io::Result<bool> {
+    if rel == database {
+        return replace_database(src, dest);
+    }
+    // The database's write-ahead log and shared memory belong to whichever
+    // pnpr has the fixture database open.
+    if rel.parent() == database.parent() {
+        return Ok(false);
+    }
+    if let Some(parent) = dest.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    // We don't pre-check `dest.exists()` — a TOCTOU window is wide enough
+    // on a shared CI worker (two pacquet processes racing past `GuardFile`)
+    // that the existence check could pass and then `hard_link` still trip
+    // `AlreadyExists`. Treat that as success directly inside `link_or_copy`.
+    Ok(matches!(link_or_copy(src, dest)?, LinkOutcome::Created))
 }
 
 /// Copy the database at `src` over `dest` unless `dest` was copied from

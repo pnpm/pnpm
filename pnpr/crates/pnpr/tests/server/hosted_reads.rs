@@ -237,13 +237,13 @@ async fn publish_to_hosted_round_trips_in_its_own_namespace() {
         "published packument should be in the org namespace",
     );
     assert!(
-        !pnpr_fixtures::read_hosted_document(
+        pnpr_fixtures::read_hosted_document(
             tmp.path(),
             "",
             pnpr_storage::Ecosystem::Npm,
             "@acme/widget"
         )
-        .is_some(),
+        .is_none(),
         "nothing should be written to the default namespace",
     );
 
@@ -382,13 +382,13 @@ async fn hosted_registry_patterns_bound_publish_and_reads_on_every_path() {
         assert_eq!(rejected.status(), StatusCode::BAD_REQUEST, "publish {url} must be rejected");
     }
     assert!(
-        !pnpr_fixtures::read_hosted_document(
+        pnpr_fixtures::read_hosted_document(
             tmp.path(),
             "acme",
             pnpr_storage::Ecosystem::Npm,
             "@typo/widget"
         )
-        .is_some(),
+        .is_none(),
         "an off-pattern publish must write nothing",
     );
 
@@ -581,13 +581,13 @@ async fn private_hosted_registry_denies_writes_from_non_members() {
         .unwrap();
     assert_eq!(denied.status(), StatusCode::NOT_FOUND);
     assert!(
-        !pnpr_fixtures::read_hosted_document(
+        pnpr_fixtures::read_hosted_document(
             tmp.path(),
             "corp",
             pnpr_storage::Ecosystem::Npm,
             "@corp/tool"
         )
-        .is_some(),
+        .is_none(),
         "a denied publish must write nothing",
     );
 

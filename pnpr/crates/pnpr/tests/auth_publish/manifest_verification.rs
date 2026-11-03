@@ -78,13 +78,13 @@ async fn a_dependency_the_submitted_metadata_misstates_is_rejected() {
     assert!(reason.contains("dependencies.core"), "{reason}");
     assert!(reason.contains("scripts"), "{reason}");
     assert!(
-        !pnpr_fixtures::read_hosted_document(
+        pnpr_fixtures::read_hosted_document(
             tmp.path(),
             "",
             pnpr_storage::Ecosystem::Npm,
             "widgets"
         )
-        .is_some(),
+        .is_none(),
         "a rejected publish must write nothing",
     );
 }

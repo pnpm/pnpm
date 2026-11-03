@@ -6,18 +6,93 @@
 //! a thread and runtime of its own, so a caller inside an async runtime can
 //! use them too.
 
+use node_semver::Version;
 use pnpr_config::{HostedStoreConfig, MetadataBackend, default_cache_dir, default_metadata_path};
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_registry::Ecosystem;
 use pnpr_storage::{
     HostedDocumentVersion, Storage,
-    metadata::{BatchDocument, PublishNotes, SqlMetadata, TagChange, TagUpdate},
+    metadata::{BatchDocument, PublishNotes, ReleaseRecords, SqlMetadata, TagChange, TagUpdate},
 };
-use serde_json::{Map, Value};
+use serde_json::{Map, Value, json};
 use std::{future::Future, path::Path, sync::Arc};
 
 /// How many times an edit retries a write that lost to a concurrent one.
 const EDIT_RETRIES: usize = 8;
+
+/// Point `tag` at `version` in a built storage tree — the fixture-side
+/// equivalent of the JS harness's `addDistTag`, and the only way to give a
+/// package a `latest` other than its highest published version.
+///
+/// `time.modified` moves with the tag, the same as pnpr's own
+/// `PUT /-/package/:pkg/dist-tags/:tag` — it is what the served
+/// `Last-Modified` is derived from.
+///
+/// Only call this on a tree the test owns, never on the process-global
+/// storage every other test reads — see [`crate::build_storage_at`].
+pub fn set_dist_tag(storage: &Path, package: &str, version: &str, tag: &str) {
+    let packument = read_packument(storage, package);
+    assert!(
+        packument
+            .get("versions")
+            .and_then(Value::as_object)
+            .is_some_and(|versions| versions.contains_key(version)),
+        "{package} has no fixture version {version} to tag as {tag}",
+    );
+    move_tag(storage, package, version, tag);
+}
+
+/// Deprecate `package@version` with `message` in a built storage tree.
+///
+/// Only call this on a tree the test owns, as with [`set_dist_tag`].
+pub fn deprecate_version(storage: &Path, package: &str, version: &str, message: &str) {
+    edit_packument(storage, package, |packument_object| {
+        packument_object
+            .get_mut("versions")
+            .and_then(|versions| versions.get_mut(version))
+            .and_then(Value::as_object_mut)
+            .unwrap_or_else(|| panic!("{package} has no fixture version {version}"))
+            .insert("deprecated".to_string(), json!(message));
+    });
+}
+
+/// Drop `version` from the registry metadata of `package` in a built storage
+/// tree, so the registry serves the package as one that never published it. A
+/// `dist-tags` entry naming it moves to the highest version left. The tarball
+/// stays, which no resolution reaches.
+///
+/// Only call this on a tree the test owns, as with [`set_dist_tag`].
+pub fn remove_version(storage: &Path, package: &str, version: &str) {
+    edit_packument(storage, package, |packument_object| {
+        let versions = packument_object
+            .get_mut("versions")
+            .and_then(Value::as_object_mut)
+            .unwrap_or_else(|| panic!("{package} has fixture versions"));
+        assert!(versions.remove(version).is_some(), "{package} has no fixture version {version}");
+        let highest = versions
+            .keys()
+            .filter_map(|left| left.parse::<Version>().ok())
+            .max()
+            .unwrap_or_else(|| panic!("{package} keeps a version after removing {version}"))
+            .to_string();
+        move_dist_tags(packument_object, version, &highest);
+        if let Some(time) = packument_object.get_mut("time").and_then(Value::as_object_mut) {
+            time.remove(version);
+        }
+    });
+}
+
+/// Point every `dist-tags` entry naming `from` at `to`.
+fn move_dist_tags(packument_object: &mut Map<String, Value>, from: &str, to: &str) {
+    let Some(tags) = packument_object.get_mut("dist-tags").and_then(Value::as_object_mut) else {
+        return;
+    };
+    for tag in tags.values_mut() {
+        if tag.as_str() == Some(from) {
+            *tag = json!(to);
+        }
+    }
+}
 
 /// Commit `packuments`, by package name, to the metadata of the storage at
 /// `storage` in one transaction, whatever it held for them before. A
@@ -32,7 +107,7 @@ pub fn write_packuments(storage: &Path, packuments: Vec<(String, Value)>) {
             bytes: serde_json::to_vec(&packument).expect("serialize fixture packument"),
             expected: Some(HostedDocumentVersion::Unversioned),
             principal: None,
-            records: Default::default(),
+            records: ReleaseRecords::default(),
         })
         .collect();
     run(async move {
@@ -51,6 +126,7 @@ pub fn write_packuments(storage: &Path, packuments: Vec<(String, Value)>) {
 
 /// The stored packument of `package`, as a running registry would serve it
 /// before rewriting its URLs.
+#[must_use]
 pub fn read_packument(storage: &Path, package: &str) -> Value {
     let bytes = read_hosted_document(storage, "", Ecosystem::Npm, package)
         .unwrap_or_else(|| panic!("no fixture package {package}"));
@@ -60,6 +136,7 @@ pub fn read_packument(storage: &Path, package: &str) -> Value {
 /// The stored document of `name` in the `ecosystem` namespace of `org`
 /// (`""` for the default one) of the storage at `storage`, or `None` when it
 /// holds none.
+#[must_use]
 pub fn read_hosted_document(
     storage: &Path,
     org: &str,
@@ -103,7 +180,7 @@ pub fn write_hosted_document(
 /// Rewrite the packument of `package` with `edit`, through the store's
 /// own rules: a version's accepted manifest never changes, a dropped version
 /// is removed, and tags and deprecations change in place.
-pub(crate) fn edit_packument(
+fn edit_packument(
     storage: &Path,
     package: &str,
     mut edit: impl FnMut(&mut Map<String, Value>) + Send,
@@ -125,7 +202,7 @@ pub(crate) fn edit_packument(
 }
 
 /// Point `tag` of `package` at `version`.
-pub(crate) fn move_tag(storage: &Path, package: &str, version: &str, tag: &str) {
+fn move_tag(storage: &Path, package: &str, version: &str, tag: &str) {
     let store = open(storage);
     let name = canonical(package, Ecosystem::Npm);
     run(async move {
