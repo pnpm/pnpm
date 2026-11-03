@@ -143,3 +143,51 @@ fn update_with_an_exclusion_does_not_override_an_explicit_crate_request() {
     assert!(output.status.success(), "stdout:\n{stdout}\nstderr:\n{stderr}");
     assert_eq!(fs::read_to_string(workspace.join("Cargo.toml")).unwrap(), original);
 }
+
+#[test]
+fn recursive_update_resolves_a_cargo_workspace_once_for_all_its_members() {
+    let root = tempfile::tempdir().unwrap();
+    let workspace = setup_workspace(root.path());
+    let second = workspace.join("crates/cli");
+    fs::create_dir_all(second.join("src")).unwrap();
+    fs::write(second.join("src/lib.rs"), "").unwrap();
+    fs::copy(workspace.join("crates/app/Cargo.toml"), second.join("Cargo.toml")).unwrap();
+    let cargo_toml = fs::read_to_string(second.join("Cargo.toml")).unwrap();
+    fs::write(second.join("Cargo.toml"), cargo_toml.replace(r#"name = "app""#, r#"name = "cli""#))
+        .unwrap();
+    for (dir, name) in [(workspace.join("crates/app"), "app"), (second, "cli")] {
+        fs::write(dir.join("package.json"), format!(r#"{{"name":"{name}","version":"0.1.0"}}"#))
+            .unwrap();
+    }
+    let workspace_yaml = fs::read_to_string(workspace.join("pnpm-workspace.yaml")).unwrap();
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        format!("packages:\n  - crates/*\n{workspace_yaml}"),
+    )
+    .unwrap();
+    let root_manifest = fs::read_to_string(workspace.join("Cargo.toml")).unwrap();
+    fs::write(
+        workspace.join("Cargo.toml"),
+        root_manifest.replace(
+            r#"members = ["crates/app"]"#,
+            r#"members = ["crates/app", "crates/cli"]"#,
+        ),
+    )
+    .unwrap();
+
+    let output = pacquet(&workspace, ["update", "-r", "--latest", "--offline", "--lockfile-only"])
+        .output()
+        .unwrap();
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "stdout:\n{stdout}\nstderr:\n{stderr}");
+    let output = format!("{stdout}{stderr}").replace('│', " ");
+    let output = output
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+    assert_eq!(output.matches("Not updating crate foo 2.0.0").count(), 1, "{output}");
+    let cargo_toml = fs::read_to_string(workspace.join("Cargo.toml")).unwrap();
+    assert!(cargo_toml.contains(r#"bar = "2.0.0""#), "{cargo_toml}");
+}
