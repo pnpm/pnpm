@@ -67,6 +67,14 @@ fn compares_the_version_of_a_project_an_alias_names() {
 }
 
 #[test]
+fn compares_every_version_when_a_dependency_is_a_local_path() {
+    for spec in ["workspace:../lib", "file:../lib", "link:../lib", "../lib"] {
+        let fields = json!({ "dependencies": { "renamed": spec } });
+        assert!(!accepts_lib_bump(fields, &Config::new(), &Catalogs::new()), "{spec}");
+    }
+}
+
+#[test]
 fn compares_the_version_of_a_project_a_catalog_entry_names() {
     let catalogs = Catalogs::from([(
         "default".to_string(),

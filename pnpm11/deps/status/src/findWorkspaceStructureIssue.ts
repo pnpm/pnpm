@@ -1,4 +1,5 @@
 import type { Catalogs } from '@pnpm/catalogs.types'
+import { isFilespec, isLocalFilesystemSpecifier } from '@pnpm/resolving.local-resolver'
 import { WorkspaceSpec } from '@pnpm/workspace.spec-parser'
 import { importerIdOf, projectBinsDigest } from '@pnpm/workspace.state'
 import { equals, filter } from 'ramda'
@@ -45,7 +46,10 @@ function createResolvableProjectsFilter ({ allProjects, opts, workspaceState }: 
   if (allProjects.length === 1) return () => false
   // A pnpmfile hook may add a dependency on any project.
   if (workspaceState.pnpmfiles.length > 0) return () => true
-  const dependedNames = collectDependedNames(allProjects, opts.catalogs)
+  const dependencySpecs = collectDependencySpecs(allProjects, opts.catalogs)
+  // A dependency given by a local path may point at any project under any alias.
+  if (dependencySpecs.some(([, spec]) => spec != null && isLocalPath(spec))) return () => true
+  const dependedNames = new Set(dependencySpecs.map(([alias, spec]) => dependedName(alias, spec)))
   const settingTexts = collectSettingTexts(opts)
   return (name) => name != null &&
     (dependedNames.has(name) || settingTexts.some((text) => text.includes(name)))
@@ -53,18 +57,19 @@ function createResolvableProjectsFilter ({ allProjects, opts, workspaceState }: 
 
 const DEPENDENCY_FIELDS = ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies'] as const
 
-/**
- * The package names the projects' dependencies and the catalog entries name,
- * through an `npm:` or `workspace:` alias where there is one.
- */
-function collectDependedNames (allProjects: WorkspaceDepsStatusContext['allProjects'], catalogs: Catalogs | undefined): Set<string> {
-  const entries = [
+/** The `[alias, spec]` pairs of the projects' dependencies and of the catalog entries. */
+function collectDependencySpecs (allProjects: WorkspaceDepsStatusContext['allProjects'], catalogs: Catalogs | undefined): Array<[string, string | undefined]> {
+  return [
     ...allProjects.flatMap(({ manifest }) => DEPENDENCY_FIELDS.flatMap((field) => Object.entries(manifest[field] ?? {}))),
     ...Object.values(catalogs ?? {}).flatMap((catalog) => Object.entries(catalog ?? {})),
   ]
-  return new Set(entries.map(([alias, spec]) => dependedName(alias, spec)))
 }
 
+function isLocalPath (spec: string): boolean {
+  return isLocalFilesystemSpecifier(spec) || (spec.startsWith('workspace:') && isFilespec(spec.slice('workspace:'.length)))
+}
+
+/** The package name a dependency names, through an `npm:` or `workspace:` alias where there is one. */
 function dependedName (alias: string, spec: string | undefined): string {
   if (spec == null) return alias
   const workspaceSpec = WorkspaceSpec.parse(spec)

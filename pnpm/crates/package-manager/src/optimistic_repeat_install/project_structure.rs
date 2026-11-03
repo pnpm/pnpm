@@ -1,8 +1,12 @@
 //! Whether the workspace still has the projects the last install recorded.
 
-use super::{Config, LinkWorkspacePackages, PackageManifest, PathBuf, manifest_string_field};
+use super::{
+    Config, LinkWorkspacePackages, PackageManifest, PathBuf,
+    local_file_deps::is_workspace_path_spec, manifest_string_field,
+};
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::PackageExtension;
+use pnpm_local_spec::is_local_filesystem_specifier;
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_workspace_spec::WorkspaceSpec;
 use pnpm_workspace_state::WorkspaceState;
@@ -53,8 +57,9 @@ pub(super) fn project_structure_matches(
 /// run against a stale `node_modules`.
 enum ResolvableProjects<'a> {
     /// Under [`LinkWorkspacePackages::Deep`] any transitive dependency may
-    /// resolve to a project, and in a workspace of several projects a
-    /// pnpmfile hook may add a dependency on any of them.
+    /// resolve to a project. In a workspace of several projects a pnpmfile
+    /// hook may add a dependency on any of them, and a dependency given by a
+    /// local path may point at any of them under any alias.
     All,
     /// Outside deep linking, no dependency resolves to a lone project.
     None,
@@ -78,7 +83,14 @@ impl<'a> ResolvableProjects<'a> {
         if !state.pnpmfiles.is_empty() {
             return Self::All;
         }
-        Self::Depended { names: depended_names(project_manifests, catalogs), config }
+        let mut names = HashSet::new();
+        for (alias, spec) in dependency_specs(project_manifests, catalogs) {
+            if is_local_filesystem_specifier(spec) || is_workspace_path_spec(spec) {
+                return Self::All;
+            }
+            names.insert(depended_name(alias, spec));
+        }
+        Self::Depended { names, config }
     }
 
     fn holds(&self, name: Option<&str>) -> bool {
@@ -92,12 +104,12 @@ impl<'a> ResolvableProjects<'a> {
     }
 }
 
-/// The package names the projects' dependencies and the catalog entries
-/// name, through an `npm:` or `workspace:` alias where there is one.
-fn depended_names(
-    project_manifests: &[(PathBuf, &PackageManifest)],
-    catalogs: &Catalogs,
-) -> HashSet<String> {
+/// The `(alias, spec)` pairs of the projects' dependencies and of the
+/// catalog entries.
+fn dependency_specs<'a>(
+    project_manifests: &'a [(PathBuf, &PackageManifest)],
+    catalogs: &'a Catalogs,
+) -> impl Iterator<Item = (&'a str, &'a str)> {
     const GROUPS: [DependencyGroup; 4] = [
         DependencyGroup::Prod,
         DependencyGroup::Dev,
@@ -111,12 +123,11 @@ fn depended_names(
         .values()
         .flatten()
         .map(|(alias, spec)| (alias.as_str(), spec.as_str()));
-    manifest_dependencies
-        .chain(catalog_entries)
-        .map(|(alias, spec)| depended_name(alias, spec))
-        .collect()
+    manifest_dependencies.chain(catalog_entries)
 }
 
+/// The package name a dependency names, through an `npm:` or `workspace:`
+/// alias where there is one.
 fn depended_name(alias: &str, spec: &str) -> String {
     match WorkspaceSpec::parse(spec) {
         Some(workspace_spec) => workspace_spec.alias.unwrap_or_else(|| alias.to_string()),

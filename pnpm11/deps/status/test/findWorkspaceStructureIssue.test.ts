@@ -46,6 +46,16 @@ test.each<Partial<ProjectManifest>>([
   expect(findWorkspaceStructureIssue(context(bumpA(root)))).toBe(STRUCTURE_CHANGED)
 })
 
+test.each([
+  'workspace:../a',
+  'file:../a',
+  'link:../a',
+  '../a',
+])('every version bump in a workspace is a structure change when a dependency is the local path %s', (spec) => {
+  const root = { name: 'root', version: '1.0.0', dependencies: { renamed: spec } }
+  expect(findWorkspaceStructureIssue(context(bumpA(root)))).toBe(STRUCTURE_CHANGED)
+})
+
 test('a version bump of a workspace project a catalog entry names is a structure change', () => {
   const root = { name: 'root', version: '1.0.0', dependencies: { renamed: 'catalog:' } }
   const catalogs = { default: { renamed: 'npm:a@^1.0.0' } }
