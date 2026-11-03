@@ -162,4 +162,43 @@ fn rejects_a_resolved_format_the_client_did_not_accept() {
     let legacy = serde_json::from_value::<ResolveRequest>(serde_json::json!({}))
         .expect("legacy request parses");
     assert!(reject_unaccepted_lockfile_format(&legacy, &lockfile_12).is_none());
+    assert!(
+        reject_unaccepted_lockfile_format(&legacy, &lockfile).is_some(),
+        "a client that names no formats has not accepted the variants format",
+    );
+
+    let shorthand = serde_json::from_value::<ResolveRequest>(serde_json::json!({
+        "acceptedLockfileFormats": ["13"]
+    }))
+    .expect("request parses");
+    assert!(reject_unaccepted_lockfile_format(&shorthand, &lockfile).is_none());
+}
+
+#[test]
+fn a_runtimes_archives_need_no_variants_format() {
+    let runtime: pnpm_lockfile::Lockfile = serde_saphyr::from_str(concat!(
+        "lockfileVersion: '9.0'\n",
+        "importers: {}\n",
+        "packages:\n",
+        "  node@runtime:22.0.0:\n",
+        "    resolution:\n",
+        "      type: variations\n",
+        "      variants:\n",
+        "        - resolution:\n",
+        "            type: binary\n",
+        "            url: https://nodejs.org/dist/v22.0.0/node-v22.0.0-linux-x64.tar.gz\n",
+        "            integrity: sha512-gf6ZldcfCDyNXPRiW3lQjEP1Z9rrUM/4Cn7BZbv3SdTA82zxWRP8OmLwvGR974uuENhGCFgFdN11z3n1Ofpprg==\n",
+        "            bin: bin/node\n",
+        "            archive: tarball\n",
+        "          targets:\n",
+        "            - os: linux\n",
+        "              cpu: x64\n",
+    ))
+    .expect("runtime lockfile parses");
+    for formats in
+        [serde_json::json!({ "acceptedLockfileFormats": ["9.0"] }), serde_json::json!({})]
+    {
+        let request = serde_json::from_value::<ResolveRequest>(formats).expect("request parses");
+        assert!(reject_unaccepted_lockfile_format(&request, &runtime).is_none());
+    }
 }

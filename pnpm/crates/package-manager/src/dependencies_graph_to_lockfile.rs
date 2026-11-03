@@ -25,9 +25,9 @@ use miette::Diagnostic;
 use pnpm_catalogs_protocol_parser::parse_catalog_protocol;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_lockfile::{
-    CatalogSnapshots, ComVer, Lockfile, LockfileFormError, LockfileResolution, LockfileVersion,
-    ParseImporterDepVersionError, ParsePkgNameSuffixError, ParsePkgVerPeerError, ProjectSnapshot,
-    ResolvedCatalogEntry,
+    CatalogSnapshots, ComVer, Lockfile, LockfileFormError, LockfileVersion,
+    PLATFORM_VARIANTS_LOCKFILE_MAJOR, ParseImporterDepVersionError, ParsePkgNameSuffixError,
+    ParsePkgVerPeerError, ProjectSnapshot, ResolvedCatalogEntry,
 };
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_resolving_deps_resolver::{DepPath, DependenciesGraph, DependenciesGraphNode};
@@ -164,16 +164,13 @@ pub fn dependencies_graph_to_lockfile(
         compute_corrected_optional(&opts.importers, opts.graph, opts.settings.auto_install_peers);
     let (packages, snapshots) =
         build_packages_and_snapshots(opts.graph, &optional_overrides, &opts.metadata_sources)?;
-    let has_variations = packages
-        .values()
-        .any(|metadata| matches!(&metadata.resolution, LockfileResolution::Variations(_)));
+    let records_package_variants =
+        packages.values().any(|metadata| metadata.resolution.is_package_variants());
+    let major = if records_package_variants { PLATFORM_VARIANTS_LOCKFILE_MAJOR } else { 9 };
     let importers = build_importers(&opts)?;
     let mut lockfile = Lockfile {
-        lockfile_version: LockfileVersion::<9>::try_from(ComVer::new(
-            if has_variations { 13 } else { 9 },
-            0,
-        ))
-        .expect("the generated lockfile version is supported"),
+        lockfile_version: LockfileVersion::<9>::try_from(ComVer::new(major, 0))
+            .expect("the generated lockfile version is supported"),
         settings: Some(opts.settings),
         catalogs: build_catalog_snapshots(&importers, opts.catalogs),
         overrides: opts.manifest_settings.overrides.filter(|map| !map.is_empty()),

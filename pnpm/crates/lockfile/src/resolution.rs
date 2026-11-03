@@ -413,6 +413,15 @@ impl LockfileResolution {
         }
     }
 
+    /// Whether this records a registry package's platform variants, which
+    /// only the [`PLATFORM_VARIANTS_LOCKFILE_MAJOR`](crate::PLATFORM_VARIANTS_LOCKFILE_MAJOR)
+    /// format can hold. A runtime's `binary` archives use the same shape
+    /// and have been readable in format 9.0 all along.
+    #[must_use]
+    pub fn is_package_variants(&self) -> bool {
+        matches!(self, LockfileResolution::Variations(variations) if !variations.is_runtime())
+    }
+
     /// The `integrity` field a custom resolver wrote, in whatever form it
     /// wrote it. [`Self::integrity`] leaves it out because pnpm never
     /// verifies bytes against it, but it still identifies the bytes the

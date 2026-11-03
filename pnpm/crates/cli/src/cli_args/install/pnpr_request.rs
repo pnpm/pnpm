@@ -106,11 +106,9 @@ pub(super) fn resolve_projects_options(
             update_patches: link.lockfile.update_patches,
             ignore_manifest_check: link.lockfile.ignore_manifest_check,
             trust_lockfile: link.lockfile.trust,
-            accepted_lockfile_formats: vec![
-                "9.0".to_string(),
-                "12.0".to_string(),
-                "13.0".to_string(),
-            ],
+            accepted_lockfile_formats: pnpm_lockfile::ACCEPTED_LOCKFILE_FORMATS
+                .map(String::from)
+                .to_vec(),
         },
         verification: verification_policy(state.config),
     }

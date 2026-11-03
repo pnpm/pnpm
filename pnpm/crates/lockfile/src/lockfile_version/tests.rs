@@ -1,4 +1,4 @@
-use super::{ComVer, LockfileVersion, LockfileVersionError};
+use super::{ACCEPTED_LOCKFILE_FORMATS, ComVer, LockfileVersion, LockfileVersionError};
 use pipe_trait::Pipe;
 use pretty_assertions::assert_eq;
 
@@ -39,4 +39,15 @@ fn incompatible() {
         error,
         LockfileVersionError::IncompatibleMajor(ComVer { major: 6, minor: 0 }),
     ));
+}
+
+#[test]
+fn every_announced_format_is_one_this_client_reads() {
+    for format in ACCEPTED_LOCKFILE_FORMATS {
+        let comver = format.parse::<ComVer>().expect("announced format parses");
+        assert!(
+            LockfileVersion::<9>::is_compatible(comver),
+            "{format} is announced but unreadable"
+        );
+    }
 }

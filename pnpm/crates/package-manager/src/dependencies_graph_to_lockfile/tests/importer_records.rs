@@ -104,11 +104,13 @@ fn runtime_dependency_strips_importer_prefix_and_records_package_version() {
     let dep_path = DepPath::from("node@runtime:26.3.0".to_string());
     let resolve_result = ResolveResult {
         id: PkgResolutionId::from("node@runtime:26.3.0"),
-        resolution: LockfileResolution::Variations(VariationsResolution {
-            variants: vec![],
-            fallback: None,
-            revision: None,
-        }),
+        resolution: LockfileResolution::Variations(variations(json!({
+            "type": "binary",
+            "url": "https://nodejs.org/dist/v26.3.0/node-v26.3.0-linux-x64.tar.gz",
+            "integrity": INTEGRITY,
+            "bin": "bin/node",
+            "archive": "tarball",
+        }))),
         resolved_via: "node-runtime".to_string(),
         normalized_bare_specifier: None,
         alias: Some("node".to_string()),
@@ -150,7 +152,11 @@ fn runtime_dependency_strips_importer_prefix_and_records_package_version() {
     let lockfile = dependencies_graph_to_lockfile(single_importer_opts(
         &manifest, &graph, direct, false, false, None, None,
     ));
-    assert_eq!(lockfile.lockfile_version.to_string(), "13.0");
+    assert_eq!(
+        lockfile.lockfile_version.to_string(),
+        "9.0",
+        "a runtime's binary archives are readable in format 9.0",
+    );
 
     let importer = lockfile.root_project().expect("root importer");
     let entry = importer.dependencies
@@ -168,6 +174,46 @@ fn runtime_dependency_strips_importer_prefix_and_records_package_version() {
     let metadata = &lockfile.packages.as_ref().expect("packages")[&metadata_key];
     assert_eq!(metadata.version.as_deref(), Some("26.3.0"));
 }
+const INTEGRITY: &str = "sha512-gf6ZldcfCDyNXPRiW3lQjEP1Z9rrUM/4Cn7BZbv3SdTA82zxWRP8OmLwvGR974uuENhGCFgFdN11z3n1Ofpprg==";
+
+/// A `variations` resolution whose one variant, for linux-x64, is `resolution`.
+fn variations(resolution: serde_json::Value) -> VariationsResolution {
+    serde_json::from_value(json!({
+        "variants": [{ "resolution": resolution, "targets": [{ "os": "linux", "cpu": "x64" }] }],
+    }))
+    .expect("variations resolution parses")
+}
+
+#[test]
+fn package_variants_mark_the_lockfile_as_the_variants_format() {
+    let (_tmp, manifest) = write_manifest(json!({
+        "name": "fixture",
+        "version": "1.0.0",
+        "dependencies": { "fast-thing": "1.4.0" },
+    }));
+    let mut node = make_node(
+        "fast-thing",
+        "1.4.0",
+        json!({ "name": "fast-thing", "version": "1.4.0" }),
+        BTreeMap::new(),
+        BTreeMap::new(),
+        HashSet::default(),
+    );
+    Arc::get_mut(&mut node.resolve_result).expect("fresh node").resolution =
+        LockfileResolution::Variations(variations(json!({ "integrity": INTEGRITY })));
+    let dep_path = node.dep_path.clone();
+    let mut graph = DependenciesGraph::default();
+    graph.insert(dep_path.clone(), node);
+    let mut direct = BTreeMap::new();
+    direct.insert("fast-thing".to_string(), dep_path);
+
+    let lockfile = dependencies_graph_to_lockfile(single_importer_opts(
+        &manifest, &graph, direct, false, false, None, None,
+    ));
+
+    assert_eq!(lockfile.lockfile_version.to_string(), "13.0");
+}
+
 #[test]
 fn git_hosted_dependency_records_bare_tarball_url_in_importer() {
     let (_tmp, manifest) = write_manifest(json!({

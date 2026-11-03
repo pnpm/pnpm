@@ -298,6 +298,17 @@ impl<'a> LockfileEntries<'a> {
 }
 
 impl Lockfile {
+    /// Whether a package entry records a registry package's platform
+    /// variants, which only the
+    /// [`PLATFORM_VARIANTS_LOCKFILE_MAJOR`] format can hold.
+    #[must_use]
+    pub fn records_package_variants(&self) -> bool {
+        self.packages
+            .iter()
+            .flat_map(HashMap::values)
+            .any(|metadata| metadata.resolution.is_package_variants())
+    }
+
     const UNTRACKED_PNPMFILE_READ_PACKAGE_HOOK: &'static str = "untrackedPnpmfileReadPackageHook";
 
     #[must_use]

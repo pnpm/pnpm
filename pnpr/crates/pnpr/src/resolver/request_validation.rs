@@ -1,5 +1,5 @@
 use axum::{http::StatusCode, response::Response};
-use pnpm_lockfile::LockfileResolution;
+use pnpm_lockfile::{LockfileResolution, PLATFORM_VARIANTS_LOCKFILE_MAJOR};
 
 use pnpr_route::RouteContext;
 
@@ -295,11 +295,14 @@ fn overrides_have_inline_url_auth(value: &serde_json::Value) -> bool {
     }
 }
 
+/// Refuse a request whose `acceptedLockfileFormats` names no format pnpr
+/// writes, or whose input lockfile is in a format the client did not accept.
 pub(super) fn reject_incompatible_lockfile_format(request: &ResolveRequest) -> Option<Response> {
     if let Some(formats) = request.accepted_lockfile_formats.as_ref()
         && !formats
             .iter()
-            .any(|format| format == "9.0" || format == "9" || format == "13.0" || format == "13")
+            .filter_map(|format| format_major(format))
+            .any(|major| major == 9 || major == PLATFORM_VARIANTS_LOCKFILE_MAJOR)
     {
         return Some(json_error_with_code(
             StatusCode::BAD_REQUEST,
@@ -310,6 +313,15 @@ pub(super) fn reject_incompatible_lockfile_format(request: &ResolveRequest) -> O
     request.lockfile
         .as_ref()
         .and_then(|lockfile| reject_unaccepted_lockfile_format(request, lockfile))
+}
+
+/// The major of an `acceptedLockfileFormats` entry, written as `9.0` or `9`.
+fn format_major(format: &str) -> Option<u16> {
+    format
+        .split_once('.')
+        .map_or(format, |(major, _)| major)
+        .parse()
+        .ok()
 }
 
 pub(super) fn reject_unaccepted_lockfile_format(
@@ -326,40 +338,24 @@ pub(super) fn reject_unaccepted_lockfile_format(
     ))
 }
 
+/// Whether the client accepts `lockfile`'s format. A lockfile that records
+/// a package's platform variants needs the variants format whatever its
+/// `lockfileVersion` says, and a client that sends no
+/// `acceptedLockfileFormats` has not accepted that format.
 pub(super) fn lockfile_format_is_accepted(
     request: &ResolveRequest,
     lockfile: &pnpm_lockfile::Lockfile,
 ) -> bool {
-    let requires_format_13 = lockfile.lockfile_version.major == 13
-        || lockfile.packages
-            .as_ref()
-            .is_some_and(|packages| {
-                packages
-                    .values()
-                    .any(|metadata| {
-                        matches!(&metadata.resolution, LockfileResolution::Variations(_))
-                    })
-            });
-    let required_format = if requires_format_13 {
-        "13"
-    } else if lockfile.lockfile_version.major == 12 {
-        "12"
+    let required = if lockfile.records_package_variants() {
+        PLATFORM_VARIANTS_LOCKFILE_MAJOR
     } else {
-        "9"
+        lockfile.lockfile_version.major
     };
-    request.accepted_lockfile_formats
-        .as_ref()
-        .map_or_else(
-            || required_format != "13",
-            |formats| {
-                formats
-                    .iter()
-                    .any(|format| {
-                        matches!(
-                            (required_format, format.as_str()),
-                            ("13", "13" | "13.0") | ("12", "12" | "12.0") | ("9", "9" | "9.0"),
-                        )
-                    })
-            },
-        )
+    match request.accepted_lockfile_formats.as_ref() {
+        Some(formats) => formats
+            .iter()
+            .filter_map(|format| format_major(format))
+            .any(|major| major == required),
+        None => required != PLATFORM_VARIANTS_LOCKFILE_MAJOR,
+    }
 }
