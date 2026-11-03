@@ -54,20 +54,19 @@ pub(super) fn artifacts_routes(state: &AppState, router: Router<AppState>) -> Ro
                     require_artifact_caller,
                 )),
         )
-        // The limit bounds the lookup a `POST` sends. A `PUT` streams its
-        // body past it, and the store holds that to the declared size. A
-        // `PUT` or `HEAD` naming no owner stages a release archive instead,
-        // which the registry surface serves.
+        // The limit bounds the lookup a `POST` sends, and the layers apply to
+        // it alone. A `PUT` streams its body past the limit, and the store
+        // holds that to the declared size. A `PUT` or `HEAD` naming no owner
+        // stages a release archive instead, which the registry surface
+        // serves with the registry's own credentials; both handlers identify
+        // their caller themselves.
         .route(
             "/-/pnpr/v0/artifacts/blob",
             post(serve_artifact_blob)
-                .put(serve_put_blob)
-                .head(serve_head_blob)
                 .route_layer(DefaultBodyLimit::max(MAX_ARTIFACT_BLOB_BODY_BYTES))
-                .route_layer(middleware::from_fn_with_state(
-                    state.clone(),
-                    require_artifact_caller,
-                )),
+                .route_layer(middleware::from_fn_with_state(state.clone(), require_artifact_caller))
+                .put(serve_put_blob)
+                .head(serve_head_blob),
         )
 }
 

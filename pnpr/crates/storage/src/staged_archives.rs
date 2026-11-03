@@ -352,14 +352,18 @@ impl Storage {
         record_key: &str,
         now: u64,
     ) -> Result<(Option<u64>, bool)> {
-        let Some(record) = self.read_record_json(namespace, record_key).await? else {
+        let Some(stored) = self.root.read_record(namespace, record_key).await? else {
             return Ok((None, false));
         };
-        if !record.is_collectable(now) {
+        // A record that does not parse vouches for nothing: it is collected
+        // with its archive, as one long expired.
+        if let Ok(record) = serde_json::from_slice::<StagedArchiveRecord>(&stored)
+            && !record.is_collectable(now)
+        {
             return Ok((record.is_held(now).then_some(record.size), false));
         }
         // An upload that renewed the archive since it was read keeps it.
-        if self.read_record_json(namespace, record_key).await? != Some(record) {
+        if self.root.read_record(namespace, record_key).await? != Some(stored) {
             return Ok((None, false));
         }
         let archive = record_key.strip_suffix(RECORD_SUFFIX).unwrap_or(record_key);

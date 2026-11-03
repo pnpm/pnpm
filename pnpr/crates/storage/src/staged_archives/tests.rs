@@ -218,6 +218,21 @@ async fn an_invalid_digest_is_refused() {
             .await
             .is_err(),
     );
+    // Separators of either platform never reach a path.
+    let windows = format!(r"..\{}", &DIGEST[4..]);
+    assert!(
+        storage
+            .stage_archive(&key("alice", &windows), b"x".to_vec())
+            .await
+            .is_err(),
+    );
+    let nested = format!("{}/{}", &DIGEST[..64], &DIGEST[65..]);
+    assert!(
+        storage
+            .stage_archive(&key("alice", &nested), b"x".to_vec())
+            .await
+            .is_err(),
+    );
 }
 
 #[tokio::test]
@@ -365,4 +380,23 @@ async fn parallel_uploads_and_a_sweep_leave_the_archive_staged() {
             StagedArchiveUsage { bytes: 10, archives: 2 },
         );
     }
+}
+
+#[tokio::test]
+async fn a_record_that_does_not_parse_is_swept_with_its_archive() {
+    let tmp = TempDir::new().unwrap();
+    let storage = storage_in(&tmp);
+    let staged = key("alice", DIGEST);
+    storage.stage_archive(&staged, b"bytes".to_vec()).await.unwrap();
+    let namespace = staged.namespace();
+    let record = staged.record().unwrap();
+    let stored = storage.root
+        .read_record(&namespace, &record)
+        .await
+        .unwrap()
+        .unwrap();
+    storage.root.replace_record_if_current(&namespace, &record, &stored, b"{").await.unwrap();
+
+    assert_eq!(storage.sweep_staged_archives().await.unwrap(), 1);
+    assert_eq!(storage.staged_archive_count("alice").await.unwrap(), 0);
 }

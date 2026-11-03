@@ -26,6 +26,11 @@ use pnpm_shared_artifact_protocol::{blob_id, verify_blob_digest};
 use pnpr_error::RegistryError;
 use pnpr_storage::{StagedArchiveKey, Storage};
 use sha2::{Digest as _, Sha512};
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+};
+use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 
 /// The most a principal may hold staged at once, across all its archives.
 /// Archives of a release wait here only until its commit, so this is many
@@ -41,6 +46,59 @@ pub(super) const MAX_STAGED_ARCHIVES_PER_PRINCIPAL: usize = 256;
 /// one archive's limit, so this bounds their memory. Another upload waits
 /// for a permit rather than failing, so a publisher's parallel uploads queue.
 pub(super) const MAX_CONCURRENT_STAGED_UPLOADS: usize = 4;
+
+/// Uploads one principal may have received at once, of the server's
+/// [`MAX_CONCURRENT_STAGED_UPLOADS`].
+const MAX_CONCURRENT_STAGED_UPLOADS_PER_PRINCIPAL: usize = 2;
+
+/// A semaphore per principal with an upload in flight, bounding how many of
+/// the server's upload permits one principal holds. A principal's entry goes
+/// when its last upload does.
+#[derive(Default)]
+pub(super) struct PrincipalUploads(Mutex<HashMap<String, Arc<Semaphore>>>);
+
+impl PrincipalUploads {
+    /// Wait for one of `principal`'s upload permits.
+    async fn acquire(&self, principal: &str) -> PrincipalUpload<'_> {
+        let semaphore = Arc::clone(
+            self.0
+                .lock()
+                .expect("the principal upload map is never poisoned")
+                .entry(principal.to_string())
+                .or_insert_with(|| {
+                    Arc::new(Semaphore::new(MAX_CONCURRENT_STAGED_UPLOADS_PER_PRINCIPAL))
+                }),
+        );
+        let permit = Arc::clone(&semaphore)
+            .acquire_owned()
+            .await
+            .expect("a principal's upload semaphore is never closed");
+        PrincipalUpload { uploads: self, principal: principal.to_string(), permit: Some(permit) }
+    }
+}
+
+/// One principal's upload permit, which removes the principal's entry when
+/// it is the last one using it.
+struct PrincipalUpload<'a> {
+    uploads: &'a PrincipalUploads,
+    principal: String,
+    permit: Option<OwnedSemaphorePermit>,
+}
+
+impl Drop for PrincipalUpload<'_> {
+    fn drop(&mut self) {
+        drop(self.permit.take());
+        let mut uploads =
+            self.uploads.0.lock().expect("the principal upload map is never poisoned");
+        // Only the map holds it: no upload is in flight or waiting.
+        if uploads
+            .get(&self.principal)
+            .is_some_and(|semaphore| Arc::strong_count(semaphore) == 1)
+        {
+            uploads.remove(&self.principal);
+        }
+    }
+}
 
 /// The slowest upload rate a staged archive is given time for.
 const MIN_UPLOAD_BYTES_PER_SECOND: u64 = 256 * 1024;
@@ -58,8 +116,8 @@ pub(super) async fn serve_put_blob(
     body: Body,
 ) -> Response {
     if names_owner(&uri) {
-        if state.inner.builds.artifacts.is_none() {
-            return private_no_cache(StatusCode::NOT_FOUND.into_response());
+        if let Err(response) = artifact_caller(&state, &headers).await {
+            return response;
         }
         return super::serve_upload_artifact_blob(state, caller, uri, headers, body).await;
     }
@@ -80,10 +138,11 @@ pub(super) async fn serve_head_blob(
     state: State<AppState>,
     caller: AuthedCaller,
     uri: Uri,
+    headers: HeaderMap,
 ) -> Response {
     if names_owner(&uri) {
-        if state.inner.builds.artifacts.is_none() {
-            return private_no_cache(StatusCode::NOT_FOUND.into_response());
+        if let Err(response) = artifact_caller(&state, &headers).await {
+            return response;
         }
         return super::serve_artifact_blob_size(state, caller, uri).await;
     }
@@ -104,6 +163,24 @@ pub(super) async fn serve_head_blob(
     })
 }
 
+/// Admit a shared artifact's blob request as the artifact surface does for
+/// its other routes: only when the surface is served, and only for a caller
+/// its protocol credentials identify. The release archive routes skip this
+/// and accept the registry's credentials.
+async fn artifact_caller(state: &AppState, headers: &HeaderMap) -> Result<(), Response> {
+    if state.inner.builds.artifacts.is_none() {
+        return Err(private_no_cache(StatusCode::NOT_FOUND.into_response()));
+    }
+    match super::request_access::caller_username(state, headers).await {
+        Ok(Some(_)) => Ok(()),
+        Ok(None) => {
+            Err(RegistryError::Unauthenticated { resource: "shared artifacts".to_string() }
+                .into_response())
+        }
+        Err(error) => Err(error.into_response()),
+    }
+}
+
 /// Stage the archive streamed in `body` for the caller. `Ok(false)` when the
 /// caller had it staged already, which renews it.
 async fn stage_archive(
@@ -116,23 +193,15 @@ async fn stage_archive(
     let principal = principal(identity)?;
     let integrity = query_integrity(uri)?;
     let digest = archive_digest(&integrity)?;
-    let size = headers
-        .get(header::CONTENT_LENGTH)
-        .and_then(|length| {
-            length
-                .to_str()
-                .ok()?
-                .parse::<u64>()
-                .ok()
-        })
-        .ok_or_else(|| bad_request("a staged archive upload needs a Content-Length".to_string()))?;
-    if size > MAX_TARBALL_BYTES {
-        return Err(bad_request(format!(
-            "the archive is {size} bytes, over the {MAX_TARBALL_BYTES}-byte limit of one archive",
-        )));
-    }
+    let size = declared_size(headers)?;
     let storage = &state.inner.storage;
     let key = StagedArchiveKey { principal, digest: &digest };
+    // The principal's own permit first, so its uploads queue behind each
+    // other rather than taking every permit of the server.
+    let _principal_upload = state.inner.locks
+        .staged_archive_uploads_by_principal
+        .acquire(principal)
+        .await;
     let _upload = state.inner.locks.staged_archive_uploads
         .acquire()
         .await
@@ -166,6 +235,27 @@ async fn stage_archive(
 /// otherwise keep other publishers waiting for the permit.
 fn receive_deadline(size: u64) -> std::time::Duration {
     std::time::Duration::from_secs(60 + size / MIN_UPLOAD_BYTES_PER_SECOND)
+}
+
+/// The `Content-Length` of a staged archive upload, within one archive's
+/// limit.
+fn declared_size(headers: &HeaderMap) -> Result<u64, RegistryError> {
+    let size = headers
+        .get(header::CONTENT_LENGTH)
+        .and_then(|length| {
+            length
+                .to_str()
+                .ok()?
+                .parse::<u64>()
+                .ok()
+        })
+        .ok_or_else(|| bad_request("a staged archive upload needs a Content-Length".to_string()))?;
+    if size > MAX_TARBALL_BYTES {
+        return Err(bad_request(format!(
+            "the archive is {size} bytes, over the {MAX_TARBALL_BYTES}-byte limit of one archive",
+        )));
+    }
+    Ok(size)
 }
 
 /// Reserve `size` bytes for `key`'s archive, unless that takes its principal
@@ -224,6 +314,13 @@ async fn receive_archive(body: Body, integrity: &str, size: u64) -> Result<Vec<u
             )));
         }
         hasher.update(&chunk);
+        // Past the first buffer the client is sending what it declared, so
+        // take the rest in one allocation rather than doubling into it.
+        if bytes.len() as u64 >= INITIAL_BUFFER_BYTES
+            && bytes.capacity() < bytes.len() + chunk.len()
+        {
+            bytes.reserve_exact(usize::try_from(size).unwrap_or_default() - bytes.len());
+        }
         bytes.extend_from_slice(&chunk);
     }
     if bytes.len() as u64 != size {

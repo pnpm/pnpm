@@ -66,6 +66,9 @@ pub(super) struct MutationLocks {
     /// Release archives being received for staging, each buffered whole. See
     /// [`super::staged_archives::MAX_CONCURRENT_STAGED_UPLOADS`].
     pub(super) staged_archive_uploads: tokio::sync::Semaphore,
+    /// The same, per principal, so one account cannot hold every upload
+    /// permit. See [`super::staged_archives::PrincipalUploads`].
+    pub(super) staged_archive_uploads_by_principal: super::staged_archives::PrincipalUploads,
 }
 
 pub(super) struct IdentityServices {
@@ -101,6 +104,8 @@ impl AppInner {
                 staged_archive_uploads: tokio::sync::Semaphore::new(
                     super::staged_archives::MAX_CONCURRENT_STAGED_UPLOADS,
                 ),
+                staged_archive_uploads_by_principal:
+                    super::staged_archives::PrincipalUploads::default(),
             },
             identity,
             metrics: Arc::new(ServerMetrics::new()),
