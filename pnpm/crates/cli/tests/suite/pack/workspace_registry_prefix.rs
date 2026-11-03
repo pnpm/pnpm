@@ -20,6 +20,10 @@ use std::{collections::HashMap, fs, path::Path, process::Command};
 /// The registry every prefixed sibling publishes to.
 const WORK_REGISTRY: &str = "https://npm.work.example.com/";
 
+/// A default registry apart from the one the prefix names, whose packages
+/// keep plain keys. Nothing listens on it, so a plain resolution fails.
+const UNREACHABLE_DEFAULT_REGISTRY: &str = "http://127.0.0.1:9/";
+
 /// The `registries` shape: the `work` prefix and the `@work` scope route on
 /// one entry.
 const REGISTRIES_WITH_PREFIX: &str = "registries:
@@ -397,18 +401,26 @@ fn published_siblings_share_one_lockfile_entry_with_a_prefixed_consumer() {
         &workspace,
         &settings,
         &[
-            ("a", json!({ "name": "e2e-prefix-a", "version": "1.0.0" })),
+            (
+                "a",
+                json!({
+                    "name": "e2e-prefix-a",
+                    "version": "1.0.0",
+                    "publishConfig": { "registry": registry },
+                }),
+            ),
             (
                 "b",
                 json!({
                     "name": "e2e-prefix-b",
                     "version": "1.0.0",
                     "dependencies": { "e2e-prefix-a": "workspace:*" },
+                    "publishConfig": { "registry": registry },
                 }),
             ),
         ],
     );
-    write_npmrc(&workspace, &registry);
+    write_npmrc(&workspace, UNREACHABLE_DEFAULT_REGISTRY);
     clear_ci(pacquet_in(&workspace))
         .with_args(["--npmrc-auth-file"])
         .with_arg(&auth_file)
@@ -433,7 +445,7 @@ fn published_siblings_share_one_lockfile_entry_with_a_prefixed_consumer() {
     .expect("write consumer manifest");
     fs::write(consumer.join("pnpm-workspace.yaml"), &settings)
         .expect("write consumer workspace yaml");
-    write_npmrc(&consumer, &registry);
+    write_npmrc(&consumer, UNREACHABLE_DEFAULT_REGISTRY);
     pacquet_in(&consumer)
         .with_args(["--npmrc-auth-file"])
         .with_arg(&auth_file)
