@@ -124,15 +124,10 @@ impl<Cache: PackageMetaCache + 'static> NamedRegistryResolver<Cache> {
             }
         };
 
-        let key_prefix = self.declared_prefixes.alias_key_prefix(
-            &registry_name,
-            registry,
-            pnpm_lockfile::registry_for_package(&self.registries, &spec.name, None),
-        );
         crate::npm_resolver::RegistryResolutionSource {
             resolved_via: NAMED_REGISTRY_RESOLVED_VIA,
             registry,
-            registry_name: key_prefix,
+            registry_name: self.key_prefix(&registry_name, registry, &spec.name),
             server_type: registry_server_type(&self.format.registry_options_by_url, registry),
         }
         .build_result(
@@ -149,6 +144,12 @@ impl<Cache: PackageMetaCache + 'static> NamedRegistryResolver<Cache> {
             ),
         )
         .map(Some)
+    }
+
+    /// See [`DeclaredRegistryPrefixes::alias_key_prefix`].
+    fn key_prefix<'a>(&'a self, alias: &'a str, registry: &str, name: &str) -> Option<&'a str> {
+        let routed_registry = pnpm_lockfile::registry_for_package(&self.registries, name, None);
+        self.declared_prefixes.alias_key_prefix(alias, registry, routed_registry)
     }
 
     fn parse_specifier(

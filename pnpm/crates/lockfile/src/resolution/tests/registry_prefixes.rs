@@ -78,7 +78,7 @@ fn an_alias_of_the_default_registry_keys_plain_only_names_routed_there() {
         "a plain key would read as resolved from the scope's registry",
     );
     assert_eq!(prefixes.alias_key_prefix("zeta", work, work), Some("work"));
-    assert_eq!(prefixes.alias_key_prefix("gh", "https://npm.pkg.github.com/", DEFAULT), Some("gh"),);
+    assert_eq!(prefixes.alias_key_prefix("gh", "https://npm.pkg.github.com/", DEFAULT), Some("gh"));
 }
 
 #[test]
