@@ -55,4 +55,11 @@ fn a_selected_prerelease_stays_admitted() {
     assert_eq!(update("<2", "1.4rc1", true).as_deref(), Some(">=1.4rc1, <2"));
     assert_eq!(update("==1.*, >=1.4rc1", "1.4rc1", true), None);
     assert_eq!(update(">=1.0", "1.4rc1", true).as_deref(), Some(">=1.4rc1"));
+    assert_eq!(update(">=1.5rc1, <3.0rc1", "2.0rc1", false).as_deref(), Some(">=2.0rc1, <3.0rc1"));
+}
+
+#[test]
+fn a_stable_selection_drops_an_excluding_prerelease_floor() {
+    assert_eq!(update("==2.*, >=2.1rc1", "2.0", true).as_deref(), Some("==2.*"));
+    assert_eq!(update("==2.*, >=2.1rc1", "2.3", false), None);
 }

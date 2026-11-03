@@ -327,7 +327,8 @@ fn updated_existing_specifiers(
     let primary = without_prerelease_floor(existing);
     let updated = updated_primary_specifiers(&primary, version, force_bump)?;
     if !version.any_prerelease() {
-        return Ok(updated);
+        let admits_only_without_floor = primary != *existing && !existing.contains(version);
+        return Ok(updated.or_else(|| admits_only_without_floor.then_some(primary)));
     }
     let saved = updated.unwrap_or(primary);
     let saved = if saved.iter().any(VersionSpecifier::any_prerelease) {
@@ -338,25 +339,21 @@ fn updated_existing_specifiers(
     Ok((saved != *existing).then_some(saved))
 }
 
-/// `existing` without a `>=` pre-release clause that accompanies one other clause.
+/// `existing` without a `>=` pre-release clause that accompanies one other
+/// clause naming no pre-release, the form [`updated_existing_specifiers`] writes.
 fn without_prerelease_floor(existing: &VersionSpecifiers) -> VersionSpecifiers {
     let is_floor = |clause: &VersionSpecifier| {
         *clause.operator() == Operator::GreaterThanEqual && clause.any_prerelease()
     };
-    if existing.len() != 2
-        || existing
-            .iter()
-            .filter(|clause| is_floor(clause))
-            .count()
-            != 1
-    {
+    let [first, second] = &existing[..] else {
         return existing.clone();
-    }
-    existing
-        .iter()
-        .filter(|clause| !is_floor(clause))
-        .cloned()
-        .collect()
+    };
+    let other = match (is_floor(first), is_floor(second)) {
+        (true, false) => second,
+        (false, true) => first,
+        _ => return existing.clone(),
+    };
+    if other.any_prerelease() { existing.clone() } else { other.clone().into() }
 }
 
 fn updated_primary_specifiers(
