@@ -38,7 +38,9 @@ fn reads_the_manifest_shrinkwrap_and_files() {
     let archive = read_publication_archive(tar.as_slice()).unwrap();
     assert_eq!(archive.manifest, manifest);
     assert!(archive.manifest_integrity.to_string().starts_with("sha512-"));
+    assert_eq!(archive.manifest_path, "package/package.json");
     assert!(archive.shrinkwrap_integrity.is_some());
+    assert_eq!(archive.shrinkwrap_path.as_deref(), Some("package/npm-shrinkwrap.json"));
     assert!(archive.binding_gyp);
     let expected: BTreeSet<String> =
         ["binding.gyp", "lib/index.js", "npm-shrinkwrap.json", "package.json"]
@@ -54,6 +56,7 @@ fn a_nested_binding_gyp_does_not_count() {
     let archive = read_publication_archive(tar.as_slice()).unwrap();
     assert!(!archive.binding_gyp);
     assert_eq!(archive.shrinkwrap_integrity, None);
+    assert_eq!(archive.shrinkwrap_path, None);
 }
 
 #[test]

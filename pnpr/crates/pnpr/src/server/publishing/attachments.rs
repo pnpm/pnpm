@@ -6,7 +6,7 @@ use super::{
         check_publishable_versions, parse_hosted_packument, prepare_staged_document,
         record_publisher, restore_submitted_tgz_integrities, serialize_staged_document,
     },
-    resolve_write_target,
+    release_records, resolve_write_target,
     tombstones::{check_publish_tombstone, check_staged_tombstone},
     variants::{self, Declarations, PublishedVariant, VariantTar},
     verification::verify_published_manifests,
@@ -199,9 +199,20 @@ pub(in super::super) struct StagedPublish {
     pub(in super::super) org: Option<String>,
     /// Who published it, recorded with every dist-tag the document moves.
     pub(in super::super) publisher: Option<String>,
+    /// What verifying the published archives produced.
+    pub(in super::super) verification: Verification,
+}
+
+/// What verifying a publish's archives against its version metadata
+/// produced, beside the document to record.
+#[derive(Default)]
+pub(in super::super) struct Verification {
     /// What the publisher should hear about a publish that was accepted with
     /// a difference, sent back as `npm-notice` response headers.
     pub(in super::super) notices: Vec<String>,
+    /// The release record of each version the document introduces, which
+    /// the metadata store accepts with it.
+    pub(in super::super) records: pnpr_storage::metadata::ReleaseRecords,
 }
 
 /// Merge the incoming packument with the on-disk / upstream state
@@ -258,7 +269,7 @@ pub(in super::super) async fn stage_publish(
         slots: verified.slots,
         org: org.map(str::to_string),
         publisher,
-        notices: verified.notices,
+        verification: verified.verification,
     })
 }
 
@@ -266,7 +277,7 @@ pub(in super::super) async fn stage_publish(
 struct VerifiedDocument {
     document: Vec<u8>,
     slots: Vec<pnpr_storage::BlobSlot>,
-    notices: Vec<String>,
+    verification: Verification,
 }
 
 /// Verify every archive `written` holds against the version metadata in
@@ -280,13 +291,15 @@ async fn verified_document(
     let verified = verify_published_manifests(name, &mut merged, &written.tars)
         .and_then(|notices| {
             variants::attach_variants(&mut merged, declared, &written.variants, &written.tars)?;
-            Ok(notices)
+            let records =
+                release_records::accepted_records(name, &merged, &written.tars, &written.variants)?;
+            Ok((notices, records))
         });
     match verified {
-        Ok(notices) => Ok(VerifiedDocument {
+        Ok((notices, records)) => Ok(VerifiedDocument {
             document: serialize_staged_document(merged, &written.tars),
             slots: written.slots,
-            notices,
+            verification: Verification { notices, records },
         }),
         Err(err) => {
             cleanup_tmp_slots(written.slots).await;
@@ -306,6 +319,11 @@ pub(super) struct WrittenAttachments {
 /// A published `.tgz` whose whole gzip stream decoded to a tar.
 pub(super) struct PublishedTar {
     pub(super) version: String,
+    /// The `.tgz` integrity as published, which the tar's facts are recorded
+    /// under.
+    pub(super) tgz_integrity: Option<String>,
+    /// The integrity of the tar the `.tgz` decodes to.
+    pub(super) integrity: Integrity,
     pub(super) inspection: pnpm_tarball::TarInspection,
     /// What the tar holds that the version's manifest is derived from.
     pub(super) archive: pnpm_tarball::PublicationArchive,
@@ -405,10 +423,16 @@ impl PublishedTar {
     /// has a variant label.
     fn of(version: String, variant_label: Option<String>, derived: TarDerivation) -> Self {
         let variant = variant_label.map(|label| {
-            variants::variant_tar(label, &derived.integrity, &derived.archive)
+            let tgz = derived.tgz_integrity.as_deref();
+            variants::variant_tar(label, &derived.integrity, tgz, &derived.archive)
         });
-        let TarDerivation { inspection, archive, .. } = derived;
-        PublishedTar { version, inspection, archive, variant }
+        let TarDerivation {
+            tgz_integrity,
+            integrity,
+            inspection,
+            archive,
+        } = derived;
+        PublishedTar { version, tgz_integrity, integrity, inspection, archive, variant }
     }
 }
 

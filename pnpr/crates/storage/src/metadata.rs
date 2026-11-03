@@ -19,7 +19,7 @@ pub use notes::{
 };
 pub use publication::{
     ArtifactMember, BatchDocument, Publication, PublicationCommit, PublicationRequest,
-    RecordedOutcome,
+    RecordedOutcome, ReleaseRecords,
 };
 pub use sql::{RenderStats, SqlMetadata, TagHistoryEntry};
 
@@ -131,6 +131,20 @@ pub(crate) trait PackageMetadata: fmt::Debug + Send + Sync {
             manifest.remove(field);
         }
         Ok(Some(serde_json::to_string(&manifest)?.into()))
+    }
+
+    /// The exact bytes of the release record of `revision` of `version`, as
+    /// accepted with the version, or `None` when the store holds none for it.
+    /// Only a backend that keeps records stores them; the default holds
+    /// none.
+    async fn read_release_record(
+        &self,
+        name: &CanonicalPackageName,
+        version: &str,
+        revision: u64,
+    ) -> Result<Option<Vec<u8>>> {
+        let _ = (name, version, revision);
+        Ok(None)
     }
 
     /// Read a document with the token [`Self::write_if_current`] needs to
@@ -258,6 +272,17 @@ impl Storage {
         version: &str,
     ) -> Result<Option<Arc<str>>> {
         self.metadata.read_version(name, version).await
+    }
+
+    /// The exact bytes of the release record of `revision` of `version`, as
+    /// the version was accepted with it, when the metadata store keeps them.
+    pub async fn read_release_record(
+        &self,
+        name: &CanonicalPackageName,
+        version: &str,
+        revision: u64,
+    ) -> Result<Option<Vec<u8>>> {
+        self.metadata.read_release_record(name, version, revision).await
     }
 
     /// Move or remove a dist-tag of a hosted package in one metadata commit.

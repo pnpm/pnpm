@@ -70,6 +70,25 @@ impl PackageMetadata for SqlView {
         .await
     }
 
+    async fn read_release_record(
+        &self,
+        name: &CanonicalPackageName,
+        version: &str,
+        revision: u64,
+    ) -> Result<Option<Vec<u8>>> {
+        // Every version is outside the revision protocol here, so its one
+        // record is revision 0's.
+        if self.ecosystem != Ecosystem::Npm || revision != 0 {
+            return Ok(None);
+        }
+        let key = self.key(name);
+        let version = version.to_string();
+        self.database.read(self.catalog.clone(), Freshness::Bounded, move |connection, _| {
+            super::versions::read_release_record(connection, &key, &version)
+        })
+        .await
+    }
+
     async fn read_for_update(
         &self,
         name: &CanonicalPackageName,

@@ -60,7 +60,8 @@ fn write_member(batch: &mut Batch<'_>, document: &BatchDocument) -> Result<()> {
     };
     let expected = Expected::from_version(document.expected.as_ref())?;
     let principal = document.principal.as_deref();
-    match batch.package(&key).write_document(&document.bytes, expected, principal)? {
+    let records = &document.records;
+    match batch.package(&key).write_document(&document.bytes, expected, principal, records)? {
         None => Err(RegistryError::DocumentWriteConflict { package: document.name.clone() }),
         Some(true) => {
             batch.touch(&key);

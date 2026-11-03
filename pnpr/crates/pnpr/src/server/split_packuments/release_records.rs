@@ -68,8 +68,44 @@ fn release_record_response(manifest: &Value, revision: u64, tars: TarFacts<'_>) 
     // A release record is part of pnpr's own format, so it describes the
     // variants; npm's version document does not.
     super::super::publishing::variants::describe_version_variants(&mut source);
-    let mut response = json_response(&named_record(manifest, &source));
-    if settled && response.status().is_success() {
+    let response = json_response(&named_record(manifest, &source));
+    if settled { immutable(response) } else { response }
+}
+
+/// The response for the release record a version was accepted with,
+/// `bytes` as the metadata store keeps them. They never change, so they are
+/// served as they are and cached forever.
+///
+/// `tars` is the tar-integrity table of a registry that serves tars: the
+/// record is described by its tar's integrity instead of the `.tgz`'s it was
+/// accepted with, and is cached forever only once that integrity is known.
+/// Those are not the bytes the record was accepted with.
+pub(in super::super) fn accepted_record_response(
+    bytes: Vec<u8>,
+    tars: Option<&BTreeMap<String, DerivedTar>>,
+) -> Response {
+    let Some(table) = tars else { return immutable(json_bytes_response(bytes)) };
+    let mut record: Value = match serde_json::from_slice(&bytes) {
+        Ok(record) => record,
+        Err(err) => return super::super::RegistryError::Json(err).into_response(),
+    };
+    let tar_integrity = record
+        .pointer("/inputs/archive/integrity")
+        .and_then(Value::as_str)
+        .and_then(|tgz| table.get(tgz))
+        .map(|derived| derived.tar_integrity.clone());
+    let Some(fields) = record.as_object_mut() else { return json_response(&record) };
+    let Some(integrity) = tar_integrity else {
+        fields.remove("integrity");
+        return json_response(&record);
+    };
+    fields.insert("integrity".into(), Value::String(integrity));
+    immutable(json_response(&record))
+}
+
+/// `response`, marked to be cached forever when it succeeded.
+fn immutable(mut response: Response) -> Response {
+    if response.status().is_success() {
         response
             .headers_mut()
             .insert(
@@ -80,9 +116,13 @@ fn release_record_response(manifest: &Value, revision: u64, tars: TarFacts<'_>) 
     response
 }
 
+fn json_bytes_response(body: Vec<u8>) -> Response {
+    super::super::packument_bytes_response(body, "application/json", None)
+}
+
 fn json_response(document: &Value) -> Response {
     match serde_json::to_vec(document) {
-        Ok(body) => super::super::packument_bytes_response(body, "application/json", None),
+        Ok(body) => json_bytes_response(body),
         Err(err) => super::super::RegistryError::Json(err).into_response(),
     }
 }
@@ -145,7 +185,7 @@ fn named_record(named: &Value, manifest: &Value) -> Value {
 /// abbreviated manifest without `dist` and without what may change after
 /// publication (`deprecated`) or is evidence kept apart from the record
 /// (`_npmUser`, signatures, attestations).
-pub(super) fn release_record(manifest: &Value) -> Map<String, Value> {
+pub(in super::super) fn release_record(manifest: &Value) -> Map<String, Value> {
     let mut fields = match pnpr_upstream::abbreviate_version(manifest) {
         Value::Object(fields) => fields,
         _ => Map::new(),

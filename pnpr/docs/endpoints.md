@@ -339,6 +339,36 @@ version's manifest and facts are in its release record, at
 }
 ```
 
+With [SQLite metadata](storage.md#sqlite-metadata), a hosted version is accepted with its
+release record, and pnpr serves the record's bytes as they were accepted. Such
+a record starts with the fields every
+[release record](https://github.com/pnpm/rfcs/blob/main/pnpr/text/0000-release-records.md)
+has:
+
+```json
+{
+  "schema": "pnpr-release-record/1",
+  "purl": "pkg:npm/fast-thing@1.5.0",
+  "name": "fast-thing",
+  "version": "1.5.0",
+  "revision": 0,
+  "interpretation": "npm-install-manifest/1",
+  "inputs": {
+    "archive": { "kind": "tgz", "integrity": "sha512-..." },
+    "packageJson": { "path": "package/package.json", "integrity": "sha512-..." },
+    "shrinkwrap": null
+  },
+  "integrity": "sha512-...",
+  "manifest": { "dependencies": { "detect-libc": "^2.0.0" } }
+}
+```
+
+`interpretation` is the profile the manifest was derived under, and `inputs`
+are the digests it was derived from: the `.tgz` as published, and its
+`package.json` and `npm-shrinkwrap.json` by their paths in the archive. Each
+platform variant in `variants` has `inputs` of its own. A registry with
+`tarballs: tar` serves the record with the tar's `integrity`.
+
 Revision `0` is the original artifact, also of a version without registry
 revisions. A release record never changes once pnpr has verified the archive
 it describes, so from then on it is served with

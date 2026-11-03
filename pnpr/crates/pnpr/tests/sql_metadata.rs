@@ -272,6 +272,78 @@ async fn get_json(
     (status, cache_control, serde_json::from_slice(&body).unwrap())
 }
 
+/// A version is accepted with its release record, whose bytes the record
+/// route serves as they were accepted: the core fields of every record, and
+/// the facts about its archive and its manifest.
+#[tokio::test]
+async fn a_version_is_accepted_with_its_release_record() {
+    let tmp = TempDir::new().unwrap();
+    let app = router(sqlite_config(tmp.path()));
+    let token = token(&app).await;
+    let package_json = r#"{"name":"@scope/rec","version":"1.0.0","dependencies":{"a":"^1.0.0"}}"#;
+    let (_, tgz) = crate::server::package_tar_and_tgz(package_json);
+    let doc = publish_doc("@scope/rec", "1.0.0", &tgz);
+    let (status, ..) = send(&app, request("PUT", "/npm/@scope%2frec", &token, Some(&doc))).await;
+    assert_eq!(status, StatusCode::CREATED);
+
+    let (status, _, bytes) =
+        send(&app, request("GET", "/npm/@scope%2frec/1.0.0+r0", &token, None)).await;
+    assert_eq!(status, StatusCode::OK);
+    let record = pnpm_release_record::StoredRecord::parse(bytes.clone()).unwrap();
+    assert_eq!(
+        record
+            .log_entry()
+            .unwrap()
+            .key()
+            .subject_name(),
+        "pkg:npm/%40scope/rec@1.0.0",
+    );
+    let record: Value = serde_json::from_slice(&bytes).unwrap();
+    let (_, packument) = get_json_document(&app, "/npm/@scope%2frec", &token).await;
+    let accepted = &packument["versions"]["1.0.0"]["_archiveManifest"];
+    let expected_inputs = json!({
+        "archive": { "kind": "tgz", "integrity": sri_sha512(&tgz) },
+        "packageJson": { "path": "package/package.json", "integrity": accepted["packageJson"] },
+        "shrinkwrap": null,
+    });
+    let core = [
+        ("schema", json!("pnpr-release-record/1")),
+        ("purl", json!("pkg:npm/%40scope/rec@1.0.0")),
+        ("name", json!("@scope/rec")),
+        ("version", json!("1.0.0")),
+        ("revision", json!(0)),
+        ("interpretation", json!("npm-install-manifest/1")),
+        ("inputs", expected_inputs),
+        ("integrity", json!(sri_sha512(&tgz))),
+    ];
+    let fields: Vec<&String> = record
+        .as_object()
+        .unwrap()
+        .keys()
+        .take(core.len())
+        .collect();
+    let names: Vec<&str> = core
+        .iter()
+        .map(|(field, _)| *field)
+        .collect();
+    assert_eq!(fields, names);
+    for (field, value) in core {
+        assert_eq!(record[field], value, "{field}");
+    }
+    assert_eq!(record["manifest"]["dependencies"], json!({ "a": "^1.0.0" }));
+
+    // The bytes outlive the process that accepted them.
+    let restarted = router(sqlite_config(tmp.path()));
+    let (_, _, again) =
+        send(&restarted, request("GET", "/npm/@scope%2frec/1.0.0+r0", &token, None)).await;
+    assert_eq!(again, bytes);
+}
+
+async fn get_json_document(app: &Router, path: &str, token: &str) -> (StatusCode, Value) {
+    let (status, _, body) = send(app, request("GET", path, token, None)).await;
+    (status, serde_json::from_slice(&body).unwrap())
+}
+
 #[tokio::test]
 async fn pnprs_package_document_and_release_records_render_from_sqlite() {
     const INSTALL_V2: &str = "application/vnd.pnpr.install-v2+json";

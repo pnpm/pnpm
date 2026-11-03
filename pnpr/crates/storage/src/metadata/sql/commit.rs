@@ -9,7 +9,7 @@ use super::{
     tags::{TagMove, record_tag_move},
     to_column, to_generation,
 };
-use crate::DocumentWrite;
+use crate::{DocumentWrite, metadata::ReleaseRecords};
 use pnpr_error::{RegistryError, Result};
 use pnpr_package_name::Ecosystem;
 use serde_json::{Map, Value};
@@ -63,6 +63,7 @@ impl Commit<'_> {
         bytes: &[u8],
         expected: Expected,
         principal: Option<&str>,
+        records: &ReleaseRecords,
     ) -> Result<Option<bool>> {
         let rows = match self.key.ecosystem {
             Ecosystem::Npm => Some(decompose(bytes)?),
@@ -73,7 +74,7 @@ impl Commit<'_> {
             return Ok(None);
         }
         let changed = match rows {
-            Some(rows) => apply_packument(self, current.as_ref(), rows, principal)?,
+            Some(rows) => apply_packument(self, current.as_ref(), rows, principal, records)?,
             None => apply_whole_document(self, current.as_ref(), bytes)?,
         };
         Ok(Some(changed))
@@ -91,7 +92,9 @@ pub(super) fn write_document(
     principal: Option<&str>,
 ) -> Result<DocumentWrite> {
     let mut batch = Batch::begin(connection, &key.catalog)?;
-    let Some(changed) = batch.package(key).write_document(bytes, expected, principal)? else {
+    let records = ReleaseRecords::new();
+    let commit = batch.package(key);
+    let Some(changed) = commit.write_document(bytes, expected, principal, &records)? else {
         return Ok(DocumentWrite::Conflict);
     };
     if changed {
@@ -121,13 +124,14 @@ fn apply_packument(
     current: Option<&PackageRow>,
     rows: PackumentRows,
     principal: Option<&str>,
+    records: &ReleaseRecords,
 ) -> Result<bool> {
     let state = serde_json::to_vec(&rows.state)?;
     let mut changed = current.is_none_or(|row| row.state != state);
     if changed {
         commit.write_state(&state)?;
     }
-    changed |= apply_versions(commit, rows.versions)?;
+    changed |= apply_versions(commit, rows.versions, records)?;
     changed |= apply_tags(commit, &rows.tags, principal)?;
     Ok(changed)
 }
@@ -158,15 +162,21 @@ fn stored_versions(commit: &Commit<'_>) -> Result<BTreeMap<String, StoredVersion
     Ok(stored)
 }
 
-/// Accept new versions, refuse a changed one, apply deprecations, and drop
-/// the versions the document no longer lists.
-fn apply_versions(commit: &Commit<'_>, versions: BTreeMap<String, VersionRows>) -> Result<bool> {
+/// Accept new versions, each with its release record when `records` has
+/// one, refuse a changed one, apply deprecations, and drop the versions the
+/// document no longer lists.
+fn apply_versions(
+    commit: &Commit<'_>,
+    versions: BTreeMap<String, VersionRows>,
+    records: &ReleaseRecords,
+) -> Result<bool> {
     let mut stored = stored_versions(commit)?;
     let mut changed = false;
     for (version, incoming) in versions {
         match stored.remove(&version) {
             None => {
-                super::versions::insert_version(commit, &version, &incoming)?;
+                let record = records.get(&version).map(Vec::as_slice);
+                super::versions::insert_version(commit, &version, &incoming, record)?;
                 changed = true;
             }
             Some(existing) => {
@@ -277,12 +287,20 @@ fn delete_version(commit: &Commit<'_>, version: &str) -> Result<()> {
 
 /// The tables holding a version's rows, each before the tables its rows
 /// reference.
-const VERSION_TABLES: [&str; 4] = ["accepted_manifests", "readmes", "annotations", "versions"];
+const VERSION_TABLES: [&str; 5] =
+    ["release_records", "accepted_manifests", "readmes", "annotations", "versions"];
 
 /// The tables holding a package's rows other than its history, each before
 /// the tables its rows reference.
-const PACKAGE_TABLES: [&str; 6] =
-    ["accepted_manifests", "readmes", "annotations", "versions", "tags", "packages"];
+const PACKAGE_TABLES: [&str; 7] = [
+    "release_records",
+    "accepted_manifests",
+    "readmes",
+    "annotations",
+    "versions",
+    "tags",
+    "packages",
+];
 
 /// Move every tag the document points elsewhere, recording each move with
 /// `principal`.

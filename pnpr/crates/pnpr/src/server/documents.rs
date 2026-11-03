@@ -12,7 +12,7 @@
 
 use super::{
     AppState, hosted_read_namespace,
-    publishing::{StagedPublish, commit_publishes},
+    publishing::{StagedPublish, Verification, commit_publishes},
 };
 use pnpr_cargo::{CRATE_DOCUMENT_FORMAT_VERSION, CrateDocument, crate_filename};
 use pnpr_error::RegistryError;
@@ -300,6 +300,6 @@ pub(super) async fn stage_hosted_artifact<Document: HostedDocument + Send>(
         org: Some(org.to_string()),
         // Only an npm document has dist-tags to record a publisher with.
         publisher: None,
-        notices: Vec::new(),
+        verification: Verification::default(),
     })
 }

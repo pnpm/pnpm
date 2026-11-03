@@ -55,6 +55,9 @@ pub(in super::super) struct VariantTar {
     pub(in super::super) label: String,
     pub(in super::super) tar_integrity: String,
     pub(in super::super) manifest: Option<Value>,
+    /// The digests of the variant's `.tgz` and its `package.json`, which its
+    /// entry of the version's release record names as its inputs.
+    pub(in super::super) inputs: Value,
 }
 
 /// What a published variant contributes to the stored version.
@@ -175,6 +178,7 @@ fn attachment_dist(
 pub(super) fn variant_tar(
     label: String,
     integrity: &Integrity,
+    tgz_integrity: Option<&str>,
     archive: &pnpm_tarball::PublicationArchive,
 ) -> VariantTar {
     let manifest = pnpm_package_manifest::parse_manifest_bytes(&archive.manifest)
@@ -195,7 +199,8 @@ pub(super) fn variant_tar(
             }
             _ => None,
         });
-    VariantTar { label, tar_integrity: integrity.to_string(), manifest }
+    let inputs = super::release_records::archive_inputs(tgz_integrity, archive);
+    VariantTar { label, tar_integrity: integrity.to_string(), manifest, inputs }
 }
 
 /// Split a variant's tar from the tars of primary `.tgz` files.

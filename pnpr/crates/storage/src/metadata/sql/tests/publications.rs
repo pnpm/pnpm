@@ -2,7 +2,7 @@
 
 use super::{Db, npm, packument, read, storage, write};
 use crate::metadata::{
-    BatchDocument, PublicationCommit, PublicationRequest, PublishNotes, SqlMetadata,
+    BatchDocument, PublicationCommit, PublicationRequest, PublishNotes, ReleaseRecords, SqlMetadata,
 };
 use pnpr_error::RegistryError;
 use pnpr_package_name::Ecosystem;
@@ -16,6 +16,7 @@ fn document(name: &str, document: &Value) -> BatchDocument {
         bytes: serde_json::to_vec(document).unwrap(),
         expected: None,
         principal: Some("alice".to_string()),
+        records: ReleaseRecords::new(),
     }
 }
 
@@ -256,7 +257,82 @@ async fn competing_publications_of_one_version_commit_once(db: Db) {
     assert!(second_publication.is_none());
 }
 
+/// A packument of `name` whose versions were accepted under the npm profile.
+fn verified(name: &str, versions: &[&str]) -> Value {
+    let mut document = packument(name, versions);
+    for version in versions {
+        document["versions"][*version]["_archiveManifest"] =
+            json!({ "profile": "npm-install-manifest/1", "packageJson": "sha512-input" });
+    }
+    document
+}
+
+/// A release record of `name@version`, revision 0, under the npm profile.
+fn record_of(name: &str, version: &str) -> Vec<u8> {
+    let record = json!({
+        "schema": "pnpr-release-record/1",
+        "purl": format!("pkg:npm/{name}@{version}"),
+        "name": name,
+        "version": version,
+        "revision": 0,
+        "interpretation": "npm-install-manifest/1",
+        "manifest": {},
+    });
+    serde_json::to_vec(&record).unwrap()
+}
+
+async fn a_version_is_accepted_with_its_release_record(db: Db) {
+    let storage = storage(&db);
+    let database = storage.sql_metadata().unwrap();
+    let org = storage.for_hosted("acme", Ecosystem::Npm);
+    let mut core = document("core", &verified("core", &["1.0.0"]));
+    let record = record_of("core", "1.0.0");
+    core.records.insert("1.0.0".to_string(), record.clone());
+    commit(database, vec![core], request("one", None)).await.unwrap();
+    let read_record = async |version, revision| {
+        org.read_release_record(&npm("core"), version, revision).await
+            .unwrap()
+    };
+    assert_eq!(read_record("1.0.0", 0).await, Some(record.clone()));
+    assert_eq!(read_record("1.0.0", 1).await, None);
+    assert_eq!(read_record("2.0.0", 0).await, None);
+
+    // A version the store holds keeps the record it was accepted with.
+    let mut restated = document("core", &read(&org, "core").await);
+    restated.expected = Some(crate::HostedDocumentVersion::Generation(1));
+    restated.records.insert("1.0.0".to_string(), record_of("core", "1.0.0-other"));
+    commit(database, vec![restated], request("two", None)).await.unwrap();
+    assert_eq!(read_record("1.0.0", 0).await, Some(record));
+
+    // Removing the version removes its record.
+    write(&org, "core", &packument("core", &[])).await;
+    assert_eq!(read_record("1.0.0", 0).await, None);
+}
+
+async fn a_release_record_must_describe_its_version(db: Db) {
+    let storage = storage(&db);
+    let database = storage.sql_metadata().unwrap();
+    let org = storage.for_hosted("acme", Ecosystem::Npm);
+    for (version, record) in [
+        ("1.0.0", record_of("core", "2.0.0")),
+        ("1.0.0", record_of("other", "1.0.0")),
+        ("1.0.0", b"{}".to_vec()),
+    ] {
+        let mut core = document("core", &verified("core", &[version]));
+        core.records.insert(version.to_string(), record);
+        let err = commit(database, vec![core], request("one", None)).await.unwrap_err();
+        assert!(matches!(err, RegistryError::Internal { .. }), "{err:?}");
+    }
+    assert!(
+        org.read_hosted_document(&npm("core")).await
+            .unwrap()
+            .is_none(),
+    );
+}
+
 conformance! {
+    a_version_is_accepted_with_its_release_record,
+    a_release_record_must_describe_its_version,
     a_batch_commits_every_package_under_one_generation_or_none,
     a_retried_request_gets_its_recorded_outcome,
     publications_are_found_by_id_name_and_member,

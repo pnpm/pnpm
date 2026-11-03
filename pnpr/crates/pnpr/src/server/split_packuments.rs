@@ -15,7 +15,8 @@
 //! time it is served, so it changes only when the package does.
 
 pub(super) use release_records::{
-    record_address, selected_revision, version_document_response, without_pnpr_facts_in,
+    accepted_record_response, record_address, release_record, selected_revision,
+    version_document_response, without_pnpr_facts_in,
 };
 
 use axum::http::{HeaderMap, header};

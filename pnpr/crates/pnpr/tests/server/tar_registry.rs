@@ -583,6 +583,73 @@ async fn every_document_and_route_form_of_a_tar_registry_describes_the_tar() {
     assert_eq!(body_bytes(encoded.into_body()).await.as_slice(), tar.as_slice());
 }
 
+/// A release record accepted with a version names the `.tgz`'s integrity.
+/// A tar registry describes the version by its tar instead, and both routes
+/// hide a vulnerable version's record.
+#[tokio::test]
+async fn a_tar_registry_describes_an_accepted_record_by_its_tar() {
+    let tmp = TempDir::new().unwrap();
+    let auth = AuthState::in_memory();
+    let token = issue_token(&auth, "alice").await;
+    let mut config = acme_config(tmp.path().to_path_buf());
+    config.storage.metadata =
+        pnpr_config::MetadataBackend::Sqlite(tmp.path().join("metadata.sqlite"));
+    let osv = osv_database("@acme/widget", &["2.0.0"]);
+    enable_osv(&mut config, osv.path());
+    let app = router_with_auth(config, auth);
+    let tar = widget_tar();
+    let tgz = gzip(&tar);
+    let publish = app
+        .clone()
+        .oneshot(hosted_publish_request(
+            "/npm/~acme/@acme/widget",
+            "@acme/widget",
+            "1.0.0",
+            &tgz,
+            &token,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(publish.status(), StatusCode::CREATED);
+
+    let accepted = get(&app, "/npm/@acme%2Fwidget/1.0.0+r0", None).await;
+    let cache_control = accepted
+        .headers()
+        .get(header::CACHE_CONTROL)
+        .cloned();
+    let accepted = body_json(accepted.into_body()).await;
+    assert_eq!(accepted["schema"], "pnpr-release-record/1");
+    assert_eq!(accepted["integrity"], sha512_integrity(&tgz));
+    assert_eq!(accepted["inputs"]["archive"]["integrity"], sha512_integrity(&tgz));
+    assert_eq!(cache_control.unwrap(), "public, max-age=31536000, immutable");
+
+    let described =
+        body_json(get(&app, "/npm/~zstd/@acme%2Fwidget/1.0.0+r0", None).await.into_body()).await;
+    assert_eq!(described["integrity"], sha512_integrity(&tar));
+    let mut expected = accepted.clone();
+    expected["integrity"] = serde_json::json!(sha512_integrity(&tar));
+    assert_eq!(described, expected);
+
+    let publish = app
+        .clone()
+        .oneshot(hosted_publish_request(
+            "/npm/~acme/@acme/widget",
+            "@acme/widget",
+            "2.0.0",
+            &gzip(&tar_of(&[(
+                "package/package.json",
+                br#"{"name":"@acme/widget","version":"2.0.0"}"#,
+            )])),
+            &token,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(publish.status(), StatusCode::CREATED);
+    for path in ["/npm/@acme%2Fwidget/2.0.0+r0", "/npm/~zstd/@acme%2Fwidget/2.0.0+r0"] {
+        assert_eq!(get(&app, path, None).await.status(), StatusCode::NOT_FOUND, "{path}");
+    }
+}
+
 #[tokio::test]
 async fn the_version_route_refuses_a_vulnerable_version() {
     let tmp = TempDir::new().unwrap();

@@ -5,7 +5,7 @@ use super::{
     AppState, CanonicalPackageName, Ecosystem, Identity, RegistryError, RegistrySource, Response,
     Value, addressed_registry, caller_scoped, dist_view, extract_upstream_version_manifest,
     extract_version_manifest, hosted_read_namespace, is_osv_vulnerable_packument_version,
-    not_found, read_source_packument, registry_endpoint, resolve_registry_source,
+    is_tar_registry, not_found, read_source_packument, registry_endpoint, resolve_registry_source,
     resolve_version_or_tag, tar_integrities_of,
 };
 use axum::response::IntoResponse;
@@ -22,6 +22,12 @@ pub(in super::super) async fn serve_version_manifest(
     };
     let base = registry_endpoint(state, Ecosystem::Npm, registry);
     let address = super::super::split_packuments::record_address(version_or_tag);
+    if let (version, Some(revision)) = address {
+        let record = (raw_name, version, revision);
+        if let Some(response) = serve_accepted_record(state, identity, &target, record).await {
+            return caller_scoped(state, Ecosystem::Npm, registry, Some(raw_name), response);
+        }
+    }
     let response =
         serve_registry_version_manifest(state, identity, &target, raw_name, address, &base).await;
     caller_scoped(state, Ecosystem::Npm, registry, Some(raw_name), response)
@@ -67,6 +73,50 @@ async fn serve_registry_version_manifest(
     };
     let tars = view.tar_integrities.map(|table| (table, view.tar_registry));
     super::super::split_packuments::version_document_response(manifest, revision, tars)
+}
+
+/// The release record a hosted version was accepted with, served as the
+/// metadata store keeps it, or `None` when the store keeps none for it.
+///
+/// A registry that serves tars describes the version by its tar's
+/// integrity, which is not the integrity the record was accepted with, so
+/// it serves the record with that one field changed.
+async fn serve_accepted_record(
+    state: &AppState,
+    identity: &Identity,
+    registry: &str,
+    (raw_name, version, revision): (&str, &str, u64),
+) -> Option<Response> {
+    let name = CanonicalPackageName::parse(raw_name, pnpr_package_name::Ecosystem::Npm).ok()?;
+    let resolved_source = resolve_registry_source(state, registry, name.as_str());
+    let RegistrySource::Hosted(source) = &resolved_source else { return None };
+    let org = match hosted_read_namespace(state, identity, source, name.as_str()) {
+        Ok(org) => org,
+        Err(err) => return Some(err.into_response()),
+    };
+    let stored = state.inner.storage
+        .for_hosted(&org, pnpr_registry::Ecosystem::Npm)
+        .read_release_record(&name, version, revision)
+        .await;
+    let record = match stored {
+        Ok(record) => record?,
+        Err(err) => return Some(err.into_response()),
+    };
+    let hidden = state.inner.osv_index
+        .as_ref()
+        .is_some_and(|osv_index| osv_index.is_vulnerable(name.as_str(), version));
+    if hidden {
+        return Some(not_found());
+    }
+    if !is_tar_registry(state, registry) {
+        return Some(super::super::split_packuments::accepted_record_response(record, None));
+    }
+    let table = match tar_integrities_of(state, &resolved_source, &name).await {
+        Ok(table) => table,
+        Err(err) => return Some(err.into_response()),
+    };
+    let table = table.unwrap_or_default();
+    Some(super::super::split_packuments::accepted_record_response(record, Some(&table)))
 }
 
 /// Whether a request for `version_or_tag` may be answered with `manifest`. A
