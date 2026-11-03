@@ -20,6 +20,9 @@ pub use errors::{
 };
 pub use peer_range::{get_peer_version_range, is_acceptable_peer_spec, is_valid_peer_range};
 pub use pnpm_config::LinkWorkspacePackages;
+pub use pnpm_semver_include_prerelease::{
+    ANY_VERSION_RANGE, is_any_version_range, is_valid_semver_range,
+};
 pub use preferred_versions::{
     DIRECT_DEP_SELECTOR_WEIGHT, EXISTING_VERSION_SELECTOR_WEIGHT, PreferredVersions,
     PreferredVersionsOverlay, REQUESTED_VERSION_SELECTOR_WEIGHT, RESOLVED_VERSION_SELECTOR_WEIGHT,
@@ -37,7 +40,6 @@ pub use resolve::{
     UpdateBehavior, VersionSelectionOptions, WantedDependency, WorkspacePackage, WorkspacePackages,
     WorkspacePackagesByVersion, resolve_package_version,
 };
-pub use semver_range::{ANY_VERSION_RANGE, is_any_version_range, is_valid_semver_range};
 pub use unsupported_protocol::UnsupportedProtocolError;
 pub use verifier::{
     PlannedCanonicalFetches, ResolutionPolicyViolation, ResolutionVerification, ResolutionVerifier,
@@ -49,7 +51,6 @@ mod peer_range;
 mod preferred_versions;
 mod publish_time;
 mod resolve;
-mod semver_range;
 mod unsupported_protocol;
 mod verifier;
 

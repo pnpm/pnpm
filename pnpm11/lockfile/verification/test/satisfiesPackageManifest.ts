@@ -546,7 +546,7 @@ test('satisfiesPackageManifest() checks a registry-qualified version against the
   })
 })
 
-test.each(['*', 'x', '>=0'])('satisfiesPackageManifest() accepts a prerelease resolved from %s', (range) => {
+test.each(['*', 'x', '>=0', '', '^1.0.0 || '])('satisfiesPackageManifest() accepts a prerelease resolved from %j', (range) => {
   expect(satisfiesPackageManifest({}, {
     dependencies: { 'only-pre': '1.0.0-alpha.0' },
     specifiers: { 'only-pre': range },

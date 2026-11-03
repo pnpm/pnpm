@@ -15,6 +15,7 @@ pnpm-config = { workspace = true }
 pnpm-lockfile = { workspace = true }
 pnpm-network = { workspace = true }
 pnpm-registry = { workspace = true }
+pnpm-semver-include-prerelease = { workspace = true }
 
 chrono = { workspace = true }
 derive_more = { workspace = true }

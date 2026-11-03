@@ -20,6 +20,7 @@ pnpm-package-manifest = { workspace = true }
 pnpm-patching = { workspace = true }
 pnpm-platform-variants = { workspace = true }
 pnpm-resolving-parse-wanted-dependency = { workspace = true }
+pnpm-semver-include-prerelease = { workspace = true }
 pnpm-tool-protocol = { workspace = true }
 
 derive_more = { workspace = true }
