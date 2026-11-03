@@ -233,7 +233,7 @@ async function publishRegistryPrefix (
   if (publishedName == null) return undefined
   const registry = getPublishConfigRegistry(publishConfig, publishedName) ??
     pickRegistryForPackage(registriesByScope, publishedName)
-  return pickDeclaredRegistryPrefix(registriesByPrefix, registry)
+  return pickDeclaredRegistryPrefix({ registriesByScope, registriesByPrefix }, registry)
 }
 
 const publicationManifests = new WeakMap<Project, Promise<ProjectManifest>>()
