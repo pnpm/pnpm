@@ -403,5 +403,3 @@ mod cli_setting_values;
 mod includes;
 
 mod tls_settings;
-
-mod declared_registry_prefixes;

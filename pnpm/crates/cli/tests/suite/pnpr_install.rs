@@ -46,7 +46,15 @@ const IS_POSITIVE_PATCH: &str = include_str!(
 /// boundary); returns its base URL and a pre-seeded bearer token, whose
 /// owner is a pre-seeded account because pnpr honors only such tokens.
 fn start_pnpr(registry_url: &str) -> (String, String) {
-    let registry_url = registry_url.to_string();
+    start_pnpr_for(&[registry_url])
+}
+
+/// [`start_pnpr`] resolving from each of `registry_urls`.
+fn start_pnpr_for(registry_urls: &[&str]) -> (String, String) {
+    let registry_urls: Vec<String> = registry_urls
+        .iter()
+        .map(ToString::to_string)
+        .collect();
     let server = PnprServer::bind("pnpr");
     let tokens_path = server.storage.join("tokens.db");
     let htpasswd_path = server.storage.join("htpasswd");
@@ -65,10 +73,14 @@ fn start_pnpr(registry_url: &str) -> (String, String) {
     let addr = server.serve(move |config| {
         config.identity.auth.htpasswd.file = Some(htpasswd_path);
         config.identity.auth.tokens.file = Some(tokens_path);
-        config.routing.route_policy.public.push(pnpr::PublicRoute {
-            registry: Some(registry_url),
-            package: None,
-        });
+        config.routing.route_policy.public.extend(
+            registry_urls
+                .into_iter()
+                .map(|registry_url| pnpr::PublicRoute {
+                    registry: Some(registry_url),
+                    package: None,
+                }),
+        );
     });
     (format!("http://{addr}/"), token)
 }

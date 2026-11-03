@@ -2714,9 +2714,6 @@ importers:
 
   pnpm11/config/pick-registry-for-package:
     dependencies:
-      '@pnpm/constants':
-        specifier: workspace:*
-        version: link:../../core/constants
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../core/types
@@ -2730,6 +2727,9 @@ importers:
       '@pnpm/config.pick-registry-for-package':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/constants':
+        specifier: workspace:*
+        version: link:../../core/constants
 
   pnpm11/config/reader:
     dependencies:

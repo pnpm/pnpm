@@ -177,6 +177,7 @@ fn create_configured_named_registry_resolver(
             .cloned()
             .collect(),
         registries_by_prefix,
+        registries: npm.registries.clone(),
         declared_prefixes: npm.declared_prefixes.clone(),
         metadata: pnpm_resolving_npm_resolver::RegistryMetadataClient {
             http_client: Arc::clone(&npm.metadata.http_client),

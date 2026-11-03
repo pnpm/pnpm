@@ -5,8 +5,10 @@ use crate::{
 use pretty_assertions::assert_eq;
 use std::collections::{BTreeMap, HashMap};
 
+const DEFAULT: &str = "https://registry.npmjs.org/";
+
 fn declared(entries: &[(&str, &str)]) -> DeclaredRegistryPrefixes {
-    DeclaredRegistryPrefixes::new(entries.iter().copied())
+    DeclaredRegistryPrefixes::new(entries.iter().copied(), DEFAULT)
 }
 
 fn key(key: &str) -> PkgNameVerPeer {
@@ -57,6 +59,28 @@ fn several_prefixes_for_one_registry_resolve_to_the_smallest() {
     assert_eq!(prefixes.prefix_for("https://other.example.com/"), Some("alpha"));
 }
 
+/// <https://github.com/pnpm/pnpm/issues/17575>
+#[test]
+fn a_prefix_of_the_default_registry_qualifies_nothing() {
+    let prefixes = declared(&[("npmjs", "https://REGISTRY.npmjs.org"), ("work", DEFAULT)]);
+    assert!(prefixes.is_empty());
+    assert_eq!(prefixes.prefix_for(DEFAULT), None);
+}
+
+#[test]
+fn an_alias_of_the_default_registry_keys_plain_only_names_routed_there() {
+    let prefixes = declared(&[("work", "https://npm.example.com/")]);
+    let work = "https://npm.example.com/";
+    assert_eq!(prefixes.alias_key_prefix("npmjs", DEFAULT, DEFAULT), None);
+    assert_eq!(
+        prefixes.alias_key_prefix("npmjs", DEFAULT, work),
+        Some("npmjs"),
+        "a plain key would read as resolved from the scope's registry",
+    );
+    assert_eq!(prefixes.alias_key_prefix("zeta", work, work), Some("work"));
+    assert_eq!(prefixes.alias_key_prefix("gh", "https://npm.pkg.github.com/", DEFAULT), Some("gh"),);
+}
+
 #[test]
 fn an_unparsable_registry_declares_nothing() {
     let prefixes = declared(&[("broken", "not a url")]);
@@ -75,6 +99,7 @@ fn context() -> RegistryContext {
         ]),
         registries_by_prefix: HashMap::from([
             ("gh".to_string(), "https://npm.pkg.github.com/".to_string()),
+            ("npmjs".to_string(), DEFAULT.to_string()),
             ("work".to_string(), "https://npm.example.com".to_string()),
             ("zeta".to_string(), registry.to_string()),
         ]),
@@ -135,10 +160,12 @@ fn a_plain_key_moves_with_its_scope_route() {
 #[test]
 fn key_prefix_for_alias_is_the_prefix_its_registry_keys_carry() {
     let context = context();
-    assert_eq!(context.key_prefix_for_alias("work"), Some("work"));
-    assert_eq!(context.key_prefix_for_alias("zeta"), Some("work"));
-    assert_eq!(context.key_prefix_for_alias("gh"), Some("gh"));
-    assert_eq!(context.key_prefix_for_alias("gone"), None);
+    assert_eq!(context.key_prefix_for_alias("work", "@work/foo"), Some("work"));
+    assert_eq!(context.key_prefix_for_alias("zeta", "foo"), Some("work"));
+    assert_eq!(context.key_prefix_for_alias("gh", "@gh/foo"), Some("gh"));
+    assert_eq!(context.key_prefix_for_alias("npmjs", "foo"), None, "a plain key");
+    assert_eq!(context.key_prefix_for_alias("npmjs", "@work/foo"), Some("npmjs"));
+    assert_eq!(context.key_prefix_for_alias("gone", "foo"), None);
 }
 
 #[test]
@@ -158,6 +185,12 @@ fn a_qualified_key_is_rekeyed_only_by_another_prefix_of_its_registry() {
     assert_eq!(context.rekeyed(&key("@work/foo@work:1.0.0")), None);
     assert_eq!(context.rekeyed(&key("@work/foo@zeta:1.0.0")), Some(key("@work/foo@work:1.0.0")));
     assert_eq!(context.rekeyed(&key("foo@gh:1.0.0")), None, "a built-in alias nothing declares");
+    assert_eq!(
+        context.rekeyed(&key("foo@npmjs:1.0.0(peer@2.0.0)")),
+        Some(key("foo@1.0.0(peer@2.0.0)")),
+        "an alias of the default registry",
+    );
+    assert_eq!(context.rekeyed(&key("@work/foo@npmjs:1.0.0")), None);
     assert_eq!(
         context.rekeyed(&key("foo@gone:1.0.0")),
         None,

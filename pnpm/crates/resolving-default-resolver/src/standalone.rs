@@ -174,6 +174,10 @@ fn build_named_registry_resolver(
             .cloned()
             .collect(),
         registries_by_prefix: merged_registries_by_prefix,
+        registries: config
+            .resolved_registries()
+            .into_iter()
+            .collect(),
         declared_prefixes: config.declared_registry_prefixes(),
         metadata: pnpm_resolving_npm_resolver::RegistryMetadataClient {
             http_client: Arc::clone(http_client),

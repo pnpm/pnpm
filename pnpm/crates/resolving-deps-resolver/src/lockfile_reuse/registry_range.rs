@@ -119,12 +119,8 @@ impl<'a> WantedRegistryRange<'a> {
                 }
                 None => (Cow::Borrowed(alias), body),
             };
-            return Some(Self {
-                name,
-                registry,
-                key_prefix: registries.key_prefix_for_alias(prefix),
-                range: range.parse().ok()?,
-            });
+            let key_prefix = registries.key_prefix_for_alias(prefix, &name.to_string());
+            return Some(Self { name, registry, key_prefix, range: range.parse().ok()? });
         }
         let registry = registries.routed_registry(&alias.to_string());
         Some(Self {

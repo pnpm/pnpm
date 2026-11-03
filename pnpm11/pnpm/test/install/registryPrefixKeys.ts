@@ -15,9 +15,12 @@ import { writeYamlFileSync } from 'write-yaml-file'
 
 import { execPnpm, execPnpmSync } from '../utils/index.js'
 
+/** The default registry, whose packages keep plain keys. */
 const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/npm/`
 /** The same server under another host, which makes it another registry. */
-const OTHER_REGISTRY = `http://127.0.0.1:${REGISTRY_MOCK_PORT}/npm/`
+const WORK_REGISTRY = `http://127.0.0.1:${REGISTRY_MOCK_PORT}/npm/`
+/** A registry nothing resolves from. */
+const UNUSED_REGISTRY = 'https://unused.example.com/'
 
 /**
  * `@pnpm.e2e/foobar@100.0.0` declares `@pnpm.e2e/foo: ^100.0.0`, a plain range
@@ -82,8 +85,8 @@ function readRecordedRegistryPrefixes (): unknown {
 // default registry carry, which must not make it a different registry.
 test('a plain scoped range and a prefixed range share one key with namedRegistries', async () => {
   setup({ [PARENT]: 'work:100.0.0', [CHILD]: 'work:^100.0.0' }, {
-    namedRegistries: { work: REGISTRY.replace(/\/$/, '') },
-    registries: { '@pnpm.e2e': REGISTRY },
+    namedRegistries: { work: WORK_REGISTRY.replace(/\/$/, '') },
+    registries: { '@pnpm.e2e': WORK_REGISTRY },
   })
 
   await execPnpm(['install'])
@@ -99,7 +102,7 @@ test('a plain scoped range and a prefixed range share one key with namedRegistri
 
 test('a plain scoped range and a prefixed range share one key with a registries declaration', async () => {
   setup({ [PARENT]: 'work:100.0.0', [CHILD]: 'work:^100.0.0' }, {
-    registries: { [REGISTRY]: { scopes: ['@pnpm.e2e'], prefix: 'work' } },
+    registries: { [WORK_REGISTRY]: { scopes: ['@pnpm.e2e'], prefix: 'work' } },
   })
 
   await execPnpm(['install'])
@@ -113,8 +116,7 @@ test('a plain scoped range and a prefixed range share one key with a registries 
 
 test('the same name and version from two registries keeps separate keys', async () => {
   setup({ [CHILD]: 'work:100.1.0', 'foo-plain': 'npm:@pnpm.e2e/foo@100.1.0' }, {
-    namedRegistries: { work: REGISTRY },
-    registries: { '@pnpm.e2e': OTHER_REGISTRY },
+    namedRegistries: { work: WORK_REGISTRY },
   })
 
   await execPnpm(['install'])
@@ -125,7 +127,8 @@ test('the same name and version from two registries keeps separate keys', async 
 
 test('several prefixes of one registry key its packages by the smallest one', async () => {
   setup({ [PARENT]: 'zeta:100.0.0', [CHILD]: 'work:^100.0.0' }, {
-    namedRegistries: { zeta: REGISTRY, work: REGISTRY },
+    namedRegistries: { zeta: WORK_REGISTRY, work: WORK_REGISTRY },
+    registries: { '@pnpm.e2e': WORK_REGISTRY },
   })
 
   await execPnpm(['install'])
@@ -142,12 +145,15 @@ test('several prefixes of one registry key its packages by the smallest one', as
 })
 
 test('entries keyed by another prefix of the registry are re-keyed', async () => {
-  setup({ [PARENT]: 'zeta:100.0.0' }, { namedRegistries: { zeta: REGISTRY } })
+  setup({ [PARENT]: 'zeta:100.0.0' }, { namedRegistries: { zeta: WORK_REGISTRY }, registries: { '@pnpm.e2e': WORK_REGISTRY } })
   await execPnpm(['install'])
   expect(packageKeys(readLockfile(), PARENT)).toStrictEqual(['@pnpm.e2e/foobar@zeta:100.0.0'])
   expect(packageKeys(readLockfile(), CHILD)).toStrictEqual(['@pnpm.e2e/foo@zeta:100.1.0'])
 
-  writeYamlFileSync('pnpm-workspace.yaml', { namedRegistries: { zeta: REGISTRY, work: REGISTRY } })
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    namedRegistries: { zeta: WORK_REGISTRY, work: WORK_REGISTRY },
+    registries: { '@pnpm.e2e': WORK_REGISTRY },
+  })
   await execPnpm(['install'])
 
   const lockfile = readLockfile()
@@ -190,24 +196,54 @@ test('an updateConfig hook that points the built-in npmjs alias at the default r
   expect(packageKeys(readLockfile(), PARENT)).toStrictEqual(['@pnpm.e2e/foobar@100.0.0'])
 })
 
-// The key alone cannot tell such an entry from one a `npmjs:` specifier
-// minted, so only an install that resolves re-keys it.
-test('a resolving install re-keys plain ranges qualified by a built-in alias', async () => {
-  setup({ [PARENT]: '100.0.0' }, { namedRegistries: { work: REGISTRY } })
-  await execPnpm(['install'])
-  expect(packageKeys(readLockfile(), PARENT)).toStrictEqual(['@pnpm.e2e/foobar@work:100.0.0'])
+test('a prefixed specifier of the default registry shares the plain key of a plain range', async () => {
+  setup({ [PARENT]: 'work:100.0.0', [CHILD]: 'work:^100.0.0' }, { namedRegistries: { work: REGISTRY } })
 
-  for (const file of ['pnpm-workspace.yaml', WANTED_LOCKFILE]) {
-    fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replaceAll('work:', 'npmjs:'))
-  }
-  fs.rmSync('node_modules', { recursive: true })
-  writeDependencies({ [PARENT]: '100.0.0', 'is-positive': '1.0.0' })
   await execPnpm(['install'])
 
   assertSingleChildCopy('@pnpm.e2e/foo@100.1.0')
   const lockfile = readLockfile()
   expect(packageKeys(lockfile, PARENT)).toStrictEqual(['@pnpm.e2e/foobar@100.0.0'])
-  expect(importerEntry(lockfile, PARENT)).toStrictEqual({ specifier: '100.0.0', version: '100.0.0' })
+  expect(importerEntry(lockfile, CHILD)).toStrictEqual({ specifier: 'work:^100.0.0', version: '100.1.0' })
+
+  await execPnpm(['install', '--frozen-lockfile'])
+  assertSingleChildCopy('@pnpm.e2e/foo@100.1.0')
+})
+
+/**
+ * Rewrites the plain `key` of a default-registry package to the `<prefix>:`
+ * key written while a prefix of the default registry qualified its keys.
+ */
+function qualifyDefaultRegistryKey (lockfile: LockfileFile, key: { name: string, version: string, prefix: string }): void {
+  const plainKey = `${key.name}@${key.version}`
+  const qualifiedKey = `${key.name}@${key.prefix}:${key.version}`
+  lockfile.packages![qualifiedKey] = lockfile.packages![plainKey]
+  delete lockfile.packages![plainKey]
+  lockfile.snapshots![qualifiedKey] = lockfile.snapshots![plainKey]
+  delete lockfile.snapshots![plainKey]
+  for (const snapshot of Object.values(lockfile.snapshots!)) {
+    if (snapshot.dependencies?.[key.name] === key.version) snapshot.dependencies[key.name] = `${key.prefix}:${key.version}`
+  }
+  const importer = lockfile.importers!['.'].dependencies![key.name]
+  if (importer?.version === key.version) importer.version = `${key.prefix}:${key.version}`
+}
+
+test('an install re-keys qualified keys of default-registry packages without a manifest change', async () => {
+  setup({ [PARENT]: 'work:100.0.0', [CHILD]: '^100.0.0' }, { namedRegistries: { work: REGISTRY } })
+  await execPnpm(['install'])
+  const lockfile = readLockfile()
+  qualifyDefaultRegistryKey(lockfile, { name: PARENT, version: '100.0.0', prefix: 'work' })
+  qualifyDefaultRegistryKey(lockfile, { name: CHILD, version: '100.1.0', prefix: 'work' })
+  writeLockfile(lockfile)
+  fs.rmSync('node_modules', { recursive: true })
+
+  await execPnpm(['install'])
+
+  assertSingleChildCopy('@pnpm.e2e/foo@100.1.0')
+  const rekeyed = readLockfile()
+  expect(packageKeys(rekeyed, PARENT)).toStrictEqual(['@pnpm.e2e/foobar@100.0.0'])
+  expect(importerEntry(rekeyed, PARENT)).toStrictEqual({ specifier: 'work:100.0.0', version: '100.0.0' })
+  expect(rekeyed.snapshots?.[`${PARENT}@100.0.0`]?.dependencies?.[CHILD]).toBe('100.1.0')
 })
 
 /**
@@ -227,11 +263,11 @@ function duplicateChildUnderPlainKey (version: string): void {
 
 test('a frozen install keeps an older duplicate and a resolving install merges it', async () => {
   setup({ [PARENT]: 'work:100.0.0', [CHILD]: 'work:^100.0.0' }, {
-    namedRegistries: { work: REGISTRY },
-    registries: { '@pnpm.e2e': REGISTRY },
+    namedRegistries: { work: WORK_REGISTRY },
+    registries: { '@pnpm.e2e': WORK_REGISTRY },
   })
   await execPnpm(['install'])
-  expect(readRecordedRegistryPrefixes()).toStrictEqual({ work: REGISTRY })
+  expect(readRecordedRegistryPrefixes()).toStrictEqual({ work: WORK_REGISTRY })
   duplicateChildUnderPlainKey('100.1.0')
   fs.rmSync('node_modules', { recursive: true })
 
@@ -254,7 +290,7 @@ test('a frozen install keeps an older duplicate and a resolving install merges i
   const nestedCopy = fs.realpathSync(path.join(path.dirname(parentDir), 'foo'))
   expect(rootCopy).toBe(nestedCopy)
   expect(rootCopy).toContain('work')
-  expect(readRecordedRegistryPrefixes()).toStrictEqual({ work: REGISTRY })
+  expect(readRecordedRegistryPrefixes()).toStrictEqual({ work: WORK_REGISTRY })
 })
 
 /**
@@ -278,8 +314,8 @@ function widenRootChildToAPlainPin (version: string): void {
 // install only renames its key.
 test('a resolving install re-keys without bumping the pinned version', async () => {
   setup({ [CHILD]: 'work:100.0.0' }, {
-    namedRegistries: { work: REGISTRY },
-    registries: { '@pnpm.e2e': REGISTRY },
+    namedRegistries: { work: WORK_REGISTRY },
+    registries: { '@pnpm.e2e': WORK_REGISTRY },
   })
   await execPnpm(['install'])
   assertSingleChildCopy('@pnpm.e2e/foo@work:100.0.0')
@@ -297,8 +333,8 @@ test('a resolving install re-keys without bumping the pinned version', async () 
 // published.
 test('a resolving install re-keys a transitive pin without bumping it', async () => {
   setup({ [PARENT]: 'work:100.0.0', [CHILD]: 'work:100.0.0' }, {
-    namedRegistries: { work: REGISTRY },
-    registries: { '@pnpm.e2e': REGISTRY },
+    namedRegistries: { work: WORK_REGISTRY },
+    registries: { '@pnpm.e2e': WORK_REGISTRY },
   })
   await execPnpm(['install'])
   assertSingleChildCopy('@pnpm.e2e/foo@work:100.0.0')
@@ -322,47 +358,47 @@ test('the workspace state records the registry prefixes only for a lockfile whos
   // `other` names a registry nothing here resolves from.
   writeYamlFileSync('pnpm-workspace.yaml', {
     packages: ['project-*'],
-    registries: { '@pnpm.e2e': REGISTRY },
-    namedRegistries: { other: OTHER_REGISTRY },
+    registries: { '@pnpm.e2e': WORK_REGISTRY },
+    namedRegistries: { other: UNUSED_REGISTRY },
   })
   await execPnpm(['install'])
   expect(packageKeys(readLockfile(), CHILD)).toStrictEqual(['@pnpm.e2e/foo@100.1.0'])
-  expect(readRecordedRegistryPrefixes()).toStrictEqual({ other: OTHER_REGISTRY })
+  expect(readRecordedRegistryPrefixes()).toStrictEqual({ other: UNUSED_REGISTRY })
 
   writeYamlFileSync('pnpm-workspace.yaml', {
     packages: ['project-*'],
-    registries: { '@pnpm.e2e': REGISTRY },
-    namedRegistries: { other: OTHER_REGISTRY, work: REGISTRY },
+    registries: { '@pnpm.e2e': WORK_REGISTRY },
+    namedRegistries: { other: UNUSED_REGISTRY, work: WORK_REGISTRY },
   })
   await execPnpm(['install', '--filter', 'project-1'])
 
   const keysAreCurrent = packageKeys(readLockfile(), CHILD).every((key) => key.includes('@work:'))
-  expect(readRecordedRegistryPrefixes()).toStrictEqual(keysAreCurrent ? { other: OTHER_REGISTRY, work: REGISTRY } : undefined)
+  expect(readRecordedRegistryPrefixes()).toStrictEqual(keysAreCurrent ? { other: UNUSED_REGISTRY, work: WORK_REGISTRY } : undefined)
 
   await execPnpm(['install'])
 
   expect(packageKeys(readLockfile(), CHILD)).toStrictEqual(['@pnpm.e2e/foo@work:100.1.0'])
   expect(readLockfile().importers?.['project-2']?.dependencies?.[CHILD]).toStrictEqual({ specifier: '^100.0.0', version: 'work:100.1.0' })
-  expect(readRecordedRegistryPrefixes()).toStrictEqual({ other: OTHER_REGISTRY, work: REGISTRY })
+  expect(readRecordedRegistryPrefixes()).toStrictEqual({ other: UNUSED_REGISTRY, work: WORK_REGISTRY })
 })
 
 test('the workspace state records the registry prefixes of an install that keeps no lockfile', async () => {
   setup({ [CHILD]: '^100.0.0' }, {
     lockfile: false,
-    registries: { '@pnpm.e2e': REGISTRY },
-    namedRegistries: { work: REGISTRY },
+    registries: { '@pnpm.e2e': WORK_REGISTRY },
+    namedRegistries: { work: WORK_REGISTRY },
   })
 
   await execPnpm(['install'])
 
   expect(fs.existsSync(WANTED_LOCKFILE)).toBe(false)
-  expect(readRecordedRegistryPrefixes()).toStrictEqual({ work: REGISTRY })
+  expect(readRecordedRegistryPrefixes()).toStrictEqual({ work: WORK_REGISTRY })
 })
 
 test('a frozen reinstall accepts a registry-qualified child of a local directory dependency', async () => {
   setup({ local: 'file:./local' }, {
-    registries: { '@pnpm.e2e': REGISTRY },
-    namedRegistries: { work: REGISTRY },
+    registries: { '@pnpm.e2e': WORK_REGISTRY },
+    namedRegistries: { work: WORK_REGISTRY },
   })
   fs.mkdirSync('local')
   fs.writeFileSync('local/package.json', JSON.stringify({ name: 'local', version: '1.0.0', dependencies: { [CHILD]: '^100.0.0' } }))
@@ -375,6 +411,13 @@ test('a frozen reinstall accepts a registry-qualified child of a local directory
   expect(virtualStoreCopies(CHILD)).toHaveLength(1)
 })
 
+/** `snapshot` with its tarball URL, when it records one, pointing at `version`. */
+function withTarballOf<Snapshot extends { resolution: object }> (snapshot: Snapshot, version: string): Snapshot {
+  const { resolution } = snapshot
+  if (!('tarball' in resolution) || typeof resolution.tarball !== 'string') return snapshot
+  return { ...snapshot, resolution: { ...resolution, tarball: resolution.tarball.replace(/@[^@/]+$/, `@${version}`) } }
+}
+
 test('an install re-keys an outdated key that a changed lockfile adds after a filtered install', async () => {
   preparePackages([
     { name: 'project-1', version: '1.0.0', dependencies: { [CHILD]: '^100.0.0' } },
@@ -382,15 +425,15 @@ test('an install re-keys an outdated key that a changed lockfile adds after a fi
   ])
   writeYamlFileSync('pnpm-workspace.yaml', {
     packages: ['project-*'],
-    registries: { [REGISTRY]: { scopes: ['@pnpm.e2e'], serverType: 'pnpr' } },
-    namedRegistries: { work: REGISTRY },
+    registries: { [WORK_REGISTRY]: { scopes: ['@pnpm.e2e'], serverType: 'pnpr' } },
+    namedRegistries: { work: WORK_REGISTRY },
   })
   await execPnpm(['install', '--filter', 'project-1'])
   const lockfile = readLockfile()
   const qualified = '@pnpm.e2e/foo@work:100.1.0'
   writeLockfile({
     ...lockfile,
-    packages: { ...lockfile.packages, '@pnpm.e2e/foo@100.0.0': lockfile.packages![qualified] },
+    packages: { ...lockfile.packages, '@pnpm.e2e/foo@100.0.0': withTarballOf(lockfile.packages![qualified], '100.0.0') },
     snapshots: { ...lockfile.snapshots, '@pnpm.e2e/foo@100.0.0': {} },
   })
 
@@ -401,8 +444,8 @@ test('an install re-keys an outdated key that a changed lockfile adds after a fi
 
 test('jsr: specifiers share the key of the registry prefix', async () => {
   setup({ '@pnpm-e2e/bar': 'jsr:@pnpm-e2e/bar@2.0.0', 'bar-work': 'work:@jsr/pnpm-e2e__bar@2.0.0' }, {
-    namedRegistries: { work: REGISTRY },
-    registries: { '@jsr': REGISTRY },
+    namedRegistries: { work: WORK_REGISTRY },
+    registries: { '@jsr': WORK_REGISTRY },
   })
 
   await execPnpm(['install'])
@@ -419,8 +462,8 @@ test('jsr: specifiers share the key of the registry prefix', async () => {
 
 test('the inspection commands read the merged keys', async () => {
   setup({ [PARENT]: 'work:100.0.0', [CHILD]: 'work:^100.0.0', 'foo-plain': 'npm:@pnpm.e2e/foo@^100.0.0' }, {
-    namedRegistries: { work: REGISTRY },
-    registries: { '@pnpm.e2e': REGISTRY },
+    namedRegistries: { work: WORK_REGISTRY },
+    registries: { '@pnpm.e2e': WORK_REGISTRY },
   })
   await execPnpm(['install'])
   assertSingleChildCopy('@pnpm.e2e/foo@work:100.1.0')

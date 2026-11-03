@@ -54,7 +54,7 @@ pub(super) fn pin_patched_revision(
     wanted.bare_specifier = exact_registry_specifier_for_revision_refresh(
         specifier,
         version,
-        prior_key.and_then(|key| key.suffix.registry_qualified().map(|(name, _)| name)),
+        prior_key.and_then(|key| registries.registry_of_key(key)),
         registries,
     )
     .into();
@@ -130,15 +130,14 @@ pub(super) fn keeps_locked_version(
         && !update_unpins_edge(ctx.update_scope(), wanted, locked_version, depth)
 }
 
-/// `named_registry` is the prefix the locked key carries. A named specifier
-/// pins only when it and the locked key name one registry, compared by the
-/// prefix that registry's keys carry, so another declared alias of it, or a
-/// key an older configuration wrote with one, pins too (see
-/// [`RegistryContext::key_prefix_for_alias`]).
+/// `locked_registry` is the registry the locked key's package resolved from.
+/// A named specifier pins only when it names that registry, so another
+/// declared alias of it, a key an older configuration wrote with one, or a
+/// plain key the alias's registry keeps pins too.
 pub(super) fn exact_registry_specifier_for_revision_refresh(
     specifier: &str,
     version: &str,
-    named_registry: Option<&str>,
+    locked_registry: Option<&str>,
     registries: &RegistryContext,
 ) -> String {
     if has_registry_revision_specifier(specifier) {
@@ -151,11 +150,9 @@ pub(super) fn exact_registry_specifier_for_revision_refresh(
         return specifier.to_string();
     };
     let names_locked_registry = registries
-        .key_prefix_for_alias(protocol)
-        .is_some_and(|prefix| {
-            named_registry.and_then(|locked| registries.key_prefix_for_alias(locked))
-                == Some(prefix)
-        });
+        .registry_of_prefix(protocol)
+        .zip(locked_registry)
+        .is_some_and(|(wanted, locked)| pnpm_lockfile::same_registry(wanted, locked));
     if protocol != "npm" && protocol != "jsr" && !names_locked_registry {
         return specifier.to_string();
     }

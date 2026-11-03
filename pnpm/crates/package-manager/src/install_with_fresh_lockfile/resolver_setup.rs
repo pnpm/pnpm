@@ -356,6 +356,7 @@ impl ResolverChainInputs<'_> {
                 .keys()
                 .cloned()
                 .collect(),
+            registries: self.registry.named.clone(),
             declared_prefixes: self.registry.declared.clone(),
             metadata: pnpm_resolving_npm_resolver::RegistryMetadataClient {
                 http_client: Arc::clone(self.fetching.http_client),

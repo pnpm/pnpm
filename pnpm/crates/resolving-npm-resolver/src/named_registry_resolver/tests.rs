@@ -75,6 +75,10 @@ fn build_resolver(
     let resolver = NamedRegistryResolver {
         registries_by_prefix: merged,
         registry_names,
+        registries: HashMap::from([(
+            "default".to_string(),
+            "https://registry.npmjs.org/".to_string(),
+        )]),
         declared_prefixes: pnpm_lockfile::DeclaredRegistryPrefixes::default(),
         metadata: crate::RegistryMetadataClient {
             http_client: Arc::new(ThrottledClient::default()),
