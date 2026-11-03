@@ -356,11 +356,14 @@ fn write_gated_workspace(workspace: &Path) {
     .expect("write package.json");
 }
 
-/// `pnpm run noop` with the gate's trace.
+/// The span that lists the workspace projects for the records attempt.
+const LIST_PROJECTS_SPAN: &str = "list_workspace_projects";
+
+/// `pnpm run noop` with the gate's trace and the listing span.
 fn traced_run(workspace: &Path, registry: &str) -> std::process::Output {
     pacquet_in(workspace)
         .with_env("PNPM_CONFIG_REGISTRY", registry)
-        .with_env("TRACE", "pacquet::run=debug")
+        .with_env("TRACE", "pacquet::run=debug,pacquet::install=debug")
         .with_args(["run", "noop"])
         .output()
         .expect("run pnpm run")
@@ -437,6 +440,7 @@ fn the_run_gate_reads_an_edited_manifest_and_reports_it_outdated() {
     assert!(!output.status.success(), "{text}");
     assert!(text.contains("ERR_PNPM_VERIFY_DEPS_BEFORE_RUN"), "{text}");
     assert!(text.contains("Workspace package b has dependencies"), "{text}");
+    assert!(text.contains(LIST_PROJECTS_SPAN), "the gate tried the records first: {text}");
     assert!(!text.contains(GATE_DECIDED_FROM_RECORDS), "{text}");
     drop((root, mock_instance));
 }
