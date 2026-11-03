@@ -39,11 +39,7 @@ pub(crate) fn without_build_metadata(version: &Version) -> Version {
 fn format_existing_cargo_spec(existing_raw: &str, resolved: &Version) -> String {
     let matches_existing = VersionReq::parse(existing_raw).is_ok_and(|req| req.matches(resolved));
     if !existing_raw.contains(',') {
-        return match existing_prefix(existing_raw) {
-            Some(prefix) => format!("{prefix}{resolved}"),
-            None if matches_existing => existing_raw.to_string(),
-            None => format!("^{resolved}"),
-        };
+        return format_single_clause(existing_raw, resolved, matches_existing);
     }
     if !matches_existing {
         return format!("^{resolved}");
@@ -62,6 +58,14 @@ fn format_existing_cargo_spec(existing_raw: &str, resolved: &Version) -> String 
         })
         .collect();
     if replaced_lower { clauses.join(", ") } else { existing_raw.to_string() }
+}
+
+fn format_single_clause(existing_raw: &str, resolved: &Version, matches_existing: bool) -> String {
+    match existing_prefix(existing_raw) {
+        Some(prefix) => format!("{prefix}{resolved}"),
+        None if matches_existing => existing_raw.to_string(),
+        None => format!("^{resolved}"),
+    }
 }
 
 fn lower_bound_prefix(clause: &str) -> Option<&'static str> {
