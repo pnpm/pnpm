@@ -1,5 +1,6 @@
 pub(super) use comments::restore_comments;
 pub(super) use stringify::stringify;
+pub(super) use sync::sync;
 
 use serde::{
     Deserialize, Deserializer,
@@ -10,6 +11,7 @@ use std::fmt;
 
 mod comments;
 mod stringify;
+mod sync;
 
 // json5 does not bound recursion. Build the value through a seed so the limit
 // applies before descending, including to fields pnpm does not interpret.
