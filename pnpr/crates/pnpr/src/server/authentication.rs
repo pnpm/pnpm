@@ -134,22 +134,30 @@ pub(super) async fn authenticate(
     }
 
     let resolved = resolve_caller(&state, header.as_deref(), &method, &path, client_ip).await;
-    let (identity, workload) = match resolved.and_then(|resolved| {
+    let caller = match resolved.and_then(|resolved| {
         refuse_deprovisioned(&state, &resolved.0)?;
         Ok(resolved)
     }) {
-        Ok(resolved) => resolved,
+        Ok(resolved) => attach_caller(&mut request, resolved),
         Err(err) => return err.into_response(),
     };
+    let mut response = next.run(request).await;
+    response.extensions_mut().insert(caller);
+    response
+}
+
+/// Record the resolved caller, and a workload's scope, on `request`.
+fn attach_caller(
+    request: &mut Request,
+    (identity, workload): (Identity, Option<WorkloadScope>),
+) -> AuthedCaller {
     let caller = AuthedCaller(identity);
     record_user_on_span(&caller.0);
     request.extensions_mut().insert(caller.clone());
     if let Some(workload) = workload {
         request.extensions_mut().insert(workload);
     }
-    let mut response = next.run(request).await;
-    response.extensions_mut().insert(caller);
-    response
+    caller
 }
 
 fn record_user_on_span(identity: &Identity) {

@@ -381,7 +381,7 @@ impl WorkloadScope {
         if ecosystem == pnpr_registry::Ecosystem::Npm {
             return Ok(());
         }
-        Err(self.refusal(format!("{ecosystem} packages")))
+        Err(self.refusal(&format!("{ecosystem} packages")))
     }
 
     /// Refuse an npm entry for a package outside the workload's, or one
@@ -398,10 +398,10 @@ impl WorkloadScope {
         {
             return Ok(());
         }
-        Err(self.refusal(format!("{package:?} in registry {source:?}")))
+        Err(self.refusal(&format!("{package:?} in registry {source:?}")))
     }
 
-    fn refusal(&self, resource: String) -> RegistryError {
+    fn refusal(&self, resource: &str) -> RegistryError {
         RegistryError::Forbidden {
             user: self.username.clone(),
             action: "publish",
