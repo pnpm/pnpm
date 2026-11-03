@@ -126,7 +126,7 @@ async fn a_different_fingerprint_is_refused(db: Db) {
     execute(
         &db,
         &[
-            &format!("CREATE TABLE {MARKER} (fingerprint TEXT NOT NULL) STRICT"),
+            schema::MARKER_TABLE,
             &insert,
             "CREATE TABLE catalogs (catalog TEXT NOT NULL PRIMARY KEY)",
         ],
@@ -155,7 +155,8 @@ async fn an_integer_schema_version_is_refused(db: Db) {
 }
 
 async fn metadata_tables_without_a_marker_are_refused(db: Db) {
-    execute(&db, &["CREATE TABLE packages (name TEXT NOT NULL)"]).await;
+    // `SQLite` table names match without regard to case.
+    execute(&db, &["CREATE TABLE PACKAGES (name TEXT NOT NULL)"]).await;
     let reason = refused(&db).await;
     assert!(reason.contains("holds metadata tables without a schema marker,"), "{reason}");
 }
@@ -170,22 +171,28 @@ conformance! {
 
 #[test]
 fn the_fingerprint_changes_with_the_statements() {
-    assert_eq!(schema::fingerprint_of(TABLES), schema::fingerprint());
-    let added_column = TABLES.replacen(
+    let script = schema::script();
+    assert_eq!(schema::fingerprint_of(&script), schema::fingerprint());
+    let added_column = script.replacen(
         "generation INTEGER NOT NULL\n)",
         "generation INTEGER NOT NULL,\n    note TEXT\n)",
         1,
     );
-    assert_ne!(added_column, TABLES);
+    assert_ne!(added_column, script);
     assert_ne!(schema::fingerprint_of(&added_column), schema::fingerprint());
-    let added_index = format!("{TABLES}\nCREATE INDEX tags_by_version ON tags (version);");
+    let added_index = format!("{script}\nCREATE INDEX tags_by_version ON tags (version);");
     assert_ne!(schema::fingerprint_of(&added_index), schema::fingerprint());
+    let changed_marker =
+        script.replace(schema::MARKER_TABLE, &schema::MARKER_TABLE.replace(" STRICT", ""));
+    assert_ne!(changed_marker, script);
+    assert_ne!(schema::fingerprint_of(&changed_marker), schema::fingerprint());
 }
 
 #[test]
 fn the_fingerprint_ignores_comments_and_whitespace() {
-    let reformatted = TABLES.replace("    ", "\t\t").replace("-- ", "-- reworded: ");
-    assert_ne!(reformatted, TABLES);
+    let script = schema::script();
+    let reformatted = script.replace("    ", "\t\t").replace("-- ", "-- reworded: ");
+    assert_ne!(reformatted, script);
     assert_eq!(schema::fingerprint_of(&reformatted), schema::fingerprint());
 }
 
@@ -196,4 +203,15 @@ fn every_metadata_table_is_known() {
     assert!(tables.contains(&"catalogs".to_string()));
     assert!(tables.contains(&"note_history".to_string()));
     assert!(!tables.contains(&MARKER.to_string()));
+    assert_eq!(schema::table_names(schema::MARKER_TABLE), [MARKER]);
+}
+
+#[test]
+fn a_table_is_known_however_its_statement_is_spaced_or_cased() {
+    assert_eq!(
+        schema::table_names("create table\n  if not exists\tcatalogs(catalog TEXT);"),
+        ["catalogs"],
+    );
+    assert_eq!(schema::table_names("CREATE\nTABLE packages (name TEXT);"), ["packages"]);
+    assert!(schema::table_names("CREATE INDEX packages_by_name ON packages (name);").is_empty());
 }

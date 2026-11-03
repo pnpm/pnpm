@@ -21,6 +21,11 @@ use std::{fmt, sync::LazyLock};
 /// metadata tables by hand so that pnpr creates them afresh.
 pub(super) const MARKER: &str = "schema_version";
 
+/// The statement that creates the [`MARKER`] table. It is part of the
+/// schema the [`fingerprint`] covers.
+pub(super) const MARKER_TABLE: &str =
+    "CREATE TABLE schema_version (fingerprint TEXT NOT NULL) STRICT";
+
 /// The tables and indexes of the metadata. [`fingerprint`] is derived from
 /// them, so an edit to a statement here, other than to its whitespace, is a
 /// change of the schema.
@@ -279,8 +284,8 @@ CREATE TABLE IF NOT EXISTS note_history (
 pub(super) enum Stored {
     /// The marker names this fingerprint.
     Fingerprint(String),
-    /// The marker holds an integer, the schema version pnpr stored before it
-    /// stored fingerprints.
+    /// The marker holds an integer schema version, as an older pnpr's marker
+    /// does.
     Version(i64),
     /// The marker holds anything else, or more or fewer than one row.
     Unreadable,
@@ -307,25 +312,34 @@ pub(super) fn short(fingerprint: &str) -> &str {
 }
 
 /// The fingerprint of the schema this pnpr reads: the SHA-256, in hex, of
-/// [`TABLES`] without its comment lines and with every run of whitespace
+/// [`script`] without its comment lines and with every run of whitespace
 /// collapsed to one space. Reformatting or commenting the statements leaves
 /// it unchanged; any other edit changes it.
 pub(super) fn fingerprint() -> &'static str {
-    static FINGERPRINT: LazyLock<String> = LazyLock::new(|| fingerprint_of(TABLES));
+    static FINGERPRINT: LazyLock<String> = LazyLock::new(|| fingerprint_of(&script()));
     &FINGERPRINT
+}
+
+/// Every statement of the schema: the metadata's [`TABLES`] and the
+/// [`MARKER_TABLE`].
+pub(super) fn script() -> String {
+    format!("{TABLES}\n{MARKER_TABLE};")
 }
 
 pub(super) fn fingerprint_of(script: &str) -> String {
     let canonical = statements(script)
-        .map(|statement| {
-            statement
-                .split_whitespace()
-                .collect::<Vec<_>>()
-                .join(" ")
-        })
+        .map(|statement| canonical(&statement))
         .collect::<Vec<_>>()
         .join(";\n");
     pnpm_crypto_hash::create_hex_hash(&canonical)
+}
+
+/// `statement` with every run of whitespace collapsed to one space.
+fn canonical(statement: &str) -> String {
+    statement
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 /// Create the schema in an empty database, and report what a database that
@@ -342,29 +356,25 @@ pub(super) fn prepare(connection: &dyn Connection) -> Result<Option<Stored>> {
         .into_iter()
         .map(|mut row| row.get::<String>(0))
         .collect::<Result<Vec<_>>>()?;
-    if present
-        .iter()
-        .any(|table| table == MARKER)
-    {
+    // `SQLite` matches table names without regard to ASCII case.
+    let has = |name: &str| {
+        present
+            .iter()
+            .any(|table| table.eq_ignore_ascii_case(name))
+    };
+    if has(MARKER) {
         return Ok(match stored(&*transaction)? {
             Stored::Fingerprint(stored) if stored == fingerprint() => None,
             stored => Some(stored),
         });
     }
-    let tables = table_names(TABLES);
-    if present
-        .iter()
-        .any(|table| tables.contains(table))
-    {
+    if table_names(TABLES).iter().any(|table| has(table)) {
         return Ok(Some(Stored::Unmarked));
     }
     for statement in statements(TABLES) {
         transaction.execute(&statement, params![])?;
     }
-    transaction.execute(
-        &format!("CREATE TABLE {MARKER} (fingerprint TEXT NOT NULL) STRICT"),
-        params![],
-    )?;
+    transaction.execute(MARKER_TABLE, params![])?;
     transaction.execute(
         &format!("INSERT INTO {MARKER} (fingerprint) VALUES (?1)"),
         params![fingerprint()],
@@ -387,13 +397,22 @@ fn stored(connection: &dyn Connection) -> Result<Stored> {
     })
 }
 
-/// The tables `script` creates.
+/// The tables `script` creates, however its statements are spaced or cased.
 pub(super) fn table_names(script: &str) -> Vec<String> {
     statements(script)
         .filter_map(|statement| {
-            let rest = statement.strip_prefix("CREATE TABLE ")?;
-            let rest = rest.strip_prefix("IF NOT EXISTS ").unwrap_or(rest);
-            rest.split(|character: char| character.is_whitespace() || character == '(')
+            let statement = canonical(&statement);
+            // An ASCII case change keeps every byte offset.
+            let upper = statement.to_ascii_uppercase();
+            let mut start = "CREATE TABLE ".len();
+            if !upper.starts_with("CREATE TABLE ") {
+                return None;
+            }
+            if upper[start..].starts_with("IF NOT EXISTS ") {
+                start += "IF NOT EXISTS ".len();
+            }
+            statement[start..]
+                .split(|character: char| character.is_whitespace() || character == '(')
                 .next()
                 .map(str::to_string)
         })

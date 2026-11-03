@@ -119,15 +119,17 @@ hosted store.
 pnpr creates its tables in an empty database and marks the database with a
 fingerprint of their schema. pnpr does not migrate the metadata schema before
 1.0. When a pnpr release changes the schema, it refuses a database that holds
-another one, before it changes anything in it, with an error that names both
-fingerprints. It refuses a database with pnpr's metadata tables and no
-fingerprint the same way.
+another one, before it changes anything in it. The error names the
+fingerprint pnpr expects and what the database holds: another fingerprint,
+the integer schema version an older pnpr stored, or pnpr's metadata tables
+without a fingerprint.
 
-To start that pnpr, wipe pnpr's metadata tables by hand: delete the SQLite
-database file, with its `-wal` and `-shm` files, or drop the `schema_version`
-table and the metadata tables beside it from a libSQL database. Tables of the
-[auth backend](auth-backends.md) in the same database are not metadata tables.
-pnpr then creates the tables afresh.
+To start that pnpr, wipe pnpr's metadata tables by hand: drop the
+`schema_version` table and the metadata tables beside it. pnpr then creates
+them afresh. Leave the tables of the [auth backend](auth-backends.md) in
+place when it shares the database. A SQLite database that holds only the
+metadata, as the default `<storage>/.metadata/metadata.sqlite` does, can be
+deleted instead, with its `-wal` and `-shm` files.
 
 ## Metadata in libSQL {#libsql-metadata}
 

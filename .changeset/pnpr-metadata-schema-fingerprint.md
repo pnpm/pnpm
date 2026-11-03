@@ -2,4 +2,4 @@
 "@pnpm/pnpr": patch
 ---
 
-pnpr marks its SQL metadata database with a fingerprint of its schema instead of a version number. A database that holds another schema is refused before pnpr creates anything in it, with an error that names both fingerprints and says to wipe pnpr's metadata tables, since pnpr does not migrate them before 1.0.
+pnpr refuses a SQL metadata database of another schema before it creates any table in it. The error names the schema fingerprint pnpr expects and what the database holds, and says to wipe pnpr's metadata tables, which pnpr does not migrate before 1.0.
