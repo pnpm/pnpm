@@ -430,13 +430,14 @@ test('from subdirectories of a git repo', async () => {
 test('from a subdirectory of a hosted git repo', async () => {
   const project = prepareEmpty()
   const commit = 'c0ffee0000000000000000000000000000000001'
-  const archiveRoot = path.resolve(`monorepo-${commit}`)
+  const archiveRoot = `monorepo-${commit}`
   const pkgDir = path.join(archiveRoot, 'packages', 'nested')
   fs.mkdirSync(pkgDir, { recursive: true })
   fs.writeFileSync(path.join(archiveRoot, 'package.json'), JSON.stringify({ name: 'monorepo-root', version: '0.0.0' }))
   fs.writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify({ name: '@my-namespace/nested', version: '1.0.0' }))
-  const archivePath = path.resolve('monorepo.tgz')
-  await execa('tar', ['-czf', archivePath, '-C', path.dirname(archiveRoot), path.basename(archiveRoot)])
+  const archivePath = 'monorepo.tgz'
+  // Relative paths: GNU tar on Windows reads a `C:` prefix as a remote host.
+  await execa('tar', ['-czf', archivePath, archiveRoot])
   getMockAgent().get('https://github.com')
     .intercept({ path: '/my-org/monorepo', method: 'HEAD' })
     .reply(200)
