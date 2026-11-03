@@ -30,7 +30,7 @@ pub(super) struct Statements<'conn> {
     pub(super) read: bool,
     /// The statements waiting for the next batch to the primary.
     pub(super) held: RefCell<Vec<(String, Vec<libsql::Value>)>>,
-    /// Set by the commit of a read of the primary, which [`run`] sends once
+    /// Set by the commit of a read of the primary, which [`run`](super::run) sends once
     /// the read has its answer.
     pub(super) end_later: Cell<bool>,
 }
@@ -146,7 +146,7 @@ impl Connection for Statements<'_> {
     }
 
     /// A read whose `BEGIN` is still held never reached the primary, and one
-    /// that did is ended by [`run`] after it answers.
+    /// that did is ended by [`run`](super::run) after it answers.
     fn commit(&self) -> Result<()> {
         if self.local {
             return self.execute_batch("COMMIT");
