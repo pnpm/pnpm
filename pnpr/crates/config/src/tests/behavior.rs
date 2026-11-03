@@ -30,7 +30,7 @@ fn null_auth_and_cors_use_default_settings() {
     let parsed =
         Config::from_yaml_str("auth: null\ncors: null\n", Path::new("/x"), listen(), None).unwrap();
 
-    assert_eq!(parsed.identity.auth.admins, default.identity.auth.admins);
+    assert_eq!(parsed.identity.admins, default.identity.admins);
     assert_eq!(parsed.identity.auth.oidc.len(), default.identity.auth.oidc.len());
     assert_eq!(parsed.identity.auth.htpasswd.max_users, default.identity.auth.htpasswd.max_users);
     assert_eq!(parsed.identity.auth.tokens.file, default.identity.auth.tokens.file);
