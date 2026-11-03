@@ -261,14 +261,14 @@ where
     Ok(true)
 }
 
-/// Run `create_link`, which symlinks `shim_path` to `target_path`, accepting
-/// a link that another install sharing the store created concurrently.
+/// Create the link at `shim_path` with `create_link`, treating a link that a
+/// concurrent install sharing the store created as success.
 ///
-/// `AlreadyExists` is success when the occupant already satisfies
-/// [`symlink_already_points_at`]. When the occupant is gone, a third writer
-/// removed it between the conflict and the check, so the creation is retried.
-/// Any other occupant, and a conflict that outlives the retries, surface the
-/// creation's error.
+/// - `Ok` when `create_link` succeeds, or when it reports `AlreadyExists` and
+///   the occupant satisfies [`symlink_already_points_at`].
+/// - `create_link`'s error otherwise. An occupant that vanished after the
+///   conflict was removed by a third writer, so it is retried a bounded number
+///   of times first.
 #[cfg(any(unix, target_os = "wasi"))]
 pub(super) fn symlink_tolerating_concurrent_writers(
     shim_path: &Path,
