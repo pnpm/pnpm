@@ -1,11 +1,10 @@
-use crate::{
-    group::{PatchInput, PatchNonSemverRangeError, group_patched_dependencies},
-    hash::{CalcPatchHashError, create_hex_hash_from_file},
-    types::PatchGroupRecord,
-};
+use crate::hash::{CalcPatchHashError, create_hex_hash_from_file};
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
 use miette::Diagnostic;
+use pnpm_patching_config::{
+    PatchGroupRecord, PatchInput, PatchNonSemverRangeError, group_patched_dependencies,
+};
 use std::path::{Path, PathBuf};
 
 /// Error resolving `patchedDependencies` against a workspace dir.

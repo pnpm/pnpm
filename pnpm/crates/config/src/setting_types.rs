@@ -1,6 +1,6 @@
-pub use workspace::{
-    CatalogMode, LinkWorkspacePackages, PackageImportMethod, ResolutionMode, SaveWorkspaceProtocol,
-};
+pub use workspace::{CatalogMode, PackageImportMethod, ResolutionMode};
+
+pub use pnpm_resolving_resolver_base::{LinkWorkspacePackages, SaveWorkspaceProtocol, TrustPolicy};
 
 use super::{Deserialize, Serialize};
 
@@ -173,22 +173,6 @@ pub enum HoistingLimits {
     None,
     Workspaces,
     Dependencies,
-}
-
-/// Supply-chain trust policy applied to lockfile entries.
-///
-/// The setting is `'no-downgrade' | 'off'` and drives the
-/// `pnpm-resolving-npm-resolver` verifier: under
-/// [`TrustPolicy::NoDowngrade`] the verifier rejects any version
-/// whose trust evidence (`_npmUser.trustedPublisher` or
-/// `dist.attestations.provenance`) is weaker than an earlier-published
-/// version's.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-pub enum TrustPolicy {
-    #[default]
-    Off,
-    NoDowngrade,
 }
 
 /// What to do when the project's `packageManager` /

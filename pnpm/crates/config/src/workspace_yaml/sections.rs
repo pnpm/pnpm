@@ -404,6 +404,16 @@ pub struct TaskSettings {
     pub unknown: IndexMap<String, serde_json::Value>,
 }
 
+impl pnpm_workspace_task_scheduler::TaskDeclaration for TaskSettings {
+    fn depends_on(&self) -> Option<&[String]> {
+        self.depends_on.as_deref()
+    }
+
+    fn concurrency(&self) -> Option<i64> {
+        self.concurrency
+    }
+}
+
 #[derive(Default, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 #[cfg_attr(

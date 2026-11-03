@@ -9,17 +9,16 @@ pub mod property_path;
 pub mod protected_settings;
 pub mod proxy_keys;
 pub mod refused_keys;
-pub mod version_policy;
 pub use crate::{
     api::{EnvVar, EnvVarOs, GetCurrentDir, GetHomeDir, Host, LinkProbe},
     ci_detection::{CI_ENV_VARS, is_ci},
     defaults::{
-        BUILTIN_REGISTRIES_BY_PREFIX, DEFAULT_JSR_REGISTRY, GLOBAL_LAYOUT_VERSION, PNPM_VERSION,
-        available_parallelism, default_cache_dir, default_config_dir, default_git_shallow_hosts,
-        default_peers_suffix_max_length, default_pnpm_home_dir, default_registry,
-        default_state_dir, default_unsafe_perm, default_virtual_store_dir_max_length,
-        default_workspace_concurrency, install_command_for, is_unsafe_perm_posix,
-        resolve_child_concurrency, resolve_configured_state_dir, standalone_install_command,
+        GLOBAL_LAYOUT_VERSION, PNPM_VERSION, available_parallelism, default_cache_dir,
+        default_config_dir, default_git_shallow_hosts, default_peers_suffix_max_length,
+        default_pnpm_home_dir, default_registry, default_state_dir, default_unsafe_perm,
+        default_virtual_store_dir_max_length, default_workspace_concurrency, install_command_for,
+        is_unsafe_perm_posix, resolve_child_concurrency, resolve_configured_state_dir,
+        standalone_install_command,
     },
     global_bin_check::{CheckGlobalBinDirError, check_global_bin_dir},
     npmrc_auth::{BasicAuth, RegistryCreds, is_json_auth_scope, validate_json_auth_registry},
@@ -34,9 +33,13 @@ pub use cas::{CAS_LOADER_FILENAME, CAS_MANIFEST_FILENAME};
 pub use cli_layer::CliLayer;
 pub use loading::ConfigLoadFailure;
 pub use macos_backup::MacosBackupConfig;
-pub use network_policy::NetworkPolicy;
 pub use node_linker::{NodeLinkerOptions, NodeLinkerSetting};
 pub use pnpm_matcher as matcher;
+pub use pnpm_resolving_resolver_base::{
+    BUILTIN_REGISTRIES_BY_PREFIX, DEFAULT_JSR_REGISTRY, NeedsFullMetadataFn, NeedsFullMetadataFor,
+    NetworkPolicy,
+};
+pub use pnpm_version_policy as version_policy;
 pub use setting_types::{
     AuditConfig, AuditLevel, CatalogMode, ColorMode, HoistingLimits, InitType,
     LinkWorkspacePackages, LogLevel, NodeLinker, NodePackageMapMode, NodePackageMapType,
@@ -327,14 +330,6 @@ fn read_npm_env<Sys: EnvVar>(lower: &str, upper: &str) -> Option<String> {
 mod pnpm_default_parity;
 #[cfg(test)]
 mod tests;
-
-/// Whether the resolution has to read full packument metadata from a given
-/// registry (and whether the dependency is optional), as
-/// [`Config::requires_full_metadata_for_registry_fn`] answers it.
-pub type NeedsFullMetadataFn = dyn Fn(&str, bool) -> bool + Send + Sync;
-
-/// Shared handle to a [`NeedsFullMetadataFn`].
-pub type NeedsFullMetadataFor = Arc<NeedsFullMetadataFn>;
 
 /// Whether a resolution has to read full packument metadata: optional
 /// dependencies (`libc`) and trust evidence (`_npmUser`, `dist.attestations`)

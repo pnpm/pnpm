@@ -3,8 +3,8 @@ use crate::{
     fetch_full_metadata::{ACCEPT_ABBREVIATED_DOC, ACCEPT_FULL_DOC},
     mirror::MetaHeaders,
 };
-use pnpm_config::NetworkPolicy;
 use pnpm_registry::Package;
+use pnpm_resolving_resolver_base::NetworkPolicy;
 use pretty_assertions::assert_eq;
 use reqwest::header::{CACHE_CONTROL, CONTENT_TYPE, ETAG, HeaderMap, HeaderValue};
 

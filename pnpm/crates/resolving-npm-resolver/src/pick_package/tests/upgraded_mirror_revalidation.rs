@@ -198,7 +198,7 @@ async fn install_ignoring_missing_time(
             needs_full_metadata_for: None,
             filter_metadata: false,
             cache_policy: crate::MetadataCachePolicy {
-                network: pnpm_config::NetworkPolicy::Online,
+                network: pnpm_resolving_resolver_base::NetworkPolicy::Online,
                 ignore_missing_time_field: true,
             },
             store_view: None,
@@ -274,7 +274,7 @@ async fn upgrade_then_revalidate(
             needs_full_metadata_for: None,
             filter_metadata: false,
             cache_policy: crate::MetadataCachePolicy {
-                network: pnpm_config::NetworkPolicy::Online,
+                network: pnpm_resolving_resolver_base::NetworkPolicy::Online,
                 ignore_missing_time_field: false,
             },
             store_view: None,

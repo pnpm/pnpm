@@ -2,12 +2,12 @@ use std::{collections::HashMap, sync::Arc};
 
 use chrono::{DateTime, Utc};
 use node_semver::Version;
-use pnpm_config::version_policy::create_package_version_policy;
 use pnpm_registry::{DerivedPackuments, Package, PackageDistribution, PackageVersion};
 use pnpm_resolving_resolver_base::{
     DIRECT_DEP_SELECTOR_WEIGHT, EXISTING_VERSION_SELECTOR_WEIGHT, RESOLVED_VERSION_SELECTOR_WEIGHT,
     VersionSelectorEntry, VersionSelectorType, VersionSelectorWithWeight, VersionSelectors,
 };
+use pnpm_version_policy::create_package_version_policy;
 use pretty_assertions::assert_eq;
 
 use super::{

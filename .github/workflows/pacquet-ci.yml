@@ -92,6 +92,7 @@ jobs:
               - '.config/pnpm/**'
               - 'rust-toolchain.toml'
               - 'rustfmt.toml'
+              - 'crate-layers.toml'
               - 'deny.toml'
               - 'dylint.toml'
               - '.taplo.toml'
@@ -781,6 +782,38 @@ jobs:
       - if: github.event_name == 'merge_group' || steps.filter.outputs.src == 'true'
         run: pnpm pipeline rust-deny --include-workspace-root --full --no-cache
 
+  layers:
+    name: Rust CI / Crate Layers
+    needs: changes
+    if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.rust == 'true') }}
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Rust
+        uses: $/.github/actions/rustup
+        with:
+          restore-cache: false
+
+      - name: Install pnpm
+        uses: pnpm/setup@fa36a5ef7dcdefc3a7cb25655c122e00cf6e636e # v3.1.2
+        with:
+          install: false
+
+      - run: pnpm pipeline rust-layers --include-workspace-root --full --no-cache
+
+      # Lists the crate dependency edges the pull request adds or removes, so
+      # a review sees a new coupling even when it points downward.
+      - name: Summarize crate graph changes
+        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          git fetch --no-tags --depth=1 origin "$BASE_SHA"
+          cargo run --locked --quiet -p pnpm-crate-layers -- diff "$BASE_SHA" >> "$GITHUB_STEP_SUMMARY"
+
   format:
     name: Rust CI / Format
     needs: changes
@@ -943,6 +976,7 @@ jobs:
       - doc
       - typos
       - deny
+      - layers
       - format
       - dylint
     runs-on: blacksmith-4vcpu-ubuntu-2404

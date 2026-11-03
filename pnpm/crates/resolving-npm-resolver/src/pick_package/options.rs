@@ -18,7 +18,7 @@ pub struct PickPackageContext<'a, Cache: PackageMetaCache> {
     /// `supportsTimeField` or `serverType: pnpr` needs no full metadata when
     /// the others do. The mirror path and cache key below are already keyed by
     /// registry, so two registries may disagree within one install.
-    pub needs_full_metadata_for: Option<&'a pnpm_config::NeedsFullMetadataFn>,
+    pub needs_full_metadata_for: Option<&'a pnpm_resolving_resolver_base::NeedsFullMetadataFn>,
     /// Which registries are asked for pnpr's own package document. `None`
     /// asks every registry for npm's documents.
     pub pnpr_format: Option<PnprFormatPolicy<'a>>,
@@ -68,10 +68,10 @@ pub struct MetadataRequestContext<'a, Cache: PackageMetaCache> {
 #[derive(Default, Clone, Copy)]
 pub struct MetadataCachePolicy {
     /// Which sources the picker may read and in which order. With
-    /// [`pnpm_config::NetworkPolicy::Offline`] it surfaces
+    /// [`pnpm_resolving_resolver_base::NetworkPolicy::Offline`] it surfaces
     /// [`super::PickPackageError::NoOfflineMeta`] when the disk mirror is
     /// empty too.
-    pub network: pnpm_config::NetworkPolicy,
+    pub network: pnpm_resolving_resolver_base::NetworkPolicy,
     /// When [`true`], a `minimumReleaseAge` check that hits an
     /// abbreviated packument (no per-version `time`) warns once and
     /// falls back to picking without the maturity filter.

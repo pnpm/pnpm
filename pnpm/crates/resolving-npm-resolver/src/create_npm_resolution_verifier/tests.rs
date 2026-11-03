@@ -10,10 +10,14 @@ mod behavior;
 
 mod artifact_binding;
 
-use std::{collections::HashMap, sync::Arc};
-
+use super::{
+    CreateNpmResolutionVerifierOptions, create_npm_resolution_verifier, observed_dist_stats_sink,
+};
+use crate::{
+    mirror::{ABBREVIATED_META_DIR, get_pkg_mirror_path, load_meta},
+    persist_meta_to_mirror,
+};
 use chrono::{DateTime, Utc};
-use pnpm_config::{TrustPolicy, version_policy::create_package_version_policy};
 use pnpm_lockfile::{
     LockfileResolution, PkgName, PlatformAssetResolution, RegistryResolution, TarballResolution,
     TarballRevision, VariationsResolution,
@@ -22,18 +26,12 @@ use pnpm_network::{
     AuthHeaders, MetadataCacheScope, RetryOpts, ThrottledClient, UpstreamRouteHook,
 };
 use pnpm_registry::Package;
-use pnpm_resolving_resolver_base::{ResolutionVerification, VerifyCtx};
+use pnpm_resolving_resolver_base::{ResolutionVerification, TrustPolicy, VerifyCtx};
+use pnpm_version_policy::create_package_version_policy;
 use pretty_assertions::assert_eq;
 use ssri::Integrity;
+use std::{collections::HashMap, sync::Arc};
 use tempfile::TempDir;
-
-use super::{
-    CreateNpmResolutionVerifierOptions, create_npm_resolution_verifier, observed_dist_stats_sink,
-};
-use crate::{
-    mirror::{ABBREVIATED_META_DIR, get_pkg_mirror_path, load_meta},
-    persist_meta_to_mirror,
-};
 
 const FAKE_INTEGRITY: &str = "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==";
 

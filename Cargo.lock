@@ -4967,12 +4967,15 @@ dependencies = [
  "pnpm-package-is-installable",
  "pnpm-package-manifest",
  "pnpm-patching",
+ "pnpm-resolving-resolver-base",
  "pnpm-store-dir",
  "pnpm-tarball",
  "pnpm-testing-utils",
+ "pnpm-version-policy",
  "pnpm-versioning",
  "pnpm-workspace",
  "pnpm-workspace-state",
+ "pnpm-workspace-task-scheduler",
  "pnpr-registry",
  "pretty_assertions",
  "serde",
@@ -4999,6 +5002,16 @@ dependencies = [
  "pnpm-catalogs-resolver",
  "pnpm-catalogs-types",
  "pnpm-resolving-parse-wanted-dependency",
+]
+
+[[package]]
+name = "pnpm-crate-layers"
+version = "0.0.0"
+dependencies = [
+ "clap",
+ "pretty_assertions",
+ "serde",
+ "toml",
 ]
 
 [[package]]
@@ -5642,7 +5655,7 @@ dependencies = [
  "pnpm-diagnostics",
  "pnpm-fs",
  "pnpm-package-manifest",
- "pnpm-patching",
+ "pnpm-patching-config",
  "pnpm-platform-variants",
  "pnpm-resolving-parse-wanted-dependency",
  "pnpm-semver-include-prerelease",
@@ -6074,12 +6087,23 @@ dependencies = [
  "pnpm-fs",
  "pnpm-fs-packlist",
  "pnpm-package-manifest",
+ "pnpm-patching-config",
  "pnpm-process",
  "pretty_assertions",
  "serde_json",
  "sha2 0.10.9",
  "tempfile",
  "text-block-macros",
+]
+
+[[package]]
+name = "pnpm-patching-config"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "miette 7.6.0",
+ "node-semver",
+ "pretty_assertions",
 ]
 
 [[package]]
@@ -6474,7 +6498,6 @@ dependencies = [
  "node-semver",
  "percent-encoding",
  "pipe-trait",
- "pnpm-config",
  "pnpm-deps-path",
  "pnpm-http",
  "pnpm-lockfile",
@@ -6487,6 +6510,7 @@ dependencies = [
  "pnpm-resolving-local-resolver",
  "pnpm-resolving-resolver-base",
  "pnpm-store-dir",
+ "pnpm-version-policy",
  "pnpm-wasm-host",
  "pnpm-workspace-range-resolver",
  "pnpm-workspace-spec",
@@ -6518,11 +6542,12 @@ dependencies = [
  "derive_more",
  "miette 7.6.0",
  "node-semver",
- "pnpm-config",
  "pnpm-lockfile",
  "pnpm-network",
  "pnpm-registry",
  "pnpm-semver-include-prerelease",
+ "pnpm-version-policy",
+ "pretty_assertions",
  "serde",
  "serde_json",
  "ssri",
@@ -6732,6 +6757,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "pnpm-version-policy"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "indexmap 2.14.0",
+ "miette 7.6.0",
+ "node-semver",
+ "pnpm-matcher",
+ "pretty_assertions",
+]
+
+[[package]]
 name = "pnpm-versioning"
 version = "0.0.1"
 dependencies = [
@@ -6890,7 +6927,6 @@ dependencies = [
  "futures-util",
  "indexmap 2.14.0",
  "miette 7.6.0",
- "pnpm-config",
  "pnpm-fs",
  "pnpm-reporter",
  "pretty_assertions",

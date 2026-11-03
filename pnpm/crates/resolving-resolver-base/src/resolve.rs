@@ -6,12 +6,13 @@ use std::{collections::BTreeMap, future::Future, path::PathBuf, pin::Pin, sync::
 
 use chrono::{DateTime, Utc};
 use derive_more::{Display, From};
-use pnpm_config::{SaveWorkspaceProtocol, TrustPolicy, version_policy::PackageVersionPolicy};
 use pnpm_lockfile::{LockfileResolution, PkgNameVer};
 use pnpm_registry::RangeSpecStyle;
+use pnpm_version_policy::PackageVersionPolicy;
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    SaveWorkspaceProtocol, TrustPolicy,
     preferred_versions::{PreferredVersions, PreferredVersionsOverlay},
     verifier::ResolutionPolicyViolation,
 };
@@ -231,7 +232,7 @@ pub struct ResolverProjectOptions {
     /// workspace.
     pub workspace_packages: Option<Arc<WorkspacePackages>>,
     pub prefer_workspace_packages: bool,
-    pub link_workspace_packages: pnpm_config::LinkWorkspacePackages,
+    pub link_workspace_packages: crate::LinkWorkspacePackages,
     pub inject_workspace_packages: bool,
 }
 

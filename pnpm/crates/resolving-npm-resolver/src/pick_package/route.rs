@@ -4,7 +4,7 @@
 //! pick agrees.
 
 use chrono::{DateTime, TimeDelta, Utc};
-use pnpm_config::{NetworkPolicy, TrustPolicy};
+use pnpm_resolving_resolver_base::{NetworkPolicy, TrustPolicy};
 
 use crate::{
     PackagePickPolicy, metadata_cache_policy::mirror_may_answer, mirror::MetaHeaders,

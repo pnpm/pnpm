@@ -6,8 +6,7 @@ use super::{
     reject_versions, revision_history_package_body, revision_package_body,
     shasum_only_package_body,
 };
-use pnpm_config::TrustPolicy;
-use pnpm_resolving_resolver_base::Resolver;
+use pnpm_resolving_resolver_base::{Resolver, TrustPolicy};
 
 #[tokio::test]
 async fn calculated_specifier_keeps_the_operator_the_previous_specifier_declared() {
@@ -1057,7 +1056,7 @@ async fn offline_repick_keeps_a_missing_tag_unresolved() {
         .await
         .unwrap()
         .expect("warms the metadata cache");
-    resolver.cache_policy.network = pnpm_config::NetworkPolicy::Offline;
+    resolver.cache_policy.network = pnpm_resolving_resolver_base::NetworkPolicy::Offline;
 
     let wanted = WantedDependency {
         alias: Some("acme".to_string()),
@@ -1110,7 +1109,7 @@ async fn offline_reopened_version_falls_back_to_the_store() {
         .await;
     let registry = format!("{}/", server.url());
     let (mut resolver, _tempdir) = build_resolver(&registry);
-    resolver.cache_policy.network = pnpm_config::NetworkPolicy::Offline;
+    resolver.cache_policy.network = pnpm_resolving_resolver_base::NetworkPolicy::Offline;
 
     let store_dir = tempfile::TempDir::new().unwrap();
     let index = pnpm_store_dir::StoreIndex::open(store_dir.path()).unwrap();

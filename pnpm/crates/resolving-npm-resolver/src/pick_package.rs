@@ -81,22 +81,6 @@ use version_pick::{PickerOpts, pick_from_meta, pick_from_meta_fast, pick_from_me
 
 mod metadata_cache;
 
-use std::{
-    collections::HashSet,
-    path::Path,
-    sync::{Arc, Mutex},
-};
-
-use chrono::{DateTime, Utc};
-use dashmap::DashMap;
-use derive_more::{Display, Error};
-use miette::Diagnostic;
-use pnpm_config::{TrustPolicy, version_policy::PackageVersionPolicy};
-use pnpm_network::MetadataCacheScope;
-use pnpm_registry::{Package, PackageVersion};
-use pnpm_resolving_resolver_base::{VersionSelectors, parse_packument_timestamp};
-use tokio::sync::Semaphore;
-
 use crate::{
     FetchMetadataError,
     mirror::{get_pkg_mirror_path, load_meta_async, save_meta_indexed},
@@ -107,6 +91,20 @@ use crate::{
         pick_stable_cached_range_version, pick_version_by_version_range,
     },
 };
+use chrono::{DateTime, Utc};
+use dashmap::DashMap;
+use derive_more::{Display, Error};
+use miette::Diagnostic;
+use pnpm_network::MetadataCacheScope;
+use pnpm_registry::{Package, PackageVersion};
+use pnpm_resolving_resolver_base::{TrustPolicy, VersionSelectors, parse_packument_timestamp};
+use pnpm_version_policy::PackageVersionPolicy;
+use std::{
+    collections::HashSet,
+    path::Path,
+    sync::{Arc, Mutex},
+};
+use tokio::sync::Semaphore;
 
 /// Outcome of a successful [`pick_package`] call. `meta` is shared as
 /// [`Arc<Package>`] so a hit on the in-memory cache doesn't

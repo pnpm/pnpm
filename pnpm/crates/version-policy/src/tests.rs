@@ -1,4 +1,4 @@
-use crate::version_policy::{
+use crate::{
     PolicyMatch, VersionPolicyError, create_package_version_policy, expand_package_version_specs,
     merge_package_version_specs,
 };

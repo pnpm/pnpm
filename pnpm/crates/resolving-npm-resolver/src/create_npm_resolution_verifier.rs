@@ -59,7 +59,6 @@ use chrono::{DateTime, Utc};
 use dashmap::DashMap;
 use miette::Diagnostic as _;
 use pipe_trait::Pipe;
-use pnpm_config::{TrustPolicy, version_policy::PackageVersionPolicy};
 use pnpm_lockfile::{
     LockfileResolution, PkgName, TarballRevision, has_complete_sha512_digest,
     is_git_hosted_tarball_url, is_revision_registry_tarball_url,
@@ -67,8 +66,10 @@ use pnpm_lockfile::{
 use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient, redact_url_credentials};
 use pnpm_registry::Package;
 use pnpm_resolving_resolver_base::{
-    ResolutionVerification, ResolutionVerifier, VerifyCtx, VerifyFuture, parse_packument_timestamp,
+    ResolutionVerification, ResolutionVerifier, TrustPolicy, VerifyCtx, VerifyFuture,
+    parse_packument_timestamp,
 };
+use pnpm_version_policy::PackageVersionPolicy;
 use serde_json::Value as JsonValue;
 use sha2::{Digest, Sha256};
 use tokio::sync::OnceCell;
@@ -553,9 +554,9 @@ fn render_fetch_metadata_error(error: &crate::FetchMetadataError) -> String {
 fn is_excluded(policy: Option<&PackageVersionPolicy>, name: &PkgName, version: &str) -> bool {
     let Some(policy) = policy else { return false };
     match policy.matches(&name.to_string()) {
-        pnpm_config::version_policy::PolicyMatch::No => false,
-        pnpm_config::version_policy::PolicyMatch::AnyVersion => true,
-        pnpm_config::version_policy::PolicyMatch::ExactVersions(versions) => versions
+        pnpm_version_policy::PolicyMatch::No => false,
+        pnpm_version_policy::PolicyMatch::AnyVersion => true,
+        pnpm_version_policy::PolicyMatch::ExactVersions(versions) => versions
             .iter()
             .any(|exact| exact == version),
     }

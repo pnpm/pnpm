@@ -16,6 +16,8 @@ repository = "https://github.com/pnpm/pacquet"
 # Crates
 pnpm-github-actions = { path = "pnpm/crates/github-actions" }
 pnpm-matcher = { path = "pnpm/crates/matcher" }
+pnpm-patching-config = { path = "pnpm/crates/patching-config" }
+pnpm-version-policy = { path = "pnpm/crates/version-policy" }
 pnpm-pnpr-client = { path = "pnpm/crates/pnpr-client" }
 pnpm-shared-artifact-protocol = { path = "pnpm/crates/shared-artifact-protocol" }
 pnpm-platform-variants = { path = "pnpm/crates/platform-variants" }
