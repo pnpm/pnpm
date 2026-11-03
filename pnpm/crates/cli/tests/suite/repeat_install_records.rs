@@ -40,25 +40,35 @@ fn write_workspace(workspace: &Path) {
     );
     fs::write(workspace.join("packages/b/cli.js"), "#!/usr/bin/env node\n").expect("write cli.js");
     fs::create_dir_all(workspace.join("packages/no-project")).expect("create packages/no-project");
-    wait_past_whole_second_rounding(&workspace.join("packages/b/package.json"));
 }
 
 /// On a filesystem that keeps whole seconds, a stat recorded within two
-/// seconds of the write is not trusted, so the first install would leave
-/// records the next one cannot use.
-fn wait_past_whole_second_rounding(path: &Path) {
-    let modified = fs::metadata(path)
-        .expect("stat the manifest")
+/// seconds of the write is not trusted. There, wait past that window, so the
+/// next install records the stats trusted.
+fn wait_past_whole_second_rounding(workspace: &Path) {
+    let modified = fs::metadata(workspace.join("pnpm-lock.yaml"))
+        .expect("stat the lockfile")
         .modified()
         .expect("read the mtime");
-    let whole_second = modified
+    let whole_seconds = modified
         .duration_since(std::time::UNIX_EPOCH)
         .expect("an mtime after the epoch")
         .subsec_nanos()
         == 0;
-    if whole_second {
+    if whole_seconds {
         std::thread::sleep(std::time::Duration::from_millis(2_100));
     }
+}
+
+/// [`wait_past_whole_second_rounding`], then an install that records the
+/// stats again, so the records the next install reads are trusted.
+fn trust_recorded_stats(workspace: &Path, registry: &str) {
+    wait_past_whole_second_rounding(workspace);
+    pacquet_in(workspace)
+        .with_env("PNPM_CONFIG_REGISTRY", registry)
+        .with_arg("install")
+        .assert()
+        .success();
 }
 
 /// `pnpm install` with the fast path's trace, returning its output.
@@ -94,6 +104,7 @@ fn an_unchanged_workspace_is_up_to_date_from_the_records() {
         .with_arg("install")
         .assert()
         .success();
+    trust_recorded_stats(&workspace, mock_instance.url());
 
     let output = traced_install(&workspace, mock_instance.url());
 
@@ -122,6 +133,7 @@ fn a_check_on_the_files_records_missing_manifest_records() {
         .assert()
         .success();
     remove_manifest_records(&workspace);
+    wait_past_whole_second_rounding(&workspace);
 
     let from_files = traced_install(&workspace, mock_instance.url());
     let from_records = traced_install(&workspace, mock_instance.url());
@@ -315,6 +327,7 @@ fn the_run_gate_leaves_missing_records_to_the_install() {
         .assert()
         .success();
     assert!(!state_text(&workspace).contains("manifestFiles"), "the run gate refreshed records");
+    wait_past_whole_second_rounding(&workspace);
 
     let from_files = traced_install(&workspace, mock_instance.url());
     let from_records = traced_install(&workspace, mock_instance.url());

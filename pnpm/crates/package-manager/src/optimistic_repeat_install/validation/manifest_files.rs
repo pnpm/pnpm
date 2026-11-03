@@ -181,22 +181,39 @@ fn manifest_file(manifest: &PackageManifest, file_name: String, stat: FileStat) 
     ManifestFile { file_name, mtime_ns, ctime_ns, size, fields: Some(fields) }
 }
 
-/// The dependency map with each URL specifier other than `file:` replaced
-/// by `*`, so no credential in one reaches the state. The check reads such a
-/// specifier only for the name it depends on, which a URL leaves to the
-/// alias, and `*` gives the same answer.
+/// The specifier schemes the check reads beyond the name a specifier depends
+/// on. A record keeps these specifiers as they are.
+const CHECKED_SCHEMES: [&str; 6] = ["file", "link", "workspace", "catalog", "npm", "jsr"];
+
+/// The dependency map with each specifier of another scheme, such as a URL,
+/// replaced by `*`, so no credential in one reaches the state. The check
+/// reads such a specifier only for the name it depends on, which the alias
+/// gives, and `*` gives the same answer.
 fn without_url_specifiers(dependencies: &serde_json::Value) -> serde_json::Value {
     let Some(dependencies) = dependencies.as_object() else { return dependencies.clone() };
     dependencies
         .iter()
         .map(|(alias, spec)| {
-            let url = spec
+            let unchecked = spec
                 .as_str()
-                .is_some_and(|spec| spec.contains("://") && !spec.starts_with("file:"));
-            (alias.clone(), if url { serde_json::Value::from("*") } else { spec.clone() })
+                .and_then(specifier_scheme)
+                .is_some_and(|scheme| !CHECKED_SCHEMES.contains(&scheme.as_str()));
+            (alias.clone(), if unchecked { serde_json::Value::from("*") } else { spec.clone() })
         })
         .collect::<serde_json::Map<_, _>>()
         .into()
+}
+
+/// The lowercased scheme `spec` starts with, such as `https` or `git+ssh`.
+/// A single letter is a Windows drive, not a scheme.
+fn specifier_scheme(spec: &str) -> Option<String> {
+    let (scheme, _) = spec.split_once(':')?;
+    let is_scheme = scheme.len() > 1
+        && scheme.starts_with(|first: char| first.is_ascii_alphabetic())
+        && scheme
+            .chars()
+            .all(|char| char.is_ascii_alphanumeric() || matches!(char, '+' | '.' | '-'));
+    is_scheme.then(|| scheme.to_ascii_lowercase())
 }
 
 /// Each peer's `optional` flag, the only part of `peerDependenciesMeta` the
