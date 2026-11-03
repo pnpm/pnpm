@@ -38,8 +38,9 @@ use std::{
 pub struct DedupeArgs {
     /// Check if running dedupe would result in changes without installing
     /// packages or editing the lockfile. Exits with a non-zero status code
-    /// if changes are possible. Changed `configDependencies` are still
-    /// recorded in the lockfile, as an install records them.
+    /// if changes are possible. `configDependencies` are still installed,
+    /// and changed ones are recorded in the lockfile, as an install records
+    /// them.
     #[clap(long)]
     pub check: bool,
     /// Only update `pnpm-lock.yaml`. Don't download packages or write
