@@ -15,7 +15,7 @@ async fn a_read_completes_while_a_write_transaction_is_open(db: Db) {
     write(&storage, "pkg", &packument("pkg", &["1.0.0"])).await;
     // Hold the write connection inside an uncommitted transaction, the way a
     // slow commit holds it.
-    let metadata = Arc::clone(storage.sql_metadata().unwrap());
+    let metadata = Arc::clone(storage.sql_metadata());
     let (held, wait_held) = mpsc::channel();
     let (release, wait_release) = mpsc::channel::<()>();
     let writer = tokio::task::spawn_blocking(move || {
@@ -119,7 +119,7 @@ async fn a_commit_survives_a_restart_and_its_retry_changes_nothing(db: Db) {
     // server: the commit is there, and the identical retry is a no-op.
     let restarted = storage(&db);
     assert_eq!(read(&restarted, "pkg").await, document);
-    let metadata = restarted.sql_metadata().unwrap();
+    let metadata = restarted.sql_metadata();
     let before = metadata.catalog_generation("").await.unwrap();
     assert_eq!(write(&restarted, "pkg", &document).await, DocumentWrite::Written);
     assert_eq!(metadata.catalog_generation("").await.unwrap(), before);
@@ -153,7 +153,6 @@ async fn a_transaction_cut_off_before_commit_leaves_nothing() {
     assert_eq!(
         storage
             .sql_metadata()
-            .unwrap()
             .catalog_generation("")
             .await
             .unwrap(),

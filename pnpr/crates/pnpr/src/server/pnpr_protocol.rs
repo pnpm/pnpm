@@ -63,13 +63,12 @@ pub(super) async fn serve_pnpr_handshake(State(state): State<AppState>) -> Respo
 }
 
 /// The release record formats hosted registries log, and the profiles they
-/// derive them under. Records are logged by hosted registries with SQL
-/// metadata and a log signing key.
+/// derive them under. Records are logged by hosted registries with a log
+/// signing key.
 fn records_payload(state: &AppState) -> (Vec<u32>, Vec<&'static str>) {
     let config = &state.inner.config;
     let logs_records = config.features.registry.enabled
-        && config.release_records.log_signing_key.is_some()
-        && state.inner.storage.sql_metadata().is_some();
+        && config.release_records.log_signing_key.is_some();
     let records = logs_records
         .then_some(1)
         .into_iter()

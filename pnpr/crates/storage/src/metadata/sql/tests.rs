@@ -120,23 +120,13 @@ pub(super) fn storage(db: &Db) -> Storage {
             let instance = db.instances.fetch_add(1, Ordering::SeqCst);
             let replica = replica.then(|| format!("instance-{instance}"));
             let config = config(&db.tmp);
-            let storage =
-                Storage::new(&config.hosted_backend, config.hosted_dir, config.cache_dir).unwrap();
-            with_database(storage, server.instance(replica.as_deref(), 3600))
+            Storage::from_parts(
+                std::sync::Arc::new(crate::Store::new(config.hosted_dir)),
+                crate::Store::new(config.cache_dir),
+                server.instance(replica.as_deref(), 3600),
+            )
         }
     }
-}
-
-/// `storage` with its metadata kept in `database`, a handle of its own
-/// rather than the one the process shares.
-#[cfg(feature = "backend-libsql")]
-fn with_database(
-    mut storage: Storage,
-    database: std::sync::Arc<crate::metadata::SqlMetadata>,
-) -> Storage {
-    storage.metadata_source = crate::metadata::MetadataSource::Sql(database);
-    storage.metadata = storage.metadata_source.view(&storage.hosted, "", Ecosystem::Npm);
-    storage
 }
 
 pub(super) fn npm(name: &str) -> CanonicalPackageName {
@@ -209,14 +199,11 @@ pub(super) async fn generation(storage: &Storage, name: &str) -> Option<Generati
         .read_hosted_package_view(&npm(name))
         .await
         .unwrap()
-        .and_then(|view| view.generation)
+        .map(|view| view.generation)
 }
 
 fn stats(storage: &Storage) -> RenderStats {
-    storage
-        .sql_metadata()
-        .unwrap()
-        .render_stats()
+    storage.sql_metadata().render_stats()
 }
 
 async fn a_packument_reads_back_as_written(db: Db) {
@@ -311,7 +298,7 @@ async fn an_archive_manifest_record_must_name_a_profile(db: Db) {
 /// The version, profile, inputs, and manifest of each accepted manifest, as
 /// the primary holds them.
 async fn accepted_manifests(storage: &Storage) -> Vec<(String, String, String, String)> {
-    let metadata = std::sync::Arc::clone(storage.sql_metadata().unwrap());
+    let metadata = std::sync::Arc::clone(storage.sql_metadata());
     tokio::task::spawn_blocking(move || {
         let mut rows = Vec::new();
         metadata.adapter
@@ -485,7 +472,6 @@ async fn tag_moves_are_recorded(db: Db) {
         .unwrap();
     let history = storage
         .sql_metadata()
-        .unwrap()
         .tag_history(&npm("pkg"), "", "latest")
         .await
         .unwrap();

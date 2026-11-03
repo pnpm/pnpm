@@ -35,7 +35,7 @@ fn record_of(name: &str, version: &str) -> Vec<u8> {
 /// Publish `versions` of `name` in `catalog`, each with its record, on top of
 /// what the store holds of it.
 async fn publish(storage: &crate::Storage, catalog: &str, name: &str, versions: &[String]) {
-    let database = storage.sql_metadata().unwrap();
+    let database = storage.sql_metadata();
     let org = storage.for_hosted(catalog, Ecosystem::Npm);
     let npm = CanonicalPackageName::parse(name, Ecosystem::Npm).unwrap();
     let current = org.read_hosted_document_for_update(&npm).await.unwrap();
@@ -80,7 +80,7 @@ async fn records_are_sequenced_with_their_versions_and_integrated_after(db: Db) 
     let log = LogId { catalog: "acme".to_string(), ecosystem: Ecosystem::Npm };
     publish(&storage, "acme", "core", &versions(0..3)).await;
     publish(&storage, "other", "core", &versions(0..1)).await;
-    let database = storage.sql_metadata().unwrap();
+    let database = storage.sql_metadata();
     let core = CanonicalPackageName::parse("core", Ecosystem::Npm).unwrap();
     for (version, index) in [("1.0.0", 0), ("1.0.2", 2)] {
         let entry = database.release_record_entry(&core, "acme", version).await.unwrap();
@@ -184,7 +184,7 @@ async fn a_removed_version_keeps_its_log_entry(db: Db) {
     let org = storage.for_hosted("acme", Ecosystem::Npm);
     super::write(&org, "core", &packument("core", &[])).await;
     let log = LogId { catalog: "acme".to_string(), ecosystem: Ecosystem::Npm };
-    let database = storage.sql_metadata().unwrap();
+    let database = storage.sql_metadata();
     assert_eq!(database.log_size(&log).await.unwrap(), 2);
     let signer = NoteSigner::from_private_key(SIGNING_KEY).unwrap();
     assert_eq!(storage.integrate_log(&log, &signer).await.unwrap().size, 2);

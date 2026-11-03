@@ -12,7 +12,7 @@ use pnpr::{
 };
 use pnpr_storage::{
     Ecosystem,
-    layout::{local_blob_path, local_document_path, write_local_layout_marker},
+    layout::{local_blob_path, write_local_layout_marker},
 };
 
 /// Commit `bytes` as the document of `name` in the default namespace of the
@@ -454,14 +454,10 @@ async fn test_migrate_storage_from_reads_the_source_stores_own_metadata() {
     let storage = pnpr_storage::Storage::from_config(&config.storage).unwrap();
     seed_packuments(&storage, &["configured-a", "configured-b"]).await;
 
-    // A store that keeps its metadata in package documents.
-    let documents = dir.path().join("documents-store");
-    std::fs::create_dir_all(&documents).unwrap();
-    write_local_layout_marker(&documents).unwrap();
-    seed_file(
-        local_document_path(&documents, "", Ecosystem::Npm, "doc-pkg"),
-        br#"{"name":"doc-pkg","versions":{}}"#,
-    );
+    // A store without a metadata database.
+    let empty = dir.path().join("empty-store");
+    std::fs::create_dir_all(&empty).unwrap();
+    write_local_layout_marker(&empty).unwrap();
     // A store with a database of its own at the default path.
     let sqlite = dir.path().join("sqlite-store");
     std::fs::create_dir_all(&sqlite).unwrap();
@@ -470,13 +466,21 @@ async fn test_migrate_storage_from_reads_the_source_stores_own_metadata() {
         &HostedStoreConfig::Fs,
         sqlite.clone(),
         config.storage.cache_dir.clone(),
+        &MetadataBackend::Sqlite(default_metadata_path(&sqlite)),
     )
-    .unwrap()
-    .with_metadata(&MetadataBackend::Sqlite(default_metadata_path(&sqlite)))
     .unwrap();
     seed_packuments(&source, &["sql-a", "sql-b", "sql-c"]).await;
 
-    for (from, packages) in [(None, 2), (Some(documents), 1), (Some(sqlite), 3)] {
+    let options = MigrateStorageOptions {
+        from: Some(empty),
+        to_bucket: Some("mock-bucket".to_string()),
+        to_region: Some("us-east-1".to_string()),
+        dry_run: true,
+        ..MigrateStorageOptions::default()
+    };
+    let err = migrate_local_to_s3(&config, &options).await.unwrap_err();
+    assert!(err.to_string().contains("has no metadata database"), "{err}");
+    for (from, packages) in [(None, 2), (Some(sqlite), 3)] {
         let options = MigrateStorageOptions {
             from: from.clone(),
             to_bucket: Some("mock-bucket".to_string()),
@@ -656,6 +660,8 @@ s3:
   region: auto
   endpoint: https://storage.example.com
 {prefix}
+metadata:
+  url: libsql://db.example.turso.io
 registries:
   local:
     type: hosted

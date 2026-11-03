@@ -4,7 +4,7 @@
 //! `time` stay in [`PackumentRows::state`] as placeholders that mark where
 //! [`super::render`] puts them back.
 
-use crate::metadata::{ARCHIVE_MANIFEST_FIELD, documents::check_format_version};
+use crate::{metadata::ARCHIVE_MANIFEST_FIELD, publish::PACKUMENT_FORMAT_VERSION};
 use pnpr_error::{RegistryError, Result};
 use serde_json::{Map, Value};
 use std::collections::BTreeMap;
@@ -173,6 +173,21 @@ fn version_rows(version: &str, mut manifest: Map<String, Value>) -> Result<Versi
         filename: manifest.shift_remove(README_FILENAME),
     };
     Ok(VersionRows { manifest, interpretation, published_at: None, readme, deprecated })
+}
+
+/// Refuse a packument written by a newer pnpr.
+fn check_format_version(packument: &Value) -> Result<()> {
+    let Some(format_version) = packument.get("formatVersion").and_then(Value::as_u64) else {
+        return Ok(());
+    };
+    if format_version <= u64::from(PACKUMENT_FORMAT_VERSION) {
+        return Ok(());
+    }
+    Err(RegistryError::DocumentFormatTooNew {
+        document: "packument".to_string(),
+        format_version: u32::try_from(format_version).unwrap_or(u32::MAX),
+        supported_version: PACKUMENT_FORMAT_VERSION,
+    })
 }
 
 fn bad_request(reason: &str) -> RegistryError {

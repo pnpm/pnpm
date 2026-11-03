@@ -345,7 +345,7 @@ pub(super) async fn serve_hosted_packument(
             headers,
             max_age,
         ) {
-            Ok(response) => super::with_generation(response, view.generation.as_ref()),
+            Ok(response) => super::with_generation(response, Some(&view.generation)),
             Err(err) => err.into_response(),
         },
         Ok(None) => not_found(),

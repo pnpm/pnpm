@@ -1,6 +1,6 @@
 use crate::Digest;
 use serde::{Deserialize, Serialize};
-use std::{cmp::Ordering, collections::HashSet};
+use std::cmp::Ordering;
 
 /// One manifest the repository holds, keyed by the digest of its bytes.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -237,18 +237,17 @@ impl ImageDocument {
     }
 
     /// Take on everything in `addition` this document does not already hold,
-    /// skipping whatever points at a blob in `lost_blobs`, and report
-    /// whether that changed anything.
+    /// and report whether that changed anything.
     ///
     /// Manifests are content-addressed, so one already here is the same
     /// bytes and is left alone. Tags reach the same result whichever order
-    /// the two documents arrive in, which is what lets a journaled write be
-    /// replayed after the one that superseded it.
+    /// the two documents arrive in, so a write that lands after the one that
+    /// superseded it changes nothing.
     ///
     /// A generation mismatch or pending blob deletion refuses the addition
     /// and returns `false`, just like an unchanged document. Older generations
     /// cannot be replayed after deletion advances the stored generation.
-    pub fn merge(&mut self, addition: Self, lost_blobs: &HashSet<String>) -> bool {
+    pub fn merge(&mut self, addition: Self) -> bool {
         if self.generation != addition.generation || self.deleting_blob.is_some() {
             return false;
         }
@@ -257,23 +256,16 @@ impl ImageDocument {
             self.name.clone_from(&addition.name);
             changed = true;
         }
-        changed |= self.merge_manifests(addition.manifests, lost_blobs);
-        changed |= self.merge_tags(addition.tags, lost_blobs);
+        changed |= self.merge_manifests(addition.manifests);
+        changed |= self.merge_tags(addition.tags);
         changed
     }
 
-    /// Take every manifest this document does not already hold and whose blob
-    /// the transaction did not lose.
-    fn merge_manifests(
-        &mut self,
-        manifests: Vec<ManifestEntry>,
-        lost_blobs: &HashSet<String>,
-    ) -> bool {
+    /// Take every manifest this document does not already hold.
+    fn merge_manifests(&mut self, manifests: Vec<ManifestEntry>) -> bool {
         let mut changed = false;
         for entry in manifests {
-            if lost_blobs.contains(&entry.digest.blob_filename())
-                || self.manifest(&entry.digest).is_some()
-            {
+            if self.manifest(&entry.digest).is_some() {
                 continue;
             }
             self.insert_manifest(entry);
@@ -284,13 +276,10 @@ impl ImageDocument {
 
     /// Take every tag mapping that supersedes the one held, skipping any whose
     /// manifest this document does not have.
-    fn merge_tags(&mut self, tags: Vec<TagEntry>, lost_blobs: &HashSet<String>) -> bool {
+    fn merge_tags(&mut self, tags: Vec<TagEntry>) -> bool {
         let mut changed = false;
         for entry in tags {
-            if lost_blobs.contains(&entry.digest.blob_filename())
-                || self.manifest(&entry.digest).is_none()
-                || !self.tag_supersedes(&entry)
-            {
+            if self.manifest(&entry.digest).is_none() || !self.tag_supersedes(&entry) {
                 continue;
             }
             self.set_tag(entry);

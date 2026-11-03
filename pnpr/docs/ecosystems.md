@@ -224,23 +224,15 @@ different failures follow from that, so it is worth keeping them apart.
 the version-conflict check all run up front, and any entry that fails one of them
 aborts the whole batch before a byte is written.
 
-**A batch that passes its checks is committed as one journaled transaction.** It
-lands whole or leaves nothing behind, and one interrupted by a crash is finished
-on the next startup rather than staying half-published. A read that arrives while
-the transaction applies can still see part of the release.
+**A batch that passes its checks is committed as one transaction.** It commits
+as one generation of its org, so it lands whole or leaves nothing behind, and a
+read sees the whole release or none of it:
 
-The one case that ends in a partial release is losing a write race: another
-writer publishing the same file between the check and the commit. That entry is
-left out and reported with `409` while the rest of the release stands, because
-the bytes that won the slot are someone else's published release and overwriting
-them would be the worse outcome. Republishing the batch after bumping the
-conflicting version completes the release.
-
-With [SQLite metadata](storage.md#sqlite-metadata) a batch is stronger:
-
-- It commits as one generation of its org, so a read sees the whole release or
-  none of it. Losing a write race fails the whole batch with `409`, and nothing
-  is published.
+- Losing a write race, to another writer publishing the same file between the
+  check and the commit, fails the whole batch with `409`, and nothing is
+  published. The bytes that won the slot are someone else's published release,
+  and overwriting them would be the worse outcome. Republishing the batch after
+  bumping the conflicting version completes the release.
 - Every entry must belong to the same org. A batch that spans orgs is refused.
 - A retry gets the original response back. A client sends an
   `Idempotency-Key` header, or the digest of the whole request serves as the
@@ -307,7 +299,7 @@ the archives it claimed stop counting against the account, and the next sweep
 removes them. One publish names at most 256 staged archives and 2 GiB of
 them, each reference counted. An archive the publishing account has not staged, or one
 that has expired, fails the whole publish with `400`, and nothing of it is
-published. With [SQLite metadata](storage.md#sqlite-metadata), a retry of a
+published. A retry of a
 committed request gets the recorded outcome without reading its archives
 again, so it succeeds even after they are gone. A version's
 [platform variants](endpoints.md#platform-variants) can be staged the same

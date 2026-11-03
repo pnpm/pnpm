@@ -60,7 +60,7 @@ pnpr/
     route/         -> package "pnpr-route"         (classifies a fetch route public or private)
     search/        -> package "pnpr-search"        (the local /-/v1/search index scan)
     shared-artifacts/ -> package "pnpr-shared-artifacts" (the shared build-artifact store)
-    storage/       -> package "pnpr-storage"       (the hosted store, proxy cache, and publish journal)
+    storage/       -> package "pnpr-storage"       (the hosted store, its metadata, and the proxy cache)
     upstream/      -> package "pnpr-upstream"      (the upstream registry proxy client)
     policy/        -> package "pnpr-policy"        (access policy for those routes)
     # further sibling crates land here, see "New registry-only crates" below

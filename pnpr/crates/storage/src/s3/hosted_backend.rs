@@ -134,9 +134,9 @@ impl HostedBackend for S3Store {
         filename: &str,
     ) -> Result<BlobFinalize> {
         let outcome = self.upload_blob(tmp_path, name, filename).await?;
-        // Keep the staged tmp on a Conflict so journal roll-forward can
-        // re-detect it and exclude the version whose bytes we don't own;
-        // once the object is ours there is nothing left to promote.
+        // Keep the staged tmp on a Conflict for the caller, which reports the
+        // conflict and removes it; once the object is ours there is nothing
+        // left to promote.
         if outcome != BlobFinalize::Conflict {
             let _ = fs::remove_file(tmp_path).await;
         }
@@ -169,10 +169,6 @@ impl HostedBackend for S3Store {
                 })
             })
             .boxed()
-    }
-
-    async fn list_package_names(&self) -> Result<Vec<String>> {
-        S3Store::list_package_names(self).await
     }
 
     async fn list_package_blobs(&self, name: &CanonicalPackageName) -> Result<Vec<String>> {

@@ -88,9 +88,9 @@ on-demand or offline reclamation.
 The hosted store can instead live in an S3-compatible object store. See
 [Storage backends](storage.md). With the filesystem hosted store, package
 metadata lives in an embedded SQLite database by default. Several instances can
-share a [libSQL database](storage.md#libsql-metadata) instead. With an `s3:`
-block and no metadata URL, pnpr keeps package documents in the bucket. The
-[`metadata` block](storage.md#sqlite-metadata) configures each of these.
+share a [libSQL database](storage.md#libsql-metadata) instead, which an `s3:`
+block needs. The [`metadata` block](storage.md#sqlite-metadata) configures
+each of these.
 
 ## `registries` and `defaultRegistry`
 
@@ -595,7 +595,7 @@ packageDocuments:
 ## `releaseRecords`
 
 How pnpr logs the [release records](endpoints.md#pnprs-package-document) of
-the versions it hosts with [SQLite metadata](storage.md#sqlite-metadata). Each
+the versions it hosts. Each
 hosted organization has a transparency log per ecosystem, in the
 [C2SP tiled log](https://c2sp.org/tlog-tiles) format Go's checksum database
 uses. A version's log entry is recorded in the same transaction that accepts

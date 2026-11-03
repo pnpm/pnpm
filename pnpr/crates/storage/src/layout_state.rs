@@ -33,15 +33,14 @@ impl Storage {
     #[must_use]
     pub fn for_hosted(&self, org: &str, ecosystem: Ecosystem) -> Storage {
         let hosted = namespace(&self.root, org, ecosystem);
-        let metadata = self.metadata_source.view(&hosted, org, ecosystem);
         Storage {
             root: Arc::clone(&self.root),
             hosted,
             cached: self.cached.clone(),
             tar_integrities: Arc::clone(&self.tar_integrities),
             tar_integrity_cache: Arc::clone(&self.tar_integrity_cache),
-            metadata_source: self.metadata_source.clone(),
-            metadata,
+            database: Arc::clone(&self.database),
+            metadata: self.database.view(org, ecosystem),
         }
     }
 

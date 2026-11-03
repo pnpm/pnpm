@@ -46,7 +46,7 @@ async fn commit(
 
 async fn a_batch_commits_every_package_under_one_generation_or_none(db: Db) {
     let storage = storage(&db);
-    let database = storage.sql_metadata().unwrap();
+    let database = storage.sql_metadata();
     let org = storage.for_hosted("acme", Ecosystem::Npm);
     let core = packument("core", &["2.0.0"]);
     let widgets = packument("widgets", &["2.0.0"]);
@@ -75,7 +75,7 @@ async fn a_batch_commits_every_package_under_one_generation_or_none(db: Db) {
 
 async fn a_retried_request_gets_its_recorded_outcome(db: Db) {
     let storage = storage(&db);
-    let database = storage.sql_metadata().unwrap();
+    let database = storage.sql_metadata();
     let doc = packument("core", &["1.0.0"]);
     let first = commit(database, vec![document("core", &doc)], request("digest", None))
         .await
@@ -107,7 +107,7 @@ async fn a_retried_request_gets_its_recorded_outcome(db: Db) {
 
 async fn publications_are_found_by_id_name_and_member(db: Db) {
     let storage = storage(&db);
-    let database = storage.sql_metadata().unwrap();
+    let database = storage.sql_metadata();
     let batch = vec![
         document("core", &packument("core", &["1.0.0"])),
         document("widgets", &packument("widgets", &["1.0.0"])),
@@ -143,7 +143,7 @@ async fn a_version_written_outside_a_publish_request_gets_a_publication(db: Db) 
     let storage = storage(&db);
     write(&storage, "plain", &packument("plain", &["1.0.0"])).await;
     write(&storage, "plain", &packument("plain", &["1.0.0", "1.1.0"])).await;
-    let database = storage.sql_metadata().unwrap();
+    let database = storage.sql_metadata();
     let first = database
         .initial_publication(&npm("plain"), "", "1.0.0")
         .await
@@ -172,7 +172,7 @@ async fn a_version_written_outside_a_publish_request_gets_a_publication(db: Db) 
 
 async fn a_publication_without_a_request_records_its_publisher(db: Db) {
     let storage = storage(&db);
-    let database = storage.sql_metadata().unwrap();
+    let database = storage.sql_metadata();
     // No request, as a staged publish's approval commits: the publisher still
     // comes from the document.
     let mut core = document("core", &packument("core", &["1.0.0"]));
@@ -200,7 +200,7 @@ async fn a_publication_without_a_request_records_its_publisher(db: Db) {
 
 async fn a_publication_cannot_bring_back_a_removed_version(db: Db) {
     let storage = storage(&db);
-    let database = storage.sql_metadata().unwrap();
+    let database = storage.sql_metadata();
     let org = storage.for_hosted("acme", Ecosystem::Npm);
     let batch = vec![document("core", &packument("core", &["1.0.0"]))];
     commit(database, batch, request("one", None)).await.unwrap();
@@ -230,8 +230,8 @@ async fn competing_publications_of_one_version_commit_once(db: Db) {
         document("extra", &packument("extra", &["1.0.0"])),
     ];
     let theirs = vec![document("core", &theirs)];
-    let left = commit(first.sql_metadata().unwrap(), ours, request("ours", None));
-    let right = commit(second.sql_metadata().unwrap(), theirs, request("theirs", None));
+    let left = commit(first.sql_metadata(), ours, request("ours", None));
+    let right = commit(second.sql_metadata(), theirs, request("theirs", None));
     let (left, right) = tokio::join!(left, right);
     let winner = match (left, right) {
         (Ok(won), Err(RegistryError::DocumentWriteConflict { .. })) => {
@@ -251,7 +251,7 @@ async fn competing_publications_of_one_version_commit_once(db: Db) {
         outcomes => panic!("exactly one publication commits, got {outcomes:?}"),
     };
     assert_eq!(winner.generation.value, 1);
-    let database = first.sql_metadata().unwrap();
+    let database = first.sql_metadata();
     assert_eq!(database.catalog_generation("acme").await.unwrap(), 1);
     let second_publication = database.publication("acme", "2").await.unwrap();
     assert!(second_publication.is_none());
@@ -283,7 +283,7 @@ fn record_of(name: &str, version: &str) -> Vec<u8> {
 
 async fn a_version_is_accepted_with_its_release_record(db: Db) {
     let storage = storage(&db);
-    let database = storage.sql_metadata().unwrap();
+    let database = storage.sql_metadata();
     let org = storage.for_hosted("acme", Ecosystem::Npm);
     let mut core = document("core", &verified("core", &["1.0.0"]));
     let record = record_of("core", "1.0.0");
@@ -311,7 +311,7 @@ async fn a_version_is_accepted_with_its_release_record(db: Db) {
 
 async fn a_release_record_must_describe_its_version(db: Db) {
     let storage = storage(&db);
-    let database = storage.sql_metadata().unwrap();
+    let database = storage.sql_metadata();
     let org = storage.for_hosted("acme", Ecosystem::Npm);
     for (version, record) in [
         ("1.0.0", record_of("core", "2.0.0")),

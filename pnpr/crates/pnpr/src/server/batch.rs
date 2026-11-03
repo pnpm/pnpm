@@ -7,30 +7,22 @@
 //! Each entry names its `ecosystem` — absent means npm, so an npm batch body
 //! is already a valid one — and carries what that surface's own publish
 //! endpoint takes, with the binary parts base64-encoded. Every entry is
-//! validated and staged before any of them is committed, and the commit is a
-//! single journal transaction: a release that spans ecosystems either lands
-//! whole or leaves nothing behind, and one interrupted by a crash is
-//! completed on the next startup rather than staying half-published.
-//!
-//! With documents metadata that is a guarantee about outcomes, not about what
-//! a reader sees while it happens: the journal promotes and records one
-//! package at a time, so a read that lands mid-commit can see some of the
-//! release and not the rest. A blob whose immutable slot another writer
-//! already owns cannot be undone either, so the journal records everything
-//! else and reports the package that lost. With `SQLite` metadata the whole
-//! batch commits as one generation of its organization's catalog, or not at
-//! all, and a lost slot fails the batch before anything is recorded (see
-//! `publishing::atomic`).
+//! validated and staged before any of them is committed, and the whole batch
+//! commits as one generation of its organization's catalog, or not at all: a
+//! release that spans ecosystems either lands whole or leaves nothing behind,
+//! and a reader sees all of it or none of it. A blob whose immutable slot
+//! another writer already owns fails the batch before anything is recorded
+//! (see `publishing::atomic`).
 
 use super::{
     AppState, AuthedCaller, Identity,
     cargo::{CratePublication, authorize_crate_publish, verify_crate_archive},
     oci::{OciPublication, authorize_publication},
     publishing::{
-        PublishReceipt, StagedPublish, check_note_storage, cleanup_tmp_slots, commit_publication,
-        publication_name, publication_request, publish_committed_response,
-        refuse_notes_of_published_python_versions, replayed_outcome, single_catalog, stage_publish,
-        take_note, take_version_note, validate_publish_doc,
+        PublishReceipt, StagedPublish, cleanup_tmp_slots, commit_publication, publication_name,
+        publication_request, publish_committed_response, refuse_notes_of_published_python_versions,
+        replayed_outcome, single_catalog, stage_publish, take_note, take_version_note,
+        validate_publish_doc,
     },
     pypi::{PypiPublication, authorize_upload, verify_upload},
     staged_archives::StagedReferences,
@@ -163,9 +155,9 @@ async fn publish_batch(
     // the request limit.
     drop(body);
     let name = publication_name(&incoming)?;
-    let request = publication_request(state, identity, &incoming, key, name, None);
+    let request = publication_request(identity, &incoming, key, name, None);
     let mut packages = take_packages(&mut incoming)?;
-    let notes = batch_notes(state, &mut incoming, &mut packages)?;
+    let notes = batch_notes(&mut incoming, &mut packages)?;
     let validated = validate_batch_entries(state, identity, packages).await?;
 
     // Hold every affected package's lock across the whole stage-and-commit,
@@ -265,7 +257,6 @@ async fn stage_entries(
 /// The publication note at the top of a batch body and the version note of
 /// each entry, taken out of the body.
 fn batch_notes(
-    state: &AppState,
     incoming: &mut Value,
     packages: &mut [Value],
 ) -> Result<PublishNotes, RegistryError> {
@@ -275,9 +266,7 @@ fn batch_notes(
         let ecosystem = entry_ecosystem(package)?;
         versions.extend(take_version_note(package, ecosystem)?);
     }
-    let notes = PublishNotes { publication, versions };
-    check_note_storage(state, &notes)?;
-    Ok(notes)
+    Ok(PublishNotes { publication, versions })
 }
 
 /// The `packages` array of a batch body, which must not be empty.

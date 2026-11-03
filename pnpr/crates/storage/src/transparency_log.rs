@@ -130,17 +130,12 @@ impl Storage {
     ///
     /// # Errors
     ///
-    /// The store keeps no SQL metadata, an entry or tile cannot be read or
-    /// written, or a stored tile disagrees with the tree the store recorded
+    /// An entry or tile cannot be read or written, or a stored tile disagrees with the tree the store recorded
     /// or with the one integration computes.
     pub async fn integrate_log(&self, log: &LogId, key: &NoteSigner) -> Result<TreeHead> {
         let signer = log.signer(key)?;
         let origin = signer.verifier_key().name().to_string();
-        let database = self
-            .sql_metadata()
-            .ok_or_else(|| RegistryError::Internal {
-                reason: "only SQL metadata sequences log entries".to_string(),
-            })?;
+        let database = self.sql_metadata();
         loop {
             let head = integrated_head(log, &origin, database.log_head(log).await?)?;
             let sequenced = database.log_size(log).await?;
@@ -218,11 +213,7 @@ impl Storage {
         new: &[Vec<u8>],
         ranges: &[BundleRange],
     ) -> Result<Vec<(TilePath, Vec<u8>)>> {
-        let database = self
-            .sql_metadata()
-            .ok_or_else(|| RegistryError::Internal {
-                reason: "only SQL metadata sequences log entries".to_string(),
-            })?;
+        let database = self.sql_metadata();
         let mut bundles = Vec::with_capacity(ranges.len());
         for range in ranges {
             let mut entries = Vec::new();

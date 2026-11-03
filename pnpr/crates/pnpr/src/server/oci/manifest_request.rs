@@ -72,10 +72,7 @@ impl Request {
             Ok(staged) => staged,
             Err(refusal) => return refusal.respond(),
         };
-        match super::super::publishing::commit_publishes(&self.state, vec![staged])
-            .await
-            .and_then(super::super::publishing::report_unrecorded)
-        {
+        match super::super::publishing::commit_publishes(&self.state, vec![staged]).await {
             Ok(()) => {
                 let mut response =
                     created(&format!("{}/{}/manifests/{digest}", self.base, key.as_str()), &digest);

@@ -1,19 +1,14 @@
 //! The hosted packages' metadata, split from their archives.
 //!
-//! `PackageMetadata` is the domain interface the registry's handlers reach
-//! through [`Storage`]: reading a package view, committing a package document,
-//! changing a tag, removing a package. Archives and the records beside them
-//! stay in the hosted backend; a metadata backend owns only what a package's
-//! document says about them.
-//!
-//! - The documents backend keeps one document per package in the hosted
-//!   store, beside its archives.
-//! - [`SqlMetadata`] keeps accepted versions, tags, deprecations, and package
-//!   state as rows of a SQL database and renders documents from them.
+//! [`SqlMetadata`] keeps accepted versions, tags, deprecations, and package
+//! state as rows of a SQL database and renders documents from them. The
+//! registry's handlers reach one namespace of it through [`Storage`]: reading
+//! a package view, committing a package document, changing a tag, removing a
+//! package. Archives and the records beside them stay in the hosted backend;
+//! the metadata owns only what a package's document says about them.
 
 pub(crate) mod sql;
 
-pub(crate) use documents::update_with_retry;
 pub use notes::{
     MAX_NOTE_BYTES, Note, NoteChange, PublishNotes, VersionNote, note_digest, validate_note,
 };
@@ -21,19 +16,16 @@ pub use publication::{
     ArtifactMember, BatchDocument, Publication, PublicationCommit, PublicationRequest,
     RecordedOutcome, ReleaseRecords,
 };
+pub(crate) use sql::PackageMetadata;
 pub use sql::{RenderStats, SqlMetadata, TagHistoryEntry};
 
-mod documents;
 mod notes;
 mod publication;
 
-use crate::{
-    DocumentWrite, HostedBackend, HostedDocumentForUpdate, HostedDocumentVersion, Storage,
-};
-use async_trait::async_trait;
+use crate::{DocumentUpdate, DocumentWrite, Storage, wait_after_document_write_conflict};
 use pnpr_config::MetadataBackend;
-use pnpr_error::Result;
-use pnpr_package_name::{CanonicalPackageName, Ecosystem};
+use pnpr_error::{RegistryError, Result};
+use pnpr_package_name::CanonicalPackageName;
 use std::{fmt, sync::Arc};
 
 /// The field of a stored npm version that records the interpretation profile
@@ -63,9 +55,8 @@ impl fmt::Display for Generation {
 #[derive(Debug, Clone)]
 pub struct PackageView {
     pub bytes: Arc<[u8]>,
-    /// The generation the view was rendered from, when the backend tracks
-    /// generations.
-    pub generation: Option<Generation>,
+    /// The generation the view was rendered from.
+    pub generation: Generation,
 }
 
 /// A dist-tag change: point `tag` at `target`, or remove it when `target` is
@@ -84,133 +75,54 @@ pub enum TagUpdate {
     /// The package has no document to tag.
     NotFound,
     /// The tag points where the change asked. `generation` is the one that
-    /// holds it, when the backend tracks generations; `moved` says whether
-    /// this change moved it, rather than finding it there.
+    /// holds it; `moved` says whether this change moved it, rather than
+    /// finding it there.
     Committed { generation: Option<Generation>, moved: bool },
 }
 
-/// The metadata of one `(catalog, ecosystem)` namespace.
-#[async_trait]
-pub(crate) trait PackageMetadata: fmt::Debug + Send + Sync {
-    async fn read_view(&self, name: &CanonicalPackageName) -> Result<Option<PackageView>>;
-
-    /// [`Self::read_view`] at catalog generation `generation` or later, such
-    /// as one a client has already seen. A backend without generations, or
-    /// whose reads are always current, reads the view as it is.
-    async fn read_view_at_least(
-        &self,
-        name: &CanonicalPackageName,
-        generation: u64,
-    ) -> Result<Option<PackageView>> {
-        let _ = generation;
-        self.read_view(name).await
+/// Open the metadata database `backend` names.
+pub(crate) fn open(backend: &MetadataBackend) -> Result<Arc<SqlMetadata>> {
+    match backend {
+        MetadataBackend::Sqlite(path) => Ok(Arc::new(SqlMetadata::open_sqlite(path)?)),
+        MetadataBackend::Libsql(settings) => open_libsql(settings),
     }
+}
 
-    /// One version's accepted manifest, with its `_archiveManifest`
-    /// interpretation but without its README and deprecation: what the
-    /// version's release record is made of. `None` when the package has no
-    /// such version.
-    ///
-    /// A backend that stores versions apart reads only that version's rows.
-    /// The default reads the whole view and takes the version out of it.
-    async fn read_version(
-        &self,
-        name: &CanonicalPackageName,
-        version: &str,
-    ) -> Result<Option<Arc<str>>> {
-        let Some(view) = self.read_view(name).await? else { return Ok(None) };
-        let mut document: serde_json::Value = serde_json::from_slice(&view.bytes)?;
-        let Some(serde_json::Value::Object(mut manifest)) = document
-            .get_mut("versions")
-            .and_then(|versions| versions.get_mut(version))
-            .map(serde_json::Value::take)
-        else {
-            return Ok(None);
+/// Read a document, transform it, and write it back while the store still
+/// holds what was read, retrying on conflict with capped backoff.
+///
+/// `build` receives the current bytes (`None` when the document is absent)
+/// and returns the bytes to write, or `Ok(None)` to stop with
+/// [`DocumentUpdate::NotFound`]; a `build` error stops without retrying. After
+/// `retries` conflicts the write fails with
+/// [`RegistryError::DocumentWriteConflict`].
+pub(crate) async fn update_with_retry<Build>(
+    metadata: &PackageMetadata,
+    name: &CanonicalPackageName,
+    retries: usize,
+    principal: Option<&str>,
+    mut build: Build,
+) -> Result<DocumentUpdate>
+where
+    Build: FnMut(Option<&[u8]>) -> Result<Option<Vec<u8>>>,
+{
+    for attempt in 0..retries {
+        let (existing, version) = match metadata.read_for_update(name).await? {
+            Some(document) => (Some(document.bytes), Some(document.version)),
+            None => (None, None),
         };
-        for field in ["readme", "readmeFilename", "deprecated"] {
-            manifest.remove(field);
-        }
-        Ok(Some(serde_json::to_string(&manifest)?.into()))
-    }
-
-    /// The exact bytes of the release record of `revision` of `version`, as
-    /// accepted with the version, or `None` when the store holds none for it.
-    /// Only a backend that keeps records stores them; the default holds
-    /// none.
-    async fn read_release_record(
-        &self,
-        name: &CanonicalPackageName,
-        version: &str,
-        revision: u64,
-    ) -> Result<Option<Vec<u8>>> {
-        let _ = (name, version, revision);
-        Ok(None)
-    }
-
-    /// Read a document with the token [`Self::write_if_current`] needs to
-    /// detect a concurrent writer.
-    async fn read_for_update(
-        &self,
-        name: &CanonicalPackageName,
-    ) -> Result<Option<HostedDocumentForUpdate>>;
-
-    /// Commit `bytes` as the package's document while the stored one is still
-    /// at `version`: absent for `None`, any for
-    /// [`HostedDocumentVersion::Unversioned`]. `principal` is who asked for
-    /// the write, recorded with every tag it moves.
-    async fn write_if_current(
-        &self,
-        name: &CanonicalPackageName,
-        bytes: &[u8],
-        version: Option<&HostedDocumentVersion>,
-        principal: Option<&str>,
-    ) -> Result<DocumentWrite>;
-
-    async fn change_tag(
-        &self,
-        name: &CanonicalPackageName,
-        change: TagChange<'_>,
-    ) -> Result<TagUpdate>;
-
-    /// Remove the package's metadata. Reports whether there was any. The
-    /// documents backend removes a document together with the package's
-    /// archives, so it removes nothing here.
-    async fn remove_package(&self, name: &CanonicalPackageName) -> Result<bool>;
-
-    /// The names of every package with metadata, sorted.
-    async fn package_names(&self) -> Result<Vec<String>>;
-}
-
-/// Which metadata backend a [`Storage`] and every view of it use.
-#[derive(Debug, Clone)]
-pub(crate) enum MetadataSource {
-    Documents,
-    Sql(Arc<SqlMetadata>),
-}
-
-impl MetadataSource {
-    pub(crate) fn open(backend: &MetadataBackend) -> Result<Self> {
-        match backend {
-            MetadataBackend::Documents => Ok(Self::Documents),
-            MetadataBackend::Sqlite(path) => {
-                Ok(Self::Sql(Arc::new(SqlMetadata::open_sqlite(path)?)))
+        let Some(new_bytes) = build(existing.as_deref())? else {
+            return Ok(DocumentUpdate::NotFound);
+        };
+        match metadata.write_if_current(name, &new_bytes, version.as_ref(), principal).await? {
+            DocumentWrite::Written => return Ok(DocumentUpdate::Written),
+            DocumentWrite::Conflict if attempt + 1 < retries => {
+                wait_after_document_write_conflict(attempt).await;
             }
-            MetadataBackend::Libsql(settings) => open_libsql(settings).map(Self::Sql),
+            DocumentWrite::Conflict => {}
         }
     }
-
-    /// The metadata of `(org, ecosystem)`, whose archives `hosted` holds.
-    pub(crate) fn view(
-        &self,
-        hosted: &Arc<dyn HostedBackend>,
-        org: &str,
-        ecosystem: Ecosystem,
-    ) -> Arc<dyn PackageMetadata> {
-        match self {
-            Self::Documents => Arc::new(documents::DocumentMetadata::new(Arc::clone(hosted))),
-            Self::Sql(database) => Arc::new(database.view(org, ecosystem)),
-        }
-    }
+    Err(RegistryError::DocumentWriteConflict { package: name.as_str().to_string() })
 }
 
 /// The libSQL metadata `settings` name, shared by every [`Storage`] of this
@@ -263,9 +175,9 @@ impl Storage {
         self.metadata.read_view_at_least(name, generation).await
     }
 
-    /// One version's accepted manifest, without its README and deprecation
-    /// (see the metadata interface's `read_version`). A SQL backend reads only that
-    /// version's rows, so a release record never costs the package view.
+    /// One version's accepted manifest, without its README and deprecation.
+    /// Only that version's rows are read, so a release record never costs
+    /// the package view.
     pub async fn read_hosted_version(
         &self,
         name: &CanonicalPackageName,
@@ -275,7 +187,7 @@ impl Storage {
     }
 
     /// The exact bytes of the release record of `revision` of `version`, as
-    /// the version was accepted with it, when the metadata store keeps them.
+    /// the version was accepted with it.
     pub async fn read_release_record(
         &self,
         name: &CanonicalPackageName,
@@ -294,13 +206,9 @@ impl Storage {
         self.metadata.change_tag(name, change).await
     }
 
-    /// The SQL metadata database, when this storage keeps its metadata in
-    /// one.
+    /// The metadata database.
     #[must_use]
-    pub fn sql_metadata(&self) -> Option<&Arc<SqlMetadata>> {
-        match &self.metadata_source {
-            MetadataSource::Sql(database) => Some(database),
-            MetadataSource::Documents => None,
-        }
+    pub fn sql_metadata(&self) -> &Arc<SqlMetadata> {
+        &self.database
     }
 }

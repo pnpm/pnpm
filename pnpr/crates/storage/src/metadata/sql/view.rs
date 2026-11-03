@@ -3,22 +3,23 @@
 use super::{Expected, PackageKey, SqlMetadata, commit, render, tags, transactions::Freshness};
 use crate::{
     DocumentWrite, HostedDocumentForUpdate, HostedDocumentVersion,
-    metadata::{PackageMetadata, PackageView, TagChange, TagUpdate},
+    metadata::{PackageView, TagChange, TagUpdate},
 };
-use async_trait::async_trait;
 use pnpr_error::Result;
 use pnpr_package_name::{CanonicalPackageName, Ecosystem};
 use std::sync::Arc;
 
-/// The metadata of one `(catalog, ecosystem)` namespace.
-#[derive(Debug)]
-pub(in crate::metadata) struct SqlView {
+/// The metadata of one `(catalog, ecosystem)` namespace: what the registry's
+/// handlers reach through [`crate::Storage`] to read a package view, commit a
+/// package document, change a tag, or remove a package.
+#[derive(Debug, Clone)]
+pub(crate) struct PackageMetadata {
     pub(super) database: Arc<SqlMetadata>,
     pub(super) catalog: String,
     pub(super) ecosystem: Ecosystem,
 }
 
-impl SqlView {
+impl PackageMetadata {
     fn key(&self, name: &CanonicalPackageName) -> PackageKey {
         PackageKey {
             catalog: self.catalog.clone(),
@@ -38,15 +39,19 @@ impl SqlView {
         })
         .await
     }
-}
 
-#[async_trait]
-impl PackageMetadata for SqlView {
-    async fn read_view(&self, name: &CanonicalPackageName) -> Result<Option<PackageView>> {
+    /// The package's document as a reader receives it, with the generation
+    /// it was rendered from.
+    pub(crate) async fn read_view(
+        &self,
+        name: &CanonicalPackageName,
+    ) -> Result<Option<PackageView>> {
         self.read_view_with(name, Freshness::Bounded).await
     }
 
-    async fn read_view_at_least(
+    /// [`Self::read_view`] at catalog generation `generation` or later, such
+    /// as one a client has already seen.
+    pub(crate) async fn read_view_at_least(
         &self,
         name: &CanonicalPackageName,
         generation: u64,
@@ -54,7 +59,11 @@ impl PackageMetadata for SqlView {
         self.read_view_with(name, Freshness::AtLeast(generation)).await
     }
 
-    async fn read_version(
+    /// One version's accepted manifest, with its `_archiveManifest`
+    /// interpretation but without its README and deprecation: what the
+    /// version's release record is made of. Only that version's rows are
+    /// read. `None` when the package has no such npm version.
+    pub(crate) async fn read_version(
         &self,
         name: &CanonicalPackageName,
         version: &str,
@@ -70,7 +79,9 @@ impl PackageMetadata for SqlView {
         .await
     }
 
-    async fn read_release_record(
+    /// The exact bytes of the release record of `revision` of `version`, as
+    /// accepted with the version, or `None` when the store holds none for it.
+    pub(crate) async fn read_release_record(
         &self,
         name: &CanonicalPackageName,
         version: &str,
@@ -89,21 +100,27 @@ impl PackageMetadata for SqlView {
         .await
     }
 
-    async fn read_for_update(
+    /// Read a document with the generation [`Self::write_if_current`] needs
+    /// to detect a concurrent writer.
+    pub(crate) async fn read_for_update(
         &self,
         name: &CanonicalPackageName,
     ) -> Result<Option<HostedDocumentForUpdate>> {
         let Some(view) = self.read_view_with(name, Freshness::Current).await? else {
             return Ok(None);
         };
-        let generation = view.generation.map_or(0, |generation| generation.value);
+        let generation = view.generation.value;
         Ok(Some(HostedDocumentForUpdate {
             bytes: view.bytes.to_vec(),
             version: HostedDocumentVersion::Generation(generation),
         }))
     }
 
-    async fn write_if_current(
+    /// Commit `bytes` as the package's document while the stored one is still
+    /// at `version`: absent for `None`, any for
+    /// [`HostedDocumentVersion::Unversioned`]. `principal` is who asked for
+    /// the write, recorded with every tag it moves.
+    pub(crate) async fn write_if_current(
         &self,
         name: &CanonicalPackageName,
         bytes: &[u8],
@@ -121,7 +138,8 @@ impl PackageMetadata for SqlView {
         .await
     }
 
-    async fn change_tag(
+    /// Move or remove a dist-tag in one commit.
+    pub(crate) async fn change_tag(
         &self,
         name: &CanonicalPackageName,
         change: TagChange<'_>,
@@ -131,12 +149,14 @@ impl PackageMetadata for SqlView {
         self.database.write(move |connection| tags::change_tag(connection, &key, &change)).await
     }
 
-    async fn remove_package(&self, name: &CanonicalPackageName) -> Result<bool> {
+    /// Remove the package's metadata. Reports whether there was any.
+    pub(crate) async fn remove_package(&self, name: &CanonicalPackageName) -> Result<bool> {
         let key = self.key(name);
         self.database.write(move |connection| commit::remove_package(connection, &key)).await
     }
 
-    async fn package_names(&self) -> Result<Vec<String>> {
+    /// The names of every package with metadata, sorted.
+    pub(crate) async fn package_names(&self) -> Result<Vec<String>> {
         let (catalog, ecosystem) = (self.catalog.clone(), self.ecosystem);
         self.database.read(catalog.clone(), Freshness::Bounded, move |connection, _| {
             connection

@@ -221,11 +221,14 @@ fn move_tag(storage: &Path, package: &str, version: &str, tag: &str) {
 }
 
 fn open(storage: &Path) -> Storage {
-    Storage::new(&HostedStoreConfig::Fs, storage.to_path_buf(), default_cache_dir(storage))
-        .and_then(|store| {
-            store.with_metadata(&MetadataBackend::Sqlite(default_metadata_path(storage)))
-        })
-        .unwrap_or_else(|error| panic!("open fixture storage at {}: {error}", storage.display()))
+    let metadata = MetadataBackend::Sqlite(default_metadata_path(storage));
+    Storage::new(
+        &HostedStoreConfig::Fs,
+        storage.to_path_buf(),
+        default_cache_dir(storage),
+        &metadata,
+    )
+    .unwrap_or_else(|error| panic!("open fixture storage at {}: {error}", storage.display()))
 }
 
 fn canonical(package: &str, ecosystem: Ecosystem) -> CanonicalPackageName {

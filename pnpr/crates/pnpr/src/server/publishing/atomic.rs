@@ -1,7 +1,7 @@
-//! Committing a publish as one metadata transaction, when the metadata lives
-//! in `SQLite`: every archive is promoted first, then every document of the
-//! request commits under one generation of its organization's catalog, or
-//! none does. Readers see the whole request or nothing of it.
+//! Committing a publish as one metadata transaction: every archive is
+//! promoted first, then every document of the request commits under one
+//! generation of its organization's catalog, or none does. Readers see the
+//! whole request or nothing of it.
 //!
 //! The request's outcome commits with it. A retry of the same request by the
 //! same principal gets that outcome back instead of a conflict, whether or not
@@ -9,7 +9,7 @@
 //! request is the key. A retry is authorized against current permissions
 //! like any publish before its outcome is looked up.
 
-use super::{RegistryError, StagedPublish, Value, report_unrecorded};
+use super::{RegistryError, StagedPublish, Value};
 use crate::server::{AppState, Identity};
 use axum::{
     body::Body,
@@ -37,7 +37,7 @@ use tokio::io::AsyncReadExt as _;
 /// What a publish committed, as its response reports it.
 #[derive(Debug, Default)]
 pub(in super::super) struct PublishReceipt {
-    /// The generation holding the publish, when the metadata tracks them.
+    /// The generation holding the publish.
     pub(in super::super) generation: Option<Generation>,
     /// The publication the commit recorded.
     pub(in super::super) publication: Option<u64>,
@@ -57,17 +57,15 @@ impl From<PublicationCommit> for PublishReceipt {
 }
 
 /// The idempotency claim of a publish request: who sent it, the request it
-/// is a retry of when it is one, and the publication's `name`. `None` for a caller with no stable
-/// principal, or a store that keeps no outcomes.
+/// is a retry of when it is one, and the publication's `name`. `None` for a
+/// caller with no stable principal.
 pub(in super::super) fn publication_request(
-    state: &AppState,
     identity: &Identity,
     body: &Value,
     key: Option<&str>,
     name: Option<&str>,
     target: Option<&CanonicalPackageName>,
 ) -> Option<PublicationRequest> {
-    state.inner.storage.sql_metadata()?;
     let principal = identity.username()?.to_string();
     let request_digest = request_digest(body, target.map(CanonicalPackageName::as_str));
     let idempotency_key = key.map_or_else(|| format!("request:{request_digest}"), str::to_string);
@@ -115,9 +113,8 @@ pub(in super::super) async fn replayed_outcome(
     catalog: &str,
     request: Option<&PublicationRequest>,
 ) -> Result<Option<Response>, RegistryError> {
-    let (Some(request), Some(database)) = (request, state.inner.storage.sql_metadata()) else {
-        return Ok(None);
-    };
+    let Some(request) = request else { return Ok(None) };
+    let database = state.inner.storage.sql_metadata();
     let Some(outcome) = database.recorded_outcome(catalog, request).await? else {
         return Ok(None);
     };
@@ -129,9 +126,8 @@ pub(in super::super) async fn replayed_outcome(
     Ok(Some(publish_committed_response(&receipt)))
 }
 
-/// Commit `staged` in one transaction when the metadata lives in `SQLite`,
-/// through the publish journal otherwise. The receipt carries the notices
-/// staging left for the publisher.
+/// Commit `staged` in one metadata transaction. The receipt carries the
+/// notices staging left for the publisher.
 pub(in super::super) async fn commit_publication(
     state: &AppState,
     mut staged: Vec<StagedPublish>,
@@ -152,10 +148,7 @@ async fn commit_staged(
     notes: PublishNotes,
     request: Option<PublicationRequest>,
 ) -> Result<PublishReceipt, RegistryError> {
-    let Some(database) = state.inner.storage.sql_metadata().cloned() else {
-        report_unrecorded(super::commit_through_journal(state, staged).await?)?;
-        return Ok(PublishReceipt::default());
-    };
+    let database = std::sync::Arc::clone(state.inner.storage.sql_metadata());
     let orgs = staged
         .iter()
         .map(|stage| stage.org.as_deref().unwrap_or_default());

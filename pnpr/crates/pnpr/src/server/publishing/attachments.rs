@@ -209,8 +209,8 @@ pub(in super::super) struct StagedPublish {
     pub(in super::super) base_version: Option<HostedDocumentVersion>,
     pub(in super::super) slots: Vec<pnpr_storage::BlobSlot>,
     /// Hosted-org storage namespace this publish targets, or `None` for the
-    /// flat (path-less) hosted store. Threaded into the commit and journal so
-    /// the write — and any crash recovery — lands in the right org.
+    /// flat (path-less) hosted store. Threaded into the commit so the write
+    /// lands in the right org.
     pub(in super::super) org: Option<String>,
     /// Who published it, recorded with every dist-tag the document moves.
     pub(in super::super) publisher: Option<String>,

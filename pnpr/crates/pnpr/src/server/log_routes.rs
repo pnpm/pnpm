@@ -283,12 +283,10 @@ async fn logged_record(
     if super::ensure_osv_allowed(state, &name, version).is_err() {
         return Err(not_found());
     }
-    let (Some(database), Some(_)) = (
-        state.inner.storage.sql_metadata(),
-        state.inner.config.release_records.log_signing_key.as_ref(),
-    ) else {
+    if state.inner.config.release_records.log_signing_key.is_none() {
         return Err(not_found());
-    };
+    }
+    let database = state.inner.storage.sql_metadata();
     let entry = database.release_record_entry(&name, &org, version).await;
     let (index, digest) = entry.map_err(IntoResponse::into_response)?.ok_or_else(not_found)?;
     Ok(LoggedRecord { org, name, version: version.to_string(), index, digest })

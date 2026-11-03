@@ -43,7 +43,7 @@ pub(super) fn integrate_sequenced_logs(state: &AppState) {
         return;
     };
     let storage = state.inner.storage.clone();
-    let Some(database) = storage.sql_metadata().cloned() else { return };
+    let database = Arc::clone(storage.sql_metadata());
     let Ok(runtime) = tokio::runtime::Handle::try_current() else { return };
     if state.inner.locks.logs_recovered.swap(true, Ordering::AcqRel) {
         return;

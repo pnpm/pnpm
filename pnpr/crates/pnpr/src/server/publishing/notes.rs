@@ -106,18 +106,3 @@ pub(in super::super) async fn refuse_notes_of_published_python_versions(
     }
     Ok(())
 }
-
-/// Refuse notes a store without SQL metadata cannot keep.
-pub(in super::super) fn check_note_storage(
-    state: &AppState,
-    notes: &PublishNotes,
-) -> Result<(), RegistryError> {
-    let has_notes = notes.publication.is_some() || !notes.versions.is_empty();
-    if has_notes && state.inner.storage.sql_metadata().is_none() {
-        return Err(RegistryError::BadRequest {
-            reason: "release notes need SQL metadata; this registry keeps package documents"
-                .to_string(),
-        });
-    }
-    Ok(())
-}

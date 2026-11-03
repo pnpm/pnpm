@@ -10,8 +10,8 @@ This guide covers backing up authoritative package data and authentication recor
 A pnpr instance stores two categories of data:
 
 1. **Authoritative data (required)**:
-   - **Hosted storage (`storage`)**: Contains the tarball blobs. A registry that keeps package documents keeps them here too. Back this up regularly.
-   - **SQLite metadata database** ([`metadata`](storage.md#sqlite-metadata), when the registry keeps its metadata in SQLite, as a filesystem store does by default): holds the package metadata. Back it up together with the hosted store, using SQLite's backup API or with pnpr stopped, so the copy matches the archives it references. A registry that keeps package documents instead has no metadata database. Its documents are in the hosted store.
+   - **Hosted storage (`storage`)**: Contains the tarball blobs. Back this up regularly.
+   - **Metadata database** ([`metadata`](storage.md#sqlite-metadata)): holds the package metadata, in SQLite by default or in a libSQL database. Back a SQLite database up together with the hosted store, using SQLite's backup API or with pnpr stopped, so the copy matches the archives it references. Back a libSQL database up according to provider documentation.
    - **Authentication and user state**:
      - `htpasswd` file (when configured).
      - SQLite token database (`tokens.db`, when configured).
@@ -20,7 +20,7 @@ A pnpr instance stores two categories of data:
    - Upstream proxy packument and tarball cache.
    - Resolver query cache.
    - Local artifact staging scratch.
-   - **Do not back this up routinely**: The upstream proxy cache is self-healing and repopulates automatically on demand. However, for the S3 backend, in-progress publish journal data and local staging scratch live in the cache directory (`cache`, or `--cache`). Ensure pnpr has completed startup journal recovery and drained in-flight publishes before wiping cache scratch or decommissioning an instance.
+   - **Do not back this up routinely**: The upstream proxy cache is self-healing and repopulates automatically on demand. However, for the S3 backend, local staging scratch lives in the cache directory (`cache`, or `--cache`). Drain in-flight publishes before wiping cache scratch or decommissioning an instance.
 
 ## Local filesystem storage
 
@@ -46,7 +46,7 @@ With `metadata.url`, use the path that URL names.
 pnpr export --out /mnt/backups/pnpr-$(date +%Y%m%d) --include-auth
 ```
 
-An export is not a complete backup of SQLite metadata. It leaves out three things only the database holds: the unpublished versions pnpr never accepts again, the record of every dist-tag move (its versions, time, and principal), and release notes.
+An export is not a complete backup of the metadata. It leaves out three things only the database holds: the unpublished versions pnpr never accepts again, the record of every dist-tag move (its versions, time, and principal), and release notes.
 
 ### Restore
 
@@ -66,19 +66,18 @@ To restore:
 
 ## S3 and object storage
 
-When hosted storage is configured with S3 (`s3:` in YAML configuration), blobs and documents live in your S3-compatible bucket.
+When hosted storage is configured with S3 (`s3:` in YAML configuration), blobs live in your S3-compatible bucket and package metadata in the [libSQL database](storage.md#libsql-metadata) `metadata.url` names. Back them up together.
 
 ### Recommended S3 settings
 
-- **S3 Bucket Versioning**: Enable versioning on the bucket so overwritten or deleted documents and tarballs can be recovered.
+- **S3 Bucket Versioning**: Enable versioning on the bucket so overwritten or deleted tarballs can be recovered.
 - **Cross-Region Replication**: For disaster recovery across regions, enable S3 bucket replication.
 - **Lifecycle rules**: Do not set lifecycle expiration on active packages in hosted storage.
 
-### S3 journal caveats
+### After a restore
 
-pnpr uses a commit journal for hosted publishes. For the S3 backend:
-- The local publish journal lives beside staged blobs in the local cache directory (`cache`, or `--cache`), coordinating write-ahead publication before promotion to S3. Ensure instances stop cleanly and startup recovery completes before discarding local cache state.
-- After a restore, run `pnpr verify` to audit whether any references point to missing blobs:
+- Restore the bucket and the metadata database from the same point in time, so the metadata references only blobs the bucket holds.
+- Run `pnpr verify` to audit whether any references point to missing blobs:
   ```sh
   pnpr verify
   ```
