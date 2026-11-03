@@ -11,7 +11,7 @@ A pnpr instance stores two categories of data:
 
 1. **Authoritative data (required)**:
    - **Hosted storage (`storage`)**: Contains authoritative package metadata and tarball blobs. Back this up regularly.
-   - **SQLite metadata database** ([`metadata`](storage.md#sqlite-metadata), when the registry keeps its metadata in SQLite, as a filesystem store does by default): holds the package metadata. A registry that keeps package documents instead has no metadata database; its documents are in the hosted store. Back it up together with the hosted store, using SQLite's backup API or with pnpr stopped, so the copy matches the archives it references.
+   - **SQLite metadata database** ([`metadata`](storage.md#sqlite-metadata), when the registry keeps its metadata in SQLite, as a filesystem store does by default): holds the package metadata. Back it up together with the hosted store, using SQLite's backup API or with pnpr stopped, so the copy matches the archives it references. A registry that keeps package documents instead has no metadata database. Its documents are in the hosted store.
    - **Authentication and user state**:
      - `htpasswd` file (when configured).
      - SQLite token database (`tokens.db`, when configured).
