@@ -34,6 +34,15 @@ pub(super) enum Freshness {
     AtLeast(u64),
 }
 
+/// How a read of the replica went.
+enum ReplicaRead<Output> {
+    Read(Output),
+    /// The replica has not reached the generation the read requires.
+    Behind,
+    /// The replica failed where the primary may not; a sync would not help.
+    Failed,
+}
+
 impl SqlMetadata {
     /// Run the write `operation` on the blocking pool.
     pub(super) async fn write<Output, Operation>(
@@ -121,32 +130,33 @@ impl SqlMetadata {
         };
         let started = Instant::now();
         let behind = Some((catalog, required));
-        if let Some(output) = self.read_replica(behind, &mut operation)? {
-            return Ok(output);
-        }
-        // The replica is behind `required`. A sync the first read made
-        // already counts.
-        if self.adapter.sync_replica(started).is_ok()
-            && let Some(output) = self.read_replica(behind, &mut operation)?
-        {
-            return Ok(output);
+        match self.read_replica(behind, &mut operation)? {
+            ReplicaRead::Read(output) => return Ok(output),
+            // A sync the first read made already counts.
+            ReplicaRead::Behind if self.adapter.sync_replica(started).is_ok() => {
+                if let ReplicaRead::Read(output) = self.read_replica(behind, &mut operation)? {
+                    return Ok(output);
+                }
+            }
+            ReplicaRead::Behind | ReplicaRead::Failed => {}
         }
         self.read_primary(&mut operation)
     }
 
-    /// Run `operation` on the replica once it has reached `required`. `None`
-    /// when it has not, or when the replica failed where the primary may not.
+    /// Run `operation` on the replica once it has reached `required`.
     fn read_replica<Output>(
         &self,
         required: Option<(&str, u64)>,
         operation: &mut impl FnMut(&dyn Connection, &RenderCache) -> Result<Output>,
-    ) -> Result<Option<Output>> {
+    ) -> Result<ReplicaRead<Output>> {
         match self.read_once(ReadSource::Replica, required, operation) {
+            Ok(Some(output)) => Ok(ReplicaRead::Read(output)),
+            Ok(None) => Ok(ReplicaRead::Behind),
             Err(error) if self.adapter.is_database_failure(&error) => {
                 tracing::warn!(%error, "a metadata read of the replica failed; reading the primary");
-                Ok(None)
+                Ok(ReplicaRead::Failed)
             }
-            result => result,
+            Err(error) => Err(error),
         }
     }
 
