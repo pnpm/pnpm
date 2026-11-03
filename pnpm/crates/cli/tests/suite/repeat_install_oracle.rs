@@ -89,9 +89,6 @@ enum AllowedRefusal {
     /// every selection, the ones it leaves as they are included
     /// (pnpm/tasks#219).
     Run,
-    /// A workspace project's version bump may refuse both gates, even when
-    /// nothing can resolve to the project (pnpm/tasks#246).
-    Both,
 }
 
 struct Scenario {
@@ -465,7 +462,7 @@ impl Scenario {
             self.driver,
         );
         assert!(
-            passed || !current || matches!(allowed, AllowedRefusal::Run | AllowedRefusal::Both),
+            passed || !current || allowed == AllowedRefusal::Run,
             "{:?} ({:?}): the run gate for {selection:?} refused, but a clean install changes nothing \
              for it",
             self.layout,
@@ -495,7 +492,7 @@ impl Scenario {
                 self.layout,
                 self.driver,
             );
-        } else if matches!(allowed, AllowedRefusal::None | AllowedRefusal::Run) && offered {
+        } else if allowed != AllowedRefusal::Install && offered {
             assert_ne!(
                 self.snapshot(),
                 before,
@@ -1230,7 +1227,7 @@ fn manifest_edits_that_change_no_dependency(layout: Layout) {
     for (field, value, allowed) in [
         ("description", json!("edited"), AllowedRefusal::None),
         ("scripts", json!({ "build": r#"node -e """# }), AllowedRefusal::None),
-        ("version", json!("1.0.1"), AllowedRefusal::Both),
+        ("version", json!("1.0.1"), AllowedRefusal::None),
     ] {
         manifest[field] = value;
         scenario.write_manifest("b", manifest.clone());

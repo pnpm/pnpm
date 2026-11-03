@@ -4148,6 +4148,9 @@ importers:
       '@pnpm/logger':
         specifier: 'catalog:'
         version: 1100.0.0
+      '@pnpm/resolving.local-resolver':
+        specifier: workspace:*
+        version: link:../../resolving/local-resolver
       '@pnpm/resolving.resolver-base':
         specifier: workspace:*
         version: link:../../resolving/resolver-base
@@ -4157,6 +4160,9 @@ importers:
       '@pnpm/workspace.projects-reader':
         specifier: workspace:*
         version: link:../../workspace/projects-reader
+      '@pnpm/workspace.spec-parser':
+        specifier: workspace:*
+        version: link:../../workspace/spec-parser
       '@pnpm/workspace.state':
         specifier: workspace:*
         version: link:../../workspace/state

@@ -5,7 +5,6 @@ use super::{
 use pnpm_config::{Config, LinkWorkspacePackages};
 use pnpm_lockfile::Lockfile;
 use pnpm_package_manifest::PackageManifest;
-use pnpm_workspace_state::WorkspaceState;
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -113,36 +112,4 @@ pub(super) fn current_lockfile_file_has_content(virtual_store_dir: &Path) -> boo
 pub(super) fn wanted_lockfile_file_has_content(workspace_root: &Path, config: &Config) -> bool {
     fs::metadata(workspace_root.join(config.wanted_lockfile_name()))
         .is_ok_and(|metadata| metadata.is_file() && metadata.len() > 0)
-}
-/// Project count + per-project (key, name, version) match between the
-/// cached state and today's walk. The key is the project's root dir;
-/// `build_workspace_state` and pnpm both use it as the map key, so a
-/// renamed / removed / added project trips the check immediately.
-///
-/// A version decides only how dependencies resolve to the project. The
-/// version of a lone project is compared only under
-/// [`LinkWorkspacePackages::Deep`], where a transitive dependency may resolve
-/// to it.
-pub(super) fn project_structure_matches(
-    state: &WorkspaceState,
-    project_manifests: &[(PathBuf, &PackageManifest)],
-    config: &Config,
-) -> bool {
-    if state.projects.len() != project_manifests.len() {
-        return false;
-    }
-    let compare_versions = project_manifests.len() > 1
-        || config.link_workspace_packages == LinkWorkspacePackages::Deep;
-    project_manifests
-        .iter()
-        .all(|(root_dir, manifest)| {
-            let key = root_dir.to_string_lossy().into_owned();
-            let Some(entry) = state.projects.get(&key) else {
-                return false;
-            };
-            entry.name.as_deref() == manifest_string_field(manifest, "name").as_deref()
-                && (!compare_versions
-                    || entry.version.as_deref().unwrap_or("0.0.0")
-                        == manifest_string_field(manifest, "version").as_deref().unwrap_or("0.0.0"))
-        })
 }

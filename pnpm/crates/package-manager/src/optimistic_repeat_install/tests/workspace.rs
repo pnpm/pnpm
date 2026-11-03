@@ -344,11 +344,15 @@ fn bump_lone_project_version(
     (dir, config, PackageManifest::from_path(manifest_path).unwrap())
 }
 /// Another project's dependency may resolve to a workspace project by its
-/// version, so a version bump in a workspace of several projects is drift.
+/// version, so bumping the version of a project that one depends on is drift.
 #[test]
-fn install_and_run_refuse_a_version_bump_in_a_workspace_of_several_projects() {
-    let (dir, config, root) =
-        setup_fresh_install(pnpm_config::NodeLinker::Isolated, "root", "1.0.0", "");
+fn install_and_run_refuse_a_version_bump_of_a_depended_on_workspace_project() {
+    let (dir, config, root) = setup_fresh_install(
+        pnpm_config::NodeLinker::Isolated,
+        "root",
+        "1.0.0",
+        r#""dependencies":{"pkg-a":"workspace:*"}"#,
+    );
     let pkg_dir = dir.path().join("pkg-a");
     fs::create_dir_all(&pkg_dir).unwrap();
     fs::write(pkg_dir.join("package.json"), r#"{"name":"pkg-a","version":"1.0.1"}"#).unwrap();
