@@ -1921,6 +1921,12 @@ describe('pack: workspace dependencies on packages that publish through a named-
     expect(manifest.peerDependencies).toStrictEqual({ '@work/a': '^1.0.0' })
   })
 
+  test('carries a prefix declared for the default registry', async () => {
+    const manifest = await packMain(prepareWorkspace(), { pub: 'https://registry.npmjs.org/' })
+
+    expect(manifest.dependencies).toMatchObject({ 'pkg-c': 'pub:3.0.0' })
+  })
+
   test.each([
     ['no prefix is declared for the registry', undefined, undefined],
     ['only the global config declares the prefix', { work: WORK_REGISTRY }, []],

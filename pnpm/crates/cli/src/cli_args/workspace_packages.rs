@@ -73,7 +73,7 @@ fn publish_registry_prefix<'prefixes>(
     ) else {
         return Ok(None);
     };
-    Ok(declared_prefixes.prefix_for(registry.as_str()))
+    Ok(declared_prefixes.declared_prefix(registry.as_str()))
 }
 
 /// The manifest `pnpm publish` selects the registry from. A project that

@@ -81,6 +81,18 @@ fn the_scope_route_picks_the_registry_prefix() {
 }
 
 #[test]
+fn a_prefix_on_the_default_registry_is_published() {
+    let mut config = config_with_work_prefix();
+    config.registry = WORK.to_string();
+    let map = build_workspace_package_manifest_map(
+        &[project(Path::new("/workspace/pkg"), "pkg-b", Some("1.0.0"))],
+        &config,
+    )
+    .expect("build the workspace map");
+    assert_eq!(map["pkg-b"][0].registry_prefix.as_deref(), Some("work"));
+}
+
+#[test]
 fn publish_config_registry_picks_the_registry_prefix() {
     assert_eq!(
         registry_prefix_of(json!({
