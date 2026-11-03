@@ -54,6 +54,22 @@ impl PackageMetadata for SqlView {
         self.read_view_with(name, Freshness::AtLeast(generation)).await
     }
 
+    async fn read_version(
+        &self,
+        name: &CanonicalPackageName,
+        version: &str,
+    ) -> Result<Option<Arc<str>>> {
+        if self.ecosystem != Ecosystem::Npm {
+            return Ok(None);
+        }
+        let key = self.key(name);
+        let version = version.to_string();
+        self.database.read(self.catalog.clone(), Freshness::Bounded, move |connection, cache| {
+            render::read_version(connection, cache, &key, &version)
+        })
+        .await
+    }
+
     async fn read_for_update(
         &self,
         name: &CanonicalPackageName,

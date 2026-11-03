@@ -106,6 +106,33 @@ pub(crate) trait PackageMetadata: fmt::Debug + Send + Sync {
         self.read_view(name).await
     }
 
+    /// One version's accepted manifest, with its `_archiveManifest`
+    /// interpretation but without its README and deprecation: what the
+    /// version's release record is made of. `None` when the package has no
+    /// such version.
+    ///
+    /// A backend that stores versions apart reads only that version's rows.
+    /// The default reads the whole view and takes the version out of it.
+    async fn read_version(
+        &self,
+        name: &CanonicalPackageName,
+        version: &str,
+    ) -> Result<Option<Arc<str>>> {
+        let Some(view) = self.read_view(name).await? else { return Ok(None) };
+        let mut document: serde_json::Value = serde_json::from_slice(&view.bytes)?;
+        let Some(serde_json::Value::Object(mut manifest)) = document
+            .get_mut("versions")
+            .and_then(|versions| versions.get_mut(version))
+            .map(serde_json::Value::take)
+        else {
+            return Ok(None);
+        };
+        for field in ["readme", "readmeFilename", "deprecated"] {
+            manifest.remove(field);
+        }
+        Ok(Some(serde_json::to_string(&manifest)?.into()))
+    }
+
     /// Read a document with the token [`Self::write_if_current`] needs to
     /// detect a concurrent writer.
     async fn read_for_update(
@@ -220,6 +247,17 @@ impl Storage {
         generation: u64,
     ) -> Result<Option<PackageView>> {
         self.metadata.read_view_at_least(name, generation).await
+    }
+
+    /// One version's accepted manifest, without its README and deprecation
+    /// (see the metadata interface's `read_version`). A SQL backend reads only that
+    /// version's rows, so a release record never costs the package view.
+    pub async fn read_hosted_version(
+        &self,
+        name: &CanonicalPackageName,
+        version: &str,
+    ) -> Result<Option<Arc<str>>> {
+        self.metadata.read_version(name, version).await
     }
 
     /// Move or remove a dist-tag of a hosted package in one metadata commit.

@@ -394,6 +394,39 @@ async fn a_deprecation_rerenders_one_fragment(db: Db) {
     assert!(read(&storage, "pkg").await["versions"]["1.0.0"].get("deprecated").is_none());
 }
 
+async fn a_version_reads_without_the_package_view(db: Db) {
+    let storage = storage(&db);
+    let mut document = packument("pkg", &["1.0.0", "2.0.0"]);
+    document["versions"]["1.0.0"]["_archiveManifest"] =
+        json!({ "profile": "npm-install-manifest/1", "packageJson": "sha512-input" });
+    write(&storage, "pkg", &document).await;
+    let read_version = async |version| {
+        let manifest = storage
+            .read_hosted_version(&npm("pkg"), version)
+            .await
+            .unwrap()?;
+        Some(serde_json::from_str::<Value>(&manifest).unwrap())
+    };
+    let mut expected = document["versions"]["1.0.0"].clone();
+    expected
+        .as_object_mut()
+        .unwrap()
+        .remove("readme");
+    assert_eq!(read_version("1.0.0").await, Some(expected.clone()));
+    assert_eq!(read_version("3.0.0").await, None);
+    assert_eq!(read_version("latest").await, None);
+    let rendered = stats(&storage);
+    assert_eq!((rendered.fragments_rendered, rendered.views_assembled), (1, 0), "{rendered:?}");
+    // A deprecation is not part of the version's accepted manifest, so it
+    // neither shows nor renders the fragment again.
+    document = read(&storage, "pkg").await;
+    document["versions"]["1.0.0"]["deprecated"] = json!("old");
+    write(&storage, "pkg", &document).await;
+    assert_eq!(read_version("1.0.0").await, Some(expected));
+    let reused = stats(&storage);
+    assert_eq!(reused.fragments_reused, 1, "{reused:?}");
+}
+
 async fn tag_moves_are_recorded(db: Db) {
     let storage = storage(&db);
     let published = serde_json::to_vec(&packument("pkg", &["1.0.0", "2.0.0"])).unwrap();
@@ -542,6 +575,7 @@ conformance! {
     a_tag_change_reuses_every_fragment,
     a_deprecation_rerenders_one_fragment,
     tag_moves_are_recorded,
+    a_version_reads_without_the_package_view,
     removing_versions_and_packages,
     a_removed_version_is_never_accepted_again,
     an_archive_manifest_record_is_the_accepted_interpretation,

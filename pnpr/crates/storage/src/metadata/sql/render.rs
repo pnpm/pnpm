@@ -79,8 +79,38 @@ fn version_entries(connection: &dyn Connection, key: &PackageKey) -> Result<Vec<
         .collect()
 }
 
-/// Render one version's manifest with its interpretation, README, and
-/// deprecation.
+/// One version's accepted manifest with its interpretation, without its
+/// README and deprecation, or `None` when the package has no such version.
+/// Only the version's rows are read: the package view is neither assembled
+/// nor parsed.
+pub(super) fn read_version(
+    snapshot: &dyn Connection,
+    cache: &RenderCache,
+    key: &PackageKey,
+    version: &str,
+) -> Result<Option<Arc<str>>> {
+    let (catalog, ecosystem, name) = key.params();
+    let row = snapshot.query_optional(
+        "SELECT profile FROM accepted_manifests
+         WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4
+           AND revision_key = ?5",
+        params![catalog, ecosystem, name, version, ORDINARY],
+    )?;
+    let Some(mut row) = row else { return Ok(None) };
+    let fragment_key = FragmentKey {
+        package: key.clone(),
+        version: version.to_string(),
+        revision_key: ORDINARY.to_string(),
+        profile: row.get(0)?,
+        representation: Representation::Accepted,
+        renderer: RENDERER_VERSION,
+        annotation_generation: None,
+    };
+    fragment(snapshot, cache, &fragment_key).map(Some)
+}
+
+/// Render one version's manifest with its interpretation, and for the full
+/// representation its README and deprecation.
 fn render_fragment(connection: &dyn Connection, key: &FragmentKey) -> Result<Arc<str>> {
     let [manifest, inputs, fields @ ..] = fragment_columns(connection, key)?;
     let mut fragment: Map<String, Value> = parse_json(manifest.as_deref().unwrap_or("{}"))?;
@@ -91,6 +121,9 @@ fn render_fragment(connection: &dyn Connection, key: &FragmentKey) -> Result<Arc
     if let Some(record) = interpretation.record() {
         fragment.insert(ARCHIVE_MANIFEST_FIELD.to_string(), record);
     }
+    if key.representation == Representation::Accepted {
+        return Ok(serde_json::to_string(&fragment)?.into());
+    }
     for (field, value) in [README, README_FILENAME, DEPRECATED].into_iter().zip(fields) {
         if let Some(value) = parse_optional_json(value.as_deref())? {
             fragment.insert(field.to_string(), value);
@@ -100,9 +133,19 @@ fn render_fragment(connection: &dyn Connection, key: &FragmentKey) -> Result<Arc
 }
 
 /// The manifest, interpretation inputs, README, README filename, and
-/// deprecation of a version, as stored.
+/// deprecation of a version, as stored. The accepted representation reads
+/// only the first two.
 fn fragment_columns(connection: &dyn Connection, key: &FragmentKey) -> Result<[Option<String>; 5]> {
     let (catalog, ecosystem, name) = key.package.params();
+    if key.representation == Representation::Accepted {
+        let mut row = connection.query_one(
+            "SELECT manifest, inputs FROM accepted_manifests
+             WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4
+               AND revision_key = ?5 AND profile = ?6",
+            params![catalog, ecosystem, name, key.version, key.revision_key, key.profile],
+        )?;
+        return Ok([row.get(0)?, row.get(1)?, None, None, None]);
+    }
     let mut row = connection.query_one(
         "SELECT m.manifest, m.inputs, r.readme, r.readme_filename, a.deprecated
          FROM accepted_manifests m
