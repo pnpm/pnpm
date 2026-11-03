@@ -40,7 +40,7 @@ To back up while pnpr runs, copy the metadata database with SQLite's backup API 
 pnpr export --out /mnt/backups/pnpr-$(date +%Y%m%d) --include-auth
 ```
 
-An export is not a complete backup of SQLite metadata. It leaves out the history only the database holds: unpublished versions that are never accepted again, who moved each dist-tag, and release notes.
+An export is not a complete backup of SQLite metadata. It leaves out three things only the database holds: the unpublished versions pnpr never accepts again, the record of every dist-tag move (its versions, time, and principal), and release notes.
 
 ### Restore
 
