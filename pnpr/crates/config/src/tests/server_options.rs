@@ -477,3 +477,13 @@ fn release_records_read_the_log_signing_key() {
         "{err:?}",
     );
 }
+
+#[test]
+fn release_records_read_the_statement_signing_key() {
+    let yaml = format!("releaseRecords:\n  statementSigningKey: {LOG_SIGNING_KEY}\n");
+    let config = Config::from_yaml_str(&yaml, Path::new("/config"), listen(), None).unwrap();
+    assert!(config.release_records.log_signing_key.is_none());
+    let signer = config.release_records.statement_signing_key.clone().unwrap();
+    assert_eq!(signer.verifier_key().key_name(), "PeterNeumann+c74f20a3");
+    assert!(!format!("{:?}", config.release_records).contains("AYEKFALV"));
+}

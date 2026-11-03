@@ -14,6 +14,10 @@ pub struct ReleaseRecordsConfig {
     /// every log's origin starts with, and each log signs under its own
     /// origin with the same Ed25519 key. `None` publishes no logs.
     pub log_signing_key: Option<Arc<NoteSigner>>,
+    /// The key that signs the registry's statements about its records, such
+    /// as that it accepted a record. Its `<name>+<key hash>` is each DSSE
+    /// signature's `keyid`. `None` signs no statements.
+    pub statement_signing_key: Option<Arc<NoteSigner>>,
 }
 
 impl fmt::Debug for ReleaseRecordsConfig {
@@ -21,9 +25,13 @@ impl fmt::Debug for ReleaseRecordsConfig {
         let key = self.log_signing_key
             .as_ref()
             .map(|signer| signer.verifier_key().to_string());
+        let statement_key = self.statement_signing_key
+            .as_ref()
+            .map(|signer| signer.verifier_key().to_string());
         formatter
             .debug_struct("ReleaseRecordsConfig")
             .field("log_signing_key", &key)
+            .field("statement_signing_key", &statement_key)
             .finish()
     }
 }
@@ -36,20 +44,29 @@ pub(super) struct ReleaseRecordsFile {
     /// Go's `note.GenerateKey` writes one.
     #[serde(default)]
     log_signing_key: Option<String>,
+    /// A signed-note private key, as for `log_signing_key`.
+    #[serde(default)]
+    statement_signing_key: Option<String>,
 }
 
 pub(super) fn build_release_records_config(
     file: Option<ReleaseRecordsFile>,
 ) -> Result<ReleaseRecordsConfig, RegistryError> {
-    let Some(key) = file.and_then(|file| file.log_signing_key) else {
-        return Ok(ReleaseRecordsConfig::default());
-    };
+    let file = file.unwrap_or_default();
+    Ok(ReleaseRecordsConfig {
+        log_signing_key: signer("logSigningKey", file.log_signing_key)?,
+        statement_signing_key: signer("statementSigningKey", file.statement_signing_key)?,
+    })
+}
+
+fn signer(field: &str, key: Option<String>) -> Result<Option<Arc<NoteSigner>>, RegistryError> {
+    let Some(key) = key else { return Ok(None) };
     let signer = NoteSigner::from_private_key(key.trim()).map_err(|err| {
         RegistryError::InvalidConfig {
             reason: format!(
-                "releaseRecords.logSigningKey is not a PRIVATE+KEY+<name>+<hash>+<key> signed-note key: {err}",
+                "releaseRecords.{field} is not a PRIVATE+KEY+<name>+<hash>+<key> signed-note key: {err}",
             ),
         }
     })?;
-    Ok(ReleaseRecordsConfig { log_signing_key: Some(Arc::new(signer)) })
+    Ok(Some(Arc::new(signer)))
 }

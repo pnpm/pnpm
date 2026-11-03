@@ -126,14 +126,13 @@ fn validate_root_secrets<Sys: EnvVar>(val: &serde_json::Value) -> Result<(), Reg
 fn validate_release_record_secrets<Sys: EnvVar>(
     val: &serde_json::Value,
 ) -> Result<(), RegistryError> {
-    let key = val
-        .get("releaseRecords")
-        .and_then(|records| records.get("logSigningKey"))
-        .and_then(serde_json::Value::as_str);
-    match key {
-        Some(key) => check_secret_env_field::<Sys>("releaseRecords.logSigningKey", key),
-        None => Ok(()),
+    let Some(records) = val.get("releaseRecords") else { return Ok(()) };
+    for field in ["logSigningKey", "statementSigningKey"] {
+        if let Some(key) = records.get(field).and_then(serde_json::Value::as_str) {
+            check_secret_env_field::<Sys>(&format!("releaseRecords.{field}"), key)?;
+        }
     }
+    Ok(())
 }
 
 fn validate_s3_secrets<Sys: EnvVar>(val: &serde_json::Value) -> Result<(), RegistryError> {

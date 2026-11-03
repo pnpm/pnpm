@@ -9,7 +9,8 @@
 //! name every logged package, so only a caller who may read every package
 //! the log holds gets them; anyone else gets the same not-found for every
 //! bundle, whatever it holds. A record's reader gets the record's own entry,
-//! by its index, with its inclusion proof, in the record's evidence.
+//! by its index, with its inclusion proof, in the record's evidence, beside
+//! the registry's statements about the record.
 
 use super::{
     AppState, AuthedCaller, Ecosystem, Identity, RegistrySource, Response, StatusCode,
@@ -23,6 +24,7 @@ use axum::{
     response::IntoResponse,
 };
 use base64::{Engine as _, engine::general_purpose::STANDARD};
+use pnpm_release_record::{AcceptancePredicate, Envelope, PredicateType, Statement, StoredRecord};
 use pnpm_transparency_log::TilePath;
 use pnpr_config::HostedConfig;
 use pnpr_package_name::CanonicalPackageName;
@@ -170,8 +172,8 @@ impl LogReaders {
 }
 
 /// `GET <base>/<name>/<version>+r<revision>/evidence`: the record's digest
-/// and the inclusion proof of its log entry, with the publisher's Sigstore
-/// bundle. It is read as the record is, and changes with every newer
+/// and the inclusion proof of its log entry, with the registry's statements
+/// and the publisher's Sigstore bundle. It is read as the record is, and changes with every newer
 /// checkpoint, so it is revalidated on every use.
 pub(super) async fn serve_record_evidence(
     state: &AppState,
@@ -201,10 +203,41 @@ async fn record_evidence(
         Ok(None) => return proof_pending(),
         Err(err) => return err.into_response(),
     };
+    let statements = match registry_statements(state, &logged).await {
+        Ok(statements) => statements,
+        Err(err) => return err.into_response(),
+    };
     match sigstore_bundle(state, &logged.org, &logged.name, &logged.version).await {
-        Ok(sigstore) => evidence_response(&logged.digest, &inclusion, sigstore),
+        Ok(sigstore) => evidence_response(&logged.digest, &inclusion, &statements, sigstore),
         Err(err) => err.into_response(),
     }
+}
+
+/// The statements the registry signs about a logged record: that it
+/// accepted the record under its profile. Each is signed when it is read,
+/// from the record the metadata store accepted, with the current statement
+/// key. Ed25519 signatures are deterministic, so the same key signs the same
+/// envelope every time, and a new key re-signs every statement.
+async fn registry_statements(
+    state: &AppState,
+    logged: &LoggedRecord,
+) -> pnpr_error::Result<Vec<Envelope>> {
+    let Some(key) = state.inner.config.release_records.statement_signing_key.as_ref() else {
+        return Ok(Vec::new());
+    };
+    let bytes = super::hosted_storage(state, Some(&logged.org))
+        .read_release_record(&logged.name, &logged.version, 0)
+        .await?;
+    let Some(bytes) = bytes else { return Ok(Vec::new()) };
+    let invalid = |err: &dyn std::fmt::Display| pnpr_error::RegistryError::Internal {
+        reason: format!("the accepted release record cannot be stated: {err}"),
+    };
+    let record = StoredRecord::parse(bytes).map_err(|err| invalid(&err))?;
+    let predicate = AcceptancePredicate { interpretation: record.key().profile.clone() };
+    let predicate = serde_json::to_value(predicate)?;
+    let statement = Statement::about(&record, PredicateType::Acceptance, predicate)
+        .map_err(|err| invalid(&err))?;
+    Ok(vec![statement.sign(&[key])])
 }
 
 /// A logged release record of a hosted version.
@@ -310,6 +343,7 @@ async fn sigstore_bundle(
 fn evidence_response(
     digest: &str,
     inclusion: &InclusionProof,
+    statements: &[Envelope],
     sigstore: Option<serde_json::Value>,
 ) -> Response {
     let proof: Vec<String> = inclusion.proof
@@ -323,7 +357,7 @@ fn evidence_response(
             "index": inclusion.index,
             "proof": proof,
         },
-        "statements": [],
+        "statements": statements,
         "sigstore": sigstore.into_iter().collect::<Vec<_>>(),
     });
     let mut response = (StatusCode::OK, axum::Json(body)).into_response();
