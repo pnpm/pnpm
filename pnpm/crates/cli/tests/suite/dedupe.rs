@@ -5,7 +5,12 @@ use pnpm_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
     command_env::CommandTestExt,
 };
-use std::{fs, path::Path, process::Command};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+    process::Command,
+    time::{Duration, SystemTime},
+};
 use walkdir::WalkDir;
 
 fn pacquet_at(workspace: &Path) -> Command {
@@ -377,6 +382,165 @@ fn dedupe_check_does_not_materialize_nor_write_lockfile() {
     drop((root, mock_instance));
 }
 
+/// What anything watching a lockfile can tell apart. A file replaced by one
+/// with the same content still has a new inode and a new modification time.
+#[derive(Debug, PartialEq, Eq)]
+struct LockfileFingerprint {
+    content: Vec<u8>,
+    modified: SystemTime,
+    #[cfg(unix)]
+    inode: u64,
+}
+
+fn lockfile_fingerprint(path: &Path) -> LockfileFingerprint {
+    #[cfg(unix)]
+    use std::os::unix::fs::MetadataExt as _;
+    let metadata = fs::metadata(path).expect("stat the lockfile");
+    LockfileFingerprint {
+        content: fs::read(path).expect("read the lockfile"),
+        modified: metadata.modified().expect("read the lockfile's modification time"),
+        #[cfg(unix)]
+        inode: metadata.ino(),
+    }
+}
+
+/// Moves the lockfile's modification time into the past, so that any later
+/// write to it changes the time however quickly the write follows.
+fn backdate_lockfile(path: &Path) {
+    fs::OpenOptions::new()
+        .write(true)
+        .open(path)
+        .and_then(|file| file.set_modified(SystemTime::now() - Duration::from_hours(1)))
+        .expect("backdate the lockfile");
+}
+
+/// Runs `pnpm dedupe --check` and asserts it exits with `expected_code` while
+/// leaving every lockfile as it found it: not rewritten, not replaced.
+fn assert_dedupe_check_leaves_lockfiles_untouched(
+    workspace: &Path,
+    lockfiles: &[PathBuf],
+    expected_code: i32,
+) {
+    let before: Vec<_> = lockfiles
+        .iter()
+        .map(|path| lockfile_fingerprint(path))
+        .collect();
+    let output = pacquet_at(workspace)
+        .with_args(["dedupe", "--check"])
+        .output()
+        .expect("run pnpm dedupe --check");
+    assert_eq!(output.status.code(), Some(expected_code), "dedupe --check: {output:?}");
+    let reported_issues =
+        String::from_utf8_lossy(&output.stdout).contains("ERR_PNPM_DEDUPE_CHECK_ISSUES");
+    assert_eq!(reported_issues, expected_code != 0, "dedupe --check: {output:?}");
+    for (path, before) in lockfiles.iter().zip(before) {
+        assert_eq!(
+            lockfile_fingerprint(path),
+            before,
+            "dedupe --check replaced {}",
+            path.display(),
+        );
+    }
+}
+
+/// A workspace as a user has it after `pnpm install`: modules on disk and
+/// lockfiles dated well before the check runs.
+fn install_catalog_workspace(workspace: &Path, shared: bool) -> Vec<PathBuf> {
+    create_catalog_projects(workspace);
+    write_catalog_workspace(workspace, shared, "1.0.0");
+    pacquet_at(workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    let lockfiles = if shared {
+        vec![workspace.join("pnpm-lock.yaml")]
+    } else {
+        [".", "packages/a", "packages/b"]
+            .map(|dir| workspace.join(dir).join("pnpm-lock.yaml"))
+            .to_vec()
+    };
+    for path in &lockfiles {
+        backdate_lockfile(path);
+    }
+    lockfiles
+}
+
+fn write_single_project_manifest(workspace: &Path, version: &str) {
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": {
+                "@pnpm.e2e/dep-of-pkg-with-1-dep": version,
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+}
+
+fn install_single_project(workspace: &Path) -> Vec<PathBuf> {
+    write_single_project_manifest(workspace, "100.0.0");
+    pacquet_at(workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    let lockfile = workspace.join("pnpm-lock.yaml");
+    backdate_lockfile(&lockfile);
+    vec![lockfile]
+}
+
+#[test]
+fn dedupe_check_never_replaces_the_lockfile_when_it_finds_no_issues() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let lockfiles = install_single_project(&workspace);
+
+    assert_dedupe_check_leaves_lockfiles_untouched(&workspace, &lockfiles, 0);
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn dedupe_check_never_replaces_the_lockfile_when_it_reports_issues() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let lockfiles = install_single_project(&workspace);
+    write_single_project_manifest(&workspace, "100.1.0");
+
+    assert_dedupe_check_leaves_lockfiles_untouched(&workspace, &lockfiles, 1);
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn dedupe_check_never_replaces_the_lockfiles_of_a_workspace_when_it_finds_no_issues() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    for shared in [false, true] {
+        let lockfiles = install_catalog_workspace(&workspace, shared);
+
+        assert_dedupe_check_leaves_lockfiles_untouched(&workspace, &lockfiles, 0);
+    }
+    drop((root, npmrc_info));
+}
+
+#[test]
+fn dedupe_check_never_replaces_the_lockfiles_of_a_workspace_when_it_reports_issues() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    for shared in [false, true] {
+        let lockfiles = install_catalog_workspace(&workspace, shared);
+        write_catalog_workspace(&workspace, shared, "1.2.0");
+
+        assert_dedupe_check_leaves_lockfiles_untouched(&workspace, &lockfiles, 1);
+    }
+    drop((root, npmrc_info));
+}
+
 /// The lockfile was written before the registry deprecated a locked version.
 #[test]
 fn dedupe_check_ignores_a_deprecation_the_lockfile_does_not_record() {
@@ -408,14 +572,9 @@ fn dedupe_check_ignores_a_deprecation_the_lockfile_does_not_record() {
         .collect::<String>();
     assert_ne!(stale, recorded, "the lockfile must record the deprecation:\n{recorded}");
     fs::write(&lockfile_path, &stale).expect("write the pre-deprecation lockfile");
+    backdate_lockfile(&lockfile_path);
 
-    let output = pacquet_at(&workspace)
-        .with_args(["dedupe", "--check"])
-        .output()
-        .expect("run pnpm dedupe --check");
-    assert!(output.status.success(), "a deprecation alone must not fail the check: {output:?}");
-    let lockfile_after = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
-    assert_eq!(lockfile_after, stale, "dedupe --check must not modify pnpm-lock.yaml");
+    assert_dedupe_check_leaves_lockfiles_untouched(&workspace, &[lockfile_path], 0);
 
     drop((root, mock_instance));
 }

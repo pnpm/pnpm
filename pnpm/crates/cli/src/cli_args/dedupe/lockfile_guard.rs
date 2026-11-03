@@ -1,28 +1,26 @@
 use std::path::{Path, PathBuf};
 
-/// A drop guard for `--check` mode: restores the lockfile snapshot on drop
-/// unless [`disarm`](LockfileGuard::disarm) has been called. This way an
-/// unexpected error during deduplication still leaves the workspace in its
-/// original state.
+/// A drop guard for `--check` mode. The install pipeline hands back the
+/// resolved lockfile instead of writing it, so the only writes left to undo are
+/// the ones that run ahead of it, such as config-dependency syncing. On drop it
+/// puts the snapshot back if the file on disk no longer matches it, so an
+/// unexpected error during deduplication still leaves the workspace as it was.
+/// A file that already matches is left alone, keeping its inode and mtime.
 pub(crate) struct LockfileGuard {
     existing: Option<String>,
     lockfile_path: PathBuf,
-    disarmed: bool,
 }
 
 impl LockfileGuard {
     pub(crate) fn new(existing: Option<String>, lockfile_path: &Path) -> Self {
-        Self { existing, lockfile_path: lockfile_path.to_path_buf(), disarmed: false }
-    }
-
-    pub(crate) fn disarm(&mut self) {
-        self.disarmed = true;
+        Self { existing, lockfile_path: lockfile_path.to_path_buf() }
     }
 }
 
 impl Drop for LockfileGuard {
     fn drop(&mut self) {
-        if self.disarmed {
+        let on_disk = super::read_lockfile_snapshot(&self.lockfile_path).ok().flatten();
+        if on_disk == self.existing {
             return;
         }
         match self.existing.take() {

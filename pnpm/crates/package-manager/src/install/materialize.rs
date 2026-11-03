@@ -114,6 +114,7 @@ pub(super) struct MaterializationResolution<'a> {
     pub(super) deploy_manifest_hook: bool,
     pub(super) manifest_spec_bumps: Option<&'a crate::ManifestSpecBumps>,
     pub(super) known_requires_build: Option<pnpm_deps_restorer::RequiresBuildBySnapshot>,
+    pub(super) lockfile_check_sink: Option<crate::LockfileCheckSink>,
     pub(super) inputs: crate::install::run::ResolutionInputs,
 }
 
@@ -292,6 +293,7 @@ impl<'a> MaterializationInputs<'a, '_> {
             early_host_detection: self.execution.early_host_detection,
             pnpmfile_hook_override: self.resolution.pnpmfile_hook,
             lockfile_verification_gate,
+            lockfile_check_sink: self.resolution.lockfile_check_sink,
             resolution: crate::ResolutionInputs {
                 update_seed_policy: self.resolution.inputs.update_seed_policy,
                 preferred_versions_override: self.resolution.inputs.preferred_versions_override,

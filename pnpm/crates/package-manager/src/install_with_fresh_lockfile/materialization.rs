@@ -23,6 +23,7 @@ pub(super) struct MaterializationResources {
     deps_requiring_build_sink: Option<crate::DepsRequiringBuildSink>,
     lockfile_verification_gate: Option<crate::LockfileVerificationGate>,
     resolution_observer: Option<Arc<dyn crate::ResolutionObserver>>,
+    lockfile_check_sink: Option<crate::LockfileCheckSink>,
 }
 pub(super) struct MaterializationStores {
     index: Option<pnpm_store_dir::SharedReadonlyStoreIndex>,
@@ -95,6 +96,7 @@ pub(super) fn finish_resolved_install<'a, Reporter: self::Reporter + 'static>(
                     deps_requiring_build_sink: owned.resolution.deps_requiring_build_sink,
                     lockfile_verification_gate: owned.lockfile_verification_gate,
                     resolution_observer: setup.completion_observer,
+                    lockfile_check_sink: owned.lockfile_check_sink,
                 },
                 shape: setup.shape,
                 stores: setup.stores.into(),
@@ -188,6 +190,7 @@ impl<Reporter: self::Reporter + 'static> FreshMaterialization<'_, Reporter> {
                     dir: self.install.projects.lockfile_dir,
                     dry_run: self.install.execution.dry_run,
                     save: self.install.execution.save_lockfile,
+                    check_sink: self.resources.lockfile_check_sink.as_ref(),
                     hook: self.resolved.hooks.after_all_resolved_hook.as_ref(),
                     log: self.resolved.hooks.after_all_resolved_log,
                 },

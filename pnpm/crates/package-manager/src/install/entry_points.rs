@@ -2,7 +2,7 @@ use super::{
     Install, InstallRunOptions, InstallSaveOptions, ProjectMutation, WorkspaceInstallSelection,
     errors::InstallError,
 };
-use crate::{LockfileVerificationOverride, RebuildOptions, ResolvedPackages};
+use crate::{LockfileCheckSink, LockfileVerificationOverride, RebuildOptions, ResolvedPackages};
 use pnpm_config::Config;
 use pnpm_lockfile::MaybeLazyLockfile;
 use pnpm_network::ThrottledClient;
@@ -84,20 +84,26 @@ where
         .await
     }
 
-    /// Execute as a check: the caller compares the lockfile the run
-    /// produced against the one it snapshotted and restores that snapshot,
-    /// so nothing else on disk may be left changed. pnpm's
-    /// `lockfileCheck`.
+    /// Execute as a check: the run resolves the wanted lockfile but writes
+    /// none, and returns the text it would have written for the caller to
+    /// compare with the lockfile on disk. `None` when the run resolves no
+    /// lockfile to write. pnpm's `lockfileCheck`.
     pub async fn run_lockfile_check<Reporter: self::Reporter + 'static>(
         self,
         selection: Option<WorkspaceInstallSelection<'_>>,
-    ) -> Result<(), InstallError> {
+    ) -> Result<Option<String>, InstallError> {
+        let sink = LockfileCheckSink::default();
         Box::pin(self.run_inner::<Reporter>(InstallRunOptions {
-            lockfile_check: true,
+            lockfile_check: Some(Arc::clone(&sink)),
             selection,
             ..Default::default()
         }))
-        .await
+        .await?;
+        let resolved = sink
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .take();
+        Ok(resolved)
     }
 
     pub(crate) async fn run_with_lockfile_specifier_project_manifests<

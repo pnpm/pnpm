@@ -327,6 +327,9 @@ pub(crate) struct OwnedInputs {
     /// the background while this install resolves and materializes. See
     /// [`crate::LockfileVerificationGate`].
     pub(crate) lockfile_verification_gate: Option<crate::LockfileVerificationGate>,
+    /// Where a `lockfileCheck` run delivers the wanted lockfile instead of
+    /// writing it. See [`crate::Install::run_lockfile_check`].
+    pub(crate) lockfile_check_sink: Option<crate::LockfileCheckSink>,
     pub(crate) resolution: crate::ResolutionInputs,
     pub(crate) fetching: crate::install_with_fresh_lockfile::FreshFetchingInputs,
     pub(crate) projects: crate::install_with_fresh_lockfile::FreshProjectInputs,
