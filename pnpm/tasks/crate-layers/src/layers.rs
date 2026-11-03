@@ -11,6 +11,8 @@ struct LayersFile {
     layer: Vec<LayerEntry>,
     #[serde(default)]
     exception: Vec<Exception>,
+    #[serde(default)]
+    module_cycles: BTreeMap<String, usize>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -41,6 +43,8 @@ pub struct Layers {
     names: Vec<String>,
     rank_by_crate: BTreeMap<String, usize>,
     exceptions: Vec<Exception>,
+    /// The accepted size of each crate's largest module cycle.
+    pub module_cycles: BTreeMap<String, usize>,
 }
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -49,6 +53,8 @@ pub enum Problem {
     UnknownCrate(String),
     Upward { edge: Edge, from_layer: String, to_layer: String },
     StaleException { from: String, to: String },
+    ModuleCycleGrew { crate_name: String, size: usize, baseline: usize },
+    ModuleCycleShrank { crate_name: String, size: usize, baseline: usize },
 }
 
 impl fmt::Display for Problem {
@@ -71,6 +77,16 @@ impl fmt::Display for Problem {
                     "the exception for {from} -> {to} no longer matches an upward edge; remove it",
                 )
             }
+            Self::ModuleCycleGrew { crate_name, size, baseline } => write!(
+                formatter,
+                "{crate_name} has a cycle of {size} top-level modules, more than the {baseline} \
+                 in crate-layers.toml; `crate-layers modules --crate {crate_name}` lists it",
+            ),
+            Self::ModuleCycleShrank { crate_name, size, baseline } => write!(
+                formatter,
+                "{crate_name}'s largest module cycle shrank to {size}; lower its \
+                 module_cycles entry in crate-layers.toml from {baseline}",
+            ),
         }
     }
 }
@@ -91,7 +107,12 @@ impl Layers {
             .into_iter()
             .map(|layer| layer.name)
             .collect();
-        Ok(Self { names, rank_by_crate, exceptions: file.exception })
+        Ok(Self {
+            names,
+            rank_by_crate,
+            exceptions: file.exception,
+            module_cycles: file.module_cycles,
+        })
     }
 
     pub fn layer_of(&self, name: &str) -> Option<&str> {
