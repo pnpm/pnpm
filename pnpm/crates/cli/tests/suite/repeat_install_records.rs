@@ -279,6 +279,7 @@ fn a_future_dated_manifest_does_not_rewrite_the_state() {
         .with_arg("install")
         .assert()
         .success();
+    trust_recorded_stats(&workspace, mock_instance.url());
     pnpm_testing_utils::fs::set_mtime(
         &workspace.join("packages/b/package.json"),
         std::time::SystemTime::now() + std::time::Duration::from_hours(1),
