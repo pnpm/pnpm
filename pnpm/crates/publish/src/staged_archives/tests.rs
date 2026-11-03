@@ -7,8 +7,8 @@ use serde_json::json;
 const STORED: &str = "sha512-c3RvcmVk";
 const MISSING: &str = "sha512-bWlzc2luZw==";
 
-fn archive(integrity: &str, bytes: &'static [u8]) -> StagedArchive {
-    StagedArchive { integrity: integrity.to_owned(), bytes: bytes::Bytes::from_static(bytes) }
+fn archive(integrity: &str, bytes: &'static [u8]) -> StagedArchive<'static> {
+    StagedArchive { integrity: integrity.to_owned(), bytes }
 }
 
 fn integrity_query(integrity: &str) -> Matcher {
@@ -106,4 +106,38 @@ async fn a_refused_upload_fails_with_what_the_registry_answered() {
     };
     assert_eq!(integrity, MISSING);
     assert!(reason.contains("400") && reason.contains("over the limit"), "{reason}");
+}
+
+#[tokio::test]
+async fn a_refused_upload_keeps_only_the_start_of_a_long_answer() {
+    let mut server = mockito::Server::new_async().await;
+    let registry =
+        parse_supported_registry_url(&format!("{}/", server.url())).unwrap().normalized_url;
+    server
+        .mock("HEAD", "/-/pnpr/v0/artifacts/blob")
+        .match_query(Matcher::Any)
+        .with_status(404)
+        .create_async()
+        .await;
+    server
+        .mock("PUT", "/-/pnpr/v0/artifacts/blob")
+        .match_query(Matcher::Any)
+        .with_status(400)
+        .with_body("x".repeat(super::ERROR_BODY_LIMIT * 4))
+        .create_async()
+        .await;
+
+    let error = stage_archives(
+        &ThrottledClient::default(),
+        &registry,
+        None,
+        &[archive(MISSING, b"missing")],
+    )
+    .await
+    .unwrap_err();
+    let StagingError::Failed { reason, .. } = error else {
+        panic!("expected a staging failure, got {error:?}");
+    };
+    assert!(reason.ends_with('…'), "{reason}");
+    assert!(reason.len() < super::ERROR_BODY_LIMIT + 64, "{} bytes", reason.len());
 }

@@ -279,7 +279,9 @@ renews them.
 
 `pnpm publish -r --batch` does this against a registry declared with
 `serverType: pnpr`: it uploads every archive the registry does not hold yet,
-then sends a batch that references them.
+two at a time, then sends a batch that references them. One commit references
+at most 256 staged archives, so a batch of more packages carries its archives
+inline.
 
 A staged archive is not published and no registry route serves it. It belongs
 to the account that uploaded it, and only a publish by that account can claim

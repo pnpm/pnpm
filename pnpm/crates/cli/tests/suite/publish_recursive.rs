@@ -259,24 +259,27 @@ fn recursive_batch_publish_runs_completed_group_postpublish_scripts_before_a_lat
     drop(root);
 }
 
-/// Whether every attachment of every package in a batch body names a staged
-/// archive by integrity rather than carrying `data`.
+/// Whether every package in a batch body has attachments, and every one of
+/// them names a staged archive by integrity rather than carrying `data`.
 fn references_staged_archives(body: &Value) -> bool {
     body["packages"]
         .as_array()
         .into_iter()
         .flatten()
-        .flat_map(|package| {
+        .all(|package| {
             package["_attachments"]
                 .as_object()
-                .into_iter()
-                .flat_map(|a| a.values())
-        })
-        .all(|attachment| {
-            attachment.get("data").is_none()
-                && attachment["integrity"]
-                    .as_str()
-                    .is_some_and(|integrity| integrity.starts_with("sha512-"))
+                .is_some_and(|attachments| {
+                    !attachments.is_empty()
+                        && attachments
+                            .values()
+                            .all(|attachment| {
+                                attachment.get("data").is_none()
+                                    && attachment["integrity"]
+                                        .as_str()
+                                        .is_some_and(|integrity| integrity.starts_with("sha512-"))
+                            })
+                })
         })
 }
 

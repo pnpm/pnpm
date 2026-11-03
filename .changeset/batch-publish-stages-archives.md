@@ -2,4 +2,4 @@
 "pacquet": minor
 ---
 
-`pnpm publish -r --batch` to a registry declared with `serverType: pnpr` uploads each package's archive on its own request first, skipping archives the registry already holds, and then sends a batch that references the archives by integrity instead of carrying them. A release is no longer limited by the size of one request body. Other registries still get every archive inline.
+`pnpm publish -r --batch` now uploads each package archive on its own request when the registry is declared with `serverType: pnpr`. It skips archives the registry already holds. The batch that follows names the archives by integrity, and its size no longer grows with the archives it publishes. Other registries, and batches of more than 256 packages, still carry every archive inline. [pnpm/tasks#244](https://github.com/pnpm/tasks/issues/244)

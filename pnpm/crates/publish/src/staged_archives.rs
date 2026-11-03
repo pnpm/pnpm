@@ -7,9 +7,9 @@
 //! account that uploaded it, and answers `HEAD` on the same URL when it is
 //! staged already, so a resumed publish uploads only what is missing.
 
-use futures_util::future::try_join_all;
+use futures_util::{StreamExt as _, TryStreamExt as _, stream};
 use pnpm_diagnostics::miette::{self, Diagnostic};
-use pnpm_network::ThrottledClient;
+use pnpm_network::{ThrottledClient, read_limited_body};
 use serde_json::Value;
 
 use crate::{
@@ -19,10 +19,22 @@ use crate::{
 
 const STAGING_ENDPOINT: &str = "-/pnpr/v0/artifacts/blob";
 
+/// The most staged archives one pnpr commit may reference. A batch with more
+/// sends its archives inline.
+pub(crate) const MAX_STAGED_ARCHIVES_PER_PUBLISH: usize = 256;
+
+/// Uploads in flight at once. pnpr receives two uploads of an account at a
+/// time and holds the rest unanswered, so sending more only risks a queued
+/// upload outwaiting the read timeout.
+const CONCURRENT_UPLOADS: usize = 2;
+
+/// The most of a refused upload's response body kept for its error.
+const ERROR_BODY_LIMIT: usize = 4096;
+
 /// One archive to stage: its bytes and their SRI SHA-512.
-pub(crate) struct StagedArchive {
+pub(crate) struct StagedArchive<'a> {
     pub(crate) integrity: String,
-    pub(crate) bytes: bytes::Bytes,
+    pub(crate) bytes: &'a [u8],
 }
 
 /// Make every attachment of `document` reference the staged archive
@@ -40,25 +52,26 @@ pub(crate) fn reference_staged_archive(document: &mut Value, integrity: &str) {
 }
 
 /// Stage every archive of `archives` on `registry` that it does not hold
-/// staged already, all at once: the shared client's request slots bound how
-/// many are in flight.
+/// staged already, [`CONCURRENT_UPLOADS`] at a time.
 pub(crate) async fn stage_archives(
     client: &ThrottledClient,
     registry: &NormalizedRegistryUrl,
     authorization: Option<&str>,
-    archives: &[StagedArchive],
+    archives: &[StagedArchive<'_>],
 ) -> Result<(), StagingError> {
-    let uploads =
-        archives.iter().map(|archive| stage_archive(client, registry, authorization, archive));
-    try_join_all(uploads).await?;
-    Ok(())
+    stream::iter(archives)
+        .map(Ok)
+        .try_for_each_concurrent(CONCURRENT_UPLOADS, |archive| {
+            stage_archive(client, registry, authorization, archive)
+        })
+        .await
 }
 
 async fn stage_archive(
     client: &ThrottledClient,
     registry: &NormalizedRegistryUrl,
     authorization: Option<&str>,
-    archive: &StagedArchive,
+    archive: &StagedArchive<'_>,
 ) -> Result<(), StagingError> {
     let query = url::form_urlencoded::Serializer::new(String::new())
         .append_pair("integrity", &archive.integrity)
@@ -88,7 +101,7 @@ async fn stage_archive(
         .put(&url)
         .header("content-type", "application/octet-stream")
         .header("content-length", archive.bytes.len())
-        .body(archive.bytes.clone());
+        .body(bytes::Bytes::copy_from_slice(archive.bytes));
     if let Some(authorization) = authorization {
         put = put.header("authorization", authorization);
     }
@@ -97,7 +110,13 @@ async fn stage_archive(
     if status.is_success() {
         return Ok(());
     }
-    let body = response.text().await.unwrap_or_default();
+    let body = match read_limited_body(response, ERROR_BODY_LIMIT).await {
+        Ok(body) => {
+            let ellipsis = if body.truncated { "…" } else { "" };
+            format!("{}{ellipsis}", String::from_utf8_lossy(&body.bytes))
+        }
+        Err(_) => String::new(),
+    };
     Err(failed(format!("PUT answered {}: {body}", status.as_u16())))
 }
 
@@ -108,7 +127,7 @@ pub enum StagingError {
     #[diagnostic(
         code(ERR_PNPM_BATCH_PUBLISH_STAGING_FAILED),
         help(
-            "A registry declared `serverType: pnpr` receives each archive on its own request before the batch commit. Nothing was published; run the publish again to retry."
+            "A registry declared `serverType: pnpr` receives each archive on its own request before the batch commit. Nothing was published to this registry. Running the publish again uploads only the archives it still lacks."
         )
     )]
     Failed {
