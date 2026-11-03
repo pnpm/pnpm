@@ -1,9 +1,9 @@
 use axum::body::to_bytes;
 use miette::IntoDiagnostic as _;
-use pnpr_config::{Config, HostedStoreConfig, MetadataBackend, S3Settings, default_metadata_path};
+use pnpr_config::{Config, HostedStoreConfig, MetadataBackend, S3Settings};
 use pnpr_package_name::{CanonicalPackageName, Ecosystem};
 use pnpr_storage::Storage;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use tokio::fs;
 
 #[derive(Debug, Default)]
@@ -29,7 +29,7 @@ pub async fn migrate_local_to_s3(
     config: &Config,
     options: &MigrateStorageOptions,
 ) -> miette::Result<MigrateReport> {
-    let (source, target, copies_metadata) = init_source_and_target_storage(config, options)?;
+    let (source, target) = init_source_and_target_storage(config, options)?;
     let mut report = MigrateReport { dry_run: options.dry_run, ..Default::default() };
     source
         .check_hosted_layout()
@@ -53,8 +53,7 @@ pub async fn migrate_local_to_s3(
                 .map_err(|err| miette::miette!("failed to list source packages: {err}"))?;
 
             for name in &package_names {
-                let package = MigratedPackage { ecosystem, name, copies_metadata };
-                migrate_package(&src, &tgt, &package, options, &mut report).await?;
+                migrate_package(&src, &tgt, ecosystem, name, options, &mut report).await?;
             }
         }
     }
@@ -62,12 +61,13 @@ pub async fn migrate_local_to_s3(
     Ok(report)
 }
 
-/// The source store, the target store, and whether the source's metadata is
-/// another database than the target's, which the configured one holds.
+/// The source store and the target store. Both keep their metadata in the
+/// configured database: the command moves archives, and the metadata stays
+/// where it is, so the S3 deployment has to read the same database.
 fn init_source_and_target_storage(
     config: &Config,
     options: &MigrateStorageOptions,
-) -> miette::Result<(Storage, Storage, bool)> {
+) -> miette::Result<(Storage, Storage)> {
     let source_dir =
         options.from.clone().unwrap_or_else(|| config.storage.hosted_dir.clone());
 
@@ -75,15 +75,22 @@ fn init_source_and_target_storage(
         let display_source = source_dir.display();
         return Err(miette::miette!("source storage directory '{display_source}' does not exist"));
     }
+    if !options.dry_run && !matches!(config.storage.metadata, MetadataBackend::Libsql(_)) {
+        return Err(miette::miette!(
+            "migrate-storage moves archives and leaves package metadata in its database, which \
+             an S3 deployment reads through a libSQL metadata.url. Move the metadata into the \
+             libSQL database the S3 deployment will use, such as by importing the SQLite file, \
+             and point metadata.url at it before migrating"
+        ));
+    }
 
     let target_hosted_config = resolve_target_s3_config(config, options)?;
 
-    let source_metadata = source_metadata(config, options.from.as_deref(), &source_dir)?;
     let source = Storage::new(
         &HostedStoreConfig::Fs,
         source_dir,
         config.storage.cache_dir.clone(),
-        &source_metadata,
+        &config.storage.metadata,
     )
     .map_err(|err| miette::miette!("failed to initialize source storage: {err}"))?;
 
@@ -95,33 +102,7 @@ fn init_source_and_target_storage(
     )
     .map_err(|err| miette::miette!("failed to initialize target S3 storage: {err}"))?;
 
-    let copies_metadata = source_metadata != config.storage.metadata;
-    Ok((source, target, copies_metadata))
-}
-
-/// Where the source store keeps its metadata. The configured database
-/// describes the configured store; another `--from` store is read from the
-/// `SQLite` database at its default path.
-fn source_metadata(
-    config: &Config,
-    from: Option<&Path>,
-    source_dir: &Path,
-) -> miette::Result<MetadataBackend> {
-    let same_dir = |dir: &Path| {
-        let canonical = |path: &Path| std::fs::canonicalize(path).ok();
-        canonical(dir).is_some_and(|dir| canonical(&config.storage.hosted_dir) == Some(dir))
-    };
-    if from.is_none_or(same_dir) {
-        return Ok(config.storage.metadata.clone());
-    }
-    let database = default_metadata_path(source_dir);
-    if !database.is_file() {
-        let (source, database) = (source_dir.display(), database.display());
-        return Err(miette::miette!(
-            "source storage directory '{source}' has no metadata database at '{database}'"
-        ));
-    }
-    Ok(MetadataBackend::Sqlite(database))
+    Ok((source, target))
 }
 
 fn resolve_target_s3_config(
@@ -149,42 +130,18 @@ fn resolve_target_s3_config(
     }
 }
 
-/// A package to migrate, and whether its metadata is copied with it.
-struct MigratedPackage<'name> {
-    ecosystem: Ecosystem,
-    name: &'name str,
-    copies_metadata: bool,
-}
-
 async fn migrate_package(
     source: &Storage,
     target: &Storage,
-    package: &MigratedPackage<'_>,
+    ecosystem: Ecosystem,
+    pkg_name: &str,
     options: &MigrateStorageOptions,
     report: &mut MigrateReport,
 ) -> miette::Result<()> {
-    let MigratedPackage {
-        ecosystem,
-        name: pkg_name,
-        copies_metadata,
-    } = *package;
     let canonical = CanonicalPackageName::parse(pkg_name, ecosystem)
         .unwrap_or_else(|_| CanonicalPackageName::from_stored(pkg_name, ecosystem));
 
-    let doc_bytes = source
-        .read_hosted_document(&canonical)
-        .await
-        .map_err(|err| miette::miette!("failed to read document for '{pkg_name}': {err}"))?;
-
-    if let Some(bytes) = doc_bytes {
-        if copies_metadata && !options.dry_run {
-            target
-                .write_hosted_document_if_current(&canonical, &bytes, None, None)
-                .await
-                .map_err(|err| miette::miette!("failed to write document to target: {err}"))?;
-        }
-        report.packages_migrated += 1;
-    }
+    report.packages_migrated += 1;
 
     let blobs = source
         .hosted_package_blobs(&canonical)

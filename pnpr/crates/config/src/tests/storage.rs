@@ -333,10 +333,23 @@ fn metadata_defaults_to_sqlite_in_storage() {
 
 #[test]
 fn an_object_store_without_a_metadata_url_is_refused() {
-    let yaml = "storage: /s\ns3:\n  bucket: b\n";
+    let yaml = "storage: /s\ns3:\n  bucket: b\nregistries:\n  local:\n    type: hosted\n";
     let err = Config::from_yaml_str(yaml, Path::new("/"), listen(), None).unwrap_err();
     let RegistryError::InvalidConfig { reason } = err else { panic!("{err:?}") };
     assert!(reason.contains("metadata.url"), "{reason}");
+}
+
+/// An artifact-only tier keeps artifacts in the bucket and reads no package
+/// metadata, so it needs no metadata URL.
+#[test]
+fn an_object_store_that_hosts_no_packages_needs_no_metadata_url() {
+    let yaml =
+        "storage: /s\ns3:\n  bucket: b\nresolver:\n  enabled: false\nartifacts:\n  enabled: true\n";
+    let config = Config::from_yaml_str(yaml, Path::new("/"), listen(), None).unwrap();
+    assert_eq!(
+        config.storage.metadata,
+        crate::MetadataBackend::Sqlite(PathBuf::from("/s/.metadata/metadata.sqlite")),
+    );
 }
 
 #[test]
@@ -363,7 +376,7 @@ fn a_sqlite_url_resolves_against_the_config_directory() {
 
 #[test]
 fn a_metadata_url_is_refused_when_it_cannot_serve() {
-    let with_s3 = "storage: /s\ns3:\n  bucket: b\nmetadata:\n  url: sqlite:./m.db\n";
+    let with_s3 = "storage: /s\ns3:\n  bucket: b\nmetadata:\n  url: sqlite:./m.db\nregistries:\n  local:\n    type: hosted\n";
     let no_path = "storage: /s\nmetadata:\n  url: 'sqlite:'\n";
     let unknown = "storage: /s\nmetadata:\n  url: mysql://db/pnpr\n";
     let old_path = "storage: /s\nmetadata:\n  path: ./m.db\n";

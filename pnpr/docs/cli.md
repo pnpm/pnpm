@@ -103,7 +103,7 @@ pnpr export --out /mnt/backups/pnpr-export --include-auth
 
 ### migrate-storage
 
-Migrates hosted packages and blobs from local filesystem storage to an S3-compatible object store. The blobs go to the bucket. Package metadata goes to the configured [metadata database](storage.md#sqlite-metadata) when the source store keeps it in another one.
+Migrates hosted package blobs from local filesystem storage to an S3-compatible object store. Package metadata stays in its [database](storage.md#libsql-metadata), which an S3 deployment reads through a libSQL `metadata.url`. Move the metadata into that database first, for example by importing the SQLite file into Turso, and point `metadata.url` at it. A run that is not `--dry-run` refuses any other metadata.
 
 ```sh
 # Preview packages and blobs that would be transferred
@@ -115,7 +115,7 @@ pnpr migrate-storage --to-bucket my-bucket --verify
 
 | Flag | Description |
 | --- | --- |
-| `--from <dir>` | Source hosted storage directory. Defaults to the configured [`storage`](configuration.md#storage-and-cache) directory (`--storage`). Another directory's package metadata is read from its own SQLite database at `<dir>/.metadata/metadata.sqlite`. |
+| `--from <dir>` | Source hosted storage directory. Defaults to the configured [`storage`](configuration.md#storage-and-cache) directory (`--storage`). The packages come from the configured metadata database; this directory supplies their blobs. |
 | `--to-bucket <name>` | Destination S3 bucket name. |
 | `--to-region <region>` | Destination S3 AWS region (e.g. `us-east-1`). |
 | `--to-endpoint <url>` | Custom S3 endpoint URL (for MinIO, Cloudflare R2, etc.). |

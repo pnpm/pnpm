@@ -208,7 +208,8 @@ impl Config {
         public_url: Option<String>,
         overrides: FeatureOverrides,
     ) -> Result<Self, RegistryError> {
-        let storage = build_storage_config(&mut file, base_dir)?;
+        let hosts_packages = !file.registries.is_empty() && !overrides.disable_registry;
+        let storage = build_storage_config(&mut file, base_dir, hosts_packages)?;
         let http = build_http_config(&mut file, base_dir, listen, public_url)?;
         let backend = build_backend_config(file.backend, base_dir)?;
         reject_removed_blocks(RemovedBlocks {
@@ -323,6 +324,7 @@ fn build_metrics_config(
 fn build_storage_config(
     file: &mut ConfigFile,
     base_dir: &Path,
+    hosts_packages: bool,
 ) -> Result<super::StorageConfig, RegistryError> {
     let (hosted_dir, cache_dir, cache) = resolve_storage_paths(file, base_dir)?;
     let hosted_backend = file.s3.take().map_or(HostedStoreConfig::Fs, HostedStoreConfig::S3);
@@ -331,6 +333,7 @@ fn build_storage_config(
         &hosted_dir,
         base_dir,
         &hosted_backend,
+        hosts_packages,
     )?;
     Ok(super::StorageConfig { hosted_dir, cache_dir, cache, hosted_backend, metadata })
 }

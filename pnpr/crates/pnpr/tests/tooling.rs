@@ -1,4 +1,3 @@
-use pnpr_config::{HostedStoreConfig, MetadataBackend, default_metadata_path};
 use std::path::Path;
 use tempfile::TempDir;
 
@@ -444,53 +443,50 @@ async fn seed_packuments(storage: &pnpr_storage::Storage, names: &[&str]) {
     }
 }
 
+/// The command moves archives, and package metadata stays in the configured
+/// database. `--from` names where the archives are; the packages come from
+/// that database.
 #[tokio::test]
-async fn test_migrate_storage_from_reads_the_source_stores_own_metadata() {
+async fn test_migrate_storage_from_takes_the_archives_of_another_directory() {
     let dir = TempDir::new().unwrap();
-    let (mut config, _cfg_file) = create_test_config(dir.path());
-    let configured = default_metadata_path(&config.storage.hosted_dir);
-    config.storage.metadata = MetadataBackend::Sqlite(configured);
+    let (config, _cfg_file) = create_test_config(dir.path());
     write_local_layout_marker(&config.storage.hosted_dir).unwrap();
     let storage = pnpr_storage::Storage::from_config(&config.storage).unwrap();
     seed_packuments(&storage, &["configured-a", "configured-b"]).await;
-
-    // A store without a metadata database.
-    let empty = dir.path().join("empty-store");
-    std::fs::create_dir_all(&empty).unwrap();
-    write_local_layout_marker(&empty).unwrap();
-    // A store with a database of its own at the default path.
-    let sqlite = dir.path().join("sqlite-store");
-    std::fs::create_dir_all(&sqlite).unwrap();
-    write_local_layout_marker(&sqlite).unwrap();
-    let source = pnpr_storage::Storage::new(
-        &HostedStoreConfig::Fs,
-        sqlite.clone(),
-        config.storage.cache_dir.clone(),
-        &MetadataBackend::Sqlite(default_metadata_path(&sqlite)),
-    )
-    .unwrap();
-    seed_packuments(&source, &["sql-a", "sql-b", "sql-c"]).await;
+    let elsewhere = dir.path().join("elsewhere");
+    std::fs::create_dir_all(&elsewhere).unwrap();
+    write_local_layout_marker(&elsewhere).unwrap();
+    seed_file(
+        local_blob_path(&elsewhere, "", Ecosystem::Npm, "configured-a", "configured-a-1.0.0.tgz"),
+        b"tarball",
+    );
 
     let options = MigrateStorageOptions {
-        from: Some(empty),
+        from: Some(elsewhere),
         to_bucket: Some("mock-bucket".to_string()),
         to_region: Some("us-east-1".to_string()),
         dry_run: true,
         ..MigrateStorageOptions::default()
     };
+    let report = migrate_local_to_s3(&config, &options).await.unwrap();
+    assert_eq!(report.packages_migrated, 2);
+    assert_eq!(report.blobs_transferred, 1);
+}
+
+/// An S3 deployment reads its metadata from a libSQL database, so a real
+/// migration from `SQLite` metadata is refused before anything moves.
+#[tokio::test]
+async fn test_migrate_storage_refuses_metadata_an_s3_deployment_cannot_read() {
+    let dir = TempDir::new().unwrap();
+    let (config, _cfg_file) = create_test_config(dir.path());
+    write_local_layout_marker(&config.storage.hosted_dir).unwrap();
+    let options = MigrateStorageOptions {
+        to_bucket: Some("mock-bucket".to_string()),
+        to_region: Some("us-east-1".to_string()),
+        ..MigrateStorageOptions::default()
+    };
     let err = migrate_local_to_s3(&config, &options).await.unwrap_err();
-    assert!(err.to_string().contains("has no metadata database"), "{err}");
-    for (from, packages) in [(None, 2), (Some(sqlite), 3)] {
-        let options = MigrateStorageOptions {
-            from: from.clone(),
-            to_bucket: Some("mock-bucket".to_string()),
-            to_region: Some("us-east-1".to_string()),
-            dry_run: true,
-            ..MigrateStorageOptions::default()
-        };
-        let report = migrate_local_to_s3(&config, &options).await.unwrap();
-        assert_eq!(report.packages_migrated, packages, "from {from:?}");
-    }
+    assert!(err.to_string().contains("libSQL metadata.url"), "{err}");
 }
 
 #[tokio::test]

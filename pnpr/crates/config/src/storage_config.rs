@@ -92,8 +92,11 @@ pub(crate) fn resolve_metadata_backend(
     storage: &Path,
     base_dir: &Path,
     hosted: &HostedStoreConfig,
+    hosts_packages: bool,
 ) -> Result<MetadataBackend, RegistryError> {
-    let on_fs = matches!(hosted, HostedStoreConfig::Fs);
+    // A tier that hosts no packages, such as an artifact-only one, never
+    // reads package metadata, whichever store its bucket is.
+    let on_fs = matches!(hosted, HostedStoreConfig::Fs) || !hosts_packages;
     let Some(file) = file else { return default_metadata(storage, on_fs) };
     if file.backend.is_some() {
         return Err(invalid(
@@ -112,8 +115,9 @@ pub(crate) fn resolve_metadata_backend(
 }
 
 /// The metadata of a store without a metadata URL: `SQLite` in a filesystem
-/// store. An object store is shared by instances a local database would not
-/// be shared by, so it needs a URL.
+/// store, or in a tier that hosts no packages. An object store of packages
+/// is shared by instances a local database would not be shared by, so it
+/// needs a URL.
 fn default_metadata(storage: &Path, on_fs: bool) -> Result<MetadataBackend, RegistryError> {
     if on_fs {
         Ok(MetadataBackend::Sqlite(default_metadata_path(storage)))

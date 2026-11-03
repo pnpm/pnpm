@@ -67,7 +67,8 @@ metadata:
 
 Archives stay in the hosted store. The database holds every hosted package's
 metadata in every ecosystem. pnpr keeps metadata only in a database: an `s3:`
-block needs a [libSQL](#libsql-metadata) `url`, and pnpr refuses to start on a
+block of a registry that hosts packages needs a [libSQL](#libsql-metadata)
+`url`, and pnpr refuses to start on a
 `metadata` block that still names a `backend`. Earlier releases could keep
 each package's metadata as a document beside its archives. pnpr does not read
 those documents, so such a store starts with empty metadata: republish its
