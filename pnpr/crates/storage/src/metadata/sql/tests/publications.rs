@@ -72,7 +72,7 @@ async fn a_batch_commits_every_package_under_one_generation_or_none() {
             .unwrap()
             .is_none(),
     );
-    assert_eq!(database.catalog_generation("acme").unwrap(), 1);
+    assert_eq!(database.catalog_generation("acme").await.unwrap(), 1);
 }
 
 #[tokio::test]
@@ -193,6 +193,7 @@ async fn a_publication_without_a_request_records_its_publisher() {
         .unwrap();
     let history = database
         .tag_history(&npm("core"), "acme", "latest")
+        .await
         .unwrap();
     let principals: Vec<_> = history
         .iter()
@@ -265,7 +266,7 @@ async fn competing_publications_of_one_version_commit_once() {
     };
     assert_eq!(winner.generation.value, 1);
     let database = first.sql_metadata().unwrap();
-    assert_eq!(database.catalog_generation("acme").unwrap(), 1);
+    assert_eq!(database.catalog_generation("acme").await.unwrap(), 1);
     let second_publication = database.publication("acme", "2").await.unwrap();
     assert!(second_publication.is_none());
 }

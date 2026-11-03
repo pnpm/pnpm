@@ -24,8 +24,8 @@ pub enum BackendConfig {
     Mysql(SqlBackendSettings),
 }
 
-/// The resolved record-store settings for libsql / Turso.
-#[derive(Clone)]
+/// The resolved settings of a libsql / Turso database.
+#[derive(Clone, PartialEq, Eq)]
 pub struct LibsqlSettings {
     /// libsql/Turso database URL, e.g. `libsql://db.turso.io` or
     /// `http://127.0.0.1:8080` for a local `sqld`.
@@ -298,7 +298,7 @@ pub(super) fn build_backend_config(
     };
     let mut selected = Vec::new();
     if let Some(settings) = file.libsql {
-        let libsql_settings = build_libsql_settings(settings, base_dir)?;
+        let libsql_settings = build_libsql_settings(settings, base_dir, "backend.libsql")?;
         selected.push(("libsql", BackendConfig::Libsql(libsql_settings)));
     }
     if let Some(settings) = file.postgres {
@@ -378,9 +378,11 @@ pub(super) fn parse_backend_interval(
     .transpose()
 }
 
-pub(super) fn build_libsql_settings(
+/// The settings `file` gives, `key` naming its block in errors.
+pub(crate) fn build_libsql_settings(
     file: LibsqlFile,
     base_dir: &Path,
+    key: &str,
 ) -> Result<LibsqlSettings, RegistryError> {
     let replica_path =
         file.replica_path.map(|path| if path.is_absolute() { path } else { base_dir.join(path) });
@@ -388,17 +390,11 @@ pub(super) fn build_libsql_settings(
         Some(interval) => {
             let dur = parse_interval(&interval.0)
                 .ok_or_else(|| RegistryError::InvalidConfig {
-                    reason: format!(
-                        "backend.libsql.syncInterval {:?} is not a valid interval",
-                        interval.0,
-                    ),
+                    reason: format!("{key}.syncInterval {:?} is not a valid interval", interval.0),
                 })?;
             if !dur.is_zero() && dur.as_secs() == 0 {
                 return Err(RegistryError::InvalidConfig {
-                    reason: format!(
-                        "backend.libsql.syncInterval {:?} must be 0 or at least 1s",
-                        interval.0,
-                    ),
+                    reason: format!("{key}.syncInterval {:?} must be 0 or at least 1s", interval.0),
                 });
             }
             Some(dur.as_secs())
@@ -407,7 +403,7 @@ pub(super) fn build_libsql_settings(
     };
     if file.max_connections == Some(0) {
         return Err(RegistryError::InvalidConfig {
-            reason: "backend.libsql.maxConnections must be greater than 0".to_string(),
+            reason: format!("{key}.maxConnections must be greater than 0"),
         });
     }
     Ok(LibsqlSettings {

@@ -87,9 +87,10 @@ on-demand or offline reclamation.
 
 The hosted store can instead live in an S3-compatible object store. See
 [Storage backends](storage.md). With the filesystem hosted store, package
-metadata lives in an embedded SQLite database by default. With an `s3:` block
-and no metadata URL, pnpr keeps package documents in the bucket. The
-[`metadata` block](storage.md#sqlite-metadata) configures either.
+metadata lives in an embedded SQLite database by default. Several instances can
+share a [libSQL database](storage.md#libsql-metadata) instead. With an `s3:`
+block and no metadata URL, pnpr keeps package documents in the bucket. The
+[`metadata` block](storage.md#sqlite-metadata) configures each of these.
 
 ## `registries` and `defaultRegistry`
 

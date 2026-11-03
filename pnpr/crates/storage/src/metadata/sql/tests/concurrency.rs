@@ -95,9 +95,9 @@ async fn a_commit_survives_a_restart_and_its_retry_changes_nothing() {
     let restarted = storage(&tmp);
     assert_eq!(read(&restarted, "pkg").await, document);
     let metadata = restarted.sql_metadata().unwrap();
-    let before = metadata.catalog_generation("").unwrap();
+    let before = metadata.catalog_generation("").await.unwrap();
     assert_eq!(write(&restarted, "pkg", &document).await, DocumentWrite::Written);
-    assert_eq!(metadata.catalog_generation("").unwrap(), before);
+    assert_eq!(metadata.catalog_generation("").await.unwrap(), before);
 }
 
 #[tokio::test]
@@ -130,6 +130,7 @@ async fn a_transaction_cut_off_before_commit_leaves_nothing() {
             .sql_metadata()
             .unwrap()
             .catalog_generation("")
+            .await
             .unwrap(),
         0,
     );

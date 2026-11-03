@@ -5,16 +5,18 @@
 //! libsql database behind a mock of those routes that serves the frames of
 //! its own WAL.
 
-use crate::is_unique_violation;
+use crate::{is_transaction_conflict, is_unique_violation};
 use axum::{
     Json, Router,
     extract::{Path, State},
     http::StatusCode,
     routing::{get, post},
 };
+use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use libsql::{Builder, Connection, Database, Value};
 use serde_json::{Value as JsonValue, json};
 use std::{
+    collections::HashMap,
     io::{BufRead, BufReader, Read, Write},
     net::{SocketAddr, TcpListener, TcpStream},
     path::PathBuf,
@@ -36,8 +38,8 @@ pub const SYNC_STALL: Duration = Duration::from_secs(3);
 
 /// The primary database and what it has served.
 pub struct Primary {
-    _db: Database,
-    /// The primary's own connection, which also runs every Hrana statement.
+    streams: Streams,
+    /// The primary's own connection, for a test to read or write it directly.
     pub conn: Connection,
     pub path: PathBuf,
     /// Exports so far; each one checkpoints the WAL.
@@ -52,12 +54,50 @@ pub struct Primary {
     pub sync_stall: SyncStall,
 }
 
+/// The connection of each open Hrana stream, by baton, so concurrent clients
+/// hold transactions of their own, as on a real primary.
+struct Streams {
+    db: Database,
+    open: std::sync::Mutex<HashMap<String, Connection>>,
+    batons: AtomicUsize,
+}
+
+impl Streams {
+    /// The connection of the stream `baton` names, or of a new stream.
+    async fn take(&self, baton: Option<&str>) -> Connection {
+        let open = baton.and_then(|baton| self.open.lock().unwrap().remove(baton));
+        if let Some(conn) = open {
+            return conn;
+        }
+        let conn = self.db.connect().unwrap();
+        // A writer that finds another's transaction open waits for it a
+        // while, then fails busy.
+        conn.query("PRAGMA busy_timeout = 2000", ()).await
+            .unwrap();
+        conn
+    }
+
+    /// Keep `conn` open as a stream, and return the baton that names it.
+    fn keep(&self, conn: Connection) -> String {
+        let baton = format!("stream-{}", self.batons.fetch_add(1, Ordering::SeqCst));
+        self.open
+            .lock()
+            .unwrap()
+            .insert(baton.clone(), conn);
+        baton
+    }
+}
+
 /// A `/sync` that stops answering, as a primary on a broken network does.
+/// While enabled, every `/sync` answers with the frames the primary had when
+/// the first stalled request arrived, as a pull that started then sees them.
 #[derive(Default)]
 pub struct SyncStall {
     pub enabled: AtomicBool,
     /// Signalled when a `/sync` request starts stalling.
     pub started: tokio::sync::Notify,
+    /// The generation and WAL the stalled pull answers with.
+    frozen: std::sync::Mutex<Option<(usize, Vec<u8>)>>,
 }
 
 /// A primary at `path`, served on a loopback port.
@@ -83,7 +123,11 @@ pub async fn serve_primary(
         .is_some()
     {}
     let primary = Arc::new(Primary {
-        _db: db,
+        streams: Streams {
+            db,
+            open: std::sync::Mutex::new(HashMap::new()),
+            batons: AtomicUsize::new(0),
+        },
         conn,
         path,
         exports: AtomicUsize::new(0),
@@ -97,6 +141,7 @@ pub async fn serve_primary(
         .route("/export/{generation}", get(export))
         .route("/sync/{generation}/{start}/{end}", get(sync))
         .route("/v3/pipeline", post(pipeline))
+        .route("/v3/cursor", post(cursor))
         .with_state(Arc::clone(&primary));
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let address = listener.local_addr().unwrap();
@@ -131,11 +176,21 @@ async fn sync(
     State(primary): State<Arc<Primary>>,
     Path((generation, start, end)): Path<(usize, usize, usize)>,
 ) -> Result<Vec<u8>, (StatusCode, Json<JsonValue>)> {
-    if primary.sync_stall.enabled.load(Ordering::SeqCst) {
-        primary.sync_stall.started.notify_one();
-        tokio::time::sleep(SYNC_STALL).await;
-    }
-    let (current, wal) = primary.wal_state();
+    let (current, wal) = if primary.sync_stall.enabled.load(Ordering::SeqCst) {
+        let (state, first) = {
+            let mut frozen = primary.sync_stall.frozen.lock().unwrap();
+            let first = frozen.is_none();
+            (frozen.get_or_insert_with(|| primary.wal_state()).clone(), first)
+        };
+        if first {
+            primary.sync_stall.started.notify_one();
+            tokio::time::sleep(SYNC_STALL).await;
+        }
+        state
+    } else {
+        *primary.sync_stall.frozen.lock().unwrap() = None;
+        primary.wal_state()
+    };
     let frames = if generation == current { wal_frames(&wal, start, end) } else { None };
     frames.ok_or_else(|| (StatusCode::BAD_REQUEST, Json(json!({ "generation": current }))))
 }
@@ -143,11 +198,60 @@ async fn sync(
 async fn pipeline(State(primary): State<Arc<Primary>>, body: String) -> Json<JsonValue> {
     primary.pipelines.fetch_add(1, Ordering::SeqCst);
     let body: JsonValue = serde_json::from_str(&body).unwrap();
+    let conn = primary.streams.take(body["baton"].as_str()).await;
     let mut results = Vec::new();
+    let mut closed = false;
     for request in body["requests"].as_array().unwrap() {
-        results.push(primary.answer(request).await);
+        closed |= request["type"].as_str() == Some("close");
+        results.push(Primary::answer(&conn, request).await);
     }
-    Json(json!({ "baton": "primary", "base_url": null, "results": results }))
+    let baton =
+        if closed { JsonValue::Null } else { JsonValue::String(primary.streams.keep(conn)) };
+    Json(json!({ "baton": baton, "base_url": null, "results": results }))
+}
+
+/// Run a batch and stream its results as Hrana cursor entries, one JSON
+/// object per line.
+async fn cursor(State(primary): State<Arc<Primary>>, body: String) -> String {
+    primary.pipelines.fetch_add(1, Ordering::SeqCst);
+    let body: JsonValue = serde_json::from_str(&body).unwrap();
+    let conn = primary.streams.take(body["baton"].as_str()).await;
+    let entries = cursor_entries(&conn, body["batch"]["steps"].as_array().unwrap()).await;
+    let baton = primary.streams.keep(conn);
+    let mut lines = String::new();
+    for line in std::iter::once(json!({ "baton": baton, "base_url": null })).chain(entries) {
+        lines.push_str(&line.to_string());
+        lines.push('\n');
+    }
+    lines
+}
+
+/// The cursor entries of running `steps`. A step after a failed one is
+/// skipped.
+async fn cursor_entries(conn: &Connection, steps: &[JsonValue]) -> Vec<JsonValue> {
+    let mut entries = Vec::new();
+    for (step, entry) in steps.iter().enumerate() {
+        match Primary::run(conn, &entry["stmt"]).await {
+            Ok(result) => {
+                entries.push(json!({ "type": "step_begin", "step": step, "cols": result["cols"] }));
+                for row in result["rows"].as_array().unwrap() {
+                    entries.push(json!({ "type": "row", "row": row }));
+                }
+                entries.push(json!({
+                    "type": "step_end",
+                    "affected_row_count": result["affected_row_count"],
+                    "last_insert_rowid": null,
+                }));
+            }
+            Err(error) => {
+                entries.push(
+                    json!({ "type": "step_error", "step": step, "error": hrana_error(&error) }),
+                );
+                break;
+            }
+        }
+    }
+    entries
 }
 
 /// Frames `[start, end)` of `wal`, clipped to the frames it holds; `None`
@@ -187,14 +291,16 @@ impl Primary {
         (self.generation.load(Ordering::SeqCst), wal)
     }
 
-    async fn answer(&self, request: &JsonValue) -> JsonValue {
+    async fn answer(conn: &Connection, request: &JsonValue) -> JsonValue {
         match request["type"].as_str() {
-            Some("batch") => self.run_batch(request["batch"]["steps"].as_array().unwrap()).await,
+            Some("batch") => {
+                Self::run_batch(conn, request["batch"]["steps"].as_array().unwrap()).await
+            }
             Some("get_autocommit") => json!({
                 "type": "ok",
                 "response": {
                     "type": "get_autocommit",
-                    "is_autocommit": self.conn.is_autocommit(),
+                    "is_autocommit": conn.is_autocommit(),
                 },
             }),
             Some("describe") => json!({
@@ -212,11 +318,11 @@ impl Primary {
         }
     }
 
-    async fn run_batch(&self, steps: &[JsonValue]) -> JsonValue {
+    async fn run_batch(conn: &Connection, steps: &[JsonValue]) -> JsonValue {
         let mut step_results = Vec::new();
         let mut step_errors = Vec::new();
         for step in steps {
-            match self.run(&step["stmt"]).await {
+            match Self::run(conn, &step["stmt"]).await {
                 Ok(result) => {
                     step_results.push(result);
                     step_errors.push(JsonValue::Null);
@@ -236,13 +342,13 @@ impl Primary {
         })
     }
 
-    async fn run(&self, stmt: &JsonValue) -> libsql::Result<JsonValue> {
+    async fn run(conn: &Connection, stmt: &JsonValue) -> libsql::Result<JsonValue> {
         let sql = stmt["sql"].as_str().unwrap();
         let args: Vec<Value> = stmt["args"]
             .as_array()
             .map(|args| args.iter().map(hrana_arg).collect())
             .unwrap_or_default();
-        let mut rows = self.conn.query(sql, args).await?;
+        let mut rows = conn.query(sql, args).await?;
         let cols: Vec<JsonValue> = (0..rows.column_count())
             .map(|index| json!({ "name": rows.column_name(index), "decltype": null }))
             .collect();
@@ -256,7 +362,7 @@ impl Primary {
         Ok(json!({
             "cols": cols,
             "rows": encoded_rows,
-            "affected_row_count": self.conn.changes(),
+            "affected_row_count": conn.changes(),
             "last_insert_rowid": null,
         }))
     }
@@ -279,6 +385,11 @@ fn hrana_arg(arg: &JsonValue) -> Value {
                 .unwrap()
                 .to_string(),
         ),
+        Some("blob") => Value::Blob(
+            BASE64
+                .decode(arg["base64"].as_str().unwrap())
+                .unwrap(),
+        ),
         other => panic!("unsupported Hrana argument type {other:?}"),
     }
 }
@@ -289,13 +400,19 @@ fn hrana_value(value: Value) -> JsonValue {
         Value::Integer(value) => json!({ "type": "integer", "value": value.to_string() }),
         Value::Real(value) => json!({ "type": "float", "value": value }),
         Value::Text(value) => json!({ "type": "text", "value": value }),
-        Value::Blob(_) => panic!("the auth schema has no blob columns"),
+        Value::Blob(value) => json!({ "type": "blob", "base64": BASE64.encode(value) }),
     }
 }
 
 /// Turso reports a failed statement with the `SQLite` result code name.
 fn hrana_error(error: &libsql::Error) -> JsonValue {
-    let code = if is_unique_violation(error) { "SQLITE_CONSTRAINT" } else { "SQLITE_ERROR" };
+    let code = if is_unique_violation(error) {
+        "SQLITE_CONSTRAINT"
+    } else if is_transaction_conflict(error) {
+        "SQLITE_BUSY"
+    } else {
+        "SQLITE_ERROR"
+    };
     json!({ "message": error.to_string(), "code": code })
 }
 

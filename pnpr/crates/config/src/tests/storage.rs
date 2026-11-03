@@ -364,3 +364,30 @@ fn a_metadata_url_is_refused_when_it_cannot_serve() {
         assert!(matches!(err, RegistryError::InvalidConfig { .. }), "{yaml}: {err:?}");
     }
 }
+
+#[test]
+fn a_libsql_url_carries_its_replica_settings_with_any_hosted_store() {
+    let yaml = "storage: /s\ns3:\n  bucket: b\nmetadata:\n  url: libsql://db.example.turso.io\n  \
+                authToken: token\n  replicaPath: ./replica.db\n  syncInterval: 5s\n";
+    let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
+    let crate::MetadataBackend::Libsql(settings) = config.storage.metadata else {
+        panic!("libSQL metadata, got {:?}", config.storage.metadata);
+    };
+    assert_eq!(settings.url, "libsql://db.example.turso.io");
+    assert_eq!(settings.auth_token.as_deref(), Some("token"));
+    assert_eq!(settings.replica_path, Some(PathBuf::from("/etc/pnpr/replica.db")));
+    assert_eq!(settings.sync_interval_secs, Some(5));
+}
+
+#[test]
+fn libsql_settings_need_a_libsql_url_and_a_replica_needs_a_sync_interval() {
+    let stray = "storage: /s\nmetadata:\n  url: sqlite:./m.db\n  replicaPath: ./r.db\n";
+    let unbounded = "storage: /s\nmetadata:\n  url: http://127.0.0.1:8080\n  replicaPath: ./r.db\n  \
+                     syncInterval: 0s\n";
+    let no_url = "storage: /s\nmetadata:\n  authToken: token\n  replicaPath: ./r.db\n";
+    let with_documents = "storage: /s\nmetadata:\n  backend: documents\n  maxConnections: 4\n";
+    for yaml in [stray, unbounded, no_url, with_documents] {
+        let err = Config::from_yaml_str(yaml, Path::new("/"), listen(), None).unwrap_err();
+        assert!(matches!(err, RegistryError::InvalidConfig { .. }), "{yaml}: {err:?}");
+    }
+}

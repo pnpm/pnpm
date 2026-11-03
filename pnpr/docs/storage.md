@@ -114,6 +114,42 @@ connections, so a read never waits for a write. A `sqlite:` URL cannot be
 combined with an `s3:` block. Back the database file up together with the
 hosted store.
 
+## Metadata in libSQL {#libsql-metadata}
+
+Several pnpr instances share one metadata database when its URL names a
+libSQL server, such as [Turso](https://turso.tech) or a self-hosted `sqld`.
+Every behavior of [SQLite metadata](#sqlite-metadata) applies. A libSQL URL
+works with an `s3:` block, so archives stay in the bucket:
+
+```yaml title="pnpr.yaml"
+s3:
+  bucket: my-pnpr-packages
+metadata:
+  url: libsql://my-db.turso.io
+  authToken: ${TURSO_AUTH_TOKEN}
+  # Optional. Reads views from a local copy instead of the primary.
+  replicaPath: ./metadata-replica.db
+  # Optional. Defaults to 60s.
+  syncInterval: 10s
+  # Optional. Defaults to 10.
+  maxConnections: 10
+```
+
+`url` also takes `http://` or `https://` for a self-hosted `sqld`. pnpr
+refuses to start when `authToken` names an unset environment variable. It
+sends the token only over HTTPS, or over HTTP to a loopback host.
+
+Every write goes to the primary. Without `replicaPath`, every read does too.
+With `replicaPath`, pnpr keeps an embedded replica of the database in that
+file and pulls the primary's changes every `syncInterval`:
+
+- Package documents and listings are read from the replica. A change made
+  through another pnpr instance shows up within `syncInterval`.
+- An instance always sees its own changes.
+- Permission checks, the reads a write depends on, and the response to a
+  retried publish read the primary.
+- When the replica cannot sync, pnpr reads the primary.
+
 ## Backends
 
 By default both are local directories. Adding an `s3:` block moves the

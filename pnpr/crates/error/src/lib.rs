@@ -398,14 +398,15 @@ pub enum RegistryError {
     #[cfg(feature = "server")]
     Bcrypt(bcrypt::BcryptError),
 
-    /// SQLite-backed token store failure.
-    #[display("Token database error: {_0}")]
+    /// A failure of an `SQLite` database: the token store or the metadata.
+    #[display("SQLite database error: {_0}")]
     #[cfg(feature = "server")]
     Sqlite(rusqlite::Error),
 
-    /// Networked-SQLite (libsql / Turso) auth backend failure.
+    /// A failure of a libSQL database (Turso): the auth backend or the
+    /// metadata.
     #[cfg(feature = "backend-libsql")]
-    #[display("Auth database error: {_0}")]
+    #[display("libSQL database error: {_0}")]
     Libsql(libsql::Error),
 
     /// SQL auth backend failure.
