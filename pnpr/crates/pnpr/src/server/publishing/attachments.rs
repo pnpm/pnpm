@@ -195,20 +195,13 @@ pub(in super::super) async fn stage_publish(
     // drained below.
     drop(incoming);
 
-    let statements = provenance::read_statements(&prepared);
-    // Stream-decode + verify + write each tarball. A mismatch — or a
-    // missing integrity field — short-circuits the publish with a
-    // 400; any tmp files written before the failure get removed
-    // along the way so a bad upload leaves no on-disk artifact.
-    let written = write_attachment_slots(
-        (&storage, publisher.as_deref()),
+    let verified = write_verified(
+        (&storage, publisher.as_deref(), &state.inner.proxy.tar_decodes),
         &name,
-        prepared,
-        tarballs,
-        &state.inner.proxy.tar_decodes,
+        (prepared, tarballs),
+        (merged, &variants),
     )
     .await?;
-    let verified = verified_document(&name, (merged, &variants, &statements), written).await?;
     Ok(StagedPublish {
         name,
         ecosystem: Ecosystem::Npm,
@@ -219,6 +212,24 @@ pub(in super::super) async fn stage_publish(
         publisher,
         verification: verified.verification,
     })
+}
+
+/// Write every attachment of `prepared` and verify the archives against
+/// the merged document and the version's provenance statement.
+async fn write_verified(
+    (storage, claimant, decodes): (&Storage, Option<&str>, &Arc<Semaphore>),
+    name: &CanonicalPackageName,
+    (prepared, tarballs): (Vec<PreparedAttachment>, TarballStorage),
+    (merged, variants): (Value, &Declarations),
+) -> Result<VerifiedDocument, RegistryError> {
+    let statements = provenance::read_statements(&prepared);
+    // Stream-decode + verify + write each tarball. A mismatch — or a
+    // missing integrity field — short-circuits the publish with a
+    // 400; any tmp files written before the failure get removed
+    // along the way so a bad upload leaves no on-disk artifact.
+    let written =
+        write_attachment_slots((storage, claimant), name, prepared, tarballs, decodes).await?;
+    verified_document(name, (merged, variants, &statements), written).await
 }
 
 /// A publish document whose archives agree with its version metadata.
