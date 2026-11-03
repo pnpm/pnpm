@@ -12,6 +12,9 @@ pub struct PendingAttachment {
     /// `_attachments.<filename>.length` — the declared byte count of
     /// the *decoded* tarball, used to catch truncated uploads.
     pub declared_length: Option<u64>,
+    /// `_attachments.<filename>.integrity`: the integrity of a staged
+    /// archive, or the one inline bytes declare beside `data`.
+    pub declared_integrity: Option<String>,
 }
 
 /// Where an attachment's bytes come from.
@@ -23,7 +26,7 @@ pub enum AttachmentPayload {
     /// live in memory.
     Inline(String),
     /// An archive the publisher staged by this integrity before the commit,
-    /// named by `_attachments.<filename>.integrity` in place of `data`.
+    /// named by `_attachments.<filename>.integrity` without `data`.
     Staged { integrity: String },
 }
 
@@ -73,20 +76,26 @@ pub fn extract_attachments(body: &mut Value) -> Result<Vec<PendingAttachment>, R
                 reason: "expected object".to_string(),
             });
         };
-        let payload = match (value_obj.remove("data"), value_obj.remove("integrity")) {
-            (Some(Value::String(data)), None) => AttachmentPayload::Inline(data),
-            (None, Some(Value::String(integrity))) => AttachmentPayload::Staged { integrity },
-            _ => {
-                return Err(RegistryError::InvalidAttachment {
-                    filename,
-                    reason: "needs either a string `data`, or a string `integrity` naming a \
-                             staged archive"
-                        .to_string(),
-                });
-            }
-        };
+        let (payload, declared_integrity) =
+            match (value_obj.remove("data"), value_obj.remove("integrity")) {
+                (Some(Value::String(data)), None) => (AttachmentPayload::Inline(data), None),
+                (Some(Value::String(data)), Some(Value::String(integrity))) => {
+                    (AttachmentPayload::Inline(data), Some(integrity))
+                }
+                (None, Some(Value::String(integrity))) => {
+                    (AttachmentPayload::Staged { integrity: integrity.clone() }, Some(integrity))
+                }
+                _ => {
+                    return Err(RegistryError::InvalidAttachment {
+                        filename,
+                        reason: "needs a string `data`, a string `integrity` naming a staged \
+                                 archive, or both"
+                            .to_string(),
+                    });
+                }
+            };
         let declared_length = value_obj.get("length").and_then(Value::as_u64);
-        out.push(PendingAttachment { filename, payload, declared_length });
+        out.push(PendingAttachment { filename, payload, declared_length, declared_integrity });
     }
     Ok(out)
 }

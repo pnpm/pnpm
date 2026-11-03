@@ -78,17 +78,16 @@ fn publish_request_with(
     if let Some(primary) = primary {
         attachments.insert("@acme/fast-1.0.0.tgz".into(), attachment(primary));
     }
-    let mut references = serde_json::Map::new();
     for (tag, tgz) in variants {
-        attachments.insert(format!("@acme/fast-1.0.0~{tag}.tgz"), attachment(tgz));
-        references.insert((*tag).to_string(), Value::String(sha512_integrity(tgz)));
+        let mut variant = attachment(tgz);
+        variant["integrity"] = Value::String(sha512_integrity(tgz));
+        attachments.insert(format!("@acme/fast-1.0.0~{tag}.tgz"), variant);
     }
     let mut manifest = primary_manifest();
     manifest["dist"] = json!({
         "tarball": "http://example.test/@acme/fast/-/fast-1.0.0.tgz",
         "integrity": integrity,
     });
-    manifest["pnprVariants"] = Value::Object(references);
     let body = json!({
         "name": "@acme/fast",
         "dist-tags": { "latest": "1.0.0" },
@@ -525,4 +524,50 @@ async fn a_tag_over_the_limit_is_refused() {
     assert!(tag.len() > pnpm_platform_variants::MAX_VARIANT_TAG_BYTES);
     let reason = rejection(&[(&tag, variant_manifest(&platforms, &json!({})))]).await;
     assert!(reason.contains("over the 128-byte limit"), "{reason}");
+}
+
+/// A variant attachment names its version, which the publish must describe,
+/// and declares the integrity its archive is verified against.
+#[tokio::test]
+async fn a_variant_attachment_names_a_described_version_and_its_integrity() {
+    use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+
+    let (_, primary) = archive(&primary_manifest(), "primary");
+    let (_, musl) = archive(&variant_manifest(&["linux-x64-musl"], &json!({})), "musl");
+    for (case, filename, attachment, expected) in [
+        (
+            "another version",
+            "@acme/fast-2.0.0~linux-x64-musl.tgz",
+            json!({ "data": BASE64.encode(&musl), "integrity": sha512_integrity(&musl) }),
+            "names version 2.0.0, which the publish does not describe",
+        ),
+        (
+            "no integrity",
+            "@acme/fast-1.0.0~linux-x64-musl.tgz",
+            json!({ "data": BASE64.encode(&musl) }),
+            "has no integrity",
+        ),
+        (
+            "other bytes",
+            "@acme/fast-1.0.0~linux-x64-musl.tgz",
+            json!({ "data": BASE64.encode(&musl), "integrity": sha512_integrity(&primary) }),
+            "EINTEGRITY",
+        ),
+    ] {
+        let (_tmp, app, token) = setup().await;
+        let request = publish_request(&primary, &[], &token);
+        let (parts, body) = request.into_parts();
+        let mut document: Value = serde_json::from_slice(&body_bytes(body).await).unwrap();
+        document["_attachments"][filename] = attachment;
+        let request =
+            Request::from_parts(parts, Body::from(serde_json::to_vec(&document).unwrap()));
+        let response = app
+            .clone()
+            .oneshot(request)
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST, "{case}");
+        let reason = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
+        assert!(reason.contains(expected), "{case}: {reason}");
+    }
 }

@@ -52,7 +52,7 @@ pub(in super::super) struct ValidatedPublish {
     /// the package lock.
     pub(in super::super) publisher: Identity,
     pub(in super::super) tarballs: TarballStorage,
-    /// Referenced platform variant archives, by version.
+    /// Attached platform variant archives, by version.
     pub(in super::super) variants: Declarations,
 }
 
@@ -104,12 +104,13 @@ pub(in super::super) async fn validate_publish_doc(
     check_publish_tombstone(state, identity, &storage, &name).await?;
 
     let attachments = extract_attachments(&mut incoming)?;
-    let variants = variants::take_declarations(&mut incoming)?;
+    variants::remove_server_fields(&mut incoming);
     record_publisher(&mut incoming, identity);
 
     // Validate attachment filenames against the package and parse their
     // canonical storage filename, matching version, and payload kind.
-    let prepared = prepare_attachments(&name, &incoming, attachments, &variants)?;
+    let prepared = prepare_attachments(&name, &incoming, attachments)?;
+    let variants = variants::attached_variants(&prepared);
     let publisher = identity.clone();
     let tarballs = if super::super::tar_registry::is_tar_registry(state, &target.source) {
         TarballStorage::Tar
@@ -123,14 +124,13 @@ fn prepare_attachments(
     name: &CanonicalPackageName,
     incoming: &Value,
     attachments: Vec<PendingAttachment>,
-    declared_variants: &Declarations,
 ) -> Result<Vec<PreparedAttachment>, RegistryError> {
     let mut prepared = Vec::with_capacity(attachments.len());
     let mut seen_canonical = HashSet::with_capacity(attachments.len());
     let mut tarball_versions = HashSet::new();
 
     for attachment in attachments {
-        let item = prepare_attachment(name, incoming, attachment, declared_variants)?;
+        let item = prepare_attachment(name, incoming, attachment)?;
         if !seen_canonical.insert(item.canonical.clone()) {
             return Err(RegistryError::BadRequest {
                 reason: format!("duplicate attachment for {}", item.canonical),
@@ -152,15 +152,16 @@ fn prepare_attachments(
 }
 
 /// Prepare an attachment to be verified against its version's `dist`, or a
-/// variant's against its declaration.
+/// variant's against the integrity it declares.
 fn prepare_attachment(
     name: &CanonicalPackageName,
     incoming: &Value,
     attachment: PendingAttachment,
-    declared_variants: &Declarations,
 ) -> Result<PreparedAttachment, RegistryError> {
     if let Some(parsed) = variants::parse_variant_attachment(name, &attachment.filename) {
-        return variants::prepare_variant_attachment(attachment, parsed?, declared_variants);
+        let parsed = parsed?;
+        variants::check_version(incoming, &attachment.filename, &parsed.1)?;
+        return variants::prepare_variant_attachment(attachment, parsed);
     }
     let (canonical, version, kind) = parse_attachment_kind(name, &attachment.filename)?;
     if kind == AttachmentKind::Sigstore && attachment.staged_integrity().is_some() {

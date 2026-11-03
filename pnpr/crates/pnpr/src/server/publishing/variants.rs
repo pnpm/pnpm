@@ -2,13 +2,11 @@
 //! ([platform variants](https://github.com/pnpm/rfcs/blob/1a9891a2073f7c03a89fc6756eb78881853fa218/pnpr/text/0000-platform-variants.md)).
 //!
 //! A version publishes its primary `.tgz` plus one `.tgz` per variant,
-//! attached as `<basename>-<version>~<tag>.tgz`. The publish body references
-//! each variant archive under `versions[<version>].pnprVariants` as
-//! `{ "<tag>": "<.tgz integrity>" }`, the integrity the upload is verified
-//! against. Each archive declares itself: its `package.json` has a `variant`
-//! field listing the platform tags it runs on, from which pnpr derives the
-//! variant's tag and rejects the version when it is not the tag that names
-//! the archive. The registry checks the variants against the version,
+//! attached as `<basename>-<version>~<tag>.tgz` with the `integrity` the
+//! archive is verified against. Each archive declares itself: its
+//! `package.json` has a `variant` field listing the platform tags it runs
+//! on, from which pnpr derives the variant's tag and rejects the version when
+//! it is not the tag that names the archive. The registry checks the variants against the version,
 //! records what it derived under the server-owned `_pnprVariants`, and
 //! describes it as `variants` in its own package document only.
 //!
@@ -17,7 +15,7 @@
 //! [`crate::server::staged_archives`]), so a version's archives together are
 //! not bounded by one request body.
 
-pub(super) use declarations::take_declarations;
+pub(super) use declarations::{attached_variants, check_version, remove_server_fields};
 pub(super) use verification::attach_variants;
 
 mod declarations;
@@ -33,19 +31,16 @@ use pnpr_package_name::CanonicalPackageName;
 use serde_json::{Map, Value, json};
 use std::collections::BTreeMap;
 
-/// The field a publish body declares variants in.
-const DECLARATION_FIELD: &str = "pnprVariants";
 /// The server-owned field the stored packument keeps verified variants in.
 pub(in super::super) const STORED_FIELD: &str = "_pnprVariants";
 
-/// One variant archive a version references, by the tag that names it.
+/// One variant archive a version attaches, by the tag that names it.
 #[derive(Debug, Clone)]
 pub(in super::super) struct VariantDeclaration {
     pub(in super::super) tag: String,
-    pub(in super::super) tgz_integrity: String,
 }
 
-/// Declared variants, by version.
+/// Attached variants, by version.
 pub(in super::super) type Declarations = BTreeMap<String, Vec<VariantDeclaration>>;
 
 /// What publishing a variant's `.tgz` derived from it.
@@ -127,40 +122,25 @@ pub(in super::super) fn stored_variant_size(manifest: &Value, tag: &str) -> Opti
 }
 
 /// Prepare a variant attachment, parsed by [`parse_variant_attachment`], to
-/// be verified against its declared `.tgz` integrity.
+/// be verified against the `integrity` it declares.
 pub(super) fn prepare_variant_attachment(
     attachment: PendingAttachment,
     (canonical, version, tag): (String, String, String),
-    declared: &Declarations,
 ) -> Result<PreparedAttachment, RegistryError> {
-    let dist = attachment_dist(declared, &version, &tag)?;
+    let Some(integrity) = attachment.declared_integrity.clone() else {
+        return Err(bad_request(format!(
+            "the variant attachment {} has no integrity",
+            attachment.filename,
+        )));
+    };
     Ok(PreparedAttachment {
         attachment,
         canonical,
         version,
-        dist,
+        dist: json!({ "integrity": integrity }),
         kind: AttachmentKind::Variant,
         variant_tag: Some(tag),
     })
-}
-
-/// The `dist` a variant attachment is verified against.
-fn attachment_dist(
-    declared: &Declarations,
-    version: &str,
-    tag: &str,
-) -> Result<Value, RegistryError> {
-    declared
-        .get(version)
-        .and_then(|variants| {
-            variants
-                .iter()
-                .find(|variant| variant.tag == tag)
-        })
-        .map(|variant| json!({ "integrity": variant.tgz_integrity }))
-        .ok_or_else(|| {
-            bad_request(format!("attachment for variant {tag:?} of {version} is not declared"))
-        })
 }
 
 /// What a variant's `.tgz` derived, with the root `package.json` an

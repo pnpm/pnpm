@@ -46,6 +46,7 @@ async fn a_published_tarball_hashes_its_tar_under_a_decode_permit() {
                 &tgz,
             )),
             declared_length: Some(tgz.len() as u64),
+            declared_integrity: None,
         },
         canonical: "pkg-1.0.0.tgz".to_string(),
         version: "1.0.0".to_string(),

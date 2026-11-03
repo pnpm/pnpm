@@ -472,11 +472,10 @@ or `wasm32`. Only the canonical form is accepted.
 
 A variant's tag is its platforms' tags, sorted and joined with `+`, such as
 `linux-x64+linux-x64-musl`, and at most 128 bytes long. The publish document
-references each variant by its tag under `versions[<version>].pnprVariants`, as
-`{ "<tag>": "<.tgz integrity>" }`, and attaches it as
-`<basename>-<version>~<tag>.tgz`. Each archive travels in the publish body or
-is [staged](ecosystems.md#staged-archives) before it, so a version's archives
-are not bounded by one request body.
+attaches each variant as `<basename>-<version>~<tag>.tgz`, with the `.tgz`'s
+`integrity` beside its `data`, or with `integrity` alone for an archive
+[staged](ecosystems.md#staged-archives) before the publish, so a version's
+archives are not bounded by one request body.
 pnpr rejects the version when a variant:
 
 - has another `name` or `version`, or other `peerDependencies` or
@@ -486,7 +485,8 @@ pnpr rejects the version when a variant:
   `libc` field;
 - declares platforms that give another tag than the one that names it;
 - lists a platform another variant lists;
-- is referenced but not attached, or attached but not referenced.
+- is attached for a version the publish document does not describe, or
+  without an `integrity`.
 
 A variant may differ from the version in its files, dependencies, bundled
 dependencies, `bin`, `main`, `exports`, and `engines`. pnpr serves a
