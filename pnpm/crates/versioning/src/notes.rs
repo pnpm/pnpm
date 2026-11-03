@@ -46,7 +46,7 @@ pub(crate) fn compose_release_notes(
         .iter()
         .filter(|release| member_dirs.contains(&release.dir))
         .collect();
-    let placement = IntentPlacement { members: &members, member_dirs, refs };
+    let placement = IntentPlacement::new(&members, member_dirs, refs);
     let single_member = members.len() == 1;
     let version_notes = members
         .iter()
@@ -79,21 +79,38 @@ struct IntentPlacement<'a> {
     members: &'a [&'a PlannedRelease],
     member_dirs: &'a HashSet<String>,
     refs: &'a ProjectRefIndex,
+    /// The members whose release lists an intent under a bump, in member
+    /// order, by intent id: built once, as a broad intent is listed by
+    /// many releases and looked up for each of them.
+    applies_to: HashMap<&'a str, Vec<&'a PlannedRelease>>,
 }
 
-impl IntentPlacement<'_> {
+impl<'a> IntentPlacement<'a> {
+    fn new(
+        members: &'a [&'a PlannedRelease],
+        member_dirs: &'a HashSet<String>,
+        refs: &'a ProjectRefIndex,
+    ) -> Self {
+        let mut applies_to: HashMap<&str, Vec<&PlannedRelease>> = HashMap::new();
+        for &release in members {
+            for intent in &release.intents {
+                if release_bump_for(&intent.releases, release).is_none() {
+                    continue;
+                }
+                let releases = applies_to.entry(intent.id.as_str()).or_default();
+                if !releases.last().is_some_and(|last| std::ptr::eq(*last, release)) {
+                    releases.push(release);
+                }
+            }
+        }
+        Self { members, member_dirs, refs, applies_to }
+    }
+
     /// The members whose release lists `intent` under a bump.
-    fn members_of(&self, intent: &ChangeIntent) -> Vec<&PlannedRelease> {
-        self.members
-            .iter()
-            .copied()
-            .filter(|release| {
-                release.intents
-                    .iter()
-                    .any(|consumed| consumed.id == intent.id)
-                    && release_bump_for(&intent.releases, release).is_some()
-            })
-            .collect()
+    fn members_of(&self, intent: &ChangeIntent) -> &[&'a PlannedRelease] {
+        self.applies_to
+            .get(intent.id.as_str())
+            .map_or(&[], Vec::as_slice)
     }
 
     fn names_an_outsider(&self, intent: &ChangeIntent) -> bool {
@@ -142,7 +159,7 @@ impl IntentPlacement<'_> {
                 .filter_map(|release| release_bump_for(&intent.releases, release))
                 .max()
                 .unwrap_or(ReleaseBumpType::Patch);
-            entries.push((bump, publication_entry(intent, &applies_to)));
+            entries.push((bump, publication_entry(intent, applies_to)));
         }
         render_by_bump(&entries)
     }

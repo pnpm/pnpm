@@ -12,8 +12,15 @@ use crate::cli_args::{
 use pnpm_config::Config;
 use std::collections::HashMap;
 
-/// Rendered notes by the package a choice selects.
+/// Rendered notes by the [`notes_key`] of the choices they belong to.
 pub(super) type ChoiceNotes = HashMap<String, String>;
+
+/// The key of a choice's notes. The prompt has a row per alias, package,
+/// and upgrade range, and two rows for one alias, from projects on
+/// different current versions, each show the notes of their own range.
+pub(super) fn notes_key(choice: &OutdatedPackage) -> String {
+    format!("{}\0{}\0{}\0{}", choice.alias, choice.package_name, choice.current, choice.target)
+}
 
 /// The notes of every choice that has some. Notes are a help for choosing,
 /// so a registry that fails to answer leaves its packages without them.
@@ -46,12 +53,12 @@ pub(super) async fn choice_notes(config: &Config, choices: &[OutdatedPackage]) -
                     .await
                     .ok()
                     .filter(|notes| !notes.is_empty())?;
-                Some((choice.alias.clone(), render_upgrade_notes(&notes)))
+                Some((notes_key(choice), render_upgrade_notes(&notes)))
             }
         });
     let mut notes = ChoiceNotes::new();
-    for (alias, text) in futures_util::future::join_all(reads).await.into_iter().flatten() {
-        notes.entry(alias).or_insert(text);
+    for (key, text) in futures_util::future::join_all(reads).await.into_iter().flatten() {
+        notes.entry(key).or_insert(text);
     }
     notes
 }

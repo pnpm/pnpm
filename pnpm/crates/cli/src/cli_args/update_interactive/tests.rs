@@ -450,6 +450,7 @@ mod selection {
                 .map(|(label, value)| ChoiceRow {
                     label: (*label).to_string(),
                     value: value.map(str::to_string),
+                    notes_key: None,
                 })
                 .collect(),
         }
@@ -992,6 +993,7 @@ fn prompt_rows() -> Vec<PromptRow> {
             label: "foo 1.0.0 ❯ 2.0.0".to_string(),
             short: "foo".to_string(),
             value: "foo".to_string(),
+            notes_key: None,
         },
     ]
 }

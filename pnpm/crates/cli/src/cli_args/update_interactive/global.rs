@@ -90,7 +90,12 @@ async fn outdated_group_rows(
             })
             .collect::<Vec<_>>()
             .join(", ");
-        rows.push(PromptRow::Choice { short: label.clone(), label, value: pkg.hash });
+        rows.push(PromptRow::Choice {
+            short: label.clone(),
+            label,
+            value: pkg.hash,
+            notes_key: None,
+        });
     }
     Ok(rows)
 }

@@ -60,8 +60,8 @@ enum PromptRow {
     /// A group heading or a group's column header: shown, never selected.
     Separator(String),
     /// Checking it selects `value`, which the confirmed answer names by
-    /// `short`.
-    Choice { label: String, short: String, value: String },
+    /// `short`. `notes_key` finds the release notes shown below it.
+    Choice { label: String, short: String, value: String, notes_key: Option<String> },
 }
 
 /// The look of the prompt: pnpm's own theme for the dependency list, the
@@ -85,12 +85,17 @@ impl PromptStyle {
             .enumerate()
             .map(|(index, row)| match row {
                 PromptRow::Separator(text) => CheckboxItem::Separator(text.clone()),
-                PromptRow::Choice { label, short, value } => CheckboxItem::Choice(CheckboxChoice {
-                    name: label.clone(),
-                    short: short.clone(),
-                    value: index,
-                    description: notes.get(value).cloned(),
-                }),
+                PromptRow::Choice { label, short, notes_key, .. } => {
+                    CheckboxItem::Choice(CheckboxChoice {
+                        name: label.clone(),
+                        short: short.clone(),
+                        value: index,
+                        description: notes_key
+                            .as_ref()
+                            .and_then(|key| notes.get(key))
+                            .cloned(),
+                    })
+                }
             })
             .collect();
         match self {
@@ -365,6 +370,7 @@ fn flatten_groups(groups: &[choices::ChoiceGroup]) -> Vec<PromptRow> {
                         label: row.label.clone(),
                         short: sanitize_inline(value).into_owned(),
                         value: value.clone(),
+                        notes_key: row.notes_key.clone(),
                     },
                 }),
         );

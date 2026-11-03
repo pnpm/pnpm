@@ -11,9 +11,9 @@ use std::{
 };
 use tokio::sync::OnceCell;
 
-/// The most `<name>/<version>/notes` reads one package has in flight past
-/// a truncated list.
-const MAX_VERSION_READS: usize = 8;
+/// The most note reads one package has in flight: `<name>/<version>/notes`
+/// past a truncated list, or the publication notes of its range.
+const MAX_NOTE_READS: usize = 8;
 
 /// The notes of an upgrade: version notes newest first, and the
 /// publication notes they came out of, each once.
@@ -156,7 +156,7 @@ impl<'a> NotesReader<'a> {
         versions: &[Version],
     ) -> miette::Result<Vec<RangeEntry>> {
         let mut entries = Vec::new();
-        for chunk in versions.chunks(MAX_VERSION_READS) {
+        for chunk in versions.chunks(MAX_NOTE_READS) {
             let reads = chunk
                 .iter()
                 .map(|version| async move {
@@ -176,6 +176,20 @@ impl<'a> NotesReader<'a> {
         entries: Vec<RangeEntry>,
         package: &str,
     ) -> miette::Result<UpgradeNotes> {
+        // Read the distinct publications of the range a chunk at a time, as
+        // versions are; the loop below then finds each in the cache.
+        let mut urls: Vec<&str> = Vec::new();
+        for (url, _) in entries.iter().filter_map(|entry| entry.publication.as_ref()) {
+            if !urls.contains(&url.as_str()) {
+                urls.push(url);
+            }
+        }
+        for chunk in urls.chunks(MAX_NOTE_READS) {
+            let reads = chunk
+                .iter()
+                .map(|url| self.publication_text(url, package));
+            futures_util::future::try_join_all(reads).await?;
+        }
         let mut notes = UpgradeNotes::default();
         for entry in entries {
             let publication = match entry.publication {
