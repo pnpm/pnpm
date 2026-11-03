@@ -95,13 +95,16 @@ fn deserialize_ok() {
 
 #[test]
 fn parse_to_string() {
-    let case =
-        |input| decode_encode_case(input, |input| input.parse().unwrap(), ToString::to_string);
-    case("1.21.3(@types/react@17.0.49)(react-dom@17.0.2)(react@17.0.2)");
-    case("1.21.3(react@17.0.2)");
-    case("1.21.3-rc.0(react@17.0.2)");
-    case("1.21.3");
-    case("1.21.3-rc.0");
+    for input in [
+        "1.21.3(@types/react@17.0.49)(react-dom@17.0.2)(react@17.0.2)",
+        "1.21.3(react@17.0.2)",
+        "1.21.3-rc.0(react@17.0.2)",
+        "1.21.3",
+        "1.21.3-rc.0",
+    ] {
+        let parsed: PkgVerPeer = input.parse().unwrap();
+        assert_eq!(parsed.to_string(), input);
+    }
 }
 
 #[test]

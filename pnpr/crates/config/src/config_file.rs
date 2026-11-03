@@ -229,7 +229,7 @@ pub(super) struct ConfigFile {
     pub(super) release_records: Option<ReleaseRecordsFile>,
     /// pnpr-only browser access policy. Cross-origin access stays disabled
     /// when this block is absent or its allowlist is empty.
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_null_default")]
     pub(super) cors: CorsFile,
     /// pnpr-only web UI settings.
     #[serde(default)]
@@ -302,7 +302,7 @@ pub(super) struct ConfigFile {
     /// Optional purpose-specific secrets for independent rotation.
     #[serde(default)]
     pub(super) secrets: Option<SecretsFile>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_null_default")]
     pub(super) auth: AuthFile,
     #[serde(default)]
     pub(super) log: Option<LogEntryFile>,
@@ -520,4 +520,14 @@ pub(super) struct PipelineFeatureFile {
 
 pub(super) fn default_true() -> bool {
     true
+}
+
+fn deserialize_null_default<'de, Deserializer, Value>(
+    deserializer: Deserializer,
+) -> Result<Value, Deserializer::Error>
+where
+    Deserializer: serde::Deserializer<'de>,
+    Value: serde::Deserialize<'de> + Default,
+{
+    Ok(Option::<Value>::deserialize(deserializer)?.unwrap_or_default())
 }

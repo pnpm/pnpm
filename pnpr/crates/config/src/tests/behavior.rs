@@ -25,6 +25,28 @@ fn comment_only_config_uses_default_settings() {
 }
 
 #[test]
+fn null_auth_and_cors_use_default_settings() {
+    let default = Config::from_yaml_str("", Path::new("/x"), listen(), None).unwrap();
+    let parsed =
+        Config::from_yaml_str("auth: null\ncors: null\n", Path::new("/x"), listen(), None).unwrap();
+
+    assert_eq!(parsed.identity.auth.admins, default.identity.auth.admins);
+    assert_eq!(parsed.identity.auth.oidc.len(), default.identity.auth.oidc.len());
+    assert_eq!(parsed.identity.auth.htpasswd.max_users, default.identity.auth.htpasswd.max_users);
+    assert_eq!(parsed.identity.auth.tokens.file, default.identity.auth.tokens.file);
+    assert_eq!(parsed.http.cors.allowed_origins(), default.http.cors.allowed_origins());
+}
+
+#[test]
+fn null_auth_and_cors_do_not_disable_mapping_validation() {
+    for yaml in ["auth:\n  unknown: true\n", "cors:\n  unknown: true\n"] {
+        let error = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None)
+            .expect_err("unknown auth and cors fields must remain invalid");
+        assert!(matches!(error, RegistryError::InvalidConfig { .. }));
+    }
+}
+
+#[test]
 fn cli_disabling_all_surfaces_with_bundled_config_errors_without_panicking() {
     // No config file → the bundled branch. Disabling all surfaces via
     // CLI must surface a clean error, not panic on the bundled `expect`.
