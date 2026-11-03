@@ -1,20 +1,31 @@
 use semver::{Version, VersionReq};
 
-/// The requirement `pnpm update` writes for `resolved`. It keeps the
-/// operator of an explicit range, or else of the existing requirement, as
-/// the update of an npm dependency does: `savePrefix` and `saveExact` only
-/// shape new declarations.
+/// The requirement `pnpm update` writes for `resolved`, without build
+/// metadata, which Cargo ignores and warns about.
+///
+/// - An `explicit_spec` that is a requirement is written as given.
+/// - Otherwise the operator of `existing_raw` is kept, as the update of an
+///   npm dependency keeps it: `savePrefix` and `saveExact` only shape new
+///   declarations.
+/// - An existing requirement with no lower bound to move, such as `<=2.0.0`,
+///   is kept while `resolved` matches it.
 pub(crate) fn format_cargo_saved_spec(
     existing_raw: &str,
     resolved: &Version,
     explicit_spec: Option<&str>,
 ) -> String {
-    if let Some(spec) = explicit_spec
-        && spec.starts_with(['^', '~', '=', '>', '<'])
-    {
-        // A parsed requirement drops build metadata, which Cargo ignores and
-        // warns about.
-        return VersionReq::parse(spec).map_or_else(|_| spec.to_string(), |req| req.to_string());
+    if let Some(spec) = explicit_spec {
+        if spec.starts_with(['^', '~', '=', '>', '<']) {
+            return VersionReq::parse(spec)
+                .map_or_else(|_| spec.to_string(), |req| req.to_string());
+        }
+        if spec.starts_with(|first: char| first.is_ascii_digit()) {
+            return spec
+                .split('+')
+                .next()
+                .unwrap_or(spec)
+                .to_string();
+        }
     }
     format_existing_cargo_spec(existing_raw, &without_build_metadata(resolved))
 }
@@ -26,11 +37,14 @@ pub(crate) fn without_build_metadata(version: &Version) -> Version {
 }
 
 fn format_existing_cargo_spec(existing_raw: &str, resolved: &Version) -> String {
-    if !existing_raw.contains(',') {
-        let prefix = existing_prefix(existing_raw);
-        return format!("{prefix}{resolved}");
-    }
     let matches_existing = VersionReq::parse(existing_raw).is_ok_and(|req| req.matches(resolved));
+    if !existing_raw.contains(',') {
+        return match existing_prefix(existing_raw) {
+            Some(prefix) => format!("{prefix}{resolved}"),
+            None if matches_existing => existing_raw.to_string(),
+            None => format!("^{resolved}"),
+        };
+    }
     if !matches_existing {
         return format!("^{resolved}");
     }
@@ -60,14 +74,20 @@ fn lower_bound_prefix(clause: &str) -> Option<&'static str> {
     }
 }
 
-fn existing_prefix(raw: &str) -> &'static str {
+/// The operator to write before the new version, or `None` for a
+/// requirement with no lower bound to move, such as `<2` or `1.*`.
+fn existing_prefix(raw: &str) -> Option<&'static str> {
     let trimmed = raw.trim();
     if trimmed.starts_with('>') {
-        ">="
-    } else {
-        ["^", "~", "="]
-            .into_iter()
-            .find(|prefix| trimmed.starts_with(prefix))
-            .unwrap_or("")
+        return Some(">=");
     }
+    if let Some(prefix) = ["^", "~", "="]
+        .into_iter()
+        .find(|prefix| trimmed.starts_with(prefix))
+    {
+        return Some(prefix);
+    }
+    let is_bare_version = trimmed.starts_with(|first: char| first.is_ascii_digit())
+        && !trimmed.contains(['*', 'x', 'X']);
+    is_bare_version.then_some("")
 }

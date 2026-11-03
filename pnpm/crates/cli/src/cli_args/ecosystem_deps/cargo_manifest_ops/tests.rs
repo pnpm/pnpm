@@ -46,3 +46,20 @@ fn format_cargo_saved_spec_keeps_the_existing_operator() {
     assert_eq!(format_cargo_saved_spec("1.3.1", &resolved, None), "1.4.0");
     assert_eq!(format_cargo_saved_spec(">=1.3, <2", &resolved, None), ">=1.4.0, <2");
 }
+
+#[test]
+fn format_cargo_saved_spec_keeps_a_requirement_without_a_lower_bound() {
+    let resolved = Version::parse("2.0.0").unwrap();
+
+    assert_eq!(format_cargo_saved_spec("<=2.0.0", &resolved, None), "<=2.0.0");
+    assert_eq!(format_cargo_saved_spec("2.*", &resolved, None), "2.*");
+    assert_eq!(format_cargo_saved_spec("<2", &resolved, None), "^2.0.0");
+}
+
+#[test]
+fn format_cargo_saved_spec_writes_a_bare_explicit_requirement_as_given() {
+    let resolved = Version::parse("2.0.0").unwrap();
+
+    assert_eq!(format_cargo_saved_spec("~1.0.0", &resolved, Some("2.0.0")), "2.0.0");
+    assert_eq!(format_cargo_saved_spec("~1.0.0", &resolved, Some("2")), "2");
+}
