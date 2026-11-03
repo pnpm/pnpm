@@ -127,7 +127,7 @@ process.stdout.write(integrity)
 `
 
 function fetchIntegrity (pkgName: string, pkgVersion: string): string {
-  const url = `${REGISTRY_MOCK_URL}${pkgName.replace('/', '%2f')}`
+  const url = `${REGISTRY_MOCK_URL}${pkgName.replaceAll('/', '%2f')}`
   return execFileSync(
     process.execPath,
     ['--input-type=module', '--eval', FETCH_INTEGRITY, url, pkgVersion],

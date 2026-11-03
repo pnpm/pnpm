@@ -610,17 +610,9 @@ async fn conflicting_object_store_upload_does_not_publish_metadata_or_leave_stag
         }
         staged
     }
-    // The losing bytes are cleaned up only once removing the journal entry is
-    // known to have reached the disk, and a journal entry that comes back
-    // needs them to re-detect the conflict. Windows offers no way to confirm
-    // that, so there they stay.
-    let staged = staged_files(tmp.path());
-    if cfg!(unix) {
-        assert_eq!(staged, Vec::<PathBuf>::new());
-    } else {
-        assert_eq!(staged.len(), 1, "{staged:?}");
-        assert_eq!(std::fs::read(&staged[0]).unwrap(), b"losing artifact");
-    }
+    // SQL metadata commits nothing of a publish whose archive lost its slot,
+    // so the losing bytes go on every platform.
+    assert_eq!(staged_files(tmp.path()), Vec::<PathBuf>::new());
 }
 
 #[tokio::test]
