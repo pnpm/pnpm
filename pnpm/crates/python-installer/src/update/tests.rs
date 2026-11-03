@@ -20,6 +20,16 @@ fn compatible_release_keeps_its_precision() {
 }
 
 #[test]
+fn compatible_release_keeps_a_selected_prerelease() {
+    assert_eq!(update("~=1.0rc1", "1.0.1rc1", false).as_deref(), Some("~=1.0.1rc1"));
+}
+
+#[test]
+fn compatible_release_never_lowers_its_bound() {
+    assert_eq!(update("~=1.2.post1", "1.2.0.1", false).as_deref(), Some("~=1.2.post1"));
+}
+
+#[test]
 fn wildcard_equality_keeps_its_operator() {
     assert_eq!(update("==1.*", "2.3.1", true).as_deref(), Some("==2.*"));
     assert_eq!(update("==1.2.*", "2.3.1", true).as_deref(), Some("==2.3.*"));
