@@ -184,10 +184,10 @@ impl SqlMetadata {
             return Err(RegistryError::Internal {
                 reason: format!(
                     "the metadata schema changed: the metadata database {} holds {stored}, and \
-                     this pnpr expects schema {}. pnpr does not migrate its metadata before \
-                     1.0; wipe pnpr's metadata tables, and pnpr creates them afresh",
+                     this pnpr expects schema version {}. pnpr does not migrate its metadata \
+                     before 1.0; wipe pnpr's metadata tables, and pnpr creates them afresh",
                     self.name,
-                    schema::short(schema::fingerprint()),
+                    schema::SCHEMA_VERSION,
                 ),
             });
         }

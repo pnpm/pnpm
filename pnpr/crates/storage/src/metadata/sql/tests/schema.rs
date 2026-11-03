@@ -6,7 +6,7 @@ use super::{
         SqlMetadata,
         adapter::ReadSource,
         batch::WriteTransaction,
-        schema::{self, MARKER, TABLES},
+        schema::{self, MARKER, SCHEMA_VERSION, TABLES},
     },
     Db,
 };
@@ -59,16 +59,16 @@ async fn tables(db: &Db) -> Vec<String> {
 async fn marker(db: &Db) -> Vec<String> {
     let adapter = db.adapter();
     tokio::task::spawn_blocking(move || {
-        let mut fingerprints = Vec::new();
+        let mut versions = Vec::new();
         adapter.read(ReadSource::Primary, &mut |connection| {
-            fingerprints = connection
-                .query(&format!("SELECT fingerprint FROM {MARKER}"), params![])?
+            versions = connection
+                .query(&format!("SELECT version FROM {MARKER}"), params![])?
                 .into_iter()
                 .map(|mut row| row.get::<String>(0))
                 .collect::<Result<Vec<_>>>()?;
             Ok(())
         })?;
-        Ok::<_, RegistryError>(fingerprints)
+        Ok::<_, RegistryError>(versions)
     })
     .await
     .unwrap()
@@ -93,10 +93,7 @@ async fn refused(db: &Db) -> String {
     };
     assert!(reason.contains("the metadata schema changed"), "{reason}");
     assert!(reason.contains("wipe pnpr's metadata tables"), "{reason}");
-    assert!(
-        reason.contains(&format!("expects schema {}", schema::short(schema::fingerprint()))),
-        "{reason}",
-    );
+    assert!(reason.contains(&format!("expects schema version {SCHEMA_VERSION}.")), "{reason}");
     reason
 }
 
@@ -110,20 +107,19 @@ async fn an_empty_database_initializes(db: Db) {
         assert!(tables.contains(&table), "{table} is missing from {tables:?}");
     }
     assert!(tables.contains(&MARKER.to_string()));
-    assert_eq!(marker(&db).await, [schema::fingerprint()]);
+    assert_eq!(marker(&db).await, [SCHEMA_VERSION]);
 }
 
-async fn a_matching_fingerprint_opens(db: Db) {
+async fn a_matching_version_opens(db: Db) {
     open(&db).await.unwrap();
     let created = tables(&db).await;
     open(&db).await.unwrap();
     assert_eq!(tables(&db).await, created);
-    assert_eq!(marker(&db).await, [schema::fingerprint()]);
+    assert_eq!(marker(&db).await, [SCHEMA_VERSION]);
 }
 
-async fn a_different_fingerprint_is_refused(db: Db) {
-    let stored = "0123456789abcdef".repeat(4);
-    let insert = format!("INSERT INTO {MARKER} (fingerprint) VALUES ('{stored}')");
+async fn another_version_is_refused(db: Db) {
+    let insert = format!("INSERT INTO {MARKER} (version) VALUES ('0.0')");
     execute(
         &db,
         &[
@@ -134,11 +130,11 @@ async fn a_different_fingerprint_is_refused(db: Db) {
     )
     .await;
     let reason = refused(&db).await;
-    assert!(reason.contains("holds schema 0123456789ab,"), "{reason}");
+    assert!(reason.contains("holds schema version 0.0,"), "{reason}");
     // Once the operator wipes the tables, pnpr creates them afresh.
     execute(&db, &[&format!("DROP TABLE {MARKER}"), "DROP TABLE catalogs"]).await;
     open(&db).await.unwrap();
-    assert_eq!(marker(&db).await, [schema::fingerprint()]);
+    assert_eq!(marker(&db).await, [SCHEMA_VERSION]);
 }
 
 async fn an_integer_schema_version_is_refused(db: Db) {
@@ -146,13 +142,13 @@ async fn an_integer_schema_version_is_refused(db: Db) {
         &db,
         &[
             &format!("CREATE TABLE {MARKER} (version INTEGER NOT NULL) STRICT"),
-            &format!("INSERT INTO {MARKER} (version) VALUES (3)"),
+            &format!("INSERT INTO {MARKER} (version) VALUES (4)"),
             "CREATE TABLE catalogs (catalog TEXT NOT NULL PRIMARY KEY)",
         ],
     )
     .await;
     let reason = refused(&db).await;
-    assert!(reason.contains("holds the integer schema version 3,"), "{reason}");
+    assert!(reason.contains("holds the integer schema version 4,"), "{reason}");
 }
 
 async fn a_matching_marker_without_its_tables_is_refused(db: Db) {
@@ -160,10 +156,10 @@ async fn a_matching_marker_without_its_tables_is_refused(db: Db) {
     // A wipe that drops the tables but leaves the marker.
     execute(&db, &["DROP TABLE catalogs", "DROP TABLE note_history"]).await;
     let reason = refused(&db).await;
-    let short = &schema::fingerprint()[..12];
     assert!(
         reason.contains(&format!(
-            "holds schema {short} without the metadata tables catalogs, note_history,"
+            "holds schema version {SCHEMA_VERSION} without the metadata tables catalogs, \
+             note_history,"
         )),
         "{reason}",
     );
@@ -179,86 +175,10 @@ async fn metadata_tables_without_a_marker_are_refused(db: Db) {
 conformance! {
     an_empty_database_initializes,
     a_matching_marker_without_its_tables_is_refused,
-    a_matching_fingerprint_opens,
-    a_different_fingerprint_is_refused,
+    a_matching_version_opens,
+    another_version_is_refused,
     an_integer_schema_version_is_refused,
     metadata_tables_without_a_marker_are_refused,
-}
-
-#[test]
-fn the_fingerprint_changes_with_the_statements() {
-    let script = schema::fingerprinting::script();
-    assert_eq!(schema::fingerprinting::fingerprint_of(&script), schema::fingerprint());
-    let added_column = script.replacen(
-        "generation INTEGER NOT NULL\n)",
-        "generation INTEGER NOT NULL,\n    note TEXT\n)",
-        1,
-    );
-    assert_ne!(added_column, script);
-    assert_ne!(schema::fingerprinting::fingerprint_of(&added_column), schema::fingerprint());
-    let added_index = format!("{script}\nCREATE INDEX tags_by_version ON tags (version);");
-    assert_ne!(schema::fingerprinting::fingerprint_of(&added_index), schema::fingerprint());
-    let changed_marker =
-        script.replace(schema::MARKER_TABLE, &schema::MARKER_TABLE.replace(" STRICT", ""));
-    assert_ne!(changed_marker, script);
-    assert_ne!(schema::fingerprinting::fingerprint_of(&changed_marker), schema::fingerprint());
-}
-
-#[test]
-fn the_fingerprint_ignores_comments_and_whitespace() {
-    let script = schema::fingerprinting::script();
-    let reformatted = script.replace("    ", "\t\t").replace("-- ", "-- reworded: ");
-    assert_ne!(reformatted, script);
-    assert_eq!(schema::fingerprinting::fingerprint_of(&reformatted), schema::fingerprint());
-    let unspaced = script.replace("catalogs (", "catalogs(").replace(", ", ",");
-    assert_ne!(unspaced, script);
-    assert_eq!(schema::fingerprinting::fingerprint_of(&unspaced), schema::fingerprint());
-    let spaced = script.replace(") STRICT", " )  STRICT");
-    assert_ne!(spaced, script);
-    assert_eq!(schema::fingerprinting::fingerprint_of(&spaced), schema::fingerprint());
-}
-
-#[test]
-fn the_fingerprint_keeps_quoted_text_and_word_boundaries() {
-    let quoted = |value: &str| {
-        schema::fingerprinting::fingerprint_of(&format!("CREATE TABLE t (c TEXT DEFAULT {value})"))
-    };
-    assert_eq!(
-        quoted("'a b'"),
-        schema::fingerprinting::fingerprint_of("CREATE TABLE t(c TEXT DEFAULT 'a b')"),
-    );
-    assert_ne!(quoted("'a b'"), quoted("'ab'"));
-    assert_ne!(quoted("'it''s ( x'"), quoted("'it''s (x'"));
-    assert_ne!(
-        schema::fingerprinting::fingerprint_of("CREATE TABLE t (a INTEGER)"),
-        schema::fingerprinting::fingerprint_of("CREATE TABLE t (aINTEGER)"),
-    );
-}
-
-#[test]
-fn the_fingerprint_ignores_inline_comments() {
-    let script = schema::fingerprinting::script();
-    let commented = script
-        .replacen(
-            "generation INTEGER NOT NULL\n)",
-            "generation INTEGER NOT NULL -- the catalog's generation; bumped per commit\n)",
-            1,
-        )
-        .replacen(") STRICT", ") /* it's; strict */ STRICT", 1);
-    assert_ne!(commented, script);
-    assert_eq!(schema::fingerprinting::fingerprint_of(&commented), schema::fingerprint());
-}
-
-#[test]
-fn a_quoted_semicolon_or_comment_marker_does_not_split_a_statement() {
-    let statements = schema::fingerprinting::statements(
-        "CREATE TABLE t (c TEXT DEFAULT ';--', d TEXT DEFAULT '/*'); -- done\nCREATE TABLE u (e TEXT);",
-    )
-    .collect::<Vec<_>>();
-    assert_eq!(
-        statements,
-        ["CREATE TABLE t (c TEXT DEFAULT ';--', d TEXT DEFAULT '/*')", "CREATE TABLE u (e TEXT)"],
-    );
 }
 
 #[test]

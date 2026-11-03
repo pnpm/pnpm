@@ -6,34 +6,33 @@
 //! constraint. `revision_key` is `ordinary` for a version outside the registry
 //! revision protocol.
 
-pub(super) mod fingerprinting;
-
-pub(super) use fingerprinting::fingerprint;
-
 use super::{
     adapter::{Connection, Value},
     batch::WriteTransaction,
 };
-use fingerprinting::{canonical, statements};
 use pnpr_error::Result;
 use std::fmt;
 
-/// The table that marks a database as pnpr's metadata. Its one row is the
-/// [`fingerprint`] of the schema that created the tables.
+/// The version of the metadata layout in [`TABLES`], stored as text in the
+/// [`MARKER`].
 ///
-/// pnpr is pre-1.0 and does not migrate the schema. A database whose marker
-/// names another fingerprint is refused, and the operator wipes pnpr's
-/// metadata tables by hand so that pnpr creates them afresh.
+/// pnpr does not migrate the metadata before 1.0. Until then the version is
+/// `0.x`: any change to the metadata layout, a table, column, constraint, or
+/// index, bumps its minor part (`0.2`, `0.3`, ...). A database that holds
+/// another version is refused, and the operator wipes pnpr's metadata tables
+/// by hand so that pnpr creates them afresh. With 1.0 the schema moves to
+/// numbered migrations.
+pub(super) const SCHEMA_VERSION: &str = "0.1";
+
+/// The table that marks a database as pnpr's metadata. Its one row is the
+/// [`SCHEMA_VERSION`] of the layout that created the tables.
 pub(super) const MARKER: &str = "schema_version";
 
-/// The statement that creates the [`MARKER`] table. It is part of the
-/// schema the [`fingerprint`] covers.
-pub(super) const MARKER_TABLE: &str =
-    "CREATE TABLE schema_version (fingerprint TEXT NOT NULL) STRICT";
+/// The statement that creates the [`MARKER`] table.
+pub(super) const MARKER_TABLE: &str = "CREATE TABLE schema_version (version TEXT NOT NULL) STRICT";
 
-/// The tables and indexes of the metadata. [`fingerprint`] is derived from
-/// them, so an edit to a statement here, other than to its whitespace, is a
-/// change of the schema.
+/// The tables and indexes of the metadata. A change to a statement here,
+/// other than to its comments or whitespace, bumps [`SCHEMA_VERSION`].
 pub(super) const TABLES: &str = "
 -- The current generation of each hosted catalog.
 CREATE TABLE IF NOT EXISTS catalogs (
@@ -287,16 +286,16 @@ CREATE TABLE IF NOT EXISTS note_history (
 /// What a database holds where pnpr expects its metadata.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) enum Stored {
-    /// The marker names this fingerprint.
-    Fingerprint(String),
+    /// The marker holds this schema version, as text.
+    Version(String),
     /// The marker holds an integer schema version, as an older pnpr's marker
     /// does.
-    Version(i64),
+    Integer(i64),
     /// The marker holds anything else, or more or fewer than one row.
     Unreadable,
     /// Metadata tables without a marker.
     Unmarked,
-    /// The marker names this fingerprint, but these metadata tables are
+    /// The marker names this pnpr's version, but these metadata tables are
     /// missing, as after a wipe that left the marker.
     Incomplete(Vec<String>),
 }
@@ -304,25 +303,17 @@ pub(super) enum Stored {
 impl fmt::Display for Stored {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Fingerprint(fingerprint) => write!(f, "schema {}", short(fingerprint)),
-            Self::Version(version) => write!(f, "the integer schema version {version}"),
+            Self::Version(version) => write!(f, "schema version {version}"),
+            Self::Integer(version) => write!(f, "the integer schema version {version}"),
             Self::Unreadable => f.write_str("an unreadable schema marker"),
             Self::Unmarked => f.write_str("metadata tables without a schema marker"),
             Self::Incomplete(missing) => write!(
                 f,
-                "schema {} without the metadata tables {}",
-                short(fingerprint()),
+                "schema version {SCHEMA_VERSION} without the metadata tables {}",
                 missing.join(", "),
             ),
         }
     }
-}
-
-/// The first 12 hex digits of `fingerprint`, as errors name it.
-pub(super) fn short(fingerprint: &str) -> &str {
-    fingerprint
-        .get(..12)
-        .unwrap_or(fingerprint)
 }
 
 /// Create the schema in an empty database, and report what a database that
@@ -347,7 +338,7 @@ pub(super) fn prepare(connection: &dyn Connection) -> Result<Option<Stored>> {
     };
     if has(MARKER) {
         return Ok(match stored(&*transaction)? {
-            Stored::Fingerprint(stored) if stored == fingerprint() => incomplete(has),
+            Stored::Version(stored) if stored == SCHEMA_VERSION => incomplete(has),
             stored => Some(stored),
         });
     }
@@ -359,14 +350,14 @@ pub(super) fn prepare(connection: &dyn Connection) -> Result<Option<Stored>> {
     }
     transaction.execute(MARKER_TABLE, params![])?;
     transaction.execute(
-        &format!("INSERT INTO {MARKER} (fingerprint) VALUES (?1)"),
-        params![fingerprint()],
+        &format!("INSERT INTO {MARKER} (version) VALUES (?1)"),
+        params![SCHEMA_VERSION],
     )?;
     transaction.commit()?;
     Ok(None)
 }
 
-/// The metadata tables a database marked with this fingerprint lacks, given
+/// The metadata tables a database marked with this pnpr's version lacks, given
 /// whether it `has` each table.
 fn incomplete(has: impl Fn(&str) -> bool) -> Option<Stored> {
     let missing = table_names(TABLES)
@@ -384,8 +375,8 @@ fn stored(connection: &dyn Connection) -> Result<Stored> {
         return Ok(Stored::Unreadable);
     }
     Ok(match rows.remove(0).get::<Value>(0) {
-        Ok(Value::Text(fingerprint)) => Stored::Fingerprint(fingerprint),
-        Ok(Value::Integer(version)) => Stored::Version(version),
+        Ok(Value::Text(version)) => Stored::Version(version),
+        Ok(Value::Integer(version)) => Stored::Integer(version),
         _ => Stored::Unreadable,
     })
 }
@@ -394,7 +385,10 @@ fn stored(connection: &dyn Connection) -> Result<Stored> {
 pub(super) fn table_names(script: &str) -> Vec<String> {
     statements(script)
         .filter_map(|statement| {
-            let statement = canonical(&statement);
+            let statement = statement
+                .split_whitespace()
+                .collect::<Vec<_>>()
+                .join(" ");
             // An ASCII case change keeps every byte offset.
             let upper = statement.to_ascii_uppercase();
             let mut start = "CREATE TABLE ".len();
@@ -410,4 +404,21 @@ pub(super) fn table_names(script: &str) -> Vec<String> {
                 .map(str::to_string)
         })
         .collect()
+}
+
+/// The statements of `script`, without its comments. Each runs on its own:
+/// a libSQL client re-renders the statements of a batch, and its rendering
+/// drops the comma between `STRICT` and `WITHOUT ROWID`.
+fn statements(script: &str) -> impl Iterator<Item = String> + '_ {
+    let code: String = script
+        .lines()
+        .filter(|line| !line.trim_start().starts_with("--"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    code.split(';')
+        .map(str::trim)
+        .filter(|statement| !statement.is_empty())
+        .map(str::to_string)
+        .collect::<Vec<_>>()
+        .into_iter()
 }
