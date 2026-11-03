@@ -57,11 +57,12 @@ To restore:
    ```sh
    tar -xzf /mnt/backups/pnpr-storage-20261016.tar.gz -C /var/lib/pnpr
    ```
-3. Run `pnpr verify` to confirm all package documents and tarballs match:
+3. Restore the metadata database if the storage archive does not hold it, as with a copy made by SQLite's backup API or a database outside the storage directory. Copy it to the path `metadata.url` names, or to `<storage>/.metadata/metadata.sqlite` by default.
+4. Run `pnpr verify` to confirm all package documents and tarballs match:
    ```sh
    pnpr verify
    ```
-4. Start pnpr.
+5. Start pnpr.
 
 ## S3 and object storage
 
