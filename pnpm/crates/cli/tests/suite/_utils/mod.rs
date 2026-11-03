@@ -20,6 +20,7 @@ use std::{
     ffi::OsStr,
     fmt::Write as _,
     fs,
+    io::Write as _,
     path::{Path, PathBuf},
     process::{Child, Command, ExitStatus, Output},
     thread,
@@ -493,6 +494,22 @@ fn insert_dependency_group(manifest: &mut Map<String, Value>, group: &str, deps:
 }
 
 #[must_use]
+/// A gzipped tar holding `entries`, each a `(path, contents)` pair.
+pub fn gzipped_tarball(entries: &[(&str, &str)]) -> Vec<u8> {
+    let mut builder = tar::Builder::new(Vec::new());
+    for (path, contents) in entries {
+        let mut header = tar::Header::new_gnu();
+        header.set_size(contents.len() as u64);
+        header.set_mode(0o644);
+        header.set_cksum();
+        builder.append_data(&mut header, path, contents.as_bytes()).expect("append tar entry");
+    }
+    let tar = builder.into_inner().expect("finish the tar archive");
+    let mut encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+    encoder.write_all(&tar).expect("gzip the tarball");
+    encoder.finish().expect("finish the gzip stream")
+}
+
 pub fn read_manifest(project: &Path) -> Value {
     serde_json::from_str(
         &fs::read_to_string(project.join("package.json")).expect("read package.json"),

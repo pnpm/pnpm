@@ -9,6 +9,7 @@
 //! offline and deterministic (outside a supported CI it resolves to "no token"
 //! without a network request).
 
+use crate::_utils;
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use mockito::Matcher;
@@ -16,7 +17,6 @@ use pnpr_fixtures::MockConfigPresets;
 use serde_json::{Value, json};
 use std::{
     fs,
-    io::Write as _,
     path::{Path, PathBuf},
     process::Command,
     sync::{Arc, Mutex},
@@ -221,7 +221,7 @@ fn staged_item_of(stage_id: &str, package_name: &str) -> Value {
 fn download_rejects_traversal_through_the_tarball_manifest_version() {
     let dir = tempfile::tempdir().expect("workspace");
     let outside_base = "stage-download-outside-version";
-    let tarball = gzipped_tarball(&[(
+    let tarball = _utils::gzipped_tarball(&[(
         "package/package.json",
         &json!({
             "name": "@scope/stage-download-version",
@@ -244,7 +244,7 @@ fn download_rejects_traversal_through_the_tarball_manifest_version() {
 fn download_rejects_traversal_through_the_tarball_manifest_name() {
     let dir = tempfile::tempdir().expect("workspace");
     let outside_base = "stage-download-outside-name";
-    let tarball = gzipped_tarball(&[(
+    let tarball = _utils::gzipped_tarball(&[(
         "package/package.json",
         &json!({
             "name": format!("@scope/../../{outside_base}"),
@@ -339,24 +339,9 @@ fn assert_download_dir_untouched(download_dir: &Path) {
     assert_eq!(entries, [".npmrc"], "no tarball may be written on a rejected download");
 }
 
-fn gzipped_tarball(entries: &[(&str, &str)]) -> Vec<u8> {
-    let mut builder = tar::Builder::new(Vec::new());
-    for (path, contents) in entries {
-        let mut header = tar::Header::new_gnu();
-        header.set_size(contents.len() as u64);
-        header.set_mode(0o644);
-        header.set_cksum();
-        builder.append_data(&mut header, path, contents.as_bytes()).expect("append tar entry");
-    }
-    let tar = builder.into_inner().expect("finish the tar archive");
-    let mut encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
-    encoder.write_all(&tar).expect("gzip the tarball");
-    encoder.finish().expect("finish the gzip stream")
-}
-
 fn package_tarball(manifest: &Value) -> Vec<u8> {
     let manifest = manifest.to_string();
-    gzipped_tarball(&[("package/package.json", &manifest)])
+    _utils::gzipped_tarball(&[("package/package.json", &manifest)])
 }
 
 // --------------------------------------------------------------------
