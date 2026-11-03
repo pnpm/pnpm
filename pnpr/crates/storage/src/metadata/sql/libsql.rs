@@ -10,15 +10,24 @@
 //!   configured, leaves the read to the primary. So a process reads its own
 //!   writes, release notes included, which no generation tracks.
 //!
+//! Each round trip to the primary costs a network round trip, so statements
+//! reach it in batches: a transaction's `BEGIN` and every statement whose
+//! answer is not needed wait for the next statement that answers, or for the
+//! `COMMIT`. The shared layer reads what a write compares with in one batch,
+//! so a write takes two round trips: one that takes the write lock and reads,
+//! and one that writes and commits. A read of the primary is answered before
+//! its `COMMIT` is sent.
+//!
 //! The database opens on first use rather than at startup, since the shared
 //! layer is synchronous and opening reaches the network. Every statement runs
 //! on the blocking pool and waits there for libsql's async client.
 
-use super::adapter::{Adapter, Connection, Param, ReadSource, Row, Value};
+use super::adapter::{Adapter, Connection, Param, Query, ReadSource, Row, Value};
 use pnpr_config::LibsqlSettings;
 use pnpr_error::{RegistryError, Result};
 use pnpr_libsql::{Checkout, ConnectionPool};
 use std::{
+    cell::{Cell, RefCell},
     fmt,
     sync::{Arc, Mutex, MutexGuard, PoisonError, Weak},
     time::{Duration, Instant},
@@ -221,7 +230,7 @@ impl Adapter for LibsqlAdapter {
         let checkout = runtime.block_on(opened.primary.checkout())?;
         // A write cut off after it reached the primary leaves its commit
         // state unknown, so its statements run without a deadline.
-        let result = run(&runtime, checkout, false, None, operation);
+        let result = run(&runtime, checkout, Session::Write, operation);
         if let Some(replica) = &opened.replica {
             replica.mark_stale();
         }
@@ -254,7 +263,7 @@ impl Adapter for LibsqlAdapter {
         };
         let checkout = runtime.block_on(pool.checkout())?;
         let deadline = tokio::time::Instant::now() + OPERATION_TIMEOUT;
-        run(&runtime, checkout, local, Some(deadline), operation)
+        run(&runtime, checkout, Session::Read { local, deadline }, operation)
     }
 
     fn is_retryable(&self, error: &RegistryError) -> bool {
@@ -281,18 +290,57 @@ impl Adapter for LibsqlAdapter {
     }
 }
 
-/// Run `operation` on the checked-out connection, which reads the local
-/// replica when `local`, and return the connection to its pool. Its
-/// statements fail once `deadline` passes, and the connection is then closed.
+/// What a checked-out connection runs.
+#[derive(Debug, Clone, Copy)]
+enum Session {
+    /// A write on the primary. Its statements have no deadline: a write cut
+    /// off after it reached the primary leaves its commit state unknown.
+    Write,
+    /// A read of the local replica when `local`, otherwise of the primary,
+    /// whose statements fail once `deadline` passes.
+    Read { local: bool, deadline: tokio::time::Instant },
+}
+
+/// Run `operation` on the checked-out connection, and return the connection
+/// to its pool. A connection whose operation failed is closed.
+///
+/// The `COMMIT` that ends a read of the primary is sent once the operation
+/// has its answer, without waiting for it: nothing the read returns depends
+/// on it. The connection keeps its slot in the pool until the `COMMIT` is
+/// answered, and is closed if it is not.
 fn run(
     runtime: &Handle,
-    checkout: Checkout<'_>,
-    local: bool,
-    deadline: Option<tokio::time::Instant>,
+    checkout: Checkout,
+    session: Session,
     operation: &mut dyn FnMut(&dyn Connection) -> Result<()>,
 ) -> Result<()> {
-    let statements = Statements { runtime, conn: checkout.connection(), local, deadline };
-    let result = operation(&statements);
+    let (local, deadline, read) = match session {
+        Session::Write => (false, None, false),
+        Session::Read { local, deadline } => (local, Some(deadline), true),
+    };
+    let (result, end_later) = {
+        let statements = Statements {
+            runtime,
+            conn: checkout.connection(),
+            local,
+            deadline,
+            read,
+            held: RefCell::new(Vec::new()),
+            end_later: Cell::new(false),
+        };
+        // A statement still held reaches the primary before the connection
+        // goes back to the pool.
+        let result = operation(&statements).and_then(|()| statements.send().map(drop));
+        (result, statements.end_later.get())
+    };
+    if result.is_ok() && end_later {
+        let conn = checkout.connection().clone();
+        checkout.release_after(runtime, async move {
+            let commit = conn.execute_batch_with_params([("COMMIT", ())]);
+            matches!(tokio::time::timeout(OPERATION_TIMEOUT, commit).await, Ok(Ok(_)))
+        });
+        return result;
+    }
     checkout.release(result.is_ok());
     result
 }
@@ -309,6 +357,14 @@ fn lock<Value>(mutex: &Mutex<Value>) -> MutexGuard<'_, Value> {
 }
 
 /// One libSQL connection, run from a blocking thread.
+///
+/// A connection to the primary sends its statements in batches, one HTTP
+/// round trip each: a statement whose answer is not needed, and the one that
+/// begins a transaction, waits for the next statement that answers, or for
+/// the commit. Each step of a batch runs only when the one before it
+/// succeeded, so a failed `BEGIN IMMEDIATE` runs nothing after it, and a
+/// failed write leaves the commit after it unrun. A connection to the
+/// embedded replica reads a local file and runs each statement as it comes.
 struct Statements<'conn> {
     runtime: &'conn Handle,
     conn: &'conn libsql::Connection,
@@ -317,6 +373,13 @@ struct Statements<'conn> {
     /// When a read's statements stop waiting for the database. A write's
     /// have none.
     deadline: Option<tokio::time::Instant>,
+    /// Whether the connection runs a read rather than a write.
+    read: bool,
+    /// The statements waiting for the next batch to the primary.
+    held: RefCell<Vec<(String, Vec<libsql::Value>)>>,
+    /// Set by the commit of a read of the primary, which [`run`] sends once
+    /// the read has its answer.
+    end_later: Cell<bool>,
 }
 
 impl Statements<'_> {
@@ -329,30 +392,85 @@ impl Statements<'_> {
             None => self.runtime.block_on(statement),
         }
     }
+
+    fn hold(&self, sql: &str, params: &[Param<'_>]) {
+        self.held
+            .borrow_mut()
+            .push((sql.to_string(), to_params(params)));
+    }
+
+    /// Send every held statement as one batch, and return the rows of each.
+    fn send(&self) -> Result<Vec<Vec<Row>>> {
+        let statements = std::mem::take(&mut *self.held.borrow_mut());
+        if statements.is_empty() {
+            return Ok(Vec::new());
+        }
+        self.wait(async {
+            let mut batch = self.conn.execute_batch_with_params(statements).await?;
+            let mut results = Vec::new();
+            while let Some(step) = batch.next_stmt_row() {
+                results.push(match step {
+                    Some(rows) => collect_rows(rows).await?,
+                    None => Vec::new(),
+                });
+            }
+            Ok(results)
+        })
+    }
+}
+
+async fn collect_rows(mut rows: libsql::Rows) -> Result<Vec<Row>> {
+    let columns = rows.column_count();
+    let mut collected = Vec::new();
+    while let Some(row) = rows.next().await? {
+        let values = (0..columns)
+            .map(|index| row.get_value(index).map(to_value))
+            .collect::<libsql::Result<_>>()?;
+        collected.push(Row::new(values));
+    }
+    Ok(collected)
 }
 
 impl Connection for Statements<'_> {
-    fn execute(&self, sql: &str, params: &[Param<'_>]) -> Result<usize> {
-        let changed = self.wait(async { Ok(self.conn.execute(sql, to_params(params)).await?) })?;
-        Ok(usize::try_from(changed).unwrap_or(usize::MAX))
+    fn execute(&self, sql: &str, params: &[Param<'_>]) -> Result<()> {
+        if !self.local {
+            self.hold(sql, params);
+            return Ok(());
+        }
+        self.wait(async { Ok(self.conn.execute(sql, to_params(params)).await?) })?;
+        Ok(())
     }
 
     fn query(&self, sql: &str, params: &[Param<'_>]) -> Result<Vec<Row>> {
-        self.wait(async {
-            let mut rows = self.conn.query(sql, to_params(params)).await?;
-            let columns = rows.column_count();
-            let mut collected = Vec::new();
-            while let Some(row) = rows.next().await? {
-                let values = (0..columns)
-                    .map(|index| row.get_value(index).map(to_value))
-                    .collect::<libsql::Result<_>>()?;
-                collected.push(Row::new(values));
-            }
-            Ok(collected)
-        })
+        if !self.local {
+            let query = Query::new(sql, params);
+            return Ok(self
+                .query_all(&[query])?
+                .pop()
+                .unwrap_or_default());
+        }
+        self.wait(async { collect_rows(self.conn.query(sql, to_params(params)).await?).await })
     }
 
+    fn query_all(&self, queries: &[Query<'_>]) -> Result<Vec<Vec<Row>>> {
+        if self.local {
+            return queries
+                .iter()
+                .map(|query| self.query(query.sql, &query.params))
+                .collect();
+        }
+        for query in queries {
+            self.hold(query.sql, &query.params);
+        }
+        let mut results = self.send()?;
+        let answered = results.len().saturating_sub(queries.len());
+        Ok(results.split_off(answered))
+    }
+
+    /// Runs `sql` as a batch of its own: libsql renders the statements of a
+    /// script again, and its rendering can differ from them.
     fn execute_batch(&self, sql: &str) -> Result<()> {
+        self.send()?;
         self.wait(async {
             self.conn.execute_batch(sql).await?;
             Ok(())
@@ -360,13 +478,54 @@ impl Connection for Statements<'_> {
     }
 
     fn begin_write(&self) -> Result<()> {
-        self.execute_batch("BEGIN IMMEDIATE")
+        self.hold("BEGIN IMMEDIATE", &[]);
+        Ok(())
     }
 
     /// A replica connection sends every statement of a plain `BEGIN`
     /// transaction to the primary; `BEGIN READONLY` keeps it on the replica.
     fn begin_read(&self) -> Result<()> {
-        self.execute_batch(if self.local { "BEGIN READONLY" } else { "BEGIN" })
+        if self.local {
+            return self.execute_batch("BEGIN READONLY");
+        }
+        self.hold("BEGIN", &[]);
+        Ok(())
+    }
+
+    /// A read whose `BEGIN` is still held never reached the primary, and one
+    /// that did is ended by [`run`] after it answers.
+    fn commit(&self) -> Result<()> {
+        if self.local {
+            return self.execute_batch("COMMIT");
+        }
+        if self.read {
+            let mut held = self.held.borrow_mut();
+            if held.is_empty() {
+                self.end_later.set(true);
+                return Ok(());
+            }
+            if let [(begin, _)] = held.as_slice()
+                && begin.starts_with("BEGIN")
+            {
+                held.clear();
+                return Ok(());
+            }
+        }
+        self.hold("COMMIT", &[]);
+        self.send().map(drop)
+    }
+
+    /// A transaction whose `BEGIN` is still held never reached the primary,
+    /// and one the primary already ended needs no `ROLLBACK`.
+    fn rollback(&self) -> Result<()> {
+        let held = std::mem::take(&mut *self.held.borrow_mut());
+        let unsent = held
+            .first()
+            .is_some_and(|(sql, _)| sql.starts_with("BEGIN"));
+        if unsent || (!self.local && self.conn.is_autocommit()) {
+            return Ok(());
+        }
+        self.execute_batch("ROLLBACK")
     }
 }
 

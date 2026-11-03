@@ -9,7 +9,9 @@
 //! - the statements that begin a write or a read transaction;
 //! - which errors are conflicts that a retry of the whole transaction clears;
 //! - placeholders and column types, translated by its [`Connection`];
-//! - where a read runs, the primary or a replica ([`ReadSource`]).
+//! - where a read runs, the primary or a replica ([`ReadSource`]);
+//! - how statements reach the database: one at a time, or a remote
+//!   database's in batches of one round trip each.
 //!
 //! Every method blocks. The shared layer calls them on the blocking pool.
 
@@ -27,14 +29,31 @@ pub(crate) enum ReadSource {
 }
 
 /// A database connection of an [`Adapter`].
+///
+/// A connection to a remote database may hold a statement that returns
+/// nothing, and the statement that begins a transaction, until a statement
+/// whose answer the caller needs, and send them together in one round trip.
+/// The error of a held statement then surfaces from that later call, which
+/// fails the transaction just the same.
 pub(crate) trait Connection {
-    /// Run one statement and report how many rows it changed.
-    fn execute(&self, sql: &str, params: &[Param<'_>]) -> Result<usize>;
+    /// Run one statement whose rows and count the caller does not need. It
+    /// may run as late as the next call that answers.
+    fn execute(&self, sql: &str, params: &[Param<'_>]) -> Result<()>;
 
     /// Run one statement and return every row it produced.
     fn query(&self, sql: &str, params: &[Param<'_>]) -> Result<Vec<Row>>;
 
-    /// Run statements that take no parameters, such as a schema.
+    /// Run `queries` in order and return the rows of each, in one round trip
+    /// to a remote database.
+    fn query_all(&self, queries: &[Query<'_>]) -> Result<Vec<Vec<Row>>> {
+        queries
+            .iter()
+            .map(|query| self.query(query.sql, &query.params))
+            .collect()
+    }
+
+    /// Run statements that take no parameters, such as a schema, after
+    /// every statement held so far.
     fn execute_batch(&self, sql: &str) -> Result<()>;
 
     /// Begin a transaction that holds the database's write lock from its
@@ -43,6 +62,16 @@ pub(crate) trait Connection {
 
     /// Begin a transaction that reads one committed snapshot.
     fn begin_read(&self) -> Result<()>;
+
+    /// Commit the transaction, with every statement held so far.
+    fn commit(&self) -> Result<()> {
+        self.execute_batch("COMMIT")
+    }
+
+    /// Roll the transaction back, dropping every statement held so far.
+    fn rollback(&self) -> Result<()> {
+        self.execute_batch("ROLLBACK")
+    }
 
     /// The first row of the statement's result, if any.
     fn query_optional(&self, sql: &str, params: &[Param<'_>]) -> Result<Option<Row>> {
@@ -58,6 +87,19 @@ pub(crate) trait Connection {
             .ok_or_else(|| RegistryError::Internal {
                 reason: "a metadata query that always returns a row returned none".to_string(),
             })
+    }
+}
+
+/// A statement whose rows [`Connection::query_all`] returns.
+#[derive(Debug, Clone)]
+pub(crate) struct Query<'query> {
+    pub(crate) sql: &'query str,
+    pub(crate) params: Vec<Param<'query>>,
+}
+
+impl<'query> Query<'query> {
+    pub(crate) fn new(sql: &'query str, params: &[Param<'query>]) -> Self {
+        Self { sql, params: params.to_vec() }
     }
 }
 

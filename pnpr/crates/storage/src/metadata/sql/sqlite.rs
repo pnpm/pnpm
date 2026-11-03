@@ -112,9 +112,10 @@ fn lock<Value>(mutex: &Mutex<Value>) -> MutexGuard<'_, Value> {
 }
 
 impl Connection for rusqlite::Connection {
-    fn execute(&self, sql: &str, params: &[Param<'_>]) -> Result<usize> {
+    fn execute(&self, sql: &str, params: &[Param<'_>]) -> Result<()> {
         let mut statement = self.prepare_cached(sql)?;
-        Ok(statement.execute(rusqlite::params_from_iter(params))?)
+        statement.execute(rusqlite::params_from_iter(params))?;
+        Ok(())
     }
 
     fn query(&self, sql: &str, params: &[Param<'_>]) -> Result<Vec<Row>> {

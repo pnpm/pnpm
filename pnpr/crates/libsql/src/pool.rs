@@ -8,7 +8,10 @@ use std::{
     sync::{Arc, Mutex},
     time::Duration,
 };
-use tokio::sync::{Semaphore, SemaphorePermit};
+use tokio::{
+    runtime::Handle,
+    sync::{OwnedSemaphorePermit, Semaphore},
+};
 
 /// `read` applied to the first of `rows`, which are then read to their end.
 /// A remote query's rows stream in one HTTP response, and a response left
@@ -46,8 +49,8 @@ pub async fn first_row<Output>(
 /// blocking thread pool, where the deadline can still give up on it.
 pub struct ConnectionPool {
     db: Arc<Database>,
-    idle: Mutex<Vec<Connection>>,
-    slots: Semaphore,
+    idle: Arc<Mutex<Vec<Connection>>>,
+    slots: Arc<Semaphore>,
     /// Connection opens in flight. An open the deadline gave up on keeps its
     /// permit until it returns, so a stalled database cannot pile up blocked
     /// threads beyond the pool's size.
@@ -70,8 +73,8 @@ impl ConnectionPool {
     ) -> Self {
         Self {
             db: Arc::new(db),
-            idle: Mutex::new(Vec::new()),
-            slots: Semaphore::new(max_connections),
+            idle: Arc::new(Mutex::new(Vec::new())),
+            slots: Arc::new(Semaphore::new(max_connections)),
             opens: Arc::new(Semaphore::new(max_connections)),
             timeout,
             timed_out,
@@ -113,19 +116,22 @@ impl ConnectionPool {
     /// from a blocking thread. It fails with the pool's timeout error if no
     /// connection frees up within the deadline. [`Checkout::release`] returns
     /// the connection.
-    pub async fn checkout(&self) -> Result<Checkout<'_>> {
+    pub async fn checkout(&self) -> Result<Checkout> {
         with_deadline::<_, RegistryError>(self.timeout, self.timed_out, self.take()).await
     }
 
     /// A slot and a connection to run one operation on.
-    async fn take(&self) -> Result<Checkout<'_>> {
-        let slot = self.slots.acquire().await.expect("the pool never closes its semaphore");
+    async fn take(&self) -> Result<Checkout> {
+        let slot = Arc::clone(&self.slots)
+            .acquire_owned()
+            .await
+            .expect("the pool never closes its semaphore");
         let pooled = self.idle
             .lock()
             .expect("idle connections lock")
             .pop();
         if let Some(conn) = pooled {
-            return Ok(Checkout { pool: self, _slot: slot, conn });
+            return Ok(Checkout { idle: Arc::clone(&self.idle), _slot: slot, conn });
         }
         let open = Arc::clone(&self.opens)
             .acquire_owned()
@@ -138,7 +144,7 @@ impl ConnectionPool {
         })
         .await
         .expect("opening a libsql connection panicked")?;
-        Ok(Checkout { pool: self, _slot: slot, conn })
+        Ok(Checkout { idle: Arc::clone(&self.idle), _slot: slot, conn })
     }
 
     /// How many connection opens are still running.
@@ -168,13 +174,13 @@ impl ConnectionPool {
 
 /// A connection checked out of a [`ConnectionPool`], holding one of its
 /// slots until it is released or dropped.
-pub struct Checkout<'pool> {
-    pool: &'pool ConnectionPool,
-    _slot: SemaphorePermit<'pool>,
+pub struct Checkout {
+    idle: Arc<Mutex<Vec<Connection>>>,
+    _slot: OwnedSemaphorePermit,
     conn: Connection,
 }
 
-impl Checkout<'_> {
+impl Checkout {
     #[must_use]
     pub fn connection(&self) -> &Connection {
         &self.conn
@@ -184,11 +190,25 @@ impl Checkout<'_> {
     /// a transaction, and close it otherwise.
     pub fn release(self, succeeded: bool) {
         if succeeded && self.conn.is_autocommit() {
-            self.pool.idle
+            self.idle
                 .lock()
                 .expect("idle connections lock")
                 .push(self.conn);
         }
+    }
+
+    /// Run `end` on `runtime` without waiting for it, such as the statement
+    /// that ends a finished read, and then release the connection as
+    /// [`Self::release`] does, succeeded when `end` reports it did. The
+    /// connection holds its slot until then.
+    pub fn release_after<End>(self, runtime: &Handle, end: End)
+    where
+        End: Future<Output = bool> + Send + 'static,
+    {
+        runtime.spawn(async move {
+            let succeeded = end.await;
+            self.release(succeeded);
+        });
     }
 
     async fn run<Loaded, Operation, Pending>(self, operation: Operation) -> Result<Loaded>

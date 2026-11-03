@@ -2,9 +2,9 @@
 
 use super::{
     PackageKey,
-    adapter::Connection,
+    adapter::{Connection, Query, Row},
     batch::Batch,
-    commit::{Commit, PackageRow, package_row},
+    commit::{Commit, PackageRow, package_row_from, package_row_query},
     packument::TIME,
     to_column,
 };
@@ -43,17 +43,19 @@ pub(super) struct TagMove<'change> {
     pub(super) principal: Option<&'change str>,
 }
 
-pub(super) fn stored_tags(
-    connection: &dyn Connection,
-    key: &PackageKey,
-) -> Result<BTreeMap<String, String>> {
+pub(super) fn stored_tags_query(key: &PackageKey) -> Query<'_> {
     let (catalog, ecosystem, name) = key.params();
-    connection
-        .query(
-            "SELECT tag, version FROM tags WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3",
-            params![catalog, ecosystem, name],
-        )?
-        .into_iter()
+    query!(
+        "SELECT tag, version FROM tags WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3",
+        catalog,
+        ecosystem,
+        name,
+    )
+}
+
+/// The tags in the rows of [`stored_tags_query`].
+pub(super) fn tags_from_rows(rows: Vec<Row>) -> Result<BTreeMap<String, String>> {
+    rows.into_iter()
         .map(|mut row| Ok((row.get(0)?, row.get(1)?)))
         .collect()
 }
@@ -74,7 +76,7 @@ pub(super) fn record_tag_move(commit: &Commit<'_>, change: &TagMove<'_>) -> Resu
             "DELETE FROM tags WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 AND tag = ?4",
             params![catalog, ecosystem, name, change.tag],
         )?,
-    };
+    }
     commit.transaction.execute(
         "INSERT INTO tag_history (catalog, ecosystem, name, tag, generation, previous, target,
                                   principal, changed_at)
@@ -104,11 +106,14 @@ pub(super) fn change_tag(
     if key.ecosystem != Ecosystem::Npm {
         return Ok(TagUpdate::NotFound);
     }
-    let mut batch = Batch::begin(connection, &key.catalog)?;
-    let Some(package) = package_row(batch.transaction(), key)? else {
+    let reads = [package_row_query(key), stored_tags_query(key)];
+    let (mut batch, results) = Batch::begin_with(connection, &key.catalog, &reads)?;
+    let mut results = results.into_iter();
+    let Some(package) = package_row_from(results.next().unwrap_or_default())? else {
         return Ok(TagUpdate::NotFound);
     };
-    if !move_tag(&batch.package(key), &package, change)? {
+    let tags = tags_from_rows(results.next().unwrap_or_default())?;
+    if !move_tag(&batch.package(key), &package, &tags, change)? {
         let generation = Some(key.generation(package.generation));
         return Ok(TagUpdate::Committed { generation, moved: false });
     }
@@ -121,8 +126,12 @@ pub(super) fn change_tag(
 
 /// Point a tag of the package where `change` says, reporting whether it
 /// pointed elsewhere.
-fn move_tag(commit: &Commit<'_>, package: &PackageRow, change: &OwnedTagChange) -> Result<bool> {
-    let tags = stored_tags(commit.transaction, commit.key)?;
+fn move_tag(
+    commit: &Commit<'_>,
+    package: &PackageRow,
+    tags: &BTreeMap<String, String>,
+    change: &OwnedTagChange,
+) -> Result<bool> {
     let previous = tags.get(&change.tag).map(String::as_str);
     if previous == change.target.as_deref() {
         return Ok(false);

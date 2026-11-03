@@ -46,8 +46,12 @@ pub struct Primary {
     pub path: PathBuf,
     /// Exports so far; each one checkpoints the WAL.
     pub exports: AtomicUsize,
-    /// Hrana pipeline requests so far: the statements sent to the primary.
+    /// Hrana pipeline and cursor requests so far: the round trips to the
+    /// primary.
     pub pipelines: AtomicUsize,
+    /// The statements of each of those requests, in order, for a test to
+    /// report what a round trip carried.
+    pub round_trips: std::sync::Mutex<Vec<Vec<String>>>,
     /// The sync generation. `SQLite` restarts the WAL at frame 1 with a new
     /// salt after a checkpoint, which the protocol expresses as the next
     /// generation.
@@ -134,6 +138,7 @@ pub async fn serve_primary(
         path,
         exports: AtomicUsize::new(0),
         pipelines: AtomicUsize::new(0),
+        round_trips: std::sync::Mutex::new(Vec::new()),
         generation: AtomicUsize::new(1),
         salt: std::sync::Mutex::new(None),
         sync_stall: SyncStall::default(),
@@ -211,8 +216,18 @@ async fn sync(
 }
 
 async fn pipeline(State(primary): State<Arc<Primary>>, body: String) -> Json<JsonValue> {
-    primary.pipelines.fetch_add(1, Ordering::SeqCst);
     let body: JsonValue = serde_json::from_str(&body).unwrap();
+    let steps = body["requests"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .flat_map(|request| {
+            request["batch"]["steps"]
+                .as_array()
+                .cloned()
+                .unwrap_or_default()
+        });
+    primary.record_round_trip(steps);
     let conn = primary.streams.take(body["baton"].as_str()).await;
     let mut results = Vec::new();
     let mut closed = false;
@@ -228,8 +243,13 @@ async fn pipeline(State(primary): State<Arc<Primary>>, body: String) -> Json<Jso
 /// Run a batch and stream its results as Hrana cursor entries, one JSON
 /// object per line.
 async fn cursor(State(primary): State<Arc<Primary>>, body: String) -> String {
-    primary.pipelines.fetch_add(1, Ordering::SeqCst);
     let body: JsonValue = serde_json::from_str(&body).unwrap();
+    primary.record_round_trip(
+        body["batch"]["steps"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default(),
+    );
     let conn = primary.streams.take(body["baton"].as_str()).await;
     let entries = cursor_entries(&conn, body["batch"]["steps"].as_array().unwrap()).await;
     let baton = primary.streams.keep(conn);
@@ -288,6 +308,35 @@ fn wal_frames(wal: &[u8], start: usize, end: usize) -> Option<Vec<u8>> {
 }
 
 impl Primary {
+    /// The round trips to the primary so far.
+    pub fn round_trip_count(&self) -> usize {
+        self.pipelines.load(Ordering::SeqCst)
+    }
+
+    /// Take the statements of every round trip since the last call.
+    pub fn take_round_trips(&self) -> Vec<Vec<String>> {
+        std::mem::take(&mut *self.round_trips.lock().unwrap())
+    }
+
+    fn record_round_trip(&self, steps: impl IntoIterator<Item = JsonValue>) {
+        let statements = steps
+            .into_iter()
+            .map(|step| {
+                let sql = step["stmt"]["sql"].as_str().unwrap_or_default();
+                let sql = sql
+                    .split_whitespace()
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                sql.chars().take(120).collect()
+            })
+            .collect();
+        self.round_trips
+            .lock()
+            .unwrap()
+            .push(statements);
+        self.pipelines.fetch_add(1, Ordering::SeqCst);
+    }
+
     /// The current generation and the WAL holding its frames.
     fn wal_state(&self) -> (usize, Vec<u8>) {
         let mut wal_path = self.path.clone().into_os_string();
@@ -333,10 +382,24 @@ impl Primary {
         }
     }
 
+    /// Run the steps of a batch as a Hrana server does: a step whose
+    /// condition does not hold is skipped, with neither a result nor an
+    /// error.
     async fn run_batch(conn: &Connection, steps: &[JsonValue]) -> JsonValue {
         let mut step_results = Vec::new();
         let mut step_errors = Vec::new();
         for step in steps {
+            let holds = step
+                .get("condition")
+                .filter(|condition| !condition.is_null())
+                .is_none_or(|condition| {
+                    condition_holds(condition, &step_results, &step_errors, conn)
+                });
+            if !holds {
+                step_results.push(JsonValue::Null);
+                step_errors.push(JsonValue::Null);
+                continue;
+            }
             match Self::run(conn, &step["stmt"]).await {
                 Ok(result) => {
                     step_results.push(result);
@@ -374,12 +437,53 @@ impl Primary {
                 .collect();
             encoded_rows.push(JsonValue::Array(values));
         }
+        // A statement sent without `want_rows` gets no rows back.
+        if stmt["want_rows"] == JsonValue::Bool(false) {
+            encoded_rows.clear();
+        }
         Ok(json!({
             "cols": cols,
             "rows": encoded_rows,
             "affected_row_count": conn.changes(),
             "last_insert_rowid": null,
         }))
+    }
+}
+
+/// Whether a Hrana batch step's `condition` holds, given the results and
+/// errors of the steps before it.
+fn condition_holds(
+    condition: &JsonValue,
+    results: &[JsonValue],
+    errors: &[JsonValue],
+    conn: &Connection,
+) -> bool {
+    let step = || {
+        condition["step"]
+            .as_u64()
+            .and_then(|step| usize::try_from(step).ok())
+            .unwrap()
+    };
+    let each = |conds: &JsonValue| {
+        conds
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|cond| condition_holds(cond, results, errors, conn))
+            .collect::<Vec<_>>()
+    };
+    match condition["type"].as_str() {
+        Some("ok") => results
+            .get(step())
+            .is_some_and(|result| !result.is_null()),
+        Some("error") => errors
+            .get(step())
+            .is_some_and(|error| !error.is_null()),
+        Some("not") => !condition_holds(&condition["cond"], results, errors, conn),
+        Some("and") => each(&condition["conds"]).into_iter().all(|holds| holds),
+        Some("or") => each(&condition["conds"]).into_iter().any(|holds| holds),
+        Some("is_autocommit") => conn.is_autocommit(),
+        other => panic!("unsupported Hrana batch condition {other:?}"),
     }
 }
 

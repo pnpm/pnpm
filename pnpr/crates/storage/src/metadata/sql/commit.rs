@@ -3,17 +3,23 @@
 
 use super::{
     Expected, PackageKey,
-    adapter::Connection,
+    adapter::{Connection, Query, Row},
     batch::Batch,
     packument::{Interpretation, ORDINARY, PackumentRows, Readme, VersionRows, decompose},
-    tags::{TagMove, record_tag_move},
+    tags::{TagMove, record_tag_move, stored_tags_query, tags_from_rows},
     to_column, to_generation,
 };
-use crate::{DocumentWrite, metadata::ReleaseRecords};
+use crate::{
+    DocumentWrite,
+    metadata::{ArtifactMember, ReleaseRecords},
+};
 use pnpr_error::{RegistryError, Result};
 use pnpr_package_name::Ecosystem;
 use serde_json::{Map, Value};
-use std::collections::BTreeMap;
+use std::{
+    cell::RefCell,
+    collections::{BTreeMap, BTreeSet},
+};
 
 /// The stored row of a package.
 pub(super) struct PackageRow {
@@ -21,18 +27,104 @@ pub(super) struct PackageRow {
     pub(super) state: Vec<u8>,
 }
 
-pub(super) fn package_row(
-    connection: &dyn Connection,
-    key: &PackageKey,
-) -> Result<Option<PackageRow>> {
+pub(super) fn package_row_query(key: &PackageKey) -> Query<'_> {
     let (catalog, ecosystem, name) = key.params();
-    let row = connection.query_optional(
+    query!(
         "SELECT generation, state FROM packages
          WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3",
-        params![catalog, ecosystem, name],
-    )?;
-    row.map(|mut row| Ok(PackageRow { generation: to_generation(row.get(0)?), state: row.get(1)? }))
+        catalog,
+        ecosystem,
+        name,
+    )
+}
+
+pub(super) fn package_row_from(rows: Vec<Row>) -> Result<Option<PackageRow>> {
+    rows.into_iter()
+        .next()
+        .map(|mut row| {
+            Ok(PackageRow { generation: to_generation(row.get(0)?), state: row.get(1)? })
+        })
         .transpose()
+}
+
+/// What a write of a package's document compares the document with, read
+/// before it changes anything.
+pub(super) struct StoredPackage {
+    row: Option<PackageRow>,
+    /// Each accepted version's digest and deprecation.
+    versions: BTreeMap<String, StoredVersion>,
+    tags: BTreeMap<String, String>,
+    /// The versions removed from the package, never to be accepted again.
+    removed: BTreeSet<String>,
+}
+
+impl StoredPackage {
+    /// The reads of a package of `key`'s ecosystem, for [`Self::from_rows`].
+    pub(super) fn queries(key: &PackageKey) -> Vec<Query<'_>> {
+        let mut queries = vec![package_row_query(key)];
+        if key.ecosystem == Ecosystem::Npm {
+            let (catalog, ecosystem, name) = key.params();
+            queries.push(query!(
+                "SELECT v.version, m.accepted_digest, a.deprecated
+                 FROM versions v
+                 JOIN accepted_manifests m USING (catalog, ecosystem, name, version, revision_key)
+                 LEFT JOIN annotations a USING (catalog, ecosystem, name, version)
+                 WHERE v.catalog = ?1 AND v.ecosystem = ?2 AND v.name = ?3
+                   AND v.revision_key = ?4",
+                catalog,
+                ecosystem,
+                name,
+                ORDINARY,
+            ));
+            queries.push(stored_tags_query(key));
+            queries.push(query!(
+                "SELECT version FROM removed_versions
+                 WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 AND revision_key = ?4",
+                catalog,
+                ecosystem,
+                name,
+                ORDINARY,
+            ));
+        }
+        queries
+    }
+
+    /// The package from the rows of [`Self::queries`], taken from `results`.
+    pub(super) fn from_rows(
+        key: &PackageKey,
+        results: &mut impl Iterator<Item = Vec<Row>>,
+    ) -> Result<Self> {
+        let mut next = || {
+            results
+                .next()
+                .ok_or_else(|| RegistryError::Internal {
+                    reason: "a metadata batch did not answer every read of a package".to_string(),
+                })
+        };
+        let row = package_row_from(next()?)?;
+        let mut stored = Self {
+            row,
+            versions: BTreeMap::new(),
+            tags: BTreeMap::new(),
+            removed: BTreeSet::new(),
+        };
+        if key.ecosystem != Ecosystem::Npm {
+            return Ok(stored);
+        }
+        for mut row in next()? {
+            let deprecated = parse_optional_json(row.get::<Option<String>>(2)?.as_deref())?;
+            stored.versions.insert(
+                row.get(0)?,
+                StoredVersion { accepted_digest: row.get(1)?, deprecated },
+            );
+        }
+        stored.tags = tags_from_rows(next()?)?;
+        stored.removed = next()?
+            .into_iter()
+            .map(|mut row| row.get(0))
+            .collect::<Result<_>>()?;
+        Ok(stored)
+    }
 }
 
 /// One package's writes within a [`Batch`], under the batch's generation.
@@ -40,6 +132,8 @@ pub(super) struct Commit<'batch> {
     pub(super) transaction: &'batch dyn Connection,
     pub(super) key: &'batch PackageKey,
     pub(super) generation: u64,
+    /// The npm versions the batch accepted so far.
+    pub(super) accepted: &'batch RefCell<Vec<ArtifactMember>>,
 }
 
 impl Commit<'_> {
@@ -54,12 +148,13 @@ impl Commit<'_> {
         Ok(())
     }
 
-    /// Commit `bytes` as the package's document when the stored one is what
-    /// `expected` names, recording `principal` with every tag it moves.
-    /// Reports whether the document changed any row, or `None` on a
-    /// compare-and-set conflict.
+    /// Commit `bytes` as the package's document when the stored one, read
+    /// as `stored`, is what `expected` names, recording `principal` with
+    /// every tag it moves. Reports whether the document changed any row, or
+    /// `None` on a compare-and-set conflict.
     pub(super) fn write_document(
         &self,
+        stored: StoredPackage,
         bytes: &[u8],
         expected: Expected,
         principal: Option<&str>,
@@ -69,13 +164,12 @@ impl Commit<'_> {
             Ecosystem::Npm => Some(decompose(bytes)?),
             Ecosystem::Cargo | Ecosystem::Pypi | Ecosystem::Oci => None,
         };
-        let current = package_row(self.transaction, self.key)?;
-        if !expected.admits(current.as_ref().map(|row| row.generation)) {
+        if !expected.admits(stored.row.as_ref().map(|row| row.generation)) {
             return Ok(None);
         }
         let changed = match rows {
-            Some(rows) => apply_packument(self, current.as_ref(), rows, principal, records)?,
-            None => apply_whole_document(self, current.as_ref(), bytes)?,
+            Some(rows) => apply_packument(self, stored, rows, principal, records)?,
+            None => apply_whole_document(self, stored.row.as_ref(), bytes)?,
         };
         Ok(Some(changed))
     }
@@ -91,17 +185,19 @@ pub(super) fn write_document(
     expected: Expected,
     principal: Option<&str>,
 ) -> Result<DocumentWrite> {
-    let mut batch = Batch::begin(connection, &key.catalog)?;
+    let (mut batch, results) =
+        Batch::begin_with(connection, &key.catalog, &StoredPackage::queries(key))?;
+    let stored = StoredPackage::from_rows(key, &mut results.into_iter())?;
     let records = ReleaseRecords::new();
     let commit = batch.package(key);
-    let Some(changed) = commit.write_document(bytes, expected, principal, &records)? else {
+    let Some(changed) = commit.write_document(stored, bytes, expected, principal, &records)? else {
         return Ok(DocumentWrite::Conflict);
     };
     if changed {
         batch.touch(key);
         // A version accepted outside a publish request still gets its
         // initial publication, published by whoever wrote the document.
-        super::publications::record(&batch, None, principal, &[])?;
+        super::publications::record(&batch, None, principal, &[], false)?;
     }
     batch.finish()?;
     Ok(DocumentWrite::Written)
@@ -121,18 +217,20 @@ fn apply_whole_document(
 
 fn apply_packument(
     commit: &Commit<'_>,
-    current: Option<&PackageRow>,
+    stored: StoredPackage,
     rows: PackumentRows,
     principal: Option<&str>,
     records: &ReleaseRecords,
 ) -> Result<bool> {
     let state = serde_json::to_vec(&rows.state)?;
-    let mut changed = current.is_none_or(|row| row.state != state);
+    let mut changed = stored.row
+        .as_ref()
+        .is_none_or(|row| row.state != state);
     if changed {
         commit.write_state(&state)?;
     }
-    changed |= apply_versions(commit, rows.versions, records)?;
-    changed |= apply_tags(commit, &rows.tags, principal)?;
+    changed |= apply_versions(commit, stored.versions, &stored.removed, rows.versions, records)?;
+    changed |= apply_tags(commit, &stored.tags, &rows.tags, principal)?;
     Ok(changed)
 }
 
@@ -142,41 +240,22 @@ struct StoredVersion {
     deprecated: Option<Value>,
 }
 
-/// Each accepted version's digest and deprecation. A version has one
-/// accepted manifest, under the profile it was accepted under.
-fn stored_versions(commit: &Commit<'_>) -> Result<BTreeMap<String, StoredVersion>> {
-    let (catalog, ecosystem, name) = commit.key.params();
-    let rows = commit.transaction.query(
-        "SELECT v.version, m.accepted_digest, a.deprecated
-         FROM versions v
-         JOIN accepted_manifests m USING (catalog, ecosystem, name, version, revision_key)
-         LEFT JOIN annotations a USING (catalog, ecosystem, name, version)
-         WHERE v.catalog = ?1 AND v.ecosystem = ?2 AND v.name = ?3 AND v.revision_key = ?4",
-        params![catalog, ecosystem, name, ORDINARY],
-    )?;
-    let mut stored = BTreeMap::new();
-    for mut row in rows {
-        let deprecated = parse_optional_json(row.get::<Option<String>>(2)?.as_deref())?;
-        stored.insert(row.get(0)?, StoredVersion { accepted_digest: row.get(1)?, deprecated });
-    }
-    Ok(stored)
-}
-
 /// Accept new versions, each with its release record when `records` has
 /// one, refuse a changed one, apply deprecations, and drop the versions the
 /// document no longer lists.
 fn apply_versions(
     commit: &Commit<'_>,
+    mut stored: BTreeMap<String, StoredVersion>,
+    removed: &BTreeSet<String>,
     versions: BTreeMap<String, VersionRows>,
     records: &ReleaseRecords,
 ) -> Result<bool> {
-    let mut stored = stored_versions(commit)?;
     let mut changed = false;
     for (version, incoming) in versions {
         match stored.remove(&version) {
             None => {
                 let record = records.get(&version).map(Vec::as_slice);
-                super::versions::insert_version(commit, &version, &incoming, record)?;
+                super::versions::insert_version(commit, removed, &version, &incoming, record)?;
                 changed = true;
             }
             Some(existing) => {
@@ -306,10 +385,10 @@ const PACKAGE_TABLES: [&str; 7] = [
 /// `principal`.
 fn apply_tags(
     commit: &Commit<'_>,
+    stored: &BTreeMap<String, String>,
     incoming: &BTreeMap<String, String>,
     principal: Option<&str>,
 ) -> Result<bool> {
-    let stored = super::tags::stored_tags(commit.transaction, commit.key)?;
     let mut changed = false;
     for (tag, target) in incoming {
         let previous = stored.get(tag).map(String::as_str);
@@ -319,7 +398,7 @@ fn apply_tags(
             changed = true;
         }
     }
-    for (tag, previous) in &stored {
+    for (tag, previous) in stored {
         if !incoming.contains_key(tag) {
             let change = TagMove { tag, previous: Some(previous), target: None, principal };
             record_tag_move(commit, &change)?;
@@ -332,7 +411,15 @@ fn apply_tags(
 /// Remove every row of the package except its tag history and the identities
 /// of its versions, which stay removed, under a new generation.
 pub(super) fn remove_package(connection: &dyn Connection, key: &PackageKey) -> Result<bool> {
-    let mut batch = Batch::begin(connection, &key.catalog)?;
+    let (mut batch, results) =
+        Batch::begin_with(connection, &key.catalog, &[package_row_query(key)])?;
+    let exists = results
+        .into_iter()
+        .next()
+        .is_some_and(|rows| !rows.is_empty());
+    if !exists {
+        return Ok(false);
+    }
     let (catalog, ecosystem, name) = key.params();
     batch.transaction().execute(
         "INSERT INTO removed_versions (catalog, ecosystem, name, version, revision_key, generation)
@@ -341,17 +428,13 @@ pub(super) fn remove_package(connection: &dyn Connection, key: &PackageKey) -> R
          ON CONFLICT DO NOTHING",
         params![catalog, ecosystem, name, to_column(batch.generation())],
     )?;
-    let mut removed = 0;
     for table in PACKAGE_TABLES {
-        removed = batch
+        batch
             .transaction()
             .execute(
                 &format!("DELETE FROM {table} WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3"),
                 params![catalog, ecosystem, name],
             )?;
-    }
-    if removed == 0 {
-        return Ok(false);
     }
     batch.touch(key);
     batch.finish()?;

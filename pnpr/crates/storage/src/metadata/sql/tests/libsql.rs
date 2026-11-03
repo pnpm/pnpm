@@ -254,3 +254,124 @@ async fn every_storage_of_a_process_shares_one_database_handle() {
     let second = crate::Storage::from_config(&config).unwrap();
     assert!(Arc::ptr_eq(first.sql_metadata().unwrap(), second.sql_metadata().unwrap()));
 }
+
+/// The round trips each operation since the last call made to the primary,
+/// without the `COMMIT` that ends a read of the primary, which is sent after
+/// the read answers.
+fn round_trips(server: &Server) -> Vec<Vec<String>> {
+    server.primary
+        .take_round_trips()
+        .into_iter()
+        .filter(|statements| statements != &["COMMIT".to_string()])
+        .collect()
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_write_makes_two_round_trips_however_much_it_carries() {
+    use crate::metadata::{
+        BatchDocument, PublicationRequest, PublishNotes, TagChange, VersionNote,
+    };
+    let server = server().await;
+    let database = server.instance(None, 60);
+    database.catalog_generation("").await.unwrap();
+    let document = |name: &str, versions: &[&str]| {
+        let mut document = packument(name, versions);
+        document["dist-tags"]["next"] = Value::from(versions[0]);
+        document["dist-tags"]["beta"] = Value::from(versions[1]);
+        BatchDocument {
+            ecosystem: Ecosystem::Npm,
+            name: name.to_string(),
+            bytes: serde_json::to_vec(&document).unwrap(),
+            expected: None,
+            principal: Some("alice".to_string()),
+        }
+    };
+    let names = ["core", "widgets", "tools"];
+    let versions = ["1.0.0", "1.1.0", "1.2.0", "2.0.0", "2.1.0"];
+    let notes = PublishNotes {
+        publication: None,
+        versions: names
+            .iter()
+            .map(|name| VersionNote {
+                ecosystem: Ecosystem::Npm,
+                name: (*name).to_string(),
+                version: "2.1.0".to_string(),
+                text: "notes\n".to_string(),
+            })
+            .collect(),
+    };
+    let request = PublicationRequest {
+        principal: "alice".to_string(),
+        idempotency_key: "request:one".to_string(),
+        request_digest: "one".to_string(),
+        name: Some("first".to_string()),
+    };
+    round_trips(&server);
+    let documents = names
+        .iter()
+        .map(|name| document(name, &versions))
+        .collect();
+    let committed = database
+        .commit_publication("", documents, Vec::new(), notes, Some(request.clone()))
+        .await
+        .unwrap();
+    assert_eq!(committed.publication, Some(1));
+    let made = round_trips(&server);
+    assert_eq!(made.len(), 2, "a publication of 3 packages of 5 versions each: {made:#?}");
+
+    // A retry finds its outcome in the round trip that takes the lock.
+    let replayed = database
+        .commit_publication("", Vec::new(), Vec::new(), PublishNotes::default(), Some(request))
+        .await
+        .unwrap();
+    assert!(replayed.replayed);
+    let made = round_trips(&server);
+    assert_eq!(made.len(), 2, "a replayed publication: {made:#?}");
+
+    let metadata = views(&database);
+    let change = TagChange { tag: "latest", target: Some("1.0.0"), principal: Some("bob") };
+    metadata
+        .change_tag(&npm("core"), change)
+        .await
+        .unwrap();
+    let made = round_trips(&server);
+    assert_eq!(made.len(), 2, "a dist-tag move: {made:#?}");
+
+    let change = NoteChange { text: Some("edited\n".to_string()), principal: "bob".to_string() };
+    assert!(
+        database
+            .set_version_note(&npm("core"), "", "2.1.0", change)
+            .await
+            .unwrap()
+    );
+    let made = round_trips(&server);
+    assert_eq!(made.len(), 2, "a note edit: {made:#?}");
+
+    assert!(
+        metadata
+            .read_view(&npm("core"))
+            .await
+            .unwrap()
+            .is_some()
+    );
+    let made = round_trips(&server);
+    assert_eq!(made.len(), 2, "a view read that renders every version: {made:#?}");
+    assert!(
+        metadata
+            .read_view(&npm("core"))
+            .await
+            .unwrap()
+            .is_some()
+    );
+    let made = round_trips(&server);
+    assert_eq!(made.len(), 1, "a view read the cache answers: {made:#?}");
+
+    assert!(
+        metadata
+            .remove_package(&npm("core"))
+            .await
+            .unwrap()
+    );
+    let made = round_trips(&server);
+    assert_eq!(made.len(), 2, "a removal: {made:#?}");
+}

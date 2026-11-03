@@ -2,10 +2,15 @@
 //! next generation.
 
 use super::{
-    PackageKey, adapter::Connection, advance_catalog, catalog_generation, commit::Commit, to_column,
+    PackageKey,
+    adapter::{Connection, Query, Row},
+    advance_catalog,
+    commit::Commit,
+    to_column, to_generation,
 };
-use pnpr_error::Result;
-use std::ops::Deref;
+use crate::metadata::ArtifactMember;
+use pnpr_error::{RegistryError, Result};
+use std::{cell::RefCell, ops::Deref};
 
 /// A write transaction, rolled back unless it is committed.
 pub(super) struct WriteTransaction<'conn> {
@@ -24,7 +29,7 @@ impl<'conn> WriteTransaction<'conn> {
     /// stays marked open until the commit succeeds and is otherwise rolled
     /// back on drop.
     pub(super) fn commit(mut self) -> Result<()> {
-        self.connection.execute_batch("COMMIT")?;
+        self.connection.commit()?;
         self.open = false;
         Ok(())
     }
@@ -43,7 +48,7 @@ impl Drop for WriteTransaction<'_> {
         if self.open {
             // A failed rollback leaves the connection in its transaction; the
             // adapter ends it before the connection's next use.
-            drop(self.connection.execute_batch("ROLLBACK"));
+            drop(self.connection.rollback());
         }
     }
 }
@@ -56,15 +61,47 @@ pub(super) struct Batch<'conn> {
     generation: u64,
     /// The packages the batch changed.
     touched: Vec<PackageKey>,
+    /// The npm versions the batch accepted.
+    accepted: RefCell<Vec<ArtifactMember>>,
 }
 
 impl<'conn> Batch<'conn> {
     /// Begin the batch, taking the database's write lock, so the generation
-    /// read here is the one the commit replaces.
-    pub(super) fn begin(connection: &'conn dyn Connection, catalog: &str) -> Result<Self> {
+    /// read here is the one the commit replaces. `reads` run with the
+    /// statements that begin it, so a remote database answers them in the
+    /// same round trip, and their rows are returned.
+    pub(super) fn begin_with(
+        connection: &'conn dyn Connection,
+        catalog: &str,
+        reads: &[Query<'_>],
+    ) -> Result<(Self, Vec<Vec<Row>>)> {
         let transaction = WriteTransaction::begin(connection)?;
-        let generation = catalog_generation(&*transaction, catalog)? + 1;
-        Ok(Self { transaction, catalog: catalog.to_string(), generation, touched: Vec::new() })
+        let mut queries = vec![Query::new(
+            "SELECT generation FROM catalogs WHERE catalog = ?1",
+            params![catalog],
+        )];
+        queries.extend_from_slice(reads);
+        let mut results = transaction.query_all(&queries)?.into_iter();
+        let current = results
+            .next()
+            .and_then(|rows| rows.into_iter().next())
+            .map(|mut row| row.get(0).map(to_generation))
+            .transpose()?
+            .unwrap_or(0);
+        let results: Vec<Vec<Row>> = results.collect();
+        if results.len() != reads.len() {
+            return Err(RegistryError::Internal {
+                reason: "a metadata batch did not answer every read".to_string(),
+            });
+        }
+        let batch = Self {
+            transaction,
+            catalog: catalog.to_string(),
+            generation: current + 1,
+            touched: Vec::new(),
+            accepted: RefCell::new(Vec::new()),
+        };
+        Ok((batch, results))
     }
 
     pub(super) fn transaction(&self) -> &dyn Connection {
@@ -82,7 +119,26 @@ impl<'conn> Batch<'conn> {
     /// The writes to one package of the batch's catalog.
     pub(super) fn package<'batch>(&'batch self, key: &'batch PackageKey) -> Commit<'batch> {
         debug_assert_eq!(key.catalog, self.catalog, "a batch writes one catalog");
-        Commit { transaction: self.transaction(), key, generation: self.generation }
+        Commit {
+            transaction: self.transaction(),
+            key,
+            generation: self.generation,
+            accepted: &self.accepted,
+        }
+    }
+
+    /// The npm versions the batch accepted, ordered by ecosystem, name, and
+    /// version, as publication members.
+    pub(super) fn accepted(&self) -> Vec<ArtifactMember> {
+        let mut accepted = self.accepted.borrow().clone();
+        accepted.sort_by(|left, right| {
+            (left.ecosystem.as_str(), &left.name, &left.version).cmp(&(
+                right.ecosystem.as_str(),
+                &right.name,
+                &right.version,
+            ))
+        });
+        accepted
     }
 
     /// Record that the batch changed `key`.
