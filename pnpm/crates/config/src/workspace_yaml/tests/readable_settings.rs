@@ -91,8 +91,8 @@ fn comment_only_local_include_reads_as_default_settings() {
         .expect("read workspace config")
         .expect("workspace config is present");
 
-    let mut expected = WorkspaceSettings::default();
-    expected.includes = settings.includes.clone();
+    let expected =
+        WorkspaceSettings { includes: settings.includes.clone(), ..WorkspaceSettings::default() };
     assert_eq!(settings, expected);
 }
 
