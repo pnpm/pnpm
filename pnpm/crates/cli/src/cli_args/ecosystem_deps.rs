@@ -47,8 +47,6 @@ pub(crate) struct EcosystemUpdateStepOptions<'a> {
     pub(crate) ignore_matcher: Option<&'a Matcher>,
     pub(crate) latest: bool,
     pub(crate) no_save: bool,
-    pub(crate) save_exact: bool,
-    pub(crate) save_prefix: Option<&'a str>,
     pub(crate) lockfile_only: bool,
 }
 

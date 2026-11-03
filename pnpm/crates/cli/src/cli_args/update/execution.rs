@@ -227,7 +227,6 @@ impl UpdateArgs {
             });
         }
         let ignored = ignored_dependencies_matcher(state.config);
-        let save_prefix = state.config.save_prefix.as_deref();
         run_ecosystem_updates_for_selection::<Reporter>(
             state,
             selection,
@@ -237,8 +236,6 @@ impl UpdateArgs {
                 ignore_matcher: ignored.as_ref(),
                 latest: self.selection.latest,
                 no_save: self.save.no_save,
-                save_exact: self.save.exact || state.config.save_exact,
-                save_prefix,
                 lockfile_only: self.install.lockfile_only,
             },
         )
