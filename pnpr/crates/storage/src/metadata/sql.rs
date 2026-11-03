@@ -15,7 +15,10 @@
 //! Every operation runs on the blocking pool. A write runs in one
 //! transaction that holds the database's write lock from its start, so
 //! commits are serialized and a compare-and-set reads the generation it
-//! replaces inside its own transaction. A write the adapter refused for a
+//! replaces inside its own transaction. A write reads everything it compares
+//! with in one [`adapter::Connection::query_all`] as it begins, and decides
+//! in Rust, so a remote database answers it in one round trip and takes the
+//! writes with the commit in another. A write the adapter refused for a
 //! conflict runs again from the start. A read runs in one read transaction,
 //! one committed snapshot. The render caches are shared by every read.
 //!
@@ -243,10 +246,14 @@ impl SqlMetadata {
     ) -> Result<PublicationCommit> {
         let catalog = catalog.to_string();
         self.write(move |connection| {
-            let request = request.as_ref();
-            publish::commit_publication(
-                connection, &catalog, &documents, &artifacts, &notes, request,
-            )
+            let submission = publish::Submission {
+                catalog: &catalog,
+                documents: &documents,
+                artifacts: &artifacts,
+                notes: &notes,
+                request: request.as_ref(),
+            };
+            publish::commit_publication(connection, &submission)
         })
         .await
     }

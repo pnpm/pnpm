@@ -305,8 +305,12 @@ tar = { path = "vendor/tar" }
 # Reuses HTTP connections after a cursor query. Drop once a release carries
 # <https://github.com/tursodatabase/libsql/pull/2301>. Also carries
 # <https://github.com/tursodatabase/libsql/pull/2261>, released in 0.10.0,
-# which stops closing every dropped local connection twice.
-libsql = { git = "https://github.com/pnpm/libsql", rev = "e2c44e616a1f8e1ec7ceeb61138a3c2c391c35a9" }
+# which stops closing every dropped local connection twice, and adds
+# `Connection::execute_batch_with_params`, which sends parameterized
+# statements to a remote primary in one request and returns their rows. The
+# SQL metadata store sends each write transaction in two round trips with it;
+# no upstream release has an equivalent.
+libsql = { git = "https://github.com/pnpm/libsql", rev = "ab8a7516c7d32d6fdd0f68d59956c6233f9f11d4" }
 node-semver = { git = "https://github.com/pnpm/node-semver-rs", rev = "3d74d6b7f4de1de2006cf2f7663aac09de65b1f6" }
 # Adds the `nightly` feature. Drop once an upstream release carries it.
 # See <https://github.com/pnpm/pnpm/pull/16951>.

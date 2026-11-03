@@ -183,8 +183,7 @@ impl SqlMetadata {
         self.adapter.read(source, &mut |connection| {
             connection.begin_read()?;
             let result = self.read_if_reached(connection, required, operation);
-            let ended =
-                connection.execute_batch(if result.is_ok() { "COMMIT" } else { "ROLLBACK" });
+            let ended = if result.is_ok() { connection.commit() } else { connection.rollback() };
             output = result?;
             ended
         })?;

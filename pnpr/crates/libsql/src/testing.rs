@@ -5,19 +5,19 @@
 //! libsql database behind a mock of those routes that serves the frames of
 //! its own WAL.
 
+pub use hrana::RoundTrips;
 pub use plain_http::{EXECUTE_RESPONSE, PlainHttpServer, serve_plain_http};
 
+mod hrana;
 mod plain_http;
 
-use crate::{is_transaction_conflict, is_unique_violation};
 use axum::{
     Json, Router,
     extract::{Path, State},
     http::StatusCode,
     routing::{get, post},
 };
-use base64::{Engine as _, engine::general_purpose::STANDARD_NO_PAD as BASE64};
-use libsql::{Builder, Connection, Database, Value};
+use libsql::{Builder, Connection, Database};
 use serde_json::{Value as JsonValue, json};
 use std::{
     collections::HashMap,
@@ -46,8 +46,8 @@ pub struct Primary {
     pub path: PathBuf,
     /// Exports so far; each one checkpoints the WAL.
     pub exports: AtomicUsize,
-    /// Hrana pipeline requests so far: the statements sent to the primary.
-    pub pipelines: AtomicUsize,
+    /// The Hrana requests so far: the round trips to the primary.
+    pub round_trips: RoundTrips,
     /// The sync generation. `SQLite` restarts the WAL at frame 1 with a new
     /// salt after a checkpoint, which the protocol expresses as the next
     /// generation.
@@ -133,7 +133,7 @@ pub async fn serve_primary(
         conn,
         path,
         exports: AtomicUsize::new(0),
-        pipelines: AtomicUsize::new(0),
+        round_trips: RoundTrips::default(),
         generation: AtomicUsize::new(1),
         salt: std::sync::Mutex::new(None),
         sync_stall: SyncStall::default(),
@@ -211,14 +211,24 @@ async fn sync(
 }
 
 async fn pipeline(State(primary): State<Arc<Primary>>, body: String) -> Json<JsonValue> {
-    primary.pipelines.fetch_add(1, Ordering::SeqCst);
     let body: JsonValue = serde_json::from_str(&body).unwrap();
+    let steps = body["requests"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .flat_map(|request| {
+            request["batch"]["steps"]
+                .as_array()
+                .cloned()
+                .unwrap_or_default()
+        });
+    primary.round_trips.record(steps);
     let conn = primary.streams.take(body["baton"].as_str()).await;
     let mut results = Vec::new();
     let mut closed = false;
     for request in body["requests"].as_array().unwrap() {
         closed |= request["type"].as_str() == Some("close");
-        results.push(Primary::answer(&conn, request).await);
+        results.push(hrana::answer(&conn, request).await);
     }
     let baton =
         if closed { JsonValue::Null } else { JsonValue::String(primary.streams.keep(conn)) };
@@ -228,10 +238,15 @@ async fn pipeline(State(primary): State<Arc<Primary>>, body: String) -> Json<Jso
 /// Run a batch and stream its results as Hrana cursor entries, one JSON
 /// object per line.
 async fn cursor(State(primary): State<Arc<Primary>>, body: String) -> String {
-    primary.pipelines.fetch_add(1, Ordering::SeqCst);
     let body: JsonValue = serde_json::from_str(&body).unwrap();
+    primary.round_trips.record(
+        body["batch"]["steps"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default(),
+    );
     let conn = primary.streams.take(body["baton"].as_str()).await;
-    let entries = cursor_entries(&conn, body["batch"]["steps"].as_array().unwrap()).await;
+    let entries = hrana::cursor_entries(&conn, body["batch"]["steps"].as_array().unwrap()).await;
     let baton = primary.streams.keep(conn);
     let mut lines = String::new();
     for line in std::iter::once(json!({ "baton": baton, "base_url": null })).chain(entries) {
@@ -239,34 +254,6 @@ async fn cursor(State(primary): State<Arc<Primary>>, body: String) -> String {
         lines.push('\n');
     }
     lines
-}
-
-/// The cursor entries of running `steps`. A step after a failed one is
-/// skipped.
-async fn cursor_entries(conn: &Connection, steps: &[JsonValue]) -> Vec<JsonValue> {
-    let mut entries = Vec::new();
-    for (step, entry) in steps.iter().enumerate() {
-        match Primary::run(conn, &entry["stmt"]).await {
-            Ok(result) => {
-                entries.push(json!({ "type": "step_begin", "step": step, "cols": result["cols"] }));
-                for row in result["rows"].as_array().unwrap() {
-                    entries.push(json!({ "type": "row", "row": row }));
-                }
-                entries.push(json!({
-                    "type": "step_end",
-                    "affected_row_count": result["affected_row_count"],
-                    "last_insert_rowid": null,
-                }));
-            }
-            Err(error) => {
-                entries.push(
-                    json!({ "type": "step_error", "step": step, "error": hrana_error(&error) }),
-                );
-                break;
-            }
-        }
-    }
-    entries
 }
 
 /// Frames `[start, end)` of `wal`, clipped to the frames it holds; `None`
@@ -305,133 +292,4 @@ impl Primary {
         }
         (self.generation.load(Ordering::SeqCst), wal)
     }
-
-    async fn answer(conn: &Connection, request: &JsonValue) -> JsonValue {
-        match request["type"].as_str() {
-            Some("batch") => {
-                Self::run_batch(conn, request["batch"]["steps"].as_array().unwrap()).await
-            }
-            Some("get_autocommit") => json!({
-                "type": "ok",
-                "response": {
-                    "type": "get_autocommit",
-                    "is_autocommit": conn.is_autocommit(),
-                },
-            }),
-            Some("describe") => json!({
-                "type": "ok",
-                "response": {
-                    "type": "describe",
-                    "result": { "params": [], "cols": [], "is_explain": false, "is_readonly": false },
-                },
-            }),
-            Some("close") => json!({ "type": "ok", "response": { "type": "close" } }),
-            other => json!({
-                "type": "error",
-                "error": { "message": format!("unsupported request {other:?}"), "code": "UNSUPPORTED" },
-            }),
-        }
-    }
-
-    async fn run_batch(conn: &Connection, steps: &[JsonValue]) -> JsonValue {
-        let mut step_results = Vec::new();
-        let mut step_errors = Vec::new();
-        for step in steps {
-            match Self::run(conn, &step["stmt"]).await {
-                Ok(result) => {
-                    step_results.push(result);
-                    step_errors.push(JsonValue::Null);
-                }
-                Err(error) => {
-                    step_results.push(JsonValue::Null);
-                    step_errors.push(hrana_error(&error));
-                }
-            }
-        }
-        json!({
-            "type": "ok",
-            "response": {
-                "type": "batch",
-                "result": { "step_results": step_results, "step_errors": step_errors },
-            },
-        })
-    }
-
-    async fn run(conn: &Connection, stmt: &JsonValue) -> libsql::Result<JsonValue> {
-        let sql = stmt["sql"].as_str().unwrap();
-        let args: Vec<Value> = stmt["args"]
-            .as_array()
-            .map(|args| args.iter().map(hrana_arg).collect())
-            .unwrap_or_default();
-        let mut rows = conn.query(sql, args).await?;
-        let cols: Vec<JsonValue> = (0..rows.column_count())
-            .map(|index| json!({ "name": rows.column_name(index), "decltype": null }))
-            .collect();
-        let mut encoded_rows = Vec::new();
-        while let Some(row) = rows.next().await? {
-            let values: Vec<JsonValue> = (0..row.column_count())
-                .map(|index| hrana_value(row.get_value(index).unwrap()))
-                .collect();
-            encoded_rows.push(JsonValue::Array(values));
-        }
-        Ok(json!({
-            "cols": cols,
-            "rows": encoded_rows,
-            "affected_row_count": conn.changes(),
-            "last_insert_rowid": null,
-        }))
-    }
-}
-
-fn hrana_arg(arg: &JsonValue) -> Value {
-    match arg["type"].as_str() {
-        Some("null") => Value::Null,
-        Some("integer") => Value::Integer(
-            arg["value"]
-                .as_str()
-                .unwrap()
-                .parse()
-                .unwrap(),
-        ),
-        Some("float") => Value::Real(arg["value"].as_f64().unwrap()),
-        Some("text") => Value::Text(
-            arg["value"]
-                .as_str()
-                .unwrap()
-                .to_string(),
-        ),
-        Some("blob") => Value::Blob(
-            BASE64
-                .decode(
-                    arg["base64"]
-                        .as_str()
-                        .unwrap()
-                        .trim_end_matches('='),
-                )
-                .unwrap(),
-        ),
-        other => panic!("unsupported Hrana argument type {other:?}"),
-    }
-}
-
-fn hrana_value(value: Value) -> JsonValue {
-    match value {
-        Value::Null => json!({ "type": "null" }),
-        Value::Integer(value) => json!({ "type": "integer", "value": value.to_string() }),
-        Value::Real(value) => json!({ "type": "float", "value": value }),
-        Value::Text(value) => json!({ "type": "text", "value": value }),
-        Value::Blob(value) => json!({ "type": "blob", "base64": BASE64.encode(value) }),
-    }
-}
-
-/// Turso reports a failed statement with the `SQLite` result code name.
-fn hrana_error(error: &libsql::Error) -> JsonValue {
-    let code = if is_unique_violation(error) {
-        "SQLITE_CONSTRAINT"
-    } else if is_transaction_conflict(error) {
-        "SQLITE_BUSY"
-    } else {
-        "SQLITE_ERROR"
-    };
-    json!({ "message": error.to_string(), "code": code })
 }

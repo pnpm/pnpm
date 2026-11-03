@@ -6,7 +6,7 @@
 
 use super::{
     PackageKey,
-    adapter::{Connection, Row},
+    adapter::{Connection, Param, Query, Row},
     batch::Batch,
     to_column, to_generation,
 };
@@ -53,26 +53,34 @@ pub(super) fn recorded_outcome(
     .transpose()
 }
 
-/// Check the request's idempotency claim inside the batch: the outcome of an
-/// identical request already committed, `None` for a new one, or a conflict
-/// when the key was used for another request.
+/// The read of the request's idempotency claim, which [`claim`] checks
+/// inside the batch.
+pub(super) fn claim_query<'query>(
+    catalog: &'query str,
+    request: &'query PublicationRequest,
+) -> Query<'query> {
+    Query {
+        sql: "SELECT request_digest, generation, publication FROM publication_outcomes
+              WHERE catalog = ?1 AND principal = ?2 AND idempotency_key = ?3
+                AND committed_at >= ?4",
+        params: vec![
+            Param::Text(catalog),
+            Param::Text(&request.principal),
+            Param::Text(&request.idempotency_key),
+            Param::Integer(retention_cutoff()),
+        ],
+    }
+}
+
+/// Check the request's idempotency claim, read by [`claim_query`]: the
+/// outcome of an identical request already committed, `None` for a new one,
+/// or a conflict when the key was used for another request.
 pub(super) fn claim(
     batch: &Batch<'_>,
     request: &PublicationRequest,
+    rows: Vec<Row>,
 ) -> Result<Option<RecordedOutcome>> {
-    let stored = batch
-        .transaction()
-        .query_optional(
-            "SELECT request_digest, generation, publication FROM publication_outcomes
-         WHERE catalog = ?1 AND principal = ?2 AND idempotency_key = ?3 AND committed_at >= ?4",
-            params![
-                batch.catalog(),
-                request.principal,
-                request.idempotency_key,
-                retention_cutoff()
-            ],
-        )?;
-    let Some(mut stored) = stored else { return Ok(None) };
+    let Some(mut stored) = rows.into_iter().next() else { return Ok(None) };
     let digest: String = stored.get(0)?;
     let generation = to_generation(stored.get(1)?);
     let publication = stored.get::<Option<i64>>(2)?.map(to_generation);
@@ -86,27 +94,37 @@ pub(super) fn claim(
 
 /// Record the publication the batch commits, when it introduced any
 /// artifact, and the request's outcome. The request's principal is the
-/// publisher; without a request, `publisher` is. Returns the publication's
-/// id.
+/// publisher; without a request, `publisher` is. `name_taken` reports that
+/// the catalog already gave the request's publication name to another
+/// publication, read by [`name_query`] inside the batch. Returns the
+/// publication's id.
 pub(super) fn record(
     batch: &Batch<'_>,
     request: Option<&PublicationRequest>,
     publisher: Option<&str>,
     artifacts: &[ArtifactMember],
+    name_taken: bool,
 ) -> Result<Option<u64>> {
-    let mut members = accepted_members(batch)?;
-    members.extend(artifacts.iter().cloned());
+    let members = members_of(batch, artifacts);
     let publication = if members.is_empty() {
         None
     } else {
         let publisher = request.map_or(publisher, |request| Some(request.principal.as_str()));
-        insert_publication(batch, request, publisher, &members)?;
+        insert_publication(batch, request, publisher, &members, name_taken)?;
         Some(batch.generation())
     };
     if let Some(request) = request {
         record_outcome(batch, request, publication)?;
     }
     Ok(publication)
+}
+
+/// The members of the publication the batch records: the npm versions it
+/// accepted, and the `artifacts` of other ecosystems.
+pub(super) fn members_of(batch: &Batch<'_>, artifacts: &[ArtifactMember]) -> Vec<ArtifactMember> {
+    let mut members = batch.accepted();
+    members.extend(artifacts.iter().cloned());
+    members
 }
 
 fn record_outcome(
@@ -142,18 +160,6 @@ fn record_outcome(
     Ok(())
 }
 
-/// The npm versions this batch accepted, as publication members.
-fn accepted_members(batch: &Batch<'_>) -> Result<Vec<ArtifactMember>> {
-    let rows = batch
-        .transaction()
-        .query(
-            "SELECT ecosystem, name, version, integrity FROM versions
-         WHERE catalog = ?1 AND accepted_generation = ?2 ORDER BY ecosystem, name, version",
-            params![batch.catalog(), to_column(batch.generation())],
-        )?;
-    members(rows)
-}
-
 /// The members `rows` name, without those of an ecosystem this pnpr does not
 /// know.
 fn members(rows: Vec<Row>) -> Result<Vec<ArtifactMember>> {
@@ -182,11 +188,18 @@ fn insert_publication(
     request: Option<&PublicationRequest>,
     principal: Option<&str>,
     members: &[ArtifactMember],
+    name_taken: bool,
 ) -> Result<()> {
     let id = to_column(batch.generation());
     let name = request.and_then(|request| request.name.as_deref());
-    if let Some(name) = name {
-        refuse_taken_name(batch, name)?;
+    // The batch holds the write lock, so no other commit takes the name
+    // between its read and this insert.
+    if let Some(name) = name
+        && name_taken
+    {
+        return Err(RegistryError::AdminConflict {
+            reason: format!("a publication named {name} already exists"),
+        });
     }
     batch
         .transaction()
@@ -216,22 +229,10 @@ fn insert_publication(
     Ok(())
 }
 
-/// Refuse a publication name the catalog already gave another publication.
-/// The batch holds the write lock, so no other commit takes the name
-/// between this check and the insert.
-fn refuse_taken_name(batch: &Batch<'_>, name: &str) -> Result<()> {
-    let taken = batch
-        .transaction()
-        .query_optional(
-            "SELECT 1 FROM publications WHERE catalog = ?1 AND name = ?2",
-            params![batch.catalog(), name],
-        )?;
-    match taken {
-        Some(_) => Err(RegistryError::AdminConflict {
-            reason: format!("a publication named {name} already exists"),
-        }),
-        None => Ok(()),
-    }
+/// The read of whether the catalog already gave the publication name
+/// `name` to a publication, for [`record`].
+pub(super) fn name_query<'query>(catalog: &'query str, name: &'query str) -> Query<'query> {
+    query!("SELECT 1 FROM publications WHERE catalog = ?1 AND name = ?2", catalog, name)
 }
 
 /// The publication `id_or_name` names in `catalog`: a decimal number is an

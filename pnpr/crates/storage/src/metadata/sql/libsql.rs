@@ -10,15 +10,25 @@
 //!   configured, leaves the read to the primary. So a process reads its own
 //!   writes, release notes included, which no generation tracks.
 //!
+//! Each round trip to the primary costs a network round trip, so statements
+//! reach it in batches: a transaction's `BEGIN` and every statement whose
+//! answer is not needed wait for the next statement that answers, or for the
+//! `COMMIT`. The shared layer reads what a write compares with in one batch,
+//! so a write takes two round trips: one that takes the write lock and reads,
+//! and one that writes and commits. A read of the primary is answered before
+//! its `COMMIT` is sent.
+//!
 //! The database opens on first use rather than at startup, since the shared
 //! layer is synchronous and opening reaches the network. Every statement runs
 //! on the blocking pool and waits there for libsql's async client.
 
-use super::adapter::{Adapter, Connection, Param, ReadSource, Row, Value};
+use super::adapter::{Adapter, Connection, ReadSource};
 use pnpr_config::LibsqlSettings;
 use pnpr_error::{RegistryError, Result};
 use pnpr_libsql::{Checkout, ConnectionPool};
+use statements::Statements;
 use std::{
+    cell::{Cell, RefCell},
     fmt,
     sync::{Arc, Mutex, MutexGuard, PoisonError, Weak},
     time::{Duration, Instant},
@@ -221,7 +231,7 @@ impl Adapter for LibsqlAdapter {
         let checkout = runtime.block_on(opened.primary.checkout())?;
         // A write cut off after it reached the primary leaves its commit
         // state unknown, so its statements run without a deadline.
-        let result = run(&runtime, checkout, false, None, operation);
+        let result = run(&runtime, checkout, Session::Write, operation);
         if let Some(replica) = &opened.replica {
             replica.mark_stale();
         }
@@ -254,7 +264,7 @@ impl Adapter for LibsqlAdapter {
         };
         let checkout = runtime.block_on(pool.checkout())?;
         let deadline = tokio::time::Instant::now() + OPERATION_TIMEOUT;
-        run(&runtime, checkout, local, Some(deadline), operation)
+        run(&runtime, checkout, Session::Read { local, deadline }, operation)
     }
 
     fn is_retryable(&self, error: &RegistryError) -> bool {
@@ -281,18 +291,57 @@ impl Adapter for LibsqlAdapter {
     }
 }
 
-/// Run `operation` on the checked-out connection, which reads the local
-/// replica when `local`, and return the connection to its pool. Its
-/// statements fail once `deadline` passes, and the connection is then closed.
+/// What a checked-out connection runs.
+#[derive(Debug, Clone, Copy)]
+enum Session {
+    /// A write on the primary. Its statements have no deadline: a write cut
+    /// off after it reached the primary leaves its commit state unknown.
+    Write,
+    /// A read of the local replica when `local`, otherwise of the primary,
+    /// whose statements fail once `deadline` passes.
+    Read { local: bool, deadline: tokio::time::Instant },
+}
+
+/// Run `operation` on the checked-out connection, and return the connection
+/// to its pool. A connection whose operation failed is closed.
+///
+/// The `COMMIT` that ends a read of the primary is sent once the operation
+/// has its answer, without waiting for it: nothing the read returns depends
+/// on it. The connection keeps its slot in the pool until the `COMMIT` is
+/// answered, and is closed if it is not.
 fn run(
     runtime: &Handle,
-    checkout: Checkout<'_>,
-    local: bool,
-    deadline: Option<tokio::time::Instant>,
+    checkout: Checkout,
+    session: Session,
     operation: &mut dyn FnMut(&dyn Connection) -> Result<()>,
 ) -> Result<()> {
-    let statements = Statements { runtime, conn: checkout.connection(), local, deadline };
-    let result = operation(&statements);
+    let (local, deadline, read) = match session {
+        Session::Write => (false, None, false),
+        Session::Read { local, deadline } => (local, Some(deadline), true),
+    };
+    let (result, end_later) = {
+        let statements = Statements {
+            runtime,
+            conn: checkout.connection(),
+            local,
+            deadline,
+            read,
+            held: RefCell::new(Vec::new()),
+            end_later: Cell::new(false),
+        };
+        // A statement still held reaches the primary before the connection
+        // goes back to the pool.
+        let result = operation(&statements).and_then(|()| statements.send().map(drop));
+        (result, statements.end_later.get())
+    };
+    if result.is_ok() && end_later {
+        let conn = checkout.connection().clone();
+        checkout.release_after(runtime, async move {
+            let commit = conn.execute_batch_with_params([("COMMIT", ())]);
+            matches!(tokio::time::timeout(OPERATION_TIMEOUT, commit).await, Ok(Ok(_)))
+        });
+        return result;
+    }
     checkout.release(result.is_ok());
     result
 }
@@ -308,89 +357,6 @@ fn lock<Value>(mutex: &Mutex<Value>) -> MutexGuard<'_, Value> {
     mutex.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
-/// One libSQL connection, run from a blocking thread.
-struct Statements<'conn> {
-    runtime: &'conn Handle,
-    conn: &'conn libsql::Connection,
-    /// Whether the connection reads the embedded replica.
-    local: bool,
-    /// When a read's statements stop waiting for the database. A write's
-    /// have none.
-    deadline: Option<tokio::time::Instant>,
-}
-
-impl Statements<'_> {
-    /// Wait for `statement`, failing with [`timed_out`] past the deadline.
-    fn wait<Output>(&self, statement: impl Future<Output = Result<Output>>) -> Result<Output> {
-        match self.deadline {
-            Some(deadline) => self.runtime
-                .block_on(tokio::time::timeout_at(deadline, statement))
-                .unwrap_or_else(|_| Err(timed_out())),
-            None => self.runtime.block_on(statement),
-        }
-    }
-}
-
-impl Connection for Statements<'_> {
-    fn execute(&self, sql: &str, params: &[Param<'_>]) -> Result<usize> {
-        let changed = self.wait(async { Ok(self.conn.execute(sql, to_params(params)).await?) })?;
-        Ok(usize::try_from(changed).unwrap_or(usize::MAX))
-    }
-
-    fn query(&self, sql: &str, params: &[Param<'_>]) -> Result<Vec<Row>> {
-        self.wait(async {
-            let mut rows = self.conn.query(sql, to_params(params)).await?;
-            let columns = rows.column_count();
-            let mut collected = Vec::new();
-            while let Some(row) = rows.next().await? {
-                let values = (0..columns)
-                    .map(|index| row.get_value(index).map(to_value))
-                    .collect::<libsql::Result<_>>()?;
-                collected.push(Row::new(values));
-            }
-            Ok(collected)
-        })
-    }
-
-    fn execute_batch(&self, sql: &str) -> Result<()> {
-        self.wait(async {
-            self.conn.execute_batch(sql).await?;
-            Ok(())
-        })
-    }
-
-    fn begin_write(&self) -> Result<()> {
-        self.execute_batch("BEGIN IMMEDIATE")
-    }
-
-    /// A replica connection sends every statement of a plain `BEGIN`
-    /// transaction to the primary; `BEGIN READONLY` keeps it on the replica.
-    fn begin_read(&self) -> Result<()> {
-        self.execute_batch(if self.local { "BEGIN READONLY" } else { "BEGIN" })
-    }
-}
-
-fn to_params(params: &[Param<'_>]) -> Vec<libsql::Value> {
-    params
-        .iter()
-        .map(|param| match *param {
-            Param::Null => libsql::Value::Null,
-            Param::Integer(value) => libsql::Value::Integer(value),
-            Param::Text(value) => libsql::Value::Text(value.to_string()),
-            Param::Blob(value) => libsql::Value::Blob(value.to_vec()),
-        })
-        .collect()
-}
-
-fn to_value(value: libsql::Value) -> Value {
-    match value {
-        libsql::Value::Null => Value::Null,
-        libsql::Value::Integer(value) => Value::Integer(value),
-        libsql::Value::Real(value) => Value::Real(value),
-        libsql::Value::Text(value) => Value::Text(value),
-        libsql::Value::Blob(value) => Value::Blob(value),
-    }
-}
-
+mod statements;
 #[cfg(test)]
 mod tests;

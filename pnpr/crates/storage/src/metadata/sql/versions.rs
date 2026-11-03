@@ -7,19 +7,23 @@ use super::{
     packument::{ORDINARY, Readme, VersionRows},
     to_column,
 };
+use crate::metadata::ArtifactMember;
 use pnpm_release_record::{Purl, RecordIdentity, StoredRecord};
 use pnpr_error::{RegistryError, Result};
 use serde_json::Value;
+use std::collections::BTreeSet;
 
 /// Insert the rows of a version the store has not accepted yet, with the
-/// release record it is accepted with, if any.
+/// release record it is accepted with, if any, unless it is one of the
+/// `removed` versions of the package.
 pub(super) fn insert_version(
     commit: &Commit<'_>,
+    removed: &BTreeSet<String>,
     version: &str,
     rows: &VersionRows,
     record: Option<&[u8]>,
 ) -> Result<()> {
-    refuse_removed(commit, version)?;
+    refuse_removed(commit, removed, version)?;
     let (catalog, ecosystem, name) = commit.key.params();
     commit.transaction.execute(
         "INSERT INTO versions (catalog, ecosystem, name, version, revision_key, integrity,
@@ -41,7 +45,19 @@ pub(super) fn insert_version(
     if let Some(record) = record {
         insert_release_record(commit, version, &rows.interpretation.profile, record)?;
     }
-    write_deprecation(commit, version, rows.deprecated.as_ref())
+    // A new version has no annotation to clear.
+    if let Some(deprecated) = &rows.deprecated {
+        write_deprecation(commit, version, Some(deprecated))?;
+    }
+    commit.accepted
+        .borrow_mut()
+        .push(ArtifactMember {
+            ecosystem: commit.key.ecosystem,
+            name: commit.key.name.clone(),
+            version: version.to_string(),
+            artifact: rows.integrity().to_string(),
+        });
+    Ok(())
 }
 
 fn insert_accepted_manifest(commit: &Commit<'_>, version: &str, rows: &VersionRows) -> Result<()> {
@@ -129,21 +145,14 @@ pub(super) fn read_release_record(
 
 /// Refuse a version removed from the package before: its identity named
 /// other bytes once, and a cached fragment may still hold them.
-fn refuse_removed(commit: &Commit<'_>, version: &str) -> Result<()> {
-    let (catalog, ecosystem, name) = commit.key.params();
-    let removed = commit.transaction.query_optional(
-        "SELECT 1 FROM removed_versions
-         WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4
-           AND revision_key = ?5",
-        params![catalog, ecosystem, name, version, ORDINARY],
-    )?;
-    match removed {
-        Some(_) => Err(RegistryError::CannotRepublishUnpublishedVersion {
-            package: name.to_string(),
+fn refuse_removed(commit: &Commit<'_>, removed: &BTreeSet<String>, version: &str) -> Result<()> {
+    if removed.contains(version) {
+        return Err(RegistryError::CannotRepublishUnpublishedVersion {
+            package: commit.key.name.clone(),
             version: version.to_string(),
-        }),
-        None => Ok(()),
+        });
     }
+    Ok(())
 }
 
 fn insert_readme(commit: &Commit<'_>, version: &str, readme: &Readme) -> Result<()> {

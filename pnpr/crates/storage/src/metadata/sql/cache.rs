@@ -104,6 +104,13 @@ impl RenderCache {
         caches.fragments.insert(key, fragment, weight, FRAGMENT_BUDGET);
     }
 
+    /// The generation of the view of `key` the cache holds, if any.
+    pub(super) fn view_generation(&self, key: &ViewKey) -> Option<u64> {
+        self.lock().views
+            .get(key)
+            .map(|(generation, _)| *generation)
+    }
+
     /// The view of `key` when the cache holds it at `generation`.
     pub(super) fn view(&self, key: &ViewKey, generation: u64) -> Option<Arc<[u8]>> {
         let mut caches = self.lock();

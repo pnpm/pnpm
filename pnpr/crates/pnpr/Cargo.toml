@@ -121,6 +121,7 @@ tar = { workspace = true }
 pipe-trait = { workspace = true }
 pnpm-testing-utils = { workspace = true }
 pnpr-fixtures = { workspace = true }
+pnpr-libsql = { workspace = true, features = ["testing"] }
 tempfile = { workspace = true }
 tokio = { workspace = true }
 tower = { workspace = true }

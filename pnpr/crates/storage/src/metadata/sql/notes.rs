@@ -4,19 +4,23 @@
 //! version (`ecosystem`, `name`, `subject` = version) or a publication
 //! (`ecosystem` and `name` empty, `subject` = its id).
 
+pub(super) use publish_time::{store_publish_notes, version_note_query};
+
 use super::{
     PackageKey,
-    adapter::{Connection, Row},
-    batch::{Batch, WriteTransaction},
-    commit::package_row,
+    adapter::{Connection, Query, Row},
+    batch::WriteTransaction,
+    commit::package_row_query,
     transactions::Freshness,
 };
 use crate::{
-    metadata::{Note, NoteChange, PublishNotes, VersionNote, note_digest, validate_note},
+    metadata::{Note, NoteChange, validate_note},
     publish::now_iso,
 };
 use pnpr_error::{RegistryError, Result};
 use pnpr_package_name::CanonicalPackageName;
+
+mod publish_time;
 
 const VERSION: &str = "version";
 const PUBLICATION: &str = "publication";
@@ -57,20 +61,23 @@ pub(super) fn read_note(
     connection: &dyn Connection,
     subject: &NoteSubject,
 ) -> Result<Option<Note>> {
+    let query = note_query(subject);
     connection
-        .query_optional(
-            "SELECT text, modified_at, principal, initial_digest FROM notes
-             WHERE catalog = ?1 AND kind = ?2 AND ecosystem = ?3 AND name = ?4 AND subject = ?5",
-            params![
-                subject.catalog,
-                subject.kind,
-                subject.ecosystem,
-                subject.name,
-                subject.subject
-            ],
-        )?
+        .query_optional(query.sql, &query.params)?
         .map(note_row)
         .transpose()
+}
+
+fn note_query(subject: &NoteSubject) -> Query<'_> {
+    query!(
+        "SELECT text, modified_at, principal, initial_digest FROM notes
+         WHERE catalog = ?1 AND kind = ?2 AND ecosystem = ?3 AND name = ?4 AND subject = ?5",
+        &subject.catalog,
+        subject.kind,
+        &subject.ecosystem,
+        &subject.name,
+        &subject.subject,
+    )
 }
 
 fn note_row(mut row: Row) -> Result<Note> {
@@ -95,38 +102,63 @@ pub(super) fn change_note(
         validate_note(text)?;
     }
     let transaction = WriteTransaction::begin(connection)?;
-    if !subject_exists(&*transaction, subject)? {
+    let key = subject_key(subject)?;
+    let reads = [subject_query(subject, key.as_ref()), note_query(subject)];
+    let [found, previous] = <[Vec<Row>; 2]>::try_from(transaction.query_all(&reads)?)
+        .map_err(|_| RegistryError::Internal {
+            reason: "a metadata batch did not answer every read of a note".to_string(),
+        })?;
+    if found.is_empty() {
         return Ok(false);
     }
-    let previous = read_note(&*transaction, subject)?;
+    let previous = previous
+        .into_iter()
+        .next()
+        .map(note_row)
+        .transpose()?;
     let initial_digest = previous.and_then(|note| note.initial_digest);
     write_note(&*transaction, subject, text, Some(principal), initial_digest.as_deref())?;
     transaction.commit()?;
     Ok(true)
 }
 
-fn subject_exists(transaction: &dyn Connection, subject: &NoteSubject) -> Result<bool> {
+/// The package a version note's subject belongs to; `None` for a
+/// publication note.
+fn subject_key(subject: &NoteSubject) -> Result<Option<PackageKey>> {
     if subject.kind == PUBLICATION {
-        let exists = transaction.query_optional(
-            "SELECT 1 FROM publications WHERE catalog = ?1 AND id = ?2",
-            params![subject.catalog, subject.subject.parse::<i64>().unwrap_or(-1)],
-        )?;
-        return Ok(exists.is_some());
+        return Ok(None);
     }
     let ecosystem = pnpr_package_name::Ecosystem::all()
         .find(|known| known.as_str() == subject.ecosystem)
         .ok_or_else(|| RegistryError::BadRequest { reason: "unknown ecosystem".to_string() })?;
-    let key =
-        PackageKey { catalog: subject.catalog.clone(), ecosystem, name: subject.name.clone() };
-    if ecosystem != pnpr_package_name::Ecosystem::Npm {
-        return Ok(package_row(transaction, &key)?.is_some());
+    Ok(Some(PackageKey { catalog: subject.catalog.clone(), ecosystem, name: subject.name.clone() }))
+}
+
+/// The read that finds a row when the note's subject exists: the
+/// publication, the npm version, or for another ecosystem, whose versions
+/// have no rows of their own, its package.
+fn subject_query<'query>(
+    subject: &'query NoteSubject,
+    key: Option<&'query PackageKey>,
+) -> Query<'query> {
+    match key {
+        None => Query {
+            sql: "SELECT 1 FROM publications WHERE catalog = ?1 AND id = ?2",
+            params: vec![
+                super::adapter::Param::Text(&subject.catalog),
+                super::adapter::Param::Integer(subject.subject.parse::<i64>().unwrap_or(-1)),
+            ],
+        },
+        Some(key) if key.ecosystem != pnpr_package_name::Ecosystem::Npm => package_row_query(key),
+        Some(key) => query!(
+            "SELECT 1 FROM versions WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3
+             AND version = ?4 LIMIT 1",
+            &key.catalog,
+            &subject.ecosystem,
+            &key.name,
+            &subject.subject,
+        ),
     }
-    let exists = transaction.query_optional(
-        "SELECT 1 FROM versions WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3
-         AND version = ?4 LIMIT 1",
-        params![key.catalog, subject.ecosystem, key.name, subject.subject],
-    )?;
-    Ok(exists.is_some())
 }
 
 /// Store a note's text, `None` for a deletion, keeping its history.
@@ -175,92 +207,6 @@ fn write_note(
         ],
     )?;
     Ok(())
-}
-
-/// Store the notes a publish carries, in its transaction, each with the
-/// digest of the text it was published with. A note is published only with
-/// what it describes: a version note needs its version to be a member of
-/// the publication this commit records, and a publication note needs that
-/// publication. Anything else is refused, so a note never claims a
-/// publish-time digest for a version an earlier commit introduced. A version
-/// note for a version that already had one is refused too: a later upload
-/// never replaces it.
-pub(super) fn store_publish_notes(
-    batch: &Batch<'_>,
-    notes: &PublishNotes,
-    publication: Option<u64>,
-    principal: Option<&str>,
-) -> Result<()> {
-    for note in &notes.versions {
-        validate_note(&note.text)?;
-        refuse_unpublished_subject(batch, note, publication)?;
-        let key = PackageKey {
-            catalog: batch.catalog().to_string(),
-            ecosystem: note.ecosystem,
-            name: note.name.clone(),
-        };
-        let subject = NoteSubject::version(&key, &note.version);
-        store_initial(batch, &subject, &note.text, principal)?;
-    }
-    let Some(text) = &notes.publication else { return Ok(()) };
-    validate_note(text)?;
-    let id = publication.ok_or_else(|| RegistryError::BadRequest {
-        reason: "a publication note needs a publish that introduces a version".to_string(),
-    })?;
-    store_initial(batch, &NoteSubject::publication(batch.catalog(), id), text, principal)
-}
-
-/// Refuse a version note whose version this commit's publication does not
-/// introduce. An npm member names its version; another ecosystem's member
-/// names its file, so its package stands for the version.
-fn refuse_unpublished_subject(
-    batch: &Batch<'_>,
-    note: &VersionNote,
-    publication: Option<u64>,
-) -> Result<()> {
-    let introduced = match publication {
-        Some(id) => batch
-            .transaction()
-            .query_optional(
-                "SELECT 1 FROM publication_members
-                 WHERE catalog = ?1 AND publication = ?2 AND ecosystem = ?3 AND name = ?4
-                   AND (version = ?5 OR version = '')
-                 LIMIT 1",
-                params![
-                    batch.catalog(),
-                    super::to_column(id),
-                    note.ecosystem.as_str(),
-                    note.name,
-                    note.version,
-                ],
-            )?
-            .is_some(),
-        None => false,
-    };
-    if introduced {
-        return Ok(());
-    }
-    Err(RegistryError::AdminConflict {
-        reason: format!(
-            "{}@{} is not published by this request, so it takes no publish-time note; edit its \
-             note instead",
-            note.name, note.version,
-        ),
-    })
-}
-
-fn store_initial(
-    batch: &Batch<'_>,
-    subject: &NoteSubject,
-    text: &str,
-    principal: Option<&str>,
-) -> Result<()> {
-    if read_note(batch.transaction(), subject)?.is_some() {
-        return Err(RegistryError::AdminConflict {
-            reason: format!("version {} already has a note; edit it instead", subject.subject),
-        });
-    }
-    write_note(batch.transaction(), subject, Some(text), principal, Some(&note_digest(text)))
 }
 
 impl super::SqlMetadata {

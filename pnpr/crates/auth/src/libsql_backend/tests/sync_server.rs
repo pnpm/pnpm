@@ -35,7 +35,7 @@ async fn embedded_replica_follows_a_primary_on_the_newer_sync_protocol() {
             .join(format!("replica{index}"))
             .join("auth.db");
         let settings = replica_settings(address, replica_path, sync_interval_secs);
-        let pipelines_before_connect = primary.pipelines.load(Ordering::SeqCst);
+        let pipelines_before_connect = primary.round_trips.count();
         let replica = LibsqlAuth::connect(&settings, MaxUsers::Unlimited).await.unwrap();
 
         assert_eq!(
@@ -43,7 +43,7 @@ async fn embedded_replica_follows_a_primary_on_the_newer_sync_protocol() {
             index + 1,
             "bootstrapped from the primary's export",
         );
-        let pipelines_after_connect = primary.pipelines.load(Ordering::SeqCst);
+        let pipelines_after_connect = primary.round_trips.count();
         assert!(
             pipelines_after_connect > pipelines_before_connect,
             "schema setup writes go to the primary",
@@ -54,16 +54,13 @@ async fn embedded_replica_follows_a_primary_on_the_newer_sync_protocol() {
         let hash = replica.stored_hash("alice").await.unwrap();
         assert!(hash.is_some());
         assert_eq!(
-            primary.pipelines.load(Ordering::SeqCst),
+            primary.round_trips.count(),
             pipelines_after_connect,
             "reads are served from the local replica",
         );
 
         let issued = replica.issue("alice").await.unwrap();
-        assert!(
-            primary.pipelines.load(Ordering::SeqCst) > pipelines_after_connect,
-            "writes go to the primary",
-        );
+        assert!(primary.round_trips.count() > pipelines_after_connect, "writes go to the primary");
         let owner = backend.lookup(&issued).await.unwrap();
         assert_eq!(owner.as_deref(), Some("alice"));
         let owner = replica.lookup(&issued).await.unwrap();

@@ -7,3 +7,14 @@ macro_rules! params {
             as &[$crate::metadata::sql::adapter::Param<'_>]
     };
 }
+
+/// A [`Query`](crate::metadata::sql::adapter::Query) of `sql`, with each
+/// parameter a reference that outlives the query.
+macro_rules! query {
+    ($sql:expr $(, $param:expr)* $(,)?) => {
+        $crate::metadata::sql::adapter::Query {
+            sql: $sql,
+            params: vec![$($crate::metadata::sql::adapter::ToParam::to_param($param)),*],
+        }
+    };
+}
