@@ -2,7 +2,7 @@ use crate::{
     port_to_url::port_to_url, runtime_storage, seed_storage::seed_runtime_storage, workspace_root,
 };
 use std::{
-    env,
+    env, fs, io,
     path::{Path, PathBuf},
     process::Command,
 };
@@ -111,8 +111,10 @@ pub fn pnpr_command_with_binary(bin: &Path, port: u16, public_url: Option<&str>)
     // (the fixture namespace served from local hosted storage, everything else
     // proxied through the pattern-less npmjs upstream). We pin the runtime bits
     // the config file can't know about via CLI arguments.
+    let config = runtime_mock_config()
+        .unwrap_or_else(|err| panic!("write the registry-mock config into runtime storage: {err}"));
     cmd.arg("--config")
-        .arg(pnpr_fixtures::mock_config_path())
+        .arg(config)
         .arg("--storage")
         .arg(runtime_storage())
         .arg("--packument-ttl")
@@ -122,4 +124,25 @@ pub fn pnpr_command_with_binary(bin: &Path, port: u16, public_url: Option<&str>)
         .arg("--public-url")
         .arg(public_url);
     cmd
+}
+
+/// The registry-mock config with the runtime storage's metadata database
+/// named outright, written into the runtime storage. A `pnpr` from another
+/// revision, such as the one the integrated benchmark compares against, may
+/// not move its default database along with `--storage`, and every revision
+/// reads a named one.
+fn runtime_mock_config() -> io::Result<PathBuf> {
+    let storage = runtime_storage();
+    let database = pnpr_fixtures::metadata_path(storage);
+    let url = format!("sqlite:{}", database.display()).replace('\'', "''");
+    let yaml = format!("{}\nmetadata:\n  url: '{url}'\n", pnpr_fixtures::MOCK_CONFIG_YAML);
+    let path = storage.join(".registry-mock.yaml");
+    if fs::read_to_string(&path).is_ok_and(|existing| existing == yaml) {
+        return Ok(path);
+    }
+    fs::create_dir_all(storage)?;
+    let temp = storage.join(format!(".registry-mock.yaml.{}", std::process::id()));
+    fs::write(&temp, yaml)?;
+    fs::rename(&temp, &path)?;
+    Ok(path)
 }
