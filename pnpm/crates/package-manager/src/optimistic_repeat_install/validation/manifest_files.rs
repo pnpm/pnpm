@@ -158,50 +158,82 @@ fn reusable_file<'previous>(
 
 fn manifest_file(manifest: &PackageManifest, file_name: String, stat: FileStat) -> ManifestFile {
     let (mtime_ns, ctime_ns, size) = stat.parts();
-    let value = manifest.value();
-    let fields = CHECKED_FIELDS
-        .into_iter()
-        .filter_map(|(field, key)| {
-            let field_value = value.get(field)?;
-            let kept = match (field, key) {
-                (_, Some(key)) => serde_json::json!({ key: field_value.get(key)? }),
-                (
-                    "dependencies"
-                    | "devDependencies"
-                    | "optionalDependencies"
-                    | "peerDependencies",
-                    None,
-                ) => without_url_specifiers(field_value),
-                ("peerDependenciesMeta", None) => peer_optional_flags(field_value),
-                (_, None) => field_value.clone(),
-            };
-            Some((field.to_string(), kept))
-        })
-        .collect();
-    ManifestFile { file_name, mtime_ns, ctime_ns, size, fields: Some(fields) }
+    ManifestFile { file_name, mtime_ns, ctime_ns, size, fields: recorded_fields(manifest.value()) }
+}
+
+/// The values of the [`CHECKED_FIELDS`] a record keeps. `None` when a
+/// dependency specifier the check reads may hold a credential, so the next
+/// check reads the manifest file instead.
+fn recorded_fields(
+    manifest: &serde_json::Value,
+) -> Option<serde_json::Map<String, serde_json::Value>> {
+    let mut fields = serde_json::Map::new();
+    for (field, key) in CHECKED_FIELDS {
+        let Some(field_value) = manifest.get(field) else { continue };
+        let kept = match (field, key) {
+            (_, Some(key)) => match field_value.get(key) {
+                Some(value) => serde_json::json!({ key: value }),
+                None => continue,
+            },
+            (
+                "dependencies" | "devDependencies" | "optionalDependencies" | "peerDependencies",
+                None,
+            ) => recorded_dependencies(field_value)?,
+            ("peerDependenciesMeta", None) => peer_optional_flags(field_value),
+            (_, None) => field_value.clone(),
+        };
+        fields.insert(field.to_string(), kept);
+    }
+    Some(fields)
 }
 
 /// The specifier schemes the check reads beyond the name a specifier depends
-/// on. A record keeps these specifiers as they are.
+/// on.
 const CHECKED_SCHEMES: [&str; 6] = ["file", "link", "workspace", "catalog", "npm", "jsr"];
 
-/// The dependency map with each specifier of another scheme, such as a URL,
-/// replaced by `*`, so no credential in one reaches the state. The check
-/// reads such a specifier only for the name it depends on, which the alias
-/// gives, and `*` gives the same answer.
-fn without_url_specifiers(dependencies: &serde_json::Value) -> serde_json::Value {
-    let Some(dependencies) = dependencies.as_object() else { return dependencies.clone() };
+/// The dependency map as a record keeps it, per [`recorded_specifier`].
+fn recorded_dependencies(dependencies: &serde_json::Value) -> Option<serde_json::Value> {
+    let Some(dependencies) = dependencies.as_object() else { return Some(dependencies.clone()) };
     dependencies
         .iter()
         .map(|(alias, spec)| {
-            let unchecked = spec
-                .as_str()
-                .and_then(specifier_scheme)
-                .is_some_and(|scheme| !CHECKED_SCHEMES.contains(&scheme.as_str()));
-            (alias.clone(), if unchecked { serde_json::Value::from("*") } else { spec.clone() })
+            let recorded = match spec.as_str() {
+                Some(spec) => recorded_specifier(spec)?,
+                None => spec.clone(),
+            };
+            Some((alias.clone(), recorded))
         })
-        .collect::<serde_json::Map<_, _>>()
-        .into()
+        .collect::<Option<serde_json::Map<_, _>>>()
+        .map(Into::into)
+}
+
+/// `spec` as a record keeps it, so no credential in it reaches the state:
+///
+/// - a specifier of a scheme the check does not read becomes `*`. The check
+///   reads it only for the name it depends on, which the alias gives;
+/// - any other specifier that may hold a credential becomes `*` when it has
+///   no scheme, and `None` when its scheme is one the check reads;
+/// - everything else stays as written.
+fn recorded_specifier(spec: &str) -> Option<serde_json::Value> {
+    let trimmed = spec.trim();
+    let (checked, rest) = match specifier_scheme(trimmed) {
+        Some(scheme) if CHECKED_SCHEMES.contains(&scheme.as_str()) => {
+            (true, &trimmed[scheme.len() + 1..])
+        }
+        Some(_) => return Some("*".into()),
+        None => (false, trimmed),
+    };
+    if !may_hold_credential(rest) {
+        return Some(spec.into());
+    }
+    (!checked).then(|| "*".into())
+}
+
+/// Whether `text` has an `@` after a `:`, the shape of the `user:password@`
+/// part of a URL or of an SCP-style Git address.
+fn may_hold_credential(text: &str) -> bool {
+    text.find(':')
+        .is_some_and(|colon| text[colon..].contains('@'))
 }
 
 /// The lowercased scheme `spec` starts with, such as `https` or `git+ssh`.

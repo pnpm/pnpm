@@ -228,6 +228,7 @@ fn a_removed_workspace_link_is_relinked() {
         .with_arg("install")
         .assert()
         .success();
+    trust_recorded_stats(&workspace, mock_instance.url());
     let link = workspace.join("packages/a/node_modules/b");
     pnpm_fs::remove_dirent(&link).expect("remove the workspace link");
 
