@@ -6,8 +6,8 @@
 //! constraint. `revision_key` is `ordinary` for a version outside the registry
 //! revision protocol.
 
-use rusqlite::{Connection, OptionalExtension};
-use std::path::Path;
+use super::{adapter::Connection, batch::WriteTransaction};
+use pnpr_error::Result;
 
 /// The layout this pnpr reads. pnpr is pre-1.0: a change to the layout
 /// replaces it in place rather than migrating.
@@ -221,32 +221,26 @@ CREATE TABLE IF NOT EXISTS note_history (
 ) STRICT;
 ";
 
-/// Configure a connection and create the tables it needs.
-pub(super) fn prepare(connection: &Connection) -> rusqlite::Result<()> {
-    connection.pragma_update(None, "journal_mode", "WAL")?;
-    connection.pragma_update(None, "synchronous", "FULL")?;
-    connection.pragma_update(None, "foreign_keys", "ON")?;
-    connection.busy_timeout(std::time::Duration::from_secs(5))?;
-    connection.execute_batch(TABLES)?;
-    if stored_version(connection)?.is_none() {
-        connection.execute("INSERT INTO schema_version (version) VALUES (?1)", [SCHEMA_VERSION])?;
+/// Create the tables in a new database, and report the schema version the
+/// database holds.
+pub(super) fn prepare(connection: &dyn Connection) -> Result<Option<i64>> {
+    let transaction = WriteTransaction::begin(connection)?;
+    transaction.execute_batch(TABLES)?;
+    let stored = stored_version(&*transaction)?;
+    if stored.is_none() {
+        transaction.execute(
+            "INSERT INTO schema_version (version) VALUES (?1)",
+            params![SCHEMA_VERSION],
+        )?;
     }
-    Ok(())
-}
-
-/// Open a connection that only reads the database at `path`. The database is
-/// in WAL mode already, so its reads see committed snapshots and never wait
-/// for a writer.
-pub(super) fn open_reader(path: &Path) -> rusqlite::Result<Connection> {
-    let connection = Connection::open(path)?;
-    connection.pragma_update(None, "query_only", "ON")?;
-    connection.busy_timeout(std::time::Duration::from_secs(5))?;
-    Ok(connection)
+    transaction.commit()?;
+    Ok(stored.or(Some(SCHEMA_VERSION)))
 }
 
 /// The schema version stored in the database, `None` in a new one.
-pub(super) fn stored_version(connection: &Connection) -> rusqlite::Result<Option<i64>> {
+fn stored_version(connection: &dyn Connection) -> Result<Option<i64>> {
     connection
-        .query_row("SELECT version FROM schema_version", [], |row| row.get(0))
-        .optional()
+        .query_optional("SELECT version FROM schema_version", params![])?
+        .map(|mut row| row.get(0))
+        .transpose()
 }

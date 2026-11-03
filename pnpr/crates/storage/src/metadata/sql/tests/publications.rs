@@ -2,7 +2,7 @@
 
 use super::{npm, packument, read, storage, write};
 use crate::metadata::{
-    BatchDocument, PublicationCommit, PublicationRequest, PublishNotes, SqliteMetadata,
+    BatchDocument, PublicationCommit, PublicationRequest, PublishNotes, SqlMetadata,
 };
 use pnpr_error::RegistryError;
 use pnpr_package_name::Ecosystem;
@@ -30,7 +30,7 @@ fn request(digest: &str, name: Option<&str>) -> PublicationRequest {
 }
 
 async fn commit(
-    database: &Arc<SqliteMetadata>,
+    database: &Arc<SqlMetadata>,
     documents: Vec<BatchDocument>,
     request: PublicationRequest,
 ) -> Result<PublicationCommit, RegistryError> {
@@ -48,7 +48,7 @@ async fn commit(
 async fn a_batch_commits_every_package_under_one_generation_or_none() {
     let tmp = TempDir::new().unwrap();
     let storage = storage(&tmp);
-    let database = storage.sqlite_metadata().unwrap();
+    let database = storage.sql_metadata().unwrap();
     let org = storage.for_hosted("acme", Ecosystem::Npm);
     let core = packument("core", &["2.0.0"]);
     let widgets = packument("widgets", &["2.0.0"]);
@@ -79,7 +79,7 @@ async fn a_batch_commits_every_package_under_one_generation_or_none() {
 async fn a_retried_request_gets_its_recorded_outcome() {
     let tmp = TempDir::new().unwrap();
     let storage = storage(&tmp);
-    let database = storage.sqlite_metadata().unwrap();
+    let database = storage.sql_metadata().unwrap();
     let doc = packument("core", &["1.0.0"]);
     let first = commit(database, vec![document("core", &doc)], request("digest", None))
         .await
@@ -113,7 +113,7 @@ async fn a_retried_request_gets_its_recorded_outcome() {
 async fn publications_are_found_by_id_name_and_member() {
     let tmp = TempDir::new().unwrap();
     let storage = storage(&tmp);
-    let database = storage.sqlite_metadata().unwrap();
+    let database = storage.sql_metadata().unwrap();
     let batch = vec![
         document("core", &packument("core", &["1.0.0"])),
         document("widgets", &packument("widgets", &["1.0.0"])),
@@ -151,7 +151,7 @@ async fn a_version_written_outside_a_publish_request_gets_a_publication() {
     let storage = storage(&tmp);
     write(&storage, "plain", &packument("plain", &["1.0.0"])).await;
     write(&storage, "plain", &packument("plain", &["1.0.0", "1.1.0"])).await;
-    let database = storage.sqlite_metadata().unwrap();
+    let database = storage.sql_metadata().unwrap();
     let first = database
         .initial_publication(&npm("plain"), "", "1.0.0")
         .await
@@ -182,7 +182,7 @@ async fn a_version_written_outside_a_publish_request_gets_a_publication() {
 async fn a_publication_without_a_request_records_its_publisher() {
     let tmp = TempDir::new().unwrap();
     let storage = storage(&tmp);
-    let database = storage.sqlite_metadata().unwrap();
+    let database = storage.sql_metadata().unwrap();
     // No request, as a staged publish's approval commits: the publisher still
     // comes from the document.
     let mut core = document("core", &packument("core", &["1.0.0"]));
@@ -211,7 +211,7 @@ async fn a_publication_without_a_request_records_its_publisher() {
 async fn a_publication_cannot_bring_back_a_removed_version() {
     let tmp = TempDir::new().unwrap();
     let storage = storage(&tmp);
-    let database = storage.sqlite_metadata().unwrap();
+    let database = storage.sql_metadata().unwrap();
     let org = storage.for_hosted("acme", Ecosystem::Npm);
     let batch = vec![document("core", &packument("core", &["1.0.0"]))];
     commit(database, batch, request("one", None)).await.unwrap();
@@ -243,8 +243,8 @@ async fn competing_publications_of_one_version_commit_once() {
         document("extra", &packument("extra", &["1.0.0"])),
     ];
     let theirs = vec![document("core", &theirs)];
-    let left = commit(first.sqlite_metadata().unwrap(), ours, request("ours", None));
-    let right = commit(second.sqlite_metadata().unwrap(), theirs, request("theirs", None));
+    let left = commit(first.sql_metadata().unwrap(), ours, request("ours", None));
+    let right = commit(second.sql_metadata().unwrap(), theirs, request("theirs", None));
     let (left, right) = tokio::join!(left, right);
     let winner = match (left, right) {
         (Ok(won), Err(RegistryError::DocumentWriteConflict { .. })) => {
@@ -264,7 +264,7 @@ async fn competing_publications_of_one_version_commit_once() {
         outcomes => panic!("exactly one publication commits, got {outcomes:?}"),
     };
     assert_eq!(winner.generation.value, 1);
-    let database = first.sqlite_metadata().unwrap();
+    let database = first.sql_metadata().unwrap();
     assert_eq!(database.catalog_generation("acme").unwrap(), 1);
     let second_publication = database.publication("acme", "2").await.unwrap();
     assert!(second_publication.is_none());

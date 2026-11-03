@@ -2,6 +2,7 @@
 
 use super::{
     PackageKey,
+    adapter::Connection,
     batch::Batch,
     commit::{Commit, PackageRow, package_row},
     packument::TIME,
@@ -13,7 +14,6 @@ use crate::{
 };
 use pnpr_error::Result;
 use pnpr_package_name::Ecosystem;
-use rusqlite::{Connection, params};
 use serde_json::{Map, Value};
 use std::collections::BTreeMap;
 
@@ -44,14 +44,17 @@ pub(super) struct TagMove<'change> {
 }
 
 pub(super) fn stored_tags(
-    connection: &Connection,
+    connection: &dyn Connection,
     key: &PackageKey,
-) -> rusqlite::Result<BTreeMap<String, String>> {
-    let mut statement = connection.prepare_cached(
-        "SELECT tag, version FROM tags WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3",
-    )?;
-    statement
-        .query_map(key.params(), |row| Ok((row.get(0)?, row.get(1)?)))?
+) -> Result<BTreeMap<String, String>> {
+    let (catalog, ecosystem, name) = key.params();
+    connection
+        .query(
+            "SELECT tag, version FROM tags WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3",
+            params![catalog, ecosystem, name],
+        )?
+        .into_iter()
+        .map(|mut row| Ok((row.get(0)?, row.get(1)?)))
         .collect()
 }
 
@@ -94,7 +97,7 @@ pub(super) fn record_tag_move(commit: &Commit<'_>, change: &TagMove<'_>) -> Resu
 /// Move one tag of an npm package in its own commit, stamping
 /// `time.modified`. A change that leaves the tag where it is commits nothing.
 pub(super) fn change_tag(
-    connection: &mut Connection,
+    connection: &dyn Connection,
     key: &PackageKey,
     change: &OwnedTagChange,
 ) -> Result<TagUpdate> {
@@ -160,24 +163,27 @@ pub struct TagHistoryEntry {
 }
 
 pub(super) fn tag_history(
-    connection: &Connection,
+    connection: &dyn Connection,
     key: &PackageKey,
     tag: &str,
 ) -> Result<Vec<TagHistoryEntry>> {
-    let mut statement = connection.prepare_cached(
-        "SELECT generation, previous, target, principal, changed_at FROM tag_history
-         WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 AND tag = ?4
-         ORDER BY generation",
-    )?;
     let (catalog, ecosystem, name) = key.params();
-    let entries = statement.query_map(params![catalog, ecosystem, name, tag], |row| {
-        Ok(TagHistoryEntry {
-            generation: super::to_generation(row.get(0)?),
-            previous: row.get(1)?,
-            target: row.get(2)?,
-            principal: row.get(3)?,
-            changed_at: row.get(4)?,
+    connection
+        .query(
+            "SELECT generation, previous, target, principal, changed_at FROM tag_history
+             WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 AND tag = ?4
+             ORDER BY generation",
+            params![catalog, ecosystem, name, tag],
+        )?
+        .into_iter()
+        .map(|mut row| {
+            Ok(TagHistoryEntry {
+                generation: super::to_generation(row.get(0)?),
+                previous: row.get(1)?,
+                target: row.get(2)?,
+                principal: row.get(3)?,
+                changed_at: row.get(4)?,
+            })
         })
-    })?;
-    Ok(entries.collect::<rusqlite::Result<_>>()?)
+        .collect()
 }

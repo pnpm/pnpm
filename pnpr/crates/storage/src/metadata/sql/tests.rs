@@ -103,7 +103,7 @@ async fn generation(storage: &Storage, name: &str) -> Option<Generation> {
 
 fn stats(storage: &Storage) -> RenderStats {
     storage
-        .sqlite_metadata()
+        .sql_metadata()
         .unwrap()
         .render_stats()
 }
@@ -343,7 +343,7 @@ async fn tag_moves_are_recorded() {
         .await
         .unwrap();
     let history = storage
-        .sqlite_metadata()
+        .sql_metadata()
         .unwrap()
         .tag_history(&npm("pkg"), "", "latest")
         .unwrap();

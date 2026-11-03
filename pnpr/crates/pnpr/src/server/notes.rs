@@ -23,14 +23,14 @@ use super::{
 use axum::response::{IntoResponse, Response};
 use pnpr_error::RegistryError;
 use pnpr_package_name::{CanonicalPackageName, Ecosystem};
-use pnpr_storage::metadata::{NoteChange, SqliteMetadata};
+use pnpr_storage::metadata::{NoteChange, SqlMetadata};
 use responses::version_note_response;
 use std::sync::Arc;
 
 /// The hosted package a notes request addresses, once the caller may reach
 /// it.
 struct NotesTarget {
-    database: Arc<SqliteMetadata>,
+    database: Arc<SqlMetadata>,
     name: CanonicalPackageName,
     target: WriteTarget,
 }
@@ -45,7 +45,7 @@ async fn notes_target(
     writes: bool,
 ) -> Result<NotesTarget, Response> {
     let database = state.inner.storage
-        .sqlite_metadata()
+        .sql_metadata()
         .cloned()
         .ok_or_else(not_found)?;
     let name = CanonicalPackageName::parse(raw_name, Ecosystem::Npm).map_err(|_| not_found())?;

@@ -14,7 +14,7 @@ fn change(text: Option<&str>) -> NoteChange {
 async fn notes_published_with_a_release_keep_their_initial_digest() {
     let tmp = TempDir::new().unwrap();
     let storage = storage(&tmp);
-    let database = storage.sqlite_metadata().unwrap();
+    let database = storage.sql_metadata().unwrap();
     let document = BatchDocument {
         ecosystem: Ecosystem::Npm,
         name: "core".to_string(),
@@ -83,7 +83,7 @@ async fn a_note_needs_its_subject_and_passes_the_content_rules() {
     let tmp = TempDir::new().unwrap();
     let storage = storage(&tmp);
     write(&storage, "pkg", &packument("pkg", &["1.0.0"])).await;
-    let database = storage.sqlite_metadata().unwrap();
+    let database = storage.sql_metadata().unwrap();
     assert!(
         !database
             .set_version_note(&npm("pkg"), "", "2.0.0", change(Some("x")))
@@ -112,7 +112,7 @@ async fn a_publish_time_note_needs_a_version_the_commit_introduces() {
     let tmp = TempDir::new().unwrap();
     let storage = storage(&tmp);
     write(&storage, "core", &packument("core", &["1.0.0"])).await;
-    let database = storage.sqlite_metadata().unwrap();
+    let database = storage.sql_metadata().unwrap();
     // The commit only moves a tag; 1.0.0 was introduced before it.
     let mut retagged = packument("core", &["1.0.0"]);
     retagged["dist-tags"]["next"] = serde_json::json!("1.0.0");

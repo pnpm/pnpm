@@ -284,7 +284,7 @@ pub(super) async fn commit_publishes(
     state: &AppState,
     staged: Vec<StagedPublish>,
 ) -> Result<CommitOutcome, RegistryError> {
-    if state.inner.storage.sqlite_metadata().is_some() {
+    if state.inner.storage.sql_metadata().is_some() {
         commit_publication(state, staged, PublishNotes::default(), None).await?;
         return Ok(CommitOutcome::default());
     }

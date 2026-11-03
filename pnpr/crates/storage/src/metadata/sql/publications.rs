@@ -4,11 +4,15 @@
 //! is the catalog generation it committed, which is unique within the catalog
 //! and orders publications with every other commit.
 
-use super::{PackageKey, batch::Batch, to_column, to_generation};
+use super::{
+    PackageKey,
+    adapter::{Connection, Row},
+    batch::Batch,
+    to_column, to_generation,
+};
 use crate::metadata::{ArtifactMember, Publication, PublicationRequest, RecordedOutcome};
 use pnpr_error::{RegistryError, Result};
 use pnpr_package_name::Ecosystem;
-use rusqlite::{Connection, OptionalExtension, ffi, params};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 /// How long a recorded outcome answers a retry of its request.
@@ -27,28 +31,26 @@ fn retention_cutoff() -> i64 {
 /// when it is still retained and its request had `digest`. The same request
 /// sent to another catalog is another publish.
 pub(super) fn recorded_outcome(
-    connection: &Connection,
+    connection: &dyn Connection,
     catalog: &str,
     principal: &str,
     key: &str,
     digest: &str,
 ) -> Result<Option<RecordedOutcome>> {
-    let outcome = connection
-        .query_row(
-            "SELECT catalog, generation, publication FROM publication_outcomes
-             WHERE catalog = ?1 AND principal = ?2 AND idempotency_key = ?3
-               AND request_digest = ?4 AND committed_at >= ?5",
-            params![catalog, principal, key, digest, retention_cutoff()],
-            |row| {
-                Ok(RecordedOutcome {
-                    catalog: row.get(0)?,
-                    generation: to_generation(row.get(1)?),
-                    publication: row.get::<_, Option<i64>>(2)?.map(to_generation),
-                })
-            },
-        )
-        .optional()?;
-    Ok(outcome)
+    let row = connection.query_optional(
+        "SELECT catalog, generation, publication FROM publication_outcomes
+         WHERE catalog = ?1 AND principal = ?2 AND idempotency_key = ?3
+           AND request_digest = ?4 AND committed_at >= ?5",
+        params![catalog, principal, key, digest, retention_cutoff()],
+    )?;
+    row.map(|mut row| {
+        Ok(RecordedOutcome {
+            catalog: row.get(0)?,
+            generation: to_generation(row.get(1)?),
+            publication: row.get::<Option<i64>>(2)?.map(to_generation),
+        })
+    })
+    .transpose()
 }
 
 /// Check the request's idempotency claim inside the batch: the outcome of an
@@ -60,23 +62,20 @@ pub(super) fn claim(
 ) -> Result<Option<RecordedOutcome>> {
     let stored = batch
         .transaction()
-        .query_row(
+        .query_optional(
             "SELECT request_digest, generation, publication FROM publication_outcomes
-             WHERE catalog = ?1 AND principal = ?2 AND idempotency_key = ?3 AND committed_at >= ?4",
+         WHERE catalog = ?1 AND principal = ?2 AND idempotency_key = ?3 AND committed_at >= ?4",
             params![
                 batch.catalog(),
                 request.principal,
                 request.idempotency_key,
                 retention_cutoff()
             ],
-            |row| {
-                let digest: String = row.get(0)?;
-                let generation = to_generation(row.get(1)?);
-                Ok((digest, generation, row.get::<_, Option<i64>>(2)?.map(to_generation)))
-            },
-        )
-        .optional()?;
-    let Some((digest, generation, publication)) = stored else { return Ok(None) };
+        )?;
+    let Some(mut stored) = stored else { return Ok(None) };
+    let digest: String = stored.get(0)?;
+    let generation = to_generation(stored.get(1)?);
+    let publication = stored.get::<Option<i64>>(2)?.map(to_generation);
     if digest != request.request_digest {
         return Err(RegistryError::AdminConflict {
             reason: "the idempotency key was already used for a different request".to_string(),
@@ -119,7 +118,7 @@ fn record_outcome(
         .transaction()
         .execute(
             "DELETE FROM publication_outcomes WHERE committed_at < ?1",
-            [retention_cutoff()],
+            params![retention_cutoff()],
         )?;
     batch
         .transaction()
@@ -145,19 +144,27 @@ fn record_outcome(
 
 /// The npm versions this batch accepted, as publication members.
 fn accepted_members(batch: &Batch<'_>) -> Result<Vec<ArtifactMember>> {
-    let mut statement = batch
+    let rows = batch
         .transaction()
-        .prepare_cached(
+        .query(
             "SELECT ecosystem, name, version, integrity FROM versions
          WHERE catalog = ?1 AND accepted_generation = ?2 ORDER BY ecosystem, name, version",
+            params![batch.catalog(), to_column(batch.generation())],
         )?;
-    let members = statement
-        .query_map(params![batch.catalog(), to_column(batch.generation())], member_row)?
-        .collect::<rusqlite::Result<Vec<_>>>()?;
+    members(rows)
+}
+
+/// The members `rows` name, without those of an ecosystem this pnpr does not
+/// know.
+fn members(rows: Vec<Row>) -> Result<Vec<ArtifactMember>> {
+    let members = rows
+        .into_iter()
+        .map(member_row)
+        .collect::<Result<Vec<_>>>()?;
     Ok(members.into_iter().flatten().collect())
 }
 
-fn member_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Option<ArtifactMember>> {
+fn member_row(mut row: Row) -> Result<Option<ArtifactMember>> {
     let ecosystem: String = row.get(0)?;
     let Some(ecosystem) = Ecosystem::all().find(|known| known.as_str() == ecosystem) else {
         return Ok(None);
@@ -178,28 +185,24 @@ fn insert_publication(
 ) -> Result<()> {
     let id = to_column(batch.generation());
     let name = request.and_then(|request| request.name.as_deref());
-    let inserted = batch
+    if let Some(name) = name {
+        refuse_taken_name(batch, name)?;
+    }
+    batch
         .transaction()
         .execute(
             "INSERT INTO publications (catalog, id, name, principal, committed_at)
          VALUES (?1, ?2, ?3, ?4, ?5)",
             params![batch.catalog(), id, name, principal, crate::publish::now_iso()],
-        );
-    if let Err(rusqlite::Error::SqliteFailure(error, _)) = &inserted
-        && error.extended_code == ffi::SQLITE_CONSTRAINT_UNIQUE
-    {
-        return Err(RegistryError::AdminConflict {
-            reason: format!("a publication named {} already exists", name.unwrap_or_default()),
-        });
-    }
-    inserted?;
+        )?;
     for member in members {
         batch
             .transaction()
             .execute(
-                "INSERT OR IGNORE INTO publication_members
+                "INSERT INTO publication_members
                (catalog, publication, ecosystem, name, version, artifact)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+             ON CONFLICT DO NOTHING",
                 params![
                     batch.catalog(),
                     id,
@@ -213,60 +216,74 @@ fn insert_publication(
     Ok(())
 }
 
+/// Refuse a publication name the catalog already gave another publication.
+/// The batch holds the write lock, so no other commit takes the name
+/// between this check and the insert.
+fn refuse_taken_name(batch: &Batch<'_>, name: &str) -> Result<()> {
+    let taken = batch
+        .transaction()
+        .query_optional(
+            "SELECT 1 FROM publications WHERE catalog = ?1 AND name = ?2",
+            params![batch.catalog(), name],
+        )?;
+    match taken {
+        Some(_) => Err(RegistryError::AdminConflict {
+            reason: format!("a publication named {name} already exists"),
+        }),
+        None => Ok(()),
+    }
+}
+
 /// The publication `id_or_name` names in `catalog`: a decimal number is an
 /// id, since a publication name never is one, and anything else a name.
 pub(super) fn publication(
-    connection: &Connection,
+    connection: &dyn Connection,
     catalog: &str,
     id_or_name: &str,
 ) -> Result<Option<Publication>> {
     let decimal = !id_or_name.is_empty() && id_or_name.bytes().all(|byte| byte.is_ascii_digit());
     let (by_id, by_name) =
         if decimal { (id_or_name.parse::<i64>().ok(), None) } else { (None, Some(id_or_name)) };
-    let row = connection
-        .query_row(
-            "SELECT id, name, principal, committed_at FROM publications
-             WHERE catalog = ?1 AND (id = ?2 OR name = ?3)",
-            params![catalog, by_id, by_name],
-            |row| {
-                Ok(Publication {
-                    catalog: catalog.to_string(),
-                    id: to_generation(row.get(0)?),
-                    name: row.get(1)?,
-                    publisher: row.get(2)?,
-                    committed_at: row.get(3)?,
-                    members: Vec::new(),
-                })
-            },
-        )
-        .optional()?;
-    row.map(|publication| with_members(connection, publication)).transpose()
+    let row = connection.query_optional(
+        "SELECT id, name, principal, committed_at FROM publications
+         WHERE catalog = ?1 AND (id = ?2 OR name = ?3)",
+        params![catalog, by_id, by_name],
+    )?;
+    let Some(mut row) = row else { return Ok(None) };
+    let publication = Publication {
+        catalog: catalog.to_string(),
+        id: to_generation(row.get(0)?),
+        name: row.get(1)?,
+        publisher: row.get(2)?,
+        committed_at: row.get(3)?,
+        members: Vec::new(),
+    };
+    with_members(connection, publication).map(Some)
 }
 
-fn with_members(connection: &Connection, mut publication: Publication) -> Result<Publication> {
-    let mut statement = connection.prepare_cached(
+fn with_members(connection: &dyn Connection, mut publication: Publication) -> Result<Publication> {
+    let rows = connection.query(
         "SELECT ecosystem, name, version, artifact FROM publication_members
          WHERE catalog = ?1 AND publication = ?2 ORDER BY ecosystem, name, version, artifact",
+        params![publication.catalog, to_column(publication.id)],
     )?;
-    let members = statement
-        .query_map(params![publication.catalog, to_column(publication.id)], member_row)?
-        .collect::<rusqlite::Result<Vec<_>>>()?;
-    publication.members = members.into_iter().flatten().collect();
+    publication.members = members(rows)?;
     Ok(publication)
 }
 
 /// The publication that introduced `version` of `key`.
 pub(super) fn initial_publication(
-    connection: &Connection,
+    connection: &dyn Connection,
     key: &PackageKey,
     version: &str,
 ) -> Result<Option<Publication>> {
     let (catalog, ecosystem, name) = key.params();
-    let id: Option<i64> = connection.query_row(
-        "SELECT MIN(publication) FROM publication_members
+    let id: Option<i64> = connection
+        .query_one(
+            "SELECT MIN(publication) FROM publication_members
              WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4",
-        params![catalog, ecosystem, name, version],
-        |row| row.get(0),
-    )?;
+            params![catalog, ecosystem, name, version],
+        )?
+        .get(0)?;
     id.map_or(Ok(None), |id| publication(connection, catalog, &id.to_string()))
 }

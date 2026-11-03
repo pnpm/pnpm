@@ -66,7 +66,7 @@ pub(in super::super) fn publication_request(
     name: Option<&str>,
     target: Option<&CanonicalPackageName>,
 ) -> Option<PublicationRequest> {
-    state.inner.storage.sqlite_metadata()?;
+    state.inner.storage.sql_metadata()?;
     let principal = identity.username()?.to_string();
     let request_digest = request_digest(body, target.map(CanonicalPackageName::as_str));
     let idempotency_key = key.map_or_else(|| format!("request:{request_digest}"), str::to_string);
@@ -114,7 +114,7 @@ pub(in super::super) async fn replayed_outcome(
     catalog: &str,
     request: Option<&PublicationRequest>,
 ) -> Result<Option<Response>, RegistryError> {
-    let (Some(request), Some(database)) = (request, state.inner.storage.sqlite_metadata()) else {
+    let (Some(request), Some(database)) = (request, state.inner.storage.sql_metadata()) else {
         return Ok(None);
     };
     let Some(outcome) = database.recorded_outcome(catalog, request).await? else {
@@ -151,7 +151,7 @@ async fn commit_staged(
     notes: PublishNotes,
     request: Option<PublicationRequest>,
 ) -> Result<PublishReceipt, RegistryError> {
-    let Some(database) = state.inner.storage.sqlite_metadata().cloned() else {
+    let Some(database) = state.inner.storage.sql_metadata().cloned() else {
         report_unrecorded(super::commit_through_journal(state, staged).await?)?;
         return Ok(PublishReceipt::default());
     };

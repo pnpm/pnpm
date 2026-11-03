@@ -4,14 +4,18 @@
 //! version (`ecosystem`, `name`, `subject` = version) or a publication
 //! (`ecosystem` and `name` empty, `subject` = its id).
 
-use super::{PackageKey, batch::Batch, commit::package_row};
+use super::{
+    Freshness, PackageKey,
+    adapter::{Connection, Row},
+    batch::{Batch, WriteTransaction},
+    commit::package_row,
+};
 use crate::{
     metadata::{Note, NoteChange, PublishNotes, VersionNote, note_digest, validate_note},
     publish::now_iso,
 };
 use pnpr_error::{RegistryError, Result};
 use pnpr_package_name::CanonicalPackageName;
-use rusqlite::{Connection, OptionalExtension, Transaction, TransactionBehavior, params};
 
 const VERSION: &str = "version";
 const PUBLICATION: &str = "publication";
@@ -48,9 +52,12 @@ impl NoteSubject {
     }
 }
 
-pub(super) fn read_note(connection: &Connection, subject: &NoteSubject) -> Result<Option<Note>> {
-    let note = connection
-        .query_row(
+pub(super) fn read_note(
+    connection: &dyn Connection,
+    subject: &NoteSubject,
+) -> Result<Option<Note>> {
+    connection
+        .query_optional(
             "SELECT text, modified_at, principal, initial_digest FROM notes
              WHERE catalog = ?1 AND kind = ?2 AND ecosystem = ?3 AND name = ?4 AND subject = ?5",
             params![
@@ -60,13 +67,12 @@ pub(super) fn read_note(connection: &Connection, subject: &NoteSubject) -> Resul
                 subject.name,
                 subject.subject
             ],
-            note_row,
-        )
-        .optional()?;
-    Ok(note)
+        )?
+        .map(note_row)
+        .transpose()
 }
 
-fn note_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Note> {
+fn note_row(mut row: Row) -> Result<Note> {
     Ok(Note {
         text: row.get(0)?,
         modified: row.get(1)?,
@@ -79,7 +85,7 @@ fn note_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Note> {
 /// change. Answers `false` when the subject does not exist: notes are never
 /// created ahead of what they describe.
 pub(super) fn change_note(
-    connection: &mut Connection,
+    connection: &dyn Connection,
     subject: &NoteSubject,
     text: Option<&str>,
     principal: &str,
@@ -87,26 +93,23 @@ pub(super) fn change_note(
     if let Some(text) = text {
         validate_note(text)?;
     }
-    let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
-    if !subject_exists(&transaction, subject)? {
+    let transaction = WriteTransaction::begin(connection)?;
+    if !subject_exists(&*transaction, subject)? {
         return Ok(false);
     }
-    let previous = read_note(&transaction, subject)?;
+    let previous = read_note(&*transaction, subject)?;
     let initial_digest = previous.and_then(|note| note.initial_digest);
-    write_note(&transaction, subject, text, Some(principal), initial_digest.as_deref())?;
+    write_note(&*transaction, subject, text, Some(principal), initial_digest.as_deref())?;
     transaction.commit()?;
     Ok(true)
 }
 
-fn subject_exists(transaction: &Transaction<'_>, subject: &NoteSubject) -> Result<bool> {
+fn subject_exists(transaction: &dyn Connection, subject: &NoteSubject) -> Result<bool> {
     if subject.kind == PUBLICATION {
-        let exists: Option<i64> = transaction
-            .query_row(
-                "SELECT 1 FROM publications WHERE catalog = ?1 AND id = ?2",
-                params![subject.catalog, subject.subject.parse::<i64>().unwrap_or(-1)],
-                |row| row.get(0),
-            )
-            .optional()?;
+        let exists = transaction.query_optional(
+            "SELECT 1 FROM publications WHERE catalog = ?1 AND id = ?2",
+            params![subject.catalog, subject.subject.parse::<i64>().unwrap_or(-1)],
+        )?;
         return Ok(exists.is_some());
     }
     let ecosystem = pnpr_package_name::Ecosystem::all()
@@ -117,20 +120,17 @@ fn subject_exists(transaction: &Transaction<'_>, subject: &NoteSubject) -> Resul
     if ecosystem != pnpr_package_name::Ecosystem::Npm {
         return Ok(package_row(transaction, &key)?.is_some());
     }
-    let exists: Option<i64> = transaction
-        .query_row(
-            "SELECT 1 FROM versions WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3
-             AND version = ?4 LIMIT 1",
-            params![key.catalog, subject.ecosystem, key.name, subject.subject],
-            |row| row.get(0),
-        )
-        .optional()?;
+    let exists = transaction.query_optional(
+        "SELECT 1 FROM versions WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3
+         AND version = ?4 LIMIT 1",
+        params![key.catalog, subject.ecosystem, key.name, subject.subject],
+    )?;
     Ok(exists.is_some())
 }
 
 /// Store a note's text, `None` for a deletion, keeping its history.
 fn write_note(
-    transaction: &Transaction<'_>,
+    transaction: &dyn Connection,
     subject: &NoteSubject,
     text: Option<&str>,
     principal: Option<&str>,
@@ -220,7 +220,7 @@ fn refuse_unpublished_subject(
     let introduced = match publication {
         Some(id) => batch
             .transaction()
-            .query_row(
+            .query_optional(
                 "SELECT 1 FROM publication_members
                  WHERE catalog = ?1 AND publication = ?2 AND ecosystem = ?3 AND name = ?4
                    AND (version = ?5 OR version = '')
@@ -232,9 +232,7 @@ fn refuse_unpublished_subject(
                     note.name,
                     note.version,
                 ],
-                |_| Ok(()),
-            )
-            .optional()?
+            )?
             .is_some(),
         None => false,
     };
@@ -264,7 +262,7 @@ fn store_initial(
     write_note(batch.transaction(), subject, Some(text), principal, Some(&note_digest(text)))
 }
 
-impl super::SqliteMetadata {
+impl super::SqlMetadata {
     /// The note of `version` of `name` in `org`.
     pub async fn version_note(
         self: &std::sync::Arc<Self>,
@@ -273,7 +271,7 @@ impl super::SqliteMetadata {
         version: &str,
     ) -> Result<Option<Note>> {
         let subject = NoteSubject::version(&package_key(name, org), version);
-        self.read(move |connection, _| read_note(connection, &subject)).await
+        self.read(Freshness::Bounded, move |connection, _| read_note(connection, &subject)).await
     }
 
     /// The current versions of `name` in `org` whose note holds text or the
@@ -285,20 +283,22 @@ impl super::SqliteMetadata {
         org: &str,
     ) -> Result<Vec<String>> {
         let key = package_key(name, org);
-        self.read(move |connection, _| {
-            let mut statement = connection.prepare_cached(
-                "SELECT n.subject FROM notes n
-                 WHERE n.catalog = ?1 AND n.kind = 'version' AND n.ecosystem = ?2 AND n.name = ?3
-                   AND (n.text IS NOT NULL OR n.initial_digest IS NOT NULL)
-                   AND (n.ecosystem != 'npm' OR EXISTS (
-                     SELECT 1 FROM versions v WHERE v.catalog = n.catalog
-                       AND v.ecosystem = n.ecosystem AND v.name = n.name
-                       AND v.version = n.subject))",
-            )?;
-            let versions = statement
-                .query_map(key.params(), |row| row.get(0))?
-                .collect::<rusqlite::Result<Vec<String>>>()?;
-            Ok(versions)
+        self.read(Freshness::Bounded, move |connection, _| {
+            let (catalog, ecosystem, name) = key.params();
+            connection
+                .query(
+                    "SELECT n.subject FROM notes n
+                     WHERE n.catalog = ?1 AND n.kind = 'version' AND n.ecosystem = ?2
+                       AND n.name = ?3 AND (n.text IS NOT NULL OR n.initial_digest IS NOT NULL)
+                       AND (n.ecosystem != 'npm' OR EXISTS (
+                         SELECT 1 FROM versions v WHERE v.catalog = n.catalog
+                           AND v.ecosystem = n.ecosystem AND v.name = n.name
+                           AND v.version = n.subject))",
+                    params![catalog, ecosystem, name],
+                )?
+                .into_iter()
+                .map(|mut row| row.get(0))
+                .collect()
         })
         .await
     }
@@ -326,7 +326,7 @@ impl super::SqliteMetadata {
         id: u64,
     ) -> Result<Option<Note>> {
         let subject = NoteSubject::publication(org, id);
-        self.read(move |connection, _| read_note(connection, &subject)).await
+        self.read(Freshness::Bounded, move |connection, _| read_note(connection, &subject)).await
     }
 
     /// Replace the note of publication `id`, or delete it with `None`.
@@ -353,7 +353,7 @@ fn package_key(name: &CanonicalPackageName, org: &str) -> PackageKey {
     }
 }
 
-impl super::SqliteMetadata {
+impl super::SqlMetadata {
     /// Whether `version` of `name` in `org` is accepted and not removed.
     pub async fn has_version(
         self: &std::sync::Arc<Self>,
@@ -362,16 +362,13 @@ impl super::SqliteMetadata {
         version: &str,
     ) -> Result<bool> {
         let (key, version) = (package_key(name, org), version.to_string());
-        self.read(move |connection, _| {
+        self.read(Freshness::Bounded, move |connection, _| {
             let (catalog, ecosystem, name) = key.params();
-            let found = connection
-                .query_row(
-                    "SELECT 1 FROM versions
-                     WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4",
-                    rusqlite::params![catalog, ecosystem, name, version],
-                    |_| Ok(()),
-                )
-                .optional()?;
+            let found = connection.query_optional(
+                "SELECT 1 FROM versions
+                 WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4",
+                params![catalog, ecosystem, name, version],
+            )?;
             Ok(found.is_some())
         })
         .await
@@ -387,8 +384,9 @@ impl super::SqliteMetadata {
         org: &str,
     ) -> Result<Vec<(String, u64)>> {
         let key = package_key(name, org);
-        self.read(move |connection, _| {
-            let mut statement = connection.prepare_cached(
+        self.read(Freshness::Bounded, move |connection, _| {
+            let (catalog, ecosystem, name) = key.params();
+            let rows = connection.query(
                 "SELECT p.version, p.publication FROM (
                    SELECT m.version, MIN(m.publication) AS publication FROM publication_members m
                    WHERE m.catalog = ?1 AND m.ecosystem = ?2 AND m.name = ?3
@@ -402,13 +400,11 @@ impl super::SqliteMetadata {
                    SELECT 1 FROM notes n WHERE n.catalog = ?1 AND n.kind = 'publication'
                      AND n.ecosystem = '' AND n.name = '' AND n.subject = CAST(p.publication AS TEXT)
                      AND (n.text IS NOT NULL OR n.initial_digest IS NOT NULL))",
+                params![catalog, ecosystem, name],
             )?;
-            let rows = statement
-                .query_map(key.params(), |row| {
-                    Ok((row.get(0)?, super::to_generation(row.get(1)?)))
-                })?
-                .collect::<rusqlite::Result<Vec<_>>>()?;
-            Ok(rows)
+            rows.into_iter()
+                .map(|mut row| Ok((row.get(0)?, super::to_generation(row.get(1)?))))
+                .collect()
         })
         .await
     }
