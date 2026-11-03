@@ -207,7 +207,7 @@ fn a_write_left_in_its_transaction_does_not_block_the_next() {
 
 #[test]
 fn a_read_left_in_its_transaction_is_not_reused() {
-    use super::super::adapter::{Adapter, ReadSource};
+    use super::super::adapter::ReadSource;
     let tmp = TempDir::new().unwrap();
     let metadata = SqlMetadata::open_sqlite(&tmp.path().join("metadata.sqlite")).unwrap();
     metadata.adapter
