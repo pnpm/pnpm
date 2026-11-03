@@ -96,10 +96,14 @@ fn member_manifests(tree: &dyn Tree, workspace: &Table) -> Result<Vec<Manifest>,
         .get("members")
         .and_then(Value::as_array)
         .ok_or("[workspace] has no members")?;
+    let excluded = excluded_dirs(workspace);
     let mut manifests = Vec::new();
     for member in members {
         let member = member.as_str().ok_or("a workspace member is not a string")?;
         for dir in member_dirs(tree, member)? {
+            if excluded.contains(dir.as_str()) {
+                continue;
+            }
             let path = format!("{dir}/Cargo.toml");
             if let Some(manifest) = parse(tree, &path)? {
                 manifests.push((path, manifest));
@@ -107,6 +111,17 @@ fn member_manifests(tree: &dyn Tree, workspace: &Table) -> Result<Vec<Manifest>,
         }
     }
     Ok(manifests)
+}
+
+/// The `[workspace] exclude` entries, which Cargo drops from the members a
+/// glob matches.
+fn excluded_dirs(workspace: &Table) -> BTreeSet<&str> {
+    let entries = workspace.get("exclude").and_then(Value::as_array);
+    entries
+        .into_iter()
+        .flatten()
+        .filter_map(Value::as_str)
+        .collect()
 }
 
 /// Expands a member entry. Only a literal directory and a trailing `/*` are

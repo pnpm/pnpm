@@ -87,6 +87,17 @@ base = { path = "../base" }
 }
 
 #[test]
+fn skips_excluded_workspace_directories() {
+    let tree = MemoryTree(BTreeMap::from([
+        ("Cargo.toml", "[workspace]\nmembers = [\"crates/*\"]\nexclude = [\"crates/vendored\"]\n"),
+        ("crates/kept/Cargo.toml", "[package]\nname = \"kept\"\n"),
+        ("crates/vendored/Cargo.toml", "[package]\nname = \"vendored\"\n"),
+    ]));
+    let graph = graph::read(&tree).unwrap();
+    assert_eq!(graph.crates.into_iter().collect::<Vec<_>>(), vec!["kept".to_owned()]);
+}
+
+#[test]
 fn reports_upward_edges_but_not_upward_dev_dependencies() {
     let mut graph = workspace("[package]\nname = \"top\"\n");
     graph.edges.insert(edge("base", "top", DependencyKind::Dev));
