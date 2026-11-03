@@ -101,7 +101,9 @@ async fn pipeline_surface_records_lists_and_serves_runs_append_only() {
                     "admin": false,
                     "scim": false,
                     "signIn": false
-                }
+                },
+                "records": [],
+                "manifestProfiles": []
             }
         }),
     );

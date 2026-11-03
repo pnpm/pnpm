@@ -328,6 +328,7 @@ fn npm_registry_routes() -> Router<AppState> {
         let with_audit = super::security_audit::routes(with_teams, base)
             .route(&path("/-/v1/search"), get(get_search))
             .route(&path("/-/npm/v1/keys"), get(super::attestations::get_keys))
+            .route(&path("/-/log/{*resource}"), get(super::log_routes::get_log_resource))
             .route(
                 &path("/-/npm/v1/attestations/{*spec}"),
                 get(super::attestations::get_attestations),
@@ -348,7 +349,7 @@ fn npm_registry_routes() -> Router<AppState> {
 /// and `-rev` markers do: whatever stands to their left is the package.
 fn npm_package_routes(router: Router<AppState>, base: &str) -> Router<AppState> {
     let path = |tail: &str| format!("{base}{tail}");
-    router
+    npm_version_routes(router, base)
         .route(&path("/{name}"), get(get_packument).put(put_package).delete(unpublish_package))
         .route(
             &path("/{first}/{second}"),
@@ -369,13 +370,6 @@ fn npm_package_routes(router: Router<AppState>, base: &str) -> Router<AppState> 
                 .delete(note_handlers::three_segments)
                 .route_layer(DefaultBodyLimit::max(MAX_NOTE_BYTES)),
         )
-        .route(
-            &path("/{scope}/{name}/{version}/notes"),
-            get(note_handlers::scoped_version_note)
-                .put(note_handlers::scoped_version_note)
-                .delete(note_handlers::scoped_version_note)
-                .route_layer(DefaultBodyLimit::max(MAX_NOTE_BYTES)),
-        )
         .route(&path("/{name}/-/notes"), get(note_handlers::package_notes))
         .route(&path("/{scope}/{name}/-/notes"), get(note_handlers::scoped_package_notes))
         .route(&path("/{scope}/{name}/variants/{tag}"), get(get_scoped_variant_tarball))
@@ -385,6 +379,24 @@ fn npm_package_routes(router: Router<AppState>, base: &str) -> Router<AppState> 
         )
         .route(&path("/{name}/-/{filename}/-rev/{rev}"), delete(unpublish_tarball))
         .route(&path("/{scope}/{name}/-/{filename}/-rev/{rev}"), delete(unpublish_scoped_tarball))
+}
+
+/// What a scoped version address of two literal segments is followed by:
+/// its release record's evidence and its note.
+fn npm_version_routes(router: Router<AppState>, base: &str) -> Router<AppState> {
+    let path = |tail: &str| format!("{base}{tail}");
+    router
+        .route(
+            &path("/{scope}/{name}/{version}/evidence"),
+            get(note_handlers::scoped_record_evidence),
+        )
+        .route(
+            &path("/{scope}/{name}/{version}/notes"),
+            get(note_handlers::scoped_version_note)
+                .put(note_handlers::scoped_version_note)
+                .delete(note_handlers::scoped_version_note)
+                .route_layer(DefaultBodyLimit::max(MAX_NOTE_BYTES)),
+        )
 }
 
 /// `npm ping` asks the registry URL, not the server root.

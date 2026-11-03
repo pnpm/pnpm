@@ -24,6 +24,9 @@ use serde::Deserialize;
 /// The final segment of a version note's path.
 const NOTES: &str = "notes";
 
+/// The segment after a release record's address that names its evidence.
+const EVIDENCE: &str = "evidence";
+
 #[derive(Deserialize)]
 pub(super) struct ScopedNamePath {
     scope: String,
@@ -42,8 +45,14 @@ pub(super) async fn three_segments(
     Path(path): Path<ScopedVersionPath>,
     body: Bytes,
 ) -> Response {
-    let names_a_note =
-        path.version == NOTES && (!path.scope.starts_with('@') || path.scope.contains('/'));
+    // `@scope/name/notes` is the version manifest of the tag `notes`, since a
+    // name of two literal segments takes a version after it.
+    let names_a_whole_package = !path.scope.starts_with('@') || path.scope.contains('/');
+    if path.version == EVIDENCE && names_a_whole_package {
+        return record_evidence(&state, &caller, &registry, &method, (&path.scope, &path.name))
+            .await;
+    }
+    let names_a_note = path.version == NOTES && names_a_whole_package;
     if !names_a_note {
         if method != Method::GET && method != Method::HEAD {
             return not_found();
@@ -58,6 +67,43 @@ pub(super) async fn three_segments(
         .await;
     }
     version_note(&state, &caller, &registry, (&path.scope, &path.name), (&method, body)).await
+}
+
+/// `{base}/{name}/{version}+r{revision}/evidence`, for a name of one segment.
+async fn record_evidence(
+    state: &AppState,
+    caller: &AuthedCaller,
+    registry: &TargetRegistry,
+    method: &Method,
+    (name, address): (&str, &str),
+) -> Response {
+    if method != Method::GET && method != Method::HEAD {
+        return not_found();
+    }
+    let registry = registry.0.as_deref();
+    super::super::log_routes::serve_record_evidence(state, &caller.0, registry, name, address).await
+}
+
+/// `{base}/@{scope}/{name}/{version}+r{revision}/evidence`.
+pub(super) async fn scoped_record_evidence(
+    State(state): State<AppState>,
+    caller: AuthedCaller,
+    registry: TargetRegistry,
+    Path(path): Path<ScopedVersionPath>,
+) -> Response {
+    if !path.scope.starts_with('@') {
+        return not_found();
+    }
+    let name = format!("{}/{}", path.scope, path.name);
+    let registry = registry.0.as_deref();
+    super::super::log_routes::serve_record_evidence(
+        &state,
+        &caller.0,
+        registry,
+        &name,
+        &path.version,
+    )
+    .await
 }
 
 /// `{base}/@{scope}/{name}/{version}/notes`.
