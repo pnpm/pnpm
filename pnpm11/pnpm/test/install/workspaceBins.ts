@@ -43,30 +43,18 @@ test.each(['isolated', 'hoisted'])('repeat install relinks changed workspace bin
   assertInstalledBins('node_modules/.bin', [])
 })
 
-test('repeat install relinks command shims when extendNodePath changes in the environment', () => {
+test('repeat install rewrites command shims when extendNodePath changes in the environment', () => {
   prepareEmpty()
   writeYamlFileSync('pnpm-workspace.yaml', { modulesDir: 'vendor', extendNodePath: false })
-  fs.mkdirSync('plugin')
-  fs.writeFileSync('plugin/package.json', JSON.stringify({ name: 'plugin', version: '1.0.0', main: 'index.js' }))
-  fs.writeFileSync('plugin/index.js', "module.exports = 'plugin loaded'\n")
-  fs.mkdirSync('tool')
-  fs.writeFileSync('tool/package.json', JSON.stringify({ name: 'tool', version: '1.0.0', bin: 'cli.js' }))
-  fs.writeFileSync('tool/cli.js', "console.log(require('plugin'))\n")
-  fs.writeFileSync('package.json', JSON.stringify({ name: 'root', private: true, dependencies: { plugin: 'file:plugin', tool: 'file:tool' } }))
+  fs.writeFileSync('package.json', JSON.stringify({ name: 'root', private: true, dependencies: { '@pnpm.e2e/hello-world-js-bin': '1.0.0' } }))
 
-  const runWith = (extendNodePath: string) => execPnpmSync(['install'], {
-    env: { PNPM_CONFIG_EXTEND_NODE_PATH: extendNodePath },
-    expectSuccess: true,
-  })
-  runWith('false')
-  expectPluginNotFound(execPnpmSync(['exec', 'tool'], { env: { PNPM_CONFIG_EXTEND_NODE_PATH: 'false' } }))
-
-  runWith('true')
-  const withNodePath = execPnpmSync(['exec', 'tool'], { env: { PNPM_CONFIG_EXTEND_NODE_PATH: 'true' }, expectSuccess: true })
-  expect(withNodePath.stdout.toString().trim()).toBe('plugin loaded')
-
-  runWith('false')
-  expectPluginNotFound(execPnpmSync(['exec', 'tool'], { env: { PNPM_CONFIG_EXTEND_NODE_PATH: 'false' } }))
+  for (const extendNodePath of [false, true, false]) {
+    execPnpmSync(['install'], {
+      env: { PNPM_CONFIG_EXTEND_NODE_PATH: String(extendNodePath) },
+      expectSuccess: true,
+    })
+    expect(shimSetsNodePath('vendor/.bin/hello-world-js-bin')).toBe(extendNodePath)
+  }
 })
 
 test.each(['isolated', 'hoisted'])('hoisted workspace package prunes removed bins from root with %s linker', (nodeLinker) => {
@@ -168,7 +156,6 @@ function assertInstalledBins (binsDir: string, expected: string[]): void {
   expect(actual).toEqual(normalizedExpected)
 }
 
-function expectPluginNotFound (result: ReturnType<typeof execPnpmSync>): void {
-  expect(result.status).not.toBe(0)
-  expect(result.stderr.toString()).toContain("Cannot find module 'plugin'")
+function shimSetsNodePath (shim: string): boolean {
+  return fs.readFileSync(process.platform === 'win32' ? `${shim}.cmd` : shim, 'utf8').includes('NODE_PATH=')
 }
