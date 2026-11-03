@@ -47,7 +47,7 @@ fn every_announced_format_is_one_this_client_reads() {
         let comver = format.parse::<ComVer>().expect("announced format parses");
         assert!(
             LockfileVersion::<9>::is_compatible(comver),
-            "{format} is announced but unreadable"
+            "{format} is announced but unreadable",
         );
     }
 }
