@@ -1,7 +1,7 @@
 pub(super) mod variants;
 
 pub(super) use atomic::{
-    add_npm_notices, commit_publication, publication_name, publication_request,
+    PublishReceipt, add_npm_notices, commit_publication, publication_name, publication_request,
     publish_committed_response, replayed_outcome, single_catalog,
 };
 pub(super) use attachments::{
@@ -33,10 +33,10 @@ use pnpr_registry::{Ecosystem, Registry};
 use pnpr_storage::{
     HostedDocumentVersion, Storage,
     journal::{CommitOutcome, JournaledPublish},
-    metadata::PublishNotes,
+    metadata::{PublicationRequest, PublishNotes},
     publish::{
         PendingAttachment, extract_attachments, now_iso, stream_decode_verify_and_write,
-        write_sigstore_bundle,
+        verify_and_write, write_sigstore_bundle,
     },
 };
 
@@ -44,7 +44,7 @@ use super::{
     Action, AppState, HostedGate, RegistrySource, WriteTarget, authorize_package,
     authorized_upstream, default_registry_target, documents::RegistryDocuments, hosted_gate,
     hosted_storage, resolve_ecosystem_source, resolve_write_target, restore_tgz_integrities,
-    tar_integrity_of, tgz_integrity_key,
+    staged_archives::StagedReferences, tar_integrity_of, tgz_integrity_key,
 };
 
 /// Where a publish of `package` writes, given an optional explicit `/~<name>/`.
@@ -236,14 +236,27 @@ pub(super) async fn publish_package(
         Err(err) => return err.into_response(),
     }
 
-    let staged = match stage_publish(state, validated, &now_iso(), Some(&target.org)).await {
-        Ok(staged) => staged,
-        Err(err) => return err.into_response(),
-    };
-    match commit_publication(state, vec![staged], notes, request).await {
-        Ok(receipt) => publish_committed_response(&receipt),
-        Err(err) => err.into_response(),
-    }
+    stage_and_commit(state, identity, validated, &target.org, (notes, request))
+        .await
+        .unwrap_or_else(IntoResponse::into_response)
+}
+
+/// Stage one validated publish into `org` and commit it, then give back the
+/// staged archives it claimed.
+async fn stage_and_commit(
+    state: &AppState,
+    identity: &Identity,
+    validated: ValidatedPublish,
+    org: &str,
+    (notes, request): (PublishNotes, Option<PublicationRequest>),
+) -> Result<Response, RegistryError> {
+    let storage = &state.inner.storage;
+    let references =
+        StagedReferences::check(storage, identity, validated.staged_integrities()).await?;
+    let staged = stage_publish(state, validated, &now_iso(), Some(org)).await?;
+    let receipt = commit_publication(state, vec![staged], notes, request).await?;
+    references.release(storage).await;
+    Ok(publish_committed_response(&receipt))
 }
 
 /// Reject a publish whose body name disagrees with the URL. npm and verdaccio

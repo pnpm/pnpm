@@ -12,10 +12,10 @@
 //! records what it derived under the server-owned `_pnprVariants`, and
 //! describes it as `variants` in its own package document only.
 //!
-//! The archives travel in the one publish body, so a version's archives
-//! together stay under the publish body limit. Uploading each archive by
-//! integrity before a commit request is part of atomic workspace
-//! publication.
+//! Each archive travels in the publish body, or is staged by integrity
+//! before it and referenced from its attachment (see
+//! [`crate::server::staged_archives`]), so a version's archives together are
+//! not bounded by one request body.
 
 pub(super) use declarations::take_declarations;
 pub(super) use verification::attach_variants;

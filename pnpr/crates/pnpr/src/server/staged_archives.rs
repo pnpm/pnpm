@@ -334,6 +334,114 @@ async fn receive_archive(body: Body, integrity: &str, size: u64) -> Result<Vec<u
     Ok(bytes)
 }
 
+/// The bytes of the archive `claimant` staged by `integrity`, which the
+/// attachment `filename` of a publish references.
+pub(super) async fn claim_staged_archive(
+    storage: &Storage,
+    claimant: Option<&str>,
+    filename: &str,
+    integrity: &str,
+) -> Result<Vec<u8>, RegistryError> {
+    let not_staged = || {
+        bad_request(format!(
+            "{filename} references the staged archive {integrity}, which the publishing account \
+             has not staged or which has expired; upload it again with \
+             PUT /-/pnpr/v0/artifacts/blob?integrity=<integrity> before publishing",
+        ))
+    };
+    let principal = claimant.ok_or_else(not_staged)?;
+    let digest = archive_digest(integrity)?;
+    storage
+        .read_staged_archive(&StagedArchiveKey { principal, digest: &digest })
+        .await?
+        .ok_or_else(not_staged)
+}
+
+/// The staged archives one publish request references, checked before any
+/// is read and given back once the request commits.
+#[derive(Default)]
+pub(super) struct StagedReferences {
+    principal: Option<String>,
+    digests: Vec<String>,
+}
+
+impl StagedReferences {
+    /// Check the staged archives `integrities` name, one per referencing
+    /// attachment, against what one request may pull in. Each reference is
+    /// read, written and decoded on its own, so a request naming one archive
+    /// many times costs as much as naming that many archives, and counts so.
+    pub(super) async fn check<'a>(
+        storage: &Storage,
+        identity: &Identity,
+        integrities: impl IntoIterator<Item = &'a str>,
+    ) -> Result<Self, RegistryError> {
+        let integrities: Vec<&str> = integrities.into_iter().collect();
+        if integrities.is_empty() {
+            return Ok(Self::default());
+        }
+        Self::check_within(
+            storage,
+            principal(identity)?,
+            integrities,
+            MAX_STAGED_BYTES_PER_PRINCIPAL,
+        )
+        .await
+    }
+
+    /// [`Self::check`] for `principal`, with `limit` bytes per request.
+    async fn check_within(
+        storage: &Storage,
+        principal: &str,
+        integrities: Vec<&str>,
+        limit: u64,
+    ) -> Result<Self, RegistryError> {
+        if integrities.len() > MAX_STAGED_ARCHIVES_PER_PRINCIPAL {
+            return Err(bad_request(format!(
+                "the publish references {} staged archives, more than the \
+                 {MAX_STAGED_ARCHIVES_PER_PRINCIPAL} an account can hold",
+                integrities.len(),
+            )));
+        }
+        // Each distinct archive is looked up once, and counted once per
+        // reference.
+        let mut references: HashMap<String, u64> = HashMap::new();
+        for integrity in integrities {
+            *references
+                .entry(archive_digest(integrity)?)
+                .or_default() += 1;
+        }
+        let mut total = 0_u64;
+        for (digest, count) in &references {
+            let key = StagedArchiveKey { principal, digest };
+            // One that is missing is reported, with its attachment, when it
+            // is claimed.
+            let size = storage.claimable_staged_archive_size(&key).await?.unwrap_or(0);
+            total = total.saturating_add(size.saturating_mul(*count));
+        }
+        let digests = references.into_keys().collect();
+        if total > limit {
+            return Err(bad_request(format!(
+                "the publish references {total} bytes of staged archives, more than the {limit} \
+                 one publish may take",
+            )));
+        }
+        Ok(Self { principal: Some(principal.to_string()), digests })
+    }
+
+    /// Retire the archives the committed request claimed, so they stop
+    /// counting against their principal. A failure only warns: the archive
+    /// expires anyway.
+    pub(super) async fn release(self, storage: &Storage) {
+        let Some(principal) = self.principal.as_deref() else { return };
+        for digest in &self.digests {
+            let key = StagedArchiveKey { principal, digest };
+            if let Err(error) = storage.retire_staged_archive(&key).await {
+                tracing::warn!(%error, "a claimed staged archive was not retired");
+            }
+        }
+    }
+}
+
 /// The principal a staged archive belongs to: the caller's stable identity,
 /// the one an idempotent publish is scoped to.
 pub(super) fn principal(identity: &Identity) -> Result<&str, RegistryError> {

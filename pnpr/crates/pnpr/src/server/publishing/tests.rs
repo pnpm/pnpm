@@ -6,7 +6,10 @@ use base64::Engine;
 use pnpr_config::HostedStoreConfig;
 use pnpr_package_name::{CanonicalPackageName, Ecosystem};
 use pnpr_policy::Identity;
-use pnpr_storage::{Storage, publish::PendingAttachment};
+use pnpr_storage::{
+    Storage,
+    publish::{AttachmentPayload, PendingAttachment},
+};
 use serde_json::json;
 use std::{io::Write, sync::Arc, time::Duration};
 
@@ -39,7 +42,9 @@ async fn a_published_tarball_hashes_its_tar_under_a_decode_permit() {
     let prepared = PreparedAttachment {
         attachment: PendingAttachment {
             filename: "pkg-1.0.0.tgz".to_string(),
-            data: base64::engine::general_purpose::STANDARD.encode(&tgz),
+            payload: AttachmentPayload::Inline(base64::engine::general_purpose::STANDARD.encode(
+                &tgz,
+            )),
             declared_length: Some(tgz.len() as u64),
         },
         canonical: "pkg-1.0.0.tgz".to_string(),
@@ -49,7 +54,8 @@ async fn a_published_tarball_hashes_its_tar_under_a_decode_permit() {
         variant_label: None,
     };
     let decodes = Arc::new(tokio::sync::Semaphore::new(0));
-    let write = write_attachment_slot(&storage, &name, prepared, TarballStorage::Tgz, &decodes);
+    let write =
+        write_attachment_slot((&storage, None), &name, prepared, TarballStorage::Tgz, &decodes);
     tokio::pin!(write);
 
     let waited = tokio::time::timeout(Duration::from_millis(200), &mut write).await;

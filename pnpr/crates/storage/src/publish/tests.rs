@@ -1,6 +1,7 @@
 use super::{
     DocumentMerge, drop_lost_versions, extract_attachments, merge_journaled_packument,
     merge_manifest, now_iso, sha1_hex_from_integrity_opts, stream_decode_verify_and_write,
+    verify_and_write,
 };
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
 use pnpr_package_name::CanonicalPackageName;
@@ -176,9 +177,56 @@ fn extracts_and_strips_attachments() {
     let attachments = extract_attachments(&mut body).unwrap();
     assert_eq!(attachments.len(), 1);
     assert_eq!(attachments[0].filename, "foo-1.0.0.tgz");
-    assert_eq!(attachments[0].data, "aGVsbG8=");
+    assert_eq!(attachments[0].inline_data(), Some("aGVsbG8="));
     assert_eq!(attachments[0].declared_length, Some(5));
     assert!(body.get("_attachments").is_none(), "_attachments should be stripped");
+}
+
+#[test]
+fn an_attachment_references_a_staged_archive_by_integrity() {
+    let mut body = json!({
+        "_attachments": {
+            "foo-1.0.0.tgz": { "integrity": "sha512-AAAA", "length": 5 },
+        },
+    });
+    let attachments = extract_attachments(&mut body).unwrap();
+    assert_eq!(attachments[0].staged_integrity(), Some("sha512-AAAA"));
+    assert_eq!(attachments[0].inline_data(), None);
+    assert_eq!(attachments[0].declared_length, Some(5));
+}
+
+#[test]
+fn an_attachment_carries_its_bytes_or_names_a_staged_archive_but_not_both() {
+    for attachment in [
+        json!({ "data": "aGVsbG8=", "integrity": "sha512-AAAA" }),
+        json!({ "length": 5 }),
+        json!({ "integrity": 5 }),
+    ] {
+        let mut body = json!({ "_attachments": { "foo-1.0.0.tgz": attachment } });
+        assert!(extract_attachments(&mut body).is_err(), "{attachment}");
+    }
+}
+
+#[test]
+fn verify_and_write_checks_raw_bytes_against_the_dist() {
+    let dir = tempfile::tempdir().unwrap();
+    let dest = dir.path().join("foo-1.0.0.tgz");
+    let mut opts = ssri::IntegrityOpts::new().algorithm(ssri::Algorithm::Sha512);
+    opts.input(b"hello");
+    let dist = json!({ "integrity": opts.result().to_string() });
+    let written =
+        verify_and_write("foo-1.0.0.tgz", b"hello".as_slice(), Some(5), Some(&dist), &dest);
+    assert_eq!(written.unwrap(), 5);
+    assert_eq!(std::fs::read(&dest).unwrap(), b"hello");
+
+    let refused = verify_and_write("foo-1.0.0.tgz", b"other".as_slice(), None, Some(&dist), &dest);
+    assert!(
+        refused
+            .unwrap_err()
+            .to_string()
+            .contains("EINTEGRITY"),
+    );
+    assert!(!dest.exists(), "a refused archive leaves nothing behind");
 }
 
 #[test]

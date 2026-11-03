@@ -4,7 +4,7 @@
 use super::{
     super::{
         stream_decode_verify_and_write, tar_integrity_of, tgz_integrity_key,
-        verification::read_archive, write_sigstore_bundle,
+        verification::read_archive, verify_and_write, write_sigstore_bundle,
     },
     AttachmentKind, PendingAttachment, RegistryError, TarDerivation, Value,
 };
@@ -32,27 +32,35 @@ impl AttachmentPaths {
 }
 
 /// Run [`write_and_derive_tar`] on a blocking thread. A tarball waits for a
-/// permit from `decodes` first.
+/// permit from `decodes` first, unless the caller `held` one already.
+/// `staged` holds the bytes of the staged archive the attachment
+/// references, when it references one.
 pub(super) async fn write_under_permit(
-    attachment: PendingAttachment,
+    (attachment, staged): (PendingAttachment, Option<Vec<u8>>),
     kind: AttachmentKind,
     dist: Value,
     paths: AttachmentPaths,
-    decodes: &Arc<Semaphore>,
+    (decodes, held): (&Arc<Semaphore>, Option<OwnedSemaphorePermit>),
 ) -> Result<Result<Option<TarDerivation>, RegistryError>, tokio::task::JoinError> {
-    let permit = match kind {
-        AttachmentKind::Tarball | AttachmentKind::Variant => Some(
+    let permit = match (kind, held) {
+        (AttachmentKind::Tarball | AttachmentKind::Variant, Some(permit)) => Some(permit),
+        (AttachmentKind::Tarball | AttachmentKind::Variant, None) => Some(
             Arc::clone(decodes)
                 .acquire_owned()
                 .await
                 .expect("the decode semaphore is never closed"),
         ),
-        AttachmentKind::Sigstore => None,
+        (AttachmentKind::Sigstore, _) => None,
     };
     tokio::task::spawn_blocking(move || {
         // The permit covers the encode too: it decodes the `.tgz` again.
-        let derived =
-            write_and_derive_tar(&attachment, kind, &dist, &paths.attachment, permit.as_ref());
+        let derived = write_and_derive_tar(
+            (&attachment, staged),
+            kind,
+            &dist,
+            &paths.attachment,
+            permit.as_ref(),
+        );
         let Some(tar_path) = &paths.tar else { return derived };
         let stored = derived.and_then(|derived| {
             let derived = derived
@@ -74,13 +82,13 @@ pub(super) async fn write_under_permit(
 /// does not name its manifest unambiguously, fails with a 400: its manifest
 /// cannot be verified. `_decode` is held until the tar is read.
 fn write_and_derive_tar(
-    attachment: &PendingAttachment,
+    (attachment, staged): (&PendingAttachment, Option<Vec<u8>>),
     kind: AttachmentKind,
     dist: &Value,
     tmp_path: &std::path::Path,
     _decode: Option<&OwnedSemaphorePermit>,
 ) -> Result<Option<TarDerivation>, RegistryError> {
-    decode_and_write_attachment(attachment, kind, dist, tmp_path)?;
+    decode_and_write_attachment((attachment, staged), kind, dist, tmp_path)?;
     if kind == AttachmentKind::Sigstore {
         return Ok(None);
     }
@@ -112,29 +120,29 @@ fn encode_stored_tar(
 }
 
 fn decode_and_write_attachment(
-    attachment: &PendingAttachment,
+    (attachment, staged): (&PendingAttachment, Option<Vec<u8>>),
     kind: AttachmentKind,
     dist: &Value,
     tmp_path: &std::path::Path,
 ) -> Result<(), RegistryError> {
     let dist_ref = (!dist.is_null()).then_some(dist);
-    match kind {
-        AttachmentKind::Tarball | AttachmentKind::Variant => {
-            stream_decode_verify_and_write(
-                &attachment.filename,
-                &attachment.data,
-                attachment.declared_length,
-                dist_ref,
-                tmp_path,
-            )?;
+    let filename = &attachment.filename;
+    let length = attachment.declared_length;
+    match (kind, attachment.inline_data(), staged) {
+        (AttachmentKind::Tarball | AttachmentKind::Variant, Some(data), _) => {
+            stream_decode_verify_and_write(filename, data, length, dist_ref, tmp_path)?;
         }
-        AttachmentKind::Sigstore => {
-            write_sigstore_bundle(
-                &attachment.filename,
-                &attachment.data,
-                attachment.declared_length,
-                tmp_path,
-            )?;
+        (AttachmentKind::Tarball | AttachmentKind::Variant, None, Some(bytes)) => {
+            verify_and_write(filename, bytes.as_slice(), length, dist_ref, tmp_path)?;
+        }
+        (AttachmentKind::Sigstore, Some(data), _) => {
+            write_sigstore_bundle(filename, data, length, tmp_path)?;
+        }
+        // Refused while preparing the attachment, and fetched before this.
+        (_, None, _) => {
+            return Err(RegistryError::Internal {
+                reason: format!("{filename} references a staged archive that was not read"),
+            });
         }
     }
     Ok(())

@@ -252,6 +252,40 @@ impl Storage {
         Ok(created)
     }
 
+    /// The size of `key`'s archive while a commit can claim it.
+    pub async fn claimable_staged_archive_size(
+        &self,
+        key: &StagedArchiveKey<'_>,
+    ) -> Result<Option<u64>> {
+        let record = self.read_staged_archive_record(key).await?;
+        Ok(record
+            .filter(|record| record.is_claimable(unix_now()))
+            .map(|record| record.size))
+    }
+
+    /// Retire `key`'s archive once a commit has copied it into its package:
+    /// its record is rewritten as long expired, so it stops counting against
+    /// its principal and the sweep collects it. Only the record that was read
+    /// is retired, so an upload renewing the archive meanwhile keeps it.
+    pub async fn retire_staged_archive(&self, key: &StagedArchiveKey<'_>) -> Result<()> {
+        let (namespace, record_key) = (key.namespace(), key.record()?);
+        let Some(stored) = self.root.read_record(&namespace, &record_key).await? else {
+            return Ok(());
+        };
+        let Ok(record) = serde_json::from_slice::<StagedArchiveRecord>(&stored) else {
+            return Ok(());
+        };
+        let retired = StagedArchiveRecord { staged_at: 0, complete: false, ..record };
+        self.root.replace_record_if_current(
+            &namespace,
+            &record_key,
+            &stored,
+            &serde_json::to_vec(&retired)?,
+        )
+        .await?;
+        Ok(())
+    }
+
     /// The bytes of `key`'s archive, while it is claimable. `None` when it was
     /// never staged by this principal, has not completed, or has expired.
     pub async fn read_staged_archive(&self, key: &StagedArchiveKey<'_>) -> Result<Option<Vec<u8>>> {

@@ -1,8 +1,8 @@
 //! Staging release archives by integrity ahead of the publish commit that
 //! references them: `PUT` and `HEAD /-/pnpr/v0/artifacts/blob?integrity=...`
-//! with no owner.
+//! with no owner, and the publishes that reference what was staged.
 
-use crate::npm::{npm_tgz, sri_sha512};
+use crate::npm::{npm_tgz, publish_doc, sri_sha512};
 
 use axum::{
     Router,
@@ -10,6 +10,7 @@ use axum::{
     http::{Request, StatusCode, header},
 };
 use pnpr::{Config, MaxUsers, router};
+use pnpr_config::MetadataBackend;
 use pnpr_fixtures::MockConfigPresets;
 use serde_json::{Value, json};
 use std::{
@@ -181,4 +182,206 @@ async fn an_archive_over_the_publish_limit_is_refused_before_it_is_read() {
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
     let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
     assert!(String::from_utf8_lossy(&bytes).contains("limit"));
+}
+
+/// [`publish_doc`] with its attachment naming the staged `tgz` instead of
+/// carrying it.
+fn staged_doc(name: &str, version: &str, tgz: &[u8]) -> Value {
+    let mut doc = publish_doc(name, version, tgz);
+    for attachment in doc["_attachments"]
+        .as_object_mut()
+        .unwrap()
+        .values_mut()
+    {
+        *attachment = json!({ "integrity": sri_sha512(tgz), "length": tgz.len() });
+    }
+    doc
+}
+
+async fn send_json(app: &Router, method: &str, path: &str, token: &str, body: &Value) -> Answer {
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method(method)
+                .uri(path)
+                .header(header::CONTENT_TYPE, "application/json")
+                .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                .body(Body::from(serde_json::to_vec(body).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let status = response.status();
+    let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    Answer { status, length: None, text: String::from_utf8_lossy(&bytes).into_owned() }
+}
+
+async fn get(app: &Router, path: &str, token: &str) -> (StatusCode, Vec<u8>) {
+    let response = app
+        .clone()
+        .oneshot(
+            Request::get(path)
+                .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let status = response.status();
+    (status, to_bytes(response.into_body(), usize::MAX).await.unwrap().to_vec())
+}
+
+async fn stage(app: &Router, tgz: &[u8], token: &str) {
+    let staged = blob(app, "PUT", &staging_path(&sri_sha512(tgz)), Some(token), Some(tgz)).await;
+    assert_eq!(staged.status, StatusCode::CREATED, "{}", staged.text);
+}
+
+fn sqlite_config(storage: &Path) -> Config {
+    let mut config = config(storage);
+    config.storage.metadata = MetadataBackend::Sqlite(storage.join("metadata.sqlite"));
+    config
+}
+
+#[tokio::test]
+async fn a_publish_takes_its_archive_from_the_publishers_staged_archives() {
+    let tmp = TempDir::new().unwrap();
+    let app = router(config(tmp.path()));
+    let alice = token_of(&app, "alice").await;
+    let tgz = npm_tgz("referenced", "1.0.0", b"payload");
+    stage(&app, &tgz, &alice).await;
+
+    let published =
+        send_json(&app, "PUT", "/npm/referenced", &alice, &staged_doc("referenced", "1.0.0", &tgz))
+            .await;
+    assert_eq!(published.status, StatusCode::CREATED, "{}", published.text);
+    let (status, tarball) = get(&app, "/npm/referenced/-/referenced-1.0.0.tgz", &alice).await;
+    assert_eq!((status, tarball), (StatusCode::OK, tgz.clone()));
+    // Claimed, so it no longer counts against the publisher.
+    let released = blob(&app, "HEAD", &staging_path(&sri_sha512(&tgz)), Some(&alice), None).await;
+    assert_eq!(released.status, StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn competing_publishes_each_take_their_own_staged_archive() {
+    let tmp = TempDir::new().unwrap();
+    let app = router(sqlite_config(tmp.path()));
+    let alice = token_of(&app, "alice").await;
+    let first = npm_tgz("first", "1.0.0", b"first");
+    let second = npm_tgz("second", "1.0.0", b"second");
+    stage(&app, &first, &alice).await;
+    stage(&app, &second, &alice).await;
+
+    let first_doc = staged_doc("first", "1.0.0", &first);
+    let second_doc = json!({ "packages": [staged_doc("second", "1.0.0", &second)] });
+    let single = send_json(&app, "PUT", "/npm/first", &alice, &first_doc);
+    let batch = send_json(&app, "PUT", "/-/pnpr/v0/publish", &alice, &second_doc);
+    let (single, batch) = tokio::join!(single, batch);
+    assert_eq!(single.status, StatusCode::CREATED, "{}", single.text);
+    assert_eq!(batch.status, StatusCode::CREATED, "{}", batch.text);
+
+    for (name, tgz) in [("first", &first), ("second", &second)] {
+        let path = format!("/npm/{name}/-/{name}-1.0.0.tgz");
+        assert_eq!(get(&app, &path, &alice).await, (StatusCode::OK, tgz.clone()));
+    }
+}
+
+#[tokio::test]
+async fn a_batch_of_staged_archives_is_one_publication_and_a_retry_replays_it() {
+    let tmp = TempDir::new().unwrap();
+    let config = sqlite_config(tmp.path());
+    let staging = config.storage.hosted_dir.join(".staged-archives");
+    let app = router(config);
+    let alice = token_of(&app, "alice").await;
+    let core = npm_tgz("core", "2.0.0", b"core");
+    let widgets = npm_tgz("widgets", "2.0.0", b"widgets");
+    stage(&app, &core, &alice).await;
+    stage(&app, &widgets, &alice).await;
+    let batch = json!({
+        "name": "v2.0.0",
+        "packages": [staged_doc("core", "2.0.0", &core), staged_doc("widgets", "2.0.0", &widgets)],
+    });
+
+    let committed = send_json(&app, "PUT", "/-/pnpr/v0/publish", &alice, &batch).await;
+    assert_eq!(committed.status, StatusCode::CREATED, "{}", committed.text);
+    let (status, publication) = get(&app, "/-/publications/-/v2.0.0", &alice).await;
+    assert_eq!(status, StatusCode::OK);
+    let publication: Value = serde_json::from_slice(&publication).unwrap();
+    assert_eq!(
+        publication["members"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2,
+    );
+
+    // The publisher lost the response, and by the time it retries its staged
+    // archives are gone. The retry is the same request, so it gets the
+    // recorded outcome without reading them.
+    std::fs::remove_dir_all(&staging).unwrap();
+    let retry = send_json(&app, "PUT", "/-/pnpr/v0/publish", &alice, &batch).await;
+    assert_eq!(retry.status, StatusCode::CREATED, "{}", retry.text);
+    assert_eq!(
+        serde_json::from_str::<Value>(&retry.text).unwrap()["publication"],
+        publication["id"],
+    );
+}
+
+#[tokio::test]
+async fn a_batch_referencing_an_archive_that_is_not_staged_publishes_nothing() {
+    let tmp = TempDir::new().unwrap();
+    let app = router(sqlite_config(tmp.path()));
+    let alice = token_of(&app, "alice").await;
+    let bob = token_of(&app, "bob").await;
+    let core = npm_tgz("core", "2.0.0", b"core");
+    let widgets = npm_tgz("widgets", "2.0.0", b"widgets");
+    stage(&app, &core, &alice).await;
+    // Staged, but by another account, which is the same as not staged.
+    stage(&app, &widgets, &bob).await;
+    let batch = json!({
+        "packages": [staged_doc("core", "2.0.0", &core), staged_doc("widgets", "2.0.0", &widgets)],
+    });
+
+    let refused = send_json(&app, "PUT", "/-/pnpr/v0/publish", &alice, &batch).await;
+    assert_eq!(refused.status, StatusCode::BAD_REQUEST);
+    assert!(refused.text.contains("widgets-2.0.0.tgz"), "{}", refused.text);
+    assert!(refused.text.contains("has not staged or which has expired"), "{}", refused.text);
+    let (status, _) = get(&app, "/npm/core", &alice).await;
+    assert_eq!(status, StatusCode::NOT_FOUND, "nothing of the batch is published");
+}
+
+#[tokio::test]
+async fn a_staged_archive_must_match_the_version_it_is_published_as() {
+    let tmp = TempDir::new().unwrap();
+    let app = router(config(tmp.path()));
+    let alice = token_of(&app, "alice").await;
+    let tgz = npm_tgz("mismatched", "1.0.0", b"payload");
+    let other = npm_tgz("mismatched", "1.0.0", b"other payload");
+    stage(&app, &other, &alice).await;
+    let mut doc = staged_doc("mismatched", "1.0.0", &tgz);
+    doc["_attachments"]["mismatched-1.0.0.tgz"]["integrity"] = json!(sri_sha512(&other));
+
+    let refused = send_json(&app, "PUT", "/npm/mismatched", &alice, &doc).await;
+    assert_eq!(refused.status, StatusCode::BAD_REQUEST);
+    assert!(refused.text.contains("EINTEGRITY"), "{}", refused.text);
+}
+
+#[tokio::test]
+async fn a_publish_held_for_approval_carries_its_archive() {
+    let tmp = TempDir::new().unwrap();
+    let app = router(config(tmp.path()));
+    let alice = token_of(&app, "alice").await;
+    let tgz = npm_tgz("held", "1.0.0", b"payload");
+    stage(&app, &tgz, &alice).await;
+
+    let refused = send_json(
+        &app,
+        "POST",
+        "/npm/-/stage/package/held",
+        &alice,
+        &staged_doc("held", "1.0.0", &tgz),
+    )
+    .await;
+    assert_eq!(refused.status, StatusCode::BAD_REQUEST);
+    assert!(refused.text.contains("inline"), "{}", refused.text);
 }

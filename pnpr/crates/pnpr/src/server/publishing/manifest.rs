@@ -227,7 +227,8 @@ fn attach_sigstore_attestations(
             .and_then(|m| m.get_mut("dist"))
             .and_then(Value::as_object_mut)
         {
-            let predicate_type = extract_predicate_type(&attachment.attachment.data);
+            let predicate_type =
+                extract_predicate_type(attachment.attachment.inline_data().unwrap_or_default());
             dist.insert(
                 "attestations".to_string(),
                 json!({
