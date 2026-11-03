@@ -12,9 +12,9 @@ use pnpm_deps_restorer::{
     validate_virtual_store_slot_containment, virtual_store_layout_for_lockfile,
 };
 use pnpm_lockfile::Lockfile;
-use pnpm_modules_yaml::{Host, Modules, read_modules_manifest};
+use pnpm_modules_yaml::{AllowBuildValue, Host, Modules, read_modules_manifest};
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
-use pnpm_store_dir::{StoreIndex, StoreIndexError, package_dir_matches_index};
+use pnpm_store_dir::{StoreIndex, package_dir_matches_index};
 use rayon::prelude::*;
 use std::{
     collections::HashSet,
@@ -29,10 +29,20 @@ pub struct ModifiedDependencyError {
     pub modified: Vec<String>,
 }
 
+#[derive(Debug, Display, Error, Diagnostic)]
+#[display(
+    "Cannot locate the installed package at {path}. Run \"pnpm install\" before checking store status."
+)]
+#[diagnostic(code(ERR_PNPM_STORE_STATUS_UNVERIFIABLE))]
+struct UnverifiablePackageError {
+    path: String,
+}
+
 struct PackageToCheck {
     dep_path: String,
     package_dir: PathBuf,
     store_index_key: String,
+    global_virtual_store: bool,
 }
 
 pub(super) async fn run<Reporter: self::Reporter>(
@@ -45,6 +55,13 @@ pub(super) async fn run<Reporter: self::Reporter>(
     };
     let modules_manifest =
         read_modules_manifest::<Host>(&lockfile_dir.join("node_modules")).into_diagnostic()?;
+    let lockfile = if config.enable_global_virtual_store {
+        Lockfile::load_current_from_install_state_dir(&config.install_state_dir)
+            .into_diagnostic()?
+            .unwrap_or(lockfile)
+    } else {
+        lockfile
+    };
     let packages = packages_to_check(config, &lockfile, modules_manifest.as_ref(), &lockfile_dir)?;
 
     let store_dir = config.store_dir.root().to_path_buf();
@@ -52,8 +69,7 @@ pub(super) async fn run<Reporter: self::Reporter>(
     let mut modified =
         tokio::task::spawn_blocking(move || find_modified(&store_dir, frozen_store, &packages))
             .await
-            .into_diagnostic()?
-            .into_diagnostic()?;
+            .into_diagnostic()??;
 
     if modified.is_empty() {
         return report_untouched::<Reporter>(dir);
@@ -108,6 +124,7 @@ fn packages_to_check(
                 .join("node_modules");
             Some(PackageToCheck {
                 dep_path: key.to_string(),
+                global_virtual_store: config.enable_global_virtual_store,
                 package_dir: safe_join_modules_dir(&modules_dir, &key.name.to_string()).ok()?,
                 store_index_key,
             })
@@ -126,7 +143,7 @@ fn installed_layout(
         manifest.virtual_store_dir_max_length
     }) as usize;
     let layout = if config.enable_global_virtual_store {
-        let policy = AllowBuildPolicy::from_config(config).into_diagnostic()?;
+        let policy = installed_build_policy(config, modules_manifest)?;
         virtual_store_layout_for_lockfile(
             config,
             config.node_version.as_deref(),
@@ -142,26 +159,60 @@ fn installed_layout(
     Ok(layout)
 }
 
+fn installed_build_policy(
+    config: &Config,
+    modules_manifest: Option<&Modules>,
+) -> miette::Result<AllowBuildPolicy> {
+    let Some(manifest) = modules_manifest else {
+        return AllowBuildPolicy::from_config(config).into_diagnostic();
+    };
+    let approvals = manifest.allow_builds
+        .iter()
+        .flatten()
+        .filter_map(|(spec, value)| match value {
+            AllowBuildValue::Bool(allowed) => Some((spec.clone(), *allowed)),
+            AllowBuildValue::String(_) => None,
+        })
+        .collect();
+    AllowBuildPolicy::from_approvals(&approvals, config.dangerously_allow_all_builds)
+        .into_diagnostic()?
+        .with_side_effects_cache_exclude(
+            config.side_effects_cache_exclude.as_deref().unwrap_or_default(),
+        )
+        .into_diagnostic()
+}
+
 /// Re-hash every candidate against its store row. Runs on the blocking
 /// pool: it is filesystem-bound work over the whole virtual store.
 fn find_modified(
     store_dir: &Path,
     frozen_store: bool,
     packages: &[PackageToCheck],
-) -> Result<Vec<String>, StoreIndexError> {
+) -> miette::Result<Vec<String>> {
     if !StoreIndex::exists(store_dir) {
         return Ok(Vec::new());
     }
     let store_index = if frozen_store {
-        StoreIndex::open_immutable(store_dir)?
+        StoreIndex::open_immutable(store_dir).into_diagnostic()?
     } else {
-        StoreIndex::open_readonly(store_dir)?
+        StoreIndex::open_readonly(store_dir).into_diagnostic()?
     };
     let keys = packages
         .iter()
         .map(|package| package.store_index_key.clone())
         .collect::<Vec<_>>();
-    let rows = store_index.get_many(&keys)?;
+    let rows = store_index.get_many(&keys).into_diagnostic()?;
+    for package in packages {
+        if package.global_virtual_store
+            && rows.contains_key(&package.store_index_key)
+            && !package.package_dir.try_exists().into_diagnostic()?
+        {
+            return Err(UnverifiablePackageError {
+                path: package.package_dir.display().to_string(),
+            }
+            .into());
+        }
+    }
     Ok(packages
         .par_iter()
         .filter(|package| {

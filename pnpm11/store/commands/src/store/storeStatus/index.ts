@@ -5,6 +5,7 @@ import { pkgRequiresBuild } from '@pnpm/building.pkg-requires-build'
 import { createAllowBuildFunction } from '@pnpm/building.policy'
 import { formatIntegrity } from '@pnpm/crypto.integrity'
 import { iteratePkgsForVirtualStore } from '@pnpm/deps.graph-builder'
+import { PnpmError } from '@pnpm/error'
 import { getContextForSingleImporter } from '@pnpm/installing.context'
 import { packageIdFromSnapshot } from '@pnpm/lockfile.utils'
 import { streamParser } from '@pnpm/logger'
@@ -102,6 +103,7 @@ interface PkgToCheck {
   id: string
   resolution: TarballResolution
   targetDir: string
+  globalVirtualStore: boolean
 }
 
 export async function storeStatus (maybeOpts: StoreStatusOptions): Promise<string[]> {
@@ -117,9 +119,11 @@ export async function storeStatus (maybeOpts: StoreStatusOptions): Promise<strin
     })
     if (!ctx.wantedLockfile) return []
 
-    const pkgs = Array.from(iteratePkgsForVirtualStore(ctx.wantedLockfile, {
+    const installedLockfile = opts.enableGlobalVirtualStore ? ctx.currentLockfile : ctx.wantedLockfile
+    const allowBuilds = ctx.modulesFile ? ctx.modulesFile.allowBuilds ?? {} : opts.allowBuilds
+    const pkgs = Array.from(iteratePkgsForVirtualStore(installedLockfile, {
       ...opts,
-      allowBuild: createAllowBuildFunction(opts),
+      allowBuild: createAllowBuildFunction({ ...opts, allowBuilds }),
       virtualStoreDir: ctx.virtualStoreDir,
       globalVirtualStoreDir: opts.enableGlobalVirtualStore
         ? ctx.modulesFile?.virtualStoreDir ?? ctx.virtualStoreDir
@@ -128,6 +132,7 @@ export async function storeStatus (maybeOpts: StoreStatusOptions): Promise<strin
       .filter(({ pkgMeta }) => !ctx.skipped.has(pkgMeta.depPath))
       .map(({ pkgMeta: { depPath, pkgSnapshot, name }, dirInVirtualStore }) => ({
         depPath,
+        globalVirtualStore: opts.enableGlobalVirtualStore === true,
         id: packageIdFromSnapshot(depPath, pkgSnapshot),
         resolution: pkgSnapshot.resolution as TarballResolution,
         targetDir: path.join(dirInVirtualStore, 'node_modules', name),
@@ -166,6 +171,9 @@ async function isPackageModified (
     return false
   }
   if (!fs.existsSync(targetDir)) {
+    if (pkg.globalVirtualStore) {
+      throw new PnpmError('STORE_STATUS_UNVERIFIABLE', `Cannot locate the installed package at ${targetDir}. Run "pnpm install" before checking store status.`)
+    }
     return true
   }
   const fileEntries = getMapEntries<PackageFileInfo>(pkgFilesIndex.files)

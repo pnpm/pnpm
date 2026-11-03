@@ -39,6 +39,32 @@ test.each(['', 'virtualStoreDir: custom-links\n'])('store status checks global v
   expect(result.stderr).not.toContain('is-odd@3.0.1')
 })
 
+test.each([
+  ['changed approvals', '@pnpm.e2e/generated-bins@1.0.0', '--allow-build=@pnpm.e2e/generated-bins'],
+  ['excluded optional dependencies', '@pnpm.e2e/pkg-with-good-optional', '--no-optional'],
+])('store status uses the installed global graph (%s)', async (_scenario, dependency, installOption) => {
+  prepare()
+  fs.writeFileSync('pnpm-workspace.yaml', 'enableGlobalVirtualStore: true\n')
+  const storeDir = path.join(temporaryDirectory(), 'store')
+  const options = [`--store-dir=${storeDir}`, `--registry=${REGISTRY}`]
+  await execa('node', [pnpmBin, 'add', dependency, installOption, ...options], execaOpts)
+  fs.writeFileSync('pnpm-workspace.yaml', 'enableGlobalVirtualStore: true\nallowBuilds: {}\n')
+  await execa('node', [pnpmBin, 'store', 'status', ...options], execaOpts)
+})
+
+test('store status reports an unavailable global slot separately from modified contents', async () => {
+  prepare()
+  fs.writeFileSync('pnpm-workspace.yaml', 'enableGlobalVirtualStore: true\n')
+  const storeDir = path.join(temporaryDirectory(), 'store')
+  const options = [`--store-dir=${storeDir}`, `--registry=${REGISTRY}`]
+  await execa('node', [pnpmBin, 'add', 'is-odd@3.0.1', ...options], execaOpts)
+  rimrafSync(fs.realpathSync('node_modules/is-odd'))
+  const result = await execa('node', [pnpmBin, 'store', 'status', ...options], { ...execaOpts, reject: false })
+  expect(result.exitCode).toBe(1)
+  expect(result.stderr).toContain('ERR_PNPM_STORE_STATUS_UNVERIFIABLE')
+  expect(result.stderr).not.toContain('ERR_PNPM_MODIFIED_DEPENDENCY')
+})
+
 test('CLI fails when store status finds modified packages', async () => {
   prepare()
   const tmp = temporaryDirectory()
