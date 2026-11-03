@@ -473,12 +473,14 @@ fn the_group_of_a_reaped_child_stays_cancellable_while_its_waiter_waits() {
 
 /// Whether `pid` has exited, reaped or not.
 fn is_gone(pid: i32) -> bool {
-    // SAFETY: signal 0 only probes the process the test recorded.
-    let exists = unsafe { libc::kill(pid, 0) == 0 };
+    // Read the state before probing: a zombie reaped between a probe and the
+    // read would look like a live process.
     let zombie = fs::read_to_string(format!("/proc/{pid}/stat"))
         .is_ok_and(|stat| {
             stat.rsplit_once(") ")
                 .is_some_and(|(_, rest)| rest.starts_with('Z'))
         });
+    // SAFETY: signal 0 only probes the process the test recorded.
+    let exists = unsafe { libc::kill(pid, 0) == 0 };
     !exists || zombie
 }
