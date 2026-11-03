@@ -204,7 +204,10 @@ async fn record_evidence(
         Err(err) => return err.into_response(),
     };
     let statements = match registry_statements(state, &logged).await {
-        Ok(statements) => statements,
+        Ok(Some(statements)) => statements,
+        // The version was removed while its evidence was read: answer as a
+        // read after the removal would.
+        Ok(None) => return not_found(),
         Err(err) => return err.into_response(),
     };
     match sigstore_bundle(state, &logged.org, &logged.name, &logged.version).await {
@@ -218,26 +221,31 @@ async fn record_evidence(
 /// from the record the metadata store accepted, with the current statement
 /// key. Ed25519 signatures are deterministic, so the same key signs the same
 /// envelope every time, and a new key re-signs every statement.
+/// `None` when the record is gone, because its version was removed after
+/// its log entry was read.
 async fn registry_statements(
     state: &AppState,
     logged: &LoggedRecord,
-) -> pnpr_error::Result<Vec<Envelope>> {
+) -> pnpr_error::Result<Option<Vec<Envelope>>> {
     let Some(key) = state.inner.config.release_records.statement_signing_key.as_ref() else {
-        return Ok(Vec::new());
+        return Ok(Some(Vec::new()));
     };
     let bytes = super::hosted_storage(state, Some(&logged.org))
         .read_release_record(&logged.name, &logged.version, 0)
         .await?;
-    let Some(bytes) = bytes else { return Ok(Vec::new()) };
+    let Some(bytes) = bytes else { return Ok(None) };
     let invalid = |err: &dyn std::fmt::Display| pnpr_error::RegistryError::Internal {
         reason: format!("the accepted release record cannot be stated: {err}"),
     };
     let record = StoredRecord::parse(bytes).map_err(|err| invalid(&err))?;
+    if record.digest().to_string() != logged.digest {
+        return Err(invalid(&"its bytes are not the ones its log entry names"));
+    }
     let predicate = AcceptancePredicate { interpretation: record.key().profile.clone() };
     let predicate = serde_json::to_value(predicate)?;
     let statement = Statement::about(&record, PredicateType::Acceptance, predicate)
         .map_err(|err| invalid(&err))?;
-    Ok(vec![statement.sign(&[key])])
+    Ok(Some(vec![statement.sign(&[key])]))
 }
 
 /// A logged release record of a hosted version.
