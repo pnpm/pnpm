@@ -14,6 +14,7 @@
 //! after its last upload, and a sweep removes it.
 
 use super::{DocumentWrite, RegistryError, Result, Storage};
+use futures_util::future::try_join_all;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
@@ -39,6 +40,9 @@ pub const STAGED_ARCHIVE_RENEWAL_MARGIN: Duration = Duration::from_hours(1);
 /// that read the archive's record just before it expired can still read the
 /// archive itself.
 const SWEEP_GRACE: Duration = Duration::from_hours(1);
+
+/// Records a sweep reads at once.
+const SWEEP_CONCURRENCY: usize = 16;
 
 /// What is recorded beside a staged archive.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
@@ -202,13 +206,18 @@ impl Storage {
         let (records, archives): (Vec<String>, Vec<String>) = keys
             .into_iter()
             .partition(|key| key.ends_with(RECORD_SUFFIX));
+        // Several records at once: on an object store each is a round trip,
+        // and a principal's own upload waits for this sweep.
         let mut usage = 0_u64;
         let mut removed = 0;
-        for record_key in &records {
-            let (claimable, expired) =
-                self.sweep_recorded_archive(namespace, record_key, now).await?;
-            usage = usage.saturating_add(claimable);
-            removed += usize::from(expired);
+        for chunk in records.chunks(SWEEP_CONCURRENCY) {
+            let sweeps = chunk
+                .iter()
+                .map(|record_key| self.sweep_recorded_archive(namespace, record_key, now));
+            for (claimable, expired) in try_join_all(sweeps).await? {
+                usage = usage.saturating_add(claimable);
+                removed += usize::from(expired);
+            }
         }
         for archive in archives {
             if !records.contains(&format!("{archive}{RECORD_SUFFIX}")) {
