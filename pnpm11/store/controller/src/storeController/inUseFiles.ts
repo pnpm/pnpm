@@ -68,9 +68,10 @@ async function readRegisteredInstalls (storeDir: string): Promise<RegisteredInst
   const keys = new Set<string>()
   const binaryKeys = new Set<string>()
   const modulesDirs = new Set<string>()
+  const resolveModulesDir = createModulesDirResolver()
   for (const projectDir of await getRegisteredProjects(storeDir)) {
     // eslint-disable-next-line no-await-in-loop -- hold one project's parsed lockfiles at a time
-    const lockfiles = await readInstalledLockfiles(projectDir)
+    const lockfiles = await readInstalledLockfiles(projectDir, resolveModulesDir)
     for (const { key, binary } of lockfiles.flatMap(lockfileIndexKeys)) {
       keys.add(key)
       if (binary) binaryKeys.add(key)
@@ -86,8 +87,23 @@ async function readRegisteredInstalls (storeDir: string): Promise<RegisteredInst
   return { keys, binaryKeys, modulesDirs }
 }
 
-async function resolveModulesDir (projectDir: string): Promise<string> {
-  return path.resolve(projectDir, await readConfiguredModulesDir(projectDir))
+type ModulesDirResolver = (projectDir: string) => Promise<string>
+
+/**
+ * Resolves the absolute modules directory of a project, reading each
+ * workspace's settings once.
+ */
+function createModulesDirResolver (): ModulesDirResolver {
+  const settingsByWorkspace = new Map<string, Promise<WorkspaceModulesDirs>>()
+  return async (projectDir) => {
+    let modulesDir: string
+    try {
+      modulesDir = await readConfiguredModulesDir(projectDir, settingsByWorkspace)
+    } catch (err: unknown) {
+      throw inUseFilesError(projectDir, err)
+    }
+    return path.resolve(projectDir, modulesDir)
+  }
 }
 
 function lockfileIndexKeys (lockfile: LockfileObject): IndexKey[] {
@@ -136,7 +152,7 @@ function readIndexRow (storeIndex: StoreIndex, storeDir: string, key: string): P
  * setting names the shared store. The manifest does not say which case
  * applies, so the prune reads both.
  */
-async function readInstalledLockfiles (projectDir: string): Promise<LockfileObject[]> {
+async function readInstalledLockfiles (projectDir: string, resolveModulesDir: ModulesDirResolver): Promise<LockfileObject[]> {
   const modulesDir = await resolveModulesDir(projectDir)
   const defaultDir = path.join(modulesDir, '.pnpm')
   const modules = await readModulesManifestOfProject(modulesDir)
@@ -153,28 +169,39 @@ async function readInstalledLockfiles (projectDir: string): Promise<LockfileObje
  * set only on the command line, in the environment, or in the global config
  * is not seen.
  */
-async function readConfiguredModulesDir (projectDir: string): Promise<string> {
-  try {
-    // `findWorkspaceDir` would also honor the workspace directory that the
-    // environment of the prune sets, which names no registered project's
-    // workspace.
-    const workspaceManifest = find.file(WORKSPACE_MANIFEST_FILENAME, { cwd: projectDir })
-    if (workspaceManifest == null) return 'node_modules'
-    const workspaceDir = path.dirname(workspaceManifest)
-    // `PnpmSettings` does not declare these settings.
-    const settings = await readWorkspaceManifestKeys(workspaceDir, MODULES_DIR_SETTINGS) as Partial<Pick<Config, 'lockfileDir' | 'modulesDir' | 'packageConfigs' | 'sharedWorkspaceLockfile'>> | undefined
-    const lockfileDir = settings?.sharedWorkspaceLockfile === false ? settings.lockfileDir : workspaceDir
-    const resolveModulesDir = createProjectModulesDirResolver({
+async function readConfiguredModulesDir (projectDir: string, settingsByWorkspace: Map<string, Promise<WorkspaceModulesDirs>>): Promise<string> {
+  // `findWorkspaceDir` would also honor the workspace directory that the
+  // environment of the prune sets, which names no registered project's
+  // workspace.
+  const workspaceManifest = find.file(WORKSPACE_MANIFEST_FILENAME, { cwd: projectDir })
+  if (workspaceManifest == null) return 'node_modules'
+  const workspaceDir = path.dirname(workspaceManifest)
+  let workspaceModulesDirs = settingsByWorkspace.get(workspaceDir)
+  if (workspaceModulesDirs == null) {
+    workspaceModulesDirs = readWorkspaceModulesDirs(workspaceDir)
+    settingsByWorkspace.set(workspaceDir, workspaceModulesDirs)
+  }
+  const { resolveModulesDir, needsProjectName } = await workspaceModulesDirs
+  const projectName = needsProjectName ? (await safeReadProjectManifestOnly(projectDir))?.name : undefined
+  return resolveModulesDir(projectName) ?? 'node_modules'
+}
+
+interface WorkspaceModulesDirs {
+  resolveModulesDir: (projectName: string | undefined) => string | undefined
+  needsProjectName: boolean
+}
+
+async function readWorkspaceModulesDirs (workspaceDir: string): Promise<WorkspaceModulesDirs> {
+  // `PnpmSettings` does not declare these settings.
+  const settings = await readWorkspaceManifestKeys(workspaceDir, MODULES_DIR_SETTINGS) as Partial<Pick<Config, 'lockfileDir' | 'modulesDir' | 'packageConfigs' | 'sharedWorkspaceLockfile'>> | undefined
+  const lockfileDir = settings?.sharedWorkspaceLockfile === false ? settings.lockfileDir : workspaceDir
+  return {
+    resolveModulesDir: createProjectModulesDirResolver({
       lockfileDir,
       modulesDir: typeof settings?.modulesDir === 'string' ? envReplace(settings.modulesDir, process.env) : undefined,
       packageConfigs: settings?.packageConfigs,
-    })
-    const projectName = lockfileDir != null || settings?.packageConfigs == null
-      ? undefined
-      : (await safeReadProjectManifestOnly(projectDir))?.name
-    return resolveModulesDir(projectName) ?? 'node_modules'
-  } catch (err: unknown) {
-    throw inUseFilesError(projectDir, err)
+    }),
+    needsProjectName: lockfileDir == null && settings?.packageConfigs != null,
   }
 }
 
