@@ -582,3 +582,71 @@ async fn rejects_variations_resolution_with_an_unverifiable_fallback() {
     };
     assert_eq!(code, "MISSING_TARBALL_INTEGRITY");
 }
+
+/// A lockfile that keeps tarball URLs writes a variant at its own route,
+/// which the version's `dist.tarball` (the primary's) does not name.
+#[tokio::test]
+async fn verifies_a_variant_tarball_url_on_its_own_route() {
+    let mut server = mockito::Server::new_async().await;
+    let registry = format!("{}/", server.url());
+    let server_url = server.url();
+    let packument = serde_json::json!({
+        "name": "variations-pkg",
+        "dist-tags": { "latest": "1.0.0" },
+        "time": { "1.0.0": "2020-01-01T00:00:00.000Z" },
+        "versions": {
+            "1.0.0": {
+                "name": "variations-pkg",
+                "version": "1.0.0",
+                "dist": {
+                    "integrity": FAKE_INTEGRITY,
+                    "shasum": "0000000000000000000000000000000000000000",
+                    "tarball": format!("{server_url}/variations-pkg/-/variations-pkg-1.0.0.tgz"),
+                }
+            }
+        }
+    });
+    let _meta_mock = server
+        .mock("GET", "/variations-pkg")
+        .with_status(200)
+        .with_body(packument.to_string())
+        .create_async()
+        .await;
+
+    let verifier = create_npm_resolution_verifier(default_opts(&registry));
+    let variant = |tarball: String| PlatformAssetResolution {
+        resolution: LockfileResolution::Tarball(TarballResolution {
+            tarball,
+            integrity: Some(fake_integrity()),
+            revision: None,
+            git_hosted: None,
+            path: None,
+        }),
+        targets: vec![pnpm_lockfile::PlatformAssetTarget {
+            os: "linux".to_string(),
+            cpu: "x64".to_string(),
+            ..Default::default()
+        }],
+    };
+    let tag = variant(String::new()).variant_tag().expect("a variant tag");
+    let name: PkgName = "variations-pkg".parse().expect("parse");
+
+    let on_route = LockfileResolution::Variations(VariationsResolution {
+        fallback: None,
+        revision: None,
+        variants: vec![variant(format!("{server_url}/variations-pkg@1.0.0/variants/{tag}"))],
+    });
+    let result = verifier.verify(&on_route, ctx(&name, "1.0.0")).await;
+    assert_eq!(result, ResolutionVerification::Ok);
+
+    let other_version = LockfileResolution::Variations(VariationsResolution {
+        fallback: None,
+        revision: None,
+        variants: vec![variant(format!("{server_url}/variations-pkg@2.0.0/variants/{tag}"))],
+    });
+    let result = verifier.verify(&other_version, ctx(&name, "1.0.0")).await;
+    let ResolutionVerification::Err { code, .. } = result else {
+        panic!("expected Err, got {result:?}");
+    };
+    assert_eq!(code, "TARBALL_URL_MISMATCH");
+}
