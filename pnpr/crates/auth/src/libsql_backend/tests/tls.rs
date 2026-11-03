@@ -40,7 +40,8 @@ async fn query_once(url: &str) -> Result<()> {
         sync_interval_secs: None,
         max_connections: None,
     };
-    let db = pnpr_libsql::open(&settings, pnpr_libsql::connector(&settings)?).await?;
+    let db =
+        pnpr_libsql::open(&settings, pnpr_libsql::connector(&settings, "backend.libsql")?).await?;
     db.connect()?
         .execute("SELECT 1", ())
         .await?;

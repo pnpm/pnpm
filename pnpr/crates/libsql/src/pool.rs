@@ -53,24 +53,34 @@ pub struct ConnectionPool {
     /// threads beyond the pool's size.
     opens: Arc<Semaphore>,
     timeout: Duration,
+    /// The error an operation past `timeout` fails with.
+    timed_out: fn() -> RegistryError,
 }
 
 impl ConnectionPool {
     /// A pool that runs at most `max_connections` operations at once, with
     /// `timeout` as the deadline [`Self::read`] and [`Self::write`] apply.
-    pub fn new(db: Database, max_connections: usize, timeout: Duration) -> Self {
+    /// An operation past its deadline fails with the error `timed_out`
+    /// returns, which names the database the pool's owner keeps there.
+    pub fn new(
+        db: Database,
+        max_connections: usize,
+        timeout: Duration,
+        timed_out: fn() -> RegistryError,
+    ) -> Self {
         Self {
             db: Arc::new(db),
             idle: Mutex::new(Vec::new()),
             slots: Semaphore::new(max_connections),
             opens: Arc::new(Semaphore::new(max_connections)),
             timeout,
+            timed_out,
         }
     }
 
     /// Run the read `operation` on a pooled connection. Past the deadline,
-    /// waiting for a connection included, it fails with
-    /// [`RegistryError::AuthDatabaseTimeout`].
+    /// waiting for a connection included, it fails with the pool's timeout
+    /// error.
     ///
     /// `operation` must not use the pool itself: with every connection held
     /// by an operation waiting for another, the pool deadlocks.
@@ -79,16 +89,16 @@ impl ConnectionPool {
         Operation: FnOnce(Connection) -> Pending,
         Pending: Future<Output = Result<Loaded>>,
     {
-        with_deadline::<_, RegistryError>(self.timeout, async {
+        with_deadline::<_, RegistryError>(self.timeout, self.timed_out, async {
             let (slot, conn) = self.checkout().await?;
             self.run_holding(slot, conn, operation).await
         })
         .await
     }
 
-    /// Run the write `operation` on a pooled connection. It fails with
-    /// [`RegistryError::AuthDatabaseTimeout`] if no connection frees up within
-    /// the deadline, and otherwise runs to completion.
+    /// Run the write `operation` on a pooled connection. It fails with the
+    /// pool's timeout error if no connection frees up within the deadline,
+    /// and otherwise runs to completion.
     ///
     /// `operation` must not use the pool itself; see [`Self::read`].
     pub async fn write<Loaded, Operation, Pending>(&self, operation: Operation) -> Result<Loaded>
@@ -96,7 +106,8 @@ impl ConnectionPool {
         Operation: FnOnce(Connection) -> Pending,
         Pending: Future<Output = Result<Loaded>>,
     {
-        let (slot, conn) = with_deadline::<_, RegistryError>(self.timeout, self.checkout()).await?;
+        let (slot, conn) =
+            with_deadline::<_, RegistryError>(self.timeout, self.timed_out, self.checkout()).await?;
         self.run_holding(slot, conn, operation).await
     }
 
@@ -161,7 +172,7 @@ impl ConnectionPool {
     /// A pull only brings frames the primary already has, so cutting one short
     /// at the deadline loses nothing.
     pub async fn sync(&self) -> Result<()> {
-        with_deadline::<_, LibsqlError>(self.timeout, async {
+        with_deadline::<_, LibsqlError>(self.timeout, self.timed_out, async {
             self.db.sync().await?;
             Ok(())
         })

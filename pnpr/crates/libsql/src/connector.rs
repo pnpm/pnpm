@@ -71,6 +71,11 @@ impl LibsqlConnector {
         Ok(Self { carries_token, ..connector })
     }
 
+    /// This connector, carrying an auth token when `carries_token`.
+    pub(crate) fn carrying_token(self, carries_token: bool) -> Self {
+        Self { carries_token, ..self }
+    }
+
     /// A connector that verifies servers against the platform trust store.
     pub fn with_platform_roots() -> Result<Self, LibsqlError> {
         let provider = Arc::new(rustls::crypto::aws_lc_rs::default_provider());

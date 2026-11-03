@@ -84,7 +84,7 @@ impl LibsqlAuth {
     /// [`DEFAULT_STARTUP_TIMEOUT`], within which a dial that times out is
     /// retried.
     pub async fn connect(settings: &LibsqlSettings, max_users: MaxUsers) -> Result<Self> {
-        let connector = pnpr_libsql::connector(settings)?;
+        let connector = pnpr_libsql::connector(settings, "backend.libsql")?;
         let _startup_dials = connector.retry_timed_out_dials();
         with_auth_timeout(
             DEFAULT_STARTUP_TIMEOUT,
@@ -125,7 +125,9 @@ impl LibsqlAuth {
         is_replica: bool,
     ) -> Result<Self> {
         let auth = Self {
-            pool: ConnectionPool::new(db, max_connections as usize, DEFAULT_AUTH_TIMEOUT),
+            pool: ConnectionPool::new(db, max_connections as usize, DEFAULT_AUTH_TIMEOUT, || {
+                RegistryError::AuthDatabaseTimeout
+            }),
             secret: fresh_secret(),
             counter: AtomicU64::new(0),
             max_users,

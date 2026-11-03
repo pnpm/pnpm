@@ -14,6 +14,12 @@ use std::{
     time::Duration,
 };
 
+/// The error these pools fail with past their deadline: one the pool cannot
+/// produce otherwise, so a test sees the owner's choice come back.
+fn timed_out() -> RegistryError {
+    RegistryError::StorageUnavailable { reason: "timed out".to_string() }
+}
+
 /// A remote connection whose request was cut off mid-flight sends the spent
 /// baton next time, and the server refuses every later request on it.
 #[tokio::test]
@@ -35,7 +41,7 @@ async fn a_connection_cut_off_mid_request_stays_broken() {
 #[tokio::test]
 async fn the_pool_replaces_a_connection_cut_off_mid_request() {
     let (db, server) = baton_checking_database().await;
-    let pool = ConnectionPool::new(db, 1, Duration::from_secs(30));
+    let pool = ConnectionPool::new(db, 1, Duration::from_secs(30), timed_out);
     pool.read(|conn| async move { Ok(conn.query("SELECT 1", ()).await?) }).await
         .unwrap();
     let slow = pool.read(|conn| async move { Ok(conn.query("SELECT 'slow'", ()).await?) });
@@ -51,9 +57,9 @@ async fn the_pool_replaces_a_connection_cut_off_mid_request() {
 #[tokio::test]
 async fn a_stalled_read_times_out_and_frees_its_connection() {
     let (db, server) = baton_checking_database().await;
-    let pool = ConnectionPool::new(db, 1, Duration::from_millis(200));
+    let pool = ConnectionPool::new(db, 1, Duration::from_millis(200), timed_out);
     let stalled = pool.read(|conn| async move { Ok(conn.query("SELECT 'slow'", ()).await?) }).await;
-    assert!(matches!(stalled, Err(RegistryError::AuthDatabaseTimeout)), "{stalled:?}");
+    assert!(matches!(stalled, Err(RegistryError::StorageUnavailable { .. })), "{stalled:?}");
 
     let after = pool.read(|conn| async move { Ok(conn.query("SELECT 1", ()).await?) }).await;
     server.abort();
@@ -65,7 +71,7 @@ async fn a_stalled_read_times_out_and_frees_its_connection() {
 #[tokio::test]
 async fn a_write_outlives_the_deadline_but_its_wait_for_a_connection_does_not() {
     let (db, server) = baton_checking_database().await;
-    let pool = ConnectionPool::new(db, 1, Duration::from_millis(200));
+    let pool = ConnectionPool::new(db, 1, Duration::from_millis(200), timed_out);
     let slow = pool.write(|conn| async move { Ok(conn.query("SELECT 'slow'", ()).await?) });
     let queued = async {
         tokio::time::sleep(Duration::from_millis(50)).await;
@@ -74,7 +80,7 @@ async fn a_write_outlives_the_deadline_but_its_wait_for_a_connection_does_not() 
     let (slow, queued) = tokio::join!(slow, queued);
     server.abort();
     slow.unwrap();
-    assert!(matches!(queued, Err(RegistryError::AuthDatabaseTimeout)), "{queued:?}");
+    assert!(matches!(queued, Err(RegistryError::StorageUnavailable { .. })), "{queued:?}");
 }
 
 /// Whether `operation` was still waiting for its response when it was dropped.
@@ -201,7 +207,7 @@ async fn a_stalled_replica_sync_does_not_hold_operations_past_their_deadline() {
         .expect("a background sync reaches the stalled primary");
 
     let max_connections = 2;
-    let pool = ConnectionPool::new(db, max_connections, Duration::from_millis(300));
+    let pool = ConnectionPool::new(db, max_connections, Duration::from_millis(300), timed_out);
     let started = std::time::Instant::now();
     let read = || pool.read(|conn| async move { Ok(conn.query("SELECT 1", ()).await?) });
     let (first, second, third, fourth, fifth) = (read(), read(), read(), read(), read());
@@ -210,7 +216,7 @@ async fn a_stalled_replica_sync_does_not_hold_operations_past_their_deadline() {
     let in_flight = pool.opens_in_flight(max_connections);
     server.abort();
     for read in &reads {
-        assert!(matches!(read, Err(RegistryError::AuthDatabaseTimeout)), "{read:?}");
+        assert!(matches!(read, Err(RegistryError::StorageUnavailable { .. })), "{read:?}");
     }
     assert!(elapsed < SYNC_STALL / 2, "{elapsed:?}");
     assert_eq!(in_flight, max_connections, "opens still blocked once every read timed out");

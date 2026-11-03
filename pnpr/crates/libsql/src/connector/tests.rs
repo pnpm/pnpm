@@ -15,7 +15,7 @@ use tower_0_4::{ServiceExt, service_fn};
 
 /// Open the database `settings` name and run one statement on it.
 async fn query_once(settings: &LibsqlSettings) -> Result<()> {
-    let db = crate::open(settings, crate::connector(settings)?).await?;
+    let db = crate::open(settings, crate::connector(settings, "backend.libsql")?).await?;
     db.connect()?
         .execute("SELECT 1", ())
         .await?;
@@ -44,7 +44,28 @@ async fn refuses_an_auth_token_over_plain_http_to_a_remote_host() {
         ..settings("http://db.example.com:8080".to_string())
     };
     let error = query_once(&settings).await.unwrap_err();
-    assert!(matches!(error, RegistryError::InvalidConfig { .. }), "{error:?}");
+    assert!(
+        matches!(&error, RegistryError::InvalidConfig { reason } if reason.contains("backend.libsql.authToken")),
+        "{error:?}",
+    );
+}
+
+#[tokio::test]
+async fn open_refuses_the_token_over_plain_http_whatever_the_connector() {
+    let settings = LibsqlSettings {
+        auth_token: Some("secret".to_string()),
+        ..settings("http://db.example.com:8080".to_string())
+    };
+    // A connector built as if no token were sent.
+    let connector = LibsqlConnector::for_url(&settings.url, false).unwrap();
+    let db = crate::open(&settings, connector).await.unwrap();
+    let error = db
+        .connect()
+        .unwrap()
+        .execute("SELECT 1", ())
+        .await
+        .unwrap_err();
+    assert!(format!("{error:?}").contains("non-loopback host"), "{error:?}");
 }
 
 #[tokio::test]

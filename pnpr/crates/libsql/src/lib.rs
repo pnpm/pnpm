@@ -24,22 +24,24 @@ use pnpr_config::LibsqlSettings;
 use pnpr_error::{RegistryError, Result};
 use std::{future::Future, path::Path, time::Duration};
 
-/// The connector for the database `settings` name. An auth token must not
+/// The connector for the database `settings` name, the settings of the
+/// config block `section`, such as `backend.libsql`. An auth token must not
 /// cross a cleartext link to a host other than loopback.
 ///
 /// # Errors
 ///
 /// The settings send a token over plain HTTP, or the platform trust store
 /// cannot be loaded.
-pub fn connector(settings: &LibsqlSettings) -> Result<LibsqlConnector> {
+pub fn connector(settings: &LibsqlSettings, section: &str) -> Result<LibsqlConnector> {
     if settings.auth_token.is_some()
         && is_plain_http(&settings.url)
         && !is_url_secure_for_credentials(&settings.url)
     {
         return Err(RegistryError::InvalidConfig {
-            reason: "a libSQL authToken requires an https:// or libsql:// url, or http:// on a \
-                     loopback host"
-                .to_string(),
+            reason: format!(
+                "{section}.authToken requires an https:// or libsql:// url, or http:// on a \
+                 loopback host"
+            ),
         });
     }
     Ok(LibsqlConnector::for_url(&settings.url, settings.auth_token.is_some())?)
@@ -47,6 +49,8 @@ pub fn connector(settings: &LibsqlSettings) -> Result<LibsqlConnector> {
 
 /// Open the database `settings` name, dialed with `connector`: an embedded
 /// replica at `replicaPath` when it is set, otherwise the remote primary.
+/// The connector refuses to send the settings' auth token, if they have one,
+/// over plain HTTP to a host other than loopback, however it was built.
 ///
 /// A replica runs its initial sync here. With a `syncInterval`, libsql keeps
 /// it current in the background. libsql probes the primary for its newer sync
@@ -74,6 +78,7 @@ pub async fn open_primary(
     settings: &LibsqlSettings,
     connector: LibsqlConnector,
 ) -> Result<Database> {
+    let connector = connector.carrying_token(settings.auth_token.is_some());
     let auth_token = settings.auth_token.clone().unwrap_or_default();
     let database = Box::pin(
         Builder::new_remote(settings.url.clone(), auth_token).connector(connector).build(),
@@ -95,6 +100,7 @@ async fn open_replica(
     {
         tokio::fs::create_dir_all(parent).await.map_err(RegistryError::Io)?;
     }
+    let connector = connector.carrying_token(settings.auth_token.is_some());
     let auth_token = settings.auth_token.clone().unwrap_or_default();
     // A caller brings its own writes into the replica with `Database::sync`.
     let mut builder = Builder::new_remote_replica(path, settings.url.clone(), auth_token)
@@ -115,12 +121,13 @@ async fn open_replica(
     Ok(db)
 }
 
-/// Run `future` under `deadline`, failing with
-/// [`RegistryError::AuthDatabaseTimeout`] once it passes. Use only around
-/// reads and the wait before a write: a write cut off after it reached the
-/// database leaves its commit state unknown.
+/// Run `future` under `deadline`, failing with the error `timed_out` returns
+/// once it passes. Use only around reads and the wait before a write: a
+/// write cut off after it reached the database leaves its commit state
+/// unknown.
 pub(crate) async fn with_deadline<Loaded, DbError>(
     deadline: Duration,
+    timed_out: fn() -> RegistryError,
     future: impl Future<Output = std::result::Result<Loaded, DbError>>,
 ) -> Result<Loaded>
 where
@@ -128,7 +135,7 @@ where
 {
     match tokio::time::timeout(deadline, future).await {
         Ok(result) => result.map_err(RegistryError::from),
-        Err(_) => Err(RegistryError::AuthDatabaseTimeout),
+        Err(_) => Err(timed_out()),
     }
 }
 
