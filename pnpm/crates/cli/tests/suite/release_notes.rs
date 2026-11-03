@@ -173,6 +173,7 @@ fn a_batch_sends_version_notes_and_the_publication() {
     }
     fs::write(workspace.join("a/CHANGELOG.md"), "## 2.0.0\n\n- A changed.\n").expect("changelog");
     fs::write(workspace.join("summary.md"), "## Highlights\n").expect("summary");
+    let _staged = archives_staged(&mut server);
     let batch = server
         .mock("PUT", "/-/pnpr/v0/publish")
         .match_body(Matcher::PartialJson(json!({
@@ -400,4 +401,14 @@ fn outdated_notes_show_the_notes_of_the_upgrade() {
         .expect("run pnpm outdated");
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("notes-dep 1.0.0 => 1.1.0\n  1.1.0:\n    Faster."), "{stdout}");
+}
+
+/// Answer every staging lookup on `server` as already staged, so a batch to a
+/// registry declared `serverType: pnpr` commits without uploading.
+fn archives_staged(server: &mut mockito::Server) -> mockito::Mock {
+    server
+        .mock("HEAD", "/-/pnpr/v0/artifacts/blob")
+        .match_query(Matcher::Any)
+        .with_status(200)
+        .create()
 }

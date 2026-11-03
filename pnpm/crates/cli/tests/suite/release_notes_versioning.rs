@@ -98,6 +98,7 @@ fn versioning_composes_sends_and_collects_release_notes() {
     assert_eq!(fs::read_to_string(parked.join("a@1.1.0.md")).expect("a note"), VERSION_NOTE_A);
     assert_eq!(fs::read_to_string(parked.join("b@1.1.0.md")).expect("b note"), "");
 
+    let _staged = archives_staged(&mut server);
     let batch = server
         .mock("PUT", "/-/pnpr/v0/publish")
         .match_body(Matcher::PartialJson(json!({
@@ -174,6 +175,7 @@ fn a_summary_given_to_version_goes_above_the_publication_note() {
     let stderr = String::from_utf8_lossy(&refused.stderr);
     assert!(stderr.contains("ERR_PNPM_RELEASE_NOTES_FROM_VERSIONING"), "{stderr}");
 
+    let _staged = archives_staged(&mut server);
     let batch = server
         .mock("PUT", "/-/pnpr/v0/publish")
         .match_body(Matcher::PartialJson(json!({
@@ -427,6 +429,7 @@ fn a_composed_publication_is_not_sent_to_another_registry_once_its_own_stores_no
         .mock("GET", Matcher::Any)
         .with_status(404)
         .create();
+    let _staged = archives_staged(&mut other);
     let elsewhere = other
         .mock("PUT", "/-/pnpr/v0/publish")
         .match_request(|request| {
@@ -516,6 +519,7 @@ fn a_hook_may_change_a_package_outside_the_composed_release() {
         .mock("GET", Matcher::Any)
         .with_status(404)
         .create();
+    let _staged = archives_staged(&mut server);
     let batch = server
         .mock("PUT", "/-/pnpr/v0/publish")
         .match_body(Matcher::PartialJson(json!({ "name": "v1.1.0", "notes": PUBLICATION_NOTE })))
@@ -676,4 +680,14 @@ fn a_parked_release_is_confirmed_under_its_own_published_name() {
     renamed.assert();
     assert_eq!(intent_files(&workspace), ["next.md"]);
     drop(root);
+}
+
+/// Answer every staging lookup on `server` as already staged, so a batch to a
+/// registry declared `serverType: pnpr` commits without uploading.
+fn archives_staged(server: &mut mockito::Server) -> mockito::Mock {
+    server
+        .mock("HEAD", "/-/pnpr/v0/artifacts/blob")
+        .match_query(Matcher::Any)
+        .with_status(200)
+        .create()
 }

@@ -277,6 +277,10 @@ resumed release uploads only what is missing. An upload is stored only if its
 bytes match the integrity, and uploading stored bytes again is a no-op that
 renews them.
 
+`pnpm publish -r --batch` does this against a registry declared with
+`serverType: pnpr`: it uploads every archive the registry does not hold yet,
+then sends a batch that references them.
+
 A staged archive is not published and no registry route serves it. It belongs
 to the account that uploaded it, and only a publish by that account can claim
 it. It expires 24 hours after its last upload, and pnpr removes expired
