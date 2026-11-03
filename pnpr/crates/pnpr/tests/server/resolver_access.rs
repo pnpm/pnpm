@@ -281,7 +281,9 @@ async fn resolver_only_serves_resolver_endpoints_and_refuses_registry_routes() {
                     "admin": false,
                     "scim": false,
                     "signIn": false
-                }
+                },
+                "records": [],
+                "manifestProfiles": []
             }
         }),
     );
@@ -506,7 +508,9 @@ async fn registry_only_serves_registry_and_refuses_resolver_endpoints() {
                     "admin": false,
                     "scim": false,
                     "signIn": false
-                }
+                },
+                "records": [],
+                "manifestProfiles": []
             }
         }),
     );

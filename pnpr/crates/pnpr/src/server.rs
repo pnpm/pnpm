@@ -9,6 +9,7 @@ pub(crate) use tcp_listener::PeerAddr;
 pub(crate) use self::striped_locks::StripedLocks;
 
 mod lifecycle;
+mod log_routes;
 mod release_record_logs;
 use lifecycle::load_active_osv_index;
 

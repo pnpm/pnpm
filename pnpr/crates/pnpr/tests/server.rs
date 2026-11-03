@@ -37,6 +37,9 @@ mod tar_registry;
 #[path = "server/package_documents.rs"]
 mod package_documents;
 
+#[path = "server/release_record_logs.rs"]
+mod release_record_logs;
+
 #[path = "server/platform_variants.rs"]
 mod platform_variants;
 

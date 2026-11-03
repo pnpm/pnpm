@@ -88,7 +88,7 @@ artifact-only tiers are both valid. The `POST` endpoints require a valid pnpr
 
 | Method | Path | Description |
 | --- | --- | --- |
-| `GET` | `/-/pnpr` | Capability handshake. Returns `versions` for resolver protocols, `fixLockfile` for resolver versions that support lockfile repair, `ecosystems` for the ecosystems the resolver serves, `artifacts` for shared-artifact protocols, `publish` for the cross-ecosystem publish transaction, and `pipeline` for pipeline run records. Each version list is `[0]` when its surface is enabled and `[]` otherwise. A 404 means every surface is off. |
+| `GET` | `/-/pnpr` | Capability handshake. Returns `versions` for resolver protocols, `fixLockfile` for resolver versions that support lockfile repair, `ecosystems` for the ecosystems the resolver serves, `artifacts` for shared-artifact protocols, `publish` for the cross-ecosystem publish transaction, and `pipeline` for pipeline run records. Each version list is `[0]` when its surface is enabled and `[]` otherwise. `records` is `[1]` when hosted registries log their [release records](#release-record-logs), with the profiles they derive them under in `manifestProfiles`, and `[]` otherwise. A 404 means every surface is off. |
 | `POST` | `/-/pnpr/v0/resolve` | Resolves one project or workspace against the registries and policy sent by the client. Returns `application/x-ndjson` frames. |
 | `POST` | `/-/pnpr/v0/verify-lockfile` | Verifies an existing lockfile under the client's registry and policy settings without resolving again. Returns `application/x-ndjson` frames. |
 
@@ -223,6 +223,11 @@ are checked against the serving registry's matching
 | `GET` | `/@scope/{name}@{version}/variants/{tag}` | Scoped platform variant tar. |
 | `GET` | `/{name}/{version}+r{revision}` | Unscoped release record. See [pnpr's package document](#pnprs-package-document). |
 | `GET` | `/@scope/{name}/{version}+r{revision}` | Scoped release record. |
+| `GET` | `/{name}/{version}+r{revision}/evidence` | Unscoped release record's evidence. See [Release record logs](#release-record-logs). |
+| `GET` | `/@scope/{name}/{version}+r{revision}/evidence` | Scoped release record's evidence. |
+| `GET` | `/-/log/checkpoint` | The latest checkpoint of the registry's release record log. |
+| `GET` | `/-/log/tile/{level}/{index}` | A hash tile of the log, `.p/{width}` appended to a partial one. |
+| `GET` | `/-/log/tile/entries/{index}` | An entry bundle of the log, only for callers who may read every package it holds. |
 | `GET` | `/{name}/-/{filename}` | Unscoped tarball. Not served by a [tar registry](configuration.md#tar-registries). |
 | `GET` | `/@scope/{name}/-/{filename}` | Scoped tarball. Not served by a tar registry. |
 | `GET` | `/{name}@{version}` | Unscoped tarball by exact version: the `.tgz`, or on a tar registry the tar. |
@@ -379,6 +384,48 @@ it describes, so from then on it is served with
 `unpackedSize`, `requiresBuild`, and `bins`. A package closed to anonymous
 callers gets `Cache-Control: private, no-store` for its records.
 `/{name}/{version}` keeps serving the selected revision in npm's format.
+
+### Release record logs
+
+With [`releaseRecords.logSigningKey`](configuration.md#releaserecords), each
+hosted organization's release records are appended to a transparency log, in
+the [C2SP tiled log](https://c2sp.org/tlog-tiles) format Go's checksum database
+uses. A registry address serves the log of the one hosted organization it
+reaches, under `/-/log/`. A registry that reaches no hosted organization, or
+several, serves no log.
+
+- `/-/log/checkpoint` is the log's latest
+  [checkpoint](https://c2sp.org/tlog-checkpoint), a signed note. It changes
+  as the log grows, so it is served with `Cache-Control: no-cache`.
+- `/-/log/tile/{level}/{index}` and `/-/log/tile/entries/{index}` are the
+  log's hash tiles and entry bundles. A tile never changes once written, so it
+  is cached forever.
+
+Anyone who may read a package of the organization reads its checkpoint and
+hash tiles. An entry bundle names every package logged with it, so only a
+caller who may read every package of the organization gets the entry bundles;
+anyone else gets a 404 for every bundle. When some package is closed to
+anonymous callers, these responses are `Cache-Control: private, no-store`.
+
+A record's evidence, `/{name}/{version}+r{revision}/evidence`, is read as the
+record is:
+
+```json
+{
+  "record": "sha512-<record digest>",
+  "inclusion": { "checkpoint": "<signed note>", "index": 12, "proof": ["<base64 hash>"] },
+  "statements": [],
+  "sigstore": []
+}
+```
+
+`record` is the digest of the record's bytes, `index` is its entry's place in
+the log, and `proof` is its inclusion proof against the checkpoint. `sigstore`
+holds the provenance bundle published with the version, if any. pnpr signs no
+statements yet. A record whose entry is not in the log yet makes the read wait
+for a few seconds; after that it answers `503` with `Retry-After`. The evidence
+changes with every newer checkpoint, so it is served with
+`Cache-Control: no-cache`.
 
 ## Registry write endpoints
 
