@@ -17,8 +17,8 @@ use pnpr_error::RegistryError;
 use pnpr_policy::{Identity, PackageRules};
 
 use super::{
-    AppState, PeerAddr, RegistrySource, restrictions::check_token_restrictions,
-    single_authorization_header,
+    AppState, PeerAddr, RegistrySource, oidc::WorkloadScope,
+    restrictions::check_token_restrictions, single_authorization_header,
 };
 
 /// Whether `headers` carry `Authorization: Bearer <expected>`, for an
@@ -134,16 +134,19 @@ pub(super) async fn authenticate(
     }
 
     let resolved = resolve_caller(&state, header.as_deref(), &method, &path, client_ip).await;
-    let identity = match resolved.and_then(|identity| {
-        refuse_deprovisioned(&state, &identity)?;
-        Ok(identity)
+    let (identity, workload) = match resolved.and_then(|resolved| {
+        refuse_deprovisioned(&state, &resolved.0)?;
+        Ok(resolved)
     }) {
-        Ok(identity) => identity,
+        Ok(resolved) => resolved,
         Err(err) => return err.into_response(),
     };
     let caller = AuthedCaller(identity);
     record_user_on_span(&caller.0);
     request.extensions_mut().insert(caller.clone());
+    if let Some(workload) = workload {
+        request.extensions_mut().insert(workload);
+    }
     let mut response = next.run(request).await;
     response.extensions_mut().insert(caller);
     response
@@ -256,17 +259,18 @@ async fn owned_parent(state: &AppState, key: &str) -> Result<Option<TokenRecord>
 /// error); an unknown token, any other credential shape, and a missing
 /// header all resolve to [`Identity::Anonymous`]. `Err` is a backing-store
 /// failure, surfaced as a 5xx so an outage isn't mistaken for "not
-/// authenticated".
+/// authenticated". Workload credentials also give the [`WorkloadScope`] a
+/// batch commit checks its entries against.
 async fn resolve_caller(
     state: &AppState,
     header: Option<&str>,
     method: &Method,
     path: &str,
     client_ip: Option<IpAddr>,
-) -> Result<Identity, RegistryError> {
+) -> Result<(Identity, Option<WorkloadScope>), RegistryError> {
     if let Some(raw_token) = header.and_then(token_credentials) {
         if let Some(user) = state.inner.identity.oidc.session(&raw_token)? {
-            return Ok(super::oidc_groups::session_identity(&state.inner.config, user));
+            return Ok((super::oidc_groups::session_identity(&state.inner.config, user), None));
         }
         if let Some(jwt) = raw_token.strip_prefix("pnpr_workload_") {
             let workload = state.inner.identity.oidc
@@ -276,19 +280,20 @@ async fn resolve_caller(
                     resource: "OIDC workload credentials".to_string(),
                 })?;
             super::oidc::check_workload_request(&workload, method, path)?;
-            return Ok(Identity::user(workload.identity.username));
+            let scope = WorkloadScope::new(&state.inner.config, &workload);
+            return Ok((Identity::user(workload.identity.username), Some(scope)));
         }
         if let Some(record) = state.inner.identity.auth.tokens.lookup_record(&raw_token).await? {
             check_token_restrictions(&record, method, path, client_ip)?;
             state.inner.identity.last_used.record_raw(&raw_token, record.last_used_at);
-            return Ok(Identity::user(record.username));
+            return Ok((Identity::user(record.username), None));
         }
     }
     // Anything that is not a pnpr token — a user:password Basic pair, another
     // scheme, or no credentials — carries no request identity. Going through
     // `identify` here would re-run the token lookup and bypass the
     // restriction checks above, so resolve straight to anonymous.
-    Ok(Identity::Anonymous)
+    Ok((Identity::Anonymous, None))
 }
 
 /// The pnpr token an `Authorization` header carries, in any of the shapes

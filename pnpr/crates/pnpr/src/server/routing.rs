@@ -17,7 +17,10 @@ mod account_handlers;
 use account_handlers::account_routes;
 
 mod protocol_routes;
-use protocol_routes::{artifacts_routes, pipeline_routes, resolver_routes, staged_archive_routes};
+use protocol_routes::{
+    artifacts_routes, pipeline_routes, resolver_routes, staged_archive_routes,
+    staged_archive_routes_under,
+};
 
 mod team_handlers;
 use team_handlers::team_routes;
@@ -315,13 +318,18 @@ fn registry_routes(state: &AppState, router: Router<AppState>) -> Router<AppStat
 /// was reached through.
 fn npm_registry_routes() -> Router<AppState> {
     // Batch publish: one request carrying many packages' publish documents.
-    // Mounted at both the server root (`registry_routes`) and the path-less npm
-    // base (`/npm/-/pnpr/v0/publish`) so `pnpm publish --batch` can resolve it
-    // relative to the configured npm registry URL. The archives a batch
-    // references are staged beside it, under the same base.
+    // Mounted at the server root (`registry_routes`), the path-less npm base
+    // (`/npm/-/pnpr/v0/publish`), and a named registry's base, so `pnpm
+    // publish --batch` can resolve it relative to the configured npm
+    // registry URL; under a named registry, its npm entries are addressed
+    // through that registry. The archives a publish references are staged
+    // beside it, under the same base.
     let mut router = staged_archive_routes(
-        Router::new().route("/-/pnpr/v0/publish", put(batch::serve_ecosystem_publish)),
+        Router::new()
+            .route("/-/pnpr/v0/publish", put(batch::serve_ecosystem_publish))
+            .route("/~{registry}/-/pnpr/v0/publish", put(batch::serve_registry_publish)),
     );
+    router = staged_archive_routes_under(router, "/~{registry}");
     for base in ["", "/~{registry}"] {
         let path = |tail: &str| format!("{base}{tail}");
         let with_teams = team_routes(staged_routes(ping_route(router, base), base), base);

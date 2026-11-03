@@ -117,5 +117,17 @@ fn compiler_cache_routes(state: &AppState, router: Router<AppState>) -> Router<A
 /// Release archive staging on a server without the artifact surface, which
 /// otherwise serves the route (see [`artifacts_routes`]).
 pub(super) fn staged_archive_routes(router: Router<AppState>) -> Router<AppState> {
-    router.route("/-/pnpr/v0/artifacts/blob", put(serve_put_blob).head(serve_head_blob))
+    staged_archive_routes_under(router, "")
+}
+
+/// Release archive staging under `base`. A staged archive belongs to its
+/// principal whichever base it is uploaded through.
+pub(super) fn staged_archive_routes_under(
+    router: Router<AppState>,
+    base: &str,
+) -> Router<AppState> {
+    router.route(
+        &format!("{base}/-/pnpr/v0/artifacts/blob"),
+        put(serve_put_blob).head(serve_head_blob),
+    )
 }

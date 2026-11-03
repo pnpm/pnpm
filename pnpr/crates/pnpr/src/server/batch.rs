@@ -1,8 +1,9 @@
 //! `PUT /-/pnpr/v0/publish` — one publish transaction across ecosystems.
 //!
-//! Mounted at the server root and under `/npm/`, so both cross-ecosystem
-//! releases and `pnpm publish --batch` (which resolves relative to the
-//! configured npm registry URL) address the same handler.
+//! Mounted at the server root, under `/npm/`, and under a named npm
+//! registry's `/npm/~<registry>/`, so both cross-ecosystem releases and
+//! `pnpm publish --batch` (which resolves relative to the configured npm
+//! registry URL) address the same handler.
 //!
 //! Each entry names its `ecosystem` — absent means npm, so an npm batch body
 //! is already a valid one — and carries what that surface's own publish
@@ -18,6 +19,7 @@ use super::{
     AppState, AuthedCaller, Identity,
     cargo::{CratePublication, authorize_crate_publish, verify_crate_archive},
     oci::{OciPublication, authorize_publication},
+    oidc::WorkloadScope,
     publishing::{
         PublishReceipt, StagedPublish, cleanup_tmp_slots, commit_publication, publication_name,
         publication_request, publish_committed_response, refuse_notes_of_published_python_versions,
@@ -28,8 +30,9 @@ use super::{
     staged_archives::StagedReferences,
 };
 use axum::{
+    Extension,
     body::Bytes,
-    extract::State,
+    extract::{Path, State},
     http::HeaderMap,
     response::{IntoResponse, Response},
 };
@@ -53,13 +56,56 @@ const IDEMPOTENCY_KEY: &str = "idempotency-key";
 pub(super) async fn serve_ecosystem_publish(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
+    workload: Option<Extension<WorkloadScope>>,
     headers: HeaderMap,
+    body: Bytes,
+) -> Response {
+    let caller = BatchCaller { identity: &identity, workload: workload.as_deref(), registry: None };
+    serve(&state, caller, &headers, body).await
+}
+
+/// `PUT /npm/~<registry>/-/pnpr/v0/publish`: a batch whose npm entries are
+/// addressed through one named registry, as a single-package publish to
+/// that registry's address is.
+pub(super) async fn serve_registry_publish(
+    State(state): State<AppState>,
+    AuthedCaller(identity): AuthedCaller,
+    workload: Option<Extension<WorkloadScope>>,
+    Path(registry): Path<String>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Response {
+    let caller = BatchCaller {
+        identity: &identity,
+        workload: workload.as_deref(),
+        registry: Some(&registry),
+    };
+    serve(&state, caller, &headers, body).await
+}
+
+async fn serve(
+    state: &AppState,
+    caller: BatchCaller<'_>,
+    headers: &HeaderMap,
     body: Bytes,
 ) -> Response {
     let key = headers
         .get(IDEMPOTENCY_KEY)
         .and_then(|key| key.to_str().ok());
-    publish_batch(&state, &identity, key, body).await.unwrap_or_else(IntoResponse::into_response)
+    publish_batch(state, caller, key, body).await.unwrap_or_else(IntoResponse::into_response)
+}
+
+/// Who sends a batch, and the registry its npm entries are addressed
+/// through.
+#[derive(Clone, Copy)]
+struct BatchCaller<'a> {
+    identity: &'a Identity,
+    /// Set for workload credentials, which publish only the workload's
+    /// packages.
+    workload: Option<&'a WorkloadScope>,
+    /// The named npm registry the request addresses; `None` routes each
+    /// npm entry through the default target.
+    registry: Option<&'a str>,
 }
 
 /// The `cargo publish` request body, as a batch entry carries it: the same
@@ -145,10 +191,11 @@ impl ValidatedEntry {
 
 async fn publish_batch(
     state: &AppState,
-    identity: &Identity,
+    caller: BatchCaller<'_>,
     key: Option<&str>,
     body: Bytes,
 ) -> Result<Response, RegistryError> {
+    let identity = caller.identity;
     let mut incoming: Value = serde_json::from_slice(&body).map_err(|err| malformed_body(&err))?;
     // The parsed body holds everything the entries need, and the payloads are
     // decoded out of it below: keep only one copy of a body that may run to
@@ -158,7 +205,7 @@ async fn publish_batch(
     let request = publication_request(identity, &incoming, key, name, None);
     let mut packages = take_packages(&mut incoming)?;
     let notes = batch_notes(&mut incoming, &mut packages)?;
-    let validated = validate_batch_entries(state, identity, packages).await?;
+    let validated = validate_batch_entries(state, caller, packages).await?;
 
     // Hold every affected package's lock across the whole stage-and-commit,
     // so concurrent writers of any package in the batch serialize with us
@@ -295,13 +342,13 @@ fn take_packages(incoming: &mut Value) -> Result<Vec<Value>, RegistryError> {
 /// name in another.
 async fn validate_batch_entries(
     state: &AppState,
-    identity: &Identity,
+    caller: BatchCaller<'_>,
     packages: Vec<Value>,
 ) -> Result<Vec<ValidatedEntry>, RegistryError> {
     let mut validated = Vec::with_capacity(packages.len());
     let mut seen = HashSet::new();
     for package in packages {
-        let entry = validate_entry(state, identity, package).await?;
+        let entry = validate_entry(state, caller, package).await?;
         if !seen.insert((entry.ecosystem(), entry.key().as_str().to_string())) {
             return Err(RegistryError::BadRequest {
                 reason: format!(
@@ -321,12 +368,16 @@ async fn validate_batch_entries(
 /// what the entry says they are.
 async fn validate_entry(
     state: &AppState,
-    identity: &Identity,
+    caller: BatchCaller<'_>,
     package: Value,
 ) -> Result<ValidatedEntry, RegistryError> {
     let ecosystem = entry_ecosystem(&package)?;
+    if let Some(workload) = caller.workload {
+        workload.check_ecosystem(ecosystem)?;
+    }
+    let identity = caller.identity;
     match ecosystem {
-        Ecosystem::Npm => validate_npm_entry(state, identity, package).await,
+        Ecosystem::Npm => validate_npm_entry(state, caller, package).await,
         Ecosystem::Cargo => {
             let entry: CargoEntry =
                 serde_json::from_value(package).map_err(|err| malformed_body(&err))?;
@@ -386,10 +437,11 @@ fn decode_base64(data: &str, field: &'static str) -> Result<Vec<u8>, RegistryErr
 }
 
 /// Remove the batch routing field before the npm merge can persist it in the
-/// packument, and authorize against the resolved default hosted registry.
+/// packument, and authorize against the hosted registry the entry resolves
+/// to through the addressed registry, or the default target.
 async fn validate_npm_entry(
     state: &AppState,
-    identity: &Identity,
+    caller: BatchCaller<'_>,
     package: Value,
 ) -> Result<ValidatedEntry, RegistryError> {
     let mut package = package;
@@ -403,10 +455,13 @@ async fn validate_npm_entry(
             reason: "every npm entry in `packages` must have a string `name`".to_string(),
         })?;
     let name = CanonicalPackageName::parse(name, pnpr_package_name::Ecosystem::Npm)?;
-    // The batch endpoint is path-less, so each package routes via the
-    // default target; validation resolves that route and checks the
-    // resolved hosted registry's publish rule per document.
-    let (doc, target) = validate_publish_doc(state, identity, None, name, package).await?;
+    // Validation resolves the route and checks the resolved hosted
+    // registry's publish rule per document.
+    let (doc, target) =
+        validate_publish_doc(state, caller.identity, caller.registry, name, package).await?;
+    if let Some(workload) = caller.workload {
+        workload.check_npm_publish(&target.source, doc.name.as_str())?;
+    }
     Ok(ValidatedEntry::Npm(Box::new(doc), target.org))
 }
 
