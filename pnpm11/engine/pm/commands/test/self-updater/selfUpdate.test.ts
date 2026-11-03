@@ -1608,7 +1608,28 @@ test('self-update leaves the project pin alone when the global install fails', a
   expect(pkgJson.packageManager).toBe('pnpm@9.0.0')
 })
 
-test('installPnpm rejects and cleans up when the installed pnpm has no working executable', async () => {
+test('self-update repairs a broken engine reused from the shared store', async () => {
+  const opts = prepare()
+  mockRegistryForUpdate(opts.registriesByScope.default, '9.1.0', createMetadata('9.1.0', opts.registriesByScope.default))
+  await selfUpdate.handler(opts, ['9.1.0'])
+
+  const [installed] = scanGlobalPackages(opts.globalPkgDir)
+  const packageDir = fs.realpathSync(path.join(installed.installDir, 'node_modules', 'pnpm'))
+  const manifest = JSON.parse(fs.readFileSync(path.join(packageDir, 'package.json'), 'utf8'))
+  const executable = path.join(packageDir, manifest.bin.pnpm)
+  const original = fs.readFileSync(executable)
+  fs.unlinkSync(executable)
+  fs.writeFileSync(executable, '#!/usr/bin/env node\nprocess.exit(1)\n', { mode: 0o755 })
+
+  await selfUpdate.handler({ ...opts, globalPkgDir: path.join(opts.pnpmHomeDir, 'another-global') }, ['9.1.0'])
+
+  expect(fs.readFileSync(executable)).toEqual(original)
+  const result = spawn.sync(path.join(opts.pnpmHomeDir, 'bin', 'pnpm'), ['--version'], { encoding: 'utf8', cwd: opts.dir })
+  expect(result.status).toBe(0)
+  expect(result.stdout.trim()).toBe('9.1.0')
+})
+
+test.each(['resolution', 'lockfile'])('installPnpm rejects and cleans up a broken release installed from %s', async (source) => {
   const opts = prepare()
   // A package with no bin stands in for a release whose executable is missing.
   // Serving it as pnpm's tarball is the only way here without publishing a
@@ -1636,7 +1657,10 @@ test('installPnpm rejects and cleans up when the installed pnpm has no working e
     .intercept({ path: '/pnpm/-/pnpm-9.1.0.tgz', method: 'GET' })
     .reply(200, tgzWithoutBin)
 
-  await expect(installPnpm('9.1.0', opts)).rejects.toThrow(/cannot run/)
+  const install = source === 'resolution'
+    ? installPnpm('9.1.0', opts)
+    : selfUpdate.handler(opts, ['9.1.0'])
+  await expect(install).rejects.toThrow(/cannot run/)
 
   // The half-installed directory must not survive: leaving it behind would let
   // findGlobalPnpmInstallDir hand the broken install to the next run.

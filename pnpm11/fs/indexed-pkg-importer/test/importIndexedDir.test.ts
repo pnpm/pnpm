@@ -9,6 +9,42 @@ import { tempDir } from '@pnpm/prepare'
 import { importIndexedDir } from '../src/importIndexedDir.js'
 import { overwriteDirSync } from '../src/overwriteDir.js'
 
+test.each(['copy', 'clone'] as const)('importIndexedDir() safeToSkip preserves a build output hardlinked into a %s-imported package', (method) => {
+  const tmp = tempDir()
+  const sourceDir = path.join(tmp, 'source')
+  const targetDir = path.join(tmp, 'target')
+  const nativeBinary = path.join(tmp, 'native-tool')
+  const targetBinary = path.join(targetDir, 'tool')
+  const placeholder = '# shell launcher\n'
+  const binaryContent = Buffer.from([0x7f, 0x45, 0x4c, 0x46, 0, 1, 2, 3])
+  fs.mkdirSync(sourceDir)
+  fs.writeFileSync(path.join(sourceDir, 'package.json'), '{"name":"example-tool"}')
+  fs.writeFileSync(path.join(sourceDir, 'tool'), placeholder)
+  fs.writeFileSync(nativeBinary, binaryContent)
+
+  const filenames = new Map([
+    ['tool', path.join(sourceDir, 'tool')],
+    ['package.json', path.join(sourceDir, 'package.json')],
+  ])
+  const importFile = method === 'copy'
+    ? fs.copyFileSync
+    : (src: string, dest: string) => fs.copyFileSync(src, dest, fs.constants.COPYFILE_FICLONE)
+  const importer = { importFile, importFileAtomic: importFile }
+  importIndexedDir(importer, targetDir, filenames, { safeToSkip: true })
+
+  for (let install = 0; install < 2; install++) {
+    fs.unlinkSync(targetBinary)
+    fs.linkSync(nativeBinary, targetBinary)
+
+    importIndexedDir(importer, targetDir, filenames, { safeToSkip: true })
+
+    expect(fs.readFileSync(nativeBinary)).toEqual(binaryContent)
+    expect(fs.readFileSync(targetBinary, 'utf8')).toBe(placeholder)
+    expect(fs.readFileSync(path.join(sourceDir, 'tool'), 'utf8')).toBe(placeholder)
+    expect(JSON.parse(fs.readFileSync(path.join(targetDir, 'package.json'), 'utf8'))).toEqual({ name: 'example-tool' })
+  }
+})
+
 test('importIndexedDir() keepModulesDir merges node_modules', async () => {
   const tmp = tempDir()
   fs.mkdirSync(path.join(tmp, 'src/node_modules/a'), { recursive: true })
