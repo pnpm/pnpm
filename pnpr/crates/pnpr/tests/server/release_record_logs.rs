@@ -10,7 +10,7 @@ use super::{
 use crate::tokens::issue_token;
 use axum::Router;
 use base64::{Engine as _, engine::general_purpose::STANDARD};
-use pnpm_release_record::{RecordDigest, StoredRecord};
+use pnpm_release_record::{Envelope, PredicateType, RecordDigest, StoredRecord, verify_statement};
 use pnpm_transparency_log::{
     CheckpointPolicy, Hash, KeySet, NoteSigner, decode_bundle, verify_inclusion,
 };
@@ -46,8 +46,16 @@ fn acme_config(storage: &std::path::Path, rules: Vec<pnpr::PackageRule>) -> Conf
         Registries::new(graph.into_iter().collect(), Some("main".to_string()));
     config.storage.metadata = pnpr_config::MetadataBackend::Sqlite(storage.join("metadata.sqlite"));
     let signer = NoteSigner::from_private_key(LOG_SIGNING_KEY).unwrap();
+    let statements = statement_signer();
     config.release_records.log_signing_key = Some(Arc::new(signer));
+    config.release_records.statement_signing_key = Some(Arc::new(statements));
     config
+}
+
+/// The key that signs the registry's statements.
+fn statement_signer() -> NoteSigner {
+    let signer = NoteSigner::from_private_key(LOG_SIGNING_KEY).unwrap();
+    signer.renamed("registry.example/statements").unwrap()
 }
 
 async fn setup(rules: Vec<pnpr::PackageRule>) -> (TempDir, Router, String) {
@@ -116,6 +124,7 @@ async fn a_record_is_proven_by_its_evidence() {
         .log_entry()
         .unwrap()
         .to_bytes();
+    let mut signed = Vec::new();
 
     for uri in ["/npm/@acme/widget/1.0.0+r0/evidence", "/npm/@acme%2Fwidget/1.0.0+r0/evidence"] {
         let response = get(&app, uri, None).await;
@@ -141,8 +150,19 @@ async fn a_record_is_proven_by_its_evidence() {
             .collect();
         let index = evidence["inclusion"]["index"].as_u64().unwrap();
         verify_inclusion(&proof, &tree_head, index, &entry).unwrap();
-        assert_eq!(evidence["statements"], serde_json::json!([]));
+        let statements = evidence["statements"].as_array().unwrap();
+        assert_eq!(statements.len(), 1);
+        let envelope: Envelope = serde_json::from_value(statements[0].clone()).unwrap();
+        let keys = KeySet::new(vec![statement_signer().verifier_key().clone()], 1).unwrap();
+        let stored = StoredRecord::parse(record.clone()).unwrap();
+        let statement =
+            verify_statement(&envelope, &keys, &stored, PredicateType::Acceptance).unwrap();
+        assert_eq!(statement.predicate["interpretation"], "npm-install-manifest/1");
+        signed.push(envelope);
     }
+    // A statement is signed again on every read, and the same key signs the
+    // same envelope.
+    assert_eq!(signed[0], signed[1]);
     for missing in [
         "/npm/@acme%2Fwidget/1.0.0+r1/evidence",
         "/npm/@acme%2Fwidget/2.0.0+r0/evidence",

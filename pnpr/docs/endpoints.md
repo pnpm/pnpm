@@ -420,9 +420,13 @@ record is:
 ```
 
 `record` is the digest of the record's bytes, `index` is its entry's place in
-the log, and `proof` is its inclusion proof against the checkpoint. `sigstore`
-holds the provenance bundle published with the version, if any. pnpr signs no
-statements yet. A record whose entry is not in the log yet makes the read wait
+the log, and `proof` is its inclusion proof against the checkpoint. `statements` holds, with
+[`releaseRecords.statementSigningKey`](configuration.md#releaserecords), the
+registry's acceptance statement: an in-toto Statement in a DSSE envelope, with
+predicate type `https://pnpm.io/pnpr/acceptance/v1`, saying the registry
+accepted the record under its profile. pnpr signs it from the accepted record
+on every read, so a new key signs every statement again. `sigstore` holds the
+provenance bundle published with the version, if any. A record whose entry is not in the log yet makes the read wait
 for a few seconds; after that it answers `503` with `Retry-After`. The evidence
 changes with every newer checkpoint, so it is served with
 `Cache-Control: no-cache`.
