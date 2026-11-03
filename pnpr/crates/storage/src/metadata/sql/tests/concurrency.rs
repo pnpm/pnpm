@@ -160,3 +160,63 @@ fn a_busy_database_is_a_conflict_that_a_rerun_may_clear() {
     assert!(adapter.is_retryable(&failure(rusqlite::ffi::SQLITE_LOCKED)));
     assert!(!adapter.is_retryable(&failure(rusqlite::ffi::SQLITE_CONSTRAINT)));
 }
+
+#[test]
+fn a_failed_commit_is_rolled_back() {
+    use super::super::{adapter::Adapter, batch::WriteTransaction, sqlite::SqliteAdapter};
+    let tmp = TempDir::new().unwrap();
+    let adapter = SqliteAdapter::open(&tmp.path().join("metadata.sqlite")).unwrap();
+    adapter
+        .write(&mut |connection| {
+            // A deferred foreign key fails the `COMMIT` itself, which leaves
+            // the transaction open.
+            connection.execute_batch(
+                "CREATE TEMP TABLE parent (id INTEGER PRIMARY KEY);
+                 CREATE TEMP TABLE child (
+                     parent INTEGER REFERENCES parent (id) DEFERRABLE INITIALLY DEFERRED
+                 );",
+            )?;
+            let transaction = WriteTransaction::begin(connection)?;
+            transaction.execute_batch("INSERT INTO child VALUES (1)")?;
+            assert!(transaction.commit().is_err());
+            connection.begin_write()?;
+            connection.execute_batch("ROLLBACK")
+        })
+        .unwrap();
+}
+
+#[test]
+fn a_write_left_in_its_transaction_does_not_block_the_next() {
+    use super::super::{adapter::Adapter, sqlite::SqliteAdapter};
+    let tmp = TempDir::new().unwrap();
+    let adapter = SqliteAdapter::open(&tmp.path().join("metadata.sqlite")).unwrap();
+    let err = adapter
+        .write(&mut |connection| {
+            connection.begin_write()?;
+            Err(RegistryError::Internal { reason: "cut off".to_string() })
+        })
+        .unwrap_err();
+    assert!(matches!(err, RegistryError::Internal { .. }), "{err:?}");
+    adapter
+        .write(&mut |connection| {
+            connection.begin_write()?;
+            connection.execute_batch("COMMIT")
+        })
+        .unwrap();
+}
+
+#[test]
+fn a_read_left_in_its_transaction_is_not_reused() {
+    use super::super::adapter::{Adapter, ReadSource};
+    let tmp = TempDir::new().unwrap();
+    let metadata = SqlMetadata::open_sqlite(&tmp.path().join("metadata.sqlite")).unwrap();
+    metadata.adapter
+        .read(ReadSource::Primary, &mut |connection| connection.begin_read())
+        .unwrap();
+    metadata.adapter
+        .read(ReadSource::Primary, &mut |connection| {
+            connection.begin_read()?;
+            connection.execute_batch("COMMIT")
+        })
+        .unwrap();
+}

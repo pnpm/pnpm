@@ -20,9 +20,13 @@ impl<'conn> WriteTransaction<'conn> {
         Ok(Self { connection, open: true })
     }
 
+    /// Commit the transaction. A failed `COMMIT` can leave it open, so it
+    /// stays marked open until the commit succeeds and is otherwise rolled
+    /// back on drop.
     pub(super) fn commit(mut self) -> Result<()> {
+        self.connection.execute_batch("COMMIT")?;
         self.open = false;
-        self.connection.execute_batch("COMMIT")
+        Ok(())
     }
 }
 
@@ -38,7 +42,7 @@ impl Drop for WriteTransaction<'_> {
     fn drop(&mut self) {
         if self.open {
             // A failed rollback leaves the connection in its transaction; the
-            // adapter's next begin then fails rather than joining it.
+            // adapter ends it before the connection's next use.
             drop(self.connection.execute_batch("ROLLBACK"));
         }
     }

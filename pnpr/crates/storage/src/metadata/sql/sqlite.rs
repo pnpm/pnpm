@@ -67,7 +67,13 @@ impl SqliteAdapter {
 
 impl Adapter for SqliteAdapter {
     fn write(&self, operation: &mut dyn FnMut(&dyn Connection) -> Result<()>) -> Result<()> {
-        operation(&*lock(&self.writer))
+        let writer = lock(&self.writer);
+        // A write whose `COMMIT` and `ROLLBACK` both failed leaves its
+        // transaction open, and `BEGIN IMMEDIATE` would fail inside it.
+        if !writer.is_autocommit() {
+            writer.execute_batch("ROLLBACK")?;
+        }
+        operation(&*writer)
     }
 
     fn read(
@@ -81,9 +87,13 @@ impl Adapter for SqliteAdapter {
             None => self.open_reader()?,
         };
         let output = operation(&connection);
-        let mut readers = lock(&self.readers);
-        if readers.len() < IDLE_READERS {
-            readers.push(connection);
+        // A read whose `COMMIT` or `ROLLBACK` failed may still be in its
+        // transaction. Such a connection is closed rather than reused.
+        if connection.is_autocommit() {
+            let mut readers = lock(&self.readers);
+            if readers.len() < IDLE_READERS {
+                readers.push(connection);
+            }
         }
         output
     }
