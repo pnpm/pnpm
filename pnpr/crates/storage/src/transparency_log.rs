@@ -162,9 +162,10 @@ impl Storage {
         signer: &NoteSigner,
     ) -> Result<()> {
         let current = self.log_checkpoint(log).await?;
-        let covered = current
-            .as_ref()
-            .map_or(tree_head.size == 0, |stored| stored.tree_head.size >= tree_head.size);
+        let covered = match &current {
+            Some(stored) => stored.tree_head.size >= tree_head.size,
+            None => tree_head.size == 0,
+        };
         if covered {
             return Ok(());
         }
