@@ -15,10 +15,10 @@ const LINKS_DIR = 'links'
  * Prune unused packages from the global virtual store using mark-and-sweep:
  * 1. Get all registered projects
  * 2. Find all node_modules directories in each project (including workspace packages)
- * 3. Walk symlinks from each node_modules to mark reachable packages
+ * 3. Walk symlinks from each node_modules and from each of `modulesDirs` to mark reachable packages
  * 4. Remove any package directories that weren't marked as reachable
  */
-export async function pruneGlobalVirtualStore (storeDir: string): Promise<void> {
+export async function pruneGlobalVirtualStore (storeDir: string, modulesDirs: string[] = []): Promise<void> {
   const linksDir = path.join(storeDir, LINKS_DIR)
   if (!await pathExists(linksDir)) {
     return
@@ -47,6 +47,7 @@ export async function pruneGlobalVirtualStore (storeDir: string): Promise<void> 
       )
     })
   )
+  await Promise.all(modulesDirs.map((modulesDir) => walkSymlinksToStore(modulesDir, linksDir, reachable, visited)))
 
   // Sweep phase: remove unreachable packages
   const unreachableCount = await removeUnreachablePackages(linksDir, reachable)

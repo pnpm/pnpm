@@ -1,5 +1,6 @@
 import path from 'node:path'
 
+import { envReplace } from '@pnpm/config.env-replace'
 import { type Config, createProjectModulesDirResolver } from '@pnpm/config.reader'
 import { LOCKFILE_VERSION, WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
 import { isError, PnpmError } from '@pnpm/error'
@@ -17,17 +18,29 @@ import * as find from 'empathic/find'
 
 import { getRegisteredProjects } from './projectRegistry.js'
 
+export interface InUse {
+  files: Set<string>
+  /**
+   * The modules directory of every project that an installed lockfile
+   * lists. A package linked from one not named `node_modules` is found
+   * only through it.
+   */
+  modulesDirs: string[]
+}
+
 /**
- * Every file of the store index rows of the packages in each registered
- * project's installed lockfile, including the files of every side-effects
- * entry. A package imported by copy or clone, such as a patched or built
- * one, has no hard link to the store, so the prune needs this list to keep
- * it. A project without an installed lockfile, a project whose lockfile
- * version this pnpm does not support, and a package without a row add
- * nothing.
+ * For each registered project's installed lockfile:
+ * - every file of the store index rows of its packages, including the files
+ *   of every side-effects entry. A package imported by copy or clone, such
+ *   as a patched or built one, has no hard link to the store, so the prune
+ *   needs this list to keep it;
+ * - the modules directory of every project it lists.
+ *
+ * A project without an installed lockfile, a project whose lockfile version
+ * this pnpm does not support, and a package without a row add no files.
  */
-export async function getInUseFiles (storeDir: string, storeIndex: StoreIndex): Promise<Set<string>> {
-  const { keys, binaryKeys } = await registeredProjectsIndexKeys(storeDir)
+export async function getInUse (storeDir: string, storeIndex: StoreIndex): Promise<InUse> {
+  const { keys, binaryKeys, modulesDirs } = await readRegisteredInstalls(storeDir)
   for (const key of manifestIndexKeys(storeIndex, storeDir, binaryKeys)) keys.add(key)
   const files = new Set<string>()
   for (const key of keys) {
@@ -37,7 +50,7 @@ export async function getInUseFiles (storeDir: string, storeIndex: StoreIndex): 
       files.add(path.normalize(getFilePathByModeInCafs(storeDir, digest, mode)))
     }
   }
-  return files
+  return { files, modulesDirs: Array.from(modulesDirs) }
 }
 
 interface IndexKey {
@@ -45,21 +58,52 @@ interface IndexKey {
   binary: boolean
 }
 
-async function registeredProjectsIndexKeys (storeDir: string): Promise<{ keys: Set<string>, binaryKeys: Set<string> }> {
+interface RegisteredInstalls {
+  keys: Set<string>
+  binaryKeys: Set<string>
+  modulesDirs: Set<string>
+}
+
+async function readRegisteredInstalls (storeDir: string): Promise<RegisteredInstalls> {
   const keys = new Set<string>()
   const binaryKeys = new Set<string>()
+  const modulesDirs = new Set<string>()
+  const resolveModulesDir = createModulesDirResolver()
   for (const projectDir of await getRegisteredProjects(storeDir)) {
     // eslint-disable-next-line no-await-in-loop -- hold one project's parsed lockfiles at a time
-    for (const { key, binary } of await projectIndexKeys(projectDir)) {
+    const lockfiles = await readInstalledLockfiles(projectDir, resolveModulesDir)
+    for (const { key, binary } of lockfiles.flatMap(lockfileIndexKeys)) {
       keys.add(key)
       if (binary) binaryKeys.add(key)
     }
+    const importerDirs = new Set([projectDir, ...lockfiles.flatMap((lockfile) =>
+      Object.keys(lockfile.importers ?? {}).map((importerId) => path.resolve(projectDir, importerId))
+    )])
+    // eslint-disable-next-line no-await-in-loop -- one project at a time, as above
+    for (const modulesDir of await Promise.all(Array.from(importerDirs, resolveModulesDir))) {
+      modulesDirs.add(modulesDir)
+    }
   }
-  return { keys, binaryKeys }
+  return { keys, binaryKeys, modulesDirs }
 }
 
-async function projectIndexKeys (projectDir: string): Promise<IndexKey[]> {
-  return (await readInstalledLockfiles(projectDir)).flatMap(lockfileIndexKeys)
+type ModulesDirResolver = (projectDir: string) => Promise<string>
+
+/**
+ * Resolves the absolute modules directory of a project, reading each
+ * workspace's settings once.
+ */
+function createModulesDirResolver (): ModulesDirResolver {
+  const settingsByWorkspace = new Map<string, Promise<WorkspaceModulesDirs>>()
+  return async (projectDir) => {
+    let modulesDir: string
+    try {
+      modulesDir = await readConfiguredModulesDir(projectDir, settingsByWorkspace)
+    } catch (err: unknown) {
+      throw inUseFilesError(projectDir, err)
+    }
+    return path.resolve(projectDir, modulesDir)
+  }
 }
 
 function lockfileIndexKeys (lockfile: LockfileObject): IndexKey[] {
@@ -108,8 +152,8 @@ function readIndexRow (storeIndex: StoreIndex, storeDir: string, key: string): P
  * setting names the shared store. The manifest does not say which case
  * applies, so the prune reads both.
  */
-async function readInstalledLockfiles (projectDir: string): Promise<LockfileObject[]> {
-  const modulesDir = path.resolve(projectDir, await readConfiguredModulesDir(projectDir))
+async function readInstalledLockfiles (projectDir: string, resolveModulesDir: ModulesDirResolver): Promise<LockfileObject[]> {
+  const modulesDir = await resolveModulesDir(projectDir)
   const defaultDir = path.join(modulesDir, '.pnpm')
   const modules = await readModulesManifestOfProject(modulesDir)
   const installStateDirs = new Set([defaultDir, modules?.virtualStoreDir ?? defaultDir])
@@ -125,28 +169,39 @@ async function readInstalledLockfiles (projectDir: string): Promise<LockfileObje
  * set only on the command line, in the environment, or in the global config
  * is not seen.
  */
-async function readConfiguredModulesDir (projectDir: string): Promise<string> {
-  try {
-    // `findWorkspaceDir` would also honor the workspace directory that the
-    // environment of the prune sets, which names no registered project's
-    // workspace.
-    const workspaceManifest = find.file(WORKSPACE_MANIFEST_FILENAME, { cwd: projectDir })
-    if (workspaceManifest == null) return 'node_modules'
-    const workspaceDir = path.dirname(workspaceManifest)
-    // `PnpmSettings` does not declare these settings.
-    const settings = await readWorkspaceManifestKeys(workspaceDir, MODULES_DIR_SETTINGS) as Partial<Pick<Config, 'lockfileDir' | 'modulesDir' | 'packageConfigs' | 'sharedWorkspaceLockfile'>> | undefined
-    const lockfileDir = settings?.sharedWorkspaceLockfile === false ? settings.lockfileDir : workspaceDir
-    const resolveModulesDir = createProjectModulesDirResolver({
+async function readConfiguredModulesDir (projectDir: string, settingsByWorkspace: Map<string, Promise<WorkspaceModulesDirs>>): Promise<string> {
+  // `findWorkspaceDir` would also honor the workspace directory that the
+  // environment of the prune sets, which names no registered project's
+  // workspace.
+  const workspaceManifest = find.file(WORKSPACE_MANIFEST_FILENAME, { cwd: projectDir })
+  if (workspaceManifest == null) return 'node_modules'
+  const workspaceDir = path.dirname(workspaceManifest)
+  let workspaceModulesDirs = settingsByWorkspace.get(workspaceDir)
+  if (workspaceModulesDirs == null) {
+    workspaceModulesDirs = readWorkspaceModulesDirs(workspaceDir)
+    settingsByWorkspace.set(workspaceDir, workspaceModulesDirs)
+  }
+  const { resolveModulesDir, needsProjectName } = await workspaceModulesDirs
+  const projectName = needsProjectName ? (await safeReadProjectManifestOnly(projectDir))?.name : undefined
+  return resolveModulesDir(projectName) ?? 'node_modules'
+}
+
+interface WorkspaceModulesDirs {
+  resolveModulesDir: (projectName: string | undefined) => string | undefined
+  needsProjectName: boolean
+}
+
+async function readWorkspaceModulesDirs (workspaceDir: string): Promise<WorkspaceModulesDirs> {
+  // `PnpmSettings` does not declare these settings.
+  const settings = await readWorkspaceManifestKeys(workspaceDir, MODULES_DIR_SETTINGS) as Partial<Pick<Config, 'lockfileDir' | 'modulesDir' | 'packageConfigs' | 'sharedWorkspaceLockfile'>> | undefined
+  const lockfileDir = settings?.sharedWorkspaceLockfile === false ? settings.lockfileDir : workspaceDir
+  return {
+    resolveModulesDir: createProjectModulesDirResolver({
       lockfileDir,
-      modulesDir: typeof settings?.modulesDir === 'string' ? settings.modulesDir : undefined,
+      modulesDir: typeof settings?.modulesDir === 'string' ? envReplace(settings.modulesDir, process.env) : undefined,
       packageConfigs: settings?.packageConfigs,
-    })
-    const projectName = lockfileDir != null || settings?.packageConfigs == null
-      ? undefined
-      : (await safeReadProjectManifestOnly(projectDir))?.name
-    return resolveModulesDir(projectName) ?? 'node_modules'
-  } catch (err: unknown) {
-    throw inUseFilesError(projectDir, err)
+    }),
+    needsProjectName: lockfileDir == null && settings?.packageConfigs != null,
   }
 }
 
