@@ -1,7 +1,4 @@
-pub(crate) use lockfile_guard::LockfileGuard;
-
 mod deprecations;
-mod lockfile_guard;
 
 use crate::{
     State,

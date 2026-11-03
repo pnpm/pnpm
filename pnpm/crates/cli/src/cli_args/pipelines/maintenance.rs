@@ -7,9 +7,8 @@ use super::{
 /// The reporter-generic body of `pacquet dedupe`: snapshots the lockfile
 /// (when `--check`), runs config-dependency installation and `updateConfig`
 /// hooks, then dispatches to the install pipeline. The snapshot is taken ahead
-/// of config-deps so a lockfile write they make is reported as a change and
-/// rolled back by the guard; the pipeline itself never writes the lockfile in
-/// `--check` mode.
+/// of config-deps so a lockfile write they make is reported as a change; the
+/// pipeline itself never writes the lockfile in `--check` mode.
 pub(crate) struct DedupePipeline {
     pub(crate) args: DedupeArgs,
     pub(crate) cfg: &'static mut Config,
@@ -27,8 +26,6 @@ impl DedupePipeline {
         // changes made by config-dependency syncing as well.
         let existing =
             if self.args.check { dedupe::read_lockfile_snapshot(&lockfile_path)? } else { None };
-        let mut guard =
-            self.args.check.then(|| dedupe::LockfileGuard::new(existing.clone(), &lockfile_path));
 
         let root_config = (&*self.manifest_path, &mut *self.cfg, &*self.config_root);
         prepare_root_config::<Reporter>(
@@ -36,9 +33,6 @@ impl DedupePipeline {
             (false, RuntimePolicy::Config(self.args.no_runtime)),
         )
         .await?;
-        if let Some(guard) = &mut guard {
-            guard.settle();
-        }
         let plan = select_install_family_plan::<Reporter>(
             self.cfg,
             &self.prefix,

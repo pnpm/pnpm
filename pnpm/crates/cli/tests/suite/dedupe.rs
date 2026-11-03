@@ -1230,7 +1230,16 @@ fn dedupe_check_detects_config_dependency_changes_when_root_is_unselected() {
         .clone();
     let stdout = String::from_utf8(output.stdout).expect("stdout is UTF-8");
     assert!(stdout.contains("ERR_PNPM_DEDUPE_CHECK_ISSUES"), "stdout:\n{stdout}");
-    for (path, snapshot) in lockfiles.iter().zip(snapshots) {
+    // Config-dependency syncing records the new dependency in the root
+    // lockfile's env document, as an install would, and changes nothing else.
+    let root_lockfile = fs::read_to_string(&lockfiles[0]).unwrap();
+    let (env_document, wanted_lockfile) = root_lockfile
+        .strip_prefix("---\n")
+        .and_then(|content| content.split_once("\n---\n"))
+        .expect("the root lockfile starts with an env document");
+    assert!(env_document.contains("'@pnpm.e2e/foo'"), "env document:\n{env_document}");
+    assert_eq!(wanted_lockfile.as_bytes(), snapshots[0]);
+    for (path, snapshot) in lockfiles.iter().zip(snapshots).skip(1) {
         assert_eq!(fs::read(path).unwrap(), snapshot);
     }
     drop((root, npmrc_info));
