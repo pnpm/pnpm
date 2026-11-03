@@ -60,7 +60,7 @@ async fn only_archives_the_registry_lacks_are_uploaded() {
         .create_async()
         .await;
 
-    stage_archives(
+    let uploaded = stage_archives(
         &ThrottledClient::default(),
         &registry,
         Some("Bearer t"),
@@ -68,6 +68,7 @@ async fn only_archives_the_registry_lacks_are_uploaded() {
     )
     .await
     .unwrap();
+    assert_eq!(uploaded, 1, "only the missing archive is uploaded");
 
     stored.assert_async().await;
     missing.assert_async().await;

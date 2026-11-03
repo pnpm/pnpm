@@ -11,6 +11,7 @@ use futures_util::{StreamExt as _, TryStreamExt as _, stream};
 use pnpm_diagnostics::miette::{self, Diagnostic};
 use pnpm_network::{ThrottledClient, read_limited_body};
 use serde_json::Value;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use crate::{
     publish_packed_pkg::{PublishPackedPkgError, join_registry, registry_for_display},
@@ -52,27 +53,38 @@ pub(crate) fn reference_staged_archive(document: &mut Value, integrity: &str) {
 }
 
 /// Stage every archive of `archives` on `registry` that it does not hold
-/// staged already, [`CONCURRENT_UPLOADS`] at a time.
+/// staged already, [`CONCURRENT_UPLOADS`] at a time. Returns how many it
+/// uploaded.
 pub(crate) async fn stage_archives(
     client: &ThrottledClient,
     registry: &NormalizedRegistryUrl,
     authorization: Option<&str>,
     archives: &[StagedArchive<'_>],
-) -> Result<(), StagingError> {
+) -> Result<usize, StagingError> {
+    let uploaded = AtomicUsize::new(0);
     stream::iter(archives)
-        .map(Ok)
+        .map(Ok::<_, StagingError>)
         .try_for_each_concurrent(CONCURRENT_UPLOADS, |archive| {
-            stage_archive(client, registry, authorization, archive)
+            let uploaded = &uploaded;
+            async move {
+                if stage_archive(client, registry, authorization, archive).await? {
+                    uploaded.fetch_add(1, Ordering::Relaxed);
+                }
+                Ok(())
+            }
         })
-        .await
+        .await?;
+    Ok(uploaded.into_inner())
 }
 
+/// Stage `archive` unless `registry` holds it staged already. Returns
+/// whether it was uploaded.
 async fn stage_archive(
     client: &ThrottledClient,
     registry: &NormalizedRegistryUrl,
     authorization: Option<&str>,
     archive: &StagedArchive<'_>,
-) -> Result<(), StagingError> {
+) -> Result<bool, StagingError> {
     let query = url::form_urlencoded::Serializer::new(String::new())
         .append_pair("integrity", &archive.integrity)
         .finish();
@@ -90,7 +102,7 @@ async fn stage_archive(
     }
     let response = head.send().await.map_err(|error| failed(error.to_string()))?;
     match response.status().as_u16() {
-        200 => return Ok(()),
+        200 => return Ok(false),
         404 => {}
         status => return Err(failed(format!("HEAD answered {status}"))),
     }
@@ -107,7 +119,7 @@ async fn stage_archive(
     }
     let response = put.send().await.map_err(|error| failed(error.to_string()))?;
     if response.status().is_success() {
-        return Ok(());
+        return Ok(true);
     }
     Err(failed(refusal(response).await))
 }

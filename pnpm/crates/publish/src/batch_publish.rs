@@ -150,9 +150,10 @@ async fn publish_group<Reporter: self::Reporter>(
         return Ok(());
     }
     if let Some(archives) = &group.staged {
-        stage_archives(network.client, &group.registry, authorization, archives).await?;
+        let uploaded =
+            stage_archives(network.client, &group.registry, authorization, archives).await?;
         global_info::<Reporter>(&format!(
-            "Uploaded {} archive(s) to {registry} ahead of the publish",
+            "Uploaded {uploaded} of {} archive(s) to {registry} ahead of the publish",
             archives.len(),
         ));
     }
