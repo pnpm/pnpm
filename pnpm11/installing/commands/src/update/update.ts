@@ -7,7 +7,7 @@ import type { IncludedDependencies, PackageVulnerabilityAudit } from '@pnpm/type
 
 import type { InstallCommandOptions } from '../install.js'
 import { createVulnerabilityUpdateMatching, installDeps } from '../installDeps.js'
-import { createUpdateMatching, expandUpdateSelectorsForMatching, parseUpdateParam } from '../recursive.js'
+import { addIgnorePatterns, createUpdateMatching, expandUpdateSelectorsForMatching, parseUpdateParam } from '../recursive.js'
 import { captureUpdateChangesetContext, generateUpdateChangeset } from './generateUpdateChangeset.js'
 
 export type UpdateCommandOptions = InstallCommandOptions & {
@@ -71,7 +71,8 @@ function selectUpdateMatching (
     return createVulnerabilityUpdateMatching(opts.packageVulnerabilityAudit)
   }
   if ((packageDependencies.length > 0) && depth > 0 && !opts.latest) {
-    return createUpdateMatching(packageDependencies.flatMap(expandUpdateSelectorsForMatching))
+    const selectors = addIgnorePatterns(packageDependencies, opts.updateConfig?.ignoreDependencies)
+    return createUpdateMatching(selectors.flatMap(expandUpdateSelectorsForMatching))
   }
   return undefined
 }

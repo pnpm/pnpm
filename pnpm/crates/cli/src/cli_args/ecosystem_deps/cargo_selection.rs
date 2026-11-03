@@ -37,6 +37,9 @@ fn match_cargo_dep<'a>(
 ) -> Option<SelectedCargoDep<'a>> {
     if !options.step.include_groups.contains(&dep.group)
         || options.step.ignore_matcher.is_some_and(|matcher| matcher.matches(&dep.alias))
+        || options.exclusions
+            .iter()
+            .any(|name| name == &dep.alias || name == &dep.package_name)
     {
         return None;
     }
@@ -54,8 +57,8 @@ fn match_cargo_dep<'a>(
             named: true,
         });
     }
-    options.bare_matcher
-        .is_some_and(|matcher| matcher.matches(&dep.alias))
+    (options.bare_matcher.is_some_and(|matcher| matcher.matches(&dep.alias))
+        || options.update_all_except_exclusions)
         .then_some(unnamed)
 }
 

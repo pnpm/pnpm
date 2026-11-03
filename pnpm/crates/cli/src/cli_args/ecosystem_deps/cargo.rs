@@ -1,3 +1,6 @@
+pub(crate) use update::update_cargo_projects;
+mod update;
+
 use super::{
     EcosystemUpdateStepOptions,
     cargo_manifest_ops::{
@@ -38,6 +41,8 @@ use std::{
 
 pub(crate) struct CargoUpdateOptions<'a> {
     pub(crate) requests: &'a [CargoUpdateSelector],
+    pub(crate) exclusions: &'a [String],
+    pub(crate) update_all_except_exclusions: bool,
     pub(crate) bare_matcher: Option<&'a Matcher>,
     pub(crate) restrict_to_selectors: bool,
     pub(crate) step: &'a EcosystemUpdateStepOptions<'a>,
@@ -174,33 +179,6 @@ fn semver_to_node_version(version: &Version) -> node_semver::Version {
             build: Vec::new(),
             pre_release: Vec::new(),
         })
-}
-
-pub(crate) async fn update_cargo_project<Reporter: self::Reporter + 'static>(
-    project_dir: &Path,
-    context: InstallContext,
-    options: &CargoUpdateOptions<'_>,
-) -> Result<bool> {
-    let config = context.config;
-    let manifest_path = project_dir.join("Cargo.toml");
-    if !config.cargo.enabled || !manifest_path.is_file() {
-        return Ok(false);
-    }
-    let declared = declared_cargo_deps(project_dir, config.workspace_dir.as_deref())?;
-    let selected = select_cargo_deps_to_update(&declared, options);
-    if selected.is_empty() {
-        return Ok(false);
-    }
-    execute_cargo_update::<Reporter>(
-        project_dir,
-        &manifest_path,
-        &declared,
-        &selected,
-        context,
-        options,
-    )
-    .await?;
-    Ok(true)
 }
 
 pub(crate) fn validate_explicit_cargo_requests(

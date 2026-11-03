@@ -116,6 +116,10 @@ Update the dependencies to their latest stable version as determined by their `l
 
 Since v12.6.0, `--latest` does not move a dependency past a specifier supplied by `packageExtensions`, a `readPackage` hook, or an override. The lockfile stays inside that specifier.
 
+An exact Cargo requirement stays exact when updated, unless the selector gives
+a range, as in `pnpm update crate:foo@^2`. Saved Cargo requirements omit build
+metadata.
+
 ### --patches
 
 Added in: v12.0.0

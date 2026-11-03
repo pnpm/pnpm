@@ -1,0 +1,58 @@
+use super::format_cargo_saved_spec;
+use semver::Version;
+
+#[test]
+fn format_cargo_saved_spec_preserves_exact_requirements() {
+    let saved = format_cargo_saved_spec(
+        "=1.3.1",
+        &Version::parse("1.3.6").unwrap(),
+        None,
+        false,
+        Some("^"),
+    )
+    .unwrap();
+
+    assert_eq!(saved, "=1.3.6");
+}
+
+#[test]
+fn format_cargo_saved_spec_prefers_an_explicit_range_over_an_exact_requirement() {
+    let saved = format_cargo_saved_spec(
+        "=1.3.1",
+        &Version::parse("2.0.0").unwrap(),
+        Some("^2.0.0"),
+        false,
+        Some("^"),
+    )
+    .unwrap();
+
+    assert_eq!(saved, "^2.0.0");
+}
+
+#[test]
+fn format_cargo_saved_spec_omits_build_metadata_from_an_explicit_range() {
+    let saved = format_cargo_saved_spec(
+        "1.1.8",
+        &Version::parse("1.1.9+spec-1.1.1").unwrap(),
+        Some("^1.1.9+spec-1.1.1"),
+        false,
+        None,
+    )
+    .unwrap();
+
+    assert_eq!(saved, "^1.1.9");
+}
+
+#[test]
+fn format_cargo_saved_spec_omits_build_metadata() {
+    let saved = format_cargo_saved_spec(
+        "1.1.8+spec-1.1.0",
+        &Version::parse("1.1.9+spec-1.1.1").unwrap(),
+        None,
+        false,
+        None,
+    )
+    .unwrap();
+
+    assert_eq!(saved, "1.1.9");
+}

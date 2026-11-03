@@ -150,8 +150,7 @@ function matchesADirectDependency (
   manifests: ProjectManifest[],
   include: IncludedDependencies
 ): boolean {
-  const match = createMatcher([pattern])
-  return manifests.some((manifest) => matchDependencies(match, manifest, include).length > 0)
+  return matchesAnyDirectDependency([pattern], manifests, include)
 }
 
 export type UpdateDepsMatcher = (input: string) => string | null
@@ -201,6 +200,42 @@ export function expandUpdateSelectorsForMatching (selector: string): string[] {
   return [selector, aliasSpec]
 }
 
-export function makeIgnorePatterns (ignoredDependencies: string[]): string[] {
-  return ignoredDependencies.map(depName => `!${depName}`)
+/**
+ * `updateConfig.ignoreDependencies` applies unless a selector names a
+ * dependency to update. Negated selectors only narrow the update, so they
+ * keep the ignored dependencies out too.
+ */
+export function addIgnorePatterns (params: string[], ignoredDependencies: string[] | undefined): string[] {
+  if (!ignoredDependencies?.length || !params.every(param => param.startsWith('!'))) return params
+  return [...params, ...ignoredDependencies.map(depName => `!${depName}`)]
+}
+
+export interface IgnoredUpdateSelection {
+  params: string[]
+  ignoredDependencies: string[] | undefined
+}
+
+/**
+ * Whether the selectors match direct dependencies of `manifests` only
+ * through names `updateConfig.ignoreDependencies` holds back. Such an update
+ * has nothing left to do, which is not `NO_PACKAGE_IN_DEPENDENCIES`.
+ */
+export function selectsOnlyIgnoredDependencies (
+  { params, ignoredDependencies }: IgnoredUpdateSelection,
+  manifests: ProjectManifest[],
+  include: IncludedDependencies
+): boolean {
+  const updateSpecs = addIgnorePatterns(params, ignoredDependencies)
+  if (params.length === 0 || updateSpecs === params) return false
+  return matchesAnyDirectDependency(params, manifests, include) &&
+    !matchesAnyDirectDependency(updateSpecs, manifests, include)
+}
+
+function matchesAnyDirectDependency (
+  params: string[],
+  manifests: ProjectManifest[],
+  include: IncludedDependencies
+): boolean {
+  const match = createMatcher(params)
+  return manifests.some((manifest) => matchDependencies(match, manifest, include).length > 0)
 }
