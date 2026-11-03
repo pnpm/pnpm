@@ -22,15 +22,10 @@ const LOCAL_LINK_GROUPS: [DependencyGroup; 3] =
 /// before the stat no longer matches, and one edited after it has a stat the
 /// next check rejects. `previous` lets a manifest whose stat and digest are
 /// unchanged skip the read.
-///
-/// Empty under `SOURCE_DATE_EPOCH`, whose zeroed stats nothing can trust.
 pub(super) fn stat_vouched(
     inputs: &RecordValidation<'_>,
     previous: Option<&Validation>,
 ) -> BTreeMap<String, ManifestFile> {
-    if inputs.config.source_date_epoch.is_some() {
-        return BTreeMap::new();
-    }
     let vouched = inputs.project_manifests
         .iter()
         .filter(|(root_dir, _)| match inputs.vouched {
@@ -48,7 +43,9 @@ pub(super) fn stat_vouched(
 
 /// Moves `stats` into `validation` for the projects it records with the same
 /// digest, and carries the file of each other recorded project from
-/// `carried` when that record proves the same manifest.
+/// `carried` when that record proves the same manifest with a stat `carried`
+/// trusts. An untrusted stat stays untrusted: the later `recorded_at_ns` of
+/// `validation` must not vouch for an edit that kept it.
 pub(super) fn insert(
     validation: &mut Validation,
     mut stats: BTreeMap<String, ManifestFile>,
@@ -75,9 +72,9 @@ fn carried_file(
     let carried = carried?;
     let same_manifest =
         carried.manifests.get(importer_id) == validation.manifests.get(importer_id);
-    same_manifest
-        .then(|| carried.manifest_files.get(importer_id).cloned())
-        .flatten()
+    let file = carried.manifest_files.get(importer_id)?;
+    let trusted = stat_trusted(file.mtime_ns, file.ctime_ns, carried.recorded_at_ns);
+    (same_manifest && trusted).then(|| file.clone())
 }
 
 fn stat_manifest(

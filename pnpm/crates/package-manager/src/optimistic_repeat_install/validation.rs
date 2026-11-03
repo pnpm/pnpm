@@ -224,17 +224,22 @@ pub(crate) struct RecordValidation<'a> {
 /// the clock, `recorded_at_ns` and each file signature's stat timestamps are
 /// zeroed while keeping content digests. [`signature_trusted`] then always
 /// returns `false`, so the next check rehashes the files on disk against the
-/// recorded digests instead of trusting modification times.
+/// recorded digests instead of trusting modification times. No manifest file
+/// is recorded, neither stat'd nor carried, since its stat cannot be zeroed.
 pub(crate) fn record_validation(state: &mut WorkspaceState, inputs: &RecordValidation<'_>) {
     let previous = match inputs.vouched {
         Vouched::All => None,
         Vouched::Projects { previous, .. } => *previous,
     };
     let ((lockfile_path, lockfile), files) = recorded_files(state, inputs, previous);
-    let manifest_stats = manifest_files::stat_vouched(
-        inputs,
-        previous.and_then(|previous| previous.validation.as_ref()),
-    );
+    let manifest_stats = inputs.config.source_date_epoch
+        .is_none()
+        .then(|| {
+            manifest_files::stat_vouched(
+                inputs,
+                previous.and_then(|previous| previous.validation.as_ref()),
+            )
+        });
     let Some(recorded_at_ns) = recorded_validation_time_ns(inputs) else {
         state.validation = None;
         state.filtered_install = true;
@@ -247,7 +252,9 @@ pub(crate) fn record_validation(state: &mut WorkspaceState, inputs: &RecordValid
     let mut validation =
         Validation { recorded_at_ns, files, lockfile: lockfile.clone(), ..Validation::default() };
     let recorded = record_projects(&mut validation, inputs, carried, lockfile.as_deref());
-    manifest_files::insert(&mut validation, manifest_stats, carried);
+    if let Some(manifest_stats) = manifest_stats {
+        manifest_files::insert(&mut validation, manifest_stats, carried);
+    }
     local_dependencies::record_for_write(
         &mut validation,
         inputs,

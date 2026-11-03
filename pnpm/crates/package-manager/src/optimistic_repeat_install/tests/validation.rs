@@ -273,7 +273,15 @@ fn record_files(
     project_manifests: &[(std::path::PathBuf, &PackageManifest)],
     vouched: &Vouched<'_>,
 ) -> Validation {
-    let mut config = Config::new();
+    record_files_with(root, project_manifests, vouched, Config::new())
+}
+
+fn record_files_with(
+    root: &Path,
+    project_manifests: &[(std::path::PathBuf, &PackageManifest)],
+    vouched: &Vouched<'_>,
+    mut config: Config,
+) -> Validation {
     config.modules_dir = root.join("node_modules");
     config.install_state_dir = config.modules_dir.join(".pnpm");
     let mut state = WorkspaceState::default();
@@ -299,7 +307,6 @@ fn a_write_records_each_vouched_manifest_file_with_what_the_check_reads_from_it(
     let project_a = project_files(root, &[("a", json)]).remove(0);
     let validation = record_files(root, &[(root.join("a"), &project_a)], &Vouched::All);
     let file = &validation.manifest_files["a"];
-    dbg!(file);
     assert_eq!(file.file_name, "package.json");
     assert_eq!(file.size, json.len() as u64);
     assert!(file.has_runtime_deps && file.has_required_peers);
@@ -355,4 +362,52 @@ fn a_manifest_whose_trusted_stat_is_unchanged_keeps_its_record() {
         .map(|file| file.has_required_peers)
         .collect::<Vec<_>>();
     assert_eq!(kept, [true, true], "a reused record for a and a carried one for b");
+}
+
+#[test]
+fn source_date_epoch_neither_records_nor_carries_manifest_files() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    let manifests = project_files(root, &[("a", r#"{"name":"a"}"#), ("b", r#"{"name":"b"}"#)]);
+    let project_manifests = [(root.join("a"), &manifests[0]), (root.join("b"), &manifests[1])];
+    let previous_validation = record_files(root, &project_manifests, &Vouched::All);
+    assert_eq!(previous_validation.manifest_files.len(), 2);
+    let previous =
+        WorkspaceState { validation: Some(previous_validation), ..WorkspaceState::default() };
+    let only_a = HashSet::from([root.join("a")]);
+    let mut config = Config::new();
+    config.source_date_epoch = Some(SystemTime::UNIX_EPOCH + Duration::from_secs(1_700_000_000));
+    let validation = record_files_with(
+        root,
+        &project_manifests,
+        &Vouched::Projects { dirs: &only_a, previous: Some(&previous) },
+        config,
+    );
+    assert!(validation.manifests.contains_key("b"), "b's manifest digest is carried");
+    assert!(validation.manifest_files.is_empty());
+}
+
+/// A carried record keeps the trust it had when it was recorded, so a later
+/// write does not vouch for an edit that kept the untrusted stat.
+#[test]
+fn a_carried_manifest_file_needs_a_stat_its_own_recording_trusted() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    let manifests = project_files(root, &[("a", r#"{"name":"a"}"#), ("b", r#"{"name":"b"}"#)]);
+    let project_manifests = [(root.join("a"), &manifests[0]), (root.join("b"), &manifests[1])];
+    let mut previous_validation = record_files(root, &project_manifests, &Vouched::All);
+    let b = previous_validation.manifest_files.get_mut("b").unwrap();
+    b.mtime_ns = previous_validation.recorded_at_ns;
+    b.ctime_ns = None;
+    let previous =
+        WorkspaceState { validation: Some(previous_validation), ..WorkspaceState::default() };
+    let only_a = HashSet::from([root.join("a")]);
+    let validation = record_files(
+        root,
+        &project_manifests,
+        &Vouched::Projects { dirs: &only_a, previous: Some(&previous) },
+    );
+    assert!(validation.manifests.contains_key("b"));
+    assert!(validation.manifest_files.contains_key("a"));
+    assert!(!validation.manifest_files.contains_key("b"));
 }
