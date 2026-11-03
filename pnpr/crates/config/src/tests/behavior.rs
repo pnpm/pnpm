@@ -59,10 +59,18 @@ fn null_defaulted_aggregate_config_fields_use_defaults() {
             .unwrap_or_else(|error| panic!("failed to load {yaml:?}: {error}"));
     }
 
-    super::super::loading::parse_config_file(
-        "registries:\n  router: {type: router, sources: null}\n",
-    )
-    .expect("router sources should deserialize null as an empty collection");
+    let router_yaml = "registries:\n  router: {type: router, sources: null}\n";
+    let parsed = super::super::loading::parse_config_file(router_yaml).unwrap();
+    let super::super::config_file::RegistryGroupFile::Registry(
+        super::super::config_file::RegistryFile::Router(router),
+    ) = parsed.registries.get("router").unwrap()
+    else {
+        panic!("expected a router registry");
+    };
+    assert!(router.sources.is_empty());
+
+    Config::from_yaml_str(router_yaml, Path::new("/x"), listen(), None)
+        .expect_err("a router with no sources is invalid");
 }
 
 #[test]
