@@ -122,20 +122,46 @@ struct ReleaseProbe<'a> {
 }
 
 impl ReleaseProbe<'_> {
+    /// The name the release of `name` (`key` is its `name@version`) was
+    /// published under, and the registry that stores its notes, if one does.
+    /// The parked file is keyed by the manifest name, which is what the
+    /// ledger joins on; the registry only knows the published one. The
+    /// ledger names the project that released, whose manifest answers both:
+    /// same-named projects on different version lines may rename themselves
+    /// or publish to different registries. A hand-written entry without a
+    /// dir falls back to the name.
+    fn release_target(&self, name: &str, key: &str) -> (String, Option<String>) {
+        let manifest = self.ledger
+            .get(key)
+            .and_then(pnpm_versioning::LedgerEntry::dir)
+            .and_then(|dir| {
+                let path =
+                    pnpm_package_manifest::project_manifest_path(&self.workspace_dir.join(dir));
+                pnpm_package_manifest::PackageManifest::from_path(path).ok()
+            });
+        match manifest {
+            Some(manifest) => {
+                let manifest = manifest.value();
+                let published = published_name(manifest).unwrap_or(name).to_owned();
+                (published, notes_registry_of_manifest(self.config, manifest))
+            }
+            None => (
+                self.published_names
+                    .get(name)
+                    .cloned()
+                    .unwrap_or_else(|| name.to_owned()),
+                self.notes_registries.get(name).cloned(),
+            ),
+        }
+    }
+
     /// `name@version` when the registry holds its parked section: in its
     /// notes on a registry that stores them, else in its tarball.
     async fn confirm(&self, name: String, version: String) -> Option<String> {
         let section = read_pending_changelog(self.workspace_dir, &name, &version).ok()??;
-        // The parked file is keyed by the manifest name, which is what the
-        // ledger joins on; the registry only knows the published one.
-        let probe = self.published_names.get(&name).map_or(name.as_str(), String::as_str);
         let key = format!("{name}@{version}");
-        // The ledger names the project that released: same-named projects
-        // on different version lines may publish to different registries.
-        let registry = match self.ledger.get(&key).and_then(pnpm_versioning::LedgerEntry::dir) {
-            Some(dir) => notes_registry_of_dir(self.config, &self.workspace_dir.join(dir)),
-            None => self.notes_registries.get(&name).cloned(),
-        };
+        let (probe, registry) = self.release_target(&name, &key);
+        let probe = probe.as_str();
         let confirmed = match registry {
             Some(registry) => {
                 let publication_note = self.publications

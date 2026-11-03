@@ -619,3 +619,61 @@ fn a_same_named_project_on_another_registry_keeps_its_full_section() {
     assert_eq!(intent_files(&workspace), ["next.md"]);
     drop(root);
 }
+
+#[test]
+fn a_parked_release_is_confirmed_under_its_own_published_name() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let mut pnpr = mockito::Server::new();
+    let registry = format!("{}/", pnpr.url());
+    fs::write(workspace.join(".npmrc"), format!("registry={registry}\n")).expect("write .npmrc");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        format!("packages:\n  - packages/*\nregistries:\n  '{registry}':\n    serverType: pnpr\n"),
+    )
+    .expect("write pnpm-workspace.yaml");
+    fs::write(workspace.join("package.json"), r#"{"name": "root", "private": true}"#)
+        .expect("write root package.json");
+    for (dir, manifest) in [
+        (
+            "a",
+            json!({
+                "name": "a",
+                "version": "1.0.0",
+                "publishConfig": { "name": "renamed-a", "registry": "https://registry.example/" },
+            }),
+        ),
+        ("a-next", json!({ "name": "a", "version": "2.0.0" })),
+    ] {
+        let dir = workspace.join("packages").join(dir);
+        fs::create_dir_all(&dir).expect("create package dir");
+        fs::write(dir.join("package.json"), manifest.to_string()).expect("write package.json");
+    }
+    fs::create_dir_all(workspace.join(".changeset")).expect("create .changeset");
+    fs::write(
+        workspace.join(".changeset/next.md"),
+        "---\n\"./packages/a-next\": minor\n---\n\nOnly the next line.\n",
+    )
+    .expect("write intent");
+    run(pnpm(&workspace).with_args(["version", "-r", "--no-git-checks"]));
+    assert_eq!(
+        fs::read_to_string(workspace.join(".changeset/changelogs/a@2.1.0.md"))
+            .expect("read parked note"),
+        "### Minor Changes\n\n- Only the next line.\n",
+    );
+
+    let own = pnpr
+        .mock("GET", "/a/2.1.0/notes")
+        .with_status(404)
+        .expect(1)
+        .create();
+    let renamed = pnpr
+        .mock("GET", Matcher::Regex("renamed-a".into()))
+        .expect(0)
+        .create();
+    run(pnpm(&workspace).with_args(["version", "-r", "--no-git-checks"]));
+
+    own.assert();
+    renamed.assert();
+    assert_eq!(intent_files(&workspace), ["next.md"]);
+    drop(root);
+}
