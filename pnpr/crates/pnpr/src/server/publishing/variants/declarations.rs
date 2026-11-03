@@ -2,7 +2,7 @@
 
 use super::{
     DECLARATION_FIELD, Declarations, RegistryError, STORED_FIELD, Value, VariantDeclaration,
-    bad_request, is_valid_label,
+    bad_request, invalid_tag,
 };
 
 /// Remove variant references, and any server-owned variant field, from a
@@ -23,31 +23,27 @@ pub(in super::super) fn take_declarations(
     Ok(declared)
 }
 
-/// The variant archives one version references: attachment label to the
-/// `.tgz` integrity its upload is verified against. What each archive is a
-/// variant for is read from the archive itself.
+/// The variant archives one version references: tag to the `.tgz` integrity
+/// its upload is verified against. What each archive is a variant for is
+/// read from the archive itself, and must give the tag that names it.
 fn version_declarations(
     version: &str,
     list: Value,
 ) -> Result<Vec<VariantDeclaration>, RegistryError> {
     let Value::Object(list) = list else {
         return Err(bad_request(format!(
-            "{DECLARATION_FIELD} of {version} must map attachment labels to integrities",
+            "{DECLARATION_FIELD} of {version} must map variant tags to integrities",
         )));
     };
     list.into_iter()
-        .map(|(label, integrity)| {
-            if !is_valid_label(&label) {
-                return Err(bad_request(format!(
-                    "variant of {version} has an invalid label {label:?}",
-                )));
+        .map(|(tag, integrity)| {
+            if let Some(reason) = invalid_tag(&tag) {
+                return Err(bad_request(format!("a variant of {version}: {reason}")));
             }
             let Value::String(tgz_integrity) = integrity else {
-                return Err(bad_request(format!(
-                    "variant {label:?} of {version} has no integrity",
-                )));
+                return Err(bad_request(format!("variant {tag:?} of {version} has no integrity")));
             };
-            Ok(VariantDeclaration { label, tgz_integrity })
+            Ok(VariantDeclaration { tag, tgz_integrity })
         })
         .collect()
 }

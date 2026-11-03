@@ -2,8 +2,8 @@
 //! pnpr's document says about each one.
 
 use super::{
-    Declarations, LABEL_FIELD, Map, PublishedTar, PublishedVariant, RegistryError, STORED_FIELD,
-    Value, VariantDeclaration, bad_request,
+    Declarations, Map, PublishedTar, PublishedVariant, RegistryError, STORED_FIELD, Value,
+    VariantDeclaration, bad_request,
 };
 use pnpm_platform_variants::{Platform, variant_tag};
 use std::collections::HashMap;
@@ -107,13 +107,13 @@ fn stored_variants(
         let overlap = platforms
             .into_iter()
             .find_map(|platform| {
-                let other = listed.insert(platform.clone(), &variant.label)?;
+                let other = listed.insert(platform.clone(), &variant.tag)?;
                 Some((other, platform))
             });
         if let Some((other, platform)) = overlap {
             return Err(bad_request(format!(
                 "variants {other:?} and {:?} of {version} both list {}",
-                variant.label,
+                variant.tag,
                 platform.tag().unwrap_or_default(),
             )));
         }
@@ -133,19 +133,22 @@ fn stored_variant(
     primary: &Value,
     published: &[PublishedVariant],
 ) -> Result<(Value, Vec<Platform>), RegistryError> {
-    let label = &variant.label;
-    let reject = |reason: String| bad_request(format!("variant {label:?} of {version}: {reason}"));
+    let named = &variant.tag;
+    let reject = |reason: String| bad_request(format!("variant {named:?} of {version}: {reason}"));
     let Some(found) = published
         .iter()
-        .find(|item| item.version == *version && item.tar.label == *label)
+        .find(|item| item.version == *version && item.tar.tag == *named)
     else {
         return Err(bad_request(format!(
-            "variant {label:?} of {version} is declared but not attached",
+            "variant {named:?} of {version} is declared but not attached",
         )));
     };
     let manifest = verified_manifest(found, primary).map_err(reject)?;
     let platforms = declared_platforms(manifest).map_err(reject)?;
     let tag = variant_tag(&platforms).map_err(|err| reject(err.to_string()))?;
+    if tag != *named {
+        return Err(reject(format!("its variant field gives the tag {tag:?}")));
+    }
     let mut entry = archive_facts(found);
     entry.insert("tag".into(), Value::String(tag));
     entry.insert(
@@ -153,7 +156,6 @@ fn stored_variant(
         serde_json::to_value(&platforms).expect("platforms serialize"),
     );
     entry.insert("manifest".into(), Value::Object(manifest_difference(manifest, primary)));
-    entry.insert(LABEL_FIELD.into(), Value::String(label.clone()));
     Ok((Value::Object(entry), platforms))
 }
 

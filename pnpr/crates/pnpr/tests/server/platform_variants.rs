@@ -51,7 +51,7 @@ fn variant_manifest(platforms: &[&str], extra: &Value) -> Value {
     manifest
 }
 
-/// A publish of the primary and `variants`, each `(label, .tgz)`.
+/// A publish of the primary and `variants`, each `(tag, .tgz)`.
 fn publish_request(primary: &[u8], variants: &[(&str, &[u8])], token: &str) -> Request<Body> {
     publish_request_with(Some(primary), variants, token)
 }
@@ -79,9 +79,9 @@ fn publish_request_with(
         attachments.insert("@acme/fast-1.0.0.tgz".into(), attachment(primary));
     }
     let mut references = serde_json::Map::new();
-    for (label, tgz) in variants {
-        attachments.insert(format!("@acme/fast-1.0.0~{label}.tgz"), attachment(tgz));
-        references.insert((*label).to_string(), Value::String(sha512_integrity(tgz)));
+    for (tag, tgz) in variants {
+        attachments.insert(format!("@acme/fast-1.0.0~{tag}.tgz"), attachment(tgz));
+        references.insert((*tag).to_string(), Value::String(sha512_integrity(tgz)));
     }
     let mut manifest = primary_manifest();
     manifest["dist"] = json!({
@@ -138,7 +138,7 @@ async fn archives_declare_their_platforms_and_pnpr_derives_the_tags() {
         .clone()
         .oneshot(publish_request(
             &primary,
-            &[("static", &static_tgz), ("mac", &darwin_tgz)],
+            &[("linux-x64+linux-x64-musl", &static_tgz), ("darwin-arm64-macos_11_0", &darwin_tgz)],
             &token,
         ))
         .await
@@ -162,7 +162,6 @@ async fn archives_declare_their_platforms_and_pnpr_derives_the_tags() {
     );
     assert_eq!(variants[0]["integrity"], sha512_integrity(&static_tar));
     assert_eq!(variants[0]["manifest"], json!({}));
-    assert!(variants[0].get("label").is_none(), "the attachment label stays internal");
     assert_eq!(variants[1]["tag"], "darwin-arm64-macos_11_0");
     assert_eq!(
         variants[1]["platforms"],
@@ -184,7 +183,7 @@ async fn archives_declare_their_platforms_and_pnpr_derives_the_tags() {
     let other =
         get(&app, "/npm/~main/@acme/fast@1.0.0+r1/variants/linux-x64+linux-x64-musl", None).await;
     assert_eq!(other.status(), StatusCode::NOT_FOUND);
-    let unknown = get(&app, "/npm/~main/@acme/fast@1.0.0/variants/static", None).await;
+    let unknown = get(&app, "/npm/~main/@acme/fast@1.0.0/variants/linux-arm64", None).await;
     assert_eq!(unknown.status(), StatusCode::NOT_FOUND);
 }
 
@@ -193,11 +192,11 @@ async fn rejection(variants: &[(&str, Value)]) -> String {
     let (_, primary) = archive(&primary_manifest(), "primary");
     let archives: Vec<(&str, Vec<u8>)> = variants
         .iter()
-        .map(|(label, manifest)| (*label, archive(manifest, label).1))
+        .map(|(tag, manifest)| (*tag, archive(manifest, tag).1))
         .collect();
     let refs: Vec<(&str, &[u8])> = archives
         .iter()
-        .map(|(label, tgz)| (*label, tgz.as_slice()))
+        .map(|(tag, tgz)| (*tag, tgz.as_slice()))
         .collect();
     let response = app
         .clone()
@@ -215,35 +214,55 @@ async fn publication_rejects_variants_that_break_an_invariant() {
             "peers",
             r#"its "peerDependencies" differs from the version's"#,
             vec![(
-                "a",
+                "linux-x64",
                 variant_manifest(&["linux-x64"], &json!({ "peerDependencies": { "react": "*" } })),
             )],
         ),
         (
             "os",
             r#"it declares "os" beside its variant field"#,
-            vec![("a", variant_manifest(&["linux-x64"], &json!({ "os": ["linux"] })))],
+            vec![("linux-x64", variant_manifest(&["linux-x64"], &json!({ "os": ["linux"] })))],
         ),
         (
             "non-canonical",
             r#"platform tag "linux-x64-glibc" has an unknown or misplaced part"#,
-            vec![("a", variant_manifest(&["linux-x64-glibc"], &json!({})))],
+            vec![("linux-x64", variant_manifest(&["linux-x64-glibc"], &json!({})))],
         ),
-        ("no field", "its package.json has no variant field", vec![("a", primary_manifest())]),
+        (
+            "no field",
+            "its package.json has no variant field",
+            vec![("linux-x64", primary_manifest())],
+        ),
         (
             "overlap",
-            r#"variants "a" and "b" of 1.0.0 both list linux-x64"#,
+            r#"variants "linux-x64" and "linux-x64+linux-x64-musl" of 1.0.0 both list linux-x64"#,
             vec![
-                ("a", variant_manifest(&["linux-x64"], &json!({}))),
-                ("b", variant_manifest(&["linux-x64", "linux-x64-musl"], &json!({}))),
+                ("linux-x64", variant_manifest(&["linux-x64"], &json!({}))),
+                (
+                    "linux-x64+linux-x64-musl",
+                    variant_manifest(&["linux-x64", "linux-x64-musl"], &json!({})),
+                ),
             ],
         ),
         (
             "build",
             "it requires a build",
             vec![(
-                "a",
+                "linux-x64",
                 variant_manifest(&["linux-x64"], &json!({ "scripts": { "postinstall": "x" } })),
+            )],
+        ),
+        (
+            "another tag",
+            r#"variant "linux-x64" of 1.0.0: its variant field gives the tag "linux-x64-musl""#,
+            vec![("linux-x64", variant_manifest(&["linux-x64-musl"], &json!({})))],
+        ),
+        (
+            "unsorted tag",
+            r#"its variant field gives the tag "linux-x64+linux-x64-musl""#,
+            vec![(
+                "linux-x64-musl+linux-x64",
+                variant_manifest(&["linux-x64", "linux-x64-musl"], &json!({})),
             )],
         ),
     ];
@@ -268,7 +287,7 @@ async fn variants_are_served_from_sqlite_metadata() {
     let (musl_tar, musl_tgz) = archive(&variant_manifest(&["linux-x64-musl"], &json!({})), "musl");
     let response = app
         .clone()
-        .oneshot(publish_request(&primary, &[("musl", &musl_tgz)], &token))
+        .oneshot(publish_request(&primary, &[("linux-x64-musl", &musl_tgz)], &token))
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
@@ -295,7 +314,6 @@ async fn variants_are_served_from_sqlite_metadata() {
         json!({ "kind": "tgz", "integrity": sha512_integrity(&musl_tgz) }),
     );
     assert_eq!(variant["inputs"]["packageJson"]["path"], "package/package.json");
-    assert!(variant.get("label").is_none(), "{variant}");
 
     // The scoped route, and the encoded name whose three segments it shares
     // with a release note's route.
@@ -324,7 +342,7 @@ async fn a_variant_is_checked_against_the_manifest_clients_install() {
     ]));
     let response = app
         .clone()
-        .oneshot(publish_request(&primary, &[("a", &tgz)], &token))
+        .oneshot(publish_request(&primary, &[("linux-x64", &tgz)], &token))
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
@@ -342,7 +360,7 @@ async fn a_rewrite_from_npms_document_keeps_the_variants() {
     let (musl_tar, musl_tgz) = archive(&variant_manifest(&["linux-x64-musl"], &json!({})), "musl");
     let response = app
         .clone()
-        .oneshot(publish_request(&primary, &[("musl", &musl_tgz)], &token))
+        .oneshot(publish_request(&primary, &[("linux-x64-musl", &musl_tgz)], &token))
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
@@ -384,7 +402,7 @@ async fn variants_come_only_with_a_primary_archive_they_agree_with() {
     let (_, musl) = archive(&variant_manifest(&["linux-x64-musl"], &json!({})), "musl");
     let response = app
         .clone()
-        .oneshot(publish_request_with(None, &[("musl", &musl)], &token))
+        .oneshot(publish_request_with(None, &[("linux-x64-musl", &musl)], &token))
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST, "variants for a hosted version");
@@ -397,7 +415,7 @@ async fn variants_come_only_with_a_primary_archive_they_agree_with() {
     let (_, primary) = archive(&peers, "primary");
     let response = app
         .clone()
-        .oneshot(publish_request(&primary, &[("musl", &musl)], &token))
+        .oneshot(publish_request(&primary, &[("linux-x64-musl", &musl)], &token))
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
@@ -411,7 +429,7 @@ async fn variants_come_only_with_a_primary_archive_they_agree_with() {
         let (_, primary) = archive(&renamed, "primary");
         let response = app
             .clone()
-            .oneshot(publish_request(&primary, &[("musl", &musl)], &token))
+            .oneshot(publish_request(&primary, &[("linux-x64-musl", &musl)], &token))
             .await
             .unwrap();
         assert_eq!(response.status(), StatusCode::BAD_REQUEST, "{field}");
@@ -453,8 +471,11 @@ async fn a_batch_publishes_a_version_and_its_variants_from_staged_archives() {
     }
     // The single-package document, with each attachment naming its staged
     // archive instead of carrying it, as one entry of a batch.
-    let request =
-        publish_request(&primary, &[("static", &static_tgz), ("mac", &darwin_tgz)], &token);
+    let request = publish_request(
+        &primary,
+        &[("linux-x64+linux-x64-musl", &static_tgz), ("darwin-arm64", &darwin_tgz)],
+        &token,
+    );
     let mut document: Value =
         serde_json::from_slice(&body_bytes(request.into_body()).await).unwrap();
     for attachment in document["_attachments"]
@@ -487,4 +508,21 @@ async fn a_batch_publishes_a_version_and_its_variants_from_staged_archives() {
     assert_eq!(body_bytes(response.into_body()).await, static_tar);
     let primary_tarball = get(&app, "/npm/~main/@acme/fast/-/fast-1.0.0.tgz", None).await;
     assert_eq!(body_bytes(primary_tarball.into_body()).await, primary);
+}
+
+/// A tag names one route segment and one attachment, so pnpr refuses a tag
+/// longer than the limit before it reads any archive.
+#[tokio::test]
+async fn a_tag_over_the_limit_is_refused() {
+    let platforms: Vec<String> = (0..12)
+        .map(|abi| format!("linux-x64-manylinux_2_17-node{}", 100 + abi))
+        .collect();
+    let platforms: Vec<&str> = platforms
+        .iter()
+        .map(String::as_str)
+        .collect();
+    let tag = platforms.join("+");
+    assert!(tag.len() > pnpm_platform_variants::MAX_VARIANT_TAG_BYTES);
+    let reason = rejection(&[(&tag, variant_manifest(&platforms, &json!({})))]).await;
+    assert!(reason.contains("over the 128-byte limit"), "{reason}");
 }

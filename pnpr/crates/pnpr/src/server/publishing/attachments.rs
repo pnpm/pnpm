@@ -69,8 +69,8 @@ pub(in super::super) struct PreparedAttachment {
     /// The matching `dist` block, or `Value::Null` when absent.
     pub(in super::super) dist: Value,
     pub(in super::super) kind: AttachmentKind,
-    /// The attachment label of an [`AttachmentKind::Variant`].
-    pub(in super::super) variant_label: Option<String>,
+    /// The tag that names an [`AttachmentKind::Variant`].
+    pub(in super::super) variant_tag: Option<String>,
 }
 
 impl ValidatedPublish {
@@ -175,7 +175,7 @@ fn prepare_attachment(
         .and_then(|manifest| manifest.get("dist"))
         .cloned()
         .unwrap_or(Value::Null);
-    Ok(PreparedAttachment { attachment, canonical, version, dist, kind, variant_label: None })
+    Ok(PreparedAttachment { attachment, canonical, version, dist, kind, variant_tag: None })
 }
 
 fn parse_attachment_kind(
@@ -448,7 +448,7 @@ pub(super) async fn write_attachment_slot(
             return Err(err);
         }
     }
-    Ok((slot, Some(PublishedTar::of(prepared.version, prepared.variant_label, derived))))
+    Ok((slot, Some(PublishedTar::of(prepared.version, prepared.variant_tag, derived))))
 }
 
 /// The bytes of the staged archive `attachment` references, read from what
@@ -469,12 +469,12 @@ async fn staged_bytes(
 }
 
 impl PublishedTar {
-    /// The tar `derived` describes, a platform variant's when the attachment
-    /// has a variant label.
-    fn of(version: String, variant_label: Option<String>, derived: TarDerivation) -> Self {
-        let variant = variant_label.map(|label| {
+    /// The tar `derived` describes, a platform variant's when a variant tag
+    /// names the attachment.
+    fn of(version: String, variant_tag: Option<String>, derived: TarDerivation) -> Self {
+        let variant = variant_tag.map(|tag| {
             let tgz = derived.tgz_integrity.as_deref();
-            variants::variant_tar(label, &derived.integrity, tgz, &derived.archive)
+            variants::variant_tar(tag, &derived.integrity, tgz, &derived.archive)
         });
         let TarDerivation {
             tgz_integrity,
