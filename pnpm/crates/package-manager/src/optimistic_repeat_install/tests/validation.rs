@@ -252,11 +252,12 @@ fn a_state_without_a_validation_record_matches_any_project_bins() {
 }
 
 /// A workspace whose projects' manifests are on disk, with every file dated
-/// an hour back so a later recording trusts their stats.
+/// an hour back and the filesystem clock past their ctimes, so a later
+/// recording trusts their stats.
 fn project_files(root: &Path, manifests: &[(&str, &str)]) -> Vec<PackageManifest> {
     let an_hour_ago = SystemTime::now() - Duration::from_hours(1);
     fs::write(root.join("pnpm-lock.yaml"), "lockfileVersion: '9.0'\n").unwrap();
-    manifests
+    let files = manifests
         .iter()
         .map(|(dir, json)| {
             let path = root.join(dir).join("package.json");
@@ -265,7 +266,9 @@ fn project_files(root: &Path, manifests: &[(&str, &str)]) -> Vec<PackageManifest
             pnpm_testing_utils::fs::set_mtime(&path, an_hour_ago);
             PackageManifest::from_path(path).unwrap()
         })
-        .collect()
+        .collect();
+    super::wait_for_the_next_filesystem_tick(root);
+    files
 }
 
 fn record_files(
