@@ -597,12 +597,12 @@ fn github_actions_groups_serial_scripts_even_after_failure() {
                 (
                     "project-1",
                     json!({"name": "project-1", "version": "1.0.0",
-                "scripts": {"test": "node -e \"console.log('first-output');process.exit(1)\""}}),
+                "scripts": {"test": r#"node -e "console.log('first-output');process.exit(1)""#}}),
                 ),
                 (
                     "project-2",
                     json!({"name": "project-2", "version": "1.0.0",
-                "scripts": {"test": "node -e \"console.log('second-output')\""}}),
+                "scripts": {"test": r#"node -e "console.log('second-output')""#}}),
                 ),
             ],
         );
@@ -632,7 +632,7 @@ fn github_actions_groups_serial_scripts_even_after_failure() {
                     .find(&format!("\n{marker}"))
                     .expect("script output")
                     < end,
-                "{group}"
+                "{group}",
             );
         }
         drop(root);
