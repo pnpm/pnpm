@@ -154,6 +154,20 @@ async fn an_integer_schema_version_is_refused(db: Db) {
     assert!(reason.contains("holds the integer schema version 3,"), "{reason}");
 }
 
+async fn a_matching_marker_without_its_tables_is_refused(db: Db) {
+    open(&db).await.unwrap();
+    // A wipe that drops the tables but leaves the marker.
+    execute(&db, &["DROP TABLE catalogs", "DROP TABLE note_history"]).await;
+    let reason = refused(&db).await;
+    let short = &schema::fingerprint()[..12];
+    assert!(
+        reason.contains(&format!(
+            "holds schema {short} without the metadata tables catalogs, note_history,"
+        )),
+        "{reason}",
+    );
+}
+
 async fn metadata_tables_without_a_marker_are_refused(db: Db) {
     // `SQLite` table names match without regard to case.
     execute(&db, &["CREATE TABLE PACKAGES (name TEXT NOT NULL)"]).await;
@@ -163,6 +177,7 @@ async fn metadata_tables_without_a_marker_are_refused(db: Db) {
 
 conformance! {
     an_empty_database_initializes,
+    a_matching_marker_without_its_tables_is_refused,
     a_matching_fingerprint_opens,
     a_different_fingerprint_is_refused,
     an_integer_schema_version_is_refused,

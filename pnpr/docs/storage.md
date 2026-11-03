@@ -121,8 +121,9 @@ fingerprint of their schema. pnpr does not migrate the metadata schema before
 1.0. When a pnpr release changes the schema, it refuses a database that holds
 another one, before it changes anything in it. The error names the
 fingerprint pnpr expects and what the database holds: another fingerprint,
-the integer schema version an older pnpr stored, or pnpr's metadata tables
-without a fingerprint.
+the integer schema version an older pnpr stored, pnpr's metadata tables
+without a fingerprint, or pnpr's fingerprint without some of its tables, as a
+wipe that kept the `schema_version` table leaves it.
 
 To start that pnpr, wipe pnpr's metadata tables by hand: drop the
 `schema_version` table and the metadata tables beside it. pnpr then creates

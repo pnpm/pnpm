@@ -296,6 +296,9 @@ pub(super) enum Stored {
     Unreadable,
     /// Metadata tables without a marker.
     Unmarked,
+    /// The marker names this fingerprint, but these metadata tables are
+    /// missing, as after a wipe that left the marker.
+    Incomplete(Vec<String>),
 }
 
 impl fmt::Display for Stored {
@@ -305,6 +308,12 @@ impl fmt::Display for Stored {
             Self::Version(version) => write!(f, "the integer schema version {version}"),
             Self::Unreadable => f.write_str("an unreadable schema marker"),
             Self::Unmarked => f.write_str("metadata tables without a schema marker"),
+            Self::Incomplete(missing) => write!(
+                f,
+                "schema {} without the metadata tables {}",
+                short(fingerprint()),
+                missing.join(", "),
+            ),
         }
     }
 }
@@ -338,7 +347,7 @@ pub(super) fn prepare(connection: &dyn Connection) -> Result<Option<Stored>> {
     };
     if has(MARKER) {
         return Ok(match stored(&*transaction)? {
-            Stored::Fingerprint(stored) if stored == fingerprint() => None,
+            Stored::Fingerprint(stored) if stored == fingerprint() => incomplete(has),
             stored => Some(stored),
         });
     }
@@ -355,6 +364,16 @@ pub(super) fn prepare(connection: &dyn Connection) -> Result<Option<Stored>> {
     )?;
     transaction.commit()?;
     Ok(None)
+}
+
+/// The metadata tables a database marked with this fingerprint lacks, given
+/// whether it `has` each table.
+fn incomplete(has: impl Fn(&str) -> bool) -> Option<Stored> {
+    let missing = table_names(TABLES)
+        .into_iter()
+        .filter(|table| !has(table))
+        .collect::<Vec<_>>();
+    (!missing.is_empty()).then_some(Stored::Incomplete(missing))
 }
 
 /// What the marker holds. It is read whole, so a marker of any layout is
