@@ -5,6 +5,7 @@ use pretty_assertions::assert_eq;
 
 use crate::{
     apply::{ReleaseNotesOptions, apply_release_plan},
+    error::VersioningError,
     intents::{IntentBumpType, read_change_intents, write_change_intent},
     ledger::read_ledger,
     parked_publication::{ParkedPublication, read_parked_publications},
@@ -56,10 +57,26 @@ fn apply_with_summary(
     summary: Option<&str>,
 ) -> Vec<WorkspaceProject> {
     let projects = make_workspace(dir, &["a", "b", "c"]);
+    let registries = vec![REGISTRY; bound];
+    try_apply(dir, &projects, versioning, &registries, summary).expect("plan applies");
+    projects
+}
+
+const REGISTRY: &str = "https://pnpr.example/";
+
+/// Plans and applies the pending intents of `projects`, the first of which
+/// are bound for the notes registries in `registries`, in order.
+fn try_apply(
+    dir: &Path,
+    projects: &[WorkspaceProject],
+    versioning: &VersioningSettings,
+    registries: &[&str],
+    summary: Option<&str>,
+) -> Result<(), VersioningError> {
     let intents = read_change_intents(dir).expect("intents read");
     let ledger = read_ledger(dir).expect("ledger reads");
     let plan = assemble_release_plan(
-        &projects,
+        projects,
         dir,
         &intents,
         &ledger,
@@ -68,15 +85,17 @@ fn apply_with_summary(
     )
     .expect("plan assembles");
     let notes = ReleaseNotesOptions {
-        dirs: projects[..bound]
+        registries: projects
             .iter()
-            .map(|project| to_project_dir(dir, &project.root_dir))
+            .zip(registries)
+            .map(|(project, registry)| {
+                (to_project_dir(dir, &project.root_dir), (*registry).to_owned())
+            })
             .collect(),
         summary: summary.map(str::to_owned),
     };
-    apply_release_plan(&plan, dir, &projects, &intents, Some(versioning), &HashSet::new(), &notes)
-        .expect("plan applies");
-    projects
+    apply_release_plan(&plan, dir, projects, &intents, Some(versioning), &HashSet::new(), &notes)
+        .map(drop)
 }
 
 fn parked(dir: &Path, name: &str, version: &str) -> String {
@@ -219,5 +238,49 @@ fn a_publication_confirmed_over_several_runs_is_collected() {
     assert_eq!(read_parked_publications(dir).expect("publications read").len(), 1);
     collect(&["b@1.1.0"]);
 
+    assert_eq!(read_parked_publications(dir).expect("publications read"), Vec::new());
+}
+
+#[test]
+fn a_publication_across_several_registries_is_refused_before_versioning() {
+    let workspace = tempfile::tempdir().expect("temp workspace");
+    let dir = workspace.path();
+    intent(dir, &[("a", IntentBumpType::Minor), ("b", IntentBumpType::Minor)], "Both.");
+    let projects = make_workspace(dir, &["a", "b", "c"]);
+
+    let err = try_apply(
+        dir,
+        &projects,
+        &VersioningSettings::default(),
+        &[REGISTRY, "https://other-pnpr.example/"],
+        None,
+    )
+    .expect_err("a publication cannot reach two registries");
+
+    assert!(matches!(err, VersioningError::PublicationSeveralRegistries { .. }), "{err}");
+    let manifest = fs::read_to_string(dir.join("a/package.json")).expect("read manifest");
+    assert!(manifest.contains(r#""version":"1.0.0""#), "{manifest}");
+    assert_eq!(read_parked_publications(dir).expect("publications read"), Vec::new());
+}
+
+#[test]
+fn releases_without_a_publication_may_go_to_several_registries() {
+    let workspace = tempfile::tempdir().expect("temp workspace");
+    let dir = workspace.path();
+    intent(dir, &[("a", IntentBumpType::Minor)], "Only a.");
+    intent(dir, &[("b", IntentBumpType::Patch)], "Only b.");
+    let projects = make_workspace(dir, &["a", "b", "c"]);
+
+    try_apply(
+        dir,
+        &projects,
+        &VersioningSettings::default(),
+        &[REGISTRY, "https://other-pnpr.example/"],
+        None,
+    )
+    .expect("plan applies");
+
+    assert_eq!(parked(dir, "a", "1.1.0"), "### Minor Changes\n\n- Only a.\n");
+    assert_eq!(parked(dir, "b", "1.0.1"), "### Patch Changes\n\n- Only b.\n");
     assert_eq!(read_parked_publications(dir).expect("publications read"), Vec::new());
 }

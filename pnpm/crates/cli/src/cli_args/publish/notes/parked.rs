@@ -74,11 +74,7 @@ pub(super) fn parked_publication(
     };
     let keys: HashSet<String> = members
         .iter()
-        .filter_map(|manifest| {
-            let name = manifest.get("name")?.as_str()?;
-            let version = manifest.get("version")?.as_str()?;
-            Some(format!("{name}@{version}"))
-        })
+        .filter_map(|manifest| release_key(manifest))
         .collect();
     let mut touched: Vec<pnpm_versioning::ParkedPublication> =
         read_parked_publications(workspace_dir)?

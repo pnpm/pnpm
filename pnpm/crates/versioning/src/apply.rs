@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     fs,
     path::Path,
 };
@@ -52,10 +52,12 @@ pub struct AppliedRelease {
 /// A private project is never published, so no tarball can ever carry its
 /// prose: its releases use `repository` storage whatever is configured.
 ///
-/// `notes.dirs` are the releases bound for a registry that stores release
-/// notes. In `registry` storage they form one publication: their parked
-/// sections are their version notes, and the publication's name and note
-/// are parked beside them.
+/// `notes.registries` are the releases bound for a registry that stores
+/// release notes. In `registry` storage they form one publication: their
+/// parked sections are their version notes, and the publication's name and
+/// note are parked beside them. A publication reaches one registry, so a
+/// composed one whose members are bound for several is refused before
+/// anything is written.
 pub fn apply_release_plan(
     plan: &ReleasePlan,
     workspace_dir: &Path,
@@ -71,8 +73,8 @@ pub fn apply_release_plan(
     };
     let refs = index_project_refs(projects, workspace_dir);
 
+    let notes = storage.compose_notes(plan, notes, &refs, versioning)?;
     let applied = write_new_versions(plan)?;
-    let notes = storage.compose_notes(plan, notes, &refs, versioning);
     for release in &plan.releases {
         let section = notes.version_notes
             .get(&release.dir)
@@ -119,7 +121,7 @@ impl ReleaseStorage {
         if self.private_dirs.contains(dir) { ChangelogStorage::Repository } else { self.configured }
     }
 
-    /// The notes of the releases in `notes.dirs` that use `registry`
+    /// The notes of the releases in `notes.registries` that use `registry`
     /// storage.
     fn compose_notes(
         &self,
@@ -127,13 +129,30 @@ impl ReleaseStorage {
         notes: &ReleaseNotesOptions,
         refs: &ProjectRefIndex,
         versioning: Option<&VersioningSettings>,
-    ) -> ComposedNotes {
-        let members = notes.dirs
-            .iter()
+    ) -> Result<ComposedNotes, VersioningError> {
+        let members: HashSet<String> = notes.registries
+            .keys()
             .filter(|dir| self.of(dir) == ChangelogStorage::Registry)
             .cloned()
             .collect();
-        compose_release_notes(plan, &members, refs, versioning, notes.summary.as_deref())
+        let composed =
+            compose_release_notes(plan, &members, refs, versioning, notes.summary.as_deref());
+        if let Some(publication) = &composed.publication {
+            let registries: BTreeSet<&String> = members
+                .iter()
+                .filter_map(|dir| notes.registries.get(dir))
+                .collect();
+            if registries.len() > 1 {
+                return Err(VersioningError::PublicationSeveralRegistries {
+                    members: publication.members.clone(),
+                    registries: registries
+                        .into_iter()
+                        .cloned()
+                        .collect(),
+                });
+            }
+        }
+        Ok(composed)
     }
 }
 
@@ -141,8 +160,9 @@ impl ReleaseStorage {
 /// them.
 #[derive(Debug, Default)]
 pub struct ReleaseNotesOptions {
-    /// The releases bound for such a registry, by workspace-relative dir.
-    pub dirs: HashSet<String>,
+    /// The registry each release bound for such a registry publishes to,
+    /// by workspace-relative dir.
+    pub registries: HashMap<String, String>,
     /// A summary written by hand. It goes above the composed text of the
     /// publication note, or of the version note when the publication has
     /// one member.

@@ -159,10 +159,12 @@ impl PlannedWorkspaceRelease {
         workspace_dir: &Path,
         summary: Option<String>,
     ) -> miette::Result<pnpm_versioning::ReleaseNotesOptions> {
-        let dirs: HashSet<String> = self.plan.releases
+        let registries: HashMap<String, String> = self.plan.releases
             .iter()
-            .filter(|release| self.notes_registries.contains_key(&release.name))
-            .map(|release| release.dir.clone())
+            .filter_map(|release| {
+                let registry = self.notes_registries.get(&release.name)?;
+                Some((release.dir.clone(), registry.clone()))
+            })
             .collect();
         // A private project is never published: its release keeps a
         // committed changelog, and no note is composed for it.
@@ -171,15 +173,15 @@ impl PlannedWorkspaceRelease {
             .filter(|project| !project.private)
             .map(|project| pnpm_versioning::to_project_dir(workspace_dir, &project.root_dir))
             .collect::<HashSet<String>>();
-        let stores_notes = dirs
-            .iter()
+        let stores_notes = registries
+            .keys()
             .any(|dir| published.contains(dir))
             && pnpm_versioning::changelog_storage(Some(&config.versioning))
                 == pnpm_versioning::ChangelogStorage::Registry;
         if summary.is_some() && !stores_notes {
             return Err(VersionError::ReleaseNotesWithoutRegistry.into());
         }
-        Ok(pnpm_versioning::ReleaseNotesOptions { dirs, summary })
+        Ok(pnpm_versioning::ReleaseNotesOptions { registries, summary })
     }
 
     pub(super) async fn apply(

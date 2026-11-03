@@ -116,6 +116,17 @@ pub enum VersioningError {
     #[diagnostic(code(ERR_PNPM_VERSIONING_MAX_BUMP_EXCEEDED))]
     MaxBumpExceeded { pkg_name: String, bump_type: String, max_bump: String, raised_by: String },
 
+    #[display(
+        "The release notes composed for {} would form one publication across several registries declared with serverType: pnpr ({}), but a publication reaches one registry",
+        members.join(", "),
+        registries.join(", ")
+    )]
+    #[diagnostic(
+        code(ERR_PNPM_RELEASE_NOTES_SEVERAL_REGISTRIES),
+        help("Version the packages of each registry on their own with --filter.")
+    )]
+    PublicationSeveralRegistries { members: Vec<String>, registries: Vec<String> },
+
     #[diagnostic(code(ERR_PNPM_VERSIONING_INVARIANTS_VIOLATED))]
     InvariantsViolated { message: String },
 
