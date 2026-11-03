@@ -1,4 +1,4 @@
-use super::{Args, RegistryError, redacted_report};
+use super::{Args, RegistryError, StorageArgs, apply_storage_overrides, redacted_report};
 use clap::{CommandFactory as _, Parser as _};
 use pnpm_testing_utils::env_guard::EnvGuard;
 use std::{ffi::OsStr, net::SocketAddr, time::Duration};
@@ -258,5 +258,39 @@ fn interval_valued_flags_accept_units_and_bare_seconds() {
         Args::try_parse_from(["pnpr", "oci-gc", "--registry", "img", "--min-age", "2h"]).unwrap();
     assert!(
         matches!(gc_args.command, Some(super::Command::OciGc { min_age, .. }) if min_age == Duration::from_hours(2)),
+    );
+}
+
+/// Load `yaml` as a config file and serve it from `storage` instead.
+fn served_from(yaml: &str, storage: &std::path::Path) -> pnpr::Config {
+    let dir = tempfile::TempDir::new().unwrap();
+    let path = dir.path().join("config.yaml");
+    std::fs::write(&path, yaml).unwrap();
+    let mut config =
+        pnpr::Config::from_yaml(&path, "127.0.0.1:4873".parse().unwrap(), None).unwrap();
+    let mut paths = StorageArgs { storage: Some(storage.to_path_buf()), cache: None };
+    apply_storage_overrides(&mut config, &mut paths, &pnpr::ConfigSource::Cli(path));
+    config
+}
+
+#[test]
+fn a_storage_override_takes_the_default_metadata_database_along() {
+    let storage = std::path::Path::new("/srv/pnpr");
+    let config = served_from("storage: ./storage\n", storage);
+    assert_eq!(
+        config.storage.metadata,
+        pnpr_config::MetadataBackend::Sqlite(pnpr_config::default_metadata_path(storage)),
+    );
+}
+
+#[test]
+fn a_storage_override_leaves_a_named_metadata_database_where_it_is() {
+    let config = served_from(
+        "storage: ./storage\nmetadata:\n  url: sqlite:/var/lib/pnpr/metadata.sqlite\n",
+        std::path::Path::new("/srv/pnpr"),
+    );
+    assert_eq!(
+        config.storage.metadata,
+        pnpr_config::MetadataBackend::Sqlite("/var/lib/pnpr/metadata.sqlite".into()),
     );
 }

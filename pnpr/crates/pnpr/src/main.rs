@@ -4,6 +4,7 @@ use pnpr::{
     Command, Config, ConfigSource, ConfigSubcommand, LogConfig, RegistryError, ServerArgs,
     default_cache_dir, logging::log_subscriber, run_command, serve,
 };
+use pnpr_config::{MetadataBackend, default_metadata_path};
 use std::{
     io::IsTerminal,
     net::SocketAddr,
@@ -35,7 +36,8 @@ struct StorageArgs {
     /// Override the storage path from the loaded config (bundled or
     /// `-c`). Unless
     /// `--cache` is also given, the disposable proxy cache is
-    /// re-derived as a subdirectory of this path.
+    /// re-derived as a subdirectory of this path, and so is the metadata
+    /// database unless the config names one.
     #[arg(long, env = "PNPR_STORAGE", global = true)]
     storage: Option<PathBuf>,
 
@@ -106,6 +108,13 @@ fn apply_storage_overrides(config: &mut Config, paths: &mut StorageArgs, source:
     if let Some(storage) = paths.storage.take() {
         relocate_bundled_auth_state(config, &storage, source);
         config.storage.cache_dir = default_cache_dir(&storage);
+        // The default database lives in the storage directory, so it moves
+        // with it. One the config names stays where it is.
+        let default_metadata =
+            MetadataBackend::Sqlite(default_metadata_path(&config.storage.hosted_dir));
+        if config.storage.metadata == default_metadata {
+            config.storage.metadata = MetadataBackend::Sqlite(default_metadata_path(&storage));
+        }
         config.storage.hosted_dir = storage;
     }
     if let Some(cache) = paths.cache.take() {
