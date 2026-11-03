@@ -2,13 +2,13 @@
 //! from it, so the next check can take an unchanged manifest's recorded digest
 //! and fields without reading the file.
 
+pub(crate) use stand_ins::{ManifestStandIns, manifest_stand_ins};
+
 use super::{FileStat, RecordValidation, Vouched, manifest_digest, stat_trusted};
 use pnpm_package_manifest::PackageManifest;
 use pnpm_workspace::{importer_id_from_root_dir, read_exact_project_manifest};
 use pnpm_workspace_state::{ManifestFile, Validation};
 use std::collections::BTreeMap;
-
-pub(crate) use stand_ins::{ManifestStandIns, manifest_stand_ins};
 
 mod stand_ins;
 

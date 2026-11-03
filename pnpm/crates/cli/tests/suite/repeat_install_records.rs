@@ -73,7 +73,7 @@ fn an_unchanged_workspace_is_up_to_date_from_the_records() {
         .assert()
         .success();
 
-    let output = traced_install(&workspace, &mock_instance.url());
+    let output = traced_install(&workspace, mock_instance.url());
 
     assert!(output.contains("Already up to date"), "{output}");
     assert!(output.contains(DECIDED_FROM_RECORDS), "{output}");
@@ -110,7 +110,7 @@ fn an_edited_manifest_is_read_again() {
     )
     .expect("edit packages/b/package.json");
 
-    let output = traced_install(&workspace, &mock_instance.url());
+    let output = traced_install(&workspace, mock_instance.url());
 
     assert!(output.contains("Already up to date"), "{output}");
     assert!(!output.contains(DECIDED_FROM_RECORDS), "{output}");
@@ -140,7 +140,7 @@ fn a_new_project_is_read_and_installed() {
     )
     .expect("write packages/no-project/package.json");
 
-    let output = traced_install(&workspace, &mock_instance.url());
+    let output = traced_install(&workspace, mock_instance.url());
 
     assert!(!output.contains(DECIDED_FROM_RECORDS), "{output}");
     assert!(workspace.join("packages/no-project/node_modules/b").exists(), "{output}");
@@ -168,7 +168,7 @@ fn a_removed_workspace_link_is_relinked() {
     let link = workspace.join("packages/a/node_modules/b");
     pnpm_fs::remove_dirent(&link).expect("remove the workspace link");
 
-    let output = traced_install(&workspace, &mock_instance.url());
+    let output = traced_install(&workspace, mock_instance.url());
 
     assert!(!output.contains(DECIDED_FROM_RECORDS), "{output}");
     assert!(output.contains("the recorded manifests cannot decide"), "{output}");
