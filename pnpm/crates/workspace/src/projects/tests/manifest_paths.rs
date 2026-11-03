@@ -51,7 +51,7 @@ fn lists_the_project_directories_discovery_reads() {
             root.join("other/c"),
             root.join("packages/a"),
             root.join("packages/b"),
-        ]
+        ],
     );
 }
 
@@ -74,7 +74,7 @@ fn lists_a_manifest_it_cannot_parse_first() {
         [ProjectManifestPaths {
             root_dir: project.clone(),
             candidates: vec![project.join("package.json"), project.join("package.yaml")],
-        }]
+        }],
     );
     assert!(find_workspace_projects(root, &opts).is_err());
 }

@@ -303,7 +303,10 @@ fn group_manifests_by_root(
         match root_groups.last_mut() {
             Some(last) if last.root_dir == root_dir => last.candidates.push(manifest_path),
             _ => {
-                root_groups.push(ProjectManifestPaths { root_dir, candidates: vec![manifest_path] })
+                root_groups.push(ProjectManifestPaths {
+                    root_dir,
+                    candidates: vec![manifest_path],
+                });
             }
         }
     }
