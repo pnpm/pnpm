@@ -75,7 +75,7 @@ async fn only_archives_the_registry_lacks_are_uploaded() {
 }
 
 #[tokio::test]
-async fn a_refused_upload_fails_with_the_registrys_answer() {
+async fn a_refused_upload_fails_with_what_the_registry_answered() {
     let mut server = mockito::Server::new_async().await;
     let registry =
         parse_supported_registry_url(&format!("{}/", server.url())).unwrap().normalized_url;
