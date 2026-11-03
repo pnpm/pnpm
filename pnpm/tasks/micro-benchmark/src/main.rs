@@ -41,10 +41,12 @@ struct CliArgs {
     #[clap(long, conflicts_with = "full_workspace_resolution")]
     trust_history: bool,
 
+    /// Measure only the registry version-pick benchmarks.
     #[clap(long, conflicts_with_all = ["full_workspace_resolution", "trust_history"])]
     version_pick: bool,
 
-    #[clap(long, requires = "version_pick", conflicts_with = "save_baseline")]
+    /// Compare against a baseline saved by `--save-baseline` without overwriting it.
+    #[clap(long, conflicts_with_all = ["full_workspace_resolution", "save_baseline"])]
     compare_baseline: Option<String>,
 }
 

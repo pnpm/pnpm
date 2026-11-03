@@ -378,9 +378,6 @@ pub fn pick_version_by_version_range(
 
     let max_pick =
         max_satisfying(opts.meta.versions.keys().map(String::as_str), opts.version_range)?;
-    if !opts.meta.versions.is_deprecated(&max_pick) {
-        return Some(max_pick);
-    }
     non_deprecated_pick(opts, opts.meta.versions.keys().map(String::as_str), &max_pick)
         .or(Some(max_pick))
 }
