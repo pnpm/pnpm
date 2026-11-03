@@ -146,28 +146,7 @@ async function isDirectoryWithoutManifest (projectDir: string): Promise<boolean>
 
 async function checkEachProjectAgainstLockfile ({ ctx, opts }: MutationRun, frozenLockfile: boolean): Promise<ProjectCheck[]> {
   const workspacePackages = opts.linkWorkspacePackagesDepth >= 0 ? ctx.workspacePackages : undefined
-  const manifestsByDir = ctx.workspacePackages ? getWorkspacePackagesByDirectory(ctx.workspacePackages) : {}
-  const checkLinkedPackages: CheckLinkedPackages = checkLinkedPackagesAreUpToDate.bind(null, {
-    linkWorkspacePackages: opts.linkWorkspacePackagesDepth >= 0,
-    manifestsByDir,
-    workspacePackages: ctx.workspacePackages,
-    lockfilePackages: ctx.wantedLockfile.packages,
-    lockfileDir: opts.lockfileDir,
-    workspaceDir: opts.workspaceDir,
-    injectWorkspacePackages: opts.injectWorkspacePackages ?? ctx.wantedLockfile.settings?.injectWorkspacePackages,
-    skipLocalDirectoryDependencies: opts.deploy,
-    includedDependencies: opts.include,
-    resolution: {
-      autoInstallPeers: opts.autoInstallPeers,
-      catalogs: opts.catalogs,
-      readPackageHook: opts.readPackageHook,
-      frozenLockfile,
-      // A frozen install keeps the lockfile as recorded, so its plain keys
-      // read as resolved through the current routes.
-      registries: { ...pickRegistryContext(opts), lockedRegistriesByScope: undefined },
-    },
-    hookedManifests: new Map(),
-  })
+  const checkLinkedPackages = bindCheckLinkedPackages({ ctx, opts }, frozenLockfile)
   const checkManifest = satisfiesPackageManifest.bind(null, {
     autoInstallPeers: opts.autoInstallPeers,
     excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
@@ -188,6 +167,31 @@ async function checkEachProjectAgainstLockfile ({ ctx, opts }: MutationRun, froz
       skipped,
     }
   }))
+}
+
+function bindCheckLinkedPackages ({ ctx, opts }: Pick<MutationRun, 'ctx' | 'opts'>, frozenLockfile: boolean): CheckLinkedPackages {
+  const manifestsByDir = ctx.workspacePackages ? getWorkspacePackagesByDirectory(ctx.workspacePackages) : {}
+  return checkLinkedPackagesAreUpToDate.bind(null, {
+    linkWorkspacePackages: opts.linkWorkspacePackagesDepth >= 0,
+    manifestsByDir,
+    workspacePackages: ctx.workspacePackages,
+    lockfilePackages: ctx.wantedLockfile.packages,
+    lockfileDir: opts.lockfileDir,
+    workspaceDir: opts.workspaceDir,
+    injectWorkspacePackages: opts.injectWorkspacePackages ?? ctx.wantedLockfile.settings?.injectWorkspacePackages,
+    skipLocalDirectoryDependencies: opts.deploy,
+    includedDependencies: opts.include,
+    resolution: {
+      autoInstallPeers: opts.autoInstallPeers,
+      catalogs: opts.catalogs,
+      readPackageHook: opts.readPackageHook,
+      frozenLockfile,
+      // A frozen install keeps the lockfile as recorded, so its plain keys
+      // read as resolved through the current routes.
+      registries: { ...pickRegistryContext(opts), lockedRegistriesByScope: undefined },
+    },
+    hookedManifests: new Map(),
+  })
 }
 
 function findUnresolvedOptionalDependencies (

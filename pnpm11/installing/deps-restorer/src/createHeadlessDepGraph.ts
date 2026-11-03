@@ -33,7 +33,11 @@ export async function createHeadlessDepGraph (ctx: HeadlessContext): Promise<Hea
   const initialImporterIds = pickInitialImporterIds(ctx)
   const { lockfile: filteredLockfile, selectedImporterIds: importerIds, requiredDepPaths } = filterLockfileByImportersAndEngine(ctx.wantedLockfile, initialImporterIds, ctx.filterOpts)
   if (opts.excludeLinksFromLockfile) {
-    addLinkedDependenciesToLockfile(filteredLockfile, { projects: ctx.selectedProjects, workspacePackages: opts.workspacePackages })
+    addLinkedDependenciesToLockfile(filteredLockfile, {
+      projects: ctx.selectedProjects,
+      // Only then does resolution link a plain range, see `alwaysTryWorkspacePackages`.
+      workspacePackages: (opts.linkWorkspacePackagesDepth ?? -1) >= 0 ? opts.workspacePackages : undefined,
+    })
   }
   addDeeplyLinkedProjects(ctx.selectedProjects, opts.allProjects, { initialImporterIds, importerIds })
 

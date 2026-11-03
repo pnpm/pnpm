@@ -56,8 +56,12 @@ export interface HeadlessOptions extends RegistryContext {
    */
   omitSummaryLog?: boolean
   excludeLinksFromLockfile?: boolean
-  /** Relinks the workspace links `excludeLinksFromLockfile` left out of the importers. */
+  /**
+   * Relinks the workspace links `excludeLinksFromLockfile` left out of the
+   * importers, when `linkWorkspacePackagesDepth` is at least 0.
+   */
   workspacePackages?: WorkspacePackages
+  linkWorkspacePackagesDepth?: number
   extraBinPaths?: string[]
   extraEnv?: Record<string, string>
   extendNodePath?: boolean
