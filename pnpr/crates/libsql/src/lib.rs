@@ -149,12 +149,17 @@ pub fn is_transaction_conflict(error: &LibsqlError) -> bool {
         }
         LibsqlError::Hrana(error) => {
             let message = error.to_string();
-            hrana_result_code(&message)
+            let coded = hrana_result_code(&message)
                 .is_some_and(|code| {
                     matches!(code, "SQLITE_BUSY" | "SQLITE_LOCKED")
                         || code.starts_with("SQLITE_BUSY_")
                         || code.starts_with("SQLITE_LOCKED_")
-                })
+                });
+            // A failed step of a batch reaches the client as its message
+            // alone, `SQLite`'s own text for these codes.
+            coded
+                || message.contains("database is locked")
+                || message.contains("database table is locked")
         }
         _ => false,
     }
@@ -187,3 +192,6 @@ fn hrana_result_code(message: &str) -> Option<&str> {
     let (code, _) = code.split_once('"')?;
     Some(code)
 }
+
+#[cfg(test)]
+mod tests;

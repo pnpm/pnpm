@@ -5,6 +5,10 @@
 //! libsql database behind a mock of those routes that serves the frames of
 //! its own WAL.
 
+pub use plain_http::{EXECUTE_RESPONSE, PlainHttpServer, serve_plain_http};
+
+mod plain_http;
+
 use crate::{is_transaction_conflict, is_unique_violation};
 use axum::{
     Json, Router,
@@ -12,18 +16,16 @@ use axum::{
     http::StatusCode,
     routing::{get, post},
 };
-use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+use base64::{Engine as _, engine::general_purpose::STANDARD_NO_PAD as BASE64};
 use libsql::{Builder, Connection, Database, Value};
 use serde_json::{Value as JsonValue, json};
 use std::{
     collections::HashMap,
-    io::{BufRead, BufReader, Read, Write},
-    net::{SocketAddr, TcpListener, TcpStream},
+    net::SocketAddr,
     path::PathBuf,
     sync::{
         Arc,
         atomic::{AtomicBool, AtomicUsize, Ordering},
-        mpsc::{self, Receiver},
     },
     time::Duration,
 };
@@ -157,18 +159,31 @@ async fn info(State(primary): State<Arc<Primary>>) -> Json<JsonValue> {
 }
 
 async fn export(State(primary): State<Arc<Primary>>) -> Vec<u8> {
-    let mut checkpoint = primary.conn
-        .query("PRAGMA wal_checkpoint(TRUNCATE)", ())
-        .await
-        .unwrap();
-    while checkpoint
-        .next()
-        .await
-        .unwrap()
-        .is_some()
-    {}
+    // Another stream's open transaction locks the checkpoint out until it
+    // ends.
+    let mut attempts = 0;
+    while let Err(error) = checkpoint(&primary.conn).await {
+        attempts += 1;
+        assert!(attempts < 500, "the primary's WAL never checkpointed: {error}");
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
     primary.exports.fetch_add(1, Ordering::SeqCst);
     std::fs::read(&primary.path).unwrap()
+}
+
+/// Move the whole WAL into the database file, so the file is the export.
+/// A checkpoint that a reader or writer blocked reports it in its `busy`
+/// column rather than as an error, and leaves frames in the WAL.
+async fn checkpoint(conn: &Connection) -> Result<(), String> {
+    let mut rows = conn
+        .query("PRAGMA wal_checkpoint(TRUNCATE)", ())
+        .await
+        .map_err(|error| error.to_string())?;
+    let mut busy = false;
+    while let Some(row) = rows.next().await.map_err(|error| error.to_string())? {
+        busy |= row.get::<i64>(0).map_err(|error| error.to_string())? != 0;
+    }
+    if busy { Err("the checkpoint was busy".to_string()) } else { Ok(()) }
 }
 
 /// WAL frames `[start, end)` of `generation`, or the generation to move to.
@@ -387,7 +402,12 @@ fn hrana_arg(arg: &JsonValue) -> Value {
         ),
         Some("blob") => Value::Blob(
             BASE64
-                .decode(arg["base64"].as_str().unwrap())
+                .decode(
+                    arg["base64"]
+                        .as_str()
+                        .unwrap()
+                        .trim_end_matches('='),
+                )
                 .unwrap(),
         ),
         other => panic!("unsupported Hrana argument type {other:?}"),
@@ -414,59 +434,4 @@ fn hrana_error(error: &libsql::Error) -> JsonValue {
         "SQLITE_ERROR"
     };
     json!({ "message": error.to_string(), "code": code })
-}
-
-/// The Hrana pipeline response to libsql's request for one statement:
-/// a batch with an empty step result, the autocommit state, and the close.
-pub const EXECUTE_RESPONSE: &str = r#"{"baton":null,"base_url":null,"results":[{"type":"ok","response":{"type":"batch","result":{"step_results":[{"cols":[],"rows":[],"affected_row_count":0,"last_insert_rowid":null}],"step_errors":[null]}}},{"type":"ok","response":{"type":"get_autocommit","is_autocommit":true}},{"type":"ok","response":{"type":"close"}}]}"#;
-
-/// A loopback plain-HTTP server that answers every request alike.
-pub struct PlainHttpServer {
-    pub url: String,
-    /// The head of every request the server received, in order.
-    pub requests: Receiver<String>,
-}
-
-/// Answer every request on a loopback plain-HTTP server with `body`.
-#[must_use]
-pub fn serve_plain_http(body: &'static str) -> PlainHttpServer {
-    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-    let url = format!("http://{}", listener.local_addr().unwrap());
-    let (sender, requests) = mpsc::channel();
-    std::thread::spawn(move || {
-        for stream in listener.incoming().flatten() {
-            let _ = sender.send(answer(stream, body));
-        }
-    });
-    PlainHttpServer { url, requests }
-}
-
-/// Answer one request with `body` and return the request's head.
-fn answer(mut stream: TcpStream, body: &str) -> String {
-    let mut reader = BufReader::new(&stream);
-    let head = read_head(&mut reader);
-    let content_length = head
-        .lines()
-        .find_map(|line| {
-            line.to_ascii_lowercase()
-                .strip_prefix("content-length:")
-                .map(str::to_owned)
-        })
-        .map(|value| value.trim().parse().unwrap())
-        .unwrap_or(0);
-    reader
-        .read_exact(&mut vec![0; content_length])
-        .unwrap();
-    let response = format!(
-        "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
-        body.len(),
-    );
-    stream.write_all(response.as_bytes()).unwrap();
-    head
-}
-
-fn read_head(reader: &mut impl BufRead) -> String {
-    let mut head = String::new();
-    while reader.read_line(&mut head).unwrap() > 2 {}
-    head
 }

@@ -15,7 +15,7 @@ use std::{net::SocketAddr, path::Path, sync::Arc};
 use tempfile::TempDir;
 
 /// A primary on a loopback port, and the directory its files live in.
-struct Server {
+pub(super) struct Server {
     primary: Arc<Primary>,
     address: SocketAddr,
     task: tokio::task::JoinHandle<()>,
@@ -28,7 +28,7 @@ impl Drop for Server {
     }
 }
 
-async fn server() -> Server {
+pub(super) async fn server() -> Server {
     let dir = TempDir::new().unwrap();
     let (primary, address, task) = serve_primary(dir.path().join("primary.db")).await;
     Server { primary, address, task, dir }
@@ -38,7 +38,11 @@ impl Server {
     /// The metadata of one pnpr instance on this primary: reading through an
     /// embedded replica at `replica` that syncs every `sync_interval_secs`,
     /// or straight from the primary without one.
-    fn instance(&self, replica: Option<&str>, sync_interval_secs: u64) -> Arc<SqlMetadata> {
+    pub(super) fn instance(
+        &self,
+        replica: Option<&str>,
+        sync_interval_secs: u64,
+    ) -> Arc<SqlMetadata> {
         let settings = LibsqlSettings {
             url: format!("http://{}", self.address),
             auth_token: None,

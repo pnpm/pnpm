@@ -1,6 +1,6 @@
 //! Concurrent writers, restarts, and lost commits.
 
-use super::{config, npm, packument, read, storage, write};
+use super::{Db, config, npm, packument, read, storage, write};
 use crate::{DocumentWrite, Storage, metadata::SqlMetadata};
 use pnpr_error::RegistryError;
 use serde_json::json;
@@ -10,17 +10,15 @@ use std::{
 };
 use tempfile::TempDir;
 
-#[tokio::test]
-async fn a_read_completes_while_a_write_transaction_is_open() {
-    let tmp = TempDir::new().unwrap();
-    let storage = storage(&tmp);
+async fn a_read_completes_while_a_write_transaction_is_open(db: Db) {
+    let storage = storage(&db);
     write(&storage, "pkg", &packument("pkg", &["1.0.0"])).await;
     // Hold the write connection inside an uncommitted transaction, the way a
     // slow commit holds it.
     let metadata = Arc::clone(storage.sql_metadata().unwrap());
     let (held, wait_held) = mpsc::channel();
     let (release, wait_release) = mpsc::channel::<()>();
-    let writer = std::thread::spawn(move || {
+    let writer = tokio::task::spawn_blocking(move || {
         metadata.adapter
             .write(&mut |connection| {
                 connection.begin_write()?;
@@ -35,16 +33,14 @@ async fn a_read_completes_while_a_write_transaction_is_open() {
 
     let read = tokio::time::timeout(Duration::from_secs(10), read(&storage, "pkg")).await;
     release.send(()).unwrap();
-    writer.join().unwrap();
+    writer.await.unwrap();
     let document = read.expect("a read does not wait for the write connection");
     assert_eq!(document["versions"]["1.0.0"]["version"], "1.0.0", "the committed snapshot");
 }
 
-#[tokio::test]
-async fn concurrent_publishers_of_one_version_cannot_both_commit() {
-    let tmp = TempDir::new().unwrap();
+async fn concurrent_publishers_of_one_version_cannot_both_commit(db: Db) {
     // Two stores over one database: two writers that share no in-process lock.
-    let (first, second) = (storage(&tmp), storage(&tmp));
+    let (first, second) = (storage(&db), storage(&db));
     let mut theirs = packument("pkg", &["1.0.0"]);
     theirs["versions"]["1.0.0"]["description"] = json!("theirs");
     let ours = serde_json::to_vec(&packument("pkg", &["1.0.0"])).unwrap();
@@ -70,29 +66,33 @@ async fn concurrent_publishers_of_one_version_cannot_both_commit() {
     assert!(matches!(retry, Err(RegistryError::VersionAlreadyPublished { .. })), "{retry:?}");
 }
 
-#[tokio::test]
-async fn a_cache_that_missed_an_invalidation_still_serves_the_current_view() {
-    let tmp = TempDir::new().unwrap();
-    let (reader, writer) = (storage(&tmp), storage(&tmp));
+async fn a_cache_that_missed_an_invalidation_still_serves_the_current_view(db: Db) {
+    let (reader, writer) = (storage(&db), storage(&db));
     write(&writer, "pkg", &packument("pkg", &["1.0.0"])).await;
     read(&reader, "pkg").await;
     write(&writer, "pkg", &packument("pkg", &["1.0.0", "2.0.0"])).await;
-    let document = read(&reader, "pkg").await;
+    // Another instance's commit is visible to a read that names its
+    // generation, as a client that saw it would; a replica may lag otherwise.
+    let committed = super::generation(&writer, "pkg").await.unwrap();
+    let view = reader
+        .read_hosted_package_view_at_least(&npm("pkg"), committed.value)
+        .await
+        .unwrap()
+        .unwrap();
+    let document: serde_json::Value = serde_json::from_slice(&view.bytes).unwrap();
     assert_eq!(document["dist-tags"]["latest"], "2.0.0");
     assert!(document["versions"].get("2.0.0").is_some());
 }
 
-#[tokio::test]
-async fn a_commit_survives_a_restart_and_its_retry_changes_nothing() {
-    let tmp = TempDir::new().unwrap();
+async fn a_commit_survives_a_restart_and_its_retry_changes_nothing(db: Db) {
     let document = packument("pkg", &["1.0.0"]);
     {
-        let storage = storage(&tmp);
+        let storage = storage(&db);
         write(&storage, "pkg", &document).await;
     }
     // The publisher never saw the response and retries against a restarted
     // server: the commit is there, and the identical retry is a no-op.
-    let restarted = storage(&tmp);
+    let restarted = storage(&db);
     assert_eq!(read(&restarted, "pkg").await, document);
     let metadata = restarted.sql_metadata().unwrap();
     let before = metadata.catalog_generation("").await.unwrap();
@@ -220,4 +220,11 @@ fn a_read_left_in_its_transaction_is_not_reused() {
             connection.execute_batch("COMMIT")
         })
         .unwrap();
+}
+
+conformance! {
+    a_read_completes_while_a_write_transaction_is_open,
+    concurrent_publishers_of_one_version_cannot_both_commit,
+    a_cache_that_missed_an_invalidation_still_serves_the_current_view,
+    a_commit_survives_a_restart_and_its_retry_changes_nothing,
 }

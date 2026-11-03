@@ -1,6 +1,6 @@
 //! Atomic publications, their recorded outcomes, and publication lookups.
 
-use super::{npm, packument, read, storage, write};
+use super::{Db, npm, packument, read, storage, write};
 use crate::metadata::{
     BatchDocument, PublicationCommit, PublicationRequest, PublishNotes, SqlMetadata,
 };
@@ -8,7 +8,6 @@ use pnpr_error::RegistryError;
 use pnpr_package_name::Ecosystem;
 use serde_json::{Value, json};
 use std::sync::Arc;
-use tempfile::TempDir;
 
 fn document(name: &str, document: &Value) -> BatchDocument {
     BatchDocument {
@@ -44,10 +43,8 @@ async fn commit(
     .await
 }
 
-#[tokio::test]
-async fn a_batch_commits_every_package_under_one_generation_or_none() {
-    let tmp = TempDir::new().unwrap();
-    let storage = storage(&tmp);
+async fn a_batch_commits_every_package_under_one_generation_or_none(db: Db) {
+    let storage = storage(&db);
     let database = storage.sql_metadata().unwrap();
     let org = storage.for_hosted("acme", Ecosystem::Npm);
     let core = packument("core", &["2.0.0"]);
@@ -75,10 +72,8 @@ async fn a_batch_commits_every_package_under_one_generation_or_none() {
     assert_eq!(database.catalog_generation("acme").await.unwrap(), 1);
 }
 
-#[tokio::test]
-async fn a_retried_request_gets_its_recorded_outcome() {
-    let tmp = TempDir::new().unwrap();
-    let storage = storage(&tmp);
+async fn a_retried_request_gets_its_recorded_outcome(db: Db) {
+    let storage = storage(&db);
     let database = storage.sql_metadata().unwrap();
     let doc = packument("core", &["1.0.0"]);
     let first = commit(database, vec![document("core", &doc)], request("digest", None))
@@ -109,10 +104,8 @@ async fn a_retried_request_gets_its_recorded_outcome() {
     assert!(matches!(err, RegistryError::AdminConflict { .. }), "{err:?}");
 }
 
-#[tokio::test]
-async fn publications_are_found_by_id_name_and_member() {
-    let tmp = TempDir::new().unwrap();
-    let storage = storage(&tmp);
+async fn publications_are_found_by_id_name_and_member(db: Db) {
+    let storage = storage(&db);
     let database = storage.sql_metadata().unwrap();
     let batch = vec![
         document("core", &packument("core", &["1.0.0"])),
@@ -145,10 +138,8 @@ async fn publications_are_found_by_id_name_and_member() {
     assert!(matches!(err, RegistryError::AdminConflict { .. }), "{err:?}");
 }
 
-#[tokio::test]
-async fn a_version_written_outside_a_publish_request_gets_a_publication() {
-    let tmp = TempDir::new().unwrap();
-    let storage = storage(&tmp);
+async fn a_version_written_outside_a_publish_request_gets_a_publication(db: Db) {
+    let storage = storage(&db);
     write(&storage, "plain", &packument("plain", &["1.0.0"])).await;
     write(&storage, "plain", &packument("plain", &["1.0.0", "1.1.0"])).await;
     let database = storage.sql_metadata().unwrap();
@@ -178,10 +169,8 @@ async fn a_version_written_outside_a_publish_request_gets_a_publication() {
     );
 }
 
-#[tokio::test]
-async fn a_publication_without_a_request_records_its_publisher() {
-    let tmp = TempDir::new().unwrap();
-    let storage = storage(&tmp);
+async fn a_publication_without_a_request_records_its_publisher(db: Db) {
+    let storage = storage(&db);
     let database = storage.sql_metadata().unwrap();
     // No request, as a staged publish's approval commits: the publisher still
     // comes from the document.
@@ -208,10 +197,8 @@ async fn a_publication_without_a_request_records_its_publisher() {
     assert_eq!(publication.publisher.as_deref(), Some("carol"));
 }
 
-#[tokio::test]
-async fn a_publication_cannot_bring_back_a_removed_version() {
-    let tmp = TempDir::new().unwrap();
-    let storage = storage(&tmp);
+async fn a_publication_cannot_bring_back_a_removed_version(db: Db) {
+    let storage = storage(&db);
     let database = storage.sql_metadata().unwrap();
     let org = storage.for_hosted("acme", Ecosystem::Npm);
     let batch = vec![document("core", &packument("core", &["1.0.0"]))];
@@ -232,11 +219,9 @@ async fn a_publication_cannot_bring_back_a_removed_version() {
     );
 }
 
-#[tokio::test]
-async fn competing_publications_of_one_version_commit_once() {
-    let tmp = TempDir::new().unwrap();
+async fn competing_publications_of_one_version_commit_once(db: Db) {
     // Two stores over one database: two writers that share no in-process lock.
-    let (first, second) = (storage(&tmp), storage(&tmp));
+    let (first, second) = (storage(&db), storage(&db));
     let mut theirs = packument("core", &["1.0.0"]);
     theirs["versions"]["1.0.0"]["dist"]["integrity"] = json!("sha512-theirs");
     let ours = vec![
@@ -269,4 +254,14 @@ async fn competing_publications_of_one_version_commit_once() {
     assert_eq!(database.catalog_generation("acme").await.unwrap(), 1);
     let second_publication = database.publication("acme", "2").await.unwrap();
     assert!(second_publication.is_none());
+}
+
+conformance! {
+    a_batch_commits_every_package_under_one_generation_or_none,
+    a_retried_request_gets_its_recorded_outcome,
+    publications_are_found_by_id_name_and_member,
+    a_version_written_outside_a_publish_request_gets_a_publication,
+    a_publication_without_a_request_records_its_publisher,
+    a_publication_cannot_bring_back_a_removed_version,
+    competing_publications_of_one_version_commit_once,
 }
