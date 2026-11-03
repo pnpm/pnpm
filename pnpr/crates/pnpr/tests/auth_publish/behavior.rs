@@ -3,7 +3,6 @@ use super::{
     body_bytes, body_json, common, json, npm_tgz, publish_doc, router, sri_sha512, static_config,
 };
 use pnpr_fixtures::MockConfigPresets;
-use pnpr_storage::layout::local_document_path;
 
 #[tokio::test]
 async fn anonymous_request_to_protected_package_returns_401() {
@@ -636,12 +635,13 @@ async fn dist_tag_mutations_refresh_time_modified() {
         .unwrap();
 
     let initial_time = serde_json::from_slice::<Value>(
-        &std::fs::read(local_document_path(
+        &pnpr_fixtures::read_hosted_document(
             &storage,
             "",
             pnpr_storage::Ecosystem::Npm,
             "time-mod-pkg",
-        ))
+        )
+        .ok_or("no hosted document")
         .unwrap(),
     )
     .unwrap()["time"]["modified"]
@@ -665,12 +665,13 @@ async fn dist_tag_mutations_refresh_time_modified() {
     assert_eq!(response.status(), StatusCode::CREATED);
 
     let after_set = serde_json::from_slice::<Value>(
-        &std::fs::read(local_document_path(
+        &pnpr_fixtures::read_hosted_document(
             &storage,
             "",
             pnpr_storage::Ecosystem::Npm,
             "time-mod-pkg",
-        ))
+        )
+        .ok_or("no hosted document")
         .unwrap(),
     )
     .unwrap()["time"]["modified"]
@@ -689,12 +690,13 @@ async fn dist_tag_mutations_refresh_time_modified() {
     assert_eq!(response.status(), StatusCode::CREATED);
 
     let after_delete = serde_json::from_slice::<Value>(
-        &std::fs::read(local_document_path(
+        &pnpr_fixtures::read_hosted_document(
             &storage,
             "",
             pnpr_storage::Ecosystem::Npm,
             "time-mod-pkg",
-        ))
+        )
+        .ok_or("no hosted document")
         .unwrap(),
     )
     .unwrap()["time"]["modified"]

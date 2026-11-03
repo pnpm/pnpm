@@ -1,6 +1,7 @@
 use crate::{command_env::CommandTestExt, registry::TestRegistry};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
+use pnpr_fixtures::RemovedVersionField;
 use std::{fs, path::PathBuf, process::Command};
 use tempfile::TempDir;
 use text_block_macros::text_block_fnl;
@@ -92,13 +93,6 @@ impl AddMockedRegistry {
         self.drop_cached_metadata();
     }
 
-    /// Serve `package@version` without `field` in its registry metadata
-    /// while its tarball keeps it. See [`Self::set_dist_tag`] for the cache.
-    pub fn remove_version_field(&self, package: &str, version: &str, field: &str) {
-        self.mock_instance.remove_version_field(package, version, field);
-        self.drop_cached_metadata();
-    }
-
     fn drop_cached_metadata(&self) {
         if self.cache_dir.exists() {
             fs::remove_dir_all(&self.cache_dir).expect("drop the cached registry metadata");
@@ -144,7 +138,19 @@ impl CommandTempCwd<()> {
     /// any other test seeing the change.
     #[must_use]
     pub fn add_mocked_registry_with_own_storage(self) -> CommandTempCwd<AddMockedRegistry> {
-        let mock_instance = TestRegistry::start_with_own_storage(self.root.path());
+        self.add_mocked_registry_with_own_storage_without_fields(&[])
+    }
+
+    /// Like [`Self::add_mocked_registry_with_own_storage`], over registry
+    /// metadata that leaves out `removed_fields` while the tarballs keep
+    /// them.
+    #[must_use]
+    pub fn add_mocked_registry_with_own_storage_without_fields(
+        self,
+        removed_fields: &[RemovedVersionField<'_>],
+    ) -> CommandTempCwd<AddMockedRegistry> {
+        let mock_instance =
+            TestRegistry::start_with_own_storage_without_fields(self.root.path(), removed_fields);
         self.write_registry_config(mock_instance)
     }
 
@@ -153,7 +159,18 @@ impl CommandTempCwd<()> {
     /// [`TestRegistry::take_requests`].
     #[must_use]
     pub fn add_recording_mocked_registry(self) -> CommandTempCwd<AddMockedRegistry> {
-        let mock_instance = TestRegistry::start_recording_with_own_storage(self.root.path());
+        self.add_recording_mocked_registry_without_fields(&[])
+    }
+
+    /// Like [`Self::add_recording_mocked_registry`], over registry metadata
+    /// that leaves out `removed_fields` while the tarballs keep them.
+    #[must_use]
+    pub fn add_recording_mocked_registry_without_fields(
+        self,
+        removed_fields: &[RemovedVersionField<'_>],
+    ) -> CommandTempCwd<AddMockedRegistry> {
+        let mock_instance =
+            TestRegistry::start_recording_with_own_storage(self.root.path(), removed_fields);
         self.write_registry_config(mock_instance)
     }
 
@@ -165,7 +182,12 @@ impl CommandTempCwd<()> {
         let mock_instance = if substitutions.is_empty() {
             TestRegistry::start()
         } else {
-            TestRegistry::start_over_built_storage(self.root.path(), substitutions, static_registry)
+            TestRegistry::start_over_built_storage(
+                self.root.path(),
+                substitutions,
+                &[],
+                static_registry,
+            )
         };
         self.write_registry_config(mock_instance)
     }

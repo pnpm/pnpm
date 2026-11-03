@@ -12,7 +12,7 @@ use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
 use npm::{npm_tgz, publish_doc, sha1_hex, sri_sha512};
 use pnpr::{Config, MaxUsers, router};
 use pnpr_fixtures::MockConfigPresets;
-use pnpr_storage::layout::{local_blob_path, local_document_path, local_package_dir};
+use pnpr_storage::layout::{local_blob_path, local_package_dir};
 use serde_json::{Value, json};
 use std::{
     net::{Ipv4Addr, SocketAddr, SocketAddrV4},
@@ -102,7 +102,8 @@ async fn batch_publish_writes_every_package_in_one_request() {
         [("batch-a", "1.0.0", bytes_a.as_slice()), ("batch-b", "2.0.0", bytes_b.as_slice())]
     {
         let packument: Value = serde_json::from_slice(
-            &std::fs::read(local_document_path(&storage, "", pnpr_storage::Ecosystem::Npm, name))
+            &pnpr_fixtures::read_hosted_document(&storage, "", pnpr_storage::Ecosystem::Npm, name)
+                .ok_or("no hosted document")
                 .expect("packument written"),
         )
         .unwrap();
@@ -354,12 +355,13 @@ async fn batch_publish_merges_with_previously_published_versions() {
     assert_eq!(response.status(), StatusCode::CREATED);
 
     let packument: Value = serde_json::from_slice(
-        &std::fs::read(local_document_path(
+        &pnpr_fixtures::read_hosted_document(
             &storage,
             "",
             pnpr_storage::Ecosystem::Npm,
             "merge-pkg",
-        ))
+        )
+        .ok_or("no hosted document")
         .unwrap(),
     )
     .unwrap();

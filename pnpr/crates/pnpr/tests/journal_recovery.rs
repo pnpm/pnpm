@@ -24,11 +24,14 @@ use std::{
 use tempfile::TempDir;
 use tower::ServiceExt;
 
+/// The publish journal is how the documents metadata backend commits, so
+/// these tests keep their metadata in documents. They go with the backend.
 fn static_config(storage: PathBuf) -> Config {
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
     let mut config = Config::static_serve(listen, storage);
     config.http.public_url = "http://example.test".to_string();
     config.identity.auth.htpasswd.max_users = MaxUsers::Unlimited;
+    config.storage.metadata = pnpr_config::MetadataBackend::Documents;
     config
 }
 

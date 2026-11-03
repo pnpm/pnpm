@@ -33,7 +33,7 @@ fn tri_ecosystem_config(storage: PathBuf) -> Config {
     let mut config = Config::static_serve(listen, storage);
     config.http.public_url = "http://pnpr.test".to_string();
     config.identity.auth.htpasswd.max_users = MaxUsers::Unlimited;
-    for (name, org) in [("crates", "crates"), ("python", "python")] {
+    for (name, org) in [("crates", ""), ("python", "")] {
         config.routing.hosted.insert(
             name.to_string(),
             HostedConfig::new(
@@ -346,11 +346,10 @@ async fn a_batch_with_one_bad_entry_publishes_none_of_it() {
 
 /// A blob whose immutable slot another writer already owns is the one thing a
 /// batch cannot roll back: the bytes that won are someone's published release.
-/// The package that lost is reported, and the rest of the batch stays
-/// published. An npm packument is written even when a version drops out of
-/// it, so this case is only visible in the blobs the transaction lost.
+/// The package that lost is reported, nothing of the batch commits, and the
+/// bytes that won stay where they are.
 #[tokio::test]
-async fn a_package_that_loses_its_blob_is_reported_and_the_rest_stays() {
+async fn a_package_that_loses_its_blob_is_reported_and_nothing_commits() {
     use object_store::{ObjectStoreExt, memory::InMemory, path::Path as ObjectPath};
     use pnpr::HostedStoreConfig;
     use std::sync::Arc;
@@ -404,9 +403,7 @@ async fn a_package_that_loses_its_blob_is_reported_and_the_rest_stays() {
         )
         .await
         .unwrap();
-    assert_eq!(packument.status(), StatusCode::OK);
-    let packument = body_json(packument.into_body()).await;
-    assert_eq!(packument["versions"], json!({}), "the version that lost is not advertised");
+    assert_eq!(packument.status(), StatusCode::NOT_FOUND, "the version that lost is not served");
     let index = app
         .oneshot(
             Request::get("/cargo/index/de/mo/demo")
@@ -415,7 +412,7 @@ async fn a_package_that_loses_its_blob_is_reported_and_the_rest_stays() {
         )
         .await
         .unwrap();
-    assert_eq!(index.status(), StatusCode::OK, "the crate beside it stays published");
+    assert_eq!(index.status(), StatusCode::NOT_FOUND, "the crate beside it does not commit");
     assert_eq!(
         store
             .get(&ObjectPath::from(object_key(&local_blob_path(

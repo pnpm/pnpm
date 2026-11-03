@@ -5622,7 +5622,7 @@ dependencies = [
  "pnpm-registry-mock",
  "pnpm-store-dir",
  "pnpm-tarball",
- "pnpr-storage",
+ "pnpr-fixtures",
  "reqwest",
  "serde",
  "serde-saphyr",
@@ -7142,12 +7142,12 @@ name = "pnpr-fixtures"
 version = "0.0.1"
 dependencies = [
  "base64 0.23.1",
- "chrono",
  "clap",
  "flate2",
  "indexmap 2.14.0",
  "node-semver",
  "pnpr-config",
+ "pnpr-package-name",
  "pnpr-policy",
  "pnpr-registry",
  "pnpr-storage",
@@ -7156,6 +7156,7 @@ dependencies = [
  "sha2 0.10.9",
  "tar",
  "tempfile",
+ "tokio",
  "walkdir",
 ]
 

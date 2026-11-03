@@ -4,7 +4,6 @@ use super::{
     hosted_with_access, json, router_with_auth, seed_hosted, sha512_integrity,
 };
 use crate::tokens::issue_token;
-use pnpr_storage::layout::local_document_path;
 
 #[tokio::test]
 async fn hosted_registry_serves_only_what_it_hosts() {
@@ -228,12 +227,23 @@ async fn publish_to_hosted_round_trips_in_its_own_namespace() {
 
     // It physically lands in the org's storage namespace, not the default one.
     assert!(
-        local_document_path(tmp.path(), "acme", pnpr_storage::Ecosystem::Npm, "@acme/widget")
-            .exists(),
+        pnpr_fixtures::read_hosted_document(
+            tmp.path(),
+            "acme",
+            pnpr_storage::Ecosystem::Npm,
+            "@acme/widget"
+        )
+        .is_some(),
         "published packument should be in the org namespace",
     );
     assert!(
-        !local_document_path(tmp.path(), "", pnpr_storage::Ecosystem::Npm, "@acme/widget").exists(),
+        pnpr_fixtures::read_hosted_document(
+            tmp.path(),
+            "",
+            pnpr_storage::Ecosystem::Npm,
+            "@acme/widget"
+        )
+        .is_none(),
         "nothing should be written to the default namespace",
     );
 
@@ -372,8 +382,13 @@ async fn hosted_registry_patterns_bound_publish_and_reads_on_every_path() {
         assert_eq!(rejected.status(), StatusCode::BAD_REQUEST, "publish {url} must be rejected");
     }
     assert!(
-        !local_document_path(tmp.path(), "acme", pnpr_storage::Ecosystem::Npm, "@typo/widget")
-            .exists(),
+        pnpr_fixtures::read_hosted_document(
+            tmp.path(),
+            "acme",
+            pnpr_storage::Ecosystem::Npm,
+            "@typo/widget"
+        )
+        .is_none(),
         "an off-pattern publish must write nothing",
     );
 
@@ -566,8 +581,13 @@ async fn private_hosted_registry_denies_writes_from_non_members() {
         .unwrap();
     assert_eq!(denied.status(), StatusCode::NOT_FOUND);
     assert!(
-        !local_document_path(tmp.path(), "corp", pnpr_storage::Ecosystem::Npm, "@corp/tool")
-            .exists(),
+        pnpr_fixtures::read_hosted_document(
+            tmp.path(),
+            "corp",
+            pnpr_storage::Ecosystem::Npm,
+            "@corp/tool"
+        )
+        .is_none(),
         "a denied publish must write nothing",
     );
 
@@ -579,8 +599,13 @@ async fn private_hosted_registry_denies_writes_from_non_members() {
         .unwrap();
     assert_eq!(allowed.status(), StatusCode::CREATED);
     assert!(
-        local_document_path(tmp.path(), "corp", pnpr_storage::Ecosystem::Npm, "@corp/tool")
-            .exists(),
+        pnpr_fixtures::read_hosted_document(
+            tmp.path(),
+            "corp",
+            pnpr_storage::Ecosystem::Npm,
+            "@corp/tool"
+        )
+        .is_some(),
     );
 
     // With the package now hosted, the non-member's path-less retag and
@@ -603,8 +628,13 @@ async fn private_hosted_registry_denies_writes_from_non_members() {
         .unwrap();
     assert_eq!(unpublish_denied.status(), StatusCode::NOT_FOUND);
     assert!(
-        local_document_path(tmp.path(), "corp", pnpr_storage::Ecosystem::Npm, "@corp/tool")
-            .exists(),
+        pnpr_fixtures::read_hosted_document(
+            tmp.path(),
+            "corp",
+            pnpr_storage::Ecosystem::Npm,
+            "@corp/tool"
+        )
+        .is_some(),
         "a denied unpublish must remove nothing",
     );
     let retag_allowed = app

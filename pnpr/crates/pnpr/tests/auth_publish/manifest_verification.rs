@@ -7,7 +7,6 @@ use super::{
     body_json, json, publish_doc, router, static_config,
 };
 use crate::npm::tgz_of;
-use pnpr_storage::layout::local_document_path;
 
 async fn publish(
     app: &axum::Router,
@@ -79,7 +78,13 @@ async fn a_dependency_the_submitted_metadata_misstates_is_rejected() {
     assert!(reason.contains("dependencies.core"), "{reason}");
     assert!(reason.contains("scripts"), "{reason}");
     assert!(
-        !local_document_path(tmp.path(), "", pnpr_storage::Ecosystem::Npm, "widgets").exists(),
+        pnpr_fixtures::read_hosted_document(
+            tmp.path(),
+            "",
+            pnpr_storage::Ecosystem::Npm,
+            "widgets"
+        )
+        .is_none(),
         "a rejected publish must write nothing",
     );
 }
