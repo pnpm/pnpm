@@ -30,10 +30,13 @@ use std::{
     time::Duration,
 };
 
-/// The layout of a `SQLite` WAL file, whose frames the sync protocol serves
-/// one generation per checkpoint.
+/// The layout of a `SQLite` WAL file, whose frames the sync protocol serves.
 const WAL_HEADER_SIZE: usize = 32;
 const WAL_FRAME_SIZE: usize = 24 + 4096;
+
+/// The primary's only sync generation. A generation ends when `SQLite`
+/// restarts the WAL after a checkpoint, which [`pin_frames`] rules out.
+const GENERATION: usize = 1;
 
 /// How long a stalled `/sync` takes to answer.
 pub const SYNC_STALL: Duration = Duration::from_secs(3);
@@ -44,16 +47,14 @@ pub struct Primary {
     /// The primary's own connection, for a test to read or write it directly.
     pub conn: Connection,
     pub path: PathBuf,
-    /// Exports so far; each one checkpoints the WAL.
+    /// Exports so far.
     pub exports: AtomicUsize,
     /// The Hrana requests so far: the round trips to the primary.
     pub round_trips: RoundTrips,
-    /// The sync generation. `SQLite` restarts the WAL at frame 1 with a new
-    /// salt after a checkpoint, which the protocol expresses as the next
-    /// generation.
-    generation: AtomicUsize,
-    salt: std::sync::Mutex<Option<[u8; 8]>>,
     pub sync_stall: SyncStall,
+    /// Holds the read transaction from [`pin_frames`] while the primary
+    /// serves.
+    _snapshot: Connection,
 }
 
 /// The connection of each open Hrana stream, by baton, so concurrent clients
@@ -98,8 +99,8 @@ pub struct SyncStall {
     pub enabled: AtomicBool,
     /// Signalled when a `/sync` request starts stalling.
     pub started: tokio::sync::Notify,
-    /// The generation and WAL the stalled pull answers with.
-    frozen: std::sync::Mutex<Option<(usize, Vec<u8>)>>,
+    /// The WAL the stalled pull answers with.
+    frozen: std::sync::Mutex<Option<Vec<u8>>>,
 }
 
 /// A primary at `path`, served on a loopback port.
@@ -124,6 +125,7 @@ pub async fn serve_primary(
         .unwrap()
         .is_some()
     {}
+    let snapshot = pin_frames(&db).await;
     let primary = Arc::new(Primary {
         streams: Streams {
             db,
@@ -134,9 +136,8 @@ pub async fn serve_primary(
         path,
         exports: AtomicUsize::new(0),
         round_trips: RoundTrips::default(),
-        generation: AtomicUsize::new(1),
-        salt: std::sync::Mutex::new(None),
         sync_stall: SyncStall::default(),
+        _snapshot: snapshot,
     });
     let app = Router::new()
         .route("/info", get(info))
@@ -153,49 +154,44 @@ pub async fn serve_primary(
     (primary, address, server)
 }
 
-async fn info(State(primary): State<Arc<Primary>>) -> Json<JsonValue> {
-    let (generation, _) = primary.wal_state();
-    Json(json!({ "current_generation": generation }))
+async fn info() -> Json<JsonValue> {
+    Json(json!({ "current_generation": GENERATION }))
 }
 
+/// The database file, which holds the state before the WAL's first frame: a
+/// replica bootstraps from it at frame 0 and pulls every frame
+/// after. A checkpoint here would move frames into the file that a replica
+/// already bootstrapped has not pulled, and those frames would be lost to it.
 async fn export(State(primary): State<Arc<Primary>>) -> Vec<u8> {
-    // Another stream's open transaction locks the checkpoint out until it
-    // ends.
-    let mut attempts = 0;
-    while let Err(error) = checkpoint(&primary.conn).await {
-        attempts += 1;
-        assert!(attempts < 500, "the primary's WAL never checkpointed: {error}");
-        tokio::time::sleep(Duration::from_millis(20)).await;
-    }
     primary.exports.fetch_add(1, Ordering::SeqCst);
     std::fs::read(&primary.path).unwrap()
 }
 
-/// Move the whole WAL into the database file, so the file is the export.
-/// A checkpoint that a reader or writer blocked reports it in its `busy`
-/// column rather than as an error, and leaves frames in the WAL.
-async fn checkpoint(conn: &Connection) -> Result<(), String> {
+/// A connection holding a read transaction that started before the WAL's
+/// first frame. While it is open, no checkpoint can move a frame into the
+/// database file, which keeps every frame the primary may still serve. Even
+/// the checkpoint `SQLite` runs when another connection closes is blocked.
+async fn pin_frames(db: &Database) -> Connection {
+    let conn = db.connect().unwrap();
+    conn.execute("BEGIN", ()).await.unwrap();
     let mut rows = conn
-        .query("PRAGMA wal_checkpoint(TRUNCATE)", ())
+        .query("SELECT count(*) FROM sqlite_master", ())
         .await
-        .map_err(|error| error.to_string())?;
-    let mut busy = false;
-    while let Some(row) = rows.next().await.map_err(|error| error.to_string())? {
-        busy |= row.get::<i64>(0).map_err(|error| error.to_string())? != 0;
-    }
-    if busy { Err("the checkpoint was busy".to_string()) } else { Ok(()) }
+        .unwrap();
+    while rows.next().await.unwrap().is_some() {}
+    conn
 }
 
-/// WAL frames `[start, end)` of `generation`, or the generation to move to.
+/// WAL frames `[start, end)` of `generation`, or the generation it ends at.
 async fn sync(
     State(primary): State<Arc<Primary>>,
     Path((generation, start, end)): Path<(usize, usize, usize)>,
 ) -> Result<Vec<u8>, (StatusCode, Json<JsonValue>)> {
-    let (current, wal) = if primary.sync_stall.enabled.load(Ordering::SeqCst) {
+    let wal = if primary.sync_stall.enabled.load(Ordering::SeqCst) {
         let (state, first) = {
             let mut frozen = primary.sync_stall.frozen.lock().unwrap();
             let first = frozen.is_none();
-            (frozen.get_or_insert_with(|| primary.wal_state()).clone(), first)
+            (frozen.get_or_insert_with(|| primary.wal()).clone(), first)
         };
         if first {
             primary.sync_stall.started.notify_one();
@@ -204,10 +200,10 @@ async fn sync(
         state
     } else {
         *primary.sync_stall.frozen.lock().unwrap() = None;
-        primary.wal_state()
+        primary.wal()
     };
-    let frames = if generation == current { wal_frames(&wal, start, end) } else { None };
-    frames.ok_or_else(|| (StatusCode::BAD_REQUEST, Json(json!({ "generation": current }))))
+    let frames = if generation == GENERATION { wal_frames(&wal, start, end) } else { None };
+    frames.ok_or_else(|| (StatusCode::BAD_REQUEST, Json(json!({ "generation": GENERATION }))))
 }
 
 async fn pipeline(State(primary): State<Arc<Primary>>, body: String) -> Json<JsonValue> {
@@ -257,16 +253,10 @@ async fn cursor(State(primary): State<Arc<Primary>>, body: String) -> String {
 }
 
 /// Frames `[start, end)` of `wal`, clipped to the frames it holds; `None`
-/// past its end. A restarted WAL keeps the frames of its previous salt
-/// behind the new ones, so only the leading frames carrying the header's
-/// salt count.
+/// past its end.
 fn wal_frames(wal: &[u8], start: usize, end: usize) -> Option<Vec<u8>> {
-    let salt = wal.get(16..24)?;
     let frame_offset = |frame: usize| WAL_HEADER_SIZE + (frame - 1) * WAL_FRAME_SIZE;
-    let frame_salt = |frame: usize| wal.get(frame_offset(frame) + 8..frame_offset(frame) + 16);
-    let available = (1..=wal.len() / WAL_FRAME_SIZE)
-        .take_while(|&frame| frame_salt(frame) == Some(salt))
-        .count();
+    let available = wal.len().saturating_sub(WAL_HEADER_SIZE) / WAL_FRAME_SIZE;
     if start == 0 || start > available {
         return None;
     }
@@ -275,21 +265,13 @@ fn wal_frames(wal: &[u8], start: usize, end: usize) -> Option<Vec<u8>> {
 }
 
 impl Primary {
-    /// The current generation and the WAL holding its frames.
-    fn wal_state(&self) -> (usize, Vec<u8>) {
+    /// The WAL, holding every frame since the database file's state.
+    fn wal(&self) -> Vec<u8> {
         let mut wal_path = self.path.clone().into_os_string();
         wal_path.push("-wal");
-        let wal = std::fs::read(wal_path).unwrap_or_default();
-        let mut salt = self.salt.lock().unwrap();
-        let header_salt = wal
-            .get(16..24)
-            .map(|bytes| <[u8; 8]>::try_from(bytes).unwrap());
-        if header_salt.is_some() && header_salt != *salt {
-            if salt.is_some() {
-                self.generation.fetch_add(1, Ordering::SeqCst);
-            }
-            *salt = header_salt;
-        }
-        (self.generation.load(Ordering::SeqCst), wal)
+        std::fs::read(wal_path).unwrap_or_default()
     }
 }
+
+#[cfg(test)]
+mod tests;
