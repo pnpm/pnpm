@@ -22,7 +22,8 @@ use std::{fmt, sync::LazyLock};
 pub(super) const MARKER: &str = "schema_version";
 
 /// The tables and indexes of the metadata. [`fingerprint`] is derived from
-/// them, so any change to a statement here is a change of the schema.
+/// them, so an edit to a statement here, other than to its whitespace, is a
+/// change of the schema.
 pub(super) const TABLES: &str = "
 -- The current generation of each hosted catalog.
 CREATE TABLE IF NOT EXISTS catalogs (
