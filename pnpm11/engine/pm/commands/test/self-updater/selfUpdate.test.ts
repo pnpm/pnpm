@@ -1608,7 +1608,7 @@ test('self-update leaves the project pin alone when the global install fails', a
   expect(pkgJson.packageManager).toBe('pnpm@9.0.0')
 })
 
-test('self-update repairs a broken engine reused from the shared store', async () => {
+test.each(['missing', 'broken'])('self-update repairs a %s engine executable reused from the shared store', async (damage) => {
   const opts = prepare()
   mockRegistryForUpdate(opts.registriesByScope.default, '9.1.0', createMetadata('9.1.0', opts.registriesByScope.default))
   await selfUpdate.handler(opts, ['9.1.0'])
@@ -1619,7 +1619,9 @@ test('self-update repairs a broken engine reused from the shared store', async (
   const executable = path.join(packageDir, manifest.bin.pnpm)
   const original = fs.readFileSync(executable)
   fs.unlinkSync(executable)
-  fs.writeFileSync(executable, '#!/usr/bin/env node\nprocess.exit(1)\n', { mode: 0o755 })
+  if (damage === 'broken') {
+    fs.writeFileSync(executable, '#!/usr/bin/env node\nprocess.exit(1)\n', { mode: 0o755 })
+  }
 
   await selfUpdate.handler({ ...opts, globalPkgDir: path.join(opts.pnpmHomeDir, 'another-global') }, ['9.1.0'])
 
