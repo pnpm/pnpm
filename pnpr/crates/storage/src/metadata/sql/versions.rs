@@ -112,11 +112,14 @@ fn insert_release_record(
         .log_entry()
         .map_err(|err| invalid(err.to_string()))?
         .to_bytes();
-    let log_index = sequence_log_entry(commit, &entry)?;
+    sequence_log_entry(commit, &entry)?;
+    // The record keeps the index its entry was just sequenced at, the log's
+    // last.
     commit.transaction.execute(
         "INSERT INTO release_records (catalog, ecosystem, name, version, revision_key, profile,
                                       record, digest, log_index)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8,
+                 (SELECT MAX(idx) FROM log_entries WHERE catalog = ?1 AND ecosystem = ?2))",
         params![
             catalog,
             ecosystem,
@@ -126,7 +129,6 @@ fn insert_release_record(
             profile,
             record.bytes(),
             record.digest().to_string(),
-            log_index,
         ],
     )?;
     Ok(())
@@ -134,19 +136,18 @@ fn insert_release_record(
 
 /// Append `entry` to the log of the commit's catalog and ecosystem, at the
 /// next index. The commit holds the database's write lock, so no other
-/// commit takes the same index.
-fn sequence_log_entry(commit: &Commit<'_>, entry: &[u8]) -> Result<i64> {
+/// commit takes the same index. The index is computed by the statement
+/// itself, so sequencing waits for no answer and adds no round trip to a
+/// remote primary.
+fn sequence_log_entry(commit: &Commit<'_>, entry: &[u8]) -> Result<()> {
     let (catalog, ecosystem, _) = commit.key.params();
-    let mut row = commit.transaction.query_one(
-        "SELECT COALESCE(MAX(idx) + 1, 0) FROM log_entries WHERE catalog = ?1 AND ecosystem = ?2",
-        params![catalog, ecosystem],
-    )?;
-    let index: i64 = row.get(0)?;
     commit.transaction.execute(
-        "INSERT INTO log_entries (catalog, ecosystem, idx, entry) VALUES (?1, ?2, ?3, ?4)",
-        params![catalog, ecosystem, index, entry],
+        "INSERT INTO log_entries (catalog, ecosystem, idx, entry)
+         SELECT ?1, ?2, COALESCE(MAX(idx) + 1, 0), ?3 FROM log_entries
+         WHERE catalog = ?1 AND ecosystem = ?2",
+        params![catalog, ecosystem, entry],
     )?;
-    Ok(index)
+    Ok(())
 }
 
 /// The exact bytes of the release record `version` was accepted with.
