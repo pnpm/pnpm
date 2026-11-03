@@ -335,7 +335,6 @@ update:
     - normalize-package-data
     - npm-packlist
     - npm-registry-fetch
-    - serde-saphyr
     - ssri
     - tempy
     - typescript
