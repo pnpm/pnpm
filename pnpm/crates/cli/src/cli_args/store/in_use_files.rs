@@ -121,13 +121,11 @@ impl ModulesDirs {
     /// Adds the modules directory of `project` and returns it.
     fn add(&mut self, project: &Path) -> io::Result<PathBuf> {
         let workspace_dir = workspace_root_or(project);
-        let settings = match self.settings_by_workspace.get(&workspace_dir) {
-            Some(settings) => settings,
-            None => {
-                let settings = ModulesDirSettings::read(&workspace_dir)?;
-                self.settings_by_workspace.entry(workspace_dir).or_insert(settings)
-            }
-        };
+        if !self.settings_by_workspace.contains_key(&workspace_dir) {
+            let settings = ModulesDirSettings::read(&workspace_dir)?;
+            self.settings_by_workspace.insert(workspace_dir.clone(), settings);
+        }
+        let settings = &self.settings_by_workspace[&workspace_dir];
         let modules_dir = project.join(settings.modules_dir_of(project)?);
         self.dirs.insert(modules_dir.clone());
         Ok(modules_dir)
