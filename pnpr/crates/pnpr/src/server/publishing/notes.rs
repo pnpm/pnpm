@@ -115,7 +115,8 @@ pub(in super::super) fn check_note_storage(
     let has_notes = notes.publication.is_some() || !notes.versions.is_empty();
     if has_notes && state.inner.storage.sql_metadata().is_none() {
         return Err(RegistryError::BadRequest {
-            reason: "release notes need SQL metadata; this registry keeps package documents in object storage".to_string(),
+            reason: "release notes need SQL metadata; this registry keeps package documents"
+                .to_string(),
         });
     }
     Ok(())
