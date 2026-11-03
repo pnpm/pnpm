@@ -199,51 +199,57 @@ impl Storage {
         keys: Vec<String>,
         now: u64,
     ) -> Result<(u64, usize)> {
-        let mut records = Vec::new();
-        let mut archives = Vec::new();
-        for key in keys {
-            match key.strip_suffix(RECORD_SUFFIX) {
-                Some(archive) => records.push(archive.to_string()),
-                None => archives.push(key),
-            }
-        }
+        let (records, archives): (Vec<String>, Vec<String>) = keys
+            .into_iter()
+            .partition(|key| key.ends_with(RECORD_SUFFIX));
         let mut usage = 0_u64;
         let mut removed = 0;
-        for archive in &records {
-            let record_key = format!("{archive}{RECORD_SUFFIX}");
-            let Some(record) = self.read_record_json(namespace, &record_key).await? else {
-                continue;
-            };
-            if !record.is_collectable(now) {
-                if record.is_claimable(now) {
-                    usage = usage.saturating_add(record.size);
-                }
-                continue;
-            }
-            // The archive first, so a record never outlives the archive it
-            // vouches for long enough to look like an upload in flight.
-            if self.root.remove_record(namespace, archive).await? {
-                removed += 1;
-            }
-            self.root.remove_record(namespace, &record_key).await?;
+        for record_key in &records {
+            let (claimable, expired) =
+                self.sweep_recorded_archive(namespace, record_key, now).await?;
+            usage = usage.saturating_add(claimable);
+            removed += usize::from(expired);
         }
         for archive in archives {
-            if records.contains(&archive) {
-                continue;
-            }
-            // Listed without its record. An upload writes the record before
-            // the archive, so one that started after the listing has a record
-            // by now; one without is left over from a sweep that stopped
-            // between its two removals.
-            let record_key = format!("{archive}{RECORD_SUFFIX}");
-            if self.root.read_record(namespace, &record_key).await?.is_some() {
-                continue;
-            }
-            if self.root.remove_record(namespace, &archive).await? {
-                removed += 1;
+            if !records.contains(&format!("{archive}{RECORD_SUFFIX}")) {
+                removed += usize::from(self.sweep_unrecorded_archive(namespace, &archive).await?);
             }
         }
         Ok((usage, removed))
+    }
+
+    /// Remove the archive `record_key` records once it is past its expiry.
+    /// Returns its size while it is claimable, and whether it was removed.
+    async fn sweep_recorded_archive(
+        &self,
+        namespace: &str,
+        record_key: &str,
+        now: u64,
+    ) -> Result<(u64, bool)> {
+        let Some(record) = self.read_record_json(namespace, record_key).await? else {
+            return Ok((0, false));
+        };
+        if !record.is_collectable(now) {
+            return Ok((if record.is_claimable(now) { record.size } else { 0 }, false));
+        }
+        let archive = record_key.strip_suffix(RECORD_SUFFIX).unwrap_or(record_key);
+        // The archive first, so a record never outlives the archive it vouches
+        // for long enough to look like an upload in flight.
+        let removed = self.root.remove_record(namespace, archive).await?;
+        self.root.remove_record(namespace, record_key).await?;
+        Ok((0, removed))
+    }
+
+    /// Remove `archive`, listed without its record, unless its record has
+    /// appeared since. An upload writes the record before the archive, so one
+    /// that started after the listing has a record by now; one without is left
+    /// over from a sweep that stopped between its two removals.
+    async fn sweep_unrecorded_archive(&self, namespace: &str, archive: &str) -> Result<bool> {
+        let record_key = format!("{archive}{RECORD_SUFFIX}");
+        if self.root.read_record(namespace, &record_key).await?.is_some() {
+            return Ok(false);
+        }
+        self.root.remove_record(namespace, archive).await
     }
 
     async fn read_staged_archive_record(

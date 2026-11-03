@@ -25,7 +25,7 @@ async fn a_staged_archive_is_claimable_only_by_its_principal() {
         storage
             .stage_archive(&key("alice", DIGEST), b"bytes".to_vec())
             .await
-            .unwrap()
+            .unwrap(),
     );
 
     assert_eq!(
@@ -41,21 +41,21 @@ async fn a_staged_archive_is_claimable_only_by_its_principal() {
             .staged_archive_size(&key("alice", DIGEST))
             .await
             .unwrap(),
-        Some(5)
+        Some(5),
     );
     assert_eq!(
         storage
             .read_staged_archive(&key("bob", DIGEST))
             .await
             .unwrap(),
-        None
+        None,
     );
     assert_eq!(
         storage
             .staged_archive_size(&key("bob", DIGEST))
             .await
             .unwrap(),
-        None
+        None,
     );
 }
 
@@ -68,7 +68,7 @@ async fn staging_an_archive_again_renews_it_and_reports_no_new_archive() {
         storage
             .stage_archive_at(&key("alice", DIGEST), b"bytes".to_vec(), old)
             .await
-            .unwrap()
+            .unwrap(),
     );
     // Too close to its expiry to count as stored for a publisher deciding
     // what to upload.
@@ -77,14 +77,14 @@ async fn staging_an_archive_again_renews_it_and_reports_no_new_archive() {
             .staged_archive_size(&key("alice", DIGEST))
             .await
             .unwrap(),
-        None
+        None,
     );
 
     assert!(
         !storage
             .stage_archive(&key("alice", DIGEST), b"bytes".to_vec())
             .await
-            .unwrap()
+            .unwrap(),
     );
 
     assert_eq!(
@@ -92,7 +92,7 @@ async fn staging_an_archive_again_renews_it_and_reports_no_new_archive() {
             .staged_archive_size(&key("alice", DIGEST))
             .await
             .unwrap(),
-        Some(5)
+        Some(5),
     );
 }
 
@@ -116,7 +116,7 @@ async fn an_expired_archive_cannot_be_claimed_and_is_swept() {
             .read_staged_archive(&key("alice", DIGEST))
             .await
             .unwrap(),
-        None
+        None,
     );
     // Within the sweep's grace, an expired archive stays in place.
     assert_eq!(storage.sweep_staged_archives().await.unwrap(), 0);
@@ -129,7 +129,7 @@ async fn an_expired_archive_cannot_be_claimed_and_is_swept() {
             .await
             .unwrap()
             .iter()
-            .all(|stored| !stored.starts_with(DIGEST))
+            .all(|stored| !stored.starts_with(DIGEST)),
     );
     assert_eq!(
         storage
@@ -168,7 +168,7 @@ async fn usage_counts_only_claimable_archives_of_the_principal() {
             .await
             .unwrap()
             .len(),
-        2
+        2,
     );
     assert_eq!(storage.staged_archive_usage("bob").await.unwrap(), 11);
 }
@@ -189,7 +189,7 @@ async fn an_archive_without_its_record_is_swept() {
             .list_record_keys(&staged.namespace())
             .await
             .unwrap(),
-        Vec::<String>::new()
+        Vec::<String>::new(),
     );
 }
 
@@ -201,12 +201,12 @@ async fn an_invalid_digest_is_refused() {
         storage
             .stage_archive(&key("alice", "../escape"), b"x".to_vec())
             .await
-            .is_err()
+            .is_err(),
     );
     assert!(
         storage
             .read_staged_archive(&key("alice", "ABC"))
             .await
-            .is_err()
+            .is_err(),
     );
 }

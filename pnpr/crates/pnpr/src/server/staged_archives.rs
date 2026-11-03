@@ -1,7 +1,7 @@
 //! `PUT` and `HEAD /-/pnpr/v0/artifacts/blob?integrity=<sha512-...>` with no
 //! owner: stage a release archive by integrity ahead of the publish commit
 //! that references it
-//! ([atomic workspace publication](https://github.com/pnpm/rfcs/blob/main/pnpr/text/0000-atomic-workspace-publication.md)).
+//! ([atomic workspace publication](https://github.com/pnpm/rfcs/blob/92d2b281af321ecf8f1e5fea63f698716ba4e9e7/pnpr/text/0000-atomic-workspace-publication.md)).
 //!
 //! The same route with an `organization` owner stores a shared build
 //! artifact's blob instead (see [`super::pnpr_protocol`]); [`serve_put_blob`]
@@ -143,7 +143,7 @@ async fn receive_archive(body: Body, integrity: &str, size: u64) -> Result<Vec<u
             chunk.map_err(|err| bad_request(format!("the archive upload was interrupted: {err}")))?;
         if (bytes.len() + chunk.len()) as u64 > size {
             return Err(bad_request(format!(
-                "the archive is larger than its declared {size} bytes"
+                "the archive is larger than its declared {size} bytes",
             )));
         }
         hasher.update(&chunk);
