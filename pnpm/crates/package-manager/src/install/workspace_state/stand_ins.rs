@@ -20,14 +20,20 @@ pub(super) enum RecordsCheck {
 }
 
 /// The repeat-install check on the stand-ins. It leaves the decision to the
-/// check on the files when no workspace manifest drives the install, a
-/// project's manifest may have changed since the last validation, or the
-/// check would refresh the state.
+/// check on the files when no workspace manifest drives the install, the
+/// state has no manifest records, a project's manifest may have changed
+/// since the last validation, or the check would refresh the state.
 pub(super) fn check_from_records(
     check: &UpToDateFastPathCheck<'_>,
     context: &FastPathContext<'_>,
     state: &WorkspaceState,
 ) -> RecordsCheck {
+    let has_records = state.validation
+        .as_ref()
+        .is_some_and(|validation| !validation.manifest_files.is_empty());
+    if !has_records {
+        return RecordsCheck::Undecided(None);
+    }
     let Some(listed) = list_projects(check, context) else {
         return RecordsCheck::Undecided(None);
     };

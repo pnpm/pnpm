@@ -40,6 +40,25 @@ fn write_workspace(workspace: &Path) {
     );
     fs::write(workspace.join("packages/b/cli.js"), "#!/usr/bin/env node\n").expect("write cli.js");
     fs::create_dir_all(workspace.join("packages/no-project")).expect("create packages/no-project");
+    wait_past_whole_second_rounding(&workspace.join("packages/b/package.json"));
+}
+
+/// On a filesystem that keeps whole seconds, a stat recorded within two
+/// seconds of the write is not trusted, so the first install would leave
+/// records the next one cannot use.
+fn wait_past_whole_second_rounding(path: &Path) {
+    let modified = fs::metadata(path)
+        .expect("stat the manifest")
+        .modified()
+        .expect("read the mtime");
+    let whole_second = modified
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("an mtime after the epoch")
+        .subsec_nanos()
+        == 0;
+    if whole_second {
+        std::thread::sleep(std::time::Duration::from_millis(2_100));
+    }
 }
 
 /// `pnpm install` with the fast path's trace, returning its output.

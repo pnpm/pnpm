@@ -358,7 +358,9 @@ fn refresh_state(
     vouched: &HashSet<PathBuf>,
 ) {
     let records_stale = |state: &WorkspaceState| {
-        state.validation.as_ref().is_some_and(|validation| records_need_refresh(check, validation))
+        state.validation
+            .as_ref()
+            .is_some_and(|validation| records_need_refresh(check, validation, vouched))
     };
     let refresh_records = matches!(policy.gate, Gate::Install)
         && !check.project_manifests.has_stand_ins()

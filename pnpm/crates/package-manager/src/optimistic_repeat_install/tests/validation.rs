@@ -318,7 +318,7 @@ fn trust_recorded_stats(validation: &mut Validation) {
 fn a_write_records_each_vouched_manifest_file_with_the_fields_the_check_reads() {
     let dir = tempdir().unwrap();
     let root = dir.path();
-    let json = r#"{"name":"a","scripts":{"test":"x"},"dependencies":{"b":"workspace:*"},"peerDependencies":{"e":"https://user:secret@example.com/e.tgz","f":"^1"},"bin":"cli.js","publishConfig":{"registry":"https://user:secret@example.com/","directory":"dist"},"peerDependenciesMeta":{"e":{"optional":false,"note":"x"}},"devDependencies":{}}"#;
+    let json = r#"{"name":"a","scripts":{"test":"x"},"dependencies":{"b":"workspace:*","c":"git+https://user:token@example.com/c.git","d":"file:///opt/d"},"peerDependencies":{"e":"https://user:secret@example.com/e.tgz","f":"^1"},"bin":"cli.js","publishConfig":{"registry":"https://user:secret@example.com/","directory":"dist"},"peerDependenciesMeta":{"e":{"optional":false,"note":"x"}},"devDependencies":{}}"#;
     let project_a = project_files(root, &[("a", json)]).remove(0);
     let validation = record_files(root, &[(root.join("a"), &project_a)], &Vouched::All);
     let file = &validation.manifest_files["a"];
@@ -328,7 +328,7 @@ fn a_write_records_each_vouched_manifest_file_with_the_fields_the_check_reads() 
         serde_json::Value::Object(file.fields.clone().unwrap()),
         serde_json::json!({
             "name": "a",
-            "dependencies": { "b": "workspace:*" },
+            "dependencies": { "b": "workspace:*", "c": "*", "d": "file:///opt/d" },
             "devDependencies": {},
             "peerDependencies": { "e": "*", "f": "^1" },
             "peerDependenciesMeta": { "e": { "optional": false } },
@@ -380,8 +380,12 @@ fn a_manifest_whose_trusted_stat_is_unchanged_keeps_its_record() {
             }),
         },
     );
-    assert!(
-        rerecorded.manifest_files.values().all(|file| file.fields.is_some()),
+    assert_eq!(
+        rerecorded.manifest_files
+            .iter()
+            .map(|(importer_id, file)| (importer_id.as_str(), file.fields.is_some()))
+            .collect::<Vec<_>>(),
+        [("a", true), ("b", true)],
         "a record without fields is not reused",
     );
     let previous =
@@ -526,12 +530,15 @@ fn records_cannot_stand_in_for_a_same_size_edit_with_its_mtime_restored() {
     let dir = tempdir().unwrap();
     let root = dir.path();
     let manifests = project_files(root, &[("a", r#"{"name":"a","dependencies":{"b":"1"}}"#)]);
-    let validation = record_files(root, &[(root.join("a"), &manifests[0])], &Vouched::All);
+    let mut validation = record_files(root, &[(root.join("a"), &manifests[0])], &Vouched::All);
+    trust_recorded_stats(&mut validation);
+    assert!(manifest_stand_ins(root, &validation, &[listed(root, "a")]).is_some());
     let path = root.join("a/package.json");
     let mtime = fs::metadata(&path)
         .unwrap()
         .modified()
         .unwrap();
+    super::wait_for_the_next_filesystem_tick(root);
 
     fs::write(&path, r#"{"name":"a","dependencies":{"b":"2"}}"#).unwrap();
     pnpm_testing_utils::fs::set_mtime(&path, mtime);

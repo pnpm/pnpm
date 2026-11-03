@@ -13,8 +13,8 @@ use std::collections::BTreeMap;
 mod stand_ins;
 
 /// The manifest fields the repeat-install check reads: a top-level field
-/// whole, only one key of an object field, or the parts of the peer fields
-/// the check reads. A record keeps these, so a
+/// whole, only one key of an object field, the dependency maps without URL
+/// specifiers, or each peer's `optional` flag. A record keeps these, so a
 /// manifest rebuilt from them answers the check the way the file does. Any
 /// other value stays out of the workspace state.
 const CHECKED_FIELDS: [(&str, Option<&str>); 10] = [
@@ -30,20 +30,22 @@ const CHECKED_FIELDS: [(&str, Option<&str>); 10] = [
     ("publishConfig", Some("directory")),
 ];
 
-/// Whether a record in `validation` could not stand in for one of the
-/// `project_manifests` next time: it is missing or has no fields, or the
+/// Whether a record in `validation` could not stand in for the manifest of a
+/// `vouched` project next time: it is missing or has no fields, or the
 /// manifest's file name or stat differs from it or is not trusted. A
 /// manifest that cannot be stat'd, or a write under `SOURCE_DATE_EPOCH`,
 /// would record nothing, so neither counts.
 pub(crate) fn records_need_refresh(
     check: &crate::OptimisticRepeatInstallCheck<'_>,
     validation: &Validation,
+    vouched: &std::collections::HashSet<std::path::PathBuf>,
 ) -> bool {
     if check.config.source_date_epoch.is_some() {
         return false;
     }
     check.project_manifests
         .iter()
+        .filter(|(root_dir, _)| vouched.contains(root_dir))
         .any(|(root_dir, manifest)| {
             let Some(stat) = FileStat::at(manifest.path()) else { return false };
             let importer_id = importer_id_from_root_dir(check.workspace_root, root_dir);
@@ -163,7 +165,13 @@ fn manifest_file(manifest: &PackageManifest, file_name: String, stat: FileStat) 
             let field_value = value.get(field)?;
             let kept = match (field, key) {
                 (_, Some(key)) => serde_json::json!({ key: field_value.get(key)? }),
-                ("peerDependencies", None) => peer_names(field_value),
+                (
+                    "dependencies"
+                    | "devDependencies"
+                    | "optionalDependencies"
+                    | "peerDependencies",
+                    None,
+                ) => without_url_specifiers(field_value),
                 ("peerDependenciesMeta", None) => peer_optional_flags(field_value),
                 (_, None) => field_value.clone(),
             };
@@ -173,19 +181,19 @@ fn manifest_file(manifest: &PackageManifest, file_name: String, stat: FileStat) 
     ManifestFile { file_name, mtime_ns, ctime_ns, size, fields: Some(fields) }
 }
 
-/// The peer dependencies with each URL specifier replaced by `*`. The check
-/// reads a peer specifier only for the name it depends on, which a URL
-/// leaves to the alias, and a peer missing from the lockfile must not carry
-/// credentials into the state.
-fn peer_names(peers: &serde_json::Value) -> serde_json::Value {
-    let Some(peers) = peers.as_object() else { return peers.clone() };
-    peers
+/// The dependency map with each URL specifier other than `file:` replaced
+/// by `*`, so no credential in one reaches the state. The check reads such a
+/// specifier only for the name it depends on, which a URL leaves to the
+/// alias, and `*` gives the same answer.
+fn without_url_specifiers(dependencies: &serde_json::Value) -> serde_json::Value {
+    let Some(dependencies) = dependencies.as_object() else { return dependencies.clone() };
+    dependencies
         .iter()
-        .map(|(name, spec)| {
+        .map(|(alias, spec)| {
             let url = spec
                 .as_str()
-                .is_some_and(|spec| spec.contains("://"));
-            (name.clone(), if url { serde_json::Value::from("*") } else { spec.clone() })
+                .is_some_and(|spec| spec.contains("://") && !spec.starts_with("file:"));
+            (alias.clone(), if url { serde_json::Value::from("*") } else { spec.clone() })
         })
         .collect::<serde_json::Map<_, _>>()
         .into()
