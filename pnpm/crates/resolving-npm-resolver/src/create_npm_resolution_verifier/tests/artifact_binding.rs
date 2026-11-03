@@ -458,6 +458,8 @@ async fn verifies_variations_resolution_matching_tarball_url() {
     let opts = default_opts(&registry);
     let verifier = create_npm_resolution_verifier(opts);
     let resolution = LockfileResolution::Variations(VariationsResolution {
+        fallback: None,
+        revision: None,
         variants: vec![PlatformAssetResolution {
             resolution: LockfileResolution::Tarball(TarballResolution {
                 tarball: format!("{server_url}/variations-pkg/-/variations-pkg-1.0.0.tgz"),
@@ -506,6 +508,8 @@ async fn rejects_variations_resolution_with_mismatched_tarball_url() {
     let opts = default_opts(&registry);
     let verifier = create_npm_resolution_verifier(opts);
     let resolution = LockfileResolution::Variations(VariationsResolution {
+        fallback: None,
+        revision: None,
         variants: vec![PlatformAssetResolution {
             resolution: LockfileResolution::Tarball(TarballResolution {
                 tarball: "https://attacker.example/variations-pkg-1.0.0.tgz".to_string(),
@@ -531,6 +535,8 @@ async fn rejects_variations_resolution_with_missing_integrity() {
     let opts = default_opts("https://registry.example/");
     let verifier = create_npm_resolution_verifier(opts);
     let resolution = LockfileResolution::Variations(VariationsResolution {
+        fallback: None,
+        revision: None,
         variants: vec![PlatformAssetResolution {
             resolution: LockfileResolution::Tarball(TarballResolution {
                 tarball: "https://registry.example/pkg-1.0.0.tgz".to_string(),
@@ -549,4 +555,202 @@ async fn rejects_variations_resolution_with_missing_integrity() {
         panic!("expected Err, got {result:?}");
     };
     assert_eq!(code, "MISSING_TARBALL_INTEGRITY");
+}
+
+/// A host that no variant matches installs the fallback, so the fallback
+/// is verified like a variant.
+#[tokio::test]
+async fn rejects_variations_resolution_with_an_unverifiable_fallback() {
+    let opts = default_opts("https://registry.example/");
+    let verifier = create_npm_resolution_verifier(opts);
+    let resolution = LockfileResolution::Variations(VariationsResolution {
+        fallback: Some(Box::new(LockfileResolution::Tarball(TarballResolution {
+            tarball: "https://registry.example/pkg-1.0.0.tgz".to_string(),
+            integrity: None,
+            revision: None,
+            git_hosted: None,
+            path: None,
+        }))),
+        revision: None,
+        variants: vec![],
+    });
+    let name: PkgName = "variations-pkg".parse().expect("parse");
+    assert!(verifier.might_verify(&resolution, ctx(&name, "1.0.0")));
+    let result = verifier.verify(&resolution, ctx(&name, "1.0.0")).await;
+    let ResolutionVerification::Err { code, .. } = result else {
+        panic!("expected Err, got {result:?}");
+    };
+    assert_eq!(code, "MISSING_TARBALL_INTEGRITY");
+}
+
+/// A lockfile that keeps tarball URLs writes a variant at its own route,
+/// which the version's `dist.tarball` (the primary's) does not name.
+#[tokio::test]
+async fn verifies_a_variant_tarball_url_on_its_own_route() {
+    let mut server = mockito::Server::new_async().await;
+    let registry = format!("{}/", server.url());
+    let server_url = server.url();
+    let packument = serde_json::json!({
+        "name": "variations-pkg",
+        "dist-tags": { "latest": "1.0.0" },
+        "time": { "1.0.0": "2020-01-01T00:00:00.000Z" },
+        "versions": {
+            "1.0.0": {
+                "name": "variations-pkg",
+                "version": "1.0.0",
+                "dist": {
+                    "integrity": FAKE_INTEGRITY,
+                    "shasum": "0000000000000000000000000000000000000000",
+                    "tarball": format!("{server_url}/variations-pkg/-/variations-pkg-1.0.0.tgz"),
+                }
+            }
+        }
+    });
+    let _meta_mock = server
+        .mock("GET", "/variations-pkg")
+        .with_status(200)
+        .with_body(packument.to_string())
+        .create_async()
+        .await;
+
+    let verifier = create_npm_resolution_verifier(default_opts(&registry));
+    let variant = |tarball: String| PlatformAssetResolution {
+        resolution: LockfileResolution::Tarball(TarballResolution {
+            tarball,
+            integrity: Some(fake_integrity()),
+            revision: None,
+            git_hosted: None,
+            path: None,
+        }),
+        targets: vec![pnpm_lockfile::PlatformAssetTarget {
+            os: "linux".to_string(),
+            cpu: "x64".to_string(),
+            ..Default::default()
+        }],
+    };
+    let tag = variant(String::new()).variant_tag().expect("a variant tag");
+    let name: PkgName = "variations-pkg".parse().expect("parse");
+
+    let on_route = LockfileResolution::Variations(VariationsResolution {
+        fallback: None,
+        revision: None,
+        variants: vec![variant(format!("{server_url}/variations-pkg@1.0.0/variants/{tag}"))],
+    });
+    let result = verifier.verify(&on_route, ctx(&name, "1.0.0")).await;
+    assert_eq!(result, ResolutionVerification::Ok);
+
+    let other_version = LockfileResolution::Variations(VariationsResolution {
+        fallback: None,
+        revision: None,
+        variants: vec![variant(format!("{server_url}/variations-pkg@2.0.0/variants/{tag}"))],
+    });
+    let result = verifier.verify(&other_version, ctx(&name, "1.0.0")).await;
+    let ResolutionVerification::Err { code, .. } = result else {
+        panic!("expected Err, got {result:?}");
+    };
+    assert_eq!(code, "TARBALL_URL_MISMATCH");
+}
+
+/// A variant on the route of a registry other than the default one is
+/// fetched from that registry, so the policies read its metadata.
+#[tokio::test]
+async fn checks_a_variant_on_its_route_against_the_registry_it_is_fetched_from() {
+    let mut server = mockito::Server::new_async().await;
+    let server_url = server.url();
+    let _attestation_mock = server
+        .mock("GET", "/variants-registry/-/npm/v1/attestations/variations-pkg@1.0.0")
+        .with_status(404)
+        .create_async()
+        .await;
+    let metadata_mock = server
+        .mock("GET", "/variants-registry/variations-pkg")
+        .with_status(200)
+        .with_body(
+            super::min_age_packument_json("variations-pkg", "1.0.0", "2025-11-30T22:00:00.000Z")
+                .to_string(),
+        )
+        .expect_at_least(1)
+        .create_async()
+        .await;
+
+    let mut opts = default_opts("http://public.example.com/");
+    opts.registries.insert("@other".to_string(), format!("{server_url}/variants-registry/"));
+    opts.release_age.minimum_minutes = Some(60 * 24);
+    opts.now = Some(now_at("2025-12-01T00:00:00Z"));
+    let verifier = create_npm_resolution_verifier(opts);
+    let mut variant = PlatformAssetResolution {
+        resolution: LockfileResolution::Registry(RegistryResolution {
+            integrity: fake_integrity(),
+            revision: None,
+        }),
+        targets: vec![pnpm_lockfile::PlatformAssetTarget {
+            os: "linux".to_string(),
+            cpu: "x64".to_string(),
+            ..Default::default()
+        }],
+    };
+    let tag = variant.variant_tag().expect("a variant tag");
+    variant.resolution = LockfileResolution::Tarball(TarballResolution {
+        tarball: format!("{server_url}/variants-registry/variations-pkg@1.0.0/variants/{tag}"),
+        integrity: Some(fake_integrity()),
+        revision: None,
+        git_hosted: None,
+        path: None,
+    });
+    let resolution = LockfileResolution::Variations(VariationsResolution {
+        fallback: None,
+        revision: None,
+        variants: vec![variant],
+    });
+    let name: PkgName = "variations-pkg".parse().expect("parse");
+    let result = verifier.verify(&resolution, ctx(&name, "1.0.0")).await;
+    let ResolutionVerification::Err { code, .. } = result else {
+        panic!("expected Err, got {result:?}");
+    };
+    assert_eq!(code, "MINIMUM_RELEASE_AGE_VIOLATION");
+    metadata_mock.assert_async().await;
+}
+
+/// A variant's URL matches its route under the same equivalences as a
+/// primary's URL matches `dist.tarball`: scheme and an encoded scope
+/// separator do not matter.
+#[tokio::test]
+async fn matches_a_variant_route_up_to_scheme_and_scope_encoding() {
+    let verifier = create_npm_resolution_verifier(default_opts("https://registry.example/"));
+    let targets = vec![pnpm_lockfile::PlatformAssetTarget {
+        os: "linux".to_string(),
+        cpu: "x64".to_string(),
+        ..Default::default()
+    }];
+    let tag = PlatformAssetResolution {
+        resolution: LockfileResolution::Registry(RegistryResolution {
+            integrity: fake_integrity(),
+            revision: None,
+        }),
+        targets: targets.clone(),
+    }
+    .variant_tag()
+    .expect("a variant tag");
+    let name: PkgName = "@scope/variations-pkg".parse().expect("parse");
+    for tarball in [
+        format!("http://registry.example/@scope/variations-pkg@1.0.0/variants/{tag}"),
+        format!("https://registry.example/@scope%2fvariations-pkg@1.0.0/variants/{tag}"),
+    ] {
+        let resolution = LockfileResolution::Variations(VariationsResolution {
+            fallback: None,
+            revision: None,
+            variants: vec![PlatformAssetResolution {
+                resolution: LockfileResolution::Tarball(TarballResolution {
+                    tarball: tarball.clone(),
+                    integrity: Some(fake_integrity()),
+                    revision: None,
+                    git_hosted: None,
+                    path: None,
+                }),
+                targets: targets.clone(),
+            }],
+        });
+        let result = verifier.verify(&resolution, ctx(&name, "1.0.0")).await;
+        assert_eq!(result, ResolutionVerification::Ok, "{tarball}");
+    }
 }

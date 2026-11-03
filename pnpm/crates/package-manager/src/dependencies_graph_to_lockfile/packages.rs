@@ -13,6 +13,8 @@ use rayon::prelude::*;
 use serde_json::Value;
 use std::collections::{BTreeMap, HashMap};
 
+mod variant_snapshots;
+
 pub(super) type PackagesAndSnapshots =
     (HashMap<PackageKey, PackageMetadata>, HashMap<PackageKey, SnapshotEntry>);
 /// Registry configuration and prior package records used to serialize package metadata.
@@ -55,9 +57,18 @@ pub(super) fn build_packages_and_snapshots(
     let mut packages: HashMap<PackageKey, PackageMetadata> = HashMap::new();
     let mut snapshots: HashMap<PackageKey, SnapshotEntry> = HashMap::new();
     for built_node in built {
-        let Some(BuiltNode { node, snapshot_key, snapshot }) = built_node? else { continue };
+        let Some(BuiltNode {
+            node,
+            snapshot_key,
+            snapshot,
+            variant_snapshots,
+        }) = built_node?
+        else {
+            continue;
+        };
         insert_package_metadata(&mut packages, node, snapshot_key.without_peer(), sources)?;
         snapshots.insert(snapshot_key, snapshot);
+        snapshots.extend(variant_snapshots);
     }
 
     Ok((packages, snapshots))
@@ -66,6 +77,9 @@ pub(super) struct BuiltNode<'graph> {
     node: &'graph pnpm_resolving_deps_resolver::DependenciesGraphNode,
     snapshot_key: PackageKey,
     snapshot: SnapshotEntry,
+    /// The snapshots of the platform variants whose dependencies differ
+    /// from the version's (see [`variant_snapshots`]).
+    variant_snapshots: Vec<(PackageKey, SnapshotEntry)>,
 }
 /// A node's snapshot row under its key; `None` for a workspace link, which
 /// has no row of its own.
@@ -87,7 +101,12 @@ pub(super) fn build_node<'graph>(
         }),
     }?;
     let snapshot = build_snapshot_entry(node, graph, optional_overrides);
-    Ok(Some(BuiltNode { node, snapshot_key, snapshot }))
+    let (snapshot, variant_snapshots) = variant_snapshots::split_variant_snapshots(
+        &snapshot_key,
+        node.resolve_result.package.manifest.as_deref(),
+        snapshot,
+    );
+    Ok(Some(BuiltNode { node, snapshot_key, snapshot, variant_snapshots }))
 }
 /// Record a package's metadata under its peer-stripped key, once: the first
 /// node of a key in graph order wins.

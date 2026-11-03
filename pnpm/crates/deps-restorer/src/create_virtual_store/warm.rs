@@ -12,6 +12,7 @@ use pnpm_git_fetcher::{GitFetcherError, resolve_package_build_permission};
 use pnpm_lockfile::{LockfileResolution, PackageKey, PackageMetadata, PkgName};
 use pnpm_package_manifest::read_package_json_from_cas_paths;
 use pnpm_reporter::Reporter;
+use pnpm_store_dir::git_hosted_store_index_key;
 use pnpm_tarball::PrefetchResult;
 use std::{
     borrow::Cow,
@@ -61,7 +62,8 @@ pub(super) fn cached_git_prepare_allowed(
             snapshot_key: snapshot_key.to_string(),
             metadata_key: metadata_key.to_string(),
         })?;
-    if !is_git_hosted_resolution(&metadata.resolution)
+    let package_id = metadata_key.pkg_id();
+    if !keys_git_hosted_archive(&metadata.resolution, key, &package_id)
         || prefetch.requires_prepare.get(key) == Some(&false)
     {
         return Ok(true);
@@ -69,7 +71,6 @@ pub(super) fn cached_git_prepare_allowed(
     let Some(manifest) = cached_git_manifest(prefetch, key, cas_paths) else {
         return Ok(false);
     };
-    let package_id = metadata_key.pkg_id();
     let name = manifest
         .get("name")
         .and_then(serde_json::Value::as_str)
@@ -102,6 +103,24 @@ pub(super) fn cached_git_manifest<'a>(
         return Some(Cow::Borrowed(manifest.as_ref()));
     }
     read_package_json_from_cas_paths(cas_paths).map(Cow::Owned)
+}
+/// Whether `key` is the row of a git-hosted archive of `resolution`. A
+/// `variations` resolution is keyed by the archive it selects, which is
+/// git-hosted only when its key takes the git-hosted shape.
+pub(super) fn keys_git_hosted_archive(
+    resolution: &LockfileResolution,
+    key: &str,
+    package_id: &str,
+) -> bool {
+    match resolution {
+        LockfileResolution::Variations(variations) => {
+            variations.resolutions().any(is_git_hosted_resolution)
+                && [true, false]
+                    .into_iter()
+                    .any(|built| key == git_hosted_store_index_key(package_id, built))
+        }
+        resolution => is_git_hosted_resolution(resolution),
+    }
 }
 pub(super) fn is_git_hosted_resolution(resolution: &LockfileResolution) -> bool {
     match resolution {

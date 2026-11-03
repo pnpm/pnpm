@@ -342,8 +342,8 @@ pub(super) fn rewrite_resolution_registry(
             resolution.url = rewrite.url(&resolution.url);
         }
         LockfileResolution::Variations(resolution) => {
-            for variant in &mut resolution.variants {
-                rewrite_resolution_registry(&mut variant.resolution, rewrite);
+            for resolution in resolution.resolutions_mut() {
+                rewrite_resolution_registry(resolution, rewrite);
             }
         }
         // Custom resolutions are opaque — the benchmark rewrite can't

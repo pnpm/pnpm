@@ -692,3 +692,185 @@ fn group_slots_by_dir_is_identity_without_gvs() {
     assert_eq!(groups.len(), 2, "non-GVS slots are unique per key; nothing may merge");
     assert!(groups.iter().all(|group| group.duplicates.is_empty()));
 }
+/// A registry package's variants follow the host, whatever platform
+/// `supportedArchitectures` names: the dependency graph the installer
+/// links is the host variant's, so its archive must be too.
+#[test]
+fn snapshot_cache_key_for_package_variants_follows_the_host() {
+    use pnpm_lockfile::{
+        LockfileResolution, PlatformAssetResolution, PlatformAssetTarget, PlatformSelector,
+        RegistryResolution, VariationsResolution,
+    };
+    let host = host_platform_selector();
+    let registry = |digit: char| {
+        LockfileResolution::Registry(RegistryResolution {
+            integrity: format!("sha512-{}==", digit.to_string().repeat(86))
+                .parse()
+                .expect("parse integrity"),
+            revision: None,
+        })
+    };
+    let pkg = key("variations-pkg", "1.0.0");
+    let mut metadata = git_metadata();
+    metadata.resolution = LockfileResolution::Variations(VariationsResolution {
+        variants: vec![PlatformAssetResolution {
+            resolution: registry('B'),
+            targets: vec![PlatformAssetTarget {
+                os: host.os,
+                cpu: host.cpu,
+                libc: host.libc.filter(|libc| libc == "musl"),
+                ..Default::default()
+            }],
+        }],
+        fallback: Some(Box::new(registry('A'))),
+        revision: None,
+    });
+    let packages = HashMap::from([(pkg.clone(), metadata)]);
+    let configured = PlatformSelector {
+        os: "aix".to_string(),
+        cpu: "ppc64".to_string(),
+        libc: None,
+        floors: None,
+    };
+
+    let received = snapshot_cache_key(&pkg, &packages, false, &configured)
+        .expect("snapshot_cache_key must not error");
+    let value = received.value.expect("the host variant has a warm key");
+    assert!(value.starts_with(&format!("sha512-{}", "B".repeat(20))), "{value}");
+}
+/// A git-hosted tarball a `variations` resolution selects is keyed as a
+/// lone one is, so an explicit build denial narrows it to the not-built
+/// key as the fetch path does.
+#[test]
+fn snapshot_cache_key_for_a_git_hosted_variations_fallback_is_git_hosted() {
+    use pnpm_lockfile::{
+        LockfileResolution, PlatformAssetResolution, PlatformAssetTarget, RegistryResolution,
+        VariationsResolution,
+    };
+    let pkg = key("foo", "1.0.0");
+    let mut metadata = git_hosted_tarball_metadata();
+    let fallback = metadata.resolution.clone();
+    metadata.resolution = LockfileResolution::Variations(VariationsResolution {
+        variants: vec![PlatformAssetResolution {
+            resolution: LockfileResolution::Registry(RegistryResolution {
+                integrity: format!("sha512-{}==", "B".repeat(86)).parse().expect("parse integrity"),
+                revision: None,
+            }),
+            targets: vec![PlatformAssetTarget {
+                os: "aix".to_string(),
+                cpu: "ppc64".to_string(),
+                ..Default::default()
+            }],
+        }],
+        fallback: Some(Box::new(fallback)),
+        revision: None,
+    });
+    let packages = HashMap::from([(pkg.clone(), metadata)]);
+
+    let received = snapshot_cache_key(&pkg, &packages, false, &host_platform_selector())
+        .expect("snapshot_cache_key must not error");
+    assert_eq!(received.value, Some(format!("{pkg}\tbuilt")));
+    assert!(received.is_git_hosted);
+}
+/// The warm build-policy check sees a git-hosted archive a `variations`
+/// resolution selects by its key, as it sees a lone git-hosted tarball.
+#[test]
+fn a_git_hosted_variations_fallback_key_is_a_git_hosted_archive() {
+    use crate::create_virtual_store::warm::keys_git_hosted_archive;
+    use pnpm_lockfile::{
+        LockfileResolution, PlatformAssetResolution, PlatformAssetTarget, RegistryResolution,
+        VariationsResolution,
+    };
+    let pkg = key("foo", "1.0.0");
+    let package_id = pkg.pkg_id();
+    let integrity = format!("sha512-{}==", "B".repeat(86));
+    let fallback = git_hosted_tarball_metadata().resolution;
+    let resolution = LockfileResolution::Variations(VariationsResolution {
+        variants: vec![PlatformAssetResolution {
+            resolution: LockfileResolution::Registry(RegistryResolution {
+                integrity: integrity.parse().expect("parse integrity"),
+                revision: None,
+            }),
+            targets: vec![PlatformAssetTarget {
+                os: "aix".to_string(),
+                cpu: "ppc64".to_string(),
+                ..Default::default()
+            }],
+        }],
+        fallback: Some(Box::new(fallback)),
+        revision: None,
+    });
+
+    for built in [true, false] {
+        let git_key = pnpm_store_dir::git_hosted_store_index_key(&package_id, built);
+        assert!(keys_git_hosted_archive(&resolution, &git_key, &package_id), "{git_key}");
+    }
+    let variant_key = pnpm_store_dir::store_index_key(&integrity, &package_id);
+    assert!(!keys_git_hosted_archive(&resolution, &variant_key, &package_id));
+}
+/// The warm reuse of a git-hosted archive a `variations` resolution
+/// selects runs the build-permission check the fetch path runs: a package
+/// that needs preparing and that no policy allows is refused.
+#[test]
+fn warm_reuse_of_a_git_hosted_variations_fallback_checks_build_permission() {
+    use crate::{AllowBuildPolicy, create_virtual_store::warm::enforce_cached_git_prepare_policy};
+    use pnpm_lockfile::{
+        LockfileResolution, PlatformAssetResolution, PlatformAssetTarget, RegistryResolution,
+        VariationsResolution,
+    };
+    let pkg = key("foo", "1.0.0");
+    let mut metadata = git_hosted_tarball_metadata();
+    let fallback = metadata.resolution.clone();
+    metadata.resolution = LockfileResolution::Variations(VariationsResolution {
+        variants: vec![PlatformAssetResolution {
+            resolution: LockfileResolution::Registry(RegistryResolution {
+                integrity: format!("sha512-{}==", "B".repeat(86)).parse().expect("parse integrity"),
+                revision: None,
+            }),
+            targets: vec![PlatformAssetTarget {
+                os: "aix".to_string(),
+                cpu: "ppc64".to_string(),
+                ..Default::default()
+            }],
+        }],
+        fallback: Some(Box::new(fallback)),
+        revision: None,
+    });
+    let packages = HashMap::from([(pkg.clone(), metadata)]);
+    let git_key = pnpm_store_dir::git_hosted_store_index_key(&pkg.pkg_id(), true);
+    let mut prefetch = pnpm_tarball::PrefetchResult::default();
+    prefetch.cas_paths.insert(git_key.clone(), Arc::new(pnpm_fs::CasPaths::new()));
+    prefetch.requires_prepare.insert(git_key.clone(), true);
+    prefetch.manifests.insert(
+        git_key.clone(),
+        Arc::new(serde_json::json!({ "name": "foo", "version": "1.0.0" })),
+    );
+    let snapshot = SnapshotEntry::default();
+    let mut snapshots = [(&pkg, &snapshot, Some(git_key))];
+
+    let result = enforce_cached_git_prepare_policy(
+        &mut snapshots,
+        &packages,
+        &prefetch,
+        &AllowBuildPolicy::default(),
+        false,
+        true,
+    );
+    assert!(result.is_err(), "the warm path must refuse a build no policy allows: {result:?}");
+}
+/// An `integrity` with no hash pins nothing, so the fetch path refuses the
+/// tarball as it refuses one with no `integrity`, and it gets no warm key.
+#[test]
+fn snapshot_cache_key_for_a_tarball_with_an_empty_integrity_is_absent() {
+    let pkg = key("foo", "1.0.0");
+    let mut metadata = tarball_metadata_without_integrity();
+    let pnpm_lockfile::LockfileResolution::Tarball(tarball) = &mut metadata.resolution else {
+        panic!("the fixture is a tarball resolution");
+    };
+    tarball.integrity = Some(ssri::Integrity { hashes: Vec::new() });
+    let packages = HashMap::from([(pkg.clone(), metadata)]);
+
+    let received = snapshot_cache_key(&pkg, &packages, false, &host_platform_selector())
+        .expect("snapshot_cache_key must not error");
+    assert_eq!(received.value, None);
+}

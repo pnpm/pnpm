@@ -328,6 +328,61 @@ fn assert_prune_keeps_every_package_installed_by_copy(
     assert_eq!(missing, Vec::<&PathBuf>::new(), "store prune removed files the project uses");
 }
 
+/// A package with platform variants installs its primary archive, the
+/// `variations` fallback, on a host none of its variants matches.
+#[test]
+fn store_prune_keeps_the_fallback_archive_of_a_package_with_platform_variants() {
+    let CommandTempCwd {
+        root: _root, workspace, npmrc_info, ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry {
+        mock_instance: _mock_instance,
+        store_dir,
+        ..
+    } = npmrc_info;
+    write_manifest(&workspace);
+    append_workspace_yaml(&workspace, "packageImportMethod: copy\n");
+    pacquet_at(&workspace)
+        .with_args(["install", "--reporter=silent"])
+        .assert()
+        .success();
+    let installed_lockfile = workspace.join("node_modules/.pnpm/lock.yaml");
+    let lockfile = fs::read_to_string(&installed_lockfile).expect("read the installed lockfile");
+    let (head, tail) = lockfile
+        .split_once("  is-positive@1.0.0:\n    resolution: ")
+        .expect("the installed lockfile resolves is-positive@1.0.0");
+    let (resolution, tail) = tail.split_once('\n').expect("the resolution ends its line");
+    let variations = format!(
+        "  is-positive@1.0.0:
+    resolution:
+      type: variations
+      variants:
+        - resolution: {{integrity: sha512-{}==}}
+          targets:
+            - os: aix
+              cpu: ppc64
+      fallback: {resolution}
+",
+        "B".repeat(86),
+    );
+    fs::write(&installed_lockfile, format!("{head}{variations}{tail}"))
+        .expect("write the installed lockfile");
+
+    let store_dir = StoreDir::new(store_dir);
+    let keys_before = sorted_index_keys(&store_dir);
+    let blob_paths = row_blob_paths(&store_dir, &is_positive_row(&store_dir));
+    assert!(!blob_paths.is_empty(), "the install must index is-positive");
+
+    prune(&workspace);
+
+    assert_eq!(sorted_index_keys(&store_dir), keys_before);
+    let missing: Vec<_> = blob_paths
+        .iter()
+        .filter(|path| !path.exists())
+        .collect();
+    assert_eq!(missing, Vec::<&PathBuf>::new(), "store prune removed the fallback's files");
+}
+
 /// The install keys a runtime row by its synthesized manifest as well as
 /// its integrity, and the resolution lists one archive per platform.
 #[test]
