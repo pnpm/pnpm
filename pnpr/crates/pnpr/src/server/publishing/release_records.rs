@@ -93,7 +93,11 @@ fn accepted_record(
     record.insert("version".into(), Value::from(version));
     record.insert("revision".into(), Value::from(0));
     record.insert("interpretation".into(), Value::from(profile));
-    record.insert("inputs".into(), archive_inputs(tar.tgz_integrity.as_deref(), &tar.archive));
+    // The primary pnpr generates for a version published without one is not
+    // an input of the version.
+    if !tar.generated {
+        record.insert("inputs".into(), archive_inputs(tar.tgz_integrity.as_deref(), &tar.archive));
+    }
     record.extend(super::super::split_packuments::release_record(&source));
     Ok(Value::Object(record))
 }

@@ -757,3 +757,150 @@ async fn a_statement_names_every_archive_of_the_version() {
         .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
 }
+
+/// A version published with variants only: its document has no `dist`, and
+/// no primary attachment.
+fn variants_only_request(base: &Value, variants: &[(&str, &[u8])], token: &str) -> Request<Body> {
+    use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+
+    let mut attachments = serde_json::Map::new();
+    let mut references = serde_json::Map::new();
+    for (tag, tgz) in variants {
+        attachments.insert(
+            format!("@acme/fast-1.0.0~{tag}.tgz"),
+            json!({ "data": BASE64.encode(tgz), "length": tgz.len() }),
+        );
+        references.insert((*tag).to_string(), Value::String(sha512_integrity(tgz)));
+    }
+    let mut manifest = base.clone();
+    manifest["pnprVariants"] = Value::Object(references);
+    let body = json!({
+        "name": "@acme/fast",
+        "dist-tags": { "latest": "1.0.0" },
+        "versions": { "1.0.0": manifest },
+        "_attachments": attachments,
+    });
+    Request::put("/npm/~acme/@acme/fast")
+        .header("content-type", "application/json")
+        .header(header::AUTHORIZATION, format!("Bearer {token}"))
+        .body(Body::from(serde_json::to_vec(&body).unwrap()))
+        .unwrap()
+}
+
+/// A version published without a primary archive: npm's documents describe
+/// the minimal primary pnpr generates, which lists where the variants run,
+/// and pnpr's own document and release record describe only the variants.
+#[tokio::test]
+async fn a_version_without_a_primary_gets_a_generated_one_for_npm() {
+    let tmp = TempDir::new().unwrap();
+    let auth = AuthState::in_memory();
+    let token = issue_token(&auth, "alice").await;
+    let mut config = acme_config(tmp.path().to_path_buf());
+    config.storage.metadata =
+        pnpr_config::MetadataBackend::Sqlite(tmp.path().join("metadata.sqlite"));
+    let app = router_with_auth(config, auth);
+
+    let mut base = primary_manifest();
+    base["dependencies"] = json!({ "shared": "1.0.0" });
+    let deps = |extra: &Value| {
+        let mut dependencies = json!({ "shared": "1.0.0" });
+        for (name, spec) in extra.as_object().unwrap() {
+            dependencies[name] = spec.clone();
+        }
+        json!({ "dependencies": dependencies })
+    };
+    let (_, linux) = archive(
+        &variant_manifest(
+            &["linux-x64", "linux-arm64-musl"],
+            &deps(&json!({ "only-linux": "2.0.0" })),
+        ),
+        "linux",
+    );
+    let (_, darwin) = archive(&variant_manifest(&["darwin-arm64"], &deps(&json!({}))), "darwin");
+    let response = app
+        .clone()
+        .oneshot(variants_only_request(
+            &base,
+            &[("linux-arm64-musl+linux-x64", &linux), ("darwin-arm64", &darwin)],
+            &token,
+        ))
+        .await
+        .unwrap();
+    let status = response.status();
+    let body = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
+    assert_eq!(status, StatusCode::CREATED, "{body}");
+
+    let npm = body_json(get(&app, "/npm/~main/@acme%2Ffast", None).await.into_body()).await;
+    let version = &npm["versions"]["1.0.0"];
+    assert_eq!(version["os"], json!(["darwin", "linux"]));
+    assert_eq!(version["cpu"], json!(["arm64", "x64"]));
+    assert_eq!(version["libc"], json!(["glibc", "musl"]));
+    assert!(version.get("dependencies").is_none(), "{version}");
+    let tarball = get(&app, "/npm/~main/@acme/fast/-/fast-1.0.0.tgz", None).await;
+    assert_eq!(tarball.status(), StatusCode::OK);
+    let tgz = body_bytes(tarball.into_body()).await;
+    assert_eq!(sha512_integrity(&tgz), version["dist"]["integrity"]);
+
+    let document = body_json(
+        get(&app, "/npm/~main/@acme%2Ffast", Some("application/vnd.pnpr.install-v2+json"))
+            .await
+            .into_body(),
+    )
+    .await;
+    let entry = &document["versions"]["1.0.0"];
+    assert!(entry.get("integrity").is_none(), "{entry}");
+    assert_eq!(entry["manifest"], json!({ "dependencies": { "shared": "1.0.0" } }));
+    let variants = &entry["variants"];
+    assert_eq!(variants[0]["tag"], "linux-arm64-musl+linux-x64");
+    assert_eq!(
+        variants[0]["manifest"],
+        json!({ "dependencies": { "shared": "1.0.0", "only-linux": "2.0.0" }, "main": "index.js" }),
+    );
+
+    let record =
+        body_json(get(&app, "/npm/~main/@acme%2Ffast/1.0.0+r0", None).await.into_body()).await;
+    assert!(record.get("integrity").is_none(), "{record}");
+    assert!(record.get("inputs").is_none(), "{record}");
+    assert_eq!(record["variants"][1]["purl"], "pkg:npm/%40acme/fast@1.0.0?variant=darwin-arm64");
+}
+
+/// A release job that packs no primary bytes sends the version with only
+/// `dist.integrity`, naming the primary another job staged.
+#[tokio::test]
+async fn a_staged_primary_is_referenced_by_its_integrity_alone() {
+    let (_tmp, app, token) = setup().await;
+    let (_, primary) = archive(&primary_manifest(), "primary");
+    let (_, musl) = archive(&variant_manifest(&["linux-x64-musl"], &json!({})), "musl");
+    for tgz in [&primary, &musl] {
+        stage(&app, tgz, &token).await;
+    }
+    let mut manifest = primary_manifest();
+    manifest["dist"] = json!({ "integrity": sha512_integrity(&primary) });
+    manifest["pnprVariants"] = json!({ "linux-x64-musl": sha512_integrity(&musl) });
+    let attachment =
+        |tgz: &[u8]| json!({ "integrity": sha512_integrity(tgz), "length": tgz.len() });
+    let document = json!({
+        "name": "@acme/fast",
+        "dist-tags": { "latest": "1.0.0" },
+        "versions": { "1.0.0": manifest },
+        "_attachments": {
+            "@acme/fast-1.0.0.tgz": attachment(&primary),
+            "@acme/fast-1.0.0~linux-x64-musl.tgz": attachment(&musl),
+        },
+    });
+    let response = app
+        .clone()
+        .oneshot(
+            Request::put("/npm/-/pnpr/v0/publish")
+                .header("content-type", "application/json")
+                .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                .body(Body::from(serde_json::to_vec(&json!({ "packages": [document] })).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED);
+    let tarball = get(&app, "/npm/~main/@acme/fast/-/fast-1.0.0.tgz", None).await;
+    assert_eq!(tarball.status(), StatusCode::OK);
+    assert_eq!(body_bytes(tarball.into_body()).await, primary);
+}

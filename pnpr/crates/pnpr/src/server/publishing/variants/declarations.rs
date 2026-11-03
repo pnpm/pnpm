@@ -1,17 +1,19 @@
 //! The variant archives a publish body attaches.
 
 use super::{
-    Declarations, PreparedAttachment, RegistryError, STORED_FIELD, Value, VariantDeclaration,
+    Declarations, GENERATED_PRIMARY_FIELD, PreparedAttachment, RegistryError, STORED_FIELD, Value,
+    VariantDeclaration,
 };
 
-/// Remove the server-owned variant field from every version of a publish
-/// body: pnpr derives the stored variants from the archives.
+/// Remove the server-owned variant fields from every version of a publish
+/// body: pnpr derives them from the archives.
 pub(in super::super) fn remove_server_fields(incoming: &mut Value) {
     let Some(versions) = incoming.get_mut("versions").and_then(Value::as_object_mut) else {
         return;
     };
     for manifest in versions.values_mut().filter_map(Value::as_object_mut) {
         manifest.remove(STORED_FIELD);
+        manifest.remove(GENERATED_PRIMARY_FIELD);
     }
 }
 

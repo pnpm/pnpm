@@ -1,7 +1,7 @@
 use super::{
     Action, AppState, CanonicalPackageName, Ecosystem, HashSet, HostedDocumentVersion, Identity,
     Integrity, PendingAttachment, RegistryError, RegistrySource, Storage, Value, WriteTarget,
-    authorize_package, cleanup_tmp_slots, extract_attachments, hosted_storage,
+    authorize_package, cleanup_tmp_slots, extract_attachments, generated_primary, hosted_storage,
     manifest::{
         check_publishable_versions, parse_hosted_packument, prepare_staged_document,
         record_publisher, restore_submitted_tgz_integrities, serialize_staged_document,
@@ -9,11 +9,11 @@ use super::{
     provenance, release_records, resolve_write_target,
     tombstones::{check_publish_tombstone, check_staged_tombstone},
     variants::{self, Declarations, PublishedVariant, VariantTar},
-    verification::verify_published_manifests,
+    verification::{describe_generated_primary, verify_published_manifests},
 };
 use crate::server::staged_archives::claim_staged_archive;
 use slot_writes::{AttachmentPaths, write_under_permit};
-use std::sync::Arc;
+use std::{collections::BTreeSet, sync::Arc};
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 
 mod preparation;
@@ -187,7 +187,8 @@ pub(in super::super) async fn stage_publish(
     } = doc;
     restore_submitted_tgz_integrities(&storage, &name, hosted.as_ref(), &mut incoming).await?;
 
-    check_publishable_versions(&name, &incoming, hosted.as_ref(), &prepared)?;
+    let without_primary =
+        check_publishable_versions(&name, &incoming, hosted.as_ref(), (&prepared, &variants))?;
 
     let merged = prepare_staged_document(&name, hosted.as_ref(), &incoming, &prepared, now_iso);
     // `incoming` is no longer needed; drop it so the base64 strings
@@ -199,7 +200,7 @@ pub(in super::super) async fn stage_publish(
         (&storage, publisher.as_deref(), &state.inner.proxy.tar_decodes),
         &name,
         (prepared, tarballs),
-        (merged, &variants),
+        (merged, &variants, &without_primary),
     )
     .await?;
     Ok(StagedPublish {
@@ -220,7 +221,7 @@ async fn write_verified(
     (storage, claimant, decodes): (&Storage, Option<&str>, &Arc<Semaphore>),
     name: &CanonicalPackageName,
     (prepared, tarballs): (Vec<PreparedAttachment>, TarballStorage),
-    (merged, variants): (Value, &Declarations),
+    (merged, declared, without_primary): (Value, &Declarations, &BTreeSet<String>),
 ) -> Result<VerifiedDocument, RegistryError> {
     let statements = provenance::read_statements(&prepared);
     // Stream-decode + verify + write each tarball. A mismatch — or a
@@ -229,7 +230,9 @@ async fn write_verified(
     // along the way so a bad upload leaves no on-disk artifact.
     let written =
         write_attachment_slots((storage, claimant), name, prepared, tarballs, decodes).await?;
-    verified_document(name, (merged, variants, &statements), written).await
+    let writer = SlotWriter { storage, tarballs, decodes };
+    let checks = PublishChecks { declared, statements: &statements, without_primary };
+    verified_document(name, (merged, checks), written, writer).await
 }
 
 /// A publish document whose archives agree with its version metadata.
@@ -239,24 +242,37 @@ struct VerifiedDocument {
     verification: Verification,
 }
 
+/// What a publish's archives are checked against beside its version
+/// metadata.
+#[derive(Clone, Copy)]
+struct PublishChecks<'a> {
+    /// The variants each version references.
+    declared: &'a Declarations,
+    /// Each version's provenance statement.
+    statements: &'a provenance::Statements,
+    /// The versions published without a primary archive.
+    without_primary: &'a BTreeSet<String>,
+}
+
+/// Where a publish writes the archives pnpr adds to it.
+#[derive(Clone, Copy)]
+struct SlotWriter<'a> {
+    storage: &'a Storage,
+    tarballs: TarballStorage,
+    decodes: &'a Arc<Semaphore>,
+}
+
 /// Verify every archive `written` holds against the version metadata in
-/// `merged` and against its version's provenance `statements`, record the
-/// verified variants `declared` on it, and serialize the verified document.
-/// A refused archive removes the written slots.
+/// `merged` and against `checks`, record the verified variants on it,
+/// generate the primary of each version without one, and serialize the
+/// verified document. A refused archive removes the written slots.
 async fn verified_document(
     name: &CanonicalPackageName,
-    (mut merged, declared, statements): (Value, &Declarations, &provenance::Statements),
-    written: WrittenAttachments,
+    (mut merged, checks): (Value, PublishChecks<'_>),
+    mut written: WrittenAttachments,
+    writer: SlotWriter<'_>,
 ) -> Result<VerifiedDocument, RegistryError> {
-    let verified = verify_published_manifests(name, &mut merged, &written.tars)
-        .and_then(|notices| {
-            variants::attach_variants(&mut merged, declared, &written.variants, &written.tars)?;
-            provenance::check_statements(name, statements, &written.tars, &written.variants)?;
-            let records =
-                release_records::accepted_records(name, &merged, &written.tars, &written.variants)?;
-            Ok((notices, records))
-        });
-    match verified {
+    match verify_written(name, &mut merged, checks, &mut written, writer).await {
         Ok((notices, records)) => Ok(VerifiedDocument {
             document: serialize_staged_document(merged, &written.tars),
             slots: written.slots,
@@ -267,6 +283,69 @@ async fn verified_document(
             Err(err)
         }
     }
+}
+
+async fn verify_written(
+    name: &CanonicalPackageName,
+    merged: &mut Value,
+    checks: PublishChecks<'_>,
+    written: &mut WrittenAttachments,
+    writer: SlotWriter<'_>,
+) -> Result<(Vec<String>, pnpr_storage::metadata::ReleaseRecords), RegistryError> {
+    let notices = verify_published_manifests(name, merged, &written.tars)?;
+    let archives = (written.variants.as_slice(), written.tars.as_slice());
+    variants::attach_variants(merged, checks.declared, archives, checks.without_primary)?;
+    provenance::check_statements(name, checks.statements, &written.tars, &written.variants)?;
+    for version in checks.without_primary {
+        write_generated_primary(name, merged, version, written, writer).await?;
+    }
+    let records =
+        release_records::accepted_records(name, merged, &written.tars, &written.variants)?;
+    Ok((notices, records))
+}
+
+/// Write the primary pnpr generates for `version`, published without one,
+/// and describe the version by it in npm's documents.
+async fn write_generated_primary(
+    name: &CanonicalPackageName,
+    merged: &mut Value,
+    version: &str,
+    written: &mut WrittenAttachments,
+    writer: SlotWriter<'_>,
+) -> Result<(), RegistryError> {
+    let manifest = merged
+        .get_mut("versions")
+        .and_then(|versions| versions.get_mut(version))
+        .and_then(Value::as_object_mut)
+        .ok_or_else(|| RegistryError::BadRequest {
+            reason: format!("{}@{version} has no version metadata", name.as_str()),
+        })?;
+    let prepared = generated_primary::attachment(name, version, &Value::Object(manifest.clone()));
+    let dist = prepared.dist.clone();
+    let filename = prepared.canonical.clone();
+    let (slot, tar) = write_attachment_slot(
+        (writer.storage, None),
+        name,
+        prepared,
+        writer.tarballs,
+        writer.decodes,
+    )
+    .await?;
+    written.slots.push(slot);
+    let Some(mut tar) = tar else {
+        return Err(RegistryError::Internal {
+            reason: format!("the generated primary of {}@{version} has no tar", name.as_str()),
+        });
+    };
+    tar.generated = true;
+    describe_generated_primary(
+        manifest,
+        &tar.archive,
+        dist,
+        &format!("{}/-/{filename}", name.as_str()),
+    );
+    written.tars.push(tar);
+    Ok(())
 }
 
 /// The blob slots a publish wrote, and the tar each of its `.tgz` files
@@ -290,6 +369,10 @@ pub(super) struct PublishedTar {
     pub(super) archive: pnpm_tarball::PublicationArchive,
     /// Set for a platform variant's `.tgz`.
     pub(super) variant: Option<VariantTar>,
+    /// Whether pnpr generated the archive for a version published without a
+    /// primary (see [`generated_primary`]). It is not one of the version's
+    /// archives.
+    pub(super) generated: bool,
 }
 
 /// What a published `.tgz` decodes to: the key its tar integrity is recorded
@@ -423,7 +506,15 @@ impl PublishedTar {
             inspection,
             archive,
         } = derived;
-        PublishedTar { version, tgz_integrity, integrity, inspection, archive, variant }
+        PublishedTar {
+            version,
+            tgz_integrity,
+            integrity,
+            inspection,
+            archive,
+            variant,
+            generated: false,
+        }
     }
 }
 

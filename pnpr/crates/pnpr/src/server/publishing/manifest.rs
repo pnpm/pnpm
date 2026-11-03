@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{BTreeSet, HashSet};
 
 use serde_json::{Value, json};
 
@@ -13,6 +13,7 @@ use pnpr_storage::{
 use super::{
     attachments::{AttachmentKind, PreparedAttachment, PublishedTar},
     restore_tgz_integrities,
+    variants::Declarations,
 };
 
 pub(super) fn record_publisher(incoming: &mut Value, identity: &Identity) {
@@ -77,13 +78,16 @@ pub(super) fn parse_hosted_packument(
 /// Validate each incoming version against the locally hosted packument. A
 /// hosted packument is served as-is, so anything not in it is genuinely new.
 /// Published content is immutable, so re-publishes with modified tarballs or
-/// integrity are rejected. New versions must provide a tarball.
+/// integrity are rejected. New versions must provide a tarball, unless they
+/// reference variants and declare no `dist`: those are returned, as the
+/// versions published without a primary archive.
 pub(super) fn check_publishable_versions(
     name: &CanonicalPackageName,
     incoming: &Value,
     hosted: Option<&Value>,
-    prepared: &[PreparedAttachment],
-) -> Result<(), RegistryError> {
+    (prepared, variants): (&[PreparedAttachment], &Declarations),
+) -> Result<BTreeSet<String>, RegistryError> {
+    let mut without_primary = BTreeSet::new();
     let attachment_versions: HashSet<&str> = prepared
         .iter()
         .filter(|attachment| attachment.kind == AttachmentKind::Tarball)
@@ -93,12 +97,16 @@ pub(super) fn check_publishable_versions(
         .and_then(|h| h.get("versions"))
         .and_then(Value::as_object);
     let Some(incoming_versions) = incoming.get("versions").and_then(Value::as_object) else {
-        return Ok(());
+        return Ok(without_primary);
     };
     for (version, incoming_manifest) in incoming_versions {
         let has_attachment = attachment_versions.contains(version.as_str());
         let Some(hosted_manifest) = hosted_versions.and_then(|hosted| hosted.get(version)) else {
             if has_attachment {
+                continue;
+            }
+            if variants.contains_key(version) && incoming_manifest.get("dist").is_none() {
+                without_primary.insert(version.clone());
                 continue;
             }
             return Err(RegistryError::BadRequest {
@@ -115,7 +123,7 @@ pub(super) fn check_publishable_versions(
             });
         }
     }
-    Ok(())
+    Ok(without_primary)
 }
 
 /// Apply [`restore_tgz_integrities`] to a publish body. The tar-integrity

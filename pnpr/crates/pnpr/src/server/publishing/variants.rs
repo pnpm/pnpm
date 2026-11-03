@@ -33,6 +33,14 @@ use std::collections::BTreeMap;
 
 /// The server-owned field the stored packument keeps verified variants in.
 pub(in super::super) const STORED_FIELD: &str = "_pnprVariants";
+/// The server-owned field of a version published without a primary archive,
+/// holding the manifest its variants share, which describes the version in
+/// pnpr's document. Its `dist` describes the primary pnpr generated for npm's
+/// documents.
+pub(in super::super) const GENERATED_PRIMARY_FIELD: &str = "_pnprGeneratedPrimary";
+/// The field of `dist.pnpr` that [`describe_version_variants`] moves
+/// [`GENERATED_PRIMARY_FIELD`] into.
+pub(in super::super) const SHARED_MANIFEST_FIELD: &str = "sharedManifest";
 
 /// One variant archive a version attaches, by the tag that names it.
 #[derive(Debug, Clone)]
@@ -218,6 +226,7 @@ pub fn describe_variants(doc: &mut Value) {
 pub fn describe_version_variants(manifest: &mut Value) {
     let Some(manifest) = manifest.as_object_mut() else { return };
     let Some(Value::Array(variants)) = manifest.remove(STORED_FIELD) else { return };
+    let shared = manifest.remove(GENERATED_PRIMARY_FIELD);
     let Some(dist) = manifest.get_mut("dist").and_then(Value::as_object_mut) else {
         return;
     };
@@ -226,5 +235,8 @@ pub fn describe_version_variants(manifest: &mut Value) {
         .or_insert_with(|| Value::Object(Map::new()));
     if let Some(pnpr) = pnpr.as_object_mut() {
         pnpr.insert("variants".into(), Value::Array(variants));
+        if let Some(shared) = shared {
+            pnpr.insert(SHARED_MANIFEST_FIELD.into(), shared);
+        }
     }
 }

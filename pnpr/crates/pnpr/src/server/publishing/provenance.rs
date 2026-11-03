@@ -151,7 +151,7 @@ fn archives(
 ) -> Result<Vec<(Purl, Option<String>)>, RegistryError> {
     let primary = tars
         .iter()
-        .filter(|tar| tar.version == version && tar.variant.is_none())
+        .filter(|tar| tar.version == version && tar.variant.is_none() && !tar.generated)
         .map(|tar| Ok((version_purl(name, version)?, tar.tgz_integrity.clone())));
     let variants = variants
         .iter()

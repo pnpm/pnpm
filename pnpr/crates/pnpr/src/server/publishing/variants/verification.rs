@@ -2,11 +2,11 @@
 //! pnpr's document says about each one.
 
 use super::{
-    Declarations, Map, PublishedTar, PublishedVariant, RegistryError, STORED_FIELD, Value,
-    VariantDeclaration, bad_request,
+    Declarations, GENERATED_PRIMARY_FIELD, Map, PublishedTar, PublishedVariant, RegistryError,
+    STORED_FIELD, Value, VariantDeclaration, bad_request,
 };
 use pnpm_platform_variants::{Platform, variant_tag};
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 
 /// Fields every archive of a version must share, so the package's peers, and
 /// with them its key in the lockfile, do not depend on the platform.
@@ -20,12 +20,15 @@ const PLATFORM_FIELDS: &[&str] = &["os", "cpu", "libc"];
 const IDENTITY_FIELDS: &[&str] = &["name", "version", "deprecated", "_npmUser", "dist", "variant"];
 
 /// Check every published variant against its version and record the verified
-/// variants on the merged document.
+/// variants on the merged document. A version in `without_primary` has no
+/// primary archive: its variants are checked against its submitted manifest
+/// and described against the manifest they share, which is recorded with it
+/// (see [`GENERATED_PRIMARY_FIELD`]).
 pub(in super::super) fn attach_variants(
     merged: &mut Value,
     declared: &Declarations,
-    published: &[PublishedVariant],
-    primaries: &[PublishedTar],
+    (published, primaries): (&[PublishedVariant], &[PublishedTar]),
+    without_primary: &BTreeSet<String>,
 ) -> Result<(), RegistryError> {
     for (version, variants) in declared {
         let pointer = format!("/versions/{}", escape_pointer(version));
@@ -39,13 +42,61 @@ pub(in super::super) fn attach_variants(
             .get("name")
             .and_then(Value::as_str)
             .unwrap_or_default();
-        check_primary_archive((name, version), &primary, primaries)?;
-        let stored = stored_variants(version, variants, &primary, published)?;
+        let shared = if without_primary.contains(version) {
+            Some(shared_manifest(&primary, version, published))
+        } else {
+            check_primary_archive((name, version), &primary, primaries)?;
+            None
+        };
+        let described = shared.as_ref().unwrap_or(&primary);
+        let stored = stored_variants(version, variants, (&primary, described), published)?;
         if let Some(manifest) = merged.pointer_mut(&pointer).and_then(Value::as_object_mut) {
             manifest.insert(STORED_FIELD.to_string(), Value::Array(stored));
+            if let Some(Value::Object(mut shared)) = shared {
+                shared.remove("name");
+                shared.remove("version");
+                manifest.insert(GENERATED_PRIMARY_FIELD.to_string(), Value::Object(shared));
+            }
         }
     }
     Ok(())
+}
+
+/// The manifest a version without a primary archive is described by in
+/// pnpr's document: its `name`, `version`, and peer dependencies, which
+/// every archive shares, and each dependency every variant declares with the
+/// same specifier.
+fn shared_manifest(submitted: &Value, version: &str, published: &[PublishedVariant]) -> Value {
+    let manifests: Vec<&Value> = published
+        .iter()
+        .filter(|variant| variant.version == version)
+        .filter_map(|variant| variant.tar.manifest.as_ref())
+        .collect();
+    let mut shared = Map::new();
+    for field in ["name", "version"].iter().chain(SHARED_FIELDS) {
+        if let Some(value) = submitted.get(*field) {
+            shared.insert((*field).to_string(), value.clone());
+        }
+    }
+    for field in ["dependencies", "optionalDependencies"] {
+        let Some((first, rest)) = manifests.split_first() else { continue };
+        let Some(Value::Object(candidates)) = first.get(field) else { continue };
+        let common: Map<String, Value> = candidates
+            .iter()
+            .filter(|(dependency, spec)| {
+                rest.iter()
+                    .all(|manifest| {
+                        manifest.pointer(&format!("/{field}/{}", escape_pointer(dependency)))
+                            == Some(*spec)
+                    })
+            })
+            .map(|(dependency, spec)| (dependency.clone(), spec.clone()))
+            .collect();
+        if !common.is_empty() {
+            shared.insert(field.to_string(), Value::Object(common));
+        }
+    }
+    Value::Object(shared)
 }
 
 /// Check the primary archive a version's variants are published with. The
@@ -97,7 +148,7 @@ fn check_primary_archive(
 fn stored_variants(
     version: &str,
     variants: &[VariantDeclaration],
-    primary: &Value,
+    primary: (&Value, &Value),
     published: &[PublishedVariant],
 ) -> Result<Vec<Value>, RegistryError> {
     let mut stored = Vec::with_capacity(variants.len());
@@ -127,10 +178,12 @@ fn escape_pointer(segment: &str) -> String {
 }
 
 /// What the stored version keeps of one verified variant, and its platforms.
+/// The variant is checked against the first manifest of `primary` and
+/// described by its difference from the second.
 fn stored_variant(
     version: &str,
     variant: &VariantDeclaration,
-    primary: &Value,
+    (primary, described): (&Value, &Value),
     published: &[PublishedVariant],
 ) -> Result<(Value, Vec<Platform>), RegistryError> {
     let named = &variant.tag;
@@ -153,7 +206,7 @@ fn stored_variant(
         "platforms".into(),
         serde_json::to_value(&platforms).expect("platforms serialize"),
     );
-    entry.insert("manifest".into(), Value::Object(manifest_difference(manifest, primary)));
+    entry.insert("manifest".into(), Value::Object(manifest_difference(manifest, described)));
     Ok((Value::Object(entry), platforms))
 }
 

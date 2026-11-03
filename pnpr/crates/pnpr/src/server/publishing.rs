@@ -12,6 +12,7 @@ pub(super) use tombstones::check_publish_tombstone;
 
 mod atomic;
 mod attachments;
+mod generated_primary;
 mod manifest;
 mod notes;
 mod provenance;
