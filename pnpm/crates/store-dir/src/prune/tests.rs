@@ -1,6 +1,6 @@
-use crate::{StoreDir, register_project};
+use crate::{InUse, StoreDir, register_project};
 use pnpm_fs::symlink_dir;
-use std::{collections::HashSet, fs, path::PathBuf};
+use std::{fs, path::PathBuf};
 use tempfile::tempdir;
 
 /// Helper: lay out a slot under
@@ -77,12 +77,9 @@ fn prune_keeps_slots_linked_from_a_configured_modules_dir() {
     register_project(&store_dir, project.path()).expect("register");
 
     store_dir
-        .prune_keeping_with_modules_dirs(
-            &store_dir.root().join("cache"),
-            &[],
-            |_| Ok(vec![modules_dir]),
-            || Ok(HashSet::default()),
-        )
+        .prune_keeping(&store_dir.root().join("cache"), &[], || {
+            Ok(InUse { modules_dirs: vec![modules_dir], ..InUse::default() })
+        })
         .expect("prune");
 
     assert!(slot.exists(), "slot linked from the configured modules dir must survive");
@@ -316,7 +313,7 @@ fn prune_keeping_keeps_in_use_files_and_their_rows() {
 
     store
         .prune_keeping(&store.root().join("cache"), &[], || {
-            Ok(std::iter::once(in_use.clone()).collect())
+            Ok(InUse { files: std::iter::once(in_use.clone()).collect(), ..InUse::default() })
         })
         .unwrap();
 

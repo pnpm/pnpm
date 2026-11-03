@@ -799,14 +799,7 @@ impl WorkspaceSettings {
     /// `pnpm-workspace.yaml`, or permission denied) propagates, matching
     /// pnpm where `ENOENT` is the only silent case.
     pub fn load_at(dir: &Path) -> Result<Option<Self>, LoadWorkspaceYamlError> {
-        Self::load_at_reading(dir, crate::SettingsRead::All)
-    }
-
-    pub fn load_at_reading(
-        dir: &Path,
-        settings_read: crate::SettingsRead,
-    ) -> Result<Option<Self>, LoadWorkspaceYamlError> {
-        Self::read_at(dir, settings_read)
+        Self::read_at(dir, crate::SettingsRead::All)
     }
 
     /// [`Self::load_at`], reading the settings `settings_read` selects.

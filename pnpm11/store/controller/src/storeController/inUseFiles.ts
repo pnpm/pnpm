@@ -18,17 +18,29 @@ import * as find from 'empathic/find'
 
 import { getRegisteredProjects } from './projectRegistry.js'
 
+export interface InUse {
+  files: Set<string>
+  /**
+   * The modules directory of every project that an installed lockfile
+   * lists. A package linked from one not named `node_modules` is found
+   * only through it.
+   */
+  modulesDirs: string[]
+}
+
 /**
- * Every file of the store index rows of the packages in each registered
- * project's installed lockfile, including the files of every side-effects
- * entry. A package imported by copy or clone, such as a patched or built
- * one, has no hard link to the store, so the prune needs this list to keep
- * it. A project without an installed lockfile, a project whose lockfile
- * version this pnpm does not support, and a package without a row add
- * nothing.
+ * For each registered project's installed lockfile:
+ * - every file of the store index rows of its packages, including the files
+ *   of every side-effects entry. A package imported by copy or clone, such
+ *   as a patched or built one, has no hard link to the store, so the prune
+ *   needs this list to keep it;
+ * - the modules directory of every project it lists.
+ *
+ * A project without an installed lockfile, a project whose lockfile version
+ * this pnpm does not support, and a package without a row add no files.
  */
-export async function getInUseFiles (storeDir: string, storeIndex: StoreIndex): Promise<Set<string>> {
-  const { keys, binaryKeys } = await registeredProjectsIndexKeys(storeDir)
+export async function getInUse (storeDir: string, storeIndex: StoreIndex): Promise<InUse> {
+  const { keys, binaryKeys, modulesDirs } = await readRegisteredInstalls(storeDir)
   for (const key of manifestIndexKeys(storeIndex, storeDir, binaryKeys)) keys.add(key)
   const files = new Set<string>()
   for (const key of keys) {
@@ -38,7 +50,7 @@ export async function getInUseFiles (storeDir: string, storeIndex: StoreIndex): 
       files.add(path.normalize(getFilePathByModeInCafs(storeDir, digest, mode)))
     }
   }
-  return files
+  return { files, modulesDirs: Array.from(modulesDirs) }
 }
 
 interface IndexKey {
@@ -46,21 +58,36 @@ interface IndexKey {
   binary: boolean
 }
 
-async function registeredProjectsIndexKeys (storeDir: string): Promise<{ keys: Set<string>, binaryKeys: Set<string> }> {
+interface RegisteredInstalls {
+  keys: Set<string>
+  binaryKeys: Set<string>
+  modulesDirs: Set<string>
+}
+
+async function readRegisteredInstalls (storeDir: string): Promise<RegisteredInstalls> {
   const keys = new Set<string>()
   const binaryKeys = new Set<string>()
+  const modulesDirs = new Set<string>()
   for (const projectDir of await getRegisteredProjects(storeDir)) {
     // eslint-disable-next-line no-await-in-loop -- hold one project's parsed lockfiles at a time
-    for (const { key, binary } of await projectIndexKeys(projectDir)) {
+    const lockfiles = await readInstalledLockfiles(projectDir)
+    for (const { key, binary } of lockfiles.flatMap(lockfileIndexKeys)) {
       keys.add(key)
       if (binary) binaryKeys.add(key)
     }
+    const importerDirs = new Set([projectDir, ...lockfiles.flatMap((lockfile) =>
+      Object.keys(lockfile.importers ?? {}).map((importerId) => path.resolve(projectDir, importerId))
+    )])
+    // eslint-disable-next-line no-await-in-loop -- one project at a time, as above
+    for (const modulesDir of await Promise.all(Array.from(importerDirs, resolveModulesDir))) {
+      modulesDirs.add(modulesDir)
+    }
   }
-  return { keys, binaryKeys }
+  return { keys, binaryKeys, modulesDirs }
 }
 
-async function projectIndexKeys (projectDir: string): Promise<IndexKey[]> {
-  return (await readInstalledLockfiles(projectDir)).flatMap(lockfileIndexKeys)
+async function resolveModulesDir (projectDir: string): Promise<string> {
+  return path.resolve(projectDir, await readConfiguredModulesDir(projectDir))
 }
 
 function lockfileIndexKeys (lockfile: LockfileObject): IndexKey[] {
@@ -110,7 +137,7 @@ function readIndexRow (storeIndex: StoreIndex, storeDir: string, key: string): P
  * applies, so the prune reads both.
  */
 async function readInstalledLockfiles (projectDir: string): Promise<LockfileObject[]> {
-  const modulesDir = path.resolve(projectDir, await readConfiguredModulesDir(projectDir))
+  const modulesDir = await resolveModulesDir(projectDir)
   const defaultDir = path.join(modulesDir, '.pnpm')
   const modules = await readModulesManifestOfProject(modulesDir)
   const installStateDirs = new Set([defaultDir, modules?.virtualStoreDir ?? defaultDir])
@@ -126,7 +153,7 @@ async function readInstalledLockfiles (projectDir: string): Promise<LockfileObje
  * set only on the command line, in the environment, or in the global config
  * is not seen.
  */
-export async function readConfiguredModulesDir (projectDir: string): Promise<string> {
+async function readConfiguredModulesDir (projectDir: string): Promise<string> {
   try {
     // `findWorkspaceDir` would also honor the workspace directory that the
     // environment of the prune sets, which names no registered project's

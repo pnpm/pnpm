@@ -14,7 +14,6 @@ pub(super) struct WalkContext<'a> {
     pub(super) user_negations: &'a wax::Any<'a>,
     pub(super) subtree_negations: &'a wax::Any<'a>,
     pub(super) ignored_directories: &'a [PathBuf],
-    pub(super) ignored_directory_suffixes: &'a [PathBuf],
 }
 
 impl WalkContext<'_> {
@@ -24,7 +23,6 @@ impl WalkContext<'_> {
             self.workspace_root,
             self.user_negations,
             self.ignored_directories,
-            self.ignored_directory_suffixes,
             manifest_paths,
         );
     }
@@ -35,7 +33,6 @@ impl WalkContext<'_> {
             self.workspace_root,
             self.user_negations,
             self.ignored_directories,
-            self.ignored_directory_suffixes,
             manifest_paths,
         );
     }
@@ -77,7 +74,6 @@ pub(in super::super) fn collect_glob_manifests(
         user_negations: merge.user_negations,
         subtree_negations: merge.subtree_negations,
         ignored_directories: merge.ignored_directories,
-        ignored_directory_suffixes: merge.ignored_directory_suffixes,
     };
     if normalized == "." {
         ctx.collect_literal(walk_root, manifest_paths);

@@ -43,7 +43,6 @@ pub(crate) fn project_modules_dirs(config: &Config) -> miette::Result<Vec<Projec
         &FindWorkspaceProjectsOpts {
             patterns: config.workspace_package_patterns.clone(),
             ignored_directories: config.managed_directories(),
-            ignored_directory_suffixes: Vec::new(),
         },
     )
     .map_err(miette::Report::new)?;

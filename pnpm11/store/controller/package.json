@@ -63,7 +63,6 @@
     "@pnpm/store.index": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/workspace.project-manifest-reader": "workspace:*",
-    "@pnpm/workspace.projects-reader": "workspace:*",
     "@pnpm/workspace.workspace-manifest-reader": "workspace:*",
     "@zkochan/rimraf": "catalog:",
     "empathic": "catalog:",

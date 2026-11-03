@@ -89,7 +89,7 @@ impl WorkspaceSettings {
         let read_merged = |text: &str| read(text, &path);
         let text = select_settings(&text, settings_read);
         let mut settings = if settings_read.skips_unreadable() {
-            read_readable_settings(&text, read_merged, settings_read.required_settings())
+            read_readable_settings(&text, read_merged)
         } else {
             read_merged(&text)
         }?;

@@ -89,7 +89,7 @@ impl MachineSettings {
         }
         let read = parse_settings::<Sys, Self>;
         let settings = if settings_read.skips_unreadable() {
-            read_readable_settings(&document.text, read, settings_read.required_settings())
+            read_readable_settings(&document.text, read)
         } else {
             read(&document.text)
         }

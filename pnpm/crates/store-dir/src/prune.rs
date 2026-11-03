@@ -34,6 +34,17 @@ use std::{
 
 mod mark;
 
+/// What the installs of the registered projects use, which
+/// [`StoreDir::prune_keeping`] keeps.
+#[derive(Debug, Default)]
+pub struct InUse {
+    /// Content-addressable files kept whatever their hard-link count.
+    pub files: HashSet<PathBuf>,
+    /// Modules directories whose links keep global virtual store slots, in
+    /// addition to every `node_modules` under a registered project.
+    pub modules_dirs: Vec<PathBuf>,
+}
+
 /// Error type of [`StoreDir::prune`].
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum PruneError {
@@ -113,39 +124,24 @@ impl StoreDir {
     ///
     /// [#344]: https://github.com/pnpm/pacquet/issues/344
     pub fn prune(&self, cache_dir: &Path, protected_dirs: &[&Path]) -> Result<(), PruneError> {
-        self.prune_keeping(cache_dir, protected_dirs, || Ok(HashSet::new()))
+        self.prune_keeping(cache_dir, protected_dirs, || Ok(InUse::default()))
     }
 
-    /// [`Self::prune`], keeping every content-addressable file that
-    /// `in_use_files` returns whatever its hard-link count. `in_use_files`
-    /// runs while the prune holds the store lock, and its error stops the
-    /// prune before it removes anything.
+    /// [`Self::prune`], keeping what `in_use` returns. `in_use` runs while
+    /// the prune holds the store lock, and its error stops the prune before
+    /// it removes anything.
     pub fn prune_keeping(
         &self,
         cache_dir: &Path,
         protected_dirs: &[&Path],
-        in_use_files: impl FnOnce() -> Result<HashSet<PathBuf>, PruneError>,
-    ) -> Result<(), PruneError> {
-        self.prune_keeping_with_modules_dirs(
-            cache_dir,
-            protected_dirs,
-            |_| Ok(Vec::new()),
-            in_use_files,
-        )
-    }
-
-    pub fn prune_keeping_with_modules_dirs(
-        &self,
-        cache_dir: &Path,
-        protected_dirs: &[&Path],
-        modules_dirs: impl FnOnce(&[PathBuf]) -> Result<Vec<PathBuf>, PruneError>,
-        in_use_files: impl FnOnce() -> Result<HashSet<PathBuf>, PruneError>,
+        in_use: impl FnOnce() -> Result<InUse, PruneError>,
     ) -> Result<(), PruneError> {
         let _store_lock = self.lock_for_prune().map_err(PruneError::StoreLock)?;
         let mut references = crate::loader_references::loader_references(self)
             .map_err(PruneError::LoaderReferences)?;
-        references.files.extend(in_use_files()?);
-        self.prune_global_virtual_store(&references.package_roots, modules_dirs)?;
+        let in_use = in_use()?;
+        references.files.extend(in_use.files);
+        self.prune_global_virtual_store(&references.package_roots, &in_use.modules_dirs)?;
         self.remove_cached_metadata(cache_dir, protected_dirs)?;
         let stats = crate::prune_cas::prune_cas_with_references(self, &references.files)
             .map_err(PruneError::PruneCas)?;
@@ -173,7 +169,7 @@ impl StoreDir {
     fn prune_global_virtual_store(
         &self,
         loader_roots: &[PathBuf],
-        modules_dirs: impl FnOnce(&[PathBuf]) -> Result<Vec<PathBuf>, PruneError>,
+        modules_dirs: &[PathBuf],
     ) -> Result<(), PruneError> {
         let links_dir = self.links();
         if !path_exists(&links_dir) {
@@ -190,9 +186,8 @@ impl StoreDir {
             projects.len(),
         );
 
-        let modules_dirs = modules_dirs(&projects)?;
         let reachable =
-            mark::mark_reachable_slots(&links_dir, &projects, loader_roots, &modules_dirs)?;
+            mark::mark_reachable_slots(&links_dir, &projects, loader_roots, modules_dirs)?;
         // Projects without the global virtual store register too, so no link
         // from any registered project leaves the slots' users as unknown as
         // an empty registry does.

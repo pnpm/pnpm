@@ -51,6 +51,7 @@ pnpm-modules-yaml = { workspace = true }
 pnpm-network = { workspace = true }
 pnpm-network-web-auth = { workspace = true }
 pnpm-config = { workspace = true }
+pnpm-env-replace = { workspace = true }
 pnpm-config-parse-overrides = { workspace = true }
 pnpm-default-reporter = { workspace = true }
 pnpm-deps-inspection = { workspace = true }

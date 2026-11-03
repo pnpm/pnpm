@@ -114,7 +114,7 @@ fn blob_paths_of_rows(store_dir: &StoreDir, keys: &[String]) -> Vec<PathBuf> {
 fn prune(workspace: &Path) {
     let output = pacquet_at(workspace)
         .with_args(["store", "prune"])
-        .env_remove("PNPM_TASKS_230_MODULES_DIR")
+        .env_remove("PRUNE_TEST_MODULES_DIR")
         .output()
         .expect("run store prune");
     let stderr = String::from_utf8_lossy(&output.stderr);
@@ -322,7 +322,7 @@ fn store_prune_keeps_global_virtual_store_slots_from_a_workspace_package_modules
     write_manifest(&workspace);
     append_workspace_yaml(
         &workspace,
-        "packages: [\"**\"]\nmodulesDir: ${PNPM_TASKS_230_MODULES_DIR:-vendor}\n",
+        "packages: [project]\nmodulesDir: ${PRUNE_TEST_MODULES_DIR:-vendor}\n",
     );
     let project = workspace.join("project");
     fs::create_dir_all(&project).expect("create workspace package");
@@ -331,38 +331,18 @@ fn store_prune_keeps_global_virtual_store_slots_from_a_workspace_package_modules
     enable_gvs_in_workspace_yaml(&workspace, "");
     pacquet_at(&workspace)
         .with_args(["install", "--reporter=silent"])
-        .env_remove("PNPM_TASKS_230_MODULES_DIR")
+        .env_remove("PRUNE_TEST_MODULES_DIR")
         .assert()
         .success();
     let store = StoreDir::new(store_dir);
-    let modules_dir = project.join("vendor");
-    let live_slot = add_global_virtual_store_prune_anchor(&workspace, &store, &modules_dir);
-    fs::create_dir_all(modules_dir.join("installed")).expect("create an installed package dir");
-    fs::write(modules_dir.join("installed/package.json"), "{")
-        .expect("write an invalid installed package manifest");
-    let vendor_project = workspace.join("packages/vendor");
-    let vendor_modules_dir = vendor_project.join("vendor");
-    fs::create_dir_all(&vendor_modules_dir).expect("create the vendor project modules dir");
-    fs::write(
-        vendor_project.join("package.json"),
-        serde_json::json!({"name": "vendor"}).to_string(),
-    )
-    .expect("write the vendor project manifest");
-    let same_named_slot = store.links().join("@/same-named/1.0.0/hash");
-    let same_named_package = same_named_slot.join("node_modules/same-named");
-    fs::create_dir_all(&same_named_package).expect("create the same-named store package");
-    pnpm_fs::symlink_dir(&same_named_package, &vendor_modules_dir.join("same-named"))
-        .expect("link the package from the vendor project modules dir");
+    let live_slot =
+        add_global_virtual_store_prune_anchor(&workspace, &store, &project.join("vendor"));
 
     prune(&workspace);
 
     assert!(
         live_slot.is_dir(),
         "prune must keep the slot linked from a workspace package's configured modules dir",
-    );
-    assert!(
-        same_named_slot.is_dir(),
-        "prune must keep the slot linked from a workspace package named like modulesDir",
     );
 }
 

@@ -46,7 +46,6 @@ pub enum SettingsRead {
     /// may give a setting a shape or a value this one rejects, so the load
     /// that switches to the pinned pnpm reads this way.
     Readable,
-    RequiredModulesDir,
     /// Only the [`PIN_DECISION_SETTINGS`] this pnpm can read. No `.npmrc` or
     /// auth source is read.
     PinDecision,
@@ -59,17 +58,7 @@ impl SettingsRead {
     pub fn skips_unreadable(self) -> bool {
         self != Self::All
     }
-
-    pub(crate) fn required_settings(self) -> &'static [&'static str] {
-        match self {
-            Self::RequiredModulesDir => REQUIRED_MODULES_DIR_SETTINGS,
-            Self::All | Self::Readable | Self::PinDecision => &[],
-        }
-    }
 }
-
-const REQUIRED_MODULES_DIR_SETTINGS: &[&str] =
-    &["lockfileDir", "modulesDir", "packageConfigs", "sharedWorkspaceLockfile"];
 
 #[cfg(test)]
 mod tests;

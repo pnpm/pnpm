@@ -28,7 +28,6 @@ pub(super) fn workspace_projects_for_add(
         &pnpm_workspace::FindWorkspaceProjectsOpts {
             patterns: Some(pnpm_workspace::workspace_package_patterns(&manifest)),
             ignored_directories: config.managed_directories(),
-            ignored_directory_suffixes: Vec::new(),
         },
     )
     .ok()

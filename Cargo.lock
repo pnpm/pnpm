@@ -4827,6 +4827,7 @@ dependencies = [
  "pnpm-engine-pm-yarn-resolver",
  "pnpm-engine-runtime-node-resolver",
  "pnpm-env-installer",
+ "pnpm-env-replace",
  "pnpm-executor",
  "pnpm-fs",
  "pnpm-fs-packlist",

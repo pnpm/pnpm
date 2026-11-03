@@ -57,7 +57,6 @@ fn find_project_names_with(
                     .collect(),
             ),
             ignored_directories,
-            ignored_directory_suffixes: Vec::new(),
         },
     )
     .unwrap()
