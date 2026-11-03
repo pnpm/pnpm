@@ -123,6 +123,9 @@ as `^2.0.0`, when `--latest` moves past it. A requirement in the selector, as in
 `pnpm update crate:foo@^2`, replaces it. `savePrefix` and `saveExact` apply only
 to new Cargo dependencies. Saved Cargo requirements omit build metadata.
 
+A Python requirement keeps its operator too, so `~=1.0` becomes `~=2.0`.
+`savePrefix` and `saveExact` do not apply to Python requirements.
+
 ### --patches
 
 Added in: v12.0.0

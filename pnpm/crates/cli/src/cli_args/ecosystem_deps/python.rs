@@ -375,8 +375,6 @@ fn build_python_update_options(
         groups,
         latest: options.step.latest,
         no_save: options.step.no_save,
-        exact: options.step.save_exact,
-        prefix: options.step.save_prefix.map(str::to_string),
     }
 }
 

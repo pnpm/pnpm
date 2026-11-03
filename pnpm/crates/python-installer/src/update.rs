@@ -25,17 +25,12 @@ pub struct UpdateOptions {
     pub groups: BTreeSet<PythonDependencyGroup>,
     pub latest: bool,
     pub no_save: bool,
-    pub exact: bool,
-    pub prefix: Option<String>,
 }
 
 impl UpdateOptions {
     pub fn validate(&self, config: &pnpm_config::Config) -> Result<()> {
         if !config.python.enabled {
             bail!("pypi: dependencies require `python.enabled: true` in pnpm-workspace.yaml");
-        }
-        if !matches!(self.prefix.as_deref().unwrap_or(">="), ">=" | "~=" | "==") {
-            bail!("Python --save-prefix must be >=, ~=, or ==");
         }
         Ok(())
     }
@@ -267,7 +262,7 @@ fn finalize_requirement(
         return Ok(None);
     };
     let explicit_spec = options.targets.get(&req.name).and_then(Option::as_deref);
-    let new_specifiers = compute_saved_specifiers(&req, version, explicit_spec, options)?;
+    let new_specifiers = compute_saved_specifiers(&req, version, explicit_spec, options.latest)?;
     let Some(specifiers) = new_specifiers else {
         return Ok(None);
     };
@@ -279,14 +274,8 @@ fn compute_saved_specifiers(
     req: &Requirement,
     version: &Version,
     explicit_spec: Option<&str>,
-    options: &UpdateOptions,
+    latest: bool,
 ) -> Result<Option<VersionSpecifiers>> {
-    if options.exact {
-        return Ok(Some(format!("=={version}").parse().into_diagnostic()?));
-    }
-    if let Some(prefix) = options.prefix.as_deref() {
-        return Ok(Some(format!("{prefix}{version}").parse().into_diagnostic()?));
-    }
     if let Some(spec) = explicit_spec
         && !spec.starts_with("==")
     {
@@ -297,7 +286,7 @@ fn compute_saved_specifiers(
             .map(|_| format!(">={version}").parse().into_diagnostic())
             .transpose();
     };
-    updated_existing_specifiers(existing, version, options.latest || explicit_spec.is_some())
+    updated_existing_specifiers(existing, version, latest || explicit_spec.is_some())
 }
 
 fn updated_existing_specifiers(
