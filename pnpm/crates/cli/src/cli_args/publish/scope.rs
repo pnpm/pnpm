@@ -19,9 +19,7 @@ impl<'a> PublishScope<'a> {
         }
     }
 
-    pub(super) fn workspace_packages(
-        self,
-    ) -> Option<&'a Arc<WorkspacePackageManifests>> {
+    pub(super) fn workspace_packages(self) -> Option<&'a Arc<WorkspacePackageManifests>> {
         match self {
             PublishScope::Single { .. } => None,
             PublishScope::Recursive { workspace_packages } => Some(workspace_packages),
