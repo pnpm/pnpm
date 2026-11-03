@@ -115,9 +115,8 @@ async fn uploads_a_wheel_and_serves_the_simple_pages_and_the_file() {
     );
     assert!(
         std::fs::read_dir(tmp.path().join(".journal"))
-            .unwrap()
-            .next()
-            .is_none(),
+            .ok()
+            .is_none_or(|mut entries| entries.next().is_none()),
     );
 
     // PEP 691 JSON, with the file URL pointing back at this registry.

@@ -264,13 +264,9 @@ async fn referrers_backfill_preexisting_manifests_on_both_backends() {
         let tmp = TempDir::new().unwrap();
         let mut config = oci_config(tmp.path().to_path_buf(), "$all");
         config.storage.hosted_backend = hosted_store;
-        let storage = pnpr_storage::Storage::new(
-            &config.storage.hosted_backend,
-            config.storage.hosted_dir.clone(),
-            config.storage.cache_dir.clone(),
-        )
-        .unwrap()
-        .for_hosted("images", Ecosystem::Oci);
+        let storage = pnpr_storage::Storage::from_config(&config.storage)
+            .unwrap()
+            .for_hosted("images", Ecosystem::Oci);
         let app = router_with_auth(config, AuthState::in_memory());
         let auth = basic(&token(&app).await);
         let repository = repository_with_colliding_lock_keys();
@@ -355,13 +351,9 @@ async fn referrer_migration_does_not_block_writers_or_restore_deleted_manifests(
     let hosted = config.routing.hosted.get_mut("images").unwrap();
     hosted.rules = std::mem::take(&mut hosted.rules)
         .with_default_unpublish(AccessList::from_tokens(["$authenticated"]));
-    let storage = pnpr_storage::Storage::new(
-        &config.storage.hosted_backend,
-        config.storage.hosted_dir.clone(),
-        config.storage.cache_dir.clone(),
-    )
-    .unwrap()
-    .for_hosted("images", Ecosystem::Oci);
+    let storage = pnpr_storage::Storage::from_config(&config.storage)
+        .unwrap()
+        .for_hosted("images", Ecosystem::Oci);
     let app = router_with_auth(config, AuthState::in_memory());
     let auth = basic(&token(&app).await);
     let subject = digest_of(b"subject");

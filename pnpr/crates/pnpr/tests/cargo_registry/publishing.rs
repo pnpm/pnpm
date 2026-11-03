@@ -4,7 +4,7 @@ use super::{
     publish_request, recover_publish_journal, registry_groups, router_with_auth, sha256_hex,
 };
 use crate::tokens::issue_token;
-use pnpr_storage::layout::{local_blob_path, local_document_path};
+use pnpr_storage::layout::local_blob_path;
 
 #[tokio::test]
 async fn publish_then_resolve_and_download_a_hosted_crate() {
@@ -82,13 +82,18 @@ async fn publish_then_resolve_and_download_a_hosted_crate() {
         .is_file(),
     );
     assert!(
-        local_document_path(tmp.path(), "crates", pnpr_storage::Ecosystem::Cargo, "demo").is_file(),
+        pnpr_fixtures::read_hosted_document(
+            tmp.path(),
+            "crates",
+            pnpr_storage::Ecosystem::Cargo,
+            "demo"
+        )
+        .is_some(),
     );
     assert!(
         std::fs::read_dir(tmp.path().join(".journal"))
-            .unwrap()
-            .next()
-            .is_none(),
+            .ok()
+            .is_none_or(|mut entries| entries.next().is_none()),
     );
 
     // The crate is reachable at its one sparse-index path only.

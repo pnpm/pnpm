@@ -79,8 +79,11 @@ pub(super) fn peer_heavy_root_manifest() -> String {
     }))
     .expect("serialize peer-heavy root manifest")
 }
+/// Commit the peer-heavy packages to the metadata of the registry storage
+/// at `storage_root`. Their archives are never fetched, so none is written.
 pub(crate) fn seed_peer_heavy_registry(storage_root: &Path) {
-    write_peer_heavy_packument(storage_root, PEER_HEAVY_PROVIDER, &serde_json::Map::new(), false);
+    let mut packuments =
+        vec![peer_heavy_packument(PEER_HEAVY_PROVIDER, &serde_json::Map::new(), false)];
     for level in 0..PEER_HEAVY_DEPTH {
         let dependencies = if level + 1 == PEER_HEAVY_DEPTH {
             serde_json::Map::new()
@@ -95,21 +98,20 @@ pub(crate) fn seed_peer_heavy_registry(storage_root: &Path) {
                 .collect()
         };
         for index in 0..PEER_HEAVY_WIDTH {
-            write_peer_heavy_packument(
-                storage_root,
+            packuments.push(peer_heavy_packument(
                 &peer_heavy_package_name(level, index),
                 &dependencies,
                 true,
-            );
+            ));
         }
     }
+    pnpr_fixtures::write_packuments(storage_root, packuments);
 }
-pub(super) fn write_peer_heavy_packument(
-    storage_root: &Path,
+pub(super) fn peer_heavy_packument(
     name: &str,
     dependencies: &serde_json::Map<String, Value>,
     has_peer: bool,
-) {
+) -> (String, Value) {
     let manifest = peer_heavy_manifest(name, dependencies, has_peer);
     let versions = serde_json::Map::from_iter([(PEER_HEAVY_VERSION.to_string(), manifest)]);
     let time = serde_json::Map::from_iter([
@@ -123,16 +125,7 @@ pub(super) fn write_peer_heavy_packument(
         "versions": versions,
         "time": time,
     });
-    let document = pnpr_storage::layout::local_document_path(
-        storage_root,
-        "",
-        pnpr_storage::Ecosystem::Npm,
-        name,
-    );
-    fs::create_dir_all(document.parent().expect("a document has a package directory"))
-        .expect("create peer-heavy registry package directory");
-    fs::write(document, serde_json::to_vec(&packument).expect("serialize peer-heavy packument"))
-        .expect("write peer-heavy packument");
+    (name.to_string(), packument)
 }
 pub(super) fn peer_heavy_manifest(
     name: &str,

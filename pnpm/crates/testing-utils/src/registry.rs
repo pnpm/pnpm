@@ -1,5 +1,5 @@
 use pnpr::{Config, Ecosystem};
-use pnpr_fixtures::MockConfigPresets;
+use pnpr_fixtures::{MockConfigPresets, RemovedVersionField};
 use std::{
     net::{Ipv4Addr, TcpListener},
     path::{Path, PathBuf},
@@ -46,14 +46,18 @@ impl TestRegistry {
         Self::new(instance.server_url, Some(storage.to_path_buf()), None)
     }
 
-    /// Like [`Self::start_with_own_storage`], and records every request it
-    /// answers for [`Self::take_requests`].
-    pub fn start_recording_with_own_storage(root: &Path) -> Self {
+    /// Like [`Self::start_with_own_storage_without_fields`], and records
+    /// every request it answers for [`Self::take_requests`].
+    pub fn start_recording_with_own_storage(
+        root: &Path,
+        removed_fields: &[RemovedVersionField<'_>],
+    ) -> Self {
         let storage = root.join("registry-storage");
-        pnpr_fixtures::build_storage_at_with_substitutions(
+        pnpr_fixtures::build_storage_at_with_edits(
             &pnpr_fixtures::packages_dir(),
             &storage,
             &[],
+            removed_fields,
         );
         let requests = RequestLog::default();
         let instance = TestRegistryInstance::start_with_log(
@@ -82,19 +86,30 @@ impl TestRegistry {
     /// The tree is the caller's alone, so it may be re-tagged with
     /// [`Self::set_dist_tag`].
     pub fn start_with_own_storage(root: &Path) -> Self {
-        Self::start_over_built_storage(root, &[], false)
+        Self::start_with_own_storage_without_fields(root, &[])
+    }
+
+    /// Like [`Self::start_with_own_storage`], over metadata that leaves out
+    /// `removed_fields` while the tarballs keep them.
+    pub fn start_with_own_storage_without_fields(
+        root: &Path,
+        removed_fields: &[RemovedVersionField<'_>],
+    ) -> Self {
+        Self::start_over_built_storage(root, &[], removed_fields, false)
     }
 
     pub(crate) fn start_over_built_storage(
         root: &Path,
         substitutions: &[(&str, &str)],
+        removed_fields: &[RemovedVersionField<'_>],
         static_serve: bool,
     ) -> Self {
         let storage = root.join("registry-storage");
-        pnpr_fixtures::build_storage_at_with_substitutions(
+        pnpr_fixtures::build_storage_at_with_edits(
             &pnpr_fixtures::packages_dir(),
             &storage,
             substitutions,
+            removed_fields,
         );
         if static_serve {
             Self::start_static_with_storage(&storage)
@@ -141,13 +156,13 @@ impl TestRegistry {
         pnpr_fixtures::set_dist_tag(storage, package, version, tag);
     }
 
-    /// See [`pnpr_fixtures::remove_version_field`]. Needs a registry of the
+    /// See [`pnpr_fixtures::deprecate_version`]. Needs a registry of the
     /// test's own, as [`Self::set_dist_tag`] does.
-    pub fn remove_version_field(&self, package: &str, version: &str, field: &str) {
+    pub fn deprecate_version(&self, package: &str, version: &str, message: &str) {
         let storage = self.storage.as_deref().expect(
             "editing metadata needs a registry of the test's own — start it with add_mocked_registry_with_own_storage",
         );
-        pnpr_fixtures::remove_version_field(storage, package, version, field);
+        pnpr_fixtures::deprecate_version(storage, package, version, message);
     }
 
     /// See [`pnpr_fixtures::remove_version`]. Needs a registry of the test's

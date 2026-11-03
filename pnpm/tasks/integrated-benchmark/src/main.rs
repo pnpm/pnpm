@@ -272,6 +272,10 @@ fn seed_scenario_fixture(
         matches!(registry_mode, RegistryMode::Verdaccio),
         "the peer-heavy benchmark requires --registry=verdaccio",
     );
+    // Seed the fixtures first: a mock seeds them as it starts, and would
+    // otherwise replace the database the scenario's packages went into.
+    pnpm_registry_mock::seed_runtime_storage()
+        .unwrap_or_else(|err| panic!("seed registry-mock fixtures into runtime storage: {err}"));
     work_env::seed_peer_heavy_registry(pnpm_registry_mock::runtime_storage());
 }
 

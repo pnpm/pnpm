@@ -4,7 +4,7 @@ use super::{
     sri_sha512, static_config,
 };
 use base64::Engine;
-use pnpr_storage::layout::{local_blob_path, local_document_path, local_package_dir};
+use pnpr_storage::layout::{local_blob_path, local_package_dir};
 
 #[tokio::test]
 async fn anonymous_publish_is_rejected() {
@@ -394,14 +394,32 @@ async fn update_packument_protects_a_published_tarball_with_a_basenameless_url()
         StatusCode::CREATED,
     );
 
-    // Force the stored dist.tarball to a basename-less URL (ends in `/`), which
-    // rewrite_tarball_urls serves under the version-derived canonical name — so
-    // the served basename is still well-defined and must stay pinned.
-    let packument_path = local_document_path(&storage, "", pnpr_storage::Ecosystem::Npm, "mypkg");
-    let mut stored: Value =
-        serde_json::from_slice(&std::fs::read(&packument_path).unwrap()).unwrap();
+    // Serve the stored dist.tarball as a basename-less URL (ends in `/`),
+    // which rewrite_tarball_urls serves under the version-derived canonical
+    // name — so the served basename is still well-defined and must stay
+    // pinned. A store never rewrites a version it accepted, so the package
+    // is moved into a store that holds it that way.
+    let mut stored: Value = serde_json::from_slice(
+        &pnpr_fixtures::read_hosted_document(&storage, "", pnpr_storage::Ecosystem::Npm, "mypkg")
+            .unwrap(),
+    )
+    .unwrap();
     stored["versions"]["1.0.0"]["dist"]["tarball"] = json!("http://localhost:4873/mypkg/-/");
-    std::fs::write(&packument_path, serde_json::to_vec(&stored).unwrap()).unwrap();
+    let moved = TempDir::new().unwrap();
+    pnpr_storage::layout::write_local_layout_marker(moved.path()).unwrap();
+    copy_tree(
+        &local_package_dir(&storage, "", pnpr_storage::Ecosystem::Npm, "mypkg"),
+        &local_package_dir(moved.path(), "", pnpr_storage::Ecosystem::Npm, "mypkg"),
+    );
+    pnpr_fixtures::write_hosted_document(
+        moved.path(),
+        "",
+        pnpr_storage::Ecosystem::Npm,
+        "mypkg",
+        &serde_json::to_vec(&stored).unwrap(),
+    );
+    let app = router(static_config(moved.path().to_path_buf()));
+    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
 
     let mut tampered = stored.clone();
     tampered["versions"]["1.0.0"]["dist"]["tarball"] =
@@ -417,6 +435,20 @@ async fn update_packument_protects_a_published_tarball_with_a_basenameless_url()
             .status(),
         StatusCode::BAD_REQUEST,
     );
+}
+
+/// Copy the directory tree at `from` to `to`.
+fn copy_tree(from: &std::path::Path, to: &std::path::Path) {
+    std::fs::create_dir_all(to).unwrap();
+    for entry in std::fs::read_dir(from).unwrap() {
+        let entry = entry.unwrap();
+        let target = to.join(entry.file_name());
+        if entry.file_type().unwrap().is_dir() {
+            copy_tree(&entry.path(), &target);
+        } else {
+            std::fs::copy(entry.path(), target).unwrap();
+        }
+    }
 }
 
 #[tokio::test]
@@ -441,7 +473,10 @@ async fn update_packument_rejects_seeding_a_package_with_no_published_packument(
         StatusCode::BAD_REQUEST,
     );
 
-    assert!(!local_document_path(&storage, "", pnpr_storage::Ecosystem::Npm, "ghost").exists());
+    assert!(
+        !pnpr_fixtures::read_hosted_document(&storage, "", pnpr_storage::Ecosystem::Npm, "ghost")
+            .is_some()
+    );
 }
 
 #[tokio::test]
@@ -558,7 +593,13 @@ async fn published_package_survives_wiping_the_proxy_cache() {
 
     // The artifacts land in the authoritative root, not the cache.
     assert!(
-        local_document_path(&storage, "", pnpr_storage::Ecosystem::Npm, "durable-pkg").exists(),
+        pnpr_fixtures::read_hosted_document(
+            &storage,
+            "",
+            pnpr_storage::Ecosystem::Npm,
+            "durable-pkg"
+        )
+        .is_some(),
     );
     assert!(
         local_blob_path(
@@ -677,7 +718,8 @@ async fn publish_rejects_integrity_mismatch_and_leaves_no_artifacts() {
 
     // Neither the packument nor the tarball should have been written.
     assert!(
-        !local_document_path(&storage, "", pnpr_storage::Ecosystem::Npm, "bad-pkg").exists(),
+        !pnpr_fixtures::read_hosted_document(&storage, "", pnpr_storage::Ecosystem::Npm, "bad-pkg")
+            .is_some(),
         "packument must not be written when integrity check fails",
     );
     assert!(
@@ -718,7 +760,13 @@ async fn publish_rejects_shasum_mismatch() {
         "shasum mismatch must surface EINTEGRITY: {body_text}",
     );
     assert!(
-        !local_document_path(&storage, "", pnpr_storage::Ecosystem::Npm, "shasum-pkg").exists(),
+        !pnpr_fixtures::read_hosted_document(
+            &storage,
+            "",
+            pnpr_storage::Ecosystem::Npm,
+            "shasum-pkg"
+        )
+        .is_some(),
     );
 }
 
@@ -749,7 +797,13 @@ async fn publish_rejects_missing_integrity_field() {
         "missing integrity must surface a clear EINTEGRITY message: {body_text}",
     );
     assert!(
-        !local_document_path(&storage, "", pnpr_storage::Ecosystem::Npm, "no-int-pkg").exists(),
+        !pnpr_fixtures::read_hosted_document(
+            &storage,
+            "",
+            pnpr_storage::Ecosystem::Npm,
+            "no-int-pkg"
+        )
+        .is_some(),
     );
 }
 
@@ -908,7 +962,15 @@ async fn publish_supports_scoped_packages() {
         .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
 
-    assert!(local_document_path(&storage, "", pnpr_storage::Ecosystem::Npm, "@scope/pkg").exists());
+    assert!(
+        pnpr_fixtures::read_hosted_document(
+            &storage,
+            "",
+            pnpr_storage::Ecosystem::Npm,
+            "@scope/pkg"
+        )
+        .is_some()
+    );
     assert!(
         local_blob_path(&storage, "", pnpr_storage::Ecosystem::Npm, "@scope/pkg", "pkg-1.0.0.tgz")
             .exists(),

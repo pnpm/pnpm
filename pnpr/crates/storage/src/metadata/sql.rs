@@ -130,6 +130,10 @@ impl Expected {
 }
 
 impl SqlMetadata {
+    /// The version of the schema this pnpr creates and reads. A database
+    /// that holds another one is refused.
+    pub const SCHEMA_VERSION: &'static str = schema::SCHEMA_VERSION;
+
     /// Open the `SQLite` database at `path`, creating it and its directory if
     /// needed.
     ///

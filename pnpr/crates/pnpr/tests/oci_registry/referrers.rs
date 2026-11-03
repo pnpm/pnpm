@@ -15,13 +15,9 @@ async fn referrer_pages_bound_migration_and_keep_filter_and_registry() {
         let tmp = TempDir::new().unwrap();
         let mut config = oci_config(tmp.path().to_path_buf(), "$all");
         config.storage.hosted_backend = hosted_store;
-        let storage = pnpr_storage::Storage::new(
-            &config.storage.hosted_backend,
-            config.storage.hosted_dir.clone(),
-            config.storage.cache_dir.clone(),
-        )
-        .unwrap()
-        .for_hosted("images", Ecosystem::Oci);
+        let storage = pnpr_storage::Storage::from_config(&config.storage)
+            .unwrap()
+            .for_hosted("images", Ecosystem::Oci);
         let app = router_with_auth(config, AuthState::in_memory());
         let auth = basic(&token(&app).await);
         let subject = digest_of(b"subject");
@@ -118,13 +114,9 @@ async fn referrer_pages_bound_migration_and_keep_filter_and_registry() {
 async fn large_referrer_annotations_stay_out_of_repository_documents() {
     let tmp = TempDir::new().unwrap();
     let config = oci_config(tmp.path().to_path_buf(), "$all");
-    let storage = pnpr_storage::Storage::new(
-        &config.storage.hosted_backend,
-        config.storage.hosted_dir.clone(),
-        config.storage.cache_dir.clone(),
-    )
-    .unwrap()
-    .for_hosted("images", Ecosystem::Oci);
+    let storage = pnpr_storage::Storage::from_config(&config.storage)
+        .unwrap()
+        .for_hosted("images", Ecosystem::Oci);
     let app = router_with_auth(config, AuthState::in_memory());
     let auth = basic(&token(&app).await);
     let subject = digest_of(b"subject");

@@ -689,12 +689,19 @@ async fn blob_deletion_fences_a_manifest_commit_on_another_replica() {
     let second = router_with_auth(config, auth_state);
     let auth = basic(&token(&first).await);
     let digest = push_blob(&first, &auth, "acme/app", b"config").await;
-    objects.pause_write("document.json".to_string());
+    // The publish has read the repository's document and is promoting the
+    // manifest when the deletion lands on the other replica.
+    let manifest = image_manifest("config", &[]);
+    let manifest_digest = pnpr_oci::Digest::of(&manifest);
+    objects.pause_write(pnpr_storage::layout::blob_segment(
+        "acme/app",
+        &manifest_digest.blob_filename(),
+    ));
     let publish = tokio::spawn(
         first.oneshot(
             Request::put("/v2/acme/app/manifests/latest")
                 .header(header::AUTHORIZATION, &auth)
-                .body(Body::from(image_manifest("config", &[])))
+                .body(Body::from(manifest))
                 .unwrap(),
         ),
     );

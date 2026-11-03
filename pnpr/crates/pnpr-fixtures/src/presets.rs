@@ -3,7 +3,7 @@ use pnpr_config::{
     ArtifactsFeature, AuthConfig, BackendConfig, Config, CorsConfig, HostedConfig,
     HostedStoreConfig, LogConfig, OciConfig, OsvConfig, PipelineFeature, RegistryFeature,
     ResolverFeature, RoutePolicy, TrustedProxyHeader, UiConfig, UpstreamConfig, default_cache_dir,
-    random_secret,
+    default_metadata_path, random_secret,
 };
 use pnpr_policy::{AccessList, PackageRule, PackageRules};
 use pnpr_registry::{Ecosystem, PackagePattern, Registries, Registry};
@@ -188,14 +188,15 @@ fn http_config(listen: SocketAddr) -> pnpr_config::HttpConfig {
     }
 }
 
-/// A hosted store and cache on local disk under `storage`.
+/// A hosted store, its `SQLite` metadata, and the cache on local disk under
+/// `storage`.
 fn local_storage(storage: PathBuf) -> pnpr_config::StorageConfig {
     pnpr_config::StorageConfig {
         cache_dir: default_cache_dir(&storage),
         cache: pnpr_config::CacheConfig::default(),
+        metadata: pnpr_config::MetadataBackend::Sqlite(default_metadata_path(&storage)),
         hosted_dir: storage,
         hosted_backend: HostedStoreConfig::Fs,
-        metadata: pnpr_config::MetadataBackend::Documents,
     }
 }
 

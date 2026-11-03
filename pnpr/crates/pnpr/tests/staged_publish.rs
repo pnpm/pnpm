@@ -462,6 +462,10 @@ async fn a_bogus_stage_id_is_not_found_or_rejected() {
 /// Approving a stage spends it: the transaction committed, so the record goes
 /// even when it reports a package it could not put in the document. Leaving it
 /// listed would offer an approval that cannot happen again.
+///
+/// Only the publish journal of the documents metadata backend commits a
+/// transaction that reports such a package, so this test keeps its metadata
+/// in documents and goes with the backend.
 #[tokio::test]
 async fn an_approval_that_reports_a_conflict_still_consumes_the_stage() {
     use object_store::{ObjectStore, ObjectStoreExt, memory::InMemory, path::Path as ObjectPath};
@@ -471,6 +475,7 @@ async fn an_approval_that_reports_a_conflict_still_consumes_the_stage() {
     let tmp = TempDir::new().unwrap();
     let store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
     let mut config = static_config(tmp.path().to_path_buf());
+    config.storage.metadata = pnpr_config::MetadataBackend::Documents;
     config.storage.hosted_backend =
         HostedStoreConfig::ObjectStore { store: Arc::clone(&store), prefix: String::new() };
     let app = router(config);

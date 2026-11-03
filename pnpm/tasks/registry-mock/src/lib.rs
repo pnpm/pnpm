@@ -7,6 +7,7 @@ pub use pnpr_command::*;
 pub use port_to_url::npm_registry_url;
 pub use registry_anchor::*;
 pub use registry_info::*;
+pub use seed_storage::seed_runtime_storage;
 
 mod dirs;
 mod mock_instance;

@@ -78,7 +78,7 @@ use pnpr::{
     PackageRule, PackageRules, PublicRoute, Registries, Registry, router, router_with_auth,
 };
 use pnpr_fixtures::MockConfigPresets;
-use pnpr_storage::layout::{blob_segment, local_document_path, package_segments};
+use pnpr_storage::layout::{blob_segment, package_segments};
 use serde_json::{Value, json};
 use ssri::{Algorithm, IntegrityOpts};
 use std::{
@@ -628,17 +628,26 @@ fn seed_hosted(storage: &Path, org: &str, pkg: &str) {
             "shasum": "abc",
         } } },
     });
-    let document = local_document_path(storage, org, pnpr_storage::Ecosystem::Npm, pkg);
-    std::fs::create_dir_all(document.parent().unwrap()).unwrap();
-    std::fs::write(document, packument.to_string()).unwrap();
+    write_hosted_packument(storage, org, pkg, &packument);
 }
 
 fn seed_hosted_with_maintainer(storage: &Path, pkg: &str, maintainer: &str) {
     seed_hosted(storage, "", pkg);
-    let path = local_document_path(storage, "", pnpr_storage::Ecosystem::Npm, pkg);
-    let mut packument: Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+    let mut packument = read_hosted_packument(storage, "", pkg).unwrap();
     packument["maintainers"] = json!([{ "username": maintainer }]);
-    std::fs::write(path, serde_json::to_vec(&packument).unwrap()).unwrap();
+    write_hosted_packument(storage, "", pkg, &packument);
+}
+
+/// The packument of `pkg` in `org`'s namespace of the hosted store at
+/// `storage`, as its metadata holds it.
+fn read_hosted_packument(storage: &Path, org: &str, pkg: &str) -> Option<Value> {
+    pnpr_fixtures::read_hosted_document(storage, org, pnpr_storage::Ecosystem::Npm, pkg)
+        .map(|bytes| serde_json::from_slice(&bytes).unwrap())
+}
+
+fn write_hosted_packument(storage: &Path, org: &str, pkg: &str, packument: &Value) {
+    let bytes = serde_json::to_vec(packument).unwrap();
+    pnpr_fixtures::write_hosted_document(storage, org, pnpr_storage::Ecosystem::Npm, pkg, &bytes);
 }
 
 /// The grouped config declares `internal` and the `main` router over it in

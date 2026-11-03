@@ -15,6 +15,12 @@ use pnpr_storage::{
     layout::{local_blob_path, local_document_path, write_local_layout_marker},
 };
 
+/// Commit `bytes` as the document of `name` in the default namespace of the
+/// hosted store at `storage`, in the metadata a pnpr over it reads.
+fn seed_document(storage: &Path, ecosystem: Ecosystem, name: &str, bytes: &[u8]) {
+    pnpr_fixtures::write_hosted_document(storage, "", ecosystem, name, bytes);
+}
+
 /// Write `bytes` to `path` in a hosted store, creating its directories.
 fn seed_file(path: impl AsRef<Path>, bytes: impl AsRef<[u8]>) {
     let path = path.as_ref();
@@ -45,10 +51,8 @@ auth:
 
     let config_file = tempfile::NamedTempFile::new().unwrap();
     std::fs::write(config_file.path(), yaml).unwrap();
-    let mut config =
+    let config =
         Config::from_yaml(config_file.path(), "127.0.0.1:7677".parse().unwrap(), None).unwrap();
-    // These tests seed package documents on disk.
-    config.storage.metadata = MetadataBackend::Documents;
     (config, config_file)
 }
 
@@ -126,9 +130,11 @@ async fn test_export_storage() {
             }
         }
     });
-    seed_file(
-        local_document_path(&config.storage.hosted_dir, "", Ecosystem::Npm, pkg),
-        serde_json::to_vec(&doc).unwrap(),
+    seed_document(
+        &config.storage.hosted_dir,
+        Ecosystem::Npm,
+        pkg,
+        &serde_json::to_vec(&doc).unwrap(),
     );
     seed_file(
         local_blob_path(&config.storage.hosted_dir, "", Ecosystem::Npm, pkg, "demo-pkg-1.0.0.tgz"),
@@ -162,9 +168,11 @@ async fn verify_and_export_keep_the_stored_tar_of_a_hosted_tar_registry() {
             }
         }
     });
-    seed_file(
-        local_document_path(&config.storage.hosted_dir, "", Ecosystem::Npm, pkg),
-        serde_json::to_vec(&doc).unwrap(),
+    seed_document(
+        &config.storage.hosted_dir,
+        Ecosystem::Npm,
+        pkg,
+        &serde_json::to_vec(&doc).unwrap(),
     );
     let stored_tar = local_blob_path(
         &config.storage.hosted_dir,
@@ -213,9 +221,11 @@ async fn test_verify_storage_health_and_orphan_prune() {
             }
         }
     });
-    seed_file(
-        local_document_path(&config.storage.hosted_dir, "", Ecosystem::Npm, pkg),
-        serde_json::to_vec(&doc).unwrap(),
+    seed_document(
+        &config.storage.hosted_dir,
+        Ecosystem::Npm,
+        pkg,
+        &serde_json::to_vec(&doc).unwrap(),
     );
     seed_file(
         local_blob_path(&config.storage.hosted_dir, "", Ecosystem::Npm, pkg, "demo-pkg-1.0.0.tgz"),
@@ -293,9 +303,11 @@ async fn test_verify_storage_corrupted_and_missing() {
             }
         }
     });
-    seed_file(
-        local_document_path(&config.storage.hosted_dir, "", Ecosystem::Npm, pkg),
-        serde_json::to_vec(&doc).unwrap(),
+    seed_document(
+        &config.storage.hosted_dir,
+        Ecosystem::Npm,
+        pkg,
+        &serde_json::to_vec(&doc).unwrap(),
     );
     seed_file(
         local_blob_path(&config.storage.hosted_dir, "", Ecosystem::Npm, pkg, "corrupt-1.0.0.tgz"),
@@ -331,9 +343,11 @@ async fn test_migrate_storage_dry_run() {
             }
         }
     });
-    seed_file(
-        local_document_path(&config.storage.hosted_dir, "", Ecosystem::Npm, pkg),
-        serde_json::to_vec(&doc).unwrap(),
+    seed_document(
+        &config.storage.hosted_dir,
+        Ecosystem::Npm,
+        pkg,
+        &serde_json::to_vec(&doc).unwrap(),
     );
     seed_file(
         local_blob_path(&config.storage.hosted_dir, "", Ecosystem::Npm, pkg, "demo-pkg-1.0.0.tgz"),
@@ -377,9 +391,11 @@ async fn test_migrate_storage_non_npm_package() {
             }
         ]
     });
-    seed_file(
-        local_document_path(&config.storage.hosted_dir, "", Ecosystem::Cargo, pkg),
-        serde_json::to_vec(&doc).unwrap(),
+    seed_document(
+        &config.storage.hosted_dir,
+        Ecosystem::Cargo,
+        pkg,
+        &serde_json::to_vec(&doc).unwrap(),
     );
     seed_file(
         local_blob_path(
@@ -499,9 +515,11 @@ async fn test_verify_and_export_attestations() {
             }
         }
     });
-    seed_file(
-        local_document_path(&config.storage.hosted_dir, "", Ecosystem::Npm, pkg),
-        serde_json::to_vec(&doc).unwrap(),
+    seed_document(
+        &config.storage.hosted_dir,
+        Ecosystem::Npm,
+        pkg,
+        &serde_json::to_vec(&doc).unwrap(),
     );
     seed_file(
         local_blob_path(
