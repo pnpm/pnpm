@@ -87,3 +87,44 @@ fn update_latest_keeps_a_renamed_alias_and_a_prerelease_on_their_lines() {
     assert!(cargo_lock.contains("name = \"tower\"\nversion = \"0.5.3\""));
     assert!(cargo_lock.contains("name = \"pre\"\nversion = \"2.0.0-rc.1\""));
 }
+
+#[test]
+fn update_latest_keeps_the_requirement_operator_over_save_prefix() {
+    let root = tempfile::tempdir().unwrap();
+    let workspace = root.path().join("workspace");
+    let cache_dir = root.path().join("cache");
+    fs::create_dir_all(workspace.join("src")).unwrap();
+    fs::write(workspace.join("src/lib.rs"), "").unwrap();
+    write_index(&cache_dir, "ra/ng", "range", &["1.0.0", "1.1.0"]);
+    write_index(&cache_dir, "ti/ld", "tilde", &["1.0.0", "1.1.0"]);
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        format!(
+            "cargo:\n  enabled: true\nsavePrefix: ''\nstoreDir: '{}'\ncacheDir: '{}'\n",
+            root.path().join("store").display(),
+            cache_dir.display(),
+        ),
+    )
+    .unwrap();
+    fs::write(
+        workspace.join("Cargo.toml"),
+        "[package]\nname = \"app\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[dependencies]\nrange = \">=1.0.0, <2\"\ntilde = \"~1.0.0\"\n",
+    )
+    .unwrap();
+    fs::write(
+        workspace.join("Cargo.lock"),
+        format!(
+            "version = 4\n\n[[package]]\nname = \"app\"\nversion = \"0.1.0\"\ndependencies = [\"range\", \"tilde\"]\n\n{}\n{}",
+            locked_package("range", "1.0.0"),
+            locked_package("tilde", "1.0.0"),
+        ),
+    )
+    .unwrap();
+
+    pacquet(&workspace, ["update", "--latest", "--offline", "--lockfile-only"]).assert().success();
+
+    let cargo_toml = fs::read_to_string(workspace.join("Cargo.toml")).unwrap();
+    eprintln!("CARGO.TOML:\n{cargo_toml}\n");
+    assert!(cargo_toml.contains(r#"range = ">=1.1.0, <2""#));
+    assert!(cargo_toml.contains(r#"tilde = "~1.1.0""#));
+}
