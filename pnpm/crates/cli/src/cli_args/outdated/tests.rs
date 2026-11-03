@@ -493,3 +493,40 @@ fn notes_find_their_json_entry_when_two_packages_share_one() {
         .expect("foo entry");
     assert_eq!(foo.get("releaseNotes"), None);
 }
+
+/// The entry two packages share shows the last of them, so the notes of
+/// the earlier one, for another target, do not go into it.
+#[test]
+fn a_shared_json_entry_gets_only_the_notes_of_the_package_it_shows() {
+    let mut alias_a = pkg("foo", "1.0.0", "1.1.0", DependencyGroup::Prod);
+    alias_a.alias = "a".to_owned();
+    let mut alias_b = pkg("foo", "1.0.0", "2.0.0", DependencyGroup::Prod);
+    alias_b.alias = "b".to_owned();
+    let packages = [alias_a, alias_b];
+    let refs: Vec<&OutdatedPackage> = packages.iter().collect();
+    let output = render_json(&packages, false);
+    let notes = [
+        Some(UpgradeNotes {
+            versions: vec![VersionNote {
+                version: "1.1.0".into(),
+                text: Some("Only a.".into()),
+                publication: None,
+            }],
+            publications: Vec::new(),
+        }),
+        None,
+    ];
+
+    let report: serde_json::Value =
+        serde_json::from_str(&with_notes(output, OutdatedFormat::Json, &refs, &notes))
+            .expect("JSON");
+
+    let entries = report.as_object().expect("object");
+    assert_eq!(entries.len(), 1, "{report}");
+    let (_, entry) = entries
+        .iter()
+        .next()
+        .expect("one entry");
+    assert_eq!(entry["latest"], "2.0.0", "the entry shows the later package: {report}");
+    assert_eq!(entry.get("releaseNotes"), None, "{report}");
+}

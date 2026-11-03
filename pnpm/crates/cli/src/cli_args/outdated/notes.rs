@@ -116,7 +116,9 @@ fn text_block(package: &OutdatedPackage, notes: &UpgradeNotes) -> String {
 
 /// Two packages can render as one entry, such as two aliases of one
 /// package at one version, so the report can have fewer entries than
-/// `packages`: each finds its entry by key rather than by position.
+/// `packages`: each finds its entry by key rather than by position. The
+/// entry shows the last of them, as the report does, so it gets that one's
+/// notes or none.
 fn with_json_notes(
     output: String,
     packages: &[&OutdatedPackage],
@@ -126,8 +128,16 @@ fn with_json_notes(
         return output;
     };
     for (key, notes) in super::render::report_keys(packages).iter().zip(notes) {
-        if let (Some(Value::Object(entry)), Some(notes)) = (report.get_mut(key), notes) {
-            entry.insert("releaseNotes".to_owned(), upgrade_notes_json(notes));
+        let Some(Value::Object(entry)) = report.get_mut(key) else {
+            continue;
+        };
+        match notes {
+            Some(notes) => {
+                entry.insert("releaseNotes".to_owned(), upgrade_notes_json(notes));
+            }
+            None => {
+                entry.remove("releaseNotes");
+            }
         }
     }
     serde_json::to_string_pretty(&Value::Object(report)).unwrap_or(output)
