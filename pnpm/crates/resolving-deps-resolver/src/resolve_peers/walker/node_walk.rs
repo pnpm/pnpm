@@ -314,6 +314,9 @@ impl Walker<'_> {
                 DepPath::from(Arc::<str>::clone(&tree_node.resolved_package_id)),
             ));
         }
+        if !super::super::cache::reuse_peer_subtrees(&self.opts) {
+            return None;
+        }
         let dep_path = self.caches.pure_pkgs.get(&*tree_node.resolved_package_id)?;
         let own_peers_bind =
             !self.tree.packages[&tree_node.resolved_package_id].peer_set.taken().is_empty();

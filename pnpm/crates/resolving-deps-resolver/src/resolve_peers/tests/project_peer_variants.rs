@@ -1,7 +1,10 @@
+mod cache_equivalence;
+
 use super::{
-    super::WorkspaceResolvePeersResult, Arc, BTreeMap, DepPath, HashMap, ImporterPeerInput, NodeId,
-    ResolvePeersOptions, ResolvedTree, WorkspacePeerSettings, add_lazy_direct_dep, child_edge,
-    package, package_with_peer_dependencies, resolve_peers_workspace, tree_node,
+    super::{WorkspaceResolvePeersResult, test_support::resolve_with_cache_oracle},
+    Arc, BTreeMap, DepPath, HashMap, ImporterPeerInput, NodeId, ResolvePeersOptions, ResolvedTree,
+    WorkspacePeerSettings, add_lazy_direct_dep, child_edge, package,
+    package_with_peer_dependencies, tree_node,
 };
 
 type ProjectDependencies<'a> = &'a [(&'a str, &'a str)];
@@ -61,7 +64,7 @@ fn resolve_projects(
     dedupe: bool,
 ) -> WorkspaceResolvePeersResult {
     let (mut tree, importers) = build_projects(projects, packages);
-    resolve_peers_workspace(
+    resolve_with_cache_oracle(
         &mut tree,
         &importers,
         std::path::Path::new("/repo"),
@@ -72,61 +75,61 @@ fn resolve_projects(
 
 #[test]
 fn project_peer_provider_keeps_its_nested_peer_variant() {
-    for dedupe in [false, true] {
-        let (mut tree, importers) = build_projects(
+    let (mut tree, importers) = build_projects(
+        &[
+            &[("provider", "provider@1.0.0"), ("peer", "peer@1.0.0"), ("wrapper", "wrapper@1.0.0")],
             &[
-                &[
-                    ("provider", "provider@1.0.0"),
-                    ("peer", "peer@1.0.0"),
-                    ("wrapper", "wrapper@1.0.0"),
-                ],
-                &[
-                    ("provider", "provider@1.0.0"),
-                    ("peer", "peer@1.0.0"),
-                    ("consumer", "consumer@1.0.0"),
-                ],
+                ("provider", "provider@1.0.0"),
+                ("peer", "peer@1.0.0"),
+                ("consumer", "consumer@1.0.0"),
             ],
-            &[
-                (
-                    "provider",
-                    &[("inner", "*", false)],
-                    &[("peer", "peer@2.0.0"), ("inner", "inner@1.0.0")],
-                ),
-                ("inner", &[("peer", "*", false)], &[("peer", "peer@2.0.0")]),
-                ("consumer", &[("provider", "*", false)], &[]),
-                ("wrapper", &[], &[("consumer", "consumer@1.0.0")]),
-            ],
+        ],
+        &[
+            (
+                "provider",
+                &[("inner", "*", false)],
+                &[("peer", "peer@2.0.0"), ("inner", "inner@1.0.0")],
+            ),
+            ("inner", &[("peer", "*", false)], &[("peer", "peer@2.0.0")]),
+            ("consumer", &[("provider", "*", false)], &[]),
+            ("wrapper", &[], &[("consumer", "consumer@1.0.0")]),
+        ],
+    );
+    for (index, importer) in importers.iter().enumerate() {
+        let peer_id = if index == 0 { "peer@1.0.0" } else { "peer@2.0.0" };
+        let peer = NodeId::leaf(peer_id);
+        let inner = NodeId::next();
+        tree.dependencies_tree.insert(peer.clone(), tree_node(peer_id, BTreeMap::new(), 1));
+        tree.dependencies_tree.insert(inner.clone(), tree_node("inner@1.0.0", BTreeMap::new(), 1));
+        tree.dependencies_tree.insert(
+            importer.direct[0].node_id.clone(),
+            tree_node(
+                "provider@1.0.0",
+                BTreeMap::from([("peer".into(), peer), ("inner".into(), inner)]),
+                0,
+            ),
         );
-        for (index, importer) in importers.iter().enumerate() {
-            let peer_id = if index == 0 { "peer@1.0.0" } else { "peer@2.0.0" };
-            let peer = NodeId::leaf(peer_id);
-            let inner = NodeId::next();
-            tree.dependencies_tree.insert(peer.clone(), tree_node(peer_id, BTreeMap::new(), 1));
-            tree.dependencies_tree.insert(
-                inner.clone(),
-                tree_node("inner@1.0.0", BTreeMap::new(), 1),
+    }
+    for dedupe in [false, true] {
+        for shift in 0..3 {
+            let mut tree = tree.clone();
+            let mut importers = importers.clone();
+            for importer in &mut importers {
+                importer.direct.rotate_left(shift);
+            }
+            let result = resolve_with_cache_oracle(
+                &mut tree,
+                &importers,
+                std::path::Path::new("/repo"),
+                WorkspacePeerSettings { dedupe_peer_dependents: dedupe, ..Default::default() },
+                ResolvePeersOptions::default(),
             );
-            tree.dependencies_tree.insert(
-                importer.direct[0].node_id.clone(),
-                tree_node(
-                    "provider@1.0.0",
-                    BTreeMap::from([("peer".into(), peer), ("inner".into(), inner)]),
-                    0,
-                ),
+            let direct = &result.direct_dependencies_by_importer["1"];
+            assert_eq!(
+                result.graph[&direct["consumer"]].edges.children["provider"],
+                direct["provider"],
             );
         }
-        let result = resolve_peers_workspace(
-            &mut tree,
-            &importers,
-            std::path::Path::new("/repo"),
-            WorkspacePeerSettings { dedupe_peer_dependents: dedupe, ..Default::default() },
-            ResolvePeersOptions::default(),
-        );
-        let direct = &result.direct_dependencies_by_importer["1"];
-        assert_eq!(
-            result.graph[&direct["consumer"]].edges.children["provider"],
-            direct["provider"],
-        );
     }
 }
 
@@ -192,7 +195,7 @@ fn locked_optional_peers_do_not_split_an_unbound_project() {
     }
     for dedupe in [false, true] {
         let mut tree = tree.clone();
-        let result = resolve_peers_workspace(
+        let result = resolve_with_cache_oracle(
             &mut tree,
             &importers,
             std::path::Path::new("/repo"),

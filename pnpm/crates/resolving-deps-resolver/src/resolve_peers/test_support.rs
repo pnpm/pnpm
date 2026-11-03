@@ -19,6 +19,13 @@ use pnpm_resolving_resolver_base::{PkgResolutionId, ResolveResult};
 use rustc_hash::FxHashMap as HashMap;
 use std::{collections::BTreeMap, str::FromStr, sync::Arc};
 
+#[derive(Debug, Default, Clone, Copy)]
+pub(crate) enum PeerCacheMode {
+    #[default]
+    Enabled,
+    Bypass,
+}
+
 pub(super) fn tree_node(
     pkg_id: &str,
     children: BTreeMap<String, NodeId>,
@@ -149,4 +156,68 @@ pub(super) fn resolve_result(name: &str, version: &str) -> ResolveResult {
             non_deprecated_alternative: None,
         },
     }
+}
+
+/// Compare acyclic peer graphs exactly. Cache sharing can change the
+/// unrolling of peer cycles, which requires binding assertions instead.
+pub(super) fn resolve_with_cache_oracle(
+    tree: &mut ResolvedTree,
+    importers: &[super::ImporterPeerInput],
+    lockfile_dir: &std::path::Path,
+    settings: super::WorkspacePeerSettings,
+    opts: ResolvePeersOptions,
+) -> super::WorkspaceResolvePeersResult {
+    let mut full_tree = tree.clone();
+    let mut full_opts = opts.clone();
+    full_opts.cache_mode = PeerCacheMode::Bypass;
+    let cached = super::resolve_peers_workspace(tree, importers, lockfile_dir, settings, opts);
+    let full = super::resolve_peers_workspace(
+        &mut full_tree,
+        importers,
+        lockfile_dir,
+        settings,
+        full_opts,
+    );
+    assert_eq!(cached.direct_dependencies_by_importer, full.direct_dependencies_by_importer);
+    assert_eq!(
+        cached.graph.len(),
+        full.graph.len(),
+        "cached={:?}, full={:?}",
+        cached.graph.keys().collect::<Vec<_>>(),
+        full.graph.keys().collect::<Vec<_>>(),
+    );
+    for (path, cached_node) in &cached.graph {
+        let full_node = &full.graph[path];
+        assert_eq!(cached_node.edges.children, full_node.edges.children, "{path}");
+        assert_eq!(
+            cached_node.edges.optional_children, full_node.edges.optional_children,
+            "{path}",
+        );
+        assert_eq!(
+            cached_node.edges.resolved_peer_names, full_node.edges.resolved_peer_names,
+            "{path}",
+        );
+        assert_eq!(
+            cached_node.edges.transitive_peer_dependencies,
+            full_node.edges.transitive_peer_dependencies,
+            "{path}",
+        );
+    }
+    // Cache hits summarize descendant locations at the reused subtree.
+    let missing = |issues: &crate::PeerDependencyIssues| -> std::collections::BTreeSet<_> {
+        issues.missing
+            .iter()
+            .flat_map(|(name, entries)| {
+                entries
+                    .iter()
+                    .map(move |entry| (name.clone(), entry.raw_range.clone(), entry.optional))
+            })
+            .collect()
+    };
+    for (importer, cached_issues) in &cached.peer_dependency_issues_by_importer {
+        let full_issues = &full.peer_dependency_issues_by_importer[importer];
+        assert_eq!(missing(cached_issues), missing(full_issues), "{importer}");
+        assert_eq!(cached_issues.bad, full_issues.bad, "{importer}");
+    }
+    cached
 }

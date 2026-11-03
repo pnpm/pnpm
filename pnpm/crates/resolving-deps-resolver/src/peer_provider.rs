@@ -36,7 +36,9 @@ use pnpm_resolving_resolver_base::{
 use pnpm_semver_include_prerelease::IncludePrereleaseRange;
 use serde_json::Value;
 
-use crate::{parent_pkg_aliases::ParentPkgAliases, resolve_peers::satisfies_with_prereleases};
+use crate::{
+    PeerDep, parent_pkg_aliases::ParentPkgAliases, resolve_peers::satisfies_with_prereleases,
+};
 
 /// One workspace-root dep the loop can satisfy a peer with.
 #[derive(Debug, Clone)]
@@ -421,8 +423,9 @@ pub(crate) fn optional_peer_specifier(
 
 /// The provider [`provider_for`] binds a peer to.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum ProviderPick<Provider> {
-    Bound { provider: Provider, pinned_by_lockfile: bool },
+pub(crate) enum ProviderPick<Inherited, Locked = Inherited> {
+    Inherited(Inherited),
+    Locked(Locked),
     Missing,
 }
 
@@ -434,30 +437,28 @@ pub(crate) struct LockedProvider<'version, Provider> {
 }
 
 /// What a node's scope offers for one of its declared peers.
-pub(crate) struct PeerScope<'version, Provider, MustWin> {
-    /// The provider the nearest ancestor binds the name to.
-    pub(crate) inherited: Option<Provider>,
-    /// Whether [`Self::inherited`] wins over a locked provider. Only asked
-    /// when a locked provider would otherwise win.
+pub(crate) struct PeerScope<'version, Inherited, Locked, MustWin> {
+    pub(crate) inherited: Option<Inherited>,
+    /// Only evaluated when an eligible locked provider exists.
     pub(crate) inherited_must_win: MustWin,
-    pub(crate) locked: Option<LockedProvider<'version, Provider>>,
+    pub(crate) locked: Option<LockedProvider<'version, Locked>>,
 }
 
-/// Bind the peer `peer_range` of a node to a provider in `scope`. The
-/// locked provider wins when the inherited one need not win and it
-/// satisfies the range. Otherwise the inherited provider binds.
-pub(crate) fn provider_for<Provider>(
-    peer_range: &str,
-    scope: PeerScope<'_, Provider, impl FnOnce() -> bool>,
-) -> ProviderPick<Provider> {
-    if let Some(locked) = scope.locked
+/// A compatible locked provider wins unless the current provider must win.
+/// An optional peer requires a current binding before a locked provider is eligible.
+pub(crate) fn provider_for<Inherited, Locked>(
+    peer: &PeerDep,
+    scope: PeerScope<'_, Inherited, Locked, impl FnOnce() -> bool>,
+) -> ProviderPick<Inherited, Locked> {
+    if (!peer.optional || scope.inherited.is_some())
+        && let Some(locked) = scope.locked
         && !(scope.inherited_must_win)()
-        && satisfies_with_prereleases(locked.version, &get_peer_version_range(peer_range))
+        && satisfies_with_prereleases(locked.version, &get_peer_version_range(&peer.version))
     {
-        return ProviderPick::Bound { provider: locked.provider, pinned_by_lockfile: true };
+        return ProviderPick::Locked(locked.provider);
     }
     match scope.inherited {
-        Some(provider) => ProviderPick::Bound { provider, pinned_by_lockfile: false },
+        Some(provider) => ProviderPick::Inherited(provider),
         None => ProviderPick::Missing,
     }
 }
