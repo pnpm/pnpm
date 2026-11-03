@@ -76,26 +76,33 @@ pub fn extract_attachments(body: &mut Value) -> Result<Vec<PendingAttachment>, R
                 reason: "expected object".to_string(),
             });
         };
-        let (payload, declared_integrity) =
-            match (value_obj.remove("data"), value_obj.remove("integrity")) {
-                (Some(Value::String(data)), None) => (AttachmentPayload::Inline(data), None),
-                (Some(Value::String(data)), Some(Value::String(integrity))) => {
-                    (AttachmentPayload::Inline(data), Some(integrity))
-                }
-                (None, Some(Value::String(integrity))) => {
-                    (AttachmentPayload::Staged { integrity: integrity.clone() }, Some(integrity))
-                }
-                _ => {
-                    return Err(RegistryError::InvalidAttachment {
-                        filename,
-                        reason: "needs a string `data`, a string `integrity` naming a staged \
-                                 archive, or both"
-                            .to_string(),
-                    });
-                }
-            };
+        let Some((payload, declared_integrity)) = attachment_payload(&mut value_obj) else {
+            return Err(RegistryError::InvalidAttachment {
+                filename,
+                reason: "needs a string `data`, a string `integrity` naming a staged archive, \
+                         or both"
+                    .to_string(),
+            });
+        };
         let declared_length = value_obj.get("length").and_then(Value::as_u64);
         out.push(PendingAttachment { filename, payload, declared_length, declared_integrity });
     }
     Ok(out)
+}
+
+/// Where an attachment's bytes come from, and the integrity it declares, or
+/// `None` when it names neither inline bytes nor a staged archive.
+fn attachment_payload(
+    attachment: &mut serde_json::Map<String, Value>,
+) -> Option<(AttachmentPayload, Option<String>)> {
+    match (attachment.remove("data"), attachment.remove("integrity")) {
+        (Some(Value::String(data)), None) => Some((AttachmentPayload::Inline(data), None)),
+        (Some(Value::String(data)), Some(Value::String(integrity))) => {
+            Some((AttachmentPayload::Inline(data), Some(integrity)))
+        }
+        (None, Some(Value::String(integrity))) => {
+            Some((AttachmentPayload::Staged { integrity: integrity.clone() }, Some(integrity)))
+        }
+        _ => None,
+    }
 }

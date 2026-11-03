@@ -139,7 +139,7 @@ fn stored_variant(
         .iter()
         .find(|item| item.version == *version && item.tar.tag == *named)
     else {
-        return Err(bad_request(format!("variant {named:?} of {version} has no archive",)));
+        return Err(bad_request(format!("variant {named:?} of {version} has no archive")));
     };
     let manifest = verified_manifest(found, primary).map_err(reject)?;
     let platforms = declared_platforms(manifest).map_err(reject)?;
