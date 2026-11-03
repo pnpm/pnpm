@@ -63,6 +63,106 @@ impl Server {
     }
 }
 
+/// Set to a libSQL URL, such as a throwaway Turso database's, the conformance
+/// tests run on that database instead of the local primary. Every test drops
+/// all of its tables first, so never name a database whose data you keep.
+/// The tests take turns on it, so run them with `--test-threads 1`; nextest
+/// would otherwise time out the ones left waiting.
+const EXTERNAL_URL: &str = "PNPR_TEST_LIBSQL_URL";
+
+/// The auth token for [`EXTERNAL_URL`].
+const EXTERNAL_AUTH_TOKEN: &str = "PNPR_TEST_LIBSQL_AUTH_TOKEN";
+
+/// Locked by the test that has the external database, so the tests take
+/// turns on it even from the separate processes nextest runs them in.
+fn external_turn_file() -> std::path::PathBuf {
+    std::env::temp_dir().join("pnpr-test-libsql.lock")
+}
+
+/// The primary a conformance test runs on: a local one of its own, or the
+/// database [`EXTERNAL_URL`] names, emptied for this test and held until it
+/// ends.
+pub(super) enum ConformancePrimary {
+    Local(Server),
+    External {
+        settings: LibsqlSettings,
+        /// Where the instances keep their replicas.
+        dir: TempDir,
+        /// Holds the lock of [`external_turn_file`] until the test ends.
+        _turn: std::fs::File,
+    },
+}
+
+pub(super) async fn conformance_primary() -> ConformancePrimary {
+    let Ok(url) = std::env::var(EXTERNAL_URL) else {
+        return ConformancePrimary::Local(server().await);
+    };
+    let turn = tokio::task::spawn_blocking(|| {
+        let file = std::fs::File::create(external_turn_file()).unwrap();
+        file.lock().unwrap();
+        file
+    })
+    .await
+    .unwrap();
+    let settings = LibsqlSettings {
+        url,
+        auth_token: std::env::var(EXTERNAL_AUTH_TOKEN).ok(),
+        replica_path: None,
+        sync_interval_secs: None,
+        max_connections: None,
+    };
+    drop_tables(&settings).await;
+    ConformancePrimary::External { settings, dir: TempDir::new().unwrap(), _turn: turn }
+}
+
+/// Drop every table of the database `settings` name, the newest first, so a
+/// table goes before the tables it references.
+async fn drop_tables(settings: &LibsqlSettings) {
+    let connector = pnpr_libsql::connector(settings, EXTERNAL_URL).unwrap();
+    let database = pnpr_libsql::open_primary(settings, connector).await.unwrap();
+    let connection = database.connect().unwrap();
+    let mut rows = connection
+        .query(
+            "SELECT name FROM sqlite_schema WHERE type = 'table' AND name NOT LIKE 'sqlite_%' \
+             ORDER BY rowid DESC",
+            (),
+        )
+        .await
+        .unwrap();
+    let mut tables = Vec::new();
+    while let Some(row) = rows.next().await.unwrap() {
+        tables.push(row.get::<String>(0).unwrap());
+    }
+    for table in tables {
+        let table = table.replace('"', "\"\"");
+        connection
+            .execute(&format!("DROP TABLE \"{table}\""), ())
+            .await
+            .unwrap();
+    }
+}
+
+impl ConformancePrimary {
+    /// The metadata of one pnpr instance on this primary, as
+    /// [`Server::instance`] opens it.
+    pub(super) fn instance(
+        &self,
+        replica: Option<&str>,
+        sync_interval_secs: u64,
+    ) -> Arc<SqlMetadata> {
+        match self {
+            Self::Local(server) => server.instance(replica, sync_interval_secs),
+            Self::External { settings, dir, .. } => {
+                Arc::new(SqlMetadata::open_libsql(&LibsqlSettings {
+                    replica_path: replica.map(|name| dir.path().join(name).join("replica.db")),
+                    sync_interval_secs: Some(sync_interval_secs),
+                    ..settings.clone()
+                }))
+            }
+        }
+    }
+}
+
 fn views(database: &Arc<SqlMetadata>) -> Arc<dyn PackageMetadata> {
     Arc::new(database.view("", Ecosystem::Npm))
 }
