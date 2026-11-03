@@ -52,6 +52,7 @@
     "ci:rust-test": "just test-pacquet",
     "ci:pnpr-test": "just test-pnpr",
     "ci:rust-clippy": "cargo clippy --locked --workspace --all-targets -- -D warnings",
+    "ci:pnpr-auth-clippy": "cargo clippy --locked -p pnpr-auth --all-targets --all-features -- -D warnings",
     "ci:rust-doc": "cargo doc --no-deps --workspace --document-private-items",
     "ci:rust-deny": "cargo deny check",
     "ci:rust-layers": "cargo run --locked --quiet -p pnpm-crate-layers -- check",
