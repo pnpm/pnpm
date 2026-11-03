@@ -738,3 +738,37 @@ fn snapshot_cache_key_for_package_variants_follows_the_host() {
     let value = received.value.expect("the host variant has a warm key");
     assert!(value.starts_with(&format!("sha512-{}", "B".repeat(20))), "{value}");
 }
+/// A git-hosted tarball a `variations` resolution selects is keyed as a
+/// lone one is, so an explicit build denial narrows it to the not-built
+/// key as the fetch path does.
+#[test]
+fn snapshot_cache_key_for_a_git_hosted_variations_fallback_is_git_hosted() {
+    use pnpm_lockfile::{
+        LockfileResolution, PlatformAssetResolution, PlatformAssetTarget, RegistryResolution,
+        VariationsResolution,
+    };
+    let pkg = key("foo", "1.0.0");
+    let mut metadata = git_hosted_tarball_metadata();
+    let fallback = metadata.resolution.clone();
+    metadata.resolution = LockfileResolution::Variations(VariationsResolution {
+        variants: vec![PlatformAssetResolution {
+            resolution: LockfileResolution::Registry(RegistryResolution {
+                integrity: format!("sha512-{}==", "B".repeat(86)).parse().expect("parse integrity"),
+                revision: None,
+            }),
+            targets: vec![PlatformAssetTarget {
+                os: "aix".to_string(),
+                cpu: "ppc64".to_string(),
+                ..Default::default()
+            }],
+        }],
+        fallback: Some(Box::new(fallback)),
+        revision: None,
+    });
+    let packages = HashMap::from([(pkg.clone(), metadata)]);
+
+    let received = snapshot_cache_key(&pkg, &packages, false, &host_platform_selector())
+        .expect("snapshot_cache_key must not error");
+    assert_eq!(received.value, Some(format!("{pkg}\tbuilt")));
+    assert!(received.is_git_hosted);
+}

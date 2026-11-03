@@ -280,25 +280,36 @@ pub(super) fn variant_cache_key(
         variations,
         runtime_platform_selector,
     );
-    let value = variations
+    let no_key = SnapshotCacheKey { value: None, is_git_hosted: false };
+    let Some(selected) = variations
         .select(&platform)
         .ok()
         .flatten()
-        .and_then(|selected| match selected.resolution() {
-            LockfileResolution::Binary(binary) => {
-                Some(store_index_key(&binary.integrity.to_string(), pkg_id))
-            }
-            // A registry package's variant or primary archive, keyed by
-            // its own digest like any registry archive.
-            resolution @ (LockfileResolution::Registry(_) | LockfileResolution::Tarball(_)) => {
-                store_index_key_for_resolution(resolution, pkg_id, built)
-            }
-            // The cold path raises the typed
-            // `UnsupportedVariantResolution` error; we just skip the
-            // warm key.
-            _ => None,
-        });
-    Ok(SnapshotCacheKey { value, is_git_hosted: false })
+    else {
+        return Ok(no_key);
+    };
+    match selected.resolution() {
+        LockfileResolution::Binary(binary) => Ok(SnapshotCacheKey {
+            value: Some(store_index_key(&binary.integrity.to_string(), pkg_id)),
+            is_git_hosted: false,
+        }),
+        // A tarball is keyed as a lone tarball resolution is: a git-hosted
+        // one under its built or not-built key, which `derive_cache_keys`
+        // narrows on an explicit build denial, and one the downloader
+        // refuses under no key.
+        resolution @ LockfileResolution::Tarball(tarball) => {
+            tarball_cache_key(tarball, resolution, pkg_id, !built)
+        }
+        // A registry package's variant or primary archive, keyed by its own
+        // digest like any registry archive.
+        resolution @ LockfileResolution::Registry(_) => Ok(SnapshotCacheKey {
+            value: store_index_key_for_resolution(resolution, pkg_id, built),
+            is_git_hosted: false,
+        }),
+        // The cold path raises the typed `UnsupportedVariantResolution`
+        // error; we just skip the warm key.
+        _ => Ok(no_key),
+    }
 }
 /// Rejects warm reuse when the downloader would refuse missing integrity.
 /// The key must match the fetcher's git-hosted and script-policy variants.
