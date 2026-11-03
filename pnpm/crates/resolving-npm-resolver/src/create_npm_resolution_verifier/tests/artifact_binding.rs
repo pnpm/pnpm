@@ -710,3 +710,47 @@ async fn checks_a_variant_on_its_route_against_the_registry_it_is_fetched_from()
     assert_eq!(code, "MINIMUM_RELEASE_AGE_VIOLATION");
     metadata_mock.assert_async().await;
 }
+
+/// A variant's URL matches its route under the same equivalences as a
+/// primary's URL matches `dist.tarball`: scheme and an encoded scope
+/// separator do not matter.
+#[tokio::test]
+async fn matches_a_variant_route_up_to_scheme_and_scope_encoding() {
+    let verifier = create_npm_resolution_verifier(default_opts("https://registry.example/"));
+    let targets = vec![pnpm_lockfile::PlatformAssetTarget {
+        os: "linux".to_string(),
+        cpu: "x64".to_string(),
+        ..Default::default()
+    }];
+    let tag = PlatformAssetResolution {
+        resolution: LockfileResolution::Registry(RegistryResolution {
+            integrity: fake_integrity(),
+            revision: None,
+        }),
+        targets: targets.clone(),
+    }
+    .variant_tag()
+    .expect("a variant tag");
+    let name: PkgName = "@scope/variations-pkg".parse().expect("parse");
+    for tarball in [
+        format!("http://registry.example/@scope/variations-pkg@1.0.0/variants/{tag}"),
+        format!("https://registry.example/@scope%2fvariations-pkg@1.0.0/variants/{tag}"),
+    ] {
+        let resolution = LockfileResolution::Variations(VariationsResolution {
+            fallback: None,
+            revision: None,
+            variants: vec![PlatformAssetResolution {
+                resolution: LockfileResolution::Tarball(TarballResolution {
+                    tarball: tarball.clone(),
+                    integrity: Some(fake_integrity()),
+                    revision: None,
+                    git_hosted: None,
+                    path: None,
+                }),
+                targets: targets.clone(),
+            }],
+        });
+        let result = verifier.verify(&resolution, ctx(&name, "1.0.0")).await;
+        assert_eq!(result, ResolutionVerification::Ok, "{tarball}");
+    }
+}

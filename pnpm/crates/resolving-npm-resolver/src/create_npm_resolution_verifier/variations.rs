@@ -1,7 +1,7 @@
 //! A `variations` resolution is verified archive by archive: each
 //! variant, then the fallback that a host no variant matches installs.
 
-use super::NpmResolutionVerifier;
+use super::{NpmResolutionVerifier, artifact_binding::same_tarball_url};
 use pnpm_lockfile::LockfileResolution;
 use pnpm_resolving_resolver_base::{ResolutionVerification, VerifyCtx};
 
@@ -27,7 +27,8 @@ impl NpmResolutionVerifier {
     }
 
     /// The registry whose route, `<name>@<version>[+r<revision>]/variants/<tag>`,
-    /// the variant's tarball URL is. `None` for a variant with no URL or no
+    /// the variant's tarball URL is, compared as the primary's URL is
+    /// compared with `dist.tarball`. `None` for a variant with no URL or no
     /// integrity, and for a URL off the route, which stays bound to the
     /// version's `dist.tarball` and so is refused.
     fn variant_route_registry(
@@ -50,7 +51,7 @@ impl NpmResolutionVerifier {
             variations.revision,
             &registry,
         )?;
-        (route == tarball.tarball).then_some(registry)
+        same_tarball_url(&route, &tarball.tarball).then_some(registry)
     }
 
     /// A variant on its own route is verified as the integrity-only registry
