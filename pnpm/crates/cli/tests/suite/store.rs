@@ -463,6 +463,181 @@ fn store_add_fetches_a_package_without_touching_the_project() {
     );
 }
 
+/// The hash a lockfile entry pins a registry package's tarball by.
+#[derive(Clone, Copy, PartialEq)]
+enum PinnedHash {
+    Sha512,
+    /// What a lockfile records for a package published before npm added
+    /// sha512 integrities.
+    Sha1,
+    /// `lockfile.integrityTarget: tar`.
+    Tar,
+}
+
+/// <https://github.com/pnpm/pnpm/issues/2978>
+///
+/// `spec_prefix` is prepended to each dependency's version. A non-empty one
+/// is declared as a named registry, which qualifies the lockfile keys.
+fn assert_downloaded_tarballs_warm_the_store_for_an_offline_install(
+    pinned: PinnedHash,
+    spec_prefix: &str,
+) {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry_with_own_storage();
+    if let Some(prefix) = spec_prefix.strip_suffix(':') {
+        let registry = npmrc_info.mock_instance.url();
+        _utils::append_workspace_yaml_key(
+            &workspace,
+            "namedRegistries",
+            format!("{{ {prefix}: '{registry}' }}"),
+        );
+    }
+    let version = format!("{spec_prefix}100.0.0");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": {
+                "@pnpm.e2e/foo": version,
+                "@pnpm.e2e/bar": version,
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    if pinned == PinnedHash::Tar {
+        _utils::append_workspace_yaml_key(&workspace, "lockfile", "{ integrityTarget: tar }");
+    }
+    pacquet
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+    // Learning tar hashes downloads the packages, so start the store over.
+    if npmrc_info.store_dir.exists() {
+        fs::remove_dir_all(&npmrc_info.store_dir).expect("empty the store");
+    }
+
+    let storage = root.path().join("registry-storage");
+    let tarballs = ["@pnpm.e2e/foo", "@pnpm.e2e/bar"].map(|package| {
+        pnpr_fixtures::tarball_path(&storage, package, "100.0.0")
+    });
+    if pinned == PinnedHash::Sha1 {
+        pin_lockfile_to_sha1(&workspace.join("pnpm-lock.yaml"), &tarballs);
+    }
+    pacquet_at(&workspace)
+        .with_args(["store", "add"])
+        .with_args(&tarballs)
+        .assert()
+        .success();
+
+    let output = pacquet_at(&workspace)
+        .with_args(["install", "--offline", "--frozen-lockfile"])
+        .output()
+        .expect("run the offline install");
+    assert!(output.status.success(), "{output:?}");
+    for name in ["foo", "bar"] {
+        assert!(
+            workspace
+                .join("node_modules/@pnpm.e2e")
+                .join(name)
+                .join("package.json")
+                .exists(),
+        );
+    }
+}
+
+fn pin_lockfile_to_sha1(lockfile_path: &Path, tarballs: &[PathBuf]) {
+    let mut lockfile = fs::read_to_string(lockfile_path).expect("read pnpm-lock.yaml");
+    for tarball in tarballs {
+        let bytes = fs::read(tarball).expect("read the tarball");
+        let digest = |algorithm| {
+            ssri::IntegrityOpts::new()
+                .algorithm(algorithm)
+                .chain(&bytes)
+                .result()
+                .to_string()
+        };
+        let sha512 = digest(ssri::Algorithm::Sha512);
+        assert!(lockfile.contains(&sha512), "{sha512} not in\n{lockfile}");
+        lockfile = lockfile.replace(&sha512, &digest(ssri::Algorithm::Sha1));
+    }
+    fs::write(lockfile_path, lockfile).expect("write pnpm-lock.yaml");
+}
+
+#[test]
+fn store_add_of_downloaded_tarballs_serves_lockfiles_that_pin_sha512() {
+    assert_downloaded_tarballs_warm_the_store_for_an_offline_install(PinnedHash::Sha512, "");
+}
+
+#[test]
+fn store_add_of_downloaded_tarballs_serves_lockfiles_that_pin_sha1() {
+    assert_downloaded_tarballs_warm_the_store_for_an_offline_install(PinnedHash::Sha1, "");
+}
+
+#[test]
+fn store_add_of_downloaded_tarballs_serves_lockfiles_that_pin_the_tar() {
+    assert_downloaded_tarballs_warm_the_store_for_an_offline_install(PinnedHash::Tar, "");
+}
+
+/// The local resolver reads a relative tarball path from `--dir`, so the
+/// tarball the store gets is that one, not a same-named file in the working
+/// directory.
+#[test]
+fn store_add_reads_a_relative_tarball_from_the_dir_option() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry_with_own_storage();
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": { "@pnpm.e2e/foo": "100.0.0" } }).to_string(),
+    )
+    .expect("write package.json");
+    pacquet
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+    if npmrc_info.store_dir.exists() {
+        fs::remove_dir_all(&npmrc_info.store_dir).expect("empty the store");
+    }
+
+    let storage = root.path().join("registry-storage");
+    for (dir, package) in
+        [(&workspace, "@pnpm.e2e/foo"), (&root.path().to_path_buf(), "@pnpm.e2e/bar")]
+    {
+        fs::create_dir_all(dir.join("vendor")).expect("create vendor");
+        fs::copy(
+            pnpr_fixtures::tarball_path(&storage, package, "100.0.0"),
+            dir.join("vendor/pkg.tgz"),
+        )
+        .expect("copy the tarball");
+    }
+    pacquet_at(root.path())
+        .with_args(["--dir"])
+        .with_arg(&workspace)
+        .with_args(["store", "add", "./vendor/pkg.tgz"])
+        .assert()
+        .success();
+
+    let output = pacquet_at(&workspace)
+        .with_args(["install", "--offline", "--frozen-lockfile"])
+        .output()
+        .expect("run the offline install");
+    assert!(output.status.success(), "{output:?}");
+}
+
+#[test]
+fn store_add_of_downloaded_tarballs_serves_named_registry_lockfile_keys() {
+    assert_downloaded_tarballs_warm_the_store_for_an_offline_install(PinnedHash::Sha512, "work:");
+}
+
 #[test]
 fn store_add_waits_for_the_store_operation_lock() {
     let CommandTempCwd {
