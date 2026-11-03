@@ -97,11 +97,11 @@ pub(super) async fn run<Reporter: self::Reporter>(
     dir: &Path,
     packages: &[String],
 ) -> miette::Result<()> {
-    if packages.is_empty() {
-        return Ok(());
-    }
     if config.frozen_store {
         return Err(FrozenStoreAddError.into());
+    }
+    if packages.is_empty() {
+        return Ok(());
     }
     Reporter::emit(&LogEvent::Global(GlobalLog {
         level: LogLevel::Debug,
