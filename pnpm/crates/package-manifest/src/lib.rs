@@ -3,7 +3,7 @@ pub use bins::{
     MAX_PRECALCULATED_BINS, MAX_PRECALCULATED_BINS_BYTES, PackageBin, ScriptRuntime,
     declared_bin_entries, extension_program, infer_script_runtime_from_head,
     infer_script_runtime_from_shebang, is_safe_bin_name, is_within_precalculated_bins_budget,
-    manifest_declares_bins, normalize_package_relative_path, parse_shebang,
+    manifest_declares_bins, normalize_bin_path, normalize_package_relative_path, parse_shebang,
     parse_shebang_from_bytes, resolve_package_bins, resolve_package_bins_from_cas_paths,
     resolve_package_bins_with, serialize_precalculated_bins, unscoped_bin_name,
     verify_package_bins,

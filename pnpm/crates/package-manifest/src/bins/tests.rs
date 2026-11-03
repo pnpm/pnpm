@@ -205,3 +205,41 @@ fn caps_precalculated_bins_count_and_serialized_size() {
     }
     assert_eq!(resolve_package_bins(&manifest, &over_bytes), None);
 }
+
+#[test]
+fn bin_paths_clamp_parent_segments_without_relaxing_metadata_validation() {
+    for raw in [
+        "../dist/cli.js",
+        "../../dist/cli.js",
+        "lib/../../dist/cli.js",
+        r"dist\cli.js",
+        r"..\dist\cli.js",
+    ] {
+        assert_eq!(super::normalize_bin_path(raw).as_deref(), Some("dist/cli.js"));
+        assert_eq!(normalize_package_relative_path(raw), None);
+        for bin in [json!(raw), json!({ "tool": raw })] {
+            let manifest = json!({ "name": "tool", "bin": bin });
+            let files = BTreeMap::from([("dist/cli.js".to_string(), None)]);
+            let bins = resolve_package_bins(&manifest, &files).expect("resolve internal target");
+            assert_eq!(bins["tool"].path, "dist/cli.js");
+            let tmp = tempdir().unwrap();
+            let target = tmp.path().join("cli.js");
+            std::fs::write(&target, b"console.log(1)").unwrap();
+            let cas_paths = HashMap::from([("dist/cli.js".to_string(), target)]);
+            let precalculated = super::resolve_package_bins_from_cas_paths(&manifest, &cas_paths)
+                .expect("resolve CAS bin target");
+            assert!(verify_package_bins(&precalculated, &manifest, &cas_paths));
+            let mut escaped = precalculated;
+            escaped.get_mut("tool").unwrap().path = raw.to_string();
+            assert!(!verify_package_bins(&escaped, &manifest, &cas_paths));
+        }
+    }
+}
+
+#[test]
+fn colon_bin_targets_fall_back_from_strict_precalculated_metadata() {
+    let manifest = json!({ "name": "tool", "bin": { "tool": "../dist/cli:dev.js" } });
+    assert_eq!(super::normalize_bin_path("../dist/cli:dev.js").as_deref(), Some("dist/cli:dev.js"));
+    let files = BTreeMap::from([("dist/cli:dev.js".to_string(), None)]);
+    assert_eq!(resolve_package_bins(&manifest, &files), None);
+}

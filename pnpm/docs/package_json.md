@@ -18,6 +18,12 @@ pnpm does not read settings from the `pnpm` field of `package.json`. Define sett
 
 :::
 
+## bin
+
+The `bin` field maps command names to files inside the package. pnpm normalizes
+backslash separators to `/` and parent directory segments at the package root. For example,
+`../dist/cli.js` resolves to `dist/cli.js` inside the package.
+
 ## engines
 
 You can specify the version of Node and pnpm that your software works on:

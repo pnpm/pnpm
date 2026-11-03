@@ -1047,3 +1047,24 @@ test('global add reports every install group in one summary', async () => {
   expect(summary).toContain('+ is-positive')
   expect(summary).toContain('+ is-negative')
 })
+
+test.each(['../dist/cli.js', '..\\dist\\cli.js', ...isWindows() ? [] : ['../dist/cli:dev.js']])('global install normalizes bin target %s and removes the shim', async (target) => {
+  prepare()
+  const pnpmHome = path.resolve('../global/pnpm')
+  const env = { [PATH_NAME]: path.join(pnpmHome, 'bin'), PNPM_HOME: pnpmHome }
+  fs.mkdirSync('tool/dist', { recursive: true })
+  fs.writeFileSync('tool/package.json', JSON.stringify({
+    name: 'example-tool',
+    version: '1.0.0',
+    bin: { 'example-tool': target },
+  }))
+  const targetFile = target.endsWith(':dev.js') ? 'tool/dist/cli:dev.js' : 'tool/dist/cli.js'
+  fs.writeFileSync(targetFile, "#!/usr/bin/env node\nconsole.log('internal target')\n")
+  await execPnpm(['add', '-g', 'file:./tool'], { env })
+  const shim = path.join(pnpmHome, 'bin', isWindows() ? 'example-tool.cmd' : 'example-tool')
+  const result = crossSpawn.sync(shim, [], { encoding: 'utf8' })
+  expect(result.status).toBe(0)
+  expect(result.stdout.trim()).toBe('internal target')
+  await execPnpm(['remove', '-g', 'example-tool'], { env })
+  expect(fs.existsSync(shim)).toBe(false)
+})
