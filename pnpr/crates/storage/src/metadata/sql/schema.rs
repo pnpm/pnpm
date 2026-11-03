@@ -10,8 +10,15 @@ use super::{
     adapter::{Connection, Value},
     batch::WriteTransaction,
 };
+use fingerprinting::{canonical, statements};
 use pnpr_error::Result;
-use std::{fmt, sync::LazyLock};
+use std::fmt;
+
+mod fingerprinting;
+
+pub(super) use fingerprinting::fingerprint;
+#[cfg(test)]
+pub(super) use fingerprinting::{fingerprint_of, script};
 
 /// The table that marks a database as pnpr's metadata. Its one row is the
 /// [`fingerprint`] of the schema that created the tables.
@@ -311,79 +318,6 @@ pub(super) fn short(fingerprint: &str) -> &str {
         .unwrap_or(fingerprint)
 }
 
-/// The fingerprint of the schema this pnpr reads: the SHA-256, in hex, of
-/// [`script`] without its comment lines and with its whitespace normalized
-/// by [`canonical`]. Reformatting or commenting the statements leaves it
-/// unchanged; any other edit changes it.
-pub(super) fn fingerprint() -> &'static str {
-    static FINGERPRINT: LazyLock<String> = LazyLock::new(|| fingerprint_of(&script()));
-    &FINGERPRINT
-}
-
-/// Every statement of the schema: the metadata's [`TABLES`] and the
-/// [`MARKER_TABLE`].
-pub(super) fn script() -> String {
-    format!("{TABLES}\n{MARKER_TABLE};")
-}
-
-pub(super) fn fingerprint_of(script: &str) -> String {
-    let canonical = statements(script)
-        .map(|statement| canonical(&statement))
-        .collect::<Vec<_>>()
-        .join(";\n");
-    pnpm_crypto_hash::create_hex_hash(&canonical)
-}
-
-/// `statement` with its insignificant whitespace normalized: a run of
-/// whitespace between two words becomes one space, and whitespace beside
-/// punctuation or a quoted name or value is dropped, so `catalogs (` and
-/// `catalogs(` read the same. A quoted name or value is kept verbatim.
-fn canonical(statement: &str) -> String {
-    let mut canonical = String::with_capacity(statement.len());
-    let mut characters = statement.chars().peekable();
-    // Whether the last character written ends a word, and whether whitespace
-    // has been skipped since then.
-    let mut after_word = false;
-    let mut spaced = false;
-    while let Some(character) = characters.next() {
-        if character.is_whitespace() {
-            spaced = true;
-            continue;
-        }
-        let is_word = character.is_alphanumeric() || character == '_';
-        if is_word && after_word && spaced {
-            canonical.push(' ');
-        }
-        spaced = false;
-        canonical.push(character);
-        after_word = is_word;
-        if let Some(close) = closing_quote(character) {
-            // Copy the quoted text verbatim, including a doubled closing
-            // quote, which escapes it.
-            while let Some(quoted) = characters.next() {
-                canonical.push(quoted);
-                if quoted == close {
-                    if characters.peek() == Some(&close) {
-                        canonical.extend(characters.next());
-                    } else {
-                        break;
-                    }
-                }
-            }
-        }
-    }
-    canonical
-}
-
-/// The character that closes a quote `character` opens, if it opens one.
-fn closing_quote(character: char) -> Option<char> {
-    match character {
-        '\'' | '"' | '`' => Some(character),
-        '[' => Some(']'),
-        _ => None,
-    }
-}
-
 /// Create the schema in an empty database, and report what a database that
 /// is not empty holds unless it is this pnpr's schema.
 ///
@@ -459,21 +393,4 @@ pub(super) fn table_names(script: &str) -> Vec<String> {
                 .map(str::to_string)
         })
         .collect()
-}
-
-/// The statements of `script`, without its comments. Each runs on its own:
-/// a libSQL client re-renders the statements of a batch, and its rendering
-/// drops the comma between `STRICT` and `WITHOUT ROWID`.
-fn statements(script: &str) -> impl Iterator<Item = String> + '_ {
-    let code: String = script
-        .lines()
-        .filter(|line| !line.trim_start().starts_with("--"))
-        .collect::<Vec<_>>()
-        .join("\n");
-    code.split(';')
-        .map(str::trim)
-        .filter(|statement| !statement.is_empty())
-        .map(str::to_string)
-        .collect::<Vec<_>>()
-        .into_iter()
 }
