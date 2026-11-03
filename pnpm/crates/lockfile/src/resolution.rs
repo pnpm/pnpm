@@ -415,11 +415,16 @@ impl LockfileResolution {
 
     /// Whether this records a registry package's platform variants, which
     /// only the [`PLATFORM_VARIANTS_LOCKFILE_MAJOR`](crate::PLATFORM_VARIANTS_LOCKFILE_MAJOR)
-    /// format can hold. A runtime's `binary` archives use the same shape
-    /// and have been readable in format 9.0 all along.
+    /// format can hold: a `variations` resolution with an archive that is
+    /// not a runtime's `binary` one. A runtime's archives use the same shape
+    /// and have been readable in format 9.0 all along, including the empty
+    /// list a runtime resolver returns when it only computes a specifier.
     #[must_use]
     pub fn is_package_variants(&self) -> bool {
-        matches!(self, LockfileResolution::Variations(variations) if !variations.is_runtime())
+        let LockfileResolution::Variations(variations) = self else { return false };
+        variations
+            .resolutions()
+            .any(|resolution| !matches!(resolution, LockfileResolution::Binary(_)))
     }
 
     /// The `integrity` field a custom resolver wrote, in whatever form it

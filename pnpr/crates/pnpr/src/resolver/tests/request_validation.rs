@@ -114,6 +114,14 @@ fn reject_incompatible_lockfile_format_refuses_unsupported_versions() {
     }))
     .expect("request parses");
     assert!(reject_unusable_resolve(&compatible, &context).is_none());
+    // A client that reads only 12.0 can still reuse its own 12.0 lockfile,
+    // which a frozen resolve returns unchanged.
+    let frozen_12 = serde_json::from_value::<ResolveRequest>(serde_json::json!({
+        "acceptedLockfileFormats": ["12.0"],
+        "lockfile": { "lockfileVersion": "12.0", "importers": {} },
+    }))
+    .expect("request parses");
+    assert!(reject_unusable_resolve(&frozen_12, &context).is_none());
 }
 
 #[test]
@@ -129,9 +137,20 @@ fn rejects_a_resolved_format_the_client_did_not_accept() {
         .expect("unaccepted format is rejected");
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 
-    let unmarked_variants: pnpm_lockfile::Lockfile = serde_saphyr::from_str(
-        "lockfileVersion: '9.0'\nimporters: {}\npackages:\n  foo@1.0.0:\n    resolution:\n      type: variations\n      variants: []\n",
-    )
+    let unmarked_variants: pnpm_lockfile::Lockfile = serde_saphyr::from_str(concat!(
+        "lockfileVersion: '9.0'\n",
+        "importers: {}\n",
+        "packages:\n",
+        "  foo@1.0.0:\n",
+        "    resolution:\n",
+        "      type: variations\n",
+        "      variants:\n",
+        "        - resolution:\n",
+        "            integrity: sha512-gf6ZldcfCDyNXPRiW3lQjEP1Z9rrUM/4Cn7BZbv3SdTA82zxWRP8OmLwvGR974uuENhGCFgFdN11z3n1Ofpprg==\n",
+        "          targets:\n",
+        "            - os: linux\n",
+        "              cpu: x64\n",
+    ))
     .expect("unmarked variations lockfile parses");
     assert!(reject_unaccepted_lockfile_format(&legacy, &unmarked_variants).is_some());
 

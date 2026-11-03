@@ -296,17 +296,19 @@ fn overrides_have_inline_url_auth(value: &serde_json::Value) -> bool {
 }
 
 /// Refuse a request whose `acceptedLockfileFormats` names no format pnpr
-/// writes, or whose input lockfile is in a format the client did not accept.
+/// can return, or whose input lockfile is in a format the client did not
+/// accept. pnpr writes 9.0 and 13.0, and returns a frozen 12.0 lockfile
+/// unchanged.
 pub(super) fn reject_incompatible_lockfile_format(request: &ResolveRequest) -> Option<Response> {
     if let Some(formats) = request.accepted_lockfile_formats.as_ref()
         && !formats
             .iter()
             .filter_map(|format| format_major(format))
-            .any(|major| major == 9 || major == PLATFORM_VARIANTS_LOCKFILE_MAJOR)
+            .any(|major| matches!(major, 9 | 12 | PLATFORM_VARIANTS_LOCKFILE_MAJOR))
     {
         return Some(json_error_with_code(
             StatusCode::BAD_REQUEST,
-            "incompatible lockfile format: server supports formats 9.0 and 13.0",
+            "incompatible lockfile format: server supports formats 9.0, 12.0, and 13.0",
             Some("ERR_PNPR_INCOMPATIBLE_LOCKFILE_FORMAT"),
         ));
     }

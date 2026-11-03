@@ -82,9 +82,6 @@ pub(super) async fn stream_resolution(task: StreamedResolve) {
             return;
         }
     };
-    if reject_unaccepted_lockfile_format(&task.inputs.request, &lockfile, tx) {
-        return;
-    }
     if let Some(violations) = task.osv_violations(&lockfile) {
         let _ = tx.send(violations);
         return;
@@ -98,6 +95,12 @@ pub(super) async fn stream_resolution(task: StreamedResolve) {
             cache_secret: &task.cache_secret,
             lockfile: &lockfile,
         });
+    }
+    // Checked after the result is cached: the cache key leaves out the
+    // accepted formats and a cache hit runs this check too, so a client
+    // that retries is refused without resolving again.
+    if reject_unaccepted_lockfile_format(&task.inputs.request, &lockfile, tx) {
+        return;
     }
     let applied_policies = super::protocol::AppliedPolicies::from_request(&task.inputs.request);
     let _ = tx.send(done_frame(&lockfile, Some(&applied_policies)));

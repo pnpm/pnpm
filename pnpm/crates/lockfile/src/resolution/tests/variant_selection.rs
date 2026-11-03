@@ -131,3 +131,30 @@ fn a_variant_tag_is_derived_from_its_targets() {
     );
     assert_eq!(static_linux.variant_tag().as_deref(), Some("linux-x64+linux-x64-musl"));
 }
+
+/// Only a package's archives need the platform-variants lockfile format. A
+/// runtime's `binary` archives, or the empty list a runtime resolver returns
+/// when it only computes a specifier, stay readable in format 9.0.
+#[test]
+fn only_a_packages_archives_are_package_variants() {
+    let runtime = VariationsResolution::without_fallback(vec![variant(
+        "https://nodejs.org/node-linux-x64.tar.gz",
+        vec![target("linux", "x64", None)],
+    )]);
+    assert!(!LockfileResolution::Variations(runtime).is_package_variants());
+    let specifier_only = VariationsResolution::without_fallback(Vec::new());
+    assert!(!LockfileResolution::Variations(specifier_only).is_package_variants());
+    assert!(!registry(PRIMARY).is_package_variants());
+
+    let package = VariationsResolution::without_fallback(vec![package_variant(
+        MUSL,
+        vec![target("linux", "x64", Some("musl"))],
+    )]);
+    assert!(LockfileResolution::Variations(package).is_package_variants());
+    let fallback_only = VariationsResolution {
+        variants: Vec::new(),
+        fallback: Some(Box::new(registry(PRIMARY))),
+        revision: None,
+    };
+    assert!(LockfileResolution::Variations(fallback_only).is_package_variants());
+}
