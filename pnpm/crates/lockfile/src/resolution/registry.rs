@@ -343,7 +343,8 @@ impl DeclaredRegistryPrefixes {
 
     /// The smallest declared prefix of `registry`, the default registry
     /// included.
-    fn declared_prefix(&self, registry: &str) -> Option<&str> {
+    #[must_use]
+    pub fn declared_prefix(&self, registry: &str) -> Option<&str> {
         if self.prefix_by_registry.is_empty() {
             return None;
         }
