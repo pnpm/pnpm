@@ -153,6 +153,7 @@ async function checkEachProjectAgainstLockfile ({ ctx, opts }: MutationRun, froz
     ignoredOptionalDependencies: opts.ignoredOptionalDependencies,
     allowUnresolvedOptionalDependencies: frozenLockfile,
     workspacePackages,
+    catalogs: opts.catalogs,
   })
   return Promise.all(Object.values(ctx.projects).map(async ({ id, manifest, rootDir }) => {
     const importer = ctx.wantedLockfile.importers[id]
@@ -202,6 +203,7 @@ function findUnresolvedOptionalDependencies (
     excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
     ignoredOptionalDependencies: opts.ignoredOptionalDependencies,
     workspacePackages,
+    catalogs: opts.catalogs,
   }, importer, manifest)
   return Object.keys(unresolved).length > 0 ? unresolved : undefined
 }

@@ -1,3 +1,4 @@
+import type { Catalogs } from '@pnpm/catalogs.types'
 import { createMatcher } from '@pnpm/config.matcher'
 import type { ProjectSnapshot } from '@pnpm/lockfile.types'
 import type { WorkspacePackages } from '@pnpm/resolving.resolver-base'
@@ -22,6 +23,7 @@ export function unresolvedOptionalDependencies (
     excludeLinksFromLockfile?: boolean
     ignoredOptionalDependencies?: string[]
     workspacePackages?: WorkspacePackages
+    catalogs?: Catalogs
   },
   importer: Pick<ProjectSnapshot, 'specifiers'>,
   pkg: Pick<ProjectManifest, 'optionalDependencies'>
@@ -31,7 +33,7 @@ export function unresolvedOptionalDependencies (
     (bareSpecifier, depName) =>
       importer.specifiers[depName] == null &&
       !isIgnored(depName) &&
-      !(opts.excludeLinksFromLockfile && isExcludedLink(opts.workspacePackages, { importer, depName, spec: bareSpecifier })),
+      !(opts.excludeLinksFromLockfile && isExcludedLink(opts, { importer, depName, spec: bareSpecifier })),
     pkg.optionalDependencies ?? {}
   )
 }

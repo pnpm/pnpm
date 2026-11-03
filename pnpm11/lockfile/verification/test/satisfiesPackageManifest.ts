@@ -605,3 +605,23 @@ test('satisfiesPackageManifest() reports a dependency added to the manifest that
   expect(satisfiesPackageManifest({ excludeLinksFromLockfile: true }, importer, pkg('^1.0.0'))).toStrictEqual(added('^1.0.0'))
   expect(satisfiesPackageManifest({ workspacePackages }, importer, pkg('^1.0.0'))).toStrictEqual(added('^1.0.0'))
 })
+
+test('satisfiesPackageManifest() accepts a catalog entry that excludeLinksFromLockfile left out as a workspace link', () => {
+  const importer = {
+    dependencies: { foo: '1.0.0' },
+    specifiers: { foo: '1.0.0' },
+  }
+  const pkg = {
+    ...DEFAULT_PKG_FIELDS,
+    dependencies: {
+      foo: '1.0.0',
+      bar: 'catalog:',
+    },
+  }
+  const opts = (barEntry: string) => ({ excludeLinksFromLockfile: true, workspacePackages, catalogs: { default: { bar: barEntry } } })
+  expect(satisfiesPackageManifest(opts('^1.0.0'), importer, pkg)).toStrictEqual({ satisfies: true })
+  expect(satisfiesPackageManifest(opts('^2.0.0'), importer, pkg)).toStrictEqual({
+    satisfies: false,
+    detailedReason: 'specifiers in the lockfile don\'t match specifiers in package.json:\n* 1 dependencies were added: bar@catalog:\n',
+  })
+})

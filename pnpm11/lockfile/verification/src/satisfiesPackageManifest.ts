@@ -1,3 +1,4 @@
+import type { Catalogs } from '@pnpm/catalogs.types'
 import { createMatcher } from '@pnpm/config.matcher'
 import * as dp from '@pnpm/deps.path'
 import type { ProjectSnapshot } from '@pnpm/lockfile.types'
@@ -28,6 +29,7 @@ export interface SatisfiesPackageManifestOptions {
   allowUnresolvedOptionalDependencies?: boolean
   /** Set when `linkWorkspacePackages` is on. See `isExcludedLink`. */
   workspacePackages?: WorkspacePackages
+  catalogs?: Catalogs
 }
 
 interface SatisfiesPackageManifestResult {
@@ -86,7 +88,7 @@ type PickLockedDeps = (deps: Record<string, string>) => Record<string, string>
 
 function createLockedDepsPicker (opts: SatisfiesPackageManifestOptions, importer: ProjectSnapshot): PickLockedDeps {
   if (!opts.excludeLinksFromLockfile) return identity
-  return (deps) => pickBy((spec: string, depName: string) => !isExcludedLink(opts.workspacePackages, { importer, depName, spec }), deps)
+  return (deps) => pickBy((spec: string, depName: string) => !isExcludedLink(opts, { importer, depName, spec }), deps)
 }
 
 /**
