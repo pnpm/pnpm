@@ -205,9 +205,10 @@ async fn record_evidence(
     };
     let statements = match registry_statements(state, &logged).await {
         Ok(Some(statements)) => statements,
-        // The version was removed while its evidence was read: answer as a
-        // read after the removal would.
-        Ok(None) => return not_found(),
+        // The record's log entry was read, and the record was not: either
+        // its version was removed meanwhile, or a replica has not caught up
+        // yet. A retry reads both again and answers for what holds then.
+        Ok(None) => return retry_later("the record's metadata is changing; retry"),
         Err(err) => return err.into_response(),
     };
     match sigstore_bundle(state, &logged.org, &logged.name, &logged.version).await {
@@ -221,8 +222,9 @@ async fn record_evidence(
 /// from the record the metadata store accepted, with the current statement
 /// key. Ed25519 signatures are deterministic, so the same key signs the same
 /// envelope every time, and a new key re-signs every statement.
-/// `None` when the record is gone, because its version was removed after
-/// its log entry was read.
+/// `None` when the record cannot be read although its log entry was: its
+/// version was removed meanwhile, or the read came from a replica behind
+/// the one the entry came from.
 async fn registry_statements(
     state: &AppState,
     logged: &LoggedRecord,
@@ -319,11 +321,13 @@ async fn wait_for_inclusion(
 /// The record's proof is not available yet: the client retries, and never
 /// reads the record as missing or unverified.
 fn proof_pending() -> Response {
-    let mut response = (
-        StatusCode::SERVICE_UNAVAILABLE,
-        axum::Json(json!({ "error": "the record's inclusion proof is pending; retry" })),
-    )
-        .into_response();
+    retry_later("the record's inclusion proof is pending; retry")
+}
+
+/// A `503` the client retries after a second.
+fn retry_later(reason: &'static str) -> Response {
+    let mut response =
+        (StatusCode::SERVICE_UNAVAILABLE, axum::Json(json!({ "error": reason }))).into_response();
     response
         .headers_mut()
         .insert(header::RETRY_AFTER, HeaderValue::from_static("1"));
