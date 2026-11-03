@@ -1,5 +1,4 @@
 pub(crate) use saved_spec::format_cargo_saved_spec;
-mod patches;
 mod saved_spec;
 
 use crate::{
@@ -8,7 +7,6 @@ use crate::{
 };
 use cargo_lock::Lockfile as CargoLockfile;
 use miette::{IntoDiagnostic, Result, WrapErr};
-use patches::read_patched_crate_names;
 use pnpm_package_manifest::DependencyGroup;
 use semver::{Version, VersionReq};
 use std::{
@@ -122,8 +120,6 @@ pub(crate) fn declared_cargo_deps(
             &mut out,
         );
     }
-    let patched = read_patched_crate_names(&root_manifest_path)?;
-    out.retain(|dep| !patched.contains(&dep.package_name));
     Ok(out)
 }
 
