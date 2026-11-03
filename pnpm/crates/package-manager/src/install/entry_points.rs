@@ -84,14 +84,16 @@ where
         .await
     }
 
-    /// Execute as a check: the run resolves the wanted lockfile but writes
-    /// none, and returns the text it would have written for the caller to
+    /// Execute as a check: the run resolves the wanted lockfile as a
+    /// lockfile-only install but writes none, and returns the text it would have written for the caller to
     /// compare with the lockfile on disk. `None` when the run resolves no
     /// lockfile to write. pnpm's `lockfileCheck`.
     pub async fn run_lockfile_check<Reporter: self::Reporter + 'static>(
-        self,
+        mut self,
         selection: Option<WorkspaceInstallSelection<'_>>,
     ) -> Result<Option<String>, InstallError> {
+        // Only the lockfile-only path hands the lockfile to the sink.
+        self.execution.lockfile_only = true;
         let sink = LockfileCheckSink::default();
         Box::pin(self.run_inner::<Reporter>(InstallRunOptions {
             lockfile_check: Some(Arc::clone(&sink)),

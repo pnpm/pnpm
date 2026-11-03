@@ -19,8 +19,9 @@ impl LockfileGuard {
 
 impl Drop for LockfileGuard {
     fn drop(&mut self) {
-        let on_disk = super::read_lockfile_snapshot(&self.lockfile_path).ok().flatten();
-        if on_disk == self.existing {
+        if super::read_lockfile_snapshot(&self.lockfile_path)
+            .is_ok_and(|on_disk| on_disk == self.existing)
+        {
             return;
         }
         match self.existing.take() {
