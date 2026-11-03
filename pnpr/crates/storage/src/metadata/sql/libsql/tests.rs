@@ -1,5 +1,5 @@
-use super::SyncState;
-use std::time::{Duration, Instant};
+use super::{SyncStart, SyncState};
+use std::time::Duration;
 
 const BOUND: Duration = Duration::from_hours(1);
 
@@ -31,10 +31,11 @@ fn a_write_after_a_sync_leaves_the_replica_stale() {
 fn a_sync_started_before_a_request_does_not_answer_it() {
     let mut state = SyncState::default();
     let started = state.start_sync();
-    let requested = Instant::now();
+    // Later than the start even where two readings of the clock can tie.
+    let requested = started.at + Duration::from_millis(1);
     state.finish_sync(started);
     assert!(!state.synced_since(requested));
-    let started = state.start_sync();
+    let started = SyncStart { at: requested, ..state.start_sync() };
     state.finish_sync(started);
     assert!(state.synced_since(requested));
 }
