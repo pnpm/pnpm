@@ -1,20 +1,32 @@
-//! The stat of each vouched project manifest, so the next check can take an
-//! unchanged manifest's recorded digest and facts without reading the file.
+//! The stat of each vouched project manifest and the fields the check reads
+//! from it, so the next check can take an unchanged manifest's recorded digest
+//! and fields without reading the file.
 
-use super::{
-    super::{
-        manifest_has_required_peers, manifest_has_runtime_deps,
-        modules_dirs::direct_links::is_local_link_spec,
-    },
-    FileStat, RecordValidation, Vouched, manifest_digest, stat_trusted,
-};
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use super::{FileStat, RecordValidation, Vouched, manifest_digest, stat_trusted};
+use pnpm_package_manifest::PackageManifest;
 use pnpm_workspace::{importer_id_from_root_dir, read_exact_project_manifest};
 use pnpm_workspace_state::{ManifestFile, Validation};
 use std::collections::BTreeMap;
 
-const LOCAL_LINK_GROUPS: [DependencyGroup; 3] =
-    [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional];
+pub(crate) use stand_ins::{ManifestStandIns, manifest_stand_ins};
+
+mod stand_ins;
+
+/// The top-level manifest fields the repeat-install check reads. A record
+/// keeps these, so a manifest rebuilt from them answers the check the way
+/// the file does.
+pub(crate) const CHECKED_FIELDS: [&str; 10] = [
+    "name",
+    "version",
+    "dependencies",
+    "devDependencies",
+    "optionalDependencies",
+    "peerDependencies",
+    "peerDependenciesMeta",
+    "bin",
+    "directories",
+    "publishConfig",
+];
 
 /// The manifest file of each project the write vouches for, keyed by importer
 /// id. Each is stat'd before the caller probes the filesystem clock, and kept
@@ -116,28 +128,10 @@ fn reusable_file<'previous>(
 
 fn manifest_file(manifest: &PackageManifest, file_name: String, stat: FileStat) -> ManifestFile {
     let (mtime_ns, ctime_ns, size) = stat.parts();
-    ManifestFile {
-        file_name,
-        mtime_ns,
-        ctime_ns,
-        size,
-        has_runtime_deps: manifest_has_runtime_deps(manifest),
-        has_required_peers: manifest_has_required_peers(manifest),
-        local_links: local_links(manifest),
-    }
-}
-
-fn local_links(manifest: &PackageManifest) -> BTreeMap<String, BTreeMap<String, String>> {
-    LOCAL_LINK_GROUPS
+    let value = manifest.value();
+    let fields = CHECKED_FIELDS
         .into_iter()
-        .filter_map(|group| {
-            let links = manifest
-                .dependencies([group])
-                .filter(|(_, spec)| is_local_link_spec(spec))
-                .map(|(alias, spec)| (alias.to_string(), spec.to_string()))
-                .collect::<BTreeMap<_, _>>();
-            let field: &'static str = group.into();
-            (!links.is_empty()).then(|| (field.to_string(), links))
-        })
-        .collect()
+        .filter_map(|field| Some((field.to_string(), value.get(field)?.clone())))
+        .collect();
+    ManifestFile { file_name, mtime_ns, ctime_ns, size, fields: Some(fields) }
 }

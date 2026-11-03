@@ -135,8 +135,8 @@ pub struct Validation {
 }
 
 /// A project manifest's stat when the validation confirmed its digest, and
-/// the facts the next check reads from it. While the stat is unchanged and
-/// trusted the way a [`FileSignature`] is, the facts stand for the file.
+/// the fields the next check reads from it. While the stat is unchanged and
+/// trusted the way a [`FileSignature`] is, the fields stand for the file.
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ManifestFile {
@@ -148,18 +148,11 @@ pub struct ManifestFile {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ctime_ns: Option<i64>,
     pub size: u64,
-    /// Whether the manifest declares a dependency, dev dependency, or optional
-    /// dependency.
-    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-    pub has_runtime_deps: bool,
-    /// Whether the manifest declares a peer dependency that is not optional.
-    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-    pub has_required_peers: bool,
-    /// The `workspace:` and `link:` specifiers of each dependency field, by
-    /// field name (`dependencies`, `devDependencies`, `optionalDependencies`)
-    /// and then by alias.
-    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
-    pub local_links: BTreeMap<String, BTreeMap<String, String>>,
+    /// The manifest's top-level fields that the repeat-install check reads,
+    /// by name. A field the manifest lacks is absent. `None` in a record
+    /// without them, which cannot stand in for the manifest.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fields: Option<serde_json::Map<String, serde_json::Value>>,
 }
 
 /// The local dependencies one lockfile resolves, as absolute paths.

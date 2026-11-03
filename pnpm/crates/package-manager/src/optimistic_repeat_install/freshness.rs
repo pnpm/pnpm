@@ -28,6 +28,10 @@ use std::collections::HashSet;
 mod drift;
 mod registry_keys;
 
+/// Why a check on manifest stand-ins defers to one on the files: what it
+/// would write is derived from the files.
+const STAND_INS_CANNOT_WRITE: &str = "refreshing the workspace state needs the manifest files";
+
 /// What a gate does differently in [`check_freshness`].
 pub(super) struct GatePolicy<'a> {
     /// The gate a failed state write is logged under.
@@ -158,6 +162,10 @@ pub(super) fn check_freshness(
     let held = drift.held(check, scope);
     if !super::validation::held_workspace_bins_match(check, state, &held) {
         return Err(Stale::Content("workspace package bins changed since the last install"));
+    }
+    let stand_ins = check.project_manifests.has_stand_ins();
+    if stand_ins && (moved || !held.is_empty() || drift.patches_modified) {
+        return Err(Stale::Content(STAND_INS_CANNOT_WRITE));
     }
     if moved {
         return settle_moved_tree(check, state, &drift, policy);
@@ -328,6 +336,9 @@ fn settle_proven_tree(
             .get()
             .map_err(|_| Stale::Content("the wanted lockfile cannot be read or parsed"))?;
     }
+    if check.project_manifests.has_stand_ins() && (drift.lockfile_changed || drift.rehashed) {
+        return Err(Stale::Content(STAND_INS_CANNOT_WRITE));
+    }
     let restored = settle_missing_wanted_lockfile(check, policy, &drift.current)?;
     let vouched = drift.proven_dirs(&[]);
     if drift.lockfile_changed || restored {
@@ -387,6 +398,13 @@ fn settle_missing_wanted_lockfile(
     current: &CurrentLockfile<'_>,
 ) -> Result<bool, Stale> {
     match policy.missing_wanted_lockfile {
+        MissingWantedLockfile::Restore
+            if check.project_manifests.has_stand_ins()
+                && check.config.lockfile
+                && !check.lockfile.is_loaded_or_on_disk() =>
+        {
+            Err(Stale::Content(STAND_INS_CANNOT_WRITE))
+        }
         MissingWantedLockfile::Restore => {
             regenerate_wanted_lockfile_if_missing(check, current).map_err(Stale::Content)
         }
