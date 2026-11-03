@@ -129,9 +129,14 @@ async fn a_workload_batch_is_scoped_to_its_packages() {
             "versions": { "1.0.0": { "name": name, "version": "1.0.0" } },
         })
     };
-    for path in ["/npm/~private/-/pnpr/v0/publish", "/-/pnpr/v0/publish"] {
-        let other = send(path, serde_json::json!({ "packages": [entry("@org/other")] })).await;
-        assert_eq!(other.status(), StatusCode::FORBIDDEN, "{path}");
+    let other = send(
+        "/npm/~private/-/pnpr/v0/publish",
+        serde_json::json!({ "packages": [entry("@org/other")] }),
+    )
+    .await;
+    assert_eq!(other.status(), StatusCode::FORBIDDEN);
+    for path in ["/npm/~private/-/pnpr/v0/publish", "/npm/-/pnpr/v0/publish", "/-/pnpr/v0/publish"]
+    {
         let crate_entry = serde_json::json!({
             "packages": [{ "ecosystem": "cargo", "metadata": {}, "archive": "" }],
         });
