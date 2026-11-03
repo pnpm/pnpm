@@ -36,7 +36,7 @@ use pnpr_storage::{
     metadata::PublishNotes,
     publish::{
         PendingAttachment, extract_attachments, now_iso, stream_decode_verify_and_write,
-        write_sigstore_bundle,
+        verify_and_write, write_sigstore_bundle,
     },
 };
 

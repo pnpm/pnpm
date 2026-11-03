@@ -244,6 +244,19 @@ async fn serve_staged_publish(
             Err(err) => return err.into_response(),
         };
 
+    // Approval publishes the stored body later, as another account, after a
+    // staged archive may have expired: a staged publish carries its archives.
+    if let Some(attachment) = validated.prepared
+        .iter()
+        .find(|prepared| prepared.attachment.staged_integrity().is_some())
+    {
+        return RegistryError::InvalidAttachment {
+            filename: attachment.attachment.filename.clone(),
+            reason: "a publish held for approval carries its archive inline in `data`".to_string(),
+        }
+        .into_response();
+    }
+
     let stage_id = generate_stage_id();
     let record = staged_record(&validated, identity, registry, &stage_id);
 
@@ -385,7 +398,10 @@ async fn serve_staged_tarball(
     let Some(attachment) = attachments.into_iter().next() else {
         return not_found();
     };
-    let bytes = match BASE64.decode(attachment.data.as_bytes()) {
+    let Some(data) = attachment.inline_data() else {
+        return not_found();
+    };
+    let bytes = match BASE64.decode(data.as_bytes()) {
         Ok(bytes) => bytes,
         Err(err) => {
             return RegistryError::InvalidAttachment {

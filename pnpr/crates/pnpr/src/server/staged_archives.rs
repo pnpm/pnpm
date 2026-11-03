@@ -334,6 +334,29 @@ async fn receive_archive(body: Body, integrity: &str, size: u64) -> Result<Vec<u
     Ok(bytes)
 }
 
+/// The bytes of the archive `claimant` staged by `integrity`, which the
+/// attachment `filename` of a publish references.
+pub(super) async fn claim_staged_archive(
+    storage: &Storage,
+    claimant: Option<&str>,
+    filename: &str,
+    integrity: &str,
+) -> Result<Vec<u8>, RegistryError> {
+    let not_staged = || {
+        bad_request(format!(
+            "{filename} references the staged archive {integrity}, which the publishing account \
+             has not staged or which has expired; upload it again with \
+             PUT /-/pnpr/v0/artifacts/blob?integrity=<integrity> before publishing",
+        ))
+    };
+    let principal = claimant.ok_or_else(not_staged)?;
+    let digest = archive_digest(integrity)?;
+    storage
+        .read_staged_archive(&StagedArchiveKey { principal, digest: &digest })
+        .await?
+        .ok_or_else(not_staged)
+}
+
 /// The principal a staged archive belongs to: the caller's stable identity,
 /// the one an idempotent publish is scoped to.
 pub(super) fn principal(identity: &Identity) -> Result<&str, RegistryError> {

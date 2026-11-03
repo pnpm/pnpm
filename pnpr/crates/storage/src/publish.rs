@@ -10,10 +10,13 @@
 //! async runtime, and so these helpers stay easy to unit-test.
 
 pub mod sigstore;
+pub use attachment::{AttachmentPayload, PendingAttachment, extract_attachments};
 pub use sigstore::{extract_predicate_type, write_sigstore_bundle};
 pub use time::{iso_from_unix_millis, now_iso};
 
 mod time;
+
+mod attachment;
 
 use crate::{
     journal::DocumentMerge,
@@ -30,57 +33,6 @@ use std::{
     io::{Cursor, Read, Write},
     path::Path,
 };
-
-/// Per-tarball metadata pulled out of an `_attachments` entry. We
-/// hold the base64 payload as an owned `String` rather than decoding
-/// it eagerly — the streaming write path consumes it directly and
-/// the decoded bytes never have to live in memory.
-#[derive(Debug)]
-pub struct PendingAttachment {
-    pub filename: String,
-    /// Base64-encoded tarball, taken verbatim from the publish body.
-    pub data: String,
-    /// `_attachments.<filename>.length` — the declared byte count of
-    /// the *decoded* tarball, used to catch truncated uploads.
-    pub declared_length: Option<u64>,
-}
-
-/// Pull all `_attachments` out of a publish body. Returns one
-/// [`PendingAttachment`] per entry and removes the `_attachments`
-/// field from `body` so the saved packument doesn't duplicate the
-/// on-disk tarball. Base64 decoding is deferred to the streaming
-/// write path; this function just validates shape.
-pub fn extract_attachments(body: &mut Value) -> Result<Vec<PendingAttachment>, RegistryError> {
-    let Some(obj) = body.as_object_mut() else {
-        return Ok(Vec::new());
-    };
-    let Some(attachments_value) = obj.remove("_attachments") else {
-        return Ok(Vec::new());
-    };
-    let Value::Object(attachments) = attachments_value else {
-        return Err(RegistryError::BadRequest {
-            reason: "_attachments must be an object".to_string(),
-        });
-    };
-    let mut out = Vec::with_capacity(attachments.len());
-    for (filename, value) in attachments {
-        let Value::Object(mut value_obj) = value else {
-            return Err(RegistryError::InvalidAttachment {
-                filename,
-                reason: "expected object".to_string(),
-            });
-        };
-        let Some(Value::String(data)) = value_obj.remove("data") else {
-            return Err(RegistryError::InvalidAttachment {
-                filename,
-                reason: "missing string field `data`".to_string(),
-            });
-        };
-        let declared_length = value_obj.get("length").and_then(Value::as_u64);
-        out.push(PendingAttachment { filename, data, declared_length });
-    }
-    Ok(out)
-}
 
 /// Stream-decode a base64 attachment, hash it as it flows by, and
 /// write the bytes to `dest`. Fails fast (and leaves no on-disk
@@ -108,8 +60,22 @@ pub fn stream_decode_verify_and_write(
     dist: Option<&Value>,
     dest: &Path,
 ) -> Result<u64, RegistryError> {
+    let decoder = DecoderReader::new(Cursor::new(base64_data.as_bytes()), &BASE64);
+    verify_and_write(filename, decoder, declared_length, dist, dest)
+}
+
+/// [`stream_decode_verify_and_write`] for bytes that are not base64-encoded,
+/// such as an archive staged before the commit: hash `bytes` as they are
+/// written to `dest` and verify them against the packument's `dist`.
+pub fn verify_and_write(
+    filename: &str,
+    bytes: impl Read,
+    declared_length: Option<u64>,
+    dist: Option<&Value>,
+    dest: &Path,
+) -> Result<u64, RegistryError> {
     let expected = ExpectedAttachment::from_dist(filename, dist, declared_length)?;
-    let written = decode_and_write(base64_data, dest, &expected);
+    let written = decode_and_write(bytes, dest, &expected);
     if written.is_err() {
         // A partial or mismatched decode leaves nothing publishable behind.
         let _ = std::fs::remove_file(dest);
@@ -186,10 +152,10 @@ impl<'a> ExpectedAttachment<'a> {
     }
 }
 
-/// Decode the base64 attachment straight to `dest`, hashing as it goes, and
-/// verify what landed. The bytes are never held in memory whole.
+/// Decode the attachment straight to `dest`, hashing as it goes, and verify
+/// what landed. The bytes are never held in memory whole.
 fn decode_and_write(
-    base64_data: &str,
+    mut decoder: impl Read,
     dest: &Path,
     expected: &ExpectedAttachment<'_>,
 ) -> Result<u64, RegistryError> {
@@ -199,7 +165,6 @@ fn decode_and_write(
         .is_some()
         .then(|| IntegrityOpts::new().algorithm(Algorithm::Sha1));
 
-    let mut decoder = DecoderReader::new(Cursor::new(base64_data.as_bytes()), &BASE64);
     let mut file = File::create(dest).map_err(RegistryError::Io)?;
     const CHUNK_BYTES: usize = 64 * 1024;
     let mut buf = vec![0u8; CHUNK_BYTES];

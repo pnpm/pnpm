@@ -11,6 +11,7 @@ use super::{
     variants::{self, Declarations, PublishedVariant, VariantTar},
     verification::verify_published_manifests,
 };
+use crate::server::staged_archives::claim_staged_archive;
 use slot_writes::{AttachmentPaths, write_under_permit};
 use std::sync::Arc;
 use tokio::sync::Semaphore;
@@ -58,7 +59,7 @@ pub(in super::super) struct ValidatedPublish {
 /// One publish attachment resolved to its canonical on-disk filename and its
 /// `versions[version].dist` block.
 pub(in super::super) struct PreparedAttachment {
-    pub(super) attachment: PendingAttachment,
+    pub(in super::super) attachment: PendingAttachment,
     /// Canonical on-disk filename.
     pub(super) canonical: String,
     /// The version this attachment publishes, parsed from its filename.
@@ -154,6 +155,12 @@ fn prepare_attachment(
         return variants::prepare_variant_attachment(attachment, parsed?, declared_variants);
     }
     let (canonical, version, kind) = parse_attachment_kind(name, &attachment.filename)?;
+    if kind == AttachmentKind::Sigstore && attachment.staged_integrity().is_some() {
+        return Err(RegistryError::InvalidAttachment {
+            filename: attachment.filename,
+            reason: "a sigstore bundle is carried inline in `data`, not staged".to_string(),
+        });
+    }
     let dist = incoming
         .get("versions")
         .and_then(|versions| versions.get(&version))
@@ -257,9 +264,14 @@ pub(in super::super) async fn stage_publish(
     // missing integrity field — short-circuits the publish with a
     // 400; any tmp files written before the failure get removed
     // along the way so a bad upload leaves no on-disk artifact.
-    let written =
-        write_attachment_slots(&storage, &name, prepared, tarballs, &state.inner.proxy.tar_decodes)
-            .await?;
+    let written = write_attachment_slots(
+        (&storage, publisher.as_deref()),
+        &name,
+        prepared,
+        tarballs,
+        &state.inner.proxy.tar_decodes,
+    )
+    .await?;
     let verified = verified_document(&name, (merged, &variants), written).await?;
     Ok(StagedPublish {
         name,
@@ -342,8 +354,11 @@ pub(super) struct TarDerivation {
 
 /// Write every attachment into its reserved blob slot. A failure removes
 /// the slots written so far, so a bad upload leaves no on-disk artifact.
+///
+/// `storage` comes with the principal publishing, whose staged archives an
+/// attachment may reference.
 pub(super) async fn write_attachment_slots(
-    storage: &Storage,
+    (storage, claimant): (&Storage, Option<&str>),
     name: &CanonicalPackageName,
     prepared: Vec<PreparedAttachment>,
     tarballs: TarballStorage,
@@ -355,7 +370,8 @@ pub(super) async fn write_attachment_slots(
         variants: Vec::new(),
     };
     for attachment in prepared {
-        match write_attachment_slot(storage, name, attachment, tarballs, decodes).await {
+        match write_attachment_slot((storage, claimant), name, attachment, tarballs, decodes).await
+        {
             Ok((slot, tar)) => {
                 written.slots.push(slot);
                 match tar.map(variants::split_variant) {
@@ -380,12 +396,15 @@ pub(super) async fn write_attachment_slots(
 /// [`TarballStorage::Tar`] the slot holds the tar. A tarball holds a permit
 /// from `decodes` until its tar is read.
 pub(super) async fn write_attachment_slot(
-    storage: &Storage,
+    (storage, claimant): (&Storage, Option<&str>),
     name: &CanonicalPackageName,
     prepared: PreparedAttachment,
     tarballs: TarballStorage,
     decodes: &Arc<Semaphore>,
 ) -> Result<(pnpr_storage::BlobSlot, Option<PublishedTar>), RegistryError> {
+    // A staged archive is read before a slot is reserved: one that is missing
+    // or expired fails the publish with nothing to clean up.
+    let staged = staged_bytes((storage, claimant), &prepared.attachment).await?;
     let stores_tar = tarballs == TarballStorage::Tar && prepared.kind == AttachmentKind::Tarball;
     let blob = if stores_tar {
         name.tar_name_for_version(&prepared.version)
@@ -394,8 +413,14 @@ pub(super) async fn write_attachment_slot(
     };
     let slot = storage.reserve_hosted_blob(name, &blob).await?;
     let paths = AttachmentPaths::for_slot(&slot.tmp_path, stores_tar);
-    let result =
-        write_under_permit(prepared.attachment, prepared.kind, prepared.dist, paths, decodes).await;
+    let result = write_under_permit(
+        (prepared.attachment, staged),
+        prepared.kind,
+        prepared.dist,
+        paths,
+        decodes,
+    )
+    .await;
     let derived = match result {
         Ok(Ok(derived)) => derived,
         Ok(Err(err)) => {
@@ -416,6 +441,18 @@ pub(super) async fn write_attachment_slot(
         }
     }
     Ok((slot, Some(PublishedTar::of(prepared.version, prepared.variant_label, derived))))
+}
+
+/// The bytes of the staged archive `attachment` references, read from what
+/// `claimant` staged; `None` for an attachment carried inline.
+async fn staged_bytes(
+    (storage, claimant): (&Storage, Option<&str>),
+    attachment: &PendingAttachment,
+) -> Result<Option<Vec<u8>>, RegistryError> {
+    let Some(integrity) = attachment.staged_integrity() else { return Ok(None) };
+    claim_staged_archive(storage, claimant, &attachment.filename, integrity)
+        .await
+        .map(Some)
 }
 
 impl PublishedTar {

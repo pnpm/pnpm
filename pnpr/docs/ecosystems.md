@@ -286,6 +286,24 @@ upload reserves its size before its bytes arrive, so uploads running in
 parallel count against those limits together, and an upload that stopped
 gives its reservation back after an hour.
 
+An npm publish document, in a batch or on its own, references a staged archive
+by putting its `integrity` in the attachment in place of `data`:
+
+```json
+"_attachments": {
+  "ui-2.0.0.tgz": { "integrity": "sha512-…", "length": 4096 }
+}
+```
+
+pnpr reads the archive while it stages the publish and verifies it against
+the version's `dist` as it verifies an inline archive. An archive the publishing
+account has not staged, or one that has expired, fails the whole publish with
+`400`, and nothing of it is published. A retry of a committed request gets the
+recorded outcome without reading its archives again, so it succeeds even after
+they expire. A version's [platform variants](endpoints.md#platform-variants)
+can be staged the same way. A sigstore bundle and a publish
+[held for approval](endpoints.md#staged-publishing-endpoints) carry their bytes inline.
+
 ## JSR
 
 `npm.jsr.io` is a built-in public route, like the npm registry, so JSR packages

@@ -422,7 +422,9 @@ or `wasm32`. Only the canonical form is accepted.
 The publish document references each variant under
 `versions[<version>].pnprVariants` as `{ "<label>": "<.tgz integrity>" }` and
 attaches it as `<basename>-<version>~<label>.tgz`. The label only pairs a
-reference with its attachment. All archives travel in the one publish body.
+reference with its attachment. Each archive travels in the publish body or is
+[staged](ecosystems.md#staged-archives) before it, so a version's archives are
+not bounded by one request body.
 pnpr rejects the version when a variant:
 
 - has another `name` or `version`, or other `peerDependencies` or

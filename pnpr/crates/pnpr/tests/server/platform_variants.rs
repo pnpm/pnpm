@@ -419,3 +419,72 @@ async fn variants_come_only_with_a_primary_archive_they_agree_with() {
         assert!(reason.contains(field), "{field}: {reason}");
     }
 }
+
+/// Stage `tgz` for the caller `token` names, as a publisher does before a
+/// commit that references it.
+async fn stage(app: &axum::Router, tgz: &[u8], token: &str) {
+    let query = url::form_urlencoded::Serializer::new(String::new())
+        .append_pair("integrity", &sha512_integrity(tgz))
+        .finish();
+    let path = format!("/npm/-/pnpr/v0/artifacts/blob?{query}");
+    let response = app
+        .clone()
+        .oneshot(
+            Request::put(path)
+                .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                .header(header::CONTENT_LENGTH, tgz.len())
+                .body(Body::from(tgz.to_vec()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED);
+}
+
+#[tokio::test]
+async fn a_batch_publishes_a_version_and_its_variants_from_staged_archives() {
+    let (_tmp, app, token) = setup().await;
+    let (_, primary) = archive(&primary_manifest(), "primary");
+    let (static_tar, static_tgz) =
+        archive(&variant_manifest(&["linux-x64-musl", "linux-x64"], &json!({})), "static");
+    let (_, darwin_tgz) = archive(&variant_manifest(&["darwin-arm64"], &json!({})), "darwin");
+    for tgz in [&primary, &static_tgz, &darwin_tgz] {
+        stage(&app, tgz, &token).await;
+    }
+    // The single-package document, with each attachment naming its staged
+    // archive instead of carrying it, as one entry of a batch.
+    let request =
+        publish_request(&primary, &[("static", &static_tgz), ("mac", &darwin_tgz)], &token);
+    let mut document: Value =
+        serde_json::from_slice(&body_bytes(request.into_body()).await).unwrap();
+    for attachment in document["_attachments"]
+        .as_object_mut()
+        .unwrap()
+        .values_mut()
+    {
+        let data = attachment["data"].as_str().unwrap();
+        let bytes =
+            base64::Engine::decode(&base64::engine::general_purpose::STANDARD, data).unwrap();
+        *attachment = json!({ "integrity": sha512_integrity(&bytes), "length": bytes.len() });
+    }
+    let batch = json!({ "packages": [document] });
+    let response = app
+        .clone()
+        .oneshot(
+            Request::put("/-/pnpr/v0/publish")
+                .header("content-type", "application/json")
+                .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                .body(Body::from(serde_json::to_vec(&batch).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED);
+
+    let response =
+        get(&app, "/npm/~main/@acme/fast@1.0.0/variants/linux-x64+linux-x64-musl", None).await;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(body_bytes(response.into_body()).await, static_tar);
+    let primary_tarball = get(&app, "/npm/~main/@acme/fast/-/fast-1.0.0.tgz", None).await;
+    assert_eq!(body_bytes(primary_tarball.into_body()).await, primary);
+}
