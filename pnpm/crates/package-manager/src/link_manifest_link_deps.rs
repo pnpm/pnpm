@@ -5,6 +5,10 @@ use crate::{
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
+use pnpm_catalogs_resolver::{
+    CatalogAnchor, CatalogResolutionResult, WantedDependency, resolve_from_catalog,
+};
+use pnpm_catalogs_types::Catalogs;
 use pnpm_cmd_shim::LinkBinsOptions;
 use pnpm_lockfile::ProjectSnapshot;
 use pnpm_modules_yaml::IncludedDependencies;
@@ -12,6 +16,7 @@ use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_reporter::{AddedRoot, DependencyType, LogEvent, LogLevel, RootLog, RootMessage};
 use pnpm_resolving_resolver_base::WorkspacePackages;
 use std::{
+    borrow::Cow,
     collections::{HashMap, HashSet},
     path::{Path, PathBuf},
 };
@@ -23,7 +28,7 @@ pub fn link_manifest_link_deps<Reporter: pnpm_reporter::Reporter>(
     workspace_root: &Path,
     project_manifests: &[(PathBuf, &PackageManifest)],
     importers: Option<&HashMap<String, ProjectSnapshot>>,
-    workspace_packages: Option<&WorkspacePackages>,
+    workspace_links: Option<WorkspaceLinks<'_>>,
     included: IncludedDependencies,
     modules_dir_name: &std::ffi::OsStr,
     link_options: &LinkBinsOptions,
@@ -50,7 +55,7 @@ pub fn link_manifest_link_deps<Reporter: pnpm_reporter::Reporter>(
             project_dir,
             modules_dir: &modules_dir,
             importer_snapshot,
-            workspace_packages,
+            workspace_links,
             included,
             link_options,
         };
@@ -63,7 +68,7 @@ pub(crate) struct PruneManifestLinkDeps<'a> {
     pub(crate) workspace_root: &'a Path,
     pub(crate) project_manifests: &'a [(PathBuf, &'a PackageManifest)],
     pub(crate) importers: Option<&'a HashMap<String, ProjectSnapshot>>,
-    pub(crate) workspace_packages: Option<&'a WorkspacePackages>,
+    pub(crate) workspace_links: Option<WorkspaceLinks<'a>>,
     pub(crate) previously_included: IncludedDependencies,
     pub(crate) new_included: IncludedDependencies,
     pub(crate) modules_dir_name: &'a std::ffi::OsStr,
@@ -118,7 +123,7 @@ fn prune_project_manifest_link_deps(
         }
         if let Some(snapshot) = importer_snapshot
             && (snapshot_has_alias(snapshot, alias)
-                || manifest_link_target(project_dir, options.workspace_packages, alias, spec)
+                || manifest_link_target(project_dir, options.workspace_links, alias, spec)
                     .is_none())
         {
             continue;
@@ -133,7 +138,7 @@ struct ProjectLinks<'a> {
     project_dir: &'a Path,
     modules_dir: &'a Path,
     importer_snapshot: Option<&'a ProjectSnapshot>,
-    workspace_packages: Option<&'a WorkspacePackages>,
+    workspace_links: Option<WorkspaceLinks<'a>>,
     included: IncludedDependencies,
     link_options: &'a LinkBinsOptions,
 }
@@ -190,7 +195,7 @@ fn link_manifest_dep<Reporter: pnpm_reporter::Reporter>(
         return Ok(false);
     }
     let Some(target_path) =
-        manifest_link_target(project.project_dir, project.workspace_packages, alias, spec)
+        manifest_link_target(project.project_dir, project.workspace_links, alias, spec)
     else {
         return Ok(false);
     };
@@ -236,23 +241,34 @@ fn link_manifest_dep<Reporter: pnpm_reporter::Reporter>(
 
 fn manifest_link_target(
     project_dir: &Path,
-    workspace_packages: Option<&WorkspacePackages>,
+    workspace_links: Option<WorkspaceLinks<'_>>,
     alias: &str,
     spec: &str,
 ) -> Option<PathBuf> {
     if let Some(target) = spec.strip_prefix("link:") {
         return Some(resolve_link_target(project_dir, target));
     }
-    workspace_link_target(workspace_packages?, alias, spec)
+    workspace_link_target(workspace_links?, alias, spec)
+}
+
+/// What a manifest dependency is matched against to find the workspace
+/// package that `excludeLinksFromLockfile` left its link to out of the
+/// lockfile.
+#[derive(Clone, Copy)]
+pub struct WorkspaceLinks<'a> {
+    pub packages: &'a WorkspacePackages,
+    /// Dereferences a `catalog:` spec before matching, as resolution does.
+    pub catalogs: &'a Catalogs,
 }
 
 pub(crate) fn workspace_link_target(
-    workspace_packages: &WorkspacePackages,
+    workspace_links: WorkspaceLinks<'_>,
     alias: &str,
     spec: &str,
 ) -> Option<PathBuf> {
+    let spec = dereference_catalog(workspace_links.catalogs, alias, spec)?;
     let parsed = pnpm_resolving_npm_resolver::parse_bare_specifier(
-        spec,
+        &spec,
         Some(alias),
         "latest",
         "https://registry.npmjs.org/",
@@ -260,10 +276,27 @@ pub(crate) fn workspace_link_target(
     if parsed.revision.is_some() {
         return None;
     }
-    let versions = workspace_packages.get(&parsed.name)?;
+    let versions = workspace_links.packages.get(&parsed.name)?;
     let version =
         pnpm_resolving_npm_resolver::pick_matching_local_version_or_null(versions, &parsed)?;
     versions.get(&version).map(pnpm_resolving_npm_resolver::resolve_workspace_package_dir)
+}
+
+/// `None` for a `catalog:` spec whose catalog has no usable entry.
+fn dereference_catalog<'spec>(
+    catalogs: &Catalogs,
+    alias: &str,
+    spec: &'spec str,
+) -> Option<Cow<'spec, str>> {
+    if !spec.starts_with("catalog:") {
+        return Some(Cow::Borrowed(spec));
+    }
+    let wanted = WantedDependency { alias: alias.to_string(), bare_specifier: spec.to_string() };
+    match resolve_from_catalog(catalogs, &wanted, CatalogAnchor::AsWritten) {
+        CatalogResolutionResult::Found(found) => Some(Cow::Owned(found.resolution.specifier)),
+        CatalogResolutionResult::Unused => Some(Cow::Borrowed(spec)),
+        CatalogResolutionResult::Misconfiguration(_) => None,
+    }
 }
 
 fn dependency_type_of(group: DependencyGroup) -> DependencyType {

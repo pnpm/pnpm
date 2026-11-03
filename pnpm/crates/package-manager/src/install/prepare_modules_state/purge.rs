@@ -140,7 +140,7 @@ pub(super) struct ExcludedGroupPrune<'a> {
 }
 pub(super) struct ManifestLinkProjects<'a> {
     pub(super) manifests: &'a [(PathBuf, &'a pnpm_package_manifest::PackageManifest)],
-    pub(super) workspace_packages: Option<&'a pnpm_resolving_resolver_base::WorkspacePackages>,
+    pub(super) workspace_links: Option<crate::WorkspaceLinks<'a>>,
 }
 /// Remove direct links from dependency groups excluded by this run.
 /// Unfiltered installs can use the global `included` value recorded in
@@ -174,7 +174,7 @@ pub(super) fn prune_excluded_direct_deps(
         workspace_root: context.workspace_root,
         project_manifests: context.manifest_links.manifests,
         importers: context.current_lockfile.map(|current| &current.importers),
-        workspace_packages: context.manifest_links.workspace_packages,
+        workspace_links: context.manifest_links.workspace_links,
         previously_included,
         new_included: context.included,
         modules_dir_name: context.config.modules_dir_name(),
