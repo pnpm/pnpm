@@ -2,4 +2,4 @@
 "pacquet": patch
 ---
 
-Redact credentials and sensitive query parameters from the URL printed when `pnpm docs` cannot open a browser. Previously, the fallback removed credentials but left sensitive query parameters visible.
+When `pnpm docs` cannot open a browser, the URL it prints no longer includes the query string or the fragment. Credentials were already removed.
