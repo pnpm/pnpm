@@ -292,8 +292,10 @@ impl<'a> MaterializationInputs<'a, '_> {
             node_version: self.execution.effective_node_version,
             early_host_detection: self.execution.early_host_detection,
             pnpmfile_hook_override: self.resolution.pnpmfile_hook,
-            lockfile_verification_gate,
-            lockfile_check_sink: self.resolution.lockfile_check_sink,
+            lockfile: crate::install_with_fresh_lockfile::WantedLockfileHandles {
+                verification_gate: lockfile_verification_gate,
+                check_sink: self.resolution.lockfile_check_sink,
+            },
             resolution: crate::ResolutionInputs {
                 update_seed_policy: self.resolution.inputs.update_seed_policy,
                 preferred_versions_override: self.resolution.inputs.preferred_versions_override,

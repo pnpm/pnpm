@@ -323,16 +323,22 @@ pub(crate) struct OwnedInputs {
     /// disk lookup entirely; `None` (every CLI install) falls back to
     /// [`load_pnpmfile`][pnpm_hooks::finder::load_pnpmfile]. See [`crate::InstallProjects::pnpmfile_hook_override`].
     pub(crate) pnpmfile_hook_override: Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>,
-    /// The pre-resolve verification of the existing lockfile, running in
-    /// the background while this install resolves and materializes. See
-    /// [`crate::LockfileVerificationGate`].
-    pub(crate) lockfile_verification_gate: Option<crate::LockfileVerificationGate>,
-    /// Where a `lockfileCheck` run delivers the wanted lockfile instead of
-    /// writing it. See [`crate::Install::run_lockfile_check`].
-    pub(crate) lockfile_check_sink: Option<crate::LockfileCheckSink>,
+    pub(crate) lockfile: WantedLockfileHandles,
     pub(crate) resolution: crate::ResolutionInputs,
     pub(crate) fetching: crate::install_with_fresh_lockfile::FreshFetchingInputs,
     pub(crate) projects: crate::install_with_fresh_lockfile::FreshProjectInputs,
+}
+
+/// The install's handles on the wanted lockfile: the background verification
+/// of the one on disk, and where a check run sends the one it would write.
+pub(crate) struct WantedLockfileHandles {
+    /// The pre-resolve verification of the existing lockfile, running in
+    /// the background while this install resolves and materializes. See
+    /// [`crate::LockfileVerificationGate`].
+    pub(crate) verification_gate: Option<crate::LockfileVerificationGate>,
+    /// Where a `lockfileCheck` run delivers the wanted lockfile instead of
+    /// writing it. See [`crate::Install::run_lockfile_check`].
+    pub(crate) check_sink: Option<crate::LockfileCheckSink>,
 }
 
 pub(crate) struct FreshFetchingInputs {

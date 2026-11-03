@@ -215,29 +215,8 @@ pub(super) async fn finish_lockfile_only<Reporter: self::Reporter>(
         if opts.write.dry_run || !opts.write.save {
             (Some(opts.built_lockfile), false)
         } else if opts.write.config.lockfile {
-            let target = opts.write.dir.join(opts.write.config.wanted_lockfile_name());
-            let can_record_lockfile_verification = match opts.write.check_sink {
-                Some(sink) => {
-                    capture_wanted_lockfile(
-                        &opts.built_lockfile,
-                        &target,
-                        (opts.write.hook, opts.write.log),
-                        sink,
-                    )
-                    .await?;
-                    false
-                }
-                None => {
-                    save_wanted_lockfile(
-                        &opts.built_lockfile,
-                        &target,
-                        opts.write.config.symlinked_lockfile(),
-                        opts.write.hook,
-                        opts.write.log,
-                    )
-                    .await?
-                }
-            };
+            let can_record_lockfile_verification =
+                save_or_capture_wanted_lockfile(&opts.built_lockfile, opts.write).await?;
             (Some(opts.built_lockfile), can_record_lockfile_verification)
         } else {
             (None, false)
@@ -269,6 +248,27 @@ pub(super) async fn finish_lockfile_only<Reporter: self::Reporter>(
         store_index_teardown: opts.writer_task,
     })
 }
+/// Save the wanted lockfile, or hand it to the check sink when one is set.
+/// Returns whether the saved file can carry a lockfile verification record.
+async fn save_or_capture_wanted_lockfile(
+    built_lockfile: &Lockfile,
+    write: super::resolution_inputs::LockfilePersistenceOptions<'_>,
+) -> Result<bool, InstallWithFreshLockfileError> {
+    let target = write.dir.join(write.config.wanted_lockfile_name());
+    let Some(sink) = write.check_sink else {
+        return save_wanted_lockfile(
+            built_lockfile,
+            &target,
+            write.config.symlinked_lockfile(),
+            write.hook,
+            write.log,
+        )
+        .await;
+    };
+    capture_wanted_lockfile(built_lockfile, &target, (write.hook, write.log), sink).await?;
+    Ok(false)
+}
+
 pub(super) async fn save_wanted_lockfile(
     built_lockfile: &Lockfile,
     target: &Path,

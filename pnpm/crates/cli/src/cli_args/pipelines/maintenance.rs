@@ -104,6 +104,9 @@ async fn dedupe_dedicated_project<Reporter: self::Reporter + 'static>(
     } else {
         None
     };
+    let _guard = (args.check && lockfile_path != root_lockfile_path).then(|| {
+        dedupe::LockfileGuard::new(existing.clone(), &lockfile_path)
+    });
     Box::pin(args.run::<Reporter>(state, existing, &lockfile_path, None)).await
 }
 
