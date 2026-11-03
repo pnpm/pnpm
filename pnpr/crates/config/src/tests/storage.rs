@@ -322,30 +322,45 @@ fn cache_rejects_unknown_fields() {
 }
 
 #[test]
-fn metadata_defaults_to_documents() {
+fn metadata_defaults_to_sqlite_in_storage() {
     let config =
         Config::from_yaml_str("storage: /var/lib/pnpr\n", Path::new("/"), listen(), None).unwrap();
+    let expected = PathBuf::from("/var/lib/pnpr/.metadata/metadata.sqlite");
+    assert_eq!(config.storage.metadata, crate::MetadataBackend::Sqlite(expected));
+}
+
+#[test]
+fn an_object_store_without_a_metadata_url_keeps_documents() {
+    let yaml = "storage: /s\ns3:\n  bucket: b\n";
+    let config = Config::from_yaml_str(yaml, Path::new("/"), listen(), None).unwrap();
     assert_eq!(config.storage.metadata, crate::MetadataBackend::Documents);
 }
 
 #[test]
-fn sqlite_metadata_defaults_to_a_file_in_storage() {
-    let yaml = "storage: /var/lib/pnpr\nmetadata:\n  backend: sqlite\n";
-    let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
-    let expected = PathBuf::from("/var/lib/pnpr/.metadata/metadata.sqlite");
-    assert_eq!(config.storage.metadata, crate::MetadataBackend::Sqlite(expected));
-    let yaml = "storage: /var/lib/pnpr\nmetadata:\n  backend: sqlite\n  path: ./meta.db\n";
+fn documents_can_still_be_chosen_by_name() {
+    let yaml = "storage: /s\nmetadata:\n  backend: documents\n";
+    let config = Config::from_yaml_str(yaml, Path::new("/"), listen(), None).unwrap();
+    assert_eq!(config.storage.metadata, crate::MetadataBackend::Documents);
+}
+
+#[test]
+fn a_sqlite_url_resolves_against_the_config_directory() {
+    let yaml = "storage: /var/lib/pnpr\nmetadata:\n  url: sqlite:./meta.db\n";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     let expected = PathBuf::from("/etc/pnpr/./meta.db");
     assert_eq!(config.storage.metadata, crate::MetadataBackend::Sqlite(expected));
 }
 
 #[test]
-fn sqlite_metadata_refuses_an_object_store_and_a_stray_path() {
-    let with_s3 = "storage: /s\ns3:\n  bucket: b\nmetadata:\n  backend: sqlite\n";
-    let stray_path = "storage: /s\nmetadata:\n  backend: documents\n  path: ./m.db\n";
-    for yaml in [with_s3, stray_path] {
+fn a_metadata_url_is_refused_when_it_cannot_serve() {
+    let with_s3 = "storage: /s\ns3:\n  bucket: b\nmetadata:\n  url: sqlite:./m.db\n";
+    let no_path = "storage: /s\nmetadata:\n  url: 'sqlite:'\n";
+    let unknown = "storage: /s\nmetadata:\n  url: mysql://db/pnpr\n";
+    let old_shape = "storage: /s\nmetadata:\n  backend: sqlite\n";
+    let old_path = "storage: /s\nmetadata:\n  backend: documents\n  path: ./m.db\n";
+    let both = "storage: /s\nmetadata:\n  backend: documents\n  url: sqlite:./m.db\n";
+    for yaml in [with_s3, no_path, unknown, old_shape, old_path, both] {
         let err = Config::from_yaml_str(yaml, Path::new("/"), listen(), None).unwrap_err();
-        assert!(matches!(err, RegistryError::InvalidConfig { .. }), "{err:?}");
+        assert!(matches!(err, RegistryError::InvalidConfig { .. }), "{yaml}: {err:?}");
     }
 }

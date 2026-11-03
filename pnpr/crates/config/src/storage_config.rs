@@ -39,10 +39,10 @@ pub struct StorageConfig {
 
 /// Where the hosted packages' metadata lives: package documents, tags,
 /// deprecations. Archives stay in the hosted store either way.
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MetadataBackend {
     /// One document per package, in the hosted store beside its archives.
-    #[default]
+    /// What an object-store hosted store without a metadata URL uses.
     Documents,
     /// An embedded `SQLite` database at this path. Single-instance only, so
     /// only with the filesystem hosted store.
@@ -53,17 +53,22 @@ pub enum MetadataBackend {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(crate) struct MetadataFile {
-    backend: MetadataBackendName,
-    /// The `SQLite` database file. Defaults to [`default_metadata_path`].
+    /// The metadata database: `sqlite:<path>`, with a relative path resolved
+    /// against the config file's directory. Without it, a filesystem hosted
+    /// store keeps its metadata in [`default_metadata_path`].
     #[serde(default)]
-    path: Option<String>,
+    url: Option<String>,
+    /// `documents` keeps one document per package in a filesystem hosted
+    /// store, as an object-store hosted store without a URL does.
+    #[serde(default)]
+    backend: Option<DocumentsBackend>,
 }
 
+/// The one metadata backend named rather than given by URL.
 #[derive(Debug, Clone, Copy, Deserialize)]
 #[serde(rename_all = "lowercase")]
-enum MetadataBackendName {
+enum DocumentsBackend {
     Documents,
-    Sqlite,
 }
 
 /// The default `SQLite` metadata database of a filesystem hosted store. The
@@ -79,26 +84,43 @@ pub(crate) fn resolve_metadata_backend(
     base_dir: &Path,
     hosted: &HostedStoreConfig,
 ) -> Result<MetadataBackend, RegistryError> {
-    let Some(file) = file else { return Ok(MetadataBackend::Documents) };
-    let invalid = |reason: &str| RegistryError::InvalidConfig { reason: reason.to_string() };
-    match file.backend {
-        MetadataBackendName::Documents if file.path.is_some() => {
-            Err(invalid("metadata.path only applies to `backend: sqlite`"))
+    let invalid = |reason: String| RegistryError::InvalidConfig { reason };
+    let on_fs = matches!(hosted, HostedStoreConfig::Fs);
+    if let Some(MetadataFile {
+        url,
+        backend: Some(DocumentsBackend::Documents),
+    }) = file
+    {
+        if url.is_some() {
+            return Err(
+                invalid("metadata names both a `url` and `backend: documents`".to_string()),
+            );
         }
-        MetadataBackendName::Documents => Ok(MetadataBackend::Documents),
-        MetadataBackendName::Sqlite if !matches!(hosted, HostedStoreConfig::Fs) => Err(invalid(
-            "metadata `backend: sqlite` is single-instance and needs the filesystem hosted store; \
-             remove the `s3:` block or use `backend: documents`",
-        )),
-        MetadataBackendName::Sqlite => Ok(MetadataBackend::Sqlite(
-            file.path
-                .as_deref()
-                .map_or_else(
-                    || default_metadata_path(storage),
-                    |raw| resolve_relative(raw, base_dir),
-                ),
-        )),
+        return Ok(MetadataBackend::Documents);
     }
+    let Some(url) = file.and_then(|file| file.url.as_deref()) else {
+        return Ok(if on_fs {
+            MetadataBackend::Sqlite(default_metadata_path(storage))
+        } else {
+            MetadataBackend::Documents
+        });
+    };
+    let Some(path) = url.strip_prefix("sqlite:") else {
+        return Err(invalid(format!(
+            "metadata.url {url:?} names an unsupported database; use `sqlite:<path>`",
+        )));
+    };
+    if path.is_empty() {
+        return Err(invalid("metadata.url `sqlite:` needs a path after the colon".to_string()));
+    }
+    if !on_fs {
+        return Err(invalid(
+            "metadata.url `sqlite:` is single-instance and needs the filesystem hosted store; \
+             remove the `s3:` block or the metadata URL"
+                .to_string(),
+        ));
+    }
+    Ok(MetadataBackend::Sqlite(resolve_relative(path, base_dir)))
 }
 
 pub(crate) fn default_storage_string() -> String {

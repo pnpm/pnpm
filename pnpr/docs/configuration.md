@@ -86,9 +86,10 @@ ephemeral per-process secrets. Use [`pnpr cache-gc`](cli.md#cache-gc) for
 on-demand or offline reclamation.
 
 The hosted store can instead live in an S3-compatible object store. See
-[Storage backends](storage.md). Package metadata can instead live in an
-embedded SQLite database, configured by the
-[`metadata` block](storage.md#sqlite-metadata).
+[Storage backends](storage.md). With the filesystem hosted store, package
+metadata lives in an embedded SQLite database by default. With an `s3:` block
+and no metadata URL, pnpr keeps package documents in the bucket. The
+[`metadata` block](storage.md#sqlite-metadata) configures either.
 
 ## `registries` and `defaultRegistry`
 

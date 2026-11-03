@@ -55,21 +55,25 @@ emptied on startup and refilled on demand.
 
 ## Metadata in SQLite {#sqlite-metadata}
 
-By default, each hosted package's metadata is a document in the hosted store,
-beside its archives. A `metadata` block can move the metadata of every hosted
-package into an embedded SQLite database instead:
+pnpr keeps the metadata of every hosted package in an embedded SQLite
+database, by default `<storage>/.metadata/metadata.sqlite`. The `metadata`
+block names another database by URL:
 
 ```yaml title="pnpr.yaml"
 storage: ./storage
 metadata:
-  backend: sqlite
-  # Optional. Defaults to <storage>/.metadata/metadata.sqlite.
-  # path: ./metadata.sqlite
+  # Optional. A relative path is resolved against the config file's directory.
+  url: sqlite:./metadata.sqlite
 ```
 
 Archives stay in the hosted store. The database holds every hosted package's
 metadata in every ecosystem. pnpr does not read the package documents of an
 existing store into it: switch an empty store, or republish.
+
+With an `s3:` block and no `metadata` URL, each hosted package's metadata is a
+document in the bucket, beside its archives. `backend: documents` in the
+`metadata` block keeps documents in a filesystem store too. None of the
+behavior below applies to documents.
 
 With SQLite metadata:
 
@@ -106,8 +110,9 @@ With SQLite metadata:
   [publication](endpoints.md#publication-endpoints).
 
 SQLite metadata serves one pnpr process. Reads use their own database
-connections, so a read never waits for a write. It cannot be combined with an
-`s3:` block. Back the database file up together with the hosted store.
+connections, so a read never waits for a write. A `sqlite:` URL cannot be
+combined with an `s3:` block. Back the database file up together with the
+hosted store.
 
 ## Backends
 

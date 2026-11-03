@@ -45,8 +45,10 @@ auth:
 
     let config_file = tempfile::NamedTempFile::new().unwrap();
     std::fs::write(config_file.path(), yaml).unwrap();
-    let config =
+    let mut config =
         Config::from_yaml(config_file.path(), "127.0.0.1:7677".parse().unwrap(), None).unwrap();
+    // These tests seed package documents on disk.
+    config.storage.metadata = MetadataBackend::Documents;
     (config, config_file)
 }
 

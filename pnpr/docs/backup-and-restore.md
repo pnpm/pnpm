@@ -10,8 +10,8 @@ This guide covers backing up authoritative package data and authentication recor
 A pnpr instance stores two categories of data:
 
 1. **Authoritative data (required)**:
-   - **Hosted storage (`storage`)**: Contains authoritative package metadata and tarball blobs. Back this up regularly.
-   - **SQLite metadata database** (when [`metadata`](storage.md#sqlite-metadata) uses `backend: sqlite`): holds the package metadata instead of the hosted store. Back it up together with the hosted store, using SQLite's backup API or with pnpr stopped, so the copy matches the archives it references.
+   - **Hosted storage (`storage`)**: Contains the tarball blobs. A registry that keeps package documents keeps them here too. Back this up regularly.
+   - **SQLite metadata database** ([`metadata`](storage.md#sqlite-metadata), when the registry keeps its metadata in SQLite, as a filesystem store does by default): holds the package metadata. Back it up together with the hosted store, using SQLite's backup API or with pnpr stopped, so the copy matches the archives it references. A registry that keeps package documents instead has no metadata database. Its documents are in the hosted store.
    - **Authentication and user state**:
      - `htpasswd` file (when configured).
      - SQLite token database (`tokens.db`, when configured).
@@ -26,15 +26,27 @@ A pnpr instance stores two categories of data:
 
 ### Backup
 
-For local filesystem storage, perform a snapshot or atomic backup of the hosted directory and auth files:
+For local filesystem storage, back up the storage directory, the SQLite metadata database, and the auth files together. The default metadata database, `<storage>/.metadata/metadata.sqlite`, is inside the storage directory. A database configured with `metadata.url` elsewhere needs its own copy. Stop pnpr first, so the copy is consistent and includes the database's `-wal` file:
 
 ```sh
-# Export a consistent dump of hosted packages and auth records
-pnpr export --out /mnt/backups/pnpr-$(date +%Y%m%d) --include-auth
-
-# Or snapshot the storage directory directly
 tar -czf /mnt/backups/pnpr-storage-$(date +%Y%m%d).tar.gz -C /var/lib/pnpr storage htpasswd tokens.db
 ```
+
+To back up while pnpr runs, copy the metadata database with SQLite's backup API instead of copying its file. For the default database of the storage directory above:
+
+```sh
+sqlite3 /var/lib/pnpr/storage/.metadata/metadata.sqlite ".backup /mnt/backups/pnpr-metadata-$(date +%Y%m%d).sqlite"
+```
+
+With `metadata.url`, use the path that URL names.
+
+`pnpr export` writes the current package documents, tarballs, and auth records to a directory:
+
+```sh
+pnpr export --out /mnt/backups/pnpr-$(date +%Y%m%d) --include-auth
+```
+
+An export is not a complete backup of SQLite metadata. It leaves out three things only the database holds: the unpublished versions pnpr never accepts again, the record of every dist-tag move (its versions, time, and principal), and release notes.
 
 ### Restore
 
@@ -45,11 +57,12 @@ To restore:
    ```sh
    tar -xzf /mnt/backups/pnpr-storage-20261016.tar.gz -C /var/lib/pnpr
    ```
-3. Run `pnpr verify` to confirm all package documents and tarballs match:
+3. Restore the metadata database if the storage archive does not hold it, as with a copy made by SQLite's backup API or a database outside the storage directory. Copy it to the path `metadata.url` names, or to `<storage>/.metadata/metadata.sqlite` by default. Delete any `-wal` and `-shm` files beside that path first, so SQLite does not apply another copy's write-ahead log to it.
+4. Run `pnpr verify` to confirm all package documents and tarballs match:
    ```sh
    pnpr verify
    ```
-4. Start pnpr.
+5. Start pnpr.
 
 ## S3 and object storage
 
