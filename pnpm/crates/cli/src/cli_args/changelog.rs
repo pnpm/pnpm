@@ -178,9 +178,13 @@ pub fn notes_registries_by_name(
         .collect()
 }
 
-fn notes_registry_of_dir(config: &Config, project_dir: &Path) -> Option<String> {
-    let manifest =
-        pnpm_package_manifest::PackageManifest::from_path(project_dir.join("package.json")).ok()?;
+/// The registry that stores notes the project in `project_dir` publishes
+/// to, read from its manifest.
+pub fn notes_registry_of_dir(config: &Config, project_dir: &Path) -> Option<String> {
+    let manifest = pnpm_package_manifest::PackageManifest::from_path(
+        pnpm_package_manifest::project_manifest_path(project_dir),
+    )
+    .ok()?;
     notes_registry_of_manifest(config, manifest.value())
 }
 

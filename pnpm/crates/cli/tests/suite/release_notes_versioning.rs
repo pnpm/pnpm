@@ -529,3 +529,81 @@ fn a_hook_may_change_a_package_outside_the_composed_release() {
     batch.assert();
     drop(root);
 }
+
+#[test]
+fn version_refuses_a_composed_release_bound_for_several_pnpr_registries() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let registry = "https://pnpr.example/";
+    let other = "https://other-pnpr.example/";
+    write_workspace(&workspace, registry);
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        format!(
+            "packages:\n  - packages/*\nversioning:\n  fixed:\n    - [a, b]\nregistries:\n  '{registry}':\n    serverType: pnpr\n  '{other}':\n    serverType: pnpr\n",
+        ),
+    )
+    .expect("write pnpm-workspace.yaml");
+    fs::write(
+        workspace.join("packages/b/package.json"),
+        json!({ "name": "b", "version": "1.0.0", "publishConfig": { "registry": other } })
+            .to_string(),
+    )
+    .expect("write package.json");
+
+    let output = pnpm(&workspace)
+        .with_args(["version", "-r", "--no-git-checks"])
+        .output()
+        .expect("run pnpm version");
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("ERR_PNPM_RELEASE_NOTES_SEVERAL_REGISTRIES"), "{stderr}");
+    let manifest =
+        fs::read_to_string(workspace.join("packages/a/package.json")).expect("read package.json");
+    assert!(manifest.contains(r#""version":"1.0.0""#), "{manifest}");
+    assert!(!workspace.join(".changeset/changelogs").exists());
+    assert_eq!(intent_files(&workspace), ["only-a.md", "shared.md"]);
+    drop(root);
+}
+
+#[test]
+fn a_same_named_project_on_another_registry_keeps_its_full_section() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let registry = "https://pnpr.example/";
+    fs::write(workspace.join(".npmrc"), format!("registry={registry}\n")).expect("write .npmrc");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        format!("packages:\n  - packages/*\nregistries:\n  '{registry}':\n    serverType: pnpr\n"),
+    )
+    .expect("write pnpm-workspace.yaml");
+    fs::write(workspace.join("package.json"), r#"{"name": "root", "private": true}"#)
+        .expect("write root package.json");
+    for (dir, manifest) in [
+        ("a", json!({ "name": "a", "version": "1.0.0" })),
+        (
+            "a-next",
+            json!({
+                "name": "a",
+                "version": "2.0.0",
+                "publishConfig": { "registry": "https://registry.example/" },
+            }),
+        ),
+    ] {
+        let dir = workspace.join("packages").join(dir);
+        fs::create_dir_all(&dir).expect("create package dir");
+        fs::write(dir.join("package.json"), manifest.to_string()).expect("write package.json");
+    }
+    fs::create_dir_all(workspace.join(".changeset")).expect("create .changeset");
+    fs::write(
+        workspace.join(".changeset/next.md"),
+        "---\n\"./packages/a-next\": minor\n---\n\nOnly the next line.\n",
+    )
+    .expect("write intent");
+
+    run(pnpm(&workspace).with_args(["version", "-r", "--no-git-checks"]));
+
+    let section = fs::read_to_string(workspace.join(".changeset/changelogs/a@2.1.0.md"))
+        .expect("read parked section");
+    assert!(section.starts_with("## 2.1.0\n"), "{section}");
+    drop(root);
+}

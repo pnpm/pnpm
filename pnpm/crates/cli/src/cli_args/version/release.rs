@@ -159,11 +159,13 @@ impl PlannedWorkspaceRelease {
         workspace_dir: &Path,
         summary: Option<String>,
     ) -> miette::Result<pnpm_versioning::ReleaseNotesOptions> {
+        // Read from each release's own manifest: same-named projects on
+        // different version lines may publish to different registries.
         let registries: HashMap<String, String> = self.plan.releases
             .iter()
             .filter_map(|release| {
-                let registry = self.notes_registries.get(&release.name)?;
-                Some((release.dir.clone(), registry.clone()))
+                let registry = changelog::notes_registry_of_dir(config, &release.root_dir)?;
+                Some((release.dir.clone(), registry))
             })
             .collect();
         // A private project is never published: its release keeps a
