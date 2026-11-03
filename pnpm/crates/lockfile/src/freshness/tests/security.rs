@@ -35,3 +35,27 @@ fn resolved_version_outside_manifest_range_is_stale() {
         },
     );
 }
+
+#[test]
+fn star_range_accepts_a_prerelease_resolution() {
+    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+        "lockfileVersion: '9.0'"
+        "importers:"
+        "  .:"
+        "    dependencies:"
+        "      only-pre:"
+        "        specifier: '*'"
+        "        version: 1.0.0-alpha.0"
+    })
+    .expect("parse fixture lockfile");
+    let importer = lockfile.root_project().expect("root importer present");
+    let (_dir, manifest) = manifest_from_json(
+        r#"{
+        "name": "x",
+        "version": "1.0.0",
+        "dependencies": { "only-pre": "*" }
+    }"#,
+    );
+
+    assert_eq!(satisfies_package_manifest(importer, &manifest, true, &|_: &str| false), Ok(()));
+}

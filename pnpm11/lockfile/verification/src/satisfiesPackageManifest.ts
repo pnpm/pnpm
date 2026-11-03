@@ -222,7 +222,9 @@ function findDependencyMismatch (
     }
   }
   const range = importer.specifiers[depName]
-  if (range == null || !semver.validRange(range)) return undefined
+  const normalizedRange = range == null ? null : semver.validRange(range)
+  // The resolver gives `*` the `latest` tag even when it is a prerelease.
+  if (normalizedRange == null || normalizedRange === '*') return undefined
   const lockedVersion = dp.removeSuffix(importerDeps[depName])
   const version = dp.parseRegistryQualifiedVersion(lockedVersion)?.version ?? lockedVersion
   if (semver.valid(version) && !semver.satisfies(version, range)) {

@@ -250,7 +250,8 @@ fn check_resolution_satisfies(
     else {
         return Ok(());
     };
-    if range.satisfies(version) {
+    // The resolver gives `*` the `latest` tag even when it is a prerelease.
+    if manifest_spec == "*" || range.satisfies(version) {
         return Ok(());
     }
     Err(StalenessReason::ResolutionDoesNotSatisfy {
