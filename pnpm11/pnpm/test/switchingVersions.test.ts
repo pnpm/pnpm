@@ -515,6 +515,7 @@ test('devEngines.packageManager without onFail=download does not switch version'
 
 test('pnpm fetch installs the pnpm the lockfile pins, so an offline command can switch to it (pnpm/pnpm#11808)', async () => {
   prepare()
+  writeYamlFileSync('pnpm-workspace.yaml', {})
   const pnpmHome = path.resolve('pnpm')
   const manifest = {
     devEngines: {

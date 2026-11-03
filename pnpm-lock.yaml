@@ -1797,6 +1797,9 @@ importers:
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../core/core-loggers
+      '@pnpm/deps.graph-builder':
+        specifier: workspace:*
+        version: link:../../deps/graph-builder
       '@pnpm/deps.graph-hasher':
         specifier: workspace:*
         version: link:../../deps/graph-hasher
@@ -3519,6 +3522,9 @@ importers:
       '@pnpm/deps.path':
         specifier: workspace:*
         version: link:../path
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../core/error
       '@pnpm/fs.symlink-dependency':
         specifier: workspace:*
         version: link:../../fs/symlink-dependency
@@ -3546,6 +3552,9 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../core/types
+      p-limit:
+        specifier: 'catalog:'
+        version: 7.3.3
       path-exists:
         specifier: 'catalog:'
         version: 5.0.0
@@ -10049,6 +10058,9 @@ importers:
       '@pnpm/building.pkg-requires-build':
         specifier: workspace:*
         version: link:../../building/pkg-requires-build
+      '@pnpm/building.policy':
+        specifier: workspace:*
+        version: link:../../building/policy
       '@pnpm/cli.utils':
         specifier: workspace:*
         version: link:../../cli/utils
@@ -10061,6 +10073,9 @@ importers:
       '@pnpm/crypto.integrity':
         specifier: workspace:*
         version: link:../../crypto/integrity
+      '@pnpm/deps.graph-builder':
+        specifier: workspace:*
+        version: link:../../deps/graph-builder
       '@pnpm/deps.path':
         specifier: workspace:*
         version: link:../../deps/path
@@ -10070,6 +10085,9 @@ importers:
       '@pnpm/fs.graceful-fs':
         specifier: workspace:*
         version: link:../../fs/graceful-fs
+      '@pnpm/fs.symlink-dependency':
+        specifier: workspace:*
+        version: link:../../fs/symlink-dependency
       '@pnpm/global.packages':
         specifier: workspace:*
         version: link:../../global/packages

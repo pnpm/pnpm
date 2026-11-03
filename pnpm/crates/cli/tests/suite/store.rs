@@ -1,3 +1,5 @@
+mod global_status;
+
 use crate::_utils;
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
