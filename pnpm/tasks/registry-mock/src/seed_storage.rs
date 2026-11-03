@@ -1,5 +1,10 @@
-//! Seed [`runtime_storage`] with the fixture tarballs and metadata
+//! Seed the runtime storage with the fixture tarballs and metadata
 //! database that ship inside [`registry_mock_storage`].
+//!
+//! The runtime storage outlives the fixtures and may be served by mocks of
+//! other fixture builds at once, such as from another worktree. So each
+//! fixture build gets a hosted store of its own, [`runtime_hosted_storage`],
+//! while every build shares the proxy cache, [`runtime_cache`].
 //!
 //! Idempotent: a tarball that already exists at the destination is
 //! left alone. Tries `hard_link` first (zero disk overhead, instant);
@@ -7,26 +12,28 @@
 //! target filesystem (cross-device, ACL, etc.).
 //!
 //! The metadata database is the exception. pnpr, and a benchmark scenario
-//! that seeds packages of its own, write to the database the runtime storage
-//! serves, so it is copied rather than linked. The runtime storage outlives
-//! the fixtures and may be served by mocks of other fixtures at once, such as
-//! from another worktree, so each fixture build gets a database of its own,
-//! [`runtime_metadata_path`], copied once and never replaced under a mock
-//! that has it open.
+//! that seeds packages of its own, write to the database the mock serves, so
+//! it is copied rather than linked, once, and never replaced under a mock that
+//! has it open.
 
 use crate::{registry_mock_storage, runtime_storage};
 use std::{
     fs, io,
     path::{Path, PathBuf},
+    sync::atomic::{AtomicU64, Ordering},
 };
+
+/// The proxy cache's directory in a storage directory, as pnpr defaults it.
+const CACHE_DIR: &str = ".pnpr-cache";
 use walkdir::WalkDir;
 
 /// Mirror every file under `registry_mock_storage()` into
-/// `runtime_storage()`. Returns the number of files newly seeded
+/// [`runtime_hosted_storage`]. Returns the number of files newly seeded
 /// (existing files don't count).
 pub fn seed_runtime_storage() -> io::Result<usize> {
     let src = registry_mock_storage();
-    let dest = runtime_storage();
+    let dest = runtime_hosted_storage();
+    let dest = dest.as_path();
     if !src.exists() {
         // `registry_mock_storage` builds the fixture storage on first
         // call, so this is unreachable in practice; guard anyway and
@@ -48,6 +55,11 @@ pub fn seed_runtime_storage() -> io::Result<usize> {
             .path()
             .strip_prefix(src)
             .expect("entry under src");
+        // Test registries over the fixture storage cache upstream packages
+        // in it. The mock caches in the shared runtime cache instead.
+        if rel.starts_with(CACHE_DIR) {
+            continue;
+        }
         if seed_file(entry.path(), rel, &dest.join(rel), &database)? {
             seeded += 1;
         }
@@ -55,15 +67,26 @@ pub fn seed_runtime_storage() -> io::Result<usize> {
     Ok(seeded)
 }
 
-/// The metadata database the runtime storage serves for the fixture build
+/// The proxy cache every fixture build's mock shares, so a warm cache
+/// survives a change to the fixtures.
+#[must_use]
+pub fn runtime_cache() -> PathBuf {
+    runtime_storage().join(CACHE_DIR)
+}
+
+/// The hosted store the mock serves for the fixture build
 /// [`registry_mock_storage`] holds, named after that build.
 #[must_use]
-pub fn runtime_metadata_path() -> PathBuf {
+pub fn runtime_hosted_storage() -> PathBuf {
     let build =
         registry_mock_storage().file_name().expect("the fixture storage is named after its build");
-    let mut name = build.to_owned();
-    name.push(".sqlite");
-    runtime_storage().join(".registry-mock").join(name)
+    runtime_storage().join(".registry-mock").join(build)
+}
+
+/// The metadata database of [`runtime_hosted_storage`].
+#[must_use]
+pub fn runtime_metadata_path() -> PathBuf {
+    pnpr_fixtures::metadata_path(&runtime_hosted_storage())
 }
 
 /// Seed the fixture file at `src`, at `rel` in the fixture storage, to
@@ -85,9 +108,11 @@ fn seed_file(src: &Path, rel: &Path, dest: &Path, database: &Path) -> io::Result
 
 /// Copy the fixture database at `src` to [`runtime_metadata_path`] unless it
 /// is there already, and report whether it was copied. The copy lands under
-/// a temporary name and is renamed into place, so a pnpr never opens half a
-/// database.
+/// a temporary name and is linked into place, which fails rather than
+/// replace a database another seeder put there first, so a pnpr never opens
+/// half a database or has its database swapped under it.
 fn copy_database(src: &Path) -> io::Result<bool> {
+    static COPIES: AtomicU64 = AtomicU64::new(0);
     let dest = runtime_metadata_path();
     if dest.is_file() {
         return Ok(false);
@@ -95,16 +120,15 @@ fn copy_database(src: &Path) -> io::Result<bool> {
     let parent = dest.parent().expect("the database has a directory");
     fs::create_dir_all(parent)?;
     let mut temp = dest.as_os_str().to_owned();
-    temp.push(format!(".seed-{}", std::process::id()));
+    let copy = COPIES.fetch_add(1, Ordering::Relaxed);
+    temp.push(format!(".seed-{}-{copy}", std::process::id()));
     let temp = PathBuf::from(temp);
     fs::copy(src, &temp)?;
-    match fs::rename(&temp, &dest) {
+    let linked = fs::hard_link(&temp, &dest);
+    let _ = fs::remove_file(&temp);
+    match linked {
         Ok(()) => Ok(true),
-        // Another seeder won the race, with the same bytes.
-        Err(_) if dest.is_file() => {
-            let _ = fs::remove_file(&temp);
-            Ok(false)
-        }
+        Err(err) if err.kind() == io::ErrorKind::AlreadyExists => Ok(false),
         Err(err) => Err(err),
     }
 }

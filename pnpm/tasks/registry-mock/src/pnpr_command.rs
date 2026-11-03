@@ -1,6 +1,4 @@
-use crate::{
-    port_to_url::port_to_url, runtime_storage, seed_storage::seed_runtime_storage, workspace_root,
-};
+use crate::{port_to_url::port_to_url, seed_storage::seed_runtime_storage, workspace_root};
 use std::{
     env, fs, io,
     path::{Path, PathBuf},
@@ -116,7 +114,9 @@ pub fn pnpr_command_with_binary(bin: &Path, port: u16, public_url: Option<&str>)
     cmd.arg("--config")
         .arg(config)
         .arg("--storage")
-        .arg(runtime_storage())
+        .arg(crate::runtime_hosted_storage())
+        .arg("--cache")
+        .arg(crate::runtime_cache())
         .arg("--packument-ttl")
         .arg("31536000")
         .arg("--listen")
@@ -126,17 +126,19 @@ pub fn pnpr_command_with_binary(bin: &Path, port: u16, public_url: Option<&str>)
     cmd
 }
 
-/// The registry-mock config with the runtime storage's metadata database
-/// named outright, written into the runtime storage. A `pnpr` from another
+/// The registry-mock config with the fixture build's metadata database
+/// named outright, written beside the build's hosted store. A `pnpr` from another
 /// revision, such as the one the integrated benchmark compares against, may
 /// not move its default database along with `--storage`, and every revision
-/// reads a named one. The config is named after the fixture build, like the
-/// database, so mocks of other builds never read each other's.
+/// reads a named one. The config is named after the fixture build, so mocks
+/// of other builds never read each other's.
 fn runtime_mock_config() -> io::Result<PathBuf> {
     let database = std::path::absolute(crate::runtime_metadata_path())?;
     let url = format!("sqlite:{}", database.display()).replace('\'', "''");
     let yaml = format!("{}\nmetadata:\n  url: '{url}'\n", pnpr_fixtures::MOCK_CONFIG_YAML);
-    let path = database.with_extension("yaml");
+    let mut path = std::path::absolute(crate::runtime_hosted_storage())?.into_os_string();
+    path.push(".yaml");
+    let path = PathBuf::from(path);
     if fs::read_to_string(&path).is_ok_and(|existing| existing == yaml) {
         return Ok(path);
     }

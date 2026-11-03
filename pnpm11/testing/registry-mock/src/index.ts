@@ -131,7 +131,8 @@ function fetchIntegrity (pkgName: string, pkgVersion: string): string {
   return execFileSync(
     process.execPath,
     ['--input-type=module', '--eval', FETCH_INTEGRITY, url, pkgVersion],
-    { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }
+    // A stalled lookup fails the test rather than holding the worker.
+    { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'], timeout: 30_000 }
   )
 }
 
