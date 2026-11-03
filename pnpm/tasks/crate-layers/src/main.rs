@@ -14,6 +14,7 @@ use std::{
 };
 use tree::{GitRevision, Tree, WorkingTree};
 
+mod cfg;
 mod cycles;
 mod diff;
 mod graph;
@@ -58,7 +59,7 @@ enum Command {
         #[clap(long = "crate")]
         crate_name: Option<String>,
         /// Print a `[module_cycles]` table that accepts the current cycles.
-        #[clap(long)]
+        #[clap(long, conflicts_with = "crate_name")]
         baseline: bool,
     },
 }
@@ -69,7 +70,12 @@ fn main() -> ExitCode {
         Command::Check => check(&args.root),
         Command::Diff { base } => diff(&args.root, base),
         Command::Modules { crate_name, baseline } => {
-            modules(&args.root, crate_name.as_deref(), *baseline)
+            let view = match crate_name {
+                Some(name) => ModulesView::Crate(name),
+                None if *baseline => ModulesView::Baseline,
+                None => ModulesView::Summary,
+            };
+            modules(&args.root, &view)
         }
     };
     result.unwrap_or_else(|error| {
@@ -110,19 +116,26 @@ fn diff(root: &Path, base: &str) -> Result<ExitCode, String> {
     Ok(ExitCode::SUCCESS)
 }
 
-fn modules(root: &Path, crate_name: Option<&str>, baseline: bool) -> Result<ExitCode, String> {
+/// What `crate-layers modules` prints.
+enum ModulesView<'name> {
+    Summary,
+    Baseline,
+    Crate(&'name str),
+}
+
+fn modules(root: &Path, view: &ModulesView<'_>) -> Result<ExitCode, String> {
     let working_tree = WorkingTree { root: root.to_path_buf() };
     let reports = report::read_all(&working_tree, &graph::read(&working_tree)?)?;
-    let output = match crate_name {
-        Some(name) => {
+    let output = match view {
+        ModulesView::Crate(name) => {
             let (report, graph) = reports
                 .iter()
-                .find(|(report, _)| report.crate_name == name)
+                .find(|(report, _)| report.crate_name == *name)
                 .ok_or_else(|| format!("{name} is not a workspace crate"))?;
             report::render_crate(report, graph)
         }
-        None if baseline => report::render_baseline(&reports),
-        None => report::render_summary(&reports),
+        ModulesView::Baseline => report::render_baseline(&reports),
+        ModulesView::Summary => report::render_summary(&reports),
     };
     print!("{output}");
     Ok(ExitCode::SUCCESS)

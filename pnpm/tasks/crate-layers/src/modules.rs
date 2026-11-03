@@ -5,6 +5,7 @@
 //! (`mod name { … }`) count as part of the module that contains them.
 
 use crate::{
+    cfg,
     lexer::{self, Token},
     tree::Tree,
     use_tree::{self, UsePath},
@@ -233,23 +234,13 @@ fn is_test_only(tokens: &[Token], item: usize) -> bool {
     false
 }
 
-/// Whether `attribute`, the tokens from `[` to `]`, is `cfg(test)` or a
-/// `cfg(all(…))` that requires `test`.
+/// Whether `attribute`, the tokens from `[` to `]`, is a `cfg` that no build
+/// outside tests can satisfy.
 fn enables_only_tests(attribute: &[Token]) -> bool {
-    let ident = |name: &str| Token::Ident(name.to_owned());
-    let is_cfg =
-        attribute.get(1) == Some(&ident("cfg")) && attribute.get(2) == Some(&Token::Punct('('));
-    let Some(condition) = attribute
-        .get(3..attribute.len().saturating_sub(2))
-        .filter(|_| is_cfg)
-    else {
-        return false;
-    };
-    let requires_test = condition.first() == Some(&ident("all"))
-        && condition.contains(&ident("test"))
-        && !condition.contains(&ident("not"))
-        && !condition.contains(&ident("any"));
-    condition == [ident("test")] || requires_test
+    let is_cfg = attribute.get(1) == Some(&Token::Ident("cfg".to_owned()))
+        && attribute.get(2) == Some(&Token::Punct('('));
+    let predicate = attribute.get(3..attribute.len().saturating_sub(2));
+    predicate.filter(|_| is_cfg).is_some_and(cfg::requires_test)
 }
 
 fn skip_visibility_backwards(tokens: &[Token], item: usize) -> usize {

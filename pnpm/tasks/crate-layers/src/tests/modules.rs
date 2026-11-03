@@ -122,9 +122,14 @@ fn the_baseline_only_goes_down() {
 #[test]
 fn only_test_configurations_drop_a_module() {
     let lib = concat!(
+        "#[cfg(test)] mod plain_test;\n",
+        "#[cfg(all(test, unix))] mod unix_test;\n",
+        "#[cfg(all(test, not(feature = \"slow\")))] mod fast_test;\n",
+        "#[cfg(not(any(not(test), unix)))] mod double_negation_test;\n",
         "#[cfg(not(test))] mod production;\n",
+        "#[cfg(any(test, unix))] mod unix_or_test;\n",
         "#[cfg(any(test, feature = \"testing\"))] pub mod shared;\n",
-        "#[cfg(all(test, unix))] mod unix_tests;\n",
+        "#[cfg(not(target_os = \"macos\"))] mod not_macos;\n",
         "#[cfg(unix)] mod platform;\n",
         "#[cfg(windows)] mod platform;\n",
         "mod r#raw_named;\n",
@@ -133,6 +138,8 @@ fn only_test_configurations_drop_a_module() {
         ("lib/src/lib.rs", lib),
         ("lib/src/production.rs", "fn run() -> impl Sized + use<> { crate::shared::helper() }\n"),
         ("lib/src/shared.rs", "pub fn helper() { crate::production::run(); }\n"),
+        ("lib/src/unix_or_test.rs", "fn unix() {}\n"),
+        ("lib/src/not_macos.rs", "fn other() {}\n"),
         ("lib/src/platform.rs", "fn os() {}\n"),
         ("lib/src/raw_named.rs", "fn raw() {}\n"),
     ]));
@@ -141,7 +148,10 @@ fn only_test_configurations_drop_a_module() {
         .keys()
         .cloned()
         .collect::<Vec<_>>();
-    assert_eq!(modules, ["platform", "production", "raw_named", "shared"]);
+    assert_eq!(
+        modules,
+        ["not_macos", "platform", "production", "raw_named", "shared", "unix_or_test"],
+    );
     let edges = graph.edges.into_keys().collect::<Vec<_>>();
     let edge = |from: &str, to: &str| (from.to_owned(), to.to_owned());
     assert_eq!(edges, vec![edge("production", "shared"), edge("shared", "production")]);
