@@ -32,7 +32,13 @@ For local filesystem storage, back up the storage directory, the SQLite metadata
 tar -czf /mnt/backups/pnpr-storage-$(date +%Y%m%d).tar.gz -C /var/lib/pnpr storage htpasswd tokens.db
 ```
 
-To back up while pnpr runs, copy the metadata database with SQLite's backup API (`sqlite3 metadata.sqlite ".backup backup.sqlite"`) instead of copying its file.
+To back up while pnpr runs, copy the metadata database with SQLite's backup API instead of copying its file. For the default database of the storage directory above:
+
+```sh
+sqlite3 /var/lib/pnpr/storage/.metadata/metadata.sqlite ".backup /mnt/backups/pnpr-metadata-$(date +%Y%m%d).sqlite"
+```
+
+With `metadata.url`, use the path that URL names.
 
 `pnpr export` writes the current package documents, tarballs, and auth records to a directory:
 
