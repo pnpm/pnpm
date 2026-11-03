@@ -165,6 +165,11 @@ registry-mock +args:
   cargo nextest run --no-run
   cargo run --bin=pnpm-registry-mock -- {{args}}
 
+# Check crate dependencies against the layers in crate-layers.toml, or list
+# the edges the working tree adds or removes: `just crate-layers diff origin/main`.
+crate-layers +args:
+  cargo run --quiet --bin=crate-layers -- {{args}}
+
 # Compare pnpm's Cargo resolution against cargo's own, on the live index.
 cargo-equivalence +args:
   cargo run --bin=cargo-equivalence -- {{args}}

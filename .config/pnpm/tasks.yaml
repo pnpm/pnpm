@@ -15,6 +15,7 @@ pipelines:
   rust-clippy: [ci:rust-clippy]
   rust-doc: [ci:rust-doc]
   rust-deny: [ci:rust-deny]
+  rust-layers: [ci:rust-layers]
   rust-format: [ci:rust-fmt, ci:toml-fmt]
   rust-dylint: [ci:rust-dylint]
   build-pnpr: [ci:build-pnpr]
@@ -81,6 +82,8 @@ tasks:
     outputs: []
     env: [RUSTFLAGS, RUSTDOCFLAGS]
   ci:rust-dylint:
+    concurrencyGroup: cargo
+  ci:rust-layers:
     concurrencyGroup: cargo
   ci:rust-test:
     concurrencyGroup: cargo

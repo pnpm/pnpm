@@ -1,9 +1,9 @@
 use std::{collections::BTreeMap, path::Path, sync::Arc};
 
-use pnpm_config::NetworkPolicy;
 use pnpm_lockfile::{RegistryOptions, RegistryServerType};
 use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient};
 use pnpm_registry::{InstallV2Entry, PackageVersion};
+use pnpm_resolving_resolver_base::NetworkPolicy;
 use serde_json::{Value, json};
 
 use super::{record_revision, with_release_record};

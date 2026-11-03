@@ -24,11 +24,14 @@ pnpm-network = { workspace = true }
 pnpm-package-is-installable = { workspace = true }
 pnpm-package-manifest = { workspace = true }
 pnpm-patching = { workspace = true }
+pnpm-resolving-resolver-base = { workspace = true }
 pnpm-store-dir = { workspace = true }
 pnpm-tarball = { workspace = true }
 pnpm-versioning = { workspace = true }
+pnpm-version-policy = { workspace = true }
 pnpm-workspace = { workspace = true }
 pnpm-workspace-state = { workspace = true }
+pnpm-workspace-task-scheduler = { workspace = true }
 
 base64 = { workspace = true }
 derive_more = { workspace = true }

@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
-use pnpm_config::version_policy::create_package_version_policy;
 use pnpm_registry::Package;
+use pnpm_version_policy::create_package_version_policy;
 
 use super::{TrustCheckOptions, TrustViolation, fail_if_trust_downgraded};
 

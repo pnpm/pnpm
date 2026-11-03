@@ -1,7 +1,7 @@
 use super::{
     AbortOnUnwind, Condvar, HashMap, IndexMap, Mutex, MutexGuard, NodeConcurrencyLimit, NodeEdges,
-    ScheduleGraphOptions, ScheduleTasksOptions, SchedulerState, TaskCompletion, TaskGraph, TaskKey,
-    TaskNode, TaskSettings, VecDeque, graph_sequencer,
+    ScheduleGraphOptions, ScheduleTasksOptions, SchedulerState, TaskCompletion, TaskDeclaration,
+    TaskGraph, TaskKey, TaskNode, VecDeque, graph_sequencer,
 };
 
 /// Dispatch every task whose dependencies have all completed successfully,
@@ -131,8 +131,10 @@ pub(super) fn node_edges<Node: Clone + Eq + std::hash::Hash>(
     NodeEdges { dependents, pending_dependencies }
 }
 
-pub(super) fn task_concurrency(settings: &TaskSettings) -> Option<usize> {
-    settings.concurrency.map(|concurrency| usize::try_from(concurrency).unwrap_or(usize::MAX))
+pub(super) fn task_concurrency(settings: &impl TaskDeclaration) -> Option<usize> {
+    settings
+        .concurrency()
+        .map(|concurrency| usize::try_from(concurrency).unwrap_or(usize::MAX))
 }
 
 fn sequenced_order<Node: Clone + Eq + std::hash::Hash>(

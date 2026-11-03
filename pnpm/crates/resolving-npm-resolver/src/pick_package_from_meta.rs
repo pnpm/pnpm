@@ -52,11 +52,11 @@ use dashmap::DashMap;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use node_semver::{Range, Version};
-use pnpm_config::version_policy::{PackageVersionPolicy, PolicyMatch};
 use pnpm_registry::{DerivedPackuments, Package, PackageVersion, PackageVersions};
 use pnpm_resolving_resolver_base::{
     VersionSelectorEntry, VersionSelectorType, VersionSelectors, parse_packument_timestamp,
 };
+use pnpm_version_policy::{PackageVersionPolicy, PolicyMatch};
 
 /// Discriminator for [`RegistryPackageSpec::spec_type`]: the
 /// `tag` / `version` / `range` triple.

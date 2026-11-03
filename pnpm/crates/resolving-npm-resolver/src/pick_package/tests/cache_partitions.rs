@@ -42,7 +42,7 @@ async fn cache_key_separates_abbreviated_from_full() {
         needs_full_metadata_for: None,
         filter_metadata: false,
         cache_policy: crate::MetadataCachePolicy {
-            network: pnpm_config::NetworkPolicy::Online,
+            network: pnpm_resolving_resolver_base::NetworkPolicy::Online,
             ignore_missing_time_field: false,
         },
         store_view: None,
@@ -97,7 +97,7 @@ async fn optional_dependency_on_pnpr_registry_does_not_fetch_full_metadata() {
         needs_full_metadata_for: Some(&needs_full_metadata_for),
         filter_metadata: false,
         cache_policy: crate::MetadataCachePolicy {
-            network: pnpm_config::NetworkPolicy::Online,
+            network: pnpm_resolving_resolver_base::NetworkPolicy::Online,
             ignore_missing_time_field: false,
         },
         store_view: None,
@@ -157,7 +157,7 @@ async fn cache_key_separates_filtered_full_from_unfiltered_full() {
         needs_full_metadata_for: None,
         filter_metadata: false,
         cache_policy: crate::MetadataCachePolicy {
-            network: pnpm_config::NetworkPolicy::Online,
+            network: pnpm_resolving_resolver_base::NetworkPolicy::Online,
             ignore_missing_time_field: false,
         },
         store_view: None,
@@ -178,7 +178,7 @@ async fn cache_key_separates_filtered_full_from_unfiltered_full() {
         needs_full_metadata_for: None,
         filter_metadata: true,
         cache_policy: crate::MetadataCachePolicy {
-            network: pnpm_config::NetworkPolicy::Online,
+            network: pnpm_resolving_resolver_base::NetworkPolicy::Online,
             ignore_missing_time_field: false,
         },
         store_view: None,
@@ -244,7 +244,7 @@ async fn update_checksums_bypasses_warm_in_memory_cache() {
         needs_full_metadata_for: None,
         filter_metadata: false,
         cache_policy: crate::MetadataCachePolicy {
-            network: pnpm_config::NetworkPolicy::Online,
+            network: pnpm_resolving_resolver_base::NetworkPolicy::Online,
             ignore_missing_time_field: false,
         },
         store_view: None,
@@ -328,7 +328,7 @@ async fn cache_fast_paths_record_route_through_hook() {
             needs_full_metadata_for: None,
             filter_metadata: false,
             cache_policy: crate::MetadataCachePolicy {
-                network: pnpm_config::NetworkPolicy::Online,
+                network: pnpm_resolving_resolver_base::NetworkPolicy::Online,
                 ignore_missing_time_field: false,
             },
             store_view: None,
@@ -367,7 +367,7 @@ async fn cache_fast_paths_record_route_through_hook() {
             needs_full_metadata_for: None,
             filter_metadata: false,
             cache_policy: crate::MetadataCachePolicy {
-                network: pnpm_config::NetworkPolicy::Offline,
+                network: pnpm_resolving_resolver_base::NetworkPolicy::Offline,
                 ignore_missing_time_field: false,
             },
             store_view: None,
@@ -406,7 +406,7 @@ async fn cache_fast_paths_record_route_through_hook() {
             needs_full_metadata_for: None,
             filter_metadata: false,
             cache_policy: crate::MetadataCachePolicy {
-                network: pnpm_config::NetworkPolicy::Online,
+                network: pnpm_resolving_resolver_base::NetworkPolicy::Online,
                 ignore_missing_time_field: false,
             },
             store_view: None,
@@ -498,7 +498,7 @@ async fn private_scope_writes_descriptor_namespaced_mirror() {
         needs_full_metadata_for: None,
         filter_metadata: false,
         cache_policy: crate::MetadataCachePolicy {
-            network: pnpm_config::NetworkPolicy::Online,
+            network: pnpm_resolving_resolver_base::NetworkPolicy::Online,
             ignore_missing_time_field: false,
         },
         store_view: None,
@@ -562,7 +562,7 @@ async fn public_scope_falls_back_to_mirror_on_401() {
         needs_full_metadata_for: None,
         filter_metadata: false,
         cache_policy: crate::MetadataCachePolicy {
-            network: pnpm_config::NetworkPolicy::Online,
+            network: pnpm_resolving_resolver_base::NetworkPolicy::Online,
             ignore_missing_time_field: false,
         },
         store_view: None,

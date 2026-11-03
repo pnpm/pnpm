@@ -357,7 +357,7 @@ fn publish_config_link_directory_false_keeps_root() {
 
 #[test]
 fn calc_specifier_honors_requested_exact_add_while_update_preserves_operator() {
-    use pnpm_config::SaveWorkspaceProtocol;
+    use pnpm_resolving_resolver_base::SaveWorkspaceProtocol;
 
     let packages = build_packages();
 

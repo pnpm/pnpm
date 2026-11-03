@@ -50,37 +50,6 @@ mod store_peek;
 use store_peek::fast_path_pick;
 
 mod registry_dependency;
-use registry_dependency::ResolvedRegistry;
-
-use std::{
-    borrow::Cow,
-    collections::{BTreeMap, HashMap},
-    path::PathBuf,
-    sync::Arc,
-};
-
-use chrono::{DateTime, Utc};
-use node_semver::Version;
-use pnpm_config::{
-    DEFAULT_JSR_REGISTRY, NeedsFullMetadataFor, TrustPolicy, version_policy::PackageVersionPolicy,
-};
-use pnpm_lockfile::{
-    DeclaredRegistryPrefixes, LockfileResolution, PkgName, PkgNameVer, RegistryOptions,
-    RegistryServerType, TarballResolution, TarballRevision, TarballUrlOptions,
-    has_complete_sha512_digest, is_on_revision_tarball_route, is_revision_registry_tarball_url,
-    npm_tarball_url, registry_server_type,
-};
-use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient, redact_and_sanitize};
-use pnpm_registry::{Package, PackageDistribution, PackageVersion, RangeSpecStyle};
-use pnpm_resolving_resolver_base::{
-    GuardExhaustionPolicy, LatestInfo, LatestQuery, NoMatchingVersionError,
-    PackageVersionGuardDecision, PkgResolutionId, RegistryResponseError,
-    RegistryResponseErrorOptions, ResolutionPolicyViolation, ResolveError, ResolveFuture,
-    ResolveLatestFuture, ResolveOptions, ResolveResult, Resolver, UpdateBehavior, WantedDependency,
-    WorkspacePackages, parse_packument_timestamp,
-};
-use ssri::{Algorithm, Integrity};
-
 use crate::{
     OfflineStoreView,
     errors::{
@@ -104,6 +73,32 @@ use crate::{
     },
     trust_checks::TrustCheckOptions,
     violation_codes::MINIMUM_RELEASE_AGE_VIOLATION_CODE,
+};
+use chrono::{DateTime, Utc};
+use node_semver::Version;
+use pnpm_lockfile::{
+    DeclaredRegistryPrefixes, LockfileResolution, PkgName, PkgNameVer, RegistryOptions,
+    RegistryServerType, TarballResolution, TarballRevision, TarballUrlOptions,
+    has_complete_sha512_digest, is_on_revision_tarball_route, is_revision_registry_tarball_url,
+    npm_tarball_url, registry_server_type,
+};
+use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient, redact_and_sanitize};
+use pnpm_registry::{Package, PackageDistribution, PackageVersion, RangeSpecStyle};
+use pnpm_resolving_resolver_base::{
+    DEFAULT_JSR_REGISTRY, GuardExhaustionPolicy, LatestInfo, LatestQuery, NeedsFullMetadataFor,
+    NoMatchingVersionError, PackageVersionGuardDecision, PkgResolutionId, RegistryResponseError,
+    RegistryResponseErrorOptions, ResolutionPolicyViolation, ResolveError, ResolveFuture,
+    ResolveLatestFuture, ResolveOptions, ResolveResult, Resolver, TrustPolicy, UpdateBehavior,
+    WantedDependency, WorkspacePackages, parse_packument_timestamp,
+};
+use pnpm_version_policy::PackageVersionPolicy;
+use registry_dependency::ResolvedRegistry;
+use ssri::{Algorithm, Integrity};
+use std::{
+    borrow::Cow,
+    collections::{BTreeMap, HashMap},
+    path::PathBuf,
+    sync::Arc,
 };
 
 /// Provenance tag for [`ResolveResult::resolved_via`] when the picker

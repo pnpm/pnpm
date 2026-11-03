@@ -13,12 +13,12 @@ use chrono::{DateTime, Utc};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use node_semver::Version;
-use pnpm_config::version_policy::{PackageVersionPolicy, PolicyMatch};
 use pnpm_registry::{
     NpmUser, Package, PackageDistribution, PackageVersion, VersionPolicyFields,
     VersionTrustMetadata,
 };
 use pnpm_resolving_resolver_base::parse_packument_timestamp;
+use pnpm_version_policy::{PackageVersionPolicy, PolicyMatch};
 
 use crate::pick_package::{SkippedTimeCheck, warn_missing_time_once};
 

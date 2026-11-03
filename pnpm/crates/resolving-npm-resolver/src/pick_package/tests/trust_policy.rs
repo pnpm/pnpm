@@ -31,7 +31,7 @@ async fn normal_range_fetches_when_trust_policy_is_active() {
         needs_full_metadata_for: None,
         filter_metadata: false,
         cache_policy: crate::MetadataCachePolicy {
-            network: pnpm_config::NetworkPolicy::Online,
+            network: pnpm_resolving_resolver_base::NetworkPolicy::Online,
             ignore_missing_time_field: false,
         },
         store_view: None,
@@ -56,7 +56,7 @@ async fn normal_range_fetches_when_trust_policy_is_active() {
     );
     let mut opts = default_opts(&registry);
     opts.preferred_version_selectors = Some(&selectors);
-    opts.policy.trust_policy = Some(pnpm_config::TrustPolicy::NoDowngrade);
+    opts.policy.trust_policy = Some(pnpm_resolving_resolver_base::TrustPolicy::NoDowngrade);
 
     pick_package(&ctx, &range_spec("acme", "^1.0.0"), &opts).await.expect("ok");
 
@@ -98,7 +98,7 @@ async fn abbreviated_packument_without_time_upgrades_to_full_when_trust_policy_i
         needs_full_metadata_for: Some(&needs_full_metadata_for),
         filter_metadata: false,
         cache_policy: crate::MetadataCachePolicy {
-            network: pnpm_config::NetworkPolicy::Online,
+            network: pnpm_resolving_resolver_base::NetworkPolicy::Online,
             ignore_missing_time_field: false,
         },
         store_view: None,
@@ -114,7 +114,7 @@ async fn abbreviated_packument_without_time_upgrades_to_full_when_trust_policy_i
         },
     };
     let mut opts = default_opts(&registry);
-    opts.policy.trust_policy = Some(pnpm_config::TrustPolicy::NoDowngrade);
+    opts.policy.trust_policy = Some(pnpm_resolving_resolver_base::TrustPolicy::NoDowngrade);
 
     let result = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &opts).await.expect("ok");
 

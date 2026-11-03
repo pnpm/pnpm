@@ -6,7 +6,7 @@ use super::{
     persist_meta_to_mirror, pick_package, range_spec, shared_packument_fetch_locker,
     version_selection::{public_ctx, set_mirror_mtime},
 };
-use pnpm_config::version_policy::PackageVersionPolicy;
+use pnpm_version_policy::PackageVersionPolicy;
 
 /// Between the fixture's 1.0.0 and 1.1.0 publish times.
 const CUTOFF: &str = "2024-06-01T00:00:00Z";

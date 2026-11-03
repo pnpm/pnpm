@@ -10,8 +10,8 @@
 
 use std::path::Path;
 
-use pnpm_config::NetworkPolicy;
 use pnpm_registry::Package;
+use pnpm_resolving_resolver_base::NetworkPolicy;
 use reqwest::header::{self, HeaderMap};
 
 use crate::{
