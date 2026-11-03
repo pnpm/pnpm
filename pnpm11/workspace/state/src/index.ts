@@ -1,7 +1,7 @@
 export { getHoistedProjectModulesDir } from './hoistedProjectModulesDir.js'
 export { loadWorkspaceState } from './loadWorkspaceState.js'
 export { type ReadLocalDependencies, recordedLockfileDigests } from './localDependencies.js'
-export { recordedRegistryPrefixes, recordedRegistryRoutes } from './registryPrefixes.js'
+export { recordedRegistryKeySettings, recordedRegistryPrefixes, recordedRegistryRoutes, type RegistryKeySettings } from './registryPrefixes.js'
 export { resolveStoreLocationSettings } from './storeLocation.js'
 export { type FileSignature, type LocalDependencies, type ProjectsList, type Validation, WORKSPACE_STATE_SETTING_KEYS, type WorkspaceState, type WorkspaceStateSettings } from './types.js'
 export { type StateValidationOptions, updateWorkspaceState, type UpdateWorkspaceStateOptions } from './updateWorkspaceState.js'

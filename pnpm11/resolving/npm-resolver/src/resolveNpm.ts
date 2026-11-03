@@ -385,7 +385,7 @@ function defaultTagForAlias (alias: string, defaultTag: string): RegistryPackage
  * registry configuration now writes differently is re-keyed.
  */
 async function peekLockedPackage (
-  ctx: Pick<ResolveFromNpmContext, 'declaredRegistriesByPrefix' | 'peekManifestFromStore' | 'registriesByPrefix'>,
+  ctx: Pick<ResolveFromNpmContext, 'declaredRegistriesByPrefix' | 'peekManifestFromStore' | 'registriesByPrefix' | 'registriesByScope'>,
   { spec, registry }: { spec: RegistryPackageSpec, registry: string },
   lockedPkg: NonNullable<ResolveFromNpmOptions['currentPkg']>
 ): Promise<LockedPackage | undefined> {

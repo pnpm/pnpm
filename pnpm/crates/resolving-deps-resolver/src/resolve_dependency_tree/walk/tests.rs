@@ -17,10 +17,10 @@ fn corp_registries() -> pnpm_lockfile::RegistryContext {
             ("corp".to_string(), registry.to_string()),
             ("zeta".to_string(), registry.to_string()),
         ]),
-        declared_prefixes: pnpm_lockfile::DeclaredRegistryPrefixes::new([
-            ("corp", registry),
-            ("zeta", registry),
-        ]),
+        declared_prefixes: pnpm_lockfile::DeclaredRegistryPrefixes::new(
+            [("corp", registry), ("zeta", registry)],
+            "https://registry.npmjs.org/",
+        ),
         ..Default::default()
     }
 }
@@ -45,7 +45,10 @@ fn work_default_registry() -> pnpm_lockfile::RegistryContext {
             "work".to_string(),
             registry.to_string(),
         )]),
-        declared_prefixes: pnpm_lockfile::DeclaredRegistryPrefixes::new([("work", registry)]),
+        declared_prefixes: pnpm_lockfile::DeclaredRegistryPrefixes::new(
+            [("work", registry)],
+            registry,
+        ),
         ..Default::default()
     }
 }
@@ -53,9 +56,9 @@ fn work_default_registry() -> pnpm_lockfile::RegistryContext {
 #[test]
 fn matches_the_re_keyed_id_of_the_recorded_entry() {
     let registries = work_default_registry();
-    assert!(landed_on_prior_entry(&key("foo@1.0.0(bar@2.0.0)"), "foo@work:1.0.0", &registries));
-    assert!(!landed_on_prior_entry(&key("foo@1.0.0"), "foo@work:1.1.0", &registries));
-    assert!(!landed_on_prior_entry(&key("foo@1.0.0"), "foo@work:1.0.0", &no_prefixes()));
+    assert!(landed_on_prior_entry(&key("foo@work:1.0.0(bar@2.0.0)"), "foo@1.0.0", &registries));
+    assert!(!landed_on_prior_entry(&key("foo@work:1.0.0"), "foo@1.1.0", &registries));
+    assert!(!landed_on_prior_entry(&key("foo@work:1.0.0"), "foo@1.0.0", &no_prefixes()));
 }
 
 #[test]
@@ -149,7 +152,7 @@ fn revision_refresh_pins_registry_specifiers_without_overriding_revision_selecto
         exact_registry_specifier_for_revision_refresh(
             "corp:@scope/pkg@^1.0.0",
             "1.2.3",
-            Some("corp"),
+            Some("https://corp.example.test/"),
             &registries,
         ),
         "corp:@scope/pkg@1.2.3",
@@ -158,7 +161,7 @@ fn revision_refresh_pins_registry_specifiers_without_overriding_revision_selecto
         exact_registry_specifier_for_revision_refresh(
             "corp:@scope/pkg",
             "1.2.3",
-            Some("corp"),
+            Some("https://corp.example.test/"),
             &registries,
         ),
         "corp:@scope/pkg@1.2.3",
@@ -167,7 +170,7 @@ fn revision_refresh_pins_registry_specifiers_without_overriding_revision_selecto
         exact_registry_specifier_for_revision_refresh(
             "corp:pkg",
             "1.2.3",
-            Some("corp"),
+            Some("https://corp.example.test/"),
             &registries
         ),
         "corp:pkg@1.2.3",
@@ -176,7 +179,7 @@ fn revision_refresh_pins_registry_specifiers_without_overriding_revision_selecto
         exact_registry_specifier_for_revision_refresh(
             "zeta:pkg@^1.0.0",
             "1.2.3",
-            Some("zeta"),
+            Some("https://corp.example.test/"),
             &registries
         ),
         "zeta:pkg@1.2.3",

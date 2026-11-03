@@ -255,6 +255,37 @@ test('updateWorkspaceState() preserves autoDedupe and ignoredWorkspaceStateSetti
   expect(loadWorkspaceState(workspaceDir)!.settings.autoDedupe).toBe(true)
 })
 
+test('updateWorkspaceState() carries defaultRegistry with an ignored registryPrefixes', async () => {
+  prepareEmpty()
+  const workspaceDir = process.cwd()
+  fs.writeFileSync('pnpm-lock.yaml', "lockfileVersion: '9.0'\n")
+  const rootDir = path.join(workspaceDir, 'a') as ProjectRootDir
+  const allProjects = [{ rootDir, manifest: { name: 'a' } }]
+  const settings = { excludeLinksFromLockfile: false, linkWorkspacePackages: false, preferWorkspacePackages: false }
+  await updateWorkspaceState({
+    allProjects,
+    settings: { ...settings, registryPrefixes: { work: 'https://npm.example.test/' }, defaultRegistry: 'https://registry.npmjs.org/' },
+    workspaceDir,
+    pnpmfiles: [],
+    filteredInstall: false,
+    validation: { lockfileDir: workspaceDir, wantedLockfileName: 'pnpm-lock.yaml', sharedInputs: [] },
+  })
+
+  await updateWorkspaceState({
+    allProjects,
+    settings,
+    workspaceDir,
+    pnpmfiles: [],
+    filteredInstall: false,
+    ignoredWorkspaceStateSettings: ['registryPrefixes'],
+    validation: { lockfileDir: workspaceDir, wantedLockfileName: 'pnpm-lock.yaml', sharedInputs: [], vouchedProjects: [rootDir] },
+  })
+
+  const state = loadWorkspaceState(workspaceDir)!
+  expect(state.settings.registryPrefixes).toStrictEqual({ work: 'https://npm.example.test/' })
+  expect(state.settings.defaultRegistry).toBe('https://registry.npmjs.org/')
+})
+
 test('updateWorkspaceState() records per-project lockfiles when sharedWorkspaceLockfile is false', async () => {
   prepareEmpty()
   const workspaceDir = process.cwd()

@@ -225,6 +225,13 @@ pub struct WorkspaceStateSettings {
     pub dangerously_allow_all_builds: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub dedupe_direct_deps: Option<bool>,
+    /// The default registry, as `normalized_registry_key` spells it, recorded
+    /// with [`Self::registry_prefixes`]. Its packages keep plain keys whatever
+    /// prefix names it, so a state verified under another default registry,
+    /// or by a pnpm that keyed them by prefix, proves nothing about the
+    /// lockfile's keys.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub default_registry: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub dedupe_injected_deps: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

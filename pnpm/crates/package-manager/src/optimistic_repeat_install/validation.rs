@@ -488,6 +488,7 @@ fn shared_inputs_match(
         let mut settings = state.settings.clone();
         settings.auto_dedupe = None;
         settings.registry_prefixes = None;
+        settings.default_registry = None;
         settings.registry_routes = None;
         if settings.allow_builds.as_ref().is_some_and(BTreeMap::is_empty) {
             settings.allow_builds = None;

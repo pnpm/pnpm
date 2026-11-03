@@ -1,4 +1,4 @@
-import { isSameRegistry, pickDeclaredRegistryPrefix, pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
+import { isSameRegistry, pickAliasKeyPrefix, pickDeclaredRegistryPrefix, pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import { BUILTIN_REGISTRIES_BY_PREFIX } from '@pnpm/constants'
 import * as dp from '@pnpm/deps.path'
 import type { LockfileObject } from '@pnpm/lockfile.types'
@@ -84,35 +84,45 @@ export function findMovedRegistryKey (lockfile: LockfileObject, registries: Regi
  * `pickDeclaredRegistryPrefix`.
  */
 export function keyPrefixForRegistry (registries: RegistryContext, registry: string): string | undefined {
-  return pickDeclaredRegistryPrefix(registries.registriesByPrefix, registry)
+  return pickDeclaredRegistryPrefix(registries, registry)
 }
 
 /**
- * The prefix the key of a package a `<prefix>:` specifier resolved carries:
- * the one the keys of its registry carry, or `prefix` itself when no declared
- * prefix names that registry. `undefined` when nothing declares `prefix`.
+ * The prefix the key of `name`, resolved by a `<prefix>:` specifier, carries.
+ * See `pickAliasKeyPrefix`. `undefined` for a plain key, and when nothing
+ * declares `prefix`.
  */
-export function keyPrefixForAlias (registries: RegistryContext, prefix: string): string | undefined {
+export function keyPrefixForAlias (registries: RegistryContext, prefix: string, name: string): string | undefined {
   const registry = registryOfPrefix(registries, prefix)
   if (registry == null) return undefined
-  return keyPrefixForRegistry(registries, registry) ?? prefix
+  return pickAliasKeyPrefix(registries, { alias: prefix, name, registry })
 }
 
 /**
  * The key this configuration writes for the package of `depPath` in place of
  * `depPath`, when it differs: a plain key of a package whose registry declares
- * a prefix, or a key qualified by a prefix other than the one the keys of its
- * registry carry. A key that is not a registry version, or that is qualified
- * by a prefix nothing declares, is left alone.
+ * a prefix, a key qualified by a prefix other than the one the keys of its
+ * registry carry, or a qualified key of a package the default registry serves
+ * under a plain key. A key that is not a registry version, or that is
+ * qualified by a prefix nothing declares, is left alone.
  */
 export function rekeyDepPath (registries: RegistryContext, depPath: string): DepPath | undefined {
   const { name, version, registryName } = dp.parse(depPath)
   if (name == null || version == null) return undefined
-  const currentPrefix = registryName == null
-    ? keyPrefixForRegistry(registries, pickRegistryForPackage(registries.registriesByScope, name))
-    : keyPrefixForAlias(registries, registryName)
-  if (currentPrefix == null || currentPrefix === registryName) return undefined
-  return `${name}@${currentPrefix}:${version}${depPath.slice(dp.removeSuffix(depPath).length)}` as DepPath
+  const currentPrefix = currentKeyPrefix(registries, name, registryName)
+  if (currentPrefix === registryName || currentPrefix === UNDECLARED) return undefined
+  const peerSuffix = depPath.slice(dp.removeSuffix(depPath).length)
+  return (currentPrefix == null ? `${name}@${version}${peerSuffix}` : `${name}@${currentPrefix}:${version}${peerSuffix}`) as DepPath
+}
+
+const UNDECLARED = Symbol('undeclared prefix')
+
+function currentKeyPrefix (registries: RegistryContext, name: string, registryName: string | undefined): string | undefined | typeof UNDECLARED {
+  if (registryName == null) {
+    return keyPrefixForRegistry(registries, pickRegistryForPackage(registries.registriesByScope, name))
+  }
+  if (registryOfPrefix(registries, registryName) == null) return UNDECLARED
+  return keyPrefixForAlias(registries, registryName, name)
 }
 
 export interface OutdatedRegistryKey {
@@ -128,10 +138,13 @@ export interface OutdatedRegistryKey {
  * install installs the keys as recorded.
  */
 export function findOutdatedRegistryKey (lockfile: LockfileObject, registries: RegistryContext): OutdatedRegistryKey | undefined {
-  if (registries.registriesByPrefix == null || Object.keys(registries.registriesByPrefix).length === 0) return undefined
+  // Without a declared prefix only a qualified key can be outdated, and every
+  // qualified key has a colon.
+  const plainKeysAreCurrent = registries.registriesByPrefix == null || Object.keys(registries.registriesByPrefix).length === 0
   let outdated: OutdatedRegistryKey | undefined
   for (const key of Object.keys(lockfile.packages ?? {}) as DepPath[]) {
     if (outdated != null && outdated.key < key) continue
+    if (plainKeysAreCurrent && !key.includes(':')) continue
     const current = rekeyDepPath(registries, key)
     if (current != null) {
       outdated = { key, current }

@@ -470,6 +470,7 @@ pub(crate) fn build_workspace_state<Sys: Clock>(
     // routes its plain keys resolved through.
     state.settings.auto_dedupe = None;
     state.settings.registry_prefixes = None;
+    state.settings.default_registry = None;
     state.settings.registry_routes = None;
     if node_linker == NodeLinker::Hoisted {
         record_hoisted_modules_dirs(&mut state.projects, project_manifests);

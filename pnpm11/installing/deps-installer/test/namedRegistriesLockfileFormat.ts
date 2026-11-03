@@ -10,6 +10,11 @@ import { testDefaults } from './utils/index.js'
 
 const NAMED_REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/npm/`
 const registriesByPrefix = { work: NAMED_REGISTRY }
+/**
+ * The same server under another host, which makes it another registry, as the
+ * default registry: a prefix of the default registry qualifies no keys.
+ */
+const registriesByScope = { default: `http://127.0.0.1:${REGISTRY_MOCK_PORT}/npm/` }
 
 function readLockfile (): LockfileFile {
   return readYamlFileSync<LockfileFile>(WANTED_LOCKFILE)
@@ -20,7 +25,7 @@ function installFoo (): Promise<unknown> {
     dependencies: {
       '@pnpm.e2e/foo': 'work:1.0.0',
     },
-  }, testDefaults({ registriesByPrefix }, { registriesByPrefix }))
+  }, testDefaults({ registriesByPrefix, registriesByScope }, { registriesByPrefix }))
 }
 
 test('a named-registry dependency is keyed registry-qualified', async () => {
@@ -81,13 +86,14 @@ test('the same package resolved from two registries gets one entry per registry'
 test('a plain range resolved from the registry a prefix declares shares the prefixed entry', async () => {
   prepareEmpty()
 
-  // `work` names the default registry, so both dependencies reach one registry.
+  // The `@pnpm.e2e` scope routes to the registry `work` names, so both
+  // dependencies reach one registry.
   await install({
     dependencies: {
       '@pnpm.e2e/foo': '1.0.0',
       'foo-from-work': 'work:@pnpm.e2e/foo@1.0.0',
     },
-  }, testDefaults({ registriesByPrefix }, { registriesByPrefix }))
+  }, testDefaults({ registriesByPrefix, registriesByScope: { ...registriesByScope, '@pnpm.e2e': NAMED_REGISTRY } }, { registriesByPrefix }))
 
   const lockfile = readLockfile()
   expect(Object.keys(lockfile.packages ?? {}).filter((key) => key.startsWith('@pnpm.e2e/foo@'))).toStrictEqual(['@pnpm.e2e/foo@work:1.0.0'])
@@ -99,6 +105,30 @@ test('a plain range resolved from the registry a prefix declares shares the pref
   expect(lockfile.importers?.['.']?.dependencies?.['foo-from-work']).toStrictEqual({
     specifier: 'work:@pnpm.e2e/foo@1.0.0',
     version: '@pnpm.e2e/foo@work:1.0.0',
+  })
+})
+
+// https://github.com/pnpm/pnpm/issues/17575
+test('a prefix of the default registry keeps the plain entry a plain range shares', async () => {
+  prepareEmpty()
+
+  // `testDefaults` makes the registry `work` names the default registry.
+  await install({
+    dependencies: {
+      '@pnpm.e2e/foo': '1.0.0',
+      'foo-from-work': 'work:@pnpm.e2e/foo@1.0.0',
+    },
+  }, testDefaults({ registriesByPrefix }, { registriesByPrefix }))
+
+  const lockfile = readLockfile()
+  expect(Object.keys(lockfile.packages ?? {}).filter((key) => key.startsWith('@pnpm.e2e/foo@'))).toStrictEqual(['@pnpm.e2e/foo@1.0.0'])
+  expect(lockfile.importers?.['.']?.dependencies?.['@pnpm.e2e/foo']).toStrictEqual({
+    specifier: '1.0.0',
+    version: '1.0.0',
+  })
+  expect(lockfile.importers?.['.']?.dependencies?.['foo-from-work']).toStrictEqual({
+    specifier: 'work:@pnpm.e2e/foo@1.0.0',
+    version: '@pnpm.e2e/foo@1.0.0',
   })
 })
 
@@ -128,6 +158,7 @@ test.each([
     },
   }, testDefaults({
     registriesByPrefix,
+    registriesByScope,
     dedupePeers,
   }, { registriesByPrefix }))
 

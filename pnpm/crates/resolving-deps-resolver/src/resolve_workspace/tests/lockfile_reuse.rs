@@ -207,11 +207,10 @@ async fn resolve_optional_failure_with_locked_key(
             ("zeta".to_string(), default.to_string()),
             ("other".to_string(), other.to_string()),
         ]),
-        declared_prefixes: pnpm_lockfile::DeclaredRegistryPrefixes::new([
-            ("work", default),
-            ("zeta", default),
-            ("other", other),
-        ]),
+        declared_prefixes: pnpm_lockfile::DeclaredRegistryPrefixes::new(
+            [("work", default), ("zeta", default), ("other", other)],
+            default,
+        ),
         ..Default::default()
     };
     match resolve_workspace(

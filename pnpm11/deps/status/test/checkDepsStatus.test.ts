@@ -600,6 +600,77 @@ describe('checkDepsStatus - settings change detection', () => {
     expect(result.issue).not.toBe('The value of the registryPrefixes setting has changed')
   })
   it.each([
+    ['an older pnpm recorded the prefixes without the default registry', undefined, 'https://registry.npmjs.org/'],
+    ['the default registry changed', 'https://registry.npmjs.org/', 'https://mirror.example.test/'],
+  ])('returns upToDate: false when %s', async (_label, defaultRegistry, currentDefaultRegistry) => {
+    // The default registry's packages keep plain keys, so a verification made
+    // under another default registry, or by a pnpm that keyed them by prefix,
+    // proves nothing about the lockfile's keys.
+    const registryPrefixes = { work: 'https://npm.example.test/' }
+    const mockWorkspaceState: WorkspaceState = {
+      lastValidatedTimestamp: recentTimestamp(),
+      pnpmfiles: [],
+      settings: {
+        excludeLinksFromLockfile: false,
+        linkWorkspacePackages: true,
+        preferWorkspacePackages: true,
+        registryPrefixes,
+        defaultRegistry,
+      },
+      projects: {},
+      filteredInstall: false,
+    }
+
+    jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState)
+
+    const opts: CheckDepsStatusOptions = {
+      rootProjectManifest: {},
+      rootProjectManifestDir: '/project',
+      pnpmfile: [],
+      ...mockWorkspaceState.settings,
+      registriesByPrefix: registryPrefixes,
+      registriesByScope: { default: currentDefaultRegistry },
+      ignoredWorkspaceStateSettings: ['registryRoutes'],
+    }
+    const result = await checkDepsStatus(opts)
+
+    expect(result.upToDate).toBe(false)
+    expect(result.issue).toBe('The value of the registryPrefixes setting has changed')
+  })
+
+  it('does not report a registryPrefixes change when the recorded default registry is the current one', async () => {
+    const registryPrefixes = { work: 'https://npm.example.test/' }
+    const mockWorkspaceState: WorkspaceState = {
+      lastValidatedTimestamp: recentTimestamp(),
+      pnpmfiles: [],
+      settings: {
+        excludeLinksFromLockfile: false,
+        linkWorkspacePackages: true,
+        preferWorkspacePackages: true,
+        registryPrefixes,
+        defaultRegistry: 'https://registry.npmjs.org/',
+      },
+      projects: {},
+      filteredInstall: false,
+    }
+
+    jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState)
+
+    const opts: CheckDepsStatusOptions = {
+      rootProjectManifest: {},
+      rootProjectManifestDir: '/project',
+      pnpmfile: [],
+      ...mockWorkspaceState.settings,
+      registriesByPrefix: registryPrefixes,
+      registriesByScope: { default: 'https://REGISTRY.npmjs.org' },
+      ignoredWorkspaceStateSettings: ['registryRoutes'],
+    }
+    const result = await checkDepsStatus(opts)
+
+    expect(result.issue).not.toBe('The value of the registryPrefixes setting has changed')
+  })
+
+  it.each([
     ['nothing was recorded', undefined],
     ['the recorded routes differ from the current ones', { '@corp': 'https://old.example.test/' }],
   ])('returns upToDate: false when %s and the registry routes are known', async (_label, registryRoutes) => {

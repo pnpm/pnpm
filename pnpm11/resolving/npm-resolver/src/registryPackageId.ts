@@ -1,4 +1,4 @@
-import { pickDeclaredRegistryPrefix } from '@pnpm/config.pick-registry-for-package'
+import { type KeyPrefixRegistries, pickDeclaredRegistryPrefix } from '@pnpm/config.pick-registry-for-package'
 import type { PkgResolutionId } from '@pnpm/resolving.resolver-base'
 
 import type { ResolveFromNpmContext } from './resolverTypes.js'
@@ -11,10 +11,14 @@ import type { ResolveFromNpmContext } from './resolverTypes.js'
  * two registries get two.
  */
 export function registryPackageId (
-  ctx: Pick<ResolveFromNpmContext, 'declaredRegistriesByPrefix'>,
+  ctx: Pick<ResolveFromNpmContext, 'declaredRegistriesByPrefix' | 'registriesByScope'>,
   { name, version, registry }: { name: string, version: string, registry: string }
 ): PkgResolutionId {
-  return qualifiedPackageId(name, version, pickDeclaredRegistryPrefix(ctx.declaredRegistriesByPrefix, registry))
+  return qualifiedPackageId(name, version, pickDeclaredRegistryPrefix(keyPrefixRegistries(ctx), registry))
+}
+
+export function keyPrefixRegistries (ctx: Pick<ResolveFromNpmContext, 'declaredRegistriesByPrefix' | 'registriesByScope'>): KeyPrefixRegistries {
+  return { registriesByScope: ctx.registriesByScope, registriesByPrefix: ctx.declaredRegistriesByPrefix }
 }
 
 export function qualifiedPackageId (name: string, version: string, keyPrefix: string | undefined): PkgResolutionId {

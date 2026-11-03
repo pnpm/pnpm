@@ -10,6 +10,34 @@ pub(crate) fn recorded_registry_prefixes(config: &Config) -> Option<BTreeMap<Str
     })
 }
 
+/// The `defaultRegistry` recorded with [`recorded_registry_prefixes`]. See
+/// [`WorkspaceStateSettings::default_registry`](pnpm_workspace_state::WorkspaceStateSettings::default_registry).
+pub(crate) fn recorded_default_registry(config: &Config) -> Option<String> {
+    if config.registries_by_prefix.is_empty() {
+        return None;
+    }
+    pnpm_lockfile::normalized_registry_key(&config.registry)
+}
+
+/// Whether two states record different registry-key verifications.
+pub(crate) fn registry_key_settings_differ(
+    recorded: &pnpm_workspace_state::WorkspaceStateSettings,
+    live: &pnpm_workspace_state::WorkspaceStateSettings,
+) -> bool {
+    recorded.registry_prefixes != live.registry_prefixes
+        || recorded.default_registry != live.default_registry
+}
+
+/// Whether `settings` records the registry-key verification `config` calls
+/// for: its prefixes under its default registry.
+pub(crate) fn records_registry_keys_of(
+    settings: &pnpm_workspace_state::WorkspaceStateSettings,
+    config: &Config,
+) -> bool {
+    settings.registry_prefixes == recorded_registry_prefixes(config)
+        && settings.default_registry == recorded_default_registry(config)
+}
+
 /// The scope routes an install resolves plain keys through, as
 /// [`WorkspaceStateSettings::registry_routes`](pnpm_workspace_state::WorkspaceStateSettings::registry_routes)
 /// records them.

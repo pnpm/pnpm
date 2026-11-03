@@ -169,6 +169,13 @@ Partial<Pick<Config, OptionalSettingKey>> & {
    */
   registryPrefixes?: Record<string, string>
   /**
+   * The default registry, as `normalizeRegistryKey` spells it, recorded with
+   * `registryPrefixes`. Its packages keep plain keys whatever prefix names it,
+   * so a state verified under another default registry, or by a pnpm that
+   * keyed them by prefix, proves nothing about the lockfile's keys.
+   */
+  defaultRegistry?: string
+  /**
    * The registries the lockfile's plain `packages:` keys resolved from: each
    * scope route (`@<scope>`) in force when an install last resolved them,
    * mapped to its URL. A plain key names no registry, so this record is what

@@ -64,8 +64,8 @@ export function getRangeOfLockedPackage (
  * so that a reused subtree records the key the registry configuration writes
  * today. A plain range mints the prefix its registry declares. A `<prefix>:`
  * specifier mints the prefix the keys of that registry carry: a declared
- * prefix, or a built-in alias as spelled. A key that is not a registry
- * version is left as it is.
+ * prefix, a plain key for a package of the default registry, or the alias as
+ * spelled. A key that is not a registry version is left as it is.
  */
 export function lockedKeyIsCurrent (wantedDep: WantedDep, depPath: string, registries: RegistryContext): boolean {
   const { version, registryName } = dp.parse(depPath)
@@ -128,5 +128,5 @@ function parsePrefixedSpec ({ alias, bareSpecifier }: WantedDep, registries: Reg
   const [name, range] = versionDelimiter > 0
     ? [body.slice(0, versionDelimiter), body.slice(versionDelimiter + 1)]
     : [alias, body]
-  return { name, registry, range, keyPrefix: keyPrefixForAlias(registries, prefix) }
+  return { name, registry, range, keyPrefix: keyPrefixForAlias(registries, prefix, name) }
 }

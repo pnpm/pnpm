@@ -19,10 +19,19 @@ use tempfile::TempDir;
 const PARENT: &str = "@pnpm.e2e/foobar";
 const CHILD: &str = "@pnpm.e2e/foo";
 
+/// The mock registry is also the default registry, whose packages keep plain
+/// keys whatever prefix names it. So the default registry is the mock under
+/// another host name, which pnpm counts as another registry, and the
+/// prefixes in these tests name [`TestRegistry::url`].
 fn setup() -> (TempDir, std::path::PathBuf, AddMockedRegistry) {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
+    append_workspace_yaml_key(&workspace, "registry", default_registry(&npmrc_info));
     (root, workspace, npmrc_info)
+}
+
+fn default_registry(anchor: &AddMockedRegistry) -> String {
+    anchor.mock_instance.url().replace("127.0.0.1", "localhost")
 }
 
 fn write_manifest(workspace: &Path, dependencies: &str) {
@@ -214,6 +223,7 @@ fn entries_keyed_by_another_prefix_of_the_registry_are_re_keyed() {
     let registry = anchor.mock_instance.url();
     let workspace_yaml = workspace.join("pnpm-workspace.yaml");
     append_workspace_yaml_key(&workspace, "namedRegistries", format!("{{ zeta: '{registry}' }}"));
+    append_workspace_yaml_key(&workspace, "registries", format!("{{ '@pnpm.e2e': '{registry}' }}"));
     write_manifest(&workspace, r#"{ "@pnpm.e2e/foobar": "zeta:100.0.0" }"#);
     pacquet_in(&workspace)
         .with_arg("install")
@@ -258,6 +268,7 @@ fn several_prefixes_for_one_registry_key_by_the_smallest() {
         "namedRegistries",
         format!("{{ zeta: '{registry}', work: '{registry}' }}"),
     );
+    append_workspace_yaml_key(&workspace, "registries", format!("{{ '@pnpm.e2e': '{registry}' }}"));
     write_manifest(
         &workspace,
         r#"{ "@pnpm.e2e/foobar": "zeta:100.0.0", "@pnpm.e2e/foo": "work:^100.0.0" }"#,
@@ -602,6 +613,136 @@ fn frozen_reinstall_accepts_a_registry_qualified_child_of_a_local_directory_depe
         .assert()
         .success();
     assert_eq!(virtual_store_copies(&workspace, CHILD).len(), 1);
+
+    drop((root, anchor));
+}
+
+/// The issue's repro: restating the built-in `npmjs` alias for the default
+/// registry keeps plain keys.
+/// <https://github.com/pnpm/pnpm/issues/17575>
+#[test]
+fn a_prefix_of_the_default_registry_keeps_plain_keys() {
+    let (root, workspace, anchor) = setup();
+    let default = default_registry(&anchor);
+    append_workspace_yaml_key(
+        &workspace,
+        "registries",
+        format!("{{ '{default}': {{ scopes: ['@'], prefix: npmjs }} }}"),
+    );
+    write_manifest(&workspace, r#"{ "@pnpm.e2e/foobar": "100.0.0" }"#);
+
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    assert_single_child_copy(&workspace, "@pnpm.e2e/foo@100.1.0");
+    let lockfile = lockfile(&workspace);
+    assert_eq!(package_keys(&lockfile, PARENT), ["@pnpm.e2e/foobar@100.0.0"]);
+    assert_eq!(importer_entry(&lockfile, PARENT), ("100.0.0".to_string(), "100.0.0".to_string()));
+
+    drop((root, anchor));
+}
+
+/// A `<prefix>:` specifier of the default registry shares the plain entry of
+/// a plain range of the same package.
+#[test]
+fn a_prefixed_specifier_of_the_default_registry_shares_the_plain_key() {
+    let (root, workspace, anchor) = setup();
+    let default = default_registry(&anchor);
+    append_workspace_yaml_key(&workspace, "namedRegistries", format!("{{ work: '{default}' }}"));
+    write_manifest(
+        &workspace,
+        r#"{ "@pnpm.e2e/foobar": "100.0.0", "@pnpm.e2e/foo": "work:^100.0.0" }"#,
+    );
+
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    assert_single_child_copy(&workspace, "@pnpm.e2e/foo@100.1.0");
+    let lockfile = lockfile(&workspace);
+    assert_eq!(package_keys(&lockfile, PARENT), ["@pnpm.e2e/foobar@100.0.0"]);
+    assert_eq!(
+        importer_entry(&lockfile, CHILD),
+        ("work:^100.0.0".to_string(), "100.1.0".to_string()),
+    );
+
+    pacquet_in(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
+    assert_single_child_copy(&workspace, "@pnpm.e2e/foo@100.1.0");
+
+    drop((root, anchor));
+}
+
+/// A lockfile that keyed the default registry's packages by a prefix, as
+/// 12.16 did, is re-keyed by an install with nothing else to resolve.
+#[test]
+fn keys_qualified_by_a_prefix_of_the_default_registry_are_re_keyed() {
+    let (root, workspace, anchor) = setup();
+    let default = default_registry(&anchor);
+    append_workspace_yaml_key(&workspace, "namedRegistries", format!("{{ work: '{default}' }}"));
+    write_manifest(
+        &workspace,
+        r#"{ "@pnpm.e2e/foobar": "100.0.0", "@pnpm.e2e/foo": "work:^100.0.0" }"#,
+    );
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    let lockfile_path = workspace.join(Lockfile::FILE_NAME);
+    let written = fs::read_to_string(&lockfile_path).expect("read lockfile");
+    let qualified = written
+        .replace("foobar@100.0.0'", "foobar@work:100.0.0'")
+        .replace("foo@100.1.0'", "foo@work:100.1.0'")
+        .replace("version: 100.", "version: work:100.")
+        .replace("foo': 100.1.0", "foo': work:100.1.0");
+    fs::write(&lockfile_path, &qualified).expect("write lockfile");
+    assert_eq!(package_keys(&lockfile(&workspace), CHILD), ["@pnpm.e2e/foo@work:100.1.0"]);
+
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    assert_eq!(fs::read_to_string(&lockfile_path).expect("read lockfile"), written);
+    assert_single_child_copy(&workspace, "@pnpm.e2e/foo@100.1.0");
+
+    drop((root, anchor));
+}
+
+/// Pointing `registry` at the URL a declared prefix names turns that
+/// registry's keys plain, so the repeat-install fast path does not keep the
+/// qualified keys an earlier install wrote.
+#[test]
+fn moving_the_default_registry_onto_a_prefix_re_keys_its_packages() {
+    let (root, workspace, anchor) = setup();
+    let registry = anchor.mock_instance.url();
+    let workspace_yaml = workspace.join("pnpm-workspace.yaml");
+    append_workspace_yaml_key(&workspace, "namedRegistries", format!("{{ work: '{registry}' }}"));
+    append_workspace_yaml_key(&workspace, "registries", format!("{{ '@pnpm.e2e': '{registry}' }}"));
+    write_manifest(&workspace, r#"{ "@pnpm.e2e/foobar": "work:100.0.0" }"#);
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    assert_single_child_copy(&workspace, "@pnpm.e2e/foo@work:100.1.0");
+
+    let moved = fs::read_to_string(&workspace_yaml)
+        .expect("read pnpm-workspace.yaml")
+        .replace(&default_registry(&anchor), registry);
+    fs::write(&workspace_yaml, moved).expect("write pnpm-workspace.yaml");
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let lockfile = lockfile(&workspace);
+    assert_eq!(package_keys(&lockfile, CHILD), ["@pnpm.e2e/foo@100.1.0"]);
+    assert_eq!(package_keys(&lockfile, PARENT), ["@pnpm.e2e/foobar@100.0.0"]);
 
     drop((root, anchor));
 }

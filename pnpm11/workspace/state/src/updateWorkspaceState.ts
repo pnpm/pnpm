@@ -114,7 +114,9 @@ function preserveCarriedSettings (
   }
   if (ignoredSettings == null) return
   const mutable = settings as Record<keyof WorkspaceStateSettings, unknown>
-  for (const key of ignoredSettings) {
+  // `defaultRegistry` is part of the `registryPrefixes` record.
+  const carried = ignoredSettings.includes('registryPrefixes') ? [...ignoredSettings, 'defaultRegistry' as const] : ignoredSettings
+  for (const key of carried) {
     if (previous[key] !== undefined) {
       mutable[key] = previous[key]
     } else {

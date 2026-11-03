@@ -112,20 +112,20 @@ test('lockedKeyIsCurrent() holds when the key is the one the specifier mints', (
   expect(current('@work/foo@file:packages/foo', 'file:packages/foo')).toBe(true)
 })
 
-test('lockedKeyIsCurrent() follows the spelling of a built-in alias', () => {
+test('lockedKeyIsCurrent() keeps a plain key for an alias of the default registry', () => {
   const registries: RegistryContext = {
-    registriesByScope: { default: 'https://registry.npmjs.org/' },
+    registriesByScope: { default: 'https://registry.npmjs.org/', '@work': 'https://npm.example.com/' },
   }
-  const current = (depPath: string, bareSpecifier: string): boolean =>
-    lockedKeyIsCurrent({ alias: 'foo', bareSpecifier }, depPath, registries)
+  const current = (depPath: string, bareSpecifier: string, alias = 'foo'): boolean =>
+    lockedKeyIsCurrent({ alias, bareSpecifier }, depPath, registries)
   expect(current('foo@1.0.0', '^1.0.0')).toBe(true)
-  expect(current('foo@npmjs:1.0.0', 'npmjs:^1.0.0')).toBe(true)
-  // Both entries come from registry.npmjs.org, so the version pin holds, but
-  // neither key is the one the specifier mints.
-  expect(satisfies('foo', 'npmjs:^1.0.0', 'foo@1.0.0', registries)).toBe(true)
-  expect(current('foo@1.0.0', 'npmjs:^1.0.0')).toBe(false)
-  expect(satisfies('foo', '^1.0.0', 'foo@npmjs:1.0.0', registries)).toBe(true)
+  // `npmjs:` names the default registry, so it mints the plain key a plain
+  // range mints.
+  expect(current('foo@1.0.0', 'npmjs:^1.0.0')).toBe(true)
+  expect(current('foo@npmjs:1.0.0', 'npmjs:^1.0.0')).toBe(false)
   expect(current('foo@npmjs:1.0.0', '^1.0.0')).toBe(false)
+  // A plain range of `@work/foo` routes elsewhere, so the alias keeps its name.
+  expect(current('@work/foo@npmjs:1.0.0', 'npmjs:^1.0.0', '@work/foo')).toBe(true)
   expect(current('foo@gh:1.0.0', 'gh:^1.0.0')).toBe(true)
 })
 
