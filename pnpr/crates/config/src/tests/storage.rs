@@ -384,7 +384,9 @@ fn libsql_settings_need_a_libsql_url_and_a_replica_needs_a_sync_interval() {
     let stray = "storage: /s\nmetadata:\n  url: sqlite:./m.db\n  replicaPath: ./r.db\n";
     let unbounded = "storage: /s\nmetadata:\n  url: http://127.0.0.1:8080\n  replicaPath: ./r.db\n  \
                      syncInterval: 0s\n";
-    for yaml in [stray, unbounded] {
+    let no_url = "storage: /s\nmetadata:\n  authToken: token\n  replicaPath: ./r.db\n";
+    let with_documents = "storage: /s\nmetadata:\n  backend: documents\n  maxConnections: 4\n";
+    for yaml in [stray, unbounded, no_url, with_documents] {
         let err = Config::from_yaml_str(yaml, Path::new("/"), listen(), None).unwrap_err();
         assert!(matches!(err, RegistryError::InvalidConfig { .. }), "{yaml}: {err:?}");
     }

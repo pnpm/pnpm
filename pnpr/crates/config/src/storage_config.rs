@@ -109,6 +109,7 @@ pub(crate) fn resolve_metadata_backend(
         (Some(_), Some(DocumentsBackend::Documents)) => {
             Err(invalid("metadata names both a `url` and `backend: documents`"))
         }
+        (None, _) if has_libsql_settings(file) => Err(invalid(LIBSQL_ONLY_SETTINGS)),
         (None, Some(DocumentsBackend::Documents)) => Ok(MetadataBackend::Documents),
         (None, None) => Ok(default_metadata(storage, on_fs)),
         (Some(url), None) if is_libsql_url(url) => libsql_metadata(file, url, base_dir),
@@ -124,6 +125,18 @@ fn default_metadata(storage: &Path, on_fs: bool) -> MetadataBackend {
     } else {
         MetadataBackend::Documents
     }
+}
+
+/// Why settings only a libSQL URL takes are refused anywhere else.
+const LIBSQL_ONLY_SETTINGS: &str = "metadata.authToken, replicaPath, syncInterval, and \
+                                    maxConnections apply only to a libSQL metadata URL";
+
+/// Whether `file` sets anything only a libSQL URL takes.
+fn has_libsql_settings(file: &MetadataFile) -> bool {
+    file.auth_token.is_some()
+        || file.replica_path.is_some()
+        || file.sync_interval.is_some()
+        || file.max_connections.is_some()
 }
 
 fn invalid(reason: &str) -> RegistryError {
@@ -145,15 +158,8 @@ fn sqlite_metadata(
             ),
         });
     };
-    if file.auth_token.is_some()
-        || file.replica_path.is_some()
-        || file.sync_interval.is_some()
-        || file.max_connections.is_some()
-    {
-        return Err(invalid(
-            "metadata.authToken, replicaPath, syncInterval, and maxConnections apply to a libSQL \
-             metadata URL",
-        ));
+    if has_libsql_settings(file) {
+        return Err(invalid(LIBSQL_ONLY_SETTINGS));
     }
     if path.is_empty() {
         return Err(invalid("metadata.url `sqlite:` needs a path after the colon"));

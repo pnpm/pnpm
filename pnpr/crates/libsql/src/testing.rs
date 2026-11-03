@@ -89,11 +89,15 @@ impl Streams {
 }
 
 /// A `/sync` that stops answering, as a primary on a broken network does.
+/// While enabled, every `/sync` answers with the frames the primary had when
+/// the first stalled request arrived, as a pull that started then sees them.
 #[derive(Default)]
 pub struct SyncStall {
     pub enabled: AtomicBool,
     /// Signalled when a `/sync` request starts stalling.
     pub started: tokio::sync::Notify,
+    /// The generation and WAL the stalled pull answers with.
+    frozen: std::sync::Mutex<Option<(usize, Vec<u8>)>>,
 }
 
 /// A primary at `path`, served on a loopback port.
@@ -172,11 +176,21 @@ async fn sync(
     State(primary): State<Arc<Primary>>,
     Path((generation, start, end)): Path<(usize, usize, usize)>,
 ) -> Result<Vec<u8>, (StatusCode, Json<JsonValue>)> {
-    if primary.sync_stall.enabled.load(Ordering::SeqCst) {
-        primary.sync_stall.started.notify_one();
-        tokio::time::sleep(SYNC_STALL).await;
-    }
-    let (current, wal) = primary.wal_state();
+    let (current, wal) = if primary.sync_stall.enabled.load(Ordering::SeqCst) {
+        let (state, first) = {
+            let mut frozen = primary.sync_stall.frozen.lock().unwrap();
+            let first = frozen.is_none();
+            (frozen.get_or_insert_with(|| primary.wal_state()).clone(), first)
+        };
+        if first {
+            primary.sync_stall.started.notify_one();
+            tokio::time::sleep(SYNC_STALL).await;
+        }
+        state
+    } else {
+        *primary.sync_stall.frozen.lock().unwrap() = None;
+        primary.wal_state()
+    };
     let frames = if generation == current { wal_frames(&wal, start, end) } else { None };
     frames.ok_or_else(|| (StatusCode::BAD_REQUEST, Json(json!({ "generation": current }))))
 }

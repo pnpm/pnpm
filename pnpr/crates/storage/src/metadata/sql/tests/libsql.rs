@@ -202,6 +202,29 @@ async fn a_replica_past_its_sync_interval_syncs_before_it_serves() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_write_that_overtakes_a_sync_leaves_the_replica_stale() {
+    use std::sync::atomic::Ordering;
+    let server = server().await;
+    let metadata = views(&server.instance(Some("own"), 3600));
+    // The write leaves the replica stale, so the next view syncs it.
+    publish(&*metadata, &["1.0.0"]).await;
+    server.primary.sync_stall.enabled.store(true, Ordering::SeqCst);
+    let reader = Arc::clone(&metadata);
+    let read = tokio::spawn(async move { latest(&*reader).await });
+    tokio::time::timeout(
+        std::time::Duration::from_secs(5),
+        server.primary.sync_stall.started.notified(),
+    )
+    .await
+    .expect("the view's sync reaches the primary");
+    // Committed while the view's pull answers with the primary as it was.
+    publish(&*metadata, &["1.0.0", "2.0.0"]).await;
+    read.await.unwrap();
+    server.primary.sync_stall.enabled.store(false, Ordering::SeqCst);
+    assert_eq!(latest(&*metadata).await.as_deref(), Some("2.0.0"));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn every_storage_of_a_process_shares_one_database_handle() {
     let server = server().await;
     let settings = LibsqlSettings {

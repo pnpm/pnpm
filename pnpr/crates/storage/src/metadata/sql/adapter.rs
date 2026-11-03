@@ -84,8 +84,8 @@ pub(crate) trait Adapter: fmt::Debug + Send + Sync {
         false
     }
 
-    /// Bring the replica up to date with the primary, unless a sync finished
-    /// after `since`. A replica that cannot sync is left
+    /// Bring the replica up to date with the primary, unless a sync that
+    /// started at or after `since` already did. A replica that cannot sync is left
     /// stale, so its reads sync first or go to the primary.
     fn sync_replica(&self, since: Instant) -> Result<()> {
         let _ = since;

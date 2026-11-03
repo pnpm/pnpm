@@ -1,5 +1,5 @@
 use super::SyncState;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 const BOUND: Duration = Duration::from_hours(1);
 
@@ -25,4 +25,16 @@ fn a_write_after_a_sync_leaves_the_replica_stale() {
     assert!(state.is_fresh(BOUND));
     state.mark_stale();
     assert!(!state.is_fresh(BOUND));
+}
+
+#[test]
+fn a_sync_started_before_a_request_does_not_answer_it() {
+    let mut state = SyncState::default();
+    let started = state.start_sync();
+    let requested = Instant::now();
+    state.finish_sync(started);
+    assert!(!state.synced_since(requested));
+    let started = state.start_sync();
+    state.finish_sync(started);
+    assert!(state.synced_since(requested));
 }

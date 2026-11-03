@@ -52,7 +52,7 @@ struct Replica {
     pool: ConnectionPool,
     /// How stale a read of the replica may be.
     bound: Duration,
-    /// When the replica last finished a sync, and the writes since.
+    /// When the replica's last sync started, and the writes since.
     synced: Mutex<SyncState>,
     /// Held by the sync in progress, so concurrent reads that find the
     /// replica stale wait for one sync.
@@ -101,13 +101,16 @@ impl Opened {
             // The adapter syncs the replica itself, so it knows when the last
             // sync finished; libsql's own background sync does not say.
             let unsynced = LibsqlSettings { sync_interval_secs: Some(0), ..settings.clone() };
+            // Opening the replica syncs it, so it holds what the primary held
+            // when the sync started.
+            let opening = Instant::now();
             let db = pnpr_libsql::open(&unsynced, connector).await?;
             let interval =
                 settings.sync_interval_secs.unwrap_or(LibsqlSettings::DEFAULT_SYNC_INTERVAL_SECS);
             Some(Replica {
                 pool: ConnectionPool::new(db, max_connections, OPERATION_TIMEOUT, timed_out),
                 bound: Duration::from_secs(interval),
-                synced: Mutex::new(SyncState { synced: Some(Instant::now()), writes: 0 }),
+                synced: Mutex::new(SyncState { synced: Some(opening), writes: 0 }),
                 syncing: tokio::sync::Mutex::new(()),
             })
         } else {
@@ -134,15 +137,23 @@ async fn keep_synced(opened: Weak<Opened>, interval: Duration) {
     }
 }
 
-/// What a replica's reads may rely on: when its last sync finished, unless a
-/// write of this process committed after it.
+/// What a replica's reads may rely on: when its last sync started, unless a
+/// write of this process committed after that.
 #[derive(Debug, Default)]
 struct SyncState {
-    /// When the last sync that no write overtook finished; `None` once a
-    /// write of this process committed after it.
+    /// When the last sync that no write overtook started; its pull holds at
+    /// least what the primary held then. `None` once a write of this process
+    /// committed after it.
     synced: Option<Instant>,
     /// Writes of this process so far. A sync that a write overtook pulled a
     /// snapshot that may predate it.
+    writes: u64,
+}
+
+/// A sync in progress, from [`SyncState::start_sync`].
+#[derive(Debug, Clone, Copy)]
+struct SyncStart {
+    at: Instant,
     writes: u64,
 }
 
@@ -151,7 +162,7 @@ impl SyncState {
         self.synced.is_some_and(|synced| synced.elapsed() <= bound)
     }
 
-    /// Whether a sync finished after `requested`.
+    /// Whether a sync that started at or after `requested` finished.
     fn synced_since(&self, requested: Instant) -> bool {
         self.synced.is_some_and(|synced| synced >= requested)
     }
@@ -162,16 +173,16 @@ impl SyncState {
         self.writes += 1;
     }
 
-    /// The writes seen as a sync starts, for [`Self::finish_sync`].
-    fn start_sync(&self) -> u64 {
-        self.writes
+    /// Note a sync starting now, for [`Self::finish_sync`].
+    fn start_sync(&self) -> SyncStart {
+        SyncStart { at: Instant::now(), writes: self.writes }
     }
 
-    /// Record a sync that started when [`Self::start_sync`] returned
-    /// `started` as finished now, unless a write came after its start.
-    fn finish_sync(&mut self, started: u64) {
-        if self.writes == started {
-            self.synced = Some(Instant::now());
+    /// Record the sync `started` as finished, unless a write came after its
+    /// start.
+    fn finish_sync(&mut self, started: SyncStart) {
+        if self.writes == started.writes {
+            self.synced = Some(started.at);
         }
     }
 }
@@ -186,10 +197,10 @@ impl Replica {
         lock(&self.synced).mark_stale();
     }
 
-    /// Pull the primary's latest frames, unless a sync finished after
-    /// `requested`, such as one that finished while this one waited for its
-    /// turn. A write of this process that commits during the pull leaves the
-    /// replica stale.
+    /// Pull the primary's latest frames, unless a sync that started at or
+    /// after `requested` already did, such as one that ran while this one
+    /// waited for its turn. A write of this process that commits during the
+    /// pull leaves the replica stale.
     async fn sync(&self, requested: Instant) -> Result<()> {
         let _turn = self.syncing.lock().await;
         if lock(&self.synced).synced_since(requested) {
