@@ -27,7 +27,7 @@ impl DedupePipeline {
         // changes made by config-dependency syncing as well.
         let existing =
             if self.args.check { dedupe::read_lockfile_snapshot(&lockfile_path)? } else { None };
-        let _guard =
+        let mut guard =
             self.args.check.then(|| dedupe::LockfileGuard::new(existing.clone(), &lockfile_path));
 
         let root_config = (&*self.manifest_path, &mut *self.cfg, &*self.config_root);
@@ -36,6 +36,9 @@ impl DedupePipeline {
             (false, RuntimePolicy::Config(self.args.no_runtime)),
         )
         .await?;
+        if let Some(guard) = &mut guard {
+            guard.settle();
+        }
         let plan = select_install_family_plan::<Reporter>(
             self.cfg,
             &self.prefix,
@@ -104,9 +107,6 @@ async fn dedupe_dedicated_project<Reporter: self::Reporter + 'static>(
     } else {
         None
     };
-    let _guard = (args.check && lockfile_path != root_lockfile_path).then(|| {
-        dedupe::LockfileGuard::new(existing.clone(), &lockfile_path)
-    });
     Box::pin(args.run::<Reporter>(state, existing, &lockfile_path, None)).await
 }
 
