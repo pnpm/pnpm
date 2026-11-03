@@ -404,7 +404,7 @@ async fn a_new_router_integrates_what_was_sequenced_before() {
             .log_checkpoint(log)
             .await
             .unwrap()
-            .is_none()
+            .is_none(),
     );
 
     let mut config = sqlite_config(tmp.path());
