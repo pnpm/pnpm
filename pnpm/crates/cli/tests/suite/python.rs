@@ -3403,7 +3403,6 @@ async fn update_bumps_python_dependencies() {
 #[tokio::test]
 async fn update_keeps_python_operators_over_save_settings() {
     for setting in ["savePrefix: '^'", "saveExact: true"] {
-        eprintln!("setting={setting}");
         let root = tempfile::tempdir().unwrap();
         let mut server = mockito::Server::new_async().await;
         let _alpha = serve(&mut server, "alpha", &[("1.0", wheel("alpha", "1.0", "", &[]))]).await;
@@ -3435,8 +3434,7 @@ async fn update_keeps_python_operators_over_save_settings() {
             .success();
 
         let pyproject = fs::read_to_string(root.path().join("pyproject.toml")).unwrap();
-        eprintln!("{pyproject}");
-        assert!(pyproject.contains("alpha~=2.0"));
-        assert!(pyproject.contains("beta>=2.0"));
+        assert!(pyproject.contains("alpha~=2.0"), "{setting}\n{pyproject}");
+        assert!(pyproject.contains("beta>=2.0"), "{setting}\n{pyproject}");
     }
 }
