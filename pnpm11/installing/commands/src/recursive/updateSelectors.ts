@@ -217,8 +217,9 @@ export interface IgnoredUpdateSelection {
 
 /**
  * Whether the selectors match direct dependencies of `manifests` only
- * through names `updateConfig.ignoreDependencies` holds back. Such an update
- * has nothing left to do, which is not `NO_PACKAGE_IN_DEPENDENCIES`.
+ * through names `updateConfig.ignoreDependencies` holds back. No selectors
+ * select every direct dependency. Such an update has nothing left to do,
+ * which is not `NO_PACKAGE_IN_DEPENDENCIES`.
  */
 export function selectsOnlyIgnoredDependencies (
   { params, ignoredDependencies }: IgnoredUpdateSelection,
@@ -226,8 +227,8 @@ export function selectsOnlyIgnoredDependencies (
   include: IncludedDependencies
 ): boolean {
   const updateSpecs = addIgnorePatterns(params, ignoredDependencies)
-  if (params.length === 0 || updateSpecs === params) return false
-  return matchesAnyDirectDependency(params, manifests, include) &&
+  if (updateSpecs === params) return false
+  return (params.length === 0 || matchesAnyDirectDependency(params, manifests, include)) &&
     !matchesAnyDirectDependency(updateSpecs, manifests, include)
 }
 
