@@ -233,3 +233,31 @@ async fn a_log_is_served_only_where_one_organization_is_reached() {
     let upstream = get(&app, "/npm/~npmjs/-/log/checkpoint", None).await;
     assert_eq!(upstream.status(), StatusCode::NOT_FOUND);
 }
+
+/// A router built outside a Tokio runtime integrates the entries sequenced
+/// before it at the first read of its log.
+#[tokio::test]
+async fn a_router_built_outside_a_runtime_recovers_its_log() {
+    let tmp = TempDir::new().unwrap();
+    let mut unsigned = acme_config(tmp.path(), Vec::new());
+    unsigned.release_records.log_signing_key = None;
+    let auth = AuthState::in_memory();
+    let token = issue_token(&auth, "alice").await;
+    let app = router_with_auth(unsigned, auth.clone());
+    publish(&app, &token, "@acme/widget", "1.0.0").await;
+    assert_eq!(get(&app, "/npm/-/log/checkpoint", None).await.status(), StatusCode::NOT_FOUND);
+
+    let config = acme_config(tmp.path(), Vec::new());
+    let app = std::thread::spawn(move || router_with_auth(config, auth)).join().unwrap();
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    loop {
+        let checkpoint = get(&app, "/npm/-/log/checkpoint", None).await;
+        if checkpoint.status() == StatusCode::OK {
+            let note = body_bytes(checkpoint.into_body()).await;
+            assert_eq!(log_policy().verify(&note).unwrap().tree_head.size, 1);
+            break;
+        }
+        assert!(std::time::Instant::now() < deadline, "the log was never recovered");
+        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+    }
+}

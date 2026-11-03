@@ -49,6 +49,9 @@ pub(super) async fn get_log_resource(
     Path(LogPath { resource }): Path<LogPath>,
 ) -> Response {
     let Some(log) = registry_log(&state, registry.as_deref()) else { return not_found() };
+    // A server whose router was built outside a runtime recovers its logs
+    // at its first read of one.
+    super::release_record_logs::integrate_sequenced_logs(&state);
     let readers = LogReaders::of(&state, &log, &identity);
     let anyone = LogReaders::of(&state, &log, &Identity::Anonymous);
     if !readers.may_read_some {

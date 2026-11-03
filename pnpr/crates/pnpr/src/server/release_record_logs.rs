@@ -5,7 +5,8 @@
 //! that sequenced entries integrates their log in the background, and each
 //! server once integrates every log, which picks up whatever an interrupted
 //! integration left: when its router is built, or, for a router built
-//! outside a Tokio runtime, at the first integration it starts. A publication's success means committed, not yet
+//! outside a Tokio runtime, at the first integration it starts or the
+//! first read of a log. A publication's success means committed, not yet
 //! integrated. Without a log signing key, entries are sequenced and nothing
 //! is integrated.
 
