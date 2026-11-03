@@ -50,6 +50,9 @@ const SWEEP_GRACE: Duration = Duration::from_hours(1);
 /// principal's limits.
 pub const INCOMPLETE_MAX_AGE: Duration = Duration::from_hours(1);
 
+/// How often a record write retries a concurrent writer's change.
+const RECORD_WRITE_ATTEMPTS: usize = 8;
+
 /// Records a sweep reads at once.
 const SWEEP_CONCURRENCY: usize = 16;
 
@@ -193,28 +196,37 @@ impl Storage {
     /// count against its principal's limits while the upload runs. Check the
     /// limits with [`Self::staged_archive_usage`] after reserving, and give
     /// the reservation back with [`Self::release_staged_archive`] when the
-    /// upload fails.
+    /// upload fails. `Ok(false)` when the archive is staged and claimable
+    /// already, by a concurrent upload of the same bytes, which a reservation
+    /// must not hide.
     pub async fn reserve_staged_archive(
         &self,
         key: &StagedArchiveKey<'_>,
         size: u64,
-    ) -> Result<()> {
-        let record = StagedArchiveRecord { staged_at: unix_now(), size, complete: false };
-        self.write_staged_archive_record(key, &record).await
+    ) -> Result<bool> {
+        let now = unix_now();
+        let record = StagedArchiveRecord { staged_at: now, size, complete: false };
+        self.put_staged_archive_record(key, &record, |stored| stored.is_claimable(now)).await
     }
 
-    /// Give back the reservation of an upload that did not complete. A record
-    /// that completed meanwhile, by a concurrent upload of the same bytes, is
-    /// left alone.
+    /// Give back the reservation of an upload that did not complete. The
+    /// record is rewritten as long expired, and only while it is still the
+    /// incomplete one: a record that completed meanwhile, by a concurrent
+    /// upload of the same bytes, is left alone.
     pub async fn release_staged_archive(&self, key: &StagedArchiveKey<'_>) -> Result<()> {
         let (namespace, record_key) = (key.namespace(), key.record()?);
-        if self
-            .read_record_json(&namespace, &record_key)
-            .await?
-            .is_some_and(|record| !record.complete)
-        {
-            self.root.remove_record(&namespace, &record_key).await?;
+        let Some(stored) = self.root.read_record(&namespace, &record_key).await? else {
+            return Ok(());
+        };
+        let Ok(record) = serde_json::from_slice::<StagedArchiveRecord>(&stored) else {
+            return Ok(());
+        };
+        if record.complete {
+            return Ok(());
         }
+        let released = serde_json::to_vec(&StagedArchiveRecord { staged_at: 0, ..record })?;
+        // A conflict is a writer that changed the record since: theirs stands.
+        self.root.replace_record_if_current(&namespace, &record_key, &stored, &released).await?;
         Ok(())
     }
 
@@ -391,29 +403,54 @@ impl Storage {
         Ok(serde_json::from_slice(&bytes).ok())
     }
 
-    /// Write `record` for `key`, replacing the one stored. Two uploads of
-    /// the same archive racing each other both renew it, so losing the race
-    /// to the other is as good as winning it.
+    /// Write `record` for `key` unless the stored record is one `keep` says
+    /// must stand, retrying while concurrent writers change it. `Ok(false)`
+    /// when the stored record was kept.
+    async fn put_staged_archive_record(
+        &self,
+        key: &StagedArchiveKey<'_>,
+        record: &StagedArchiveRecord,
+        keep: impl Fn(&StagedArchiveRecord) -> bool,
+    ) -> Result<bool> {
+        let (namespace, record_key) = (key.namespace(), key.record()?);
+        let bytes = serde_json::to_vec(record)?;
+        for _ in 0..RECORD_WRITE_ATTEMPTS {
+            if self.root.create_record(&namespace, &record_key, &bytes).await? {
+                return Ok(true);
+            }
+            // Removed since the create, by a sweep or a release: create it again.
+            let Some(stored) = self.root.read_record(&namespace, &record_key).await? else {
+                continue;
+            };
+            if serde_json::from_slice(&stored).is_ok_and(|stored| keep(&stored)) {
+                return Ok(false);
+            }
+            let replaced =
+                self.root.replace_record_if_current(&namespace, &record_key, &stored, &bytes)
+                    .await?;
+            if replaced == DocumentWrite::Written {
+                return Ok(true);
+            }
+        }
+        Err(RegistryError::DocumentWriteConflict {
+            package: format!("staged archive {}", key.digest),
+        })
+    }
+
+    /// Write `record` for `key`, replacing the one stored, unless a record
+    /// at least as new is stored complete already: two uploads of the same
+    /// archive both renew it, so losing the race to the other is as good as
+    /// winning it.
     async fn write_staged_archive_record(
         &self,
         key: &StagedArchiveKey<'_>,
         record: &StagedArchiveRecord,
     ) -> Result<()> {
-        let namespace = key.namespace();
-        let record_key = key.record()?;
-        let bytes = serde_json::to_vec(record)?;
-        if self.root.create_record(&namespace, &record_key, &bytes).await? {
-            return Ok(());
-        }
-        if let Some(stored) = self.root.read_record(&namespace, &record_key).await? {
-            match self.root.replace_record_if_current(&namespace, &record_key, &stored, &bytes)
-                .await?
-            {
-                DocumentWrite::Written | DocumentWrite::Conflict => return Ok(()),
-            }
-        }
-        // Removed between the two calls, by a sweep: create it again.
-        self.root.create_record(&namespace, &record_key, &bytes).await?;
+        let staged_at = record.staged_at;
+        self.put_staged_archive_record(key, record, |stored| {
+            stored.complete && stored.staged_at >= staged_at
+        })
+        .await?;
         Ok(())
     }
 }

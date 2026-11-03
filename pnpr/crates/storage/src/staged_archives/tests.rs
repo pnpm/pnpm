@@ -287,3 +287,82 @@ async fn a_sweep_leaves_what_is_not_an_archive_alone() {
         vec![temporary],
     );
 }
+
+#[tokio::test]
+async fn a_reservation_never_hides_a_staged_archive() {
+    let tmp = TempDir::new().unwrap();
+    let storage = storage_in(&tmp);
+    let staged = key("alice", DIGEST);
+    storage.stage_archive(&staged, b"bytes".to_vec()).await.unwrap();
+
+    // Another upload of the same bytes, which started before this one
+    // completed, reserves afterwards.
+    assert!(!storage.reserve_staged_archive(&staged, 5).await.unwrap());
+    assert_eq!(storage.staged_archive_size(&staged).await.unwrap(), Some(5));
+    assert_eq!(
+        storage
+            .read_staged_archive(&staged)
+            .await
+            .unwrap()
+            .as_deref(),
+        Some(b"bytes".as_slice()),
+    );
+}
+
+#[tokio::test]
+async fn completing_an_upload_is_not_undone_by_an_older_completion() {
+    let tmp = TempDir::new().unwrap();
+    let storage = storage_in(&tmp);
+    let staged = key("alice", DIGEST);
+    let now = unix_now();
+    storage.stage_archive_at(&staged, b"bytes".to_vec(), now).await.unwrap();
+    storage
+        .stage_archive_at(&staged, b"bytes".to_vec(), now - 60)
+        .await
+        .unwrap();
+
+    let record = storage
+        .read_staged_archive_record(&staged)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!((record.staged_at, record.complete), (now, true));
+}
+
+/// What one upload does once its bytes are verified: reserve, then store.
+async fn upload(storage: &Storage, staged: &StagedArchiveKey<'_>, bytes: &[u8]) {
+    storage
+        .reserve_staged_archive(staged, bytes.len() as u64)
+        .await
+        .unwrap();
+    storage.stage_archive(staged, bytes.to_vec()).await.unwrap();
+}
+
+#[tokio::test]
+async fn parallel_uploads_and_a_sweep_leave_the_archive_staged() {
+    let tmp = TempDir::new().unwrap();
+    let storage = storage_in(&tmp);
+    let staged = key("alice", DIGEST);
+    let other = key("alice", OTHER_DIGEST);
+    for _ in 0..8 {
+        let first = upload(&storage, &staged, b"bytes");
+        let second = upload(&storage, &staged, b"bytes");
+        let third = upload(&storage, &other, b"other");
+        let sweep = async { storage.sweep_staged_archives().await.unwrap() };
+        let usage = async { storage.staged_archive_usage("alice").await.unwrap() };
+        let (..) = tokio::join!(first, second, third, sweep, usage);
+        assert_eq!(storage.staged_archive_size(&staged).await.unwrap(), Some(5));
+        assert_eq!(
+            storage
+                .read_staged_archive(&other)
+                .await
+                .unwrap()
+                .as_deref(),
+            Some(b"other".as_slice()),
+        );
+        assert_eq!(
+            storage.staged_archive_usage("alice").await.unwrap(),
+            StagedArchiveUsage { bytes: 10, archives: 2 },
+        );
+    }
+}

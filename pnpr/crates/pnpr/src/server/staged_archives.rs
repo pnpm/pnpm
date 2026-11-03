@@ -42,6 +42,9 @@ pub(super) const MAX_STAGED_ARCHIVES_PER_PRINCIPAL: usize = 256;
 /// for a permit rather than failing, so a publisher's parallel uploads queue.
 pub(super) const MAX_CONCURRENT_STAGED_UPLOADS: usize = 4;
 
+/// The slowest upload rate a staged archive is given time for.
+const MIN_UPLOAD_BYTES_PER_SECOND: u64 = 256 * 1024;
+
 /// The most an upload reserves before its bytes arrive.
 const INITIAL_BUFFER_BYTES: u64 = 1024 * 1024;
 
@@ -136,12 +139,18 @@ async fn stage_archive(
         .expect("the staged upload semaphore is never closed");
     // Uploading an archive staged already only renews it. Any other upload
     // reserves its size first, so uploads running in parallel see each
-    // other's when they check the limits.
-    let renewing = storage.staged_archive_size(&key).await?.is_some();
-    if !renewing {
-        reserve_within_limits(storage, &key, size).await?;
-    }
-    let staged = match receive_archive(body, &integrity, size).await {
+    // other's when they check the limits. The usage check counts only held
+    // archives, so a near-expiry archive being renewed and expired records
+    // do not block it.
+    let renewing = storage.staged_archive_size(&key).await?.is_some()
+        || !reserve_within_limits(storage, &key, size).await?;
+    let received =
+        tokio::time::timeout(receive_deadline(size), receive_archive(body, &integrity, size))
+            .await
+            .unwrap_or_else(|_| {
+                Err(bad_request("the archive upload was too slow to finish in time".to_string()))
+            });
+    let staged = match received {
         Ok(bytes) => storage.stage_archive(&key, bytes).await,
         Err(err) => Err(err),
     };
@@ -151,24 +160,40 @@ async fn stage_archive(
     staged
 }
 
+/// How long receiving an archive of `size` bytes may take while it holds an
+/// upload permit: a minute, plus the time to send it at
+/// [`MIN_UPLOAD_BYTES_PER_SECOND`]. A client that withholds its bytes would
+/// otherwise keep other publishers waiting for the permit.
+fn receive_deadline(size: u64) -> std::time::Duration {
+    std::time::Duration::from_secs(60 + size / MIN_UPLOAD_BYTES_PER_SECOND)
+}
+
 /// Reserve `size` bytes for `key`'s archive, unless that takes its principal
-/// past its limits.
+/// past its limits. `Ok(false)` when a concurrent upload of the same bytes
+/// staged the archive meanwhile, so this upload only renews it.
 async fn reserve_within_limits(
     storage: &Storage,
     key: &StagedArchiveKey<'_>,
     size: u64,
-) -> Result<(), RegistryError> {
-    if storage.staged_archive_count(key.principal).await? >= MAX_STAGED_ARCHIVES_PER_PRINCIPAL {
+) -> Result<bool, RegistryError> {
+    // The listing alone bounds the records the check below reads. It counts
+    // expired records too, which the check does not, so it allows twice the
+    // limit; the archive's own record, renewed or reserved again, is no new
+    // one.
+    let listed = storage.staged_archive_count(key.principal).await?;
+    if listed >= 2 * MAX_STAGED_ARCHIVES_PER_PRINCIPAL {
         return Err(over_limit(&format!("{MAX_STAGED_ARCHIVES_PER_PRINCIPAL} archives")));
     }
-    storage.reserve_staged_archive(key, size).await?;
+    if !storage.reserve_staged_archive(key, size).await? {
+        return Ok(false);
+    }
     let usage = storage.staged_archive_usage(key.principal).await?;
     let refusal = if usage.bytes > MAX_STAGED_BYTES_PER_PRINCIPAL {
         over_limit(&format!("{MAX_STAGED_BYTES_PER_PRINCIPAL} bytes"))
     } else if usage.archives > MAX_STAGED_ARCHIVES_PER_PRINCIPAL {
         over_limit(&format!("{MAX_STAGED_ARCHIVES_PER_PRINCIPAL} archives"))
     } else {
-        return Ok(());
+        return Ok(true);
     };
     storage.release_staged_archive(key).await?;
     Err(refusal)
