@@ -49,12 +49,14 @@ pub(super) fn insert_version(
     if let Some(deprecated) = &rows.deprecated {
         write_deprecation(commit, version, Some(deprecated))?;
     }
-    commit.accepted.borrow_mut().push(ArtifactMember {
-        ecosystem: commit.key.ecosystem,
-        name: commit.key.name.clone(),
-        version: version.to_string(),
-        artifact: rows.integrity().to_string(),
-    });
+    commit.accepted
+        .borrow_mut()
+        .push(ArtifactMember {
+            ecosystem: commit.key.ecosystem,
+            name: commit.key.name.clone(),
+            version: version.to_string(),
+            artifact: rows.integrity().to_string(),
+        });
     Ok(())
 }
 

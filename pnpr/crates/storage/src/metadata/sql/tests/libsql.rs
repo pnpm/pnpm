@@ -269,7 +269,7 @@ fn round_trips(server: &Server) -> Vec<Vec<String>> {
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn a_write_makes_two_round_trips_however_much_it_carries() {
     use crate::metadata::{
-        BatchDocument, PublicationRequest, PublishNotes, TagChange, VersionNote,
+        BatchDocument, PublicationRequest, PublishNotes, ReleaseRecords, TagChange, VersionNote,
     };
     let server = server().await;
     let database = server.instance(None, 60);
@@ -284,6 +284,7 @@ async fn a_write_makes_two_round_trips_however_much_it_carries() {
             bytes: serde_json::to_vec(&document).unwrap(),
             expected: None,
             principal: Some("alice".to_string()),
+            records: ReleaseRecords::new(),
         }
     };
     let names = ["core", "widgets", "tools"];
