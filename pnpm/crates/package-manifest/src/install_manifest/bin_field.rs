@@ -1,6 +1,6 @@
 //! The `bin` field, with `directories.bin` expanded into it.
 
-use crate::{declared_bin_entries, normalize_package_relative_path};
+use crate::{declared_bin_entries, normalize_bin_path, normalize_package_relative_path};
 use serde_json::{Map, Value};
 use std::collections::BTreeSet;
 
@@ -39,7 +39,7 @@ fn normalize_entry(command: &str, path: &str) -> Option<(String, Value)> {
         .next()
         .unwrap_or(command)
         .trim();
-    let path = normalize_package_relative_path(path).unwrap_or_else(|| path.trim().to_string());
+    let path = normalize_bin_path(path).unwrap_or_else(|| path.trim().to_string());
     let usable = !command.is_empty() && !path.is_empty();
     usable.then(|| (command.to_string(), Value::String(path)))
 }

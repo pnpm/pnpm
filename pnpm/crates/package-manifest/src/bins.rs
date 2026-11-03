@@ -246,6 +246,23 @@ pub fn is_safe_bin_name(name: &str) -> bool {
 /// via `..`.
 #[must_use]
 pub fn normalize_package_relative_path(raw: &str) -> Option<String> {
+    normalize_relative_path(raw, ParentTraversal::Reject)
+}
+
+/// Normalize a declared bin target within the package root. Excess parent
+/// segments are clamped at that root, matching npm bin normalization.
+#[must_use]
+pub fn normalize_bin_path(raw: &str) -> Option<String> {
+    normalize_relative_path(raw, ParentTraversal::Clamp)
+}
+
+#[derive(Clone, Copy)]
+enum ParentTraversal {
+    Reject,
+    Clamp,
+}
+
+fn normalize_relative_path(raw: &str, parent_traversal: ParentTraversal) -> Option<String> {
     if raw.starts_with('/') || raw.contains(['\\', ':']) {
         return None;
     }
@@ -254,7 +271,9 @@ pub fn normalize_package_relative_path(raw: &str) -> Option<String> {
         match segment {
             "" | "." => {}
             ".." => {
-                stack.pop()?;
+                if stack.pop().is_none() && matches!(parent_traversal, ParentTraversal::Reject) {
+                    return None;
+                }
             }
             normal => stack.push(normal),
         }
@@ -443,7 +462,7 @@ fn resolve_paths_from_bin_field(
         if !is_safe_bin_name(&bin_name) {
             continue;
         }
-        let normalized = normalize_package_relative_path(&bin_relative_path)?;
+        let normalized = normalize_bin_path(&bin_relative_path)?;
         if normalized.is_empty() || !has_file(&normalized) || paths.contains_key(&bin_name) {
             return None;
         }

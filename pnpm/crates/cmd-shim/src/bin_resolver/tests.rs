@@ -61,13 +61,14 @@ fn rejects_unsafe_bin_names() {
 }
 
 #[test]
-fn rejects_path_traversal_outside_package_root() {
+fn clamps_bin_targets_to_package_root() {
     let manifest = json!({
         "name": "x",
         "bin": {"x": "../../../etc/passwd"},
     });
     let commands = get_bins_from_package_manifest::<Host>(&manifest, Path::new("/pkg/x"));
-    assert!(commands.is_empty(), "must reject `..`-escapes from pkg root");
+    assert_eq!(commands.len(), 1);
+    assert_eq!(commands[0].path, Path::new("/pkg/x/etc/passwd"));
 }
 
 #[test]
@@ -120,7 +121,7 @@ fn skip_dangerous_bin_names() {
 }
 
 #[test]
-fn skip_dangerous_bin_locations() {
+fn normalizes_parent_segments_in_bin_locations() {
     let manifest = json!({
         "name": "foo",
         "version": "1.0.0",
@@ -130,8 +131,9 @@ fn skip_dangerous_bin_locations() {
         },
     });
     let commands = get_bins_from_package_manifest::<Host>(&manifest, Path::new("/pkg/foo"));
-    assert_eq!(commands.len(), 1);
-    assert_eq!(commands[0].name, "good");
+    assert_eq!(commands.len(), 2);
+    assert_eq!(commands[0].path, Path::new("/pkg/foo/bad"));
+    assert_eq!(commands[1].path, Path::new("/pkg/foo/good"));
 }
 
 #[test]
@@ -498,4 +500,14 @@ fn bin_field_takes_precedence_over_directories_bin() {
     let commands = get_bins_from_package_manifest::<Host>(&manifest, &pkg);
     assert_eq!(commands.len(), 1, "bin field wins, directories.bin is ignored");
     assert_eq!(commands[0].name, "tool");
+}
+
+#[test]
+fn rejects_unsafe_or_empty_normalized_bin_targets() {
+    for target in ["/outside.js", r"C:\outside.js", r"..\outside.js", ".", "..", "bin/.."] {
+        let manifest = json!({ "name": "tool", "bin": { "tool": target } });
+        assert!(
+            get_bins_from_package_manifest::<Host>(&manifest, Path::new("/pkg/tool")).is_empty(),
+        );
+    }
 }

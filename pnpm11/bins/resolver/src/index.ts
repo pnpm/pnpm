@@ -66,7 +66,9 @@ function commandsFromBin (bin: PackageBin, pkgName: string, pkgPath: string): Co
   for (const [commandName, binRelativePath] of binEntries) {
     const binName = resolveBinName(commandName)
     if (!isSafeBinName(binName)) continue
-    const binPath = path.join(pkgPath, binRelativePath)
+    const normalizedPath = normalizeBinPath(binRelativePath)
+    if (!normalizedPath) continue
+    const binPath = path.join(pkgPath, normalizedPath)
     if (!isSubdir(pkgPath, binPath)) continue
     cmds.push({ name: binName, path: binPath })
   }
@@ -84,4 +86,9 @@ function isSafeBinName (binName: string): boolean {
     return false
   }
   return binName === encodeURIComponent(binName) || binName === '$'
+}
+
+function normalizeBinPath (target: string): string | undefined {
+  if (target.startsWith('/') || target.includes('\\') || target.includes(':')) return undefined
+  return path.posix.join('/', target).slice(1)
 }

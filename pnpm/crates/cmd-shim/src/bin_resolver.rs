@@ -3,7 +3,8 @@ pub use pnpm_package_manifest::{PackageBin, is_safe_bin_name};
 use crate::capabilities::FsWalkFiles;
 use pnpm_fs::is_subdir;
 use pnpm_package_manifest::{
-    ScriptRuntime, declared_bin_entries, normalize_package_relative_path, unscoped_bin_name,
+    ScriptRuntime, declared_bin_entries, normalize_bin_path, normalize_package_relative_path,
+    unscoped_bin_name,
 };
 use serde_json::Value;
 use std::{
@@ -156,6 +157,11 @@ fn commands_from_bin(bin: &Value, pkg_name: Option<&str>, pkg_path: &Path) -> Ve
         if !is_safe_bin_name(&bin_name) {
             continue;
         }
+        let Some(bin_relative_path) =
+            normalize_bin_path(&bin_relative_path).filter(|path| !path.is_empty())
+        else {
+            continue;
+        };
         let bin_path = pkg_path.join(&bin_relative_path);
         if !is_subdir(pkg_path, &bin_path) {
             continue;
