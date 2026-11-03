@@ -295,7 +295,10 @@ test('fail on a named-registry optional dependency that cannot be resolved when 
     },
   }
   const registriesByPrefix = { work: `http://localhost:${REGISTRY_MOCK_PORT}/npm/` }
-  await install(manifest, testDefaults({ registriesByPrefix }, { registriesByPrefix }))
+  // The same server under another host as the default registry, whose
+  // packages keep plain keys.
+  const registriesByScope = { default: `http://127.0.0.1:${REGISTRY_MOCK_PORT}/npm/` }
+  await install(manifest, testDefaults({ registriesByPrefix, registriesByScope }, { registriesByPrefix }))
 
   const lockfileBefore = project.readLockfile()
   expect(Object.keys(lockfileBefore.packages)).toContain('@pnpm.e2e/foo@work:1.0.0')
@@ -309,6 +312,7 @@ test('fail on a named-registry optional dependency that cannot be resolved when 
     await expect(install(manifest, testDefaults({
       dedupe: true,
       registriesByPrefix: proxiedRegistriesByPrefix,
+      registriesByScope,
     }, { registriesByPrefix: proxiedRegistriesByPrefix }))).rejects.toMatchObject({
       code: expect.stringMatching(/^ERR_PNPM_NO_(MATCHING_VERSION|VERSIONS)$/),
       hint: expect.stringContaining('the lockfile contains a resolution for it'),
