@@ -1,7 +1,11 @@
+pub use paths::{normalize_bin_path, normalize_package_relative_path};
+
 use std::{collections::BTreeMap, path::Path};
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+
+mod paths;
 
 /// Maximum number of commands precalculated in `dist.pnpr.bins`. Packages
 /// declaring more commands fall back to on-disk bin discovery at link time.
@@ -239,46 +243,6 @@ pub fn is_safe_bin_name(name: &str) -> bool {
             byte.is_ascii_alphanumeric()
                 || matches!(byte, b'-' | b'_' | b'.' | b'!' | b'~' | b'*' | b'\'' | b'(' | b')')
         })
-}
-
-/// Normalize a package-relative path using `/` separators, rejecting paths
-/// that start with `/`, contain `\` or `:`, or climb above the package root
-/// via `..`.
-#[must_use]
-pub fn normalize_package_relative_path(raw: &str) -> Option<String> {
-    normalize_relative_path(raw, ParentTraversal::Reject)
-}
-
-/// Normalize a declared bin target within the package root using `/`
-/// separators. Excess parent segments are clamped at that root.
-#[must_use]
-pub fn normalize_bin_path(raw: &str) -> Option<String> {
-    normalize_relative_path(&raw.replace('\\', "/"), ParentTraversal::Clamp)
-}
-
-#[derive(Clone, Copy)]
-enum ParentTraversal {
-    Reject,
-    Clamp,
-}
-
-fn normalize_relative_path(raw: &str, parent_traversal: ParentTraversal) -> Option<String> {
-    if raw.starts_with('/') || raw.contains(['\\', ':']) {
-        return None;
-    }
-    let mut stack = Vec::new();
-    for segment in raw.split('/') {
-        match segment {
-            "" | "." => {}
-            ".." => {
-                if stack.pop().is_none() && matches!(parent_traversal, ParentTraversal::Reject) {
-                    return None;
-                }
-            }
-            normal => stack.push(normal),
-        }
-    }
-    Some(stack.join("/"))
 }
 
 /// Whether `manifest` declares any bins via `"bin"` or `"directories.bin"`.

@@ -1048,7 +1048,7 @@ test('global add reports every install group in one summary', async () => {
   expect(summary).toContain('+ is-negative')
 })
 
-test.each(['../dist/cli.js', '..\\dist\\cli.js'])('global install normalizes bin target %s and removes the shim', async (target) => {
+test.each(['../dist/cli.js', '..\\dist\\cli.js', ...isWindows() ? [] : ['../dist/cli:dev.js']])('global install normalizes bin target %s and removes the shim', async (target) => {
   prepare()
   const pnpmHome = path.resolve('../global/pnpm')
   const env = { [PATH_NAME]: path.join(pnpmHome, 'bin'), PNPM_HOME: pnpmHome }
@@ -1058,7 +1058,8 @@ test.each(['../dist/cli.js', '..\\dist\\cli.js'])('global install normalizes bin
     version: '1.0.0',
     bin: { 'example-tool': target },
   }))
-  fs.writeFileSync('tool/dist/cli.js', "#!/usr/bin/env node\nconsole.log('internal target')\n")
+  const targetFile = target.endsWith(':dev.js') ? 'tool/dist/cli:dev.js' : 'tool/dist/cli.js'
+  fs.writeFileSync(targetFile, "#!/usr/bin/env node\nconsole.log('internal target')\n")
   await execPnpm(['add', '-g', 'file:./tool'], { env })
   const shim = path.join(pnpmHome, 'bin', isWindows() ? 'example-tool.cmd' : 'example-tool')
   const result = crossSpawn.sync(shim, [], { encoding: 'utf8' })

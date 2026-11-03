@@ -368,7 +368,11 @@ fn global_add_installs_the_npm_package_a_purl_names() {
 fn global_add_normalizes_bin_parent_segments_and_removes_the_shim() {
     use assert_cmd::assert::OutputAssertExt;
 
-    for target in ["../dist/cli.js", r"..\dist\cli.js"] {
+    for (target, file) in [
+        ("../dist/cli.js", "dist/cli.js"),
+        (r"..\dist\cli.js", "dist/cli.js"),
+        ("../dist/cli:dev.js", "dist/cli:dev.js"),
+    ] {
         let CommandTempCwd { root, workspace, npmrc_info, .. } =
             CommandTempCwd::init().add_mocked_registry();
         let pnpm_home = root.path().join("pnpm-home");
@@ -385,11 +389,8 @@ fn global_add_normalizes_bin_parent_segments_and_removes_the_shim() {
             .to_string(),
         )
         .unwrap();
-        fs::write(
-            package_dir.join("dist/cli.js"),
-            "#!/usr/bin/env node\nconsole.log('internal target')\n",
-        )
-        .unwrap();
+        fs::write(package_dir.join(file), "#!/usr/bin/env node\nconsole.log('internal target')\n")
+            .unwrap();
         let selector = format!("file:{}", package_dir.display());
         global_command(&workspace, &pnpm_home)
             .with_args(["add", "-g", &selector])

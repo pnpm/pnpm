@@ -202,7 +202,7 @@ test.each(['../dist/cli.js', '../../dist/cli.js', 'lib/../../dist/cli.js'])('cla
   }
 })
 
-test.each(['/outside.js', 'C:\\outside.js', '\\outside.js', '.', '..', 'bin/..'])('reject unsafe or empty normalized bin target %s', async (target) => {
+test.each(['/outside.js', 'C:\\outside.js', '\\outside.js', 'C:cli.js', './C:cli.js', 'bin/../C:cli.js', '.', '..', 'bin/..'])('reject unsafe or empty normalized bin target %s', async (target) => {
   expect(await getBinsFromPackageManifest({ name: 'tool', version: '1.0.0', bin: { tool: target } }, path.resolve('pkg'))).toStrictEqual([])
 })
 
@@ -210,5 +210,12 @@ test.each(['dist\\cli.js', '..\\dist\\cli.js', 'lib\\..\\..\\dist\\cli.js'])('no
   const pkgPath = path.resolve('pkg')
   expect(await getBinsFromPackageManifest({ name: 'tool', version: '1.0.0', bin: { tool: target } }, pkgPath)).toStrictEqual([
     { name: 'tool', path: path.join(pkgPath, 'dist/cli.js') },
+  ])
+})
+
+test('preserve colons in package-relative bin filenames', async () => {
+  const pkgPath = path.resolve('pkg')
+  expect(await getBinsFromPackageManifest({ name: 'tool', version: '1.0.0', bin: { tool: '../dist/cli:dev.js' } }, pkgPath)).toStrictEqual([
+    { name: 'tool', path: path.join(pkgPath, 'dist/cli:dev.js') },
   ])
 })

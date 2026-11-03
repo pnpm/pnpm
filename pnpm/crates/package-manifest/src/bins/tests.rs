@@ -235,3 +235,11 @@ fn bin_paths_clamp_parent_segments_without_relaxing_metadata_validation() {
         }
     }
 }
+
+#[test]
+fn colon_bin_targets_fall_back_from_strict_precalculated_metadata() {
+    let manifest = json!({ "name": "tool", "bin": { "tool": "../dist/cli:dev.js" } });
+    assert_eq!(super::normalize_bin_path("../dist/cli:dev.js").as_deref(), Some("dist/cli:dev.js"));
+    let files = BTreeMap::from([("dist/cli:dev.js".to_string(), None)]);
+    assert_eq!(resolve_package_bins(&manifest, &files), None);
+}

@@ -90,6 +90,7 @@ function isSafeBinName (binName: string): boolean {
 
 function normalizeBinPath (target: string): string | undefined {
   const normalized = target.replaceAll('\\', '/')
-  if (normalized.startsWith('/') || normalized.includes(':')) return undefined
-  return path.posix.join('/', normalized).slice(1)
+  if (path.win32.parse(normalized).root) return undefined
+  const relative = path.posix.join('/', normalized).slice(1)
+  return path.win32.parse(relative).root ? undefined : relative
 }
