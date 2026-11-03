@@ -1,3 +1,4 @@
+import type { Catalogs } from '@pnpm/catalogs.types'
 import type { HoistingLimits } from '@pnpm/installing.linking.real-hoist'
 import type { IncludedDependencies, Modules } from '@pnpm/installing.modules-yaml'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
@@ -62,6 +63,7 @@ export interface HeadlessOptions extends RegistryContext {
    */
   workspacePackages?: WorkspacePackages
   linkWorkspacePackagesDepth?: number
+  catalogs?: Catalogs
   extraBinPaths?: string[]
   extraEnv?: Record<string, string>
   extendNodePath?: boolean

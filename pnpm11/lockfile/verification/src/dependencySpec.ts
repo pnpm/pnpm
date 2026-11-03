@@ -2,8 +2,7 @@ import os from 'node:os'
 import path from 'node:path'
 
 import type { ProjectSnapshot } from '@pnpm/lockfile.types'
-import { findWorkspaceLinkTarget } from '@pnpm/resolving.npm-resolver'
-import type { WorkspacePackages } from '@pnpm/resolving.resolver-base'
+import { findWorkspaceLinkTarget, type WorkspaceLinkContext } from '@pnpm/resolving.npm-resolver'
 import semver from 'semver'
 
 export function isWorkspaceRangeSpec (spec: string): boolean {
@@ -116,11 +115,11 @@ export function getVersionRange (spec: string): string {
  * package in `workspacePackages` matches.
  */
 export function isExcludedLink (
-  workspacePackages: WorkspacePackages | undefined,
+  { workspacePackages, catalogs }: Partial<WorkspaceLinkContext>,
   { importer, depName, spec }: { importer: Pick<ProjectSnapshot, 'specifiers'>, depName: string, spec: string }
 ): boolean {
   if (spec.startsWith('link:')) return true
   return workspacePackages != null &&
     importer.specifiers[depName] == null &&
-    findWorkspaceLinkTarget(workspacePackages, { alias: depName, bareSpecifier: spec }) != null
+    findWorkspaceLinkTarget({ workspacePackages, catalogs }, { alias: depName, bareSpecifier: spec }) != null
 }

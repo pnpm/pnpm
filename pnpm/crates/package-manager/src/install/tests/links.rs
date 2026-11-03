@@ -40,7 +40,9 @@ fn exclude_linked_dependencies_drops_matching_workspace_ranges() {
             "dependencies": {
                 "explicit-workspace": "workspace:^1.0.0",
                 "linked": "^1.0.0",
-                "registry": "^2.0.0"
+                "registry": "^2.0.0",
+                "catalog-linked": "catalog:",
+                "catalog-registry": "catalog:"
             }
         }),
     );
@@ -53,16 +55,30 @@ fn exclude_linked_dependencies_drops_matching_workspace_ranges() {
     )]);
     let workspace_packages = pnpm_resolving_resolver_base::WorkspacePackages::from([
         ("explicit-workspace".to_string(), workspace_version.clone()),
-        ("linked".to_string(), workspace_version),
+        ("linked".to_string(), workspace_version.clone()),
+        ("catalog-linked".to_string(), workspace_version.clone()),
+        ("catalog-registry".to_string(), workspace_version),
     ]);
 
-    exclude_linked_dependencies(&mut manifest, Some(&workspace_packages), None);
+    let catalogs = pnpm_catalogs_types::Catalogs::from([(
+        "default".to_string(),
+        pnpm_catalogs_types::Catalog::from([
+            ("catalog-linked".to_string(), "^1.0.0".to_string()),
+            ("catalog-registry".to_string(), "^2.0.0".to_string()),
+        ]),
+    )]);
+    exclude_linked_dependencies(
+        &mut manifest,
+        Some(crate::WorkspaceLinks { packages: &workspace_packages, catalogs: &catalogs }),
+        None,
+    );
 
     assert_eq!(
         manifest
             .dependencies([DependencyGroup::Prod])
             .collect::<std::collections::BTreeMap<_, _>>(),
         std::collections::BTreeMap::from([
+            ("catalog-registry", "catalog:"),
             ("explicit-workspace", "workspace:^1.0.0"),
             ("registry", "^2.0.0"),
         ]),
@@ -98,7 +114,14 @@ fn exclude_linked_dependencies_keeps_registry_selected_workspace_ranges() {
         ..pnpm_lockfile::ProjectSnapshot::default()
     };
 
-    exclude_linked_dependencies(&mut manifest, Some(&workspace_packages), Some(&importer));
+    exclude_linked_dependencies(
+        &mut manifest,
+        Some(crate::WorkspaceLinks {
+            packages: &workspace_packages,
+            catalogs: &pnpm_catalogs_types::Catalogs::new(),
+        }),
+        Some(&importer),
+    );
 
     assert_eq!(
         manifest

@@ -1624,13 +1624,17 @@ test('findWorkspaceLinkTarget() returns the directory of the workspace package a
       ['1.5.0', { rootDir: '/workspace/new' as ProjectRootDir, manifest: { name: 'is-positive', version: '1.5.0', publishConfig: { directory: 'dist' } } }],
     ])],
   ])
-  const findTarget = (alias: string, bareSpecifier: string) => findWorkspaceLinkTarget(workspacePackages, { alias, bareSpecifier })
+  const catalogs = { default: { 'is-positive': '1.0.0' }, next: { 'is-positive': '^1.0.0' } }
+  const findTarget = (alias: string, bareSpecifier: string) => findWorkspaceLinkTarget({ workspacePackages, catalogs }, { alias, bareSpecifier })
   expect(findTarget('is-positive', '^1.0.0')).toBe(path.join('/workspace/new', 'dist'))
   expect(findTarget('is-positive', '1.0.0')).toBe('/workspace/old')
   expect(findTarget('positive', 'npm:is-positive@^1.0.0')).toBe(path.join('/workspace/new', 'dist'))
   expect(findTarget('is-positive', '^2.0.0')).toBeUndefined()
   expect(findTarget('is-negative', '^1.0.0')).toBeUndefined()
   expect(findTarget('is-positive', 'link:../is-positive')).toBeUndefined()
+  expect(findTarget('is-positive', 'catalog:')).toBe('/workspace/old')
+  expect(findTarget('is-positive', 'catalog:next')).toBe(path.join('/workspace/new', 'dist'))
+  expect(findTarget('is-positive', 'catalog:missing')).toBeUndefined()
 })
 
 test('use version from the registry if it is newer than the local one', async () => {

@@ -1,4 +1,5 @@
-use super::link_manifest_link_deps;
+use super::{WorkspaceLinks, link_manifest_link_deps};
+use pnpm_catalogs_types::{Catalog, Catalogs};
 use pnpm_cmd_shim::LinkBinsOptions;
 use pnpm_modules_yaml::IncludedDependencies;
 use pnpm_package_manifest::PackageManifest;
@@ -96,6 +97,8 @@ fn links_workspace_package_selected_by_plain_range() {
             "dependencies": {
                 "workspace-dep": "^1.0.0",
                 "revisioned": "1.0.0+r1",
+                "catalog-dep": "catalog:",
+                "no-catalog-entry": "catalog:",
             },
         }),
     );
@@ -108,14 +111,20 @@ fn links_workspace_package_selected_by_plain_range() {
     )]);
     let workspace_packages = WorkspacePackages::from([
         ("workspace-dep".to_string(), workspace_versions.clone()),
-        ("revisioned".to_string(), workspace_versions),
+        ("revisioned".to_string(), workspace_versions.clone()),
+        ("catalog-dep".to_string(), workspace_versions.clone()),
+        ("no-catalog-entry".to_string(), workspace_versions),
     ]);
+    let catalogs = Catalogs::from([(
+        "default".to_string(),
+        Catalog::from([("catalog-dep".to_string(), "^1.0.0".to_string())]),
+    )]);
 
     link_manifest_link_deps::<SilentReporter>(
         dir.path(),
         &[(project_dir.clone(), &manifest)],
         None,
-        Some(&workspace_packages),
+        Some(WorkspaceLinks { packages: &workspace_packages, catalogs: &catalogs }),
         all_dependencies(),
         std::ffi::OsStr::new("node_modules"),
         &LinkBinsOptions::default(),
@@ -127,6 +136,11 @@ fn links_workspace_package_selected_by_plain_range() {
         workspace_dep_dir.canonicalize().unwrap(),
     );
     assert!(!project_dir.join("node_modules/revisioned").exists());
+    assert_eq!(
+        fs::canonicalize(project_dir.join("node_modules/catalog-dep")).unwrap(),
+        workspace_dep_dir.canonicalize().unwrap(),
+    );
+    assert!(!project_dir.join("node_modules/no-catalog-entry").exists());
 }
 
 /// Re-running the pass replaces a stale symlink (v11 re-link

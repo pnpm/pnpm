@@ -154,7 +154,9 @@ fn prepare_modules_layout(
         requested_importer_ids: inputs.lockfiles.importer_ids,
         manifest_links: purge::ManifestLinkProjects {
             manifests: inputs.projects.manifests,
-            workspace_packages: inputs.projects.workspace_packages,
+            workspace_links: inputs.projects.workspace_packages.map(|packages| {
+                crate::WorkspaceLinks { packages, catalogs: inputs.projects.catalogs }
+            }),
         },
     })?;
 

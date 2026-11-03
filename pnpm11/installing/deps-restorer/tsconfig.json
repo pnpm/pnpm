@@ -37,6 +37,9 @@
       "path": "../../building/policy"
     },
     {
+      "path": "../../catalogs/types"
+    },
+    {
       "path": "../../config/normalize-registries"
     },
     {
