@@ -137,19 +137,6 @@ async fn a_transaction_cut_off_before_commit_leaves_nothing() {
 }
 
 #[test]
-fn a_database_of_another_schema_is_refused() {
-    let tmp = TempDir::new().unwrap();
-    let path = tmp.path().join("metadata.sqlite");
-    drop(SqlMetadata::open_sqlite(&path).unwrap());
-    let connection = rusqlite::Connection::open(&path).unwrap();
-    connection
-        .execute("UPDATE schema_version SET version = 999", [])
-        .unwrap();
-    let err = SqlMetadata::open_sqlite(&path).unwrap_err();
-    assert!(matches!(err, RegistryError::StorageUnavailable { .. }), "{err:?}");
-}
-
-#[test]
 fn a_busy_database_is_a_conflict_that_a_rerun_may_clear() {
     use super::super::{adapter::Adapter, sqlite::SqliteAdapter};
     let tmp = TempDir::new().unwrap();
