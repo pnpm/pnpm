@@ -70,3 +70,58 @@ fn a_read_only_index_created_before_aliases_reads_no_alias() {
     let index = StoreIndex::open_readonly(dir.path()).unwrap();
     assert_eq!(index.get(TAR_KEY).unwrap(), None);
 }
+
+fn assert_deleting_rows_removes_only_their_aliases(format: StoreIndexFormat) {
+    let dir = tempdir().unwrap();
+    StoreIndex::apply_format(dir.path(), format).unwrap();
+    let mut index = StoreIndex::open(dir.path()).unwrap();
+    index
+        .set(TGZ_KEY, &sample_index())
+        .unwrap();
+    index
+        .set("kept", &sample_index())
+        .unwrap();
+    index
+        .set_aliases(&[
+            (TAR_KEY.to_string(), TGZ_KEY.to_string()),
+            ("second-alias".to_string(), TGZ_KEY.to_string()),
+            ("kept-alias".to_string(), "kept".to_string()),
+        ])
+        .unwrap();
+
+    index.delete_many(&[]).unwrap();
+    assert_eq!(
+        index
+            .alias_target(TAR_KEY)
+            .unwrap()
+            .as_deref(),
+        Some(TGZ_KEY),
+    );
+    index
+        .delete_many(&[TGZ_KEY.to_string()])
+        .unwrap();
+    drop(index);
+
+    let index = StoreIndex::open(dir.path()).unwrap();
+    assert_eq!(index.alias_target(TAR_KEY).unwrap(), None);
+    assert_eq!(index.alias_target("second-alias").unwrap(), None);
+    assert_eq!(
+        index
+            .alias_target("kept-alias")
+            .unwrap()
+            .as_deref(),
+        Some("kept"),
+    );
+    assert_eq!(index.get("kept-alias").unwrap(), Some(sample_index()));
+    assert_eq!(index.get(TGZ_KEY).unwrap(), None);
+}
+
+#[test]
+fn deleting_sqlite_rows_removes_their_aliases() {
+    assert_deleting_rows_removes_only_their_aliases(StoreIndexFormat::Sqlite);
+}
+
+#[test]
+fn deleting_files_rows_removes_their_aliases() {
+    assert_deleting_rows_removes_only_their_aliases(StoreIndexFormat::Files);
+}
