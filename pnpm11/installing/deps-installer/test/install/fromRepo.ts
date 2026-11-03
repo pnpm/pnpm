@@ -15,7 +15,7 @@ import { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.m
 import { rimrafSync } from '@zkochan/rimraf'
 import { isCI } from 'ci-info'
 
-import { testDefaults } from '../utils/index.js'
+import { commitLocalGitRepo, testDefaults } from '../utils/index.js'
 
 const testFixtures = fixtures(import.meta.dirname)
 const withGitProtocolDepFixture = testFixtures.find('with-git-protocol-dep')
@@ -402,24 +402,27 @@ test('git-hosted repository is not added to the store if it fails to be built', 
 
 test('from subdirectories of a git repo', async () => {
   const project = prepareEmpty()
-  getMockAgent().get('https://github.com')
-    .intercept({ path: '/RexSkz/test-git-subfolder-fetch', method: 'HEAD' })
-    .reply(200)
-  getMockAgent().get('https://github.com')
-    .intercept({ path: '/RexSkz/test-git-subfolder-fetch', method: 'HEAD' })
-    .reply(200)
+  const repoDir = path.resolve('test-git-subfolder-fetch')
+  fs.mkdirSync(repoDir)
+  fs.writeFileSync(path.join(repoDir, 'package.json'), JSON.stringify({ name: 'monorepo-root', version: '0.0.0' }))
+  for (const name of ['simple-react-app', 'simple-express-server']) {
+    const pkgDir = path.join(repoDir, 'packages', name)
+    fs.mkdirSync(pkgDir, { recursive: true })
+    fs.writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify({ name: `@my-namespace/${name}`, version: '1.0.0' }))
+  }
+  const repoSpec = await commitLocalGitRepo(repoDir)
 
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, [
-    'github:RexSkz/test-git-subfolder-fetch#path:/packages/simple-react-app',
-    'github:RexSkz/test-git-subfolder-fetch#path:/packages/simple-express-server',
+    `${repoSpec}&path:/packages/simple-react-app`,
+    `${repoSpec}&path:/packages/simple-express-server`,
   ], testDefaults())
 
   project.has('@my-namespace/simple-react-app')
   project.has('@my-namespace/simple-express-server')
 
   expect(manifest.dependencies).toStrictEqual({
-    '@my-namespace/simple-express-server': 'github:RexSkz/test-git-subfolder-fetch#path:/packages/simple-express-server',
-    '@my-namespace/simple-react-app': 'github:RexSkz/test-git-subfolder-fetch#path:/packages/simple-react-app',
+    '@my-namespace/simple-express-server': `${repoSpec}&path:/packages/simple-express-server`,
+    '@my-namespace/simple-react-app': `${repoSpec}&path:/packages/simple-react-app`,
   })
 })
 

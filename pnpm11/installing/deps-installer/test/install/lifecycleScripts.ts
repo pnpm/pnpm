@@ -1,6 +1,5 @@
 import fs from 'node:fs'
 import * as path from 'node:path'
-import { pathToFileURL } from 'node:url'
 
 import { expect, jest, test } from '@jest/globals'
 import { assertProject } from '@pnpm/assert-project'
@@ -25,7 +24,7 @@ import isWindows from 'is-windows'
 import { loadJsonFileSync } from 'load-json-file'
 import PATH from 'path-name'
 
-import { testDefaults } from '../utils/index.js'
+import { commitLocalGitRepo, testDefaults } from '../utils/index.js'
 
 // Until a first `data` listener appears, the paused log stream buffers
 // every event, and the first test to attach a reporter receives the
@@ -597,13 +596,7 @@ async function createGitPreparePackage (): Promise<string> {
       },
     },
   }))
-  await execa('git', ['init', '-q', '-b', 'main'], { cwd: repoDir })
-  await execa('git', ['config', 'user.email', 'test@example.invalid'], { cwd: repoDir })
-  await execa('git', ['config', 'user.name', 'Test'], { cwd: repoDir })
-  await execa('git', ['add', '-A'], { cwd: repoDir })
-  await execa('git', ['-c', 'commit.gpgsign=false', 'commit', '-q', '-m', 'init'], { cwd: repoDir })
-  const commit = String((await execa('git', ['rev-parse', 'HEAD'], { cwd: repoDir })).stdout).trim()
-  return `git+${pathToFileURL(repoDir).href}#${commit}`
+  return commitLocalGitRepo(repoDir)
 }
 
 test('allowBuilds does not run lifecycle scripts for direct tarball identities', async () => {
