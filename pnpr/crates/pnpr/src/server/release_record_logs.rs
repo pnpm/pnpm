@@ -46,20 +46,35 @@ pub(super) fn integrate_sequenced_logs(state: &AppState) {
     if state.inner.locks.logs_recovered.swap(true, Ordering::AcqRel) {
         return;
     }
-    let lock = Arc::clone(&state.inner.locks.log_integration);
+    let state = state.clone();
     runtime.spawn(async move {
-        let _integrating = lock.lock().await;
-        let logs = match database.sequenced_logs().await {
-            Ok(logs) => logs,
-            Err(error) => {
-                tracing::warn!(%error, "listing the transparency logs to integrate failed");
-                return;
-            }
-        };
-        for (log, _) in logs {
-            if let Err(error) = storage.integrate_log(&log, &key).await {
-                tracing::warn!(%error, %log, "integrating a transparency log failed");
-            }
+        let _integrating = state.inner.locks.log_integration.lock().await;
+        // A scan that failed is retried by the next call.
+        if !integrate_every_log(&storage, &database, &key).await {
+            state.inner.locks.logs_recovered.store(false, Ordering::Release);
         }
     });
+}
+
+/// Integrate every sequenced log, reporting whether all of them were.
+async fn integrate_every_log(
+    storage: &pnpr_storage::Storage,
+    database: &Arc<pnpr_storage::metadata::SqlMetadata>,
+    key: &pnpm_transparency_log::NoteSigner,
+) -> bool {
+    let logs = match database.sequenced_logs().await {
+        Ok(logs) => logs,
+        Err(error) => {
+            tracing::warn!(%error, "listing the transparency logs to integrate failed");
+            return false;
+        }
+    };
+    let mut integrated = true;
+    for (log, _) in logs {
+        if let Err(error) = storage.integrate_log(&log, key).await {
+            tracing::warn!(%error, %log, "integrating a transparency log failed");
+            integrated = false;
+        }
+    }
+    integrated
 }
