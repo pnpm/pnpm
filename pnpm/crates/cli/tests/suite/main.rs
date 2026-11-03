@@ -173,6 +173,7 @@ mod remove;
 mod removed_overrides;
 mod repeat_install;
 mod repeat_install_oracle;
+mod repeat_install_records;
 mod repo;
 mod reporter_setting;
 mod restart;

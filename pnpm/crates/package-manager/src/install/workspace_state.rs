@@ -11,6 +11,10 @@ mod projects;
 
 mod discovery;
 
+mod from_files;
+
+mod stand_ins;
+
 mod nothing_to_install;
 
 mod write;
@@ -112,28 +116,23 @@ pub fn install_already_up_to_date(
     let (workspace_manifest, catalogs) =
         fast_path_workspace_context(check.config, workspace_dir_opt.as_deref())
             .ok_or("the workspace manifest or its catalogs cannot be read")?;
-    let workspace_projects =
-        discover_fast_path_projects(check.config, workspace_root, workspace_manifest.as_ref())?;
-    let project_manifests =
-        build_project_manifests_list(check.manifest, workspace_projects.as_deref());
     let lockfile = lazy_wanted_lockfile(check.config, &lockfile_root);
-    check_fast_path_repeat_install(
-        check,
-        FastPathInputs {
-            state_root,
-            lockfile_root: &lockfile_root,
-            state,
-            project_manifests: &project_manifests,
-            is_workspace_install: workspace_manifest.is_some(),
-            lockfile: &lockfile,
-            catalogs: &catalogs,
-        },
-    )?;
+    let context = FastPathContext {
+        state_root,
+        lockfile_root: &lockfile_root,
+        workspace_root,
+        workspace_manifest: workspace_manifest.as_ref(),
+        lockfile: &lockfile,
+        catalogs: &catalogs,
+    };
+    let project_count = match stand_ins::check_from_records(check, &context, &state) {
+        stand_ins::RecordsCheck::UpToDate(project_count) => Some(project_count),
+        stand_ins::RecordsCheck::Undecided(listed) => {
+            from_files::check_from_files(check, &context, &state, listed)?
+        }
+    };
     register_fast_path_workspace(check.config, &lockfile_root)?;
-    Ok(UpToDateWorkspace {
-        root: state_root.to_path_buf(),
-        project_count: workspace_projects.as_ref().map(Vec::len),
-    })
+    Ok(UpToDateWorkspace { root: state_root.to_path_buf(), project_count })
 }
 
 fn load_fast_path_state(
@@ -156,46 +155,47 @@ fn load_fast_path_state(
         .ok_or("no workspace state on disk")
 }
 
-/// [`load_workspace_projects`] inside the `discover_workspace_projects`
-/// span, skipping the pnpm-managed directories.
-fn discover_fast_path_projects(
-    config: &Config,
-    workspace_root: &Path,
-    workspace_manifest: Option<&pnpm_workspace::WorkspaceManifest>,
-) -> Result<Option<Vec<pnpm_workspace::Project>>, &'static str> {
-    let _span =
-        tracing::debug_span!(target: "pacquet::install", "discover_workspace_projects").entered();
-    load_workspace_projects(workspace_root, workspace_manifest, &config.managed_directories())
-        .map_err(|_| "the workspace projects cannot be listed")
-}
-
-/// What [`install_already_up_to_date`] has established about the project
-/// tree by the time it checks the repeat install.
-struct FastPathInputs<'a> {
+/// What [`install_already_up_to_date`] has established about the workspace
+/// before it reads any project.
+struct FastPathContext<'a> {
     state_root: &'a Path,
     lockfile_root: &'a Path,
-    state: WorkspaceState,
-    project_manifests: &'a [(PathBuf, &'a PackageManifest)],
-    is_workspace_install: bool,
+    workspace_root: &'a Path,
+    /// `None` when no `pnpm-workspace.yaml` drives the install.
+    workspace_manifest: Option<&'a pnpm_workspace::WorkspaceManifest>,
     lockfile: &'a LazyLockfile,
     catalogs: &'a Catalogs,
+}
+
+/// The projects one repeat-install check covers.
+#[derive(Clone, Copy)]
+struct FastPathProjects<'a> {
+    state: &'a WorkspaceState,
+    manifests: &'a [(PathBuf, &'a PackageManifest)],
+    /// See [`crate::DeclaredManifests::with_stand_ins`].
+    recorded_digests: Option<&'a std::collections::HashMap<PathBuf, String>>,
 }
 
 /// [`check_optimistic_repeat_install_with_state`] inside the
 /// `check_repeat_install` span, with a skip surfaced as the fast path's reason.
 fn check_fast_path_repeat_install(
     check: &UpToDateFastPathCheck<'_>,
-    inputs: FastPathInputs<'_>,
+    context: &FastPathContext<'_>,
+    projects: FastPathProjects<'_>,
 ) -> Result<(), &'static str> {
     let _span = tracing::debug_span!(target: "pacquet::install", "check_repeat_install").entered();
+    let project_manifests = match projects.recorded_digests {
+        Some(digests) => crate::DeclaredManifests::with_stand_ins(projects.manifests, digests),
+        None => crate::DeclaredManifests::new(projects.manifests),
+    };
     let decision = check_optimistic_repeat_install_with_state(
         &OptimisticRepeatInstallCheck {
-            workspace_root: inputs.state_root,
+            workspace_root: context.state_root,
             config: check.config,
-            project_manifests: crate::DeclaredManifests::new(inputs.project_manifests),
-            is_workspace_install: inputs.is_workspace_install,
-            lockfile: MaybeLazyLockfile::Lazy(inputs.lockfile),
-            catalogs: inputs.catalogs,
+            project_manifests,
+            is_workspace_install: context.workspace_manifest.is_some(),
+            lockfile: MaybeLazyLockfile::Lazy(context.lockfile),
+            catalogs: context.catalogs,
             layout: crate::RepeatInstallLayout {
                 node_linker: check.node_linker,
                 included: super::included_dependencies(&check.dependency_groups),
@@ -203,14 +203,14 @@ fn check_fast_path_repeat_install(
             },
             manifests: crate::RepeatInstallManifests::ON_DISK,
         },
-        inputs.state,
+        projects.state,
         Scope::Workspace,
     );
     match decision {
         OptimisticRepeatInstallDecision::UpToDate => super::run::gvs_build_markers_complete(
             check.config,
-            MaybeLazyLockfile::Lazy(inputs.lockfile),
-            inputs.lockfile_root,
+            MaybeLazyLockfile::Lazy(context.lockfile),
+            context.lockfile_root,
             super::effective_node_version(check.config, check.manifest).as_deref(),
         ),
         OptimisticRepeatInstallDecision::Skipped { reason } => Err(reason),

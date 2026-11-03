@@ -5,6 +5,7 @@
 //! the gate covers against the lockfile, and records a passing check.
 
 pub(crate) use drift::{InputDrift, ProjectStatus};
+use missing_lockfile::settle_missing_wanted_lockfile;
 use registry_keys::state_unverified_by_changed_lockfile;
 
 use super::{
@@ -18,15 +19,15 @@ use super::{
     first_setting_drift, held_project_dirs, held_projects_match_lockfile,
     local_file_blocks_fast_path, pnpmfiles_drift, project_structure_matches,
     relocation::{prove_move, rekeyed_validation_now},
-    settle::{
-        current_lockfile_unusable_with_non_empty_wanted, regenerate_wanted_lockfile_if_missing,
-    },
-    validation::{FileDigest, Vouched, trusts_every_file},
+    settle::current_lockfile_unusable_with_non_empty_wanted,
+    validation::{FileDigest, Vouched, records_need_refresh, trusts_every_file},
 };
 use std::collections::HashSet;
 
 mod drift;
+mod missing_lockfile;
 mod registry_keys;
+mod stand_in_writes;
 
 /// What a gate does differently in [`check_freshness`].
 pub(super) struct GatePolicy<'a> {
@@ -159,6 +160,7 @@ pub(super) fn check_freshness(
     if !super::validation::held_workspace_bins_match(check, state, &held) {
         return Err(Stale::Content("workspace package bins changed since the last install"));
     }
+    stand_in_writes::refuse(check, moved || !held.is_empty() || drift.patches_modified)?;
     if moved {
         return settle_moved_tree(check, state, &drift, policy);
     }
@@ -328,19 +330,49 @@ fn settle_proven_tree(
             .get()
             .map_err(|_| Stale::Content("the wanted lockfile cannot be read or parsed"))?;
     }
+    stand_in_writes::refuse(check, drift.lockfile_changed || drift.rehashed)?;
     let restored = settle_missing_wanted_lockfile(check, policy, &drift.current)?;
     let vouched = drift.proven_dirs(&[]);
     if drift.lockfile_changed || restored {
         record_state(check, state, &vouched, policy);
-    } else if drift.rehashed {
-        // A file changed in the same clock tick as this record is read again
-        // next time anyway, so writing it would only repeat the write then.
-        let new_state = refreshed_state(check, state, &vouched, validation_now(check), policy);
-        if new_state.validation.as_ref().is_some_and(trusts_every_file) {
-            write_state(check, &new_state, policy);
-        }
+    } else {
+        refresh_state(check, state, drift, policy, &vouched);
     }
     Ok(())
+}
+
+/// Write the state again for a rehashed file, or for manifest records the
+/// next check cannot take manifests from. Only the install gate's check on
+/// the files refreshes records: the run gate leaves inputs unchecked, and a
+/// check on stand-ins writes nothing.
+///
+/// A file changed in the same clock tick as this record is read again next
+/// time anyway, so the state is written only when every file signature is
+/// trusted, and a refresh for the records alone only when it leaves records
+/// the next check can use.
+fn refresh_state(
+    check: &OptimisticRepeatInstallCheck<'_>,
+    state: &WorkspaceState,
+    drift: &InputDrift<'_>,
+    policy: &GatePolicy<'_>,
+    vouched: &HashSet<PathBuf>,
+) {
+    let records_stale = |state: &WorkspaceState| {
+        state.validation
+            .as_ref()
+            .is_some_and(|validation| records_need_refresh(check, validation, vouched))
+    };
+    let refresh_records = matches!(policy.gate, Gate::Install)
+        && !check.project_manifests.has_stand_ins()
+        && records_stale(state);
+    if !drift.rehashed && !refresh_records {
+        return;
+    }
+    let new_state = refreshed_state(check, state, vouched, validation_now(check), policy);
+    let trusted = new_state.validation.as_ref().is_some_and(trusts_every_file);
+    if trusted && (drift.rehashed || !records_stale(&new_state)) {
+        write_state(check, &new_state, policy);
+    }
 }
 
 /// Apply the gate's [`NewerPatch`] policy to a patch whose content changed.
@@ -377,42 +409,6 @@ fn settle_moved_tree(
 
 pub(super) fn validation_now(check: &OptimisticRepeatInstallCheck<'_>) -> Option<i64> {
     filesystem_now_ms_in_modules(&check.config.workspace_state_modules_dir(check.workspace_root))
-}
-
-/// Apply the gate's [`MissingWantedLockfile`] policy, returning whether it
-/// wrote the wanted lockfile.
-fn settle_missing_wanted_lockfile(
-    check: &OptimisticRepeatInstallCheck<'_>,
-    policy: &GatePolicy<'_>,
-    current: &CurrentLockfile<'_>,
-) -> Result<bool, Stale> {
-    match policy.missing_wanted_lockfile {
-        MissingWantedLockfile::Restore => {
-            regenerate_wanted_lockfile_if_missing(check, current).map_err(Stale::Content)
-        }
-        MissingWantedLockfile::RequireStandIn => {
-            missing_wanted_lockfile_stand_in_ok(check, current).map(|()| false)
-        }
-    }
-}
-
-/// The current lockfile can stand in for a missing wanted one. Nothing is
-/// written.
-fn missing_wanted_lockfile_stand_in_ok(
-    check: &OptimisticRepeatInstallCheck<'_>,
-    current: &CurrentLockfile<'_>,
-) -> Result<(), Stale> {
-    if check.lockfile.is_loaded_or_on_disk() || !check.config.lockfile {
-        return Ok(());
-    }
-    if check.config.use_git_branch_lockfile {
-        return Err(Stale::MissingBranchLockfile);
-    }
-    match current.get() {
-        Some(Some(_)) => Ok(()),
-        Some(None) => Err(Stale::NoLockfile),
-        None => Err(Stale::Content("the current lockfile cannot be loaded")),
-    }
 }
 
 /// Whether the configured patch files still hash to what the lockfile

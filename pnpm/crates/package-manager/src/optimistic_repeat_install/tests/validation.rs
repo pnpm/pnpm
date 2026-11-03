@@ -3,12 +3,13 @@
 use super::super::{
     pnpmfiles_drift,
     validation::{
-        FileDigest, FileDigests, RecordValidation, Vouched, manifest_digest, project_bins_match,
-        record_validation,
+        FileDigest, FileDigests, RecordValidation, Vouched, manifest_digest, manifest_stand_ins,
+        project_bins_match, record_validation,
     },
 };
 use pnpm_config::Config;
 use pnpm_package_manifest::PackageManifest;
+use pnpm_workspace::ProjectManifestPaths;
 use pnpm_workspace_state::{FileSignature, Validation, WorkspaceState};
 use std::{
     collections::HashSet,
@@ -302,31 +303,73 @@ fn record_files_with(
     state.validation.unwrap()
 }
 
+/// Move `validation`'s recording past the rounding window of whole-second
+/// filesystems, so its manifest stats are trusted.
+fn trust_recorded_stats(validation: &mut Validation) {
+    validation.recorded_at_ns = validation.manifest_files
+        .values()
+        .map(|file| file.mtime_ns.max(file.ctime_ns.unwrap_or(0)))
+        .max()
+        .unwrap()
+        + 3_000_000_000;
+}
+
 #[test]
-fn a_write_records_each_vouched_manifest_file_with_what_the_check_reads_from_it() {
+fn a_write_records_each_vouched_manifest_file_with_the_fields_the_check_reads() {
     let dir = tempdir().unwrap();
     let root = dir.path();
-    let json = r#"{"name":"a","dependencies":{"b":"workspace:*","c":"1.0.0"},"devDependencies":{"d":"link:../d"},"peerDependencies":{"e":"*"}}"#;
+    let json = r#"{"name":"a","scripts":{"test":"x"},"dependencies":{"b":"workspace:*","c":"git+https://user:token@example.com/c.git","d":"file:///opt/d","e":"https:user:secret@example.com/e.tgz","f":"link:///opt/f","g":"npm:h@1","i":"C:/i","j":" https://user:t@example.com/j.tgz","n":"https://TOKEN@example.com/n.tgz","l":"user:token@github.com:x/l","m":"git@github.com:x/m"},"peerDependencies":{"e":"https://user:secret@example.com/e.tgz","f":"^1"},"bin":"cli.js","publishConfig":{"registry":"https://user:secret@example.com/","directory":"dist"},"peerDependenciesMeta":{"e":{"optional":false,"note":"x"}},"devDependencies":{}}"#;
     let project_a = project_files(root, &[("a", json)]).remove(0);
     let validation = record_files(root, &[(root.join("a"), &project_a)], &Vouched::All);
     let file = &validation.manifest_files["a"];
     assert_eq!(file.file_name, "package.json");
     assert_eq!(file.size, json.len() as u64);
-    assert!(file.has_runtime_deps && file.has_required_peers);
-    let links = |entries: &[(&str, &str)]| {
-        entries
-            .iter()
-            .map(|(alias, spec)| ((*alias).to_owned(), (*spec).to_owned()))
-            .collect()
-    };
     assert_eq!(
-        file.local_links,
-        [
-            ("dependencies".to_owned(), links(&[("b", "workspace:*")])),
-            ("devDependencies".to_owned(), links(&[("d", "link:../d")])),
-        ]
-        .into(),
+        serde_json::Value::Object(file.fields.clone().unwrap()),
+        serde_json::json!({
+            "name": "a",
+            "dependencies": {
+                "b": "workspace:*",
+                "c": "*",
+                "d": "file:///opt/d",
+                "e": "*",
+                "f": "link:///opt/f",
+                "g": "npm:h@1",
+                "i": "C:/i",
+                "j": "*",
+                "n": "*",
+                "l": "*",
+                "m": "git@github.com:x/m",
+            },
+            "devDependencies": {},
+            "peerDependencies": { "e": "*", "f": "^1" },
+            "peerDependenciesMeta": { "e": { "optional": false } },
+            "bin": "cli.js",
+            "publishConfig": { "directory": "dist" },
+        }),
     );
+}
+
+/// A credential in a specifier whose scheme the check reads cannot be
+/// replaced without changing the answer, so the record keeps no fields and
+/// the next check reads the file.
+#[test]
+fn a_credential_in_a_checked_specifier_leaves_the_record_without_fields() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    for spec in [
+        "npm:b@^1 || https://user:token@example.com/b.tgz",
+        "file://TOKEN@example.com/b.tgz",
+        "file://us%3Aer@example.com/b.tgz",
+        "C:/vendor/@scope/lib",
+        "../../vendor/pkg:branch@v1",
+        "user@host:token@x",
+    ] {
+        let json = serde_json::json!({ "name": "a", "dependencies": { "b": spec } }).to_string();
+        let project_a = project_files(root, &[("a", &json)]).remove(0);
+        let validation = record_files(root, &[(root.join("a"), &project_a)], &Vouched::All);
+        assert_eq!(validation.manifest_files["a"].fields, None, "{spec}");
+    }
 }
 
 #[test]
@@ -350,15 +393,35 @@ fn a_manifest_whose_trusted_stat_is_unchanged_keeps_its_record() {
     let project_manifests = [(root.join("a"), &manifests[0]), (root.join("b"), &manifests[1])];
     let mut previous_validation = record_files(root, &project_manifests, &Vouched::All);
     for file in previous_validation.manifest_files.values_mut() {
-        file.has_required_peers = true;
+        file.fields
+            .as_mut()
+            .unwrap()
+            .insert("version".to_owned(), "9.9.9".into());
     }
-    // Keep the recording beyond the rounding window of whole-second filesystems.
-    previous_validation.recorded_at_ns = previous_validation.manifest_files
-        .values()
-        .map(|file| file.mtime_ns.max(file.ctime_ns.unwrap_or(0)))
-        .max()
-        .unwrap()
-        + 3_000_000_000;
+    trust_recorded_stats(&mut previous_validation);
+    let mut without_fields = previous_validation.clone();
+    for file in without_fields.manifest_files.values_mut() {
+        file.fields = None;
+    }
+    let rerecorded = record_files(
+        root,
+        &project_manifests,
+        &Vouched::Projects {
+            dirs: &HashSet::from([root.join("a"), root.join("b")]),
+            previous: Some(&WorkspaceState {
+                validation: Some(without_fields),
+                ..WorkspaceState::default()
+            }),
+        },
+    );
+    assert_eq!(
+        rerecorded.manifest_files
+            .iter()
+            .map(|(importer_id, file)| (importer_id.as_str(), file.fields.is_some()))
+            .collect::<Vec<_>>(),
+        [("a", true), ("b", true)],
+        "a record without fields is not reused",
+    );
     let previous =
         WorkspaceState { validation: Some(previous_validation), ..WorkspaceState::default() };
     let only_a = HashSet::from([root.join("a")]);
@@ -369,7 +432,12 @@ fn a_manifest_whose_trusted_stat_is_unchanged_keeps_its_record() {
     );
     let kept = validation.manifest_files
         .values()
-        .map(|file| file.has_required_peers)
+        .map(|file| {
+            file.fields
+                .as_ref()
+                .unwrap()
+                .contains_key("version")
+        })
         .collect::<Vec<_>>();
     assert_eq!(kept, [true, true], "a reused record for a and a carried one for b");
 }
@@ -420,4 +488,94 @@ fn a_carried_manifest_file_needs_a_stat_its_own_recording_trusted() {
     assert!(validation.manifests.contains_key("b"));
     assert!(validation.manifest_files.contains_key("a"));
     assert!(!validation.manifest_files.contains_key("b"));
+}
+
+/// `dir`'s manifest candidates as a `<dir>/*` listing holds them.
+fn listed(root: &Path, dir: &str) -> ProjectManifestPaths {
+    let root_dir = root.join(dir);
+    let candidates = ["package.json", "package.json5", "package.yaml"]
+        .map(|basename| root_dir.join(basename))
+        .to_vec();
+    ProjectManifestPaths { root_dir, candidates }
+}
+
+#[test]
+fn records_stand_in_for_the_manifests_whose_stat_still_holds() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    let manifests = project_files(
+        root,
+        &[("a", r#"{"name":"a","scripts":{"x":"y"},"dependencies":{"b":"workspace:*"}}"#)],
+    );
+    let mut validation = record_files(root, &[(root.join("a"), &manifests[0])], &Vouched::All);
+    trust_recorded_stats(&mut validation);
+    fs::create_dir_all(root.join("no-project")).unwrap();
+
+    let stand_ins =
+        manifest_stand_ins(root, &validation, &[listed(root, "a"), listed(root, "no-project")])
+            .expect("the record stands in");
+
+    let [project] = stand_ins.projects.as_slice() else { panic!("one project") };
+    assert_eq!(project.root_dir, root.join("a"));
+    assert_eq!(project.manifest.path(), root.join("a/package.json"));
+    assert_eq!(
+        project.manifest.value(),
+        &serde_json::json!({ "name": "a", "dependencies": { "b": "workspace:*" } }),
+    );
+    assert_eq!(stand_ins.digests[&root.join("a")], validation.manifests["a"]);
+}
+
+#[test]
+fn records_cannot_stand_in_once_a_manifest_may_have_changed() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    let manifests = project_files(root, &[("a", r#"{"name":"a"}"#), ("b", r#"{"name":"b"}"#)]);
+    let project_manifests = [(root.join("a"), &manifests[0]), (root.join("b"), &manifests[1])];
+    let mut validation = record_files(root, &project_manifests, &Vouched::All);
+    trust_recorded_stats(&mut validation);
+    let stand_ins = |validation: &Validation| {
+        manifest_stand_ins(root, validation, &[listed(root, "a"), listed(root, "b")]).is_some()
+    };
+    assert!(stand_ins(&validation));
+
+    let mut without_fields = validation.clone();
+    without_fields.manifest_files.get_mut("b").unwrap().fields = None;
+    assert!(!stand_ins(&without_fields), "a record without fields");
+
+    let mut unrecorded = validation.clone();
+    unrecorded.manifest_files.remove("b");
+    assert!(!stand_ins(&unrecorded), "a project without a record");
+
+    let mut untrusted = validation.clone();
+    untrusted.recorded_at_ns = 0;
+    assert!(!stand_ins(&untrusted), "a stat recorded before the file changed");
+
+    fs::write(root.join("b/package.yaml"), "name: b\n").unwrap();
+    fs::remove_file(root.join("b/package.json")).unwrap();
+    assert!(!stand_ins(&validation), "another manifest file");
+    fs::write(root.join("b/package.json"), r#"{"name":"b"}"#).unwrap();
+    assert!(!stand_ins(&validation), "a rewritten manifest");
+}
+
+/// An edit that keeps the size and restores the mtime still moves the change
+/// time.
+#[test]
+fn records_cannot_stand_in_for_a_same_size_edit_with_its_mtime_restored() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    let manifests = project_files(root, &[("a", r#"{"name":"a","dependencies":{"b":"1"}}"#)]);
+    let mut validation = record_files(root, &[(root.join("a"), &manifests[0])], &Vouched::All);
+    trust_recorded_stats(&mut validation);
+    assert!(manifest_stand_ins(root, &validation, &[listed(root, "a")]).is_some());
+    let path = root.join("a/package.json");
+    let mtime = fs::metadata(&path)
+        .unwrap()
+        .modified()
+        .unwrap();
+    super::wait_for_the_next_filesystem_tick(root);
+
+    fs::write(&path, r#"{"name":"a","dependencies":{"b":"2"}}"#).unwrap();
+    pnpm_testing_utils::fs::set_mtime(&path, mtime);
+
+    assert!(manifest_stand_ins(root, &validation, &[listed(root, "a")]).is_none());
 }
