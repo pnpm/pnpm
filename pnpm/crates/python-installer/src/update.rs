@@ -5,7 +5,7 @@ use std::{
 };
 
 use miette::{IntoDiagnostic, Result, WrapErr, bail};
-use pep440_rs::{Operator, Version, VersionSpecifiers};
+use pep440_rs::{Operator, Version, VersionSpecifier, VersionSpecifiers};
 use pep508_rs::{PackageName, Requirement, VersionOrUrl};
 use pnpm_python_resolver::Lockfile;
 use rewrite::rewrite_pyproject;
@@ -17,6 +17,8 @@ use super::{
 };
 
 mod rewrite;
+#[cfg(test)]
+mod tests;
 
 #[derive(Debug, Clone)]
 pub struct UpdateOptions {
@@ -289,6 +291,31 @@ fn compute_saved_specifiers(
     updated_existing_specifiers(existing, version, latest || explicit_spec.is_some())
 }
 
+/// The lower bound of a `~=` requirement updated to `version`, with as many
+/// release segments as `spec` so its upper bound keeps the same precision.
+fn compatible_release_floor(spec: &VersionSpecifier, version: &Version) -> Version {
+    let segments = spec.version().release().len();
+    if version.release().len() <= segments {
+        return version
+            .clone()
+            .without_local()
+            .with_release(padded_release(version, segments));
+    }
+    let floor = release_prefix(version, segments);
+    if floor <= *version { floor } else { version.clone().without_local() }
+}
+
+/// `version`'s epoch and first `segments` release numbers, zero-padded.
+fn release_prefix(version: &Version, segments: usize) -> Version {
+    Version::new(padded_release(version, segments)).with_epoch(version.epoch())
+}
+
+fn padded_release(version: &Version, segments: usize) -> Vec<u64> {
+    let mut release = version.release().to_vec();
+    release.resize(segments, 0);
+    release
+}
+
 fn updated_existing_specifiers(
     existing: &VersionSpecifiers,
     version: &Version,
@@ -299,8 +326,11 @@ fn updated_existing_specifiers(
         let formatted = match *spec.operator() {
             Operator::Equal => force_bump.then(|| format!("=={version}")),
             Operator::ExactEqual => force_bump.then(|| format!("==={version}")),
-            Operator::TildeEqual => Some(format!("~={version}")),
+            Operator::TildeEqual => Some(format!("~={}", compatible_release_floor(spec, version))),
             Operator::GreaterThanEqual => Some(format!(">={version}")),
+            Operator::EqualStar => (force_bump && !existing.contains(version)).then(|| {
+                format!("=={}.*", release_prefix(version, spec.version().release().len()))
+            }),
             _ => (force_bump && !existing.contains(version)).then(|| format!(">={version}")),
         };
         return formatted
