@@ -209,8 +209,9 @@ async fn one_stage_approved_on_two_replicas_publishes_once() {
 /// under way on another, as long as it lands before that approval commits.
 ///
 /// The approving replica is paused after it has the held publish in hand,
-/// inside the read of the package it is about to write, which is where a
-/// rejection can still be observed.
+/// while it stages it: reading the tarball's integrity record, the one
+/// `document.json` the bucket still holds, before the commit, which is where
+/// a rejection can still be observed.
 #[tokio::test]
 async fn a_rejection_stops_an_approval_that_has_not_committed() {
     let objects = Arc::new(PausingStore::default());
@@ -236,7 +237,9 @@ async fn a_rejection_stops_an_approval_that_has_not_committed() {
         }
     });
 
-    objects.started.notified().await;
+    tokio::time::timeout(std::time::Duration::from_secs(10), objects.started.notified())
+        .await
+        .expect("the approval reaches the paused read");
     let (rejected, _) =
         rejecting.send("DELETE", &format!("/npm/-/stage/{stage_id}"), Body::empty()).await;
     assert_eq!(rejected, StatusCode::NO_CONTENT);

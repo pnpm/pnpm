@@ -297,3 +297,18 @@ fn a_storage_override_leaves_a_named_metadata_database_where_it_is() {
     let config = served_from(&yaml, std::path::Path::new("/srv/pnpr"));
     assert_eq!(config.storage.metadata, pnpr_config::MetadataBackend::Sqlite(database));
 }
+
+/// A database the config names at the default path is the storage
+/// directory's own, so it moves the same way.
+#[test]
+fn a_storage_override_takes_a_database_named_at_the_default_path_along() {
+    let storage = std::path::Path::new("/srv/pnpr");
+    let config = served_from(
+        "storage: ./storage\nmetadata:\n  url: sqlite:./storage/.metadata/metadata.sqlite\n",
+        storage,
+    );
+    assert_eq!(
+        config.storage.metadata,
+        pnpr_config::MetadataBackend::Sqlite(pnpr_config::default_metadata_path(storage)),
+    );
+}

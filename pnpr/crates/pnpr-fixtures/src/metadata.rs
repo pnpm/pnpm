@@ -98,7 +98,12 @@ fn move_dist_tags(packument_object: &mut Map<String, Value>, from: &str, to: &st
 /// `storage` in one transaction, whatever it held for them before. A
 /// packument the store already holds as it is commits nothing.
 pub fn write_packuments(storage: &Path, packuments: Vec<(String, Value)>) {
-    let path = default_metadata_path(storage);
+    write_packuments_into(&default_metadata_path(storage), packuments);
+}
+
+/// [`write_packuments`] into the metadata database at `database`.
+pub fn write_packuments_into(database: &Path, packuments: Vec<(String, Value)>) {
+    let path = database.to_path_buf();
     let documents = packuments
         .into_iter()
         .map(|(name, packument)| BatchDocument {

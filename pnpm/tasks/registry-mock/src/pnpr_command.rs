@@ -130,18 +130,19 @@ pub fn pnpr_command_with_binary(bin: &Path, port: u16, public_url: Option<&str>)
 /// named outright, written into the runtime storage. A `pnpr` from another
 /// revision, such as the one the integrated benchmark compares against, may
 /// not move its default database along with `--storage`, and every revision
-/// reads a named one.
+/// reads a named one. The config is named after the fixture build, like the
+/// database, so mocks of other builds never read each other's.
 fn runtime_mock_config() -> io::Result<PathBuf> {
-    let storage = runtime_storage();
-    let database = pnpr_fixtures::metadata_path(storage);
+    let database = std::path::absolute(crate::runtime_metadata_path())?;
     let url = format!("sqlite:{}", database.display()).replace('\'', "''");
     let yaml = format!("{}\nmetadata:\n  url: '{url}'\n", pnpr_fixtures::MOCK_CONFIG_YAML);
-    let path = storage.join(".registry-mock.yaml");
+    let path = database.with_extension("yaml");
     if fs::read_to_string(&path).is_ok_and(|existing| existing == yaml) {
         return Ok(path);
     }
-    fs::create_dir_all(storage)?;
-    let temp = storage.join(format!(".registry-mock.yaml.{}", std::process::id()));
+    let directory = path.parent().expect("the config has a directory");
+    fs::create_dir_all(directory)?;
+    let temp = path.with_extension(format!("yaml.{}", std::process::id()));
     fs::write(&temp, yaml)?;
     fs::rename(&temp, &path)?;
     Ok(path)

@@ -8,9 +8,11 @@
 //!
 //! The metadata database is the exception. pnpr, and a benchmark scenario
 //! that seeds packages of its own, write to the database the runtime storage
-//! serves, so it is copied rather than linked. It is replaced when the
-//! fixture storage it was copied from is another one, which is what a change
-//! to the fixtures builds: the runtime storage outlives them.
+//! serves, so it is copied rather than linked. The runtime storage outlives
+//! the fixtures and may be served by mocks of other fixtures at once, such as
+//! from another worktree, so each fixture build gets a database of its own,
+//! [`runtime_metadata_path`], copied once and never replaced under a mock
+//! that has it open.
 
 use crate::{registry_mock_storage, runtime_storage};
 use std::{
@@ -33,7 +35,7 @@ pub fn seed_runtime_storage() -> io::Result<usize> {
     }
     fs::create_dir_all(dest)?;
     let database = pnpr_fixtures::metadata_path(Path::new(""));
-    let mut seeded = 0;
+    let mut seeded = usize::from(copy_database(&pnpr_fixtures::metadata_path(src))?);
     for entry in WalkDir::new(src) {
         // Propagate traversal errors instead of silently dropping
         // them: a partial-mirror under a "success" return is much
@@ -53,14 +55,21 @@ pub fn seed_runtime_storage() -> io::Result<usize> {
     Ok(seeded)
 }
 
+/// The metadata database the runtime storage serves for the fixture build
+/// [`registry_mock_storage`] holds, named after that build.
+#[must_use]
+pub fn runtime_metadata_path() -> PathBuf {
+    let build =
+        registry_mock_storage().file_name().expect("the fixture storage is named after its build");
+    let mut name = build.to_owned();
+    name.push(".sqlite");
+    runtime_storage().join(".registry-mock").join(name)
+}
+
 /// Seed the fixture file at `src`, at `rel` in the fixture storage, to
-/// `dest`, and report whether it was new there.
+/// `dest`, and report whether it was new there. The fixture database and its
+/// write-ahead log and shared memory are left to [`copy_database`].
 fn seed_file(src: &Path, rel: &Path, dest: &Path, database: &Path) -> io::Result<bool> {
-    if rel == database {
-        return replace_database(src, dest);
-    }
-    // The database's write-ahead log and shared memory belong to whichever
-    // pnpr has the fixture database open.
     if rel.parent() == database.parent() {
         return Ok(false);
     }
@@ -74,40 +83,30 @@ fn seed_file(src: &Path, rel: &Path, dest: &Path, database: &Path) -> io::Result
     Ok(matches!(link_or_copy(src, dest)?, LinkOutcome::Created))
 }
 
-/// Copy the database at `src` over `dest` unless `dest` was copied from
-/// `src` already, and report whether it did. The copy lands under a
-/// temporary name and is renamed into place, with the log of the database it
-/// replaces removed, so a pnpr never opens half a database or applies another
-/// database's log to it.
-fn replace_database(src: &Path, dest: &Path) -> io::Result<bool> {
-    let source = with_suffix(dest, ".source");
-    let origin = src.to_string_lossy();
-    match fs::read_to_string(&source) {
-        Ok(recorded) if recorded == origin && dest.is_file() => return Ok(false),
-        Ok(_) => {}
-        Err(err) if err.kind() == io::ErrorKind::NotFound => {}
-        Err(err) => return Err(err),
+/// Copy the fixture database at `src` to [`runtime_metadata_path`] unless it
+/// is there already, and report whether it was copied. The copy lands under
+/// a temporary name and is renamed into place, so a pnpr never opens half a
+/// database.
+fn copy_database(src: &Path) -> io::Result<bool> {
+    let dest = runtime_metadata_path();
+    if dest.is_file() {
+        return Ok(false);
     }
     let parent = dest.parent().expect("the database has a directory");
     fs::create_dir_all(parent)?;
-    let temp = with_suffix(dest, &format!(".seed-{}", std::process::id()));
+    let mut temp = dest.as_os_str().to_owned();
+    temp.push(format!(".seed-{}", std::process::id()));
+    let temp = PathBuf::from(temp);
     fs::copy(src, &temp)?;
-    for suffix in ["-wal", "-shm", "-journal"] {
-        match fs::remove_file(with_suffix(dest, suffix)) {
-            Ok(()) => {}
-            Err(err) if err.kind() == io::ErrorKind::NotFound => {}
-            Err(err) => return Err(err),
+    match fs::rename(&temp, &dest) {
+        Ok(()) => Ok(true),
+        // Another seeder won the race, with the same bytes.
+        Err(_) if dest.is_file() => {
+            let _ = fs::remove_file(&temp);
+            Ok(false)
         }
+        Err(err) => Err(err),
     }
-    fs::rename(&temp, dest)?;
-    fs::write(&source, origin.as_bytes())?;
-    Ok(true)
-}
-
-fn with_suffix(path: &Path, suffix: &str) -> PathBuf {
-    let mut name = path.as_os_str().to_owned();
-    name.push(suffix);
-    PathBuf::from(name)
 }
 
 enum LinkOutcome {

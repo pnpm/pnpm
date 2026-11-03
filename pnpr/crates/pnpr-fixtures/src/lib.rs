@@ -1,7 +1,7 @@
 pub mod presets;
 pub use metadata::{
     deprecate_version, read_hosted_document, read_packument, remove_version, set_dist_tag,
-    write_hosted_document, write_packuments,
+    write_hosted_document, write_packuments, write_packuments_into,
 };
 pub use presets::{
     MockConfigPresets, REGISTRY_MOCK_LOCAL_PATTERNS, TAR_REGISTRY, proxy_config,

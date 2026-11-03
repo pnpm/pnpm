@@ -79,9 +79,9 @@ pub(super) fn peer_heavy_root_manifest() -> String {
     }))
     .expect("serialize peer-heavy root manifest")
 }
-/// Commit the peer-heavy packages to the metadata of the registry storage
-/// at `storage_root`. Their archives are never fetched, so none is written.
-pub(crate) fn seed_peer_heavy_registry(storage_root: &Path) {
+/// Commit the peer-heavy packages to the registry metadata database at
+/// `database`. Their archives are never fetched, so none is written.
+pub(crate) fn seed_peer_heavy_registry(database: &Path) {
     let mut packuments =
         vec![peer_heavy_packument(PEER_HEAVY_PROVIDER, &serde_json::Map::new(), false)];
     for level in 0..PEER_HEAVY_DEPTH {
@@ -105,7 +105,7 @@ pub(crate) fn seed_peer_heavy_registry(storage_root: &Path) {
             ));
         }
     }
-    pnpr_fixtures::write_packuments(storage_root, packuments);
+    pnpr_fixtures::write_packuments_into(database, packuments);
 }
 pub(super) fn peer_heavy_packument(
     name: &str,
