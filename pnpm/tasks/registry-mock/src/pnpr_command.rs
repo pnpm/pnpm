@@ -3,6 +3,7 @@ use std::{
     env, fs, io,
     path::{Path, PathBuf},
     process::Command,
+    sync::atomic::{AtomicU64, Ordering},
 };
 
 /// Locate the `pnpr` binary built into the cargo workspace's
@@ -144,7 +145,11 @@ fn runtime_mock_config() -> io::Result<PathBuf> {
     }
     let directory = path.parent().expect("the config has a directory");
     fs::create_dir_all(directory)?;
-    let temp = path.with_extension(format!("yaml.{}", std::process::id()));
+    // One temporary name per write, so concurrent first launches in one
+    // process never rename each other's file.
+    static WRITES: AtomicU64 = AtomicU64::new(0);
+    let write = WRITES.fetch_add(1, Ordering::Relaxed);
+    let temp = path.with_extension(format!("yaml.{}-{write}", std::process::id()));
     fs::write(&temp, yaml)?;
     fs::rename(&temp, &path)?;
     Ok(path)
