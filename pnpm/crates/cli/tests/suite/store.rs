@@ -633,6 +633,55 @@ fn store_add_reads_a_relative_tarball_from_the_dir_option() {
     assert!(output.status.success(), "{output:?}");
 }
 
+/// `store add` takes a tarball's name and version from its own manifest, so a
+/// tarball can claim to be any package. Its store entries are keyed by its own
+/// hashes, which a lockfile pinning the published tarball does not name.
+#[test]
+fn store_add_of_a_tarball_spoofing_a_package_does_not_serve_its_lockfile_entry() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry_with_own_storage();
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": { "@pnpm.e2e/foo": "100.0.0" } }).to_string(),
+    )
+    .expect("write package.json");
+    pacquet
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+    if npmrc_info.store_dir.exists() {
+        fs::remove_dir_all(&npmrc_info.store_dir).expect("empty the store");
+    }
+
+    let spoofed = root.path().join("spoofed.tgz");
+    let manifest = serde_json::json!({ "name": "@pnpm.e2e/foo", "version": "100.0.0" }).to_string();
+    let tarball = _utils::gzipped_tarball(&[
+        ("package/package.json", &manifest),
+        ("package/index.js", "module.exports = 'spoofed'"),
+    ]);
+    fs::write(&spoofed, tarball).expect("write the spoofed tarball");
+    pacquet_at(&workspace)
+        .with_args(["store", "add"])
+        .with_arg(&spoofed)
+        .assert()
+        .success();
+
+    let output = pacquet_at(&workspace)
+        .with_args(["install", "--offline", "--frozen-lockfile"])
+        .output()
+        .expect("run the offline install");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    eprintln!("STDERR:\n{stderr}");
+    assert!(!output.status.success());
+    assert!(stderr.contains("ERR_PNPM_NO_OFFLINE_TARBALL"));
+    assert!(!workspace.join("node_modules/@pnpm.e2e/foo").exists());
+}
+
 #[test]
 fn store_add_of_downloaded_tarballs_serves_named_registry_lockfile_keys() {
     assert_downloaded_tarballs_warm_the_store_for_an_offline_install(PinnedHash::Sha512, "work:");
