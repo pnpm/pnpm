@@ -1,6 +1,9 @@
 import os from 'node:os'
 import path from 'node:path'
 
+import type { ProjectSnapshot } from '@pnpm/lockfile.types'
+import { findWorkspaceLinkTarget } from '@pnpm/resolving.npm-resolver'
+import type { WorkspacePackages } from '@pnpm/resolving.resolver-base'
 import semver from 'semver'
 
 export function isWorkspaceRangeSpec (spec: string): boolean {
@@ -105,4 +108,19 @@ export function getVersionRange (spec: string): string {
     return raw.slice(index + 1) || '*'
   }
   return spec
+}
+
+/**
+ * Whether `excludeLinksFromLockfile` leaves the dependency out of the
+ * importer: a `link:` spec, or one the importer has no specifier for that a
+ * package in `workspacePackages` matches.
+ */
+export function isExcludedLink (
+  workspacePackages: WorkspacePackages | undefined,
+  { importer, depName, spec }: { importer: Pick<ProjectSnapshot, 'specifiers'>, depName: string, spec: string }
+): boolean {
+  if (spec.startsWith('link:')) return true
+  return workspacePackages != null &&
+    importer.specifiers[depName] == null &&
+    findWorkspaceLinkTarget(workspacePackages, { alias: depName, bareSpecifier: spec }) != null
 }

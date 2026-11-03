@@ -1,14 +1,16 @@
 import { createMatcher } from '@pnpm/config.matcher'
 import * as dp from '@pnpm/deps.path'
 import type { ProjectSnapshot } from '@pnpm/lockfile.types'
+import type { WorkspacePackages } from '@pnpm/resolving.resolver-base'
 import {
   DEPENDENCIES_FIELDS,
   type DependenciesField,
   type ProjectManifest,
 } from '@pnpm/types'
-import { equals, omit, pickBy } from 'ramda'
+import { equals, identity, omit, pickBy } from 'ramda'
 import semver from 'semver'
 
+import { isExcludedLink } from './dependencySpec.js'
 import { type Diff, diffFlatRecords, isEqual } from './diffFlatRecords.js'
 import { dependencySpecifiersAreEqual } from './gitSpecifiersAreEquivalent.js'
 import { unresolvedOptionalDependencies } from './unresolvedOptionalDependencies.js'
@@ -24,6 +26,8 @@ export interface SatisfiesPackageManifestOptions {
    * install retries the dependency instead.
    */
   allowUnresolvedOptionalDependencies?: boolean
+  /** Set when `linkWorkspacePackages` is on. See `isExcludedLink`. */
+  workspacePackages?: WorkspacePackages
 }
 
 interface SatisfiesPackageManifestResult {
@@ -38,9 +42,10 @@ export function satisfiesPackageManifest (
 ): SatisfiesPackageManifestResult {
   if (!importer) return { satisfies: false, detailedReason: 'no importer' }
   const ignoredOptionalDependencies = getIgnoredOptionalDependencies(opts, importer, pkg)
+  const pickLockedDeps = createLockedDepsPicker(opts, importer)
   const { manifest, existingDeps } = getExpectedDependencies(opts, pkg, ignoredOptionalDependencies)
   const specs = opts?.excludeLinksFromLockfile ? pickNonLinkedDeps(importer.specifiers) : importer.specifiers
-  const specsDiff = diffFlatRecords(specs, existingDeps, dependencySpecifiersAreEqual)
+  const specsDiff = diffFlatRecords(specs, pickLockedDeps(existingDeps), dependencySpecifiersAreEqual)
   if (!isEqual(specsDiff)) {
     return {
       satisfies: false,
@@ -50,10 +55,10 @@ export function satisfiesPackageManifest (
   return findPublishDirectoryMismatch(importer, manifest) ??
     findDependenciesMetaMismatch(importer, manifest) ??
     findDependencyFieldsMismatch({
-      excludeLinksFromLockfile: opts?.excludeLinksFromLockfile,
       ignoredOptionalDependencies,
       importer,
       manifest,
+      pickLockedDeps,
     }) ??
     { satisfies: true }
 }
@@ -77,9 +82,16 @@ function getIgnoredOptionalDependencies (
   return ignoredOptionalDependencies
 }
 
+type PickLockedDeps = (deps: Record<string, string>) => Record<string, string>
+
+function createLockedDepsPicker (opts: SatisfiesPackageManifestOptions, importer: ProjectSnapshot): PickLockedDeps {
+  if (!opts.excludeLinksFromLockfile) return identity
+  return (deps) => pickBy((spec: string, depName: string) => !isExcludedLink(opts.workspacePackages, { importer, depName, spec }), deps)
+}
+
 /**
  * The manifest as the lockfile should reflect it, with auto-installed peers
- * added to its dependencies, and the specifiers the lockfile should record.
+ * added to its dependencies, and the specifiers of those dependencies.
  */
 function getExpectedDependencies (
   opts: SatisfiesPackageManifestOptions,
@@ -103,9 +115,6 @@ function getExpectedDependencies (
       ...manifest.peerDependencies,
       ...existingDeps,
     }
-  }
-  if (opts?.excludeLinksFromLockfile) {
-    existingDeps = pickNonLinkedDeps(existingDeps)
   }
   return { manifest, existingDeps }
 }
@@ -143,10 +152,10 @@ function findDependenciesMetaMismatch (
 }
 
 interface DependencyFieldsContext {
-  excludeLinksFromLockfile?: boolean
   ignoredOptionalDependencies: Set<string>
   importer: ProjectSnapshot
   manifest: ProjectManifest
+  pickLockedDeps: PickLockedDeps
 }
 
 function findDependencyFieldsMismatch (ctx: DependencyFieldsContext): SatisfiesPackageManifestResult | undefined {
@@ -184,7 +193,7 @@ function getManifestDepsOfField (ctx: DependencyFieldsContext, depField: Depende
   const pkgDeps = depField === 'devDependencies'
     ? ctx.manifest[depField] ?? {}
     : omitIgnoredDependencies(ctx.manifest[depField], ctx.ignoredOptionalDependencies)
-  return ctx.excludeLinksFromLockfile ? pickNonLinkedDeps(pkgDeps) : pkgDeps
+  return ctx.pickLockedDeps(pkgDeps)
 }
 
 /**

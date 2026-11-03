@@ -125,6 +125,22 @@ export function pickMatchingLocalVersionOrNull (
   }
 }
 
+/**
+ * The directory a workspace package that matches the dependency links from,
+ * picked the way the resolver picks it, or `undefined` when none matches.
+ */
+export function findWorkspaceLinkTarget (
+  workspacePackages: WorkspacePackages,
+  { alias, bareSpecifier }: { alias: string, bareSpecifier: string }
+): string | undefined {
+  // No registry: only a version selector names a workspace package.
+  const spec = parseBareSpecifier(bareSpecifier, alias, 'latest', '')
+  const versions = spec && workspacePackages.get(spec.name)
+  if (!versions) return undefined
+  const localVersion = pickMatchingLocalVersionOrNull(versions, spec)
+  return localVersion == null ? undefined : resolveLocalPackageDir(versions.get(localVersion)!)
+}
+
 function rcompareVersions (leftVersion: string, rightVersion: string): number {
   const leftIsSemver = semver.valid(leftVersion) != null
   const rightIsSemver = semver.valid(rightVersion) != null
