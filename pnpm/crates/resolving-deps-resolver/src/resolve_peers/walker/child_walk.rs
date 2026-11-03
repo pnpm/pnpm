@@ -136,12 +136,9 @@ impl Walker<'_> {
         pkg_id: &Arc<str>,
         result: &WalkResult<'_>,
     ) {
+        self.remember_provider_bindings(node_id, result.all_resolved_peers);
         match self.traversal.mode {
             PeerWalkMode::Final => {
-                self.nodes.external_peers.insert(
-                    node_id.clone(),
-                    Arc::clone(result.all_resolved_peers),
-                );
                 self.nodes.missing_peers.insert(
                     node_id.clone(),
                     Arc::clone(result.all_missing_peers),

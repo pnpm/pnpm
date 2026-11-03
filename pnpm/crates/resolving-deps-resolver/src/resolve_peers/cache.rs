@@ -337,8 +337,8 @@ impl Walker<'_> {
         );
     }
 
-    /// Discovery runs throw their per-node bookkeeping away, so it is only
-    /// recorded for the real walk.
+    /// Discovery keeps provider bindings for retained paths. Final walks also
+    /// record cache ownership and missing-peer bookkeeping.
     fn remember_cache_hit_node(
         &mut self,
         node_id: &NodeId,
@@ -346,6 +346,7 @@ impl Walker<'_> {
         output: &NodeOutput,
         missing_peers_of_children: Arc<HashMap<String, MissingPeerInfo>>,
     ) {
+        self.remember_provider_bindings(node_id, &output.external_resolved_peers);
         match self.traversal.mode {
             PeerWalkMode::Discovery => return,
             PeerWalkMode::Final => {}
@@ -358,10 +359,6 @@ impl Walker<'_> {
             );
             self.nodes.cache_owners.insert(node_id.clone(), owner_node_id);
         }
-        self.nodes.external_peers.insert(
-            node_id.clone(),
-            Arc::clone(&output.external_resolved_peers),
-        );
         self.nodes.missing_peers.insert(node_id.clone(), Arc::clone(&output.missing_peers));
         self.nodes.children_missing_peers.insert(node_id.clone(), missing_peers_of_children);
     }

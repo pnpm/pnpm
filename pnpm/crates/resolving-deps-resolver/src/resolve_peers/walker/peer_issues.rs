@@ -226,6 +226,16 @@ impl Walker<'_> {
         pkg
     }
 
+    pub(in super::super) fn remember_provider_bindings(
+        &mut self,
+        node_id: &NodeId,
+        peers: &Arc<HashMap<String, NodeId>>,
+    ) {
+        if self.caches.node_dep_paths.contains_key(node_id) {
+            self.nodes.external_peers.insert(node_id.clone(), Arc::clone(peers));
+        }
+    }
+
     pub(in super::super) fn remember_resolved_node(
         &mut self,
         node_id: &NodeId,
