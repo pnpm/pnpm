@@ -116,9 +116,12 @@ Update the dependencies to their latest stable version as determined by their `l
 
 Since v12.6.0, `--latest` does not move a dependency past a specifier supplied by `packageExtensions`, a `readPackage` hook, or an override. The lockfile stays inside that specifier.
 
-An exact Cargo requirement stays exact when updated, unless the selector gives
-a range, as in `pnpm update crate:foo@^2`. Saved Cargo requirements omit build
-metadata.
+A Cargo requirement keeps its operator when updated, so `~1.0` becomes `~1.1`
+and `=1.0.0` stays exact. A requirement with only an upper bound, such as `<2`,
+is kept while the new version matches it, and becomes a caret requirement, such
+as `^2.0.0`, when `--latest` moves past it. A requirement in the selector, as in
+`pnpm update crate:foo@^2`, replaces it. `savePrefix` and `saveExact` apply only
+to new Cargo dependencies. Saved Cargo requirements omit build metadata.
 
 ### --patches
 

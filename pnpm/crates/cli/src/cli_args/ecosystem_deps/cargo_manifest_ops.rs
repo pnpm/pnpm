@@ -1,4 +1,4 @@
-pub(crate) use saved_spec::format_cargo_saved_spec;
+pub(crate) use saved_spec::{format_cargo_saved_spec, without_build_metadata};
 mod saved_spec;
 
 use crate::{

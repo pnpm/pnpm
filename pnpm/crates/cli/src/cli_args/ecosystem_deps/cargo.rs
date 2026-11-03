@@ -6,7 +6,7 @@ use super::{
     cargo_manifest_ops::{
         DeclaredCargoDep, apply_manifest_edits, declared_cargo_deps, find_cargo_workspace_root,
         format_cargo_saved_spec, read_locked_cargo_versions, same_declared_dep,
-        select_locked_version,
+        select_locked_version, without_build_metadata,
     },
     cargo_selection::{
         SelectedCargoDep, SelectedCargoTarget, admits_enabled_features, is_held_as_downgrade,
@@ -312,7 +312,7 @@ fn pin_unchanged_deps(
                 dep.manifest_path.clone(),
                 dep.table,
                 dep.alias.clone(),
-                format!("={locked_ver}"),
+                format!("={}", without_build_metadata(locked_ver)),
             ))
         })
         .collect()
@@ -352,14 +352,13 @@ async fn resolve_selected_cargo_edit<Reporter: self::Reporter>(
     {
         return Ok(None);
     }
-    let saved_spec = format_cargo_saved_spec(
-        &dep.raw_spec,
-        &resolved,
-        explicit_spec,
-        options.step.save_exact,
-        options.step.save_prefix,
-    )?;
-    let staged = (dep.manifest_path.clone(), dep.table, dep.alias.clone(), format!("={resolved}"));
+    let saved_spec = format_cargo_saved_spec(&dep.raw_spec, &resolved, explicit_spec);
+    let staged = (
+        dep.manifest_path.clone(),
+        dep.table,
+        dep.alias.clone(),
+        format!("={}", without_build_metadata(&resolved)),
+    );
     let finalized = (dep.manifest_path.clone(), dep.table, dep.alias.clone(), saved_spec);
     Ok(Some((staged, finalized)))
 }
