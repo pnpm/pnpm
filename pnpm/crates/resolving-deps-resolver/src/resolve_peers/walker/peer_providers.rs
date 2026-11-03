@@ -105,13 +105,9 @@ impl Walker<'_> {
         site: &PinSite<'_>,
     ) -> Option<(String, ParentRef)> {
         let peer_dep = site.pkg.peer_set.taken().get(peer_name)?;
-        // Deduplication chooses optional providers absent from the current scope.
-        if peer_dep.optional && !site.parent_refs.contains_key(peer_name) {
-            return None;
-        }
         let locked = self.locked_provider(previous_dep_path, site.provider_paths)?;
         let scope = PeerScope {
-            inherited: None,
+            inherited: site.parent_refs.get(peer_name),
             inherited_must_win: || {
                 self.has_current_peer_provider_that_must_win(
                     peer_name,
@@ -121,11 +117,7 @@ impl Walker<'_> {
             },
             locked: Some(locked),
         };
-        let ProviderPick::Bound {
-            provider: (peer_node_id, depth, version),
-            pinned_by_lockfile: true,
-        } = provider_for(&peer_dep.version, scope)
-        else {
+        let ProviderPick::Locked((peer_node_id, version)) = provider_for(peer_dep, scope) else {
             return None;
         };
         Some((
@@ -134,8 +126,6 @@ impl Walker<'_> {
                 version: Arc::clone(version),
                 node_id: Some(peer_node_id.clone()),
                 alias: Some(peer_name.to_string()),
-                depth,
-                occurrence: 0,
             },
         ))
     }
@@ -148,7 +138,7 @@ impl Walker<'_> {
         &self,
         previous_dep_path: &DepPath,
         provider_paths: &HashMap<NodeId, DepPath>,
-    ) -> Option<LockedProvider<'_, (&NodeId, i32, &Arc<str>)>> {
+    ) -> Option<LockedProvider<'_, (&NodeId, &Arc<str>)>> {
         let peer_node_id = self.providers.node_ids_by_previous_dep_path.get(previous_dep_path)?;
         let unchanged = provider_paths.get(peer_node_id) == Some(previous_dep_path)
             && index_of_dep_path_suffix(previous_dep_path.as_str()).peers_index.is_none()
@@ -161,7 +151,7 @@ impl Walker<'_> {
         let peer_tree_node = self.tree.dependencies_tree.get(peer_node_id)?;
         let peer_pkg = self.tree.packages.get(&peer_tree_node.resolved_package_id)?;
         Some(LockedProvider {
-            provider: (peer_node_id, peer_tree_node.depth, peer_pkg.version()),
+            provider: (peer_node_id, peer_pkg.version()),
             version: peer_pkg.version(),
         })
     }

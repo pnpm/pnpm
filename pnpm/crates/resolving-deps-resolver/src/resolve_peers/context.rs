@@ -38,16 +38,6 @@ pub(super) struct ParentRef {
     /// Local install name in `node_modules`. May differ from the
     /// package's real name for npm-alias entries.
     pub(super) alias: Option<String>,
-    /// Depth at which this parent was added. Threaded into
-    /// [`ParentPkgInfo`] so [`Walker::parent_packages_match`] can
-    /// apply the depth-equality fallback when peer dependencies are
-    /// shadowed across occurrences.
-    pub(super) depth: i32,
-    /// Per-name shadowing counter. Incremented when a same-name
-    /// parent is added at a deeper walk that doesn't match the
-    /// existing entry. Used by [`Walker::parent_packages_match`] to
-    /// detect shadowed peers.
-    pub(super) occurrence: u32,
 }
 
 /// `name → ParentRef` map propagated down the walk. Entries are indexed
@@ -66,8 +56,6 @@ pub(super) type ParentRefs = HashMap<String, ParentRef>;
 pub(super) struct ParentPkgInfo {
     pub(super) pkg_id: Option<Arc<str>>,
     pub(super) version: Option<Arc<str>>,
-    pub(super) depth: i32,
-    pub(super) occurrence: u32,
 }
 
 #[derive(Debug, Clone)]
@@ -217,15 +205,7 @@ impl Walker<'_> {
                 .and_then(|nid| self.tree.dependencies_tree.get(nid))
                 .map(|tn| std::sync::Arc::<str>::clone(&tn.resolved_package_id));
             let version = pkg_id.is_none().then(|| Arc::clone(&parent_ref.version));
-            out.insert(
-                name.clone(),
-                ParentPkgInfo {
-                    pkg_id,
-                    version,
-                    depth: parent_ref.depth,
-                    occurrence: parent_ref.occurrence,
-                },
-            );
+            out.insert(name.clone(), ParentPkgInfo { pkg_id, version });
         }
         // Shared, not cloned: the same snapshot is recorded for every
         // child of a node, and these maps dominated the walker's
@@ -461,15 +441,12 @@ pub(super) fn insert_parent_ref(
     direct_alias: &str,
     parent_node_id: NodeId,
     pkg: &ResolvedPackage,
-    depth: i32,
 ) {
     let real_name: &str = pkg.name();
     let parent_ref = ParentRef {
         version: Arc::clone(pkg.version()),
         node_id: Some(parent_node_id),
         alias: (direct_alias != real_name).then(|| direct_alias.to_string()),
-        depth,
-        occurrence: 0,
     };
     update_parent_refs(refs, direct_alias, &parent_ref);
     if direct_alias != real_name {

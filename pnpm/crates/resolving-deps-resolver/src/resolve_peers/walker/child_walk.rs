@@ -136,12 +136,9 @@ impl Walker<'_> {
         pkg_id: &Arc<str>,
         result: &WalkResult<'_>,
     ) {
+        self.remember_provider_bindings(node_id, result.all_resolved_peers);
         match self.traversal.mode {
             PeerWalkMode::Final => {
-                self.nodes.external_peers.insert(
-                    node_id.clone(),
-                    Arc::clone(result.all_resolved_peers),
-                );
                 self.nodes.missing_peers.insert(
                     node_id.clone(),
                     Arc::clone(result.all_missing_peers),
@@ -221,21 +218,14 @@ impl Walker<'_> {
             let Some(child_pkg) = self.tree.packages.get(&child_tree.resolved_package_id) else {
                 continue;
             };
-            insert_parent_ref(
-                &mut new_parent_refs,
-                alias,
-                child_node_id.clone(),
-                child_pkg,
-                child_tree.depth,
-            );
+            insert_parent_ref(&mut new_parent_refs, alias, child_node_id.clone(), child_pkg);
         }
         new_parent_refs
     }
 
     /// Overlay this node's own providers onto the inherited parent context.
     /// A name the inherited context already binds is only shadowed when the
-    /// two providers disagree, and the shadowing occurrence is bumped so the
-    /// two stay distinguishable.
+    /// two providers disagree.
     pub(super) fn apply_own_parent_refs(
         &self,
         refs: &mut ParentRefs,
@@ -245,7 +235,7 @@ impl Walker<'_> {
         // Built only when a name collision actually consults it — the
         // common no-collision node never pays for the extra map clone.
         let mut refs_with_new: Option<ParentRefs> = None;
-        for (name, mut new_parent_ref) in new_parent_refs.clone() {
+        for (name, new_parent_ref) in new_parent_refs.clone() {
             if let Some(existing) = refs.get(&name) {
                 let with_new = refs_with_new.get_or_insert_with(|| {
                     let mut with_new = refs.clone();
@@ -260,7 +250,6 @@ impl Walker<'_> {
                         node_id,
                     )
                 {
-                    new_parent_ref.occurrence = existing.occurrence + 1;
                     refs.insert(name, new_parent_ref);
                 }
             } else {

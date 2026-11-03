@@ -16,7 +16,7 @@
 //!   `pkgIdWithPatchHash` so a repeat visit short-circuits the walk
 //!   when the current parent peer context matches one the cache has
 //!   already seen. Stored on [`crate::resolve_peers::discovery::PeerDiscoveryCaches::peers_cache`] and matched via
-//!   [`Walker::find_hit`] + [`Walker::parent_packages_match`].
+//!   [`Walker::find_hit`] + [`Walker::provider_identity_match`].
 //! - **`purePkgs` fast path** — a pure package (no resolved / missing
 //!   peers across its entire subtree) gets its `depPath` equal to its
 //!   `pkgIdWithPatchHash` without recursing. Stored on
@@ -29,6 +29,9 @@
 //! Cycle handling is synchronous: a post-order traversal with an
 //! `in_progress` set, where a re-entry on the same `NodeId` falls back
 //! to `name@version` as the peer-id.
+
+#[cfg(test)]
+pub(crate) mod test_support;
 
 pub(crate) use context::{SharedChain, satisfies_with_prereleases, split_peer_suffix_segments};
 pub(crate) use discovery::{PeerDiscoveryResult, PeerHoistDiscovery, apply_hoist_missing_scope};
@@ -85,6 +88,8 @@ pub struct ResolvePeersOptions {
     pub project_dir: Option<std::path::PathBuf>,
     pub links: crate::PeerLinkOptions,
     pub scope: PeerResolutionScope,
+    #[cfg(test)]
+    pub(super) cache_mode: test_support::PeerCacheMode,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -139,6 +144,8 @@ pub struct PeerResolutionScope {
 impl Default for ResolvePeersOptions {
     fn default() -> Self {
         ResolvePeersOptions {
+            #[cfg(test)]
+            cache_mode: test_support::PeerCacheMode::Enabled,
             peers_suffix_max_length: 1000,
             dedupe_peers: false,
             project_dir: None,
@@ -604,7 +611,5 @@ fn build_node_ids_by_previous_dep_path(
     map
 }
 
-#[cfg(test)]
-mod test_support;
 #[cfg(test)]
 mod tests;
