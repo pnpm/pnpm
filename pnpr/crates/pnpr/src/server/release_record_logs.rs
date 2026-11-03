@@ -2,15 +2,16 @@
 //! ([release records](https://github.com/pnpm/rfcs/blob/92d2b281af321ecf8f1e5fea63f698716ba4e9e7/pnpr/text/0000-release-records.md#transparency-log)).
 //!
 //! A record's log entry is sequenced when its version is accepted. A commit
-//! that sequenced entries integrates their log in the background, and
-//! startup integrates every log, which picks up whatever an interrupted
-//! integration left. A publication's success means committed, not yet
+//! that sequenced entries integrates their log in the background, and each
+//! server once integrates every log, which picks up whatever an interrupted
+//! integration left: when its router is built, or, for a router built
+//! outside a Tokio runtime, at the first integration it starts. A publication's success means committed, not yet
 //! integrated. Without a log signing key, entries are sequenced and nothing
 //! is integrated.
 
 use super::AppState;
 use pnpr_storage::transparency_log::LogId;
-use std::sync::Arc;
+use std::sync::{Arc, atomic::Ordering};
 
 /// Integrate `log` in the background, after a commit that sequenced entries
 /// into it.
@@ -18,6 +19,7 @@ pub(super) fn integrate_in_background(state: &AppState, log: LogId) {
     let Some(key) = state.inner.config.release_records.log_signing_key.clone() else {
         return;
     };
+    integrate_sequenced_logs(state);
     let storage = state.inner.storage.clone();
     let lock = Arc::clone(&state.inner.locks.log_integration);
     tokio::spawn(async move {
@@ -29,8 +31,8 @@ pub(super) fn integrate_in_background(state: &AppState, log: LogId) {
 }
 
 /// Integrate, in the background, every log whose entries were sequenced,
-/// as a new router does after an unclean shutdown. Nothing runs outside a
-/// Tokio runtime; the next commit integrates its log then. It shares the server's
+/// once per server, as after an unclean shutdown. Outside a Tokio runtime it
+/// does nothing and leaves the scan to the next call. It shares the server's
 /// storage and its integration lock with the integrations commits start, so
 /// one process never integrates a log twice at once: the filesystem
 /// backend's compare-and-set of a checkpoint holds only within one store.
@@ -41,6 +43,9 @@ pub(super) fn integrate_sequenced_logs(state: &AppState) {
     let storage = state.inner.storage.clone();
     let Some(database) = storage.sql_metadata().cloned() else { return };
     let Ok(runtime) = tokio::runtime::Handle::try_current() else { return };
+    if state.inner.locks.logs_recovered.swap(true, Ordering::AcqRel) {
+        return;
+    }
     let lock = Arc::clone(&state.inner.locks.log_integration);
     runtime.spawn(async move {
         let _integrating = lock.lock().await;
