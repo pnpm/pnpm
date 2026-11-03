@@ -4,9 +4,11 @@
 //!
 //! A record's log entry is sequenced in the SQL metadata store, in the
 //! transaction that accepts its version. Integration runs after commit: it
-//! reads the entries the latest checkpoint does not cover yet, writes the
-//! [tlog-tiles](https://c2sp.org/tlog-tiles) hash tiles and entry bundles they
-//! add, and then signs and writes a checkpoint of the larger tree. Tiles and
+//! reads the entries the tree it last integrated does not cover yet, checks
+//! the stored tiles against that tree's root, writes the
+//! [tlog-tiles](https://c2sp.org/tlog-tiles) hash tiles and entry bundles the
+//! entries add, records the larger tree in the SQL store, and then signs and
+//! writes a checkpoint of it. Tiles and
 //! checkpoints are kept in the hosted store, beside the archives, so a log
 //! needs no database to be served.
 //!
@@ -115,14 +117,19 @@ impl Storage {
         self.root.read_record(LOG_NAMESPACE, &log.key(&path.to_string())).await
     }
 
-    /// Integrate every entry of `log` sequenced so far that its latest
-    /// checkpoint does not cover, sign a checkpoint of the tree they make
-    /// with `key` under the log's origin, and return its tree head.
+    /// Integrate every entry of `log` sequenced so far that its integrated
+    /// tree does not cover, sign a checkpoint of the tree they make with
+    /// `key` under the log's origin, and return its tree head.
+    ///
+    /// The tree a log was integrated to is recorded in the SQL metadata store,
+    /// and the stored tiles must hash to its root before integration extends
+    /// it: tiles altered in the hosted store are refused, never signed over.
     ///
     /// # Errors
     ///
     /// The store keeps no SQL metadata, an entry or tile cannot be read or
-    /// written, or a stored tile disagrees with the one integration computes.
+    /// written, or a stored tile disagrees with the tree the store recorded
+    /// or with the one integration computes.
     pub async fn integrate_log(&self, log: &LogId, key: &NoteSigner) -> Result<TreeHead> {
         let signer = log.signer(key)?;
         let origin = signer.verifier_key().name().to_string();
@@ -132,36 +139,60 @@ impl Storage {
                 reason: "only SQL metadata sequences log entries".to_string(),
             })?;
         loop {
-            let current = self.log_checkpoint(log).await?;
-            let size =
-                current.as_ref().map_or(0, |checkpoint| checkpoint.tree_head.size);
+            let head = integrated_head(log, &origin, database.log_head(log).await?)?;
             let sequenced = database.log_size(log).await?;
-            if sequenced <= size {
-                return match current {
-                    Some(checkpoint) => Ok(checkpoint.tree_head),
-                    None => Ok(TreeHead { origin, size: 0, hash: empty_root() }),
-                };
+            if sequenced <= head.size {
+                self.publish_checkpoint(log, &head, &signer).await?;
+                return Ok(head);
             }
-            let end = sequenced.min(size + INTEGRATION_BATCH);
-            let entries = database.log_entries(log, size..end).await?;
-            let tree_head = self.integrate_batch(log, size, &entries, &origin).await?;
-            let note = sign_checkpoint(&tree_head, &[&signer]).map_err(log_error)?;
-            self.advance_checkpoint(log, current, &note, tree_head.size).await?;
+            let end = sequenced.min(head.size + INTEGRATION_BATCH);
+            let entries = database.log_entries(log, head.size..end).await?;
+            let tree_head = self.integrate_batch(log, &head, &entries).await?;
+            database.advance_log_head(log, tree_head.size, tree_head.hash.0).await?;
+            self.publish_checkpoint(log, &tree_head, &signer).await?;
         }
     }
 
-    /// Write the tiles and entry bundles that `entries`, sequenced at
-    /// `size..`, add to the tree, and return its new tree head.
+    /// Sign and write a checkpoint of `tree_head`, unless the stored one
+    /// already covers it.
+    async fn publish_checkpoint(
+        &self,
+        log: &LogId,
+        tree_head: &TreeHead,
+        signer: &NoteSigner,
+    ) -> Result<()> {
+        let current = self.log_checkpoint(log).await?;
+        let covered = current
+            .as_ref()
+            .map_or(tree_head.size == 0, |stored| stored.tree_head.size >= tree_head.size);
+        if covered {
+            return Ok(());
+        }
+        let note = sign_checkpoint(tree_head, &[signer]).map_err(log_error)?;
+        self.advance_checkpoint(log, current, &note, tree_head.size).await
+    }
+
+    /// Write the tiles and entry bundles that `entries`, sequenced after the
+    /// tree `head` describes, add to it, and return the new tree head. The
+    /// stored tiles must hash to `head`'s root first.
     async fn integrate_batch(
         &self,
         log: &LogId,
-        size: u64,
+        head: &TreeHead,
         entries: &[Vec<u8>],
-        origin: &str,
     ) -> Result<TreeHead> {
+        let size = head.size;
+        let expected = head.hash;
         let reader = TileReader::new(self.clone(), log.clone(), size);
         let entries_owned = entries.to_vec();
         let (integration, tiles) = tokio::task::spawn_blocking(move || {
+            if size > 0 && tlog_tiles::tree_hash(size, &reader).map_err(log_error)? != expected {
+                return Err(RegistryError::Internal {
+                    reason:
+                        "the stored tiles of a transparency log disagree with its integrated tree"
+                            .to_string(),
+                });
+            }
             let integration = integrate(&reader, size, &entries_owned).map_err(log_error)?;
             let tiles = integration.tiles(&reader).map_err(log_error)?;
             Ok::<_, RegistryError>((integration, tiles))
@@ -171,9 +202,7 @@ impl Storage {
         for (path, bytes) in tiles.into_iter().chain(bundles) {
             self.write_tile(log, path, &bytes).await?;
         }
-        let tree_head =
-            TreeHead { origin: origin.to_string(), size: integration.size, hash: integration.root };
-        Ok(tree_head)
+        Ok(TreeHead { origin: head.origin.clone(), size: integration.size, hash: integration.root })
     }
 
     /// The encoded entry bundles `ranges` name. A partial bundle that gained
@@ -329,6 +358,19 @@ impl HashReader for TileReader {
             })
             .collect()
     }
+}
+
+/// The tree `log` was integrated to, from what the SQL metadata store
+/// recorded of it.
+fn integrated_head(log: &LogId, origin: &str, head: Option<(u64, Vec<u8>)>) -> Result<TreeHead> {
+    let Some((size, root)) = head else {
+        return Ok(TreeHead { origin: origin.to_string(), size: 0, hash: empty_root() });
+    };
+    let hash = <[u8; 32]>::try_from(root.as_slice())
+        .map_err(|_| RegistryError::Internal {
+            reason: format!("the integrated root of the log {log} is not a SHA-256 hash"),
+        })?;
+    Ok(TreeHead { origin: origin.to_string(), size, hash: Hash(hash) })
 }
 
 /// The tree head a stored checkpoint note signs: the text before the blank

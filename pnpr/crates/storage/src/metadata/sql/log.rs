@@ -46,6 +46,34 @@ pub(super) fn size(connection: &dyn Connection, log: &LogId) -> Result<u64> {
     Ok(u64::try_from(row.get::<i64>(0)?).unwrap_or_default())
 }
 
+/// The tree `log` was integrated to: its size and root.
+pub(super) fn head(connection: &dyn Connection, log: &LogId) -> Result<Option<(u64, Vec<u8>)>> {
+    let row = connection.query_optional(
+        "SELECT size, root FROM log_heads WHERE catalog = ?1 AND ecosystem = ?2",
+        params![log.catalog, log.ecosystem.as_str()],
+    )?;
+    row.map(|mut row| Ok((u64::try_from(row.get::<i64>(0)?).unwrap_or_default(), row.get(1)?)))
+        .transpose()
+}
+
+/// Record that `log` was integrated to the tree of `size` entries with
+/// `root`, unless it already was to a tree at least that large.
+pub(super) fn advance_head(
+    connection: &dyn Connection,
+    log: &LogId,
+    size: u64,
+    root: &[u8],
+) -> Result<()> {
+    let transaction = super::batch::WriteTransaction::begin(connection)?;
+    transaction.execute(
+        "INSERT INTO log_heads (catalog, ecosystem, size, root) VALUES (?1, ?2, ?3, ?4)
+         ON CONFLICT (catalog, ecosystem) DO UPDATE SET size = excluded.size, root = excluded.root
+         WHERE excluded.size > log_heads.size",
+        params![log.catalog, log.ecosystem.as_str(), to_column(size), root],
+    )?;
+    transaction.commit()
+}
+
 /// Every log with a sequenced entry, with the number of its entries.
 pub(super) fn sizes(connection: &dyn Connection) -> Result<Vec<(LogId, u64)>> {
     let rows = connection.query(

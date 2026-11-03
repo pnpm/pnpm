@@ -105,6 +105,18 @@ CREATE TABLE IF NOT EXISTS log_entries (
     PRIMARY KEY (catalog, ecosystem, idx)
 ) STRICT, WITHOUT ROWID;
 
+-- The tree each log's tiles and checkpoint were integrated to: its size and
+-- its RFC 6962 root. Integration checks the stored tiles against it before it
+-- extends a log, so altered tiles are never signed over, and only moves it to
+-- a larger tree.
+CREATE TABLE IF NOT EXISTS log_heads (
+    catalog TEXT NOT NULL,
+    ecosystem TEXT NOT NULL,
+    size INTEGER NOT NULL,
+    root BLOB NOT NULL,
+    PRIMARY KEY (catalog, ecosystem)
+) STRICT, WITHOUT ROWID;
+
 -- Kept out of the manifest so a README never inflates resolution metadata.
 CREATE TABLE IF NOT EXISTS readmes (
     catalog TEXT NOT NULL,

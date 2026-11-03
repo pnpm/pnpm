@@ -333,6 +333,28 @@ impl SqlMetadata {
         .await
     }
 
+    /// The tree `log` was integrated to, its size and root, `None` before
+    /// its first integration.
+    pub async fn log_head(self: &Arc<Self>, log: &LogId) -> Result<Option<(u64, Vec<u8>)>> {
+        let log = log.clone();
+        self.read(log.catalog.clone(), Freshness::Current, move |connection, _| {
+            log::head(connection, &log)
+        })
+        .await
+    }
+
+    /// Record that `log` was integrated to the tree of `size` entries with
+    /// `root`, unless it already was to a larger one.
+    pub async fn advance_log_head(
+        self: &Arc<Self>,
+        log: &LogId,
+        size: u64,
+        root: [u8; 32],
+    ) -> Result<()> {
+        let log = log.clone();
+        self.write(move |connection| log::advance_head(connection, &log, size, &root)).await
+    }
+
     /// The sequenced entries of `log` at `indexes`, in order.
     pub async fn log_entries(
         self: &Arc<Self>,

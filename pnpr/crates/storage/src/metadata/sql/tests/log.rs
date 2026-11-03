@@ -190,7 +190,39 @@ async fn a_removed_version_keeps_its_log_entry(db: Db) {
     assert_eq!(storage.integrate_log(&log, &signer).await.unwrap().size, 2);
 }
 
+/// A hash tile altered in the hosted store is refused before integration
+/// extends the log over it, and no checkpoint is signed over it.
+async fn altered_tiles_are_never_signed_over(db: Db) {
+    let storage = storage(&db);
+    let signer = NoteSigner::from_private_key(SIGNING_KEY).unwrap();
+    let log = LogId { catalog: "acme".to_string(), ecosystem: Ecosystem::Npm };
+    publish(&storage, "acme", "core", &versions(0..3)).await;
+    storage.integrate_log(&log, &signer).await.unwrap();
+    let key = "npm/~acme/tile/0/000.p/3";
+    let namespace = crate::transparency_log::LOG_NAMESPACE;
+    let tile = storage.root
+        .read_record(namespace, key)
+        .await
+        .unwrap()
+        .unwrap();
+    let mut altered = tile.clone();
+    altered[0] ^= 1;
+    let replaced = storage.root.replace_record_if_current(namespace, key, &tile, &altered);
+    assert_eq!(replaced.await.unwrap(), crate::DocumentWrite::Written);
+
+    publish(&storage, "acme", "core", &versions(3..5)).await;
+    let err = storage.integrate_log(&log, &signer).await.unwrap_err();
+    assert!(err.to_string().contains("disagree"), "{err}");
+    let checkpoint = storage
+        .log_checkpoint(&log)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(checkpoint.tree_head.size, 3);
+}
+
 conformance! {
+    altered_tiles_are_never_signed_over,
     records_are_sequenced_with_their_versions_and_integrated_after,
     a_removed_version_keeps_its_log_entry,
 }
