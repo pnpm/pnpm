@@ -650,3 +650,63 @@ async fn verifies_a_variant_tarball_url_on_its_own_route() {
     };
     assert_eq!(code, "TARBALL_URL_MISMATCH");
 }
+
+/// A variant on the route of a registry other than the default one is
+/// fetched from that registry, so the policies read its metadata.
+#[tokio::test]
+async fn checks_a_variant_on_its_route_against_the_registry_it_is_fetched_from() {
+    let mut server = mockito::Server::new_async().await;
+    let server_url = server.url();
+    let _attestation_mock = server
+        .mock("GET", "/variants-registry/-/npm/v1/attestations/variations-pkg@1.0.0")
+        .with_status(404)
+        .create_async()
+        .await;
+    let metadata_mock = server
+        .mock("GET", "/variants-registry/variations-pkg")
+        .with_status(200)
+        .with_body(
+            super::min_age_packument_json("variations-pkg", "1.0.0", "2025-11-30T22:00:00.000Z")
+                .to_string(),
+        )
+        .expect_at_least(1)
+        .create_async()
+        .await;
+
+    let mut opts = default_opts("http://public.example.com/");
+    opts.registries.insert("@other".to_string(), format!("{server_url}/variants-registry/"));
+    opts.release_age.minimum_minutes = Some(60 * 24);
+    opts.now = Some(now_at("2025-12-01T00:00:00Z"));
+    let verifier = create_npm_resolution_verifier(opts);
+    let mut variant = PlatformAssetResolution {
+        resolution: LockfileResolution::Registry(RegistryResolution {
+            integrity: fake_integrity(),
+            revision: None,
+        }),
+        targets: vec![pnpm_lockfile::PlatformAssetTarget {
+            os: "linux".to_string(),
+            cpu: "x64".to_string(),
+            ..Default::default()
+        }],
+    };
+    let tag = variant.variant_tag().expect("a variant tag");
+    variant.resolution = LockfileResolution::Tarball(TarballResolution {
+        tarball: format!("{server_url}/variants-registry/variations-pkg@1.0.0/variants/{tag}"),
+        integrity: Some(fake_integrity()),
+        revision: None,
+        git_hosted: None,
+        path: None,
+    });
+    let resolution = LockfileResolution::Variations(VariationsResolution {
+        fallback: None,
+        revision: None,
+        variants: vec![variant],
+    });
+    let name: PkgName = "variations-pkg".parse().expect("parse");
+    let result = verifier.verify(&resolution, ctx(&name, "1.0.0")).await;
+    let ResolutionVerification::Err { code, .. } = result else {
+        panic!("expected Err, got {result:?}");
+    };
+    assert_eq!(code, "MINIMUM_RELEASE_AGE_VIOLATION");
+    metadata_mock.assert_async().await;
+}

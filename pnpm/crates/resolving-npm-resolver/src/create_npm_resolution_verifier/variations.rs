@@ -12,9 +12,10 @@ impl NpmResolutionVerifier {
         ctx: VerifyCtx<'_>,
     ) -> ResolutionVerification {
         for variant in &variations.variants {
-            let on_route = self.variant_on_its_route(variations, variant, &ctx);
-            let resolution = on_route.as_ref().unwrap_or(&variant.resolution);
-            let verification = Box::pin(self.verify_impl(resolution, ctx)).await;
+            let verification = match self.variant_route_registry(variations, variant, &ctx) {
+                Some(registry) => self.verify_variant_on_its_route(&registry, &ctx).await,
+                None => Box::pin(self.verify_impl(&variant.resolution, ctx)).await,
+            };
             if !matches!(verification, ResolutionVerification::Ok) {
                 return verification;
             }
@@ -25,20 +26,18 @@ impl NpmResolutionVerifier {
         }
     }
 
-    /// A variant whose tarball URL is its own registry route,
-    /// `<name>@<version>[+r<revision>]/variants/<tag>`, in the
-    /// integrity-only registry form, which a lockfile writes when it leaves
-    /// out tarball URLs. The version's `dist.tarball` names the primary, so
-    /// binding that URL to it would refuse every variant. A URL off the
-    /// route stays bound to `dist.tarball`, and so is refused.
-    fn variant_on_its_route(
+    /// The registry whose route, `<name>@<version>[+r<revision>]/variants/<tag>`,
+    /// the variant's tarball URL is. `None` for a variant with no URL or no
+    /// integrity, and for a URL off the route, which stays bound to the
+    /// version's `dist.tarball` and so is refused.
+    fn variant_route_registry(
         &self,
         variations: &pnpm_lockfile::VariationsResolution,
         variant: &pnpm_lockfile::PlatformAssetResolution,
         ctx: &VerifyCtx<'_>,
-    ) -> Option<LockfileResolution> {
+    ) -> Option<String> {
         let LockfileResolution::Tarball(tarball) = &variant.resolution else { return None };
-        let integrity = tarball.integrity.clone()?;
+        tarball.integrity.as_ref()?;
         let registry = match self.routing.named_registry_url(ctx.registry_name) {
             Ok(Some(registry)) => registry,
             Ok(None) => self.routing.pick_registry(ctx.name, Some(&tarball.tarball)),
@@ -51,11 +50,25 @@ impl NpmResolutionVerifier {
             variations.revision,
             &registry,
         )?;
-        (route == tarball.tarball).then(|| {
-            LockfileResolution::Registry(pnpm_lockfile::RegistryResolution {
-                integrity,
-                revision: None,
-            })
-        })
+        (route == tarball.tarball).then_some(registry)
+    }
+
+    /// A variant on its own route is verified as the integrity-only registry
+    /// form a lockfile writes when it leaves out tarball URLs. Its URL is not
+    /// bound to `dist.tarball`, which names the primary, and the policies
+    /// read the metadata of `registry`, the one the variant is fetched from.
+    async fn verify_variant_on_its_route(
+        &self,
+        registry: &str,
+        ctx: &VerifyCtx<'_>,
+    ) -> ResolutionVerification {
+        if node_semver::Version::parse(ctx.version).is_err() {
+            return ResolutionVerification::Ok;
+        }
+        let (age_applies, trust_applies) = self.policies_for(ctx);
+        if !age_applies && !trust_applies {
+            return ResolutionVerification::Ok;
+        }
+        self.run_policy_checks(registry, ctx, age_applies, trust_applies).await
     }
 }
