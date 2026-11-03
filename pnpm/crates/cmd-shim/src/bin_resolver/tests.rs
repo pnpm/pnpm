@@ -504,10 +504,20 @@ fn bin_field_takes_precedence_over_directories_bin() {
 
 #[test]
 fn rejects_unsafe_or_empty_normalized_bin_targets() {
-    for target in ["/outside.js", r"C:\outside.js", r"..\outside.js", ".", "..", "bin/.."] {
+    for target in ["/outside.js", r"C:\outside.js", r"\outside.js", ".", "..", "bin/.."] {
         let manifest = json!({ "name": "tool", "bin": { "tool": target } });
         assert!(
             get_bins_from_package_manifest::<Host>(&manifest, Path::new("/pkg/tool")).is_empty(),
         );
+    }
+}
+
+#[test]
+fn normalizes_backslash_bin_targets_inside_the_package() {
+    for target in [r"dist\cli.js", r"..\dist\cli.js", r"lib\..\..\dist\cli.js"] {
+        let manifest = json!({ "name": "tool", "bin": { "tool": target } });
+        let commands = get_bins_from_package_manifest::<Host>(&manifest, Path::new("/pkg/tool"));
+        assert_eq!(commands.len(), 1);
+        assert_eq!(commands[0].path, Path::new("/pkg/tool/dist/cli.js"));
     }
 }

@@ -368,43 +368,45 @@ fn global_add_installs_the_npm_package_a_purl_names() {
 fn global_add_normalizes_bin_parent_segments_and_removes_the_shim() {
     use assert_cmd::assert::OutputAssertExt;
 
-    let CommandTempCwd { root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
-    let pnpm_home = root.path().join("pnpm-home");
-    prepare_global_home(&pnpm_home, &npmrc_info);
-    let package_dir = root.path().join("tool");
-    fs::create_dir_all(package_dir.join("dist")).unwrap();
-    fs::write(
-        package_dir.join("package.json"),
-        serde_json::json!({
-            "name": "example-tool",
-            "version": "1.0.0",
-            "bin": { "example-tool": "../dist/cli.js" },
-        })
-        .to_string(),
-    )
-    .unwrap();
-    fs::write(
-        package_dir.join("dist/cli.js"),
-        "#!/usr/bin/env node\nconsole.log('internal target')\n",
-    )
-    .unwrap();
-    let selector = format!("file:{}", package_dir.display());
-    global_command(&workspace, &pnpm_home)
-        .with_args(["add", "-g", &selector])
-        .assert()
-        .success();
-    let shim = pnpm_home.join("bin/example-tool");
-    Command::new(&shim)
-        .assert()
-        .success()
-        .stdout("internal target\n");
-    global_command(&workspace, &pnpm_home)
-        .with_args(["remove", "-g", "example-tool"])
-        .assert()
-        .success();
-    assert!(!shim.exists());
-    drop((root, npmrc_info));
+    for target in ["../dist/cli.js", r"..\dist\cli.js"] {
+        let CommandTempCwd { root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let pnpm_home = root.path().join("pnpm-home");
+        prepare_global_home(&pnpm_home, &npmrc_info);
+        let package_dir = root.path().join("tool");
+        fs::create_dir_all(package_dir.join("dist")).unwrap();
+        fs::write(
+            package_dir.join("package.json"),
+            serde_json::json!({
+                "name": "example-tool",
+                "version": "1.0.0",
+                "bin": { "example-tool": target },
+            })
+            .to_string(),
+        )
+        .unwrap();
+        fs::write(
+            package_dir.join("dist/cli.js"),
+            "#!/usr/bin/env node\nconsole.log('internal target')\n",
+        )
+        .unwrap();
+        let selector = format!("file:{}", package_dir.display());
+        global_command(&workspace, &pnpm_home)
+            .with_args(["add", "-g", &selector])
+            .assert()
+            .success();
+        let shim = pnpm_home.join("bin/example-tool");
+        Command::new(&shim)
+            .assert()
+            .success()
+            .stdout("internal target\n");
+        global_command(&workspace, &pnpm_home)
+            .with_args(["remove", "-g", "example-tool"])
+            .assert()
+            .success();
+        assert!(!shim.exists());
+        drop((root, npmrc_info));
+    }
 }
 
 /// A global add must materialize the added package's transitive

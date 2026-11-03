@@ -202,6 +202,13 @@ test.each(['../dist/cli.js', '../../dist/cli.js', 'lib/../../dist/cli.js'])('cla
   }
 })
 
-test.each(['/outside.js', 'C:\\outside.js', '..\\outside.js', '.', '..', 'bin/..'])('reject unsafe or empty normalized bin target %s', async (target) => {
+test.each(['/outside.js', 'C:\\outside.js', '\\outside.js', '.', '..', 'bin/..'])('reject unsafe or empty normalized bin target %s', async (target) => {
   expect(await getBinsFromPackageManifest({ name: 'tool', version: '1.0.0', bin: { tool: target } }, path.resolve('pkg'))).toStrictEqual([])
+})
+
+test.each(['dist\\cli.js', '..\\dist\\cli.js', 'lib\\..\\..\\dist\\cli.js'])('normalize backslash bin target %s inside the package', async (target) => {
+  const pkgPath = path.resolve('pkg')
+  expect(await getBinsFromPackageManifest({ name: 'tool', version: '1.0.0', bin: { tool: target } }, pkgPath)).toStrictEqual([
+    { name: 'tool', path: path.join(pkgPath, 'dist/cli.js') },
+  ])
 })

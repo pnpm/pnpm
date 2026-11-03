@@ -21,7 +21,7 @@ pnpm does not read settings from the `pnpm` field of `package.json`. Define sett
 ## bin
 
 The `bin` field maps command names to files inside the package. pnpm normalizes
-parent directory segments in these paths at the package root. For example,
+backslash separators to `/` and parent directory segments at the package root. For example,
 `../dist/cli.js` resolves to `dist/cli.js` inside the package.
 
 ## engines

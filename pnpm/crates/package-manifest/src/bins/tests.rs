@@ -208,7 +208,13 @@ fn caps_precalculated_bins_count_and_serialized_size() {
 
 #[test]
 fn bin_paths_clamp_parent_segments_without_relaxing_metadata_validation() {
-    for raw in ["../dist/cli.js", "../../dist/cli.js", "lib/../../dist/cli.js"] {
+    for raw in [
+        "../dist/cli.js",
+        "../../dist/cli.js",
+        "lib/../../dist/cli.js",
+        r"dist\cli.js",
+        r"..\dist\cli.js",
+    ] {
         assert_eq!(super::normalize_bin_path(raw).as_deref(), Some("dist/cli.js"));
         assert_eq!(normalize_package_relative_path(raw), None);
         for bin in [json!(raw), json!({ "tool": raw })] {

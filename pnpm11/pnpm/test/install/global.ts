@@ -1048,7 +1048,7 @@ test('global add reports every install group in one summary', async () => {
   expect(summary).toContain('+ is-negative')
 })
 
-test('global install normalizes bin parent segments and removes the shim', async () => {
+test.each(['../dist/cli.js', '..\\dist\\cli.js'])('global install normalizes bin target %s and removes the shim', async (target) => {
   prepare()
   const pnpmHome = path.resolve('../global/pnpm')
   const env = { [PATH_NAME]: path.join(pnpmHome, 'bin'), PNPM_HOME: pnpmHome }
@@ -1056,7 +1056,7 @@ test('global install normalizes bin parent segments and removes the shim', async
   fs.writeFileSync('tool/package.json', JSON.stringify({
     name: 'example-tool',
     version: '1.0.0',
-    bin: { 'example-tool': '../dist/cli.js' },
+    bin: { 'example-tool': target },
   }))
   fs.writeFileSync('tool/dist/cli.js', "#!/usr/bin/env node\nconsole.log('internal target')\n")
   await execPnpm(['add', '-g', 'file:./tool'], { env })

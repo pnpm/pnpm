@@ -249,11 +249,11 @@ pub fn normalize_package_relative_path(raw: &str) -> Option<String> {
     normalize_relative_path(raw, ParentTraversal::Reject)
 }
 
-/// Normalize a declared bin target within the package root. Excess parent
-/// segments are clamped at that root, matching npm bin normalization.
+/// Normalize a declared bin target within the package root using `/`
+/// separators. Excess parent segments are clamped at that root.
 #[must_use]
 pub fn normalize_bin_path(raw: &str) -> Option<String> {
-    normalize_relative_path(raw, ParentTraversal::Clamp)
+    normalize_relative_path(&raw.replace('\\', "/"), ParentTraversal::Clamp)
 }
 
 #[derive(Clone, Copy)]
