@@ -250,3 +250,164 @@ fn a_state_without_a_validation_record_matches_any_project_bins() {
     assert!(!project_bins_match(Some(&recorded), ".", Some("341026c69559cca8573860896362ff03")));
     assert!(project_bins_match(Some(&recorded), "packages/a", None));
 }
+
+/// A workspace whose projects' manifests are on disk, with every file dated
+/// an hour back so a later recording trusts their stats.
+fn project_files(root: &Path, manifests: &[(&str, &str)]) -> Vec<PackageManifest> {
+    let an_hour_ago = SystemTime::now() - Duration::from_hours(1);
+    fs::write(root.join("pnpm-lock.yaml"), "lockfileVersion: '9.0'\n").unwrap();
+    manifests
+        .iter()
+        .map(|(dir, json)| {
+            let path = root.join(dir).join("package.json");
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(&path, json).unwrap();
+            pnpm_testing_utils::fs::set_mtime(&path, an_hour_ago);
+            PackageManifest::from_path(path).unwrap()
+        })
+        .collect()
+}
+
+fn record_files(
+    root: &Path,
+    project_manifests: &[(std::path::PathBuf, &PackageManifest)],
+    vouched: &Vouched<'_>,
+) -> Validation {
+    record_files_with(root, project_manifests, vouched, Config::new())
+}
+
+fn record_files_with(
+    root: &Path,
+    project_manifests: &[(std::path::PathBuf, &PackageManifest)],
+    vouched: &Vouched<'_>,
+    mut config: Config,
+) -> Validation {
+    config.modules_dir = root.join("node_modules");
+    config.install_state_dir = config.modules_dir.join(".pnpm");
+    let mut state = WorkspaceState::default();
+    record_validation(
+        &mut state,
+        &RecordValidation {
+            workspace_root: root,
+            config: &config,
+            project_manifests: crate::DeclaredManifests::new(project_manifests),
+            workspace_projects: None,
+            vouched,
+            lockfile: None,
+        },
+    );
+    state.validation.unwrap()
+}
+
+#[test]
+fn a_write_records_each_vouched_manifest_file_with_what_the_check_reads_from_it() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    let json = r#"{"name":"a","dependencies":{"b":"workspace:*","c":"1.0.0"},"devDependencies":{"d":"link:../d"},"peerDependencies":{"e":"*"}}"#;
+    let project_a = project_files(root, &[("a", json)]).remove(0);
+    let validation = record_files(root, &[(root.join("a"), &project_a)], &Vouched::All);
+    let file = &validation.manifest_files["a"];
+    assert_eq!(file.file_name, "package.json");
+    assert_eq!(file.size, json.len() as u64);
+    assert!(file.has_runtime_deps && file.has_required_peers);
+    let links = |entries: &[(&str, &str)]| {
+        entries
+            .iter()
+            .map(|(alias, spec)| ((*alias).to_owned(), (*spec).to_owned()))
+            .collect()
+    };
+    assert_eq!(
+        file.local_links,
+        [
+            ("dependencies".to_owned(), links(&[("b", "workspace:*")])),
+            ("devDependencies".to_owned(), links(&[("d", "link:../d")])),
+        ]
+        .into(),
+    );
+}
+
+#[test]
+fn a_manifest_edited_after_it_was_read_is_not_vouched_for_by_its_stat() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    let project_a = project_files(root, &[("a", r#"{"name":"a"}"#)]).remove(0);
+    fs::write(root.join("a/package.json"), r#"{"name":"a","version":"2.0.0"}"#).unwrap();
+    let validation = record_files(root, &[(root.join("a"), &project_a)], &Vouched::All);
+    assert!(validation.manifests.contains_key("a"));
+    assert!(!validation.manifest_files.contains_key("a"));
+}
+
+/// A write takes an unchanged manifest's record from the previous state, so
+/// the facts it carries are the recorded ones, not re-derived from the file.
+#[test]
+fn a_manifest_whose_trusted_stat_is_unchanged_keeps_its_record() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    let manifests = project_files(root, &[("a", r#"{"name":"a"}"#), ("b", r#"{"name":"b"}"#)]);
+    let project_manifests = [(root.join("a"), &manifests[0]), (root.join("b"), &manifests[1])];
+    let mut previous_validation = record_files(root, &project_manifests, &Vouched::All);
+    for file in previous_validation.manifest_files.values_mut() {
+        file.has_required_peers = true;
+    }
+    let previous =
+        WorkspaceState { validation: Some(previous_validation), ..WorkspaceState::default() };
+    let only_a = HashSet::from([root.join("a")]);
+    let validation = record_files(
+        root,
+        &project_manifests,
+        &Vouched::Projects { dirs: &only_a, previous: Some(&previous) },
+    );
+    let kept = validation.manifest_files
+        .values()
+        .map(|file| file.has_required_peers)
+        .collect::<Vec<_>>();
+    assert_eq!(kept, [true, true], "a reused record for a and a carried one for b");
+}
+
+#[test]
+fn source_date_epoch_neither_records_nor_carries_manifest_files() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    let manifests = project_files(root, &[("a", r#"{"name":"a"}"#), ("b", r#"{"name":"b"}"#)]);
+    let project_manifests = [(root.join("a"), &manifests[0]), (root.join("b"), &manifests[1])];
+    let previous_validation = record_files(root, &project_manifests, &Vouched::All);
+    assert_eq!(previous_validation.manifest_files.len(), 2);
+    let previous =
+        WorkspaceState { validation: Some(previous_validation), ..WorkspaceState::default() };
+    let only_a = HashSet::from([root.join("a")]);
+    let mut config = Config::new();
+    config.source_date_epoch = Some(SystemTime::UNIX_EPOCH + Duration::from_secs(1_700_000_000));
+    let validation = record_files_with(
+        root,
+        &project_manifests,
+        &Vouched::Projects { dirs: &only_a, previous: Some(&previous) },
+        config,
+    );
+    assert!(validation.manifests.contains_key("b"), "b's manifest digest is carried");
+    assert!(validation.manifest_files.is_empty());
+}
+
+/// A carried record keeps the trust it had when it was recorded, so a later
+/// write does not vouch for an edit that kept the untrusted stat.
+#[test]
+fn a_carried_manifest_file_needs_a_stat_its_own_recording_trusted() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    let manifests = project_files(root, &[("a", r#"{"name":"a"}"#), ("b", r#"{"name":"b"}"#)]);
+    let project_manifests = [(root.join("a"), &manifests[0]), (root.join("b"), &manifests[1])];
+    let mut previous_validation = record_files(root, &project_manifests, &Vouched::All);
+    let file_b = previous_validation.manifest_files.get_mut("b").unwrap();
+    file_b.mtime_ns = previous_validation.recorded_at_ns;
+    file_b.ctime_ns = None;
+    let previous =
+        WorkspaceState { validation: Some(previous_validation), ..WorkspaceState::default() };
+    let only_a = HashSet::from([root.join("a")]);
+    let validation = record_files(
+        root,
+        &project_manifests,
+        &Vouched::Projects { dirs: &only_a, previous: Some(&previous) },
+    );
+    assert!(validation.manifests.contains_key("b"));
+    assert!(validation.manifest_files.contains_key("a"));
+    assert!(!validation.manifest_files.contains_key("b"));
+}
