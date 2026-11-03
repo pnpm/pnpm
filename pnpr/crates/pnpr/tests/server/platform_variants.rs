@@ -283,6 +283,20 @@ async fn variants_are_served_from_sqlite_metadata() {
     assert_eq!(variants[0]["tag"], "linux-x64-musl");
     assert_eq!(variants[0]["integrity"], sha512_integrity(&musl_tar));
 
+    // The version's release record lists each variant with the inputs its
+    // manifest was derived from.
+    let record =
+        body_json(get(&app, "/npm/~main/@acme%2Ffast/1.0.0+r0", None).await.into_body()).await;
+    let variant = &record["variants"][0];
+    assert_eq!(variant["tag"], "linux-x64-musl");
+    assert_eq!(variant["integrity"], sha512_integrity(&musl_tar));
+    assert_eq!(
+        variant["inputs"]["archive"],
+        json!({ "kind": "tgz", "integrity": sha512_integrity(&musl_tgz) }),
+    );
+    assert_eq!(variant["inputs"]["packageJson"]["path"], "package/package.json");
+    assert!(variant.get("label").is_none(), "{variant}");
+
     // The scoped route, and the encoded name whose three segments it shares
     // with a release note's route.
     for uri in [

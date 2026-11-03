@@ -1,15 +1,24 @@
 //! The insert-only rows of an accepted version, and its deprecation.
 
 use super::{
+    PackageKey,
+    adapter::Connection,
     commit::Commit,
     packument::{ORDINARY, Readme, VersionRows},
     to_column,
 };
+use pnpm_release_record::{Purl, RecordIdentity, StoredRecord};
 use pnpr_error::{RegistryError, Result};
 use serde_json::Value;
 
-/// Insert the rows of a version the store has not accepted yet.
-pub(super) fn insert_version(commit: &Commit<'_>, version: &str, rows: &VersionRows) -> Result<()> {
+/// Insert the rows of a version the store has not accepted yet, with the
+/// release record it is accepted with, if any.
+pub(super) fn insert_version(
+    commit: &Commit<'_>,
+    version: &str,
+    rows: &VersionRows,
+    record: Option<&[u8]>,
+) -> Result<()> {
     refuse_removed(commit, version)?;
     let (catalog, ecosystem, name) = commit.key.params();
     commit.transaction.execute(
@@ -27,6 +36,16 @@ pub(super) fn insert_version(commit: &Commit<'_>, version: &str, rows: &VersionR
             to_column(commit.generation),
         ],
     )?;
+    insert_accepted_manifest(commit, version, rows)?;
+    insert_readme(commit, version, &rows.readme)?;
+    if let Some(record) = record {
+        insert_release_record(commit, version, &rows.interpretation.profile, record)?;
+    }
+    write_deprecation(commit, version, rows.deprecated.as_ref())
+}
+
+fn insert_accepted_manifest(commit: &Commit<'_>, version: &str, rows: &VersionRows) -> Result<()> {
+    let (catalog, ecosystem, name) = commit.key.params();
     let manifest = serde_json::to_string(&rows.manifest)?;
     let inputs = serde_json::to_string(&rows.interpretation.inputs)?;
     let accepted_digest = super::commit::accepted_digest(rows)?;
@@ -46,8 +65,66 @@ pub(super) fn insert_version(commit: &Commit<'_>, version: &str, rows: &VersionR
             accepted_digest,
         ],
     )?;
-    insert_readme(commit, version, &rows.readme)?;
-    write_deprecation(commit, version, rows.deprecated.as_ref())
+    Ok(())
+}
+
+/// Insert the exact bytes of a version's release record. They must be a
+/// record of this version, revision 0, under the profile its manifest was
+/// accepted under, so a record never describes another version than the one
+/// it is served for.
+fn insert_release_record(
+    commit: &Commit<'_>,
+    version: &str,
+    profile: &str,
+    bytes: &[u8],
+) -> Result<()> {
+    let (catalog, ecosystem, name) = commit.key.params();
+    let invalid = |reason: String| RegistryError::Internal {
+        reason: format!("the release record of {name}@{version} {reason}"),
+    };
+    let record =
+        StoredRecord::parse(bytes.to_vec()).map_err(|err| invalid(format!("is invalid: {err}")))?;
+    let purl = Purl::npm(name, version).map_err(|err| invalid(err.to_string()))?;
+    let key = record.key();
+    let describes_version = key.identity == RecordIdentity::Package(purl)
+        && key.revision == Some(0)
+        && key.profile.as_str() == profile;
+    if !describes_version {
+        return Err(invalid(format!("describes {}", key.subject_name())));
+    }
+    commit.transaction.execute(
+        "INSERT INTO release_records (catalog, ecosystem, name, version, revision_key, profile,
+                                      record, digest)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+        params![
+            catalog,
+            ecosystem,
+            name,
+            version,
+            ORDINARY,
+            profile,
+            record.bytes(),
+            record.digest().to_string(),
+        ],
+    )?;
+    Ok(())
+}
+
+/// The exact bytes of the release record `version` was accepted with.
+pub(super) fn read_release_record(
+    connection: &dyn Connection,
+    key: &PackageKey,
+    version: &str,
+) -> Result<Option<Vec<u8>>> {
+    let (catalog, ecosystem, name) = key.params();
+    let row = connection.query_optional(
+        "SELECT record FROM release_records
+         WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4
+           AND revision_key = ?5",
+        params![catalog, ecosystem, name, version, ORDINARY],
+    )?;
+    row.map(|mut row| row.get(0))
+        .transpose()
 }
 
 /// Refuse a version removed from the package before: its identity named

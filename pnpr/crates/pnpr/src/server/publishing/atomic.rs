@@ -139,7 +139,7 @@ pub(in super::super) async fn commit_publication(
 ) -> Result<PublishReceipt, RegistryError> {
     let notices = staged
         .iter_mut()
-        .flat_map(|stage| std::mem::take(&mut stage.notices))
+        .flat_map(|stage| std::mem::take(&mut stage.verification.notices))
         .collect();
     let receipt = commit_staged(state, staged, notes, request).await?;
     Ok(PublishReceipt { notices, ..receipt })
@@ -177,6 +177,7 @@ async fn commit_staged(
             bytes: stage.document,
             expected: stage.base_version,
             principal: stage.publisher,
+            records: stage.verification.records,
         })
         .collect();
     let commit =

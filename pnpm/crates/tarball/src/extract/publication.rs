@@ -42,8 +42,14 @@ pub struct PublicationArchive {
     pub manifest: Vec<u8>,
     /// The SHA-512 digest of [`Self::manifest`].
     pub manifest_integrity: Integrity,
+    /// The path of the root `package.json` in the archive, as its entry
+    /// names it, such as `package/package.json`.
+    pub manifest_path: String,
     /// The SHA-512 digest of the root `npm-shrinkwrap.json`, if there is one.
     pub shrinkwrap_integrity: Option<Integrity>,
+    /// The path of the root `npm-shrinkwrap.json` in the archive, as its
+    /// entry names it, if there is one.
+    pub shrinkwrap_path: Option<String>,
     /// Whether the archive has a root `binding.gyp`.
     pub binding_gyp: bool,
     /// Every regular file, as a package-relative path with `/` separators.
@@ -112,8 +118,8 @@ fn unreadable(error: &std::io::Error) -> PublicationArchiveError {
 
 #[derive(Default)]
 struct PublicationScan {
-    manifest: Option<Vec<u8>>,
-    shrinkwrap: Option<Integrity>,
+    manifest: Option<(Vec<u8>, String)>,
+    shrinkwrap: Option<(Integrity, String)>,
     binding_gyp: bool,
     files: BTreeSet<String>,
     /// What the paths kept in `files` may still add up to.
@@ -169,7 +175,7 @@ impl PublicationScan {
             .take(MAX_PUBLICATION_MANIFEST_BYTES)
             .read_to_end(&mut bytes)
             .map_err(|err| unreadable(&err))?;
-        self.manifest = Some(bytes);
+        self.manifest = Some((bytes, raw.to_string()));
         Ok(())
     }
 
@@ -190,12 +196,14 @@ impl PublicationScan {
             }
             hasher.input(&buf[..read]);
         }
-        self.shrinkwrap = Some(hasher.result());
+        self.shrinkwrap = Some((hasher.result(), raw.to_string()));
         Ok(())
     }
 
     fn finish(self) -> Result<PublicationArchive, PublicationArchiveError> {
-        let manifest = self.manifest.ok_or(PublicationArchiveError::MissingManifest)?;
+        let (manifest, manifest_path) =
+            self.manifest.ok_or(PublicationArchiveError::MissingManifest)?;
+        let (shrinkwrap_integrity, shrinkwrap_path) = self.shrinkwrap.unzip();
         let manifest_integrity = IntegrityOpts::new()
             .algorithm(Algorithm::Sha512)
             .chain(&manifest)
@@ -203,7 +211,9 @@ impl PublicationScan {
         Ok(PublicationArchive {
             manifest,
             manifest_integrity,
-            shrinkwrap_integrity: self.shrinkwrap,
+            manifest_path,
+            shrinkwrap_integrity,
+            shrinkwrap_path,
             binding_gyp: self.binding_gyp,
             files: self.files,
         })

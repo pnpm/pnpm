@@ -1,7 +1,9 @@
 //! Notes stored with a publication and changed after it.
 
 use super::{Db, npm, packument, storage, write};
-use crate::metadata::{BatchDocument, NoteChange, PublishNotes, VersionNote, note_digest};
+use crate::metadata::{
+    BatchDocument, NoteChange, PublishNotes, ReleaseRecords, VersionNote, note_digest,
+};
 use pnpr_error::RegistryError;
 use pnpr_package_name::Ecosystem;
 
@@ -18,6 +20,7 @@ async fn notes_published_with_a_release_keep_their_initial_digest(db: Db) {
         bytes: serde_json::to_vec(&packument("core", &["1.0.0"])).unwrap(),
         expected: None,
         principal: None,
+        records: ReleaseRecords::new(),
     };
     let version_note = VersionNote {
         ecosystem: Ecosystem::Npm,
@@ -119,6 +122,7 @@ async fn a_publish_time_note_needs_a_version_the_commit_introduces(db: Db) {
         bytes: serde_json::to_vec(&retagged).unwrap(),
         expected: current.map(|document| document.version),
         principal: None,
+        records: ReleaseRecords::new(),
     };
     let note = VersionNote {
         ecosystem: Ecosystem::Npm,

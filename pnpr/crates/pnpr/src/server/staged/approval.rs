@@ -140,7 +140,7 @@ pub(super) async fn approve_claimed(
 
     let _packument_guard = state.inner.locks.packages.lock(validated.name.as_str()).await;
     let mut staged = stage_publish(state, validated, &now_iso(), Some(&target.org)).await?;
-    let notices = std::mem::take(&mut staged.notices);
+    let notices = std::mem::take(&mut staged.verification.notices);
     // Nothing is visible yet, which is the last moment a rejection can still
     // take the stage back. Past the commit it cannot: the publish is served.
     if let Err(err) = still_claimed(state, stage_id, claim).await {

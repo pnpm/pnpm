@@ -11,7 +11,7 @@ use pnpr_error::Result;
 
 /// The layout this pnpr reads. pnpr is pre-1.0: a change to the layout
 /// replaces it in place rather than migrating.
-pub(super) const SCHEMA_VERSION: i64 = 2;
+pub(super) const SCHEMA_VERSION: i64 = 3;
 
 const TABLES: &str = "
 CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL) STRICT;
@@ -71,6 +71,24 @@ CREATE TABLE IF NOT EXISTS accepted_manifests (
     PRIMARY KEY (catalog, ecosystem, name, version, revision_key, profile),
     FOREIGN KEY (catalog, ecosystem, name, version, revision_key)
         REFERENCES versions (catalog, ecosystem, name, version, revision_key) ON DELETE CASCADE
+) STRICT, WITHOUT ROWID;
+
+-- Insert-only: the exact bytes of a version's release record, as accepted
+-- under `profile` and served unchanged at its record route. `digest` is their
+-- SHA-512, `sha512-<base64>`, which the record's log entry commits to.
+CREATE TABLE IF NOT EXISTS release_records (
+    catalog TEXT NOT NULL,
+    ecosystem TEXT NOT NULL,
+    name TEXT NOT NULL,
+    version TEXT NOT NULL,
+    revision_key TEXT NOT NULL,
+    profile TEXT NOT NULL,
+    record BLOB NOT NULL,
+    digest TEXT NOT NULL,
+    PRIMARY KEY (catalog, ecosystem, name, version, revision_key, profile),
+    FOREIGN KEY (catalog, ecosystem, name, version, revision_key, profile)
+        REFERENCES accepted_manifests (catalog, ecosystem, name, version, revision_key, profile)
+        ON DELETE CASCADE
 ) STRICT, WITHOUT ROWID;
 
 -- Kept out of the manifest so a README never inflates resolution metadata.

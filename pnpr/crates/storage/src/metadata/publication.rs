@@ -5,6 +5,12 @@
 use super::Generation;
 use crate::HostedDocumentVersion;
 use pnpr_package_name::Ecosystem;
+use std::collections::BTreeMap;
+
+/// The release record of each version a document introduces, by version:
+/// the exact bytes the registry accepts with the version and serves at its
+/// record route.
+pub type ReleaseRecords = BTreeMap<String, Vec<u8>>;
 
 /// One package document of a publication.
 #[derive(Debug, Clone)]
@@ -19,6 +25,10 @@ pub struct BatchDocument {
     /// Who published the package, recorded with every dist-tag the document
     /// moves.
     pub principal: Option<String>,
+    /// The release records of the versions the document introduces. A
+    /// version the store already holds keeps the record it was accepted
+    /// with.
+    pub records: ReleaseRecords,
 }
 
 /// An artifact a publication introduced.
