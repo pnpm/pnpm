@@ -473,3 +473,75 @@ fn tag_parses_from_env() {
         Some("next"),
     );
 }
+
+/// Every setting has a `PNPM_CONFIG_*` read or is listed in
+/// [`SETTINGS_NOT_READ_FROM_ENV`] with the reason it has none.
+#[test]
+fn every_setting_is_read_from_the_environment() {
+    let requested = std::cell::RefCell::new(std::collections::BTreeSet::new());
+    let record = |suffix: &str| {
+        requested
+            .borrow_mut()
+            .insert(crate::naming_cases::to_camel_case(&suffix.to_lowercase()));
+        None
+    };
+    TrustedSettings::from_reader(&super::StringReader { read: &record, read_allow_empty: &record });
+    let requested = requested.into_inner();
+
+    let Ok(serde_json::Value::Object(settings)) =
+        TrustedSettings::from_resolved(&Config::default()).to_json()
+    else {
+        panic!("the projected settings serialize to a JSON object");
+    };
+    let unread: Vec<&str> = settings
+        .keys()
+        .map(String::as_str)
+        .filter(|key| !requested.contains(*key) && !SETTINGS_NOT_READ_FROM_ENV.contains(key))
+        .collect();
+    assert_eq!(unread, Vec::<&str>::new(), "settings with no PNPM_CONFIG_* read");
+
+    let stale: Vec<&str> = SETTINGS_NOT_READ_FROM_ENV
+        .iter()
+        .copied()
+        .filter(|key| requested.contains(*key) || !settings.contains_key(*key))
+        .collect();
+    assert_eq!(stale, Vec::<&str>::new(), "listed settings that are read or no longer exist");
+}
+
+const SETTINGS_NOT_READ_FROM_ENV: &[&str] = &[
+    // Read under the nested key's suffix, such as `NODE_PACKAGE_MAP_MODE`.
+    "nodePackageMap",
+    "macosBackup",
+    // Read with the auth files, not through the overlay.
+    "_auth",
+    "npmrcAuthFile",
+    // Not in the schema pnpm v11 reads `PNPM_CONFIG_*` against.
+    "audit",
+    "bootConfig",
+    "cargo",
+    "catalog",
+    "catalogPrune",
+    "catalogs",
+    "cleanupUnusedCatalogs",
+    "configDependencies",
+    "ignoredBuiltDependencies",
+    "minimumReleaseAgeExcludePrune",
+    "namedRegistries",
+    "neverBuiltDependencies",
+    "onlyBuiltDependencies",
+    "packageConfigs",
+    "packages",
+    "permissions",
+    "pipelineBase",
+    "pipelines",
+    "python",
+    "registries",
+    "remoteCache",
+    "remoteSideEffectsCache",
+    "requiredScripts",
+    "skills",
+    "tasks",
+    "trustPolicyExcludePrune",
+    "update",
+    "versioning",
+];
