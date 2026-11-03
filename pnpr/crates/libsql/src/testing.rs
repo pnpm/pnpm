@@ -170,10 +170,18 @@ async fn export(State(primary): State<Arc<Primary>>) -> Vec<u8> {
 }
 
 /// Move the whole WAL into the database file, so the file is the export.
-async fn checkpoint(conn: &Connection) -> libsql::Result<()> {
-    let mut rows = conn.query("PRAGMA wal_checkpoint(TRUNCATE)", ()).await?;
-    while rows.next().await?.is_some() {}
-    Ok(())
+/// A checkpoint that a reader or writer blocked reports it in its `busy`
+/// column rather than as an error, and leaves frames in the WAL.
+async fn checkpoint(conn: &Connection) -> Result<(), String> {
+    let mut rows = conn
+        .query("PRAGMA wal_checkpoint(TRUNCATE)", ())
+        .await
+        .map_err(|error| error.to_string())?;
+    let mut busy = false;
+    while let Some(row) = rows.next().await.map_err(|error| error.to_string())? {
+        busy |= row.get::<i64>(0).map_err(|error| error.to_string())? != 0;
+    }
+    if busy { Err("the checkpoint was busy".to_string()) } else { Ok(()) }
 }
 
 /// WAL frames `[start, end)` of `generation`, or the generation to move to.
