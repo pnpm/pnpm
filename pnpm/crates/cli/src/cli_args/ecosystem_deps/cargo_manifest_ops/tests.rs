@@ -53,6 +53,7 @@ fn format_cargo_saved_spec_keeps_a_requirement_without_a_lower_bound() {
     let resolved = Version::parse("2.0.0").unwrap();
 
     assert_eq!(format_cargo_saved_spec("<=2.0.0", &resolved, None), "<=2.0.0");
+    assert_eq!(format_cargo_saved_spec("<=2.0.0+spec", &resolved, None), "<=2.0.0");
     assert_eq!(format_cargo_saved_spec("2.*", &resolved, None), "2.*");
     assert_eq!(format_cargo_saved_spec("<2", &resolved, None), "^2.0.0");
 }

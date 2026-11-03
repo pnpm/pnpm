@@ -63,9 +63,16 @@ fn format_existing_cargo_spec(existing_raw: &str, resolved: &Version) -> String 
 fn format_single_clause(existing_raw: &str, resolved: &Version, matches_existing: bool) -> String {
     match existing_prefix(existing_raw) {
         Some(prefix) => format!("{prefix}{resolved}"),
-        None if matches_existing => existing_raw.to_string(),
+        None if matches_existing => requirement_without_build_metadata(existing_raw),
         None => format!("^{resolved}"),
     }
+}
+
+fn requirement_without_build_metadata(raw: &str) -> String {
+    if !raw.contains('+') {
+        return raw.to_string();
+    }
+    VersionReq::parse(raw).map_or_else(|_| raw.to_string(), |req| req.to_string())
 }
 
 fn lower_bound_prefix(clause: &str) -> Option<&'static str> {
