@@ -32,14 +32,15 @@ const MAX_DOCUMENT_READS: u32 = 512;
 /// out of the environment. A document that reads as written resolves nothing
 /// at all and is returned exactly as it was read, so what a file means today
 /// it goes on meaning.
-pub(crate) fn parse_settings<Sys: EnvVar, Settings: DeserializeOwned>(
+pub(crate) fn parse_settings<Sys: EnvVar, Settings: DeserializeOwned + Default>(
     text: &str,
 ) -> Result<Settings, Box<serde_saphyr::Error>> {
     // A placeholder reaches serde as its own text, which only a string-valued
     // setting can hold, so a document carrying one for any other setting has
     // to be read a second time with that placeholder already resolved.
-    let as_written = match serde_saphyr::from_str::<Settings>(text) {
-        Ok(settings) => return Ok(settings),
+    let as_written = match serde_saphyr::from_str::<Option<Settings>>(text) {
+        Ok(Some(settings)) => return Ok(settings),
+        Ok(None) => return Ok(Settings::default()),
         Err(error) => error,
     };
     let placeholders = resolvable_placeholders::<Sys>(text);
@@ -71,7 +72,7 @@ pub(crate) fn parse_settings<Sys: EnvVar, Settings: DeserializeOwned>(
 /// a group put back all at once answers for every placeholder in it: the
 /// document reads when none of them was needed, and otherwise the group is
 /// halved.
-fn decide<Settings: DeserializeOwned>(
+fn decide<Settings: DeserializeOwned + Default>(
     text: &str,
     placeholders: &[Placeholder],
     resolved: &mut [bool],
@@ -106,16 +107,16 @@ fn decide<Settings: DeserializeOwned>(
 /// mean on its own, and that read is the one that says what: the first read
 /// stops at the placeholder, which is not the problem and whose line would
 /// send a reader to the wrong setting.
-fn classify<Settings: DeserializeOwned>(
+fn classify<Settings: DeserializeOwned + Default>(
     text: &str,
     placeholders: &[Placeholder],
 ) -> serde_saphyr::Error {
-    match serde_saphyr::from_str::<Settings>(&drop_placeholders(text, placeholders)) {
+    match serde_saphyr::from_str::<Option<Settings>>(&drop_placeholders(text, placeholders)) {
         Ok(_) => serde::de::Error::custom(INVALID_EXPANSION),
         Err(dropped) => dropped,
     }
 }
 
-fn read_text<Settings: DeserializeOwned>(text: &str) -> Option<Settings> {
-    serde_saphyr::from_str(text).ok()
+fn read_text<Settings: DeserializeOwned + Default>(text: &str) -> Option<Settings> {
+    serde_saphyr::from_str::<Option<Settings>>(text).ok().map(Option::unwrap_or_default)
 }

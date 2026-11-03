@@ -13,13 +13,14 @@ mod source_keys;
 mod tests;
 
 use serde_json::Value;
-use serde_saphyr::granit_parser::{Scanner, StrInput, Token, TokenType};
+use serde_saphyr::granit_parser::{Scanner, StrInput, TokenType};
 use yamlpath::Document;
 
 /// Decode a manifest, coercing scalar mapping keys to JSON property names.
 pub fn parse(text: &str) -> Result<Value, Box<Error>> {
-    let value: yaml_serde::Value =
+    let value: Option<yaml_serde::Value> =
         serde_saphyr::from_str(text).map_err(|error| Error::InvalidOperation(error.to_string()))?;
+    let value = value.unwrap_or(yaml_serde::Value::Null);
     json_value(value)
 }
 
@@ -90,10 +91,11 @@ pub fn sync(text: &str, value: &Value) -> Result<String, Box<Error>> {
 
 fn empty_document_insertion(text: &str) -> Option<usize> {
     let mut insertion = text.len();
-    for Token(span, token) in Scanner::new(StrInput::new(text)) {
+    for token in Scanner::new(StrInput::new(text)).map_while(Result::ok) {
+        let (span, token) = token.into_parts();
         match token {
             TokenType::DocumentEnd => insertion = scalar_aliases::byte_range(span).start,
-            TokenType::StreamStart(_)
+            TokenType::StreamStart
             | TokenType::StreamEnd
             | TokenType::DocumentStart
             | TokenType::VersionDirective(..)

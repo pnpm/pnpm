@@ -216,8 +216,8 @@ fn root_mapping_with_include(path: &Path, text: &str) -> Result<Option<Mapping>,
 }
 
 fn settings_readers_see_include(text: &str) -> bool {
-    serde_saphyr::from_str::<IndexMap<String, serde::de::IgnoredAny>>(text)
-        .is_ok_and(|root| root.contains_key(INCLUDE_KEY))
+    serde_saphyr::from_str::<Option<IndexMap<String, serde::de::IgnoredAny>>>(text)
+        .is_ok_and(|root| root.is_some_and(|root| root.contains_key(INCLUDE_KEY)))
 }
 
 /// `text` as a mapping, or `None` for a document that is not one.

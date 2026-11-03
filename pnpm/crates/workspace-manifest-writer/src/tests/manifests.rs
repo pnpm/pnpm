@@ -76,6 +76,14 @@ fn write_or_remove_manifest_ignores_missing_empty_manifest() {
 }
 
 #[test]
+fn comment_only_manifest_parses_as_empty() {
+    let manifest = crate::model::Manifest::parse(Some("# workspace settings\n"))
+        .expect("comment-only manifest");
+    assert!(manifest.catalogs.default.is_none());
+    assert!(manifest.catalogs.named.is_none());
+}
+
+#[test]
 fn write_or_remove_manifest_reports_remove_errors() {
     let dir = TempDir::new().expect("temp dir");
     let path = dir.path().join(WORKSPACE_MANIFEST_FILENAME);

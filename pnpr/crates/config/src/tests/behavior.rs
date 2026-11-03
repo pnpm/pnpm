@@ -16,6 +16,15 @@ fn resolver_block_present_but_empty_defaults_to_enabled() {
 }
 
 #[test]
+fn comment_only_config_uses_default_settings() {
+    let empty = Config::from_yaml_str("", Path::new("/x"), listen(), None).unwrap();
+    let comments =
+        Config::from_yaml_str("# registry settings\n", Path::new("/x"), listen(), None).unwrap();
+    assert_eq!(comments.features.resolver.enabled, empty.features.resolver.enabled);
+    assert_eq!(comments.features.registry.enabled, empty.features.registry.enabled);
+}
+
+#[test]
 fn cli_disabling_all_surfaces_with_bundled_config_errors_without_panicking() {
     // No config file → the bundled branch. Disabling all surfaces via
     // CLI must surface a clean error, not panic on the bundled `expect`.

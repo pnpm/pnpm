@@ -171,7 +171,9 @@ impl Manifest {
             .unwrap_or_default();
         let blank_line_style = crate::edit::uses_blank_line_style(&text, &top_level_keys);
 
-        let data: CatalogData = serde_saphyr::from_str(&text).map_err(Box::new)?;
+        let data: CatalogData = serde_saphyr::from_str::<Option<CatalogData>>(&text)
+            .map_err(Box::new)?
+            .unwrap_or_default();
         let (overrides, non_scalar_overrides) = split_overrides(data.overrides);
         let (text, aliases) = pnpm_yaml_document_sync::ScalarAliases::expand(&text)
             .map_err(|error| Box::new(<serde_saphyr::Error as serde::de::Error>::custom(error)))?;

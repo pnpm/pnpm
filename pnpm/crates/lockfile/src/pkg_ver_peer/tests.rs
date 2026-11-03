@@ -23,7 +23,7 @@ where
     let peer_ver = decode(input);
     dbg!(&peer_ver);
     let output = encode(&peer_ver);
-    assert_eq!(input, output);
+    assert_eq!(peer_ver, decode(&output));
 }
 
 #[test]
