@@ -194,6 +194,25 @@ fn the_fingerprint_ignores_comments_and_whitespace() {
     let reformatted = script.replace("    ", "\t\t").replace("-- ", "-- reworded: ");
     assert_ne!(reformatted, script);
     assert_eq!(schema::fingerprint_of(&reformatted), schema::fingerprint());
+    let unspaced = script.replace("catalogs (", "catalogs(").replace(", ", ",");
+    assert_ne!(unspaced, script);
+    assert_eq!(schema::fingerprint_of(&unspaced), schema::fingerprint());
+    let spaced = script.replace(") STRICT", " )  STRICT");
+    assert_ne!(spaced, script);
+    assert_eq!(schema::fingerprint_of(&spaced), schema::fingerprint());
+}
+
+#[test]
+fn the_fingerprint_keeps_quoted_text_and_word_boundaries() {
+    let quoted =
+        |value: &str| schema::fingerprint_of(&format!("CREATE TABLE t (c TEXT DEFAULT {value})"));
+    assert_eq!(quoted("'a b'"), schema::fingerprint_of("CREATE TABLE t(c TEXT DEFAULT 'a b')"));
+    assert_ne!(quoted("'a b'"), quoted("'ab'"));
+    assert_ne!(quoted("'it''s ( x'"), quoted("'it''s (x'"));
+    assert_ne!(
+        schema::fingerprint_of("CREATE TABLE t (a INTEGER)"),
+        schema::fingerprint_of("CREATE TABLE t (aINTEGER)"),
+    );
 }
 
 #[test]

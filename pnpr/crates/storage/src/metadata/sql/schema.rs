@@ -312,9 +312,9 @@ pub(super) fn short(fingerprint: &str) -> &str {
 }
 
 /// The fingerprint of the schema this pnpr reads: the SHA-256, in hex, of
-/// [`script`] without its comment lines and with every run of whitespace
-/// collapsed to one space. Reformatting or commenting the statements leaves
-/// it unchanged; any other edit changes it.
+/// [`script`] without its comment lines and with its whitespace normalized
+/// by [`canonical`]. Reformatting or commenting the statements leaves it
+/// unchanged; any other edit changes it.
 pub(super) fn fingerprint() -> &'static str {
     static FINGERPRINT: LazyLock<String> = LazyLock::new(|| fingerprint_of(&script()));
     &FINGERPRINT
@@ -334,12 +334,54 @@ pub(super) fn fingerprint_of(script: &str) -> String {
     pnpm_crypto_hash::create_hex_hash(&canonical)
 }
 
-/// `statement` with every run of whitespace collapsed to one space.
+/// `statement` with its insignificant whitespace normalized: a run of
+/// whitespace between two words becomes one space, and whitespace beside
+/// punctuation or a quoted name or value is dropped, so `catalogs (` and
+/// `catalogs(` read the same. A quoted name or value is kept verbatim.
 fn canonical(statement: &str) -> String {
-    statement
-        .split_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ")
+    let mut canonical = String::with_capacity(statement.len());
+    let mut characters = statement.chars().peekable();
+    // Whether the last character written ends a word, and whether whitespace
+    // has been skipped since then.
+    let mut after_word = false;
+    let mut spaced = false;
+    while let Some(character) = characters.next() {
+        if character.is_whitespace() {
+            spaced = true;
+            continue;
+        }
+        let is_word = character.is_alphanumeric() || character == '_';
+        if is_word && after_word && spaced {
+            canonical.push(' ');
+        }
+        spaced = false;
+        canonical.push(character);
+        after_word = is_word;
+        if let Some(close) = closing_quote(character) {
+            // Copy the quoted text verbatim, including a doubled closing
+            // quote, which escapes it.
+            while let Some(quoted) = characters.next() {
+                canonical.push(quoted);
+                if quoted == close {
+                    if characters.peek() == Some(&close) {
+                        canonical.extend(characters.next());
+                    } else {
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    canonical
+}
+
+/// The character that closes a quote `character` opens, if it opens one.
+fn closing_quote(character: char) -> Option<char> {
+    match character {
+        '\'' | '"' | '`' => Some(character),
+        '[' => Some(']'),
+        _ => None,
+    }
 }
 
 /// Create the schema in an empty database, and report what a database that
