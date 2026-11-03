@@ -72,9 +72,9 @@ fn warn(package: &str, error: &miette::Report) {
     pnpm_diagnostics::eprintln!("WARN  Could not read the release notes of {package}: {error}");
 }
 
-/// `output` with the notes of `packages`: a `releaseNotes` field in each
-/// JSON entry, which is in package order, or else a block per package below
-/// the report.
+/// `output` with the notes of `packages`: a `releaseNotes` field in the
+/// JSON entry of each, found by its key in the report, or else a block per
+/// package below the report.
 pub(super) fn with_notes(
     output: String,
     format: OutdatedFormat,
@@ -85,7 +85,7 @@ pub(super) fn with_notes(
         return output;
     }
     match format {
-        OutdatedFormat::Json => with_json_notes(output, notes),
+        OutdatedFormat::Json => with_json_notes(output, packages, notes),
         OutdatedFormat::Table | OutdatedFormat::List => {
             let blocks = packages
                 .iter()
@@ -114,12 +114,19 @@ fn text_block(package: &OutdatedPackage, notes: &UpgradeNotes) -> String {
     format!("{heading}\n{body}")
 }
 
-fn with_json_notes(output: String, notes: &[Option<UpgradeNotes>]) -> String {
+/// Two packages can render as one entry, such as two aliases of one
+/// package at one version, so the report can have fewer entries than
+/// `packages`: each finds its entry by key rather than by position.
+fn with_json_notes(
+    output: String,
+    packages: &[&OutdatedPackage],
+    notes: &[Option<UpgradeNotes>],
+) -> String {
     let Ok(Value::Object(mut report)) = serde_json::from_str::<Value>(&output) else {
         return output;
     };
-    for (entry, notes) in report.values_mut().zip(notes) {
-        if let (Value::Object(entry), Some(notes)) = (entry, notes) {
+    for (key, notes) in super::render::report_keys(packages).iter().zip(notes) {
+        if let (Some(Value::Object(entry)), Some(notes)) = (report.get_mut(key), notes) {
             entry.insert("releaseNotes".to_owned(), upgrade_notes_json(notes));
         }
     }

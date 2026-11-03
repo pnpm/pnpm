@@ -452,3 +452,44 @@ fn notes_go_into_the_json_entry_of_their_package() {
     let text = with_notes("table".to_owned(), OutdatedFormat::Table, &refs, &notes);
     assert_eq!(text, "table\n\nb 1.0.0 => 1.1.0\n  1.1.0:\n    B.");
 }
+
+/// Two aliases of one package at one version render as one JSON entry, so
+/// the notes of a later package still go into its own entry.
+#[test]
+fn notes_find_their_json_entry_when_two_packages_share_one() {
+    let mut alias_a = pkg("foo", "1.0.0", "2.0.0", DependencyGroup::Prod);
+    alias_a.alias = "a".to_owned();
+    let mut alias_b = pkg("foo", "1.0.0", "2.0.0", DependencyGroup::Prod);
+    alias_b.alias = "b".to_owned();
+    let packages = [alias_a, alias_b, pkg("bar", "1.0.0", "1.1.0", DependencyGroup::Prod)];
+    let refs: Vec<&OutdatedPackage> = packages.iter().collect();
+    let output = render_json(&packages, false);
+    let entries = serde_json::from_str::<serde_json::Value>(&output).expect("JSON");
+    assert_eq!(entries.as_object().map(serde_json::Map::len), Some(2), "{output}");
+    let notes = [
+        None,
+        None,
+        Some(UpgradeNotes {
+            versions: vec![VersionNote {
+                version: "1.1.0".into(),
+                text: Some("Bar.".into()),
+                publication: None,
+            }],
+            publications: Vec::new(),
+        }),
+    ];
+
+    let report: serde_json::Value =
+        serde_json::from_str(&with_notes(output, OutdatedFormat::Json, &refs, &notes))
+            .expect("JSON");
+
+    assert_eq!(report["bar"]["releaseNotes"]["versions"][0]["notes"], "Bar.");
+    let foo = report
+        .as_object()
+        .expect("object")
+        .iter()
+        .find(|(key, _)| key.starts_with("foo"))
+        .map(|(_, entry)| entry)
+        .expect("foo entry");
+    assert_eq!(foo.get("releaseNotes"), None);
+}
