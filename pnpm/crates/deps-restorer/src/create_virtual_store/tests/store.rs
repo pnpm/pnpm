@@ -772,3 +772,39 @@ fn snapshot_cache_key_for_a_git_hosted_variations_fallback_is_git_hosted() {
     assert_eq!(received.value, Some(format!("{pkg}\tbuilt")));
     assert!(received.is_git_hosted);
 }
+/// The warm build-policy check sees a git-hosted archive a `variations`
+/// resolution selects by its key, as it sees a lone git-hosted tarball.
+#[test]
+fn a_git_hosted_variations_fallback_key_is_a_git_hosted_archive() {
+    use crate::create_virtual_store::warm::keys_git_hosted_archive;
+    use pnpm_lockfile::{
+        LockfileResolution, PlatformAssetResolution, PlatformAssetTarget, RegistryResolution,
+        VariationsResolution,
+    };
+    let pkg = key("foo", "1.0.0");
+    let package_id = pkg.pkg_id();
+    let integrity = format!("sha512-{}==", "B".repeat(86));
+    let fallback = git_hosted_tarball_metadata().resolution;
+    let resolution = LockfileResolution::Variations(VariationsResolution {
+        variants: vec![PlatformAssetResolution {
+            resolution: LockfileResolution::Registry(RegistryResolution {
+                integrity: integrity.parse().expect("parse integrity"),
+                revision: None,
+            }),
+            targets: vec![PlatformAssetTarget {
+                os: "aix".to_string(),
+                cpu: "ppc64".to_string(),
+                ..Default::default()
+            }],
+        }],
+        fallback: Some(Box::new(fallback)),
+        revision: None,
+    });
+
+    for built in [true, false] {
+        let git_key = pnpm_store_dir::git_hosted_store_index_key(&package_id, built);
+        assert!(keys_git_hosted_archive(&resolution, &git_key, &package_id), "{git_key}");
+    }
+    let variant_key = pnpm_store_dir::store_index_key(&integrity, &package_id);
+    assert!(!keys_git_hosted_archive(&resolution, &variant_key, &package_id));
+}
