@@ -80,6 +80,9 @@ pub(super) fn state_and_router(
     let ui_dir = if surfaces.registry { super::web_ui::locate(&config.http.ui)? } else { None };
     let state = AppState { inner: Arc::new(AppInner::new(config, auth, osv_index)?) };
     let router = finish_router(state.clone(), surfaces, cors_origins, ui_dir.as_deref())?;
+    // Every router, also one an embedder builds directly, picks up what an
+    // interrupted integration of the release record logs left.
+    super::release_record_logs::integrate_sequenced_logs(&state);
     Ok((state, router))
 }
 

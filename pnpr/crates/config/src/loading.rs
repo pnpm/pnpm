@@ -243,6 +243,7 @@ impl Config {
             identity: build_identity_config(&file.auth, base_dir, backend)?,
             features,
             routing,
+            release_records: super::build_release_records_config(file.release_records.take())?,
         })
     }
 }

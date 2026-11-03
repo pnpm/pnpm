@@ -339,6 +339,90 @@ async fn a_version_is_accepted_with_its_release_record() {
     assert_eq!(again, bytes);
 }
 
+/// Go's `note` test key.
+const LOG_SIGNING_KEY: &str =
+    "PRIVATE+KEY+PeterNeumann+c74f20a3+AYEKFALVFGyNhPJEMzD1QIDr+Y7hfZx09iUvxdXHKDFz";
+
+/// A publish sequences the record's log entry, and pnpr integrates it into
+/// the log's tiles and a signed checkpoint after the commit.
+#[tokio::test]
+async fn a_published_record_is_integrated_into_its_log() {
+    let tmp = TempDir::new().unwrap();
+    let mut config = sqlite_config(tmp.path());
+    let signer = pnpm_transparency_log::NoteSigner::from_private_key(LOG_SIGNING_KEY).unwrap();
+    config.release_records.log_signing_key = Some(std::sync::Arc::new(signer));
+    let storage = pnpr_storage::Storage::from_config(&config.storage).unwrap();
+    let app = router(config);
+    let token = token(&app).await;
+    let (_, tgz) = crate::server::package_tar_and_tgz(r#"{"name":"logged","version":"1.0.0"}"#);
+    let doc = publish_doc("logged", "1.0.0", &tgz);
+    let (status, ..) = send(&app, request("PUT", "/npm/logged", &token, Some(&doc))).await;
+    assert_eq!(status, StatusCode::CREATED);
+
+    let database = storage.sql_metadata().unwrap();
+    let logs = database.sequenced_logs().await.unwrap();
+    let [(log, 1)] = logs.as_slice() else { panic!("{logs:?}") };
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    let checkpoint = loop {
+        if let Some(checkpoint) = storage.log_checkpoint(log).await.unwrap() {
+            break checkpoint;
+        }
+        assert!(std::time::Instant::now() < deadline, "the log was never integrated");
+        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+    };
+    assert_eq!(checkpoint.tree_head.size, 1);
+    assert!(checkpoint.tree_head.origin.starts_with("PeterNeumann/npm"), "{checkpoint:?}");
+    let entries = database
+        .log_entries(log, 0..1)
+        .await
+        .unwrap();
+    let entry = pnpm_release_record::LogEntry::parse(&entries[0]).unwrap();
+    assert_eq!(entry.key().subject_name(), "pkg:npm/logged@1.0.0");
+}
+
+/// A router integrates what was sequenced before it was built, such as the
+/// entries of a registry that had no log signing key yet.
+#[tokio::test]
+async fn a_new_router_integrates_what_was_sequenced_before() {
+    let tmp = TempDir::new().unwrap();
+    let unsigned = router(sqlite_config(tmp.path()));
+    let token = token(&unsigned).await;
+    let (_, tgz) = crate::server::package_tar_and_tgz(r#"{"name":"early","version":"1.0.0"}"#);
+    let doc = publish_doc("early", "1.0.0", &tgz);
+    let (status, ..) = send(&unsigned, request("PUT", "/npm/early", &token, Some(&doc))).await;
+    assert_eq!(status, StatusCode::CREATED);
+    let storage = pnpr_storage::Storage::from_config(&sqlite_config(tmp.path()).storage).unwrap();
+    let logs = storage
+        .sql_metadata()
+        .unwrap()
+        .sequenced_logs()
+        .await
+        .unwrap();
+    let [(log, 1)] = logs.as_slice() else { panic!("{logs:?}") };
+    assert!(
+        storage
+            .log_checkpoint(log)
+            .await
+            .unwrap()
+            .is_none(),
+    );
+
+    let mut config = sqlite_config(tmp.path());
+    let signer = pnpm_transparency_log::NoteSigner::from_private_key(LOG_SIGNING_KEY).unwrap();
+    config.release_records.log_signing_key = Some(std::sync::Arc::new(signer));
+    let _signed = router(config);
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    while storage
+        .log_checkpoint(log)
+        .await
+        .unwrap()
+        .is_none()
+    {
+        assert!(std::time::Instant::now() < deadline, "the new router integrated nothing");
+        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+    }
+}
+
 async fn get_json_document(app: &Router, path: &str, token: &str) -> (StatusCode, Value) {
     let (status, _, body) = send(app, request("GET", path, token, None)).await;
     (status, serde_json::from_slice(&body).unwrap())

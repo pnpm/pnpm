@@ -37,6 +37,12 @@ impl NoteSigner {
         Ok(signer)
     }
 
+    /// A signer with the same Ed25519 key under another name, such as one
+    /// log of a registry that names each log's checkpoint key after it.
+    pub fn renamed(&self, name: &str) -> Result<Self, KeyError> {
+        NoteSigner::new(name, self.signing_key.clone())
+    }
+
     /// The key that verifies this signer's signatures.
     #[must_use]
     pub const fn verifier_key(&self) -> &VerifierKey {

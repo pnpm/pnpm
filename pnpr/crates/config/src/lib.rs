@@ -18,6 +18,7 @@ pub use logging::{LogConfig, LogFormat, LogLevel};
 pub use metrics::MetricsConfig;
 pub use package_documents::PackageDocumentsConfig;
 pub use pnpr_policy::{TeamDirectory, Teams};
+pub use release_records::ReleaseRecordsConfig;
 pub use s3::{HostedStoreConfig, S3Settings, build_s3_store, normalize_key_prefix};
 pub use scim::ScimConfig;
 pub use secrets::{MIN_RESOLUTION_SECRET_LEN, derive_subkey, random_secret, resolution_secret};
@@ -61,6 +62,8 @@ mod metrics;
 
 mod package_documents;
 use package_documents::{PackageDocumentsFile, build_package_documents_config};
+mod release_records;
+use release_records::{ReleaseRecordsFile, build_release_records_config};
 
 mod registry_graph;
 use registry_graph::{
@@ -161,6 +164,8 @@ pub struct Config {
     pub identity: IdentityConfig,
     pub features: Features,
     pub routing: RoutingConfig,
+    /// How the release records of hosted versions are logged.
+    pub release_records: ReleaseRecordsConfig,
 }
 
 impl std::fmt::Debug for Config {
@@ -177,6 +182,7 @@ impl std::fmt::Debug for Config {
             .field("identity", &self.identity)
             .field("features", &self.features)
             .field("routing", &self.routing)
+            .field("release_records", &self.release_records)
             .finish()
     }
 }

@@ -108,10 +108,18 @@ fn insert_release_record(
     if !describes_version {
         return Err(invalid(format!("describes {}", key.subject_name())));
     }
+    let entry = record
+        .log_entry()
+        .map_err(|err| invalid(err.to_string()))?
+        .to_bytes();
+    sequence_log_entry(commit, &entry)?;
+    // The record keeps the index its entry was just sequenced at, the log's
+    // last.
     commit.transaction.execute(
         "INSERT INTO release_records (catalog, ecosystem, name, version, revision_key, profile,
-                                      record, digest)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                                      record, digest, log_index)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8,
+                 (SELECT MAX(idx) FROM log_entries WHERE catalog = ?1 AND ecosystem = ?2))",
         params![
             catalog,
             ecosystem,
@@ -122,6 +130,22 @@ fn insert_release_record(
             record.bytes(),
             record.digest().to_string(),
         ],
+    )?;
+    Ok(())
+}
+
+/// Append `entry` to the log of the commit's catalog and ecosystem, at the
+/// next index. The commit holds the database's write lock, so no other
+/// commit takes the same index. The index is computed by the statement
+/// itself, so sequencing waits for no answer and adds no round trip to a
+/// remote primary.
+fn sequence_log_entry(commit: &Commit<'_>, entry: &[u8]) -> Result<()> {
+    let (catalog, ecosystem, _) = commit.key.params();
+    commit.transaction.execute(
+        "INSERT INTO log_entries (catalog, ecosystem, idx, entry)
+         SELECT ?1, ?2, COALESCE(MAX(idx) + 1, 0), ?3 FROM log_entries
+         WHERE catalog = ?1 AND ecosystem = ?2",
+        params![catalog, ecosystem, entry],
     )?;
     Ok(())
 }

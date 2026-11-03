@@ -11,7 +11,7 @@ use pnpr_error::Result;
 
 /// The layout this pnpr reads. pnpr is pre-1.0: a change to the layout
 /// replaces it in place rather than migrating.
-pub(super) const SCHEMA_VERSION: i64 = 3;
+pub(super) const SCHEMA_VERSION: i64 = 4;
 
 const TABLES: &str = "
 CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL) STRICT;
@@ -75,7 +75,8 @@ CREATE TABLE IF NOT EXISTS accepted_manifests (
 
 -- Insert-only: the exact bytes of a version's release record, as accepted
 -- under `profile` and served unchanged at its record route. `digest` is their
--- SHA-512, `sha512-<base64>`, which the record's log entry commits to.
+-- SHA-512, `sha512-<base64>`, which the record's log entry commits to, and
+-- `log_index` the index of that entry in its catalog's log.
 CREATE TABLE IF NOT EXISTS release_records (
     catalog TEXT NOT NULL,
     ecosystem TEXT NOT NULL,
@@ -85,10 +86,35 @@ CREATE TABLE IF NOT EXISTS release_records (
     profile TEXT NOT NULL,
     record BLOB NOT NULL,
     digest TEXT NOT NULL,
+    log_index INTEGER NOT NULL,
     PRIMARY KEY (catalog, ecosystem, name, version, revision_key, profile),
     FOREIGN KEY (catalog, ecosystem, name, version, revision_key, profile)
         REFERENCES accepted_manifests (catalog, ecosystem, name, version, revision_key, profile)
         ON DELETE CASCADE
+) STRICT, WITHOUT ROWID;
+
+-- Insert-only: the transparency log of each catalog's records of one
+-- ecosystem, one row per entry, sequenced in the transaction that accepts the
+-- record. `idx` counts from 0 without gaps. Kept when a version or package is
+-- removed: a log only grows.
+CREATE TABLE IF NOT EXISTS log_entries (
+    catalog TEXT NOT NULL,
+    ecosystem TEXT NOT NULL,
+    idx INTEGER NOT NULL,
+    entry BLOB NOT NULL,
+    PRIMARY KEY (catalog, ecosystem, idx)
+) STRICT, WITHOUT ROWID;
+
+-- The tree each log's tiles and checkpoint were integrated to: its size and
+-- its RFC 6962 root. Integration checks the stored tiles against it before it
+-- extends a log, so altered tiles are never signed over, and only moves it to
+-- a larger tree.
+CREATE TABLE IF NOT EXISTS log_heads (
+    catalog TEXT NOT NULL,
+    ecosystem TEXT NOT NULL,
+    size INTEGER NOT NULL,
+    root BLOB NOT NULL,
+    PRIMARY KEY (catalog, ecosystem)
 ) STRICT, WITHOUT ROWID;
 
 -- Kept out of the manifest so a README never inflates resolution metadata.
