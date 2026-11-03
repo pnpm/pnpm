@@ -186,7 +186,7 @@ async fn archives_are_staged_under_a_registry_address() {
             .await
             .unwrap()
             .status(),
-        StatusCode::CREATED
+        StatusCode::CREATED,
     );
     let head = Request::head(format!("/npm/-/pnpr/v0/artifacts/blob?{query}"))
         .header(header::AUTHORIZATION, "Bearer tok")
