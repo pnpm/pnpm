@@ -84,7 +84,9 @@ impl SqlMetadata {
         self.retry_conflicts(|| self.write_once(&mut operation))
     }
 
-    /// Run `write`, again while the adapter reports a conflict it may clear.
+    /// Run `write`, again from its start while the adapter reports a conflict
+    /// it may clear, up to [`WRITE_ATTEMPTS`] runs spaced from
+    /// [`FIRST_RETRY_DELAY`]. `write` must be safe to run again.
     pub(super) fn retry_conflicts<Output>(
         &self,
         mut write: impl FnMut() -> Result<Output>,
