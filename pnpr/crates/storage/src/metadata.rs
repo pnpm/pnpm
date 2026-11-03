@@ -250,7 +250,7 @@ impl Storage {
     }
 
     /// One version's accepted manifest, without its README and deprecation
-    /// (see [`PackageMetadata::read_version`]). A SQL backend reads only that
+    /// (see the metadata interface's `read_version`). A SQL backend reads only that
     /// version's rows, so a release record never costs the package view.
     pub async fn read_hosted_version(
         &self,
