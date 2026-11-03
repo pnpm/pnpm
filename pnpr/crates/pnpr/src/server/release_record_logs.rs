@@ -20,12 +20,13 @@ pub(super) fn integrate_in_background(state: &AppState, log: LogId) {
         return;
     };
     integrate_sequenced_logs(state);
-    let storage = state.inner.storage.clone();
-    let lock = Arc::clone(&state.inner.locks.log_integration);
+    let state = state.clone();
     tokio::spawn(async move {
-        let _integrating = lock.lock().await;
-        if let Err(error) = storage.integrate_log(&log, &key).await {
+        let _integrating = state.inner.locks.log_integration.lock().await;
+        if let Err(error) = state.inner.storage.integrate_log(&log, &key).await {
             tracing::warn!(%error, %log, "integrating a transparency log failed");
+            // The next trigger scans every log again, this one included.
+            state.inner.locks.logs_recovered.store(false, Ordering::Release);
         }
     });
 }
@@ -46,14 +47,35 @@ pub(super) fn integrate_sequenced_logs(state: &AppState) {
     if state.inner.locks.logs_recovered.swap(true, Ordering::AcqRel) {
         return;
     }
-    let state = state.clone();
+    // A scan that fails or never finishes, because its runtime shut down,
+    // is retried by the next call.
+    let mut retry = RetryRecovery(Some(state.clone()));
+    let lock = Arc::clone(&state.inner.locks.log_integration);
     runtime.spawn(async move {
-        let _integrating = state.inner.locks.log_integration.lock().await;
-        // A scan that failed is retried by the next call.
-        if !integrate_every_log(&storage, &database, &key).await {
-            state.inner.locks.logs_recovered.store(false, Ordering::Release);
+        let _integrating = lock.lock().await;
+        if integrate_every_log(&storage, &database, &key).await {
+            retry.disarm();
         }
     });
+}
+
+/// Clears a server's `logs_recovered` when dropped holding it, so a
+/// recovery scan that failed or was cancelled runs again.
+struct RetryRecovery(Option<AppState>);
+
+impl RetryRecovery {
+    /// Keep `logs_recovered` set: the scan succeeded.
+    fn disarm(&mut self) {
+        self.0 = None;
+    }
+}
+
+impl Drop for RetryRecovery {
+    fn drop(&mut self) {
+        if let Some(state) = &self.0 {
+            state.inner.locks.logs_recovered.store(false, Ordering::Release);
+        }
+    }
 }
 
 /// Integrate every sequenced log, reporting whether all of them were.
