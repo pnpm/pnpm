@@ -1,7 +1,7 @@
 //! The notes a publish carries, stored in its transaction with the digest of
 //! the text each was published with.
 
-use super::{NoteSubject, VERSION, read_note, write_note};
+use super::{NoteSubject, VERSION, write_note};
 use crate::metadata::{
     ArtifactMember, PublishNotes, VersionNote, note_digest,
     sql::{PackageKey, adapter::Query, batch::Batch},
@@ -46,7 +46,8 @@ pub(in crate::metadata::sql) fn store_publish_notes(
     let (id, _) = publication.ok_or_else(|| RegistryError::BadRequest {
         reason: "a publication note needs a publish that introduces a version".to_string(),
     })?;
-    store_initial(batch, &NoteSubject::publication(batch.catalog(), id), text, principal)
+    // The publication is this batch's own, so it has no note yet.
+    write_initial(batch, &NoteSubject::publication(batch.catalog(), id), text, principal)
 }
 
 /// The read that finds a row when `note`'s version already has a note, for
@@ -98,19 +99,6 @@ fn already_noted(subject: &str) -> RegistryError {
     RegistryError::AdminConflict {
         reason: format!("version {subject} already has a note; edit it instead"),
     }
-}
-
-/// Store a publish-time note on a subject that has none, read first.
-fn store_initial(
-    batch: &Batch<'_>,
-    subject: &NoteSubject,
-    text: &str,
-    principal: Option<&str>,
-) -> Result<()> {
-    if read_note(batch.transaction(), subject)?.is_some() {
-        return Err(already_noted(&subject.subject));
-    }
-    write_initial(batch, subject, text, principal)
 }
 
 fn write_initial(

@@ -116,7 +116,11 @@ impl Connection for Statements<'_> {
             self.hold(query.sql, &query.params);
         }
         let mut results = self.send()?;
-        let answered = results.len().saturating_sub(queries.len());
+        let Some(answered) = results.len().checked_sub(queries.len()) else {
+            return Err(pnpr_error::RegistryError::Internal {
+                reason: "the libSQL primary did not answer every statement of a batch".to_string(),
+            });
+        };
         Ok(results.split_off(answered))
     }
 

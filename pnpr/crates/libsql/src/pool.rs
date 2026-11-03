@@ -176,8 +176,10 @@ impl ConnectionPool {
 /// slots until it is released or dropped.
 pub struct Checkout {
     idle: Arc<Mutex<Vec<Connection>>>,
-    _slot: OwnedSemaphorePermit,
+    /// Declared before the slot, so a dropped checkout closes its connection
+    /// before the slot lets another operation open one.
     conn: Connection,
+    _slot: OwnedSemaphorePermit,
 }
 
 impl Checkout {

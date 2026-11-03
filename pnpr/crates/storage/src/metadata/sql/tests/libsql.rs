@@ -289,7 +289,7 @@ async fn a_write_makes_two_round_trips_however_much_it_carries() {
     let names = ["core", "widgets", "tools"];
     let versions = ["1.0.0", "1.1.0", "1.2.0", "2.0.0", "2.1.0"];
     let notes = PublishNotes {
-        publication: None,
+        publication: Some("the first release\n".to_string()),
         versions: names
             .iter()
             .map(|name| VersionNote {
