@@ -38,6 +38,7 @@ fn compatible_release_follows_an_explicit_downgrade() {
 fn wildcard_equality_keeps_its_operator() {
     assert_eq!(update("==1.*", "2.3.1", true).as_deref(), Some("==2.*"));
     assert_eq!(update("==1.2.*", "2.3.1", true).as_deref(), Some("==2.3.*"));
+    assert_eq!(update("==1.*", "2.1rc1", true).as_deref(), Some("==2.*, >=2.1rc1"));
     assert_eq!(update("==1.*", "1.4", true), None);
     assert_eq!(update("==1.*", "2.0", false), None);
 }
