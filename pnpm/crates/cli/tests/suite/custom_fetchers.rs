@@ -992,12 +992,8 @@ fn assert_native_git_fetcher_ignores_a_hook_supplied_store_index_key(
         .expect("git row exists");
     assert_eq!(git_row.manifest.as_ref().unwrap()["name"], "fetcher-pkg");
 
-    drop((
-        root,
-        victim_metadata,
-        victim_archive,
-        git_hosted_tarball_archive,
-        fetcher_metadata,
-        original,
-    ));
+    victim_metadata.assert();
+    fetcher_metadata.assert();
+    original.assert();
+    drop((root, victim_archive, git_hosted_tarball_archive));
 }
