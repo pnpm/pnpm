@@ -347,7 +347,7 @@ export async function findGlobalPnpmInstallDir (globalDir: string, pkgName: stri
     return undefined
   }
   const binDir = path.join(existing.installDir, 'bin')
-  await linkPnpmBins(existing.installDir, binDir, pkgName)
+  await ensureStoreBinsLinked(existing.installDir, binDir, pkgName)
   try {
     assertPnpmRuns(binDir, version)
     return existing.installDir
