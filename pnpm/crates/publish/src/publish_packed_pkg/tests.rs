@@ -707,6 +707,7 @@ async fn publish_packed_pkg_dry_run_returns_the_summary_without_publishing() {
             http: OidcHttpOptions::default(),
         },
         release_notes: crate::ReleaseNotesTarget::default(),
+        pnpr_registries: std::collections::HashSet::new(),
     };
     let client = ThrottledClient::default();
     let auth_headers = AuthHeaders::default();
@@ -819,6 +820,7 @@ async fn publish_packed_pkg_attaches_signed_provenance_to_the_document() {
             http: OidcHttpOptions::default(),
         },
         release_notes: crate::ReleaseNotesTarget::default(),
+        pnpr_registries: std::collections::HashSet::new(),
     };
     let mock = server
         .mock("PUT", "/npm/private/pkg")

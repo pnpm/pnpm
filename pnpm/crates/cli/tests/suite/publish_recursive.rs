@@ -259,6 +259,128 @@ fn recursive_batch_publish_runs_completed_group_postpublish_scripts_before_a_lat
     drop(root);
 }
 
+/// Whether every package in a batch body has attachments, and every one of
+/// them names a staged archive by integrity rather than carrying `data`.
+fn references_staged_archives(body: &Value) -> bool {
+    body["packages"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .all(|package| {
+            package["_attachments"]
+                .as_object()
+                .is_some_and(|attachments| {
+                    !attachments.is_empty() && attachments.values().all(names_staged_archive)
+                })
+        })
+}
+
+/// Whether `attachment` names a staged archive by integrity rather than
+/// carrying `data`.
+fn names_staged_archive(attachment: &Value) -> bool {
+    attachment.get("data").is_none()
+        && attachment["integrity"]
+            .as_str()
+            .is_some_and(|integrity| integrity.starts_with("sha512-"))
+}
+
+/// A batch bound for a registry declared `serverType: pnpr` uploads each
+/// archive on its own request first, and the commit names them by
+/// integrity. An archive the registry holds staged already is not sent again.
+#[test]
+fn recursive_batch_publish_to_pnpr_stages_archives_before_the_commit() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let mut server = mockito::Server::new();
+    write_workspace(
+        &workspace,
+        &[("project-1", public_pkg("project-1")), ("project-2", public_pkg("project-2"))],
+    );
+    let registry = format!("{}/", server.url());
+    write_registry_npmrc(&workspace, &registry);
+    let workspace_yaml = fs::read_to_string(workspace.join("pnpm-workspace.yaml")).unwrap();
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        format!("{workspace_yaml}registries:\n  '{registry}':\n    serverType: pnpr\n"),
+    )
+    .expect("declare the registry pnpr");
+    let lookups = server
+        .mock("HEAD", "/-/pnpr/v0/artifacts/blob")
+        .match_query(Matcher::Regex("^integrity=sha512-".to_string()))
+        .with_status(404)
+        .expect(2)
+        .create();
+    let uploads = server
+        .mock("PUT", "/-/pnpr/v0/artifacts/blob")
+        .match_query(Matcher::Regex("^integrity=sha512-".to_string()))
+        .match_header("content-type", "application/octet-stream")
+        .with_status(201)
+        .expect(2)
+        .create();
+    let batch = server
+        .mock("PUT", "/-/pnpr/v0/publish")
+        .match_request(|request| {
+            let body: Value =
+                serde_json::from_str(&request.utf8_lossy_body().expect("body")).expect("JSON body");
+            body["packages"]
+                .as_array()
+                .is_some_and(|packages| packages.len() == 2)
+                && references_staged_archives(&body)
+        })
+        .with_status(201)
+        .with_body(r#"{"ok":true}"#)
+        .expect(1)
+        .create();
+
+    clear_ci(pacquet)
+        .with_args(["-r", "publish", "--batch", "--force", "--no-git-checks"])
+        .assert()
+        .success();
+    lookups.assert();
+    uploads.assert();
+    batch.assert();
+
+    drop(root);
+}
+
+/// A registry not declared `serverType: pnpr` gets today's batch: every
+/// archive inline, and no staging requests.
+#[test]
+fn recursive_batch_publish_to_another_registry_carries_archives_inline() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let mut server = mockito::Server::new();
+    write_workspace(&workspace, &[("project-1", public_pkg("project-1"))]);
+    write_registry_npmrc(&workspace, &format!("{}/", server.url()));
+    let staging = ["HEAD", "PUT"].map(|method| {
+        server
+            .mock(method, "/-/pnpr/v0/artifacts/blob")
+            .match_query(Matcher::Any)
+            .expect(0)
+            .create()
+    });
+    let batch = server
+        .mock("PUT", "/-/pnpr/v0/publish")
+        .match_request(|request| {
+            let body: Value =
+                serde_json::from_str(&request.utf8_lossy_body().expect("body")).expect("JSON body");
+            body["packages"][0]["_attachments"]["project-1-1.0.0.tgz"]["data"].is_string()
+        })
+        .with_status(201)
+        .with_body(r#"{"ok":true}"#)
+        .expect(1)
+        .create();
+
+    clear_ci(pacquet)
+        .with_args(["-r", "publish", "--batch", "--force", "--no-git-checks"])
+        .assert()
+        .success();
+    for mock in staging {
+        mock.assert();
+    }
+    batch.assert();
+
+    drop(root);
+}
+
 #[test]
 fn recursive_batch_publish_rejects_mixed_credentials_for_one_registry() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();

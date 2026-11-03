@@ -7,7 +7,7 @@ pub(crate) use document::{DistHashes, build_publish_document, clean_version};
 pub use request::PublishHttpError;
 pub(crate) use request::{PublishResponse, publish_with_otp_handling, web_auth_fetch_options};
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 
 use pnpm_diagnostics::miette::{self, Diagnostic};
 use pnpm_network::{AuthHeaders, ThrottledClient, escaped_package_name, redact_url_credentials};
@@ -72,6 +72,10 @@ pub struct PublishPackedPkgOptions {
     pub wait_timeout: std::time::Duration,
     pub registry: PublishRegistryOptions,
     pub release_notes: ReleaseNotesTarget,
+    /// The normalized URLs of the registries declared `serverType: pnpr`. A
+    /// batch bound for one uploads its archives before the commit, which
+    /// then references them by integrity.
+    pub pnpr_registries: HashSet<String>,
 }
 
 impl PublishPackedPkgOptions {
