@@ -91,8 +91,8 @@ impl Registry {
     /// `COMMIT` that ends a read of the primary: it is sent after the read
     /// answers, and nothing waits for it.
     fn round_trips(&self) -> Vec<Vec<String>> {
-        self.primary
-            .take_round_trips()
+        self.primary.round_trips
+            .take()
             .into_iter()
             .filter(|statements| statements != &["COMMIT".to_string()])
             .collect()

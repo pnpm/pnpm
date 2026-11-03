@@ -246,10 +246,14 @@ impl SqlMetadata {
     ) -> Result<PublicationCommit> {
         let catalog = catalog.to_string();
         self.write(move |connection| {
-            let request = request.as_ref();
-            publish::commit_publication(
-                connection, &catalog, &documents, &artifacts, &notes, request,
-            )
+            let submission = publish::Submission {
+                catalog: &catalog,
+                documents: &documents,
+                artifacts: &artifacts,
+                notes: &notes,
+                request: request.as_ref(),
+            };
+            publish::commit_publication(connection, &submission)
         })
         .await
     }

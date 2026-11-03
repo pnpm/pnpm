@@ -59,7 +59,7 @@ impl Server {
     }
 
     fn statements(&self) -> usize {
-        self.primary.pipelines.load(std::sync::atomic::Ordering::SeqCst)
+        self.primary.round_trips.count()
     }
 }
 
@@ -259,8 +259,8 @@ async fn every_storage_of_a_process_shares_one_database_handle() {
 /// without the `COMMIT` that ends a read of the primary, which is sent after
 /// the read answers.
 fn round_trips(server: &Server) -> Vec<Vec<String>> {
-    server.primary
-        .take_round_trips()
+    server.primary.round_trips
+        .take()
         .into_iter()
         .filter(|statements| statements != &["COMMIT".to_string()])
         .collect()
@@ -342,7 +342,7 @@ async fn a_write_makes_two_round_trips_however_much_it_carries() {
         database
             .set_version_note(&npm("core"), "", "2.1.0", change)
             .await
-            .unwrap()
+            .unwrap(),
     );
     let made = round_trips(&server);
     assert_eq!(made.len(), 2, "a note edit: {made:#?}");
@@ -352,7 +352,7 @@ async fn a_write_makes_two_round_trips_however_much_it_carries() {
             .read_view(&npm("core"))
             .await
             .unwrap()
-            .is_some()
+            .is_some(),
     );
     let made = round_trips(&server);
     assert_eq!(made.len(), 2, "a view read that renders every version: {made:#?}");
@@ -361,7 +361,7 @@ async fn a_write_makes_two_round_trips_however_much_it_carries() {
             .read_view(&npm("core"))
             .await
             .unwrap()
-            .is_some()
+            .is_some(),
     );
     let made = round_trips(&server);
     assert_eq!(made.len(), 1, "a view read the cache answers: {made:#?}");
@@ -370,7 +370,7 @@ async fn a_write_makes_two_round_trips_however_much_it_carries() {
         metadata
             .remove_package(&npm("core"))
             .await
-            .unwrap()
+            .unwrap(),
     );
     let made = round_trips(&server);
     assert_eq!(made.len(), 2, "a removal: {made:#?}");
