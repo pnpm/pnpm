@@ -157,7 +157,7 @@ function wasmCliSteps (entry = '../pnpm/runtime/pnpm.mjs') {
     { name: 'verify dependency build is blocked', command: 'node', args: ['-e', "if (require('node:fs').existsSync('node_modules/fixture-needs-build/built')) throw new Error('unapproved build ran')"] },
     {
       name: 'approve dependency build interactively', command: 'node', args: [entry, 'approve-builds'],
-      input: [{ after: 'Choose which packages to build', text: ' \r' }, { after: 'Do you approve?', text: 'y\r' }],
+      input: [{ after: 'Choose which packages to build', text: ' \r' }, { after: 'Build fixture-needs-build', text: 'y\r' }],
     },
     { name: 'verify approved dependency build', command: 'node', args: ['-e', "if (require('node:fs').readFileSync('node_modules/fixture-needs-build/built', 'utf8') !== 'yes') throw new Error('approved build did not run')"] },
     ...packageWorkflowSteps(entry),

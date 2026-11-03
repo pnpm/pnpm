@@ -42,6 +42,23 @@ pub enum VersionPolicyError {
     },
 }
 
+/// Expand one spec into its `name` / `name@version` literal strings.
+///
+/// A pattern like `is-*` lands in the output as a literal string and never
+/// matches a real package name. A spec with no `||` union expands to one
+/// string.
+pub fn expand_package_version_spec(spec: &str) -> Result<Vec<String>, VersionPolicyError> {
+    let parsed = parse_version_policy_rule(spec)?;
+    if parsed.exact_versions.is_empty() {
+        Ok(vec![parsed.package_name.to_string()])
+    } else {
+        Ok(parsed.exact_versions
+            .iter()
+            .map(|version| format!("{}@{}", parsed.package_name, version))
+            .collect())
+    }
+}
+
 /// Expand each spec into one or more `name` / `name@version` literal
 /// strings.
 ///
@@ -55,18 +72,13 @@ where
     Iter: IntoIterator<Item = Spec>,
     Spec: AsRef<str>,
 {
-    let mut out: HashSet<String> = HashSet::new();
-    for spec in specs {
-        let parsed = parse_version_policy_rule(spec.as_ref())?;
-        if parsed.exact_versions.is_empty() {
-            out.insert(parsed.package_name.to_string());
-        } else {
-            for version in parsed.exact_versions {
-                out.insert(format!("{}@{}", parsed.package_name, version));
-            }
-        }
-    }
-    Ok(out)
+    Ok(specs
+        .into_iter()
+        .map(|spec| expand_package_version_spec(spec.as_ref()))
+        .collect::<Result<Vec<_>, VersionPolicyError>>()?
+        .into_iter()
+        .flatten()
+        .collect())
 }
 
 /// Merge a list of package-version-policy specs into one canonical entry per
