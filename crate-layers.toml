@@ -214,4 +214,4 @@ pnpr = 3
 pnpr-auth = 2
 pnpr-config = 4
 pnpr-registry = 2
-pnpr-storage = 8
+pnpr-storage = 6

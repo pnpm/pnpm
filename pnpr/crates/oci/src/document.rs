@@ -34,9 +34,9 @@ pub struct TagEntry {
     ///
     /// A tag is the one mutable thing in a repository, so "what is already
     /// here wins" — the rule that makes an immutable version safe to
-    /// re-apply — would let a transaction recovered after a crash drag a tag
-    /// back to an older manifest. Comparing when instead makes the merge
-    /// monotonic, so re-applying an old write is a no-op.
+    /// re-apply — would let a write that lands late drag a tag back to an
+    /// older manifest. Comparing when instead makes the merge monotonic, so
+    /// re-applying an old write is a no-op.
     ///
     /// A number rather than a formatted date, because the comparison is the
     /// whole point of the field: two spellings of one instant would otherwise
@@ -115,7 +115,7 @@ pub struct ImageDocument {
     manifests: Vec<ManifestEntry>,
     #[serde(default)]
     tags: Vec<TagEntry>,
-    /// Fences journaled publishes prepared before an explicit blob deletion.
+    /// Fences publishes prepared before an explicit blob deletion.
     #[serde(default)]
     pub generation: u64,
     /// Blocks new publishes until the deletion completes or offline collection recovers it.
@@ -290,8 +290,8 @@ impl ImageDocument {
 
     /// A newer write always wins, even where it names the digest the tag
     /// already holds: dropping it would leave the older timestamp in place,
-    /// and a stale journaled write replayed later would then compare as newer
-    /// and move the tag backward. On a tie only a different digest is a
+    /// and a stale write that lands later would then compare as newer and
+    /// move the tag backward. On a tie only a different digest is a
     /// change, so re-applying the mapping already held costs no document
     /// write.
     fn tag_supersedes(&self, entry: &TagEntry) -> bool {
