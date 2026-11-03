@@ -25,9 +25,10 @@ test.each(['', 'virtualStoreDir: custom-links\n'])('store status checks global v
   const options = [`--store-dir=${storeDir}`, `--registry=${REGISTRY}`]
   await execa('node', [
     pnpmBin, 'add', 'is-odd@3.0.1', '@pnpm.e2e/abc@1.0.0',
-    '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0',
-    '--allow-build=@pnpm.e2e/pre-and-postinstall-scripts-example', ...options,
+    '@pnpm.e2e/generated-bins@1.0.0',
+    '--allow-build=@pnpm.e2e/generated-bins', ...options,
   ], execaOpts)
+  expect(fs.existsSync('node_modules/@pnpm.e2e/generated-bins/bin/cmd1')).toBe(true)
   await execa('node', [pnpmBin, 'store', 'status', ...options], execaOpts)
 
   fs.writeFileSync('node_modules/@pnpm.e2e/abc/package.json', '{}\n')

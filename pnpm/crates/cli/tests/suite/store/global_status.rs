@@ -29,11 +29,14 @@ fn check_global_virtual_store_status(settings: &str) {
             "add",
             "is-odd@3.0.1",
             "@pnpm.e2e/abc@1.0.0",
-            "@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0",
-            "--allow-build=@pnpm.e2e/pre-and-postinstall-scripts-example",
+            "@pnpm.e2e/generated-bins@1.0.0",
+            "--allow-build=@pnpm.e2e/generated-bins",
         ])
         .assert()
         .success();
+
+    let generated_bin = workspace.join("node_modules/@pnpm.e2e/generated-bins/bin/cmd1");
+    assert!(generated_bin.is_file(), "build output at {generated_bin:?}");
 
     pacquet_at(&workspace)
         .args(["store", "status"])
