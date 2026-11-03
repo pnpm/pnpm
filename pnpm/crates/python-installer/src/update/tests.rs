@@ -26,7 +26,7 @@ fn compatible_release_keeps_a_selected_prerelease() {
 
 #[test]
 fn compatible_release_never_lowers_its_bound() {
-    assert_eq!(update("~=1.2.post1", "1.2.0.1", false).as_deref(), Some("~=1.2.post1"));
+    assert_eq!(update("~=1.2.post1", "1.2.0.1", false), None);
 }
 
 #[test]
@@ -39,7 +39,6 @@ fn wildcard_equality_keeps_its_operator() {
     assert_eq!(update("==1.*", "2.3.1", true).as_deref(), Some("==2.*"));
     assert_eq!(update("==1.2.*", "2.3.1", true).as_deref(), Some("==2.3.*"));
     assert_eq!(update("==1.*", "2.1rc1", true).as_deref(), Some("==2.*, >=2.1rc1"));
-    assert_eq!(update("==2.*, >=2.1rc1", "3.0", true).as_deref(), Some("==3.*"));
     assert_eq!(update("==1.*", "1.4", true), None);
     assert_eq!(update("==1.*", "2.0", false), None);
 }
@@ -59,7 +58,9 @@ fn a_selected_prerelease_stays_admitted() {
 }
 
 #[test]
-fn a_stable_selection_drops_an_excluding_prerelease_floor() {
-    assert_eq!(update("==2.*, >=2.1rc1", "2.0", true).as_deref(), Some("==2.*"));
-    assert_eq!(update("==2.*, >=2.1rc1", "2.3", false), None);
+fn a_bounded_range_moves_its_lower_bound() {
+    assert_eq!(update(">=1.0rc1, <2.0", "1.5", false).as_deref(), Some(">=1.5, <2.0"));
+    assert_eq!(update("==2.*, >=2.1rc1", "2.3", false).as_deref(), Some("==2.*, >=2.3"));
+    assert_eq!(update("==2.*, >=2.1rc1", "2.0", true).as_deref(), Some(">=2.0"));
+    assert_eq!(update(">=1.0, <2", "2.0", true).as_deref(), Some(">=2.0"));
 }

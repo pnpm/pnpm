@@ -315,45 +315,22 @@ fn padded_release(version: &Version, segments: usize) -> Vec<u64> {
     release
 }
 
-/// Updates `existing` for `version`. A selected pre-release must stay admitted,
-/// and the resolver admits one only when a clause names a pre-release, so a
-/// result that names none gets a `>=version` clause. That clause is set aside
-/// while updating the rest of the requirement.
+/// Updates `existing` for `version`. The resolver admits a pre-release only
+/// when a clause names one, so a selected pre-release that the result does not
+/// name gets a `>=version` clause.
 fn updated_existing_specifiers(
     existing: &VersionSpecifiers,
     version: &Version,
     force_bump: bool,
 ) -> Result<Option<VersionSpecifiers>> {
-    let primary = without_prerelease_floor(existing);
-    let updated = updated_primary_specifiers(&primary, version, force_bump)?;
-    if !version.any_prerelease() {
-        let admits_only_without_floor = primary != *existing && !existing.contains(version);
-        return Ok(updated.or_else(|| admits_only_without_floor.then_some(primary)));
+    let updated = updated_primary_specifiers(existing, version, force_bump)?;
+    let saved = updated.as_ref().unwrap_or(existing);
+    if !version.any_prerelease() || saved.iter().any(VersionSpecifier::any_prerelease) {
+        return Ok(updated.filter(|updated| updated != existing));
     }
-    let saved = updated.unwrap_or(primary);
-    let saved = if saved.iter().any(VersionSpecifier::any_prerelease) {
-        saved
-    } else {
-        format!("{saved},>={}", version.clone().without_local()).parse().into_diagnostic()?
-    };
-    Ok((saved != *existing).then_some(saved))
-}
-
-/// `existing` without a `>=` pre-release clause that accompanies one other
-/// clause naming no pre-release, the form [`updated_existing_specifiers`] writes.
-fn without_prerelease_floor(existing: &VersionSpecifiers) -> VersionSpecifiers {
-    let is_floor = |clause: &VersionSpecifier| {
-        *clause.operator() == Operator::GreaterThanEqual && clause.any_prerelease()
-    };
-    let [first, second] = &existing[..] else {
-        return existing.clone();
-    };
-    let other = match (is_floor(first), is_floor(second)) {
-        (true, false) => second,
-        (false, true) => first,
-        _ => return existing.clone(),
-    };
-    if other.any_prerelease() { existing.clone() } else { other.clone().into() }
+    let saved: VersionSpecifiers =
+        format!("{saved},>={}", version.clone().without_local()).parse().into_diagnostic()?;
+    Ok(Some(saved))
 }
 
 fn updated_primary_specifiers(
