@@ -464,11 +464,25 @@ fn the_group_of_a_reaped_child_stays_cancellable_while_its_waiter_waits() {
 
     tracker.cancel();
 
-    let deadline = Instant::now() + Duration::from_secs(10);
-    while !is_gone(sleeper) && Instant::now() < deadline {
+    assert!(
+        is_gone_within(sleeper, Duration::from_secs(10)),
+        "the cancellation should have reached the reaped child's group",
+    );
+}
+
+/// Whether `pid` exits within `deadline`. Once the process is gone its pid can
+/// be reused, so the answer is the probe that saw it gone, not a later one.
+fn is_gone_within(pid: i32, deadline: Duration) -> bool {
+    let deadline = Instant::now() + deadline;
+    loop {
+        if is_gone(pid) {
+            return true;
+        }
+        if Instant::now() >= deadline {
+            return false;
+        }
         sleep(Duration::from_millis(20));
     }
-    assert!(is_gone(sleeper), "the cancellation should have reached the reaped child's group");
 }
 
 /// Whether `pid` has exited, reaped or not.
