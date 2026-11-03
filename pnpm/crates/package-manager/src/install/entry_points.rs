@@ -85,7 +85,8 @@ where
     }
 
     /// Execute as a check: the run resolves the wanted lockfile afresh as a
-    /// lockfile-only install, overriding the caller's frozen-lockfile policy.
+    /// lockfile-only install, overriding the caller's frozen-lockfile and
+    /// repeat-install policies.
     /// It writes no lockfile and returns the text it would have written, for
     /// the caller to compare with the lockfile on disk. `None` when the run
     /// resolves no lockfile to write. pnpm's `lockfileCheck`.
@@ -94,10 +95,11 @@ where
         selection: Option<WorkspaceInstallSelection<'_>>,
     ) -> Result<Option<String>, InstallError> {
         // Only the fresh lockfile-only path hands the lockfile to the sink;
-        // the frozen paths save it.
+        // the frozen paths save it and the repeat-install path skips it.
         self.execution.lockfile_only = true;
         self.lockfile_policy.frozen = false;
         self.lockfile_policy.prefer_frozen = Some(false);
+        self.lockfile_policy.disable_optimistic_repeat = true;
         let sink = LockfileCheckSink::default();
         Box::pin(self.run_inner::<Reporter>(InstallRunOptions {
             lockfile_check: Some(Arc::clone(&sink)),
