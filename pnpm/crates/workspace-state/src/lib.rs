@@ -127,6 +127,39 @@ pub struct Validation {
     /// lockfile moving. Each tarball's signature is in [`Self::files`].
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub local_dependencies: BTreeMap<String, LocalDependencies>,
+    /// The manifest file of each project in [`Self::manifests`], keyed by
+    /// importer id, as stat'd when its digest was confirmed. A project
+    /// without an entry has its manifest read and hashed by the next check.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub manifest_files: BTreeMap<String, ManifestFile>,
+}
+
+/// A project manifest's stat when the validation confirmed its digest, and
+/// the facts the next check reads from it. While the stat is unchanged and
+/// trusted the way a [`FileSignature`] is, the facts stand for the file.
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ManifestFile {
+    /// The manifest's file name in the project directory, such as
+    /// `package.json`.
+    pub file_name: String,
+    pub mtime_ns: i64,
+    /// See [`FileSignature::ctime_ns`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ctime_ns: Option<i64>,
+    pub size: u64,
+    /// Whether the manifest declares a dependency, dev dependency, or optional
+    /// dependency.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub has_runtime_deps: bool,
+    /// Whether the manifest declares a peer dependency that is not optional.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub has_required_peers: bool,
+    /// The `workspace:` and `link:` specifiers of each dependency field, by
+    /// field name (`dependencies`, `devDependencies`, `optionalDependencies`)
+    /// and then by alias.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub local_links: BTreeMap<String, BTreeMap<String, String>>,
 }
 
 /// The local dependencies one lockfile resolves, as absolute paths.
