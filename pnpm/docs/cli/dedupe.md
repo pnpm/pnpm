@@ -15,6 +15,8 @@ Since v12.4.1, `pnpm dedupe` processes every project in the workspace by default
 
 Check if running dedupe would result in changes without installing packages or editing the lockfile. Exits with a non-zero status code if changes are possible.
 
+If `configDependencies` changed since the last install, the check still records them in the lockfile, as `pnpm install` does, and reports the change.
+
 ### `--lockfile-only`
 
 Only update `pnpm-lock.yaml`. Packages are not downloaded and `node_modules` is not written.
