@@ -52,18 +52,23 @@ impl Tree for WorkingTree {
 /// The files of one commit, read through `git` so the working tree is left alone.
 pub struct GitRevision {
     root: PathBuf,
-    revision: String,
+    commit: String,
     files: BTreeSet<String>,
 }
 
 impl GitRevision {
+    /// Resolves `revision` to a commit id first, so the later `git`
+    /// arguments carry a hex id and never something `git` reads as an option.
     pub fn open(root: &Path, revision: &str) -> Result<Self, String> {
-        let listing = git(root, &["ls-tree", "-r", "--name-only", revision])?;
+        let spec = format!("{revision}^{{commit}}");
+        let resolved = git(root, &["rev-parse", "--verify", "--end-of-options", &spec])?;
+        let commit = resolved.trim().to_owned();
+        let listing = git(root, &["ls-tree", "-r", "--name-only", &commit])?;
         let files = listing
             .lines()
             .map(str::to_owned)
             .collect();
-        Ok(Self { root: root.to_path_buf(), revision: revision.to_owned(), files })
+        Ok(Self { root: root.to_path_buf(), commit, files })
     }
 }
 
@@ -72,7 +77,7 @@ impl Tree for GitRevision {
         if !self.files.contains(path) {
             return Ok(None);
         }
-        git(&self.root, &["show", &format!("{}:{path}", self.revision)]).map(Some)
+        git(&self.root, &["show", &format!("{}:{path}", self.commit)]).map(Some)
     }
 
     fn subdirectories(&self, dir: &str) -> Result<Vec<String>, String> {

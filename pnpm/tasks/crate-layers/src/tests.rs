@@ -76,7 +76,6 @@ renamed-base = { workspace = true }
 base = { path = "../base" }
 "#,
     );
-    dbg!(&graph);
     assert_eq!(
         graph.edges.into_iter().collect::<Vec<_>>(),
         vec![
