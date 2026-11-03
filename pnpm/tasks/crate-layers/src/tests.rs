@@ -87,14 +87,24 @@ base = { path = "../base" }
 }
 
 #[test]
-fn skips_excluded_workspace_directories() {
+fn skips_excluded_workspace_directories_like_cargo() {
+    let root = r#"
+[workspace]
+members = ["crates/*", "vendor/*", "crates/pinned"]
+exclude = ["./crates/vendored/", "vendor", "crates/pinned"]
+"#;
     let tree = MemoryTree(BTreeMap::from([
-        ("Cargo.toml", "[workspace]\nmembers = [\"crates/*\"]\nexclude = [\"crates/vendored\"]\n"),
+        ("Cargo.toml", root),
         ("crates/kept/Cargo.toml", "[package]\nname = \"kept\"\n"),
+        ("crates/pinned/Cargo.toml", "[package]\nname = \"pinned\"\n"),
         ("crates/vendored/Cargo.toml", "[package]\nname = \"vendored\"\n"),
+        ("vendor/nested/Cargo.toml", "[package]\nname = \"nested\"\n"),
     ]));
     let graph = graph::read(&tree).unwrap();
-    assert_eq!(graph.crates.into_iter().collect::<Vec<_>>(), vec!["kept".to_owned()]);
+    assert_eq!(
+        graph.crates.into_iter().collect::<Vec<_>>(),
+        vec!["kept".to_owned(), "pinned".to_owned()],
+    );
 }
 
 #[test]

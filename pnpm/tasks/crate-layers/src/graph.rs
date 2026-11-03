@@ -100,8 +100,9 @@ fn member_manifests(tree: &dyn Tree, workspace: &Table) -> Result<Vec<Manifest>,
     let mut manifests = Vec::new();
     for member in members {
         let member = member.as_str().ok_or("a workspace member is not a string")?;
+        let is_glob = member.ends_with("/*");
         for dir in member_dirs(tree, member)? {
-            if excluded.contains(dir.as_str()) {
+            if is_glob && is_excluded(&dir, &excluded) {
                 continue;
             }
             let path = format!("{dir}/Cargo.toml");
@@ -113,14 +114,28 @@ fn member_manifests(tree: &dyn Tree, workspace: &Table) -> Result<Vec<Manifest>,
     Ok(manifests)
 }
 
-/// The `[workspace] exclude` entries, which Cargo drops from the members a
-/// glob matches.
-fn excluded_dirs(workspace: &Table) -> BTreeSet<&str> {
+/// The `[workspace] exclude` entries as path components. Cargo drops a
+/// directory a member glob matches when an entry is that directory or one of
+/// its ancestors. A member listed by name stays a member.
+fn excluded_dirs(workspace: &Table) -> Vec<Vec<&str>> {
     let entries = workspace.get("exclude").and_then(Value::as_array);
-    entries
+    let paths = entries
         .into_iter()
         .flatten()
-        .filter_map(Value::as_str)
+        .filter_map(Value::as_str);
+    paths.map(path_components).collect()
+}
+
+fn is_excluded(dir: &str, excluded: &[Vec<&str>]) -> bool {
+    let components = path_components(dir);
+    excluded
+        .iter()
+        .any(|entry| components.starts_with(entry))
+}
+
+fn path_components(path: &str) -> Vec<&str> {
+    path.split('/')
+        .filter(|component| !component.is_empty() && *component != ".")
         .collect()
 }
 
