@@ -104,7 +104,7 @@ fn runtime_dependency_strips_importer_prefix_and_records_package_version() {
     let dep_path = DepPath::from("node@runtime:26.3.0".to_string());
     let resolve_result = ResolveResult {
         id: PkgResolutionId::from("node@runtime:26.3.0"),
-        resolution: LockfileResolution::Variations(variations(json!({
+        resolution: LockfileResolution::Variations(variations(&json!({
             "type": "binary",
             "url": "https://nodejs.org/dist/v26.3.0/node-v26.3.0-linux-x64.tar.gz",
             "integrity": INTEGRITY,
@@ -177,7 +177,7 @@ fn runtime_dependency_strips_importer_prefix_and_records_package_version() {
 const INTEGRITY: &str = "sha512-gf6ZldcfCDyNXPRiW3lQjEP1Z9rrUM/4Cn7BZbv3SdTA82zxWRP8OmLwvGR974uuENhGCFgFdN11z3n1Ofpprg==";
 
 /// A `variations` resolution whose one variant, for linux-x64, is `resolution`.
-fn variations(resolution: serde_json::Value) -> VariationsResolution {
+fn variations(resolution: &serde_json::Value) -> VariationsResolution {
     serde_json::from_value(json!({
         "variants": [{ "resolution": resolution, "targets": [{ "os": "linux", "cpu": "x64" }] }],
     }))
@@ -200,7 +200,7 @@ fn package_variants_mark_the_lockfile_as_the_variants_format() {
         HashSet::default(),
     );
     Arc::get_mut(&mut node.resolve_result).expect("fresh node").resolution =
-        LockfileResolution::Variations(variations(json!({ "integrity": INTEGRITY })));
+        LockfileResolution::Variations(variations(&json!({ "integrity": INTEGRITY })));
     let dep_path = node.dep_path.clone();
     let mut graph = DependenciesGraph::default();
     graph.insert(dep_path.clone(), node);
