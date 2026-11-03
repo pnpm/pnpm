@@ -4,7 +4,7 @@ use super::{MARKER_TABLE, TABLES};
 use std::sync::LazyLock;
 
 /// The fingerprint of the schema this pnpr reads: the SHA-256, in hex, of
-/// [`script`] without its comment lines and with its whitespace normalized
+/// [`script`] without its comments and with its whitespace normalized
 /// by [`canonical`]. Reformatting or commenting the statements leaves it
 /// unchanged; any other edit changes it.
 pub(in super::super) fn fingerprint() -> &'static str {
@@ -100,17 +100,59 @@ fn quoted(text: &str, open: usize, close: char) -> &str {
 
 /// The statements of `script`, without its comments. Each runs on its own:
 /// a libSQL client re-renders the statements of a batch, and its rendering
-/// drops the comma between `STRICT` and `WITHOUT ROWID`.
-pub(in super::super) fn statements(script: &str) -> impl Iterator<Item = String> + '_ {
-    let code: String = script
-        .lines()
-        .filter(|line| !line.trim_start().starts_with("--"))
-        .collect::<Vec<_>>()
-        .join("\n");
-    code.split(';')
-        .map(str::trim)
-        .filter(|statement| !statement.is_empty())
-        .map(str::to_string)
-        .collect::<Vec<_>>()
-        .into_iter()
+/// drops the comma between `STRICT` and `WITHOUT ROWID`. A `;` or a comment
+/// marker inside a quoted name or value is part of it.
+pub(in super::super) fn statements(script: &str) -> impl Iterator<Item = String> {
+    let mut statements = Vec::new();
+    let mut statement = String::new();
+    let mut rest = script;
+    while !rest.is_empty() {
+        let (piece, after) = piece(rest);
+        rest = after;
+        match piece {
+            Piece::Text(text) => statement.push_str(text),
+            Piece::Comment => statement.push(' '),
+            Piece::End => finish(&mut statements, &mut statement),
+        }
+    }
+    finish(&mut statements, &mut statement);
+    statements.into_iter()
+}
+
+/// What a script holds at some point.
+enum Piece<'a> {
+    /// A token of a statement.
+    Text(&'a str),
+    /// A comment, which separates tokens like whitespace.
+    Comment,
+    /// The `;` that ends a statement.
+    End,
+}
+
+/// The piece `text` starts with, and the text after it.
+fn piece(text: &str) -> (Piece<'_>, &str) {
+    if let Some(after) = text.strip_prefix(';') {
+        return (Piece::End, after);
+    }
+    if text.starts_with("--") {
+        let end = text.find('\n').unwrap_or(text.len());
+        return (Piece::Comment, &text[end..]);
+    }
+    if let Some(comment) = text.strip_prefix("/*") {
+        let after = comment
+            .find("*/")
+            .map_or("", |end| &comment[end + "*/".len()..]);
+        return (Piece::Comment, after);
+    }
+    let token = token(text);
+    (Piece::Text(token), &text[token.len()..])
+}
+
+/// Add `statement` to `statements` unless it is blank, and clear it.
+fn finish(statements: &mut Vec<String>, statement: &mut String) {
+    let trimmed = statement.trim();
+    if !trimmed.is_empty() {
+        statements.push(trimmed.to_string());
+    }
+    statement.clear();
 }

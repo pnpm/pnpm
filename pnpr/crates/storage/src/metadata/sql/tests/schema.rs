@@ -220,6 +220,32 @@ fn the_fingerprint_keeps_quoted_text_and_word_boundaries() {
 }
 
 #[test]
+fn the_fingerprint_ignores_inline_comments() {
+    let script = schema::fingerprinting::script();
+    let commented = script
+        .replacen(
+            "generation INTEGER NOT NULL\n)",
+            "generation INTEGER NOT NULL -- the catalog's generation; bumped per commit\n)",
+            1,
+        )
+        .replacen(") STRICT", ") /* it's; strict */ STRICT", 1);
+    assert_ne!(commented, script);
+    assert_eq!(schema::fingerprinting::fingerprint_of(&commented), schema::fingerprint());
+}
+
+#[test]
+fn a_quoted_semicolon_or_comment_marker_does_not_split_a_statement() {
+    let statements = schema::fingerprinting::statements(
+        "CREATE TABLE t (c TEXT DEFAULT ';--', d TEXT DEFAULT '/*'); -- done\nCREATE TABLE u (e TEXT);",
+    )
+    .collect::<Vec<_>>();
+    assert_eq!(
+        statements,
+        ["CREATE TABLE t (c TEXT DEFAULT ';--', d TEXT DEFAULT '/*')", "CREATE TABLE u (e TEXT)"],
+    );
+}
+
+#[test]
 fn every_metadata_table_is_known() {
     let tables = schema::table_names(TABLES);
     assert_eq!(tables.len(), TABLES.matches("CREATE TABLE").count(), "{tables:?}");
