@@ -569,7 +569,9 @@ fn version_refuses_a_composed_release_bound_for_several_pnpr_registries() {
 #[test]
 fn a_same_named_project_on_another_registry_keeps_its_full_section() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
-    let registry = "https://pnpr.example/";
+    let mut pnpr = mockito::Server::new();
+    let registry = format!("{}/", pnpr.url());
+    let other = "https://registry.example/";
     fs::write(workspace.join(".npmrc"), format!("registry={registry}\n")).expect("write .npmrc");
     fs::write(
         workspace.join("pnpm-workspace.yaml"),
@@ -585,7 +587,7 @@ fn a_same_named_project_on_another_registry_keeps_its_full_section() {
             json!({
                 "name": "a",
                 "version": "2.0.0",
-                "publishConfig": { "registry": "https://registry.example/" },
+                "publishConfig": { "registry": other },
             }),
         ),
     ] {
@@ -605,5 +607,15 @@ fn a_same_named_project_on_another_registry_keeps_its_full_section() {
     let section = fs::read_to_string(workspace.join(".changeset/changelogs/a@2.1.0.md"))
         .expect("read parked section");
     assert!(section.starts_with("## 2.1.0\n"), "{section}");
+
+    // Its release is confirmed from its own registry, not the notes route of
+    // the same-named project's.
+    let notes = pnpr
+        .mock("GET", Matcher::Regex("/notes$".into()))
+        .expect(0)
+        .create();
+    run(pnpm(&workspace).with_args(["version", "-r", "--no-git-checks"]));
+    notes.assert();
+    assert_eq!(intent_files(&workspace), ["next.md"]);
     drop(root);
 }

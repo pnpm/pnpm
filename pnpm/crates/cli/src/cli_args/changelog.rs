@@ -97,6 +97,7 @@ pub async fn confirmed_published_versions(
         workspace_dir,
         client: build_registry_client(config)?,
         publications: pnpm_versioning::read_parked_publications(workspace_dir)?,
+        ledger: pnpm_versioning::read_ledger(workspace_dir)?,
         published_names,
         notes_registries,
     };
@@ -115,6 +116,7 @@ struct ReleaseProbe<'a> {
     workspace_dir: &'a Path,
     client: ThrottledClient,
     publications: Vec<pnpm_versioning::ParkedPublication>,
+    ledger: pnpm_versioning::Ledger,
     published_names: &'a HashMap<String, String>,
     notes_registries: &'a HashMap<String, String>,
 }
@@ -128,14 +130,20 @@ impl ReleaseProbe<'_> {
         // ledger joins on; the registry only knows the published one.
         let probe = self.published_names.get(&name).map_or(name.as_str(), String::as_str);
         let key = format!("{name}@{version}");
-        let confirmed = match self.notes_registries.get(&name) {
+        // The ledger names the project that released: same-named projects
+        // on different version lines may publish to different registries.
+        let registry = match self.ledger.get(&key).and_then(pnpm_versioning::LedgerEntry::dir) {
+            Some(dir) => notes_registry_of_dir(self.config, &self.workspace_dir.join(dir)),
+            None => self.notes_registries.get(&name).cloned(),
+        };
+        let confirmed = match registry {
             Some(registry) => {
                 let publication_note = self.publications
                     .iter()
                     .find(|publication| publication.members.contains(&key))
                     .map(|publication| publication.notes.as_str());
                 let composed = ComposedNotes { version_note: &section, publication_note };
-                notes_confirmed(&self.client, self.config, (registry, probe, &version), &composed)
+                notes_confirmed(&self.client, self.config, (&registry, probe, &version), &composed)
                     .await
             }
             None => fetch_changelog(self.config, probe, VersionPick::Exact(&version))
