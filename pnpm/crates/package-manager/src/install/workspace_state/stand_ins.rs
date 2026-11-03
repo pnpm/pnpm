@@ -7,55 +7,68 @@ use super::{
     WorkspaceState, build_project_manifests_list, check_fast_path_repeat_install,
 };
 use crate::optimistic_repeat_install::validation::{ManifestStandIns, manifest_stand_ins};
+use pnpm_workspace::ProjectManifestPaths;
 use std::collections::HashMap;
 
-/// The number of workspace projects, when the check on the stand-ins finds
-/// the install up to date. `None` sends the caller to the check on the
-/// files: no workspace manifest drives the install, a project's manifest
-/// may have changed since the last validation, or the check would refresh
-/// the state.
+/// What the check on the stand-ins decided.
+pub(super) enum RecordsCheck {
+    /// The install is up to date. Holds the number of workspace projects.
+    UpToDate(usize),
+    /// The check on the files decides. Holds the listing the attempt made,
+    /// for that check to read.
+    Undecided(Option<Vec<ProjectManifestPaths>>),
+}
+
+/// The repeat-install check on the stand-ins. It leaves the decision to the
+/// check on the files when no workspace manifest drives the install, a
+/// project's manifest may have changed since the last validation, or the
+/// check would refresh the state.
 pub(super) fn check_from_records(
     check: &UpToDateFastPathCheck<'_>,
     context: &FastPathContext<'_>,
     state: &WorkspaceState,
-) -> Option<usize> {
-    let stand_ins = list_stand_ins(check, context, state)?;
+) -> RecordsCheck {
+    let Some(listed) = list_projects(check, context) else {
+        return RecordsCheck::Undecided(None);
+    };
+    let Some(stand_ins) = state.validation
+        .as_ref()
+        .and_then(|validation| manifest_stand_ins(context.state_root, validation, &listed))
+    else {
+        return RecordsCheck::Undecided(Some(listed));
+    };
     let project_manifests = build_project_manifests_list(check.manifest, Some(&stand_ins.projects));
     let recorded_digests = stand_in_digests(&project_manifests, &stand_ins, check.manifest);
     let checked = check_fast_path_repeat_install(
         check,
         context,
         FastPathProjects {
-            state: state.clone(),
+            state,
             manifests: &project_manifests,
             recorded_digests: Some(&recorded_digests),
         },
     );
     if let Err(reason) = checked {
         tracing::debug!(target: "pacquet::install", reason, "the recorded manifests cannot decide");
-        return None;
+        return RecordsCheck::Undecided(Some(listed));
     }
     tracing::debug!(target: "pacquet::install", "the recorded manifests decided the install");
-    Some(stand_ins.projects.len())
+    RecordsCheck::UpToDate(stand_ins.projects.len())
 }
 
-/// [`manifest_stand_ins`] for the projects discovery would read, inside the
-/// `list_workspace_projects` span.
-fn list_stand_ins(
+/// [`pnpm_workspace::find_workspace_project_manifests`] for the workspace
+/// manifest, inside the `list_workspace_projects` span.
+fn list_projects(
     check: &UpToDateFastPathCheck<'_>,
     context: &FastPathContext<'_>,
-    state: &WorkspaceState,
-) -> Option<ManifestStandIns> {
+) -> Option<Vec<ProjectManifestPaths>> {
     let _span =
         tracing::debug_span!(target: "pacquet::install", "list_workspace_projects").entered();
-    let validation = state.validation.as_ref()?;
     let opts = super::super::lifecycle::workspace_projects_opts(
         context.workspace_manifest?,
         &check.config.managed_directories(),
     );
-    let listed =
-        pnpm_workspace::find_workspace_project_manifests(context.workspace_root, &opts).ok()?;
-    manifest_stand_ins(context.state_root, validation, listed)
+    pnpm_workspace::find_workspace_project_manifests(context.workspace_root, &opts).ok()
 }
 
 /// The recorded digests of the stand-ins `project_manifests` holds.

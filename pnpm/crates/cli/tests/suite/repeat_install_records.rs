@@ -14,6 +14,9 @@ use std::{fs, path::Path};
 /// The debug event the fast path logs when the records decided.
 const DECIDED_FROM_RECORDS: &str = "the recorded manifests decided the install";
 
+/// The span that reads the project manifests.
+const READ_PROJECTS_SPAN: &str = "discover_workspace_projects";
+
 /// A workspace whose `a` depends on `b` through `workspace:*` and links its
 /// command, beside a `packages/*` directory that holds no project.
 fn write_workspace(workspace: &Path) {
@@ -77,6 +80,44 @@ fn an_unchanged_workspace_is_up_to_date_from_the_records() {
 
     assert!(output.contains("Already up to date"), "{output}");
     assert!(output.contains(DECIDED_FROM_RECORDS), "{output}");
+    assert!(!output.contains(READ_PROJECTS_SPAN), "{output}");
+    drop((root, mock_instance));
+}
+
+/// A state whose records are missing, such as one an older pnpm wrote, gets
+/// them from the first check that reads the manifests.
+#[test]
+fn a_check_on_the_files_records_missing_manifest_records() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_workspace(&workspace);
+    pacquet
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_arg("install")
+        .assert()
+        .success();
+    let state_path = workspace.join("node_modules/.pnpm-workspace-state-v1.json");
+    let mut state: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(&state_path).expect("read the state"))
+            .expect("parse the state");
+    state["validation"]
+        .as_object_mut()
+        .expect("a validation record")
+        .remove("manifestFiles")
+        .expect("manifest records");
+    fs::write(&state_path, state.to_string()).expect("write the state");
+
+    let from_files = traced_install(&workspace, mock_instance.url());
+    let from_records = traced_install(&workspace, mock_instance.url());
+
+    assert!(!from_files.contains(DECIDED_FROM_RECORDS), "{from_files}");
+    assert!(from_records.contains(DECIDED_FROM_RECORDS), "{from_records}");
     drop((root, mock_instance));
 }
 

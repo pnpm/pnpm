@@ -5,6 +5,7 @@ use super::super::{FileStat, stat_trusted};
 use pnpm_package_manifest::PackageManifest;
 use pnpm_workspace::{Project, ProjectManifestPaths, importer_id_from_root_dir};
 use pnpm_workspace_state::Validation;
+use rayon::prelude::*;
 use std::{
     collections::HashMap,
     fs, io,
@@ -27,18 +28,22 @@ pub(crate) struct ManifestStandIns {
 pub(crate) fn manifest_stand_ins(
     state_root: &Path,
     validation: &Validation,
-    listed: Vec<ProjectManifestPaths>,
+    listed: &[ProjectManifestPaths],
 ) -> Option<ManifestStandIns> {
+    let existing = listed
+        .par_iter()
+        .map(|project| first_existing_manifest(&project.candidates))
+        .collect::<Vec<_>>();
     let mut projects = Vec::with_capacity(listed.len());
     let mut digests = HashMap::with_capacity(listed.len());
-    for ProjectManifestPaths { root_dir, candidates } in listed {
-        let Some((path, stat)) = first_existing_manifest(&candidates)? else {
+    for (ProjectManifestPaths { root_dir, .. }, existing) in listed.iter().zip(existing) {
+        let Some((path, stat)) = existing? else {
             continue;
         };
-        let importer_id = importer_id_from_root_dir(state_root, &root_dir);
+        let importer_id = importer_id_from_root_dir(state_root, root_dir);
         let (manifest, digest) = stand_in(validation, &importer_id, path, stat)?;
         digests.insert(root_dir.clone(), digest.to_string());
-        projects.push(Project { root_dir, manifest, dependency_manifest: None });
+        projects.push(Project { root_dir: root_dir.clone(), manifest, dependency_manifest: None });
     }
     Some(ManifestStandIns { projects, digests })
 }

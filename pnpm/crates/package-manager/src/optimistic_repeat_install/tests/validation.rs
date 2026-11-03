@@ -303,11 +303,22 @@ fn record_files_with(
     state.validation.unwrap()
 }
 
+/// Move `validation`'s recording past the rounding window of whole-second
+/// filesystems, so its manifest stats are trusted.
+fn trust_recorded_stats(validation: &mut Validation) {
+    validation.recorded_at_ns = validation.manifest_files
+        .values()
+        .map(|file| file.mtime_ns.max(file.ctime_ns.unwrap_or(0)))
+        .max()
+        .unwrap()
+        + 3_000_000_000;
+}
+
 #[test]
 fn a_write_records_each_vouched_manifest_file_with_the_fields_the_check_reads() {
     let dir = tempdir().unwrap();
     let root = dir.path();
-    let json = r#"{"name":"a","scripts":{"test":"x"},"dependencies":{"b":"workspace:*"},"peerDependencies":{"e":"*"},"bin":"cli.js"}"#;
+    let json = r#"{"name":"a","scripts":{"test":"x"},"dependencies":{"b":"workspace:*"},"peerDependencies":{"e":"*"},"bin":"cli.js","publishConfig":{"registry":"https://user:secret@example.com/","directory":"dist"}}"#;
     let project_a = project_files(root, &[("a", json)]).remove(0);
     let validation = record_files(root, &[(root.join("a"), &project_a)], &Vouched::All);
     let file = &validation.manifest_files["a"];
@@ -320,6 +331,7 @@ fn a_write_records_each_vouched_manifest_file_with_the_fields_the_check_reads() 
             "dependencies": { "b": "workspace:*" },
             "peerDependencies": { "e": "*" },
             "bin": "cli.js",
+            "publishConfig": { "directory": "dist" },
         }),
     );
 }
@@ -350,13 +362,26 @@ fn a_manifest_whose_trusted_stat_is_unchanged_keeps_its_record() {
             .unwrap()
             .insert("version".to_owned(), "9.9.9".into());
     }
-    // Keep the recording beyond the rounding window of whole-second filesystems.
-    previous_validation.recorded_at_ns = previous_validation.manifest_files
-        .values()
-        .map(|file| file.mtime_ns.max(file.ctime_ns.unwrap_or(0)))
-        .max()
-        .unwrap()
-        + 3_000_000_000;
+    trust_recorded_stats(&mut previous_validation);
+    let mut without_fields = previous_validation.clone();
+    for file in without_fields.manifest_files.values_mut() {
+        file.fields = None;
+    }
+    let rerecorded = record_files(
+        root,
+        &project_manifests,
+        &Vouched::Projects {
+            dirs: &HashSet::from([root.join("a"), root.join("b")]),
+            previous: Some(&WorkspaceState {
+                validation: Some(without_fields),
+                ..WorkspaceState::default()
+            }),
+        },
+    );
+    assert!(
+        rerecorded.manifest_files.values().all(|file| file.fields.is_some()),
+        "a record without fields is not reused",
+    );
     let previous =
         WorkspaceState { validation: Some(previous_validation), ..WorkspaceState::default() };
     let only_a = HashSet::from([root.join("a")]);
@@ -442,11 +467,12 @@ fn records_stand_in_for_the_manifests_whose_stat_still_holds() {
         root,
         &[("a", r#"{"name":"a","scripts":{"x":"y"},"dependencies":{"b":"workspace:*"}}"#)],
     );
-    let validation = record_files(root, &[(root.join("a"), &manifests[0])], &Vouched::All);
+    let mut validation = record_files(root, &[(root.join("a"), &manifests[0])], &Vouched::All);
+    trust_recorded_stats(&mut validation);
     fs::create_dir_all(root.join("no-project")).unwrap();
 
     let stand_ins =
-        manifest_stand_ins(root, &validation, vec![listed(root, "a"), listed(root, "no-project")])
+        manifest_stand_ins(root, &validation, &[listed(root, "a"), listed(root, "no-project")])
             .expect("the record stands in");
 
     let [project] = stand_ins.projects.as_slice() else { panic!("one project") };
@@ -465,9 +491,10 @@ fn records_cannot_stand_in_once_a_manifest_may_have_changed() {
     let root = dir.path();
     let manifests = project_files(root, &[("a", r#"{"name":"a"}"#), ("b", r#"{"name":"b"}"#)]);
     let project_manifests = [(root.join("a"), &manifests[0]), (root.join("b"), &manifests[1])];
-    let validation = record_files(root, &project_manifests, &Vouched::All);
+    let mut validation = record_files(root, &project_manifests, &Vouched::All);
+    trust_recorded_stats(&mut validation);
     let stand_ins = |validation: &Validation| {
-        manifest_stand_ins(root, validation, vec![listed(root, "a"), listed(root, "b")]).is_some()
+        manifest_stand_ins(root, validation, &[listed(root, "a"), listed(root, "b")]).is_some()
     };
     assert!(stand_ins(&validation));
 
@@ -488,4 +515,24 @@ fn records_cannot_stand_in_once_a_manifest_may_have_changed() {
     assert!(!stand_ins(&validation), "another manifest file");
     fs::write(root.join("b/package.json"), r#"{"name":"b"}"#).unwrap();
     assert!(!stand_ins(&validation), "a rewritten manifest");
+}
+
+/// An edit that keeps the size and restores the mtime still moves the change
+/// time.
+#[test]
+fn records_cannot_stand_in_for_a_same_size_edit_with_its_mtime_restored() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    let manifests = project_files(root, &[("a", r#"{"name":"a","dependencies":{"b":"1"}}"#)]);
+    let validation = record_files(root, &[(root.join("a"), &manifests[0])], &Vouched::All);
+    let path = root.join("a/package.json");
+    let mtime = fs::metadata(&path)
+        .unwrap()
+        .modified()
+        .unwrap();
+
+    fs::write(&path, r#"{"name":"a","dependencies":{"b":"2"}}"#).unwrap();
+    pnpm_testing_utils::fs::set_mtime(&path, mtime);
+
+    assert!(manifest_stand_ins(root, &validation, &[listed(root, "a")]).is_none());
 }

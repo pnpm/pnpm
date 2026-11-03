@@ -20,7 +20,7 @@ use super::{
     local_file_blocks_fast_path, pnpmfiles_drift, project_structure_matches,
     relocation::{prove_move, rekeyed_validation_now},
     settle::current_lockfile_unusable_with_non_empty_wanted,
-    validation::{FileDigest, Vouched, trusts_every_file},
+    validation::{FileDigest, Vouched, records_need_refresh, trusts_every_file},
 };
 use std::collections::HashSet;
 
@@ -335,7 +335,7 @@ fn settle_proven_tree(
     let vouched = drift.proven_dirs(&[]);
     if drift.lockfile_changed || restored {
         record_state(check, state, &vouched, policy);
-    } else if drift.rehashed {
+    } else if drift.rehashed || records_need_refresh_from_files(check, state) {
         // A file changed in the same clock tick as this record is read again
         // next time anyway, so writing it would only repeat the write then.
         let new_state = refreshed_state(check, state, &vouched, validation_now(check), policy);
@@ -344,6 +344,18 @@ fn settle_proven_tree(
         }
     }
     Ok(())
+}
+
+/// Whether a check on the manifest files should refresh the records the next
+/// check takes manifests from. A check on stand-ins writes nothing.
+fn records_need_refresh_from_files(
+    check: &OptimisticRepeatInstallCheck<'_>,
+    state: &WorkspaceState,
+) -> bool {
+    !check.project_manifests.has_stand_ins()
+        && state.validation
+            .as_ref()
+            .is_some_and(|validation| records_need_refresh(check, validation))
 }
 
 /// Apply the gate's [`NewerPatch`] policy to a patch whose content changed.

@@ -124,25 +124,25 @@ pub fn install_already_up_to_date(
         catalogs: &catalogs,
     };
     let project_count = match stand_ins::check_from_records(check, &context, &state) {
-        Some(project_count) => Some(project_count),
-        None => check_from_files(check, &context, state)?,
+        stand_ins::RecordsCheck::UpToDate(project_count) => Some(project_count),
+        stand_ins::RecordsCheck::Undecided(listed) => {
+            check_from_files(check, &context, &state, listed)?
+        }
     };
     register_fast_path_workspace(check.config, &lockfile_root)?;
     Ok(UpToDateWorkspace { root: state_root.to_path_buf(), project_count })
 }
 
 /// The repeat-install check on the manifests discovery reads, returning the
-/// number of workspace projects.
+/// number of workspace projects. Discovery reads the projects `listed`
+/// names, when the caller already listed them.
 fn check_from_files(
     check: &UpToDateFastPathCheck<'_>,
     context: &FastPathContext<'_>,
-    state: WorkspaceState,
+    state: &WorkspaceState,
+    listed: Option<Vec<pnpm_workspace::ProjectManifestPaths>>,
 ) -> Result<Option<usize>, &'static str> {
-    let workspace_projects = discover_fast_path_projects(
-        check.config,
-        context.workspace_root,
-        context.workspace_manifest,
-    )?;
+    let workspace_projects = discover_fast_path_projects(check.config, context, listed)?;
     let project_manifests =
         build_project_manifests_list(check.manifest, workspace_projects.as_deref());
     check_fast_path_repeat_install(
@@ -174,16 +174,24 @@ fn load_fast_path_state(
 }
 
 /// [`load_workspace_projects`] inside the `discover_workspace_projects`
-/// span, skipping the pnpm-managed directories.
+/// span, skipping the pnpm-managed directories, or the read of the projects
+/// `listed` names.
 fn discover_fast_path_projects(
     config: &Config,
-    workspace_root: &Path,
-    workspace_manifest: Option<&pnpm_workspace::WorkspaceManifest>,
+    context: &FastPathContext<'_>,
+    listed: Option<Vec<pnpm_workspace::ProjectManifestPaths>>,
 ) -> Result<Option<Vec<pnpm_workspace::Project>>, &'static str> {
     let _span =
         tracing::debug_span!(target: "pacquet::install", "discover_workspace_projects").entered();
-    load_workspace_projects(workspace_root, workspace_manifest, &config.managed_directories())
-        .map_err(|_| "the workspace projects cannot be listed")
+    let discovered = match listed {
+        Some(listed) => pnpm_workspace::read_workspace_projects(listed).map(Some),
+        None => load_workspace_projects(
+            context.workspace_root,
+            context.workspace_manifest,
+            &config.managed_directories(),
+        ),
+    };
+    discovered.map_err(|_| "the workspace projects cannot be listed")
 }
 
 /// What [`install_already_up_to_date`] has established about the workspace
@@ -200,7 +208,7 @@ struct FastPathContext<'a> {
 
 /// The projects one repeat-install check covers.
 struct FastPathProjects<'a> {
-    state: WorkspaceState,
+    state: &'a WorkspaceState,
     manifests: &'a [(PathBuf, &'a PackageManifest)],
     /// See [`crate::DeclaredManifests::with_stand_ins`].
     recorded_digests: Option<&'a std::collections::HashMap<PathBuf, String>>,

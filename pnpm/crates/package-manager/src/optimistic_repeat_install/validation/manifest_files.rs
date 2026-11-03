@@ -12,21 +12,47 @@ use std::collections::BTreeMap;
 
 mod stand_ins;
 
-/// The top-level manifest fields the repeat-install check reads. A record
-/// keeps these, so a manifest rebuilt from them answers the check the way
-/// the file does.
-pub(crate) const CHECKED_FIELDS: [&str; 10] = [
-    "name",
-    "version",
-    "dependencies",
-    "devDependencies",
-    "optionalDependencies",
-    "peerDependencies",
-    "peerDependenciesMeta",
-    "bin",
-    "directories",
-    "publishConfig",
+/// The manifest fields the repeat-install check reads: a top-level field
+/// whole, or only one key of an object field. A record keeps these, so a
+/// manifest rebuilt from them answers the check the way the file does. Any
+/// other value stays out of the workspace state.
+const CHECKED_FIELDS: [(&str, Option<&str>); 10] = [
+    ("name", None),
+    ("version", None),
+    ("dependencies", None),
+    ("devDependencies", None),
+    ("optionalDependencies", None),
+    ("peerDependencies", None),
+    ("peerDependenciesMeta", None),
+    ("bin", None),
+    ("directories", Some("bin")),
+    ("publishConfig", Some("directory")),
 ];
+
+/// Whether a record in `validation` could not stand in for one of the
+/// `project_manifests` next time: it is missing or has no fields, or the
+/// manifest's file name or stat differs from it or is not trusted. A
+/// manifest that cannot be stat'd, or a write under `SOURCE_DATE_EPOCH`,
+/// would record nothing, so neither counts.
+pub(crate) fn records_need_refresh(
+    check: &crate::OptimisticRepeatInstallCheck<'_>,
+    validation: &Validation,
+) -> bool {
+    if check.config.source_date_epoch.is_some() {
+        return false;
+    }
+    check.project_manifests
+        .iter()
+        .any(|(root_dir, manifest)| {
+            let Some(stat) = FileStat::at(manifest.path()) else { return false };
+            let importer_id = importer_id_from_root_dir(check.workspace_root, root_dir);
+            let Some(file) = validation.manifest_files.get(&importer_id) else { return true };
+            file.fields.is_none()
+                || manifest.path().file_name() != Some(std::ffi::OsStr::new(&file.file_name))
+                || !stat.matches_stat(file.mtime_ns, file.ctime_ns, file.size)
+                || !stat_trusted(file.mtime_ns, file.ctime_ns, validation.recorded_at_ns)
+        })
+}
 
 /// The manifest file of each project the write vouches for, keyed by importer
 /// id. Each is stat'd before the caller probes the filesystem clock, and kept
@@ -110,8 +136,8 @@ fn stat_manifest(
     (manifest_digest(&on_disk) == digest).then(|| manifest_file(manifest, file_name, stat))
 }
 
-/// The previous record of the manifest, when its trusted stat is the current
-/// one and it was recorded with the same digest.
+/// The previous record of the manifest, when it has fields, its trusted stat
+/// is the current one, and it was recorded with the same digest.
 fn reusable_file<'previous>(
     previous: &'previous Validation,
     importer_id: &str,
@@ -119,7 +145,8 @@ fn reusable_file<'previous>(
     digest: &str,
 ) -> Option<&'previous ManifestFile> {
     let file = previous.manifest_files.get(importer_id)?;
-    let unchanged = file.file_name == file_name
+    let unchanged = file.fields.is_some()
+        && file.file_name == file_name
         && stat.matches_stat(file.mtime_ns, file.ctime_ns, file.size)
         && stat_trusted(file.mtime_ns, file.ctime_ns, previous.recorded_at_ns)
         && previous.manifests.get(importer_id).map(String::as_str) == Some(digest);
@@ -131,7 +158,14 @@ fn manifest_file(manifest: &PackageManifest, file_name: String, stat: FileStat) 
     let value = manifest.value();
     let fields = CHECKED_FIELDS
         .into_iter()
-        .filter_map(|field| Some((field.to_string(), value.get(field)?.clone())))
+        .filter_map(|(field, key)| {
+            let field_value = value.get(field)?;
+            let kept = match key {
+                None => field_value.clone(),
+                Some(key) => serde_json::json!({ key: field_value.get(key)? }),
+            };
+            Some((field.to_string(), kept))
+        })
         .collect();
     ManifestFile { file_name, mtime_ns, ctime_ns, size, fields: Some(fields) }
 }

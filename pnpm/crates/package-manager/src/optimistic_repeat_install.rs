@@ -183,22 +183,23 @@ pub(crate) fn check_optimistic_repeat_install_in(
     let Ok(Some(state)) = load_workspace_state(check.workspace_root) else {
         return Decision::Skipped { reason: "no workspace state on disk" };
     };
-    check_optimistic_repeat_install_with_state(check, state, scope)
+    check_optimistic_repeat_install_with_state(check, &state, scope)
 }
 
 pub(crate) fn check_optimistic_repeat_install_with_state(
     check: &OptimisticRepeatInstallCheck<'_>,
-    state: WorkspaceState,
+    state: &WorkspaceState,
     scope: Scope<'_>,
 ) -> Decision {
-    let (state, moved) = relocation::relocated_state(
-        &state,
+    let relocated = relocation::relocated_state(
+        state,
         check.workspace_root,
         check.project_manifests.as_slice(),
         check.config,
         check.catalogs,
-    )
-    .map_or((state, false), |relocated| (relocated, true));
+    );
+    let moved = relocated.is_some();
+    let state = relocated.as_ref().unwrap_or(state);
     let policy = GatePolicy {
         gate: Gate::Install,
         ignored_settings: &[],
@@ -208,7 +209,7 @@ pub(crate) fn check_optimistic_repeat_install_with_state(
         newer_patch: NewerPatch::Refuse,
         recorded_groups: RecordedGroups::Current,
     };
-    match check_freshness(check, &state, moved, &policy, scope) {
+    match check_freshness(check, state, moved, &policy, scope) {
         Ok(()) => Decision::UpToDate,
         Err(stale) => Decision::Skipped { reason: skip_reason(&stale) },
     }

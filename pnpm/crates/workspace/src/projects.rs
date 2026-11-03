@@ -115,7 +115,7 @@ pub fn find_workspace_projects_no_check(
     workspace_root: &Path,
     opts: &FindWorkspaceProjectsOpts,
 ) -> Result<Vec<Project>, FindWorkspaceProjectsError> {
-    read_projects(find_workspace_project_manifests(workspace_root, opts)?)
+    read_workspace_projects(find_workspace_project_manifests(workspace_root, opts)?)
 }
 
 /// A directory [`find_workspace_project_manifests`] found, before any
@@ -178,7 +178,10 @@ pub fn find_workspace_project_manifests(
     Ok(group_manifests_by_root(manifest_paths, workspace_root))
 }
 
-fn read_projects(
+/// The projects [`find_workspace_project_manifests`] listed, each read from
+/// its first existing manifest, in listing order. A directory without one is
+/// skipped.
+pub fn read_workspace_projects(
     root_groups: Vec<ProjectManifestPaths>,
 ) -> Result<Vec<Project>, FindWorkspaceProjectsError> {
     let read_results: Vec<Result<Option<Project>, FindWorkspaceProjectsError>> = root_groups
