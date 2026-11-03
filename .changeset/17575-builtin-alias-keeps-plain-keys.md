@@ -1,8 +1,11 @@
 ---
 "@pnpm/config.pick-registry-for-package": patch
+"@pnpm/deps.status": patch
+"@pnpm/installing.commands": patch
 "@pnpm/installing.deps-resolver": patch
 "@pnpm/lockfile.utils": patch
 "@pnpm/resolving.npm-resolver": patch
+"@pnpm/workspace.state": patch
 "pnpm": patch
 "pacquet": patch
 ---
