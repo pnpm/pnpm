@@ -40,7 +40,7 @@ pub fn connector(settings: &LibsqlSettings, section: &str) -> Result<LibsqlConne
         return Err(RegistryError::InvalidConfig {
             reason: format!(
                 "{section}.authToken requires an https:// or libsql:// url, or http:// on a \
-                 loopback host"
+                 loopback host",
             ),
         });
     }
