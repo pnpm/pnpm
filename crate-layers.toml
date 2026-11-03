@@ -172,3 +172,46 @@ crates = [
   "pnpm-testing-utils",
   "pnpr-fixtures",
 ]
+
+# The accepted size of each crate's largest cycle among its top-level
+# modules: a set of modules that all reach each other, so none can be read,
+# tested, or moved alone. A crate not listed accepts no cycle. The check fails
+# when a cycle grows and when one shrinks, so these numbers only go down.
+# `just crate-layers modules --crate <name>` lists a cycle and its references.
+[module_cycles]
+pnpm-cargo-resolver = 3
+pnpm-cli = 10
+pnpm-config = 10
+pnpm-crypto-shasums-file = 2
+pnpm-deps-inspection = 2
+pnpm-deps-inspection-peers = 2
+pnpm-deps-restorer = 25
+pnpm-env-installer = 2
+pnpm-executor = 3
+pnpm-fs = 4
+pnpm-git-fetcher = 5
+pnpm-http = 2
+pnpm-lockfile-verification = 2
+pnpm-network-web-auth = 2
+pnpm-package-manager = 12
+pnpm-platform-variants = 2
+pnpm-pnpr-client = 2
+pnpm-process = 2
+pnpm-publish = 2
+pnpm-python-installer = 11
+pnpm-python-resolver = 4
+pnpm-resolving-deps-resolver = 9
+pnpm-resolving-npm-resolver = 3
+pnpm-shared-artifact-protocol = 2
+pnpm-tarball = 2
+pnpm-transparency-log = 2
+pnpm-workspace = 2
+pnpm-workspace-manifest-writer = 4
+pnpm-workspace-projects-filter = 2
+pnpm-workspace-task-scheduler = 2
+pnpm-yaml-document-sync = 2
+pnpr = 3
+pnpr-auth = 2
+pnpr-config = 4
+pnpr-registry = 2
+pnpr-storage = 8

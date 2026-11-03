@@ -44,6 +44,8 @@ pub struct Edge {
 pub struct CrateGraph {
     pub crates: BTreeSet<String>,
     pub edges: BTreeSet<Edge>,
+    /// Each crate's directory, relative to the repository root.
+    pub dirs: BTreeMap<String, String>,
 }
 
 type Manifest = (String, Table);
@@ -61,15 +63,17 @@ pub fn read(tree: &dyn Tree) -> Result<CrateGraph, String> {
         .map(package_name)
         .collect::<Result<BTreeSet<_>, _>>()?;
     let mut edges = BTreeSet::new();
+    let mut dirs = BTreeMap::new();
     for manifest in &manifests {
         let from = package_name(manifest)?;
+        dirs.insert(from.clone(), manifest.0.trim_end_matches("/Cargo.toml").to_owned());
         for (to, kind) in dependencies(&manifest.1, &workspace_packages) {
             if crates.contains(&to) {
                 edges.insert(Edge { from: from.clone(), to, kind });
             }
         }
     }
-    Ok(CrateGraph { crates, edges })
+    Ok(CrateGraph { crates, edges, dirs })
 }
 
 fn parse(tree: &dyn Tree, path: &str) -> Result<Option<Table>, String> {

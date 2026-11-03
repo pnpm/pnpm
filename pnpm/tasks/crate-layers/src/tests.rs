@@ -7,6 +7,8 @@ use crate::{
 use pretty_assertions::assert_eq;
 use std::collections::BTreeMap;
 
+mod modules;
+
 struct MemoryTree(BTreeMap<&'static str, &'static str>);
 
 impl Tree for MemoryTree {
