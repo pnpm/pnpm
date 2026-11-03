@@ -285,12 +285,15 @@ fn a_storage_override_takes_the_default_metadata_database_along() {
 
 #[test]
 fn a_storage_override_leaves_a_named_metadata_database_where_it_is() {
-    let config = served_from(
-        "storage: ./storage\nmetadata:\n  url: sqlite:/var/lib/pnpr/metadata.sqlite\n",
-        std::path::Path::new("/srv/pnpr"),
+    let named = tempfile::TempDir::new().unwrap();
+    let database = named.path().join("metadata.sqlite");
+    let yaml = format!(
+        "storage: ./storage\nmetadata:\n  url: 'sqlite:{}'\n",
+        database
+            .display()
+            .to_string()
+            .replace('\'', "''"),
     );
-    assert_eq!(
-        config.storage.metadata,
-        pnpr_config::MetadataBackend::Sqlite("/var/lib/pnpr/metadata.sqlite".into()),
-    );
+    let config = served_from(&yaml, std::path::Path::new("/srv/pnpr"));
+    assert_eq!(config.storage.metadata, pnpr_config::MetadataBackend::Sqlite(database));
 }
