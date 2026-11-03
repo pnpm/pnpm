@@ -114,6 +114,21 @@ connections, so a read never waits for a write. A `sqlite:` URL cannot be
 combined with an `s3:` block. Back the database file up together with the
 hosted store.
 
+### Schema changes {#metadata-schema-changes}
+
+pnpr creates its tables in an empty database and marks the database with a
+fingerprint of their schema. pnpr does not migrate the metadata schema before
+1.0. When a pnpr release changes the schema, it refuses a database that holds
+another one, before it changes anything in it, with an error that names both
+fingerprints. It refuses a database with pnpr's metadata tables and no
+fingerprint the same way.
+
+To start that pnpr, wipe pnpr's metadata tables by hand: delete the SQLite
+database file, with its `-wal` and `-shm` files, or drop the `schema_version`
+table and the metadata tables beside it from a libSQL database. Tables of the
+[auth backend](auth-backends.md) in the same database are not metadata tables.
+pnpr then creates the tables afresh.
+
 ## Metadata in libSQL {#libsql-metadata}
 
 Several pnpr instances share one metadata database when its URL names a

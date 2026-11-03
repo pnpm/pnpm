@@ -43,7 +43,17 @@ impl Server {
         replica: Option<&str>,
         sync_interval_secs: u64,
     ) -> Arc<SqlMetadata> {
-        let settings = LibsqlSettings {
+        Arc::new(SqlMetadata::open_libsql(&self.settings(replica, sync_interval_secs)))
+    }
+
+    /// The settings of an instance on this primary, as [`Self::instance`]
+    /// opens it.
+    pub(super) fn settings(
+        &self,
+        replica: Option<&str>,
+        sync_interval_secs: u64,
+    ) -> LibsqlSettings {
+        LibsqlSettings {
             url: format!("http://{}", self.address),
             auth_token: None,
             replica_path: replica.map(|name| {
@@ -54,8 +64,7 @@ impl Server {
             }),
             sync_interval_secs: Some(sync_interval_secs),
             max_connections: None,
-        };
-        Arc::new(SqlMetadata::open_libsql(&settings))
+        }
     }
 
     fn statements(&self) -> usize {

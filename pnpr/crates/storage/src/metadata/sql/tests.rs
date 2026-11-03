@@ -11,6 +11,7 @@ mod libsql;
 mod log;
 mod notes;
 mod publications;
+mod schema;
 
 use crate::{
     DocumentWrite, HostedDocumentVersion, Storage,
@@ -55,6 +56,20 @@ impl Db {
         Self::new(TempDir::new().unwrap(), Adapter::Libsql { server, replica })
     }
 
+    /// A connection to the database that skips the schema check, as an
+    /// operator's own client would be.
+    pub(super) fn adapter(&self) -> Box<dyn super::adapter::Adapter> {
+        match &self.adapter {
+            Adapter::Sqlite => {
+                Box::new(super::sqlite::SqliteAdapter::open(&sqlite_path(&self.tmp)).unwrap())
+            }
+            #[cfg(feature = "backend-libsql")]
+            Adapter::Libsql { server, .. } => {
+                Box::new(super::libsql::LibsqlAdapter::new(server.settings(None, 3600)))
+            }
+        }
+    }
+
     fn new(tmp: TempDir, adapter: Adapter) -> Self {
         Self {
             tmp,
@@ -71,8 +86,12 @@ pub(super) fn config(tmp: &TempDir) -> StorageConfig {
         cache_dir: tmp.path().join("cache"),
         cache: pnpr_config::CacheConfig::default(),
         hosted_backend: HostedStoreConfig::Fs,
-        metadata: MetadataBackend::Sqlite(tmp.path().join("metadata.sqlite")),
+        metadata: MetadataBackend::Sqlite(sqlite_path(tmp)),
     }
+}
+
+fn sqlite_path(tmp: &TempDir) -> std::path::PathBuf {
+    tmp.path().join("metadata.sqlite")
 }
 
 /// Another pnpr instance on `db`, with a database handle of its own. A

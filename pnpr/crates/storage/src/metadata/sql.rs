@@ -135,7 +135,7 @@ impl SqlMetadata {
     ///
     /// # Errors
     ///
-    /// The database cannot be opened, or was written by another pnpr layout.
+    /// The database cannot be opened, or holds another metadata schema.
     pub fn open_sqlite(path: &Path) -> Result<Self> {
         let adapter = sqlite::SqliteAdapter::open(path)?;
         let metadata = Self::with_adapter(Box::new(adapter), path.display().to_string());
@@ -164,8 +164,9 @@ impl SqlMetadata {
         }
     }
 
-    /// Create the schema in a new database, and refuse one written by another
-    /// pnpr layout.
+    /// Create the schema in an empty database, and refuse one that holds
+    /// another schema. pnpr does not migrate the schema before 1.0: the
+    /// operator wipes pnpr's metadata tables, and pnpr creates them afresh.
     fn ensure_schema(&self) -> Result<()> {
         if self.schema.get().is_some() {
             return Ok(());
@@ -174,18 +175,19 @@ impl SqlMetadata {
         if self.schema.get().is_some() {
             return Ok(());
         }
-        let mut prepared = None;
+        let mut refused = None;
         self.adapter.write(&mut |connection| {
-            prepared = Some(schema::prepare(connection)?);
+            refused = schema::prepare(connection)?;
             Ok(())
         })?;
-        let stored = prepared.flatten();
-        if stored != Some(schema::SCHEMA_VERSION) {
-            return Err(RegistryError::StorageUnavailable {
+        if let Some(stored) = refused {
+            return Err(RegistryError::Internal {
                 reason: format!(
-                    "the metadata database {} uses schema {stored:?}; this pnpr reads schema {}",
+                    "the metadata schema changed: the metadata database {} holds {stored}, and \
+                     this pnpr expects schema {}. pnpr does not migrate its metadata before \
+                     1.0; wipe pnpr's metadata tables, and pnpr creates them afresh",
                     self.name,
-                    schema::SCHEMA_VERSION,
+                    schema::short(schema::fingerprint()),
                 ),
             });
         }

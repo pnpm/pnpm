@@ -6,16 +6,24 @@
 //! constraint. `revision_key` is `ordinary` for a version outside the registry
 //! revision protocol.
 
-use super::{adapter::Connection, batch::WriteTransaction};
+use super::{
+    adapter::{Connection, Value},
+    batch::WriteTransaction,
+};
 use pnpr_error::Result;
+use std::{fmt, sync::LazyLock};
 
-/// The layout this pnpr reads. pnpr is pre-1.0: a change to the layout
-/// replaces it in place rather than migrating.
-pub(super) const SCHEMA_VERSION: i64 = 4;
+/// The table that marks a database as pnpr's metadata. Its one row is the
+/// [`fingerprint`] of the schema that created the tables.
+///
+/// pnpr is pre-1.0 and does not migrate the schema. A database whose marker
+/// names another fingerprint is refused, and the operator wipes pnpr's
+/// metadata tables by hand so that pnpr creates them afresh.
+pub(super) const MARKER: &str = "schema_version";
 
-const TABLES: &str = "
-CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL) STRICT;
-
+/// The tables and indexes of the metadata. [`fingerprint`] is derived from
+/// them, so any change to a statement here is a change of the schema.
+pub(super) const TABLES: &str = "
 -- The current generation of each hosted catalog.
 CREATE TABLE IF NOT EXISTS catalogs (
     catalog TEXT NOT NULL PRIMARY KEY,
@@ -265,30 +273,130 @@ CREATE TABLE IF NOT EXISTS note_history (
 ) STRICT;
 ";
 
-/// Create the tables in a new database, and report the schema version the
-/// database holds.
-pub(super) fn prepare(connection: &dyn Connection) -> Result<Option<i64>> {
+/// What a database holds where pnpr expects its metadata.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) enum Stored {
+    /// The marker names this fingerprint.
+    Fingerprint(String),
+    /// The marker holds an integer, the schema version pnpr stored before it
+    /// stored fingerprints.
+    Version(i64),
+    /// The marker holds anything else, or more or fewer than one row.
+    Unreadable,
+    /// Metadata tables without a marker.
+    Unmarked,
+}
+
+impl fmt::Display for Stored {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Fingerprint(fingerprint) => write!(f, "schema {}", short(fingerprint)),
+            Self::Version(version) => write!(f, "the integer schema version {version}"),
+            Self::Unreadable => f.write_str("an unreadable schema marker"),
+            Self::Unmarked => f.write_str("metadata tables without a schema marker"),
+        }
+    }
+}
+
+/// The first 12 hex digits of `fingerprint`, as errors name it.
+pub(super) fn short(fingerprint: &str) -> &str {
+    fingerprint
+        .get(..12)
+        .unwrap_or(fingerprint)
+}
+
+/// The fingerprint of the schema this pnpr reads: the SHA-256, in hex, of
+/// [`TABLES`] without its comment lines and with every run of whitespace
+/// collapsed to one space. Reformatting or commenting the statements leaves
+/// it unchanged; any other edit changes it.
+pub(super) fn fingerprint() -> &'static str {
+    static FINGERPRINT: LazyLock<String> = LazyLock::new(|| fingerprint_of(TABLES));
+    &FINGERPRINT
+}
+
+pub(super) fn fingerprint_of(script: &str) -> String {
+    let canonical = statements(script)
+        .map(|statement| {
+            statement
+                .split_whitespace()
+                .collect::<Vec<_>>()
+                .join(" ")
+        })
+        .collect::<Vec<_>>()
+        .join(";\n");
+    pnpm_crypto_hash::create_hex_hash(&canonical)
+}
+
+/// Create the schema in an empty database, and report what a database that
+/// is not empty holds unless it is this pnpr's schema.
+///
+/// The database is inspected before anything is created, so a database that
+/// is refused is left as it was. A database counts as empty when it has no
+/// marker and none of the metadata tables; tables of anything else that
+/// shares it, such as pnpr's auth tables, do not count.
+pub(super) fn prepare(connection: &dyn Connection) -> Result<Option<Stored>> {
     let transaction = WriteTransaction::begin(connection)?;
+    let present = transaction
+        .query("SELECT name FROM sqlite_master WHERE type = 'table'", params![])?
+        .into_iter()
+        .map(|mut row| row.get::<String>(0))
+        .collect::<Result<Vec<_>>>()?;
+    if present
+        .iter()
+        .any(|table| table == MARKER)
+    {
+        return Ok(match stored(&*transaction)? {
+            Stored::Fingerprint(stored) if stored == fingerprint() => None,
+            stored => Some(stored),
+        });
+    }
+    let tables = table_names(TABLES);
+    if present
+        .iter()
+        .any(|table| tables.contains(table))
+    {
+        return Ok(Some(Stored::Unmarked));
+    }
     for statement in statements(TABLES) {
         transaction.execute(&statement, params![])?;
     }
-    let stored = stored_version(&*transaction)?;
-    if stored.is_none() {
-        transaction.execute(
-            "INSERT INTO schema_version (version) VALUES (?1)",
-            params![SCHEMA_VERSION],
-        )?;
-    }
+    transaction.execute(
+        &format!("CREATE TABLE {MARKER} (fingerprint TEXT NOT NULL) STRICT"),
+        params![],
+    )?;
+    transaction.execute(
+        &format!("INSERT INTO {MARKER} (fingerprint) VALUES (?1)"),
+        params![fingerprint()],
+    )?;
     transaction.commit()?;
-    Ok(stored.or(Some(SCHEMA_VERSION)))
+    Ok(None)
 }
 
-/// The schema version stored in the database, `None` in a new one.
-fn stored_version(connection: &dyn Connection) -> Result<Option<i64>> {
-    connection
-        .query_optional("SELECT version FROM schema_version", params![])?
-        .map(|mut row| row.get(0))
-        .transpose()
+/// What the marker holds. It is read whole, so a marker of any layout is
+/// read rather than failing on a column it lacks.
+fn stored(connection: &dyn Connection) -> Result<Stored> {
+    let mut rows = connection.query(&format!("SELECT * FROM {MARKER}"), params![])?;
+    if rows.len() != 1 {
+        return Ok(Stored::Unreadable);
+    }
+    Ok(match rows.remove(0).get::<Value>(0) {
+        Ok(Value::Text(fingerprint)) => Stored::Fingerprint(fingerprint),
+        Ok(Value::Integer(version)) => Stored::Version(version),
+        _ => Stored::Unreadable,
+    })
+}
+
+/// The tables `script` creates.
+pub(super) fn table_names(script: &str) -> Vec<String> {
+    statements(script)
+        .filter_map(|statement| {
+            let rest = statement.strip_prefix("CREATE TABLE ")?;
+            let rest = rest.strip_prefix("IF NOT EXISTS ").unwrap_or(rest);
+            rest.split(|c: char| c.is_whitespace() || c == '(')
+                .next()
+                .map(str::to_string)
+        })
+        .collect()
 }
 
 /// The statements of `script`, without its comments. Each runs on its own:

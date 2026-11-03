@@ -273,3 +273,9 @@ impl<Inner: FromValue> FromValue for Option<Inner> {
         }
     }
 }
+
+impl FromValue for Value {
+    fn from_value(value: Value) -> Result<Self, Value> {
+        Ok(value)
+    }
+}
