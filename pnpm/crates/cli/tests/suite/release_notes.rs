@@ -338,3 +338,66 @@ fn view_reads_no_notes_from_a_registry_not_declared_pnpr() {
     notes.assert();
     assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "");
 }
+
+/// `pnpm outdated --notes` reads the notes of the upgrade from a registry
+/// declared `serverType: pnpr`: a `releaseNotes` field in the JSON report,
+/// a block below the table.
+#[test]
+fn outdated_notes_show_the_notes_of_the_upgrade() {
+    let dir = tempfile::tempdir().expect("project dir");
+    let mut server = mockito::Server::new();
+    let registry = format!("{}/", server.url());
+    fs::write(dir.path().join(".npmrc"), format!("registry={registry}\n")).expect("write .npmrc");
+    fs::write(
+        dir.path().join("pnpm-workspace.yaml"),
+        format!("minimumReleaseAge: 0\nregistries:\n  '{registry}':\n    serverType: pnpr\n"),
+    )
+    .expect("write pnpm-workspace.yaml");
+    let manifest =
+        json!({ "name": "app", "version": "1.0.0", "dependencies": { "notes-dep": "^1.0.0" } });
+    fs::write(dir.path().join("package.json"), manifest.to_string()).expect("write package.json");
+    fs::write(
+        dir.path().join("pnpm-lock.yaml"),
+        "lockfileVersion: '9.0'\n\nimporters:\n\n  .:\n    dependencies:\n      notes-dep:\n        specifier: ^1.0.0\n        version: 1.0.0\n\npackages:\n\n  notes-dep@1.0.0:\n    resolution: {integrity: sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==}\n\nsnapshots:\n\n  notes-dep@1.0.0: {}\n",
+    )
+    .expect("write pnpm-lock.yaml");
+    let tarball = |version: &str| format!("{registry}notes-dep/-/notes-dep-{version}.tgz");
+    let _packument = server
+        .mock("GET", "/notes-dep")
+        .with_body(
+            json!({
+                "name": "notes-dep",
+                "dist-tags": { "latest": "1.1.0" },
+                "versions": {
+                    "1.0.0": { "name": "notes-dep", "version": "1.0.0", "dist": { "tarball": tarball("1.0.0") } },
+                    "1.1.0": { "name": "notes-dep", "version": "1.1.0", "dist": { "tarball": tarball("1.1.0") } },
+                },
+                "time": { "1.0.0": "2020-01-01T00:00:00.000Z", "1.1.0": "2020-02-01T00:00:00.000Z" },
+            })
+            .to_string(),
+        )
+        .create();
+    let _notes = server
+        .mock("GET", "/notes-dep/-/notes")
+        .with_body(json!({ "notes": [{ "version": "1.1.0", "text": "Faster." }] }).to_string())
+        .create();
+
+    let output = pnpm(dir.path())
+        .with_args(["outdated", "--notes", "--format", "json"])
+        .output()
+        .expect("run pnpm outdated");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let report: Value = serde_json::from_str(stdout.trim())
+        .unwrap_or_else(|error| {
+            panic!("{error}: {stdout}\n{}", String::from_utf8_lossy(&output.stderr))
+        });
+    assert_eq!(report["notes-dep"]["latest"], "1.1.0", "{report}");
+    assert_eq!(report["notes-dep"]["releaseNotes"]["versions"][0]["notes"], "Faster.", "{report}");
+
+    let output = pnpm(dir.path())
+        .with_args(["outdated", "--notes"])
+        .output()
+        .expect("run pnpm outdated");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("notes-dep 1.0.0 => 1.1.0\n  1.1.0:\n    Faster."), "{stdout}");
+}
