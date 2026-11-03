@@ -106,10 +106,16 @@ async fn stage_archive(
         put = put.header("authorization", authorization);
     }
     let response = put.send().await.map_err(|error| failed(error.to_string()))?;
-    let status = response.status();
-    if status.is_success() {
+    if response.status().is_success() {
         return Ok(());
     }
+    Err(failed(refusal(response).await))
+}
+
+/// What a refused upload's `response` says, keeping only the start of a long
+/// body.
+async fn refusal(response: reqwest::Response) -> String {
+    let status = response.status().as_u16();
     let body = match read_limited_body(response, ERROR_BODY_LIMIT).await {
         Ok(body) => {
             let ellipsis = if body.truncated { "…" } else { "" };
@@ -117,7 +123,7 @@ async fn stage_archive(
         }
         Err(_) => String::new(),
     };
-    Err(failed(format!("PUT answered {}: {body}", status.as_u16())))
+    format!("PUT answered {status}: {body}")
 }
 
 /// An archive could not be staged before the commit that references it.

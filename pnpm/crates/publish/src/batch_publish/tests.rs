@@ -34,7 +34,7 @@ fn a_group_within_the_commit_limit_names_its_archives_by_integrity() {
             .all(|document| {
                 attachment(document).get("data").is_none()
                     && attachment(document)["integrity"] == "sha512-AAAA"
-            })
+            }),
     );
 }
 
@@ -49,6 +49,6 @@ fn a_group_over_the_commit_limit_sends_its_archives_inline() {
             .all(|document| {
                 attachment(document)["data"] == "AAAA"
                     && attachment(document).get("integrity").is_none()
-            })
+            }),
     );
 }

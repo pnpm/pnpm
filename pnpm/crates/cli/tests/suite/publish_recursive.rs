@@ -270,17 +270,18 @@ fn references_staged_archives(body: &Value) -> bool {
             package["_attachments"]
                 .as_object()
                 .is_some_and(|attachments| {
-                    !attachments.is_empty()
-                        && attachments
-                            .values()
-                            .all(|attachment| {
-                                attachment.get("data").is_none()
-                                    && attachment["integrity"]
-                                        .as_str()
-                                        .is_some_and(|integrity| integrity.starts_with("sha512-"))
-                            })
+                    !attachments.is_empty() && attachments.values().all(names_staged_archive)
                 })
         })
+}
+
+/// Whether `attachment` names a staged archive by integrity rather than
+/// carrying `data`.
+fn names_staged_archive(attachment: &Value) -> bool {
+    attachment.get("data").is_none()
+        && attachment["integrity"]
+            .as_str()
+            .is_some_and(|integrity| integrity.starts_with("sha512-"))
 }
 
 /// A batch bound for a registry declared `serverType: pnpr` uploads each
