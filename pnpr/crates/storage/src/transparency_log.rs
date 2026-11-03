@@ -102,7 +102,7 @@ pub struct InclusionProof {
 }
 
 impl Storage {
-    /// The latest checkpoint of `log`, `None` before its first integration.
+    /// The latest checkpoint of `log`, `None` until an integration signs one.
     pub async fn log_checkpoint(&self, log: &LogId) -> Result<Option<StoredCheckpoint>> {
         let Some(note) = self.root.read_record(LOG_NAMESPACE, &log.key("checkpoint")).await? else {
             return Ok(None);
@@ -120,6 +120,9 @@ impl Storage {
     /// Integrate every entry of `log` sequenced so far that its integrated
     /// tree does not cover, sign a checkpoint of the tree they make with
     /// `key` under the log's origin, and return its tree head.
+    ///
+    /// A log with no sequenced entry signs no checkpoint: its tree head is the
+    /// empty tree's, and its checkpoint stays `None`.
     ///
     /// The tree a log was integrated to is recorded in the SQL metadata store,
     /// and the stored tiles must hash to its root before integration extends

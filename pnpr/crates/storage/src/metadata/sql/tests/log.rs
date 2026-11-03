@@ -221,7 +221,25 @@ async fn altered_tiles_are_never_signed_over(db: Db) {
     assert_eq!(checkpoint.tree_head.size, 3);
 }
 
+/// A log with no sequenced entry has the empty tree and no checkpoint.
+async fn an_empty_log_signs_no_checkpoint(db: Db) {
+    let storage = storage(&db);
+    let signer = NoteSigner::from_private_key(SIGNING_KEY).unwrap();
+    let log = LogId { catalog: "acme".to_string(), ecosystem: Ecosystem::Npm };
+    let tree_head = storage.integrate_log(&log, &signer).await.unwrap();
+    assert_eq!(tree_head.size, 0);
+    assert_eq!(tree_head.hash, pnpm_transparency_log::EMPTY_HASH);
+    assert!(
+        storage
+            .log_checkpoint(&log)
+            .await
+            .unwrap()
+            .is_none(),
+    );
+}
+
 conformance! {
+    an_empty_log_signs_no_checkpoint,
     altered_tiles_are_never_signed_over,
     records_are_sequenced_with_their_versions_and_integrated_after,
     a_removed_version_keeps_its_log_entry,
