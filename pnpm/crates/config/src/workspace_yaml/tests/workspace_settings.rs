@@ -766,7 +766,8 @@ fn parses_hoisting_limits_from_yaml_and_applies() {
 #[test]
 fn omitting_hoisting_limits_and_external_dependencies_keeps_defaults() {
     let yaml = "";
-    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    let settings: WorkspaceSettings =
+        serde_saphyr::from_str::<Option<WorkspaceSettings>>(yaml).unwrap().unwrap_or_default();
     assert!(settings.hoisting_limits.is_none());
     assert!(settings.external_dependencies.is_none());
 
