@@ -94,7 +94,7 @@ async fn refused(db: &Db) -> String {
     assert!(reason.contains("wipe pnpr's metadata tables"), "{reason}");
     assert!(
         reason.contains(&format!("expects schema {}", schema::short(schema::fingerprint()))),
-        "{reason}"
+        "{reason}",
     );
     reason
 }

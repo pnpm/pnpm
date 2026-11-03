@@ -392,7 +392,7 @@ pub(super) fn table_names(script: &str) -> Vec<String> {
         .filter_map(|statement| {
             let rest = statement.strip_prefix("CREATE TABLE ")?;
             let rest = rest.strip_prefix("IF NOT EXISTS ").unwrap_or(rest);
-            rest.split(|c: char| c.is_whitespace() || c == '(')
+            rest.split(|character: char| character.is_whitespace() || character == '(')
                 .next()
                 .map(str::to_string)
         })
