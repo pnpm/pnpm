@@ -39,6 +39,7 @@ fn wildcard_equality_keeps_its_operator() {
     assert_eq!(update("==1.*", "2.3.1", true).as_deref(), Some("==2.*"));
     assert_eq!(update("==1.2.*", "2.3.1", true).as_deref(), Some("==2.3.*"));
     assert_eq!(update("==1.*", "2.1rc1", true).as_deref(), Some("==2.*, >=2.1rc1"));
+    assert_eq!(update("==2.*, >=2.1rc1", "3.0", true).as_deref(), Some("==3.*"));
     assert_eq!(update("==1.*", "1.4", true), None);
     assert_eq!(update("==1.*", "2.0", false), None);
 }
@@ -46,4 +47,12 @@ fn wildcard_equality_keeps_its_operator() {
 #[test]
 fn upper_bound_becomes_a_lower_bound_past_it() {
     assert_eq!(update("<2", "2.0", true).as_deref(), Some(">=2.0"));
+}
+
+#[test]
+fn a_selected_prerelease_stays_admitted() {
+    assert_eq!(update("==1.*", "1.4rc1", true).as_deref(), Some("==1.*, >=1.4rc1"));
+    assert_eq!(update("<2", "1.4rc1", true).as_deref(), Some(">=1.4rc1, <2"));
+    assert_eq!(update("==1.*, >=1.4rc1", "1.4rc1", true), None);
+    assert_eq!(update(">=1.0", "1.4rc1", true).as_deref(), Some(">=1.4rc1"));
 }

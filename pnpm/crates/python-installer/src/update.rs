@@ -304,17 +304,6 @@ fn compatible_release_floor(spec: &VersionSpecifier, version: &Version) -> Versi
     if spec.contains(version) { floor.max(spec.version().clone()) } else { floor }
 }
 
-/// A `==X.*` requirement moved to `version`. A pre-release gets a lower bound
-/// that names it, so the requirement still admits it.
-fn wildcard_equality(spec: &VersionSpecifier, version: &Version) -> String {
-    let wildcard = format!("=={}.*", release_prefix(version, spec.version().release().len()));
-    if version.any_prerelease() {
-        format!("{wildcard},>={}", version.clone().without_local())
-    } else {
-        wildcard
-    }
-}
-
 /// `version`'s epoch and first `segments` release numbers, zero-padded.
 fn release_prefix(version: &Version, segments: usize) -> Version {
     Version::new(padded_release(version, segments)).with_epoch(version.epoch())
@@ -326,7 +315,51 @@ fn padded_release(version: &Version, segments: usize) -> Vec<u64> {
     release
 }
 
+/// Updates `existing` for `version`. A selected pre-release must stay admitted,
+/// and the resolver admits one only when a clause names a pre-release, so a
+/// result that names none gets a `>=version` clause. That clause is set aside
+/// while updating the rest of the requirement.
 fn updated_existing_specifiers(
+    existing: &VersionSpecifiers,
+    version: &Version,
+    force_bump: bool,
+) -> Result<Option<VersionSpecifiers>> {
+    let primary = without_prerelease_floor(existing);
+    let updated = updated_primary_specifiers(&primary, version, force_bump)?;
+    if !version.any_prerelease() {
+        return Ok(updated);
+    }
+    let saved = updated.unwrap_or(primary);
+    let saved = if saved.iter().any(VersionSpecifier::any_prerelease) {
+        saved
+    } else {
+        format!("{saved},>={}", version.clone().without_local()).parse().into_diagnostic()?
+    };
+    Ok((saved != *existing).then_some(saved))
+}
+
+/// `existing` without a `>=` pre-release clause that accompanies one other clause.
+fn without_prerelease_floor(existing: &VersionSpecifiers) -> VersionSpecifiers {
+    let is_floor = |clause: &VersionSpecifier| {
+        *clause.operator() == Operator::GreaterThanEqual && clause.any_prerelease()
+    };
+    if existing.len() != 2
+        || existing
+            .iter()
+            .filter(|clause| is_floor(clause))
+            .count()
+            != 1
+    {
+        return existing.clone();
+    }
+    existing
+        .iter()
+        .filter(|clause| !is_floor(clause))
+        .cloned()
+        .collect()
+}
+
+fn updated_primary_specifiers(
     existing: &VersionSpecifiers,
     version: &Version,
     force_bump: bool,
@@ -339,7 +372,7 @@ fn updated_existing_specifiers(
             Operator::TildeEqual => Some(format!("~={}", compatible_release_floor(spec, version))),
             Operator::GreaterThanEqual => Some(format!(">={version}")),
             Operator::EqualStar => (force_bump && !existing.contains(version)).then(|| {
-                wildcard_equality(spec, version)
+                format!("=={}.*", release_prefix(version, spec.version().release().len()))
             }),
             _ => (force_bump && !existing.contains(version)).then(|| format!(">={version}")),
         };
