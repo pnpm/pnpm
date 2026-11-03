@@ -24,6 +24,7 @@ use pnpr_storage::{
         ArtifactMember, BatchDocument, Generation, PublicationCommit, PublicationRequest,
         PublishNotes,
     },
+    transparency_log::LogId,
 };
 use serde_json::json;
 use ssri::{Algorithm, IntegrityOpts};
@@ -169,6 +170,34 @@ async fn commit_staged(
     };
     let promoted = promote_archives(state, &mut staged).await?;
     let artifacts = promoted.artifacts.clone();
+    let (documents, logged) = batch_documents(staged);
+    let commit =
+        match database.commit_publication(&catalog, documents, artifacts, notes, request).await {
+            Ok(commit) => commit,
+            Err(err) => {
+                promoted.remove_written(state).await;
+                return Err(err);
+            }
+        };
+    if !commit.replayed {
+        for ecosystem in logged {
+            let log = LogId { catalog: catalog.clone(), ecosystem };
+            super::super::release_record_logs::integrate_in_background(state, log);
+        }
+    }
+    Ok(commit.into())
+}
+
+/// The documents a commit writes, and the ecosystems whose logs the records
+/// they bring are sequenced in.
+fn batch_documents(
+    staged: Vec<StagedPublish>,
+) -> (Vec<BatchDocument>, std::collections::BTreeSet<pnpr_package_name::Ecosystem>) {
+    let logged = staged
+        .iter()
+        .filter(|stage| !stage.verification.records.is_empty())
+        .map(|stage| stage.ecosystem)
+        .collect();
     let documents = staged
         .into_iter()
         .map(|stage| BatchDocument {
@@ -180,15 +209,7 @@ async fn commit_staged(
             records: stage.verification.records,
         })
         .collect();
-    let commit =
-        match database.commit_publication(&catalog, documents, artifacts, notes, request).await {
-            Ok(commit) => commit,
-            Err(err) => {
-                promoted.remove_written(state).await;
-                return Err(err);
-            }
-        };
-    Ok(commit.into())
+    (documents, logged)
 }
 
 /// The one organization every package of a publish belongs to. A

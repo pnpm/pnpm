@@ -227,5 +227,6 @@ fn with_routing(
             pipeline: PipelineFeature::default(),
         },
         routing,
+        release_records: pnpr_config::ReleaseRecordsConfig::default(),
     }
 }

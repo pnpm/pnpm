@@ -94,6 +94,7 @@ fn report_staged_archive_sweep(swept: usize) {
 async fn load_startup_auth(config: &Config) -> pnpr_error::Result<AuthState> {
     if config.features.registry.enabled {
         recover_publish_journal(config).await?;
+        super::release_record_logs::integrate_sequenced_logs(config)?;
         sweep_abandoned_uploads(config).await?;
         sweep_expired_staged_archives(config).await?;
         crate::cache_maintenance::prune_orphaned_namespaces_startup(config).await?;

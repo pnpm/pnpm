@@ -9,6 +9,7 @@ pub mod publish;
 pub mod streaming;
 
 pub mod tombstones;
+pub mod transparency_log;
 
 pub mod upload;
 

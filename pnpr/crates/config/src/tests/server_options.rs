@@ -451,3 +451,29 @@ fn package_documents_reject_a_window_shorter_than_30_days() {
         assert!(matches!(result, Err(RegistryError::InvalidConfig { .. })), "accepted {yaml:?}");
     }
 }
+
+/// Go's `note` test key, as `note.GenerateKey` writes it.
+const LOG_SIGNING_KEY: &str =
+    "PRIVATE+KEY+PeterNeumann+c74f20a3+AYEKFALVFGyNhPJEMzD1QIDr+Y7hfZx09iUvxdXHKDFz";
+
+#[test]
+fn release_records_publish_no_logs_without_a_signing_key() {
+    let config = Config::from_yaml_str("", Path::new("/config"), listen(), None).unwrap();
+    assert!(config.release_records.log_signing_key.is_none());
+}
+
+#[test]
+fn release_records_read_the_log_signing_key() {
+    let yaml = format!("releaseRecords:\n  logSigningKey: {LOG_SIGNING_KEY}\n");
+    let config = Config::from_yaml_str(&yaml, Path::new("/config"), listen(), None).unwrap();
+    let signer = config.release_records.log_signing_key.clone().unwrap();
+    assert_eq!(signer.verifier_key().key_name(), "PeterNeumann+c74f20a3");
+    assert!(!format!("{:?}", config.release_records).contains("AYEKFALV"));
+
+    let mangled = format!("releaseRecords:\n  logSigningKey: {}x\n", &LOG_SIGNING_KEY[..60]);
+    let err = Config::from_yaml_str(&mangled, Path::new("/config"), listen(), None).unwrap_err();
+    assert!(
+        matches!(err, RegistryError::InvalidConfig { ref reason } if reason.contains("logSigningKey")),
+        "{err:?}",
+    );
+}

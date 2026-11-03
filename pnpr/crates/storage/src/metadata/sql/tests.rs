@@ -8,6 +8,7 @@ mod conformance;
 mod concurrency;
 #[cfg(feature = "backend-libsql")]
 mod libsql;
+mod log;
 mod notes;
 mod publications;
 

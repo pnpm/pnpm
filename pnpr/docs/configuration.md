@@ -592,6 +592,26 @@ packageDocuments:
 | `splitThreshold` | The size of a package's document with every manifest inline above which only the versions a resolution likely picks keep their manifests. pnpr decides on every read, so a document can go back below it, for example when a publish after a long gap drops the publish times that fall out of the window. Defaults to `64KiB`. |
 | `publishTimeWindow` | How far back from a package's last publish its versions keep their publish times. Defaults to `30d`, which is also the shortest window pnpr accepts. |
 
+## `releaseRecords`
+
+How pnpr logs the [release records](endpoints.md#pnprs-package-document) of
+the versions it hosts with [SQLite metadata](storage.md#sqlite-metadata). Each
+hosted organization has a transparency log per ecosystem, in the
+[C2SP tiled log](https://c2sp.org/tlog-tiles) format Go's checksum database
+uses. A version's log entry is recorded in the same transaction that accepts
+the version. After the commit, pnpr adds the entry to the log's tiles and signs
+a new checkpoint. Tiles and checkpoints are kept in the hosted store, beside
+the archives.
+
+```yaml title="pnpr.yaml"
+releaseRecords:
+  logSigningKey: ${PNPR_LOG_SIGNING_KEY}
+```
+
+| Field | Meaning |
+| --- | --- |
+| `logSigningKey` | The signed-note private key that signs every log's checkpoints, `PRIVATE+KEY+<name>+<key hash>+<key>`, as Go's [`note.GenerateKey`](https://pkg.go.dev/golang.org/x/mod/sumdb/note#GenerateKey) writes one. Its name starts every log's origin: `<name>/npm` for the default organization, and `<name>/npm/~<organization>` for another one. Each log's checkpoints are signed with the same Ed25519 key under the log's origin. Without a key, pnpr records log entries but publishes no logs. Use [environment variable substitution](#environment-variable-substitution) rather than writing the key into the file. |
+
 ## Security limits and protections
 
 pnpr includes built-in protections against denial-of-service and brute-force attacks:

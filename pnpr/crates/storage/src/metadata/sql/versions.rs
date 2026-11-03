@@ -108,10 +108,15 @@ fn insert_release_record(
     if !describes_version {
         return Err(invalid(format!("describes {}", key.subject_name())));
     }
+    let entry = record
+        .log_entry()
+        .map_err(|err| invalid(err.to_string()))?
+        .to_bytes();
+    let log_index = sequence_log_entry(commit, &entry)?;
     commit.transaction.execute(
         "INSERT INTO release_records (catalog, ecosystem, name, version, revision_key, profile,
-                                      record, digest)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                                      record, digest, log_index)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
         params![
             catalog,
             ecosystem,
@@ -121,9 +126,27 @@ fn insert_release_record(
             profile,
             record.bytes(),
             record.digest().to_string(),
+            log_index,
         ],
     )?;
     Ok(())
+}
+
+/// Append `entry` to the log of the commit's catalog and ecosystem, at the
+/// next index. The commit holds the database's write lock, so no other
+/// commit takes the same index.
+fn sequence_log_entry(commit: &Commit<'_>, entry: &[u8]) -> Result<i64> {
+    let (catalog, ecosystem, _) = commit.key.params();
+    let mut row = commit.transaction.query_one(
+        "SELECT COALESCE(MAX(idx) + 1, 0) FROM log_entries WHERE catalog = ?1 AND ecosystem = ?2",
+        params![catalog, ecosystem],
+    )?;
+    let index: i64 = row.get(0)?;
+    commit.transaction.execute(
+        "INSERT INTO log_entries (catalog, ecosystem, idx, entry) VALUES (?1, ?2, ?3, ?4)",
+        params![catalog, ecosystem, index, entry],
+    )?;
+    Ok(index)
 }
 
 /// The exact bytes of the release record `version` was accepted with.

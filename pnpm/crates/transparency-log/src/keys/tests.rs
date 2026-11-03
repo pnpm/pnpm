@@ -121,3 +121,22 @@ fn rejects_invalid_names() {
     }
     VerifierKey::new(&"n".repeat(255), KeyAlgorithm::CosignatureV1, public_key).unwrap();
 }
+
+#[test]
+fn a_renamed_signer_keeps_its_key_under_the_new_name() {
+    let signer = NoteSigner::from_private_key(PETER_PRIVATE_KEY).unwrap();
+    let renamed = signer.renamed("registry.example/npm").unwrap();
+    assert_eq!(renamed.verifier_key().name(), "registry.example/npm");
+    assert_eq!(
+        renamed
+            .verifier_key()
+            .public_key()
+            .to_bytes(),
+        signer
+            .verifier_key()
+            .public_key()
+            .to_bytes(),
+    );
+    assert_ne!(renamed.verifier_key().key_id(), signer.verifier_key().key_id());
+    assert!(signer.renamed("two words").is_err());
+}

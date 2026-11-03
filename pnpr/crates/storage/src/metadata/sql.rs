@@ -39,6 +39,7 @@ mod cache;
 mod commit;
 #[cfg(feature = "backend-libsql")]
 mod libsql;
+mod log;
 mod notes;
 mod packument;
 mod publications;
@@ -55,7 +56,7 @@ use super::{
     ArtifactMember, BatchDocument, Generation, Publication, PublicationCommit, PublicationRequest,
     PublishNotes, RecordedOutcome,
 };
-use crate::HostedDocumentVersion;
+use crate::{HostedDocumentVersion, transparency_log::LogId};
 use adapter::{Adapter, Connection};
 use pnpr_error::{RegistryError, Result};
 use pnpr_package_name::{CanonicalPackageName, Ecosystem};
@@ -312,6 +313,55 @@ impl SqlMetadata {
         let version = version.to_string();
         self.read(org.to_string(), Freshness::Bounded, move |connection, _| {
             publications::initial_publication(connection, &key, &version)
+        })
+        .await
+    }
+
+    /// Every transparency log with a sequenced entry, with its size.
+    pub async fn sequenced_logs(self: &Arc<Self>) -> Result<Vec<(LogId, u64)>> {
+        // Any catalog: the read sees every log.
+        self.read(String::new(), Freshness::Current, move |connection, _| log::sizes(connection))
+            .await
+    }
+
+    /// The number of entries sequenced in `log`.
+    pub async fn log_size(self: &Arc<Self>, log: &LogId) -> Result<u64> {
+        let log = log.clone();
+        self.read(log.catalog.clone(), Freshness::Current, move |connection, _| {
+            log::size(connection, &log)
+        })
+        .await
+    }
+
+    /// The sequenced entries of `log` at `indexes`, in order.
+    pub async fn log_entries(
+        self: &Arc<Self>,
+        log: &LogId,
+        indexes: std::ops::Range<u64>,
+    ) -> Result<Vec<Vec<u8>>> {
+        let log = log.clone();
+        self.read(log.catalog.clone(), Freshness::Current, move |connection, _| {
+            log::entries(connection, &log, indexes.clone())
+        })
+        .await
+    }
+
+    /// The index of the log entry of the release record `version` of `name`
+    /// in `org` was accepted with, and the record's digest.
+    pub async fn release_record_entry(
+        self: &Arc<Self>,
+        name: &CanonicalPackageName,
+        org: &str,
+        version: &str,
+    ) -> Result<Option<(u64, String)>> {
+        let key = PackageKey {
+            catalog: org.to_string(),
+            ecosystem: name.ecosystem(),
+            name: name.as_str().to_string(),
+        };
+        let version = version.to_string();
+        self.read(org.to_string(), Freshness::Bounded, move |connection, _| {
+            log::record_entry(connection, &key, &version)
         })
         .await
     }
