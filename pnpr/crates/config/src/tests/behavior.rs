@@ -47,6 +47,20 @@ fn null_auth_and_cors_do_not_disable_mapping_validation() {
 }
 
 #[test]
+fn null_defaulted_aggregate_config_fields_use_defaults() {
+    let configs = [
+        "trustedProxies: null\nui: null\noci: null\nosv: null\nregistries: null\nroutes:\n  public: null\n  allowedPrivateNetworks: null\ncors:\n  allowedOrigins: null\nauth:\n  admins: null\n  oidc: null\n  htpasswd: null\n  tokens: null\n",
+        "registries:\n  local: {type: hosted, teams: null, packages: null}\n  public: {type: upstream, url: https://registry.example/, public: true, headers: null, teams: null, packages: null}\n  router: {type: router, sources: null}\n",
+        "artifacts:\n  orgs: null\n  quota: null\n",
+    ];
+
+    for yaml in configs {
+        Config::from_yaml_str(yaml, Path::new("/x"), listen(), None)
+            .unwrap_or_else(|error| panic!("failed to load {yaml:?}: {error}"));
+    }
+}
+
+#[test]
 fn cli_disabling_all_surfaces_with_bundled_config_errors_without_panicking() {
     // No config file → the bundled branch. Disabling all surfaces via
     // CLI must surface a clean error, not panic on the bundled `expect`.

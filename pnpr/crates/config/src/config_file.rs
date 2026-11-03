@@ -9,9 +9,9 @@ use super::{
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(super) struct RoutesFile {
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_null_default")]
     pub(super) public: Vec<PublicRouteFile>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_null_default")]
     pub(super) allowed_private_networks: Vec<String>,
 }
 
@@ -58,7 +58,7 @@ pub(super) struct HostedFile {
     /// of member usernames. Referenced from this registry's access lists as
     /// `team:<name>` — teams are registry-scoped, never shared across
     /// registries (YAML anchors cover a shared roster in one file).
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_null_default")]
     pub(super) teams: IndexMap<String, AccessSpec>,
     /// Whether `teams:` is the roster or only the seed of one the team API
     /// edits. Omitted ⇒ `config`.
@@ -73,7 +73,7 @@ pub(super) struct HostedFile {
     /// rules as values (`{}` or null ⇒ the registry defaults). The most
     /// specific matching key wins; key order carries no meaning. Omitted ⇒
     /// every name, default rules.
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_null_default")]
     pub(super) packages: IndexMap<String, Option<PackageAccess>>,
     /// The format this registry serves tarballs in at its own URL. Omitted ⇒
     /// `tgz`.
@@ -107,7 +107,7 @@ pub(super) struct UpstreamFile {
     pub(super) public: bool,
     #[serde(default)]
     pub(super) auth: Option<UpstreamAuthFile>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_null_default")]
     pub(super) headers: IndexMap<String, String>,
     #[serde(default, rename = "maxAge")]
     pub(super) maxage: Option<Interval>,
@@ -128,7 +128,7 @@ pub(super) struct UpstreamFile {
     pub(super) access: Option<AccessSpec>,
     /// This registry's teams, exactly as on a hosted registry — referenced
     /// from `access` and the per-package refinements as `team:<name>`.
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_null_default")]
     pub(super) teams: IndexMap<String, AccessSpec>,
     /// The names that may be requested through this registry — its namespace —
     /// with optional per-package `access` refinements as values (`{}` or null
@@ -136,7 +136,7 @@ pub(super) struct UpstreamFile {
     /// error, since no write can land on an upstream). Omitted ⇒ every name.
     /// Bounding a private upstream stops an authorized caller from pulling
     /// arbitrary public names through its server-owned credential.
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_null_default")]
     pub(super) packages: IndexMap<String, Option<PackageAccess>>,
     /// The format this registry serves tarballs in at its own URL. Omitted ⇒
     /// `tgz`.
@@ -149,7 +149,7 @@ pub(super) struct UpstreamFile {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(super) struct RouterFile {
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_null_default")]
     pub(super) sources: Vec<String>,
     /// The format this registry serves tarballs in at its own URL. Omitted ⇒
     /// `tgz`.
@@ -210,7 +210,7 @@ pub(super) struct ConfigFile {
     #[serde(default)]
     pub(super) cache: Option<CacheFile>,
     /// Reverse-proxy addresses trusted to supply client IP headers.
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_null_default")]
     pub(super) trusted_proxies: Vec<String>,
     /// Header name trusted to supply client IP addresses (`x-forwarded-for`, `forwarded`, `x-real-ip`).
     #[serde(default)]
@@ -232,9 +232,9 @@ pub(super) struct ConfigFile {
     #[serde(default, deserialize_with = "deserialize_null_default")]
     pub(super) cors: CorsFile,
     /// pnpr-only web UI settings.
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_null_default")]
     pub(super) ui: UiFile,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_null_default")]
     pub(super) oci: OciConfig,
     /// Who may scrape Prometheus metrics. Omitted ⇒ pnpr serves none.
     #[serde(default)]
@@ -251,7 +251,7 @@ pub(super) struct ConfigFile {
     #[serde(default)]
     pub(super) backend: Option<BackendFile>,
     /// pnpr-only local OSV database settings.
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_null_default")]
     pub(super) osv: OsvFile,
     /// pnpr-only feature toggle for the resolver surface. On unless
     /// explicitly disabled. `Option` so a bare `resolver:` (which YAML
@@ -269,7 +269,7 @@ pub(super) struct ConfigFile {
     pub(super) pipeline: Option<PipelineFeatureFile>,
     /// pnpr registries: hosted, upstream, and router origins, each
     /// exposed at `/~<name>/`.
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_null_default")]
     pub(super) registries: IndexMap<String, RegistryGroupFile>,
     /// The registry the path-less base URL aliases. Absent ⇒ the bare host has no
     /// registry and clients must address a `/~<name>/`.
@@ -321,7 +321,7 @@ pub(super) struct SecretsFile {
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(super) struct CorsFile {
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_null_default")]
     pub(super) allowed_origins: Vec<String>,
 }
 
@@ -388,13 +388,13 @@ pub(super) fn default_log_type() -> String {
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(super) struct AuthFile {
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_null_default")]
     pub(super) admins: Vec<String>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_null_default")]
     pub(super) oidc: Vec<oidc::OidcProvider>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_null_default")]
     pub(super) htpasswd: HtpasswdFile,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_null_default")]
     pub(super) tokens: TokensFile,
     #[serde(default)]
     pub(super) scim: Option<ScimConfig>,
@@ -489,9 +489,9 @@ impl Default for FeatureFile {
 pub(super) struct ArtifactsFeatureFile {
     #[serde(default)]
     pub(super) enabled: bool,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_null_default")]
     pub(super) orgs: IndexMap<String, StorageAccessFile>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_null_default")]
     pub(super) quota: ArtifactQuotaFile,
 }
 
