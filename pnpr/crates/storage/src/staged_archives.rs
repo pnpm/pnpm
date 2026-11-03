@@ -9,15 +9,19 @@
 //! into its package, and only the principal that uploaded it can claim it.
 //!
 //! Each archive is stored under its principal and the hex SHA-512 digest of
-//! its bytes, with a small record beside it saying when it was last
-//! uploaded. An archive no commit claims expires [`STAGED_ARCHIVE_MAX_AGE`]
-//! after its last upload, and a sweep removes it.
+//! its bytes, with a small record beside it saying when it was last uploaded
+//! and whether its bytes are all there. An upload records its archive as
+//! incomplete before the bytes arrive, which reserves them against the
+//! principal's limits, and as complete once they are stored; only a complete
+//! archive counts as staged. An archive no commit claims expires
+//! [`STAGED_ARCHIVE_MAX_AGE`] after its last upload, an upload that never
+//! completed after [`INCOMPLETE_MAX_AGE`], and a sweep removes both.
 
 use super::{DocumentWrite, RegistryError, Result, Storage};
 use futures_util::future::try_join_all;
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
@@ -41,16 +45,24 @@ pub const STAGED_ARCHIVE_RENEWAL_MARGIN: Duration = Duration::from_hours(1);
 /// archive itself.
 const SWEEP_GRACE: Duration = Duration::from_hours(1);
 
+/// How long an upload may take to complete. An incomplete record older than
+/// this is an upload that stopped, and no longer counts against its
+/// principal's limits.
+pub const INCOMPLETE_MAX_AGE: Duration = Duration::from_hours(1);
+
 /// Records a sweep reads at once.
 const SWEEP_CONCURRENCY: usize = 16;
 
 /// What is recorded beside a staged archive.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct StagedArchiveRecord {
     /// When the archive was last uploaded, in seconds since the Unix epoch.
     staged_at: u64,
     size: u64,
+    /// Whether the archive's bytes are stored. An upload in flight, or one
+    /// that stopped, has reserved its size without storing it.
+    complete: bool,
 }
 
 impl StagedArchiveRecord {
@@ -58,12 +70,39 @@ impl StagedArchiveRecord {
         Duration::from_secs(now.saturating_sub(self.staged_at))
     }
 
+    fn lifetime(&self) -> Duration {
+        if self.complete { STAGED_ARCHIVE_MAX_AGE } else { INCOMPLETE_MAX_AGE }
+    }
+
+    /// Whether a commit can claim the archive.
     fn is_claimable(&self, now: u64) -> bool {
-        self.age(now) < STAGED_ARCHIVE_MAX_AGE
+        self.complete && self.age(now) < STAGED_ARCHIVE_MAX_AGE
+    }
+
+    /// Whether the archive counts against its principal's limits.
+    fn is_held(&self, now: u64) -> bool {
+        self.age(now) < self.lifetime()
     }
 
     fn is_collectable(&self, now: u64) -> bool {
-        self.age(now) >= STAGED_ARCHIVE_MAX_AGE + SWEEP_GRACE
+        self.age(now) >= self.lifetime() + SWEEP_GRACE
+    }
+}
+
+/// What a principal holds staged or reserved.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct StagedArchiveUsage {
+    pub bytes: u64,
+    pub archives: usize,
+}
+
+impl StagedArchiveUsage {
+    /// Count an archive of `size` bytes, when it is held.
+    fn hold(&mut self, size: Option<u64>) {
+        if let Some(size) = size {
+            self.bytes = self.bytes.saturating_add(size);
+            self.archives += 1;
+        }
     }
 }
 
@@ -87,11 +126,7 @@ impl StagedArchiveKey<'_> {
     }
 
     fn archive(&self) -> Result<String> {
-        let valid = self.digest.len() == 128
-            && self.digest
-                .bytes()
-                .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte));
-        if valid {
+        if is_archive_key(self.digest) {
             Ok(self.digest.to_string())
         } else {
             Err(RegistryError::BadRequest {
@@ -103,6 +138,30 @@ impl StagedArchiveKey<'_> {
     fn record(&self) -> Result<String> {
         Ok(format!("{}{RECORD_SUFFIX}", self.archive()?))
     }
+}
+
+/// Whether `key` names an archive: a lowercase hex SHA-512 digest. Anything
+/// else in a namespace, such as the temporary file of a write in flight, is
+/// not the sweep's to touch.
+fn is_archive_key(key: &str) -> bool {
+    key.len() == 128
+        && key
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+}
+
+/// The records and the archives among a namespace's `keys`.
+fn classify_keys(keys: Vec<String>) -> (Vec<String>, Vec<String>) {
+    let mut records = Vec::new();
+    let mut archives = Vec::new();
+    for key in keys {
+        match key.strip_suffix(RECORD_SUFFIX) {
+            Some(archive) if is_archive_key(archive) => records.push(key),
+            None if is_archive_key(&key) => archives.push(key),
+            _ => {}
+        }
+    }
+    (records, archives)
 }
 
 fn principal_namespace(principal: &str) -> String {
@@ -123,15 +182,45 @@ impl Storage {
         let Some(record) = self.read_staged_archive_record(key).await? else {
             return Ok(None);
         };
-        if record.age(now) + STAGED_ARCHIVE_RENEWAL_MARGIN >= STAGED_ARCHIVE_MAX_AGE {
+        let remaining = STAGED_ARCHIVE_MAX_AGE.saturating_sub(record.age(now));
+        if !record.is_claimable(now) || remaining <= STAGED_ARCHIVE_RENEWAL_MARGIN {
             return Ok(None);
         }
         Ok(Some(record.size))
     }
 
+    /// Reserve `size` bytes for `key`'s archive before they arrive, so they
+    /// count against its principal's limits while the upload runs. Check the
+    /// limits with [`Self::staged_archive_usage`] after reserving, and give
+    /// the reservation back with [`Self::release_staged_archive`] when the
+    /// upload fails.
+    pub async fn reserve_staged_archive(
+        &self,
+        key: &StagedArchiveKey<'_>,
+        size: u64,
+    ) -> Result<()> {
+        let record = StagedArchiveRecord { staged_at: unix_now(), size, complete: false };
+        self.write_staged_archive_record(key, &record).await
+    }
+
+    /// Give back the reservation of an upload that did not complete. A record
+    /// that completed meanwhile, by a concurrent upload of the same bytes, is
+    /// left alone.
+    pub async fn release_staged_archive(&self, key: &StagedArchiveKey<'_>) -> Result<()> {
+        let (namespace, record_key) = (key.namespace(), key.record()?);
+        if self
+            .read_record_json(&namespace, &record_key)
+            .await?
+            .is_some_and(|record| !record.complete)
+        {
+            self.root.remove_record(&namespace, &record_key).await?;
+        }
+        Ok(())
+    }
+
     /// Stage `bytes`, which the caller has verified against `key`'s digest,
     /// for `key`'s principal, and renew the archive when it is staged
-    /// already. `Ok(false)` when it was staged already.
+    /// already. `Ok(false)` when its bytes were stored already.
     pub async fn stage_archive(&self, key: &StagedArchiveKey<'_>, bytes: Vec<u8>) -> Result<bool> {
         self.stage_archive_at(key, bytes, unix_now()).await
     }
@@ -142,16 +231,17 @@ impl Storage {
         bytes: Vec<u8>,
         now: u64,
     ) -> Result<bool> {
-        let namespace = key.namespace();
-        let record = StagedArchiveRecord { staged_at: now, size: bytes.len() as u64 };
-        // The record goes first: an archive is never stored without one, so a
-        // sweep can tell an upload in flight from an abandoned archive.
+        let record =
+            StagedArchiveRecord { staged_at: now, size: bytes.len() as u64, complete: true };
+        // The bytes first: a record says the archive is complete only once
+        // they are stored.
+        let created = self.root.create_record(&key.namespace(), &key.archive()?, &bytes).await?;
         self.write_staged_archive_record(key, &record).await?;
-        self.root.create_record(&namespace, &key.archive()?, &bytes).await
+        Ok(created)
     }
 
     /// The bytes of `key`'s archive, while it is claimable. `None` when it was
-    /// never staged by this principal or has expired.
+    /// never staged by this principal, has not completed, or has expired.
     pub async fn read_staged_archive(&self, key: &StagedArchiveKey<'_>) -> Result<Option<Vec<u8>>> {
         let Some(record) = self.read_staged_archive_record(key).await? else {
             return Ok(None);
@@ -162,14 +252,25 @@ impl Storage {
         self.root.read_record(&key.namespace(), &key.archive()?).await
     }
 
-    /// The bytes `principal` has staged and may still claim. Archives of
-    /// `principal` past their expiry are removed on the way, so a principal's
-    /// own uploads keep its namespace swept between server restarts.
-    pub async fn staged_archive_usage(&self, principal: &str) -> Result<u64> {
+    /// What `principal` holds staged or reserved. Archives of `principal`
+    /// past their expiry are removed on the way, so a principal's own uploads
+    /// keep its namespace swept between the periodic sweeps.
+    pub async fn staged_archive_usage(&self, principal: &str) -> Result<StagedArchiveUsage> {
         let namespace = principal_namespace(principal);
         let keys = self.root.list_record_keys(&namespace).await?;
         let (usage, _) = self.sweep_staged_namespace(&namespace, keys, unix_now()).await?;
         Ok(usage)
+    }
+
+    /// How many archives `principal` has records for, read from the listing
+    /// alone, so a principal with too many is refused before anything reads
+    /// them.
+    pub async fn staged_archive_count(&self, principal: &str) -> Result<usize> {
+        let keys = self.root.list_record_keys(&principal_namespace(principal)).await?;
+        Ok(keys
+            .iter()
+            .filter(|key| key.strip_suffix(RECORD_SUFFIX).is_some_and(is_archive_key))
+            .count())
     }
 
     /// Remove every staged archive past its expiry, and every archive left
@@ -196,31 +297,34 @@ impl Storage {
     }
 
     /// Sweep one principal's namespace, whose stored keys are `keys`.
-    /// Returns the bytes still claimable and how many archives were removed.
+    /// Returns what the principal still holds and how many archives were
+    /// removed.
     async fn sweep_staged_namespace(
         &self,
         namespace: &str,
         keys: Vec<String>,
         now: u64,
-    ) -> Result<(u64, usize)> {
-        let (records, archives): (Vec<String>, Vec<String>) = keys
-            .into_iter()
-            .partition(|key| key.ends_with(RECORD_SUFFIX));
+    ) -> Result<(StagedArchiveUsage, usize)> {
+        let (records, archives) = classify_keys(keys);
         // Several records at once: on an object store each is a round trip,
         // and a principal's own upload waits for this sweep.
-        let mut usage = 0_u64;
+        let mut usage = StagedArchiveUsage::default();
         let mut removed = 0;
         for chunk in records.chunks(SWEEP_CONCURRENCY) {
             let sweeps = chunk
                 .iter()
                 .map(|record_key| self.sweep_recorded_archive(namespace, record_key, now));
-            for (claimable, expired) in try_join_all(sweeps).await? {
-                usage = usage.saturating_add(claimable);
+            for (held, expired) in try_join_all(sweeps).await? {
+                usage.hold(held);
                 removed += usize::from(expired);
             }
         }
+        let recorded: HashSet<&str> = records
+            .iter()
+            .filter_map(|record| record.strip_suffix(RECORD_SUFFIX))
+            .collect();
         for archive in archives {
-            if !records.contains(&format!("{archive}{RECORD_SUFFIX}")) {
+            if !recorded.contains(archive.as_str()) {
                 removed += usize::from(self.sweep_unrecorded_archive(namespace, &archive).await?);
             }
         }
@@ -228,31 +332,37 @@ impl Storage {
     }
 
     /// Remove the archive `record_key` records once it is past its expiry.
-    /// Returns its size while it is claimable, and whether it was removed.
+    /// Returns its size while it counts against its principal, and whether
+    /// it was removed.
     async fn sweep_recorded_archive(
         &self,
         namespace: &str,
         record_key: &str,
         now: u64,
-    ) -> Result<(u64, bool)> {
+    ) -> Result<(Option<u64>, bool)> {
         let Some(record) = self.read_record_json(namespace, record_key).await? else {
-            return Ok((0, false));
+            return Ok((None, false));
         };
         if !record.is_collectable(now) {
-            return Ok((if record.is_claimable(now) { record.size } else { 0 }, false));
+            return Ok((record.is_held(now).then_some(record.size), false));
+        }
+        // An upload that renewed the archive since it was read keeps it.
+        if self.read_record_json(namespace, record_key).await? != Some(record) {
+            return Ok((None, false));
         }
         let archive = record_key.strip_suffix(RECORD_SUFFIX).unwrap_or(record_key);
         // The archive first, so a record never outlives the archive it vouches
         // for long enough to look like an upload in flight.
         let removed = self.root.remove_record(namespace, archive).await?;
         self.root.remove_record(namespace, record_key).await?;
-        Ok((0, removed))
+        Ok((None, removed))
     }
 
     /// Remove `archive`, listed without its record, unless its record has
-    /// appeared since. An upload writes the record before the archive, so one
-    /// that started after the listing has a record by now; one without is left
-    /// over from a sweep that stopped between its two removals.
+    /// appeared since. An upload reserves the record before it stores the
+    /// archive, so one that started after the listing has a record by now;
+    /// one without is left over from a sweep that stopped between its two
+    /// removals.
     async fn sweep_unrecorded_archive(&self, namespace: &str, archive: &str) -> Result<bool> {
         let record_key = format!("{archive}{RECORD_SUFFIX}");
         if self.root.read_record(namespace, &record_key).await?.is_some() {

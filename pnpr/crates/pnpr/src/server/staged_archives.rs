@@ -24,13 +24,23 @@ use axum::{
 use futures_util::StreamExt as _;
 use pnpm_shared_artifact_protocol::{blob_id, verify_blob_digest};
 use pnpr_error::RegistryError;
-use pnpr_storage::StagedArchiveKey;
+use pnpr_storage::{StagedArchiveKey, Storage};
 use sha2::{Digest as _, Sha512};
 
 /// The most a principal may hold staged at once, across all its archives.
 /// Archives of a release wait here only until its commit, so this is many
 /// releases' worth.
 pub(super) const MAX_STAGED_BYTES_PER_PRINCIPAL: u64 = 2 * 1024 * 1024 * 1024;
+
+/// The most archives a principal may hold staged at once. Each upload of a
+/// new archive reads every record of its principal, so this bounds that
+/// work as well as the store.
+pub(super) const MAX_STAGED_ARCHIVES_PER_PRINCIPAL: usize = 256;
+
+/// Uploads received at once across the server. Each is buffered whole, up to
+/// one archive's limit, so this bounds their memory. Another upload waits
+/// for a permit rather than failing, so a publisher's parallel uploads queue.
+pub(super) const MAX_CONCURRENT_STAGED_UPLOADS: usize = 4;
 
 /// The most an upload reserves before its bytes arrive.
 const INITIAL_BUFFER_BYTES: u64 = 1024 * 1024;
@@ -120,19 +130,55 @@ async fn stage_archive(
     }
     let storage = &state.inner.storage;
     let key = StagedArchiveKey { principal, digest: &digest };
+    let _upload = state.inner.locks.staged_archive_uploads
+        .acquire()
+        .await
+        .expect("the staged upload semaphore is never closed");
+    // Uploading an archive staged already only renews it. Any other upload
+    // reserves its size first, so uploads running in parallel see each
+    // other's when they check the limits.
     let renewing = storage.staged_archive_size(&key).await?.is_some();
     if !renewing {
-        let usage = storage.staged_archive_usage(principal).await?;
-        if usage.saturating_add(size) > MAX_STAGED_BYTES_PER_PRINCIPAL {
-            return Err(bad_request(format!(
-                "staging this archive would hold more than {MAX_STAGED_BYTES_PER_PRINCIPAL} bytes \
-                 of archives no publish has claimed yet; publish or wait for staged archives to \
-                 expire",
-            )));
-        }
+        reserve_within_limits(storage, &key, size).await?;
     }
-    let bytes = receive_archive(body, &integrity, size).await?;
-    storage.stage_archive(&key, bytes).await
+    let staged = match receive_archive(body, &integrity, size).await {
+        Ok(bytes) => storage.stage_archive(&key, bytes).await,
+        Err(err) => Err(err),
+    };
+    if staged.is_err() && !renewing {
+        storage.release_staged_archive(&key).await?;
+    }
+    staged
+}
+
+/// Reserve `size` bytes for `key`'s archive, unless that takes its principal
+/// past its limits.
+async fn reserve_within_limits(
+    storage: &Storage,
+    key: &StagedArchiveKey<'_>,
+    size: u64,
+) -> Result<(), RegistryError> {
+    if storage.staged_archive_count(key.principal).await? >= MAX_STAGED_ARCHIVES_PER_PRINCIPAL {
+        return Err(over_limit(&format!("{MAX_STAGED_ARCHIVES_PER_PRINCIPAL} archives")));
+    }
+    storage.reserve_staged_archive(key, size).await?;
+    let usage = storage.staged_archive_usage(key.principal).await?;
+    let refusal = if usage.bytes > MAX_STAGED_BYTES_PER_PRINCIPAL {
+        over_limit(&format!("{MAX_STAGED_BYTES_PER_PRINCIPAL} bytes"))
+    } else if usage.archives > MAX_STAGED_ARCHIVES_PER_PRINCIPAL {
+        over_limit(&format!("{MAX_STAGED_ARCHIVES_PER_PRINCIPAL} archives"))
+    } else {
+        return Ok(());
+    };
+    storage.release_staged_archive(key).await?;
+    Err(refusal)
+}
+
+fn over_limit(limit: &str) -> RegistryError {
+    bad_request(format!(
+        "staging this archive would hold more than {limit} that no publish has claimed yet; \
+         publish or wait for staged archives to expire",
+    ))
 }
 
 /// Read `body` whole, refusing it unless it is `size` bytes matching

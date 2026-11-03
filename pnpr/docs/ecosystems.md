@@ -281,7 +281,10 @@ A staged archive is not published and no registry route serves it. It belongs
 to the account that uploaded it, and only a publish by that account can claim
 it. It expires 24 hours after its last upload, and pnpr removes expired
 archives at startup and every hour. One archive is at most 100 MiB, and one
-account holds at most 2 GiB of archives no publish has claimed.
+account holds at most 256 archives and 2 GiB that no publish has claimed. An
+upload reserves its size before its bytes arrive, so uploads running in
+parallel count against those limits together, and an upload that stopped
+gives its reservation back after an hour.
 
 ## JSR
 

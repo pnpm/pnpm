@@ -29,7 +29,8 @@ pub use self::backend::{BlobFinalize, HostedDocumentForUpdate, HostedDocumentVer
 pub use registry_records::{RegistryRecord, SCIM_DIRECTORY};
 
 pub use staged_archives::{
-    STAGED_ARCHIVE_MAX_AGE, STAGED_ARCHIVE_RENEWAL_MARGIN, StagedArchiveKey,
+    INCOMPLETE_MAX_AGE, STAGED_ARCHIVE_MAX_AGE, STAGED_ARCHIVE_RENEWAL_MARGIN, StagedArchiveKey,
+    StagedArchiveUsage,
 };
 
 pub use staged_records::PipelineRunKey;
