@@ -21,6 +21,10 @@ pub(super) const RENDERER_VERSION: u32 = 1;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(super) enum Representation {
     Full,
+    /// One version's accepted manifest and its interpretation, without its
+    /// README and annotations: what a release record is made of. It embeds
+    /// no mutable state, so a deprecation never re-renders it.
+    Accepted,
 }
 
 /// Everything a rendered version fragment depends on. A version and revision

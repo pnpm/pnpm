@@ -58,11 +58,12 @@ pub(super) async fn serve_registry_version_manifest(
     (version_or_tag, revision): (&str, Option<u64>),
     tarball_base: &str,
 ) -> Response {
-    let (name, resolved_source, packument) =
-        match read_version_packument(state, identity, registry, raw_name, version_or_tag).await {
-            Ok(read) => read,
-            Err(response) => return response,
-        };
+    let read =
+        read_version_packument(state, identity, registry, raw_name, version_or_tag, revision);
+    let (name, resolved_source, packument) = match read.await {
+        Ok(read) => read,
+        Err(response) => return response,
+    };
     let tar_integrities = match tar_integrities_of(state, &resolved_source, &name).await {
         Ok(table) => table,
         Err(err) => return err.into_response(),
@@ -94,32 +95,71 @@ fn addresses(manifest: &Value, version_or_tag: &str, revision: Option<u64>) -> b
 }
 
 /// The packument a version-manifest request reads, with the source it
-/// resolved to, or the response that ends the request.
+/// resolved to, or the response that ends the request. A hosted release
+/// record, addressed by `revision`, reads only its version (see
+/// [`read_hosted_record_packument`]).
 async fn read_version_packument(
     state: &AppState,
     identity: &Identity,
     registry: &str,
     raw_name: &str,
     version_or_tag: &str,
+    revision: Option<u64>,
 ) -> Result<(CanonicalPackageName, RegistrySource, Value), Response> {
     let name = match CanonicalPackageName::parse(raw_name, pnpr_package_name::Ecosystem::Npm) {
         Ok(name) => name,
         Err(err) => return Err(err.into_response()),
     };
     let resolved_source = resolve_registry_source(state, registry, name.as_str());
-    let bytes = match read_source_packument(state, identity, &resolved_source, &name).await {
-        Ok(Some(bytes)) => bytes,
+    let packument = match (&resolved_source, revision) {
+        (RegistrySource::Hosted(source), Some(_)) => {
+            read_hosted_record_packument(state, identity, source, &name, version_or_tag).await
+        }
+        _ => read_whole_packument(state, identity, &resolved_source, &name).await,
+    };
+    let packument = match packument {
+        Ok(Some(packument)) => packument,
         Ok(None) => return Err(not_found()),
         Err(err) => return Err(err.into_response()),
-    };
-    let packument: Value = match serde_json::from_slice(&bytes) {
-        Ok(packument) => packument,
-        Err(err) => return Err(RegistryError::Json(err).into_response()),
     };
     if osv_hides_version(state, &packument, name.as_str(), version_or_tag) {
         return Err(not_found());
     }
     Ok((name, resolved_source, packument))
+}
+
+async fn read_whole_packument(
+    state: &AppState,
+    identity: &Identity,
+    source: &RegistrySource,
+    name: &CanonicalPackageName,
+) -> Result<Option<Value>, RegistryError> {
+    let Some(bytes) = read_source_packument(state, identity, source, name).await? else {
+        return Ok(None);
+    };
+    Ok(Some(serde_json::from_slice(&bytes)?))
+}
+
+/// The packument of a hosted release record: only the addressed version,
+/// read from the metadata store on its own, so a record never costs the
+/// package view. What depends on the route, the OSV filter and the facts
+/// about the archive kept outside the metadata store, is applied to it as to
+/// a whole packument.
+async fn read_hosted_record_packument(
+    state: &AppState,
+    identity: &Identity,
+    source: &str,
+    name: &CanonicalPackageName,
+    version: &str,
+) -> Result<Option<Value>, RegistryError> {
+    let org = hosted_read_namespace(state, identity, source, name.as_str())?;
+    let manifest = state.inner.storage
+        .for_hosted(&org, pnpr_registry::Ecosystem::Npm)
+        .read_hosted_version(name, version)
+        .await?;
+    let Some(manifest) = manifest else { return Ok(None) };
+    let manifest: Value = serde_json::from_str(&manifest)?;
+    Ok(Some(serde_json::json!({ "name": name.as_str(), "versions": { version: manifest } })))
 }
 
 pub(super) fn osv_hides_version(

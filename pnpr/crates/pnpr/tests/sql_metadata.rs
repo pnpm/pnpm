@@ -300,6 +300,12 @@ async fn pnprs_package_document_and_release_records_render_from_sqlite() {
     assert_eq!(record["version"], "1.0.0");
     assert_eq!(record["integrity"], entry["integrity"]);
     assert_eq!(record["requiresBuild"], json!(false));
+    assert!(record["manifest"].get("readme").is_none(), "{record}");
+    // A record is addressed by an exact version and a revision it has.
+    for missing in ["/npm/sql-pkg/latest+r0", "/npm/sql-pkg/1.0.0+r1", "/npm/sql-pkg/2.0.0+r0"] {
+        let (status, ..) = send(&app, request("GET", missing, &token, None)).await;
+        assert_eq!(status, StatusCode::NOT_FOUND, "{missing}");
+    }
 
     // A deprecation changes the next document and leaves the record alone.
     let (_, mut packument) = packument(&app, &token).await;
