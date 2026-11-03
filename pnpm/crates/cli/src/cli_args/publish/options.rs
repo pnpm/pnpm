@@ -55,6 +55,7 @@ impl PublishArgs {
                     fetch_timeout: Some(config.fetch_timeout),
                 },
             },
+            release_notes: self.release_notes_target(config),
         }
     }
 

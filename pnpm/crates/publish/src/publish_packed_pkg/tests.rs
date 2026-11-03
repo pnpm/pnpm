@@ -691,6 +691,7 @@ async fn publish_packed_pkg_dry_run_returns_the_summary_without_publishing() {
         tarball_path: "@scope/pkg-1.2.3.tgz",
         contents: &contents,
         unpacked_size: 42,
+        notes: None,
     };
     let opts = PublishPackedPkgOptions {
         dry_run: true,
@@ -705,6 +706,7 @@ async fn publish_packed_pkg_dry_run_returns_the_summary_without_publishing() {
             provenance: None,
             http: OidcHttpOptions::default(),
         },
+        release_notes: crate::ReleaseNotesTarget::default(),
     };
     let client = ThrottledClient::default();
     let auth_headers = AuthHeaders::default();
@@ -801,6 +803,7 @@ async fn publish_packed_pkg_attaches_signed_provenance_to_the_document() {
         tarball_path: "pkg-1.0.0.tgz",
         contents: &[],
         unpacked_size: 0,
+        notes: None,
     };
     let opts = PublishPackedPkgOptions {
         dry_run: false,
@@ -815,6 +818,7 @@ async fn publish_packed_pkg_attaches_signed_provenance_to_the_document() {
             provenance: Some(true),
             http: OidcHttpOptions::default(),
         },
+        release_notes: crate::ReleaseNotesTarget::default(),
     };
     let mock = server
         .mock("PUT", "/npm/private/pkg")

@@ -65,6 +65,7 @@ pnpm-package-manager = { workspace = true }
 pnpm-patching = { workspace = true }
 pnpm-package-is-installable = { workspace = true }
 pnpm-registry = { workspace = true }
+pnpm-release-notes = { workspace = true }
 pnpm-reporter = { workspace = true }
 pnpm-resolving-deps-resolver = { workspace = true }
 pnpm-resolving-default-resolver = { workspace = true }

@@ -2,9 +2,14 @@ use super::{
     OutdatedDependencyOptions, OutdatedInWorkspace, OutdatedPackage, render_json,
     render_recursive_json, render_recursive_table, sort_outdated, workspace::DependentProject,
 };
-use crate::cli_args::outdated::{
-    query::current_versions_from_importer,
-    render::{Change, DEPENDENTS_COLUMN_WIDTH, classify, render_dependents, render_latest},
+use crate::cli_args::{
+    outdated::{
+        OutdatedFormat,
+        notes::with_notes,
+        query::current_versions_from_importer,
+        render::{Change, DEPENDENTS_COLUMN_WIDTH, classify, render_dependents, render_latest},
+    },
+    release_notes::{UpgradeNotes, reader::VersionNote},
 };
 use node_semver::Version;
 use pnpm_lockfile::Lockfile;
@@ -417,4 +422,111 @@ fn recursive_json_preserves_multiple_entries_for_same_package() {
 
     assert!(value.get("is-positive@2.0.0").is_some());
     assert_eq!(value["is-positive@2.0.0"]["current"], "2.0.0");
+}
+
+#[test]
+fn notes_go_into_the_json_entry_of_their_package() {
+    let packages = [
+        pkg("a", "1.0.0", "2.0.0", DependencyGroup::Prod),
+        pkg("b", "1.0.0", "1.1.0", DependencyGroup::Prod),
+    ];
+    let refs: Vec<&OutdatedPackage> = packages.iter().collect();
+    let notes = [
+        None,
+        Some(UpgradeNotes {
+            versions: vec![VersionNote {
+                version: "1.1.0".into(),
+                text: Some("B.\u{1b}".into()),
+                publication: None,
+            }],
+            publications: Vec::new(),
+        }),
+    ];
+    let output =
+        with_notes(r#"{"a": {}, "b": {}}"#.to_owned(), OutdatedFormat::Json, &refs, &notes);
+    let report: serde_json::Value = serde_json::from_str(&output).expect("JSON");
+
+    assert_eq!(report["a"].get("releaseNotes"), None);
+    assert_eq!(report["b"]["releaseNotes"]["versions"][0]["notes"], "B.");
+
+    let text = with_notes("table".to_owned(), OutdatedFormat::Table, &refs, &notes);
+    assert_eq!(text, "table\n\nb 1.0.0 => 1.1.0\n  1.1.0:\n    B.");
+}
+
+/// Two aliases of one package at one version render as one JSON entry, so
+/// the notes of a later package still go into its own entry.
+#[test]
+fn notes_find_their_json_entry_when_two_packages_share_one() {
+    let mut alias_a = pkg("foo", "1.0.0", "2.0.0", DependencyGroup::Prod);
+    alias_a.alias = "a".to_owned();
+    let mut alias_b = pkg("foo", "1.0.0", "2.0.0", DependencyGroup::Prod);
+    alias_b.alias = "b".to_owned();
+    let packages = [alias_a, alias_b, pkg("bar", "1.0.0", "1.1.0", DependencyGroup::Prod)];
+    let refs: Vec<&OutdatedPackage> = packages.iter().collect();
+    let output = render_json(&packages, false);
+    let entries = serde_json::from_str::<serde_json::Value>(&output).expect("JSON");
+    assert_eq!(entries.as_object().map(serde_json::Map::len), Some(2), "{output}");
+    let notes = [
+        None,
+        None,
+        Some(UpgradeNotes {
+            versions: vec![VersionNote {
+                version: "1.1.0".into(),
+                text: Some("Bar.".into()),
+                publication: None,
+            }],
+            publications: Vec::new(),
+        }),
+    ];
+
+    let report: serde_json::Value =
+        serde_json::from_str(&with_notes(output, OutdatedFormat::Json, &refs, &notes))
+            .expect("JSON");
+
+    assert_eq!(report["bar"]["releaseNotes"]["versions"][0]["notes"], "Bar.");
+    let foo = report
+        .as_object()
+        .expect("object")
+        .iter()
+        .find(|(key, _)| key.starts_with("foo"))
+        .map(|(_, entry)| entry)
+        .expect("foo entry");
+    assert_eq!(foo.get("releaseNotes"), None);
+}
+
+/// The entry two packages share shows the last of them, so the notes of
+/// the earlier one, for another target, do not go into it.
+#[test]
+fn a_shared_json_entry_gets_only_the_notes_of_the_package_it_shows() {
+    let mut alias_a = pkg("foo", "1.0.0", "1.1.0", DependencyGroup::Prod);
+    alias_a.alias = "a".to_owned();
+    let mut alias_b = pkg("foo", "1.0.0", "2.0.0", DependencyGroup::Prod);
+    alias_b.alias = "b".to_owned();
+    let packages = [alias_a, alias_b];
+    let refs: Vec<&OutdatedPackage> = packages.iter().collect();
+    let output = render_json(&packages, false);
+    let notes = [
+        Some(UpgradeNotes {
+            versions: vec![VersionNote {
+                version: "1.1.0".into(),
+                text: Some("Only a.".into()),
+                publication: None,
+            }],
+            publications: Vec::new(),
+        }),
+        None,
+    ];
+
+    let report: serde_json::Value =
+        serde_json::from_str(&with_notes(output, OutdatedFormat::Json, &refs, &notes))
+            .expect("JSON");
+
+    let entries = report.as_object().expect("object");
+    assert_eq!(entries.len(), 1, "{report}");
+    let (_, entry) = entries
+        .iter()
+        .next()
+        .expect("one entry");
+    assert_eq!(entry["latest"], "2.0.0", "the entry shows the later package: {report}");
+    assert_eq!(entry.get("releaseNotes"), None, "{report}");
 }

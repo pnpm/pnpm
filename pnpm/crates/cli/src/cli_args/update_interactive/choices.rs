@@ -21,6 +21,8 @@ pub(crate) struct ChoiceRow {
     /// The package name selecting this row updates. `None` marks the
     /// group's header row, which carries no selection.
     pub value: Option<String>,
+    /// The key of the row's release notes, `None` for the header row.
+    pub notes_key: Option<String>,
 }
 
 /// The outdated dependencies of one dependency type.
@@ -169,13 +171,14 @@ fn render_rows(choices: &[&Choice<'_>], workspaces_enabled: bool) -> Vec<ChoiceR
     let widths = column_widths(&cells);
     let mut rows = cells
         .into_iter()
-        .map(|row| ChoiceRow { label: pad_row(&row, &widths), value: None });
+        .map(|row| ChoiceRow { label: pad_row(&row, &widths), value: None, notes_key: None });
     let header = rows.next().expect("the header row is always pushed first");
     std::iter::once(header)
         .chain(
             rows.zip(choices)
                 .map(|(row, choice)| ChoiceRow {
                     value: Some(choice.package.alias.clone()),
+                    notes_key: Some(super::notes::notes_key(choice.package)),
                     ..row
                 }),
         )
