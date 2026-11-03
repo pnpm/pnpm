@@ -7,6 +7,7 @@ import { fileURLToPath, URL } from 'node:url'
 
 import { instrumentAtomicWaits } from '../../../../wasm/instrument-atomics.mjs'
 import { validateWabt } from '../../../../wasm/encode-wat.mjs'
+import { SQLITE_FLAGS } from '../../../../wasm/sqlite-flags.mjs'
 
 validateWabt()
 
@@ -30,7 +31,7 @@ ${patches}
 [dependencies]
 tokio = { version = "=${lockedVersion('tokio')}", features = ["rt", "rt-multi-thread", "macros", "fs", "io-util", "sync", "time"] }
 rayon = "=${lockedVersion('rayon')}"
-rusqlite = "=${lockedVersion('rusqlite')}"
+libsql-rusqlite = "=${lockedVersion('libsql-rusqlite')}"
 miette = "7.6.0"
 pnpm-wasm-host = { path = ${JSON.stringify(join(root, 'pnpm/crates/wasm-host'))} }
 pnpm-http = { path = ${JSON.stringify(join(root, 'pnpm/crates/http'))} }
@@ -72,7 +73,7 @@ const result = spawnSync('pnx', [
     CC_wasm32_wasip1_threads: join(sdk, 'bin/clang'),
     AR_wasm32_wasip1_threads: join(sdk, 'bin/llvm-ar'),
     CFLAGS_wasm32_wasip1_threads: '--target=wasm32-wasip1-threads -pthread',
-    LIBSQLITE3_FLAGS: '-USQLITE_THREADSAFE -DSQLITE_THREADSAFE=1',
+    LIBSQLITE3_FLAGS: SQLITE_FLAGS,
     CARGO_ENCODED_RUSTFLAGS: [...inherited, ...flags].join('\x1f') },
 })
 if (result.error) throw result.error

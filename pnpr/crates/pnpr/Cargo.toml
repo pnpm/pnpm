@@ -86,6 +86,7 @@ home = { workspace = true }
 indexmap = { workspace = true }
 libc = { workspace = true }
 libsql = { workspace = true, optional = true }
+libsql-rusqlite = { workspace = true }
 miette = { workspace = true }
 node-semver = { workspace = true }
 pep440_rs = { workspace = true }
@@ -94,7 +95,6 @@ p256 = { workspace = true }
 object_store = { workspace = true }
 percent-encoding = { workspace = true }
 reqwest = { workspace = true }
-rusqlite = { workspace = true }
 serde = { workspace = true }
 serde-saphyr = { workspace = true }
 serde_json = { workspace = true }

@@ -28,9 +28,9 @@ bcrypt = { workspace = true }
 chrono = { workspace = true }
 getrandom = { workspace = true }
 libsql = { workspace = true, optional = true }
+libsql-rusqlite = { workspace = true }
 openidconnect = { workspace = true }
 reqwest = { workspace = true }
-rusqlite = { workspace = true }
 serde_json = { workspace = true }
 sha2 = { workspace = true }
 sqlx = { workspace = true, optional = true }

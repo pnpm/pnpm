@@ -2529,15 +2529,6 @@ dependencies = [
 
 [[package]]
 name = "hashbrown"
-version = "0.16.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "841d1cc9bed7f9236f321df977030373f4a4163ae1a7dbfe1a51a2c1a51d9100"
-dependencies = [
- "foldhash 0.2.0",
-]
-
-[[package]]
-name = "hashbrown"
 version = "0.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4f467dd6dccf739c208452f8014c75c18bb8301b050ad1cfb27153803edb0f51"
@@ -2561,15 +2552,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7382cf6263419f2d8df38c55d7da83da5c18aef87fc7a7fc1fb1e344edfe14c1"
 dependencies = [
  "hashbrown 0.15.5",
-]
-
-[[package]]
-name = "hashlink"
-version = "0.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ea0b22561a9c04a7cb1a302c013e0259cd3b4bb619f145b32f72b8b4bcbed230"
-dependencies = [
- "hashbrown 0.16.1",
 ]
 
 [[package]]
@@ -3559,17 +3541,6 @@ dependencies = [
  "tracing",
  "uuid",
  "zerocopy 0.7.35",
-]
-
-[[package]]
-name = "libsqlite3-sys"
-version = "0.37.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b1f111c8c41e7c61a49cd34e44c7619462967221a6443b0ec299e0ac30cfb9b1"
-dependencies = [
- "cc",
- "pkg-config",
- "vcpkg",
 ]
 
 [[package]]
@@ -6607,6 +6578,7 @@ dependencies = [
  "derive_more",
  "dunce",
  "junction 2.0.0",
+ "libsql-rusqlite",
  "miette 7.6.0",
  "node-semver",
  "pipe-trait",
@@ -6620,7 +6592,6 @@ dependencies = [
  "pretty_assertions",
  "rayon",
  "rmp-serde",
- "rusqlite",
  "serde",
  "serde_json",
  "sha2 0.10.9",
@@ -6930,6 +6901,7 @@ dependencies = [
  "indexmap 2.14.0",
  "libc",
  "libsql",
+ "libsql-rusqlite",
  "miette 7.6.0",
  "mockito",
  "node-semver",
@@ -6979,7 +6951,6 @@ dependencies = [
  "pnpr-storage",
  "pnpr-upstream",
  "reqwest",
- "rusqlite",
  "serde",
  "serde-saphyr",
  "serde_json",
@@ -7012,6 +6983,7 @@ dependencies = [
  "futures-util",
  "getrandom 0.4.3",
  "libsql",
+ "libsql-rusqlite",
  "openidconnect",
  "p256 0.14.0",
  "pnpm-network",
@@ -7020,7 +6992,6 @@ dependencies = [
  "pnpr-error",
  "pnpr-libsql",
  "reqwest",
- "rusqlite",
  "rustls",
  "serde",
  "serde_json",
@@ -7084,9 +7055,9 @@ dependencies = [
  "bcrypt",
  "derive_more",
  "libsql",
+ "libsql-rusqlite",
  "object_store",
  "reqwest",
- "rusqlite",
  "serde_json",
  "sqlx",
  "tokio",
@@ -7286,6 +7257,7 @@ dependencies = [
  "getrandom 0.4.3",
  "libc",
  "libsql",
+ "libsql-rusqlite",
  "object_store",
  "percent-encoding",
  "pnpm-crypto-hash",
@@ -7297,7 +7269,6 @@ dependencies = [
  "pnpr-package-name",
  "pnpr-registry",
  "reqwest",
- "rusqlite",
  "serde",
  "serde_json",
  "ssri",
@@ -7995,31 +7966,6 @@ dependencies = [
  "spki 0.7.3",
  "subtle",
  "zeroize",
-]
-
-[[package]]
-name = "rsqlite-vfs"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a8a1f2315036ef6b1fbacd1972e8ee7688030b0a2121edfc2a6550febd41574d"
-dependencies = [
- "hashbrown 0.16.1",
- "thiserror 2.0.18",
-]
-
-[[package]]
-name = "rusqlite"
-version = "0.39.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a0d2b0146dd9661bf67bb107c0bb2a55064d556eeb3fc314151b957f313bcd4e"
-dependencies = [
- "bitflags 2.11.1",
- "fallible-iterator 0.3.0",
- "fallible-streaming-iterator",
- "hashlink 0.11.0",
- "libsqlite3-sys",
- "smallvec",
- "sqlite-wasm-rs",
 ]
 
 [[package]]
@@ -9004,18 +8950,6 @@ name = "split-first-char"
 version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8e9997ca938c186fe85387bedd38c54522f1800d7707b14ed4b8516a384c2c05"
-
-[[package]]
-name = "sqlite-wasm-rs"
-version = "0.5.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1b2c760607300407ddeaee518acf28c795661b7108c75421303dbefb237d3a36"
-dependencies = [
- "cc",
- "js-sys",
- "rsqlite-vfs",
- "wasm-bindgen",
-]
 
 [[package]]
 name = "sqlx"
@@ -10210,12 +10144,6 @@ name = "valuable"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ba73ea9cf16a25df0c8caa16c51acb937d5712a8429db78a3ee29d5dcacd3a65"
-
-[[package]]
-name = "vcpkg"
-version = "0.2.15"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "accd4ea62f7bb7a82fe23066fb0957d48ef677f6eeb8215f372f52e48bb32426"
 
 [[package]]
 name = "version-ranges"

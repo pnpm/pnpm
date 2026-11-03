@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url'
 
 import { instrumentAtomicWaits } from './instrument-atomics.mjs'
 import { validateWabt } from './encode-wat.mjs'
+import { SQLITE_FLAGS } from './sqlite-flags.mjs'
 
 const arguments_ = process.argv.slice(2)
 if (arguments_.includes('--check') && arguments_.includes('--clippy')) throw new Error('Choose either --check or --clippy')
@@ -38,7 +39,7 @@ const result = spawnSync('pnx', [
     CC_wasm32_wasip1_threads: join(sdk, 'bin/clang'),
     AR_wasm32_wasip1_threads: join(sdk, 'bin/llvm-ar'),
     CFLAGS_wasm32_wasip1_threads: '--target=wasm32-wasip1-threads -pthread',
-    LIBSQLITE3_FLAGS: '-USQLITE_THREADSAFE -DSQLITE_THREADSAFE=1',
+    LIBSQLITE3_FLAGS: SQLITE_FLAGS,
     CARGO_ENCODED_RUSTFLAGS: [...inherited, ...flags].join('\x1f'),
   },
 })

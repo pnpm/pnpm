@@ -16,7 +16,7 @@ server = [
   "dep:bcrypt",
   "dep:object_store",
   "dep:reqwest",
-  "dep:rusqlite",
+  "dep:libsql-rusqlite",
   "dep:serde_json",
   "dep:tokio",
   "dep:tracing",
@@ -30,9 +30,9 @@ axum = { workspace = true, optional = true }
 bcrypt = { workspace = true, optional = true }
 derive_more = { workspace = true }
 libsql = { workspace = true, optional = true }
+libsql-rusqlite = { workspace = true, optional = true }
 object_store = { workspace = true, optional = true }
 reqwest = { workspace = true, optional = true }
-rusqlite = { workspace = true, optional = true }
 serde_json = { workspace = true, optional = true }
 sqlx = { workspace = true, optional = true }
 tokio = { workspace = true, features = ["net", "signal"], optional = true }

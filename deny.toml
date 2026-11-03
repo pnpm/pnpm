@@ -73,7 +73,7 @@ allow = [
   "BSL-1.0",
   "CDLA-Permissive-2.0", # `webpki-root-certs`, pulled in by reqwest's `rustls` feature
   "ISC",
-  "Zlib", # required by foldhash, a transitive dep of rusqlite
+  "Zlib", # required by foldhash, a transitive dep of hashbrown
 ]
 confidence-threshold = 0.8
 exceptions = [
