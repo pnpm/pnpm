@@ -435,6 +435,8 @@ fn the_run_gate_reads_an_edited_manifest_and_reports_it_outdated() {
 
     let text = combined_output(&output);
     assert!(!output.status.success(), "{text}");
+    assert!(text.contains("ERR_PNPM_VERIFY_DEPS_BEFORE_RUN"), "{text}");
+    assert!(text.contains("Workspace package b has dependencies"), "{text}");
     assert!(!text.contains(GATE_DECIDED_FROM_RECORDS), "{text}");
     drop((root, mock_instance));
 }
