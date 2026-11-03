@@ -94,7 +94,6 @@ fn report_staged_archive_sweep(swept: usize) {
 async fn load_startup_auth(config: &Config) -> pnpr_error::Result<AuthState> {
     if config.features.registry.enabled {
         recover_publish_journal(config).await?;
-        super::release_record_logs::integrate_sequenced_logs(config)?;
         sweep_abandoned_uploads(config).await?;
         sweep_expired_staged_archives(config).await?;
         crate::cache_maintenance::prune_orphaned_namespaces_startup(config).await?;
@@ -123,6 +122,7 @@ pub async fn serve(mut config: Config) -> pnpr_error::Result<()> {
     // immediately above the error saying it is not.
     crate::cache_maintenance::spawn_periodic_cache_eviction(&config);
     let (state, app) = state_and_router(config, auth, osv_index)?;
+    super::release_record_logs::integrate_sequenced_logs(&state);
     let metrics = bind_metrics_listener(state).await?;
     let listener = tokio::net::TcpListener::bind(listen).await?;
     tracing::info!(%listen, "pnpr listening");
@@ -207,6 +207,7 @@ pub async fn serve_listener(
     // htpasswd / SQLite store or a configured `backend:`.
     let auth = load_startup_auth(&config).await?;
     let (state, app) = state_and_router(config, auth, osv_index)?;
+    super::release_record_logs::integrate_sequenced_logs(&state);
     let metrics = bind_metrics_listener(state).await?;
     tracing::info!(%listen, "pnpr listening");
     serve_until_shutdown(listener, app, metrics).await
