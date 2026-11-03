@@ -400,3 +400,44 @@ async fn a_record_that_does_not_parse_is_swept_with_its_archive() {
     assert_eq!(storage.sweep_staged_archives().await.unwrap(), 1);
     assert_eq!(storage.staged_archive_count("alice").await.unwrap(), 0);
 }
+
+#[tokio::test]
+async fn retiring_a_claimed_archive_frees_it_unless_it_was_renewed() {
+    let tmp = TempDir::new().unwrap();
+    let storage = storage_in(&tmp);
+    let staged = key("alice", DIGEST);
+    storage.stage_archive(&staged, b"bytes".to_vec()).await.unwrap();
+
+    storage.retire_staged_archive(&staged).await.unwrap();
+    assert_eq!(storage.claimable_staged_archive_size(&staged).await.unwrap(), None);
+    // Counting the principal's usage sweeps what is retired.
+    assert_eq!(storage.staged_archive_usage("alice").await.unwrap(), StagedArchiveUsage::default());
+    assert_eq!(storage.staged_archive_count("alice").await.unwrap(), 0);
+
+    // Uploaded again after the commit read its record: the renewal stands.
+    let renewed = key("alice", OTHER_DIGEST);
+    storage.stage_archive(&renewed, b"other".to_vec()).await.unwrap();
+    let namespace = renewed.namespace();
+    let record = renewed.record().unwrap();
+    let read = storage.root
+        .read_record(&namespace, &record)
+        .await
+        .unwrap()
+        .unwrap();
+    storage
+        .stage_archive_at(&renewed, b"other".to_vec(), unix_now() + 1)
+        .await
+        .unwrap();
+    let retired = StagedArchiveRecord { staged_at: 0, complete: false, size: 5 };
+    let written = storage.root
+        .replace_record_if_current(
+            &namespace,
+            &record,
+            &read,
+            &serde_json::to_vec(&retired).unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(written, crate::DocumentWrite::Conflict);
+    assert_eq!(storage.claimable_staged_archive_size(&renewed).await.unwrap(), Some(5));
+}

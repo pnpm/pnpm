@@ -69,6 +69,9 @@ async fn every_reference_to_a_staged_archive_counts_against_one_request() {
             .is_ok(),
     );
     let thrice = vec![integrity.as_str(); 3];
+    let too_many = vec![integrity.as_str(); 257];
+    let refused = StagedReferences::check_within(&storage, "alice", too_many, u64::MAX).await;
+    assert!(refused.is_err_and(|err| err.to_string().contains("257 staged archives")));
     let refused = StagedReferences::check_within(&storage, "alice", thrice, 20).await;
     assert!(refused.is_err_and(|err| err.to_string().contains("30 bytes")));
 
@@ -77,5 +80,6 @@ async fn every_reference_to_a_staged_archive_counts_against_one_request() {
         .await
         .unwrap();
     claimed.release(&storage).await;
-    assert_eq!(storage.staged_archive_count("alice").await.unwrap(), 0);
+    assert_eq!(storage.claimable_staged_archive_size(&key).await.unwrap(), None);
+    assert_eq!(storage.staged_archive_usage("alice").await.unwrap().bytes, 0);
 }

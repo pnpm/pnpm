@@ -395,37 +395,48 @@ impl StagedReferences {
         integrities: Vec<&str>,
         limit: u64,
     ) -> Result<Self, RegistryError> {
-        let mut total = 0_u64;
-        let mut digests = Vec::with_capacity(integrities.len());
+        if integrities.len() > MAX_STAGED_ARCHIVES_PER_PRINCIPAL {
+            return Err(bad_request(format!(
+                "the publish references {} staged archives, more than the \
+                 {MAX_STAGED_ARCHIVES_PER_PRINCIPAL} an account can hold",
+                integrities.len(),
+            )));
+        }
+        // Each distinct archive is looked up once, and counted once per
+        // reference.
+        let mut references: HashMap<String, u64> = HashMap::new();
         for integrity in integrities {
-            let digest = archive_digest(integrity)?;
-            let key = StagedArchiveKey { principal, digest: &digest };
+            *references
+                .entry(archive_digest(integrity)?)
+                .or_default() += 1;
+        }
+        let mut total = 0_u64;
+        for (digest, count) in &references {
+            let key = StagedArchiveKey { principal, digest };
             // One that is missing is reported, with its attachment, when it
             // is claimed.
             let size = storage.claimable_staged_archive_size(&key).await?.unwrap_or(0);
-            total = total.saturating_add(size);
-            digests.push(digest);
+            total = total.saturating_add(size.saturating_mul(*count));
         }
+        let digests = references.into_keys().collect();
         if total > limit {
             return Err(bad_request(format!(
                 "the publish references {total} bytes of staged archives, more than the {limit} \
                  one publish may take",
             )));
         }
-        digests.sort_unstable();
-        digests.dedup();
         Ok(Self { principal: Some(principal.to_string()), digests })
     }
 
-    /// Remove the archives the committed request claimed, so they stop
+    /// Retire the archives the committed request claimed, so they stop
     /// counting against their principal. A failure only warns: the archive
     /// expires anyway.
     pub(super) async fn release(self, storage: &Storage) {
         let Some(principal) = self.principal.as_deref() else { return };
         for digest in &self.digests {
             let key = StagedArchiveKey { principal, digest };
-            if let Err(error) = storage.remove_staged_archive(&key).await {
-                tracing::warn!(%error, "a claimed staged archive was not removed");
+            if let Err(error) = storage.retire_staged_archive(&key).await {
+                tracing::warn!(%error, "a claimed staged archive was not retired");
             }
         }
     }

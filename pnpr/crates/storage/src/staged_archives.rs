@@ -263,12 +263,26 @@ impl Storage {
             .map(|record| record.size))
     }
 
-    /// Remove `key`'s archive, once a commit has copied it into its package.
-    /// The archive goes first, so its record never outlives it.
-    pub async fn remove_staged_archive(&self, key: &StagedArchiveKey<'_>) -> Result<()> {
-        let namespace = key.namespace();
-        self.root.remove_record(&namespace, &key.archive()?).await?;
-        self.root.remove_record(&namespace, &key.record()?).await?;
+    /// Retire `key`'s archive once a commit has copied it into its package:
+    /// its record is rewritten as long expired, so it stops counting against
+    /// its principal and the sweep collects it. Only the record that was read
+    /// is retired, so an upload renewing the archive meanwhile keeps it.
+    pub async fn retire_staged_archive(&self, key: &StagedArchiveKey<'_>) -> Result<()> {
+        let (namespace, record_key) = (key.namespace(), key.record()?);
+        let Some(stored) = self.root.read_record(&namespace, &record_key).await? else {
+            return Ok(());
+        };
+        let Ok(record) = serde_json::from_slice::<StagedArchiveRecord>(&stored) else {
+            return Ok(());
+        };
+        let retired = StagedArchiveRecord { staged_at: 0, complete: false, ..record };
+        self.root.replace_record_if_current(
+            &namespace,
+            &record_key,
+            &stored,
+            &serde_json::to_vec(&retired)?,
+        )
+        .await?;
         Ok(())
     }
 

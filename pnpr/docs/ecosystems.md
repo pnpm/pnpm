@@ -296,15 +296,18 @@ by putting its `integrity` in the attachment in place of `data`:
 ```
 
 pnpr reads the archive while it stages the publish and verifies it against
-the version's `dist` as it verifies an inline archive, and removes the
-archives a publish claimed once it commits. One publish references at most
-2 GiB of staged archives, each reference counted. An archive the publishing
-account has not staged, or one that has expired, fails the whole publish with
-`400`, and nothing of it is published. A retry of a committed request gets the
-recorded outcome without reading its archives again, so it succeeds even after
-they expire. A version's [platform variants](endpoints.md#platform-variants)
-can be staged the same way. A sigstore bundle and a publish
-[held for approval](endpoints.md#staged-publishing-endpoints) carry their bytes inline.
+the version's `dist` as it verifies an inline archive. Once a publish commits,
+the archives it claimed stop counting against the account, and the next sweep
+removes them. One publish references at most 2 GiB of staged archives, each
+reference counted. An archive the publishing account has not staged, or one
+that has expired, fails the whole publish with `400`, and nothing of it is
+published. With [SQLite metadata](storage.md#sqlite-metadata), a retry of a
+committed request gets the recorded outcome without reading its archives
+again, so it succeeds even after they are gone. A version's
+[platform variants](endpoints.md#platform-variants) can be staged the same
+way. A sigstore bundle and a publish
+[held for approval](endpoints.md#staged-publishing-endpoints) carry their bytes
+inline.
 
 ## JSR
 
