@@ -32,6 +32,9 @@ use sha2::{Digest as _, Sha512};
 /// releases' worth.
 pub(super) const MAX_STAGED_BYTES_PER_PRINCIPAL: u64 = 2 * 1024 * 1024 * 1024;
 
+/// The most an upload reserves before its bytes arrive.
+const INITIAL_BUFFER_BYTES: u64 = 1024 * 1024;
+
 /// `PUT /-/pnpr/v0/artifacts/blob`: a release archive without an owner, a
 /// shared artifact's blob with one.
 pub(super) async fn serve_put_blob(
@@ -136,7 +139,10 @@ async fn stage_archive(
 /// `integrity`.
 async fn receive_archive(body: Body, integrity: &str, size: u64) -> Result<Vec<u8>, RegistryError> {
     let mut stream = body.into_data_stream();
-    let mut bytes = Vec::with_capacity(usize::try_from(size).unwrap_or_default());
+    // The declared size is the client's word, so the buffer grows with what
+    // arrives rather than reserving it up front.
+    let mut bytes =
+        Vec::with_capacity(usize::try_from(size.min(INITIAL_BUFFER_BYTES)).unwrap_or_default());
     let mut hasher = Sha512::new();
     while let Some(chunk) = stream.next().await {
         let chunk =
