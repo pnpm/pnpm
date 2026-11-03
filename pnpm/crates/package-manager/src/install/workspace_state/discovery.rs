@@ -7,6 +7,7 @@ use super::{
     build_project_manifests_list, configured_or_discovered_workspace_dir, lazy_wanted_lockfile,
     lockfile_root_for,
     nothing_to_install::projects_have_nothing_to_install,
+    stand_ins,
 };
 use std::borrow::Cow;
 
@@ -182,24 +183,97 @@ pub(super) fn check_discovered_deps(
     let Some(catalogs) = configured_catalogs(config, workspace_manifest) else {
         return cannot_check_deps();
     };
+    let gate = GateCheck {
+        config,
+        workspace_manifest,
+        lockfile_root,
+        catalogs: &catalogs,
+        state: workspace_state,
+        selected_project_dirs,
+    };
+    let listed = match gate_from_records(&gate, manifest, workspace_root) {
+        Ok(()) => return Some(crate::RunDepsStatus::UpToDate),
+        Err(listed) => listed,
+    };
     let Ok(workspace_projects) =
-        load_gated_workspace(config, manifest, workspace_root, workspace_manifest)
+        load_gated_workspace(config, manifest, workspace_root, workspace_manifest, listed)
     else {
         return cannot_check_deps();
     };
     let (project_manifests, bin_projects) =
         gated_projects(config, manifest, workspace_projects.as_deref());
-    Some(crate::check_deps_status_before_run(
+    Some(run_gate(
+        &gate,
+        crate::DeclaredManifests::new(&project_manifests),
+        bin_projects.as_deref(),
+    ))
+}
+
+/// What every run of the verify-deps check in one gate shares.
+struct GateCheck<'a> {
+    config: &'a Config,
+    workspace_manifest: Option<&'a pnpm_workspace::WorkspaceManifest>,
+    lockfile_root: &'a Path,
+    catalogs: &'a Catalogs,
+    state: &'a pnpm_workspace_state::WorkspaceState,
+    selected_project_dirs: &'a [&'a Path],
+}
+
+/// The gate on manifests rebuilt from the last validation's records, per
+/// [`stand_ins::list_stand_ins`], when one lockfile covers the workspace.
+/// `Ok` when it finds the dependencies up to date. Any other verdict is left
+/// to the gate on the files, so what the gate reports comes from them. `Err`
+/// holds the listing that gate reads, when one was made.
+fn gate_from_records(
+    gate: &GateCheck<'_>,
+    manifest: &PackageManifest,
+    workspace_root: &Path,
+) -> Result<(), Option<Vec<pnpm_workspace::ProjectManifestPaths>>> {
+    if !gate.config.shares_one_lockfile() {
+        return Err(None);
+    }
+    let listing = stand_ins::list_stand_ins(&stand_ins::ListedWorkspace {
+        config: gate.config,
+        workspace_root,
+        workspace_manifest: gate.workspace_manifest,
+        state_root: gate.lockfile_root,
+        state: gate.state,
+    });
+    let (listed, stand_ins) = match listing {
+        stand_ins::Listing::StandIns { listed, stand_ins } => (listed, stand_ins),
+        stand_ins::Listing::Files(listed) => return Err(listed),
+    };
+    let project_manifests = build_project_manifests_list(manifest, Some(&stand_ins.projects));
+    let recorded_digests = stand_ins::stand_in_digests(&project_manifests, &stand_ins, manifest);
+    let declared = crate::DeclaredManifests::with_stand_ins(&project_manifests, &recorded_digests);
+    if run_gate(gate, declared, None) == crate::RunDepsStatus::UpToDate {
+        tracing::debug!(target: "pacquet::run", "the recorded manifests decided the dependencies");
+        return Ok(());
+    }
+    tracing::debug!(target: "pacquet::run", "the recorded manifests cannot decide the dependencies");
+    Err(Some(listed))
+}
+
+/// [`crate::check_deps_status_before_run`] on `project_manifests`.
+fn run_gate(
+    gate: &GateCheck<'_>,
+    project_manifests: crate::DeclaredManifests<'_>,
+    bin_projects: Option<&[(PathBuf, &PackageManifest)]>,
+) -> crate::RunDepsStatus {
+    crate::check_deps_status_before_run(
         &OptimisticRepeatInstallCheck {
-            workspace_root: lockfile_root,
-            config,
-            project_manifests: crate::DeclaredManifests::new(&project_manifests),
-            is_workspace_install: workspace_manifest.is_some(),
-            lockfile: MaybeLazyLockfile::Lazy(&lazy_wanted_lockfile(config, lockfile_root)),
-            catalogs: &catalogs,
+            workspace_root: gate.lockfile_root,
+            config: gate.config,
+            project_manifests,
+            is_workspace_install: gate.workspace_manifest.is_some(),
+            lockfile: MaybeLazyLockfile::Lazy(&lazy_wanted_lockfile(
+                gate.config,
+                gate.lockfile_root,
+            )),
+            catalogs: gate.catalogs,
             layout: crate::RepeatInstallLayout {
-                node_linker: config.node_linker,
-                supported_architectures: config.supported_architectures.as_ref(),
+                node_linker: gate.config.node_linker,
+                supported_architectures: gate.config.supported_architectures.as_ref(),
                 // The gate ignores dependency-group drift, so the groups only
                 // shape the settings snapshot written back after a passing
                 // content check — where the recorded values win anyway.
@@ -210,29 +284,40 @@ pub(super) fn check_discovered_deps(
                 },
             },
             manifests: crate::RepeatInstallManifests {
-                workspace_projects: bin_projects.as_deref(),
+                workspace_projects: bin_projects,
                 ..crate::RepeatInstallManifests::ON_DISK
             },
         },
-        workspace_state,
-        selected_project_dirs,
-    ))
+        gate.state,
+        gate.selected_project_dirs,
+    )
 }
+
 /// The workspace projects the gate reads: every one when one lockfile and one
 /// state file cover them all, and for a dedicated-lockfile install the ones
 /// whose commands the project links, when it links any.
+///
+/// `listed` names the projects to read, when the caller already listed them.
 fn load_gated_workspace(
     config: &Config,
     manifest: &PackageManifest,
     workspace_root: &Path,
     workspace_manifest: Option<&pnpm_workspace::WorkspaceManifest>,
+    listed: Option<Vec<pnpm_workspace::ProjectManifestPaths>>,
 ) -> Result<Option<Vec<pnpm_workspace::Project>>, pnpm_workspace::FindWorkspaceProjectsError> {
     let needed = config.shares_one_lockfile()
         || crate::optimistic_repeat_install::validation::links_workspace_commands(manifest);
     if !needed {
         return Ok(None);
     }
-    load_workspace_projects(workspace_root, workspace_manifest, &config.managed_directories())
+    match listed {
+        Some(listed) => pnpm_workspace::read_workspace_projects(listed).map(Some),
+        None => load_workspace_projects(
+            workspace_root,
+            workspace_manifest,
+            &config.managed_directories(),
+        ),
+    }
 }
 
 /// The projects the gate compares, and the ones whose commands they link per

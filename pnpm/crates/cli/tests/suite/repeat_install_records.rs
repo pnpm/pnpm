@@ -336,3 +336,105 @@ fn the_run_gate_leaves_missing_records_to_the_install() {
     assert!(from_records.contains(DECIDED_FROM_RECORDS), "{from_records}");
     drop((root, mock_instance));
 }
+
+/// The debug event the verify-deps gate logs when the records decided.
+const GATE_DECIDED_FROM_RECORDS: &str = "the recorded manifests decided the dependencies";
+
+/// [`write_workspace`] with a `noop` root script that fails the run when the
+/// gate finds the dependencies outdated.
+fn write_gated_workspace(workspace: &Path) {
+    write_workspace(workspace);
+    let workspace_yaml = workspace.join("pnpm-workspace.yaml");
+    let mut yaml = fs::read_to_string(&workspace_yaml).expect("read pnpm-workspace.yaml");
+    yaml.push_str("verifyDepsBeforeRun: error\n");
+    fs::write(&workspace_yaml, yaml).expect("write pnpm-workspace.yaml");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "root", "private": true, "scripts": { "noop": "node -e 0" } })
+            .to_string(),
+    )
+    .expect("write package.json");
+}
+
+/// `pnpm run noop` with the gate's trace.
+fn traced_run(workspace: &Path, registry: &str) -> std::process::Output {
+    pacquet_in(workspace)
+        .with_env("PNPM_CONFIG_REGISTRY", registry)
+        .with_env("TRACE", "pacquet::run=debug")
+        .with_args(["run", "noop"])
+        .output()
+        .expect("run pnpm run")
+}
+
+fn combined_output(output: &std::process::Output) -> String {
+    format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr),
+    )
+}
+
+#[test]
+fn the_run_gate_finds_an_unchanged_workspace_up_to_date_from_the_records() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_gated_workspace(&workspace);
+    pacquet
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_arg("install")
+        .assert()
+        .success();
+    trust_recorded_stats(&workspace, mock_instance.url());
+
+    let output = traced_run(&workspace, mock_instance.url());
+
+    let text = combined_output(&output);
+    assert!(output.status.success(), "{text}");
+    assert!(text.contains(GATE_DECIDED_FROM_RECORDS), "{text}");
+    drop((root, mock_instance));
+}
+
+/// The gate reports what the manifest files say, so an edit the lockfile does
+/// not satisfy is read and reported.
+#[test]
+fn the_run_gate_reads_an_edited_manifest_and_reports_it_outdated() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_gated_workspace(&workspace);
+    pacquet
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_arg("install")
+        .assert()
+        .success();
+    trust_recorded_stats(&workspace, mock_instance.url());
+    fs::write(
+        workspace.join("packages/b/package.json"),
+        serde_json::json!({
+            "name": "b",
+            "version": "1.0.0",
+            "bin": { "b": "cli.js" },
+            "dependencies": { "a": "workspace:*" },
+        })
+        .to_string(),
+    )
+    .expect("edit packages/b/package.json");
+
+    let output = traced_run(&workspace, mock_instance.url());
+
+    let text = combined_output(&output);
+    assert!(!output.status.success(), "{text}");
+    assert!(!text.contains(GATE_DECIDED_FROM_RECORDS), "{text}");
+    drop((root, mock_instance));
+}
