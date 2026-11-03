@@ -219,7 +219,7 @@ async fn an_invalid_digest_is_refused() {
             .is_err(),
     );
     // Separators of either platform never reach a path.
-    let windows = format!(r"..\{}", &DIGEST[4..]);
+    let windows = format!(r"{}\{}", &DIGEST[..64], &DIGEST[65..]);
     assert!(
         storage
             .stage_archive(&key("alice", &windows), b"x".to_vec())
