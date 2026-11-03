@@ -2,14 +2,11 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { pkgRequiresBuild } from '@pnpm/building.pkg-requires-build'
+import { createAllowBuildFunction } from '@pnpm/building.policy'
 import { formatIntegrity } from '@pnpm/crypto.integrity'
-import * as dp from '@pnpm/deps.path'
+import { iteratePkgsForVirtualStore } from '@pnpm/deps.graph-builder'
 import { getContextForSingleImporter } from '@pnpm/installing.context'
-import {
-  nameVerFromPkgSnapshot,
-  packageIdFromSnapshot,
-  type PackageSnapshot,
-} from '@pnpm/lockfile.utils'
+import { packageIdFromSnapshot } from '@pnpm/lockfile.utils'
 import { streamParser } from '@pnpm/logger'
 import type {
   PackageFileInfo,
@@ -104,8 +101,7 @@ interface PkgToCheck {
   depPath: DepPath
   id: string
   resolution: TarballResolution
-  pkgPath: string
-  name: string
+  targetDir: string
 }
 
 export async function storeStatus (maybeOpts: StoreStatusOptions): Promise<string[]> {
@@ -121,8 +117,22 @@ export async function storeStatus (maybeOpts: StoreStatusOptions): Promise<strin
     })
     if (!ctx.wantedLockfile) return []
 
-    const pkgs = extractPackagesToCheck(ctx.wantedLockfile, ctx.skipped)
-    return await findModifiedPackages(pkgs, ctx.storeDir, ctx.virtualStoreDir, opts.virtualStoreDirMaxLength)
+    const pkgs = Array.from(iteratePkgsForVirtualStore(ctx.wantedLockfile, {
+      ...opts,
+      allowBuild: createAllowBuildFunction(opts),
+      virtualStoreDir: ctx.virtualStoreDir,
+      globalVirtualStoreDir: opts.enableGlobalVirtualStore
+        ? ctx.modulesFile?.virtualStoreDir ?? ctx.virtualStoreDir
+        : path.join(ctx.storeDir, 'links'),
+    }))
+      .filter(({ pkgMeta }) => !ctx.skipped.has(pkgMeta.depPath))
+      .map(({ pkgMeta: { depPath, pkgSnapshot, name }, dirInVirtualStore }) => ({
+        depPath,
+        id: packageIdFromSnapshot(depPath, pkgSnapshot),
+        resolution: pkgSnapshot.resolution as TarballResolution,
+        targetDir: path.join(dirInVirtualStore, 'node_modules', name),
+      }))
+    return await findModifiedPackages(pkgs, ctx.storeDir)
   } finally {
     if ((reporter != null) && typeof reporter === 'function') {
       streamParser.removeListener('data', reporter)
@@ -130,40 +140,16 @@ export async function storeStatus (maybeOpts: StoreStatusOptions): Promise<strin
   }
 }
 
-function extractPackagesToCheck (
-  wantedLockfile: NonNullable<Awaited<ReturnType<typeof getContextForSingleImporter>>['wantedLockfile']>,
-  skipped: Set<string>
-): PkgToCheck[] {
-  return (Object.entries(wantedLockfile.packages ?? {}) as Array<[DepPath, PackageSnapshot]>)
-    .filter(([depPath]) => !skipped.has(depPath))
-    .map(([depPath, pkgSnapshot]) => ({
-      depPath,
-      id: packageIdFromSnapshot(depPath, pkgSnapshot),
-      resolution: pkgSnapshot.resolution as TarballResolution,
-      pkgPath: depPath,
-      ...nameVerFromPkgSnapshot(depPath, pkgSnapshot),
-    }))
-}
-
 async function findModifiedPackages (
   pkgs: PkgToCheck[],
-  storeDir: string,
-  virtualStoreDir: string,
-  virtualStoreDirMaxLength: number
+  storeDir: string
 ): Promise<string[]> {
   const storeIndex = new StoreIndex(storeDir)
   try {
-    const modified = await pFilter(pkgs, async (pkg) => {
-      const targetDir = path.join(
-        virtualStoreDir,
-        dp.depPathToFilename(pkg.depPath, virtualStoreDirMaxLength),
-        'node_modules',
-        pkg.name
-      )
-      return isPackageModified(storeIndex, pkg, targetDir)
-    }, { concurrency: 8 })
+    const modified = await pFilter(pkgs, async (pkg) =>
+      isPackageModified(storeIndex, pkg, pkg.targetDir), { concurrency: 8 })
 
-    return modified.map(({ pkgPath }) => pkgPath)
+    return modified.map(({ depPath }) => depPath)
   } finally {
     storeIndex.close()
   }

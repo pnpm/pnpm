@@ -7,7 +7,10 @@
 use derive_more::{Display, Error};
 use miette::{Diagnostic, IntoDiagnostic};
 use pnpm_config::Config;
-use pnpm_deps_restorer::{safe_join_modules_dir, store_index_key_for_resolution};
+use pnpm_deps_restorer::{
+    AllowBuildPolicy, VirtualStoreLayout, safe_join_modules_dir, store_index_key_for_resolution,
+    validate_virtual_store_slot_containment, virtual_store_layout_for_lockfile,
+};
 use pnpm_lockfile::Lockfile;
 use pnpm_modules_yaml::{Host, Modules, read_modules_manifest};
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
@@ -42,7 +45,7 @@ pub(super) async fn run<Reporter: self::Reporter>(
     };
     let modules_manifest =
         read_modules_manifest::<Host>(&lockfile_dir.join("node_modules")).into_diagnostic()?;
-    let packages = packages_to_check(config, &lockfile, modules_manifest.as_ref(), &lockfile_dir);
+    let packages = packages_to_check(config, &lockfile, modules_manifest.as_ref(), &lockfile_dir)?;
 
     let store_dir = config.store_dir.root().to_path_buf();
     let frozen_store = config.frozen_store;
@@ -70,7 +73,7 @@ fn packages_to_check(
     lockfile: &Lockfile,
     modules_manifest: Option<&Modules>,
     lockfile_dir: &Path,
-) -> Vec<PackageToCheck> {
+) -> miette::Result<Vec<PackageToCheck>> {
     let skipped: HashSet<&str> = modules_manifest
         .map(|manifest| {
             manifest.skipped
@@ -84,8 +87,9 @@ fn packages_to_check(
         None => resolve_virtual_store_dir(config, lockfile_dir),
     };
 
-    let max_length = config.virtual_store_dir_max_length as usize;
-    lockfile.snapshots
+    let layout =
+        installed_layout(config, lockfile, modules_manifest, lockfile_dir, &virtual_store_dir)?;
+    Ok(lockfile.snapshots
         .iter()
         .flatten()
         .filter(|(key, _)| !skipped.contains(key.to_string().as_str()))
@@ -95,8 +99,12 @@ fn packages_to_check(
                 .get(&key.without_peer())?;
             let store_index_key =
                 store_index_key_for_resolution(&metadata.resolution, &key.pkg_id(), true)?;
+            let slot = layout.slot_dir(key);
             let modules_dir = virtual_store_dir
-                .join(key.to_virtual_store_name(max_length))
+                .join(
+                    slot.strip_prefix(layout.package_store_dir())
+                        .expect("slot inside virtual store"),
+                )
                 .join("node_modules");
             Some(PackageToCheck {
                 dep_path: key.to_string(),
@@ -104,7 +112,34 @@ fn packages_to_check(
                 store_index_key,
             })
         })
-        .collect()
+        .collect())
+}
+
+fn installed_layout(
+    config: &Config,
+    lockfile: &Lockfile,
+    modules_manifest: Option<&Modules>,
+    lockfile_dir: &Path,
+    virtual_store_dir: &Path,
+) -> miette::Result<VirtualStoreLayout> {
+    let max_length = modules_manifest.map_or(config.virtual_store_dir_max_length, |manifest| {
+        manifest.virtual_store_dir_max_length
+    }) as usize;
+    let layout = if config.enable_global_virtual_store {
+        let policy = AllowBuildPolicy::from_config(config).into_diagnostic()?;
+        virtual_store_layout_for_lockfile(
+            config,
+            config.node_version.as_deref(),
+            lockfile,
+            Some(&policy),
+            Some(lockfile_dir),
+        )
+    } else {
+        VirtualStoreLayout::legacy(virtual_store_dir, max_length)
+    };
+    validate_virtual_store_slot_containment(lockfile.snapshots.as_ref(), &layout)
+        .into_diagnostic()?;
+    Ok(layout)
 }
 
 /// Re-hash every candidate against its store row. Runs on the blocking

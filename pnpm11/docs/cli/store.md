@@ -9,7 +9,7 @@ Managing the package store.
 
 ### status
 
-Checks for modified packages in the store.
+Checks for modified packages in the project or global virtual store.
 
 Returns exit code 0 if the content of the package is the same as it was at the
 time of unpacking.

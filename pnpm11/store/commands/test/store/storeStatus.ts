@@ -18,6 +18,26 @@ const pnpmBin = path.join(import.meta.dirname, '../../../../pnpm/bin/pnpm.mjs')
 const cleanConfigDir = temporaryDirectory()
 const execaOpts = { env: { XDG_CONFIG_HOME: cleanConfigDir } }
 
+test.each(['', 'virtualStoreDir: custom-links\n'])('store status checks global virtual store packages (%s)', async (settings) => {
+  prepare()
+  fs.writeFileSync('pnpm-workspace.yaml', `enableGlobalVirtualStore: true\n${settings}`)
+  const storeDir = path.join(temporaryDirectory(), 'store')
+  const options = [`--store-dir=${storeDir}`, `--registry=${REGISTRY}`]
+  await execa('node', [
+    pnpmBin, 'add', 'is-odd@3.0.1', '@pnpm.e2e/abc@1.0.0',
+    '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0',
+    '--allow-build=@pnpm.e2e/pre-and-postinstall-scripts-example', ...options,
+  ], execaOpts)
+  await execa('node', [pnpmBin, 'store', 'status', ...options], execaOpts)
+
+  fs.writeFileSync('node_modules/@pnpm.e2e/abc/package.json', '{}\n')
+  const result = await execa('node', [pnpmBin, 'store', 'status', ...options], { ...execaOpts, reject: false })
+  expect(result.exitCode).toBe(1)
+  expect(result.stderr).toContain('ERR_PNPM_MODIFIED_DEPENDENCY')
+  expect(result.stderr).toContain('@pnpm.e2e/abc@1.0.0(')
+  expect(result.stderr).not.toContain('is-odd@3.0.1')
+})
+
 test('CLI fails when store status finds modified packages', async () => {
   prepare()
   const tmp = temporaryDirectory()

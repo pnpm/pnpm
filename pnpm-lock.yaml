@@ -10049,6 +10049,9 @@ importers:
       '@pnpm/building.pkg-requires-build':
         specifier: workspace:*
         version: link:../../building/pkg-requires-build
+      '@pnpm/building.policy':
+        specifier: workspace:*
+        version: link:../../building/policy
       '@pnpm/cli.utils':
         specifier: workspace:*
         version: link:../../cli/utils
@@ -10061,6 +10064,9 @@ importers:
       '@pnpm/crypto.integrity':
         specifier: workspace:*
         version: link:../../crypto/integrity
+      '@pnpm/deps.graph-builder':
+        specifier: workspace:*
+        version: link:../../deps/graph-builder
       '@pnpm/deps.path':
         specifier: workspace:*
         version: link:../../deps/path

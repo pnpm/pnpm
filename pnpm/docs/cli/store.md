@@ -9,7 +9,8 @@ Managing the package store.
 
 ### status
 
-Checks the packages listed in the current project's lockfile for modifications in the store.
+Checks the packages listed in the current project's lockfile for modifications
+in the project or global virtual store.
 
 Returns exit code 0 if the content of the package is the same as it was at the
 time of unpacking. Otherwise it fails with `ERR_PNPM_MODIFIED_DEPENDENCY` and

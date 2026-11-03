@@ -19,6 +19,9 @@
       "path": "../../building/pkg-requires-build"
     },
     {
+      "path": "../../building/policy"
+    },
+    {
       "path": "../../cli/utils"
     },
     {
@@ -41,6 +44,9 @@
     },
     {
       "path": "../../crypto/integrity"
+    },
+    {
+      "path": "../../deps/graph-builder"
     },
     {
       "path": "../../deps/path"
