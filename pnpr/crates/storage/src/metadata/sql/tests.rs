@@ -1,7 +1,8 @@
 //! Conformance tests of the SQL metadata backend. [`conformance!`] runs each
 //! test against every adapter: `SQLite`, a libSQL primary, and a libSQL
 //! primary read through an embedded replica of each instance that syncs only
-//! when it must.
+//! when it must. `PNPR_TEST_LIBSQL_URL` runs the libSQL adapters on another
+//! database, such as Turso; see [`libsql::ConformancePrimary`].
 
 #[macro_use]
 mod conformance;
@@ -39,7 +40,7 @@ enum Adapter {
     Sqlite,
     #[cfg(feature = "backend-libsql")]
     Libsql {
-        server: libsql::Server,
+        server: libsql::ConformancePrimary,
         /// Whether each instance reads through an embedded replica.
         replica: bool,
     },
@@ -52,7 +53,7 @@ impl Db {
 
     #[cfg(feature = "backend-libsql")]
     pub(super) async fn libsql(replica: bool) -> Self {
-        let server = libsql::server().await;
+        let server = libsql::conformance_primary().await;
         Self::new(TempDir::new().unwrap(), Adapter::Libsql { server, replica })
     }
 
