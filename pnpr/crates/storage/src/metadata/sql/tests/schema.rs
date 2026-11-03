@@ -171,47 +171,51 @@ conformance! {
 
 #[test]
 fn the_fingerprint_changes_with_the_statements() {
-    let script = schema::script();
-    assert_eq!(schema::fingerprint_of(&script), schema::fingerprint());
+    let script = schema::fingerprinting::script();
+    assert_eq!(schema::fingerprinting::fingerprint_of(&script), schema::fingerprint());
     let added_column = script.replacen(
         "generation INTEGER NOT NULL\n)",
         "generation INTEGER NOT NULL,\n    note TEXT\n)",
         1,
     );
     assert_ne!(added_column, script);
-    assert_ne!(schema::fingerprint_of(&added_column), schema::fingerprint());
+    assert_ne!(schema::fingerprinting::fingerprint_of(&added_column), schema::fingerprint());
     let added_index = format!("{script}\nCREATE INDEX tags_by_version ON tags (version);");
-    assert_ne!(schema::fingerprint_of(&added_index), schema::fingerprint());
+    assert_ne!(schema::fingerprinting::fingerprint_of(&added_index), schema::fingerprint());
     let changed_marker =
         script.replace(schema::MARKER_TABLE, &schema::MARKER_TABLE.replace(" STRICT", ""));
     assert_ne!(changed_marker, script);
-    assert_ne!(schema::fingerprint_of(&changed_marker), schema::fingerprint());
+    assert_ne!(schema::fingerprinting::fingerprint_of(&changed_marker), schema::fingerprint());
 }
 
 #[test]
 fn the_fingerprint_ignores_comments_and_whitespace() {
-    let script = schema::script();
+    let script = schema::fingerprinting::script();
     let reformatted = script.replace("    ", "\t\t").replace("-- ", "-- reworded: ");
     assert_ne!(reformatted, script);
-    assert_eq!(schema::fingerprint_of(&reformatted), schema::fingerprint());
+    assert_eq!(schema::fingerprinting::fingerprint_of(&reformatted), schema::fingerprint());
     let unspaced = script.replace("catalogs (", "catalogs(").replace(", ", ",");
     assert_ne!(unspaced, script);
-    assert_eq!(schema::fingerprint_of(&unspaced), schema::fingerprint());
+    assert_eq!(schema::fingerprinting::fingerprint_of(&unspaced), schema::fingerprint());
     let spaced = script.replace(") STRICT", " )  STRICT");
     assert_ne!(spaced, script);
-    assert_eq!(schema::fingerprint_of(&spaced), schema::fingerprint());
+    assert_eq!(schema::fingerprinting::fingerprint_of(&spaced), schema::fingerprint());
 }
 
 #[test]
 fn the_fingerprint_keeps_quoted_text_and_word_boundaries() {
-    let quoted =
-        |value: &str| schema::fingerprint_of(&format!("CREATE TABLE t (c TEXT DEFAULT {value})"));
-    assert_eq!(quoted("'a b'"), schema::fingerprint_of("CREATE TABLE t(c TEXT DEFAULT 'a b')"));
+    let quoted = |value: &str| {
+        schema::fingerprinting::fingerprint_of(&format!("CREATE TABLE t (c TEXT DEFAULT {value})"))
+    };
+    assert_eq!(
+        quoted("'a b'"),
+        schema::fingerprinting::fingerprint_of("CREATE TABLE t(c TEXT DEFAULT 'a b')"),
+    );
     assert_ne!(quoted("'a b'"), quoted("'ab'"));
     assert_ne!(quoted("'it''s ( x'"), quoted("'it''s (x'"));
     assert_ne!(
-        schema::fingerprint_of("CREATE TABLE t (a INTEGER)"),
-        schema::fingerprint_of("CREATE TABLE t (aINTEGER)"),
+        schema::fingerprinting::fingerprint_of("CREATE TABLE t (a INTEGER)"),
+        schema::fingerprinting::fingerprint_of("CREATE TABLE t (aINTEGER)"),
     );
 }
 

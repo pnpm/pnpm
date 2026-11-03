@@ -6,6 +6,10 @@
 //! constraint. `revision_key` is `ordinary` for a version outside the registry
 //! revision protocol.
 
+pub(super) mod fingerprinting;
+
+pub(super) use fingerprinting::fingerprint;
+
 use super::{
     adapter::{Connection, Value},
     batch::WriteTransaction,
@@ -13,12 +17,6 @@ use super::{
 use fingerprinting::{canonical, statements};
 use pnpr_error::Result;
 use std::fmt;
-
-mod fingerprinting;
-
-pub(super) use fingerprinting::fingerprint;
-#[cfg(test)]
-pub(super) use fingerprinting::{fingerprint_of, script};
 
 /// The table that marks a database as pnpr's metadata. Its one row is the
 /// [`fingerprint`] of the schema that created the tables.
