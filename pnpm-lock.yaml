@@ -3552,6 +3552,9 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../core/types
+      p-limit:
+        specifier: 'catalog:'
+        version: 7.3.3
       path-exists:
         specifier: 'catalog:'
         version: 5.0.0
@@ -10082,6 +10085,9 @@ importers:
       '@pnpm/fs.graceful-fs':
         specifier: workspace:*
         version: link:../../fs/graceful-fs
+      '@pnpm/fs.symlink-dependency':
+        specifier: workspace:*
+        version: link:../../fs/symlink-dependency
       '@pnpm/global.packages':
         specifier: workspace:*
         version: link:../../global/packages

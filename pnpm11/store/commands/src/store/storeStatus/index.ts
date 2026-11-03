@@ -6,6 +6,7 @@ import { createAllowBuildFunction } from '@pnpm/building.policy'
 import { formatIntegrity } from '@pnpm/crypto.integrity'
 import { iteratePkgsForVirtualStore, projectLinksMatchPackageDirs } from '@pnpm/deps.graph-builder'
 import { PnpmError } from '@pnpm/error'
+import { safeJoinWorkspaceModulesDir } from '@pnpm/fs.symlink-dependency'
 import { getContextForSingleImporter } from '@pnpm/installing.context'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
 import { packageIdFromSnapshot } from '@pnpm/lockfile.utils'
@@ -139,7 +140,7 @@ export async function storeStatus (maybeOpts: StoreStatusOptions): Promise<strin
         targetDir: path.join(dirInVirtualStore, 'node_modules', name),
       }))
     if (opts.enableGlobalVirtualStore) {
-      await validateGlobalStoreLinks(pkgs, { lockfile: installedLockfile, lockfileDir: opts.lockfileDir, rootModulesDir: ctx.rootModulesDir })
+      await validateGlobalStoreLinks(pkgs, { lockfile: installedLockfile, lockfileDir: opts.lockfileDir, modulesDir: opts.modulesDir ?? 'node_modules' })
     }
     return await findModifiedPackages(pkgs, ctx.storeDir)
   } finally {
@@ -151,16 +152,15 @@ export async function storeStatus (maybeOpts: StoreStatusOptions): Promise<strin
 
 async function validateGlobalStoreLinks (
   pkgs: PkgToCheck[],
-  { lockfile, lockfileDir, rootModulesDir }: {
+  { lockfile, lockfileDir, modulesDir }: {
     lockfile: LockfileObject
     lockfileDir: string
-    rootModulesDir: string
+    modulesDir: string
   }
 ): Promise<void> {
-  const relativeModulesDir = path.relative(lockfileDir, rootModulesDir)
   const projects = Object.keys(lockfile.importers).map((id) => ({
     id: id as ProjectId,
-    modulesDir: path.join(lockfileDir, id, relativeModulesDir),
+    modulesDir: path.resolve(id === '.' ? lockfileDir : safeJoinWorkspaceModulesDir(lockfileDir, id), modulesDir),
   }))
   const packageDirs = new Map(pkgs.map((pkg) => [pkg.depPath, pkg.targetDir]))
   if (!await projectLinksMatchPackageDirs(projects, { lockfile, packageDirs })) {

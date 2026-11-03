@@ -9,7 +9,8 @@ use miette::{Diagnostic, IntoDiagnostic};
 use pnpm_config::Config;
 use pnpm_deps_restorer::{
     AllowBuildPolicy, VirtualStoreLayout, safe_join_modules_dir, store_index_key_for_resolution,
-    validate_virtual_store_slot_containment, virtual_store_layout_for_lockfile,
+    validate_importer_id, validate_virtual_store_slot_containment,
+    virtual_store_layout_for_lockfile,
 };
 use pnpm_lockfile::Lockfile;
 use pnpm_modules_yaml::{AllowBuildValue, Host, Modules, read_modules_manifest};
@@ -54,7 +55,8 @@ pub(super) async fn run<Reporter: self::Reporter>(
         return report_untouched::<Reporter>(dir);
     };
     let modules_manifest =
-        read_modules_manifest::<Host>(&lockfile_dir.join("node_modules")).into_diagnostic()?;
+        read_modules_manifest::<Host>(&project_modules_dir(config, &lockfile_dir))
+            .into_diagnostic()?;
     let lockfile = if config.enable_global_virtual_store {
         Lockfile::load_current_from_install_state_dir(&config.install_state_dir)
             .into_diagnostic()?
@@ -63,16 +65,17 @@ pub(super) async fn run<Reporter: self::Reporter>(
         lockfile
     };
     let packages = packages_to_check(config, &lockfile, modules_manifest.as_ref(), &lockfile_dir)?;
-    if config.enable_global_virtual_store {
-        validate_project_links(&lockfile, &lockfile_dir, &packages)?;
-    }
 
     let store_dir = config.store_dir.root().to_path_buf();
     let frozen_store = config.frozen_store;
-    let mut modified =
-        tokio::task::spawn_blocking(move || find_modified(&store_dir, frozen_store, &packages))
-            .await
-            .into_diagnostic()??;
+    let mut modified = tokio::task::spawn_blocking(move || {
+        if config.enable_global_virtual_store {
+            validate_project_links(config, &lockfile, &lockfile_dir, &packages)?;
+        }
+        find_modified(&store_dir, frozen_store, &packages)
+    })
+    .await
+    .into_diagnostic()??;
 
     if modified.is_empty() {
         return report_untouched::<Reporter>(dir);
@@ -186,16 +189,16 @@ fn installed_build_policy(
 }
 
 fn validate_project_links(
+    config: &Config,
     lockfile: &Lockfile,
     lockfile_dir: &Path,
     packages: &[PackageToCheck],
 ) -> miette::Result<()> {
-    let package_dirs: HashMap<_, _> = packages
-        .iter()
-        .map(|package| (package.dep_path.as_str(), &package.package_dir))
-        .collect();
+    let package_dirs = resolved_package_dirs(packages)?;
+    let root_modules_dir = project_modules_dir(config, lockfile_dir);
     for (id, importer) in &lockfile.importers {
-        let modules_dir = lockfile_dir.join(id.as_str()).join("node_modules");
+        validate_importer_id(id.as_str())?;
+        let modules_dir = project_modules_dir(config, &lockfile_dir.join(id.as_str()));
         let dependencies =
             [&importer.dependencies, &importer.dev_dependencies, &importer.optional_dependencies];
         for (alias, reference) in dependencies
@@ -205,15 +208,56 @@ fn validate_project_links(
         {
             let Some(key) = reference.version.resolved_key(alias) else { continue };
             let Some(expected) = package_dirs.get(key.to_string().as_str()) else { continue };
-            let link = safe_join_modules_dir(&modules_dir, &alias.to_string()).into_diagnostic()?;
-            let actual = pnpm_fs::realpath_missing(&link).into_diagnostic()?;
-            let expected = pnpm_fs::realpath_missing(expected).into_diagnostic()?;
-            if actual != expected {
+            let link = installed_project_link(&modules_dir, &root_modules_dir, &alias.to_string())?;
+            let actual = installed_link_realpath(&link)?;
+            if &actual != expected {
                 return Err(UnverifiablePackageError { path: link.display().to_string() }.into());
             }
         }
     }
     Ok(())
+}
+
+fn resolved_package_dirs(packages: &[PackageToCheck]) -> miette::Result<HashMap<&str, PathBuf>> {
+    packages
+        .iter()
+        .map(|package| {
+            installed_link_realpath(&package.package_dir)
+                .map(|path| (package.dep_path.as_str(), path))
+        })
+        .collect()
+}
+
+fn project_modules_dir(config: &Config, project_dir: &Path) -> PathBuf {
+    let name = config
+        .applies_package_configs()
+        .then(|| pnpm_workspace::read_project_name(project_dir))
+        .flatten();
+    config.project_modules_dir(project_dir, name.as_deref())
+}
+
+fn installed_link_realpath(link: &Path) -> miette::Result<PathBuf> {
+    match pnpm_fs::realpath_missing(link) {
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            Err(UnverifiablePackageError { path: link.display().to_string() }.into())
+        }
+        result => result.into_diagnostic(),
+    }
+}
+
+fn installed_project_link(
+    modules_dir: &Path,
+    root_modules_dir: &Path,
+    alias: &str,
+) -> miette::Result<PathBuf> {
+    let link = safe_join_modules_dir(modules_dir, alias).into_diagnostic()?;
+    match std::fs::symlink_metadata(&link) {
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            safe_join_modules_dir(root_modules_dir, alias).into_diagnostic()
+        }
+        Err(error) => Err(error).into_diagnostic(),
+        Ok(_) => Ok(link),
+    }
 }
 
 /// Re-hash every candidate against its store row. Runs on the blocking

@@ -7,6 +7,7 @@ import type { ReporterFunction } from '../types.js'
 
 export interface StrictStoreStatusOptions {
   enableGlobalVirtualStore?: boolean
+  modulesDir?: string
   virtualStoreDir?: string
   installStateDir?: string
   allowBuilds?: Record<string, boolean | string>

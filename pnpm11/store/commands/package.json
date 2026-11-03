@@ -42,6 +42,7 @@
     "@pnpm/deps.path": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/fs.graceful-fs": "workspace:*",
+    "@pnpm/fs.symlink-dependency": "workspace:*",
     "@pnpm/global.packages": "workspace:*",
     "@pnpm/installing.client": "workspace:*",
     "@pnpm/installing.context": "workspace:*",

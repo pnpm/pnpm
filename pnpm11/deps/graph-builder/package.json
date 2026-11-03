@@ -47,6 +47,7 @@
     "@pnpm/patching.types": "workspace:*",
     "@pnpm/store.controller-types": "workspace:*",
     "@pnpm/types": "workspace:*",
+    "p-limit": "catalog:",
     "path-exists": "catalog:",
     "ramda": "catalog:"
   },

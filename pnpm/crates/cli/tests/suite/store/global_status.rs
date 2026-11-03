@@ -102,6 +102,95 @@ fn store_status_rejects_project_links_to_a_different_global_slot() {
     assert!(stderr.contains("ERR_PNPM_STORE_STATUS_UNVERIFIABLE"), "{stderr}");
 }
 
+#[test]
+fn store_status_reports_dangling_global_links_as_unverifiable() {
+    let CommandTempCwd {
+        mut pacquet, workspace, root: _root, ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    _utils::enable_gvs_in_workspace_yaml(&workspace, "");
+    pacquet
+        .args(["add", "is-odd@3.0.1"])
+        .assert()
+        .success();
+    let package_dir = fs::canonicalize(workspace.join("node_modules/is-odd")).unwrap();
+    fs::remove_dir_all(package_dir).unwrap();
+    let output = pacquet_at(&workspace)
+        .args(["store", "status"])
+        .output()
+        .unwrap();
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(!output.status.success());
+    assert!(stderr.contains("ERR_PNPM_STORE_STATUS_UNVERIFIABLE"), "{stderr}");
+}
+
+#[test]
+fn store_status_checks_custom_modules_directory() {
+    check_workspace_links("modulesDir: custom_modules\n", "custom_modules");
+}
+
+#[test]
+fn store_status_checks_deduplicated_workspace_links() {
+    check_workspace_links("dedupeDirectDeps: true\n", "node_modules");
+}
+
+#[test]
+fn store_status_rejects_escaping_importer_paths() {
+    let CommandTempCwd {
+        mut pacquet, workspace, root: _root, ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    _utils::enable_gvs_in_workspace_yaml(&workspace, "");
+    pacquet
+        .args(["add", "is-odd@3.0.1"])
+        .assert()
+        .success();
+    let lockfile = workspace.join("node_modules/.pnpm/lock.yaml");
+    let mut value: serde_json::Value =
+        serde_saphyr::from_str(&fs::read_to_string(&lockfile).unwrap()).unwrap();
+    let importers = value["importers"].as_object_mut().unwrap();
+    let root = importers.remove(".").unwrap();
+    importers.insert("../outside".to_string(), root);
+    fs::write(&lockfile, serde_saphyr::to_string(&value).unwrap()).unwrap();
+    let output = pacquet_at(&workspace)
+        .args(["store", "status"])
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("ERR_PNPM_PACKAGE_MANAGER_UNSAFE_IMPORTER_PATH"), "{stderr}");
+}
+
+fn check_workspace_links(settings: &str, modules_dir: &str) {
+    let CommandTempCwd {
+        mut pacquet, workspace, root: _root, ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    _utils::enable_gvs_in_workspace_yaml(
+        &workspace,
+        &format!("packages:\n  - packages/*\n{settings}"),
+    );
+    let manifest = r#"{"name":"root-project","dependencies":{"is-odd":"3.0.1"}}"#;
+    fs::write(workspace.join("package.json"), manifest).unwrap();
+    fs::create_dir_all(workspace.join("packages/child")).unwrap();
+    fs::write(
+        workspace.join("packages/child/package.json"),
+        manifest.replace("root-project", "child-project"),
+    )
+    .unwrap();
+    pacquet
+        .arg("install")
+        .assert()
+        .success();
+    assert!(
+        workspace
+            .join(modules_dir)
+            .join("is-odd")
+            .exists(),
+    );
+    pacquet_at(&workspace)
+        .args(["store", "status"])
+        .assert()
+        .success();
+}
+
 fn check_global_virtual_store_status(settings: &str) {
     let CommandTempCwd {
         mut pacquet, workspace, root: _root, ..
