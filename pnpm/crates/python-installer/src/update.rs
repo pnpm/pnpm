@@ -293,21 +293,15 @@ fn compute_saved_specifiers(
 
 /// The lower bound of a `~=` requirement updated to `version`, with as many
 /// release segments as `spec` so its upper bound keeps the same precision.
-/// A selected pre-release keeps its marker, so the requirement still admits
-/// it, and the bound never drops below the one `spec` declares.
+/// The pre-release marker stays, so the requirement still admits `version`,
+/// and the bound does not drop below `spec`'s while `spec` admits `version`.
 fn compatible_release_floor(spec: &VersionSpecifier, version: &Version) -> Version {
     let segments = spec.version().release().len();
-    let floor = if version.release().len() <= segments {
-        version
-            .clone()
-            .without_local()
-            .with_release(padded_release(version, segments))
-    } else if version.any_prerelease() {
-        version.clone().without_local()
-    } else {
-        release_prefix(version, segments)
-    };
-    floor.max(spec.version().clone())
+    let floor = version
+        .clone()
+        .without_local()
+        .with_release(padded_release(version, segments));
+    if spec.contains(version) { floor.max(spec.version().clone()) } else { floor }
 }
 
 /// `version`'s epoch and first `segments` release numbers, zero-padded.
