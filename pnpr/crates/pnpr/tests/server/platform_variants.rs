@@ -213,16 +213,26 @@ async fn publication_rejects_variants_that_break_an_invariant() {
     let cases = [
         (
             "peers",
+            r#"its "peerDependencies" differs from the version's"#,
             vec![(
                 "a",
                 variant_manifest(&["linux-x64"], &json!({ "peerDependencies": { "react": "*" } })),
             )],
         ),
-        ("os", vec![("a", variant_manifest(&["linux-x64"], &json!({ "os": ["linux"] })))]),
-        ("non-canonical", vec![("a", variant_manifest(&["linux-x64-glibc"], &json!({})))]),
-        ("no field", vec![("a", primary_manifest())]),
+        (
+            "os",
+            r#"it declares "os" beside its variant field"#,
+            vec![("a", variant_manifest(&["linux-x64"], &json!({ "os": ["linux"] })))],
+        ),
+        (
+            "non-canonical",
+            r#"platform tag "linux-x64-glibc" has an unknown or misplaced part"#,
+            vec![("a", variant_manifest(&["linux-x64-glibc"], &json!({})))],
+        ),
+        ("no field", "its package.json has no variant field", vec![("a", primary_manifest())]),
         (
             "overlap",
+            r#"variants "a" and "b" of 1.0.0 both list linux-x64"#,
             vec![
                 ("a", variant_manifest(&["linux-x64"], &json!({}))),
                 ("b", variant_manifest(&["linux-x64", "linux-x64-musl"], &json!({}))),
@@ -230,15 +240,16 @@ async fn publication_rejects_variants_that_break_an_invariant() {
         ),
         (
             "build",
+            "it requires a build",
             vec![(
                 "a",
                 variant_manifest(&["linux-x64"], &json!({ "scripts": { "postinstall": "x" } })),
             )],
         ),
     ];
-    for (case, variants) in cases {
+    for (case, expected, variants) in cases {
         let reason = rejection(&variants).await;
-        assert!(reason.contains("variant"), "{case}: {reason}");
+        assert!(reason.contains(expected), "{case}: {reason}");
     }
 }
 
