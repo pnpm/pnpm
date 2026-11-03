@@ -14,6 +14,7 @@ import { fixtures } from '@pnpm/test-fixtures'
 import { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.mock-agent'
 import { rimrafSync } from '@zkochan/rimraf'
 import { isCI } from 'ci-info'
+import { safeExeca as execa } from 'execa'
 
 import { commitLocalGitRepo, testDefaults } from '../utils/index.js'
 
@@ -424,6 +425,29 @@ test('from subdirectories of a git repo', async () => {
     '@my-namespace/simple-express-server': `${repoSpec}&path:/packages/simple-express-server`,
     '@my-namespace/simple-react-app': `${repoSpec}&path:/packages/simple-react-app`,
   })
+})
+
+test('from a subdirectory of a hosted git repo', async () => {
+  const project = prepareEmpty()
+  const commit = 'c0ffee0000000000000000000000000000000001'
+  const archiveRoot = path.resolve(`monorepo-${commit}`)
+  const pkgDir = path.join(archiveRoot, 'packages', 'nested')
+  fs.mkdirSync(pkgDir, { recursive: true })
+  fs.writeFileSync(path.join(archiveRoot, 'package.json'), JSON.stringify({ name: 'monorepo-root', version: '0.0.0' }))
+  fs.writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify({ name: '@my-namespace/nested', version: '1.0.0' }))
+  const archivePath = path.resolve('monorepo.tgz')
+  await execa('tar', ['-czf', archivePath, '-C', path.dirname(archiveRoot), path.basename(archiveRoot)])
+  getMockAgent().get('https://github.com')
+    .intercept({ path: '/my-org/monorepo', method: 'HEAD' })
+    .reply(200)
+  getMockAgent().get('https://codeload.github.com')
+    .intercept({ path: `/my-org/monorepo/tar.gz/${commit}`, method: 'GET' })
+    .reply(200, fs.readFileSync(archivePath))
+
+  await addDependenciesToPackage({}, [`github:my-org/monorepo#${commit}&path:/packages/nested`], testDefaults())
+
+  project.has('@my-namespace/nested')
+  expect(JSON.parse(fs.readFileSync('node_modules/@my-namespace/nested/package.json', 'utf8'))).toHaveProperty('name', '@my-namespace/nested')
 })
 
 test('no hash character for github subdirectory install', async () => {
