@@ -349,6 +349,13 @@ fn a_manifest_whose_trusted_stat_is_unchanged_keeps_its_record() {
     for file in previous_validation.manifest_files.values_mut() {
         file.has_required_peers = true;
     }
+    // Keep the recording beyond the rounding window of whole-second filesystems.
+    previous_validation.recorded_at_ns = previous_validation.manifest_files
+        .values()
+        .map(|file| file.mtime_ns.max(file.ctime_ns.unwrap_or(0)))
+        .max()
+        .unwrap()
+        + 3_000_000_000;
     let previous =
         WorkspaceState { validation: Some(previous_validation), ..WorkspaceState::default() };
     let only_a = HashSet::from([root.join("a")]);
