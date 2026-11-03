@@ -1608,7 +1608,14 @@ test('self-update leaves the project pin alone when the global install fails', a
   expect(pkgJson.packageManager).toBe('pnpm@9.0.0')
 })
 
-test.each(['missing', 'broken'])('self-update repairs a %s engine executable reused from the shared store', async (damage) => {
+test.each([
+  ['missing', 'fresh'],
+  ['broken', 'fresh'],
+  ['missing', 'existing'],
+  ['broken', 'existing'],
+  ['missing', 'active'],
+  ['broken', 'active'],
+])('self-update repairs a %s engine executable using the %s global install', async (damage, globalInstall) => {
   const opts = prepare()
   mockRegistryForUpdate(opts.registriesByScope.default, '9.1.0', createMetadata('9.1.0', opts.registriesByScope.default))
   await selfUpdate.handler(opts, ['9.1.0'])
@@ -1623,7 +1630,9 @@ test.each(['missing', 'broken'])('self-update repairs a %s engine executable reu
     fs.writeFileSync(executable, '#!/usr/bin/env node\nprocess.exit(1)\n', { mode: 0o755 })
   }
 
-  await selfUpdate.handler({ ...opts, globalPkgDir: path.join(opts.pnpmHomeDir, 'another-global') }, ['9.1.0'])
+  if (globalInstall === 'active') mockPackageManager.version = '9.1.0'
+  const globalPkgDir = globalInstall === 'fresh' ? path.join(opts.pnpmHomeDir, 'another-global') : opts.globalPkgDir
+  await selfUpdate.handler({ ...opts, globalPkgDir }, ['9.1.0'])
 
   expect(fs.readFileSync(executable)).toEqual(original)
   const result = spawn.sync(path.join(opts.pnpmHomeDir, 'bin', 'pnpm'), ['--version'], { encoding: 'utf8', cwd: opts.dir })

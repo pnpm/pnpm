@@ -274,7 +274,7 @@ async function installPnpmToGlobalDir (
     try {
       assertPnpmRuns(binDir, version)
     } catch (err: unknown) {
-      if (wantedLockfile == null || !isError(err) || !('code' in err) || err.code !== 'ERR_PNPM_BROKEN_PNPM_INSTALL') throw err
+      if (wantedLockfile == null || !isBrokenPnpmInstall(err)) throw err
       await installPnpmPackage(installDir, binDir, { opts: { ...opts, force: true }, pkgName, version, wantedLockfile })
       await linkPnpmBins(installDir, binDir, pkgName)
       assertPnpmRuns(binDir, version)
@@ -335,16 +335,30 @@ async function linkGlobalHash (globalDir: string, installDir: string, registries
 /**
  * The install dir under `globalDir` that already holds `pkgName` at exactly
  * `version`, or `undefined` when the global install is missing, at a
- * different version, or unreadable.
+ * different version, unreadable, or unable to run.
  */
 export async function findGlobalPnpmInstallDir (globalDir: string, pkgName: string, version: string): Promise<string | undefined> {
   const existing = findGlobalPackage(globalDir, pkgName)
   if (!existing) return undefined
   try {
     const pkgJson = JSON.parse(await fs.promises.readFile(path.join(existing.installDir, 'node_modules', pkgName, 'package.json'), 'utf8'))
-    if (pkgJson.version === version) return existing.installDir
-  } catch {}
-  return undefined
+    if (pkgJson.version !== version) return undefined
+  } catch {
+    return undefined
+  }
+  const binDir = path.join(existing.installDir, 'bin')
+  await linkPnpmBins(existing.installDir, binDir, pkgName)
+  try {
+    assertPnpmRuns(binDir, version)
+    return existing.installDir
+  } catch (err: unknown) {
+    if (isBrokenPnpmInstall(err)) return undefined
+    throw err
+  }
+}
+
+function isBrokenPnpmInstall (err: unknown): boolean {
+  return isError(err) && 'code' in err && err.code === 'ERR_PNPM_BROKEN_PNPM_INSTALL'
 }
 
 const PNPM_ENGINE_ALIASES = new Set(['pnpm', '@pnpm/exe'])
