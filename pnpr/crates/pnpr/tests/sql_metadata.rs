@@ -380,6 +380,49 @@ async fn a_published_record_is_integrated_into_its_log() {
     assert_eq!(entry.key().subject_name(), "pkg:npm/logged@1.0.0");
 }
 
+/// A router integrates what was sequenced before it was built, such as the
+/// entries of a registry that had no log signing key yet.
+#[tokio::test]
+async fn a_new_router_integrates_what_was_sequenced_before() {
+    let tmp = TempDir::new().unwrap();
+    let unsigned = router(sqlite_config(tmp.path()));
+    let token = token(&unsigned).await;
+    let (_, tgz) = crate::server::package_tar_and_tgz(r#"{"name":"early","version":"1.0.0"}"#);
+    let doc = publish_doc("early", "1.0.0", &tgz);
+    let (status, ..) = send(&unsigned, request("PUT", "/npm/early", &token, Some(&doc))).await;
+    assert_eq!(status, StatusCode::CREATED);
+    let storage = pnpr_storage::Storage::from_config(&sqlite_config(tmp.path()).storage).unwrap();
+    let logs = storage
+        .sql_metadata()
+        .unwrap()
+        .sequenced_logs()
+        .await
+        .unwrap();
+    let [(log, 1)] = logs.as_slice() else { panic!("{logs:?}") };
+    assert!(
+        storage
+            .log_checkpoint(log)
+            .await
+            .unwrap()
+            .is_none()
+    );
+
+    let mut config = sqlite_config(tmp.path());
+    let signer = pnpm_transparency_log::NoteSigner::from_private_key(LOG_SIGNING_KEY).unwrap();
+    config.release_records.log_signing_key = Some(std::sync::Arc::new(signer));
+    let _signed = router(config);
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    while storage
+        .log_checkpoint(log)
+        .await
+        .unwrap()
+        .is_none()
+    {
+        assert!(std::time::Instant::now() < deadline, "the new router integrated nothing");
+        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+    }
+}
+
 async fn get_json_document(app: &Router, path: &str, token: &str) -> (StatusCode, Value) {
     let (status, _, body) = send(app, request("GET", path, token, None)).await;
     (status, serde_json::from_slice(&body).unwrap())

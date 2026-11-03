@@ -29,7 +29,8 @@ pub(super) fn integrate_in_background(state: &AppState, log: LogId) {
 }
 
 /// Integrate, in the background, every log whose entries were sequenced,
-/// as startup does after an unclean shutdown. It shares the server's
+/// as a new router does after an unclean shutdown. Nothing runs outside a
+/// Tokio runtime; the next commit integrates its log then. It shares the server's
 /// storage and its integration lock with the integrations commits start, so
 /// one process never integrates a log twice at once: the filesystem
 /// backend's compare-and-set of a checkpoint holds only within one store.
@@ -39,8 +40,9 @@ pub(super) fn integrate_sequenced_logs(state: &AppState) {
     };
     let storage = state.inner.storage.clone();
     let Some(database) = storage.sql_metadata().cloned() else { return };
+    let Ok(runtime) = tokio::runtime::Handle::try_current() else { return };
     let lock = Arc::clone(&state.inner.locks.log_integration);
-    tokio::spawn(async move {
+    runtime.spawn(async move {
         let _integrating = lock.lock().await;
         let logs = match database.sequenced_logs().await {
             Ok(logs) => logs,
