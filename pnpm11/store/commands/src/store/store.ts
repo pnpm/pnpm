@@ -104,6 +104,11 @@ export async function handler (opts: StoreCommandOptions, params: string[]): Pro
       return storePrune(storePruneOptions) as Promise<undefined>
     }
     case 'add':
+      if (opts.frozenStore) {
+        throw new PnpmError('FROZEN_STORE_WRITE', 'Cannot add packages to the store because frozenStore is enabled (the store is opened read-only)', {
+          hint: 'Turn off frozenStore to add packages to the store.',
+        })
+      }
       store = await createStoreController(opts)
       return storeAdd(params.slice(1), {
         prefix: opts.dir,
