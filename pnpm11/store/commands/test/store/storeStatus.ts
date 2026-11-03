@@ -37,6 +37,12 @@ test.each(['', 'virtualStoreDir: custom-links\n'])('store status checks global v
   expect(result.stderr).toContain('ERR_PNPM_MODIFIED_DEPENDENCY')
   expect(result.stderr).toContain('@pnpm.e2e/abc@1.0.0(')
   expect(result.stderr).not.toContain('is-odd@3.0.1')
+
+  fs.unlinkSync('node_modules/.pnpm/lock.yaml')
+  const withoutInstalledLockfile = await execa('node', [pnpmBin, 'store', 'status', ...options], { ...execaOpts, reject: false })
+  expect(withoutInstalledLockfile.exitCode).toBe(1)
+  expect(withoutInstalledLockfile.stderr).toContain('ERR_PNPM_MODIFIED_DEPENDENCY')
+  expect(withoutInstalledLockfile.stderr).toContain('@pnpm.e2e/abc@1.0.0(')
 })
 
 test.each([

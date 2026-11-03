@@ -39,6 +39,7 @@ const defaults = async (opts: StoreStatusOptions): Promise<StrictStoreStatusOpti
   const dir = opts.dir ?? process.cwd()
   const lockfileDir = opts.lockfileDir ?? dir
   return {
+    allowBuilds: opts.enableGlobalVirtualStore ? {} : undefined,
     binsDir: path.join(dir, 'node_modules', '.bin'),
     dir,
     force: false,

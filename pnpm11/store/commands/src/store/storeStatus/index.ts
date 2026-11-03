@@ -119,7 +119,7 @@ export async function storeStatus (maybeOpts: StoreStatusOptions): Promise<strin
     })
     if (!ctx.wantedLockfile) return []
 
-    const installedLockfile = opts.enableGlobalVirtualStore ? ctx.currentLockfile : ctx.wantedLockfile
+    const installedLockfile = opts.enableGlobalVirtualStore && ctx.existsCurrentLockfile ? ctx.currentLockfile : ctx.wantedLockfile
     const allowBuilds = ctx.modulesFile ? ctx.modulesFile.allowBuilds ?? {} : opts.allowBuilds
     const pkgs = Array.from(iteratePkgsForVirtualStore(installedLockfile, {
       ...opts,
