@@ -263,6 +263,29 @@ An [image manifest](container-images.md) whose layers are already uploaded can
 ride along in the same batch. `GET /-/pnpr` advertises support as
 `publish: [0]`.
 
+### Staged archives {#staged-archives}
+
+A publisher can upload each archive on its own before the publish that
+references it, so one request body need not carry a whole release:
+
+```text
+PUT /-/pnpr/v0/artifacts/blob?integrity=sha512-…
+```
+
+`HEAD` on the same URL tells whether the archive is staged already, so a
+resumed release uploads only what is missing. An upload is stored only if its
+bytes match the integrity, and uploading stored bytes again is a no-op that
+renews them.
+
+A staged archive is not published and no registry route serves it. It belongs
+to the account that uploaded it, and only a publish by that account can claim
+it. It expires 24 hours after its last upload, and pnpr removes expired
+archives at startup and every hour. One archive is at most 100 MiB, and one
+account holds at most 256 archives and 2 GiB that no publish has claimed. An
+upload reserves its size before its bytes arrive, so uploads running in
+parallel count against those limits together, and an upload that stopped
+gives its reservation back after an hour.
+
 ## JSR
 
 `npm.jsr.io` is a built-in public route, like the npm registry, so JSR packages

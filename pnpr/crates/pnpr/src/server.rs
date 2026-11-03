@@ -137,6 +137,7 @@ mod security_audit;
 mod singleflight;
 use singleflight::Singleflight;
 mod staged;
+mod staged_archives;
 mod striped_locks;
 mod team_access;
 mod team_mutations;

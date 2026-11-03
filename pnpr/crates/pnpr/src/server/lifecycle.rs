@@ -62,6 +62,31 @@ async fn sweep_abandoned_uploads(config: &Config) -> pnpr_error::Result<()> {
     Ok(())
 }
 
+/// Remove release archives staged for a publish that never claimed them
+/// before they expired, now and then every hour while the server runs.
+async fn sweep_expired_staged_archives(config: &Config) -> pnpr_error::Result<()> {
+    let storage = Storage::from_config(&config.storage)?;
+    report_staged_archive_sweep(storage.sweep_staged_archives().await?);
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(std::time::Duration::from_hours(1));
+        interval.tick().await;
+        loop {
+            interval.tick().await;
+            match storage.sweep_staged_archives().await {
+                Ok(swept) => report_staged_archive_sweep(swept),
+                Err(err) => tracing::warn!(error = %err, "sweeping staged release archives failed"),
+            }
+        }
+    });
+    Ok(())
+}
+
+fn report_staged_archive_sweep(swept: usize) {
+    if swept > 0 {
+        tracing::info!(swept, "reclaimed expired staged release archives");
+    }
+}
+
 /// Run startup side effects and load the auth backends. The registry
 /// needs publish-journal recovery; auth loads on every tier because the
 /// account endpoints (which mint and manage tokens) are always served,
@@ -70,6 +95,7 @@ async fn load_startup_auth(config: &Config) -> pnpr_error::Result<AuthState> {
     if config.features.registry.enabled {
         recover_publish_journal(config).await?;
         sweep_abandoned_uploads(config).await?;
+        sweep_expired_staged_archives(config).await?;
         crate::cache_maintenance::prune_orphaned_namespaces_startup(config).await?;
     }
     AuthState::load(&config.identity.auth, &config.identity.backend).await
