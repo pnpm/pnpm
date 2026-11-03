@@ -50,7 +50,7 @@ fn null_auth_and_cors_do_not_disable_mapping_validation() {
 fn null_defaulted_aggregate_config_fields_use_defaults() {
     let configs = [
         "trustedProxies: null\nui: null\noci: null\nosv: null\nregistries: null\nroutes:\n  public: null\n  allowedPrivateNetworks: null\ncors:\n  allowedOrigins: null\nauth:\n  admins: null\n  oidc: null\n  htpasswd: null\n  tokens: null\n",
-        "registries:\n  local: {type: hosted, teams: null, packages: null}\n  public: {type: upstream, url: https://registry.example/, public: true, headers: null, teams: null, packages: null}\n  router: {type: router, sources: null}\n",
+        "registries:\n  local: {type: hosted, teams: null, packages: null}\n  public: {type: upstream, url: https://registry.example/, public: true, headers: null, teams: null, packages: null}\n",
         "artifacts:\n  orgs: null\n  quota: null\n",
     ];
 
@@ -58,6 +58,11 @@ fn null_defaulted_aggregate_config_fields_use_defaults() {
         Config::from_yaml_str(yaml, Path::new("/x"), listen(), None)
             .unwrap_or_else(|error| panic!("failed to load {yaml:?}: {error}"));
     }
+
+    super::super::loading::parse_config_file(
+        "registries:\n  router: {type: router, sources: null}\n",
+    )
+    .expect("router sources should deserialize null as an empty collection");
 }
 
 #[test]
