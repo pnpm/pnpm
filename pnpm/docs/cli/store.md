@@ -16,7 +16,8 @@ Returns exit code 0 if the content of the package is the same as it was at the
 time of unpacking. Otherwise it fails with `ERR_PNPM_MODIFIED_DEPENDENCY` and
 lists the modified packages.
 
-If an installed global-store package cannot be located, the command fails with
+If an installed global-store package cannot be located or its project link points
+to a different slot, the command fails with
 `ERR_PNPM_STORE_STATUS_UNVERIFIABLE`. Run `pnpm install` before checking again.
 
 ### add

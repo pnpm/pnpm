@@ -4,9 +4,10 @@ import path from 'node:path'
 import { pkgRequiresBuild } from '@pnpm/building.pkg-requires-build'
 import { createAllowBuildFunction } from '@pnpm/building.policy'
 import { formatIntegrity } from '@pnpm/crypto.integrity'
-import { iteratePkgsForVirtualStore } from '@pnpm/deps.graph-builder'
+import { iteratePkgsForVirtualStore, projectLinksMatchPackageDirs } from '@pnpm/deps.graph-builder'
 import { PnpmError } from '@pnpm/error'
 import { getContextForSingleImporter } from '@pnpm/installing.context'
+import type { LockfileObject } from '@pnpm/lockfile.fs'
 import { packageIdFromSnapshot } from '@pnpm/lockfile.utils'
 import { streamParser } from '@pnpm/logger'
 import type {
@@ -16,7 +17,7 @@ import type {
 } from '@pnpm/store.cafs'
 import type { TarballResolution } from '@pnpm/store.controller-types'
 import { pickStoreIndexKey, StoreIndex } from '@pnpm/store.index'
-import type { DepPath } from '@pnpm/types'
+import type { DepPath, ProjectId } from '@pnpm/types'
 import dint from 'dint'
 import pFilter from 'p-filter'
 
@@ -137,11 +138,33 @@ export async function storeStatus (maybeOpts: StoreStatusOptions): Promise<strin
         resolution: pkgSnapshot.resolution as TarballResolution,
         targetDir: path.join(dirInVirtualStore, 'node_modules', name),
       }))
+    if (opts.enableGlobalVirtualStore) {
+      await validateGlobalStoreLinks(pkgs, { lockfile: installedLockfile, lockfileDir: opts.lockfileDir, rootModulesDir: ctx.rootModulesDir })
+    }
     return await findModifiedPackages(pkgs, ctx.storeDir)
   } finally {
     if ((reporter != null) && typeof reporter === 'function') {
       streamParser.removeListener('data', reporter)
     }
+  }
+}
+
+async function validateGlobalStoreLinks (
+  pkgs: PkgToCheck[],
+  { lockfile, lockfileDir, rootModulesDir }: {
+    lockfile: LockfileObject
+    lockfileDir: string
+    rootModulesDir: string
+  }
+): Promise<void> {
+  const relativeModulesDir = path.relative(lockfileDir, rootModulesDir)
+  const projects = Object.keys(lockfile.importers).map((id) => ({
+    id: id as ProjectId,
+    modulesDir: path.join(lockfileDir, id, relativeModulesDir),
+  }))
+  const packageDirs = new Map(pkgs.map((pkg) => [pkg.depPath, pkg.targetDir]))
+  if (!await projectLinksMatchPackageDirs(projects, { lockfile, packageDirs })) {
+    throw new PnpmError('STORE_STATUS_UNVERIFIABLE', 'Installed package links do not match the current global-store layout. Run "pnpm install" before checking store status.')
   }
 }
 

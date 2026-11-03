@@ -71,6 +71,24 @@ test('store status reports an unavailable global slot separately from modified c
   expect(result.stderr).not.toContain('ERR_PNPM_MODIFIED_DEPENDENCY')
 })
 
+test('store status rejects a different project slot after build policy changes', async () => {
+  prepare()
+  fs.writeFileSync('pnpm-workspace.yaml', 'enableGlobalVirtualStore: true\n')
+  const storeDir = path.join(temporaryDirectory(), 'store')
+  const options = [`--store-dir=${storeDir}`, `--registry=${REGISTRY}`]
+  await execa('node', [pnpmBin, 'add', 'is-odd@3.0.1', ...options], execaOpts)
+  fs.mkdirSync('other')
+  fs.writeFileSync('other/package.json', '{}')
+  fs.writeFileSync('other/pnpm-workspace.yaml', 'enableGlobalVirtualStore: true\ndangerouslyAllowAllBuilds: true\n')
+  await execa('node', [pnpmBin, 'add', 'is-odd@3.0.1', ...options], { ...execaOpts, cwd: path.resolve('other') })
+  fs.writeFileSync('pnpm-workspace.yaml', 'enableGlobalVirtualStore: true\ndangerouslyAllowAllBuilds: true\n')
+  fs.unlinkSync('node_modules/is-odd/index.js')
+  fs.writeFileSync('node_modules/is-odd/index.js', 'module.exports = () => false')
+  const result = await execa('node', [pnpmBin, 'store', 'status', ...options], { ...execaOpts, reject: false })
+  expect(result.exitCode).toBe(1)
+  expect(result.stderr).toContain('ERR_PNPM_STORE_STATUS_UNVERIFIABLE')
+})
+
 test('CLI fails when store status finds modified packages', async () => {
   prepare()
   const tmp = temporaryDirectory()

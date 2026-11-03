@@ -17,7 +17,7 @@ use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 use pnpm_store_dir::{StoreIndex, package_dir_matches_index};
 use rayon::prelude::*;
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     path::{Path, PathBuf},
 };
 
@@ -63,6 +63,9 @@ pub(super) async fn run<Reporter: self::Reporter>(
         lockfile
     };
     let packages = packages_to_check(config, &lockfile, modules_manifest.as_ref(), &lockfile_dir)?;
+    if config.enable_global_virtual_store {
+        validate_project_links(&lockfile, &lockfile_dir, &packages)?;
+    }
 
     let store_dir = config.store_dir.root().to_path_buf();
     let frozen_store = config.frozen_store;
@@ -180,6 +183,37 @@ fn installed_build_policy(
             config.side_effects_cache_exclude.as_deref().unwrap_or_default(),
         )
         .into_diagnostic()
+}
+
+fn validate_project_links(
+    lockfile: &Lockfile,
+    lockfile_dir: &Path,
+    packages: &[PackageToCheck],
+) -> miette::Result<()> {
+    let package_dirs: HashMap<_, _> = packages
+        .iter()
+        .map(|package| (package.dep_path.as_str(), &package.package_dir))
+        .collect();
+    for (id, importer) in &lockfile.importers {
+        let modules_dir = lockfile_dir.join(id.as_str()).join("node_modules");
+        let dependencies =
+            [&importer.dependencies, &importer.dev_dependencies, &importer.optional_dependencies];
+        for (alias, reference) in dependencies
+            .into_iter()
+            .flatten()
+            .flatten()
+        {
+            let Some(key) = reference.version.resolved_key(alias) else { continue };
+            let Some(expected) = package_dirs.get(key.to_string().as_str()) else { continue };
+            let link = safe_join_modules_dir(&modules_dir, &alias.to_string()).into_diagnostic()?;
+            let actual = pnpm_fs::realpath_missing(&link).into_diagnostic()?;
+            let expected = pnpm_fs::realpath_missing(expected).into_diagnostic()?;
+            if actual != expected {
+                return Err(UnverifiablePackageError { path: link.display().to_string() }.into());
+            }
+        }
+    }
+    Ok(())
 }
 
 /// Re-hash every candidate against its store row. Runs on the blocking

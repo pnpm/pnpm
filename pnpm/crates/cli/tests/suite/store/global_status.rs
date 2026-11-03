@@ -79,6 +79,29 @@ fn store_status_reports_unverifiable_global_slots_after_node_version_changes() {
     assert!(!stderr.contains("ERR_PNPM_MODIFIED_DEPENDENCY"));
 }
 
+#[test]
+fn store_status_rejects_project_links_to_a_different_global_slot() {
+    let CommandTempCwd {
+        mut pacquet, workspace, root: _root, ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    _utils::enable_gvs_in_workspace_yaml(&workspace, "");
+    pacquet
+        .args(["add", "is-odd@3.0.1"])
+        .assert()
+        .success();
+    let replacement = workspace.join("replacement");
+    fs::create_dir(&replacement).unwrap();
+    fs::write(replacement.join("package.json"), "{}\n").unwrap();
+    pnpm_fs::force_symlink_dir(&replacement, &workspace.join("node_modules/is-odd")).unwrap();
+    let output = pacquet_at(&workspace)
+        .args(["store", "status"])
+        .output()
+        .unwrap();
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(!output.status.success());
+    assert!(stderr.contains("ERR_PNPM_STORE_STATUS_UNVERIFIABLE"), "{stderr}");
+}
+
 fn check_global_virtual_store_status(settings: &str) {
     let CommandTempCwd {
         mut pacquet, workspace, root: _root, ..

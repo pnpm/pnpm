@@ -1,10 +1,9 @@
-import { promises as fs } from 'node:fs'
 import path from 'node:path'
 
 import { createAllowBuildFunction } from '@pnpm/building.policy'
+import { projectLinksMatchPackageDirs } from '@pnpm/deps.graph-builder'
 import { iterateHashedGraphNodes, iteratePkgMeta, lockfileToDepGraph } from '@pnpm/deps.graph-hasher'
-import { refToRelative } from '@pnpm/deps.path'
-import { isError, PnpmError } from '@pnpm/error'
+import { PnpmError } from '@pnpm/error'
 import { safeJoinModulesDir } from '@pnpm/fs.symlink-dependency'
 import { getContext, type PnpmContext, type ProjectOptions } from '@pnpm/installing.context'
 import { headlessInstall } from '@pnpm/installing.deps-restorer'
@@ -83,18 +82,7 @@ async function ensurePatchesMatchInstallation (
 
 async function projectsUseCurrentBuildSlots (ctx: PnpmContext, opts: StrictBuildOptions): Promise<boolean> {
   const packageDirs = getBuildSlotPackageDirs(ctx, opts)
-  const checks = Object.values(ctx.projects).flatMap(({ id, modulesDir }) => {
-    const importer = ctx.currentLockfile.importers[id]
-    if (!importer) return []
-    return Object.entries({ ...importer.dependencies, ...importer.devDependencies, ...importer.optionalDependencies })
-      .map(async ([alias, ref]) => {
-        const depPath = refToRelative(ref, alias)
-        const expected = depPath && packageDirs.get(depPath)
-        if (!expected) return true
-        return isSameRealPath(safeJoinModulesDir(modulesDir, alias), expected)
-      })
-  })
-  return (await Promise.all(checks)).every(Boolean)
+  return projectLinksMatchPackageDirs(Object.values(ctx.projects), { lockfile: ctx.currentLockfile, packageDirs })
 }
 
 /** The directory each package has in the global virtual store under the current build policy. */
@@ -111,18 +99,4 @@ function getBuildSlotPackageDirs (ctx: PnpmContext, opts: StrictBuildOptions): M
     packageDirs.set(pkgMeta.depPath, safeJoinModulesDir(path.join(globalVirtualStoreDir, hash, 'node_modules'), pkgMeta.name))
   }
   return packageDirs
-}
-
-/** Whether both paths resolve to the same directory. `false` when either is missing. */
-async function isSameRealPath (actualPath: string, expectedPath: string): Promise<boolean> {
-  try {
-    const [actualDir, expectedDir] = await Promise.all([
-      fs.realpath(actualPath),
-      fs.realpath(expectedPath),
-    ])
-    return actualDir === expectedDir
-  } catch (error: unknown) {
-    if (isError(error) && 'code' in error && error.code === 'ENOENT') return false
-    throw error
-  }
 }
