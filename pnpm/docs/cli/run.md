@@ -164,6 +164,8 @@ For `pnpm run`, `-s` is the shorthand for `--sequential`. This includes the `pnp
 
 :::
 
+On GitHub Actions, recursive runs with `--sequential` or `--workspace-concurrency=1` group each script's output. Silent runs omit the group markers.
+
 ### --workspace-concurrency
 
 Set the maximum number of workspace tasks to run simultaneously. See
