@@ -104,6 +104,8 @@ export const WORKSPACE_STATE_SETTING_KEYS = [
   'dedupePeers',
   'dev',
   'excludeLinksFromLockfile',
+  // It decides the `NODE_PATH` the bin shims set.
+  'extendNodePath',
   'hoistPattern',
   'hoistWorkspacePackages',
   'ignoredOptionalDependencies',
@@ -149,7 +151,7 @@ export const WORKSPACE_STATE_SETTING_KEYS = [
 ] as const satisfies ReadonlyArray<keyof Config>
 
 /** Settings a state may leave out. Unset reads as the default. */
-type OptionalSettingKey = 'dangerouslyAllowAllBuilds' | 'runtime' | 'virtualStoreDirMaxLength'
+type OptionalSettingKey = 'dangerouslyAllowAllBuilds' | 'extendNodePath' | 'runtime' | 'virtualStoreDirMaxLength'
 
 export type WorkspaceStateSettings = Pick<Config, Exclude<typeof WORKSPACE_STATE_SETTING_KEYS[number], OptionalSettingKey>> &
 Partial<Pick<Config, OptionalSettingKey>> & {

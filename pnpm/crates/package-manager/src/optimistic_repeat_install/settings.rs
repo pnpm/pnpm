@@ -1,5 +1,6 @@
 //! Comparing the settings a previous install recorded against the current ones.
 
+pub(crate) use install_policy::recorded_extend_node_path_matches;
 pub(crate) use registry_prefixes::{
     ResolvedImporters, recorded_default_registry, recorded_registry_prefixes,
     recorded_registry_routes, recorded_registry_routes_after_install, records_registry_keys_of,

@@ -106,7 +106,7 @@ const CLASSIFICATION: &[(&str, Reach)] = &[
     ("engine_strict", NotAnInput("whether an incompatible package fails the install")),
     ("exclude_links_from_lockfile", Recorded { key: "excludeLinksFromLockfile", change: |config| config.exclude_links_from_lockfile = !config.exclude_links_from_lockfile }),
     ("explicit_settings", Through("the settings it names, each classified under its own field")),
-    ("extend_node_path", Unseen("neither the fast path nor the frozen-tree check sees it, only an install into an empty modules directory rewrites the bins")),
+    ("extend_node_path", Recorded { key: "extendNodePath", change: |config| config.extend_node_path = !config.extend_node_path }),
     ("external_dependencies", Unseen("neither the fast path nor the frozen-tree check sees it, only an install into an empty modules directory applies it")),
     ("extra_bin_paths", NotAnInput(SCRIPTS)),
     ("extra_env", NotAnInput(SCRIPTS)),

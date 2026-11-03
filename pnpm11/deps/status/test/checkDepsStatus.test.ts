@@ -400,6 +400,7 @@ describe('checkDepsStatus - settings change detection', () => {
 
   it.each([
     ['dangerouslyAllowAllBuilds', undefined, true],
+    ['extendNodePath', false, undefined],
     ['runtime', false, undefined],
     ['trustLockfile', true, undefined],
     ['virtualStoreDirMaxLength', 120, 10],
@@ -434,6 +435,7 @@ describe('checkDepsStatus - settings change detection', () => {
 
   it.each([
     ['dangerouslyAllowAllBuilds', false],
+    ['extendNodePath', true],
     ['runtime', true],
     ['trustLockfile', false],
     ['virtualStoreDirMaxLength', process.platform === 'win32' ? 60 : 120],
