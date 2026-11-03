@@ -869,3 +869,131 @@ fn native_git_fetch_at_resolution_is_reused_by_the_install_pass() {
     metadata.assert();
     original.assert();
 }
+
+#[test]
+fn native_git_fetcher_ignores_a_hook_supplied_store_index_key() {
+    assert_native_git_fetcher_ignores_a_hook_supplied_store_index_key(NativeGitFetcher::Git);
+}
+
+#[test]
+fn native_git_hosted_tarball_fetcher_ignores_a_hook_supplied_store_index_key() {
+    assert_native_git_fetcher_ignores_a_hook_supplied_store_index_key(
+        NativeGitFetcher::GitHostedTarball,
+    );
+}
+
+#[derive(Clone, Copy)]
+enum NativeGitFetcher {
+    Git,
+    GitHostedTarball,
+}
+
+fn assert_native_git_fetcher_ignores_a_hook_supplied_store_index_key(
+    fetcher_kind: NativeGitFetcher,
+) {
+    use pnpm_store_dir::{StoreDir, StoreIndex, store_index_key};
+    use pnpm_testing_utils::git_repo::GitRepoFixture;
+
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let mut registry = mockito::Server::new();
+    let victim_tarball = minimal_tarball("index-victim", "1.0.0");
+    let victim_integrity = sha512_integrity(&victim_tarball);
+    let victim_metadata = registry
+        .mock("GET", "/index-victim")
+        .with_header("content-type", "application/json")
+        .with_body(
+            serde_json::json!({
+                "name": "index-victim",
+                "dist-tags": { "latest": "1.0.0" },
+                "versions": {
+                    "1.0.0": {
+                        "name": "index-victim",
+                        "version": "1.0.0",
+                        "dist": {
+                            "tarball": format!("{}/victim.tgz", registry.url()),
+                            "integrity": victim_integrity,
+                        },
+                    },
+                },
+            })
+            .to_string(),
+        )
+        .expect_at_least(1)
+        .create();
+    let victim_archive = registry
+        .mock("GET", "/victim.tgz")
+        .with_body(victim_tarball)
+        .create();
+    let git_hosted_tarball_archive = match fetcher_kind {
+        NativeGitFetcher::GitHostedTarball => Some(
+            registry
+                .mock("GET", "/git-hosted.tgz")
+                .with_body(minimal_tarball("fetcher-pkg", "1.0.0"))
+                .create(),
+        ),
+        NativeGitFetcher::Git => None,
+    };
+    let (fetcher_metadata, original) = mock_fetcher_package(&mut registry, None);
+    configure_fetcher_project(&workspace, &registry.url(), Some("configured.cjs"));
+    fs::write(workspace.join("package.json"), r#"{"dependencies":{"index-victim":"1.0.0"}}"#)
+        .expect("write victim manifest");
+    fs::write(workspace.join("configured.cjs"), "module.exports = { fetchers: [] };\n")
+        .expect("write empty pnpmfile");
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let store_dir = StoreDir::from(workspace.join("../store"));
+    let victim_key = store_index_key(&victim_integrity, "index-victim@1.0.0");
+    let victim_before = StoreIndex::open_readonly_in(&store_dir)
+        .expect("open store index")
+        .get(&victim_key)
+        .expect("read victim row")
+        .expect("victim row exists");
+    let fetcher = match fetcher_kind {
+        NativeGitFetcher::GitHostedTarball => format!(
+            "fetchers.gitHostedTarball(cafs, {{ tarball: {url}, gitHosted: true }}, {{ ...opts, filesIndexFile: {victim_key} }})",
+            url = serde_json::to_string(&format!("{}/git-hosted.tgz", registry.url())).unwrap(),
+            victim_key = serde_json::to_string(&victim_key).unwrap(),
+        ),
+        NativeGitFetcher::Git => {
+            let repo = GitRepoFixture::init(root.path(), "fetcher-pkg");
+            repo.write_file("package.json", r#"{"name":"fetcher-pkg","version":"1.0.0"}"#);
+            repo.write_file("index.js", "module.exports = true\n");
+            let commit = repo.commit("init");
+            format!(
+                "fetchers.git(cafs, {{ repo: {repo}, commit: {commit} }}, {{ ...opts, filesIndexFile: {victim_key} }})",
+                repo = serde_json::to_string(&repo.file_url()).unwrap(),
+                commit = serde_json::to_string(&commit).unwrap(),
+                victim_key = serde_json::to_string(&victim_key).unwrap(),
+            )
+        }
+    };
+    fs::write(
+        workspace.join("package.json"),
+        r#"{"dependencies":{"index-victim":"1.0.0","fetcher-pkg":"1.0.0"}}"#,
+    )
+    .expect("write install manifest");
+    fs::write(workspace.join("configured.cjs"), fetcher_pnpmfile(&format!("return {fetcher};")))
+        .expect("write native fetcher");
+
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let index = StoreIndex::open_readonly_in(&store_dir).expect("open store index");
+    assert_eq!(index.get(&victim_key).expect("read victim row"), Some(victim_before));
+    let git_key = pnpm_store_dir::git_hosted_store_index_key("fetcher-pkg@1.0.0", true);
+    let git_row = index
+        .get(&git_key)
+        .expect("read git row")
+        .expect("git row exists");
+    assert_eq!(git_row.manifest.as_ref().unwrap()["name"], "fetcher-pkg");
+
+    victim_metadata.assert();
+    fetcher_metadata.assert();
+    original.assert();
+    drop((root, victim_archive, git_hosted_tarball_archive));
+}
