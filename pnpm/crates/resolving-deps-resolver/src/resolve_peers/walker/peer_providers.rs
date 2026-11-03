@@ -105,6 +105,10 @@ impl Walker<'_> {
         site: &PinSite<'_>,
     ) -> Option<(String, ParentRef)> {
         let peer_dep = site.pkg.peer_set.taken().get(peer_name)?;
+        // Deduplication chooses optional providers absent from the current scope.
+        if peer_dep.optional && !site.parent_refs.contains_key(peer_name) {
+            return None;
+        }
         let locked = self.locked_provider(previous_dep_path, site.provider_paths)?;
         let scope = PeerScope {
             inherited: None,

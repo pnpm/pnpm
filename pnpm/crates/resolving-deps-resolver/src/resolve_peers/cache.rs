@@ -165,25 +165,9 @@ struct ShadowingGuard {
 }
 
 impl Walker<'_> {
-    /// Look up [`crate::resolve_peers::discovery::PeerDiscoveryCaches::peers_cache`] for a cached resolution of
-    /// `pkg_id` whose parent peer context is compatible with the
-    /// current `parent_refs`.
-    ///
-    /// A cache item matches when, for every cached resolved peer:
-    ///
-    /// 1. The current `parent_refs` has a counterpart entry for the
-    ///    same name with a real `NodeId`.
-    /// 2. Either the two `NodeId`s are equal, OR they map to the
-    ///    same already-computed [`DepPath`] in
-    ///    [`crate::resolve_peers::discovery::PeerDiscoveryCaches::node_dep_paths`], OR the two tree-nodes' resolved
-    ///    package ids match — and in the package-id match case, the
-    ///    deep [`Self::parent_packages_match`] check on the two
-    ///    parents' own recorded contexts also succeeds (unless the
-    ///    package id is itself in [`crate::resolve_peers::discovery::PeerDiscoveryCaches::pure_pkgs`], which makes
-    ///    the deep check vacuous).
-    /// 3. None of the cache item's missing-peer names are satisfied
-    ///    by the current `parent_refs` — a name the cache walk
-    ///    recorded as missing must still be missing here.
+    /// Reuse a cached subtree only when resolved peers match the current
+    /// providers and every missing peer remains missing. Computed provider
+    /// paths take precedence over their recorded parent contexts.
     pub(super) fn find_hit(
         &self,
         parent_refs: &ParentRefs,
@@ -282,9 +266,8 @@ impl Walker<'_> {
         if let (Some(cached_dp), Some(current_dp)) = (
             self.caches.node_dep_paths.get(cached_node_id),
             self.caches.node_dep_paths.get(current_node_id),
-        ) && cached_dp == current_dp
-        {
-            return true;
+        ) {
+            return cached_dp == current_dp;
         }
         let (Some(cached_tree_node), Some(current_tree_node)) = (
             self.tree.dependencies_tree.get(cached_node_id),
