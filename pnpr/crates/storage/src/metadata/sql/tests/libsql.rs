@@ -134,9 +134,9 @@ async fn drop_tables(settings: &LibsqlSettings) {
         tables.push(row.get::<String>(0).unwrap());
     }
     for table in tables {
-        let table = table.replace('"', "\"\"");
+        let table = table.replace('"', r#""""#);
         connection
-            .execute(&format!("DROP TABLE \"{table}\""), ())
+            .execute(&format!(r#"DROP TABLE "{table}""#), ())
             .await
             .unwrap();
     }
