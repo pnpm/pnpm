@@ -733,3 +733,41 @@ fn an_install_with_a_pnpmfile_warns_about_the_root_manifest_once() {
     assert_eq!(output.matches("is no longer read by pnpm").count(), 1, "{output}");
     drop((root, mock_instance));
 }
+
+/// `--no-trust-lockfile` overrides the configured `trustLockfile` only in
+/// the install's lockfile options, so neither fast path may decide.
+#[test]
+fn a_trust_lockfile_flag_that_overrides_the_setting_runs_the_install() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_workspace_with_pnpmfile(&workspace);
+    let workspace_yaml = workspace.join("pnpm-workspace.yaml");
+    let mut yaml = fs::read_to_string(&workspace_yaml).expect("read pnpm-workspace.yaml");
+    yaml.push_str("trustLockfile: true\n");
+    fs::write(&workspace_yaml, yaml).expect("write pnpm-workspace.yaml");
+    pacquet
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_arg("install")
+        .assert()
+        .success();
+    trust_recorded_stats(&workspace, mock_instance.url());
+
+    let output = pacquet_in(&workspace)
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_env("TRACE", "pacquet::install=debug")
+        .with_args(["install", "--no-trust-lockfile"])
+        .output()
+        .expect("run pnpm install");
+
+    let text = combined_output(&output);
+    assert!(output.status.success(), "{text}");
+    assert!(text.contains("a flag overrides trustLockfile"), "{text}");
+    assert!(!text.contains(TAKEN_AFTER_CONFIG), "{text}");
+    drop((root, mock_instance));
+}

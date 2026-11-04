@@ -234,6 +234,16 @@ impl InstallArgs {
             // The fast path registers the project in the store, which a dry
             // run must not write.
             (self.materialization.dry_run, "--dry-run"),
+            // The flag reaches only the install's lockfile options, so the
+            // settings the check compares still hold the configured value.
+            (
+                super::resolve_bool_override(
+                    self.lockfile_updates.trust_lockfile,
+                    self.lockfile_updates.no_trust_lockfile,
+                    config.trust_lockfile,
+                ) != config.trust_lockfile,
+                "a flag overrides trustLockfile",
+            ),
             (config.cargo.enabled || config.python.enabled, "another ecosystem installs too"),
             (config.catalog_prune, "catalogPrune is on"),
             // The merge flags reach `config` only in the dispatch, after this
