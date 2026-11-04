@@ -59,6 +59,8 @@ use atomic_write::create_tmp_file;
 
 mod blob_write;
 
+mod tmp_suffix;
+
 mod local_store;
 use local_store::Store;
 
