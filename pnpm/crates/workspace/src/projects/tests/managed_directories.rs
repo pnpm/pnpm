@@ -271,23 +271,15 @@ fn modules_dir_opts(root: &Path, project: &str) -> FindWorkspaceProjectsOpts {
     }
 }
 
-/// Whether the keys of `left` and `right` are equal and the walk finds the
-/// same projects with both.
-fn same_key_and_projects(
-    root: &Path,
-    left: &FindWorkspaceProjectsOpts,
-    right: &FindWorkspaceProjectsOpts,
-) -> (bool, bool) {
-    let names = |opts: &FindWorkspaceProjectsOpts| {
-        let mut names: Vec<PathBuf> = find_workspace_projects(root, opts)
-            .unwrap()
-            .into_iter()
-            .map(|project| project.root_dir)
-            .collect();
-        names.sort();
-        names
-    };
-    (left.discovery_key(root) == right.discovery_key(root), names(left) == names(right))
+/// The roots of the projects the walk finds with `opts`, sorted.
+fn found_roots(root: &Path, opts: &FindWorkspaceProjectsOpts) -> Vec<PathBuf> {
+    let mut roots: Vec<PathBuf> = find_workspace_projects(root, opts)
+        .unwrap()
+        .into_iter()
+        .map(|project| project.root_dir)
+        .collect();
+    roots.sort();
+    roots
 }
 
 #[test]
@@ -300,7 +292,8 @@ fn modules_directories_the_walk_skips_by_name_find_the_same_projects() {
     let in_a = modules_dir_opts(tmp.path(), "packages/a");
     let in_b = modules_dir_opts(tmp.path(), "packages/b");
 
-    assert_eq!(same_key_and_projects(tmp.path(), &in_a, &in_b), (true, true));
+    assert_eq!(in_a.discovery_key(tmp.path()), in_b.discovery_key(tmp.path()));
+    assert_eq!(found_roots(tmp.path(), &in_a), found_roots(tmp.path(), &in_b));
 }
 
 #[test]
@@ -327,6 +320,7 @@ fn a_modules_directory_spelled_otherwise_on_disk_keys_by_the_projects() {
     let in_a = modules_dir_opts(tmp.path(), "packages/a");
     let in_b = modules_dir_opts(tmp.path(), "packages/b");
 
-    let (same_key, same_projects) = same_key_and_projects(tmp.path(), &in_a, &in_b);
+    let same_key = in_a.discovery_key(tmp.path()) == in_b.discovery_key(tmp.path());
+    let same_projects = found_roots(tmp.path(), &in_a) == found_roots(tmp.path(), &in_b);
     assert_eq!(same_key, same_projects);
 }
