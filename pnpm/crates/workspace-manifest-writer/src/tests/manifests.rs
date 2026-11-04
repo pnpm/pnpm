@@ -90,6 +90,10 @@ fn null_root_manifest_is_rejected_without_writing() {
         "~\n",
         "Null\n",
         "NULL\n",
+        "!!null\n",
+        "!<tag:yaml.org,2002:null>\n",
+        "&settings\n",
+        "---\n&settings !!null # keep\n...\n",
         "# workspace settings\nnull # keep\n",
         "---\n!!null null\n...\n",
     ] {

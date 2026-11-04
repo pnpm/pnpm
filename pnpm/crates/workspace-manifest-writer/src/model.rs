@@ -208,7 +208,7 @@ fn parse_top_level_keys(text: &str) -> Result<Vec<String>, Box<serde_saphyr::Err
     for token in Scanner::new(StrInput::new(text)) {
         let token =
             token.map_err(<serde_saphyr::Error as serde::de::Error>::custom)?.into_parts().1;
-        if matches!(token, TokenType::Scalar(..)) {
+        if matches!(token, TokenType::Scalar(..) | TokenType::Tag(..) | TokenType::Anchor(..)) {
             return Err(Box::new(<serde_saphyr::Error as serde::de::Error>::custom(
                 "expected a mapping, found a null root",
             )));
