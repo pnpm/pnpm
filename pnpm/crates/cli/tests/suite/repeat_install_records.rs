@@ -666,3 +666,37 @@ fn an_install_with_workspace_package_patterns_finds_a_new_project() {
     assert!(workspace.join("extra/new/node_modules/b").exists());
     drop((root, mock_instance));
 }
+
+/// Config dependencies, like a pnpmfile, keep the fast path from running
+/// before the config setup, but not from deciding without the manifests
+/// after it.
+#[test]
+fn a_workspace_with_config_dependencies_is_up_to_date_from_the_records() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_workspace(&workspace);
+    let workspace_yaml = workspace.join("pnpm-workspace.yaml");
+    let mut yaml = fs::read_to_string(&workspace_yaml).expect("read pnpm-workspace.yaml");
+    yaml.push_str("configDependencies:\n  '@pnpm.e2e/foo': 100.0.0\n");
+    fs::write(&workspace_yaml, yaml).expect("write pnpm-workspace.yaml");
+    pacquet
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_arg("install")
+        .assert()
+        .success();
+    trust_recorded_stats(&workspace, mock_instance.url());
+
+    let output = traced_install(&workspace, mock_instance.url());
+
+    assert!(output.contains("Already up to date"), "{output}");
+    assert!(output.contains(TAKEN_AFTER_CONFIG), "{output}");
+    assert!(output.contains(DECIDED_FROM_RECORDS), "{output}");
+    assert!(workspace.join("node_modules/.pnpm-config/@pnpm.e2e/foo/package.json").exists());
+    drop((root, mock_instance));
+}
