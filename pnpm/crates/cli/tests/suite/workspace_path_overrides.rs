@@ -21,7 +21,7 @@ fn workspace_path_override_links_the_workspace_relative_target() {
     } = CommandTempCwd::init().add_mocked_registry();
     write_fixture(
         &workspace,
-        FixtureOptions {
+        &FixtureOptions {
             inject_workspace_packages: false,
             shared_workspace_lockfile: true,
             override_specifier: "workspace:./packages/target",
@@ -53,7 +53,7 @@ fn workspace_path_override_installs_the_workspace_relative_target_when_injected(
     } = CommandTempCwd::init().add_mocked_registry();
     write_fixture(
         &workspace,
-        FixtureOptions {
+        &FixtureOptions {
             inject_workspace_packages: true,
             shared_workspace_lockfile: true,
             override_specifier: "workspace:./packages/target",
@@ -88,7 +88,7 @@ fn root_relative_overrides_resolve_from_workspace_config_with_both_lockfile_mode
             } = CommandTempCwd::init().add_mocked_registry();
             write_fixture(
                 &workspace,
-                FixtureOptions {
+                &FixtureOptions {
                     inject_workspace_packages: true,
                     shared_workspace_lockfile,
                     override_specifier: specifier,
@@ -131,7 +131,7 @@ struct FixtureOptions<'a> {
     override_specifier: &'a str,
 }
 
-fn write_fixture(workspace: &Path, options: FixtureOptions<'_>) {
+fn write_fixture(workspace: &Path, options: &FixtureOptions<'_>) {
     let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
     let workspace_yaml =
         fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
