@@ -86,33 +86,6 @@ async fn publish_rejects_a_non_semver_manifest_version_before_storing_anything()
 }
 
 #[tokio::test]
-async fn publish_rejects_a_version_that_does_not_match_its_key() {
-    let tmp = TempDir::new().unwrap();
-    let app = router(static_config(tmp.path().to_path_buf()));
-    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
-    let mut body = publish_doc("mypkg", "1.0.0", b"tarball-bytes");
-    body["versions"]["1.0.0"]["version"] = json!("2.0.0");
-
-    let response = app
-        .oneshot(
-            Request::put("/npm/mypkg")
-                .header("content-type", "application/json")
-                .header("Authorization", format!("Bearer {token}"))
-                .body(Body::from(serde_json::to_vec(&body).unwrap()))
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
-    let reason = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
-    assert!(reason.contains("does not match"), "{reason}");
-    assert!(
-        pnpr_fixtures::read_hosted_document(tmp.path(), "", pnpr_storage::Ecosystem::Npm, "mypkg")
-            .is_none(),
-    );
-}
-
-#[tokio::test]
 async fn publish_accepts_a_valid_prerelease_version() {
     let tmp = TempDir::new().unwrap();
     let app = router(static_config(tmp.path().to_path_buf()));

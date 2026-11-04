@@ -304,13 +304,6 @@ fn check_body_versions(incoming: &Value) -> Result<(), RegistryError> {
                 ),
             });
         }
-        if version_key != manifest_version {
-            return Err(RegistryError::BadRequest {
-                reason: format!(
-                    "version key {version_key:?} does not match manifest version {manifest_version:?}",
-                ),
-            });
-        }
     }
     Ok(())
 }
