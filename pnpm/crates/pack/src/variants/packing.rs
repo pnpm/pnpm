@@ -77,6 +77,7 @@ where
             archives: vec![PackedArchive { entry: None, result }],
         });
     };
+    super::warn_about_declaration::<Reporter>(&source.dir, &source.publish_manifest, &declaration);
     let selected = selected_entries(&declaration, targets)?;
     let claims = Claims::of(opts, &source, &declaration, &selected)?;
     let mut packed = Vec::with_capacity(selected.len());
