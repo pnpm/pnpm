@@ -279,6 +279,21 @@ fn an_entry_point_is_matched_exactly() {
     );
     assert_eq!(missing(main, "dist/**", &["dist/index.js"]), None);
     assert_eq!(missing(json!({ "main": "dist" }), "dist/**", &["dist/index.js"]), None);
+    let (dir, opts) = fixture(&json!({
+        "name": "example-cli",
+        "version": "4.0.0",
+        "files": [],
+        "publishConfig": {
+            "variants": [{
+                "targets": ["linux-x64"],
+                "files": ["dist/**"],
+                "manifest": { "main": "dist" },
+            }],
+        },
+    }));
+    touch(dir.path(), "dist/package.json", r#"{ "main": "lib.js" }"#);
+    touch(dir.path(), "dist/lib.js", "module.exports = 1");
+    assert!(pack(&opts, &[]).is_ok(), "a directory's own main resolves it");
     let bin = json!({ "bin": { "cli": "native/cli" } });
     assert_eq!(
         missing(bin.clone(), "native/**", &["native/cli.debug"]).as_deref(),
