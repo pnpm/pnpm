@@ -731,3 +731,5 @@ mod package_documents;
 mod resolution;
 
 mod pnpmfile;
+
+mod variants_only;
