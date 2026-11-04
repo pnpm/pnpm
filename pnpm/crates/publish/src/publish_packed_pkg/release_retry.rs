@@ -49,7 +49,6 @@ pub(super) enum Signing {
 }
 
 impl Signing {
-    /// Whether the publish `resolved` describes signs a statement.
     fn of(resolved: &ResolvedPublishOptions) -> Self {
         match resolved.provenance {
             Some(true) => Signing::Signs,
@@ -295,7 +294,6 @@ fn statement(attestation: &Value) -> Option<Value> {
     serde_json::from_slice(&bytes).ok()
 }
 
-/// Reads what pnpr holds of the release, for the caller.
 struct Reader<'r> {
     client: &'r ThrottledClient,
     registry: &'r NormalizedRegistryUrl,
