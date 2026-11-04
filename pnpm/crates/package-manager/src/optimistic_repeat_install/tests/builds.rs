@@ -1,10 +1,9 @@
 use super::{
-    super::{
-        Decision, deps_status::RunDepsStatus, first_setting_drift, settings::current_settings,
-    },
+    super::{Decision, deps_status::RunDepsStatus, first_setting_drift},
     MTIME_STEP_MS, backdate_validated_files, check, isolated_included, recorded_timestamp,
     single_project_deps_status, workspace_deps_status, write_empty_lockfile, write_state,
 };
+use crate::install_state::settings::current_settings;
 use pnpm_config::Config;
 use pnpm_lockfile::Lockfile;
 use pnpm_package_manifest::PackageManifest;

@@ -7,7 +7,7 @@ use super::{
     UpToDateFastPathCheck, WorkspaceState, build_project_manifests_list,
     check_fast_path_repeat_install,
 };
-use crate::optimistic_repeat_install::validation::{ManifestStandIns, manifest_stand_ins};
+use crate::install_state::validation::{ManifestStandIns, manifest_stand_ins};
 use pnpm_workspace::ProjectManifestPaths;
 use std::collections::HashMap;
 
@@ -105,8 +105,7 @@ pub(super) fn list_stand_ins(workspace: &ListedWorkspace<'_>) -> Listing {
     let listed = {
         let _span =
             tracing::debug_span!(target: "pacquet::install", "list_workspace_projects").entered();
-        let opts =
-            super::super::lifecycle::checked_projects_opts(workspace.config, workspace_manifest);
+        let opts = crate::install::checked_projects_opts(workspace.config, workspace_manifest);
         pnpm_workspace::find_workspace_project_manifests(workspace.workspace_root, &opts)
     };
     let Ok(listed) = listed else { return Listing::Files(None) };

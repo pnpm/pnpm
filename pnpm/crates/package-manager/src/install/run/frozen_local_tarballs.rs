@@ -102,8 +102,8 @@ async fn verify_frozen_tarballs(settled: Settled<'_, '_>) -> Result<(), InstallE
     let importer_ids = installed_importer_ids(settled, lockfile);
     let (skipped, groups) = compute_frozen_skip_set(&settled, lockfile, &importer_ids).await?;
 
-    let targets = crate::optimistic_repeat_install::frozen_local_tarballs_to_verify(
-        &crate::optimistic_repeat_install::FrozenLocalTarballCheck {
+    let targets = crate::install_state::frozen_local_tarballs_to_verify(
+        &crate::install_state::FrozenLocalTarballCheck {
             workspace_root: &settled.projects.workspace.dirs.workspace_root,
             importer_ids: &importer_ids,
             groups: &groups,

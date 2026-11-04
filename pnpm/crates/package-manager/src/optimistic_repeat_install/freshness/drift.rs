@@ -5,7 +5,9 @@ use super::{
     super::{
         ManifestStat, OptimisticRepeatInstallCheck, Path, PathBuf, WorkspaceState,
         current_lockfile::CurrentLockfile,
-        validation::{FileDigest, FileDigests},
+        validation::{
+            FileDigest, FileDigests, project_bins_digest, project_bins_match, workspace_bins_digest,
+        },
     },
     Scope,
 };
@@ -208,7 +210,7 @@ fn project_stats<'a>(
             if record.lockfile != lockfile_digest {
                 ProjectStatus::LockfileChanged
             } else if record.manifest != digest
-                || !super::super::validation::project_bins_match(
+                || !project_bins_match(
                     recorded,
                     &importer_id,
                     super::super::validation::project_bins_digest(
@@ -375,3 +377,23 @@ fn reached_importers(
 
 #[cfg(test)]
 mod tests;
+
+pub(super) fn held_workspace_bins_match(
+    check: &OptimisticRepeatInstallCheck<'_>,
+    state: &WorkspaceState,
+    held: &[&ManifestStat<'_>],
+) -> bool {
+    if held.is_empty() || state.validation.is_none() {
+        return true;
+    }
+    let bins = workspace_bins_digest(check.workspace_root, check.bin_projects());
+    held.iter()
+        .all(|stat| {
+            let id = importer_id_from_root_dir(check.workspace_root, stat.root_dir);
+            project_bins_match(
+                state.validation.as_ref(),
+                &id,
+                project_bins_digest(&id, stat.manifest, bins.as_deref()),
+            )
+        })
+}

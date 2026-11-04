@@ -76,7 +76,7 @@ fn recordable(
         return false;
     }
     let now = *filesystem_now_ns.get_or_insert_with(|| {
-        crate::optimistic_repeat_install::filesystem_now_ns_in_modules(
+        crate::install_state::filesystem_now_ns_in_modules(
             &check.config.workspace_state_modules_dir(check.workspace_root),
         )
     });

@@ -1,7 +1,14 @@
 //! Modification times, and the baseline a recorded validation is compared against.
 
-use super::{Config, Lockfile, PackageManifest, Path, PathBuf, SystemTime, fs};
+use pnpm_config::Config;
+use pnpm_lockfile::Lockfile;
 use pnpm_modules_yaml::Clock;
+use pnpm_package_manifest::PackageManifest;
+use std::{
+    fs,
+    path::{Path, PathBuf},
+    time::SystemTime,
+};
 
 pub(crate) const NANOS_PER_MILLI: i64 = 1_000_000;
 

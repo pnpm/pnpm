@@ -494,7 +494,7 @@ where
 /// Whether the project defines any of `stages`, counting the executor's
 /// implicit `node-gyp rebuild` fallback for `install` (which is skipped
 /// when the project opts out with `gypfile: false`).
-pub(super) fn project_requires_lifecycle_scripts(
+pub(crate) fn project_requires_lifecycle_scripts(
     project_dir: &Path,
     manifest: &PackageManifest,
     stages: &[&str],

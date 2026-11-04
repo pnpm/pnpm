@@ -1,10 +1,6 @@
 use super::{
-    super::{
-        Config, PROJECT_LIFECYCLE_STAGES, PackageManifest, Path, load_workspace_projects,
-        project_requires_lifecycle_scripts,
-    },
-    build_project_manifests_list,
-    discovery::GateInputs,
+    Config, PROJECT_LIFECYCLE_STAGES, PackageManifest, Path, build_project_manifests_list,
+    discovery::GateInputs, load_workspace_projects, project_requires_lifecycle_scripts,
 };
 use pnpm_executor::DEV_PREINSTALL_STAGE;
 
@@ -30,7 +26,7 @@ pub(super) fn projects_have_nothing_to_install(inputs: &GateInputs<'_>) -> bool 
     if manifest.path().parent() != Some(lockfile_root)
         || project_has_install_work(config, manifest)
         || runs_dev_preinstall(config, manifest, workspace_root)
-        || !crate::optimistic_repeat_install::current_pnpmfiles(lockfile_root, config).is_empty()
+        || !crate::install_state::current_pnpmfiles(lockfile_root, config).is_empty()
     {
         return false;
     }
@@ -52,9 +48,9 @@ fn project_has_install_work(config: &Config, manifest: &PackageManifest) -> bool
         .path()
         .parent()
         .expect("manifest path always has a parent dir");
-    crate::optimistic_repeat_install::manifest_has_runtime_deps(manifest)
+    crate::install_state::manifest_has_runtime_deps(manifest)
         || (config.auto_install_peers
-            && crate::optimistic_repeat_install::manifest_has_required_peers(manifest))
+            && crate::install_state::manifest_has_required_peers(manifest))
         || (!config.ignore_scripts
             && project_requires_lifecycle_scripts(project_dir, manifest, &PROJECT_LIFECYCLE_STAGES))
 }

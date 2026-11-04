@@ -9,21 +9,24 @@
 //! others survive it unchanged.
 
 pub(crate) use bins::{
-    dedicated_bin_projects, held_workspace_bins_match, links_workspace_commands,
-    project_bins_digest, project_bins_match, workspace_bins_digest,
+    dedicated_bin_projects, links_workspace_commands, project_bins_digest, project_bins_match,
+    workspace_bins_digest,
 };
 pub(crate) use file_stat::{FileStat, trusts_every_file};
 pub(crate) use local_dependencies::changed as local_dependency_changed;
 pub(crate) use manifest_files::{ManifestStandIns, manifest_stand_ins, records_need_refresh};
 
-use super::{Config, Lockfile, PackageManifest, Path, PathBuf};
 use file_stat::{signature_trusted, stat_trusted};
+use pnpm_config::Config;
+use pnpm_lockfile::Lockfile;
+use pnpm_package_manifest::PackageManifest;
 use pnpm_workspace::importer_id_from_root_dir;
 use pnpm_workspace_state::{FileSignature, Validation, WorkspaceState};
 use sha2::{Digest as _, Sha256};
 use std::{
     collections::{BTreeMap, HashSet},
     fs, io,
+    path::{Path, PathBuf},
 };
 
 mod bins;

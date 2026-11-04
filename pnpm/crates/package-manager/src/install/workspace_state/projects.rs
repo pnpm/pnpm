@@ -1,6 +1,6 @@
 use super::super::{DependencyGroup, HashSet, PackageManifest, Path, PathBuf, ProjectMutation};
 
-pub(in super::super) fn build_project_manifests_list<'a>(
+pub(crate) fn build_project_manifests_list<'a>(
     root_manifest: &'a PackageManifest,
     workspace_projects: Option<&'a [pnpm_workspace::Project]>,
 ) -> Vec<(std::path::PathBuf, &'a PackageManifest)> {

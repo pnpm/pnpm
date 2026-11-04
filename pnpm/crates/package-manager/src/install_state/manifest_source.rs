@@ -1,6 +1,6 @@
 //! How the repeat-install check reads the project manifests it is handed.
 
-use crate::install::ProjectManifestsByDir;
+use super::ProjectManifestsByDir;
 use pnpm_hooks::PnpmfileHooks;
 use pnpm_package_manifest::PackageManifest;
 use std::{
@@ -27,7 +27,7 @@ impl<'a> DeclaredManifests<'a> {
     }
 
     /// Manifests some of which the last validation's records stand in for,
-    /// per [`crate::optimistic_repeat_install::validation::manifest_stand_ins`].
+    /// per [`crate::install_state::validation::manifest_stand_ins`].
     /// `recorded_digests` holds the digest of each of those, by project
     /// directory. The check then never writes: what it would write is
     /// derived from the files.

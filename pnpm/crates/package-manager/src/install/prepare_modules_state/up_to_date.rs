@@ -6,7 +6,7 @@ use super::super::{
     moved_tree_is_reusable, recorded_allow_builds_differ, unapproved_recorded_ignored_builds,
     update_workspace_state_or_warn, verify_lockfile_eagerly,
 };
-use crate::optimistic_repeat_install::{
+use crate::install_state::{
     filesystem_now_ms_in_modules, materialized_shape_matches,
     validation::{project_bins_digest, project_bins_match, workspace_bins_digest},
 };
@@ -76,11 +76,11 @@ pub(super) fn frozen_tree_up_to_date<'a>(
     // `extendNodePath` change the bin shims, without touching the lockfile or
     // `.modules.yaml`, so the unchanged-layout premise doesn't hold.
     if !modules_consistent_with(modules, config, context.tree.node_linker, context.tree.included)
-        || !crate::optimistic_repeat_install::recorded_supported_architectures_match(
+        || !crate::install_state::recorded_supported_architectures_match(
             context.recorded.state,
             context.repeat.supported_architectures,
         )
-        || !crate::optimistic_repeat_install::recorded_extend_node_path_matches(
+        || !crate::install_state::recorded_extend_node_path_matches(
             context.recorded.state,
             config.extend_node_path,
         )
@@ -297,17 +297,15 @@ pub(super) fn refresh_up_to_date_workspace<Reporter: self::Reporter>(
                 context.tree.config,
                 Some(context.wanted_lockfile),
             ),
-            registry_routes: Some(
-                crate::optimistic_repeat_install::recorded_registry_routes_after_install(
-                    context.tree.config,
-                    context.carried_state.recorded_registry_routes.as_ref(),
-                    Some(context.wanted_lockfile),
-                    crate::optimistic_repeat_install::ResolvedImporters::None,
-                ),
-            ),
+            registry_routes: Some(crate::install_state::recorded_registry_routes_after_install(
+                context.tree.config,
+                context.carried_state.recorded_registry_routes.as_ref(),
+                Some(context.wanted_lockfile),
+                crate::install_state::ResolvedImporters::None,
+            )),
             kept_settings: None,
         },
-        vouched: &crate::optimistic_repeat_install::validation::Vouched::All,
+        vouched: &crate::install_state::validation::Vouched::All,
     });
     update_workspace_state_or_warn::<Reporter>(
         context.tree.workspace_root,

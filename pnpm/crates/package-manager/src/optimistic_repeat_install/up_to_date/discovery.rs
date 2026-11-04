@@ -1,16 +1,13 @@
 use super::{
-    super::{
-        Catalogs, Config, IncludedDependencies, MaybeLazyLockfile, OptimisticRepeatInstallCheck,
-        PackageManifest, Path, PathBuf, get_catalogs_from_workspace_manifest,
-    },
-    build_project_manifests_list, configured_or_discovered_workspace_dir, lazy_wanted_lockfile,
-    lockfile_root_for,
-    nothing_to_install::projects_have_nothing_to_install,
+    Catalogs, Config, IncludedDependencies, MaybeLazyLockfile, OptimisticRepeatInstallCheck,
+    PackageManifest, Path, PathBuf, build_project_manifests_list,
+    configured_or_discovered_workspace_dir, get_catalogs_from_workspace_manifest,
+    lazy_wanted_lockfile, lockfile_root_for, nothing_to_install::projects_have_nothing_to_install,
     stand_ins,
 };
 use std::borrow::Cow;
 
-/// Discovery twin of [`install_already_up_to_date`](crate::install::workspace_state::install_already_up_to_date) for the
+/// Discovery twin of [`super::install_already_up_to_date`] for the
 /// verify-deps-before-run gate: assemble the same
 /// [`OptimisticRepeatInstallCheck`] inputs from a bare directory and run
 /// [`crate::check_deps_status_before_run`].
@@ -122,13 +119,13 @@ impl GateWorkspace {
         let discovered = self.discovered
             .get_or_init(|| {
                 let manifest = pnpm_workspace::read_workspace_manifest(&self.root).ok()??;
-                let opts = super::super::lifecycle::checked_projects_opts(config, &manifest);
+                let opts = crate::install::checked_projects_opts(config, &manifest);
                 let projects = pnpm_workspace::find_workspace_projects(&self.root, &opts).ok()?;
                 let key = opts.discovery_key(&self.root);
                 Some(DiscoveredProjects { manifest, key, projects })
             })
             .as_ref()?;
-        let key = super::super::lifecycle::checked_projects_opts(config, &discovered.manifest)
+        let key = crate::install::checked_projects_opts(config, &discovered.manifest)
             .discovery_key(&self.root);
         (discovered.key == key).then_some(discovered.projects.as_slice())
     }
@@ -324,7 +321,7 @@ fn gate_workspace_projects<'a>(
         workspace,
         ..
     } = inputs;
-    let links = crate::optimistic_repeat_install::validation::links_workspace_commands(manifest);
+    let links = crate::install_state::validation::links_workspace_commands(manifest);
     let discovered = workspace
         .filter(|workspace| workspace.root == workspace_root)
         .filter(|_| !config.shares_one_lockfile() && links)
@@ -388,13 +385,13 @@ fn load_gated_workspace(
     listed: Option<Vec<pnpm_workspace::ProjectManifestPaths>>,
 ) -> Result<Option<Vec<pnpm_workspace::Project>>, pnpm_workspace::FindWorkspaceProjectsError> {
     let needed = config.shares_one_lockfile()
-        || crate::optimistic_repeat_install::validation::links_workspace_commands(manifest);
+        || crate::install_state::validation::links_workspace_commands(manifest);
     if !needed {
         return Ok(None);
     }
     match listed {
         Some(listed) => pnpm_workspace::read_workspace_projects(listed).map(Some),
-        None => super::super::lifecycle::load_checked_workspace_projects(
+        None => crate::install::load_checked_workspace_projects(
             config,
             workspace_root,
             workspace_manifest,
@@ -415,7 +412,7 @@ fn gated_projects<'a>(
 ) -> (Vec<(PathBuf, &'a PackageManifest)>, Option<Vec<(PathBuf, &'a PackageManifest)>>) {
     let shared = workspace_projects.filter(|_| config.shares_one_lockfile());
     let project_manifests = build_project_manifests_list(manifest, shared);
-    let bin_projects = crate::optimistic_repeat_install::validation::dedicated_bin_projects(
+    let bin_projects = crate::install_state::validation::dedicated_bin_projects(
         config,
         &project_manifests,
         workspace_projects,
