@@ -1118,6 +1118,7 @@ async fn rerun_from_staged_variant(record: Option<Value>) -> Result<(), PublishP
 #[tokio::test]
 async fn rerunning_a_publish_from_staged_archives_confirms_the_recorded_release() {
     let record = json!({
+        "schema": pnpm_release_record::RECORD_SCHEMA,
         "variants": [
             { "tag": "linux-x64", "inputs": { "archive": { "integrity": "sha512-bGludXg=" } } },
         ],

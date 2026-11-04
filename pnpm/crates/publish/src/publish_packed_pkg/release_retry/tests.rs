@@ -26,6 +26,7 @@ fn release(primary: Option<&str>, subjects: Option<Vec<ProvenanceSubject>>) -> R
 /// `variant`, and an `any` archive of `primary` when it has one.
 fn record(primary: Option<&str>, variant: &str) -> Value {
     let mut record = json!({
+        "schema": pnpm_release_record::RECORD_SCHEMA,
         "purl": "pkg:npm/%40acme/cli@1.0.0",
         "variants": [{ "tag": "linux-x64", "inputs": { "archive": { "integrity": variant } } }],
     });
@@ -186,5 +187,19 @@ async fn a_version_pnpr_has_no_record_of_is_not_confirmed() {
     let url = parse_supported_registry_url(&format!("{}/", server.url())).unwrap().normalized_url;
     let confirmed =
         confirm_published(&ThrottledClient::default(), &url, None, &release(Some(ANY), None)).await;
+    assert!(matches!(confirmed, Ok(false)), "{confirmed:?}");
+}
+
+/// The version's derived projection, which the record route may serve
+/// without a stored record, is no record.
+#[tokio::test]
+async fn a_projection_without_the_record_schema_is_no_record() {
+    let mut projection = record(Some(ANY), LINUX);
+    projection
+        .as_object_mut()
+        .unwrap()
+        .remove("schema");
+    let confirmed =
+        confirm(&release(Some(ANY), None), &projection, None, &json!({ "latest": "1.0.0" })).await;
     assert!(matches!(confirmed, Ok(false)), "{confirmed:?}");
 }

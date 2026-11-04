@@ -163,7 +163,15 @@ pub(super) async fn confirm_published(
 ) -> Result<bool, PublishedReleaseError> {
     let reader = Reader { client, registry, authorization, release };
     let escaped = escaped_package_name(release.name);
-    let Some(record) = reader.get(&format!("{escaped}/{}+r0", release.version)).await? else {
+    // Without a stored record the route may serve the version's derived
+    // projection, which has no record schema and names no inputs.
+    let Some(record) = reader
+        .get(&format!("{escaped}/{}+r0", release.version))
+        .await?
+        .filter(|record| {
+            record.get("schema").and_then(Value::as_str) == Some(pnpm_release_record::RECORD_SCHEMA)
+        })
+    else {
         return Ok(false);
     };
     if let Some(difference) = archive_difference(&record, release) {
