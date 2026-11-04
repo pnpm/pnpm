@@ -569,20 +569,20 @@ async fn a_variant_attachment_names_a_described_version_and_its_integrity() {
     }
 }
 
-/// The version's own archive may declare its integrity beside its bytes, as
+/// The version's `any` archive may declare its integrity beside its bytes, as
 /// a variant does, and it must be the version's `dist.integrity`. A sigstore
 /// bundle declares none.
 #[tokio::test]
 async fn an_archive_declares_its_versions_integrity_or_none() {
     use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 
-    let (_, primary) = archive(&primary_manifest(), "primary");
-    let (_, other) = archive(&primary_manifest(), "other");
+    let (_, any_tgz) = archive(&any_manifest(), "any");
+    let (_, other) = archive(&any_manifest(), "other");
     for (case, filename, attachment, expected) in [
         (
             "other integrity",
             "@acme/fast-1.0.0.tgz",
-            json!({ "data": BASE64.encode(&primary), "integrity": sha512_integrity(&other) }),
+            json!({ "data": BASE64.encode(&any_tgz), "integrity": sha512_integrity(&other) }),
             "its version's dist.integrity",
         ),
         (
@@ -593,7 +593,7 @@ async fn an_archive_declares_its_versions_integrity_or_none() {
         ),
     ] {
         let (_tmp, app, token) = setup().await;
-        let request = publish_request(&primary, &[], &token);
+        let request = publish_request(&any_tgz, &[], &token);
         let (parts, body) = request.into_parts();
         let mut document: Value = serde_json::from_slice(&body_bytes(body).await).unwrap();
         document["_attachments"][filename] = attachment;
@@ -610,11 +610,11 @@ async fn an_archive_declares_its_versions_integrity_or_none() {
     }
 
     let (_tmp, app, token) = setup().await;
-    let request = publish_request(&primary, &[], &token);
+    let request = publish_request(&any_tgz, &[], &token);
     let (parts, body) = request.into_parts();
     let mut document: Value = serde_json::from_slice(&body_bytes(body).await).unwrap();
     document["_attachments"]["@acme/fast-1.0.0.tgz"]["integrity"] =
-        json!(sha512_integrity(&primary));
+        json!(sha512_integrity(&any_tgz));
     let request = Request::from_parts(parts, Body::from(serde_json::to_vec(&document).unwrap()));
     assert_eq!(
         app.oneshot(request).await
