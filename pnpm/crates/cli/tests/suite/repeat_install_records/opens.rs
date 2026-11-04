@@ -1,0 +1,172 @@
+//! The manifest files an up-to-date command opens, counted through inotify.
+//! No filesystem seam reaches the project discovery and the checks, so the
+//! kernel counts the opens instead.
+
+use super::{
+    GATE_DECIDED_FROM_RECORDS, combined_output, traced_run, trust_recorded_stats,
+    write_gated_workspace, write_workspace,
+};
+use crate::_utils::pacquet_in;
+use assert_cmd::prelude::*;
+use command_extra::CommandExtra;
+use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+use std::{
+    ffi::CString,
+    fs,
+    os::unix::ffi::OsStrExt as _,
+    path::{Path, PathBuf},
+};
+
+/// How many times `paths` are opened while `run` runs.
+fn count_opens(paths: &[PathBuf], run: impl FnOnce()) -> usize {
+    // SAFETY: no pointer arguments; a negative result is checked below.
+    let fd = unsafe { libc::inotify_init1(libc::IN_NONBLOCK | libc::IN_CLOEXEC) };
+    assert!(fd >= 0, "inotify_init1: {}", std::io::Error::last_os_error());
+    for path in paths {
+        let path = CString::new(path.as_os_str().as_bytes()).expect("a path without NUL");
+        // SAFETY: `fd` is the inotify descriptor above and `path` outlives the call.
+        let watch = unsafe { libc::inotify_add_watch(fd, path.as_ptr(), libc::IN_OPEN) };
+        assert!(watch >= 0, "inotify_add_watch: {}", std::io::Error::last_os_error());
+    }
+    run();
+    let opens = read_open_events(fd);
+    // SAFETY: `fd` is open and closed once.
+    unsafe { libc::close(fd) };
+    opens
+}
+
+/// The `IN_OPEN` events queued on the inotify descriptor `fd`.
+fn read_open_events(fd: libc::c_int) -> usize {
+    const HEADER: usize = size_of::<libc::inotify_event>();
+    let mut buffer = [0_u8; 4096];
+    let mut opens = 0;
+    loop {
+        // SAFETY: `buffer` is writable for its whole length.
+        let read = unsafe { libc::read(fd, buffer.as_mut_ptr().cast(), buffer.len()) };
+        let Ok(read) = usize::try_from(read) else { break };
+        if read == 0 {
+            break;
+        }
+        let mut offset = 0;
+        while offset + HEADER <= read {
+            // SAFETY: the kernel wrote a whole event header at `offset`, and
+            // `read_unaligned` copes with the byte buffer's alignment.
+            let event = unsafe {
+                std::ptr::read_unaligned(
+                    buffer
+                        .as_ptr()
+                        .add(offset)
+                        .cast::<libc::inotify_event>(),
+                )
+            };
+            if event.mask & libc::IN_OPEN != 0 {
+                opens += 1;
+            }
+            offset += HEADER + event.len as usize;
+        }
+    }
+    opens
+}
+
+/// The manifests of the projects other than the workspace root, which the
+/// command runs in and reads anyway.
+fn project_manifests(workspace: &Path) -> Vec<PathBuf> {
+    ["packages/a", "packages/b"]
+        .map(|dir| workspace.join(dir).join("package.json"))
+        .to_vec()
+}
+
+fn install(workspace: &Path, registry: &str) {
+    pacquet_in(workspace)
+        .with_env("PNPM_CONFIG_REGISTRY", registry)
+        .with_arg("install")
+        .assert()
+        .success();
+}
+
+#[test]
+fn an_up_to_date_install_opens_no_project_manifest() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_workspace(&workspace);
+    install(&workspace, mock_instance.url());
+    trust_recorded_stats(&workspace, mock_instance.url());
+
+    let opens =
+        count_opens(&project_manifests(&workspace), || install(&workspace, mock_instance.url()));
+
+    assert_eq!(opens, 0);
+    drop((root, mock_instance));
+}
+
+/// The control for the count: an edit sends the install to the manifest
+/// files, which opens the unchanged ones too.
+#[test]
+fn an_install_after_an_edit_opens_the_project_manifests() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_workspace(&workspace);
+    install(&workspace, mock_instance.url());
+    trust_recorded_stats(&workspace, mock_instance.url());
+    let edited = serde_json::json!({
+        "name": "b",
+        "version": "1.0.0",
+        "bin": { "b": "cli.js" },
+        "description": "edited",
+    });
+    fs::write(workspace.join("packages/b/package.json"), edited.to_string())
+        .expect("edit packages/b/package.json");
+
+    let opens = count_opens(&[workspace.join("packages/a/package.json")], || {
+        install(&workspace, mock_instance.url());
+    });
+
+    assert!(opens > 0, "the unchanged manifest was not read");
+    drop((root, mock_instance));
+}
+
+#[test]
+fn an_up_to_date_gated_run_opens_no_project_manifest() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_gated_workspace(&workspace);
+    install(&workspace, mock_instance.url());
+    trust_recorded_stats(&workspace, mock_instance.url());
+
+    let mut output = None;
+    let opens = count_opens(&project_manifests(&workspace), || {
+        output = Some(traced_run(&workspace, mock_instance.url()));
+    });
+
+    let output = output.expect("the run ran");
+    assert!(output.status.success(), "{}", combined_output(&output));
+    assert_eq!(opens, 0);
+    drop((root, mock_instance));
+}
+
+/// A recursive command reads the projects to run in, but its gate still
+/// decides from the records.
+#[test]
+fn a_recursive_exec_gate_decides_from_the_records() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_gated_workspace(&workspace);
+    install(&workspace, mock_instance.url());
+    trust_recorded_stats(&workspace, mock_instance.url());
+
+    let output = pacquet_in(&workspace)
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_env("TRACE", "pacquet::run=debug")
+        .with_args(["-r", "exec", "node", "-e", "0"])
+        .output()
+        .expect("run pnpm -r exec");
+
+    let text = combined_output(&output);
+    assert!(output.status.success(), "{text}");
+    assert!(text.contains(GATE_DECIDED_FROM_RECORDS), "{text}");
+    drop((root, mock_instance));
+}
