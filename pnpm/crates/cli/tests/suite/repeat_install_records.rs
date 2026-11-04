@@ -326,6 +326,7 @@ fn the_run_gate_leaves_missing_records_to_the_install() {
         .with_arg("install")
         .assert()
         .success();
+    trust_recorded_stats(&workspace, mock_instance.url());
     remove_manifest_records(&workspace);
 
     pacquet_in(&workspace)
