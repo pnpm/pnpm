@@ -47,6 +47,10 @@ The gzip compression level of the tarball, from `0` to `9`. Values outside that 
 
 Log output in JSON format.
 
+### --variant &lt;target\>
+
+Pack only the archive of the [`publishConfig.variants`](../package_json.md#publishconfigvariants) entry that lists this target, such as `--variant linux-x64-musl`. `--variant any` packs the archive of every other host. Can be repeated. Without it, `pnpm pack` writes every archive the package declares, each platform variant as `<name>-<version>~<tag>.tgz`.
+
 ### --filter &lt;package_selector\>
 
 [Read more about filtering.](../filtering.md)

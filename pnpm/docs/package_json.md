@@ -470,3 +470,45 @@ For example:
   }
 }
 ```
+
+### publishConfig.variants
+
+* Type: **Array**
+
+Declares the archives of the version, one per platform, which `pnpm pack`
+writes. `pnpm publish` does not publish a package with this field yet. Each
+entry describes one archive:
+
+* `targets`: the platform tags the archive runs on, such as `linux-x64`,
+  `linux-x64-musl`, `darwin-arm64-macos_11_0`, or `win32-x64-napi8`. The entry
+  that targets `any` is the archive of every other host, the one npm and other
+  clients install.
+* `files`: patterns of the files only this archive holds. Every file no entry
+  claims goes into every archive.
+* `manifest`: fields that replace the package's fields in this archive's
+  `package.json`. `null` removes a field.
+
+```json title="package.json"
+{
+  "name": "example-cli",
+  "version": "4.0.0",
+  "bin": { "example-cli": "bin/example-cli.js" },
+  "publishConfig": {
+    "variants": [
+      { "targets": ["any"], "files": ["lib/**"] },
+      {
+        "targets": ["linux-x64", "linux-x64-musl"],
+        "files": ["native/linux-x64/example-cli"],
+        "manifest": { "bin": { "example-cli": "native/linux-x64/example-cli" } }
+      }
+    ]
+  }
+}
+```
+
+A platform variant is named by its targets, sorted and joined with `+`, such
+as `linux-x64+linux-x64-musl`. A target appears in one entry only. Without an
+`any` entry, the version has no archive for other hosts, and installing it
+there fails. A platform variant can't run install scripts or have a
+`binding.gyp`, and an entry's `manifest` can't set `name`, `version`, or peer
+dependencies.

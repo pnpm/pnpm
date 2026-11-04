@@ -19,6 +19,8 @@ pub fn to_pack_result_json(result: &PackResult) -> PackResultJson {
             .unwrap_or_default()
             .to_string(),
         filename: result.tarball_path.clone(),
+        tag: None,
+        targets: None,
         files: result.contents
             .iter()
             .map(|path| PackFile { path: path.clone() })
