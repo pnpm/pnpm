@@ -36,6 +36,6 @@ fn equality_ignores_the_mode() {
     let path = PathBuf::from("files/00/blob");
     assert_eq!(
         StoreFile::new(path.clone()),
-        StoreFile::with_mode(path, Some(FileMode::from_mode(0o644)))
+        StoreFile::with_mode(path, Some(FileMode::from_mode(0o644))),
     );
 }
