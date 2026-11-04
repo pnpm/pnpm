@@ -139,7 +139,7 @@ fn spells_a_purl_canonically() {
             .canonical()
             .unwrap()
             .as_str(),
-        "pkg:npm/legacy%21pkg@1.0.0"
+        "pkg:npm/legacy%21pkg@1.0.0",
     );
     assert_eq!(Purl::from_string_unchecked("not a purl".to_owned()).canonical(), None);
 }
