@@ -328,3 +328,16 @@ fn a_modules_directory_spelled_otherwise_on_disk_keys_by_the_projects() {
     let same_projects = found_roots(tmp.path(), &in_a) == roots_in_b;
     assert_eq!(same_key, same_projects);
 }
+
+#[test]
+fn a_pattern_naming_a_modules_directory_keeps_every_exclusion_in_the_key() {
+    let tmp = TempDir::new().unwrap();
+    let mut in_a = modules_dir_opts(tmp.path(), "packages/a");
+    let mut in_b = modules_dir_opts(tmp.path(), "packages/b");
+    for opts in [&mut in_a, &mut in_b] {
+        opts.patterns =
+            Some(vec!["packages/*".to_string(), "packages/a/NODE_MODULES/*".to_string()]);
+    }
+
+    assert_ne!(in_a.discovery_key(tmp.path()), in_b.discovery_key(tmp.path()));
+}

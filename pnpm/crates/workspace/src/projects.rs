@@ -75,16 +75,26 @@ pub struct FindWorkspaceProjectsOpts {
 impl FindWorkspaceProjectsOpts {
     /// What decides which projects [`find_workspace_projects`] finds under
     /// `workspace_root` with these options. Ignored directories the walk
-    /// skips by name anyway are left out.
+    /// skips by name anyway are left out, unless a pattern names such a
+    /// directory itself.
     #[must_use]
     pub fn discovery_key(&self, workspace_root: &Path) -> DiscoveryKey {
-        DiscoveryKey {
-            patterns: self.patterns.clone(),
-            ignored_directories: ignored_directories_beyond_the_walk(
-                workspace_root,
-                &self.ignored_directories,
-            ),
-        }
+        let ignored_directories = if self.patterns_name_skipped_directories() {
+            resolve_ignored_directories(workspace_root, &self.ignored_directories)
+        } else {
+            ignored_directories_beyond_the_walk(workspace_root, &self.ignored_directories)
+        };
+        DiscoveryKey { patterns: self.patterns.clone(), ignored_directories }
+    }
+
+    fn patterns_name_skipped_directories(&self) -> bool {
+        self.patterns
+            .iter()
+            .flatten()
+            .any(|pattern| {
+                let pattern = pattern.to_ascii_lowercase();
+                pattern.contains("node_modules") || pattern.contains("bower_components")
+            })
     }
 }
 
