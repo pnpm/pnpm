@@ -20,6 +20,14 @@ use serde::{Deserialize, Serialize};
 /// archive of every host that no other variant matches.
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "The fields are the flat keys of a lockfile target, which deny_unknown_fields \
+                  keeps from being grouped by serde flattening."
+    )
+)]
 pub struct PlatformAssetTarget {
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub any: bool,

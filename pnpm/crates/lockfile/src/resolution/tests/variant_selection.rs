@@ -56,10 +56,9 @@ fn runtime_variations_select_a_variant_or_nothing() {
 fn package_variations_fall_back_to_the_any_variant() {
     let musl_variant = package_variant(MUSL, vec![target("linux", "x64", Some("musl"))]);
     let any_variant = PlatformAssetResolution::any(registry(ANY));
-    for variants in [
-        vec![any_variant.clone(), musl_variant.clone()],
-        vec![musl_variant.clone(), any_variant.clone()],
-    ] {
+    for variants in
+        [vec![any_variant.clone(), musl_variant.clone()], vec![musl_variant, any_variant]]
+    {
         let variations = VariationsResolution { variants, revision: None };
 
         let musl = variations
