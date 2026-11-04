@@ -27,6 +27,7 @@ use super::{
         validate_publish_doc,
     },
     pypi::{PypiPublication, authorize_upload, verify_upload},
+    resolve_write_target,
     staged_archives::StagedReferences,
 };
 use axum::{
@@ -455,13 +456,16 @@ async fn validate_npm_entry(
             reason: "every npm entry in `packages` must have a string `name`".to_string(),
         })?;
     let name = CanonicalPackageName::parse(name, pnpr_package_name::Ecosystem::Npm)?;
+    // A workload's entry is held to its scope before anything else is read
+    // for it, by the route the publish resolves to.
+    if let Some(workload) = caller.workload {
+        let target = resolve_write_target(state, caller.identity, caller.registry, &name)?;
+        workload.check_npm_publish(&target.source, name.as_str())?;
+    }
     // Validation resolves the route and checks the resolved hosted
     // registry's publish rule per document.
     let (doc, target) =
         validate_publish_doc(state, caller.identity, caller.registry, name, package).await?;
-    if let Some(workload) = caller.workload {
-        workload.check_npm_publish(&target.source, doc.name.as_str())?;
-    }
     Ok(ValidatedEntry::Npm(Box::new(doc), target.org))
 }
 
