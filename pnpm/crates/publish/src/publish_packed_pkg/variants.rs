@@ -48,7 +48,7 @@ pub struct StagedReference {
 }
 
 impl VariantArchive {
-    fn integrity(&self) -> String {
+    pub(super) fn integrity(&self) -> String {
         match self {
             VariantArchive::Packed(bytes) => sri_sha512(bytes),
             VariantArchive::Staged(staged) => staged.integrity.clone(),

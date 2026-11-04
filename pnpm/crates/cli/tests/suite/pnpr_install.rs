@@ -722,6 +722,7 @@ fn cargo_install_uses_a_configured_pnpr_registry_and_accelerator() {
     download_mock.assert();
 }
 
+mod publish_retry;
 mod workspace;
 
 mod revisions;
