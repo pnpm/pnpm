@@ -1,4 +1,6 @@
 pub mod console;
+#[cfg(target_os = "linux")]
+pub mod inotify;
 pub mod terminal;
 
 pub use pnpm_testing_utils::bin::read_v11_bundle_path;

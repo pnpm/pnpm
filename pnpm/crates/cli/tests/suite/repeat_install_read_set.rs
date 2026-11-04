@@ -1,0 +1,288 @@
+//! The repeat-install fast path stands in for a full install, so every file
+//! that install opens in the workspace is an input the fast path has to see
+//! change. Each one must be a file the workspace state records, or be
+//! classified here with the reason it needs no record. A file a new input
+//! makes the install read fails the test until it is one or the other.
+//!
+//! The install observed is the full one that runs from the state the previous
+//! install left, the one the fast path replaces. inotify observes its opens:
+//! no filesystem seam reaches every read the install makes.
+
+use crate::_utils::{inotify::record_opens, pacquet_in};
+use assert_cmd::prelude::*;
+use command_extra::CommandExtra;
+use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+use pnpm_workspace_state::{WorkspaceState, load_workspace_state};
+use serde_json::{Value, json};
+use std::{
+    collections::BTreeSet,
+    fs,
+    path::{Path, PathBuf},
+};
+
+const CONFIG: &str = "the config loader reads it on every command, and \
+    `settings_classification` classifies each setting it holds";
+const DISCOVERY: &str = "project discovery lists it, and the fast path compares the projects \
+    it finds with the recorded ones";
+
+/// Every path a full install opens that the workspace state does not record,
+/// relative to the workspace, with the reason the fast path needs no record
+/// of it.
+const CLASSIFICATION: &[(&str, &str)] =
+    &[(".npmrc", CONFIG), ("pnpm-workspace.yaml", CONFIG), ("packages", DISCOVERY)];
+
+/// A workspace that exercises some of the inputs of an install. Its root
+/// `package.json` is a private manifest unless `files` writes one.
+struct Fixture {
+    name: &'static str,
+    /// Lines appended to `pnpm-workspace.yaml`.
+    settings: &'static str,
+    files: fn() -> Vec<(String, Vec<u8>)>,
+}
+
+const PROJECTS: &str = "packages:\n  - packages/*\n";
+
+const FIXTURES: &[Fixture] = &[
+    Fixture {
+        name: "hooks, patches, catalogs, and workspace commands",
+        settings: "packages:\n  - packages/*\n\
+            catalog:\n  is-positive: 1.0.0\n\
+            patchedDependencies:\n  is-positive@1.0.0: patches/is-positive@1.0.0.patch\n",
+        files: || {
+            vec![
+                manifest("packages/a", &json!({ "b": "workspace:*", "is-positive": "catalog:" })),
+                command("packages/b"),
+                text(
+                    ".pnpmfile.cjs",
+                    "module.exports = { hooks: { readPackage: (pkg) => pkg } }\n",
+                ),
+                text("patches/is-positive@1.0.0.patch", crate::repeat_install::IS_POSITIVE_PATCH),
+            ]
+            .into_iter()
+            .flatten()
+            .collect()
+        },
+    },
+    Fixture {
+        name: "a local directory dependency",
+        settings: PROJECTS,
+        files: || {
+            vec![
+                manifest("packages/a", &json!({ "local": "file:../../local" })),
+                manifest("local", &json!({})),
+                text("local/index.js", "module.exports = 1\n"),
+            ]
+            .into_iter()
+            .flatten()
+            .collect()
+        },
+    },
+    Fixture {
+        name: "a local tarball dependency",
+        settings: PROJECTS,
+        files: || {
+            let tarball = pnpm_testing_utils::fixtures::tarball_with_manifest(
+                &json!({ "name": "packed", "version": "1.0.0" }),
+            );
+            vec![
+                manifest("packages/a", &json!({ "packed": "file:../../packed-1.0.0.tgz" })),
+                vec![("packed-1.0.0.tgz".to_string(), tarball)],
+            ]
+            .into_iter()
+            .flatten()
+            .collect()
+        },
+    },
+    Fixture {
+        name: "injected workspace packages",
+        settings: "packages:\n  - packages/*\ninjectWorkspacePackages: true\n",
+        files: || {
+            vec![manifest("packages/a", &json!({ "b": "workspace:*" })), command("packages/b")]
+                .into_iter()
+                .flatten()
+                .collect()
+        },
+    },
+    Fixture {
+        name: "project lockfiles",
+        settings: "packages:\n  - packages/*\nsharedWorkspaceLockfile: false\n",
+        files: || {
+            vec![
+                manifest("packages/a", &json!({ "b": "workspace:*", "is-positive": "1.0.0" })),
+                manifest("packages/b", &json!({})),
+            ]
+            .into_iter()
+            .flatten()
+            .collect()
+        },
+    },
+    Fixture {
+        name: "a root project alone",
+        settings: "",
+        files: || manifest(".", &json!({ "is-positive": "1.0.0" })),
+    },
+];
+
+fn text(path: &str, text: &str) -> Vec<(String, Vec<u8>)> {
+    vec![(path.to_string(), text.as_bytes().to_vec())]
+}
+
+/// The `package.json` of the project in `dir`, named after the directory.
+fn manifest(dir: &str, dependencies: &Value) -> Vec<(String, Vec<u8>)> {
+    let name = dir
+        .rsplit('/')
+        .next()
+        .filter(|name| *name != ".")
+        .unwrap_or("root");
+    let manifest = json!({ "name": name, "version": "1.0.0", "dependencies": dependencies });
+    vec![(format!("{dir}/package.json"), manifest.to_string().into_bytes())]
+}
+
+/// A project in `dir` that declares the command `cli`.
+fn command(dir: &str) -> Vec<(String, Vec<u8>)> {
+    let manifest = json!({ "name": "b", "version": "1.0.0", "bin": { "cli": "cli.js" } });
+    vec![
+        (format!("{dir}/package.json"), manifest.to_string().into_bytes()),
+        (format!("{dir}/cli.js"), b"#!/usr/bin/env node\n".to_vec()),
+    ]
+}
+
+fn write_fixture(workspace: &Path, fixture: &Fixture) {
+    let yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
+    yaml.push_str(fixture.settings);
+    fs::write(&yaml_path, yaml).expect("write pnpm-workspace.yaml");
+    let root_manifest = json!({ "name": "root", "private": true }).to_string().into_bytes();
+    let root_manifest = ("package.json".to_string(), root_manifest);
+    for (path, contents) in std::iter::once(root_manifest).chain((fixture.files)()) {
+        let path = workspace.join(path);
+        fs::create_dir_all(path.parent().expect("a file in a directory"))
+            .expect("create the directory");
+        fs::write(&path, contents).expect("write a fixture file");
+    }
+}
+
+/// Every directory under `dir` outside `node_modules`, `dir` included.
+fn source_dirs(dir: &Path) -> Vec<PathBuf> {
+    walkdir::WalkDir::new(dir)
+        .into_iter()
+        .filter_entry(|entry| entry.file_name() != "node_modules")
+        .map(|entry| entry.expect("walk the workspace"))
+        .filter(|entry| entry.file_type().is_dir())
+        .map(walkdir::DirEntry::into_path)
+        .collect()
+}
+
+/// The files the workspace states record, and the directories whose
+/// contents they record. A workspace whose projects keep their own lockfiles
+/// has a state in each project.
+#[derive(Default)]
+struct Records {
+    files: BTreeSet<PathBuf>,
+    directories: Vec<PathBuf>,
+}
+
+impl Records {
+    fn of(workspace: &Path) -> Self {
+        let mut records = Records::default();
+        for root in source_dirs(workspace) {
+            if let Some(state) = load_workspace_state(&root).expect("read a workspace state") {
+                records.add(&root, state);
+            }
+        }
+        assert!(!records.files.is_empty(), "the install wrote no workspace state");
+        records
+    }
+
+    fn add(&mut self, root: &Path, state: WorkspaceState) {
+        let validation = state.validation.expect("the install recorded a validation");
+        let manifests = validation.manifest_files
+            .iter()
+            .map(|(importer, file)| root.join(importer).join(&file.file_name));
+        let local = validation.local_dependencies.values();
+        self.files.extend(
+            validation.files
+                .keys()
+                .chain(&state.pnpmfiles)
+                .map(PathBuf::from)
+                .chain(manifests)
+                .chain(
+                    local
+                        .clone()
+                        .flat_map(|deps| deps.tarballs.iter().map(PathBuf::from)),
+                ),
+        );
+        self.directories.extend(local.flat_map(|deps| deps.directories.iter().map(PathBuf::from)));
+    }
+
+    fn contain(&self, path: &Path) -> bool {
+        self.files.contains(path)
+            || self.directories
+                .iter()
+                .any(|dir| path.starts_with(dir))
+    }
+}
+
+/// The workspace-relative paths a full install of `fixture` opens and the
+/// workspace state does not record.
+fn unrecorded_reads(fixture: &Fixture) -> BTreeSet<String> {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_fixture(&workspace, fixture);
+    let install = |extra_env: &[(&str, &str)]| {
+        let mut command =
+            pacquet_in(&workspace).with_env("PNPM_CONFIG_REGISTRY", mock_instance.url());
+        for (key, value) in extra_env {
+            command = command.with_env(key, value);
+        }
+        command
+            .with_arg("install")
+            .assert()
+            .success();
+    };
+    install(&[]);
+    let opens = record_opens(&source_dirs(&workspace), || {
+        install(&[("PNPM_CONFIG_OPTIMISTIC_REPEAT_INSTALL", "false")]);
+    });
+    let records = Records::of(&workspace);
+    let unrecorded = opens
+        .iter()
+        .filter(|path| !records.contain(path))
+        .map(|path| {
+            path.strip_prefix(&workspace)
+                .expect("a watched path is in the workspace")
+                .to_string_lossy()
+                .into_owned()
+        })
+        .collect();
+    drop((root, mock_instance));
+    unrecorded
+}
+
+#[test]
+fn every_file_a_full_install_opens_is_recorded_or_classified() {
+    let classified: BTreeSet<&str> = CLASSIFICATION
+        .iter()
+        .map(|(path, _)| *path)
+        .collect();
+    let mut seen = BTreeSet::new();
+    let mut unclassified = Vec::new();
+    for fixture in FIXTURES {
+        for path in unrecorded_reads(fixture) {
+            if !classified.contains(path.as_str()) {
+                unclassified.push(format!("{path} ({})", fixture.name));
+            }
+            seen.insert(path);
+        }
+    }
+    let unused: Vec<_> = classified
+        .iter()
+        .filter(|path| !seen.contains(**path))
+        .collect();
+    assert!(
+        unclassified.is_empty(),
+        "a full install opens files the workspace state does not record: {unclassified:#?}",
+    );
+    assert!(unused.is_empty(), "classified files no fixture opens: {unused:?}");
+}
