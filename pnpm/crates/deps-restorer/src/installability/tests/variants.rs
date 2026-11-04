@@ -30,18 +30,18 @@ fn target(os: &str, cpu: &str) -> PlatformAssetTarget {
 /// host of `os` and `cpu`.
 fn skipped_on(
     variants: Vec<PlatformAssetResolution>,
-    platform: (&'static str, &'static str),
+    (os, cpu): (&'static str, &'static str),
 ) -> bool {
-    skipped_as(SnapshotEntry { optional: true, ..Default::default() }, variants, platform, false)
+    let optional = SnapshotEntry { optional: true, ..Default::default() };
+    skipped_as(optional, variants, &host("20.10.0", os, cpu))
 }
 
-/// [`skipped_on`] for `snapshot`, with `engineStrict` set when
-/// `engine_strict` is.
+/// Whether `example-cli@1.0.0`, as `snapshot`, with `variants` is skipped on
+/// `installability_host`.
 fn skipped_as(
     snapshot: SnapshotEntry,
     variants: Vec<PlatformAssetResolution>,
-    (os, cpu): (&'static str, &'static str),
-    engine_strict: bool,
+    installability_host: &InstallabilityHost,
 ) -> bool {
     let key = snapshot_key("example-cli@1.0.0");
     let snapshots = HashMap::from([(key.clone(), snapshot)]);
@@ -52,7 +52,7 @@ fn skipped_as(
         &no_importers(),
         &snapshots,
         &packages,
-        &InstallabilityHost { engine_strict, ..host("20.10.0", os, cpu) },
+        installability_host,
         "/proj",
         SkippedSnapshots::new(),
     )
@@ -92,5 +92,6 @@ fn an_optional_package_whose_only_fitting_variant_needs_a_newer_host_is_skipped(
 fn a_patched_optional_package_none_of_whose_variants_fits_is_skipped() {
     let patched = SnapshotEntry { optional: true, patched: Some(true), ..Default::default() };
     let linux = vec![variant(target("linux", "x64"))];
-    assert!(skipped_as(patched, linux, ("darwin", "arm64"), true));
+    let strict = InstallabilityHost { engine_strict: true, ..host("20.10.0", "darwin", "arm64") };
+    assert!(skipped_as(patched, linux, &strict));
 }
