@@ -22,7 +22,9 @@ pub use options::{
 };
 pub use output::{format_pack_output, pack_output_path, to_pack_result_json};
 pub use pnpm_exportable_manifest::WorkspacePackageManifest;
-pub use variants::{PackedArchive, PackedArchives, archive_result_json, pack_archives};
+pub use variants::{
+    PackedArchive, PackedArchives, archive_result_json, declared_manifests, pack_archives,
+};
 
 mod capabilities;
 mod collation;

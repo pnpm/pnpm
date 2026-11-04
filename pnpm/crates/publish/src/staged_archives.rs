@@ -82,31 +82,102 @@ async fn stage_archive(
     authorization: Option<&str>,
     archive: &StagedArchive<'_>,
 ) -> Result<bool, StagingError> {
-    let query = url::form_urlencoded::Serializer::new(String::new())
-        .append_pair("integrity", &archive.integrity)
-        .finish();
-    let url = registry
-        .join(&format!("{STAGING_ENDPOINT}?{query}"))
-        .map_err(StagingError::InvalidUrl)?;
-    let failed = |reason: String| StagingError::Failed {
-        registry: registry.for_display(),
-        integrity: archive.integrity.clone(),
-        reason,
-    };
+    if staged_headers(client, registry, authorization, &archive.integrity)
+        .await?
+        .is_some()
+    {
+        return Ok(false);
+    }
+    upload_archive(client, registry, authorization, archive).await?;
+    Ok(true)
+}
 
+/// Upload every archive of `archives` to `registry`'s staging endpoint,
+/// without asking whether it is staged already: uploading staged bytes
+/// again renews them.
+pub(crate) async fn upload_archives(
+    client: &ThrottledClient,
+    registry: &NormalizedRegistryUrl,
+    authorization: Option<&str>,
+    archives: &[StagedArchive<'_>],
+) -> Result<(), StagingError> {
+    stream::iter(archives)
+        .map(Ok::<_, StagingError>)
+        .try_for_each_concurrent(CONCURRENT_UPLOADS, |archive| {
+            upload_archive(client, registry, authorization, archive)
+        })
+        .await
+}
+
+/// The size of the archive `registry` holds staged by `integrity` for the
+/// caller, or `None` when it holds none, such as one another account staged
+/// or one that expired or expires within the hour.
+pub(crate) async fn staged_length(
+    client: &ThrottledClient,
+    registry: &NormalizedRegistryUrl,
+    authorization: Option<&str>,
+    integrity: &str,
+) -> Result<Option<u64>, StagingError> {
+    let Some(headers) = staged_headers(client, registry, authorization, integrity).await? else {
+        return Ok(None);
+    };
+    // A `HEAD` response has no body, so its size is the header's, not the
+    // body's that `content_length` reports.
+    headers
+        .get("content-length")
+        .and_then(|length| length.to_str().ok()?.parse().ok())
+        .map(Some)
+        .ok_or_else(|| {
+            staging_failure(registry, integrity, "HEAD answered without a Content-Length")
+        })
+}
+
+/// The headers of `registry`'s answer to `HEAD` for the archive staged by
+/// `integrity`, or `None` when it holds none for the caller.
+async fn staged_headers(
+    client: &ThrottledClient,
+    registry: &NormalizedRegistryUrl,
+    authorization: Option<&str>,
+    integrity: &str,
+) -> Result<Option<reqwest::header::HeaderMap>, StagingError> {
+    let url = staging_url(registry, integrity)?;
     let guard = client.acquire_for_url(&url).await;
     let mut head = guard.head(&url);
     if let Some(authorization) = authorization {
         head = head.header("authorization", authorization);
     }
-    let response = head.send().await.map_err(|error| failed(error.to_string()))?;
+    let response = head
+        .send()
+        .await
+        .map_err(|error| staging_failure(registry, integrity, &error.to_string()))?;
     match response.status().as_u16() {
-        200 => return Ok(false),
-        404 => {}
-        status => return Err(failed(format!("HEAD answered {status}"))),
+        200 => Ok(Some(response.headers().clone())),
+        404 => Ok(None),
+        status => Err(staging_failure(registry, integrity, &format!("HEAD answered {status}"))),
     }
-    drop(guard);
+}
 
+/// A failure to stage the archive `integrity` on `registry`.
+fn staging_failure(
+    registry: &NormalizedRegistryUrl,
+    integrity: &str,
+    reason: &str,
+) -> StagingError {
+    StagingError::Failed {
+        registry: registry.for_display(),
+        integrity: integrity.to_string(),
+        reason: reason.to_string(),
+    }
+}
+
+/// Upload `archive` to `registry`'s staging endpoint.
+async fn upload_archive(
+    client: &ThrottledClient,
+    registry: &NormalizedRegistryUrl,
+    authorization: Option<&str>,
+    archive: &StagedArchive<'_>,
+) -> Result<(), StagingError> {
+    let url = staging_url(registry, &archive.integrity)?;
     let guard = client.acquire_for_url(&url).await;
     let mut put = guard
         .put(&url)
@@ -116,11 +187,23 @@ async fn stage_archive(
     if let Some(authorization) = authorization {
         put = put.header("authorization", authorization);
     }
-    let response = put.send().await.map_err(|error| failed(error.to_string()))?;
+    let response = put
+        .send()
+        .await
+        .map_err(|error| staging_failure(registry, &archive.integrity, &error.to_string()))?;
     if response.status().is_success() {
-        return Ok(true);
+        return Ok(());
     }
-    Err(failed(refusal(response).await))
+    Err(staging_failure(registry, &archive.integrity, &refusal(response).await))
+}
+
+fn staging_url(registry: &NormalizedRegistryUrl, integrity: &str) -> Result<String, StagingError> {
+    let query = url::form_urlencoded::Serializer::new(String::new())
+        .append_pair("integrity", integrity)
+        .finish();
+    registry
+        .join(&format!("{STAGING_ENDPOINT}?{query}"))
+        .map_err(StagingError::InvalidUrl)
 }
 
 /// What a refused upload's `response` says, keeping only the start of a long

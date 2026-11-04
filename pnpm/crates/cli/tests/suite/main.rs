@@ -161,6 +161,7 @@ mod profile;
 mod prune;
 mod publish;
 mod publish_recursive;
+mod publish_variants;
 mod python;
 mod rebuild_recursive;
 mod registry_metadata_mismatch;

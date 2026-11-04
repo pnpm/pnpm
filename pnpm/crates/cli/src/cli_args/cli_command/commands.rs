@@ -420,7 +420,13 @@ impl CliCommand {
                 | CliCommand::Prefix(_)
                 | CliCommand::Root(_)
                 | CliCommand::Bin(_),
-        )
+        ) || self.prints_upload_values()
+    }
+
+    /// `publish --upload-variant` prints the values a later publish takes,
+    /// which a CI job captures from stdout.
+    fn prints_upload_values(&self) -> bool {
+        matches!(self, CliCommand::Publish(args) if !args.flags.variants.upload_variant.is_empty())
     }
 
     pub(crate) fn default_reporter_summary_scope(&self) -> SummaryScope {

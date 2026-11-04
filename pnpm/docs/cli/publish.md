@@ -109,6 +109,24 @@ anything is published, rather than after part of the release went out. The
 
 Publish only the archive that targets `any` of a package that declares [`publishConfig.variants`](../package_json.md#publishconfigvariants). Without it, pnpm refuses to publish such a package to a registry that is not declared with `serverType: pnpr`, because a version published without its variants can't get them later.
 
+### --upload-variant &lt;target\>
+
+Pack the archive of the [`publishConfig.variants`](../package_json.md#publishconfigvariants) entry that lists this target, upload it to the registry's staging area, and print `<target>=<integrity>`. Nothing is published: a later `pnpm publish --variant-integrity` publishes the version with it. Can be repeated, and `any` uploads the archive of every other host.
+
+This lets each job of a CI matrix upload the archive it built. Every job must publish as the same account, which trusted publishing gives every job of a workflow. Uploading the same archive again renews it. The registry keeps an uploaded archive for a day.
+
+```sh
+value=$(pnpm publish --upload-variant linux-x64-musl)
+```
+
+With `--json`, pnpm prints the package's name and version, and each archive's tag, targets, and integrity.
+
+### --variant-integrity &lt;target\>=&lt;integrity\>
+
+Publish the version from archives other jobs uploaded with `--upload-variant`, given by the values they printed. Repeat it once per entry of `publishConfig.variants`, the `any` entry included, naming each by any one of its targets. With `--recursive`, name the package first: `<name>~<target>=<integrity>`.
+
+pnpm packs none of the archives of a package that a value names. Before publishing, it checks that every entry has exactly one value and that the registry still holds each archive for this account. It fails naming the archive whose upload job has to run again. With `--recursive`, a selected package that no value names is packed and published as usual, and each value must name exactly one selected, publishable project.
+
 ### --release-notes &lt;file\>
 
 A file of release notes to send to a registry declared with [`serverType: pnpr`](../registries.md#servertype). The publish fails when the file does not exist. Publishing one package, the notes are its version notes. Publishing several packages with `--batch`, they are the notes of the whole release.
