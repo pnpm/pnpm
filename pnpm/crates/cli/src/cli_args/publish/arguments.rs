@@ -42,11 +42,28 @@ pub struct PublishManifestArgs {
     pub no_skip_manifest_obfuscation: bool,
     #[clap(flatten)]
     pub notes: PublishNotesArgs,
+}
+
+/// How the archives a package's `publishConfig.variants` declares are
+/// published.
+#[derive(Debug, Default, Clone, clap::Args)]
+pub struct PublishVariantArgs {
     /// Publish only the archive that targets `any` of a package that declares
     /// `publishConfig.variants`, such as to a registry that does not serve
     /// platform variants.
     #[clap(long)]
     pub no_variants: bool,
+    /// Pack the archive of the `publishConfig.variants` entry this target
+    /// names, such as `linux-x64-musl` or `any`, upload it to the registry's
+    /// staging area, and print `<target>=<integrity>`. Publishes nothing. Can
+    /// be repeated.
+    #[clap(long = "upload-variant", value_name = "TARGET")]
+    pub upload_variant: Vec<String>,
+    /// Publish the archive another job uploaded with `--upload-variant`, as
+    /// `<target>=<integrity>`, or `<name>~<target>=<integrity>` with
+    /// `--recursive`. Repeated once per archive.
+    #[clap(long = "variant-integrity", value_name = "TARGET=INTEGRITY")]
+    pub variant_integrity: Vec<String>,
 }
 
 #[derive(Debug, Clone, clap::Args)]

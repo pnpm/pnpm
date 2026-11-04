@@ -201,7 +201,7 @@ fn group_packed_pkg<'a>(
         &opts.registry.scoped,
         crate::publish_options::publish_config_registry(manifest, name),
     )?;
-    if !package.variants.is_empty() || !package.any_archive {
+    if !package.variants.is_empty() || !package.has_any_archive() {
         return Err(BatchPublishError::Variants);
     }
     let summary = package.summary();

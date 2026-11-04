@@ -82,18 +82,45 @@ async fn stage_archive(
     authorization: Option<&str>,
     archive: &StagedArchive<'_>,
 ) -> Result<bool, StagingError> {
-    let query = url::form_urlencoded::Serializer::new(String::new())
-        .append_pair("integrity", &archive.integrity)
-        .finish();
-    let url = registry
-        .join(&format!("{STAGING_ENDPOINT}?{query}"))
-        .map_err(StagingError::InvalidUrl)?;
+    if staged_length(client, registry, authorization, &archive.integrity).await?.is_some() {
+        return Ok(false);
+    }
+    upload_archive(client, registry, authorization, archive).await?;
+    Ok(true)
+}
+
+/// Upload every archive of `archives` to `registry`'s staging endpoint,
+/// without asking whether it is staged already: uploading staged bytes
+/// again renews them.
+pub(crate) async fn upload_archives(
+    client: &ThrottledClient,
+    registry: &NormalizedRegistryUrl,
+    authorization: Option<&str>,
+    archives: &[StagedArchive<'_>],
+) -> Result<(), StagingError> {
+    stream::iter(archives)
+        .map(Ok::<_, StagingError>)
+        .try_for_each_concurrent(CONCURRENT_UPLOADS, |archive| {
+            upload_archive(client, registry, authorization, archive)
+        })
+        .await
+}
+
+/// The size of the archive `registry` holds staged by `integrity` for the
+/// caller, or `None` when it holds none, such as one another account staged
+/// or one that expired or expires within the hour.
+pub(crate) async fn staged_length(
+    client: &ThrottledClient,
+    registry: &NormalizedRegistryUrl,
+    authorization: Option<&str>,
+    integrity: &str,
+) -> Result<Option<u64>, StagingError> {
+    let url = staging_url(registry, integrity)?;
     let failed = |reason: String| StagingError::Failed {
         registry: registry.for_display(),
-        integrity: archive.integrity.clone(),
+        integrity: integrity.to_string(),
         reason,
     };
-
     let guard = client.acquire_for_url(&url).await;
     let mut head = guard.head(&url);
     if let Some(authorization) = authorization {
@@ -101,12 +128,27 @@ async fn stage_archive(
     }
     let response = head.send().await.map_err(|error| failed(error.to_string()))?;
     match response.status().as_u16() {
-        200 => return Ok(false),
-        404 => {}
-        status => return Err(failed(format!("HEAD answered {status}"))),
+        // A `HEAD` response has no body, so its size is the header's, not
+        // the body's that `content_length` reports.
+        200 => response
+            .headers()
+            .get("content-length")
+            .and_then(|length| length.to_str().ok()?.parse().ok())
+            .map(Some)
+            .ok_or_else(|| failed("HEAD answered without a Content-Length".to_string())),
+        404 => Ok(None),
+        status => Err(failed(format!("HEAD answered {status}"))),
     }
-    drop(guard);
+}
 
+/// Upload `archive` to `registry`'s staging endpoint.
+async fn upload_archive(
+    client: &ThrottledClient,
+    registry: &NormalizedRegistryUrl,
+    authorization: Option<&str>,
+    archive: &StagedArchive<'_>,
+) -> Result<(), StagingError> {
+    let url = staging_url(registry, &archive.integrity)?;
     let guard = client.acquire_for_url(&url).await;
     let mut put = guard
         .put(&url)
@@ -116,11 +158,25 @@ async fn stage_archive(
     if let Some(authorization) = authorization {
         put = put.header("authorization", authorization);
     }
+    let failed = |reason: String| StagingError::Failed {
+        registry: registry.for_display(),
+        integrity: archive.integrity.clone(),
+        reason,
+    };
     let response = put.send().await.map_err(|error| failed(error.to_string()))?;
     if response.status().is_success() {
-        return Ok(true);
+        return Ok(());
     }
     Err(failed(refusal(response).await))
+}
+
+fn staging_url(registry: &NormalizedRegistryUrl, integrity: &str) -> Result<String, StagingError> {
+    let query = url::form_urlencoded::Serializer::new(String::new())
+        .append_pair("integrity", integrity)
+        .finish();
+    registry
+        .join(&format!("{STAGING_ENDPOINT}?{query}"))
+        .map_err(StagingError::InvalidUrl)
 }
 
 /// What a refused upload's `response` says, keeping only the start of a long

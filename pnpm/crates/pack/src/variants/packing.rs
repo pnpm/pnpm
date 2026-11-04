@@ -94,6 +94,21 @@ where
     Ok(PackedArchives { base_manifest, archives: packed })
 }
 
+/// The base manifest of the package at `opts.dir` and its declaration, if
+/// it declares variants, without packing anything: what a publish of
+/// archives that other machines packed and staged needs. `prepack` runs
+/// only when `opts.scripts` allows.
+pub async fn declared_manifests<Reporter: self::Reporter>(
+    opts: &PackOptions,
+) -> Result<(Value, Option<VariantDeclaration>), PackError> {
+    let source = prepare_source::<Reporter>(opts).await?;
+    let declaration =
+        VariantDeclaration::read(&source.publish_manifest).map_err(PackError::Variants)?;
+    let base_manifest =
+        with_registry_readme(super::base_manifest(&source.publish_manifest), &source.dir)?;
+    Ok((base_manifest, declaration))
+}
+
 /// The indexes of the entries `targets` names, in declaration order, or of
 /// every entry when it names none.
 fn selected_entries(

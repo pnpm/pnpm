@@ -39,6 +39,7 @@ async fn only_archives_the_registry_lacks_are_uploaded() {
         .match_query(integrity_query(STORED))
         .match_header("authorization", "Bearer t")
         .with_status(200)
+        .with_header("content-length", "6")
         .expect(1)
         .create_async()
         .await;
