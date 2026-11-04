@@ -92,12 +92,12 @@ async fn confirm(
     record: &Value,
     attestations: Option<&Value>,
     dist_tags: &Value,
-) -> Result<(), PublishedReleaseError> {
+) -> Result<bool, PublishedReleaseError> {
     let (_server, url) = registry(record, attestations, dist_tags).await;
     confirm_published(&ThrottledClient::default(), &url, None, release).await
 }
 
-fn difference(result: Result<(), PublishedReleaseError>) -> String {
+fn difference(result: Result<bool, PublishedReleaseError>) -> String {
     match result {
         Err(PublishedReleaseError::Differs { difference, .. }) => difference,
         other => panic!("expected a difference, got {other:?}"),
@@ -107,14 +107,14 @@ fn difference(result: Result<(), PublishedReleaseError>) -> String {
 #[tokio::test]
 async fn a_release_recorded_with_the_same_archives_statement_and_tag_is_published() {
     let subjects = subjects();
-    confirm(
+    let confirmed = confirm(
         &release(Some(ANY), Some(subjects.clone())),
         &record(Some(ANY), LINUX),
         Some(&attestations(&subjects)),
         &json!({ "latest": "1.0.0" }),
     )
-    .await
-    .unwrap();
+    .await;
+    assert!(matches!(confirmed, Ok(true)), "{confirmed:?}");
 }
 
 /// The record of a version without an `any` archive names no primary input:
@@ -122,11 +122,13 @@ async fn a_release_recorded_with_the_same_archives_statement_and_tag_is_publishe
 #[tokio::test]
 async fn a_version_without_an_any_archive_is_compared_by_its_variants() {
     let latest = json!({ "latest": "1.0.0" });
-    confirm(&release(None, None), &record(None, LINUX), None, &latest).await.unwrap();
+    let confirmed = confirm(&release(None, None), &record(None, LINUX), None, &latest).await;
+    assert!(matches!(confirmed, Ok(true)), "{confirmed:?}");
     let other = record(None, "sha512-b3RoZXI=");
+    let differs = difference(confirm(&release(None, None), &other, None, &latest).await);
     assert!(
-        difference(confirm(&release(None, None), &other, None, &latest).await)
-            .contains("the variant `linux-x64` is recorded as `sha512-b3RoZXI=`"),
+        differs.contains("the variant `linux-x64` is recorded as `sha512-b3RoZXI=`"),
+        "{differs}",
     );
 }
 
@@ -134,10 +136,8 @@ async fn a_version_without_an_any_archive_is_compared_by_its_variants() {
 async fn a_release_with_other_archives_names_the_archive_that_differs() {
     let latest = json!({ "latest": "1.0.0" });
     let other_any = record(Some("sha512-b3RoZXI="), LINUX);
-    assert!(
-        difference(confirm(&release(Some(ANY), None), &other_any, None, &latest).await)
-            .starts_with("the `any` archive is recorded as `sha512-b3RoZXI=`"),
-    );
+    let differs = difference(confirm(&release(Some(ANY), None), &other_any, None, &latest).await);
+    assert!(differs.starts_with("the `any` archive is recorded as `sha512-b3RoZXI=`"), "{differs}");
 
     let mut other_tags = record(Some(ANY), LINUX);
     other_tags["variants"][0]["tag"] = json!("darwin-arm64");
@@ -152,15 +152,11 @@ async fn a_run_that_signs_needs_a_statement_naming_every_archive() {
     let latest = json!({ "latest": "1.0.0" });
     let signing = release(Some(ANY), Some(subjects()));
     let recorded = record(Some(ANY), LINUX);
-    assert!(
-        difference(confirm(&signing, &recorded, None, &latest).await)
-            .contains("no provenance statement"),
-    );
+    let differs = difference(confirm(&signing, &recorded, None, &latest).await);
+    assert!(differs.contains("no provenance statement"), "{differs}");
     let only_any = attestations(&subjects()[..1]);
-    assert!(
-        difference(confirm(&signing, &recorded, Some(&only_any), &latest).await)
-            .contains("no provenance statement"),
-    );
+    let differs = difference(confirm(&signing, &recorded, Some(&only_any), &latest).await);
+    assert!(differs.contains("no provenance statement"), "{differs}");
 }
 
 #[tokio::test]
@@ -175,4 +171,20 @@ async fn the_dist_tag_must_point_at_the_version() {
         difference(confirm(&release(Some(ANY), None), &recorded, None, &json!({})).await),
         "the dist-tag `latest` is not set",
     );
+}
+
+/// A version pnpr has no record of is not confirmed, and is no difference
+/// either: the caller decides what that means.
+#[tokio::test]
+async fn a_version_pnpr_has_no_record_of_is_not_confirmed() {
+    let mut server = mockito::Server::new_async().await;
+    server
+        .mock("GET", "/@acme%2fcli/1.0.0+r0")
+        .with_status(404)
+        .create_async()
+        .await;
+    let url = parse_supported_registry_url(&format!("{}/", server.url())).unwrap().normalized_url;
+    let confirmed =
+        confirm_published(&ThrottledClient::default(), &url, None, &release(Some(ANY), None)).await;
+    assert!(matches!(confirmed, Ok(false)), "{confirmed:?}");
 }

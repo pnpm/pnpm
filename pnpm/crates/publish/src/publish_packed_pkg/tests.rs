@@ -1045,3 +1045,85 @@ async fn a_provenance_publish_of_variants_signs_one_statement_naming_every_archi
         "a version without an any archive names only its variants",
     );
 }
+
+/// Publish `@acme/cli@1.0.0` from a `linux-x64` variant another job staged
+/// to a pnpr that no longer holds it staged, recording `record` (when it
+/// has one) and pointing `latest` at the version.
+async fn rerun_from_staged_variant(record: Option<Value>) -> Result<(), PublishPackedPkgError> {
+    let mut server = mockito::Server::new_async().await;
+    let registry = format!("{}/", server.url());
+    server
+        .mock("HEAD", mockito::Matcher::Regex("^/-/pnpr/v0/artifacts/blob".to_owned()))
+        .with_status(404)
+        .create_async()
+        .await;
+    let record_mock = server.mock("GET", "/@acme%2fcli/1.0.0+r0");
+    match &record {
+        Some(record) => record_mock.with_body(record.to_string()),
+        None => record_mock.with_status(404),
+    }
+    .create_async()
+    .await;
+    server
+        .mock("GET", "/-/package/@acme%2fcli/dist-tags")
+        .with_body(json!({ "latest": "1.0.0" }).to_string())
+        .create_async()
+        .await;
+    let manifest = json!({ "name": "@acme/cli", "version": "1.0.0" });
+    let variants = [crate::PackedVariant {
+        tag: "linux-x64".to_owned(),
+        archive: crate::VariantArchive::Staged(crate::StagedReference {
+            integrity: "sha512-bGludXg=".to_owned(),
+            label: "linux-x64".to_owned(),
+        }),
+    }];
+    let pkg = PackedPkg {
+        published_manifest: &manifest,
+        tarball_data: b"",
+        tarball_path: "cli-1.0.0.tgz",
+        contents: &[],
+        unpacked_size: 0,
+        notes: None,
+        variants: &variants,
+        any_staged: None,
+    };
+    let opts = PublishPackedPkgOptions {
+        dry_run: false,
+        stage: false,
+        wait_timeout: Duration::ZERO,
+        registry: crate::PublishRegistryOptions {
+            default: registry.clone(),
+            scoped: std::collections::BTreeMap::new(),
+            access: None,
+            tag: "latest".to_owned(),
+            otp: None,
+            provenance: None,
+            http: OidcHttpOptions::default(),
+        },
+        release_notes: crate::ReleaseNotesTarget::default(),
+        pnpr_registries: std::collections::HashSet::from([registry]),
+    };
+    let client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let network = PublishNetwork { client: &client, auth_headers: &auth_headers };
+    publish_packed_pkg::<OfflineSys, SilentReporter>(&pkg, &opts, &network)
+        .await
+        .map(drop)
+        .map_err(|failure| failure.error)
+}
+
+/// pnpr retires the archives another job staged once the version they were
+/// published with is accepted, so rerunning that publish confirms the
+/// recorded release instead of failing on the archive it no longer holds.
+#[tokio::test]
+async fn rerunning_a_publish_from_staged_archives_confirms_the_recorded_release() {
+    let record = json!({
+        "variants": [
+            { "tag": "linux-x64", "inputs": { "archive": { "integrity": "sha512-bGludXg=" } } },
+        ],
+    });
+    let rerun = rerun_from_staged_variant(Some(record)).await;
+    assert!(rerun.is_ok(), "{rerun:?}");
+    let unrecorded = rerun_from_staged_variant(None).await;
+    assert!(matches!(unrecorded, Err(PublishPackedPkgError::NotStaged { .. })), "{unrecorded:?}");
+}

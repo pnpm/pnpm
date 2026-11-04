@@ -174,10 +174,10 @@ where
         return Ok(summary);
     }
 
-    let response = upload_package::<Sys, Reporter>(pkg, opts, network, &resolved, &summary).await?;
+    let uploaded = upload_package::<Sys, Reporter>(pkg, opts, network, &resolved, &summary).await;
     let published = PublishedPkg { name: &name, version: &version, is_stage };
     let context = (opts, network, &resolved);
-    release_retry::settle_publish::<Reporter>(pkg, context, response, (&mut summary, &published))
+    release_retry::settle_publish::<Reporter>(pkg, context, uploaded, (&mut summary, &published))
         .await?;
     wait_for_published_packages::<Reporter>(
         &[(&name, &version)],

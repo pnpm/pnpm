@@ -41,14 +41,31 @@ pub(super) struct Release<'a> {
     pub(super) tag: &'a str,
 }
 
+/// Whether a publish signs a provenance statement.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum Signing {
+    Signs,
+    Unsigned,
+}
+
+impl Signing {
+    /// Whether the publish `resolved` describes signs a statement.
+    fn of(resolved: &ResolvedPublishOptions) -> Self {
+        match resolved.provenance {
+            Some(true) => Signing::Signs,
+            _ => Signing::Unsigned,
+        }
+    }
+}
+
 impl<'a> Release<'a> {
     /// The release `pkg` makes of `name@version`, setting `tag`, with the
-    /// provenance statement it signs when it `signs`.
+    /// provenance statement it signs under `signing`.
     pub(super) fn of(
         pkg: &PackedPkg<'_>,
         (name, version): (&'a str, &'a str),
         tag: &'a str,
-        signs: bool,
+        signing: Signing,
     ) -> Result<Self, PublishPackedPkgError> {
         let primary = match pkg.any_staged {
             Some(staged) => Some(staged.integrity.clone()),
@@ -58,75 +75,98 @@ impl<'a> Release<'a> {
             .iter()
             .map(|variant| (variant.tag.clone(), variant.archive.integrity()))
             .collect();
-        let subjects = signs
-            .then(|| variants::provenance_subjects(pkg, (name, version)))
-            .transpose()?;
+        let subjects = match signing {
+            Signing::Signs => Some(variants::provenance_subjects(pkg, (name, version))?),
+            Signing::Unsigned => None,
+        };
         Ok(Release { name, version, primary, variants, subjects, tag })
     }
 }
 
-/// Record what the registry answered, which may be that the version is
-/// already published as the release a retried publish makes.
+/// The publish options and network a publish runs with.
+type Context<'c> =
+    (&'c PublishPackedPkgOptions, &'c PublishNetwork<'c>, &'c ResolvedPublishOptions);
+
+/// Record what the registry answered to the upload, which may be that the
+/// version is already published as the release a retried publish makes.
 pub(super) async fn settle_publish<Reporter: self::Reporter>(
     pkg: &PackedPkg<'_>,
-    (opts, network, resolved): (
-        &PublishPackedPkgOptions,
-        &PublishNetwork<'_>,
-        &ResolvedPublishOptions,
-    ),
-    response: PublishResponse,
+    context: Context<'_>,
+    uploaded: Result<PublishResponse, PublishPackedPkgError>,
     (summary, published): (&mut PublishSummary, &PublishedPkg<'_>),
 ) -> Result<(), PublishPackedPkgError> {
     let PublishedPkg { name, version, .. } = *published;
-    if is_retried_release(pkg, (opts, network), resolved, &response, (name, version)).await? {
+    let confirmed = match &uploaded {
+        // pnpr refused the version as already published: a retry whose
+        // answer was lost, or one that signs a new statement.
+        Ok(response) if response.status == 409 => {
+            match published_release(pkg, context, (name, version)).await? {
+                Some(true) => true,
+                Some(false) => return Err(not_recorded(name, version)),
+                None => false,
+            }
+        }
+        // pnpr retires an archive staged by another job once the version it
+        // was published with is accepted, so a rerun of that publish finds
+        // it gone.
+        Err(PublishPackedPkgError::NotStaged { .. }) => {
+            published_release(pkg, context, (name, version)).await? == Some(true)
+        }
+        _ => false,
+    };
+    if confirmed {
         global_info::<Reporter>(&format!(
             "✅ {name}@{version} is already published as this release",
         ));
         return Ok(());
     }
-    finish_publish::<Reporter>(response, summary, published)
+    finish_publish::<Reporter>(uploaded?, summary, published)
 }
 
-/// Whether pnpr refused the publish of `name@version` as already published,
-/// and the published version is the release `pkg` makes: then the publish
-/// is a retry of one whose answer was lost, and it succeeded. Fails naming
-/// what differs when the published version is another release.
-async fn is_retried_release(
+/// Whether `name@version` is published as the release `pkg` makes, for a
+/// non-staged publish to pnpr: `Some(true)` when it is, `Some(false)` when
+/// pnpr has no release record of it, and `None` when the publish is not one
+/// to pnpr. Fails naming what differs when the version is another release.
+async fn published_release(
     pkg: &PackedPkg<'_>,
-    (opts, network): (&PublishPackedPkgOptions, &PublishNetwork<'_>),
-    resolved: &ResolvedPublishOptions,
-    response: &PublishResponse,
+    (opts, network, resolved): Context<'_>,
     (name, version): (&str, &str),
-) -> Result<bool, PublishPackedPkgError> {
+) -> Result<Option<bool>, PublishPackedPkgError> {
     let registry = &resolved.registry;
-    if response.status != 409 || opts.stage || !opts.pnpr_registries.contains(registry.as_str()) {
-        return Ok(false);
+    if opts.stage || !opts.pnpr_registries.contains(registry.as_str()) {
+        return Ok(None);
     }
     let version = clean_version(version)?;
-    let signs = resolved.provenance == Some(true);
-    let release = Release::of(pkg, (name, &version), &resolved.default_tag, signs)?;
+    let release = Release::of(pkg, (name, &version), &resolved.default_tag, Signing::of(resolved))?;
     let authorization = publish_authorization(resolved, network, registry, name);
     confirm_published(network.client, registry, authorization.as_deref(), &release)
         .await
-        .map_err(PublishPackedPkgError::PublishedRelease)?;
-    Ok(true)
+        .map(Some)
+        .map_err(PublishPackedPkgError::PublishedRelease)
+}
+
+fn not_recorded(name: &str, version: &str) -> PublishPackedPkgError {
+    PublishPackedPkgError::PublishedRelease(PublishedReleaseError::Differs {
+        package: format!("{name}@{version}"),
+        difference: "pnpr has no release record of the version".to_string(),
+    })
 }
 
 /// Confirm that the version pnpr reports as already published is `release`:
 /// its record names the same archives, it has the provenance statement this
-/// publish signs, and its dist-tag points at it. Fails naming what differs.
+/// publish signs, and its dist-tag points at it. `false` when pnpr has no
+/// release record of the version. Fails naming what differs.
 pub(super) async fn confirm_published(
     client: &ThrottledClient,
     registry: &NormalizedRegistryUrl,
     authorization: Option<&str>,
     release: &Release<'_>,
-) -> Result<(), PublishedReleaseError> {
+) -> Result<bool, PublishedReleaseError> {
     let reader = Reader { client, registry, authorization, release };
     let escaped = escaped_package_name(release.name);
-    let record = reader
-        .get(&format!("{escaped}/{}+r0", release.version))
-        .await?
-        .ok_or_else(|| reader.differs("pnpr has no release record of the version".to_string()))?;
+    let Some(record) = reader.get(&format!("{escaped}/{}+r0", release.version)).await? else {
+        return Ok(false);
+    };
     if let Some(difference) = archive_difference(&record, release) {
         return Err(reader.differs(difference));
     }
@@ -146,11 +186,13 @@ pub(super) async fn confirm_published(
         .and_then(|tags| tags.get(release.tag))
         .and_then(Value::as_str);
     if tagged != Some(release.version) {
-        let points_at =
-            tagged.map_or_else(|| "is not set".to_string(), |at| format!("points at {at}"));
+        let points_at = match tagged {
+            Some(at) => format!("points at {at}"),
+            None => "is not set".to_string(),
+        };
         return Err(reader.differs(format!("the dist-tag `{}` {points_at}", release.tag)));
     }
-    Ok(())
+    Ok(true)
 }
 
 /// What a recorded release's archives differ by from `release`'s, if
@@ -202,7 +244,10 @@ fn input_integrity(entry: &Value) -> Option<&str> {
 }
 
 fn archive_mismatch(archive: &str, recorded: Option<&str>, integrity: &str) -> String {
-    let recorded = recorded.map_or_else(|| "no archive".to_string(), |at| format!("`{at}`"));
+    let recorded = match recorded {
+        Some(at) => format!("`{at}`"),
+        None => "no archive".to_string(),
+    };
     format!("{archive} is recorded as {recorded}, and this publish has `{integrity}`")
 }
 
