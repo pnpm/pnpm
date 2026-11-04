@@ -88,8 +88,9 @@ impl<'a> UndeclaredPeerInspector<'a> {
         let direct = self.importer_providers(importer, &self.lockfile_dir.join(importer_id));
         let roots = package_keys(&direct).collect();
         let mut providers = Providers::new();
-        if matches!(root_scope, WorkspaceRootScope::Include) {
-            providers.extend(self.root_providers());
+        match root_scope {
+            WorkspaceRootScope::Include => providers.extend(self.root_providers()),
+            WorkspaceRootScope::Exclude => {}
         }
         providers.extend(direct);
         let query = Query { roots, providers };
