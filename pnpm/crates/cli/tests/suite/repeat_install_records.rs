@@ -971,3 +971,84 @@ fn a_workspace_with_project_lockfiles_verifies_patches_after_a_project_is_remove
     assert!(text.contains("ERR_PNPM_UNUSED_PATCH"), "{text}");
     drop((root, mock_instance));
 }
+
+/// [`write_workspace_with_project_lockfiles`] with a gate that fails a
+/// command on outdated dependencies, and a project `c` that also links `b`.
+fn write_gated_workspace_with_project_lockfiles(workspace: &Path) {
+    write_workspace_with_project_lockfiles(workspace);
+    let workspace_yaml = workspace.join("pnpm-workspace.yaml");
+    let mut yaml = fs::read_to_string(&workspace_yaml).expect("read pnpm-workspace.yaml");
+    yaml.push_str("verifyDepsBeforeRun: error\n");
+    fs::write(&workspace_yaml, yaml).expect("write pnpm-workspace.yaml");
+    fs::create_dir_all(workspace.join("packages/c")).expect("create packages/c");
+    fs::write(
+        workspace.join("packages/c/package.json"),
+        serde_json::json!({ "name": "c", "version": "1.0.0", "dependencies": { "b": "workspace:*" } })
+            .to_string(),
+    )
+    .expect("write packages/c/package.json");
+}
+
+fn recursive_exec(workspace: &Path, registry: &str) -> std::process::Output {
+    pacquet_in(workspace)
+        .with_env("PNPM_CONFIG_REGISTRY", registry)
+        .with_args(["-r", "exec", "node", "-e", "0"])
+        .output()
+        .expect("run pnpm -r exec")
+}
+
+#[test]
+fn a_recursive_exec_gate_with_project_lockfiles_passes_an_up_to_date_workspace() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_gated_workspace_with_project_lockfiles(&workspace);
+    pacquet
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_arg("install")
+        .assert()
+        .success();
+    trust_recorded_stats(&workspace, mock_instance.url());
+
+    let output = recursive_exec(&workspace, mock_instance.url());
+
+    assert!(output.status.success(), "{}", combined_output(&output));
+    drop((root, mock_instance));
+}
+
+#[test]
+fn a_recursive_exec_gate_with_project_lockfiles_reports_an_outdated_project() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_gated_workspace_with_project_lockfiles(&workspace);
+    pacquet
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_arg("install")
+        .assert()
+        .success();
+    trust_recorded_stats(&workspace, mock_instance.url());
+    fs::write(
+        workspace.join("packages/c/package.json"),
+        serde_json::json!({ "name": "c", "version": "1.0.0", "dependencies": { "a": "workspace:*" } })
+            .to_string(),
+    )
+    .expect("edit packages/c/package.json");
+
+    let output = recursive_exec(&workspace, mock_instance.url());
+
+    let text = combined_output(&output);
+    assert!(!output.status.success(), "{text}");
+    assert!(text.contains("ERR_PNPM_VERIFY_DEPS_BEFORE_RUN"), "{text}");
+    drop((root, mock_instance));
+}

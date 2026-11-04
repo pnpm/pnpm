@@ -15,7 +15,10 @@ use miette::{Diagnostic, IntoDiagnostic};
 use pnpm_config::{Config, VerifyDepsBeforeRun};
 use pnpm_default_reporter::colors::Colors;
 use pnpm_fs::DirLock;
-use pnpm_package_manager::{RunDepsStatus, check_deps_status_before_run_at, deps_install_root};
+use pnpm_package_manager::{
+    GateWorkspace, RunDepsStatus, check_deps_status_before_run_at, check_deps_status_before_run_in,
+    deps_install_root,
+};
 use std::{
     collections::HashSet,
     io::{self, IsTerminal},
@@ -73,10 +76,23 @@ pub(crate) fn verify_deps_before_run(
     config: &Config,
     reporter: ReporterType,
 ) -> miette::Result<()> {
+    verify_deps_before_run_in(dir, (selected_project_dirs, None), config, reporter)
+}
+
+/// [`verify_deps_before_run`] with the workspace projects a recursive
+/// command discovered once for the gates of all its projects.
+fn verify_deps_before_run_in(
+    dir: &Path,
+    (selected_project_dirs, workspace): (&[&Path], Option<&GateWorkspace>),
+    config: &Config,
+    reporter: ReporterType,
+) -> miette::Result<()> {
     if !config.verify_deps_before_run.is_enabled() {
         return Ok(());
     }
-    let Some(status) = check_deps_status_before_run_at(dir, config, selected_project_dirs) else {
+    let Some(status) =
+        check_deps_status_before_run_in(dir, config, selected_project_dirs, workspace)
+    else {
         return Ok(());
     };
     let (issue, mut install_args) = match status {
@@ -147,9 +163,17 @@ pub(crate) fn verify_deps_before_recursive_run<ProjectPath: AsRef<Path>>(
             .collect();
         verify_deps_before_run(workspace_root, &selected, config, reporter)
     } else {
+        // A project's gate reads the workspace projects when it links their
+        // commands, so the gates share one discovery of them.
+        let workspace = GateWorkspace::of(workspace_root, config);
         for project_dir in &project_dirs {
             let project_dir = project_dir.as_ref();
-            verify_deps_before_run(project_dir, &[project_dir], config, reporter)?;
+            verify_deps_before_run_in(
+                project_dir,
+                (&[project_dir], workspace.as_ref()),
+                config,
+                reporter,
+            )?;
         }
         Ok(())
     }

@@ -4,8 +4,8 @@
 
 use super::{
     GATE_DECIDED_FROM_RECORDS, combined_output, traced_run, trust_recorded_stats,
-    write_gated_workspace, write_workspace, write_workspace_with_pnpmfile,
-    write_workspace_with_project_lockfiles,
+    write_gated_workspace, write_gated_workspace_with_project_lockfiles, write_workspace,
+    write_workspace_with_pnpmfile, write_workspace_with_project_lockfiles,
 };
 use crate::_utils::pacquet_in;
 use assert_cmd::prelude::*;
@@ -203,5 +203,29 @@ fn an_up_to_date_install_with_project_lockfiles_opens_no_project_manifest() {
         count_opens(&project_manifests(&workspace), || install(&workspace, mock_instance.url()));
 
     assert_eq!(opens, 0);
+    drop((root, mock_instance));
+}
+
+/// The gates of a recursive command share one discovery of the workspace
+/// projects. `b`'s manifest is read by the command's selection, that
+/// discovery, and `b`'s own gate, however many projects link it.
+#[test]
+fn a_recursive_exec_with_project_lockfiles_discovers_the_projects_once() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_gated_workspace_with_project_lockfiles(&workspace);
+    install(&workspace, mock_instance.url());
+    trust_recorded_stats(&workspace, mock_instance.url());
+
+    let opens = count_opens(&[workspace.join("packages/b/package.json")], || {
+        pacquet_in(&workspace)
+            .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+            .with_args(["-r", "exec", "node", "-e", "0"])
+            .assert()
+            .success();
+    });
+
+    assert!(opens <= 3, "packages/b/package.json was opened {opens} times");
     drop((root, mock_instance));
 }

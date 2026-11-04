@@ -1,4 +1,7 @@
-pub use discovery::{check_deps_status_before_run_at, deps_install_root};
+pub use discovery::{
+    GateWorkspace, check_deps_status_before_run_at, check_deps_status_before_run_in,
+    deps_install_root,
+};
 pub use per_project::install_already_up_to_date_per_project;
 pub(crate) use projects::replace_project_manifest;
 pub(super) use projects::{

@@ -25,9 +25,10 @@ pub(crate) use workspace_state::{
     update_workspace_state_or_warn, workspace_packages_for_freshness,
 };
 pub use workspace_state::{
-    UpToDateFastPathCheck, UpToDateWorkspace, build_workspace_packages_map,
-    check_deps_status_before_run_at, deps_install_root, install_already_up_to_date,
-    install_already_up_to_date_from_records, install_already_up_to_date_per_project,
+    GateWorkspace, UpToDateFastPathCheck, UpToDateWorkspace, build_workspace_packages_map,
+    check_deps_status_before_run_at, check_deps_status_before_run_in, deps_install_root,
+    install_already_up_to_date, install_already_up_to_date_from_records,
+    install_already_up_to_date_per_project,
 };
 
 pub(crate) use verification_gate::IsReplaced;
