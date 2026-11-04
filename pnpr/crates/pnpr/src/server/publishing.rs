@@ -280,7 +280,7 @@ fn check_body_name(name: &CanonicalPackageName, incoming: &Value) -> Result<(), 
     Ok(())
 }
 
-fn check_body_versions(incoming: &Value) -> Result<(), RegistryError> {
+pub(super) fn check_body_versions(incoming: &Value) -> Result<(), RegistryError> {
     let Some(versions) = incoming.get("versions").and_then(Value::as_object) else {
         return Ok(());
     };
