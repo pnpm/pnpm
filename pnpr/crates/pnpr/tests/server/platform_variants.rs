@@ -386,7 +386,7 @@ async fn a_rewrite_from_npms_document_keeps_the_variants() {
 /// with their version's `any` archive, whose own manifest has to describe
 /// the published version.
 #[tokio::test]
-async fn variants_come_only_with_a_primary_archive_they_agree_with() {
+async fn variants_come_only_with_an_any_archive_they_agree_with() {
     let (_tmp, app, token) = setup().await;
     let (_, any_tgz) = archive(&any_manifest(), "any");
     let response = app
@@ -639,11 +639,11 @@ async fn a_variant_that_cannot_be_stored_as_one_file_is_refused() {
     let tag = platforms.join("+");
     assert!(tag.len() <= pnpm_platform_variants::MAX_VARIANT_TAG_BYTES);
     let version = format!("1.0.0-{}", "a".repeat(120));
-    let mut manifest = primary_manifest();
+    let mut manifest = any_manifest();
     manifest["version"] = json!(version);
     let (_tmp, app, token) = setup().await;
-    let (_, primary) = archive(&manifest, "primary");
-    let request = publish_request(&primary, &[], &token);
+    let (_, any) = archive(&manifest, "any");
+    let request = publish_request(&any, &[], &token);
     let (parts, body) = request.into_parts();
     let mut document: Value = serde_json::from_slice(&body_bytes(body).await).unwrap();
     let mut version_manifest = document["versions"]["1.0.0"].take();
@@ -788,7 +788,7 @@ fn variants_only_request(base: &Value, variants: &[(&str, &[u8])], token: &str) 
 /// the minimal archive pnpr generates, which lists where the variants run,
 /// and pnpr's own document and release record describe only the variants.
 #[tokio::test]
-async fn a_version_without_a_primary_gets_a_generated_one_for_npm() {
+async fn a_version_without_an_any_archive_gets_a_generated_one_for_npm() {
     let tmp = TempDir::new().unwrap();
     let auth = AuthState::in_memory();
     let token = issue_token(&auth, "alice").await;
@@ -867,7 +867,7 @@ async fn a_version_without_a_primary_gets_a_generated_one_for_npm() {
 /// A release job that packs no `any` archive sends the version with only
 /// `dist.integrity`, naming the `any` archive another job staged.
 #[tokio::test]
-async fn a_staged_primary_is_referenced_by_its_integrity_alone() {
+async fn a_staged_any_archive_is_referenced_by_its_integrity_alone() {
     let (_tmp, app, token) = setup().await;
     let (_, any_tgz) = archive(&any_manifest(), "any");
     let (_, musl) = archive(&variant_manifest(&["linux-x64-musl"], &json!({})), "musl");
