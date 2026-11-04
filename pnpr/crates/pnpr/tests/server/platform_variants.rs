@@ -623,6 +623,6 @@ async fn an_archive_declares_its_versions_integrity_or_none() {
         app.oneshot(request).await
             .unwrap()
             .status(),
-        StatusCode::CREATED
+        StatusCode::CREATED,
     );
 }
