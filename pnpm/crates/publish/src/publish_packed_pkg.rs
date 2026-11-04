@@ -28,7 +28,7 @@ use crate::{
     failed_to_publish_error::FailedToPublishError,
     global_log::{global_info, global_warn},
     oidc::OidcHttpOptions,
-    provenance_gen::{ProvenanceGenError, SignProvenance, generate_provenance},
+    provenance_gen::{ProvenanceGenError, SignProvenance},
     publish_options::{
         Access, CreatePublishOptionsError, CreatePublishOptionsInput, create_publish_options,
     },
@@ -158,7 +158,6 @@ where
 
     let mut summary = pkg.summary();
     variants::check_registry(pkg, &opts.pnpr_registries, &registry)?;
-    variants::check_provenance(pkg, resolved.provenance)?;
 
     if opts.dry_run {
         global_warn::<Reporter>(&format!(
@@ -257,13 +256,19 @@ where
         &DistHashes { integrity: &summary.integrity, shasum: &summary.shasum },
     )?;
     opts.release_notes.attach_version_notes(&mut document, pkg.notes, &resolved.registry);
-    if !pkg.variants.is_empty() || pkg.any_staged.is_some() {
+    let has_variants = !pkg.variants.is_empty() || pkg.any_staged.is_some();
+    if has_variants {
         variants::reference_staged_archives(&mut document, pkg, (version, lengths));
     }
 
     if resolved.provenance == Some(true) {
-        attach_provenance::<Sys, Reporter>(&mut document, name, version, pkg, &opts.registry.http)
-            .await?;
+        attach_provenance::<Sys, Reporter>(
+            &mut document,
+            (name, version),
+            pkg,
+            &opts.registry.http,
+        )
+        .await?;
     }
     let body =
         bytes::Bytes::from(serde_json::to_vec(&document).expect("serialize publish document"));
@@ -351,28 +356,6 @@ fn publish_endpoint(
 ///
 /// Provenance is requested either explicitly (`--provenance`) or by OIDC
 /// auto-detection for a public repo; the caller has already merged the two.
-async fn attach_provenance<Sys, Reporter>(
-    document: &mut serde_json::Value,
-    name: &str,
-    version: &str,
-    pkg: &PackedPkg<'_>,
-    http: &OidcHttpOptions,
-) -> Result<(), PublishPackedPkgError>
-where
-    Sys: EnvVar + Clock + OidcFetch + SignProvenance,
-    Reporter: self::Reporter,
-{
-    let attachment = generate_provenance::<Sys, Reporter>(name, version, pkg.tarball_data, http)
-        .await
-        .map_err(PublishPackedPkgError::Provenance)?;
-    document["_attachments"][attachment.bundle_name.as_str()] = serde_json::json!({
-        "content_type": attachment.content_type,
-        "data": attachment.data,
-        "length": attachment.data.len(),
-    });
-    Ok(())
-}
-
 /// Resolve `path` against the registry the way `new URL(path, registry)` does.
 pub(crate) fn join_registry(
     registry: &NormalizedRegistryUrl,
@@ -448,12 +431,17 @@ pub enum PublishPackedPkgError {
     )]
     VariantsNeedPnpr { registry: String },
 
-    #[display("pnpm cannot sign provenance for a version with platform variants yet")]
-    #[diagnostic(
-        code(ERR_PNPM_VARIANTS_PROVENANCE_UNSUPPORTED),
-        help("Pass --no-provenance to publish without a provenance statement.")
-    )]
-    VariantsWithProvenance,
+    #[display("{name} has no package URL to name it in a provenance statement: {error}")]
+    #[diagnostic(code(ERR_PNPM_PROVENANCE_PURL))]
+    Purl {
+        name: String,
+        #[error(source)]
+        error: pnpm_release_record::PurlError,
+    },
+
+    #[display("The archive {integrity} has no SHA-512 for a provenance statement to name it by")]
+    #[diagnostic(code(ERR_PNPM_PROVENANCE_NO_SHA512))]
+    NoSha512 { integrity: String },
 
     #[diagnostic(transparent)]
     Staging(StagingError),
@@ -494,7 +482,10 @@ mod tests;
 
 mod document;
 use document::manifest_string;
+mod provenance;
 mod uploads;
 mod variants;
+
+use provenance::attach_provenance;
 
 mod request;

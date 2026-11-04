@@ -14,10 +14,12 @@
 
 use super::{PackedPkg, PublishPackedPkgError, Value, clean_version, registry_for_display};
 use crate::{
+    provenance_gen::ProvenanceSubject,
     registry_config_keys::NormalizedRegistryUrl,
     staged_archives::{StagedArchive, staged_length},
 };
 use pnpm_network::ThrottledClient;
+use pnpm_release_record::{Purl, PurlError};
 use std::collections::{HashMap, HashSet};
 
 /// One platform variant's archive, published with its version.
@@ -71,19 +73,6 @@ pub(super) fn check_registry(
         return Ok(());
     }
     Err(PublishPackedPkgError::VariantsNeedPnpr { registry: registry_for_display(registry) })
-}
-
-/// Refuse to sign provenance for a version with variants, or with an `any`
-/// archive staged by another job, which pnpm cannot do yet. It runs before
-/// any archive is staged, and in a dry run too.
-pub(super) fn check_provenance(
-    pkg: &PackedPkg<'_>,
-    provenance: Option<bool>,
-) -> Result<(), PublishPackedPkgError> {
-    if (!pkg.variants.is_empty() || pkg.any_staged.is_some()) && provenance == Some(true) {
-        return Err(PublishPackedPkgError::VariantsWithProvenance);
-    }
-    Ok(())
 }
 
 /// The archives this publish packed, to stage before the document that
@@ -241,6 +230,57 @@ fn staged_attachment(integrity: &str, length: u64) -> Value {
         "integrity": integrity,
         "length": length,
     })
+}
+
+/// The subjects of the provenance statement of a version with variants:
+/// each archive it publishes, by its PURL (a variant's with the `variant`
+/// qualifier) and its `.tgz` SHA-512. An `any` archive pnpr generates for a
+/// version without one is no subject.
+pub(super) fn provenance_subjects(
+    pkg: &PackedPkg<'_>,
+    (name, version): (&str, &str),
+) -> Result<Vec<ProvenanceSubject>, PublishPackedPkgError> {
+    let purl_error =
+        |error: PurlError| PublishPackedPkgError::Purl { name: name.to_string(), error };
+    let any = match pkg.any_staged {
+        Some(staged) => Some(staged.integrity.clone()),
+        None => pkg.has_any_archive().then(|| sri_sha512(pkg.tarball_data)),
+    };
+    let mut subjects = Vec::with_capacity(pkg.variants.len() + 1);
+    if let Some(integrity) = any {
+        let purl = Purl::npm(name, version).map_err(purl_error)?;
+        subjects.push(subject(&purl, &integrity)?);
+    }
+    for variant in pkg.variants {
+        let purl = Purl::npm_variant(name, version, &variant.tag).map_err(purl_error)?;
+        subjects.push(subject(&purl, &variant.archive.integrity())?);
+    }
+    Ok(subjects)
+}
+
+fn subject(purl: &Purl, integrity: &str) -> Result<ProvenanceSubject, PublishPackedPkgError> {
+    let sha512_hex = sha512_hex(integrity)
+        .ok_or_else(|| PublishPackedPkgError::NoSha512 { integrity: integrity.to_string() })?;
+    Ok(ProvenanceSubject { name: purl.as_str().to_string(), sha512_hex })
+}
+
+/// The lowercase hex SHA-512 an SRI `integrity` carries.
+fn sha512_hex(integrity: &str) -> Option<String> {
+    use base64::Engine as _;
+    use std::fmt::Write as _;
+    let integrity: ssri::Integrity = integrity.parse().ok()?;
+    let hash = integrity.hashes
+        .iter()
+        .find(|hash| hash.algorithm == ssri::Algorithm::Sha512)?;
+    let bytes = base64::engine::general_purpose::STANDARD.decode(&hash.digest).ok()?;
+    Some(
+        bytes
+            .iter()
+            .fold(String::new(), |mut hex, byte| {
+                let _ = write!(hex, "{byte:02x}");
+                hex
+            }),
+    )
 }
 
 /// The SRI SHA-512 of `bytes`, the integrity a staged archive is named by.
