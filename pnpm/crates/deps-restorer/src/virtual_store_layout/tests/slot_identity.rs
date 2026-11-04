@@ -395,6 +395,14 @@ fn gvs_version_segment_anchors_directory_deps() {
         "0.0.0",
     );
 }
+#[test]
+fn gvs_version_segment_strips_the_registry_name() {
+    let named: PackageKey = "is-number@npmjs:7.0.0".parse().unwrap();
+    assert_eq!(super::super::gvs_version_segment(None, &named.suffix), "7.0.0");
+
+    let scoped: PackageKey = "@acme/sdk@gh:1.2.3".parse().unwrap();
+    assert_eq!(super::super::gvs_version_segment(None, &scoped.suffix), "1.2.3");
+}
 /// A `link:` dependency is materialized as a symlink out of the store,
 /// so the slot holding it belongs to whichever directory the lockfile's
 /// relative target resolves to. Two projects linking *different*

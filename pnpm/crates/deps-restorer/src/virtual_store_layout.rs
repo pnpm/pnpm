@@ -574,7 +574,10 @@ fn gvs_version_segment(metadata: Option<&PackageMetadata>, suffix: &PkgVerPeer) 
     }
     match metadata.and_then(|meta| meta.version.as_deref()) {
         Some(version) => version.to_string(),
-        None => suffix.version().to_string(),
+        None => match suffix.registry_version() {
+            Some(version) => version.to_string(),
+            None => suffix.version().to_string(),
+        },
     }
 }
 
