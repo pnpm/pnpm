@@ -5,7 +5,7 @@
 //! of the same machine.
 
 use super::{Architecture, Libc, LibcFamily, Os, UnknownPlatformError, unknown};
-use crate::infer_platform_from_package_name::{is_node_cpu, is_node_os};
+use crate::node_platform_names::{is_node_cpu, is_node_os};
 
 /// An entry as a platform tag, with what the tag cannot carry.
 pub(super) struct Spelled {
