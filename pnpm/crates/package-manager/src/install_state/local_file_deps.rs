@@ -13,7 +13,8 @@ use pnpm_catalogs_resolver::{
 };
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config_parse_overrides::VersionOverride;
-use pnpm_lockfile::{Lockfile, LockfileResolution, PkgName, is_local_tarball_path};
+use pnpm_local_spec::is_tarball_filename;
+use pnpm_lockfile::{Lockfile, LockfileResolution, PkgName};
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_resolving_local_resolver::local_tarball_path;
 use pnpm_workspace::importer_id_from_root_dir;
@@ -88,7 +89,7 @@ pub(crate) fn local_tarball_file(
     resolution: &pnpm_lockfile::TarballResolution,
     lockfile_dir: &Path,
 ) -> Option<PathBuf> {
-    if !is_local_tarball_path(&resolution.tarball) {
+    if !is_tarball_filename(&resolution.tarball) {
         return None;
     }
     let url =

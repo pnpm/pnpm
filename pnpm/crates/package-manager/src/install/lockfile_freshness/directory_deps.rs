@@ -69,7 +69,7 @@ pub(crate) fn is_declared_local_directory(spec: &str) -> bool {
     let Some(path) = spec.strip_prefix("file:") else {
         return false;
     };
-    !pnpm_lockfile::is_local_tarball_path(path)
+    !pnpm_local_spec::is_tarball_filename(path)
 }
 
 fn spec_dirs<'a>(check: &'a ImporterSatisfactionCheck<'a>) -> SpecDirs<'a> {

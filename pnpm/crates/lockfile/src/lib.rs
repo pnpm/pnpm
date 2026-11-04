@@ -402,7 +402,7 @@ impl Lockfile {
                     return None;
                 }
                 let VersionPart::File(path) = metadata_key.suffix.version() else { return None };
-                if is_local_tarball_path(path) {
+                if pnpm_local_spec::is_tarball_filename(path) {
                     return None;
                 }
                 let directory = path.clone();
@@ -432,21 +432,6 @@ impl Lockfile {
                 });
         }
     }
-}
-
-/// Whether `path` ends in a tarball extension (`.tgz`, `.tar.gz`, or
-/// `.tar`, case-insensitively) — the directory-vs-tarball boundary the
-/// resolver applies to a `file:` spec at resolve time. Public so
-/// consumers classifying a `file:` snapshot key (such as the hoister's
-/// identity function) draw the same line.
-#[must_use]
-pub fn is_local_tarball_path(path: &str) -> bool {
-    let lower = path.as_bytes();
-    let ends_with_ci = |suffix: &str| {
-        let bytes = suffix.as_bytes();
-        lower.len() >= bytes.len() && lower[lower.len() - bytes.len()..].eq_ignore_ascii_case(bytes)
-    };
-    ends_with_ci(".tgz") || ends_with_ci(".tar.gz") || ends_with_ci(".tar")
 }
 
 /// Accepts both shapes a lockfile can carry for a `patchedDependencies`
