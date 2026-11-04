@@ -71,9 +71,9 @@ fn a_sha1_integrity_replaced_by_a_sha512_one_is_accepted() {
 }
 
 #[test]
-fn a_sha512_integrity_replaced_by_a_sha1_one_is_accepted() {
+fn a_sha512_integrity_replaced_by_a_sha1_one_is_rejected() {
     let next = parse(SHA1_LOCKFILE).to_yaml_string().expect("serialize lockfile");
-    assert!(only_registry_metadata_differs(&canonical(), &next));
+    assert!(!only_registry_metadata_differs(&canonical(), &next));
 }
 
 #[test]

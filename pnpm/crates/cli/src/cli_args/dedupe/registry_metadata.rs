@@ -6,7 +6,7 @@ use ssri::Integrity;
 
 /// Whether the rewritten lockfile `next_text` is `previous` with only the
 /// registry metadata of its packages replaced by that of `next`: the
-/// `deprecated` notices, and an integrity recomputed with another algorithm.
+/// `deprecated` notices, and an integrity recomputed with a stronger algorithm.
 /// The registry can deprecate a version after it was locked, and
 /// a registry proxy can start reporting a `sha512` integrity for a version
 /// it only reported the `sha1` shasum of, so neither is a change for
@@ -37,7 +37,7 @@ fn is_serialized_as(lockfile: &Lockfile, text: &str) -> bool {
 }
 
 /// `lockfile` with each package's `deprecated` notice, and the integrity of
-/// its registry or tarball resolution when only the algorithm changed, taken
+/// its registry or tarball resolution when only the algorithm got stronger, taken
 /// from `source`, or `None` when `source` lacks one of its packages. Any other
 /// difference in a resolution, such as a new revision or tarball URL, is left
 /// for the comparison to reject.
@@ -58,8 +58,8 @@ fn with_registry_metadata_of(lockfile: &Lockfile, source: &Lockfile) -> Option<L
 }
 
 /// Takes the integrity of `source` into `resolution` when both are registry
-/// resolutions, or tarball resolutions that both record one, hashed with
-/// different algorithms.
+/// resolutions, or tarball resolutions that both record one, and `source` is
+/// hashed with a stronger algorithm.
 fn take_rehashed_resolution_integrity(
     resolution: &mut LockfileResolution,
     source: &LockfileResolution,
@@ -79,12 +79,11 @@ fn take_rehashed_resolution_integrity(
     }
 }
 
-/// Replaces `integrity` with `source` when `source` holds a digest and none
-/// of the same algorithm as `integrity`, so the same tarball was only hashed
-/// differently. A different digest of the same algorithm means another
-/// tarball, which `--check` must report, so it is kept. A weaker algorithm is
-/// taken too: `--check` never writes the lockfile, so installs keep verifying
-/// the locked integrity.
+/// Replaces `integrity` with `source` when `source` is hashed with a stronger
+/// algorithm and shares none with `integrity`, so the same tarball was only
+/// hashed differently. A different digest of the same algorithm means another
+/// tarball, and a weaker algorithm means the registry stopped vouching for
+/// the locked one, so `--check` must report both.
 fn take_rehashed_integrity(integrity: &mut Integrity, source: &Integrity) {
     let shares_an_algorithm = integrity.hashes
         .iter()
@@ -93,9 +92,24 @@ fn take_rehashed_integrity(integrity: &mut Integrity, source: &Integrity) {
                 .iter()
                 .any(|source| hash.algorithm == source.algorithm)
         });
-    if !shares_an_algorithm && !source.hashes.is_empty() {
+    if !shares_an_algorithm && is_stronger(source, integrity) {
         integrity.clone_from(source);
     }
+}
+
+/// Whether the strongest algorithm of `integrity` is stronger than every
+/// algorithm of `than`. `ssri` orders `Algorithm` from strongest to weakest.
+fn is_stronger(integrity: &Integrity, than: &Integrity) -> bool {
+    let strongest = |integrity: &Integrity| {
+        integrity.hashes
+            .iter()
+            .map(|hash| hash.algorithm)
+            .min()
+    };
+    matches!(
+        (strongest(integrity), strongest(than)),
+        (Some(strongest), Some(than)) if strongest < than,
+    )
 }
 
 #[cfg(test)]
