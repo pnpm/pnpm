@@ -27,6 +27,19 @@ enum Provider {
     Link(PathBuf),
 }
 
+impl Provider {
+    fn declaration_identity(&self) -> Self {
+        match self {
+            Self::Package(key) => Self::Package(key.without_peer()),
+            Self::Link(path) => Self::Link(path.clone()),
+        }
+    }
+
+    fn is_same_package(&self, other: &Self) -> bool {
+        self.declaration_identity() == other.declaration_identity()
+    }
+}
+
 type Providers = BTreeMap<String, Vec<Provider>>;
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -161,7 +174,7 @@ impl<'a> UndeclaredPeerInspector<'a> {
         for key in reachable {
             for (provider, warning) in &self.nodes[key].peers {
                 groups
-                    .entry((warning.peer.clone(), provider.clone()))
+                    .entry((warning.peer.clone(), provider.declaration_identity()))
                     .or_default()
                     .insert(key.clone(), warning.clone());
             }

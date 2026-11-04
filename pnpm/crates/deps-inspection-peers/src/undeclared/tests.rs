@@ -195,3 +195,36 @@ fn a_shared_peer_is_checked_once_through_a_long_chain() {
         inspector.visited_states.get(),
     );
 }
+
+#[test]
+fn declarations_match_provider_versions_across_peer_contexts() {
+    let mut value = fixture();
+    value["importers"]["."]["dependencies"]["provider"] =
+        json!({"specifier":"1.0.0", "version":"1.0.0"});
+    value["snapshots"]["consumer@1.0.0"]["dependencies"]["provider"] = "1.0.0(other@1.0.0)".into();
+    value["packages"]["provider@1.0.0"]["peerDependencies"] = json!({"other":"*"});
+    value["packages"]["provider@1.0.0"]["peerDependenciesMeta"] =
+        json!({"other":{"optional":true}});
+    value["snapshots"]["provider@1.0.0(other@1.0.0)"] = json!({"dependencies":{"other":"1.0.0"}});
+    value["packages"]["other@1.0.0"] = json!({"resolution":{"integrity":"sha512-other"}});
+    value["snapshots"]["other@1.0.0"] = json!({});
+    let direct = lockfile(value.clone());
+    let mut inspector = UndeclaredPeerInspector::new(&direct, Path::new("."));
+    assert_no_warnings(&mut inspector, ".", crate::WorkspaceRootScope::Exclude);
+    value["packages"]["parent@1.0.0"] = json!({"resolution":{"integrity":"sha512-parent"}});
+    value["snapshots"]["parent@1.0.0"] =
+        json!({"dependencies":{"consumer":"1.0.0", "provider":"1.0.0"}});
+    value["importers"]["."]["dependencies"] =
+        json!({"parent":{"specifier":"1.0.0", "version":"1.0.0"}});
+    let ancestor = lockfile(value.clone());
+    let mut inspector = UndeclaredPeerInspector::new(&ancestor, Path::new("."));
+    assert_no_warnings(&mut inspector, ".", crate::WorkspaceRootScope::Exclude);
+    value["snapshots"]["parent@1.0.0"]["dependencies"]["provider"] = "2.0.0".into();
+    value["packages"]["provider@2.0.0"] = json!({"resolution":{"integrity":"sha512-provider-two"}});
+    value["snapshots"]["provider@2.0.0"] = json!({});
+    let different_version = lockfile(value);
+    let mut inspector = UndeclaredPeerInspector::new(&different_version, Path::new("."));
+    let warnings = inspector.check(".", crate::WorkspaceRootScope::Exclude);
+    assert_eq!(warnings.len(), 1, "{warnings:?}");
+    assert_eq!(warnings[0].peer, "provider");
+}

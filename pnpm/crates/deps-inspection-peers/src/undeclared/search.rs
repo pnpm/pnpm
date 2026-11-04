@@ -24,7 +24,11 @@ impl ProviderSearch {
         provider: &Provider,
     ) {
         match declared {
-            Some(declared) if !declared.contains(provider) => {
+            Some(declared)
+                if !declared
+                    .iter()
+                    .any(|declared| declared.is_same_package(provider)) =>
+            {
                 self.unprovided.insert(child.clone());
             }
             Some(_) => {}
@@ -67,7 +71,11 @@ pub(super) struct DeclarationGraph<'a> {
 fn scope_provides(scope: &Providers, peer: &str, provider: &Provider) -> bool {
     scope
         .get(peer)
-        .is_some_and(|declared| declared.contains(provider))
+        .is_some_and(|declared| {
+            declared
+                .iter()
+                .any(|declared| declared.is_same_package(provider))
+        })
 }
 
 /// Search only ancestors of the targets, stopping each path at a provider declaration.
