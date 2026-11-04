@@ -28,7 +28,6 @@ fn publish_flags() -> PublishFlags {
         ignore_scripts: false,
         force: false,
         batch: false,
-        no_variants: false,
         registry: crate::cli_args::publish::PublishRegistryArgs {
             tag: None,
             access: None,
@@ -47,6 +46,7 @@ fn publish_flags() -> PublishFlags {
                 no_release_notes: false,
                 publication_name: None,
             },
+            no_variants: false,
         },
         git: crate::cli_args::publish::PublishGitArgs {
             publish_branch: None,

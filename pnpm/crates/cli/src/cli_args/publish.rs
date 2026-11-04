@@ -11,6 +11,9 @@
 pub use arguments::{PublishGitArgs, PublishManifestArgs, PublishOutputArgs, PublishRegistryArgs};
 mod notes;
 mod options;
+mod packed;
+
+use packed::{PackedDirectory, declares_variants, packed_directory};
 mod scope;
 
 use scope::PublishScope;
@@ -30,8 +33,8 @@ use pnpm_pack::{
     Host as PackHost, PackOptions, PackedArchives, WorkspacePackageManifest, pack_archives,
 };
 use pnpm_publish::{
-    Host, PackedPkg, PackedVariant, PublishFailure, PublishNetwork, PublishPackedPkgOptions,
-    PublishSummary, extract_publish_manifest_from_packed, is_tarball_path, publish_packed_pkg,
+    Host, PackedPkg, PublishFailure, PublishNetwork, PublishPackedPkgOptions, PublishSummary,
+    extract_publish_manifest_from_packed, is_tarball_path, publish_packed_pkg,
     resolve_otp_from_env, run_git_checks,
 };
 use pnpm_reporter::Reporter;
@@ -63,11 +66,6 @@ pub struct PublishFlags {
     /// Send all workspace packages in a single request (requires `--recursive`).
     #[clap(long)]
     pub batch: bool,
-    /// Publish only the archive that targets `any` of a package that declares
-    /// `publishConfig.variants`, such as to a registry that does not serve
-    /// platform variants.
-    #[clap(long)]
-    pub no_variants: bool,
     #[clap(flatten)]
     pub registry: PublishRegistryArgs,
     #[clap(flatten)]
@@ -85,37 +83,6 @@ pub struct PublishFlags {
 pub(super) enum PublishedPackages {
     Single(Box<PublishSummary>),
     Recursive(Vec<PublishSummary>),
-}
-
-struct PackedDirectory {
-    project_dir: std::path::PathBuf,
-    source_manifest: Value,
-    published_manifest: Value,
-    tarball_data: Vec<u8>,
-    tarball_path: String,
-    contents: Vec<String>,
-    unpacked_size: u64,
-    notes: Option<String>,
-    /// The platform variants published with the version.
-    variants: Vec<PackedVariant>,
-    /// Whether `tarball_data` is the version's `any` archive; a version
-    /// published with variants only has none.
-    any_archive: bool,
-}
-
-impl PackedDirectory {
-    fn packed_pkg(&self) -> PackedPkg<'_> {
-        PackedPkg {
-            published_manifest: &self.published_manifest,
-            tarball_data: &self.tarball_data,
-            tarball_path: &self.tarball_path,
-            contents: &self.contents,
-            unpacked_size: self.unpacked_size,
-            notes: self.notes.as_deref(),
-            variants: &self.variants,
-            any_archive: self.any_archive,
-        }
-    }
 }
 
 impl PublishedPackages {
@@ -333,7 +300,7 @@ impl PublishArgs {
 
         let pack_destination = tempfile::tempdir().into_diagnostic().wrap_err("create temp dir")?;
         // `--no-variants` publishes only the archive that targets `any`.
-        let targets = if self.flags.no_variants && declares_variants(&manifest) {
+        let targets = if self.flags.manifest.no_variants && declares_variants(&manifest) {
             vec![pnpm_pack::variants::ANY_TARGET.to_string()]
         } else {
             Vec::new()
@@ -426,57 +393,6 @@ impl PublishArgs {
 
 /// The workspace's packages by name, shared across a recursive publish.
 type WorkspacePackages = Arc<HashMap<String, WorkspacePackageManifest>>;
-
-/// Whether the project's manifest declares `publishConfig.variants`.
-fn declares_variants(manifest: &Value) -> bool {
-    manifest.pointer("/publishConfig/variants").is_some()
-}
-
-/// The packed archives of the project at `project_dir`, read for publishing:
-/// the archive that targets `any` as the version's, and every other one as a
-/// platform variant. A version without an `any` archive is published with
-/// the base manifest.
-fn packed_directory(
-    project_dir: &Path,
-    source_manifest: Value,
-    packed: PackedArchives,
-) -> miette::Result<PackedDirectory> {
-    let read = |path: &str| std::fs::read(path).into_diagnostic().wrap_err("read packed tarball");
-    let mut any = None;
-    let mut variants = Vec::new();
-    for archive in packed.archives {
-        match archive.entry.as_ref().and_then(|entry| entry.tag.clone()) {
-            Some(tag) => {
-                let tarball_data = read(&archive.result.tarball_path)?;
-                variants.push(PackedVariant { tag, tarball_data });
-            }
-            None => any = Some(archive.result),
-        }
-    }
-    let any_archive = any.is_some();
-    let (published_manifest, tarball_data, tarball_path, contents, unpacked_size) = match any {
-        Some(result) => (
-            result.published_manifest,
-            read(&result.tarball_path)?,
-            result.tarball_path,
-            result.contents,
-            result.unpacked_size,
-        ),
-        None => (packed.base_manifest, Vec::new(), String::new(), Vec::new(), 0),
-    };
-    Ok(PackedDirectory {
-        project_dir: project_dir.to_path_buf(),
-        source_manifest,
-        published_manifest,
-        tarball_data,
-        tarball_path,
-        contents,
-        unpacked_size,
-        notes: None,
-        variants,
-        any_archive,
-    })
-}
 
 fn configured_publish_branch<'a>(flag: Option<&'a str>, config: &'a Config) -> Option<&'a str> {
     flag.or(config.publish_branch.as_deref())

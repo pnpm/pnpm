@@ -6,6 +6,7 @@
 pub(crate) use document::{DistHashes, build_publish_document, clean_version};
 pub use request::PublishHttpError;
 pub(crate) use request::{PublishResponse, publish_with_otp_handling, web_auth_fetch_options};
+pub use variants::PackedVariant;
 
 use std::collections::{BTreeMap, HashSet};
 
@@ -460,6 +461,5 @@ mod tests;
 mod document;
 use document::manifest_string;
 mod variants;
-pub use variants::PackedVariant;
 
 mod request;

@@ -42,6 +42,11 @@ pub struct PublishManifestArgs {
     pub no_skip_manifest_obfuscation: bool,
     #[clap(flatten)]
     pub notes: PublishNotesArgs,
+    /// Publish only the archive that targets `any` of a package that declares
+    /// `publishConfig.variants`, such as to a registry that does not serve
+    /// platform variants.
+    #[clap(long)]
+    pub no_variants: bool,
 }
 
 #[derive(Debug, Clone, clap::Args)]
