@@ -49,11 +49,8 @@ fn desired_mode(source_file: &Path) -> Option<pnpm_fs::FileMode> {
 #[cfg(any(unix, target_os = "wasi"))]
 pub(super) fn source_has_desired_mode(source: &StoreFile) -> io::Result<bool> {
     let Some(desired) = desired_mode(&source.path) else { return Ok(true) };
-    let mode = source.mode_or_read(|path| source_mode(path).map(pnpm_fs::FileMode::mode))?;
-    Ok(pnpm_fs::file_mode::store_inode_mode_is_linkable(
-        pnpm_fs::FileMode::from_mode(mode),
-        desired,
-    ))
+    let mode = source.mode_or_read(source_mode)?;
+    Ok(pnpm_fs::file_mode::store_inode_mode_is_linkable(mode, desired))
 }
 
 /// The mode the store entry at `source_file` carries right now. WASI reports

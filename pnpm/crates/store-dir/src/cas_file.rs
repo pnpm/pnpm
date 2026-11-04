@@ -210,10 +210,10 @@ fn write_cas_error(error: EnsureFileError) -> WriteCasFileFromReaderError {
 /// `tmp_mode` when it renamed the temp file into place.
 fn commit_streamed_temp_file(
     tmp_path: &Path,
-    tmp_mode: Option<u32>,
+    tmp_mode: Option<FileMode>,
     file_path: &Path,
     size: u64,
-) -> Result<Option<u32>, WriteCasFileFromReaderError> {
+) -> Result<Option<FileMode>, WriteCasFileFromReaderError> {
     // Serialize with buffer-based writers ([`ensure_cas_file`]) and
     // verifiers of the same path, per [`cas_write_lock`]'s
     // coordination contract.

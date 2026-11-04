@@ -160,7 +160,7 @@ fn hardlink_uses_the_known_mode_of_the_source() {
     let desired = pnpm_fs::file_mode::store_entry_mode(false, pnpm_fs::file_mode::current_umask());
     let src = write_source(tmp.path(), STORE_ENTRY, b"data\n");
     fs::set_permissions(&src, fs::Permissions::from_mode(desired.mode() ^ 0o001)).unwrap();
-    let src = pnpm_fs::StoreFile::with_mode(src.path, Some(desired.mode()));
+    let src = pnpm_fs::StoreFile::with_mode(src.path, Some(desired));
     let dst = tmp.path().join("dst.txt");
     link_file::<SilentReporter>(&AtomicU8::new(0), PackageImportMethod::Hardlink, &src, &dst)
         .expect("the store file is hardlinked");

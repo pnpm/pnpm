@@ -257,7 +257,7 @@ pub(super) async fn stage_artifact(
     let mut downloaded = HashMap::<String, Vec<u8>>::new();
     let mut stored = HashMap::<(String, u32), pnpm_fs::StoreFile>::new();
     let mut added = HashMap::<String, CafsFileInfo>::new();
-    let mut staged_modes = HashMap::<String, u32>::new();
+    let mut staged_modes = HashMap::<String, pnpm_fs::FileMode>::new();
     for file in &artifact.payload.manifest.added {
         let (blob, info) =
             stage_artifact_blob(context, artifact, file, &mut stored, &mut downloaded).await?;

@@ -13,11 +13,11 @@ use std::{io, path::Path};
 
 /// The POSIX mode `metadata` carries, or `None` off Unix.
 #[must_use]
-pub fn metadata_mode(metadata: &std::fs::Metadata) -> Option<u32> {
+pub fn metadata_mode(metadata: &std::fs::Metadata) -> Option<FileMode> {
     #[cfg(unix)]
     return {
         use std::os::unix::fs::MetadataExt;
-        Some(metadata.mode())
+        Some(FileMode::from_mode(metadata.mode()))
     };
     #[cfg(not(unix))]
     {
@@ -333,7 +333,7 @@ impl UnixCreationMode {
     /// Add the post-create bits to a file opened with [`Self::apply_to`].
     /// Returns the file's permission bits as [`grant_mode_bits`] does,
     /// `None` when there is nothing to grant.
-    pub fn grant(&self, file: &std::fs::File) -> io::Result<Option<u32>> {
+    pub fn grant(&self, file: &std::fs::File) -> io::Result<Option<FileMode>> {
         match self.grant_mode {
             Some(wanted) => grant_mode_bits(file, wanted),
             None => Ok(None),
@@ -349,7 +349,7 @@ impl UnixCreationMode {
 /// Returns the file's permission bits afterwards, `None` when they could
 /// not be read.
 #[cfg(unix)]
-pub fn grant_mode_bits(file: &std::fs::File, wanted: FileMode) -> io::Result<Option<u32>> {
+pub fn grant_mode_bits(file: &std::fs::File, wanted: FileMode) -> io::Result<Option<FileMode>> {
     let current = match file.metadata() {
         Ok(meta) => FileMode::from_permissions(&meta.permissions()).mode() & 0o777,
         Err(error) if is_unchangeable(&error) => return Ok(None),
@@ -357,11 +357,11 @@ pub fn grant_mode_bits(file: &std::fs::File, wanted: FileMode) -> io::Result<Opt
     };
     let merged = current | (wanted.mode() & 0o777);
     if merged == current {
-        return Ok(Some(current));
+        return Ok(Some(FileMode::from_mode(current)));
     }
     match file.set_permissions(FileMode::from_mode(merged).into()) {
-        Ok(()) => Ok(Some(merged)),
-        Err(error) if is_unchangeable(&error) => Ok(Some(current)),
+        Ok(()) => Ok(Some(FileMode::from_mode(merged))),
+        Err(error) if is_unchangeable(&error) => Ok(Some(FileMode::from_mode(current))),
         Err(error) => Err(error),
     }
 }

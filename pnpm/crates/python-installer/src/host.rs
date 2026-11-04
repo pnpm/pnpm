@@ -230,7 +230,8 @@ struct FileImport {
     destination: PathBuf,
     executable: bool,
     device: u64,
-    /// The source's `st_mode`, which the helper reads anyway.
+    /// The source's `st_mode`, which the helper reads anyway. Bare bits
+    /// because this struct is deserialized.
     mode: Option<u32>,
 }
 
@@ -244,7 +245,10 @@ impl FileImport {
         let method = state.import::<pnpm_reporter::SilentReporter, Sys>(
             mode,
             logged,
-            &pnpm_fs::StoreFile::with_mode(self.source.clone(), self.mode),
+            &pnpm_fs::StoreFile::with_mode(
+                self.source.clone(),
+                self.mode.map(pnpm_fs::FileMode::from_mode),
+            ),
             &self.destination,
         )?;
         // Unpacked wheels use their file modes, even when a name has the CAS -exec suffix.

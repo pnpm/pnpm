@@ -201,7 +201,6 @@ async fn a_persisted_symlink_entry_is_valid_while_its_target_blob_is_stored() {
 #[cfg(unix)]
 async fn checking_a_persisted_overlay_records_the_modes_it_read() {
     use pnpm_store_dir::{CafsFileInfo, SideEffectsDiff, SideEffectsOverlay};
-    use std::os::unix::fs::MetadataExt;
 
     let store = tempfile::tempdir().unwrap();
     let store_dir = pnpm_store_dir::StoreDir::new(store.path());
@@ -234,7 +233,8 @@ async fn checking_a_persisted_overlay_records_the_modes_it_read() {
             .unwrap(),
     );
 
-    let on_disk = std::fs::metadata(&blob.path).unwrap().mode();
+    let on_disk =
+        pnpm_fs::FileMode::from_permissions(&std::fs::metadata(&blob.path).unwrap().permissions());
     assert_eq!(shared.files[&name].mode(), Some(on_disk));
 }
 
@@ -548,9 +548,10 @@ mod restore {
     fn assert_restored_mode_is_known(restored: &pnpm_fs::StoreFile) {
         #[cfg(unix)]
         {
-            use std::os::unix::fs::MetadataExt;
-            let on_disk = std::fs::metadata(&restored.path).expect("stat restored").mode();
-            assert_eq!(restored.mode().map(|mode| mode & 0o777), Some(on_disk & 0o777));
+            let on_disk = pnpm_fs::FileMode::from_permissions(
+                &std::fs::metadata(&restored.path).expect("stat restored").permissions(),
+            );
+            assert_eq!(restored.mode(), Some(on_disk));
         }
         #[cfg(not(unix))]
         let _ = restored;

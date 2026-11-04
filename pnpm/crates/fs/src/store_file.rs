@@ -1,5 +1,6 @@
 //! A file an import materializes from, with the mode this install read.
 
+use crate::FileMode;
 use std::{
     collections::HashMap,
     io,
@@ -22,7 +23,7 @@ use std::{
 #[derive(Debug, Clone)]
 pub struct StoreFile {
     pub path: PathBuf,
-    mode: OnceLock<u32>,
+    mode: OnceLock<FileMode>,
 }
 
 impl StoreFile {
@@ -33,25 +34,28 @@ impl StoreFile {
     }
 
     #[must_use]
-    pub fn with_mode(path: PathBuf, mode: Option<u32>) -> Self {
+    pub fn with_mode(path: PathBuf, mode: Option<FileMode>) -> Self {
         Self { path, mode: mode.map_or_else(OnceLock::new, OnceLock::from) }
     }
 
     /// The mode this install has read, if any.
     #[must_use]
-    pub fn mode(&self) -> Option<u32> {
+    pub fn mode(&self) -> Option<FileMode> {
         self.mode.get().copied()
     }
 
     /// Record a mode read for this file. The first mode recorded is kept,
     /// so every import sharing this value sees the same one.
-    pub fn record_mode(&self, mode: u32) {
+    pub fn record_mode(&self, mode: FileMode) {
         let _ = self.mode.set(mode);
     }
 
     /// The known mode, or the one `read` returns for [`Self::path`], which
     /// is then kept.
-    pub fn mode_or_read(&self, read: impl FnOnce(&Path) -> io::Result<u32>) -> io::Result<u32> {
+    pub fn mode_or_read(
+        &self,
+        read: impl FnOnce(&Path) -> io::Result<FileMode>,
+    ) -> io::Result<FileMode> {
         if let Some(mode) = self.mode.get() {
             return Ok(*mode);
         }
