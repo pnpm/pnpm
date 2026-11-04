@@ -2445,17 +2445,18 @@ struct LocalDirectoryFixture {
 impl LocalDirectoryFixture {
     fn new(layout: ProjectLayout) -> Self {
         let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
-        let cwd = if matches!(layout, ProjectLayout::Workspace) {
-            fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - app\n")
-                .expect("write pnpm-workspace.yaml");
-            fs::write(
-                workspace.join("package.json"),
-                json!({ "name": "root", "private": true }).to_string(),
-            )
-            .expect("write the root manifest");
-            workspace.clone()
-        } else {
-            workspace.join("app")
+        let cwd = match layout {
+            ProjectLayout::Workspace => {
+                fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - app\n")
+                    .expect("write pnpm-workspace.yaml");
+                fs::write(
+                    workspace.join("package.json"),
+                    json!({ "name": "root", "private": true }).to_string(),
+                )
+                .expect("write the root manifest");
+                workspace.clone()
+            }
+            ProjectLayout::Standalone => workspace.join("app"),
         };
         let app = workspace.join("app");
         fs::create_dir_all(&app).expect("create the project");
@@ -2488,8 +2489,9 @@ impl LocalDirectoryFixture {
 
     fn gated_exec(&self) -> std::process::Output {
         let mut args = vec!["--config.verify-deps-before-run=error"];
-        if matches!(self.layout, ProjectLayout::Workspace) {
-            args.extend(["--filter", "app"]);
+        match self.layout {
+            ProjectLayout::Workspace => args.extend(["--filter", "app"]),
+            ProjectLayout::Standalone => {}
         }
         args.extend(["exec", "node", "-e", ""]);
         pacquet_in(&self.cwd)
