@@ -150,10 +150,6 @@ pub(super) async fn create_tmp_file_with(
         .into())
 }
 
-/// The most bytes [`unique_tmp_path`] adds to a file name:
-/// `.tmp.<pid>.<counter>.<random>`.
-pub const MAX_TMP_SUFFIX_BYTES: usize = ".tmp...".len() + 10 + 20 + 16;
-
 /// A unique sibling of `base` (`<base>.tmp.<pid>.<counter>.<random>`).
 ///
 /// Keeping it in `base`'s directory keeps the eventual rename atomic on POSIX.
