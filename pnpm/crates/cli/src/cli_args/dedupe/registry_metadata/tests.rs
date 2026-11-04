@@ -52,6 +52,7 @@ fn deprecated() -> String {
 }
 
 fn only_registry_metadata_differs(previous: &str, next: &str) -> bool {
+    eprintln!("PREVIOUS:\n{previous}\nNEXT:\n{next}");
     differs_only_in_registry_metadata(
         (Some(previous), Some(&parse(previous))),
         (Some(next), Some(&parse(next))),
