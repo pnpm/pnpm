@@ -25,12 +25,8 @@ pub fn undeclared_peers(
 ) -> Vec<UndeclaredPeer> {
     let Some(importer) = lockfile.importers.get(importer_id) else { return Vec::new() };
     let mut providers = Providers::new();
-    if resolve_from_root && let Some(root) = lockfile.importers.get(".") {
-        let root_providers = importer_providers(root);
-        for provider in root_providers.values() {
-            providers.entry(provider.name.to_string()).or_insert_with(|| provider.clone());
-        }
-        providers.extend(root_providers);
+    if resolve_from_root {
+        providers.extend(root_providers(lockfile));
     }
     let direct = importer_providers(importer);
     providers.extend(direct.clone());
@@ -50,6 +46,17 @@ pub fn undeclared_peers(
     result.sort_by(|left, right| (&left.package, &left.peer).cmp(&(&right.package, &right.peer)));
     result.dedup_by(|left, right| left.package == right.package && left.peer == right.peer);
     result
+}
+
+fn root_providers(lockfile: &Lockfile) -> Providers {
+    let Some(root) = lockfile.importers.get(".") else { return Providers::new() };
+    let declared = importer_providers(root);
+    let mut providers = Providers::new();
+    for provider in declared.values() {
+        providers.entry(provider.name.to_string()).or_insert_with(|| provider.clone());
+    }
+    providers.extend(declared);
+    providers
 }
 
 fn importer_providers(importer: &ProjectSnapshot) -> Providers {

@@ -15,7 +15,6 @@
 //! resolution instead, which is the one place the two stacks compute
 //! the same verdict by different routes.
 
-mod undeclared;
 pub use undeclared::{UndeclaredPeer, undeclared_peers};
 
 pub use filter::filter_peer_issues;
@@ -342,6 +341,7 @@ struct LinkedDependency<'m> {
 }
 
 mod snapshot;
+mod undeclared;
 use snapshot::{extract_peer_version, satisfies, walk_snapshot};
 
 #[cfg(test)]
