@@ -44,6 +44,16 @@ fn rejects_a_file_without_frontmatter() {
 }
 
 #[test]
+fn comment_only_and_null_frontmatter_declare_no_releases() {
+    for content in ["---\n# no bumps\n---\n\nA fix.\n", "---\nnull\n---\n\nA fix.\n"] {
+        eprintln!("CASE: {content:?}");
+        let intent = parse_change_intent(content, "id", Path::new("/x/id.md")).expect("parse");
+        assert!(intent.releases.is_empty());
+        assert_eq!(intent.summary, "A fix.");
+    }
+}
+
+#[test]
 fn write_change_intent_output_round_trips_through_read_change_intents() {
     let workspace = tempfile::tempdir().expect("create temp workspace");
     let releases = IndexMap::from([("@example/ui".to_string(), IntentBumpType::Minor)]);

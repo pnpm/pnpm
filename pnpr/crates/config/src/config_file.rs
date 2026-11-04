@@ -522,7 +522,7 @@ pub(super) fn default_true() -> bool {
     true
 }
 
-fn deserialize_null_default<'de, Deserializer, Value>(
+pub(super) fn deserialize_null_default<'de, Deserializer, Value>(
     deserializer: Deserializer,
 ) -> Result<Value, Deserializer::Error>
 where
