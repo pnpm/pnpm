@@ -386,6 +386,28 @@ fn pre_command_plan_switches_to_the_version_the_pin_resolved_to() {
     assert_eq!(version, "99.0.0");
 }
 
+/// The switch installs into the engine store under the pnpm home, so placing
+/// the project's store would only probe the project directory, which file
+/// watchers report (pnpm/pnpm#17681).
+#[test]
+fn pre_command_plan_switches_without_placing_the_project_store() {
+    let root = TempDir::new().expect("tmp dir");
+    write_dev_engine_manifest(root.path(), "99.0.0");
+    write_lockfile(root.path(), &locked_package_manager("99.0.0", "99.0.0"));
+
+    let plan = pre_command_plan_from_input(
+        &pre_command_input(root.path()),
+        &ConfigOverrides::default(),
+        SwitchProcessState { package_manager_switch_disabled: false, executed_by_corepack: false },
+    )
+    .expect("pre-command plan");
+
+    let Some(PreCommandPlan::Switch(plan)) = plan else {
+        panic!("expected a switch plan, got {plan:?}");
+    };
+    assert!(plan.config.store_dir_placement_skipped);
+}
+
 /// A range pin the lockfile already resolved keeps that version, even while
 /// the running pnpm is another one the range allows. Recording the running
 /// pnpm instead would pin everyone to a release nobody checked against the
