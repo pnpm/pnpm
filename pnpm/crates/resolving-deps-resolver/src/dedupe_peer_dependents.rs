@@ -25,7 +25,9 @@ use std::collections::BTreeMap;
 use pnpm_deps_path::DepPath;
 use survivor_names::rename_survivors;
 
+mod cycles;
 mod survivor_names;
+use cycles::collapse_cycles;
 
 use crate::{
     dedupe_injected_deps::{DirectByImporter, prune_unreachable},
@@ -126,83 +128,11 @@ fn deduplicate_round(
     if !next.is_empty() {
         return (next, survivors);
     }
-    let next = collapse_cycle(graph, duplicates);
+    let next = collapse_cycles(graph, duplicates);
     for group in &mut survivors {
         group.retain(|path| !next.contains_key(path));
     }
     (next, survivors)
-}
-
-// A cycle has no leaf whose collapse can start the next round. Collapse one
-// compatible pair to break that dependency, then settle its children again.
-fn collapse_cycle(
-    graph: &DependenciesGraph,
-    duplicates: &[Vec<DepPath>],
-) -> HashMap<DepPath, DepPath> {
-    for group in cycle_order(graph, duplicates) {
-        let mut paths = group.clone();
-        sort_variants(graph, &mut paths);
-        while let Some(largest) = paths.pop() {
-            let candidate = paths
-                .iter()
-                .rev()
-                .find(|candidate| is_compatible_and_has_more_deps(graph, &largest, candidate));
-            if let Some(candidate) = candidate {
-                return HashMap::from_iter([(candidate.clone(), largest)]);
-            }
-        }
-    }
-    HashMap::default()
-}
-
-fn cycle_order<'a>(
-    graph: &DependenciesGraph,
-    duplicates: &'a [Vec<DepPath>],
-) -> Vec<&'a Vec<DepPath>> {
-    let by_id: HashMap<&str, usize> = duplicates
-        .iter()
-        .enumerate()
-        .filter(|(_, group)| !group.is_empty())
-        .map(|(index, group)| (graph[&group[0]].resolved_package_id.as_str(), index))
-        .collect();
-    let adjacency: Vec<_> = duplicates
-        .iter()
-        .map(|group| group_dependencies(graph, group, &by_id))
-        .collect();
-    let mut components = crate::strongly_connected_components::SccPass::default();
-    for root in 0..duplicates.len() {
-        if !components.index_of.contains_key(&root) {
-            components.visit_root(&root, &|index| adjacency[*index].clone());
-        }
-    }
-    components.sccs
-        .into_iter()
-        .flat_map(|mut component| {
-            component.sort_unstable();
-            component
-        })
-        .map(|index| &duplicates[index])
-        .collect()
-}
-
-fn group_dependencies(
-    graph: &DependenciesGraph,
-    group: &[DepPath],
-    by_id: &HashMap<&str, usize>,
-) -> Vec<usize> {
-    let mut dependencies = HashSet::default();
-    for variant in group {
-        for child in graph[variant].edges.children.values() {
-            if let Some(node) = graph.get(child)
-                && let Some(index) = by_id.get(node.resolved_package_id.as_str())
-            {
-                dependencies.insert(*index);
-            }
-        }
-    }
-    let mut dependencies: Vec<_> = dependencies.into_iter().collect();
-    dependencies.sort_unstable();
-    dependencies
 }
 
 type IncomingEdges = HashMap<DepPath, Vec<(DepPath, String)>>;

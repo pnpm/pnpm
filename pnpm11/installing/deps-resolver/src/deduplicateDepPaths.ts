@@ -34,36 +34,71 @@ function deduplicateRound<Pkg extends PartialResolvedPackage> (
 ): DeduplicateDepPathsResult {
   const result = deduplicateDepPaths(duplicates, depGraph)
   if (Object.keys(result.depPathsMap).length > 0) return result
-  const depPathsMap = collapseCycle(depGraph, duplicates)
+  const depPathsMap = collapseCycles(depGraph, duplicates)
   return {
     depPathsMap,
     remainingDuplicates: result.remainingDuplicates.map(group => new Set([...group].filter(path => !depPathsMap[path]))),
   }
 }
 
-// A cycle has no leaf whose collapse can start the next round. Collapse one
-// compatible pair to break that dependency, then settle its children again.
-function collapseCycle<Pkg extends PartialResolvedPackage> (
+interface CycleComponent {
+  groups: Array<Set<DepPath>>
+  dependencies: Set<number>
+  cyclic: boolean
+}
+
+// Break one pair per independent cycle, deferring parents of changed components
+// until their children have settled in the next ordinary round.
+function collapseCycles<Pkg extends PartialResolvedPackage> (
   depGraph: GenericDependenciesGraphWithResolvedChildren<Pkg>,
   duplicates: Array<Set<DepPath>>
 ): Record<DepPath, DepPath> {
-  const sorter = createDepCountSorter(depGraph)
-  const groups = cycleOrder(depGraph, duplicates)
-  for (const group of groups) {
-    const paths = [...group].sort(sorter)
-    while (paths.length) {
-      const largest = paths.pop()!
-      const candidate = [...paths].reverse().find(path => isCompatibleAndHasMoreDeps(depGraph, largest, path))
-      if (candidate) return { [candidate]: largest }
+  const components = cycleComponents(depGraph, duplicates)
+  const changed = components.map(() => false)
+  const replacements: Record<DepPath, DepPath> = {}
+  for (const [index, component] of components.entries()) {
+    if ([...component.dependencies].some(dependency => changed[dependency])) {
+      changed[index] = true
+      continue
+    }
+    if (!component.cyclic) continue
+    const pair = compatibleComponentPair(depGraph, component)
+    if (pair) {
+      replacements[pair[0]] = pair[1]
+      changed[index] = true
     }
   }
-  return {}
+  return replacements
 }
 
-function cycleOrder<Pkg extends PartialResolvedPackage> (
+function compatibleComponentPair<Pkg extends PartialResolvedPackage> (
+  depGraph: GenericDependenciesGraphWithResolvedChildren<Pkg>,
+  component: CycleComponent
+): [DepPath, DepPath] | undefined {
+  for (const group of component.groups) {
+    const pair = compatiblePair(depGraph, group)
+    if (pair) return pair
+  }
+  return undefined
+}
+
+function compatiblePair<Pkg extends PartialResolvedPackage> (
+  depGraph: GenericDependenciesGraphWithResolvedChildren<Pkg>,
+  group: Set<DepPath>
+): [DepPath, DepPath] | undefined {
+  const paths = [...group].sort(createDepCountSorter(depGraph))
+  while (paths.length) {
+    const largest = paths.pop()!
+    const candidate = [...paths].reverse().find(path => isCompatibleAndHasMoreDeps(depGraph, largest, path))
+    if (candidate) return [candidate, largest]
+  }
+  return undefined
+}
+
+function cycleComponents<Pkg extends PartialResolvedPackage> (
   depGraph: GenericDependenciesGraphWithResolvedChildren<Pkg>,
   duplicates: Array<Set<DepPath>>
-): Array<Set<DepPath>> {
+): CycleComponent[] {
   const groups = duplicates.filter(group => group.size > 1).sort((left, right) => {
     const leftId = depGraph[left.values().next().value!].pkgIdWithPatchHash
     const rightId = depGraph[right.values().next().value!].pkgIdWithPatchHash
@@ -71,10 +106,26 @@ function cycleOrder<Pkg extends PartialResolvedPackage> (
   })
   const byId = new Map(groups.map((group, index) => [depGraph[group.values().next().value!].pkgIdWithPatchHash, index]))
   const adjacency = groups.map(group => groupDependencies(depGraph, group, byId))
-  const { componentOf } = computeStronglyConnectedComponents(adjacency, adjacency.map(() => false))
-  return groups.map((group, index) => ({ group, index }))
-    .sort((left, right) => componentOf[left.index] - componentOf[right.index] || left.index - right.index)
-    .map(({ group }) => group)
+  const analysis = computeStronglyConnectedComponents(adjacency, adjacency.map(() => false))
+  const components: CycleComponent[] = analysis.componentSize.map(size => ({ groups: [], dependencies: new Set(), cyclic: size > 1 }))
+  populateComponents({ groups, adjacency, componentOf: analysis.componentOf, components })
+  return components
+}
+
+function populateComponents ({ groups, adjacency, componentOf, components }: {
+  groups: Array<Set<DepPath>>
+  adjacency: number[][]
+  componentOf: number[]
+  components: CycleComponent[]
+}): void {
+  for (const [index, group] of groups.entries()) {
+    const component = components[componentOf[index]]
+    component.groups.push(group)
+    if (adjacency[index].includes(index)) component.cyclic = true
+    for (const child of adjacency[index]) {
+      if (componentOf[child] !== componentOf[index]) component.dependencies.add(componentOf[child])
+    }
+  }
 }
 
 function groupDependencies<Pkg extends PartialResolvedPackage> (

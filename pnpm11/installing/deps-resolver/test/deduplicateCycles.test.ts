@@ -4,10 +4,10 @@ import type { DepPath, PkgIdWithPatchHash, PkgResolutionId } from '@pnpm/types'
 import { deduplicateAll } from '../lib/deduplicateDepPaths.js'
 import type { GenericDependenciesGraphWithResolvedChildren, PartialResolvedPackage } from '../lib/peersResolutionTypes.js'
 
-test.each([[2, false], [2, true], [128, false]] as const)('dedupe a cycle of %s with reversed order %s', (size, reverse) => {
-  const { graph, groups } = cycleGraph(size)
+test.each([[2, false, 1], [2, true, 1], [128, false, 1], [2, false, 128]] as const)('dedupe size %s, reverse %s, components %s', (size, reverse, count) => {
+  const { graph, groups } = cycleGraph(size, [1], count)
   const replacements = deduplicateAll(graph, reverse ? groups.reverse() : groups)
-  for (let index = 0; index < size; index++) {
+  for (let index = 0; index < size * count; index++) {
     expect(replacements[`node-${index}@1.0.0` as DepPath]).toBe(`node-${index}@1.0.0(peer@1.0.0)`)
   }
   expect(graph['unrelated-0@1.0.0' as DepPath].children.leaf).toBe('leaf@1.0.0')
@@ -34,12 +34,12 @@ test('a parent of a cycle waits for the cyclic variants to settle', () => {
   expect(direct).toBe('node-0@1.0.0(peer@2.0.0)')
 })
 
-function cycleGraph (size: number, peerVersions = [1]) {
+function cycleGraph (size: number, peerVersions = [1], count = 1) {
   const graph: GenericDependenciesGraphWithResolvedChildren<PartialResolvedPackage> = {}
   const groups: Array<Set<DepPath>> = []
-  for (let index = 0; index < size; index++) {
+  for (let index = 0; index < size * count; index++) {
     const name = `node-${index}`
-    const child = `node-${(index + 1) % size}`
+    const child = `node-${Math.floor(index / size) * size + (index + 1) % size}`
     const group = new Set<DepPath>()
     for (const peerVersion of [0, ...peerVersions]) {
       const bound = peerVersion > 0

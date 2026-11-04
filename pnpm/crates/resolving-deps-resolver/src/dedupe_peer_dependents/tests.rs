@@ -807,16 +807,20 @@ fn a_parent_merge_sees_the_transitive_peers_of_a_merged_child() {
 
 #[test]
 fn a_cycle_dedupes_after_one_pair_breaks_the_dependency_between_merges() {
-    for size in [2, 128] {
-        check_cycle_deduplication(size);
+    for (size, count) in [(2, 1), (128, 1), (2, 128)] {
+        check_cycle_deduplication(size, count);
     }
 }
 
 fn cycle_graph(size: usize, versions: &[u8]) -> DependenciesGraph {
+    cycle_graph_components(size, versions, 1)
+}
+
+fn cycle_graph_components(size: usize, versions: &[u8], count: usize) -> DependenciesGraph {
     let mut graph = DependenciesGraph::default();
-    for index in 0..size {
+    for index in 0..size * count {
         let name = format!("node-{index}");
-        let child = format!("node-{}", (index + 1) % size);
+        let child = format!("node-{}", index / size * size + (index + 1) % size);
         let bare = format!("{name}@1.0.0");
         let bare_child = format!("{child}@1.0.0");
         graph.insert(dp(&bare), make_node(&bare, &bare, &[(&child, &bare_child)], &[]));
@@ -842,16 +846,28 @@ fn cycle_graph(size: usize, versions: &[u8]) -> DependenciesGraph {
     graph
 }
 
-fn check_cycle_deduplication(size: usize) {
-    let mut graph = cycle_graph(size, &[1]);
+fn check_cycle_deduplication(size: usize, count: usize) {
+    let mut graph = cycle_graph_components(size, &[1], count);
     let mut direct = BTreeMap::from([
         ("bare".into(), BTreeMap::from([("alpha".into(), dp("node-0@1.0.0"))])),
         ("bound".into(), BTreeMap::from([("alpha".into(), dp("node-0@1.0.0(peer@1.0.0)"))])),
     ]);
+    for component in 1..count {
+        let root = format!("node-{}", component * size);
+        direct
+            .get_mut("bare")
+            .unwrap()
+            .insert(root.clone(), dp(&format!("{root}@1.0.0")));
+        direct
+            .get_mut("bound")
+            .unwrap()
+            .insert(root.clone(), dp(&format!("{root}@1.0.0(peer@1.0.0)")));
+    }
     let peer_ids = recorded_peer_ids(&graph);
     dedupe_peer_dependents(&mut graph, &mut direct, &suffixes(&peer_ids));
     assert_eq!(direct["bare"]["alpha"], direct["bound"]["alpha"]);
-    assert_eq!(graph.len(), size + 1);
+    assert_eq!(direct["bare"], direct["bound"]);
+    assert_eq!(graph.len(), size * count + 1);
 }
 
 #[test]
