@@ -23,7 +23,7 @@ where
     let peer_ver = decode(input);
     dbg!(&peer_ver);
     let output = encode(&peer_ver);
-    assert_eq!(peer_ver, decode(&output));
+    assert_eq!(input, output);
 }
 
 #[test]
@@ -114,7 +114,7 @@ fn deserialize_serialize() {
             input,
             |input| serde_saphyr::from_str(input).unwrap(),
             |ver_peer| {
-                serde_saphyr::to_string(&ver_peer)
+                crate::serialize_yaml::to_string(&ver_peer)
                     .unwrap()
                     .trim()
                     .to_string()
