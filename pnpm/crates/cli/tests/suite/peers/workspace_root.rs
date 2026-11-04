@@ -189,108 +189,114 @@ fn linked_package_peer_not_resolved_from_root_when_setting_is_disabled() {
 
 #[test]
 fn workspace_peer_reuse_settings_matrix() {
-    use crate::_utils::{
-        ManifestDeps, WorkspaceFixture, assert_success, ndjson_records, read_v11_bundle_path,
-    };
-
-    let bundle = read_v11_bundle_path();
-    for use_v11 in [false, true] {
-        if use_v11 && bundle.is_none() {
-            continue;
-        }
-        for auto_install in [false, true] {
-            for dedupe in [false, true] {
-                for from_root in [false, true] {
-                    for provider_location in ["root", "sibling", "transitive"] {
-                        let root_provider = provider_location == "root";
-                        let fixture = WorkspaceFixture::new();
-                        fixture.append_workspace_yaml(&format!(
-                            "autoInstallPeers: {auto_install}\ndedupePeerDependents: {dedupe}\nresolvePeersFromWorkspaceRoot: {from_root}\n",
-                        ));
-                        let providers = ManifestDeps {
-                            prod: &[("@pnpm.e2e/peer-a", "1.0.0"), ("@pnpm.e2e/peer-c", "1.0.0")],
-                            ..ManifestDeps::default()
-                        };
-                        fixture.write_root_manifest(
-                            "root",
-                            if root_provider { providers } else { ManifestDeps::default() },
-                        );
-                        if !root_provider {
-                            if provider_location == "transitive" {
-                                crate::_utils::write_project_manifest(
-                                    &fixture.workspace.join("carrier"),
-                                    "carrier",
-                                    providers,
-                                );
-                                fixture.project(
-                                    "provider",
-                                    "provider",
-                                    ManifestDeps {
-                                        prod: &[("carrier", "file:../../carrier")],
-                                        ..ManifestDeps::default()
-                                    },
-                                );
-                            } else {
-                                fixture.project("provider", "provider", providers);
-                            }
-                        }
-                        fixture.project(
-                            "consumer",
-                            "consumer",
-                            ManifestDeps {
-                                prod: &[("@pnpm.e2e/abc-optional-peers", "1.0.0")],
-                                ..ManifestDeps::default()
-                            },
-                        );
-                        let run = |args: &[&str]| {
-                            if use_v11 {
-                                fixture.v11_command_at(
-                                    bundle.as_ref().unwrap(),
-                                    &fixture.workspace,
-                                    args,
-                                )
-                            } else {
-                                fixture.command_at(&fixture.workspace, args)
-                            }
-                        };
-                        let output = run(&["install", "--lockfile-only"]);
-                        assert_success(&output);
-                        let lock_path = fixture.workspace.join("pnpm-lock.yaml");
-                        let fresh = fs::read_to_string(&lock_path).unwrap();
-                        let lock: serde_json::Value = serde_saphyr::from_str(&fresh).unwrap();
-                        let version = lock["importers"]["packages/consumer"]["dependencies"]
-                            ["@pnpm.e2e/abc-optional-peers"]["version"]
-                            .as_str()
-                            .unwrap();
-                        let optional_resolved =
-                            auto_install || dedupe || (root_provider && from_root);
-                        assert_eq!(
-                            version.contains("peer-c@1.0.0"),
-                            optional_resolved,
-                            "v11={use_v11}, auto={auto_install}, dedupe={dedupe}, root={root_provider}, root scope={from_root}: {version}"
-                        );
-                        assert_eq!(version.contains("peer-a@"), optional_resolved);
-                        let issues = ndjson_records(&output)
-                            .into_iter()
-                            .find(|record| record["name"] == "pnpm:peer-dependency-issues");
-                        let missing = issues
-                            .as_ref()
-                            .and_then(|record| {
-                                record["issuesByProjects"]["packages/consumer"]["missing"]
-                                    .as_object()
-                            });
-                        assert_eq!(
-                            missing.is_some_and(|peers| peers.contains_key("@pnpm.e2e/peer-a")),
-                            !optional_resolved
-                        );
-
-                        assert_success(&run(&["install", "--lockfile-only", "--frozen-lockfile"]));
-                        assert_eq!(fs::read_to_string(&lock_path).unwrap(), fresh);
-                    }
-                }
+    let bundle = crate::_utils::read_v11_bundle_path();
+    let settings = [
+        (false, false, false),
+        (false, false, true),
+        (false, true, false),
+        (false, true, true),
+        (true, false, false),
+        (true, false, true),
+        (true, true, false),
+        (true, true, true),
+    ];
+    for cli in std::iter::once(None).chain(bundle.as_deref().map(Some)) {
+        for row in settings {
+            for location in ["root", "sibling", "transitive"] {
+                check_peer_reuse(cli, row, location);
             }
         }
     }
+}
+
+fn run_peer_fixture(
+    fixture: &crate::_utils::WorkspaceFixture,
+    bundle: Option<&std::ffi::OsStr>,
+    args: &[&str],
+) -> std::process::Output {
+    match bundle {
+        Some(bundle) => fixture.v11_command_at(bundle, &fixture.workspace, args),
+        None => fixture.command_at(&fixture.workspace, args),
+    }
+}
+
+fn write_peer_provider(fixture: &crate::_utils::WorkspaceFixture, location: &str) {
+    use crate::_utils::{ManifestDeps, write_project_manifest};
+    let providers = ManifestDeps {
+        prod: &[("@pnpm.e2e/peer-a", "1.0.0"), ("@pnpm.e2e/peer-c", "1.0.0")],
+        ..ManifestDeps::default()
+    };
+    fixture.write_root_manifest("root", ManifestDeps::default());
+    match location {
+        "root" => fixture.write_root_manifest("root", providers),
+        "sibling" => {
+            fixture.project("provider", "provider", providers);
+        }
+        "transitive" => {
+            write_project_manifest(&fixture.workspace.join("carrier"), "carrier", providers);
+            fixture.project(
+                "provider",
+                "provider",
+                ManifestDeps {
+                    prod: &[("carrier", "file:../../carrier")],
+                    ..ManifestDeps::default()
+                },
+            );
+        }
+        _ => unreachable!(),
+    }
+}
+
+fn check_peer_reuse(
+    bundle: Option<&std::ffi::OsStr>,
+    (auto_install, dedupe, from_root): (bool, bool, bool),
+    provider_location: &str,
+) {
+    use crate::_utils::{ManifestDeps, WorkspaceFixture, assert_success, ndjson_records};
+    let root_provider = provider_location == "root";
+    let fixture = WorkspaceFixture::new();
+    fixture.append_workspace_yaml(&format!(
+        "autoInstallPeers: {auto_install}\ndedupePeerDependents: {dedupe}\nresolvePeersFromWorkspaceRoot: {from_root}\n",
+    ));
+    write_peer_provider(&fixture, provider_location);
+    fixture.project(
+        "consumer",
+        "consumer",
+        ManifestDeps {
+            prod: &[("@pnpm.e2e/abc-optional-peers", "1.0.0")],
+            ..ManifestDeps::default()
+        },
+    );
+    let run = |args: &[&str]| run_peer_fixture(&fixture, bundle, args);
+    let output = run(&["install", "--lockfile-only"]);
+    assert_success(&output);
+    let lock_path = fixture.workspace.join("pnpm-lock.yaml");
+    let fresh = fs::read_to_string(&lock_path).unwrap();
+    let lock: serde_json::Value = serde_saphyr::from_str(&fresh).unwrap();
+    let version = lock["importers"]["packages/consumer"]["dependencies"]
+    ["@pnpm.e2e/abc-optional-peers"]["version"]
+    .as_str()
+    .unwrap();
+    let optional_resolved = auto_install || dedupe || (root_provider && from_root);
+    assert_eq!(
+        version.contains("peer-c@1.0.0"),
+        optional_resolved,
+        "bundle={bundle:?}, auto={auto_install}, dedupe={dedupe}, root={root_provider}, root scope={from_root}: {version}",
+    );
+    assert_eq!(version.contains("peer-a@"), optional_resolved);
+    let issues = ndjson_records(&output)
+        .into_iter()
+        .find(|record| record["name"] == "pnpm:peer-dependency-issues");
+    let missing = issues
+        .as_ref()
+        .and_then(|record| record["issuesByProjects"]["packages/consumer"]["missing"].as_object());
+    assert_eq!(
+        missing.is_some_and(|peers| peers.contains_key("@pnpm.e2e/peer-a")),
+        !optional_resolved,
+    );
+
+    assert_success(&run(&["install", "--lockfile-only", "--frozen-lockfile"]));
+    assert_eq!(fs::read_to_string(&lock_path).unwrap(), fresh);
 }
 
 #[test]
@@ -298,10 +304,7 @@ fn reused_required_peer_executable_availability() {
     use crate::_utils::{ManifestDeps, WorkspaceFixture, assert_success, read_v11_bundle_path};
 
     let bundle = read_v11_bundle_path();
-    for use_v11 in [false, true] {
-        if use_v11 && bundle.is_none() {
-            continue;
-        }
+    for cli in std::iter::once(None).chain(bundle.as_deref().map(Some)) {
         let fixture = WorkspaceFixture::new();
         fixture.append_workspace_yaml("autoInstallPeers: false\ndedupePeerDependents: true\n");
         fixture.write_root_manifest("root", ManifestDeps::default());
@@ -321,16 +324,12 @@ fn reused_required_peer_executable_availability() {
                 ..ManifestDeps::default()
             },
         );
-        let output = if use_v11 {
-            fixture.v11_command_at(bundle.as_ref().unwrap(), &fixture.workspace, ["install"])
-        } else {
-            fixture.command_at(&fixture.workspace, ["install"])
-        };
+        let output = run_peer_fixture(&fixture, cli, &["install"]);
         assert_success(&output);
         let lock = fs::read_to_string(fixture.workspace.join("pnpm-lock.yaml")).unwrap();
         assert!(
             lock.contains("(peer-with-bin@") || lock.contains("(@pnpm.e2e/peer-with-bin@"),
-            "{lock}"
+            "{lock}",
         );
         let bin = if cfg!(windows) { "peer-with-bin.cmd" } else { "peer-with-bin" };
         // Peer reuse currently exposes the executable at the importer only in v11.
@@ -339,14 +338,14 @@ fn reused_required_peer_executable_availability() {
                 .join("node_modules/.bin")
                 .join(bin)
                 .exists(),
-            use_v11,
-            "v11={use_v11}"
+            cli.is_some(),
+            "cli={cli:?}",
         );
         assert!(
             fixture.workspace
                 .join("packages/provider/node_modules/.bin")
                 .join(bin)
-                .exists()
+                .exists(),
         );
     }
 }
