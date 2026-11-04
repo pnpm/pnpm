@@ -129,3 +129,17 @@ fn rejects_other_spellings_of_a_purl() {
         );
     }
 }
+
+#[test]
+fn spells_a_purl_canonically() {
+    let npm_spelling = Purl::from_string_unchecked("pkg:npm/legacy!pkg@1.0.0".to_owned());
+    assert_eq!(npm_spelling.canonical(), Some(Purl::npm("legacy!pkg", "1.0.0").unwrap()));
+    assert_eq!(
+        npm_spelling
+            .canonical()
+            .unwrap()
+            .as_str(),
+        "pkg:npm/legacy%21pkg@1.0.0"
+    );
+    assert_eq!(Purl::from_string_unchecked("not a purl".to_owned()).canonical(), None);
+}

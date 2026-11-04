@@ -97,13 +97,34 @@ pub(super) fn check_statements(
                 })?;
             let named = subjects
                 .iter()
-                .any(|(subject, sha512)| subject == purl.as_str() && *sha512 == digest);
+                .any(|(subject, sha512)| names(subject, &purl) && *sha512 == digest);
             if !named {
                 return Err(refuse(format!("does not name {purl} with sha512 {digest}")));
             }
         }
     }
     Ok(())
+}
+
+/// Whether a statement's `subject` names the archive whose PURL is `purl`.
+/// npm and pnpm percent-encode only a leading `@` of a package name, so the
+/// name and version are compared by their canonical spelling; the qualifiers
+/// that name a variant must be spelled exactly as `purl` spells them.
+fn names(subject: &str, purl: &Purl) -> bool {
+    let (subject_path, subject_qualifiers) = split_qualifiers(subject);
+    let (purl_path, purl_qualifiers) = split_qualifiers(purl.as_str());
+    subject_qualifiers == purl_qualifiers
+        && Purl::from_string_unchecked(subject_path.to_owned())
+            .canonical()
+            .is_some_and(|canonical| canonical.as_str() == purl_path)
+}
+
+/// A PURL's text before its `?`, and the qualifiers after it.
+fn split_qualifiers(purl: &str) -> (&str, Option<&str>) {
+    match purl.split_once('?') {
+        Some((path, qualifiers)) => (path, Some(qualifiers)),
+        None => (purl, None),
+    }
 }
 
 /// The PURL and `.tgz` integrity of each archive `version` publishes.

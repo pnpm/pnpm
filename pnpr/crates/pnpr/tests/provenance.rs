@@ -512,3 +512,25 @@ async fn an_archive_with_two_sha512_digests_cannot_be_named() {
         String::from_utf8_lossy(&bytes),
     );
 }
+
+/// npm names a package in its provenance with only a leading `@`
+/// percent-encoded, so a legacy name such as `legacy!pkg` is named as npm
+/// spells it.
+#[tokio::test]
+async fn a_statement_names_a_legacy_package_as_npm_spells_it() {
+    let tmp = TempDir::new().unwrap();
+    let auth = AuthState::in_memory();
+    let token = issue_token(&auth, "alice").await;
+    let app = router_with_auth(static_config(tmp.path().to_path_buf()), auth);
+
+    let bundle = sample_sigstore_bundle("https://slsa.dev/provenance/v1");
+    let doc =
+        doc_with_sigstore("legacy!pkg", "1.0.0", b"tarball", "legacy!pkg-1.0.0.sigstore", &bundle);
+    let res = app
+        .oneshot(put_publish("/npm/legacy!pkg", &token, &doc))
+        .await
+        .unwrap();
+    let status = res.status();
+    let bytes = to_bytes(res.into_body(), usize::MAX).await.unwrap();
+    assert_eq!(status, StatusCode::CREATED, "{}", String::from_utf8_lossy(&bytes));
+}

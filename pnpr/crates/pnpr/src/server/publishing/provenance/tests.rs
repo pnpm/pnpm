@@ -1,4 +1,4 @@
-use super::{sha512_hex, statement_subjects};
+use super::{Purl, names, sha512_hex, statement_subjects};
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use serde_json::json;
 
@@ -62,4 +62,16 @@ fn refuses_a_bundle_that_is_not_an_in_toto_statement() {
     let statement =
         typed_bundle(&subjects, "https://example.com/Other", "application/vnd.in-toto+json");
     assert!(statement_subjects(&statement).unwrap_err().contains("statement type"));
+}
+
+#[test]
+fn names_an_archive_by_any_spelling_of_its_name_but_not_of_its_variant() {
+    let legacy = Purl::npm("legacy!pkg", "1.0.0").unwrap();
+    assert!(names("pkg:npm/legacy!pkg@1.0.0", &legacy));
+    assert!(names("pkg:npm/legacy%21pkg@1.0.0", &legacy));
+    assert!(!names("pkg:npm/legacy!pkg@1.0.1", &legacy));
+    let variant = Purl::npm_variant("legacy!pkg", "1.0.0", "linux-x64+linux-arm64").unwrap();
+    assert!(names("pkg:npm/legacy!pkg@1.0.0?variant=linux-x64%2Blinux-arm64", &variant));
+    assert!(!names("pkg:npm/legacy!pkg@1.0.0?variant=linux-x64+linux-arm64", &variant));
+    assert!(!names("pkg:npm/legacy!pkg@1.0.0", &variant));
 }
