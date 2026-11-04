@@ -700,3 +700,36 @@ fn a_workspace_with_config_dependencies_is_up_to_date_from_the_records() {
     assert!(workspace.join("node_modules/.pnpm-config/@pnpm.e2e/foo/package.json").exists());
     drop((root, mock_instance));
 }
+
+/// The config setup already warns about the root manifest, so the fast path
+/// after it does not warn again.
+#[test]
+fn an_install_with_a_pnpmfile_warns_about_the_root_manifest_once() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_workspace_with_pnpmfile(&workspace);
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "root", "private": true, "pnpm": { "overrides": {} } })
+            .to_string(),
+    )
+    .expect("write package.json");
+    pacquet
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_arg("install")
+        .assert()
+        .success();
+    trust_recorded_stats(&workspace, mock_instance.url());
+
+    let output = traced_install(&workspace, mock_instance.url());
+
+    assert!(output.contains(TAKEN_AFTER_CONFIG), "{output}");
+    assert_eq!(output.matches("is no longer read by pnpm").count(), 1, "{output}");
+    drop((root, mock_instance));
+}

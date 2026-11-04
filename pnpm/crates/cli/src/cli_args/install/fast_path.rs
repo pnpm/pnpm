@@ -7,15 +7,34 @@ use crate::cli_args::yarn_workspaces_field::{
     converts_yarn_workspaces, warn_about_workspaces_field,
 };
 
-fn report_up_to_date_install(
+/// Which up-to-date attempt runs.
+#[derive(Clone, Copy)]
+enum Attempt {
+    /// Before the config setup. It decides from the records or the files,
+    /// and emits the config warnings the install would, which nothing has
+    /// emitted yet.
+    BeforeConfig,
+    /// After the config setup, which emitted the config warnings already. It
+    /// decides from the records alone.
+    AfterConfig,
+}
+
+/// The config warnings the install emits before its own output.
+fn warn_about_config(
     root_manifest: Option<&serde_json::Value>,
     config: &pnpm_config::Config,
-    up_to_date: &pnpm_package_manager::UpToDateWorkspace,
     emit: fn(&pnpm_reporter::LogEvent),
 ) {
     warn_ignored_pnpm_manifest_fields(root_manifest);
     warn_about_workspaces_field(config, root_manifest);
     warn_deprecated_override_version_references(config, emit);
+}
+
+fn report_up_to_date_install(
+    config: &pnpm_config::Config,
+    up_to_date: &pnpm_package_manager::UpToDateWorkspace,
+    emit: fn(&pnpm_reporter::LogEvent),
+) {
     // The scope covers the same projects the full install path would
     // report; an up-to-date run says so too rather than going quiet
     // about what it just decided was current.
@@ -91,7 +110,7 @@ impl InstallArgs {
             return Err(reason);
         }
         check_config_fast_path(config, config.root_project_manifest_dir(dir))?;
-        self.report_if_up_to_date(dir, config, emit, install_already_up_to_date)
+        self.report_if_up_to_date(dir, config, emit, Attempt::BeforeConfig)
     }
 
     /// The up-to-date fast path once the config dependencies are installed
@@ -127,8 +146,7 @@ impl InstallArgs {
         if node_linker == pnpm_config::NodeLinker::Hoisted && uses_pnpmfile(config, config_root) {
             return false;
         }
-        let decided =
-            self.report_if_up_to_date(dir, config, emit, install_already_up_to_date_from_records);
+        let decided = self.report_if_up_to_date(dir, config, emit, Attempt::AfterConfig);
         if let Err(reason) = decided {
             tracing::debug!(
                 target: "pacquet::install",
@@ -154,15 +172,13 @@ impl InstallArgs {
             && self.prefer_frozen_override().unwrap_or(config.prefer_frozen_lockfile)
     }
 
-    /// Report the install up to date when `decide` finds it so.
+    /// Report the install up to date when `attempt` finds it so.
     fn report_if_up_to_date(
         &self,
         dir: &std::path::Path,
         config: &pnpm_config::Config,
         emit: fn(&pnpm_reporter::LogEvent),
-        decide: fn(
-            &UpToDateFastPathCheck<'_>,
-        ) -> Result<pnpm_package_manager::UpToDateWorkspace, &'static str>,
+        attempt: Attempt,
     ) -> Result<(), &'static str> {
         let config_root = config.root_project_manifest_dir(dir);
         let root_manifest = read_root_manifest_json(config_root);
@@ -177,6 +193,10 @@ impl InstallArgs {
             .map_err(|_| "package.json cannot be parsed")?;
         let node_linker =
             self.materialization.node_linker.map_or(config.node_linker, NodeLinkerArg::into_config);
+        let decide = match attempt {
+            Attempt::BeforeConfig => install_already_up_to_date,
+            Attempt::AfterConfig => install_already_up_to_date_from_records,
+        };
         let up_to_date = decide(&UpToDateFastPathCheck {
             config,
             manifest: &manifest,
@@ -186,7 +206,10 @@ impl InstallArgs {
                 config.supported_architectures.clone(),
             ),
         })?;
-        report_up_to_date_install(root_manifest.as_ref(), config, &up_to_date, emit);
+        if matches!(attempt, Attempt::BeforeConfig) {
+            warn_about_config(root_manifest.as_ref(), config, emit);
+        }
+        report_up_to_date_install(config, &up_to_date, emit);
         Ok(())
     }
 
