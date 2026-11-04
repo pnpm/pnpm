@@ -278,20 +278,20 @@ fn modules_directories_the_walk_skips_by_name_find_the_same_projects() {
     make_project(tmp.path(), "packages/a/node_modules/dep", "dep");
     make_project(tmp.path(), "packages/b", "b");
 
-    let a = modules_dir_opts(tmp.path(), "packages/a");
-    let b = modules_dir_opts(tmp.path(), "packages/b");
+    let in_a = modules_dir_opts(tmp.path(), "packages/a");
+    let in_b = modules_dir_opts(tmp.path(), "packages/b");
 
-    assert!(a.finds_the_same_as(&b, tmp.path()));
+    assert!(in_a.finds_the_same_as(&in_b, tmp.path()));
 }
 
 #[test]
 fn other_patterns_do_not_find_the_same_projects() {
     let tmp = TempDir::new().unwrap();
-    let a = modules_dir_opts(tmp.path(), "packages/a");
-    let mut other = a.clone();
+    let in_a = modules_dir_opts(tmp.path(), "packages/a");
+    let mut other = in_a.clone();
     other.patterns = Some(vec!["packages/*".to_string()]);
 
-    assert!(!a.finds_the_same_as(&other, tmp.path()));
+    assert!(!in_a.finds_the_same_as(&other, tmp.path()));
 }
 
 #[cfg(any(windows, target_os = "macos"))]
@@ -302,8 +302,8 @@ fn a_modules_directory_spelled_otherwise_on_disk_changes_the_projects() {
     make_project(tmp.path(), "packages/a/NODE_MODULES/dep", "dep");
     make_project(tmp.path(), "packages/b", "b");
 
-    let a = modules_dir_opts(tmp.path(), "packages/a");
-    let b = modules_dir_opts(tmp.path(), "packages/b");
+    let in_a = modules_dir_opts(tmp.path(), "packages/a");
+    let in_b = modules_dir_opts(tmp.path(), "packages/b");
 
-    assert!(!a.finds_the_same_as(&b, tmp.path()));
+    assert!(!in_a.finds_the_same_as(&in_b, tmp.path()));
 }
