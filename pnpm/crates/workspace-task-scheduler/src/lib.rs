@@ -23,7 +23,6 @@ use derive_more::{Display, Error};
 use futures_util::{StreamExt, stream::FuturesUnordered};
 use indexmap::IndexMap;
 use miette::Diagnostic;
-use pnpm_config::TaskSettings;
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog};
 use serde::Serialize;
 use std::{
@@ -81,9 +80,10 @@ pub struct TaskCycle {
     pub cycles: String,
 }
 
-pub struct BuildTaskGraphOptions<'a, SelectScripts>
+pub struct BuildTaskGraphOptions<'a, SelectScripts, Declaration>
 where
     SelectScripts: Fn(&Path, &str) -> Vec<String>,
+    Declaration: TaskDeclaration,
 {
     /// The dependency edges among the selected projects, already resolved
     /// through the full workspace graph. Tasks are created only for these
@@ -94,7 +94,7 @@ where
     /// The script the invocation runs; every selected project gets a task
     /// named this, or one per matched script for an expanded selector.
     pub task_name: &'a str,
-    pub tasks: Option<&'a IndexMap<String, TaskSettings>>,
+    pub tasks: Option<&'a IndexMap<String, Declaration>>,
     /// Whether a task name is a `RegExp` selector (a `/pattern/` literal).
     /// With `tasks` declared, a selector seeds one task per script
     /// `select_scripts` matches in each project, so each resolves the
@@ -102,9 +102,10 @@ where
     pub is_selector_task: fn(&str) -> bool,
 }
 
-pub struct BuildPipelineTaskGraphOptions<'a, SelectScripts>
+pub struct BuildPipelineTaskGraphOptions<'a, SelectScripts, Declaration>
 where
     SelectScripts: Fn(&Path, &str) -> Vec<String>,
+    Declaration: TaskDeclaration,
 {
     /// The dependency edges among the included projects, already resolved
     /// through the full workspace graph. Tasks are created only for these
@@ -122,7 +123,18 @@ where
     /// rest of the map participates only through `dependsOn` edges, the
     /// way an upstream build is pulled in without its lint or tests.
     pub requested_projects: Option<&'a [PathBuf]>,
-    pub tasks: Option<&'a IndexMap<String, TaskSettings>>,
+    pub tasks: Option<&'a IndexMap<String, Declaration>>,
+}
+
+/// The parts of a task's entry in the `tasks` section that shape the task
+/// graph.
+pub trait TaskDeclaration {
+    /// The `dependsOn` entries. `None` when the entry omits the key, which
+    /// declares no dependencies.
+    fn depends_on(&self) -> Option<&[String]>;
+
+    /// The most instances of the task that run at once.
+    fn concurrency(&self) -> Option<i64>;
 }
 
 /// How the scheduler saw one task end.

@@ -101,6 +101,7 @@ async fn install_skips_prune_when_virtual_store_escapes_node_modules() {
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
             dedicated: None,
+            discovered_workspace: None,
         },
     }
     .run::<SilentReporter>()
@@ -193,6 +194,7 @@ async fn hoisted_node_linker_does_not_create_virtual_store_root() {
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
             dedicated: None,
+            discovered_workspace: None,
         },
     }
     .run::<SilentReporter>()
@@ -276,6 +278,7 @@ async fn fresh_install_hoisted_node_linker_records_modules_yaml() {
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
             dedicated: None,
+            discovered_workspace: None,
         },
     }
     .run::<SilentReporter>()
@@ -367,6 +370,7 @@ async fn fresh_install_honors_skip_runtimes() {
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
             dedicated: None,
+            discovered_workspace: None,
         },
     }
     .run::<SilentReporter>()
@@ -623,6 +627,7 @@ async fn test_install_purges_node_modules_on_layout_mismatch() {
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
             dedicated: None,
+            discovered_workspace: None,
         },
     }
     .run::<SilentReporter>()
@@ -685,6 +690,7 @@ async fn test_install_purges_node_modules_on_layout_mismatch() {
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
             dedicated: None,
+            discovered_workspace: None,
         },
     }
     .run::<SilentReporter>()

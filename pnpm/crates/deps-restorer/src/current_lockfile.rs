@@ -15,9 +15,11 @@
 //! actually run.
 
 pub use reachability::{GroupSelection, ReachableLockfileGraph, collect_reachable};
+pub use variant_snapshots::{has_variant_snapshots, with_selected_variant_snapshots};
 
 mod missing_projects;
 mod reachability;
+mod variant_snapshots;
 
 use std::{
     collections::{HashMap, HashSet},
@@ -58,6 +60,14 @@ pub fn materialization_closure(
     groups: &GroupSelection,
     skipped: &SkippedSnapshots,
 ) -> MaterializationClosure {
+    // A platform variant with dependencies of its own is wired as its own
+    // snapshot. The walk follows the host's variant, also when
+    // `supportedArchitectures` names one other platform.
+    let selected = with_selected_variant_snapshots(
+        lockfile,
+        &crate::install_package_by_snapshot::host_platform_selector(),
+    );
+    let lockfile = selected.as_ref().unwrap_or(lockfile);
     let reachable =
         collect_reachable(lockfile, workspace_root, initial_importer_ids, groups, |key| {
             skipped.contains(key)

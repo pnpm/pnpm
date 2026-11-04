@@ -1,4 +1,5 @@
 use super::relocated_state;
+use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
 use pnpm_package_manifest::PackageManifest;
 use pnpm_workspace_state::{ProjectEntry, WorkspaceState};
@@ -31,7 +32,7 @@ fn relocated_onto(
         .cloned()
         .zip(&manifests)
         .collect();
-    relocated_state(state, workspace_root, &project_manifests, &Config::new())
+    relocated_state(state, workspace_root, &project_manifests, &Config::new(), &Catalogs::new())
 }
 
 fn path_string(path: &Path) -> String {

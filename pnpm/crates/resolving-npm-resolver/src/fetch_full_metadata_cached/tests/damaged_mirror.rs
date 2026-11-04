@@ -29,6 +29,7 @@ fn options<'a>(
     auth_headers: &'a AuthHeaders,
 ) -> FetchFullMetadataCachedOptions<'a> {
     FetchFullMetadataCachedOptions {
+        pnpr_format: false,
         registry,
         cache_dir: Some(cache_dir),
         full_metadata: true,

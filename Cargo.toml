@@ -16,8 +16,11 @@ repository = "https://github.com/pnpm/pacquet"
 # Crates
 pnpm-github-actions = { path = "pnpm/crates/github-actions" }
 pnpm-matcher = { path = "pnpm/crates/matcher" }
+pnpm-patching-config = { path = "pnpm/crates/patching-config" }
+pnpm-version-policy = { path = "pnpm/crates/version-policy" }
 pnpm-pnpr-client = { path = "pnpm/crates/pnpr-client" }
 pnpm-shared-artifact-protocol = { path = "pnpm/crates/shared-artifact-protocol" }
+pnpm-platform-variants = { path = "pnpm/crates/platform-variants" }
 pnpm-auth-commands = { path = "pnpm/crates/auth-commands" }
 pnpm-cargo-resolver = { path = "pnpm/crates/cargo-resolver" }
 pnpm-catalogs-config = { path = "pnpm/crates/catalogs-config" }
@@ -47,10 +50,13 @@ pnpm-fs = { path = "pnpm/crates/fs" }
 pnpm-fs-packlist = { path = "pnpm/crates/fs-packlist" }
 pnpm-git-utils = { path = "pnpm/crates/git-utils" }
 pnpm-registry = { path = "pnpm/crates/registry" }
+pnpm-release-notes = { path = "pnpm/crates/release-notes" }
 pnpm-tarball = { path = "pnpm/crates/tarball" }
 pnpm-testing-utils = { path = "pnpm/crates/testing-utils" }
 pnpm-text-sanitize = { path = "pnpm/crates/text-sanitize" }
 pnpm-text-section = { path = "pnpm/crates/text-section" }
+pnpm-release-record = { path = "pnpm/crates/release-record" }
+pnpm-transparency-log = { path = "pnpm/crates/transparency-log" }
 pnpm-pack = { path = "pnpm/crates/pack" }
 pnpm-publish = { path = "pnpm/crates/publish" }
 pnpm-python-installer = { path = "pnpm/crates/python-installer" }
@@ -126,6 +132,7 @@ pnpr-auth = { path = "pnpr/crates/auth" }
 pnpr-cargo = { path = "pnpr/crates/cargo" }
 pnpr-config = { path = "pnpr/crates/config" }
 pnpr-error = { path = "pnpr/crates/error" }
+pnpr-libsql = { path = "pnpr/crates/libsql" }
 pnpr-oci = { path = "pnpr/crates/oci" }
 pnpr-osv = { path = "pnpr/crates/osv" }
 pnpr-package-name = { path = "pnpr/crates/package-name" }
@@ -168,6 +175,7 @@ deno_task_shell = { version = "0.33.3" }
 derive_more = { version = "2.1.1", features = ["full"] }
 dialoguer = { version = "0.12.0", default-features = false }
 diffy = { version = "0.5.0" }
+ed25519-dalek = { version = "2.2.0", default-features = false, features = ["std", "zeroize"] }
 dunce = { version = "1.0.5" }
 home = { version = "0.5.12" }
 http = { version = "1.4.0" }
@@ -242,12 +250,16 @@ semver = { version = "1.0.28" }
 shell-words = { version = "1.1.1" }
 rustc-hash = { version = "2.1.1" }
 rustls = { version = "0.23", default-features = false, features = ["std"] }
-rustls-platform-verifier = { version = "0.7.0" }
+rustls-platform-verifier = { version = "0.7.1" }
 serde-saphyr = { version = "0.0.29" }
 sqlx = { version = "0.8.6", default-features = false, features = ["runtime-tokio-rustls"] }
 # 0.11 removes the LowerHex impl on Output; revisit after upstream/consumers catch up
 sha2 = { version = "0.10.9" }
 sigstore-sign = { version = "0.11.0" }
+# C2SP signed notes and tiled transparency logs, ported from Go's
+# `golang.org/x/mod/sumdb/note` and `sumdb/tlog`. Pure Rust, so the release
+# record verifier also builds for WebAssembly.
+signed_note = { version = "0.2.0" }
 smart-default = { version = "0.7.1" }
 spdx = { version = "0.13.4" }
 split-first-char = { version = "2.0.1" }
@@ -266,6 +278,7 @@ tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 # unification does not pull OS networking or process drivers into WASI builds.
 tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros", "fs", "io-util", "sync"] }
 toml = { version = "1.1.5" }
+tlog_tiles = { version = "0.2.0" }
 tokio-rustls = { version = "0.26.4", default-features = false, features = ["tls12"] }
 url = { version = "2.5.8" }
 walkdir = { version = "2.5.0" }
@@ -276,6 +289,7 @@ yamlpatch = { version = "1.25.2" }
 yamlpath = { version = "1.25.2" }
 wax = { version = "0.7.0" }
 which = { version = "8.0.2" }
+zeroize = { version = "1.8.2" }
 zip = { version = "9", default-features = false, features = ["deflate"] }
 zstd = { version = "0.14.3", default-features = false }
 zune-inflate = { version = "0.2.54" }
@@ -302,8 +316,12 @@ tar = { path = "vendor/tar" }
 # Reuses HTTP connections after a cursor query. Drop once a release carries
 # <https://github.com/tursodatabase/libsql/pull/2301>. Also carries
 # <https://github.com/tursodatabase/libsql/pull/2261>, released in 0.10.0,
-# which stops closing every dropped local connection twice.
-libsql = { git = "https://github.com/pnpm/libsql", rev = "e2c44e616a1f8e1ec7ceeb61138a3c2c391c35a9" }
+# which stops closing every dropped local connection twice, and adds
+# `Connection::execute_batch_with_params`, which sends parameterized
+# statements to a remote primary in one request and returns their rows. The
+# SQL metadata store sends each write transaction in two round trips with it;
+# no upstream release has an equivalent.
+libsql = { git = "https://github.com/pnpm/libsql", rev = "ab8a7516c7d32d6fdd0f68d59956c6233f9f11d4" }
 node-semver = { git = "https://github.com/pnpm/node-semver-rs", rev = "3d74d6b7f4de1de2006cf2f7663aac09de65b1f6" }
 # Adds the `nightly` feature. Drop once an upstream release carries it.
 # See <https://github.com/pnpm/pnpm/pull/16951>.

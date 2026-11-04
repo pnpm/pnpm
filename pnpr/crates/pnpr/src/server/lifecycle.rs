@@ -4,8 +4,8 @@ use axum::Router;
 use futures_util::FutureExt as _;
 
 use super::{
-    AppState, Arc, AuthState, Config, Ecosystem, NodelayTcpListener, PeerAddr, RegistryDocuments,
-    Storage, metrics_listener_router, shutdown_signal, state_and_router,
+    AppState, Arc, AuthState, Config, Ecosystem, NodelayTcpListener, PeerAddr, Storage,
+    metrics_listener_router, shutdown_signal, state_and_router,
 };
 
 /// Load the OSV index only for surfaces that consult it. An artifacts-only
@@ -20,20 +20,14 @@ pub(super) fn load_active_osv_index(
     }
 }
 
-/// Check the hosted store's layout, then bring the publish journal to a
-/// consistent state: apply every sealed transaction, discard every unsealed
-/// one. [`serve`] and [`serve_listener`] call this before binding; an embedder
-/// that builds a router directly should call it itself on startup, before
-/// serving requests.
-pub async fn recover_publish_journal(config: &Config) -> pnpr_error::Result<()> {
-    let storage = Storage::new(
-        &config.storage.hosted_backend,
-        config.storage.hosted_dir.clone(),
-        config.storage.cache_dir.clone(),
-    )?;
+/// Check the hosted store's layout, and empty a proxy cache in another
+/// layout. [`serve`] and [`serve_listener`] call this before binding; an
+/// embedder that builds a router directly should call it itself on startup,
+/// before serving requests.
+pub async fn prepare_storage(config: &Config) -> pnpr_error::Result<()> {
+    let storage = Storage::from_config(&config.storage)?;
     storage.ensure_hosted_layout().await?;
-    storage.reset_cache_from_other_layout().await?;
-    pnpr_storage::journal::recover_publish_journal(config, &RegistryDocuments).await
+    storage.reset_cache_from_other_layout().await
 }
 
 /// Reclaim blob uploads abandoned before an unclean shutdown, and any left
@@ -43,11 +37,7 @@ async fn sweep_abandoned_uploads(config: &Config) -> pnpr_error::Result<()> {
     if !config.routing.registries.has_ecosystem(Ecosystem::Oci) {
         return Ok(());
     }
-    let storage = Storage::new(
-        &config.storage.hosted_backend,
-        config.storage.hosted_dir.clone(),
-        config.storage.cache_dir.clone(),
-    )?;
+    let storage = Storage::from_config(&config.storage)?;
     // Shared sessions live in their hosted namespace. Local scratch can be
     // shared by those namespaces and is safe to sweep more than once.
     let mut namespaces: Vec<&str> = config.routing.hosted
@@ -70,14 +60,40 @@ async fn sweep_abandoned_uploads(config: &Config) -> pnpr_error::Result<()> {
     Ok(())
 }
 
+/// Remove release archives staged for a publish that never claimed them
+/// before they expired, now and then every hour while the server runs.
+async fn sweep_expired_staged_archives(config: &Config) -> pnpr_error::Result<()> {
+    let storage = Storage::from_config(&config.storage)?;
+    report_staged_archive_sweep(storage.sweep_staged_archives().await?);
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(std::time::Duration::from_hours(1));
+        interval.tick().await;
+        loop {
+            interval.tick().await;
+            match storage.sweep_staged_archives().await {
+                Ok(swept) => report_staged_archive_sweep(swept),
+                Err(err) => tracing::warn!(error = %err, "sweeping staged release archives failed"),
+            }
+        }
+    });
+    Ok(())
+}
+
+fn report_staged_archive_sweep(swept: usize) {
+    if swept > 0 {
+        tracing::info!(swept, "reclaimed expired staged release archives");
+    }
+}
+
 /// Run startup side effects and load the auth backends. The registry
-/// needs publish-journal recovery; auth loads on every tier because the
+/// prepares its storage; auth loads on every tier because the
 /// account endpoints (which mint and manage tokens) are always served,
 /// and every mounted surface consults caller identity.
 async fn load_startup_auth(config: &Config) -> pnpr_error::Result<AuthState> {
     if config.features.registry.enabled {
-        recover_publish_journal(config).await?;
+        prepare_storage(config).await?;
         sweep_abandoned_uploads(config).await?;
+        sweep_expired_staged_archives(config).await?;
         crate::cache_maintenance::prune_orphaned_namespaces_startup(config).await?;
     }
     AuthState::load(&config.identity.auth, &config.identity.backend).await
@@ -85,8 +101,7 @@ async fn load_startup_auth(config: &Config) -> pnpr_error::Result<AuthState> {
 
 /// Bind to `config.http.listen` and serve forever. Loads auth state before
 /// binding so a startup-time auth error surfaces before we accept any
-/// client connections. Registry startup additionally recovers the publish
-/// journal.
+/// client connections. Registry startup additionally prepares the storage.
 pub async fn serve(mut config: Config) -> pnpr_error::Result<()> {
     // Enforce the "at least one surface" invariant here too, not only at
     // YAML load / CLI: embedders build `Config` programmatically and call

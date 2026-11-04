@@ -1,7 +1,4 @@
-pub(crate) use lockfile_guard::LockfileGuard;
-
 mod deprecations;
-mod lockfile_guard;
 
 use crate::{
     State,
@@ -17,7 +14,7 @@ use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use pnpm_config::Config;
-use pnpm_lockfile::{Lockfile, PkgNameVerPeer};
+use pnpm_lockfile::{Lockfile, PkgNameVerPeer, normalize_lockfile_content};
 use pnpm_modules_yaml::{Host, read_modules_manifest};
 use pnpm_package_manager::{
     ImporterDiffKey, InstallabilityHost, LockfileDiff, PolicyExcludes, ResolutionObserver,
@@ -41,7 +38,9 @@ use std::{
 pub struct DedupeArgs {
     /// Check if running dedupe would result in changes without installing
     /// packages or editing the lockfile. Exits with a non-zero status code
-    /// if changes are possible.
+    /// if changes are possible. `configDependencies` are still installed,
+    /// and changed ones are recorded in the lockfile, as an install records
+    /// them.
     #[clap(long)]
     pub check: bool,
     /// Only update `pnpm-lock.yaml`. Don't download packages or write
@@ -65,14 +64,13 @@ impl DedupeArgs {
     }
 
     /// Run the deduplication install pipeline. In `--check` mode the method
-    /// receives a pre-computed snapshot (`existing`) and drop guard created by
-    /// the caller *before* config-dependency steps, so the gate covers any
-    /// lockfile mutations made by config-deps as well.
+    /// receives the lockfile snapshot (`existing`) the caller took *before*
+    /// config-dependency steps, and diffs it against the lockfile the run
+    /// resolved, which the pipeline hands back instead of writing.
     pub(super) async fn run<Reporter: self::Reporter + 'static>(
         self,
         state: State,
         existing: Option<String>,
-        guard: Option<LockfileGuard>,
         lockfile_path: &Path,
         selection: Option<&InstallFamilySelection>,
     ) -> miette::Result<()> {
@@ -95,34 +93,43 @@ impl DedupeArgs {
             base_install
         };
         let selection = selection.map(workspace_install_selection);
-        if self.check {
+        let resolved = if self.check {
             install.run_lockfile_check::<Reporter>(selection).await
-        } else if let Some(selection) = selection {
-            install.run_selected::<Reporter>(selection).await
         } else {
-            install.run::<Reporter>().await
+            let run = if let Some(selection) = selection {
+                install.run_selected::<Reporter>(selection).await
+            } else {
+                install.run::<Reporter>().await
+            };
+            run.map(|()| None)
         }
         .wrap_err("deduplicating dependencies")?;
 
         if self.check {
-            let guard = guard.ok_or_else(|| {
-                miette::miette!("Lockfile guard is required when running dedupe in check mode")
-            })?;
-            check_lockfile::<Reporter>(existing.as_deref(), guard, lockfile_path)
+            check_lockfile::<Reporter>(existing.as_deref(), resolved, lockfile_path)
         } else {
             Ok(())
         }
     }
 }
 
+/// Diff the `--check` snapshot against the lockfile the run resolved.
+/// `resolved` is `None` when the run produced none (for example `lockfile=false`),
+/// in which case whatever is on disk is compared instead.
 pub(crate) fn check_lockfile<Reporter: self::Reporter>(
     existing: Option<&str>,
-    mut guard: LockfileGuard,
+    resolved: Option<String>,
     lockfile_path: &Path,
 ) -> miette::Result<()> {
-    let current = read_lockfile_snapshot(lockfile_path)?;
-    if existing == current.as_deref() {
-        guard.disarm();
+    let current = match resolved {
+        Some(text) => Some(text),
+        None => read_lockfile_snapshot(lockfile_path)?,
+    };
+    // Ignore the BOM and CRLF line endings: they are not lockfile content, and
+    // a lockfile that differs only in them is not rewritten by an install.
+    if existing.map(normalize_lockfile_content)
+        == current.as_deref().map(normalize_lockfile_content)
+    {
         return Ok(());
     }
     let previous = parse_snapshot(existing, lockfile_path);
@@ -131,7 +138,6 @@ pub(crate) fn check_lockfile<Reporter: self::Reporter>(
         (existing, previous.as_ref()),
         (current.as_deref(), next.as_ref()),
     ) {
-        // Dropping the armed guard restores the snapshot the run rewrote.
         return Ok(());
     }
     let diff = diff_lockfiles(previous.as_ref(), next.as_ref(), ImporterDiffKey::Version);

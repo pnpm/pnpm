@@ -18,7 +18,9 @@ use pnpr_error::RegistryError;
 /// in its request body, so a client meeting a server that does not serve
 /// one of them resolves it locally rather than failing; `publish` lists the
 /// `/-/pnpr/vN/publish` protocol versions, the cross-ecosystem publish
-/// transaction.
+/// transaction. `records` lists the release record formats whose records
+/// hosted registries log, with the `manifestProfiles` they are derived
+/// under.
 pub(super) async fn serve_pnpr_handshake(State(state): State<AppState>) -> Response {
     let config = &state.inner.config;
     let resolver_enabled = config.features.resolver.enabled;
@@ -38,6 +40,7 @@ pub(super) async fn serve_pnpr_handshake(State(state): State<AppState>) -> Respo
 
     let protocols = build_protocols_payload(config);
     let features = build_features_payload(config);
+    let (records, manifest_profiles) = records_payload(&state);
 
     (
         StatusCode::OK,
@@ -51,10 +54,30 @@ pub(super) async fn serve_pnpr_handshake(State(state): State<AppState>) -> Respo
                 "publish": publish,
                 "protocols": protocols,
                 "features": features,
+                "records": records,
+                "manifestProfiles": manifest_profiles,
             }
         })),
     )
         .into_response()
+}
+
+/// The release record formats hosted registries log, and the profiles they
+/// derive them under. Records are logged by hosted registries with a log
+/// signing key.
+fn records_payload(state: &AppState) -> (Vec<u32>, Vec<&'static str>) {
+    let config = &state.inner.config;
+    let logs_records = config.features.registry.enabled
+        && config.release_records.log_signing_key.is_some();
+    let records = logs_records
+        .then_some(1)
+        .into_iter()
+        .collect();
+    let profiles = logs_records
+        .then_some(pnpm_package_manifest::INSTALL_MANIFEST_PROFILE)
+        .into_iter()
+        .collect();
+    (records, profiles)
 }
 
 fn enabled_version(enabled: bool) -> Vec<u32> {

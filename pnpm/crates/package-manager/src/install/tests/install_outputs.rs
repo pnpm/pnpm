@@ -139,6 +139,7 @@ async fn should_install_dependencies() {
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
             dedicated: None,
+            discovered_workspace: None,
         },
     }
     .run::<RecordingReporter>()
@@ -328,6 +329,7 @@ async fn install_prunes_surplus_virtual_store_dir() {
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
             dedicated: None,
+            discovered_workspace: None,
         },
     }
     .run::<SilentReporter>()
@@ -420,6 +422,7 @@ async fn npm_alias_dependency_installs_under_alias_key() {
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
             dedicated: None,
+            discovered_workspace: None,
         },
     }
     .run::<SilentReporter>()
@@ -522,6 +525,7 @@ async fn unversioned_npm_alias_defaults_to_latest() {
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
             dedicated: None,
+            discovered_workspace: None,
         },
     }
     .run::<SilentReporter>()
@@ -638,6 +642,7 @@ pub(super) async fn install_writes_modules_yaml() {
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
             dedicated: None,
+            discovered_workspace: None,
         },
     }
     .run::<SilentReporter>()
@@ -763,6 +768,7 @@ async fn install_optional_failing_postinstall_dep_via_registry_mock_succeeds() {
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
             dedicated: None,
+            discovered_workspace: None,
         },
     }
     .run::<SilentReporter>()
@@ -865,6 +871,7 @@ async fn ignore_manifest_check_bypasses_manifest_freshness_gate() {
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
             dedicated: None,
+            discovered_workspace: None,
         },
     }
     .run::<SilentReporter>()

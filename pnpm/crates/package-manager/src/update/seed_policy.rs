@@ -1,3 +1,6 @@
+pub(super) mod matching;
+pub(super) use matching::{ignored_resolved_names, matches_update_pattern};
+
 use super::{
     CatalogCtx, LatestResolverChain, LatestRewriteCtx, MatchedRewriteInputs, UpdateError,
     WorkspaceLinkTarget, emit_latest_ignored, latest_specifier,
@@ -9,13 +12,15 @@ use super::{
 use crate::{ImporterUpdateSeedPolicy, UpdateSeedPolicy};
 use pnpm_config::Config;
 use pnpm_lockfile::Lockfile;
-use pnpm_matcher::create_matcher;
+use pnpm_matcher::{Matcher, create_matcher};
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_registry::RangeSpecStyle;
 use pnpm_reporter::Reporter;
 use pnpm_resolving_deps_resolver::{UpdateDepth, UpdateTargets};
 use pnpm_resolving_resolver_base::{PreferredVersions, WorkspacePackages};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
+
+use matching::{update_ignore_matcher, update_matcher_patterns};
 
 pub(super) fn selected_seed_policy(
     patches: bool,
@@ -261,13 +266,12 @@ pub(super) fn name_matched_seed_policy(
     scope: &UpdateScope<'_>,
     plan: &mut UpdatePlan,
 ) -> UpdateSeedPolicy {
-    let patterns = scope.selectors
-        .iter()
-        .map(|selector| selector.pattern.clone())
-        .collect::<Vec<_>>();
+    let patterns = update_matcher_patterns(scope);
     let matcher = create_matcher(&patterns);
+    let ignore_matcher = update_ignore_matcher(scope);
+    let ignored_resolved_names = ignored_resolved_names(scope, ignore_matcher.as_ref());
     for (name, group, previous) in scope.direct {
-        if !matcher.matches(name) {
+        if !matches_update_pattern(&matcher, ignore_matcher.as_ref(), name) {
             continue;
         }
         if scope.version.save {
@@ -275,7 +279,13 @@ pub(super) fn name_matched_seed_policy(
         }
         plan.drop_targets.insert(name.clone(), None);
     }
-    widen_drop_targets_by_matcher(scope.lockfile.document, plan, &matcher);
+    widen_drop_targets_by_matcher(
+        scope.lockfile.document,
+        plan,
+        &matcher,
+        ignore_matcher.as_ref(),
+        &ignored_resolved_names,
+    );
     plan.drop_only(scope.max_depth())
 }
 /// Lockfile names keep transitive-only matches in the update scope.
@@ -283,13 +293,17 @@ pub(super) fn widen_drop_targets_by_matcher(
     lockfile: Option<&Lockfile>,
     plan: &mut UpdatePlan,
     matcher: &pnpm_matcher::Matcher,
+    ignore_matcher: Option<&Matcher>,
+    ignored_resolved_names: &HashSet<String>,
 ) {
     let Some(snapshots) = lockfile.and_then(|lockfile| lockfile.snapshots.as_ref()) else {
         return;
     };
     for key in snapshots.keys() {
         let name = key.name.to_string();
-        if matcher.matches(&name) {
+        if matches_update_pattern(matcher, ignore_matcher, &name)
+            && !ignored_resolved_names.contains(&name)
+        {
             plan.drop_targets.insert(name, None);
         }
     }
@@ -302,15 +316,14 @@ pub(super) async fn selector_seed_policy<Reporter: self::Reporter>(
     latest_chain: &mut Option<LatestResolverChain>,
     catalog_ctx: &mut Option<CatalogCtx>,
 ) -> Result<Option<UpdateSeedPolicy>, UpdateError> {
-    let patterns = scope.selectors
-        .iter()
-        .map(|selector| selector.pattern.clone())
-        .collect::<Vec<_>>();
+    let patterns = update_matcher_patterns(scope);
     let matcher = create_matcher(&patterns);
+    let ignore_matcher = update_ignore_matcher(scope);
+    let ignored_resolved_names = ignored_resolved_names(scope, ignore_matcher.as_ref());
     let expanded = expand_update_selectors(scope.selectors);
     let matched_direct = scope.direct
         .iter()
-        .filter(|(name, _, _)| matcher.matches(name))
+        .filter(|(name, _, _)| matches_update_pattern(&matcher, ignore_matcher.as_ref(), name))
         .cloned()
         .collect::<Vec<_>>();
     if matched_direct.is_empty() {
@@ -320,7 +333,13 @@ pub(super) async fn selector_seed_policy<Reporter: self::Reporter>(
         if scope.selection.depth == 0 || scope.version.latest {
             return Ok(None);
         }
-        widen_drop_targets_by_selectors(scope.lockfile.document, plan, &expanded);
+        widen_drop_targets_by_selectors(
+            scope.lockfile.document,
+            plan,
+            &expanded,
+            ignore_matcher.as_ref(),
+            &ignored_resolved_names,
+        );
         return Ok(Some(plan.drop_only(scope.max_depth())));
     }
     if scope.version.latest && !scope.version.save {
@@ -340,10 +359,13 @@ pub(super) async fn selector_seed_policy<Reporter: self::Reporter>(
     }
     Ok(Some(plan.drop_only(scope.max_depth())))
 }
+
 pub(super) fn widen_drop_targets_by_selectors(
     lockfile: Option<&Lockfile>,
     plan: &mut UpdatePlan,
     expanded: &[ParsedSelector],
+    ignore_matcher: Option<&Matcher>,
+    ignored_resolved_names: &HashSet<String>,
 ) {
     let Some(snapshots) = lockfile.and_then(|lockfile| lockfile.snapshots.as_ref()) else {
         return;
@@ -356,11 +378,14 @@ pub(super) fn widen_drop_targets_by_selectors(
     );
     for key in snapshots.keys() {
         let name = key.name.to_string();
-        if target_matcher.matches(&name) {
+        if matches_update_pattern(&target_matcher, ignore_matcher, &name)
+            && !ignored_resolved_names.contains(&name)
+        {
             insert_update_target(&mut plan.drop_targets, expanded, &name);
         }
     }
 }
+
 /// One project's own share of a recursive update, as the workspace-wide
 /// per-importer policy records it. `None` leaves the importer out of the
 /// policy map, which reads as keeping every pin it has.
@@ -400,3 +425,6 @@ impl UpdateScope<'_> {
             && !self.version.latest
     }
 }
+
+#[cfg(test)]
+mod tests;

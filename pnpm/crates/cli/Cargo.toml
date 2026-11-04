@@ -55,6 +55,7 @@ pnpm-modules-yaml = { workspace = true }
 pnpm-network = { workspace = true }
 pnpm-network-web-auth = { workspace = true }
 pnpm-config = { workspace = true }
+pnpm-env-replace = { workspace = true }
 pnpm-config-parse-overrides = { workspace = true }
 pnpm-default-reporter = { workspace = true }
 pnpm-deps-inspection = { workspace = true }
@@ -69,6 +70,7 @@ pnpm-package-manager = { workspace = true }
 pnpm-patching = { workspace = true }
 pnpm-package-is-installable = { workspace = true }
 pnpm-registry = { workspace = true }
+pnpm-release-notes = { workspace = true }
 pnpm-reporter = { workspace = true }
 pnpm-resolving-deps-resolver = { workspace = true }
 pnpm-resolving-default-resolver = { workspace = true }

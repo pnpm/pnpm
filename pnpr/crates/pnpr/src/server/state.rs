@@ -63,6 +63,17 @@ pub(super) struct MutationLocks {
     pub(super) packages: StripedLocks,
     pub(super) referrer_migrations: StripedLocks,
     pub(super) publish_concurrency: tokio::sync::Semaphore,
+    /// Release archives being received for staging, each buffered whole. See
+    /// [`super::staged_archives::MAX_CONCURRENT_STAGED_UPLOADS`].
+    pub(super) staged_archive_uploads: tokio::sync::Semaphore,
+    /// The same, per principal, so one account cannot hold every upload
+    /// permit. See [`super::staged_archives::PrincipalUploads`].
+    pub(super) staged_archive_uploads_by_principal: super::staged_archives::PrincipalUploads,
+    /// Held while this instance integrates a transparency log, so its
+    /// integrations run one at a time.
+    pub(super) log_integration: Arc<tokio::sync::Mutex<()>>,
+    /// Set once this server started integrating every sequenced log.
+    pub(super) logs_recovered: std::sync::atomic::AtomicBool,
 }
 
 pub(super) struct IdentityServices {
@@ -80,11 +91,7 @@ impl AppInner {
         auth: AuthState,
         osv_index: Option<Arc<pnpr_osv::OsvIndex>>,
     ) -> pnpr_error::Result<Self> {
-        let storage = Storage::new(
-            &config.storage.hosted_backend,
-            config.storage.hosted_dir.clone(),
-            config.storage.cache_dir.clone(),
-        )?;
+        let storage = Storage::from_config(&config.storage)?;
         let builds = BuildServices::new(&config, &storage)?;
         let proxy = ProxyState::new(&config);
         let identity = IdentityServices::new(&config, auth)?;
@@ -99,6 +106,13 @@ impl AppInner {
                 packages: StripedLocks::new(),
                 referrer_migrations: StripedLocks::new(),
                 publish_concurrency: tokio::sync::Semaphore::new(16),
+                staged_archive_uploads: tokio::sync::Semaphore::new(
+                    super::staged_archives::MAX_CONCURRENT_STAGED_UPLOADS,
+                ),
+                staged_archive_uploads_by_principal:
+                    super::staged_archives::PrincipalUploads::default(),
+                log_integration: Arc::new(tokio::sync::Mutex::new(())),
+                logs_recovered: std::sync::atomic::AtomicBool::new(false),
             },
             identity,
             metrics: Arc::new(ServerMetrics::new()),

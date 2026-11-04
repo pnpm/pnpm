@@ -28,7 +28,7 @@ fn seed_store_row(config: &Config, package_key: &PackageKey) -> String {
     for (path, content) in
         [("package.json", manifest.as_bytes()), ("index.js", b"module.exports = true\n".as_slice())]
     {
-        let (_, digest) = config.store_dir.write_cas_file(content, false).expect("write file");
+        let digest = config.store_dir.write_cas_file(content, false).expect("write file").hash;
         files.insert(
             path.to_string(),
             CafsFileInfo {

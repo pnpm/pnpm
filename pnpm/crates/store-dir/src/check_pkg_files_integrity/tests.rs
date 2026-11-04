@@ -86,7 +86,7 @@ fn deferred_check_builds_the_maps_first_and_stats_only_when_run() {
     assert!(result.passed, "a well-formed row passes before its files are checked");
     let path = result.files_map.get("index.js").expect("path inserted");
     let cache = VerifiedFilesCache::new();
-    assert!(pending.verify(&store_dir, &cache).is_none(), "the file was never planted");
+    assert!(!pending.verify(&store_dir, &cache, &[]), "the file was never planted");
     assert!(cache.is_empty(), "a failed file is not cached as verified");
 
     plant_cafs_file(&store_dir, &digest, 0o644, content);
@@ -94,7 +94,7 @@ fn deferred_check_builds_the_maps_first_and_stats_only_when_run() {
         &store_dir,
         index_with("sha512", vec![("index.js", info(&digest, content.len() as u64, 0o644, None))]),
     );
-    assert!(pending.verify(&store_dir, &cache).is_some(), "the planted file verifies");
+    assert!(pending.verify(&store_dir, &cache, &[]), "the planted file verifies");
     assert!(cache.contains_key(&path.path), "a verified file is cached for later rows");
 }
 
@@ -1086,6 +1086,6 @@ fn a_large_row_checks_every_file_and_caches_the_ones_that_pass() {
     let cache = VerifiedFilesCache::default();
 
     let (_, pending) = defer_pkg_files_integrity(&store_dir, entry);
-    assert!(pending.verify(&store_dir, &cache).is_none(), "the missing file fails the row");
+    assert!(!pending.verify(&store_dir, &cache, &[]), "the missing file fails the row");
     assert_eq!(cache.len(), 39, "every present file was checked and cached");
 }

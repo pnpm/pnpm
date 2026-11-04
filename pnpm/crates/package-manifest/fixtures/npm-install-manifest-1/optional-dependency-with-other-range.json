@@ -1,0 +1,40 @@
+{
+  "description": "A name in both maps with different specifiers is a real dependency, not a copy.",
+  "archive": {
+    "packageJson": {
+      "name": "widgets",
+      "version": "1.0.0",
+      "optionalDependencies": {
+        "helper": "^1.0.0"
+      }
+    },
+    "files": [
+      "package.json"
+    ]
+  },
+  "submitted": {
+    "name": "widgets",
+    "version": "1.0.0",
+    "dependencies": {
+      "helper": "^2.0.0"
+    },
+    "optionalDependencies": {
+      "helper": "^1.0.0"
+    }
+  },
+  "expected": {
+    "manifest": {
+      "name": "widgets",
+      "version": "1.0.0",
+      "optionalDependencies": {
+        "helper": "^1.0.0"
+      },
+      "hasInstallScript": false,
+      "hasShrinkwrap": false
+    },
+    "mismatched": [
+      "dependencies"
+    ],
+    "tolerated": []
+  }
+}

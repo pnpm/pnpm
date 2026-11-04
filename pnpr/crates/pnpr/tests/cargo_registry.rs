@@ -17,13 +17,9 @@ use axum::{
     http::{Request, StatusCode, header},
 };
 use common::{HostedSource, body_bytes, find_file, mixed_router_config, sha256_hex};
-use pnpr::{AuthState, Config, Ecosystem, recover_publish_journal, router_with_auth};
-use pnpr_storage::layout::{local_blob_path, write_local_layout_marker};
+use pnpr::{AuthState, Config, Ecosystem, router_with_auth};
 use serde_json::{Value, json};
-use std::{
-    io::Write as _,
-    path::{Path, PathBuf},
-};
+use std::{io::Write as _, path::PathBuf};
 use tempfile::TempDir;
 use tower::ServiceExt;
 
@@ -119,49 +115,4 @@ fn publish_request(token: Option<&str>, body: Vec<u8>) -> Request<Body> {
         request = request.header(header::AUTHORIZATION, token);
     }
     request.body(Body::from(body)).unwrap()
-}
-
-/// The on-disk state a crash between staging the archive and recording it in
-/// the crate document leaves behind: the staged tmp file plus the sealed
-/// journal entry that says where it belongs.
-fn fabricate_crashed_crate_publish(storage: &Path, archive: &[u8]) -> PathBuf {
-    write_local_layout_marker(storage).unwrap();
-    let blob = local_blob_path(
-        storage,
-        "crates",
-        pnpr_storage::Ecosystem::Cargo,
-        "demo",
-        "demo-0.1.0.crate",
-    );
-    std::fs::create_dir_all(blob.parent().unwrap()).unwrap();
-    let tmp_path = blob.with_file_name("demo-0.1.0.crate.tmp.999.0");
-    std::fs::write(&tmp_path, archive).unwrap();
-
-    let txn_dir = storage.join(".journal").join("0000000000000001-999-0");
-    std::fs::create_dir_all(&txn_dir).unwrap();
-    let document = json!({
-        "name": "demo",
-        "versions": [{
-            "name": "demo",
-            "vers": "0.1.0",
-            "deps": [],
-            "cksum": sha256_hex(archive),
-            "features": {},
-            "yanked": false,
-        }],
-    });
-    std::fs::write(txn_dir.join("document-0.json"), serde_json::to_vec(&document).unwrap())
-        .unwrap();
-    let manifest = json!({
-        "packages": [{
-            "name": "demo",
-            "ecosystem": "cargo",
-            "org": "crates",
-            "document_file": "document-0.json",
-            "blobs": [{ "filename": "demo-0.1.0.crate", "tmp_path": tmp_path }],
-        }],
-    });
-    std::fs::write(txn_dir.join("manifest.json"), serde_json::to_vec(&manifest).unwrap()).unwrap();
-    std::fs::write(txn_dir.join("commit"), b"").unwrap();
-    tmp_path
 }

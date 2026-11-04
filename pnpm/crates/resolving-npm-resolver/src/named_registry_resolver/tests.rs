@@ -75,6 +75,10 @@ fn build_resolver(
     let resolver = NamedRegistryResolver {
         registries_by_prefix: merged,
         registry_names,
+        registries: HashMap::from([(
+            "default".to_string(),
+            "https://registry.npmjs.org/".to_string(),
+        )]),
         declared_prefixes: pnpm_lockfile::DeclaredRegistryPrefixes::default(),
         metadata: crate::RegistryMetadataClient {
             http_client: Arc::new(ThrottledClient::default()),
@@ -90,9 +94,10 @@ fn build_resolver(
             needs_full_metadata_for: None,
             filter_metadata: false,
             registry_options_by_url: std::sync::Arc::default(),
+            minimum_release_age: None,
         },
         cache_policy: crate::MetadataCachePolicy {
-            network: pnpm_config::NetworkPolicy::Online,
+            network: pnpm_resolving_resolver_base::NetworkPolicy::Online,
             ignore_missing_time_field: false,
         },
         store_view: None,
@@ -706,7 +711,7 @@ async fn offline_named_registry_range_pick_narrows_to_store_held_version() {
     let mut user = HashMap::new();
     user.insert("work".to_string(), registry.clone());
     let (mut resolver, tempdir) = build_resolver(user);
-    resolver.cache_policy.network = pnpm_config::NetworkPolicy::Offline;
+    resolver.cache_policy.network = pnpm_resolving_resolver_base::NetworkPolicy::Offline;
 
     let preloaded: pnpm_registry::Package =
         serde_json::from_str(ACME_PRIVATE_BODY).expect("parse packument");

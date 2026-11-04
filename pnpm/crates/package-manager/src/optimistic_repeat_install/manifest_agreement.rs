@@ -26,7 +26,8 @@ pub(crate) struct ManifestStat<'a> {
 }
 
 /// Every project's [`ManifestStat`], with `status` judging each project from
-/// its root directory and its manifest's digest.
+/// its root directory and its manifest's digest, the recorded one where a
+/// record stands in for the manifest.
 pub(crate) fn manifest_stats(
     project_manifests: crate::DeclaredManifests<'_>,
     status: impl Fn(&Path, &PackageManifest, String) -> ProjectStatus,
@@ -34,10 +35,11 @@ pub(crate) fn manifest_stats(
     project_manifests
         .as_slice()
         .iter()
-        .map(|(root_dir, manifest)| ManifestStat {
-            root_dir,
-            manifest,
-            status: status(root_dir, manifest, manifest_digest(manifest)),
+        .map(|(root_dir, manifest)| {
+            let digest = project_manifests
+                .recorded_digest(root_dir)
+                .map_or_else(|| manifest_digest(manifest), str::to_string);
+            ManifestStat { root_dir, manifest, status: status(root_dir, manifest, digest) }
         })
         .collect()
 }

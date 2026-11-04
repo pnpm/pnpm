@@ -932,3 +932,38 @@ fn auto_install_peers_keeps_an_out_of_scope_optional_peer_as_a_dependency() {
 
     assert_eq!(peer_shadowed_dependencies(Some(&manifest), &scope, true), names(["in-scope"]));
 }
+
+#[test]
+fn locked_provider_eligibility_depends_on_requirement_and_scope() {
+    use super::{LockedProvider, PeerScope, ProviderPick, provider_for};
+    use crate::PeerDep;
+
+    for flags in 0..8 {
+        let optional = flags & 1 != 0;
+        let inherited = (flags & 2 != 0).then_some("current");
+        let current_must_win = flags & 4 != 0;
+        for locked_version in [None, Some("1.0.0"), Some("2.0.0")] {
+            let peer = PeerDep { version: "^1.0.0".into(), optional };
+            let picked = provider_for(
+                &peer,
+                PeerScope {
+                    inherited,
+                    inherited_must_win: || current_must_win,
+                    locked: locked_version.map(|version| LockedProvider { provider: 42, version }),
+                },
+            );
+            let expected = if (!optional || inherited.is_some())
+                && locked_version == Some("1.0.0")
+                && !current_must_win
+            {
+                ProviderPick::Locked(42)
+            } else {
+                inherited.map_or(ProviderPick::Missing, ProviderPick::Inherited)
+            };
+            assert_eq!(
+                picked, expected,
+                "optional={optional}, inherited={inherited:?}, locked={locked_version:?}, current_must_win={current_must_win}",
+            );
+        }
+    }
+}

@@ -142,3 +142,47 @@ snapshots:
     .await
     .expect("custom resolution under a semver key must be accepted");
 }
+
+#[tokio::test]
+async fn rejects_semver_key_whose_variations_fallback_is_a_non_http_tarball() {
+    // A host that no variant matches installs the fallback, so a `file:`
+    // fallback is no more registry-backed than a `file:` resolution.
+    let lockfile = parse(
+        "lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    dependencies:
+      acme:
+        specifier: ^1.0.0
+        version: 1.0.0
+
+packages:
+
+  acme@1.0.0:
+    resolution:
+      type: variations
+      variants:
+        - resolution: {integrity: sha512-deadbeef}
+          targets:
+            - os: linux
+              cpu: x64
+      fallback:
+        integrity: sha512-deadbeef
+        tarball: 'file:///tmp/evil.tgz'
+
+snapshots:
+
+  acme@1.0.0: {}
+",
+    );
+    let err = verify_lockfile_resolutions::<SilentReporter>(
+        &lockfile,
+        &[],
+        &VerifyLockfileResolutionsOptions::default(),
+    )
+    .await
+    .expect_err("a file: fallback under a semver key must be rejected");
+    assert!(matches!(err, VerifyError::ResolutionShapeMismatch { .. }), "got {err:?}");
+}

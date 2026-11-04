@@ -26,7 +26,7 @@ Server options apply to `pnpr serve` (and bare `pnpr`). Global path options (`-c
 | --- | --- |
 | `-c, --config <path>` | Path to a [YAML config](configuration.md). When omitted, the global `config.yaml` in pnpr's config dir is used if it exists, otherwise the bundled default config. |
 | `--listen <addr>` | Address to bind to. Defaults to `127.0.0.1:7677`. |
-| `--storage <path>` | Override the [storage](configuration.md) directory from the loaded config. This directory is the source of truth for hosted packages. |
+| `--storage <path>` | Override the [storage](configuration.md) directory from the loaded config. This directory is the source of truth for hosted packages. A [metadata database](storage.md#sqlite-metadata) at the default path, `<storage>/.metadata/metadata.sqlite`, moves with it; one anywhere else stays where it is. |
 | `--cache <path>` | Override the disposable cache directory (the mirror of upstream registries, resolver cache, and local shared-artifact store). Defaults to a `.pnpr-cache` subdirectory of the storage path. |
 | `--public-url <url>` | URL clients should use to reach the server, used when rewriting `dist.tarball` URLs in served packuments. Defaults to `http://<listen>`. |
 | `--packument-ttl <interval>` | Duration before a cached packument is considered stale and refetched (e.g. `5m`, `300s`, or bare seconds). Defaults to [`packumentTtl`](configuration.md#packumentttl), which defaults to `5m`. A registry's `maxAge` overrides it for that registry. |
@@ -103,7 +103,7 @@ pnpr export --out /mnt/backups/pnpr-export --include-auth
 
 ### migrate-storage
 
-Migrates hosted packages and blobs from local filesystem storage to an S3-compatible object store.
+Migrates hosted package blobs from local filesystem storage to an S3-compatible object store. Package metadata stays in its [database](storage.md#libsql-metadata), which an S3 deployment reads through a libSQL `metadata.url`. Move the metadata into that database first, for example by importing the SQLite file into Turso, and point `metadata.url` at it. A run that is not `--dry-run` refuses any other metadata.
 
 ```sh
 # Preview packages and blobs that would be transferred
@@ -115,7 +115,7 @@ pnpr migrate-storage --to-bucket my-bucket --verify
 
 | Flag | Description |
 | --- | --- |
-| `--from <dir>` | Source hosted storage directory. Defaults to the configured [`storage`](configuration.md#storage-and-cache) directory (`--storage`). |
+| `--from <dir>` | Source hosted storage directory. Defaults to the configured [`storage`](configuration.md#storage-and-cache) directory (`--storage`). The packages come from the configured metadata database; this directory supplies their blobs. |
 | `--to-bucket <name>` | Destination S3 bucket name. |
 | `--to-region <region>` | Destination S3 AWS region (e.g. `us-east-1`). |
 | `--to-endpoint <url>` | Custom S3 endpoint URL (for MinIO, Cloudflare R2, etc.). |

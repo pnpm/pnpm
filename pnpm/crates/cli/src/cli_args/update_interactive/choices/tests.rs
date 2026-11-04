@@ -451,3 +451,29 @@ fn a_repeated_project_is_named_once() {
 
     assert!(!groups[0].rows[1].label.contains("web, web"), "{}", groups[0].rows[1].label);
 }
+
+/// Two projects on different versions of one dependency make two rows for
+/// one alias, and each row shows the release notes of its own range.
+#[test]
+fn rows_of_one_alias_key_the_notes_of_their_own_range() {
+    let packages = [
+        pkg("foo", "foo", "1.0.0", "2.0.0", DependencyGroup::Prod),
+        pkg("foo", "foo", "1.5.0", "2.0.0", DependencyGroup::Prod),
+    ];
+
+    let groups = update_choices(&packages.iter().collect::<Vec<_>>(), false);
+
+    let keys: Vec<Option<String>> = groups[0].rows
+        .iter()
+        .map(|row| row.notes_key.clone())
+        .collect();
+    assert_eq!(
+        keys,
+        vec![
+            None,
+            Some(super::super::notes::notes_key(&packages[0])),
+            Some(super::super::notes::notes_key(&packages[1])),
+        ],
+    );
+    assert_ne!(keys[1], keys[2]);
+}

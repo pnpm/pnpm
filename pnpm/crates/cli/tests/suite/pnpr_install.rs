@@ -26,6 +26,7 @@ use pnpr_fixtures::MockConfigPresets;
 use reqwest::header::HeaderMap;
 use sha2::{Digest, Sha256};
 use std::{
+    fmt::Write as _,
     fs,
     io::Write as _,
     net::{Ipv4Addr, SocketAddr, TcpListener, TcpStream},
@@ -45,7 +46,15 @@ const IS_POSITIVE_PATCH: &str = include_str!(
 /// boundary); returns its base URL and a pre-seeded bearer token, whose
 /// owner is a pre-seeded account because pnpr honors only such tokens.
 fn start_pnpr(registry_url: &str) -> (String, String) {
-    let registry_url = registry_url.to_string();
+    start_pnpr_for(&[registry_url])
+}
+
+/// [`start_pnpr`] resolving from each of `registry_urls`.
+fn start_pnpr_for(registry_urls: &[&str]) -> (String, String) {
+    let registry_urls: Vec<String> = registry_urls
+        .iter()
+        .map(ToString::to_string)
+        .collect();
     let server = PnprServer::bind("pnpr");
     let tokens_path = server.storage.join("tokens.db");
     let htpasswd_path = server.storage.join("htpasswd");
@@ -64,10 +73,14 @@ fn start_pnpr(registry_url: &str) -> (String, String) {
     let addr = server.serve(move |config| {
         config.identity.auth.htpasswd.file = Some(htpasswd_path);
         config.identity.auth.tokens.file = Some(tokens_path);
-        config.routing.route_policy.public.push(pnpr::PublicRoute {
-            registry: Some(registry_url),
-            package: None,
-        });
+        config.routing.route_policy.public.extend(
+            registry_urls
+                .into_iter()
+                .map(|registry_url| pnpr::PublicRoute {
+                    registry: Some(registry_url),
+                    package: None,
+                }),
+        );
     });
     (format!("http://{addr}/"), token)
 }
@@ -75,6 +88,15 @@ fn start_pnpr(registry_url: &str) -> (String, String) {
 /// Start an in-process pnpr that proxies one upstream registry of
 /// `ecosystem`, and return the base URL its clients address.
 fn start_pnpr_registry(upstream_url: &str, ecosystem: Ecosystem) -> String {
+    start_pnpr_registry_with(upstream_url, ecosystem, |_| {})
+}
+
+/// [`start_pnpr_registry`] with `configure` applied to the server's config.
+fn start_pnpr_registry_with(
+    upstream_url: &str,
+    ecosystem: Ecosystem,
+    configure: impl FnOnce(&mut pnpr::Config) + Send + 'static,
+) -> String {
     let upstream_url = upstream_url.to_string();
     let name = "upstream";
     let addr = PnprServer::bind("pnpr-registry")
@@ -91,6 +113,7 @@ fn start_pnpr_registry(upstream_url: &str, ecosystem: Ecosystem) -> String {
                 Some(name.to_string()),
             )
             .with_ecosystem(name, ecosystem);
+            configure(config);
         });
     format!("http://{addr}/{ecosystem}/")
 }
@@ -288,6 +311,22 @@ const WORKSPACE_HELLO_PARENT: &str = "@pnpm.e2e/hello-world-js-bin-parent";
 const WORKSPACE_PARENT: &str = "@pnpm.e2e/pkg-with-1-dep";
 const WORKSPACE_ROOT_DEP: &str = "@foo/no-deps";
 const MISSING_PEERS_PARENT: &str = "@pnpm.e2e/abc-parent-with-missing-peers";
+
+/// Declare `registry_urls` as `serverType: pnpr`, so pnpm reads pnpr's own
+/// package document from them, as a project using pnpr's revisions does.
+fn declare_pnpr_registries(workspace: &Path, registry_urls: &[&str]) {
+    let path = workspace.join("pnpm-workspace.yaml");
+    let mut yaml = fs::read_to_string(&path).expect("read pnpm-workspace.yaml");
+    if !yaml.ends_with('\n') {
+        yaml.push('\n');
+    }
+    yaml.push_str("registries:\n");
+    for registry_url in registry_urls {
+        let registry_url = registry_url.trim_end_matches('/');
+        writeln!(yaml, "  '{registry_url}/':\n    serverType: pnpr").expect("write declaration");
+    }
+    fs::write(path, yaml).expect("write pnpm-workspace.yaml");
+}
 
 fn configure_workspace(workspace: &Path) {
     let path = workspace.join("pnpm-workspace.yaml");
@@ -686,6 +725,8 @@ fn cargo_install_uses_a_configured_pnpr_registry_and_accelerator() {
 mod workspace;
 
 mod revisions;
+
+mod package_documents;
 
 mod resolution;
 

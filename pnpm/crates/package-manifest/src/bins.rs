@@ -1,7 +1,11 @@
+pub use paths::{normalize_bin_path, normalize_package_relative_path};
+
 use std::{collections::BTreeMap, path::Path};
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+
+mod paths;
 
 /// Maximum number of commands precalculated in `dist.pnpr.bins`. Packages
 /// declaring more commands fall back to on-disk bin discovery at link time.
@@ -241,27 +245,6 @@ pub fn is_safe_bin_name(name: &str) -> bool {
         })
 }
 
-/// Normalize a package-relative path using `/` separators, rejecting paths
-/// that start with `/`, contain `\` or `:`, or climb above the package root
-/// via `..`.
-#[must_use]
-pub fn normalize_package_relative_path(raw: &str) -> Option<String> {
-    if raw.starts_with('/') || raw.contains(['\\', ':']) {
-        return None;
-    }
-    let mut stack = Vec::new();
-    for segment in raw.split('/') {
-        match segment {
-            "" | "." => {}
-            ".." => {
-                stack.pop()?;
-            }
-            normal => stack.push(normal),
-        }
-    }
-    Some(stack.join("/"))
-}
-
 /// Whether `manifest` declares any bins via `"bin"` or `"directories.bin"`.
 #[must_use]
 pub fn manifest_declares_bins(manifest: &Value) -> bool {
@@ -443,7 +426,7 @@ fn resolve_paths_from_bin_field(
         if !is_safe_bin_name(&bin_name) {
             continue;
         }
-        let normalized = normalize_package_relative_path(&bin_relative_path)?;
+        let normalized = normalize_bin_path(&bin_relative_path)?;
         if normalized.is_empty() || !has_file(&normalized) || paths.contains_key(&bin_name) {
             return None;
         }

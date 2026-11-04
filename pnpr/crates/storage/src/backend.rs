@@ -74,7 +74,7 @@ pub(crate) trait HostedBackend: Debug + Send + Sync {
 
     /// Promote a staged blob to its final home, consuming the tmp file
     /// unless the outcome is [`BlobFinalize::Conflict`] — those bytes stay
-    /// put so journal roll-forward can re-detect them.
+    /// put for the caller to remove.
     async fn finalize_blob(
         &self,
         tmp_path: &Path,
@@ -88,8 +88,6 @@ pub(crate) trait HostedBackend: Debug + Send + Sync {
 
     fn list_blob_files(&self)
     -> futures_util::stream::BoxStream<'_, Result<crate::HostedBlobFile>>;
-
-    async fn list_package_names(&self) -> Result<Vec<String>>;
 
     async fn list_package_blobs(&self, name: &CanonicalPackageName) -> Result<Vec<String>>;
 
@@ -113,10 +111,9 @@ pub(crate) trait HostedBackend: Debug + Send + Sync {
     /// about who owns what is in it.
     fn namespace(&self) -> String;
 
-    /// The local directory this backend stages blobs in, and with them the
-    /// commit journal that rolls a staged publish forward after a crash. Local
-    /// even when the final home is a bucket: the decode/verify step writes
-    /// through `std::fs` and needs a real path.
+    /// The local directory this backend stages blobs in. Local even when the
+    /// final home is a bucket: the decode/verify step writes through
+    /// `std::fs` and needs a real path.
     fn local_scratch_root(&self) -> &Path;
 
     // --- Records ---------------------------------------------------------
@@ -172,6 +169,9 @@ pub enum HostedDocumentVersion {
     /// construction, so there is nothing to compare against.
     Unversioned,
     ObjectVersion(UpdateVersion),
+    /// The catalog generation that last changed the package, from a
+    /// metadata backend that tracks generations.
+    Generation(u64),
 }
 
 /// Outcome of promoting a staged blob into the hosted store.

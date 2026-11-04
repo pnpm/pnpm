@@ -1,10 +1,10 @@
 use super::{
     AuthState, Body, Request, ServiceExt, StatusCode, TempDir, Value, body_bytes, cargo_config,
-    crate_archive, fabricate_crashed_crate_publish, header, json, metadata, publish_body,
-    publish_request, recover_publish_journal, registry_groups, router_with_auth, sha256_hex,
+    crate_archive, header, json, metadata, publish_body, publish_request, registry_groups,
+    router_with_auth, sha256_hex,
 };
 use crate::tokens::issue_token;
-use pnpr_storage::layout::{local_blob_path, local_document_path};
+use pnpr_storage::layout::local_blob_path;
 
 #[tokio::test]
 async fn publish_then_resolve_and_download_a_hosted_crate() {
@@ -82,13 +82,13 @@ async fn publish_then_resolve_and_download_a_hosted_crate() {
         .is_file(),
     );
     assert!(
-        local_document_path(tmp.path(), "crates", pnpr_storage::Ecosystem::Cargo, "demo").is_file(),
-    );
-    assert!(
-        std::fs::read_dir(tmp.path().join(".journal"))
-            .unwrap()
-            .next()
-            .is_none(),
+        pnpr_fixtures::read_hosted_document(
+            tmp.path(),
+            "crates",
+            pnpr_storage::Ecosystem::Cargo,
+            "demo"
+        )
+        .is_some(),
     );
 
     // The crate is reachable at its one sparse-index path only.
@@ -407,89 +407,6 @@ async fn search_reports_the_newest_unyanked_release() {
     assert_eq!(response.status(), StatusCode::OK);
     let body: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
     assert_eq!(body["crates"][0]["max_version"], "0.1.0");
-}
-
-/// Both halves land, so the store never holds an archive that no index file
-/// mentions.
-#[tokio::test]
-async fn a_crashed_publish_is_completed_on_startup() {
-    let tmp = TempDir::new().unwrap();
-    let storage = tmp.path().to_path_buf();
-    let config = cargo_config(storage.clone(), "http://upstream.invalid/", "$all");
-    let archive = crate_archive("demo", "0.1.0");
-    let tmp_path = fabricate_crashed_crate_publish(&storage, &archive);
-
-    recover_publish_journal(&config).await.unwrap();
-
-    assert!(!tmp_path.exists(), "the staged archive should be promoted away");
-    assert!(
-        std::fs::read_dir(storage.join(".journal"))
-            .unwrap()
-            .next()
-            .is_none(),
-    );
-    let app = router_with_auth(config, AuthState::in_memory());
-    let response = app
-        .clone()
-        .oneshot(
-            Request::get("/cargo/index/de/mo/demo")
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(response.status(), StatusCode::OK);
-    let index = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
-    let entry: Value = serde_json::from_str(index.lines().next().unwrap()).unwrap();
-    assert_eq!(entry["vers"], "0.1.0");
-    assert_eq!(entry["cksum"], sha256_hex(&archive));
-    let response = app
-        .oneshot(
-            Request::get("/cargo/api/v1/crates/demo/0.1.0/download")
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(response.status(), StatusCode::OK);
-    assert_eq!(body_bytes(response.into_body()).await, archive);
-}
-
-/// Applying a sealed transaction adds its version to the document as it
-/// stands rather than to the one the crashed publish read.
-#[tokio::test]
-async fn a_crashed_publish_keeps_what_was_published_while_it_was_down() {
-    let tmp = TempDir::new().unwrap();
-    let storage = tmp.path().to_path_buf();
-    let auth = AuthState::in_memory();
-    let token = issue_token(&auth, "alice").await;
-    let config = cargo_config(storage.clone(), "http://upstream.invalid/", "$all");
-    let app = router_with_auth(config.clone(), auth);
-    let archive = crate_archive("demo", "0.2.0");
-    let response = app
-        .oneshot(publish_request(Some(&token), publish_body(&metadata("demo", "0.2.0"), &archive)))
-        .await
-        .unwrap();
-    assert_eq!(response.status(), StatusCode::OK);
-    fabricate_crashed_crate_publish(&storage, &crate_archive("demo", "0.1.0"));
-
-    recover_publish_journal(&config).await.unwrap();
-
-    let app = router_with_auth(config, AuthState::in_memory());
-    let response = app
-        .oneshot(
-            Request::get("/cargo/index/de/mo/demo")
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    let index = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
-    let versions: Vec<Value> = index
-        .lines()
-        .map(|line| serde_json::from_str::<Value>(line).unwrap()["vers"].clone())
-        .collect();
-    assert_eq!(versions, vec!["0.2.0", "0.1.0"]);
 }
 
 #[tokio::test]

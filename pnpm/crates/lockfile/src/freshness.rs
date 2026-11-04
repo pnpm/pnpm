@@ -414,9 +414,6 @@ pub fn check_lockfile_registry_keys(
     lockfile: &Lockfile,
     registries: &RegistryContext,
 ) -> Result<(), StalenessReason> {
-    if registries.declared_prefixes.is_empty() {
-        return Ok(());
-    }
     let Some(packages) = lockfile.packages.as_ref() else {
         return Ok(());
     };

@@ -3,7 +3,7 @@ use pnpr_config::{
     ArtifactsFeature, AuthConfig, BackendConfig, Config, CorsConfig, HostedConfig,
     HostedStoreConfig, LogConfig, OciConfig, OsvConfig, PipelineFeature, RegistryFeature,
     ResolverFeature, RoutePolicy, TrustedProxyHeader, UiConfig, UpstreamConfig, default_cache_dir,
-    random_secret,
+    default_metadata_path, random_secret,
 };
 use pnpr_policy::{AccessList, PackageRule, PackageRules};
 use pnpr_registry::{Ecosystem, PackagePattern, Registries, Registry};
@@ -172,6 +172,34 @@ pub fn static_serve_config(listen: SocketAddr, storage: PathBuf) -> Config {
     )
 }
 
+fn http_config(listen: SocketAddr) -> pnpr_config::HttpConfig {
+    pnpr_config::HttpConfig {
+        listen,
+        public_url: format!("http://{listen}"),
+        cors: CorsConfig::default(),
+        ui: UiConfig::default(),
+        oci: OciConfig::default(),
+        packument_ttl: Config::DEFAULT_PACKUMENT_TTL,
+        trusted_proxies: Vec::new(),
+        trusted_proxy_header: TrustedProxyHeader::default(),
+        request_timeout: Some(pnpr_config::HttpConfig::DEFAULT_REQUEST_TIMEOUT),
+        metrics: None,
+        package_documents: pnpr_config::PackageDocumentsConfig::default(),
+    }
+}
+
+/// A hosted store, its `SQLite` metadata, and the cache on local disk under
+/// `storage`.
+fn local_storage(storage: PathBuf) -> pnpr_config::StorageConfig {
+    pnpr_config::StorageConfig {
+        cache_dir: default_cache_dir(&storage),
+        cache: pnpr_config::CacheConfig::default(),
+        metadata: pnpr_config::MetadataBackend::Sqlite(default_metadata_path(&storage)),
+        hosted_dir: storage,
+        hosted_backend: HostedStoreConfig::Fs,
+    }
+}
+
 fn with_routing(
     listen: SocketAddr,
     storage: PathBuf,
@@ -186,24 +214,8 @@ fn with_routing(
         cache_secret,
         oci_secret,
         has_configured_secret: false,
-        http: pnpr_config::HttpConfig {
-            listen,
-            public_url: format!("http://{listen}"),
-            cors: CorsConfig::default(),
-            ui: UiConfig::default(),
-            oci: OciConfig::default(),
-            packument_ttl: Config::DEFAULT_PACKUMENT_TTL,
-            trusted_proxies: Vec::new(),
-            trusted_proxy_header: TrustedProxyHeader::default(),
-            request_timeout: Some(pnpr_config::HttpConfig::DEFAULT_REQUEST_TIMEOUT),
-            metrics: None,
-        },
-        storage: pnpr_config::StorageConfig {
-            cache_dir: default_cache_dir(&storage),
-            cache: pnpr_config::CacheConfig::default(),
-            hosted_dir: storage,
-            hosted_backend: HostedStoreConfig::Fs,
-        },
+        http: http_config(listen),
+        storage: local_storage(storage),
         identity: pnpr_config::IdentityConfig {
             auth: AuthConfig::default(),
             backend: BackendConfig::Local,
@@ -216,5 +228,6 @@ fn with_routing(
             pipeline: PipelineFeature::default(),
         },
         routing,
+        release_records: pnpr_config::ReleaseRecordsConfig::default(),
     }
 }

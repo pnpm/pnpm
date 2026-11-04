@@ -1,6 +1,6 @@
 use super::{
     super::{Add, AddError},
-    add_jsr_selector, add_npm_selector, package_body,
+    add_jsr_selector, add_npm_selector, add_npm_selector_with_ranges, package_body,
 };
 use crate::{ResolvedPackages, add::specifier::ProtocolSelector};
 use pnpm_config::Config;
@@ -91,6 +91,62 @@ async fn add_keeps_the_range_operator_of_an_npm_alias() {
 #[tokio::test]
 async fn add_saves_an_npm_alias_partial_version_as_the_resolved_range() {
     assert_eq!(add_npm_selector("v2@npm:foo@1").await, Some("npm:foo@^1.0.0".to_string()));
+}
+#[tokio::test]
+async fn add_uses_a_workspace_declared_range_before_the_default_tag() {
+    assert_eq!(
+        add_npm_selector_with_ranges("foo", Some("~1.0.0"), None).await,
+        Some("~1.0.0".to_string()),
+    );
+}
+#[tokio::test]
+async fn add_uses_the_range_of_a_workspace_it_discovers() {
+    assert_eq!(
+        super::add_npm_selector_in_workspace("foo", (Some("~1.0.0"), None), false).await,
+        Some("~1.0.0".to_string()),
+    );
+}
+#[tokio::test]
+async fn add_uses_a_workspace_declared_range_for_an_npm_protocol_selector() {
+    assert_eq!(
+        add_npm_selector_with_ranges("npm:foo", Some("~1.0.0"), None).await,
+        Some("~1.0.0".to_string()),
+    );
+}
+#[tokio::test]
+async fn add_uses_a_workspace_declared_range_for_an_npm_alias() {
+    assert_eq!(
+        add_npm_selector_with_ranges("alias@npm:foo", Some("~1.0.0"), None).await,
+        Some("npm:foo@~1.0.0".to_string()),
+    );
+}
+#[tokio::test]
+async fn add_prefers_a_workspace_declared_range_over_a_matching_override() {
+    assert_eq!(
+        add_npm_selector_with_ranges("foo", Some("~1.0.0"), Some("^1.0.0")).await,
+        Some("~1.0.0".to_string()),
+    );
+}
+#[tokio::test]
+async fn add_ignores_an_override_of_the_target_of_an_npm_alias() {
+    assert_eq!(
+        add_npm_selector_with_ranges("alias@npm:foo", None, Some("~1.0.0")).await,
+        Some("npm:foo@^1.0.0".to_string()),
+    );
+}
+#[tokio::test]
+async fn add_rebases_a_relative_override_path_onto_the_project() {
+    assert_eq!(
+        add_npm_selector_with_ranges("foo", None, Some("link:./vendor/foo")).await,
+        Some("link:../vendor/foo".to_string()),
+    );
+}
+#[tokio::test]
+async fn add_uses_a_matching_override_before_the_default_tag() {
+    assert_eq!(
+        add_npm_selector_with_ranges("foo", None, Some("~1.0.0")).await,
+        Some("~1.0.0".to_string()),
+    );
 }
 #[tokio::test]
 async fn add_reuses_shared_packument_state_for_every_selector_path() {

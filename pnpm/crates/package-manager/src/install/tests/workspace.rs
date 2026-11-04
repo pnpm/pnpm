@@ -188,6 +188,7 @@ async fn fresh_install_persists_loose_minimum_release_age_picks_to_workspace_man
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
             dedicated: None,
+            discovered_workspace: None,
         },
     }
     .run_with_prompt_eligibility::<SilentReporter>(false)
@@ -291,6 +292,7 @@ async fn install_writes_workspace_state() {
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
             dedicated: None,
+            discovered_workspace: None,
         },
     }
     .run::<SilentReporter>()
@@ -615,6 +617,7 @@ async fn optimistic_repeat_install_round_trips_on_single_project_install() {
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
             dedicated: None,
+            discovered_workspace: None,
         },
     }
     .run::<SilentReporter>()
@@ -698,6 +701,7 @@ async fn optimistic_repeat_install_round_trips_on_single_project_install() {
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
             dedicated: None,
+            discovered_workspace: None,
         },
     }
     .run::<RecordingReporter>()
@@ -1018,6 +1022,7 @@ async fn install_succeeds_even_when_workspace_state_write_fails() {
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
             dedicated: None,
+            discovered_workspace: None,
         },
     }
     .run::<SilentReporter>()

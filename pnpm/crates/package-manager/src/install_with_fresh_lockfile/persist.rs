@@ -215,14 +215,8 @@ pub(super) async fn finish_lockfile_only<Reporter: self::Reporter>(
         if opts.write.dry_run || !opts.write.save {
             (Some(opts.built_lockfile), false)
         } else if opts.write.config.lockfile {
-            let can_record_lockfile_verification = save_wanted_lockfile(
-                &opts.built_lockfile,
-                &opts.write.dir.join(opts.write.config.wanted_lockfile_name()),
-                opts.write.config.symlinked_lockfile(),
-                opts.write.hook,
-                opts.write.log,
-            )
-            .await?;
+            let can_record_lockfile_verification =
+                save_or_capture_wanted_lockfile(&opts.built_lockfile, opts.write).await?;
             (Some(opts.built_lockfile), can_record_lockfile_verification)
         } else {
             (None, false)
@@ -254,6 +248,27 @@ pub(super) async fn finish_lockfile_only<Reporter: self::Reporter>(
         store_index_teardown: opts.writer_task,
     })
 }
+/// Save the wanted lockfile, or hand it to the check sink when one is set.
+/// Returns whether the saved file can carry a lockfile verification record.
+async fn save_or_capture_wanted_lockfile(
+    built_lockfile: &Lockfile,
+    write: super::resolution_inputs::LockfilePersistenceOptions<'_>,
+) -> Result<bool, InstallWithFreshLockfileError> {
+    let target = write.dir.join(write.config.wanted_lockfile_name());
+    let Some(sink) = write.check_sink else {
+        return save_wanted_lockfile(
+            built_lockfile,
+            &target,
+            write.config.symlinked_lockfile(),
+            write.hook,
+            write.log,
+        )
+        .await;
+    };
+    capture_wanted_lockfile(built_lockfile, &target, (write.hook, write.log), sink).await?;
+    Ok(false)
+}
+
 pub(super) async fn save_wanted_lockfile(
     built_lockfile: &Lockfile,
     target: &Path,
@@ -261,12 +276,54 @@ pub(super) async fn save_wanted_lockfile(
     hook: Option<&Arc<dyn pnpm_hooks::PnpmfileHooks>>,
     log: Option<pnpm_hooks::LogFn>,
 ) -> Result<bool, InstallWithFreshLockfileError> {
-    let Some(hook) = hook else {
-        built_lockfile
-            .save_to_path(target, symlinked)
-            .map_err(InstallWithFreshLockfileError::SaveWantedLockfile)?;
-        return Ok(true);
-    };
+    let wanted = after_all_resolved(built_lockfile, hook, log).await?;
+    match &wanted {
+        HookedLockfile::Unchanged(lockfile) => lockfile.save_to_path(target, symlinked),
+        HookedLockfile::Replaced(value) => {
+            pnpm_lockfile::save_value_to_path(value, target, symlinked)
+        }
+    }
+    .map_err(InstallWithFreshLockfileError::SaveWantedLockfile)?;
+    Ok(matches!(wanted, HookedLockfile::Unchanged(_)))
+}
+
+/// Hand the sink the text [`save_wanted_lockfile`] would have written.
+async fn capture_wanted_lockfile(
+    built_lockfile: &Lockfile,
+    target: &Path,
+    (hook, log): (Option<&Arc<dyn pnpm_hooks::PnpmfileHooks>>, Option<pnpm_hooks::LogFn>),
+    sink: &crate::LockfileCheckSink,
+) -> Result<(), InstallWithFreshLockfileError> {
+    let text = after_all_resolved(built_lockfile, hook, log).await?
+        .render_for_path(target)
+        .map_err(InstallWithFreshLockfileError::SaveWantedLockfile)?;
+    *sink.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = Some(text);
+    Ok(())
+}
+
+/// The wanted lockfile once the pnpmfile's `afterAllResolved` hook has seen it.
+enum HookedLockfile<'a> {
+    /// The pnpmfile has no `afterAllResolved` hook, so the typed lockfile
+    /// stands as built.
+    Unchanged(&'a Lockfile),
+    Replaced(serde_json::Value),
+}
+
+impl HookedLockfile<'_> {
+    fn render_for_path(&self, target: &Path) -> Result<String, pnpm_lockfile::SaveLockfileError> {
+        match self {
+            Self::Unchanged(lockfile) => pnpm_lockfile::render_value_for_path(*lockfile, target),
+            Self::Replaced(value) => pnpm_lockfile::render_value_for_path(value, target),
+        }
+    }
+}
+
+async fn after_all_resolved<'a>(
+    built_lockfile: &'a Lockfile,
+    hook: Option<&Arc<dyn pnpm_hooks::PnpmfileHooks>>,
+    log: Option<pnpm_hooks::LogFn>,
+) -> Result<HookedLockfile<'a>, InstallWithFreshLockfileError> {
+    let Some(hook) = hook else { return Ok(HookedLockfile::Unchanged(built_lockfile)) };
 
     let value = serde_json::to_value(built_lockfile)
         .map_err(InstallWithFreshLockfileError::AfterAllResolvedSerialize)?;
@@ -276,15 +333,12 @@ pub(super) async fn save_wanted_lockfile(
         .await
         .map_err(InstallWithFreshLockfileError::AfterAllResolvedHook)?;
 
-    // `Null` means the pnpmfile has no `afterAllResolved` hook, so write the
-    // typed lockfile unchanged.
-    if result.is_null() {
-        built_lockfile.save_to_path(target, symlinked)
+    // `Null` means the pnpmfile has no `afterAllResolved` hook.
+    Ok(if result.is_null() {
+        HookedLockfile::Unchanged(built_lockfile)
     } else {
-        pnpm_lockfile::save_value_to_path(&result, target, symlinked)
-    }
-    .map_err(InstallWithFreshLockfileError::SaveWantedLockfile)?;
-    Ok(result.is_null())
+        HookedLockfile::Replaced(result)
+    })
 }
 
 fn manifest_declares_peers(manifest: &PackageManifest) -> bool {

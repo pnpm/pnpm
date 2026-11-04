@@ -179,6 +179,9 @@ pub struct Modules {
     /// removed.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub linked_skills: Option<Vec<String>>,
+    /// Whether approved skills await a target directory.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub has_unlinked_skills: Option<bool>,
 }
 
 /// A lightweight version of [`Modules`] that skips deserializing the potentially
@@ -238,6 +241,9 @@ pub struct ModulesLayout {
     /// See [`Modules::linked_skills`].
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub linked_skills: Option<Vec<String>>,
+    /// Whether approved skills await a target directory.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub has_unlinked_skills: Option<bool>,
 }
 
 /// Which dependency groups the install pipeline included.

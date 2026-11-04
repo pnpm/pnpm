@@ -46,7 +46,7 @@ pub(super) fn add_cold_cas_paths(map: &mut CasPathsByPkgId, cold_cas_paths: Vec<
     for ColdCapture { snapshot_key, installed, .. } in cold_cas_paths {
         map.entry(cas_paths_key(snapshot_key))
             .or_insert_with(|| crate::HoistedPackageFiles {
-                cas_paths: Arc::new(installed.cas_paths),
+                cas_paths: installed.cas_paths,
                 source_is_mutable: installed.source_is_mutable,
                 source_exists: installed.source_exists,
             });
@@ -423,7 +423,7 @@ pub(super) fn record_cold_outcome<'a>(
     }) {
         state.shared_base_cas_paths.insert(
             (*captured.snapshot_key).clone(),
-            captured.installed.cas_paths.clone(),
+            Arc::clone(&captured.installed.cas_paths),
         );
     }
     Some(captured)

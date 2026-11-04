@@ -241,6 +241,49 @@ pub fn allow_build_key_from_ignored_build(dep_path: &str) -> String {
     }
 }
 
+/// A short package label for prompts and listings, with the package's
+/// name for a registry package and the name plus its source for anything
+/// else: `(git)` for a git repository or a git host's tarball, `(tarball)`
+/// for another tarball, `(local)` for a `file:` / `link:` resolution.
+///
+/// The input is any dep path or build/permission key; peer and patch-hash
+/// suffixes are ignored. The approval key — a dep path for source
+/// packages — stays the key of every settings entry, so a label is only
+/// ever display text and cannot be fed back as a key.
+#[must_use]
+pub fn short_package_label(key: &str) -> String {
+    let pkg_id = get_pkg_id_with_patch_hash(key);
+    // A key with no name@version separator is a bare package name; with
+    // one, a version that parses as semver is a registry package and
+    // anything else a source. Git-host packages are tagged `(git)`
+    // however their dep path is built.
+    let (name, source) = match parse_dep_path_name_version(pkg_id) {
+        Some((name, version)) if node_semver::Version::parse(version).is_ok() => (name, None),
+        Some((name, version)) => (name, Some(source_tag(version))),
+        None => (pkg_id, None),
+    };
+    if is_git_hosted_dep_path(pkg_id) {
+        return format!("{name} (git)");
+    }
+    match source {
+        Some(tag) => format!("{name} ({tag})"),
+        None => name.to_string(),
+    }
+}
+
+/// The source tag of a version that is not a registry semver form and not
+/// git-hosted: `tarball` for a URL, including a local archive name; `local`
+/// for a directory a `file:` / `link:` spec resolves to.
+fn source_tag(version: &str) -> &'static str {
+    if version.starts_with("file:") || version.starts_with("link:") {
+        if version.ends_with(".tgz") || version.ends_with(".tar.gz") {
+            return "tarball";
+        }
+        return "local";
+    }
+    "tarball"
+}
+
 /// The package an `--allow-build` value or an `approve-builds` argument
 /// names, and whether it is allowed to build: a leading `!` denies the
 /// build.
@@ -419,3 +462,6 @@ pub(crate) fn is_dep_path_allow_build_key(spec: &str) -> bool {
 pub(crate) fn is_source_like_dep_path_version(version: &str) -> bool {
     version.contains(':') || version.contains('/') || version.contains('#')
 }
+
+#[cfg(test)]
+mod tests;

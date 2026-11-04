@@ -60,8 +60,8 @@ enum PromptRow {
     /// A group heading or a group's column header: shown, never selected.
     Separator(String),
     /// Checking it selects `value`, which the confirmed answer names by
-    /// `short`.
-    Choice { label: String, short: String, value: String },
+    /// `short`. `notes_key` finds the release notes shown below it.
+    Choice { label: String, short: String, value: String, notes_key: Option<String> },
 }
 
 /// The look of the prompt: pnpm's own theme for the dependency list, the
@@ -74,17 +74,28 @@ enum PromptStyle {
 
 impl PromptStyle {
     /// The prompt for `rows`, whose answer names the checked rows by index.
-    fn checkbox_prompt(self, message: &str, rows: &[PromptRow]) -> CheckboxPrompt<usize> {
+    fn checkbox_prompt(
+        self,
+        message: &str,
+        rows: &[PromptRow],
+        notes: &ChoiceNotes,
+    ) -> CheckboxPrompt<usize> {
         let items = rows
             .iter()
             .enumerate()
             .map(|(index, row)| match row {
                 PromptRow::Separator(text) => CheckboxItem::Separator(text.clone()),
-                PromptRow::Choice { label, short, .. } => CheckboxItem::Choice(CheckboxChoice {
-                    name: label.clone(),
-                    short: short.clone(),
-                    value: index,
-                }),
+                PromptRow::Choice { label, short, notes_key, .. } => {
+                    CheckboxItem::Choice(CheckboxChoice {
+                        name: label.clone(),
+                        short: short.clone(),
+                        value: index,
+                        description: notes_key
+                            .as_ref()
+                            .and_then(|key| notes.get(key))
+                            .cloned(),
+                    })
+                }
             })
             .collect();
         match self {
@@ -116,11 +127,11 @@ impl UpdatePrompt {
         self,
         message: &str,
         rows: &[PromptRow],
-        style: PromptStyle,
+        (style, notes): (PromptStyle, &ChoiceNotes),
     ) -> miette::Result<Option<Vec<usize>>> {
         match self {
             Self::Terminal => {
-                let prompt = style.checkbox_prompt(message, rows);
+                let prompt = style.checkbox_prompt(message, rows, notes);
                 match prompt
                     .interact()
                     .into_diagnostic()
@@ -171,11 +182,12 @@ pub(crate) async fn select_packages<Reporter: self::Reporter>(
     if options.include_github_actions {
         append_github_actions::<Reporter>(&mut choices, root, options.latest, config).await?;
     }
+    let notes = choice_notes(config, &choices).await;
     prompt_for_packages::<Reporter>(
         &choices,
         options.latest,
         config.workspace_dir.is_some(),
-        options.prompt,
+        (options.prompt, &notes),
     )
 }
 
@@ -210,7 +222,8 @@ pub(crate) async fn select_packages_for_projects<Reporter: self::Reporter>(
     if options.include_github_actions {
         append_github_actions::<Reporter>(&mut choices, root, options.latest, config).await?;
     }
-    prompt_for_packages::<Reporter>(&choices, options.latest, true, options.prompt)
+    let notes = choice_notes(config, &choices).await;
+    prompt_for_packages::<Reporter>(&choices, options.latest, true, (options.prompt, &notes))
 }
 
 async fn append_github_actions<Reporter: self::Reporter>(
@@ -308,7 +321,7 @@ fn prompt_for_packages<Reporter: self::Reporter>(
     choices: &[OutdatedPackage],
     latest: bool,
     workspaces_enabled: bool,
-    prompt: UpdatePrompt,
+    (prompt, notes): (UpdatePrompt, &ChoiceNotes),
 ) -> miette::Result<Option<Vec<String>>> {
     if choices.is_empty() {
         print_up_to_date(latest);
@@ -319,7 +332,7 @@ fn prompt_for_packages<Reporter: self::Reporter>(
     let rows = flatten_groups(&groups);
 
     let Some(selected_indices) =
-        prompt.select(&dependencies_prompt_message(), &rows, PromptStyle::Dependencies)?
+        prompt.select(&dependencies_prompt_message(), &rows, (PromptStyle::Dependencies, notes))?
     else {
         report_cancelled::<Reporter>();
         return Ok(None);
@@ -357,6 +370,7 @@ fn flatten_groups(groups: &[choices::ChoiceGroup]) -> Vec<PromptRow> {
                         label: row.label.clone(),
                         short: sanitize_inline(value).into_owned(),
                         value: value.clone(),
+                        notes_key: row.notes_key.clone(),
                     },
                 }),
         );
@@ -387,6 +401,9 @@ fn cyan(text: &str) -> String {
 }
 
 mod choices;
+mod notes;
+
+use notes::{ChoiceNotes, choice_notes};
 
 #[cfg(test)]
 mod tests;

@@ -277,7 +277,7 @@ async fn run_oci_gc(
     dry_run: bool,
     min_age_secs: u64,
 ) -> miette::Result<()> {
-    crate::recover_publish_journal(config).await.map_err(|err| redacted_report(&err))?;
+    crate::prepare_storage(config).await.map_err(|err| redacted_report(&err))?;
     let (blobs, bytes) = crate::oci_maintenance::collect_oci_blobs(
         config,
         &registry,

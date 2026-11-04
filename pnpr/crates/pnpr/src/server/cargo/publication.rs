@@ -124,6 +124,11 @@ impl CratePublication {
         &self.key
     }
 
+    /// The organization whose catalog the crate is published into.
+    pub(in super::super) fn org(&self) -> &str {
+        &self.org
+    }
+
     /// The one-version document this publish contributes, which merges into
     /// whatever the registry already holds for the crate.
     pub(super) fn document(&self) -> CrateDocument {
@@ -234,7 +239,7 @@ pub(super) async fn set_yanked(
     let _guard = state.inner.locks.packages.lock(key.as_str()).await;
     let outcome = state.inner.storage
         .for_hosted(&target.org, ECOSYSTEM)
-        .update_hosted_document_with_retry(&key, DOCUMENT_WRITE_RETRIES, |existing| {
+        .update_hosted_document_with_retry(&key, DOCUMENT_WRITE_RETRIES, None, |existing| {
             update_crate_yank_status(existing, &key, version, yanked)
         })
         .await;

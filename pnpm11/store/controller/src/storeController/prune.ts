@@ -9,7 +9,7 @@ import { rimraf } from '@zkochan/rimraf'
 import { isSubdir } from 'is-subdir'
 import prettyBytes from 'pretty-bytes'
 
-import { getInUseFiles } from './inUseFiles.js'
+import { getInUse } from './inUseFiles.js'
 import { pruneGlobalVirtualStore } from './pruneGlobalVirtualStore.js'
 
 const BIG_ONE = BigInt(1) as unknown
@@ -24,19 +24,19 @@ export interface PruneOptions {
 export async function prune ({ cacheDir, protectedDirs = [], storeDir, storeIndex }: PruneOptions, removeAlienFiles?: boolean): Promise<void> {
   // 0. Collect the files that registered projects still use, before any
   // removal, so an unreadable lockfile stops the prune untouched
-  const inUseFiles = await getInUseFiles(storeDir, storeIndex)
+  const inUse = await getInUse(storeDir, storeIndex)
 
   // 1. First, prune the global virtual store
   // This must happen BEFORE pruning the CAS, because removing packages from
   // the virtual store will reduce hard link counts on files in the CAS
-  await pruneGlobalVirtualStore(storeDir)
+  await pruneGlobalVirtualStore(storeDir, inUse.modulesDirs)
 
   // 2. Clean up metadata cache
   await removeCachedMetadata(cacheDir, storeDir, protectedDirs)
   await removeStaleSpillDirectories(storeDir)
 
   // 3. Prune the content-addressable store (CAS)
-  const removedHashes = await pruneContentAddressableStore(storeDir, removeAlienFiles, inUseFiles)
+  const removedHashes = await pruneContentAddressableStore(storeDir, removeAlienFiles, inUse.files)
 
   // 4. Clean up orphaned package index entries
   removeOrphanedIndexEntries(storeIndex, removedHashes)

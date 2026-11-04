@@ -159,6 +159,7 @@ impl PlanFixture {
             Some(&packages),
             None,
             None,
+            &crate::host_platform_selector(),
         );
         PlanFixture { snapshots, packages, layout }
     }
@@ -320,6 +321,7 @@ fn gvs_slot_missing_a_regular_child_link_survives() {
         Some(&packages),
         None,
         None,
+        &crate::host_platform_selector(),
     );
     let fixture = PlanFixture { snapshots, packages, layout };
     let parent_dir = fixture.layout

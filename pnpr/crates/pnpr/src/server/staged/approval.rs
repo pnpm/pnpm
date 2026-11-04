@@ -1,9 +1,10 @@
 use super::{
     APPROVAL_CLAIM_LEASE, AppState, ApprovalClaim, CanonicalPackageName, DocumentWrite, Identity,
     RegistryError, Response, StatusCode, StoredStagedRecord, Value, cleanup_tmp_slots,
-    commit_publishes, json, json_response, load_authorized_record, report_unrecorded,
-    stage_publish, validate_publish_doc,
+    commit_publishes, json, json_response, load_authorized_record, stage_publish,
+    validate_publish_doc,
 };
+use crate::server::publishing::add_npm_notices;
 use axum::response::IntoResponse;
 use pnpr_storage::publish::now_iso;
 
@@ -138,22 +139,22 @@ pub(super) async fn approve_claimed(
         validate_publish_doc(state, identity, record.registry.as_deref(), name, incoming).await?;
 
     let _packument_guard = state.inner.locks.packages.lock(validated.name.as_str()).await;
-    let staged = stage_publish(state, validated, &now_iso(), Some(&target.org)).await?;
+    let mut staged = stage_publish(state, validated, &now_iso(), Some(&target.org)).await?;
+    let notices = std::mem::take(&mut staged.verification.notices);
     // Nothing is visible yet, which is the last moment a rejection can still
     // take the stage back. Past the commit it cannot: the publish is served.
     if let Err(err) = still_claimed(state, stage_id, claim).await {
         cleanup_tmp_slots(staged.slots).await;
         return Err(err);
     }
-    let outcome = commit_publishes(state, vec![staged]).await?;
-    // Past the commit the stage is spent, whatever the transaction could not
-    // record: leaving the record listed would offer an approval that cannot
-    // happen again.
+    commit_publishes(state, vec![staged]).await?;
+    // Past the commit the stage is spent.
     if let Err(err) = state.inner.storage.remove_staged(stage_id).await {
         // The publish is already committed and visible; a failed record
         // cleanup must not report the approval as failed.
         tracing::warn!(error = %err, stage_id, "approved staged publish but its record cleanup failed");
     }
-    report_unrecorded(outcome)?;
-    Ok(json_response(StatusCode::CREATED, &json!({ "ok": true })))
+    let mut response = json_response(StatusCode::CREATED, &json!({ "ok": true }));
+    add_npm_notices(&mut response, &notices);
+    Ok(response)
 }

@@ -3,7 +3,7 @@ pub use bins::{
     MAX_PRECALCULATED_BINS, MAX_PRECALCULATED_BINS_BYTES, PackageBin, ScriptRuntime,
     declared_bin_entries, extension_program, infer_script_runtime_from_head,
     infer_script_runtime_from_shebang, is_safe_bin_name, is_within_precalculated_bins_budget,
-    manifest_declares_bins, normalize_package_relative_path, parse_shebang,
+    manifest_declares_bins, normalize_bin_path, normalize_package_relative_path, parse_shebang,
     parse_shebang_from_bytes, resolve_package_bins, resolve_package_bins_from_cas_paths,
     resolve_package_bins_with, serialize_precalculated_bins, unscoped_bin_name,
     verify_package_bins,
@@ -17,6 +17,10 @@ pub use build_triggers::{
 pub use bundled_manifest::normalize_bundled_manifest;
 pub use error::PackageManifestError;
 pub use initialization::{InitAuthor, InitOptions};
+pub use install_manifest::{
+    ArchiveFacts, INSTALL_MANIFEST_FIELDS, INSTALL_MANIFEST_PROFILE, InstallManifest,
+    ManifestComparison, NODE_GYP_REBUILD,
+};
 pub use metadata::{extract_author, extract_homepage, extract_license};
 pub use project::{
     PROJECT_MANIFEST_BASENAMES, find_parent_publish_manifest, project_manifest_path,
@@ -49,6 +53,7 @@ mod build_triggers;
 mod bundled_manifest;
 mod error;
 mod initialization;
+mod install_manifest;
 mod json5;
 mod metadata;
 mod project;

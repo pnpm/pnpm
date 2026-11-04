@@ -96,7 +96,9 @@ impl<'a> RunCtx<'a> {
         async move {
             let config = load_config()?;
             apply_cli_config(config);
-            apply_update_config(config, dir).await?;
+            // Boxed for `clippy::large_futures`: every command's state future
+            // embeds this one, and inline it takes them past the threshold.
+            Box::pin(apply_update_config(config, dir)).await?;
             Ok(&*config)
         }
     }

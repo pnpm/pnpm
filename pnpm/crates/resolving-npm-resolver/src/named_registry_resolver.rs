@@ -62,10 +62,13 @@ pub struct NamedRegistryResolver<Cache: PackageMetaCache> {
     /// checks aliases against this set per call, so caching it
     /// avoids rebuilding the set for every resolve.
     pub registry_names: HashSet<String>,
+    /// The scope routes plain ranges resolve through, `default` included.
+    /// The key prefix of a resolved package depends on where a plain range
+    /// of its name routes (see
+    /// [`DeclaredRegistryPrefixes::alias_key_prefix`]).
+    pub registries: HashMap<String, String>,
     /// The prefixes the project declares, which decide the prefix a
-    /// resolved id carries: the one keys for the picked registry carry,
-    /// which is the written alias unless several declared prefixes name
-    /// that registry, or the alias is a built-in nothing declares.
+    /// resolved id carries.
     pub declared_prefixes: DeclaredRegistryPrefixes,
     pub metadata: crate::RegistryMetadataClient<Cache>,
     pub format: crate::RegistryMetadataFormat,
@@ -121,11 +124,10 @@ impl<Cache: PackageMetaCache + 'static> NamedRegistryResolver<Cache> {
             }
         };
 
-        let key_prefix = self.declared_prefixes.prefix_for(registry).unwrap_or(&registry_name);
         crate::npm_resolver::RegistryResolutionSource {
             resolved_via: NAMED_REGISTRY_RESOLVED_VIA,
             registry,
-            registry_name: Some(key_prefix),
+            registry_name: self.key_prefix(&registry_name, registry, &spec.name),
             server_type: registry_server_type(&self.format.registry_options_by_url, registry),
         }
         .build_result(
@@ -142,6 +144,12 @@ impl<Cache: PackageMetaCache + 'static> NamedRegistryResolver<Cache> {
             ),
         )
         .map(Some)
+    }
+
+    /// See [`DeclaredRegistryPrefixes::alias_key_prefix`].
+    fn key_prefix<'a>(&'a self, alias: &'a str, registry: &str, name: &str) -> Option<&'a str> {
+        let routed_registry = pnpm_lockfile::registry_for_package(&self.registries, name, None);
+        self.declared_prefixes.alias_key_prefix(alias, registry, routed_registry)
     }
 
     fn parse_specifier(

@@ -52,6 +52,7 @@ pnpr/
     auth/          -> package "pnpr-auth"          (user and token stores)
     config/        -> package "pnpr-config"        (the YAML config: parsing and validation)
     error/         -> package "pnpr-error"         (the error type every layer returns)
+    libsql/        -> package "pnpr-libsql"        (reaching a libSQL database: connector, pool, replica)
     oci/           -> package "pnpr-oci"           (the OCI distribution protocol)
     osv/           -> package "pnpr-osv"           (the OSV advisory index)
     package-name/  -> package "pnpr-package-name"  (a validated package name)
@@ -59,7 +60,7 @@ pnpr/
     route/         -> package "pnpr-route"         (classifies a fetch route public or private)
     search/        -> package "pnpr-search"        (the local /-/v1/search index scan)
     shared-artifacts/ -> package "pnpr-shared-artifacts" (the shared build-artifact store)
-    storage/       -> package "pnpr-storage"       (the hosted store, proxy cache, and publish journal)
+    storage/       -> package "pnpr-storage"       (the hosted store, its metadata, and the proxy cache)
     upstream/      -> package "pnpr-upstream"      (the upstream registry proxy client)
     policy/        -> package "pnpr-policy"        (access policy for those routes)
     # further sibling crates land here, see "New registry-only crates" below

@@ -28,6 +28,7 @@ pub(crate) use guarded_pick::{
 
 pub(crate) use workspace_pick::{no_matching_version, swallowed_as_no_latest};
 
+mod platform_variants;
 mod release_policy;
 mod resolution_result;
 use release_policy::latest_allowed_by_policy;
@@ -49,37 +50,6 @@ mod store_peek;
 use store_peek::fast_path_pick;
 
 mod registry_dependency;
-use registry_dependency::ResolvedRegistry;
-
-use std::{
-    borrow::Cow,
-    collections::{BTreeMap, HashMap},
-    path::PathBuf,
-    sync::Arc,
-};
-
-use chrono::{DateTime, Utc};
-use node_semver::Version;
-use pnpm_config::{
-    DEFAULT_JSR_REGISTRY, NeedsFullMetadataFor, TrustPolicy, version_policy::PackageVersionPolicy,
-};
-use pnpm_lockfile::{
-    DeclaredRegistryPrefixes, LockfileResolution, PkgName, PkgNameVer, RegistryOptions,
-    RegistryServerType, TarballResolution, TarballRevision, TarballUrlOptions,
-    has_complete_sha512_digest, is_on_revision_tarball_route, is_revision_registry_tarball_url,
-    npm_tarball_url, registry_server_type,
-};
-use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient, redact_and_sanitize};
-use pnpm_registry::{Package, PackageDistribution, PackageVersion, RangeSpecStyle};
-use pnpm_resolving_resolver_base::{
-    GuardExhaustionPolicy, LatestInfo, LatestQuery, NoMatchingVersionError,
-    PackageVersionGuardDecision, PkgResolutionId, RegistryResponseError,
-    RegistryResponseErrorOptions, ResolutionPolicyViolation, ResolveError, ResolveFuture,
-    ResolveLatestFuture, ResolveOptions, ResolveResult, Resolver, UpdateBehavior, WantedDependency,
-    WorkspacePackages, parse_packument_timestamp,
-};
-use ssri::{Algorithm, Integrity};
-
 use crate::{
     OfflineStoreView,
     errors::{
@@ -103,6 +73,32 @@ use crate::{
     },
     trust_checks::TrustCheckOptions,
     violation_codes::MINIMUM_RELEASE_AGE_VIOLATION_CODE,
+};
+use chrono::{DateTime, Utc};
+use node_semver::Version;
+use pnpm_lockfile::{
+    DeclaredRegistryPrefixes, LockfileResolution, PkgName, PkgNameVer, RegistryOptions,
+    RegistryServerType, TarballResolution, TarballRevision, TarballUrlOptions,
+    has_complete_sha512_digest, is_on_revision_tarball_route, is_revision_registry_tarball_url,
+    npm_tarball_url, registry_server_type,
+};
+use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient, redact_and_sanitize};
+use pnpm_registry::{Package, PackageDistribution, PackageVersion, RangeSpecStyle};
+use pnpm_resolving_resolver_base::{
+    DEFAULT_JSR_REGISTRY, GuardExhaustionPolicy, LatestInfo, LatestQuery, NeedsFullMetadataFor,
+    NoMatchingVersionError, PackageVersionGuardDecision, PkgResolutionId, RegistryResponseError,
+    RegistryResponseErrorOptions, ResolutionPolicyViolation, ResolveError, ResolveFuture,
+    ResolveLatestFuture, ResolveOptions, ResolveResult, Resolver, TrustPolicy, UpdateBehavior,
+    WantedDependency, WorkspacePackages, parse_packument_timestamp,
+};
+use pnpm_version_policy::PackageVersionPolicy;
+use registry_dependency::ResolvedRegistry;
+use ssri::{Algorithm, Integrity};
+use std::{
+    borrow::Cow,
+    collections::{BTreeMap, HashMap},
+    path::PathBuf,
+    sync::Arc,
 };
 
 /// Provenance tag for [`ResolveResult::resolved_via`] when the picker
@@ -178,6 +174,10 @@ pub struct RegistryMetadataFormat {
     /// `Config::registry_options_by_url`. A version without `dist.tarball`
     /// gets its URL rebuilt in the layout its registry declares.
     pub registry_options_by_url: Arc<BTreeMap<String, RegistryOptions>>,
+    /// The effective `minimumReleaseAge`, in minutes, checked against what
+    /// pnpr's own package document supports (see
+    /// [`crate::PnprFormatPolicy`]).
+    pub minimum_release_age: Option<u64>,
 }
 
 impl<Cache: PackageMetaCache + 'static> Resolver for NpmResolver<Cache> {
@@ -375,6 +375,10 @@ impl<Cache: PackageMetaCache> RegistryMetadataClient<Cache> {
         store_view: Option<&'a OfflineStoreView>,
     ) -> PickPackageContext<'a, Cache> {
         PickPackageContext {
+            pnpr_format: Some(crate::PnprFormatPolicy {
+                registry_options: &format.registry_options_by_url,
+                minimum_release_age: format.minimum_release_age,
+            }),
             full_metadata: format.full_metadata,
             needs_full_metadata_for: format.needs_full_metadata_for.as_deref(),
             filter_metadata: format.filter_metadata,

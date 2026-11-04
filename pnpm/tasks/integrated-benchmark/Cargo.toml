@@ -20,7 +20,7 @@ pnpm-lockfile = { workspace = true }
 pnpm-registry-mock = { workspace = true }
 pnpm-store-dir = { workspace = true }
 pnpm-tarball = { workspace = true }
-pnpr-storage = { workspace = true }
+pnpr-fixtures = { workspace = true }
 
 clap = { workspace = true }
 itertools = { workspace = true }

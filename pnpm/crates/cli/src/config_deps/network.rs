@@ -38,6 +38,7 @@ impl EnvironmentNetwork {
                 registry_options_by_url: std::sync::Arc::new(
                     config.registry_options_by_url.clone(),
                 ),
+                minimum_release_age: config.resolved_minimum_release_age(),
             },
             cache_policy: pnpm_resolving_npm_resolver::MetadataCachePolicy {
                 network: NetworkPolicy::from_settings(self.offline, config.prefer_offline),

@@ -82,9 +82,9 @@ pub(in super::super) fn validate_registry_name(name: &str) -> Result<(), Registr
 /// dot, or Windows drive prefix) — otherwise a crafted config could read or
 /// write outside the storage root. The leading-dot rule also keeps an org
 /// from aliasing the reserved dot-directories inside the storage root (the
-/// default `.pnpr-cache` wipeable cache and the `.journal` commit
-/// journal), which would put authoritative packages under a path an operator
-/// is told is safe to delete.
+/// default `.pnpr-cache` wipeable cache and the `.metadata` database), which
+/// would put authoritative packages under a path an operator is told is safe
+/// to delete.
 pub(in super::super) fn validate_org_namespace(name: &str, org: &str) -> Result<(), RegistryError> {
     if org.is_empty() || pnpr_package_name::is_safe_path_segment(org) {
         return Ok(());

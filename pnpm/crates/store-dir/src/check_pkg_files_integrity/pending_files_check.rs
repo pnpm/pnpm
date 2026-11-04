@@ -1,6 +1,8 @@
-use super::{CafsFileInfo, FilesMap, HashMap, StoreDir, VerifiedFilesCache, verify_file};
+use super::{
+    CafsFileInfo, FilesMap, HashMap, SideEffectsOverlay, StoreDir, VerifiedFilesCache, verify_file,
+};
 use rayon::prelude::*;
-use std::path::PathBuf;
+use std::path::Path;
 
 /// The on-disk check of one store-index row's files, split off its
 /// map building by [`defer_pkg_files_integrity`](super::defer_pkg_files_integrity).
@@ -10,29 +12,13 @@ pub struct PendingFilesCheck {
     pub(super) algo: String,
 }
 
-/// The modes a passed [`PendingFilesCheck`] read, by CAFS path.
-#[derive(Debug, Default)]
-pub struct VerifiedModes(HashMap<PathBuf, u32>);
-
-impl VerifiedModes {
-    /// Record each mode on the entry of `files` at the same CAFS path.
-    pub fn apply(&self, files: &mut FilesMap) {
-        if self.0.is_empty() {
-            return;
-        }
-        for file in files.values_mut() {
-            if let Some(mode) = self.0.get(&file.path) {
-                file.set_mode(*mode);
-            }
-        }
-    }
-}
-
 impl PendingFilesCheck {
-    /// The modes of the row's files when every file the row records is
-    /// still on disk with its recorded content, `None` otherwise. A file
-    /// already in `verified_files_cache` is trusted without a stat and
-    /// reports the mode cached with it; one that passes here is added to it.
+    /// Whether every file the row records is still on disk with its
+    /// recorded content. A file already in `verified_files_cache` is
+    /// trusted without a stat; one that passes here is added to it.
+    ///
+    /// Records the mode of each file that passes on its entry in every map
+    /// of `maps` that names the same store file.
     ///
     /// Every file is checked, so a run reports all of a row's problems.
     /// A row with many files checks them in parallel: each check is a
@@ -43,34 +29,71 @@ impl PendingFilesCheck {
         self,
         store_dir: &StoreDir,
         verified_files_cache: &VerifiedFilesCache,
-    ) -> Option<VerifiedModes> {
-        let check = |(filename, info): (&String, &CafsFileInfo)| {
+        maps: &[&FilesMap],
+    ) -> bool {
+        let check = |(filename, info): (&String, &CafsFileInfo)| -> bool {
             // A malformed digest already failed the row's maps.
-            let path = store_dir.cas_file_path_by_mode(&info.digest, info.mode)?;
-            if let Some(mode) = verified_files_cache.get(&path).map(|entry| *entry) {
-                return Some((path, mode));
-            }
-            let mode = verify_file(&path, filename, info, &self.algo)?;
-            verified_files_cache.insert(path.clone(), mode);
-            Some((path, mode))
-        };
-        let checked: Vec<Option<(PathBuf, Option<u32>)>> =
-            if self.files.len() < PARALLEL_FILES_CHECK_MIN {
-                self.files.iter().map(check).collect()
-            } else {
-                self.files
-                    .par_iter()
-                    .map(check)
-                    .collect()
+            let Some(path) = store_dir.cas_file_path_by_mode(&info.digest, info.mode) else {
+                return false;
             };
-        // Off Unix no check reads a mode, so the map stays empty.
-        let mut modes = HashMap::with_capacity(if cfg!(unix) { checked.len() } else { 0 });
-        for file in checked {
-            if let (path, Some(mode)) = file? {
-                modes.insert(path, mode);
+            let cached = verified_files_cache.get(&path).map(|entry| *entry);
+            let mode = if let Some(mode) = cached {
+                mode
+            } else {
+                let Some(mode) = verify_file(&path, filename, info, &self.algo) else {
+                    return false;
+                };
+                verified_files_cache.insert(path.clone(), mode);
+                mode
+            };
+            if let Some(mode) = mode {
+                record_mode(maps, filename, &path, mode);
             }
+            true
+        };
+        let failed = if self.files.len() < PARALLEL_FILES_CHECK_MIN {
+            self.files
+                .iter()
+                .map(check)
+                .filter(|passed| !passed)
+                .count()
+        } else {
+            self.files
+                .par_iter()
+                .map(check)
+                .filter(|passed| !passed)
+                .count()
+        };
+        failed == 0
+    }
+}
+
+/// `base` and the files of every overlay in `overlays`: the maps a row's
+/// [`PendingFilesCheck::verify`] records modes on.
+#[must_use]
+pub fn files_maps<'a>(
+    base: &'a FilesMap,
+    overlays: Option<&'a HashMap<String, SideEffectsOverlay>>,
+) -> Vec<&'a FilesMap> {
+    std::iter::once(base)
+        .chain(
+            overlays
+                .into_iter()
+                .flat_map(HashMap::values)
+                .map(|overlay| &*overlay.files),
+        )
+        .collect()
+}
+
+/// An overlay's entry under `filename` can be a build output at another
+/// store path, so an entry takes the mode only when its path matches.
+fn record_mode(maps: &[&FilesMap], filename: &str, path: &Path, mode: u32) {
+    for files in maps {
+        if let Some(file) = files.get(filename)
+            && file.path == path
+        {
+            file.record_mode(mode);
         }
-        Some(VerifiedModes(modes))
     }
 }
 

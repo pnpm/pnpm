@@ -1,0 +1,49 @@
+{
+  "description": "The archive declares another dependency range and a postinstall the submitted manifest omits: manifest confusion.",
+  "archive": {
+    "packageJson": {
+      "name": "@example/widgets",
+      "version": "1.2.0",
+      "dependencies": {
+        "@example/core": "^1.0.0"
+      },
+      "scripts": {
+        "postinstall": "node collect.js",
+        "test": "node test.js"
+      }
+    },
+    "files": [
+      "package.json",
+      "collect.js"
+    ]
+  },
+  "submitted": {
+    "name": "@example/widgets",
+    "version": "1.2.0",
+    "dependencies": {
+      "@example/core": "^2.0.0"
+    },
+    "scripts": {
+      "test": "node test.js"
+    }
+  },
+  "expected": {
+    "manifest": {
+      "name": "@example/widgets",
+      "version": "1.2.0",
+      "dependencies": {
+        "@example/core": "^1.0.0"
+      },
+      "scripts": {
+        "postinstall": "node collect.js"
+      },
+      "hasInstallScript": true,
+      "hasShrinkwrap": false
+    },
+    "mismatched": [
+      "dependencies.@example/core",
+      "scripts"
+    ],
+    "tolerated": []
+  }
+}

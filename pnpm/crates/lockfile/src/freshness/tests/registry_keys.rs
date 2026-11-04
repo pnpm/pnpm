@@ -47,7 +47,10 @@ fn context(declared: &[(&str, &str)]) -> RegistryContext {
             .iter()
             .map(|(prefix, registry)| ((*prefix).to_string(), (*registry).to_string()))
             .collect(),
-        declared_prefixes: DeclaredRegistryPrefixes::new(declared.iter().copied()),
+        declared_prefixes: DeclaredRegistryPrefixes::new(
+            declared.iter().copied(),
+            "https://registry.npmjs.org/",
+        ),
         registry_options_by_url: BTreeMap::default(),
         locked_registries: None,
     }
@@ -94,6 +97,33 @@ fn the_smallest_outdated_key_is_reported() {
         Err(StalenessReason::OutdatedRegistryKey {
             key: "@work/foo@1.0.0".to_string(),
             current: "@work/foo@alpha:1.0.0".to_string(),
+        }),
+    );
+}
+
+/// <https://github.com/pnpm/pnpm/issues/17575>
+#[test]
+fn a_key_qualified_by_an_alias_of_the_default_registry_is_outdated_with_no_declared_prefix() {
+    let lockfile: Lockfile = serde_saphyr::from_str(&format!(
+        text_block! {
+            "lockfileVersion: '9.0'"
+            "packages:"
+            "  'baz@npmjs:1.0.0':"
+            "    resolution: {{integrity: {INTEGRITY}}}"
+        },
+        INTEGRITY = INTEGRITY,
+    ))
+    .expect("parse lockfile");
+    let mut context = context(&[]);
+    context.registries_by_prefix.insert(
+        "npmjs".to_string(),
+        "https://registry.npmjs.org/".to_string(),
+    );
+    assert_eq!(
+        check_lockfile_registry_keys(&lockfile, &context),
+        Err(StalenessReason::OutdatedRegistryKey {
+            key: "baz@npmjs:1.0.0".to_string(),
+            current: "baz@1.0.0".to_string(),
         }),
     );
 }

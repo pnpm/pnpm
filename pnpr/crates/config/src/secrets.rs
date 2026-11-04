@@ -123,6 +123,18 @@ fn validate_root_secrets<Sys: EnvVar>(val: &serde_json::Value) -> Result<(), Reg
     Ok(())
 }
 
+fn validate_release_record_secrets<Sys: EnvVar>(
+    val: &serde_json::Value,
+) -> Result<(), RegistryError> {
+    let Some(records) = val.get("releaseRecords") else { return Ok(()) };
+    for field in ["logSigningKey", "statementSigningKey"] {
+        if let Some(key) = records.get(field).and_then(serde_json::Value::as_str) {
+            check_secret_env_field::<Sys>(&format!("releaseRecords.{field}"), key)?;
+        }
+    }
+    Ok(())
+}
+
 fn validate_s3_secrets<Sys: EnvVar>(val: &serde_json::Value) -> Result<(), RegistryError> {
     let Some(s3) = val.get("s3").and_then(serde_json::Value::as_object) else {
         return Ok(());
@@ -161,7 +173,7 @@ fn validate_auth_secrets<Sys: EnvVar>(val: &serde_json::Value) -> Result<(), Reg
 }
 
 fn validate_database_secrets<Sys: EnvVar>(val: &serde_json::Value) -> Result<(), RegistryError> {
-    for prefix in ["/backend/libsql", "/auth/libsql", "/storage/database"] {
+    for prefix in ["/backend/libsql", "/auth/libsql", "/storage/database", "/metadata"] {
         for field in ["authToken", "auth_token"] {
             let ptr = format!("{prefix}/{field}");
             if let Some(token) = val.pointer(&ptr).and_then(serde_json::Value::as_str) {
@@ -243,6 +255,7 @@ pub(crate) fn validate_secret_env_vars<Sys: EnvVar>(raw: &str) -> Result<(), Reg
         return Ok(());
     };
     validate_root_secrets::<Sys>(&val)?;
+    validate_release_record_secrets::<Sys>(&val)?;
     validate_s3_secrets::<Sys>(&val)?;
     validate_auth_secrets::<Sys>(&val)?;
     validate_database_secrets::<Sys>(&val)?;

@@ -11,8 +11,7 @@ use std::{collections::HashSet, time::Duration};
 
 /// Reclaim unreferenced OCI blobs in one hosted registry.
 ///
-/// Stop every writer sharing this store before calling this function. Recover
-/// publish journals first, including those on other replicas' scratch volumes.
+/// Stop every writer sharing this store before calling this function.
 /// `dry_run` reports candidates without removing them. Blobs newer than
 /// `min_age` are retained so an interrupted push can resume after maintenance.
 pub async fn collect_oci_blobs(
@@ -31,12 +30,7 @@ pub async fn collect_oci_blobs(
         .ok_or_else(|| RegistryError::BadRequest {
             reason: format!("{registry:?} is not a hosted registry"),
         })?;
-    let storage = Storage::new(
-        &config.storage.hosted_backend,
-        config.storage.hosted_dir.clone(),
-        config.storage.cache_dir.clone(),
-    )?
-    .for_hosted(&hosted.org, Ecosystem::Oci);
+    let storage = Storage::from_config(&config.storage)?.for_hosted(&hosted.org, Ecosystem::Oci);
     if dry_run {
         storage.check_hosted_layout().await?;
     } else {
@@ -77,7 +71,8 @@ async fn collect(
     Ok((removed, bytes))
 }
 
-/// Record every hosted blob, with whether it is old enough to collect.
+/// Record every hosted blob, with whether it is old enough to collect, and
+/// every repository with a blob or metadata.
 async fn inventory_hosted_blobs(
     storage: &Storage,
     inventory: &mut Inventory,
@@ -108,6 +103,12 @@ async fn inventory_hosted_blobs(
                 file.modified.elapsed().unwrap_or_default() >= min_age
             ],
         )?;
+    }
+    // A repository's manifests are checked even when it keeps no blob of its
+    // own, so one whose document names a missing manifest still stops the
+    // collection.
+    for repository in storage.hosted_package_names().await? {
+        inventory.execute("INSERT OR IGNORE INTO repositories VALUES (?)", [&repository])?;
     }
     Ok(())
 }
@@ -194,6 +195,7 @@ async fn finish_pending_deletions(
         storage.update_hosted_document_with_retry(
             &name,
             pnpr_storage::DOCUMENT_WRITE_RETRIES,
+            None,
             |_| Ok(Some(document.to_bytes())),
         )
         .await?;

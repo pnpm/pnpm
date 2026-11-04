@@ -43,6 +43,20 @@ test.each(['isolated', 'hoisted'])('repeat install relinks changed workspace bin
   assertInstalledBins('node_modules/.bin', [])
 })
 
+test('repeat install rewrites command shims when extendNodePath changes in the environment', () => {
+  prepareEmpty()
+  writeYamlFileSync('pnpm-workspace.yaml', { modulesDir: 'vendor', extendNodePath: false })
+  fs.writeFileSync('package.json', JSON.stringify({ name: 'root', private: true, dependencies: { '@pnpm.e2e/hello-world-js-bin': '1.0.0' } }))
+
+  for (const extendNodePath of [false, true, false]) {
+    execPnpmSync(['install'], {
+      env: { PNPM_CONFIG_EXTEND_NODE_PATH: String(extendNodePath) },
+      expectSuccess: true,
+    })
+    expect(shimSetsNodePath('vendor/.bin/hello-world-js-bin')).toBe(extendNodePath)
+  }
+})
+
 test.each(['isolated', 'hoisted'])('hoisted workspace package prunes removed bins from root with %s linker', (nodeLinker) => {
   prepareEmpty()
   writeYamlFileSync('pnpm-workspace.yaml', {
@@ -140,4 +154,8 @@ function assertInstalledBins (binsDir: string, expected: string[]): void {
     .map((name) => isWindows ? name.toLowerCase() : name)
     .sort()
   expect(actual).toEqual(normalizedExpected)
+}
+
+function shimSetsNodePath (shim: string): boolean {
+  return fs.readFileSync(process.platform === 'win32' ? `${shim}.cmd` : shim, 'utf8').includes('NODE_PATH=')
 }

@@ -10,7 +10,7 @@ use axum::{
     http::{Request, StatusCode},
 };
 use futures_util::StreamExt;
-use npm::{publish_doc, sri_sha512};
+use npm::{npm_tgz, publish_doc, sri_sha512};
 use object_store::{ObjectStore, ObjectStoreExt, memory::InMemory, path::Path as ObjectPath};
 use pnpr::{Config, HostedStoreConfig, MaxUsers, router};
 use pnpr_fixtures::MockConfigPresets;
@@ -43,7 +43,7 @@ async fn publishes_to_and_serves_from_the_object_store() {
     let app = router(s3_config(storage.clone(), Arc::clone(&store)));
     let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
 
-    let bytes = b"fake-tarball-bytes";
+    let bytes = &npm_tgz("mypkg", "1.0.0", b"fake-tarball-bytes");
     let body = publish_doc("mypkg", "1.0.0", bytes);
     let request = Request::put("/npm/mypkg")
         .header("content-type", "application/json")
@@ -92,13 +92,13 @@ async fn publishes_to_and_serves_from_the_object_store() {
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
-    assert_eq!(body_bytes(response.into_body()).await, bytes);
+    assert_eq!(body_bytes(response.into_body()).await, *bytes);
 }
 
 /// Another writer in the bucket can own the tarball key a publish is about to
-/// write, and its bytes are immutable. The version is left out of the
-/// packument, and the publisher hears about it instead of a 201 for something
-/// the store does not serve.
+/// write, and its bytes are immutable. Nothing of the publish commits, and the
+/// publisher hears about it instead of a 201 for something the store does not
+/// serve.
 #[tokio::test]
 async fn a_publish_that_loses_the_tarball_key_is_refused() {
     let tmp = TempDir::new().unwrap();
@@ -141,7 +141,7 @@ async fn a_publish_that_loses_the_tarball_key_is_refused() {
         )
         .await
         .unwrap();
-    assert_eq!(body_json(response.into_body()).await["versions"], json!({}));
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
     let winner = store
         .get(&ObjectPath::from(object_key(&local_blob_path(
             Path::new(""),
@@ -208,7 +208,7 @@ async fn unpublish_removes_the_package_from_the_bucket() {
             .status(),
         StatusCode::CREATED,
     );
-    assert_eq!(bucket_keys(&store, "mypkg").await.len(), 2, "packument + tarball uploaded");
+    assert_eq!(bucket_keys(&store, "mypkg").await.len(), 1, "the tarball uploaded");
 
     let request = Request::delete("/npm/mypkg/-rev/anything")
         .header("Authorization", format!("Bearer {token}"))

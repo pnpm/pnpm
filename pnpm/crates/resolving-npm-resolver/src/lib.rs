@@ -40,7 +40,9 @@ pub use fetch_full_metadata::{
 pub use fetch_full_metadata_cached::{FetchFullMetadataCachedOptions, fetch_full_metadata_cached};
 pub use infer_range_spec_style::{infer_range_spec_style, range_of_specifier};
 pub use lookup_context::VerifierLookups;
-pub use mirror::{ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR};
+pub use mirror::{
+    ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, PNPR_META_DIR, RELEASE_RECORDS_DIR,
+};
 pub use named_registry::{
     BUILTIN_REGISTRIES_BY_PREFIX, MergeNamedRegistriesError, merge_named_registries,
     named_registry_tarball_prefixes, pick_registry_for_version,
@@ -56,12 +58,12 @@ pub use parse_bare_specifier::{
     parse_named_registry_specifier_to_registry_package_spec,
 };
 pub use pick_package::{
-    CachedPackument, InMemoryPackageMetaCache, MetadataCachePolicy, MetadataPickRequest,
-    MetadataRequestContext, MirrorPersistError, OfflineStoreView, PackageMetaCache,
-    PackagePickPolicy, PackumentFetchLocker, PickPackageContext, PickPackageError,
-    PickPackageOptions, PickPackageResult, PickedManifestCache, persist_meta_to_mirror,
-    pick_package, shared_in_memory_cache, shared_packument_fetch_locker,
-    shared_picked_manifest_cache,
+    CachedPackument, InMemoryPackageMetaCache, MAX_PNPR_FORMAT_RELEASE_AGE_MINUTES,
+    MetadataCachePolicy, MetadataPickRequest, MetadataRequestContext, MirrorPersistError,
+    OfflineStoreView, PackageMetaCache, PackagePickPolicy, PackumentFetchLocker,
+    PickPackageContext, PickPackageError, PickPackageOptions, PickPackageResult,
+    PickedManifestCache, PnprFormatPolicy, persist_meta_to_mirror, pick_package,
+    shared_in_memory_cache, shared_packument_fetch_locker, shared_picked_manifest_cache,
 };
 pub use pick_package_from_meta::{
     PickPackageFromMetaError, PickPackageFromMetaOptions, PickVersionByVersionRangeOptions,

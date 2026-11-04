@@ -144,6 +144,7 @@ impl PickState<'_> {
         registry: &'ctx str,
     ) -> FetchFullMetadataCachedOptions<'ctx> {
         FetchFullMetadataCachedOptions {
+            pnpr_format: !self.full_metadata && super::serves_pnpr_format(ctx, registry),
             registry,
             cache_dir: ctx.metadata.cache_dir,
             full_metadata: self.full_metadata,

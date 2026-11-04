@@ -189,8 +189,36 @@ pub fn manifest_child_specs(
             injected: false,
         });
     }
+    add_variant_child_specs(manifest, parent, &mut out)?;
     out.sort_unstable();
     Ok(out)
+}
+
+/// Add the dependencies only a platform variant declares. Every archive's
+/// dependencies are resolved on every machine, so the lockfile is the same
+/// everywhere; the lockfile writer splits them into the version's snapshot
+/// and each variant's. A name the version already declares keeps the
+/// version's specifier, since a package resolves one version per name.
+fn add_variant_child_specs(
+    manifest: &Value,
+    parent: &str,
+    out: &mut Vec<DependencySpec>,
+) -> Result<(), ResolveDependencyTreeError> {
+    for (_, variant) in pnpm_platform_variants::variant_manifests(manifest) {
+        let bundled = bundled_dependency_names(&variant);
+        let mut specs = Vec::new();
+        collect_deps(&variant, DependencyGroup::Prod, parent, &bundled, &mut specs)?;
+        collect_deps(&variant, DependencyGroup::Optional, parent, &bundled, &mut specs)?;
+        for spec in specs {
+            if !out
+                .iter()
+                .any(|existing| existing.alias == spec.alias)
+            {
+                out.push(spec);
+            }
+        }
+    }
+    Ok(())
 }
 
 /// The dependency names a manifest declares as bundled, read from
@@ -297,6 +325,12 @@ pub(super) fn pkg_is_leaf(result: &pnpm_resolving_resolver_base::ResolveResult) 
         && is_empty_or_absent(manifest.get("optionalDependencies"))
         && is_empty_or_absent(manifest.get("peerDependencies"))
         && is_empty_or_absent(manifest.get("peerDependenciesMeta"))
+        && pnpm_platform_variants::variant_manifests(manifest)
+            .iter()
+            .all(|(_, variant)| {
+                is_empty_or_absent(variant.get("dependencies"))
+                    && is_empty_or_absent(variant.get("optionalDependencies"))
+            })
 }
 
 fn is_empty_or_absent(value: Option<&Value>) -> bool {

@@ -158,12 +158,14 @@ pub(super) fn link_node_bin(
         _ => target_path.to_path_buf(),
     };
     remove_stale_bin(shim_path)?;
-    symlink(link_target, shim_path)
-        .map_err(|error| LinkBinsError::LinkNodeBin {
-            src: target_path.to_path_buf(),
-            dst: shim_path.to_path_buf(),
-            error,
-        })?;
+    symlink_tolerating_concurrent_writers(shim_path, target_path, relocatable_root, || {
+        symlink(&link_target, shim_path)
+    })
+    .map_err(|error| LinkBinsError::LinkNodeBin {
+        src: target_path.to_path_buf(),
+        dst: shim_path.to_path_buf(),
+        error,
+    })?;
     Ok(true)
 }
 
@@ -237,12 +239,14 @@ where
         None => target_path.to_path_buf(),
     };
     remove_stale_bin(shim_path)?;
-    symlink(&link_target, shim_path)
-        .map_err(|error| LinkBinsError::SymlinkBin {
-            src: target_path.to_path_buf(),
-            dst: shim_path.to_path_buf(),
-            error,
-        })?;
+    symlink_tolerating_concurrent_writers(shim_path, target_path, None, || {
+        symlink(&link_target, shim_path)
+    })
+    .map_err(|error| LinkBinsError::SymlinkBin {
+        src: target_path.to_path_buf(),
+        dst: shim_path.to_path_buf(),
+        error,
+    })?;
     if !target_path.exists() {
         // pnpm's `Failed to create bin at ...` globalWarn: the
         // symlink dangles until a later step materializes the
@@ -255,6 +259,45 @@ where
         );
     }
     Ok(true)
+}
+
+/// Create the link at `shim_path` with `create_link`, treating a link that a
+/// concurrent install sharing the store created as success.
+///
+/// - `Ok` when `create_link` succeeds, or when it reports `AlreadyExists` and
+///   the occupant satisfies [`symlink_already_points_at`].
+/// - `create_link`'s error otherwise. An occupant that vanished after the
+///   conflict was removed by a third writer, so it is retried a bounded number
+///   of times first.
+#[cfg(any(unix, target_os = "wasi"))]
+pub(super) fn symlink_tolerating_concurrent_writers(
+    shim_path: &Path,
+    target_path: &Path,
+    relocatable_root: Option<&Path>,
+    mut create_link: impl FnMut() -> io::Result<()>,
+) -> io::Result<()> {
+    const MAX_ATTEMPTS: usize = 4;
+    let mut attempt = 1;
+    loop {
+        let error = match create_link() {
+            Ok(()) => return Ok(()),
+            Err(error) => error,
+        };
+        if error.kind() != io::ErrorKind::AlreadyExists {
+            return Err(error);
+        }
+        if symlink_already_points_at(shim_path, target_path, relocatable_root) {
+            return Ok(());
+        }
+        let occupant_removed = matches!(
+            std::fs::symlink_metadata(shim_path),
+            Err(metadata_error) if metadata_error.kind() == io::ErrorKind::NotFound,
+        );
+        if !occupant_removed || attempt == MAX_ATTEMPTS {
+            return Err(error);
+        }
+        attempt += 1;
+    }
 }
 
 #[cfg(windows)]

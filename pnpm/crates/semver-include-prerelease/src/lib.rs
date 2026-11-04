@@ -1,8 +1,12 @@
-//! npm's `includePrerelease` range semantics, built on `node_semver`.
+//! npm `semver` range semantics, built on `node_semver`.
+
+pub use semver_range::{ANY_VERSION_RANGE, is_any_version_range, is_valid_semver_range};
 
 use std::borrow::Cow;
 
 use node_semver::{Range, Version};
+
+mod semver_range;
 
 /// A semver range evaluated the way npm's `semver` does with
 /// `includePrerelease: true`.

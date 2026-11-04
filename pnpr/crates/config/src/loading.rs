@@ -6,7 +6,10 @@ use super::{
     build_log_config, build_osv_config, build_route_policy, build_ui_config, config_file_in,
     env_replace_lossy, resolve_file_registries, resolve_secrets, resolve_storage_paths,
 };
-use crate::secrets::validate_secret_env_vars;
+use crate::{
+    config_file::{RegistryFile, RegistryGroupFile},
+    secrets::validate_secret_env_vars,
+};
 
 impl Config {
     /// Load YAML from `path` and merge it with runtime values
@@ -208,7 +211,8 @@ impl Config {
         public_url: Option<String>,
         overrides: FeatureOverrides,
     ) -> Result<Self, RegistryError> {
-        let storage = build_storage_config(&mut file, base_dir)?;
+        let hosts_packages = declares_a_hosted_registry(&file) && !overrides.disable_registry;
+        let storage = build_storage_config(&mut file, base_dir, hosts_packages)?;
         let http = build_http_config(&mut file, base_dir, listen, public_url)?;
         let backend = build_backend_config(file.backend, base_dir)?;
         reject_removed_blocks(RemovedBlocks {
@@ -243,6 +247,7 @@ impl Config {
             identity: build_identity_config(&file.auth, base_dir, backend)?,
             features,
             routing,
+            release_records: super::build_release_records_config(file.release_records.take())?,
         })
     }
 }
@@ -304,6 +309,7 @@ fn build_http_config(
         trusted_proxy_header,
         request_timeout,
         metrics: build_metrics_config(file, listen)?,
+        package_documents: super::build_package_documents_config(file.package_documents.take())?,
     })
 }
 
@@ -318,17 +324,34 @@ fn build_metrics_config(
     Ok(metrics)
 }
 
+/// Whether the config declares a hosted registry, flat or inside an
+/// ecosystem group: the only registries with package metadata of their own.
+fn declares_a_hosted_registry(file: &ConfigFile) -> bool {
+    file.registries
+        .values()
+        .any(|entry| match entry {
+            RegistryGroupFile::Registry(registry) => matches!(registry, RegistryFile::Hosted(_)),
+            RegistryGroupFile::Ecosystem(group) => group
+                .values()
+                .any(|registry| matches!(registry, RegistryFile::Hosted(_))),
+        })
+}
+
 fn build_storage_config(
     file: &mut ConfigFile,
     base_dir: &Path,
+    hosts_packages: bool,
 ) -> Result<super::StorageConfig, RegistryError> {
     let (hosted_dir, cache_dir, cache) = resolve_storage_paths(file, base_dir)?;
-    Ok(super::StorageConfig {
-        hosted_dir,
-        cache_dir,
-        cache,
-        hosted_backend: file.s3.take().map_or(HostedStoreConfig::Fs, HostedStoreConfig::S3),
-    })
+    let hosted_backend = file.s3.take().map_or(HostedStoreConfig::Fs, HostedStoreConfig::S3);
+    let metadata = crate::storage_config::resolve_metadata_backend(
+        file.metadata.as_ref(),
+        &hosted_dir,
+        base_dir,
+        &hosted_backend,
+        hosts_packages,
+    )?;
+    Ok(super::StorageConfig { hosted_dir, cache_dir, cache, hosted_backend, metadata })
 }
 
 pub(super) fn parse_config_file(raw: &str) -> Result<ConfigFile, RegistryError> {

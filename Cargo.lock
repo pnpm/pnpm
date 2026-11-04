@@ -3436,7 +3436,7 @@ dependencies = [
 [[package]]
 name = "libsql"
 version = "0.9.30"
-source = "git+https://github.com/pnpm/libsql?rev=e2c44e616a1f8e1ec7ceeb61138a3c2c391c35a9#e2c44e616a1f8e1ec7ceeb61138a3c2c391c35a9"
+source = "git+https://github.com/pnpm/libsql?rev=ab8a7516c7d32d6fdd0f68d59956c6233f9f11d4#ab8a7516c7d32d6fdd0f68d59956c6233f9f11d4"
 dependencies = [
  "anyhow",
  "async-stream",
@@ -3474,7 +3474,7 @@ dependencies = [
 [[package]]
 name = "libsql-ffi"
 version = "0.9.30"
-source = "git+https://github.com/pnpm/libsql?rev=e2c44e616a1f8e1ec7ceeb61138a3c2c391c35a9#e2c44e616a1f8e1ec7ceeb61138a3c2c391c35a9"
+source = "git+https://github.com/pnpm/libsql?rev=ab8a7516c7d32d6fdd0f68d59956c6233f9f11d4#ab8a7516c7d32d6fdd0f68d59956c6233f9f11d4"
 dependencies = [
  "bindgen",
  "cc",
@@ -3485,7 +3485,7 @@ dependencies = [
 [[package]]
 name = "libsql-hrana"
 version = "0.9.30"
-source = "git+https://github.com/pnpm/libsql?rev=e2c44e616a1f8e1ec7ceeb61138a3c2c391c35a9#e2c44e616a1f8e1ec7ceeb61138a3c2c391c35a9"
+source = "git+https://github.com/pnpm/libsql?rev=ab8a7516c7d32d6fdd0f68d59956c6233f9f11d4#ab8a7516c7d32d6fdd0f68d59956c6233f9f11d4"
 dependencies = [
  "base64 0.21.7",
  "bytes",
@@ -3496,7 +3496,7 @@ dependencies = [
 [[package]]
 name = "libsql-rusqlite"
 version = "0.9.30"
-source = "git+https://github.com/pnpm/libsql?rev=e2c44e616a1f8e1ec7ceeb61138a3c2c391c35a9#e2c44e616a1f8e1ec7ceeb61138a3c2c391c35a9"
+source = "git+https://github.com/pnpm/libsql?rev=ab8a7516c7d32d6fdd0f68d59956c6233f9f11d4#ab8a7516c7d32d6fdd0f68d59956c6233f9f11d4"
 dependencies = [
  "bitflags 2.11.1",
  "fallible-iterator 0.2.0",
@@ -3509,7 +3509,7 @@ dependencies = [
 [[package]]
 name = "libsql-sqlite3-parser"
 version = "0.13.0"
-source = "git+https://github.com/pnpm/libsql?rev=e2c44e616a1f8e1ec7ceeb61138a3c2c391c35a9#e2c44e616a1f8e1ec7ceeb61138a3c2c391c35a9"
+source = "git+https://github.com/pnpm/libsql?rev=ab8a7516c7d32d6fdd0f68d59956c6233f9f11d4#ab8a7516c7d32d6fdd0f68d59956c6233f9f11d4"
 dependencies = [
  "bitflags 2.11.1",
  "cc",
@@ -3526,7 +3526,7 @@ dependencies = [
 [[package]]
 name = "libsql-sys"
 version = "0.9.30"
-source = "git+https://github.com/pnpm/libsql?rev=e2c44e616a1f8e1ec7ceeb61138a3c2c391c35a9#e2c44e616a1f8e1ec7ceeb61138a3c2c391c35a9"
+source = "git+https://github.com/pnpm/libsql?rev=ab8a7516c7d32d6fdd0f68d59956c6233f9f11d4#ab8a7516c7d32d6fdd0f68d59956c6233f9f11d4"
 dependencies = [
  "bytes",
  "libsql-ffi",
@@ -3539,7 +3539,7 @@ dependencies = [
 [[package]]
 name = "libsql_replication"
 version = "0.9.30"
-source = "git+https://github.com/pnpm/libsql?rev=e2c44e616a1f8e1ec7ceeb61138a3c2c391c35a9#e2c44e616a1f8e1ec7ceeb61138a3c2c391c35a9"
+source = "git+https://github.com/pnpm/libsql?rev=ab8a7516c7d32d6fdd0f68d59956c6233f9f11d4#ab8a7516c7d32d6fdd0f68d59956c6233f9f11d4"
 dependencies = [
  "aes",
  "async-stream",
@@ -4827,11 +4827,8 @@ dependencies = [
  "pnpm-engine-pm-yarn-resolver",
  "pnpm-engine-runtime-node-resolver",
  "pnpm-env-installer",
+ "pnpm-env-replace",
  "pnpm-executor",
- "pnpm-ffi-fs",
- "pnpm-ffi-process",
- "pnpm-ffi-signal",
- "pnpm-ffi-terminal",
  "pnpm-fs",
  "pnpm-fs-packlist",
  "pnpm-git-fetcher",
@@ -4864,6 +4861,7 @@ dependencies = [
  "pnpm-python-installer",
  "pnpm-python-resolver",
  "pnpm-registry",
+ "pnpm-release-notes",
  "pnpm-reporter",
  "pnpm-resolving-default-resolver",
  "pnpm-resolving-deps-resolver",
@@ -4962,7 +4960,6 @@ dependencies = [
  "pnpm-config-dir",
  "pnpm-detect-libc",
  "pnpm-env-replace",
- "pnpm-ffi-process",
  "pnpm-fs",
  "pnpm-git-utils",
  "pnpm-lockfile",
@@ -4971,12 +4968,15 @@ dependencies = [
  "pnpm-package-is-installable",
  "pnpm-package-manifest",
  "pnpm-patching",
+ "pnpm-resolving-resolver-base",
  "pnpm-store-dir",
  "pnpm-tarball",
  "pnpm-testing-utils",
+ "pnpm-version-policy",
  "pnpm-versioning",
  "pnpm-workspace",
  "pnpm-workspace-state",
+ "pnpm-workspace-task-scheduler",
  "pnpr-registry",
  "pretty_assertions",
  "serde",
@@ -5003,6 +5003,16 @@ dependencies = [
  "pnpm-catalogs-resolver",
  "pnpm-catalogs-types",
  "pnpm-resolving-parse-wanted-dependency",
+]
+
+[[package]]
+name = "pnpm-crate-layers"
+version = "0.0.0"
+dependencies = [
+ "clap",
+ "pretty_assertions",
+ "serde",
+ "toml",
 ]
 
 [[package]]
@@ -5138,7 +5148,6 @@ dependencies = [
  "pnpm-detect-libc",
  "pnpm-directory-fetcher",
  "pnpm-executor",
- "pnpm-ffi-fs",
  "pnpm-fs",
  "pnpm-git-fetcher",
  "pnpm-graph-hasher",
@@ -5370,15 +5379,10 @@ dependencies = [
  "dunce",
  "libc",
  "miette 7.6.0",
- "pnpm-ffi-fs",
- "pnpm-ffi-process",
- "pnpm-ffi-signal",
  "pnpm-fs",
  "pnpm-package-manifest",
  "pnpm-process",
  "pnpm-reporter",
- "pnpm-signal-registry",
- "pnpm-testing-utils",
  "pnpm-which",
  "pretty_assertions",
  "serde_json",
@@ -5406,70 +5410,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "pnpm-ffi-fs"
-version = "0.0.1"
-dependencies = [
- "cap-primitives",
- "libc",
- "pnpm-ffi-process",
- "tempfile",
- "windows-sys 0.61.2",
-]
-
-[[package]]
-name = "pnpm-ffi-process"
-version = "0.0.1"
-dependencies = [
- "libc",
- "pipe-trait",
- "text-block-macros",
- "windows-sys 0.61.2",
-]
-
-[[package]]
-name = "pnpm-ffi-security"
-version = "0.0.1"
-dependencies = [
- "core-foundation",
- "security-framework",
- "security-framework-sys",
-]
-
-[[package]]
-name = "pnpm-ffi-signal"
-version = "0.0.1"
-dependencies = [
- "libc",
- "windows-sys 0.61.2",
-]
-
-[[package]]
-name = "pnpm-ffi-sqlite"
-version = "0.0.1"
-dependencies = [
- "rusqlite",
-]
-
-[[package]]
-name = "pnpm-ffi-terminal"
-version = "0.0.1"
-dependencies = [
- "libc",
- "windows-sys 0.61.2",
-]
-
-[[package]]
-name = "pnpm-ffi-webcontainer"
-version = "0.0.1"
-dependencies = [
- "futures-util",
- "libc",
- "pnpm-webcontainer-sys",
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "pnpm-fs"
 version = "0.0.1"
 dependencies = [
@@ -5483,17 +5423,12 @@ dependencies = [
  "pathdiff",
  "pipe-trait",
  "pnpm-crypto-hash",
- "pnpm-ffi-fs",
- "pnpm-ffi-process",
- "pnpm-ffi-signal",
- "pnpm-ffi-webcontainer",
- "pnpm-signal-registry",
- "pnpm-testing-utils",
  "pnpm-wasm-host",
  "reflink-copy",
  "same-file",
  "sha2 0.10.9",
  "tempfile",
+ "text-block-macros",
  "tracing",
  "windows-sys 0.61.2",
 ]
@@ -5614,7 +5549,6 @@ dependencies = [
  "derive_more",
  "libc",
  "pnpm-crypto-hash",
- "pnpm-ffi-process",
  "pnpm-lockfile",
  "pnpm-process",
  "pnpm-resolving-resolver-base",
@@ -5649,7 +5583,6 @@ dependencies = [
  "miette 7.6.0",
  "pnpm-cmd-shim",
  "pnpm-directory-fetcher",
- "pnpm-ffi-fs",
  "pnpm-fs",
  "pnpm-modules-yaml",
  "pnpm-package-manifest",
@@ -5670,7 +5603,6 @@ dependencies = [
  "libc",
  "miette 7.6.0",
  "pnpm-crypto-hash",
- "pnpm-ffi-fs",
  "pnpm-fs",
  "tempfile",
  "tokio",
@@ -5690,7 +5622,7 @@ dependencies = [
  "pnpm-registry-mock",
  "pnpm-store-dir",
  "pnpm-tarball",
- "pnpr-storage",
+ "pnpr-fixtures",
  "reqwest",
  "serde",
  "serde-saphyr",
@@ -5724,8 +5656,10 @@ dependencies = [
  "pnpm-diagnostics",
  "pnpm-fs",
  "pnpm-package-manifest",
- "pnpm-patching",
+ "pnpm-patching-config",
+ "pnpm-platform-variants",
  "pnpm-resolving-parse-wanted-dependency",
+ "pnpm-semver-include-prerelease",
  "pnpm-tool-protocol",
  "pretty_assertions",
  "rayon",
@@ -5877,7 +5811,6 @@ dependencies = [
  "pnpm-engine-runtime-bun-resolver",
  "pnpm-engine-runtime-deno-resolver",
  "pnpm-engine-runtime-node-resolver",
- "pnpm-ffi-terminal",
  "pnpm-hooks",
  "pnpm-lockfile",
  "pnpm-matcher",
@@ -5912,13 +5845,13 @@ name = "pnpm-network"
 version = "0.0.1"
 dependencies = [
  "bytes",
+ "core-foundation",
  "derive_more",
  "flate2",
  "futures-util",
  "miette 7.6.0",
  "mockito",
  "pipe-trait",
- "pnpm-ffi-security",
  "pnpm-http",
  "pnpm-process",
  "pnpm-testing-utils",
@@ -5926,6 +5859,7 @@ dependencies = [
  "reqwest",
  "rustls",
  "security-framework",
+ "security-framework-sys",
  "tokio",
  "tracing",
  "webpki-root-certs",
@@ -6054,7 +5988,6 @@ dependencies = [
  "pnpm-engine-runtime-deno-resolver",
  "pnpm-engine-runtime-node-resolver",
  "pnpm-executor",
- "pnpm-ffi-fs",
  "pnpm-fs",
  "pnpm-git-fetcher",
  "pnpm-graph-hasher",
@@ -6071,6 +6004,7 @@ dependencies = [
  "pnpm-package-manifest",
  "pnpm-package-name",
  "pnpm-patching",
+ "pnpm-platform-variants",
  "pnpm-real-hoist",
  "pnpm-registry",
  "pnpm-reporter",
@@ -6154,12 +6088,35 @@ dependencies = [
  "pnpm-fs",
  "pnpm-fs-packlist",
  "pnpm-package-manifest",
+ "pnpm-patching-config",
  "pnpm-process",
  "pretty_assertions",
  "serde_json",
  "sha2 0.10.9",
  "tempfile",
  "text-block-macros",
+]
+
+[[package]]
+name = "pnpm-patching-config"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "miette 7.6.0",
+ "node-semver",
+ "pretty_assertions",
+]
+
+[[package]]
+name = "pnpm-platform-variants"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "pnpm-detect-libc",
+ "pnpm-process",
+ "pretty_assertions",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -6363,6 +6320,38 @@ dependencies = [
 ]
 
 [[package]]
+name = "pnpm-release-notes"
+version = "0.0.1"
+dependencies = [
+ "base64 0.23.1",
+ "derive_more",
+ "miette 7.6.0",
+ "node-semver",
+ "pnpm-text-sanitize",
+ "pretty_assertions",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+]
+
+[[package]]
+name = "pnpm-release-record"
+version = "0.0.1"
+dependencies = [
+ "base64 0.23.1",
+ "chrono",
+ "derive_more",
+ "ed25519-dalek",
+ "percent-encoding",
+ "pnpm-transparency-log",
+ "pretty_assertions",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "signed_note",
+]
+
+[[package]]
 name = "pnpm-reporter"
 version = "0.0.1"
 dependencies = [
@@ -6421,6 +6410,7 @@ dependencies = [
  "pnpm-package-manifest",
  "pnpm-package-name",
  "pnpm-patching",
+ "pnpm-platform-variants",
  "pnpm-resolving-jsr-specifier-parser",
  "pnpm-resolving-npm-resolver",
  "pnpm-resolving-parse-wanted-dependency",
@@ -6509,19 +6499,19 @@ dependencies = [
  "node-semver",
  "percent-encoding",
  "pipe-trait",
- "pnpm-config",
  "pnpm-deps-path",
- "pnpm-ffi-process",
  "pnpm-http",
  "pnpm-lockfile",
  "pnpm-network",
  "pnpm-package-name",
+ "pnpm-platform-variants",
  "pnpm-registry",
  "pnpm-resolving-default-resolver",
  "pnpm-resolving-jsr-specifier-parser",
  "pnpm-resolving-local-resolver",
  "pnpm-resolving-resolver-base",
  "pnpm-store-dir",
+ "pnpm-version-policy",
  "pnpm-wasm-host",
  "pnpm-workspace-range-resolver",
  "pnpm-workspace-spec",
@@ -6553,10 +6543,12 @@ dependencies = [
  "derive_more",
  "miette 7.6.0",
  "node-semver",
- "pnpm-config",
  "pnpm-lockfile",
  "pnpm-network",
  "pnpm-registry",
+ "pnpm-semver-include-prerelease",
+ "pnpm-version-policy",
+ "pretty_assertions",
  "serde",
  "serde_json",
  "ssri",
@@ -6598,7 +6590,6 @@ dependencies = [
  "pnpm-config",
  "pnpm-crypto-shasums-file",
  "pnpm-detect-libc",
- "pnpm-ffi-process",
  "pnpm-fs",
  "pnpm-http",
  "pnpm-network",
@@ -6614,6 +6605,7 @@ dependencies = [
  "tempfile",
  "tokio",
  "toml",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -6636,10 +6628,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "pnpm-signal-registry"
-version = "0.0.1"
-
-[[package]]
 name = "pnpm-store-dir"
 version = "0.0.1"
 dependencies = [
@@ -6653,8 +6641,6 @@ dependencies = [
  "pnpm-crypto-hash",
  "pnpm-deps-path",
  "pnpm-diagnostics",
- "pnpm-ffi-fs",
- "pnpm-ffi-sqlite",
  "pnpm-fs",
  "pnpm-package-manifest",
  "pnpm-package-name",
@@ -6724,8 +6710,6 @@ dependencies = [
  "command-extra",
  "dunce",
  "flate2",
- "libc",
- "libsql",
  "pipe-trait",
  "pnpm-fs",
  "pnpm-workspace-state",
@@ -6741,7 +6725,6 @@ dependencies = [
  "tokio",
  "url",
  "walkdir",
- "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -6760,14 +6743,30 @@ dependencies = [
 ]
 
 [[package]]
-name = "pnpm-unsafe-audit"
+name = "pnpm-transparency-log"
+version = "0.0.1"
+dependencies = [
+ "base64 0.23.1",
+ "derive_more",
+ "ed25519-dalek",
+ "pretty_assertions",
+ "serde",
+ "serde_json",
+ "signed_note",
+ "tlog_tiles",
+ "zeroize",
+]
+
+[[package]]
+name = "pnpm-version-policy"
 version = "0.0.1"
 dependencies = [
  "derive_more",
- "serde",
- "tempfile",
- "text-block-macros",
- "toml",
+ "indexmap 2.14.0",
+ "miette 7.6.0",
+ "node-semver",
+ "pnpm-matcher",
+ "pretty_assertions",
 ]
 
 [[package]]
@@ -6780,6 +6779,7 @@ dependencies = [
  "miette 7.6.0",
  "node-semver",
  "pathdiff",
+ "pnpm-fs",
  "pnpm-matcher",
  "pnpm-package-manifest",
  "pretty_assertions",
@@ -6793,13 +6793,10 @@ dependencies = [
 name = "pnpm-wasm-host"
 version = "0.0.1"
 dependencies = [
- "pnpm-ffi-webcontainer",
+ "futures-util",
+ "serde",
  "serde_json",
 ]
-
-[[package]]
-name = "pnpm-webcontainer-sys"
-version = "0.0.1"
 
 [[package]]
 name = "pnpm-which"
@@ -6820,7 +6817,6 @@ dependencies = [
  "miette 7.6.0",
  "pathdiff",
  "pnpm-catalogs-types",
- "pnpm-ffi-fs",
  "pnpm-fs",
  "pnpm-local-spec",
  "pnpm-package-manifest",
@@ -6932,7 +6928,6 @@ dependencies = [
  "futures-util",
  "indexmap 2.14.0",
  "miette 7.6.0",
- "pnpm-config",
  "pnpm-fs",
  "pnpm-reporter",
  "pretty_assertions",
@@ -6996,7 +6991,9 @@ dependencies = [
  "pnpm-network",
  "pnpm-package-manager",
  "pnpm-package-manifest",
+ "pnpm-platform-variants",
  "pnpm-python-resolver",
+ "pnpm-release-record",
  "pnpm-reporter",
  "pnpm-resolving-npm-resolver",
  "pnpm-resolving-resolver-base",
@@ -7004,11 +7001,13 @@ dependencies = [
  "pnpm-store-dir",
  "pnpm-tarball",
  "pnpm-testing-utils",
+ "pnpm-transparency-log",
  "pnpr-auth",
  "pnpr-cargo",
  "pnpr-config",
  "pnpr-error",
  "pnpr-fixtures",
+ "pnpr-libsql",
  "pnpr-oci",
  "pnpr-osv",
  "pnpr-package-name",
@@ -7054,8 +7053,6 @@ dependencies = [
  "chrono",
  "futures-util",
  "getrandom 0.4.3",
- "http 0.2.12",
- "hyper 0.14.32",
  "libsql",
  "openidconnect",
  "p256 0.14.0",
@@ -7063,10 +7060,10 @@ dependencies = [
  "pnpm-testing-utils",
  "pnpr-config",
  "pnpr-error",
+ "pnpr-libsql",
  "reqwest",
  "rusqlite",
  "rustls",
- "rustls-platform-verifier",
  "serde",
  "serde_json",
  "sha2 0.10.9",
@@ -7074,7 +7071,6 @@ dependencies = [
  "ssri",
  "tempfile",
  "tokio",
- "tokio-rustls",
  "tower 0.4.13",
  "tower 0.5.3",
  "tracing",
@@ -7107,6 +7103,7 @@ dependencies = [
  "pnpm-config-dir",
  "pnpm-env-replace",
  "pnpm-testing-utils",
+ "pnpm-transparency-log",
  "pnpr-error",
  "pnpr-package-name",
  "pnpr-policy",
@@ -7145,12 +7142,12 @@ name = "pnpr-fixtures"
 version = "0.0.1"
 dependencies = [
  "base64 0.23.1",
- "chrono",
  "clap",
  "flate2",
  "indexmap 2.14.0",
  "node-semver",
  "pnpr-config",
+ "pnpr-package-name",
  "pnpr-policy",
  "pnpr-registry",
  "pnpr-storage",
@@ -7159,7 +7156,31 @@ dependencies = [
  "sha2 0.10.9",
  "tar",
  "tempfile",
+ "tokio",
  "walkdir",
+]
+
+[[package]]
+name = "pnpr-libsql"
+version = "0.0.1"
+dependencies = [
+ "axum 0.8.9",
+ "base64 0.23.1",
+ "http 0.2.12",
+ "hyper 0.14.32",
+ "libsql",
+ "pnpm-network",
+ "pnpr-config",
+ "pnpr-error",
+ "rustls",
+ "rustls-platform-verifier",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "tokio-rustls",
+ "tower 0.4.13",
+ "tower 0.5.3",
+ "tracing",
 ]
 
 [[package]]
@@ -7308,20 +7329,26 @@ dependencies = [
  "futures-util",
  "getrandom 0.4.3",
  "libc",
+ "libsql",
  "object_store",
  "percent-encoding",
  "pnpm-crypto-hash",
  "pnpm-network",
  "pnpm-package-manifest",
+ "pnpm-release-record",
+ "pnpm-transparency-log",
  "pnpr-config",
  "pnpr-error",
+ "pnpr-libsql",
  "pnpr-package-name",
  "pnpr-registry",
  "reqwest",
+ "rusqlite",
  "serde",
  "serde_json",
  "ssri",
  "tempfile",
+ "tlog_tiles",
  "tokio",
  "tracing",
 ]
@@ -8656,6 +8683,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "signed_note"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "aee127accd55881df0c941dc799efc824cb506c38df4a95fd30c307f3bc96504"
+dependencies = [
+ "base64 0.21.7",
+ "ed25519-dalek",
+ "rand_core 0.6.4",
+ "sha2 0.10.9",
+ "signature 2.2.0",
+ "thiserror 1.0.69",
+]
+
+[[package]]
 name = "sigstore-bundle"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9604,6 +9645,20 @@ name = "tinyvec_macros"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
+
+[[package]]
+name = "tlog_tiles"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7e403c85c5336d8f18b08330749b706a9179265d7d4b111ab90a35d2a51d0e0b"
+dependencies = [
+ "base64 0.21.7",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "thiserror 1.0.69",
+ "url",
+]
 
 [[package]]
 name = "tls_codec"

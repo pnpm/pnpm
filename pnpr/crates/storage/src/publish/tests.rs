@@ -1,13 +1,11 @@
 use super::{
-    DocumentMerge, drop_lost_versions, extract_attachments, merge_journaled_packument,
-    merge_manifest, now_iso, sha1_hex_from_integrity_opts, stream_decode_verify_and_write,
+    extract_attachments, merge_manifest, now_iso, sha1_hex_from_integrity_opts,
+    stream_decode_verify_and_write, verify_and_write,
 };
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
-use pnpr_package_name::CanonicalPackageName;
-use pnpr_registry::Ecosystem;
 use serde_json::{Value, json};
 use ssri::{Algorithm, IntegrityOpts};
-use std::{collections::HashSet, path::PathBuf};
+use std::path::PathBuf;
 use tempfile::TempDir;
 
 fn sri_sha512(bytes: &[u8]) -> String {
@@ -176,9 +174,69 @@ fn extracts_and_strips_attachments() {
     let attachments = extract_attachments(&mut body).unwrap();
     assert_eq!(attachments.len(), 1);
     assert_eq!(attachments[0].filename, "foo-1.0.0.tgz");
-    assert_eq!(attachments[0].data, "aGVsbG8=");
+    assert_eq!(attachments[0].inline_data(), Some("aGVsbG8="));
     assert_eq!(attachments[0].declared_length, Some(5));
     assert!(body.get("_attachments").is_none(), "_attachments should be stripped");
+}
+
+#[test]
+fn an_attachment_references_a_staged_archive_by_integrity() {
+    let mut body = json!({
+        "_attachments": {
+            "foo-1.0.0.tgz": { "integrity": "sha512-AAAA", "length": 5 },
+        },
+    });
+    let attachments = extract_attachments(&mut body).unwrap();
+    assert_eq!(attachments[0].staged_integrity(), Some("sha512-AAAA"));
+    assert_eq!(attachments[0].inline_data(), None);
+    assert_eq!(attachments[0].declared_length, Some(5));
+}
+
+#[test]
+fn inline_bytes_may_declare_their_integrity() {
+    let mut body = json!({
+        "_attachments": {
+            "foo-1.0.0.tgz": { "data": "aGVsbG8=", "integrity": "sha512-AAAA" },
+        },
+    });
+    let attachments = extract_attachments(&mut body).unwrap();
+    assert_eq!(attachments[0].inline_data(), Some("aGVsbG8="));
+    assert_eq!(attachments[0].staged_integrity(), None);
+    assert_eq!(attachments[0].declared_integrity.as_deref(), Some("sha512-AAAA"));
+}
+
+#[test]
+fn an_attachment_carries_its_bytes_or_names_a_staged_archive() {
+    for attachment in [
+        json!({ "data": 5, "integrity": "sha512-AAAA" }),
+        json!({ "length": 5 }),
+        json!({ "integrity": 5 }),
+    ] {
+        let mut body = json!({ "_attachments": { "foo-1.0.0.tgz": attachment } });
+        assert!(extract_attachments(&mut body).is_err(), "{attachment}");
+    }
+}
+
+#[test]
+fn verify_and_write_checks_raw_bytes_against_the_dist() {
+    let dir = tempfile::tempdir().unwrap();
+    let dest = dir.path().join("foo-1.0.0.tgz");
+    let mut opts = ssri::IntegrityOpts::new().algorithm(ssri::Algorithm::Sha512);
+    opts.input(b"hello");
+    let dist = json!({ "integrity": opts.result().to_string() });
+    let written =
+        verify_and_write("foo-1.0.0.tgz", b"hello".as_slice(), Some(5), Some(&dist), &dest);
+    assert_eq!(written.unwrap(), 5);
+    assert_eq!(std::fs::read(&dest).unwrap(), b"hello");
+
+    let refused = verify_and_write("foo-1.0.0.tgz", b"other".as_slice(), None, Some(&dist), &dest);
+    assert!(
+        refused
+            .unwrap_err()
+            .to_string()
+            .contains("EINTEGRITY"),
+    );
+    assert!(!dest.exists(), "a refused archive leaves nothing behind");
 }
 
 #[test]
@@ -353,135 +411,6 @@ fn merge_drops_attachments_if_present() {
 }
 
 #[test]
-fn drop_lost_versions_removes_only_the_lost_versions() {
-    let mut journaled = json!({
-        "versions": {
-            "1.0.0": { "dist": { "tarball": "http://host/pkg/-/pkg-1.0.0.tgz" } },
-            "2.0.0": { "dist": { "tarball": "http://host/pkg/-/pkg-2.0.0.tgz" } },
-            // A version outside the conflict set is kept as-is.
-            "3.0.0": { "dist": {} },
-        }
-    });
-    let lost: HashSet<String> = std::iter::once("1.0.0".to_string()).collect();
-
-    drop_lost_versions(&mut journaled, &lost);
-
-    let versions = journaled["versions"].as_object().unwrap();
-    assert!(!versions.contains_key("1.0.0"));
-    assert!(versions.contains_key("2.0.0"));
-    assert!(versions.contains_key("3.0.0"));
-}
-
-#[test]
-fn drop_lost_versions_tolerates_a_missing_versions_map() {
-    let mut journaled = json!({ "name": "pkg" });
-    let lost: HashSet<String> = std::iter::once("1.0.0".to_string()).collect();
-    drop_lost_versions(&mut journaled, &lost);
-    assert_eq!(journaled, json!({ "name": "pkg" }));
-}
-
-#[test]
-fn merging_a_journaled_packument_adds_its_versions_to_the_stored_one() {
-    let name = CanonicalPackageName::parse("pkg", pnpr_package_name::Ecosystem::Npm).unwrap();
-    let stored = serde_json::to_vec(&json!({
-        "name": "pkg",
-        "versions": { "1.0.0": { "version": "1.0.0" } },
-        "dist-tags": { "latest": "1.0.0" },
-    }))
-    .unwrap();
-    let journaled = serde_json::to_vec(&json!({
-        "name": "pkg",
-        "versions": { "2.0.0": { "version": "2.0.0" } },
-        "dist-tags": { "latest": "2.0.0" },
-    }))
-    .unwrap();
-
-    let merged = merge_journaled_packument(&DocumentMerge {
-        ecosystem: Ecosystem::Npm,
-        name: &name,
-        existing: Some(&stored),
-        journaled: &journaled,
-        lost_blobs: &HashSet::new(),
-    })
-    .unwrap()
-    .unwrap();
-
-    let merged: Value = serde_json::from_slice(&merged).unwrap();
-    assert_eq!(merged["versions"]["1.0.0"]["version"], "1.0.0");
-    assert_eq!(merged["versions"]["2.0.0"]["version"], "2.0.0");
-    assert_eq!(merged["dist-tags"]["latest"], "2.0.0");
-}
-
-/// The canonical tarball filename names the version, not the publisher-chosen
-/// `dist.tarball` URL the packument carries.
-#[test]
-fn merging_a_journaled_packument_drops_the_versions_of_lost_blobs() {
-    let name = CanonicalPackageName::parse("pkg", pnpr_package_name::Ecosystem::Npm).unwrap();
-    let journaled = serde_json::to_vec(&json!({
-        "name": "pkg",
-        "versions": {
-            "1.0.0": { "dist": { "tarball": "http://host/pkg/-/publisher-chosen-name.tgz" } },
-            "2.0.0": { "dist": { "tarball": "http://host/pkg/-/pkg-2.0.0.tgz" } },
-        },
-        "dist-tags": { "latest": "1.0.0" },
-    }))
-    .unwrap();
-    let lost_blobs: HashSet<String> = std::iter::once("pkg-1.0.0.tgz".to_string()).collect();
-
-    let merged = merge_journaled_packument(&DocumentMerge {
-        ecosystem: Ecosystem::Npm,
-        name: &name,
-        existing: None,
-        journaled: &journaled,
-        lost_blobs: &lost_blobs,
-    })
-    .unwrap()
-    .unwrap();
-
-    let merged: Value = serde_json::from_slice(&merged).unwrap();
-    let versions: Vec<_> = merged["versions"]
-        .as_object()
-        .unwrap()
-        .keys()
-        .map(String::as_str)
-        .collect();
-    assert_eq!(versions, vec!["2.0.0"]);
-    assert_eq!(merged["dist-tags"], json!({}));
-}
-
-#[test]
-fn drop_lost_versions_removes_references_to_lost_versions() {
-    let mut journaled = json!({
-        "versions": {
-            "1.0.0": { "dist": { "tarball": "http://host/pkg/-/pkg-1.0.0.tgz" } },
-            "2.0.0": { "dist": { "tarball": "http://host/pkg/-/pkg-2.0.0.tgz" } },
-        },
-        "dist-tags": {
-            "latest": "1.0.0",
-            "next": "2.0.0",
-            "opaque": 42,
-        },
-        "time": {
-            "1.0.0": "2026-07-01T00:00:00.000Z",
-            "2.0.0": "2026-07-02T00:00:00.000Z",
-            "modified": "2026-07-03T00:00:00.000Z",
-        },
-    });
-    let lost: HashSet<String> = std::iter::once("1.0.0".to_string()).collect();
-
-    drop_lost_versions(&mut journaled, &lost);
-
-    assert_eq!(journaled["dist-tags"], json!({ "next": "2.0.0", "opaque": 42 }));
-    assert_eq!(
-        journaled["time"],
-        json!({
-            "2.0.0": "2026-07-02T00:00:00.000Z",
-            "modified": "2026-07-03T00:00:00.000Z",
-        }),
-    );
-}
-
-#[test]
 fn merge_manifest_stamps_format_version() {
     let incoming = json!({
         "name": "pkg",
@@ -491,39 +420,4 @@ fn merge_manifest_stamps_format_version() {
     });
     let merged = merge_manifest(None, &incoming, None, "2026-01-01T00:00:00.000Z");
     assert_eq!(merged["formatVersion"], super::PACKUMENT_FORMAT_VERSION);
-}
-
-#[test]
-fn merge_journaled_packument_rejects_newer_format_version() {
-    let name =
-        pnpr_package_name::CanonicalPackageName::parse("pkg", pnpr_package_name::Ecosystem::Npm)
-            .unwrap();
-    let existing_future = json!({
-        "formatVersion": 999,
-        "name": "pkg",
-        "versions": {}
-    });
-    let existing_bytes = serde_json::to_vec(&existing_future).unwrap();
-    let journaled = json!({
-        "name": "pkg",
-        "versions": { "1.0.0": {} }
-    });
-    let journaled_bytes = serde_json::to_vec(&journaled).unwrap();
-    let lost_blobs = HashSet::new();
-    let merge = super::DocumentMerge {
-        ecosystem: pnpr_package_name::Ecosystem::Npm,
-        name: &name,
-        existing: Some(&existing_bytes),
-        journaled: &journaled_bytes,
-        lost_blobs: &lost_blobs,
-    };
-    let err = super::merge_journaled_packument(&merge).unwrap_err();
-    assert!(matches!(
-        err,
-        pnpr_error::RegistryError::DocumentFormatTooNew {
-            format_version: 999,
-            supported_version: 1,
-            ..
-        }
-    ));
 }

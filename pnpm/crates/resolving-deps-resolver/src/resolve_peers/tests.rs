@@ -1,3 +1,4 @@
+mod project_peer_variants;
 mod resolution_order;
 
 mod workspace_links;

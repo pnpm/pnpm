@@ -15,6 +15,7 @@ import type {
 import { isValidDependencyAlias } from '@pnpm/installing.deps-resolver'
 import { DEPENDENCIES_FIELDS, type Project, type ProjectManifest } from '@pnpm/types'
 import { findWorkspaceProjects } from '@pnpm/workspace.projects-reader'
+import { isSubdir } from 'is-subdir'
 import normalize from 'normalize-path'
 import { partition, pick } from 'ramda'
 import { renderHelp } from 'render-help'
@@ -113,9 +114,6 @@ export async function handler (
     binsDir: opts.bin,
   })
 
-  const writeProjectManifest = await createProjectManifestWriter(opts.rootProjectManifestDir)
-
-
   const [pkgPaths, pkgNames] = partition((inp) => isFilespec.test(inp), params)
 
   if (pkgNames.length > 0) {
@@ -123,24 +121,46 @@ export async function handler (
       `Cannot link by package name. Use a relative or absolute path instead, e.g. "pnpm link ./${pkgNames[0]}"`)
   }
 
-  const newManifest = opts.rootProjectManifest ?? {}
-  await addLinksToManifest(opts, newManifest, pkgPaths)
+  // The link: dependency goes to the project the command runs in. Only the
+  // override goes to the workspace root, so that it applies to every project.
+  const { projectDir, manifest } = await findCurrentProject(opts)
+  const writeProjectManifest = await createProjectManifestWriter(projectDir)
+  const newManifest = manifest ?? {}
+  await addLinksToManifest(opts, projectDir, newManifest, pkgPaths)
   await writeProjectManifest(newManifest)
   await install.handler({
     ...linkOpts,
     _calledFromLink: true,
+    dir: projectDir,
     frozenLockfileIfExists: false,
-    rootProjectManifest: newManifest,
+    rootProjectManifest: projectDir === opts.rootProjectManifestDir ? newManifest : opts.rootProjectManifest,
   })
 }
 
-async function addLinksToManifest (opts: LinkOpts, manifest: ProjectManifest, pkgPaths: string[]): Promise<void> {
+/**
+ * Finds the nearest project manifest from the current directory up to the
+ * workspace root. A directory inside the workspace that has no manifest of
+ * its own, such as its packages folder, falls back to the root project.
+ */
+async function findCurrentProject (opts: LinkOpts): Promise<{ projectDir: string, manifest: ProjectManifest | null }> {
+  const rootDir = opts.rootProjectManifestDir
+  let dir = opts.dir
+  while (dir !== rootDir && isSubdir(rootDir, dir)) {
+    // eslint-disable-next-line no-await-in-loop -- each parent is read only when the nearer directory has no manifest
+    const { manifest } = await tryReadProjectManifest(dir, opts)
+    if (manifest != null) return { projectDir: dir, manifest }
+    dir = path.dirname(dir)
+  }
+  return { projectDir: rootDir, manifest: opts.rootProjectManifest ?? null }
+}
+
+async function addLinksToManifest (opts: LinkOpts, projectDir: string, manifest: ProjectManifest, pkgPaths: string[]): Promise<void> {
   // Every name is checked before the first link is written.
   const linkedPkgs = await Promise.all(
     pkgPaths.map(async (dir) => ({ dir, name: await readLinkedPkgName(dir, opts) }))
   )
   for (const linkedPkg of linkedPkgs) {
-    addLinkToManifest(opts, manifest, linkedPkg)
+    addLinkToManifest(opts, projectDir, manifest, linkedPkg)
   }
   await writeSettings({
     ...opts,
@@ -165,16 +185,17 @@ async function readLinkedPkgName (linkedDepDir: string, opts: LinkOpts): Promise
 
 function addLinkToManifest (
   opts: LinkOpts,
+  projectDir: string,
   manifest: ProjectManifest,
   { dir: linkedDepDir, name: linkedPkgName }: { dir: string, name: string }
 ): void {
-  const linkedPkgSpec = `link:${normalize(path.relative(opts.rootProjectManifestDir, linkedDepDir))}`
+  // The override lives in the root pnpm-workspace.yaml, so its path is relative to the root.
   opts.overrides = {
     ...opts.overrides,
-    [linkedPkgName]: linkedPkgSpec,
+    [linkedPkgName]: `link:${normalize(path.relative(opts.rootProjectManifestDir, linkedDepDir))}`,
   }
   if (DEPENDENCIES_FIELDS.every((depField) => manifest[depField]?.[linkedPkgName] == null)) {
     manifest.dependencies = manifest.dependencies ?? {}
-    manifest.dependencies[linkedPkgName] = linkedPkgSpec
+    manifest.dependencies[linkedPkgName] = `link:${normalize(path.relative(projectDir, linkedDepDir))}`
   }
 }

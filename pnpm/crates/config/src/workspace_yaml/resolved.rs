@@ -242,7 +242,7 @@ impl WorkspaceSettings {
             .iter()
             .map(|(name, allowed)| {
                 let entry = PackagePermissions {
-                    skills: Some(AllowBuild::Decided(*allowed)),
+                    skills: Some(allowed.clone()),
                     ..PackagePermissions::default()
                 };
                 (name.clone(), entry)

@@ -104,6 +104,8 @@ export const WORKSPACE_STATE_SETTING_KEYS = [
   'dedupePeers',
   'dev',
   'excludeLinksFromLockfile',
+  // It decides the `NODE_PATH` the bin shims set.
+  'extendNodePath',
   'hoistPattern',
   'hoistWorkspacePackages',
   'ignoredOptionalDependencies',
@@ -149,7 +151,7 @@ export const WORKSPACE_STATE_SETTING_KEYS = [
 ] as const satisfies ReadonlyArray<keyof Config>
 
 /** Settings a state may leave out. Unset reads as the default. */
-type OptionalSettingKey = 'dangerouslyAllowAllBuilds' | 'runtime' | 'virtualStoreDirMaxLength'
+type OptionalSettingKey = 'dangerouslyAllowAllBuilds' | 'extendNodePath' | 'runtime' | 'virtualStoreDirMaxLength'
 
 export type WorkspaceStateSettings = Pick<Config, Exclude<typeof WORKSPACE_STATE_SETTING_KEYS[number], OptionalSettingKey>> &
 Partial<Pick<Config, OptionalSettingKey>> & {
@@ -168,6 +170,13 @@ Partial<Pick<Config, OptionalSettingKey>> & {
    * proves nothing about the lockfile's keys.
    */
   registryPrefixes?: Record<string, string>
+  /**
+   * The default registry, as `normalizeRegistryKey` spells it, recorded with
+   * `registryPrefixes`. Its packages keep plain keys whatever prefix names it,
+   * so a state verified under another default registry, or by a pnpm that
+   * keyed them by prefix, proves nothing about the lockfile's keys.
+   */
+  defaultRegistry?: string
   /**
    * The registries the lockfile's plain `packages:` keys resolved from: each
    * scope route (`@<scope>`) in force when an install last resolved them,

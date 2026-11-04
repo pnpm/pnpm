@@ -1,14 +1,3 @@
-use std::sync::Arc;
-
-use node_semver::Version;
-use pnpm_config::TrustPolicy;
-use pnpm_lockfile::{LockfileResolution, PkgName, PkgNameVer};
-use pnpm_resolving_resolver_base::{
-    CurrentPkg, LockedPackagePolicy, ResolveError, ResolveOptions, ResolveResult, UpdateBehavior,
-    WantedDependency, WorkspacePackages,
-};
-use pnpm_store_dir::{SharedReadonlyStoreIndex, StoreIndex, store_index_key};
-
 use super::{
     NPM_REGISTRY_RESOLVED_VIA, NpmResolver, ResolvedRegistry,
     guarded_pick::RegistryPick,
@@ -23,6 +12,14 @@ use crate::{
         RegistryPackageSpec, RegistryPackageSpecType, semver_range::semver_satisfies_loose,
     },
 };
+use node_semver::Version;
+use pnpm_lockfile::{LockfileResolution, PkgName, PkgNameVer};
+use pnpm_resolving_resolver_base::{
+    CurrentPkg, LockedPackagePolicy, ResolveError, ResolveOptions, ResolveResult, TrustPolicy,
+    UpdateBehavior, WantedDependency, WorkspacePackages,
+};
+use pnpm_store_dir::{SharedReadonlyStoreIndex, StoreIndex, store_index_key};
+use std::sync::Arc;
 
 /// Answers from the store only for a locked version the walk keeps. A
 /// reopened one, exact specs included, reads registry metadata as a fresh

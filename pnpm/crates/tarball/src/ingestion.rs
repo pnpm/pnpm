@@ -42,7 +42,7 @@ impl ArchiveIngestion<'_> {
     pub(crate) async fn run<Reporter: self::Reporter>(
         &self,
     ) -> Result<pnpm_fs::CasPaths, TarballError> {
-        self.load_or_fetch::<Reporter>().await.map(|cached| cached.files)
+        self.load_or_fetch::<Reporter>().await.map(|cached| Arc::unwrap_or_clone(cached.files))
     }
 
     pub(crate) async fn load_or_fetch<Reporter: self::Reporter>(
@@ -53,7 +53,7 @@ impl ArchiveIngestion<'_> {
         }
         self.fetch::<Reporter>(false).await
             .map(|result| CachedCasPaths {
-                files: result.files_map,
+                files: Arc::new(result.files_map),
                 manifest: result.manifest,
                 requires_build: Some(result.requires_build),
                 bins: result.bins,
@@ -79,7 +79,7 @@ impl ArchiveIngestion<'_> {
                 "Reusing prefetched CAFS entry — skipping download",
             );
             emit_progress_found_in_store::<Reporter>(self.package.id, self.requester, progress_key);
-            return Ok(Some(CachedCasPaths::files_only((**cas_paths).clone())));
+            return Ok(Some(CachedCasPaths::files_only(Arc::clone(cas_paths))));
         }
         if let Some(cached) = load_cached_cas_paths::<Reporter>(
             self.store.index.clone(),
@@ -95,7 +95,10 @@ impl ArchiveIngestion<'_> {
             emit_progress_found_in_store::<Reporter>(self.package.id, self.requester, progress_key);
             return Ok(Some(cached));
         }
-        Ok(self.load_legacy_cache::<Reporter>(progress_key).await?.map(CachedCasPaths::files_only))
+        Ok(self
+            .load_legacy_cache::<Reporter>(progress_key)
+            .await?
+            .map(|files| CachedCasPaths::files_only(Arc::new(files))))
     }
 
     pub(crate) async fn ingest_zip_buffer(

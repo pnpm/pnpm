@@ -369,8 +369,8 @@ fn rejects_an_incomplete_managed_config() {
 fn creates_the_cargo_checksum_manifest_from_cas_files() {
     let temp_dir = tempfile::tempdir().unwrap();
     let store_dir = StoreDir::from(temp_dir.path().join("store"));
-    let (cargo_toml, _) = store_dir.write_cas_file(b"[package]\nname = \"demo\"\n", false).unwrap();
-    let (source, _) = store_dir.write_cas_file(b"fn main() {}\n", false).unwrap();
+    let cargo_toml = store_dir.write_cas_file(b"[package]\nname = \"demo\"\n", false).unwrap().file;
+    let source = store_dir.write_cas_file(b"fn main() {}\n", false).unwrap().file;
     let mut cas_paths = HashMap::from([
         ("Cargo.toml".to_string(), cargo_toml),
         ("src/main.rs".to_string(), source),
@@ -407,8 +407,16 @@ async fn repairs_a_preseeded_slot_from_verified_store_metadata() {
     store_dir.init().unwrap();
     let cargo_toml = b"[package]\nname = \"demo\"\nversion = \"1.0.0\"\n";
     let source = b"pub fn trusted() {}\n";
-    let (cargo_toml_path, cargo_toml_hash) = store_dir.write_cas_file(cargo_toml, false).unwrap();
-    let (source_path, source_hash) = store_dir.write_cas_file(source, false).unwrap();
+    let pnpm_store_dir::WrittenFile {
+        file: cargo_toml_path,
+        hash: cargo_toml_hash,
+        ..
+    } = store_dir.write_cas_file(cargo_toml, false).unwrap();
+    let pnpm_store_dir::WrittenFile {
+        file: source_path,
+        hash: source_hash,
+        ..
+    } = store_dir.write_cas_file(source, false).unwrap();
     let files = HashMap::from([
         (
             "Cargo.toml".to_string(),

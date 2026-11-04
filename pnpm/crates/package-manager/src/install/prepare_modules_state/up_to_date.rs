@@ -72,13 +72,17 @@ pub(super) fn frozen_tree_up_to_date<'a>(
         return None;
     }
     let modules = context.modules_manifest?;
-    // A `supportedArchitectures` change alters the skip set without
-    // touching the lockfile or `.modules.yaml`, so the unchanged-layout
-    // premise doesn't hold and the platform packages must be re-evaluated.
+    // A `supportedArchitectures` change alters the skip set, and an
+    // `extendNodePath` change the bin shims, without touching the lockfile or
+    // `.modules.yaml`, so the unchanged-layout premise doesn't hold.
     if !modules_consistent_with(modules, config, context.tree.node_linker, context.tree.included)
         || !crate::optimistic_repeat_install::recorded_supported_architectures_match(
             context.recorded.state,
             context.repeat.supported_architectures,
+        )
+        || !crate::optimistic_repeat_install::recorded_extend_node_path_matches(
+            context.recorded.state,
+            config.extend_node_path,
         )
         || !build_state_unchanged(context, current, modules)
     {

@@ -21,7 +21,10 @@ fn registries() -> pnpm_lockfile::RegistryContext {
             "work".to_string(),
             REGISTRY.to_string(),
         )]),
-        declared_prefixes: pnpm_lockfile::DeclaredRegistryPrefixes::new([("work", REGISTRY)]),
+        declared_prefixes: pnpm_lockfile::DeclaredRegistryPrefixes::new(
+            [("work", REGISTRY)],
+            REGISTRY,
+        ),
         ..Default::default()
     }
 }

@@ -1,5 +1,7 @@
 import path from 'node:path'
 
+import { resolveFromCatalog } from '@pnpm/catalogs.resolver'
+import type { Catalogs } from '@pnpm/catalogs.types'
 import { PnpmError } from '@pnpm/error'
 import type {
   PkgResolutionId,
@@ -122,6 +124,39 @@ export function pickMatchingLocalVersionOrNull (
       return resolveWorkspaceRange(spec.fetchSpec, Array.from(versions.keys()))
     default:
       return null
+  }
+}
+
+export interface WorkspaceLinkContext {
+  workspacePackages: WorkspacePackages
+  /** Dereferences a `catalog:` specifier before matching, as resolution does. */
+  catalogs?: Catalogs
+}
+
+/**
+ * The directory a workspace package that matches the dependency links from,
+ * picked the way the resolver picks it, or `undefined` when none matches.
+ */
+export function findWorkspaceLinkTarget (
+  { workspacePackages, catalogs }: WorkspaceLinkContext,
+  { alias, bareSpecifier }: { alias: string, bareSpecifier: string }
+): string | undefined {
+  const versionSelector = dereferenceCatalog(catalogs ?? {}, { alias, bareSpecifier })
+  if (versionSelector == null) return undefined
+  // No registry: only a version selector names a workspace package.
+  const spec = parseBareSpecifier(versionSelector, alias, 'latest', '')
+  const versions = spec && workspacePackages.get(spec.name)
+  if (!versions) return undefined
+  const localVersion = pickMatchingLocalVersionOrNull(versions, spec)
+  return localVersion == null ? undefined : resolveLocalPackageDir(versions.get(localVersion)!)
+}
+
+function dereferenceCatalog (catalogs: Catalogs, dep: { alias: string, bareSpecifier: string }): string | undefined {
+  const result = resolveFromCatalog(catalogs, dep)
+  switch (result.type) {
+    case 'found': return result.resolution.specifier
+    case 'unused': return dep.bareSpecifier
+    default: return undefined
   }
 }
 

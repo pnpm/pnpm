@@ -3,7 +3,7 @@ use crate::RegistryError;
 use pnpr_config::HostedStoreConfig;
 use pnpr_oci::{Digest, ImageDocument, ManifestEntry, media_type};
 use pnpr_package_name::{CanonicalPackageName, Ecosystem};
-use pnpr_storage::{Storage, layout::local_blob_path};
+use pnpr_storage::{HostedDocumentVersion, Storage, layout::local_blob_path};
 use serde_json::json;
 use std::{collections::HashSet, time::Duration};
 use tempfile::TempDir;
@@ -12,10 +12,14 @@ const MANIFEST_LIMIT: usize = 4 * 1024 * 1024;
 
 fn setup() -> (TempDir, Storage) {
     let temp = TempDir::new().unwrap();
-    let storage =
-        Storage::new(&HostedStoreConfig::Fs, temp.path().join("store"), temp.path().join("cache"))
-            .unwrap()
-            .for_hosted("", Ecosystem::Oci);
+    let storage = Storage::new(
+        &HostedStoreConfig::Fs,
+        temp.path().join("store"),
+        temp.path().join("cache"),
+        &pnpr_config::MetadataBackend::Sqlite(temp.path().join("metadata.sqlite")),
+    )
+    .unwrap()
+    .for_hosted("", Ecosystem::Oci);
     (temp, storage)
 }
 
@@ -50,7 +54,7 @@ async fn retained_image(storage: &Storage, repository: &CanonicalPackageName) ->
         media_type: media_type::OCI_IMAGE_MANIFEST.into(),
     });
     storage
-        .write_hosted_document_if_current(repository, &document.to_bytes(), None)
+        .write_hosted_document_if_current(repository, &document.to_bytes(), None, None)
         .await
         .unwrap();
     (manifest, layer)
@@ -151,7 +155,12 @@ async fn index_keeps_children_removed_from_the_document_and_their_layers() {
         media_type: media_type::OCI_IMAGE_INDEX.into(),
     });
     storage
-        .write_hosted_document_if_current(&repository, &document.to_bytes(), None)
+        .write_hosted_document_if_current(
+            &repository,
+            &document.to_bytes(),
+            Some(&HostedDocumentVersion::Unversioned),
+            None,
+        )
         .await
         .unwrap();
     assert_eq!(
@@ -189,7 +198,7 @@ async fn collection_uses_the_stored_media_type_for_header_only_manifests() {
         media_type: media_type::OCI_IMAGE_MANIFEST.into(),
     });
     storage
-        .write_hosted_document_if_current(&repository, &document.to_bytes(), None)
+        .write_hosted_document_if_current(&repository, &document.to_bytes(), None, None)
         .await
         .unwrap();
     assert_eq!(
@@ -210,7 +219,7 @@ async fn a_document_without_any_blob_files_still_blocks_collection_when_corrupt(
         media_type: media_type::OCI_IMAGE_MANIFEST.into(),
     });
     storage
-        .write_hosted_document_if_current(&repository, &document.to_bytes(), None)
+        .write_hosted_document_if_current(&repository, &document.to_bytes(), None, None)
         .await
         .unwrap();
     let orphan = blob(&storage, &name("aaa"), b"orphan").await;
@@ -234,9 +243,14 @@ async fn collection_streams_an_object_store_inventory() {
         store: std::sync::Arc::new(object_store::memory::InMemory::new()),
         prefix: "images/".into(),
     };
-    let storage = Storage::new(&config, temp.path().join("store"), temp.path().join("cache"))
-        .unwrap()
-        .for_hosted("", Ecosystem::Oci);
+    let storage = Storage::new(
+        &config,
+        temp.path().join("store"),
+        temp.path().join("cache"),
+        &pnpr_config::MetadataBackend::Sqlite(temp.path().join("metadata.sqlite")),
+    )
+    .unwrap()
+    .for_hosted("", Ecosystem::Oci);
     let repository = name("acme/app");
     retained_image(&storage, &repository).await;
     blob(&storage, &name("acme/app/nested"), b"orphan").await;
@@ -270,7 +284,7 @@ async fn offline_collection_finishes_interrupted_explicit_deletion() {
     document.generation = 1;
     document.deleting_blob = Some(digest.clone());
     storage
-        .write_hosted_document_if_current(&repository, &document.to_bytes(), None)
+        .write_hosted_document_if_current(&repository, &document.to_bytes(), None, None)
         .await
         .unwrap();
     assert_eq!(

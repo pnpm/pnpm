@@ -1,12 +1,13 @@
-pub mod journal;
-
 pub mod layout;
+
+pub mod metadata;
 
 pub mod publish;
 
 pub mod streaming;
 
 pub mod tombstones;
+pub mod transparency_log;
 
 pub mod upload;
 
@@ -26,6 +27,11 @@ pub use self::backend::{BlobFinalize, HostedDocumentForUpdate, HostedDocumentVer
 
 pub use registry_records::{RegistryRecord, SCIM_DIRECTORY};
 
+pub use staged_archives::{
+    INCOMPLETE_MAX_AGE, STAGED_ARCHIVE_MAX_AGE, STAGED_ARCHIVE_RENEWAL_MARGIN, StagedArchiveKey,
+    StagedArchiveUsage,
+};
+
 pub use staged_records::PipelineRunKey;
 
 pub use tombstones::{PackageTombstone, TOMBSTONES_NAMESPACE};
@@ -43,6 +49,8 @@ mod layout_state;
 use layout_state::namespace;
 
 mod staged_records;
+
+mod staged_archives;
 
 mod registry_records;
 
@@ -64,7 +72,9 @@ use futures_util::{
     StreamExt,
     stream::{self, BoxStream},
 };
-use pnpr_config::{HostedStoreConfig, build_s3_store, normalize_key_prefix};
+use pnpr_config::{
+    HostedStoreConfig, MetadataBackend, StorageConfig, build_s3_store, normalize_key_prefix,
+};
 use pnpr_error::{RegistryError, Result};
 use pnpr_package_name::CanonicalPackageName;
 use std::{
@@ -86,9 +96,8 @@ use layout::{
     decode_package_segments, package_segments,
 };
 pub const DOCUMENT_WRITE_RETRIES: usize = 8;
-/// Retries the commit path allows the document write: higher than the
-/// request-path budget because a sealed transaction has to converge, and a
-/// startup recovery may be racing every other replica's recovery at once.
+/// Retries a tombstone write allows: higher than the request-path budget
+/// because the write has to converge while every replica may be racing it.
 pub(crate) const COMMIT_DOCUMENT_WRITE_RETRIES: usize = 32;
 const DOCUMENT_WRITE_CONFLICT_DELAY_MS: u64 = 5;
 const MAX_DOCUMENT_WRITE_CONFLICT_DELAY_MS: u64 = 250;
@@ -135,8 +144,7 @@ pub enum CachedDocument {
 /// an org's, and the records every namespace shares.
 #[derive(Debug, Clone)]
 pub struct Storage {
-    /// The whole hosted store: its layout marker, the shared records, and
-    /// the publish journal.
+    /// The whole hosted store: its layout marker and the shared records.
     pub(crate) root: Arc<dyn HostedBackend>,
     /// One namespace of `root`.
     hosted: Arc<dyn HostedBackend>,
@@ -145,6 +153,10 @@ pub struct Storage {
     /// organization; see [`Storage::read_tar_integrities`].
     tar_integrities: Arc<dyn HostedBackend>,
     tar_integrity_cache: Arc<tar_integrities::TarIntegrityCache>,
+    /// The metadata database every namespace shares.
+    database: Arc<metadata::SqlMetadata>,
+    /// The metadata of `hosted`'s namespace.
+    metadata: metadata::PackageMetadata,
 }
 
 /// A partial blob read, including the full size needed for HTTP range headers.
@@ -192,14 +204,15 @@ pub enum DocumentUpdate {
 
 impl Storage {
     /// Build a [`Storage`] from the resolved hosted-store backend plus
-    /// the local `storage` and `cache_storage` roots. `storage` backs
-    /// the hosted store when it's [`HostedStoreConfig::Fs`];
-    /// `cache_storage` always backs the proxy cache and doubles as the
-    /// S3 backend's local staging scratch.
+    /// the local `storage` and `cache_storage` roots, with its metadata in
+    /// the database `metadata` names. `storage` backs the hosted store when
+    /// it's [`HostedStoreConfig::Fs`]; `cache_storage` always backs the proxy
+    /// cache and doubles as the S3 backend's local staging scratch.
     pub fn new(
         hosted: &HostedStoreConfig,
         storage: PathBuf,
         cache_storage: PathBuf,
+        metadata: &MetadataBackend,
     ) -> Result<Self> {
         let cached = Store::new(cache_storage.clone());
         let root: Arc<dyn HostedBackend> = match hosted {
@@ -215,9 +228,39 @@ impl Storage {
                 cache_storage,
             )),
         };
+        Ok(Self::from_parts(root, cached, metadata::open(metadata)?))
+    }
+
+    /// A [`Storage`] over the hosted store `root` and the proxy cache
+    /// `cached`, with its metadata in `database`, addressing the default
+    /// npm namespace.
+    pub(crate) fn from_parts(
+        root: Arc<dyn HostedBackend>,
+        cached: Store,
+        database: Arc<metadata::SqlMetadata>,
+    ) -> Self {
         let tar_integrities = root.namespaced(tar_integrities::NAMESPACE);
         let hosted = namespace(&root, "", Ecosystem::Npm);
-        Ok(Self { root, hosted, cached, tar_integrities, tar_integrity_cache: Arc::default() })
+        let metadata = database.view("", Ecosystem::Npm);
+        Self {
+            root,
+            hosted,
+            cached,
+            tar_integrities,
+            tar_integrity_cache: Arc::default(),
+            database,
+            metadata,
+        }
+    }
+
+    /// Build the [`Storage`] `config` describes.
+    pub fn from_config(config: &StorageConfig) -> Result<Self> {
+        Self::new(
+            &config.hosted_backend,
+            config.hosted_dir.clone(),
+            config.cache_dir.clone(),
+            &config.metadata,
+        )
     }
 
     /// Inventory all regular files, including repositories with no document
@@ -242,7 +285,7 @@ impl Storage {
     }
 
     pub async fn hosted_package_names(&self) -> Result<Vec<String>> {
-        self.hosted.list_package_names().await
+        self.metadata.package_names().await
     }
 
     pub async fn hosted_package_blobs(
@@ -260,63 +303,45 @@ impl Storage {
         &self,
         name: &CanonicalPackageName,
     ) -> Result<Option<Vec<u8>>> {
-        self.hosted.read_document(name).await
+        let view = self.metadata.read_view(name).await?;
+        Ok(view.map(|view| view.bytes.to_vec()))
     }
 
     pub async fn read_hosted_document_for_update(
         &self,
         name: &CanonicalPackageName,
     ) -> Result<Option<HostedDocumentForUpdate>> {
-        self.hosted.read_document_for_update(name).await
+        self.metadata.read_for_update(name).await
     }
 
+    /// Write `bytes` as the package's document while the stored one is still
+    /// at `version`. `principal` is who asked for the write; the metadata
+    /// store records it with every dist-tag the write moves.
     pub async fn write_hosted_document_if_current(
         &self,
         name: &CanonicalPackageName,
         bytes: &[u8],
         version: Option<&HostedDocumentVersion>,
+        principal: Option<&str>,
     ) -> Result<DocumentWrite> {
-        self.hosted.write_document_if_current(name, bytes, version).await
+        self.metadata.write_if_current(name, bytes, version, principal).await
     }
 
     /// Read the hosted document, transform it, and conditionally write it
     /// back under compare-and-swap, retrying on conflict with capped backoff.
-    ///
-    /// `build` receives the current hosted bytes (`None` when the document is
-    /// absent) and returns the bytes to write, or `Ok(None)` to abort as
-    /// [`DocumentUpdate::NotFound`]; a `build` error aborts without retrying.
-    /// After `retries` conflicts the write is surfaced as
-    /// [`RegistryError::DocumentWriteConflict`]. Both the dist-tag request
-    /// path and journal roll-forward go through here so their conflict handling
-    /// stays in one place.
+    /// `principal` is recorded as for
+    /// [`Self::write_hosted_document_if_current`].
     pub async fn update_hosted_document_with_retry<Build>(
         &self,
         name: &CanonicalPackageName,
         retries: usize,
-        mut build: Build,
+        principal: Option<&str>,
+        build: Build,
     ) -> Result<DocumentUpdate>
     where
         Build: FnMut(Option<&[u8]>) -> Result<Option<Vec<u8>>>,
     {
-        for attempt in 0..retries {
-            let existing = self.read_hosted_document_for_update(name).await?;
-            let (existing_bytes, version) = match existing {
-                Some(document) => (Some(document.bytes), Some(document.version)),
-                None => (None, None),
-            };
-            let Some(new_bytes) = build(existing_bytes.as_deref())? else {
-                return Ok(DocumentUpdate::NotFound);
-            };
-            match self.write_hosted_document_if_current(name, &new_bytes, version.as_ref()).await? {
-                DocumentWrite::Written => return Ok(DocumentUpdate::Written),
-                DocumentWrite::Conflict => {
-                    if attempt + 1 < retries {
-                        wait_after_document_write_conflict(attempt).await;
-                    }
-                }
-            }
-        }
-        Err(RegistryError::DocumentWriteConflict { package: name.as_str().to_string() })
+        metadata::update_with_retry(&self.metadata, name, retries, principal, build).await
     }
 
     /// Open a blob from the authoritative hosted store. Hosted
@@ -367,9 +392,11 @@ impl Storage {
         self.remove_hosted_blob(name, filename).await
     }
 
-    /// Remove the package from the hosted store.
+    /// Remove the package's metadata and archives from the hosted store.
     pub async fn remove_package(&self, name: &CanonicalPackageName) -> Result<bool> {
-        self.hosted.remove_package(name).await
+        let had_metadata = self.metadata.remove_package(name).await?;
+        let had_files = self.hosted.remove_package(name).await?;
+        Ok(had_metadata || had_files)
     }
 
     /// Promote a tmp blob written by the publish flow to its final
@@ -384,15 +411,6 @@ impl Storage {
     #[must_use]
     pub fn hosted_scratch_root(&self) -> &Path {
         self.hosted.local_scratch_root()
-    }
-
-    /// The commit journal for this storage's publish flow: in the hosted
-    /// store root on the fs backend, the cache scratch on the S3 backend,
-    /// whatever namespace this view addresses.
-    #[must_use]
-    pub fn publish_journal(&self) -> crate::journal::PublishJournal {
-        let root = self.root.local_scratch_root();
-        crate::journal::PublishJournal::new(root.join(crate::journal::JOURNAL_DIR))
     }
 
     // --- Staged publishes (`-/stage`) -------------------------------------

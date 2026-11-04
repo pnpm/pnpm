@@ -16,7 +16,10 @@ fn registries() -> RegistryContext {
             ("public".to_string(), DEFAULT.to_string()),
             ("work".to_string(), WORK.to_string()),
         ]),
-        declared_prefixes: DeclaredRegistryPrefixes::new([("public", DEFAULT), ("work", WORK)]),
+        declared_prefixes: DeclaredRegistryPrefixes::new(
+            [("public", DEFAULT), ("work", WORK)],
+            DEFAULT,
+        ),
         ..Default::default()
     }
 }

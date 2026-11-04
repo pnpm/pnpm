@@ -46,10 +46,10 @@ fn cold_cas_paths_preserve_warm_entries_and_add_missing_packages() {
             snapshot_key,
             snapshot: &snapshot,
             installed: crate::InstalledPackage {
-                cas_paths: HashMap::from([(
+                cas_paths: std::sync::Arc::new(HashMap::from([(
                     "index.js".to_string(),
                     PathBuf::from("cas/cold").into(),
-                )]),
+                )])),
                 manifest: None,
                 requires_build: Some(false),
                 bins: None,

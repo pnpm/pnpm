@@ -6,12 +6,13 @@
 mod realize_children;
 
 mod fast_match;
+mod provider_match;
 
 use crate::{
     dependencies_graph::MissingPeer,
     node_id::NodeId,
     resolve_peers::{
-        context::{ParentPkgInfo, ParentRef, ParentRefs, SharedChain},
+        context::{ParentRef, ParentRefs, SharedChain},
         walker::{
             MissingPeerInfo, NodeOutput, NodeWalkContext, PeerWalkMode, SubtreeMissingByPkg, Walker,
         },
@@ -133,7 +134,8 @@ enum FastProvider<'a> {
     Ambiguous,
 }
 
-enum FastCacheMatch {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CacheMatch {
     Match,
     NoMatch,
     Ambiguous,
@@ -155,40 +157,29 @@ pub(super) struct UndoRealize {
     newly_inserted: Vec<NodeId>,
 }
 
-/// What compensates for the loss of single-occurrence guarantees on the
-/// shallow-equality path: with a peer shadowed anywhere on either side, the
-/// contexts must additionally agree on depth or be a pure package.
-#[derive(Clone, Copy)]
-struct ShadowingGuard {
-    max_depth: i32,
-    peer_deps_not_shadowed: bool,
+pub(super) fn reuse_peer_subtrees(opts: &super::ResolvePeersOptions) -> bool {
+    #[cfg(test)]
+    {
+        matches!(opts.cache_mode, super::test_support::PeerCacheMode::Enabled)
+    }
+    #[cfg(not(test))]
+    {
+        let _ = opts;
+        true
+    }
 }
 
 impl Walker<'_> {
-    /// Look up [`crate::resolve_peers::discovery::PeerDiscoveryCaches::peers_cache`] for a cached resolution of
-    /// `pkg_id` whose parent peer context is compatible with the
-    /// current `parent_refs`.
-    ///
-    /// A cache item matches when, for every cached resolved peer:
-    ///
-    /// 1. The current `parent_refs` has a counterpart entry for the
-    ///    same name with a real `NodeId`.
-    /// 2. Either the two `NodeId`s are equal, OR they map to the
-    ///    same already-computed [`DepPath`] in
-    ///    [`crate::resolve_peers::discovery::PeerDiscoveryCaches::node_dep_paths`], OR the two tree-nodes' resolved
-    ///    package ids match — and in the package-id match case, the
-    ///    deep [`Self::parent_packages_match`] check on the two
-    ///    parents' own recorded contexts also succeeds (unless the
-    ///    package id is itself in [`crate::resolve_peers::discovery::PeerDiscoveryCaches::pure_pkgs`], which makes
-    ///    the deep check vacuous).
-    /// 3. None of the cache item's missing-peer names are satisfied
-    ///    by the current `parent_refs` — a name the cache walk
-    ///    recorded as missing must still be missing here.
+    /// Reuse a cached subtree only when provider identities match and every
+    /// missing peer remains missing.
     pub(super) fn find_hit(
         &self,
         parent_refs: &ParentRefs,
         pkg_id: &str,
     ) -> Option<&PeersCacheItem> {
+        if !reuse_peer_subtrees(&self.opts) {
+            return None;
+        }
         let cache_items = self.caches.peers_cache.get(pkg_id)?;
         cache_items
             .iter()
@@ -209,95 +200,6 @@ impl Walker<'_> {
             && !item.missing_peers
                 .keys()
                 .any(|missing| parent_refs.contains_key(missing))
-    }
-
-    /// Compare two `NodeId`s' recorded parent peer contexts:
-    /// both nodes' contexts must have the same set of peer-relevant
-    /// names, every name must resolve to the same version or
-    /// `pkgIdWithPatchHash`, and — when a peer is shadowed (an
-    /// `occurrence > 0` somewhere on either side) — the contexts
-    /// must additionally agree on depth/`purePkgs` to compensate
-    /// for the loss of single-occurrence guarantees on the
-    /// shallow-equality path.
-    fn parent_packages_match(&self, cached_node_id: &NodeId, current_node_id: &NodeId) -> bool {
-        let Some(cached_parents) = self.caches.parent_pkgs_of_node.get(cached_node_id) else {
-            return false;
-        };
-        let Some(current_parents) = self.caches.parent_pkgs_of_node.get(current_node_id) else {
-            return false;
-        };
-        if cached_parents.len() != current_parents.len() {
-            return false;
-        }
-        let shadowing = ShadowingGuard {
-            max_depth: current_parents
-                .values()
-                .map(|info| info.depth)
-                .max()
-                .unwrap_or(0),
-            peer_deps_not_shadowed: parent_pkgs_have_single_occurrence(cached_parents)
-                && parent_pkgs_have_single_occurrence(current_parents),
-        };
-        cached_parents
-            .iter()
-            .all(|(name, cached_info)| {
-                current_parents
-                    .get(name)
-                    .is_some_and(|current_info| {
-                        self.parent_pkg_matches(cached_info, current_info, shadowing)
-                    })
-            })
-    }
-
-    /// One recorded parent package: a version-only match covers `link:`
-    /// parents when both contexts are version-only; otherwise the package
-    /// ids must agree and pass the shadowing guard.
-    fn parent_pkg_matches(
-        &self,
-        cached_info: &ParentPkgInfo,
-        current_info: &ParentPkgInfo,
-        shadowing: ShadowingGuard,
-    ) -> bool {
-        if let (Some(cached_version), Some(current_version)) =
-            (&cached_info.version, &current_info.version)
-        {
-            return cached_version == current_version;
-        }
-        let Some(cached_pkg_id) = cached_info.pkg_id.as_ref() else { return false };
-        if cached_info.pkg_id != current_info.pkg_id {
-            return false;
-        }
-        shadowing.peer_deps_not_shadowed
-            || current_info.depth == shadowing.max_depth
-            || self.caches.pure_pkgs.contains_key(&**cached_pkg_id)
-    }
-
-    fn parent_ref_matches_cached(&self, current_ref: &ParentRef, cached_node_id: &NodeId) -> bool {
-        let Some(current_node_id) = current_ref.node_id.as_ref() else {
-            return false;
-        };
-        if current_node_id == cached_node_id {
-            return true;
-        }
-        if let (Some(cached_dp), Some(current_dp)) = (
-            self.caches.node_dep_paths.get(cached_node_id),
-            self.caches.node_dep_paths.get(current_node_id),
-        ) && cached_dp == current_dp
-        {
-            return true;
-        }
-        let (Some(cached_tree_node), Some(current_tree_node)) = (
-            self.tree.dependencies_tree.get(cached_node_id),
-            self.tree.dependencies_tree.get(current_node_id),
-        ) else {
-            return false;
-        };
-        let parent_pkg_id = &current_tree_node.resolved_package_id;
-        if parent_pkg_id != &cached_tree_node.resolved_package_id {
-            return false;
-        }
-        self.caches.pure_pkgs.contains_key(&**parent_pkg_id)
-            || self.parent_packages_match(cached_node_id, current_node_id)
     }
 
     pub(super) fn finish_cache_hit(
@@ -435,8 +337,8 @@ impl Walker<'_> {
         );
     }
 
-    /// Discovery runs throw their per-node bookkeeping away, so it is only
-    /// recorded for the real walk.
+    /// Discovery keeps provider bindings for retained paths. Final walks also
+    /// record cache ownership and missing-peer bookkeeping.
     fn remember_cache_hit_node(
         &mut self,
         node_id: &NodeId,
@@ -444,6 +346,7 @@ impl Walker<'_> {
         output: &NodeOutput,
         missing_peers_of_children: Arc<HashMap<String, MissingPeerInfo>>,
     ) {
+        self.remember_provider_bindings(node_id, &output.external_resolved_peers);
         match self.traversal.mode {
             PeerWalkMode::Discovery => return,
             PeerWalkMode::Final => {}
@@ -456,10 +359,6 @@ impl Walker<'_> {
             );
             self.nodes.cache_owners.insert(node_id.clone(), owner_node_id);
         }
-        self.nodes.external_peers.insert(
-            node_id.clone(),
-            Arc::clone(&output.external_resolved_peers),
-        );
         self.nodes.missing_peers.insert(node_id.clone(), Arc::clone(&output.missing_peers));
         self.nodes.children_missing_peers.insert(node_id.clone(), missing_peers_of_children);
     }
@@ -493,13 +392,6 @@ fn should_retain_materialized_node(
                     .values()
                     .any(|resolved_id| resolved_id == node_id)
         })
-}
-
-/// Whether every entry in `parents` has `occurrence == 0`.
-fn parent_pkgs_have_single_occurrence(parents: &HashMap<String, ParentPkgInfo>) -> bool {
-    parents
-        .values()
-        .all(|info| info.occurrence == 0)
 }
 
 #[cfg(test)]

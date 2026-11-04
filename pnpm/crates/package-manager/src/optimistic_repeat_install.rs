@@ -35,8 +35,9 @@ pub(crate) use modules_dirs::{hoisted_project_modules_dir, project_id};
 pub(crate) use relocation::recorded_elsewhere;
 pub(crate) use settings::{
     ResolvedImporters, catalogs_cache_matches, current_settings_with_catalogs, first_setting_drift,
-    recorded_registry_prefixes, recorded_registry_routes_after_install,
-    recorded_supported_architectures_match,
+    recorded_default_registry, recorded_extend_node_path_matches, recorded_registry_prefixes,
+    recorded_registry_routes_after_install, recorded_supported_architectures_match,
+    records_registry_keys_of,
 };
 pub(crate) use timestamps::{
     file_mtime, file_mtime_from_metadata, filesystem_now_ms_in_modules,
@@ -47,6 +48,7 @@ pub(crate) use timestamps::{
 mod current_lockfile;
 mod manifest_source;
 mod modules_dirs;
+mod project_structure;
 mod relocation;
 mod settle;
 use freshness::{
@@ -56,9 +58,8 @@ use modules_dirs::{
     SelectedReach, direct_dependency_link_dangling, first_project_missing_modules_dir,
     first_selected_project_missing_modules_dir, reached_project_dirs,
 };
-use settle::{
-    current_lockfile_file_has_content, project_structure_matches, wanted_lockfile_file_has_content,
-};
+use project_structure::project_structure_matches;
+use settle::{current_lockfile_file_has_content, wanted_lockfile_file_has_content};
 
 use std::{
     collections::HashSet,
@@ -182,21 +183,23 @@ pub(crate) fn check_optimistic_repeat_install_in(
     let Ok(Some(state)) = load_workspace_state(check.workspace_root) else {
         return Decision::Skipped { reason: "no workspace state on disk" };
     };
-    check_optimistic_repeat_install_with_state(check, state, scope)
+    check_optimistic_repeat_install_with_state(check, &state, scope)
 }
 
 pub(crate) fn check_optimistic_repeat_install_with_state(
     check: &OptimisticRepeatInstallCheck<'_>,
-    state: WorkspaceState,
+    state: &WorkspaceState,
     scope: Scope<'_>,
 ) -> Decision {
-    let (state, moved) = relocation::relocated_state(
-        &state,
+    let relocated = relocation::relocated_state(
+        state,
         check.workspace_root,
         check.project_manifests.as_slice(),
         check.config,
-    )
-    .map_or((state, false), |relocated| (relocated, true));
+        check.catalogs,
+    );
+    let moved = relocated.is_some();
+    let state = relocated.as_ref().unwrap_or(state);
     let policy = GatePolicy {
         gate: Gate::Install,
         ignored_settings: &[],
@@ -206,7 +209,7 @@ pub(crate) fn check_optimistic_repeat_install_with_state(
         newer_patch: NewerPatch::Refuse,
         recorded_groups: RecordedGroups::Current,
     };
-    match check_freshness(check, &state, moved, &policy, scope) {
+    match check_freshness(check, state, moved, &policy, scope) {
         Ok(()) => Decision::UpToDate,
         Err(stale) => Decision::Skipped { reason: skip_reason(&stale) },
     }

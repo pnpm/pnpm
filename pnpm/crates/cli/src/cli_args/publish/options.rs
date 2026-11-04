@@ -2,6 +2,7 @@ use pnpm_config::Config;
 use pnpm_publish::{Access, OidcHttpOptions, PublishPackedPkgOptions};
 
 use super::PublishArgs;
+use crate::cli_args::release_notes::notes_registries;
 
 impl PublishArgs {
     /// Runs before git checks, packing, and any upload, so a rejected flag
@@ -55,6 +56,8 @@ impl PublishArgs {
                     fetch_timeout: Some(config.fetch_timeout),
                 },
             },
+            release_notes: self.release_notes_target(config),
+            pnpr_registries: notes_registries(config),
         }
     }
 

@@ -28,9 +28,7 @@ impl LoadedWorkspace {
             Option<&pnpm_workspace::WorkspaceManifest>,
         ),
     ) -> Result<Self, InstallError> {
-        let discovered = owned.projects.dedicated
-            .as_ref()
-            .and_then(|dedicated| dedicated.workspace.clone());
+        let discovered = owned.projects.discovered_workspace.clone();
         let known_workspace_projects = owned.projects
             .workspace_projects_override
             .take()

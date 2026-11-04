@@ -1,7 +1,8 @@
 use super::{
     AccessSpec, ByteSize, Deserialize, Ecosystem, IndexMap, Interval, LogConfig, LogFormat,
-    LogLevel, Management, MetricsConfig, OciConfig, PackageAccess, PathBuf, S3Settings, ScimConfig,
-    TarballFormat, UpstreamAuthFile, default_storage_string, oidc,
+    LogLevel, Management, MetricsConfig, OciConfig, PackageAccess, PackageDocumentsFile, PathBuf,
+    ReleaseRecordsFile, S3Settings, ScimConfig, TarballFormat, UpstreamAuthFile,
+    default_storage_string, oidc,
 };
 
 /// Disk shape of the `routes:` block.
@@ -220,6 +221,12 @@ pub(super) struct ConfigFile {
     /// Duration before a cached packument is considered stale and refetched.
     #[serde(default)]
     pub(super) packument_ttl: Option<Interval>,
+    /// pnpr-only: how pnpr's own package document is served.
+    #[serde(default)]
+    pub(super) package_documents: Option<PackageDocumentsFile>,
+    /// pnpr-only: how the release records of hosted versions are logged.
+    #[serde(default)]
+    pub(super) release_records: Option<ReleaseRecordsFile>,
     /// pnpr-only browser access policy. Cross-origin access stays disabled
     /// when this block is absent or its allowlist is empty.
     #[serde(default)]
@@ -236,6 +243,9 @@ pub(super) struct ConfigFile {
     /// S3-compatible object store instead of `storage`.
     #[serde(default)]
     pub(super) s3: Option<S3Settings>,
+    /// pnpr-only block: where the hosted packages' metadata lives.
+    #[serde(default)]
+    pub(super) metadata: Option<crate::storage_config::MetadataFile>,
     /// pnpr-only block: back the auth record stores (users + tokens)
     /// with a shared SQL database.
     #[serde(default)]
@@ -404,15 +414,15 @@ pub(super) struct BackendFile {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(super) struct LibsqlFile {
-    pub(super) url: String,
+    pub(crate) url: String,
     #[serde(default)]
-    pub(super) auth_token: Option<String>,
+    pub(crate) auth_token: Option<String>,
     #[serde(default)]
-    pub(super) replica_path: Option<PathBuf>,
+    pub(crate) replica_path: Option<PathBuf>,
     #[serde(default)]
-    pub(super) sync_interval: Option<Interval>,
+    pub(crate) sync_interval: Option<Interval>,
     #[serde(default)]
-    pub(super) max_connections: Option<u32>,
+    pub(crate) max_connections: Option<u32>,
 }
 
 #[derive(Debug, Deserialize)]

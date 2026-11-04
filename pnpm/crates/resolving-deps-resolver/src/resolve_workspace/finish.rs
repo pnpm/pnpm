@@ -87,6 +87,8 @@ fn resolve_workspace_peers(
             resolve_peers_from_workspace_root: settings.peers.resolve_peers_from_workspace_root,
         },
         ResolvePeersOptions {
+            #[cfg(test)]
+            cache_mode: crate::resolve_peers::test_support::PeerCacheMode::Enabled,
             peers_suffix_max_length: settings.peers.peers_suffix_max_length,
             dedupe_peers: settings.peers.dedupe_peers,
             project_dir: None,

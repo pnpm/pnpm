@@ -29,11 +29,11 @@ use pretty_assertions::assert_eq;
 use tempfile::TempDir;
 
 use chrono::{DateTime, Utc};
-use pnpm_config::version_policy::create_package_version_policy;
 use pnpm_resolving_resolver_base::{
     EXISTING_VERSION_SELECTOR_WEIGHT, VersionSelectorEntry, VersionSelectorType,
     VersionSelectorWithWeight, VersionSelectors,
 };
+use pnpm_version_policy::create_package_version_policy;
 
 use super::{
     InMemoryPackageMetaCache, PickPackageContext, PickPackageError, PickPackageOptions,

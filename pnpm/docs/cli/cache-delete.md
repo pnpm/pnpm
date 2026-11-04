@@ -15,7 +15,7 @@ Deletes metadata cache for the specified packages. Supports patterns.
 pnpm cache delete [<pattern>...]
 ```
 
-Each pattern is a glob segment matched against `<registry>/<pattern>.jsonl`, and only the cache of the configured registry is affected. Use `--registry` to pick another one. The deleted files are printed one per line.
+Each pattern is a glob segment matched against `<registry>/<pattern>.jsonl`, and only the cache of the configured registry is affected. The cached manifests of single versions that pnpm read from a pnpr registry are deleted with their package. Use `--registry` to pick another one. The deleted files are printed one per line.
 
 ```sh
 pnpm cache delete '@babel/*'

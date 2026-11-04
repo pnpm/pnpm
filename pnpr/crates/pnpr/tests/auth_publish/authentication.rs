@@ -1,10 +1,10 @@
 use super::{
     BASE64, Body, Request, ServiceExt, StatusCode, TempDir, Value, add_user_and_get_token,
-    body_json, common, json, publish_doc, put_json, router, static_config,
+    body_json, common, json, npm_tgz, publish_doc, put_json, router, static_config,
     static_config_with_packages,
 };
 use base64::Engine;
-use pnpr_storage::layout::{local_blob_path, local_document_path, local_package_dir};
+use pnpr_storage::layout::{local_blob_path, local_package_dir};
 
 #[tokio::test]
 async fn adduser_creates_user_and_returns_token() {
@@ -91,7 +91,7 @@ async fn authenticated_publish_writes_manifest_and_tarball() {
     let app = router(static_config(storage.clone()));
     let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
 
-    let bytes = b"fake-tarball-bytes";
+    let bytes = &npm_tgz("mypkg", "1.0.0", b"fake-tarball-bytes");
     let body = publish_doc("mypkg", "1.0.0", bytes);
     let request = Request::put("/npm/mypkg")
         .header("content-type", "application/json")
@@ -108,7 +108,8 @@ async fn authenticated_publish_writes_manifest_and_tarball() {
 
     // Packument on disk
     let on_disk_packument =
-        std::fs::read(local_document_path(&storage, "", pnpr_storage::Ecosystem::Npm, "mypkg"))
+        pnpr_fixtures::read_hosted_document(&storage, "", pnpr_storage::Ecosystem::Npm, "mypkg")
+            .ok_or("no hosted document")
             .expect("packument written");
     let packument: Value = serde_json::from_slice(&on_disk_packument).unwrap();
     assert_eq!(packument["name"], "mypkg");
@@ -125,7 +126,7 @@ async fn authenticated_publish_writes_manifest_and_tarball() {
         "mypkg-1.0.0.tgz",
     ))
     .expect("tarball written");
-    assert_eq!(on_disk_tarball, bytes);
+    assert_eq!(on_disk_tarball, *bytes);
 
     // Subsequent GET serves it back with the public URL rewritten.
     let response = app
@@ -185,7 +186,13 @@ async fn unpublish_policy_denies_publish_authorized_package_delete() {
         StatusCode::CREATED,
     );
     assert!(
-        local_document_path(&storage, "", pnpr_storage::Ecosystem::Npm, "unpub-policy").exists(),
+        pnpr_fixtures::read_hosted_document(
+            &storage,
+            "",
+            pnpr_storage::Ecosystem::Npm,
+            "unpub-policy"
+        )
+        .is_some(),
     );
 
     let request = Request::delete("/npm/unpub-policy/-rev/anything")
@@ -201,7 +208,13 @@ async fn unpublish_policy_denies_publish_authorized_package_delete() {
         StatusCode::FORBIDDEN,
     );
     assert!(
-        local_document_path(&storage, "", pnpr_storage::Ecosystem::Npm, "unpub-policy").exists(),
+        pnpr_fixtures::read_hosted_document(
+            &storage,
+            "",
+            pnpr_storage::Ecosystem::Npm,
+            "unpub-policy"
+        )
+        .is_some(),
     );
 
     let request = Request::delete("/npm/unpub-policy/-rev/anything")

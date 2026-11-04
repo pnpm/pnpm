@@ -36,7 +36,7 @@ fn policy_trusts(
     version: &str,
     published_by_exclude: Option<&PackageVersionPolicy>,
 ) -> bool {
-    use pnpm_config::version_policy::PolicyMatch;
+    use pnpm_version_policy::PolicyMatch;
     let Some(policy) = published_by_exclude else { return false };
     match policy.matches(&meta.name) {
         PolicyMatch::AnyVersion => true,
@@ -116,7 +116,7 @@ pub fn detect_min_release_age_violation(
     let cutoff = published_by?;
     let timestamp = published_at?;
     if let Some(policy) = published_by_exclude {
-        use pnpm_config::version_policy::PolicyMatch;
+        use pnpm_version_policy::PolicyMatch;
         match policy.matches(&name.to_string()) {
             PolicyMatch::AnyVersion => return None,
             PolicyMatch::ExactVersions(versions)

@@ -53,6 +53,30 @@ async fn get(
         .unwrap()
 }
 
+/// A version's entry in pnpr's own package document.
+async fn pnpr_entry(app: &axum::Router, uri: &str, version: &str) -> serde_json::Value {
+    let request = Request::get(uri)
+        .header(header::ACCEPT, "application/vnd.pnpr.install-v2+json")
+        .body(Body::empty())
+        .unwrap();
+    let response = app
+        .clone()
+        .oneshot(request)
+        .await
+        .unwrap();
+    body_json(response.into_body()).await["versions"][version].clone()
+}
+
+/// pnpr's facts about an archive in an entry or release record, which npm's
+/// documents do not carry.
+fn pnpr_facts(entry: &serde_json::Value) -> serde_json::Value {
+    let facts = ["requiresBuild", "bins", "variants"]
+        .into_iter()
+        .filter_map(|field| Some((field.to_string(), entry.get(field)?.clone())))
+        .collect::<serde_json::Map<_, _>>();
+    serde_json::Value::Object(facts)
+}
+
 #[tokio::test]
 async fn a_tar_registry_describes_and_serves_the_tar_of_a_hosted_tgz() {
     let tmp = TempDir::new().unwrap();
@@ -80,7 +104,10 @@ async fn a_tar_registry_describes_and_serves_the_tar_of_a_hosted_tgz() {
     assert_eq!(dist["integrity"], sha512_integrity(&tar));
     assert_eq!(dist["fileCount"], serde_json::json!(1));
     assert_eq!(dist["unpackedSize"], serde_json::json!(41));
-    assert_eq!(dist["pnpr"]["requiresBuild"], serde_json::json!(false));
+    assert!(dist.get("pnpr").is_none(), "npm's documents carry no pnpr facts");
+    let entry = pnpr_entry(&app, "/npm/~zstd/@acme%2Fwidget", "1.0.0").await;
+    assert_eq!(entry["requiresBuild"], serde_json::json!(false));
+    assert_eq!(entry["integrity"], sha512_integrity(&tar));
     for omitted in ["tarball", "shasum", "signatures"] {
         assert!(dist.get(omitted).is_none(), "a tar registry omits dist.{omitted}");
     }
@@ -105,10 +132,9 @@ async fn a_tar_registry_describes_and_serves_the_tar_of_a_hosted_tgz() {
     assert_eq!(packument["versions"]["1.0.0"]["dist"]["integrity"], sha512_integrity(&tgz));
     assert_eq!(packument["versions"]["1.0.0"]["dist"]["fileCount"], serde_json::json!(1));
     assert_eq!(packument["versions"]["1.0.0"]["dist"]["unpackedSize"], serde_json::json!(41));
-    assert_eq!(
-        packument["versions"]["1.0.0"]["dist"]["pnpr"]["requiresBuild"],
-        serde_json::json!(false),
-    );
+    assert!(packument["versions"]["1.0.0"]["dist"].get("pnpr").is_none());
+    let entry = pnpr_entry(&app, "/npm/@acme%2Fwidget", "1.0.0").await;
+    assert_eq!(entry["requiresBuild"], serde_json::json!(false));
 }
 
 #[tokio::test]
@@ -508,14 +534,20 @@ async fn every_document_and_route_form_of_a_tar_registry_describes_the_tar() {
 
     let version =
         body_json(get(&app, "/npm/~zstd/@acme%2Fwidget/1.0.0", None).await.into_body()).await;
-    dbg!(&version["dist"]);
     assert_eq!(version["dist"]["integrity"], sha512_integrity(&tar));
-    assert_eq!(version["dist"]["pnpr"]["requiresBuild"], serde_json::json!(false));
+    assert!(version["dist"].get("pnpr").is_none());
     assert!(version["dist"].get("tarball").is_none());
+    let record =
+        body_json(get(&app, "/npm/~zstd/@acme%2Fwidget/1.0.0+r0", None).await.into_body()).await;
+    assert_eq!(record["integrity"], sha512_integrity(&tar));
+    assert_eq!(record["requiresBuild"], serde_json::json!(false));
 
     let tgz_version =
         body_json(get(&app, "/npm/@acme%2Fwidget/1.0.0", None).await.into_body()).await;
-    assert_eq!(tgz_version["dist"]["pnpr"]["requiresBuild"], serde_json::json!(false));
+    assert!(tgz_version["dist"].get("pnpr").is_none());
+    let tgz_record =
+        body_json(get(&app, "/npm/@acme%2Fwidget/1.0.0+r0", None).await.into_body()).await;
+    assert_eq!(tgz_record["requiresBuild"], serde_json::json!(false));
 
     let abbreviated = app
         .clone()
@@ -529,9 +561,8 @@ async fn every_document_and_route_form_of_a_tar_registry_describes_the_tar() {
         .unwrap();
     let abbreviated = body_json(abbreviated.into_body()).await;
     let dist = &abbreviated["versions"]["1.0.0"]["dist"];
-    dbg!(dist);
     assert_eq!(dist["integrity"], sha512_integrity(&tar));
-    assert_eq!(dist["pnpr"]["requiresBuild"], serde_json::json!(false));
+    assert!(dist.get("pnpr").is_none());
     assert!(dist.get("tarball").is_none());
 
     let tgz_abbreviated = app
@@ -545,14 +576,78 @@ async fn every_document_and_route_form_of_a_tar_registry_describes_the_tar() {
         .await
         .unwrap();
     let tgz_abbreviated = body_json(tgz_abbreviated.into_body()).await;
-    assert_eq!(
-        tgz_abbreviated["versions"]["1.0.0"]["dist"]["pnpr"]["requiresBuild"],
-        serde_json::json!(false),
-    );
+    assert!(tgz_abbreviated["versions"]["1.0.0"]["dist"].get("pnpr").is_none());
 
     let encoded = get(&app, "/npm/~zstd/@acme%2Fwidget@1.0.0", None).await;
     assert_eq!(encoded.status(), StatusCode::OK);
     assert_eq!(body_bytes(encoded.into_body()).await.as_slice(), tar.as_slice());
+}
+
+/// A release record accepted with a version names the `.tgz`'s integrity.
+/// A tar registry describes the version by its tar instead, and both routes
+/// hide a vulnerable version's record.
+#[tokio::test]
+async fn a_tar_registry_describes_an_accepted_record_by_its_tar() {
+    let tmp = TempDir::new().unwrap();
+    let auth = AuthState::in_memory();
+    let token = issue_token(&auth, "alice").await;
+    let mut config = acme_config(tmp.path().to_path_buf());
+    config.storage.metadata =
+        pnpr_config::MetadataBackend::Sqlite(tmp.path().join("metadata.sqlite"));
+    let osv = osv_database("@acme/widget", &["2.0.0"]);
+    enable_osv(&mut config, osv.path());
+    let app = router_with_auth(config, auth);
+    let tar = widget_tar();
+    let tgz = gzip(&tar);
+    let publish = app
+        .clone()
+        .oneshot(hosted_publish_request(
+            "/npm/~acme/@acme/widget",
+            "@acme/widget",
+            "1.0.0",
+            &tgz,
+            &token,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(publish.status(), StatusCode::CREATED);
+
+    let accepted = get(&app, "/npm/@acme%2Fwidget/1.0.0+r0", None).await;
+    let cache_control = accepted
+        .headers()
+        .get(header::CACHE_CONTROL)
+        .cloned();
+    let accepted = body_json(accepted.into_body()).await;
+    assert_eq!(accepted["schema"], "pnpr-release-record/1");
+    assert_eq!(accepted["integrity"], sha512_integrity(&tgz));
+    assert_eq!(accepted["inputs"]["archive"]["integrity"], sha512_integrity(&tgz));
+    assert_eq!(cache_control.unwrap(), "public, max-age=31536000, immutable");
+
+    let described =
+        body_json(get(&app, "/npm/~zstd/@acme%2Fwidget/1.0.0+r0", None).await.into_body()).await;
+    assert_eq!(described["integrity"], sha512_integrity(&tar));
+    let mut expected = accepted.clone();
+    expected["integrity"] = serde_json::json!(sha512_integrity(&tar));
+    assert_eq!(described, expected);
+
+    let publish = app
+        .clone()
+        .oneshot(hosted_publish_request(
+            "/npm/~acme/@acme/widget",
+            "@acme/widget",
+            "2.0.0",
+            &gzip(&tar_of(&[(
+                "package/package.json",
+                br#"{"name":"@acme/widget","version":"2.0.0"}"#,
+            )])),
+            &token,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(publish.status(), StatusCode::CREATED);
+    for path in ["/npm/@acme%2Fwidget/2.0.0+r0", "/npm/~zstd/@acme%2Fwidget/2.0.0+r0"] {
+        assert_eq!(get(&app, path, None).await.status(), StatusCode::NOT_FOUND, "{path}");
+    }
 }
 
 #[tokio::test]
@@ -639,11 +734,13 @@ async fn spoofed_dist_pnpr_is_stripped_and_replaced_by_tar_verified_requires_bui
     let dist = &packument["versions"]["1.0.0"]["dist"];
     assert_eq!(dist["fileCount"], serde_json::json!(2));
     assert_eq!(dist["unpackedSize"], serde_json::json!(43));
-    assert_eq!(dist["pnpr"], serde_json::json!({ "requiresBuild": true }));
+    assert!(dist.get("pnpr").is_none());
+    let entry = pnpr_entry(&app, "/npm/@acme%2Fnative", "1.0.0").await;
+    assert_eq!(pnpr_facts(&entry), serde_json::json!({ "requiresBuild": true }));
 
-    // Round-tripping the served packument (which carries `dist.pnpr`) through
-    // the partial-unpublish `PUT /:pkg/-rev/:rev` endpoint must strip
-    // `dist.pnpr` rather than rejecting it as an extra immutable `dist` field.
+    // Round-tripping the served packument through the partial-unpublish
+    // `PUT /:pkg/-rev/:rev` endpoint must succeed, and a `dist.pnpr` sent
+    // back is stripped rather than rejected as an extra immutable field.
     let rewrite = app
         .clone()
         .oneshot(
@@ -678,38 +775,9 @@ async fn spoofed_dist_pnpr_is_stripped_and_replaced_by_tar_verified_requires_bui
     let after_dist = &after["versions"]["1.0.0"]["dist"];
     assert_eq!(after_dist["fileCount"], serde_json::json!(2));
     assert_eq!(after_dist["unpackedSize"], serde_json::json!(43));
-    assert_eq!(after_dist["pnpr"], serde_json::json!({ "requiresBuild": true }));
-
-    // Simulate a legacy hosted packument on disk that was published before
-    // `fileCount`/`unpackedSize` were persisted in `package.json`, while
-    // `.tar-integrities` has the verified values: round-tripping `GET /:pkg`
-    // into `PUT /:pkg/-rev/:rev` must still succeed.
-    let legacy_path = pnpr_storage::layout::local_document_path(
-        tmp.path(),
-        "acme",
-        pnpr_storage::Ecosystem::Npm,
-        "@acme/native",
-    );
-    let mut legacy_doc: serde_json::Value =
-        serde_json::from_slice(&std::fs::read(&legacy_path).unwrap()).unwrap();
-    let legacy_dist = legacy_doc["versions"]["1.0.0"]["dist"].as_object_mut().unwrap();
-    legacy_dist.remove("fileCount");
-    legacy_dist.remove("unpackedSize");
-    std::fs::write(&legacy_path, serde_json::to_vec_pretty(&legacy_doc).unwrap()).unwrap();
-
-    let served_legacy = body_json(get(&app, "/npm/@acme%2Fnative", None).await.into_body()).await;
-    let rewrite_legacy = app
-        .clone()
-        .oneshot(
-            Request::put("/npm/~acme/@acme%2Fnative/-rev/3-0")
-                .header(header::CONTENT_TYPE, "application/json")
-                .header(header::AUTHORIZATION, format!("Bearer {token}"))
-                .body(Body::from(served_legacy.to_string()))
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(rewrite_legacy.status(), StatusCode::CREATED);
+    assert!(after_dist.get("pnpr").is_none());
+    let after_entry = pnpr_entry(&app, "/npm/@acme%2Fnative", "1.0.0").await;
+    assert_eq!(pnpr_facts(&after_entry), serde_json::json!({ "requiresBuild": true }));
 }
 
 #[tokio::test]
@@ -758,11 +826,13 @@ async fn published_tar_surfaces_precalculated_bins_and_shebang_runtimes_in_dist_
     });
 
     let packument = body_json(get(&app, "/npm/@acme%2Fcli", None).await.into_body()).await;
-    assert_eq!(packument["versions"]["1.0.0"]["dist"]["pnpr"], expected_pnpr);
+    assert!(packument["versions"]["1.0.0"]["dist"].get("pnpr").is_none());
+    let entry = pnpr_entry(&app, "/npm/@acme%2Fcli", "1.0.0").await;
+    assert_eq!(pnpr_facts(&entry), expected_pnpr);
 
-    let version =
-        body_json(get(&app, "/npm/~zstd/@acme%2Fcli/1.0.0", None).await.into_body()).await;
-    assert_eq!(version["dist"]["pnpr"], expected_pnpr);
+    let record =
+        body_json(get(&app, "/npm/~zstd/@acme%2Fcli/1.0.0+r0", None).await.into_body()).await;
+    assert_eq!(pnpr_facts(&record), expected_pnpr);
 }
 
 #[tokio::test]
@@ -798,9 +868,6 @@ async fn pathological_bin_counts_omit_dist_pnpr_bins_and_preserve_requires_build
         .unwrap();
     assert_eq!(publish.status(), StatusCode::CREATED);
 
-    let packument = body_json(get(&app, "/npm/@acme%2Fmany-bins", None).await.into_body()).await;
-    assert_eq!(
-        packument["versions"]["1.0.0"]["dist"]["pnpr"],
-        serde_json::json!({ "requiresBuild": false }),
-    );
+    let entry = pnpr_entry(&app, "/npm/@acme%2Fmany-bins", "1.0.0").await;
+    assert_eq!(pnpr_facts(&entry), serde_json::json!({ "requiresBuild": false }));
 }

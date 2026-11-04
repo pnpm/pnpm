@@ -88,6 +88,16 @@ fn recursive_entry_value(entry: &OutdatedInWorkspace, long: bool) -> serde_json:
     value
 }
 
+/// The key each of `packages` has in the JSON report of them, in order.
+/// Packages that render as one entry share its key.
+pub(crate) fn report_keys(packages: &[&OutdatedPackage]) -> Vec<String> {
+    let keys = JsonKeys::new(packages.iter().copied());
+    packages
+        .iter()
+        .map(|pkg| keys.key(pkg))
+        .collect()
+}
+
 pub(crate) fn render_recursive_json(outdated: &[OutdatedInWorkspace], long: bool) -> String {
     let keys = JsonKeys::new(outdated.iter().map(|entry| &entry.package));
     let mut map = serde_json::Map::new();

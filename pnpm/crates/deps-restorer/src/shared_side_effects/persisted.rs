@@ -123,7 +123,7 @@ pub(super) fn manifest_matches_diff(manifest: &ArtifactManifest, diff: &SideEffe
 pub(super) async fn stored_remote_side_effects_blobs_are_valid(
     store_dir: &StoreDir,
     diff: &SideEffectsDiff,
-    overlay: &mut SideEffectsOverlay,
+    overlay: &SideEffectsOverlay,
 ) -> Result<bool, String> {
     for (file_path, info) in diff.added.iter().flatten() {
         let Some(path) = overlay_blob_path(store_dir, overlay, file_path, info) else {
@@ -138,8 +138,8 @@ pub(super) async fn stored_remote_side_effects_blobs_are_valid(
             return Ok(false);
         }
         let mode = pnpm_fs::file_mode::metadata_mode(&metadata);
-        if let (Some(file), Some(mode)) = (overlay.files.get_mut(file_path), mode) {
-            file.set_mode(mode);
+        if let (Some(file), Some(mode)) = (overlay.files.get(file_path), mode) {
+            file.record_mode(mode);
         }
     }
     Ok(true)

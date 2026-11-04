@@ -1,5 +1,5 @@
 use super::{
-    EnsureFileError, create_exclusive_temp_file, ensure_file, ensure_file_atomically,
+    EnsureFileError, TempFile, create_exclusive_temp_file, ensure_file, ensure_file_atomically,
     file_equals_bytes, strip_dash_suffix, temp_path_in,
 };
 use std::{fs, io, path::Path};
@@ -232,9 +232,9 @@ fn create_exclusive_temp_file_yields_distinct_open_files() {
     use std::io::Write;
 
     let tmp = tempdir().unwrap();
-    let (path_a, mut file_a, _) =
+    let TempFile { path: path_a, file: mut file_a, .. } =
         create_exclusive_temp_file(tmp.path(), "stream", None).expect("first temp file");
-    let (path_b, _file_b, _) =
+    let TempFile { path: path_b, .. } =
         create_exclusive_temp_file(tmp.path(), "stream", None).expect("second temp file");
 
     assert_ne!(path_a, path_b);

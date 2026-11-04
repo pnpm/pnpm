@@ -494,7 +494,7 @@ impl Walker<'_> {
             }
             let parent_node_id = remap_link_node_id(&self.opts, &direct.alias, pkg.result())
                 .unwrap_or_else(|| direct.node_id.clone());
-            insert_parent_ref(&mut refs, &direct.alias, parent_node_id, pkg, tree_node.depth);
+            insert_parent_ref(&mut refs, &direct.alias, parent_node_id, pkg);
         }
         refs
     }

@@ -73,6 +73,7 @@ fn record_agent_skills(
     if let Some(prior) = inputs.prior.metadata {
         next_modules.pending_skills.clone_from(&prior.pending_skills);
         next_modules.linked_skills.clone_from(&prior.linked_skills);
+        next_modules.has_unlinked_skills = prior.has_unlinked_skills;
     }
     let Some(lockfile) = inputs.lockfiles.materialized else { return Ok(Vec::new()) };
     let linked = inputs.prior.metadata
@@ -89,13 +90,7 @@ fn record_agent_skills(
     })
     .map_err(InstallError::AgentSkills)?;
     let pending_keys = state.pending_keys();
-    next_modules.pending_skills = (!state.pending.is_empty()).then(|| {
-        state.pending
-            .into_iter()
-            .map(Into::into)
-            .collect()
-    });
-    next_modules.linked_skills = (!state.linked.is_empty()).then_some(state.linked);
+    state.update_modules(next_modules);
     Ok(pending_keys)
 }
 pub(super) fn prepare_committed_build_state(

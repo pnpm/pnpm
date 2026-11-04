@@ -101,7 +101,7 @@ pub(super) struct LinkMaterializedProjectsInputs<'a> {
     pub(super) materialized_project_manifests: &'a [(PathBuf, &'a PackageManifest)],
 }
 pub(super) struct LinkMaterializedManifestLinks<'a> {
-    pub(super) workspace_packages: Option<&'a pnpm_resolving_resolver_base::WorkspacePackages>,
+    pub(super) workspace_links: Option<crate::WorkspaceLinks<'a>>,
     pub(super) included: IncludedDependencies,
     pub(super) project_manifests: &'a [(PathBuf, &'a PackageManifest)],
 }
@@ -128,7 +128,7 @@ pub(super) async fn link_materialized_projects<Reporter: self::Reporter + 'stati
             inputs.lockfiles.wanted.and_then(|lockfile| {
                 (!lockfile.importers.is_empty()).then_some(&lockfile.importers)
             }),
-            inputs.manifest_links.workspace_packages,
+            inputs.manifest_links.workspace_links,
             inputs.manifest_links.included,
             inputs.config.modules_dir_name(),
             &crate::shim_link_options(inputs.config, inputs.node_linker),

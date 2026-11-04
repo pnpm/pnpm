@@ -1,12 +1,14 @@
 use super::{
-    Builder, Duration, LibsqlAuth, MaxUsers, RegistryError, Result, TokenBackend, UpsertOutcome,
-    UserBackend, UserCreation, UserRemoval, first_row, params, retry_database_conflicts,
-    schema::{ensure_user_counter, is_transaction_conflict, is_unique_violation},
-    with_auth_timeout,
+    Duration, LibsqlAuth, MaxUsers, RegistryError, Result, TokenBackend, UpsertOutcome,
+    UserBackend, UserCreation, UserRemoval, first_row, is_unique_violation, params,
+    retry_database_conflicts, schema::ensure_user_counter, with_auth_timeout,
 };
 use crate::token_store::sha256_hex;
+use libsql::Builder;
+use pnpr_libsql::is_transaction_conflict;
 
 mod sync_server;
+mod tls;
 
 /// A local libsql database, exercising the same driver and SQL the
 /// networked backend uses without a server. It is a file because each pooled

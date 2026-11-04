@@ -269,15 +269,13 @@ pub(super) async fn stage_artifact(
     let diff = remote_diff(context, artifact, added);
     // The same derivation a persisted row goes through, so a symlink the
     // artifact records is restored under the same rules or not at all.
-    let mut overlay = side_effects_overlay(&context.config.store_dir, input_key, &diff, base)
+    let overlay = side_effects_overlay(&context.config.store_dir, input_key, &diff, base)
         .ok_or_else(|| {
             ("the artifact records an entry that cannot be restored".to_string(), true)
         })?;
-    // Every snapshot of the group gets its own copy of the overlay, so the
-    // modes staging read go in before it is copied.
     for (name, mode) in staged_modes {
-        if let Some(file) = overlay.files.get_mut(&name) {
-            file.set_mode(mode);
+        if let Some(file) = overlay.files.get(&name) {
+            file.record_mode(mode);
         }
     }
     Ok(StagedArtifact { overlay, diff })
@@ -380,9 +378,10 @@ pub(super) async fn stage_artifact_blob(
         let bytes = download_artifact_file(context, artifact, file).await?;
         downloaded.insert(file.integrity.clone(), bytes);
     }
-    let (blob, _) = context.config.store_dir
+    let blob = context.config.store_dir
         .write_cas_file(&downloaded[&file.integrity], pnpm_fs::file_mode::is_executable(file.mode))
-        .map_err(|error| (error.to_string(), false))?;
+        .map_err(|error| (error.to_string(), false))?
+        .file;
     stored.insert(storage_key, blob.clone());
     Ok((blob, info(digest)))
 }

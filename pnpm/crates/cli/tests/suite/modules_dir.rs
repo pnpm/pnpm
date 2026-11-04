@@ -517,3 +517,51 @@ fn the_hoisted_linker_installs_into_a_custom_modules_dir() {
 
     drop((root, mock_instance));
 }
+
+/// Changing `extendNodePath` changes neither the lockfile nor
+/// `.modules.yaml`, so only the recorded setting tells the repeat install
+/// that the shims are stale.
+#[test]
+fn repeat_install_rewrites_registry_bins_when_extend_node_path_changes() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    append_workspace_yaml_key(&workspace, "modulesDir", "vendor");
+    append_workspace_yaml_key(&workspace, "extendNodePath", "false");
+    write_manifest(
+        &workspace,
+        &serde_json::json!({ "dependencies": { "@pnpm.e2e/hello-world-js-bin": "1.0.0" } }),
+    );
+    let install = |env_value: Option<&str>| {
+        let mut command = pacquet_in(&workspace).with_arg("install");
+        if let Some(value) = env_value {
+            command = command.with_env("PNPM_CONFIG_EXTEND_NODE_PATH", value);
+        }
+        command.assert().success();
+    };
+
+    install(None);
+    assert!(!registry_bin_sets_node_path(&workspace));
+
+    set_extend_node_path(&workspace, "false", "true");
+    pnpm_testing_utils::fs::bump_mtime(&workspace.join("pnpm-workspace.yaml"));
+    install(None);
+    assert!(registry_bin_sets_node_path(&workspace));
+
+    install(Some("false"));
+    assert!(!registry_bin_sets_node_path(&workspace));
+
+    install(Some("true"));
+    assert!(registry_bin_sets_node_path(&workspace));
+
+    drop((root, mock_instance));
+}
+
+fn registry_bin_sets_node_path(project_dir: &Path) -> bool {
+    let shim = if cfg!(windows) {
+        "vendor/.bin/hello-world-js-bin.cmd"
+    } else {
+        "vendor/.bin/hello-world-js-bin"
+    };
+    fs::read_to_string(project_dir.join(shim)).expect("read the shim").contains("NODE_PATH=")
+}

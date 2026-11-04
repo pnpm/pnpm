@@ -20,15 +20,40 @@ use crate::{
     publish_summary::PublishSummary,
     publish_wait::{PublishWaitError, wait_for_published_packages},
     registry_config_keys::NormalizedRegistryUrl,
+    staged_archives::{
+        MAX_STAGED_ARCHIVES_PER_PUBLISH, StagedArchive, StagingError, reference_staged_archive,
+        stage_archives,
+    },
 };
 
 const BATCH_PUBLISH_ENDPOINT: &str = "-/pnpr/v0/publish";
 
-struct BatchGroup {
+struct BatchGroup<'a> {
     registry: NormalizedRegistryUrl,
     package_names: Vec<String>,
     summary_indexes: Vec<usize>,
     documents: Vec<Value>,
+    /// The archives uploaded before the commit, for a registry that stages
+    /// them; `None` sends each archive inline in its document.
+    staged: Option<Vec<StagedArchive<'a>>>,
+}
+
+impl BatchGroup<'_> {
+    /// Make the documents of a staging group name their archives by
+    /// integrity. A group with more archives than one commit may reference
+    /// sends them inline, as a registry that does not stage gets them.
+    fn reference_staged_archives(&mut self) {
+        let Some(archives) = &self.staged else {
+            return;
+        };
+        if archives.len() > MAX_STAGED_ARCHIVES_PER_PUBLISH {
+            self.staged = None;
+            return;
+        }
+        for (document, archive) in self.documents.iter_mut().zip(archives) {
+            reference_staged_archive(document, &archive.integrity);
+        }
+    }
 }
 
 /// Reject publish modes whose per-package artifacts cannot be represented by
@@ -67,6 +92,9 @@ where
     for package in packages {
         group_packed_pkg(package, opts, &mut summaries, &mut groups).map_err(Error::from)?;
     }
+    for group in &mut groups {
+        group.reference_staged_archives();
+    }
 
     let authorizations = if opts.dry_run {
         vec![None; groups.len()]
@@ -104,7 +132,7 @@ where
 }
 
 async fn publish_group<Reporter: self::Reporter>(
-    group: &BatchGroup,
+    group: &BatchGroup<'_>,
     authorization: Option<&str>,
     opts: &PublishPackedPkgOptions,
     network: &PublishNetwork<'_>,
@@ -121,6 +149,14 @@ async fn publish_group<Reporter: self::Reporter>(
         ));
         return Ok(());
     }
+    if let Some(archives) = &group.staged {
+        let uploaded =
+            stage_archives(network.client, &group.registry, authorization, archives).await?;
+        global_info::<Reporter>(&format!(
+            "Uploaded {uploaded} of {} archive(s) to {registry} ahead of the publish",
+            archives.len(),
+        ));
+    }
     put_batch::<Reporter>(group, authorization, opts, network, &registry).await?;
     global_info::<Reporter>(&format!(
         "✅ Published {} package(s) to {registry} in a single request",
@@ -130,7 +166,7 @@ async fn publish_group<Reporter: self::Reporter>(
 }
 
 async fn wait_for_group<Reporter: self::Reporter>(
-    group: &BatchGroup,
+    group: &BatchGroup<'_>,
     summaries: &[PublishSummary],
     opts: &PublishPackedPkgOptions,
     network: &PublishNetwork<'_>,
@@ -148,11 +184,11 @@ async fn wait_for_group<Reporter: self::Reporter>(
 
 /// Summarize one packed package and fold it into the group of everything
 /// bound for the same registry.
-fn group_packed_pkg(
-    package: &PackedPkg<'_>,
+fn group_packed_pkg<'a>(
+    package: &PackedPkg<'a>,
     opts: &PublishPackedPkgOptions,
     summaries: &mut Vec<PublishSummary>,
-    groups: &mut Vec<BatchGroup>,
+    groups: &mut Vec<BatchGroup<'a>>,
 ) -> Result<(), BatchPublishError> {
     let manifest = package.published_manifest;
     let name = manifest
@@ -166,7 +202,7 @@ fn group_packed_pkg(
         crate::publish_options::publish_config_registry(manifest, name),
     )?;
     let summary = package.summary();
-    let document = build_publish_document(
+    let mut document = build_publish_document(
         manifest,
         package.tarball_data,
         &registry,
@@ -174,30 +210,52 @@ fn group_packed_pkg(
         &opts.registry.tag,
         &DistHashes { integrity: &summary.integrity, shasum: &summary.shasum },
     )?;
+    opts.release_notes.attach_version_notes(&mut document, package.notes, &registry);
+    let staged = opts.pnpr_registries
+        .contains(registry.as_str())
+        .then(|| StagedArchive {
+            integrity: summary.integrity.clone(),
+            bytes: package.tarball_data,
+        });
     let summary_index = summaries.len();
     summaries.push(summary);
 
-    if let Some(group) = groups
-        .iter_mut()
-        .find(|group| group.registry == registry)
+    let group = group_for(groups, registry, staged.is_some());
+    group.package_names.push(name.to_string());
+    group.summary_indexes.push(summary_index);
+    group.documents.push(document);
+    if let (Some(archives), Some(archive)) = (&mut group.staged, staged) {
+        archives.push(archive);
+    }
+    Ok(())
+}
+
+/// The group of everything bound for `registry`, started when this is its
+/// first package. A group `stages` its archives when its registry does.
+fn group_for<'a, 'g>(
+    groups: &'g mut Vec<BatchGroup<'a>>,
+    registry: NormalizedRegistryUrl,
+    stages: bool,
+) -> &'g mut BatchGroup<'a> {
+    if let Some(index) = groups
+        .iter()
+        .position(|group| group.registry == registry)
     {
-        group.package_names.push(name.to_string());
-        group.summary_indexes.push(summary_index);
-        group.documents.push(document);
-        return Ok(());
+        return &mut groups[index];
     }
     groups.push(BatchGroup {
         registry,
-        package_names: vec![name.to_string()],
-        summary_indexes: vec![summary_index],
-        documents: vec![document],
+        package_names: Vec::new(),
+        summary_indexes: Vec::new(),
+        documents: Vec::new(),
+        staged: stages.then(Vec::new),
     });
-    Ok(())
+    groups.last_mut().expect("a group was just pushed")
 }
 
 /// Send one registry's whole batch in a single request.
 async fn put_batch<Reporter: self::Reporter>(
-    group: &BatchGroup,
+    group: &BatchGroup<'_>,
     authorization: Option<&str>,
     opts: &PublishPackedPkgOptions,
     network: &PublishNetwork<'_>,
@@ -205,7 +263,7 @@ async fn put_batch<Reporter: self::Reporter>(
 ) -> Result<(), BatchPublishError> {
     let put_url = join_registry(&group.registry, BATCH_PUBLISH_ENDPOINT)?;
     let body = bytes::Bytes::from(
-        serde_json::to_vec(&serde_json::json!({ "packages": group.documents }))
+        serde_json::to_vec(&opts.release_notes.batch_body(&group.registry, &group.documents))
             .expect("serialize batch publish documents"),
     );
     let response = publish_with_otp_handling::<WebAuthHost, Reporter>(
@@ -235,7 +293,7 @@ async fn put_batch<Reporter: self::Reporter>(
 }
 
 fn batch_authorization(
-    group: &BatchGroup,
+    group: &BatchGroup<'_>,
     network: &PublishNetwork<'_>,
 ) -> Result<Option<String>, BatchPublishError> {
     let mut package_names = group.package_names.iter();
@@ -312,6 +370,15 @@ pub enum BatchPublishError {
 
     #[diagnostic(transparent)]
     Failed(FailedToPublishError),
+
+    #[diagnostic(transparent)]
+    Staging(StagingError),
+}
+
+impl From<StagingError> for BatchPublishError {
+    fn from(error: StagingError) -> Self {
+        BatchPublishError::Staging(error)
+    }
 }
 
 impl From<PublishUnsupportedRegistryProtocolError> for BatchPublishError {
@@ -331,3 +398,6 @@ impl From<WithOtpError<PublishHttpError>> for BatchPublishError {
         BatchPublishError::Otp(error)
     }
 }
+
+#[cfg(test)]
+mod tests;

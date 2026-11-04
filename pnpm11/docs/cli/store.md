@@ -9,10 +9,14 @@ Managing the package store.
 
 ### status
 
-Checks for modified packages in the store.
+Checks for modified packages in the project or global virtual store.
 
 Returns exit code 0 if the content of the package is the same as it was at the
 time of unpacking.
+
+If an installed global-store package cannot be located or its project link points
+to a different slot, the command fails with
+`ERR_PNPM_STORE_STATUS_UNVERIFIABLE`. Run `pnpm install` before checking again.
 
 ### add
 

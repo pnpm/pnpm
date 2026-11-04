@@ -5,7 +5,7 @@ use std::{
 };
 
 use miette::{IntoDiagnostic, Result, WrapErr, bail};
-use pep440_rs::{Operator, Version, VersionSpecifiers};
+use pep440_rs::{Operator, Version, VersionSpecifier, VersionSpecifiers};
 use pep508_rs::{PackageName, Requirement, VersionOrUrl};
 use pnpm_python_resolver::Lockfile;
 use rewrite::rewrite_pyproject;
@@ -17,6 +17,8 @@ use super::{
 };
 
 mod rewrite;
+#[cfg(test)]
+mod tests;
 
 #[derive(Debug, Clone)]
 pub struct UpdateOptions {
@@ -25,17 +27,12 @@ pub struct UpdateOptions {
     pub groups: BTreeSet<PythonDependencyGroup>,
     pub latest: bool,
     pub no_save: bool,
-    pub exact: bool,
-    pub prefix: Option<String>,
 }
 
 impl UpdateOptions {
     pub fn validate(&self, config: &pnpm_config::Config) -> Result<()> {
         if !config.python.enabled {
             bail!("pypi: dependencies require `python.enabled: true` in pnpm-workspace.yaml");
-        }
-        if !matches!(self.prefix.as_deref().unwrap_or(">="), ">=" | "~=" | "==") {
-            bail!("Python --save-prefix must be >=, ~=, or ==");
         }
         Ok(())
     }
@@ -267,7 +264,7 @@ fn finalize_requirement(
         return Ok(None);
     };
     let explicit_spec = options.targets.get(&req.name).and_then(Option::as_deref);
-    let new_specifiers = compute_saved_specifiers(&req, version, explicit_spec, options)?;
+    let new_specifiers = compute_saved_specifiers(&req, version, explicit_spec, options.latest)?;
     let Some(specifiers) = new_specifiers else {
         return Ok(None);
     };
@@ -279,14 +276,8 @@ fn compute_saved_specifiers(
     req: &Requirement,
     version: &Version,
     explicit_spec: Option<&str>,
-    options: &UpdateOptions,
+    latest: bool,
 ) -> Result<Option<VersionSpecifiers>> {
-    if options.exact {
-        return Ok(Some(format!("=={version}").parse().into_diagnostic()?));
-    }
-    if let Some(prefix) = options.prefix.as_deref() {
-        return Ok(Some(format!("{prefix}{version}").parse().into_diagnostic()?));
-    }
     if let Some(spec) = explicit_spec
         && !spec.starts_with("==")
     {
@@ -297,10 +288,52 @@ fn compute_saved_specifiers(
             .map(|_| format!(">={version}").parse().into_diagnostic())
             .transpose();
     };
-    updated_existing_specifiers(existing, version, options.latest || explicit_spec.is_some())
+    updated_existing_specifiers(existing, version, latest || explicit_spec.is_some())
 }
 
+/// The lower bound of a `~=` requirement updated to `version`, with as many
+/// release segments as `spec` so its upper bound keeps the same precision.
+/// The pre-release marker stays, so the requirement still admits `version`,
+/// and the bound does not drop below `spec`'s while `spec` admits `version`.
+fn compatible_release_floor(spec: &VersionSpecifier, version: &Version) -> Version {
+    let segments = spec.version().release().len();
+    let floor = version
+        .clone()
+        .without_local()
+        .with_release(padded_release(version, segments));
+    if spec.contains(version) { floor.max(spec.version().clone()) } else { floor }
+}
+
+/// `version`'s epoch and first `segments` release numbers, zero-padded.
+fn release_prefix(version: &Version, segments: usize) -> Version {
+    Version::new(padded_release(version, segments)).with_epoch(version.epoch())
+}
+
+fn padded_release(version: &Version, segments: usize) -> Vec<u64> {
+    let mut release = version.release().to_vec();
+    release.resize(segments, 0);
+    release
+}
+
+/// Updates `existing` for `version`. The resolver admits a pre-release only
+/// when a clause names one, so a selected pre-release that the result does not
+/// name gets a `>=version` clause.
 fn updated_existing_specifiers(
+    existing: &VersionSpecifiers,
+    version: &Version,
+    force_bump: bool,
+) -> Result<Option<VersionSpecifiers>> {
+    let updated = updated_primary_specifiers(existing, version, force_bump)?;
+    let saved = updated.as_ref().unwrap_or(existing);
+    if !version.any_prerelease() || saved.iter().any(VersionSpecifier::any_prerelease) {
+        return Ok(updated.filter(|updated| updated != existing));
+    }
+    let saved: VersionSpecifiers =
+        format!("{saved},>={}", version.clone().without_local()).parse().into_diagnostic()?;
+    Ok(Some(saved))
+}
+
+fn updated_primary_specifiers(
     existing: &VersionSpecifiers,
     version: &Version,
     force_bump: bool,
@@ -310,8 +343,11 @@ fn updated_existing_specifiers(
         let formatted = match *spec.operator() {
             Operator::Equal => force_bump.then(|| format!("=={version}")),
             Operator::ExactEqual => force_bump.then(|| format!("==={version}")),
-            Operator::TildeEqual => Some(format!("~={version}")),
+            Operator::TildeEqual => Some(format!("~={}", compatible_release_floor(spec, version))),
             Operator::GreaterThanEqual => Some(format!(">={version}")),
+            Operator::EqualStar => (force_bump && !existing.contains(version)).then(|| {
+                format!("=={}.*", release_prefix(version, spec.version().release().len()))
+            }),
             _ => (force_bump && !existing.contains(version)).then(|| format!(">={version}")),
         };
         return formatted

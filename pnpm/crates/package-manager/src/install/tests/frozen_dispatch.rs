@@ -113,6 +113,7 @@ async fn frozen_lockfile_install_errors_when_no_variant_matches_host() {
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
             dedicated: None,
+            discovered_workspace: None,
         },
     }
     .run::<SilentReporter>()
@@ -226,7 +227,8 @@ supported_architectures: None,
 catalogs_override: None,
 pnpmfile_hook_override: None,
 workspace_projects_override: None,
-dedicated: None
+dedicated: None,
+discovered_workspace: None
 },
 }
     .run::<SilentReporter>()
@@ -365,6 +367,7 @@ async fn frozen_lockfile_gate_rejects_under_huge_minimum_release_age() {
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
             dedicated: None,
+            discovered_workspace: None,
         },
     }
     .run::<SilentReporter>()
@@ -464,6 +467,7 @@ async fn prefer_frozen_install_writes_missing_current_lockfile() {
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
             dedicated: None,
+            discovered_workspace: None,
         },
     }
     .run::<SilentReporter>()
@@ -526,6 +530,7 @@ async fn prefer_frozen_install_writes_missing_current_lockfile() {
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
             dedicated: None,
+            discovered_workspace: None,
         },
     }
     .run::<SilentReporter>()
@@ -625,6 +630,7 @@ async fn prefer_frozen_lockfile_takes_frozen_path_when_lockfile_is_fresh() {
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
             dedicated: None,
+            discovered_workspace: None,
         },
     }
     .run::<SilentReporter>()
@@ -733,6 +739,7 @@ async fn no_prefer_frozen_lockfile_flag_forces_fresh_resolve() {
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
             dedicated: None,
+            discovered_workspace: None,
         },
     }
     .run::<SilentReporter>()
@@ -902,6 +909,7 @@ async fn frozen_install_short_circuits_when_modules_and_lockfile_are_consistent(
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
             dedicated: None,
+            discovered_workspace: None,
         },
     }
     .run::<RecordingReporter>()

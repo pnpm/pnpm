@@ -182,6 +182,7 @@ export async function recordValidatedWorkspaceState (
       // The check passed, so the recorded verification of the lockfile keys
       // still holds, and nothing resolved the lockfile's plain keys elsewhere.
       registryPrefixes: workspaceState.settings.registryPrefixes,
+      defaultRegistry: workspaceState.settings.defaultRegistry,
       registryRoutes: workspaceState.settings.registryRoutes,
     },
     ignoredWorkspaceStateSettings: opts.ignoredWorkspaceStateSettings,

@@ -17,9 +17,12 @@ use super::{
 async fn reuses_cached_cas_paths_when_index_entry_is_live() {
     let (store_dir, store_path) = tempdir_with_leaked_path();
 
-    let (pkg_json_path, pkg_json_hash) =
-        store_path.write_cas_file(b"{\"name\":\"fake\"}", false).unwrap();
-    let (bin_path, bin_hash) =
+    let pnpm_store_dir::WrittenFile {
+        file: pkg_json_path,
+        hash: pkg_json_hash,
+        ..
+    } = store_path.write_cas_file(b"{\"name\":\"fake\"}", false).unwrap();
+    let pnpm_store_dir::WrittenFile { file: bin_path, hash: bin_hash, .. } =
         store_path.write_cas_file(b"#!/usr/bin/env node\nconsole.log('hi');\n", true).unwrap();
 
     let pkg_integrity = integrity(
@@ -202,8 +205,11 @@ async fn reuses_prefetched_cas_paths_when_provided() {
 async fn prefetch_cas_paths_returns_hits_for_live_index_rows() {
     let (store_dir, store_path) = tempdir_with_leaked_path();
 
-    let (pkg_json_path, pkg_json_hash) =
-        store_path.write_cas_file(b"{\"name\":\"fake\"}", false).unwrap();
+    let pnpm_store_dir::WrittenFile {
+        file: pkg_json_path,
+        hash: pkg_json_hash,
+        ..
+    } = store_path.write_cas_file(b"{\"name\":\"fake\"}", false).unwrap();
 
     let pkg_integrity = integrity(
         "sha512-q/IXcMGuF8v7ZLf/JeYfE/pB4Wg1yxT6jXJz8JxRK7a4mJSXV1QKMXDPfZkvMHTZpYxWBDoJiXtptDWFnoCA2w==",
@@ -256,7 +262,11 @@ async fn prefetch_cas_paths_recomputes_requires_build_for_legacy_rows() {
     let (store_dir, store_path) = tempdir_with_leaked_path();
 
     let manifest_bytes = br#"{"name":"fake","scripts":{"postinstall":"node build.js"}}"#;
-    let (pkg_json_path, pkg_json_hash) = store_path.write_cas_file(manifest_bytes, false).unwrap();
+    let pnpm_store_dir::WrittenFile {
+        file: pkg_json_path,
+        hash: pkg_json_hash,
+        ..
+    } = store_path.write_cas_file(manifest_bytes, false).unwrap();
 
     let pkg_integrity = integrity(
         "sha512-q/IXcMGuF8v7ZLf/JeYfE/pB4Wg1yxT6jXJz8JxRK7a4mJSXV1QKMXDPfZkvMHTZpYxWBDoJiXtptDWFnoCA2w==",
@@ -312,7 +322,7 @@ async fn prefetch_cas_paths_derives_requires_build_of_git_rows_without_a_manifes
     ) -> Option<bool> {
         let (store_dir, store_path) = tempdir_with_leaked_path();
         let package_json = br#"{"name":"fake","scripts":{"install":"node build.js"}}"#;
-        let (_, hash) = store_path.write_cas_file(package_json, false).unwrap();
+        let hash = store_path.write_cas_file(package_json, false).unwrap().hash;
         let files = HashMap::from([(
             "package.json".to_string(),
             CafsFileInfo {
@@ -362,7 +372,7 @@ async fn prefetch_cas_paths_rereads_gypfile_for_rows_that_predate_it() {
         let (store_dir, store_path) = tempdir_with_leaked_path();
         let mut files = HashMap::new();
         for (name, contents) in [("package.json", package_json), ("binding.gyp", b"{}")] {
-            let (_, hash) = store_path.write_cas_file(contents, false).unwrap();
+            let hash = store_path.write_cas_file(contents, false).unwrap().hash;
             let digest = format!("{hash:x}");
             let size = contents.len() as u64;
             files.insert(
@@ -532,13 +542,14 @@ async fn prefetch_cas_paths_deferred_check_drops_a_row_only_when_verified() {
 }
 
 /// pnpm/pnpm#17543: a deferred row that passes `verify_rows` hands the
-/// modes its check read to its files and to its side-effects overlays.
+/// modes its check read to its files and to its side-effects overlays,
+/// in the maps already handed out.
 #[tokio::test]
 #[cfg(unix)]
 async fn verify_rows_hands_verified_modes_to_the_row_and_its_overlays() {
     let (store_dir, store_path) = tempdir_with_leaked_path();
     let content = b"{\"name\":\"fake\"}";
-    let (_, hash) = store_path.write_cas_file(content, false).unwrap();
+    let hash = store_path.write_cas_file(content, false).unwrap().hash;
     let pkg_integrity = integrity(
         "sha512-q/IXcMGuF8v7ZLf/JeYfE/pB4Wg1yxT6jXJz8JxRK7a4mJSXV1QKMXDPfZkvMHTZpYxWBDoJiXtptDWFnoCA2w==",
     );
@@ -580,12 +591,18 @@ async fn verify_rows_hands_verified_modes_to_the_row_and_its_overlays() {
     )
     .await;
     assert_eq!(prefetched.cas_paths[&index_key]["package.json"].mode(), None);
+    let held_by_a_snapshot = Arc::clone(&prefetched.cas_paths[&index_key]);
 
     let failed = prefetched.verify_rows([index_key.as_str()], store_path, &verified_files_cache);
 
     assert_eq!(failed, 0);
     let mode = prefetched.cas_paths[&index_key]["package.json"].mode();
     assert!(mode.is_some(), "a passed check hands its mode to the row");
+    assert_eq!(
+        held_by_a_snapshot["package.json"].mode(),
+        mode,
+        "the mode lands on the map snapshots share, not on a copy",
+    );
     let overlay = &prefetched.side_effects_maps[&index_key]["k1"];
     assert_eq!(overlay.files["package.json"].mode(), mode);
     drop(store_dir);
@@ -798,7 +815,7 @@ async fn raw_archive_projection_ignores_legacy_package_rows() {
     let (store_dir, store_path) = tempdir_with_leaked_path();
     store_path.init().unwrap();
     let legacy_contents = b"{}";
-    let (_, legacy_file_hash) = store_path.write_cas_file(legacy_contents, false).unwrap();
+    let legacy_file_hash = store_path.write_cas_file(legacy_contents, false).unwrap().hash;
     let legacy_key = store_index_key(&integrity.to_string(), package_id);
     StoreIndex::open_in(store_path)
         .unwrap()

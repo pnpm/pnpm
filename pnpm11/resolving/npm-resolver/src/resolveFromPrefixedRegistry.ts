@@ -1,4 +1,4 @@
-import { pickDeclaredRegistryPrefix } from '@pnpm/config.pick-registry-for-package'
+import { pickAliasKeyPrefix } from '@pnpm/config.pick-registry-for-package'
 import type {
   NonDeprecatedAlternative,
   ResolutionPolicyViolation,
@@ -16,7 +16,7 @@ import {
 import { findNonDeprecatedAlternative } from './pickPackageFromMeta.js'
 import { createPickPackageOptions } from './pickPackageOptions.js'
 import { warnOnceOnHeldBackUpdate } from './preferredVersionSelectors.js'
-import { qualifiedPackageId, registryPackageId } from './registryPackageId.js'
+import { keyPrefixRegistries, qualifiedPackageId, registryPackageId } from './registryPackageId.js'
 import { createRegistryTarballResolution } from './registryTarballResolution.js'
 import { detectMinReleaseAgeViolation, latestAllowedByPolicy } from './releaseAgePolicy.js'
 import type {
@@ -88,12 +88,12 @@ export async function resolveFromNamedRegistry (
     // Qualifying the id with the registry is what keeps the same name@version
     // resolved from two registries distinct in the lockfile. Without it they
     // collapse onto one entry and whichever resolved first decides the
-    // tarball both consumers get. A built-in alias that no declared prefix
-    // shares a registry with qualifies the id with its own name.
+    // tarball both consumers get. A package of the default registry keeps the
+    // plain id a plain range mints.
     id: qualifiedPackageId(
       picked.manifest.name,
       picked.manifest.version,
-      pickDeclaredRegistryPrefix(ctx.declaredRegistriesByPrefix, registry) ?? spec.registryName
+      pickAliasKeyPrefix(keyPrefixRegistries(ctx), { alias: spec.registryName, name: picked.manifest.name, registry })
     ),
     normalizedBareSpecifier: opts.calcSpecifier
       ? calcPrefixedSpecifier({

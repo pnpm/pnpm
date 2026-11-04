@@ -51,6 +51,7 @@ impl NpmResolutionVerifier {
                 }
             }
             let opts = FetchFullMetadataCachedOptions {
+                pnpr_format: false,
                 registry,
                 cache_dir: self.metadata.cache_dir.as_deref(),
                 full_metadata: false,
@@ -280,6 +281,7 @@ impl super::VerificationMetadataClient {
         full_metadata: bool,
     ) -> FetchFullMetadataCachedOptions<'a> {
         FetchFullMetadataCachedOptions {
+            pnpr_format: false,
             registry,
             cache_dir: self.cache_dir.as_deref(),
             full_metadata,

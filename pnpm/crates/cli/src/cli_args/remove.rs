@@ -93,6 +93,7 @@ impl RemoveArgs {
             lockfile,
             resolved_packages,
             dedicated: _,
+            discovered_workspace: _,
         } = state;
         let lockfile = command_lockfile(lockfile, lockfile_path)?;
 

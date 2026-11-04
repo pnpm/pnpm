@@ -119,7 +119,7 @@ export async function installEachProject (ctx: RecursiveContext): Promise<Recurs
     await buildInstalledProjects(ctx, state.installedModulesDirs)
   }
   throwOnCommandFail(`pnpm recursive ${cmdFullName}`, state.result)
-  if (!hasPassedProject(state.result) && cmdFullName === 'update' && opts.depth === 0) {
+  if (!hasPassedProject(state.result) && cmdFullName === 'update' && opts.depth === 0 && !ctx.selectsOnlyIgnoredDependencies) {
     throw createNoPackageInDependenciesError()
   }
   return {

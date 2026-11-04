@@ -114,6 +114,7 @@ fn blob_paths_of_rows(store_dir: &StoreDir, keys: &[String]) -> Vec<PathBuf> {
 fn prune(workspace: &Path) {
     let output = pacquet_at(workspace)
         .with_args(["store", "prune"])
+        .env_remove("PRUNE_TEST_MODULES_DIR")
         .output()
         .expect("run store prune");
     let stderr = String::from_utf8_lossy(&output.stderr);
@@ -289,6 +290,105 @@ fn store_prune_keeps_every_package_installed_by_copy_in_the_global_virtual_store
     );
 }
 
+#[test]
+fn store_prune_keeps_global_virtual_store_slots_from_a_custom_modules_dir() {
+    assert_prune_keeps_global_virtual_store_slots(|workspace| {
+        append_workspace_yaml(workspace, "modulesDir: pnpm_modules\n");
+        workspace.join("pnpm_modules")
+    });
+}
+
+#[test]
+fn store_prune_keeps_global_virtual_store_slots_from_package_configs_modules_dir() {
+    assert_prune_keeps_global_virtual_store_slots(|workspace| {
+        move_dependencies_to_a_project_with_its_own_lockfile(
+            workspace,
+            "packageConfigs:\n  project:\n    modulesDir: project_modules\n",
+        );
+        workspace.join("project/project_modules")
+    });
+}
+
+#[test]
+fn store_prune_keeps_global_virtual_store_slots_from_a_workspace_package_modules_dir() {
+    let CommandTempCwd {
+        root: _root, workspace, npmrc_info, ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry {
+        mock_instance: _mock_instance,
+        store_dir,
+        ..
+    } = npmrc_info;
+    write_manifest(&workspace);
+    append_workspace_yaml(
+        &workspace,
+        "packages: [project]\nmodulesDir: ${PRUNE_TEST_MODULES_DIR:-vendor}\n",
+    );
+    let project = workspace.join("project");
+    fs::create_dir_all(&project).expect("create workspace package");
+    fs::write(project.join("package.json"), serde_json::json!({"name": "project"}).to_string())
+        .expect("write workspace package manifest");
+    enable_gvs_in_workspace_yaml(&workspace, "");
+    pacquet_at(&workspace)
+        .with_args(["install", "--reporter=silent"])
+        .env_remove("PRUNE_TEST_MODULES_DIR")
+        .assert()
+        .success();
+    let store = StoreDir::new(store_dir);
+    let live_slot =
+        add_global_virtual_store_prune_anchor(&workspace, &store, &project.join("vendor"));
+
+    prune(&workspace);
+
+    assert!(
+        live_slot.is_dir(),
+        "prune must keep the slot linked from a workspace package's configured modules dir",
+    );
+}
+
+fn assert_prune_keeps_global_virtual_store_slots(configure: impl FnOnce(&Path) -> PathBuf) {
+    let CommandTempCwd {
+        root: _root, workspace, npmrc_info, ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry {
+        mock_instance: _mock_instance,
+        store_dir,
+        ..
+    } = npmrc_info;
+    write_manifest(&workspace);
+    let modules_dir = configure(&workspace);
+    enable_gvs_in_workspace_yaml(&workspace, "");
+    pacquet_at(&workspace)
+        .with_args(["install", "--reporter=silent"])
+        .assert()
+        .success();
+    let store = StoreDir::new(store_dir);
+    let live_slot = add_global_virtual_store_prune_anchor(&workspace, &store, &modules_dir);
+    prune(&workspace);
+
+    assert!(live_slot.is_dir(), "prune must keep the slot linked from the configured modules dir");
+}
+
+fn add_global_virtual_store_prune_anchor(
+    workspace: &Path,
+    store: &StoreDir,
+    modules_dir: &Path,
+) -> PathBuf {
+    let links = store.links();
+    let anchor_package = links.join("@/anchor/1.0.0/hash/node_modules/anchor");
+    let custom_package = links.join("@/custom/1.0.0/hash/node_modules/custom");
+    fs::create_dir_all(&anchor_package).expect("create the anchor package");
+    fs::create_dir_all(&custom_package).expect("create the custom package");
+    let project_modules = workspace.join("node_modules");
+    fs::create_dir_all(&project_modules).expect("create the default modules directory");
+    pnpm_fs::symlink_dir(&anchor_package, &project_modules.join("anchor"))
+        .expect("link the anchor package from the default modules directory");
+    fs::create_dir_all(modules_dir).expect("create the configured modules directory");
+    pnpm_fs::symlink_dir(&custom_package, &modules_dir.join("custom"))
+        .expect("link the custom package from the configured modules directory");
+    links.join("@/custom/1.0.0/hash")
+}
+
 fn assert_prune_keeps_every_package_installed_by_copy(
     configure: impl FnOnce(&Path),
     installed_lockfile: &str,
@@ -326,6 +426,61 @@ fn assert_prune_keeps_every_package_installed_by_copy(
         .filter(|path| !path.exists())
         .collect();
     assert_eq!(missing, Vec::<&PathBuf>::new(), "store prune removed files the project uses");
+}
+
+/// A package with platform variants installs its primary archive, the
+/// `variations` fallback, on a host none of its variants matches.
+#[test]
+fn store_prune_keeps_the_fallback_archive_of_a_package_with_platform_variants() {
+    let CommandTempCwd {
+        root: _root, workspace, npmrc_info, ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry {
+        mock_instance: _mock_instance,
+        store_dir,
+        ..
+    } = npmrc_info;
+    write_manifest(&workspace);
+    append_workspace_yaml(&workspace, "packageImportMethod: copy\n");
+    pacquet_at(&workspace)
+        .with_args(["install", "--reporter=silent"])
+        .assert()
+        .success();
+    let installed_lockfile = workspace.join("node_modules/.pnpm/lock.yaml");
+    let lockfile = fs::read_to_string(&installed_lockfile).expect("read the installed lockfile");
+    let (head, tail) = lockfile
+        .split_once("  is-positive@1.0.0:\n    resolution: ")
+        .expect("the installed lockfile resolves is-positive@1.0.0");
+    let (resolution, tail) = tail.split_once('\n').expect("the resolution ends its line");
+    let variations = format!(
+        "  is-positive@1.0.0:
+    resolution:
+      type: variations
+      variants:
+        - resolution: {{integrity: sha512-{}==}}
+          targets:
+            - os: aix
+              cpu: ppc64
+      fallback: {resolution}
+",
+        "B".repeat(86),
+    );
+    fs::write(&installed_lockfile, format!("{head}{variations}{tail}"))
+        .expect("write the installed lockfile");
+
+    let store_dir = StoreDir::new(store_dir);
+    let keys_before = sorted_index_keys(&store_dir);
+    let blob_paths = row_blob_paths(&store_dir, &is_positive_row(&store_dir));
+    assert!(!blob_paths.is_empty(), "the install must index is-positive");
+
+    prune(&workspace);
+
+    assert_eq!(sorted_index_keys(&store_dir), keys_before);
+    let missing: Vec<_> = blob_paths
+        .iter()
+        .filter(|path| !path.exists())
+        .collect();
+    assert_eq!(missing, Vec::<&PathBuf>::new(), "store prune removed the fallback's files");
 }
 
 /// The install keys a runtime row by its synthesized manifest as well as

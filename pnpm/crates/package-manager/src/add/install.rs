@@ -95,7 +95,44 @@ pub(super) fn selected_add_seed(
                 .extend(selectors);
         }
     }
-    AddSeed { seed_policies, preferred_versions_override, catalogs_override }
+    AddSeed { seed_policies, preferred_versions_override, catalogs_override, workspace: None }
+}
+/// The seed of the install a single-project add runs, and the workspace
+/// directory the add wrote its catalogs to.
+pub(super) fn single_add_seed(
+    add: AddOptions<'_>,
+    owned: &AddOwned,
+    manifest: &PackageManifest,
+    preparation: super::manifest::SingleAddPreparation,
+) -> (AddSeed, std::path::PathBuf) {
+    let super::manifest::SingleAddPreparation { catalog_ctx, prepared, workspace } = preparation;
+    let (mut dropped_pins, mut preferred_versions_override) = catalog_version_requests(
+        add.package_names,
+        manifest,
+        &catalog_ctx.catalogs,
+        add.lockfile.document,
+        add.config,
+        owned.save_catalog_name.as_deref(),
+    );
+    let manifest_dir = manifest
+        .path()
+        .parent()
+        .expect("manifest path always has a parent dir");
+    seed_picked_versions(
+        &prepared.picked_versions,
+        &LockedVersions::of(add.lockfile.document, add.config, manifest_dir),
+        (&mut dropped_pins, &mut preferred_versions_override),
+    );
+    let seed = AddSeed {
+        seed_policies: project_seed_policy(add.config, manifest, dropped_pins),
+        preferred_versions_override,
+        catalogs_override: merged_catalogs_override(
+            catalog_ctx.catalogs,
+            &prepared.updated_catalogs,
+        ),
+        workspace,
+    };
+    (seed, catalog_ctx.workspace_dir)
 }
 /// Prefer the version an explicit specifier picked, since the saved range can
 /// admit newer ones, and withhold the pin the importer holds at another
@@ -207,6 +244,8 @@ pub(super) struct AddSeed {
     pub(super) seed_policies: BTreeMap<String, ImporterUpdateSeedPolicy>,
     pub(super) preferred_versions_override: PreferredVersions,
     pub(super) catalogs_override: Option<Catalogs>,
+    /// `None` for a selected add, whose selection carries the projects.
+    pub(super) workspace: Option<crate::DiscoveredWorkspace>,
 }
 /// `dependency_groups` names the manifest group the new
 /// package is saved into ([`prepare_manifest`](crate::add::manifest::prepare_manifest)), not an
@@ -261,6 +300,7 @@ pub(super) fn add_install<'i>(
     install.context.lockfile_path = add.lockfile.path;
     install.projects.supported_architectures = owned.supported_architectures;
     install.projects.catalogs_override = seed.catalogs_override;
+    install.projects.discovered_workspace = seed.workspace;
     install
 }
 /// Update targets that no selector scoped to a version line: a `catalog:`

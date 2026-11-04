@@ -8,7 +8,7 @@
 
 use std::path::Path;
 
-use pnpr_storage::layout::{local_blob_path, local_document_path, write_local_layout_marker};
+use pnpr_storage::layout::{local_blob_path, write_local_layout_marker};
 use serde_json::{Value, json};
 use tempfile::TempDir;
 
@@ -52,10 +52,15 @@ pub fn object_key(relative: &Path) -> String {
     reason = "test helper called from multiple sites with owned literals; by-value keeps the call sites clean"
 )]
 fn write_package(storage: &Path, name: &str, tarball: &str, packument: Value) {
-    let document = local_document_path(storage, "", pnpr_storage::Ecosystem::Npm, name);
     let blob = local_blob_path(storage, "", pnpr_storage::Ecosystem::Npm, name, tarball);
     std::fs::create_dir_all(blob.parent().unwrap()).expect("create package dir");
-    std::fs::write(document, serde_json::to_vec(&packument).unwrap()).expect("write packument");
+    pnpr_fixtures::write_hosted_document(
+        storage,
+        "",
+        pnpr_storage::Ecosystem::Npm,
+        name,
+        &serde_json::to_vec(&packument).unwrap(),
+    );
     std::fs::write(blob, format!("fake {name} tarball")).expect("write tarball");
 }
 

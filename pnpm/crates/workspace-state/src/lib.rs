@@ -127,6 +127,32 @@ pub struct Validation {
     /// lockfile moving. Each tarball's signature is in [`Self::files`].
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub local_dependencies: BTreeMap<String, LocalDependencies>,
+    /// The manifest file of each project in [`Self::manifests`], keyed by
+    /// importer id, as stat'd when its digest was confirmed. A project
+    /// without an entry has its manifest read and hashed by the next check.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub manifest_files: BTreeMap<String, ManifestFile>,
+}
+
+/// A project manifest's stat when the validation confirmed its digest, and
+/// the fields the next check reads from it. While the stat is unchanged and
+/// trusted the way a [`FileSignature`] is, the fields stand for the file.
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ManifestFile {
+    /// The manifest's file name in the project directory, such as
+    /// `package.json`.
+    pub file_name: String,
+    pub mtime_ns: i64,
+    /// See [`FileSignature::ctime_ns`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ctime_ns: Option<i64>,
+    pub size: u64,
+    /// The manifest's top-level fields that the repeat-install check reads,
+    /// by name. A field the manifest lacks is absent. `None` in a record
+    /// without them, which cannot stand in for the manifest.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fields: Option<serde_json::Map<String, serde_json::Value>>,
 }
 
 /// The local dependencies one lockfile resolves, as absolute paths.
@@ -210,9 +236,10 @@ pub struct WorkspaceStateSettings {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub allow_builds: Option<BTreeMap<String, serde_json::Value>>,
     /// The `skills` decisions of `permissions`, recorded only when there
-    /// are any. pnpm v11 has no such setting.
+    /// are any. pnpm v11 has no such setting. A decision is a boolean, or
+    /// the skills the package may link when the entry names them.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub allow_skills: Option<BTreeMap<String, bool>>,
+    pub allow_skills: Option<BTreeMap<String, serde_json::Value>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub auto_install_peers: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -224,6 +251,13 @@ pub struct WorkspaceStateSettings {
     pub dangerously_allow_all_builds: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub dedupe_direct_deps: Option<bool>,
+    /// The default registry, as `normalized_registry_key` spells it, recorded
+    /// with [`Self::registry_prefixes`]. Its packages keep plain keys whatever
+    /// prefix names it, so a state verified under another default registry,
+    /// or by a pnpm that keyed them by prefix, proves nothing about the
+    /// lockfile's keys.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub default_registry: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub dedupe_injected_deps: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -243,6 +277,10 @@ pub struct WorkspaceStateSettings {
     pub enable_global_virtual_store: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub exclude_links_from_lockfile: Option<bool>,
+    /// `extendNodePath`, recorded only while it is off. It decides the
+    /// `NODE_PATH` the bin shims set.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub extend_node_path: Option<bool>,
     /// The directory a configured `globalVirtualStoreDir` resolves to,
     /// recorded only when set, for the reason given on [`Self::store_dir`].
     /// pnpm v11 has no such setting.

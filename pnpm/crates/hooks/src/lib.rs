@@ -64,7 +64,7 @@ pub struct FetcherCallback {
     pub response: oneshot::Sender<Result<Value, Value>>,
 }
 
-#[derive(Debug, Clone, Copy, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum FetcherMethod {
     CafsInfo,
@@ -72,6 +72,9 @@ pub enum FetcherMethod {
     LocalTarball,
     RemoteTarball,
     Directory,
+    GitHostedTarball,
+    Git,
+    Binary,
 }
 
 pub type FetcherCallbackSender = mpsc::UnboundedSender<FetcherCallback>;

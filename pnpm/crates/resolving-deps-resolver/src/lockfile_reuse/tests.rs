@@ -637,10 +637,10 @@ fn prefixed_registry_context() -> pnpm_lockfile::RegistryContext {
             ("work".to_string(), registry.to_string()),
             ("zeta".to_string(), registry.to_string()),
         ]),
-        declared_prefixes: pnpm_lockfile::DeclaredRegistryPrefixes::new([
-            ("work", registry),
-            ("zeta", registry),
-        ]),
+        declared_prefixes: pnpm_lockfile::DeclaredRegistryPrefixes::new(
+            [("work", registry), ("zeta", registry)],
+            "https://registry.example.test/",
+        ),
         registry_options_by_url: std::collections::BTreeMap::new(),
         locked_registries: None,
     }

@@ -97,6 +97,7 @@ async fn frozen_install_without_lockfile(
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
             dedicated: None,
+            discovered_workspace: None,
         },
     }
     .run::<SilentReporter>()
@@ -163,6 +164,7 @@ async fn should_error_when_frozen_lockfile_and_update_checksums_are_both_set() {
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
             dedicated: None,
+            discovered_workspace: None,
         },
     }
     .run::<SilentReporter>()
@@ -255,6 +257,7 @@ async fn frozen_lockfile_flag_overrides_config_lockfile_false() {
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
             dedicated: None,
+            discovered_workspace: None,
         },
     }
     .run::<SilentReporter>()
@@ -360,6 +363,7 @@ pub(super) async fn frozen_lockfile_errors_when_manifest_drifts_from_lockfile() 
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
             dedicated: None,
+            discovered_workspace: None,
         },
     }
     .run::<SilentReporter>()
@@ -447,6 +451,7 @@ async fn frozen_lockfile_errors_when_overrides_drift_from_lockfile() {
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
             dedicated: None,
+            discovered_workspace: None,
         },
     }
     .run::<SilentReporter>()
@@ -560,6 +565,7 @@ async fn frozen_lockfile_applies_overrides_to_manifest_before_freshness_check() 
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
             dedicated: None,
+            discovered_workspace: None,
         },
     }
     .run::<SilentReporter>()
@@ -693,6 +699,7 @@ async fn frozen_lockfile_resolves_catalog_protocol_in_overrides_before_freshness
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
             dedicated: None,
+            discovered_workspace: None,
         },
     }
     .run::<SilentReporter>()
@@ -781,6 +788,7 @@ async fn frozen_lockfile_errors_when_lockfile_has_no_root_importer() {
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
             dedicated: None,
+            discovered_workspace: None,
         },
     }
     .run::<SilentReporter>()
@@ -890,6 +898,7 @@ async fn frozen_lockfile_under_gvs_registers_project_and_runs_clean() {
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
             dedicated: None,
+            discovered_workspace: None,
         },
     }
     .run::<SilentReporter>()

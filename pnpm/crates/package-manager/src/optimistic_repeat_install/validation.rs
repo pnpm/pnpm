@@ -12,9 +12,12 @@ pub(crate) use bins::{
     dedicated_bin_projects, held_workspace_bins_match, links_workspace_commands,
     project_bins_digest, project_bins_match, workspace_bins_digest,
 };
+pub(crate) use file_stat::{FileStat, trusts_every_file};
 pub(crate) use local_dependencies::changed as local_dependency_changed;
+pub(crate) use manifest_files::{ManifestStandIns, manifest_stand_ins, records_need_refresh};
 
 use super::{Config, Lockfile, PackageManifest, Path, PathBuf};
+use file_stat::{signature_trusted, stat_trusted};
 use pnpm_workspace::importer_id_from_root_dir;
 use pnpm_workspace_state::{FileSignature, Validation, WorkspaceState};
 use sha2::{Digest as _, Sha256};
@@ -24,14 +27,12 @@ use std::{
 };
 
 mod bins;
+mod file_stat;
 mod local_dependencies;
+mod manifest_files;
 
 /// How many hex digits of a SHA-256 digest a record keeps.
 const DIGEST_LEN: usize = 32;
-
-/// A filesystem that keeps whole seconds may round an mtime down by up to
-/// this much (FAT rounds to two seconds).
-const WHOLE_SECOND_GRANULARITY_NS: i64 = 2_000_000_000;
 
 /// The digest of the manifest the install read, which may not be the file on
 /// disk: `add` writes its edit after the install. The parsed value is hashed
@@ -146,12 +147,7 @@ impl<'a> FileDigests<'a> {
         match pnpm_crypto_hash::create_hex_hash_from_file(path) {
             Ok(mut digest) => {
                 digest.truncate(DIGEST_LEN);
-                FileDigest::Present(FileSignature {
-                    mtime_ns: stat.mtime_ns,
-                    ctime_ns: stat.ctime_ns,
-                    size: stat.size,
-                    digest,
-                })
+                FileDigest::Present(stat.signature(digest))
             }
             Err(error) if error.kind() == io::ErrorKind::NotFound => FileDigest::Absent,
             Err(_) => FileDigest::Unreadable,
@@ -194,85 +190,6 @@ impl<'a> FileDigests<'a> {
     }
 }
 
-/// Whether the next check trusts the stat of every file `validation` records.
-pub(crate) fn trusts_every_file(validation: &Validation) -> bool {
-    validation.files
-        .values()
-        .all(|signature| signature_trusted(signature, validation.recorded_at_ns))
-}
-
-fn signature_trusted(signature: &FileSignature, recorded_at_ns: i64) -> bool {
-    let changed_ns = last_change_ns(signature.mtime_ns, signature.ctime_ns);
-    let window = if changed_ns % 1_000_000_000 == 0 { WHOLE_SECOND_GRANULARITY_NS } else { 0 };
-    changed_ns.saturating_add(window) < recorded_at_ns
-}
-
-/// The parts of a file's stat a [`FileSignature`] records.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct FileStat {
-    mtime_ns: i64,
-    ctime_ns: Option<i64>,
-    size: u64,
-}
-
-impl FileStat {
-    /// `None` when the file cannot be stat'd.
-    pub(crate) fn at(path: &Path) -> Option<Self> {
-        Self::of(path, &fs::metadata(path).ok()?)
-    }
-
-    fn of(path: &Path, metadata: &fs::Metadata) -> Option<Self> {
-        let elapsed = metadata
-            .modified()
-            .ok()?
-            .duration_since(std::time::UNIX_EPOCH)
-            .ok()?;
-        Some(Self {
-            mtime_ns: i64::try_from(elapsed.as_nanos()).ok()?,
-            ctime_ns: ctime_ns(path, metadata),
-            size: metadata.len(),
-        })
-    }
-
-    pub(crate) fn matches(&self, signature: &FileSignature) -> bool {
-        self.mtime_ns == signature.mtime_ns
-            && self.ctime_ns == signature.ctime_ns
-            && self.size == signature.size
-    }
-}
-
-fn last_change_ns(mtime_ns: i64, ctime_ns: Option<i64>) -> i64 {
-    ctime_ns.map_or(mtime_ns, |ctime_ns| ctime_ns.max(mtime_ns))
-}
-
-/// The inode change time, which also moves when an edit restores the mtime.
-#[cfg(unix)]
-fn ctime_ns(_path: &Path, metadata: &fs::Metadata) -> Option<i64> {
-    use std::os::unix::fs::MetadataExt as _;
-    metadata
-        .ctime()
-        .checked_mul(1_000_000_000)?
-        .checked_add(metadata.ctime_nsec())
-}
-
-/// NTFS's change time, which also moves when an edit restores the mtime. It
-/// is what Node.js reports as `ctime` on Windows.
-#[cfg(windows)]
-fn ctime_ns(path: &Path, _metadata: &fs::Metadata) -> Option<i64> {
-    /// 100-nanosecond intervals between 1601-01-01 and the Unix epoch.
-    const UNIX_EPOCH_TICKS: i64 = 116_444_736_000_000_000;
-
-    pnpm_ffi_fs::change_time_ticks(path)
-        .ok()?
-        .checked_sub(UNIX_EPOCH_TICKS)?
-        .checked_mul(100)
-}
-
-#[cfg(not(any(unix, windows)))]
-fn ctime_ns(_path: &Path, _metadata: &fs::Metadata) -> Option<i64> {
-    None
-}
-
 /// Which projects a state write vouches for.
 pub(crate) enum Vouched<'a> {
     All,
@@ -308,13 +225,22 @@ pub(crate) struct RecordValidation<'a> {
 /// the clock, `recorded_at_ns` and each file signature's stat timestamps are
 /// zeroed while keeping content digests. [`signature_trusted`] then always
 /// returns `false`, so the next check rehashes the files on disk against the
-/// recorded digests instead of trusting modification times.
+/// recorded digests instead of trusting modification times. No manifest file
+/// is recorded, neither stat'd nor carried, since its stat cannot be zeroed.
 pub(crate) fn record_validation(state: &mut WorkspaceState, inputs: &RecordValidation<'_>) {
     let previous = match inputs.vouched {
         Vouched::All => None,
         Vouched::Projects { previous, .. } => *previous,
     };
     let ((lockfile_path, lockfile), files) = recorded_files(state, inputs, previous);
+    let manifest_stats = inputs.config.source_date_epoch
+        .is_none()
+        .then(|| {
+            manifest_files::stat_vouched(
+                inputs,
+                previous.and_then(|previous| previous.validation.as_ref()),
+            )
+        });
     let Some(recorded_at_ns) = recorded_validation_time_ns(inputs) else {
         state.validation = None;
         state.filtered_install = true;
@@ -327,6 +253,9 @@ pub(crate) fn record_validation(state: &mut WorkspaceState, inputs: &RecordValid
     let mut validation =
         Validation { recorded_at_ns, files, lockfile: lockfile.clone(), ..Validation::default() };
     let recorded = record_projects(&mut validation, inputs, carried, lockfile.as_deref());
+    if let Some(manifest_stats) = manifest_stats {
+        manifest_files::insert(&mut validation, manifest_stats, carried);
+    }
     local_dependencies::record_for_write(
         &mut validation,
         inputs,
@@ -465,6 +394,7 @@ fn shared_inputs_match(
         let mut settings = state.settings.clone();
         settings.auto_dedupe = None;
         settings.registry_prefixes = None;
+        settings.default_registry = None;
         settings.registry_routes = None;
         if settings.allow_builds.as_ref().is_some_and(BTreeMap::is_empty) {
             settings.allow_builds = None;

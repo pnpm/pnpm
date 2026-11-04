@@ -46,11 +46,20 @@ test('registryOfDepPath() reads the registry a key names', () => {
 
 test('keyPrefixForAlias() names the prefix the keys of the alias\'s registry carry', () => {
   const registries = context({ zeta: WORK_REGISTRY, work: 'https://NPM.example.com' })
-  expect(keyPrefixForAlias(registries, 'zeta')).toBe('work')
-  expect(keyPrefixForAlias(registries, 'work')).toBe('work')
-  // A built-in alias nothing declares keeps its own name.
-  expect(keyPrefixForAlias(registries, 'npmjs')).toBe('npmjs')
-  expect(keyPrefixForAlias(registries, 'unknown')).toBeUndefined()
+  expect(keyPrefixForAlias(registries, 'zeta', 'bar')).toBe('work')
+  expect(keyPrefixForAlias(registries, 'work', 'bar')).toBe('work')
+  // A built-in alias nothing declares keeps its own name off the default registry.
+  expect(keyPrefixForAlias(registries, 'gh', 'bar')).toBe('gh')
+  expect(keyPrefixForAlias(registries, 'unknown', 'bar')).toBeUndefined()
+})
+
+// https://github.com/pnpm/pnpm/issues/17575
+test('keyPrefixForAlias() keeps a plain key for a package of the default registry', () => {
+  expect(keyPrefixForAlias(context({}), 'npmjs', 'bar')).toBeUndefined()
+  expect(keyPrefixForAlias(context({ npmjs: 'https://registry.npmjs.org/' }), 'npmjs', 'bar')).toBeUndefined()
+  // A plain range of `@work/foo` routes elsewhere, so the plain key would name
+  // the wrong registry.
+  expect(keyPrefixForAlias(context({}), 'npmjs', '@work/foo')).toBe('npmjs')
 })
 
 test('rekeyDepPath() qualifies a plain key of a registry that declares a prefix', () => {
@@ -68,15 +77,29 @@ test('rekeyDepPath() moves a key to the smallest prefix of its registry', () => 
   expect(rekeyDepPath(registries, 'bar@alpha:1.0.0')).toBeUndefined()
 })
 
-test('rekeyDepPath() leaves the built-in aliases and undeclared prefixes alone', () => {
+test('rekeyDepPath() makes a qualified key of a default-registry package plain', () => {
+  expect(rekeyDepPath(context({}), 'bar@npmjs:1.0.0(peer@1.0.0)')).toBe('bar@1.0.0(peer@1.0.0)')
+  expect(rekeyDepPath(context({ work: 'https://registry.npmjs.org/' }), 'bar@work:1.0.0')).toBe('bar@1.0.0')
+  expect(rekeyDepPath(context({}), '@work/foo@npmjs:1.0.0')).toBeUndefined()
+})
+
+test('rekeyDepPath() leaves the built-in aliases off the default registry and undeclared prefixes alone', () => {
   const registries = context({})
   expect(rekeyDepPath({ ...registries, registriesByScope: { default: 'https://registry.npmjs.org/' } }, 'bar@1.0.0')).toBeUndefined()
-  expect(rekeyDepPath(registries, 'bar@npmjs:1.0.0')).toBeUndefined()
+  expect(rekeyDepPath(registries, 'bar@gh:1.0.0')).toBeUndefined()
   expect(rekeyDepPath(registries, 'bar@unknown:1.0.0')).toBeUndefined()
 })
 
 test('findOutdatedRegistryKey() finds nothing when no prefix is declared', () => {
   expect(findOutdatedRegistryKey(lockfile(), context({}))).toBeUndefined()
+})
+
+test('findOutdatedRegistryKey() reports a qualified key of a default-registry package without a declared prefix', () => {
+  const packages = { ...lockfile().packages, ['baz@npmjs:1.0.0' as never]: { resolution: { integrity: INTEGRITY } } }
+  expect(findOutdatedRegistryKey({ ...lockfile(), packages }, context({}))).toStrictEqual({
+    key: 'baz@npmjs:1.0.0',
+    current: 'baz@1.0.0',
+  })
 })
 
 test('findOutdatedRegistryKey() reports a plain key of a registry that declares a prefix', () => {

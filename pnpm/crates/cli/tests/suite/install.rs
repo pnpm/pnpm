@@ -9,6 +9,7 @@ use pipe_trait::Pipe;
 use pnpm_store_dir::STORE_VERSION;
 use pnpm_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
+    diagnostics::assert_diagnostic_contains,
     fixtures::{BIG_LOCKFILE, BIG_MANIFEST},
     fs::{bump_mtime, get_all_files, get_all_folders, is_symlink_or_junction},
 };
@@ -153,15 +154,10 @@ fn install_rejects_a_traversal_dependency_name_in_the_manifest() {
     // The fresh-resolve path forwards the resolver's diagnostic
     // transparently, so the rendered envelope carries the canonical
     // `ERR_PNPM_INVALID_DEPENDENCY_NAME` code — matching the frozen path
-    // (see `lockfile_verification.rs`). The offending name is in the
-    // message too, but miette may wrap it across lines at narrow widths,
-    // so assert on the stable code and the unwrapped "invalid name"
-    // phrase instead.
+    // (see `lockfile_verification.rs`).
     let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
-    assert!(
-        stderr.contains("ERR_PNPM_INVALID_DEPENDENCY_NAME") && stderr.contains("invalid name"),
-        "stderr must report the invalid-dependency-name code; got:\n{stderr}",
-    );
+    assert_diagnostic_contains(&stderr, "ERR_PNPM_INVALID_DEPENDENCY_NAME");
+    assert_diagnostic_contains(&stderr, "contains a dependency with an invalid name");
     assert!(
         !workspace
             .parent()

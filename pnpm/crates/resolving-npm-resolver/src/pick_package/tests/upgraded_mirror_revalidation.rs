@@ -193,11 +193,12 @@ async fn install_ignoring_missing_time(
         let meta_cache = InMemoryPackageMetaCache::default();
         let fetch_locker = shared_packument_fetch_locker();
         let ctx = PickPackageContext {
+            pnpr_format: None,
             full_metadata: false,
             needs_full_metadata_for: None,
             filter_metadata: false,
             cache_policy: crate::MetadataCachePolicy {
-                network: pnpm_config::NetworkPolicy::Online,
+                network: pnpm_resolving_resolver_base::NetworkPolicy::Online,
                 ignore_missing_time_field: true,
             },
             store_view: None,
@@ -268,11 +269,12 @@ async fn upgrade_then_revalidate(
         let meta_cache = InMemoryPackageMetaCache::default();
         let fetch_locker = shared_packument_fetch_locker();
         let ctx = PickPackageContext {
+            pnpr_format: None,
             full_metadata: false,
             needs_full_metadata_for: None,
             filter_metadata: false,
             cache_policy: crate::MetadataCachePolicy {
-                network: pnpm_config::NetworkPolicy::Online,
+                network: pnpm_resolving_resolver_base::NetworkPolicy::Online,
                 ignore_missing_time_field: false,
             },
             store_view: None,

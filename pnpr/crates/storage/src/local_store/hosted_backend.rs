@@ -115,10 +115,6 @@ impl HostedBackend for Store {
             .boxed()
     }
 
-    async fn list_package_names(&self) -> Result<Vec<String>> {
-        Store::list_package_names(self).await
-    }
-
     async fn list_package_blobs(&self, name: &CanonicalPackageName) -> Result<Vec<String>> {
         let blobs_dir = self.package_dir(name).join(BLOBS_DIR);
         let Some(mut blobs) = read_dir_if_present(&blobs_dir).await? else {

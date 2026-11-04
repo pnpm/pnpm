@@ -26,11 +26,12 @@ async fn cold_pick_fetches_and_picks_max_in_range() {
     let meta_cache = InMemoryPackageMetaCache::default();
     let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
+        pnpr_format: None,
         full_metadata: false,
         needs_full_metadata_for: None,
         filter_metadata: false,
         cache_policy: crate::MetadataCachePolicy {
-            network: pnpm_config::NetworkPolicy::Online,
+            network: pnpm_resolving_resolver_base::NetworkPolicy::Online,
             ignore_missing_time_field: false,
         },
         store_view: None,
@@ -78,11 +79,12 @@ async fn normal_range_reuses_dominant_lockfile_version_from_disk() {
     let meta_cache = InMemoryPackageMetaCache::default();
     let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
+        pnpr_format: None,
         full_metadata: false,
         needs_full_metadata_for: None,
         filter_metadata: false,
         cache_policy: crate::MetadataCachePolicy {
-            network: pnpm_config::NetworkPolicy::Online,
+            network: pnpm_resolving_resolver_base::NetworkPolicy::Online,
             ignore_missing_time_field: false,
         },
         store_view: None,
@@ -135,11 +137,12 @@ async fn stable_range_does_not_promote_meta_for_a_later_unproven_range() {
     let meta_cache = InMemoryPackageMetaCache::default();
     let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
+        pnpr_format: None,
         full_metadata: false,
         needs_full_metadata_for: None,
         filter_metadata: false,
         cache_policy: crate::MetadataCachePolicy {
-            network: pnpm_config::NetworkPolicy::Online,
+            network: pnpm_resolving_resolver_base::NetworkPolicy::Online,
             ignore_missing_time_field: false,
         },
         store_view: None,
@@ -194,11 +197,12 @@ async fn blocked_dominant_version_falls_through_to_registry_pick() {
     let meta_cache = InMemoryPackageMetaCache::default();
     let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
+        pnpr_format: None,
         full_metadata: false,
         needs_full_metadata_for: None,
         filter_metadata: false,
         cache_policy: crate::MetadataCachePolicy {
-            network: pnpm_config::NetworkPolicy::Online,
+            network: pnpm_resolving_resolver_base::NetworkPolicy::Online,
             ignore_missing_time_field: false,
         },
         store_view: None,
@@ -250,11 +254,12 @@ async fn pick_lowest_version_picks_min() {
     let meta_cache = InMemoryPackageMetaCache::default();
     let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
+        pnpr_format: None,
         full_metadata: false,
         needs_full_metadata_for: None,
         filter_metadata: false,
         cache_policy: crate::MetadataCachePolicy {
-            network: pnpm_config::NetworkPolicy::Online,
+            network: pnpm_resolving_resolver_base::NetworkPolicy::Online,
             ignore_missing_time_field: false,
         },
         store_view: None,
@@ -300,11 +305,12 @@ async fn uncacheable_packument_is_reused_in_memory_but_refetched_from_the_mirror
         let meta_cache = InMemoryPackageMetaCache::default();
         let fetch_locker = shared_packument_fetch_locker();
         let ctx = PickPackageContext {
+            pnpr_format: None,
             full_metadata: false,
             needs_full_metadata_for: None,
             filter_metadata: false,
             cache_policy: crate::MetadataCachePolicy {
-                network: pnpm_config::NetworkPolicy::Online,
+                network: pnpm_resolving_resolver_base::NetworkPolicy::Online,
                 ignore_missing_time_field: false,
             },
             store_view: None,
@@ -376,11 +382,12 @@ async fn online_pick_lowest_version_refetches_an_uncacheable_mirror() {
     let meta_cache = InMemoryPackageMetaCache::default();
     let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
+        pnpr_format: None,
         full_metadata: false,
         needs_full_metadata_for: None,
         filter_metadata: false,
         cache_policy: crate::MetadataCachePolicy {
-            network: pnpm_config::NetworkPolicy::Online,
+            network: pnpm_resolving_resolver_base::NetworkPolicy::Online,
             ignore_missing_time_field: false,
         },
         store_view: None,
@@ -627,11 +634,12 @@ pub(super) fn public_ctx<'a>(
     fetch_locker: &'a crate::PackumentFetchLocker,
 ) -> PickPackageContext<'a, InMemoryPackageMetaCache> {
     PickPackageContext {
+        pnpr_format: None,
         full_metadata: false,
         needs_full_metadata_for: None,
         filter_metadata: false,
         cache_policy: crate::MetadataCachePolicy {
-            network: pnpm_config::NetworkPolicy::Online,
+            network: pnpm_resolving_resolver_base::NetworkPolicy::Online,
             ignore_missing_time_field: false,
         },
         store_view: None,
