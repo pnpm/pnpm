@@ -10,14 +10,11 @@ const ANY: &str = "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
 const MUSL: &str = "sha512-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB==";
 const DARWIN: &str = "sha512-CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC==";
 const DARWIN_URL: &str = "https://cdn.example/widget-darwin-arm64.tgz";
+/// The `any` archive's URL on its revision route, `<name>@<version>+r2`.
+const ANY_URL: &str = "https://pnpr.example/@acme/widget@1.2.3+r2";
 
 fn revision() -> TarballRevision {
     TarballRevision::try_from(2).unwrap()
-}
-
-/// The `any` archive's URL on its revision route, `<name>@<version>+r2`.
-fn any_url() -> String {
-    revision_registry_tarball_url("@acme/widget", "1.2.3", revision(), REGISTRY).unwrap()
 }
 
 fn tarball(url: String, digest: &str) -> LockfileResolution {
@@ -58,7 +55,7 @@ fn resolved() -> VariationsResolution {
         variant_registry_tarball_url("@acme/widget", "1.2.3", &musl_tag, Some(2), REGISTRY)
             .unwrap();
     let mut variations = VariationsResolution::new(vec![
-        PlatformAssetResolution::any(revised_tarball(any_url(), ANY, Some(revision()))),
+        PlatformAssetResolution::any(revised_tarball(ANY_URL.to_string(), ANY, Some(revision()))),
         PlatformAssetResolution { resolution: tarball(musl_url, MUSL), ..musl },
         PlatformAssetResolution {
             resolution: tarball(DARWIN_URL.to_string(), DARWIN),
@@ -125,7 +122,7 @@ fn variations_round_trip_through_the_lockfile() {
     let any_revision = any.revision.expect("the any archive keeps its revision");
     assert_eq!(
         revision_registry_tarball_url("@acme/widget", "1.2.3", any_revision, REGISTRY),
-        Some(any_url()),
+        Some(ANY_URL.to_string()),
     );
 }
 
