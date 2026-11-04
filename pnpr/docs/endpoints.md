@@ -491,8 +491,8 @@ pnpr rejects the version when a variant:
   without an `integrity`.
 
 A version published with a provenance statement (its `.sigstore` attachment) is
-rejected unless the statement names every archive of the version: the primary
-`.tgz` by the version's PURL, such as `pkg:npm/%40acme/fast@1.0.0`, and each
+rejected unless the statement names every archive of the version: the `.tgz`
+that `dist.tarball` names by the version's PURL, such as `pkg:npm/%40acme/fast@1.0.0`, and each
 variant's `.tgz` by its PURL with the `variant` qualifier, each with its SHA-512.
 
 A variant may differ from the version in its files, dependencies, bundled

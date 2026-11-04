@@ -38,12 +38,12 @@ fn archive(manifest: &Value, content: &str) -> (Vec<u8>, Vec<u8>) {
     (tar, tgz)
 }
 
-fn primary_manifest() -> Value {
+fn any_manifest() -> Value {
     json!({ "name": "@acme/fast", "version": "1.0.0", "main": "index.js" })
 }
 
 fn variant_manifest(platforms: &[&str], extra: &Value) -> Value {
-    let mut manifest = primary_manifest();
+    let mut manifest = any_manifest();
     manifest["variant"] = json!({ "platforms": platforms });
     for (field, value) in extra.as_object().unwrap() {
         manifest[field] = value.clone();
@@ -51,15 +51,15 @@ fn variant_manifest(platforms: &[&str], extra: &Value) -> Value {
     manifest
 }
 
-/// A publish of the primary and `variants`, each `(tag, .tgz)`.
-fn publish_request(primary: &[u8], variants: &[(&str, &[u8])], token: &str) -> Request<Body> {
-    publish_request_with(Some(primary), variants, token)
+/// A publish of the `any` archive and `variants`, each `(tag, .tgz)`.
+fn publish_request(any_tgz: &[u8], variants: &[(&str, &[u8])], token: &str) -> Request<Body> {
+    publish_request_with(Some(any_tgz), variants, token)
 }
 
-/// [`publish_request`], with the primary attached only when given: the
-/// version's manifest still names the primary's integrity.
+/// [`publish_request`], with the `any` archive attached only when given:
+/// the version's manifest still names its integrity.
 fn publish_request_with(
-    primary: Option<&[u8]>,
+    any_tgz: Option<&[u8]>,
     variants: &[(&str, &[u8])],
     token: &str,
 ) -> Request<Body> {
@@ -73,17 +73,17 @@ fn publish_request_with(
         })
     };
     let mut attachments = serde_json::Map::new();
-    let (_, default_primary) = archive(&primary_manifest(), "primary");
-    let integrity = sha512_integrity(primary.unwrap_or(&default_primary));
-    if let Some(primary) = primary {
-        attachments.insert("@acme/fast-1.0.0.tgz".into(), attachment(primary));
+    let (_, default_any) = archive(&any_manifest(), "any");
+    let integrity = sha512_integrity(any_tgz.unwrap_or(&default_any));
+    if let Some(any_tgz) = any_tgz {
+        attachments.insert("@acme/fast-1.0.0.tgz".into(), attachment(any_tgz));
     }
     for (tag, tgz) in variants {
         let mut variant = attachment(tgz);
         variant["integrity"] = Value::String(sha512_integrity(tgz));
         attachments.insert(format!("@acme/fast-1.0.0~{tag}.tgz"), variant);
     }
-    let mut manifest = primary_manifest();
+    let mut manifest = any_manifest();
     manifest["dist"] = json!({
         "tarball": "http://example.test/@acme/fast/-/fast-1.0.0.tgz",
         "integrity": integrity,
@@ -123,7 +123,7 @@ async fn get(app: &axum::Router, uri: &str, accept: Option<&str>) -> axum::respo
 #[tokio::test]
 async fn archives_declare_their_platforms_and_pnpr_derives_the_tags() {
     let (_tmp, app, token) = setup().await;
-    let (_, primary) = archive(&primary_manifest(), "primary");
+    let (_, any_tgz) = archive(&any_manifest(), "any");
     let (static_tar, static_tgz) =
         archive(&variant_manifest(&["linux-x64-musl", "linux-x64"], &json!({})), "static");
     let (_, darwin_tgz) = archive(
@@ -136,7 +136,7 @@ async fn archives_declare_their_platforms_and_pnpr_derives_the_tags() {
     let response = app
         .clone()
         .oneshot(publish_request(
-            &primary,
+            &any_tgz,
             &[("linux-x64+linux-x64-musl", &static_tgz), ("darwin-arm64-macos_11_0", &darwin_tgz)],
             &token,
         ))
@@ -188,7 +188,7 @@ async fn archives_declare_their_platforms_and_pnpr_derives_the_tags() {
 
 async fn rejection(variants: &[(&str, Value)]) -> String {
     let (_tmp, app, token) = setup().await;
-    let (_, primary) = archive(&primary_manifest(), "primary");
+    let (_, any_tgz) = archive(&any_manifest(), "any");
     let archives: Vec<(&str, Vec<u8>)> = variants
         .iter()
         .map(|(tag, manifest)| (*tag, archive(manifest, tag).1))
@@ -199,7 +199,7 @@ async fn rejection(variants: &[(&str, Value)]) -> String {
         .collect();
     let response = app
         .clone()
-        .oneshot(publish_request(&primary, &refs, &token))
+        .oneshot(publish_request(&any_tgz, &refs, &token))
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
@@ -227,11 +227,7 @@ async fn publication_rejects_variants_that_break_an_invariant() {
             r#"platform tag "linux-x64-glibc" has an unknown or misplaced part"#,
             vec![("linux-x64", variant_manifest(&["linux-x64-glibc"], &json!({})))],
         ),
-        (
-            "no field",
-            "its package.json has no variant field",
-            vec![("linux-x64", primary_manifest())],
-        ),
+        ("no field", "its package.json has no variant field", vec![("linux-x64", any_manifest())]),
         (
             "overlap",
             r#"variants "linux-x64" and "linux-x64+linux-x64-musl" of 1.0.0 both list linux-x64"#,
@@ -282,11 +278,11 @@ async fn variants_are_served_from_sqlite_metadata() {
     config.storage.metadata =
         pnpr_config::MetadataBackend::Sqlite(tmp.path().join("metadata.sqlite"));
     let app = router_with_auth(config, auth);
-    let (_, primary) = archive(&primary_manifest(), "primary");
+    let (_, any_tgz) = archive(&any_manifest(), "any");
     let (musl_tar, musl_tgz) = archive(&variant_manifest(&["linux-x64-musl"], &json!({})), "musl");
     let response = app
         .clone()
-        .oneshot(publish_request(&primary, &[("linux-x64-musl", &musl_tgz)], &token))
+        .oneshot(publish_request(&any_tgz, &[("linux-x64-musl", &musl_tgz)], &token))
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
@@ -332,9 +328,9 @@ async fn variants_are_served_from_sqlite_metadata() {
 #[tokio::test]
 async fn a_variant_is_checked_against_the_manifest_clients_install() {
     let (_tmp, app, token) = setup().await;
-    let (_, primary) = archive(&primary_manifest(), "primary");
+    let (_, any_tgz) = archive(&any_manifest(), "any");
     let declared = serde_json::to_vec(&variant_manifest(&["linux-x64"], &json!({}))).unwrap();
-    let installed = serde_json::to_vec(&primary_manifest()).unwrap();
+    let installed = serde_json::to_vec(&any_manifest()).unwrap();
     let tgz = gzip(&tar_of(&[
         ("package/package.json", declared.as_slice()),
         ("package/index.js", b"variant".as_slice()),
@@ -342,7 +338,7 @@ async fn a_variant_is_checked_against_the_manifest_clients_install() {
     ]));
     let response = app
         .clone()
-        .oneshot(publish_request(&primary, &[("linux-x64", &tgz)], &token))
+        .oneshot(publish_request(&any_tgz, &[("linux-x64", &tgz)], &token))
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
@@ -356,11 +352,11 @@ async fn a_variant_is_checked_against_the_manifest_clients_install() {
 #[tokio::test]
 async fn a_rewrite_from_npms_document_keeps_the_variants() {
     let (_tmp, app, token) = setup().await;
-    let (_, primary) = archive(&primary_manifest(), "primary");
+    let (_, any_tgz) = archive(&any_manifest(), "any");
     let (musl_tar, musl_tgz) = archive(&variant_manifest(&["linux-x64-musl"], &json!({})), "musl");
     let response = app
         .clone()
-        .oneshot(publish_request(&primary, &[("linux-x64-musl", &musl_tgz)], &token))
+        .oneshot(publish_request(&any_tgz, &[("linux-x64-musl", &musl_tgz)], &token))
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
@@ -387,15 +383,15 @@ async fn a_rewrite_from_npms_document_keeps_the_variants() {
 }
 
 /// The variant set is part of the immutable version: variants come only
-/// with their version's primary archive, whose own manifest has to describe
+/// with their version's `any` archive, whose own manifest has to describe
 /// the published version.
 #[tokio::test]
 async fn variants_come_only_with_a_primary_archive_they_agree_with() {
     let (_tmp, app, token) = setup().await;
-    let (_, primary) = archive(&primary_manifest(), "primary");
+    let (_, any_tgz) = archive(&any_manifest(), "any");
     let response = app
         .clone()
-        .oneshot(publish_request(&primary, &[], &token))
+        .oneshot(publish_request(&any_tgz, &[], &token))
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
@@ -407,15 +403,15 @@ async fn variants_come_only_with_a_primary_archive_they_agree_with() {
         .unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST, "variants for a hosted version");
     let reason = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
-    assert!(reason.contains("only with its primary archive"), "{reason}");
+    assert!(reason.contains("only with its `any` archive"), "{reason}");
 
     let (_tmp, app, token) = setup().await;
-    let mut peers = primary_manifest();
+    let mut peers = any_manifest();
     peers["peerDependencies"] = json!({ "react": "*" });
-    let (_, primary) = archive(&peers, "primary");
+    let (_, any_tgz) = archive(&peers, "any");
     let response = app
         .clone()
-        .oneshot(publish_request(&primary, &[("linux-x64-musl", &musl)], &token))
+        .oneshot(publish_request(&any_tgz, &[("linux-x64-musl", &musl)], &token))
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
@@ -424,12 +420,12 @@ async fn variants_come_only_with_a_primary_archive_they_agree_with() {
 
     let (_tmp, app, token) = setup().await;
     for (field, value) in [("version", "2.0.0"), ("name", "@acme/other")] {
-        let mut renamed = primary_manifest();
+        let mut renamed = any_manifest();
         renamed[field] = json!(value);
-        let (_, primary) = archive(&renamed, "primary");
+        let (_, any_tgz) = archive(&renamed, "any");
         let response = app
             .clone()
-            .oneshot(publish_request(&primary, &[("linux-x64-musl", &musl)], &token))
+            .oneshot(publish_request(&any_tgz, &[("linux-x64-musl", &musl)], &token))
             .await
             .unwrap();
         assert_eq!(response.status(), StatusCode::BAD_REQUEST, "{field}");
@@ -462,17 +458,17 @@ async fn stage(app: &axum::Router, tgz: &[u8], token: &str) {
 #[tokio::test]
 async fn a_batch_publishes_a_version_and_its_variants_from_staged_archives() {
     let (_tmp, app, token) = setup().await;
-    let (_, primary) = archive(&primary_manifest(), "primary");
+    let (_, any_tgz) = archive(&any_manifest(), "any");
     let (static_tar, static_tgz) =
         archive(&variant_manifest(&["linux-x64-musl", "linux-x64"], &json!({})), "static");
     let (_, darwin_tgz) = archive(&variant_manifest(&["darwin-arm64"], &json!({})), "darwin");
-    for tgz in [&primary, &static_tgz, &darwin_tgz] {
+    for tgz in [&any_tgz, &static_tgz, &darwin_tgz] {
         stage(&app, tgz, &token).await;
     }
     // The single-package document, with each attachment naming its staged
     // archive instead of carrying it, as one entry of a batch.
     let request = publish_request(
-        &primary,
+        &any_tgz,
         &[("linux-x64+linux-x64-musl", &static_tgz), ("darwin-arm64", &darwin_tgz)],
         &token,
     );
@@ -506,8 +502,8 @@ async fn a_batch_publishes_a_version_and_its_variants_from_staged_archives() {
         get(&app, "/npm/~main/@acme/fast@1.0.0/variants/linux-x64+linux-x64-musl", None).await;
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(body_bytes(response.into_body()).await, static_tar);
-    let primary_tarball = get(&app, "/npm/~main/@acme/fast/-/fast-1.0.0.tgz", None).await;
-    assert_eq!(body_bytes(primary_tarball.into_body()).await, primary);
+    let any_tarball = get(&app, "/npm/~main/@acme/fast/-/fast-1.0.0.tgz", None).await;
+    assert_eq!(body_bytes(any_tarball.into_body()).await, any_tgz);
 }
 
 /// A tag names one route segment and one attachment, so pnpr refuses a tag
@@ -533,7 +529,7 @@ async fn a_tag_over_the_limit_is_refused() {
 async fn a_variant_attachment_names_a_described_version_and_its_integrity() {
     use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 
-    let (_, primary) = archive(&primary_manifest(), "primary");
+    let (_, any_tgz) = archive(&any_manifest(), "any");
     let (_, musl) = archive(&variant_manifest(&["linux-x64-musl"], &json!({})), "musl");
     for (case, filename, attachment, expected) in [
         (
@@ -551,12 +547,12 @@ async fn a_variant_attachment_names_a_described_version_and_its_integrity() {
         (
             "other bytes",
             "@acme/fast-1.0.0~linux-x64-musl.tgz",
-            json!({ "data": BASE64.encode(&musl), "integrity": sha512_integrity(&primary) }),
+            json!({ "data": BASE64.encode(&musl), "integrity": sha512_integrity(&any_tgz) }),
             "EINTEGRITY",
         ),
     ] {
         let (_tmp, app, token) = setup().await;
-        let request = publish_request(&primary, &[], &token);
+        let request = publish_request(&any_tgz, &[], &token);
         let (parts, body) = request.into_parts();
         let mut document: Value = serde_json::from_slice(&body_bytes(body).await).unwrap();
         document["_attachments"][filename] = attachment;
@@ -711,20 +707,20 @@ async fn with_statement(request: Request<Body>, subjects: &[(&str, &[u8])]) -> R
 /// variant's by its PURL with the `variant` qualifier and `+` as `%2B`.
 #[tokio::test]
 async fn a_statement_names_every_archive_of_the_version() {
-    let (_, primary) = archive(&primary_manifest(), "primary");
+    let (_, any_tgz) = archive(&any_manifest(), "any");
     let (_, static_tgz) =
         archive(&variant_manifest(&["linux-x64", "linux-x64-musl"], &json!({})), "static");
     let variants: &[(&str, &[u8])] = &[("linux-x64+linux-x64-musl", &static_tgz)];
-    let primary_subject = ("pkg:npm/%40acme/fast@1.0.0", primary.as_slice());
+    let any_subject = ("pkg:npm/%40acme/fast@1.0.0", any_tgz.as_slice());
     let variant_subject =
         ("pkg:npm/%40acme/fast@1.0.0?variant=linux-x64%2Blinux-x64-musl", static_tgz.as_slice());
 
     for (case, subjects) in [
-        ("primary only", vec![primary_subject]),
+        ("any archive only", vec![any_subject]),
         (
             "bare +",
             vec![
-                primary_subject,
+                any_subject,
                 (
                     "pkg:npm/%40acme/fast@1.0.0?variant=linux-x64+linux-x64-musl",
                     static_tgz.as_slice(),
@@ -733,7 +729,7 @@ async fn a_statement_names_every_archive_of_the_version() {
         ),
     ] {
         let (_tmp, app, token) = setup().await;
-        let request = with_statement(publish_request(&primary, variants, &token), &subjects).await;
+        let request = with_statement(publish_request(&any_tgz, variants, &token), &subjects).await;
         let response = app
             .clone()
             .oneshot(request)
@@ -746,8 +742,8 @@ async fn a_statement_names_every_archive_of_the_version() {
 
     let (_tmp, app, token) = setup().await;
     let request = with_statement(
-        publish_request(&primary, variants, &token),
-        &[primary_subject, variant_subject],
+        publish_request(&any_tgz, variants, &token),
+        &[any_subject, variant_subject],
     )
     .await;
     let response = app
@@ -759,7 +755,7 @@ async fn a_statement_names_every_archive_of_the_version() {
 }
 
 /// A version published with variants only: its document has no `dist`, and
-/// no primary attachment.
+/// no attachment of an `any` archive.
 fn variants_only_request(base: &Value, variants: &[(&str, &[u8])], token: &str) -> Request<Body> {
     use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 
@@ -788,8 +784,8 @@ fn variants_only_request(base: &Value, variants: &[(&str, &[u8])], token: &str) 
         .unwrap()
 }
 
-/// A version published without a primary archive: npm's documents describe
-/// the minimal primary pnpr generates, which lists where the variants run,
+/// A version published without an `any` archive: npm's documents describe
+/// the minimal archive pnpr generates, which lists where the variants run,
 /// and pnpr's own document and release record describe only the variants.
 #[tokio::test]
 async fn a_version_without_a_primary_gets_a_generated_one_for_npm() {
@@ -801,7 +797,7 @@ async fn a_version_without_a_primary_gets_a_generated_one_for_npm() {
         pnpr_config::MetadataBackend::Sqlite(tmp.path().join("metadata.sqlite"));
     let app = router_with_auth(config, auth);
 
-    let mut base = primary_manifest();
+    let mut base = any_manifest();
     base["dependencies"] = json!({ "shared": "1.0.0" });
     let deps = |extra: &Value| {
         let mut dependencies = json!({ "shared": "1.0.0" });
@@ -868,18 +864,18 @@ async fn a_version_without_a_primary_gets_a_generated_one_for_npm() {
     assert_eq!(record["variants"][1]["purl"], "pkg:npm/%40acme/fast@1.0.0?variant=darwin-arm64");
 }
 
-/// A release job that packs no primary bytes sends the version with only
-/// `dist.integrity`, naming the primary another job staged.
+/// A release job that packs no `any` archive sends the version with only
+/// `dist.integrity`, naming the `any` archive another job staged.
 #[tokio::test]
 async fn a_staged_primary_is_referenced_by_its_integrity_alone() {
     let (_tmp, app, token) = setup().await;
-    let (_, primary) = archive(&primary_manifest(), "primary");
+    let (_, any_tgz) = archive(&any_manifest(), "any");
     let (_, musl) = archive(&variant_manifest(&["linux-x64-musl"], &json!({})), "musl");
-    for tgz in [&primary, &musl] {
+    for tgz in [&any_tgz, &musl] {
         stage(&app, tgz, &token).await;
     }
-    let mut manifest = primary_manifest();
-    manifest["dist"] = json!({ "integrity": sha512_integrity(&primary) });
+    let mut manifest = any_manifest();
+    manifest["dist"] = json!({ "integrity": sha512_integrity(&any_tgz) });
     let attachment =
         |tgz: &[u8]| json!({ "integrity": sha512_integrity(tgz), "length": tgz.len() });
     let document = json!({
@@ -887,7 +883,7 @@ async fn a_staged_primary_is_referenced_by_its_integrity_alone() {
         "dist-tags": { "latest": "1.0.0" },
         "versions": { "1.0.0": manifest },
         "_attachments": {
-            "@acme/fast-1.0.0.tgz": attachment(&primary),
+            "@acme/fast-1.0.0.tgz": attachment(&any_tgz),
             "@acme/fast-1.0.0~linux-x64-musl.tgz": attachment(&musl),
         },
     });
@@ -905,5 +901,5 @@ async fn a_staged_primary_is_referenced_by_its_integrity_alone() {
     assert_eq!(response.status(), StatusCode::CREATED);
     let tarball = get(&app, "/npm/~main/@acme/fast/-/fast-1.0.0.tgz", None).await;
     assert_eq!(tarball.status(), StatusCode::OK);
-    assert_eq!(body_bytes(tarball.into_body()).await, primary);
+    assert_eq!(body_bytes(tarball.into_body()).await, any_tgz);
 }

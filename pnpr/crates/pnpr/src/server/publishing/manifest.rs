@@ -80,14 +80,14 @@ pub(super) fn parse_hosted_packument(
 /// Published content is immutable, so re-publishes with modified tarballs or
 /// integrity are rejected. New versions must provide a tarball, unless they
 /// reference variants and declare no `dist`: those are returned, as the
-/// versions published without a primary archive.
+/// versions published without an `any` archive.
 pub(super) fn check_publishable_versions(
     name: &CanonicalPackageName,
     incoming: &Value,
     hosted: Option<&Value>,
     (prepared, variants): (&[PreparedAttachment], &Declarations),
 ) -> Result<BTreeSet<String>, RegistryError> {
-    let mut without_primary = BTreeSet::new();
+    let mut without_any = BTreeSet::new();
     let attachment_versions: HashSet<&str> = prepared
         .iter()
         .filter(|attachment| attachment.kind == AttachmentKind::Tarball)
@@ -97,7 +97,7 @@ pub(super) fn check_publishable_versions(
         .and_then(|h| h.get("versions"))
         .and_then(Value::as_object);
     let Some(incoming_versions) = incoming.get("versions").and_then(Value::as_object) else {
-        return Ok(without_primary);
+        return Ok(without_any);
     };
     for (version, incoming_manifest) in incoming_versions {
         let has_attachment = attachment_versions.contains(version.as_str());
@@ -106,7 +106,7 @@ pub(super) fn check_publishable_versions(
                 continue;
             }
             if variants.contains_key(version) && incoming_manifest.get("dist").is_none() {
-                without_primary.insert(version.clone());
+                without_any.insert(version.clone());
                 continue;
             }
             return Err(RegistryError::BadRequest {
@@ -123,7 +123,7 @@ pub(super) fn check_publishable_versions(
             });
         }
     }
-    Ok(without_primary)
+    Ok(without_any)
 }
 
 /// Apply [`restore_tgz_integrities`] to a publish body. The tar-integrity

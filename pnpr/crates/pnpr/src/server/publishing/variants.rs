@@ -1,7 +1,7 @@
 //! Platform variants of hosted versions
 //! ([platform variants](https://github.com/pnpm/rfcs/blob/1a9891a2073f7c03a89fc6756eb78881853fa218/pnpr/text/0000-platform-variants.md)).
 //!
-//! A version publishes its primary `.tgz` plus one `.tgz` per variant,
+//! A version publishes its `any` archive's `.tgz` plus one `.tgz` per variant,
 //! attached as `<basename>-<version>~<tag>.tgz` with the `integrity` the
 //! archive is verified against. Each archive declares itself: its
 //! `package.json` has a `variant` field listing the platform tags it runs
@@ -33,13 +33,13 @@ use std::collections::BTreeMap;
 
 /// The server-owned field the stored packument keeps verified variants in.
 pub(in super::super) const STORED_FIELD: &str = "_pnprVariants";
-/// The server-owned field of a version published without a primary archive,
+/// The server-owned field of a version published without an `any` archive,
 /// holding the manifest its variants share, which describes the version in
-/// pnpr's document. Its `dist` describes the primary pnpr generated for npm's
+/// pnpr's document. Its `dist` describes the archive pnpr generated for npm's
 /// documents.
-pub(in super::super) const GENERATED_PRIMARY_FIELD: &str = "_pnprGeneratedPrimary";
+pub(in super::super) const GENERATED_ARCHIVE_FIELD: &str = "_pnprGeneratedArchive";
 /// The field of `dist.pnpr` that [`describe_version_variants`] moves
-/// [`GENERATED_PRIMARY_FIELD`] into.
+/// [`GENERATED_ARCHIVE_FIELD`] into.
 pub(in super::super) const SHARED_MANIFEST_FIELD: &str = "sharedManifest";
 
 /// One variant archive a version attaches, by the tag that names it.
@@ -97,11 +97,11 @@ pub(in super::super) fn parse_variant_attachment(
     filename: &str,
 ) -> Option<Result<(String, String, String), RegistryError>> {
     let stem = filename.strip_suffix(".tgz")?;
-    let (primary_stem, tag) = stem.rsplit_once('~')?;
+    let (archive_stem, tag) = stem.rsplit_once('~')?;
     // A package name may hold `~` itself: unless what precedes the last `~`
     // is this package's tarball, the attachment is the package's own.
     let (_, version) = name
-        .parse_tarball_name(&format!("{primary_stem}.tgz"))
+        .parse_tarball_name(&format!("{archive_stem}.tgz"))
         .ok()?;
     if let Some(reason) = invalid_tag(tag) {
         return Some(Err(bad_request(format!("{filename:?}: {reason}"))));
@@ -122,8 +122,8 @@ pub(in super::super) fn variant_blob_name(
     version: &str,
     tag: &str,
 ) -> String {
-    let primary = name.tarball_name_for_version(version);
-    let stem = primary.strip_suffix(".tgz").unwrap_or(&primary);
+    let any_name = name.tarball_name_for_version(version);
+    let stem = any_name.strip_suffix(".tgz").unwrap_or(&any_name);
     format!("{stem}~{tag}.tgz")
 }
 
@@ -197,7 +197,7 @@ pub(super) fn variant_tar(
     }
 }
 
-/// Split a variant's tar from the tars of primary `.tgz` files.
+/// Split a variant's tar from the tars of `any` archive's `.tgz` files.
 pub(super) fn split_variant(tar: PublishedTar) -> Result<PublishedVariant, PublishedTar> {
     match tar {
         PublishedTar {
@@ -226,7 +226,7 @@ pub fn describe_variants(doc: &mut Value) {
 pub fn describe_version_variants(manifest: &mut Value) {
     let Some(manifest) = manifest.as_object_mut() else { return };
     let Some(Value::Array(variants)) = manifest.remove(STORED_FIELD) else { return };
-    let shared = manifest.remove(GENERATED_PRIMARY_FIELD);
+    let shared = manifest.remove(GENERATED_ARCHIVE_FIELD);
     let Some(dist) = manifest.get_mut("dist").and_then(Value::as_object_mut) else {
         return;
     };

@@ -200,8 +200,8 @@ pub(in super::super) fn release_record(manifest: &Value) -> Map<String, Value> {
     };
     let pnpr = dist.get("pnpr").and_then(Value::as_object);
     let mut record = Map::new();
-    // A version without a primary archive is described by the manifest its
-    // variants share, and has no facts of its own: the primary pnpr
+    // A version without an `any` archive is described by the manifest its
+    // variants share, and has no facts of its own: the archive pnpr
     // generated for npm's documents is not one of its archives.
     let shared = pnpr.and_then(|pnpr| pnpr.get(SHARED_MANIFEST_FIELD));
     if let Some(shared) = shared {
@@ -232,7 +232,7 @@ pub(in super::super) fn release_record(manifest: &Value) -> Map<String, Value> {
 fn without_pnpr_facts(manifest: &mut Value) {
     if let Some(fields) = manifest.as_object_mut() {
         fields.remove(super::super::publishing::variants::STORED_FIELD);
-        fields.remove(super::super::publishing::variants::GENERATED_PRIMARY_FIELD);
+        fields.remove(super::super::publishing::variants::GENERATED_ARCHIVE_FIELD);
     }
     let dist = manifest.get_mut("dist").and_then(Value::as_object_mut);
     if let Some(dist) = dist {

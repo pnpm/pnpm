@@ -2,7 +2,7 @@
 //! pnpr's document says about each one.
 
 use super::{
-    Declarations, GENERATED_PRIMARY_FIELD, Map, PublishedTar, PublishedVariant, RegistryError,
+    Declarations, GENERATED_ARCHIVE_FIELD, Map, PublishedTar, PublishedVariant, RegistryError,
     STORED_FIELD, Value, VariantDeclaration, bad_request,
 };
 use pnpm_platform_variants::{Platform, variant_tag};
@@ -20,19 +20,19 @@ const PLATFORM_FIELDS: &[&str] = &["os", "cpu", "libc"];
 const IDENTITY_FIELDS: &[&str] = &["name", "version", "deprecated", "_npmUser", "dist", "variant"];
 
 /// Check every published variant against its version and record the verified
-/// variants on the merged document. A version in `without_primary` has no
-/// primary archive: its variants are checked against its submitted manifest
+/// variants on the merged document. A version in `without_any` has no
+/// `any` archive: its variants are checked against its submitted manifest
 /// and described against the manifest they share, which is recorded with it
-/// (see [`GENERATED_PRIMARY_FIELD`]).
+/// (see [`GENERATED_ARCHIVE_FIELD`]).
 pub(in super::super) fn attach_variants(
     merged: &mut Value,
     declared: &Declarations,
-    (published, primaries): (&[PublishedVariant], &[PublishedTar]),
-    without_primary: &BTreeSet<String>,
+    (published, any_archives): (&[PublishedVariant], &[PublishedTar]),
+    without_any: &BTreeSet<String>,
 ) -> Result<(), RegistryError> {
     for (version, variants) in declared {
         let pointer = format!("/versions/{}", escape_pointer(version));
-        let primary = merged
+        let submitted = merged
             .pointer(&pointer)
             .cloned()
             .ok_or_else(|| {
@@ -42,27 +42,27 @@ pub(in super::super) fn attach_variants(
             .get("name")
             .and_then(Value::as_str)
             .unwrap_or_default();
-        let shared = if without_primary.contains(version) {
-            Some(shared_manifest(&primary, version, published))
+        let shared = if without_any.contains(version) {
+            Some(shared_manifest(&submitted, version, published))
         } else {
-            check_primary_archive((name, version), &primary, primaries)?;
+            check_any_archive((name, version), &submitted, any_archives)?;
             None
         };
-        let described = shared.as_ref().unwrap_or(&primary);
-        let stored = stored_variants(version, variants, (&primary, described), published)?;
+        let described = shared.as_ref().unwrap_or(&submitted);
+        let stored = stored_variants(version, variants, (&submitted, described), published)?;
         if let Some(manifest) = merged.pointer_mut(&pointer).and_then(Value::as_object_mut) {
             manifest.insert(STORED_FIELD.to_string(), Value::Array(stored));
             if let Some(Value::Object(mut shared)) = shared {
                 shared.remove("name");
                 shared.remove("version");
-                manifest.insert(GENERATED_PRIMARY_FIELD.to_string(), Value::Object(shared));
+                manifest.insert(GENERATED_ARCHIVE_FIELD.to_string(), Value::Object(shared));
             }
         }
     }
     Ok(())
 }
 
-/// The manifest a version without a primary archive is described by in
+/// The manifest a version without an `any` archive is described by in
 /// pnpr's document: its `name`, `version`, and peer dependencies, which
 /// every archive shares, and each dependency every variant declares with the
 /// same specifier.
@@ -99,30 +99,30 @@ fn shared_manifest(submitted: &Value, version: &str, published: &[PublishedVaria
     Value::Object(shared)
 }
 
-/// Check the primary archive a version's variants are published with. The
+/// Check the `any` archive a version's variants are published with. The
 /// variant set is part of the immutable version, so variants come only with
-/// their version's primary archive, never for a version already hosted. The
+/// their version's `any` archive, never for a version already hosted. The
 /// archive's own manifest, which clients install, must name the published
 /// package and version, agree with the version's on what every archive
 /// shares, and declare no variant.
-fn check_primary_archive(
+fn check_any_archive(
     (name, version): (&str, &str),
-    primary: &Value,
-    primaries: &[PublishedTar],
+    submitted: &Value,
+    any_archives: &[PublishedTar],
 ) -> Result<(), RegistryError> {
-    let Some(archive) = primaries
+    let Some(archive) = any_archives
         .iter()
         .find(|tar| tar.version == version)
     else {
         return Err(bad_request(format!(
-            "variants of {version} are published only with its primary archive",
+            "variants of {version} are published only with its `any` archive",
         )));
     };
     let manifest = pnpm_package_manifest::parse_manifest_bytes(&archive.archive.manifest)
         .ok()
         .filter(Value::is_object)
         .ok_or_else(|| {
-            bad_request(format!("the primary archive of {version} has no package.json"))
+            bad_request(format!("the `any` archive of {version} has no package.json"))
         })?;
     let manifest = &manifest;
     let identity = [("name", name), ("version", version)];
@@ -131,14 +131,14 @@ fn check_primary_archive(
         .find(|(field, expected)| manifest.get(field).and_then(Value::as_str) != Some(expected))
     {
         return Err(bad_request(format!(
-            "the primary archive of {version} names another {field} than the published one",
+            "the `any` archive of {version} names another {field} than the published one",
         )));
     }
-    if primary.get("variant").is_some() || manifest.get("variant").is_some() {
-        return Err(bad_request(format!("the primary archive of {version} declares a variant")));
+    if submitted.get("variant").is_some() || manifest.get("variant").is_some() {
+        return Err(bad_request(format!("the `any` archive of {version} declares a variant")));
     }
-    match primary_difference(manifest, primary) {
-        Some(reason) => Err(bad_request(format!("the primary archive of {version}: {reason}"))),
+    match shared_difference(manifest, submitted) {
+        Some(reason) => Err(bad_request(format!("the `any` archive of {version}: {reason}"))),
         None => Ok(()),
     }
 }
@@ -148,13 +148,13 @@ fn check_primary_archive(
 fn stored_variants(
     version: &str,
     variants: &[VariantDeclaration],
-    primary: (&Value, &Value),
+    submitted: (&Value, &Value),
     published: &[PublishedVariant],
 ) -> Result<Vec<Value>, RegistryError> {
     let mut stored = Vec::with_capacity(variants.len());
     let mut listed: HashMap<Platform, &str> = HashMap::new();
     for variant in variants {
-        let (entry, platforms) = stored_variant(version, variant, primary, published)?;
+        let (entry, platforms) = stored_variant(version, variant, submitted, published)?;
         let overlap = platforms
             .into_iter()
             .find_map(|platform| {
@@ -178,12 +178,13 @@ fn escape_pointer(segment: &str) -> String {
 }
 
 /// What the stored version keeps of one verified variant, and its platforms.
-/// The variant is checked against the first manifest of `primary` and
+/// The variant is checked against the first manifest of `submitted`, the
+/// version's, and
 /// described by its difference from the second.
 fn stored_variant(
     version: &str,
     variant: &VariantDeclaration,
-    (primary, described): (&Value, &Value),
+    (submitted, described): (&Value, &Value),
     published: &[PublishedVariant],
 ) -> Result<(Value, Vec<Platform>), RegistryError> {
     let named = &variant.tag;
@@ -194,7 +195,7 @@ fn stored_variant(
     else {
         return Err(bad_request(format!("variant {named:?} of {version} has no archive")));
     };
-    let manifest = verified_manifest(found, primary).map_err(reject)?;
+    let manifest = verified_manifest(found, submitted).map_err(reject)?;
     let platforms = declared_platforms(manifest).map_err(reject)?;
     let tag = variant_tag(&platforms).map_err(|err| reject(err.to_string()))?;
     if tag != *named {
@@ -214,10 +215,10 @@ fn stored_variant(
 /// shares with its version.
 fn verified_manifest<'found>(
     found: &'found PublishedVariant,
-    primary: &Value,
+    submitted: &Value,
 ) -> Result<&'found Value, String> {
     let manifest = found.tar.manifest.as_ref().ok_or("its package.json cannot be read")?;
-    if let Some(reason) = primary_difference(manifest, primary) {
+    if let Some(reason) = shared_difference(manifest, submitted) {
         return Err(reason);
     }
     if found.inspection.requires_build != Some(false) {
@@ -253,11 +254,11 @@ fn archive_facts(found: &PublishedVariant) -> Map<String, Value> {
 
 /// How a variant's manifest differs from its version's in a field the two
 /// must share.
-fn primary_difference(manifest: &Value, primary: &Value) -> Option<String> {
+fn shared_difference(manifest: &Value, submitted: &Value) -> Option<String> {
     ["name", "version"]
         .into_iter()
         .chain(SHARED_FIELDS.iter().copied())
-        .find(|field| manifest.get(field) != primary.get(field))
+        .find(|field| manifest.get(field) != submitted.get(field))
         .map(|field| format!("its {field:?} differs from the version's"))
 }
 
@@ -289,7 +290,7 @@ fn declared_platforms(manifest: &Value) -> Result<Vec<Platform>, String> {
 /// The fields of a variant's manifest whose value differs from its version's,
 /// with `null` for a field only the version has. Each replaces the version's
 /// field as a whole.
-fn manifest_difference(manifest: &Value, primary: &Value) -> Map<String, Value> {
+fn manifest_difference(manifest: &Value, submitted: &Value) -> Map<String, Value> {
     let fields = |manifest: &Value| match pnpr_upstream::abbreviate_version(manifest) {
         Value::Object(mut fields) => {
             for field in IDENTITY_FIELDS {
@@ -300,7 +301,7 @@ fn manifest_difference(manifest: &Value, primary: &Value) -> Map<String, Value> 
         _ => Map::new(),
     };
     let variant = fields(manifest);
-    let version = fields(primary);
+    let version = fields(submitted);
     let changed = variant
         .iter()
         .filter(|(field, value)| version.get(*field) != Some(*value))

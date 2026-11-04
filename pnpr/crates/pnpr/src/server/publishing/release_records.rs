@@ -48,7 +48,7 @@ pub(super) fn archive_inputs(tgz_integrity: Option<&str>, archive: &PublicationA
     })
 }
 
-/// The release record of every version whose primary archive `tars`
+/// The release record of every version whose `any` archive `tars`
 /// publishes, from its verified manifest in `merged` and the facts derived
 /// from its archives.
 pub(super) fn accepted_records(
@@ -93,7 +93,7 @@ fn accepted_record(
     record.insert("version".into(), Value::from(version));
     record.insert("revision".into(), Value::from(0));
     record.insert("interpretation".into(), Value::from(profile));
-    // The primary pnpr generates for a version published without one is not
+    // The archive pnpr generates for a version published without one is not
     // an input of the version.
     if !tar.generated {
         record.insert("inputs".into(), archive_inputs(tar.tgz_integrity.as_deref(), &tar.archive));
@@ -102,7 +102,7 @@ fn accepted_record(
     Ok(Value::Object(record))
 }
 
-/// Describe the version's primary archive with the facts derived from it,
+/// Describe the version's `any` archive with the facts derived from it,
 /// as the record route describes it from the tar-integrity table.
 fn describe_archive(manifest: &mut Value, tar: &PublishedTar) {
     let Some(tgz_integrity) = &tar.tgz_integrity else { return };
@@ -154,7 +154,7 @@ pub(super) fn variant_purl(
     Purl::npm_variant(name.as_str(), version, tag).map_err(|err| no_purl(name, version, &err))
 }
 
-/// The PURL a version's primary archive is named by.
+/// The PURL a version's `any` archive is named by.
 pub(super) fn version_purl(
     name: &CanonicalPackageName,
     version: &str,

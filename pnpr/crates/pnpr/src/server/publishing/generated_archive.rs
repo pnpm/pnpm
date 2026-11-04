@@ -1,4 +1,4 @@
-//! The primary archive pnpr generates for a version published without one
+//! The `any` archive pnpr generates for a version published without one
 //! ([platform variants](https://github.com/pnpm/rfcs/blob/1a9891a2073f7c03a89fc6756eb78881853fa218/pnpr/text/0000-platform-variants.md#model)).
 //!
 //! npm's documents describe a version by one archive. For a version whose
@@ -22,7 +22,7 @@ use std::{collections::BTreeSet, io::Write as _};
 
 use super::attachments::{AttachmentKind, PreparedAttachment};
 
-/// The attachment that writes the generated primary of `version`, whose
+/// The attachment that writes the generated archive of `version`, whose
 /// stored variants `manifest` lists, through the publish's own write path.
 pub(super) fn attachment(
     name: &CanonicalPackageName,

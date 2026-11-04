@@ -144,10 +144,10 @@ fn check_slot(
     }
 }
 
-/// Describe `version`, published without a primary archive, by the primary
+/// Describe `version`, published without an `any` archive, by the archive
 /// pnpr generated for npm's documents: its install-critical fields are the
 /// generated archive's, and `dist` names that archive, at `tarball`.
-pub(super) fn describe_generated_primary(
+pub(super) fn describe_generated_archive(
     version: &mut Map<String, Value>,
     archive: &PublicationArchive,
     mut dist: Value,

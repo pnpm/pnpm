@@ -1,7 +1,7 @@
 //! The variant archives a publish body attaches.
 
 use super::{
-    Declarations, GENERATED_PRIMARY_FIELD, PreparedAttachment, RegistryError, STORED_FIELD, Value,
+    Declarations, GENERATED_ARCHIVE_FIELD, PreparedAttachment, RegistryError, STORED_FIELD, Value,
     VariantDeclaration,
 };
 
@@ -13,7 +13,7 @@ pub(in super::super) fn remove_server_fields(incoming: &mut Value) {
     };
     for manifest in versions.values_mut().filter_map(Value::as_object_mut) {
         manifest.remove(STORED_FIELD);
-        manifest.remove(GENERATED_PRIMARY_FIELD);
+        manifest.remove(GENERATED_ARCHIVE_FIELD);
     }
 }
 
