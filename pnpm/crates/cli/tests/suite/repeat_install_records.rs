@@ -876,7 +876,7 @@ fn a_workspace_with_project_lockfiles_refreshes_an_injected_copy() {
     let injected = workspace.join("packages/a/node_modules/b/cli.js");
     assert_eq!(
         fs::read_to_string(&injected).expect("read the injected copy"),
-        "#!/usr/bin/env node\n"
+        "#!/usr/bin/env node\n",
     );
     fs::write(workspace.join("packages/b/cli.js"), "edited\n").expect("edit packages/b/cli.js");
 
@@ -886,7 +886,7 @@ fn a_workspace_with_project_lockfiles_refreshes_an_injected_copy() {
     assert_eq!(
         fs::read_to_string(&injected).expect("read the injected copy"),
         "edited\n",
-        "{output}"
+        "{output}",
     );
     drop((root, mock_instance));
 }

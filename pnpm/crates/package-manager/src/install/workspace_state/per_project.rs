@@ -105,13 +105,13 @@ fn recorded_projects(
     listed
         .into_par_iter()
         .filter(|listed| listed.candidates.iter().any(|candidate| candidate.is_file()))
-        .map(|listed| recorded_project(check, listed, active_dir.as_deref()))
+        .map(|listed| recorded_project(check, &listed, active_dir.as_deref()))
         .collect()
 }
 
 fn recorded_project(
     check: &UpToDateFastPathCheck<'_>,
-    listed: ProjectManifestPaths,
+    listed: &ProjectManifestPaths,
     active_dir: Option<&Path>,
 ) -> Result<(Project, ProjectRecord), &'static str> {
     let root_dir = listed.root_dir.clone();
@@ -125,7 +125,7 @@ fn recorded_project(
     }
     let validation =
         state.validation.as_ref().ok_or("a project's state has no validation record")?;
-    let mut stand_ins = manifest_stand_ins(&root_dir, validation, std::slice::from_ref(&listed))
+    let mut stand_ins = manifest_stand_ins(&root_dir, validation, std::slice::from_ref(listed))
         .ok_or("a project's recorded manifest cannot decide")?;
     let project = stand_ins.projects.pop().ok_or("a project's manifest file is gone")?;
     let digest = stand_ins.digests.remove(&project.root_dir);
