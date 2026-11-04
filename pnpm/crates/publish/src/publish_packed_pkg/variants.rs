@@ -58,12 +58,12 @@ impl VariantArchive {
 
 /// The sizes of the staged archives a publish references, by integrity, as
 /// the registry reports them.
-pub(super) type StagedLengths = HashMap<String, u64>;
+pub(crate) type StagedLengths = HashMap<String, u64>;
 
 /// Refuse to publish variants to a registry that is not declared with
 /// `serverType: pnpr`: a version published without its variants cannot get
 /// them later.
-pub(super) fn check_registry(
+pub(crate) fn check_registry(
     pkg: &PackedPkg<'_>,
     pnpr_registries: &HashSet<String>,
     registry: &NormalizedRegistryUrl,
@@ -78,7 +78,7 @@ pub(super) fn check_registry(
 /// The archives this publish packed, to stage before the document that
 /// references them: the `any` archive, whose integrity is `any_integrity`,
 /// and every packed variant.
-pub(super) fn staged_archives<'a>(
+pub(crate) fn staged_archives<'a>(
     pkg: &PackedPkg<'a>,
     any_integrity: &str,
 ) -> Vec<StagedArchive<'a>> {
@@ -100,7 +100,7 @@ pub(super) fn staged_archives<'a>(
 /// The size of every archive `pkg` references as staged before the publish,
 /// asked with `HEAD`. One the registry does not hold for the caller fails the
 /// publish before its document is sent, naming the archive.
-pub(super) async fn staged_lengths(
+pub(crate) async fn staged_lengths(
     pkg: &PackedPkg<'_>,
     client: &ThrottledClient,
     registry: &NormalizedRegistryUrl,
@@ -137,7 +137,7 @@ pub(super) async fn staged_lengths(
 /// its `dist` and plain attachment. An `any` archive staged before the
 /// publish is described by its `dist.integrity` alone. `version` is the
 /// manifest's, which may carry build metadata.
-pub(super) fn reference_staged_archives(
+pub(crate) fn reference_staged_archives(
     document: &mut Value,
     pkg: &PackedPkg<'_>,
     (version, lengths): (&str, &StagedLengths),

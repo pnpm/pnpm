@@ -8,6 +8,10 @@ pub use request::PublishHttpError;
 pub(crate) use request::{PublishResponse, publish_with_otp_handling, web_auth_fetch_options};
 pub use uploads::{UploadedArchive, upload_variant_archives};
 pub use variants::{PackedVariant, StagedReference, VariantArchive};
+pub(crate) use variants::{
+    StagedLengths, check_registry as check_variants_registry, reference_staged_archives,
+    staged_archives as variant_staged_archives, staged_lengths,
+};
 
 use std::collections::{BTreeMap, HashSet};
 
