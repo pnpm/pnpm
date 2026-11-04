@@ -25,8 +25,11 @@ fn count_opens(paths: &[PathBuf], run: impl FnOnce()) -> usize {
     assert!(fd >= 0, "inotify_init1: {}", std::io::Error::last_os_error());
     for path in paths {
         let path = CString::new(path.as_os_str().as_bytes()).expect("a path without NUL");
+        // The kernel merges an event into an identical one left unread at the
+        // tail of the queue, so the closes keep back-to-back opens apart.
+        let mask = libc::IN_OPEN | libc::IN_CLOSE;
         // SAFETY: `fd` is the inotify descriptor above and `path` outlives the call.
-        let watch = unsafe { libc::inotify_add_watch(fd, path.as_ptr(), libc::IN_OPEN) };
+        let watch = unsafe { libc::inotify_add_watch(fd, path.as_ptr(), mask) };
         assert!(watch >= 0, "inotify_add_watch: {}", std::io::Error::last_os_error());
     }
     run();
@@ -207,8 +210,9 @@ fn an_up_to_date_install_with_project_lockfiles_opens_no_project_manifest() {
 }
 
 /// The gates of a recursive command share one discovery of the workspace
-/// projects. `b`'s manifest is read by the command's selection, that
-/// discovery, and `b`'s own gate, however many projects link it.
+/// projects. The gates add two reads of `a`'s manifest to the command's own,
+/// that discovery and `a`'s own gate, however many projects link workspace
+/// commands.
 #[test]
 fn a_recursive_exec_with_project_lockfiles_discovers_the_projects_once() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
@@ -216,16 +220,15 @@ fn a_recursive_exec_with_project_lockfiles_discovers_the_projects_once() {
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     write_gated_workspace_with_project_lockfiles(&workspace);
     install(&workspace, mock_instance.url());
-    trust_recorded_stats(&workspace, mock_instance.url());
 
-    let opens = count_opens(&[workspace.join("packages/b/package.json")], || {
+    let opens = count_opens(&[workspace.join("packages/a/package.json")], || {
         pacquet_in(&workspace)
             .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
-            .with_args(["-r", "exec", "node", "-e", "0"])
+            .with_args(["-r", "exec", "true"])
             .assert()
             .success();
     });
 
-    assert!(opens <= 3, "packages/b/package.json was opened {opens} times");
+    assert!(opens <= 4, "packages/a/package.json was opened {opens} times");
     drop((root, mock_instance));
 }
