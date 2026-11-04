@@ -19,7 +19,14 @@ fn workspace_path_override_links_the_workspace_relative_target() {
         npmrc_info,
         ..
     } = CommandTempCwd::init().add_mocked_registry();
-    write_fixture(&workspace, false);
+    write_fixture(
+        &workspace,
+        FixtureOptions {
+            inject_workspace_packages: false,
+            shared_workspace_lockfile: true,
+            override_specifier: "workspace:./packages/target",
+        },
+    );
 
     pacquet
         .with_arg("install")
@@ -44,7 +51,14 @@ fn workspace_path_override_installs_the_workspace_relative_target_when_injected(
         npmrc_info,
         ..
     } = CommandTempCwd::init().add_mocked_registry();
-    write_fixture(&workspace, true);
+    write_fixture(
+        &workspace,
+        FixtureOptions {
+            inject_workspace_packages: true,
+            shared_workspace_lockfile: true,
+            override_specifier: "workspace:./packages/target",
+        },
+    );
 
     pacquet
         .with_arg("install")
@@ -72,7 +86,14 @@ fn root_relative_overrides_resolve_from_workspace_config_with_both_lockfile_mode
                 npmrc_info,
                 ..
             } = CommandTempCwd::init().add_mocked_registry();
-            write_fixture_with(&workspace, true, shared_workspace_lockfile, specifier);
+            write_fixture(
+                &workspace,
+                FixtureOptions {
+                    inject_workspace_packages: true,
+                    shared_workspace_lockfile,
+                    override_specifier: specifier,
+                },
+            );
 
             let install = pacquet
                 .with_args(["install", "--offline", "--no-frozen-lockfile"])
@@ -104,16 +125,13 @@ fn root_relative_overrides_resolve_from_workspace_config_with_both_lockfile_mode
     assert!(failures.is_empty(), "{failures:#?}");
 }
 
-fn write_fixture(workspace: &Path, inject_workspace_packages: bool) {
-    write_fixture_with(workspace, inject_workspace_packages, true, "workspace:./packages/target");
-}
-
-fn write_fixture_with(
-    workspace: &Path,
+struct FixtureOptions<'a> {
     inject_workspace_packages: bool,
     shared_workspace_lockfile: bool,
-    override_specifier: &str,
-) {
+    override_specifier: &'a str,
+}
+
+fn write_fixture(workspace: &Path, options: FixtureOptions<'_>) {
     let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
     let workspace_yaml =
         fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
@@ -121,9 +139,12 @@ fn write_fixture_with(
         &workspace_yaml_path,
         format!(
             "{workspace_yaml}\npackages:\n  - packages/**\n\
-             injectWorkspacePackages: {inject_workspace_packages}\n\
-             sharedWorkspaceLockfile: {shared_workspace_lockfile}\n\
-             overrides:\n  target: {override_specifier}\n",
+             injectWorkspacePackages: {}\n\
+             sharedWorkspaceLockfile: {}\n\
+             overrides:\n  target: {}\n",
+            options.inject_workspace_packages,
+            options.shared_workspace_lockfile,
+            options.override_specifier,
         ),
     )
     .expect("write pnpm-workspace.yaml");
