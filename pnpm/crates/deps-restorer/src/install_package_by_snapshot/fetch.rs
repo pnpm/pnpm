@@ -1,4 +1,5 @@
 mod sources;
+mod stored_variants;
 
 use super::{
     InstallPackageBySnapshot, InstallPackageBySnapshotError, InstalledPackage,
@@ -301,8 +302,9 @@ impl InstallPackageBySnapshot<'_> {
     ) -> Result<(Arc<pnpm_fs::CasPaths>, ExtractedPackageMetadata), InstallPackageBySnapshotError>
     {
         let platform = super::variations_platform(variations, self.runtime_platform_selector);
-        let selected = variant_for_host(variations, fetch.package_key, &platform, self.ctx.config)?;
-        let (resolution, source) = match selected {
+        let (selected, archive) =
+            variant_for_host(variations, fetch.package_key, &platform, self.ctx.config)?;
+        let (resolution, source) = match archive {
             VariantFetch::Binary(binary) => {
                 return self
                     .fetch_binary::<Reporter>(binary, fetch.package_key)
@@ -311,6 +313,7 @@ impl InstallPackageBySnapshot<'_> {
             }
             VariantFetch::Tarball { resolution, source } => (resolution, source),
         };
+        self.fetch_stored_variants::<Reporter>(fetch, variations, selected, allow_build).await?;
         self.tarball_cas_paths::<Reporter>(TarballFetch {
             download: fetch.download,
             resolution: &resolution,

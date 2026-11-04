@@ -2,7 +2,7 @@ use super::{
     LockfileFormError, LockfileFormOptions, LockfileResolution, PlatformAssetResolution,
     PlatformSelector, RegistryResolution, VariationsResolution, select_platform_variant,
 };
-use pnpm_platform_variants::{AmbiguousSelection, Host, Libc, Platform};
+use pnpm_platform_variants::{AmbiguousSelection, Host, Libc, Platform, Purpose};
 use serde::{Deserialize, Serialize};
 
 /// One `(os, cpu, libc?)` triple a [`PlatformAssetResolution`] covers.
@@ -208,6 +208,35 @@ impl VariationsResolution {
         Ok(selected
             .map(|index| &self.variants[index])
             .or_else(|| self.any_variant()))
+    }
+
+    /// The archives a store keeps for `platform`, which may not be the
+    /// host: every platform variant one of whose targets matches it, its
+    /// floors and ABI met unless `platform` states otherwise
+    /// ([`Purpose::Fetch`]), and the variant that targets `any` when no
+    /// platform variant can be linked there.
+    #[must_use]
+    pub fn fetched_for(&self, platform: &PlatformSelector) -> Vec<&PlatformAssetResolution> {
+        let host = platform.host();
+        let mut fetched: Vec<&PlatformAssetResolution> = self.variants
+            .iter()
+            .filter(|variant| {
+                !variant.is_any()
+                    && variant
+                        .platforms()
+                        .iter()
+                        .any(|target| target.matches_for(&host, Purpose::Fetch))
+            })
+            .collect();
+        let links_a_platform_variant = match self.select(platform) {
+            Ok(selected) => selected.is_some_and(|variant| !variant.is_any()),
+            // Variants tied for the platform are linkable ones.
+            Err(AmbiguousSelection { .. }) => true,
+        };
+        if !links_a_platform_variant {
+            fetched.extend(self.any_variant());
+        }
+        fetched
     }
 
     /// `variant` in the integrity-only registry form when its tarball sits on

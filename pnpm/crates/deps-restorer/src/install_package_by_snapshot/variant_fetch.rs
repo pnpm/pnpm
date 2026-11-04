@@ -3,7 +3,9 @@
 
 use super::{InstallPackageBySnapshotError, runtime::render_variant_targets};
 use pnpm_config::Config;
-use pnpm_lockfile::{BinaryResolution, LockfileResolution, PackageKey, PlatformSelector};
+use pnpm_lockfile::{
+    BinaryResolution, LockfileResolution, PackageKey, PlatformAssetResolution, PlatformSelector,
+};
 
 /// How the archive a `variations` resolution selects is fetched.
 pub(super) enum VariantFetch<'a> {
@@ -38,7 +40,7 @@ pub(super) fn variant_for_host<'a>(
     package_key: &PackageKey,
     platform: &PlatformSelector,
     config: &Config,
-) -> Result<VariantFetch<'a>, InstallPackageBySnapshotError> {
+) -> Result<(&'a PlatformAssetResolution, VariantFetch<'a>), InstallPackageBySnapshotError> {
     let selected_target = || {
         format!("os = `{}`, cpu = `{}`, libc = `{:?}`", platform.os, platform.cpu, platform.libc)
     };
@@ -55,6 +57,16 @@ pub(super) fn variant_for_host<'a>(
             available_targets: render_variant_targets(&variations.variants),
         });
     };
+    Ok((selected, archive_fetch(selected, variations, package_key, config)?))
+}
+
+/// How `selected`, one archive of `variations`, is fetched.
+pub(super) fn archive_fetch<'a>(
+    selected: &'a PlatformAssetResolution,
+    variations: &pnpm_lockfile::VariationsResolution,
+    package_key: &PackageKey,
+    config: &Config,
+) -> Result<VariantFetch<'a>, InstallPackageBySnapshotError> {
     let source = if selected.is_any() { ArchiveSource::Any } else { ArchiveSource::Variant };
     let resolution = match &selected.resolution {
         LockfileResolution::Binary(binary) => return Ok(VariantFetch::Binary(binary)),
@@ -78,7 +90,7 @@ pub(super) fn variant_for_host<'a>(
 /// route `<registry>/<name>@<version>[+r<revision>]/variants/<tag>`, its tag
 /// derived from its targets.
 fn variant_registry_tarball(
-    variant: &pnpm_lockfile::PlatformAssetResolution,
+    variant: &PlatformAssetResolution,
     registry: &pnpm_lockfile::RegistryResolution,
     revision: Option<u64>,
     package_key: &PackageKey,
