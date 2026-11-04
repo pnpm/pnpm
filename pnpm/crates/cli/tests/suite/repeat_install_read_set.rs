@@ -1,6 +1,7 @@
 //! The repeat-install fast path stands in for a full install, so every file
-//! that install opens in the workspace is an input the fast path has to see
-//! change. Each one must be a file the workspace state records, or be
+//! that install opens in the workspace outside `node_modules` is an input the
+//! fast path has to see change. `node_modules` holds what the install writes,
+//! which the fast path checks on its own. Each one must be a file the workspace state records, or be
 //! classified here with the reason it needs no record. A file a new input
 //! makes the install read fails the test until it is one or the other.
 //!
