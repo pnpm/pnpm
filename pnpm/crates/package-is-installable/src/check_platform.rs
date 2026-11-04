@@ -57,7 +57,10 @@ pub struct UnsupportedPlatformError {
 }
 
 impl UnsupportedPlatformError {
-    fn new(package_id: String, wanted: WantedPlatform, current: Platform) -> Self {
+    /// The error for `package_id`, which wants `wanted` where the host is
+    /// `current`.
+    #[must_use]
+    pub fn new(package_id: String, wanted: WantedPlatform, current: Platform) -> Self {
         let wanted_json = wanted_json(&wanted);
         let current_json = current_json(&current);
         Self { package_id, wanted, current, wanted_json, current_json }

@@ -16,7 +16,8 @@ pub(crate) fn snapshot_is_patched(
             .is_some()
 }
 
-/// Checks package installability with engine constraints cleared.
+/// Checks package installability with engine constraints cleared. The
+/// platforms a version's variants run on still apply.
 pub(super) fn without_published_engines(
     metadata_key: &PackageKey,
     metadata: &PackageMetadata,
@@ -26,7 +27,9 @@ pub(super) fn without_published_engines(
     let mut manifest = manifest_from_metadata(metadata_key, metadata);
     manifest.engines = None;
     let options = InstallabilityOptions { optional, ..*base };
-    check_installability(&metadata_key.to_string(), &manifest, &options)
+    let package_id = metadata_key.to_string();
+    Ok(check_installability(&package_id, &manifest, &options)?
+        .or_else(|| super::variants::variants_installability(&package_id, metadata, &options)))
 }
 
 #[cfg(test)]
