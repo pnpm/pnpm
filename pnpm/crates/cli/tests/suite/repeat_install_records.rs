@@ -769,5 +769,6 @@ fn a_trust_lockfile_flag_that_overrides_the_setting_runs_the_install() {
     assert!(output.status.success(), "{text}");
     assert!(text.contains("a flag overrides trustLockfile"), "{text}");
     assert!(!text.contains(TAKEN_AFTER_CONFIG), "{text}");
+    assert!(text.contains("phase complete"), "the install ran its phases: {text}");
     drop((root, mock_instance));
 }
