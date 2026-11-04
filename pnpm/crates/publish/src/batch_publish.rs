@@ -114,29 +114,17 @@ where
     validate_batch_publish_options(opts).map_err(Error::from)?;
 
     let mut summaries = Vec::with_capacity(packages.len());
-    let groups = group_packed_pkgs(packages, opts, &mut summaries).map_err(Error::from)?;
+    let mut groups = group_packed_pkgs(packages, opts, &mut summaries).map_err(Error::from)?;
 
-    let authorizations = if opts.dry_run {
-        vec![None; groups.len()]
-    } else {
-        groups
-            .iter()
-            .map(|group| batch_authorization(group, network))
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(Error::from)?
-    };
+    let authorizations = prepare_groups(&mut groups, opts.dry_run, network)
+        .await
+        .map_err(Error::from)?;
 
     let mut accepted = Vec::new();
     let result = async {
-        for (mut group, authorization) in groups.into_iter().zip(authorizations) {
-            publish_group::<Reporter>(
-                &mut group,
-                authorization.as_deref(),
-                opts,
-                network,
-                &summaries,
-            )
-            .await?;
+        for (group, authorization) in groups.into_iter().zip(authorizations) {
+            publish_group::<Reporter>(&group, authorization.as_deref(), opts, network, &summaries)
+                .await?;
             if !opts.dry_run {
                 accepted.extend(
                     group.summary_indexes
@@ -157,8 +145,26 @@ where
     Ok(summaries)
 }
 
+/// Each group's credential, once every group's documents reference the
+/// archives other jobs staged. A dry run sends nothing, so it needs neither.
+async fn prepare_groups(
+    groups: &mut [BatchGroup<'_>],
+    dry_run: bool,
+    network: &PublishNetwork<'_>,
+) -> Result<Vec<Option<String>>, BatchPublishError> {
+    if dry_run {
+        return Ok(vec![None; groups.len()]);
+    }
+    let authorizations = groups
+        .iter()
+        .map(|group| batch_authorization(group, network))
+        .collect::<Result<Vec<_>, _>>()?;
+    variants::reference_every_group(groups, &authorizations, network.client).await?;
+    Ok(authorizations)
+}
+
 async fn publish_group<Reporter: self::Reporter>(
-    group: &mut BatchGroup<'_>,
+    group: &BatchGroup<'_>,
     authorization: Option<&str>,
     opts: &PublishPackedPkgOptions,
     network: &PublishNetwork<'_>,
@@ -175,7 +181,6 @@ async fn publish_group<Reporter: self::Reporter>(
         ));
         return Ok(());
     }
-    variants::reference_variant_archives(group, network.client, authorization).await?;
     if let Some(archives) = &group.staged {
         let uploaded =
             stage_archives(network.client, &group.registry, authorization, archives).await?;

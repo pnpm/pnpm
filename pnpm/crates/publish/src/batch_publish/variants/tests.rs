@@ -255,3 +255,72 @@ async fn a_batch_referencing_an_archive_the_registry_lacks_uploads_nothing() {
     upload.assert_async().await;
     commit.assert_async().await;
 }
+
+/// A batch spanning two registries checks the archives other jobs staged on
+/// both before it publishes to either, so a missing archive on the second
+/// publishes nothing to the first.
+#[tokio::test]
+async fn a_missing_archive_on_one_registry_publishes_nothing_to_another() {
+    let mut first = mockito::Server::new_async().await;
+    let mut second = mockito::Server::new_async().await;
+    let first_registry = format!("{}/", first.url());
+    let second_registry = format!("{}/", second.url());
+    let blob = mockito::Matcher::Regex("^/-/pnpr/v0/artifacts/blob".to_owned());
+    let mut first_requests = Vec::new();
+    for method in ["HEAD", "PUT"] {
+        first_requests.push(
+            first
+                .mock(method, mockito::Matcher::Any)
+                .expect(0)
+                .create_async()
+                .await,
+        );
+    }
+    second
+        .mock("HEAD", blob)
+        .with_status(404)
+        .create_async()
+        .await;
+    let lib = json!({ "name": "example-lib", "version": "1.0.0" });
+    let cli = json!({
+        "name": "example-cli",
+        "version": "1.0.0",
+        "publishConfig": { "registry": second_registry },
+    });
+    let variants = [PackedVariant {
+        tag: "linux-x64".to_owned(),
+        archive: VariantArchive::Staged(StagedReference {
+            integrity: "sha512-Z29uZQ==".to_owned(),
+            label: "linux-x64".to_owned(),
+        }),
+    }];
+    let packages = [package(&lib, b"lib", &[]), package(&cli, b"any", &variants)];
+    let mut opts = options(&first_registry);
+    opts.pnpr_registries.insert(second_registry.clone());
+    let client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let network = PublishNetwork { client: &client, auth_headers: &auth_headers };
+
+    let failure = batch_publish_packed_pkgs::<
+        SilentReporter,
+        _,
+        crate::batch_publish::BatchPublishError,
+    >(&packages, &opts, &network, |_| Ok(()))
+    .await
+    .expect_err("the batch fails");
+
+    assert!(failure.published.is_empty(), "{:?}", failure.published);
+    assert!(
+        matches!(
+            failure.error,
+            crate::batch_publish::BatchPublishError::Package(
+                crate::PublishPackedPkgError::NotStaged { .. },
+            ),
+        ),
+        "{:?}",
+        failure.error,
+    );
+    for request in first_requests {
+        request.assert_async().await;
+    }
+}

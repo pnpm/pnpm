@@ -14,6 +14,7 @@ use crate::{
     },
     staged_archives::StagedArchive,
 };
+use futures_util::future::try_join_all;
 use pnpm_network::ThrottledClient;
 use serde_json::Value;
 
@@ -56,26 +57,50 @@ pub(super) fn references_staged_before(archives: &[DocumentArchives<'_>]) -> usi
         .sum()
 }
 
+/// [`reference_variant_archives`] for every group, before any group is
+/// published, so an archive missing on one registry publishes nothing to
+/// another.
+pub(super) async fn reference_every_group(
+    groups: &mut [BatchGroup<'_>],
+    authorizations: &[Option<String>],
+    client: &ThrottledClient,
+) -> Result<(), BatchPublishError> {
+    for (group, authorization) in groups.iter_mut().zip(authorizations) {
+        reference_variant_archives(group, client, authorization.as_deref()).await?;
+    }
+    Ok(())
+}
+
 /// Make each document of a version with variants reference its staged
 /// archives, after asking the registry for the size of every archive another
-/// job staged. One the registry does not hold for the caller fails the
-/// batch before anything is uploaded or committed.
-pub(super) async fn reference_variant_archives(
+/// job staged, all at once. One the registry does not hold for the caller
+/// fails the batch before anything is uploaded or committed.
+async fn reference_variant_archives(
     group: &mut BatchGroup<'_>,
     client: &ThrottledClient,
     authorization: Option<&str>,
 ) -> Result<(), BatchPublishError> {
-    for (document, archives) in group.documents.iter_mut().zip(&group.archives) {
-        let DocumentArchives::Variants(package) = archives else {
-            continue;
-        };
-        let lengths: StagedLengths =
-            staged_lengths(package, client, &group.registry, authorization).await?;
+    let packages: Vec<_> = group.archives
+        .iter()
+        .enumerate()
+        .filter_map(|(index, archives)| match archives {
+            DocumentArchives::Variants(package) => Some((index, *package)),
+            DocumentArchives::Single(_) => None,
+        })
+        .collect();
+    let registry = &group.registry;
+    let lengths: Vec<StagedLengths> = try_join_all(
+        packages
+            .iter()
+            .map(|(_, package)| staged_lengths(package, client, registry, authorization)),
+    )
+    .await?;
+    for ((index, package), lengths) in packages.into_iter().zip(&lengths) {
         let version = package.published_manifest
             .get("version")
             .and_then(Value::as_str)
             .unwrap_or_default();
-        reference_staged_archives(document, package, (version, &lengths));
+        reference_staged_archives(&mut group.documents[index], package, (version, lengths));
     }
     Ok(())
 }

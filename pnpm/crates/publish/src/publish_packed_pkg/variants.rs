@@ -18,6 +18,7 @@ use crate::{
     registry_config_keys::NormalizedRegistryUrl,
     staged_archives::{StagedArchive, staged_length},
 };
+use futures_util::future::try_join_all;
 use pnpm_network::ThrottledClient;
 use pnpm_release_record::{Purl, PurlError};
 use std::collections::{HashMap, HashSet};
@@ -98,8 +99,8 @@ pub(crate) fn staged_archives<'a>(
 }
 
 /// The size of every archive `pkg` references as staged before the publish,
-/// asked with `HEAD`. One the registry does not hold for the caller fails the
-/// publish before its document is sent, naming the archive.
+/// asked with `HEAD`, all at once. One the registry does not hold for the
+/// caller fails the publish before its document is sent, naming the archive.
 pub(crate) async fn staged_lengths(
     pkg: &PackedPkg<'_>,
     client: &ThrottledClient,
@@ -116,8 +117,7 @@ pub(crate) async fn staged_lengths(
                     VariantArchive::Packed(_) => None,
                 }),
         );
-    let mut lengths = StagedLengths::new();
-    for reference in staged {
+    let lengths = try_join_all(staged.map(|reference| async move {
         let length = staged_length(client, registry, authorization, &reference.integrity)
             .await
             .map_err(PublishPackedPkgError::Staging)?
@@ -126,9 +126,10 @@ pub(crate) async fn staged_lengths(
                 integrity: reference.integrity.clone(),
                 registry: registry_for_display(registry),
             })?;
-        lengths.insert(reference.integrity.clone(), length);
-    }
-    Ok(lengths)
+        Ok::<_, PublishPackedPkgError>((reference.integrity.clone(), length))
+    }))
+    .await?;
+    Ok(lengths.into_iter().collect())
 }
 
 /// Make `document` reference the staged archives instead of carrying them:
