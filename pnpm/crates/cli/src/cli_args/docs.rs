@@ -1,5 +1,6 @@
 use clap::Args;
 use pnpm_config::Config;
+use pnpm_network::redact_url_for_display;
 use pnpm_network_web_auth::OpenUrl;
 use pnpm_registry::PackageVersion;
 
@@ -52,15 +53,7 @@ fn open_url<Sys: OpenUrl>(url: &str) -> miette::Result<()> {
     match Sys::open_url(url) {
         Ok(()) => Ok(()),
         Err(e) => {
-            let redacted = url::Url::parse(url)
-                .map_or_else(
-                    |_| url.to_string(),
-                    |mut parsed_url| {
-                        let _ = parsed_url.set_username("");
-                        let _ = parsed_url.set_password(None);
-                        parsed_url.to_string()
-                    },
-                );
+            let redacted = redact_url_for_display(url);
             pnpm_diagnostics::eprintln!("Could not open browser: {e}");
             pnpm_diagnostics::println!("{redacted}");
             Ok(())

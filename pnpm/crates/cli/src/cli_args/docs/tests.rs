@@ -214,3 +214,42 @@ async fn docs_supports_registry_override() {
     mock.assert_async().await;
     assert_eq!(url, "https://v1.example/docs");
 }
+
+struct FailingBrowser;
+
+impl OpenUrl for FailingBrowser {
+    fn open_url(_: &str) -> io::Result<()> {
+        Err(io::Error::other("browser failed"))
+    }
+}
+
+#[test]
+fn failing_browser_redacts_url_and_succeeds() {
+    const CHILD: &str = "PNPM_TEST_DOCS_FAILED_BROWSER";
+    if std::env::var_os(CHILD).is_some() {
+        let result = super::open_url::<FailingBrowser>(
+            "https://user:pass@example.com/docs?token=secret#frag",
+        );
+        assert!(result.is_ok());
+        return;
+    }
+
+    let output = std::process::Command::new(std::env::current_exe().unwrap())
+        .args(["--nocapture", "failing_browser_redacts_url_and_succeeds"])
+        .env(CHILD, "1")
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    dbg!(&stdout, &stderr);
+    assert!(output.status.success());
+    assert!(
+        stdout
+            .lines()
+            .any(|line| line == "https://example.com/docs"),
+    );
+    assert!(!stdout.contains("secret"));
+    assert!(!stdout.contains("user:pass"));
+    assert!(!stdout.contains("#frag"));
+    assert!(stderr.contains("Could not open browser: browser failed"));
+}
