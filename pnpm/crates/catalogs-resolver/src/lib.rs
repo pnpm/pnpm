@@ -34,7 +34,9 @@ pub struct WantedDependency {
 pub enum CatalogAnchor<'a> {
     /// Re-anchor the entry from `workspace_dir` to `consumer_dir`. A
     /// `None` consumer yields the absolute path, for a consumer that
-    /// installs somewhere unrelated to the workspace.
+    /// installs somewhere unrelated to the workspace. A `workspace:` path
+    /// stays relative to `workspace_dir` instead, because the resolver
+    /// reads it as a path only while it is relative.
     Reanchor { workspace_dir: &'a Path, consumer_dir: Option<&'a Path> },
     /// Return the entry exactly as it is written. For call sites that
     /// compare or display an entry rather than install from it, and for
