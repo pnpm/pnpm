@@ -70,6 +70,12 @@ fn a_sha1_integrity_replaced_by_a_sha512_one_is_accepted() {
 }
 
 #[test]
+fn a_sha512_integrity_replaced_by_a_sha1_one_is_accepted() {
+    let next = parse(SHA1_LOCKFILE).to_yaml_string().expect("serialize lockfile");
+    assert!(only_registry_metadata_differs(&canonical(), &next));
+}
+
+#[test]
 fn a_different_digest_of_the_same_algorithm_is_rejected() {
     let next = canonical().replace("sha512-dGVzdA==", "sha512-b3RoZXI=");
     assert_ne!(next, canonical(), "the digest must change");
@@ -110,6 +116,21 @@ fn a_tarball_integrity_the_lockfile_did_not_record_is_rejected() {
     let previous = tarball("{tarball: https://example.com/dep.tgz}");
     let next = tarball("{integrity: sha512-dGVzdA==, tarball: https://example.com/dep.tgz}");
     assert!(!only_registry_metadata_differs(&previous, &next));
+}
+
+#[test]
+fn an_integrity_change_with_a_new_resolution_kind_is_rejected() {
+    let previous = parse(SHA1_LOCKFILE).to_yaml_string().expect("serialize lockfile");
+    let next = tarball("{integrity: sha512-dGVzdA==, tarball: https://example.com/dep.tgz}");
+    assert!(!only_registry_metadata_differs(&previous, &next));
+}
+
+#[test]
+fn a_rewrite_of_a_lockfile_without_packages_is_rejected() {
+    let previous = parse("lockfileVersion: '9.0'\nimporters:\n  .: {}\n")
+        .to_yaml_string()
+        .expect("serialize lockfile");
+    assert!(!only_registry_metadata_differs(&previous, &canonical()));
 }
 
 #[test]

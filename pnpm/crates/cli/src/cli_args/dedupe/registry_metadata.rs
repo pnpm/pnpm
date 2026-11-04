@@ -6,8 +6,8 @@ use ssri::Integrity;
 
 /// Whether the rewritten lockfile `next_text` is `previous` with only the
 /// registry metadata of its packages replaced by that of `next`: the
-/// `deprecated` notices, and a registry integrity recomputed with another
-/// algorithm. The registry can deprecate a version after it was locked, and
+/// `deprecated` notices, and an integrity recomputed with another algorithm.
+/// The registry can deprecate a version after it was locked, and
 /// a registry proxy can start reporting a `sha512` integrity for a version
 /// it only reported the `sha1` shasum of, so neither is a change for
 /// `--check` to fail on. Every other byte must match, so a rewrite that also
@@ -81,9 +81,10 @@ fn take_rehashed_resolution_integrity(
 
 /// Replaces `integrity` with `source` when `source` holds a digest and none
 /// of the same algorithm as `integrity`, so the same tarball was only hashed
-/// differently. A different
-/// digest of the same algorithm means another tarball, which `--check` must
-/// report, so it is kept.
+/// differently. A different digest of the same algorithm means another
+/// tarball, which `--check` must report, so it is kept. A weaker algorithm is
+/// taken too: `--check` never writes the lockfile, so installs keep verifying
+/// the locked integrity.
 fn take_rehashed_integrity(integrity: &mut Integrity, source: &Integrity) {
     let shares_an_algorithm = integrity.hashes
         .iter()
