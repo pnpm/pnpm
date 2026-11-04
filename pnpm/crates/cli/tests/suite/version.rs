@@ -110,6 +110,38 @@ fn version_flags_do_not_modify_the_project_directory() {
     }
 }
 
+/// Switching to the pinned pnpm does not probe the store in the project
+/// directory either (pnpm/pnpm#17681).
+#[test]
+#[cfg(unix)]
+fn switching_to_the_pinned_pnpm_does_not_modify_the_project_directory() {
+    use std::time::{Duration, UNIX_EPOCH};
+
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let mock_instance = pnpm_testing_utils::registry::TestRegistry::start();
+    write_manifest(&workspace, r#"{"packageManager":"pnpm@9.3.0"}"#);
+    let output = version_output(root.path(), &workspace, mock_instance.url());
+    assert!(output.status.success(), "{output:?}");
+
+    let modified = UNIX_EPOCH + Duration::from_hours(262_968);
+    fs::File::open(&workspace)
+        .expect("open workspace directory")
+        .set_times(fs::FileTimes::new().set_modified(modified))
+        .expect("set directory timestamp");
+    let output = version_output(root.path(), &workspace, mock_instance.url());
+    assert!(output.status.success(), "{output:?}");
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "9.3.0\n");
+    assert_eq!(
+        fs::metadata(&workspace)
+            .unwrap()
+            .modified()
+            .unwrap(),
+        modified,
+    );
+
+    drop((root, mock_instance));
+}
+
 #[test]
 #[cfg(windows)]
 fn version_flags_do_not_modify_the_project_directory() {
