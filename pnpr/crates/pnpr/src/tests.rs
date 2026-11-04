@@ -21,13 +21,7 @@ const ENV_VARS: [&str; 12] = [
 /// Hold the env lock with every `PNPR_*` variable cleared, so a parse sees
 /// only what the test sets and never what the developer's shell exports.
 fn scrubbed_env() -> EnvGuard {
-    let env = EnvGuard::snapshot(ENV_VARS);
-    for var in ENV_VARS {
-        // SAFETY: `env` holds the process-wide env-mutation lock and restores
-        // every variable in `ENV_VARS` on drop.
-        unsafe { std::env::remove_var(var) };
-    }
-    env
+    EnvGuard::scrubbed(ENV_VARS)
 }
 
 #[test]

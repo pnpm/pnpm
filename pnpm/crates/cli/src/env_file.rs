@@ -18,11 +18,20 @@
 //! key. A missing file fails the command loudly rather than running with a
 //! partial environment.
 //!
-//! The load runs on the main thread before the startup thread exists, the
-//! only place `std::env::set_var` may run. `--env-file` is this binary's
-//! own option: [`strip_flags`] removes its tokens from the argv a
-//! dispatched pnpm receives (an older pnpm would reject the unknown flag),
-//! and the loaded variables travel by environment inheritance instead.
+//! The variables become real environment variables rather than a map
+//! pnpm threads through itself, because that is what the flag promises:
+//! `node --env-file` makes them visible to every `getenv`, including the
+//! ones inside pnpm's native dependencies and inside glibc. Writing the
+//! environment is sound only while the process has one thread, so the
+//! load runs on the main thread before [`crate::main`] spawns the startup
+//! thread. That is the one place in this binary where `std::env::set_var`
+//! runs with no other thread alive; `clippy.toml` bans the call
+//! everywhere else.
+//!
+//! `--env-file` is this binary's own option: [`strip_flags`] removes its
+//! tokens from the argv a dispatched pnpm receives (an older pnpm would
+//! reject the unknown flag), and the loaded variables travel by
+//! environment inheritance instead.
 //! Tokens past the passthrough point — script arguments after `--`, or
 //! after a `run`/`exec` script name — are left alone (see
 //! `crate::parse_boundary`).
@@ -98,6 +107,7 @@ fn load_one(path: &Path, loaded_keys: &mut HashSet<String>) -> miette::Result<()
         let id = env_key_id(key);
         if std::env::var_os(key).is_none() || loaded_keys.contains(&id) {
             loaded_keys.insert(id);
+            #[expect(clippy::disallowed_methods, reason = "see this module's docs")]
             // SAFETY: `load` runs on the main thread before `run_on_big_stack`
             // spawns the startup thread, so no other thread exists that
             // could access the environment concurrently.

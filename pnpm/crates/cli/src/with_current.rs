@@ -8,6 +8,13 @@
 //! `pnpm_config_pm_on_fail` env var rather than an argv flag, so it
 //! survives clap's `-v` / `--version` short-circuit and reaches both the
 //! in-process config load and any child process the command spawns.
+//!
+//! The child reach is what keeps the env var: a script this invocation
+//! runs may call pnpm again, and that nested pnpm has to skip the pin
+//! check too, which is what `pnpm with <version>` gets by setting the
+//! same variable on the child it spawns. Routing the override through
+//! [`crate::config_overrides::ConfigOverrides`] instead would cover the
+//! in-process load and lose the nested one.
 
 use crate::{
     cli_args::grammar,
@@ -31,9 +38,18 @@ pub struct MissingWithCurrentCommand;
 pub fn rewrite(argv: Vec<OsString>) -> miette::Result<Vec<OsString>> {
     let (argv, force_pm_on_fail_ignore) = plan(argv)?;
     if force_pm_on_fail_ignore {
-        // SAFETY: `rewrite` runs in `main` before the tokio runtime and
-        // rayon pool start, so the process is single-threaded and no other
-        // thread can be reading the environment concurrently.
+        #[expect(clippy::disallowed_methods, reason = "see this module's docs")]
+        // SAFETY: `rewrite` runs on the startup thread `run_on_big_stack`
+        // spawned, before the tokio runtime and the rayon pool start. The
+        // only other thread is the one that spawned it, and it is parked in
+        // `join` for the whole scope, so nothing reads the environment
+        // while this writes it.
+        //
+        // The obligation is the caller's: the write stops being sound the
+        // moment anything is spawned ahead of it that reads the
+        // environment, and no type can observe that. `clippy.toml` bans
+        // the call so a second one cannot appear without this argument
+        // being made again.
         unsafe {
             std::env::set_var("pnpm_config_pm_on_fail", "ignore");
         }
