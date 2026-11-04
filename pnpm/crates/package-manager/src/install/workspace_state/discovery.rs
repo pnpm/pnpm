@@ -2,7 +2,6 @@ use super::{
     super::{
         Catalogs, Config, IncludedDependencies, MaybeLazyLockfile, OptimisticRepeatInstallCheck,
         PackageManifest, Path, PathBuf, get_catalogs_from_workspace_manifest,
-        load_workspace_projects,
     },
     build_project_manifests_list, configured_or_discovered_workspace_dir, lazy_wanted_lockfile,
     lockfile_root_for,
@@ -312,10 +311,10 @@ fn load_gated_workspace(
     }
     match listed {
         Some(listed) => pnpm_workspace::read_workspace_projects(listed).map(Some),
-        None => load_workspace_projects(
+        None => super::super::lifecycle::load_checked_workspace_projects(
+            config,
             workspace_root,
             workspace_manifest,
-            &config.managed_directories(),
         ),
     }
 }

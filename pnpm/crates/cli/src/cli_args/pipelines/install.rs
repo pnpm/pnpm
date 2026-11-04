@@ -38,6 +38,9 @@ impl InstallPipeline {
         )
         .instrument(tracing::debug_span!(target: "pacquet::install", "prepare_config"))
         .await?;
+        if self.args.finished_from_records_after_config(&self.prefix, self.cfg, Reporter::emit) {
+            return Ok(self.cfg);
+        }
         // Built ahead of project discovery so a run that is certain to
         // read the wanted lockfile parses it on a background thread
         // while discovery walks the workspace. A `--fix-lockfile` run reads

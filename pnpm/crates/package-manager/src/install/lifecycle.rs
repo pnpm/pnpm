@@ -47,6 +47,36 @@ pub(super) fn workspace_projects_opts(
     }
 }
 
+/// [`load_workspace_projects`] for the repeat-install checks, which read the
+/// projects the install itself would read: the `--workspace-packages`
+/// patterns when given, else the ones `workspace_manifest` declares.
+pub(super) fn load_checked_workspace_projects(
+    config: &Config,
+    workspace_root: &std::path::Path,
+    workspace_manifest: Option<&pnpm_workspace::WorkspaceManifest>,
+) -> Result<Option<Vec<pnpm_workspace::Project>>, pnpm_workspace::FindWorkspaceProjectsError> {
+    let Some(manifest) = workspace_manifest else { return Ok(None) };
+    pnpm_workspace::find_workspace_projects(
+        workspace_root,
+        &checked_projects_opts(config, manifest),
+    )
+    .map(Some)
+}
+
+/// The discovery options of [`load_checked_workspace_projects`].
+pub(super) fn checked_projects_opts(
+    config: &Config,
+    workspace_manifest: &pnpm_workspace::WorkspaceManifest,
+) -> pnpm_workspace::FindWorkspaceProjectsOpts {
+    let patterns = config.workspace_package_patterns
+        .clone()
+        .unwrap_or_else(|| pnpm_workspace::workspace_package_patterns(workspace_manifest));
+    pnpm_workspace::FindWorkspaceProjectsOpts {
+        patterns: Some(patterns),
+        ignored_directories: config.managed_directories(),
+    }
+}
+
 /// [`Config::extra_env_with_node_options`] plus the `NODE_OPTIONS` entry for
 /// the selected project-level dependency loader. pnpm adds it only once it
 /// links and builds, which is why `pnpm:devPreinstall` — running before the

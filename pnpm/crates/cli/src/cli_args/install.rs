@@ -34,7 +34,8 @@ use pnpm_package_manager::{
     InstallFrozenLockfileError, LockfileVerificationOverride, PolicyExcludes, SkippedSnapshots,
     TarballPrefetcher, UpToDateFastPathCheck, UpdateSeedPolicy, WantedLockfileSatisfactionCheck,
     WorkspaceInstallSelection, build_resolution_verifiers, install_already_up_to_date,
-    materialization_closure, merge_filtered_wanted_lockfile, report_merged_lockfile_conflicts,
+    install_already_up_to_date_from_records, materialization_closure,
+    merge_filtered_wanted_lockfile, report_merged_lockfile_conflicts,
     wanted_lockfile_satisfies_workspace,
 };
 use pnpm_package_manifest::DependencyGroup;
@@ -317,9 +318,12 @@ impl InstallArgs {
                 .lockfile_updates
                 .update_checksums;
             base_install.lockfile_policy.excludes = PolicyExcludes::Persist;
-            base_install.lockfile_policy.disable_optimistic_repeat = self
-                .materialization
-                .verify_deps_before_run_install;
+            // A trust flag reaches only these options, while the repeat check
+            // compares the configured `trustLockfile`, so it cannot vouch for
+            // an install whose flag overrides the setting.
+            base_install.lockfile_policy.disable_optimistic_repeat =
+                self.materialization.verify_deps_before_run_install
+                    || link.lockfile.trust != state.config.trust_lockfile;
             base_install.execution.skip_runtimes = link.skip_runtimes;
             base_install.execution.node_linker = link.node_linker;
             base_install.execution.lockfile_only = link.lockfile.only;
