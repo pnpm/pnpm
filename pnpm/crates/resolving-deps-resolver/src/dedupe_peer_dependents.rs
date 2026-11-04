@@ -139,7 +139,7 @@ fn collapse_cycle(
     graph: &DependenciesGraph,
     duplicates: &[Vec<DepPath>],
 ) -> HashMap<DepPath, DepPath> {
-    for group in duplicates {
+    for group in cycle_order(graph, duplicates) {
         let mut paths = group.clone();
         sort_variants(graph, &mut paths);
         while let Some(largest) = paths.pop() {
@@ -153,6 +153,56 @@ fn collapse_cycle(
         }
     }
     HashMap::default()
+}
+
+fn cycle_order<'a>(
+    graph: &DependenciesGraph,
+    duplicates: &'a [Vec<DepPath>],
+) -> Vec<&'a Vec<DepPath>> {
+    let by_id: HashMap<&str, usize> = duplicates
+        .iter()
+        .enumerate()
+        .filter(|(_, group)| !group.is_empty())
+        .map(|(index, group)| (graph[&group[0]].resolved_package_id.as_str(), index))
+        .collect();
+    let adjacency: Vec<_> = duplicates
+        .iter()
+        .map(|group| group_dependencies(graph, group, &by_id))
+        .collect();
+    let mut components = crate::strongly_connected_components::SccPass::default();
+    for root in 0..duplicates.len() {
+        if !components.index_of.contains_key(&root) {
+            components.visit_root(&root, &|index| adjacency[*index].clone());
+        }
+    }
+    components.sccs
+        .into_iter()
+        .flat_map(|mut component| {
+            component.sort_unstable();
+            component
+        })
+        .map(|index| &duplicates[index])
+        .collect()
+}
+
+fn group_dependencies(
+    graph: &DependenciesGraph,
+    group: &[DepPath],
+    by_id: &HashMap<&str, usize>,
+) -> Vec<usize> {
+    let mut dependencies = HashSet::default();
+    for variant in group {
+        for child in graph[variant].edges.children.values() {
+            if let Some(node) = graph.get(child)
+                && let Some(index) = by_id.get(node.resolved_package_id.as_str())
+            {
+                dependencies.insert(*index);
+            }
+        }
+    }
+    let mut dependencies: Vec<_> = dependencies.into_iter().collect();
+    dependencies.sort_unstable();
+    dependencies
 }
 
 type IncomingEdges = HashMap<DepPath, Vec<(DepPath, String)>>;

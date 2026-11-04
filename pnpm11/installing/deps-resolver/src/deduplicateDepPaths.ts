@@ -1,3 +1,4 @@
+import { computeStronglyConnectedComponents } from '@pnpm/deps.graph-sequencer'
 import type { DepPath } from '@pnpm/types'
 
 import { isCompatibleAndHasMoreDeps, nodeDepsCount } from './depPathCompatibility.js'
@@ -47,11 +48,7 @@ function collapseCycle<Pkg extends PartialResolvedPackage> (
   duplicates: Array<Set<DepPath>>
 ): Record<DepPath, DepPath> {
   const sorter = createDepCountSorter(depGraph)
-  const groups = duplicates.filter(group => group.size > 1).sort((left, right) => {
-    const leftId = depGraph[left.values().next().value!].pkgIdWithPatchHash
-    const rightId = depGraph[right.values().next().value!].pkgIdWithPatchHash
-    return leftId < rightId ? -1 : leftId > rightId ? 1 : 0
-  })
+  const groups = cycleOrder(depGraph, duplicates)
   for (const group of groups) {
     const paths = [...group].sort(sorter)
     while (paths.length) {
@@ -61,6 +58,39 @@ function collapseCycle<Pkg extends PartialResolvedPackage> (
     }
   }
   return {}
+}
+
+function cycleOrder<Pkg extends PartialResolvedPackage> (
+  depGraph: GenericDependenciesGraphWithResolvedChildren<Pkg>,
+  duplicates: Array<Set<DepPath>>
+): Array<Set<DepPath>> {
+  const groups = duplicates.filter(group => group.size > 1).sort((left, right) => {
+    const leftId = depGraph[left.values().next().value!].pkgIdWithPatchHash
+    const rightId = depGraph[right.values().next().value!].pkgIdWithPatchHash
+    return leftId < rightId ? -1 : leftId > rightId ? 1 : 0
+  })
+  const byId = new Map(groups.map((group, index) => [depGraph[group.values().next().value!].pkgIdWithPatchHash, index]))
+  const adjacency = groups.map(group => groupDependencies(depGraph, group, byId))
+  const { componentOf } = computeStronglyConnectedComponents(adjacency, adjacency.map(() => false))
+  return groups.map((group, index) => ({ group, index }))
+    .sort((left, right) => componentOf[left.index] - componentOf[right.index] || left.index - right.index)
+    .map(({ group }) => group)
+}
+
+function groupDependencies<Pkg extends PartialResolvedPackage> (
+  depGraph: GenericDependenciesGraphWithResolvedChildren<Pkg>,
+  group: Set<DepPath>,
+  byId: Map<Pkg['pkgIdWithPatchHash'], number>
+): number[] {
+  const dependencies = new Set<number>()
+  for (const variant of group) {
+    for (const child of Object.values(depGraph[variant].children)) {
+      const node = depGraph[child]
+      const index = node && byId.get(node.pkgIdWithPatchHash)
+      if (index != null) dependencies.add(index)
+    }
+  }
+  return [...dependencies].sort((left, right) => left - right)
 }
 
 type IncomingEdges = Map<DepPath, Array<[DepPath, string]>>

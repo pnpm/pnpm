@@ -233,7 +233,7 @@ function mayLieOnCycle (adjacency: number[][], components: StronglyConnectedComp
 // The strongly connected components of the not-yet-removed subgraph,
 // computed with an iterative Tarjan walk (recursion would overflow on a
 // workspace-deep chain). Removed nodes belong to no component.
-interface StronglyConnectedComponents {
+export interface StronglyConnectedComponents {
   componentOf: number[]
   componentSize: number[]
 }
@@ -252,7 +252,8 @@ interface TarjanWalk extends StronglyConnectedComponents {
   frames: Array<[number, number]>
 }
 
-function computeStronglyConnectedComponents (adjacency: number[][], removed: boolean[]): StronglyConnectedComponents {
+/** Component indices increase from dependencies to dependents. Removed nodes have index -1. */
+export function computeStronglyConnectedComponents (adjacency: number[][], removed: boolean[]): StronglyConnectedComponents {
   const nodeCount = adjacency.length
   const walk: TarjanWalk = {
     adjacency,

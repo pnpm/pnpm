@@ -13,15 +13,37 @@ test.each([[2, false], [2, true], [128, false]] as const)('dedupe a cycle of %s 
   expect(graph['unrelated-0@1.0.0' as DepPath].children.leaf).toBe('leaf@1.0.0')
 })
 
-function cycleGraph (size: number) {
+test('a parent of a cycle waits for the cyclic variants to settle', () => {
+  const { graph, groups } = cycleGraph(2, [1, 2])
+  const ancestors = new Set<DepPath>()
+  for (const suffix of ['', '(peer@1.0.0)']) {
+    const depPath = `ancestor@1.0.0${suffix}` as DepPath
+    graph[depPath] = {
+      ...graph[`node-0@1.0.0${suffix}` as DepPath],
+      depPath,
+      pkgIdWithPatchHash: 'ancestor@1.0.0' as PkgIdWithPatchHash,
+      children: { child: `node-0@1.0.0${suffix}` as DepPath },
+    }
+    ancestors.add(depPath)
+  }
+  groups.unshift(ancestors)
+  const replacements = deduplicateAll(graph, groups)
+  const parent = replacements['ancestor@1.0.0' as DepPath] ?? 'ancestor@1.0.0' as DepPath
+  const direct = replacements['node-0@1.0.0' as DepPath] ?? 'node-0@1.0.0' as DepPath
+  expect(graph[parent].children.child).toBe(direct)
+  expect(direct).toBe('node-0@1.0.0(peer@2.0.0)')
+})
+
+function cycleGraph (size: number, peerVersions = [1]) {
   const graph: GenericDependenciesGraphWithResolvedChildren<PartialResolvedPackage> = {}
   const groups: Array<Set<DepPath>> = []
   for (let index = 0; index < size; index++) {
     const name = `node-${index}`
     const child = `node-${(index + 1) % size}`
     const group = new Set<DepPath>()
-    for (const bound of [false, true]) {
-      const suffix = bound ? '(peer@1.0.0)' : ''
+    for (const peerVersion of [0, ...peerVersions]) {
+      const bound = peerVersion > 0
+      const suffix = peerSuffix(peerVersion)
       const depPath = `${name}@1.0.0${suffix}` as DepPath
       group.add(depPath)
       graph[depPath] = {
@@ -30,7 +52,7 @@ function cycleGraph (size: number) {
         id: `${name}@1.0.0` as PkgResolutionId,
         pkgIdWithPatchHash: `${name}@1.0.0` as PkgIdWithPatchHash,
         peers: { declared: {}, taken: {} },
-        children: { [child]: `${child}@1.0.0${suffix}` as DepPath },
+        children: cycleChildren(child, peerVersion),
         resolvedPeerNames: new Set(bound ? ['peer'] : []),
         transitivePeerDependencies: new Set(),
         depth: 0,
@@ -43,6 +65,15 @@ function cycleGraph (size: number) {
     }
     groups.push(group)
   }
+  for (const peerVersion of peerVersions) {
+    const depPath = `peer@${peerVersion}.0.0` as DepPath
+    graph[depPath] = {
+      ...graph['node-0@1.0.0' as DepPath],
+      depPath,
+      pkgIdWithPatchHash: `peer@${peerVersion}.0.0` as PkgIdWithPatchHash,
+      children: {},
+    }
+  }
   for (let index = 0; index < 2000; index++) {
     const depPath = `unrelated-${index}@1.0.0` as DepPath
     graph[depPath] = {
@@ -53,4 +84,16 @@ function cycleGraph (size: number) {
     }
   }
   return { graph, groups }
+}
+
+function cycleChildren (child: string, peerVersion: number): Record<string, DepPath> {
+  const children: Record<string, DepPath> = {}
+  const suffix = peerSuffix(peerVersion)
+  children[child] = `${child}@1.0.0${suffix}` as DepPath
+  if (peerVersion > 0) children.peer = `peer@${peerVersion}.0.0` as DepPath
+  return children
+}
+
+function peerSuffix (version: number): string {
+  return version > 0 ? `(peer@${version}.0.0)` : ''
 }

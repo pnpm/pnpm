@@ -46,6 +46,9 @@
       "path": "../../deps/graph-hasher"
     },
     {
+      "path": "../../deps/graph-sequencer"
+    },
+    {
       "path": "../../deps/path"
     },
     {
