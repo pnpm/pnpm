@@ -140,8 +140,14 @@ fn anchored_specifier(catalog_lookup: &str, anchor: CatalogAnchor<'_>) -> String
     let CatalogAnchor::Reanchor { workspace_dir, consumer_dir } = anchor else {
         return catalog_lookup.to_string();
     };
-    LocalSpec::parse_filesystem(catalog_lookup, workspace_dir)
-        .map_or_else(|| catalog_lookup.to_string(), |spec| spec.render(consumer_dir))
+    if let Some(spec) = LocalSpec::parse_filesystem(catalog_lookup, workspace_dir) {
+        return spec.render(consumer_dir);
+    }
+    LocalSpec::parse_workspace_path(catalog_lookup, workspace_dir)
+        .map_or_else(
+            || catalog_lookup.to_string(),
+            |spec| spec.render(Some(consumer_dir.unwrap_or(workspace_dir))),
+        )
 }
 
 fn recursive_catalog_error(catalog_name: &str, alias: &str) -> CatalogResolutionResult {

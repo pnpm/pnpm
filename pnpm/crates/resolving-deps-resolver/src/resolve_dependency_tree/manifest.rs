@@ -12,8 +12,9 @@ use std::collections::BTreeMap;
 use crate::resolved_tree::PeerSet;
 
 use super::{
-    CatalogAnchor, DependencySpec, Deprecation, ResolveDependencyTreeError,
-    catalogs::resolve_catalog_specifier, dependency_is_injected, lock_recoverable,
+    DependencySpec, Deprecation, ResolveDependencyTreeError,
+    catalogs::{catalog_anchor, resolve_catalog_specifier},
+    dependency_is_injected, lock_recoverable,
     tree_ctx::TreeCtx,
 };
 
@@ -300,15 +301,16 @@ pub(super) fn extract_peer_dependencies(
     result: &pnpm_resolving_resolver_base::ResolveResult,
     peer_shadowed: &HashSet<String>,
     catalogs: Option<&Catalogs>,
+    catalogs_dir: Option<&std::path::Path>,
+    lockfile_dir: &std::path::Path,
 ) -> Result<PeerSet, ResolveDependencyTreeError> {
     let Some(manifest) = result.package.manifest.as_ref() else { return Ok(PeerSet::default()) };
     let peer_set = PeerSet::from_manifest(manifest, |name| peer_shadowed.contains(name));
     let Some(catalogs) = catalogs else { return Ok(peer_set) };
-    // A peer range names a version range, never a path, so a `file:` /
-    // `link:` entry has nothing to re-anchor.
+    let declaring_dir = super::declaring_manifest_dir(lockfile_dir, result);
+    let anchor = catalog_anchor(catalogs_dir, declaring_dir.as_deref());
     peer_set.try_map_taken_ranges(|name, range| {
-        resolve_catalog_specifier(name.to_string(), range, catalogs, CatalogAnchor::AsWritten)
-            .map(|(_, range)| range)
+        resolve_catalog_specifier(name.to_string(), range, catalogs, anchor).map(|(_, range)| range)
     })
 }
 
