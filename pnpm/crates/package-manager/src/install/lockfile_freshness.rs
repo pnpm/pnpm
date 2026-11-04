@@ -422,15 +422,17 @@ fn check_importer_freshness(
     nested: &directory_deps::NestedByImporter<'_>,
 ) -> Result<Vec<UnresolvedOptionalDependency>, FreshnessCheckError> {
     let ignored_optional_matcher = ignored_optional_matcher(inputs.config);
-    let mut project_manifests = project_manifests_by_dir(
-        inputs.manifests.iter().map(|(_, manifest)| *manifest),
-        inputs.dependency_manifests,
+    let mut project_manifests =
+        directory_manifests::project_dependency_manifests(lockfile, inputs, directory_manifests);
+    let peer_type_manifests = directory_manifests::with_missing_peer_types(
+        &project_manifests,
+        inputs.config.add_missing_peer_types,
     );
-    project_manifests.extend(directory_manifests::injected_project_manifests(
-        lockfile,
-        inputs,
-        directory_manifests,
-    ));
+    project_manifests.extend(
+        peer_type_manifests
+            .iter()
+            .map(|(dir, manifest)| (dir.clone(), manifest)),
+    );
     let registries = inputs.registry_context();
     let workspace = WorkspaceProjects {
         packages: inputs.workspace_packages,

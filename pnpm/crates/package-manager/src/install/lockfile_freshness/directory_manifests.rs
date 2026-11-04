@@ -313,3 +313,38 @@ impl DirectoryWalk<'_, '_> {
         })
     }
 }
+
+/// Project manifests as dependencies, including the optional type peers the resolver adds.
+pub(super) fn with_missing_peer_types(
+    manifests: &super::ProjectManifestsByDir<'_>,
+    enabled: bool,
+) -> Vec<(PathBuf, PackageManifest)> {
+    if !enabled {
+        return Vec::new();
+    }
+    manifests
+        .iter()
+        .map(|(dir, manifest)| {
+            let mut manifest = (*manifest).clone();
+            let value = crate::missing_peer_types::add_missing_peer_types(Arc::new(
+                manifest.value().clone(),
+            ));
+            *manifest.value_mut() = (*value).clone();
+            (dir.clone(), manifest)
+        })
+        .collect()
+}
+
+/// Project manifests selected for injected dependency verification.
+pub(super) fn project_dependency_manifests<'a>(
+    lockfile: &Lockfile,
+    inputs: &LockfileFreshnessInputs<'_, 'a>,
+    directory_manifests: &'a DirectoryManifests,
+) -> super::ProjectManifestsByDir<'a> {
+    let mut manifests = project_manifests_by_dir(
+        inputs.manifests.iter().map(|(_, manifest)| *manifest),
+        inputs.dependency_manifests,
+    );
+    manifests.extend(injected_project_manifests(lockfile, inputs, directory_manifests));
+    manifests
+}

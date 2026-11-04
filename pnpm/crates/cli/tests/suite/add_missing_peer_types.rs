@@ -110,3 +110,38 @@ fn a_frozen_install_rejects_a_lockfile_resolved_without_the_setting() {
     assert!(!output.status.success());
     assert!(format!("{stdout}{stderr}").contains("addMissingPeerTypes"));
 }
+
+#[test]
+fn injected_workspace_peers_pass_frozen_install() {
+    for shared_lockfile in [true, false] {
+        let fixture = WorkspaceFixture::new();
+        fixture.append_workspace_yaml("injectWorkspacePackages: true\naddMissingPeerTypes: true\n");
+        if !shared_lockfile {
+            fixture.append_workspace_yaml("sharedWorkspaceLockfile: false\n");
+        }
+        fixture.write_root_manifest("root", ManifestDeps::default());
+        let library = fixture.project(
+            "library",
+            "library",
+            ManifestDeps { dev: &[("is-positive", "3.0.0")], ..ManifestDeps::default() },
+        );
+        crate::_utils::write_manifest_value(
+            &library,
+            &serde_json::json!({
+                "name": "library", "version": "1.0.0",
+                "peerDependencies": { "is-positive": "^3.0.0" },
+                "devDependencies": { "is-positive": "3.0.0" }
+            }),
+        );
+        fixture.project(
+            "consumer",
+            "consumer",
+            ManifestDeps {
+                prod: &[("library", "workspace:*"), ("is-positive", "3.1.0")],
+                ..ManifestDeps::default()
+            },
+        );
+        fixture.run(["install"]);
+        fixture.run(["install", "--frozen-lockfile"]);
+    }
+}
