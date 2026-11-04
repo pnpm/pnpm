@@ -5,8 +5,8 @@
 //! entries whose patterns match it, even when the package's own `files`
 //! leaves it out; every other file goes into every archive. Each archive
 //! also holds the files its own manifest's `main`, `browser`, and `bin`
-//! name, after its entry's `manifest` is applied, rather than the base
-//! manifest's. `prepack` and `postpack` run once around all the archives.
+//! name, and the dependencies it bundles, after its entry's `manifest` is
+//! applied, rather than the base manifest's. `prepack` and `postpack` run once around all the archives.
 
 use super::{VariantDeclaration, VariantEntry, archive_file_name, check_archive};
 use crate::{
@@ -99,12 +99,13 @@ fn selected_entries(
 }
 
 /// The files the package shares, and the files each entry's patterns claim.
-/// Both are listed from the base manifest without its `main`, `browser`, and
-/// `bin`: an archive holds the files its own manifest's entry points name,
-/// not the base manifest's.
+/// Both are listed from the base manifest without its `main`, `browser`,
+/// `bin`, and bundled dependencies: an archive holds the files its own
+/// manifest's entry points name and the dependencies it bundles, not the
+/// base manifest's.
 struct Claims {
     /// `package/<path>` to its source: what the package's own `files`
-    /// selects.
+    /// selects, without injected files.
     shared: IndexMap<String, PathBuf>,
     /// The files every archive holds whatever its manifest: `package.json`,
     /// the README, and the license.
@@ -120,7 +121,7 @@ impl Claims {
         declaration: &VariantDeclaration,
         selected: &[usize],
     ) -> Result<Self, PackError> {
-        let base = without_entry_points(&source.publish_manifest);
+        let base = without_archive_fields(&source.publish_manifest);
         let shared = packed_files_map(opts, source, &base)?;
         let always = listed(opts, source, &base, &[])?;
         let claimed = declaration.entries
@@ -135,7 +136,7 @@ impl Claims {
 
     /// The files of entry `index`'s archive, whose `package.json` is
     /// `manifest`: every shared file no entry claims, the files it claims,
-    /// and the files its manifest's entry points name.
+    /// and the files its manifest's entry points name and bundles.
     fn files_of(
         &self,
         (opts, source): (&PackOptions, &PackSource),
@@ -163,6 +164,11 @@ impl Claims {
             .chain(entry_points)
         {
             files.insert(format!("package/{path}"), source);
+        }
+        // An injected file, such as a composed changelog, supersedes the
+        // same path on disk, as in a package without variants.
+        for (name, _) in &opts.output.injected_files {
+            files.shift_remove(name);
         }
         Ok(files)
     }
@@ -201,12 +207,13 @@ fn claimed_by(
     if entry.files.is_empty() { Ok(BTreeMap::new()) } else { claimed(&entry.files) }
 }
 
-/// `manifest` without the `main`, `browser`, and `bin` whose files the
-/// packlist always includes.
-fn without_entry_points(manifest: &Value) -> Value {
+/// `manifest` without the fields whose files the packlist adds whatever
+/// `files` says: `main`, `browser`, `bin`, and the bundled dependencies.
+/// Each archive gets them from its own manifest.
+fn without_archive_fields(manifest: &Value) -> Value {
     let mut manifest = manifest.clone();
     if let Value::Object(fields) = &mut manifest {
-        for field in ["main", "browser", "bin"] {
+        for field in ["main", "browser", "bin", "bundleDependencies", "bundledDependencies"] {
             fields.shift_remove(field);
         }
     }

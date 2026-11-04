@@ -332,3 +332,67 @@ fn an_entrys_catalog_dependency_is_replaced() {
     .unwrap();
     assert_eq!(variant["dependencies"], json!({ "helper": "^1.2.0" }));
 }
+
+/// An archive bundles what its own manifest bundles: a native entry that
+/// drops the base manifest's bundled fallback does not ship it.
+#[test]
+fn an_archive_bundles_what_its_own_manifest_bundles() {
+    let (dir, mut opts) = fixture(&json!({
+        "name": "example-cli",
+        "version": "4.0.0",
+        "files": [],
+        "dependencies": { "fallback-runtime": "1.0.0" },
+        "bundleDependencies": ["fallback-runtime"],
+        "publishConfig": {
+            "variants": [
+                { "targets": ["any"] },
+                {
+                    "targets": ["linux-x64"],
+                    "files": ["native/cli"],
+                    "manifest": { "bundleDependencies": null, "dependencies": null },
+                },
+            ],
+        },
+    }));
+    opts.manifest.node_linker = super::NodeLinker::Hoisted;
+    super::install_module(dir.path(), "fallback-runtime", "1.0.0", &[("index.js", "")]);
+    touch(dir.path(), "native/cli", "binary");
+    let packed = pack(&opts, &[]).unwrap();
+    let bundles = |index: usize| {
+        packed[index].result.contents
+            .iter()
+            .any(|path| path.starts_with("node_modules/fallback-runtime/"))
+    };
+    assert!(bundles(0), "the any archive bundles the fallback");
+    assert!(!bundles(1), "the native archive does not");
+}
+
+/// An injected file, such as a composed changelog, supersedes the file an
+/// entry claims at the same path.
+#[test]
+fn an_injected_file_supersedes_a_claimed_one() {
+    let (dir, mut opts) = fixture(&json!({
+        "name": "example-cli",
+        "version": "4.0.0",
+        "files": [],
+        "publishConfig": { "variants": [{ "targets": ["any"], "files": ["CHANGELOG.md"] }] },
+    }));
+    touch(dir.path(), "CHANGELOG.md", "stale");
+    opts.output.injected_files = vec![("package/CHANGELOG.md".to_string(), b"composed".to_vec())];
+    let packed = pack(&opts, &[]).unwrap();
+    let tarball = dir
+        .path()
+        .join(&packed[0].result.tarball_path);
+    let names = tarball_entry_names(&tarball);
+    assert_eq!(
+        names
+            .iter()
+            .filter(|name| *name == "package/CHANGELOG.md")
+            .count(),
+        1
+    );
+    assert_eq!(
+        tarball_entry_content(&tarball, "package/CHANGELOG.md").as_deref(),
+        Some("composed")
+    );
+}
