@@ -1,6 +1,7 @@
 use super::{
     AsyncWriteExt, AtomicU64, ErrorKind, Ordering, Path, PathBuf, Result, fs, read_dir_if_present,
 };
+use crate::tmp_suffix::{RANDOM_HEX_DIGITS, TMP_MARKER, tmp_suffix};
 
 /// Per-process counter feeding [`unique_tmp_path`] so two concurrent
 /// writes to the same path don't collide on the same temp filename.
@@ -76,7 +77,7 @@ pub async fn remove_atomic_write_temps(path: &Path) -> Result<()> {
         return Ok(());
     };
     let mut prefix = file_name.to_os_string();
-    prefix.push(".tmp.");
+    prefix.push(TMP_MARKER);
     let Some(mut entries) = read_dir_if_present(parent).await? else {
         return Ok(());
     };
@@ -99,7 +100,7 @@ pub async fn remove_atomic_write_temps(path: &Path) -> Result<()> {
 
 /// Whether `name` is a file name [`unique_tmp_path`] produced.
 pub(crate) fn is_atomic_write_temp_name(name: &str) -> bool {
-    name.match_indices(".tmp.")
+    name.match_indices(TMP_MARKER)
         .any(|(at, marker)| is_atomic_write_temp_suffix(&name.as_bytes()[at + marker.len()..]))
 }
 
@@ -114,7 +115,7 @@ pub(super) fn is_atomic_write_temp_suffix(suffix: &[u8]) -> bool {
         && pid.iter().all(u8::is_ascii_digit)
         && !counter.is_empty()
         && counter.iter().all(u8::is_ascii_digit)
-        && random.len() == 16
+        && random.len() == RANDOM_HEX_DIGITS
         && random.iter().all(u8::is_ascii_hexdigit)
 }
 
@@ -166,7 +167,7 @@ pub fn unique_tmp_path(base: &Path) -> PathBuf {
         .file_name()
         .map(std::ffi::OsStr::to_os_string)
         .unwrap_or_default();
-    name.push(format!(".tmp.{pid}.{counter}.{random:016x}"));
+    name.push(tmp_suffix(pid, counter, random));
     match base.parent() {
         Some(parent) => parent.join(name),
         None => PathBuf::from(name),
