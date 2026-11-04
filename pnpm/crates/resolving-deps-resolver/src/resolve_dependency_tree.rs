@@ -7,7 +7,7 @@ pub use update_scope::{UpdateDepth, UpdateReuseScope, UpdateTargets, VersionLine
 pub use reuse::real_package_name_of;
 
 pub use tree_ctx::TreeCtx;
-pub(crate) use tree_ctx::declaring_manifest_dir;
+pub(crate) use tree_ctx::{declaring_manifest_dir, resolves_from_declaring_manifest};
 
 pub use workspace_ctx::WorkspaceTreeCtx;
 
