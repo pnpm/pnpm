@@ -99,6 +99,7 @@ fn deduplicate_all(
     graph: &mut DependenciesGraph,
     duplicates: &[Vec<DepPath>],
 ) -> HashMap<DepPath, DepPath> {
+    let mut incoming = incoming_edges(graph);
     let mut remaining = duplicates.to_vec();
     let mut merged: HashMap<DepPath, DepPath> = HashMap::default();
     loop {
@@ -106,7 +107,7 @@ fn deduplicate_all(
         if next.is_empty() {
             return merged;
         }
-        rewrite_children(graph, &next);
+        rewrite_children(graph, &next, &mut incoming);
         for target in merged.values_mut() {
             if let Some(replacement) = next.get(target) {
                 *target = replacement.clone();
@@ -154,13 +155,40 @@ fn collapse_cycle(
     HashMap::default()
 }
 
-fn rewrite_children(graph: &mut DependenciesGraph, replacements: &HashMap<DepPath, DepPath>) {
-    for node in graph.values_mut() {
-        for child in node.edges.children.values_mut() {
-            if let Some(target) = replacements.get(child) {
-                *child = target.clone();
-            }
+type IncomingEdges = HashMap<DepPath, Vec<(DepPath, String)>>;
+
+fn incoming_edges(graph: &DependenciesGraph) -> IncomingEdges {
+    let mut incoming = IncomingEdges::default();
+    for (parent, node) in graph {
+        for (alias, child) in &node.edges.children {
+            incoming
+                .entry(child.clone())
+                .or_default()
+                .push((parent.clone(), alias.clone()));
         }
+    }
+    incoming
+}
+
+fn rewrite_children(
+    graph: &mut DependenciesGraph,
+    replacements: &HashMap<DepPath, DepPath>,
+    incoming: &mut IncomingEdges,
+) {
+    for (collapsed, target) in replacements {
+        let Some(edges) = incoming.remove(collapsed) else { continue };
+        for (parent, alias) in &edges {
+            graph
+                .get_mut(parent)
+                .unwrap()
+                .edges
+                .children
+                .insert(alias.clone(), target.clone());
+        }
+        incoming
+            .entry(target.clone())
+            .or_default()
+            .extend(edges);
     }
 }
 

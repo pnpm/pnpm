@@ -12,12 +12,13 @@ export function deduplicateAll<Pkg extends PartialResolvedPackage> (
   depGraph: GenericDependenciesGraphWithResolvedChildren<Pkg>,
   duplicates: Array<Set<DepPath>>
 ): Record<DepPath, DepPath> {
+  const incoming = incomingEdges(depGraph)
   let remaining = duplicates
   const merged: Record<DepPath, DepPath> = {}
   while (true) {
     const { depPathsMap, remainingDuplicates } = deduplicateRound(remaining, depGraph)
     if (Object.keys(depPathsMap).length === 0) return merged
-    rewriteChildren(depGraph, depPathsMap)
+    rewriteChildren(depGraph, depPathsMap, incoming)
     for (const [collapsed, target] of Object.entries<DepPath>(merged)) {
       merged[collapsed as DepPath] = depPathsMap[target] ?? target
     }
@@ -62,14 +63,37 @@ function collapseCycle<Pkg extends PartialResolvedPackage> (
   return {}
 }
 
-function rewriteChildren<Pkg extends PartialResolvedPackage> (
-  depGraph: GenericDependenciesGraphWithResolvedChildren<Pkg>,
-  depPathsMap: Record<DepPath, DepPath>
-): void {
+type IncomingEdges = Map<DepPath, Array<[DepPath, string]>>
+
+function incomingEdges<Pkg extends PartialResolvedPackage> (
+  depGraph: GenericDependenciesGraphWithResolvedChildren<Pkg>
+): IncomingEdges {
+  const incoming: IncomingEdges = new Map()
   for (const node of Object.values(depGraph)) {
     for (const [alias, child] of Object.entries<DepPath>(node.children)) {
-      node.children[alias] = depPathsMap[child] ?? child
+      const edges = incoming.get(child) ?? []
+      edges.push([node.depPath, alias])
+      incoming.set(child, edges)
     }
+  }
+  return incoming
+}
+
+function rewriteChildren<Pkg extends PartialResolvedPackage> (
+  depGraph: GenericDependenciesGraphWithResolvedChildren<Pkg>,
+  depPathsMap: Record<DepPath, DepPath>,
+  incoming: IncomingEdges
+): void {
+  for (const [collapsed, target] of Object.entries<DepPath>(depPathsMap)) {
+    const edges = incoming.get(collapsed as DepPath) ?? []
+    incoming.delete(collapsed as DepPath)
+    const targetEdges = incoming.get(target) ?? []
+    for (const edge of edges) {
+      const [parent, alias] = edge
+      depGraph[parent].children[alias] = target
+      targetEdges.push(edge)
+    }
+    incoming.set(target, targetEdges)
   }
 }
 

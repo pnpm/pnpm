@@ -807,25 +807,37 @@ fn a_parent_merge_sees_the_transitive_peers_of_a_merged_child() {
 
 #[test]
 fn a_cycle_dedupes_after_one_pair_breaks_the_dependency_between_merges() {
+    for size in [2, 128] {
+        check_cycle_deduplication(size);
+    }
+}
+
+fn check_cycle_deduplication(size: usize) {
     let mut graph = DependenciesGraph::default();
-    for (name, child) in [("alpha", "beta"), ("beta", "alpha")] {
+    for index in 0..size {
+        let name = format!("node-{index}");
+        let child = format!("node-{}", (index + 1) % size);
         let bare = format!("{name}@1.0.0");
         let bound = format!("{bare}(peer@1.0.0)");
         let bare_child = format!("{child}@1.0.0");
         let bound_child = format!("{bare_child}(peer@1.0.0)");
-        graph.insert(dp(&bare), make_node(&bare, &bare, &[(child, &bare_child)], &[]));
+        graph.insert(dp(&bare), make_node(&bare, &bare, &[(&child, &bare_child)], &[]));
         graph.insert(
             dp(&bound),
-            make_node(&bare, &bound, &[(child, &bound_child), ("peer", "peer@1.0.0")], &["peer"]),
+            make_node(&bare, &bound, &[(&child, &bound_child), ("peer", "peer@1.0.0")], &["peer"]),
         );
     }
     graph.insert(dp("peer@1.0.0"), make_node("peer@1.0.0", "peer@1.0.0", &[], &[]));
+    for index in 0..2000 {
+        let id = format!("unrelated-{index}@1.0.0");
+        graph.insert(dp(&id), make_node(&id, &id, &[("peer", "peer@1.0.0")], &[]));
+    }
     let mut direct = BTreeMap::from([
-        ("bare".into(), BTreeMap::from([("alpha".into(), dp("alpha@1.0.0"))])),
-        ("bound".into(), BTreeMap::from([("alpha".into(), dp("alpha@1.0.0(peer@1.0.0)"))])),
+        ("bare".into(), BTreeMap::from([("alpha".into(), dp("node-0@1.0.0"))])),
+        ("bound".into(), BTreeMap::from([("alpha".into(), dp("node-0@1.0.0(peer@1.0.0)"))])),
     ]);
     let peer_ids = recorded_peer_ids(&graph);
     dedupe_peer_dependents(&mut graph, &mut direct, &suffixes(&peer_ids));
     assert_eq!(direct["bare"]["alpha"], direct["bound"]["alpha"]);
-    assert_eq!(graph.len(), 3);
+    assert_eq!(graph.len(), size + 1);
 }
