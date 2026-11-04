@@ -1,9 +1,12 @@
-use crate::optimistic_repeat_install::{
-    CatalogAnchor, CatalogResolutionResult, Catalogs, Config, DependencyGroup,
-    IncludedDependencies, WantedDependency, resolve_from_catalog,
+use pnpm_catalogs_resolver::{
+    CatalogAnchor, CatalogResolutionResult, WantedDependency, resolve_from_catalog,
 };
+use pnpm_catalogs_types::Catalogs;
+use pnpm_config::Config;
 use pnpm_config_parse_overrides::VersionOverride;
 use pnpm_lockfile::is_local_tarball_path;
+use pnpm_modules_yaml::IncludedDependencies;
+use pnpm_package_manifest::DependencyGroup;
 
 /// Whether a `catalog:` spec dereferences (through the workspace
 /// catalogs) to a local file specifier. A misconfigured catalog entry

@@ -1,8 +1,6 @@
 use super::{
-    Config, PackageManifest, Path, PathBuf, Validation, WorkspaceState, importer_id_from_root_dir,
-    value_digest,
+    Config, PackageManifest, Path, PathBuf, Validation, importer_id_from_root_dir, value_digest,
 };
-use crate::optimistic_repeat_install::{ManifestStat, OptimisticRepeatInstallCheck};
 
 pub(crate) fn workspace_bins_digest(
     workspace_root: &Path,
@@ -49,7 +47,7 @@ pub(crate) fn project_bins_digest<'a>(
 /// Whether the project declares a dependency or a peer, through which a
 /// workspace project's commands reach its `node_modules/.bin`.
 pub(crate) fn links_workspace_commands(manifest: &PackageManifest) -> bool {
-    crate::optimistic_repeat_install::manifest_has_runtime_deps(manifest)
+    crate::install_state::manifest_has_runtime_deps(manifest)
         || manifest
             .value()
             .get("peerDependencies")
@@ -68,26 +66,6 @@ pub(crate) fn project_bins_match(
 ) -> bool {
     let Some(validation) = recorded else { return true };
     validation.workspace_bins.get(importer_id).map(String::as_str) == bins
-}
-
-pub(crate) fn held_workspace_bins_match(
-    check: &OptimisticRepeatInstallCheck<'_>,
-    state: &WorkspaceState,
-    held: &[&ManifestStat<'_>],
-) -> bool {
-    if held.is_empty() || state.validation.is_none() {
-        return true;
-    }
-    let bins = workspace_bins_digest(check.workspace_root, check.bin_projects());
-    held.iter()
-        .all(|stat| {
-            let id = importer_id_from_root_dir(check.workspace_root, stat.root_dir);
-            project_bins_match(
-                state.validation.as_ref(),
-                &id,
-                project_bins_digest(&id, stat.manifest, bins.as_deref()),
-            )
-        })
 }
 
 /// [`crate::RepeatInstallManifests::workspace_projects`] for an install with

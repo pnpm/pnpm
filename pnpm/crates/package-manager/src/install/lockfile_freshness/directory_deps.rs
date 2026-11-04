@@ -1,5 +1,5 @@
+pub(crate) use crate::install_state::ProjectManifestsByDir;
 pub(crate) use importer_deps::check_directory_dependencies_freshness;
-pub use injected_manifest::ProjectManifestsByDir;
 pub(super) use injected_manifest::{InjectedDirectory, is_deploy_file_url_key, unhooked_manifest};
 pub(crate) use injected_manifest::{dependency_manifests_by_dir, project_manifests_by_dir};
 pub(crate) use nested::{

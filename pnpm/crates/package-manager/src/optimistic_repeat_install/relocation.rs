@@ -9,7 +9,7 @@ use super::{
     current_pnpmfiles,
     freshness::{InputDrift, validation_now},
     manifest_agreement::check_projects_content,
-    project_structure_matches,
+    project_structure_matches, recorded_elsewhere,
 };
 use std::{collections::BTreeSet, path::Component};
 
@@ -43,16 +43,6 @@ pub(super) fn relocated_state(
     // The validation records name the files where they were.
     let relocated = WorkspaceState { projects, pnpmfiles, validation: None, ..state.clone() };
     project_structure_matches(&relocated, project_manifests, config, catalogs).then_some(relocated)
-}
-
-/// Whether no current project dir is a key of `state`.
-pub(crate) fn recorded_elsewhere(
-    state: &WorkspaceState,
-    project_manifests: &[(PathBuf, &PackageManifest)],
-) -> bool {
-    !project_manifests
-        .iter()
-        .any(|(root_dir, _)| state.projects.contains_key(root_dir.to_string_lossy().as_ref()))
 }
 
 /// The unique old root reproducing every current workspace-relative project

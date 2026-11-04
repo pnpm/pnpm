@@ -8,7 +8,7 @@ use super::{
     configured_or_discovered_workspace_dir, fast_path_workspace_context, lazy_wanted_lockfile,
     load_fast_path_state, register_fast_path_workspace,
 };
-use crate::optimistic_repeat_install::validation::{dedicated_bin_projects, manifest_stand_ins};
+use crate::install_state::validation::{dedicated_bin_projects, manifest_stand_ins};
 use pnpm_workspace::{Project, ProjectManifestPaths};
 use rayon::prelude::*;
 use std::collections::HashMap;
@@ -111,7 +111,7 @@ fn recorded_projects(
     let listed = {
         let _span =
             tracing::debug_span!(target: "pacquet::install", "list_workspace_projects").entered();
-        let opts = super::super::lifecycle::checked_projects_opts(check.config, workspace.manifest);
+        let opts = crate::install::checked_projects_opts(check.config, workspace.manifest);
         pnpm_workspace::find_workspace_project_manifests(workspace.root, &opts)
             .map_err(|_| "the workspace projects cannot be listed")?
     };

@@ -30,7 +30,7 @@ pub(super) fn check_from_files(
     Ok(workspace_projects.as_ref().map(Vec::len))
 }
 
-/// [`super::super::lifecycle::load_checked_workspace_projects`] inside the
+/// [`crate::install::load_checked_workspace_projects`] inside the
 /// `discover_workspace_projects`
 /// span, skipping the pnpm-managed directories, or the read of the projects
 /// `listed` names.
@@ -43,7 +43,7 @@ fn discover_fast_path_projects(
         tracing::debug_span!(target: "pacquet::install", "discover_workspace_projects").entered();
     let discovered = match listed {
         Some(listed) => pnpm_workspace::read_workspace_projects(listed).map(Some),
-        None => super::super::lifecycle::load_checked_workspace_projects(
+        None => crate::install::load_checked_workspace_projects(
             config,
             context.workspace_root,
             context.workspace_manifest,

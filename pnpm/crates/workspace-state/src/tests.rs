@@ -94,7 +94,7 @@ fn omits_settings_that_are_none() {
 /// `packageExtensions` round-trips through `WorkspaceStateSettings`
 /// as a JSON object preserving the wire shape (`<selector>:
 /// { dependencies: { … } }`). The drift gate in
-/// `optimistic_repeat_install::settings_match` reads this field, so
+/// `first_setting_drift` in `pnpm-package-manager` reads this field, so
 /// the on-disk shape has to stay stable for the gate to be byte-
 /// comparable with pnpm's writer.
 #[test]

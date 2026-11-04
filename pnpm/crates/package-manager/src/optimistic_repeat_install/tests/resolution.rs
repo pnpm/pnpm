@@ -2,11 +2,11 @@ use super::{
     super::{
         Decision,
         manifest_agreement::{LinkedPackagesContext, linked_packages_are_up_to_date},
-        settings::current_settings,
     },
     backdate_validated_files, check, isolated_included, linked_sibling_decision,
     setup_fresh_install_with_config, write_state,
 };
+use crate::install_state::settings::current_settings;
 use indexmap::IndexMap;
 use pnpm_config::Config;
 use pnpm_lockfile::Lockfile;

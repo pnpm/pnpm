@@ -9,7 +9,7 @@ use missing_lockfile::settle_missing_wanted_lockfile;
 use registry_keys::state_unverified_by_changed_lockfile;
 
 use super::{
-    LockfileConflictCheckFailure, OptimisticRepeatInstallCheck, Path, PathBuf, WorkspaceState,
+    LockfileConflictCheckFailure, OptimisticRepeatInstallCheck, PathBuf, Scope, WorkspaceState,
     catalogs_cache_matches,
     current_lockfile::CurrentLockfile,
     current_lockfile_file_has_content,
@@ -81,24 +81,6 @@ pub(super) enum RecordedGroups {
     Kept,
 }
 
-/// The projects a gate holds to being installed. Whatever the gate reports
-/// must be something the install it leads to can fix: a filtered install
-/// leaves every project outside its selection as it is.
-#[derive(Clone, Copy)]
-pub(crate) enum Scope<'a> {
-    /// Every project, for an unfiltered install.
-    Workspace,
-    /// The selected projects and the workspace projects they depend on, for a
-    /// filtered install or a filtered command.
-    Selected(&'a [&'a Path]),
-    /// An unfiltered command run from the selected projects. Its install
-    /// covers the whole workspace, so a project whose recorded install went
-    /// stale is held anywhere. A project never installed is held only where
-    /// the selection depends on it, so an install filtered to other projects
-    /// does not make every command install again.
-    Command(&'a [&'a Path]),
-}
-
 /// Why [`check_freshness`] cannot report the tree current. Each gate words it
 /// for its own audience.
 pub(crate) enum Stale {
@@ -157,7 +139,7 @@ pub(super) fn check_freshness(
     check_static_freshness(check, state, policy, scope)?;
     let drift = InputDrift::compute(check, state);
     let held = drift.held(check, scope);
-    if !super::validation::held_workspace_bins_match(check, state, &held) {
+    if !drift::held_workspace_bins_match(check, state, &held) {
         return Err(Stale::Content("workspace package bins changed since the last install"));
     }
     stand_in_writes::refuse(check, moved || !held.is_empty() || drift.patches_modified)?;

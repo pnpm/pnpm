@@ -6,17 +6,23 @@ pub(crate) use specs::{
 
 mod injected;
 
-use super::{
-    CatalogAnchor, CatalogResolutionResult, Catalogs, DependencyGroup, Lockfile,
-    OptimisticRepeatInstallCheck, Path, PathBuf, WantedDependency, resolve_from_catalog,
-};
+use super::OptimisticRepeatInstallCheck;
 use injected::{has_unvouched_injected_dep, settings_add_workspace_path};
+use pnpm_catalogs_resolver::{
+    CatalogAnchor, CatalogResolutionResult, WantedDependency, resolve_from_catalog,
+};
+use pnpm_catalogs_types::Catalogs;
 use pnpm_config_parse_overrides::VersionOverride;
-use pnpm_lockfile::{LockfileResolution, PkgName, is_local_tarball_path};
+use pnpm_lockfile::{Lockfile, LockfileResolution, PkgName, is_local_tarball_path};
+use pnpm_package_manifest::DependencyGroup;
 use pnpm_resolving_local_resolver::local_tarball_path;
 use pnpm_workspace::importer_id_from_root_dir;
 use ssri::Integrity;
-use std::{borrow::Cow, collections::HashSet};
+use std::{
+    borrow::Cow,
+    collections::HashSet,
+    path::{Path, PathBuf},
+};
 
 struct LocalTarballDependency {
     project_dir: PathBuf,

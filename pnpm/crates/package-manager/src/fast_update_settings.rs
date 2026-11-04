@@ -40,7 +40,7 @@ pub(crate) fn resolution_settings_from_config(config: &Config) -> ResolutionSett
         dedupe_injected_deps: Some(config.dedupe_injected_deps),
         dedupe_peer_dependents: Some(config.dedupe_peer_dependents),
         link_workspace_packages: Some(
-            crate::optimistic_repeat_install::settings::link_workspace_packages_to_json(
+            crate::install_state::settings::link_workspace_packages_to_json(
                 config.link_workspace_packages,
             ),
         ),

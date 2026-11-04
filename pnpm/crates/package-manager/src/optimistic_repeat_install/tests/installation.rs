@@ -2,13 +2,15 @@ use super::{
     super::{
         Decision, OptimisticRepeatInstallCheck, check_optimistic_repeat_install,
         deps_status::install_args_from_state,
-        settings::current_settings,
-        timestamps::{FileMtime, modified_at_or_after},
     },
     assert_deps_status_converges_after_collision, backdate_validated_files, check,
     check_with_lockfile, content_check_decision, isolated_included, setup_content_check_project,
     setup_fresh_install, setup_fresh_install_with_config, validate_existing_files,
     write_empty_lockfile, write_registry_lockfile, write_state,
+};
+use crate::install_state::{
+    settings::current_settings,
+    timestamps::{FileMtime, modified_at_or_after},
 };
 use indexmap::IndexMap;
 use pnpm_config::Config;
@@ -528,16 +530,16 @@ fn returns_skipped_when_a_scope_moves_to_another_registry() {
         },
     );
     let project_manifests = [(dir.path().to_path_buf(), &manifest)];
-    let recorded = super::super::recorded_registry_prefixes(recorded_config);
+    let recorded = crate::install_state::recorded_registry_prefixes(recorded_config);
     assert_eq!(recorded, Some(BTreeMap::from([("work".to_string(), work.to_string())])));
 
     let mut routed = recorded_config.clone();
     routed.registries_by_scope.insert("@corp".to_string(), work.to_string());
     let routed = routed.leak();
 
-    assert_eq!(super::super::recorded_registry_prefixes(routed), recorded);
+    assert_eq!(crate::install_state::recorded_registry_prefixes(routed), recorded);
     assert_eq!(
-        super::super::settings::recorded_registry_routes(routed).get("@corp"),
+        crate::install_state::settings::recorded_registry_routes(routed).get("@corp"),
         Some(&work.to_string()),
     );
     assert!(matches!(
@@ -916,7 +918,7 @@ fn install_args_reproduce_the_recorded_dependency_groups() {
 
 #[test]
 fn install_already_up_to_date_bails_before_walking_projects_when_workspace_state_is_missing() {
-    use crate::install::{UpToDateFastPathCheck, install_already_up_to_date};
+    use crate::{UpToDateFastPathCheck, install_already_up_to_date};
     use pnpm_package_manifest::DependencyGroup;
 
     let dir = tempdir().unwrap();

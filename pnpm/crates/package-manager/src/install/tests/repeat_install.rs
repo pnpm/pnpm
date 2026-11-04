@@ -1,11 +1,9 @@
 use super::{
-    super::{
-        Install, InstallError, ProjectMutation, UpToDateFastPathCheck, install_already_up_to_date,
-    },
+    super::{Install, InstallError, ProjectMutation},
     InstallDirs, assert_purge_diagnostic, fresh_lockfile_only_with_compatibility_db,
     install_then_go_offline, recorded_verified_file_integrity_report, touch_manifest,
 };
-use crate::PolicyExcludes;
+use crate::{PolicyExcludes, UpToDateFastPathCheck, install_already_up_to_date};
 use pnpm_config::Config;
 use pnpm_lockfile::{Lockfile, MaybeLazyLockfile};
 use pnpm_modules_yaml::{Host, LayoutVersion, Modules, NodeLinker, write_modules_manifest};
@@ -128,12 +126,10 @@ async fn optimistic_repeat_install_skips_entire_pipeline_when_state_is_fresh() {
         carried: crate::install::CarriedSettings {
             established_auto_dedupe: None,
             registry_keys_verified: true,
-            registry_routes: Some(
-                crate::optimistic_repeat_install::settings::recorded_registry_routes(config),
-            ),
+            registry_routes: Some(crate::install_state::settings::recorded_registry_routes(config)),
             kept_settings: None,
         },
-        vouched: &crate::optimistic_repeat_install::validation::Vouched::All,
+        vouched: &crate::install_state::validation::Vouched::All,
     });
     workspace_state::update_workspace_state(&dirs.project_root, &seed_state)
         .expect("seed workspace state");
@@ -276,12 +272,10 @@ fn sync_fast_path_matches_optimistic_short_circuit() {
         carried: crate::install::CarriedSettings {
             established_auto_dedupe: None,
             registry_keys_verified: true,
-            registry_routes: Some(
-                crate::optimistic_repeat_install::settings::recorded_registry_routes(config),
-            ),
+            registry_routes: Some(crate::install_state::settings::recorded_registry_routes(config)),
             kept_settings: None,
         },
-        vouched: &crate::optimistic_repeat_install::validation::Vouched::All,
+        vouched: &crate::install_state::validation::Vouched::All,
     });
     workspace_state::update_workspace_state(&project_root, &seed_state)
         .expect("seed workspace state");
@@ -430,12 +424,10 @@ async fn partial_install_disables_optimistic_short_circuit() {
         carried: crate::install::CarriedSettings {
             established_auto_dedupe: None,
             registry_keys_verified: true,
-            registry_routes: Some(
-                crate::optimistic_repeat_install::settings::recorded_registry_routes(config),
-            ),
+            registry_routes: Some(crate::install_state::settings::recorded_registry_routes(config)),
             kept_settings: None,
         },
-        vouched: &crate::optimistic_repeat_install::validation::Vouched::All,
+        vouched: &crate::install_state::validation::Vouched::All,
     });
     workspace_state::update_workspace_state(&dirs.project_root, &seed_state)
         .expect("seed workspace state");

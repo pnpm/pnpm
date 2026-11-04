@@ -17,6 +17,7 @@ pub(crate) use hoisted_selection::{
     selected_materialization_closure, selected_materialization_ids,
 };
 pub use install::*;
+pub use install_state::*;
 pub use install_with_fresh_lockfile::*;
 pub use link_manifest_link_deps::*;
 pub use linked_peer_dependencies::linked_peer_dependencies_warning;
@@ -70,6 +71,8 @@ mod fast_update_patched_dependencies;
 mod fast_update_settings;
 mod hoisted_selection;
 mod install;
+mod install_entry;
+mod install_state;
 mod install_with_fresh_lockfile;
 mod link_manifest_link_deps;
 mod linked_peer_dependencies;

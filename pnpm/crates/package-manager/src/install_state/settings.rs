@@ -1,6 +1,10 @@
 //! Comparing the settings a previous install recorded against the current ones.
 
 pub(crate) use install_policy::recorded_extend_node_path_matches;
+pub(crate) use recorded_values::{
+    catalogs_to_json, empty_json_object, filter_null_object_values,
+    link_workspace_packages_to_json, map_node_linker,
+};
 pub(crate) use registry_prefixes::{
     ResolvedImporters, recorded_default_registry, recorded_registry_prefixes,
     recorded_registry_routes, recorded_registry_routes_after_install, records_registry_keys_of,
@@ -10,6 +14,7 @@ pub(crate) use registry_prefixes::{
 mod agent_skills;
 mod equivalence;
 mod install_policy;
+mod recorded_values;
 mod registry_prefixes;
 mod store_location;
 use agent_skills::agent_skills_settings;
@@ -18,12 +23,14 @@ use equivalence::{
     patched_dependencies_match,
 };
 use install_policy::install_policy_settings;
+use recorded_values::map_trust_policy;
 
-use super::{
-    Catalogs, Config, IncludedDependencies, LinkWorkspacePackages, NodeLinker, Path,
-    SupportedArchitectures, TrustPolicy, WorkspaceState, WorkspaceStateNodeLinker,
-    WorkspaceStateSettings, WorkspaceStateTrustPolicy,
-};
+use pnpm_catalogs_types::Catalogs;
+use pnpm_config::{Config, NodeLinker};
+use pnpm_modules_yaml::IncludedDependencies;
+use pnpm_package_is_installable::SupportedArchitectures;
+use pnpm_workspace_state::{WorkspaceState, WorkspaceStateSettings};
+use std::path::Path;
 
 /// Whether the `supportedArchitectures` recorded by the last install
 /// matches `live` (today's CLI-merged value). Read from the workspace
@@ -424,44 +431,6 @@ pub(crate) fn catalogs_cache_matches(
     let recorded = recorded.cloned().map_or_else(empty_json_object, filter_null_object_values);
     let current = filter_null_object_values(catalogs_to_json(current));
     recorded == current
-}
-
-pub(crate) fn catalogs_to_json(catalogs: &Catalogs) -> serde_json::Value {
-    serde_json::to_value(catalogs).expect("Catalogs serialize to a JSON object")
-}
-
-pub(crate) fn empty_json_object() -> serde_json::Value {
-    serde_json::Value::Object(serde_json::Map::new())
-}
-
-pub(crate) fn filter_null_object_values(value: serde_json::Value) -> serde_json::Value {
-    let serde_json::Value::Object(mut map) = value else { return value };
-    map.retain(|_, value| !value.is_null());
-    serde_json::Value::Object(map)
-}
-
-pub(crate) fn link_workspace_packages_to_json(value: LinkWorkspacePackages) -> serde_json::Value {
-    match value {
-        LinkWorkspacePackages::Off => serde_json::Value::Bool(false),
-        LinkWorkspacePackages::DirectOnly => serde_json::Value::Bool(true),
-        LinkWorkspacePackages::Deep => serde_json::Value::String("deep".to_string()),
-    }
-}
-
-pub(crate) fn map_node_linker(linker: NodeLinker) -> WorkspaceStateNodeLinker {
-    match linker {
-        NodeLinker::Isolated => WorkspaceStateNodeLinker::Isolated,
-        NodeLinker::Hoisted => WorkspaceStateNodeLinker::Hoisted,
-        NodeLinker::Pnp => WorkspaceStateNodeLinker::Pnp,
-        NodeLinker::Loaded => WorkspaceStateNodeLinker::Loaded,
-    }
-}
-
-fn map_trust_policy(policy: TrustPolicy) -> WorkspaceStateTrustPolicy {
-    match policy {
-        TrustPolicy::Off => WorkspaceStateTrustPolicy::Off,
-        TrustPolicy::NoDowngrade => WorkspaceStateTrustPolicy::NoDowngrade,
-    }
 }
 
 fn recorded_overrides(config: &Config) -> Option<std::collections::BTreeMap<String, String>> {

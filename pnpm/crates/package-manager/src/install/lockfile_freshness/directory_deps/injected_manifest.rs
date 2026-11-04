@@ -1,12 +1,9 @@
+use crate::install_state::ProjectManifestsByDir;
 use pnpm_package_manifest::PackageManifest;
 use std::{
     borrow::Cow,
-    collections::HashMap,
     path::{Path, PathBuf},
 };
-
-/// Project manifests keyed by their lexically normalized project directory.
-pub type ProjectManifestsByDir<'a> = HashMap<PathBuf, &'a PackageManifest>;
 
 /// Each project's manifest as another importer's injected dependency reads
 /// it: the project's entry in `dependency_manifests` when it has one, else
