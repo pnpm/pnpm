@@ -28,6 +28,7 @@ fn publish_flags() -> PublishFlags {
         ignore_scripts: false,
         force: false,
         batch: false,
+        no_variants: false,
         registry: crate::cli_args::publish::PublishRegistryArgs {
             tag: None,
             access: None,
@@ -162,11 +163,17 @@ async fn pack_for_publish_writes_a_tarball_and_returns_the_manifest() {
 
     let args = publish_args_with(PublishFlags { ignore_scripts: true, ..publish_flags() });
     let result = args
-        .pack_for_publish::<SilentReporter>(dir.path(), &Config::default(), dest.path(), &[], None)
+        .pack_for_publish::<SilentReporter>(
+            dir.path(),
+            &Config::default(),
+            dest.path(),
+            &[],
+            (None, &[]),
+        )
         .await
         .expect("packing succeeds");
 
-    assert_eq!(result.published_manifest["name"], "pkg");
+    assert_eq!(result.archives[0].result.published_manifest["name"], "pkg");
     let wrote_tarball = std::fs::read_dir(dest.path())
         .expect("read the destination")
         .flatten()

@@ -692,6 +692,8 @@ async fn publish_packed_pkg_dry_run_returns_the_summary_without_publishing() {
         contents: &contents,
         unpacked_size: 42,
         notes: None,
+        variants: &[],
+        any_archive: true,
     };
     let opts = PublishPackedPkgOptions {
         dry_run: true,
@@ -805,6 +807,8 @@ async fn publish_packed_pkg_attaches_signed_provenance_to_the_document() {
         contents: &[],
         unpacked_size: 0,
         notes: None,
+        variants: &[],
+        any_archive: true,
     };
     let opts = PublishPackedPkgOptions {
         dry_run: false,

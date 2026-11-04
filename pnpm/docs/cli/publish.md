@@ -105,6 +105,10 @@ group is fine, and mismatched credentials for one registry are rejected *before*
 anything is published, rather than after part of the release went out. The
 `publish` and `postpublish` scripts run after each completed group.
 
+### --no-variants
+
+Publish only the archive that targets `any` of a package that declares [`publishConfig.variants`](../package_json.md#publishconfigvariants). Without it, pnpm refuses to publish such a package to a registry that is not declared with `serverType: pnpr`, because a version published without its variants can't get them later.
+
 ### --release-notes &lt;file\>
 
 A file of release notes to send to a registry declared with [`serverType: pnpr`](../registries.md#servertype). The publish fails when the file does not exist. Publishing one package, the notes are its version notes. Publishing several packages with `--batch`, they are the notes of the whole release.

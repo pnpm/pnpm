@@ -34,19 +34,29 @@ use crate::{
     publish_wait::{PublishWaitError, wait_for_published_packages},
     registry_config_keys::NormalizedRegistryUrl,
     release_notes::ReleaseNotesTarget,
+    staged_archives::{StagingError, stage_archives},
 };
 
 /// The packed package handed to [`publish_packed_pkg`]: the manifest that was
 /// packed, the tarball's bytes, and the file listing / unpacked size used for
 /// the summary.
 pub struct PackedPkg<'a> {
+    /// The manifest of the version: its `any` archive's `package.json`, or
+    /// the base manifest of a version without one.
     pub published_manifest: &'a Value,
+    /// The `any` archive's bytes; empty when the version has none.
     pub tarball_data: &'a [u8],
     pub tarball_path: &'a str,
     pub contents: &'a [String],
     pub unpacked_size: u64,
     /// The version note, sent only to a registry that stores notes.
     pub notes: Option<&'a str>,
+    /// The platform variants published with the version, to a registry
+    /// declared with `serverType: pnpr`; empty for a package without them.
+    pub variants: &'a [PackedVariant],
+    /// Whether `tarball_data` is the version's `any` archive. A version
+    /// published with variants only has none.
+    pub any_archive: bool,
 }
 
 impl PackedPkg<'_> {
@@ -131,6 +141,7 @@ where
     global_info::<Reporter>(&format!("📦 {name}@{version} → {}", registry_for_display(&registry)));
 
     let mut summary = pkg.summary();
+    variants::check_registry(pkg, &opts.pnpr_registries, &registry)?;
 
     if opts.dry_run {
         global_warn::<Reporter>(&format!(
@@ -176,10 +187,16 @@ where
     let version = &summary.version;
     let registry = &resolved.registry;
     let is_stage = opts.stage;
+    let authorization = publish_authorization(resolved, network, registry, name);
+    if !pkg.variants.is_empty() {
+        let archives = variants::staged_archives(pkg, &summary.integrity);
+        stage_archives(network.client, registry, authorization.as_deref(), &archives)
+            .await
+            .map_err(|error| PublishPackedPkgError::Staging(Box::new(error)))?;
+    }
     let body = publish_body::<Sys, Reporter>(pkg, opts, resolved, summary, name, version).await?;
 
     let put_url = publish_endpoint(registry, name, is_stage)?;
-    let authorization = publish_authorization(resolved, network, registry, name);
 
     publish_with_otp_handling::<WebAuthHost, Reporter>(
         network.client,
@@ -218,6 +235,12 @@ where
         &DistHashes { integrity: &summary.integrity, shasum: &summary.shasum },
     )?;
     opts.release_notes.attach_version_notes(&mut document, pkg.notes, &resolved.registry);
+    if !pkg.variants.is_empty() {
+        if resolved.provenance == Some(true) {
+            return Err(PublishPackedPkgError::VariantsWithProvenance);
+        }
+        variants::reference_staged_archives(&mut document, pkg, version);
+    }
 
     if resolved.provenance == Some(true) {
         attach_provenance::<Sys, Reporter>(&mut document, name, version, pkg, &opts.registry.http)
@@ -399,6 +422,24 @@ pub enum PublishPackedPkgError {
 
     #[diagnostic(transparent)]
     FailedToPublish(FailedToPublishError),
+
+    #[display(
+        "Platform variants can only be published to a registry declared with serverType: pnpr, and {registry} is not"
+    )]
+    #[diagnostic(
+        code(ERR_PNPM_VARIANTS_NEED_PNPR),
+        help(
+            "Declare the registry with serverType: pnpr in pnpm-workspace.yaml. To publish only the archive that targets any, pass --no-variants."
+        )
+    )]
+    VariantsNeedPnpr { registry: String },
+
+    #[display("pnpm cannot sign provenance for a version with platform variants yet")]
+    #[diagnostic(code(ERR_PNPM_VARIANTS_PROVENANCE_UNSUPPORTED))]
+    VariantsWithProvenance,
+
+    #[diagnostic(transparent)]
+    Staging(Box<StagingError>),
 }
 
 impl From<CreatePublishOptionsError> for PublishPackedPkgError {
@@ -418,5 +459,7 @@ mod tests;
 
 mod document;
 use document::manifest_string;
+mod variants;
+pub use variants::PackedVariant;
 
 mod request;
