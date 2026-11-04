@@ -89,7 +89,7 @@ struct IncomingSubject {
 }
 
 /// Refuse a version with a statement unless the statement names each
-/// archive the version publishes: its primary and every variant.
+/// archive the version publishes: its `any` archive and every variant.
 pub(super) fn check_statements(
     name: &CanonicalPackageName,
     statements: &Statements,
@@ -149,9 +149,9 @@ fn archives(
     tars: &[PublishedTar],
     variants: &[PublishedVariant],
 ) -> Result<Vec<(Purl, Option<String>)>, RegistryError> {
-    let primary = tars
+    let any_archive = tars
         .iter()
-        .filter(|tar| tar.version == version && tar.variant.is_none())
+        .filter(|tar| tar.version == version && tar.variant.is_none() && !tar.generated)
         .map(|tar| Ok((version_purl(name, version)?, tar.tgz_integrity.clone())));
     let variants = variants
         .iter()
@@ -159,7 +159,7 @@ fn archives(
         .map(|variant| {
             Ok((variant_purl(name, version, &variant.tar.tag)?, variant.tar.tgz_integrity.clone()))
         });
-    primary.chain(variants).collect()
+    any_archive.chain(variants).collect()
 }
 
 /// The lowercase hex SHA-512 an SRI `integrity` carries, or `None` unless it

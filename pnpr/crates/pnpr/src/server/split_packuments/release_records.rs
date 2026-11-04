@@ -3,7 +3,7 @@
 //! and the npm-format views from which pnpr's facts are removed.
 
 use super::{
-    super::{describe_tar, has_settled_tar_facts},
+    super::{describe_tar, has_settled_tar_facts, publishing::variants::SHARED_MANIFEST_FIELD},
     DIST_FIELDS, PNPR_FIELDS,
 };
 use axum::{
@@ -198,6 +198,9 @@ pub(in super::super) fn release_record(manifest: &Value) -> Map<String, Value> {
         _ => Map::new(),
     };
     let pnpr = dist.get("pnpr").and_then(Value::as_object);
+    if let Some(record) = pnpr.and_then(record_without_any_archive) {
+        return record;
+    }
     let mut record = Map::new();
     for field in DIST_FIELDS {
         if let Some(value) = dist.get(field) {
@@ -213,6 +216,20 @@ pub(in super::super) fn release_record(manifest: &Value) -> Map<String, Value> {
     record
 }
 
+/// The record of a version without an `any` archive, from its `dist.pnpr`:
+/// its variants and the manifest they share, with no facts of its own, since
+/// the archive pnpr generated for npm's documents is not one of its
+/// archives. `None` for any other version.
+fn record_without_any_archive(pnpr: &Map<String, Value>) -> Option<Map<String, Value>> {
+    let shared = pnpr.get(SHARED_MANIFEST_FIELD)?;
+    let mut record = Map::new();
+    if let Some(variants) = pnpr.get("variants") {
+        record.insert("variants".into(), variants.clone());
+    }
+    record.insert("manifest".into(), shared.clone());
+    Some(record)
+}
+
 /// Remove pnpr's extensions from a version manifest served in npm's format:
 /// pnpr's facts about the archives, the variants it stores with a hosted
 /// version, and the revision protocol's marker and history. The selected
@@ -220,6 +237,7 @@ pub(in super::super) fn release_record(manifest: &Value) -> Map<String, Value> {
 fn without_pnpr_facts(manifest: &mut Value) {
     if let Some(fields) = manifest.as_object_mut() {
         fields.remove(super::super::publishing::variants::STORED_FIELD);
+        fields.remove(super::super::publishing::variants::GENERATED_ARCHIVE_FIELD);
     }
     let dist = manifest.get_mut("dist").and_then(Value::as_object_mut);
     if let Some(dist) = dist {

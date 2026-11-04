@@ -125,6 +125,7 @@ fn prepare_packument_rewrite(
         return Err(err.into_response());
     }
     preserve_existing_maintainers(&hosted, packument);
+    super::publishing::variants::restore_server_fields(&hosted, packument);
     if let Some(packument_obj) = packument.as_object_mut() {
         packument_obj.insert(
             "formatVersion".to_string(),

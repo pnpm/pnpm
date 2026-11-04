@@ -1,7 +1,7 @@
 use super::{
     Action, AppState, CanonicalPackageName, Ecosystem, HashSet, HostedDocumentVersion, Identity,
     Integrity, PendingAttachment, RegistryError, RegistrySource, Storage, Value, WriteTarget,
-    authorize_package, cleanup_tmp_slots, extract_attachments, hosted_storage,
+    authorize_package, cleanup_tmp_slots, extract_attachments, generated_archive, hosted_storage,
     manifest::{
         check_publishable_versions, parse_hosted_packument, prepare_staged_document,
         record_publisher, restore_submitted_tgz_integrities, serialize_staged_document,
@@ -9,15 +9,18 @@ use super::{
     provenance, release_records, resolve_write_target,
     tombstones::{check_publish_tombstone, check_staged_tombstone},
     variants::{self, Declarations, PublishedVariant, VariantTar},
-    verification::verify_published_manifests,
+    verification::{describe_generated_archive, verify_published_manifests},
 };
 use crate::server::staged_archives::claim_staged_archive;
 use slot_writes::{AttachmentPaths, write_under_permit};
-use std::sync::Arc;
+use std::{collections::BTreeSet, sync::Arc};
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 
 mod preparation;
 mod slot_writes;
+mod verified_documents;
+
+use verified_documents::write_verified;
 
 use preparation::prepare_attachments;
 
@@ -187,7 +190,8 @@ pub(in super::super) async fn stage_publish(
     } = doc;
     restore_submitted_tgz_integrities(&storage, &name, hosted.as_ref(), &mut incoming).await?;
 
-    check_publishable_versions(&name, &incoming, hosted.as_ref(), &prepared)?;
+    let without_any =
+        check_publishable_versions(&name, &incoming, hosted.as_ref(), (&prepared, &variants))?;
 
     let merged = prepare_staged_document(&name, hosted.as_ref(), &incoming, &prepared, now_iso);
     // `incoming` is no longer needed; drop it so the base64 strings
@@ -199,7 +203,7 @@ pub(in super::super) async fn stage_publish(
         (&storage, publisher.as_deref(), &state.inner.proxy.tar_decodes),
         &name,
         (prepared, tarballs),
-        (merged, &variants),
+        (merged, &variants, &without_any),
     )
     .await?;
     Ok(StagedPublish {
@@ -212,61 +216,6 @@ pub(in super::super) async fn stage_publish(
         publisher,
         verification: verified.verification,
     })
-}
-
-/// Write every attachment of `prepared` and verify the archives against
-/// the merged document and the version's provenance statement.
-async fn write_verified(
-    (storage, claimant, decodes): (&Storage, Option<&str>, &Arc<Semaphore>),
-    name: &CanonicalPackageName,
-    (prepared, tarballs): (Vec<PreparedAttachment>, TarballStorage),
-    (merged, variants): (Value, &Declarations),
-) -> Result<VerifiedDocument, RegistryError> {
-    let statements = provenance::read_statements(&prepared);
-    // Stream-decode + verify + write each tarball. A mismatch — or a
-    // missing integrity field — short-circuits the publish with a
-    // 400; any tmp files written before the failure get removed
-    // along the way so a bad upload leaves no on-disk artifact.
-    let written =
-        write_attachment_slots((storage, claimant), name, prepared, tarballs, decodes).await?;
-    verified_document(name, (merged, variants, &statements), written).await
-}
-
-/// A publish document whose archives agree with its version metadata.
-struct VerifiedDocument {
-    document: Vec<u8>,
-    slots: Vec<pnpr_storage::BlobSlot>,
-    verification: Verification,
-}
-
-/// Verify every archive `written` holds against the version metadata in
-/// `merged` and against its version's provenance `statements`, record the
-/// verified variants `declared` on it, and serialize the verified document.
-/// A refused archive removes the written slots.
-async fn verified_document(
-    name: &CanonicalPackageName,
-    (mut merged, declared, statements): (Value, &Declarations, &provenance::Statements),
-    written: WrittenAttachments,
-) -> Result<VerifiedDocument, RegistryError> {
-    let verified = verify_published_manifests(name, &mut merged, &written.tars)
-        .and_then(|notices| {
-            variants::attach_variants(&mut merged, declared, &written.variants, &written.tars)?;
-            provenance::check_statements(name, statements, &written.tars, &written.variants)?;
-            let records =
-                release_records::accepted_records(name, &merged, &written.tars, &written.variants)?;
-            Ok((notices, records))
-        });
-    match verified {
-        Ok((notices, records)) => Ok(VerifiedDocument {
-            document: serialize_staged_document(merged, &written.tars),
-            slots: written.slots,
-            verification: Verification { notices, records },
-        }),
-        Err(err) => {
-            cleanup_tmp_slots(written.slots).await;
-            Err(err)
-        }
-    }
 }
 
 /// The blob slots a publish wrote, and the tar each of its `.tgz` files
@@ -290,6 +239,10 @@ pub(super) struct PublishedTar {
     pub(super) archive: pnpm_tarball::PublicationArchive,
     /// Set for a platform variant's `.tgz`.
     pub(super) variant: Option<VariantTar>,
+    /// Whether pnpr generated the archive for a version published without a
+    /// `any` archive (see [`generated_archive`]). It is not one of the version's
+    /// archives.
+    pub(super) generated: bool,
 }
 
 /// What a published `.tgz` decodes to: the key its tar integrity is recorded
@@ -423,7 +376,15 @@ impl PublishedTar {
             inspection,
             archive,
         } = derived;
-        PublishedTar { version, tgz_integrity, integrity, inspection, archive, variant }
+        PublishedTar {
+            version,
+            tgz_integrity,
+            integrity,
+            inspection,
+            archive,
+            variant,
+            generated: false,
+        }
     }
 }
 
