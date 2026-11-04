@@ -41,15 +41,22 @@ pub(super) fn rebase_bases(staged: &mut [StagedPublish]) -> Option<Vec<Option<Va
     )
 }
 
+/// What rebasing a lost commit's documents came to.
+enum Rebase {
+    /// Every document now applies to what its package holds.
+    Applied,
+    /// One of them can't be rebased, and the conflict stands.
+    Conflict,
+}
+
 /// Rebase every document onto the packument its package now holds, and
-/// expect that packument's generation. `false` when one of them can't be,
-/// and the conflict stands.
+/// expect that packument's generation.
 async fn rebase_documents(
     state: &AppState,
     catalog: &str,
     documents: &mut [BatchDocument],
     rebases: (&[Option<Value>], &[Value]),
-) -> Result<bool, RegistryError> {
+) -> Result<Rebase, RegistryError> {
     let storage = state.inner.storage.for_hosted(catalog, pnpr_registry::Ecosystem::Npm);
     for ((document, base), ours) in documents
         .iter_mut()
@@ -62,21 +69,21 @@ async fn rebase_documents(
             (Some(current), _) => {
                 let now: Value = serde_json::from_slice(&current.bytes)?;
                 let Some(rebased) = rebase_packument(base.as_ref(), ours, &now) else {
-                    return Ok(false);
+                    return Ok(Rebase::Conflict);
                 };
                 document.bytes = serde_json::to_vec(&rebased)?;
                 document.expected = Some(current.version);
             }
             // The package the publish read is gone: unpublishing it may have
             // left a tombstone the publish was never checked against.
-            (None, Some(_)) => return Ok(false),
+            (None, Some(_)) => return Ok(Rebase::Conflict),
             (None, None) => {
                 document.bytes = serde_json::to_vec(ours)?;
                 document.expected = None;
             }
         }
     }
-    Ok(true)
+    Ok(Rebase::Applied)
 }
 
 /// What a publish commits beside its documents.
@@ -127,8 +134,9 @@ pub(super) async fn commit_rebasing(
                     .collect::<Result<_, _>>()?,
             ),
         };
-        if !rebase_documents(state, catalog, &mut documents, (conflict.1, ours)).await? {
-            return Err(conflict.0);
+        match rebase_documents(state, catalog, &mut documents, (conflict.1, ours)).await? {
+            Rebase::Applied => {}
+            Rebase::Conflict => return Err(conflict.0),
         }
     }
 }
