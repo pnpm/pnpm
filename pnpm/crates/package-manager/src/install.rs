@@ -555,7 +555,6 @@ pub(crate) struct InstallSaveOptions {
     pub(crate) lockfile_check: Option<LockfileCheckSink>,
 }
 
-/// A run saves the lockfile and the workspace state.
 impl Default for InstallSaveOptions {
     fn default() -> Self {
         InstallSaveOptions { lockfile: true, workspace_state: true, lockfile_check: None }
