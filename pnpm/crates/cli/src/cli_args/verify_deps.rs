@@ -79,10 +79,11 @@ pub(crate) fn verify_deps_before_run(
 }
 
 /// [`verify_deps_before_run`] with the workspace projects a recursive
-/// command discovered once for the gates of all its projects.
+/// command discovered once for the gates of all its projects. The gate
+/// forgets them when it finds the dependencies out of date.
 fn verify_deps_before_run_in(
     dir: &Path,
-    (selected_project_dirs, workspace): (&[&Path], Option<&GateWorkspace>),
+    (selected_project_dirs, workspace): (&[&Path], Option<&mut GateWorkspace>),
     config: &Config,
     reporter: ReporterType,
 ) -> miette::Result<()> {
@@ -90,10 +91,15 @@ fn verify_deps_before_run_in(
         return Ok(());
     }
     let Some(status) =
-        check_deps_status_before_run_at(dir, config, selected_project_dirs, workspace)
+        check_deps_status_before_run_at(dir, config, selected_project_dirs, workspace.as_deref())
     else {
         return Ok(());
     };
+    if status != RunDepsStatus::UpToDate
+        && let Some(workspace) = workspace
+    {
+        workspace.forget_projects();
+    }
     let (issue, mut install_args) = match status {
         RunDepsStatus::UpToDate => return Ok(()),
         RunDepsStatus::SkippedPnp => {
@@ -162,14 +168,12 @@ pub(crate) fn verify_deps_before_recursive_run<ProjectPath: AsRef<Path>>(
             .collect();
         verify_deps_before_run(workspace_root, &selected, config, reporter)
     } else {
-        // A project's gate reads the workspace projects when it links their
-        // commands, so the gates share one discovery of them.
-        let workspace = GateWorkspace::of(workspace_root, config);
+        let mut workspace = GateWorkspace::of(workspace_root, config);
         for project_dir in &project_dirs {
             let project_dir = project_dir.as_ref();
             verify_deps_before_run_in(
                 project_dir,
-                (&[project_dir], workspace.as_ref()),
+                (&[project_dir], workspace.as_mut()),
                 config,
                 reporter,
             )?;

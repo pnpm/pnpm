@@ -229,6 +229,38 @@ fn a_recursive_exec_with_project_lockfiles_discovers_the_projects_once() {
             .success();
     });
 
-    assert!(opens <= 4, "packages/a/package.json was opened {opens} times");
+    assert!((3..=4).contains(&opens), "packages/a/package.json was opened {opens} times");
+    drop((root, mock_instance));
+}
+
+/// A gate that finds its project out of date leaves the next gate to
+/// discover the workspace projects again, since an install in between may
+/// have changed their manifests.
+#[test]
+fn a_recursive_exec_with_project_lockfiles_rediscovers_after_an_outdated_gate() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_gated_workspace_with_project_lockfiles(&workspace);
+    install(&workspace, mock_instance.url());
+    let outdated = serde_json::json!({
+        "name": "b",
+        "version": "1.0.0",
+        "bin": { "b": "cli.js" },
+        "peerDependencies": { "is-positive": "1.0.0" },
+    });
+    fs::write(workspace.join("packages/b/package.json"), outdated.to_string())
+        .expect("edit packages/b/package.json");
+
+    let opens = count_opens(&[workspace.join("packages/a/package.json")], || {
+        pacquet_in(&workspace)
+            .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+            .with_env("PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN", "warn")
+            .with_args(["-r", "exec", "true"])
+            .assert()
+            .success();
+    });
+
+    assert!(opens >= 5, "packages/a/package.json was opened {opens} times");
     drop((root, mock_instance));
 }

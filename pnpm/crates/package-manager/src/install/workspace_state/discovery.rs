@@ -89,31 +89,46 @@ pub fn check_deps_status_before_run_at(
 /// The first gate that needs them discovers them, and the others reuse them.
 pub struct GateWorkspace {
     root: PathBuf,
-    projects: std::sync::OnceLock<Option<Vec<pnpm_workspace::Project>>>,
+    manifest: pnpm_workspace::WorkspaceManifest,
+    discovered: std::sync::OnceLock<DiscoveredProjects>,
+}
+
+/// One discovery of the workspace projects, with the options it ran with.
+struct DiscoveredProjects {
+    opts: pnpm_workspace::FindWorkspaceProjectsOpts,
+    /// `None` when the discovery failed.
+    projects: Option<Vec<pnpm_workspace::Project>>,
 }
 
 impl GateWorkspace {
-    /// The workspace that `dir` belongs to. `None` outside a workspace.
+    /// The workspace that `dir` belongs to. `None` outside a workspace or
+    /// when its manifest cannot be read.
     #[must_use]
     pub fn of(dir: &Path, config: &Config) -> Option<Self> {
         let root = configured_or_discovered_workspace_dir(config, dir).ok()??;
-        Some(Self { root, projects: std::sync::OnceLock::new() })
+        let manifest = pnpm_workspace::read_workspace_manifest(&root).ok()??;
+        Some(Self { root, manifest, discovered: std::sync::OnceLock::new() })
+    }
+
+    /// Drop the discovered projects, so the next gate discovers them again
+    /// after an install that may have changed the manifests.
+    pub fn forget_projects(&mut self) {
+        self.discovered.take();
     }
 
     /// Its projects, as [`check_deps_status_before_run_at`] would discover
-    /// them. `None` when the workspace cannot be read.
+    /// them under `config`. `None` when the discovery failed, or when
+    /// `config` discovers with other options than the gate that ran it, such
+    /// as a project's own `modulesDir`.
     fn projects(&self, config: &Config) -> Option<&[pnpm_workspace::Project]> {
-        self.projects
-            .get_or_init(|| {
-                let manifest = pnpm_workspace::read_workspace_manifest(&self.root).ok()??;
-                super::super::lifecycle::load_checked_workspace_projects(
-                    config,
-                    &self.root,
-                    Some(&manifest),
-                )
-                .ok()?
-            })
-            .as_deref()
+        let opts = super::super::lifecycle::checked_projects_opts(config, &self.manifest);
+        let discovered = self.discovered.get_or_init(|| DiscoveredProjects {
+            projects: pnpm_workspace::find_workspace_projects(&self.root, &opts).ok(),
+            opts: opts.clone(),
+        });
+        let same_opts = discovered.opts.patterns == opts.patterns
+            && discovered.opts.ignored_directories == opts.ignored_directories;
+        discovered.projects.as_deref().filter(|_| same_opts)
     }
 }
 
@@ -446,3 +461,6 @@ pub(super) fn configured_catalogs(
         None => get_catalogs_from_workspace_manifest(workspace_manifest).ok(),
     }
 }
+
+#[cfg(test)]
+mod tests;
