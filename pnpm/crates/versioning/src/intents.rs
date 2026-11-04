@@ -87,17 +87,7 @@ pub fn parse_change_intent(
         return Err(VersioningError::NoFrontmatter { file_path: file_path.to_path_buf() });
     };
 
-    let frontmatter_text = lines[1..closing_index].join("\n");
-    let frontmatter: IndexMap<String, String> = if frontmatter_text.trim().is_empty() {
-        IndexMap::new()
-    } else {
-        serde_saphyr::from_str(&frontmatter_text)
-            .map_err(|err| VersioningError::InvalidFrontmatter {
-                file_path: file_path.to_path_buf(),
-                message: err.to_string(),
-            })?
-    };
-
+    let frontmatter = parse_intent_frontmatter(&lines[1..closing_index].join("\n"), file_path)?;
     let releases = parse_intent_releases(frontmatter, file_path)?;
 
     Ok(ChangeIntent {
@@ -109,6 +99,22 @@ pub fn parse_change_intent(
             .trim()
             .to_string(),
     })
+}
+
+fn parse_intent_frontmatter(
+    frontmatter_text: &str,
+    file_path: &Path,
+) -> Result<IndexMap<String, String>, VersioningError> {
+    if frontmatter_text.trim().is_empty() {
+        return Ok(IndexMap::new());
+    }
+
+    serde_saphyr::from_str::<Option<IndexMap<String, String>>>(frontmatter_text)
+        .map_err(|err| VersioningError::InvalidFrontmatter {
+            file_path: file_path.to_path_buf(),
+            message: err.to_string(),
+        })
+        .map(Option::unwrap_or_default)
 }
 
 pub fn read_change_intents(workspace_dir: &Path) -> Result<Vec<ChangeIntent>, VersioningError> {

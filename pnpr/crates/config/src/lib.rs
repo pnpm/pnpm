@@ -59,6 +59,7 @@ mod logging;
 use logging::build_log_config;
 
 mod metrics;
+mod null_default;
 
 mod package_documents;
 use package_documents::{PackageDocumentsFile, build_package_documents_config};

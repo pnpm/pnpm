@@ -23,6 +23,14 @@ fn empty_file_returns_default() {
 }
 
 #[test]
+fn comment_only_file_returns_default() {
+    let tmp = TempDir::new().unwrap();
+    fs::write(tmp.path().join(WORKSPACE_MANIFEST_FILENAME), "# workspace settings\n").unwrap();
+    let manifest = read_workspace_manifest(tmp.path()).unwrap();
+    assert_eq!(manifest, Some(WorkspaceManifest::default()));
+}
+
+#[test]
 fn parses_packages_array() {
     let tmp = TempDir::new().unwrap();
     fs::write(

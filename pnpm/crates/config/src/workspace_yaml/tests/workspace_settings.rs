@@ -766,7 +766,8 @@ fn parses_hoisting_limits_from_yaml_and_applies() {
 #[test]
 fn omitting_hoisting_limits_and_external_dependencies_keeps_defaults() {
     let yaml = "";
-    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    let settings: WorkspaceSettings =
+        serde_saphyr::from_str::<Option<WorkspaceSettings>>(yaml).unwrap().unwrap_or_default();
     assert!(settings.hoisting_limits.is_none());
     assert!(settings.external_dependencies.is_none());
 
@@ -792,7 +793,8 @@ fn catalog_mode_yaml_values_round_trip() {
         assert_eq!(config.catalog_mode, expected);
     }
 
-    let settings: WorkspaceSettings = serde_saphyr::from_str("").unwrap();
+    let settings: WorkspaceSettings =
+        serde_saphyr::from_str::<Option<WorkspaceSettings>>("").unwrap().unwrap_or_default();
     assert!(settings.catalog_mode.is_none());
     let mut config = Config::new();
     settings.apply_to(&mut config, Path::new("/irrelevant"));
