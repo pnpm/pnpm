@@ -522,7 +522,7 @@ fn a_workspace_with_a_pnpmfile_reads_an_edited_manifest() {
     assert!(output.contains("Already up to date"), "{output}");
     assert!(
         output.contains("repeat-install fast path not taken after the config setup"),
-        "{output}"
+        "{output}",
     );
     assert!(!output.contains(TAKEN_AFTER_CONFIG), "{output}");
     drop((root, mock_instance));
