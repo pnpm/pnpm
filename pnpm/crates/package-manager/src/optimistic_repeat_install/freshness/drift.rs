@@ -36,6 +36,17 @@ impl ProjectStatus {
     }
 }
 
+/// What [`InputDrift::held`] does with a project the last validation proves
+/// installed.
+#[derive(Debug, Clone, Copy)]
+pub(super) enum ProvenProjects {
+    /// Leave it out.
+    Trusted,
+    /// Hold it like the others, for an input no validation records the
+    /// contents of.
+    Rechecked,
+}
+
 /// Every input the content phase compares against the last validation.
 pub(crate) struct InputDrift<'a> {
     pub(crate) stats: Vec<ManifestStat<'a>>,
@@ -91,15 +102,20 @@ impl<'a> InputDrift<'a> {
             .all(|stat| stat.status == ProjectStatus::Proven)
     }
 
-    /// The projects `scope` holds that are not proven installed.
+    /// The projects `scope` holds that are not proven installed, and the
+    /// proven ones too when `proven` says so.
     pub(super) fn held(
         &self,
         check: &OptimisticRepeatInstallCheck<'_>,
         scope: Scope<'_>,
+        proven: ProvenProjects,
     ) -> Vec<&ManifestStat<'a>> {
         let unproven = self.stats
             .iter()
-            .filter(|stat| stat.status != ProjectStatus::Proven);
+            .filter(|stat| match proven {
+                ProvenProjects::Trusted => stat.status != ProjectStatus::Proven,
+                ProvenProjects::Rechecked => true,
+            });
         let (selected, held_anywhere): (&[&Path], fn(ProjectStatus) -> bool) = match scope {
             Scope::Workspace => return unproven.collect(),
             Scope::Selected(selected) => (selected, |_| false),

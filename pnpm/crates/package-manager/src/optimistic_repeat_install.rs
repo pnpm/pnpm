@@ -220,14 +220,32 @@ fn recorded_local_dependency_changed(
     check: &OptimisticRepeatInstallCheck<'_>,
     state: &WorkspaceState,
 ) -> bool {
-    let workspace_dirs: std::collections::HashSet<PathBuf> = check
+    state.validation
+        .as_ref()
+        .is_some_and(|validation| {
+            validation::local_dependency_changed(validation, &workspace_dirs(check))
+        })
+}
+
+/// Whether the last validation recorded a local directory dependency that is
+/// no workspace project.
+fn records_local_directory(
+    check: &OptimisticRepeatInstallCheck<'_>,
+    state: &WorkspaceState,
+) -> bool {
+    state.validation
+        .as_ref()
+        .is_some_and(|validation| {
+            validation::records_local_directory(validation, &workspace_dirs(check))
+        })
+}
+
+fn workspace_dirs(check: &OptimisticRepeatInstallCheck<'_>) -> std::collections::HashSet<PathBuf> {
+    check
         .bin_projects()
         .iter()
         .map(|(dir, _)| pnpm_fs::lexical_normalize(dir))
-        .collect();
-    state.validation
-        .as_ref()
-        .is_some_and(|validation| validation::local_dependency_changed(validation, &workspace_dirs))
+        .collect()
 }
 
 fn manifest_string_field(manifest: &PackageManifest, key: &str) -> Option<String> {

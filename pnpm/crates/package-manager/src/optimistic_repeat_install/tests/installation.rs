@@ -394,6 +394,25 @@ fn returns_up_to_date_when_the_manifest_is_rewritten_unchanged() {
     );
     assert_eq!(decision, Decision::UpToDate);
 }
+/// The content check runs on a current-thread runtime, which cannot run the
+/// manifest hooks, when no directory package needs them.
+#[test]
+fn returns_up_to_date_for_a_satisfied_edit_on_a_current_thread_runtime() {
+    let (dir, config) = setup_content_check_project();
+    let manifest_path = dir.path().join("package.json");
+    fs::write(&manifest_path, super::FOO_MANIFEST_EDITED).unwrap();
+    pnpm_testing_utils::fs::bump_mtime(&manifest_path);
+    let edited_manifest = PackageManifest::from_path(manifest_path).unwrap();
+
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    let decision = runtime.block_on(async {
+        content_check_decision(&dir, config, false, &[(dir.path().to_path_buf(), &edited_manifest)])
+    });
+    assert_eq!(decision, Decision::UpToDate);
+}
 /// Drift in `minimumReleaseAge` invalidates the cached state. pnpm
 /// resolves it to a concrete `1440` default and records it verbatim
 /// (the raw value, not the `Some(0)`-disabled resolution), so pacquet
