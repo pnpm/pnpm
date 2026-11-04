@@ -167,9 +167,10 @@ fn collect_own_files(
 }
 
 /// The [`normalize_contained_field_path`]-ed `main`, `browser`, and `bin`
-/// paths that stay inside the package. A non-string value, such as a
-/// `browser` replacement map, is skipped.
-fn required_field_paths(manifest: &Value) -> Vec<String> {
+/// paths that stay inside the package, which the packlist always includes.
+/// A non-string value, such as a `browser` replacement map, is skipped.
+#[must_use]
+pub fn required_field_paths(manifest: &Value) -> Vec<String> {
     let bin_paths = match manifest.get("bin") {
         Some(Value::String(bin)) => vec![bin.as_str()],
         Some(Value::Object(map)) => map

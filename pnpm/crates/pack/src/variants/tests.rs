@@ -145,6 +145,21 @@ fn rejects_manifest_fields_every_archive_shares_or_a_variant_cannot_set() {
         VariantDeclaration::read(&inherited),
         Err(VariantDeclarationError::BaseFieldInherited { .. }),
     ));
+    let mut marked = base(&json!([{ "targets": ["any"] }]));
+    marked["variant"] = json!({ "platforms": ["linux-x64"] });
+    assert!(
+        matches!(VariantDeclaration::read(&marked), Err(VariantDeclarationError::BaseVariant),)
+    );
+}
+
+#[test]
+fn rejects_a_declaration_without_entries() {
+    match VariantDeclaration::read(&base(&json!([]))) {
+        Err(VariantDeclarationError::Shape { reason }) => {
+            assert!(reason.contains("at least one entry"), "{reason}");
+        }
+        other => panic!("{other:?}"),
+    }
 }
 
 #[test]

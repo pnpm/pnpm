@@ -40,8 +40,13 @@ fn addon() -> Value {
 }
 
 fn write_addon(dir: &std::path::Path) {
-    for file in ["index.js", "lib/fallback.js", "addon.linux-x64.node", "addon.linux-x64-musl.node"]
-    {
+    for file in [
+        "index.js",
+        "musl.js",
+        "lib/fallback.js",
+        "addon.linux-x64.node",
+        "addon.linux-x64-musl.node",
+    ] {
         touch(dir, file, file);
     }
 }
@@ -76,6 +81,16 @@ fn packs_one_archive_per_entry_with_the_files_it_claims() {
         entries(names[1]),
         ["package/addon.linux-x64.node", "package/index.js", "package/package.json"],
     );
+    assert_eq!(
+        entries(names[2]),
+        [
+            "package/addon.linux-x64-musl.node",
+            "package/index.js",
+            "package/musl.js",
+            "package/package.json",
+        ],
+        "the musl archive holds the main its manifest names",
+    );
     let musl: Value = serde_json::from_str(
         &tarball_entry_content(&dir.path().join(names[2]), "package/package.json").unwrap(),
     )
@@ -95,6 +110,7 @@ fn packs_only_the_named_archive_without_the_other_entries_files() {
     let (dir, opts) = fixture(&addon());
     touch(dir.path(), "index.js", "index");
     touch(dir.path(), "addon.linux-x64-musl.node", "musl");
+    touch(dir.path(), "musl.js", "musl");
     let packed = pack(&opts, &["linux-x64-musl"]).unwrap();
     assert_eq!(packed.len(), 1);
     assert_eq!(packed[0].result.tarball_path, "example-native-addon-2.3.0~linux-x64-musl.tgz");
@@ -137,4 +153,72 @@ fn a_package_without_variants_packs_its_archive_and_names_none() {
     let packed = pack(&opts, &[]).unwrap();
     assert!(packed[0].entry.is_none());
     assert!(matches!(pack(&opts, &["linux-x64"]), Err(PackError::NoVariants { .. })));
+}
+
+/// The RFC's CLI: nothing is shared, the `any` entry claims the JavaScript
+/// shim the base `bin` names, and each native archive holds only the
+/// executable its own `bin` names.
+#[test]
+fn an_archive_holds_its_own_entry_points_not_the_base_manifests() {
+    let (dir, opts) = fixture(&json!({
+        "name": "example-cli",
+        "version": "4.0.0",
+        "bin": { "example-cli": "bin/example-cli.js" },
+        "files": [],
+        "publishConfig": {
+            "variants": [
+                { "targets": ["any"], "files": ["bin/**", "lib/**"] },
+                {
+                    "targets": ["linux-x64"],
+                    "files": ["native/linux-x64/example-cli"],
+                    "manifest": { "bin": { "example-cli": "native/linux-x64/example-cli" } },
+                },
+            ],
+        },
+    }));
+    for file in ["bin/example-cli.js", "lib/cli.js", "native/linux-x64/example-cli"] {
+        touch(dir.path(), file, "#!/usr/bin/env node\n");
+    }
+    let packed = pack(&opts, &[]).unwrap();
+    let entries = |index: usize| {
+        let mut entries = tarball_entry_names(
+            &dir.path()
+                .join(&packed[index].result.tarball_path),
+        );
+        entries.sort();
+        entries
+    };
+    assert_eq!(
+        entries(0),
+        ["package/bin/example-cli.js", "package/lib/cli.js", "package/package.json"],
+    );
+    assert_eq!(entries(1), ["package/native/linux-x64/example-cli", "package/package.json"]);
+}
+
+#[test]
+fn an_archive_whose_entry_point_is_missing_is_refused() {
+    let (dir, opts) = fixture(&addon());
+    touch(dir.path(), "index.js", "index");
+    touch(dir.path(), "addon.linux-x64-musl.node", "musl");
+    match pack(&opts, &["linux-x64-musl"]) {
+        Err(PackError::VariantEntryPointMissing { targets, path }) => {
+            assert_eq!((targets.as_str(), path.as_str()), ("linux-x64-musl", "musl.js"));
+        }
+        other => panic!("{other:?}"),
+    }
+}
+
+/// A variant's bin gets the shebang check a package without variants gets,
+/// in a dry run too.
+#[test]
+fn a_variant_bin_with_a_crlf_shebang_is_refused() {
+    let mut manifest = addon();
+    manifest["publishConfig"]["variants"][1]["manifest"] =
+        json!({ "bin": { "addon": "addon.linux-x64.node" } });
+    let (dir, mut opts) = fixture(&manifest);
+    write_addon(dir.path());
+    touch(dir.path(), "addon.linux-x64.node", "#!/usr/bin/env node\r\n");
+    assert!(matches!(pack(&opts, &["linux-x64"]), Err(PackError::BinCrlf { .. })));
+    opts.output.dry_run = true;
+    assert!(matches!(pack(&opts, &["linux-x64"]), Err(PackError::BinCrlf { .. })));
 }

@@ -197,6 +197,15 @@ pub enum PackError {
     )]
     VariantPatternMatchesNothing { targets: String, pattern: String },
 
+    #[display("The archive of the variant for {targets} lacks {path:?}, which its manifest names")]
+    #[diagnostic(
+        code(ERR_PNPM_VARIANT_ENTRY_POINT_MISSING),
+        help(
+            "Every archive holds the files its own manifest's main, browser, and bin name. Build the file before packing, or fix the path in the entry's manifest."
+        )
+    )]
+    VariantEntryPointMissing { targets: String, path: String },
+
     #[display("The package declares publishConfig.variants, which this command cannot publish yet")]
     #[diagnostic(code(ERR_PNPM_VARIANTS_UNSUPPORTED))]
     OneArchiveOfVariants,
@@ -239,7 +248,7 @@ where
 {
     let (tarball_name, pack_destination) =
         resolve_output(&opts.output, &source.normalized_name, &source.published_version)?;
-    let files_map = packed_files_map(opts, &source)?;
+    let files_map = packed_files_map(opts, &source, &source.publish_manifest)?;
     warn_about_unlisted_dotenv_files::<Reporter>(&source.dir, &source.publish_manifest, &files_map);
     check_packed_bins_for_crlf(&files_map, &source.bins)?;
     let manifest_json = serde_json::to_string_pretty(&source.publish_manifest)
@@ -281,13 +290,16 @@ where
     Ok(PackResult { published_manifest, contents, tarball_path, unpacked_size })
 }
 
+/// The files `source` packs as `manifest` selects them, by their path in
+/// the archive.
 fn packed_files_map(
     opts: &PackOptions,
     source: &PackSource,
+    manifest: &Value,
 ) -> Result<indexmap::IndexMap<String, PathBuf>, PackError> {
     let files = packlist_with_sources(
         &source.dir,
-        &source.publish_manifest,
+        manifest,
         PacklistOptions {
             workspace_dir: opts.workspace_dir.as_deref(),
             bundled_dependencies_dir: Some(&opts.dir),

@@ -51,3 +51,18 @@ fn packs_every_archive_or_the_one_a_target_names() {
 
     drop(root);
 }
+
+/// A target names an entry of one package's declaration, so a recursive
+/// pack does not take one.
+#[test]
+fn a_recursive_pack_takes_no_variant() {
+    let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
+    let output = pacquet
+        .with_args(["-r", "pack", "--variant", "linux-x64"])
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("ERR_PNPM_PACK_VARIANT_ALONE"), "{stderr}");
+    drop(root);
+}

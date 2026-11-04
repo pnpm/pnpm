@@ -148,6 +148,15 @@ pub enum VariantDeclarationError {
     )]
     BaseFieldInherited { field: String },
 
+    #[display(r#"The package manifest has "variant", which pnpm writes into each archive"#)]
+    #[diagnostic(
+        code(ERR_PNPM_INVALID_VARIANT_MANIFEST),
+        help(
+            r#"Remove it. The "any" archive has no "variant" field, and pnpm writes each platform variant's from its entry's targets."#
+        )
+    )]
+    BaseVariant,
+
     #[display("No entry of publishConfig.variants targets {target:?}")]
     #[diagnostic(code(ERR_PNPM_UNKNOWN_VARIANT))]
     NoSuchEntry { target: String },
@@ -161,6 +170,9 @@ impl VariantDeclaration {
         let Value::Array(declared) = declared else {
             return Err(shape("must be an array of entries"));
         };
+        if declared.is_empty() {
+            return Err(shape("must list at least one entry"));
+        }
         let entries = declared
             .iter()
             .enumerate()
@@ -173,6 +185,9 @@ impl VariantDeclaration {
             .find(|field| base.get(**field).is_some())
         {
             return Err(VariantDeclarationError::BaseFieldInherited { field: (*field).into() });
+        }
+        if base.get("variant").is_some() {
+            return Err(VariantDeclarationError::BaseVariant);
         }
         Ok(Some(declaration))
     }

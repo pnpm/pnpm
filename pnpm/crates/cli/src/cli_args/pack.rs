@@ -137,6 +137,13 @@ impl PackArgs {
         recursive: bool,
         before_packing_hooks: Vec<Arc<dyn PnpmfileHooks>>,
     ) -> miette::Result<String> {
+        if recursive && !self.variant.is_empty() {
+            return Err(miette::miette!(
+                code = "ERR_PNPM_PACK_VARIANT_ALONE",
+                help = "Run it in the directory of each package whose archive you want.",
+                "--variant packs archives of one package's publishConfig.variants, so it does not take --recursive",
+            ));
+        }
         if recursive {
             self.run_recursive::<Reporter>(dir, config, before_packing_hooks).await
         } else {

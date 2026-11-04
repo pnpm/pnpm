@@ -3,21 +3,25 @@
 //! The package's files are listed as `pack` lists them today. A file that a
 //! pattern of an entry's `files` matches goes only into the archives of the
 //! entries whose patterns match it, even when the package's own `files`
-//! leaves it out; every other file goes into every archive. `prepack` and
-//! `postpack` run once around all the archives.
+//! leaves it out; every other file goes into every archive. Each archive
+//! also holds the files its own manifest's `main`, `browser`, and `bin`
+//! name, after its entry's `manifest` is applied, rather than the base
+//! manifest's. `prepack` and `postpack` run once around all the archives.
 
 use super::{VariantDeclaration, VariantEntry, archive_file_name, check_archive};
 use crate::{
     FsAtomicWrite, FsCreateDirAll, FsFileLen, FsIsExecutable, FsReadFile, PackError, PackOptions,
     PackResult, PackResultJson, PackedTarball,
     contents::executable_sources,
-    create_dest_dir, pack_source, packed_contents_with_injected, packed_files_map,
-    packed_tarball_path, resolve_dest_dir, resolve_output,
-    source::{PackSource, prepare_source, with_registry_readme},
+    create_dest_dir,
+    dotenv::warn_about_unlisted_dotenv_files,
+    pack_source, packed_contents_with_injected, packed_files_map, packed_tarball_path,
+    resolve_dest_dir, resolve_output,
+    source::{PackSource, check_packed_bins_for_crlf, prepare_source, with_registry_readme},
     unpacked_size, write_tarball,
 };
 use indexmap::IndexMap;
-use pnpm_fs_packlist::{PacklistOptions, packlist_with_sources};
+use pnpm_fs_packlist::{PacklistOptions, packlist_with_sources, required_field_paths};
 use pnpm_reporter::Reporter;
 use serde_json::Value;
 use std::{
@@ -64,7 +68,7 @@ where
     let mut packed = Vec::with_capacity(selected.len());
     for index in selected {
         let entry = &declaration.entries[index];
-        let result = pack_entry::<Sys>(opts, &source, entry, &claims.files_of(index)).await?;
+        let result = pack_entry::<Reporter, Sys>(opts, &source, &claims, index, entry).await?;
         packed.push(PackedArchive { entry: Some(entry.clone()), result });
     }
     if !opts.output.dry_run && !opts.scripts.ignore {
@@ -94,10 +98,17 @@ fn selected_entries(
     Ok(selected.into_iter().collect())
 }
 
-/// The package's files, and the files each entry's patterns claim.
+/// The files the package shares, and the files each entry's patterns claim.
+/// Both are listed from the base manifest without its `main`, `browser`, and
+/// `bin`: an archive holds the files its own manifest's entry points name,
+/// not the base manifest's.
 struct Claims {
-    /// `package/<path>` to its source, as `pack` lists them.
+    /// `package/<path>` to its source: what the package's own `files`
+    /// selects.
     shared: IndexMap<String, PathBuf>,
+    /// The files every archive holds whatever its manifest: `package.json`,
+    /// the README, and the license.
+    always: BTreeMap<String, PathBuf>,
     /// The files each entry claims, by entry index.
     claimed: Vec<BTreeMap<String, PathBuf>>,
 }
@@ -109,33 +120,28 @@ impl Claims {
         declaration: &VariantDeclaration,
         selected: &[usize],
     ) -> Result<Self, PackError> {
-        let shared = packed_files_map(opts, source)?;
-        let always = listed(opts, source, &[])?;
-        let mut claimed = Vec::with_capacity(declaration.entries.len());
-        for (index, entry) in declaration.entries.iter().enumerate() {
-            let mut files = BTreeMap::new();
-            for pattern in &entry.files {
-                let matched: BTreeMap<String, PathBuf> =
-                    listed(opts, source, std::slice::from_ref(pattern))?
-                        .into_iter()
-                        .filter(|(path, _)| !always.contains_key(path))
-                        .collect();
-                if matched.is_empty() && selected.contains(&index) {
-                    return Err(PackError::VariantPatternMatchesNothing {
-                        targets: entry.label(),
-                        pattern: pattern.clone(),
-                    });
-                }
-                files.extend(matched);
-            }
-            claimed.push(files);
-        }
-        Ok(Claims { shared, claimed })
+        let base = without_entry_points(&source.publish_manifest);
+        let shared = packed_files_map(opts, source, &base)?;
+        let always = listed(opts, source, &base, &[])?;
+        let claimed = declaration.entries
+            .iter()
+            .enumerate()
+            .map(|(index, entry)| {
+                claimed_by(opts, source, (&base, &always), entry, selected.contains(&index))
+            })
+            .collect::<Result<_, _>>()?;
+        Ok(Claims { shared, always, claimed })
     }
 
-    /// The files of entry `index`'s archive: every file no entry claims,
-    /// and the files it claims.
-    fn files_of(&self, index: usize) -> IndexMap<String, PathBuf> {
+    /// The files of entry `index`'s archive, whose `package.json` is
+    /// `manifest`: every shared file no entry claims, the files it claims,
+    /// and the files its manifest's entry points name.
+    fn files_of(
+        &self,
+        (opts, source): (&PackOptions, &PackSource),
+        index: usize,
+        manifest: &Value,
+    ) -> Result<IndexMap<String, PathBuf>, PackError> {
         let claimed_by_any: BTreeSet<&String> = self.claimed
             .iter()
             .flat_map(BTreeMap::keys)
@@ -148,21 +154,69 @@ impl Claims {
             })
             .map(|(path, source)| (path.clone(), source.clone()))
             .collect();
-        for (path, source) in &self.claimed[index] {
-            files.insert(format!("package/{path}"), source.clone());
+        let entry_points = listed(opts, source, manifest, &[])?
+            .into_iter()
+            .filter(|(path, _)| !self.always.contains_key(path));
+        for (path, source) in self.claimed[index]
+            .clone()
+            .into_iter()
+            .chain(entry_points)
+        {
+            files.insert(format!("package/{path}"), source);
         }
-        files
+        Ok(files)
     }
 }
 
-/// The files `pack` lists for the package when its `files` field is
-/// `patterns`.
+/// The files `entry`'s patterns claim from what `base` lists, leaving out
+/// the files every archive holds. When the entry is `packed`, a pattern that
+/// claims nothing fails.
+fn claimed_by(
+    opts: &PackOptions,
+    source: &PackSource,
+    (base, always): (&Value, &BTreeMap<String, PathBuf>),
+    entry: &VariantEntry,
+    packed: bool,
+) -> Result<BTreeMap<String, PathBuf>, PackError> {
+    let mut files = BTreeMap::new();
+    for pattern in &entry.files {
+        let matched: BTreeMap<String, PathBuf> =
+            listed(opts, source, base, std::slice::from_ref(pattern))?
+                .into_iter()
+                .filter(|(path, _)| !always.contains_key(path))
+                .collect();
+        if matched.is_empty() && packed {
+            return Err(PackError::VariantPatternMatchesNothing {
+                targets: entry.label(),
+                pattern: pattern.clone(),
+            });
+        }
+        files.extend(matched);
+    }
+    Ok(files)
+}
+
+/// `manifest` without the `main`, `browser`, and `bin` whose files the
+/// packlist always includes.
+fn without_entry_points(manifest: &Value) -> Value {
+    let mut manifest = manifest.clone();
+    if let Value::Object(fields) = &mut manifest {
+        for field in ["main", "browser", "bin"] {
+            fields.shift_remove(field);
+        }
+    }
+    manifest
+}
+
+/// The files `pack` lists for the package whose manifest is `manifest`,
+/// with `patterns` as its `files` field.
 fn listed(
     opts: &PackOptions,
     source: &PackSource,
+    manifest: &Value,
     patterns: &[String],
 ) -> Result<BTreeMap<String, PathBuf>, PackError> {
-    let mut manifest = source.publish_manifest.clone();
+    let mut manifest = manifest.clone();
     if let Value::Object(fields) = &mut manifest {
         fields.insert(
             "files".into(),
@@ -184,17 +238,28 @@ fn listed(
     .map_err(PackError::Packlist)
 }
 
-/// Check and write the archive of `entry`, which holds `files_map`.
-async fn pack_entry<Sys>(
+/// Check and write the archive of `entry`, the entry at `index`, with the
+/// checks a package without variants gets: its bins' shebangs, and the
+/// dotenv files no `files` pattern names.
+async fn pack_entry<Reporter, Sys>(
     opts: &PackOptions,
     source: &PackSource,
+    claims: &Claims,
+    index: usize,
     entry: &VariantEntry,
-    files_map: &IndexMap<String, PathBuf>,
 ) -> Result<PackResult, PackError>
 where
+    Reporter: self::Reporter,
     Sys: FsReadFile + FsFileLen + FsCreateDirAll + FsAtomicWrite + FsIsExecutable,
 {
-    let manifest = checked_manifest(source, entry, files_map)?;
+    let manifest = VariantDeclaration::archive_manifest(&source.publish_manifest, entry);
+    let files_map = &claims.files_of((opts, source), index, &manifest)?;
+    check_entry_points(entry, &manifest, files_map)?;
+    let manifest = checked_manifest(source, entry, manifest, files_map)?;
+    let listing = listing_manifest(&source.publish_manifest, entry);
+    warn_about_unlisted_dotenv_files::<Reporter>(&source.dir, &listing, files_map);
+    let bins = executable_sources(&manifest, &manifest, &source.dir);
+    check_packed_bins_for_crlf(files_map, &bins)?;
     let (tarball_name, dest_dir) = archive_destination(opts, source, entry, &manifest)?;
     let manifest_json = serde_json::to_string_pretty(&manifest)
         .expect("an archive manifest serializes to JSON")
@@ -211,7 +276,6 @@ where
             files_map,
             manifest_json: &manifest_json,
         };
-        let bins = executable_sources(&manifest, &manifest, &source.dir);
         write_tarball::<Sys>(&opts.output, &packed, &bins).await?;
     }
     Ok(PackResult {
@@ -222,14 +286,60 @@ where
     })
 }
 
-/// The `package.json` of `entry`'s archive, once the archive that holds
-/// `files_map` passes the checks pnpr runs.
+/// Refuse an archive whose manifest's `main`, `browser`, or `bin` names a
+/// file the archive lacks. A path names a file, a file with an extension
+/// added, or a directory's files, as Node.js resolves it.
+fn check_entry_points(
+    entry: &VariantEntry,
+    manifest: &Value,
+    files_map: &IndexMap<String, PathBuf>,
+) -> Result<(), PackError> {
+    for path in required_field_paths(manifest) {
+        let packed = format!("package/{path}");
+        let present = files_map
+            .keys()
+            .any(|file| {
+                file.strip_prefix(&packed)
+                    .is_some_and(|rest| rest.is_empty() || rest.starts_with(['.', '/']))
+            });
+        if !present {
+            return Err(PackError::VariantEntryPointMissing { targets: entry.label(), path });
+        }
+    }
+    Ok(())
+}
+
+/// The manifest whose `files` lists what the package names on purpose for
+/// `entry`'s archive: its own `files` and the entry's patterns.
+fn listing_manifest(base: &Value, entry: &VariantEntry) -> Value {
+    let mut manifest = base.clone();
+    let listed: Vec<Value> = base
+        .get("files")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .cloned()
+        .chain(
+            entry.files
+                .iter()
+                .cloned()
+                .map(Value::String),
+        )
+        .collect();
+    if let Value::Object(fields) = &mut manifest {
+        fields.insert("files".into(), Value::Array(listed));
+    }
+    manifest
+}
+
+/// `manifest`, the `package.json` of `entry`'s archive, once the archive
+/// that holds `files_map` passes the checks pnpr runs.
 fn checked_manifest(
     source: &PackSource,
     entry: &VariantEntry,
+    manifest: Value,
     files_map: &IndexMap<String, PathBuf>,
 ) -> Result<Value, PackError> {
-    let manifest = VariantDeclaration::archive_manifest(&source.publish_manifest, entry);
     let paths: Vec<&str> = files_map
         .keys()
         .filter_map(|path| path.strip_prefix("package/"))
