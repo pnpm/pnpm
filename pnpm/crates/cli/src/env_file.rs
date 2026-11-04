@@ -96,7 +96,7 @@ const UTF8_BOM: [u8; 3] = [0xEF, 0xBB, 0xBF];
 fn load_one(
     path: &Path,
     loaded_keys: &mut HashSet<String>,
-    set: &mut impl FnMut(&str, &str),
+    mut set: impl FnMut(&str, &str),
 ) -> miette::Result<()> {
     let bytes =
         std::fs::read(path).map_err(|source| EnvFileError::Read { path: path.to_owned(), source })?;

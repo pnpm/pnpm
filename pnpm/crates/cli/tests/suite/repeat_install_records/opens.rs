@@ -9,64 +9,14 @@ use super::{
 use crate::_utils::pacquet_in;
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+use pnpm_testing_utils::{
+    bin::{AddMockedRegistry, CommandTempCwd},
+    open_counter::count_opens,
+};
 use std::{
-    ffi::CString,
     fs,
-    os::unix::ffi::OsStrExt as _,
     path::{Path, PathBuf},
 };
-
-/// How many times `paths` are opened while `run` runs.
-fn count_opens(paths: &[PathBuf], run: impl FnOnce()) -> usize {
-    // SAFETY: no pointer arguments; a negative result is checked below.
-    let fd = unsafe { libc::inotify_init1(libc::IN_NONBLOCK | libc::IN_CLOEXEC) };
-    assert!(fd >= 0, "inotify_init1: {}", std::io::Error::last_os_error());
-    for path in paths {
-        let path = CString::new(path.as_os_str().as_bytes()).expect("a path without NUL");
-        // SAFETY: `fd` is the inotify descriptor above and `path` outlives the call.
-        let watch = unsafe { libc::inotify_add_watch(fd, path.as_ptr(), libc::IN_OPEN) };
-        assert!(watch >= 0, "inotify_add_watch: {}", std::io::Error::last_os_error());
-    }
-    run();
-    let opens = read_open_events(fd);
-    // SAFETY: `fd` is open and closed once.
-    unsafe { libc::close(fd) };
-    opens
-}
-
-/// The `IN_OPEN` events queued on the inotify descriptor `fd`.
-fn read_open_events(fd: libc::c_int) -> usize {
-    const HEADER: usize = size_of::<libc::inotify_event>();
-    let mut buffer = [0_u8; 4096];
-    let mut opens = 0;
-    loop {
-        // SAFETY: `buffer` is writable for its whole length.
-        let read = unsafe { libc::read(fd, buffer.as_mut_ptr().cast(), buffer.len()) };
-        let Ok(read) = usize::try_from(read) else { break };
-        if read == 0 {
-            break;
-        }
-        let mut offset = 0;
-        while offset + HEADER <= read {
-            // SAFETY: the kernel wrote a whole event header at `offset`, and
-            // `read_unaligned` copes with the byte buffer's alignment.
-            let event = unsafe {
-                std::ptr::read_unaligned(
-                    buffer
-                        .as_ptr()
-                        .add(offset)
-                        .cast::<libc::inotify_event>(),
-                )
-            };
-            if event.mask & libc::IN_OPEN != 0 {
-                opens += 1;
-            }
-            offset += HEADER + event.len as usize;
-        }
-    }
-    opens
-}
 
 /// The manifests of the projects other than the workspace root, which the
 /// command runs in and reads anyway.

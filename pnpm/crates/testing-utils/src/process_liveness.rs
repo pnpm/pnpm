@@ -8,14 +8,17 @@
 /// as running until it is reaped.
 #[must_use]
 pub fn is_running(pid: i32) -> bool {
-    // SAFETY: `kill` with signal `0` only probes for the target's
-    // existence, delivering nothing. It takes both arguments by value and
-    // writes no memory.
-    let alive = unsafe { libc::kill(pid, 0) == 0 };
+    // Read the state before probing. A process reaped between the probe and
+    // the read answers the probe and then has no state left to read, which
+    // would make a process that is gone read as running.
     let reaped = std::fs::read_to_string(format!("/proc/{pid}/stat"))
         .is_ok_and(|stat| {
             stat.rsplit_once(") ")
                 .is_some_and(|(_, state)| state.starts_with('Z'))
         });
+    // SAFETY: `kill` with signal `0` only probes for the target's
+    // existence, delivering nothing. It takes both arguments by value and
+    // writes no memory.
+    let alive = unsafe { libc::kill(pid, 0) == 0 };
     alive && !reaped
 }
