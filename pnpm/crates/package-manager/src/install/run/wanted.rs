@@ -2,8 +2,8 @@ use super::{
     super::{
         Arc, FastUpdateLockfileOptions, FreshnessScope, InstallError, Lockfile, PackageManifest,
         Path, PathBuf, Reporter, check_lockfile_freshness,
-        lockfile_freshness::LockfileFreshnessInputs, prune_merged_branch_lockfile,
-        try_fast_update_lockfile,
+        lockfile_freshness::{DependencyManifestSources, LockfileFreshnessInputs},
+        prune_merged_branch_lockfile, try_fast_update_lockfile,
     },
     InstallView, RunMode,
     lockfile_load::Loaded,
@@ -138,7 +138,10 @@ pub(super) fn freshness_inputs<'r>(
         lockfile_dir: &workspace.dirs.workspace_root,
         manifests,
         workspace_packages: workspace.workspace_packages.as_deref(),
-        dependency_manifests: scope.dependency_manifests.as_ref(),
+        dependency_manifests: DependencyManifestSources {
+            declared: scope.declared_manifests().as_slice(),
+            injected: scope.dependency_manifests.as_ref(),
+        },
         config: install.context.config,
         catalogs: &workspace.catalogs,
         pnpmfile_hook: loaded.pnpmfile_hook.as_ref(),

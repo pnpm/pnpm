@@ -38,10 +38,10 @@ impl DirectoryManifests {
 
 /// The manifest of every directory package the importers of `inputs` reach
 /// through directory packages, and of every `nested` one they reach and the directory
-/// packages beneath it, that no project in `inputs` describes, with
-/// the resolver's manifest hooks applied as the resolver applies them:
+/// packages beneath it, with the resolver's manifest hooks applied as the resolver applies them:
 /// `packageExtensions`, the pnpmfile's `readPackage` with the recorded
-/// directory, overrides, and `ignoredOptionalDependencies`.
+/// directory, overrides, and `ignoredOptionalDependencies`. Projects are included
+/// when `addMissingPeerTypes` requires their dependency hook chain.
 ///
 /// The children of a package come from its hooked manifest, so the packages
 /// are hooked one level of the graph at a time.
@@ -62,10 +62,7 @@ pub(super) async fn hooked_directory_manifests(
         lockfile,
         inputs,
         parsed_overrides,
-        manifests_by_dir: project_manifests_by_dir(
-            inputs.manifests.iter().map(|(_, manifest)| *manifest),
-            inputs.dependency_manifests,
-        ),
+        manifests_by_dir: dependency_manifest_sources(inputs),
         hooks: resolver_hooks(inputs, parsed_overrides)?,
     };
     // A directory is read once, but each snapshot of it is walked: peer
@@ -223,7 +220,7 @@ impl DirectoryWalk<'_, '_> {
     }
 
     /// The manifest the check reads for `visit`, and whether it was hooked
-    /// here. A project's manifest comes in already hooked.
+    /// here. Projects need the dependency hook chain when it adds optional type peers.
     async fn read(
         &self,
         visit: &Visit,
@@ -238,7 +235,7 @@ impl DirectoryWalk<'_, '_> {
                 .unwrap_or(self.inputs.lockfile_dir),
             manifests_by_dir: &self.manifests_by_dir,
         };
-        if self.manifests_by_dir.contains_key(&dir) {
+        if self.manifests_by_dir.contains_key(&dir) && !self.inputs.config.add_missing_peer_types {
             let manifest = overridden_unhooked_manifest(
                 &injected,
                 self.parsed_overrides,
@@ -314,37 +311,18 @@ impl DirectoryWalk<'_, '_> {
     }
 }
 
-/// Project manifests as dependencies, including the optional type peers the resolver adds.
-pub(super) fn with_missing_peer_types(
-    manifests: &super::ProjectManifestsByDir<'_>,
-    enabled: bool,
-) -> Vec<(PathBuf, PackageManifest)> {
-    if !enabled {
-        return Vec::new();
-    }
-    manifests
-        .iter()
-        .map(|(dir, manifest)| {
-            let mut manifest = (*manifest).clone();
-            let value = crate::missing_peer_types::add_missing_peer_types(Arc::new(
-                manifest.value().clone(),
-            ));
-            *manifest.value_mut() = (*value).clone();
-            (dir.clone(), manifest)
-        })
-        .collect()
-}
-
-/// Project manifests selected for injected dependency verification.
-pub(super) fn project_dependency_manifests<'a>(
-    lockfile: &Lockfile,
+fn dependency_manifest_sources<'a>(
     inputs: &LockfileFreshnessInputs<'_, 'a>,
-    directory_manifests: &'a DirectoryManifests,
 ) -> super::ProjectManifestsByDir<'a> {
-    let mut manifests = project_manifests_by_dir(
-        inputs.manifests.iter().map(|(_, manifest)| *manifest),
-        inputs.dependency_manifests,
-    );
-    manifests.extend(injected_project_manifests(lockfile, inputs, directory_manifests));
-    manifests
+    if inputs.config.add_missing_peer_types {
+        project_manifests_by_dir(
+            inputs.dependency_manifests.declared.iter().map(|(_, manifest)| *manifest),
+            inputs.dependency_manifests.injected,
+        )
+    } else {
+        project_manifests_by_dir(
+            inputs.manifests.iter().map(|(_, manifest)| *manifest),
+            inputs.dependency_manifests.injected,
+        )
+    }
 }
