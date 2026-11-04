@@ -60,8 +60,10 @@ fn wait_past_whole_second_rounding(workspace: &Path) {
     }
 }
 
-/// [`wait_past_whole_second_rounding`], then an install that records the
-/// stats again, so the records the next install reads are trusted.
+/// Install once more, past the rounding window when the filesystem keeps
+/// whole seconds. The first install can record the lockfile in the tick it
+/// wrote it, and the next install then rehashes it and writes the state. This
+/// one takes that write, so the state is settled and its records trusted.
 fn trust_recorded_stats(workspace: &Path, registry: &str) {
     wait_past_whole_second_rounding(workspace);
     pacquet_in(workspace)
@@ -279,6 +281,7 @@ fn a_future_dated_manifest_does_not_rewrite_the_state() {
         .with_arg("install")
         .assert()
         .success();
+    trust_recorded_stats(&workspace, mock_instance.url());
     pnpm_testing_utils::fs::set_mtime(
         &workspace.join("packages/b/package.json"),
         std::time::SystemTime::now() + std::time::Duration::from_hours(1),
