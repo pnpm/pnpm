@@ -1,6 +1,6 @@
 use super::{
-    PackedPkg, PackedVariant, PublishPackedPkgError, check_registry, reference_staged_archives,
-    sri_sha512, staged_archives,
+    PackedPkg, PackedVariant, PublishPackedPkgError, check_provenance, check_registry,
+    reference_staged_archives, sri_sha512, staged_archives,
 };
 use crate::registry_config_keys::parse_supported_registry_url;
 use serde_json::json;
@@ -90,4 +90,14 @@ fn variants_are_published_only_to_a_pnpr_registry() {
     let pnpr = HashSet::from([registry.as_str().to_string()]);
     check_registry(&pkg(&manifest, b"any", &variants), &pnpr, &registry).unwrap();
     check_registry(&pkg(&manifest, b"any", &[]), &HashSet::new(), &registry).unwrap();
+}
+
+#[test]
+fn provenance_is_refused_for_a_version_with_variants() {
+    let manifest = json!({ "name": "example-cli", "version": "4.0.0" });
+    let variants = [PackedVariant { tag: "win32-x64".into(), tarball_data: b"win".to_vec() }];
+    let refused = check_provenance(&pkg(&manifest, b"any", &variants), Some(true));
+    assert!(matches!(refused, Err(PublishPackedPkgError::VariantsWithProvenance)));
+    check_provenance(&pkg(&manifest, b"any", &variants), None).unwrap();
+    check_provenance(&pkg(&manifest, b"any", &[]), Some(true)).unwrap();
 }

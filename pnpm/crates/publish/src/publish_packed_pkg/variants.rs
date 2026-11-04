@@ -34,6 +34,18 @@ pub(super) fn check_registry(
     Err(PublishPackedPkgError::VariantsNeedPnpr { registry: registry_for_display(registry) })
 }
 
+/// Refuse to sign provenance for a version with variants, which pnpm cannot
+/// do yet, before any archive is staged and in a dry run too.
+pub(super) fn check_provenance(
+    pkg: &PackedPkg<'_>,
+    provenance: Option<bool>,
+) -> Result<(), PublishPackedPkgError> {
+    if !pkg.variants.is_empty() && provenance == Some(true) {
+        return Err(PublishPackedPkgError::VariantsWithProvenance);
+    }
+    Ok(())
+}
+
 /// The archives to stage before the document that references them: the
 /// `any` archive, whose integrity is `any_integrity`, and every variant.
 pub(super) fn staged_archives<'a>(

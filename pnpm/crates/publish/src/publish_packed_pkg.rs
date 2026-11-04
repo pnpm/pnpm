@@ -143,6 +143,7 @@ where
 
     let mut summary = pkg.summary();
     variants::check_registry(pkg, &opts.pnpr_registries, &registry)?;
+    variants::check_provenance(pkg, resolved.provenance)?;
 
     if opts.dry_run {
         global_warn::<Reporter>(&format!(
@@ -237,9 +238,6 @@ where
     )?;
     opts.release_notes.attach_version_notes(&mut document, pkg.notes, &resolved.registry);
     if !pkg.variants.is_empty() {
-        if resolved.provenance == Some(true) {
-            return Err(PublishPackedPkgError::VariantsWithProvenance);
-        }
         variants::reference_staged_archives(&mut document, pkg, version);
     }
 
@@ -431,7 +429,10 @@ pub enum PublishPackedPkgError {
     VariantsNeedPnpr { registry: String },
 
     #[display("pnpm cannot sign provenance for a version with platform variants yet")]
-    #[diagnostic(code(ERR_PNPM_VARIANTS_PROVENANCE_UNSUPPORTED))]
+    #[diagnostic(
+        code(ERR_PNPM_VARIANTS_PROVENANCE_UNSUPPORTED),
+        help("Pass --no-provenance to publish without a provenance statement.")
+    )]
     VariantsWithProvenance,
 
     #[diagnostic(transparent)]
