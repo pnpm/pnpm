@@ -341,3 +341,15 @@ fn a_pattern_naming_a_modules_directory_keeps_every_exclusion_in_the_key() {
 
     assert_ne!(in_a.discovery_key(tmp.path()), in_b.discovery_key(tmp.path()));
 }
+
+#[test]
+fn a_negative_pattern_naming_a_modules_directory_keeps_the_key_shared() {
+    let tmp = TempDir::new().unwrap();
+    let mut in_a = modules_dir_opts(tmp.path(), "packages/a");
+    let mut in_b = modules_dir_opts(tmp.path(), "packages/b");
+    for opts in [&mut in_a, &mut in_b] {
+        opts.patterns = Some(vec!["packages/*".to_string(), "!**/node_modules/**".to_string()]);
+    }
+
+    assert_eq!(in_a.discovery_key(tmp.path()), in_b.discovery_key(tmp.path()));
+}
