@@ -5942,6 +5942,7 @@ dependencies = [
  "miette 7.6.0",
  "node-semver",
  "pnpm-detect-libc",
+ "pnpm-platform-variants",
  "pnpm-semver-include-prerelease",
  "pnpm-testing-utils",
  "pretty_assertions",

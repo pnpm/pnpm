@@ -34,6 +34,17 @@ fn cpu_for_token(token: &str) -> Option<&'static str> {
     }
 }
 
+/// Whether `token` is a Node.js `process.platform` value pnpm knows.
+pub(crate) fn is_node_os(token: &str) -> bool {
+    os_for_token(token) == Some(token)
+}
+
+/// Whether `token` is a Node.js `process.arch` value pnpm knows, of a
+/// machine rather than of `wasm32`.
+pub(crate) fn is_node_cpu(token: &str) -> bool {
+    token != "wasm32" && cpu_for_token(token) == Some(token)
+}
+
 fn libc_for_token(token: &str) -> Option<&'static str> {
     match token {
         "glibc" | "gnu" | "gnueabihf" => Some("glibc"),

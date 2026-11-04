@@ -94,11 +94,9 @@ pub(super) fn runtime_platform_of(
     for platform in platforms {
         let SupportedPlatform::Named(named) = platform else { return host };
         let selector = PlatformSelector {
-            os: named.os.name().to_string(),
-            cpu: named.architecture.cpu().to_string(),
-            libc: named.libc
-                .as_ref()
-                .map(|libc| libc.name().to_string()),
+            os: named.os().to_string(),
+            cpu: named.cpu().to_string(),
+            libc: named.libc().map(str::to_string),
             floors: Some(HostFloors::default()),
         };
         if is_host(&selector, &host) {
