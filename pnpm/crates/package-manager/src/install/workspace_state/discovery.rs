@@ -89,29 +89,27 @@ pub fn check_deps_status_before_run_at(
 /// The first gate that needs them discovers them, and the others reuse them.
 pub struct GateWorkspace {
     root: PathBuf,
-    manifest: pnpm_workspace::WorkspaceManifest,
-    discovered: std::sync::OnceLock<DiscoveredProjects>,
+    discovered: std::sync::OnceLock<Option<DiscoveredProjects>>,
 }
 
-/// One discovery of the workspace projects, with the options it ran with.
+/// One discovery of the workspace projects, with the workspace manifest and
+/// the options it ran with.
 struct DiscoveredProjects {
+    manifest: pnpm_workspace::WorkspaceManifest,
     opts: pnpm_workspace::FindWorkspaceProjectsOpts,
-    /// `None` when the discovery failed.
-    projects: Option<Vec<pnpm_workspace::Project>>,
+    projects: Vec<pnpm_workspace::Project>,
 }
 
 impl GateWorkspace {
-    /// The workspace that `dir` belongs to. `None` outside a workspace or
-    /// when its manifest cannot be read.
+    /// The workspace that `dir` belongs to. `None` outside a workspace.
     #[must_use]
     pub fn of(dir: &Path, config: &Config) -> Option<Self> {
         let root = configured_or_discovered_workspace_dir(config, dir).ok()??;
-        let manifest = pnpm_workspace::read_workspace_manifest(&root).ok()??;
-        Some(Self { root, manifest, discovered: std::sync::OnceLock::new() })
+        Some(Self { root, discovered: std::sync::OnceLock::new() })
     }
 
-    /// Drop the discovered projects, so the next gate discovers them again
-    /// after an install that may have changed the manifests.
+    /// Drop the workspace manifest and the discovered projects, so the next
+    /// gate reads them again after an install that may have changed them.
     pub fn forget_projects(&mut self) {
         self.discovered.take();
     }
@@ -121,13 +119,18 @@ impl GateWorkspace {
     /// `config` discovers with other options than the gate that ran it, such
     /// as a project's own `modulesDir`.
     fn projects(&self, config: &Config) -> Option<&[pnpm_workspace::Project]> {
-        let opts = super::super::lifecycle::checked_projects_opts(config, &self.manifest);
-        let discovered = self.discovered.get_or_init(|| DiscoveredProjects {
-            projects: pnpm_workspace::find_workspace_projects(&self.root, &opts).ok(),
-            opts: opts.clone(),
-        });
-        let same_opts = discovered.opts.finds_the_same_as(&opts, &self.root);
-        discovered.projects.as_deref().filter(|_| same_opts)
+        let discovered = self.discovered
+            .get_or_init(|| {
+                let manifest = pnpm_workspace::read_workspace_manifest(&self.root).ok()??;
+                let opts = super::super::lifecycle::checked_projects_opts(config, &manifest);
+                let projects = pnpm_workspace::find_workspace_projects(&self.root, &opts).ok()?;
+                Some(DiscoveredProjects { manifest, opts, projects })
+            })
+            .as_ref()?;
+        let opts = super::super::lifecycle::checked_projects_opts(config, &discovered.manifest);
+        discovered.opts
+            .finds_the_same_as(&opts, &self.root)
+            .then_some(discovered.projects.as_slice())
     }
 }
 

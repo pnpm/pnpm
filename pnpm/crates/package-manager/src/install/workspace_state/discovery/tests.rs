@@ -26,3 +26,25 @@ fn only_a_gate_with_other_discovery_results_skips_the_shared_projects() {
     assert!(workspace.projects(&own_node_modules).is_some());
     assert!(workspace.projects(&other_modules_dir).is_none());
 }
+
+#[test]
+fn forgetting_the_projects_reads_the_workspace_manifest_again() {
+    let dir = tempdir().expect("create a temporary directory");
+    let root = dir.path();
+    fs::write(root.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write pnpm-workspace.yaml");
+    for project in ["packages/a", "tools/b"] {
+        fs::create_dir_all(root.join(project)).expect("create the project directory");
+        fs::write(root.join(project).join("package.json"), "{}").expect("write package.json");
+    }
+    let mut config = Config::new();
+    config.workspace_dir = Some(root.to_path_buf());
+    let mut workspace = GateWorkspace::of(root, &config).expect("a workspace");
+    assert_eq!(workspace.projects(&config).map(<[_]>::len), Some(1));
+    fs::write(root.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n  - tools/*\n")
+        .expect("rewrite pnpm-workspace.yaml");
+
+    workspace.forget_projects();
+
+    assert_eq!(workspace.projects(&config).map(<[_]>::len), Some(2));
+}
