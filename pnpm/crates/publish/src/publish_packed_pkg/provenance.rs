@@ -1,6 +1,6 @@
 //! The provenance statement a publish signs and attaches.
 
-use super::{OidcHttpOptions, PackedPkg, PublishPackedPkgError, variants};
+use super::{OidcHttpOptions, PackedPkg, PublishPackedPkgError, clean_version, variants};
 use crate::{
     capabilities::{Clock, EnvVar, OidcFetch},
     provenance_gen::{SignProvenance, generate_provenance, generate_provenance_for},
@@ -20,6 +20,9 @@ where
     Sys: EnvVar + Clock + OidcFetch + SignProvenance,
     Reporter: self::Reporter,
 {
+    // The statement names the version as the document keys it, without
+    // build metadata, which is how the registry names its archives.
+    let version = &clean_version(version)?;
     let attachment = if pkg.variants.is_empty() && pkg.any_staged.is_none() {
         generate_provenance::<Sys, Reporter>(name, version, pkg.tarball_data, http).await
     } else {
