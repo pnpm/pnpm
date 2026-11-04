@@ -74,13 +74,13 @@ pub struct FindWorkspaceProjectsOpts {
 
 impl FindWorkspaceProjectsOpts {
     /// Whether [`find_workspace_projects`] under `workspace_root` finds the
-    /// same projects with `self` as with `other`, ignoring the directories
-    /// that cannot change what it finds.
+    /// same projects with `self` as with `other`. Ignored directories under
+    /// a `node_modules` are not compared, since the walk skips those by name.
     #[must_use]
     pub fn finds_the_same_as(&self, other: &Self, workspace_root: &Path) -> bool {
         self.patterns == other.patterns
-            && resolve_ignored_directories(workspace_root, &self.ignored_directories)
-                == resolve_ignored_directories(workspace_root, &other.ignored_directories)
+            && ignored_directories_beyond_the_walk(workspace_root, &self.ignored_directories)
+                == ignored_directories_beyond_the_walk(workspace_root, &other.ignored_directories)
     }
 }
 
@@ -395,7 +395,7 @@ struct WorkspacePattern<'source> {
 }
 
 mod managed;
-use managed::resolve_ignored_directories;
+use managed::{ignored_directories_beyond_the_walk, resolve_ignored_directories};
 
 mod membership;
 mod negations;

@@ -52,8 +52,7 @@ fn eq_ignoring_case(left: Component<'_>, right: Component<'_>) -> bool {
 /// normalized paths, dropping any that equal or contain the root: a
 /// workspace checked out inside the state directory still owns its
 /// projects. Directories outside the root are kept, since `../` patterns
-/// can reach them. Directories under a `node_modules` the walk skips
-/// anyway are dropped too.
+/// can reach them.
 pub(super) fn resolve_ignored_directories(
     workspace_root: &Path,
     ignored_directories: &[PathBuf],
@@ -63,6 +62,20 @@ pub(super) fn resolve_ignored_directories(
         .iter()
         .map(|dir| pnpm_fs::lexical_normalize(&workspace_root.join(dir)))
         .filter(|dir| !starts_with_directory(&workspace_root, dir))
-        .filter(|dir| !dir.strip_prefix(&workspace_root).is_ok_and(has_always_ignored_component))
+        .collect()
+}
+
+/// [`resolve_ignored_directories`] without the directories under a
+/// `node_modules` or `bower_components`, which the walk skips by name. The
+/// walk still receives them: on a case-insensitive filesystem the configured
+/// spelling can name a directory the walk's own check does not recognize.
+pub(super) fn ignored_directories_beyond_the_walk(
+    workspace_root: &Path,
+    ignored_directories: &[PathBuf],
+) -> Vec<PathBuf> {
+    let root = pnpm_fs::lexical_normalize(workspace_root);
+    resolve_ignored_directories(workspace_root, ignored_directories)
+        .into_iter()
+        .filter(|dir| !dir.strip_prefix(&root).is_ok_and(has_always_ignored_component))
         .collect()
 }
