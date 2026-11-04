@@ -28,18 +28,6 @@ pub fn to_pack_result_json(result: &PackResult) -> PackResultJson {
     }
 }
 
-/// Project a [`crate::PackedArchive`] into its JSON shape, with the tag and
-/// targets of the entry it was packed for.
-#[must_use]
-pub fn archive_result_json(archive: &crate::PackedArchive) -> PackResultJson {
-    let mut json = to_pack_result_json(&archive.result);
-    if let Some(entry) = &archive.entry {
-        json.tag.clone_from(&entry.tag);
-        json.targets = Some(entry.targets.clone());
-    }
-    json
-}
-
 /// Render packed results the way `pnpm pack` prints them: pretty JSON
 /// under `--json`, otherwise a per-package "Tarball Contents / Details"
 /// block.

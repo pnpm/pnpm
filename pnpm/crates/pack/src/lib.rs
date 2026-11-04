@@ -20,9 +20,9 @@ pub use contents::sort_paths_en_locale;
 pub use options::{
     PackManifestOptions, PackOptions, PackOutputLocks, PackOutputOptions, PackScripts,
 };
-pub use output::{archive_result_json, format_pack_output, pack_output_path, to_pack_result_json};
+pub use output::{format_pack_output, pack_output_path, to_pack_result_json};
 pub use pnpm_exportable_manifest::WorkspacePackageManifest;
-pub use variants::{PackedArchive, pack_archives};
+pub use variants::{PackedArchive, archive_result_json, pack_archives};
 
 mod capabilities;
 mod collation;

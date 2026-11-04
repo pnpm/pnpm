@@ -9,7 +9,7 @@
 use super::{VariantDeclaration, VariantEntry, archive_file_name, check_archive};
 use crate::{
     FsAtomicWrite, FsCreateDirAll, FsFileLen, FsIsExecutable, FsReadFile, PackError, PackOptions,
-    PackResult, PackedTarball,
+    PackResult, PackResultJson, PackedTarball,
     contents::executable_sources,
     create_dest_dir, pack_source, packed_contents_with_injected, packed_files_map,
     packed_tarball_path, resolve_dest_dir, resolve_output,
@@ -255,4 +255,16 @@ fn archive_destination(
     let tarball_name =
         archive_file_name(&any_name, package, entry).map_err(PackError::VariantArchive)?;
     Ok((tarball_name, resolve_dest_dir(&source.dir, pack_destination.as_deref())))
+}
+
+/// Project a [`PackedArchive`] into its JSON shape, with the tag and
+/// targets of the entry it was packed for.
+#[must_use]
+pub fn archive_result_json(archive: &PackedArchive) -> PackResultJson {
+    let mut json = crate::to_pack_result_json(&archive.result);
+    if let Some(entry) = &archive.entry {
+        json.tag.clone_from(&entry.tag);
+        json.targets = Some(entry.targets.clone());
+    }
+    json
 }
