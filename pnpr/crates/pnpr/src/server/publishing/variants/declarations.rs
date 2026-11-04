@@ -48,7 +48,7 @@ pub(in super::super) fn check_version(
     Err(RegistryError::BadRequest {
         reason: format!(
             "the variant attachment {filename} names version {version}, which the \
-                         publish does not describe"
+                         publish does not describe",
         ),
     })
 }
