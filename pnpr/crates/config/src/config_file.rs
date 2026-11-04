@@ -2,7 +2,7 @@ use super::{
     AccessSpec, ByteSize, Deserialize, Ecosystem, IndexMap, Interval, LogConfig, LogFormat,
     LogLevel, Management, MetricsConfig, OciConfig, PackageAccess, PackageDocumentsFile, PathBuf,
     ReleaseRecordsFile, S3Settings, ScimConfig, TarballFormat, UpstreamAuthFile,
-    default_storage_string, oidc,
+    default_storage_string, null_default::deserialize_null_default, oidc,
 };
 
 /// Disk shape of the `routes:` block.
@@ -520,14 +520,4 @@ pub(super) struct PipelineFeatureFile {
 
 pub(super) fn default_true() -> bool {
     true
-}
-
-pub(super) fn deserialize_null_default<'de, Deserializer, Value>(
-    deserializer: Deserializer,
-) -> Result<Value, Deserializer::Error>
-where
-    Deserializer: serde::Deserializer<'de>,
-    Value: serde::Deserialize<'de> + Default,
-{
-    Ok(Option::<Value>::deserialize(deserializer)?.unwrap_or_default())
 }
