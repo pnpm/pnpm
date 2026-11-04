@@ -5,29 +5,6 @@ use super::{
 use pnpm_platform_variants::{AmbiguousSelection, Host, Libc, Platform};
 use serde::{Deserialize, Serialize};
 
-/// The archive a `variations` resolution installs on one platform.
-///
-/// Where it came from decides how its integrity is read: a variant's is
-/// the digest of what its own resolution points at, and the fallback is an
-/// ordinary resolution. The resolution's type, not the entry it sits in,
-/// decides how it is fetched, so a runtime and a registry package select
-/// alike.
-#[derive(Debug, Clone, Copy)]
-pub enum SelectedVariant<'a> {
-    Variant(&'a PlatformAssetResolution),
-    Fallback(&'a LockfileResolution),
-}
-
-impl<'a> SelectedVariant<'a> {
-    #[must_use]
-    pub fn resolution(self) -> &'a LockfileResolution {
-        match self {
-            SelectedVariant::Variant(variant) => &variant.resolution,
-            SelectedVariant::Fallback(fallback) => fallback,
-        }
-    }
-}
-
 /// One `(os, cpu, libc?)` triple a [`PlatformAssetResolution`] covers.
 ///
 /// `libc` is only written for musl-built variants; glibc is the
@@ -39,10 +16,21 @@ impl<'a> SelectedVariant<'a> {
 /// A package platform variant's target may also carry the floor and ABI
 /// fields of the platform-variants vocabulary (see
 /// [`pnpm_platform_variants::Platform`]); a `wasm32` target has no `os` or
-/// `cpu`.
+/// `cpu`. The target `{ any: true }` has no other field: its variant is the
+/// archive of every host that no other variant matches.
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "The fields are the flat keys of a lockfile target, which deny_unknown_fields \
+                  keeps from being grouped by serde flattening."
+    )
+)]
 pub struct PlatformAssetTarget {
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub any: bool,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub os: String,
     #[serde(default, skip_serializing_if = "String::is_empty")]
@@ -62,10 +50,20 @@ pub struct PlatformAssetTarget {
 }
 
 impl PlatformAssetTarget {
-    /// The target in the platform-variants vocabulary, or `None` for a C
-    /// library the vocabulary does not know, which never matches.
+    /// The target `any`.
+    #[must_use]
+    pub fn any() -> Self {
+        PlatformAssetTarget { any: true, ..PlatformAssetTarget::default() }
+    }
+
+    /// The target in the platform-variants vocabulary, or `None` for `any`
+    /// and for a C library the vocabulary does not know, neither of which
+    /// matches a host by its platform.
     #[must_use]
     pub fn platform(&self) -> Option<Platform> {
+        if self.any {
+            return None;
+        }
         let libc = match self.libc.as_deref() {
             None => None,
             Some("glibc") => Some(Libc::Glibc),
@@ -90,6 +88,7 @@ impl PlatformAssetTarget {
     pub fn from_platform(platform: Platform) -> Self {
         let platform = platform.without_explicit_glibc();
         PlatformAssetTarget {
+            any: false,
             os: platform.os.unwrap_or_default(),
             cpu: platform.cpu.unwrap_or_default(),
             libc: platform.libc.map(|libc| {
@@ -109,6 +108,19 @@ impl PlatformAssetTarget {
 }
 
 impl PlatformAssetResolution {
+    /// The variant `resolution` installs on every host that no other
+    /// variant matches.
+    #[must_use]
+    pub fn any(resolution: LockfileResolution) -> Self {
+        PlatformAssetResolution { resolution, targets: vec![PlatformAssetTarget::any()] }
+    }
+
+    /// Whether this is the variant that targets `any`.
+    #[must_use]
+    pub fn is_any(&self) -> bool {
+        self.targets.iter().any(|target| target.any)
+    }
+
     fn platforms(&self) -> Vec<Platform> {
         self.targets
             .iter()
@@ -117,9 +129,13 @@ impl PlatformAssetResolution {
     }
 
     /// A package variant's name in its registry route: its targets' platform
-    /// tags, sorted and joined with `+`.
+    /// tags, sorted and joined with `+`. `None` for the variant that targets
+    /// `any`, which `dist.tarball` names and has no such route.
     #[must_use]
     pub fn variant_tag(&self) -> Option<String> {
+        if self.is_any() {
+            return None;
+        }
         pnpm_platform_variants::variant_tag(&self.platforms()).ok()
     }
 }
@@ -136,11 +152,10 @@ impl PlatformSelector {
 }
 
 impl VariationsResolution {
-    /// Variants with no fallback, as a runtime resolves: a host no variant
-    /// matches fails.
+    /// A runtime's variants: a host no variant matches fails.
     #[must_use]
-    pub fn without_fallback(variants: Vec<PlatformAssetResolution>) -> Self {
-        VariationsResolution { variants, fallback: None, revision: None }
+    pub fn new(variants: Vec<PlatformAssetResolution>) -> Self {
+        VariationsResolution { variants, revision: None }
     }
 
     /// Whether these are a runtime's archives (Node.js, Bun, Deno), which
@@ -152,26 +167,25 @@ impl VariationsResolution {
             .any(|variant| matches!(variant.resolution, LockfileResolution::Binary(_)))
     }
 
-    /// Every archive some host can install: each variant's, then the
-    /// fallback.
+    /// Every archive some host can install.
     pub fn resolutions(&self) -> impl Iterator<Item = &LockfileResolution> {
-        self.variants
-            .iter()
-            .map(|variant| &variant.resolution)
-            .chain(self.fallback.as_deref())
+        self.variants.iter().map(|variant| &variant.resolution)
     }
 
     /// [`Self::resolutions`], mutably.
     pub fn resolutions_mut(&mut self) -> impl Iterator<Item = &mut LockfileResolution> {
-        self.variants
-            .iter_mut()
-            .map(|variant| &mut variant.resolution)
-            .chain(self.fallback.as_deref_mut())
+        self.variants.iter_mut().map(|variant| &mut variant.resolution)
+    }
+
+    /// The variant that targets `any`, if there is one.
+    #[must_use]
+    pub fn any_variant(&self) -> Option<&PlatformAssetResolution> {
+        self.variants.iter().find(|variant| variant.is_any())
     }
 
     /// The variant that fits `platform` best, comparing each variant by its
-    /// best matching target, or the fallback when none matches. `None` when
-    /// neither exists.
+    /// best matching target, or the variant that targets `any` when none
+    /// matches. `None` when neither exists.
     ///
     /// A runtime's archives keep the first match: a runtime lists an
     /// emulated platform as a target of the build that runs there, so two
@@ -179,11 +193,11 @@ impl VariationsResolution {
     pub fn select(
         &self,
         platform: &PlatformSelector,
-    ) -> Result<Option<SelectedVariant<'_>>, AmbiguousSelection> {
+    ) -> Result<Option<&PlatformAssetResolution>, AmbiguousSelection> {
         if self.is_runtime() {
-            return Ok(select_platform_variant(&self.variants, platform)
-                .map(SelectedVariant::Variant)
-                .or_else(|| self.fallback.as_deref().map(SelectedVariant::Fallback)));
+            return Ok(
+                select_platform_variant(&self.variants, platform).or_else(|| self.any_variant())
+            );
         }
         let platforms: Vec<Vec<Platform>> = self.variants
             .iter()
@@ -192,8 +206,8 @@ impl VariationsResolution {
         let selected =
             pnpm_platform_variants::select(platforms.iter().map(Vec::as_slice), &platform.host())?;
         Ok(selected
-            .map(|index| SelectedVariant::Variant(&self.variants[index]))
-            .or_else(|| self.fallback.as_deref().map(SelectedVariant::Fallback)))
+            .map(|index| &self.variants[index])
+            .or_else(|| self.any_variant()))
     }
 
     /// `variant` in the integrity-only registry form when its tarball sits on
@@ -222,7 +236,8 @@ impl VariationsResolution {
     }
 
     /// Write each package variant whose tarball sits on its registry route,
-    /// and the fallback, in the integrity-only registry form.
+    /// and the variant that targets `any` as its version's archive is
+    /// written, in the integrity-only registry form.
     pub(super) fn to_lockfile_form(
         &self,
         name: &str,
@@ -231,13 +246,15 @@ impl VariationsResolution {
     ) -> Result<VariationsResolution, LockfileFormError> {
         let variants = self.variants
             .iter()
-            .map(|variant| self.registry_variant(variant, (name, version), opts))
-            .collect();
-        let fallback = match &self.fallback {
-            Some(fallback) => Some(Box::new(fallback.to_lockfile_form(name, version, opts)?)),
-            None => None,
-        };
-        Ok(VariationsResolution { variants, fallback, revision: self.revision })
+            .map(|variant| {
+                if !variant.is_any() {
+                    return Ok(self.registry_variant(variant, (name, version), opts));
+                }
+                let resolution = variant.resolution.to_lockfile_form(name, version, opts)?;
+                Ok(PlatformAssetResolution { resolution, targets: variant.targets.clone() })
+            })
+            .collect::<Result<_, LockfileFormError>>()?;
+        Ok(VariationsResolution { variants, revision: self.revision })
     }
 }
 

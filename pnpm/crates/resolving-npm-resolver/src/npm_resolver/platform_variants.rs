@@ -8,10 +8,11 @@ use pnpm_lockfile::{
 use pnpm_platform_variants::{Platform, variant_tag};
 use pnpm_registry::PnprVariant;
 
-/// Wrap the primary `resolution` in a `variations` resolution when pnpr's
-/// document lists platform variants for the version. The primary becomes
-/// the fallback for a host no variant matches. The variants are written in
-/// the byte order of their tags: the installer ranks them for the host, so
+/// Wrap the version's archive `resolution` in a `variations` resolution when
+/// pnpr's document lists platform variants for the version. The version's
+/// archive becomes the variant that targets `any`, which a host no other
+/// variant matches installs; it comes first, then the platform variants in
+/// the byte order of their tags. The installer ranks them for the host, so
 /// their order chooses nothing and only has to be the same everywhere.
 /// Variants are read only from pnpr's document: npm's documents describe
 /// the version as npm clients read it.
@@ -40,15 +41,10 @@ pub(super) fn with_platform_variants(
         return Ok(resolution);
     }
     selectable.sort_by_cached_key(|(_, platforms)| variant_tag(platforms).unwrap_or_default());
-    let variants = selectable
-        .into_iter()
-        .map(|(variant, _)| variant)
+    let variants = std::iter::once(PlatformAssetResolution::any(resolution))
+        .chain(selectable.into_iter().map(|(variant, _)| variant))
         .collect();
-    Ok(LockfileResolution::Variations(VariationsResolution {
-        variants,
-        fallback: Some(Box::new(resolution)),
-        revision,
-    }))
+    Ok(LockfileResolution::Variations(VariationsResolution { variants, revision }))
 }
 
 /// The variant's platforms, or `None` when one has a field this client does

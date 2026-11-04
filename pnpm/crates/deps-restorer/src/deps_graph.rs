@@ -122,13 +122,14 @@ fn full_pkg_id_for(
     // parse those.)
     let pkg_id = pkg_key.to_string();
     // A `variations` resolution is identified by the archive this
-    // platform selects: a variant, or the fallback.
+    // platform selects: the variant that fits it, or the one that targets
+    // `any`.
     if let LockfileResolution::Variations(variations) = resolution
         && let Some(integrity) = variations
             .select(platform_selector)
             .ok()
             .flatten()
-            .and_then(|selected| selected.resolution().integrity())
+            .and_then(|selected| selected.resolution.integrity())
     {
         return format!("{pkg_id}:{integrity}");
     }

@@ -105,7 +105,6 @@ fn runtime_dependency_strips_importer_prefix_and_records_package_version() {
         id: PkgResolutionId::from("node@runtime:26.3.0"),
         resolution: LockfileResolution::Variations(VariationsResolution {
             variants: vec![],
-            fallback: None,
             revision: None,
         }),
         resolved_via: "node-runtime".to_string(),

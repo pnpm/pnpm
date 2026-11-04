@@ -8,7 +8,7 @@ use pnpm_graph_hasher::{
 };
 use pnpm_lockfile::{
     LockfileResolution, PackageKey, PackageMetadata, PkgIdWithPatchHash, PlatformSelector,
-    SelectedVariant, SnapshotEntry,
+    SnapshotEntry,
 };
 use std::{
     collections::{HashMap, HashSet},
@@ -339,7 +339,7 @@ pub(super) fn create_full_pkg_id(
             .select(&crate::install_package_by_snapshot::variations_platform(variations, platform))
             .ok()
             .flatten()
-            .map(SelectedVariant::resolution)
+            .map(|variant| &variant.resolution)
             .or(resolution),
         resolution => resolution,
     };
