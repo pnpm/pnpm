@@ -795,7 +795,7 @@ fn variants_only_request_at(
 
 #[tokio::test]
 async fn a_version_without_an_any_archive_rejects_a_non_semver_version() {
-    let (_tmp, app, token) = setup().await;
+    let (tmp, app, token) = setup().await;
     let (_, linux) = archive(&variant_manifest(&["linux-x64"], &json!({})), "linux");
     let mut manifest = any_manifest();
     manifest["version"] = json!("banana");
@@ -806,6 +806,15 @@ async fn a_version_without_an_any_archive_rejects_a_non_semver_version() {
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
     let reason = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
     assert!(reason.contains("semver"), "{reason}");
+    assert!(
+        pnpr_fixtures::read_hosted_document(
+            tmp.path(),
+            "",
+            pnpr_storage::Ecosystem::Npm,
+            "@acme/fast",
+        )
+        .is_none(),
+    );
 }
 
 /// A version published without an `any` archive: npm's documents describe
