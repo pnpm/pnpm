@@ -57,10 +57,7 @@ pub(super) fn build_manifest_transforms(
     let versions_overrider = parsed_overrides
         .as_ref()
         .map(|parsed| {
-            Arc::new(VersionsOverrider::new(
-                parsed,
-                crate::override_path_base::local_path_base(config, lockfile_dir),
-            ))
+            Arc::new(VersionsOverrider::new(parsed, config.root_project_manifest_dir(lockfile_dir)))
         });
     let transforms =
         ImporterTransforms::new(config, versions_overrider.clone(), deploy_manifest_hook)

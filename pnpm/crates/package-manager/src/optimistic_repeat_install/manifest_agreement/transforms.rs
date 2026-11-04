@@ -24,7 +24,7 @@ impl<'a> ManifestTransforms<'a> {
         let overrider = parsed_overrides.map(|parsed| {
             crate::VersionsOverrider::new(
                 parsed,
-                crate::override_path_base::local_path_base(check.config, check.workspace_root),
+                check.config.root_project_manifest_dir(check.workspace_root),
             )
         });
         Ok(Self { extender, parsed_overrides, overrider })

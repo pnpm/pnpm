@@ -30,7 +30,7 @@ fn read_and_override_manifest(
     overridden_unhooked_manifest(
         &injected,
         check.parsed_overrides,
-        crate::override_path_base::local_path_base(check.config, check.lockfile_dir),
+        check.config.root_project_manifest_dir(check.lockfile_dir),
     )
     .ok_or_else(|| dep.outdated())
 }

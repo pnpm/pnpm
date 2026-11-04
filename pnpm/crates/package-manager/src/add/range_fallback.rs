@@ -107,7 +107,7 @@ fn override_specifier(
         .map_err(AddError::FindWorkspaceDir)?;
     let overrider = crate::overrides::VersionsOverrider::new(
         &parsed,
-        crate::override_path_base::local_path_base(inputs.add.config, &lockfile_root),
+        inputs.add.config.root_project_manifest_dir(&lockfile_root),
     );
     Ok(overridden_specifier(package_name, project_dir, &overrider, inputs, manifest))
 }
