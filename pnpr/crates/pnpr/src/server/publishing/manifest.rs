@@ -102,19 +102,12 @@ pub(super) fn check_publishable_versions(
     for (version, incoming_manifest) in incoming_versions {
         let has_attachment = attachment_versions.contains(version.as_str());
         let Some(hosted_manifest) = hosted_versions.and_then(|hosted| hosted.get(version)) else {
-            if has_attachment {
-                continue;
-            }
-            if variants.contains_key(version) && incoming_manifest.get("dist").is_none() {
+            if !has_attachment
+                && check_new_version_without_any(name, (version, incoming_manifest), variants)?
+            {
                 without_any.insert(version.clone());
-                continue;
             }
-            return Err(RegistryError::BadRequest {
-                reason: format!(
-                    "cannot publish version {version} of {:?} without a tarball",
-                    name.as_str(),
-                ),
-            });
+            continue;
         };
         if has_attachment || integrity_changed(incoming_manifest, hosted_manifest) {
             return Err(RegistryError::VersionAlreadyPublished {
@@ -124,6 +117,25 @@ pub(super) fn check_publishable_versions(
         }
     }
     Ok(without_any)
+}
+
+/// Whether a new version with no archive attached is published without an
+/// `any` archive, which it is when it attaches variants and declares no
+/// `dist`. Any other new version needs its archive.
+fn check_new_version_without_any(
+    name: &CanonicalPackageName,
+    (version, incoming_manifest): (&str, &Value),
+    variants: &Declarations,
+) -> Result<bool, RegistryError> {
+    if variants.contains_key(version) && incoming_manifest.get("dist").is_none() {
+        return Ok(true);
+    }
+    Err(RegistryError::BadRequest {
+        reason: format!(
+            "cannot publish version {version} of {:?} without a tarball",
+            name.as_str(),
+        ),
+    })
 }
 
 /// Apply [`restore_tgz_integrities`] to a publish body. The tar-integrity
