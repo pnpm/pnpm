@@ -161,7 +161,7 @@ async fn commit_staged(
         }
     };
     let promoted = promote_archives(state, &mut staged).await?;
-    let rebases = super::rebase::rebase_bases(&staged);
+    let rebases = super::rebase::rebase_bases(&mut staged);
     let (documents, logged) = batch_documents(staged);
     let artifacts = promoted.artifacts.clone();
     let commit = match super::rebase::commit_rebasing(

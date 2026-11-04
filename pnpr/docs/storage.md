@@ -171,7 +171,11 @@ file and pulls the primary's changes every `syncInterval`:
 Two instances publishing to one package at the same moment both land. The
 publish that commits second finds the package at another generation, rebases
 its versions, tags, and other changes onto what the first committed, and
-commits again, as if the two had run one after the other.
+commits again, as if the two had run one after the other. A version, tag, or
+time the first added stays; any other field the second changed is taken whole.
+When the package's maintainers changed meanwhile, for example because another
+user created the package first, the second publish is refused with `409`
+instead.
 
 ## Backends
 

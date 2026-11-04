@@ -88,6 +88,28 @@ impl Replica {
             .0
     }
 
+    /// Publish `name@version` in the background, answering its status.
+    fn spawn_publish(
+        &self,
+        name: &str,
+        version: &str,
+        tarball: &[u8],
+    ) -> tokio::task::JoinHandle<StatusCode> {
+        let app = self.app.clone();
+        let token = self.token.clone();
+        let body = publish_doc(name, version, tarball);
+        let request = Request::put(format!("/npm/{name}"))
+            .header("content-type", "application/json")
+            .header("Authorization", format!("Bearer {token}"))
+            .body(Body::from(serde_json::to_vec(&body).unwrap()))
+            .unwrap();
+        tokio::spawn(async move {
+            app.oneshot(request).await
+                .unwrap()
+                .status()
+        })
+    }
+
     async fn packument(&self, name: &str) -> Value {
         let (status, document) = self.send("GET", &format!("/npm/{name}"), Body::empty()).await;
         assert_eq!(status, StatusCode::OK, "{name} must be served by every replica");
@@ -146,21 +168,7 @@ async fn a_publish_that_loses_the_race_rebases_onto_the_winner() {
     assert_eq!(fast.publish("raced-pkg", "1.0.0", b"one").await, StatusCode::CREATED);
 
     objects.pause_write("1.1.0.tgz".to_string());
-    let slow_publish = tokio::spawn({
-        let app = slow.app.clone();
-        let token = slow.token.clone();
-        async move {
-            let body = publish_doc("raced-pkg", "1.1.0", b"slow");
-            let request = Request::put("/npm/raced-pkg")
-                .header("content-type", "application/json")
-                .header("Authorization", format!("Bearer {token}"))
-                .body(Body::from(serde_json::to_vec(&body).unwrap()))
-                .unwrap();
-            app.oneshot(request).await
-                .unwrap()
-                .status()
-        }
-    });
+    let slow_publish = slow.spawn_publish("raced-pkg", "1.1.0", b"slow");
     tokio::time::timeout(std::time::Duration::from_secs(10), objects.started.notified())
         .await
         .expect("the slow publish reaches its tarball upload");
@@ -175,6 +183,31 @@ async fn a_publish_that_loses_the_race_rebases_onto_the_winner() {
             assert!(versions.contains_key(version), "{version} is missing: {versions:?}");
         }
     }
+}
+
+/// A publish that loses the race for a package another user created meanwhile
+/// is not rebased: that user owns the package now.
+#[tokio::test]
+async fn a_first_publish_that_loses_the_race_to_another_user_is_refused() {
+    let objects = Arc::new(PausingStore::default());
+    let store: Arc<dyn ObjectStore> = Arc::clone(&objects) as Arc<dyn ObjectStore>;
+    let metadata = SharedMetadata::new();
+    let slow = Replica::start(&store, &metadata).await;
+    let mut fast = Replica::start(&store, &metadata).await;
+    fast.token = add_user_and_get_token(fast.app.clone(), "bob", "secret").await;
+
+    objects.pause_write("1.0.0.tgz".to_string());
+    let slow_publish = slow.spawn_publish("claimed-pkg", "1.0.0", b"slow");
+    tokio::time::timeout(std::time::Duration::from_secs(10), objects.started.notified())
+        .await
+        .expect("the slow publish reaches its tarball upload");
+    assert_eq!(fast.publish("claimed-pkg", "2.0.0", b"two").await, StatusCode::CREATED);
+    objects.resume.notify_one();
+
+    assert_eq!(slow_publish.await.unwrap(), StatusCode::CONFLICT);
+    let packument = slow.packument("claimed-pkg").await;
+    assert_eq!(packument["maintainers"], json!([{ "name": "bob" }]));
+    assert!(packument["versions"].get("1.0.0").is_none());
 }
 
 async fn assert_both_versions(replicas: &[&Replica], name: &str) {

@@ -22,7 +22,7 @@ fn a_concurrent_version_and_tag_survive_the_rebase() {
         "time": { "1.0.0": "t1", "2.0.0-beta": "t3", "modified": "t3" },
     });
 
-    let rebased = rebase_packument(Some(&base), &ours, &current);
+    let rebased = rebase_packument(Some(&base), &ours, &current).unwrap();
 
     assert_eq!(rebased["dist-tags"], json!({ "latest": "1.1.0", "beta": "2.0.0-beta" }));
     assert_eq!(
@@ -51,7 +51,7 @@ fn a_first_publish_rebases_onto_a_package_created_meanwhile() {
         "versions": { "2.0.0": { "version": "2.0.0" } },
     });
 
-    let rebased = rebase_packument(None, &ours, &current);
+    let rebased = rebase_packument(None, &ours, &current).unwrap();
 
     assert_eq!(rebased["dist-tags"]["latest"], "1.0.0");
     assert_eq!(
@@ -61,4 +61,44 @@ fn a_first_publish_rebases_onto_a_package_created_meanwhile() {
             .len(),
         2,
     );
+}
+
+#[test]
+fn a_field_other_than_versions_tags_and_times_is_taken_whole() {
+    let base = json!({ "repository": { "type": "git", "url": "old" } });
+    let ours = json!({ "repository": { "type": "git", "url": "new" } });
+    let current = json!({ "repository": { "type": "svn", "url": "old" } });
+
+    let rebased = rebase_packument(Some(&base), &ours, &current).unwrap();
+
+    assert_eq!(rebased["repository"], json!({ "type": "git", "url": "new" }));
+}
+
+#[test]
+fn a_first_publish_does_not_rebase_onto_a_package_another_user_claimed() {
+    let ours = json!({
+        "maintainers": [{ "name": "alice" }],
+        "versions": { "1.0.0": { "version": "1.0.0" } },
+    });
+    let current = json!({
+        "maintainers": [{ "name": "bob" }],
+        "versions": { "2.0.0": { "version": "2.0.0" } },
+    });
+
+    assert_eq!(rebase_packument(None, &ours, &current), None);
+}
+
+#[test]
+fn a_publish_does_not_rebase_once_the_owners_changed() {
+    let base = json!({
+        "maintainers": [{ "name": "alice" }, { "name": "bob" }],
+        "versions": {},
+    });
+    let ours = json!({
+        "maintainers": [{ "name": "alice" }, { "name": "bob" }],
+        "versions": { "1.0.0": { "version": "1.0.0" } },
+    });
+    let current = json!({ "maintainers": [{ "name": "bob" }], "versions": {} });
+
+    assert_eq!(rebase_packument(Some(&base), &ours, &current), None);
 }

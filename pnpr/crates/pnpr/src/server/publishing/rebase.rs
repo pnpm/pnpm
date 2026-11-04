@@ -22,45 +22,61 @@ use serde_json::{Map, Value};
 /// replica is rebased onto what that replica committed and tried again.
 const REBASE_ATTEMPTS: usize = 4;
 
-/// What a commit that lost a race rebases each document off: the packument
-/// the publish read and the one it computed. `None` unless every document is
-/// an npm packument, the one format a rebase understands; a lost race of any
-/// other answers the conflict.
-pub(super) fn rebase_bases(staged: &[StagedPublish]) -> Option<Vec<(Option<Value>, Value)>> {
-    staged
+/// The packument each staged npm publish was computed from, taken out of
+/// `staged`, for a commit that loses the race to rebase off. `None` unless
+/// every document is an npm packument, the one format a rebase understands;
+/// a lost race of any other answers the conflict.
+pub(super) fn rebase_bases(staged: &mut [StagedPublish]) -> Option<Vec<Option<Value>>> {
+    if staged
         .iter()
-        .map(|stage| {
-            if stage.ecosystem != pnpr_registry::Ecosystem::Npm {
-                return None;
-            }
-            let ours = serde_json::from_slice(&stage.document).ok()?;
-            Some((stage.base.packument.clone(), ours))
-        })
-        .collect()
+        .any(|stage| stage.ecosystem != pnpr_registry::Ecosystem::Npm)
+    {
+        return None;
+    }
+    Some(
+        staged
+            .iter_mut()
+            .map(|stage| stage.base.packument.take())
+            .collect(),
+    )
 }
 
 /// Rebase every document onto the packument its package now holds, and
-/// expect that packument's generation.
+/// expect that packument's generation. `false` when one of them can't be,
+/// and the conflict stands.
 async fn rebase_documents(
     state: &AppState,
     catalog: &str,
     documents: &mut [BatchDocument],
-    rebases: &[(Option<Value>, Value)],
-) -> Result<(), RegistryError> {
+    rebases: (&[Option<Value>], &[Value]),
+) -> Result<bool, RegistryError> {
     let storage = state.inner.storage.for_hosted(catalog, pnpr_registry::Ecosystem::Npm);
-    for (document, (base, ours)) in documents.iter_mut().zip(rebases) {
+    for ((document, base), ours) in documents
+        .iter_mut()
+        .zip(rebases.0)
+        .zip(rebases.1)
+    {
         let name = CanonicalPackageName::from_stored(&document.name, pnpr_registry::Ecosystem::Npm);
-        let Some(current) = storage.read_hosted_document_for_update(&name).await? else {
-            document.bytes = serde_json::to_vec(ours)?;
-            document.expected = None;
-            continue;
-        };
-        let now: Value = serde_json::from_slice(&current.bytes)?;
-        let rebased = rebase_packument(base.as_ref(), ours, &now);
-        document.bytes = serde_json::to_vec(&rebased)?;
-        document.expected = Some(current.version);
+        let current = storage.read_hosted_document_for_update(&name).await?;
+        match (current, base) {
+            (Some(current), _) => {
+                let now: Value = serde_json::from_slice(&current.bytes)?;
+                let Some(rebased) = rebase_packument(base.as_ref(), ours, &now) else {
+                    return Ok(false);
+                };
+                document.bytes = serde_json::to_vec(&rebased)?;
+                document.expected = Some(current.version);
+            }
+            // The package the publish read is gone: unpublishing it may have
+            // left a tombstone the publish was never checked against.
+            (None, Some(_)) => return Ok(false),
+            (None, None) => {
+                document.bytes = serde_json::to_vec(ours)?;
+                document.expected = None;
+            }
+        }
     }
-    Ok(())
+    Ok(true)
 }
 
 /// What a publish commits beside its documents.
@@ -72,16 +88,18 @@ pub(super) struct Publication<'catalog> {
 }
 
 /// Commit `documents`, and when another replica committed one of their
-/// packages since they were computed, rebase them onto it with `rebases` and
+/// packages since they were computed, rebase them onto it off `bases` and
 /// try again, a bounded number of times.
 pub(super) async fn commit_rebasing(
     state: &AppState,
     publication: Publication<'_>,
     mut documents: Vec<BatchDocument>,
-    rebases: Option<Vec<(Option<Value>, Value)>>,
+    bases: Option<Vec<Option<Value>>>,
 ) -> Result<PublicationCommit, RegistryError> {
     let Publication { catalog, artifacts, notes, request } = publication;
     let database = state.inner.storage.sql_metadata();
+    // What the publish computed, parsed only once a race calls for it.
+    let mut ours: Option<Vec<Value>> = None;
     let mut attempts = 0;
     loop {
         let commit = database.commit_publication(
@@ -91,42 +109,59 @@ pub(super) async fn commit_rebasing(
             notes.clone(),
             request.clone(),
         );
-        match (commit.await, &rebases) {
-            (Err(RegistryError::DocumentWriteConflict { .. }), Some(rebases))
+        let conflict = match (commit.await, &bases) {
+            (Err(conflict @ RegistryError::DocumentWriteConflict { .. }), Some(bases))
                 if attempts < REBASE_ATTEMPTS =>
             {
-                attempts += 1;
-                rebase_documents(state, catalog, &mut documents, rebases).await?;
+                (conflict, bases)
             }
             (outcome, _) => return outcome,
+        };
+        attempts += 1;
+        let ours = match &mut ours {
+            Some(ours) => ours,
+            None => ours.insert(
+                documents
+                    .iter()
+                    .map(|document| serde_json::from_slice(&document.bytes))
+                    .collect::<Result<_, _>>()?,
+            ),
+        };
+        if !rebase_documents(state, catalog, &mut documents, (conflict.1, ours)).await? {
+            return Err(conflict.0);
         }
     }
 }
 
-/// The packument `current` with every change `ours` made to `base` applied:
-/// a top-level field `ours` changed is taken from `ours`, and inside an
-/// object field (`versions`, `dist-tags`, `time`) only the keys it changed
-/// are, so a version, tag, or time another publish added stays. A key both
-/// changed takes `ours`, which commits last.
-pub(super) fn rebase_packument(base: Option<&Value>, ours: &Value, current: &Value) -> Value {
+/// The packument `current` with every change `ours` made to `base` applied,
+/// or `None` when its maintainers are not the ones the publish was
+/// authorized against: someone else claimed the package, or an owner was
+/// added or removed. Inside `versions`, `dist-tags`, and `time` only the keys
+/// `ours` changed are taken, so a version, tag, or time another publish added
+/// stays; any other field `ours` changed is taken whole. A key both changed
+/// takes `ours`, which commits last.
+pub(super) fn rebase_packument(
+    base: Option<&Value>,
+    ours: &Value,
+    current: &Value,
+) -> Option<Value> {
+    if base.unwrap_or(ours).get("maintainers") != current.get("maintainers") {
+        return None;
+    }
     let empty = Map::new();
     let base = base.and_then(Value::as_object).unwrap_or(&empty);
-    let (Some(ours), Some(current)) = (ours.as_object(), current.as_object()) else {
-        return ours.clone();
-    };
+    let (ours, current) = (ours.as_object()?, current.as_object()?);
     let mut out = current.clone();
     for key in base.keys().chain(ours.keys()) {
         let (theirs_before, mine) = (base.get(key), ours.get(key));
         if theirs_before == mine {
             continue;
         }
+        let keyed = matches!(key.as_str(), "versions" | "dist-tags" | "time");
         match (theirs_before, mine, out.get(key)) {
-            (Some(Value::Object(before)), Some(Value::Object(after)), Some(Value::Object(now))) => {
+            (before, Some(Value::Object(after)), Some(Value::Object(now))) if keyed => {
+                let before = before.and_then(Value::as_object).unwrap_or(&empty);
                 let merged = rebase_keys(before, after, now);
-                out.insert(key.clone(), Value::Object(merged));
-            }
-            (None, Some(Value::Object(after)), Some(Value::Object(now))) => {
-                let merged = rebase_keys(&empty, after, now);
                 out.insert(key.clone(), Value::Object(merged));
             }
             (_, Some(mine), _) => {
@@ -137,7 +172,7 @@ pub(super) fn rebase_packument(base: Option<&Value>, ours: &Value, current: &Val
             }
         }
     }
-    Value::Object(out)
+    Some(Value::Object(out))
 }
 
 /// `now` with every key `after` changed from `before` taken from `after`, and
