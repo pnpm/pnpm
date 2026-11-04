@@ -118,7 +118,10 @@ async fn workspace_manifests_satisfy(
             manifests: &manifest_freshness_inputs,
             workspace_packages: workspace_packages.as_ref(),
             // Projects read from disk carry no dependency manifests.
-            dependency_manifests: None,
+            dependency_manifests: DependencyManifestSources {
+                declared: &project_manifests,
+                injected: None,
+            },
             config: check.config,
             catalogs: check.catalogs,
             pnpmfile_hook: None,
@@ -163,14 +166,19 @@ fn workspace_packages_for_freshness(
     .flatten()
 }
 
+#[derive(Clone, Copy)]
+pub(super) struct DependencyManifestSources<'a, 'manifest> {
+    /// Project manifests before importer hooks, for the resolver's dependency hook chain.
+    pub(super) declared: &'a [(PathBuf, &'manifest PackageManifest)],
+    /// Dependency views supplied by callers, indexed by [`dependency_manifests_by_dir`].
+    pub(super) injected: Option<&'a ProjectManifestsByDir<'manifest>>,
+}
+
 pub(super) struct LockfileFreshnessInputs<'a, 'manifest> {
     pub(super) lockfile_dir: &'a Path,
     pub(super) manifests: &'a [(String, &'manifest PackageManifest)],
     pub(super) workspace_packages: Option<&'a pnpm_resolving_resolver_base::WorkspacePackages>,
-    /// The manifests projects expose as injected dependencies where they
-    /// differ from their importer manifests; see
-    /// [`dependency_manifests_by_dir`].
-    pub(super) dependency_manifests: Option<&'a ProjectManifestsByDir<'manifest>>,
+    pub(super) dependency_manifests: DependencyManifestSources<'a, 'manifest>,
     pub(super) config: &'a Config,
     pub(super) catalogs: &'a Catalogs,
     pub(super) pnpmfile_hook: Option<&'a Arc<dyn pnpm_hooks::PnpmfileHooks>>,
@@ -424,7 +432,7 @@ fn check_importer_freshness(
     let ignored_optional_matcher = ignored_optional_matcher(inputs.config);
     let mut project_manifests = project_manifests_by_dir(
         inputs.manifests.iter().map(|(_, manifest)| *manifest),
-        inputs.dependency_manifests,
+        inputs.dependency_manifests.injected,
     );
     project_manifests.extend(directory_manifests::injected_project_manifests(
         lockfile,
