@@ -292,8 +292,10 @@ fn modules_directories_the_walk_skips_by_name_find_the_same_projects() {
     let in_a = modules_dir_opts(tmp.path(), "packages/a");
     let in_b = modules_dir_opts(tmp.path(), "packages/b");
 
+    let expected = [tmp.path().join("packages/a"), tmp.path().join("packages/b")];
     assert_eq!(in_a.discovery_key(tmp.path()), in_b.discovery_key(tmp.path()));
-    assert_eq!(found_roots(tmp.path(), &in_a), found_roots(tmp.path(), &in_b));
+    assert_eq!(found_roots(tmp.path(), &in_a), expected);
+    assert_eq!(found_roots(tmp.path(), &in_b), expected);
 }
 
 #[test]
@@ -320,7 +322,9 @@ fn a_modules_directory_spelled_otherwise_on_disk_keys_by_the_projects() {
     let in_a = modules_dir_opts(tmp.path(), "packages/a");
     let in_b = modules_dir_opts(tmp.path(), "packages/b");
 
+    let roots_in_b = found_roots(tmp.path(), &in_b);
+    assert!(roots_in_b.contains(&tmp.path().join("packages/a")), "{roots_in_b:?}");
     let same_key = in_a.discovery_key(tmp.path()) == in_b.discovery_key(tmp.path());
-    let same_projects = found_roots(tmp.path(), &in_a) == found_roots(tmp.path(), &in_b);
+    let same_projects = found_roots(tmp.path(), &in_a) == roots_in_b;
     assert_eq!(same_key, same_projects);
 }
