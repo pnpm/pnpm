@@ -52,12 +52,11 @@ async fn open_variant(
     package: &CanonicalPackageName,
     (version, revision, tag): (&str, Option<u64>, &str),
 ) -> Result<Option<(axum::body::Body, Option<u64>, Option<u64>)>, RegistryError> {
-    let Some((label, unpacked_size)) =
-        hosted_variant(storage, package, version, revision, tag).await?
+    let Some(unpacked_size) = hosted_variant(storage, package, version, revision, tag).await?
     else {
         return Ok(None);
     };
-    let filename = variants::variant_blob_name(package, version, &label);
+    let filename = variants::variant_blob_name(package, version, tag);
     Ok(storage
         .open_hosted_blob(package, &filename)
         .await?
@@ -93,8 +92,8 @@ fn variant_storage(
     Ok((state.inner.storage.for_hosted(&org, pnpr_registry::Ecosystem::Npm), package))
 }
 
-/// The attachment label a hosted version's variant `tag` is stored under,
-/// and its unpacked size, or `None` when the version has no such variant.
+/// The unpacked size of a hosted version's variant `tag`, when known, or
+/// `None` when the version has no such variant.
 /// Addressed by revision, the variant is served only while that revision is
 /// the selected one: a hosted version's variant set is not replaced by a
 /// revision.
@@ -104,7 +103,7 @@ async fn hosted_variant(
     version: &str,
     revision: Option<u64>,
     tag: &str,
-) -> Result<Option<(String, Option<u64>)>, RegistryError> {
+) -> Result<Option<Option<u64>>, RegistryError> {
     let Some(bytes) = storage.read_hosted_document(package).await? else {
         return Ok(None);
     };
@@ -117,5 +116,5 @@ async fn hosted_variant(
                 revision == super::split_packuments::selected_revision(manifest)
             })
         })
-        .and_then(|manifest| variants::stored_variant_label(manifest, tag)))
+        .and_then(|manifest| variants::stored_variant_size(manifest, tag)))
 }

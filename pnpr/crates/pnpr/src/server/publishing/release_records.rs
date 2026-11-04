@@ -121,12 +121,10 @@ fn describe_archive(manifest: &mut Value, tar: &PublishedTar) {
 fn add_variant_inputs(manifest: &mut Value, version: &str, published: &[PublishedVariant]) {
     let Some(Value::Array(stored)) = manifest.get_mut(STORED_FIELD) else { return };
     for entry in stored.iter_mut().filter_map(Value::as_object_mut) {
-        let label = entry.get("label").and_then(Value::as_str);
+        let tag = entry.get("tag").and_then(Value::as_str);
         let Some(variant) = published
             .iter()
-            .find(|variant| {
-                variant.version == version && Some(variant.tar.label.as_str()) == label
-            })
+            .find(|variant| variant.version == version && Some(variant.tar.tag.as_str()) == tag)
         else {
             continue;
         };

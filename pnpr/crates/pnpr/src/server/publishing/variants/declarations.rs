@@ -1,53 +1,54 @@
-//! Reading the variant archives a publish body references.
+//! The variant archives a publish body attaches.
 
 use super::{
-    DECLARATION_FIELD, Declarations, RegistryError, STORED_FIELD, Value, VariantDeclaration,
-    bad_request, is_valid_label,
+    Declarations, PreparedAttachment, RegistryError, STORED_FIELD, Value, VariantDeclaration,
 };
 
-/// Remove variant references, and any server-owned variant field, from a
-/// publish body, and return the references.
-pub(in super::super) fn take_declarations(
-    incoming: &mut Value,
-) -> Result<Declarations, RegistryError> {
-    let mut declared = Declarations::new();
+/// Remove the server-owned variant field from every version of a publish
+/// body: pnpr derives the stored variants from the archives.
+pub(in super::super) fn remove_server_fields(incoming: &mut Value) {
     let Some(versions) = incoming.get_mut("versions").and_then(Value::as_object_mut) else {
-        return Ok(declared);
+        return;
     };
-    for (version, manifest) in versions.iter_mut() {
-        let Some(manifest) = manifest.as_object_mut() else { continue };
+    for manifest in versions.values_mut().filter_map(Value::as_object_mut) {
         manifest.remove(STORED_FIELD);
-        let Some(list) = manifest.remove(DECLARATION_FIELD) else { continue };
-        declared.insert(version.clone(), version_declarations(version, list)?);
     }
-    Ok(declared)
 }
 
-/// The variant archives one version references: attachment label to the
-/// `.tgz` integrity its upload is verified against. What each archive is a
-/// variant for is read from the archive itself.
-fn version_declarations(
+/// The variants each version attaches, by the tags that name their
+/// attachments. What each archive is a variant for is read from the archive
+/// itself, and must give the tag that names it.
+pub(in super::super) fn attached_variants(prepared: &[PreparedAttachment]) -> Declarations {
+    let mut declared = Declarations::new();
+    for attachment in prepared {
+        if let Some(tag) = &attachment.variant_tag {
+            declared
+                .entry(attachment.version.clone())
+                .or_default()
+                .push(VariantDeclaration { tag: tag.clone() });
+        }
+    }
+    declared
+}
+
+/// Reject a variant attachment of a version the publish body does not
+/// describe.
+pub(in super::super) fn check_version(
+    incoming: &Value,
+    filename: &str,
     version: &str,
-    list: Value,
-) -> Result<Vec<VariantDeclaration>, RegistryError> {
-    let Value::Object(list) = list else {
-        return Err(bad_request(format!(
-            "{DECLARATION_FIELD} of {version} must map attachment labels to integrities",
-        )));
-    };
-    list.into_iter()
-        .map(|(label, integrity)| {
-            if !is_valid_label(&label) {
-                return Err(bad_request(format!(
-                    "variant of {version} has an invalid label {label:?}",
-                )));
-            }
-            let Value::String(tgz_integrity) = integrity else {
-                return Err(bad_request(format!(
-                    "variant {label:?} of {version} has no integrity",
-                )));
-            };
-            Ok(VariantDeclaration { label, tgz_integrity })
-        })
-        .collect()
+) -> Result<(), RegistryError> {
+    if incoming
+        .pointer("/versions")
+        .and_then(|versions| versions.get(version))
+        .is_some()
+    {
+        return Ok(());
+    }
+    Err(RegistryError::BadRequest {
+        reason: format!(
+            "the variant attachment {filename} names version {version}, which the \
+                         publish does not describe",
+        ),
+    })
 }

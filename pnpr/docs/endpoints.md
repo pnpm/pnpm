@@ -470,12 +470,12 @@ A tag is `<os>-<cpu>`, then optionally `musl` or a glibc floor
 N-API floor (`napi8`) or a Node.js or Electron ABI (`node127`, `electron130`);
 or `wasm32`. Only the canonical form is accepted.
 
-The publish document references each variant under
-`versions[<version>].pnprVariants` as `{ "<label>": "<.tgz integrity>" }` and
-attaches it as `<basename>-<version>~<label>.tgz`. The label only pairs a
-reference with its attachment. Each archive travels in the publish body or is
-[staged](ecosystems.md#staged-archives) before it, so a version's archives are
-not bounded by one request body.
+A variant's tag is its platforms' tags, sorted and joined with `+`, such as
+`linux-x64+linux-x64-musl`, and at most 128 bytes long. The publish document
+attaches each variant as `<basename>-<version>~<tag>.tgz`, with the `.tgz`'s
+`integrity` beside its `data`, or with `integrity` alone for an archive
+[staged](ecosystems.md#staged-archives) before the publish, so a version's
+archives are not bounded by one request body.
 pnpr rejects the version when a variant:
 
 - has another `name` or `version`, or other `peerDependencies` or
@@ -483,14 +483,14 @@ pnpr rejects the version when a variant:
 - requires a build;
 - has no `variant` field, one that does not parse, or an `os`, `cpu`, or
   `libc` field;
+- declares platforms that give another tag than the one that names it;
 - lists a platform another variant lists;
-- is referenced but not attached, or attached but not referenced.
+- is attached for a version the publish document does not describe, or
+  without an `integrity`.
 
 A variant may differ from the version in its files, dependencies, bundled
-dependencies, `bin`, `main`, `exports`, and `engines`. pnpr names each variant
-by its platforms' tags, sorted and joined with `+`, such as
-`linux-x64+linux-x64-musl`, and serves its tar at
-`/{name}@{version}/variants/{tag}`, and at
+dependencies, `bin`, `main`, `exports`, and `engines`. pnpr serves a
+variant's tar at `/{name}@{version}/variants/{tag}`, and at
 `/{name}@{version}+r{revision}/variants/{tag}` while that revision is selected.
 
 Only [pnpr's package document](#pnprs-package-document) and release records

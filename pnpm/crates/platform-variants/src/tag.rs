@@ -152,11 +152,17 @@ pub fn variant_tag(platforms: &[Platform]) -> Result<String, TagError> {
     Ok(tags.join("+"))
 }
 
-/// Whether `tag` can name a variant in a route: `[a-z0-9._+-]+`, never `.`
-/// or `..`.
+/// The longest variant tag, in bytes. A tag is one segment of a route and
+/// part of an archive's file name, so a variant that needs more platforms is
+/// split into several variants.
+pub const MAX_VARIANT_TAG_BYTES: usize = 128;
+
+/// Whether `tag` can name a variant in a route: `[a-z0-9._+-]+`, at most
+/// [`MAX_VARIANT_TAG_BYTES`], never `.` or `..`.
 #[must_use]
 pub fn is_valid_variant_tag(tag: &str) -> bool {
     !tag.is_empty()
+        && tag.len() <= MAX_VARIANT_TAG_BYTES
         && tag != "."
         && tag != ".."
         && tag

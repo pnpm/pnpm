@@ -193,9 +193,22 @@ fn an_attachment_references_a_staged_archive_by_integrity() {
 }
 
 #[test]
-fn an_attachment_carries_its_bytes_or_names_a_staged_archive_but_not_both() {
+fn inline_bytes_may_declare_their_integrity() {
+    let mut body = json!({
+        "_attachments": {
+            "foo-1.0.0.tgz": { "data": "aGVsbG8=", "integrity": "sha512-AAAA" },
+        },
+    });
+    let attachments = extract_attachments(&mut body).unwrap();
+    assert_eq!(attachments[0].inline_data(), Some("aGVsbG8="));
+    assert_eq!(attachments[0].staged_integrity(), None);
+    assert_eq!(attachments[0].declared_integrity.as_deref(), Some("sha512-AAAA"));
+}
+
+#[test]
+fn an_attachment_carries_its_bytes_or_names_a_staged_archive() {
     for attachment in [
-        json!({ "data": "aGVsbG8=", "integrity": "sha512-AAAA" }),
+        json!({ "data": 5, "integrity": "sha512-AAAA" }),
         json!({ "length": 5 }),
         json!({ "integrity": 5 }),
     ] {

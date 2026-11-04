@@ -190,6 +190,21 @@ pub fn blob_segment(name: &str, file: &str) -> String {
     }
 }
 
+/// The most bytes most file systems allow in one file name.
+const MAX_FILE_NAME_BYTES: usize = 255;
+
+/// The most bytes [`crate::unique_tmp_path`] adds to a file name:
+/// `.tmp.<pid>.<counter>.<random>`.
+const MAX_TMP_SUFFIX_BYTES: usize = ".tmp...".len() + 10 + 20 + 16;
+
+/// Whether the blob `file` of the package `name` can be stored on a local
+/// file system: its encoded segment, with the suffix of the temporary file it
+/// is written to first, fits one file name.
+#[must_use]
+pub fn blob_segment_fits(name: &str, file: &str) -> bool {
+    blob_segment(name, file).len() + MAX_TMP_SUFFIX_BYTES <= MAX_FILE_NAME_BYTES
+}
+
 /// The inverse of [`blob_segment`], or `None` for a segment it cannot have
 /// produced.
 #[must_use]
