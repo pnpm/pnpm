@@ -263,3 +263,47 @@ fn skips_dot_directories_when_a_managed_directory_is_configured() {
         ["real", "root"],
     );
 }
+
+fn modules_dir_opts(root: &Path, project: &str) -> FindWorkspaceProjectsOpts {
+    FindWorkspaceProjectsOpts {
+        patterns: Some(vec!["**".to_string()]),
+        ignored_directories: vec![root.join(project).join("node_modules")],
+    }
+}
+
+#[test]
+fn modules_directories_the_walk_skips_by_name_find_the_same_projects() {
+    let tmp = TempDir::new().unwrap();
+    make_project(tmp.path(), "packages/a", "a");
+    make_project(tmp.path(), "packages/a/node_modules/dep", "dep");
+    make_project(tmp.path(), "packages/b", "b");
+
+    let a = modules_dir_opts(tmp.path(), "packages/a");
+    let b = modules_dir_opts(tmp.path(), "packages/b");
+
+    assert!(a.finds_the_same_as(&b, tmp.path()));
+}
+
+#[test]
+fn other_patterns_do_not_find_the_same_projects() {
+    let tmp = TempDir::new().unwrap();
+    let a = modules_dir_opts(tmp.path(), "packages/a");
+    let mut other = a.clone();
+    other.patterns = Some(vec!["packages/*".to_string()]);
+
+    assert!(!a.finds_the_same_as(&other, tmp.path()));
+}
+
+#[cfg(any(windows, target_os = "macos"))]
+#[test]
+fn a_modules_directory_spelled_otherwise_on_disk_changes_the_projects() {
+    let tmp = TempDir::new().unwrap();
+    make_project(tmp.path(), "packages/a", "a");
+    make_project(tmp.path(), "packages/a/NODE_MODULES/dep", "dep");
+    make_project(tmp.path(), "packages/b", "b");
+
+    let a = modules_dir_opts(tmp.path(), "packages/a");
+    let b = modules_dir_opts(tmp.path(), "packages/b");
+
+    assert!(!a.finds_the_same_as(&b, tmp.path()));
+}
