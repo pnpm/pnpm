@@ -199,9 +199,11 @@ index points downloads at.
 
 ## One publish for a workspace that spans ecosystems
 
-`PUT /-/pnpr/v0/publish` (also mounted under `/npm/-/pnpr/v0/publish` for
+`PUT /-/pnpr/v0/publish` (also mounted under `/npm/-/pnpr/v0/publish` and a
+named npm registry's `/npm/~<registry>/-/pnpr/v0/publish` for
 `pnpm publish --batch`) publishes packages of any ecosystem in a single
-transaction. Each entry names its `ecosystem`, and an entry without one is an
+transaction. Under a named registry, its npm entries are published through that
+registry. Each entry names its `ecosystem`, and an entry without one is an
 npm publish document, so an npm-only batch body is already a valid one.
 
 ```json
@@ -263,6 +265,10 @@ references it, so one request body need not carry a whole release:
 ```text
 PUT /-/pnpr/v0/artifacts/blob?integrity=sha512-…
 ```
+
+The route is also mounted under `/npm/` and a named npm registry's
+`/npm/~<registry>/`. A staged archive belongs to the account that uploaded it,
+whichever of these addresses it went through.
 
 `HEAD` on the same URL tells whether the archive is staged already, so a
 resumed release uploads only what is missing. An upload is stored only if its

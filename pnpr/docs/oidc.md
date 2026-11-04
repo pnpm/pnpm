@@ -182,10 +182,21 @@ The project's `.npmrc` holds only the environment reference:
 //registry.example/npm/~private/:_authToken=${NODE_AUTH_TOKEN}
 ```
 
-The credential permits ordinary `PUT` publications to the configured packages
-through that named registry and nothing else. It cannot read packages, unpublish,
-change dist-tags separately, manage accounts, publish batches, or reach other
-pnpr services. Request the token after building so it stays valid through the
+The credential permits:
+
+- ordinary `PUT` publications to the configured packages through that named
+  registry;
+- [staging archives](ecosystems.md#staged-archives) with `PUT` and `HEAD` on
+  `/-/pnpr/v0/artifacts/blob`, under the server root, the npm base, or the
+  named registry's address;
+- batch commits to `/-/pnpr/v0/publish` at the same addresses, when every entry
+  is an npm package of the configured ones that resolves to that named
+  registry.
+
+Every job of a workflow that exchanges its token for the same binding is the
+same account, so archives one job stages can be committed by another. The
+credential cannot read packages, unpublish, change dist-tags separately, manage
+accounts, or reach other pnpr services. Request the token after building so it stays valid through the
 publish request; its issuer's expiry applies to every request.
 
 ## Keys
