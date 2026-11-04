@@ -62,7 +62,7 @@ fn both_powerpc_platforms_are_one_name_to_a_package() {
         platforms
             .platforms(HOST.0, HOST.1, HOST.2)
             .iter()
-            .map(|platform| platform.architecture.wheel())
+            .map(|platform| platform.architecture.expect("a machine pnpm knows").wheel())
             .collect::<Vec<_>>(),
         ["ppc64le", "ppc64"],
     );
@@ -101,7 +101,7 @@ fn current_keeps_the_endianness_the_host_is() {
     let wheel = |architecture| {
         host.platforms("linux", architecture, "glibc")
             .iter()
-            .map(|platform| platform.architecture.wheel())
+            .map(|platform| platform.architecture.expect("a machine pnpm knows").wheel())
             .collect::<Vec<_>>()
     };
     assert_eq!(wheel("powerpc64le"), ["ppc64le"]);

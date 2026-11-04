@@ -1,9 +1,15 @@
 //! One platform `supportedArchitectures` names.
 
+pub use architecture::Architecture;
+
 use derive_more::{Display, Error};
 use miette::Diagnostic;
+use pnpm_platform_variants::{Floor, Platform};
 use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
 use std::{fmt, str::FromStr};
+
+mod aliases;
+mod architecture;
 
 /// One platform an install prepares for.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -13,17 +19,21 @@ pub enum SupportedPlatform {
     Named(NamedPlatform),
 }
 
-/// A platform named outright, as `<os>-<cpu>[-<libc>]` or as the Rust
-/// target triple of the same machine.
+/// A platform named outright: a platform tag, as package variants name
+/// their platforms, or a spelling pnpm read before it read tags.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NamedPlatform {
-    pub os: Os,
-    pub architecture: Architecture,
-    /// The C library its packages are built against, absent on a system
-    /// that has only one. Linux names one either way: a Linux platform
-    /// that leaves it out is the glibc platform, the way `linux-x64`
-    /// names the glibc build everywhere else in pnpm.
-    pub libc: Option<Libc>,
+    /// The platform in the tag vocabulary pnpr shares: `os` and `cpu` as
+    /// packages declare them, the C library of a Linux platform (glibc when
+    /// it names none), and the floors and ABI it states.
+    pub platform: Platform,
+    /// The machine's architecture, when pnpm knows it: it tells apart the
+    /// two POWER endiannesses that `cpu` names alike, and gives a Python
+    /// wheel's spelling.
+    pub architecture: Option<Architecture>,
+    /// A `musllinux_<major>_<minor>` wheel baseline as written, which the
+    /// tag vocabulary has no musl floor for.
+    pub musllinux: Option<String>,
 }
 
 /// The systems a platform can name.
@@ -59,7 +69,7 @@ pub enum UnknownPlatformError {
     #[diagnostic(
         code(ERR_PNPM_UNKNOWN_PLATFORM),
         help(
-            "Name a platform as <os>-<cpu>, such as linux-x64, darwin-arm64 or win32-x64. A Linux platform may name its C library too, as linux-x64-musl or linux-x64-manylinux_2_28."
+            "Name a platform as a platform tag, <os>-<cpu> with the C library and floors it needs, such as linux-x64, linux-x64-musl, linux-x64-manylinux_2_28, darwin-arm64-macos_14_0, linux-x64-napi8 or freebsd-x64."
         )
     )]
     Unknown {
@@ -86,7 +96,7 @@ impl Os {
         }
     }
 
-    pub(super) fn parse(name: &str) -> Option<Self> {
+    pub(crate) fn parse(name: &str) -> Option<Self> {
         match name {
             "linux" => Some(Self::Linux),
             "darwin" => Some(Self::Darwin),
@@ -121,7 +131,7 @@ impl Libc {
         self.family.name()
     }
 
-    pub(super) fn parse(token: &str) -> Option<Self> {
+    pub(crate) fn parse(token: &str) -> Option<Self> {
         match token {
             "gnu" | "glibc" => Some(Self::family(LibcFamily::Glibc)),
             "musl" => Some(Self::family(LibcFamily::Musl)),
@@ -158,135 +168,77 @@ fn is_number(value: &str) -> bool {
     !value.is_empty() && value.bytes().all(|byte| byte.is_ascii_digit())
 }
 
-/// How one architecture is spelled, since the three worlds a platform is
-/// read in disagree: `platform` names it inside a platform, `cpu` is what
-/// packages declare, and `wheel` is what a Python wheel tag carries.
-/// `aliases` accepts the rest, which is how the Rust target triple of the
-/// same machine parses.
-struct ArchitectureNames {
-    architecture: Architecture,
-    platform: &'static str,
-    cpu: &'static str,
-    wheel: &'static str,
-    aliases: &'static [&'static str],
-}
+impl NamedPlatform {
+    /// The platform of `os` on `architecture`, built against `libc` on
+    /// Linux.
+    #[must_use]
+    pub fn from_machine(os: Os, architecture: Architecture, libc: Option<Libc>) -> Self {
+        let libc = libc.filter(|_| os == Os::Linux);
+        let baseline = libc.as_ref().and_then(|libc| libc.baseline.clone());
+        let family = libc
+            .as_ref()
+            .map(|libc| match libc.family {
+                LibcFamily::Glibc => pnpm_platform_variants::Libc::Glibc,
+                LibcFamily::Musl => pnpm_platform_variants::Libc::Musl,
+            });
+        let musl = family == Some(pnpm_platform_variants::Libc::Musl);
+        let platform = Platform {
+            os: Some(os.name().to_string()),
+            cpu: Some(architecture.cpu().to_string()),
+            libc: family,
+            libc_version: baseline
+                .as_deref()
+                .filter(|_| !musl)
+                .and_then(manylinux_floor),
+            ..Platform::default()
+        };
+        Self { platform, architecture: Some(architecture), musllinux: baseline.filter(|_| musl) }
+    }
 
-/// Every architecture a platform can name.
-const ARCHITECTURES: &[ArchitectureNames] = &[
-    ArchitectureNames {
-        architecture: Architecture::X64,
-        platform: "x64",
-        cpu: "x64",
-        wheel: "x86_64",
-        aliases: &["amd64"],
-    },
-    ArchitectureNames {
-        architecture: Architecture::Arm64,
-        platform: "arm64",
-        cpu: "arm64",
-        wheel: "aarch64",
-        aliases: &[],
-    },
-    ArchitectureNames {
-        architecture: Architecture::Ia32,
-        platform: "ia32",
-        cpu: "ia32",
-        wheel: "i686",
-        aliases: &["x86"],
-    },
-    ArchitectureNames {
-        architecture: Architecture::Arm,
-        platform: "arm",
-        cpu: "arm",
-        wheel: "armv7l",
-        aliases: &["armv7"],
-    },
-    // Little-endian comes first so that a bare `ppc64`, which is the
-    // name Node reports for either and the one a package declares,
-    // reads as the endianness every POWER machine pnpm runs on has.
-    ArchitectureNames {
-        architecture: Architecture::Ppc64Le,
-        platform: "ppc64le",
-        cpu: "ppc64",
-        wheel: "ppc64le",
-        aliases: &["powerpc64le"],
-    },
-    ArchitectureNames {
-        architecture: Architecture::Ppc64Be,
-        platform: "ppc64be",
-        cpu: "ppc64",
-        wheel: "ppc64",
-        aliases: &["powerpc64"],
-    },
-    ArchitectureNames {
-        architecture: Architecture::S390x,
-        platform: "s390x",
-        cpu: "s390x",
-        wheel: "s390x",
-        aliases: &[],
-    },
-    ArchitectureNames {
-        architecture: Architecture::Riscv64,
-        platform: "riscv64",
-        cpu: "riscv64",
-        wheel: "riscv64",
-        aliases: &["riscv64gc"],
-    },
-];
+    /// The name packages declare under `os`.
+    #[must_use]
+    pub fn os(&self) -> &str {
+        self.platform.os.as_deref().unwrap_or_default()
+    }
 
-/// The architectures a platform can name. Each is spelled three ways,
-/// which [`Architecture::cpu`] and [`Architecture::wheel`] reach.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Architecture {
-    X64,
-    Arm64,
-    Ia32,
-    Arm,
-    Ppc64Le,
-    /// Big-endian POWER, which a platform has to name `ppc64be` to ask
-    /// for. Node reports `ppc64` for either endianness, so that is the
-    /// one name a package declares and it reads as the little-endian
-    /// platform, which is the one wheels are published for.
-    Ppc64Be,
-    S390x,
-    Riscv64,
-}
-
-impl Architecture {
     /// The name packages declare under `cpu`.
     #[must_use]
-    pub fn cpu(self) -> &'static str {
-        self.names().cpu
+    pub fn cpu(&self) -> &str {
+        self.platform.cpu.as_deref().unwrap_or_default()
     }
 
-    /// The name a Python wheel tag carries.
+    /// The name packages declare under `libc`, on Linux.
     #[must_use]
-    pub fn wheel(self) -> &'static str {
-        self.names().wheel
+    pub fn libc(&self) -> Option<&'static str> {
+        self.platform.libc.map(|libc| match libc {
+            pnpm_platform_variants::Libc::Glibc => LibcFamily::Glibc.name(),
+            pnpm_platform_variants::Libc::Musl => LibcFamily::Musl.name(),
+        })
     }
 
-    fn platform_name(self) -> &'static str {
-        self.names().platform
+    /// The system and architecture, when the platform is a machine pnpm
+    /// knows the Python wheels of.
+    #[must_use]
+    pub fn machine(&self) -> Option<(Os, Architecture)> {
+        Some((Os::parse(self.os())?, self.architecture?))
     }
 
-    fn names(self) -> &'static ArchitectureNames {
-        ARCHITECTURES
-            .iter()
-            .find(|names| names.architecture == self)
-            .expect("every architecture is in ARCHITECTURES")
+    /// The `manylinux` or `musllinux` baseline a Python wheel for this
+    /// platform is built against, when the platform states one.
+    #[must_use]
+    pub fn wheel_baseline(&self) -> Option<String> {
+        if let Some(musllinux) = &self.musllinux {
+            return Some(musllinux.clone());
+        }
+        let Floor { major, minor } = self.platform.libc_version?;
+        Some(format!("manylinux_{major}_{minor}"))
     }
+}
 
-    pub(super) fn parse(name: &str) -> Option<Self> {
-        ARCHITECTURES
-            .iter()
-            .find(|names| {
-                names.platform == name
-                    || names.cpu == name
-                    || names.wheel == name
-                    || names.aliases.contains(&name)
-            })
-            .map(|names| names.architecture)
-    }
+/// The glibc floor a `manylinux_<major>_<minor>` baseline states.
+fn manylinux_floor(baseline: &str) -> Option<Floor> {
+    let (major, minor) = baseline.strip_prefix("manylinux_")?.split_once('_')?;
+    Some(Floor { major: major.parse().ok()?, minor: minor.parse().ok()? })
 }
 
 impl fmt::Display for SupportedPlatform {
@@ -299,13 +251,23 @@ impl fmt::Display for SupportedPlatform {
 }
 
 impl fmt::Display for NamedPlatform {
+    /// The platform's tag, with the architecture and `musllinux` baseline
+    /// spelled as they were read, so a platform keeps the name it had
+    /// before pnpm read tags.
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(formatter, "{}-{}", self.os.name(), self.architecture.platform_name())?;
-        match &self.libc {
-            Some(Libc { baseline: Some(baseline), .. }) => write!(formatter, "-{baseline}"),
-            Some(Libc { family: LibcFamily::Musl, .. }) => formatter.write_str("-musl"),
-            _ => Ok(()),
+        let tag = self.platform.tag().map_err(|_| fmt::Error)?;
+        let mut parts: Vec<&str> = tag.split('-').collect();
+        if let (Some(architecture), Some(cpu)) = (self.architecture, parts.get_mut(1)) {
+            *cpu = architecture.platform_name();
         }
+        if let Some(musllinux) = &self.musllinux {
+            for part in &mut parts {
+                if *part == "musl" {
+                    *part = musllinux;
+                }
+            }
+        }
+        formatter.write_str(&parts.join("-"))
     }
 }
 
@@ -321,59 +283,15 @@ impl FromStr for SupportedPlatform {
 }
 
 fn parse_named(entry: &str) -> Result<NamedPlatform, UnknownPlatformError> {
-    let (head, rest) = entry.split_once('-').ok_or_else(|| unknown(entry))?;
-    match Os::parse(head) {
-        Some(os) => parse_platform_name(entry, os, rest),
-        None => parse_target_triple(entry, head, rest),
+    let spelled = aliases::canonical(entry)?;
+    let platform = Platform::parse_tag(&spelled.tag).map_err(|_| unknown(entry))?;
+    if platform.wasm32 {
+        return Err(unknown(entry));
     }
+    Ok(NamedPlatform { platform, architecture: spelled.architecture, musllinux: spelled.musllinux })
 }
 
-/// `<os>-<cpu>[-<libc>]`, the spelling `pnpm pack-app --target` and the
-/// `supportedArchitectures` axes share.
-fn parse_platform_name(
-    entry: &str,
-    os: Os,
-    rest: &str,
-) -> Result<NamedPlatform, UnknownPlatformError> {
-    let (architecture, libc) = match rest.split_once('-') {
-        Some((architecture, libc)) => (architecture, Some(libc)),
-        None => (rest, None),
-    };
-    let architecture = Architecture::parse(architecture).ok_or_else(|| unknown(entry))?;
-    let libc = match (os, libc) {
-        (Os::Linux, Some(libc)) => Some(Libc::parse(libc).ok_or_else(|| unknown(entry))?),
-        (Os::Linux, None) => Some(Libc::family(LibcFamily::Glibc)),
-        (_, None) => None,
-        (_, Some(_)) => {
-            return Err(UnknownPlatformError::LibcOnNonLinux { platform: entry.to_string() });
-        }
-    };
-    Ok(NamedPlatform { os, architecture, libc })
-}
-
-/// The Rust target triple of a machine, which is how uv and the rest of
-/// the Python tooling name the same platform.
-fn parse_target_triple(
-    entry: &str,
-    architecture: &str,
-    system: &str,
-) -> Result<NamedPlatform, UnknownPlatformError> {
-    let architecture = Architecture::parse(architecture).ok_or_else(|| unknown(entry))?;
-    let (os, libc) = match system {
-        "apple-darwin" => (Os::Darwin, None),
-        "pc-windows-msvc" => (Os::Windows, None),
-        _ => (
-            Os::Linux,
-            Some(
-                Libc::parse(system.strip_prefix("unknown-linux-").unwrap_or(system))
-                    .ok_or_else(|| unknown(entry))?,
-            ),
-        ),
-    };
-    Ok(NamedPlatform { os, architecture, libc })
-}
-
-fn unknown(entry: &str) -> UnknownPlatformError {
+pub(super) fn unknown(entry: &str) -> UnknownPlatformError {
     UnknownPlatformError::Unknown { platform: entry.to_string() }
 }
 

@@ -189,14 +189,10 @@ fn platform_allows(
 /// suits it on its own. A platform that has no C library places no
 /// constraint on one.
 fn named_platform_allows(platform: &NamedPlatform, wanted: WantedPlatformRef<'_>) -> bool {
-    wanted.os.is_none_or(|wanted_os| axis_is_supported(platform.os.name(), None, wanted_os))
-        && wanted.cpu.is_none_or(|wanted_cpu| {
-            axis_is_supported(platform.architecture.cpu(), None, wanted_cpu)
-        })
+    wanted.os.is_none_or(|wanted_os| axis_is_supported(platform.os(), None, wanted_os))
+        && wanted.cpu.is_none_or(|wanted_cpu| axis_is_supported(platform.cpu(), None, wanted_cpu))
         && wanted.libc.is_none_or(|wanted_libc| {
-            platform.libc
-                .as_ref()
-                .is_none_or(|libc| axis_is_supported(libc.name(), None, wanted_libc))
+            platform.libc().is_none_or(|libc| axis_is_supported(libc, None, wanted_libc))
         })
 }
 
