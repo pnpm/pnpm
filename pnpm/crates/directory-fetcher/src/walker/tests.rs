@@ -47,6 +47,7 @@ fn walk_all_files_recurses_and_returns_relative_paths() {
     let root = dir.path();
     touch(root, "package.json");
     touch(root, "index.js");
+    touch(root, ".pnpm-lock.yaml.123.0.tmp");
     touch(root, "lib/inner.js");
     touch(root, "lib/nested/deep.js");
 
@@ -284,6 +285,7 @@ fn walk_package_files_applies_npm_packlist_filter() {
     .unwrap();
     touch(root, "dist/index.js");
     touch(root, "dist/sub/inner.js");
+    touch(root, ".pnpm-lock.yaml.123.0.tmp");
     touch(root, "src/internal.ts");
 
     let out = walk_package_files(root).unwrap();
