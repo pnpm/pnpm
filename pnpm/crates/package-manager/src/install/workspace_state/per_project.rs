@@ -28,23 +28,8 @@ pub fn install_already_up_to_date_per_project(
     check: &UpToDateFastPathCheck<'_>,
 ) -> Result<UpToDateWorkspace, &'static str> {
     let config = check.config;
-    if config.package_configs
-        .as_ref()
-        .is_some_and(|configs| !configs.is_empty())
-    {
-        return Err("packageConfigs gives projects their own settings");
-    }
-    if config.enable_global_virtual_store {
-        return Err("the global virtual store keeps build markers per project");
-    }
-    // The install verifies the patches against every project lockfile it
-    // finds, which no single project's check covers, such as a patch only a
-    // removed project used.
-    if config.patched_dependencies
-        .as_ref()
-        .is_some_and(|patches| !patches.is_empty())
-    {
-        return Err("patches are verified against every project lockfile");
+    if let Some(reason) = config_blocks_per_project(config) {
+        return Err(reason);
     }
     let manifest_dir = check.manifest
         .path()
@@ -75,6 +60,29 @@ pub fn install_already_up_to_date_per_project(
             register_fast_path_workspace(&record.config, &project.root_dir)
         })?;
     Ok(UpToDateWorkspace { root: workspace_root.clone(), project_count: Some(projects.len()) })
+}
+
+/// The configuration that keeps the per-project fast path off.
+fn config_blocks_per_project(config: &Config) -> Option<&'static str> {
+    if config.package_configs
+        .as_ref()
+        .is_some_and(|configs| !configs.is_empty())
+    {
+        return Some("packageConfigs gives projects their own settings");
+    }
+    if config.enable_global_virtual_store {
+        return Some("the global virtual store keeps build markers per project");
+    }
+    // The install verifies the patches against every project lockfile it
+    // finds, which no single project's check covers, such as a patch only a
+    // removed project used.
+    if config.patched_dependencies
+        .as_ref()
+        .is_some_and(|patches| !patches.is_empty())
+    {
+        return Some("patches are verified against every project lockfile");
+    }
+    None
 }
 
 /// The workspace the projects are listed in.
