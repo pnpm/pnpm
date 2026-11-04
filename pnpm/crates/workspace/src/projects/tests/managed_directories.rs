@@ -281,7 +281,7 @@ fn modules_directories_the_walk_skips_by_name_find_the_same_projects() {
     let in_a = modules_dir_opts(tmp.path(), "packages/a");
     let in_b = modules_dir_opts(tmp.path(), "packages/b");
 
-    assert!(in_a.finds_the_same_as(&in_b, tmp.path()));
+    assert_eq!(in_a.discovery_key(tmp.path()), in_b.discovery_key(tmp.path()));
 }
 
 #[test]
@@ -291,7 +291,7 @@ fn other_patterns_do_not_find_the_same_projects() {
     let mut other = in_a.clone();
     other.patterns = Some(vec!["packages/*".to_string()]);
 
-    assert!(!in_a.finds_the_same_as(&other, tmp.path()));
+    assert_ne!(in_a.discovery_key(tmp.path()), other.discovery_key(tmp.path()));
 }
 
 #[cfg(any(windows, target_os = "macos"))]
@@ -305,5 +305,5 @@ fn a_modules_directory_spelled_otherwise_on_disk_changes_the_projects() {
     let in_a = modules_dir_opts(tmp.path(), "packages/a");
     let in_b = modules_dir_opts(tmp.path(), "packages/b");
 
-    assert!(!in_a.finds_the_same_as(&in_b, tmp.path()));
+    assert_ne!(in_a.discovery_key(tmp.path()), in_b.discovery_key(tmp.path()));
 }

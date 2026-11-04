@@ -73,15 +73,27 @@ pub struct FindWorkspaceProjectsOpts {
 }
 
 impl FindWorkspaceProjectsOpts {
-    /// Whether [`find_workspace_projects`] under `workspace_root` finds the
-    /// same projects with `self` as with `other`. Ignored directories under
-    /// a `node_modules` are not compared, since the walk skips those by name.
+    /// What decides which projects [`find_workspace_projects`] finds under
+    /// `workspace_root` with these options. Ignored directories the walk
+    /// skips by name anyway are left out.
     #[must_use]
-    pub fn finds_the_same_as(&self, other: &Self, workspace_root: &Path) -> bool {
-        self.patterns == other.patterns
-            && ignored_directories_beyond_the_walk(workspace_root, &self.ignored_directories)
-                == ignored_directories_beyond_the_walk(workspace_root, &other.ignored_directories)
+    pub fn discovery_key(&self, workspace_root: &Path) -> DiscoveryKey {
+        DiscoveryKey {
+            patterns: self.patterns.clone(),
+            ignored_directories: ignored_directories_beyond_the_walk(
+                workspace_root,
+                &self.ignored_directories,
+            ),
+        }
     }
+}
+
+/// Equal for two sets of options with which [`find_workspace_projects`]
+/// finds the same projects. See [`FindWorkspaceProjectsOpts::discovery_key`].
+#[derive(Debug, PartialEq, Eq)]
+pub struct DiscoveryKey {
+    patterns: Option<Vec<String>>,
+    ignored_directories: Vec<PathBuf>,
 }
 
 /// Error type of the public entry points.

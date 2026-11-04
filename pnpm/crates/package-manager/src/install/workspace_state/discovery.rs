@@ -93,10 +93,10 @@ pub struct GateWorkspace {
 }
 
 /// One discovery of the workspace projects, with the workspace manifest and
-/// the options it ran with.
+/// the key of the options it ran with.
 struct DiscoveredProjects {
     manifest: pnpm_workspace::WorkspaceManifest,
-    opts: pnpm_workspace::FindWorkspaceProjectsOpts,
+    key: pnpm_workspace::DiscoveryKey,
     projects: Vec<pnpm_workspace::Project>,
 }
 
@@ -124,13 +124,13 @@ impl GateWorkspace {
                 let manifest = pnpm_workspace::read_workspace_manifest(&self.root).ok()??;
                 let opts = super::super::lifecycle::checked_projects_opts(config, &manifest);
                 let projects = pnpm_workspace::find_workspace_projects(&self.root, &opts).ok()?;
-                Some(DiscoveredProjects { manifest, opts, projects })
+                let key = opts.discovery_key(&self.root);
+                Some(DiscoveredProjects { manifest, key, projects })
             })
             .as_ref()?;
-        let opts = super::super::lifecycle::checked_projects_opts(config, &discovered.manifest);
-        discovered.opts
-            .finds_the_same_as(&opts, &self.root)
-            .then_some(discovered.projects.as_slice())
+        let key = super::super::lifecycle::checked_projects_opts(config, &discovered.manifest)
+            .discovery_key(&self.root);
+        (discovered.key == key).then_some(discovered.projects.as_slice())
     }
 }
 
