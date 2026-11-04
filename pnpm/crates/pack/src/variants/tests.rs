@@ -4,7 +4,7 @@ use super::{
 };
 use serde_json::{Value, json};
 
-fn base(variants: Value) -> Value {
+fn base(variants: &Value) -> Value {
     json!({
         "name": "example-native-addon",
         "version": "2.3.0",
@@ -15,7 +15,7 @@ fn base(variants: Value) -> Value {
 }
 
 fn read(variants: Value) -> Result<VariantDeclaration, VariantDeclarationError> {
-    VariantDeclaration::read(&base(variants)).map(Option::unwrap)
+    VariantDeclaration::read(&base(&variants)).map(Option::unwrap)
 }
 
 #[test]
@@ -139,7 +139,7 @@ fn rejects_manifest_fields_every_archive_shares_or_a_variant_cannot_set() {
         }
     }
     assert!(read(json!([{ "targets": ["any"], "manifest": { "os": ["linux"] } }])).is_ok());
-    let mut inherited = base(json!([{ "targets": ["linux-x64"] }]));
+    let mut inherited = base(&json!([{ "targets": ["linux-x64"] }]));
     inherited["cpu"] = json!(["x64"]);
     assert!(matches!(
         VariantDeclaration::read(&inherited),
@@ -156,7 +156,7 @@ fn an_archive_manifest_applies_its_entry_to_the_base_manifest() {
             "manifest": { "main": null, "bin": { "example": "native/example" } },
         },
     ]);
-    let manifest = base(variants.clone());
+    let manifest = base(&variants);
     let declaration = read(variants).unwrap();
     assert_eq!(
         VariantDeclaration::archive_manifest(&manifest, &declaration.entries[1]),
@@ -177,7 +177,7 @@ fn an_archive_manifest_applies_its_entry_to_the_base_manifest() {
 #[test]
 fn checks_a_packed_archive_as_pnpr_does() {
     let variants = json!([{ "targets": ["any"] }, { "targets": ["linux-x64"] }]);
-    let manifest = base(variants.clone());
+    let manifest = base(&variants);
     let declaration = read(variants).unwrap();
     let (any, linux) = (&declaration.entries[0], &declaration.entries[1]);
     let archive = VariantDeclaration::archive_manifest(&manifest, linux);
@@ -188,7 +188,7 @@ fn checks_a_packed_archive_as_pnpr_does() {
     ));
     let any_archive = VariantDeclaration::archive_manifest(&manifest, any);
     check_archive(&manifest, any, &any_archive, &["binding.gyp"]).unwrap();
-    let mut other_peers = archive.clone();
+    let mut other_peers = archive;
     other_peers["peerDependencies"] = json!({});
     assert!(matches!(
         check_archive(&manifest, linux, &other_peers, &["index.js"]),
