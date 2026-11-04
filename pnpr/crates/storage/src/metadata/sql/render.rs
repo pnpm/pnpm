@@ -60,7 +60,7 @@ pub(super) fn read_view(
         cache.store_view(view_key, package.generation, Arc::clone(&bytes));
         bytes
     };
-    Ok(Some(PackageView { bytes, generation: Some(key.generation(package.generation)) }))
+    Ok(Some(PackageView { bytes, generation: key.generation(package.generation) }))
 }
 
 /// One version as the version list reads it, before its fragment.

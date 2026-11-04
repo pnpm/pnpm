@@ -1,31 +1,25 @@
-//! The hosted document each surface keeps per package, and the journaled
-//! publish that records a blob in one.
+//! The hosted document each surface keeps per package, and the publish that
+//! records a blob in one.
 //!
-//! A hosted registry stores one document per package — an npm packument, a
-//! crate's index entries, a Python project's file list — beside the blobs it
-//! serves. Publishing a blob and recording it in the document has to be one
-//! operation: a blob no document mentions is invisible, and a document entry
-//! with no blob behind it is a broken download. [`store_hosted_artifact`]
-//! makes it one, through the same commit journal the npm publish flow uses,
-//! and [`RegistryDocuments`] gives that journal the per-ecosystem merge rule
-//! it re-runs when a transaction is applied after a crash.
+//! A hosted registry keeps one document per package — an npm packument, a
+//! crate's index entries, a Python project's file list — in its metadata,
+//! beside the blobs it serves. Publishing a blob and recording it in the
+//! document has to be one operation: a blob no document mentions is
+//! invisible, and a document entry with no blob behind it is a broken
+//! download. [`store_hosted_artifact`] makes it one, through the same commit
+//! the npm publish flow uses.
 
 use super::{
     AppState, hosted_read_namespace,
     publishing::{StagedPublish, Verification, commit_publishes},
 };
-use pnpr_cargo::{CRATE_DOCUMENT_FORMAT_VERSION, CrateDocument, crate_filename};
+use pnpr_cargo::{CRATE_DOCUMENT_FORMAT_VERSION, CrateDocument};
 use pnpr_error::RegistryError;
 use pnpr_oci::{IMAGE_DOCUMENT_FORMAT_VERSION, ImageDocument};
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_policy::Identity;
 use pnpr_pypi::{PROJECT_DOCUMENT_FORMAT_VERSION, ProjectDocument};
 use pnpr_registry::Ecosystem;
-use pnpr_storage::{
-    journal::{DocumentMerge, HostedDocuments},
-    publish::merge_journaled_packument,
-};
-use std::collections::HashSet;
 
 /// The per-project document a hosted registry keeps in its document slot: a
 /// crate's index entries, a Python project's file list. Read through
@@ -42,15 +36,10 @@ pub(super) trait HostedDocument: Sized {
     fn to_bytes(&self) -> Vec<u8>;
 
     /// Take on every entry of `addition` this document does not already have,
-    /// and report whether that added anything. An entry is skipped when its
-    /// blob filename is in `lost_blobs`, which names the blobs a transaction
-    /// failed to place: those bytes are not the ones the store serves, so
-    /// nothing may point at them.
-    ///
-    /// Entries already here win, which is what makes a re-applied publish
-    /// safe: what was published in the meantime stays, and only what is
-    /// genuinely missing is added.
-    fn merge(&mut self, addition: Self, lost_blobs: &HashSet<String>) -> bool;
+    /// and report whether that added anything. Entries already here win:
+    /// what was published in the meantime stays, and only what is genuinely
+    /// missing is added.
+    fn merge(&mut self, addition: Self) -> bool;
 }
 
 impl HostedDocument for CrateDocument {
@@ -73,12 +62,10 @@ impl HostedDocument for CrateDocument {
         CrateDocument::to_bytes(self)
     }
 
-    fn merge(&mut self, addition: Self, lost_blobs: &HashSet<String>) -> bool {
+    fn merge(&mut self, addition: Self) -> bool {
         let before = self.versions.len();
         for entry in addition.versions {
-            if self.version(&entry.vers).is_some()
-                || lost_blobs.contains(&crate_filename(&entry.name, &entry.vers))
-            {
+            if self.version(&entry.vers).is_some() {
                 continue;
             }
             // The document carries the name as first published, not the
@@ -115,10 +102,10 @@ impl HostedDocument for ProjectDocument {
         ProjectDocument::to_bytes(self)
     }
 
-    fn merge(&mut self, addition: Self, lost_blobs: &HashSet<String>) -> bool {
+    fn merge(&mut self, addition: Self) -> bool {
         let before = self.files.len();
         for file in addition.files {
-            if self.file(&file.filename).is_some() || lost_blobs.contains(&file.filename) {
+            if self.file(&file.filename).is_some() {
                 continue;
             }
             self.files.push(file);
@@ -147,44 +134,9 @@ impl HostedDocument for ImageDocument {
         ImageDocument::to_bytes(self)
     }
 
-    fn merge(&mut self, addition: Self, lost_blobs: &HashSet<String>) -> bool {
-        ImageDocument::merge(self, addition, lost_blobs)
+    fn merge(&mut self, addition: Self) -> bool {
+        ImageDocument::merge(self, addition)
     }
-}
-
-/// Every hosted document format pnpr serves, as the publish journal sees
-/// them. The journal carries documents as opaque bytes; this resolves the
-/// ecosystem it recorded back to the merge rule for that format, both when a
-/// publish commits and when startup recovery re-applies a sealed one.
-pub(super) struct RegistryDocuments;
-
-impl HostedDocuments for RegistryDocuments {
-    fn merge(&self, merge: DocumentMerge<'_>) -> Result<Option<Vec<u8>>, RegistryError> {
-        match merge.ecosystem {
-            Ecosystem::Npm => merge_journaled_packument(&merge),
-            Ecosystem::Cargo => merge_into_stored::<CrateDocument>(&merge),
-            Ecosystem::Pypi => merge_into_stored::<ProjectDocument>(&merge),
-            Ecosystem::Oci => merge_into_stored::<ImageDocument>(&merge),
-        }
-    }
-}
-
-fn merge_into_stored<Document: HostedDocument>(
-    merge: &DocumentMerge<'_>,
-) -> Result<Option<Vec<u8>>, RegistryError> {
-    let journaled = Document::parse(merge.journaled).map_err(RegistryError::Json)?;
-    let mut stored = match merge.existing {
-        Some(bytes) => Document::parse(bytes).map_err(RegistryError::Json)?,
-        None => Document::empty(merge.name.as_str()),
-    };
-    if stored.format_version() > Document::FORMAT_VERSION {
-        return Err(RegistryError::DocumentFormatTooNew {
-            document: merge.name.as_str().to_string(),
-            format_version: stored.format_version(),
-            supported_version: Document::FORMAT_VERSION,
-        });
-    }
-    Ok(stored.merge(journaled, merge.lost_blobs).then(|| stored.to_bytes()))
 }
 
 /// The hosted document of `key` through `source`'s read gate: `None` when the
@@ -206,14 +158,13 @@ pub(super) async fn read_hosted_document<Document: HostedDocument>(
 
 /// Publish one blob: store `bytes` as `filename` under `key` in the hosted
 /// namespace `org` and record `addition` — the document holding just that
-/// blob's entry — in the project's document, as one journaled transaction.
+/// blob's entry — in the project's document, as one commit.
 ///
 /// Writers of the same key on this instance are serialized by the package
 /// lock; `refuse` rejects a document the publish must not land on (an entry
 /// already present) before anything is written. Across instances the blob's
-/// immutable slot decides: a publish whose bytes lose it reports the
-/// conflict, and one that finds its entry already recorded by the writer that
-/// won answers `refuse` on the document that writer left.
+/// immutable slot and the document's generation decide: a publish that loses
+/// either reports the conflict and commits nothing.
 pub(super) async fn store_hosted_artifact<Document: HostedDocument + Send>(
     state: &AppState,
     org: &str,
@@ -225,33 +176,7 @@ pub(super) async fn store_hosted_artifact<Document: HostedDocument + Send>(
 ) -> Result<(), RegistryError> {
     let _guard = state.inner.locks.packages.lock(key.as_str()).await;
     let staged = stage_hosted_artifact(state, org, key, filename, bytes, &refuse, addition).await?;
-    let outcome = commit_publishes(state, vec![staged]).await?;
-    if outcome.lost_blobs
-        .iter()
-        .any(|lost| lost.filename == filename)
-    {
-        return Err(RegistryError::DocumentWriteConflict { package: key.as_str().to_string() });
-    }
-    // Another writer recorded this blob's entry between the read and the
-    // commit, so what the store serves under it is theirs. Answer with the
-    // duplicate error `refuse` would have given had it seen their document.
-    if !outcome.unrecorded.is_empty()
-        && let Some(stored) = state.inner.storage
-            .for_hosted(org, Document::ECOSYSTEM)
-            .read_hosted_document(key)
-            .await?
-    {
-        let doc = Document::parse(&stored).map_err(RegistryError::Json)?;
-        if doc.format_version() > Document::FORMAT_VERSION {
-            return Err(RegistryError::DocumentFormatTooNew {
-                document: key.as_str().to_string(),
-                format_version: doc.format_version(),
-                supported_version: Document::FORMAT_VERSION,
-            });
-        }
-        refuse(&doc)?;
-    }
-    Ok(())
+    commit_publishes(state, vec![staged]).await
 }
 
 /// Everything [`store_hosted_artifact`] does up to the commit: verify the blob
@@ -282,12 +207,12 @@ pub(super) async fn stage_hosted_artifact<Document: HostedDocument + Send>(
         });
     }
     refuse(&document)?;
-    document.merge(addition, &HashSet::new());
+    document.merge(addition);
 
     let slot = storage.reserve_hosted_blob(key, filename).await?;
     if let Err(err) = tokio::fs::write(&slot.tmp_path, bytes).await {
-        // Nothing owns this slot yet: not the journal, and not a `StagedPublish`
-        // the caller could clean up.
+        // Nothing owns this slot yet: not a `StagedPublish` the caller could
+        // clean up.
         let _ = tokio::fs::remove_file(&slot.tmp_path).await;
         return Err(err.into());
     }

@@ -31,9 +31,13 @@ fn publisher_attribution_comes_only_from_an_authenticated_identity() {
 #[tokio::test]
 async fn a_published_tarball_hashes_its_tar_under_a_decode_permit() {
     let temp = tempfile::tempdir().unwrap();
-    let storage =
-        Storage::new(&HostedStoreConfig::Fs, temp.path().join("store"), temp.path().join("cache"))
-            .unwrap();
+    let storage = Storage::new(
+        &HostedStoreConfig::Fs,
+        temp.path().join("store"),
+        temp.path().join("cache"),
+        &pnpr_config::MetadataBackend::Sqlite(temp.path().join("metadata.sqlite")),
+    )
+    .unwrap();
     let name = CanonicalPackageName::parse("pkg", Ecosystem::Npm).unwrap();
     let tar = package_tar(br#"{"name":"pkg","version":"1.0.0"}"#);
     let mut encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());

@@ -14,7 +14,7 @@ use pnpr_config::MetadataBackend;
 use pnpr_fixtures::MockConfigPresets;
 use pnpr_storage::{
     TOMBSTONES_NAMESPACE,
-    layout::{local_blob_path, local_document_path, namespace_segments, package_segments},
+    layout::{local_blob_path, namespace_segments, package_segments},
 };
 use serde_json::{Value, json};
 use std::{
@@ -93,7 +93,6 @@ async fn npm_metadata_round_trips_through_sqlite() {
     let (generation, document) = packument(&app, &token).await;
     assert_eq!(generation.as_deref(), Some(":2"));
     assert_eq!(document["dist-tags"]["latest"], "1.1.0");
-    assert!(!local_document_path(tmp.path(), "", pnpr_storage::Ecosystem::Npm, "sql-pkg").exists());
     let blob = local_blob_path(
         tmp.path(),
         "",
@@ -359,7 +358,7 @@ async fn a_published_record_is_integrated_into_its_log() {
     let (status, ..) = send(&app, request("PUT", "/npm/logged", &token, Some(&doc))).await;
     assert_eq!(status, StatusCode::CREATED);
 
-    let database = storage.sql_metadata().unwrap();
+    let database = storage.sql_metadata();
     let logs = database.sequenced_logs().await.unwrap();
     let [(log, 1)] = logs.as_slice() else { panic!("{logs:?}") };
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
@@ -394,7 +393,6 @@ async fn a_new_router_integrates_what_was_sequenced_before() {
     let storage = pnpr_storage::Storage::from_config(&sqlite_config(tmp.path()).storage).unwrap();
     let logs = storage
         .sql_metadata()
-        .unwrap()
         .sequenced_logs()
         .await
         .unwrap();

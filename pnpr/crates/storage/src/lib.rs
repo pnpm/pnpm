@@ -1,5 +1,3 @@
-pub mod journal;
-
 pub mod layout;
 
 pub mod metadata;
@@ -98,9 +96,8 @@ use layout::{
     decode_package_segments, package_segments,
 };
 pub const DOCUMENT_WRITE_RETRIES: usize = 8;
-/// Retries the commit path allows the document write: higher than the
-/// request-path budget because a sealed transaction has to converge, and a
-/// startup recovery may be racing every other replica's recovery at once.
+/// Retries a tombstone write allows: higher than the request-path budget
+/// because the write has to converge while every replica may be racing it.
 pub(crate) const COMMIT_DOCUMENT_WRITE_RETRIES: usize = 32;
 const DOCUMENT_WRITE_CONFLICT_DELAY_MS: u64 = 5;
 const MAX_DOCUMENT_WRITE_CONFLICT_DELAY_MS: u64 = 250;
@@ -147,8 +144,7 @@ pub enum CachedDocument {
 /// an org's, and the records every namespace shares.
 #[derive(Debug, Clone)]
 pub struct Storage {
-    /// The whole hosted store: its layout marker, the shared records, and
-    /// the publish journal.
+    /// The whole hosted store: its layout marker and the shared records.
     pub(crate) root: Arc<dyn HostedBackend>,
     /// One namespace of `root`.
     hosted: Arc<dyn HostedBackend>,
@@ -157,9 +153,10 @@ pub struct Storage {
     /// organization; see [`Storage::read_tar_integrities`].
     tar_integrities: Arc<dyn HostedBackend>,
     tar_integrity_cache: Arc<tar_integrities::TarIntegrityCache>,
-    metadata_source: metadata::MetadataSource,
+    /// The metadata database every namespace shares.
+    database: Arc<metadata::SqlMetadata>,
     /// The metadata of `hosted`'s namespace.
-    metadata: Arc<dyn metadata::PackageMetadata>,
+    metadata: metadata::PackageMetadata,
 }
 
 /// A partial blob read, including the full size needed for HTTP range headers.
@@ -207,14 +204,15 @@ pub enum DocumentUpdate {
 
 impl Storage {
     /// Build a [`Storage`] from the resolved hosted-store backend plus
-    /// the local `storage` and `cache_storage` roots. `storage` backs
-    /// the hosted store when it's [`HostedStoreConfig::Fs`];
-    /// `cache_storage` always backs the proxy cache and doubles as the
-    /// S3 backend's local staging scratch.
+    /// the local `storage` and `cache_storage` roots, with its metadata in
+    /// the database `metadata` names. `storage` backs the hosted store when
+    /// it's [`HostedStoreConfig::Fs`]; `cache_storage` always backs the proxy
+    /// cache and doubles as the S3 backend's local staging scratch.
     pub fn new(
         hosted: &HostedStoreConfig,
         storage: PathBuf,
         cache_storage: PathBuf,
+        metadata: &MetadataBackend,
     ) -> Result<Self> {
         let cached = Store::new(cache_storage.clone());
         let root: Arc<dyn HostedBackend> = match hosted {
@@ -230,32 +228,39 @@ impl Storage {
                 cache_storage,
             )),
         };
+        Ok(Self::from_parts(root, cached, metadata::open(metadata)?))
+    }
+
+    /// A [`Storage`] over the hosted store `root` and the proxy cache
+    /// `cached`, with its metadata in `database`, addressing the default
+    /// npm namespace.
+    pub(crate) fn from_parts(
+        root: Arc<dyn HostedBackend>,
+        cached: Store,
+        database: Arc<metadata::SqlMetadata>,
+    ) -> Self {
         let tar_integrities = root.namespaced(tar_integrities::NAMESPACE);
         let hosted = namespace(&root, "", Ecosystem::Npm);
-        let metadata_source = metadata::MetadataSource::Documents;
-        let metadata = metadata_source.view(&hosted, "", Ecosystem::Npm);
-        Ok(Self {
+        let metadata = database.view("", Ecosystem::Npm);
+        Self {
             root,
             hosted,
             cached,
             tar_integrities,
             tar_integrity_cache: Arc::default(),
-            metadata_source,
+            database,
             metadata,
-        })
+        }
     }
 
-    /// Build the [`Storage`] `config` describes, metadata backend included.
+    /// Build the [`Storage`] `config` describes.
     pub fn from_config(config: &StorageConfig) -> Result<Self> {
-        Self::new(&config.hosted_backend, config.hosted_dir.clone(), config.cache_dir.clone())?
-            .with_metadata(&config.metadata)
-    }
-
-    /// This storage with its metadata kept in `backend`.
-    pub fn with_metadata(mut self, backend: &MetadataBackend) -> Result<Self> {
-        self.metadata_source = metadata::MetadataSource::open(backend)?;
-        self.metadata = self.metadata_source.view(&self.hosted, "", Ecosystem::Npm);
-        Ok(self)
+        Self::new(
+            &config.hosted_backend,
+            config.hosted_dir.clone(),
+            config.cache_dir.clone(),
+            &config.metadata,
+        )
     }
 
     /// Inventory all regular files, including repositories with no document
@@ -324,9 +329,7 @@ impl Storage {
 
     /// Read the hosted document, transform it, and conditionally write it
     /// back under compare-and-swap, retrying on conflict with capped backoff.
-    /// Both the dist-tag request path and
-    /// journal roll-forward go through here so their conflict handling stays
-    /// in one place. `principal` is recorded as for
+    /// `principal` is recorded as for
     /// [`Self::write_hosted_document_if_current`].
     pub async fn update_hosted_document_with_retry<Build>(
         &self,
@@ -338,7 +341,7 @@ impl Storage {
     where
         Build: FnMut(Option<&[u8]>) -> Result<Option<Vec<u8>>>,
     {
-        metadata::update_with_retry(&*self.metadata, name, retries, principal, build).await
+        metadata::update_with_retry(&self.metadata, name, retries, principal, build).await
     }
 
     /// Open a blob from the authoritative hosted store. Hosted
@@ -408,15 +411,6 @@ impl Storage {
     #[must_use]
     pub fn hosted_scratch_root(&self) -> &Path {
         self.hosted.local_scratch_root()
-    }
-
-    /// The commit journal for this storage's publish flow: in the hosted
-    /// store root on the fs backend, the cache scratch on the S3 backend,
-    /// whatever namespace this view addresses.
-    #[must_use]
-    pub fn publish_journal(&self) -> crate::journal::PublishJournal {
-        let root = self.root.local_scratch_root();
-        crate::journal::PublishJournal::new(root.join(crate::journal::JOURNAL_DIR))
     }
 
     // --- Staged publishes (`-/stage`) -------------------------------------

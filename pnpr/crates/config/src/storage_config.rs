@@ -39,12 +39,9 @@ pub struct StorageConfig {
 }
 
 /// Where the hosted packages' metadata lives: package documents, tags,
-/// deprecations. Archives stay in the hosted store either way.
+/// deprecations. Archives stay in the hosted store.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MetadataBackend {
-    /// One document per package, in the hosted store beside its archives.
-    /// What an object-store hosted store without a metadata URL uses.
-    Documents,
     /// An embedded `SQLite` database at this path. Single-instance only, so
     /// only with the filesystem hosted store.
     Sqlite(PathBuf),
@@ -77,17 +74,10 @@ pub(crate) struct MetadataFile {
     /// Most libSQL operations running at once.
     #[serde(default)]
     max_connections: Option<u32>,
-    /// `documents` keeps one document per package in a filesystem hosted
-    /// store, as an object-store hosted store without a URL does.
+    /// The metadata backend of earlier releases. pnpr keeps metadata only in
+    /// the database `url` names, so any value is refused.
     #[serde(default)]
-    backend: Option<DocumentsBackend>,
-}
-
-/// The one metadata backend named rather than given by URL.
-#[derive(Debug, Clone, Copy, Deserialize)]
-#[serde(rename_all = "lowercase")]
-enum DocumentsBackend {
-    Documents,
+    backend: Option<serde::de::IgnoredAny>,
 }
 
 /// The default `SQLite` metadata database of a filesystem hosted store. The
@@ -102,28 +92,40 @@ pub(crate) fn resolve_metadata_backend(
     storage: &Path,
     base_dir: &Path,
     hosted: &HostedStoreConfig,
+    hosts_packages: bool,
 ) -> Result<MetadataBackend, RegistryError> {
-    let on_fs = matches!(hosted, HostedStoreConfig::Fs);
-    let Some(file) = file else { return Ok(default_metadata(storage, on_fs)) };
-    match (&file.url, file.backend) {
-        (Some(_), Some(DocumentsBackend::Documents)) => {
-            Err(invalid("metadata names both a `url` and `backend: documents`"))
-        }
-        (None, _) if has_libsql_settings(file) => Err(invalid(LIBSQL_ONLY_SETTINGS)),
-        (None, Some(DocumentsBackend::Documents)) => Ok(MetadataBackend::Documents),
-        (None, None) => Ok(default_metadata(storage, on_fs)),
-        (Some(url), None) if is_libsql_url(url) => libsql_metadata(file, url, base_dir),
-        (Some(url), None) => sqlite_metadata(file, url, base_dir, on_fs),
+    // A tier that hosts no packages, such as an artifact-only one, never
+    // reads package metadata, whichever store its bucket is.
+    let on_fs = matches!(hosted, HostedStoreConfig::Fs) || !hosts_packages;
+    let Some(file) = file else { return default_metadata(storage, on_fs) };
+    if file.backend.is_some() {
+        return Err(invalid(
+            "metadata.backend is no longer supported: pnpr keeps package metadata only in the \
+             database metadata.url names. Remove metadata.backend, and set metadata.url to \
+             `sqlite:<path>` or a libSQL URL, or leave it out to use the SQLite database in the \
+             storage directory",
+        ));
+    }
+    match &file.url {
+        None if has_libsql_settings(file) => Err(invalid(LIBSQL_ONLY_SETTINGS)),
+        None => default_metadata(storage, on_fs),
+        Some(url) if is_libsql_url(url) => libsql_metadata(file, url, base_dir),
+        Some(url) => sqlite_metadata(file, url, base_dir, on_fs),
     }
 }
 
 /// The metadata of a store without a metadata URL: `SQLite` in a filesystem
-/// store, documents in an object store.
-fn default_metadata(storage: &Path, on_fs: bool) -> MetadataBackend {
+/// store, or in a tier that hosts no packages. An object store of packages
+/// is shared by instances a local database would not be shared by, so it
+/// needs a URL.
+fn default_metadata(storage: &Path, on_fs: bool) -> Result<MetadataBackend, RegistryError> {
     if on_fs {
-        MetadataBackend::Sqlite(default_metadata_path(storage))
+        Ok(MetadataBackend::Sqlite(default_metadata_path(storage)))
     } else {
-        MetadataBackend::Documents
+        Err(invalid(
+            "an `s3:` hosted store needs metadata.url to name a libSQL database, such as \
+             `libsql://<host>`: pnpr keeps package metadata in a database, not in the bucket",
+        ))
     }
 }
 

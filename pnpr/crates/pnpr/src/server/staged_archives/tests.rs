@@ -51,9 +51,13 @@ async fn a_principal_without_uploads_leaves_no_entry() {
 #[tokio::test]
 async fn every_reference_to_a_staged_archive_counts_against_one_request() {
     let tmp = tempfile::TempDir::new().unwrap();
-    let storage =
-        Storage::new(&HostedStoreConfig::Fs, tmp.path().join("storage"), tmp.path().join("cache"))
-            .unwrap();
+    let storage = Storage::new(
+        &HostedStoreConfig::Fs,
+        tmp.path().join("storage"),
+        tmp.path().join("cache"),
+        &pnpr_config::MetadataBackend::Sqlite(tmp.path().join("metadata.sqlite")),
+    )
+    .unwrap();
     let integrity = format!("sha512-{}==", "A".repeat(86));
     let digest = archive_digest(&integrity).unwrap();
     let key = StagedArchiveKey { principal: "alice", digest: &digest };

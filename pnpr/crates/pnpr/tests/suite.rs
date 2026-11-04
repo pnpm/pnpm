@@ -26,7 +26,6 @@ mod cache_eviction;
 mod cargo_registry;
 mod cargo_resolve;
 mod cross_ecosystem_publish;
-mod journal_recovery;
 mod multi_replica;
 mod oci_registry;
 mod package_ownership;

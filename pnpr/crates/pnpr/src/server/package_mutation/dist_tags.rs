@@ -125,7 +125,7 @@ struct TagOutcome {
 }
 
 /// Authorize a dist-tag change and commit it. Answers 201 with the committed
-/// generation, when the metadata backend tracks one.
+/// generation.
 async fn update_dist_tag(
     state: &AppState,
     identity: &Identity,

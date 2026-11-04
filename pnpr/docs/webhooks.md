@@ -86,7 +86,7 @@ Content-Type = "application/json"
 
 When pnpr is configured with an S3-compatible backend (AWS S3, Cloudflare R2, MinIO), you can configure bucket notifications directly on your object storage bucket.
 
-Because package tarballs are stored as immutable blobs and packuments are written as JSON documents under the bucket prefix, storage notifications provide durable, real-time event triggers:
+Package tarballs are stored as immutable blobs under the bucket prefix, so storage notifications on new tarballs are durable, real-time blob events. They are not publish events. pnpr uploads a tarball before it commits the metadata that references it, so a notification can arrive before the package is visible, and an interrupted publish can leave a tarball that no package references. A consumer verifies the version in the package metadata, retrying for a while, before acting. A consumer that needs publish events uses the publish response or a CI post-publish step instead. Package metadata lives in the metadata database, so a dist-tag move or a deprecation creates no object:
 
 - **AWS S3**: Configure an EventBridge or SNS/SQS notification for `s3:ObjectCreated:*` events matching the prefix of hosted packages. An AWS Lambda function or worker consumes the event and dispatches your webhook.
 - **MinIO**: Use MinIO bucket event notifications to dispatch events directly to an HTTP webhook endpoint.

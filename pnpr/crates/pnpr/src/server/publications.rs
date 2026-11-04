@@ -4,8 +4,7 @@
 //!
 //! `-` names the catalog of the registries without an `org`. A caller sees
 //! only the members it may read, and a publication with none answers 404, so
-//! a publication never discloses a package. Publications are recorded only
-//! when the metadata lives in `SQLite`.
+//! a publication never discloses a package.
 
 use super::{
     Action, AppState, AuthedCaller, HostedGate, Identity, RegistrySource, authorize_package,
@@ -35,7 +34,7 @@ pub(super) async fn serve_publication(
     Path((org, id_or_name)): Path<(String, String)>,
 ) -> Response {
     let catalog = catalog_of(&org);
-    let Some(database) = state.inner.storage.sql_metadata() else { return not_found() };
+    let database = state.inner.storage.sql_metadata();
     let found = database.publication(catalog, &id_or_name).await;
     private_no_cache(respond(&state, &identity, found))
 }
@@ -52,7 +51,7 @@ pub(super) async fn serve_member_publication(
     Query(query): Query<MemberQuery>,
 ) -> Response {
     let catalog = catalog_of(&org);
-    let Some(database) = state.inner.storage.sql_metadata() else { return not_found() };
+    let database = state.inner.storage.sql_metadata();
     let Some((name, version)) = parse_member(&query.member) else {
         return RegistryError::BadRequest {
             reason: "`member` must be <ecosystem>:<name>@<version>".to_string(),
@@ -252,7 +251,7 @@ pub(super) async fn serve_publication_note(
         Ok(request) => request,
         Err(response) => return response,
     };
-    let Some(database) = state.inner.storage.sql_metadata().cloned() else { return not_found() };
+    let database = Arc::clone(state.inner.storage.sql_metadata());
     let publication = match database.publication(catalog_of(&org), &id_or_name).await {
         Ok(Some(publication)) if reads_every_member(&state, &identity, &publication) => publication,
         Ok(_) => return not_found(),

@@ -67,8 +67,8 @@ pub struct S3Store {
     /// when the final home is a bucket; a subdirectory of the
     /// proxy-cache root doubles as scratch.
     staging_dir: PathBuf,
-    /// The proxy-cache root `staging_dir` sits under. The publish journal
-    /// lives here, beside the staged tmp files it rolls forward.
+    /// The proxy-cache root `staging_dir` sits under, and this backend's local
+    /// scratch root.
     cache_root: PathBuf,
 }
 
@@ -331,21 +331,6 @@ impl S3Store {
             removed = true;
         }
         Ok(removed)
-    }
-
-    /// Every hosted package with a document, decoded and sorted. Backs the
-    /// local search endpoint when the hosted store lives in a bucket.
-    pub async fn list_package_names(&self) -> Result<Vec<String>> {
-        let mut listing = self.list_package_files();
-        let mut names = Vec::new();
-        while let Some(file) = listing.next().await {
-            let (name, file, _) = file?;
-            if file == PackageFile::Document {
-                names.push(name);
-            }
-        }
-        names.sort();
-        Ok(names)
     }
 
     /// Every document and blob below `packages/`, as the package it belongs

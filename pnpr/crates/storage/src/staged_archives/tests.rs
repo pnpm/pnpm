@@ -12,8 +12,13 @@ const OTHER_DIGEST: &str = "fedcba9876543210fedcba9876543210fedcba9876543210fedc
                             fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210";
 
 fn storage_in(tmp: &TempDir) -> Storage {
-    Storage::new(&HostedStoreConfig::Fs, tmp.path().join("storage"), tmp.path().join("cache"))
-        .unwrap()
+    Storage::new(
+        &HostedStoreConfig::Fs,
+        tmp.path().join("storage"),
+        tmp.path().join("cache"),
+        &pnpr_config::MetadataBackend::Sqlite(tmp.path().join("metadata.sqlite")),
+    )
+    .unwrap()
 }
 
 fn key<'a>(principal: &'a str, digest: &'a str) -> StagedArchiveKey<'a> {

@@ -40,7 +40,7 @@ use serde_json::{Value, json};
 use super::{
     Action, AppState, AuthedCaller, Identity, RegistrySource, TargetRegistry, authorize_package,
     commit_publishes, json_response, not_found, private_no_cache,
-    publishing::{ValidatedPublish, cleanup_tmp_slots, report_unrecorded},
+    publishing::{ValidatedPublish, cleanup_tmp_slots},
     resolve_write_target, stage_publish, validate_publish_doc,
 };
 use pnpr_error::RegistryError;

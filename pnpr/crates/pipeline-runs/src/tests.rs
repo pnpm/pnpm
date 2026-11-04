@@ -23,8 +23,13 @@ fn local_store(root: &TempDir) -> PipelineRunStore {
 }
 
 fn storage_in(hosted: &HostedStoreConfig, root: &TempDir) -> Storage {
-    Storage::new(hosted, root.path().join("storage"), root.path().join("cache"))
-        .expect("open storage")
+    Storage::new(
+        hosted,
+        root.path().join("storage"),
+        root.path().join("cache"),
+        &pnpr_config::MetadataBackend::Sqlite(root.path().join("metadata.sqlite")),
+    )
+    .expect("open storage")
 }
 
 #[tokio::test]

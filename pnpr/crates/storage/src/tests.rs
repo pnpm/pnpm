@@ -6,8 +6,13 @@ use super::{
 use tempfile::TempDir;
 
 fn storage_in(tmp: &TempDir) -> Storage {
-    Storage::new(&HostedStoreConfig::Fs, tmp.path().join("storage"), tmp.path().join("cache"))
-        .unwrap()
+    Storage::new(
+        &HostedStoreConfig::Fs,
+        tmp.path().join("storage"),
+        tmp.path().join("cache"),
+        &pnpr_config::MetadataBackend::Sqlite(tmp.path().join("metadata.sqlite")),
+    )
+    .unwrap()
 }
 
 fn pkg(name: &str) -> CanonicalPackageName {
@@ -154,28 +159,24 @@ async fn nested_names_are_stored_as_siblings() {
 }
 
 #[tokio::test]
-async fn packages_documents_and_blobs_have_one_path_each() {
+async fn blobs_have_one_path_each() {
     let tmp = TempDir::new().unwrap();
     let storage = storage_in(&tmp);
     let name = pkg("@scope/App");
-    storage.write_hosted_document_if_current(&name, b"{}", None, None).await.unwrap();
-    let slot = storage.reserve_hosted_blob(&name, "App-1.0.0.tgz").await.unwrap();
-    fs::write(&slot.tmp_path, b"tarball").await.unwrap();
-    storage.finalize_blob_slot(slot).await.unwrap();
-    storage
-        .for_hosted("npm~internal", pnpr_package_name::Ecosystem::Npm)
-        .write_hosted_document_if_current(&name, b"{}", None, None)
-        .await
-        .unwrap();
+    for namespace in
+        [storage.clone(), storage.for_hosted("npm~internal", pnpr_package_name::Ecosystem::Npm)]
+    {
+        let slot = namespace.reserve_hosted_blob(&name, "App-1.0.0.tgz").await.unwrap();
+        fs::write(&slot.tmp_path, b"tarball").await.unwrap();
+        namespace.finalize_blob_slot(slot).await.unwrap();
+    }
 
-    let package = tmp.path().join("storage/default/npm/packages/@scope/!41pp");
-    assert!(package.join("document.json").is_file());
-    assert!(package.join("blobs/1.0.0.tgz").is_file());
-    assert!(
-        tmp.path()
-            .join("storage/orgs/npm!7einternal/npm/packages/@scope/!41pp/document.json")
-            .is_file(),
-    );
+    for package in ["default/npm", "orgs/npm!7einternal/npm"] {
+        let package = tmp
+            .path()
+            .join(format!("storage/{package}/packages/@scope/!41pp"));
+        assert!(package.join("blobs/1.0.0.tgz").is_file(), "{}", package.display());
+    }
 }
 
 #[tokio::test]
@@ -469,37 +470,37 @@ async fn symlinks_in_the_packages_directory_are_not_followed() {
     fs::create_dir_all(outside.join("blobs")).await.unwrap();
     fs::write(outside.join("document.json"), b"{}").await.unwrap();
     fs::write(outside.join("blobs/sha256-aa"), b"keep").await.unwrap();
-    storage
-        .write_hosted_document_if_current(&pkg("real"), b"{}", None, None)
+    let real = storage
+        .reserve_hosted_blob(&pkg("real"), "real-1.0.0.tgz")
         .await
         .unwrap();
+    fs::write(&real.tmp_path, b"tarball").await.unwrap();
+    storage.finalize_blob_slot(real).await.unwrap();
     let scopes = tmp.path().join("storage/default/npm/packages");
     fs::create_dir_all(tmp.path().join("outside-scope/pkg")).await.unwrap();
     fs::write(tmp.path().join("outside-scope/pkg/document.json"), b"{}").await.unwrap();
     fs::symlink(tmp.path().join("outside-scope"), scopes.join("@linked")).await.unwrap();
     let packages = scopes.join("@");
     fs::symlink(&outside, packages.join("linked")).await.unwrap();
-    fs::create_dir_all(packages.join("real/blobs")).await.unwrap();
     fs::symlink(outside.join("blobs/sha256-aa"), packages.join("real/blobs/sha256-aa"))
         .await
         .unwrap();
     fs::symlink(outside.join("document.json"), packages.join("linked-doc"))
         .await
         .unwrap();
-    storage
-        .write_hosted_document_if_current(&pkg("other"), b"{}", None, None)
-        .await
-        .unwrap();
+    fs::create_dir_all(packages.join("other")).await.unwrap();
     fs::symlink(outside.join("blobs"), packages.join("other/blobs")).await.unwrap();
 
-    assert_eq!(storage.hosted_package_names().await.unwrap(), ["other", "real"]);
     let files: Vec<_> = storage
         .hosted_blob_files()
         .try_collect()
         .await
         .unwrap();
-    assert!(files.iter().all(|file| file.blob.is_none()), "{files:?}");
-    assert_eq!(files.len(), 2, "{files:?}");
+    let listed: Vec<_> = files
+        .iter()
+        .map(|file| (file.package.as_str(), file.blob.as_deref()))
+        .collect();
+    assert_eq!(listed, [("real", Some("real-1.0.0.tgz"))], "{files:?}");
 }
 
 #[tokio::test]
@@ -508,7 +509,6 @@ async fn a_blob_being_staged_is_not_listed() {
     let tmp = TempDir::new().unwrap();
     let storage = storage_in(&tmp);
     let name = pkg("left-pad");
-    storage.write_hosted_document_if_current(&name, b"{}", None, None).await.unwrap();
     let slot = storage.reserve_hosted_blob(&name, "left-pad-1.0.0.tgz").await.unwrap();
     fs::write(&slot.tmp_path, b"tarball").await.unwrap();
     let files: Vec<_> = storage
@@ -516,14 +516,14 @@ async fn a_blob_being_staged_is_not_listed() {
         .try_collect()
         .await
         .unwrap();
-    assert_eq!(files.len(), 1, "{files:?}");
+    assert!(files.is_empty(), "{files:?}");
     storage.finalize_blob_slot(slot).await.unwrap();
     let files: Vec<_> = storage
         .hosted_blob_files()
         .try_collect()
         .await
         .unwrap();
-    assert_eq!(files.len(), 2, "{files:?}");
+    assert_eq!(files.len(), 1, "{files:?}");
 }
 
 #[tokio::test]

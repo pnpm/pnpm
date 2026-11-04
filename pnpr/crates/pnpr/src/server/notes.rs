@@ -5,9 +5,9 @@
 //! - `GET {base}/{name}/-/notes` — the notes of every version, newest first.
 //!
 //! A version note has the access rules of its package: reading it needs read
-//! access, writing it the package's `publish` rule. Notes are served only
-//! when the metadata lives in `SQLite`. A version's publication note is
-//! referenced only when the caller may read every member of the publication.
+//! access, writing it the package's `publish` rule. A version's publication
+//! note is referenced only when the caller may read every member of the
+//! publication.
 
 pub(super) use listing::serve_package_notes;
 pub(super) use responses::{NoteRequest, PublicationLink, note_text_response, read_note_body};
@@ -44,10 +44,7 @@ async fn notes_target(
     raw_name: &str,
     writes: bool,
 ) -> Result<NotesTarget, Response> {
-    let database = state.inner.storage
-        .sql_metadata()
-        .cloned()
-        .ok_or_else(not_found)?;
+    let database = Arc::clone(state.inner.storage.sql_metadata());
     let name = CanonicalPackageName::parse(raw_name, Ecosystem::Npm).map_err(|_| not_found())?;
     let target = match resolve_write_target(state, identity, registry, &name) {
         Ok(target) => target,

@@ -1,5 +1,5 @@
 pub(crate) use client_ip::{ClientIp, resolve_client_ip};
-pub use lifecycle::{recover_publish_journal, serve, serve_listener};
+pub use lifecycle::{prepare_storage, serve, serve_listener};
 pub(crate) use metrics::{ServerMetrics, serve_metrics};
 pub(crate) use request_access::compute_upstream_cache_namespace;
 pub(crate) use request_id::{RequestId, generate_request_id, is_valid_request_id};
@@ -153,7 +153,6 @@ mod tests;
 
 use self::{
     authentication::{Action, AuthedCaller, authenticate, authorize, authorize_package},
-    documents::RegistryDocuments,
     ecosystem::{addressed_registry, caller_scoped, registry_endpoint},
     package_mutation::{
         delete_package, delete_tarball, get_dist_tags, remove_dist_tag, set_dist_tag,

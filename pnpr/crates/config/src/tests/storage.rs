@@ -43,6 +43,8 @@ s3:
   prefix: packages
   accessKeyId: AKIA-test
   secretAccessKey: secret-test
+metadata:
+  url: libsql://db.example.turso.io
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     match config.storage.hosted_backend {
@@ -330,17 +332,48 @@ fn metadata_defaults_to_sqlite_in_storage() {
 }
 
 #[test]
-fn an_object_store_without_a_metadata_url_keeps_documents() {
-    let yaml = "storage: /s\ns3:\n  bucket: b\n";
+fn an_object_store_without_a_metadata_url_is_refused() {
+    let yaml = "storage: /s\ns3:\n  bucket: b\nregistries:\n  local:\n    type: hosted\n";
+    let err = Config::from_yaml_str(yaml, Path::new("/"), listen(), None).unwrap_err();
+    let RegistryError::InvalidConfig { reason } = err else { panic!("{err:?}") };
+    assert!(reason.contains("metadata.url"), "{reason}");
+}
+
+/// An artifact-only tier keeps artifacts in the bucket and reads no package
+/// metadata, so it needs no metadata URL.
+#[test]
+fn an_object_store_that_hosts_no_packages_needs_no_metadata_url() {
+    let yaml =
+        "storage: /s\ns3:\n  bucket: b\nresolver:\n  enabled: false\nartifacts:\n  enabled: true\n";
     let config = Config::from_yaml_str(yaml, Path::new("/"), listen(), None).unwrap();
-    assert_eq!(config.storage.metadata, crate::MetadataBackend::Documents);
+    assert_eq!(
+        config.storage.metadata,
+        crate::MetadataBackend::Sqlite(PathBuf::from("/s/.metadata/metadata.sqlite")),
+    );
+}
+
+/// A proxy that keeps only shared artifacts in the bucket hosts no packages
+/// either.
+#[test]
+fn an_object_store_behind_upstream_registries_needs_no_metadata_url() {
+    let yaml = "storage: /s\ns3:\n  bucket: b\nregistries:\n  npmjs:\n    type: upstream\n    \
+                url: https://registry.npmjs.org/\n    public: true\n";
+    let config = Config::from_yaml_str(yaml, Path::new("/"), listen(), None).unwrap();
+    assert!(matches!(config.storage.metadata, crate::MetadataBackend::Sqlite(_)));
 }
 
 #[test]
-fn documents_can_still_be_chosen_by_name() {
-    let yaml = "storage: /s\nmetadata:\n  backend: documents\n";
-    let config = Config::from_yaml_str(yaml, Path::new("/"), listen(), None).unwrap();
-    assert_eq!(config.storage.metadata, crate::MetadataBackend::Documents);
+fn a_metadata_backend_is_refused_with_a_pointer_at_the_url() {
+    for yaml in [
+        "storage: /s\nmetadata:\n  backend: documents\n",
+        "storage: /s\nmetadata:\n  backend: documents\n  url: sqlite:./m.db\n",
+        "storage: /s\nmetadata:\n  backend: sqlite\n",
+    ] {
+        let err = Config::from_yaml_str(yaml, Path::new("/"), listen(), None).unwrap_err();
+        let RegistryError::InvalidConfig { reason } = err else { panic!("{yaml}: {err:?}") };
+        assert!(reason.contains("metadata.backend"), "{yaml}: {reason}");
+        assert!(reason.contains("metadata.url"), "{yaml}: {reason}");
+    }
 }
 
 #[test]
@@ -353,13 +386,11 @@ fn a_sqlite_url_resolves_against_the_config_directory() {
 
 #[test]
 fn a_metadata_url_is_refused_when_it_cannot_serve() {
-    let with_s3 = "storage: /s\ns3:\n  bucket: b\nmetadata:\n  url: sqlite:./m.db\n";
+    let with_s3 = "storage: /s\ns3:\n  bucket: b\nmetadata:\n  url: sqlite:./m.db\nregistries:\n  local:\n    type: hosted\n";
     let no_path = "storage: /s\nmetadata:\n  url: 'sqlite:'\n";
     let unknown = "storage: /s\nmetadata:\n  url: mysql://db/pnpr\n";
-    let old_shape = "storage: /s\nmetadata:\n  backend: sqlite\n";
-    let old_path = "storage: /s\nmetadata:\n  backend: documents\n  path: ./m.db\n";
-    let both = "storage: /s\nmetadata:\n  backend: documents\n  url: sqlite:./m.db\n";
-    for yaml in [with_s3, no_path, unknown, old_shape, old_path, both] {
+    let old_path = "storage: /s\nmetadata:\n  path: ./m.db\n";
+    for yaml in [with_s3, no_path, unknown, old_path] {
         let err = Config::from_yaml_str(yaml, Path::new("/"), listen(), None).unwrap_err();
         assert!(matches!(err, RegistryError::InvalidConfig { .. }), "{yaml}: {err:?}");
     }
@@ -385,8 +416,7 @@ fn libsql_settings_need_a_libsql_url_and_a_replica_needs_a_sync_interval() {
     let unbounded = "storage: /s\nmetadata:\n  url: http://127.0.0.1:8080\n  replicaPath: ./r.db\n  \
                      syncInterval: 0s\n";
     let no_url = "storage: /s\nmetadata:\n  authToken: token\n  replicaPath: ./r.db\n";
-    let with_documents = "storage: /s\nmetadata:\n  backend: documents\n  maxConnections: 4\n";
-    for yaml in [stray, unbounded, no_url, with_documents] {
+    for yaml in [stray, unbounded, no_url] {
         let err = Config::from_yaml_str(yaml, Path::new("/"), listen(), None).unwrap_err();
         assert!(matches!(err, RegistryError::InvalidConfig { .. }), "{yaml}: {err:?}");
     }

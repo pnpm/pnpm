@@ -7,9 +7,7 @@ pub(super) use atomic::{
 pub(super) use attachments::{
     StagedPublish, ValidatedPublish, Verification, stage_publish, validate_publish_doc,
 };
-pub(super) use notes::{
-    check_note_storage, refuse_notes_of_published_python_versions, take_note, take_version_note,
-};
+pub(super) use notes::{refuse_notes_of_published_python_versions, take_note, take_version_note};
 pub(super) use tombstones::check_publish_tombstone;
 
 mod atomic;
@@ -20,7 +18,7 @@ mod release_records;
 mod tombstones;
 mod verification;
 
-use std::collections::{BTreeSet, HashSet};
+use std::collections::HashSet;
 
 use axum::response::{IntoResponse, Response};
 use serde_json::Value;
@@ -32,7 +30,6 @@ use pnpr_policy::Identity;
 use pnpr_registry::{Ecosystem, Registry};
 use pnpr_storage::{
     HostedDocumentVersion, Storage,
-    journal::{CommitOutcome, JournaledPublish},
     metadata::{PublicationRequest, PublishNotes},
     publish::{
         PendingAttachment, extract_attachments, now_iso, stream_decode_verify_and_write,
@@ -42,8 +39,8 @@ use pnpr_storage::{
 
 use super::{
     Action, AppState, HostedGate, RegistrySource, WriteTarget, authorize_package,
-    authorized_upstream, default_registry_target, documents::RegistryDocuments, hosted_gate,
-    hosted_storage, resolve_ecosystem_source, resolve_write_target, restore_tgz_integrities,
+    authorized_upstream, default_registry_target, hosted_gate, hosted_storage,
+    resolve_ecosystem_source, resolve_write_target, restore_tgz_integrities,
     staged_archives::StagedReferences, tar_integrity_of, tgz_integrity_key,
 };
 
@@ -208,8 +205,8 @@ pub(super) async fn publish_package(
         return err.into_response();
     }
 
-    let request = publication_request(state, identity, &incoming, None, None, Some(&name));
-    let notes = match single_publish_notes(state, &mut incoming) {
+    let request = publication_request(identity, &incoming, None, None, Some(&name));
+    let notes = match single_publish_notes(&mut incoming) {
         Ok(notes) => notes,
         Err(err) => return err.into_response(),
     };
@@ -277,78 +274,20 @@ fn check_body_name(name: &CanonicalPackageName, incoming: &Value) -> Result<(), 
 }
 
 /// The version note at the top of a single npm publish document.
-fn single_publish_notes(
-    state: &AppState,
-    incoming: &mut Value,
-) -> Result<PublishNotes, RegistryError> {
+fn single_publish_notes(incoming: &mut Value) -> Result<PublishNotes, RegistryError> {
     let versions = take_version_note(incoming, Ecosystem::Npm)?.into_iter().collect();
-    let notes = PublishNotes { publication: None, versions };
-    check_note_storage(state, &notes)?;
-    Ok(notes)
+    Ok(PublishNotes { publication: None, versions })
 }
 
-/// Make every staged publish visible, as one journaled transaction: a crash
-/// or I/O failure mid-apply can never leave the batch partially published,
-/// because startup recovery applies whatever the seal committed. The batch
-/// may mix ecosystems; each package's document is merged by the rule its own
-/// surface owns.
-///
-/// A version whose blob lost its immutable slot to another replica is dropped
-/// from the document the transaction writes, which keeps the store consistent
-/// with the blob that won; the caller reads that out of the outcome.
+/// Make every staged publish visible in one metadata commit: every archive
+/// is promoted first, then every document commits, or none does. The batch
+/// may mix ecosystems.
 pub(super) async fn commit_publishes(
     state: &AppState,
     staged: Vec<StagedPublish>,
-) -> Result<CommitOutcome, RegistryError> {
-    if state.inner.storage.sql_metadata().is_some() {
-        commit_publication(state, staged, PublishNotes::default(), None).await?;
-        return Ok(CommitOutcome::default());
-    }
-    commit_through_journal(state, staged).await
-}
-
-/// [`commit_publishes`] through the publish journal.
-async fn commit_through_journal(
-    state: &AppState,
-    staged: Vec<StagedPublish>,
-) -> Result<CommitOutcome, RegistryError> {
-    let entries: Vec<JournaledPublish<'_>> = staged
-        .iter()
-        .map(|stage| JournaledPublish {
-            name: &stage.name,
-            org: stage.org.as_deref(),
-            ecosystem: stage.ecosystem,
-            document: &stage.document,
-            base_version: stage.base_version.as_ref(),
-            slots: &stage.slots,
-            principal: stage.publisher.as_deref(),
-        })
-        .collect();
-    state.inner.storage
-        .publish_journal()
-        .commit(&state.inner.storage, &entries, &RegistryDocuments)
-        .await
-}
-
-/// The packages a commit could not record, as the error a publisher gets
-/// instead of a success it did not earn: another writer owns the blob their
-/// version described, so that version is not the one the store serves. Each
-/// is named with its ecosystem, since the same name in two of them is two
-/// packages.
-pub(super) fn report_unrecorded(outcome: CommitOutcome) -> Result<(), RegistryError> {
-    let mut missing: BTreeSet<String> = outcome.unrecorded
-        .into_iter()
-        .chain(outcome.lost_blobs.into_iter().map(|lost| lost.package))
-        .map(|package| format!("{} {}", package.ecosystem, package.name))
-        .collect();
-    let Some(first) = missing.pop_first() else {
-        return Ok(());
-    };
-    let packages = std::iter::once(first)
-        .chain(missing)
-        .collect::<Vec<_>>()
-        .join(", ");
-    Err(RegistryError::PublishNotRecorded { packages })
+) -> Result<(), RegistryError> {
+    commit_publication(state, staged, PublishNotes::default(), None).await?;
+    Ok(())
 }
 
 /// Remove every tmp tarball file that a partially-completed publish

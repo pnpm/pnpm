@@ -5,9 +5,14 @@ use std::time::Duration;
 use tempfile::TempDir;
 
 fn storage_in(tmp: &TempDir) -> Storage {
-    Storage::new(&HostedStoreConfig::Fs, tmp.path().join("storage"), tmp.path().join("cache"))
-        .unwrap()
-        .for_hosted("", Ecosystem::Oci)
+    Storage::new(
+        &HostedStoreConfig::Fs,
+        tmp.path().join("storage"),
+        tmp.path().join("cache"),
+        &pnpr_config::MetadataBackend::Sqlite(tmp.path().join("metadata.sqlite")),
+    )
+    .unwrap()
+    .for_hosted("", Ecosystem::Oci)
 }
 
 fn image(name: &str) -> CanonicalPackageName {
@@ -350,7 +355,13 @@ fn two_orgs_of_one_bucket(tmp: &TempDir) -> (Storage, Storage) {
         store: std::sync::Arc::new(object_store::memory::InMemory::new()),
         prefix: String::new(),
     };
-    let root = Storage::new(&hosted, tmp.path().join("storage"), tmp.path().join("cache")).unwrap();
+    let root = Storage::new(
+        &hosted,
+        tmp.path().join("storage"),
+        tmp.path().join("cache"),
+        &pnpr_config::MetadataBackend::Sqlite(tmp.path().join("metadata.sqlite")),
+    )
+    .unwrap();
     (root.for_hosted("first", Ecosystem::Oci), root.for_hosted("second", Ecosystem::Oci))
 }
 
@@ -398,6 +409,11 @@ fn replicas() -> (Storage, Storage, TempDir, TempDir) {
     let second = TempDir::new().unwrap();
     let objects: std::sync::Arc<dyn object_store::ObjectStore> =
         std::sync::Arc::new(object_store::memory::InMemory::new());
+    // Replicas share the bucket and the metadata database.
+    let database = crate::metadata::open(&pnpr_config::MetadataBackend::Sqlite(
+        first.path().join("metadata.sqlite"),
+    ))
+    .unwrap();
     let storage = |temp: &TempDir| {
         let hosted: std::sync::Arc<dyn crate::backend::HostedBackend> =
             std::sync::Arc::new(crate::s3::S3Store::new(
@@ -405,17 +421,9 @@ fn replicas() -> (Storage, Storage, TempDir, TempDir) {
                 "images/".into(),
                 temp.path().join("scratch"),
             ));
-        let namespace = crate::namespace(&hosted, "", Ecosystem::Oci);
-        let metadata_source = crate::metadata::MetadataSource::Documents;
-        Storage {
-            tar_integrities: hosted.namespaced(crate::tar_integrities::NAMESPACE),
-            tar_integrity_cache: std::sync::Arc::default(),
-            metadata: metadata_source.view(&namespace, "", Ecosystem::Oci),
-            metadata_source,
-            hosted: namespace,
-            root: hosted,
-            cached: crate::Store::new(temp.path().join("cache")),
-        }
+        let database = std::sync::Arc::clone(&database);
+        Storage::from_parts(hosted, crate::Store::new(temp.path().join("cache")), database)
+            .for_hosted("", Ecosystem::Oci)
     };
     (storage(&first), storage(&second), first, second)
 }

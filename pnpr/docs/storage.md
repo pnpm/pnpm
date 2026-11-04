@@ -23,7 +23,6 @@ The hosted store has the same layout on disk and in a bucket:
   layout.json                     marks the layout version
   default/<ecosystem>/            registries without an org
   orgs/<org>/<ecosystem>/         one namespace per org and ecosystem
-<namespace>/packages/<scope>/<name>/document.json
 <namespace>/packages/<scope>/<name>/blobs/<file>
 ```
 
@@ -67,15 +66,19 @@ metadata:
 ```
 
 Archives stay in the hosted store. The database holds every hosted package's
-metadata in every ecosystem. pnpr does not read the package documents of an
-existing store into it: switch an empty store, or republish.
+metadata in every ecosystem. pnpr keeps metadata only in a database: an `s3:`
+block of a registry that hosts packages needs a [libSQL](#libsql-metadata)
+`url`, and pnpr refuses to start on a
+`metadata` block that still names a `backend`. Earlier releases could keep
+each package's metadata as a document beside its archives. pnpr does not read
+those documents. A filesystem store from then starts with empty metadata. An
+`s3:` store from then is refused at startup until `metadata.url` names a
+libSQL database, and then starts with empty metadata. Either way, republish
+its packages. Their old archives stay in the hosted store, and a publish whose
+archive has other bytes at the same key is refused as a conflict, so republish
+the original archives, or remove the old ones from the hosted store first.
 
-With an `s3:` block and no `metadata` URL, each hosted package's metadata is a
-document in the bucket, beside its archives. `backend: documents` in the
-`metadata` block keeps documents in a filesystem store too. None of the
-behavior below applies to documents.
-
-With SQLite metadata:
+With SQL metadata:
 
 - A published npm version's manifest cannot change. A write that would change
   it fails with `409`. Deprecating or undeprecating a version, moving a
@@ -86,15 +89,11 @@ With SQLite metadata:
   of the archive's `package.json` and `npm-shrinkwrap.json`.
 - The database keeps every unpublished version, including the versions of an
   unpublished package, and refuses to accept one again with `403`, even when
-  the package's tombstone is gone. A publish interrupted by a crash, whose
-  package was unpublished before pnpr restarted, is refused the same way:
-  startup stops and names the version. Remove that transaction from the
-  publish journal's `.journal` directory to discard the publish.
+  the package's tombstone is gone.
 - A dist-tag change rewrites only that tag, and pnpr keeps the history of
   every move of a tag: when it moved, from which version to which, and who
   moved it. A publish, a document update, and a dist-tag change each record
-  the user who made them. A publish that pnpr finishes at startup, after a
-  crash interrupted it, records its original publisher.
+  the user who made them.
 - Every change to an org's packages advances that org's generation. A hosted
   npm package response, and the response to a dist-tag change, carry it in a
   `pnpr-generation` header as `<org>:<generation>`, with an empty org for
@@ -173,8 +172,9 @@ file and pulls the primary's changes every `syncInterval`:
 
 By default both are local directories. Adding an `s3:` block moves the
 **hosted** store and the enabled **shared-artifact** store into an S3-compatible
-object store, so they can be shared by several stateless pnpr replicas. The
-ordinary upstream and resolver cache stays on local disk.
+object store, so they can be shared by several stateless pnpr replicas. Their
+metadata then lives in a [libSQL database](#libsql-metadata) the replicas
+share. The ordinary upstream and resolver cache stays on local disk.
 
 Shared artifacts use a reserved `.artifacts/` namespace under the
 configured prefix; hosted package objects keep their normal namespace. Without
@@ -201,6 +201,11 @@ s3:
   # AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY environment variables.
   accessKeyId: ${PNPR_S3_ACCESS_KEY_ID}
   secretAccessKey: ${PNPR_S3_SECRET_ACCESS_KEY}
+
+metadata:
+  # Package metadata of a hosted registry on S3 lives in a libSQL database.
+  url: libsql://<your-db>.turso.io
+  authToken: ${PNPR_LIBSQL_TOKEN}
 ```
 
 ## Options
@@ -260,6 +265,10 @@ s3:
   region: auto
   endpoint: https://abc123def456.r2.cloudflarestorage.com
 
+metadata:
+  url: libsql://my-pnpr.turso.io
+  authToken: ${PNPR_LIBSQL_TOKEN}
+
 auth:
   htpasswd:
     file: ./htpasswd
@@ -289,6 +298,7 @@ artifacts:
 ```sh
 export AWS_ACCESS_KEY_ID="<r2-access-key-id>"
 export AWS_SECRET_ACCESS_KEY="<r2-secret-access-key>"
+export PNPR_LIBSQL_TOKEN="<turso-auth-token>"
 pnpr -c ./pnpr.yaml --listen 0.0.0.0:7677 --public-url https://registry.example.com
 ```
 
@@ -310,21 +320,17 @@ s3:
   secretAccessKey: minioadmin
 ```
 
-## S3 publish journal and lifecycle caveats
+## S3 publishing and lifecycle caveats
 
-When publishing packages to an S3 backend, pnpr coordinates uploads through a local write-ahead commit journal:
+When publishing packages to an S3 backend, pnpr:
 
-1. **Local staging**: Incoming blobs are staged under `<cache>/.staging/`.
-2. **Journal seal**: pnpr writes the transaction under `<cache>/.journal/<txn>/` and seals it before applying object-store writes.
-3. **Apply**: pnpr uploads the blobs and conditionally updates the packument.
-4. **Journal cleanup**: The local journal entry is removed once the object store confirms the write.
+1. **Stages locally**: Incoming blobs are staged under `<cache>/.staging/`.
+2. **Uploads the blobs**: pnpr uploads each blob to its immutable key. A key that another writer already holds with other bytes fails the publish.
+3. **Commits the metadata**: pnpr commits every package of the publish to the metadata database in one transaction.
 
-### Multi-replica considerations
+### Interruptions
 
-The write-ahead journal is kept on the local disk of the replica handling the publish request. Keep these operational details in mind:
-
-- **Startup recovery**: If a replica terminates unexpectedly mid-publish, it automatically recovers pending journal entries in its `<cache>/.journal/` on next startup, applying sealed transactions and rolling back unsealed ones.
-- **Ephemeral disks**: In containerized multi-replica environments where instances use ephemeral local storage, destroying a failed instance before it restarts means its local journal cannot be replayed. Any partially uploaded blobs in S3 remain as unreferenced objects.
+- **Interrupted publishes**: A publish that fails after uploading its blobs removes them again. A replica that stops between uploading the blobs and committing the metadata leaves blobs that no package references, which are never served.
 - **Multipart uploads**: If a large upload is aborted or interrupted, S3 retains incomplete multipart upload parts until explicitly aborted or cleaned up by policy.
 
 ### Operational recommendations

@@ -165,7 +165,15 @@ s3:
   # AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY environment variables.
   accessKeyId: ${PNPR_S3_ACCESS_KEY_ID}
   secretAccessKey: ${PNPR_S3_SECRET_ACCESS_KEY}
+
+metadata:
+  # Package metadata of a hosted registry on S3 lives in a libSQL database.
+  url: libsql://<your-db>.turso.io
+  authToken: ${PNPR_LIBSQL_TOKEN}
 ```
+
+A registry that hosts packages on S3 needs `metadata.url` to name a libSQL
+database. pnpr refuses to start without one.
 
 | Key | Required | Description |
 | --- | --- | --- |

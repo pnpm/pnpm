@@ -301,7 +301,6 @@ async fn publishes_a_package_a_crate_and_a_wheel_in_one_transaction() {
     assert_eq!(body_bytes(file.into_body()).await, wheel);
 
     // One transaction, and it left nothing behind.
-    assert_eq!(journal_entries(&storage), Vec::<PathBuf>::new());
 }
 
 #[tokio::test]
@@ -341,7 +340,6 @@ async fn a_batch_with_one_bad_entry_publishes_none_of_it() {
         assert_eq!(response.status(), StatusCode::NOT_FOUND, "{path}");
     }
     assert_eq!(staged_files(&storage), Vec::<PathBuf>::new());
-    assert_eq!(journal_entries(&storage), Vec::<PathBuf>::new());
 }
 
 /// A blob whose immutable slot another writer already owns is the one thing a
@@ -473,7 +471,6 @@ async fn a_failure_while_staging_takes_the_staged_blobs_with_it() {
         assert_eq!(response.status(), StatusCode::NOT_FOUND, "{path}");
     }
     assert_eq!(staged_files(&storage), Vec::<PathBuf>::new());
-    assert_eq!(journal_entries(&storage), Vec::<PathBuf>::new());
 }
 
 /// A version that is already published stops the batch before anything is
@@ -659,17 +656,6 @@ async fn a_repeated_package_is_refused_but_a_shared_name_across_ecosystems_is_no
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
-}
-
-/// The transactions the publish journal still holds. A journal a publish
-/// never reached has no directory at all.
-fn journal_entries(storage: &std::path::Path) -> Vec<PathBuf> {
-    match std::fs::read_dir(storage.join(".journal")) {
-        Ok(entries) => entries
-            .map(|entry| entry.unwrap().path())
-            .collect(),
-        Err(_) => Vec::new(),
-    }
 }
 
 /// Every staged file left under `root`, by the marker the storage layer puts

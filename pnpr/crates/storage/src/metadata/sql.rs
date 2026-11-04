@@ -31,6 +31,7 @@ pub(crate) mod adapter;
 
 pub use cache::RenderStats;
 pub use tags::TagHistoryEntry;
+pub(crate) use view::PackageMetadata;
 
 #[macro_use]
 mod params;
@@ -396,8 +397,9 @@ impl SqlMetadata {
         .await
     }
 
-    pub(super) fn view(self: &Arc<Self>, org: &str, ecosystem: Ecosystem) -> view::SqlView {
-        view::SqlView { database: Arc::clone(self), catalog: org.to_string(), ecosystem }
+    /// The metadata of `(org, ecosystem)`.
+    pub(crate) fn view(self: &Arc<Self>, org: &str, ecosystem: Ecosystem) -> PackageMetadata {
+        PackageMetadata { database: Arc::clone(self), catalog: org.to_string(), ecosystem }
     }
 }
 

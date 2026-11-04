@@ -28,7 +28,7 @@ use std::{
 use tempfile::TempDir;
 use tower::ServiceExt;
 
-/// One replica: its own storage directory (accounts, cache, publish journal)
+/// One replica: its own storage directory (accounts, cache)
 /// over the hosted store every replica shares.
 struct Replica {
     app: axum::Router,
