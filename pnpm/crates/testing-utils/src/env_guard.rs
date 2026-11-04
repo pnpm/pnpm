@@ -5,11 +5,7 @@
 //! any `#[test]` they were set inside. Rust / nextest run unit tests in
 //! parallel threads inside the same process by default, so two
 //! concurrent tests mutating the same variable can easily observe each
-//! other's half-set state. Worse, the mutation is unsound rather than
-//! merely racy: POSIX `setenv` may reallocate `environ`, so a
-//! concurrent `getenv` — including one inside a C dependency or glibc
-//! itself, which take no Rust lock — can read freed memory. This module
-//! guards both concerns as far as a Rust-side lock can:
+//! other's half-set state. This module guards both concerns:
 //!
 //! * a process-wide `Mutex` is acquired for the lifetime of each
 //!   guard, so only one env-mutating test holds the "env-is-mine" lock
@@ -18,13 +14,10 @@
 //!   to whatever the caller inherited, so the guard can't leak state
 //!   into unrelated tests or stomp a developer's shell.
 //!
-//! This is the only place test code writes the process environment:
-//! `clippy.toml` bans `std::env::set_var` and `std::env::remove_var`
-//! everywhere else, so a test reaches the environment through
-//! [`EnvGuard::set`] and [`EnvGuard::remove`] or not at all. Prefer not
-//! at all. A test whose subject takes the value as a parameter, or
-//! through one of the injected capability traits, needs neither the
-//! guard nor the lock.
+//! This is the sanctioned way for a test to write the environment, and
+//! `clippy.toml` leaves no other. Prefer not to: a subject that takes
+//! the value as a parameter, or through an injected capability, needs
+//! neither this guard nor its lock.
 
 use std::{
     env,
