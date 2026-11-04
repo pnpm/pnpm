@@ -120,6 +120,7 @@ mod resolve_importer;
 mod resolve_peers;
 mod resolve_workspace;
 mod resolved_tree;
+mod strongly_connected_components;
 
 #[cfg(test)]
 mod tests;

@@ -804,3 +804,92 @@ fn a_parent_merge_sees_the_transitive_peers_of_a_merged_child() {
     assert_eq!(graph[&dp(p_new)].edges.children["c"], dp(c_new));
     assert!(graph[&dp(c_new)].edges.transitive_peer_dependencies.contains("x"));
 }
+
+#[test]
+fn a_cycle_dedupes_after_one_pair_breaks_the_dependency_between_merges() {
+    for (size, count) in [(2, 1), (128, 1), (2, 128)] {
+        check_cycle_deduplication(size, count);
+    }
+}
+
+fn cycle_graph(size: usize, versions: &[u8]) -> DependenciesGraph {
+    cycle_graph_components(size, versions, 1)
+}
+
+fn cycle_graph_components(size: usize, versions: &[u8], count: usize) -> DependenciesGraph {
+    let mut graph = DependenciesGraph::default();
+    for index in 0..size * count {
+        let name = format!("node-{index}");
+        let child = format!("node-{}", index / size * size + (index + 1) % size);
+        let bare = format!("{name}@1.0.0");
+        let bare_child = format!("{child}@1.0.0");
+        graph.insert(dp(&bare), make_node(&bare, &bare, &[(&child, &bare_child)], &[]));
+        for version in versions {
+            let peer = format!("peer@{version}.0.0");
+            let bound = format!("{bare}({peer})");
+            let bound_child = format!("{bare_child}({peer})");
+            graph.insert(
+                dp(&bound),
+                make_node(&bare, &bound, &[(&child, &bound_child), ("peer", &peer)], &["peer"]),
+            );
+        }
+    }
+    graph.insert(dp("peer@1.0.0"), make_node("peer@1.0.0", "peer@1.0.0", &[], &[]));
+    for index in 0..2000 {
+        let id = format!("unrelated-{index}@1.0.0");
+        graph.insert(dp(&id), make_node(&id, &id, &[("peer", "peer@1.0.0")], &[]));
+    }
+    for version in versions {
+        let peer = format!("peer@{version}.0.0");
+        graph.insert(dp(&peer), make_node(&peer, &peer, &[], &[]));
+    }
+    graph
+}
+
+fn check_cycle_deduplication(size: usize, count: usize) {
+    let mut graph = cycle_graph_components(size, &[1], count);
+    let mut direct = BTreeMap::from([
+        ("bare".into(), BTreeMap::from([("alpha".into(), dp("node-0@1.0.0"))])),
+        ("bound".into(), BTreeMap::from([("alpha".into(), dp("node-0@1.0.0(peer@1.0.0)"))])),
+    ]);
+    for component in 1..count {
+        let root = format!("node-{}", component * size);
+        direct
+            .get_mut("bare")
+            .unwrap()
+            .insert(root.clone(), dp(&format!("{root}@1.0.0")));
+        direct
+            .get_mut("bound")
+            .unwrap()
+            .insert(root.clone(), dp(&format!("{root}@1.0.0(peer@1.0.0)")));
+    }
+    let peer_ids = recorded_peer_ids(&graph);
+    dedupe_peer_dependents(&mut graph, &mut direct, &suffixes(&peer_ids));
+    assert_eq!(direct["bare"]["alpha"], direct["bound"]["alpha"]);
+    assert_eq!(direct["bare"], direct["bound"]);
+    assert_eq!(graph.len(), size * count + 1);
+}
+
+#[test]
+fn a_parent_of_a_cycle_waits_for_the_cyclic_variants_to_settle() {
+    let mut graph = cycle_graph(2, &[1, 2]);
+    let bare = "ancestor@1.0.0";
+    let bound = "ancestor@1.0.0(peer@1.0.0)";
+    graph.insert(dp(bare), make_node(bare, bare, &[("node-0", "node-0@1.0.0")], &[]));
+    graph.insert(
+        dp(bound),
+        make_node(bare, bound, &[("node-0", "node-0@1.0.0(peer@1.0.0)")], &["peer"]),
+    );
+    let mut direct = BTreeMap::from([
+        (
+            "bare".into(),
+            BTreeMap::from([("ancestor".into(), dp(bare)), ("node-0".into(), dp("node-0@1.0.0"))]),
+        ),
+        ("bound".into(), BTreeMap::from([("ancestor".into(), dp(bound))])),
+    ]);
+    let peer_ids = recorded_peer_ids(&graph);
+    dedupe_peer_dependents(&mut graph, &mut direct, &suffixes(&peer_ids));
+    let parent = &direct["bare"]["ancestor"];
+    assert_eq!(graph[parent].edges.children["node-0"], direct["bare"]["node-0"]);
+    assert_eq!(direct["bare"]["node-0"], dp("node-0@1.0.0(peer@2.0.0)"));
+}

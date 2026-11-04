@@ -25,7 +25,9 @@ use std::collections::BTreeMap;
 use pnpm_deps_path::DepPath;
 use survivor_names::rename_survivors;
 
+mod cycles;
 mod survivor_names;
+use cycles::collapse_cycles;
 
 use crate::{
     dedupe_injected_deps::{DirectByImporter, prune_unreachable},
@@ -94,32 +96,80 @@ fn collect_duplicates(graph: &DependenciesGraph) -> Vec<Vec<DepPath>> {
 
 /// Run [`deduplicate_dep_paths`] in rounds: after each round, rewrite the
 /// graph's child edges through the collapse map so the next round can see
-/// newly-compatible variants, then recurse on the duplicates that didn't
-/// collapse.
+/// newly-compatible variants in the next round.
 fn deduplicate_all(
     graph: &mut DependenciesGraph,
     duplicates: &[Vec<DepPath>],
 ) -> HashMap<DepPath, DepPath> {
-    let duplicates_count = duplicates.len();
-    let (dep_paths_map, remaining_duplicates) = deduplicate_dep_paths(duplicates, graph);
-    if remaining_duplicates.len() == duplicates_count {
-        return dep_paths_map;
-    }
-    for node in graph.values_mut() {
-        for child_dep_path in node.edges.children.values_mut() {
-            if let Some(target) = dep_paths_map.get(child_dep_path) {
-                *child_dep_path = target.clone();
+    let mut incoming = incoming_edges(graph);
+    let mut remaining = duplicates.to_vec();
+    let mut merged: HashMap<DepPath, DepPath> = HashMap::default();
+    loop {
+        let (next, survivors) = deduplicate_round(&remaining, graph);
+        if next.is_empty() {
+            return merged;
+        }
+        rewrite_children(graph, &next, &mut incoming);
+        for target in merged.values_mut() {
+            if let Some(replacement) = next.get(target) {
+                *target = replacement.clone();
             }
         }
+        merged.extend(next);
+        remaining = survivors;
     }
-    if dep_paths_map.is_empty() {
-        return dep_paths_map;
+}
+
+fn deduplicate_round(
+    duplicates: &[Vec<DepPath>],
+    graph: &DependenciesGraph,
+) -> (HashMap<DepPath, DepPath>, Vec<Vec<DepPath>>) {
+    let (next, mut survivors) = deduplicate_dep_paths(duplicates, graph);
+    if !next.is_empty() {
+        return (next, survivors);
     }
-    let mut merged = dep_paths_map;
-    for (collapsed, target) in deduplicate_all(graph, &remaining_duplicates) {
-        merged.insert(collapsed, target);
+    let next = collapse_cycles(graph, duplicates);
+    for group in &mut survivors {
+        group.retain(|path| !next.contains_key(path));
     }
-    merged
+    (next, survivors)
+}
+
+type IncomingEdges = HashMap<DepPath, Vec<(DepPath, String)>>;
+
+fn incoming_edges(graph: &DependenciesGraph) -> IncomingEdges {
+    let mut incoming = IncomingEdges::default();
+    for (parent, node) in graph {
+        for (alias, child) in &node.edges.children {
+            incoming
+                .entry(child.clone())
+                .or_default()
+                .push((parent.clone(), alias.clone()));
+        }
+    }
+    incoming
+}
+
+fn rewrite_children(
+    graph: &mut DependenciesGraph,
+    replacements: &HashMap<DepPath, DepPath>,
+    incoming: &mut IncomingEdges,
+) {
+    for (collapsed, target) in replacements {
+        let Some(edges) = incoming.remove(collapsed) else { continue };
+        for (parent, alias) in &edges {
+            graph
+                .get_mut(parent)
+                .unwrap()
+                .edges
+                .children
+                .insert(alias.clone(), target.clone());
+        }
+        incoming
+            .entry(target.clone())
+            .or_default()
+            .extend(edges);
+    }
 }
 
 /// One round of greedy collapse over each duplicate group.
@@ -130,39 +180,41 @@ fn deduplicate_dep_paths(
     duplicates: &[Vec<DepPath>],
     graph: &DependenciesGraph,
 ) -> (HashMap<DepPath, DepPath>, Vec<Vec<DepPath>>) {
-    // Total order over `(dep count, dep path)`: the dep-count sort alone
-    // is not a total order, so a variant that is a subset of several
-    // incompatible larger variants of equal size would collapse into
-    // whichever the unstable position happened to surface first. The
-    // dep-path tie-break makes the winner machine-independent
-    // (pnpm/pnpm#12179).
-    let dep_count_sorter = |dep_path1: &DepPath, dep_path2: &DepPath| {
-        node_deps_count(&graph[dep_path1])
-            .cmp(&node_deps_count(&graph[dep_path2]))
-            .then_with(|| dep_path1.cmp(dep_path2))
-    };
-
     let mut dep_paths_map: HashMap<DepPath, DepPath> = HashMap::default();
     let mut remaining_duplicates: Vec<Vec<DepPath>> = Vec::new();
 
     for dep_paths in duplicates {
-        let mut unresolved: HashSet<DepPath> = dep_paths.iter().cloned().collect();
+        let mut survivors: HashSet<DepPath> = dep_paths.iter().cloned().collect();
         let mut current = dep_paths.clone();
-        current.sort_by(dep_count_sorter);
+        sort_variants(graph, &mut current);
 
         while let Some(largest) = current.pop() {
-            absorb_compatible(graph, &largest, &mut current, &mut dep_paths_map, &mut unresolved);
-            current.sort_by(dep_count_sorter);
+            absorb_compatible(graph, &largest, &mut current, &mut dep_paths_map, &mut survivors);
+            sort_variants(graph, &mut current);
         }
 
-        if !unresolved.is_empty() {
-            let mut leftover: Vec<DepPath> = unresolved.into_iter().collect();
+        if survivors.len() > 1 {
+            let mut leftover: Vec<DepPath> = survivors.into_iter().collect();
             leftover.sort();
             remaining_duplicates.push(leftover);
         }
     }
 
     (dep_paths_map, remaining_duplicates)
+}
+
+fn sort_variants(graph: &DependenciesGraph, paths: &mut [DepPath]) {
+    // Total order over `(dep count, dep path)`: the dep-count sort alone
+    // is not a total order, so a variant that is a subset of several
+    // incompatible larger variants of equal size would collapse into
+    // whichever the unstable position happened to surface first. The
+    // dep-path tie-break makes the winner machine-independent
+    // (pnpm/pnpm#12179).
+    paths.sort_by(|dep_path1, dep_path2| {
+        node_deps_count(&graph[dep_path1])
+            .cmp(&node_deps_count(&graph[dep_path2]))
+            .then_with(|| dep_path1.cmp(dep_path2))
+    });
 }
 
 /// Absorb every remaining variant that `largest` subsumes, leaving the rest
@@ -172,14 +224,17 @@ fn absorb_compatible(
     largest: &DepPath,
     current: &mut Vec<DepPath>,
     dep_paths_map: &mut HashMap<DepPath, DepPath>,
-    unresolved: &mut HashSet<DepPath>,
+    survivors: &mut HashSet<DepPath>,
 ) {
     let mut next = Vec::new();
     while let Some(candidate) = current.pop() {
-        if is_compatible_and_has_more_deps(graph, largest, &candidate) {
+        // Child variants must agree before a parent can collapse into its sibling.
+        let same_children = graph[&candidate].edges.children
+            .iter()
+            .all(|(alias, child)| graph[largest].edges.children.get(alias) == Some(child));
+        if same_children && is_compatible_and_has_more_deps(graph, largest, &candidate) {
             dep_paths_map.insert(candidate.clone(), largest.clone());
-            unresolved.remove(largest);
-            unresolved.remove(&candidate);
+            survivors.remove(&candidate);
         } else {
             next.push(candidate);
         }
