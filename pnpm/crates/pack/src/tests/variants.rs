@@ -294,6 +294,21 @@ fn an_entry_point_is_matched_exactly() {
     touch(dir.path(), "dist/package.json", r#"{ "main": "lib.js" }"#);
     touch(dir.path(), "dist/lib.js", "module.exports = 1");
     assert!(pack(&opts, &[]).is_ok(), "a directory's own main resolves it");
+    let (dir, opts) = fixture(&json!({
+        "name": "example-cli",
+        "version": "4.0.0",
+        "files": [],
+        "publishConfig": {
+            "variants": [{
+                "targets": ["linux-x64"],
+                "files": ["dist/**", "shared.js"],
+                "manifest": { "main": "dist" },
+            }],
+        },
+    }));
+    touch(dir.path(), "dist/package.json", r#"{ "main": "../shared.js" }"#);
+    touch(dir.path(), "shared.js", "module.exports = 1");
+    assert!(pack(&opts, &[]).is_ok(), "a directory's main may name a file beside it");
     let bin = json!({ "bin": { "cli": "native/cli" } });
     assert_eq!(
         missing(bin.clone(), "native/**", &["native/cli.debug"]).as_deref(),
@@ -410,4 +425,37 @@ fn an_injected_file_supersedes_a_claimed_one() {
         tarball_entry_content(&tarball, "package/CHANGELOG.md").as_deref(),
         Some("composed"),
     );
+}
+
+/// An injected file is part of the archive the checks see: it may be the
+/// file an entry point names.
+#[test]
+fn an_injected_file_can_be_an_entry_point() {
+    let (_dir, mut opts) = fixture(&json!({
+        "name": "example-cli",
+        "version": "4.0.0",
+        "files": [],
+        "publishConfig": {
+            "variants": [{ "targets": ["any"], "manifest": { "main": "generated.js" } }],
+        },
+    }));
+    opts.output.injected_files =
+        vec![("package/generated.js".to_string(), b"module.exports = 1".to_vec())];
+    assert!(pack(&opts, &[]).is_ok());
+}
+
+/// With the pnp node linker, an entry cannot bundle dependencies, as a
+/// package without variants cannot.
+#[test]
+fn an_entry_that_bundles_is_refused_with_pnp() {
+    let mut manifest = addon();
+    manifest["publishConfig"]["variants"][1]["manifest"] =
+        json!({ "bundleDependencies": ["helper"] });
+    let (dir, mut opts) = fixture(&manifest);
+    opts.manifest.node_linker = super::NodeLinker::Pnp;
+    write_addon(dir.path());
+    assert!(matches!(
+        pack(&opts, &["linux-x64"]),
+        Err(PackError::BundledDependenciesWithPnp { .. }),
+    ));
 }

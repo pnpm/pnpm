@@ -15,6 +15,7 @@ use crate::{
     contents::executable_sources,
     create_dest_dir,
     dotenv::warn_about_unlisted_dotenv_files,
+    node_linker::prevent_bundled_dependencies_with_pnp,
     pack_source, packed_contents_with_injected, packed_files_map, packed_tarball_path,
     resolve_dest_dir, resolve_output,
     source::{PackSource, check_packed_bins_for_crlf, prepare_source, with_registry_readme},
@@ -264,10 +265,8 @@ where
     Reporter: self::Reporter,
     Sys: FsReadFile + FsFileLen + FsCreateDirAll + FsAtomicWrite + FsIsExecutable,
 {
-    let manifest = VariantDeclaration::archive_manifest(&source.publish_manifest, entry);
-    let files_map = &claims.files_of((opts, source), index, &manifest)?;
-    check_entry_points(entry, &manifest, files_map)?;
-    let manifest = checked_manifest(source, entry, manifest, files_map)?;
+    let (manifest, files_map) = checked_archive(opts, source, (claims, index), entry)?;
+    let files_map = &files_map;
     let listing = listing_manifest(&source.publish_manifest, entry);
     warn_about_unlisted_dotenv_files::<Reporter>(&source.dir, &listing, files_map);
     let bins = executable_sources(&manifest, &manifest, &source.dir);
@@ -298,15 +297,38 @@ where
     })
 }
 
+/// The `package.json` and the files of `entry`'s archive, the entry at
+/// `index`, once they pass the checks: the bundling guard of the node
+/// linker, the entry points, and the checks pnpr runs. The checks see the
+/// archive as it is written, injected files included.
+fn checked_archive(
+    opts: &PackOptions,
+    source: &PackSource,
+    (claims, index): (&Claims, usize),
+    entry: &VariantEntry,
+) -> Result<(Value, IndexMap<String, PathBuf>), PackError> {
+    let manifest = VariantDeclaration::archive_manifest(&source.publish_manifest, entry);
+    prevent_bundled_dependencies_with_pnp(opts.manifest.node_linker, &manifest)?;
+    let files_map = claims.files_of((opts, source), index, &manifest)?;
+    let visible: BTreeSet<String> = files_map
+        .keys()
+        .cloned()
+        .chain(opts.output.injected_files.iter().map(|(name, _)| name.clone()))
+        .collect();
+    check_entry_points(entry, &manifest, (&visible, &files_map))?;
+    let manifest = checked_manifest(source, entry, manifest, &visible)?;
+    Ok((manifest, files_map))
+}
+
 /// Refuse an archive whose manifest's `main`, `browser`, or `bin` names a
 /// file the archive lacks. A `bin` names its file exactly. A `main` or
 /// `browser` names a file as Node.js resolves it (see [`resolves_module`]).
 fn check_entry_points(
     entry: &VariantEntry,
     manifest: &Value,
-    files_map: &IndexMap<String, PathBuf>,
+    (visible, files_map): (&BTreeSet<String>, &IndexMap<String, PathBuf>),
 ) -> Result<(), PackError> {
-    let packed = |path: &str| files_map.contains_key(&format!("package/{path}"));
+    let packed = |path: &str| visible.contains(&format!("package/{path}"));
     let missing =
         |path: String| PackError::VariantEntryPointMissing { targets: entry.label(), path };
     let (bins, modules) = entry_point_fields(manifest);
@@ -318,7 +340,7 @@ fn check_entry_points(
     }
     match required_field_paths(&modules)
         .into_iter()
-        .find(|path| !resolves_module(path, files_map))
+        .find(|path| !resolves_module(path, (visible, files_map)))
     {
         Some(module) => Err(missing(module)),
         None => Ok(()),
@@ -328,8 +350,11 @@ fn check_entry_points(
 /// Whether the module `path` names resolves, as Node.js resolves it, to a
 /// file of `files_map`: the file, the file with an extension, or the
 /// directory's own `main`, then its `index`.
-fn resolves_module(path: &str, files_map: &IndexMap<String, PathBuf>) -> bool {
-    let packed = |path: &str| files_map.contains_key(&format!("package/{path}"));
+fn resolves_module(
+    path: &str,
+    (visible, files_map): (&BTreeSet<String>, &IndexMap<String, PathBuf>),
+) -> bool {
+    let packed = |path: &str| visible.contains(&format!("package/{path}"));
     let as_file = |path: &str| {
         packed(path)
             || NODE_EXTENSIONS
@@ -346,13 +371,29 @@ fn resolves_module(path: &str, files_map: &IndexMap<String, PathBuf>) -> bool {
         || as_index(path)
 }
 
-/// The path the `main` of the packed `package.json` in the directory `dir`
-/// names, if there is one.
+/// The package path the `main` of the packed `package.json` in the
+/// directory `dir` names, if there is one inside the package.
 fn directory_main(dir: &str, files_map: &IndexMap<String, PathBuf>) -> Option<String> {
     let source = files_map.get(&format!("package/{dir}/package.json"))?;
     let manifest: Value = serde_json::from_slice(&std::fs::read(source).ok()?).ok()?;
     let main = manifest.get("main")?.as_str()?;
-    Some(format!("{dir}/{}", main.trim_start_matches("./")))
+    package_path(&format!("{dir}/{main}"))
+}
+
+/// `path` with its `.` and `..` segments resolved, or `None` when it leaves
+/// the package.
+fn package_path(path: &str) -> Option<String> {
+    let mut segments: Vec<&str> = Vec::new();
+    for segment in path.split('/') {
+        match segment {
+            "" | "." => {}
+            ".." => {
+                segments.pop()?;
+            }
+            segment => segments.push(segment),
+        }
+    }
+    Some(segments.join("/"))
 }
 
 /// The extensions Node.js tries on a module path.
@@ -394,15 +435,15 @@ fn listing_manifest(base: &Value, entry: &VariantEntry) -> Value {
 }
 
 /// `manifest`, the `package.json` of `entry`'s archive, once the archive
-/// that holds `files_map` passes the checks pnpr runs.
+/// whose files are `visible` passes the checks pnpr runs.
 fn checked_manifest(
     source: &PackSource,
     entry: &VariantEntry,
     manifest: Value,
-    files_map: &IndexMap<String, PathBuf>,
+    visible: &BTreeSet<String>,
 ) -> Result<Value, PackError> {
-    let paths: Vec<&str> = files_map
-        .keys()
+    let paths: Vec<&str> = visible
+        .iter()
         .filter_map(|path| path.strip_prefix("package/"))
         .collect();
     check_archive(&source.publish_manifest, entry, &manifest, &paths)
