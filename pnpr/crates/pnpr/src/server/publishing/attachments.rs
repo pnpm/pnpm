@@ -136,7 +136,8 @@ pub(in super::super) struct StagedPublish {
     /// The document to record, merged with what the store held when it was
     /// read: a packument, a crate document, a project document.
     pub(in super::super) document: Vec<u8>,
-    pub(in super::super) base_version: Option<HostedDocumentVersion>,
+    /// What the store held when `document` was computed from it.
+    pub(in super::super) base: StagedBase,
     pub(in super::super) slots: Vec<pnpr_storage::BlobSlot>,
     /// Hosted-org storage namespace this publish targets, or `None` for the
     /// flat (path-less) hosted store. Threaded into the commit so the write
@@ -146,6 +147,18 @@ pub(in super::super) struct StagedPublish {
     pub(in super::super) publisher: Option<String>,
     /// What verifying the published archives produced.
     pub(in super::super) verification: Verification,
+}
+
+/// The stored document a staged publish was computed from.
+#[derive(Default)]
+pub(in super::super) struct StagedBase {
+    /// Its version, which the commit expects to replace; `None` when there
+    /// was none.
+    pub(in super::super) version: Option<HostedDocumentVersion>,
+    /// The npm packument itself, which a commit that lost the race to
+    /// another replica rebases the publish's changes off; `None` for a
+    /// first publish and for other ecosystems.
+    pub(in super::super) packument: Option<Value>,
 }
 
 /// What verifying a publish's archives against its version metadata
@@ -210,7 +223,7 @@ pub(in super::super) async fn stage_publish(
         name,
         ecosystem: Ecosystem::Npm,
         document: verified.document,
-        base_version,
+        base: StagedBase { version: base_version, packument: hosted },
         slots: verified.slots,
         org: org.map(str::to_string),
         publisher,
