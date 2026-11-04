@@ -299,6 +299,21 @@ fn walk_package_files_applies_npm_packlist_filter() {
 }
 
 #[test]
+fn walk_package_files_skips_lockfile_staging_files() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    touch(root, "package.json");
+    touch(root, "index.js");
+    touch(root, ".pnpm-lock.yaml.123.0.tmp");
+
+    let out = walk_package_files(root).unwrap();
+    let mut rels: Vec<_> = out.keys().cloned().collect();
+    rels.sort();
+
+    assert_eq!(rels, vec!["index.js".to_string(), "package.json".into()]);
+}
+
+#[test]
 fn walk_package_files_works_without_a_manifest() {
     let dir = tempdir().unwrap();
     let root = dir.path();
