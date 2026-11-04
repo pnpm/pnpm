@@ -102,9 +102,8 @@ pub(super) fn check_publishable_versions(
     for (version, incoming_manifest) in incoming_versions {
         let has_attachment = attachment_versions.contains(version.as_str());
         let Some(hosted_manifest) = hosted_versions.and_then(|hosted| hosted.get(version)) else {
-            if !has_attachment
-                && check_new_version_without_any(name, (version, incoming_manifest), variants)?
-            {
+            if !has_attachment {
+                check_new_version_without_any(name, (version, incoming_manifest), variants)?;
                 without_any.insert(version.clone());
             }
             continue;
@@ -119,16 +118,16 @@ pub(super) fn check_publishable_versions(
     Ok(without_any)
 }
 
-/// Whether a new version with no archive attached is published without an
-/// `any` archive, which it is when it attaches variants and declares no
-/// `dist`. Any other new version needs its archive.
+/// Refuse a new version with no archive attached unless it can be published
+/// without an `any` archive: it attaches variants and declares no `dist`.
+/// Any other new version needs its archive.
 fn check_new_version_without_any(
     name: &CanonicalPackageName,
     (version, incoming_manifest): (&str, &Value),
     variants: &Declarations,
-) -> Result<bool, RegistryError> {
+) -> Result<(), RegistryError> {
     if variants.contains_key(version) && incoming_manifest.get("dist").is_none() {
-        return Ok(true);
+        return Ok(());
     }
     Err(RegistryError::BadRequest {
         reason: format!(
@@ -241,10 +240,17 @@ fn attach_sigstore_attestations(
         .iter()
         .filter(|att| att.kind == AttachmentKind::Sigstore)
     {
+        // A version published without an `any` archive gets its `dist` from
+        // the archive pnpr generates, which keeps these attestations.
         if let Some(dist) = merged
             .get_mut("versions")
             .and_then(|v| v.get_mut(&attachment.version))
-            .and_then(|m| m.get_mut("dist"))
+            .and_then(Value::as_object_mut)
+            .map(|manifest| {
+                manifest
+                    .entry("dist")
+                    .or_insert_with(|| json!({}))
+            })
             .and_then(Value::as_object_mut)
         {
             let predicate_type =

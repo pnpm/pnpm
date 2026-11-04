@@ -757,12 +757,22 @@ async fn a_statement_names_every_archive_of_the_version() {
 /// A version published with variants only: its document has no `dist`, and
 /// no attachment of an `any` archive.
 fn variants_only_request(base: &Value, variants: &[(&str, &[u8])], token: &str) -> Request<Body> {
+    variants_only_request_at("1.0.0", base, variants, token)
+}
+
+/// [`variants_only_request`] of the version `key`.
+fn variants_only_request_at(
+    key: &str,
+    base: &Value,
+    variants: &[(&str, &[u8])],
+    token: &str,
+) -> Request<Body> {
     use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 
     let mut attachments = serde_json::Map::new();
     for (tag, tgz) in variants {
         attachments.insert(
-            format!("@acme/fast-1.0.0~{tag}.tgz"),
+            format!("@acme/fast-{key}~{tag}.tgz"),
             json!({
                 "data": BASE64.encode(tgz),
                 "integrity": sha512_integrity(tgz),
@@ -770,11 +780,10 @@ fn variants_only_request(base: &Value, variants: &[(&str, &[u8])], token: &str) 
             }),
         );
     }
-    let manifest = base.clone();
     let body = json!({
         "name": "@acme/fast",
-        "dist-tags": { "latest": "1.0.0" },
-        "versions": { "1.0.0": manifest },
+        "dist-tags": { "latest": key },
+        "versions": { key: base },
         "_attachments": attachments,
     });
     Request::put("/npm/~acme/@acme/fast")
@@ -902,4 +911,141 @@ async fn a_staged_any_archive_is_referenced_by_its_integrity_alone() {
     let tarball = get(&app, "/npm/~main/@acme/fast/-/fast-1.0.0.tgz", None).await;
     assert_eq!(tarball.status(), StatusCode::OK);
     assert_eq!(body_bytes(tarball.into_body()).await, any_tgz);
+}
+
+/// Publish `request` to a fresh registry and give its status and body.
+async fn publish_once(request: impl FnOnce(&str) -> Request<Body>) -> (StatusCode, String) {
+    let (_tmp, app, token) = setup().await;
+    let response = app
+        .oneshot(request(&token))
+        .await
+        .unwrap();
+    let status = response.status();
+    (status, String::from_utf8(body_bytes(response.into_body()).await).unwrap())
+}
+
+/// A version published without an `any` archive is still the version its
+/// key names, of the package its URL names: neither its manifest nor a
+/// variant's may name another, and its key carries no build metadata, which
+/// pnpm reserves for registry revisions.
+#[tokio::test]
+async fn a_version_without_an_any_archive_names_its_own_package_and_version() {
+    let (_, linux) = archive(&variant_manifest(&["linux-x64"], &json!({})), "linux");
+    let (status, body) = publish_once(|token| {
+        variants_only_request_at("1.0.0+r1", &any_manifest(), &[("linux-x64", &linux)], token)
+    })
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
+
+    let renamed = |field: &str, value: &str| {
+        let mut manifest = any_manifest();
+        manifest[field] = json!(value);
+        manifest
+    };
+    let (_, linux2) =
+        archive(&variant_manifest(&["linux-x64"], &json!({ "version": "2.0.0" })), "linux");
+    let (status, body) = publish_once(|token| {
+        variants_only_request(&renamed("version", "2.0.0"), &[("linux-x64", &linux2)], token)
+    })
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
+    assert!(body.contains("names another version"), "{body}");
+
+    let (_, other) =
+        archive(&variant_manifest(&["linux-x64"], &json!({ "name": "@acme/other" })), "linux");
+    let (status, body) = publish_once(|token| {
+        variants_only_request(&any_manifest(), &[("linux-x64", &other)], token)
+    })
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
+    assert!(body.contains("name"), "{body}");
+}
+
+/// The version's manifest is read as its archives' are, so empty peer maps
+/// on both sides agree.
+#[tokio::test]
+async fn a_version_without_an_any_archive_compares_its_normalized_manifest() {
+    let empty_peers = json!({ "peerDependencies": {}, "peerDependenciesMeta": {} });
+    let mut base = any_manifest();
+    base["peerDependencies"] = json!({});
+    base["peerDependenciesMeta"] = json!({});
+    let (_, linux) = archive(&variant_manifest(&["linux-x64"], &empty_peers), "linux");
+    let (status, body) =
+        publish_once(|token| variants_only_request(&base, &[("linux-x64", &linux)], token)).await;
+    assert_eq!(status, StatusCode::CREATED, "{body}");
+}
+
+/// A provenance statement may accompany a version published without an
+/// `any` archive, and npm's documents link its attestations.
+#[tokio::test]
+async fn a_version_without_an_any_archive_keeps_its_provenance() {
+    let (_tmp, app, token) = setup().await;
+    let (_, linux) = archive(&variant_manifest(&["linux-x64"], &json!({})), "linux");
+    let request = with_statement(
+        variants_only_request(&any_manifest(), &[("linux-x64", &linux)], &token),
+        &[("pkg:npm/%40acme/fast@1.0.0?variant=linux-x64", &linux)],
+    )
+    .await;
+    let response = app
+        .clone()
+        .oneshot(request)
+        .await
+        .unwrap();
+    let status = response.status();
+    let body = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
+    assert_eq!(status, StatusCode::CREATED, "{body}");
+    let npm = body_json(get(&app, "/npm/~main/@acme%2Ffast", None).await.into_body()).await;
+    let dist = &npm["versions"]["1.0.0"]["dist"];
+    assert!(dist["attestations"]["url"].is_string(), "{dist}");
+    assert!(dist["tarball"].is_string(), "{dist}");
+}
+
+/// A rewrite that removes another version keeps what pnpr derived for a
+/// retained version without an `any` archive: its variants and the manifest
+/// they share, which the rewritten document does not carry.
+#[tokio::test]
+async fn a_rewrite_keeps_the_variants_of_a_version_without_an_any_archive() {
+    let (_tmp, app, token) = setup().await;
+    for version in ["1.0.0", "1.1.0"] {
+        let mut base = any_manifest();
+        base["version"] = json!(version);
+        let (_, linux) =
+            archive(&variant_manifest(&["linux-x64"], &json!({ "version": version })), "linux");
+        let response = app
+            .clone()
+            .oneshot(variants_only_request_at(version, &base, &[("linux-x64", &linux)], &token))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::CREATED);
+    }
+    let mut packument =
+        body_json(get(&app, "/npm/~main/@acme%2Ffast", None).await.into_body()).await;
+    packument["versions"]
+        .as_object_mut()
+        .unwrap()
+        .remove("1.1.0");
+    packument["dist-tags"] = json!({ "latest": "1.0.0" });
+    let rewrite = Request::put("/npm/~acme/@acme/fast/-rev/1")
+        .header("content-type", "application/json")
+        .header(header::AUTHORIZATION, format!("Bearer {token}"))
+        .body(Body::from(serde_json::to_vec(&packument).unwrap()))
+        .unwrap();
+    let response = app
+        .clone()
+        .oneshot(rewrite)
+        .await
+        .unwrap();
+    let status = response.status();
+    let body = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
+    assert_eq!(status, StatusCode::CREATED, "{body}");
+
+    let document = body_json(
+        get(&app, "/npm/~main/@acme%2Ffast", Some("application/vnd.pnpr.install-v2+json"))
+            .await
+            .into_body(),
+    )
+    .await;
+    let entry = &document["versions"]["1.0.0"];
+    assert_eq!(entry["variants"][0]["tag"], "linux-x64", "{entry}");
+    assert!(entry.get("manifest").is_some(), "{entry}");
 }

@@ -17,6 +17,29 @@ pub(in super::super) fn remove_server_fields(incoming: &mut Value) {
     }
 }
 
+/// Put back the server-owned variant fields of every version of a rewritten
+/// `incoming` packument from the `hosted` version it retains: a rewrite
+/// carries what clients see, which lacks them, and may not set them.
+pub(in super::super::super) fn restore_server_fields(hosted: &Value, incoming: &mut Value) {
+    let Some(versions) = incoming.get_mut("versions").and_then(Value::as_object_mut) else {
+        return;
+    };
+    for (version, manifest) in versions.iter_mut() {
+        let Some(manifest) = manifest.as_object_mut() else { continue };
+        for field in [STORED_FIELD, GENERATED_ARCHIVE_FIELD] {
+            match hosted.pointer(&format!("/versions/{}/{field}", escape_pointer(version))) {
+                Some(kept) => manifest.insert(field.to_string(), kept.clone()),
+                None => manifest.remove(field),
+            };
+        }
+    }
+}
+
+/// A JSON pointer segment for `segment`.
+fn escape_pointer(segment: &str) -> String {
+    segment.replace('~', "~0").replace('/', "~1")
+}
+
 /// The variants each version attaches, by the tags that name their
 /// attachments. What each archive is a variant for is read from the archive
 /// itself, and must give the tag that names it.

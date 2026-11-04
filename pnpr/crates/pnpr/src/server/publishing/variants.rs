@@ -15,6 +15,7 @@
 //! [`crate::server::staged_archives`]), so a version's archives together are
 //! not bounded by one request body.
 
+pub(in super::super) use declarations::restore_server_fields;
 pub(super) use declarations::{attached_variants, check_version, remove_server_fields};
 pub(super) use verification::attach_variants;
 

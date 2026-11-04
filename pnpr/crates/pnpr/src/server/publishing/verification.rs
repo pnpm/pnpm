@@ -162,6 +162,12 @@ pub(super) fn describe_generated_archive(
     InstallManifest::derive(&manifest, facts).write_to_version(version);
     version.insert(ARCHIVE_MANIFEST_FIELD.to_string(), archive_manifest_record(archive));
     dist["tarball"] = Value::String(tarball.to_string());
+    if let Some(attestations) = version
+        .get("dist")
+        .and_then(|old| old.get("attestations"))
+    {
+        dist["attestations"] = attestations.clone();
+    }
     version.insert("dist".to_string(), dist);
 }
 

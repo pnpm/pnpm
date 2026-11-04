@@ -5,6 +5,7 @@ use super::{
     Declarations, GENERATED_ARCHIVE_FIELD, Map, PublishedTar, PublishedVariant, RegistryError,
     STORED_FIELD, Value, VariantDeclaration, bad_request,
 };
+use pnpm_package_manifest::{ArchiveFacts, InstallManifest};
 use pnpm_platform_variants::{Platform, variant_tag};
 use std::collections::{BTreeSet, HashMap};
 
@@ -41,15 +42,18 @@ pub(in super::super) fn attach_variants(
         let name = merged
             .get("name")
             .and_then(Value::as_str)
-            .unwrap_or_default();
-        let shared = if without_any.contains(version) {
-            Some(shared_manifest(&submitted, version, published))
-        } else {
-            check_any_archive((name, version), &submitted, any_archives)?;
-            None
-        };
+            .unwrap_or_default()
+            .to_string();
+        let name = name.as_str();
+        let (submitted, shared) = version_manifests(
+            (name, version),
+            submitted,
+            without_any.contains(version),
+            (published, any_archives),
+        )?;
         let described = shared.as_ref().unwrap_or(&submitted);
-        let stored = stored_variants(version, variants, (&submitted, described), published)?;
+        let stored =
+            stored_variants((name, version), variants, (&submitted, described), published)?;
         if let Some(manifest) = merged.pointer_mut(&pointer).and_then(Value::as_object_mut) {
             manifest.insert(STORED_FIELD.to_string(), Value::Array(stored));
             if let Some(Value::Object(mut shared)) = shared {
@@ -60,6 +64,53 @@ pub(in super::super) fn attach_variants(
         }
     }
     Ok(())
+}
+
+/// The manifest `version`'s variants are checked against, and for a version
+/// published `without_any_archive`, the manifest they share. Such a version
+/// was not normalized by an archive's check, so it is here, as its variants'
+/// manifests are, and must name the published package and version itself;
+/// any other version is checked against its `any` archive.
+fn version_manifests(
+    (name, version): (&str, &str),
+    submitted: Value,
+    without_any_archive: bool,
+    (published, any_archives): (&[PublishedVariant], &[PublishedTar]),
+) -> Result<(Value, Option<Value>), RegistryError> {
+    if !without_any_archive {
+        check_any_archive((name, version), &submitted, any_archives)?;
+        return Ok((submitted, None));
+    }
+    let submitted = normalized(&submitted);
+    check_identity((name, version), &submitted)
+        .map_err(|field| bad_request(format!("version {version} names another {field}")))?;
+    let shared = shared_manifest(&submitted, version, published);
+    Ok((submitted, Some(shared)))
+}
+
+/// `submitted`, a version's manifest, normalized as an archive's manifest is
+/// (see [`InstallManifest`]), so it compares with its variants' manifests.
+fn normalized(submitted: &Value) -> Value {
+    let Value::Object(mut fields) = submitted.clone() else { return submitted.clone() };
+    let files = BTreeSet::new();
+    let facts = ArchiveFacts { binding_gyp: false, has_shrinkwrap: false, files: &files };
+    InstallManifest::derive(submitted, facts).write_to_version(&mut fields);
+    Value::Object(fields)
+}
+
+/// Check that `manifest` names the published package and the version it is
+/// published as, or give the field that names another. Its version is the
+/// normalized one, without build metadata, so a version key with build
+/// metadata, such as the `+r<N>` pnpm reserves for registry revisions, never
+/// matches.
+fn check_identity((name, version): (&str, &str), manifest: &Value) -> Result<(), &'static str> {
+    match [("name", name), ("version", version)]
+        .into_iter()
+        .find(|(field, expected)| manifest.get(field).and_then(Value::as_str) != Some(expected))
+    {
+        Some((field, _)) => Err(field),
+        None => Ok(()),
+    }
 }
 
 /// The manifest a version without an `any` archive is described by in
@@ -125,15 +176,12 @@ fn check_any_archive(
             bad_request(format!("the `any` archive of {version} has no package.json"))
         })?;
     let manifest = &manifest;
-    let identity = [("name", name), ("version", version)];
-    if let Some((field, _)) = identity
-        .into_iter()
-        .find(|(field, expected)| manifest.get(field).and_then(Value::as_str) != Some(expected))
-    {
-        return Err(bad_request(format!(
-            "the `any` archive of {version} names another {field} than the published one",
-        )));
-    }
+    check_identity((name, version), manifest)
+        .map_err(|field| {
+            bad_request(format!(
+                "the `any` archive of {version} names another {field} than the published one",
+            ))
+        })?;
     if submitted.get("variant").is_some() || manifest.get("variant").is_some() {
         return Err(bad_request(format!("the `any` archive of {version} declares a variant")));
     }
@@ -146,7 +194,7 @@ fn check_any_archive(
 /// What the stored version keeps of each of its verified variants. Two
 /// variants may not list the same platform.
 fn stored_variants(
-    version: &str,
+    (name, version): (&str, &str),
     variants: &[VariantDeclaration],
     submitted: (&Value, &Value),
     published: &[PublishedVariant],
@@ -154,7 +202,7 @@ fn stored_variants(
     let mut stored = Vec::with_capacity(variants.len());
     let mut listed: HashMap<Platform, &str> = HashMap::new();
     for variant in variants {
-        let (entry, platforms) = stored_variant(version, variant, submitted, published)?;
+        let (entry, platforms) = stored_variant((name, version), variant, submitted, published)?;
         let overlap = platforms
             .into_iter()
             .find_map(|platform| {
@@ -182,7 +230,7 @@ fn escape_pointer(segment: &str) -> String {
 /// version's, and
 /// described by its difference from the second.
 fn stored_variant(
-    version: &str,
+    (name, version): (&str, &str),
     variant: &VariantDeclaration,
     (submitted, described): (&Value, &Value),
     published: &[PublishedVariant],
@@ -196,6 +244,8 @@ fn stored_variant(
         return Err(bad_request(format!("variant {named:?} of {version} has no archive")));
     };
     let manifest = verified_manifest(found, submitted).map_err(reject)?;
+    check_identity((name, version), manifest)
+        .map_err(|field| reject(format!("it names another {field} than the published one")))?;
     let platforms = declared_platforms(manifest).map_err(reject)?;
     let tag = variant_tag(&platforms).map_err(|err| reject(err.to_string()))?;
     if tag != *named {
