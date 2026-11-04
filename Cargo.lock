@@ -5925,6 +5925,7 @@ dependencies = [
  "pnpm-hooks",
  "pnpm-package-manifest",
  "pnpm-package-name",
+ "pnpm-platform-variants",
  "pnpm-reporter",
  "pnpm-text-sanitize",
  "serde",

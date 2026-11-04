@@ -27,6 +27,7 @@ mod manifest_entry;
 mod options;
 mod source;
 mod tarball;
+pub mod variants;
 
 #[cfg(test)]
 mod tests;
