@@ -24,6 +24,15 @@ fn lockfile(value: Value) -> Lockfile {
     serde_json::from_value(value).expect("parse lockfile fixture")
 }
 
+fn assert_no_warnings(
+    inspector: &mut UndeclaredPeerInspector<'_>,
+    importer: &str,
+    root_scope: crate::WorkspaceRootScope,
+) {
+    let warnings = inspector.check(importer, root_scope);
+    assert!(warnings.is_empty(), "{warnings:?}");
+}
+
 #[test]
 fn linked_providers_use_the_lockfile_directory_and_importer_declarations() {
     let root = tempfile::tempdir().expect("create workspace");
@@ -43,10 +52,7 @@ fn linked_providers_use_the_lockfile_directory_and_importer_declarations() {
         json!({"specifier":"workspace:*", "version":"link:../provider"});
     let declared = lockfile(value.clone());
     let mut inspector = UndeclaredPeerInspector::new(&declared, root.path());
-    assert!(
-        inspector.check("packages/app", crate::WorkspaceRootScope::Exclude).is_empty(),
-        "declared linked provider must suppress the warning",
-    );
+    assert_no_warnings(&mut inspector, "packages/app", crate::WorkspaceRootScope::Exclude);
     value["importers"]["packages/app"]["dependencies"]
         .as_object_mut()
         .unwrap()
@@ -54,10 +60,7 @@ fn linked_providers_use_the_lockfile_directory_and_importer_declarations() {
     value["importers"]["."] = json!({"dependencies":{"alias":{"specifier":"workspace:*", "version":"link:packages/provider"}}});
     let aliased_root = lockfile(value);
     let mut inspector = UndeclaredPeerInspector::new(&aliased_root, root.path());
-    assert!(
-        inspector.check("packages/app", crate::WorkspaceRootScope::Include).is_empty(),
-        "aliased root link should provide the peer",
-    );
+    assert_no_warnings(&mut inspector, "packages/app", crate::WorkspaceRootScope::Include);
 }
 
 #[test]
@@ -70,10 +73,7 @@ fn workspace_root_aliases_follow_the_resolver_provider_policy() {
     let lockfile = lockfile(value);
     let mut inspector = UndeclaredPeerInspector::new(&lockfile, Path::new("."));
     assert_eq!(inspector.check("packages/app", crate::WorkspaceRootScope::Exclude).len(), 1);
-    assert!(
-        inspector.check("packages/app", crate::WorkspaceRootScope::Include).is_empty(),
-        "the enabled root scope provides the aliased package",
-    );
+    assert_no_warnings(&mut inspector, "packages/app", crate::WorkspaceRootScope::Include);
 }
 
 #[test]
@@ -126,4 +126,72 @@ fn converging_branches_do_not_multiply_provider_scopes() {
     let warnings = inspector.check(".", crate::WorkspaceRootScope::Exclude);
     assert_eq!(warnings.len(), 1, "{warnings:?}");
     assert!(inspector.nodes.len() < 100, "{} analyzed nodes", inspector.nodes.len());
+}
+
+#[test]
+fn direct_and_ancestor_aliases_provide_the_peer_by_its_package_name() {
+    let mut value = fixture();
+    value["importers"]["."]["dependencies"]["alias"] =
+        json!({"specifier":"npm:provider@1.0.0", "version":"provider@1.0.0"});
+    let direct = lockfile(value.clone());
+    let mut inspector = UndeclaredPeerInspector::new(&direct, Path::new("."));
+    assert_no_warnings(&mut inspector, ".", crate::WorkspaceRootScope::Exclude);
+    value["packages"]["parent@1.0.0"] = json!({"resolution":{"integrity":"sha512-parent"}});
+    value["snapshots"]["parent@1.0.0"] =
+        json!({"dependencies":{"consumer":"1.0.0", "alias":"provider@1.0.0"}});
+    value["importers"]["."]["dependencies"] =
+        json!({"parent":{"specifier":"1.0.0", "version":"1.0.0"}});
+    let ancestor = lockfile(value);
+    let mut inspector = UndeclaredPeerInspector::new(&ancestor, Path::new("."));
+    assert_no_warnings(&mut inspector, ".", crate::WorkspaceRootScope::Exclude);
+}
+
+#[test]
+fn independent_peer_targets_do_not_search_unrelated_roots() {
+    let mut value = fixture();
+    value["importers"]["."]["dependencies"] = json!({});
+    for index in 0..1000 {
+        let consumer = format!("consumer{index}");
+        let provider = format!("provider{index}");
+        value["importers"]["."]["dependencies"][&consumer] =
+            json!({"specifier":"1.0.0", "version":"1.0.0"});
+        value["packages"][format!("{consumer}@1.0.0")] = json!({"resolution":{"integrity":"sha512-consumer"}, "peerDependencies":{&provider:"*"}});
+        value["packages"][format!("{provider}@1.0.0")] =
+            json!({"resolution":{"integrity":"sha512-provider"}});
+        value["snapshots"][format!("{consumer}@1.0.0")] =
+            json!({"dependencies":{&provider:"1.0.0"}});
+        value["snapshots"][format!("{provider}@1.0.0")] = json!({});
+    }
+    let lockfile = lockfile(value);
+    let mut inspector = UndeclaredPeerInspector::new(&lockfile, Path::new("."));
+    assert_eq!(inspector.check(".", crate::WorkspaceRootScope::Exclude).len(), 1000);
+    assert!(
+        inspector.visited_states.get() <= 2000,
+        "{} ancestor visits",
+        inspector.visited_states.get(),
+    );
+}
+
+#[test]
+fn a_shared_peer_is_checked_once_through_a_long_chain() {
+    let mut value = fixture();
+    value["importers"]["."]["dependencies"] =
+        json!({"consumer0":{"specifier":"1.0.0", "version":"1.0.0"}});
+    for index in 0..1000 {
+        let key = format!("consumer{index}@1.0.0");
+        value["packages"][&key] = json!({"resolution":{"integrity":"sha512-consumer"}, "peerDependencies":{"provider":"*"}});
+        value["snapshots"][&key] = json!({"dependencies":{"provider":"1.0.0"}});
+        if index < 999 {
+            value["snapshots"][&key]["dependencies"][format!("consumer{}", index + 1)] =
+                "1.0.0".into();
+        }
+    }
+    let lockfile = lockfile(value);
+    let mut inspector = UndeclaredPeerInspector::new(&lockfile, Path::new("."));
+    assert_eq!(inspector.check(".", crate::WorkspaceRootScope::Exclude).len(), 1000);
+    assert!(
+        inspector.visited_states.get() <= 2000,
+        "{} ancestor visits",
+        inspector.visited_states.get(),
+    );
 }

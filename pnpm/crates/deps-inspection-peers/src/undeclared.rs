@@ -11,6 +11,8 @@ use crate::{
     snapshot::{child_keys, resolved_snapshot_version, satisfies, snapshot_dependency},
 };
 
+use search::{DeclarationGraph, ProviderRequirement};
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UndeclaredPeer {
@@ -25,7 +27,7 @@ enum Provider {
     Link(PathBuf),
 }
 
-type Providers = BTreeMap<String, Provider>;
+type Providers = BTreeMap<String, Vec<Provider>>;
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 struct Query {
@@ -58,6 +60,8 @@ pub struct UndeclaredPeerInspector<'a> {
     root_scope: Option<Providers>,
     nodes: HashMap<PkgNameVerPeer, PackageNode>,
     reports: HashMap<Query, Vec<UndeclaredPeer>>,
+    #[cfg(test)]
+    visited_states: std::cell::Cell<usize>,
 }
 
 impl<'a> UndeclaredPeerInspector<'a> {
@@ -69,6 +73,8 @@ impl<'a> UndeclaredPeerInspector<'a> {
             root_scope: None,
             nodes: HashMap::new(),
             reports: HashMap::new(),
+            #[cfg(test)]
+            visited_states: std::cell::Cell::new(0),
         }
     }
 
@@ -101,32 +107,27 @@ impl<'a> UndeclaredPeerInspector<'a> {
             return providers.clone();
         }
         let Some(root) = self.lockfile.importers.get(".") else { return Providers::new() };
-        let declared = self.importer_providers(root, self.lockfile_dir);
-        let mut providers = Providers::new();
-        for provider in declared.values() {
-            if let Some(name) = provider_name(provider) {
-                providers.entry(name).or_insert_with(|| provider.clone());
-            }
-        }
-        providers.extend(declared);
+        let providers = self.importer_providers(root, self.lockfile_dir);
         self.root_scope = Some(providers.clone());
         providers
     }
 
     fn importer_providers(&self, importer: &ProjectSnapshot, base: &Path) -> Providers {
-        [&importer.dependencies, &importer.dev_dependencies, &importer.optional_dependencies]
-            .into_iter()
-            .flatten()
-            .flatten()
-            .filter_map(|(alias, spec)| {
-                if let Some(key) = spec.version.resolved_key(alias) {
-                    return Some((alias.to_string(), Provider::Package(key)));
-                }
-                let target = spec.version.as_link_target()?;
-                let path = canonical_path_within(&base.join(target), self.lockfile_dir)?;
-                Some((alias.to_string(), Provider::Link(path)))
-            })
-            .collect()
+        let declared =
+            [&importer.dependencies, &importer.dev_dependencies, &importer.optional_dependencies]
+                .into_iter()
+                .flatten()
+                .flatten()
+                .filter_map(|(alias, spec)| {
+                    if let Some(key) = spec.version.resolved_key(alias) {
+                        return Some((alias.to_string(), vec![Provider::Package(key)]));
+                    }
+                    let target = spec.version.as_link_target()?;
+                    let path = canonical_path_within(&base.join(target), self.lockfile_dir)?;
+                    Some((alias.to_string(), vec![Provider::Link(path)]))
+                })
+                .collect();
+        index_package_names(declared)
     }
 
     fn reachable_nodes(&mut self, roots: &[PkgNameVerPeer]) -> HashSet<PkgNameVerPeer> {
@@ -149,19 +150,30 @@ impl<'a> UndeclaredPeerInspector<'a> {
         query: &Query,
         reachable: &HashSet<PkgNameVerPeer>,
     ) -> Vec<UndeclaredPeer> {
+        let graph = DeclarationGraph {
+            roots: query.roots.iter().cloned().collect(),
+            providers: &query.providers,
+            parents: self.reverse_edges(reachable),
+        };
         let mut groups: HashMap<(String, Provider), HashMap<PkgNameVerPeer, UndeclaredPeer>> =
             HashMap::new();
         for key in reachable {
-            for (provider, peer) in &self.nodes[key].peers {
+            for (provider, warning) in &self.nodes[key].peers {
                 groups
-                    .entry((peer.peer.clone(), provider.clone()))
+                    .entry((warning.peer.clone(), provider.clone()))
                     .or_default()
-                    .insert(key.clone(), peer.clone());
+                    .insert(key.clone(), warning.clone());
             }
         }
         let mut result = Vec::new();
         for ((peer, provider), targets) in groups {
-            result.extend(self.inspect_provider(query, &peer, &provider, &targets));
+            let requirement = ProviderRequirement { peer: &peer, provider: &provider };
+            let unprovided = search::unprovided_targets(self, &graph, &requirement, targets.keys());
+            result.extend(
+                targets
+                    .into_iter()
+                    .filter_map(|(key, warning)| unprovided.contains(&key).then_some(warning)),
+            );
         }
         result.sort_by(|left, right| {
             (&left.package, &left.peer).cmp(&(&right.package, &right.peer))
@@ -170,40 +182,37 @@ impl<'a> UndeclaredPeerInspector<'a> {
         result
     }
 
-    /// Each package has at most two states for one provider, regardless of how paths converge.
-    fn inspect_provider(
+    fn reverse_edges(
         &self,
-        query: &Query,
-        peer: &str,
-        provider: &Provider,
-        targets: &HashMap<PkgNameVerPeer, UndeclaredPeer>,
-    ) -> Vec<UndeclaredPeer> {
-        let provided = query.providers.get(peer) == Some(provider);
-        let mut pending: Vec<_> = query.roots
-            .iter()
-            .map(|key| (key, provided))
-            .collect();
-        let mut visited = HashSet::new();
-        let mut result = Vec::new();
-        while let Some((key, provided)) = pending.pop() {
-            if !visited.insert((key, provided)) {
-                continue;
+        reachable: &HashSet<PkgNameVerPeer>,
+    ) -> HashMap<PkgNameVerPeer, Vec<PkgNameVerPeer>> {
+        let mut parents: HashMap<PkgNameVerPeer, Vec<PkgNameVerPeer>> = HashMap::new();
+        for key in reachable {
+            for child in &self.nodes[key].dependencies {
+                parents
+                    .entry(child.clone())
+                    .or_default()
+                    .push(key.clone());
             }
-            if !provided && let Some(warning) = targets.get(key) {
-                result.push(warning.clone());
-            }
-            let children = &self.nodes[key].children;
-            let provided = children
-                .get(peer)
-                .map_or(provided, |declared| declared == provider);
-            pending.extend(
-                self.nodes[key].dependencies
-                    .iter()
-                    .map(|child| (child, provided)),
-            );
         }
-        result
+        parents
     }
+}
+
+fn index_package_names(declared: Providers) -> Providers {
+    let names: Vec<_> = declared
+        .values()
+        .flatten()
+        .filter_map(|provider| provider_name(provider).map(|name| (name, provider.clone())))
+        .collect();
+    let mut providers = declared;
+    for (name, provider) in names {
+        let named = providers.entry(name).or_default();
+        if !named.contains(&provider) {
+            named.push(provider);
+        }
+    }
+    providers
 }
 
 fn provider_name(provider: &Provider) -> Option<String> {
@@ -223,6 +232,7 @@ fn provider_name(provider: &Provider) -> Option<String> {
 fn package_key_refs(providers: &Providers) -> impl Iterator<Item = &PkgNameVerPeer> {
     providers
         .values()
+        .flatten()
         .filter_map(|provider| match provider {
             Provider::Package(key) => Some(key),
             Provider::Link(_) => None,
@@ -280,10 +290,10 @@ fn declared_children(context: &PeerContext<'_>) -> Providers {
             .is_some_and(|peers| peers.contains_key(&alias.to_string()))
             && let Some(provider) = provider_for_reference(reference, alias, context.lockfile_dir)
         {
-            children.insert(alias.to_string(), provider);
+            children.insert(alias.to_string(), vec![provider]);
         }
     }
-    children
+    index_package_names(children)
 }
 
 struct PeerContext<'a> {
@@ -326,3 +336,5 @@ fn inspect_peer(
 
 #[cfg(test)]
 mod tests;
+
+mod search;
