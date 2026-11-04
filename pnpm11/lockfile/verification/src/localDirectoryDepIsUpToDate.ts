@@ -33,6 +33,7 @@ import {
   isSubdirectory,
   isWorkspacePath,
   resolveSpecPath,
+  versionSatisfies,
 } from './dependencySpec.js'
 
 export interface LocalDirectoryDepContext {
@@ -466,8 +467,7 @@ async function linkedWorkspaceTargetSatisfies (
   if (!targetPkg || targetPkg.name !== expectedName) {
     return false
   }
-  return range === '*' || range === '^' || range === '~' || range === '' ||
-    semver.satisfies(targetPkg.version, range, { loose: true })
+  return versionSatisfies(targetPkg.version, range)
 }
 
 async function realPathStaysInsideWorkspace (workspaceRoot: string, targetDir: string): Promise<boolean> {

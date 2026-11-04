@@ -50,6 +50,7 @@
     "@pnpm/resolving.resolver-base": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/workspace.project-manifest-reader": "workspace:*",
+    "@pnpm/workspace.range-resolver": "workspace:*",
     "p-every": "catalog:",
     "path-exists": "catalog:",
     "ramda": "catalog:",

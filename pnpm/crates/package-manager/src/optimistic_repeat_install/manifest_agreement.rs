@@ -380,10 +380,8 @@ fn linked_dep_is_up_to_date(
         // A linkable dir exists, but nothing requests linking it.
         return true;
     }
-    let local_package_satisfies_range = matches!(available_range, "*" | "^" | "~")
-        || ctx
-            .linked_version(&linked_dir)
-            .is_some_and(|version| semver_satisfies_loosely(&version, available_range));
+    let local_package_satisfies_range =
+        workspace_version_satisfies(ctx.linked_version(&linked_dir), available_range);
     is_linked == local_package_satisfies_range
 }
 
@@ -428,10 +426,9 @@ pub(crate) fn spec_is_distribution_tag(spec: &str) -> bool {
             .all(|char| char.is_ascii_alphanumeric() || matches!(char, '-' | '_' | '.'))
 }
 
-/// `semver.satisfies(version, range, { loose: true })` — a version or
-/// range that doesn't parse fails the match.
-pub(crate) fn semver_satisfies_loosely(version: &str, range: &str) -> bool {
-    let Ok(version) = version.parse::<node_semver::Version>() else { return false };
-    let Ok(range) = range.parse::<node_semver::Range>() else { return false };
-    range.satisfies(&version)
+/// Whether the resolver picks a workspace project at `version` for `range`.
+/// A project without a version matches only the pick-the-highest tokens.
+fn workspace_version_satisfies(version: Option<String>, range: &str) -> bool {
+    let versions = [version.unwrap_or_default()];
+    pnpm_workspace_range_resolver::resolve_workspace_range(range, &versions).is_some()
 }

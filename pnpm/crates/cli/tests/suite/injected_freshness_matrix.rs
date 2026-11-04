@@ -424,3 +424,25 @@ fn pnpmfile_read_package_hook_agrees_across_layouts() {
         assert!(scenario.frozen_install_passes(&[]));
     }
 }
+
+/// The resolver links `workspace:1` to a project whose version is the string
+/// `1`, which is no semver version, so a frozen install accepts the lockfile
+/// that install wrote.
+#[test]
+fn a_workspace_version_that_is_not_semver_agrees_across_layouts() {
+    for shared_lockfile in [true, false] {
+        let mut scenario = Scenario::new(Layout {
+            shared_lockfile,
+            injection: Injection::InjectWorkspacePackages,
+        });
+        let lib_dir = scenario.workspace().join("packages/lib");
+        let mut lib_manifest = read_manifest(&lib_dir);
+        lib_manifest["version"] = json!("1");
+        write_manifest_value(&lib_dir, &lib_manifest);
+        let app_dir = scenario.workspace().join("packages/app");
+        set_dependency(&app_dir, "dependencies", "lib", "workspace:1");
+
+        scenario.install(&[]);
+        assert!(scenario.frozen_install_passes(&[]), "shared lockfile: {shared_lockfile}");
+    }
+}

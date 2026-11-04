@@ -7900,6 +7900,9 @@ importers:
       '@pnpm/workspace.project-manifest-reader':
         specifier: workspace:*
         version: link:../../workspace/project-manifest-reader
+      '@pnpm/workspace.range-resolver':
+        specifier: workspace:*
+        version: link:../../workspace/range-resolver
       p-every:
         specifier: 'catalog:'
         version: 2.0.0

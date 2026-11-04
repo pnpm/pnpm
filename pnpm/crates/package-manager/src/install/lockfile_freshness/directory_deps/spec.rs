@@ -187,13 +187,10 @@ fn workspace_range_spec_satisfies(
     workspace_spec: &str,
     lockfile_dep: &pnpm_lockfile::SnapshotDepRef,
 ) -> bool {
-    let (target, parsed_range_str) = parse_workspace_range(workspace_spec);
+    let (target, range) = parse_workspace_range(workspace_spec);
     let expected_name = target.unwrap_or(dep_name);
-    let Ok(range) = parsed_range_str.parse::<node_semver::Range>() else {
-        return false;
-    };
     if let Some(link) = lockfile_dep.as_link_target() {
-        return linked_target_satisfies(dirs, link, expected_name, parsed_range_str, &range);
+        return linked_target_satisfies(dirs, link, expected_name, range);
     }
     if !snapshot_dep_name_matches(lockfile_dep, dep_name, expected_name) {
         return false;
@@ -207,14 +204,14 @@ fn workspace_range_spec_satisfies(
     else {
         return false;
     };
-    linked_target_satisfies(dirs, recorded, expected_name, parsed_range_str, &range)
+    linked_target_satisfies(dirs, recorded, expected_name, range)
 }
 
+/// The aliased package name and the version range of the post-`workspace:`
+/// part of a specifier, with every pick-the-highest token (`*`, `^`, `~`, or
+/// nothing) as `*`.
 fn parse_workspace_range(workspace_spec: &str) -> (Option<&str>, &str) {
-    let (target, range_str) = match workspace_spec.rfind('@') {
-        Some(idx) if idx > 0 => (Some(&workspace_spec[..idx]), &workspace_spec[idx + 1..]),
-        _ => (None, workspace_spec),
-    };
+    let (target, range_str) = pnpm_workspace_spec::split_alias_version(workspace_spec);
     let parsed_range_str = match range_str {
         "*" | "^" | "~" | "" => "*",
         other => other,
@@ -264,16 +261,13 @@ pub(super) fn importer_link_satisfies(
     }
 
     let expected_name = target.unwrap_or(dep_name);
-    let Ok(range) = parsed_range_str.parse::<node_semver::Range>() else {
-        return false;
-    };
     let link_path = Path::new(link_target);
     if link_path.is_absolute() {
         return false;
     }
     let target_dir = project_dir.join(link_path);
     is_missing_from_checkout(dirs, &target_dir)
-        || target_dir_satisfies(dirs, &target_dir, expected_name, parsed_range_str, &range)
+        || target_dir_satisfies(dirs, &target_dir, expected_name, parsed_range_str)
 }
 
 fn is_missing_from_checkout(dirs: &SpecDirs<'_>, target_dir: &Path) -> bool {
@@ -288,22 +282,20 @@ fn linked_target_satisfies(
     dirs: &SpecDirs<'_>,
     link: &str,
     expected_name: &str,
-    range_str: &str,
-    range: &node_semver::Range,
+    range: &str,
 ) -> bool {
     let link_path = Path::new(link);
     if link_path.is_absolute() {
         return false;
     }
-    target_dir_satisfies(dirs, &dirs.lockfile_dir.join(link_path), expected_name, range_str, range)
+    target_dir_satisfies(dirs, &dirs.lockfile_dir.join(link_path), expected_name, range)
 }
 
 fn target_dir_satisfies(
     dirs: &SpecDirs<'_>,
     target_dir: &Path,
     expected_name: &str,
-    range_str: &str,
-    range: &node_semver::Range,
+    range: &str,
 ) -> bool {
     let Some(pkg_json) = target_manifest(dirs, target_dir) else {
         return false;
@@ -311,17 +303,11 @@ fn target_dir_satisfies(
     if pkg_json.get("name").and_then(serde_json::Value::as_str) != Some(expected_name) {
         return false;
     }
-    if matches!(range_str, "*" | "^" | "~" | "") {
-        return true;
-    }
-    let Some(version) = pkg_json
+    let version = pkg_json
         .get("version")
         .and_then(serde_json::Value::as_str)
-        .and_then(|raw_version| raw_version.parse::<node_semver::Version>().ok())
-    else {
-        return false;
-    };
-    range.satisfies(&version)
+        .unwrap_or_default();
+    pnpm_workspace_range_resolver::resolve_workspace_range(range, &[version.to_string()]).is_some()
 }
 
 /// The resolver's reuse gate decides a semver range or a named-registry
