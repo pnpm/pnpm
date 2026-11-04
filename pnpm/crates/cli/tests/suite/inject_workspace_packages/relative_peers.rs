@@ -6,23 +6,55 @@ use std::{fs, process::Command};
 
 #[test]
 fn relative_workspace_peer_is_auto_installed_from_its_declaring_directory() {
-    for also_dependency in [false, true] {
+    struct Case {
+        also_dependency: bool,
+        explicit_provider: bool,
+        peer_specifier: &'static str,
+    }
+    for Case {
+        also_dependency,
+        explicit_provider,
+        peer_specifier,
+    } in [
+        Case {
+            also_dependency: false,
+            explicit_provider: false,
+            peer_specifier: "workspace:../provider",
+        },
+        Case {
+            also_dependency: true,
+            explicit_provider: false,
+            peer_specifier: "workspace:../provider",
+        },
+        Case {
+            also_dependency: true,
+            explicit_provider: true,
+            peer_specifier: "workspace:../provider",
+        },
+        Case {
+            also_dependency: true,
+            explicit_provider: false,
+            peer_specifier: r"workspace:..\provider",
+        },
+    ] {
         let CommandTempCwd { mut pacquet, root, workspace, .. } = CommandTempCwd::init();
         let mut library = json!({
             "name": "library", "version": "1.0.0",
-            "peerDependencies": { "provider": "workspace:../provider" },
+            "peerDependencies": { "provider": peer_specifier },
         });
         if also_dependency {
             library["dependencies"] = json!({ "provider": "workspace:../provider" });
         }
-        for (dir, manifest, source) in [
-            (
-                "examples",
-                json!({ "name": "consumer", "version": "1.0.0", "dependencies": {
+        let mut consumer_manifest = json!({
+            "name": "consumer", "version": "1.0.0", "dependencies": {
                 "library": "workspace:../packages/library",
-            } }),
-                "module.exports = require('library');",
-            ),
+            },
+        });
+        if explicit_provider {
+            consumer_manifest["dependencies"]["provider"] = json!("workspace:../packages/provider");
+        }
+        for (dir, manifest, source) in [
+            ("examples", consumer_manifest, "module.exports = require('library');"),
             ("packages/library", library, "module.exports = require('provider');"),
             (
                 "packages/provider",
@@ -55,7 +87,7 @@ fn relative_workspace_peer_is_auto_installed_from_its_declaring_directory() {
             .success();
         let lockfile_path = consumer.join("pnpm-lock.yaml");
         let lockfile = fs::read_to_string(&lockfile_path).unwrap();
-        assert!(lockfile.contains("workspace:../provider"), "{lockfile}");
+        assert!(lockfile.contains(peer_specifier), "{lockfile}");
         super::pnpm_in(&consumer)
             .with_args([
                 "install",
