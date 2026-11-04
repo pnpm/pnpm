@@ -11,6 +11,9 @@ use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
 use std::{fs, path::Path};
 
+#[cfg(target_os = "linux")]
+mod opens;
+
 /// The debug event the fast path logs when the records decided.
 const DECIDED_FROM_RECORDS: &str = "the recorded manifests decided the install";
 
