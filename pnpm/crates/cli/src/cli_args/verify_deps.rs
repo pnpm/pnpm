@@ -16,8 +16,7 @@ use pnpm_config::{Config, VerifyDepsBeforeRun};
 use pnpm_default_reporter::colors::Colors;
 use pnpm_fs::DirLock;
 use pnpm_package_manager::{
-    GateWorkspace, RunDepsStatus, check_deps_status_before_run_at, check_deps_status_before_run_in,
-    deps_install_root,
+    GateWorkspace, RunDepsStatus, check_deps_status_before_run_at, deps_install_root,
 };
 use std::{
     collections::HashSet,
@@ -91,7 +90,7 @@ fn verify_deps_before_run_in(
         return Ok(());
     }
     let Some(status) =
-        check_deps_status_before_run_in(dir, config, selected_project_dirs, workspace)
+        check_deps_status_before_run_at(dir, config, selected_project_dirs, workspace)
     else {
         return Ok(());
     };
@@ -222,7 +221,7 @@ fn locked_install(
         (None, false)
     });
     let install_args = if waited {
-        match check_deps_status_before_run_at(dir, config, selected_project_dirs) {
+        match check_deps_status_before_run_at(dir, config, selected_project_dirs, None) {
             Some(RunDepsStatus::Outdated { mut install_args, .. }) => {
                 install_args.extend(install_selection_args(config));
                 install_args
@@ -247,7 +246,7 @@ fn warn_if_still_outdated(
     reporter: ReporterType,
 ) {
     if let Some(RunDepsStatus::Outdated { issue, .. }) =
-        check_deps_status_before_run_at(dir, config, selected_project_dirs)
+        check_deps_status_before_run_at(dir, config, selected_project_dirs, None)
     {
         warn(
             matches!(reporter, ReporterType::Silent),

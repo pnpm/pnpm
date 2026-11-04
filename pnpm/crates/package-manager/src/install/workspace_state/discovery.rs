@@ -28,53 +28,12 @@ use std::borrow::Cow;
 /// as unverifiable ("Cannot check whether dependencies are outdated"),
 /// matching pnpm's catch-all: in the worst case the configured action
 /// runs a redundant install.
+///
+/// `workspace` is shared by the gates of one command, so under dedicated
+/// per-project lockfiles each gate reads its projects instead of walking
+/// the workspace again.
 #[must_use]
 pub fn check_deps_status_before_run_at(
-    dir: &Path,
-    config: &Config,
-    selected_project_dirs: &[&Path],
-) -> Option<crate::RunDepsStatus> {
-    check_deps_status_before_run_in(dir, config, selected_project_dirs, None)
-}
-
-/// The workspace projects the verify-deps gate reads under dedicated
-/// per-project lockfiles, for the gates of several projects in one command.
-/// The first gate that needs them discovers them, and the others reuse them.
-pub struct GateWorkspace {
-    root: PathBuf,
-    projects: std::sync::OnceLock<Option<Vec<pnpm_workspace::Project>>>,
-}
-
-impl GateWorkspace {
-    /// The workspace that `dir` belongs to. `None` outside a workspace.
-    #[must_use]
-    pub fn of(dir: &Path, config: &Config) -> Option<Self> {
-        let root = configured_or_discovered_workspace_dir(config, dir).ok()??;
-        Some(Self { root, projects: std::sync::OnceLock::new() })
-    }
-
-    /// Its projects, as [`check_deps_status_before_run_at`] would discover
-    /// them. `None` when the workspace cannot be read.
-    fn projects(&self, config: &Config) -> Option<&[pnpm_workspace::Project]> {
-        self.projects
-            .get_or_init(|| {
-                let manifest = pnpm_workspace::read_workspace_manifest(&self.root).ok()??;
-                super::super::lifecycle::load_checked_workspace_projects(
-                    config,
-                    &self.root,
-                    Some(&manifest),
-                )
-                .ok()?
-            })
-            .as_deref()
-    }
-}
-
-/// [`check_deps_status_before_run_at`] with a [`GateWorkspace`] shared by the
-/// gates of one command. Under dedicated per-project lockfiles the gate reads
-/// its projects instead of walking the workspace again.
-#[must_use]
-pub fn check_deps_status_before_run_in(
     dir: &Path,
     config: &Config,
     selected_project_dirs: &[&Path],
@@ -125,6 +84,39 @@ pub fn check_deps_status_before_run_in(
     )
 }
 
+/// The workspace projects the verify-deps gate reads under dedicated
+/// per-project lockfiles, for the gates of several projects in one command.
+/// The first gate that needs them discovers them, and the others reuse them.
+pub struct GateWorkspace {
+    root: PathBuf,
+    projects: std::sync::OnceLock<Option<Vec<pnpm_workspace::Project>>>,
+}
+
+impl GateWorkspace {
+    /// The workspace that `dir` belongs to. `None` outside a workspace.
+    #[must_use]
+    pub fn of(dir: &Path, config: &Config) -> Option<Self> {
+        let root = configured_or_discovered_workspace_dir(config, dir).ok()??;
+        Some(Self { root, projects: std::sync::OnceLock::new() })
+    }
+
+    /// Its projects, as [`check_deps_status_before_run_at`] would discover
+    /// them. `None` when the workspace cannot be read.
+    fn projects(&self, config: &Config) -> Option<&[pnpm_workspace::Project]> {
+        self.projects
+            .get_or_init(|| {
+                let manifest = pnpm_workspace::read_workspace_manifest(&self.root).ok()??;
+                super::super::lifecycle::load_checked_workspace_projects(
+                    config,
+                    &self.root,
+                    Some(&manifest),
+                )
+                .ok()?
+            })
+            .as_deref()
+    }
+}
+
 /// What the verify-deps gate read before it consults the workspace state.
 #[derive(Clone, Copy)]
 pub(super) struct GateInputs<'a> {
@@ -133,7 +125,7 @@ pub(super) struct GateInputs<'a> {
     pub(super) workspace_manifest: Option<&'a pnpm_workspace::WorkspaceManifest>,
     pub(super) workspace_root: &'a Path,
     pub(super) lockfile_root: &'a Path,
-    /// See [`check_deps_status_before_run_in`].
+    /// See [`check_deps_status_before_run_at`].
     pub(super) workspace: Option<&'a GateWorkspace>,
 }
 
@@ -224,7 +216,7 @@ pub(super) fn check_discovered_deps(
         workspace_manifest,
         workspace_root,
         lockfile_root,
-        workspace,
+        ..
     } = inputs;
     let Some(catalogs) = configured_catalogs(config, workspace_manifest) else {
         return cannot_check_deps();
@@ -241,23 +233,10 @@ pub(super) fn check_discovered_deps(
         Ok(()) => return Some(crate::RunDepsStatus::UpToDate),
         Err(listed) => listed,
     };
-    // Under dedicated lockfiles the projects only feed the bins, so the ones
-    // the command discovered stand in for a walk of the workspace.
-    let links = crate::optimistic_repeat_install::validation::links_workspace_commands(manifest);
-    let discovered = workspace
-        .filter(|_| !config.shares_one_lockfile() && links)
-        .and_then(|workspace| workspace.projects(config));
-    let loaded = match discovered {
-        Some(_) => None,
-        None => {
-            match load_gated_workspace(config, manifest, workspace_root, workspace_manifest, listed)
-            {
-                Ok(loaded) => loaded,
-                Err(_) => return cannot_check_deps(),
-            }
-        }
+    let mut loaded = None;
+    let Ok(workspace_projects) = gate_workspace_projects(inputs, listed, &mut loaded) else {
+        return cannot_check_deps();
     };
-    let workspace_projects = discovered.or(loaded.as_deref());
     let (project_manifests, bin_projects) = gated_projects(config, manifest, workspace_projects);
     Some(run_gate(
         &gate,
@@ -309,6 +288,34 @@ fn gate_from_records(
     }
     tracing::debug!(target: "pacquet::run", "the recorded manifests cannot decide the dependencies");
     Err(Some(listed))
+}
+
+/// The workspace projects the gate reads, `None` when it reads none. Under
+/// dedicated lockfiles the projects only feed the bins, so the ones the
+/// command discovered stand in for a walk of the workspace. A walk leaves
+/// its projects in `loaded`.
+fn gate_workspace_projects<'a>(
+    inputs: &GateInputs<'a>,
+    listed: Option<Vec<pnpm_workspace::ProjectManifestPaths>>,
+    loaded: &'a mut Option<Vec<pnpm_workspace::Project>>,
+) -> Result<Option<&'a [pnpm_workspace::Project]>, pnpm_workspace::FindWorkspaceProjectsError> {
+    let &GateInputs {
+        config,
+        manifest,
+        workspace_manifest,
+        workspace_root,
+        workspace,
+        ..
+    } = inputs;
+    let links = crate::optimistic_repeat_install::validation::links_workspace_commands(manifest);
+    let discovered = workspace
+        .filter(|_| !config.shares_one_lockfile() && links)
+        .and_then(|workspace| workspace.projects(config));
+    if discovered.is_some() {
+        return Ok(discovered);
+    }
+    *loaded = load_gated_workspace(config, manifest, workspace_root, workspace_manifest, listed)?;
+    Ok(loaded.as_deref())
 }
 
 /// [`crate::check_deps_status_before_run`] on `project_manifests`.
