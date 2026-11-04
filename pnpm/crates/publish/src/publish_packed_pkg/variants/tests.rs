@@ -1,6 +1,6 @@
 use super::{
     PackedPkg, PackedVariant, PublishPackedPkgError, StagedLengths, StagedReference,
-    VariantArchive, check_provenance, check_registry, reference_staged_archives, sri_sha512,
+    VariantArchive, check_registry, provenance_subjects, reference_staged_archives, sri_sha512,
     staged_archives,
 };
 use crate::registry_config_keys::parse_supported_registry_url;
@@ -105,19 +105,6 @@ fn variants_are_published_only_to_a_pnpr_registry() {
     check_registry(&pkg(&manifest, b"any", &[]), &HashSet::new(), &registry).unwrap();
 }
 
-#[test]
-fn provenance_is_refused_for_a_version_with_variants() {
-    let manifest = json!({ "name": "example-cli", "version": "4.0.0" });
-    let variants = [PackedVariant {
-        tag: "win32-x64".into(),
-        archive: VariantArchive::Packed(b"win".to_vec()),
-    }];
-    let refused = check_provenance(&pkg(&manifest, b"any", &variants), Some(true));
-    assert!(matches!(refused, Err(PublishPackedPkgError::VariantsWithProvenance)));
-    check_provenance(&pkg(&manifest, b"any", &variants), None).unwrap();
-    check_provenance(&pkg(&manifest, b"any", &[]), Some(true)).unwrap();
-}
-
 /// The document keys a version without build metadata, as npm does, so a
 /// version published without an `any` archive loses its `dist` whatever
 /// build metadata its manifest's version carries.
@@ -166,4 +153,47 @@ fn archives_another_machine_staged_are_referenced_by_their_integrity() {
         }),
     );
     assert!(staged_archives(&pkg, "sha512-any").is_empty(), "nothing to upload");
+}
+
+#[test]
+fn a_provenance_statement_names_every_archive_by_its_purl() {
+    use sha2::Digest as _;
+    use std::fmt::Write as _;
+
+    let hex = |bytes: &[u8]| {
+        sha2::Sha512::digest(bytes)
+            .iter()
+            .fold(String::new(), |mut hex, byte| {
+                let _ = write!(hex, "{byte:02x}");
+                hex
+            })
+    };
+    let manifest = json!({ "name": "@example/cli", "version": "4.0.0" });
+    let staged = StagedReference { integrity: sri_sha512(b"staged"), label: "x".into() };
+    let variants = [
+        PackedVariant {
+            tag: "linux-x64+linux-x64-musl".into(),
+            archive: VariantArchive::Packed(b"linux".to_vec()),
+        },
+        PackedVariant { tag: "win32-x64".into(), archive: VariantArchive::Staged(staged) },
+    ];
+    let with_any = pkg(&manifest, b"any", &variants);
+    let subjects: Vec<(String, String)> = provenance_subjects(&with_any, ("@example/cli", "4.0.0"))
+        .unwrap()
+        .into_iter()
+        .map(|subject| (subject.name, subject.sha512_hex))
+        .collect();
+    assert_eq!(
+        subjects,
+        [
+            ("pkg:npm/%40example/cli@4.0.0".to_string(), hex(b"any")),
+            (
+                "pkg:npm/%40example/cli@4.0.0?variant=linux-x64%2Blinux-x64-musl".to_string(),
+                hex(b"linux"),
+            ),
+            ("pkg:npm/%40example/cli@4.0.0?variant=win32-x64".to_string(), hex(b"staged")),
+        ],
+    );
+    let without_any = pkg(&manifest, b"", &variants);
+    assert_eq!(provenance_subjects(&without_any, ("@example/cli", "4.0.0")).unwrap().len(), 2);
 }

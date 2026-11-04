@@ -67,11 +67,38 @@ where
     Sys: EnvVar + Clock + OidcFetch + SignProvenance,
     Reporter: self::Reporter,
 {
-    let sha512_hex = format!("{:x}", Sha512::digest(tarball_data));
-    let subject = json!([{
-        "name": npm_purl(package_name, package_version),
-        "digest": { "sha512": sha512_hex },
-    }]);
+    let subject = ProvenanceSubject {
+        name: npm_purl(package_name, package_version),
+        sha512_hex: format!("{:x}", Sha512::digest(tarball_data)),
+    };
+    generate_provenance_for::<Sys, Reporter>(package_name, package_version, &[subject], options)
+        .await
+}
+
+/// One archive a provenance statement names: its PURL, and its `.tgz`
+/// SHA-512 in lowercase hex.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProvenanceSubject {
+    pub name: String,
+    pub sha512_hex: String,
+}
+
+/// [`generate_provenance`] for a statement that names every archive of a
+/// version: the `any` archive and each platform variant.
+pub async fn generate_provenance_for<Sys, Reporter>(
+    package_name: &str,
+    package_version: &str,
+    subjects: &[ProvenanceSubject],
+    options: &OidcHttpOptions,
+) -> Result<ProvenanceAttachment, ProvenanceGenError>
+where
+    Sys: EnvVar + Clock + OidcFetch + SignProvenance,
+    Reporter: self::Reporter,
+{
+    let subject: Value = subjects
+        .iter()
+        .map(|subject| json!({ "name": subject.name, "digest": { "sha512": subject.sha512_hex } }))
+        .collect();
 
     let statement = build_statement::<Sys>(&subject)?;
     let statement_bytes = serde_json::to_vec(&statement).expect("serialize provenance statement");

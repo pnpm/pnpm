@@ -188,7 +188,7 @@ async fn wait_for_group<Reporter: self::Reporter>(
 /// without an `any` archive, or with an `any` archive another job staged,
 /// whose bytes the batch does not have.
 fn check_single_archive(package: &PackedPkg<'_>) -> Result<(), BatchPublishError> {
-    if !package.variants.is_empty() || package.any_staged.is_some() || !package.has_any_archive() {
+    if package.publishes_staged_archives() || !package.has_any_archive() {
         return Err(BatchPublishError::Variants);
     }
     Ok(())

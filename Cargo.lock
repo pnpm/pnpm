@@ -6189,6 +6189,7 @@ dependencies = [
  "pnpm-pack",
  "pnpm-package-manifest",
  "pnpm-package-name",
+ "pnpm-release-record",
  "pnpm-reporter",
  "pnpm-tarball",
  "pnpm-wasm-host",

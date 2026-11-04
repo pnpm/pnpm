@@ -220,3 +220,23 @@ fn uploads_a_variant_and_a_final_publish_references_it() {
     assert!(stderr.contains("gives no archive for linux-x64, linux-x64-musl"), "{stderr}");
     drop(root);
 }
+
+#[test]
+fn no_variants_and_variant_integrity_are_refused_together() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_package(&workspace, "http://127.0.0.1:9/", true);
+    let output = clear_ci(pacquet)
+        .with_args([
+            "publish",
+            "--no-git-checks",
+            "--no-variants",
+            "--variant-integrity",
+            "any=sha512-AAAA",
+        ])
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("ERR_PNPM_INVALID_VARIANT_FLAGS"), "{stderr}");
+    drop(root);
+}
