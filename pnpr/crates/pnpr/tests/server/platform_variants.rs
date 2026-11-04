@@ -964,7 +964,7 @@ async fn a_version_without_an_any_archive_names_its_own_package_and_version() {
     })
     .await;
     assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
-    assert!(body.contains("does not match"), "{body}");
+    assert!(body.contains("names another version"), "{body}");
 
     let (_, other) =
         archive(&variant_manifest(&["linux-x64"], &json!({ "name": "@acme/other" })), "linux");
