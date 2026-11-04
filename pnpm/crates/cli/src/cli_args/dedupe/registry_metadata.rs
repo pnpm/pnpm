@@ -37,9 +37,10 @@ fn is_serialized_as(lockfile: &Lockfile, text: &str) -> bool {
 }
 
 /// `lockfile` with each package's `deprecated` notice, and the integrity of
-/// its registry or tarball resolution when only the algorithm changed for the
-/// same artifact, taken from `source`, or `None` when `source` lacks one of
-/// its packages.
+/// its registry or tarball resolution when only the algorithm changed, taken
+/// from `source`, or `None` when `source` lacks one of its packages. Any other
+/// difference in a resolution, such as a new revision or tarball URL, is left
+/// for the comparison to reject.
 fn with_registry_metadata_of(lockfile: &Lockfile, source: &Lockfile) -> Option<Lockfile> {
     let mut lockfile = lockfile.clone();
     if let Some(packages) = lockfile.packages.as_mut() {
@@ -51,20 +52,15 @@ fn with_registry_metadata_of(lockfile: &Lockfile, source: &Lockfile) -> Option<L
                 (
                     LockfileResolution::Registry(resolution),
                     LockfileResolution::Registry(source),
-                ) if resolution.revision == source.revision
-                    && !shares_an_algorithm(&resolution.integrity, &source.integrity) =>
-                {
-                    resolution.integrity.clone_from(&source.integrity);
+                ) => {
+                    take_rehashed_integrity(&mut resolution.integrity, &source.integrity);
                 }
-                (LockfileResolution::Tarball(resolution), LockfileResolution::Tarball(source))
-                    if resolution.tarball == source.tarball
-                        && resolution.revision == source.revision
-                        && resolution.integrity
-                            .as_ref()
-                            .zip(source.integrity.as_ref())
-                            .is_some_and(|(a, b)| !shares_an_algorithm(a, b)) =>
-                {
-                    resolution.integrity.clone_from(&source.integrity);
+                (LockfileResolution::Tarball(resolution), LockfileResolution::Tarball(source)) => {
+                    if let (Some(integrity), Some(source)) =
+                        (resolution.integrity.as_mut(), source.integrity.as_ref())
+                    {
+                        take_rehashed_integrity(integrity, source);
+                    }
                 }
                 _ => {}
             }
@@ -73,17 +69,21 @@ fn with_registry_metadata_of(lockfile: &Lockfile, source: &Lockfile) -> Option<L
     Some(lockfile)
 }
 
-/// Whether `a` and `b` hold a digest of the same algorithm. When they do and
-/// still differ, the registry serves another tarball, which `--check` must
-/// report; when they don't, the same tarball was merely hashed differently.
-fn shares_an_algorithm(a: &Integrity, b: &Integrity) -> bool {
-    a.hashes
+/// Replaces `integrity` with `source` when they hold no digest of the same
+/// algorithm, so the same tarball was only hashed differently. A different
+/// digest of the same algorithm means another tarball, which `--check` must
+/// report, so it is kept.
+fn take_rehashed_integrity(integrity: &mut Integrity, source: &Integrity) {
+    let shares_an_algorithm = integrity.hashes
         .iter()
-        .any(|a| {
-            b.hashes
+        .any(|hash| {
+            source.hashes
                 .iter()
-                .any(|b| a.algorithm == b.algorithm)
-        })
+                .any(|source| hash.algorithm == source.algorithm)
+        });
+    if !shares_an_algorithm {
+        integrity.clone_from(source);
+    }
 }
 
 #[cfg(test)]

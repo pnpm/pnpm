@@ -84,6 +84,33 @@ fn an_integrity_change_with_a_new_revision_is_rejected() {
     assert!(!only_registry_metadata_differs(&previous, &next));
 }
 
+fn tarball(resolution: &str) -> String {
+    parse(&LOCKFILE.replace("{integrity: sha512-dGVzdA==}", resolution))
+        .to_yaml_string()
+        .expect("serialize lockfile")
+}
+
+#[test]
+fn a_tarball_integrity_replaced_by_another_algorithm_is_accepted() {
+    let previous = tarball("{integrity: sha1-dGVzdA==, tarball: https://example.com/dep.tgz}");
+    let next = tarball("{integrity: sha512-dGVzdA==, tarball: https://example.com/dep.tgz}");
+    assert!(only_registry_metadata_differs(&previous, &next));
+}
+
+#[test]
+fn a_tarball_integrity_change_with_a_new_url_is_rejected() {
+    let previous = tarball("{integrity: sha1-dGVzdA==, tarball: https://example.com/dep.tgz}");
+    let next = tarball("{integrity: sha512-dGVzdA==, tarball: https://example.com/other.tgz}");
+    assert!(!only_registry_metadata_differs(&previous, &next));
+}
+
+#[test]
+fn a_tarball_integrity_the_lockfile_did_not_record_is_rejected() {
+    let previous = tarball("{tarball: https://example.com/dep.tgz}");
+    let next = tarball("{integrity: sha512-dGVzdA==, tarball: https://example.com/dep.tgz}");
+    assert!(!only_registry_metadata_differs(&previous, &next));
+}
+
 #[test]
 fn a_line_ending_rewrite_is_rejected() {
     let previous = canonical().replace('\n', "\r\n");
