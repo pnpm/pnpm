@@ -98,7 +98,7 @@ When publishing recursively (`pnpm -r publish`), send all selected packages to t
 
 The target registry has to implement the batch publish endpoint ([pnpr](https://github.com/pnpm/pnpm/tree/main/pnpr) does); registries that don't are reported with an `ERR_PNPM_BATCH_PUBLISH_UNSUPPORTED` error. The batch is processed all-or-nothing: if any package in the batch fails validation, none of the packages are published.
 
-A package that declares [`publishConfig.variants`](../package_json.md#publishconfigvariants) can be published in a batch to a registry declared with [`serverType: pnpr`](../registries.md#servertype). pnpm uploads every package's archives to the registry's staging area first, and the batch references them by integrity. One batch references at most 256 archives per registry; a batch with variants that needs more fails with `ERR_PNPM_BATCH_PUBLISH_TOO_MANY_ARCHIVES`.
+A package that declares [`publishConfig.variants`](../package_json.md#publishconfigvariants) can be published in a batch to a registry declared with [`serverType: pnpr`](../registries.md#servertype). pnpm first uploads the archives it packed for every package to the registry's staging area, and checks that the registry still holds each archive another job uploaded with [`--upload-variant`](#--upload-variant-target). The batch then references all of them by integrity. One batch references at most 256 archives per registry; a batch with variants that needs more fails with `ERR_PNPM_BATCH_PUBLISH_TOO_MANY_ARCHIVES`.
 
 The selected packages are grouped by the registry each one
 publishes to, and one request is sent per group. Every package in a group must
