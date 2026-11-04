@@ -16,9 +16,7 @@ use super::{
 use pnpm_lockfile::{
     Floor, HostFloors, PlatformAssetResolution, PlatformSelector, VariationsResolution,
 };
-use pnpm_package_is_installable::{
-    ArchitectureAxes, NamedPlatform, SupportedArchitectures, SupportedPlatform,
-};
+use pnpm_package_is_installable::{NamedPlatform, SupportedArchitectures};
 
 use pnpm_reporter::Reporter;
 
@@ -85,24 +83,20 @@ pub(super) fn stored_archives<'a>(
     stored
 }
 
-/// The platforms `supported` names: each platform of its list, `current`
-/// as the host, or every combination of its `os`, `cpu`, and `libc`. None
-/// when it is not set, so only the linked archive is fetched.
+/// The platforms `supported` names, as [`SupportedArchitectures::platforms`]
+/// reads them: `current` and an unset axis are the host's. None when it is
+/// not set, so only the linked archive is fetched.
 pub(super) fn fetch_platforms(supported: Option<&SupportedArchitectures>) -> Vec<PlatformSelector> {
-    let host = host_platform_selector();
-    let mut platforms = match supported {
-        None => return Vec::new(),
-        Some(SupportedArchitectures::Platforms(listed)) => listed
-            .iter()
-            .map(|platform| match platform {
-                SupportedPlatform::Current => host.clone(),
-                SupportedPlatform::Named(named) => named_platform(named, &host),
-            })
-            .collect(),
-        Some(SupportedArchitectures::Axes(axes)) => axes_platforms(axes, &host),
+    let Some(supported) = supported else {
+        return Vec::new();
     };
-    platforms.dedup();
-    platforms
+    let host = host_platform_selector();
+    let host_libc = host.libc.as_deref().unwrap_or("unknown");
+    supported
+        .platforms(&host.os, &host.cpu, host_libc)
+        .iter()
+        .map(|named| named_platform(named, &host))
+        .collect()
 }
 
 /// `named` as a selector: the host's, whose floors are probed, when it names
@@ -133,68 +127,6 @@ fn named_platform(named: &NamedPlatform, host: &PlatformSelector) -> PlatformSel
 fn glibc_floor(baseline: &str) -> Option<Floor> {
     let (major, minor) = baseline.strip_prefix("manylinux_")?.split_once('_')?;
     Some(Floor { major: major.parse().ok()?, minor: minor.parse().ok()? })
-}
-
-/// Every combination of `axes`, an axis left unset or a `current` value
-/// standing for the host's.
-fn axes_platforms(axes: &ArchitectureAxes, host: &PlatformSelector) -> Vec<PlatformSelector> {
-    let oses = axis_values(axes.os.as_ref(), Some(&host.os));
-    let cpus = axis_values(axes.cpu.as_ref(), Some(&host.cpu));
-    let libcs = axis_values(axes.libc.as_ref(), host.libc.as_deref());
-    let mut platforms = Vec::new();
-    for (os, cpu) in oses
-        .iter()
-        .flatten()
-        .flat_map(|os| {
-            cpus.iter()
-                .flatten()
-                .map(move |cpu| (os, cpu))
-        })
-    {
-        platforms.extend(
-            libcs
-                .iter()
-                .map(|libc| axes_platform((os, cpu), libc.as_deref(), host)),
-        );
-    }
-    platforms
-}
-
-/// The values of one axis: the host's when it is unset, and each value
-/// with `current` read as the host's.
-fn axis_values(axis: Option<&Vec<String>>, host_value: Option<&str>) -> Vec<Option<String>> {
-    let Some(values) = axis.filter(|values| !values.is_empty()) else {
-        return vec![host_value.map(str::to_string)];
-    };
-    values
-        .iter()
-        .map(|value| if value == "current" { host_value } else { Some(value.as_str()) })
-        .map(|value| value.map(str::to_string))
-        .collect()
-}
-
-/// One combination of the axes, a C library only on Linux. A
-/// `manylinux_<major>_<minor>` value is glibc with that floor, and a
-/// `musllinux` one is musl.
-fn axes_platform(
-    (os, cpu): (&str, &str),
-    libc: Option<&str>,
-    host: &PlatformSelector,
-) -> PlatformSelector {
-    let libc = libc.filter(|_| os == "linux");
-    let libc_version = libc.and_then(glibc_floor);
-    let family = match libc {
-        Some(value) if value.starts_with("manylinux_") => Some("glibc"),
-        Some(value) if value.starts_with("musllinux_") => Some("musl"),
-        other => other,
-    };
-    let selector = PlatformSelector {
-        os: os.to_string(),
-        cpu: cpu.to_string(),
-        libc: family.map(str::to_string),
-        floors: Some(HostFloors { libc_version, ..HostFloors::default() }),
-    };
-    if is_host(&selector, host) && libc_version.is_none() { host.clone() } else { selector }
 }
 
 /// Whether `selector` names the host's platform, glibc spelled or not.

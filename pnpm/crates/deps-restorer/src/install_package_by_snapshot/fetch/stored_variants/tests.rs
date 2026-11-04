@@ -49,9 +49,6 @@ fn tags(archives: &[&PlatformAssetResolution]) -> Vec<String> {
 
 const GLIBC_2_28: Floor = Floor { major: 2, minor: 28 };
 
-/// Every variant that matches a platform is stored, one with a floor the
-/// platform does not state included, but not the linked one; the archive
-/// that targets `any` is not, since each platform links a variant.
 #[test]
 fn every_variant_that_matches_a_platform_is_stored_beside_the_linked_one() {
     let variations = VariationsResolution::new(vec![
@@ -83,7 +80,6 @@ fn a_platform_with_no_linkable_variant_stores_the_any_archive() {
     let unstated = stored_archives(&variations, &[platform("linux", "x64", None)], linked);
     assert_eq!(tags(&unstated), ["linux-x64-manylinux_2_28", "any"]);
 
-    // A platform that states an older glibc does not store the variant.
     let older = platform("linux", "x64", Some(Floor { major: 2, minor: 26 }));
     assert_eq!(tags(&stored_archives(&variations, &[older], linked)), ["any"]);
 }
@@ -115,8 +111,6 @@ fn a_listed_platform_states_its_glibc_floor() {
     assert_eq!(floors.napi, None);
 }
 
-/// The `os`, `cpu`, and `libc` form stands for every combination of its
-/// values, and a C library only on Linux.
 #[test]
 fn the_axes_form_stands_for_every_combination() {
     let axes = ArchitectureAxes {
@@ -153,4 +147,21 @@ fn the_axes_form_states_a_glibc_floor() {
         })
         .collect();
     assert_eq!(named, [(Some("glibc"), Some(Floor { major: 2, minor: 26 })), (Some("musl"), None)]);
+}
+
+#[test]
+fn the_axes_form_reads_platform_aliases() {
+    let axes = ArchitectureAxes {
+        os: Some(vec!["linux".into()]),
+        cpu: Some(vec!["aarch64".into()]),
+        libc: Some(vec!["musllinux_1_2".into()]),
+    };
+
+    let platforms = fetch_platforms(Some(&SupportedArchitectures::Axes(axes)));
+
+    let named: Vec<(&str, Option<&str>)> = platforms
+        .iter()
+        .map(|platform| (platform.cpu.as_str(), platform.libc.as_deref()))
+        .collect();
+    assert_eq!(named, [("arm64", Some("musl"))]);
 }
