@@ -2,7 +2,7 @@
 //! `any` installs only where a variant does.
 
 use super::{host, no_importers, snapshot_key, synthetic_metadata};
-use crate::installability::{SkippedSnapshots, compute_skipped_snapshots};
+use crate::installability::{InstallabilityHost, SkippedSnapshots, compute_skipped_snapshots};
 use pnpm_lockfile::{
     LockfileResolution, PlatformAssetResolution, PlatformAssetTarget, RegistryResolution,
     SnapshotEntry, VariationsResolution,
@@ -30,11 +30,21 @@ fn target(os: &str, cpu: &str) -> PlatformAssetTarget {
 /// host of `os` and `cpu`.
 fn skipped_on(
     variants: Vec<PlatformAssetResolution>,
+    platform: (&'static str, &'static str),
+) -> bool {
+    skipped_as(SnapshotEntry { optional: true, ..Default::default() }, variants, platform, false)
+}
+
+/// [`skipped_on`] for `snapshot`, with `engineStrict` set when
+/// `engine_strict` is.
+fn skipped_as(
+    snapshot: SnapshotEntry,
+    variants: Vec<PlatformAssetResolution>,
     (os, cpu): (&'static str, &'static str),
+    engine_strict: bool,
 ) -> bool {
     let key = snapshot_key("example-cli@1.0.0");
-    let snapshots =
-        HashMap::from([(key.clone(), SnapshotEntry { optional: true, ..Default::default() })]);
+    let snapshots = HashMap::from([(key.clone(), snapshot)]);
     let mut metadata = synthetic_metadata(None, None, None, None);
     metadata.resolution = LockfileResolution::Variations(VariationsResolution::new(variants));
     let packages = HashMap::from([(key.clone(), metadata)]);
@@ -42,7 +52,7 @@ fn skipped_on(
         &no_importers(),
         &snapshots,
         &packages,
-        &host("20.10.0", os, cpu),
+        &InstallabilityHost { engine_strict, ..host("20.10.0", os, cpu) },
         "/proj",
         SkippedSnapshots::new(),
     )
@@ -66,4 +76,21 @@ fn an_any_variant_or_a_wasm32_variant_fits_every_host() {
     assert!(!skipped_on(vec![any, variant(target("linux", "x64"))], ("darwin", "arm64")));
     let wasm32 = PlatformAssetTarget { wasm32: true, ..PlatformAssetTarget::default() };
     assert!(!skipped_on(vec![variant(wasm32)], ("darwin", "arm64")));
+}
+
+/// A host the installer would find no archive for skips the package, though
+/// a variant names its platform: the variant's floor is above the host's.
+#[test]
+fn an_optional_package_whose_only_fitting_variant_needs_a_newer_host_is_skipped() {
+    let floored = PlatformAssetTarget { napi: Some(u32::MAX), ..target("linux", "x64") };
+    assert!(skipped_on(vec![variant(floored)], ("linux", "x64")));
+}
+
+/// A patched package's published engines are not checked under
+/// `engineStrict`, but the platforms its variants run on still are.
+#[test]
+fn a_patched_optional_package_none_of_whose_variants_fits_is_skipped() {
+    let patched = SnapshotEntry { optional: true, patched: Some(true), ..Default::default() };
+    let linux = vec![variant(target("linux", "x64"))];
+    assert!(skipped_as(patched, linux, ("darwin", "arm64"), true));
 }

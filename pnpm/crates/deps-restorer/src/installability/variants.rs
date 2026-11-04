@@ -5,11 +5,11 @@
 //! platform the manifest excludes would.
 
 use pnpm_lockfile::{
-    LockfileResolution, PackageMetadata, PlatformAssetTarget, VariationsResolution,
+    LockfileResolution, PackageMetadata, PlatformAssetTarget, PlatformSelector,
+    VariationsResolution,
 };
 use pnpm_package_is_installable::{
     InstallabilityError, InstallabilityOptions, Platform, UnsupportedPlatformError, WantedPlatform,
-    WantedPlatformRef, platform_is_supported,
 };
 
 /// The variants of `metadata` when the version has no archive for a host
@@ -26,23 +26,25 @@ pub(super) fn variants_only(metadata: &PackageMetadata) -> Option<&VariationsRes
 }
 
 /// Why `metadata`, the package `package_id`, cannot install under
-/// `options`, when it is published with variants only and none of them fits
-/// the host. The installer links the host's variant, so a platform that only
-/// `supportedArchitectures` names does not make the package installable. A
-/// variant fits by its `os`, `cpu`, and Linux `libc`, whatever its floors.
+/// `options`, when it is published with variants only and the installer
+/// would find no archive for the host. The installer links the host's
+/// variant, so a platform that only `supportedArchitectures` names does not
+/// make the package installable. A variant fits as the installer selects
+/// it, by its platform and by the floors and ABI the host meets; a
+/// selection the installer finds ambiguous is left for it to report.
 pub(super) fn variants_installability(
     package_id: &str,
     metadata: &PackageMetadata,
     options: &InstallabilityOptions<'_>,
 ) -> Option<InstallabilityError> {
     let variations = variants_only(metadata)?;
+    if !matches!(variations.select(&host_selector(options)), Ok(None)) {
+        return None;
+    }
     let targets: Vec<&PlatformAssetTarget> = variations.variants
         .iter()
         .flat_map(|variant| &variant.targets)
         .collect();
-    if targets.iter().any(|target| target_fits(target, options)) {
-        return None;
-    }
     let current = Platform {
         os: vec![options.current_os.to_string()],
         cpu: vec![options.current_cpu.to_string()],
@@ -55,25 +57,16 @@ pub(super) fn variants_installability(
     )))
 }
 
-/// Whether the host can run an archive built for `target`.
-fn target_fits(target: &PlatformAssetTarget, options: &InstallabilityOptions<'_>) -> bool {
-    if target.wasm32 {
-        return true;
+/// The host `options` describe, as the installer selects a registry
+/// package's variant for it: a C library pnpm could not read is none, and
+/// the floors are probed when a variant has one.
+fn host_selector(options: &InstallabilityOptions<'_>) -> PlatformSelector {
+    PlatformSelector {
+        os: options.current_os.to_string(),
+        cpu: options.current_cpu.to_string(),
+        libc: (options.current_libc != "unknown").then(|| options.current_libc.to_string()),
+        floors: None,
     }
-    let os = [target.os.clone()];
-    let cpu = [target.cpu.clone()];
-    let libc = target_libc(target).map(|libc| [libc]);
-    platform_is_supported(
-        WantedPlatformRef {
-            os: Some(&os),
-            cpu: Some(&cpu),
-            libc: libc.as_ref().map(|libc| &libc[..]),
-        },
-        None,
-        options.current_os,
-        options.current_cpu,
-        options.current_libc,
-    )
 }
 
 /// The C library a target runs on: its own, or glibc for a Linux target
