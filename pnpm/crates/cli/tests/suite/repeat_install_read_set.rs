@@ -10,19 +10,22 @@
 //!
 //! The install observed is the full one that runs from the state the previous
 //! install left, the one the fast path replaces. inotify observes its opens:
-//! no filesystem seam reaches every read the install makes.
+//! no filesystem seam reaches every read the install makes. The test observes
+//! pnpm v11 too when `PNPM_V11_BUNDLE` names its bundle.
 
 use crate::{
-    _utils::{inotify::record_opens, pacquet_in},
+    _utils::{inotify::record_opens, pacquet_in, v11_in},
     repeat_install_oracle::Input,
 };
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
-use pnpm_workspace_state::{WorkspaceState, load_workspace_state};
+use pnpm_package_manifest::PROJECT_MANIFEST_BASENAMES;
+use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd, read_v11_bundle_path};
+use pnpm_workspace_state::{Validation, WorkspaceState, load_workspace_state};
 use serde_json::{Value, json};
 use std::{
     collections::{BTreeMap, BTreeSet},
+    ffi::OsString,
     fs,
     path::{Path, PathBuf},
 };
@@ -41,6 +44,15 @@ const CLASSIFICATION: &[(&str, Input, &str)] = &[
     ("pnpm-workspace.yaml", Input::WorkspaceManifest, CONFIG),
     ("packages", Input::ProjectDirectories, DISCOVERY),
 ];
+
+/// Every path a full install opens that is no input of the install, relative
+/// to the workspace, with the pnpm version that opens it and the reason.
+const NOT_INPUTS: &[(&str, Version, &str)] = &[(
+    "packages/b/cli.js",
+    Version::V11,
+    "pnpm v11 reads the shebang of a command it links to decide whether to repair \
+     it, and repairs only files under `node_modules`",
+)];
 
 /// A workspace that exercises some of the inputs of an install. Its root
 /// `package.json` is a private manifest unless `files` writes one.
@@ -194,6 +206,9 @@ struct Records {
     /// fast path counts such a directory as changed, so a file in it needs no
     /// record of its own.
     blocking_directories: Vec<PathBuf>,
+    /// The recorded projects. Project discovery lists their directories, and
+    /// the fast path compares the projects it finds with these.
+    project_dirs: BTreeSet<PathBuf>,
 }
 
 impl Records {
@@ -210,9 +225,7 @@ impl Records {
 
     fn add(&mut self, root: &Path, state: WorkspaceState) {
         let validation = state.validation.expect("the install recorded a validation");
-        let manifests = validation.manifest_files
-            .iter()
-            .map(|(importer, file)| root.join(importer).join(&file.file_name));
+        let manifests = recorded_manifests(root, &validation);
         let local = validation.local_dependencies.values();
         let projects = &state.projects;
         let tarballs: BTreeSet<&String> = local
@@ -230,7 +243,11 @@ impl Records {
                         .iter()
                         .map(|path| (path.into(), Input::Pnpmfile)),
                 )
-                .chain(manifests.map(|path| (path, Input::Manifest)))
+                .chain(
+                    manifests
+                        .into_iter()
+                        .map(|path| (path, Input::Manifest)),
+                )
                 .chain(
                     tarballs
                         .iter()
@@ -243,6 +260,7 @@ impl Records {
                 .filter(|dir| !projects.contains_key(*dir))
                 .map(PathBuf::from),
         );
+        self.project_dirs.extend(projects.keys().map(PathBuf::from));
     }
 
     /// The kind of the recorded file at `path`, if the states record it.
@@ -256,7 +274,25 @@ impl Records {
                     .any(|dir| path.starts_with(dir))
                     .then_some(Input::LocalDirectory)
             })
+            .or_else(|| self.project_dirs.contains(path).then_some(Input::ProjectDirectories))
     }
+}
+
+/// The manifest files `validation` records: by file name, or, as pnpm v11
+/// records them, by the digest of the project's manifest, whichever of the
+/// manifest file names it has.
+fn recorded_manifests(root: &Path, validation: &Validation) -> Vec<PathBuf> {
+    let by_file_name = validation.manifest_files
+        .iter()
+        .map(|(importer, file)| root.join(importer).join(&file.file_name));
+    let by_digest = validation.manifests
+        .keys()
+        .flat_map(|importer| {
+            PROJECT_MANIFEST_BASENAMES
+                .iter()
+                .map(move |name| root.join(importer).join(name))
+        });
+    by_file_name.chain(by_digest).collect()
 }
 
 /// The kind of a file `validation.files` records besides the pnpmfiles and
@@ -285,29 +321,70 @@ struct Reads {
     unrecorded: BTreeSet<String>,
 }
 
-fn reads(fixture: &Fixture) -> Reads {
+/// The pnpm that installs.
+#[derive(Debug)]
+enum Cli {
+    V12,
+    /// pnpm v11, from its bundle.
+    V11(OsString),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Version {
+    V11,
+    V12,
+}
+
+impl Cli {
+    fn version(&self) -> Version {
+        match self {
+            Cli::V12 => Version::V12,
+            Cli::V11(_) => Version::V11,
+        }
+    }
+
+    /// Every CLI to observe: v11 only when `PNPM_V11_BUNDLE` names its bundle.
+    fn all() -> Vec<Self> {
+        std::iter::once(Cli::V12)
+            .chain(read_v11_bundle_path().map(Cli::V11))
+            .collect()
+    }
+
+    fn command_in(&self, workspace: &Path) -> std::process::Command {
+        match self {
+            Cli::V12 => pacquet_in(workspace),
+            Cli::V11(bundle) => v11_in(bundle, workspace),
+        }
+    }
+}
+
+fn reads(fixture: &Fixture, cli: &Cli) -> Reads {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     write_fixture(&workspace, fixture);
-    let install = |extra_env: &[(&str, &str)]| {
-        let mut command =
-            pacquet_in(&workspace).with_env("PNPM_CONFIG_REGISTRY", mock_instance.url());
-        for (key, value) in extra_env {
-            command = command.with_env(key, value);
-        }
-        command
+    let install = |args: &[&str]| {
+        cli.command_in(&workspace)
+            .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
             .with_arg("install")
+            .with_args(args)
             .assert()
             .success();
     };
     install(&[]);
     let records = Records::of(&workspace);
     let opens = record_opens(&source_dirs(&workspace), || {
-        install(&[("PNPM_CONFIG_OPTIMISTIC_REPEAT_INSTALL", "false")]);
+        install(&["--config.optimistic-repeat-install=false"]);
     });
     let mut reads = Reads::default();
-    for path in opens {
+    let install_output = |path: &Path| {
+        path.components()
+            .any(|part| part.as_os_str() == "node_modules")
+    };
+    for path in opens
+        .into_iter()
+        .filter(|path| !install_output(path))
+    {
         if let Some(input) = records.input_of(&path) {
             reads.recorded.insert(input);
         } else {
@@ -322,37 +399,59 @@ fn reads(fixture: &Fixture) -> Reads {
 
 #[test]
 fn every_file_a_full_install_opens_is_recorded_or_classified() {
-    let classified: BTreeMap<&str, Input> = CLASSIFICATION
+    let clis = Cli::all();
+    let mut seen = BTreeSet::new();
+    for cli in &clis {
+        seen.extend(assert_reads_recorded_or_classified(cli));
+    }
+    let versions: Vec<Version> = clis.iter().map(Cli::version).collect();
+    let classified = CLASSIFICATION.iter().map(|(path, ..)| *path);
+    let not_inputs = NOT_INPUTS
         .iter()
-        .map(|(path, input, _)| (*path, *input))
+        .filter(|(_, version, _)| versions.contains(version))
+        .map(|(path, ..)| *path);
+    let unused: Vec<&str> = classified
+        .chain(not_inputs)
+        .filter(|path| !seen.contains(*path))
+        .collect();
+    assert!(unused.is_empty(), "classified files no fixture opens: {unused:?}");
+}
+
+/// Assert that `cli` opens only recorded or classified files, and every
+/// [`Input`]. Returns the classified paths it opens.
+fn assert_reads_recorded_or_classified(cli: &Cli) -> BTreeSet<String> {
+    let classified: BTreeMap<&str, Option<Input>> = CLASSIFICATION
+        .iter()
+        .map(|(path, input, _)| (*path, Some(*input)))
+        .chain(
+            NOT_INPUTS
+                .iter()
+                .filter(|(_, version, _)| *version == cli.version())
+                .map(|(path, ..)| (*path, None)),
+        )
         .collect();
     let mut seen = BTreeSet::new();
     let mut observed = BTreeSet::new();
     let mut unclassified = Vec::new();
     for fixture in FIXTURES {
-        let reads = reads(fixture);
+        let reads = reads(fixture, cli);
         observed.extend(reads.recorded);
         for path in reads.unrecorded {
             match classified.get(path.as_str()) {
-                Some(input) => {
-                    observed.insert(*input);
-                }
+                Some(input) => observed.extend(*input),
                 None => unclassified.push(format!("{path} ({})", fixture.name)),
             }
             seen.insert(path);
         }
     }
-    let unused: Vec<_> = classified
-        .keys()
-        .filter(|path| !seen.contains(**path))
-        .collect();
     let unobserved: Vec<_> = Input::iter()
         .filter(|input| !observed.contains(input))
         .collect();
     assert!(
         unclassified.is_empty(),
-        "a full install opens files the workspace state does not record: {unclassified:#?}",
+        "{cli:?}: a full install opens files the workspace state does not record: \
+         {unclassified:#?}",
     );
-    assert!(unused.is_empty(), "classified files no fixture opens: {unused:?}");
-    assert!(unobserved.is_empty(), "inputs no fixture reads: {unobserved:?}");
+    assert!(unobserved.is_empty(), "{cli:?}: inputs no fixture reads: {unobserved:?}");
+    seen
 }
