@@ -232,6 +232,13 @@ const ARCHITECTURES: &[ArchitectureNames] = &[
         wheel: "riscv64",
         aliases: &["riscv64gc"],
     },
+    ArchitectureNames {
+        architecture: Architecture::Loong64,
+        platform: "loong64",
+        cpu: "loong64",
+        wheel: "loongarch64",
+        aliases: &["loongarch64"],
+    },
 ];
 
 /// The architectures a platform can name. Each is spelled three ways,
@@ -250,6 +257,7 @@ pub enum Architecture {
     Ppc64Be,
     S390x,
     Riscv64,
+    Loong64,
 }
 
 impl Architecture {
