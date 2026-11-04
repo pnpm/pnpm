@@ -52,7 +52,12 @@ fn read_open_events(fd: libc::c_int) -> usize {
             // which the loop condition keeps inside what the read returned,
             // and `read_unaligned` copes with the byte buffer's alignment.
             let event = unsafe {
-                std::ptr::read_unaligned(buffer.as_ptr().add(offset).cast::<libc::inotify_event>())
+                std::ptr::read_unaligned(
+                    buffer
+                        .as_ptr()
+                        .add(offset)
+                        .cast::<libc::inotify_event>(),
+                )
             };
             if event.mask & libc::IN_OPEN != 0 {
                 opens += 1;
