@@ -173,21 +173,28 @@ fn axis_values(axis: Option<&Vec<String>>, host_value: Option<&str>) -> Vec<Opti
         .collect()
 }
 
-/// One combination of the axes, a C library only on Linux.
+/// One combination of the axes, a C library only on Linux. A
+/// `manylinux_<major>_<minor>` value is glibc with that floor, and a
+/// `musllinux` one is musl.
 fn axes_platform(
     (os, cpu): (&str, &str),
     libc: Option<&str>,
     host: &PlatformSelector,
 ) -> PlatformSelector {
+    let libc = libc.filter(|_| os == "linux");
+    let libc_version = libc.and_then(glibc_floor);
+    let family = match libc {
+        Some(value) if value.starts_with("manylinux_") => Some("glibc"),
+        Some(value) if value.starts_with("musllinux_") => Some("musl"),
+        other => other,
+    };
     let selector = PlatformSelector {
         os: os.to_string(),
         cpu: cpu.to_string(),
-        libc: libc
-            .filter(|_| os == "linux")
-            .map(str::to_string),
-        floors: Some(HostFloors::default()),
+        libc: family.map(str::to_string),
+        floors: Some(HostFloors { libc_version, ..HostFloors::default() }),
     };
-    if is_host(&selector, host) { host.clone() } else { selector }
+    if is_host(&selector, host) && libc_version.is_none() { host.clone() } else { selector }
 }
 
 /// Whether `selector` names the host's platform, glibc spelled or not.

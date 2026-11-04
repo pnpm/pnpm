@@ -133,3 +133,24 @@ fn the_axes_form_stands_for_every_combination() {
         .collect();
     assert_eq!(named, [("linux", "arm64", Some("musl")), ("darwin", "arm64", None)]);
 }
+
+/// A `libc` value of the axes form states its glibc floor as a listed
+/// platform does.
+#[test]
+fn the_axes_form_states_a_glibc_floor() {
+    let axes = ArchitectureAxes {
+        os: Some(vec!["linux".into()]),
+        cpu: Some(vec!["ppc64".into()]),
+        libc: Some(vec!["manylinux_2_26".into(), "musllinux_1_2".into()]),
+    };
+
+    let platforms = fetch_platforms(Some(&SupportedArchitectures::Axes(axes)));
+
+    let named: Vec<(Option<&str>, Option<Floor>)> = platforms
+        .iter()
+        .map(|platform| {
+            (platform.libc.as_deref(), platform.floors.and_then(|floors| floors.libc_version))
+        })
+        .collect();
+    assert_eq!(named, [(Some("glibc"), Some(Floor { major: 2, minor: 26 })), (Some("musl"), None)]);
+}
