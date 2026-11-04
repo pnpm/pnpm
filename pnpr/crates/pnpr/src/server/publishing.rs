@@ -14,6 +14,7 @@ mod atomic;
 mod attachments;
 mod manifest;
 mod notes;
+mod provenance;
 mod release_records;
 mod tombstones;
 mod verification;

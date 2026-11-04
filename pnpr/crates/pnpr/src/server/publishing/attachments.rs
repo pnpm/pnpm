@@ -6,7 +6,7 @@ use super::{
         check_publishable_versions, parse_hosted_packument, prepare_staged_document,
         record_publisher, restore_submitted_tgz_integrities, serialize_staged_document,
     },
-    release_records, resolve_write_target,
+    provenance, release_records, resolve_write_target,
     tombstones::{check_publish_tombstone, check_staged_tombstone},
     variants::{self, Declarations, PublishedVariant, VariantTar},
     verification::verify_published_manifests,
@@ -195,19 +195,13 @@ pub(in super::super) async fn stage_publish(
     // drained below.
     drop(incoming);
 
-    // Stream-decode + verify + write each tarball. A mismatch — or a
-    // missing integrity field — short-circuits the publish with a
-    // 400; any tmp files written before the failure get removed
-    // along the way so a bad upload leaves no on-disk artifact.
-    let written = write_attachment_slots(
-        (&storage, publisher.as_deref()),
+    let verified = write_verified(
+        (&storage, publisher.as_deref(), &state.inner.proxy.tar_decodes),
         &name,
-        prepared,
-        tarballs,
-        &state.inner.proxy.tar_decodes,
+        (prepared, tarballs),
+        (merged, &variants),
     )
     .await?;
-    let verified = verified_document(&name, (merged, &variants), written).await?;
     Ok(StagedPublish {
         name,
         ecosystem: Ecosystem::Npm,
@@ -220,6 +214,24 @@ pub(in super::super) async fn stage_publish(
     })
 }
 
+/// Write every attachment of `prepared` and verify the archives against
+/// the merged document and the version's provenance statement.
+async fn write_verified(
+    (storage, claimant, decodes): (&Storage, Option<&str>, &Arc<Semaphore>),
+    name: &CanonicalPackageName,
+    (prepared, tarballs): (Vec<PreparedAttachment>, TarballStorage),
+    (merged, variants): (Value, &Declarations),
+) -> Result<VerifiedDocument, RegistryError> {
+    let statements = provenance::read_statements(&prepared);
+    // Stream-decode + verify + write each tarball. A mismatch — or a
+    // missing integrity field — short-circuits the publish with a
+    // 400; any tmp files written before the failure get removed
+    // along the way so a bad upload leaves no on-disk artifact.
+    let written =
+        write_attachment_slots((storage, claimant), name, prepared, tarballs, decodes).await?;
+    verified_document(name, (merged, variants, &statements), written).await
+}
+
 /// A publish document whose archives agree with its version metadata.
 struct VerifiedDocument {
     document: Vec<u8>,
@@ -228,16 +240,18 @@ struct VerifiedDocument {
 }
 
 /// Verify every archive `written` holds against the version metadata in
-/// `merged`, record the verified variants `declared` on it, and serialize
-/// the verified document. A refused archive removes the written slots.
+/// `merged` and against its version's provenance `statements`, record the
+/// verified variants `declared` on it, and serialize the verified document.
+/// A refused archive removes the written slots.
 async fn verified_document(
     name: &CanonicalPackageName,
-    (mut merged, declared): (Value, &Declarations),
+    (mut merged, declared, statements): (Value, &Declarations, &provenance::Statements),
     written: WrittenAttachments,
 ) -> Result<VerifiedDocument, RegistryError> {
     let verified = verify_published_manifests(name, &mut merged, &written.tars)
         .and_then(|notices| {
             variants::attach_variants(&mut merged, declared, &written.variants, &written.tars)?;
+            provenance::check_statements(name, statements, &written.tars, &written.variants)?;
             let records =
                 release_records::accepted_records(name, &merged, &written.tars, &written.variants)?;
             Ok((notices, records))

@@ -373,7 +373,9 @@ has:
 `interpretation` is the profile the manifest was derived under, and `inputs`
 are the digests it was derived from: the `.tgz` as published, and its
 `package.json` and `npm-shrinkwrap.json` by their paths in the archive. Each
-platform variant in `variants` has `inputs` of its own. A registry with
+platform variant in `variants` has `inputs` of its own, and a `purl`: the
+record's with a `variant` qualifier naming its tag, with `+` written `%2B`, such
+as `pkg:npm/fast-thing@1.5.0?variant=linux-x64%2Blinux-x64-musl`. A registry with
 `tarballs: tar` serves the record with the tar's `integrity`.
 
 Revision `0` is the original artifact, also of a version without registry
@@ -487,6 +489,11 @@ pnpr rejects the version when a variant:
 - lists a platform another variant lists;
 - is attached for a version the publish document does not describe, or
   without an `integrity`.
+
+A version published with a provenance statement (its `.sigstore` attachment) is
+rejected unless the statement names every archive of the version: the primary
+`.tgz` by the version's PURL, such as `pkg:npm/%40acme/fast@1.0.0`, and each
+variant's `.tgz` by its PURL with the `variant` qualifier, each with its SHA-512.
 
 A variant may differ from the version in its files, dependencies, bundled
 dependencies, `bin`, `main`, `exports`, and `engines`. pnpr serves a
