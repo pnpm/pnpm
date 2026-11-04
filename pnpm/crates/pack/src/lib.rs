@@ -201,7 +201,7 @@ pub enum PackError {
     #[diagnostic(
         code(ERR_PNPM_VARIANT_ENTRY_POINT_MISSING),
         help(
-            "Every archive holds the files its own manifest's main, browser, and bin name. Build the file before packing, or fix the path in the entry's manifest."
+            "Every archive holds the files its own manifest's main, browser, and bin name, each by its exact path. Build the file before packing, or name it exactly in the entry's manifest."
         )
     )]
     VariantEntryPointMissing { targets: String, path: String },

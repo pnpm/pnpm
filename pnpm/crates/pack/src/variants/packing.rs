@@ -315,7 +315,7 @@ fn checked_archive(
         .cloned()
         .chain(opts.output.injected_files.iter().map(|(name, _)| name.clone()))
         .collect();
-    check_entry_points(entry, &manifest, (&visible, &files_map))?;
+    check_entry_points(entry, &manifest, &visible)?;
     let manifest = checked_manifest(source, entry, manifest, &visible)?;
     Ok((manifest, files_map))
 }
