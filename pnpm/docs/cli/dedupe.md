@@ -15,6 +15,8 @@ Since v12.4.1, `pnpm dedupe` processes every project in the workspace by default
 
 Check if running dedupe would result in changes without installing packages or editing the lockfile. Exits with a non-zero status code if changes are possible.
 
+The check ignores registry metadata that changed after the lockfile was written: `deprecated` notices, and the integrity of a locked version that the registry now reports with another hash algorithm, such as `sha512` instead of `sha1`.
+
 The check still installs [`configDependencies`](../config-dependencies.md). If they changed since the last install, it also records them in the lockfile, as `pnpm install` does, and reports the change.
 
 ### `--lockfile-only`
