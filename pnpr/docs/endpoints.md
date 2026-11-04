@@ -504,7 +504,17 @@ Only [pnpr's package document](#pnprs-package-document) and release records
 list the variants, under `variants`: each with its `tag`, structured
 `platforms`, tar `integrity`, sizes, `bins`, and a `manifest` of the fields
 that differ from the version's (`null` for a removed field). npm's documents
-do not list them, so npm clients install the version's own archive.
+do not list them, so npm clients install the version's own archive, its
+`any` archive.
+
+A version can also be published with variants only: its publish document has
+no `dist` and no `<basename>-<version>.tgz` attachment. pnpr then generates the
+archive npm's documents point to, a `package.json` that lists the union of the
+variants' `os`, `cpu`, and Linux `libc`, so npm reports an unsupported platform
+instead of installing an empty package. pnpr's package document and the release
+record describe such a version without a top-level `integrity`, by the manifest
+its variants share: their peer dependencies, and each dependency every variant
+declares with the same specifier.
 
 Publishing a version that already exists is a `409`. On the S3 backend, where
 several stateless replicas can write to one bucket, concurrent writers are
