@@ -2,7 +2,7 @@
 
 use super::{
     Config, FastPathContext, FastPathProjects, UpToDateFastPathCheck, WorkspaceState,
-    build_project_manifests_list, check_fast_path_repeat_install, load_workspace_projects,
+    build_project_manifests_list, check_fast_path_repeat_install,
 };
 
 /// The repeat-install check on the manifests discovery reads, returning the
@@ -25,7 +25,8 @@ pub(super) fn check_from_files(
     Ok(workspace_projects.as_ref().map(Vec::len))
 }
 
-/// [`load_workspace_projects`] inside the `discover_workspace_projects`
+/// [`super::super::lifecycle::load_checked_workspace_projects`] inside the
+/// `discover_workspace_projects`
 /// span, skipping the pnpm-managed directories, or the read of the projects
 /// `listed` names.
 fn discover_fast_path_projects(
@@ -37,10 +38,10 @@ fn discover_fast_path_projects(
         tracing::debug_span!(target: "pacquet::install", "discover_workspace_projects").entered();
     let discovered = match listed {
         Some(listed) => pnpm_workspace::read_workspace_projects(listed).map(Some),
-        None => load_workspace_projects(
+        None => super::super::lifecycle::load_checked_workspace_projects(
+            config,
             context.workspace_root,
             context.workspace_manifest,
-            &config.managed_directories(),
         ),
     };
     discovered.map_err(|_| "the workspace projects cannot be listed")

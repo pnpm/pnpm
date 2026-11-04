@@ -41,6 +41,14 @@ pub(super) fn check_from_records(
         Listing::Files(listed) => return RecordsCheck::Undecided(listed),
     };
     let project_manifests = build_project_manifests_list(check.manifest, Some(&stand_ins.projects));
+    // The install refuses its shortcut for a malformed dependency declaration,
+    // which only a `readPackage` hook that repairs it lets the install pass.
+    let malformed = project_manifests
+        .iter()
+        .any(|(_, manifest)| manifest.validate_dependency_types().is_err());
+    if malformed {
+        return RecordsCheck::Undecided(Some(listed));
+    }
     let recorded_digests = stand_in_digests(&project_manifests, &stand_ins, check.manifest);
     let checked = check_fast_path_repeat_install(
         check,
@@ -96,10 +104,8 @@ pub(super) fn list_stand_ins(workspace: &ListedWorkspace<'_>) -> Listing {
     let listed = {
         let _span =
             tracing::debug_span!(target: "pacquet::install", "list_workspace_projects").entered();
-        let opts = super::super::lifecycle::workspace_projects_opts(
-            workspace_manifest,
-            &workspace.config.managed_directories(),
-        );
+        let opts =
+            super::super::lifecycle::checked_projects_opts(workspace.config, workspace_manifest);
         pnpm_workspace::find_workspace_project_manifests(workspace.workspace_root, &opts)
     };
     let Ok(listed) = listed else { return Listing::Files(None) };

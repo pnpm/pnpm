@@ -22,8 +22,7 @@ mod write;
 use super::{
     BTreeMap, Catalogs, Clock, Config, DependencyGroup, IncludedDependencies, LazyLockfile,
     MaybeLazyLockfile, NodeLinker, OptimisticRepeatInstallCheck, OptimisticRepeatInstallDecision,
-    PackageManifest, Path, PathBuf, ProjectEntry, WorkspaceState, load_workspace_projects,
-    manifest_string_field,
+    PackageManifest, Path, PathBuf, ProjectEntry, WorkspaceState, manifest_string_field,
 };
 use crate::optimistic_repeat_install::{
     Scope, check_optimistic_repeat_install_with_state, config_blocks_fast_path,

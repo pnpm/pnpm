@@ -591,3 +591,75 @@ fn a_ci_install_with_a_pnpmfile_is_not_decided_from_the_records() {
     assert!(!text.contains(TAKEN_AFTER_CONFIG), "{text}");
     drop((root, mock_instance));
 }
+
+/// A malformed declaration installs only while a `readPackage` hook repairs
+/// it. The records keep it as written, so they leave it to the install,
+/// which fails once the hook no longer repairs it.
+#[test]
+fn a_malformed_declaration_is_left_to_the_install() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_workspace(&workspace);
+    fs::write(
+        workspace.join("packages/b/package.json"),
+        r#"{"name":"b","version":"1.0.0","bin":{"b":"cli.js"},"dependencies":{"x":1}}"#,
+    )
+    .expect("write packages/b/package.json");
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { readPackage (pkg) {\n  if (process.env.REPAIR && pkg.dependencies && pkg.dependencies.x === 1) delete pkg.dependencies.x\n  return pkg\n} } }\n",
+    )
+    .expect("write .pnpmfile.cjs");
+    let install = |repair: bool| {
+        let mut command = pacquet_in(&workspace);
+        command.env("PNPM_CONFIG_REGISTRY", mock_instance.url());
+        if repair {
+            command.env("REPAIR", "1");
+        }
+        command
+            .arg("install")
+            .output()
+            .expect("run pnpm install")
+    };
+    assert!(install(true).status.success());
+    wait_past_whole_second_rounding(&workspace);
+    assert!(install(true).status.success());
+
+    let output = install(false);
+
+    assert!(!output.status.success(), "{}", combined_output(&output));
+    drop((root, mock_instance));
+}
+
+/// `--workspace-packages` replaces the manifest's patterns, so a project
+/// only the flag's patterns reach is a project of the install.
+#[test]
+fn an_install_with_workspace_package_patterns_finds_a_new_project() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_workspace(&workspace);
+    fs::create_dir_all(workspace.join("extra")).expect("create extra");
+    let install = || {
+        pacquet_in(&workspace)
+            .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+            .with_args(["--workspace-packages", "packages/*", "--workspace-packages", "extra/*"])
+            .with_arg("install")
+            .assert()
+            .success();
+    };
+    install();
+    fs::create_dir_all(workspace.join("extra/new")).expect("create extra/new");
+    fs::write(
+        workspace.join("extra/new/package.json"),
+        serde_json::json!({ "name": "new", "version": "1.0.0", "dependencies": { "b": "workspace:*" } })
+            .to_string(),
+    )
+    .expect("write extra/new/package.json");
+
+    install();
+
+    assert!(workspace.join("extra/new/node_modules/b").exists());
+    drop((root, mock_instance));
+}
