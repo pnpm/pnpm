@@ -74,7 +74,9 @@ each package's metadata as a document beside its archives. pnpr does not read
 those documents. A filesystem store from then starts with empty metadata. An
 `s3:` store from then is refused at startup until `metadata.url` names a
 libSQL database, and then starts with empty metadata. Either way, republish
-its packages.
+its packages. Their old archives stay in the hosted store, and a publish whose
+archive has other bytes at the same key is refused as a conflict, so republish
+the original archives, or remove the old ones from the hosted store first.
 
 With SQL metadata:
 
@@ -199,6 +201,11 @@ s3:
   # AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY environment variables.
   accessKeyId: ${PNPR_S3_ACCESS_KEY_ID}
   secretAccessKey: ${PNPR_S3_SECRET_ACCESS_KEY}
+
+metadata:
+  # Package metadata of a hosted registry on S3 lives in a libSQL database.
+  url: libsql://<your-db>.turso.io
+  authToken: ${PNPR_LIBSQL_TOKEN}
 ```
 
 ## Options
@@ -258,6 +265,10 @@ s3:
   region: auto
   endpoint: https://abc123def456.r2.cloudflarestorage.com
 
+metadata:
+  url: libsql://my-pnpr.turso.io
+  authToken: ${PNPR_LIBSQL_TOKEN}
+
 auth:
   htpasswd:
     file: ./htpasswd
@@ -287,6 +298,7 @@ artifacts:
 ```sh
 export AWS_ACCESS_KEY_ID="<r2-access-key-id>"
 export AWS_SECRET_ACCESS_KEY="<r2-secret-access-key>"
+export PNPR_LIBSQL_TOKEN="<turso-auth-token>"
 pnpr -c ./pnpr.yaml --listen 0.0.0.0:7677 --public-url https://registry.example.com
 ```
 

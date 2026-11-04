@@ -120,6 +120,10 @@ After migration completes, update your `pnpr.yaml` to point to the S3 bucket:
 s3:
   bucket: my-registry-bucket
   region: us-east-1
+metadata:
+  # The libSQL database that holds the package metadata.
+  url: libsql://<your-db>.turso.io
+  authToken: ${PNPR_LIBSQL_TOKEN}
 ```
 
 ## Importing htpasswd users
