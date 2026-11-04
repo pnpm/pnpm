@@ -23,7 +23,7 @@ use std::collections::HashMap;
 /// state or no usable record, its check fails, or its declaration is
 /// malformed. Also `Err` while `packageConfigs` is set or the global virtual
 /// store is on, whose per-project settings and build markers the records do
-/// not carry.
+/// not carry, and while patches are configured.
 pub fn install_already_up_to_date_per_project(
     check: &UpToDateFastPathCheck<'_>,
 ) -> Result<UpToDateWorkspace, &'static str> {
@@ -36,6 +36,15 @@ pub fn install_already_up_to_date_per_project(
     }
     if config.enable_global_virtual_store {
         return Err("the global virtual store keeps build markers per project");
+    }
+    // The install verifies the patches against every project lockfile it
+    // finds, which no single project's check covers, such as a patch only a
+    // removed project used.
+    if config.patched_dependencies
+        .as_ref()
+        .is_some_and(|patches| !patches.is_empty())
+    {
+        return Err("patches are verified against every project lockfile");
     }
     let manifest_dir = check.manifest
         .path()

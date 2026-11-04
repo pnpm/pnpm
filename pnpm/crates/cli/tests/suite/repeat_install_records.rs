@@ -921,3 +921,51 @@ fn a_workspace_with_project_lockfiles_installs_a_new_project() {
     assert!(workspace.join("packages/no-project/node_modules/b").exists(), "{output}");
     drop((root, mock_instance));
 }
+
+/// The install verifies the patches against every project lockfile, so a
+/// patch only a removed project used still fails the install.
+#[test]
+fn a_workspace_with_project_lockfiles_verifies_patches_after_a_project_is_removed() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_workspace_with_project_lockfiles(&workspace);
+    fs::create_dir_all(workspace.join("patches")).expect("create patches");
+    fs::write(
+        workspace.join("patches/is-positive@1.0.0.patch"),
+        crate::repeat_install::IS_POSITIVE_PATCH,
+    )
+    .expect("write the patch");
+    let workspace_yaml = workspace.join("pnpm-workspace.yaml");
+    let mut yaml = fs::read_to_string(&workspace_yaml).expect("read pnpm-workspace.yaml");
+    yaml.push_str("patchedDependencies:\n  is-positive@1.0.0: patches/is-positive@1.0.0.patch\n");
+    fs::write(&workspace_yaml, yaml).expect("write pnpm-workspace.yaml");
+    fs::create_dir_all(workspace.join("packages/patched")).expect("create packages/patched");
+    fs::write(
+        workspace.join("packages/patched/package.json"),
+        serde_json::json!({ "name": "patched", "version": "1.0.0", "dependencies": { "is-positive": "1.0.0" } })
+            .to_string(),
+    )
+    .expect("write packages/patched/package.json");
+    pacquet
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_arg("install")
+        .assert()
+        .success();
+    trust_recorded_stats(&workspace, mock_instance.url());
+    fs::remove_dir_all(workspace.join("packages/patched")).expect("remove packages/patched");
+
+    let output = pacquet_in(&workspace)
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_arg("install")
+        .output()
+        .expect("run pnpm install");
+
+    assert!(!output.status.success(), "{}", combined_output(&output));
+    drop((root, mock_instance));
+}
