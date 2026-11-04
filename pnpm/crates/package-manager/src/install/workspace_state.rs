@@ -99,6 +99,29 @@ pub struct UpToDateWorkspace {
 pub fn install_already_up_to_date(
     check: &UpToDateFastPathCheck<'_>,
 ) -> Result<UpToDateWorkspace, &'static str> {
+    already_up_to_date(check, Decide::FromRecordsOrFiles)
+}
+
+/// [`install_already_up_to_date`] decided from the manifest records alone. A
+/// caller whose install reads the project manifests anyway when the
+/// shortcut is not taken uses this, so a declined attempt reads none of them.
+pub fn install_already_up_to_date_from_records(
+    check: &UpToDateFastPathCheck<'_>,
+) -> Result<UpToDateWorkspace, &'static str> {
+    already_up_to_date(check, Decide::FromRecords)
+}
+
+/// What an up-to-date verdict may be decided from.
+#[derive(Clone, Copy)]
+enum Decide {
+    FromRecords,
+    FromRecordsOrFiles,
+}
+
+fn already_up_to_date(
+    check: &UpToDateFastPathCheck<'_>,
+    decide: Decide,
+) -> Result<UpToDateWorkspace, &'static str> {
     let manifest_dir = check.manifest
         .path()
         .parent()
@@ -127,9 +150,12 @@ pub fn install_already_up_to_date(
     };
     let project_count = match stand_ins::check_from_records(check, &context, &state) {
         stand_ins::RecordsCheck::UpToDate(project_count) => Some(project_count),
-        stand_ins::RecordsCheck::Undecided(listed) => {
-            from_files::check_from_files(check, &context, &state, listed)?
-        }
+        stand_ins::RecordsCheck::Undecided(listed) => match decide {
+            Decide::FromRecordsOrFiles => {
+                from_files::check_from_files(check, &context, &state, listed)?
+            }
+            Decide::FromRecords => return Err("the recorded manifests cannot decide"),
+        },
     };
     register_fast_path_workspace(check.config, &lockfile_root)?;
     Ok(UpToDateWorkspace { root: state_root.to_path_buf(), project_count })

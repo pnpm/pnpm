@@ -451,3 +451,79 @@ fn the_run_gate_reads_an_edited_manifest_and_reports_it_outdated() {
     assert!(!text.contains(GATE_DECIDED_FROM_RECORDS), "{text}");
     drop((root, mock_instance));
 }
+
+/// The debug event of a fast path taken once the config setup has run.
+const TAKEN_AFTER_CONFIG: &str = "repeat-install fast path taken after the config setup";
+
+/// [`write_workspace`] with a pnpmfile, which keeps the fast path from
+/// running before the config setup.
+fn write_workspace_with_pnpmfile(workspace: &Path) {
+    write_workspace(workspace);
+    fs::write(workspace.join(".pnpmfile.cjs"), "module.exports = { hooks: {} }\n")
+        .expect("write .pnpmfile.cjs");
+}
+
+#[test]
+fn a_workspace_with_a_pnpmfile_is_up_to_date_from_the_records() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_workspace_with_pnpmfile(&workspace);
+    pacquet
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_arg("install")
+        .assert()
+        .success();
+    trust_recorded_stats(&workspace, mock_instance.url());
+
+    let output = traced_install(&workspace, mock_instance.url());
+
+    assert!(output.contains("Already up to date"), "{output}");
+    assert!(output.contains(TAKEN_AFTER_CONFIG), "{output}");
+    assert!(output.contains(DECIDED_FROM_RECORDS), "{output}");
+    drop((root, mock_instance));
+}
+
+/// An edit the records cannot stand in for leaves the decision to the
+/// install, which reads the manifests as it always did.
+#[test]
+fn a_workspace_with_a_pnpmfile_reads_an_edited_manifest() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_workspace_with_pnpmfile(&workspace);
+    pacquet
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_arg("install")
+        .assert()
+        .success();
+    trust_recorded_stats(&workspace, mock_instance.url());
+    let edited = serde_json::json!({
+        "name": "b",
+        "version": "1.0.0",
+        "bin": { "b": "cli.js" },
+        "description": "edited",
+    });
+    fs::write(workspace.join("packages/b/package.json"), edited.to_string())
+        .expect("edit packages/b/package.json");
+
+    let output = traced_install(&workspace, mock_instance.url());
+
+    assert!(output.contains("Already up to date"), "{output}");
+    assert!(
+        output.contains("repeat-install fast path not taken after the config setup"),
+        "{output}"
+    );
+    assert!(!output.contains(TAKEN_AFTER_CONFIG), "{output}");
+    drop((root, mock_instance));
+}

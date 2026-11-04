@@ -1,7 +1,7 @@
 use super::{
     InstallArgs, NodeLinkerArg, UpToDateFastPathCheck, install_already_up_to_date,
-    read_root_manifest_json, warn_deprecated_override_version_references,
-    warn_ignored_pnpm_manifest_fields,
+    install_already_up_to_date_from_records, read_root_manifest_json,
+    warn_deprecated_override_version_references, warn_ignored_pnpm_manifest_fields,
 };
 use crate::cli_args::yarn_workspaces_field::{
     converts_yarn_workspaces, warn_about_workspaces_field,
@@ -90,9 +90,56 @@ impl InstallArgs {
         if let Some(reason) = self.fast_path_ineligibility(config) {
             return Err(reason);
         }
-        let config_root = config.root_project_manifest_dir(dir).to_path_buf();
-        check_config_fast_path(config, &config_root)?;
-        let root_manifest = read_root_manifest_json(&config_root);
+        check_config_fast_path(config, config.root_project_manifest_dir(dir))?;
+        self.report_if_up_to_date(dir, config, emit, install_already_up_to_date)
+    }
+
+    /// The up-to-date fast path once the config dependencies are installed
+    /// and the `updateConfig` hooks have shaped `config`, for an install the
+    /// pre-runtime one declined only while a pnpmfile or a config dependency
+    /// could still change the configuration. It decides from the manifest
+    /// records alone, so a declined attempt leaves reading the projects to
+    /// the install. `false` when it is not taken.
+    pub(crate) fn finished_from_records_after_config(
+        &self,
+        dir: &std::path::Path,
+        config: &pnpm_config::Config,
+        emit: fn(&pnpm_reporter::LogEvent),
+    ) -> bool {
+        let config_time_gate =
+            check_config_fast_path(config, config.root_project_manifest_dir(dir));
+        if config_time_gate.is_ok() || self.fast_path_ineligibility(config).is_some() {
+            return false;
+        }
+        let decided =
+            self.report_if_up_to_date(dir, config, emit, install_already_up_to_date_from_records);
+        if let Err(reason) = decided {
+            tracing::debug!(
+                target: "pacquet::install",
+                reason,
+                "repeat-install fast path not taken after the config setup; the install decides",
+            );
+            return false;
+        }
+        tracing::debug!(
+            target: "pacquet::install",
+            "repeat-install fast path taken after the config setup; nothing changed since the previous install",
+        );
+        true
+    }
+
+    /// Report the install up to date when `decide` finds it so.
+    fn report_if_up_to_date(
+        &self,
+        dir: &std::path::Path,
+        config: &pnpm_config::Config,
+        emit: fn(&pnpm_reporter::LogEvent),
+        decide: fn(
+            &UpToDateFastPathCheck<'_>,
+        ) -> Result<pnpm_package_manager::UpToDateWorkspace, &'static str>,
+    ) -> Result<(), &'static str> {
+        let config_root = config.root_project_manifest_dir(dir);
+        let root_manifest = read_root_manifest_json(config_root);
         if converts_yarn_workspaces(config, dir, root_manifest.as_ref()) {
             return Err("the manifest's workspaces field is converted");
         }
@@ -104,7 +151,7 @@ impl InstallArgs {
             .map_err(|_| "package.json cannot be parsed")?;
         let node_linker =
             self.materialization.node_linker.map_or(config.node_linker, NodeLinkerArg::into_config);
-        let up_to_date = install_already_up_to_date(&UpToDateFastPathCheck {
+        let up_to_date = decide(&UpToDateFastPathCheck {
             config,
             manifest: &manifest,
             dependency_groups: self.dependency_options.dependency_groups(config.optional).collect(),
@@ -157,12 +204,6 @@ impl InstallArgs {
                 !config.shares_one_lockfile() && config.workspace_dir.is_some(),
                 "every workspace project has its own lockfile",
             ),
-            (
-                config.config_dependencies
-                    .as_ref()
-                    .is_some_and(|deps| !deps.is_empty()),
-                "config dependencies are declared",
-            ),
         ];
         gates
             .into_iter()
@@ -170,10 +211,18 @@ impl InstallArgs {
     }
 }
 
+/// The gates the config setup resolves: config dependencies to install or
+/// reconcile, and pnpmfiles whose `updateConfig` hooks may change `config`.
 fn check_config_fast_path(
     config: &pnpm_config::Config,
     config_root: &std::path::Path,
 ) -> Result<(), &'static str> {
+    if config.config_dependencies
+        .as_ref()
+        .is_some_and(|deps| !deps.is_empty())
+    {
+        return Err("config dependencies are declared");
+    }
     if pnpm_env_installer::read_config_dependency_lockfile(
         config.config_dependencies.as_ref(),
         config_root,

@@ -4,7 +4,7 @@
 
 use super::{
     GATE_DECIDED_FROM_RECORDS, combined_output, traced_run, trust_recorded_stats,
-    write_gated_workspace, write_workspace,
+    write_gated_workspace, write_workspace, write_workspace_with_pnpmfile,
 };
 use crate::_utils::pacquet_in;
 use assert_cmd::prelude::*;
@@ -168,5 +168,23 @@ fn a_recursive_exec_gate_decides_from_the_records() {
     let text = combined_output(&output);
     assert!(output.status.success(), "{text}");
     assert!(text.contains(GATE_DECIDED_FROM_RECORDS), "{text}");
+    drop((root, mock_instance));
+}
+
+/// A pnpmfile keeps the fast path from running before the config setup, but
+/// not from deciding without the manifests after it.
+#[test]
+fn an_up_to_date_install_with_a_pnpmfile_opens_no_project_manifest() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_workspace_with_pnpmfile(&workspace);
+    install(&workspace, mock_instance.url());
+    trust_recorded_stats(&workspace, mock_instance.url());
+
+    let opens =
+        count_opens(&project_manifests(&workspace), || install(&workspace, mock_instance.url()));
+
+    assert_eq!(opens, 0);
     drop((root, mock_instance));
 }
