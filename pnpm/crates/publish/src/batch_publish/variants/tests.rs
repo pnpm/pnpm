@@ -194,3 +194,64 @@ async fn a_batch_references_variants_another_job_staged_by_their_size() {
     );
     assert!(document["versions"]["1.0.0"].get("dist").is_none(), "{document}");
 }
+
+/// Every archive another job staged is checked before anything is uploaded,
+/// so a batch referencing one the registry no longer holds uploads nothing
+/// and sends no commit.
+#[tokio::test]
+async fn a_batch_referencing_an_archive_the_registry_lacks_uploads_nothing() {
+    let mut server = mockito::Server::new_async().await;
+    let registry = format!("{}/", server.url());
+    let blob = mockito::Matcher::Regex("^/-/pnpr/v0/artifacts/blob".to_owned());
+    server
+        .mock("HEAD", blob.clone())
+        .with_status(404)
+        .create_async()
+        .await;
+    let upload = server
+        .mock("PUT", blob)
+        .with_status(201)
+        .expect(0)
+        .create_async()
+        .await;
+    let commit = server
+        .mock("PUT", "/-/pnpr/v0/publish")
+        .with_status(200)
+        .expect(0)
+        .create_async()
+        .await;
+    let lib = json!({ "name": "example-lib", "version": "1.0.0" });
+    let cli = json!({ "name": "example-cli", "version": "1.0.0" });
+    let variants = [PackedVariant {
+        tag: "linux-x64".to_owned(),
+        archive: VariantArchive::Staged(StagedReference {
+            integrity: "sha512-Z29uZQ==".to_owned(),
+            label: "linux-x64".to_owned(),
+        }),
+    }];
+    let packages = [package(&lib, b"lib", &[]), package(&cli, b"any", &variants)];
+    let client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let network = PublishNetwork { client: &client, auth_headers: &auth_headers };
+
+    let failure = batch_publish_packed_pkgs::<
+        SilentReporter,
+        _,
+        crate::batch_publish::BatchPublishError,
+    >(&packages, &options(&registry), &network, |_| Ok(()))
+    .await
+    .expect_err("the batch fails");
+
+    assert!(
+        matches!(
+            failure.error,
+            crate::batch_publish::BatchPublishError::Package(
+                crate::PublishPackedPkgError::NotStaged { .. },
+            ),
+        ),
+        "{:?}",
+        failure.error,
+    );
+    upload.assert_async().await;
+    commit.assert_async().await;
+}
