@@ -48,25 +48,35 @@ fn with_registry_metadata_of(lockfile: &Lockfile, source: &Lockfile) -> Option<L
         for (key, metadata) in packages {
             let source_metadata = source_packages.get(key)?;
             metadata.deprecated.clone_from(&source_metadata.deprecated);
-            match (&mut metadata.resolution, &source_metadata.resolution) {
-                (
-                    LockfileResolution::Registry(resolution),
-                    LockfileResolution::Registry(source),
-                ) => {
-                    take_rehashed_integrity(&mut resolution.integrity, &source.integrity);
-                }
-                (LockfileResolution::Tarball(resolution), LockfileResolution::Tarball(source)) => {
-                    if let (Some(integrity), Some(source)) =
-                        (resolution.integrity.as_mut(), source.integrity.as_ref())
-                    {
-                        take_rehashed_integrity(integrity, source);
-                    }
-                }
-                _ => {}
-            }
+            take_rehashed_resolution_integrity(
+                &mut metadata.resolution,
+                &source_metadata.resolution,
+            );
         }
     }
     Some(lockfile)
+}
+
+/// Takes the integrity of `source` into `resolution` when both are registry
+/// resolutions, or tarball resolutions that both record one, hashed with
+/// different algorithms.
+fn take_rehashed_resolution_integrity(
+    resolution: &mut LockfileResolution,
+    source: &LockfileResolution,
+) {
+    match (resolution, source) {
+        (LockfileResolution::Registry(resolution), LockfileResolution::Registry(source)) => {
+            take_rehashed_integrity(&mut resolution.integrity, &source.integrity);
+        }
+        (LockfileResolution::Tarball(resolution), LockfileResolution::Tarball(source)) => {
+            if let (Some(integrity), Some(source)) =
+                (resolution.integrity.as_mut(), source.integrity.as_ref())
+            {
+                take_rehashed_integrity(integrity, source);
+            }
+        }
+        _ => {}
+    }
 }
 
 /// Replaces `integrity` with `source` when they hold no digest of the same
