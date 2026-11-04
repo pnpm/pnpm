@@ -5,7 +5,10 @@ use crate::_utils::{
 use command_extra::CommandExtra;
 use pnpm_config::WorkspaceSettings;
 use pnpm_lockfile::EnvLockfile;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+use pnpm_testing_utils::{
+    bin::{AddMockedRegistry, CommandTempCwd},
+    stall_report::{STALL_DEADLINE, output_within},
+};
 use pretty_assertions::assert_eq;
 use std::{
     collections::BTreeMap,
@@ -495,14 +498,14 @@ fn child_pnpm_selects_the_version_for_its_own_directory() {
     ",
     )
     .expect("write child version script");
-    let output = test_command(pacquet, root.path())
+    let mut command = test_command(pacquet, root.path());
+    command
         .current_dir(&project_a)
         .env("PNPM_CONFIG_REGISTRY", mock_instance.url())
         .args(["exec", "node"])
         .arg(&version_script)
-        .arg(&project_b)
-        .output()
-        .expect("run child pnpm in project b");
+        .arg(&project_b);
+    let output = output_within(&mut command, STALL_DEADLINE);
     dbg!(&output);
     assert!(output.status.success(), "child pnpm should succeed");
     assert_eq!(String::from_utf8_lossy(&output.stdout), "9.1.3\n");

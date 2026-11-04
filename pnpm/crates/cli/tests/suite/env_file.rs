@@ -5,6 +5,7 @@ use command_extra::CommandExtra;
 use pnpm_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
     command_env::CommandTestExt,
+    stall_report::{STALL_DEADLINE, output_within},
 };
 use std::{fs, process::Command};
 
@@ -324,11 +325,10 @@ fn dispatched_pinned_pnpm_inherits_env_file_and_strips_flag() {
     command.env("HOME", root.path());
     command.env("XDG_CONFIG_HOME", root.path().join("xdg-config"));
     command.env_remove("COREPACK_ROOT");
-    let output = command
-        .with_current_dir(&workspace)
-        .with_args(["--env-file", ".env", "run", "print-env"])
-        .output()
-        .expect("run pacquet with pinned pnpm and --env-file");
+    command
+        .current_dir(&workspace)
+        .args(["--env-file", ".env", "run", "print-env"]);
+    let output = output_within(&mut command, STALL_DEADLINE);
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(output.status.success(), "command must exit 0, got: {output:?}");
     assert!(
