@@ -56,6 +56,10 @@ export function getPkgsInfoFromIds (
  */
 export async function requestDependencyPackage (request: DependencyRequest): Promise<PackageResponse | null> {
   const { ctx, options, wantedDependency } = request
+  if (hasAlias(wantedDependency)) {
+    const override = ctx.overrideBareSpecifier?.(wantedDependency.alias, wantedDependency.bareSpecifier, options.projectDir)
+    if (override != null) wantedDependency.bareSpecifier = override
+  }
   // Normalize the `preferredVersion` (singular) and `preferredVersions`
   // (plural) options. If the singular option is passed through, it'll be used
   // instead of the plural option.

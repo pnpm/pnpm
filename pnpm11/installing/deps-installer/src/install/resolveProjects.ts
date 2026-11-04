@@ -188,7 +188,7 @@ function createGraphResolver (
       hooks: {
         readPackage: readPackageHook,
       },
-      overrideBareSpecifier: createDependencyOverrider(parsedOverrides, opts.lockfileDir),
+      overrideBareSpecifier: createDependencyOverrider(parsedOverrides, opts.overridesRootDir),
       preferredVersions,
       handleResolutionPolicyViolations,
     }
