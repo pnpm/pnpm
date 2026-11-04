@@ -764,16 +764,17 @@ fn variants_only_request(base: &Value, variants: &[(&str, &[u8])], token: &str) 
     use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 
     let mut attachments = serde_json::Map::new();
-    let mut references = serde_json::Map::new();
     for (tag, tgz) in variants {
         attachments.insert(
             format!("@acme/fast-1.0.0~{tag}.tgz"),
-            json!({ "data": BASE64.encode(tgz), "length": tgz.len() }),
+            json!({
+                "data": BASE64.encode(tgz),
+                "integrity": sha512_integrity(tgz),
+                "length": tgz.len(),
+            }),
         );
-        references.insert((*tag).to_string(), Value::String(sha512_integrity(tgz)));
     }
-    let mut manifest = base.clone();
-    manifest["pnprVariants"] = Value::Object(references);
+    let manifest = base.clone();
     let body = json!({
         "name": "@acme/fast",
         "dist-tags": { "latest": "1.0.0" },
@@ -876,7 +877,6 @@ async fn a_staged_primary_is_referenced_by_its_integrity_alone() {
     }
     let mut manifest = primary_manifest();
     manifest["dist"] = json!({ "integrity": sha512_integrity(&primary) });
-    manifest["pnprVariants"] = json!({ "linux-x64-musl": sha512_integrity(&musl) });
     let attachment =
         |tgz: &[u8]| json!({ "integrity": sha512_integrity(tgz), "length": tgz.len() });
     let document = json!({
