@@ -6719,6 +6719,7 @@ dependencies = [
  "same-file",
  "serde_json",
  "ssri",
+ "sysinfo",
  "tar",
  "tempfile",
  "text-block-macros",
