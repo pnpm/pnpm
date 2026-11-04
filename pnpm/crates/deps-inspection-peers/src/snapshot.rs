@@ -96,7 +96,7 @@ fn check_snapshot_peers(inputs: SnapshotPeers<'_>) {
     }
 }
 
-fn snapshot_dependency<'a>(
+pub(super) fn snapshot_dependency<'a>(
     snapshot: &'a SnapshotEntry,
     name: &PkgName,
 ) -> Option<&'a SnapshotDepRef> {

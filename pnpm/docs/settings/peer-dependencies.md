@@ -41,7 +41,7 @@ When set to `true`, pnpm joins conflicting peer dependency ranges with `||` and 
 
 When this setting is set to `true`, packages with peer dependencies will be deduplicated after peers resolution.
 
-This setting also lets pnpm resolve missing required and optional peers using compatible versions available elsewhere in the workspace, including transitive dependencies of other projects. Required peers can be resolved this way even when `autoInstallPeers` is `false`. A required peer satisfied this way is not reported as missing.
+This setting also lets pnpm resolve missing required and optional peers using compatible versions available elsewhere in the workspace, including transitive dependencies of other projects. Required peers can be resolved this way even when `autoInstallPeers` is `false`. A required peer satisfied this way is not reported as missing. With `autoInstallPeers: false`, [`pnpm peers check`](../cli/peers.md) reports a separate advisory when the project and its dependency ancestors do not declare a provider.
 
 To prevent this workspace-wide peer reuse, set both `autoInstallPeers` and `dedupePeerDependents` to `false`. Dependencies of the workspace root can still provide peers when [`resolvePeersFromWorkspaceRoot`](#resolvepeersfromworkspaceroot) is enabled.
 

@@ -297,6 +297,42 @@ fn check_peer_reuse(
 
     assert_success(&run(&["install", "--lockfile-only", "--frozen-lockfile"]));
     assert_eq!(fs::read_to_string(&lock_path).unwrap(), fresh);
+    if bundle.is_none() && optional_resolved {
+        check_reuse_warning(&fixture, !auto_install && dedupe && !(root_provider && from_root));
+    }
+}
+
+fn check_reuse_warning(fixture: &crate::_utils::WorkspaceFixture, expected: bool) {
+    let output = fixture.command_at(
+        &fixture.workspace.join("packages/consumer"),
+        ["peers", "check", "--lockfile-only", "--json"],
+    );
+    crate::_utils::assert_success(&output);
+    let report: serde_json::Value =
+        serde_json::from_slice(&output.stdout).expect("read peer report");
+    let warnings = report["packages/consumer"]["undeclared"].as_array();
+    assert_eq!(warnings.is_some_and(|warnings| !warnings.is_empty()), expected);
+    if let Some(warnings) = warnings {
+        assert!(
+            warnings
+                .iter()
+                .all(|warning| warning["peer"] == "@pnpm.e2e/peer-a"),
+        );
+    }
+    if expected {
+        let output = fixture.command_at(
+            &fixture.workspace.join("packages/consumer"),
+            ["peers", "check", "--lockfile-only"],
+        );
+        crate::_utils::assert_success(&output);
+        assert!(
+            String::from_utf8_lossy(&output.stdout).contains("is resolved but is not declared"),
+        );
+        crate::_utils::assert_success(&fixture.command_at(
+            &fixture.workspace,
+            ["install", "--lockfile-only", "--strict-peer-dependencies"],
+        ));
+    }
 }
 
 #[test]
