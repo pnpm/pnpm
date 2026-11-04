@@ -2418,3 +2418,60 @@ fn a_pinned_lockfile_dir_starts_an_install() {
 
     drop(root);
 }
+
+/// No validation records the manifest of a local directory dependency, so the
+/// gate reads it: a dependency added there is one the lockfile lacks.
+#[test]
+fn a_dependency_added_to_a_local_directory_dependency_fails_the_gate() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "verifyDepsBeforeRun: error\npackages:\n  - app\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+    fs::write(
+        workspace.join("package.json"),
+        json!({ "name": "root", "private": true }).to_string(),
+    )
+    .expect("write the root manifest");
+    let app = workspace.join("app");
+    fs::create_dir_all(&app).expect("create the project");
+    fs::write(
+        app.join("package.json"),
+        json!({ "name": "app", "version": "1.0.0", "dependencies": { "lib": "file:../lib" } })
+            .to_string(),
+    )
+    .expect("write the project manifest");
+    let lib = workspace.join("lib");
+    fs::create_dir_all(&lib).expect("create the local directory");
+    let write_lib_manifest = |dependencies: serde_json::Value| {
+        let manifest = json!({ "name": "lib", "version": "1.0.0", "dependencies": dependencies });
+        fs::write(lib.join("package.json"), manifest.to_string())
+            .expect("write the local directory's manifest");
+    };
+    write_lib_manifest(json!({}));
+    let exec = || {
+        pacquet_in(&workspace)
+            .with_args(["--filter", "app", "exec", "node", "-e", ""])
+            .output()
+            .expect("spawn pacquet exec")
+    };
+
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    let output = exec();
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+
+    write_lib_manifest(json!({ "@pnpm.e2e/foo": "100.0.0" }));
+    let output = exec();
+    assert!(!output.status.success(), "the lockfile lacks the local directory's new dependency");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("ERR_PNPM_VERIFY_DEPS_BEFORE_RUN"),
+        "expected the verify-deps error:\n{stderr}",
+    );
+
+    drop(root);
+}

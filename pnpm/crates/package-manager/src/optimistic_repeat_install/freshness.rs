@@ -138,7 +138,7 @@ pub(super) fn check_freshness(
 ) -> Result<(), Stale> {
     check_static_freshness(check, state, policy, scope)?;
     let drift = InputDrift::compute(check, state);
-    let held = drift.held(check, scope);
+    let held = drift.held(check, scope, proven_projects(check, state, policy));
     if !drift::held_workspace_bins_match(check, state, &held) {
         return Err(Stale::Content("workspace package bins changed since the last install"));
     }
@@ -174,6 +174,22 @@ pub(super) fn check_freshness(
         record_state_at(check, state, &vouched, policy, filesystem_now);
     }
     Ok(())
+}
+
+/// A gate that lets local file dependencies through still has to see a
+/// local directory dependency's manifest change, which changes what the
+/// lockfile records for it. No validation records that manifest, so the
+/// content check reads it for every project.
+fn proven_projects(
+    check: &OptimisticRepeatInstallCheck<'_>,
+    state: &WorkspaceState,
+    policy: &GatePolicy<'_>,
+) -> drift::ProvenProjects {
+    if !policy.check_local_file_deps && super::records_local_directory(check, state) {
+        drift::ProvenProjects::Rechecked
+    } else {
+        drift::ProvenProjects::Trusted
+    }
 }
 
 /// The static drift checks that run before [`InputDrift::compute`] stats any

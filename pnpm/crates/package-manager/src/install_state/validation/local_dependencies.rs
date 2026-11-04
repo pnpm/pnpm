@@ -151,13 +151,11 @@ pub(crate) fn changed(validation: &Validation, workspace_dirs: &HashSet<PathBuf>
         return true;
     }
     let digests = FileDigests::new(Some(validation));
-    validation.local_dependencies
-        .values()
-        .any(|local| {
-            local.directories
-                .iter()
-                .any(|dir| !workspace_dirs.contains(Path::new(dir)))
-                || local.tarballs
+    records_local_directory(validation, workspace_dirs)
+        || validation.local_dependencies
+            .values()
+            .any(|local| {
+                local.tarballs
                     .iter()
                     .any(|tarball| {
                         let recorded = validation.files
@@ -165,7 +163,19 @@ pub(crate) fn changed(validation: &Validation, workspace_dirs: &HashSet<PathBuf>
                             .map(|signature| signature.digest.as_str());
                         recorded.is_none() || digests.of(Path::new(tarball)).digest() != recorded
                     })
-        })
+            })
+}
+
+/// Whether `validation` records a local directory dependency other than
+/// `workspace_dirs`.
+pub(crate) fn records_local_directory(
+    validation: &Validation,
+    workspace_dirs: &HashSet<PathBuf>,
+) -> bool {
+    validation.local_dependencies
+        .values()
+        .flat_map(|local| &local.directories)
+        .any(|dir| !workspace_dirs.contains(Path::new(dir)))
 }
 
 #[cfg(test)]

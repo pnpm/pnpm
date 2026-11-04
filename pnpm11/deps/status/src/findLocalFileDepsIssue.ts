@@ -1,3 +1,5 @@
+import path from 'node:path'
+
 import { resolveFromCatalog } from '@pnpm/catalogs.resolver'
 import type { Catalogs } from '@pnpm/catalogs.types'
 import { parseOverrides, type VersionOverride } from '@pnpm/config.parse-overrides'
@@ -71,10 +73,29 @@ export function findRecordedLocalDependencyIssue (workspaceState: WorkspaceState
     return 'The local dependencies of a lockfile are not recorded'
   }
   for (const local of Object.values(validation.localDependencies ?? {})) {
-    const localPath = local.tarballs?.[0] ?? local.directories?.find((dir) => !workspaceProjectDirs.has(dir))
+    const localPath = local.tarballs?.[0] ?? findLocalDirectory(local, workspaceProjectDirs)
     if (localPath != null) return `The local dependency at "${localPath}" may have changed`
   }
   return undefined
+}
+
+/**
+ * Whether the last install recorded a local directory dependency that is not
+ * one of `workspaceProjectDirs`.
+ */
+export function recordsLocalDirectory (workspaceState: WorkspaceState, workspaceProjectDirs: Set<string>): boolean {
+  return Object.values(workspaceState.validation?.localDependencies ?? {})
+    .some((local) => findLocalDirectory(local, workspaceProjectDirs) != null)
+}
+
+function findLocalDirectory (local: { directories?: string[] }, workspaceProjectDirs: Set<string>): string | undefined {
+  return local.directories?.find((dir) => !workspaceProjectDirs.has(dir))
+}
+
+export function workspaceProjectDirs ({ allProjects, rootProjectManifestDir }: CheckDepsStatusOptions): Set<string> {
+  const dirs = new Set((allProjects ?? []).map(({ rootDir }) => path.resolve(rootDir)))
+  if (rootProjectManifestDir != null) dirs.add(path.resolve(rootProjectManifestDir))
+  return dirs
 }
 
 function listManifestsToScan ({ allProjects, rootProjectManifest, rootProjectManifestDir }: CheckDepsStatusOptions): ProjectManifest[] {

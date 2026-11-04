@@ -13,7 +13,7 @@ pub(crate) use bins::{
     workspace_bins_digest,
 };
 pub(crate) use file_stat::{FileStat, trusts_every_file};
-pub(crate) use local_dependencies::changed as local_dependency_changed;
+pub(crate) use local_dependencies::{changed as local_dependency_changed, records_local_directory};
 pub(crate) use manifest_files::{ManifestStandIns, manifest_stand_ins, records_need_refresh};
 
 use file_stat::{signature_trusted, stat_trusted};
