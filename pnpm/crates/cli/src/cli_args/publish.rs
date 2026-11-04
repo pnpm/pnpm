@@ -381,10 +381,7 @@ impl PublishArgs {
         config: &Config,
         pack_destination: &Path,
         before_packing_hooks: &[Arc<dyn PnpmfileHooks>],
-        (workspace_packages, targets): (
-            Option<&Arc<HashMap<String, WorkspacePackageManifest>>>,
-            &[String],
-        ),
+        (workspace_packages, targets): (Option<&WorkspacePackages>, &[String]),
     ) -> miette::Result<PackedArchives> {
         let workspace_packages = workspace_packages
             .cloned()
@@ -426,6 +423,9 @@ impl PublishArgs {
             .wrap_err(crate::cli_args::pack::PACK_ERROR_CONTEXT)
     }
 }
+
+/// The workspace's packages by name, shared across a recursive publish.
+type WorkspacePackages = Arc<HashMap<String, WorkspacePackageManifest>>;
 
 /// Whether the project's manifest declares `publishConfig.variants`.
 fn declares_variants(manifest: &Value) -> bool {
