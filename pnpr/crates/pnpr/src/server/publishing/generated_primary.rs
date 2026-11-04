@@ -37,6 +37,7 @@ pub(super) fn attachment(
             filename: canonical.clone(),
             declared_length: Some(tgz.len() as u64),
             payload: AttachmentPayload::Inline(BASE64.encode(&tgz)),
+            declared_integrity: None,
         },
         canonical,
         version: version.to_string(),

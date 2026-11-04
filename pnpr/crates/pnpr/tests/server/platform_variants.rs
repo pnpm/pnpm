@@ -855,7 +855,10 @@ async fn a_version_without_a_primary_gets_a_generated_one_for_npm() {
     assert_eq!(variants[0]["tag"], "linux-arm64-musl+linux-x64");
     assert_eq!(
         variants[0]["manifest"],
-        json!({ "dependencies": { "shared": "1.0.0", "only-linux": "2.0.0" }, "main": "index.js" }),
+        json!({
+            "dependencies": { "shared": "1.0.0", "only-linux": "2.0.0" },
+            "hasInstallScript": false,
+        }),
     );
 
     let record =
