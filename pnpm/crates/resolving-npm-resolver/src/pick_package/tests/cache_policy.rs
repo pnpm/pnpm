@@ -1,4 +1,4 @@
-//! What the three [`pnpm_config::NetworkPolicy`] states decide between,
+//! What the three [`pnpm_resolving_resolver_base::NetworkPolicy`] states decide between,
 //! told apart by whether the registry is contacted at all. The `offline` and
 //! `preferOffline` settings reach the picker only through that policy.
 
@@ -47,11 +47,12 @@ async fn an_online_pick_verifies_an_unstable_mirror_pick_against_the_registry() 
     let meta_cache = InMemoryPackageMetaCache::default();
     let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
+        pnpr_format: None,
         full_metadata: false,
         needs_full_metadata_for: None,
         filter_metadata: false,
         cache_policy: crate::MetadataCachePolicy {
-            network: pnpm_config::NetworkPolicy::Online,
+            network: pnpm_resolving_resolver_base::NetworkPolicy::Online,
             ignore_missing_time_field: false,
         },
         store_view: None,
@@ -95,11 +96,12 @@ async fn prefer_offline_accepts_the_mirror_pick_the_registry_would_have_verified
     let meta_cache = InMemoryPackageMetaCache::default();
     let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
+        pnpr_format: None,
         full_metadata: false,
         needs_full_metadata_for: None,
         filter_metadata: false,
         cache_policy: crate::MetadataCachePolicy {
-            network: pnpm_config::NetworkPolicy::PreferCache,
+            network: pnpm_resolving_resolver_base::NetworkPolicy::PreferCache,
             ignore_missing_time_field: false,
         },
         store_view: None,
@@ -143,11 +145,12 @@ async fn prefer_offline_answers_a_plain_range_from_the_mirror() {
     let meta_cache = InMemoryPackageMetaCache::default();
     let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
+        pnpr_format: None,
         full_metadata: false,
         needs_full_metadata_for: None,
         filter_metadata: false,
         cache_policy: crate::MetadataCachePolicy {
-            network: pnpm_config::NetworkPolicy::PreferCache,
+            network: pnpm_resolving_resolver_base::NetworkPolicy::PreferCache,
             ignore_missing_time_field: false,
         },
         store_view: None,
@@ -191,11 +194,12 @@ async fn offline_answers_from_the_mirror_without_the_registry() {
     let meta_cache = InMemoryPackageMetaCache::default();
     let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
+        pnpr_format: None,
         full_metadata: false,
         needs_full_metadata_for: None,
         filter_metadata: false,
         cache_policy: crate::MetadataCachePolicy {
-            network: pnpm_config::NetworkPolicy::Offline,
+            network: pnpm_resolving_resolver_base::NetworkPolicy::Offline,
             ignore_missing_time_field: false,
         },
         store_view: None,
@@ -235,11 +239,12 @@ async fn offline_without_a_mirror_surfaces_no_offline_meta() {
     let meta_cache = InMemoryPackageMetaCache::default();
     let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
+        pnpr_format: None,
         full_metadata: false,
         needs_full_metadata_for: None,
         filter_metadata: false,
         cache_policy: crate::MetadataCachePolicy {
-            network: pnpm_config::NetworkPolicy::Offline,
+            network: pnpm_resolving_resolver_base::NetworkPolicy::Offline,
             ignore_missing_time_field: false,
         },
         store_view: None,
@@ -301,11 +306,15 @@ async fn prefer_offline_changes_nothing_once_offline_forbids_the_registry() {
         // earlier pick's in-memory entry.
         let meta_cache = InMemoryPackageMetaCache::default();
         let ctx = PickPackageContext {
+            pnpr_format: None,
             full_metadata: false,
             needs_full_metadata_for: None,
             filter_metadata: false,
             cache_policy: crate::MetadataCachePolicy {
-                network: pnpm_config::NetworkPolicy::from_settings(true, prefer_offline),
+                network: pnpm_resolving_resolver_base::NetworkPolicy::from_settings(
+                    true,
+                    prefer_offline,
+                ),
                 ignore_missing_time_field: false,
             },
             store_view: None,
@@ -354,11 +363,15 @@ async fn prefer_offline_reuses_an_in_memory_entry_the_registry_never_confirmed()
     let meta_cache = InMemoryPackageMetaCache::default();
     let fetch_locker = shared_packument_fetch_locker();
     let build_ctx = |prefer_offline| PickPackageContext {
+        pnpr_format: None,
         full_metadata: false,
         needs_full_metadata_for: None,
         filter_metadata: false,
         cache_policy: crate::MetadataCachePolicy {
-            network: pnpm_config::NetworkPolicy::from_settings(false, prefer_offline),
+            network: pnpm_resolving_resolver_base::NetworkPolicy::from_settings(
+                false,
+                prefer_offline,
+            ),
             ignore_missing_time_field: false,
         },
         store_view: None,
@@ -410,11 +423,15 @@ async fn an_online_pick_revalidates_an_in_memory_entry_the_registry_never_confir
     let meta_cache = InMemoryPackageMetaCache::default();
     let fetch_locker = shared_packument_fetch_locker();
     let build_ctx = |prefer_offline| PickPackageContext {
+        pnpr_format: None,
         full_metadata: false,
         needs_full_metadata_for: None,
         filter_metadata: false,
         cache_policy: crate::MetadataCachePolicy {
-            network: pnpm_config::NetworkPolicy::from_settings(false, prefer_offline),
+            network: pnpm_resolving_resolver_base::NetworkPolicy::from_settings(
+                false,
+                prefer_offline,
+            ),
             ignore_missing_time_field: false,
         },
         store_view: None,
@@ -472,11 +489,15 @@ async fn prefer_offline_reuses_a_cached_entry_whose_mirror_has_been_pruned() {
     let meta_cache = InMemoryPackageMetaCache::default();
     let fetch_locker = shared_packument_fetch_locker();
     let build_ctx = |prefer_offline| PickPackageContext {
+        pnpr_format: None,
         full_metadata: false,
         needs_full_metadata_for: None,
         filter_metadata: false,
         cache_policy: crate::MetadataCachePolicy {
-            network: pnpm_config::NetworkPolicy::from_settings(false, prefer_offline),
+            network: pnpm_resolving_resolver_base::NetworkPolicy::from_settings(
+                false,
+                prefer_offline,
+            ),
             ignore_missing_time_field: false,
         },
         store_view: None,

@@ -476,6 +476,7 @@ impl RunProjectOptions<'_, '_> {
 }
 
 mod concurrent;
+mod github_group;
 
 mod sequential;
 

@@ -17,6 +17,7 @@ pnpr-policy = { workspace = true }
 pnpr-registry = { workspace = true }
 pnpm-config-dir = { workspace = true }
 pnpm-env-replace = { workspace = true }
+pnpm-transparency-log = { workspace = true }
 getrandom = { workspace = true }
 home = { workspace = true }
 indexmap = { workspace = true }

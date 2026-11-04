@@ -227,18 +227,10 @@ fn record_symlink(
     else {
         return Ok(false);
     };
-    let (_path, hash) = ctx.store_dir
+    let written = ctx.store_dir
         .write_cas_file(target.as_bytes(), false)
         .map_err(AddFilesFromDirError::WriteCas)?;
-    ctx.files.insert(
-        relative_subpath.to_string(),
-        CafsFileInfo {
-            digest: format!("{hash:x}"),
-            mode: SYMLINK_MODE,
-            size: target.len() as u64,
-            checked_at: None,
-        },
-    );
+    ctx.files.insert(relative_subpath.to_string(), written.index_entry(SYMLINK_MODE, None));
     Ok(true)
 }
 
@@ -313,18 +305,10 @@ fn ingest_file(
             source,
         })?;
     let mode = ingested_file_mode(meta, read_path)?;
-    let (_path, hash) = ctx.store_dir
+    let written = ctx.store_dir
         .write_cas_file(&buffer, is_executable(mode))
         .map_err(AddFilesFromDirError::WriteCas)?;
-    ctx.files.insert(
-        relative_subpath,
-        CafsFileInfo {
-            digest: format!("{hash:x}"),
-            mode: mode.mode(),
-            size: buffer.len() as u64,
-            checked_at: None,
-        },
-    );
+    ctx.files.insert(relative_subpath, written.index_entry(mode.mode(), None));
     Ok(())
 }
 

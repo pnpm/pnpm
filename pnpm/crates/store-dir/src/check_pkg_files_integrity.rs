@@ -5,7 +5,7 @@
 //! entirely when the caller opted out of integrity verification.
 pub use package_dir_matches_index::package_dir_matches_index;
 
-pub use pending_files_check::{PendingFilesCheck, VerifiedModes};
+pub use pending_files_check::{PendingFilesCheck, files_maps};
 
 use crate::{
     CafsFileInfo, PackageFilesIndex, SideEffectsDiff, SideEffectsOverlay, StoreDir,
@@ -193,22 +193,11 @@ pub fn check_pkg_files_integrity(
     verified_files_cache: &VerifiedFilesCache,
 ) -> VerifyResult {
     let (mut result, pending) = defer_pkg_files_integrity(store_dir, entry);
-    match pending.verify(store_dir, verified_files_cache) {
-        Some(modes) => result.apply_modes(&modes),
-        None => result.passed = false,
+    let maps = files_maps(&result.files_map, result.side_effects_maps.as_ref());
+    if !pending.verify(store_dir, verified_files_cache, &maps) {
+        result.passed = false;
     }
     result
-}
-
-impl VerifyResult {
-    /// Hand the modes the files check read to the importer, through the
-    /// base map and every side-effects overlay that shares its paths.
-    pub fn apply_modes(&mut self, modes: &VerifiedModes) {
-        modes.apply(&mut self.files_map);
-        for overlay in self.side_effects_maps.iter_mut().flat_map(HashMap::values_mut) {
-            modes.apply(&mut overlay.files);
-        }
-    }
 }
 
 /// The maps of [`build_file_maps_from_index`] together with the files
@@ -324,7 +313,7 @@ pub fn side_effects_overlay(
             files.insert(filename.clone(), file.clone());
         }
     }
-    restorable_overlay(cache_key, SideEffectsOverlay { files, symlinks })
+    restorable_overlay(cache_key, SideEffectsOverlay { files: Arc::new(files), symlinks })
 }
 
 /// `overlay`, or `None` when its symlinks cannot be restored on this host

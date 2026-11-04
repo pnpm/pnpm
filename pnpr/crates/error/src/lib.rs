@@ -326,6 +326,26 @@ pub enum RegistryError {
         version: String,
     },
 
+    /// A publish submitted version metadata that disagrees with the
+    /// `package.json` inside its archive, under the manifest interpretation
+    /// profile `profile`. `fields` names the install-critical fields that
+    /// differ.
+    #[display(
+        "The metadata submitted for {package}@{version} does not match the package.json in its \
+         archive under {profile}: {fields}"
+    )]
+    #[from(skip)]
+    ManifestMismatch {
+        #[error(not(source))]
+        package: String,
+        #[error(not(source))]
+        version: String,
+        #[error(not(source))]
+        profile: &'static str,
+        #[error(not(source))]
+        fields: String,
+    },
+
     /// Maintainers list cannot be emptied.
     #[display("Package {package:?} must have at least one maintainer")]
     #[from(skip)]
@@ -378,14 +398,15 @@ pub enum RegistryError {
     #[cfg(feature = "server")]
     Bcrypt(bcrypt::BcryptError),
 
-    /// SQLite-backed token store failure.
-    #[display("Token database error: {_0}")]
+    /// A failure of an `SQLite` database: the token store or the metadata.
+    #[display("SQLite database error: {_0}")]
     #[cfg(feature = "server")]
     Sqlite(rusqlite::Error),
 
-    /// Networked-SQLite (libsql / Turso) auth backend failure.
+    /// A failure of a libSQL database (Turso): the auth backend or the
+    /// metadata.
     #[cfg(feature = "backend-libsql")]
-    #[display("Auth database error: {_0}")]
+    #[display("libSQL database error: {_0}")]
     Libsql(libsql::Error),
 
     /// SQL auth backend failure.

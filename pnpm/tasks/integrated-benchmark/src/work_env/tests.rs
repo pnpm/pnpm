@@ -1,4 +1,4 @@
-use pnpr_storage::layout::local_document_path;
+use pnpr_fixtures::read_packument;
 
 use super::{
     BenchId, HyperfineCommand, LINKED_WORKSPACE_DEPTH, LINKED_WORKSPACE_WIDTH, PEER_HEAVY_DEPTH,
@@ -115,35 +115,16 @@ fn peer_heavy_scenario_generates_shared_subgraph_root() {
         fs::read_to_string(dir.join("pnpm-workspace.yaml")).expect("read generated workspace");
     let prewarm = fs::read_to_string(dir.join("prewarm.bash")).expect("read prewarm script");
     let registry = dir.join("registry");
-    seed_peer_heavy_registry(&registry);
-    let first_packument: serde_json::Value = serde_json::from_slice(
-        &fs::read(local_document_path(
-            &registry,
-            "",
-            pnpr_storage::Ecosystem::Npm,
-            &peer_heavy_package_name(0, 0),
-        ))
-        .expect("read first peer-heavy packument"),
-    )
-    .expect("parse first peer-heavy packument");
-    let leaf_packument: serde_json::Value = serde_json::from_slice(
-        &fs::read(local_document_path(
-            &registry,
-            "",
-            pnpr_storage::Ecosystem::Npm,
-            &peer_heavy_package_name(PEER_HEAVY_DEPTH - 1, 0),
-        ))
-        .expect("read leaf peer-heavy packument"),
-    )
-    .expect("parse leaf peer-heavy packument");
-    let registry_package_count: usize = fs::read_dir(registry.join("default/npm/packages"))
-        .expect("read peer-heavy registry")
-        .map(|scope| {
-            fs::read_dir(scope.expect("read peer-heavy registry scope").path())
-                .expect("read peer-heavy registry scope")
-                .count()
-        })
-        .sum();
+    seed_peer_heavy_registry(&pnpr_fixtures::metadata_path(&registry));
+    let first_packument = read_packument(&registry, &peer_heavy_package_name(0, 0));
+    let leaf_packument =
+        read_packument(&registry, &peer_heavy_package_name(PEER_HEAVY_DEPTH - 1, 0));
+    let registry_package_count = (0..PEER_HEAVY_DEPTH)
+        .flat_map(|level| (0..PEER_HEAVY_WIDTH).map(move |index| (level, index)))
+        .map(|(level, index)| peer_heavy_package_name(level, index))
+        .chain([PEER_HEAVY_PROVIDER.to_string()])
+        .filter(|name| read_packument(&registry, name)["name"] == name.as_str())
+        .count();
     let _ = fs::remove_dir_all(&dir);
 
     let dependencies = manifest["dependencies"].as_object().expect("generated dependencies");

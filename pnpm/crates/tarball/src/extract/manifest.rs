@@ -6,8 +6,7 @@ use pnpm_package_manifest::{
 };
 
 use super::{
-    BuildTriggers, CafsFileInfo, HashMap, PackageFilesIndex, StoreDir, TarballError, UNIX_EPOCH,
-    parse_manifest_bytes,
+    BuildTriggers, HashMap, PackageFilesIndex, StoreDir, TarballError, parse_manifest_bytes,
 };
 
 /// Reads a TAR entry that must fit in memory, rejecting oversized payloads
@@ -108,22 +107,12 @@ pub(crate) fn write_synthesized_package_json(
     if pkg_files_idx.files.contains_key("package.json") {
         return Ok(false);
     }
-    let (cas_path, file_hash) =
-        store_dir.write_cas_file(bytes, false).map_err(TarballError::WriteCasFile)?;
-    let checked_at = UNIX_EPOCH
-        .elapsed()
-        .ok()
-        .and_then(|elapsed| u64::try_from(elapsed.as_millis()).ok());
-    let info = CafsFileInfo {
-        digest: format!("{file_hash:x}"),
-        // A synthesized manifest is a plain, non-executable data file;
-        // `0o644` is the same canonical mode `add_files_from_dir` reports
-        // for a non-executable entry (and pnpm's Windows-host default).
-        mode: 0o644,
-        size: bytes.len() as u64,
-        checked_at,
-    };
-    cas_paths.insert("package.json".to_string(), cas_path);
+    let written = store_dir.write_cas_file(bytes, false).map_err(TarballError::WriteCasFile)?;
+    // A synthesized manifest is a plain, non-executable data file;
+    // `0o644` is the same canonical mode `add_files_from_dir` reports
+    // for a non-executable entry (and pnpm's Windows-host default).
+    let info = written.index_entry(0o644, super::checked_now());
+    cas_paths.insert("package.json".to_string(), written.file);
     pkg_files_idx.files.insert("package.json".to_string(), info);
     Ok(true)
 }

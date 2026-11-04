@@ -101,6 +101,7 @@ async fn lockfile_only_routes_scoped_packages_to_configured_scoped_registry() {
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
             dedicated: None,
+            discovered_workspace: None,
         },
     }
     .run::<SilentReporter>()
@@ -204,6 +205,7 @@ pub(super) async fn warm_reinstall_skips_snapshot_when_current_lockfile_matches(
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
             dedicated: None,
+            discovered_workspace: None,
         },
     }
     .run::<SilentReporter>()
@@ -328,6 +330,7 @@ pub(super) async fn context_log_reflects_current_lockfile_after_first_install() 
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
             dedicated: None,
+            discovered_workspace: None,
         },
     }
     .run::<RecordingReporter>()
@@ -407,6 +410,7 @@ pub(super) async fn context_log_reflects_current_lockfile_after_first_install() 
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
             dedicated: None,
+            discovered_workspace: None,
         },
     }
     .run::<RecordingReporter>()
@@ -521,6 +525,7 @@ async fn hoisted_node_linker_empty_lockfile_writes_modules_yaml() {
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
             dedicated: None,
+            discovered_workspace: None,
         },
     }
     .run::<SilentReporter>()
@@ -625,6 +630,7 @@ async fn fresh_install_lockfile_round_trips_through_load_save_load() {
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
             dedicated: None,
+            discovered_workspace: None,
         },
     }
     .run::<SilentReporter>()
@@ -720,6 +726,7 @@ async fn fresh_install_with_lockfile_disabled_does_not_write_a_lockfile() {
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
             dedicated: None,
+            discovered_workspace: None,
         },
     }
     .run::<SilentReporter>()
@@ -815,6 +822,7 @@ async fn fresh_install_also_writes_current_lockfile_under_virtual_store() {
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
             dedicated: None,
+            discovered_workspace: None,
         },
     }
     .run::<SilentReporter>()
@@ -929,6 +937,7 @@ async fn fresh_install_with_lockfile_disabled_writes_current_lockfile() {
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
             dedicated: None,
+            discovered_workspace: None,
         },
     }
     .run::<SilentReporter>()

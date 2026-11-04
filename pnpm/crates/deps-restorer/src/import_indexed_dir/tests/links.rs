@@ -428,9 +428,11 @@ fn internal_symlink_targets_keep_left_out_directory_links_in_fresh_staged_and_re
     write_source(&src, "omitted/file.txt", b"content");
     symlink("omitted", src.join("directory-link")).unwrap();
     symlink("omitted/file.txt", src.join("file-link")).unwrap();
+    symlink("node_modules/missing", src.join("dangling-link")).unwrap();
     let cas = cas_map(&[
         ("directory-link", src.join("directory-link")),
         ("file-link", src.join("file-link")),
+        ("dangling-link", src.join("dangling-link")),
     ]);
     let opts = ImportIndexedDirOpts {
         symlink_targets: Some(SymlinkTargets::Internal),
@@ -455,6 +457,10 @@ fn internal_symlink_targets_keep_left_out_directory_links_in_fresh_staged_and_re
         )
         .unwrap();
         assert_eq!(fs::read_link(target.join("directory-link")).unwrap(), Path::new("omitted"));
+        assert_eq!(
+            fs::read_link(target.join("dangling-link")).unwrap(),
+            Path::new("node_modules/missing"),
+        );
         assert!(fs::symlink_metadata(target.join("file-link")).unwrap().is_file());
         assert_eq!(fs::read(target.join("file-link")).unwrap(), b"content");
         assert!(!target.join("omitted").exists(), "{target:?} must not copy unselected files");

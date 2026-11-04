@@ -136,7 +136,20 @@ impl FilesIndex {
         &self,
         matches: impl Fn(&str) -> bool + Sync,
     ) -> Result<Option<Vec<u8>>, StoreIndexError> {
-        let found: Vec<(String, Vec<u8>)> = self
+        Ok(self
+            .all_matching(matches)?
+            .into_iter()
+            .next()
+            .map(|(_, value)| value))
+    }
+
+    /// The entries whose keys `matches`, in key order. Every entry is read, in
+    /// parallel.
+    pub(super) fn all_matching(
+        &self,
+        matches: impl Fn(&str) -> bool + Sync,
+    ) -> Result<Vec<(String, Vec<u8>)>, StoreIndexError> {
+        let mut found: Vec<(String, Vec<u8>)> = self
             .entry_paths()?
             .par_iter()
             .filter_map(|path| match read_entry_file(path) {
@@ -147,10 +160,8 @@ impl FilesIndex {
                 Err(error) => Some(Err(error)),
             })
             .collect::<Result<_, _>>()?;
-        Ok(found
-            .into_iter()
-            .min_by(|(left, _), (right, _)| left.cmp(right))
-            .map(|(_, value)| value))
+        found.sort_unstable_by(|(left, _), (right, _)| left.cmp(right));
+        Ok(found)
     }
 
     pub(super) fn contains_many(&self, keys: &[String]) -> Result<Vec<String>, StoreIndexError> {
@@ -251,11 +262,11 @@ fn create_temp_file_in_shard(shard: &Path) -> Result<(PathBuf, fs::File), StoreI
         {
             ensure_parent_dir(shard).map_err(to_error)?;
             create_exclusive_temp_file(shard, TEMP_FILE_PREFIX, None)
-                .map(|(path, file, _)| (path, file))
+                .map(|temp| (temp.path, temp.file))
                 .map_err(to_error)
         }
         result => result
-            .map(|(path, file, _)| (path, file))
+            .map(|temp| (temp.path, temp.file))
             .map_err(to_error),
     }
 }

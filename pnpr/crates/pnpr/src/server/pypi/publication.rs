@@ -154,6 +154,11 @@ impl PypiPublication {
         &self.key
     }
 
+    /// The organization whose catalog the file is published into.
+    pub(in super::super) fn org(&self) -> &str {
+        &self.org
+    }
+
     /// Publish this file on its own, in a transaction of one.
     pub(super) async fn publish(self, state: &AppState) -> Result<(), RegistryError> {
         store_hosted_artifact(

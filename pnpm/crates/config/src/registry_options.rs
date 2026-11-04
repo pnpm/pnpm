@@ -345,7 +345,7 @@ impl Config {
     /// [`DeclaredRegistryPrefixes`].
     #[must_use]
     pub fn declared_registry_prefixes(&self) -> DeclaredRegistryPrefixes {
-        DeclaredRegistryPrefixes::new(&self.registries_by_prefix)
+        DeclaredRegistryPrefixes::new(&self.registries_by_prefix, &self.registry)
     }
 
     /// How a package's registry is decided and what it serves, for the

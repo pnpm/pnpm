@@ -16,11 +16,15 @@ pub use hosted::{HostedConfig, Management};
 pub use ip_network::{IpNetwork, parse_trusted_proxies};
 pub use logging::{LogConfig, LogFormat, LogLevel};
 pub use metrics::MetricsConfig;
+pub use package_documents::PackageDocumentsConfig;
 pub use pnpr_policy::{TeamDirectory, Teams};
+pub use release_records::ReleaseRecordsConfig;
 pub use s3::{HostedStoreConfig, S3Settings, build_s3_store, normalize_key_prefix};
 pub use scim::ScimConfig;
 pub use secrets::{MIN_RESOLUTION_SECRET_LEN, derive_subkey, random_secret, resolution_secret};
-pub use storage_config::{CacheConfig, StorageConfig, default_cache_dir};
+pub use storage_config::{
+    CacheConfig, MetadataBackend, StorageConfig, default_cache_dir, default_metadata_path,
+};
 pub use trusted_proxy_header::TrustedProxyHeader;
 pub use upstream::{RedactedHeaders, UpstreamConfig, UpstreamRequestPolicy, parse_interval};
 pub use web_ui::UiConfig;
@@ -55,6 +59,11 @@ mod logging;
 use logging::build_log_config;
 
 mod metrics;
+
+mod package_documents;
+use package_documents::{PackageDocumentsFile, build_package_documents_config};
+mod release_records;
+use release_records::{ReleaseRecordsFile, build_release_records_config};
 
 mod registry_graph;
 use registry_graph::{
@@ -155,6 +164,8 @@ pub struct Config {
     pub identity: IdentityConfig,
     pub features: Features,
     pub routing: RoutingConfig,
+    /// How the release records of hosted versions are logged.
+    pub release_records: ReleaseRecordsConfig,
 }
 
 impl std::fmt::Debug for Config {
@@ -171,6 +182,7 @@ impl std::fmt::Debug for Config {
             .field("identity", &self.identity)
             .field("features", &self.features)
             .field("routing", &self.routing)
+            .field("release_records", &self.release_records)
             .finish()
     }
 }
@@ -210,6 +222,8 @@ pub struct HttpConfig {
     pub request_timeout: Option<Duration>,
     /// Who may scrape Prometheus metrics. `None` serves none.
     pub metrics: Option<MetricsConfig>,
+    /// How pnpr's own package document is served.
+    pub package_documents: PackageDocumentsConfig,
 }
 
 impl HttpConfig {

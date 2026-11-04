@@ -18,7 +18,7 @@ use pnpm_package_manifest::{
 use pnpm_reporter::{GlobalLog, LogEvent, LogLevel};
 use pnpm_store_dir::{
     PackageFilesIndex, PendingFilesCheck, PkgContentMismatch, SharedReadonlyStoreIndex,
-    SharedVerifiedFilesCache, StoreDir, VerifiedModes,
+    SharedVerifiedFilesCache, StoreDir, files_maps,
 };
 
 /// Pre-fetched cas-paths map shared across all per-snapshot futures.
@@ -160,20 +160,17 @@ impl PrefetchResult {
             .into_iter()
             .filter_map(|cache_key| self.pending_checks.remove_entry(cache_key))
             .collect();
-        let checked: Vec<(String, Option<VerifiedModes>)> = checks
+        let failed: Vec<String> = checks
             .into_par_iter()
-            .map(|(cache_key, check)| {
-                let modes = check.verify(store_dir, verified_files_cache);
-                (cache_key, modes)
+            .filter_map(|(cache_key, check)| {
+                let no_files = pnpm_store_dir::FilesMap::new();
+                let files = self.cas_paths.get(&cache_key).map_or(&no_files, |files| &**files);
+                let overlays = self.side_effects_maps.get(&cache_key).map(|maps| &**maps);
+                let passed =
+                    check.verify(store_dir, verified_files_cache, &files_maps(files, overlays));
+                (!passed).then_some(cache_key)
             })
             .collect();
-        let mut failed = Vec::new();
-        for (cache_key, modes) in checked {
-            match modes {
-                Some(modes) => self.apply_modes(&cache_key, &modes),
-                None => failed.push(cache_key),
-            }
-        }
         for cache_key in &failed {
             tracing::debug!(
                 target: "pacquet::download",
@@ -183,19 +180,6 @@ impl PrefetchResult {
             self.remove_row(cache_key);
         }
         failed.len()
-    }
-
-    /// Hand the modes a row's files check read to the importer, through
-    /// the row's files and every side-effects overlay that shares them.
-    fn apply_modes(&mut self, cache_key: &str, modes: &VerifiedModes) {
-        if let Some(files) = self.cas_paths.get_mut(cache_key) {
-            modes.apply(Arc::make_mut(files));
-        }
-        if let Some(overlays) = self.side_effects_maps.get_mut(cache_key) {
-            for overlay in Arc::make_mut(overlays).values_mut() {
-                modes.apply(&mut overlay.files);
-            }
-        }
     }
 
     /// Drop every row whose key `keep` rejects, along with its pending

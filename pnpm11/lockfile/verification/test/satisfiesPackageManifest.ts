@@ -1,10 +1,18 @@
 import { expect, test } from '@jest/globals'
 import { satisfiesPackageManifest } from '@pnpm/lockfile.verification'
+import type { WorkspacePackages } from '@pnpm/resolving.resolver-base'
+import type { ProjectRootDir } from '@pnpm/types'
 
 const DEFAULT_PKG_FIELDS = {
   name: 'project',
   version: '1.0.0',
 }
+
+const workspacePackages: WorkspacePackages = new Map([
+  ['bar', new Map([
+    ['1.2.0', { rootDir: '/workspace/bar' as ProjectRootDir, manifest: { name: 'bar', version: '1.2.0' } }],
+  ])],
+])
 
 test('satisfiesPackageManifest()', () => {
   expect(satisfiesPackageManifest(
@@ -543,5 +551,77 @@ test('satisfiesPackageManifest() checks a registry-qualified version against the
   expect(satisfiesPackageManifest({}, importer('work:2.0.0'), pkg)).toStrictEqual({
     satisfies: false,
     detailedReason: 'The importer resolution is broken at dependency "@work/foo": version "2.0.0" doesn\'t satisfy range "^1.0.0"',
+  })
+})
+
+test.each(['*', 'x', '>=0', '', '^1.0.0 || '])('satisfiesPackageManifest() accepts a prerelease resolved from %j', (range) => {
+  expect(satisfiesPackageManifest({}, {
+    dependencies: { 'only-pre': '1.0.0-alpha.0' },
+    specifiers: { 'only-pre': range },
+  }, {
+    ...DEFAULT_PKG_FIELDS,
+    dependencies: { 'only-pre': range },
+  })).toStrictEqual({ satisfies: true })
+})
+
+test('satisfiesPackageManifest() accepts a workspace link that excludeLinksFromLockfile left out', () => {
+  const importer = {
+    dependencies: { foo: '1.0.0' },
+    specifiers: { foo: '1.0.0' },
+  }
+  const pkg = {
+    ...DEFAULT_PKG_FIELDS,
+    dependencies: {
+      foo: '1.0.0',
+      bar: '^1.0.0',
+    },
+  }
+  const opts = { excludeLinksFromLockfile: true, workspacePackages }
+  expect(satisfiesPackageManifest(opts, importer, pkg)).toStrictEqual({ satisfies: true })
+  expect(satisfiesPackageManifest(opts, importer, {
+    ...DEFAULT_PKG_FIELDS,
+    dependencies: { foo: '1.0.0' },
+    devDependencies: { bar: '^1.0.0' },
+  })).toStrictEqual({ satisfies: true })
+})
+
+test('satisfiesPackageManifest() reports a dependency added to the manifest that no workspace package matches', () => {
+  const importer = {
+    dependencies: { foo: '1.0.0' },
+    specifiers: { foo: '1.0.0' },
+  }
+  const pkg = (barSpec: string) => ({
+    ...DEFAULT_PKG_FIELDS,
+    dependencies: {
+      foo: '1.0.0',
+      bar: barSpec,
+    },
+  })
+  const added = (barSpec: string) => ({
+    satisfies: false,
+    detailedReason: `specifiers in the lockfile don't match specifiers in package.json:\n* 1 dependencies were added: bar@${barSpec}\n`,
+  })
+  expect(satisfiesPackageManifest({ excludeLinksFromLockfile: true, workspacePackages }, importer, pkg('^2.0.0'))).toStrictEqual(added('^2.0.0'))
+  expect(satisfiesPackageManifest({ excludeLinksFromLockfile: true }, importer, pkg('^1.0.0'))).toStrictEqual(added('^1.0.0'))
+  expect(satisfiesPackageManifest({ workspacePackages }, importer, pkg('^1.0.0'))).toStrictEqual(added('^1.0.0'))
+})
+
+test('satisfiesPackageManifest() accepts a catalog entry that excludeLinksFromLockfile left out as a workspace link', () => {
+  const importer = {
+    dependencies: { foo: '1.0.0' },
+    specifiers: { foo: '1.0.0' },
+  }
+  const pkg = {
+    ...DEFAULT_PKG_FIELDS,
+    dependencies: {
+      foo: '1.0.0',
+      bar: 'catalog:',
+    },
+  }
+  const opts = (barEntry: string) => ({ excludeLinksFromLockfile: true, workspacePackages, catalogs: { default: { bar: barEntry } } })
+  expect(satisfiesPackageManifest(opts('^1.0.0'), importer, pkg)).toStrictEqual({ satisfies: true })
+  expect(satisfiesPackageManifest(opts('^2.0.0'), importer, pkg)).toStrictEqual({
+    satisfies: false,
+    detailedReason: 'specifiers in the lockfile don\'t match specifiers in package.json:\n* 1 dependencies were added: bar@catalog:\n',
   })
 })

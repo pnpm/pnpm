@@ -316,6 +316,7 @@ async fn resolve_via_mock(
             needs_full_metadata_for: None,
             filter_metadata: false,
             registry_options_by_url: std::sync::Arc::default(),
+            minimum_release_age: None,
         },
         cache_policy: pnpm_resolving_npm_resolver::MetadataCachePolicy {
             network: pnpm_config::NetworkPolicy::Online,

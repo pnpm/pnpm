@@ -9,11 +9,16 @@ Managing the package store.
 
 ### status
 
-Checks the packages listed in the current project's lockfile for modifications in the store.
+Checks the packages listed in the current project's lockfile for modifications
+in the project or global virtual store.
 
 Returns exit code 0 if the content of the package is the same as it was at the
 time of unpacking. Otherwise it fails with `ERR_PNPM_MODIFIED_DEPENDENCY` and
 lists the modified packages.
+
+If an installed global-store package cannot be located or its project link points
+to a different slot, the command fails with
+`ERR_PNPM_STORE_STATUS_UNVERIFIABLE`. Run `pnpm install` before checking again.
 
 ### add
 
@@ -23,6 +28,25 @@ store directly without modifying any projects or files outside of the store.
 ```sh
 pnpm store add express@4
 ```
+
+It also takes package tarballs that were downloaded some other way. This
+prepares the store for an install without network access, such as a sandboxed
+build that downloads its sources ahead of time:
+
+```sh
+pnpm store add ./tarballs/*.tgz
+pnpm install --offline --frozen-lockfile
+```
+
+An install takes a registry package from such a tarball when its lockfile entry
+names the same package and version and pins that tarball. The entry's
+`integrity` can be the tarball's sha512 or sha1, or the hash of the uncompressed
+tar inside it, which
+[`lockfile.integrityTarget: tar`](../settings/store.md#lockfileintegritytarget)
+records.
+
+For a package from a [named registry](../package-sources.md#named-registries)
+that the project declares, run `pnpm store add` in that project.
 
 [`pnpm add`]: ./add.md
 

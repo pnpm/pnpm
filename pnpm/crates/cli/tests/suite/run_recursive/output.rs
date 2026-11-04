@@ -586,3 +586,100 @@ fn use_stderr_diverts_reporter_output() {
 
     drop(root);
 }
+
+#[test]
+fn github_actions_groups_serial_scripts_even_after_failure() {
+    for flags in [vec!["--sequential"], vec!["--workspace-concurrency=1"]] {
+        let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+        write_workspace(
+            &workspace,
+            &[
+                (
+                    "project-1",
+                    json!({"name": "project-1", "version": "1.0.0",
+                "scripts": {"test": r#"node -e "console.log('first-output');process.exit(1)""#}}),
+                ),
+                (
+                    "project-2",
+                    json!({"name": "project-2", "version": "1.0.0",
+                "scripts": {"test": r#"node -e "console.log('second-output')""#}}),
+                ),
+            ],
+        );
+        let output = pacquet
+            .with_env("GITHUB_ACTIONS", "true")
+            .with_env("CI", "true")
+            .with_args(["-r", "--no-bail", "run"])
+            .with_args(flags)
+            .with_arg("test")
+            .assert()
+            .failure()
+            .get_output()
+            .clone();
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let groups: Vec<_> = stdout
+            .split("::group::")
+            .skip(1)
+            .collect();
+        assert_eq!(groups.len(), 2, "{stdout}");
+        for (group, name, marker) in
+            [(groups[0], "project-1", "first-output"), (groups[1], "project-2", "second-output")]
+        {
+            assert!(group.starts_with(&format!("{name}@1.0.0 : test {name}")), "{group}");
+            let end = group.find("::endgroup::").expect("closed group");
+            assert!(
+                group
+                    .find(&format!("\n{marker}"))
+                    .expect("script output")
+                    < end,
+                "{group}",
+            );
+        }
+        drop(root);
+    }
+}
+
+#[test]
+fn github_actions_omits_groups_for_silent_or_concurrent_runs() {
+    for flags in
+        [vec!["--silent", "--sequential"], vec!["--workspace-concurrency=2"], vec!["--parallel"]]
+    {
+        let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+        write_workspace(&workspace, &[("project-1", echoes_ok("project-1"))]);
+        let output = pacquet
+            .with_env("GITHUB_ACTIONS", "true")
+            .with_env("CI", "true")
+            .with_args(["-r", "run"])
+            .with_args(flags)
+            .with_arg("test")
+            .assert()
+            .success()
+            .get_output()
+            .clone();
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        assert!(!stdout.contains("::group::"), "{stdout}");
+        assert!(!stdout.contains("::endgroup::"), "{stdout}");
+        drop(root);
+    }
+}
+
+#[test]
+fn serial_scripts_omit_groups_outside_github_actions() {
+    for (github_actions, ci) in [("false", "true"), ("true", "false")] {
+        let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+        write_workspace(&workspace, &[("project-1", echoes_ok("project-1"))]);
+        let output = pacquet
+            .with_env("GITHUB_ACTIONS", github_actions)
+            .with_env("CI", ci)
+            .with_args(["-r", "run", "--sequential", "test"])
+            .assert()
+            .success()
+            .get_output()
+            .clone();
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        assert!(!stdout.contains("::group::"), "{stdout}");
+        assert!(!stdout.contains("::endgroup::"), "{stdout}");
+        assert!(stdout.contains("OK"), "{stdout}");
+        drop(root);
+    }
+}

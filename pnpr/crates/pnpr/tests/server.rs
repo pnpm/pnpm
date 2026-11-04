@@ -34,6 +34,15 @@ mod packuments;
 #[path = "server/tar_registry.rs"]
 mod tar_registry;
 
+#[path = "server/package_documents.rs"]
+mod package_documents;
+
+#[path = "server/release_record_logs.rs"]
+mod release_record_logs;
+
+#[path = "server/platform_variants.rs"]
+mod platform_variants;
+
 #[path = "server/version_tarballs.rs"]
 mod version_tarballs;
 
@@ -69,7 +78,7 @@ use pnpr::{
     PackageRule, PackageRules, PublicRoute, Registries, Registry, router, router_with_auth,
 };
 use pnpr_fixtures::MockConfigPresets;
-use pnpr_storage::layout::{blob_segment, local_document_path, package_segments};
+use pnpr_storage::layout::{blob_segment, package_segments};
 use serde_json::{Value, json};
 use ssri::{Algorithm, IntegrityOpts};
 use std::{
@@ -295,7 +304,7 @@ fn gzip(bytes: &[u8]) -> Vec<u8> {
 
 /// A package tar holding `package/package.json` with `contents`, and its
 /// `.tgz`.
-fn package_tar_and_tgz(contents: &str) -> (Vec<u8>, Vec<u8>) {
+pub(crate) fn package_tar_and_tgz(contents: &str) -> (Vec<u8>, Vec<u8>) {
     let tar = tar_of(&[("package/package.json", contents.as_bytes())]);
     let tgz = gzip(&tar);
     (tar, tgz)
@@ -316,15 +325,16 @@ fn hosted_publish_request(
 ) -> Request<Body> {
     use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 
+    let tarball = &crate::npm::publishable_tgz(package, version, tarball);
     let basename = package.rsplit('/').next().unwrap();
     let attachment = format!("{package}-{version}.tgz");
     let body = json!({
         "name": package,
         "dist-tags": { "latest": version },
-        "versions": { (version): { "name": package, "version": version, "dist": {
+        "versions": { (version): crate::npm::version_metadata(tarball, package, version, json!({
             "tarball": format!("http://example.test/{package}/-/{basename}-{version}.tgz"),
             "integrity": sha512_integrity(tarball),
-        } } },
+        })) },
         "_attachments": { (attachment): {
             "content_type": "application/octet-stream",
             "data": BASE64.encode(tarball),
@@ -618,17 +628,26 @@ fn seed_hosted(storage: &Path, org: &str, pkg: &str) {
             "shasum": "abc",
         } } },
     });
-    let document = local_document_path(storage, org, pnpr_storage::Ecosystem::Npm, pkg);
-    std::fs::create_dir_all(document.parent().unwrap()).unwrap();
-    std::fs::write(document, packument.to_string()).unwrap();
+    write_hosted_packument(storage, org, pkg, &packument);
 }
 
 fn seed_hosted_with_maintainer(storage: &Path, pkg: &str, maintainer: &str) {
     seed_hosted(storage, "", pkg);
-    let path = local_document_path(storage, "", pnpr_storage::Ecosystem::Npm, pkg);
-    let mut packument: Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+    let mut packument = read_hosted_packument(storage, "", pkg).unwrap();
     packument["maintainers"] = json!([{ "username": maintainer }]);
-    std::fs::write(path, serde_json::to_vec(&packument).unwrap()).unwrap();
+    write_hosted_packument(storage, "", pkg, &packument);
+}
+
+/// The packument of `pkg` in `org`'s namespace of the hosted store at
+/// `storage`, as its metadata holds it.
+fn read_hosted_packument(storage: &Path, org: &str, pkg: &str) -> Option<Value> {
+    pnpr_fixtures::read_hosted_document(storage, org, pnpr_storage::Ecosystem::Npm, pkg)
+        .map(|bytes| serde_json::from_slice(&bytes).unwrap())
+}
+
+fn write_hosted_packument(storage: &Path, org: &str, pkg: &str, packument: &Value) {
+    let bytes = serde_json::to_vec(packument).unwrap();
+    pnpr_fixtures::write_hosted_document(storage, org, pnpr_storage::Ecosystem::Npm, pkg, &bytes);
 }
 
 /// The grouped config declares `internal` and the `main` router over it in

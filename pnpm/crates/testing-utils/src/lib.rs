@@ -12,6 +12,8 @@ pub mod fixtures;
 pub mod fs;
 pub mod git_repo;
 pub mod known_failure;
+#[cfg(target_os = "linux")]
+pub mod open_counter;
 #[cfg(windows)]
 pub mod privileges;
 #[cfg(unix)]

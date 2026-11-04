@@ -173,6 +173,22 @@ describe('projectRegistry', () => {
         expect((await fs.stat(packageDir)).isDirectory()).toBe(true)
       }))
     })
+
+    it('keeps packages linked from a modules directory it is given', async () => {
+      const root = await fs.realpath(temporaryDirectory())
+      const storeDir = path.join(root, 'store')
+      const projectDir = await createProject(root, 'project')
+      const modulesDir = path.join(projectDir, 'custom_modules')
+      const packageDir = path.join(storeDir, 'links', '@', 'custom', '1.0.0', 'hash', 'node_modules', 'custom')
+      await fs.mkdir(packageDir, { recursive: true })
+      await fs.mkdir(modulesDir)
+      await fs.symlink(packageDir, path.join(modulesDir, 'custom'), 'junction')
+      await registerProject(storeDir, projectDir)
+
+      await pruneGlobalVirtualStore(storeDir, [modulesDir])
+
+      expect((await fs.stat(packageDir)).isDirectory()).toBe(true)
+    })
   })
 })
 

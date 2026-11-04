@@ -46,6 +46,7 @@ async fn a_copy_offered_to_a_full_queue_is_dropped() {
         &pnpr_config::HostedStoreConfig::Fs,
         storage_dir.path().join("storage"),
         storage_dir.path().join("cache"),
+        &pnpr_config::MetadataBackend::Sqlite(storage_dir.path().join("metadata.sqlite")),
     )
     .unwrap();
     let name =

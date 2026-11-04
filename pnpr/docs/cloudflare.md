@@ -16,13 +16,14 @@ survive lives somewhere else:
 
 - Published packages go to an R2 bucket. pnpr talks to it through its
   [S3 backend](storage.md), and R2 charges nothing for egress.
-- Users and tokens go to a [Turso](https://turso.tech) database through the
+- Package metadata, users, and tokens go to a [Turso](https://turso.tech)
+  database, through [libSQL metadata](storage.md#libsql-metadata) and the
   [libsql auth backend](auth-backends.md). Cloudflare's own databases do not
   speak a protocol pnpr can use, so Turso is the simplest option.
-- The upstream cache and the publish journal stay on the container's disk.
-  Losing the cache only means fetching from npm again. Losing the journal in
-  the middle of a publish is the ephemeral-disk case described in
-  [Storage](storage.md#s3-publish-journal-and-lifecycle-caveats).
+- The upstream cache stays on the container's disk. Losing it only means
+  fetching from npm again. A container that stops in the middle of a publish
+  leaves blobs no package references, as described in
+  [Storage](storage.md#interruptions).
 
 ## Before you start
 
@@ -60,6 +61,13 @@ s3:
   region: auto
   endpoint: https://<account-id>.r2.cloudflarestorage.com
   # Credentials come from AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY.
+
+metadata:
+  url: ${PNPR_LIBSQL_URL}
+  authToken: ${PNPR_LIBSQL_TOKEN}
+  # Package views are read from a local replica, rebuilt on each start.
+  replicaPath: /pnpr/cache/metadata-replica.db
+  syncInterval: 10s
 
 backend:
   libsql:

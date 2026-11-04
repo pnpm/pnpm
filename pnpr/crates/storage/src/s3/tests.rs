@@ -154,8 +154,8 @@ async fn concurrent_blob_finalize_does_not_overwrite() {
     tokio::fs::write(&tmp, b"tarball A").await.unwrap();
     assert_eq!(store.upload_blob(&tmp, &name, file).await.unwrap(), BlobFinalize::Written);
 
-    // Re-promoting byte-identical content is a tolerated no-op, so idempotent
-    // journal roll-forward and concurrent identical publishes don't conflict.
+    // Re-promoting byte-identical content is a tolerated no-op, so a retried
+    // publish and concurrent identical publishes don't conflict.
     let tmp = store.staging_tmp_path(&name, file).await.unwrap();
     tokio::fs::write(&tmp, b"tarball A").await.unwrap();
     assert_eq!(store.upload_blob(&tmp, &name, file).await.unwrap(), BlobFinalize::AlreadyIdentical);
@@ -247,21 +247,6 @@ async fn remove_blob_then_package() {
             .unwrap()
             .is_none(),
     );
-}
-
-#[tokio::test]
-async fn lists_hosted_package_names() {
-    for prefix in ["", "packages", "npm~internal"] {
-        let (store, _staging) = store_with_prefix(prefix);
-        write_document(&store, &pkg("is-positive"), b"{}").await;
-        write_document(&store, &pkg("@scope/thing"), b"{}").await;
-        // A stray blob-only key must not be mistaken for a package.
-        upload(&store, &pkg("is-positive"), "is-positive-1.0.0.tgz", b"x").await;
-
-        let mut names = store.list_package_names().await.unwrap();
-        names.sort();
-        assert_eq!(names, vec!["@scope/thing".to_string(), "is-positive".to_string()]);
-    }
 }
 
 #[test]

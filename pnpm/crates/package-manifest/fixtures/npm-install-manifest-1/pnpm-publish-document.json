@@ -1,0 +1,88 @@
+{
+  "description": "pnpm publish submits the manifest it packed, so the two sides are identical.",
+  "archive": {
+    "packageJson": {
+      "name": "@example/app",
+      "version": "3.1.0",
+      "bin": {
+        "app": "./dist/cli.js"
+      },
+      "dependencies": {
+        "@example/core": "3.1.0"
+      },
+      "peerDependencies": {
+        "react": ">=18"
+      },
+      "peerDependenciesMeta": {
+        "react": {
+          "optional": true
+        }
+      },
+      "engines": {
+        "node": ">=20"
+      },
+      "scripts": {
+        "build": "tsc"
+      }
+    },
+    "files": [
+      "package.json",
+      "dist/cli.js"
+    ]
+  },
+  "submitted": {
+    "name": "@example/app",
+    "version": "3.1.0",
+    "bin": {
+      "app": "./dist/cli.js"
+    },
+    "dependencies": {
+      "@example/core": "3.1.0"
+    },
+    "peerDependencies": {
+      "react": ">=18"
+    },
+    "peerDependenciesMeta": {
+      "react": {
+        "optional": true
+      }
+    },
+    "engines": {
+      "node": ">=20"
+    },
+    "scripts": {
+      "build": "tsc"
+    },
+    "_id": "@example/app@3.1.0",
+    "dist": {
+      "integrity": "sha512-AAAA"
+    }
+  },
+  "expected": {
+    "manifest": {
+      "name": "@example/app",
+      "version": "3.1.0",
+      "dependencies": {
+        "@example/core": "3.1.0"
+      },
+      "peerDependencies": {
+        "react": ">=18"
+      },
+      "peerDependenciesMeta": {
+        "react": {
+          "optional": true
+        }
+      },
+      "engines": {
+        "node": ">=20"
+      },
+      "bin": {
+        "app": "dist/cli.js"
+      },
+      "hasInstallScript": false,
+      "hasShrinkwrap": false
+    },
+    "mismatched": [],
+    "tolerated": []
+  }
+}

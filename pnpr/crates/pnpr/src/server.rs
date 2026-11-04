@@ -1,5 +1,5 @@
 pub(crate) use client_ip::{ClientIp, resolve_client_ip};
-pub use lifecycle::{recover_publish_journal, serve, serve_listener};
+pub use lifecycle::{prepare_storage, serve, serve_listener};
 pub(crate) use metrics::{ServerMetrics, serve_metrics};
 pub(crate) use request_access::compute_upstream_cache_namespace;
 pub(crate) use request_id::{RequestId, generate_request_id, is_valid_request_id};
@@ -9,6 +9,8 @@ pub(crate) use tcp_listener::PeerAddr;
 pub(crate) use self::striped_locks::StripedLocks;
 
 mod lifecycle;
+mod log_routes;
+mod release_record_logs;
 use lifecycle::load_active_osv_index;
 
 mod tcp_listener;
@@ -42,8 +44,8 @@ use osv_filtering::{
 
 mod tar_registry;
 use tar_registry::{
-    DistView, describe_tar, describe_tars, dist_view, is_tar_registry, restore_tgz_integrities,
-    split_package_identifier, tar_integrities_of, tgz_integrity_key,
+    DistView, describe_tar, describe_tars, dist_view, has_settled_tar_facts, is_tar_registry,
+    restore_tgz_integrities, split_package_identifier, tar_integrities_of, tgz_integrity_key,
 };
 
 mod tar_responses;
@@ -59,10 +61,11 @@ mod tar_variants;
 use tar_variants::{TarCopy, TarVariantQueue, open_variant};
 
 mod package_responses;
+mod split_packuments;
 use package_responses::{
     DistBlock, PackumentDists, TarballDist, declared_tarball_integrity, expected_tarball_dist,
     packument_bytes_response, packument_response, tarball_integrity_error, tarball_response,
-    tarball_stream_error, tarball_stream_error_for_package,
+    tarball_stream_error, tarball_stream_error_for_package, with_generation,
 };
 
 mod package_reads;
@@ -75,6 +78,8 @@ use package_reads::{
 
 mod revision_tarballs;
 use revision_tarballs::serve_revision_tarball;
+
+mod variant_tarballs;
 
 mod upstream_tarballs;
 use upstream_tarballs::{
@@ -114,10 +119,12 @@ mod health;
 use health::shutdown_signal;
 mod managed_state;
 mod metrics;
+mod notes;
 mod oci;
 mod oidc;
 mod oidc_groups;
 mod package_mutation;
+mod publications;
 mod publishing;
 mod pypi;
 mod rate_limit;
@@ -132,6 +139,7 @@ mod security_audit;
 mod singleflight;
 use singleflight::Singleflight;
 mod staged;
+mod staged_archives;
 mod striped_locks;
 mod team_access;
 mod team_mutations;
@@ -145,7 +153,6 @@ mod tests;
 
 use self::{
     authentication::{Action, AuthedCaller, authenticate, authorize, authorize_package},
-    documents::RegistryDocuments,
     ecosystem::{addressed_registry, caller_scoped, registry_endpoint},
     package_mutation::{
         delete_package, delete_tarball, get_dist_tags, remove_dist_tag, set_dist_tag,
@@ -153,7 +160,7 @@ use self::{
     },
     publishing::{
         PublishTarget, check_publish_tombstone, commit_publishes, publish_package,
-        resolve_publish_target_for, stage_publish, validate_publish_doc,
+        resolve_publish_target_for, routes_to_upstream, stage_publish, validate_publish_doc,
     },
     routing::{metrics_listener_router, router_with_auth_and_osv, state_and_router},
 };
@@ -202,6 +209,12 @@ use std::{collections::HashSet, net::SocketAddr, sync::Arc, time::Duration};
 /// full document instead bloats the wire by 2–10× on packuments with
 /// long version histories.
 const ABBREVIATED_CONTENT_TYPE: &str = "application/vnd.npm.install-v1+json";
+
+/// The response header that carries the catalog generation a hosted package
+/// view was rendered from, or that a mutation committed, as
+/// `<catalog>:<generation>`. Only a metadata backend that tracks generations
+/// sends it.
+const GENERATION_HEADER: &str = "pnpr-generation";
 
 /// Cap tarballs at 100 MiB while pnpr has to spool them to disk for SRI
 /// verification. This bounds per-request temporary disk usage for

@@ -1,9 +1,9 @@
 use super::{
     AddError, AddOptions, AddOwned, AddResolution, AddResolveInputs, resolve_added_dependency,
-    workspace_packages_for_add,
+    workspace_projects_for_add,
 };
 use crate::{
-    CatalogDecision, DIRECT_GROUPS,
+    CatalogDecision, DIRECT_GROUPS, DiscoveredWorkspace,
     catalog_cleanup::{write_workspace_catalogs, write_workspace_catalogs_selected},
     emit_initial_package_manifest,
 };
@@ -38,13 +38,13 @@ pub(super) async fn prepare_single_add<Reporter: self::Reporter>(
     add: AddOptions<'_>,
     owned: &AddOwned,
     manifest: &mut PackageManifest,
-) -> Result<(AddCatalogCtx, PreparedManifest), AddError> {
+) -> Result<SingleAddPreparation, AddError> {
     let resolution = AddResolution::new();
     let catalog_ctx = read_catalog_ctx(manifest, add.config)?;
-    let workspace_packages = (add.config.link_workspace_packages.enabled_at_depth(0)
-        || add.config.save_workspace_protocol != SaveWorkspaceProtocol::Rolling)
-        .then(|| workspace_packages_for_add(add.config))
-        .flatten();
+    let mut workspace_projects =
+        walk_workspace_for_add(add, owned, &catalog_ctx.catalogs, manifest);
+    let workspace_packages =
+        crate::install::build_workspace_packages_map(workspace_projects.as_deref());
     let git_source_cache = Arc::new(pnpm_git_fetcher::GitSourceCache::default());
     let prepared = prepare_manifest::<Reporter>(
         manifest,
@@ -73,8 +73,31 @@ pub(super) async fn prepare_single_add<Reporter: self::Reporter>(
         manifest,
     )
     .map_err(AddError::WriteWorkspaceManifest)?;
-    Ok((catalog_ctx, prepared))
+    if let Some(projects) = &mut workspace_projects {
+        crate::install::replace_project_manifest(projects, manifest);
+    }
+    let workspace = workspace_projects.map(DiscoveredWorkspace::new);
+    Ok(SingleAddPreparation { catalog_ctx, prepared, workspace })
 }
+/// The workspace projects, walked only when resolving the selectors reads them.
+fn walk_workspace_for_add(
+    add: AddOptions<'_>,
+    owned: &AddOwned,
+    catalogs: &Catalogs,
+    manifest: &PackageManifest,
+) -> Option<Vec<pnpm_workspace::Project>> {
+    (add.config.link_workspace_packages.enabled_at_depth(0)
+        || add.config.save_workspace_protocol != SaveWorkspaceProtocol::Rolling
+        || super::range_fallback::needs_workspace_range_fallback(
+            add,
+            owned.save_catalog_name.as_deref(),
+            catalogs,
+            manifest,
+        ))
+    .then(|| workspace_projects_for_add(add.config, manifest))
+    .flatten()
+}
+
 pub(super) fn catalog_version_requests(
     package_selectors: &[String],
     manifest: &PackageManifest,
@@ -136,6 +159,13 @@ pub(super) fn catalog_version_request(
         return None;
     }
     Some((alias, wanted))
+}
+pub(super) struct SingleAddPreparation {
+    pub(super) catalog_ctx: AddCatalogCtx,
+    pub(super) prepared: PreparedManifest,
+    /// The workspace projects the add walked, with the manifest it
+    /// rewrote, for the install to read instead of walking them again.
+    pub(super) workspace: Option<DiscoveredWorkspace>,
 }
 pub(super) struct AddCatalogCtx {
     pub(super) catalogs: Catalogs,

@@ -77,7 +77,7 @@ Registries do not all lay out tarball URLs the way the npm registry does. pnpm o
 | *undeclared*  | Strict: a tarball URL is omitted only when it is exactly the canonical npm-layout URL (`<registry>/<name>/-/<scopeless-name>-<version>.tgz`). This is how every registry but `registry.npmjs.org` is read by default.                                                          |
 | `npm`         | The server behaves like `registry.npmjs.org`, which serves a scoped package from the percent-encoded path (`/@acme%2Fwidget/...`) as well as the unencoded one. A faithful mirror or caching proxy of the public registry is this. Built in for `registry.npmjs.org` itself.   |
 | `artifactory` | The server repeats the scope in a scoped package's tarball filename: `@acme/widget/-/@acme/widget-1.0.0.tgz`, where the npm layout strips it (`@acme/widget/-/widget-1.0.0.tgz`).                                                                                              |
-| `pnpr`        | The server serves a version's tarball at `<registry>/<name>@<version>`, such as `@acme/widget@1.0.0`. pnpr uses this layout on both `.tgz` registries and [tar registries](#tar-registries), except for a version with [registry revisions](./registry-revisions.md). |
+| `pnpr`        | The server serves a version's tarball at `<registry>/<name>@<version>`, such as `@acme/widget@1.0.0`. pnpr uses this layout on both `.tgz` registries and [tar registries](#tar-registries), except for a version with [registry revisions](./registry-revisions.md). pnpm also sends [release notes](./cli/publish.md#--release-notes-file) to the server and reads them from it. |
 
 For a JFrog Artifactory registry this is the difference between a lockfile that records a host-specific tarball URL for **every scoped package** and one that records none of them:
 
@@ -99,6 +99,14 @@ Values for common servers:
 | Verdaccio, Sonatype Nexus, Azure Artifacts            | None needed. They serve the exact canonical npm layout, which the strict default already reconstructs.                    |
 | GitHub Packages                                       | None. Its download URLs contain a content digest that cannot be derived from the package's identity, so they are kept in the lockfile. |
 | GitHub Enterprise Server                              | None. It serves a scoped package only from the percent-encoded path, which the strict default keeps in the lockfile and requests verbatim.  |
+
+A registry declared `serverType: pnpr` is also asked for pnpr's own package document, which is smaller than npm's and carries what only pnpr records: the selected [registry revision](./registry-revisions.md) of each version and the facts pnpr verified about each archive, such as whether it needs a build. A large document leaves out the manifests of the versions a resolution rarely picks, and pnpm fetches the manifest of such a version when it picks one. pnpm keeps these documents in `v12/metadata-pnpr` in the cache directory, apart from npm's documents.
+
+A version in pnpr's package document can carry platform variants: archives built for particular platforms, published with the version. pnpm records every variant in `pnpm-lock.yaml`, so the lockfile is the same on every machine, and links the variant that fits the host as the package itself. A host that no variant fits gets the version's own archive. Each variant's dependencies are recorded under `<name>@<version>/variants/<tag>` in `snapshots` when they differ from the version's, and pnpm installs only those of the variant it links.
+
+pnpr's package document supports a [`minimumReleaseAge`](./settings/dependency-resolution.md#minimumreleaseage) of at most 43200 minutes (30 days). A longer one fails the resolution with `ERR_PNPM_UNSUPPORTED_MINIMUM_RELEASE_AGE` when pnpm reads a package from a registry declared `serverType: pnpr`.
+
+A pnpr server identifies itself in its responses. When a registry that is not declared `serverType: pnpr` turns out to be pnpr, pnpm warns once and installs from npm's documents, without revisions or pnpr's facts about the archives.
 
 The layout is declared, never inferred: a virtual repository can serve both layouts at once, depending on whether each package was synced from an upstream or published locally, so there is no registry-level signal pnpm could sniff. Declaring it also keeps a wrong value a fixable misconfiguration instead of a silent breakage.
 

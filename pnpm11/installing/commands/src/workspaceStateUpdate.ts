@@ -8,7 +8,7 @@ import type { DryRunInstallResult } from '@pnpm/installing.deps-installer'
 import { getWantedLockfileName, type LockfileObject, readWantedLockfile } from '@pnpm/lockfile.fs'
 import { findMovedRegistryKey, findOutdatedRegistryKey } from '@pnpm/lockfile.utils'
 import type { Project, ProjectManifest, ProjectRootDir, RegistryContext } from '@pnpm/types'
-import { loadWorkspaceState, type ProjectsList, recordedRegistryPrefixes, recordedRegistryRoutes, sharedInputPaths, type StateValidationOptions, updateWorkspaceState, type WorkspaceStateSettings } from '@pnpm/workspace.state'
+import { loadWorkspaceState, type ProjectsList, recordedRegistryKeySettings, recordedRegistryRoutes, type RegistryKeySettings, sharedInputPaths, type StateValidationOptions, updateWorkspaceState, type WorkspaceStateSettings } from '@pnpm/workspace.state'
 import { equals, once } from 'ramda'
 
 import type { InstallDepsOptions } from './installDeps.js'
@@ -49,7 +49,7 @@ export async function updateSingleProjectWorkspaceState (
     allProjects: projectsToRecordInWorkspaceState(allProjects, opts, manifest),
     settings: {
       ...withUpdatedCatalogs(opts, updatedCatalogs),
-      registryPrefixes: await verifiedRegistryPrefixes(opts, readLockfiles),
+      ...await verifiedRegistryKeySettings(opts, readLockfiles),
       registryRoutes: await registryRoutesAfterInstall(opts, filteredInstall, readLockfiles),
     },
     workspaceDir: opts.lockfileDir ?? opts.workspaceDir ?? opts.dir,
@@ -80,7 +80,7 @@ export async function recursiveInstallThenUpdateWorkspaceState (
       settings: {
         ...withUpdatedCatalogs(opts, updatedCatalogs, recursiveResult.updatedCatalogs),
         storeDir: configuredStoreDir,
-        registryPrefixes: await verifiedRegistryPrefixes(opts, readLockfiles),
+        ...await verifiedRegistryKeySettings(opts, readLockfiles),
         registryRoutes: await registryRoutesAfterInstall(opts, filteredInstall, readLockfiles),
       },
       workspaceDir: opts.lockfileDir ?? opts.workspaceDir,
@@ -138,24 +138,25 @@ async function stateValidation (
 type LockfileReadOptions = Pick<InstallDepsOptions, 'mergeGitBranchLockfiles' | 'useGitBranchLockfile'>
 
 /**
- * The `registryPrefixes` this install records (see `recordedRegistryPrefixes`),
- * when the keys of every lockfile it left behind are the ones it describes. The lockfiles are
- * read back from disk, so the keys of importers a filtered install did not
- * resolve are verified too. A missing lockfile verifies nothing, unless the
- * install keeps none: then every key is minted from the current registries.
+ * The `registryPrefixes` and `defaultRegistry` this install records (see
+ * `recordedRegistryKeySettings`), when the keys of every lockfile it left
+ * behind are the ones they describe. The lockfiles are read back from disk,
+ * so the keys of importers a filtered install did not resolve are verified
+ * too. A missing lockfile verifies nothing, unless the install keeps none:
+ * then every key is minted from the current registries.
  */
-async function verifiedRegistryPrefixes (
+async function verifiedRegistryKeySettings (
   opts: Partial<RegistryContext> & Pick<InstallDepsOptions, 'useLockfile'>,
   readLockfiles: () => Promise<Array<LockfileObject | null>>
-): Promise<Record<string, string> | undefined> {
-  const declared = recordedRegistryPrefixes(opts)
-  if (declared == null || opts.useLockfile === false) return declared
+): Promise<RegistryKeySettings> {
+  const recorded = recordedRegistryKeySettings(opts)
+  if (recorded.registryPrefixes == null || opts.useLockfile === false) return recorded
   const { registriesByScope } = opts
-  if (registriesByScope == null) return undefined
+  if (registriesByScope == null) return {}
   const registries = pickRegistryContext({ ...opts, registriesByScope })
   const lockfiles = await readLockfiles()
   const keysAreCurrent = lockfiles.every((lockfile) => lockfile != null && findOutdatedRegistryKey(lockfile, registries) == null)
-  return keysAreCurrent ? declared : undefined
+  return keysAreCurrent ? recorded : {}
 }
 
 /**

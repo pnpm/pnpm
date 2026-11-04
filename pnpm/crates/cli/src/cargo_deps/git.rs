@@ -341,7 +341,7 @@ fn import_file(
         return context.store_dir
             .write_cas_file(context.manifest.as_bytes(), executable)
             .into_diagnostic()
-            .map(|(cas_path, _)| cas_path)
+            .map(|written| written.file)
             .wrap_err_with(|| format!("store {}", path.display()));
     }
     // Streamed rather than read whole: a repository is free to carry a
@@ -352,7 +352,7 @@ fn import_file(
     context.store_dir
         .write_cas_file_from_reader(&mut file, executable, None)
         .into_diagnostic()
-        .map(|(cas_path, _, _)| cas_path)
+        .map(|written| written.file)
         .wrap_err_with(|| format!("store {}", path.display()))
 }
 

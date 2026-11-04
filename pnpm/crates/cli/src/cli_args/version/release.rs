@@ -5,6 +5,7 @@ use super::{
     read_change_intents, read_ledger, render_release_plan, select_recursive_projects,
     to_engine_projects, unpublished_release_dirs,
 };
+use miette::Context as _;
 
 /// The project dirs `--filter` selects, or `None` for an unfiltered run.
 fn filtered_project_dirs(
@@ -50,6 +51,7 @@ struct PlannedWorkspaceRelease {
     projects: Vec<pnpm_versioning::WorkspaceProject>,
     intents: Vec<pnpm_versioning::ChangeIntent>,
     published_names: HashMap<String, String>,
+    notes_registries: HashMap<String, String>,
     unfiltered: bool,
 }
 
@@ -59,6 +61,7 @@ struct WorkspaceReleaseInputs {
     workspace_projects: Vec<pnpm_workspace::Project>,
     projects: Vec<pnpm_versioning::WorkspaceProject>,
     published_names: HashMap<String, String>,
+    notes_registries: HashMap<String, String>,
 }
 
 async fn plan_workspace_release(
@@ -75,6 +78,7 @@ async fn plan_workspace_release(
         projects: inputs.projects,
         intents: inputs.intents,
         published_names: inputs.published_names,
+        notes_registries: inputs.notes_registries,
         unfiltered: filter.is_none(),
     })
 }
@@ -121,12 +125,14 @@ fn workspace_release_inputs(
     let (projects, _) = discover_workspace_projects(workspace_dir, config)?;
     let engine_projects = to_engine_projects(&projects);
     let published_names = changelog::published_names(&projects);
+    let notes_registries = changelog::notes_registries_by_name(config, &projects);
     Ok(WorkspaceReleaseInputs {
         intents,
         ledger,
         workspace_projects: projects,
         projects: engine_projects,
         published_names,
+        notes_registries,
     })
 }
 
@@ -136,14 +142,55 @@ impl PlannedWorkspaceRelease {
         config: &Config,
         workspace_dir: &Path,
     ) -> miette::Result<HashSet<String>> {
-        confirmed_published_versions(config, workspace_dir, &self.published_names).await
+        confirmed_published_versions(
+            config,
+            workspace_dir,
+            &self.published_names,
+            &self.notes_registries,
+        )
+        .await
+    }
+
+    /// The releases bound for a registry that stores release notes, and
+    /// the summary to go above their composed notes.
+    fn notes_options(
+        &self,
+        config: &Config,
+        workspace_dir: &Path,
+        summary: Option<String>,
+    ) -> miette::Result<pnpm_versioning::ReleaseNotesOptions> {
+        // Read from each release's own manifest: same-named projects on
+        // different version lines may publish to different registries.
+        let registries: HashMap<String, String> = self.plan.releases
+            .iter()
+            .filter_map(|release| {
+                let registry = changelog::notes_registry_of_dir(config, &release.root_dir)?;
+                Some((release.dir.clone(), registry))
+            })
+            .collect();
+        // A private project is never published: its release keeps a
+        // committed changelog, and no note is composed for it.
+        let published = self.projects
+            .iter()
+            .filter(|project| !project.private)
+            .map(|project| pnpm_versioning::to_project_dir(workspace_dir, &project.root_dir))
+            .collect::<HashSet<String>>();
+        let stores_notes = registries
+            .keys()
+            .any(|dir| published.contains(dir))
+            && pnpm_versioning::changelog_storage(Some(&config.versioning))
+                == pnpm_versioning::ChangelogStorage::Registry;
+        if summary.is_some() && !stores_notes {
+            return Err(VersionError::ReleaseNotesWithoutRegistry.into());
+        }
+        Ok(pnpm_versioning::ReleaseNotesOptions { registries, summary })
     }
 
     pub(super) async fn apply(
         self,
         args: &VersionArgs,
         config: &Config,
-        workspace_dir: &Path,
+        (workspace_dir, dir): (&Path, &Path),
     ) -> miette::Result<()> {
         if self.plan.releases.is_empty() {
             // A full (unfiltered) run garbage-collects the intent files an
@@ -161,6 +208,7 @@ impl PlannedWorkspaceRelease {
                     &self.intents,
                     Some(&config.versioning),
                     &confirmed,
+                    &pnpm_versioning::ReleaseNotesOptions::default(),
                 )?;
             }
             args.report_no_pending_changes();
@@ -171,6 +219,7 @@ impl PlannedWorkspaceRelease {
             return Ok(());
         }
 
+        let notes = self.notes_options(config, workspace_dir, args.release_notes_summary(dir)?)?;
         let confirmed = self.confirmed_published_versions(config, workspace_dir).await?;
         let Self {
             plan,
@@ -185,6 +234,7 @@ impl PlannedWorkspaceRelease {
             &intents,
             Some(&config.versioning),
             &confirmed,
+            &notes,
         )?;
 
         args.report_applied_releases(&applied);
@@ -193,7 +243,11 @@ impl PlannedWorkspaceRelease {
 }
 
 impl VersionArgs {
-    pub(super) async fn release_from_intents(&self, config: &Config) -> miette::Result<()> {
+    pub(super) async fn release_from_intents(
+        &self,
+        config: &Config,
+        dir: &Path,
+    ) -> miette::Result<()> {
         let Some(workspace_dir) = config.workspace_dir.clone() else {
             return Err(VersionError::ReleaseOutsideWorkspace.into());
         };
@@ -207,8 +261,22 @@ impl VersionArgs {
             return Err(VersionError::UncleanWorkingTree.into());
         }
 
-        plan_workspace_release(config, &workspace_dir).await?.apply(self, config, &workspace_dir)
+        plan_workspace_release(config, &workspace_dir).await?
+            .apply(self, config, (&workspace_dir, dir))
             .await
+    }
+
+    /// The `--release-notes` summary, checked against the registry's
+    /// content rules before anything is versioned.
+    fn release_notes_summary(&self, dir: &Path) -> miette::Result<Option<String>> {
+        let Some(value) = &self.release_notes else {
+            return Ok(None);
+        };
+        let summary = crate::cli_args::release_notes::read_release_notes_arg(dir, value)?;
+        pnpm_release_notes::validate_note(&summary)
+            .map_err(miette::Report::new)
+            .wrap_err("Release notes from --release-notes")?;
+        Ok(Some(summary))
     }
 
     fn report_no_pending_changes(&self) {

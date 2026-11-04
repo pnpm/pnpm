@@ -5,6 +5,9 @@ use serde_json::json;
 async fn interactively_update_latest_preserves_named_registry() {
     let fixture = UpdateFixture::with_config(|config| {
         config.registries_by_prefix.insert("work".to_string(), config.registry.clone());
+        // The default registry's packages keep plain keys, so it is the mock
+        // under another host name.
+        config.registry = config.registry.replace("127.0.0.1", "localhost");
         config.minimum_release_age = Some(10_000_000);
         config.minimum_release_age_exclude = Some(vec!["@pnpm.e2e/*".to_string()]);
     });

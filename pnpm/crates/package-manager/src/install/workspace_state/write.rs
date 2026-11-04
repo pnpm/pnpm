@@ -69,6 +69,8 @@ pub(crate) fn recorded_workspace_state(write: &StateWrite<'_>) -> WorkspaceState
     if write.carried.registry_keys_verified {
         state.settings.registry_prefixes =
             crate::optimistic_repeat_install::recorded_registry_prefixes(write.config);
+        state.settings.default_registry =
+            crate::optimistic_repeat_install::recorded_default_registry(write.config);
     }
     state.settings.registry_routes.clone_from(&write.carried.registry_routes);
     if let Some(kept) = write.carried.kept_settings {

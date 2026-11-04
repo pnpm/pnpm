@@ -5,7 +5,7 @@ import { getWantedLockfileName } from '@pnpm/lockfile.fs'
 import { globalWarn } from '@pnpm/logger'
 import type { Project } from '@pnpm/types'
 import { findWorkspaceProjectsNoCheck } from '@pnpm/workspace.projects-reader'
-import { loadWorkspaceState, normalizeUnsetSetting, recordedRegistryPrefixes, recordedRegistryRoutes, resolveStoreLocationSettings, WORKSPACE_STATE_SETTING_KEYS, type WorkspaceState, type WorkspaceStateSettings } from '@pnpm/workspace.state'
+import { loadWorkspaceState, normalizeUnsetSetting, recordedRegistryKeySettings, recordedRegistryRoutes, type RegistryKeySettings, resolveStoreLocationSettings, WORKSPACE_STATE_SETTING_KEYS, type WorkspaceState, type WorkspaceStateSettings } from '@pnpm/workspace.state'
 import { readWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 import { equals } from 'ramda'
 
@@ -216,9 +216,13 @@ function workspaceStateDir (opts: CheckDepsStatusOptions): string {
  */
 function findChangedRegistrySettings (opts: CheckDepsStatusOptions, storedSettings: WorkspaceState['settings']): string | undefined {
   const ignored = new Set(opts.ignoredWorkspaceStateSettings)
-  if (!ignored.has('registryPrefixes') && !equals(storedSettings.registryPrefixes, recordedRegistryPrefixes(opts))) return 'registryPrefixes'
+  if (!ignored.has('registryPrefixes') && !registryKeySettingsMatch(storedSettings, recordedRegistryKeySettings(opts))) return 'registryPrefixes'
   if (ignored.has('registryRoutes') || opts.registriesByScope == null) return undefined
   return equals(storedSettings.registryRoutes, recordedRegistryRoutes(opts.registriesByScope)) ? undefined : 'registryRoutes'
+}
+
+function registryKeySettingsMatch (stored: WorkspaceState['settings'], live: RegistryKeySettings): boolean {
+  return equals(stored.registryPrefixes, live.registryPrefixes) && stored.defaultRegistry === live.defaultRegistry
 }
 
 /**

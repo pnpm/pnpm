@@ -58,6 +58,9 @@
       "path": "../../lockfile/verification"
     },
     {
+      "path": "../../resolving/local-resolver"
+    },
+    {
       "path": "../../resolving/resolver-base"
     },
     {
@@ -65,6 +68,9 @@
     },
     {
       "path": "../../workspace/projects-reader"
+    },
+    {
+      "path": "../../workspace/spec-parser"
     },
     {
       "path": "../../workspace/state"

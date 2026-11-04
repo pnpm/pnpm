@@ -1,8 +1,10 @@
 //! Comparing the settings a previous install recorded against the current ones.
 
+pub(crate) use install_policy::recorded_extend_node_path_matches;
 pub(crate) use registry_prefixes::{
-    ResolvedImporters, recorded_registry_prefixes, recorded_registry_routes,
-    recorded_registry_routes_after_install,
+    ResolvedImporters, recorded_default_registry, recorded_registry_prefixes,
+    recorded_registry_routes, recorded_registry_routes_after_install, records_registry_keys_of,
+    registry_key_settings_differ,
 };
 
 mod agent_skills;
@@ -167,11 +169,8 @@ impl SettingsComparison<'_> {
             "lockfile.integrityTarget",
             recorded.lockfile_integrity_target != live.lockfile_integrity_target,
         );
-        return_drift_if!(
-            self,
-            "registryPrefixes",
-            recorded.registry_prefixes != live.registry_prefixes,
-        );
+        let registry_keys_drift = registry_key_settings_differ(recorded, live);
+        return_drift_if!(self, "registryPrefixes", registry_keys_drift);
         return_drift_if!(self, "registryRoutes", recorded.registry_routes != live.registry_routes);
         None
     }
@@ -386,6 +385,7 @@ fn current_policy_settings(config: &Config) -> WorkspaceStateSettings {
             config.resolved_minimum_release_age_strict().then_some(true)
         }),
         registry_prefixes: recorded_registry_prefixes(config),
+        default_registry: recorded_default_registry(config),
         registry_routes: Some(recorded_registry_routes(config)),
         side_effects_cache_exclude: config.side_effects_cache_exclude.clone(),
         // pnpm records the raw config value, which stays `undefined`

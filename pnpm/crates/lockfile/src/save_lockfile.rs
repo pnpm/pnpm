@@ -97,24 +97,48 @@ pub fn save_value_to_path<Document: serde::Serialize>(
     path: &Path,
     symlinked: SymlinkedLockfile<'_>,
 ) -> Result<(), SaveLockfileError> {
-    let content = serialize_yaml::to_string(value).map_err(SaveLockfileError::SerializeYaml)?;
-    let existing = match fs::read_to_string(path) {
-        Ok(existing) => Some(normalize_lockfile_content(&existing).into_owned()),
-        Err(error) if error.kind() == io::ErrorKind::NotFound => None,
-        Err(error) => return Err(SaveLockfileError::WriteFile(error)),
-    };
-    let output = match existing.as_deref().and_then(extract_env_document) {
-        Some(env) => {
-            let env = preserved_env_document(&env, path)?;
-            format!("{YAML_DOCUMENT_START}{env}{YAML_DOCUMENT_SEPARATOR}{content}")
-        }
-        None => content,
-    };
+    let existing = read_normalized_lockfile(path)?;
+    let output = render_value_over(value, existing.as_deref(), path)?;
     if existing.as_deref() == Some(output.as_str()) {
         return Ok(());
     }
     let target = lockfile_write_target(path, symlinked).map_err(SaveLockfileError::WriteFile)?;
     write_atomic(&target, output.as_bytes())
+}
+
+/// The text [`save_value_to_path`] would leave in the lockfile at `path`,
+/// without writing it: the env document `path` begins with is carried over,
+/// and line endings are LF. Compare it with [`normalize_lockfile_content`] of
+/// the file to tell whether a save would change it.
+pub fn render_value_for_path<Document: serde::Serialize>(
+    value: &Document,
+    path: &Path,
+) -> Result<String, SaveLockfileError> {
+    let existing = read_normalized_lockfile(path)?;
+    render_value_over(value, existing.as_deref(), path)
+}
+
+fn read_normalized_lockfile(path: &Path) -> Result<Option<String>, SaveLockfileError> {
+    match fs::read_to_string(path) {
+        Ok(existing) => Ok(Some(normalize_lockfile_content(&existing).into_owned())),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(SaveLockfileError::WriteFile(error)),
+    }
+}
+
+fn render_value_over<Document: serde::Serialize>(
+    value: &Document,
+    existing: Option<&str>,
+    path: &Path,
+) -> Result<String, SaveLockfileError> {
+    let content = serialize_yaml::to_string(value).map_err(SaveLockfileError::SerializeYaml)?;
+    Ok(match existing.and_then(extract_env_document) {
+        Some(env) => {
+            let env = preserved_env_document(&env, path)?;
+            format!("{YAML_DOCUMENT_START}{env}{YAML_DOCUMENT_SEPARATOR}{content}")
+        }
+        None => content,
+    })
 }
 
 /// The env document to re-prepend, as text.

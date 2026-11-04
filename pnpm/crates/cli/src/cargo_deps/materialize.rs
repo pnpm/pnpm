@@ -222,17 +222,13 @@ pub(super) fn add_cargo_checksum(
     let checksum = serde_json::to_vec(&CargoChecksum { files, package: package_checksum })
         .into_diagnostic()
         .wrap_err("serialize .cargo-checksum.json")?;
-    let (cas_path, hash) = store_dir
+    let written = store_dir
         .write_cas_file(&checksum, false)
         .into_diagnostic()
         .wrap_err("store .cargo-checksum.json")?;
-    cas_paths.insert(CARGO_CHECKSUM_FILE.to_string(), cas_path);
-    Ok(CafsFileInfo {
-        digest: format!("{hash:x}"),
-        mode: 0o644,
-        size: checksum.len() as u64,
-        checked_at: None,
-    })
+    let info = written.index_entry(0o644, None);
+    cas_paths.insert(CARGO_CHECKSUM_FILE.to_string(), written.file);
+    Ok(info)
 }
 
 async fn ingest_crate<Reporter: self::Reporter + 'static>(

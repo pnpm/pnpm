@@ -1,0 +1,36 @@
+{
+  "description": "Bin parent segments normalize at the package root before comparing archive and registry manifests.",
+  "archive": {
+    "packageJson": {
+      "name": "example-tool",
+      "version": "1.0.0",
+      "bin": {
+        "example-tool": "../dist/cli.js"
+      }
+    },
+    "files": [
+      "package.json",
+      "dist/cli.js"
+    ]
+  },
+  "submitted": {
+    "name": "example-tool",
+    "version": "1.0.0",
+    "bin": {
+      "example-tool": "dist/cli.js"
+    }
+  },
+  "expected": {
+    "manifest": {
+      "name": "example-tool",
+      "version": "1.0.0",
+      "bin": {
+        "example-tool": "dist/cli.js"
+      },
+      "hasInstallScript": false,
+      "hasShrinkwrap": false
+    },
+    "mismatched": [],
+    "tolerated": []
+  }
+}

@@ -13,12 +13,12 @@ use chrono::{DateTime, Utc};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use node_semver::Version;
-use pnpm_config::version_policy::{PackageVersionPolicy, PolicyMatch};
 use pnpm_registry::{
     NpmUser, Package, PackageDistribution, PackageVersion, VersionPolicyFields,
     VersionTrustMetadata,
 };
 use pnpm_resolving_resolver_base::parse_packument_timestamp;
+use pnpm_version_policy::{PackageVersionPolicy, PolicyMatch};
 
 use crate::pick_package::{SkippedTimeCheck, warn_missing_time_once};
 
@@ -194,7 +194,7 @@ pub fn fail_if_trust_downgraded(
 
     let exclude_prerelease = !is_prerelease(version);
     let Some(strongest_prior) =
-        detect_strongest_trust_evidence_before(meta, version_date, exclude_prerelease)?
+        detect_strongest_trust_evidence_before(meta, (version, version_date), exclude_prerelease)?
     else {
         return Ok(());
     };
@@ -247,18 +247,24 @@ fn pretty_print_trust_evidence(evidence: Option<TrustEvidence>) -> &'static str 
     }
 }
 
-/// Walk every version older than `before_date` and return the
+/// Walk every version published before `current` and return the
 /// strongest [`TrustEvidence`] seen. Prereleases are filtered out
 /// when the current version is *not* itself a prerelease.
+///
+/// Versions published at the same time as `current` are ordered by their
+/// semver precedence. pnpr's own package document gives every version
+/// published before its publish-time window the same time, and without
+/// this, no such version would count as earlier than another.
 ///
 /// Fails closed when a prior version's trust metadata cannot be decoded:
 /// skipping it could hide the strongest prior evidence and let a trust
 /// downgrade pass undetected. Other manifest fields are not hydrated.
 fn detect_strongest_trust_evidence_before(
     meta: &impl TrustHistory,
-    before_date: DateTime<Utc>,
+    (current, before_date): (&str, DateTime<Utc>),
     exclude_prerelease: bool,
 ) -> Result<Option<TrustEvidence>, TrustViolation> {
+    let current = Version::parse(current).ok();
     let mut best: Option<TrustEvidence> = None;
     // Skip individual versions that lack a publish timestamp rather than
     // aborting the entire history walk: a single prior version with no
@@ -269,10 +275,7 @@ fn detect_strongest_trust_evidence_before(
         .versions()
         .filter(|version| {
             !(exclude_prerelease && is_prerelease(version))
-                && meta
-                    .published_at(version)
-                    .and_then(parse_packument_timestamp)
-                    .is_some_and(|parsed| parsed < before_date)
+                && published_before(meta, version, (current.as_ref(), before_date))
         });
     for version in earlier {
         let Some(evidence) = meta
@@ -299,6 +302,24 @@ fn detect_strongest_trust_evidence_before(
         }
     }
     Ok(best)
+}
+
+/// Whether `version` was published before `current`, published at
+/// `current_date`: earlier, or at the same time with a lower semver
+/// precedence.
+fn published_before(
+    meta: &impl TrustHistory,
+    version: &str,
+    (current, current_date): (Option<&Version>, DateTime<Utc>),
+) -> bool {
+    let Some(published) = meta.published_at(version).and_then(parse_packument_timestamp) else {
+        return false;
+    };
+    published < current_date
+        || (published == current_date
+            && current
+                .zip(Version::parse(version).ok())
+                .is_some_and(|(current, version)| version < *current))
 }
 
 /// Classify the strongest supply-chain evidence a single version

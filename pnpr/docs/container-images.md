@@ -83,9 +83,9 @@ oci:
 The blob limit applies to a whole resumable upload, mounted layers included, and
 also bounds an uncached upstream download.
 
-The manifest write is the point a release becomes visible. It goes through the
-same publish journal as every other ecosystem, so it either lands whole or
-leaves nothing behind. A blob no manifest references is invisible rather than
+The manifest write is the point a release becomes visible. It commits the
+metadata the same way every other ecosystem's publish does, so it either lands
+whole or leaves nothing behind. A blob no manifest references is invisible rather than
 half-published, which also means unreferenced blobs accumulate until they are
 collected.
 
@@ -141,9 +141,7 @@ pnpr -c config.yaml oci-gc --registry images --dry-run
 pnpr -c config.yaml oci-gc --registry images
 ```
 
-`--registry` takes the concrete hosted OCI registry's config name. The command
-recovers the local publish journal before scanning, so recover journals on every
-replica's scratch volume before collecting shared storage, and keep writers
+`--registry` takes the concrete hosted OCI registry's config name. Keep writers
 stopped for the whole scan and deletion. `--dry-run` reports candidates without
 deleting them. `--min-age` defaults to `1d`, which preserves recent
 uploads so an interrupted push can resume; set it to zero to collect every

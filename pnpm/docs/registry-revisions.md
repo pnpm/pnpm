@@ -63,16 +63,25 @@ revision with its own integrity, `<name>@<version>+r<revision>` URL, and
 manifest. It always holds revision 0. A version without either field is an
 ordinary version outside the revision protocol.
 
-pnpm validates all of that during resolution:
+A pnpr server gives these fields only in its own package document, which pnpm
+reads from a registry declared [`serverType: pnpr`](./registries.md#servertype).
+npm's documents served by pnpr give the selected revision as npm clients read
+any version, by its `<name>@<version>+r<revision>` URL and integrity, so an
+undeclared pnpr can install the selected revision but not pin another one.
+
+pnpm validates a revision-aware version during resolution:
 
 * the URL must sit on the selected registry's `<name>@<version>+r<revision>`
   route for the same package, version, and revision, and `dist.integrity` must
   hold a complete SHA-512 digest;
 * the revision number must be an integer in `0 ≤ N ≤ 2^53 − 1`;
-* the history must hold revision 0 and the selected revision.
+* the history must hold revision 0 and the selected revision, except in pnpr's
+  own package document, which keeps every revision in its release record.
 
-Anything else fails with `ERR_PNPM_MALFORMED_METADATA`, and so does a
-revision-route URL without `dist.revision`. The fetch itself is a single
+Anything else fails with `ERR_PNPM_MALFORMED_METADATA`. A revision-route URL
+without `dist.revision` is an ordinary tarball, as npm's documents served by
+pnpr give the selected revision, and it answers only for the revision its URL
+names. The fetch itself is a single
 authenticated request with no retry and no fallback, and **every** redirect,
 same-origin included, fails it.
 

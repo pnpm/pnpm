@@ -14,8 +14,8 @@ pub enum SymlinkTargets {
     /// Only links whose target is in the selected path set. A file link to a
     /// target left out is imported as a file, and a directory link is left out.
     Imported,
-    /// Also a directory link whose target is left out. A file link to a target
-    /// left out is still imported as a file.
+    /// Also a directory link whose target is left out, and a link whose target
+    /// is missing. A file link to a target left out is still imported as a file.
     Internal,
 }
 
@@ -64,7 +64,8 @@ pub enum SymlinkPlacement {
     /// selected.
     ImportFile,
     /// Omit the entry (a directory link to an unselected path under
-    /// [`SymlinkTargets::Imported`], or a broken link to an unselected path).
+    /// [`SymlinkTargets::Imported`], or a broken link to an unselected path
+    /// under it).
     Omit,
 }
 
@@ -174,7 +175,9 @@ pub fn resolve_symlink_placement(
         Err(error) if error.kind() == io::ErrorKind::NotFound => None,
         Err(error) => return Err(error),
     };
-    let is_dir = target_meta.as_ref().is_some_and(fs::Metadata::is_dir);
+    // A missing target is recreated as a directory link: under `Internal` it
+    // is typically a directory the deploy installs, such as `node_modules/<pkg>`.
+    let is_dir = target_meta.as_ref().is_none_or(fs::Metadata::is_dir);
     let is_selected = ctx.selected_paths.contains(target_in_package.as_str())
         || (ctx.policy == SymlinkTargets::Internal && is_dir);
     if is_selected {

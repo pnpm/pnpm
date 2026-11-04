@@ -77,6 +77,8 @@ export async function assertWantedLockfileUpToDate (
         autoInstallPeers: ctx.autoInstallPeers,
         excludeLinksFromLockfile: ctx.excludeLinksFromLockfile,
         ignoredOptionalDependencies: ctx.config.ignoredOptionalDependencies,
+        workspacePackages: ctx.linkWorkspacePackages ? ctx.getWorkspacePackages() : undefined,
+        catalogs: ctx.config.catalogs,
       },
       importer,
       projectManifest

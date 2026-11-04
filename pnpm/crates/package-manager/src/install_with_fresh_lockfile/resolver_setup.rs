@@ -261,6 +261,7 @@ impl ResolverChainInputs<'_> {
                 needs_full_metadata_for: Some(Arc::clone(&self.registry.needs_full_metadata)),
                 filter_metadata: self.config.requires_filtered_full_metadata(),
                 registry_options_by_url: Arc::new(self.config.registry_options_by_url.clone()),
+                minimum_release_age: self.config.resolved_minimum_release_age(),
             },
             cache_policy: pnpm_resolving_npm_resolver::MetadataCachePolicy {
                 network: self.config.network_policy(),
@@ -355,6 +356,7 @@ impl ResolverChainInputs<'_> {
                 .keys()
                 .cloned()
                 .collect(),
+            registries: self.registry.named.clone(),
             declared_prefixes: self.registry.declared.clone(),
             metadata: pnpm_resolving_npm_resolver::RegistryMetadataClient {
                 http_client: Arc::clone(self.fetching.http_client),
@@ -371,6 +373,7 @@ impl ResolverChainInputs<'_> {
                 needs_full_metadata_for: Some(Arc::clone(&self.registry.needs_full_metadata)),
                 filter_metadata: self.config.requires_filtered_full_metadata(),
                 registry_options_by_url: Arc::new(self.config.registry_options_by_url.clone()),
+                minimum_release_age: self.config.resolved_minimum_release_age(),
             },
             cache_policy: pnpm_resolving_npm_resolver::MetadataCachePolicy {
                 network: self.config.network_policy(),
@@ -506,13 +509,21 @@ async fn load_pnpmfile(
             );
             InstallWithFreshLockfileError::CustomFetcherHook(err)
         })?;
-    Ok(PnpmfileLoad {
-        hook: Some(hook),
-        custom_resolvers,
-        custom_fetcher_session: (!fetchers.is_empty()).then(|| {
-            Arc::new(pnpm_deps_restorer::CustomFetcherSession::with_config(fetchers, config))
-        }),
-    })
+    let custom_fetcher_session = custom_fetcher_session(fetchers, config)?;
+    Ok(PnpmfileLoad { hook: Some(hook), custom_resolvers, custom_fetcher_session })
+}
+
+fn custom_fetcher_session(
+    fetchers: Vec<Arc<dyn pnpm_hooks::CustomFetcher>>,
+    config: &Config,
+) -> Result<Option<Arc<pnpm_deps_restorer::CustomFetcherSession>>, InstallWithFreshLockfileError> {
+    if fetchers.is_empty() {
+        return Ok(None);
+    }
+    pnpm_deps_restorer::CustomFetcherSession::with_config(fetchers, config)
+        .map(Arc::new)
+        .map(Some)
+        .map_err(InstallWithFreshLockfileError::AllowBuildsPolicy)
 }
 
 mod prior_tarballs;

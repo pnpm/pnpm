@@ -68,7 +68,9 @@ async fn artifacts_only_advertises_and_mounts_only_the_artifact_protocol() {
                     "admin": false,
                     "scim": false,
                     "signIn": false
-                }
+                },
+                "records": [],
+                "manifestProfiles": []
             }
         }),
     );

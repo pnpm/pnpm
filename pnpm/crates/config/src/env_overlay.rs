@@ -15,10 +15,10 @@
 //! as a low-priority auth-file fallback.
 
 use crate::{
-    AuditLevel, CatalogMode, ColorMode, HoistingLimits, InitType, LogLevel, NodeLinkerSetting,
-    NodePackageMapMode, NodePackageMapType, PackageImportMethod, PmOnFail, ReporterType,
-    ResolutionMode, RuntimeOnFail, SaveWorkspaceProtocol, StoreIndexFormat, TrustPolicy,
-    VerifyDepsBeforeRun, VirtualStoreType, WorkspaceSettings,
+    AuditLevel, CatalogMode, ColorMode, HoistingLimits, InitType, LinkWorkspacePackages, LogLevel,
+    NodeLinkerSetting, NodePackageMapMode, NodePackageMapType, PackageImportMethod, PmOnFail,
+    ReporterType, ResolutionMode, RuntimeOnFail, SaveWorkspaceProtocol, StoreIndexFormat,
+    TrustPolicy, VerifyDepsBeforeRun, VirtualStoreType, WorkspaceSettings,
     api::EnvVar,
     workspace_yaml::{MachineSettings, TrustedSettings},
 };

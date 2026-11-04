@@ -10,26 +10,35 @@ keywords.workspace = true
 license-file = "../../LICENSE.md"
 repository.workspace = true
 
+[features]
+backend-libsql = ["dep:libsql", "dep:pnpr-libsql", "pnpr-error/backend-libsql"]
+
 [dependencies]
 pnpm-network = { workspace = true }
 pnpr-config = { workspace = true }
 pnpr-error = { workspace = true, features = ["server"] }
+pnpr-libsql = { workspace = true, optional = true }
 pnpr-package-name = { workspace = true }
 pnpr-registry = { workspace = true }
 pnpm-crypto-hash = { workspace = true }
 pnpm-package-manifest = { workspace = true }
+pnpm-release-record = { workspace = true }
+pnpm-transparency-log = { workspace = true }
 async-trait = { workspace = true }
 axum = { workspace = true }
 base64 = { workspace = true }
 futures-util = { workspace = true }
 getrandom = { workspace = true }
+libsql = { workspace = true, optional = true }
 object_store = { workspace = true }
 percent-encoding = { workspace = true }
 reqwest = { workspace = true }
+rusqlite = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 ssri = { workspace = true }
 tokio = { workspace = true }
+tlog_tiles = { workspace = true }
 tempfile = { workspace = true }
 tracing = { workspace = true }
 
@@ -37,9 +46,11 @@ tracing = { workspace = true }
 libc = { workspace = true }
 
 [dev-dependencies]
+pnpr-libsql = { workspace = true, features = ["testing"] }
 reqwest = { workspace = true }
 tempfile = { workspace = true }
 tokio = { workspace = true }
+tlog_tiles = { workspace = true }
 
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
 tokio = { workspace = true, features = ["net", "signal"] }

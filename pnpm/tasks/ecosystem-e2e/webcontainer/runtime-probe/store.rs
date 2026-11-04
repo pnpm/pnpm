@@ -46,7 +46,7 @@ fn check_cas(directory: &Path) {
     assert_eq!(store.root(), &root.join("v11-wasm"));
     assert_eq!(pnpm_store_dir::StoreDir::new(root.join("v11")).root(), &root.join("v11/v11-wasm"));
     assert_eq!(pnpm_store_dir::StoreDir::new(root.join("v11-wasm")).root(), store.root());
-    let (file, _) = store.write_cas_file(b"executable contents", true).unwrap();
+    let file = store.write_cas_file(b"executable contents", true).unwrap().file;
     assert_eq!(pnpm_fs::copy_permissions(&file).unwrap().mode() & 0o770, 0o770);
     assert_eq!(pnpm_fs::copy_permissions(file.parent().unwrap()).unwrap().mode() & 0o2770, 0o2770);
     let installed = directory.join("installed-executable");

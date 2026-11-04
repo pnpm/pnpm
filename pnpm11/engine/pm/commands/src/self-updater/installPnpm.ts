@@ -1,6 +1,4 @@
-import type { SpawnSyncReturns } from 'node:child_process'
 import fs from 'node:fs'
-import os from 'node:os'
 import path from 'node:path'
 
 import { createAllowBuildFunction } from '@pnpm/building.policy'
@@ -10,7 +8,7 @@ import {
   iteratePkgMeta,
   lockfileToDepGraph,
 } from '@pnpm/deps.graph-hasher'
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import { type GlobalAddOptions, installGlobalPackages } from '@pnpm/global.commands'
 import {
   cleanOrphanedInstallDirs,
@@ -24,14 +22,15 @@ import { headlessInstall } from '@pnpm/installing.deps-restorer'
 import type { EnvLockfile, LockfileObject, PackageSnapshot } from '@pnpm/lockfile.types'
 import { registerProject, type StoreController } from '@pnpm/store.controller'
 import type { DepPath, ProjectId, ProjectRootDir, RegistriesByScope } from '@pnpm/types'
-import spawn from 'cross-spawn'
 import { familySync } from 'detect-libc'
 import semver from 'semver'
 import { symlinkDir } from 'symlink-dir'
 
+import { assertPnpmRuns } from './assertPnpmRuns.js'
 import { ensureStoreBinsLinked, linkPnpmBins } from './linkPnpmBins.js'
 import { verifyPnpmEngineIdentity, type VerifyPnpmEngineIdentityOptions } from './verifyPnpmEngineIdentity.js'
 
+export { assertPnpmRuns } from './assertPnpmRuns.js'
 export { exePlatformPkgDirName, exePlatformPkgDirNameNext, linkExePlatformBinary, nativeTargetName } from './linkExePlatformBinary.js'
 
 // Both pnpm wrappers (`@pnpm/exe`, unscoped `pnpm`) carry platform-specific
@@ -272,7 +271,14 @@ async function installPnpmToGlobalDir (
 
     // Before the caller points PNPM_HOME here, so a broken release is discarded
     // rather than swapped in.
-    assertPnpmRuns(binDir, version)
+    try {
+      assertPnpmRuns(binDir, version)
+    } catch (err: unknown) {
+      if (wantedLockfile == null || !isBrokenPnpmInstall(err)) throw err
+      await installPnpmPackage(installDir, binDir, { opts: { ...opts, force: true }, pkgName, version, wantedLockfile })
+      await linkPnpmBins(installDir, binDir, pkgName)
+      assertPnpmRuns(binDir, version)
+    }
 
     await linkGlobalHash(globalDir, installDir, opts.registriesByScope)
 
@@ -308,6 +314,7 @@ async function installPnpmPackage (installDir: string, binDir: string, { opts, p
     registriesByScope: opts.registriesByScope as RegistriesByScope,
     virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     packageManager: opts.packageManager,
+    force: opts.force,
   })
   // headlessInstall does not register the project, so we must do it
   // explicitly. Without this, `pnpm store prune` would not know about
@@ -326,60 +333,31 @@ async function linkGlobalHash (globalDir: string, installDir: string, registries
 }
 
 /**
- * Throws unless the pnpm CLI in `binDir` can execute — a release can install
- * cleanly and still not run, when its wrapper kept the placeholder bin of a
- * platform package that shipped without a native.
- *
- * Only that it runs is asserted; reading `--version` output would tie the check
- * to whatever startup decides to print. Exported as a test seam.
- */
-export function assertPnpmRuns (binDir: string, version: string): void {
-  const pnpmBinPath = path.join(binDir, 'pnpm')
-  // pnpm prints its version only after loading config and switching versions,
-  // so probing from the caller's directory answers with their pin rather than
-  // the release under test.
-  const probeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-self-update-check-'))
-  let result: SpawnSyncReturns<string>
-  try {
-    result = spawn.sync(pnpmBinPath, ['--version'], {
-      encoding: 'utf8',
-      cwd: probeDir,
-    })
-  } finally {
-    try {
-      fs.rmSync(probeDir, { recursive: true, force: true })
-    } catch {}
-  }
-  const { status, error, stderr } = result
-  if (error == null && status === 0) return
-  // A signal leaves `status` null, which macOS produces for a binary its
-  // signature check rejects — the exact shape of an incorrectly signed release.
-  const exit = status != null ? `code ${status}` : 'a signal'
-  const reason = error != null
-    ? error.message
-    : `it exited with ${exit}${(stderr ?? '').trim() ? `: ${stderr.trim()}` : ''}`
-  throw new PnpmError(
-    'BROKEN_PNPM_INSTALL',
-    `The pnpm v${version} that was just installed cannot run: ${reason}`,
-    {
-      hint: `The installation at "${pnpmBinPath}" was discarded and the currently active pnpm was left in place, so pnpm still works. A release that installs but cannot run is a packaging fault — please report it at https://github.com/pnpm/pnpm/issues. To move to a different version meanwhile, pass one to "pnpm self-update".`,
-    }
-  )
-}
-
-/**
  * The install dir under `globalDir` that already holds `pkgName` at exactly
  * `version`, or `undefined` when the global install is missing, at a
- * different version, or unreadable.
+ * different version, unreadable, or unable to run.
  */
 export async function findGlobalPnpmInstallDir (globalDir: string, pkgName: string, version: string): Promise<string | undefined> {
   const existing = findGlobalPackage(globalDir, pkgName)
   if (!existing) return undefined
   try {
     const pkgJson = JSON.parse(await fs.promises.readFile(path.join(existing.installDir, 'node_modules', pkgName, 'package.json'), 'utf8'))
-    if (pkgJson.version === version) return existing.installDir
-  } catch {}
-  return undefined
+    if (pkgJson.version !== version) return undefined
+  } catch {
+    return undefined
+  }
+  const binDir = path.join(existing.installDir, 'bin')
+  try {
+    assertPnpmRuns(binDir, version)
+    return existing.installDir
+  } catch (err: unknown) {
+    if (isBrokenPnpmInstall(err)) return undefined
+    throw err
+  }
+}
+
+function isBrokenPnpmInstall (err: unknown): boolean {
+  return isError(err) && 'code' in err && err.code === 'ERR_PNPM_BROKEN_PNPM_INSTALL'
 }
 
 const PNPM_ENGINE_ALIASES = new Set(['pnpm', '@pnpm/exe'])
@@ -415,6 +393,7 @@ async function installFromLockfile (
     registriesByScope: RegistriesByScope
     virtualStoreDirMaxLength: number
     packageManager?: { name: string, version: string }
+    force?: boolean
   }
 ): Promise<void> {
   const rootImporter = opts.wantedLockfile.importers['.' as ProjectId]
@@ -431,7 +410,8 @@ async function installFromLockfile (
     globalVirtualStoreDir: path.join(opts.storeDir, 'links'),
     allowBuilds: opts.allowBuilds,
     ignoreScripts: true,
-    force: false,
+    force: opts.force ?? false,
+    forceIgnoresPlatform: false,
     engineStrict: false,
     currentEngine: {
       pnpmVersion: opts.packageManager?.version ?? '',

@@ -347,6 +347,8 @@ impl ImporterHoistState {
 
     fn peers_opts(&self) -> ResolvePeersOptions {
         ResolvePeersOptions {
+            #[cfg(test)]
+            cache_mode: crate::resolve_peers::test_support::PeerCacheMode::Enabled,
             peers_suffix_max_length: self.policy.peers_suffix_max_length,
             dedupe_peers: self.policy.peers.dedupe_peers,
             project_dir: Some(self.project_dir.clone()),

@@ -214,5 +214,49 @@ fn existing_agent_dirs(workspace_root: &Path) -> Vec<PathBuf> {
     dirs
 }
 
+/// Standard agent skill directories offered when choosing where to link
+/// skills, covering Universal `.agents/skills` and the standard agent
+/// targets.
+pub const STANDARD_AGENT_DIRS: &[&str] = &[
+    ".agent/skills",
+    ".agents/skills",
+    ".claude/skills",
+    ".cursor/skills",
+    ".gemini/skills",
+    ".github/skills",
+];
+
+/// The `skills.dirs` candidates detection yields at `workspace_root`: the
+/// standard agent directories, any `.*/skills` directories present, and the
+/// running agent's own. Workspace-root-relative and slash-separated, the
+/// form `skills.dirs` and `.modules.yaml` record. Sorted.
+#[must_use]
+pub fn detected_agent_dirs(workspace_root: &Path) -> Vec<String> {
+    detected_agent_dirs_with_agent(workspace_root, agent_skills_dir_from_env())
+}
+
+pub(crate) fn detected_agent_dirs_with_agent(
+    workspace_root: &Path,
+    agent_dir: Option<&str>,
+) -> Vec<String> {
+    let mut dirs: Vec<String> = existing_agent_dirs(workspace_root)
+        .iter()
+        .map(|dir| recorded_path(workspace_root, dir))
+        .collect();
+    if let Some(agent_dir) = agent_dir
+        && !dirs.iter().any(|dir| dir == agent_dir)
+    {
+        dirs.push(agent_dir.to_string());
+    }
+    for standard in STANDARD_AGENT_DIRS {
+        if !dirs.iter().any(|dir| dir == standard) {
+            dirs.push((*standard).to_string());
+        }
+    }
+    dirs.sort();
+    dirs.dedup();
+    dirs
+}
+
 #[cfg(test)]
 mod tests;

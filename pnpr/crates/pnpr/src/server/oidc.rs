@@ -301,6 +301,16 @@ fn validate_workload_packages(packages: &[String]) -> Result<(), RegistryError> 
     Ok(())
 }
 
+/// The routes besides its own packages' publish that a workload may call,
+/// under the server root, the npm base, or its registry's address:
+/// staging a release archive, and committing a publish that references
+/// staged archives. The commit is scoped to the workload's packages by
+/// [`WorkloadScope`].
+const WORKLOAD_PROTOCOL_ROUTES: [(&str, &[axum::http::Method]); 2] = [
+    ("/-/pnpr/v0/artifacts/blob", &[axum::http::Method::PUT, axum::http::Method::HEAD]),
+    ("/-/pnpr/v0/publish", &[axum::http::Method::PUT]),
+];
+
 pub(super) fn check_workload_request(
     workload: &pnpr_config::oidc::OidcWorkload,
     method: &axum::http::Method,
@@ -309,11 +319,23 @@ pub(super) fn check_workload_request(
     let decoded = pnpr_search::percent_decode(path);
     let base = pnpr_registry::Ecosystem::Npm.base_path();
     let local = pnpr_registry::Registries::local_name(&workload.registry);
+    let registry_base = format!("{base}/~{local}");
     if *method == axum::http::Method::PUT
         && workload.packages
             .iter()
-            .any(|package| decoded == format!("{base}/~{local}/{package}"))
+            .any(|package| decoded == format!("{registry_base}/{package}"))
     {
+        return Ok(());
+    }
+    let protocol = WORKLOAD_PROTOCOL_ROUTES
+        .iter()
+        .any(|(route, methods)| {
+            methods.contains(method)
+                && ["", base.as_str(), registry_base.as_str()]
+                    .iter()
+                    .any(|prefix| decoded == format!("{prefix}{route}"))
+        });
+    if protocol {
         return Ok(());
     }
     Err(RegistryError::Forbidden {
@@ -321,6 +343,71 @@ pub(super) fn check_workload_request(
         action: "use",
         resource: "workload credentials outside the configured npm publish targets".to_string(),
     })
+}
+
+/// What a request made with workload credentials may publish: the
+/// workload's packages, into its hosted npm registry. A single-package
+/// publish is held to it by its route ([`check_workload_request`]); a batch
+/// commit checks each of its entries.
+#[derive(Debug, Clone)]
+pub(super) struct WorkloadScope {
+    /// The serving key of the workload's registry, as a publish resolves it.
+    registry: String,
+    packages: Vec<String>,
+    username: String,
+}
+
+impl WorkloadScope {
+    pub(super) fn new(
+        config: &pnpr_config::Config,
+        workload: &pnpr_config::oidc::OidcWorkload,
+    ) -> Self {
+        let registry = config.routing.registries
+            .addressed(&workload.registry, pnpr_registry::Ecosystem::Npm)
+            .unwrap_or(&workload.registry)
+            .to_string();
+        WorkloadScope {
+            registry,
+            packages: workload.packages.clone(),
+            username: workload.identity.username.clone(),
+        }
+    }
+
+    /// Refuse a batch entry of another ecosystem than npm.
+    pub(super) fn check_ecosystem(
+        &self,
+        ecosystem: pnpr_registry::Ecosystem,
+    ) -> Result<(), RegistryError> {
+        if ecosystem == pnpr_registry::Ecosystem::Npm {
+            return Ok(());
+        }
+        Err(self.refusal(&format!("{ecosystem} packages")))
+    }
+
+    /// Refuse an npm entry for a package outside the workload's, or one
+    /// that resolved to another registry than the workload's.
+    pub(super) fn check_npm_publish(
+        &self,
+        source: &str,
+        package: &str,
+    ) -> Result<(), RegistryError> {
+        if source == self.registry
+            && self.packages
+                .iter()
+                .any(|allowed| allowed == package)
+        {
+            return Ok(());
+        }
+        Err(self.refusal(&format!("{package:?} in registry {source:?}")))
+    }
+
+    fn refusal(&self, resource: &str) -> RegistryError {
+        RegistryError::Forbidden {
+            user: self.username.clone(),
+            action: "publish",
+            resource: format!("{resource} with workload credentials"),
+        }
+    }
 }
 
 #[cfg(test)]

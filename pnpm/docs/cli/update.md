@@ -116,6 +116,21 @@ Update the dependencies to their latest stable version as determined by their `l
 
 Since v12.6.0, `--latest` does not move a dependency past a specifier supplied by `packageExtensions`, a `readPackage` hook, or an override. The lockfile stays inside that specifier.
 
+A Cargo requirement keeps its operator when updated, so `~1.0` becomes `~1.1`
+and `=1.0.0` stays exact. A requirement with only an upper bound, such as `<2`,
+is kept while the new version matches it, and becomes a caret requirement, such
+as `^2.0.0`, when `--latest` moves past it. A requirement in the selector, as in
+`pnpm update crate:foo@^2`, replaces it. `savePrefix` and `saveExact` apply only
+to new Cargo dependencies. Saved Cargo requirements omit build metadata.
+
+A Python requirement keeps its operator and precision too, so `~=1.0` becomes
+`~=2.0` and `==1.*` becomes `==2.*`. A requirement with only an upper bound,
+such as `<2`, or with several clauses, such as `>=1.0,<2`, becomes `>=2.0` when
+`--latest` moves past it. A selected pre-release that the requirement does not
+name, such as `1.4rc1` for `==1.*`, adds a clause that names it, as in
+`==1.*,>=1.4rc1`. `savePrefix` and `saveExact` do not apply to Python
+requirements.
+
 ### --patches
 
 Added in: v12.0.0
@@ -189,6 +204,8 @@ The directory in which `pnpm-lock.yaml` is created. It cannot be combined with `
 ### --interactive, -i
 
 Show outdated dependencies and select which ones to update.
+
+For a package from a registry declared with [`serverType: pnpr`](../registries.md#servertype), the release notes between the installed and the offered version are shown below the list while the package is under the cursor.
 
 Combined with `--global`, each [isolated install group](../global-packages.md#isolated-installations) is presented as one selectable item: packages that share a global installation update together as a unit.
 

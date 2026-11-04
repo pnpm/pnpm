@@ -4,5 +4,5 @@
 
 pub use pnpm_config::version_policy::{
     PackageVersionPolicy, PolicyMatch, VersionPolicyError, create_package_version_policy,
-    expand_package_version_specs,
+    expand_package_version_spec, expand_package_version_specs,
 };

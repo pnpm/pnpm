@@ -1,6 +1,9 @@
 use super::{
     AddError, AddResolveInputs,
-    specifier::{ProtocolSelector, SaveSpecifier, explicit_registry_save_specifier},
+    range_fallback::workspace_range_fallback,
+    specifier::{
+        ProtocolSelector, SaveSpecifier, explicit_registry_save_specifier, resolve_fallback_range,
+    },
 };
 use pnpm_package_manifest::PackageManifest;
 
@@ -21,14 +24,25 @@ pub(super) async fn resolve_npm_alias_save_specifier(
     {
         return Ok(format!("npm:{name}@{previous_specifier}").into());
     }
-    let mut saved = explicit_registry_save_specifier(
-        name,
-        target_specifier.unwrap_or_else(|| inputs.add.config.default_tag()),
-        previous_specifier.as_deref(),
-        manifest,
-        inputs,
-    )
-    .await?;
+    // Overrides match an alias by its manifest key, not by its target, so
+    // only the workspace range applies here.
+    let fallback = target_specifier
+        .is_none()
+        .then(|| workspace_range_fallback(name, inputs))
+        .flatten();
+    let mut saved = match fallback {
+        Some(range) => resolve_fallback_range(name, &range, manifest, inputs).await?,
+        None => {
+            explicit_registry_save_specifier(
+                name,
+                target_specifier.unwrap_or_else(|| inputs.add.config.default_tag()),
+                previous_specifier.as_deref(),
+                manifest,
+                inputs,
+            )
+            .await?
+        }
+    };
     saved.specifier = format!("npm:{name}@{}", saved.specifier);
     Ok(saved)
 }

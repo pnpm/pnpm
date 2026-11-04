@@ -92,6 +92,52 @@ pub struct PnprDistribution {
         skip_serializing_if = "Option::is_none"
     )]
     pub bins: Option<BTreeMap<String, PackageBin>>,
+    /// Platform variants of the version: archives the installer links in
+    /// place of the primary on a matching host. Read only from pnpr's own
+    /// package document.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub variants: Option<Vec<PnprVariant>>,
+    /// How pnpr's own package document listed the version (see
+    /// [`crate::parse_install_v2`]); `None` for a version read from npm's
+    /// documents. Honored only for a registry declared `serverType: pnpr`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub install_v2: Option<InstallV2Entry>,
+}
+
+/// How an entry of pnpr's own package document gave a version.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum InstallV2Entry {
+    /// With its manifest and pnpr's facts about the archives.
+    Complete,
+    /// Only with what picking reads: the rest is in the version's release
+    /// record.
+    External,
+}
+
+/// One platform variant under `dist.pnpr.variants`.
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PnprVariant {
+    pub tag: String,
+    /// The platforms the variant runs on, in the structured form of
+    /// `pnpm_platform_variants::Platform`. Kept as JSON so that a platform
+    /// with a field this client does not know makes only its variant
+    /// unselectable, not the version unreadable.
+    pub platforms: Vec<serde_json::Value>,
+    pub integrity: String,
+    /// The fields of the variant's manifest that differ from the version's;
+    /// each replaces the version's field, and `null` removes it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub manifest: Option<serde_json::Map<String, serde_json::Value>>,
+}
+
+impl PackageDistribution {
+    /// How pnpr's own package document listed the version, if it did.
+    #[must_use]
+    pub fn install_v2_entry(&self) -> Option<InstallV2Entry> {
+        self.pnpr.as_ref().and_then(|pnpr| pnpr.install_v2)
+    }
 }
 
 /// Container for the attestation evidence a version exposes on its

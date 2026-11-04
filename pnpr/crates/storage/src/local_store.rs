@@ -215,18 +215,6 @@ impl Store {
         }
     }
 
-    /// Every package with a document, decoded and sorted.
-    pub(super) async fn list_package_names(&self) -> Result<Vec<String>> {
-        let mut names = Vec::new();
-        for (name, dir) in package_dirs(&self.root.join(PACKAGES_DIR), self.ecosystem).await? {
-            if is_regular_file(&dir.join(DOCUMENT_FILE)).await? {
-                names.push(name);
-            }
-        }
-        names.sort();
-        Ok(names)
-    }
-
     pub(super) fn package_dir(&self, name: &CanonicalPackageName) -> PathBuf {
         let mut dir = self.root.join(PACKAGES_DIR);
         dir.extend(package_segments(name.ecosystem(), name.as_str()));
@@ -383,10 +371,6 @@ async fn subdirs(dir: &Path) -> Result<Vec<(String, PathBuf)>> {
         }
     }
     Ok(dirs)
-}
-
-pub(super) async fn is_regular_file(path: &Path) -> Result<bool> {
-    Ok(symlink_metadata_if_present(path).await?.is_some_and(|metadata| metadata.is_file()))
 }
 
 /// Whether `path` is a directory, not following a symlink.

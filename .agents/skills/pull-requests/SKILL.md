@@ -107,10 +107,11 @@ usually wrong. Pull the failing log (`gh run view <run> --log-failed`),
 reproduce it locally with the selection from the
 [`testing-changes`](../testing-changes/SKILL.md) skill, and fix the cause.
 
-A fork PR's runs can sit awaiting approval and then show up cancelled: a
-scheduled sweep cancels approval-held workflows after 30 minutes
+A fork PR's runs can sit awaiting approval and then disappear: a scheduled
+sweep deletes approval-held runs after 30 minutes
 (`.github/workflows/cancel-unapproved-workflows.yml`). That is not a test
-failure, and the run has to be approved and restarted.
+failure. A deleted run cannot be approved, so a new push to the PR has to start
+the checks again.
 
 ## Conflicts appear while you wait
 

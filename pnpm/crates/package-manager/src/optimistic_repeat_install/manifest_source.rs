@@ -3,7 +3,11 @@
 use crate::install::ProjectManifestsByDir;
 use pnpm_hooks::PnpmfileHooks;
 use pnpm_package_manifest::PackageManifest;
-use std::{path::PathBuf, sync::Arc};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 /// The project manifests as the projects declare them: read from disk, or as
 /// a mutating command writes them after the install. The workspace state
@@ -11,17 +15,44 @@ use std::{path::PathBuf, sync::Arc};
 /// so a view that `packageExtensions` or a `readPackage` hook rewrote must
 /// never stand in for them.
 #[derive(Clone, Copy)]
-pub struct DeclaredManifests<'a>(&'a [(PathBuf, &'a PackageManifest)]);
+pub struct DeclaredManifests<'a> {
+    manifests: &'a [(PathBuf, &'a PackageManifest)],
+    recorded_digests: Option<&'a HashMap<PathBuf, String>>,
+}
 
 impl<'a> DeclaredManifests<'a> {
     #[must_use]
     pub fn new(manifests: &'a [(PathBuf, &'a PackageManifest)]) -> Self {
-        Self(manifests)
+        Self { manifests, recorded_digests: None }
+    }
+
+    /// Manifests some of which the last validation's records stand in for,
+    /// per [`crate::optimistic_repeat_install::validation::manifest_stand_ins`].
+    /// `recorded_digests` holds the digest of each of those, by project
+    /// directory. The check then never writes: what it would write is
+    /// derived from the files.
+    #[must_use]
+    pub(crate) fn with_stand_ins(
+        manifests: &'a [(PathBuf, &'a PackageManifest)],
+        recorded_digests: &'a HashMap<PathBuf, String>,
+    ) -> Self {
+        Self { manifests, recorded_digests: Some(recorded_digests) }
     }
 
     #[must_use]
     pub fn as_slice(self) -> &'a [(PathBuf, &'a PackageManifest)] {
-        self.0
+        self.manifests
+    }
+
+    /// Whether records stand in for some manifests.
+    pub(crate) fn has_stand_ins(self) -> bool {
+        self.recorded_digests.is_some()
+    }
+
+    /// The recorded digest of the manifest of `root_dir`, when a record
+    /// stands in for it.
+    pub(crate) fn recorded_digest(self, root_dir: &Path) -> Option<&'a str> {
+        self.recorded_digests?.get(root_dir).map(String::as_str)
     }
 }
 
@@ -29,7 +60,7 @@ impl<'a> std::ops::Deref for DeclaredManifests<'a> {
     type Target = [(PathBuf, &'a PackageManifest)];
 
     fn deref(&self) -> &Self::Target {
-        self.0
+        self.manifests
     }
 }
 
@@ -38,7 +69,7 @@ impl<'a> IntoIterator for DeclaredManifests<'a> {
     type IntoIter = std::slice::Iter<'a, (PathBuf, &'a PackageManifest)>;
 
     fn into_iter(self) -> Self::IntoIter {
-        self.0.iter()
+        self.manifests.iter()
     }
 }
 

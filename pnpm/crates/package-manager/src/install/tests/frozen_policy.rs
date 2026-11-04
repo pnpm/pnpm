@@ -168,6 +168,7 @@ async fn frozen_lockfile_disables_optimistic_short_circuit() {
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
             dedicated: None,
+            discovered_workspace: None,
         },
     }
     .run::<RecordingReporter>()
@@ -271,6 +272,7 @@ async fn frozen_lockfile_errors_when_package_extensions_drift_from_lockfile() {
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
             dedicated: None,
+            discovered_workspace: None,
         },
     }
     .run::<SilentReporter>()
@@ -361,6 +363,7 @@ async fn frozen_lockfile_errors_when_pnpmfile_checksum_drifts() {
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
             dedicated: None,
+            discovered_workspace: None,
         },
     }
     .run::<SilentReporter>()
@@ -464,6 +467,7 @@ async fn rebuild_patches_only(lockfile: &str) -> Result<(), InstallError> {
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
             dedicated: None,
+            discovered_workspace: None,
         },
     }
     .run_rebuild::<SilentReporter>(crate::RebuildOptions {
@@ -539,6 +543,7 @@ async fn frozen_lockfile_errors_when_an_importer_reference_has_no_snapshot() {
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
             dedicated: None,
+            discovered_workspace: None,
         },
     }
     .run::<SilentReporter>()

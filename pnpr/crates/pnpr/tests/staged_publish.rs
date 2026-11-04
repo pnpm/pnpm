@@ -7,7 +7,7 @@ use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode},
 };
-use npm::{publish_doc, sha1_hex};
+use npm::{npm_tgz, npm_tgz_with, publish_doc, sha1_hex};
 use pnpr::{Config, MaxUsers, router};
 use pnpr_fixtures::MockConfigPresets;
 use pnpr_storage::layout::{local_blob_path, local_package_dir};
@@ -104,7 +104,7 @@ async fn staged_publish_is_held_back_until_approved() {
     let app = router(static_config(storage.clone()));
     let token = add_user_and_get_token(app.clone(), "alice", "secret").await;
 
-    let tarball = b"staged-tarball";
+    let tarball = &npm_tgz("staged-pkg", "1.0.0", b"staged-tarball");
     let doc = publish_doc("staged-pkg", "1.0.0", tarball);
     let stage_id = stage_package(app.clone(), "staged-pkg", &doc, &token).await;
     assert!(is_uuid(&stage_id), "stage id must be a UUID: {stage_id}");
@@ -160,7 +160,7 @@ async fn staged_publish_is_held_back_until_approved() {
         .await
         .unwrap();
     assert_eq!(download.status(), StatusCode::OK);
-    assert_eq!(body_bytes(download.into_body()).await, tarball);
+    assert_eq!(body_bytes(download.into_body()).await, *tarball);
 
     // Approve: the package becomes installable and the record disappears.
     let approve = app
@@ -191,7 +191,7 @@ async fn staged_publish_is_held_back_until_approved() {
         "staged-pkg-1.0.0.tgz",
     ))
     .expect("tarball promoted on approval");
-    assert_eq!(on_disk, tarball);
+    assert_eq!(on_disk, *tarball);
 
     let list = app
         .clone()
@@ -253,7 +253,7 @@ async fn staging_supports_scoped_packages() {
     let app = router(static_config(storage.clone()));
     let token = add_user_and_get_token(app.clone(), "alice", "secret").await;
 
-    let tarball = b"scoped-bytes";
+    let tarball = &npm_tgz("@scope/staged", "2.0.0", b"scoped-bytes");
     let doc = publish_doc("@scope/staged", "2.0.0", tarball);
     let stage_id = stage_package(app.clone(), "@scope/staged", &doc, &token).await;
 
@@ -290,7 +290,7 @@ async fn staging_supports_scoped_packages() {
         "staged-2.0.0.tgz",
     ))
     .expect("scoped tarball promoted on approval");
-    assert_eq!(on_disk, tarball);
+    assert_eq!(on_disk, *tarball);
 }
 
 #[tokio::test]
@@ -459,11 +459,10 @@ async fn a_bogus_stage_id_is_not_found_or_rejected() {
     assert_eq!(hostile.status(), StatusCode::BAD_REQUEST);
 }
 
-/// Approving a stage spends it: the transaction committed, so the record goes
-/// even when it reports a package it could not put in the document. Leaving it
-/// listed would offer an approval that cannot happen again.
+/// An approval whose tarball key another writer took commits nothing, and the
+/// stage stays listed for a rejection.
 #[tokio::test]
-async fn an_approval_that_reports_a_conflict_still_consumes_the_stage() {
+async fn an_approval_that_loses_its_tarball_key_leaves_the_stage_to_reject() {
     use object_store::{ObjectStore, ObjectStoreExt, memory::InMemory, path::Path as ObjectPath};
     use pnpr::HostedStoreConfig;
     use std::sync::Arc;
@@ -503,12 +502,29 @@ async fn an_approval_that_reports_a_conflict_still_consumes_the_stage() {
         .await
         .unwrap();
     assert_eq!(approve.status(), StatusCode::CONFLICT);
+    let packument = app
+        .clone()
+        .oneshot(request("GET", "/npm/staged-pkg", Body::empty(), Some(&token)))
+        .await
+        .unwrap();
+    assert_eq!(packument.status(), StatusCode::NOT_FOUND);
 
+    let reject = app
+        .clone()
+        .oneshot(request(
+            "DELETE",
+            &format!("/npm/-/stage/{stage_id}"),
+            Body::empty(),
+            Some(&token),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(reject.status(), StatusCode::NO_CONTENT);
     let list = app
         .oneshot(request("GET", "/npm/-/stage?page=0&perPage=100", Body::empty(), Some(&token)))
         .await
         .unwrap();
-    assert_eq!(body_json(list.into_body()).await["total"], 0, "the approved stage is spent");
+    assert_eq!(body_json(list.into_body()).await["total"], 0, "the rejected stage is gone");
 }
 
 /// Rewrite the stored record of `stage_id` as if another replica had claimed
@@ -688,4 +704,37 @@ async fn a_failed_approval_releases_its_claim() {
             "attempt {attempt} must report the publish conflict, not a claim: {message}",
         );
     }
+}
+
+#[tokio::test]
+async fn approving_a_tolerated_difference_sends_its_notice() {
+    let tmp = TempDir::new().unwrap();
+    let app = router(static_config(tmp.path().to_path_buf()));
+    let token = add_user_and_get_token(app.clone(), "alice", "secret").await;
+    let tarball = npm_tgz_with(&json!({ "name": "gyp-pkg", "version": "1.0.0" }), b"");
+    let mut doc = publish_doc("gyp-pkg", "1.0.0", &tarball);
+    doc["versions"]["1.0.0"]["scripts"] = json!({ "install": "node-gyp rebuild" });
+    let stage_id = stage_package(app.clone(), "gyp-pkg", &doc, &token).await;
+
+    let approve = app
+        .oneshot(request(
+            "POST",
+            &format!("/npm/-/stage/{stage_id}/approve"),
+            Body::empty(),
+            Some(&token),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(approve.status(), StatusCode::CREATED);
+    let notice = approve
+        .headers()
+        .get("npm-notice")
+        .expect("npm-notice header");
+    assert!(
+        notice
+            .to_str()
+            .unwrap()
+            .contains("gyp-pkg@1.0.0"),
+        "{notice:?}",
+    );
 }

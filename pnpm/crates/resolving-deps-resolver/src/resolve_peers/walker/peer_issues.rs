@@ -75,7 +75,7 @@ impl Walker<'_> {
             inherited_must_win: || false,
             locked: None,
         };
-        match provider_for(raw_range, scope) {
+        match provider_for(peer_dep, scope) {
             ProviderPick::Missing => {
                 missing.insert(
                     peer_name.to_string(),
@@ -89,7 +89,7 @@ impl Walker<'_> {
                     &comparable_range,
                 );
             }
-            ProviderPick::Bound { provider: parent, .. } => {
+            ProviderPick::Inherited(parent) | ProviderPick::Locked(parent) => {
                 if !comparable_range.satisfies(&parent.version) {
                     self.record_bad_peer(peer_name, &comparable_range, parent, optional, chain);
                 }
@@ -224,6 +224,16 @@ impl Walker<'_> {
         let pkg = Arc::new(self.tree.packages[pkg_id].clone());
         self.providers.packages_by_id.insert(Arc::clone(pkg_id), Arc::clone(&pkg));
         pkg
+    }
+
+    pub(in super::super) fn remember_provider_bindings(
+        &mut self,
+        node_id: &NodeId,
+        peers: &Arc<HashMap<String, NodeId>>,
+    ) {
+        if self.caches.node_dep_paths.contains_key(node_id) {
+            self.nodes.external_peers.insert(node_id.clone(), Arc::clone(peers));
+        }
     }
 
     pub(in super::super) fn remember_resolved_node(

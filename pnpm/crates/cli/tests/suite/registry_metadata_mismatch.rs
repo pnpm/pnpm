@@ -10,6 +10,7 @@ use pnpm_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
     command_env::CommandTestExt,
 };
+use pnpr_fixtures::RemovedVersionField;
 use serde_json::json;
 use std::{fs, path::Path, process::Command};
 
@@ -35,9 +36,12 @@ fn run(workspace: &Path, args: &[&str]) {
 /// A workspace whose registry drops `peerDependenciesMeta` from the
 /// metadata of [`WITH_PEERS`], with `minimumReleaseAge` on.
 fn setup(specifier: &str) -> (tempfile::TempDir, std::path::PathBuf, AddMockedRegistry) {
-    let CommandTempCwd { root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry_with_own_storage();
-    npmrc_info.remove_version_field(WITH_PEERS, "1.0.0", "peerDependenciesMeta");
+    let CommandTempCwd { root, workspace, npmrc_info, .. } = CommandTempCwd::init()
+        .add_mocked_registry_with_own_storage_without_fields(&[RemovedVersionField {
+            package: WITH_PEERS,
+            version: "1.0.0",
+            field: "peerDependenciesMeta",
+        }]);
     set_minimum_release_age(&workspace, 5760);
     fs::write(
         workspace.join("package.json"),

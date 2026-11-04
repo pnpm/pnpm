@@ -18,16 +18,13 @@
 //! between the two. Users, which the local backend keeps in an htpasswd
 //! file, live in a `users` table here ([`super::USERS_TABLE_SQL`]).
 
-mod connector;
-mod pool;
 mod schema;
 mod tokens;
 mod user_admin;
-use connector::{LibsqlConnector, is_plain_http};
-use pool::{ConnectionPool, first_row};
+use pnpr_libsql::{ConnectionPool, LibsqlConnector, first_row, is_unique_violation};
 use schema::{
-    claim_user_counter_slot, init_schema, is_unique_violation, missing_count_row,
-    reconcile_user_counter_overcount, retry_database_conflicts,
+    claim_user_counter_slot, init_schema, missing_count_row, reconcile_user_counter_overcount,
+    retry_database_conflicts,
 };
 
 use super::{
@@ -37,13 +34,10 @@ use super::{
 };
 use crate::validation::validate_username;
 use async_trait::async_trait;
-use libsql::{
-    Builder, Connection, Database, Error as LibsqlError, Row, TransactionBehavior, params,
-};
-use pnpm_network::is_url_secure_for_credentials;
+use libsql::{Connection, Database, Row, TransactionBehavior, params};
 use pnpr_config::{LibsqlSettings, MaxUsers};
 use pnpr_error::{RegistryError, Result};
-use std::{path::Path, sync::atomic::AtomicU64, time::Duration};
+use std::{sync::atomic::AtomicU64, time::Duration};
 
 /// Deadline for each auth database operation, beyond which a stalled endpoint
 /// surfaces [`RegistryError::AuthDatabaseTimeout`] rather than hanging.
@@ -81,32 +75,16 @@ impl LibsqlAuth {
     /// startup, so an unreachable database fails fast rather than per
     /// request.
     ///
-    /// With `replicaPath` set, the database is an embedded replica: an
-    /// initial sync runs at build time and libsql keeps it current in
-    /// the background (every `syncInterval`), so reads hit the local
-    /// file. libsql probes the primary for its newer sync protocol, the
-    /// only one Turso Cloud serves, and falls back to the replication
-    /// protocol of a self-hosted `sqld`. Opening a connection over the
-    /// newer one blocks in place, so the caller must run on tokio's
-    /// multi-thread runtime.
+    /// With `replicaPath` set, the database is an embedded replica (see
+    /// [`pnpr_libsql::open`]), so reads hit the local file. Without it, every
+    /// read is a remote query against the primary — always fresh, but a
+    /// network round-trip on the auth hot path.
     ///
     /// The whole startup, the initial sync included, runs under one
     /// [`DEFAULT_STARTUP_TIMEOUT`], within which a dial that times out is
-    /// retried. Without `replicaPath`, every
-    /// read is a remote query against the primary — always fresh, but a
-    /// network round-trip on the auth hot path.
+    /// retried.
     pub async fn connect(settings: &LibsqlSettings, max_users: MaxUsers) -> Result<Self> {
-        if settings.auth_token.is_some()
-            && is_plain_http(&settings.url)
-            && !is_url_secure_for_credentials(&settings.url)
-        {
-            return Err(RegistryError::InvalidConfig {
-                reason: "backend.libsql.authToken requires an https:// or libsql:// url, or \
-                         http:// on a loopback host"
-                    .to_string(),
-            });
-        }
-        let connector = LibsqlConnector::for_url(&settings.url, settings.auth_token.is_some())?;
+        let connector = pnpr_libsql::connector(settings, "backend.libsql")?;
         let _startup_dials = connector.retry_timed_out_dials();
         with_auth_timeout(
             DEFAULT_STARTUP_TIMEOUT,
@@ -120,52 +98,11 @@ impl LibsqlAuth {
         max_users: MaxUsers,
         connector: LibsqlConnector,
     ) -> Result<Self> {
-        let db = if let Some(path) = &settings.replica_path {
-            Self::open_replica(path, settings, connector).await?
-        } else {
-            let auth_token = settings.auth_token.clone().unwrap_or_default();
-            Box::pin(
-                Builder::new_remote(settings.url.clone(), auth_token).connector(connector).build(),
-            )
-            .await?
-        };
+        let db = pnpr_libsql::open(settings, connector).await?;
         let max_connections =
             settings.max_connections.unwrap_or(LibsqlSettings::DEFAULT_MAX_CONNECTIONS);
         let is_replica = settings.replica_path.is_some();
         Self::with_replica(db, max_users, max_connections, is_replica).await
-    }
-
-    /// Open the embedded replica at `path`, creating its directory the way
-    /// the local stores create theirs.
-    async fn open_replica(
-        path: &Path,
-        settings: &LibsqlSettings,
-        connector: LibsqlConnector,
-    ) -> Result<Database> {
-        if let Some(parent) = path
-            .parent()
-            .filter(|parent| !parent.as_os_str().is_empty())
-        {
-            tokio::fs::create_dir_all(parent).await.map_err(RegistryError::Io)?;
-        }
-        let auth_token = settings.auth_token.clone().unwrap_or_default();
-        // Writes are synced back by `sync_replica` instead.
-        let mut builder = Builder::new_remote_replica(path, settings.url.clone(), auth_token)
-            .connector(connector)
-            .read_your_writes(false);
-        let interval =
-            settings.sync_interval_secs.unwrap_or(LibsqlSettings::DEFAULT_SYNC_INTERVAL_SECS);
-        if interval > 0 {
-            builder = builder.sync_interval(Duration::from_secs(interval));
-        }
-        let db = Box::pin(builder.build()).await?;
-        if interval == 0 {
-            // libsql bootstraps the replica during the build only alongside a
-            // sync interval; otherwise it would do so inside the blocking
-            // `Database::connect`, which the startup deadline cannot cancel.
-            Box::pin(db.sync()).await?;
-        }
-        Ok(db)
     }
 
     /// [`Self::with_replica`] for the local-database test setup.
@@ -188,7 +125,9 @@ impl LibsqlAuth {
         is_replica: bool,
     ) -> Result<Self> {
         let auth = Self {
-            pool: ConnectionPool::new(db, max_connections as usize, DEFAULT_AUTH_TIMEOUT),
+            pool: ConnectionPool::new(db, max_connections as usize, DEFAULT_AUTH_TIMEOUT, || {
+                RegistryError::AuthDatabaseTimeout
+            }),
             secret: fresh_secret(),
             counter: AtomicU64::new(0),
             max_users,

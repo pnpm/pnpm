@@ -1,6 +1,6 @@
 pub(super) mod json;
 
-pub(super) use json::{render_json, render_recursive_json};
+pub(super) use json::{render_json, render_recursive_json, report_keys};
 
 use super::{
     DependencyGroup, OutdatedInWorkspace, OutdatedPackage, SortBy, Stream, Version, Write,

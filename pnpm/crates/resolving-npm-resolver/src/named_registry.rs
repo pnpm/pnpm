@@ -10,7 +10,7 @@
 
 pub use pnpm_lockfile::pick_registry_for_package;
 
-pub use pnpm_config::BUILTIN_REGISTRIES_BY_PREFIX;
+pub use pnpm_resolving_resolver_base::BUILTIN_REGISTRIES_BY_PREFIX;
 
 use pnpm_lockfile::normalized_registry_key;
 

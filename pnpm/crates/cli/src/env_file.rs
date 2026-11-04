@@ -96,7 +96,7 @@ const UTF8_BOM: [u8; 3] = [0xEF, 0xBB, 0xBF];
 fn load_one(
     path: &Path,
     loaded_keys: &mut HashSet<String>,
-    set: &mut impl FnMut(&str, &str),
+    mut set: impl FnMut(&str, &str),
 ) -> miette::Result<()> {
     let bytes =
         std::fs::read(path).map_err(|source| EnvFileError::Read { path: path.to_owned(), source })?;
@@ -111,9 +111,6 @@ fn load_one(
         let id = env_key_id(key);
         if std::env::var_os(key).is_none() || loaded_keys.contains(&id) {
             loaded_keys.insert(id);
-            // Set per entry rather than per file: `dotenvy` resolves a
-            // `$VAR` against the environment, so a later file's reference to
-            // an earlier file's variable needs the change to have landed.
             set(key, value);
         }
     }

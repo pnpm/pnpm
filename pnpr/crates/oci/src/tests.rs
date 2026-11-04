@@ -1,5 +1,4 @@
 use crate::{Digest, ImageDocument, Manifest, ManifestEntry, TagEntry, media_type};
-use std::collections::HashSet;
 
 fn digest_of(body: &str) -> Digest {
     Digest::of(body.as_bytes())
@@ -113,22 +112,9 @@ fn merge_keeps_the_newer_tag_whichever_order_it_arrives_in() {
         let mut addition = ImageDocument::new("acme/app");
         second(&mut addition);
 
-        stored.merge(addition, &HashSet::new());
+        stored.merge(addition);
         assert_eq!(stored.tag("latest").unwrap().digest, digest_of("two"));
     }
-}
-
-#[test]
-fn merge_skips_entries_whose_blob_was_lost() {
-    let mut stored = ImageDocument::new("acme/app");
-    let mut addition = ImageDocument::new("acme/app");
-    addition.insert_manifest(entry("one"));
-    addition.set_tag(tag("latest", "one", 1));
-
-    let lost = HashSet::from([digest_of("one").blob_filename()]);
-    assert!(!stored.merge(addition, &lost));
-    assert!(stored.manifests().is_empty());
-    assert!(stored.tags().is_empty());
 }
 
 #[test]
@@ -137,7 +123,7 @@ fn merge_refuses_a_tag_with_no_manifest_behind_it() {
     let mut addition = ImageDocument::new("acme/app");
     addition.set_tag(tag("latest", "absent", 1));
 
-    assert!(!stored.merge(addition, &HashSet::new()));
+    assert!(!stored.merge(addition));
     assert!(stored.tags().is_empty());
 }
 
@@ -148,7 +134,7 @@ fn merge_reports_no_change_when_everything_is_already_held() {
     stored.set_tag(tag("latest", "one", 1));
     let addition = stored.clone();
 
-    assert!(!stored.merge(addition, &HashSet::new()));
+    assert!(!stored.merge(addition));
 }
 
 #[test]
@@ -239,16 +225,15 @@ fn a_tag_written_in_the_same_millisecond_still_moves() {
     addition.insert_manifest(entry("two"));
     addition.set_tag(tag("latest", "two", same_instant));
 
-    assert!(stored.merge(addition, &HashSet::new()));
+    assert!(stored.merge(addition));
     assert_eq!(stored.tag("latest").unwrap().digest, digest_of("two"));
 }
 
 #[test]
-fn a_stale_journaled_tag_cannot_move_a_re_pushed_tag_backward() {
-    // The tag is pushed to `one`, a push to `two` is journaled but not
-    // applied, then `one` is pushed again. Replaying the journal afterwards
-    // must not resurrect `two`, which it would if the re-push had left the
-    // first push's timestamp in place.
+fn a_stale_tag_cannot_move_a_re_pushed_tag_backward() {
+    // The tag is pushed to `one`, then to `two`, then to `one` again, and the
+    // push to `two` lands last. It must not resurrect `two`, which it would
+    // if the re-push had left the first push's timestamp in place.
     let mut stored = ImageDocument::new("acme/app");
     stored.insert_manifest(entry("one"));
     stored.insert_manifest(entry("two"));
@@ -257,12 +242,12 @@ fn a_stale_journaled_tag_cannot_move_a_re_pushed_tag_backward() {
     let mut re_push = ImageDocument::new("acme/app");
     re_push.insert_manifest(entry("one"));
     re_push.set_tag(tag("latest", "one", 3));
-    stored.merge(re_push, &HashSet::new());
+    stored.merge(re_push);
 
-    let mut journaled = ImageDocument::new("acme/app");
-    journaled.insert_manifest(entry("two"));
-    journaled.set_tag(tag("latest", "two", 2));
-    stored.merge(journaled, &HashSet::new());
+    let mut stale = ImageDocument::new("acme/app");
+    stale.insert_manifest(entry("two"));
+    stale.set_tag(tag("latest", "two", 2));
+    stored.merge(stale);
 
     assert_eq!(stored.tag("latest").unwrap().digest, digest_of("one"));
 }
@@ -355,11 +340,11 @@ fn deletion_generations_fence_staged_and_recovered_manifest_writes() {
     staged.set_tag(tag("latest", "manifest", 1));
     stored.generation = 1;
     stored.deleting_blob = Some(digest_of("layer"));
-    assert!(!stored.merge(staged.clone(), &HashSet::new()));
+    assert!(!stored.merge(staged.clone()));
     stored.deleting_blob = None;
-    assert!(!stored.merge(staged.clone(), &HashSet::new()));
+    assert!(!stored.merge(staged.clone()));
     assert!(stored.manifests().is_empty());
     staged.generation = 1;
-    assert!(stored.merge(staged, &HashSet::new()));
+    assert!(stored.merge(staged));
     assert!(stored.resolve("latest").is_some());
 }

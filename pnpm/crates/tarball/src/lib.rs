@@ -9,15 +9,17 @@ pub use bounded_reader::BoundedReader;
 pub use download::*;
 pub use error::*;
 pub use extract::{
-    ArchiveLimit, DEFAULT_MAX_TARBALL_UNPACKED_SIZE, TarInspection, TarLimits, inspect_tar,
-    read_buffered_tar_entry, tar_requires_build,
+    ArchiveLimit, DEFAULT_MAX_TARBALL_UNPACKED_SIZE, MAX_PUBLICATION_ARCHIVE_ENTRIES,
+    MAX_PUBLICATION_MANIFEST_BYTES, MAX_PUBLICATION_PATH_BYTES, PublicationArchive,
+    PublicationArchiveError, TarInspection, TarLimits, inspect_tar, read_buffered_tar_entry,
+    read_publication_archive, tar_requires_build,
 };
 pub(crate) use extract::{
     STREAM_ENTRY_BUFFER_MAX, STREAM_EXTRACT_COMPRESSED_THRESHOLD,
     STREAM_EXTRACT_DURING_DOWNLOAD_THRESHOLD, allocate_tarball_buffer, apply_append_manifest,
-    apply_placeholder_manifest, body_chunk_channel, clean_archive_entry_path, decompress_gzip,
-    extract_archive_bytes, extract_resource_stream, is_eager_decode_limit_exceeded,
-    oversized_manifest_error, tar_entry_payload,
+    apply_placeholder_manifest, body_chunk_channel, checked_now, clean_archive_entry_path,
+    decompress_gzip, extract_archive_bytes, extract_resource_stream,
+    is_eager_decode_limit_exceeded, oversized_manifest_error, tar_entry_payload,
 };
 pub use fetch_for_resolution::{
     FetchTarballForResolution, NotModifiedResponse, ResolutionStore, ResolvedTarball,
@@ -422,7 +424,7 @@ impl<'a> IngestTarballToStore<'a> {
                     cache_lock,
                     notify,
                     CachedTarball {
-                        files: Arc::new(loaded.files),
+                        files: loaded.files,
                         manifest: loaded.manifest,
                         requires_build: loaded.requires_build,
                         bins: loaded.bins,
@@ -465,7 +467,7 @@ impl<'a> IngestTarballToStore<'a> {
     pub async fn run_without_mem_cache<Reporter: self::Reporter>(
         &self,
     ) -> Result<pnpm_fs::CasPaths, TarballError> {
-        self.load_or_fetch::<Reporter>(false).await.map(|cached| cached.files)
+        self.load_or_fetch::<Reporter>(false).await.map(|cached| Arc::unwrap_or_clone(cached.files))
     }
 
     /// Execute a registry revision fetch without the in-memory cache.
@@ -473,7 +475,7 @@ impl<'a> IngestTarballToStore<'a> {
     pub async fn run_revision_addressed_without_mem_cache<Reporter: self::Reporter>(
         &self,
     ) -> Result<pnpm_fs::CasPaths, TarballError> {
-        self.load_or_fetch::<Reporter>(true).await.map(|cached| cached.files)
+        self.load_or_fetch::<Reporter>(true).await.map(|cached| Arc::unwrap_or_clone(cached.files))
     }
 
     /// Fetch without cache reuse, indexing unpinned archives by computed integrity.

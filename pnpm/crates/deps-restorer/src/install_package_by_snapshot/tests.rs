@@ -4,6 +4,8 @@ mod store;
 
 mod runtimes;
 
+mod variants;
+
 mod links;
 
 mod workspace;

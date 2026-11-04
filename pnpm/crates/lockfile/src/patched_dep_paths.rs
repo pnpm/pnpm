@@ -1,7 +1,7 @@
 use crate::{
     ImporterDepVersion, Lockfile, PackageKey, PackageMetadata, PkgName, PkgVerPeer, SnapshotDepRef,
 };
-use pnpm_patching::{
+use pnpm_patching_config::{
     PatchGroup, PatchGroupRecord, PatchInput, get_patch_info, group_patched_dependencies, parse_key,
 };
 use segments::split_suffix;

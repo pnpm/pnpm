@@ -37,7 +37,7 @@ pub(super) fn widen_drop_targets_to_subtrees(
 
 /// The aliases of the unmatched direct dependencies and the package names
 /// the lockfile resolves them to.
-fn unmatched_direct_names(
+pub(super) fn unmatched_direct_names(
     scope: &UpdateScope<'_>,
     lockfile: &Lockfile,
     matched: &HashSet<&str>,

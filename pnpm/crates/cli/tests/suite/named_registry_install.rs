@@ -17,12 +17,15 @@ use std::{ffi::OsStr, fs, path::Path, process::Command};
 use tempfile::TempDir;
 
 /// Points the `work:` named-registry alias at the mocked registry, which
-/// serves the `@pnpm.e2e/foo` fixture.
+/// serves the `@pnpm.e2e/foo` fixture. The default registry is the mock
+/// under another host name: the default registry's packages keep plain keys
+/// whatever prefix names it.
 fn setup() -> (TempDir, std::path::PathBuf, AddMockedRegistry) {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let registry = npmrc_info.mock_instance.url();
     append_workspace_yaml_key(&workspace, "namedRegistries", format!("{{ work: '{registry}' }}"));
+    append_workspace_yaml_key(&workspace, "registry", registry.replace("127.0.0.1", "localhost"));
     (root, workspace, npmrc_info)
 }
 

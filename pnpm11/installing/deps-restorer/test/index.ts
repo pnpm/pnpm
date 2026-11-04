@@ -17,7 +17,7 @@ import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
 import { fixtures } from '@pnpm/test-fixtures'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import { getIntegrity } from '@pnpm/testing.registry-mock'
-import type { DepPath, ProjectId } from '@pnpm/types'
+import type { DepPath, ProjectId, ProjectRootDir } from '@pnpm/types'
 import { rimrafSync } from '@zkochan/rimraf'
 import { loadJsonFileSync } from 'load-json-file'
 
@@ -832,6 +832,47 @@ test.each(['renamed', 'removed'])('headless install removes a %s workspace proje
   expect(() => fs.lstatSync(path.join(privateHoistDir, 'old-name'))).toThrow(expect.objectContaining({ code: 'ENOENT' }))
   if (change === 'renamed') {
     expect(fs.realpathSync(path.join(privateHoistDir, 'new-name'))).toBe(projectDir)
+  }
+})
+
+test.each([
+  [0, true],
+  [-1, false],
+])('headless install with linkWorkspacePackagesDepth=%d relinks a workspace range excludeLinksFromLockfile left out: %s', async (linkWorkspacePackagesDepth, linked) => {
+  const prefix = tempDir()
+  const fooDir = path.join(prefix, 'foo')
+  const barDir = path.join(prefix, 'bar')
+  const fooManifest = { name: 'foo', version: '1.0.0' }
+  fs.mkdirSync(fooDir)
+  fs.mkdirSync(barDir)
+  fs.writeFileSync(path.join(prefix, 'package.json'), JSON.stringify({ name: 'root', version: '1.0.0' }))
+  fs.writeFileSync(path.join(fooDir, 'package.json'), JSON.stringify(fooManifest))
+  fs.writeFileSync(path.join(barDir, 'package.json'), JSON.stringify({ name: 'bar', version: '1.0.0', dependencies: { foo: '^1.0.0' } }))
+  fs.writeFileSync(path.join(prefix, WANTED_LOCKFILE), [
+    "lockfileVersion: '9.0'",
+    'settings:',
+    '  autoInstallPeers: true',
+    '  excludeLinksFromLockfile: true',
+    'importers:',
+    '  .: {}',
+    '  bar: {}',
+    '  foo: {}',
+    '',
+  ].join('\n'))
+
+  await headlessInstall(await testDefaults({
+    excludeLinksFromLockfile: true,
+    linkWorkspacePackagesDepth,
+    lockfileDir: prefix,
+    projects: [prefix, fooDir, barDir],
+    workspacePackages: new Map([['foo', new Map([['1.0.0', { rootDir: fooDir as ProjectRootDir, manifest: fooManifest }]])]]),
+  }))
+
+  const linkPath = path.join(barDir, 'node_modules/foo')
+  if (linked) {
+    expect(fs.realpathSync(linkPath)).toBe(fs.realpathSync(fooDir))
+  } else {
+    expect(fs.existsSync(linkPath)).toBe(false)
   }
 })
 

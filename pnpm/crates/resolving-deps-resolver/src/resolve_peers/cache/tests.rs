@@ -71,3 +71,70 @@ fn previously_resolved_children_prefers_closest_same_package_ancestor() {
 
     assert_eq!(children.get("shared"), Some(&close_child));
 }
+
+#[test]
+fn equal_provisional_paths_require_matching_nested_providers() {
+    use super::CacheMatch;
+    use crate::resolve_peers::context::ParentRef;
+
+    let current = NodeId::next();
+    let cached = NodeId::next();
+    let current_inner = NodeId::next();
+    let cached_inner = NodeId::next();
+    let mut tree = ResolvedTree::default();
+    let mut walker = walker_for_tests(&mut tree);
+    for node_id in [&current, &cached] {
+        walker.caches.node_dep_paths.insert(
+            node_id.clone(),
+            DepPath::from("provider@1.0.0(inner@1.0.0)"),
+        );
+        walker.caches.parent_pkgs_of_node.insert(node_id.clone(), Arc::new(HashMap::default()));
+    }
+    walker.nodes.external_peers.insert(
+        current.clone(),
+        Arc::new(HashMap::from_iter([("inner".into(), current_inner.clone())])),
+    );
+    walker.nodes.external_peers.insert(
+        cached.clone(),
+        Arc::new(HashMap::from_iter([("inner".into(), cached_inner.clone())])),
+    );
+    let current_ref =
+        ParentRef { node_id: Some(current.clone()), version: "1.0.0".into(), alias: None };
+
+    assert_eq!(walker.provider_identity_match(&current, &cached), CacheMatch::Ambiguous);
+    assert!(!walker.parent_ref_matches_cached(&current_ref, &cached));
+    walker.caches.node_dep_paths.insert(
+        current_inner.clone(),
+        DepPath::from("inner@1.0.0(peer@2.0.0)"),
+    );
+    walker.caches.node_dep_paths.insert(
+        cached_inner.clone(),
+        DepPath::from("inner@1.0.0(peer@1.0.0)"),
+    );
+    assert_eq!(walker.provider_identity_match(&current, &cached), CacheMatch::NoMatch);
+    assert!(!walker.parent_ref_matches_cached(&current_ref, &cached));
+    walker.nodes.cache_owners.insert(current_inner, cached_inner);
+    assert_eq!(walker.provider_identity_match(&current, &cached), CacheMatch::Match);
+    assert!(walker.parent_ref_matches_cached(&current_ref, &cached));
+}
+
+#[test]
+fn provider_identity_comparison_terminates_on_peer_cycles() {
+    use super::CacheMatch;
+
+    let current = NodeId::next();
+    let cached = NodeId::next();
+    let mut tree = ResolvedTree::default();
+    let mut walker = walker_for_tests(&mut tree);
+    for node_id in [&current, &cached] {
+        walker.caches.node_dep_paths.insert(
+            node_id.clone(),
+            DepPath::from("provider@1.0.0(loop@1.0.0)"),
+        );
+        walker.nodes.external_peers.insert(
+            node_id.clone(),
+            Arc::new(HashMap::from_iter([("loop".into(), node_id.clone())])),
+        );
+    }
+    assert_eq!(walker.provider_identity_match(&current, &cached), CacheMatch::Match);
+}

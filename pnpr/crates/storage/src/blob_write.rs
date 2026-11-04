@@ -25,17 +25,9 @@ pub struct BlobSlot {
 }
 
 impl BlobSlot {
-    /// Rebuild a slot from its journaled parts so startup recovery can
-    /// re-run [`crate::Storage::finalize_blob_slot`] on it.
-    pub(crate) fn from_parts(
-        tmp_path: PathBuf,
-        name: CanonicalPackageName,
-        filename: String,
-    ) -> Self {
-        Self { tmp_path, name, filename }
-    }
-
-    pub(crate) fn filename(&self) -> &str {
+    /// The name the blob is stored under in its package.
+    #[must_use]
+    pub fn filename(&self) -> &str {
         &self.filename
     }
 }

@@ -91,7 +91,7 @@ test('skip dangerous bin names', async () => {
   )
 })
 
-test('skip dangerous bin locations', async () => {
+test('normalize parent segments in bin locations', async () => {
   expect(
     await getBinsFromPackageManifest({
       name: 'foo',
@@ -103,6 +103,10 @@ test('skip dangerous bin locations', async () => {
       },
     }, process.cwd())).toStrictEqual(
     [
+      {
+        name: 'bad',
+        path: path.resolve('bad'),
+      },
       {
         name: 'good',
         path: path.resolve('good'),
@@ -187,4 +191,31 @@ test('skip directories.bin with path traversal', async () => {
         bin: '../../../etc',
       },
     }, process.cwd())).toStrictEqual([])
+})
+
+test.each(['../dist/cli.js', '../../dist/cli.js', 'lib/../../dist/cli.js'])('clamp bin target %s inside the package', async (target) => {
+  const pkgPath = path.resolve('pkg')
+  const results = await Promise.all([target, { tool: target }].map(async (bin) =>
+    getBinsFromPackageManifest({ name: 'tool', version: '1.0.0', bin }, pkgPath)))
+  for (const bins of results) {
+    expect(bins).toStrictEqual([{ name: 'tool', path: path.join(pkgPath, 'dist/cli.js') }])
+  }
+})
+
+test.each(['/outside.js', 'C:\\outside.js', '\\outside.js', 'C:cli.js', './C:cli.js', 'bin/../C:cli.js', '.', '..', 'bin/..'])('reject unsafe or empty normalized bin target %s', async (target) => {
+  expect(await getBinsFromPackageManifest({ name: 'tool', version: '1.0.0', bin: { tool: target } }, path.resolve('pkg'))).toStrictEqual([])
+})
+
+test.each(['dist\\cli.js', '..\\dist\\cli.js', 'lib\\..\\..\\dist\\cli.js'])('normalize backslash bin target %s inside the package', async (target) => {
+  const pkgPath = path.resolve('pkg')
+  expect(await getBinsFromPackageManifest({ name: 'tool', version: '1.0.0', bin: { tool: target } }, pkgPath)).toStrictEqual([
+    { name: 'tool', path: path.join(pkgPath, 'dist/cli.js') },
+  ])
+})
+
+test('preserve colons in package-relative bin filenames', async () => {
+  const pkgPath = path.resolve('pkg')
+  expect(await getBinsFromPackageManifest({ name: 'tool', version: '1.0.0', bin: { tool: '../dist/cli:dev.js' } }, pkgPath)).toStrictEqual([
+    { name: 'tool', path: path.join(pkgPath, 'dist/cli:dev.js') },
+  ])
 })

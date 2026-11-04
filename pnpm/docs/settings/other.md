@@ -55,9 +55,16 @@ You can also pass it as a CLI flag: `pnpm add --save-types express`.
 * Default: **latest**
 * Type: **String**
 
-If you `pnpm add` a package and you don't provide a specific version, then it
-will install the package at the version registered under the tag from this
-setting.
+If you `pnpm add` a package and you don't provide a specific version, pnpm
+saves the first of these that exists:
+
+1. A `catalog:` reference, if the [catalog](../catalogs.md) pnpm saves to
+   lists the package.
+2. The range that every other workspace project declaring the package uses.
+   pnpm skips this step when the projects declare different ranges or one of
+   them uses a protocol, such as `workspace:`.
+3. The range a matching [override](./dependency-resolution.md#overrides) sets.
+4. The version registered under the tag from this setting.
 
 ### globalDir
 

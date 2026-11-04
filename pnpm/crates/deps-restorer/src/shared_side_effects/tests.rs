@@ -50,12 +50,13 @@ fn an_artifact_digest_addresses_the_file_the_store_wrote() {
     let digest = pnpm_pnpr_client::blob_id(&integrity).unwrap();
     let mut located_by_mode = Vec::new();
     for mode in [0o755, 0o644, 0o744] {
-        let (written, _) = store_dir
+        let written = store_dir
             .write_cas_file(
                 bytes,
                 pnpm_fs::file_mode::is_executable(pnpm_fs::FileMode::from_mode(mode)),
             )
-            .unwrap();
+            .unwrap()
+            .file;
         let located = store_dir
             .cas_file_path_by_mode(&digest, mode)
             .expect("an artifact digest must address a CAS path");
@@ -81,7 +82,7 @@ async fn corrupted_store_content_is_not_reused() {
     let store = tempfile::tempdir().unwrap();
     let store_dir = pnpm_store_dir::StoreDir::new(store.path());
     let bytes = b"addon".as_slice();
-    let (path, _) = store_dir.write_cas_file(bytes, true).unwrap();
+    let path = store_dir.write_cas_file(bytes, true).unwrap().file;
     let integrity = format!("sha512-{}", BASE64.encode(Sha512::digest(bytes)));
     let digest = pnpm_pnpr_client::blob_id(&integrity).unwrap();
     assert!(super::store_holds(&path, &digest).await.unwrap());
@@ -106,7 +107,7 @@ async fn a_non_regular_file_is_not_reused_as_store_content() {
     let store = tempfile::tempdir().unwrap();
     let store_dir = pnpm_store_dir::StoreDir::new(store.path());
     let bytes = b"addon".as_slice();
-    let (path, _) = store_dir.write_cas_file(bytes, true).unwrap();
+    let path = store_dir.write_cas_file(bytes, true).unwrap().file;
     let integrity = format!("sha512-{}", BASE64.encode(Sha512::digest(bytes)));
     let digest = pnpm_pnpr_client::blob_id(&integrity).unwrap();
 
@@ -150,7 +151,8 @@ async fn a_persisted_symlink_entry_is_valid_while_its_target_blob_is_stored() {
     let store = tempfile::tempdir().unwrap();
     let store_dir = pnpm_store_dir::StoreDir::new(store.path());
     let target = b"addon.node";
-    let (path, hash) = store_dir.write_cas_file(target, false).unwrap();
+    let pnpm_store_dir::WrittenFile { file: path, hash, .. } =
+        store_dir.write_cas_file(target, false).unwrap();
     let link = "build/addon-alias.node".to_string();
     let diff = SideEffectsDiff {
         added: Some(HashMap::from([(
@@ -165,12 +167,12 @@ async fn a_persisted_symlink_entry_is_valid_while_its_target_blob_is_stored() {
         deleted: None,
         remote_origin: None,
     };
-    let mut overlay = SideEffectsOverlay {
-        files: HashMap::new(),
+    let overlay = SideEffectsOverlay {
+        files: std::sync::Arc::default(),
         symlinks: HashMap::from([(link, "addon.node".to_string())]),
     };
     assert!(
-        super::stored_remote_side_effects_blobs_are_valid(&store_dir, &diff, &mut overlay)
+        super::stored_remote_side_effects_blobs_are_valid(&store_dir, &diff, &overlay)
             .await
             .unwrap(),
     );
@@ -178,7 +180,7 @@ async fn a_persisted_symlink_entry_is_valid_while_its_target_blob_is_stored() {
         !super::stored_remote_side_effects_blobs_are_valid(
             &store_dir,
             &diff,
-            &mut SideEffectsOverlay::default(),
+            &SideEffectsOverlay::default(),
         )
         .await
         .unwrap(),
@@ -187,14 +189,14 @@ async fn a_persisted_symlink_entry_is_valid_while_its_target_blob_is_stored() {
 
     std::fs::remove_file(&path).unwrap();
     assert!(
-        !super::stored_remote_side_effects_blobs_are_valid(&store_dir, &diff, &mut overlay)
+        !super::stored_remote_side_effects_blobs_are_valid(&store_dir, &diff, &overlay)
             .await
             .unwrap(),
     );
 }
 
-/// pnpm/pnpm#17543: each peer snapshot gets its own copy of a persisted
-/// overlay, so the check that stats its blobs records their modes on it.
+/// pnpm/pnpm#17543: the check that stats a persisted overlay's blobs
+/// records their modes on the files every snapshot of the overlay shares.
 #[tokio::test]
 #[cfg(unix)]
 async fn checking_a_persisted_overlay_records_the_modes_it_read() {
@@ -204,7 +206,8 @@ async fn checking_a_persisted_overlay_records_the_modes_it_read() {
     let store = tempfile::tempdir().unwrap();
     let store_dir = pnpm_store_dir::StoreDir::new(store.path());
     let built = b"built output";
-    let (blob, hash) = store_dir.write_cas_file(built, false).unwrap();
+    let pnpm_store_dir::WrittenFile { file: blob, hash, .. } =
+        store_dir.write_cas_file(built, false).unwrap();
     let name = "build/out.js".to_string();
     let diff = SideEffectsDiff {
         added: Some(HashMap::from([(
@@ -219,19 +222,20 @@ async fn checking_a_persisted_overlay_records_the_modes_it_read() {
         deleted: None,
         remote_origin: None,
     };
-    let mut overlay = SideEffectsOverlay {
-        files: HashMap::from([(name.clone(), pnpm_fs::StoreFile::new(blob.path.clone()))]),
-        symlinks: HashMap::new(),
-    };
+    let overlay = SideEffectsOverlay::from(HashMap::from([(
+        name.clone(),
+        pnpm_fs::StoreFile::new(blob.path.clone()),
+    )]));
+    let shared = overlay.clone();
 
     assert!(
-        super::stored_remote_side_effects_blobs_are_valid(&store_dir, &diff, &mut overlay)
+        super::stored_remote_side_effects_blobs_are_valid(&store_dir, &diff, &overlay)
             .await
             .unwrap(),
     );
 
     let on_disk = std::fs::metadata(&blob.path).unwrap().mode();
-    assert_eq!(overlay.files[&name].mode(), Some(on_disk));
+    assert_eq!(shared.files[&name].mode(), Some(on_disk));
 }
 
 /// A restore only happens where the remote cache applies at all. Unsupported
@@ -682,7 +686,10 @@ mod restore {
         super::super::apply_shared_side_effects(
             super::super::ApplySharedSideEffectsOptions {
                 cached: crate::shared_side_effects::SharedSideEffectsCacheRows {
-                    base_cas_paths: &HashMap::from([(snapshot_key.clone(), HashMap::new())]),
+                    base_cas_paths: &HashMap::from([(
+                        snapshot_key.clone(),
+                        std::sync::Arc::default(),
+                    )]),
                     cold_snapshots: None,
                     by_snapshot: &HashMap::new(),
                     quarantine_by_snapshot: &HashMap::new(),
@@ -735,9 +742,10 @@ mod restore {
 
         let restored = restore(&store_dir, 1).await;
 
-        let (written, _) = store_dir
+        let written = store_dir
             .write_cas_file(built_bytes(), true)
-            .expect("re-writing the same bytes names the same path");
+            .expect("re-writing the same bytes names the same path")
+            .file;
         assert_eq!(restored.path, written.path);
         assert_eq!(std::fs::read(&restored.path).expect("read restored"), built_bytes());
         assert_restored_mode_is_known(&restored);
@@ -762,9 +770,10 @@ mod restore {
     async fn content_the_store_already_holds_is_not_downloaded() {
         let store = tempfile::tempdir().expect("tempdir");
         let store_dir = StoreDir::new(store.path());
-        let (seeded, _) = store_dir
+        let seeded = store_dir
             .write_cas_file(built_bytes(), true)
-            .expect("seed the store");
+            .expect("seed the store")
+            .file;
 
         let restored = restore(&store_dir, 0).await;
 

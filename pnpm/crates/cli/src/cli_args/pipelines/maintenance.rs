@@ -6,9 +6,9 @@ use super::{
 
 /// The reporter-generic body of `pacquet dedupe`: snapshots the lockfile
 /// (when `--check`), runs config-dependency installation and `updateConfig`
-/// hooks, then dispatches to the install pipeline. The snapshot wraps the
-/// entire pipeline so any lockfile write made by config-deps is also covered
-/// by the check gate.
+/// hooks, then dispatches to the install pipeline. The snapshot is taken ahead
+/// of config-deps so a lockfile write they make is reported as a change; the
+/// pipeline itself never writes the lockfile in `--check` mode.
 pub(crate) struct DedupePipeline {
     pub(crate) args: DedupeArgs,
     pub(crate) cfg: &'static mut Config,
@@ -26,8 +26,6 @@ impl DedupePipeline {
         // changes made by config-dependency syncing as well.
         let existing =
             if self.args.check { dedupe::read_lockfile_snapshot(&lockfile_path)? } else { None };
-        let guard =
-            self.args.check.then(|| dedupe::LockfileGuard::new(existing.clone(), &lockfile_path));
 
         let root_config = (&*self.manifest_path, &mut *self.cfg, &*self.config_root);
         prepare_root_config::<Reporter>(
@@ -43,7 +41,7 @@ impl DedupePipeline {
             false,
             false,
         )?;
-        self.run_plan::<Reporter>(plan, lockfile_path, existing, guard).await
+        self.run_plan::<Reporter>(plan, lockfile_path, existing).await
     }
 
     pub(super) async fn run_plan<Reporter: self::Reporter + 'static>(
@@ -51,7 +49,6 @@ impl DedupePipeline {
         plan: InstallFamilyPlan,
         lockfile_path: PathBuf,
         existing: Option<String>,
-        guard: Option<dedupe::LockfileGuard>,
     ) -> miette::Result<()> {
         let cfg: &'static Config = self.cfg;
         match plan {
@@ -62,20 +59,27 @@ impl DedupePipeline {
                     *projects,
                     &lockfile_path,
                     existing,
-                    guard,
                 )
                 .await
             }
             InstallFamilyPlan::Shared(selection) => {
                 if selection.selected_dirs.is_empty() {
-                    return Ok(());
+                    if !self.args.check {
+                        return Ok(());
+                    }
+                    // Nothing was resolved, but config-dependency syncing may
+                    // have changed the lockfile.
+                    return dedupe::check_lockfile::<Reporter>(
+                        existing.as_deref(),
+                        None,
+                        &lockfile_path,
+                    );
                 }
                 let state =
                     State::init(self.manifest_path, cfg, false).wrap_err("initialize the state")?;
                 Box::pin(self.args.run::<Reporter>(
                     state,
                     existing,
-                    guard,
                     &lockfile_path,
                     Some(&selection),
                 ))
@@ -84,8 +88,7 @@ impl DedupePipeline {
             InstallFamilyPlan::Single => {
                 let state =
                     State::init(self.manifest_path, cfg, false).wrap_err("initialize the state")?;
-                Box::pin(self.args.run::<Reporter>(state, existing, guard, &lockfile_path, None))
-                    .await
+                Box::pin(self.args.run::<Reporter>(state, existing, &lockfile_path, None)).await
             }
         }
     }
@@ -107,8 +110,7 @@ async fn dedupe_dedicated_project<Reporter: self::Reporter + 'static>(
     } else {
         None
     };
-    let guard = args.check.then(|| dedupe::LockfileGuard::new(existing.clone(), &lockfile_path));
-    Box::pin(args.run::<Reporter>(state, existing, guard, &lockfile_path, None)).await
+    Box::pin(args.run::<Reporter>(state, existing, &lockfile_path, None)).await
 }
 
 /// The reporter-generic body of `pacquet prune`: runs config-deps and
@@ -261,7 +263,6 @@ async fn run_dedicated_dedupe<Reporter: self::Reporter + 'static>(
     projects: DedicatedProjects,
     lockfile_path: &Path,
     existing: Option<String>,
-    guard: Option<dedupe::LockfileGuard>,
 ) -> miette::Result<()> {
     DedicatedProjectRuns {
         config: cfg,
@@ -282,8 +283,10 @@ async fn run_dedicated_dedupe<Reporter: self::Reporter + 'static>(
         })
     })
     .await?;
-    if let Some(guard) = guard {
-        dedupe::check_lockfile::<Reporter>(existing.as_deref(), guard, lockfile_path)?;
+    if args.check {
+        // Each project already diffed what it resolved; this catches what ran
+        // ahead of them, such as config-dependency syncing.
+        dedupe::check_lockfile::<Reporter>(existing.as_deref(), None, lockfile_path)?;
     }
     Ok(())
 }

@@ -11,6 +11,7 @@ use std::{
 use tempfile::TempDir;
 
 mod managed_directories;
+mod manifest_paths;
 mod membership;
 mod negations;
 mod normalization;

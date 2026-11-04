@@ -254,6 +254,68 @@ test('prune keeps a runtime whose index row is keyed with its manifest integrity
   expect(blobPaths.filter((blobPath) => !existsSync(blobPath))).toStrictEqual([])
 })
 
+test('prune keeps global virtual store packages linked from the configured modules directory of a workspace package', async () => {
+  const options = createPruneOptions()
+  const workspaceDir = path.join(options.cacheDir, '..', 'workspace')
+  await fs.mkdir(path.join(workspaceDir, 'project'), { recursive: true })
+  await fs.writeFile(path.join(workspaceDir, 'pnpm-workspace.yaml'), 'packages: [project]\nmodulesDir: ${PRUNE_TEST_MODULES_DIR:-custom_modules}\n')
+  await writeInstalledLockfile(path.join(workspaceDir, 'custom_modules'), ['.', 'project'])
+  const anchorDir = await linkGlobalVirtualStorePackage(options.storeDir, 'anchor', path.join(workspaceDir, 'node_modules'))
+  const customDir = await linkGlobalVirtualStorePackage(options.storeDir, 'custom', path.join(workspaceDir, 'project', 'custom_modules'))
+  await registerProject(options.storeDir, workspaceDir)
+
+  await prune(options)
+
+  expect(existsSync(anchorDir)).toBe(true)
+  expect(existsSync(customDir)).toBe(true)
+})
+
+test('prune keeps global virtual store packages linked from a packageConfigs modules directory', async () => {
+  const options = createPruneOptions()
+  const workspaceDir = path.join(options.cacheDir, '..', 'workspace')
+  const projectDir = path.join(workspaceDir, 'project')
+  await fs.mkdir(projectDir, { recursive: true })
+  await fs.writeFile(path.join(workspaceDir, 'pnpm-workspace.yaml'), 'packages: [project]\nsharedWorkspaceLockfile: false\npackageConfigs:\n  project:\n    modulesDir: project_modules\n')
+  await fs.writeFile(path.join(projectDir, 'package.json'), JSON.stringify({ name: 'project' }))
+  await writeInstalledLockfile(path.join(projectDir, 'project_modules'), ['.'])
+  const anchorDir = await linkGlobalVirtualStorePackage(options.storeDir, 'anchor', path.join(workspaceDir, 'node_modules'))
+  const customDir = await linkGlobalVirtualStorePackage(options.storeDir, 'custom', path.join(projectDir, 'project_modules'))
+  await registerProject(options.storeDir, workspaceDir)
+  await registerProject(options.storeDir, projectDir)
+
+  await prune(options)
+
+  expect(existsSync(anchorDir)).toBe(true)
+  expect(existsSync(customDir)).toBe(true)
+})
+
+test('prune fails when modulesDir has an unresolved environment placeholder', async () => {
+  const options = createPruneOptions()
+  const projectDir = path.join(options.cacheDir, '..', 'project')
+  await fs.mkdir(projectDir, { recursive: true })
+  await fs.writeFile(path.join(projectDir, 'pnpm-workspace.yaml'), 'modulesDir: ${PRUNE_TEST_UNSET_MODULES_DIR}\n')
+  await registerProject(options.storeDir, projectDir)
+
+  await expect(prune(options)).rejects.toThrow('Failed to replace env in config')
+})
+
+async function writeInstalledLockfile (modulesDir: string, importerIds: string[]): Promise<void> {
+  await fs.mkdir(path.join(modulesDir, '.pnpm'), { recursive: true })
+  await fs.writeFile(path.join(modulesDir, '.pnpm', 'lock.yaml'), JSON.stringify({
+    lockfileVersion: '9.0',
+    importers: Object.fromEntries(importerIds.map((importerId) => [importerId, {}])),
+  }))
+}
+
+async function linkGlobalVirtualStorePackage (storeDir: string, name: string, modulesDir: string): Promise<string> {
+  const slotDir = path.join(storeDir, 'links', '@', name, '1.0.0', 'hash')
+  const packageDir = path.join(slotDir, 'node_modules', name)
+  await fs.mkdir(packageDir, { recursive: true })
+  await fs.mkdir(modulesDir, { recursive: true })
+  await fs.symlink(packageDir, path.join(modulesDir, name), 'junction')
+  return slotDir
+}
+
 function createPruneOptions () {
   const directory = temporaryDirectory()
   temporaryDirectories.push(directory)

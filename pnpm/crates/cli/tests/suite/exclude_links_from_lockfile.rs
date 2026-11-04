@@ -21,6 +21,21 @@ fn pacquet_at(workspace: &Path) -> Command {
 
 #[test]
 fn plain_range_workspace_link_is_materialized_when_excluded_from_lockfile() {
+    assert_frozen_install_relinks_excluded_workspace_link("^1.0.0", None);
+}
+
+#[test]
+fn catalog_workspace_link_is_materialized_when_excluded_from_lockfile() {
+    assert_frozen_install_relinks_excluded_workspace_link(
+        "catalog:",
+        Some("{ workspace-dep: ^1.0.0 }"),
+    );
+}
+
+/// `app` depends on the `workspace-dep` project through `spec`. The link stays
+/// out of the lockfile, and a frozen install links it again, with or without
+/// `node_modules`.
+fn assert_frozen_install_relinks_excluded_workspace_link(spec: &str, catalog: Option<&str>) {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
@@ -33,13 +48,16 @@ fn plain_range_workspace_link_is_materialized_when_excluded_from_lockfile() {
     append_workspace_yaml_key(&workspace, "packages", "['packages/*']");
     append_workspace_yaml_key(&workspace, "excludeLinksFromLockfile", true);
     append_workspace_yaml_key(&workspace, "linkWorkspacePackages", true);
+    if let Some(catalog) = catalog {
+        append_workspace_yaml_key(&workspace, "catalog", catalog);
+    }
     write_project(
         &workspace,
         "packages/app",
         &serde_json::json!({
             "name": "app",
             "version": "1.0.0",
-            "dependencies": { "workspace-dep": "^1.0.0" },
+            "dependencies": { "workspace-dep": spec },
         }),
     );
     write_project(
@@ -76,6 +94,11 @@ fn plain_range_workspace_link_is_materialized_when_excluded_from_lockfile() {
             .unwrap(),
     );
 
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .with_arg("--frozen-lockfile")
+        .assert()
+        .success();
     fs::remove_dir_all(&app_modules).expect("remove app node_modules");
     pacquet_at(&workspace)
         .with_arg("install")

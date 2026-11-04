@@ -506,7 +506,11 @@ fn resolution_kind_names_non_patchable_resolution_shapes() {
     });
     assert_eq!(resolution_kind(&binary), "binary");
 
-    let variations = LockfileResolution::Variations(VariationsResolution { variants: Vec::new() });
+    let variations = LockfileResolution::Variations(VariationsResolution {
+        variants: Vec::new(),
+        fallback: None,
+        revision: None,
+    });
     assert_eq!(resolution_kind(&variations), "variations");
 }
 
@@ -633,6 +637,7 @@ async fn resolve_registry_fixture(
             needs_full_metadata_for: None,
             filter_metadata: false,
             registry_options_by_url: std::sync::Arc::default(),
+            minimum_release_age: None,
         },
         cache_policy: pnpm_resolving_npm_resolver::MetadataCachePolicy {
             network: pnpm_config::NetworkPolicy::Online,

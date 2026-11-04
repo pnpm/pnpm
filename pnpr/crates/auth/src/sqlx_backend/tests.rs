@@ -1,5 +1,5 @@
 use super::{
-    super::{TokenBackend, TokenRecord, UpsertOutcome, UserBackend},
+    super::{PasswordChange, TokenBackend, TokenRecord, UpsertOutcome, UserBackend, UserRemoval},
     AuthSqlBackend, InsertUser, SqlAuth, StoredUser,
 };
 use crate::validation::MAX_USERNAME_CHARS;

@@ -40,13 +40,14 @@ pub fn registry_mock_storage() -> &'static Path {
     pnpr_fixtures::ensure_storage()
 }
 
-/// Stable cache path we hand to `pnpr --storage` (instead
-/// of [`registry_mock_storage`]). Two reasons it has to be separate
-/// and stable:
+/// Stable path the mock serves from (instead of
+/// [`registry_mock_storage`]): a hosted store per fixture build, and the
+/// proxy cache every build shares (see [`crate::runtime_hosted_storage`] and
+/// [`crate::runtime_cache`]). Two reasons it has to be separate and stable:
 ///
 /// 1. `pnpr` writes proxy-mode cache entries (the ~2.3k
 ///    unscoped npm packages the benchmark lockfile pulls) into
-///    `--storage`. If we pointed at the generated fixture storage
+///    its cache. If we pointed at the generated fixture storage
 ///    we'd mix proxy-cache entries into it and lose them whenever the
 ///    fixtures are rebuilt.
 /// 2. CI caches this path across runs

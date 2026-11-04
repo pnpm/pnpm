@@ -2,8 +2,8 @@ use crate::model::CatalogEntries;
 
 use super::{
     Component, DEFAULT_CATALOG_NAME, Document, IndexMap, Inline, Manifest, Op, Patch, Route,
-    comment_start, flow, insert_top_level_block, locate, locate_mapping, render, render_bool,
-    splice, structural_colon_index,
+    comment_start, flow, insert_top_level_block, locate, locate_mapping, render, splice,
+    structural_colon_index,
 };
 
 /// Where a catalog's entries live (or should be created) in the manifest.
@@ -315,11 +315,19 @@ pub(super) fn write_named_subblock(
     splice(text, offset, &block)
 }
 
-/// Rewrite the scalar value of `key`'s existing entry under `path` in place,
-/// preserving the key's text/quoting and any trailing comment. Used for
+/// Rewrite an entry's value in place under `path`, replacing the whole
+/// value — a scalar line or a sub-block — with `value_text`, preserving the
+/// key's text/quoting and any trailing comment. Used for `permissions` and
 /// `allowBuilds` instead of the `yamlpatch` route, which rejects a key
 /// containing `:` (an artifact pkgId such as `foo@https://example.com/foo.tgz`).
-pub(super) fn replace_bool_value_at(text: &str, path: &[&str], key: &str, value: bool) -> String {
+/// A block-valued entry (`skills:` with nested `- item` lines) is replaced
+/// with the rendered value in one pass, so no nested line survives.
+pub(super) fn replace_value_text_at(
+    text: &str,
+    path: &[&str],
+    key: &str,
+    value_text: &str,
+) -> String {
     let mapping = locate(text, path).expect("mapping exists");
     let entry = mapping.entries
         .iter()
@@ -330,6 +338,22 @@ pub(super) fn replace_bool_value_at(text: &str, path: &[&str], key: &str, value:
     let indent_len = content.len() - content.trim_start().len();
     let colon = indent_len
         + structural_colon_index(&content[indent_len..]).expect("entry line has a delimiter");
+    let new_line = format_replaced_line(content, colon, value_text);
+    // A block-valued entry's sub-block ends past its own line; ending the
+    // span at `line_end` would leave the nested lines behind.
+    let value_span_end =
+        if entry.block_end > entry.line_end { entry.block_end } else { entry.line_end };
+
+    let mut out = String::with_capacity(text.len());
+    out.push_str(&text[..entry.line_start]);
+    out.push_str(&new_line);
+    out.push_str(&text[value_span_end..]);
+    out
+}
+
+/// Key and replacement value formatted into a line, keeping any trailing
+/// comment on the original entry.
+fn format_replaced_line(content: &str, colon: usize, value_text: &str) -> String {
     let key_text = content[..colon].trim_end();
     // Preserve any trailing comment, and replace the whole value.
     // Ending the value at its first whitespace would truncate a
@@ -341,11 +365,5 @@ pub(super) fn replace_bool_value_at(text: &str, path: &[&str], key: &str, value:
         Some(idx) => format!(" {}", &after[idx..]),
         None => String::new(),
     };
-    let new_line = format!("{key_text}: {}{trailing}\n", render_bool(value));
-
-    let mut out = String::with_capacity(text.len());
-    out.push_str(&text[..entry.line_start]);
-    out.push_str(&new_line);
-    out.push_str(&text[entry.line_end..]);
-    out
+    format!("{key_text}: {value_text}{trailing}\n")
 }

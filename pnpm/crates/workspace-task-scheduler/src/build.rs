@@ -1,6 +1,6 @@
 use super::{
     BuildPipelineTaskGraphOptions, BuildTaskGraphOptions, HashSet, IndexMap, Path, PathBuf,
-    TaskGraph, TaskKey, TaskNode, TaskSettings, VecDeque, task_concurrency,
+    TaskDeclaration, TaskGraph, TaskKey, TaskNode, VecDeque, task_concurrency,
 };
 
 /// Build the graph of tasks the invocation runs: a task named `task_name`
@@ -8,11 +8,12 @@ use super::{
 /// through `dependsOn`. A task with no `tasks` entry behaves as
 /// `dependsOn: ['^<its own name>']`: plain topological order over the
 /// project graph.
-pub fn build_task_graph<SelectScripts>(
-    options: &BuildTaskGraphOptions<'_, SelectScripts>,
+pub fn build_task_graph<SelectScripts, Declaration>(
+    options: &BuildTaskGraphOptions<'_, SelectScripts, Declaration>,
 ) -> TaskGraph
 where
     SelectScripts: Fn(&Path, &str) -> Vec<String>,
+    Declaration: TaskDeclaration,
 {
     let options = SeededBuildOptions {
         project_dependencies: options.project_dependencies,
@@ -27,11 +28,12 @@ where
 
 /// [`build_task_graph`] for a `pnpm pipeline` invocation, which requests
 /// several task names at once across the requested projects.
-pub fn build_pipeline_task_graph<SelectScripts>(
-    options: &BuildPipelineTaskGraphOptions<'_, SelectScripts>,
+pub fn build_pipeline_task_graph<SelectScripts, Declaration>(
+    options: &BuildPipelineTaskGraphOptions<'_, SelectScripts, Declaration>,
 ) -> TaskGraph
 where
     SelectScripts: Fn(&Path, &str) -> Vec<String>,
+    Declaration: TaskDeclaration,
 {
     let seeded = SeededBuildOptions {
         project_dependencies: options.project_dependencies,
@@ -44,21 +46,23 @@ where
     seeded.build()
 }
 
-struct SeededBuildOptions<'a, SelectScripts>
+struct SeededBuildOptions<'a, SelectScripts, Declaration>
 where
     SelectScripts: Fn(&Path, &str) -> Vec<String>,
+    Declaration: TaskDeclaration,
 {
     project_dependencies: &'a IndexMap<PathBuf, Vec<PathBuf>>,
     select_scripts: &'a SelectScripts,
     task_names: &'a [&'a str],
     requested_projects: Option<&'a [PathBuf]>,
-    tasks: Option<&'a IndexMap<String, TaskSettings>>,
+    tasks: Option<&'a IndexMap<String, Declaration>>,
     is_selector_task: fn(&str) -> bool,
 }
 
-impl<SelectScripts> SeededBuildOptions<'_, SelectScripts>
+impl<SelectScripts, Declaration> SeededBuildOptions<'_, SelectScripts, Declaration>
 where
     SelectScripts: Fn(&Path, &str) -> Vec<String>,
+    Declaration: TaskDeclaration,
 {
     fn build(&self) -> TaskGraph {
         let mut graph: TaskGraph = IndexMap::new();
@@ -90,7 +94,7 @@ where
                 TaskNode {
                     project,
                     task_name,
-                    concurrency: settings.and_then(task_concurrency),
+                    concurrency: settings.and_then(|settings| task_concurrency(settings)),
                     scripts,
                     requested,
                     dependencies,
@@ -100,7 +104,7 @@ where
         graph
     }
 
-    fn task_settings(&self, task_name: &str) -> Option<&TaskSettings> {
+    fn task_settings(&self, task_name: &str) -> Option<&Declaration> {
         self.tasks.and_then(|tasks| tasks.get(task_name))
     }
 
@@ -153,10 +157,13 @@ where
         &self,
         project: &Path,
         task_name: &str,
-        settings: Option<&TaskSettings>,
+        settings: Option<&Declaration>,
     ) -> Vec<TaskKey> {
         let entries: Vec<String> = match settings {
-            Some(settings) => settings.depends_on.clone().unwrap_or_default(),
+            Some(settings) => settings
+                .depends_on()
+                .map(<[String]>::to_vec)
+                .unwrap_or_default(),
             None => vec![format!("^{task_name}")],
         };
         let mut dependencies: Vec<TaskKey> = Vec::new();

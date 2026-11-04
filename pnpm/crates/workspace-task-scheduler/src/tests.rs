@@ -1,12 +1,11 @@
 use super::{
     BuildPipelineTaskGraphOptions, BuildTaskGraphOptions, ScheduleGraphAsyncOptions,
     ScheduleGraphOptions, ScheduleTasksOptions, SequenceTasksOptions, TaskCompletion, TaskCycle,
-    TaskGraph, TaskKey, TaskNode, build_pipeline_task_graph, build_task_graph,
+    TaskDeclaration, TaskGraph, TaskKey, TaskNode, build_pipeline_task_graph, build_task_graph,
     is_serial_task_graph, render_task_graph_dry_run, resume_task_graph_from, reverse_task_graph,
     schedule_graph, schedule_graph_async, schedule_tasks, sequence_tasks, task_graph_to_json,
 };
 use indexmap::IndexMap;
-use pnpm_config::TaskSettings;
 use pnpm_reporter::LogEvent;
 use std::{
     collections::{HashMap, HashSet},
@@ -50,28 +49,45 @@ fn project(dependencies: &[&'static str], scripts: &[&'static str]) -> FakeProje
     FakeProject { dependencies: dependencies.to_vec(), scripts: scripts.to_vec() }
 }
 
-fn tasks(entries: &[(&str, Option<&[&str]>)]) -> IndexMap<String, TaskSettings> {
+#[derive(Default)]
+struct TestTask {
+    depends_on: Option<Vec<String>>,
+    concurrency: Option<i64>,
+}
+
+impl TaskDeclaration for TestTask {
+    fn depends_on(&self) -> Option<&[String]> {
+        self.depends_on.as_deref()
+    }
+
+    fn concurrency(&self) -> Option<i64> {
+        self.concurrency
+    }
+}
+
+fn tasks(entries: &[(&str, Option<&[&str]>)]) -> IndexMap<String, TestTask> {
     entries
         .iter()
         .map(|(name, depends_on)| {
-            let mut settings = TaskSettings::default();
-            settings.depends_on = depends_on.map(|entries| {
-                entries
-                    .iter()
-                    .map(std::string::ToString::to_string)
-                    .collect()
-            });
+            let settings = TestTask {
+                depends_on: depends_on.map(|entries| {
+                    entries
+                        .iter()
+                        .map(std::string::ToString::to_string)
+                        .collect()
+                }),
+                ..TestTask::default()
+            };
             (name.to_string(), settings)
         })
         .collect()
 }
 
-fn tasks_with_concurrency(entries: &[(&str, i64)]) -> IndexMap<String, TaskSettings> {
+fn tasks_with_concurrency(entries: &[(&str, i64)]) -> IndexMap<String, TestTask> {
     entries
         .iter()
         .map(|(name, concurrency)| {
-            let mut settings = TaskSettings::default();
-            settings.concurrency = Some(*concurrency);
+            let settings = TestTask { concurrency: Some(*concurrency), ..TestTask::default() };
             (name.to_string(), settings)
         })
         .collect()
@@ -80,7 +96,7 @@ fn tasks_with_concurrency(entries: &[(&str, i64)]) -> IndexMap<String, TaskSetti
 fn build_graph(
     projects: &[(&'static str, FakeProject)],
     task_name: &str,
-    task_settings: Option<&IndexMap<String, TaskSettings>>,
+    task_settings: Option<&IndexMap<String, TestTask>>,
 ) -> TaskGraph {
     let project_dependencies: IndexMap<PathBuf, Vec<PathBuf>> = projects
         .iter()
@@ -126,7 +142,7 @@ fn build_graph(
 fn build_selector_graph(
     projects: &[(&'static str, FakeProject)],
     task_name: &str,
-    task_settings: Option<&IndexMap<String, TaskSettings>>,
+    task_settings: Option<&IndexMap<String, TestTask>>,
 ) -> TaskGraph {
     let project_dependencies: IndexMap<PathBuf, Vec<PathBuf>> = projects
         .iter()
@@ -309,7 +325,7 @@ fn pipeline_graph_requests_every_task_name_only_in_the_requested_projects() {
         },
         task_names: &["build", "lint"],
         requested_projects: Some(&requested),
-        tasks: None,
+        tasks: None::<&IndexMap<String, TestTask>>,
     });
     let mut keys: Vec<TaskKey> = graph.keys().cloned().collect();
     keys.sort_by(|left, right| {

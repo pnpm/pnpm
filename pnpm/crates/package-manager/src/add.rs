@@ -1,16 +1,19 @@
 mod install;
-use install::{
-    AddSeed, LockedVersions, add_install, merged_catalogs_override, project_seed_policy,
-    seed_picked_versions, selected_add_seed,
-};
+use install::{add_install, selected_add_seed, single_add_seed};
 
 mod specifier;
 use specifier::{normalized_save_specifier, resolve_added_dependency};
 
 mod alias;
 
+mod selector;
+
+mod protocol_selector;
+
+mod range_fallback;
+
 mod workspace_specifier;
-use workspace_specifier::workspace_packages_for_add;
+use workspace_specifier::workspace_projects_for_add;
 
 mod registry;
 
@@ -22,7 +25,7 @@ mod finish;
 use finish::{finish_selected_add, finish_single_add};
 
 mod manifest;
-use manifest::{catalog_version_requests, prepare_selected_add, prepare_single_add};
+use manifest::{prepare_selected_add, prepare_single_add};
 
 mod source;
 
@@ -212,45 +215,14 @@ where
     pub async fn run<Reporter: self::Reporter + 'static>(self) -> Result<(), AddError> {
         let (add, owned, manifest) = self.split();
         begin::<Reporter>(add, &owned);
-        let (catalog_ctx, prepared) = prepare_single_add::<Reporter>(add, &owned, manifest).await?;
-        let (mut dropped_pins, mut preferred_versions_override) = catalog_version_requests(
-            add.package_names,
-            manifest,
-            &catalog_ctx.catalogs,
-            add.lockfile.document,
-            add.config,
-            owned.save_catalog_name.as_deref(),
-        );
-        seed_picked_versions(
-            &prepared.picked_versions,
-            &LockedVersions::of(
-                add.lockfile.document,
-                add.config,
-                manifest
-                    .path()
-                    .parent()
-                    .expect("manifest path always has a parent dir"),
-            ),
-            (&mut dropped_pins, &mut preferred_versions_override),
-        );
-        let install_result = add_install(
-            add,
-            owned,
-            manifest,
-            AddSeed {
-                seed_policies: project_seed_policy(add.config, manifest, dropped_pins),
-                preferred_versions_override,
-                catalogs_override: merged_catalogs_override(
-                    catalog_ctx.catalogs,
-                    &prepared.updated_catalogs,
-                ),
-            },
-        )
-        .run::<Reporter>()
-        .await
-        .pipe(defer_ignored_builds);
+        let preparation = prepare_single_add::<Reporter>(add, &owned, manifest).await?;
+        let (seed, workspace_dir) = single_add_seed(add, &owned, manifest, preparation);
+        let install_result = add_install(add, owned, manifest, seed)
+            .run::<Reporter>()
+            .await
+            .pipe(defer_ignored_builds);
 
-        finish_single_add::<Reporter>(add, manifest, &catalog_ctx.workspace_dir, install_result)
+        finish_single_add::<Reporter>(add, manifest, &workspace_dir, install_result)
     }
 
     pub async fn run_selected<Reporter: self::Reporter + 'static>(

@@ -199,9 +199,11 @@ index points downloads at.
 
 ## One publish for a workspace that spans ecosystems
 
-`PUT /-/pnpr/v0/publish` (also mounted under `/npm/-/pnpr/v0/publish` for
+`PUT /-/pnpr/v0/publish` (also mounted under `/npm/-/pnpr/v0/publish` and a
+named npm registry's `/npm/~<registry>/-/pnpr/v0/publish` for
 `pnpm publish --batch`) publishes packages of any ecosystem in a single
-transaction. Each entry names its `ecosystem`, and an entry without one is an
+transaction. Under a named registry, its npm entries are published through that
+registry. Each entry names its `ecosystem`, and an entry without one is an
 npm publish document, so an npm-only batch body is already a valid one.
 
 ```json
@@ -224,21 +226,92 @@ different failures follow from that, so it is worth keeping them apart.
 the version-conflict check all run up front, and any entry that fails one of them
 aborts the whole batch before a byte is written.
 
-**A batch that passes its checks is committed as one journaled transaction.** It
-lands whole or leaves nothing behind, and one interrupted by a crash is finished
-on the next startup rather than staying half-published. A read that arrives while
-the transaction applies can still see part of the release.
+**A batch that passes its checks is committed as one transaction.** It commits
+as one generation of its org, so it lands whole or leaves nothing behind, and a
+read sees the whole release or none of it:
 
-The one case that ends in a partial release is losing a write race: another
-writer publishing the same file between the check and the commit. That entry is
-left out and reported with `409` while the rest of the release stands, because
-the bytes that won the slot are someone else's published release and overwriting
-them would be the worse outcome. Republishing the batch after bumping the
-conflicting version completes the release.
+- Losing a write race, to another writer publishing the same file between the
+  check and the commit, fails the whole batch with `409`, and nothing is
+  published. The bytes that won the slot are someone else's published release,
+  and overwriting them would be the worse outcome. Republishing the batch after
+  bumping the conflicting version completes the release.
+- Every entry must belong to the same org. A batch that spans orgs is refused.
+- A retry gets the original response back. A client sends an
+  `Idempotency-Key` header, or the digest of the whole request serves as the
+  key. Reusing a key for a different request answers `409`. pnpr keeps the
+  outcome for 7 days. A retry needs current publish permission like any
+  publish. A caller whose permission was revoked since gets `403` and can
+  read the outcome from the publication or the package.
+- The commit is recorded as a publication. A top-level `"name": "v2.0.0"`
+  field in the body names it. The name must be unique within the org, at most
+  214 bytes long, and not a decimal number, which would read as a publication
+  id.
+  See [publication endpoints](endpoints.md#publication-endpoints).
+- A top-level `"notes"` field is the publication's release note, and a
+  `"notes"` field in an npm, Cargo, or Python entry is the note of the version
+  it publishes. pnpr stores them with the release. A note breaking the
+  [content rules](endpoints.md#release-note-endpoints) rejects the whole
+  batch.
 
 An [image manifest](container-images.md) whose layers are already uploaded can
 ride along in the same batch. `GET /-/pnpr` advertises support as
 `publish: [0]`.
+
+### Staged archives {#staged-archives}
+
+A publisher can upload each archive on its own before the publish that
+references it, so one request body need not carry a whole release:
+
+```text
+PUT /-/pnpr/v0/artifacts/blob?integrity=sha512-…
+```
+
+The route is also mounted under `/npm/` and a named npm registry's
+`/npm/~<registry>/`. A staged archive belongs to the account that uploaded it,
+whichever of these addresses it went through.
+
+`HEAD` on the same URL tells whether the archive is staged already, so a
+resumed release uploads only what is missing. An upload is stored only if its
+bytes match the integrity, and uploading stored bytes again is a no-op that
+renews them.
+
+`pnpm publish -r --batch` does this against a registry declared with
+`serverType: pnpr`: it uploads every archive the registry does not hold yet,
+two at a time, then sends a batch that references them. One commit references
+at most 256 staged archives, so a batch of more packages carries its archives
+inline.
+
+A staged archive is not published and no registry route serves it. It belongs
+to the account that uploaded it, and only a publish by that account can claim
+it. It expires 24 hours after its last upload, and pnpr removes expired
+archives at startup and every hour. One archive is at most 100 MiB, and one
+account holds at most 256 archives and 2 GiB that no publish has claimed. An
+upload reserves its size before its bytes arrive, so uploads running in
+parallel count against those limits together, and an upload that stopped
+gives its reservation back after an hour.
+
+An npm publish document, in a batch or on its own, references a staged archive
+by putting its `integrity` in the attachment in place of `data`:
+
+```json
+"_attachments": {
+  "ui-2.0.0.tgz": { "integrity": "sha512-…", "length": 4096 }
+}
+```
+
+pnpr reads the archive while it stages the publish and verifies it against
+the version's `dist` as it verifies an inline archive. Once a publish commits,
+the archives it claimed stop counting against the account, and the next sweep
+removes them. One publish names at most 256 staged archives and 2 GiB of
+them, each reference counted. An archive the publishing account has not staged, or one
+that has expired, fails the whole publish with `400`, and nothing of it is
+published. A retry of a
+committed request gets the recorded outcome without reading its archives
+again, so it succeeds even after they are gone. A version's
+[platform variants](endpoints.md#platform-variants) can be staged the same
+way. A sigstore bundle and a publish
+[held for approval](endpoints.md#staged-publishing-endpoints) carry their bytes
+inline.
 
 ## JSR
 

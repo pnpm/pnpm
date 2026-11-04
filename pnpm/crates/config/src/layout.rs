@@ -568,7 +568,7 @@ impl Config {
         let resolved = StoreDir::from(store_path::resolve_store_dir::<Sys>(
             store_root.clone(),
             &pnpm_home_dir,
-            start_dir,
+            self.workspace_dir.as_deref().unwrap_or(start_dir),
         ));
         let home_store_dir = StoreDir::from(store_root);
         self.store_relocation = (resolved != home_store_dir).then(|| {

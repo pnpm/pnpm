@@ -1,0 +1,169 @@
+//! Uploading a batch's archives to pnpr before the commit that references
+//! them, so the commit carries each archive's integrity instead of its
+//! bytes.
+//!
+//! pnpr stages an archive uploaded to
+//! `PUT <registry>/-/pnpr/v0/artifacts/blob?integrity=<sha512-…>` for the
+//! account that uploaded it, and answers `HEAD` on the same URL when it is
+//! staged already, so a resumed publish uploads only what is missing.
+
+use futures_util::{StreamExt as _, TryStreamExt as _, stream};
+use pnpm_diagnostics::miette::{self, Diagnostic};
+use pnpm_network::{ThrottledClient, read_limited_body};
+use serde_json::Value;
+use std::sync::atomic::{AtomicUsize, Ordering};
+
+use crate::{
+    publish_packed_pkg::{PublishPackedPkgError, join_registry, registry_for_display},
+    registry_config_keys::NormalizedRegistryUrl,
+};
+
+const STAGING_ENDPOINT: &str = "-/pnpr/v0/artifacts/blob";
+
+/// The most staged archives one pnpr commit may reference. A batch with more
+/// sends its archives inline.
+pub(crate) const MAX_STAGED_ARCHIVES_PER_PUBLISH: usize = 256;
+
+/// Uploads in flight at once. pnpr receives two uploads of an account at a
+/// time and holds the rest unanswered, so sending more only risks a queued
+/// upload outwaiting the read timeout.
+const CONCURRENT_UPLOADS: usize = 2;
+
+/// The most of a refused upload's response body kept for its error.
+const ERROR_BODY_LIMIT: usize = 4096;
+
+/// One archive to stage: its bytes and their SRI SHA-512.
+pub(crate) struct StagedArchive<'a> {
+    pub(crate) integrity: String,
+    pub(crate) bytes: &'a [u8],
+}
+
+/// Make every attachment of `document` reference the staged archive
+/// `integrity` names instead of carrying it.
+pub(crate) fn reference_staged_archive(document: &mut Value, integrity: &str) {
+    let Some(attachments) = document.get_mut("_attachments").and_then(Value::as_object_mut) else {
+        return;
+    };
+    for attachment in attachments.values_mut() {
+        if let Some(attachment) = attachment.as_object_mut() {
+            attachment.remove("data");
+            attachment.insert("integrity".to_owned(), Value::String(integrity.to_owned()));
+        }
+    }
+}
+
+/// Stage every archive of `archives` on `registry` that it does not hold
+/// staged already, [`CONCURRENT_UPLOADS`] at a time. Returns how many it
+/// uploaded.
+pub(crate) async fn stage_archives(
+    client: &ThrottledClient,
+    registry: &NormalizedRegistryUrl,
+    authorization: Option<&str>,
+    archives: &[StagedArchive<'_>],
+) -> Result<usize, StagingError> {
+    let uploaded = AtomicUsize::new(0);
+    stream::iter(archives)
+        .map(Ok::<_, StagingError>)
+        .try_for_each_concurrent(CONCURRENT_UPLOADS, |archive| {
+            let uploaded = &uploaded;
+            async move {
+                if stage_archive(client, registry, authorization, archive).await? {
+                    uploaded.fetch_add(1, Ordering::Relaxed);
+                }
+                Ok(())
+            }
+        })
+        .await?;
+    Ok(uploaded.into_inner())
+}
+
+/// Stage `archive` unless `registry` holds it staged already. Returns
+/// whether it was uploaded.
+async fn stage_archive(
+    client: &ThrottledClient,
+    registry: &NormalizedRegistryUrl,
+    authorization: Option<&str>,
+    archive: &StagedArchive<'_>,
+) -> Result<bool, StagingError> {
+    let query = url::form_urlencoded::Serializer::new(String::new())
+        .append_pair("integrity", &archive.integrity)
+        .finish();
+    let url = join_registry(registry, &format!("{STAGING_ENDPOINT}?{query}"))?;
+    let failed = |reason: String| StagingError::Failed {
+        registry: registry_for_display(registry),
+        integrity: archive.integrity.clone(),
+        reason,
+    };
+
+    let guard = client.acquire_for_url(&url).await;
+    let mut head = guard.head(&url);
+    if let Some(authorization) = authorization {
+        head = head.header("authorization", authorization);
+    }
+    let response = head.send().await.map_err(|error| failed(error.to_string()))?;
+    match response.status().as_u16() {
+        200 => return Ok(false),
+        404 => {}
+        status => return Err(failed(format!("HEAD answered {status}"))),
+    }
+    drop(guard);
+
+    let guard = client.acquire_for_url(&url).await;
+    let mut put = guard
+        .put(&url)
+        .header("content-type", "application/octet-stream")
+        .header("content-length", archive.bytes.len())
+        .body(bytes::Bytes::copy_from_slice(archive.bytes));
+    if let Some(authorization) = authorization {
+        put = put.header("authorization", authorization);
+    }
+    let response = put.send().await.map_err(|error| failed(error.to_string()))?;
+    if response.status().is_success() {
+        return Ok(true);
+    }
+    Err(failed(refusal(response).await))
+}
+
+/// What a refused upload's `response` says, keeping only the start of a long
+/// body.
+async fn refusal(response: reqwest::Response) -> String {
+    let status = response.status().as_u16();
+    let body = match read_limited_body(response, ERROR_BODY_LIMIT).await {
+        Ok(body) => {
+            let ellipsis = if body.truncated { "…" } else { "" };
+            format!("{}{ellipsis}", String::from_utf8_lossy(&body.bytes))
+        }
+        Err(_) => String::new(),
+    };
+    format!("PUT answered {status}: {body}")
+}
+
+/// An archive could not be staged before the commit that references it.
+#[derive(Debug, derive_more::Display, derive_more::Error, Diagnostic)]
+pub enum StagingError {
+    #[display("Uploading the archive {integrity} to {registry} before publishing failed: {reason}")]
+    #[diagnostic(
+        code(ERR_PNPM_BATCH_PUBLISH_STAGING_FAILED),
+        help(
+            "A registry declared `serverType: pnpr` receives each archive on its own request before the batch commit. Nothing was published to this registry. Running the publish again uploads only the archives it still lacks."
+        )
+    )]
+    Failed {
+        #[error(not(source))]
+        registry: String,
+        integrity: String,
+        reason: String,
+    },
+
+    #[diagnostic(transparent)]
+    Url(PublishPackedPkgError),
+}
+
+impl From<PublishPackedPkgError> for StagingError {
+    fn from(error: PublishPackedPkgError) -> Self {
+        StagingError::Url(error)
+    }
+}
+
+#[cfg(test)]
+mod tests;

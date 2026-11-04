@@ -205,7 +205,10 @@ async fn cache_tmp_open_failure_fails_closed() {
     let blocked = tmp.path().join("not-a-dir");
     std::fs::write(&blocked, b"already a file").unwrap();
 
-    let app = router(config_for(&upstream.url(), blocked.clone()));
+    let mut config = config_for(&upstream.url(), blocked.clone());
+    config.storage.metadata =
+        pnpr_config::MetadataBackend::Sqlite(tmp.path().join("metadata.sqlite"));
+    let app = router(config);
 
     let response = app
         .oneshot(

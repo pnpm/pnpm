@@ -3399,3 +3399,42 @@ async fn update_bumps_python_dependencies() {
     let pylock = fs::read_to_string(root.path().join("pylock.toml")).unwrap();
     assert!(pylock.contains(r#"version = "2.0""#), "{pylock}");
 }
+
+#[tokio::test]
+async fn update_keeps_python_operators_over_save_settings() {
+    for setting in ["savePrefix: '^'", "saveExact: true"] {
+        let root = tempfile::tempdir().unwrap();
+        let mut server = mockito::Server::new_async().await;
+        let _alpha = serve(&mut server, "alpha", &[("1.0", wheel("alpha", "1.0", "", &[]))]).await;
+        let _beta = serve(&mut server, "beta", &[("1.0", wheel("beta", "1.0", "", &[]))]).await;
+        project(root.path(), &server.url(), &["alpha~=1.0", "beta>=1.0"]);
+        pacquet_in(root.path())
+            .args(["install", "--lockfile-only"])
+            .assert()
+            .success();
+        let workspace = root.path().join("pnpm-workspace.yaml");
+        let settings = fs::read_to_string(&workspace).unwrap();
+        fs::write(&workspace, format!("{settings}{setting}\n")).unwrap();
+        let _alpha = serve(
+            &mut server,
+            "alpha",
+            &[("1.0", wheel("alpha", "1.0", "", &[])), ("2.0", wheel("alpha", "2.0", "", &[]))],
+        )
+        .await;
+        let _beta = serve(
+            &mut server,
+            "beta",
+            &[("1.0", wheel("beta", "1.0", "", &[])), ("2.0", wheel("beta", "2.0", "", &[]))],
+        )
+        .await;
+
+        pacquet_in(root.path())
+            .args(["update", "--latest", "--lockfile-only"])
+            .assert()
+            .success();
+
+        let pyproject = fs::read_to_string(root.path().join("pyproject.toml")).unwrap();
+        assert!(pyproject.contains("alpha~=2.0"), "{setting}\n{pyproject}");
+        assert!(pyproject.contains("beta>=2.0"), "{setting}\n{pyproject}");
+    }
+}

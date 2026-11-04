@@ -18,6 +18,108 @@ const pnpmBin = path.join(import.meta.dirname, '../../../../pnpm/bin/pnpm.mjs')
 const cleanConfigDir = temporaryDirectory()
 const execaOpts = { env: { XDG_CONFIG_HOME: cleanConfigDir } }
 
+test.each(['', 'virtualStoreDir: custom-links\n'])('store status checks global virtual store packages (%s)', async (settings) => {
+  prepare()
+  fs.writeFileSync('pnpm-workspace.yaml', `enableGlobalVirtualStore: true\n${settings}`)
+  const storeDir = path.join(temporaryDirectory(), 'store')
+  const options = [`--store-dir=${storeDir}`, `--registry=${REGISTRY}`]
+  await execa('node', [
+    pnpmBin, 'add', 'is-odd@3.0.1', '@pnpm.e2e/abc@1.0.0',
+    '@pnpm.e2e/generated-bins@1.0.0',
+    '--allow-build=@pnpm.e2e/generated-bins', ...options,
+  ], execaOpts)
+  expect(fs.existsSync('node_modules/@pnpm.e2e/generated-bins/bin/cmd1')).toBe(true)
+  await execa('node', [pnpmBin, 'store', 'status', ...options], execaOpts)
+
+  fs.writeFileSync('node_modules/@pnpm.e2e/abc/package.json', '{}\n')
+  const result = await execa('node', [pnpmBin, 'store', 'status', ...options], { ...execaOpts, reject: false })
+  expect(result.exitCode).toBe(1)
+  expect(result.stderr).toContain('ERR_PNPM_MODIFIED_DEPENDENCY')
+  expect(result.stderr).toContain('@pnpm.e2e/abc@1.0.0(')
+  expect(result.stderr).not.toContain('is-odd@3.0.1')
+
+  fs.unlinkSync('node_modules/.pnpm/lock.yaml')
+  const withoutInstalledLockfile = await execa('node', [pnpmBin, 'store', 'status', ...options], { ...execaOpts, reject: false })
+  expect(withoutInstalledLockfile.exitCode).toBe(1)
+  expect(withoutInstalledLockfile.stderr).toContain('ERR_PNPM_MODIFIED_DEPENDENCY')
+  expect(withoutInstalledLockfile.stderr).toContain('@pnpm.e2e/abc@1.0.0(')
+
+  rimrafSync('node_modules/@pnpm.e2e/abc')
+  fs.mkdirSync('node_modules/@pnpm.e2e/abc')
+  const redirectedPeer = await execa('node', [pnpmBin, 'store', 'status', ...options], { ...execaOpts, reject: false })
+  expect(redirectedPeer.exitCode).toBe(1)
+  expect(redirectedPeer.stderr).toContain('ERR_PNPM_STORE_STATUS_UNVERIFIABLE')
+})
+
+test.each([
+  ['changed approvals', '@pnpm.e2e/generated-bins@1.0.0', '--allow-build=@pnpm.e2e/generated-bins'],
+  ['excluded optional dependencies', '@pnpm.e2e/pkg-with-good-optional', '--no-optional'],
+])('store status uses the installed global graph (%s)', async (_scenario, dependency, installOption) => {
+  prepare()
+  fs.writeFileSync('pnpm-workspace.yaml', 'enableGlobalVirtualStore: true\n')
+  const storeDir = path.join(temporaryDirectory(), 'store')
+  const options = [`--store-dir=${storeDir}`, `--registry=${REGISTRY}`]
+  await execa('node', [pnpmBin, 'add', dependency, installOption, ...options], execaOpts)
+  fs.writeFileSync('pnpm-workspace.yaml', 'enableGlobalVirtualStore: true\nallowBuilds: {}\n')
+  await execa('node', [pnpmBin, 'store', 'status', ...options], execaOpts)
+})
+
+test('store status reports an unavailable global slot separately from modified contents', async () => {
+  prepare()
+  fs.writeFileSync('pnpm-workspace.yaml', 'enableGlobalVirtualStore: true\n')
+  const storeDir = path.join(temporaryDirectory(), 'store')
+  const options = [`--store-dir=${storeDir}`, `--registry=${REGISTRY}`]
+  await execa('node', [pnpmBin, 'add', 'is-odd@3.0.1', ...options], execaOpts)
+  rimrafSync(fs.realpathSync('node_modules/is-odd'))
+  const result = await execa('node', [pnpmBin, 'store', 'status', ...options], { ...execaOpts, reject: false })
+  expect(result.exitCode).toBe(1)
+  expect(result.stderr).toContain('ERR_PNPM_STORE_STATUS_UNVERIFIABLE')
+  expect(result.stderr).not.toContain('ERR_PNPM_MODIFIED_DEPENDENCY')
+})
+
+test('store status rejects a different project slot after build policy changes', async () => {
+  prepare()
+  fs.writeFileSync('pnpm-workspace.yaml', 'enableGlobalVirtualStore: true\n')
+  const storeDir = path.join(temporaryDirectory(), 'store')
+  const options = [`--store-dir=${storeDir}`, `--registry=${REGISTRY}`]
+  await execa('node', [pnpmBin, 'add', 'is-odd@3.0.1', ...options], execaOpts)
+  fs.mkdirSync('other')
+  fs.writeFileSync('other/package.json', '{}')
+  fs.writeFileSync('other/pnpm-workspace.yaml', 'enableGlobalVirtualStore: true\ndangerouslyAllowAllBuilds: true\n')
+  await execa('node', [pnpmBin, 'add', 'is-odd@3.0.1', ...options], { ...execaOpts, cwd: path.resolve('other') })
+  fs.writeFileSync('pnpm-workspace.yaml', 'enableGlobalVirtualStore: true\ndangerouslyAllowAllBuilds: true\n')
+  fs.unlinkSync('node_modules/is-odd/index.js')
+  fs.writeFileSync('node_modules/is-odd/index.js', 'module.exports = () => false')
+  const result = await execa('node', [pnpmBin, 'store', 'status', ...options], { ...execaOpts, reject: false })
+  expect(result.exitCode).toBe(1)
+  expect(result.stderr).toContain('ERR_PNPM_STORE_STATUS_UNVERIFIABLE')
+})
+
+test.each(['modulesDir: custom_modules\n', 'dedupeDirectDeps: true\n'])('store status checks workspace links (%s)', async (settings) => {
+  prepare({ name: 'root-project', dependencies: { 'is-odd': '3.0.1' } })
+  fs.writeFileSync('pnpm-workspace.yaml', `enableGlobalVirtualStore: true\npackages:\n  - packages/*\n${settings}`)
+  fs.mkdirSync('packages/child', { recursive: true })
+  fs.writeFileSync('packages/child/package.json', JSON.stringify({ name: 'child-project', dependencies: { 'is-odd': '3.0.1' } }))
+  const options = [`--store-dir=${path.join(temporaryDirectory(), 'store')}`, `--registry=${REGISTRY}`]
+  await execa('node', [pnpmBin, 'install', ...options], execaOpts)
+  const result = await execa('node', [pnpmBin, 'store', 'status', ...options], { ...execaOpts, reject: false })
+  expect(result.exitCode).toBe(0)
+})
+
+test('store status rejects escaping importer paths', async () => {
+  prepare()
+  fs.writeFileSync('pnpm-workspace.yaml', 'enableGlobalVirtualStore: true\n')
+  const options = [`--store-dir=${path.join(temporaryDirectory(), 'store')}`, `--registry=${REGISTRY}`]
+  await execa('node', [pnpmBin, 'add', 'is-odd@3.0.1', ...options], execaOpts)
+  const lockfile = 'node_modules/.pnpm/lock.yaml'
+  const yaml = fs.readFileSync(lockfile, 'utf8')
+  expect(yaml).toContain('\n  .:')
+  fs.writeFileSync(lockfile, yaml.replace('\n  .:', '\n  ../outside:'))
+  const result = await execa('node', [pnpmBin, 'store', 'status', ...options], { ...execaOpts, reject: false })
+  expect(result.exitCode).toBe(1)
+  expect(result.stderr).toContain('ERR_PNPM_INVALID_DEPENDENCY_NAME')
+})
+
 test('CLI fails when store status finds modified packages', async () => {
   prepare()
   const tmp = temporaryDirectory()

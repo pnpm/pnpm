@@ -82,9 +82,10 @@ async fn shared_manifest_cache_does_not_leak_across_registries() {
                 needs_full_metadata_for: None,
                 filter_metadata: false,
                 registry_options_by_url: std::sync::Arc::default(),
+                minimum_release_age: None,
             },
             cache_policy: crate::MetadataCachePolicy {
-                network: pnpm_config::NetworkPolicy::Online,
+                network: pnpm_resolving_resolver_base::NetworkPolicy::Online,
                 ignore_missing_time_field: false,
             },
             store_view: None,

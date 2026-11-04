@@ -1,13 +1,15 @@
 pub(crate) mod allow_build_policy;
 pub(crate) mod build_one_snapshot;
+pub(crate) mod skills_policy;
 pub(crate) mod slots;
 pub use allow_build_policy::{
     AllowBuildPolicy, allow_build_key_from_ignored_build, is_git_hosted_dep_path,
-    normalize_build_dep_path, parse_allow_build_selector,
+    normalize_build_dep_path, parse_allow_build_selector, short_package_label,
 };
 pub(crate) use build_one_snapshot::build_one_snapshot;
 pub(crate) use build_requirements::deferred_builds;
 pub use build_requirements::{ScheduledBuilds, ScheduledBuildsInputs};
+pub use skills_policy::SkillsPolicy;
 pub use slots::parse_name_version_from_key;
 pub(crate) use slots::{
     PkgRoots, bin_dirs_in_all_parent_dirs, discard_skipped_optional_dependency,
@@ -28,7 +30,7 @@ use crate::{
     find_root_runtime_node_key, import_indexed_dir, store_index_key_for_resolution,
     version_policy::{
         PackageVersionPolicy, PolicyMatch, VersionPolicyError, create_package_version_policy,
-        expand_package_version_specs,
+        expand_package_version_spec, expand_package_version_specs,
     },
 };
 

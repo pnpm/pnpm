@@ -380,6 +380,19 @@ pub fn node_version_from_pnpm_config_env_overrides_workspace_yaml() {
 }
 
 #[test]
+pub fn link_workspace_packages_from_pnpm_config_env_overrides_workspace_yaml() {
+    fake_env!(load_with_fake_env);
+    let tmp = tempdir().unwrap();
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), "linkWorkspacePackages: false\n")
+        .expect("write to pnpm-workspace.yaml");
+
+    set_fake_env(&[("PNPM_CONFIG_LINK_WORKSPACE_PACKAGES", "deep")]);
+    let config = load_with_fake_env(tmp.path());
+
+    assert_eq!(config.link_workspace_packages, crate::LinkWorkspacePackages::Deep);
+}
+
+#[test]
 pub fn catalog_prune_from_workspace_yaml() {
     let tmp = tempdir().unwrap();
     let config = Config::new().current::<HostNoHome>(tmp.path()).expect("loads");

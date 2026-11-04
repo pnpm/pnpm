@@ -26,8 +26,8 @@ export function copyInternalSymlink (src: string, dest: string, links: SymlinkDi
   const resolved = path.resolve(path.dirname(dest), target)
   if (escapesDir(links.writtenDir, resolved)) return false
   if (!links.imported.has(path.relative(links.writtenDir, resolved).split(path.sep).join('/'))) {
-    const isDir = isDirectory(src)
-    if (links.symlinkTargets !== 'internal' || !isDir) return isDir
+    if (targetKind(src) === 'other') return false
+    if (links.symlinkTargets !== 'internal') return true
   }
   if (process.platform !== 'win32') {
     fs.symlinkSync(target, dest)
@@ -46,7 +46,9 @@ interface CopySymlinkWindowsOptions {
 
 function copyInternalSymlinkWindows (opts: CopySymlinkWindowsOptions): boolean {
   const { dest, links, resolved, src, target } = opts
-  const isDir = isDirectory(src)
+  // A missing target is linked as a directory: under `internal` it is typically
+  // a directory the deploy installs, such as `node_modules/<pkg>`.
+  const isDir = targetKind(src) !== 'other'
   try {
     fs.symlinkSync(target, dest, isDir ? 'dir' : 'file')
     return true
@@ -67,11 +69,11 @@ function realpathOrSelf (file: string): string {
   }
 }
 
-function isDirectory (file: string): boolean {
+function targetKind (file: string): 'directory' | 'missing' | 'other' {
   try {
-    return fs.statSync(file).isDirectory()
+    return fs.statSync(file).isDirectory() ? 'directory' : 'other'
   } catch (err: unknown) {
-    if (isError(err) && 'code' in err && err.code === 'ENOENT') return false
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') return 'missing'
     throw err
   }
 }

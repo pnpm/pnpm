@@ -80,6 +80,10 @@ Checks `optionalDependencies`.
 
 Specifies the order in which the output results are sorted. Currently only the value `name` is accepted. By default, results are sorted by the size of the version change, then by name.
 
+### --notes
+
+Print the release notes between the current and the latest version below each outdated package. Notes are read from registries declared with [`serverType: pnpr`](../registries.md#servertype). The notes of a release that published several packages are printed once, above the notes of the versions it published. Between two stable versions, the notes of prereleases are left out. With `--json`, each entry gets a `releaseNotes` field.
+
 ### --include-github-actions
 
 Also check the GitHub Actions referenced by the repository's workflow files for updates. You can enable this by default by setting [`update.githubActions`](../settings/dependency-resolution.md#updategithubactions) to `true` in `pnpm-workspace.yaml`. See [Updating GitHub Actions](./update.md#updating-github-actions).

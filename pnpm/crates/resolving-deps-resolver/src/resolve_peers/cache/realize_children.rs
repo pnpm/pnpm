@@ -10,6 +10,9 @@ impl Walker<'_> {
         parent_refs: &ParentRefs,
         pkg_id: &Arc<str>,
     ) -> DeferredChildResolution {
+        if !super::reuse_peer_subtrees(&self.opts) {
+            return DeferredChildResolution::Materialize(Arc::clone(pkg_id));
+        }
         if let Some(dep_path) = self.caches.pure_pkgs.get(&**pkg_id)
             && self.tree.packages[&**pkg_id].peer_set.taken().is_empty()
         {

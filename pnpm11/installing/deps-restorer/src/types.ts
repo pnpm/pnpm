@@ -1,8 +1,10 @@
+import type { Catalogs } from '@pnpm/catalogs.types'
 import type { HoistingLimits } from '@pnpm/installing.linking.real-hoist'
 import type { IncludedDependencies, Modules } from '@pnpm/installing.modules-yaml'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
 import type { LogBase } from '@pnpm/logger'
 import type { PatchGroupRecord } from '@pnpm/patching.config'
+import type { WorkspacePackages } from '@pnpm/resolving.resolver-base'
 import type { StoreController } from '@pnpm/store.controller-types'
 import type {
   DepPath,
@@ -55,6 +57,13 @@ export interface HeadlessOptions extends RegistryContext {
    */
   omitSummaryLog?: boolean
   excludeLinksFromLockfile?: boolean
+  /**
+   * Relinks the workspace links `excludeLinksFromLockfile` left out of the
+   * importers, when `linkWorkspacePackagesDepth` is at least 0.
+   */
+  workspacePackages?: WorkspacePackages
+  linkWorkspacePackagesDepth?: number
+  catalogs?: Catalogs
   extraBinPaths?: string[]
   extraEnv?: Record<string, string>
   extendNodePath?: boolean

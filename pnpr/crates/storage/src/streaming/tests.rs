@@ -151,8 +151,13 @@ async fn cancelling_in_flight_response_body_removes_tmp_file() {
 
     let tmp = TempDir::new().unwrap();
     let cache = tmp.path().join("cache");
-    let storage =
-        Storage::new(&HostedStoreConfig::Fs, tmp.path().join("hosted"), cache.clone()).unwrap();
+    let storage = Storage::new(
+        &HostedStoreConfig::Fs,
+        tmp.path().join("hosted"),
+        cache.clone(),
+        &pnpr_config::MetadataBackend::Sqlite(tmp.path().join("metadata.sqlite")),
+    )
+    .unwrap();
     let name = CanonicalPackageName::parse("foo", pnpr_package_name::Ecosystem::Npm).unwrap();
     let write =
         storage.open_upstream_blob_tmp("~public/test", &name, "foo-1.0.0.tgz").await.unwrap();
@@ -187,8 +192,13 @@ async fn oversized_response_is_rejected_and_tmp_is_removed() {
 
     let tmp = TempDir::new().unwrap();
     let cache = tmp.path().join("cache");
-    let storage =
-        Storage::new(&HostedStoreConfig::Fs, tmp.path().join("hosted"), cache.clone()).unwrap();
+    let storage = Storage::new(
+        &HostedStoreConfig::Fs,
+        tmp.path().join("hosted"),
+        cache.clone(),
+        &pnpr_config::MetadataBackend::Sqlite(tmp.path().join("metadata.sqlite")),
+    )
+    .unwrap();
     let name = CanonicalPackageName::parse("foo", pnpr_package_name::Ecosystem::Npm).unwrap();
     let write =
         storage.open_upstream_blob_tmp("~public/test", &name, "foo-1.0.0.tgz").await.unwrap();
@@ -216,8 +226,13 @@ async fn download_returns_the_sha512_of_the_staged_bytes() {
         let response = throttled_response(spawn_response(bytes).await).await;
         let tmp = TempDir::new().unwrap();
         let cache = tmp.path().join("cache");
-        let storage =
-            Storage::new(&HostedStoreConfig::Fs, tmp.path().join("hosted"), cache.clone()).unwrap();
+        let storage = Storage::new(
+            &HostedStoreConfig::Fs,
+            tmp.path().join("hosted"),
+            cache.clone(),
+            &pnpr_config::MetadataBackend::Sqlite(tmp.path().join("metadata.sqlite")),
+        )
+        .unwrap();
         let name = CanonicalPackageName::parse("foo", pnpr_package_name::Ecosystem::Npm).unwrap();
         let write =
             storage.open_upstream_blob_tmp("~public/test", &name, "foo-1.0.0.tgz").await.unwrap();
@@ -242,8 +257,13 @@ async fn a_sealed_download_is_not_in_the_cache_until_promoted() {
     let response = throttled_response(spawn_response(bytes).await).await;
     let tmp = TempDir::new().unwrap();
     let cache = tmp.path().join("cache");
-    let storage =
-        Storage::new(&HostedStoreConfig::Fs, tmp.path().join("hosted"), cache.clone()).unwrap();
+    let storage = Storage::new(
+        &HostedStoreConfig::Fs,
+        tmp.path().join("hosted"),
+        cache.clone(),
+        &pnpr_config::MetadataBackend::Sqlite(tmp.path().join("metadata.sqlite")),
+    )
+    .unwrap();
     let name = CanonicalPackageName::parse("foo", pnpr_package_name::Ecosystem::Npm).unwrap();
     let write =
         storage.open_upstream_blob_tmp("~public/test", &name, "foo-1.0.0.tgz").await.unwrap();
@@ -267,8 +287,13 @@ async fn download_stages_nothing_when_the_expected_integrity_mismatches() {
     let response = throttled_response(spawn_response(bytes).await).await;
     let tmp = TempDir::new().unwrap();
     let cache = tmp.path().join("cache");
-    let storage =
-        Storage::new(&HostedStoreConfig::Fs, tmp.path().join("hosted"), cache.clone()).unwrap();
+    let storage = Storage::new(
+        &HostedStoreConfig::Fs,
+        tmp.path().join("hosted"),
+        cache.clone(),
+        &pnpr_config::MetadataBackend::Sqlite(tmp.path().join("metadata.sqlite")),
+    )
+    .unwrap();
     let name = CanonicalPackageName::parse("foo", pnpr_package_name::Ecosystem::Npm).unwrap();
     let write =
         storage.open_upstream_blob_tmp("~public/test", &name, "foo-1.0.0.tgz").await.unwrap();

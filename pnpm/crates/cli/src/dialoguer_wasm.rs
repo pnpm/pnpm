@@ -53,7 +53,12 @@ impl MultiSelect {
             .into_iter()
             .enumerate()
             .map(|(index, name)| {
-                CheckboxItem::Choice(CheckboxChoice { short: name.clone(), name, value: index })
+                CheckboxItem::Choice(CheckboxChoice {
+                    short: name.clone(),
+                    name,
+                    value: index,
+                    description: None,
+                })
             })
             .collect();
         CheckboxPrompt::new(self.message, items).dialoguer_defaults(self.defaults)

@@ -1,5 +1,5 @@
 use super::{PruneCasError, PruneCasStats, prune_cas_with_references};
-use crate::{CafsFileInfo, PackageFilesIndex, StoreDir, StoreIndex};
+use crate::{CafsFileInfo, PackageFilesIndex, StoreDir, StoreIndex, StoreIndexFormat};
 use std::{collections::HashMap, fs};
 
 fn package_index(digest: &str) -> PackageFilesIndex {
@@ -13,8 +13,7 @@ fn package_index(digest: &str) -> PackageFilesIndex {
     }
 }
 
-#[test]
-fn removes_unlinked_cas_files_and_their_package_rows() {
+fn assert_prune_removes_rows_and_aliases(format: StoreIndexFormat) {
     let root = tempfile::tempdir().unwrap();
     let store = StoreDir::new(root.path().join("store"));
     let orphan_digest = format!("01{}", "a".repeat(126));
@@ -30,12 +29,19 @@ fn removes_unlinked_cas_files_and_their_package_rows() {
     fs::create_dir_all(store.tmp()).unwrap();
     fs::write(store.tmp().join("partial"), "partial").unwrap();
 
-    let index = StoreIndex::open_in(&store).unwrap();
+    StoreIndex::apply_format(store.root(), format).unwrap();
+    let mut index = StoreIndex::open_in(&store).unwrap();
     index
         .set("orphan", &package_index(&orphan_digest))
         .unwrap();
     index
         .set("linked", &package_index(&linked_digest))
+        .unwrap();
+    index
+        .set_aliases(&[
+            ("orphan-alias".to_string(), "orphan".to_string()),
+            ("linked-alias".to_string(), "linked".to_string()),
+        ])
         .unwrap();
     drop(index);
 
@@ -49,6 +55,24 @@ fn removes_unlinked_cas_files_and_their_package_rows() {
     assert!(!store.tmp().exists());
     let index = StoreIndex::open_in(&store).unwrap();
     assert_eq!(index.keys().unwrap(), ["linked"]);
+    assert_eq!(index.alias_target("orphan-alias").unwrap(), None);
+    assert_eq!(
+        index
+            .alias_target("linked-alias")
+            .unwrap()
+            .as_deref(),
+        Some("linked"),
+    );
+}
+
+#[test]
+fn removes_unlinked_cas_files_and_their_package_rows() {
+    assert_prune_removes_rows_and_aliases(StoreIndexFormat::Sqlite);
+}
+
+#[test]
+fn removes_unlinked_cas_files_and_their_files_index_rows() {
+    assert_prune_removes_rows_and_aliases(StoreIndexFormat::Files);
 }
 
 #[test]

@@ -59,13 +59,14 @@ test('a plain range its scope routes to a registry with a declared prefix gets t
   })
 })
 
-test('a plain range resolved from the default registry gets the prefix the default registry declares', async () => {
+// https://github.com/pnpm/pnpm/issues/17575
+test('a plain range resolved from the default registry keeps a plain key when a prefix names the default registry', async () => {
   interceptAcmePrivate(WORK_REGISTRY)
   const { resolveFromNpm } = createResolver({ default: WORK_REGISTRY }, { work: WORK_REGISTRY })
 
   const resolveResult = await resolveFromNpm({ alias: '@acme/private', bareSpecifier: '^2.0.0' }, {})
 
-  expect(resolveResult).toMatchObject({ id: '@acme/private@work:2.1.0' })
+  expect(resolveResult).toMatchObject({ id: '@acme/private@2.1.0' })
 })
 
 test('the same name and version from another registry keeps a plain key', async () => {
@@ -101,13 +102,31 @@ test('a named-registry specifier is keyed by the smallest prefix its registry de
   })
 })
 
-test('a built-in alias keeps its own name in the key', async () => {
+test('a built-in alias of the default registry mints the plain key a plain range mints', async () => {
   interceptAcmePrivate('https://registry.npmjs.org/')
   const { resolveFromNamedRegistry } = createResolver({}, { work: WORK_REGISTRY })
 
   const resolveResult = await resolveFromNamedRegistry({ alias: '@acme/private', bareSpecifier: 'npmjs:^2.0.0' }, {})
 
+  expect(resolveResult).toMatchObject({ id: '@acme/private@2.1.0' })
+})
+
+test('a built-in alias keeps its own name in the key when a plain range of the package routes elsewhere', async () => {
+  interceptAcmePrivate('https://registry.npmjs.org/')
+  const { resolveFromNamedRegistry } = createResolver({ '@acme': WORK_REGISTRY }, {})
+
+  const resolveResult = await resolveFromNamedRegistry({ alias: '@acme/private', bareSpecifier: 'npmjs:^2.0.0' }, {})
+
   expect(resolveResult).toMatchObject({ id: '@acme/private@npmjs:2.1.0' })
+})
+
+test('a custom prefix of the default registry mints the plain key a plain range mints', async () => {
+  interceptAcmePrivate(WORK_REGISTRY)
+  const { resolveFromNamedRegistry } = createResolver({ default: WORK_REGISTRY }, { work: WORK_REGISTRY })
+
+  const resolveResult = await resolveFromNamedRegistry({ alias: '@acme/private', bareSpecifier: 'work:^2.0.0' }, {})
+
+  expect(resolveResult).toMatchObject({ id: '@acme/private@2.1.0' })
 })
 
 test('a jsr: specifier is keyed by the prefix the @jsr registry declares', async () => {
@@ -125,10 +144,10 @@ test('a jsr: specifier is keyed by the prefix the @jsr registry declares', async
 })
 
 test('a built-in alias pointing at a registry with a declared prefix is keyed by that prefix', async () => {
-  interceptAcmePrivate('https://registry.npmjs.org/')
-  const { resolveFromNamedRegistry } = createResolver({}, { public: 'https://registry.npmjs.org' })
+  interceptAcmePrivate(WORK_REGISTRY)
+  const { resolveFromNamedRegistry } = createResolver({}, { gh: WORK_REGISTRY, public: 'https://NPM.work.example.com' })
 
-  const resolveResult = await resolveFromNamedRegistry({ alias: '@acme/private', bareSpecifier: 'npmjs:^2.0.0' }, {})
+  const resolveResult = await resolveFromNamedRegistry({ alias: '@acme/private', bareSpecifier: 'gh:^2.0.0' }, {})
 
-  expect(resolveResult).toMatchObject({ id: '@acme/private@public:2.1.0' })
+  expect(resolveResult).toMatchObject({ id: '@acme/private@gh:2.1.0' })
 })

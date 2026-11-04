@@ -98,9 +98,9 @@ struct FinalPeerContext<'a> {
 impl Walker<'_> {
     /// Return the fully walked occurrence whose peer-resolution verdict
     /// `node_id` reused. The cache hit is the same semantic node for
-    /// final depPath construction even though it remains a distinct tree
-    /// occurrence for traversal and edge labels.
-    fn cache_owner_node_id<'a>(&'a self, node_id: &'a NodeId) -> &'a NodeId {
+    /// provider comparisons and final depPath construction even though it
+    /// remains a distinct tree occurrence for traversal and edge labels.
+    pub(super) fn cache_owner_node_id<'a>(&'a self, node_id: &'a NodeId) -> &'a NodeId {
         self.nodes.cache_owners.get(node_id).unwrap_or(node_id)
     }
 

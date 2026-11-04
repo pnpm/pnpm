@@ -1,5 +1,7 @@
 //! Several pnpr replicas behind one load balancer: separate processes, each
-//! with its own local scratch and accounts, sharing one hosted object store.
+//! with its own local scratch and accounts, sharing one hosted object store
+//! and one metadata database. Replicas share a libSQL primary; here one
+//! `SQLite` file stands in for it.
 //!
 //! What holds the deployment together is that every write into that shared
 //! store is conditional, so a request can land on any replica. These tests
@@ -16,6 +18,7 @@ use npm::publish_doc;
 use object_store::{ObjectStore, memory::InMemory};
 use pausing_store::PausingStore;
 use pnpr::{Config, HostedStoreConfig, MaxUsers, router};
+use pnpr_config::MetadataBackend;
 use pnpr_fixtures::MockConfigPresets;
 use serde_json::{Value, json};
 use std::{
@@ -25,7 +28,7 @@ use std::{
 use tempfile::TempDir;
 use tower::ServiceExt;
 
-/// One replica: its own storage directory (accounts, cache, publish journal)
+/// One replica: its own storage directory (accounts, cache)
 /// over the hosted store every replica shares.
 struct Replica {
     app: axum::Router,
@@ -33,8 +36,17 @@ struct Replica {
     _storage: TempDir,
 }
 
+/// The metadata database every replica of a test shares.
+struct SharedMetadata(TempDir);
+
+impl SharedMetadata {
+    fn new() -> Self {
+        Self(TempDir::new().unwrap())
+    }
+}
+
 impl Replica {
-    async fn start(store: &Arc<dyn ObjectStore>) -> Replica {
+    async fn start(store: &Arc<dyn ObjectStore>, metadata: &SharedMetadata) -> Replica {
         let storage = TempDir::new().unwrap();
         let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
         let mut config = Config::static_serve(listen, storage.path().to_path_buf());
@@ -42,6 +54,8 @@ impl Replica {
         config.identity.auth.htpasswd.max_users = MaxUsers::Unlimited;
         config.storage.hosted_backend =
             HostedStoreConfig::ObjectStore { store: Arc::clone(store), prefix: String::new() };
+        config.storage.metadata =
+            MetadataBackend::Sqlite(metadata.0.path().join("metadata.sqlite"));
         let app = router(config);
         // Accounts are per-replica state, so every replica registers the
         // publisher and issues it a token of its own.
@@ -102,25 +116,38 @@ impl Replica {
     }
 }
 
-/// The publish that loses the conditional document write must re-read and
-/// merge; it must not write over the version it never saw.
+/// Two replicas publishing versions of one package at once never write over
+/// each other: every version a publish reports as published is served by
+/// every replica. The publish that loses the race for the package's
+/// generation is refused rather than merged, and the client retries it.
 #[tokio::test]
-async fn concurrent_publishes_of_one_package_keep_both_versions() {
+async fn concurrent_publishes_of_one_package_never_drop_a_published_version() {
     let store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
-    let first = Replica::start(&store).await;
-    let second = Replica::start(&store).await;
+    let metadata = SharedMetadata::new();
+    let first = Replica::start(&store, &metadata).await;
+    let second = Replica::start(&store, &metadata).await;
 
     let publish_one = first.publish("shared-pkg", "1.0.0", b"one");
     let publish_two = second.publish("shared-pkg", "2.0.0", b"two");
     let (left, right) = tokio::join!(publish_one, publish_two);
-    assert_eq!(left, StatusCode::CREATED);
-    assert_eq!(right, StatusCode::CREATED);
+    for status in [left, right] {
+        assert!(
+            status == StatusCode::CREATED || status == StatusCode::CONFLICT,
+            "a publish either lands or is refused: {left}, {right}",
+        );
+    }
+    assert!(left == StatusCode::CREATED || right == StatusCode::CREATED, "{left}, {right}");
 
     for replica in [&first, &second] {
         let packument = replica.packument("shared-pkg").await;
         let versions = packument["versions"].as_object().expect("versions");
-        assert!(versions.contains_key("1.0.0"), "1.0.0 is missing: {versions:?}");
-        assert!(versions.contains_key("2.0.0"), "2.0.0 is missing: {versions:?}");
+        for (version, status) in [("1.0.0", left), ("2.0.0", right)] {
+            assert_eq!(
+                versions.contains_key(version),
+                status == StatusCode::CREATED,
+                "{version} answered {status}: {versions:?}",
+            );
+        }
     }
 }
 
@@ -128,8 +155,9 @@ async fn concurrent_publishes_of_one_package_keep_both_versions() {
 #[tokio::test]
 async fn a_stage_created_on_one_replica_is_approved_on_another() {
     let store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
-    let first = Replica::start(&store).await;
-    let second = Replica::start(&store).await;
+    let metadata = SharedMetadata::new();
+    let first = Replica::start(&store, &metadata).await;
+    let second = Replica::start(&store, &metadata).await;
 
     let stage_id = first.stage("staged-pkg", "1.0.0", b"the tarball").await;
     assert_eq!(second.approve(&stage_id).await, StatusCode::CREATED);
@@ -146,8 +174,9 @@ async fn a_stage_created_on_one_replica_is_approved_on_another() {
 #[tokio::test]
 async fn one_stage_approved_on_two_replicas_publishes_once() {
     let store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
-    let first = Replica::start(&store).await;
-    let second = Replica::start(&store).await;
+    let metadata = SharedMetadata::new();
+    let first = Replica::start(&store, &metadata).await;
+    let second = Replica::start(&store, &metadata).await;
 
     let stage_id = first.stage("staged-pkg", "1.0.0", b"the tarball").await;
     let approve_here = first.approve(&stage_id);
@@ -180,14 +209,16 @@ async fn one_stage_approved_on_two_replicas_publishes_once() {
 /// under way on another, as long as it lands before that approval commits.
 ///
 /// The approving replica is paused after it has the held publish in hand,
-/// inside the read of the package it is about to write, which is where a
-/// rejection can still be observed.
+/// while it stages it: reading the tarball's integrity record, the one
+/// `document.json` the bucket still holds, before the commit, which is where
+/// a rejection can still be observed.
 #[tokio::test]
 async fn a_rejection_stops_an_approval_that_has_not_committed() {
     let objects = Arc::new(PausingStore::default());
     let store: Arc<dyn ObjectStore> = Arc::clone(&objects) as Arc<dyn ObjectStore>;
-    let approving = Replica::start(&store).await;
-    let rejecting = Replica::start(&store).await;
+    let metadata = SharedMetadata::new();
+    let approving = Replica::start(&store, &metadata).await;
+    let rejecting = Replica::start(&store, &metadata).await;
 
     let stage_id = approving.stage("staged-pkg", "1.0.0", b"the tarball").await;
     objects.pause("document.json".to_string());
@@ -206,7 +237,9 @@ async fn a_rejection_stops_an_approval_that_has_not_committed() {
         }
     });
 
-    objects.started.notified().await;
+    tokio::time::timeout(std::time::Duration::from_secs(10), objects.started.notified())
+        .await
+        .expect("the approval reaches the paused read");
     let (rejected, _) =
         rejecting.send("DELETE", &format!("/npm/-/stage/{stage_id}"), Body::empty()).await;
     assert_eq!(rejected, StatusCode::NO_CONTENT);
@@ -221,8 +254,9 @@ async fn a_rejection_stops_an_approval_that_has_not_committed() {
 #[tokio::test]
 async fn a_dist_tag_written_on_one_replica_is_served_by_the_other() {
     let store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
-    let first = Replica::start(&store).await;
-    let second = Replica::start(&store).await;
+    let metadata = SharedMetadata::new();
+    let first = Replica::start(&store, &metadata).await;
+    let second = Replica::start(&store, &metadata).await;
 
     assert_eq!(first.publish("tagged-pkg", "1.0.0", b"one").await, StatusCode::CREATED);
     assert_eq!(second.publish("tagged-pkg", "2.0.0", b"two").await, StatusCode::CREATED);

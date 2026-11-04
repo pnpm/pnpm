@@ -6,7 +6,8 @@ use crate::{
     PackagePickPolicy, mirror::MetaHeaders, pick_package_from_meta::RegistryPackageSpecType,
 };
 use chrono::{DateTime, TimeDelta, Utc};
-use pnpm_config::{NetworkPolicy, TrustPolicy, version_policy::create_package_version_policy};
+use pnpm_resolving_resolver_base::{NetworkPolicy, TrustPolicy};
+use pnpm_version_policy::create_package_version_policy;
 use pretty_assertions::assert_eq;
 
 const PKG_NAME: &str = "acme";

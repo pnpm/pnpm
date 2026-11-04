@@ -10,6 +10,7 @@ fn prompt() -> CheckboxPrompt<usize> {
                     name: value.to_string(),
                     short: value.to_string(),
                     value,
+                    description: None,
                 })
             })
             .collect(),

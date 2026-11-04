@@ -92,7 +92,7 @@ async fn link_workspace_packages_off_skips_workspace_match() {
 
     let packages = build_workspace_packages("acme", &["1.0.0"]);
     let mut opts = workspace_resolve_options(packages);
-    opts.project.link_workspace_packages = pnpm_config::LinkWorkspacePackages::Off;
+    opts.project.link_workspace_packages = pnpm_resolving_resolver_base::LinkWorkspacePackages::Off;
 
     let wanted = WantedDependency {
         alias: Some("acme".to_string()),

@@ -22,7 +22,7 @@ fn allow_all_builds<'a>() -> AllowBuildRef<'a> {
 fn write_to_cas(store_dir: &StoreDir, files: &[(&str, &[u8], bool)]) -> pnpm_fs::CasPaths {
     let mut out = HashMap::new();
     for &(rel, bytes, executable) in files {
-        let (cas_path, _hash) = store_dir.write_cas_file(bytes, executable).unwrap();
+        let cas_path = store_dir.write_cas_file(bytes, executable).unwrap().file;
         out.insert(rel.to_string(), cas_path);
     }
     out

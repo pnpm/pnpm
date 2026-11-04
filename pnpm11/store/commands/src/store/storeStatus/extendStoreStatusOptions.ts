@@ -1,11 +1,18 @@
 import path from 'node:path'
 
 import { DEFAULT_REGISTRIES_BY_SCOPE, normalizeRegistriesByScope } from '@pnpm/config.normalize-registries'
-import type { RegistriesByScope } from '@pnpm/types'
+import type { RegistriesByScope, SupportedArchitectures } from '@pnpm/types'
 
 import type { ReporterFunction } from '../types.js'
 
 export interface StrictStoreStatusOptions {
+  enableGlobalVirtualStore?: boolean
+  modulesDir?: string
+  virtualStoreDir?: string
+  installStateDir?: string
+  allowBuilds?: Record<string, boolean | string>
+  dangerouslyAllowAllBuilds?: boolean
+  supportedArchitectures?: SupportedArchitectures
   autoInstallPeers: boolean
   excludeLinksFromLockfile: boolean
   lockfileDir: string
@@ -33,6 +40,7 @@ const defaults = async (opts: StoreStatusOptions): Promise<StrictStoreStatusOpti
   const dir = opts.dir ?? process.cwd()
   const lockfileDir = opts.lockfileDir ?? dir
   return {
+    allowBuilds: opts.enableGlobalVirtualStore ? {} : undefined,
     binsDir: path.join(dir, 'node_modules', '.bin'),
     dir,
     force: false,
@@ -42,6 +50,7 @@ const defaults = async (opts: StoreStatusOptions): Promise<StrictStoreStatusOpti
     shamefullyHoist: false,
     storeDir: opts.storeDir,
     useLockfile: true,
+    virtualStoreDir: opts.enableGlobalVirtualStore ? path.join(opts.storeDir, 'links') : undefined,
   } as StrictStoreStatusOptions
 }
 

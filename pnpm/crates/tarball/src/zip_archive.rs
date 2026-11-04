@@ -7,14 +7,14 @@ pub(crate) use download::check_zip_size;
 
 use super::{
     Arc, ArchiveStoreProjection, Component, Cursor, HashMap, IgnoreEntryFilter, NetworkError, Read,
-    STREAM_ENTRY_BUFFER_MAX, TarLimits, TarballError, UNIX_EPOCH, allocate_tarball_buffer,
+    STREAM_ENTRY_BUFFER_MAX, TarLimits, TarballError, allocate_tarball_buffer, checked_now,
     post_download_semaphore,
 };
 use pnpm_fs::file_mode;
 use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient};
 use pnpm_reporter::Reporter;
 use pnpm_store_dir::{
-    CafsFileInfo, FileHash, PackageFilesIndex, StoreDir, WriteCasFileFromReaderError,
+    CafsFileInfo, PackageFilesIndex, StoreDir, WriteCasFileFromReaderError, WrittenFile,
 };
 use ssri::Integrity;
 
@@ -123,7 +123,7 @@ fn store_zip_entry(
 ) -> Result<(pnpm_fs::StoreFile, CafsFileInfo), TarballError> {
     let file_mode = entry.unix_mode().unwrap_or(0o644) & 0o777;
     let declared_size = entry.size();
-    let (file_path, file_hash, file_size) = write_zip_entry_to_cas(
+    let written = write_zip_entry_to_cas(
         entry,
         declared_size,
         package_url,
@@ -131,19 +131,8 @@ fn store_zip_entry(
         store_dir,
         file_mode::is_executable(pnpm_fs::FileMode::from_mode(file_mode)),
     )?;
-    let checked_at = UNIX_EPOCH
-        .elapsed()
-        .ok()
-        .and_then(|elapsed| u64::try_from(elapsed.as_millis()).ok());
-    Ok((
-        file_path,
-        CafsFileInfo {
-            digest: format!("{file_hash:x}"),
-            mode: file_mode,
-            size: file_size,
-            checked_at,
-        },
-    ))
+    let info = written.index_entry(file_mode, checked_now());
+    Ok((written.file, info))
 }
 
 /// The canonical, prefix-stripped path of one zip entry, or `None` when the
@@ -244,7 +233,7 @@ pub(crate) fn write_zip_entry_to_cas(
     entry_path: &str,
     store_dir: &StoreDir,
     executable: bool,
-) -> Result<(pnpm_fs::StoreFile, FileHash, u64), TarballError> {
+) -> Result<WrittenFile, TarballError> {
     let read_error = |source| TarballError::ReadZipEntries {
         url: package_url.to_string(),
         entry_path: entry_path.to_string(),
@@ -287,9 +276,7 @@ pub(crate) fn write_zip_entry_to_cas(
         )));
     }
 
-    let (file_path, file_hash) =
-        store_dir.write_cas_file(&buffer, executable).map_err(TarballError::WriteCasFile)?;
-    Ok((file_path, file_hash, declared_size))
+    store_dir.write_cas_file(&buffer, executable).map_err(TarballError::WriteCasFile)
 }
 
 /// Run one full zip-archive fetch attempt: hit the network, drain the
@@ -501,7 +488,7 @@ impl IngestZipArchiveToStore<'_> {
     ) -> Result<pnpm_fs::CasPaths, TarballError> {
         let ingestion = self.ingestion();
         if let Some(cached) = ingestion.load_cache::<Reporter>().await? {
-            return Ok(cached.files);
+            return Ok(Arc::unwrap_or_clone(cached.files));
         }
         let paths = ingestion.ingest_zip_buffer(buffer).await?;
         crate::download::emit_progress_fetched::<Reporter>(self.package.id, self.requester, None);

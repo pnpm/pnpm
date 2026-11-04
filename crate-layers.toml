@@ -1,0 +1,217 @@
+# The layers of the Rust workspace, bottom first. A crate's normal and build
+# dependencies must be in its own layer or a lower one; dev-dependencies are
+# not checked. `just crate-layers check` enforces this, and
+# `just crate-layers diff <rev>` lists the edges a change adds or removes.
+# A new crate goes into the layer that matches its role, not the lowest
+# layer its current dependencies allow.
+
+[[layer]]
+name = "foundation"
+description = "Runtime and OS access, hashing, diagnostics, text and pattern utilities. Knows nothing about packages."
+crates = [
+  "pnpm-config-dir",
+  "pnpm-crypto-hash",
+  "pnpm-crypto-shasums-file",
+  "pnpm-detect-libc",
+  "pnpm-diagnostics",
+  "pnpm-env-replace",
+  "pnpm-fs",
+  "pnpm-git-utils",
+  "pnpm-graph-hasher",
+  "pnpm-http",
+  "pnpm-install-coordinator",
+  "pnpm-matcher",
+  "pnpm-network",
+  "pnpm-network-web-auth",
+  "pnpm-platform-variants",
+  "pnpm-process",
+  "pnpm-reporter",
+  "pnpm-semver-include-prerelease",
+  "pnpm-text-sanitize",
+  "pnpm-text-section",
+  "pnpm-transparency-log",
+  "pnpm-wasm-host",
+  "pnpm-which",
+  "pnpm-yaml-document-sync",
+]
+
+[[layer]]
+name = "model"
+description = "Names, specifiers, and the formats pnpm reads and writes: manifests, lockfiles, workspace and store layout."
+crates = [
+  "pnpm-catalogs-config",
+  "pnpm-catalogs-protocol-parser",
+  "pnpm-catalogs-resolver",
+  "pnpm-catalogs-types",
+  "pnpm-config-parse-overrides",
+  "pnpm-deps-path",
+  "pnpm-exportable-manifest",
+  "pnpm-fs-packlist",
+  "pnpm-local-spec",
+  "pnpm-lockfile",
+  "pnpm-modules-yaml",
+  "pnpm-package-is-installable",
+  "pnpm-package-manifest",
+  "pnpm-package-name",
+  "pnpm-patching-config",
+  "pnpm-release-notes",
+  "pnpm-release-record",
+  "pnpm-resolving-jsr-specifier-parser",
+  "pnpm-resolving-parse-wanted-dependency",
+  "pnpm-shared-artifact-protocol",
+  "pnpm-store-dir",
+  "pnpm-tool-protocol",
+  "pnpm-version-policy",
+  "pnpm-versioning",
+  "pnpm-workspace",
+  "pnpm-workspace-projects-graph",
+  "pnpm-workspace-range-resolver",
+  "pnpm-workspace-spec",
+  "pnpm-workspace-state",
+  "pnpr-error",
+  "pnpr-package-name",
+  "pnpr-policy",
+  "pnpr-registry",
+]
+
+[[layer]]
+name = "service"
+description = "One capability each: resolve, fetch, link, patch, run scripts, talk to a registry. Takes its settings as values and never reads the configuration."
+crates = [
+  "pnpm-cargo-resolver",
+  "pnpm-cmd-shim",
+  "pnpm-directory-fetcher",
+  "pnpm-engine-pm-yarn-resolver",
+  "pnpm-engine-runtime-bun-resolver",
+  "pnpm-engine-runtime-deno-resolver",
+  "pnpm-engine-runtime-node-resolver",
+  "pnpm-executor",
+  "pnpm-git-fetcher",
+  "pnpm-global",
+  "pnpm-hooks",
+  "pnpm-injected-deps-syncer",
+  "pnpm-lockfile-import",
+  "pnpm-lockfile-preferred-versions",
+  "pnpm-lockfile-verification",
+  "pnpm-patching",
+  "pnpm-python-resolver",
+  "pnpm-real-hoist",
+  "pnpm-registry",
+  "pnpm-resolving-deps-resolver",
+  "pnpm-resolving-git-resolver",
+  "pnpm-resolving-local-resolver",
+  "pnpm-resolving-npm-resolver",
+  "pnpm-resolving-resolver-base",
+  "pnpm-resolving-tarball-resolver",
+  "pnpm-tarball",
+  "pnpm-workspace-projects-filter",
+  "pnpm-workspace-task-scheduler",
+  "pnpr-cargo",
+  "pnpr-oci",
+  "pnpr-pypi",
+]
+
+[[layer]]
+name = "config"
+description = "Reads and merges settings. Owns the loading; the settings types of a service live in that service's crate."
+crates = [
+  "pnpm-config",
+  "pnpr-config",
+]
+
+[[layer]]
+name = "application"
+description = "Install engine, commands, and registry server components, built from the configuration and the services."
+crates = [
+  "pnpm-auth-commands",
+  "pnpm-default-reporter",
+  "pnpm-deps-inspection",
+  "pnpm-deps-inspection-peers",
+  "pnpm-deps-restorer",
+  "pnpm-env-installer",
+  "pnpm-github-actions",
+  "pnpm-pack",
+  "pnpm-package-manager",
+  "pnpm-pnpr-client",
+  "pnpm-publish",
+  "pnpm-python-installer",
+  "pnpm-resolving-default-resolver",
+  "pnpm-rust-toolchain",
+  "pnpm-workspace-manifest-writer",
+  "pnpr-auth",
+  "pnpr-libsql",
+  "pnpr-osv",
+  "pnpr-pipeline-runs",
+  "pnpr-route",
+  "pnpr-search",
+  "pnpr-shared-artifacts",
+  "pnpr-storage",
+  "pnpr-upstream",
+]
+
+[[layer]]
+name = "entry"
+description = "Binaries and bindings."
+crates = [
+  "pnpm-cli",
+  "pnpm-napi",
+  "pnpr",
+]
+
+[[layer]]
+name = "tooling"
+description = "Test harnesses, fixtures, benchmarks, and developer tasks."
+crates = [
+  "pnpm-cargo-equivalence",
+  "pnpm-crate-layers",
+  "pnpm-ecosystem-e2e",
+  "pnpm-integrated-benchmark",
+  "pnpm-micro-benchmark",
+  "pnpm-network-web-auth-testing",
+  "pnpm-registry-mock",
+  "pnpm-testing-utils",
+  "pnpr-fixtures",
+]
+
+# The accepted size of each crate's largest cycle among its top-level
+# modules: a set of modules that all reach each other, so none can be read,
+# tested, or moved alone. A crate not listed accepts no cycle. The check fails
+# when a cycle grows and when one shrinks, so these numbers only go down.
+# `just crate-layers modules --crate <name>` lists a cycle and its references.
+[module_cycles]
+pnpm-cargo-resolver = 3
+pnpm-cli = 10
+pnpm-config = 10
+pnpm-crypto-shasums-file = 2
+pnpm-deps-inspection = 2
+pnpm-deps-inspection-peers = 2
+pnpm-deps-restorer = 25
+pnpm-env-installer = 2
+pnpm-executor = 3
+pnpm-fs = 4
+pnpm-git-fetcher = 5
+pnpm-http = 2
+pnpm-lockfile-verification = 2
+pnpm-network-web-auth = 2
+pnpm-package-manager = 12
+pnpm-platform-variants = 2
+pnpm-pnpr-client = 2
+pnpm-process = 2
+pnpm-publish = 2
+pnpm-python-installer = 11
+pnpm-python-resolver = 4
+pnpm-resolving-deps-resolver = 9
+pnpm-resolving-npm-resolver = 3
+pnpm-shared-artifact-protocol = 2
+pnpm-tarball = 2
+pnpm-transparency-log = 2
+pnpm-workspace = 2
+pnpm-workspace-manifest-writer = 4
+pnpm-workspace-projects-filter = 2
+pnpm-workspace-task-scheduler = 2
+pnpm-yaml-document-sync = 2
+pnpr = 3
+pnpr-auth = 2
+pnpr-config = 4
+pnpr-registry = 2
+pnpr-storage = 6

@@ -15,6 +15,7 @@ import {
   satisfiesPackageManifest,
   unresolvedOptionalDependencies,
 } from '@pnpm/lockfile.verification'
+import type { WorkspacePackages } from '@pnpm/resolving.resolver-base'
 import type { ProjectId, ProjectManifest, ProjectRootDir } from '@pnpm/types'
 import { TarballIntegrityError } from '@pnpm/worker'
 import pLimit from 'p-limit'
@@ -144,8 +145,34 @@ async function isDirectoryWithoutManifest (projectDir: string): Promise<boolean>
 }
 
 async function checkEachProjectAgainstLockfile ({ ctx, opts }: MutationRun, frozenLockfile: boolean): Promise<ProjectCheck[]> {
+  const workspacePackages = opts.linkWorkspacePackagesDepth >= 0 ? ctx.workspacePackages : undefined
+  const checkLinkedPackages = bindCheckLinkedPackages({ ctx, opts }, frozenLockfile)
+  const checkManifest = satisfiesPackageManifest.bind(null, {
+    autoInstallPeers: opts.autoInstallPeers,
+    excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
+    ignoredOptionalDependencies: opts.ignoredOptionalDependencies,
+    allowUnresolvedOptionalDependencies: frozenLockfile,
+    workspacePackages,
+    catalogs: opts.catalogs,
+  })
+  return Promise.all(Object.values(ctx.projects).map(async ({ id, manifest, rootDir }) => {
+    const importer = ctx.wantedLockfile.importers[id]
+    const { satisfies, detailedReason } = checkManifest(importer, manifest)
+    const skipped = satisfies && frozenLockfile && importer != null
+      ? findUnresolvedOptionalDependencies(opts, { importer, manifest, workspacePackages })
+      : undefined
+    if (!satisfies || importer == null) return { satisfies, detailedReason, rootDir, skipped }
+    return {
+      ...await checkImporterResolutions(ctx, { checkLinkedPackages, detailedReason, importer, manifest, rootDir }),
+      rootDir,
+      skipped,
+    }
+  }))
+}
+
+function bindCheckLinkedPackages ({ ctx, opts }: Pick<MutationRun, 'ctx' | 'opts'>, frozenLockfile: boolean): CheckLinkedPackages {
   const manifestsByDir = ctx.workspacePackages ? getWorkspacePackagesByDirectory(ctx.workspacePackages) : {}
-  const checkLinkedPackages: CheckLinkedPackages = checkLinkedPackagesAreUpToDate.bind(null, {
+  return checkLinkedPackagesAreUpToDate.bind(null, {
     linkWorkspacePackages: opts.linkWorkspacePackagesDepth >= 0,
     manifestsByDir,
     workspacePackages: ctx.workspacePackages,
@@ -166,34 +193,17 @@ async function checkEachProjectAgainstLockfile ({ ctx, opts }: MutationRun, froz
     },
     hookedManifests: new Map(),
   })
-  const checkManifest = satisfiesPackageManifest.bind(null, {
-    autoInstallPeers: opts.autoInstallPeers,
-    excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
-    ignoredOptionalDependencies: opts.ignoredOptionalDependencies,
-    allowUnresolvedOptionalDependencies: frozenLockfile,
-  })
-  return Promise.all(Object.values(ctx.projects).map(async ({ id, manifest, rootDir }) => {
-    const importer = ctx.wantedLockfile.importers[id]
-    const { satisfies, detailedReason } = checkManifest(importer, manifest)
-    const skipped = satisfies && frozenLockfile && importer != null
-      ? findUnresolvedOptionalDependencies(opts, { importer, manifest })
-      : undefined
-    if (!satisfies || importer == null) return { satisfies, detailedReason, rootDir, skipped }
-    return {
-      ...await checkImporterResolutions(ctx, { checkLinkedPackages, detailedReason, importer, manifest, rootDir }),
-      rootDir,
-      skipped,
-    }
-  }))
 }
 
 function findUnresolvedOptionalDependencies (
   opts: StrictInstallOptions,
-  { importer, manifest }: { importer: ProjectSnapshot, manifest: ProjectManifest }
+  { importer, manifest, workspacePackages }: { importer: ProjectSnapshot, manifest: ProjectManifest, workspacePackages?: WorkspacePackages }
 ): Record<string, string> | undefined {
   const unresolved = unresolvedOptionalDependencies({
     excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
     ignoredOptionalDependencies: opts.ignoredOptionalDependencies,
+    workspacePackages,
+    catalogs: opts.catalogs,
   }, importer, manifest)
   return Object.keys(unresolved).length > 0 ? unresolved : undefined
 }
