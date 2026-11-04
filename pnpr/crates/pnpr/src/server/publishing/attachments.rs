@@ -164,10 +164,11 @@ fn prepare_attachment(
         return variants::prepare_variant_attachment(attachment, parsed);
     }
     let (canonical, version, kind) = parse_attachment_kind(name, &attachment.filename)?;
-    if kind == AttachmentKind::Sigstore && attachment.staged_integrity().is_some() {
+    if kind == AttachmentKind::Sigstore && attachment.declared_integrity.is_some() {
         return Err(RegistryError::InvalidAttachment {
             filename: attachment.filename,
-            reason: "a sigstore bundle is carried inline in `data`, not staged".to_string(),
+            reason: "a sigstore bundle is carried inline in `data`, with no `integrity`".to_string(
+            ),
         });
     }
     let dist = incoming
@@ -176,7 +177,29 @@ fn prepare_attachment(
         .and_then(|manifest| manifest.get("dist"))
         .cloned()
         .unwrap_or(Value::Null);
+    check_declared_integrity(&attachment, &dist)?;
     Ok(PreparedAttachment { attachment, canonical, version, dist, kind, variant_tag: None })
+}
+
+/// Refuse a version's archive that declares another integrity than its
+/// version's `dist.integrity`, which is what its bytes are verified against.
+fn check_declared_integrity(
+    attachment: &PendingAttachment,
+    dist: &Value,
+) -> Result<(), RegistryError> {
+    let Some(declared) = attachment.declared_integrity.as_deref() else { return Ok(()) };
+    let expected = dist.get("integrity").and_then(Value::as_str);
+    if expected == Some(declared) {
+        return Ok(());
+    }
+    Err(RegistryError::InvalidAttachment {
+        filename: attachment.filename.clone(),
+        reason: format!(
+            "EINTEGRITY: it declares the integrity {declared}, but its version's dist.integrity \
+             is {}",
+            expected.unwrap_or("absent"),
+        ),
+    })
 }
 
 fn parse_attachment_kind(
