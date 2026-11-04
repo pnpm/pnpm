@@ -1,4 +1,4 @@
-use super::{GivenIntegrity, archives_of, check_recursive, parse};
+use super::{GivenIntegrity, archives_of, check_recursive, parse, publishing_name};
 use pnpm_pack::variants::VariantDeclaration;
 use pnpm_publish::VariantArchive;
 use serde_json::json;
@@ -88,4 +88,16 @@ fn a_recursive_publish_takes_values_of_its_selected_packages() {
     let mistyped =
         check_recursive(&values(&["example-clj~linux-x64=sha512-a"]), &packages).unwrap_err();
     assert!(mistyped.to_string().contains("example-clj"), "{mistyped}");
+}
+
+/// A package publishes under the name its `publishConfig` gives it, so
+/// values name it by that name, not its own.
+#[test]
+fn a_renamed_package_is_named_by_its_publishing_name() {
+    let renamed = json!({ "name": "example-cli-src", "publishConfig": { "name": "example-cli" } });
+    assert_eq!(publishing_name(&renamed), Some("example-cli"));
+    assert_eq!(publishing_name(&json!({ "name": "example-cli" })), Some("example-cli"));
+    let packages = std::collections::HashSet::from([publishing_name(&renamed).unwrap()]);
+    check_recursive(&values(&["example-cli~linux-x64=sha512-a"]), &packages).unwrap();
+    check_recursive(&values(&["example-cli-src~linux-x64=sha512-a"]), &packages).unwrap_err();
 }

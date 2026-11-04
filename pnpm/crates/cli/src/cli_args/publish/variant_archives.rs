@@ -144,7 +144,7 @@ impl PublishArgs {
         }
         let given = given_archives::parse(&self.flags.variants.variant_integrity)?;
         // A recursive publish skips a package no value names before reading
-        // its manifest, by the names it may publish under.
+        // its manifest, by the name it publishes under.
         if matches!(scope, PublishScope::Recursive { .. }) && !names_any(&given, source_manifest) {
             return Ok(None);
         }
@@ -163,14 +163,13 @@ impl PublishArgs {
             .map(|declaration| given_archives::archives_of(&name, declaration, &given))
             .transpose()?
             .flatten();
+        // A value names this package, so the package publishes from staged
+        // archives or not at all, never from archives packed here.
         let (Some(declaration), Some((any, variants))) = (declaration, found) else {
-            return match scope {
-                PublishScope::Single { .. } => Err(miette::miette!(
-                    code = "ERR_PNPM_UNKNOWN_VARIANT",
-                    "--variant-integrity names no archive that {name} declares in publishConfig.variants",
-                )),
-                PublishScope::Recursive { .. } => Ok(None),
-            };
+            return Err(miette::miette!(
+                code = "ERR_PNPM_UNKNOWN_VARIANT",
+                "--variant-integrity names no archive that {name} declares in publishConfig.variants",
+            ));
         };
         Ok(Some(staged_directory(
             (project_dir, source_manifest),
@@ -216,10 +215,7 @@ impl PublishArgs {
         let packages: std::collections::HashSet<&str> = graph
             .iter()
             .filter_map(|(_, node)| {
-                node.package.project.manifest
-                    .value()
-                    .get("name")?
-                    .as_str()
+                given_archives::publishing_name(node.package.project.manifest.value())
             })
             .collect();
         given_archives::check_recursive(&given, &packages)
@@ -251,21 +247,12 @@ fn staged_directory(
 /// Whether a value of `given` names, by its package, the project whose own
 /// manifest is `manifest`.
 fn names_any(given: &[given_archives::GivenIntegrity], manifest: &Value) -> bool {
-    let names = published_names(manifest);
+    let name = given_archives::publishing_name(manifest);
     given
         .iter()
         .any(|value| {
             value.package
                 .as_deref()
-                .is_some_and(|package| names.contains(&package))
+                .is_some_and(|package| Some(package) == name)
         })
-}
-
-/// The names `manifest`, a project's own, may publish under: its `name`,
-/// and the `name` its `publishConfig` replaces it with.
-pub(super) fn published_names(manifest: &Value) -> Vec<&str> {
-    ["/name", "/publishConfig/name"]
-        .into_iter()
-        .filter_map(|pointer| manifest.pointer(pointer)?.as_str())
-        .collect()
 }
