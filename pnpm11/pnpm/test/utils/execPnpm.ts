@@ -208,7 +208,7 @@ function describeOutput (execResult: { stdout?: Buffer | string | null, stderr?:
   let description = ''
   for (const [label, output] of [['STDOUT', execResult.stdout], ['STDERR', execResult.stderr]] as const) {
     const text = output?.toString() ?? ''
-    if (text.trim()) {
+    if (text) {
       description += `\n${label}:\n${text.split('\n').map(line => `\t${line}`).join('\n')}`
     }
   }
