@@ -161,8 +161,10 @@ fn uploads_a_variant_and_a_final_publish_references_it() {
         .unwrap();
     assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
     upload.assert();
+    // Stdout holds only the value, which a CI job captures whole.
     let printed = String::from_utf8(output.stdout).unwrap();
-    let line = printed.lines().last().unwrap();
+    let line = printed.trim_end();
+    assert_eq!(line.lines().count(), 1, "{printed}");
     let integrity = line
         .strip_prefix("linux-x64-musl=")
         .unwrap_or_else(|| panic!("{printed}"));

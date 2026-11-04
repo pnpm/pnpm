@@ -78,26 +78,29 @@ fn refuses_a_missing_unknown_or_twice_given_archive() {
     }
 }
 
-/// A recursive publish takes only values that name a package it selects.
 #[test]
 fn a_recursive_publish_takes_values_of_its_selected_packages() {
-    let packages = std::collections::HashSet::from(["example-cli", "example-addon"]);
+    let packages = ["example-cli", "example-addon"];
     check_recursive(&values(&["example-cli~linux-x64=sha512-a"]), &packages).unwrap();
     let unnamed = check_recursive(&values(&["linux-x64=sha512-a"]), &packages).unwrap_err();
     assert!(unnamed.to_string().contains("names no package"), "{unnamed}");
     let mistyped =
         check_recursive(&values(&["example-clj~linux-x64=sha512-a"]), &packages).unwrap_err();
     assert!(mistyped.to_string().contains("example-clj"), "{mistyped}");
+    let twice = check_recursive(
+        &values(&["example-cli~linux-x64=sha512-a"]),
+        &["example-cli", "example-cli"],
+    )
+    .unwrap_err();
+    assert!(twice.to_string().contains("several selected projects"), "{twice}");
 }
 
-/// A package publishes under the name its `publishConfig` gives it, so
-/// values name it by that name, not its own.
 #[test]
 fn a_renamed_package_is_named_by_its_publishing_name() {
     let renamed = json!({ "name": "example-cli-src", "publishConfig": { "name": "example-cli" } });
     assert_eq!(publishing_name(&renamed), Some("example-cli"));
     assert_eq!(publishing_name(&json!({ "name": "example-cli" })), Some("example-cli"));
-    let packages = std::collections::HashSet::from([publishing_name(&renamed).unwrap()]);
+    let packages = [publishing_name(&renamed).unwrap()];
     check_recursive(&values(&["example-cli~linux-x64=sha512-a"]), &packages).unwrap();
     check_recursive(&values(&["example-cli-src~linux-x64=sha512-a"]), &packages).unwrap_err();
 }

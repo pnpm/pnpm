@@ -53,8 +53,6 @@ fn a_group_over_the_commit_limit_sends_its_archives_inline() {
     );
 }
 
-/// A batch sends a package's own archive, so it refuses one whose `any`
-/// archive another job staged.
 #[test]
 fn a_batch_refuses_an_any_archive_another_job_staged() {
     let manifest = json!({ "name": "example-cli", "version": "4.0.0" });

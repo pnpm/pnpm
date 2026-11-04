@@ -212,7 +212,7 @@ impl PublishArgs {
             return Ok(());
         }
         let given = given_archives::parse(&self.flags.variants.variant_integrity)?;
-        let packages: std::collections::HashSet<&str> = graph
+        let packages: Vec<&str> = graph
             .iter()
             .filter_map(|(_, node)| {
                 given_archives::publishing_name(node.package.project.manifest.value())

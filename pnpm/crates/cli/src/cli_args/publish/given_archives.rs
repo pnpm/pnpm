@@ -43,15 +43,13 @@ pub(super) fn parse(values: &[String]) -> miette::Result<Vec<GivenIntegrity>> {
         .collect()
 }
 
-/// Check the values of a recursive publish against the names of the
-/// selected `packages`: each value names its package, as a value without one
-/// would apply to every package, and each package it names is selected, as
-/// one that is not would leave a package to be packed here instead of
-/// published from its uploaded archives.
-pub(super) fn check_recursive(
-    given: &[GivenIntegrity],
-    packages: &std::collections::HashSet<&str>,
-) -> miette::Result<()> {
+/// Check the values of a recursive publish against the names the selected
+/// projects publish under, `packages`: each value names its package, as a
+/// value without one would apply to every package, and exactly one selected
+/// project publishes under it, as none would leave a package to be packed
+/// here instead of published from its uploaded archives, and two would both
+/// take its archives.
+pub(super) fn check_recursive(given: &[GivenIntegrity], packages: &[&str]) -> miette::Result<()> {
     if let Some(unnamed) = given.iter().find(|given| given.package.is_none()) {
         return Err(miette::miette!(
             code = "ERR_PNPM_INVALID_VARIANT_INTEGRITY",
@@ -60,17 +58,29 @@ pub(super) fn check_recursive(
             unnamed.target,
         ));
     }
-    match given
-        .iter()
-        .filter_map(|given| given.package.as_deref())
-        .find(|package| !packages.contains(package))
-    {
-        Some(package) => Err(miette::miette!(
-            code = "ERR_PNPM_UNKNOWN_VARIANT_PACKAGE",
-            "--variant-integrity names {package:?}, which this recursive publish does not select",
-        )),
-        None => Ok(()),
+    for package in given.iter().filter_map(|given| given.package.as_deref()) {
+        match packages
+            .iter()
+            .filter(|selected| **selected == package)
+            .count()
+        {
+            1 => {}
+            0 => {
+                return Err(miette::miette!(
+                    code = "ERR_PNPM_UNKNOWN_VARIANT_PACKAGE",
+                    "--variant-integrity names {package:?}, which this recursive publish does not select",
+                ));
+            }
+            _ => {
+                return Err(miette::miette!(
+                    code = "ERR_PNPM_AMBIGUOUS_VARIANT_PACKAGE",
+                    help = "Select only one of them, or give each its own publishConfig.name.",
+                    "--variant-integrity names {package:?}, which several selected projects publish as",
+                ));
+            }
+        }
     }
+    Ok(())
 }
 
 /// The name the project whose own manifest is `manifest` publishes under:

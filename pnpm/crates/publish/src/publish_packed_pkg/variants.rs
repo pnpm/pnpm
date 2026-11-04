@@ -177,11 +177,7 @@ pub(super) fn reference_staged_archives(
         .and_then(|versions| versions.get_mut(&key))
         .and_then(Value::as_object_mut)
     {
-        describe_any_archive(
-            manifest,
-            any.map(|(integrity, _)| integrity),
-            pkg.any_staged.is_some(),
-        );
+        describe_any_archive(manifest, pkg);
     }
 }
 
@@ -224,21 +220,18 @@ fn any_archive(pkg: &PackedPkg<'_>, lengths: &StagedLengths) -> Option<(String, 
     }
 }
 
-/// Describe the version by its `any` archive: none leaves it no `dist`, and
-/// one another machine staged has only its `dist.integrity`.
-fn describe_any_archive(
-    manifest: &mut serde_json::Map<String, Value>,
-    any_integrity: Option<String>,
-    staged: bool,
-) {
-    match any_integrity {
-        None => {
+/// Describe the version by `pkg`'s `any` archive: one another machine
+/// staged gives it only its `dist.integrity`, none leaves it no `dist`, and
+/// one this publish packed keeps the `dist` the document was built with.
+fn describe_any_archive(manifest: &mut serde_json::Map<String, Value>, pkg: &PackedPkg<'_>) {
+    match pkg.any_staged {
+        Some(staged) => {
+            manifest.insert("dist".into(), serde_json::json!({ "integrity": staged.integrity }));
+        }
+        None if !pkg.has_any_archive() => {
             manifest.shift_remove("dist");
         }
-        Some(integrity) if staged => {
-            manifest.insert("dist".into(), serde_json::json!({ "integrity": integrity }));
-        }
-        Some(_) => {}
+        None => {}
     }
 }
 
