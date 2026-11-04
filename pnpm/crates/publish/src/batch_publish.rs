@@ -201,6 +201,9 @@ fn group_packed_pkg<'a>(
         &opts.registry.scoped,
         crate::publish_options::publish_config_registry(manifest, name),
     )?;
+    if !package.variants.is_empty() || !package.any_archive {
+        return Err(BatchPublishError::Variants);
+    }
     let summary = package.summary();
     let mut document = build_publish_document(
         manifest,
@@ -321,6 +324,13 @@ pub enum BatchPublishError {
     #[display("Staged publishing cannot be combined with --batch")]
     #[diagnostic(code(ERR_PNPM_BATCH_PUBLISH_NO_STAGE))]
     Stage,
+
+    #[display("pnpm cannot publish platform variants with --batch yet")]
+    #[diagnostic(
+        code(ERR_PNPM_BATCH_PUBLISH_NO_VARIANTS),
+        help("Publish a package that declares publishConfig.variants without --batch.")
+    )]
+    Variants,
 
     #[display("Provenance statements cannot be generated when publishing with --batch")]
     #[diagnostic(

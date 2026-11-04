@@ -475,9 +475,9 @@ For example:
 
 * Type: **Array**
 
-Declares the archives of the version, one per platform, which `pnpm pack`
-writes. `pnpm publish` does not publish a package with this field yet. Each
-entry describes one archive:
+Publishes the version as several archives, one per platform, to a registry
+declared with `serverType: pnpr`. pnpm installs the archive that fits the
+host. Each entry describes one archive:
 
 * `targets`: the platform tags the archive runs on, such as `linux-x64`,
   `linux-x64-musl`, `darwin-arm64-macos_11_0`, or `win32-x64-napi8`. The entry

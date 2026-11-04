@@ -17,6 +17,7 @@ fn pack(opts: &PackOptions, targets: &[&str]) -> Result<Vec<PackedArchive>, Pack
         .build()
         .unwrap()
         .block_on(pack_archives::<SilentReporter, Host>(opts, &targets))
+        .map(|packed| packed.archives)
 }
 
 fn addon() -> Value {

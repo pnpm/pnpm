@@ -11,6 +11,9 @@
 pub use arguments::{PublishGitArgs, PublishManifestArgs, PublishOutputArgs, PublishRegistryArgs};
 mod notes;
 mod options;
+mod packed;
+
+use packed::{PackedDirectory, declares_variants, packed_directory};
 mod scope;
 
 use scope::PublishScope;
@@ -27,7 +30,7 @@ use pnpm_config::Config;
 use pnpm_executor::{RunPostinstallHooks, run_lifecycle_hook};
 use pnpm_hooks::PnpmfileHooks;
 use pnpm_pack::{
-    Host as PackHost, PackOptions, PackResult, WorkspacePackageManifest, api as pack_api,
+    Host as PackHost, PackOptions, PackedArchives, WorkspacePackageManifest, pack_archives,
 };
 use pnpm_publish::{
     Host, PackedPkg, PublishFailure, PublishNetwork, PublishPackedPkgOptions, PublishSummary,
@@ -80,30 +83,6 @@ pub struct PublishFlags {
 pub(super) enum PublishedPackages {
     Single(Box<PublishSummary>),
     Recursive(Vec<PublishSummary>),
-}
-
-struct PackedDirectory {
-    project_dir: std::path::PathBuf,
-    source_manifest: Value,
-    published_manifest: Value,
-    tarball_data: Vec<u8>,
-    tarball_path: String,
-    contents: Vec<String>,
-    unpacked_size: u64,
-    notes: Option<String>,
-}
-
-impl PackedDirectory {
-    fn packed_pkg(&self) -> PackedPkg<'_> {
-        PackedPkg {
-            published_manifest: &self.published_manifest,
-            tarball_data: &self.tarball_data,
-            tarball_path: &self.tarball_path,
-            contents: &self.contents,
-            unpacked_size: self.unpacked_size,
-            notes: self.notes.as_deref(),
-        }
-    }
 }
 
 impl PublishedPackages {
@@ -251,6 +230,8 @@ impl PublishArgs {
                 contents: &[],
                 unpacked_size: 0,
                 notes: notes.as_deref(),
+                variants: &[],
+                any_archive: true,
             },
             opts,
             network,
@@ -318,28 +299,21 @@ impl PublishArgs {
         }
 
         let pack_destination = tempfile::tempdir().into_diagnostic().wrap_err("create temp dir")?;
-        let pack_result = self.pack_for_publish::<Reporter>(
+        // `--no-variants` publishes only the archive that targets `any`.
+        let targets = if self.flags.manifest.no_variants && declares_variants(&manifest) {
+            vec![pnpm_pack::variants::ANY_TARGET.to_string()]
+        } else {
+            Vec::new()
+        };
+        let packed = self.pack_for_publish::<Reporter>(
             project_dir,
             config,
             pack_destination.path(),
             before_packing_hooks,
-            scope.workspace_packages(),
+            (scope.workspace_packages(), &targets),
         )
         .await?;
-        let tarball_data = std::fs::read(&pack_result.tarball_path)
-            .into_diagnostic()
-            .wrap_err("read packed tarball")?;
-
-        Ok(PackedDirectory {
-            project_dir: project_dir.to_path_buf(),
-            source_manifest: manifest,
-            published_manifest: pack_result.published_manifest,
-            tarball_data,
-            tarball_path: pack_result.tarball_path,
-            contents: pack_result.contents,
-            unpacked_size: pack_result.unpacked_size,
-            notes: None,
-        })
+        packed_directory(project_dir, manifest, packed)
     }
 
     fn run_post_publish_scripts<Reporter: self::Reporter>(
@@ -374,8 +348,8 @@ impl PublishArgs {
         config: &Config,
         pack_destination: &Path,
         before_packing_hooks: &[Arc<dyn PnpmfileHooks>],
-        workspace_packages: Option<&Arc<HashMap<String, WorkspacePackageManifest>>>,
-    ) -> miette::Result<PackResult> {
+        (workspace_packages, targets): (Option<&WorkspacePackages>, &[String]),
+    ) -> miette::Result<PackedArchives> {
         let workspace_packages = workspace_packages
             .cloned()
             .or_else(|| {
@@ -411,11 +385,14 @@ impl PublishArgs {
             },
         };
         crate::cli_args::pack::set_injected_changelog(&mut options, config, dir).await?;
-        pack_api::<Reporter, PackHost>(&options).await
+        pack_archives::<Reporter, PackHost>(&options, targets).await
             .map_err(miette::Report::new)
             .wrap_err(crate::cli_args::pack::PACK_ERROR_CONTEXT)
     }
 }
+
+/// The workspace's packages by name, shared across a recursive publish.
+type WorkspacePackages = Arc<HashMap<String, WorkspacePackageManifest>>;
 
 fn configured_publish_branch<'a>(flag: Option<&'a str>, config: &'a Config) -> Option<&'a str> {
     flag.or(config.publish_branch.as_deref())

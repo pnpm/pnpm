@@ -1,0 +1,116 @@
+use super::{
+    PackedPkg, PackedVariant, PublishPackedPkgError, check_provenance, check_registry,
+    reference_staged_archives, sri_sha512, staged_archives,
+};
+use crate::registry_config_keys::parse_supported_registry_url;
+use serde_json::json;
+use std::collections::HashSet;
+
+fn pkg<'a>(
+    manifest: &'a serde_json::Value,
+    any: &'a [u8],
+    variants: &'a [PackedVariant],
+) -> PackedPkg<'a> {
+    PackedPkg {
+        published_manifest: manifest,
+        tarball_data: any,
+        tarball_path: "example-cli-4.0.0.tgz",
+        contents: &[],
+        unpacked_size: 0,
+        notes: None,
+        variants,
+        any_archive: !any.is_empty(),
+    }
+}
+
+fn document() -> serde_json::Value {
+    json!({
+        "name": "example-cli",
+        "versions": {
+            "4.0.0": { "name": "example-cli", "version": "4.0.0", "dist": { "integrity": "x" } },
+        },
+        "_attachments": {
+            "example-cli-4.0.0.tgz": { "data": "AAAA", "length": 3 },
+        },
+    })
+}
+
+#[test]
+fn references_every_archive_by_integrity_under_its_tag() {
+    let manifest = json!({ "name": "example-cli", "version": "4.0.0" });
+    let variants =
+        [PackedVariant { tag: "linux-x64+linux-x64-musl".into(), tarball_data: b"linux".to_vec() }];
+    let pkg = pkg(&manifest, b"any", &variants);
+    let mut document = document();
+    reference_staged_archives(&mut document, &pkg, "4.0.0");
+    assert_eq!(
+        document["_attachments"],
+        json!({
+            "example-cli-4.0.0.tgz": { "integrity": sri_sha512(b"any"), "length": 3 },
+            "example-cli-4.0.0~linux-x64+linux-x64-musl.tgz": {
+                "content_type": "application/octet-stream",
+                "integrity": sri_sha512(b"linux"),
+                "length": 5,
+            },
+        }),
+    );
+    assert_eq!(document["versions"]["4.0.0"]["dist"]["integrity"], "x");
+    let staged: Vec<String> = staged_archives(&pkg, &sri_sha512(b"any"))
+        .into_iter()
+        .map(|archive| archive.integrity)
+        .collect();
+    assert_eq!(staged, [sri_sha512(b"any"), sri_sha512(b"linux")]);
+}
+
+#[test]
+fn a_version_without_an_any_archive_has_no_dist_and_no_plain_attachment() {
+    let manifest = json!({ "name": "example-cli", "version": "4.0.0" });
+    let variants = [PackedVariant { tag: "win32-x64".into(), tarball_data: b"win".to_vec() }];
+    let pkg = pkg(&manifest, b"", &variants);
+    let mut document = document();
+    reference_staged_archives(&mut document, &pkg, "4.0.0");
+    assert!(document["versions"]["4.0.0"].get("dist").is_none(), "{document}");
+    let attachments: Vec<&String> = document["_attachments"]
+        .as_object()
+        .unwrap()
+        .keys()
+        .collect();
+    assert_eq!(attachments, ["example-cli-4.0.0~win32-x64.tgz"]);
+    assert_eq!(staged_archives(&pkg, "unused").len(), 1);
+}
+
+#[test]
+fn variants_are_published_only_to_a_pnpr_registry() {
+    let manifest = json!({ "name": "example-cli", "version": "4.0.0" });
+    let variants = [PackedVariant { tag: "win32-x64".into(), tarball_data: b"win".to_vec() }];
+    let registry =
+        parse_supported_registry_url("https://registry.example/").unwrap().normalized_url;
+    let refused = check_registry(&pkg(&manifest, b"any", &variants), &HashSet::new(), &registry);
+    assert!(matches!(refused, Err(PublishPackedPkgError::VariantsNeedPnpr { .. })));
+    let pnpr = HashSet::from([registry.as_str().to_string()]);
+    check_registry(&pkg(&manifest, b"any", &variants), &pnpr, &registry).unwrap();
+    check_registry(&pkg(&manifest, b"any", &[]), &HashSet::new(), &registry).unwrap();
+}
+
+#[test]
+fn provenance_is_refused_for_a_version_with_variants() {
+    let manifest = json!({ "name": "example-cli", "version": "4.0.0" });
+    let variants = [PackedVariant { tag: "win32-x64".into(), tarball_data: b"win".to_vec() }];
+    let refused = check_provenance(&pkg(&manifest, b"any", &variants), Some(true));
+    assert!(matches!(refused, Err(PublishPackedPkgError::VariantsWithProvenance)));
+    check_provenance(&pkg(&manifest, b"any", &variants), None).unwrap();
+    check_provenance(&pkg(&manifest, b"any", &[]), Some(true)).unwrap();
+}
+
+/// The document keys a version without build metadata, as npm does, so a
+/// version published without an `any` archive loses its `dist` whatever
+/// build metadata its manifest's version carries.
+#[test]
+fn a_version_with_build_metadata_without_an_any_archive_has_no_dist() {
+    let manifest = json!({ "name": "example-cli", "version": "4.0.0+build" });
+    let variants = [PackedVariant { tag: "win32-x64".into(), tarball_data: b"win".to_vec() }];
+    let pkg = pkg(&manifest, b"", &variants);
+    let mut document = document();
+    reference_staged_archives(&mut document, &pkg, "4.0.0+build");
+    assert!(document["versions"]["4.0.0"].get("dist").is_none(), "{document}");
+}

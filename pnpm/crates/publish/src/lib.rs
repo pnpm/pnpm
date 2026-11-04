@@ -39,8 +39,8 @@ pub use publish_options::{
     publish_config_registry, resolve_access,
 };
 pub use publish_packed_pkg::{
-    PackedPkg, PublishHttpError, PublishNetwork, PublishPackedPkgError, PublishPackedPkgOptions,
-    PublishRegistryOptions, publish_packed_pkg,
+    PackedPkg, PackedVariant, PublishHttpError, PublishNetwork, PublishPackedPkgError,
+    PublishPackedPkgOptions, PublishRegistryOptions, publish_packed_pkg,
 };
 pub use publish_summary::{
     PackedPkgInfo, PublishSummary, PublishSummaryFile, create_publish_summary,

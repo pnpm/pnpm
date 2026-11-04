@@ -6,11 +6,12 @@
 pub(crate) use document::{DistHashes, build_publish_document, clean_version};
 pub use request::PublishHttpError;
 pub(crate) use request::{PublishResponse, publish_with_otp_handling, web_auth_fetch_options};
+pub use variants::PackedVariant;
 
 use std::collections::{BTreeMap, HashSet};
 
 use pnpm_diagnostics::miette::{self, Diagnostic};
-use pnpm_network::{AuthHeaders, ThrottledClient, escaped_package_name, redact_url_credentials};
+use pnpm_network::{AuthHeaders, ThrottledClient, escaped_package_name};
 use pnpm_network_web_auth::{
     Clock as WebAuthClock, EnterKeyListener, Host as WebAuthHost, OpenUrl, OtpChallenge, OtpError,
     OtpErrorBody, PromptOtp, Sleep, StdinIsTty, StdoutIsTty, WebAuthFetch, WebAuthFetchOptions,
@@ -34,19 +35,29 @@ use crate::{
     publish_wait::{PublishWaitError, wait_for_published_packages},
     registry_config_keys::NormalizedRegistryUrl,
     release_notes::ReleaseNotesTarget,
+    staged_archives::{StagingError, stage_archives},
 };
 
 /// The packed package handed to [`publish_packed_pkg`]: the manifest that was
 /// packed, the tarball's bytes, and the file listing / unpacked size used for
 /// the summary.
 pub struct PackedPkg<'a> {
+    /// The manifest of the version: its `any` archive's `package.json`, or
+    /// the base manifest of a version without one.
     pub published_manifest: &'a Value,
+    /// The `any` archive's bytes; empty when the version has none.
     pub tarball_data: &'a [u8],
     pub tarball_path: &'a str,
     pub contents: &'a [String],
     pub unpacked_size: u64,
     /// The version note, sent only to a registry that stores notes.
     pub notes: Option<&'a str>,
+    /// The platform variants published with the version, to a registry
+    /// declared with `serverType: pnpr`; empty for a package without them.
+    pub variants: &'a [PackedVariant],
+    /// Whether `tarball_data` is the version's `any` archive. A version
+    /// published with variants only has none.
+    pub any_archive: bool,
 }
 
 impl PackedPkg<'_> {
@@ -131,6 +142,8 @@ where
     global_info::<Reporter>(&format!("📦 {name}@{version} → {}", registry_for_display(&registry)));
 
     let mut summary = pkg.summary();
+    variants::check_registry(pkg, &opts.pnpr_registries, &registry)?;
+    variants::check_provenance(pkg, resolved.provenance)?;
 
     if opts.dry_run {
         global_warn::<Reporter>(&format!(
@@ -176,10 +189,16 @@ where
     let version = &summary.version;
     let registry = &resolved.registry;
     let is_stage = opts.stage;
+    let authorization = publish_authorization(resolved, network, registry, name);
+    if !pkg.variants.is_empty() {
+        let archives = variants::staged_archives(pkg, &summary.integrity);
+        stage_archives(network.client, registry, authorization.as_deref(), &archives)
+            .await
+            .map_err(PublishPackedPkgError::Staging)?;
+    }
     let body = publish_body::<Sys, Reporter>(pkg, opts, resolved, summary, name, version).await?;
 
     let put_url = publish_endpoint(registry, name, is_stage)?;
-    let authorization = publish_authorization(resolved, network, registry, name);
 
     publish_with_otp_handling::<WebAuthHost, Reporter>(
         network.client,
@@ -218,6 +237,9 @@ where
         &DistHashes { integrity: &summary.integrity, shasum: &summary.shasum },
     )?;
     opts.release_notes.attach_version_notes(&mut document, pkg.notes, &resolved.registry);
+    if !pkg.variants.is_empty() {
+        variants::reference_staged_archives(&mut document, pkg, version);
+    }
 
     if resolved.provenance == Some(true) {
         attach_provenance::<Sys, Reporter>(&mut document, name, version, pkg, &opts.registry.http)
@@ -336,19 +358,14 @@ pub(crate) fn join_registry(
     registry: &NormalizedRegistryUrl,
     path: &str,
 ) -> Result<String, PublishPackedPkgError> {
-    url::Url::parse(registry.as_str())
-        .and_then(|base| base.join(path))
-        .map(|url| url.to_string())
-        .map_err(PublishPackedPkgError::InvalidUrl)
+    registry.join(path).map_err(PublishPackedPkgError::InvalidUrl)
 }
 
-/// Render the registry URL for logging with any `user:pass@` userinfo stripped,
-/// so credentials a user embedded in a `registry=` URL don't leak into CI logs.
-/// A typed entry point over [`redact_url_credentials`] for the
-/// `NormalizedRegistryUrl` log site; the unsanitized URL is still used for the
-/// request and auth-header lookup.
+/// Render the registry URL for logging (see
+/// [`NormalizedRegistryUrl::for_display`]); the unsanitized URL is still used
+/// for the request and auth-header lookup.
 pub(crate) fn registry_for_display(registry: &NormalizedRegistryUrl) -> String {
-    redact_url_credentials(registry.as_str())
+    registry.for_display()
 }
 
 /// Failure surface of [`publish_packed_pkg`].
@@ -399,6 +416,27 @@ pub enum PublishPackedPkgError {
 
     #[diagnostic(transparent)]
     FailedToPublish(FailedToPublishError),
+
+    #[display(
+        "Platform variants can only be published to a registry declared with serverType: pnpr, and {registry} is not"
+    )]
+    #[diagnostic(
+        code(ERR_PNPM_VARIANTS_NEED_PNPR),
+        help(
+            "Declare the registry with serverType: pnpr in pnpm-workspace.yaml. To publish only the archive that targets any, pass --no-variants."
+        )
+    )]
+    VariantsNeedPnpr { registry: String },
+
+    #[display("pnpm cannot sign provenance for a version with platform variants yet")]
+    #[diagnostic(
+        code(ERR_PNPM_VARIANTS_PROVENANCE_UNSUPPORTED),
+        help("Pass --no-provenance to publish without a provenance statement.")
+    )]
+    VariantsWithProvenance,
+
+    #[diagnostic(transparent)]
+    Staging(StagingError),
 }
 
 impl From<CreatePublishOptionsError> for PublishPackedPkgError {
@@ -418,5 +456,6 @@ mod tests;
 
 mod document;
 use document::manifest_string;
+mod variants;
 
 mod request;

@@ -38,6 +38,15 @@ pub struct PackedArchive {
     pub result: PackResult,
 }
 
+/// The archives [`pack_archives`] packed, and the manifest of the version
+/// they share: the base manifest without the declaration, which a version
+/// without an `any` archive is published with.
+#[derive(Debug)]
+pub struct PackedArchives {
+    pub base_manifest: Value,
+    pub archives: Vec<PackedArchive>,
+}
+
 /// Pack the package at `opts.dir`: every archive its `publishConfig.variants`
 /// declares, or the archives of the entries `targets` names (any one target
 /// of an entry names it, `any` the primary's). A package without variants
@@ -49,7 +58,7 @@ pub struct PackedArchive {
 pub async fn pack_archives<Reporter, Sys>(
     opts: &PackOptions,
     targets: &[String],
-) -> Result<Vec<PackedArchive>, PackError>
+) -> Result<PackedArchives, PackError>
 where
     Reporter: self::Reporter,
     Sys: FsReadFile + FsFileLen + FsCreateDirAll + FsAtomicWrite + FsIsExecutable,
@@ -62,8 +71,13 @@ where
             return Err(PackError::NoVariants { target: target.clone() });
         }
         let result = pack_source::<Reporter, Sys>(opts, source).await?;
-        return Ok(vec![PackedArchive { entry: None, result }]);
+        let base_manifest = result.published_manifest.clone();
+        return Ok(PackedArchives {
+            base_manifest,
+            archives: vec![PackedArchive { entry: None, result }],
+        });
     };
+    super::warn_about_declaration::<Reporter>(&source.dir, &source.publish_manifest, &declaration);
     let selected = selected_entries(&declaration, targets)?;
     let claims = Claims::of(opts, &source, &declaration, &selected)?;
     let mut packed = Vec::with_capacity(selected.len());
@@ -75,7 +89,9 @@ where
     if !opts.output.dry_run && !opts.scripts.ignore {
         opts.scripts.run_if_present::<Reporter>(&opts.dir, &["postpack"], &source.entry_manifest)?;
     }
-    Ok(packed)
+    let base_manifest =
+        with_registry_readme(super::base_manifest(&source.publish_manifest), &source.dir)?;
+    Ok(PackedArchives { base_manifest, archives: packed })
 }
 
 /// The indexes of the entries `targets` names, in declaration order, or of

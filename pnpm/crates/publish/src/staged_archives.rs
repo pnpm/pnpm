@@ -13,10 +13,7 @@ use pnpm_network::{ThrottledClient, read_limited_body};
 use serde_json::Value;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use crate::{
-    publish_packed_pkg::{PublishPackedPkgError, join_registry, registry_for_display},
-    registry_config_keys::NormalizedRegistryUrl,
-};
+use crate::registry_config_keys::NormalizedRegistryUrl;
 
 const STAGING_ENDPOINT: &str = "-/pnpr/v0/artifacts/blob";
 
@@ -88,9 +85,11 @@ async fn stage_archive(
     let query = url::form_urlencoded::Serializer::new(String::new())
         .append_pair("integrity", &archive.integrity)
         .finish();
-    let url = join_registry(registry, &format!("{STAGING_ENDPOINT}?{query}"))?;
+    let url = registry
+        .join(&format!("{STAGING_ENDPOINT}?{query}"))
+        .map_err(StagingError::InvalidUrl)?;
     let failed = |reason: String| StagingError::Failed {
-        registry: registry_for_display(registry),
+        registry: registry.for_display(),
         integrity: archive.integrity.clone(),
         reason,
     };
@@ -145,7 +144,7 @@ pub enum StagingError {
     #[diagnostic(
         code(ERR_PNPM_BATCH_PUBLISH_STAGING_FAILED),
         help(
-            "A registry declared `serverType: pnpr` receives each archive on its own request before the batch commit. Nothing was published to this registry. Running the publish again uploads only the archives it still lacks."
+            "A registry declared `serverType: pnpr` receives each archive on its own request before the publish that references it. Nothing was published to this registry. Running the publish again uploads only the archives it still lacks."
         )
     )]
     Failed {
@@ -155,14 +154,8 @@ pub enum StagingError {
         reason: String,
     },
 
-    #[diagnostic(transparent)]
-    Url(PublishPackedPkgError),
-}
-
-impl From<PublishPackedPkgError> for StagingError {
-    fn from(error: PublishPackedPkgError) -> Self {
-        StagingError::Url(error)
-    }
+    #[display("invalid registry URL: {_0}")]
+    InvalidUrl(url::ParseError),
 }
 
 #[cfg(test)]

@@ -1,6 +1,6 @@
 //! `pacquet pack` — create a tarball from a package.
 //!
-//! The single-project work lives in [`pnpm_pack::api`]; this module
+//! The single-project work lives in [`pnpm_pack::pack_archives`]; this module
 //! maps the resolved [`Config`] and CLI flags onto
 //! [`pnpm_pack::PackOptions`], and drives the recursive (`-r`) sweep
 //! over the workspace the same way the other recursive commands do.
@@ -160,7 +160,7 @@ impl PackArgs {
                 .await
                 .map_err(miette::Report::new)
                 .wrap_err(PACK_ERROR_CONTEXT)?;
-            let results: Vec<PackResultJson> = archives
+            let results: Vec<PackResultJson> = archives.archives
                 .iter()
                 .map(archive_result_json)
                 .collect();
@@ -176,6 +176,7 @@ impl PackArgs {
     ) -> miette::Result<Vec<PackedArchive>> {
         set_injected_changelog(&mut options, config, &project.root_dir).await?;
         pack_archives::<Reporter, Host>(&options, &self.variant).await
+            .map(|packed| packed.archives)
             .map_err(miette::Report::new)
             .wrap_err_with(|| {
                 if self.json {
