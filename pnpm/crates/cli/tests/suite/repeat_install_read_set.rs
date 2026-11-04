@@ -5,21 +5,28 @@
 //! classified here with the reason it needs no record. A file a new input
 //! makes the install read fails the test until it is one or the other.
 //!
+//! Each file is of one [`Input`] kind, and every kind must be observed. A new
+//! kind needs an edit scenario in `repeat_install_oracle` to compile.
+//!
 //! The install observed is the full one that runs from the state the previous
 //! install left, the one the fast path replaces. inotify observes its opens:
 //! no filesystem seam reaches every read the install makes.
 
-use crate::_utils::{inotify::record_opens, pacquet_in};
+use crate::{
+    _utils::{inotify::record_opens, pacquet_in},
+    repeat_install_oracle::Input,
+};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
 use pnpm_workspace_state::{WorkspaceState, load_workspace_state};
 use serde_json::{Value, json};
 use std::{
-    collections::BTreeSet,
+    collections::{BTreeMap, BTreeSet},
     fs,
     path::{Path, PathBuf},
 };
+use strum::IntoEnumIterator as _;
 
 const CONFIG: &str = "the config loader reads it on every command, and \
     `settings_classification` classifies each setting it holds";
@@ -27,10 +34,13 @@ const DISCOVERY: &str = "project discovery lists it, and the fast path compares 
     it finds with the recorded ones";
 
 /// Every path a full install opens that the workspace state does not record,
-/// relative to the workspace, with the reason the fast path needs no record
-/// of it.
-const CLASSIFICATION: &[(&str, &str)] =
-    &[(".npmrc", CONFIG), ("pnpm-workspace.yaml", CONFIG), ("packages", DISCOVERY)];
+/// relative to the workspace, with its kind and the reason the fast path needs
+/// no record of it.
+const CLASSIFICATION: &[(&str, Input, &str)] = &[
+    (".npmrc", Input::Npmrc, CONFIG),
+    ("pnpm-workspace.yaml", Input::WorkspaceManifest, CONFIG),
+    ("packages", Input::ProjectDirectories, DISCOVERY),
+];
 
 /// A workspace that exercises some of the inputs of an install. Its root
 /// `package.json` is a private manifest unless `files` writes one.
@@ -179,7 +189,7 @@ fn source_dirs(dir: &Path) -> Vec<PathBuf> {
 /// lockfiles has a state in each project.
 #[derive(Default)]
 struct Records {
-    files: BTreeSet<PathBuf>,
+    files: BTreeMap<PathBuf, Input>,
     /// The recorded local directories that are not workspace projects. The
     /// fast path counts such a directory as changed, so a file in it needs no
     /// record of its own.
@@ -205,16 +215,26 @@ impl Records {
             .map(|(importer, file)| root.join(importer).join(&file.file_name));
         let local = validation.local_dependencies.values();
         let projects = &state.projects;
+        let tarballs: BTreeSet<&String> = local
+            .clone()
+            .flat_map(|deps| &deps.tarballs)
+            .collect();
+        let shared_files = validation.files
+            .keys()
+            .filter(|path| !state.pnpmfiles.contains(path) && !tarballs.contains(path))
+            .map(|path| (PathBuf::from(path), shared_file_input(Path::new(path))));
         self.files.extend(
-            validation.files
-                .keys()
-                .chain(&state.pnpmfiles)
-                .map(PathBuf::from)
-                .chain(manifests)
+            shared_files
                 .chain(
-                    local
-                        .clone()
-                        .flat_map(|deps| deps.tarballs.iter().map(PathBuf::from)),
+                    state.pnpmfiles
+                        .iter()
+                        .map(|path| (path.into(), Input::Pnpmfile)),
+                )
+                .chain(manifests.map(|path| (path, Input::Manifest)))
+                .chain(
+                    tarballs
+                        .iter()
+                        .map(|path| (path.into(), Input::LocalTarball)),
                 ),
         );
         self.blocking_directories.extend(
@@ -225,17 +245,47 @@ impl Records {
         );
     }
 
-    fn contain(&self, path: &Path) -> bool {
-        self.files.contains(path)
-            || self.blocking_directories
-                .iter()
-                .any(|dir| path.starts_with(dir))
+    /// The kind of the recorded file at `path`, if the states record it.
+    fn input_of(&self, path: &Path) -> Option<Input> {
+        self.files
+            .get(path)
+            .copied()
+            .or_else(|| {
+                self.blocking_directories
+                    .iter()
+                    .any(|dir| path.starts_with(dir))
+                    .then_some(Input::LocalDirectory)
+            })
     }
 }
 
-/// The workspace-relative paths a full install of `fixture` opens and the
-/// workspace state does not record.
-fn unrecorded_reads(fixture: &Fixture) -> BTreeSet<String> {
+/// The kind of a file `validation.files` records besides the pnpmfiles and
+/// the local tarballs.
+fn shared_file_input(path: &Path) -> Input {
+    if path
+        .file_name()
+        .is_some_and(|name| name == "pnpm-lock.yaml")
+    {
+        Input::Lockfile
+    } else if path
+        .extension()
+        .is_some_and(|extension| extension == "patch")
+    {
+        Input::PatchFile
+    } else {
+        panic!("a recorded file of no known kind: {}", path.display())
+    }
+}
+
+/// What a full install of a fixture opens: the kind of each recorded file,
+/// and the workspace-relative paths of the files the states do not record.
+#[derive(Default)]
+struct Reads {
+    recorded: BTreeSet<Input>,
+    unrecorded: BTreeSet<String>,
+}
+
+fn reads(fixture: &Fixture) -> Reads {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
@@ -256,43 +306,53 @@ fn unrecorded_reads(fixture: &Fixture) -> BTreeSet<String> {
     let opens = record_opens(&source_dirs(&workspace), || {
         install(&[("PNPM_CONFIG_OPTIMISTIC_REPEAT_INSTALL", "false")]);
     });
-    let unrecorded = opens
-        .iter()
-        .filter(|path| !records.contain(path))
-        .map(|path| {
-            path.strip_prefix(&workspace)
-                .expect("a watched path is in the workspace")
-                .to_string_lossy()
-                .into_owned()
-        })
-        .collect();
+    let mut reads = Reads::default();
+    for path in opens {
+        if let Some(input) = records.input_of(&path) {
+            reads.recorded.insert(input);
+        } else {
+            let relative =
+                path.strip_prefix(&workspace).expect("a watched path is in the workspace");
+            reads.unrecorded.insert(relative.to_string_lossy().into_owned());
+        }
+    }
     drop((root, mock_instance));
-    unrecorded
+    reads
 }
 
 #[test]
 fn every_file_a_full_install_opens_is_recorded_or_classified() {
-    let classified: BTreeSet<&str> = CLASSIFICATION
+    let classified: BTreeMap<&str, Input> = CLASSIFICATION
         .iter()
-        .map(|(path, _)| *path)
+        .map(|(path, input, _)| (*path, *input))
         .collect();
     let mut seen = BTreeSet::new();
+    let mut observed = BTreeSet::new();
     let mut unclassified = Vec::new();
     for fixture in FIXTURES {
-        for path in unrecorded_reads(fixture) {
-            if !classified.contains(path.as_str()) {
-                unclassified.push(format!("{path} ({})", fixture.name));
+        let reads = reads(fixture);
+        observed.extend(reads.recorded);
+        for path in reads.unrecorded {
+            match classified.get(path.as_str()) {
+                Some(input) => {
+                    observed.insert(*input);
+                }
+                None => unclassified.push(format!("{path} ({})", fixture.name)),
             }
             seen.insert(path);
         }
     }
     let unused: Vec<_> = classified
-        .iter()
+        .keys()
         .filter(|path| !seen.contains(**path))
+        .collect();
+    let unobserved: Vec<_> = Input::iter()
+        .filter(|input| !observed.contains(input))
         .collect();
     assert!(
         unclassified.is_empty(),
         "a full install opens files the workspace state does not record: {unclassified:#?}",
     );
     assert!(unused.is_empty(), "classified files no fixture opens: {unused:?}");
+    assert!(unobserved.is_empty(), "inputs no fixture reads: {unobserved:?}");
 }
