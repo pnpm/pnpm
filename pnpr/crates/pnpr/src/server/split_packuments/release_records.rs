@@ -2,9 +2,8 @@
 //! version's archives and its manifest, which never change once accepted,
 //! and the npm-format views from which pnpr's facts are removed.
 
-use super::super::publishing::variants::SHARED_MANIFEST_FIELD;
 use super::{
-    super::{describe_tar, has_settled_tar_facts},
+    super::{describe_tar, has_settled_tar_facts, publishing::variants::SHARED_MANIFEST_FIELD},
     DIST_FIELDS, PNPR_FIELDS,
 };
 use axum::{

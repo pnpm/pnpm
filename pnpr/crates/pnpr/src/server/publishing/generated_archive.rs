@@ -11,7 +11,10 @@
 //! document and the release record leave it out, and provenance does not
 //! name it.
 
-use super::variants::STORED_FIELD;
+use super::{
+    attachments::{AttachmentKind, PreparedAttachment},
+    variants::STORED_FIELD,
+};
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use flate2::{Compression, GzBuilder};
 use pnpm_platform_variants::{Libc, Platform};
@@ -19,8 +22,6 @@ use pnpr_package_name::CanonicalPackageName;
 use pnpr_storage::publish::{AttachmentPayload, PendingAttachment};
 use serde_json::{Map, Value, json};
 use std::{collections::BTreeSet, io::Write as _};
-
-use super::attachments::{AttachmentKind, PreparedAttachment};
 
 /// The attachment that writes the generated archive of `version`, whose
 /// stored variants `manifest` lists, through the publish's own write path.
