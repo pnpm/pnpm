@@ -11,6 +11,7 @@
 
 mod catalogs;
 mod hardlink_refresh;
+mod relative_peers;
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;

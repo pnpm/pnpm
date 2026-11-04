@@ -63,8 +63,8 @@ pub(super) fn project_relative_cache_scope(
 /// (the local resolver). Nothing asks for a linked node's directory:
 /// a linked project resolves its own dependencies as a separate
 /// importer, so the walk never descends into one.
-pub(super) fn declaring_manifest_dir(
-    ctx: &TreeCtx,
+pub(crate) fn declaring_manifest_dir(
+    lockfile_dir: &Path,
     result: &pnpm_resolving_resolver_base::ResolveResult,
 ) -> Option<Arc<Path>> {
     let pnpm_lockfile::LockfileResolution::Directory(resolution) = &result.resolution else {
@@ -77,7 +77,7 @@ pub(super) fn declaring_manifest_dir(
     let absolute = if directory.is_absolute() {
         pnpm_fs::lexical_normalize(directory)
     } else {
-        pnpm_fs::lexical_normalize(&ctx.importer.lockfile_dir.join(directory))
+        pnpm_fs::lexical_normalize(&lockfile_dir.join(directory))
     };
     Some(Arc::from(absolute))
 }
