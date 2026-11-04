@@ -1,6 +1,6 @@
-use super::BatchGroup;
+use super::{BatchGroup, BatchPublishError, check_single_archive};
 use crate::{
-    parse_supported_registry_url,
+    PackedPkg, StagedReference, parse_supported_registry_url,
     staged_archives::{MAX_STAGED_ARCHIVES_PER_PUBLISH, StagedArchive},
 };
 use serde_json::{Value, json};
@@ -51,4 +51,26 @@ fn a_group_over_the_commit_limit_sends_its_archives_inline() {
                     && attachment(document).get("integrity").is_none()
             }),
     );
+}
+
+/// A batch sends a package's own archive, so it refuses one whose `any`
+/// archive another job staged.
+#[test]
+fn a_batch_refuses_an_any_archive_another_job_staged() {
+    let manifest = json!({ "name": "example-cli", "version": "4.0.0" });
+    let staged = StagedReference { integrity: "sha512-any".into(), label: "any".into() };
+    let mut package = PackedPkg {
+        published_manifest: &manifest,
+        tarball_data: b"any",
+        tarball_path: "example-cli-4.0.0.tgz",
+        contents: &[],
+        unpacked_size: 0,
+        notes: None,
+        variants: &[],
+        any_staged: None,
+    };
+    check_single_archive(&package).unwrap();
+    package.tarball_data = b"";
+    package.any_staged = Some(&staged);
+    assert!(matches!(check_single_archive(&package), Err(BatchPublishError::Variants)));
 }

@@ -43,6 +43,36 @@ pub(super) fn parse(values: &[String]) -> miette::Result<Vec<GivenIntegrity>> {
         .collect()
 }
 
+/// Check the values of a recursive publish against the names of the
+/// selected `packages`: each value names its package, as a value without one
+/// would apply to every package, and each package it names is selected, as
+/// one that is not would leave a package to be packed here instead of
+/// published from its uploaded archives.
+pub(super) fn check_recursive(
+    given: &[GivenIntegrity],
+    packages: &std::collections::HashSet<&str>,
+) -> miette::Result<()> {
+    if let Some(unnamed) = given.iter().find(|given| given.package.is_none()) {
+        return Err(miette::miette!(
+            code = "ERR_PNPM_INVALID_VARIANT_INTEGRITY",
+            help = "With --recursive, pass each value as <name>~<target>=<integrity>.",
+            "--variant-integrity value for {:?} names no package",
+            unnamed.target,
+        ));
+    }
+    match given
+        .iter()
+        .filter_map(|given| given.package.as_deref())
+        .find(|package| !packages.contains(package))
+    {
+        Some(package) => Err(miette::miette!(
+            code = "ERR_PNPM_UNKNOWN_VARIANT_PACKAGE",
+            "--variant-integrity names {package:?}, which this recursive publish does not select",
+        )),
+        None => Ok(()),
+    }
+}
+
 /// The archives of `package` that `given` names, against its
 /// `declaration`: the `any` archive, and every platform variant by its tag.
 /// `None` when `given` names none of this package's archives. Every entry

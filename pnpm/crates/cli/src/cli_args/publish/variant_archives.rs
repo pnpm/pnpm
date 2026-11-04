@@ -2,11 +2,7 @@
 //! archives it built with `--upload-variant`, and a final publish references
 //! them with `--variant-integrity`.
 
-use super::{
-    PublishArgs, PublishScope,
-    given_archives::{self, GivenIntegrity},
-    packed::{PackedDirectory, declares_variants},
-};
+use super::{PublishArgs, PublishScope, given_archives, packed::PackedDirectory};
 use crate::cli_args::registry_client::build_publish_client;
 use miette::{Context, IntoDiagnostic};
 use pnpm_config::Config;
@@ -147,13 +143,52 @@ impl PublishArgs {
             return Ok(None);
         }
         let given = given_archives::parse(&self.flags.variants.variant_integrity)?;
-        let name = source_manifest
-            .get("name")
-            .and_then(Value::as_str)
-            .unwrap_or_default();
-        if !names_package(&given, name, source_manifest, scope)? {
+        // A recursive publish skips a package no value names before reading
+        // its manifest, by the names it may publish under.
+        if matches!(scope, PublishScope::Recursive { .. }) && !names_any(&given, source_manifest) {
             return Ok(None);
         }
+        let (base_manifest, declaration) =
+            self.declared_manifests::<Reporter>(project_dir, config, (before_packing_hooks, scope))
+                .await?;
+        // Values name the package as it is published, which `publishConfig`
+        // may rename, and the archives that manifest declares.
+        let name = base_manifest
+            .get("name")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string();
+        let found = declaration
+            .as_ref()
+            .map(|declaration| given_archives::archives_of(&name, declaration, &given))
+            .transpose()?
+            .flatten();
+        let (Some(declaration), Some((any, variants))) = (declaration, found) else {
+            return match scope {
+                PublishScope::Single { .. } => Err(miette::miette!(
+                    code = "ERR_PNPM_UNKNOWN_VARIANT",
+                    "--variant-integrity names no archive that {name} declares in publishConfig.variants",
+                )),
+                PublishScope::Recursive { .. } => Ok(None),
+            };
+        };
+        Ok(Some(staged_directory(
+            (project_dir, source_manifest),
+            (&base_manifest, &declaration),
+            (any, variants),
+        )))
+    }
+}
+
+impl PublishArgs {
+    /// The manifest the project at `project_dir` publishes, without its
+    /// `publishConfig.variants`, and that declaration, read without packing.
+    async fn declared_manifests<Reporter: self::Reporter>(
+        &self,
+        project_dir: &Path,
+        config: &Config,
+        (before_packing_hooks, scope): (&[Arc<dyn PnpmfileHooks>], PublishScope<'_>),
+    ) -> miette::Result<(Value, Option<VariantDeclaration>)> {
         let pack_destination = tempfile::tempdir().into_diagnostic().wrap_err("create temp dir")?;
         let mut options = self.publish_pack_options(
             project_dir,
@@ -165,52 +200,72 @@ impl PublishArgs {
         .await?;
         // Nothing is packed, so the pack scripts have nothing to prepare.
         options.scripts.ignore = true;
-        let (base_manifest, declaration) =
-            pnpm_pack::declared_manifests::<Reporter>(&options).await.map_err(miette::Report::new)?;
-        let declaration = declaration.expect("the manifest declares variants");
-        let Some((any, variants)) = given_archives::archives_of(name, &declaration, &given)? else {
-            return Ok(None);
-        };
-        let published_manifest = match declaration.primary() {
-            Some(entry) => VariantDeclaration::archive_manifest(&base_manifest, entry),
-            None => base_manifest,
-        };
-        Ok(Some(PackedDirectory {
-            project_dir: project_dir.to_path_buf(),
-            source_manifest: source_manifest.clone(),
-            published_manifest,
-            any: None,
-            any_staged: any,
-            notes: None,
-            variants,
-        }))
+        pnpm_pack::declared_manifests::<Reporter>(&options).await.map_err(miette::Report::new)
+    }
+
+    /// Check `--variant-integrity` against the projects a recursive publish
+    /// selects, before any is packed (see [`given_archives::check_recursive`]).
+    pub(super) fn check_recursive_variant_integrities(
+        &self,
+        graph: &pnpm_workspace_projects_filter::ProjectGraph<pnpm_workspace::GraphPkg<'_>>,
+    ) -> miette::Result<()> {
+        if self.flags.variants.variant_integrity.is_empty() {
+            return Ok(());
+        }
+        let given = given_archives::parse(&self.flags.variants.variant_integrity)?;
+        let packages: std::collections::HashSet<&str> = graph
+            .iter()
+            .filter_map(|(_, node)| {
+                node.package.project.manifest
+                    .value()
+                    .get("name")?
+                    .as_str()
+            })
+            .collect();
+        given_archives::check_recursive(&given, &packages)
     }
 }
 
-/// Whether `given` names an archive of the package `name`, which declares
-/// variants. A publish of one package fails when it does not; a recursive
-/// publish packs that package as usual.
-fn names_package(
-    given: &[GivenIntegrity],
-    name: &str,
-    manifest: &Value,
-    scope: PublishScope<'_>,
-) -> miette::Result<bool> {
-    let applies = given
+/// The project at `project_dir`, published from the archives other machines
+/// staged: its `any` archive, if it has one, and its `variants`.
+fn staged_directory(
+    (project_dir, source_manifest): (&Path, &Value),
+    (base_manifest, declaration): (&Value, &VariantDeclaration),
+    (any, variants): (Option<pnpm_publish::StagedReference>, Vec<pnpm_publish::PackedVariant>),
+) -> PackedDirectory {
+    let published_manifest = match declaration.primary() {
+        Some(entry) => VariantDeclaration::archive_manifest(base_manifest, entry),
+        None => base_manifest.clone(),
+    };
+    PackedDirectory {
+        project_dir: project_dir.to_path_buf(),
+        source_manifest: source_manifest.clone(),
+        published_manifest,
+        any: None,
+        any_staged: any,
+        notes: None,
+        variants,
+    }
+}
+
+/// Whether a value of `given` names, by its package, the project whose own
+/// manifest is `manifest`.
+fn names_any(given: &[given_archives::GivenIntegrity], manifest: &Value) -> bool {
+    let names = published_names(manifest);
+    given
         .iter()
         .any(|value| {
             value.package
                 .as_deref()
-                .is_none_or(|package| package == name)
-        });
-    if applies && declares_variants(manifest) {
-        return Ok(true);
-    }
-    match scope {
-        PublishScope::Single { .. } => Err(miette::miette!(
-            code = "ERR_PNPM_UNKNOWN_VARIANT",
-            "--variant-integrity names no archive that {name} declares in publishConfig.variants",
-        )),
-        PublishScope::Recursive { .. } => Ok(false),
-    }
+                .is_some_and(|package| names.contains(&package))
+        })
+}
+
+/// The names `manifest`, a project's own, may publish under: its `name`,
+/// and the `name` its `publishConfig` replaces it with.
+pub(super) fn published_names(manifest: &Value) -> Vec<&str> {
+    ["/name", "/publishConfig/name"]
+        .into_iter()
+        .filter_map(|pointer| manifest.pointer(pointer)?.as_str())
+        .collect()
 }

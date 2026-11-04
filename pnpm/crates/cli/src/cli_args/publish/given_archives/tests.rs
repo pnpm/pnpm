@@ -1,4 +1,4 @@
-use super::{GivenIntegrity, archives_of, parse};
+use super::{GivenIntegrity, archives_of, check_recursive, parse};
 use pnpm_pack::variants::VariantDeclaration;
 use pnpm_publish::VariantArchive;
 use serde_json::json;
@@ -76,4 +76,16 @@ fn refuses_a_missing_unknown_or_twice_given_archive() {
         let error = archives_of("example-cli", &declaration(), &values(&given)).unwrap_err();
         assert!(error.to_string().contains(expected), "{case}: {error}");
     }
+}
+
+/// A recursive publish takes only values that name a package it selects.
+#[test]
+fn a_recursive_publish_takes_values_of_its_selected_packages() {
+    let packages = std::collections::HashSet::from(["example-cli", "example-addon"]);
+    check_recursive(&values(&["example-cli~linux-x64=sha512-a"]), &packages).unwrap();
+    let unnamed = check_recursive(&values(&["linux-x64=sha512-a"]), &packages).unwrap_err();
+    assert!(unnamed.to_string().contains("names no package"), "{unnamed}");
+    let mistyped =
+        check_recursive(&values(&["example-clj~linux-x64=sha512-a"]), &packages).unwrap_err();
+    assert!(mistyped.to_string().contains("example-clj"), "{mistyped}");
 }
