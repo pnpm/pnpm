@@ -260,7 +260,7 @@ fn print_text_issues(issues: &IssuesByProjects, undeclared: &UndeclaredWarnings,
     match (no_issues, undeclared.is_empty()) {
         (true, true) => pnpm_diagnostics::println!("No peer dependency issues found"),
         (true, false) => pnpm_diagnostics::println!(
-            "Peer dependencies are satisfied. Declaration warnings follow."
+            "Peer dependencies are satisfied. Declaration warnings follow.",
         ),
         (false, _) => {
             pnpm_diagnostics::println!("Issues with peer dependencies found\n");
