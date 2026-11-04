@@ -114,6 +114,7 @@ impl InstallArgs {
             || self.fast_path_ineligibility(config).is_some()
             || !config.filter.is_empty()
             || !config.filter_prod.is_empty()
+            || self.ci_may_freeze_the_lockfile(config)
         {
             return false;
         }
@@ -141,6 +142,16 @@ impl InstallArgs {
             "repeat-install fast path taken after the config setup; nothing changed since the previous install",
         );
         true
+    }
+
+    /// Whether CI's default may freeze the lockfile, which the install
+    /// decides once the lockfile is loaded. A frozen install never
+    /// short-circuits.
+    fn ci_may_freeze_the_lockfile(&self, config: &pnpm_config::Config) -> bool {
+        self.configured_frozen_lockfile(config).is_none()
+            && config.ci
+            && !self.lockfile.only
+            && self.prefer_frozen_override().unwrap_or(config.prefer_frozen_lockfile)
     }
 
     /// Report the install up to date when `decide` finds it so.

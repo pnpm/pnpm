@@ -38,11 +38,7 @@ impl InstallPipeline {
         )
         .instrument(tracing::debug_span!(target: "pacquet::install", "prepare_config"))
         .await?;
-        // `frozen_lockfile` holds the resolved choice, CI's default included,
-        // and a frozen install never short-circuits.
-        if !self.frozen_lockfile
-            && self.args.finished_from_records_after_config(&self.prefix, self.cfg, Reporter::emit)
-        {
+        if self.args.finished_from_records_after_config(&self.prefix, self.cfg, Reporter::emit) {
             return Ok(self.cfg);
         }
         // Built ahead of project discovery so a run that is certain to
