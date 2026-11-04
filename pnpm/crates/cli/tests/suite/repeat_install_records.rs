@@ -580,6 +580,8 @@ fn a_ci_install_with_a_pnpmfile_is_not_decided_from_the_records() {
         .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
         .with_env("TRACE", "pacquet::install=debug")
         .with_env("CI", "true")
+        // The test runner pins the `ci` setting off.
+        .with_env("PNPM_CONFIG_CI", "true")
         .with_arg("install")
         .output()
         .expect("run pnpm install");
