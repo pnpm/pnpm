@@ -47,6 +47,11 @@ fn relative_path_peer_is_auto_installed_from_its_declaring_directory() {
             peer_specifier: "file:../provider",
         },
         Case { also_dependency: true, explicit_provider: true, peer_specifier: "file:../provider" },
+        Case {
+            also_dependency: true,
+            explicit_provider: false,
+            peer_specifier: r"file:..\provider",
+        },
     ] {
         let CommandTempCwd { mut pacquet, root, workspace, .. } = CommandTempCwd::init();
         let mut library = json!({
