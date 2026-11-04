@@ -81,6 +81,7 @@ mod manifest_spec_bumps;
 mod minimum_release_age;
 mod missing_peer_types;
 mod optimistic_repeat_install;
+mod override_path_base;
 mod overrides;
 mod package_extender;
 mod patch;

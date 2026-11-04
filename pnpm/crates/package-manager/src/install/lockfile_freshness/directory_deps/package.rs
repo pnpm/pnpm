@@ -27,8 +27,12 @@ fn read_and_override_manifest(
         workspace_root: dep.dirs.workspace_root,
         manifests_by_dir: check.workspace.manifests_by_dir,
     };
-    overridden_unhooked_manifest(&injected, check.parsed_overrides, check.lockfile_dir)
-        .ok_or_else(|| dep.outdated())
+    overridden_unhooked_manifest(
+        &injected,
+        check.parsed_overrides,
+        crate::override_path_base::local_path_base(check.config, check.lockfile_dir),
+    )
+    .ok_or_else(|| dep.outdated())
 }
 
 /// [`unhooked_manifest`] with the overrides applied, as the check reads a

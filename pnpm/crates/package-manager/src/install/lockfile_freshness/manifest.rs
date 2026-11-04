@@ -237,7 +237,11 @@ pub(super) fn normalized_freshness_manifest<'a>(
         .unwrap_or_else(|| Path::new("."));
     let mut cloned = manifest.clone();
     if let Some(parsed) = parsed_overrides {
-        crate::VersionsOverrider::new(parsed, lockfile_dir).apply(&mut cloned, Some(project_dir));
+        crate::VersionsOverrider::new(
+            parsed,
+            crate::override_path_base::local_path_base(config, lockfile_dir),
+        )
+        .apply(&mut cloned, Some(project_dir));
     }
     if config.exclude_links_from_lockfile {
         exclude_linked_dependencies(&mut cloned, workspace_links, Some(importer));

@@ -8,7 +8,7 @@ use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::CommandTempCwd;
 use pretty_assertions::assert_eq;
-use std::{fs, path::Path};
+use std::{fs, path::Path, process::Command};
 
 #[test]
 fn workspace_path_override_links_the_workspace_relative_target() {
@@ -60,7 +60,60 @@ fn workspace_path_override_installs_the_workspace_relative_target_when_injected(
     drop((root, npmrc_info));
 }
 
+#[test]
+fn root_relative_overrides_resolve_from_workspace_config_with_both_lockfile_modes() {
+    let mut failures = Vec::new();
+    for shared_workspace_lockfile in [true, false] {
+        for specifier in ["file:./packages/target", "workspace:./packages/target"] {
+            let CommandTempCwd {
+                pacquet,
+                root,
+                workspace,
+                npmrc_info,
+                ..
+            } = CommandTempCwd::init().add_mocked_registry();
+            write_fixture_with(&workspace, true, shared_workspace_lockfile, specifier);
+
+            let install = pacquet
+                .with_args(["install", "--offline", "--no-frozen-lockfile"])
+                .output()
+                .expect("run install");
+            if !install.status.success() {
+                failures.push(format!(
+                    "sharedWorkspaceLockfile={shared_workspace_lockfile}, {specifier}: {install:?}",
+                ));
+                drop((root, npmrc_info));
+                continue;
+            }
+
+            let consumer = workspace.join("packages/deep/consumer");
+            let runtime = Command::new("node")
+                .args(["-p", "require('target')"])
+                .current_dir(&consumer)
+                .output()
+                .expect("run Node.js");
+            if !runtime.status.success() || runtime.stdout != b"target\n" {
+                failures.push(format!(
+                    "sharedWorkspaceLockfile={shared_workspace_lockfile}, {specifier}: {runtime:?}",
+                ));
+            }
+
+            drop((root, npmrc_info));
+        }
+    }
+    assert!(failures.is_empty(), "{failures:#?}");
+}
+
 fn write_fixture(workspace: &Path, inject_workspace_packages: bool) {
+    write_fixture_with(workspace, inject_workspace_packages, true, "workspace:./packages/target");
+}
+
+fn write_fixture_with(
+    workspace: &Path,
+    inject_workspace_packages: bool,
+    shared_workspace_lockfile: bool,
+    override_specifier: &str,
+) {
     let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
     let workspace_yaml =
         fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
@@ -69,7 +122,8 @@ fn write_fixture(workspace: &Path, inject_workspace_packages: bool) {
         format!(
             "{workspace_yaml}\npackages:\n  - packages/**\n\
              injectWorkspacePackages: {inject_workspace_packages}\n\
-             overrides:\n  target: workspace:./packages/target\n",
+             sharedWorkspaceLockfile: {shared_workspace_lockfile}\n\
+             overrides:\n  target: {override_specifier}\n",
         ),
     )
     .expect("write pnpm-workspace.yaml");

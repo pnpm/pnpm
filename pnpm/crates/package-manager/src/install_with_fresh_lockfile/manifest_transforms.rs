@@ -56,7 +56,12 @@ pub(super) fn build_manifest_transforms(
     let parsed_overrides = parse_config_overrides(config, catalogs)?;
     let versions_overrider = parsed_overrides
         .as_ref()
-        .map(|parsed| Arc::new(VersionsOverrider::new(parsed, lockfile_dir)));
+        .map(|parsed| {
+            Arc::new(VersionsOverrider::new(
+                parsed,
+                crate::override_path_base::local_path_base(config, lockfile_dir),
+            ))
+        });
     let transforms =
         ImporterTransforms::new(config, versions_overrider.clone(), deploy_manifest_hook)
             .map_err(InstallWithFreshLockfileError::InvalidPackageExtensionSelector)?;
