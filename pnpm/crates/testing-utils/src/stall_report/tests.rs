@@ -5,7 +5,7 @@ use std::{
     thread,
     time::{Duration, Instant},
 };
-use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate, System};
+use sysinfo::{Pid, ProcessRefreshKind, ProcessStatus, ProcessesToUpdate, System};
 
 const LONG_RUNNING: &str = "setTimeout(() => {}, 120000)";
 
@@ -90,10 +90,11 @@ fn assert_grandchild_reported_and_killed(message: &str) {
             true,
             ProcessRefreshKind::nothing(),
         );
-        if system
+        // A killed orphan can stay a zombie on Linux until init reaps it.
+        let gone = system
             .process(Pid::from_u32(grandchild_pid))
-            .is_none()
-        {
+            .is_none_or(|process| process.status() == ProcessStatus::Zombie);
+        if gone {
             return;
         }
         assert!(Instant::now() < deadline, "the grandchild must be killed");

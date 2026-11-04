@@ -15,7 +15,9 @@ use std::{
     thread::{self, JoinHandle},
     time::{Duration, Instant},
 };
-use sysinfo::{Pid, Process, ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
+use sysinfo::{
+    Pid, Process, ProcessRefreshKind, ProcessStatus, ProcessesToUpdate, System, UpdateKind,
+};
 
 /// Below nextest's `terminate-after`, so the report is printed before
 /// nextest kills the test.
@@ -204,6 +206,13 @@ impl RunProcesses {
             }
             members.extend(children);
         }
+        // A zombie has exited and cannot be killed; on Linux it stays until
+        // an init process that may never reap it does.
+        members.retain(|pid| {
+            system
+                .process(*pid)
+                .is_some_and(|process| process.status() != ProcessStatus::Zombie)
+        });
         RunProcesses { system, members }
     }
 
