@@ -166,7 +166,7 @@ pub(super) fn check_projects_content(
         .map_err(|_| "pnpm.overrides cannot be parsed")?;
     check_settings_match_lockfile(check, wanted, parsed_overrides.as_deref())?;
     let transforms = ManifestTransforms::new(check, parsed_overrides.as_deref())?;
-    let manifests = transforms.resolver_view(check, to_check)?;
+    let manifests = transforms.resolver_view(to_check)?;
 
     let linked_ctx = LinkedPackagesContext::new(check.config, check.project_manifests.as_slice());
     let workspace_packages = crate::install::workspace_packages_for_freshness(
@@ -175,6 +175,8 @@ pub(super) fn check_projects_content(
         check.project_manifests.as_slice(),
         check.manifests.dependency_manifests,
     );
+    let directory_manifests =
+        transforms.directory_manifests(check, (wanted, to_check), workspace_packages.as_ref())?;
     let ignored_optional_matcher = crate::install::ignored_optional_matcher(check.config);
     let project_manifests = crate::install::project_manifests_by_dir(
         check.project_manifests.iter().map(|(_, manifest)| *manifest),
@@ -188,8 +190,7 @@ pub(super) fn check_projects_content(
         workspace: crate::install::WorkspaceProjects {
             packages: workspace_packages.as_ref(),
             manifests_by_dir: &project_manifests,
-            // Directory packages are read from disk, without the resolver's hooks.
-            directory_manifests: crate::install::DirectoryManifests::none(),
+            directory_manifests: &directory_manifests,
             catalogs: check.catalogs,
             canonical_paths: &pnpm_fs::CanonicalPaths::default(),
             registries: &check.config.registry_context(),

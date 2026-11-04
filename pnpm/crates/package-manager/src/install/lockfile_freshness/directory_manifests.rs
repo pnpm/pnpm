@@ -4,8 +4,10 @@
 use super::{
     FreshnessCheckError, LockfileFreshnessInputs,
     directory_deps::{
-        InjectedDirectory, NestedByImporter, is_declared_local_directory, is_deploy_file_url_key,
-        overridden_unhooked_manifest, unhooked_manifest,
+        GraphEdges, InjectedDirectory, NestedByImporter, NestedDirectoryPackage,
+        is_declared_local_directory, is_deploy_file_url_key,
+        nested_directory_packages as nested_directory_packages_along, overridden_unhooked_manifest,
+        unhooked_manifest,
     },
     project_manifests_by_dir,
 };
@@ -26,6 +28,7 @@ pub(crate) struct DirectoryManifests(HashMap<DirectoryDep, PackageManifest>);
 
 impl DirectoryManifests {
     /// No manifests: every directory package is read from its directory.
+    #[cfg(test)]
     pub(crate) fn none() -> &'static Self {
         static NONE: std::sync::OnceLock<DirectoryManifests> = std::sync::OnceLock::new();
         NONE.get_or_init(Self::default)
@@ -34,6 +37,38 @@ impl DirectoryManifests {
     pub(crate) fn get(&self, directory: &str, declared_as_file: bool) -> Option<&PackageManifest> {
         self.0.get(&(directory.to_string(), declared_as_file))
     }
+}
+
+/// The manifest of every directory package the importers of `inputs` reach in
+/// `lockfile`, with the resolver's manifest hooks applied, for a check that
+/// compares those importers outside [`super::check_lockfile_freshness`].
+pub(crate) async fn hooked_importer_directory_manifests(
+    lockfile: &Lockfile,
+    inputs: &LockfileFreshnessInputs<'_, '_>,
+    parsed_overrides: Option<&[pnpm_config_parse_overrides::VersionOverride]>,
+) -> Result<DirectoryManifests, FreshnessCheckError> {
+    let nested_packages = nested_directory_packages(lockfile, inputs);
+    let nested = checked_nested(&nested_packages, inputs);
+    hooked_directory_manifests(lockfile, inputs, (parsed_overrides, &nested)).await
+}
+
+pub(super) fn nested_directory_packages(
+    lockfile: &Lockfile,
+    inputs: &LockfileFreshnessInputs<'_, '_>,
+) -> Vec<NestedDirectoryPackage> {
+    nested_directory_packages_along(lockfile, GraphEdges::installed(inputs.config.optional))
+}
+
+/// The nested directory packages of the importers `inputs` checks.
+pub(super) fn checked_nested<'n>(
+    nested: &'n [NestedDirectoryPackage],
+    inputs: &LockfileFreshnessInputs<'_, '_>,
+) -> NestedByImporter<'n> {
+    let checked: std::collections::HashSet<&str> = inputs.manifests
+        .iter()
+        .map(|(id, _)| id.as_str())
+        .collect();
+    NestedByImporter::assign(nested, |importer_id| checked.contains(importer_id))
 }
 
 /// The manifest of every directory package the importers of `inputs` reach

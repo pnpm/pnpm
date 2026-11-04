@@ -38,7 +38,7 @@ impl ProjectStatus {
 
 /// What [`InputDrift::held`] does with a project the last validation proves
 /// installed.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy)]
 pub(super) enum ProvenProjects {
     /// Leave it out.
     Trusted,
@@ -112,8 +112,9 @@ impl<'a> InputDrift<'a> {
     ) -> Vec<&ManifestStat<'a>> {
         let unproven = self.stats
             .iter()
-            .filter(|stat| {
-                proven == ProvenProjects::Rechecked || stat.status != ProjectStatus::Proven
+            .filter(|stat| match proven {
+                ProvenProjects::Trusted => stat.status != ProjectStatus::Proven,
+                ProvenProjects::Rechecked => true,
             });
         let (selected, held_anywhere): (&[&Path], fn(ProjectStatus) -> bool) = match scope {
             Scope::Workspace => return unproven.collect(),

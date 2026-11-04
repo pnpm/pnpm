@@ -11,7 +11,7 @@ import type { Project, ProjectId } from '@pnpm/types'
 import { workspaceBinsDigest, type WorkspaceState } from '@pnpm/workspace.state'
 
 import { assertWorkspaceProjectsUpToDate } from './assertWantedLockfileUpToDate.js'
-import { recordsLocalDirectory, workspaceProjectDirs } from './findLocalFileDepsIssue.js'
+import { proofMissesLocalDirectory } from './findLocalFileDepsIssue.js'
 import { findModulesDirIssue, type ProjectStats, selectProjectDirs } from './findModulesDirIssue.js'
 import { findWorkspaceBinsIssue, findWorkspaceStructureIssue } from './findWorkspaceStructureIssue.js'
 import { modifiedAtOrAfter } from './modifiedAtOrAfter.js'
@@ -295,14 +295,12 @@ function provenProjects (allManifestStats: ProjectStats[], proof: ValidationProo
 }
 
 /**
- * The projects the gate holds that are not proven installed. A gate that lets
- * local file dependencies through holds the proven ones too when the last
- * install recorded a local directory dependency: no validation records that
- * directory's manifest, which decides what the lockfile records for it.
+ * The projects the gate holds that are not proven installed, and the proven
+ * ones too per {@link proofMissesLocalDirectory}.
  */
 function heldProjects (ctx: WorkspaceDepsStatusContext, allManifestStats: ProjectStats[], proof: ValidationProof): ProjectStats[] {
   const { lockfilesScan, opts } = ctx
-  const recheckProven = opts.treatLocalFileDepsAsOutdated !== true && recordsLocalDirectory(ctx.workspaceState, workspaceProjectDirs(opts))
+  const recheckProven = proofMissesLocalDirectory(opts, ctx.workspaceState)
   const installCovers = createInstallCoverage(ctx)
   const missingDirs = opts.sharedWorkspaceLockfile === false
     ? new Set(lockfilesScan.missingDirs.map((dir) => path.resolve(dir)))

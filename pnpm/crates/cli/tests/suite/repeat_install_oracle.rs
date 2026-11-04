@@ -1297,7 +1297,6 @@ fn a_comment_added_to_the_workspace_manifest(layout: Layout) {
     a_comment_added(layout, "pnpm-workspace.yaml");
 }
 
-/// A project added to the workspace.
 fn a_project_added(layout: Layout) {
     let mut scenario = Scenario::new(layout);
     scenario.install(&[]);
@@ -1305,7 +1304,6 @@ fn a_project_added(layout: Layout) {
     scenario.check_gates_after_a_workspace_input_edit();
 }
 
-/// The scenario that edits `input`.
 const fn edits_of(input: Input) -> fn(Layout) {
     match input {
         Input::Manifest => manifest_fields_edited,

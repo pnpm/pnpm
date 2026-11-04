@@ -5,7 +5,7 @@ pub(crate) use directory_deps::{
     NestedDirectoryPackage, ProjectManifestsByDir, dependency_manifests_by_dir,
     is_declared_local_directory, project_manifests_by_dir, spec_target_and_range,
 };
-pub(crate) use directory_manifests::DirectoryManifests;
+pub(crate) use directory_manifests::{DirectoryManifests, hooked_importer_directory_manifests};
 pub(crate) use error::FreshnessCheckError;
 pub(super) use manifest::manifest_has_effective_dependencies;
 pub(crate) use manifest::{
@@ -167,22 +167,22 @@ fn workspace_packages_for_freshness(
 }
 
 #[derive(Clone, Copy)]
-pub(super) struct DependencyManifestSources<'a, 'manifest> {
+pub(crate) struct DependencyManifestSources<'a, 'manifest> {
     /// Project manifests before importer hooks, for the resolver's dependency hook chain.
-    pub(super) declared: &'a [(PathBuf, &'manifest PackageManifest)],
+    pub(crate) declared: &'a [(PathBuf, &'manifest PackageManifest)],
     /// Dependency views supplied by callers, indexed by [`dependency_manifests_by_dir`].
-    pub(super) injected: Option<&'a ProjectManifestsByDir<'manifest>>,
+    pub(crate) injected: Option<&'a ProjectManifestsByDir<'manifest>>,
 }
 
-pub(super) struct LockfileFreshnessInputs<'a, 'manifest> {
-    pub(super) lockfile_dir: &'a Path,
-    pub(super) manifests: &'a [(String, &'manifest PackageManifest)],
-    pub(super) workspace_packages: Option<&'a pnpm_resolving_resolver_base::WorkspacePackages>,
-    pub(super) dependency_manifests: DependencyManifestSources<'a, 'manifest>,
-    pub(super) config: &'a Config,
-    pub(super) catalogs: &'a Catalogs,
-    pub(super) pnpmfile_hook: Option<&'a Arc<dyn pnpm_hooks::PnpmfileHooks>>,
-    pub(super) scope: FreshnessScope<'a>,
+pub(crate) struct LockfileFreshnessInputs<'a, 'manifest> {
+    pub(crate) lockfile_dir: &'a Path,
+    pub(crate) manifests: &'a [(String, &'manifest PackageManifest)],
+    pub(crate) workspace_packages: Option<&'a pnpm_resolving_resolver_base::WorkspacePackages>,
+    pub(crate) dependency_manifests: DependencyManifestSources<'a, 'manifest>,
+    pub(crate) config: &'a Config,
+    pub(crate) catalogs: &'a Catalogs,
+    pub(crate) pnpmfile_hook: Option<&'a Arc<dyn pnpm_hooks::PnpmfileHooks>>,
+    pub(crate) scope: FreshnessScope<'a>,
 }
 
 impl LockfileFreshnessInputs<'_, '_> {
@@ -396,15 +396,8 @@ pub(super) async fn check_lockfile_freshness(
         }));
     }
 
-    let edges = directory_deps::GraphEdges::installed(inputs.config.optional);
-    let nested = directory_deps::nested_directory_packages(lockfile, edges);
-    let checked: std::collections::HashSet<&str> = inputs.manifests
-        .iter()
-        .map(|(id, _)| id.as_str())
-        .collect();
-    let nested = directory_deps::NestedByImporter::assign(&nested, |importer_id| {
-        checked.contains(importer_id)
-    });
+    let nested_packages = directory_manifests::nested_directory_packages(lockfile, inputs);
+    let nested = directory_manifests::checked_nested(&nested_packages, inputs);
     let directory_manifests = directory_manifests::hooked_directory_manifests(
         lockfile,
         inputs,

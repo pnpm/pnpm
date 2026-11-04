@@ -7,6 +7,7 @@ use std::{borrow::Cow, sync::Arc};
 /// `packageExtensions`, the pnpmfile's `readPackage`, then the overrides.
 pub(super) struct ManifestTransforms<'a> {
     extender: Option<crate::PackageExtender>,
+    hook: Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>,
     pub(super) parsed_overrides: Option<&'a [pnpm_config_parse_overrides::VersionOverride]>,
     overrider: Option<crate::VersionsOverrider>,
 }
@@ -24,7 +25,7 @@ impl<'a> ManifestTransforms<'a> {
         let overrider = parsed_overrides.map(|parsed| {
             crate::VersionsOverrider::new(parsed, check.workspace_root)
         });
-        Ok(Self { extender, parsed_overrides, overrider })
+        Ok(Self { extender, hook: read_package_hook(check)?, parsed_overrides, overrider })
     }
 
     /// Each of `projects`' manifests as the resolver reads it before the
@@ -32,14 +33,13 @@ impl<'a> ManifestTransforms<'a> {
     /// the pnpmfile's `readPackage`.
     pub(super) fn resolver_view<'m>(
         &self,
-        check: &OptimisticRepeatInstallCheck<'_>,
         projects: &[&ManifestStat<'m>],
     ) -> Result<Vec<Cow<'m, PackageManifest>>, &'static str> {
         let extended: Vec<Cow<'m, PackageManifest>> = projects
             .iter()
             .map(|project| self.extended(project.manifest))
             .collect();
-        let Some(hook) = read_package_hook(check)? else { return Ok(extended) };
+        let Some(hook) = &self.hook else { return Ok(extended) };
         let hooked = projects
             .iter()
             .zip(&extended)
@@ -48,7 +48,7 @@ impl<'a> ManifestTransforms<'a> {
                     log: Arc::new(|_| {}) as pnpm_hooks::LogFn,
                     dir: None,
                 };
-                crate::install::hook_one_manifest(&hook, ctx, project.root_dir, manifest, false)
+                crate::install::hook_one_manifest(hook, ctx, project.root_dir, manifest, false)
             });
         let hooked = block_on_hooks(futures_util::future::try_join_all(hooked))
             .ok_or("the readPackage hook cannot run on this thread")?
@@ -70,6 +70,53 @@ impl<'a> ManifestTransforms<'a> {
         let mut extended = manifest.clone();
         extender.apply(extended.value_mut());
         std::borrow::Cow::Owned(extended)
+    }
+
+    /// The manifest of every directory package `projects` reach in `wanted`,
+    /// as the resolver reads it.
+    pub(super) fn directory_manifests(
+        &self,
+        check: &OptimisticRepeatInstallCheck<'_>,
+        (wanted, projects): (&pnpm_lockfile::Lockfile, &[&ManifestStat<'_>]),
+        workspace_packages: Option<&pnpm_resolving_resolver_base::WorkspacePackages>,
+    ) -> Result<crate::install::DirectoryManifests, &'static str> {
+        let importers: Vec<(String, &PackageManifest)> = projects
+            .iter()
+            .map(|project| {
+                let id = pnpm_workspace::importer_id_from_root_dir(
+                    check.workspace_root,
+                    project.root_dir,
+                );
+                (id, project.manifest)
+            })
+            .collect();
+        let inputs = crate::install::LockfileFreshnessInputs {
+            lockfile_dir: check.workspace_root,
+            manifests: &importers,
+            workspace_packages,
+            dependency_manifests: crate::install::DependencyManifestSources {
+                declared: check.project_manifests.as_slice(),
+                injected: check.manifests.dependency_manifests,
+            },
+            config: check.config,
+            catalogs: check.catalogs,
+            pnpmfile_hook: self.hook.as_ref(),
+            scope: crate::install::FreshnessScope {
+                ignore_manifest_check: false,
+                allow_missing_dependency_free_importers: false,
+                frozen_lockfile: false,
+                prune_stale_importers: false,
+                patches_only: false,
+                locked_registries: None,
+            },
+        };
+        block_on_hooks(crate::install::hooked_importer_directory_manifests(
+            wanted,
+            &inputs,
+            self.parsed_overrides,
+        ))
+        .ok_or("the readPackage hook cannot run on this thread")?
+        .map_err(|_| "a directory dependency's manifest cannot be read")
     }
 
     pub(super) fn overridden<'m>(

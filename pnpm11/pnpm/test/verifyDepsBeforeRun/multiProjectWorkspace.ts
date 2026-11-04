@@ -1599,35 +1599,6 @@ test('failed to install dependencies', async () => {
   }
 })
 
-test('a dependency added to a local directory dependency', async () => {
-  preparePackages([
-    {
-      location: '.',
-      package: { name: 'root', private: true },
-    },
-    {
-      name: 'app',
-      version: '1.0.0',
-      dependencies: { lib: 'file:../lib' },
-    },
-  ])
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['app'] })
-  fs.mkdirSync('lib')
-  const writeLibManifest = (dependencies: Record<string, string>) => {
-    fs.writeFileSync('lib/package.json', JSON.stringify({ name: 'lib', version: '1.0.0', dependencies }))
-  }
-  writeLibManifest({})
-
-  await execPnpm([...CONFIG, 'install'])
-  execPnpmSync([...CONFIG, '--filter=app', 'exec', 'node', '-e', ''], { expectSuccess: true })
-
-  writeLibManifest({ '@pnpm.e2e/foo': '100.0.0' })
-
-  const { status, stdout } = execPnpmSync([...CONFIG, '--filter=app', 'exec', 'node', '-e', ''])
-  expect(status).not.toBe(0)
-  expect(stdout.toString()).toContain('ERR_PNPM_VERIFY_DEPS_BEFORE_RUN')
-})
-
 function rewriteWithSameContent (filePath: string): void {
   fs.writeFileSync(filePath, fs.readFileSync(filePath))
 }

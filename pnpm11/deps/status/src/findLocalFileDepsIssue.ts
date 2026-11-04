@@ -80,12 +80,18 @@ export function findRecordedLocalDependencyIssue (workspaceState: WorkspaceState
 }
 
 /**
- * Whether the last install recorded a local directory dependency that is not
- * one of `workspaceProjectDirs`.
+ * Whether a gate has to check the projects the last validation proved
+ * installed again. A gate that lets local file dependencies through still has
+ * to see a local directory dependency's manifest change, which changes what
+ * the lockfile records for it. No validation records that manifest, so the
+ * gate checks every project again when the last install recorded a local
+ * directory dependency that is not a workspace project.
  */
-export function recordsLocalDirectory (workspaceState: WorkspaceState, workspaceProjectDirs: Set<string>): boolean {
+export function proofMissesLocalDirectory (opts: CheckDepsStatusOptions, workspaceState: WorkspaceState): boolean {
+  if (opts.treatLocalFileDepsAsOutdated === true) return false
+  const projectDirs = workspaceProjectDirs(opts)
   return Object.values(workspaceState.validation?.localDependencies ?? {})
-    .some((local) => findLocalDirectory(local, workspaceProjectDirs) != null)
+    .some((local) => findLocalDirectory(local, projectDirs) != null)
 }
 
 function findLocalDirectory (local: { directories?: string[] }, workspaceProjectDirs: Set<string>): string | undefined {
