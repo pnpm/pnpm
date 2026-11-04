@@ -222,3 +222,113 @@ fn a_variant_bin_with_a_crlf_shebang_is_refused() {
     opts.output.dry_run = true;
     assert!(matches!(pack(&opts, &["linux-x64"]), Err(PackError::BinCrlf { .. })));
 }
+
+/// An entry's patterns are one `files` list: an exclusion applies to the
+/// others, and is not a pattern that matches nothing.
+#[test]
+fn an_entrys_exclusion_applies_to_its_other_patterns() {
+    let (dir, opts) = fixture(&json!({
+        "name": "example-cli",
+        "version": "4.0.0",
+        "files": [],
+        "publishConfig": {
+            "variants": [{ "targets": ["linux-x64"], "files": ["native/**", "!native/debug/**"] }],
+        },
+    }));
+    touch(dir.path(), "native/cli", "binary");
+    touch(dir.path(), "native/debug/cli.pdb", "symbols");
+    let packed = pack(&opts, &[]).unwrap();
+    let mut entries = tarball_entry_names(
+        &dir.path()
+            .join(&packed[0].result.tarball_path),
+    );
+    entries.sort();
+    assert_eq!(entries, ["package/native/cli", "package/package.json"]);
+}
+
+/// An entry point is a file the archive holds: a `bin` exactly, a `main` as
+/// Node.js resolves it, never a file that only starts with its path.
+#[test]
+fn an_entry_point_is_matched_exactly() {
+    let missing = |entry_manifest: Value, pattern: &str, files: &[&str]| {
+        let (dir, opts) = fixture(&json!({
+            "name": "example-cli",
+            "version": "4.0.0",
+            "files": [],
+            "publishConfig": {
+                "variants": [{
+                    "targets": ["linux-x64"],
+                    "files": [pattern],
+                    "manifest": entry_manifest,
+                }],
+            },
+        }));
+        for file in files {
+            touch(dir.path(), file, "content");
+        }
+        match pack(&opts, &[]) {
+            Err(PackError::VariantEntryPointMissing { path, .. }) => Some(path),
+            Ok(_) => None,
+            Err(other) => panic!("{other:?}"),
+        }
+    };
+    let main = json!({ "main": "dist/index.js" });
+    assert_eq!(
+        missing(main.clone(), "dist/**", &["dist/index.js.map"]).as_deref(),
+        Some("dist/index.js"),
+    );
+    assert_eq!(missing(main, "dist/**", &["dist/index.js"]), None);
+    assert_eq!(missing(json!({ "main": "dist" }), "dist/**", &["dist/index.js"]), None);
+    let bin = json!({ "bin": { "cli": "native/cli" } });
+    assert_eq!(
+        missing(bin.clone(), "native/**", &["native/cli.debug"]).as_deref(),
+        Some("native/cli"),
+    );
+    assert_eq!(missing(bin, "native/**", &["native/cli"]), None);
+}
+
+/// Files no entry claims go into every archive; a file another entry claims
+/// stays out of the archive `--variant` packs, even when that entry is not
+/// packed, so a build job's archive never carries another platform's files.
+#[test]
+fn a_targeted_archive_keeps_the_shared_files_but_not_other_entries_claims() {
+    let (dir, opts) = fixture(&addon());
+    write_addon(dir.path());
+    let packed = pack(&opts, &["linux-x64"]).unwrap();
+    let mut entries = tarball_entry_names(
+        &dir.path()
+            .join(&packed[0].result.tarball_path),
+    );
+    entries.sort();
+    assert_eq!(
+        entries,
+        ["package/addon.linux-x64.node", "package/index.js", "package/package.json"],
+        "index.js is shared; lib/ and the musl addon belong to entries not packed",
+    );
+}
+
+/// The specifiers of an entry's dependencies are replaced as the base
+/// manifest's are.
+#[test]
+fn an_entrys_catalog_dependency_is_replaced() {
+    let mut manifest = addon();
+    manifest["publishConfig"]["variants"][1]["manifest"] =
+        json!({ "dependencies": { "helper": "catalog:" } });
+    let (dir, mut opts) = fixture(&manifest);
+    opts.manifest.catalogs = std::collections::BTreeMap::from([(
+        "default".to_string(),
+        std::collections::BTreeMap::from([("helper".to_string(), "^1.2.0".to_string())]),
+    )]);
+    write_addon(dir.path());
+    let packed = pack(&opts, &["linux-x64"]).unwrap();
+    let variant: Value = serde_json::from_str(
+        &tarball_entry_content(
+            &dir.path()
+                .join(&packed[0].result.tarball_path),
+            "package/package.json",
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(variant["dependencies"], json!({ "helper": "^1.2.0" }));
+}

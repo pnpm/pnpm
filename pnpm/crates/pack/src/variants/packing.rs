@@ -169,8 +169,9 @@ impl Claims {
 }
 
 /// The files `entry`'s patterns claim from what `base` lists, leaving out
-/// the files every archive holds. When the entry is `packed`, a pattern that
-/// claims nothing fails.
+/// the files every archive holds. The patterns are one `files` list, so an
+/// exclusion such as `!native/debug/**` applies to the others. When the
+/// entry is `packed`, a pattern that includes nothing on its own fails.
 fn claimed_by(
     opts: &PackOptions,
     source: &PackSource,
@@ -178,22 +179,26 @@ fn claimed_by(
     entry: &VariantEntry,
     packed: bool,
 ) -> Result<BTreeMap<String, PathBuf>, PackError> {
-    let mut files = BTreeMap::new();
-    for pattern in &entry.files {
-        let matched: BTreeMap<String, PathBuf> =
-            listed(opts, source, base, std::slice::from_ref(pattern))?
-                .into_iter()
-                .filter(|(path, _)| !always.contains_key(path))
-                .collect();
-        if matched.is_empty() && packed {
-            return Err(PackError::VariantPatternMatchesNothing {
-                targets: entry.label(),
-                pattern: pattern.clone(),
-            });
+    let claimed = |patterns: &[String]| -> Result<BTreeMap<String, PathBuf>, PackError> {
+        Ok(listed(opts, source, base, patterns)?
+            .into_iter()
+            .filter(|(path, _)| !always.contains_key(path))
+            .collect())
+    };
+    if packed {
+        for pattern in entry.files
+            .iter()
+            .filter(|pattern| !pattern.starts_with('!'))
+        {
+            if claimed(std::slice::from_ref(pattern))?.is_empty() {
+                return Err(PackError::VariantPatternMatchesNothing {
+                    targets: entry.label(),
+                    pattern: pattern.clone(),
+                });
+            }
         }
-        files.extend(matched);
     }
-    Ok(files)
+    if entry.files.is_empty() { Ok(BTreeMap::new()) } else { claimed(&entry.files) }
 }
 
 /// `manifest` without the `main`, `browser`, and `bin` whose files the
@@ -287,26 +292,56 @@ where
 }
 
 /// Refuse an archive whose manifest's `main`, `browser`, or `bin` names a
-/// file the archive lacks. A path names a file, a file with an extension
-/// added, or a directory's files, as Node.js resolves it.
+/// file the archive lacks. A `bin` names its file exactly. A `main` or
+/// `browser` names a file as Node.js resolves it: the path, the path with
+/// `.js`, `.json`, or `.node` added, or such an `index` file in the
+/// directory at the path.
 fn check_entry_points(
     entry: &VariantEntry,
     manifest: &Value,
     files_map: &IndexMap<String, PathBuf>,
 ) -> Result<(), PackError> {
-    for path in required_field_paths(manifest) {
-        let packed = format!("package/{path}");
-        let present = files_map
-            .keys()
-            .any(|file| {
-                file.strip_prefix(&packed)
-                    .is_some_and(|rest| rest.is_empty() || rest.starts_with(['.', '/']))
-            });
-        if !present {
-            return Err(PackError::VariantEntryPointMissing { targets: entry.label(), path });
-        }
+    let packed = |path: &str| files_map.contains_key(&format!("package/{path}"));
+    let missing =
+        |path: String| PackError::VariantEntryPointMissing { targets: entry.label(), path };
+    let (bins, modules) = entry_point_fields(manifest);
+    if let Some(bin) = required_field_paths(&bins)
+        .into_iter()
+        .find(|path| !packed(path))
+    {
+        return Err(missing(bin));
     }
-    Ok(())
+    let resolves = |path: &str| {
+        packed(path)
+            || NODE_EXTENSIONS
+                .iter()
+                .any(|extension| {
+                    packed(&format!("{path}{extension}"))
+                        || packed(&format!("{path}/index{extension}"))
+                })
+    };
+    match required_field_paths(&modules)
+        .into_iter()
+        .find(|path| !resolves(path))
+    {
+        Some(module) => Err(missing(module)),
+        None => Ok(()),
+    }
+}
+
+/// The extensions Node.js tries on a module path.
+const NODE_EXTENSIONS: [&str; 3] = [".js", ".json", ".node"];
+
+/// `manifest`'s `bin` alone, and its `main` and `browser` alone.
+fn entry_point_fields(manifest: &Value) -> (Value, Value) {
+    let only = |fields: &[&str]| {
+        let kept = fields
+            .iter()
+            .filter_map(|field| Some(((*field).to_string(), manifest.get(*field)?.clone())))
+            .collect();
+        Value::Object(kept)
+    };
+    (only(&["bin"]), only(&["main", "browser"]))
 }
 
 /// The manifest whose `files` lists what the package names on purpose for
