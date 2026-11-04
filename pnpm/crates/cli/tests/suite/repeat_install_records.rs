@@ -772,3 +772,152 @@ fn a_trust_lockfile_flag_that_overrides_the_setting_runs_the_install() {
     assert!(text.contains("phase complete"), "the install ran its phases: {text}");
     drop((root, mock_instance));
 }
+
+/// The debug event of a fast path taken before the config setup.
+const TAKEN_BEFORE_SETUP: &str = "repeat-install fast path taken before the install setup";
+
+/// [`write_workspace`] with a lockfile per project.
+fn write_workspace_with_project_lockfiles(workspace: &Path) {
+    write_workspace(workspace);
+    let workspace_yaml = workspace.join("pnpm-workspace.yaml");
+    let mut yaml = fs::read_to_string(&workspace_yaml).expect("read pnpm-workspace.yaml");
+    yaml.push_str("sharedWorkspaceLockfile: false\n");
+    fs::write(&workspace_yaml, yaml).expect("write pnpm-workspace.yaml");
+}
+
+#[test]
+fn a_workspace_with_project_lockfiles_is_up_to_date_from_the_records() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_workspace_with_project_lockfiles(&workspace);
+    pacquet
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_arg("install")
+        .assert()
+        .success();
+    trust_recorded_stats(&workspace, mock_instance.url());
+
+    let output = traced_install(&workspace, mock_instance.url());
+
+    assert!(output.contains(TAKEN_BEFORE_SETUP), "{output}");
+    assert_eq!(output.matches("Already up to date").count(), 1, "{output}");
+    drop((root, mock_instance));
+}
+
+/// An edit the records cannot stand in for leaves the workspace to the
+/// install's run per project.
+#[test]
+fn a_workspace_with_project_lockfiles_reads_an_edited_manifest() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_workspace_with_project_lockfiles(&workspace);
+    pacquet
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_arg("install")
+        .assert()
+        .success();
+    trust_recorded_stats(&workspace, mock_instance.url());
+    fs::write(
+        workspace.join("packages/a/package.json"),
+        serde_json::json!({ "name": "a", "version": "1.0.0" }).to_string(),
+    )
+    .expect("edit packages/a/package.json");
+
+    let output = traced_install(&workspace, mock_instance.url());
+
+    assert!(!output.contains(TAKEN_BEFORE_SETUP), "{output}");
+    assert!(!workspace.join("packages/a/node_modules/b").exists(), "{output}");
+    drop((root, mock_instance));
+}
+
+/// An injected copy follows its source in a workspace with a lockfile per
+/// project, the up-to-date check sends the install to the projects whose
+/// injected source may have changed.
+#[test]
+fn a_workspace_with_project_lockfiles_refreshes_an_injected_copy() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_workspace_with_project_lockfiles(&workspace);
+    fs::write(
+        workspace.join("packages/a/package.json"),
+        serde_json::json!({
+            "name": "a",
+            "version": "1.0.0",
+            "dependencies": { "b": "workspace:*" },
+            "dependenciesMeta": { "b": { "injected": true } },
+        })
+        .to_string(),
+    )
+    .expect("write packages/a/package.json");
+    pacquet
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_arg("install")
+        .assert()
+        .success();
+    trust_recorded_stats(&workspace, mock_instance.url());
+    let injected = workspace.join("packages/a/node_modules/b/cli.js");
+    assert_eq!(
+        fs::read_to_string(&injected).expect("read the injected copy"),
+        "#!/usr/bin/env node\n"
+    );
+    fs::write(workspace.join("packages/b/cli.js"), "edited\n").expect("edit packages/b/cli.js");
+
+    let output = traced_install(&workspace, mock_instance.url());
+
+    assert!(!output.contains(TAKEN_BEFORE_SETUP), "{output}");
+    assert_eq!(
+        fs::read_to_string(&injected).expect("read the injected copy"),
+        "edited\n",
+        "{output}"
+    );
+    drop((root, mock_instance));
+}
+
+#[test]
+fn a_workspace_with_project_lockfiles_installs_a_new_project() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_workspace_with_project_lockfiles(&workspace);
+    pacquet
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_arg("install")
+        .assert()
+        .success();
+    trust_recorded_stats(&workspace, mock_instance.url());
+    fs::write(
+        workspace.join("packages/no-project/package.json"),
+        serde_json::json!({ "name": "c", "version": "1.0.0", "dependencies": { "b": "workspace:*" } })
+            .to_string(),
+    )
+    .expect("write packages/no-project/package.json");
+
+    let output = traced_install(&workspace, mock_instance.url());
+
+    assert!(!output.contains(TAKEN_BEFORE_SETUP), "{output}");
+    assert!(workspace.join("packages/no-project/node_modules/b").exists(), "{output}");
+    drop((root, mock_instance));
+}

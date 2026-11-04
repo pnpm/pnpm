@@ -57,6 +57,7 @@ pub(super) fn check_from_records(
             state,
             manifests: &project_manifests,
             recorded_digests: Some(&recorded_digests),
+            bin_projects: None,
         },
     );
     if let Err(reason) = checked {

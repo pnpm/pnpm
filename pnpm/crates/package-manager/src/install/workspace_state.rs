@@ -1,4 +1,5 @@
 pub use discovery::{check_deps_status_before_run_at, deps_install_root};
+pub use per_project::install_already_up_to_date_per_project;
 pub(crate) use projects::replace_project_manifest;
 pub(super) use projects::{
     ProjectScriptsInputs, build_project_manifests_list, build_root_importer_project_manifests_list,
@@ -12,6 +13,8 @@ mod projects;
 mod discovery;
 
 mod from_files;
+
+mod per_project;
 
 mod stand_ins;
 
@@ -199,6 +202,8 @@ struct FastPathProjects<'a> {
     manifests: &'a [(PathBuf, &'a PackageManifest)],
     /// See [`crate::DeclaredManifests::with_stand_ins`].
     recorded_digests: Option<&'a std::collections::HashMap<PathBuf, String>>,
+    /// See [`crate::RepeatInstallManifests::workspace_projects`].
+    bin_projects: Option<&'a [(PathBuf, &'a PackageManifest)]>,
 }
 
 /// [`check_optimistic_repeat_install_with_state`] inside the
@@ -226,7 +231,10 @@ fn check_fast_path_repeat_install(
                 included: super::included_dependencies(&check.dependency_groups),
                 supported_architectures: check.supported_architectures.as_ref(),
             },
-            manifests: crate::RepeatInstallManifests::ON_DISK,
+            manifests: crate::RepeatInstallManifests {
+                workspace_projects: projects.bin_projects,
+                ..crate::RepeatInstallManifests::ON_DISK
+            },
         },
         projects.state,
         Scope::Workspace,

@@ -1,7 +1,8 @@
 use super::{
     InstallArgs, NodeLinkerArg, UpToDateFastPathCheck, install_already_up_to_date,
-    install_already_up_to_date_from_records, read_root_manifest_json,
-    warn_deprecated_override_version_references, warn_ignored_pnpm_manifest_fields,
+    install_already_up_to_date_from_records, install_already_up_to_date_per_project,
+    read_root_manifest_json, warn_deprecated_override_version_references,
+    warn_ignored_pnpm_manifest_fields,
 };
 use crate::cli_args::yarn_workspaces_field::{
     converts_yarn_workspaces, warn_about_workspaces_field,
@@ -193,7 +194,11 @@ impl InstallArgs {
             .map_err(|_| "package.json cannot be parsed")?;
         let node_linker =
             self.materialization.node_linker.map_or(config.node_linker, NodeLinkerArg::into_config);
+        // Each project keeps its own lockfile and state, so each is decided
+        // from its own record.
+        let per_project = !config.shares_one_lockfile() && config.workspace_dir.is_some();
         let decide = match attempt {
+            _ if per_project => install_already_up_to_date_per_project,
             Attempt::BeforeConfig => install_already_up_to_date,
             Attempt::AfterConfig => install_already_up_to_date_from_records,
         };
@@ -254,14 +259,6 @@ impl InstallArgs {
                         .merge_git_branch_lockfiles_branch_pattern
                         .is_empty(),
                 "git branch lockfiles are merged",
-            ),
-            // Dedicated per-project lockfiles run one install per workspace
-            // project; a single-dir up-to-date probe can't speak for the
-            // sibling projects, so the loop (whose per-project engine runs
-            // each have their own optimistic short-circuit) must always run.
-            (
-                !config.shares_one_lockfile() && config.workspace_dir.is_some(),
-                "every workspace project has its own lockfile",
             ),
         ];
         gates
