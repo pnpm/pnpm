@@ -559,7 +559,9 @@ fn injected_targets(
 
 /// Version segment of a snapshot's global-virtual-store path. Derives
 /// the version as `pkgSnapshot.version ?? pkgInfo.version`, then feeds
-/// it into the global-virtual-store path format.
+/// it into the global-virtual-store path format. A registry-qualified
+/// version (`<registryName>:<version>`) contributes only its version;
+/// the registry name reaches the slot hash through the dep path.
 ///
 /// A snapshot resolved from a local directory gets the fixed
 /// [`LOCAL_DIRECTORY_SEGMENT`] instead: the lockfile records no version
@@ -574,7 +576,9 @@ fn gvs_version_segment(metadata: Option<&PackageMetadata>, suffix: &PkgVerPeer) 
     }
     match metadata.and_then(|meta| meta.version.as_deref()) {
         Some(version) => version.to_string(),
-        None => suffix.version().to_string(),
+        None => suffix
+            .registry_version()
+            .map_or_else(|| suffix.version().to_string(), ToString::to_string),
     }
 }
 
