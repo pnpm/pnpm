@@ -14,13 +14,13 @@ fn base(variants: &Value) -> Value {
     })
 }
 
-fn read(variants: Value) -> Result<VariantDeclaration, VariantDeclarationError> {
-    VariantDeclaration::read(&base(&variants)).map(Option::unwrap)
+fn read(variants: &Value) -> Result<VariantDeclaration, VariantDeclarationError> {
+    VariantDeclaration::read(&base(variants)).map(Option::unwrap)
 }
 
 #[test]
 fn derives_each_platform_variants_tag_from_its_targets() {
-    let declaration = read(json!([
+    let declaration = read(&json!([
         { "targets": ["any"], "files": ["lib/**"] },
         { "targets": ["linux-x64-musl", "linux-x64"], "files": ["native/linux"] },
         { "targets": ["darwin-x64", "darwin-arm64"] },
@@ -49,7 +49,7 @@ fn derives_each_platform_variants_tag_from_its_targets() {
 
 #[test]
 fn a_declaration_without_an_any_entry_has_no_primary() {
-    let declaration = read(json!([{ "targets": ["linux-x64"] }])).unwrap();
+    let declaration = read(&json!([{ "targets": ["linux-x64"] }])).unwrap();
     assert!(declaration.primary().is_none());
     assert_eq!(
         VariantDeclaration::read(&json!({ "name": "a", "version": "1.0.0" })).unwrap(),
@@ -62,7 +62,7 @@ fn rejects_targets_that_are_not_canonical_tags_with_their_spelling() {
     for (target, canonical) in
         [("linux-x64-gnu", "linux-x64"), ("linux-x64-napi8-musl", "linux-x64-musl-napi8")]
     {
-        match read(json!([{ "targets": [target] }])) {
+        match read(&json!([{ "targets": [target] }])) {
             Err(VariantDeclarationError::NonCanonicalTarget { canonical: spelled, .. }) => {
                 assert_eq!(spelled, canonical);
             }
@@ -70,7 +70,7 @@ fn rejects_targets_that_are_not_canonical_tags_with_their_spelling() {
         }
     }
     assert!(matches!(
-        read(json!([{ "targets": ["linux-x64-riscvfloat9"] }])),
+        read(&json!([{ "targets": ["linux-x64-riscvfloat9"] }])),
         Err(VariantDeclarationError::UnknownTarget { .. }),
     ));
 }
@@ -83,25 +83,25 @@ fn rejects_targets_declared_twice_and_any_beside_a_platform() {
         json!([{ "targets": ["any"] }, { "targets": ["any"] }]),
     ] {
         assert!(
-            matches!(read(variants.clone()), Err(VariantDeclarationError::DuplicateTarget { .. })),
+            matches!(read(&variants), Err(VariantDeclarationError::DuplicateTarget { .. })),
             "{variants}",
         );
     }
     assert!(matches!(
-        read(json!([{ "targets": ["any", "linux-x64"] }])),
+        read(&json!([{ "targets": ["any", "linux-x64"] }])),
         Err(VariantDeclarationError::AnyWithPlatforms { .. }),
     ));
 }
 
 #[test]
 fn platforms_that_could_tie_are_the_same_target() {
-    let tie = read(json!([
+    let tie = read(&json!([
         { "targets": ["linux-x64-musl"] },
         { "targets": ["linux-arm64", "wasm32"] },
         { "targets": ["linux-x64", "wasm32"] },
     ]));
     assert!(matches!(tie, Err(VariantDeclarationError::DuplicateTarget { .. })), "{tie:?}");
-    let floors = read(json!([
+    let floors = read(&json!([
         { "targets": ["linux-x64-manylinux_2_17"] },
         { "targets": ["linux-x64-manylinux_2_28"] },
         { "targets": ["linux-x64-napi8"] },
@@ -115,7 +115,7 @@ fn rejects_a_tag_over_the_limit() {
         .map(|abi| format!("linux-x64-manylinux_2_17-node{abi}"))
         .collect();
     assert!(matches!(
-        read(json!([{ "targets": targets }])),
+        read(&json!([{ "targets": targets }])),
         Err(VariantDeclarationError::TagTooLong { .. }),
     ));
 }
@@ -131,14 +131,14 @@ fn rejects_manifest_fields_every_archive_shares_or_a_variant_cannot_set() {
         (json!([{ "targets": ["linux-x64"], "manifest": { "variant": {} } }]), "variant"),
         (json!([{ "targets": ["linux-x64"], "manifest": { "os": ["linux"] } }]), "os"),
     ] {
-        match read(variants) {
+        match read(&variants) {
             Err(VariantDeclarationError::ForbiddenField { field: found, .. }) => {
                 assert_eq!(found, field);
             }
             other => panic!("{field}: {other:?}"),
         }
     }
-    assert!(read(json!([{ "targets": ["any"], "manifest": { "os": ["linux"] } }])).is_ok());
+    assert!(read(&json!([{ "targets": ["any"], "manifest": { "os": ["linux"] } }])).is_ok());
     let mut inherited = base(&json!([{ "targets": ["linux-x64"] }]));
     inherited["cpu"] = json!(["x64"]);
     assert!(matches!(
@@ -157,7 +157,7 @@ fn an_archive_manifest_applies_its_entry_to_the_base_manifest() {
         },
     ]);
     let manifest = base(&variants);
-    let declaration = read(variants).unwrap();
+    let declaration = read(&variants).unwrap();
     assert_eq!(
         VariantDeclaration::archive_manifest(&manifest, &declaration.entries[1]),
         json!({
@@ -178,7 +178,7 @@ fn an_archive_manifest_applies_its_entry_to_the_base_manifest() {
 fn checks_a_packed_archive_as_pnpr_does() {
     let variants = json!([{ "targets": ["any"] }, { "targets": ["linux-x64"] }]);
     let manifest = base(&variants);
-    let declaration = read(variants).unwrap();
+    let declaration = read(&variants).unwrap();
     let (any, linux) = (&declaration.entries[0], &declaration.entries[1]);
     let archive = VariantDeclaration::archive_manifest(&manifest, linux);
     check_archive(&manifest, linux, &archive, &["index.js"]).unwrap();
@@ -199,7 +199,7 @@ fn checks_a_packed_archive_as_pnpr_does() {
 #[test]
 fn names_a_platform_variants_archive_after_the_primarys() {
     let declaration =
-        read(json!([{ "targets": ["any"] }, { "targets": ["linux-x64", "linux-x64-musl"] }]))
+        read(&json!([{ "targets": ["any"] }, { "targets": ["linux-x64", "linux-x64-musl"] }]))
             .unwrap();
     let name = "example-native-addon-2.3.0.tgz";
     assert_eq!(
