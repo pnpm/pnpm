@@ -68,7 +68,7 @@ pub(super) fn check_registry(
     pnpr_registries: &HashSet<String>,
     registry: &NormalizedRegistryUrl,
 ) -> Result<(), PublishPackedPkgError> {
-    let has_variants = !pkg.variants.is_empty() || pkg.any_staged.is_some();
+    let has_variants = pkg.publishes_staged_archives();
     if !has_variants || pnpr_registries.contains(registry.as_str()) {
         return Ok(());
     }

@@ -772,12 +772,19 @@ impl OidcFetch for ProvenanceSys {
         Ok(OidcResponse { ok: true, status: 200, body: body.to_owned() })
     }
 }
+/// The statements [`ProvenanceSys`] signed, in order.
+static SIGNED_STATEMENTS: std::sync::Mutex<Vec<Value>> = std::sync::Mutex::new(Vec::new());
+
 impl SignProvenance for ProvenanceSys {
     async fn sign_statement(
         _: &str,
-        _: &[u8],
+        statement: &[u8],
         _: Option<Duration>,
     ) -> Result<SignedProvenance, ProvenanceGenError> {
+        SIGNED_STATEMENTS
+            .lock()
+            .unwrap()
+            .push(serde_json::from_slice(statement).expect("a statement is JSON"));
         Ok(SignedProvenance {
             media_type: "application/vnd.dev.sigstore.bundle.v0.3+json".to_owned(),
             data: "signed-bundle-json".to_owned(),
@@ -884,5 +891,128 @@ fn rejects_a_package_name_that_could_redirect_the_publish_url() {
     let manifest = json!({ "name": "@scope/pkg", "version": "1.0.0" });
     assert!(
         build_publish_document(&manifest, b"x", &registry(), None, "latest", &hashes()).is_ok(),
+    );
+}
+
+/// The subjects of the statement a provenance publish of `pkg` to a pnpr
+/// registry signs.
+async fn signed_subjects(pkg: &PackedPkg<'_>) -> Vec<(String, String)> {
+    let mut server = mockito::Server::new_async().await;
+    let registry = format!("{}/npm/private", server.url());
+    server
+        .mock("POST", mockito::Matcher::Regex("/oidc/token/exchange/".to_owned()))
+        .with_status(200)
+        .with_body(r#"{"token":"registry-token"}"#)
+        .create_async()
+        .await;
+    let blob = mockito::Matcher::Regex("/-/pnpr/v0/artifacts/blob".to_owned());
+    server
+        .mock("HEAD", blob.clone())
+        .with_status(404)
+        .create_async()
+        .await;
+    server
+        .mock("PUT", blob)
+        .with_status(201)
+        .create_async()
+        .await;
+    let publish = server
+        .mock("PUT", mockito::Matcher::Regex("/npm/private/example-cli$".to_owned()))
+        .with_status(200)
+        .with_body("{}")
+        .expect(1)
+        .create_async()
+        .await;
+    let opts = PublishPackedPkgOptions {
+        dry_run: false,
+        stage: false,
+        wait_timeout: Duration::ZERO,
+        registry: crate::PublishRegistryOptions {
+            default: registry.clone(),
+            scoped: std::collections::BTreeMap::new(),
+            access: None,
+            tag: "latest".to_owned(),
+            otp: None,
+            provenance: Some(true),
+            http: OidcHttpOptions::default(),
+        },
+        release_notes: crate::ReleaseNotesTarget::default(),
+        pnpr_registries: std::collections::HashSet::from([format!("{registry}/")]),
+    };
+    let client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let network = PublishNetwork { client: &client, auth_headers: &auth_headers };
+    SIGNED_STATEMENTS
+        .lock()
+        .unwrap()
+        .clear();
+    publish_packed_pkg::<ProvenanceSys, SilentReporter>(pkg, &opts, &network)
+        .await
+        .expect("a provenance publish of variants succeeds");
+    publish.assert_async().await;
+    let statement = SIGNED_STATEMENTS
+        .lock()
+        .unwrap()
+        .pop()
+        .expect("a signed statement");
+    statement["subject"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|subject| {
+            (
+                subject["name"]
+                    .as_str()
+                    .unwrap()
+                    .to_owned(),
+                subject["digest"]["sha512"]
+                    .as_str()
+                    .unwrap()
+                    .to_owned(),
+            )
+        })
+        .collect()
+}
+
+fn sha512_hex(bytes: &[u8]) -> String {
+    use sha2::Digest as _;
+    use std::fmt::Write as _;
+    sha2::Sha512::digest(bytes)
+        .iter()
+        .fold(String::new(), |mut hex, byte| {
+            let _ = write!(hex, "{byte:02x}");
+            hex
+        })
+}
+
+#[tokio::test]
+async fn a_provenance_publish_of_variants_signs_one_statement_naming_every_archive() {
+    let manifest = json!({ "name": "example-cli", "version": "1.0.0+build" });
+    let variants = [super::PackedVariant {
+        tag: "linux-x64".into(),
+        archive: super::VariantArchive::Packed(b"linux".to_vec()),
+    }];
+    let mut pkg = PackedPkg {
+        published_manifest: &manifest,
+        tarball_data: b"any",
+        tarball_path: "example-cli-1.0.0.tgz",
+        contents: &[],
+        unpacked_size: 0,
+        notes: None,
+        variants: &variants,
+        any_staged: None,
+    };
+    assert_eq!(
+        signed_subjects(&pkg).await,
+        [
+            ("pkg:npm/example-cli@1.0.0".to_owned(), sha512_hex(b"any")),
+            ("pkg:npm/example-cli@1.0.0?variant=linux-x64".to_owned(), sha512_hex(b"linux")),
+        ],
+    );
+    pkg.tarball_data = b"";
+    assert_eq!(
+        signed_subjects(&pkg).await,
+        [("pkg:npm/example-cli@1.0.0?variant=linux-x64".to_owned(), sha512_hex(b"linux"))],
+        "a version without an any archive names only its variants",
     );
 }

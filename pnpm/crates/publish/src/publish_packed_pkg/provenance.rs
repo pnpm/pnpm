@@ -23,11 +23,11 @@ where
     // The statement names the version as the document keys it, without
     // build metadata, which is how the registry names its archives.
     let version = &clean_version(version)?;
-    let attachment = if pkg.variants.is_empty() && pkg.any_staged.is_none() {
-        generate_provenance::<Sys, Reporter>(name, version, pkg.tarball_data, http).await
-    } else {
+    let attachment = if pkg.publishes_staged_archives() {
         let subjects = variants::provenance_subjects(pkg, (name, version))?;
         generate_provenance_for::<Sys, Reporter>(name, version, &subjects, http).await
+    } else {
+        generate_provenance::<Sys, Reporter>(name, version, pkg.tarball_data, http).await
     }
     .map_err(PublishPackedPkgError::Provenance)?;
     document["_attachments"][attachment.bundle_name.as_str()] = serde_json::json!({

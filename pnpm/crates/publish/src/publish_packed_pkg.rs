@@ -66,6 +66,13 @@ pub struct PackedPkg<'a> {
 impl PackedPkg<'_> {
     /// Whether the version has an `any` archive: its bytes, or one another
     /// machine staged.
+    /// Whether the version is published as several archives, which pnpm
+    /// stages and references: it has platform variants, or an `any` archive
+    /// another job staged.
+    pub(crate) fn publishes_staged_archives(&self) -> bool {
+        !self.variants.is_empty() || self.any_staged.is_some()
+    }
+
     pub(crate) fn has_any_archive(&self) -> bool {
         !self.tarball_data.is_empty() || self.any_staged.is_some()
     }
@@ -205,7 +212,7 @@ where
     let is_stage = opts.stage;
     let authorization = publish_authorization(resolved, network, registry, name);
     let mut lengths = variants::StagedLengths::new();
-    if !pkg.variants.is_empty() || pkg.any_staged.is_some() {
+    if pkg.publishes_staged_archives() {
         lengths = variants::staged_lengths(pkg, network.client, registry, authorization.as_deref())
             .await?;
         let archives = variants::staged_archives(pkg, &summary.integrity);
@@ -256,7 +263,7 @@ where
         &DistHashes { integrity: &summary.integrity, shasum: &summary.shasum },
     )?;
     opts.release_notes.attach_version_notes(&mut document, pkg.notes, &resolved.registry);
-    let has_variants = !pkg.variants.is_empty() || pkg.any_staged.is_some();
+    let has_variants = pkg.publishes_staged_archives();
     if has_variants {
         variants::reference_staged_archives(&mut document, pkg, (version, lengths));
     }
