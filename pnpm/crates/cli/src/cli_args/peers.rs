@@ -213,15 +213,13 @@ fn undeclared_warnings(
         return UndeclaredWarnings::new();
     }
     let Some(lockfile) = lockfile else { return UndeclaredWarnings::new() };
+    let mut inspector =
+        pnpm_deps_inspection_peers::UndeclaredPeerInspector::new(lockfile, lockfile_dir);
     project_dirs
         .iter()
         .filter_map(|dir| {
             let importer = pnpm_workspace::importer_id_from_root_dir(lockfile_dir, dir);
-            let peers = pnpm_deps_inspection_peers::undeclared_peers(
-                lockfile,
-                &importer,
-                config.resolve_peers_from_workspace_root,
-            );
+            let peers = inspector.check(&importer, config.resolve_peers_from_workspace_root.into());
             (!peers.is_empty()).then_some((importer, peers))
         })
         .collect()

@@ -187,18 +187,25 @@ fn linked_package_peer_not_resolved_from_root_when_setting_is_disabled() {
     drop((root, mock_instance));
 }
 
+#[derive(Clone, Copy)]
+struct PeerReuseSettings {
+    auto_install: bool,
+    dedupe: bool,
+    from_root: bool,
+}
+
 #[test]
 fn workspace_peer_reuse_settings_matrix() {
     let bundle = crate::_utils::read_v11_bundle_path();
     let settings = [
-        (false, false, false),
-        (false, false, true),
-        (false, true, false),
-        (false, true, true),
-        (true, false, false),
-        (true, false, true),
-        (true, true, false),
-        (true, true, true),
+        PeerReuseSettings { auto_install: false, dedupe: false, from_root: false },
+        PeerReuseSettings { auto_install: false, dedupe: false, from_root: true },
+        PeerReuseSettings { auto_install: false, dedupe: true, from_root: false },
+        PeerReuseSettings { auto_install: false, dedupe: true, from_root: true },
+        PeerReuseSettings { auto_install: true, dedupe: false, from_root: false },
+        PeerReuseSettings { auto_install: true, dedupe: false, from_root: true },
+        PeerReuseSettings { auto_install: true, dedupe: true, from_root: false },
+        PeerReuseSettings { auto_install: true, dedupe: true, from_root: true },
     ];
     for cli in std::iter::once(None).chain(bundle.as_deref().map(Some)) {
         for row in settings {
@@ -249,10 +256,11 @@ fn write_peer_provider(fixture: &crate::_utils::WorkspaceFixture, location: &str
 
 fn check_peer_reuse(
     bundle: Option<&std::ffi::OsStr>,
-    (auto_install, dedupe, from_root): (bool, bool, bool),
+    settings: PeerReuseSettings,
     provider_location: &str,
 ) {
     use crate::_utils::{ManifestDeps, WorkspaceFixture, assert_success, ndjson_records};
+    let PeerReuseSettings { auto_install, dedupe, from_root } = settings;
     let root_provider = provider_location == "root";
     let fixture = WorkspaceFixture::new();
     fixture.append_workspace_yaml(&format!(
@@ -317,6 +325,7 @@ fn check_reuse_warning(fixture: &crate::_utils::WorkspaceFixture, expected: bool
             warnings
                 .iter()
                 .all(|warning| warning["peer"] == "@pnpm.e2e/peer-a"),
+            "{report}",
         );
     }
     if expected {
@@ -327,6 +336,7 @@ fn check_reuse_warning(fixture: &crate::_utils::WorkspaceFixture, expected: bool
         crate::_utils::assert_success(&output);
         assert!(
             String::from_utf8_lossy(&output.stdout).contains("is resolved but is not declared"),
+            "{output:?}",
         );
         crate::_utils::assert_success(&fixture.command_at(
             &fixture.workspace,
@@ -382,6 +392,7 @@ fn reused_required_peer_executable_availability() {
                 .join("packages/provider/node_modules/.bin")
                 .join(bin)
                 .exists(),
+            "missing provider executable {bin}: {output:?}",
         );
     }
 }

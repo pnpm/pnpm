@@ -952,7 +952,8 @@ fn undeclared_required_peers_respect_ancestor_providers_and_optional_metadata() 
     });
     let check = |value: &serde_json::Value| {
         let lockfile = serde_json::from_value(value.clone()).expect("parse lockfile");
-        super::undeclared_peers(&lockfile, ".", false)
+        super::UndeclaredPeerInspector::new(&lockfile, std::path::Path::new("."))
+            .check(".", crate::WorkspaceRootScope::Exclude)
     };
     let warnings = check(&value);
     assert_eq!(warnings.len(), 1);

@@ -127,7 +127,9 @@ pub(crate) fn resolved_snapshot_version(
     )
 }
 
-fn child_keys(snapshot: Option<&SnapshotEntry>) -> impl Iterator<Item = PkgNameVerPeer> + '_ {
+pub(super) fn child_keys(
+    snapshot: Option<&SnapshotEntry>,
+) -> impl Iterator<Item = PkgNameVerPeer> + '_ {
     snapshot
         .into_iter()
         .flat_map(|snapshot| {
