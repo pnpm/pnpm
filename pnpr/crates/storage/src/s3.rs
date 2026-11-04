@@ -249,10 +249,12 @@ impl S3Store {
     pub async fn staging_tmp_path(
         &self,
         _name: &CanonicalPackageName,
-        filename: &str,
+        _filename: &str,
     ) -> Result<PathBuf> {
         fs::create_dir_all(&self.staging_dir).await?;
-        Ok(crate::unique_tmp_path(&self.staging_dir.join(filename)))
+        // The blob is keyed by its file name when it is uploaded; the staging
+        // file only needs a name that fits the file system.
+        Ok(crate::unique_tmp_path(&self.staging_dir.join("blob")))
     }
 
     pub async fn upload_blob(
