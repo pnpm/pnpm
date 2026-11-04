@@ -313,16 +313,19 @@ impl InstallPackageBySnapshot<'_> {
             }
             VariantFetch::Tarball { resolution, source } => (resolution, source),
         };
-        self.fetch_stored_variants::<Reporter>(fetch, variations, selected, allow_build).await?;
-        self.tarball_cas_paths::<Reporter>(TarballFetch {
+        let linked = self.tarball_cas_paths::<Reporter>(TarballFetch {
             download: fetch.download,
             resolution: &resolution,
             package_key: fetch.package_key,
             package_id: fetch.package_id,
             allow_build,
             source,
-        })
-        .await
+        });
+        let stored =
+            self.fetch_stored_variants::<Reporter>(fetch, variations, selected, allow_build);
+        // The archives kept for other platforms download beside the linked
+        // one; the client's per-host limit bounds them.
+        futures_util::future::try_join(linked, stored).await.map(|(linked, ())| linked)
     }
 
     /// Returns the fetched CAS paths alongside extracted package metadata and

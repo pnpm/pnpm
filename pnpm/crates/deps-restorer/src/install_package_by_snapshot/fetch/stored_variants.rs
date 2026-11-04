@@ -33,24 +33,31 @@ impl InstallPackageBySnapshot<'_> {
         allow_build: &(impl Fn(&str) -> Option<bool> + Send + Sync),
     ) -> Result<(), InstallPackageBySnapshotError> {
         let supported = self.ctx.config.supported_architectures.as_ref();
+        let mut downloads = Vec::new();
         for archive in stored_archives(variations, &fetch_platforms(supported), linked) {
-            let config = self.ctx.config;
-            let VariantFetch::Tarball { resolution, source } =
-                archive_fetch(archive, variations, fetch.package_key, config)?
-            else {
-                continue;
-            };
-            self.tarball_cas_paths::<Reporter>(TarballFetch {
-                download: fetch.download,
-                resolution: &resolution,
-                package_key: fetch.package_key,
-                package_id: fetch.package_id,
-                allow_build,
-                source,
-            })
-            .await?;
+            if let VariantFetch::Tarball { resolution, source } =
+                archive_fetch(archive, variations, fetch.package_key, self.ctx.config)?
+            {
+                downloads.push((resolution, source));
+            }
         }
-        Ok(())
+        futures_util::future::try_join_all(
+            downloads
+                .into_iter()
+                .map(|(resolution, source)| async move {
+                    self.tarball_cas_paths::<Reporter>(TarballFetch {
+                        download: fetch.download,
+                        resolution: &resolution,
+                        package_key: fetch.package_key,
+                        package_id: fetch.package_id,
+                        allow_build,
+                        source,
+                    })
+                    .await
+                }),
+        )
+        .await
+        .map(drop)
     }
 }
 
