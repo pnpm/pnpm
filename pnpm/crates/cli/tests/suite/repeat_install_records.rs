@@ -603,9 +603,12 @@ fn a_malformed_declaration_is_left_to_the_install() {
     write_workspace(&workspace);
     fs::write(
         workspace.join("packages/b/package.json"),
-        r#"{"name":"b","version":"1.0.0","bin":{"b":"cli.js"},"dependencies":{"x":1}}"#,
+        r#"{"name":"b","version":"1.0.0","bin":{"b":"cli.js"},"dependencies":{"x":1,"c":"workspace:*"}}"#,
     )
     .expect("write packages/b/package.json");
+    fs::create_dir_all(workspace.join("packages/c")).expect("create packages/c");
+    fs::write(workspace.join("packages/c/package.json"), r#"{"name":"c","version":"1.0.0"}"#)
+        .expect("write packages/c/package.json");
     fs::write(
         workspace.join(".pnpmfile.cjs"),
         "module.exports = { hooks: { readPackage (pkg) {\n  if (process.env.REPAIR && pkg.dependencies && pkg.dependencies.x === 1) delete pkg.dependencies.x\n  return pkg\n} } }\n",
