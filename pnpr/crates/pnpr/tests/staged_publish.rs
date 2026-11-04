@@ -208,6 +208,32 @@ async fn staged_publish_is_held_back_until_approved() {
 }
 
 #[tokio::test]
+async fn staged_publish_rejects_invalid_semver_versions() {
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let app = router(static_config(storage.clone()));
+    let token = add_user_and_get_token(app.clone(), "alice", "secret").await;
+    let archive = npm_tgz("invalid-staged", "banana", b"invalid");
+    let body = publish_doc("invalid-staged", "banana", &archive);
+
+    let response = app
+        .oneshot(json_request("POST", "/npm/-/stage/package/invalid-staged", &body, Some(&token)))
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    assert!(
+        pnpr_fixtures::read_hosted_document(
+            &storage,
+            "",
+            pnpr_storage::Ecosystem::Npm,
+            "invalid-staged",
+        )
+        .is_none(),
+    );
+}
+
+#[tokio::test]
 async fn rejecting_a_staged_publish_deletes_it_without_publishing() {
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();

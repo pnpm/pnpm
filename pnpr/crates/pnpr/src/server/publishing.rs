@@ -260,8 +260,7 @@ async fn stage_and_commit(
 }
 
 fn check_body(name: &CanonicalPackageName, incoming: &Value) -> Result<(), RegistryError> {
-    check_body_name(name, incoming)?;
-    check_body_versions(incoming)
+    check_body_name(name, incoming)
 }
 
 /// Reject a publish whose body name disagrees with the URL. npm and verdaccio

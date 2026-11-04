@@ -809,7 +809,7 @@ async fn a_version_without_an_any_archive_rejects_a_non_semver_version() {
     assert!(
         pnpr_fixtures::read_hosted_document(
             tmp.path(),
-            "",
+            "acme",
             pnpr_storage::Ecosystem::Npm,
             "@acme/fast",
         )
