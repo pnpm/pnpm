@@ -2,7 +2,9 @@
 //! archives it built with `--upload-variant`, and a final publish references
 //! them with `--variant-integrity`.
 
-use super::{PublishArgs, PublishScope, given_archives, packed::PackedDirectory};
+use super::{
+    PublishArgs, PublishScope, given_archives, packed::PackedDirectory, recursive::publish_eligible,
+};
 use crate::cli_args::registry_client::build_publish_client;
 use miette::{Context, IntoDiagnostic};
 use pnpm_config::Config;
@@ -214,9 +216,8 @@ impl PublishArgs {
         let given = given_archives::parse(&self.flags.variants.variant_integrity)?;
         let packages: Vec<&str> = graph
             .iter()
-            .filter_map(|(_, node)| {
-                given_archives::publishing_name(node.package.project.manifest.value())
-            })
+            .filter_map(|(_, node)| publish_eligible(node.package.project.manifest.value()))
+            .map(|(name, _)| name)
             .collect();
         given_archives::check_recursive(&given, &packages)
     }
@@ -247,7 +248,7 @@ fn staged_directory(
 /// Whether a value of `given` names, by its package, the project whose own
 /// manifest is `manifest`.
 fn names_any(given: &[given_archives::GivenIntegrity], manifest: &Value) -> bool {
-    let name = given_archives::publishing_name(manifest);
+    let name = publish_eligible(manifest).map(|(name, _)| name);
     given
         .iter()
         .any(|value| {

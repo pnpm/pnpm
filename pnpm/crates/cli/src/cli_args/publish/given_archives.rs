@@ -83,12 +83,6 @@ pub(super) fn check_recursive(given: &[GivenIntegrity], packages: &[&str]) -> mi
     Ok(())
 }
 
-/// The name the project whose own manifest is `manifest` publishes under:
-/// the name its `publishConfig` renames it to, or else its own `name`.
-pub(super) fn publishing_name(manifest: &serde_json::Value) -> Option<&str> {
-    crate::cli_args::changelog::published_name(manifest).or_else(|| manifest.get("name")?.as_str())
-}
-
 /// The archives of `package` that `given` names, against its
 /// `declaration`: the `any` archive, and every platform variant by its tag.
 /// `None` when `given` names none of this package's archives. Every entry

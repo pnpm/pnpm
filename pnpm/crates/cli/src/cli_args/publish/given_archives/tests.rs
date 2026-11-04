@@ -1,4 +1,5 @@
-use super::{GivenIntegrity, archives_of, check_recursive, parse, publishing_name};
+use super::{GivenIntegrity, archives_of, check_recursive, parse};
+use crate::cli_args::publish::recursive::publish_eligible;
 use pnpm_pack::variants::VariantDeclaration;
 use pnpm_publish::VariantArchive;
 use serde_json::json;
@@ -96,11 +97,20 @@ fn a_recursive_publish_takes_values_of_its_selected_packages() {
 }
 
 #[test]
-fn a_renamed_package_is_named_by_its_publishing_name() {
-    let renamed = json!({ "name": "example-cli-src", "publishConfig": { "name": "example-cli" } });
-    assert_eq!(publishing_name(&renamed), Some("example-cli"));
-    assert_eq!(publishing_name(&json!({ "name": "example-cli" })), Some("example-cli"));
-    let packages = [publishing_name(&renamed).unwrap()];
+fn a_renamed_package_is_named_by_its_published_name() {
+    let renamed = json!({
+        "name": "example-cli-src",
+        "version": "4.0.0",
+        "publishConfig": { "name": "example-cli" },
+    });
+    let private_root = json!({
+        "name": "workspace-root",
+        "version": "0.0.0",
+        "private": true,
+        "publishConfig": { "name": "example-cli" },
+    });
+    assert_eq!(publish_eligible(&private_root), None, "a private project publishes nothing");
+    let packages = [publish_eligible(&renamed).unwrap().0];
     check_recursive(&values(&["example-cli~linux-x64=sha512-a"]), &packages).unwrap();
     check_recursive(&values(&["example-cli-src~linux-x64=sha512-a"]), &packages).unwrap_err();
 }

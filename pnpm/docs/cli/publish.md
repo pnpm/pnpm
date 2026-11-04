@@ -125,7 +125,7 @@ With `--json`, pnpm prints the package's name and version, and each archive's ta
 
 Publish the version from archives other jobs uploaded with `--upload-variant`, given by the values they printed. Repeat it once per entry of `publishConfig.variants`, the `any` entry included, naming each by any one of its targets. With `--recursive`, name the package first: `<name>~<target>=<integrity>`.
 
-pnpm packs none of the package's archives. Before publishing, it checks that every entry has exactly one value and that the registry still holds each archive for this account. It fails naming the archive whose upload job has to run again.
+pnpm packs none of the archives of a package that a value names. Before publishing, it checks that every entry has exactly one value and that the registry still holds each archive for this account. It fails naming the archive whose upload job has to run again. With `--recursive`, a selected package that no value names is packed and published as usual, and a value must name a package exactly one selected, publishable project publishes as.
 
 ### --release-notes &lt;file\>
 
