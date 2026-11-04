@@ -153,26 +153,38 @@ pub(super) fn rebase_packument(
     let (ours, current) = (ours.as_object()?, current.as_object()?);
     let mut out = current.clone();
     for key in base.keys().chain(ours.keys()) {
-        let (theirs_before, mine) = (base.get(key), ours.get(key));
-        if theirs_before == mine {
-            continue;
-        }
-        let keyed = matches!(key.as_str(), "versions" | "dist-tags" | "time");
-        match (theirs_before, mine, out.get(key)) {
-            (before, Some(Value::Object(after)), Some(Value::Object(now))) if keyed => {
-                let before = before.and_then(Value::as_object).unwrap_or(&empty);
-                let merged = rebase_keys(before, after, now);
-                out.insert(key.clone(), Value::Object(merged));
-            }
-            (_, Some(mine), _) => {
-                out.insert(key.clone(), mine.clone());
-            }
-            (_, None, _) => {
-                out.shift_remove(key);
-            }
-        }
+        rebase_field(&mut out, key, base.get(key), ours.get(key));
     }
     Some(Value::Object(out))
+}
+
+/// Apply to `out` the change from `before` to `mine` of its field `key`.
+fn rebase_field(
+    out: &mut Map<String, Value>,
+    key: &str,
+    before: Option<&Value>,
+    mine: Option<&Value>,
+) {
+    if before == mine {
+        return;
+    }
+    let keyed = matches!(key, "versions" | "dist-tags" | "time");
+    match (mine, out.get(key)) {
+        (Some(Value::Object(after)), Some(Value::Object(now))) if keyed => {
+            let before = before
+                .and_then(Value::as_object)
+                .cloned()
+                .unwrap_or_default();
+            let merged = rebase_keys(&before, after, now);
+            out.insert(key.to_string(), Value::Object(merged));
+        }
+        (Some(mine), _) => {
+            out.insert(key.to_string(), mine.clone());
+        }
+        (None, _) => {
+            out.shift_remove(key);
+        }
+    }
 }
 
 /// `now` with every key `after` changed from `before` taken from `after`, and
