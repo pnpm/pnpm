@@ -271,6 +271,25 @@ fn modules_dir_opts(root: &Path, project: &str) -> FindWorkspaceProjectsOpts {
     }
 }
 
+/// Whether the keys of `left` and `right` are equal and the walk finds the
+/// same projects with both.
+fn same_key_and_projects(
+    root: &Path,
+    left: &FindWorkspaceProjectsOpts,
+    right: &FindWorkspaceProjectsOpts,
+) -> (bool, bool) {
+    let names = |opts: &FindWorkspaceProjectsOpts| {
+        let mut names: Vec<PathBuf> = find_workspace_projects(root, opts)
+            .unwrap()
+            .into_iter()
+            .map(|project| project.root_dir)
+            .collect();
+        names.sort();
+        names
+    };
+    (left.discovery_key(root) == right.discovery_key(root), names(left) == names(right))
+}
+
 #[test]
 fn modules_directories_the_walk_skips_by_name_find_the_same_projects() {
     let tmp = TempDir::new().unwrap();
@@ -281,7 +300,7 @@ fn modules_directories_the_walk_skips_by_name_find_the_same_projects() {
     let in_a = modules_dir_opts(tmp.path(), "packages/a");
     let in_b = modules_dir_opts(tmp.path(), "packages/b");
 
-    assert_eq!(in_a.discovery_key(tmp.path()), in_b.discovery_key(tmp.path()));
+    assert_eq!(same_key_and_projects(tmp.path(), &in_a, &in_b), (true, true));
 }
 
 #[test]
@@ -295,21 +314,19 @@ fn other_patterns_do_not_find_the_same_projects() {
 }
 
 /// On a case-insensitive filesystem the configured `node_modules` names the
-/// `NODE_MODULES` on disk, which only the exclusion skips.
+/// `NODE_MODULES` on disk, which only the exclusion skips, so the projects
+/// differ. On a case-sensitive one it names nothing, and they do not. The
+/// keys follow the projects either way.
 #[test]
-fn a_modules_directory_spelled_otherwise_on_disk_changes_the_projects() {
+fn a_modules_directory_spelled_otherwise_on_disk_keys_by_the_projects() {
     let tmp = TempDir::new().unwrap();
     make_project(tmp.path(), "packages/a", "a");
     make_project(tmp.path(), "packages/a/NODE_MODULES/dep", "dep");
     make_project(tmp.path(), "packages/b", "b");
-    let case_insensitive = tmp
-        .path()
-        .join("packages/a/node_modules")
-        .exists();
 
     let in_a = modules_dir_opts(tmp.path(), "packages/a");
     let in_b = modules_dir_opts(tmp.path(), "packages/b");
 
-    let same = in_a.discovery_key(tmp.path()) == in_b.discovery_key(tmp.path());
-    assert_eq!(same, !case_insensitive, "case-insensitive: {case_insensitive}");
+    let (same_key, same_projects) = same_key_and_projects(tmp.path(), &in_a, &in_b);
+    assert_eq!(same_key, same_projects);
 }
