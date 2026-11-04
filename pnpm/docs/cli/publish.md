@@ -248,7 +248,7 @@ Under trusted publishing, pnpm attaches provenance to a public package from a pu
 Use `--no-provenance` (or `--provenance=false`) to publish without it, for example from a self-hosted runner.
 Use [`provenance`](#provenance) to set a default.
 
-For a package with [`publishConfig.variants`](../package_json.md#publishconfigvariants), one statement names every archive of the version, including those other jobs uploaded with `--upload-variant`. `--upload-variant` itself does not sign provenance.
+For a package with [`publishConfig.variants`](../package_json.md#publishconfigvariants), one statement names every archive the publish supplies: the archive that targets `any` and each platform variant, including those other jobs uploaded with `--upload-variant`. A version without an `any` archive gets one that the registry generates for npm clients, and the statement does not name it. `--upload-variant` itself does not sign provenance.
 
 ### --filter &lt;package_selector\>
 
