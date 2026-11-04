@@ -966,6 +966,8 @@ fn a_workspace_with_project_lockfiles_verifies_patches_after_a_project_is_remove
         .output()
         .expect("run pnpm install");
 
-    assert!(!output.status.success(), "{}", combined_output(&output));
+    let text = combined_output(&output);
+    assert!(!output.status.success(), "{text}");
+    assert!(text.contains("ERR_PNPM_UNUSED_PATCH"), "{text}");
     drop((root, mock_instance));
 }
