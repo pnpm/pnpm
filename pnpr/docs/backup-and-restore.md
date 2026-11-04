@@ -106,25 +106,38 @@ pnpr verify --prune-orphans
 
 To migrate hosted packages from a local directory to an S3 bucket:
 
-```sh
-# Dry run: check what would be transferred
-pnpr migrate-storage --to-bucket my-registry-bucket --dry-run
+1. Stop pnpr, and move the package metadata into the libSQL database the S3
+   deployment will use, for example by importing the SQLite database
+   (`<storage>/.metadata/metadata.sqlite` by default) into Turso.
+2. Point `metadata.url` at that database, still without an `s3:` block:
 
-# Execute migration and compare each uploaded blob with its source
-pnpr migrate-storage --to-bucket my-registry-bucket --verify
-```
+   ```yaml
+   metadata:
+     url: libsql://<your-db>.turso.io
+     authToken: ${PNPR_LIBSQL_TOKEN}
+   ```
 
-After migration completes, update your `pnpr.yaml` to point to the S3 bucket:
+3. Move the archives. `migrate-storage` moves archives only and refuses
+   metadata an S3 deployment cannot read:
 
-```yaml
-s3:
-  bucket: my-registry-bucket
-  region: us-east-1
-metadata:
-  # The libSQL database that holds the package metadata.
-  url: libsql://<your-db>.turso.io
-  authToken: ${PNPR_LIBSQL_TOKEN}
-```
+   ```sh
+   # Dry run: check what would be transferred
+   pnpr migrate-storage --to-bucket my-registry-bucket --dry-run
+
+   # Execute migration and compare each uploaded blob with its source
+   pnpr migrate-storage --to-bucket my-registry-bucket --verify
+   ```
+
+4. Add the `s3:` block, keeping `metadata.url`:
+
+   ```yaml
+   s3:
+     bucket: my-registry-bucket
+     region: us-east-1
+   metadata:
+     url: libsql://<your-db>.turso.io
+     authToken: ${PNPR_LIBSQL_TOKEN}
+   ```
 
 ## Importing htpasswd users
 
