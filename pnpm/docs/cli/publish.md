@@ -98,6 +98,8 @@ When publishing recursively (`pnpm -r publish`), send all selected packages to t
 
 The target registry has to implement the batch publish endpoint ([pnpr](https://github.com/pnpm/pnpm/tree/main/pnpr) does); registries that don't are reported with an `ERR_PNPM_BATCH_PUBLISH_UNSUPPORTED` error. The batch is processed all-or-nothing: if any package in the batch fails validation, none of the packages are published.
 
+A package that declares [`publishConfig.variants`](../package_json.md#publishconfigvariants) can be published in a batch to a registry declared with [`serverType: pnpr`](../registries.md#servertype). In such a batch, pnpm first uploads the archives it packed for every package to the registry's staging area, and checks that the registry still holds each archive another job uploaded with [`--upload-variant`](#--upload-variant-target). The batch then references all of them by integrity. One batch references at most 256 archives per registry; a batch with variants that needs more fails with `ERR_PNPM_BATCH_PUBLISH_TOO_MANY_ARCHIVES`.
+
 The selected packages are grouped by the registry each one
 publishes to, and one request is sent per group. Every package in a group must
 authenticate with the same credential. A scope-specific token shared across the
@@ -249,6 +251,14 @@ Use `--no-provenance` (or `--provenance=false`) to publish without it, for examp
 Use [`provenance`](#provenance) to set a default.
 
 For a package with [`publishConfig.variants`](../package_json.md#publishconfigvariants), one statement names every archive the publish supplies: the archive that targets `any` and each platform variant, including those other jobs uploaded with `--upload-variant`. A version without an `any` archive gets one that the registry generates for npm clients, and the statement does not name it. `--upload-variant` itself does not sign provenance.
+
+Running a publish to a registry declared with [`serverType: pnpr`](../registries.md#servertype) again is safe, with or without provenance. A rerun that signs provenance again sends a new statement, so the registry answers that the version is already published. pnpm then reports the version as published only when all of these hold:
+
+- the version's release record names the same archives, the archive that targets `any` and each platform variant;
+- when the rerun signs provenance, the version has a statement naming every one of those archives;
+- the dist-tag the publish sets points at the version.
+
+Otherwise it fails with `ERR_PNPM_PUBLISHED_RELEASE_DIFFERS` and names what differs. A version without an `any` archive is compared by its variants only.
 
 ### --filter &lt;package_selector\>
 

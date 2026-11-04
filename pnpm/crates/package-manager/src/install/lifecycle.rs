@@ -22,7 +22,7 @@ use std::sync::Mutex;
 /// — the install isn't a workspace install, so the caller should use
 /// the top-level `Install.manifest` as its only importer and pass
 /// `None` for the `workspace:`-spec lookup.
-pub(super) fn load_workspace_projects(
+pub(crate) fn load_workspace_projects(
     workspace_root: &std::path::Path,
     workspace_manifest: Option<&pnpm_workspace::WorkspaceManifest>,
     ignored_directories: &[std::path::PathBuf],
@@ -50,7 +50,7 @@ pub(super) fn workspace_projects_opts(
 /// [`load_workspace_projects`] for the repeat-install checks, which read the
 /// projects the install itself would read: the `--workspace-packages`
 /// patterns when given, else the ones `workspace_manifest` declares.
-pub(super) fn load_checked_workspace_projects(
+pub(crate) fn load_checked_workspace_projects(
     config: &Config,
     workspace_root: &std::path::Path,
     workspace_manifest: Option<&pnpm_workspace::WorkspaceManifest>,
@@ -64,7 +64,7 @@ pub(super) fn load_checked_workspace_projects(
 }
 
 /// The discovery options of [`load_checked_workspace_projects`].
-pub(super) fn checked_projects_opts(
+pub(crate) fn checked_projects_opts(
     config: &Config,
     workspace_manifest: &pnpm_workspace::WorkspaceManifest,
 ) -> pnpm_workspace::FindWorkspaceProjectsOpts {

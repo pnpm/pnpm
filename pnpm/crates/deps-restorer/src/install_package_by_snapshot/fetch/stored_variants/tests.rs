@@ -1,12 +1,9 @@
 use super::{fetch_platforms, stored_archives};
 use pnpm_lockfile::{
-    Floor, HostFloors, LockfileResolution, PlatformAssetResolution, PlatformAssetTarget,
+    Floor, HostFloors, LockfileResolution, NodeAbi, PlatformAssetResolution, PlatformAssetTarget,
     PlatformSelector, RegistryResolution, VariationsResolution,
 };
-use pnpm_package_is_installable::{
-    Architecture, ArchitectureAxes, Libc, LibcFamily, NamedPlatform, Os, SupportedArchitectures,
-    SupportedPlatform,
-};
+use pnpm_package_is_installable::{ArchitectureAxes, SupportedArchitectures};
 
 const INTEGRITY: &str = "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==";
 
@@ -89,20 +86,19 @@ fn no_supported_architectures_stores_nothing_beside_the_linked_archive() {
     assert!(fetch_platforms(None).is_empty());
 }
 
+fn listed(entries: &[&str]) -> SupportedArchitectures {
+    SupportedArchitectures::Platforms(
+        entries
+            .iter()
+            .map(|entry| entry.parse().expect("a platform entry"))
+            .collect(),
+    )
+}
+
 /// A listed platform states its glibc floor by its `manylinux` baseline.
 #[test]
 fn a_listed_platform_states_its_glibc_floor() {
-    let named = NamedPlatform {
-        os: Os::Linux,
-        architecture: Architecture::Ppc64Le,
-        libc: Some(Libc {
-            family: LibcFamily::Glibc,
-            baseline: Some("manylinux_2_26".to_string()),
-        }),
-    };
-    let supported = SupportedArchitectures::Platforms(vec![SupportedPlatform::Named(named)]);
-
-    let platforms = fetch_platforms(Some(&supported));
+    let platforms = fetch_platforms(Some(&listed(&["linux-ppc64le-manylinux_2_26"])));
 
     assert_eq!(platforms.len(), 1);
     assert_eq!((platforms[0].os.as_str(), platforms[0].cpu.as_str()), ("linux", "ppc64"));
@@ -164,4 +160,34 @@ fn the_axes_form_reads_platform_aliases() {
         .map(|platform| (platform.cpu.as_str(), platform.libc.as_deref()))
         .collect();
     assert_eq!(named, [("arm64", Some("musl"))]);
+}
+
+/// An OS the axes and the older names never modelled, such as FreeBSD,
+/// keeps its variants as a platform tag.
+#[test]
+fn a_listed_freebsd_platform_stores_its_variant() {
+    let variations = VariationsResolution::new(vec![
+        PlatformAssetResolution::any(registry()),
+        variant("linux", "x64", None),
+        variant("freebsd", "x64", None),
+    ]);
+    let linked = &variations.variants[1];
+
+    let platforms = fetch_platforms(Some(&listed(&["freebsd-x64"])));
+
+    assert_eq!(tags(&stored_archives(&variations, &platforms, linked)), ["freebsd-x64"]);
+}
+
+#[test]
+fn a_listed_platform_states_its_napi_and_node_abi_floors() {
+    let platforms = fetch_platforms(Some(&listed(&["linux-arm64-napi8", "darwin-arm64-node127"])));
+
+    let floors: Vec<(Option<u32>, Option<NodeAbi>)> = platforms
+        .iter()
+        .map(|platform| {
+            let floors = platform.floors.expect("another platform's floors are stated");
+            (floors.napi, floors.node_abi)
+        })
+        .collect();
+    assert_eq!(floors, [(Some(8), None), (None, Some(NodeAbi::Node(127)))]);
 }

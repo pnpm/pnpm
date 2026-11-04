@@ -308,13 +308,10 @@ async fn install_writes_workspace_state() {
         "lastValidatedTimestamp should be populated, got {}",
         state.last_validated_timestamp,
     );
-    let manifest_mtime = crate::optimistic_repeat_install::file_mtime(manifest.path())
-        .expect("manifest should have an mtime");
+    let manifest_mtime =
+        crate::install_state::file_mtime(manifest.path()).expect("manifest should have an mtime");
     assert!(
-        !crate::optimistic_repeat_install::modified_at_or_after(
-            manifest_mtime,
-            state.last_validated_timestamp,
-        ),
+        !crate::install_state::modified_at_or_after(manifest_mtime, state.last_validated_timestamp,),
         "fresh install state should cover the validated manifest mtime",
     );
 

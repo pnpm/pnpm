@@ -7,6 +7,7 @@ pub use update_scope::{UpdateDepth, UpdateReuseScope, UpdateTargets, VersionLine
 pub use reuse::real_package_name_of;
 
 pub use tree_ctx::TreeCtx;
+pub(crate) use tree_ctx::declaring_manifest_dir;
 
 pub use workspace_ctx::WorkspaceTreeCtx;
 
@@ -26,7 +27,7 @@ use derive_more::{Display, Error};
 use futures_util::future;
 use miette::Diagnostic;
 use pipe_trait::Pipe;
-use pnpm_catalogs_resolver::{CatalogAnchor, CatalogResolutionError};
+use pnpm_catalogs_resolver::CatalogResolutionError;
 use pnpm_hooks::PnpmfileHooks;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_patching::{PatchGroupRecord, PatchKeyConflictError};

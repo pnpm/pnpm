@@ -8,6 +8,10 @@ pub use request::PublishHttpError;
 pub(crate) use request::{PublishResponse, publish_with_otp_handling, web_auth_fetch_options};
 pub use uploads::{UploadedArchive, upload_variant_archives};
 pub use variants::{PackedVariant, StagedReference, VariantArchive};
+pub(crate) use variants::{
+    StagedLengths, check_registry as check_variants_registry, reference_staged_archives,
+    staged_archives as variant_staged_archives, staged_lengths,
+};
 
 use std::collections::{BTreeMap, HashSet};
 
@@ -174,13 +178,11 @@ where
         return Ok(summary);
     }
 
-    let response = upload_package::<Sys, Reporter>(pkg, opts, network, &resolved, &summary).await?;
-
-    finish_publish::<Reporter>(
-        response,
-        &mut summary,
-        &PublishedPkg { name: &name, version: &version, is_stage },
-    )?;
+    let uploaded = upload_package::<Sys, Reporter>(pkg, opts, network, &resolved, &summary).await;
+    let published = PublishedPkg { name: &name, version: &version, is_stage };
+    let context = (opts, network, &resolved);
+    release_retry::settle_publish::<Reporter>(pkg, context, uploaded, (&mut summary, &published))
+        .await?;
     wait_for_published_packages::<Reporter>(
         &[(&name, &version)],
         &registry,
@@ -418,6 +420,9 @@ pub enum PublishPackedPkgError {
     #[diagnostic(transparent)]
     Provenance(ProvenanceGenError),
 
+    #[diagnostic(transparent)]
+    PublishedRelease(release_retry::PublishedReleaseError),
+
     #[display("invalid registry URL: {_0}")]
     InvalidUrl(url::ParseError),
 
@@ -490,6 +495,7 @@ mod tests;
 mod document;
 use document::manifest_string;
 mod provenance;
+mod release_retry;
 mod uploads;
 mod variants;
 

@@ -96,7 +96,7 @@ fn check_snapshot_peers(inputs: SnapshotPeers<'_>) {
     }
 }
 
-fn snapshot_dependency<'a>(
+pub(super) fn snapshot_dependency<'a>(
     snapshot: &'a SnapshotEntry,
     name: &PkgName,
 ) -> Option<&'a SnapshotDepRef> {
@@ -127,7 +127,9 @@ pub(crate) fn resolved_snapshot_version(
     )
 }
 
-fn child_keys(snapshot: Option<&SnapshotEntry>) -> impl Iterator<Item = PkgNameVerPeer> + '_ {
+pub(super) fn child_keys(
+    snapshot: Option<&SnapshotEntry>,
+) -> impl Iterator<Item = PkgNameVerPeer> + '_ {
     snapshot
         .into_iter()
         .flat_map(|snapshot| {

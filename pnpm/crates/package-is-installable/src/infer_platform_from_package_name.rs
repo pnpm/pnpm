@@ -1,38 +1,9 @@
 //! Infers a package's supported platforms from the tokens of its name.
 
-use crate::check_platform::{WantedPlatform, WantedPlatformRef};
-
-fn os_for_token(token: &str) -> Option<&'static str> {
-    match token {
-        "aix" => Some("aix"),
-        "android" => Some("android"),
-        "darwin" | "macos" | "osx" => Some("darwin"),
-        "freebsd" => Some("freebsd"),
-        "linux" => Some("linux"),
-        "netbsd" => Some("netbsd"),
-        "openbsd" => Some("openbsd"),
-        "openharmony" => Some("openharmony"),
-        "sunos" => Some("sunos"),
-        "win32" | "windows" => Some("win32"),
-        _ => None,
-    }
-}
-
-fn cpu_for_token(token: &str) -> Option<&'static str> {
-    match token {
-        "arm" | "armv6" | "armv7" => Some("arm"),
-        "arm64" | "aarch64" => Some("arm64"),
-        "ia32" => Some("ia32"),
-        "loong64" => Some("loong64"),
-        "mips64el" => Some("mips64el"),
-        "ppc64" | "ppc64le" => Some("ppc64"),
-        "riscv64" => Some("riscv64"),
-        "s390x" => Some("s390x"),
-        "x64" | "amd64" => Some("x64"),
-        "wasm32" => Some("wasm32"),
-        _ => None,
-    }
-}
+use crate::{
+    check_platform::{WantedPlatform, WantedPlatformRef},
+    node_platform_names::{cpu_for_token, os_for_token},
+};
 
 fn libc_for_token(token: &str) -> Option<&'static str> {
     match token {

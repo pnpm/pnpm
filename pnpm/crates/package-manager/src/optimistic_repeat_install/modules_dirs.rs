@@ -3,8 +3,8 @@ pub(super) mod direct_links;
 pub(super) use direct_links::direct_dependency_link_dangling;
 
 use super::{
-    OptimisticRepeatInstallCheck, manifest_has_required_peers, manifest_has_runtime_deps,
-    manifest_string_field,
+    OptimisticRepeatInstallCheck, hoisted_project_modules_dir, manifest_has_required_peers,
+    manifest_has_runtime_deps, manifest_string_field,
 };
 use pnpm_config::{Config, NodeLinker};
 use pnpm_fs::lexical_normalize;
@@ -107,13 +107,6 @@ fn first_project_missing_recorded_hoisted_modules_dir(
                 && !hoisted_project_modules_dir(root_dir).is_dir();
             missing.then(|| project_id(root_dir, manifest))
         })
-}
-
-/// Where the hoisted linker nests the dependencies of the workspace project at
-/// `root_dir` that it cannot hoist to the root. The walker always uses
-/// `node_modules` here, whatever `modulesDir` says.
-pub(crate) fn hoisted_project_modules_dir(root_dir: &Path) -> PathBuf {
-    root_dir.join("node_modules")
 }
 
 /// A project's `name`, falling back to its root directory.

@@ -7,7 +7,7 @@
 //! The other buckets carry the reason, which the test cannot check.
 
 use super::{super::config_blocks_fast_path, current_settings, isolated_included};
-use crate::optimistic_repeat_install::first_setting_drift;
+use crate::install_state::first_setting_drift;
 use indexmap::IndexMap;
 use pnpm_config::{Config, LinkWorkspacePackages, NodeLinker, TrustPolicy};
 use pnpm_workspace_state::WorkspaceState;

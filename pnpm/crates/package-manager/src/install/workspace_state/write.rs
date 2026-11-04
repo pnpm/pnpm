@@ -19,7 +19,7 @@ pub(crate) struct StateWrite<'a> {
     /// per [`build_workspace_state`].
     pub(crate) filesystem_now_ms: Option<i64>,
     pub(crate) carried: CarriedSettings<'a>,
-    pub(crate) vouched: &'a crate::optimistic_repeat_install::validation::Vouched<'a>,
+    pub(crate) vouched: &'a crate::install_state::validation::Vouched<'a>,
 }
 
 /// The projects a write records.
@@ -28,7 +28,7 @@ pub(crate) struct StateProjects<'a> {
     pub(crate) manifests: crate::DeclaredManifests<'a>,
     /// See [`crate::RepeatInstallManifests::workspace_projects`].
     pub(crate) workspace_projects: Option<&'a [(PathBuf, &'a PackageManifest)]>,
-    /// See [`RecordValidation::lockfile`](crate::optimistic_repeat_install::validation::RecordValidation::lockfile).
+    /// See [`RecordValidation::lockfile`](crate::install_state::validation::RecordValidation::lockfile).
     pub(crate) lockfile: Option<&'a pnpm_lockfile::Lockfile>,
 }
 
@@ -43,7 +43,7 @@ pub(crate) struct CarriedSettings<'a> {
     /// [`WorkspaceStateSettings::registry_prefixes`](pnpm_workspace_state::WorkspaceStateSettings::registry_prefixes)).
     pub(crate) registry_keys_verified: bool,
     /// The `registryRoutes` to record, per
-    /// [`recorded_registry_routes_after_install`](crate::optimistic_repeat_install::recorded_registry_routes_after_install)
+    /// [`recorded_registry_routes_after_install`](crate::install_state::recorded_registry_routes_after_install)
     /// for an install and the recorded ones for a passing check.
     pub(crate) registry_routes: Option<std::collections::BTreeMap<String, String>>,
     /// The recorded dependency groups, runtime setting and store location to
@@ -68,9 +68,9 @@ pub(crate) fn recorded_workspace_state(write: &StateWrite<'_>) -> WorkspaceState
         recorded_auto_dedupe(write.config, write.carried.established_auto_dedupe);
     if write.carried.registry_keys_verified {
         state.settings.registry_prefixes =
-            crate::optimistic_repeat_install::recorded_registry_prefixes(write.config);
+            crate::install_state::recorded_registry_prefixes(write.config);
         state.settings.default_registry =
-            crate::optimistic_repeat_install::recorded_default_registry(write.config);
+            crate::install_state::recorded_default_registry(write.config);
     }
     state.settings.registry_routes.clone_from(&write.carried.registry_routes);
     if let Some(kept) = write.carried.kept_settings {
@@ -81,9 +81,9 @@ pub(crate) fn recorded_workspace_state(write: &StateWrite<'_>) -> WorkspaceState
         state.settings.store_dir.clone_from(&kept.store_dir);
         state.settings.virtual_store_dir.clone_from(&kept.virtual_store_dir);
     }
-    crate::optimistic_repeat_install::validation::record_validation(
+    crate::install_state::validation::record_validation(
         &mut state,
-        &crate::optimistic_repeat_install::validation::RecordValidation {
+        &crate::install_state::validation::RecordValidation {
             workspace_root: write.workspace_root,
             config: write.config,
             project_manifests: write.projects.manifests,

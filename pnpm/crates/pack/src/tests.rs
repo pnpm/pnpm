@@ -1093,6 +1093,7 @@ fn format_pack_output_json_single_vs_multiple() {
         contents: vec!["package.json".to_string()],
         tarball_path: "foo-1.0.0.tgz".to_string(),
         unpacked_size: 42,
+        archive: None,
     };
     let json_single = format_pack_output(&[to_pack_result_json(&result)], true, false);
     let parsed: Value = serde_json::from_str(&json_single).unwrap();
@@ -1127,6 +1128,7 @@ fn text_output_strips_control_characters_from_paths() {
         contents: vec!["evil\u{1b}[2K.js".to_string(), "package.json".into()],
         tarball_path: "foo-1.0.0.tgz".to_string(),
         unpacked_size: 0,
+        archive: None,
     };
     let text = format_pack_output(&[to_pack_result_json(&result)], false, false);
     assert!(!text.contains('\u{1b}'), "escape sequence must be stripped: {text:?}");
@@ -1140,6 +1142,7 @@ fn format_pack_output_text_block() {
         contents: vec!["index.js".to_string(), "package.json".into()],
         tarball_path: "foo-1.0.0.tgz".to_string(),
         unpacked_size: 0,
+        archive: None,
     };
     let text = format_pack_output(&[to_pack_result_json(&result)], false, false);
     assert!(text.starts_with("package: foo@1.0.0"));

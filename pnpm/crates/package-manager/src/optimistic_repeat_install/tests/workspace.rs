@@ -1,16 +1,14 @@
 #[cfg(unix)]
 use super::FOO_LOCKFILE;
 use super::{
-    super::{
-        Decision, OptimisticRepeatInstallCheck, check_optimistic_repeat_install,
-        settings::current_settings,
-    },
+    super::{Decision, OptimisticRepeatInstallCheck, check_optimistic_repeat_install},
     FOO_MANIFEST, RunDepsStatus, assert_content_check_converges_after_collision,
     backdate_validated_files, check, check_with_lockfile, collide_mtimes_with_recorded_state,
     content_check_decision, isolated_included, linked_sibling_decision_for_spec,
     setup_content_check_project, setup_fresh_install, setup_fresh_install_with_config,
     validate_existing_files, workspace_deps_status, write_local_tarball_lockfile, write_state,
 };
+use crate::install_state::settings::current_settings;
 use pnpm_config::Config;
 use pnpm_lockfile::{Lockfile, MaybeLazyLockfile};
 use pnpm_modules_yaml::IncludedDependencies;

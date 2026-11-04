@@ -13,9 +13,7 @@ use super::{
     },
     SnapshotFetch, TarballFetch,
 };
-use pnpm_lockfile::{
-    Floor, HostFloors, PlatformAssetResolution, PlatformSelector, VariationsResolution,
-};
+use pnpm_lockfile::{HostFloors, PlatformAssetResolution, PlatformSelector, VariationsResolution};
 use pnpm_package_is_installable::{NamedPlatform, SupportedArchitectures};
 
 use pnpm_reporter::Reporter;
@@ -100,33 +98,25 @@ pub(super) fn fetch_platforms(supported: Option<&SupportedArchitectures>) -> Vec
 }
 
 /// `named` as a selector: the host's, whose floors are probed, when it names
-/// the host's platform, and otherwise with only the floor it states known.
+/// the host's platform and states no floor, and otherwise with only the
+/// floors and ABI it states known.
 fn named_platform(named: &NamedPlatform, host: &PlatformSelector) -> PlatformSelector {
+    let stated = &named.platform;
     let selector = PlatformSelector {
-        os: named.os.name().to_string(),
-        cpu: named.architecture.cpu().to_string(),
-        libc: named.libc
-            .as_ref()
-            .map(|libc| libc.name().to_string()),
+        os: named.os().to_string(),
+        cpu: named.cpu().to_string(),
+        libc: named.libc().map(str::to_string),
         floors: Some(HostFloors {
-            libc_version: named.libc
-                .as_ref()
-                .and_then(|libc| libc.baseline.as_deref())
-                .and_then(glibc_floor),
-            ..HostFloors::default()
+            libc_version: stated.libc_version,
+            os_version: stated.os_version,
+            napi: stated.napi,
+            node_abi: stated.node_abi,
         }),
     };
     if is_host(&selector, host) && selector.floors == Some(HostFloors::default()) {
         return host.clone();
     }
     selector
-}
-
-/// The glibc floor of a `manylinux_<major>_<minor>` baseline. A
-/// `musllinux` baseline states none: no variant has a musl floor.
-fn glibc_floor(baseline: &str) -> Option<Floor> {
-    let (major, minor) = baseline.strip_prefix("manylinux_")?.split_once('_')?;
-    Some(Floor { major: major.parse().ok()?, minor: minor.parse().ok()? })
 }
 
 /// Whether `selector` names the host's platform, glibc spelled or not.

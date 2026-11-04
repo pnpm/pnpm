@@ -27,8 +27,12 @@ fn read_and_override_manifest(
         workspace_root: dep.dirs.workspace_root,
         manifests_by_dir: check.workspace.manifests_by_dir,
     };
-    overridden_unhooked_manifest(&injected, check.parsed_overrides, check.lockfile_dir)
-        .ok_or_else(|| dep.outdated())
+    overridden_unhooked_manifest(
+        &injected,
+        check.parsed_overrides,
+        check.config.root_project_manifest_dir(check.lockfile_dir),
+    )
+    .ok_or_else(|| dep.outdated())
 }
 
 /// [`unhooked_manifest`] with the overrides applied, as the check reads a
