@@ -668,6 +668,7 @@ async fn a_variant_that_cannot_be_stored_as_one_file_is_refused() {
 async fn with_statement(request: Request<Body>, subjects: &[(&str, &[u8])]) -> Request<Body> {
     use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
     use sha2::Digest as _;
+    use std::fmt::Write as _;
 
     let (parts, body) = request.into_parts();
     let mut document: Value = serde_json::from_slice(&body_bytes(body).await).unwrap();
@@ -676,8 +677,10 @@ async fn with_statement(request: Request<Body>, subjects: &[(&str, &[u8])]) -> R
         .map(|(purl, tgz)| {
             let hex: String = sha2::Sha512::digest(tgz)
                 .iter()
-                .map(|byte| format!("{byte:02x}"))
-                .collect();
+                .fold(String::new(), |mut hex, byte| {
+                    let _ = write!(hex, "{byte:02x}");
+                    hex
+                });
             json!({ "name": purl, "digest": { "sha512": hex } })
         })
         .collect();

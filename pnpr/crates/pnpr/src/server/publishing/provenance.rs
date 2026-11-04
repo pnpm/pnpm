@@ -19,7 +19,7 @@ use pnpr_error::RegistryError;
 use pnpr_package_name::CanonicalPackageName;
 use serde_json::Value;
 use ssri::{Algorithm, Integrity};
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, fmt::Write as _};
 
 /// The subjects of each version's provenance statement, or why its bundle
 /// holds none, by version.
@@ -123,8 +123,10 @@ fn sha512_hex(integrity: Option<&str>) -> Option<String> {
     Some(
         bytes
             .iter()
-            .map(|byte| format!("{byte:02x}"))
-            .collect(),
+            .fold(String::new(), |mut hex, byte| {
+                let _ = write!(hex, "{byte:02x}");
+                hex
+            }),
     )
 }
 

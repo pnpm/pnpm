@@ -12,6 +12,7 @@ use pnpr_fixtures::MockConfigPresets;
 use pnpr_storage::layout::local_blob_path;
 use serde_json::{Value, json};
 use std::{
+    fmt::Write as _,
     net::{Ipv4Addr, SocketAddr, SocketAddrV4},
     path::PathBuf,
     time::Duration,
@@ -86,8 +87,10 @@ fn naming(bundle: &Value, subjects: &[(&str, &str)]) -> Value {
                 .unwrap();
             let hex: String = digest
                 .iter()
-                .map(|byte| format!("{byte:02x}"))
-                .collect();
+                .fold(String::new(), |mut hex, byte| {
+                    let _ = write!(hex, "{byte:02x}");
+                    hex
+                });
             json!({ "name": purl, "digest": { "sha512": hex } })
         })
         .collect();
