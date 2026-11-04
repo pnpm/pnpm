@@ -71,8 +71,10 @@ block of a registry that hosts packages needs a [libSQL](#libsql-metadata)
 `url`, and pnpr refuses to start on a
 `metadata` block that still names a `backend`. Earlier releases could keep
 each package's metadata as a document beside its archives. pnpr does not read
-those documents, so such a store starts with empty metadata: republish its
-packages.
+those documents. A filesystem store from then starts with empty metadata. An
+`s3:` store from then is refused at startup until `metadata.url` names a
+libSQL database, and then starts with empty metadata. Either way, republish
+its packages.
 
 With SQL metadata:
 

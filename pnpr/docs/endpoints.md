@@ -161,7 +161,7 @@ These belong to no single ecosystem, so they sit on the server root.
 
 ### Publication endpoints {#publication-endpoints}
 
-Served when the hosted metadata lives in [SQLite](storage.md#sqlite-metadata).
+Served from the hosted [metadata database](storage.md#sqlite-metadata), SQLite or libSQL.
 A publication is a commit that introduced packages. Its id is the org
 generation it committed. `<org>` is `-` for registries without an `org`.
 
@@ -172,7 +172,7 @@ generation it committed. `<org>` is `-` for registries without an `org`.
 
 ### Release note endpoints {#release-note-endpoints}
 
-Served when the hosted metadata lives in [SQLite](storage.md#sqlite-metadata).
+Served from the hosted [metadata database](storage.md#sqlite-metadata), SQLite or libSQL.
 A note is Markdown of at most 64 KiB, with no control characters other than
 line feed and tab, no carriage returns, and no bidirectional overrides. A
 publish can send notes with it (see

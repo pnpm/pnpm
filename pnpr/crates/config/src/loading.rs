@@ -6,7 +6,10 @@ use super::{
     build_log_config, build_osv_config, build_route_policy, build_ui_config, config_file_in,
     env_replace_lossy, resolve_file_registries, resolve_secrets, resolve_storage_paths,
 };
-use crate::secrets::validate_secret_env_vars;
+use crate::{
+    config_file::{RegistryFile, RegistryGroupFile},
+    secrets::validate_secret_env_vars,
+};
 
 impl Config {
     /// Load YAML from `path` and merge it with runtime values
@@ -208,7 +211,7 @@ impl Config {
         public_url: Option<String>,
         overrides: FeatureOverrides,
     ) -> Result<Self, RegistryError> {
-        let hosts_packages = !file.registries.is_empty() && !overrides.disable_registry;
+        let hosts_packages = declares_a_hosted_registry(&file) && !overrides.disable_registry;
         let storage = build_storage_config(&mut file, base_dir, hosts_packages)?;
         let http = build_http_config(&mut file, base_dir, listen, public_url)?;
         let backend = build_backend_config(file.backend, base_dir)?;
@@ -319,6 +322,19 @@ fn build_metrics_config(
         metrics.validate(listen)?;
     }
     Ok(metrics)
+}
+
+/// Whether the config declares a hosted registry, flat or inside an
+/// ecosystem group: the only registries with package metadata of their own.
+fn declares_a_hosted_registry(file: &ConfigFile) -> bool {
+    file.registries
+        .values()
+        .any(|entry| match entry {
+            RegistryGroupFile::Registry(registry) => matches!(registry, RegistryFile::Hosted(_)),
+            RegistryGroupFile::Ecosystem(group) => group
+                .values()
+                .any(|registry| matches!(registry, RegistryFile::Hosted(_))),
+        })
 }
 
 fn build_storage_config(

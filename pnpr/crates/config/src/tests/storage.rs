@@ -352,6 +352,16 @@ fn an_object_store_that_hosts_no_packages_needs_no_metadata_url() {
     );
 }
 
+/// A proxy that keeps only shared artifacts in the bucket hosts no packages
+/// either.
+#[test]
+fn an_object_store_behind_upstream_registries_needs_no_metadata_url() {
+    let yaml = "storage: /s\ns3:\n  bucket: b\nregistries:\n  npmjs:\n    type: upstream\n    \
+                url: https://registry.npmjs.org/\n    public: true\n";
+    let config = Config::from_yaml_str(yaml, Path::new("/"), listen(), None).unwrap();
+    assert!(matches!(config.storage.metadata, crate::MetadataBackend::Sqlite(_)));
+}
+
 #[test]
 fn a_metadata_backend_is_refused_with_a_pointer_at_the_url() {
     for yaml in [
