@@ -1,7 +1,7 @@
 use super::{
     LockfileFormOptions, LockfileResolution, PlatformAssetResolution, RegistryResolution,
-    RegistryServerType, TarballResolution, VariationsResolution, assert_eq, integrity,
-    render_resolution, selector, target,
+    RegistryServerType, TarballResolution, TarballRevision, VariationsResolution, assert_eq,
+    integrity, render_resolution, revision_registry_tarball_url, selector, target,
 };
 use crate::variant_registry_tarball_url;
 
@@ -11,11 +11,28 @@ const MUSL: &str = "sha512-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
 const DARWIN: &str = "sha512-CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC==";
 const DARWIN_URL: &str = "https://cdn.example/widget-darwin-arm64.tgz";
 
+fn revision() -> TarballRevision {
+    TarballRevision::try_from(2).unwrap()
+}
+
+/// The `any` archive's URL on its revision route, `<name>@<version>+r2`.
+fn any_url() -> String {
+    revision_registry_tarball_url("@acme/widget", "1.2.3", revision(), REGISTRY).unwrap()
+}
+
 fn tarball(url: String, digest: &str) -> LockfileResolution {
+    revised_tarball(url, digest, None)
+}
+
+fn revised_tarball(
+    url: String,
+    digest: &str,
+    revision: Option<TarballRevision>,
+) -> LockfileResolution {
     LockfileResolution::Tarball(TarballResolution {
         tarball: url,
         integrity: Some(integrity(digest)),
-        revision: None,
+        revision,
         git_hosted: None,
         path: None,
     })
@@ -29,7 +46,7 @@ fn registry(digest: &str) -> LockfileResolution {
 }
 
 /// The resolved archives of `@acme/widget@1.2.3`, revision 2: the `any`
-/// archive and a musl variant on their registry routes, and a darwin
+/// archive on its revision route and a musl variant on its variant route, and a darwin
 /// variant at a URL no route reconstructs.
 fn resolved() -> VariationsResolution {
     let musl = PlatformAssetResolution {
@@ -41,7 +58,7 @@ fn resolved() -> VariationsResolution {
         variant_registry_tarball_url("@acme/widget", "1.2.3", &musl_tag, Some(2), REGISTRY)
             .unwrap();
     let mut variations = VariationsResolution::new(vec![
-        PlatformAssetResolution::any(tarball(format!("{REGISTRY}@acme/widget@1.2.3"), ANY)),
+        PlatformAssetResolution::any(revised_tarball(any_url(), ANY, Some(revision()))),
         PlatformAssetResolution { resolution: tarball(musl_url, MUSL), ..musl },
         PlatformAssetResolution {
             resolution: tarball(DARWIN_URL.to_string(), DARWIN),
@@ -79,7 +96,13 @@ fn variations_round_trip_through_the_lockfile() {
         panic!("the archives stay variations");
     };
     assert_eq!(variations.revision, Some(2));
-    assert_eq!(variations.variants[0].resolution, registry(ANY));
+    assert_eq!(
+        variations.variants[0].resolution,
+        LockfileResolution::Registry(RegistryResolution {
+            integrity: integrity(ANY),
+            revision: Some(revision()),
+        }),
+    );
     assert_eq!(variations.variants[1].resolution, registry(MUSL));
     assert_eq!(variations.variants[2].resolution, tarball(DARWIN_URL.to_string(), DARWIN));
 
@@ -94,6 +117,16 @@ fn variations_round_trip_through_the_lockfile() {
     assert_eq!(selected(read, "linux", "x64", Some("musl")), MUSL);
     assert_eq!(selected(read, "darwin", "arm64", None), DARWIN);
     assert_eq!(selected(read, "freebsd", "x64", None), ANY);
+    let Some(LockfileResolution::Registry(any)) =
+        read.any_variant().map(|variant| &variant.resolution)
+    else {
+        panic!("the any archive reads back in the registry form");
+    };
+    let any_revision = any.revision.expect("the any archive keeps its revision");
+    assert_eq!(
+        revision_registry_tarball_url("@acme/widget", "1.2.3", any_revision, REGISTRY),
+        Some(any_url()),
+    );
 }
 
 /// Drop the indentation every line of `text` shares.
