@@ -555,3 +555,37 @@ fn a_filtered_install_with_a_pnpmfile_still_fails_on_no_match() {
         .failure();
     drop((root, mock_instance));
 }
+
+/// CI freezes a non-empty lockfile by default, and a frozen install never
+/// short-circuits, so its validation still runs.
+#[test]
+fn a_ci_install_with_a_pnpmfile_is_not_decided_from_the_records() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_workspace_with_pnpmfile(&workspace);
+    pacquet
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_arg("install")
+        .assert()
+        .success();
+    trust_recorded_stats(&workspace, mock_instance.url());
+
+    let output = pacquet_in(&workspace)
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_env("TRACE", "pacquet::install=debug")
+        .with_env("CI", "true")
+        .with_arg("install")
+        .output()
+        .expect("run pnpm install");
+
+    let text = combined_output(&output);
+    assert!(output.status.success(), "{text}");
+    assert!(!text.contains(TAKEN_AFTER_CONFIG), "{text}");
+    drop((root, mock_instance));
+}
