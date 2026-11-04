@@ -57,7 +57,7 @@ fn write_fixture(base: &Path, peer_specifier: Option<&str>, explicit_provider: b
     if explicit_provider {
         consumer["dependencies"]["b"] = serde_json::json!("workspace:../packages/b");
     }
-    write_manifest(base, "examples", consumer);
+    write_manifest(base, "examples", &consumer);
     let mut package_a = serde_json::json!({
         "name": "a",
         "version": "1.0.0",
@@ -66,11 +66,11 @@ fn write_fixture(base: &Path, peer_specifier: Option<&str>, explicit_provider: b
     if let Some(peer_specifier) = peer_specifier {
         package_a["peerDependencies"] = serde_json::json!({ "b": peer_specifier });
     }
-    write_manifest(base, "packages/a", package_a);
+    write_manifest(base, "packages/a", &package_a);
     write_manifest(
         base,
         "packages/b",
-        serde_json::json!({ "name": "b", "version": "1.0.0", "main": "index.js" }),
+        &serde_json::json!({ "name": "b", "version": "1.0.0", "main": "index.js" }),
     );
     fs::write(base.join("packages/a/index.js"), "module.exports = require('b');\n")
         .expect("write a entry point");
@@ -85,7 +85,7 @@ fn write_fixture(base: &Path, peer_specifier: Option<&str>, explicit_provider: b
     }
 }
 
-fn write_manifest(base: &Path, dir: &str, manifest: serde_json::Value) {
+fn write_manifest(base: &Path, dir: &str, manifest: &serde_json::Value) {
     let dir = base.join(dir);
     fs::create_dir_all(&dir).expect("create package directory");
     fs::write(dir.join("package.json"), manifest.to_string()).expect("write package manifest");
