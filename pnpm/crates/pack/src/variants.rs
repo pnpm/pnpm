@@ -12,12 +12,12 @@
 //! check the declaration allows before anything is packed;
 //! [`check_archive`] runs the checks of one packed archive.
 
+pub(crate) use export::export_entry_dependencies;
 pub use packing::{PackedArchive, archive_result_json, pack_archives};
 
 mod packing;
 
 mod export;
-pub(crate) use export::export_entry_dependencies;
 #[cfg(test)]
 mod tests;
 

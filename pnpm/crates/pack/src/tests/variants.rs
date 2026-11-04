@@ -226,7 +226,7 @@ fn a_variant_bin_with_a_crlf_shebang_is_refused() {
 /// An entry's patterns are one `files` list: an exclusion applies to the
 /// others, and is not a pattern that matches nothing.
 #[test]
-fn an_entrys_exclusion_applies_to_its_other_patterns() {
+fn an_exclusion_applies_to_the_other_patterns_of_its_entry() {
     let (dir, opts) = fixture(&json!({
         "name": "example-cli",
         "version": "4.0.0",
@@ -310,7 +310,7 @@ fn a_targeted_archive_keeps_the_shared_files_but_not_other_entries_claims() {
 /// The specifiers of an entry's dependencies are replaced as the base
 /// manifest's are.
 #[test]
-fn an_entrys_catalog_dependency_is_replaced() {
+fn a_catalog_dependency_of_an_entry_is_replaced() {
     let mut manifest = addon();
     manifest["publishConfig"]["variants"][1]["manifest"] =
         json!({ "dependencies": { "helper": "catalog:" } });
@@ -389,10 +389,10 @@ fn an_injected_file_supersedes_a_claimed_one() {
             .iter()
             .filter(|name| *name == "package/CHANGELOG.md")
             .count(),
-        1
+        1,
     );
     assert_eq!(
         tarball_entry_content(&tarball, "package/CHANGELOG.md").as_deref(),
-        Some("composed")
+        Some("composed"),
     );
 }
