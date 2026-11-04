@@ -145,9 +145,6 @@ impl Walker<'_> {
     }
 
     pub(in super::super) fn hoist_peer_specifier(&self, info: &MissingPeerInfo) -> String {
-        if !info.range.starts_with("workspace:.") {
-            return info.range.clone();
-        }
         let (Some(project_dir), Some(lockfile_dir)) =
             (self.opts.project_dir.as_deref(), self.opts.links.lockfile_dir.as_deref())
         else {
@@ -159,9 +156,11 @@ impl Walker<'_> {
         else {
             return info.range.clone();
         };
-        pnpm_local_spec::LocalSpec::parse_workspace_path(&info.range, &declaring_dir)
-            .expect("workspace path checked above")
-            .render(Some(project_dir))
+        pnpm_local_spec::LocalSpec::parse_filesystem(&info.range, &declaring_dir)
+            .or_else(|| {
+                pnpm_local_spec::LocalSpec::parse_workspace_path(&info.range, &declaring_dir)
+            })
+            .map_or_else(|| info.range.clone(), |spec| spec.render(Some(project_dir)))
     }
 
     /// Build the [`PeerId`] contribution for one resolved peer.

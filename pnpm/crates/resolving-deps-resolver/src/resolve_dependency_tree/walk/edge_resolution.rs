@@ -417,6 +417,8 @@ pub(super) fn register_seeded_package(
             result,
             peer_shadowed,
             catalogs_for_children(ctx, resolves_children_through_catalogs),
+            ctx.catalogs_dir.as_deref(),
+            &ctx.importer.lockfile_dir,
         )?,
     };
     register_peer_dep_names(ctx, peer_set.taken());
