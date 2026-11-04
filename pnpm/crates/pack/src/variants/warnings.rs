@@ -28,7 +28,13 @@ pub(crate) fn warn_about_declaration<Reporter: self::Reporter>(
     let has_platform_variants = declaration.entries
         .iter()
         .any(|entry| !entry.is_any());
-    if has_platform_variants && base.get("files").is_none() {
+    // The packlist reads a `files` that is not an array as none.
+    if has_platform_variants
+        && base
+            .get("files")
+            .and_then(Value::as_array)
+            .is_none()
+    {
         warn::<Reporter>(
             dir,
             "publishConfig.variants declares platform variants, but the package has no \

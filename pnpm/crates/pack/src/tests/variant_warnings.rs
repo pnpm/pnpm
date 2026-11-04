@@ -98,6 +98,23 @@ fn platform_variants_without_files_warn() {
     assert!(warnings[0].contains(r#"has no "files" field"#), "{}", warnings[0]);
 }
 
+/// A `files` that is not an array lists nothing, as no `files` does.
+#[test]
+fn platform_variants_with_a_files_that_is_no_list_warn() {
+    recording_reporter!(Recording, EVENTS);
+    let (dir, opts) = fixture(&declaration(
+        Some(Value::Null),
+        &json!([
+            { "targets": ["any"], "files": ["lib.js"] },
+            { "targets": ["linux-x64"], "files": ["native/cli"] },
+        ]),
+    ));
+    touch(dir.path(), "lib.js", "");
+    touch(dir.path(), "native/cli", "");
+    let warnings = warnings::<Recording>(&opts, &EVENTS);
+    assert_eq!(warnings.len(), 1, "{warnings:?}");
+}
+
 /// An `any` entry alone ships no file in two archives, so it needs no
 /// `files`.
 #[test]

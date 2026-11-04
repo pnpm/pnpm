@@ -8,7 +8,7 @@
 //! `dist` and no plain attachment; pnpr generates the archive npm's
 //! documents point to.
 
-use super::{PackedPkg, PublishPackedPkgError, Value, registry_for_display};
+use super::{PackedPkg, PublishPackedPkgError, Value, clean_version, registry_for_display};
 use crate::{registry_config_keys::NormalizedRegistryUrl, staged_archives::StagedArchive};
 use std::collections::HashSet;
 
@@ -71,7 +71,8 @@ pub(super) fn staged_archives<'a>(
 /// Make `document` reference the staged archives instead of carrying them:
 /// the `any` archive's attachment names its integrity, each variant gets an
 /// attachment named after it, and a version without an `any` archive loses
-/// its `dist` and plain attachment.
+/// its `dist` and plain attachment. `version` is the manifest's, which may
+/// carry build metadata.
 pub(super) fn reference_staged_archives(document: &mut Value, pkg: &PackedPkg<'_>, version: &str) {
     let Some(attachments) = document.get_mut("_attachments").and_then(Value::as_object_mut) else {
         return;
@@ -104,10 +105,12 @@ pub(super) fn reference_staged_archives(document: &mut Value, pkg: &PackedPkg<'_
             }),
         );
     }
+    // The document keys the version as npm does, without build metadata.
+    let key = clean_version(version).unwrap_or_else(|_| version.to_string());
     if !pkg.any_archive
         && let Some(version) = document
             .pointer_mut("/versions")
-            .and_then(|versions| versions.get_mut(version))
+            .and_then(|versions| versions.get_mut(&key))
             .and_then(Value::as_object_mut)
     {
         version.shift_remove("dist");

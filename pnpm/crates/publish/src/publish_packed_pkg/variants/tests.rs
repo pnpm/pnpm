@@ -101,3 +101,16 @@ fn provenance_is_refused_for_a_version_with_variants() {
     check_provenance(&pkg(&manifest, b"any", &variants), None).unwrap();
     check_provenance(&pkg(&manifest, b"any", &[]), Some(true)).unwrap();
 }
+
+/// The document keys a version without build metadata, as npm does, so a
+/// version published without an `any` archive loses its `dist` whatever
+/// build metadata its manifest's version carries.
+#[test]
+fn a_version_with_build_metadata_without_an_any_archive_has_no_dist() {
+    let manifest = json!({ "name": "example-cli", "version": "4.0.0+build" });
+    let variants = [PackedVariant { tag: "win32-x64".into(), tarball_data: b"win".to_vec() }];
+    let pkg = pkg(&manifest, b"", &variants);
+    let mut document = document();
+    reference_staged_archives(&mut document, &pkg, "4.0.0+build");
+    assert!(document["versions"]["4.0.0"].get("dist").is_none(), "{document}");
+}
