@@ -7,6 +7,132 @@ use base64::Engine;
 use pnpr_storage::layout::{local_blob_path, local_package_dir};
 
 #[tokio::test]
+async fn publish_rejects_a_non_semver_version_key_before_storing_anything() {
+    let tmp = TempDir::new().unwrap();
+    let app = router(static_config(tmp.path().to_path_buf()));
+    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+    for (name, invalid_version) in [("mypkg", "banana"), ("mypkg2", "01.0.0")] {
+        let mut body = publish_doc(name, "1.0.0", b"tarball-bytes");
+        let mut version = body["versions"]
+            .as_object_mut()
+            .unwrap()
+            .remove("1.0.0")
+            .unwrap();
+        version["version"] = json!(invalid_version);
+        body["versions"][invalid_version] = version;
+
+        let response = app
+            .clone()
+            .oneshot(
+                Request::put(format!("/npm/{name}"))
+                    .header("content-type", "application/json")
+                    .header("Authorization", format!("Bearer {token}"))
+                    .body(Body::from(serde_json::to_vec(&body).unwrap()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let reason = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
+        assert!(reason.contains(invalid_version), "{reason}");
+        assert!(reason.contains("semver"), "{reason}");
+        assert!(
+            pnpr_fixtures::read_hosted_document(tmp.path(), "", pnpr_storage::Ecosystem::Npm, name)
+                .is_none(),
+        );
+    }
+}
+
+#[tokio::test]
+async fn publish_rejects_a_non_semver_manifest_version_before_storing_anything() {
+    let tmp = TempDir::new().unwrap();
+    let app = router(static_config(tmp.path().to_path_buf()));
+    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+    for (name, manifest_version) in [
+        ("mypkg", Some(json!("banana"))),
+        ("mypkg2", Some(json!("01.0.0"))),
+        ("mypkg3", Some(json!(null))),
+        ("mypkg4", Some(json!(1))),
+        ("mypkg5", None),
+    ] {
+        let mut body = publish_doc(name, "1.0.0", b"tarball-bytes");
+        if let Some(manifest_version) = manifest_version {
+            body["versions"]["1.0.0"]["version"] = manifest_version;
+        } else {
+            body["versions"]["1.0.0"]
+                .as_object_mut()
+                .unwrap()
+                .remove("version");
+        }
+        let response = app
+            .clone()
+            .oneshot(
+                Request::put(format!("/npm/{name}"))
+                    .header("content-type", "application/json")
+                    .header("Authorization", format!("Bearer {token}"))
+                    .body(Body::from(serde_json::to_vec(&body).unwrap()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let reason = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
+        assert!(reason.contains("semver"), "{reason}");
+        assert!(
+            pnpr_fixtures::read_hosted_document(tmp.path(), "", pnpr_storage::Ecosystem::Npm, name)
+                .is_none(),
+        );
+    }
+}
+
+#[tokio::test]
+async fn publish_rejects_a_version_that_does_not_match_its_key() {
+    let tmp = TempDir::new().unwrap();
+    let app = router(static_config(tmp.path().to_path_buf()));
+    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+    let mut body = publish_doc("mypkg", "1.0.0", b"tarball-bytes");
+    body["versions"]["1.0.0"]["version"] = json!("2.0.0");
+
+    let response = app
+        .oneshot(
+            Request::put("/npm/mypkg")
+                .header("content-type", "application/json")
+                .header("Authorization", format!("Bearer {token}"))
+                .body(Body::from(serde_json::to_vec(&body).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    let reason = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
+    assert!(reason.contains("does not match"), "{reason}");
+    assert!(
+        pnpr_fixtures::read_hosted_document(tmp.path(), "", pnpr_storage::Ecosystem::Npm, "mypkg")
+            .is_none(),
+    );
+}
+
+#[tokio::test]
+async fn publish_accepts_a_valid_prerelease_version() {
+    let tmp = TempDir::new().unwrap();
+    let app = router(static_config(tmp.path().to_path_buf()));
+    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+    let body = publish_doc("mypkg", "1.0.0-beta.2", b"tarball-bytes");
+
+    let response = app
+        .oneshot(
+            Request::put("/npm/mypkg")
+                .header("content-type", "application/json")
+                .header("Authorization", format!("Bearer {token}"))
+                .body(Body::from(serde_json::to_vec(&body).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED);
+}
+
+#[tokio::test]
 async fn anonymous_publish_is_rejected() {
     let tmp = TempDir::new().unwrap();
     let app = router(static_config(tmp.path().to_path_buf()));

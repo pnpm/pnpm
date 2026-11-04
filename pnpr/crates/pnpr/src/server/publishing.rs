@@ -27,6 +27,13 @@ use axum::response::{IntoResponse, Response};
 use serde_json::Value;
 use ssri::Integrity;
 
+use super::{
+    Action, AppState, HostedGate, RegistrySource, WriteTarget, authorize_package,
+    authorized_upstream, default_registry_target, hosted_gate, hosted_storage,
+    resolve_ecosystem_source, resolve_write_target, restore_tgz_integrities,
+    staged_archives::StagedReferences, tar_integrity_of, tgz_integrity_key,
+};
+use node_semver::Version;
 use pnpr_error::RegistryError;
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_policy::Identity;
@@ -38,13 +45,6 @@ use pnpr_storage::{
         PendingAttachment, extract_attachments, now_iso, stream_decode_verify_and_write,
         verify_and_write, write_sigstore_bundle,
     },
-};
-
-use super::{
-    Action, AppState, HostedGate, RegistrySource, WriteTarget, authorize_package,
-    authorized_upstream, default_registry_target, hosted_gate, hosted_storage,
-    resolve_ecosystem_source, resolve_write_target, restore_tgz_integrities,
-    staged_archives::StagedReferences, tar_integrity_of, tgz_integrity_key,
 };
 
 /// Where a publish of `package` writes, given an optional explicit `/~<name>/`.
@@ -204,7 +204,7 @@ pub(super) async fn publish_package(
         Ok(v) => v,
         Err(err) => return RegistryError::Json(err).into_response(),
     };
-    if let Err(err) = check_body_name(&name, &incoming) {
+    if let Err(err) = check_body(&name, &incoming) {
         return err.into_response();
     }
 
@@ -259,21 +259,64 @@ async fn stage_and_commit(
     Ok(publish_committed_response(&receipt))
 }
 
+fn check_body(name: &CanonicalPackageName, incoming: &Value) -> Result<(), RegistryError> {
+    check_body_name(name, incoming)?;
+    check_body_versions(incoming)
+}
+
 /// Reject a publish whose body name disagrees with the URL. npm and verdaccio
 /// answer 400 here too; without this check a misrouted `PUT` would overwrite
 /// another package's document.
 fn check_body_name(name: &CanonicalPackageName, incoming: &Value) -> Result<(), RegistryError> {
     let body_name = incoming.get("name").and_then(Value::as_str);
-    if body_name.is_none_or(|body_name| body_name == name.as_str()) {
-        return Ok(());
+    if body_name.is_some_and(|body_name| body_name != name.as_str()) {
+        return Err(RegistryError::BadRequest {
+            reason: format!(
+                "package in URL ({:?}) does not match body ({:?})",
+                name.as_str(),
+                body_name.unwrap_or(""),
+            ),
+        });
     }
-    Err(RegistryError::BadRequest {
-        reason: format!(
-            "package in URL ({:?}) does not match body ({:?})",
-            name.as_str(),
-            body_name.unwrap_or(""),
-        ),
-    })
+    Ok(())
+}
+
+fn check_body_versions(incoming: &Value) -> Result<(), RegistryError> {
+    let Some(versions) = incoming.get("versions").and_then(Value::as_object) else {
+        return Ok(());
+    };
+    for (version_key, manifest) in versions {
+        if !is_valid_semver(version_key) {
+            return Err(RegistryError::BadRequest {
+                reason: format!("version key {version_key:?} is not valid semver"),
+            });
+        }
+        let manifest_version = manifest.get("version").and_then(Value::as_str);
+        let Some(manifest_version) = manifest_version else {
+            return Err(RegistryError::BadRequest {
+                reason: format!("version key {version_key:?} has no valid semver manifest version"),
+            });
+        };
+        if !is_valid_semver(manifest_version) {
+            return Err(RegistryError::BadRequest {
+                reason: format!(
+                    "manifest version {manifest_version:?} for version key {version_key:?} is not valid semver",
+                ),
+            });
+        }
+        if version_key != manifest_version {
+            return Err(RegistryError::BadRequest {
+                reason: format!(
+                    "version key {version_key:?} does not match manifest version {manifest_version:?}",
+                ),
+            });
+        }
+    }
+    Ok(())
+}
+
+fn is_valid_semver(raw: &str) -> bool {
+    Version::parse(raw).is_ok_and(|version| version.to_string() == raw)
 }
 
 /// The version note at the top of a single npm publish document.
