@@ -23,7 +23,10 @@ impl<'a> ManifestTransforms<'a> {
             .transpose()
             .map_err(|_| "packageExtensions cannot be parsed")?;
         let overrider = parsed_overrides.map(|parsed| {
-            crate::VersionsOverrider::new(parsed, check.workspace_root)
+            crate::VersionsOverrider::new(
+                parsed,
+                check.config.root_project_manifest_dir(check.workspace_root),
+            )
         });
         Ok(Self { extender, hook: read_package_hook(check)?, parsed_overrides, overrider })
     }

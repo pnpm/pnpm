@@ -38,6 +38,9 @@ const ALTERNATE_MANIFEST_NAMES = ['package.yaml', 'package.json5']
  */
 class PackWalker extends npmPacklist.Walker {
   override onReaddir (entries: string[]): void {
+    if (this.isPackage) {
+      entries = entries.filter((entry) => !isLockfileStagingFile(entry))
+    }
     if (
       this.isPackage &&
       !entries.includes('package.json') &&
@@ -87,6 +90,18 @@ class PackWalker extends npmPacklist.Walker {
     }
     return rules
   }
+}
+
+/**
+ * A temporary file pnpm writes next to `pnpm-lock.yaml` and renames over it.
+ * Another project's install can create and remove it while a package root is
+ * walked, so it is never part of the package.
+ */
+export function isLockfileStagingFile (fileName: string): boolean {
+  const prefix = '.pnpm-lock.yaml.'
+  if (!fileName.startsWith(prefix)) return false
+  const [pid, id, extension, ...rest] = fileName.slice(prefix.length).split('.')
+  return rest.length === 0 && extension === 'tmp' && id !== '' && pid !== '' && [...pid].every((char) => char >= '0' && char <= '9')
 }
 
 // ignore-walk's onstat, which npm-packlist overrides to skip everything that

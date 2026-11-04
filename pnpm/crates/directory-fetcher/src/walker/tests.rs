@@ -47,6 +47,7 @@ fn walk_all_files_recurses_and_returns_relative_paths() {
     let root = dir.path();
     touch(root, "package.json");
     touch(root, "index.js");
+    touch(root, ".pnpm-lock.yaml.123.0.tmp");
     touch(root, "lib/inner.js");
     touch(root, "lib/nested/deep.js");
 
@@ -284,6 +285,7 @@ fn walk_package_files_applies_npm_packlist_filter() {
     .unwrap();
     touch(root, "dist/index.js");
     touch(root, "dist/sub/inner.js");
+    touch(root, ".pnpm-lock.yaml.123.0.tmp");
     touch(root, "src/internal.ts");
 
     let out = walk_package_files(root).unwrap();
@@ -294,6 +296,21 @@ fn walk_package_files_applies_npm_packlist_filter() {
         rels,
         vec!["dist/index.js".to_string(), "dist/sub/inner.js".into(), "package.json".into(),],
     );
+}
+
+#[test]
+fn walk_package_files_skips_lockfile_staging_files() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    fs::write(root.join("package.json"), "{}").unwrap();
+    touch(root, "index.js");
+    touch(root, ".pnpm-lock.yaml.123.0.tmp");
+
+    let out = walk_package_files(root).unwrap();
+    let mut rels: Vec<_> = out.keys().cloned().collect();
+    rels.sort();
+
+    assert_eq!(rels, vec!["index.js".to_string(), "package.json".into()]);
 }
 
 #[test]

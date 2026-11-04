@@ -5,7 +5,6 @@ import { DEFAULT_REGISTRIES_BY_SCOPE, normalizeRegistriesByScope } from '@pnpm/c
 import { parseOverrides, type VersionOverride } from '@pnpm/config.parse-overrides'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
-import { createReadPackageHook } from '@pnpm/hooks.read-package-hook'
 import type { CustomFetcher, CustomResolver, PreResolutionHookContext } from '@pnpm/hooks.types'
 import type { ProjectOptions } from '@pnpm/installing.context'
 import type { HoistingLimits } from '@pnpm/installing.deps-restorer'
@@ -17,6 +16,7 @@ import type { AllowedDeprecatedVersions, PackageExtension, PackageVulnerabilityA
 
 import { pnpmPkgJson } from '../pnpmPkgJson.js'
 import type { ReporterFunction } from '../types.js'
+import { createInstallReadPackageHook } from './createInstallReadPackageHook.js'
 
 export interface StrictInstallOptions extends RegistryContext {
   autoConfirmAllPrompts: boolean
@@ -79,6 +79,8 @@ export interface StrictInstallOptions extends RegistryContext {
   forceIgnoresPlatform: boolean
   depth: number
   lockfileDir: string
+  /** The directory relative local paths in `overrides` resolve from: a pinned `lockfileDir`, else the workspace root. */
+  overridesRootDir: string
   workspaceDir?: string
   sharedWorkspaceLockfile: boolean
   modulesDir: string
@@ -321,6 +323,7 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
     confirmModulesPurge: !(opts.autoConfirmAllPrompts || opts.force),
     deploy: opts.deploy ?? false,
     lockfileDir: opts.lockfileDir ?? opts.dir ?? process.cwd(),
+    overridesRootDir: opts.lockfileDir ?? opts.workspaceDir ?? opts.dir ?? process.cwd(),
     workspaceDir: opts.workspaceDir,
     nodeVersion: opts.nodeVersion,
     packageManager,
@@ -526,19 +529,4 @@ function applyGlobalVirtualStoreOptions (opts: ProcessedInstallOptions): void {
   opts.globalVirtualStoreDir = opts.enableGlobalVirtualStore
     ? opts.virtualStoreDir!
     : path.join(opts.storeDir, 'links')
-}
-
-export function createInstallReadPackageHook (
-  opts: Pick<ProcessedInstallOptions, 'convergeDeclaredRanges' | 'hooks' | 'ignoreCompatibilityDb' | 'ignoredOptionalDependencies' | 'lockfileDir' | 'packageExtensions'>,
-  parsedOverrides: VersionOverride[]
-): ReadPackageHook | undefined {
-  return createReadPackageHook({
-    ignoreCompatibilityDb: opts.ignoreCompatibilityDb,
-    readPackageHook: opts.hooks?.readPackage,
-    overrides: parsedOverrides,
-    convergeDeclaredRanges: opts.convergeDeclaredRanges,
-    lockfileDir: opts.lockfileDir,
-    packageExtensions: opts.packageExtensions,
-    ignoredOptionalDependencies: opts.ignoredOptionalDependencies,
-  })
 }
