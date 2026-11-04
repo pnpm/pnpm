@@ -103,7 +103,6 @@ fn refuses_a_tag_that_names_no_platform() {
     );
 }
 
-/// A platform listed as a tag takes the packages built for its system.
 #[test]
 fn a_listed_tag_takes_the_packages_of_its_system() {
     let listed = crate::SupportedArchitectures::Platforms(vec![
@@ -124,4 +123,12 @@ fn a_listed_tag_takes_the_packages_of_its_system() {
     assert!(takes("linux", "arm64", "glibc"));
     assert!(!takes("linux", "x64", "glibc"));
     assert!(!takes("linux", "arm64", "musl"));
+}
+
+#[test]
+fn an_entry_naming_two_c_libraries_is_refused() {
+    for entry in ["linux-x64-glibc-musl", "linux-x64-musl-gnu", "linux-x64-musl-manylinux_2_28"] {
+        let parsed = entry.parse::<SupportedPlatform>();
+        assert!(parsed.is_err(), "{entry} parsed as {parsed:?}");
+    }
 }

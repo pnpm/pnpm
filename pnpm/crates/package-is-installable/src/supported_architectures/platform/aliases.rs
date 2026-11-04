@@ -37,7 +37,16 @@ fn platform_name(entry: &str, os: &str, rest: &str) -> Result<Spelled, UnknownPl
     };
     let mut tag = format!("{os}-{cpu}");
     let mut musllinux = None;
+    let mut named_family = None;
     for part in parts {
+        // glibc is left out of the tag, so naming it beside musl would
+        // otherwise read as musl alone.
+        if let Some(family) = libc_family(part) {
+            if named_family.is_some_and(|named| named != family) {
+                return Err(unknown(entry));
+            }
+            named_family = Some(family);
+        }
         match libc_part(entry, os, part)? {
             LibcPart::Unsaid => {}
             LibcPart::Musllinux => {
@@ -51,6 +60,17 @@ fn platform_name(entry: &str, os: &str, rest: &str) -> Result<Spelled, UnknownPl
         }
     }
     Ok(Spelled { tag, architecture, musllinux })
+}
+
+/// The C library `part` names, by any of its spellings.
+fn libc_family(part: &str) -> Option<LibcFamily> {
+    match part {
+        "glibc" | "gnu" => Some(LibcFamily::Glibc),
+        "musl" => Some(LibcFamily::Musl),
+        _ if part.starts_with("manylinux") => Some(LibcFamily::Glibc),
+        _ if part.starts_with("musllinux") => Some(LibcFamily::Musl),
+        _ => None,
+    }
 }
 
 /// How one part after `<os>-<cpu>` is written in the tag.
