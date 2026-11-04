@@ -102,7 +102,7 @@ fn deduplicate_all(
     let mut remaining = duplicates.to_vec();
     let mut merged: HashMap<DepPath, DepPath> = HashMap::default();
     loop {
-        let (next, survivors) = deduplicate_dep_paths(&remaining, graph);
+        let (next, survivors) = deduplicate_round(&remaining, graph);
         if next.is_empty() {
             return merged;
         }
@@ -115,6 +115,43 @@ fn deduplicate_all(
         merged.extend(next);
         remaining = survivors;
     }
+}
+
+fn deduplicate_round(
+    duplicates: &[Vec<DepPath>],
+    graph: &DependenciesGraph,
+) -> (HashMap<DepPath, DepPath>, Vec<Vec<DepPath>>) {
+    let (next, mut survivors) = deduplicate_dep_paths(duplicates, graph);
+    if !next.is_empty() {
+        return (next, survivors);
+    }
+    let next = collapse_cycle(graph, duplicates);
+    for group in &mut survivors {
+        group.retain(|path| !next.contains_key(path));
+    }
+    (next, survivors)
+}
+
+// A cycle has no leaf whose collapse can start the next round. Collapse one
+// compatible pair to break that dependency, then settle its children again.
+fn collapse_cycle(
+    graph: &DependenciesGraph,
+    duplicates: &[Vec<DepPath>],
+) -> HashMap<DepPath, DepPath> {
+    for group in duplicates {
+        let mut paths = group.clone();
+        sort_variants(graph, &mut paths);
+        while let Some(largest) = paths.pop() {
+            let candidate = paths
+                .iter()
+                .rev()
+                .find(|candidate| is_compatible_and_has_more_deps(graph, &largest, candidate));
+            if let Some(candidate) = candidate {
+                return HashMap::from_iter([(candidate.clone(), largest)]);
+            }
+        }
+    }
+    HashMap::default()
 }
 
 fn rewrite_children(graph: &mut DependenciesGraph, replacements: &HashMap<DepPath, DepPath>) {
@@ -135,29 +172,17 @@ fn deduplicate_dep_paths(
     duplicates: &[Vec<DepPath>],
     graph: &DependenciesGraph,
 ) -> (HashMap<DepPath, DepPath>, Vec<Vec<DepPath>>) {
-    // Total order over `(dep count, dep path)`: the dep-count sort alone
-    // is not a total order, so a variant that is a subset of several
-    // incompatible larger variants of equal size would collapse into
-    // whichever the unstable position happened to surface first. The
-    // dep-path tie-break makes the winner machine-independent
-    // (pnpm/pnpm#12179).
-    let dep_count_sorter = |dep_path1: &DepPath, dep_path2: &DepPath| {
-        node_deps_count(&graph[dep_path1])
-            .cmp(&node_deps_count(&graph[dep_path2]))
-            .then_with(|| dep_path1.cmp(dep_path2))
-    };
-
     let mut dep_paths_map: HashMap<DepPath, DepPath> = HashMap::default();
     let mut remaining_duplicates: Vec<Vec<DepPath>> = Vec::new();
 
     for dep_paths in duplicates {
         let mut survivors: HashSet<DepPath> = dep_paths.iter().cloned().collect();
         let mut current = dep_paths.clone();
-        current.sort_by(dep_count_sorter);
+        sort_variants(graph, &mut current);
 
         while let Some(largest) = current.pop() {
             absorb_compatible(graph, &largest, &mut current, &mut dep_paths_map, &mut survivors);
-            current.sort_by(dep_count_sorter);
+            sort_variants(graph, &mut current);
         }
 
         if survivors.len() > 1 {
@@ -168,6 +193,20 @@ fn deduplicate_dep_paths(
     }
 
     (dep_paths_map, remaining_duplicates)
+}
+
+fn sort_variants(graph: &DependenciesGraph, paths: &mut [DepPath]) {
+    // Total order over `(dep count, dep path)`: the dep-count sort alone
+    // is not a total order, so a variant that is a subset of several
+    // incompatible larger variants of equal size would collapse into
+    // whichever the unstable position happened to surface first. The
+    // dep-path tie-break makes the winner machine-independent
+    // (pnpm/pnpm#12179).
+    paths.sort_by(|dep_path1, dep_path2| {
+        node_deps_count(&graph[dep_path1])
+            .cmp(&node_deps_count(&graph[dep_path2]))
+            .then_with(|| dep_path1.cmp(dep_path2))
+    });
 }
 
 /// Absorb every remaining variant that `largest` subsumes, leaving the rest

@@ -15,7 +15,7 @@ export function deduplicateAll<Pkg extends PartialResolvedPackage> (
   let remaining = duplicates
   const merged: Record<DepPath, DepPath> = {}
   while (true) {
-    const { depPathsMap, remainingDuplicates } = deduplicateDepPaths(remaining, depGraph)
+    const { depPathsMap, remainingDuplicates } = deduplicateRound(remaining, depGraph)
     if (Object.keys(depPathsMap).length === 0) return merged
     rewriteChildren(depGraph, depPathsMap)
     for (const [collapsed, target] of Object.entries<DepPath>(merged)) {
@@ -24,6 +24,42 @@ export function deduplicateAll<Pkg extends PartialResolvedPackage> (
     Object.assign(merged, depPathsMap)
     remaining = remainingDuplicates
   }
+}
+
+function deduplicateRound<Pkg extends PartialResolvedPackage> (
+  duplicates: Array<Set<DepPath>>,
+  depGraph: GenericDependenciesGraphWithResolvedChildren<Pkg>
+): DeduplicateDepPathsResult {
+  const result = deduplicateDepPaths(duplicates, depGraph)
+  if (Object.keys(result.depPathsMap).length > 0) return result
+  const depPathsMap = collapseCycle(depGraph, duplicates)
+  return {
+    depPathsMap,
+    remainingDuplicates: result.remainingDuplicates.map(group => new Set([...group].filter(path => !depPathsMap[path]))),
+  }
+}
+
+// A cycle has no leaf whose collapse can start the next round. Collapse one
+// compatible pair to break that dependency, then settle its children again.
+function collapseCycle<Pkg extends PartialResolvedPackage> (
+  depGraph: GenericDependenciesGraphWithResolvedChildren<Pkg>,
+  duplicates: Array<Set<DepPath>>
+): Record<DepPath, DepPath> {
+  const sorter = createDepCountSorter(depGraph)
+  const groups = duplicates.filter(group => group.size > 1).sort((left, right) => {
+    const leftId = depGraph[left.values().next().value!].pkgIdWithPatchHash
+    const rightId = depGraph[right.values().next().value!].pkgIdWithPatchHash
+    return leftId < rightId ? -1 : leftId > rightId ? 1 : 0
+  })
+  for (const group of groups) {
+    const paths = [...group].sort(sorter)
+    while (paths.length) {
+      const largest = paths.pop()!
+      const candidate = [...paths].reverse().find(path => isCompatibleAndHasMoreDeps(depGraph, largest, path))
+      if (candidate) return { [candidate]: largest }
+    }
+  }
+  return {}
 }
 
 function rewriteChildren<Pkg extends PartialResolvedPackage> (
