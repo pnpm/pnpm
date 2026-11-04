@@ -104,7 +104,7 @@ fn packs_only_the_named_archive_without_the_other_entries_files() {
             .unwrap()
             .tag
             .as_deref(),
-        Some("linux-x64-musl")
+        Some("linux-x64-musl"),
     );
 }
 

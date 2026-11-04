@@ -39,7 +39,7 @@ fn derives_each_platform_variants_tag_from_its_targets() {
         declaration
             .find("any")
             .unwrap()
-            .is_any()
+            .is_any(),
     );
     assert!(matches!(
         declaration.find("win32-x64"),
@@ -53,7 +53,7 @@ fn a_declaration_without_an_any_entry_has_no_primary() {
     assert!(declaration.primary().is_none());
     assert_eq!(
         VariantDeclaration::read(&json!({ "name": "a", "version": "1.0.0" })).unwrap(),
-        None
+        None,
     );
 }
 
@@ -204,7 +204,7 @@ fn names_a_platform_variants_archive_after_the_primarys() {
     let name = "example-native-addon-2.3.0.tgz";
     assert_eq!(
         archive_file_name(name, "example-native-addon", &declaration.entries[0]).unwrap(),
-        name
+        name,
     );
     assert_eq!(
         archive_file_name(name, "example-native-addon", &declaration.entries[1]).unwrap(),

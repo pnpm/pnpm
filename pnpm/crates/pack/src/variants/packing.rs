@@ -194,6 +194,41 @@ async fn pack_entry<Sys>(
 where
     Sys: FsReadFile + FsFileLen + FsCreateDirAll + FsAtomicWrite + FsIsExecutable,
 {
+    let manifest = checked_manifest(source, entry, files_map)?;
+    let (tarball_name, dest_dir) = archive_destination(opts, source, entry, &manifest)?;
+    let manifest_json = serde_json::to_string_pretty(&manifest)
+        .expect("an archive manifest serializes to JSON")
+        .into_bytes();
+    let unpacked_size = unpacked_size::<Sys>(files_map, manifest_json.len() as u64)?
+        + opts.output.injected_files
+            .iter()
+            .map(|(_, bytes)| bytes.len() as u64)
+            .sum::<u64>();
+    if !opts.output.dry_run {
+        create_dest_dir::<Sys>(&dest_dir)?;
+        let packed = PackedTarball {
+            dest_file: dest_dir.join(&tarball_name),
+            files_map,
+            manifest_json: &manifest_json,
+        };
+        let bins = executable_sources(&manifest, &manifest, &source.dir);
+        write_tarball::<Sys>(&opts.output, &packed, &bins).await?;
+    }
+    Ok(PackResult {
+        contents: packed_contents_with_injected(files_map, &opts.output.injected_files),
+        tarball_path: packed_tarball_path(&opts.dir, &source.dir, &dest_dir, &tarball_name),
+        published_manifest: with_registry_readme(manifest, &source.dir)?,
+        unpacked_size,
+    })
+}
+
+/// The `package.json` of `entry`'s archive, once the archive that holds
+/// `files_map` passes the checks pnpr runs.
+fn checked_manifest(
+    source: &PackSource,
+    entry: &VariantEntry,
+    files_map: &IndexMap<String, PathBuf>,
+) -> Result<Value, PackError> {
     let manifest = VariantDeclaration::archive_manifest(&source.publish_manifest, entry);
     let paths: Vec<&str> = files_map
         .keys()
@@ -201,35 +236,23 @@ where
         .collect();
     check_archive(&source.publish_manifest, entry, &manifest, &paths)
         .map_err(PackError::VariantArchive)?;
-    let (primary_name, pack_destination) =
+    Ok(manifest)
+}
+
+/// The file name of `entry`'s archive and the directory it is written to.
+fn archive_destination(
+    opts: &PackOptions,
+    source: &PackSource,
+    entry: &VariantEntry,
+    manifest: &Value,
+) -> Result<(String, PathBuf), PackError> {
+    let (any_name, pack_destination) =
         resolve_output(&opts.output, &source.normalized_name, &source.published_version)?;
     let package = manifest
         .get("name")
         .and_then(Value::as_str)
         .unwrap_or_default();
     let tarball_name =
-        archive_file_name(&primary_name, package, entry).map_err(PackError::VariantArchive)?;
-    let manifest_json = serde_json::to_string_pretty(&manifest)
-        .expect("an archive manifest serializes to JSON")
-        .into_bytes();
-    let dest_dir = resolve_dest_dir(&source.dir, pack_destination.as_deref());
-    let unpacked_size = unpacked_size::<Sys>(files_map, manifest_json.len() as u64)?
-        + opts.output.injected_files
-            .iter()
-            .map(|(_, bytes)| bytes.len() as u64)
-            .sum::<u64>();
-    let contents = packed_contents_with_injected(files_map, &opts.output.injected_files);
-    if !opts.output.dry_run {
-        create_dest_dir::<Sys>(&dest_dir)?;
-        let bins = executable_sources(&manifest, &manifest, &source.dir);
-        let packed = PackedTarball {
-            dest_file: dest_dir.join(&tarball_name),
-            files_map,
-            manifest_json: &manifest_json,
-        };
-        write_tarball::<Sys>(&opts.output, &packed, &bins).await?;
-    }
-    let tarball_path = packed_tarball_path(&opts.dir, &source.dir, &dest_dir, &tarball_name);
-    let published_manifest = with_registry_readme(manifest, &source.dir)?;
-    Ok(PackResult { published_manifest, contents, tarball_path, unpacked_size })
+        archive_file_name(&any_name, package, entry).map_err(PackError::VariantArchive)?;
+    Ok((tarball_name, resolve_dest_dir(&source.dir, pack_destination.as_deref())))
 }

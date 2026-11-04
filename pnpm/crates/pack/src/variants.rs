@@ -101,7 +101,7 @@ pub enum VariantDeclarationError {
     #[diagnostic(
         code(ERR_PNPM_INVALID_VARIANT_TARGET),
         help(
-            "A platform tag is <os>-<cpu> followed by musl or a glibc floor, an OS floor, an N-API floor or a Node.js ABI, or it is \"wasm32\". If the tag uses a field from a later vocabulary, update pnpm."
+            r#"A platform tag is <os>-<cpu> followed by musl or a glibc floor, an OS floor, an N-API floor or a Node.js ABI, or it is "wasm32". If the tag uses a field from a later vocabulary, update pnpm."#
         )
     )]
     UnknownTarget { target: String, reason: String },
@@ -116,7 +116,7 @@ pub enum VariantDeclarationError {
     #[diagnostic(
         code(ERR_PNPM_INVALID_VARIANTS),
         help(
-            "The \"any\" entry describes the archive of hosts that no platform variant matches, so it lists no platform."
+            r#"The "any" entry describes the archive of hosts that no platform variant matches, so it lists no platform."#
         )
     )]
     AnyWithPlatforms { targets: String },
@@ -143,7 +143,7 @@ pub enum VariantDeclarationError {
     #[diagnostic(
         code(ERR_PNPM_INVALID_VARIANT_MANIFEST),
         help(
-            "Remove it. To restrict where npm clients install the \"any\" archive, set it in that entry's manifest."
+            r#"Remove it. To restrict where npm clients install the "any" archive, set it in that entry's manifest."#
         )
     )]
     BaseFieldInherited { field: String },
@@ -375,7 +375,7 @@ pub enum VariantArchiveError {
     #[diagnostic(
         code(ERR_PNPM_VARIANT_REQUIRES_BUILD),
         help(
-            "A platform variant has an install script or a binding.gyp. Keep a source build in the \"any\" entry: list binding.gyp in its files and its install script in its manifest."
+            r#"A platform variant has an install script or a binding.gyp. Keep a source build in the "any" entry: list binding.gyp in its files and its install script in its manifest."#
         )
     )]
     RequiresBuild { targets: String },
