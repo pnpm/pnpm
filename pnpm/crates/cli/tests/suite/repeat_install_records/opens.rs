@@ -4,8 +4,8 @@
 
 use super::{
     GATE_DECIDED_FROM_RECORDS, combined_output, traced_run, trust_recorded_stats,
-    write_gated_workspace, write_workspace, write_workspace_with_pnpmfile,
-    write_workspace_with_project_lockfiles,
+    write_gated_workspace, write_gated_workspace_with_project_lockfiles, write_workspace,
+    write_workspace_with_pnpmfile, write_workspace_with_project_lockfiles,
 };
 use crate::_utils::pacquet_in;
 use assert_cmd::prelude::*;
@@ -25,8 +25,11 @@ fn count_opens(paths: &[PathBuf], run: impl FnOnce()) -> usize {
     assert!(fd >= 0, "inotify_init1: {}", std::io::Error::last_os_error());
     for path in paths {
         let path = CString::new(path.as_os_str().as_bytes()).expect("a path without NUL");
+        // The kernel merges an event into an identical one left unread at the
+        // tail of the queue, so the closes keep back-to-back opens apart.
+        let mask = libc::IN_OPEN | libc::IN_CLOSE;
         // SAFETY: `fd` is the inotify descriptor above and `path` outlives the call.
-        let watch = unsafe { libc::inotify_add_watch(fd, path.as_ptr(), libc::IN_OPEN) };
+        let watch = unsafe { libc::inotify_add_watch(fd, path.as_ptr(), mask) };
         assert!(watch >= 0, "inotify_add_watch: {}", std::io::Error::last_os_error());
     }
     run();
@@ -203,5 +206,61 @@ fn an_up_to_date_install_with_project_lockfiles_opens_no_project_manifest() {
         count_opens(&project_manifests(&workspace), || install(&workspace, mock_instance.url()));
 
     assert_eq!(opens, 0);
+    drop((root, mock_instance));
+}
+
+/// The gates of a recursive command share one discovery of the workspace
+/// projects. The gates add two reads of `a`'s manifest to the command's own,
+/// that discovery and `a`'s own gate, however many projects link workspace
+/// commands.
+#[test]
+fn a_recursive_exec_with_project_lockfiles_discovers_the_projects_once() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_gated_workspace_with_project_lockfiles(&workspace);
+    install(&workspace, mock_instance.url());
+
+    let opens = count_opens(&[workspace.join("packages/a/package.json")], || {
+        pacquet_in(&workspace)
+            .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+            .with_args(["-r", "exec", "true"])
+            .assert()
+            .success();
+    });
+
+    assert!((3..=4).contains(&opens), "packages/a/package.json was opened {opens} times");
+    drop((root, mock_instance));
+}
+
+/// A gate that finds its project out of date leaves the next gate to
+/// discover the workspace projects again, since an install in between may
+/// have changed their manifests.
+#[test]
+fn a_recursive_exec_with_project_lockfiles_rediscovers_after_an_outdated_gate() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_gated_workspace_with_project_lockfiles(&workspace);
+    install(&workspace, mock_instance.url());
+    let outdated = serde_json::json!({
+        "name": "b",
+        "version": "1.0.0",
+        "bin": { "b": "cli.js" },
+        "peerDependencies": { "is-positive": "1.0.0" },
+    });
+    fs::write(workspace.join("packages/b/package.json"), outdated.to_string())
+        .expect("edit packages/b/package.json");
+
+    let opens = count_opens(&[workspace.join("packages/a/package.json")], || {
+        pacquet_in(&workspace)
+            .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+            .with_env("PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN", "warn")
+            .with_args(["-r", "exec", "true"])
+            .assert()
+            .success();
+    });
+
+    assert!(opens >= 5, "packages/a/package.json was opened {opens} times");
     drop((root, mock_instance));
 }

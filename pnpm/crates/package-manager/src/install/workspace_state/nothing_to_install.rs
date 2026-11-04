@@ -25,6 +25,7 @@ pub(super) fn projects_have_nothing_to_install(inputs: &GateInputs<'_>) -> bool 
         workspace_manifest,
         workspace_root,
         lockfile_root,
+        ..
     } = *inputs;
     if manifest.path().parent() != Some(lockfile_root)
         || project_has_install_work(config, manifest)
