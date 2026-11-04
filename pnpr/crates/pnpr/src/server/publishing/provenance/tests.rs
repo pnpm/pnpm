@@ -75,3 +75,32 @@ fn names_an_archive_by_any_spelling_of_its_name_but_not_of_its_variant() {
     assert!(!names("pkg:npm/legacy!pkg@1.0.0?variant=linux-x64+linux-arm64", &variant));
     assert!(!names("pkg:npm/legacy!pkg@1.0.0", &variant));
 }
+
+#[test]
+fn reads_a_url_safe_unpadded_payload_and_skips_unnamed_subjects() {
+    use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+
+    let statement = json!({
+        "_type": "https://in-toto.io/Statement/v1",
+        "subject": [
+            { "digest": { "sha512": "cd" } },
+            { "name": "pkg:npm/a@1.0.0", "digest": { "sha512": "ab" } },
+        ],
+        "predicateType": "https://slsa.dev/provenance/v1",
+        "predicate": { "note": "~~~???>>>" },
+    });
+    let payload = URL_SAFE_NO_PAD.encode(statement.to_string());
+    assert!(payload.contains(['-', '_']), "the payload uses the URL-safe alphabet");
+    let bundle = json!({
+        "dsseEnvelope": {
+            "payload": payload,
+            "payloadType": "application/vnd.in-toto+json",
+            "signatures": [],
+        },
+    })
+    .to_string();
+    assert_eq!(
+        statement_subjects(&bundle).unwrap(),
+        vec![("pkg:npm/a@1.0.0".to_string(), "ab".to_string())],
+    );
+}

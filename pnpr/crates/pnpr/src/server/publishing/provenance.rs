@@ -14,9 +14,10 @@ use super::{
     variants::PublishedVariant,
 };
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
-use pnpm_release_record::{IN_TOTO_PAYLOAD_TYPE, Purl, STATEMENT_TYPE, Statement};
+use pnpm_release_record::{IN_TOTO_PAYLOAD_TYPE, Purl, STATEMENT_TYPE, decode_base64};
 use pnpr_error::RegistryError;
 use pnpr_package_name::CanonicalPackageName;
+use serde::Deserialize;
 use serde_json::Value;
 use ssri::{Algorithm, Integrity};
 use std::{collections::BTreeMap, fmt::Write as _};
@@ -59,18 +60,32 @@ fn statement_subjects(data: &str) -> Result<Vec<(String, String)>, String> {
     if payload_type != Some(IN_TOTO_PAYLOAD_TYPE) {
         return Err(format!("its DSSE payload type is not {IN_TOTO_PAYLOAD_TYPE}"));
     }
-    let payload = BASE64
-        .decode(payload.trim())
-        .map_err(|err| format!("its DSSE payload is not base64: {err}"))?;
-    let statement: Statement = serde_json::from_slice(&payload)
+    let payload = decode_base64(payload.trim()).ok_or("its DSSE payload is not base64")?;
+    let statement: IncomingStatement = serde_json::from_slice(&payload)
         .map_err(|err| format!("its DSSE payload is not an in-toto statement: {err}"))?;
     if !STATEMENT_TYPES.contains(&statement.statement_type.as_str()) {
         return Err(format!("its statement type {} is not in-toto's", statement.statement_type));
     }
     Ok(statement.subject
         .into_iter()
-        .filter_map(|subject| Some((subject.name, subject.digest.get("sha512")?.to_lowercase())))
+        .filter_map(|subject| Some((subject.name?, subject.digest.get("sha512")?.to_lowercase())))
         .collect())
+}
+
+/// The part of a publisher's in-toto statement this check reads. A subject
+/// may have no name, as in-toto allows; such a subject names no archive.
+#[derive(Deserialize)]
+struct IncomingStatement {
+    #[serde(rename = "_type")]
+    statement_type: String,
+    subject: Vec<IncomingSubject>,
+}
+
+#[derive(Deserialize)]
+struct IncomingSubject {
+    name: Option<String>,
+    #[serde(default)]
+    digest: BTreeMap<String, String>,
 }
 
 /// Refuse a version with a statement unless the statement names each

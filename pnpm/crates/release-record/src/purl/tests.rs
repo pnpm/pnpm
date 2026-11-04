@@ -142,4 +142,6 @@ fn spells_a_purl_canonically() {
         "pkg:npm/legacy%21pkg@1.0.0",
     );
     assert_eq!(Purl::from_string_unchecked("not a purl".to_owned()).canonical(), None);
+    let vcs = "pkg:npm/legacy!pkg@1.0.0?vcs_url=git%2Bhttps://example.com/legacy.git";
+    assert_eq!(Purl::from_string_unchecked(vcs.to_owned()).canonical(), None);
 }

@@ -140,11 +140,17 @@ impl Purl {
 
     /// The canonical spelling of an `npm`, `cargo`, or `pypi` PURL: the one
     /// its type's builder makes from this PURL's decoded components, or
-    /// `None` if they do not parse or do not build. `pkg:npm/legacy!pkg@1.0.0`,
-    /// as npm writes it, is `pkg:npm/legacy%21pkg@1.0.0`.
+    /// `None` if they do not parse, do not build, or carry a qualifier the
+    /// builder does not keep, such as an npm PURL's `vcs_url`.
+    /// `pkg:npm/legacy!pkg@1.0.0`, as npm writes it, is
+    /// `pkg:npm/legacy%21pkg@1.0.0`.
     #[must_use]
     pub fn canonical(&self) -> Option<Self> {
-        self.rebuild()
+        let rebuilt = self.rebuild()?;
+        let qualifiers = |purl: &Purl| {
+            Components::parse(&purl.0).map(|parts| parts.qualifiers.len())
+        };
+        (qualifiers(self)? == qualifiers(&rebuilt)?).then_some(rebuilt)
     }
 
     /// The PURL its type's builder makes from this PURL's decoded
